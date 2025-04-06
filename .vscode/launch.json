@@ -1,0 +1,75 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "运行主应用程序",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/app/main.go",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "GOHUB_ENV": "development"
+            },
+            "args": []
+        },
+        {
+            "name": "运行带调试信息",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/cmd/app/main.go",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "GOHUB_ENV": "development",
+                "DEBUG": "true"
+            },
+            "args": []
+        },
+        {
+            "name": "测试当前文件",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "program": "${file}",
+            "env": {
+                "GOHUB_ENV": "testing"
+            },
+            "args": ["-v"]
+        },
+        {
+            "name": "测试当前包",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "program": "${fileDirname}",
+            "env": {
+                "GOHUB_ENV": "testing"
+            },
+            "args": ["-v"]
+        },
+        {
+            "name": "调试示例程序",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/test/debug_sample.go",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "GOHUB_ENV": "development",
+                "DEBUG": "true"
+            },
+            "args": []
+        },
+        {
+            "name": "远程调试",
+            "type": "go",
+            "request": "attach",
+            "mode": "remote",
+            "remotePath": "${workspaceFolder}",
+            "port": 2345,
+            "host": "127.0.0.1",
+            "showLog": true
+        }
+    ]
+} 

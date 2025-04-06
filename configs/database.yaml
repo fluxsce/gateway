@@ -1,0 +1,78 @@
+# 数据库配置
+database:
+  # 默认连接名称
+  default: mysql
+  
+  # 各种数据库连接的配置
+  connections:
+    # MySQL 主连接
+    mysql:
+      driver: mysql
+      enabled: true # 启用状态（可选，默认为true）
+      dsn: "" # 如果提供DSN，将忽略下面的结构化配置
+      connection:
+        host: rm-bp1i81ckdj72o6vy2ao.mysql.rds.aliyuncs.com
+        port: 3306
+        username: root
+        password: "!@#wwe123"
+        database: wms_ftest
+        charset: utf8mb3
+        parse_time: true
+        loc: Local
+      pool:
+        max_open_conns: 100
+        max_idle_conns: 25
+        conn_max_lifetime: 3600 # 秒
+        conn_max_idle_time: 1800 # 秒
+      log:
+        slow_threshold: 200 # 毫秒，超过此时间的查询被视为慢查询
+        log_level: info # 日志级别: debug, info, warn, error
+      transaction:
+        default_isolation: 3 # 默认隔离级别: 1=读未提交, 2=读已提交, 3=可重复读, 4=可串行化
+
+    # MySQL 只读连接
+    mysql_read:
+      driver: mysql
+      enabled: false
+      connection:
+        host: localhost 
+        port: 3306
+        username: readonly
+        password: password
+        database: gohub
+        charset: utf8mb4
+        parse_time: true
+        loc: Local
+      pool:
+        max_open_conns: 50
+        max_idle_conns: 10
+      log:
+        slow_threshold: 200
+      transaction:
+        default_isolation: 2 # 读已提交，适合只读连接
+
+    # PostgreSQL 连接示例
+    postgres:
+      driver: postgres
+      enabled: false # 禁用此连接
+      connection:
+        host: localhost
+        port: 5432
+        username: postgres
+        password: postgres
+        database: gohub
+        sslmode: disable
+      pool:
+        max_open_conns: 50
+        max_idle_conns: 10
+      log:
+        slow_threshold: 200
+
+    # SQLite 连接示例
+    sqlite:
+      driver: sqlite
+      enabled: false # 禁用此连接
+      connection:
+        database: database.sqlite
+      log:
+        slow_threshold: 100 

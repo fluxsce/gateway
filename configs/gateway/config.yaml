@@ -1,0 +1,31 @@
+# Gateway服务配置
+gateway:
+  # 服务器配置
+  server:
+    port: 8080
+    read_timeout: 60
+    write_timeout: 60
+    max_header_bytes: 1048576  # 1MB
+
+  # CORS 配置
+  cors:
+    allowed_origins:
+      - "*"
+    allowed_methods:
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "DELETE"
+      - "OPTIONS"
+    allowed_headers:
+      - "Content-Type"
+      - "Authorization"
+    exposed_headers:
+      - "Content-Length"
+    allow_credentials: true
+
+# 全局日志配置
+logger:
+  level: debug
+  output: stdout
+  encoding: json 

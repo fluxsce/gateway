@@ -1,0 +1,32 @@
+# 日志配置
+log:
+  # 日志级别: debug, info, warn, error, dpanic, panic, fatal
+  level: "debug"
+  # 日志输出: stdout, stderr, 或文件路径
+  output: stdout
+  # 编码格式: json, console
+  encoding: "console"
+  # 是否显示调用者信息
+  show_caller: true
+  # 显示堆栈跟踪的最小级别: debug, info, warn, error, dpanic, panic, fatal
+  stacktrace_level: "error"
+  # 默认输出路径: stdout, stderr 或文件路径
+  default_output: "stdout"
+  # 错误日志专用输出路径 (可选)
+  error_output: "error.log"
+  # 信息日志专用输出路径 (可选)
+  info_output: "info.log"
+  # 调试日志专用输出路径 (可选)
+  debug_output: "debug.log"
+  # 日志文件根目录 (用于相对路径)
+  log_path: "D:/data/gohub/logs"
+  # 是否使用绝对路径 (true: 直接使用文件路径，false: 将路径视为相对于log_path)
+  use_absolute_path: false
+  # 单个日志文件最大尺寸(MB)
+  max_size: 100
+  # 保留的旧日志文件最大数量
+  max_backups: 10
+  # 保留的旧日志文件最大天数
+  max_age: 10
+  # 是否压缩旧日志文件
+  compress: true 
