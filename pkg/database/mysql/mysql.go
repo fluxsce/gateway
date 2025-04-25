@@ -54,7 +54,7 @@ func (m *MySQL) Connect(config *database.DbConfig) error {
 	db, err := sql.Open("mysql", config.DSN)
 	if err != nil {
 		m.logger.LogError("打开MySQL连接", err)
-		return fmt.Errorf("打开MySQL连接失败: %w", err)
+		return fmt.Errorf("failed to open MySQL connection: %w", err)
 	}
 
 	// 设置连接池参数
@@ -93,7 +93,7 @@ func (m *MySQL) Connect(config *database.DbConfig) error {
 	// 检查连接是否正常
 	if err := db.Ping(); err != nil {
 		m.logger.LogPing(err)
-		return fmt.Errorf("MySQL连接测试失败: %w", err)
+		return fmt.Errorf("MySQL connection test failed: %w", err)
 	}
 
 	// 应用配置
@@ -225,14 +225,14 @@ func (m *MySQL) WithTx(tx database.Transaction, fn func(tx database.Transaction)
 		myTx, ok = tx.(*MySQLTransaction)
 		if !ok {
 			tx.Rollback() // 类型断言失败，回滚事务
-			return fmt.Errorf("无效的事务类型")
+			return fmt.Errorf("invalid transaction type")
 		}
 	} else {
 		// 尝试类型断言确认传入的是MySQL事务
 		var ok bool
 		myTx, ok = tx.(*MySQLTransaction)
 		if !ok {
-			return fmt.Errorf("无效的事务类型")
+			return fmt.Errorf("invalid transaction type")
 		}
 
 		// 验证事务状态 - 检查事务是否仍然在活跃事务映射中
@@ -241,7 +241,7 @@ func (m *MySQL) WithTx(tx database.Transaction, fn func(tx database.Transaction)
 		m.mu.RUnlock()
 
 		if !exists && !newTx {
-			return fmt.Errorf("%w: 事务已结束或无效", database.ErrTransaction)
+			return fmt.Errorf("%w: transaction is already ended or invalid", database.ErrTransaction)
 		}
 	}
 
@@ -266,7 +266,7 @@ func (m *MySQL) WithTx(tx database.Transaction, fn func(tx database.Transaction)
 	m.mu.RUnlock()
 
 	if !exists {
-		return fmt.Errorf("%w: 事务已结束或无效", database.ErrTransaction)
+		return fmt.Errorf("%w: transaction is already ended or invalid", database.ErrTransaction)
 	}
 
 	return tx.Commit()
@@ -543,6 +543,106 @@ func (m *MySQL) DeleteWithOptions(ctx context.Context, table string, where strin
 	return m.ExecWithOptions(ctx, query, args, options...)
 }
 
+// BatchInsert 批量插入多条记录
+//
+// 参数:
+// - ctx: 上下文
+// - table: 表名
+// - dataSlice: 包含要插入数据的结构体切片
+//
+// 返回:
+// - 受影响的行数
+// - 错误信息
+//
+// 用法示例:
+//
+//	users := []User{
+//	  {Name: "用户1", Age: 20},
+//	  {Name: "用户2", Age: 30},
+//	}
+//	db.BatchInsert(ctx, "users", users)
+func (m *MySQL) BatchInsert(ctx context.Context, table string, dataSlice interface{}) (int64, error) {
+	// 获取反射值
+	sliceVal := reflect.ValueOf(dataSlice)
+	if sliceVal.Kind() != reflect.Slice {
+		return 0, fmt.Errorf("dataSlice must be a slice")
+	}
+
+	// 空切片直接返回
+	sliceLen := sliceVal.Len()
+	if sliceLen == 0 {
+		return 0, nil
+	}
+
+	// 获取第一个元素，用于提取字段信息
+	firstElem := sliceVal.Index(0)
+	if firstElem.Kind() == reflect.Ptr {
+		firstElem = firstElem.Elem()
+	}
+	if firstElem.Kind() != reflect.Struct {
+		return 0, fmt.Errorf("slice elements must be structs or pointers to structs")
+	}
+
+	// 提取字段信息
+	typ := firstElem.Type()
+	var columns []string
+	fieldIndices := make([]int, 0)
+
+	// 遍历结构体的所有字段，获取db标签
+	for i := 0; i < firstElem.NumField(); i++ {
+		field := typ.Field(i)
+
+		// 获取db标签
+		tag := field.Tag.Get("db")
+		if tag == "" || tag == "-" {
+			continue // 跳过没有db标签或标记为忽略的字段
+		}
+
+		// 解析标签
+		parts := strings.Split(tag, ",")
+		column := parts[0] // 第一部分是列名
+
+		columns = append(columns, column)
+		fieldIndices = append(fieldIndices, i)
+	}
+
+	if len(columns) == 0 {
+		return 0, fmt.Errorf("no valid columns found in the struct")
+	}
+
+	// 构建INSERT语句的前半部分
+	placeholderGroup := "(" + strings.Repeat("?,", len(columns)-1) + "?)"
+	allPlaceholders := make([]string, sliceLen)
+	for i := 0; i < sliceLen; i++ {
+		allPlaceholders[i] = placeholderGroup
+	}
+
+	query := fmt.Sprintf(
+		"INSERT INTO %s (%s) VALUES %s",
+		table,
+		strings.Join(columns, ", "),
+		strings.Join(allPlaceholders, ","),
+	)
+
+	// 准备所有参数值
+	values := make([]interface{}, 0, sliceLen*len(columns))
+	for i := 0; i < sliceLen; i++ {
+		elem := sliceVal.Index(i)
+		if elem.Kind() == reflect.Ptr {
+			elem = elem.Elem()
+		}
+
+		// 提取字段值
+		for _, fieldIdx := range fieldIndices {
+			fieldValue := elem.Field(fieldIdx).Interface()
+			values = append(values, fieldValue)
+		}
+	}
+
+	// 执行批量插入
+	return m.Exec(ctx, query, values)
+}
+
 // MySQLTransaction MySQL事务实现
 // 特点:
 // 1. 完整事务管理 - 提供Commit和Rollback操作
@@ -727,6 +827,177 @@ func (t *MySQLTransaction) Rollback() error {
 	return err
 }
 
+// BatchInsert 在事务中批量插入多条记录
+func (t *MySQLTransaction) BatchInsert(ctx context.Context, table string, dataSlice interface{}) (int64, error) {
+	// 获取反射值
+	sliceVal := reflect.ValueOf(dataSlice)
+	if sliceVal.Kind() != reflect.Slice {
+		return 0, fmt.Errorf("dataSlice must be a slice")
+	}
+
+	// 空切片直接返回
+	sliceLen := sliceVal.Len()
+	if sliceLen == 0 {
+		return 0, nil
+	}
+
+	// 获取第一个元素，用于提取字段信息
+	firstElem := sliceVal.Index(0)
+	if firstElem.Kind() == reflect.Ptr {
+		firstElem = firstElem.Elem()
+	}
+	if firstElem.Kind() != reflect.Struct {
+		return 0, fmt.Errorf("slice elements must be structs or pointers to structs")
+	}
+
+	// 提取字段信息
+	typ := firstElem.Type()
+	var columns []string
+	fieldIndices := make([]int, 0)
+
+	// 遍历结构体的所有字段，获取db标签
+	for i := 0; i < firstElem.NumField(); i++ {
+		field := typ.Field(i)
+
+		// 获取db标签
+		tag := field.Tag.Get("db")
+		if tag == "" || tag == "-" {
+			continue // 跳过没有db标签或标记为忽略的字段
+		}
+
+		// 解析标签
+		parts := strings.Split(tag, ",")
+		column := parts[0] // 第一部分是列名
+
+		columns = append(columns, column)
+		fieldIndices = append(fieldIndices, i)
+	}
+
+	if len(columns) == 0 {
+		return 0, fmt.Errorf("no valid columns found in the struct")
+	}
+
+	// 构建INSERT语句的前半部分
+	placeholderGroup := "(" + strings.Repeat("?,", len(columns)-1) + "?)"
+	allPlaceholders := make([]string, sliceLen)
+	for i := 0; i < sliceLen; i++ {
+		allPlaceholders[i] = placeholderGroup
+	}
+
+	query := fmt.Sprintf(
+		"INSERT INTO %s (%s) VALUES %s",
+		table,
+		strings.Join(columns, ", "),
+		strings.Join(allPlaceholders, ","),
+	)
+
+	// 准备所有参数值
+	values := make([]interface{}, 0, sliceLen*len(columns))
+	for i := 0; i < sliceLen; i++ {
+		elem := sliceVal.Index(i)
+		if elem.Kind() == reflect.Ptr {
+			elem = elem.Elem()
+		}
+
+		// 提取字段值
+		for _, fieldIdx := range fieldIndices {
+			fieldValue := elem.Field(fieldIdx).Interface()
+			values = append(values, fieldValue)
+		}
+	}
+
+	// 在事务中执行批量插入
+	return t.Exec(ctx, query, values)
+}
+
+// BatchInsertWithChunk 分批批量插入，处理大量数据
+//
+// 参数:
+// - ctx: 上下文
+// - table: 表名
+// - dataSlice: 包含要插入数据的结构体切片
+// - chunkSize: 每批处理的记录数，推荐值为500-1000
+//
+// 返回:
+// - 受影响的总行数
+// - 错误信息
+//
+// 用法示例:
+//
+//	users := []User{...} // 大量用户数据
+//	db.BatchInsertWithChunk(ctx, "users", users, 1000)
+func (m *MySQL) BatchInsertWithChunk(ctx context.Context, table string, dataSlice interface{}, chunkSize int) (int64, error) {
+	if chunkSize <= 0 {
+		chunkSize = 1000 // 默认块大小
+	}
+
+	// 获取反射值
+	sliceVal := reflect.ValueOf(dataSlice)
+	if sliceVal.Kind() != reflect.Slice {
+		return 0, fmt.Errorf("dataSlice must be a slice")
+	}
+
+	// 空切片直接返回
+	sliceLen := sliceVal.Len()
+	if sliceLen == 0 {
+		return 0, nil
+	}
+
+	// 如果数据量小于chunkSize，直接使用BatchInsert
+	if sliceLen <= chunkSize {
+		return m.BatchInsert(ctx, table, dataSlice)
+	}
+
+	// 使用事务进行批量插入
+	var totalAffected int64 = 0
+	tx, err := m.BeginTx(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	// 确保在函数返回前处理事务
+	defer func() {
+		if r := recover(); r != nil {
+			_ = tx.Rollback() // 发生panic时回滚
+			panic(r)          // 重新抛出panic
+		} else if err != nil {
+			_ = tx.Rollback() // 发生错误时回滚
+		}
+	}()
+
+	// 分批处理
+	for i := 0; i < sliceLen; i += chunkSize {
+		end := i + chunkSize
+		if end > sliceLen {
+			end = sliceLen
+		}
+
+		// 创建当前批次的子切片
+		batchSize := end - i
+		batchSlice := reflect.MakeSlice(reflect.SliceOf(sliceVal.Type().Elem()), batchSize, batchSize)
+
+		// 填充子切片
+		for j := 0; j < batchSize; j++ {
+			batchSlice.Index(j).Set(sliceVal.Index(i + j))
+		}
+
+		// 对当前批次执行批量插入
+		affected, err := tx.(*MySQLTransaction).BatchInsert(ctx, table, batchSlice.Interface())
+		if err != nil {
+			// 错误处理在defer中
+			return 0, err
+		}
+		totalAffected += affected
+	}
+
+	// 提交事务
+	if err = tx.Commit(); err != nil {
+		return 0, err
+	}
+
+	return totalAffected, nil
+}
+
 // buildInsertQuery 构建插入SQL语句和参数
 //
 // 参数:
@@ -833,6 +1104,7 @@ func extractColumnsAndValues(data interface{}) ([]string, []interface{}, error) 
 	// 遍历结构体字段
 	for i := 0; i < val.NumField(); i++ {
 		field := typ.Field(i)
+		fieldValue := val.Field(i)
 
 		// 获取db标签，用于确定数据库列名
 		tag := field.Tag.Get("db")
@@ -840,17 +1112,38 @@ func extractColumnsAndValues(data interface{}) ([]string, []interface{}, error) 
 			continue // 跳过没有db标签或标记为忽略的字段
 		}
 
+		// 如果设置了跳过零值，且字段值为零值，则跳过该字段
+		if isZeroValue(fieldValue) {
+			continue
+		}
+
 		// 解析标签，可能包含其他选项
 		parts := strings.Split(tag, ",")
 		column := parts[0] // 第一部分是列名
 
 		// 获取字段值并保存
-		fieldValue := val.Field(i).Interface()
 		columns = append(columns, column)
-		values = append(values, fieldValue)
+		values = append(values, fieldValue.Interface())
 	}
 
 	return columns, values, nil
+}
+
+// isZeroValue 检查字段是否为零值
+func isZeroValue(v reflect.Value) bool {
+	// 检查是否可比较，如果不可比较，使用反射的方式判断
+	if !v.Type().Comparable() {
+		return reflect.DeepEqual(v.Interface(), reflect.Zero(v.Type()).Interface())
+	}
+
+	// 对于字符串类型，空字符串视为零值
+	if v.Kind() == reflect.String {
+		return v.String() == ""
+	}
+
+	// 直接比较零值
+	zero := reflect.Zero(v.Type()).Interface()
+	return reflect.DeepEqual(v.Interface(), zero)
 }
 
 // scanRows 将SQL查询结果扫描到结构体切片

@@ -14,28 +14,28 @@ import (
 
 // 定义通用数据库错误，方便上层业务进行错误处理
 var (
-	// ErrRecordNotFound 记录未找到错误
-	// 当查询不返回任何结果时返回此错误
+	// ErrRecordNotFound Record not found error
+	// Returned when a query doesn't return any results
 	ErrRecordNotFound error = errors.New("record not found")
 
-	// ErrDuplicateKey 键重复错误
-	// 当插入操作违反唯一性约束时返回此错误
+	// ErrDuplicateKey Duplicate key error
+	// Returned when an insert operation violates a unique constraint
 	ErrDuplicateKey error = errors.New("duplicate key")
 
-	// ErrConnection 连接错误
-	// 当无法连接到数据库时返回此错误
+	// ErrConnection Connection error
+	// Returned when unable to connect to the database
 	ErrConnection error = errors.New("database connection error")
 
-	// ErrTransaction 事务错误
-	// 当事务操作失败时返回此错误
+	// ErrTransaction Transaction error
+	// Returned when a transaction operation fails
 	ErrTransaction error = errors.New("transaction error")
 
-	// ErrInvalidQuery 无效查询错误
-	// 当SQL查询语法错误或参数错误时返回此错误
+	// ErrInvalidQuery Invalid query error
+	// Returned when an SQL query has syntax or parameter errors
 	ErrInvalidQuery error = errors.New("invalid query")
 
-	// ErrConfigNotFound 配置未找到错误
-	// 当找不到指定的数据库配置时返回此错误
+	// ErrConfigNotFound Configuration not found error
+	// Returned when the specified database configuration is not found
 	ErrConfigNotFound error = errors.New("database config not found")
 )
 
@@ -108,6 +108,16 @@ type DBExecutor interface {
 	//   - int64: 插入的记录ID或影响的行数
 	//   - error: 可能的错误
 	Insert(ctx context.Context, table string, data interface{}) (int64, error)
+
+	// BatchInsert 批量插入多条记录
+	// 参数:
+	//   - ctx: 上下文，用于控制超时和取消
+	//   - table: 表名
+	//   - dataSlice: 要插入的数据切片，通常是结构体切片
+	// 返回:
+	//   - int64: 影响的行数
+	//   - error: 可能的错误
+	BatchInsert(ctx context.Context, table string, dataSlice interface{}) (int64, error)
 
 	// Update 更新记录
 	// 参数:
@@ -197,6 +207,17 @@ type Database interface {
 	//   - error: 事务执行过程中可能发生的错误
 	// 此方法负责提交或回滚事务，简化事务使用
 	WithTx(tx Transaction, fn func(tx Transaction) error) error
+
+	// BatchInsertWithChunk 分批批量插入，处理大量数据
+	// 参数:
+	//   - ctx: 上下文，用于控制超时和取消
+	//   - table: 表名
+	//   - dataSlice: 要插入的数据切片，通常是结构体切片
+	//   - chunkSize: 每批处理的记录数，推荐值为500-1000
+	// 返回:
+	//   - int64: 影响的行数
+	//   - error: 可能的错误
+	BatchInsertWithChunk(ctx context.Context, table string, dataSlice interface{}, chunkSize int) (int64, error)
 
 	// ExecWithOptions 带选项执行SQL语句
 	// 参数:

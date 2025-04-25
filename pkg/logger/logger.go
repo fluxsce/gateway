@@ -448,3 +448,13 @@ func captureErrorStack(err error) string {
 	// 它能够处理嵌套错误并保留原始错误信息
 	return huberrors.ErrorStack(err)
 }
+
+// CreateLogDirectory 创建日志目录
+func CreateLogDirectory(dir string) error {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create log directory: %w", err)
+		}
+	}
+	return nil
+}
