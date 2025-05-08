@@ -27,6 +27,7 @@ database:
       log:
         slow_threshold: 200 # 毫秒，超过此时间的查询被视为慢查询
         log_level: info # 日志级别: debug, info, warn, error
+        enable: true # 是否启用日志
       transaction:
         default_isolation: 3 # 默认隔离级别: 1=读未提交, 2=读已提交, 3=可重复读, 4=可串行化
 

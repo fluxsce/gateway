@@ -101,7 +101,7 @@ func LoadConfig(configDir string, options ...LoadOptions) error {
 	}
 
 	// 加载其他配置文件
-	configs := []string{"logger", "database"}
+	configs := []string{"logger", "database", "web"}
 	for _, config := range configs {
 		global.viper.SetConfigName(config)
 		if err := global.viper.MergeInConfig(); err != nil {

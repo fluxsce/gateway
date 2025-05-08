@@ -397,29 +397,111 @@ func (m *MySQL) QueryOne(ctx context.Context, dest interface{}, query string, ar
 	// 记录开始时间，用于计算SQL执行耗时
 	start := time.Now()
 
-	// 执行单行查询
-	row := m.db.QueryRowContext(ctx, query, args...)
+	// 改用QueryContext代替QueryRowContext
+	// 这样我们可以获取列信息，并正确处理字段映射
+	rows, err := m.db.QueryContext(ctx, query, args...)
 
 	// 计算执行耗时
 	elapsed := time.Since(start)
 
 	// 记录SQL执行日志
-	m.logger.LogSQL("SQL查询", query, args, nil, elapsed)
+	m.logger.LogSQL("SQL单行查询", query, args, err, elapsed)
 
-	// 扫描单行结果到目标结构体
-	err := scanRow(row, dest)
+	if err != nil {
+		return err
+	}
+	// 确保关闭结果集
+	defer rows.Close()
 
-	// 记录查询结果
-	var count int
-	if err != nil && err != database.ErrRecordNotFound {
-		count = 0
-	} else {
-		count = 1
+	// 检查是否有结果
+	if !rows.Next() {
+		// 记录查询结果 - 未找到记录
+		m.logger.LogQueryResult("SQL单行查询", 0, database.ErrRecordNotFound)
+		return database.ErrRecordNotFound
 	}
 
-	m.logger.LogQueryResult("SQL单行查询", count, err)
+	// 获取列名
+	columns, err := rows.Columns()
+	if err != nil {
+		return err
+	}
 
-	return err
+	// 获取结构体的反射值
+	value := reflect.ValueOf(dest)
+	if value.Kind() != reflect.Ptr || value.IsNil() {
+		return fmt.Errorf("dest must be a non-nil pointer to a struct")
+	}
+	structValue := value.Elem()
+	if structValue.Kind() != reflect.Struct {
+		return fmt.Errorf("dest must be a pointer to a struct")
+	}
+
+	// 准备扫描目标
+	scanTargets, err := prepareScanTargets(structValue, columns)
+	if err != nil {
+		return err
+	}
+
+	// 创建一个字段映射表，用于后续处理NULL值
+	fieldMap := make(map[int]reflect.Value) // 使用列索引作为键
+	for i, column := range columns {
+		field, ok := findFieldByColumn(structValue, column)
+		if ok {
+			fieldMap[i] = field
+		}
+	}
+
+	// 扫描单行数据
+	if err := rows.Scan(scanTargets...); err != nil {
+		return err
+	}
+
+	// 处理NULL值
+	// 对于每个使用sql.NullXxx类型的列，检查值是否有效，如果有效则设置到字段
+	for i, target := range scanTargets {
+		field, ok := fieldMap[i]
+		if !ok {
+			continue // 跳过未映射的字段
+		}
+
+		// 根据不同的Null类型处理
+		switch v := target.(type) {
+		case *sql.NullString:
+			if v.Valid {
+				field.SetString(v.String)
+			}
+		case *sql.NullInt64:
+			if v.Valid {
+				field.SetInt(v.Int64)
+			}
+		case *sql.NullFloat64:
+			if v.Valid {
+				field.SetFloat(v.Float64)
+			}
+		case *sql.NullBool:
+			if v.Valid {
+				field.SetBool(v.Bool)
+			}
+		case *sql.NullTime:
+			if v.Valid {
+				// 确保字段类型是time.Time
+				if field.Type() == reflect.TypeOf(time.Time{}) {
+					field.Set(reflect.ValueOf(v.Time))
+				}
+			}
+		}
+	}
+
+	// 检查是否还有更多行（不应该有）
+	if rows.Next() {
+		m.logger.LogQueryResult("SQL单行查询", 2, fmt.Errorf("query returned more than one row"))
+		return fmt.Errorf("query returned more than one row")
+	}
+
+	// 记录查询结果 - 找到一条记录
+	m.logger.LogQueryResult("SQL单行查询", 1, nil)
+
+	return rows.Err()
 }
 
 // QueryOneWithOptions 带选项查询单条记录
@@ -720,29 +802,111 @@ func (t *MySQLTransaction) QueryOne(ctx context.Context, dest interface{}, query
 	// 记录开始时间，用于计算SQL执行耗时
 	start := time.Now()
 
-	// 在事务中执行单行查询
-	row := t.tx.QueryRowContext(ctx, query, args...)
+	// 改用QueryContext代替QueryRowContext
+	// 这样我们可以获取列信息，并正确处理字段映射
+	rows, err := t.tx.QueryContext(ctx, query, args...)
 
 	// 计算执行耗时
 	elapsed := time.Since(start)
 
 	// 记录SQL执行日志
-	t.logger.LogSQL("事务SQL查询", query, args, nil, elapsed)
+	t.logger.LogSQL("事务SQL单行查询", query, args, err, elapsed)
 
-	// 扫描单行结果到目标结构体
-	err := scanRow(row, dest)
+	if err != nil {
+		return err
+	}
+	// 确保关闭结果集
+	defer rows.Close()
 
-	// 记录查询结果
-	var count int
-	if err != nil && err != database.ErrRecordNotFound {
-		count = 0
-	} else {
-		count = 1
+	// 检查是否有结果
+	if !rows.Next() {
+		// 记录查询结果 - 未找到记录
+		t.logger.LogQueryResult("事务SQL单行查询", 0, database.ErrRecordNotFound)
+		return database.ErrRecordNotFound
 	}
 
-	t.logger.LogQueryResult("事务SQL单行查询", count, err)
+	// 获取列名
+	columns, err := rows.Columns()
+	if err != nil {
+		return err
+	}
 
-	return err
+	// 获取结构体的反射值
+	value := reflect.ValueOf(dest)
+	if value.Kind() != reflect.Ptr || value.IsNil() {
+		return fmt.Errorf("dest must be a non-nil pointer to a struct")
+	}
+	structValue := value.Elem()
+	if structValue.Kind() != reflect.Struct {
+		return fmt.Errorf("dest must be a pointer to a struct")
+	}
+
+	// 准备扫描目标
+	scanTargets, err := prepareScanTargets(structValue, columns)
+	if err != nil {
+		return err
+	}
+
+	// 创建一个字段映射表，用于后续处理NULL值
+	fieldMap := make(map[int]reflect.Value) // 使用列索引作为键
+	for i, column := range columns {
+		field, ok := findFieldByColumn(structValue, column)
+		if ok {
+			fieldMap[i] = field
+		}
+	}
+
+	// 扫描单行数据
+	if err := rows.Scan(scanTargets...); err != nil {
+		return err
+	}
+
+	// 处理NULL值
+	// 对于每个使用sql.NullXxx类型的列，检查值是否有效，如果有效则设置到字段
+	for i, target := range scanTargets {
+		field, ok := fieldMap[i]
+		if !ok {
+			continue // 跳过未映射的字段
+		}
+
+		// 根据不同的Null类型处理
+		switch v := target.(type) {
+		case *sql.NullString:
+			if v.Valid {
+				field.SetString(v.String)
+			}
+		case *sql.NullInt64:
+			if v.Valid {
+				field.SetInt(v.Int64)
+			}
+		case *sql.NullFloat64:
+			if v.Valid {
+				field.SetFloat(v.Float64)
+			}
+		case *sql.NullBool:
+			if v.Valid {
+				field.SetBool(v.Bool)
+			}
+		case *sql.NullTime:
+			if v.Valid {
+				// 确保字段类型是time.Time
+				if field.Type() == reflect.TypeOf(time.Time{}) {
+					field.Set(reflect.ValueOf(v.Time))
+				}
+			}
+		}
+	}
+
+	// 检查是否还有更多行（不应该有）
+	if rows.Next() {
+		t.logger.LogQueryResult("事务SQL单行查询", 2, fmt.Errorf("query returned more than one row"))
+		return fmt.Errorf("query returned more than one row")
+	}
+
+	// 记录查询结果 - 找到一条记录
+	t.logger.LogQueryResult("事务SQL单行查询", 1, nil)
+
+	return rows.Err()
 }
 
 // Insert 插入记录
@@ -1190,15 +1354,60 @@ func scanRows(rows *sql.Rows, dest interface{}) error {
 		// 创建新的结构体实例
 		elemValue := reflect.New(elemType)
 
-		// 准备扫描目标
+		// 准备扫描目标和字段映射
 		scanTargets, err := prepareScanTargets(elemValue.Elem(), columns)
 		if err != nil {
 			return err
 		}
 
+		// 创建一个字段映射表，用于后续处理NULL值
+		fieldMap := make(map[int]reflect.Value) // 使用列索引作为键
+		for i, column := range columns {
+			field, ok := findFieldByColumn(elemValue.Elem(), column)
+			if ok {
+				fieldMap[i] = field
+			}
+		}
+
 		// 扫描行数据到目标变量
 		if err := rows.Scan(scanTargets...); err != nil {
 			return err
+		}
+
+		// 处理NULL值
+		// 对于每个使用sql.NullXxx类型的列，检查值是否有效，如果有效则设置到字段
+		for i, target := range scanTargets {
+			field, ok := fieldMap[i]
+			if !ok {
+				continue // 跳过未映射的字段
+			}
+
+			// 根据不同的Null类型处理
+			switch v := target.(type) {
+			case *sql.NullString:
+				if v.Valid {
+					field.SetString(v.String)
+				}
+			case *sql.NullInt64:
+				if v.Valid {
+					field.SetInt(v.Int64)
+				}
+			case *sql.NullFloat64:
+				if v.Valid {
+					field.SetFloat(v.Float64)
+				}
+			case *sql.NullBool:
+				if v.Valid {
+					field.SetBool(v.Bool)
+				}
+			case *sql.NullTime:
+				if v.Valid {
+					// 确保字段类型是time.Time
+					if field.Type() == reflect.TypeOf(time.Time{}) {
+						field.Set(reflect.ValueOf(v.Time))
+					}
+				}
+			}
 		}
 
 		// 根据切片元素类型添加到结果集
@@ -1215,6 +1424,8 @@ func scanRows(rows *sql.Rows, dest interface{}) error {
 
 // scanRow 将SQL查询单行结果扫描到结构体
 //
+// 已废弃: 此函数不再使用，已被重写的QueryOne方法取代，该方法使用QueryContext获取列信息并使用prepareScanTargets处理映射
+//
 // 参数:
 // - row: SQL查询的单行结果
 // - dest: 目标结构体的指针，例如 *User
@@ -1223,34 +1434,24 @@ func scanRows(rows *sql.Rows, dest interface{}) error {
 // - 扫描过程中发生的错误，如果成功则为nil
 // - 当未找到记录时返回 database.ErrRecordNotFound
 func scanRow(row *sql.Row, dest interface{}) error {
-	// 确保dest是非nil指针
-	value := reflect.ValueOf(dest)
-	if value.Kind() != reflect.Ptr || value.IsNil() {
-		return fmt.Errorf("dest must be a non-nil pointer to a struct")
-	}
-
-	// 获取结构体的反射值
-	structValue := value.Elem()
-	if structValue.Kind() != reflect.Struct {
-		return fmt.Errorf("dest must be a pointer to a struct")
-	}
-
-	// 通过反射获取字段信息，构建扫描目标切片
-	fieldValues := make([]interface{}, structValue.NumField())
-	for i := 0; i < structValue.NumField(); i++ {
-		fieldValues[i] = structValue.Field(i).Addr().Interface() // 获取字段地址
-	}
-
-	// 扫描行数据到字段
-	if err := row.Scan(fieldValues...); err != nil {
-		// 处理"无记录"错误，转换为自定义错误类型
-		if err == sql.ErrNoRows {
-			return database.ErrRecordNotFound
-		}
-		return err
-	}
-
+	// 此函数已废弃
 	return nil
+}
+
+// getColumnNames 尝试获取行的列名
+//
+// 已废弃: 此函数不再使用，已被重写的QueryOne方法取代
+func getColumnNames(row *sql.Row) []string {
+	// 此函数已废弃
+	return []string{}
+}
+
+// extractColumnsFromCache 从缓存中提取列信息
+//
+// 已废弃: 此函数不再使用，已被重写的QueryOne方法取代
+func extractColumnsFromCache() []string {
+	// 此函数已废弃
+	return []string{}
 }
 
 // prepareScanTargets 准备SQL结果扫描的目标变量
@@ -1274,8 +1475,40 @@ func prepareScanTargets(structValue reflect.Value, columns []string) ([]interfac
 			targets[i] = &placeholder
 			continue
 		}
-		// 使用找到的字段的地址作为扫描目标
-		targets[i] = field.Addr().Interface()
+
+		// 根据字段类型创建适当的扫描目标
+		// 对于可能为NULL的数据库列，使用sql.NullXxx类型
+		switch field.Kind() {
+		case reflect.String:
+			// 使用sql.NullString处理可能为NULL的字符串
+			var ns sql.NullString
+			targets[i] = &ns
+			// 在Scan后，设置字段值的逻辑会在scanRows/QueryOne中处理
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			// 使用sql.NullInt64处理可能为NULL的整数
+			var ni sql.NullInt64
+			targets[i] = &ni
+		case reflect.Float32, reflect.Float64:
+			// 使用sql.NullFloat64处理可能为NULL的浮点数
+			var nf sql.NullFloat64
+			targets[i] = &nf
+		case reflect.Bool:
+			// 使用sql.NullBool处理可能为NULL的布尔值
+			var nb sql.NullBool
+			targets[i] = &nb
+		case reflect.Struct:
+			// 处理time.Time类型
+			if field.Type() == reflect.TypeOf(time.Time{}) {
+				var nt sql.NullTime
+				targets[i] = &nt
+			} else {
+				// 其他结构体类型，直接使用字段地址
+				targets[i] = field.Addr().Interface()
+			}
+		default:
+			// 其他类型，直接使用字段地址
+			targets[i] = field.Addr().Interface()
+		}
 	}
 	return targets, nil
 }

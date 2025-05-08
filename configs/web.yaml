@@ -1,0 +1,31 @@
+app:
+  name: "GoHub Web服务"
+  run_mode: "debug" # debug, release
+  port: 12003
+  read_timeout: 60 # 秒
+  write_timeout: 60 # 秒
+  jwt_secret: "your-jwt-secret-key-here" # 生产环境请修改为强密钥
+  
+  # CORS配置
+  cors:
+    allowed_origins: "*" # 可设置为特定域名，以逗号分隔
+    allowed_methods: "GET,POST,PUT,DELETE,OPTIONS"
+    allowed_headers: "Origin,Content-Type,Accept,Authorization"
+    allow_credentials: true
+    max_age: 86400 # 秒
+  
+  # 缓存配置
+  cache:
+    driver: "memory"
+    prefix: "web:"
+    expiration: 3600 # 秒
+  
+  # 模板配置
+  template:
+    reload: true # 开发模式下开启，生产环境建议关闭
+    cache: false # 开发模式下关闭，生产环境建议开启
+  
+  # 静态资源配置
+  static:
+    path: "./web/static"
+    prefix: "/static" 

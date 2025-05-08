@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"gohub/cmd/web"
 	"gohub/pkg/config"
 	"gohub/pkg/database"
 	_ "gohub/pkg/database/alldriver" // 导入数据库驱动以确保注册
@@ -52,11 +53,35 @@ func main() {
 	// 设置优雅退出
 	setupGracefulShutdown()
 
-	// 启动应用...
-	logger.Info("应用已启动")
+	// 初始化并启动Web应用
+	if err := startWebApp(); err != nil {
+		logger.Error("启动Web应用失败", err)
+		os.Exit(1)
+	}
 
 	// 保持主协程运行
 	select {}
+}
+
+// startWebApp 初始化并启动Web应用
+func startWebApp() error {
+	// 创建Web应用实例
+	app := web.NewWebApp(db)
+
+	// 初始化Web应用
+	if err := app.Init(); err != nil {
+		return huberrors.WrapError(err, "初始化Web应用失败")
+	}
+
+	// 在协程中启动Web服务器，这样不会阻塞主线程
+	go func() {
+		if err := app.Start(); err != nil {
+			logger.Error("Web服务器运行出错", err)
+			os.Exit(1)
+		}
+	}()
+
+	return nil
 }
 
 // setupGracefulShutdown 设置优雅退出
