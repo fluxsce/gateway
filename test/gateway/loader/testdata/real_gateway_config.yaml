@@ -1,0 +1,594 @@
+# ========================================
+# GoHub API Gateway 配置文件
+# ========================================
+# 这是 GoHub 网关的主配置文件，按照 GatewayConfig 结构定义
+# 每个配置项都与代码中的结构体字段一一对应
+
+# 网关实例ID
+instance_id: "gateway-001"
+
+# ========================================
+# 基础配置 (Base Configuration)
+# ========================================
+base:
+  # 基础配置ID
+  id: "default-base"
+  
+  # 监听地址和端口
+  # 格式: "host:port" 或 ":port"
+  # 示例: ":8080", "0.0.0.0:8080", "localhost:8080"
+  listen: ":38080"
+  
+  # 服务名称，用于日志和监控标识
+  name: "GoHub API Gateway"
+  
+  # HTTP 超时配置
+  # 读取超时：从客户端读取请求的最大时间
+  read_timeout: 30s
+  # 写入超时：向客户端写入响应的最大时间  
+  write_timeout: 30s
+  # 空闲超时：保持连接空闲的最大时间
+  idle_timeout: 120s
+  
+  # 最大请求体大小 (字节)
+  # 超过此大小的请求将被拒绝
+  max_body_size: 10485760  # 10MB
+  
+  # HTTPS 配置
+  # 是否启用 HTTPS
+  enable_https: false
+  # SSL 证书文件路径 (当 enable_https 为 true 时必填)
+  cert_file: ""
+  # SSL 私钥文件路径 (当 enable_https 为 true 时必填)  
+  key_file: ""
+  
+  # 框架配置
+  # 是否使用 Gin 框架 (true=Gin, false=标准库)
+  use_gin: true
+  
+  # 日志配置
+  # 是否启用访问日志
+  enable_access_log: true
+  # 日志格式: "json" 或 "text"
+  log_format: "json"
+  # 日志级别: "debug", "info", "warn", "error"
+  log_level: "info"
+  
+  # 是否启用 Gzip 压缩
+  enable_gzip: true
+
+# ========================================
+# 路由配置 (Router Configuration)  
+# ========================================
+router:
+  # 路由器ID
+  id: "default-router"
+  
+  # 是否启用
+  enabled: true
+  
+  # 路由器名称
+  name: "Default Router"
+  
+  # 默认优先级
+  default_priority: 100
+  
+  # 是否启用路由缓存
+  enable_route_cache: true
+  
+  # 路由缓存TTL(秒)
+  route_cache_ttl: 300
+  
+  # 具体路由规则配置
+  routes:
+    # 用户服务路由
+    - id: "user-service-route"
+      service_id: "user-service"
+      path: "/api/v1/users/**"
+      methods: ["GET", "POST", "PUT", "DELETE"]
+      enabled: true
+      priority: 100
+      metadata:
+        description: "用户服务路由"
+        version: "v1"
+      
+      # 断言组配置
+      assertion_group_config:
+        id: "user-assertions"
+        all_required: true
+        description: "用户服务断言组"
+        assertions:
+          - id: "path-assertion"
+            type: "path"
+            name: "path"
+            value: "/api/v1/users/**"
+            operator: "matches"
+            pattern: "prefix"
+            description: "匹配用户API路径"
+          
+          - id: "method-assertion"
+            type: "method"
+            name: "method"
+            value: "GET,POST,PUT,DELETE"
+            operator: "contains"
+            description: "允许的HTTP方法"
+      
+      # 过滤器配置
+      filter_config:
+        - id: "url-rewrite-filter"
+          name: "URL重写过滤器"
+          enabled: true
+          order: 100
+          action: "post-routing"
+          config:
+            type: "url"
+            from_pattern: "/api/v1/users/(.*)"
+            to_pattern: "/users/$1"
+        
+        - id: "request-header-filter"
+          name: "请求头过滤器"
+          enabled: true
+          order: 200
+          action: "post-routing"
+          config:
+            type: "header"
+            action: "add"
+            name: "X-Gateway-Route"
+            value: "user-service"
+      
+      # CORS配置
+      cors_config:
+        id: "route-cors"
+        enabled: true
+        allow_origins: ["*"]
+        allow_methods: ["GET", "POST", "PUT", "DELETE"]
+        allow_headers: ["Content-Type", "Authorization"]
+        max_age: 3600
+      
+      # 限流配置
+      limiter_config:
+        id: "route-limiter"
+        enabled: true
+        algorithm: "token_bucket"
+        rate: 100
+        burst: 200
+        key_strategy: "ip"
+      
+      # 认证配置
+      auth_config:
+        id: "route-auth"
+        strategy: "jwt"
+        enabled: true
+        config:
+          secret: "${JWT_SECRET}"
+          algorithm: "HS256"
+      
+      # 安全配置
+      security_config:
+        id: "route-security"
+        enabled: true
+        ip_access:
+          enabled: true
+          allow_list: []
+          deny_list: []
+    
+    # 订单服务路由
+    - id: "order-service-route"
+      service_id: "order-service"
+      path: "/api/v1/orders/**"
+      methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+      enabled: true
+      priority: 200
+      metadata:
+        description: "订单服务路由"
+        version: "v1"
+      
+      assertion_group_config:
+        id: "order-assertions"
+        all_required: true
+        assertions:
+          - id: "path-assertion"
+            type: "path"
+            name: "path"
+            value: "/api/v1/orders/**"
+            operator: "matches"
+            pattern: "prefix"
+          
+          - id: "method-assertion"
+            type: "method"
+            name: "method"
+            value: "GET,POST,PUT,DELETE,PATCH"
+            operator: "contains"
+      
+      filter_config:
+        - id: "url-rewrite-filter"
+          name: "URL重写过滤器"
+          enabled: true
+          order: 100
+          action: "post-routing"
+          config:
+            type: "url"
+            from_pattern: "/api/v1/orders/(.*)"
+            to_pattern: "/orders/$1"
+      
+      limiter_config:
+        id: "order-limiter"
+        enabled: true
+        algorithm: "sliding_window"
+        rate: 50
+        burst: 100
+        key_strategy: "user"
+    
+    # 商品服务路由
+    - id: "product-service-route"
+      service_id: "product-service"
+      path: "/api/v1/products/**"
+      methods: ["GET", "POST", "PUT", "DELETE"]
+      enabled: true
+      priority: 300
+      metadata:
+        description: "商品服务路由"
+        version: "v1"
+      
+      assertion_group_config:
+        id: "product-assertions"
+        all_required: true
+        assertions:
+          - id: "path-assertion"
+            type: "path"
+            name: "path"
+            value: "/api/v1/products/**"
+            operator: "matches"
+            pattern: "prefix"
+          
+          - id: "host-assertion"
+            type: "header"
+            name: "Host"
+            value: "api.example.com"
+            operator: "equal"
+            case_sensitive: false
+      
+      cors_config:
+        id: "product-cors"
+        enabled: true
+        allow_origins: ["https://example.com"]
+        allow_methods: ["GET"]
+        allow_headers: ["Content-Type"]
+  
+  # 全局过滤器配置 (应用于所有路由)
+  filter_config:
+    - id: "global-request-id-filter"
+      name: "全局请求ID过滤器"
+      enabled: true
+      order: 10
+      action: "pre-routing"
+      config:
+        type: "header"
+        action: "add"
+        name: "X-Request-ID"
+        value: "#{uuid()}"
+    
+    - id: "global-response-filter"
+      name: "全局响应头过滤器"
+      enabled: true
+      order: 90
+      action: "pre-routing"
+      config:
+        type: "header"
+        action: "add"
+        name: "X-Powered-By"
+        value: "GoHub-Gateway"
+
+# ========================================
+# 代理配置 (Proxy Configuration)
+# ========================================  
+proxy:
+  # 代理ID
+  id: "default-proxy"
+  
+  # 是否启用代理
+  enabled: true
+  
+  # 代理类型：http, websocket, tcp, udp
+  type: "http"
+  
+  # 代理名称
+  name: "Default HTTP Proxy"
+  
+  # 服务配置列表
+  service:
+    # 用户服务配置
+    - id: "user-service"
+      name: "用户服务"
+      strategy: "round-robin"
+      nodes:
+        - id: "user-node-1"
+          url: "http://www.baidu.com"
+          weight: 100
+          metadata:
+            zone: "zone-a"
+            version: "v1.0"
+          health: true
+          enabled: true
+        
+        - id: "user-node-2"
+          url: "http://user-service-2:8081"
+          weight: 100
+          metadata:
+            zone: "zone-b"
+            version: "v1.0"
+          health: true
+          enabled: true
+      
+      # 负载均衡配置
+      load_balancer:
+        id: "user-lb"
+        strategy: "round-robin"
+        health_check:
+          id: "user-health"
+          enabled: false
+          path: "/health"
+          method: "GET"
+          interval: 30s
+          timeout: 5s
+          healthy_threshold: 2
+          unhealthy_threshold: 3
+          expected_status_codes: [200, 204]
+        session_affinity: false
+        sticky_session: false
+        max_retries: 3
+        retry_timeout: 5s
+        circuit_breaker: false
+       # 熔断器配置
+      circuit_breaker:
+        enabled: true
+        key_strategy: "route"
+        error_rate_percent: 50
+        minimum_requests: 10
+        half_open_max_requests: 3
+        slow_call_threshold: 2000
+        slow_call_rate_percent: 60
+        open_timeout_seconds: 30
+        window_size_seconds: 60
+        error_status_code: 503
+        error_message: "User service temporarily unavailable"
+        storage_type: "memory"
+        storage_config: {}
+    # 订单服务配置
+    - id: "order-service"
+      name: "订单服务"
+      strategy: "weighted-round-robin"
+      nodes:
+        - id: "order-node-1"
+          url: "http://order-service-1:8082"
+          weight: 150
+          metadata:
+            zone: "zone-a"
+            version: "v1.1"
+          health: true
+          enabled: true
+        
+        - id: "order-node-2"
+          url: "http://order-service-2:8082"
+          weight: 100
+          metadata:
+            zone: "zone-b"
+            version: "v1.0"
+          health: true
+          enabled: true
+      
+      load_balancer:
+        id: "order-lb"
+        strategy: "weighted-round-robin"
+        health_check:
+          id: "order-health"
+          enabled: false
+          path: "/actuator/health"
+          method: "GET"
+          interval: 20s
+          timeout: 3s
+          healthy_threshold: 2
+          unhealthy_threshold: 2
+          expected_status_codes: [200]
+        max_retries: 2
+        retry_timeout: 3s
+        circuit_breaker: true
+      # 熔断器配置
+      circuit_breaker:
+        enabled: true
+        key_strategy: "route"
+        error_rate_percent: 40
+        minimum_requests: 20
+        half_open_max_requests: 5
+        slow_call_threshold: 3000
+        slow_call_rate_percent: 50
+        open_timeout_seconds: 60
+        window_size_seconds: 120
+        error_status_code: 503
+        error_message: "Order service temporarily unavailable"
+        storage_type: "memory"
+        storage_config: {}
+    # 商品服务配置
+    - id: "product-service"
+      name: "商品服务"
+      strategy: "least-conn"
+      nodes:
+        - id: "product-node-1"
+          url: "http://product-service-1:8083"
+          weight: 100
+          metadata:
+            zone: "zone-a"
+            version: "v2.0"
+          health: true
+          enabled: true
+        
+        - id: "product-node-2"
+          url: "http://product-service-2:8083"
+          weight: 100
+          metadata:
+            zone: "zone-b"
+            version: "v2.0"
+          health: true
+          enabled: true
+        
+        - id: "product-node-3"
+          url: "http://product-service-3:8083"
+          weight: 50
+          metadata:
+            zone: "zone-c"
+            version: "v1.9"
+          health: true
+          enabled: true
+      
+      load_balancer:
+        id: "product-lb"
+        strategy: "least-conn"
+        health_check:
+          id: "product-health"
+          enabled: false
+          path: "/health/check"
+          method: "GET"
+          interval: 30s
+          timeout: 5s
+          healthy_threshold: 3
+          unhealthy_threshold: 2
+          expected_status_codes: [200, 204]
+  
+  # 具体配置（map[string]interface{}）
+  config:
+    # HTTP代理相关配置
+    timeout: "30s"
+    follow_redirects: true
+    keep_alive: true
+    max_idle_conns: 100
+    idle_conn_timeout: "90s"
+    copy_response_body: false
+    buffer_size: 32768
+    max_buffer_size: 1048576
+    retry_count: 3
+    retry_timeout: "5s"
+  
+  # 自定义配置（map[string]interface{}）
+  custom_config:
+    # 连接池配置
+    connection_pool:
+      max_conns_per_host: 200
+      max_idle_conns_per_host: 10
+    # 重试条件配置
+    retry_conditions:
+      - "5xx"
+      - "timeout"
+      - "connection"
+
+# ========================================
+# 安全配置 (Security Configuration)
+# ========================================
+security:
+  id: "default-security"
+  enabled: true
+  ip_access:
+    id: "default-ip-access"
+    enabled: false
+    default_policy: "allow"
+    whitelist: []
+    blacklist: []
+    whitelist_cidr: []
+    blacklist_cidr: []
+    trust_x_forwarded_for: true
+    trust_x_real_ip: true
+  user_agent_access:
+    id: "default-useragent-access"
+    enabled: false
+    default_policy: "allow"
+    whitelist: []
+    blacklist: []
+    block_empty: false
+  api_access:
+    id: "default-api-access"
+    enabled: false
+    default_policy: "allow"
+    whitelist: []
+    blacklist: []
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]
+    blocked_methods: []
+  domain_access:
+    id: "default-domain-access"
+    enabled: false
+    default_policy: "allow"
+    whitelist: []
+    blacklist: []
+    allow_subdomains: true
+
+# ========================================
+# 认证配置 (Authentication Configuration)
+# ========================================
+auth:
+  id: "default-auth"
+  enabled: true
+  strategy: "none"
+  name: "Default Auth"
+  excluded_paths: []
+  config: {}
+
+# ========================================
+# CORS 配置 (Cross-Origin Resource Sharing)
+# ========================================
+cors:
+  id: "default-cors"
+  enabled: true
+  strategy: "default"
+  allow_origins:
+    - "*"
+  allow_methods:
+    - "GET"
+    - "POST" 
+    - "PUT"
+    - "DELETE"
+    - "PATCH"
+    - "HEAD"
+  allow_headers:
+    - "Origin"
+    - "Content-Type"
+    - "Accept"
+    - "Authorization"
+  expose_headers: []
+  allow_credentials: false
+  max_age: 86400
+  custom_config: {}
+
+# ========================================
+# 限流配置 (Rate Limiting Configuration)
+# ========================================
+rate_limit:
+  id: "default-ratelimit"
+  name: "Default Rate Limiter"
+  enabled: true
+  algorithm: "token-bucket"
+  rate: 100
+  burst: 50
+  window_size: 1
+  key_strategy: "ip"
+  error_status_code: 429
+  error_message: "Rate limit exceeded"
+  custom_config: {}
+
+# ========================================
+# 熔断配置 (Circuit Breaker Configuration)  
+# ========================================
+circuit_breaker:
+  id: "default-circuit-breaker"
+  enabled: true
+  error_rate_percent: 50
+  minimum_requests: 20
+  open_timeout_seconds: 60
+  half_open_max_requests: 5
+  error_status_code: 503
+  error_message: "Service unavailable, circuit breaker is open"
+  key_strategy: "service"
+  slow_call_threshold: 5000
+  slow_call_rate_percent: 80
+  window_size_seconds: 60
+  storage_type: "memory"
+  storage_config: {}
+
+

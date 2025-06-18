@@ -1376,13 +1376,25 @@ func scanRows(rows *sql.Rows, dest interface{}) error {
 
 		// 处理NULL值
 		// 对于每个使用sql.NullXxx类型的列，检查值是否有效，如果有效则设置到字段
+		// 注意：如果字段本身就是sql.NullXxx类型，则不需要额外处理，因为已经直接扫描到字段了
 		for i, target := range scanTargets {
 			field, ok := fieldMap[i]
 			if !ok {
 				continue // 跳过未映射的字段
 			}
 
-			// 根据不同的Null类型处理
+			// 如果字段本身就是sql.NullXxx类型，则跳过，因为已经直接扫描到字段了
+			fieldType := field.Type()
+			if fieldType == reflect.TypeOf(sql.NullString{}) ||
+				fieldType == reflect.TypeOf(sql.NullInt32{}) ||
+				fieldType == reflect.TypeOf(sql.NullInt64{}) ||
+				fieldType == reflect.TypeOf(sql.NullFloat64{}) ||
+				fieldType == reflect.TypeOf(sql.NullBool{}) ||
+				fieldType == reflect.TypeOf(sql.NullTime{}) {
+				continue // 字段本身是Null类型，已经直接扫描了
+			}
+
+			// 根据不同的Null类型处理（仅处理普通类型字段）
 			switch v := target.(type) {
 			case *sql.NullString:
 				if v.Valid {
@@ -1478,36 +1490,60 @@ func prepareScanTargets(structValue reflect.Value, columns []string) ([]interfac
 
 		// 根据字段类型创建适当的扫描目标
 		// 对于可能为NULL的数据库列，使用sql.NullXxx类型
-		switch field.Kind() {
-		case reflect.String:
-			// 使用sql.NullString处理可能为NULL的字符串
-			var ns sql.NullString
-			targets[i] = &ns
-			// 在Scan后，设置字段值的逻辑会在scanRows/QueryOne中处理
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			// 使用sql.NullInt64处理可能为NULL的整数
-			var ni sql.NullInt64
-			targets[i] = &ni
-		case reflect.Float32, reflect.Float64:
-			// 使用sql.NullFloat64处理可能为NULL的浮点数
-			var nf sql.NullFloat64
-			targets[i] = &nf
-		case reflect.Bool:
-			// 使用sql.NullBool处理可能为NULL的布尔值
-			var nb sql.NullBool
-			targets[i] = &nb
-		case reflect.Struct:
-			// 处理time.Time类型
-			if field.Type() == reflect.TypeOf(time.Time{}) {
-				var nt sql.NullTime
-				targets[i] = &nt
-			} else {
-				// 其他结构体类型，直接使用字段地址
+		// 首先检查字段是否已经是sql.NullXxx类型
+		fieldType := field.Type()
+
+		if fieldType == reflect.TypeOf(sql.NullString{}) {
+			// 字段已经是sql.NullString类型，直接使用字段地址
+			targets[i] = field.Addr().Interface()
+		} else if fieldType == reflect.TypeOf(sql.NullInt32{}) {
+			// 字段已经是sql.NullInt32类型，直接使用字段地址
+			targets[i] = field.Addr().Interface()
+		} else if fieldType == reflect.TypeOf(sql.NullInt64{}) {
+			// 字段已经是sql.NullInt64类型，直接使用字段地址
+			targets[i] = field.Addr().Interface()
+		} else if fieldType == reflect.TypeOf(sql.NullFloat64{}) {
+			// 字段已经是sql.NullFloat64类型，直接使用字段地址
+			targets[i] = field.Addr().Interface()
+		} else if fieldType == reflect.TypeOf(sql.NullBool{}) {
+			// 字段已经是sql.NullBool类型，直接使用字段地址
+			targets[i] = field.Addr().Interface()
+		} else if fieldType == reflect.TypeOf(sql.NullTime{}) {
+			// 字段已经是sql.NullTime类型，直接使用字段地址
+			targets[i] = field.Addr().Interface()
+		} else {
+			// 普通类型字段，根据基础类型创建对应的sql.NullXxx类型
+			switch field.Kind() {
+			case reflect.String:
+				// 使用sql.NullString处理可能为NULL的字符串
+				var ns sql.NullString
+				targets[i] = &ns
+				// 在Scan后，设置字段值的逻辑会在scanRows/QueryOne中处理
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				// 使用sql.NullInt64处理可能为NULL的整数
+				var ni sql.NullInt64
+				targets[i] = &ni
+			case reflect.Float32, reflect.Float64:
+				// 使用sql.NullFloat64处理可能为NULL的浮点数
+				var nf sql.NullFloat64
+				targets[i] = &nf
+			case reflect.Bool:
+				// 使用sql.NullBool处理可能为NULL的布尔值
+				var nb sql.NullBool
+				targets[i] = &nb
+			case reflect.Struct:
+				// 处理time.Time类型
+				if field.Type() == reflect.TypeOf(time.Time{}) {
+					var nt sql.NullTime
+					targets[i] = &nt
+				} else {
+					// 其他结构体类型，直接使用字段地址
+					targets[i] = field.Addr().Interface()
+				}
+			default:
+				// 其他类型，直接使用字段地址
 				targets[i] = field.Addr().Interface()
 			}
-		default:
-			// 其他类型，直接使用字段地址
-			targets[i] = field.Addr().Interface()
 		}
 	}
 	return targets, nil

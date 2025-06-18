@@ -1,0 +1,390 @@
+gateway:
+    base:
+        listen: :9080
+        enable_https: false
+        cert_file: ""
+        key_file: ""
+        use_gin: true
+        read_timeout: 10s
+        write_timeout: 10s
+        idle_timeout: 2m0s
+    router:
+        routes:
+            - id: api-route
+              name: API路由
+              path: /api/v1
+              match_type: prefix
+              methods:
+                - GET
+                - POST
+                - PUT
+                - DELETE
+              service_id: api-service
+              enabled: true
+              priority: 100
+              strip_prefix: true
+              rewrite_path: /v1
+              metadata:
+                description: API服务路由
+                name: API路由
+                tags:
+                    - api
+                    - v1
+                version: v1
+              assertion_group:
+                all_required: true
+                assertions:
+                    - type: path
+                      pattern: /api/v1/*
+                      operator: starts-with
+                      case_sensitive: true
+                      description: API路径前缀匹配
+                    - type: header
+                      name: Content-Type
+                      value: application/json
+                      operator: contains
+                      description: 头部字段 Content-Type 包含 application/json
+                    - type: query
+                      name: version
+                      value: v1
+                      operator: equal
+                      case_sensitive: true
+                      description: 查询参数字段 version 等于 v1
+              pre_proxy_filters:
+                - id: strip-prefix-api-route
+                  name: strip-prefix-api-route
+                  enabled: true
+                  config: {}
+                - id: path-rewrite-api-route
+                  name: path-rewrite-api-route
+                  enabled: true
+                  config: {}
+                - id: 添加请求头
+                  name: 添加请求头
+                  enabled: true
+                  config: {}
+                - id: 路径前缀去除
+                  name: 路径前缀去除
+                  enabled: true
+                  config: {}
+              post_proxy_filters:
+                - id: 缓存控制
+                  name: 缓存控制
+                  enabled: true
+                  config: {}
+                - id: 添加响应头
+                  name: 添加响应头
+                  enabled: true
+                  config: {}
+              cors:
+                enabled: true
+                allow_origins:
+                    - '*'
+                allow_methods:
+                    - GET
+                    - POST
+                    - PUT
+                    - DELETE
+                allow_headers:
+                    - Content-Type
+                    - Authorization
+                allow_credentials: false
+                max_age: 86400
+              rate_limit:
+                enabled: true
+                algorithm: token-bucket
+                rate: 100
+                burst: 50
+                per: minute
+                reject_status_code: 429
+                strategy: token-bucket
+              circuit_breaker:
+                enabled: true
+                minimum_requests: 20
+                error_threshold_percentage: 50
+                success_threshold_percentage: 50
+                break_duration: 1m0s
+                check_interval: 5s
+                break_status_code: 503
+              auth:
+                enabled: false
+                strategy: jwt
+                jwt:
+                    secret: ""
+                    issuer: ""
+                    expiration: 3600
+                    algorithm: ""
+                    verify_expiration: true
+                    verify_issuer: true
+                api_key:
+                    param_name: api-key
+                    in: header
+                    keys: []
+            - id: static-route
+              name: 静态资源路由
+              path: /static
+              match_type: prefix
+              methods:
+                - GET
+              service_id: static-service
+              enabled: true
+              priority: 200
+              strip_prefix: true
+              rewrite_path: ""
+              metadata:
+                description: 静态资源服务路由
+                name: 静态资源路由
+                tags:
+                    - static
+                    - assets
+              assertion_group:
+                all_required: true
+                assertions:
+                    - type: path
+                      pattern: /static/*
+                      operator: starts-with
+                      case_sensitive: true
+                      description: 静态资源路径匹配
+                    - type: header
+                      name: Accept
+                      value: image/*,text/css,application/javascript
+                      operator: contains
+                      description: 头部字段 Accept 包含 image/*,text/css,application/javascript
+              pre_proxy_filters:
+                - id: strip-prefix-static-route
+                  name: strip-prefix-static-route
+                  enabled: true
+                  config: {}
+                - id: 静态资源缓存头
+                  name: 静态资源缓存头
+                  enabled: true
+                  config: {}
+              post_proxy_filters: []
+              cors:
+                enabled: false
+                allow_origins: []
+                allow_methods: []
+                allow_headers: []
+                allow_credentials: false
+                max_age: 0
+              rate_limit:
+                enabled: false
+                algorithm: token-bucket
+                rate: 0
+                burst: 0
+                per: minute
+                reject_status_code: 429
+                strategy: token-bucket
+              circuit_breaker:
+                enabled: false
+                minimum_requests: 0
+                error_threshold_percentage: 0
+                success_threshold_percentage: 50
+                break_duration: 1m0s
+                check_interval: 5s
+                break_status_code: 503
+              auth:
+                enabled: false
+                strategy: none
+                jwt:
+                    secret: ""
+                    issuer: ""
+                    expiration: 3600
+                    algorithm: ""
+                    verify_expiration: false
+                    verify_issuer: false
+                api_key:
+                    param_name: api-key
+                    in: header
+                    keys: []
+            - id: ws-route
+              name: WebSocket路由
+              path: /ws
+              match_type: exact
+              methods: []
+              service_id: ws-service
+              enabled: true
+              priority: 300
+              strip_prefix: false
+              rewrite_path: ""
+              metadata:
+                description: WebSocket服务路由
+                name: WebSocket路由
+                tags:
+                    - websocket
+                    - realtime
+              assertion_group:
+                all_required: true
+                assertions:
+                    - type: path
+                      pattern: /ws
+                      operator: equal
+                      case_sensitive: true
+                      description: WebSocket路径精确匹配
+                    - type: header
+                      name: Upgrade
+                      value: websocket
+                      operator: equal
+                      description: 头部字段 Upgrade 等于 websocket
+                    - type: header
+                      name: Connection
+                      value: Upgrade
+                      operator: contains
+                      description: 头部字段 Connection 包含 Upgrade
+              pre_proxy_filters: []
+              post_proxy_filters: []
+              cors:
+                enabled: true
+                allow_origins:
+                    - '*'
+                allow_methods:
+                    - GET
+                allow_headers:
+                    - Authorization
+                    - Sec-WebSocket-Key
+                    - Sec-WebSocket-Version
+                    - Sec-WebSocket-Extensions
+                allow_credentials: true
+                max_age: 0
+    proxy:
+        timeout: 30s
+        follow_redirects: true
+        keep_alive: true
+        max_idle_conns: 100
+        idle_conn_timeout: 1m30s
+        copy_response_body: true
+        services:
+            - id: api-service
+              name: API服务
+              load_balance: round-robin
+              endpoints:
+                - http://localhost:8081
+                - http://localhost:8082
+              health_check:
+                enabled: false
+                path: /health
+                interval: 30s
+                timeout: 5s
+                healthy_threshold: 2
+                unhealthy_threshold: 3
+            - id: static-service
+              name: 静态资源服务
+              load_balance: round-robin
+              endpoints:
+                - http://localhost:9000
+              health_check:
+                enabled: false
+                path: /health
+                interval: 30s
+                timeout: 5s
+                healthy_threshold: 2
+                unhealthy_threshold: 3
+            - id: ws-service
+              name: WebSocket服务
+              load_balance: round-robin
+              endpoints:
+                - ws://localhost:8090
+              config:
+                ping_interval: 30s
+                websocket: true
+              health_check:
+                enabled: false
+                path: /health
+                interval: 30s
+                timeout: 5s
+                healthy_threshold: 2
+                unhealthy_threshold: 3
+    cors:
+        enabled: true
+        allow_origins:
+            - '*'
+        allow_methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+        allow_headers:
+            - Content-Type
+            - Authorization
+            - X-Requested-With
+        allow_credentials: false
+        max_age: 86400
+    rate_limit:
+        enabled: true
+        algorithm: token-bucket
+        rate: 1000
+        burst: 500
+        per: second
+        reject_status_code: 429
+        strategy: ip
+    circuit_breaker:
+        enabled: true
+        minimum_requests: 100
+        error_threshold_percentage: 50
+        success_threshold_percentage: 50
+        break_duration: 30s
+        check_interval: 5s
+        break_status_code: 503
+    auth:
+        enabled: false
+        strategy: jwt
+        jwt:
+            secret: your-jwt-secret
+            issuer: gohub-gateway
+            expiration: 3600
+            algorithm: HS256
+            verify_expiration: true
+            verify_issuer: true
+        api_key:
+            param_name: api-key
+            in: header
+            keys: []
+    filters:
+        pre_proxy:
+            - id: 请求ID注入
+              name: 请求ID注入
+              enabled: true
+              order: 1
+              config: {}
+            - id: 请求日志记录
+              name: 请求日志记录
+              enabled: true
+              order: 2
+              config: {}
+        post_proxy:
+            - id: 响应时间记录
+              name: 响应时间记录
+              enabled: true
+              order: 1
+              config: {}
+            - id: 错误处理
+              name: 错误处理
+              enabled: true
+              order: 2
+              config: {}
+    logging:
+        level: info
+        format: json
+        output: console
+        file_path: ""
+        access_log: false
+        log_body: false
+        rotation:
+            max_size: 100
+            max_backups: 5
+            max_age: 30
+            compress: true
+    metrics:
+        enabled: false
+        system: ""
+        path: ""
+        collect_detailed_metrics: false
+        labels: {}
+    tracing:
+        enabled: false
+        system: ""
+        sample_rate: 0
+        endpoint: ""
+        propagate_in_response_header: false
+        service_name: ""

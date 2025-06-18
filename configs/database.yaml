@@ -11,12 +11,12 @@ database:
       enabled: true # 启用状态（可选，默认为true）
       dsn: "" # 如果提供DSN，将忽略下面的结构化配置
       connection:
-        host: rm-bp1i81ckdj72o6vy2ao.mysql.rds.aliyuncs.com
-        port: 3306
+        host: 121.43.231.91
+        port: 63306
         username: root
-        password: "!@#wwe123"
-        database: wms_ftest
-        charset: utf8mb3
+        password: "datahub"
+        database: shangjian_test
+        charset: utf8mb4
         parse_time: true
         loc: Local
       pool:
@@ -77,3 +77,39 @@ database:
         database: database.sqlite
       log:
         slow_threshold: 100 
+# 缓存配置
+cache:
+  # 默认缓存类型
+  default: redis
+  
+  # Redis缓存配置 - 所有配置项都在一层结构中，避免过度嵌套
+  redis:
+    # === 连接配置 ===
+    host: 121.43.231.91          # Redis服务器地址，例如: localhost, 192.168.1.100
+    port: 6379                   # Redis服务器端口，默认: 6379
+    password: "datahub"          # Redis认证密码，如果Redis没有设置密码则留空
+    db: 0                        # Redis数据库编号，范围0-15，默认: 0
+
+    # === 连接池配置 ===
+    pool_size: 100               # 连接池最大连接数，建议值: 100
+    min_idle_conns: 10           # 最小空闲连接数，保持一定数量的连接避免频繁创建，建议值: 10
+    max_idle_conns: 100          # 最大空闲连接数，控制空闲连接上限，建议值: 100
+    max_active_conns: 100        # 最大活跃连接数，控制同时工作的连接数，建议值: 100
+    idle_timeout: 1800000        # 空闲连接超时时间（毫秒），超时后连接会被关闭，默认: 1800000（30分钟）
+
+    # === 超时配置 ===
+    dial_timeout: 5s             # 建立连接的超时时间，默认: 5s
+    read_timeout: 3s             # 读取数据的超时时间，默认: 3s
+    write_timeout: 3s            # 写入数据的超时时间，默认: 3s
+    pool_timeout: 4s             # 从连接池获取连接的超时时间，默认: 4s
+
+    # === 重试配置 ===
+    max_retries: 3               # 操作失败时的最大重试次数，默认: 3
+    min_retry_backoff: 8ms       # 重试间隔的最小值，默认: 8ms
+    max_retry_backoff: 512ms     # 重试间隔的最大值，默认: 512ms
+
+    # === 其他配置 ===
+    key_prefix: "gohub"          # 缓存键前缀，用于区分不同应用或环境，例如: "myapp:prod"
+    enable_pipelining: true      # 是否启用管道模式提高批量操作性能，默认: true
+    enable_compression: false    # 是否启用数据压缩，适用于大数据量场景，默认: false
+

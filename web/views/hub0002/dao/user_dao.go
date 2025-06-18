@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"gohub/pkg/database"
-	"gohub/pkg/logger"
 	"gohub/pkg/utils/huberrors"
 	"gohub/web/views/hub0002/models"
 	"strings"
@@ -84,7 +83,7 @@ func (dao *UserDAO) GetUserById(userId, tenantId string) (*models.User, error) {
 
 	query := `
 		SELECT * FROM HUB_USER 
-		WHERE userId = ? AND tenantId = ? AND activeFlag = 'Y'
+		WHERE userId = ? AND tenantId = ?
 	`
 
 	ctx := context.Background()
@@ -154,13 +153,13 @@ func (dao *UserDAO) UpdateUser(user *models.User, operatorId string) error {
 	return nil
 }
 
-// DeleteUser 删除用户(逻辑删除)
+// DeleteUser 物理删除用户
 func (dao *UserDAO) DeleteUser(userId, tenantId, operatorId string) error {
 	if userId == "" || tenantId == "" {
 		return errors.New("userId和tenantId不能为空")
 	}
 
-	// 首先获取用户当前版本
+	// 首先获取用户当前信息
 	currentUser, err := dao.GetUserById(userId, tenantId)
 	if err != nil {
 		return err
@@ -169,129 +168,20 @@ func (dao *UserDAO) DeleteUser(userId, tenantId, operatorId string) error {
 		return errors.New("用户不存在")
 	}
 
-	// 构建更新SQL，设置activeFlag为N表示逻辑删除
-	now := time.Now()
-	newVersion := currentUser.CurrentVersion + 1
-	oprSeqFlag := userId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
+	// 构建删除SQL
+	sql := `DELETE FROM HUB_USER WHERE userId = ? AND tenantId = ?`
 
-	sql := `
-		UPDATE HUB_USER SET
-			activeFlag = 'N', statusFlag = 'N',
-			editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?
-		WHERE userId = ? AND tenantId = ? AND currentVersion = ? AND activeFlag = 'Y'
-	`
-
-	// 执行更新
+	// 执行删除
 	ctx := context.Background()
-	result, err := dao.db.Exec(ctx, sql, []interface{}{
-		now, operatorId, oprSeqFlag, newVersion,
-		userId, tenantId, currentUser.CurrentVersion,
-	})
+	result, err := dao.db.Exec(ctx, sql, []interface{}{userId, tenantId})
 
 	if err != nil {
 		return huberrors.WrapError(err, "删除用户失败")
 	}
 
-	// 检查是否有记录被更新
+	// 检查是否有记录被删除
 	if result == 0 {
-		return errors.New("用户数据已被其他用户修改，请刷新后重试")
-	}
-
-	return nil
-}
-
-// ChangePassword 修改密码
-func (dao *UserDAO) ChangePassword(userId, tenantId, newPassword, operatorId string) error {
-	if userId == "" || tenantId == "" || newPassword == "" {
-		return errors.New("userId、tenantId和新密码不能为空")
-	}
-
-	// 首先获取用户当前版本
-	currentUser, err := dao.GetUserById(userId, tenantId)
-	if err != nil {
-		return err
-	}
-	if currentUser == nil {
-		return errors.New("用户不存在")
-	}
-
-	// 构建更新SQL
-	now := time.Now()
-	newVersion := currentUser.CurrentVersion + 1
-	oprSeqFlag := userId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
-
-	sql := `
-		UPDATE HUB_USER SET
-			password = ?,
-			editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?
-		WHERE userId = ? AND tenantId = ? AND currentVersion = ? AND activeFlag = 'Y'
-	`
-
-	// 执行更新
-	ctx := context.Background()
-	result, err := dao.db.Exec(ctx, sql, []interface{}{
-		newPassword,
-		now, operatorId, oprSeqFlag, newVersion,
-		userId, tenantId, currentUser.CurrentVersion,
-	})
-
-	if err != nil {
-		return huberrors.WrapError(err, "修改密码失败")
-	}
-
-	// 检查是否有记录被更新
-	if result == 0 {
-		return errors.New("用户数据已被其他用户修改，请刷新后重试")
-	}
-
-	return nil
-}
-
-// UpdateUserStatus 更新用户状态
-func (dao *UserDAO) UpdateUserStatus(userId, tenantId, statusFlag, operatorId string) error {
-	if userId == "" || tenantId == "" || statusFlag == "" {
-		return errors.New("userId、tenantId和状态不能为空")
-	}
-	if statusFlag != "Y" && statusFlag != "N" {
-		return errors.New("状态值必须是Y或N")
-	}
-
-	// 首先获取用户当前版本
-	currentUser, err := dao.GetUserById(userId, tenantId)
-	if err != nil {
-		return err
-	}
-	if currentUser == nil {
-		return errors.New("用户不存在")
-	}
-
-	// 构建更新SQL
-	now := time.Now()
-	newVersion := currentUser.CurrentVersion + 1
-	oprSeqFlag := userId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
-
-	sql := `
-		UPDATE HUB_USER SET
-			statusFlag = ?,
-			editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?
-		WHERE userId = ? AND tenantId = ? AND currentVersion = ? AND activeFlag = 'Y'
-	`
-
-	// 执行更新
-	ctx := context.Background()
-	result, err := dao.db.Exec(ctx, sql, []interface{}{
-		statusFlag,
-		now, operatorId, oprSeqFlag, newVersion,
-		userId, tenantId, currentUser.CurrentVersion,
-	})
-
-	if err != nil {
-		return huberrors.WrapError(err, "更新用户状态失败")
-	}
-
-	// 检查是否有记录被更新
-	if result == 0 {
-		return errors.New("用户数据已被其他用户修改，请刷新后重试")
+		return errors.New("未找到要删除的用户")
 	}
 
 	return nil
@@ -317,15 +207,19 @@ func (dao *UserDAO) ListUsers(tenantId string, page, pageSize int) ([]*models.Us
 	// 查询总数
 	countSQL := `
 		SELECT COUNT(*) FROM HUB_USER
-		WHERE tenantId = ? AND activeFlag = 'Y'
+		WHERE tenantId = ?
 	`
 
+	// 执行查询，使用匿名结构体
 	ctx := context.Background()
-	var total int
-	err := dao.db.QueryOne(ctx, &total, countSQL, []interface{}{tenantId})
+	var result struct {
+		Count int `db:"COUNT(*)"`
+	}
+	err := dao.db.QueryOne(ctx, &result, countSQL, []interface{}{tenantId})
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询用户总数失败")
 	}
+	total := result.Count
 
 	// 如果没有记录，直接返回空列表
 	if total == 0 {
@@ -335,7 +229,7 @@ func (dao *UserDAO) ListUsers(tenantId string, page, pageSize int) ([]*models.Us
 	// 查询用户列表
 	listSQL := `
 		SELECT * FROM HUB_USER
-		WHERE tenantId = ? AND activeFlag = 'Y'
+		WHERE tenantId = ?
 		ORDER BY addTime DESC
 		LIMIT ? OFFSET ?
 	`
@@ -357,7 +251,7 @@ func (dao *UserDAO) FindUserByUsername(username, tenantId string) (*models.User,
 
 	query := `
 		SELECT * FROM HUB_USER 
-		WHERE userName = ? AND tenantId = ? AND activeFlag = 'Y'
+		WHERE userName = ? AND tenantId = ?
 	`
 
 	ctx := context.Background()
@@ -374,11 +268,6 @@ func (dao *UserDAO) FindUserByUsername(username, tenantId string) (*models.User,
 	return &user, nil
 }
 
-// GetUserByName 根据用户名获取用户信息 (兼容AuthService使用)
-func (dao *UserDAO) GetUserByName(username, tenantId string) (*models.User, error) {
-	return dao.FindUserByUsername(username, tenantId)
-}
-
 // 检查是否是用户名重复错误
 func (dao *UserDAO) isDuplicateUserNameError(err error) bool {
 	// 检查是否是唯一键冲突错误
@@ -387,13 +276,13 @@ func (dao *UserDAO) isDuplicateUserNameError(err error) bool {
 			strings.Contains(err.Error(), "UK_USER_NAME_TENANT")
 }
 
-// UpdateLastLogin 更新最后登录信息
-func (dao *UserDAO) UpdateLastLogin(userId, tenantId, lastLoginIp string) error {
-	if userId == "" || tenantId == "" {
-		return errors.New("userId和tenantId不能为空")
+// ChangePassword 修改密码
+func (dao *UserDAO) ChangePassword(userId, tenantId, newPassword, operatorId string) error {
+	if userId == "" || tenantId == "" || newPassword == "" {
+		return errors.New("userId、tenantId和新密码不能为空")
 	}
 
-	// 首先获取用户当前版本
+	// 首先获取用户当前信息
 	currentUser, err := dao.GetUserById(userId, tenantId)
 	if err != nil {
 		return err
@@ -404,31 +293,29 @@ func (dao *UserDAO) UpdateLastLogin(userId, tenantId, lastLoginIp string) error 
 
 	// 构建更新SQL
 	now := time.Now()
-	newVersion := currentUser.CurrentVersion + 1
-	oprSeqFlag := userId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
-
 	sql := `
 		UPDATE HUB_USER SET
-			lastLoginTime = ?, lastLoginIp = ?,
-			editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?
-		WHERE userId = ? AND tenantId = ? AND currentVersion = ? AND activeFlag = 'Y'
+			password = ?,
+			editTime = ?, 
+			editWho = ?
+		WHERE userId = ? AND tenantId = ?
 	`
 
 	// 执行更新
 	ctx := context.Background()
 	result, err := dao.db.Exec(ctx, sql, []interface{}{
-		now, lastLoginIp,
-		now, userId, oprSeqFlag, newVersion,
-		userId, tenantId, currentUser.CurrentVersion,
+		newPassword,
+		now, operatorId,
+		userId, tenantId,
 	})
 
 	if err != nil {
-		return huberrors.WrapError(err, "更新登录信息失败")
+		return huberrors.WrapError(err, "修改密码失败")
 	}
 
 	// 检查是否有记录被更新
 	if result == 0 {
-		logger.Warn("更新登录信息时发现数据已被修改", "userId", userId, "tenantId", tenantId)
+		return errors.New("未找到要修改的用户")
 	}
 
 	return nil

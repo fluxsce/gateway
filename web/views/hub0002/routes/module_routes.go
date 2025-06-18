@@ -72,27 +72,10 @@ func initUserRoutes(router *gin.RouterGroup, db database.Database) {
 	{
 		// 将所有路由放到受保护的路由组中
 		// 为每个用户路由加上AuthRequired中间件
-		userGroup.GET("", userController.List)
+		userGroup.POST("/queryUsers", userController.QueryUsers)
 		userGroup.POST("/addUser", userController.AddUser)
-		userGroup.PUT("", userController.Update)
-		userGroup.GET("/:userId", userController.Get)
-		userGroup.DELETE("/:userId", userController.Delete)
-		userGroup.PUT("/password", userController.ChangePassword)
-		userGroup.PUT("/:userId/enable", userController.Enable)
-		userGroup.PUT("/:userId/disable", userController.Disable)
-
-		// 或者使用路由组方式应用中间件（更简洁）
-		// securedGroup := userGroup.Group("", routes.AuthRequired())
-		// {
-		//     securedGroup.GET("", userController.List)
-		//     securedGroup.POST("/addUser", userController.AddUser)
-		//     securedGroup.PUT("", userController.Update)
-		//     securedGroup.GET("/:userId", userController.Get)
-		//     securedGroup.DELETE("/:userId", userController.Delete)
-		//     securedGroup.PUT("/password", userController.ChangePassword)
-		//     securedGroup.PUT("/:userId/enable", userController.Enable)
-		//     securedGroup.PUT("/:userId/disable", userController.Disable)
-		// }
+		userGroup.POST("/editUser", userController.EditUser)
+		userGroup.POST("/deleteUser", userController.Delete)
 	}
 }
 

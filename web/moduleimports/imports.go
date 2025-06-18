@@ -16,6 +16,8 @@ import (
 	// _ "gohub/web/views/hub0004/routes"
 	// 导入认证模块
 	_ "gohub/web/views/hub0001/routes"
+	// 导入网关管理模块
+	_ "gohub/web/views/hub0020/routes"
 )
 
 // 这个包没有导出任何函数或变量
