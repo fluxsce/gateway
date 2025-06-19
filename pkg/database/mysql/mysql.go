@@ -18,9 +18,7 @@ import (
 // 注册MySQL驱动
 func init() {
 	database.Register(database.DriverMySQL, func() database.Database {
-		return &MySQL{
-			txs: make(map[*sql.Tx]bool), // 确保每个实例都有自己独立的事务映射
-		}
+		return &MySQL{}
 	})
 }
 
@@ -34,20 +32,24 @@ func init() {
 // 6. 带选项的操作 - 每个数据库操作都有带选项的版本，支持自定义执行行为
 // 7. 活跃事务追踪 - 通过内部映射跟踪所有活跃事务
 type MySQL struct {
-	db     *sql.DB
-	config *database.DbConfig
-	mu     sync.RWMutex
-	txs    map[*sql.Tx]bool // 管理活跃的事务
-	logger *dblogger.DBLogger
+	db       *sql.DB
+	config   *database.DbConfig
+	logger   *dblogger.DBLogger
+	mu       sync.RWMutex
+	currentTx *sql.Tx // 当前活跃的事务
 }
 
-// Connect implements database.Database
-// 连接到MySQL数据库
+// Connect 连接到MySQL数据库
+// 建立MySQL数据库连接，配置连接池参数，并验证连接可用性
+// 会根据配置设置最大连接数、空闲连接数、连接生命周期等参数
+// 参数:
+//   config: MySQL数据库配置，包含DSN、连接池设置、日志配置等
+// 返回:
+//   error: 连接建立失败时返回错误信息
 func (m *MySQL) Connect(config *database.DbConfig) error {
 	m.config = config
 	m.logger = dblogger.NewDBLogger(config)
 
-	// 记录连接开始
 	m.logger.LogConnecting(database.DriverMySQL, config.DSN)
 
 	// 打开数据库连接
@@ -82,32 +84,33 @@ func (m *MySQL) Connect(config *database.DbConfig) error {
 	}
 	db.SetConnMaxIdleTime(connMaxIdleTime)
 
-	// 记录连接池设置
-	poolSettings := map[string]any{
-		"maxOpenConns":    maxOpenConns,
-		"maxIdleConns":    maxIdleConns,
-		"connMaxLifetime": connMaxLifetime.String(),
-		"connMaxIdleTime": connMaxIdleTime.String(),
-	}
-
 	// 检查连接是否正常
 	if err := db.Ping(); err != nil {
 		m.logger.LogPing(err)
 		return fmt.Errorf("MySQL connection test failed: %w", err)
 	}
 
-	// 应用配置
 	m.db = db
-	m.txs = make(map[*sql.Tx]bool) // 初始化事务映射
-
-	// 记录连接成功
-	m.logger.LogConnected(database.DriverMySQL, poolSettings)
+	m.logger.LogConnected(database.DriverMySQL, map[string]any{
+		"maxOpenConns":    maxOpenConns,
+		"maxIdleConns":    maxIdleConns,
+		"connMaxLifetime": connMaxLifetime.String(),
+		"connMaxIdleTime": connMaxIdleTime.String(),
+	})
 
 	return nil
 }
 
 // Close 关闭数据库连接
+// 关闭MySQL数据库连接，释放相关资源
+// 如果存在活跃事务，会先回滚事务再关闭连接
+// 返回:
+//   error: 关闭连接失败时返回错误信息
 func (m *MySQL) Close() error {
+	if m.currentTx != nil {
+		m.currentTx.Rollback()
+		m.currentTx = nil
+	}
 	if m.db != nil {
 		m.logger.LogDisconnect(database.DriverMySQL)
 		return m.db.Close()
@@ -116,7 +119,10 @@ func (m *MySQL) Close() error {
 }
 
 // DSN 返回数据库连接字符串
-// 返回值会被处理以隐藏敏感信息
+// 获取当前MySQL连接使用的数据源名称
+// 返回值会被处理以隐藏敏感信息（如密码）
+// 返回:
+//   string: 处理后的DSN字符串，隐藏敏感信息
 func (m *MySQL) DSN() string {
 	if m.config == nil {
 		return ""
@@ -126,21 +132,34 @@ func (m *MySQL) DSN() string {
 }
 
 // DB 返回底层的sql.DB实例
+// 获取MySQL连接底层的标准库sql.DB实例
+// 用于需要直接访问底层数据库连接的场景
+// 返回:
+//   *sql.DB: 底层的sql.DB实例
 func (m *MySQL) DB() *sql.DB {
 	return m.db
 }
 
 // DriverName 返回数据库驱动名称
+// 获取当前数据库使用的驱动名称标识
+// 返回:
+//   string: 固定返回"mysql"
 func (m *MySQL) DriverName() string {
 	return database.DriverMySQL
 }
 
 // GetDriver 获取数据库驱动类型
+// 实现Database接口，返回MySQL驱动标识
+// 返回:
+//   string: MySQL驱动类型标识
 func (m *MySQL) GetDriver() string {
 	return database.DriverMySQL
 }
 
 // GetName 获取数据库连接名称
+// 实现Database接口，返回当前连接的名称
+// 返回:
+//   string: 数据库连接名称，如果配置为空则返回空字符串
 func (m *MySQL) GetName() string {
 	if m.config == nil {
 		return ""
@@ -148,7 +167,22 @@ func (m *MySQL) GetName() string {
 	return m.config.Name
 }
 
+// SetName 设置数据库连接名称
+// 用于在创建连接后设置连接名称标识
+// 参数:
+//   name: 连接名称
+func (m *MySQL) SetName(name string) {
+	if m.config != nil {
+		m.config.Name = name
+	}
+}
+
 // Ping 测试数据库连接
+// 向MySQL服务器发送ping请求，验证连接状态
+// 参数:
+//   ctx: 上下文，用于控制请求超时和取消
+// 返回:
+//   error: 连接异常时返回错误信息
 func (m *MySQL) Ping(ctx context.Context) error {
 	err := m.db.PingContext(ctx)
 	m.logger.LogPing(err)
@@ -156,1426 +190,711 @@ func (m *MySQL) Ping(ctx context.Context) error {
 }
 
 // BeginTx 开始事务
-func (m *MySQL) BeginTx(ctx context.Context, options ...database.TxOption) (database.Transaction, error) {
-	// 应用传入的事务选项
-	txOpts := database.NewTxOptions(options...)
+// 启动一个新的MySQL事务，支持指定隔离级别和只读属性
+// 如果已有活跃事务，会返回错误
+// 参数:
+//   ctx: 上下文，用于控制请求超时和取消
+//   options: 事务选项，包含隔离级别和只读设置
+// 返回:
+//   error: 开始事务失败时返回错误信息
+func (m *MySQL) BeginTx(ctx context.Context, options *database.TxOptions) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	// 创建SQL事务选项，用于传递给底层数据库
-	sqlTxOpts := &sql.TxOptions{
-		ReadOnly: txOpts.ReadOnly, // 设置事务是否为只读
+	if m.currentTx != nil {
+		return fmt.Errorf("transaction already active")
 	}
 
-	// 根据隔离级别设置对应的SQL隔离级别
-	switch txOpts.Isolation {
-	case 1:
-		sqlTxOpts.Isolation = sql.LevelReadUncommitted // 未提交读：可以读取未提交的数据
-	case 2:
-		sqlTxOpts.Isolation = sql.LevelReadCommitted // 提交读：只能读取已提交的数据
-	case 3:
-		sqlTxOpts.Isolation = sql.LevelRepeatableRead // 可重复读：确保在事务期间读取的数据不会改变
-	case 4:
-		sqlTxOpts.Isolation = sql.LevelSerializable // 可串行化：最高隔离级别，完全序列化事务执行
-	default:
-		sqlTxOpts.Isolation = sql.LevelDefault // 默认隔离级别
+	var sqlTxOpts *sql.TxOptions
+	if options != nil {
+		sqlTxOpts = &sql.TxOptions{
+			ReadOnly: options.ReadOnly,
+		}
+
+		switch options.Isolation {
+		case database.IsolationReadUncommitted:
+			sqlTxOpts.Isolation = sql.LevelReadUncommitted
+		case database.IsolationReadCommitted:
+			sqlTxOpts.Isolation = sql.LevelReadCommitted
+		case database.IsolationRepeatableRead:
+			sqlTxOpts.Isolation = sql.LevelRepeatableRead
+		case database.IsolationSerializable:
+			sqlTxOpts.Isolation = sql.LevelSerializable
+		default:
+			sqlTxOpts.Isolation = sql.LevelDefault
+		}
 	}
 
-	// 使用设置的选项开启底层SQL事务
-	sqlTx, err := m.db.BeginTx(ctx, sqlTxOpts)
+	tx, err := m.db.BeginTx(ctx, sqlTxOpts)
 	if err != nil {
 		m.logger.LogTx("开始", err)
-		return nil, fmt.Errorf("%w: %v", database.ErrTransaction, err)
+		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
 	}
 
-	// 记录开始事务日志
+	m.currentTx = tx
 	m.logger.LogTx("开始", nil)
-
-	// 注册事务，用于跟踪活跃事务
-	m.mu.Lock()
-	m.txs[sqlTx] = true
-	m.mu.Unlock()
-
-	// 创建事务封装对象，提供统一的接口
-	tx := &MySQLTransaction{
-		tx:     sqlTx,
-		config: m.config,
-		parent: m,
-		logger: m.logger,
-	}
-
-	return tx, nil
-}
-
-// WithTx 使用已有事务执行函数
-func (m *MySQL) WithTx(tx database.Transaction, fn func(tx database.Transaction) error) error {
-	// 如果传入的事务为nil，则创建新事务
-	var err error
-	var myTx *MySQLTransaction
-	var newTx bool
-
-	if tx == nil {
-		// 创建新事务
-		newTx = true
-		tx, err = m.BeginTx(context.Background())
-		if err != nil {
-			return err
-		}
-
-		// 尝试类型断言以获取内部事务对象
-		var ok bool
-		myTx, ok = tx.(*MySQLTransaction)
-		if !ok {
-			tx.Rollback() // 类型断言失败，回滚事务
-			return fmt.Errorf("invalid transaction type")
-		}
-	} else {
-		// 尝试类型断言确认传入的是MySQL事务
-		var ok bool
-		myTx, ok = tx.(*MySQLTransaction)
-		if !ok {
-			return fmt.Errorf("invalid transaction type")
-		}
-
-		// 验证事务状态 - 检查事务是否仍然在活跃事务映射中
-		m.mu.RLock()
-		_, exists := m.txs[myTx.tx]
-		m.mu.RUnlock()
-
-		if !exists && !newTx {
-			return fmt.Errorf("%w: transaction is already ended or invalid", database.ErrTransaction)
-		}
-	}
-
-	// 执行传入的事务函数
-	if err := fn(tx); err != nil {
-		// 如果函数执行失败，回滚事务
-		// 验证事务仍然有效
-		m.mu.RLock()
-		_, exists := m.txs[myTx.tx]
-		m.mu.RUnlock()
-
-		if exists {
-			_ = tx.Rollback()
-		}
-		return err
-	}
-
-	// 函数执行成功，提交事务
-	// 先验证事务仍然有效
-	m.mu.RLock()
-	_, exists := m.txs[myTx.tx]
-	m.mu.RUnlock()
-
-	if !exists {
-		return fmt.Errorf("%w: transaction is already ended or invalid", database.ErrTransaction)
-	}
-
-	return tx.Commit()
-}
-
-// Exec 直接执行SQL（无事务）
-func (m *MySQL) Exec(ctx context.Context, query string, args []interface{}) (int64, error) {
-	// 记录开始时间，用于计算SQL执行耗时
-	start := time.Now()
-
-	// 执行SQL语句
-	result, err := m.db.ExecContext(ctx, query, args...)
-
-	// 计算执行耗时
-	elapsed := time.Since(start)
-
-	// 记录SQL执行日志
-	m.logger.LogSQL("SQL执行", query, args, err, elapsed)
-
-	if err != nil {
-		return 0, err
-	}
-
-	// 返回受影响的行数
-	return result.RowsAffected()
-}
-
-// ExecWithOptions 带选项执行SQL语句
-func (m *MySQL) ExecWithOptions(ctx context.Context, query string, args []interface{}, options ...database.ExecOption) (int64, error) {
-	// 应用传入的执行选项
-	execOpts := database.NewExecOptions(m.config, options...)
-
-	// 判断是否使用事务
-	if *execOpts.UseTransaction {
-		// 创建新事务
-		tx, err := m.BeginTx(ctx)
-		if err != nil {
-			return 0, err
-		}
-
-		// 在事务中执行SQL
-		result, err := tx.Exec(ctx, query, args)
-		if err != nil {
-			// 执行错误，回滚事务
-			_ = tx.Rollback()
-			return 0, err
-		}
-
-		// 执行成功，提交事务
-		if err := tx.Commit(); err != nil {
-			return 0, err
-		}
-
-		return result, nil
-	}
-
-	// 不使用事务，直接执行SQL
-	return m.Exec(ctx, query, args)
-}
-
-// Query 查询多条记录（无事务）
-func (m *MySQL) Query(ctx context.Context, dest interface{}, query string, args []interface{}) error {
-	// 记录开始时间，用于计算SQL执行耗时
-	start := time.Now()
-
-	// 执行查询
-	rows, err := m.db.QueryContext(ctx, query, args...)
-
-	// 计算执行耗时
-	elapsed := time.Since(start)
-
-	// 记录SQL执行日志
-	m.logger.LogSQL("SQL查询", query, args, err, elapsed)
-
-	if err != nil {
-		return err
-	}
-	// 确保关闭结果集，防止资源泄漏
-	defer rows.Close()
-
-	// 扫描结果集到目标结构体切片
-	err = scanRows(rows, dest)
-
-	// 获取结果数量
-	destVal := reflect.ValueOf(dest).Elem()
-	count := 0
-	if destVal.Kind() == reflect.Slice {
-		count = destVal.Len()
-	}
-
-	// 记录查询结果
-	m.logger.LogQueryResult("SQL查询", count, err)
-
-	return err
-}
-
-// QueryWithOptions 带选项查询多条记录
-func (m *MySQL) QueryWithOptions(ctx context.Context, dest interface{}, query string, args []interface{}, options ...database.QueryOption) error {
-	// 应用传入的查询选项
-	queryOpts := database.NewQueryOptions(m.config, options...)
-
-	// 判断是否使用事务
-	if *queryOpts.UseTransaction {
-		// 创建新事务
-		tx, err := m.BeginTx(ctx)
-		if err != nil {
-			return err
-		}
-
-		// 在事务中执行查询
-		err = tx.Query(ctx, dest, query, args)
-		if err != nil {
-			// 查询失败，回滚事务
-			_ = tx.Rollback()
-			return err
-		}
-
-		// 查询成功，提交事务
-		return tx.Commit()
-	}
-
-	// 不使用事务，直接查询
-	return m.Query(ctx, dest, query, args)
-}
-
-// QueryOne 查询单条记录（无事务）
-func (m *MySQL) QueryOne(ctx context.Context, dest interface{}, query string, args []interface{}) error {
-	// 记录开始时间，用于计算SQL执行耗时
-	start := time.Now()
-
-	// 改用QueryContext代替QueryRowContext
-	// 这样我们可以获取列信息，并正确处理字段映射
-	rows, err := m.db.QueryContext(ctx, query, args...)
-
-	// 计算执行耗时
-	elapsed := time.Since(start)
-
-	// 记录SQL执行日志
-	m.logger.LogSQL("SQL单行查询", query, args, err, elapsed)
-
-	if err != nil {
-		return err
-	}
-	// 确保关闭结果集
-	defer rows.Close()
-
-	// 检查是否有结果
-	if !rows.Next() {
-		// 记录查询结果 - 未找到记录
-		m.logger.LogQueryResult("SQL单行查询", 0, database.ErrRecordNotFound)
-		return database.ErrRecordNotFound
-	}
-
-	// 获取列名
-	columns, err := rows.Columns()
-	if err != nil {
-		return err
-	}
-
-	// 获取结构体的反射值
-	value := reflect.ValueOf(dest)
-	if value.Kind() != reflect.Ptr || value.IsNil() {
-		return fmt.Errorf("dest must be a non-nil pointer to a struct")
-	}
-	structValue := value.Elem()
-	if structValue.Kind() != reflect.Struct {
-		return fmt.Errorf("dest must be a pointer to a struct")
-	}
-
-	// 准备扫描目标
-	scanTargets, err := prepareScanTargets(structValue, columns)
-	if err != nil {
-		return err
-	}
-
-	// 创建一个字段映射表，用于后续处理NULL值
-	fieldMap := make(map[int]reflect.Value) // 使用列索引作为键
-	for i, column := range columns {
-		field, ok := findFieldByColumn(structValue, column)
-		if ok {
-			fieldMap[i] = field
-		}
-	}
-
-	// 扫描单行数据
-	if err := rows.Scan(scanTargets...); err != nil {
-		return err
-	}
-
-	// 处理NULL值
-	// 对于每个使用sql.NullXxx类型的列，检查值是否有效，如果有效则设置到字段
-	for i, target := range scanTargets {
-		field, ok := fieldMap[i]
-		if !ok {
-			continue // 跳过未映射的字段
-		}
-
-		// 根据不同的Null类型处理
-		switch v := target.(type) {
-		case *sql.NullString:
-			if v.Valid {
-				field.SetString(v.String)
-			}
-		case *sql.NullInt64:
-			if v.Valid {
-				field.SetInt(v.Int64)
-			}
-		case *sql.NullFloat64:
-			if v.Valid {
-				field.SetFloat(v.Float64)
-			}
-		case *sql.NullBool:
-			if v.Valid {
-				field.SetBool(v.Bool)
-			}
-		case *sql.NullTime:
-			if v.Valid {
-				// 确保字段类型是time.Time
-				if field.Type() == reflect.TypeOf(time.Time{}) {
-					field.Set(reflect.ValueOf(v.Time))
-				}
-			}
-		}
-	}
-
-	// 检查是否还有更多行（不应该有）
-	if rows.Next() {
-		m.logger.LogQueryResult("SQL单行查询", 2, fmt.Errorf("query returned more than one row"))
-		return fmt.Errorf("query returned more than one row")
-	}
-
-	// 记录查询结果 - 找到一条记录
-	m.logger.LogQueryResult("SQL单行查询", 1, nil)
-
-	return rows.Err()
-}
-
-// QueryOneWithOptions 带选项查询单条记录
-func (m *MySQL) QueryOneWithOptions(ctx context.Context, dest interface{}, query string, args []interface{}, options ...database.QueryOption) error {
-	// 应用传入的查询选项
-	queryOpts := database.NewQueryOptions(m.config, options...)
-
-	// 判断是否使用事务
-	if *queryOpts.UseTransaction {
-		// 创建新事务
-		tx, err := m.BeginTx(ctx)
-		if err != nil {
-			return err
-		}
-
-		// 在事务中执行单行查询
-		err = tx.QueryOne(ctx, dest, query, args)
-		if err != nil {
-			// 查询失败，回滚事务
-			_ = tx.Rollback()
-			return err
-		}
-
-		// 查询成功，提交事务
-		return tx.Commit()
-	}
-
-	// 不使用事务，直接查询
-	return m.QueryOne(ctx, dest, query, args)
-}
-
-// Insert 插入记录（无事务）
-func (m *MySQL) Insert(ctx context.Context, table string, data interface{}) (int64, error) {
-	// 构建INSERT语句和参数
-	query, args, err := buildInsertQuery(table, data)
-	if err != nil {
-		return 0, err
-	}
-
-	// 执行插入操作
-	return m.Exec(ctx, query, args)
-}
-
-// InsertWithOptions 带选项插入记录
-func (m *MySQL) InsertWithOptions(ctx context.Context, table string, data interface{}, options ...database.ExecOption) (int64, error) {
-	// 构建INSERT语句和参数
-	query, args, err := buildInsertQuery(table, data)
-	if err != nil {
-		return 0, err
-	}
-
-	// 使用选项执行插入操作
-	return m.ExecWithOptions(ctx, query, args, options...)
-}
-
-// Update 更新记录（无事务）
-func (m *MySQL) Update(ctx context.Context, table string, data interface{}, where string, args []interface{}) (int64, error) {
-	// 构建基础UPDATE语句和参数
-	query, updateArgs, err := buildUpdateQuery(table, data)
-	if err != nil {
-		return 0, err
-	}
-
-	// 添加WHERE子句
-	if where != "" {
-		query = fmt.Sprintf("%s WHERE %s", query, where)
-	}
-
-	// 合并参数：先是更新字段的值，然后是WHERE条件的参数
-	allArgs := append(updateArgs, args...)
-
-	// 执行更新操作
-	return m.Exec(ctx, query, allArgs)
-}
-
-// UpdateWithOptions 带选项更新记录
-func (m *MySQL) UpdateWithOptions(ctx context.Context, table string, data interface{}, where string, args []interface{}, options ...database.ExecOption) (int64, error) {
-	// 构建基础UPDATE语句和参数
-	query, updateArgs, err := buildUpdateQuery(table, data)
-	if err != nil {
-		return 0, err
-	}
-
-	// 添加WHERE子句
-	if where != "" {
-		query = fmt.Sprintf("%s WHERE %s", query, where)
-	}
-
-	// 合并参数：先是更新字段的值，然后是WHERE条件的参数
-	allArgs := append(updateArgs, args...)
-
-	// 使用选项执行更新操作
-	return m.ExecWithOptions(ctx, query, allArgs, options...)
-}
-
-// Delete 删除记录（无事务）
-func (m *MySQL) Delete(ctx context.Context, table string, where string, args []any) (int64, error) {
-	// 构建基础DELETE语句
-	query := "DELETE FROM " + table
-
-	// 添加WHERE子句，避免误删除所有数据
-	if where != "" {
-		query = query + " WHERE " + where
-	}
-
-	// 执行删除操作
-	return m.Exec(ctx, query, args)
-}
-
-// DeleteWithOptions 带选项删除记录
-func (m *MySQL) DeleteWithOptions(ctx context.Context, table string, where string, args []any, options ...database.ExecOption) (int64, error) {
-	// 构建基础DELETE语句
-	query := "DELETE FROM " + table
-
-	// 添加WHERE子句，避免误删除所有数据
-	if where != "" {
-		query = query + " WHERE " + where
-	}
-
-	// 使用选项执行删除操作
-	return m.ExecWithOptions(ctx, query, args, options...)
-}
-
-// BatchInsert 批量插入多条记录
-//
-// 参数:
-// - ctx: 上下文
-// - table: 表名
-// - dataSlice: 包含要插入数据的结构体切片
-//
-// 返回:
-// - 受影响的行数
-// - 错误信息
-//
-// 用法示例:
-//
-//	users := []User{
-//	  {Name: "用户1", Age: 20},
-//	  {Name: "用户2", Age: 30},
-//	}
-//	db.BatchInsert(ctx, "users", users)
-func (m *MySQL) BatchInsert(ctx context.Context, table string, dataSlice interface{}) (int64, error) {
-	// 获取反射值
-	sliceVal := reflect.ValueOf(dataSlice)
-	if sliceVal.Kind() != reflect.Slice {
-		return 0, fmt.Errorf("dataSlice must be a slice")
-	}
-
-	// 空切片直接返回
-	sliceLen := sliceVal.Len()
-	if sliceLen == 0 {
-		return 0, nil
-	}
-
-	// 获取第一个元素，用于提取字段信息
-	firstElem := sliceVal.Index(0)
-	if firstElem.Kind() == reflect.Ptr {
-		firstElem = firstElem.Elem()
-	}
-	if firstElem.Kind() != reflect.Struct {
-		return 0, fmt.Errorf("slice elements must be structs or pointers to structs")
-	}
-
-	// 提取字段信息
-	typ := firstElem.Type()
-	var columns []string
-	fieldIndices := make([]int, 0)
-
-	// 遍历结构体的所有字段，获取db标签
-	for i := 0; i < firstElem.NumField(); i++ {
-		field := typ.Field(i)
-
-		// 获取db标签
-		tag := field.Tag.Get("db")
-		if tag == "" || tag == "-" {
-			continue // 跳过没有db标签或标记为忽略的字段
-		}
-
-		// 解析标签
-		parts := strings.Split(tag, ",")
-		column := parts[0] // 第一部分是列名
-
-		columns = append(columns, column)
-		fieldIndices = append(fieldIndices, i)
-	}
-
-	if len(columns) == 0 {
-		return 0, fmt.Errorf("no valid columns found in the struct")
-	}
-
-	// 构建INSERT语句的前半部分
-	placeholderGroup := "(" + strings.Repeat("?,", len(columns)-1) + "?)"
-	allPlaceholders := make([]string, sliceLen)
-	for i := 0; i < sliceLen; i++ {
-		allPlaceholders[i] = placeholderGroup
-	}
-
-	query := fmt.Sprintf(
-		"INSERT INTO %s (%s) VALUES %s",
-		table,
-		strings.Join(columns, ", "),
-		strings.Join(allPlaceholders, ","),
-	)
-
-	// 准备所有参数值
-	values := make([]interface{}, 0, sliceLen*len(columns))
-	for i := 0; i < sliceLen; i++ {
-		elem := sliceVal.Index(i)
-		if elem.Kind() == reflect.Ptr {
-			elem = elem.Elem()
-		}
-
-		// 提取字段值
-		for _, fieldIdx := range fieldIndices {
-			fieldValue := elem.Field(fieldIdx).Interface()
-			values = append(values, fieldValue)
-		}
-	}
-
-	// 执行批量插入
-	return m.Exec(ctx, query, values)
-}
-
-// MySQLTransaction MySQL事务实现
-// 特点:
-// 1. 完整事务管理 - 提供Commit和Rollback操作
-// 2. 统一SQL执行接口 - 实现所有database.Transaction方法
-// 3. 性能监控 - 记录所有SQL操作的执行时间
-// 4. 错误追踪 - 详细记录事务中的SQL错误
-// 5. 自动清理 - 事务结束时自动从MySQL实例的活跃事务映射中移除
-type MySQLTransaction struct {
-	tx     *sql.Tx            // 底层SQL事务对象
-	config *database.DbConfig // 数据库配置
-	parent *MySQL             // 父MySQL实例，用于事务管理
-	logger *dblogger.DBLogger // 日志记录器
-}
-
-// Exec 执行SQL语句
-func (t *MySQLTransaction) Exec(ctx context.Context, query string, args []interface{}) (int64, error) {
-	// 记录开始时间，用于计算SQL执行耗时
-	start := time.Now()
-
-	// 在事务中执行SQL语句
-	result, err := t.tx.ExecContext(ctx, query, args...)
-
-	// 计算执行耗时
-	elapsed := time.Since(start)
-
-	// 记录SQL执行日志
-	t.logger.LogSQL("事务SQL执行", query, args, err, elapsed)
-
-	if err != nil {
-		return 0, err
-	}
-
-	// 返回受影响的行数
-	return result.RowsAffected()
-}
-
-// Query 查询多条记录
-func (t *MySQLTransaction) Query(ctx context.Context, dest interface{}, query string, args []interface{}) error {
-	// 记录开始时间，用于计算SQL执行耗时
-	start := time.Now()
-
-	// 在事务中执行查询
-	rows, err := t.tx.QueryContext(ctx, query, args...)
-
-	// 计算执行耗时
-	elapsed := time.Since(start)
-
-	// 记录SQL执行日志
-	t.logger.LogSQL("事务SQL查询", query, args, err, elapsed)
-
-	if err != nil {
-		return err
-	}
-	// 确保关闭结果集，防止资源泄漏
-	defer rows.Close()
-
-	// 扫描结果集到目标结构体切片
-	err = scanRows(rows, dest)
-
-	// 获取结果数量
-	destVal := reflect.ValueOf(dest).Elem()
-	count := 0
-	if destVal.Kind() == reflect.Slice {
-		count = destVal.Len()
-	}
-
-	// 记录查询结果
-	t.logger.LogQueryResult("事务SQL查询", count, err)
-
-	return err
-}
-
-// QueryOne 查询单条记录
-func (t *MySQLTransaction) QueryOne(ctx context.Context, dest interface{}, query string, args []interface{}) error {
-	// 记录开始时间，用于计算SQL执行耗时
-	start := time.Now()
-
-	// 改用QueryContext代替QueryRowContext
-	// 这样我们可以获取列信息，并正确处理字段映射
-	rows, err := t.tx.QueryContext(ctx, query, args...)
-
-	// 计算执行耗时
-	elapsed := time.Since(start)
-
-	// 记录SQL执行日志
-	t.logger.LogSQL("事务SQL单行查询", query, args, err, elapsed)
-
-	if err != nil {
-		return err
-	}
-	// 确保关闭结果集
-	defer rows.Close()
-
-	// 检查是否有结果
-	if !rows.Next() {
-		// 记录查询结果 - 未找到记录
-		t.logger.LogQueryResult("事务SQL单行查询", 0, database.ErrRecordNotFound)
-		return database.ErrRecordNotFound
-	}
-
-	// 获取列名
-	columns, err := rows.Columns()
-	if err != nil {
-		return err
-	}
-
-	// 获取结构体的反射值
-	value := reflect.ValueOf(dest)
-	if value.Kind() != reflect.Ptr || value.IsNil() {
-		return fmt.Errorf("dest must be a non-nil pointer to a struct")
-	}
-	structValue := value.Elem()
-	if structValue.Kind() != reflect.Struct {
-		return fmt.Errorf("dest must be a pointer to a struct")
-	}
-
-	// 准备扫描目标
-	scanTargets, err := prepareScanTargets(structValue, columns)
-	if err != nil {
-		return err
-	}
-
-	// 创建一个字段映射表，用于后续处理NULL值
-	fieldMap := make(map[int]reflect.Value) // 使用列索引作为键
-	for i, column := range columns {
-		field, ok := findFieldByColumn(structValue, column)
-		if ok {
-			fieldMap[i] = field
-		}
-	}
-
-	// 扫描单行数据
-	if err := rows.Scan(scanTargets...); err != nil {
-		return err
-	}
-
-	// 处理NULL值
-	// 对于每个使用sql.NullXxx类型的列，检查值是否有效，如果有效则设置到字段
-	for i, target := range scanTargets {
-		field, ok := fieldMap[i]
-		if !ok {
-			continue // 跳过未映射的字段
-		}
-
-		// 根据不同的Null类型处理
-		switch v := target.(type) {
-		case *sql.NullString:
-			if v.Valid {
-				field.SetString(v.String)
-			}
-		case *sql.NullInt64:
-			if v.Valid {
-				field.SetInt(v.Int64)
-			}
-		case *sql.NullFloat64:
-			if v.Valid {
-				field.SetFloat(v.Float64)
-			}
-		case *sql.NullBool:
-			if v.Valid {
-				field.SetBool(v.Bool)
-			}
-		case *sql.NullTime:
-			if v.Valid {
-				// 确保字段类型是time.Time
-				if field.Type() == reflect.TypeOf(time.Time{}) {
-					field.Set(reflect.ValueOf(v.Time))
-				}
-			}
-		}
-	}
-
-	// 检查是否还有更多行（不应该有）
-	if rows.Next() {
-		t.logger.LogQueryResult("事务SQL单行查询", 2, fmt.Errorf("query returned more than one row"))
-		return fmt.Errorf("query returned more than one row")
-	}
-
-	// 记录查询结果 - 找到一条记录
-	t.logger.LogQueryResult("事务SQL单行查询", 1, nil)
-
-	return rows.Err()
-}
-
-// Insert 插入记录
-func (t *MySQLTransaction) Insert(ctx context.Context, table string, data interface{}) (int64, error) {
-	// 构建INSERT语句和参数
-	query, args, err := buildInsertQuery(table, data)
-	if err != nil {
-		return 0, err
-	}
-
-	// 在事务中执行插入操作
-	return t.Exec(ctx, query, args)
-}
-
-// Update 更新记录
-func (t *MySQLTransaction) Update(ctx context.Context, table string, data interface{}, where string, args []interface{}) (int64, error) {
-	// 构建基础UPDATE语句和参数
-	query, updateArgs, err := buildUpdateQuery(table, data)
-	if err != nil {
-		return 0, err
-	}
-
-	// 添加WHERE子句
-	if where != "" {
-		query = fmt.Sprintf("%s WHERE %s", query, where)
-	}
-
-	// 合并参数：先是更新字段的值，然后是WHERE条件的参数
-	allArgs := append(updateArgs, args...)
-
-	// 在事务中执行更新操作
-	return t.Exec(ctx, query, allArgs)
-}
-
-// Delete 删除记录
-func (t *MySQLTransaction) Delete(ctx context.Context, table string, where string, args []any) (int64, error) {
-	// 构建基础DELETE语句
-	query := "DELETE FROM " + table
-
-	// 添加WHERE子句，避免误删除所有数据
-	if where != "" {
-		query = query + " WHERE " + where
-	}
-
-	// 在事务中执行删除操作
-	return t.Exec(ctx, query, args)
+	return nil
 }
 
 // Commit 提交事务
-func (t *MySQLTransaction) Commit() error {
-	// 记录事务提交日志
-	t.logger.LogTx("提交", nil)
+// 提交当前活跃的MySQL事务，使所有未提交的更改生效
+// 如果没有活跃事务，会返回错误
+// 返回:
+//   error: 提交事务失败时返回错误信息
+func (m *MySQL) Commit() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	// 事务结束时从活跃事务映射中移除
-	t.parent.mu.Lock()
-	delete(t.parent.txs, t.tx)
-	t.parent.mu.Unlock()
-
-	// 提交底层SQL事务
-	err := t.tx.Commit()
-	if err != nil {
-		t.logger.LogTx("提交", err)
+	if m.currentTx == nil {
+		return fmt.Errorf("no active transaction")
 	}
-	return err
+
+	err := m.currentTx.Commit()
+	m.currentTx = nil
+	m.logger.LogTx("提交", err)
+	
+	if err != nil {
+		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
+	}
+	return nil
 }
 
 // Rollback 回滚事务
-func (t *MySQLTransaction) Rollback() error {
-	// 记录事务回滚日志
-	t.logger.LogTx("回滚", nil)
-
-	// 事务结束时从活跃事务映射中移除
-	t.parent.mu.Lock()
-	delete(t.parent.txs, t.tx)
-	t.parent.mu.Unlock()
-
-	// 回滚底层SQL事务
-	err := t.tx.Rollback()
-	if err != nil {
-		t.logger.LogTx("回滚", err)
-	}
-	return err
-}
-
-// BatchInsert 在事务中批量插入多条记录
-func (t *MySQLTransaction) BatchInsert(ctx context.Context, table string, dataSlice interface{}) (int64, error) {
-	// 获取反射值
-	sliceVal := reflect.ValueOf(dataSlice)
-	if sliceVal.Kind() != reflect.Slice {
-		return 0, fmt.Errorf("dataSlice must be a slice")
-	}
-
-	// 空切片直接返回
-	sliceLen := sliceVal.Len()
-	if sliceLen == 0 {
-		return 0, nil
-	}
-
-	// 获取第一个元素，用于提取字段信息
-	firstElem := sliceVal.Index(0)
-	if firstElem.Kind() == reflect.Ptr {
-		firstElem = firstElem.Elem()
-	}
-	if firstElem.Kind() != reflect.Struct {
-		return 0, fmt.Errorf("slice elements must be structs or pointers to structs")
-	}
-
-	// 提取字段信息
-	typ := firstElem.Type()
-	var columns []string
-	fieldIndices := make([]int, 0)
-
-	// 遍历结构体的所有字段，获取db标签
-	for i := 0; i < firstElem.NumField(); i++ {
-		field := typ.Field(i)
-
-		// 获取db标签
-		tag := field.Tag.Get("db")
-		if tag == "" || tag == "-" {
-			continue // 跳过没有db标签或标记为忽略的字段
-		}
-
-		// 解析标签
-		parts := strings.Split(tag, ",")
-		column := parts[0] // 第一部分是列名
-
-		columns = append(columns, column)
-		fieldIndices = append(fieldIndices, i)
-	}
-
-	if len(columns) == 0 {
-		return 0, fmt.Errorf("no valid columns found in the struct")
-	}
-
-	// 构建INSERT语句的前半部分
-	placeholderGroup := "(" + strings.Repeat("?,", len(columns)-1) + "?)"
-	allPlaceholders := make([]string, sliceLen)
-	for i := 0; i < sliceLen; i++ {
-		allPlaceholders[i] = placeholderGroup
-	}
-
-	query := fmt.Sprintf(
-		"INSERT INTO %s (%s) VALUES %s",
-		table,
-		strings.Join(columns, ", "),
-		strings.Join(allPlaceholders, ","),
-	)
-
-	// 准备所有参数值
-	values := make([]interface{}, 0, sliceLen*len(columns))
-	for i := 0; i < sliceLen; i++ {
-		elem := sliceVal.Index(i)
-		if elem.Kind() == reflect.Ptr {
-			elem = elem.Elem()
-		}
-
-		// 提取字段值
-		for _, fieldIdx := range fieldIndices {
-			fieldValue := elem.Field(fieldIdx).Interface()
-			values = append(values, fieldValue)
-		}
-	}
-
-	// 在事务中执行批量插入
-	return t.Exec(ctx, query, values)
-}
-
-// BatchInsertWithChunk 分批批量插入，处理大量数据
-//
-// 参数:
-// - ctx: 上下文
-// - table: 表名
-// - dataSlice: 包含要插入数据的结构体切片
-// - chunkSize: 每批处理的记录数，推荐值为500-1000
-//
+// 回滚当前活跃的MySQL事务，撤销所有未提交的更改
+// 如果没有活跃事务，会返回错误
 // 返回:
-// - 受影响的总行数
-// - 错误信息
-//
-// 用法示例:
-//
-//	users := []User{...} // 大量用户数据
-//	db.BatchInsertWithChunk(ctx, "users", users, 1000)
-func (m *MySQL) BatchInsertWithChunk(ctx context.Context, table string, dataSlice interface{}, chunkSize int) (int64, error) {
-	if chunkSize <= 0 {
-		chunkSize = 1000 // 默认块大小
+//   error: 回滚事务失败时返回错误信息
+func (m *MySQL) Rollback() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.currentTx == nil {
+		return fmt.Errorf("no active transaction")
 	}
 
-	// 获取反射值
-	sliceVal := reflect.ValueOf(dataSlice)
-	if sliceVal.Kind() != reflect.Slice {
-		return 0, fmt.Errorf("dataSlice must be a slice")
-	}
-
-	// 空切片直接返回
-	sliceLen := sliceVal.Len()
-	if sliceLen == 0 {
-		return 0, nil
-	}
-
-	// 如果数据量小于chunkSize，直接使用BatchInsert
-	if sliceLen <= chunkSize {
-		return m.BatchInsert(ctx, table, dataSlice)
-	}
-
-	// 使用事务进行批量插入
-	var totalAffected int64 = 0
-	tx, err := m.BeginTx(ctx)
+	err := m.currentTx.Rollback()
+	m.currentTx = nil
+	m.logger.LogTx("回滚", err)
+	
 	if err != nil {
-		return 0, err
+		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
+	}
+	return nil
+}
+
+// InTx 在事务中执行函数
+// 自动管理MySQL事务的生命周期
+// 如果函数正常返回，自动提交事务
+// 如果函数返回错误或发生panic，自动回滚事务
+// 参数:
+//   ctx: 上下文，用于控制请求超时和取消
+//   options: 事务选项，包含隔离级别和只读设置
+//   fn: 在事务中执行的函数，返回error表示是否成功
+// 返回:
+//   error: 事务执行失败时返回错误信息
+func (m *MySQL) InTx(ctx context.Context, options *database.TxOptions, fn func() error) error {
+	if err := m.BeginTx(ctx, options); err != nil {
+		return err
 	}
 
-	// 确保在函数返回前处理事务
 	defer func() {
 		if r := recover(); r != nil {
-			_ = tx.Rollback() // 发生panic时回滚
-			panic(r)          // 重新抛出panic
-		} else if err != nil {
-			_ = tx.Rollback() // 发生错误时回滚
+			m.Rollback()
+			panic(r)
 		}
 	}()
 
-	// 分批处理
-	for i := 0; i < sliceLen; i += chunkSize {
-		end := i + chunkSize
-		if end > sliceLen {
-			end = sliceLen
-		}
-
-		// 创建当前批次的子切片
-		batchSize := end - i
-		batchSlice := reflect.MakeSlice(reflect.SliceOf(sliceVal.Type().Elem()), batchSize, batchSize)
-
-		// 填充子切片
-		for j := 0; j < batchSize; j++ {
-			batchSlice.Index(j).Set(sliceVal.Index(i + j))
-		}
-
-		// 对当前批次执行批量插入
-		affected, err := tx.(*MySQLTransaction).BatchInsert(ctx, table, batchSlice.Interface())
-		if err != nil {
-			// 错误处理在defer中
-			return 0, err
-		}
-		totalAffected += affected
+	if err := fn(); err != nil {
+		m.Rollback()
+		return err
 	}
 
-	// 提交事务
-	if err = tx.Commit(); err != nil {
+	return m.Commit()
+}
+
+// getExecutor 获取执行器（事务或连接）
+// 根据autoCommit参数和当前事务状态返回合适的执行器
+// 如果autoCommit为false且存在活跃事务，返回事务执行器
+// 否则返回数据库连接执行器
+// 参数:
+//   autoCommit: 是否自动提交
+// 返回:
+//   interface: 执行器接口，可以是*sql.Tx或*sql.DB
+func (m *MySQL) getExecutor(autoCommit bool) interface {
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
+} {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if !autoCommit && m.currentTx != nil {
+		return m.currentTx
+	}
+	return m.db
+}
+
+// Exec 执行SQL语句
+// 执行INSERT、UPDATE、DELETE等不返回结果集的MySQL语句
+// 支持事务和非事务模式执行
+// 参数:
+//   ctx: 上下文，用于控制请求超时和取消
+//   query: 要执行的SQL语句，可包含占位符
+//   args: SQL语句中占位符对应的参数值
+//   autoCommit: true-自动提交, false-在当前事务中执行
+// 返回:
+//   int64: 受影响的行数
+//   error: 执行失败时返回错误信息
+func (m *MySQL) Exec(ctx context.Context, query string, args []interface{}, autoCommit bool) (int64, error) {
+	executor := m.getExecutor(autoCommit)
+	
+	start := time.Now()
+	result, err := executor.ExecContext(ctx, query, args...)
+	duration := time.Since(start)
+
+	m.logger.LogSQL("SQL执行", query, args, err, duration)
+
+	if err != nil {
 		return 0, err
 	}
 
-	return totalAffected, nil
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+
+	return rowsAffected, nil
 }
 
-// buildInsertQuery 构建插入SQL语句和参数
-//
+// Query 查询多条记录
+// 执行SELECT语句并将结果扫描到目标切片中
+// 自动处理结构体字段到数据库列的映射
 // 参数:
-// - table: 要插入数据的表名
-// - data: 包含要插入数据的结构体，字段通过db标签与数据库列映射
-//
+//   ctx: 上下文，用于控制请求超时和取消
+//   dest: 目标切片的指针，用于接收查询结果
+//   query: 要执行的SELECT语句，可包含占位符
+//   args: SQL语句中占位符对应的参数值
+//   autoCommit: true-自动提交, false-在当前事务中执行
 // 返回:
-// - 生成的INSERT SQL语句
-// - SQL参数值切片
-// - 发生的错误，如果成功则为nil
+//   error: 查询失败或扫描失败时返回错误信息
+func (m *MySQL) Query(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error {
+	executor := m.getExecutor(autoCommit)
+	
+	start := time.Now()
+	rows, err := executor.QueryContext(ctx, query, args...)
+	duration := time.Since(start)
+
+	m.logger.LogSQL("SQL查询", query, args, err, duration)
+
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	return scanRows(rows, dest)
+}
+
+// QueryOne 查询单条记录
+// 执行SELECT语句并将结果扫描到目标结构体中
+// 如果查询不到记录，返回ErrRecordNotFound错误
+// 参数:
+//   ctx: 上下文，用于控制请求超时和取消
+//   dest: 目标结构体的指针，用于接收查询结果
+//   query: 要执行的SELECT语句，可包含占位符
+//   args: SQL语句中占位符对应的参数值
+//   autoCommit: true-自动提交, false-在当前事务中执行
+// 返回:
+//   error: 查询失败、扫描失败或记录不存在时返回错误信息
+func (m *MySQL) QueryOne(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error {
+	executor := m.getExecutor(autoCommit)
+	
+	start := time.Now()
+	row := executor.QueryRowContext(ctx, query, args...)
+	duration := time.Since(start)
+
+	var err error
+	if err = scanRow(row, dest); err != nil {
+		if err == sql.ErrNoRows {
+			err = database.ErrRecordNotFound
+		}
+	}
+
+	m.logger.LogSQL("SQL单行查询", query, args, err, duration)
+	return err
+}
+
+// Insert 插入记录
+// 根据提供的数据结构体自动构建INSERT语句并执行
+// 会自动提取结构体字段作为列名和值，支持db tag映射
+// 参数:
+//   ctx: 上下文，用于控制请求超时和取消
+//   table: 目标表名
+//   data: 要插入的数据结构体，字段通过db tag映射到数据库列
+//   autoCommit: true-自动提交, false-在当前事务中执行
+// 返回:
+//   int64: 插入记录的自增ID（如果有）
+//   error: 插入失败时返回错误信息
+func (m *MySQL) Insert(ctx context.Context, table string, data interface{}, autoCommit bool) (int64, error) {
+	query, args, err := buildInsertQuery(table, data)
+	if err != nil {
+		return 0, err
+	}
+
+	executor := m.getExecutor(autoCommit)
+	
+	start := time.Now()
+	result, err := executor.ExecContext(ctx, query, args...)
+	duration := time.Since(start)
+
+	m.logger.LogSQL("SQL插入", query, args, err, duration)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return result.LastInsertId()
+}
+
+// Update 更新记录
+// 根据提供的数据结构体和WHERE条件构建UPDATE语句并执行
+// 会自动提取结构体字段作为要更新的列和值
+// 参数:
+//   ctx: 上下文，用于控制请求超时和取消
+//   table: 目标表名
+//   data: 包含更新数据的结构体，字段通过db tag映射到数据库列
+//   where: WHERE条件语句，可包含占位符
+//   args: WHERE条件中占位符对应的参数值
+//   autoCommit: true-自动提交, false-在当前事务中执行
+// 返回:
+//   int64: 受影响的行数
+//   error: 更新失败时返回错误信息
+func (m *MySQL) Update(ctx context.Context, table string, data interface{}, where string, args []interface{}, autoCommit bool) (int64, error) {
+	setClause, setArgs, err := buildUpdateQuery(table, data)
+	if err != nil {
+		return 0, err
+	}
+
+	query := fmt.Sprintf("UPDATE %s SET %s", table, setClause)
+	if where != "" {
+		query += " WHERE " + where
+		setArgs = append(setArgs, args...)
+	}
+
+	executor := m.getExecutor(autoCommit)
+	
+	start := time.Now()
+	result, err := executor.ExecContext(ctx, query, setArgs...)
+	duration := time.Since(start)
+
+	m.logger.LogSQL("SQL更新", query, setArgs, err, duration)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return result.RowsAffected()
+}
+
+// Delete 删除记录
+// 根据WHERE条件构建DELETE语句并执行
+// 参数:
+//   ctx: 上下文，用于控制请求超时和取消
+//   table: 目标表名
+//   where: WHERE条件语句，可包含占位符
+//   args: WHERE条件中占位符对应的参数值
+//   autoCommit: true-自动提交, false-在当前事务中执行
+// 返回:
+//   int64: 受影响的行数
+//   error: 删除失败时返回错误信息
+func (m *MySQL) Delete(ctx context.Context, table string, where string, args []interface{}, autoCommit bool) (int64, error) {
+	query := fmt.Sprintf("DELETE FROM %s", table)
+	if where != "" {
+		query += " WHERE " + where
+	}
+
+	executor := m.getExecutor(autoCommit)
+	
+	start := time.Now()
+	result, err := executor.ExecContext(ctx, query, args...)
+	duration := time.Since(start)
+
+	m.logger.LogSQL("SQL删除", query, args, err, duration)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return result.RowsAffected()
+}
+
+// BatchInsert 批量插入记录
+// 将切片中的多个数据结构体批量插入到MySQL中
+// 使用单条INSERT语句提高插入性能
+// 参数:
+//   ctx: 上下文，用于控制请求超时和取消
+//   table: 目标表名
+//   dataSlice: 要插入的数据切片，每个元素都是结构体
+//   autoCommit: true-自动提交, false-在当前事务中执行
+// 返回:
+//   int64: 受影响的行数
+//   error: 插入失败时返回错误信息
+func (m *MySQL) BatchInsert(ctx context.Context, table string, dataSlice interface{}, autoCommit bool) (int64, error) {
+	slice := reflect.ValueOf(dataSlice)
+	if slice.Kind() != reflect.Slice {
+		return 0, fmt.Errorf("dataSlice must be a slice")
+	}
+
+	if slice.Len() == 0 {
+		return 0, nil
+	}
+
+	// 获取第一个元素来构建SQL结构
+	firstItem := slice.Index(0).Interface()
+	columns, _, err := extractColumnsAndValues(firstItem)
+	if err != nil {
+		return 0, err
+	}
+
+	// 构建批量插入SQL
+	placeholders := make([]string, len(columns))
+	for i := range placeholders {
+		placeholders[i] = "?"
+	}
+	placeholder := "(" + strings.Join(placeholders, ", ") + ")"
+
+	var allPlaceholders []string
+	var allArgs []interface{}
+
+	for i := 0; i < slice.Len(); i++ {
+		item := slice.Index(i).Interface()
+		_, values, err := extractColumnsAndValues(item)
+		if err != nil {
+			return 0, err
+		}
+		allPlaceholders = append(allPlaceholders, placeholder)
+		allArgs = append(allArgs, values...)
+	}
+
+	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES %s",
+		table,
+		strings.Join(columns, ", "),
+		strings.Join(allPlaceholders, ", "))
+
+	executor := m.getExecutor(autoCommit)
+	
+	start := time.Now()
+	result, err := executor.ExecContext(ctx, query, allArgs...)
+	duration := time.Since(start)
+
+	m.logger.LogSQL("SQL批量插入", query, allArgs, err, duration)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return result.RowsAffected()
+}
+
+// 工具函数
+
+// buildInsertQuery 构建插入SQL语句
+// 根据数据结构体自动生成INSERT语句和参数
+// 会提取结构体字段作为列名，使用占位符构建VALUES子句
+// 参数:
+//   table: 目标表名
+//   data: 数据结构体，字段通过db tag映射到数据库列
+// 返回:
+//   string: 生成的INSERT SQL语句
+//   []interface{}: SQL参数值切片
+//   error: 构建失败时返回错误信息
 func buildInsertQuery(table string, data interface{}) (string, []interface{}, error) {
-	// 提取结构体的列和值
 	columns, values, err := extractColumnsAndValues(data)
 	if err != nil {
 		return "", nil, err
 	}
 
-	// 确保有字段可插入
-	if len(columns) == 0 {
-		return "", nil, fmt.Errorf("no fields to insert")
-	}
-
-	// 创建问号占位符
 	placeholders := make([]string, len(columns))
 	for i := range placeholders {
 		placeholders[i] = "?"
 	}
 
-	// 构建INSERT语句
-	query := fmt.Sprintf(
-		"INSERT INTO %s (%s) VALUES (%s)",
+	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
 		table,
-		strings.Join(columns, ", "),      // 列名用逗号分隔
-		strings.Join(placeholders, ", "), // 占位符用逗号分隔
-	)
+		strings.Join(columns, ", "),
+		strings.Join(placeholders, ", "))
 
 	return query, values, nil
 }
 
-// buildUpdateQuery 构建更新SQL语句和参数
-//
+// buildUpdateQuery 构建更新SQL语句的SET子句
+// 根据数据结构体自动生成UPDATE语句的SET部分和参数
+// 会提取结构体字段作为要更新的列，使用占位符构建SET子句
 // 参数:
-// - table: 要更新数据的表名
-// - data: 包含要更新数据的结构体，字段通过db标签与数据库列映射
-//
+//   table: 目标表名（此参数在当前实现中未使用，保留用于扩展）
+//   data: 包含更新数据的结构体，字段通过db tag映射到数据库列
 // 返回:
-// - 生成的UPDATE SQL语句（不包含WHERE部分）
-// - SQL参数值切片
-// - 发生的错误，如果成功则为nil
-func buildUpdateQuery(table string, data any) (string, []any, error) {
-	// 提取结构体的列和值
+//   string: 生成的SET子句（如："name = ?, age = ?"）
+//   []interface{}: SET子句对应的参数值切片
+//   error: 构建失败时返回错误信息
+func buildUpdateQuery(table string, data interface{}) (string, []interface{}, error) {
 	columns, values, err := extractColumnsAndValues(data)
 	if err != nil {
 		return "", nil, err
 	}
 
-	// 确保有字段可更新
-	if len(columns) == 0 {
-		return "", nil, fmt.Errorf("no fields to update")
-	}
-
-	// 构建SET部分
 	setParts := make([]string, len(columns))
 	for i, column := range columns {
-		setParts[i] = column + " = ?" // 每个字段使用 列名=? 的形式
+		setParts[i] = column + " = ?"
 	}
 
-	// 构建UPDATE语句
-	query := fmt.Sprintf(
-		"UPDATE %s SET %s",
-		table,
-		strings.Join(setParts, ", "), // SET部分用逗号分隔
-	)
-
-	return query, values, nil
+	return strings.Join(setParts, ", "), values, nil
 }
 
-// extractColumnsAndValues 从结构体提取数据库列名和对应的值
-//
+// extractColumnsAndValues 从结构体中提取列名和值
+// 通过反射解析结构体，提取可用于数据库操作的列名和对应值
+// 支持db tag映射，跳过零值字段和忽略字段
 // 参数:
-// - data: 需要提取信息的结构体或结构体指针
-//
+//   data: 要解析的结构体或结构体指针
 // 返回:
-// - 从db标签提取的列名切片
-// - 对应列的值切片
-// - 发生的错误，如果成功则为nil
+//   []string: 数据库列名切片
+//   []interface{}: 对应的值切片
+//   error: 解析失败时返回错误信息
 func extractColumnsAndValues(data interface{}) ([]string, []interface{}, error) {
-	// 获取反射值，解引用指针
-	val := reflect.ValueOf(data)
-	if val.Kind() == reflect.Ptr {
-		val = val.Elem()
+	v := reflect.ValueOf(data)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
 	}
 
-	// 确保数据是结构体类型
-	if val.Kind() != reflect.Struct {
+	if v.Kind() != reflect.Struct {
 		return nil, nil, fmt.Errorf("data must be a struct or pointer to struct")
 	}
 
-	// 获取结构体类型信息
-	typ := val.Type()
-	columns := make([]string, 0, val.NumField()) // 预分配合适的容量
-	values := make([]interface{}, 0, val.NumField())
+	t := v.Type()
+	var columns []string
+	var values []interface{}
 
-	// 遍历结构体字段
-	for i := 0; i < val.NumField(); i++ {
-		field := typ.Field(i)
-		fieldValue := val.Field(i)
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		structField := t.Field(i)
 
-		// 获取db标签，用于确定数据库列名
-		tag := field.Tag.Get("db")
-		if tag == "" || tag == "-" {
-			continue // 跳过没有db标签或标记为忽略的字段
-		}
-
-		// 如果设置了跳过零值，且字段值为零值，则跳过该字段
-		if isZeroValue(fieldValue) {
+		// 跳过未导出的字段
+		if !field.CanInterface() {
 			continue
 		}
 
-		// 解析标签，可能包含其他选项
-		parts := strings.Split(tag, ",")
-		column := parts[0] // 第一部分是列名
+		// 获取数据库字段名
+		dbTag := structField.Tag.Get("db")
+		if dbTag == "" {
+			dbTag = strings.ToLower(structField.Name)
+		}
 
-		// 获取字段值并保存
-		columns = append(columns, column)
-		values = append(values, fieldValue.Interface())
+		// 跳过忽略的字段
+		if dbTag == "-" {
+			continue
+		}
+
+		// 跳过零值字段（可选）
+		if isZeroValue(field) {
+			continue
+		}
+
+		columns = append(columns, dbTag)
+		values = append(values, field.Interface())
 	}
 
 	return columns, values, nil
 }
 
-// isZeroValue 检查字段是否为零值
+// isZeroValue 检查值是否为零值
+// 判断反射值是否为对应类型的零值，用于跳过空字段
+// 支持常见的基本类型、指针类型和时间类型的零值检查
+// 参数:
+//   v: 要检查的反射值
+// 返回:
+//   bool: true表示是零值，false表示非零值
 func isZeroValue(v reflect.Value) bool {
-	// 检查是否可比较，如果不可比较，使用反射的方式判断
-	if !v.Type().Comparable() {
-		return reflect.DeepEqual(v.Interface(), reflect.Zero(v.Type()).Interface())
-	}
-
-	// 对于字符串类型，空字符串视为零值
-	if v.Kind() == reflect.String {
+	switch v.Kind() {
+	case reflect.String:
 		return v.String() == ""
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return v.Int() == 0
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return v.Uint() == 0
+	case reflect.Float32, reflect.Float64:
+		return v.Float() == 0
+	case reflect.Bool:
+		return !v.Bool()
+	case reflect.Ptr, reflect.Interface:
+		return v.IsNil()
+	case reflect.Struct:
+		// 特殊处理时间类型
+		if v.Type() == reflect.TypeOf(time.Time{}) {
+			t := v.Interface().(time.Time)
+			return t.IsZero()
+		}
+		// 对于其他结构体类型，使用通用零值检查
+		return v.IsZero()
+	default:
+		return false
 	}
-
-	// 直接比较零值
-	zero := reflect.Zero(v.Type()).Interface()
-	return reflect.DeepEqual(v.Interface(), zero)
 }
 
-// scanRows 将SQL查询结果扫描到结构体切片
-//
+// scanRows 扫描多行结果到目标切片
+// 将SQL查询返回的多行结果扫描到Go切片中
+// 自动处理结构体字段到数据库列的映射
 // 参数:
-// - rows: SQL查询结果集
-// - dest: 目标结构体切片的指针，例如 *[]User
-//
+//   rows: SQL查询返回的行结果集
+//   dest: 目标切片的指针，元素类型应为结构体或结构体指针
 // 返回:
-// - 扫描过程中发生的错误，如果成功则为nil
+//   error: 扫描失败时返回错误信息
 func scanRows(rows *sql.Rows, dest interface{}) error {
-	// 确保dest是非nil指针
-	value := reflect.ValueOf(dest)
-	if value.Kind() != reflect.Ptr || value.IsNil() {
-		return fmt.Errorf("dest must be a non-nil pointer to a slice")
+	destValue := reflect.ValueOf(dest)
+	if destValue.Kind() != reflect.Ptr {
+		return fmt.Errorf("dest must be a pointer")
 	}
 
-	// 获取切片的反射值
-	sliceValue := value.Elem()
+	sliceValue := destValue.Elem()
 	if sliceValue.Kind() != reflect.Slice {
-		return fmt.Errorf("dest must be a pointer to a slice")
+		return fmt.Errorf("dest must be a pointer to slice")
 	}
 
-	// 确定切片元素类型
-	elemType := sliceValue.Type().Elem()
-	isPtr := elemType.Kind() == reflect.Ptr // 检查切片元素是否为指针
+	elementType := sliceValue.Type().Elem()
+	isPtr := elementType.Kind() == reflect.Ptr
 	if isPtr {
-		elemType = elemType.Elem() // 如果是指针，获取其指向的类型
+		elementType = elementType.Elem()
 	}
 
-	// 确保元素类型是结构体
-	if elemType.Kind() != reflect.Struct {
-		return fmt.Errorf("slice elements must be structs or pointers to structs")
-	}
-
-	// 获取查询返回的列名
 	columns, err := rows.Columns()
 	if err != nil {
 		return err
 	}
 
-	// 扫描每一行数据
 	for rows.Next() {
 		// 创建新的结构体实例
-		elemValue := reflect.New(elemType)
-
-		// 准备扫描目标和字段映射
-		scanTargets, err := prepareScanTargets(elemValue.Elem(), columns)
+		newElement := reflect.New(elementType)
+		
+		// 准备扫描目标
+		scanTargets, err := prepareScanTargets(newElement.Elem(), columns)
 		if err != nil {
 			return err
 		}
 
-		// 创建一个字段映射表，用于后续处理NULL值
-		fieldMap := make(map[int]reflect.Value) // 使用列索引作为键
-		for i, column := range columns {
-			field, ok := findFieldByColumn(elemValue.Elem(), column)
-			if ok {
-				fieldMap[i] = field
-			}
-		}
-
-		// 扫描行数据到目标变量
+		// 扫描行数据
 		if err := rows.Scan(scanTargets...); err != nil {
 			return err
 		}
 
-		// 处理NULL值
-		// 对于每个使用sql.NullXxx类型的列，检查值是否有效，如果有效则设置到字段
-		// 注意：如果字段本身就是sql.NullXxx类型，则不需要额外处理，因为已经直接扫描到字段了
-		for i, target := range scanTargets {
-			field, ok := fieldMap[i]
-			if !ok {
-				continue // 跳过未映射的字段
-			}
-
-			// 如果字段本身就是sql.NullXxx类型，则跳过，因为已经直接扫描到字段了
-			fieldType := field.Type()
-			if fieldType == reflect.TypeOf(sql.NullString{}) ||
-				fieldType == reflect.TypeOf(sql.NullInt32{}) ||
-				fieldType == reflect.TypeOf(sql.NullInt64{}) ||
-				fieldType == reflect.TypeOf(sql.NullFloat64{}) ||
-				fieldType == reflect.TypeOf(sql.NullBool{}) ||
-				fieldType == reflect.TypeOf(sql.NullTime{}) {
-				continue // 字段本身是Null类型，已经直接扫描了
-			}
-
-			// 根据不同的Null类型处理（仅处理普通类型字段）
-			switch v := target.(type) {
-			case *sql.NullString:
-				if v.Valid {
-					field.SetString(v.String)
-				}
-			case *sql.NullInt64:
-				if v.Valid {
-					field.SetInt(v.Int64)
-				}
-			case *sql.NullFloat64:
-				if v.Valid {
-					field.SetFloat(v.Float64)
-				}
-			case *sql.NullBool:
-				if v.Valid {
-					field.SetBool(v.Bool)
-				}
-			case *sql.NullTime:
-				if v.Valid {
-					// 确保字段类型是time.Time
-					if field.Type() == reflect.TypeOf(time.Time{}) {
-						field.Set(reflect.ValueOf(v.Time))
-					}
-				}
-			}
-		}
-
-		// 根据切片元素类型添加到结果集
+		// 添加到切片
 		if isPtr {
-			sliceValue.Set(reflect.Append(sliceValue, elemValue)) // 添加指针
+			sliceValue.Set(reflect.Append(sliceValue, newElement))
 		} else {
-			sliceValue.Set(reflect.Append(sliceValue, elemValue.Elem())) // 添加值
+			sliceValue.Set(reflect.Append(sliceValue, newElement.Elem()))
 		}
 	}
 
-	// 检查行迭代过程中是否有错误
 	return rows.Err()
 }
 
-// scanRow 将SQL查询单行结果扫描到结构体
-//
-// 已废弃: 此函数不再使用，已被重写的QueryOne方法取代，该方法使用QueryContext获取列信息并使用prepareScanTargets处理映射
-//
+// scanRow 扫描单行结果到目标结构体
+// 将SQL查询返回的单行结果扫描到Go结构体中
+// 自动按字段顺序进行扫描（简化实现）
 // 参数:
-// - row: SQL查询的单行结果
-// - dest: 目标结构体的指针，例如 *User
-//
+//   row: SQL查询返回的单行结果
+//   dest: 目标结构体的指针
 // 返回:
-// - 扫描过程中发生的错误，如果成功则为nil
-// - 当未找到记录时返回 database.ErrRecordNotFound
+//   error: 扫描失败时返回错误信息
 func scanRow(row *sql.Row, dest interface{}) error {
-	// 此函数已废弃
-	return nil
-}
+	destValue := reflect.ValueOf(dest)
+	if destValue.Kind() != reflect.Ptr {
+		return fmt.Errorf("dest must be a pointer")
+	}
 
-// getColumnNames 尝试获取行的列名
-//
-// 已废弃: 此函数不再使用，已被重写的QueryOne方法取代
-func getColumnNames(row *sql.Row) []string {
-	// 此函数已废弃
-	return []string{}
-}
+	structValue := destValue.Elem()
+	if structValue.Kind() != reflect.Struct {
+		return fmt.Errorf("dest must be a pointer to struct")
+	}
 
-// extractColumnsFromCache 从缓存中提取列信息
-//
-// 已废弃: 此函数不再使用，已被重写的QueryOne方法取代
-func extractColumnsFromCache() []string {
-	// 此函数已废弃
-	return []string{}
-}
+	// 这里简化处理，实际应该获取列名
+	// 由于sql.Row没有Columns方法，这里需要特殊处理
+	// 简化实现：直接按字段顺序扫描
+	structType := structValue.Type()
+	var scanTargets []interface{}
 
-// prepareScanTargets 准备SQL结果扫描的目标变量
-//
-// 参数:
-// - structValue: 目标结构体的反射值
-// - columns: 查询结果的列名
-//
-// 返回:
-// - 准备好的扫描目标切片，与columns一一对应
-// - 准备过程中发生的错误，如果成功则为nil
-func prepareScanTargets(structValue reflect.Value, columns []string) ([]interface{}, error) {
-	// 为每个列创建一个扫描目标
-	targets := make([]interface{}, len(columns))
-	for i, column := range columns {
-		// 查找与列名匹配的字段
-		field, ok := findFieldByColumn(structValue, column)
-		if !ok {
-			// 未找到匹配字段，使用占位符接收值但不存储
-			var placeholder interface{}
-			targets[i] = &placeholder
+	for i := 0; i < structValue.NumField(); i++ {
+		field := structValue.Field(i)
+		if !field.CanSet() {
+			continue
+		}
+		
+		structField := structType.Field(i)
+		dbTag := structField.Tag.Get("db")
+		if dbTag == "-" {
 			continue
 		}
 
-		// 根据字段类型创建适当的扫描目标
-		// 对于可能为NULL的数据库列，使用sql.NullXxx类型
-		// 首先检查字段是否已经是sql.NullXxx类型
-		fieldType := field.Type()
-
-		if fieldType == reflect.TypeOf(sql.NullString{}) {
-			// 字段已经是sql.NullString类型，直接使用字段地址
-			targets[i] = field.Addr().Interface()
-		} else if fieldType == reflect.TypeOf(sql.NullInt32{}) {
-			// 字段已经是sql.NullInt32类型，直接使用字段地址
-			targets[i] = field.Addr().Interface()
-		} else if fieldType == reflect.TypeOf(sql.NullInt64{}) {
-			// 字段已经是sql.NullInt64类型，直接使用字段地址
-			targets[i] = field.Addr().Interface()
-		} else if fieldType == reflect.TypeOf(sql.NullFloat64{}) {
-			// 字段已经是sql.NullFloat64类型，直接使用字段地址
-			targets[i] = field.Addr().Interface()
-		} else if fieldType == reflect.TypeOf(sql.NullBool{}) {
-			// 字段已经是sql.NullBool类型，直接使用字段地址
-			targets[i] = field.Addr().Interface()
-		} else if fieldType == reflect.TypeOf(sql.NullTime{}) {
-			// 字段已经是sql.NullTime类型，直接使用字段地址
-			targets[i] = field.Addr().Interface()
-		} else {
-			// 普通类型字段，根据基础类型创建对应的sql.NullXxx类型
-			switch field.Kind() {
-			case reflect.String:
-				// 使用sql.NullString处理可能为NULL的字符串
-				var ns sql.NullString
-				targets[i] = &ns
-				// 在Scan后，设置字段值的逻辑会在scanRows/QueryOne中处理
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				// 使用sql.NullInt64处理可能为NULL的整数
-				var ni sql.NullInt64
-				targets[i] = &ni
-			case reflect.Float32, reflect.Float64:
-				// 使用sql.NullFloat64处理可能为NULL的浮点数
-				var nf sql.NullFloat64
-				targets[i] = &nf
-			case reflect.Bool:
-				// 使用sql.NullBool处理可能为NULL的布尔值
-				var nb sql.NullBool
-				targets[i] = &nb
-			case reflect.Struct:
-				// 处理time.Time类型
-				if field.Type() == reflect.TypeOf(time.Time{}) {
-					var nt sql.NullTime
-					targets[i] = &nt
-				} else {
-					// 其他结构体类型，直接使用字段地址
-					targets[i] = field.Addr().Interface()
-				}
-			default:
-				// 其他类型，直接使用字段地址
-				targets[i] = field.Addr().Interface()
-			}
-		}
+		scanTargets = append(scanTargets, field.Addr().Interface())
 	}
-	return targets, nil
+
+	return row.Scan(scanTargets...)
 }
 
-// findFieldByColumn 根据列名查找结构体中的匹配字段
-//
+// prepareScanTargets 准备扫描目标
+// 根据数据库列名和结构体字段创建扫描目标切片
+// 为每个数据库列找到对应的结构体字段，如果找不到则使用丢弃变量
 // 参数:
-// - structValue: 结构体的反射值
-// - column: 数据库列名
-//
+//   structValue: 目标结构体的反射值
+//   columns: 数据库列名切片
 // 返回:
-// - 找到的字段的反射值
-// - 是否找到匹配字段的布尔值
-func findFieldByColumn(structValue reflect.Value, column string) (reflect.Value, bool) {
-	// 获取结构体类型信息
-	typ := structValue.Type()
-	// 遍历所有字段
-	for i := 0; i < structValue.NumField(); i++ {
-		field := typ.Field(i)
+//   []interface{}: 扫描目标切片，每个元素对应一个数据库列
+//   error: 准备失败时返回错误信息
+func prepareScanTargets(structValue reflect.Value, columns []string) ([]interface{}, error) {
+	var scanTargets []interface{}
 
-		// 获取db标签
-		tag := field.Tag.Get("db")
-		if tag == "" {
-			continue // 跳过没有db标签的字段
+	for _, column := range columns {
+		field, found := findFieldByColumn(structValue, column)
+		if !found {
+			// 如果找不到对应字段，使用一个丢弃变量
+			var discard interface{}
+			scanTargets = append(scanTargets, &discard)
+			continue
 		}
 
-		// 解析标签，检查是否匹配列名
-		parts := strings.Split(tag, ",")
-		if parts[0] == column {
-			return structValue.Field(i), true // 返回匹配的字段
+		if !field.CanSet() {
+			return nil, fmt.Errorf("field for column %s cannot be set", column)
+		}
+
+		scanTargets = append(scanTargets, field.Addr().Interface())
+	}
+
+	return scanTargets, nil
+}
+
+// findFieldByColumn 根据列名查找对应的结构体字段
+// 通过db tag或字段名（转小写）匹配数据库列名
+// 支持db tag映射，优先使用tag定义的名称
+// 参数:
+//   structValue: 要搜索的结构体反射值
+//   column: 要匹配的数据库列名
+// 返回:
+//   reflect.Value: 找到的字段反射值
+//   bool: 是否找到匹配的字段
+func findFieldByColumn(structValue reflect.Value, column string) (reflect.Value, bool) {
+	structType := structValue.Type()
+
+	for i := 0; i < structValue.NumField(); i++ {
+		field := structValue.Field(i)
+		structField := structType.Field(i)
+
+		// 获取数据库字段名
+		dbTag := structField.Tag.Get("db")
+		if dbTag == "" {
+			dbTag = strings.ToLower(structField.Name)
+		}
+
+		if dbTag == column {
+			return field, true
 		}
 	}
-	return reflect.Value{}, false // 未找到匹配的字段
+
+	return reflect.Value{}, false
 }

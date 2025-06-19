@@ -43,7 +43,7 @@ func (c *GatewayInstanceController) QueryGatewayInstances(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 
 	// 调用DAO获取网关实例列表
-	instances, total, err := c.gatewayInstanceDAO.ListGatewayInstances(tenantId, page, pageSize)
+	instances, total, err := c.gatewayInstanceDAO.ListGatewayInstances(ctx, tenantId, page, pageSize)
 	if err != nil {
 		logger.Error("获取网关实例列表失败", err)
 		// 使用统一的错误响应
@@ -85,7 +85,7 @@ func (c *GatewayInstanceController) AddGatewayInstance(ctx *gin.Context) {
 	operatorId := request.GetOperatorID(ctx)
 
 	// 调用DAO添加网关实例
-	gatewayInstanceId, err := c.gatewayInstanceDAO.AddGatewayInstance(&req, operatorId)
+	gatewayInstanceId, err := c.gatewayInstanceDAO.AddGatewayInstance(ctx, &req, operatorId)
 	if err != nil {
 		logger.Error("创建网关实例失败", err)
 		response.ErrorJSON(ctx, "创建网关实例失败: "+err.Error(), constants.ED00009)
@@ -98,7 +98,7 @@ func (c *GatewayInstanceController) AddGatewayInstance(ctx *gin.Context) {
 		tenantId = request.GetTenantID(ctx)
 	}
 
-	newInstance, err := c.gatewayInstanceDAO.GetGatewayInstanceById(gatewayInstanceId, tenantId)
+	newInstance, err := c.gatewayInstanceDAO.GetGatewayInstanceById(ctx, gatewayInstanceId, tenantId)
 	if err != nil {
 		logger.Error("获取新创建的网关实例信息失败", err)
 		// 即使查询失败，也返回成功但只带有网关实例ID
@@ -142,7 +142,7 @@ func (c *GatewayInstanceController) EditGatewayInstance(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 
 	// 获取现有网关实例信息
-	currentInstance, err := c.gatewayInstanceDAO.GetGatewayInstanceById(updateData.GatewayInstanceId, tenantId)
+	currentInstance, err := c.gatewayInstanceDAO.GetGatewayInstanceById(ctx, updateData.GatewayInstanceId, tenantId)
 	if err != nil {
 		logger.Error("获取网关实例信息失败", err)
 		response.ErrorJSON(ctx, "获取网关实例信息失败: "+err.Error(), constants.ED00009)
@@ -171,7 +171,7 @@ func (c *GatewayInstanceController) EditGatewayInstance(ctx *gin.Context) {
 	updateData.AddWho = addWho
 
 	// 调用DAO更新网关实例
-	err = c.gatewayInstanceDAO.UpdateGatewayInstance(&updateData, operatorId)
+	err = c.gatewayInstanceDAO.UpdateGatewayInstance(ctx, &updateData, operatorId)
 	if err != nil {
 		logger.Error("更新网关实例失败", err)
 		response.ErrorJSON(ctx, "更新网关实例失败: "+err.Error(), constants.ED00009)
@@ -179,7 +179,7 @@ func (c *GatewayInstanceController) EditGatewayInstance(ctx *gin.Context) {
 	}
 
 	// 查询更新后的网关实例信息
-	updatedInstance, err := c.gatewayInstanceDAO.GetGatewayInstanceById(updateData.GatewayInstanceId, tenantId)
+	updatedInstance, err := c.gatewayInstanceDAO.GetGatewayInstanceById(ctx, updateData.GatewayInstanceId, tenantId)
 	if err != nil {
 		logger.Error("获取更新后的网关实例信息失败", err)
 		// 即使查询失败，也返回成功但只带有简单消息
@@ -222,7 +222,7 @@ func (c *GatewayInstanceController) DeleteGatewayInstance(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 
 	// 调用DAO删除网关实例
-	err := c.gatewayInstanceDAO.DeleteGatewayInstance(req.GatewayInstanceId, tenantId, operatorId)
+	err := c.gatewayInstanceDAO.DeleteGatewayInstance(ctx, req.GatewayInstanceId, tenantId, operatorId)
 	if err != nil {
 		logger.Error("删除网关实例失败", err)
 		response.ErrorJSON(ctx, "删除网关实例失败: "+err.Error(), constants.ED00009)
@@ -254,7 +254,7 @@ func (c *GatewayInstanceController) GetGatewayInstance(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 
 	// 调用DAO获取网关实例信息
-	instance, err := c.gatewayInstanceDAO.GetGatewayInstanceById(gatewayInstanceId, tenantId)
+	instance, err := c.gatewayInstanceDAO.GetGatewayInstanceById(ctx, gatewayInstanceId, tenantId)
 	if err != nil {
 		logger.Error("获取网关实例信息失败", err)
 		response.ErrorJSON(ctx, "获取网关实例信息失败: "+err.Error(), constants.ED00009)
@@ -304,7 +304,7 @@ func (c *GatewayInstanceController) UpdateHealthStatus(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 
 	// 调用DAO更新健康状态
-	err := c.gatewayInstanceDAO.UpdateHealthStatus(req.GatewayInstanceId, tenantId, req.HealthStatus, operatorId)
+	err := c.gatewayInstanceDAO.UpdateHealthStatus(ctx, req.GatewayInstanceId, tenantId, req.HealthStatus, operatorId)
 	if err != nil {
 		logger.Error("更新网关实例健康状态失败", err)
 		response.ErrorJSON(ctx, "更新健康状态失败: "+err.Error(), constants.ED00009)

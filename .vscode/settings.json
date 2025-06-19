@@ -1,0 +1,37 @@
+{
+  "go.useLanguageServer": true,
+  "go.autocompleteUnimportedPackages": false,
+  "go.gocodeAutoBuild": false,
+  "go.lintOnSave": "off",
+  "go.vetOnSave": "off",
+  "go.testOnSave": false,
+  "gopls": {
+    "usePlaceholders": false,
+    "completeUnimported": false,
+    "deepCompletion": false,
+    "staticcheck": false,
+    "buildOnSave": false,
+    "analyses": {
+      "unusedparams": false,
+      "shadow": false
+    },
+    "codelenses": {
+      "gc_details": true,
+      "generate": false,
+      "regenerate_cgo": false,
+      "test": true,
+      "tidy": false,
+      "upgrade_dependency": false,
+      "vendor": true
+    }
+  },
+  "files.watcherExclude": {
+    "**/bin/**": true,
+    "**/logs/**": true,
+    "**/vendor/**": true,
+    "**/.git/**": true
+  },
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  }
+} 

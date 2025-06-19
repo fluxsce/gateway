@@ -23,7 +23,7 @@ func NewAuthDAO(db database.Database) *AuthDAO {
 }
 
 // UpdateLastLogin 更新最后登录信息
-func (dao *AuthDAO) UpdateLastLogin(userId, tenantId, loginIp string) error {
+func (dao *AuthDAO) UpdateLastLogin(ctx context.Context, userId, tenantId, loginIp string) error {
 	now := time.Now()
 
 	// 查询更新SQL
@@ -35,10 +35,9 @@ func (dao *AuthDAO) UpdateLastLogin(userId, tenantId, loginIp string) error {
 	`
 
 	// 执行更新
-	ctx := context.Background()
 	_, err := dao.db.Exec(ctx, sql, []interface{}{
 		now, loginIp, userId, tenantId,
-	})
+	}, true)
 
 	if err != nil {
 		logger.Error("更新登录信息失败", err, "userId", userId)
@@ -49,7 +48,7 @@ func (dao *AuthDAO) UpdateLastLogin(userId, tenantId, loginIp string) error {
 }
 
 // RecordLoginLog 记录登录日志
-func (dao *AuthDAO) RecordLoginLog(logId, userId, tenantId, userName, loginIp string, loginType int, loginStatus string, userAgent string, failReason string, operatorId string) error {
+func (dao *AuthDAO) RecordLoginLog(ctx context.Context, logId, userId, tenantId, userName, loginIp string, loginType int, loginStatus string, userAgent string, failReason string, operatorId string) error {
 	now := time.Now()
 
 	// 确保logId长度为32字符
@@ -97,13 +96,12 @@ func (dao *AuthDAO) RecordLoginLog(logId, userId, tenantId, userName, loginIp st
 	oprSeqFlag := generateOprSeqFlag()
 
 	// 执行插入
-	ctx := context.Background()
 	_, err := dao.db.Exec(ctx, sql, []interface{}{
 		logId, userId, tenantId, userName, now, loginIp,
 		loginType, deviceType, deviceInfo, browserInfo, osInfo,
 		loginStatus, failReason, now, operatorId, now, operatorId,
 		oprSeqFlag, 1, "Y",
-	})
+	}, true)
 
 	if err != nil {
 		logger.Error("记录登录日志失败", err, "userId", userId)
@@ -193,11 +191,13 @@ func (dao *AuthDAO) RecordLoginHistory(userId, tenantId, loginIp, userAgent, log
 	// 默认使用用户名密码登录类型
 	loginType := 1
 
-	return dao.RecordLoginLog(logId, userId, tenantId, userName, loginIp, loginType, loginStatus, userAgent, loginMsg, operatorId)
+	// 使用默认上下文
+	ctx := context.Background()
+	return dao.RecordLoginLog(ctx, logId, userId, tenantId, userName, loginIp, loginType, loginStatus, userAgent, loginMsg, operatorId)
 }
 
 // ValidateRefreshToken 验证刷新令牌
-func (dao *AuthDAO) ValidateRefreshToken(userId, tenantId, refreshToken string) (bool, error) {
+func (dao *AuthDAO) ValidateRefreshToken(ctx context.Context, userId, tenantId, refreshToken string) (bool, error) {
 	// 查询刷新令牌SQL
 	sql := `
 		SELECT COUNT(*) FROM HUB_REFRESH_TOKEN
@@ -206,13 +206,12 @@ func (dao *AuthDAO) ValidateRefreshToken(userId, tenantId, refreshToken string) 
 	`
 
 	// 执行查询，使用匿名结构体
-	ctx := context.Background()
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
 	err := dao.db.QueryOne(ctx, &result, sql, []interface{}{
 		userId, tenantId, refreshToken, time.Now(),
-	})
+	}, true)
 
 	if err != nil {
 		logger.Error("验证刷新令牌失败", err, "userId", userId)
@@ -223,7 +222,7 @@ func (dao *AuthDAO) ValidateRefreshToken(userId, tenantId, refreshToken string) 
 }
 
 // SaveRefreshToken 保存刷新令牌
-func (dao *AuthDAO) SaveRefreshToken(userId, tenantId, refreshToken string, expireTime time.Time) error {
+func (dao *AuthDAO) SaveRefreshToken(ctx context.Context, userId, tenantId, refreshToken string, expireTime time.Time) error {
 	// 生成令牌ID - 确保长度为32字符
 	tokenId := generateOprSeqFlag()
 
@@ -244,11 +243,10 @@ func (dao *AuthDAO) SaveRefreshToken(userId, tenantId, refreshToken string, expi
 	oprSeqFlag := generateOprSeqFlag()
 
 	// 执行插入
-	ctx := context.Background()
 	_, err := dao.db.Exec(ctx, sql, []interface{}{
 		tokenId, userId, tenantId, refreshToken, now, expireTime,
 		now, userId, now, userId, oprSeqFlag, 1, "Y",
-	})
+	}, true)
 
 	if err != nil {
 		logger.Error("保存刷新令牌失败", err, "userId", userId)
@@ -259,7 +257,7 @@ func (dao *AuthDAO) SaveRefreshToken(userId, tenantId, refreshToken string, expi
 }
 
 // InvalidateRefreshToken 使刷新令牌失效
-func (dao *AuthDAO) InvalidateRefreshToken(userId, tenantId, refreshToken string) error {
+func (dao *AuthDAO) InvalidateRefreshToken(ctx context.Context, userId, tenantId, refreshToken string) error {
 	// 构建更新SQL
 	sql := `
 		UPDATE HUB_REFRESH_TOKEN SET
@@ -269,10 +267,9 @@ func (dao *AuthDAO) InvalidateRefreshToken(userId, tenantId, refreshToken string
 	`
 
 	// 执行更新
-	ctx := context.Background()
 	_, err := dao.db.Exec(ctx, sql, []interface{}{
 		time.Now(), userId, tenantId, refreshToken,
-	})
+	}, true)
 
 	if err != nil {
 		logger.Error("使刷新令牌失效失败", err, "userId", userId)
@@ -283,7 +280,7 @@ func (dao *AuthDAO) InvalidateRefreshToken(userId, tenantId, refreshToken string
 }
 
 // CleanupExpiredTokens 清理过期的令牌
-func (dao *AuthDAO) CleanupExpiredTokens() (int, error) {
+func (dao *AuthDAO) CleanupExpiredTokens(ctx context.Context) (int, error) {
 	// 构建更新SQL
 	sql := `
 		UPDATE HUB_REFRESH_TOKEN SET
@@ -293,10 +290,9 @@ func (dao *AuthDAO) CleanupExpiredTokens() (int, error) {
 	`
 
 	// 执行更新
-	ctx := context.Background()
 	result, err := dao.db.Exec(ctx, sql, []interface{}{
 		time.Now(), time.Now(),
-	})
+	}, true)
 
 	if err != nil {
 		logger.Error("清理过期令牌失败", err)

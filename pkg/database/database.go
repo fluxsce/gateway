@@ -4,39 +4,30 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gohub/pkg/config"
 	"gohub/pkg/database/dbtypes"
 	"gohub/pkg/database/dsn"
-	huberrors "gohub/pkg/utils/huberrors"
 	"sync"
-	"time"
 )
 
-// 定义通用数据库错误，方便上层业务进行错误处理
+// 定义通用数据库错误
 var (
-	// ErrRecordNotFound Record not found error
-	// Returned when a query doesn't return any results
-	ErrRecordNotFound error = errors.New("record not found")
+	// ErrRecordNotFound 记录未找到错误
+	ErrRecordNotFound = errors.New("record not found")
 
-	// ErrDuplicateKey Duplicate key error
-	// Returned when an insert operation violates a unique constraint
-	ErrDuplicateKey error = errors.New("duplicate key")
+	// ErrDuplicateKey 重复键错误
+	ErrDuplicateKey = errors.New("duplicate key")
 
-	// ErrConnection Connection error
-	// Returned when unable to connect to the database
-	ErrConnection error = errors.New("database connection error")
+	// ErrConnection 连接错误
+	ErrConnection = errors.New("database connection error")
 
-	// ErrTransaction Transaction error
-	// Returned when a transaction operation fails
-	ErrTransaction error = errors.New("transaction error")
+	// ErrTransaction 事务错误
+	ErrTransaction = errors.New("transaction error")
 
-	// ErrInvalidQuery Invalid query error
-	// Returned when an SQL query has syntax or parameter errors
-	ErrInvalidQuery error = errors.New("invalid query")
+	// ErrInvalidQuery 无效查询错误
+	ErrInvalidQuery = errors.New("invalid query")
 
-	// ErrConfigNotFound Configuration not found error
-	// Returned when the specified database configuration is not found
-	ErrConfigNotFound error = errors.New("database config not found")
+	// ErrConfigNotFound 配置未找到错误
+	ErrConfigNotFound = errors.New("database config not found")
 )
 
 // 数据库工厂映射及缓存
@@ -45,582 +36,421 @@ var (
 	dbCreators = make(map[string]DriverCreator)
 
 	// dbConnections 缓存已创建的数据库连接实例
-	// 键是连接名称，值是数据库连接实例
 	dbConnections = make(map[string]Database)
 
 	// connMutex 用于保护数据库连接缓存的互斥锁
 	connMutex = sync.RWMutex{}
 )
 
-// 支持的数据库类型常量，使用dbtypes中的定义
+// 支持的数据库类型常量
 const (
-	// MySQL数据库驱动
-	DriverMySQL = dbtypes.DriverMySQL
-	// PostgreSQL数据库驱动
+	DriverMySQL      = dbtypes.DriverMySQL
 	DriverPostgreSQL = dbtypes.DriverPostgreSQL
-	// SQLite数据库驱动
-	DriverSQLite = dbtypes.DriverSQLite
+	DriverSQLite     = dbtypes.DriverSQLite
 )
 
-// DbConfig 使用dbtypes包中的定义
+// DbConfig 数据库配置类型别名
 type DbConfig = dbtypes.DbConfig
 
-// DBExecutor 数据库执行器接口
-// 定义了基本的数据库操作方法，无论是事务内还是事务外
-// 这是最基础的接口，被Transaction和Database接口继承
-type DBExecutor interface {
-	// Exec 执行SQL语句
-	// 参数:
-	//   - ctx: 上下文，用于控制超时和取消
-	//   - query: SQL查询语句
-	//   - args: 查询参数，用于替换查询中的占位符
-	// 返回:
-	//   - int64: 影响的行数
-	//   - error: 可能的错误
-	Exec(ctx context.Context, query string, args []interface{}) (int64, error)
+// IsolationLevel 事务隔离级别
+// 定义数据库事务的隔离级别常量
+// 不同的隔离级别提供不同程度的并发控制和数据一致性保证
+type IsolationLevel int
 
-	// Query 查询多条记录
-	// 参数:
-	//   - ctx: 上下文，用于控制超时和取消
-	//   - dest: 目标结构体切片指针，查询结果将被映射到这里
-	//   - query: SQL查询语句
-	//   - args: 查询参数，用于替换查询中的占位符
-	// 返回:
-	//   - error: 可能的错误
-	Query(ctx context.Context, dest interface{}, query string, args []interface{}) error
+const (
+	// IsolationDefault 默认隔离级别
+	// 使用数据库默认的隔离级别，通常为读已提交
+	IsolationDefault IsolationLevel = 0
+	
+	// IsolationReadUncommitted 读未提交
+	// 最低隔离级别，允许读取未提交的数据
+	// 可能出现脏读、不可重复读、幻读问题
+	IsolationReadUncommitted IsolationLevel = 1
+	
+	// IsolationReadCommitted 读已提交
+	// 只允许读取已提交的数据，避免脏读
+	// 可能出现不可重复读、幻读问题
+	IsolationReadCommitted IsolationLevel = 2
+	
+	// IsolationRepeatableRead 可重复读
+	// 保证在同一事务中多次读取同样记录的结果是一致的
+	// 可能出现幻读问题
+	IsolationRepeatableRead IsolationLevel = 3
+	
+	// IsolationSerializable 串行化
+	// 最高隔离级别，完全避免脏读、不可重复读、幻读
+	// 提供最强的数据一致性保证，但并发性能最低
+	IsolationSerializable IsolationLevel = 4
+)
 
-	// QueryOne 查询单条记录
-	// 参数:
-	//   - ctx: 上下文，用于控制超时和取消
-	//   - dest: 目标结构体指针，查询结果将被映射到这里
-	//   - query: SQL查询语句
-	//   - args: 查询参数，用于替换查询中的占位符
-	// 返回:
-	//   - error: 可能的错误，如果没有记录则返回ErrRecordNotFound
-	QueryOne(ctx context.Context, dest interface{}, query string, args []interface{}) error
-
-	// Insert 插入记录
-	// 参数:
-	//   - ctx: 上下文，用于控制超时和取消
-	//   - table: 表名
-	//   - data: 要插入的数据，通常是一个结构体
-	// 返回:
-	//   - int64: 插入的记录ID或影响的行数
-	//   - error: 可能的错误
-	Insert(ctx context.Context, table string, data interface{}) (int64, error)
-
-	// BatchInsert 批量插入多条记录
-	// 参数:
-	//   - ctx: 上下文，用于控制超时和取消
-	//   - table: 表名
-	//   - dataSlice: 要插入的数据切片，通常是结构体切片
-	// 返回:
-	//   - int64: 影响的行数
-	//   - error: 可能的错误
-	BatchInsert(ctx context.Context, table string, dataSlice interface{}) (int64, error)
-
-	// Update 更新记录
-	// 参数:
-	//   - ctx: 上下文，用于控制超时和取消
-	//   - table: 表名
-	//   - data: 要更新的数据，通常是一个结构体
-	//   - query: 条件查询，WHERE子句
-	//   - args: 查询参数，用于替换查询中的占位符
-	// 返回:
-	//   - int64: 影响的行数
-	//   - error: 可能的错误
-	Update(ctx context.Context, table string, data interface{}, query string, args []interface{}) (int64, error)
-
-	// Delete 删除记录
-	// 参数:
-	//   - ctx: 上下文，用于控制超时和取消
-	//   - table: 表名
-	//   - query: 条件查询，WHERE子句
-	//   - args: 查询参数，用于替换查询中的占位符
-	// 返回:
-	//   - int64: 影响的行数
-	//   - error: 可能的错误
-	Delete(ctx context.Context, table string, query string, args []interface{}) (int64, error)
+// TxOptions 事务选项
+// 定义事务的配置参数，包括隔离级别和访问模式
+type TxOptions struct {
+	// Isolation 事务隔离级别
+	// 控制事务在并发环境下的数据可见性和一致性
+	Isolation IsolationLevel
+	
+	// ReadOnly 是否只读事务
+	// true: 只读事务，不允许修改数据，可以提高性能
+	// false: 读写事务，允许查询和修改数据
+	ReadOnly bool
 }
 
-// Transaction 事务接口
-// 在DBExecutor基础上添加事务控制方法
-// 表示一个活跃的数据库事务
-type Transaction interface {
-	// 继承DBExecutor接口的所有方法
-	DBExecutor
-
-	// Commit 提交事务
-	// 将事务中的所有更改持久化到数据库
-	// 返回:
-	//   - error: 提交事务时可能发生的错误
-	Commit() error
-
-	// Rollback 回滚事务
-	// 撤销事务中的所有更改
-	// 返回:
-	//   - error: 回滚事务时可能发生的错误
-	Rollback() error
-}
-
-// Database 数据库接口
-// 定义了数据库连接和高级操作的方法
-// 主要服务于应用层，提供完整的数据库访问能力
+// Database 统一的数据库接口
+// 通过autoCommit参数控制是否自动提交，简化事务处理
 type Database interface {
-	// 继承DBExecutor接口的所有方法
-	DBExecutor
-
+	// === 连接管理 ===
+	
 	// Connect 连接数据库
+	// 根据提供的配置建立数据库连接，包括连接池设置、日志配置等
 	// 参数:
-	//   - config: 数据库配置，包含连接信息和行为设置
+	//   config: 数据库配置，包含连接信息、池设置、日志等
 	// 返回:
-	//   - error: 连接数据库时可能发生的错误
+	//   error: 连接失败时返回错误信息
 	Connect(config *DbConfig) error
 
 	// Close 关闭数据库连接
-	// 释放数据库连接资源
+	// 关闭当前数据库连接，释放相关资源
+	// 如果有活跃的事务，会先回滚事务再关闭连接
 	// 返回:
-	//   - error: 关闭连接时可能发生的错误
+	//   error: 关闭失败时返回错误信息
 	Close() error
 
 	// Ping 测试数据库连接
+	// 发送ping请求到数据库服务器，验证连接是否正常
 	// 参数:
-	//   - ctx: 上下文，用于控制超时和取消
+	//   ctx: 上下文，用于控制请求超时和取消
 	// 返回:
-	//   - error: 测试连接时可能发生的错误
+	//   error: 连接异常时返回错误信息
 	Ping(ctx context.Context) error
 
+	// === 基本操作 ===
+
+	// Exec 执行SQL语句
+	// 执行INSERT、UPDATE、DELETE等不返回结果集的SQL语句
+	// 参数:
+	//   ctx: 上下文，用于控制请求超时和取消
+	//   query: 要执行的SQL语句，可包含占位符
+	//   args: SQL语句中占位符对应的参数值
+	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	// 返回:
+	//   int64: 受影响的行数
+	//   error: 执行失败时返回错误信息
+	Exec(ctx context.Context, query string, args []interface{}, autoCommit bool) (int64, error)
+
+	// Query 查询多条记录
+	// 执行SELECT语句并将结果扫描到目标切片中
+	// 参数:
+	//   ctx: 上下文，用于控制请求超时和取消
+	//   dest: 目标切片的指针，用于接收查询结果
+	//   query: 要执行的SELECT语句，可包含占位符
+	//   args: SQL语句中占位符对应的参数值
+	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	// 返回:
+	//   error: 查询失败或扫描失败时返回错误信息
+	Query(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error
+
+	// QueryOne 查询单条记录
+	// 执行SELECT语句并将结果扫描到目标结构体中
+	// 如果查询不到记录，返回ErrRecordNotFound错误
+	// 参数:
+	//   ctx: 上下文，用于控制请求超时和取消
+	//   dest: 目标结构体的指针，用于接收查询结果
+	//   query: 要执行的SELECT语句，可包含占位符
+	//   args: SQL语句中占位符对应的参数值
+	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	// 返回:
+	//   error: 查询失败、扫描失败或记录不存在时返回错误信息
+	QueryOne(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error
+
+	// Insert 插入记录
+	// 根据提供的数据结构体自动构建INSERT语句并执行
+	// 会自动提取结构体字段作为列名和值
+	// 参数:
+	//   ctx: 上下文，用于控制请求超时和取消
+	//   table: 目标表名
+	//   data: 要插入的数据结构体，字段通过db tag映射到数据库列
+	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	// 返回:
+	//   int64: 插入记录的自增ID（如果有）
+	//   error: 插入失败时返回错误信息
+	Insert(ctx context.Context, table string, data interface{}, autoCommit bool) (int64, error)
+
+	// Update 更新记录
+	// 根据提供的数据结构体和WHERE条件构建UPDATE语句并执行
+	// 会自动提取结构体字段作为要更新的列和值
+	// 参数:
+	//   ctx: 上下文，用于控制请求超时和取消
+	//   table: 目标表名
+	//   data: 包含更新数据的结构体，字段通过db tag映射到数据库列
+	//   where: WHERE条件语句，可包含占位符
+	//   args: WHERE条件中占位符对应的参数值
+	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	// 返回:
+	//   int64: 受影响的行数
+	//   error: 更新失败时返回错误信息
+	Update(ctx context.Context, table string, data interface{}, where string, args []interface{}, autoCommit bool) (int64, error)
+
+	// Delete 删除记录
+	// 根据WHERE条件构建DELETE语句并执行
+	// 参数:
+	//   ctx: 上下文，用于控制请求超时和取消
+	//   table: 目标表名
+	//   where: WHERE条件语句，可包含占位符
+	//   args: WHERE条件中占位符对应的参数值
+	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	// 返回:
+	//   int64: 受影响的行数
+	//   error: 删除失败时返回错误信息
+	Delete(ctx context.Context, table string, where string, args []interface{}, autoCommit bool) (int64, error)
+
+	// BatchInsert 批量插入记录
+	// 将切片中的多个数据结构体批量插入到数据库中
+	// 使用单条INSERT语句提高性能
+	// 参数:
+	//   ctx: 上下文，用于控制请求超时和取消
+	//   table: 目标表名
+	//   dataSlice: 要插入的数据切片，每个元素都是结构体
+	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	// 返回:
+	//   int64: 受影响的行数
+	//   error: 插入失败时返回错误信息
+	BatchInsert(ctx context.Context, table string, dataSlice interface{}, autoCommit bool) (int64, error)
+
+	// === 事务控制 ===
+
 	// BeginTx 开始事务
+	// 启动一个新的数据库事务，可以指定隔离级别和只读属性
+	// 如果已有活跃事务，会返回错误
 	// 参数:
-	//   - ctx: 上下文，用于控制超时和取消
-	//   - options: 事务选项，如隔离级别和只读模式
+	//   ctx: 上下文，用于控制请求超时和取消
+	//   options: 事务选项，包含隔离级别和只读设置
 	// 返回:
-	//   - Transaction: 新创建的事务对象
-	//   - error: 开始事务时可能发生的错误
-	BeginTx(ctx context.Context, options ...TxOption) (Transaction, error)
+	//   error: 开始事务失败时返回错误信息
+	BeginTx(ctx context.Context, options *TxOptions) error
 
-	// WithTx 使用已有事务执行函数
-	// 参数:
-	//   - tx: 已存在的事务对象
-	//   - fn: 在事务中执行的函数，接收事务对象作为参数
+	// Commit 提交事务
+	// 提交当前活跃的事务，使所有未提交的更改生效
+	// 如果没有活跃事务，会返回错误
 	// 返回:
-	//   - error: 事务执行过程中可能发生的错误
-	// 此方法负责提交或回滚事务，简化事务使用
-	WithTx(tx Transaction, fn func(tx Transaction) error) error
+	//   error: 提交失败时返回错误信息
+	Commit() error
 
-	// BatchInsertWithChunk 分批批量插入，处理大量数据
-	// 参数:
-	//   - ctx: 上下文，用于控制超时和取消
-	//   - table: 表名
-	//   - dataSlice: 要插入的数据切片，通常是结构体切片
-	//   - chunkSize: 每批处理的记录数，推荐值为500-1000
+	// Rollback 回滚事务
+	// 回滚当前活跃的事务，撤销所有未提交的更改
+	// 如果没有活跃事务，会返回错误
 	// 返回:
-	//   - int64: 影响的行数
-	//   - error: 可能的错误
-	BatchInsertWithChunk(ctx context.Context, table string, dataSlice interface{}, chunkSize int) (int64, error)
+	//   error: 回滚失败时返回错误信息
+	Rollback() error
 
-	// ExecWithOptions 带选项执行SQL语句
+	// InTx 在事务中执行函数
+	// 自动处理事务的开始、提交和回滚
+	// 如果函数正常返回，自动提交事务
+	// 如果函数返回错误或发生panic，自动回滚事务
 	// 参数:
-	//   - ctx: 上下文，用于控制超时和取消
-	//   - query: SQL查询语句
-	//   - args: 查询参数，用于替换查询中的占位符
-	//   - options: 执行选项，如是否使用事务
+	//   ctx: 上下文，用于控制请求超时和取消
+	//   options: 事务选项，包含隔离级别和只读设置
+	//   fn: 在事务中执行的函数，返回error表示是否成功
 	// 返回:
-	//   - int64: 影响的行数
-	//   - error: 可能的错误
-	ExecWithOptions(ctx context.Context, query string, args []interface{}, options ...ExecOption) (int64, error)
+	//   error: 事务执行失败时返回错误信息
+	InTx(ctx context.Context, options *TxOptions, fn func() error) error
 
-	// QueryWithOptions 带选项查询多条记录
-	// 参数:
-	//   - ctx: 上下文，用于控制超时和取消
-	//   - dest: 目标结构体切片指针，查询结果将被映射到这里
-	//   - query: SQL查询语句
-	//   - args: 查询参数，用于替换查询中的占位符
-	//   - options: 查询选项，如是否使用事务
-	// 返回:
-	//   - error: 可能的错误
-	QueryWithOptions(ctx context.Context, dest interface{}, query string, args []interface{}, options ...QueryOption) error
-
-	// QueryOneWithOptions 带选项查询单条记录
-	// 参数:
-	//   - ctx: 上下文，用于控制超时和取消
-	//   - dest: 目标结构体指针，查询结果将被映射到这里
-	//   - query: SQL查询语句
-	//   - args: 查询参数，用于替换查询中的占位符
-	//   - options: 查询选项，如是否使用事务
-	// 返回:
-	//   - error: 可能的错误，如果没有记录则返回ErrRecordNotFound
-	QueryOneWithOptions(ctx context.Context, dest interface{}, query string, args []interface{}, options ...QueryOption) error
-
-	// InsertWithOptions 带选项插入记录
-	// 参数:
-	//   - ctx: 上下文，用于控制超时和取消
-	//   - table: 表名
-	//   - data: 要插入的数据，通常是一个结构体
-	//   - options: 执行选项，如是否使用事务
-	// 返回:
-	//   - int64: 插入的记录ID或影响的行数
-	//   - error: 可能的错误
-	InsertWithOptions(ctx context.Context, table string, data interface{}, options ...ExecOption) (int64, error)
-
-	// UpdateWithOptions 带选项更新记录
-	// 参数:
-	//   - ctx: 上下文，用于控制超时和取消
-	//   - table: 表名
-	//   - data: 要更新的数据，通常是一个结构体
-	//   - query: 条件查询，WHERE子句
-	//   - args: 查询参数，用于替换查询中的占位符
-	//   - options: 执行选项，如是否使用事务
-	// 返回:
-	//   - int64: 影响的行数
-	//   - error: 可能的错误
-	UpdateWithOptions(ctx context.Context, table string, data interface{}, query string, args []interface{}, options ...ExecOption) (int64, error)
-
-	// DeleteWithOptions 带选项删除记录
-	// 参数:
-	//   - ctx: 上下文，用于控制超时和取消
-	//   - table: 表名
-	//   - query: 条件查询，WHERE子句
-	//   - args: 查询参数，用于替换查询中的占位符
-	//   - options: 执行选项，如是否使用事务
-	// 返回:
-	//   - int64: 影响的行数
-	//   - error: 可能的错误
-	DeleteWithOptions(ctx context.Context, table string, query string, args []interface{}, options ...ExecOption) (int64, error)
+	// === 工具方法 ===
 
 	// GetDriver 获取数据库驱动类型
-	// 返回当前数据库连接使用的驱动类型
+	// 返回当前数据库实例使用的驱动类型标识
 	// 返回:
-	//   - string: 驱动类型，如"mysql"、"postgres"等
+	//   string: 驱动类型（如"mysql", "postgres", "sqlite"）
 	GetDriver() string
 
 	// GetName 获取数据库连接名称
-	// 返回当前数据库连接的名称
+	// 返回当前数据库连接的名称标识
 	// 返回:
-	//   - string: 连接名称
+	//   string: 连接名称
 	GetName() string
 }
 
 // Model 模型接口
-// 定义了模型操作的通用方法
-// 实现此接口的结构体可以与数据库操作无缝集成
+// 定义数据模型需要实现的基本方法
+// 用于ORM映射和自动化数据库操作
 type Model interface {
 	// TableName 获取表名
-	// 返回模型对应的数据库表名
+	// 返回当前模型对应的数据库表名
 	// 返回:
-	//   - string: 表名
+	//   string: 数据库表名
 	TableName() string
-
+	
 	// PrimaryKey 获取主键
-	// 返回模型的主键字段名
+	// 返回当前模型的主键字段名
 	// 返回:
-	//   - string: 主键名
+	//   string: 主键字段名
 	PrimaryKey() string
 }
 
-// DriverCreator 工厂函数类型定义
-// 用于创建特定数据库驱动的实例
+// DriverCreator 数据库驱动创建函数
+// 用于创建特定数据库驱动实例的工厂函数类型
+// 返回:
+//   Database: 数据库接口实例
 type DriverCreator func() Database
 
 // Register 注册数据库驱动
+// 将数据库驱动的创建函数注册到系统中
+// 支持的驱动类型由常量定义（MySQL、PostgreSQL、SQLite等）
 // 参数:
-//   - driver: 驱动名称，如"mysql"
-//   - creator: 创建函数，返回该驱动的数据库实例
-//
-// 驱动实现需要在init()中调用此函数注册自己
+//   driver: 驱动类型标识符
+//   creator: 驱动创建函数
 func Register(driver string, creator DriverCreator) {
 	dbCreators[driver] = creator
 }
 
-// GetConnectionID 获取连接唯一标识
+// GetConnectionID 根据配置生成连接ID
+// 为数据库连接生成唯一标识符，用于连接缓存
+// 优先使用配置中的连接名称，否则根据连接参数生成
 // 参数:
-//   - config: 数据库配置
-//
+//   config: 数据库配置
 // 返回:
-//   - string: 连接唯一标识，即连接名称
+//   string: 连接唯一标识符
 func GetConnectionID(config *DbConfig) string {
-	// 直接使用连接名称作为ID
-	// 如果连接名称为空，则使用default
-	name := config.Name
-	if name == "" {
-		name = "default"
+	if config.Name != "" {
+		return fmt.Sprintf("%s:%s", config.Driver, config.Name)
 	}
-	return name
+	return fmt.Sprintf("%s:%s:%d:%s", config.Driver, config.Connection.Host, config.Connection.Port, config.Connection.Database)
 }
 
 // Open 打开数据库连接
+// 根据配置创建数据库连接，支持连接缓存和DSN自动生成
+// 如果连接已存在则复用，否则创建新连接
 // 参数:
-//   - config: 数据库配置，包含驱动类型和连接信息
-//
+//   config: 数据库配置，包含驱动类型、连接信息等
 // 返回:
-//   - Database: 数据库接口实例
-//   - error: 打开连接时可能发生的错误
-//
-// 使用示例:
-//
-//	db, err := database.Open(&database.DbConfig{Driver: "mysql", Name: "read", DSN: "..."})
+//   Database: 数据库接口实例
+//   error: 连接失败时返回错误信息
 func Open(config *DbConfig) (Database, error) {
-	// 获取连接唯一标识，现在只是连接名称
-	connID := GetConnectionID(config)
+	if config == nil {
+		return nil, fmt.Errorf("%w: config is nil", ErrConfigNotFound)
+	}
 
-	// 先检查是否已有缓存的连接
-	connMutex.RLock()
-	db, exists := dbConnections[connID]
-	connMutex.RUnlock()
+	if !config.Enabled {
+		return nil, fmt.Errorf("database connection %s is disabled", config.Name)
+	}
 
-	// 如果已存在且连接有效，直接返回
-	if exists {
-		// 简单测试连接是否有效
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-		defer cancel()
+	creator, exists := dbCreators[config.Driver]
+	if !exists {
+		return nil, fmt.Errorf("unsupported database driver: %s", config.Driver)
+	}
 
-		err := db.Ping(ctx)
-		if err == nil {
-			return db, nil
+	// 生成DSN
+	if config.DSN == "" {
+		dsnStr, err := dsn.Generate(config)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate DSN for %s: %w", config.Driver, err)
 		}
-		// 连接已失效，从缓存中删除
-		connMutex.Lock()
-		delete(dbConnections, connID)
-		connMutex.Unlock()
+		config.DSN = dsnStr
 	}
 
-	// 获取指定驱动的创建函数
-	creator, ok := dbCreators[config.Driver]
-	if !ok {
-		return nil, huberrors.NewError("unsupported database driver: %s", config.Driver)
-	}
+	connectionID := GetConnectionID(config)
 
-	// 为每个连接创建新的数据库实例
-	db = creator()
-
-	// 连接数据库
-	if err := db.Connect(config); err != nil {
-		return nil, huberrors.WrapError(err, "failed to connect to %s database", config.Driver)
-	}
-
-	// 缓存连接实例，使用连接名称作为键
 	connMutex.Lock()
-	dbConnections[connID] = db
-	connMutex.Unlock()
+	defer connMutex.Unlock()
+
+	// 检查是否已存在连接
+	if conn, exists := dbConnections[connectionID]; exists {
+		return conn, nil
+	}
+
+	// 创建新连接
+	db := creator()
+	if err := db.Connect(config); err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// 缓存连接
+	dbConnections[connectionID] = db
 
 	return db, nil
 }
 
-// GetConnection 获取指定名称的数据库连接
+// GetConnection 获取已缓存的数据库连接
+// 从连接池中获取指定名称的数据库连接
 // 参数:
-//   - connectionName: 连接名称，如为空则使用"default"
-//
+//   connectionName: 连接名称或连接ID
 // 返回:
-//   - Database: 数据库接口实例，如果连接不存在则返回nil
-//
-// 使用示例:
-//
-//	db := database.GetConnection("read") // 获取名为"read"的连接
-//	defaultDB := database.GetConnection("") // 获取默认连接
+//   Database: 数据库接口实例，如果不存在则返回nil
 func GetConnection(connectionName string) Database {
-	if connectionName == "" {
-		connectionName = "default"
+	connMutex.RLock()
+	defer connMutex.RUnlock()
+
+	return dbConnections[connectionName]
+}
+
+// CloseAllConnections 关闭所有数据库连接
+// 关闭系统中所有已建立的数据库连接，释放资源
+// 通常在应用程序关闭时调用
+// 返回:
+//   error: 如果有连接关闭失败，返回包含所有错误的复合错误
+func CloseAllConnections() error {
+	connMutex.Lock()
+	defer connMutex.Unlock()
+
+	var errs []error
+	for name, conn := range dbConnections {
+		if err := conn.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close connection %s: %w", name, err))
+		}
 	}
 
-	connMutex.RLock()
-	db, exists := dbConnections[connectionName]
-	connMutex.RUnlock()
+	// 清空连接缓存
+	dbConnections = make(map[string]Database)
 
-	if exists {
-		return db
+	if len(errs) > 0 {
+		return fmt.Errorf("errors closing connections: %v", errs)
 	}
 
 	return nil
 }
 
-// CloseAllConnections 关闭所有数据库连接
-// 返回关闭过程中遇到的第一个错误，如果没有错误则返回nil
-// 使用优化的锁策略，避免在关闭连接时长时间持有全局锁
-func CloseAllConnections() error {
-	// 使用一个临时map来存储需要关闭的连接
-	// 这样可以最小化持有锁的时间
-	connections := make(map[string]Database)
-
-	connMutex.Lock()
-	// 复制连接映射表，而不是直接在持有锁的情况下操作它们
-	for connID, db := range dbConnections {
-		connections[connID] = db
-	}
-	// 清空全局连接映射表
-	dbConnections = make(map[string]Database)
-	connMutex.Unlock()
-
-	// 在不持有锁的情况下关闭连接
-	var firstErr error
-	for connID, db := range connections {
-		if err := db.Close(); err != nil && firstErr == nil {
-			firstErr = huberrors.WrapError(err, "关闭数据库连接失败: %s", connID)
-		}
-	}
-
-	return firstErr
-}
-
-// LoadConfig 从配置文件加载数据库配置
+// LoadAllConnections 从配置文件加载所有数据库连接
+// 解析配置文件中的所有数据库连接配置，创建并缓存连接实例
+// 只有enabled为true的连接才会被创建
 // 参数:
-//   - configPath: 配置文件路径，如果为空则使用默认路径 configs/database.yaml
-//   - connection: 数据库连接名称，如果为空则使用default
-//
+//   configPath: 配置文件路径
 // 返回:
-//   - *DbConfig: 加载的配置
-//   - error: 错误信息
-//
-// 用法示例:
-//
-//	config, err := database.LoadConfig("", "mysql")
-func LoadConfig(configPath string, connection string) (*DbConfig, error) {
-	if configPath == "" {
-		configPath = "configs/database.yaml"
-	}
-
-	// 尝试从全局配置获取数据库配置
-	// 如果全局配置中没有数据库配置，则尝试加载
-	if !config.IsExist("database.connections") && configPath != "" {
-		err := config.LoadConfigFile(configPath, config.LoadOptions{
-			AllowOverride: true,
-			ClearExisting: false,
-		})
-		if err != nil {
-			return nil, huberrors.WrapError(err, "加载数据库配置文件失败: %s", configPath)
-		}
-	}
-
-	// 如果未指定连接名称，使用默认连接
-	if connection == "" {
-		connection = config.GetString("database.default", "default")
-	}
-
-	// 读取特定连接的配置
-	key := fmt.Sprintf("database.connections.%s", connection)
-	var dbConfig DbConfig
-	if err := config.GetSection(key, &dbConfig); err != nil {
-		return nil, huberrors.WrapError(err, "解析数据库配置失败: %s", key)
-	}
-
-	// 验证配置有效性
-	if dbConfig.Driver == "" {
-		return nil, huberrors.WrapError(ErrConfigNotFound, "数据库驱动类型未指定: %s", key)
-	}
-
-	// 设置连接名称
-	dbConfig.Name = connection
-
-	// 如果未指定启用状态，默认为启用
-	if !dbConfig.Enabled {
-		enabledKey := fmt.Sprintf("database.connections.%s.enabled", connection)
-		dbConfig.Enabled = config.GetBool(enabledKey, true)
-	}
-
-	// 如果DSN为空，则根据结构化配置生成连接字符串
-	if dbConfig.DSN == "" {
-		dsnStr, err := dsn.Generate(&dbConfig)
-		if err != nil {
-			return nil, huberrors.WrapError(err, "生成数据库连接字符串失败")
-		}
-		dbConfig.DSN = dsnStr
-	}
-
-	return &dbConfig, nil
-}
-
-// OpenWithConfigFile 使用配置文件打开数据库连接
-// 参数:
-//   - configPath: 配置文件路径，如果为空则使用默认路径 configs/database.yaml
-//   - connection: 数据库连接名称，如果为空则使用默认连接
-//
-// 返回:
-//   - Database: 数据库实例
-//   - error: 错误信息
-//
-// 用法示例:
-//
-//	db, err := database.OpenWithConfigFile("", "")              // 使用默认连接
-//	db1, err := database.OpenWithConfigFile("", "mysql")        // 使用名为mysql的连接
-//	db2, err := database.OpenWithConfigFile("", "mysql_second") // 使用同一种driver(mysql)的另一个连接
-func OpenWithConfigFile(configPath string, connection string) (Database, error) {
-	// 加载数据库配置
-	config, err := LoadConfig(configPath, connection)
-	if err != nil {
-		return nil, huberrors.WrapError(err, "无法加载数据库配置")
-	}
-
-	// 使用配置打开数据库连接
-	return Open(config)
-}
-
-// LoadAllConnections 从配置文件加载所有启用的数据库连接
-// 参数:
-//   - configPath: 配置文件路径，如果为空则使用默认路径 configs/database.yaml
-//
-// 返回:
-//   - map[string]Database: 连接名称到数据库实例的映射
-//   - error: 错误信息
-//
-// 用法示例:
-//
-//	connections, err := database.LoadAllConnections("")
-//	if err != nil {
-//		// 处理错误
-//	}
-//	// 使用特定连接
-//	mysqlDB := connections["mysql"]  // 这里的"mysql"是连接名称
-//	readDB := connections["read"]    // 获取名为"read"的连接
+//   map[string]Database: 连接名称到数据库实例的映射
+//   error: 加载失败时返回错误信息
 func LoadAllConnections(configPath string) (map[string]Database, error) {
-	// 尝试使用全局配置中已有的连接配置
-	connectionsMap := config.Get("database.connections", nil)
+	connMutex.Lock()
+	defer connMutex.Unlock()
 
-	// 如果全局配置中没有连接配置，且指定了配置文件路径，则尝试加载
-	if connectionsMap == nil && configPath != "" {
-		// 以不清除现有配置的方式加载
-		err := config.LoadConfigFile(configPath, config.LoadOptions{
-			AllowOverride: true,
-			ClearExisting: false,
-		})
-		if err != nil {
-			return nil, huberrors.WrapError(err, "加载数据库配置文件失败: %s", configPath)
-		}
-
-		// 再次尝试获取连接配置
-		connectionsMap = config.Get("database.connections", nil)
-	}
-
-	if connectionsMap == nil {
-		return nil, huberrors.NewError("配置文件中未找到数据库连接配置")
+	// 加载配置文件
+	configs, err := dbtypes.LoadDatabaseConfigs(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("加载数据库配置失败: %w", err)
 	}
 
 	connections := make(map[string]Database)
-	cm, ok := connectionsMap.(map[string]interface{})
-	if !ok {
-		return nil, huberrors.NewError("数据库连接配置格式错误")
-	}
 
-	// 遍历所有连接配置
-	for connName := range cm {
+	// 遍历所有配置，创建启用的连接
+	for name, config := range configs {
 		// 检查连接是否启用
-		enabledKey := fmt.Sprintf("database.connections.%s.enabled", connName)
-		enabled := config.GetBool(enabledKey, true) // 默认启用
-		if !enabled {
-			continue // 跳过禁用的连接
+		if !config.Enabled {
+			continue
 		}
 
-		// 加载并连接数据库
-		db, err := OpenWithConfigFile(configPath, connName)
+		// 创建数据库连接
+		db, err := Open(config)
 		if err != nil {
-			return connections, huberrors.WrapError(err, "加载数据库连接失败: %s", connName)
+			return nil, fmt.Errorf("创建数据库连接 '%s' 失败: %w", name, err)
 		}
 
-		// 添加到连接映射，直接使用连接名称作为键
-		connections[connName] = db
-	}
+		// 设置连接名称
+		if dbImpl, ok := db.(interface{ SetName(string) }); ok {
+			dbImpl.SetName(name)
+		}
 
-	// 如果没有成功加载任何连接，返回错误
-	if len(connections) == 0 {
-		return nil, huberrors.NewError("未能加载任何数据库连接，请检查配置文件")
+		// 缓存连接
+		connectionID := GetConnectionID(config)
+		dbConnections[connectionID] = db
+		connections[name] = db
 	}
 
 	return connections, nil

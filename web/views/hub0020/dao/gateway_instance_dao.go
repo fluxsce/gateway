@@ -24,13 +24,14 @@ func NewGatewayInstanceDAO(db database.Database) *GatewayInstanceDAO {
 
 // AddGatewayInstance 添加网关实例
 // 参数:
+//   - ctx: 上下文对象
 //   - instance: 网关实例信息
 //   - operatorId: 操作人ID
 //
 // 返回:
 //   - gatewayInstanceId: 新创建的网关实例ID
 //   - err: 可能的错误
-func (dao *GatewayInstanceDAO) AddGatewayInstance(instance *models.GatewayInstance, operatorId string) (string, error) {
+func (dao *GatewayInstanceDAO) AddGatewayInstance(ctx context.Context, instance *models.GatewayInstance, operatorId string) (string, error) {
 	// 验证网关实例ID是否存在
 	if instance.GatewayInstanceId == "" {
 		return "", errors.New("网关实例ID不能为空")
@@ -100,11 +101,8 @@ func (dao *GatewayInstanceDAO) AddGatewayInstance(instance *models.GatewayInstan
 		instance.HealthStatus = "Y"
 	}
 
-	// 创建上下文
-	ctx := context.Background()
-
 	// 使用数据库接口的Insert方法插入记录
-	_, err := dao.db.Insert(ctx, "HUB_GATEWAY_INSTANCE", instance)
+	_, err := dao.db.Insert(ctx, "HUB_GATEWAY_INSTANCE", instance, true)
 
 	if err != nil {
 		// 检查是否是实例名重复错误
@@ -118,7 +116,7 @@ func (dao *GatewayInstanceDAO) AddGatewayInstance(instance *models.GatewayInstan
 }
 
 // GetGatewayInstanceById 根据网关实例ID获取网关实例信息
-func (dao *GatewayInstanceDAO) GetGatewayInstanceById(gatewayInstanceId, tenantId string) (*models.GatewayInstance, error) {
+func (dao *GatewayInstanceDAO) GetGatewayInstanceById(ctx context.Context, gatewayInstanceId, tenantId string) (*models.GatewayInstance, error) {
 	if gatewayInstanceId == "" || tenantId == "" {
 		return nil, errors.New("gatewayInstanceId和tenantId不能为空")
 	}
@@ -128,9 +126,8 @@ func (dao *GatewayInstanceDAO) GetGatewayInstanceById(gatewayInstanceId, tenantI
 		WHERE gatewayInstanceId = ? AND tenantId = ?
 	`
 
-	ctx := context.Background()
 	var instance models.GatewayInstance
-	err := dao.db.QueryOne(ctx, &instance, query, []interface{}{gatewayInstanceId, tenantId})
+	err := dao.db.QueryOne(ctx, &instance, query, []interface{}{gatewayInstanceId, tenantId}, true)
 
 	if err != nil {
 		if err == database.ErrRecordNotFound {
@@ -143,13 +140,13 @@ func (dao *GatewayInstanceDAO) GetGatewayInstanceById(gatewayInstanceId, tenantI
 }
 
 // UpdateGatewayInstance 更新网关实例信息
-func (dao *GatewayInstanceDAO) UpdateGatewayInstance(instance *models.GatewayInstance, operatorId string) error {
+func (dao *GatewayInstanceDAO) UpdateGatewayInstance(ctx context.Context, instance *models.GatewayInstance, operatorId string) error {
 	if instance.GatewayInstanceId == "" || instance.TenantId == "" {
 		return errors.New("gatewayInstanceId和tenantId不能为空")
 	}
 
 	// 首先获取网关实例当前版本
-	currentInstance, err := dao.GetGatewayInstanceById(instance.GatewayInstanceId, instance.TenantId)
+	currentInstance, err := dao.GetGatewayInstanceById(ctx, instance.GatewayInstanceId, instance.TenantId)
 	if err != nil {
 		return err
 	}
@@ -180,7 +177,6 @@ func (dao *GatewayInstanceDAO) UpdateGatewayInstance(instance *models.GatewayIns
 	`
 
 	// 执行更新
-	ctx := context.Background()
 	result, err := dao.db.Exec(ctx, sql, []interface{}{
 		instance.InstanceName, instance.InstanceDesc, instance.BindAddress, instance.HttpPort, instance.HttpsPort,
 		instance.TlsEnabled, instance.CertStorageType, instance.CertFilePath, instance.KeyFilePath,
@@ -193,7 +189,7 @@ func (dao *GatewayInstanceDAO) UpdateGatewayInstance(instance *models.GatewayIns
 		instance.Reserved3, instance.Reserved4, instance.Reserved5, instance.ExtProperty, instance.NoteText,
 		instance.EditTime, instance.EditWho, instance.OprSeqFlag, instance.CurrentVersion,
 		instance.GatewayInstanceId, instance.TenantId, currentInstance.CurrentVersion,
-	})
+	}, true)
 
 	if err != nil {
 		return huberrors.WrapError(err, "更新网关实例失败")
@@ -208,13 +204,13 @@ func (dao *GatewayInstanceDAO) UpdateGatewayInstance(instance *models.GatewayIns
 }
 
 // DeleteGatewayInstance 物理删除网关实例
-func (dao *GatewayInstanceDAO) DeleteGatewayInstance(gatewayInstanceId, tenantId, operatorId string) error {
+func (dao *GatewayInstanceDAO) DeleteGatewayInstance(ctx context.Context, gatewayInstanceId, tenantId, operatorId string) error {
 	if gatewayInstanceId == "" || tenantId == "" {
 		return errors.New("gatewayInstanceId和tenantId不能为空")
 	}
 
 	// 首先获取网关实例当前信息
-	currentInstance, err := dao.GetGatewayInstanceById(gatewayInstanceId, tenantId)
+	currentInstance, err := dao.GetGatewayInstanceById(ctx, gatewayInstanceId, tenantId)
 	if err != nil {
 		return err
 	}
@@ -226,8 +222,7 @@ func (dao *GatewayInstanceDAO) DeleteGatewayInstance(gatewayInstanceId, tenantId
 	sql := `DELETE FROM HUB_GATEWAY_INSTANCE WHERE gatewayInstanceId = ? AND tenantId = ?`
 
 	// 执行删除
-	ctx := context.Background()
-	result, err := dao.db.Exec(ctx, sql, []interface{}{gatewayInstanceId, tenantId})
+	result, err := dao.db.Exec(ctx, sql, []interface{}{gatewayInstanceId, tenantId}, true)
 
 	if err != nil {
 		return huberrors.WrapError(err, "删除网关实例失败")
@@ -242,7 +237,7 @@ func (dao *GatewayInstanceDAO) DeleteGatewayInstance(gatewayInstanceId, tenantId
 }
 
 // ListGatewayInstances 获取网关实例列表
-func (dao *GatewayInstanceDAO) ListGatewayInstances(tenantId string, page, pageSize int) ([]*models.GatewayInstance, int, error) {
+func (dao *GatewayInstanceDAO) ListGatewayInstances(ctx context.Context, tenantId string, page, pageSize int) ([]*models.GatewayInstance, int, error) {
 	if tenantId == "" {
 		return nil, 0, errors.New("tenantId不能为空")
 	}
@@ -260,11 +255,10 @@ func (dao *GatewayInstanceDAO) ListGatewayInstances(tenantId string, page, pageS
 
 	// 查询总数
 	countQuery := `SELECT COUNT(*) FROM HUB_GATEWAY_INSTANCE WHERE tenantId = ? AND activeFlag = 'Y'`
-	ctx := context.Background()
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err := dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId})
+	err := dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId}, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询网关实例总数失败")
 	}
@@ -284,7 +278,7 @@ func (dao *GatewayInstanceDAO) ListGatewayInstances(tenantId string, page, pageS
 	`
 
 	var instances []*models.GatewayInstance
-	err = dao.db.Query(ctx, &instances, dataQuery, []interface{}{tenantId, pageSize, offset})
+	err = dao.db.Query(ctx, &instances, dataQuery, []interface{}{tenantId, pageSize, offset}, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询网关实例列表失败")
 	}
@@ -293,7 +287,7 @@ func (dao *GatewayInstanceDAO) ListGatewayInstances(tenantId string, page, pageS
 }
 
 // FindGatewayInstanceByName 根据实例名查找网关实例
-func (dao *GatewayInstanceDAO) FindGatewayInstanceByName(instanceName, tenantId string) (*models.GatewayInstance, error) {
+func (dao *GatewayInstanceDAO) FindGatewayInstanceByName(ctx context.Context, instanceName, tenantId string) (*models.GatewayInstance, error) {
 	if instanceName == "" || tenantId == "" {
 		return nil, errors.New("instanceName和tenantId不能为空")
 	}
@@ -303,9 +297,8 @@ func (dao *GatewayInstanceDAO) FindGatewayInstanceByName(instanceName, tenantId 
 		WHERE instanceName = ? AND tenantId = ? AND activeFlag = 'Y'
 	`
 
-	ctx := context.Background()
 	var instance models.GatewayInstance
-	err := dao.db.QueryOne(ctx, &instance, query, []interface{}{instanceName, tenantId})
+	err := dao.db.QueryOne(ctx, &instance, query, []interface{}{instanceName, tenantId}, true)
 
 	if err != nil {
 		if err == database.ErrRecordNotFound {
@@ -318,7 +311,7 @@ func (dao *GatewayInstanceDAO) FindGatewayInstanceByName(instanceName, tenantId 
 }
 
 // UpdateHealthStatus 更新健康状态
-func (dao *GatewayInstanceDAO) UpdateHealthStatus(gatewayInstanceId, tenantId, healthStatus, operatorId string) error {
+func (dao *GatewayInstanceDAO) UpdateHealthStatus(ctx context.Context, gatewayInstanceId, tenantId, healthStatus, operatorId string) error {
 	if gatewayInstanceId == "" || tenantId == "" {
 		return errors.New("gatewayInstanceId和tenantId不能为空")
 	}
@@ -330,10 +323,9 @@ func (dao *GatewayInstanceDAO) UpdateHealthStatus(gatewayInstanceId, tenantId, h
 		WHERE gatewayInstanceId = ? AND tenantId = ?
 	`
 
-	ctx := context.Background()
 	result, err := dao.db.Exec(ctx, sql, []interface{}{
 		healthStatus, now, now, operatorId, gatewayInstanceId, tenantId,
-	})
+	}, true)
 
 	if err != nil {
 		return huberrors.WrapError(err, "更新健康状态失败")

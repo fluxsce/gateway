@@ -1,11 +1,13 @@
-package web
+package webapp
 
 import (
 	"fmt"
 	"gohub/pkg/config"
 	"gohub/pkg/database"
 	"gohub/pkg/logger"
+	"gohub/pkg/utils/huberrors"
 	"gohub/web/routes"
+	"os"
 
 	// 使用统一导入文件，自动导入所有模块
 	_ "gohub/web/moduleimports"
@@ -22,6 +24,28 @@ type WebApp struct {
 	db     database.Database
 	router *gin.Engine
 	port   int
+}
+
+
+// startWebApp 初始化并启动Web应用
+func StartWebApp(db database.Database) error {
+	// 创建Web应用实例
+	app := NewWebApp(db)
+
+	// 初始化Web应用
+	if err := app.Init(); err != nil {
+		return huberrors.WrapError(err, "初始化Web应用失败")
+	}
+
+	// 在协程中启动Web服务器，这样不会阻塞主线程
+	go func() {
+		if err := app.Start(); err != nil {
+			logger.Error("Web服务器运行出错", err)
+			os.Exit(1)
+		}
+	}()
+
+	return nil
 }
 
 // NewWebApp 创建Web应用实例

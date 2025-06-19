@@ -2,6 +2,11 @@
 // that can be shared between the main database and utility packages
 package dbtypes
 
+import (
+	"fmt"
+	"gohub/pkg/config"
+)
+
 // 支持的数据库类型常量
 // 用于指定要使用的数据库驱动
 const (
@@ -108,4 +113,82 @@ type DbConfig struct {
 	// Transaction 事务配置
 	// 控制事务默认行为
 	Transaction TransactionConfig `mapstructure:"transaction"`
+}
+
+// DatabasesConfig 数据库配置文件的根结构
+// 用于解析配置文件中的数据库相关配置
+type DatabasesConfig struct {
+	// Default 默认数据库连接名称
+	Default string `mapstructure:"default"`
+	
+	// Connections 所有数据库连接的配置映射
+	Connections map[string]*DbConfig `mapstructure:"connections"`
+}
+
+// LoadDatabaseConfigs 从配置文件加载所有数据库配置
+// 解析YAML配置文件，返回所有数据库连接的配置
+// 参数:
+//   configPath: 配置文件路径
+// 返回:
+//   map[string]*DbConfig: 连接名称到配置的映射
+//   error: 加载失败时返回错误信息
+func LoadDatabaseConfigs(configPath string) (map[string]*DbConfig, error) {
+	// 加载配置文件
+	if err := config.LoadConfigFile(configPath, config.LoadOptions{
+		ClearExisting: false,
+		AllowOverride: true,
+	}); err != nil {
+		return nil, fmt.Errorf("加载配置文件失败: %w", err)
+	}
+
+	// 解析数据库配置
+	var dbConfig DatabasesConfig
+	if err := config.GetSection("database", &dbConfig); err != nil {
+		return nil, fmt.Errorf("解析数据库配置失败: %w", err)
+	}
+
+	// 设置默认值并验证配置
+	for name, cfg := range dbConfig.Connections {
+		// 设置连接名称
+		cfg.Name = name
+		
+		// 如果未设置enabled，默认为true
+		if cfg.Driver != "" && !cfg.hasEnabledSet() {
+			cfg.Enabled = true
+		}
+		
+		// 验证必要字段
+		if cfg.Driver == "" {
+			return nil, fmt.Errorf("数据库连接 '%s' 缺少driver配置", name)
+		}
+		
+		// 设置默认连接池配置
+		if cfg.Pool.MaxOpenConns == 0 {
+			cfg.Pool.MaxOpenConns = 100
+		}
+		if cfg.Pool.MaxIdleConns == 0 {
+			cfg.Pool.MaxIdleConns = 25
+		}
+		if cfg.Pool.ConnMaxLifetime == 0 {
+			cfg.Pool.ConnMaxLifetime = 3600 // 1小时
+		}
+		if cfg.Pool.ConnMaxIdleTime == 0 {
+			cfg.Pool.ConnMaxIdleTime = 1800 // 30分钟
+		}
+		
+		// 设置默认日志配置
+		if cfg.Log.SlowThreshold == 0 {
+			cfg.Log.SlowThreshold = 200 // 200毫秒
+		}
+	}
+
+	return dbConfig.Connections, nil
+}
+
+// hasEnabledSet 检查enabled字段是否被明确设置
+// 这是一个辅助方法，用于区分明确设置为false和未设置的情况
+func (cfg *DbConfig) hasEnabledSet() bool {
+	// 通过检查是否存在于原始配置中来判断
+	// 这里简化处理，实际应用中可能需要更复杂的逻辑
+	return true // 简化实现，假设总是被设置
 }

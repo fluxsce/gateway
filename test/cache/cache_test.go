@@ -2,30 +2,51 @@ package cache
 
 import (
 	"context"
-	"errors"
+	"os"
 	"testing"
 	"time"
 
 	pkgcache "gohub/pkg/cache"
-	_ "gohub/pkg/cache/redis" // 导入redis包以注册工厂
 )
+
+// TestMain 在所有测试开始前初始化缓存系统
+func TestMain(m *testing.M) {
+	// 初始化缓存连接
+	_, err := pkgcache.LoadAllCacheConnections("../../configs/database.yaml")
+	if err != nil {
+		// 如果缓存初始化失败，输出错误信息但不阻止测试
+		// 某些测试环境可能没有Redis服务器
+		println("Warning: Failed to initialize cache connections:", err.Error())
+		println("Some cache tests may be skipped")
+	}
+
+	// 运行测试
+	code := m.Run()
+
+	// 清理资源
+	pkgcache.CloseAllCaches()
+
+	// 退出
+	os.Exit(code)
+}
 
 func TestCacheBasicOperations(t *testing.T) {
 	ctx := context.Background()
 
 	// 获取默认Redis缓存实例
-	cache, err := pkgcache.GetDefaultRedisCache()
-	if err != nil {
-		t.Skipf("Redis not available: %v", err)
+	cache := pkgcache.GetDefaultCache()
+	if cache == nil {
+		t.Skip("缓存实例未初始化，跳过测试")
 		return
 	}
-	defer cache.Close()
+	
+	// 不要关闭缓存，因为它是共享实例，其他测试可能需要使用
 
 	// 测试Set和Get
 	key := "test:basic:key1"
 	value := []byte("test value")
 
-	err = cache.Set(ctx, key, value, 1*time.Minute)
+	err := cache.Set(ctx, key, value, 1*time.Minute)
 	if err != nil {
 		t.Fatalf("Set failed: %v", err)
 	}
@@ -67,12 +88,12 @@ func TestCacheBasicOperations(t *testing.T) {
 func TestCacheBatchOperations(t *testing.T) {
 	ctx := context.Background()
 
-	cache, err := pkgcache.GetDefaultRedisCache()
-	if err != nil {
-		t.Skipf("Redis not available: %v", err)
+	cache := pkgcache.GetDefaultCache()
+	if cache == nil {
+		t.Skip("缓存实例未初始化，跳过测试")
 		return
 	}
-	defer cache.Close()
+	// 不要关闭缓存，因为它是共享实例，其他测试可能需要使用
 
 	// 测试MSet
 	kvPairs := map[string][]byte{
@@ -81,7 +102,7 @@ func TestCacheBatchOperations(t *testing.T) {
 		"test:batch:key3": []byte("value3"),
 	}
 
-	err = cache.MSet(ctx, kvPairs, 1*time.Minute)
+	err := cache.MSet(ctx, kvPairs, 1*time.Minute)
 	if err != nil {
 		t.Fatalf("MSet failed: %v", err)
 	}
@@ -124,12 +145,12 @@ func TestCacheBatchOperations(t *testing.T) {
 func TestCacheAdvancedOperations(t *testing.T) {
 	ctx := context.Background()
 
-	cache, err := pkgcache.GetDefaultRedisCache()
-	if err != nil {
-		t.Skipf("Redis not available: %v", err)
+	cache := pkgcache.GetDefaultCache()
+	if cache == nil {
+		t.Skip("缓存实例未初始化，跳过测试")
 		return
 	}
-	defer cache.Close()
+	// 不要关闭缓存，因为它是共享实例，其他测试可能需要使用
 
 	// 测试Increment
 	counterKey := "test:counter"
@@ -204,21 +225,22 @@ func TestCacheManager(t *testing.T) {
 	manager := pkgcache.GetGlobalManager()
 
 	// 测试创建多个缓存实例
-	cache1, err := manager.GetOrCreateRedisCache("test-cache-1")
-	if err != nil {
-		t.Skipf("Redis not available: %v", err)
+	cache1 := pkgcache.GetDefaultCache()
+	if cache1 == nil {
+		t.Skip("缓存实例未初始化，跳过测试")
 		return
 	}
 
-	cache2, err := manager.GetOrCreateRedisCache("test-cache-2")
-	if err != nil {
-		t.Fatalf("Failed to create second cache: %v", err)
+	cache2 := pkgcache.GetDefaultCache()
+	if cache2 == nil {
+		t.Skip("缓存实例未初始化，跳过测试")
+		return
 	}
 	
 	// 使用cache2进行简单测试
 	testCtx := context.Background()
 	testKey := "test:cache2:ping"
-	err = cache2.Set(testCtx, testKey, []byte("test"), 1*time.Minute)
+	err := cache2.Set(testCtx, testKey, []byte("test"), 1*time.Minute)
 	if err != nil {
 		t.Errorf("Cache2 Set failed: %v", err)
 	}
@@ -249,9 +271,9 @@ func TestCacheManager(t *testing.T) {
 func TestCacheExpiration(t *testing.T) {
 	ctx := context.Background()
 
-	cache, err := pkgcache.GetDefaultRedisCache()
-	if err != nil {
-		t.Skipf("Redis not available: %v", err)
+	cache := pkgcache.GetDefaultCache()
+	if cache == nil {
+		t.Skip("缓存实例未初始化，跳过测试")
 		return
 	}
 
@@ -259,7 +281,7 @@ func TestCacheExpiration(t *testing.T) {
 	key := "test:expiration"
 	value := []byte("will expire")
 
-	err = cache.Set(ctx, key, value, 100*time.Millisecond)
+	err := cache.Set(ctx, key, value, 100*time.Millisecond)
 	if err != nil {
 		t.Fatalf("Set failed: %v", err)
 	}
@@ -276,19 +298,22 @@ func TestCacheExpiration(t *testing.T) {
 	// 等待过期
 	time.Sleep(150 * time.Millisecond)
 
-	// 过期后获取应该失败
-	_, err = cache.Get(ctx, key)
-	if !errors.Is(err, pkgcache.ErrCacheKeyNotFound) {
-		t.Errorf("Expected ErrCacheKeyNotFound, got %v", err)
+	// 过期后获取应该返回nil（键不存在）
+	result, err = cache.Get(ctx, key)
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if result != nil {
+		t.Error("Expected nil for expired key, got value")
 	}
 }
 
 func TestCacheSelectDB(t *testing.T) {
 	ctx := context.Background()
 
-	cache, err := pkgcache.GetDefaultRedisCache()
-	if err != nil {
-		t.Skipf("Redis not available: %v", err)
+	cache := pkgcache.GetDefaultCache()
+	if cache == nil {
+		t.Skip("缓存实例未初始化，跳过测试")
 		return
 	}
 
@@ -296,7 +321,7 @@ func TestCacheSelectDB(t *testing.T) {
 	key := "test:selectdb:key"
 	value := []byte("test value")
 
-	err = cache.Set(ctx, key, value, 1*time.Minute)
+	err := cache.Set(ctx, key, value, 1*time.Minute)
 	if err != nil {
 		t.Fatalf("Set failed: %v", err)
 	}

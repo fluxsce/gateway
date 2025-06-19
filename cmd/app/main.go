@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
-	"gohub/cmd/web"
+	cacheapp "gohub/cmd/cache"
+	webapp "gohub/cmd/web"
+	"gohub/pkg/cache"
 	"gohub/pkg/config"
 	"gohub/pkg/database"
 	_ "gohub/pkg/database/alldriver" // 导入数据库驱动以确保注册
@@ -50,11 +52,18 @@ func main() {
 		// 不需要手动关闭 db，因为 CloseAllConnections 会关闭所有连接
 	}()
 
+	// 初始化缓存
+	_, err := cacheapp.InitCache()
+	if err != nil {
+		logger.Error("初始化缓存失败", err)
+		os.Exit(1)
+	}
+
 	// 设置优雅退出
 	setupGracefulShutdown()
 
 	// 初始化并启动Web应用
-	if err := startWebApp(); err != nil {
+	if err := webapp.StartWebApp(db); err != nil {
 		logger.Error("启动Web应用失败", err)
 		os.Exit(1)
 	}
@@ -63,26 +72,6 @@ func main() {
 	select {}
 }
 
-// startWebApp 初始化并启动Web应用
-func startWebApp() error {
-	// 创建Web应用实例
-	app := web.NewWebApp(db)
-
-	// 初始化Web应用
-	if err := app.Init(); err != nil {
-		return huberrors.WrapError(err, "初始化Web应用失败")
-	}
-
-	// 在协程中启动Web服务器，这样不会阻塞主线程
-	go func() {
-		if err := app.Start(); err != nil {
-			logger.Error("Web服务器运行出错", err)
-			os.Exit(1)
-		}
-	}()
-
-	return nil
-}
 
 // setupGracefulShutdown 设置优雅退出
 // 监听操作系统信号，确保在应用退出前清理资源
@@ -169,9 +158,15 @@ func initDatabase() error {
 	return nil
 }
 
+
 // cleanupResources 清理资源
 // 应用退出前调用，确保所有资源被正确释放
 func cleanupResources() {
+	// 关闭所有缓存连接
+	if err := cache.CloseAllConnections(); err != nil {
+		logger.Warn("关闭缓存连接时发生错误", err)
+	}
+	
 	// 关闭所有数据库连接
 	if err := database.CloseAllConnections(); err != nil {
 		// 直接传递err对象给logger，而不是作为键值对

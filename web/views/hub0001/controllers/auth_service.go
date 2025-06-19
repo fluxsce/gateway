@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"errors"
 	"gohub/pkg/logger"
 	"gohub/web/utils/auth"
@@ -26,14 +27,14 @@ func NewAuthService(authDAO *authdao.AuthDAO, userDAO *hubdao.UserDAO) *AuthServ
 }
 
 // Login 用户登录
-func (s *AuthService) Login(req *models.LoginRequest, clientIP, userAgent string) (*models.LoginResponse, error) {
+func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, clientIP, userAgent string) (*models.LoginResponse, error) {
 	// 参数验证
 	if req.UserId == "" || req.Password == "" || req.TenantId == "" {
 		return nil, errors.New("用户ID、密码和租户ID不能为空")
 	}
 
 	// 根据用户ID和租户ID查询用户
-	user, err := s.userDAO.GetUserById(req.UserId, req.TenantId)
+	user, err := s.userDAO.GetUserById(ctx, req.UserId, req.TenantId)
 	if err != nil {
 		logger.Error("查询用户失败", err, "userId", req.UserId, "tenantId", req.TenantId)
 		s.authDAO.RecordLoginHistory("", req.TenantId, clientIP, userAgent, "N", "查询用户失败")
@@ -82,7 +83,7 @@ func (s *AuthService) Login(req *models.LoginRequest, clientIP, userAgent string
 	refreshExpiration := time.Now().Add(30 * 24 * time.Hour) // 30天
 
 	// 保存刷新令牌
-	err = s.authDAO.SaveRefreshToken(user.UserId, user.TenantId, refreshToken, refreshExpiration)
+	err = s.authDAO.SaveRefreshToken(ctx, user.UserId, user.TenantId, refreshToken, refreshExpiration)
 	if err != nil {
 		logger.Error("保存刷新令牌失败", err)
 		// 继续执行，不影响主流程
@@ -90,7 +91,7 @@ func (s *AuthService) Login(req *models.LoginRequest, clientIP, userAgent string
 
 	// 更新最后登录信息
 	go func() {
-		err := s.authDAO.UpdateLastLogin(user.UserId, user.TenantId, clientIP)
+		err := s.authDAO.UpdateLastLogin(ctx, user.UserId, user.TenantId, clientIP)
 		if err != nil {
 			logger.Error("更新登录信息失败", err, "userId", user.UserId)
 		}
@@ -113,22 +114,22 @@ func (s *AuthService) Login(req *models.LoginRequest, clientIP, userAgent string
 }
 
 // GetUserInfo 获取用户信息
-func (s *AuthService) GetUserInfo(userId, tenantId string) (*hubmodels.User, error) {
+func (s *AuthService) GetUserInfo(ctx context.Context, userId, tenantId string) (*hubmodels.User, error) {
 	if userId == "" || tenantId == "" {
 		return nil, errors.New("用户ID和租户ID不能为空")
 	}
 
-	return s.userDAO.GetUserById(userId, tenantId)
+	return s.userDAO.GetUserById(ctx, userId, tenantId)
 }
 
 // RefreshToken 刷新令牌
-func (s *AuthService) RefreshToken(userId, tenantId, refreshToken string) (string, string, error) {
+func (s *AuthService) RefreshToken(ctx context.Context, userId, tenantId, refreshToken string) (string, string, error) {
 	if userId == "" || tenantId == "" || refreshToken == "" {
 		return "", "", errors.New("用户ID、租户ID和刷新令牌不能为空")
 	}
 
 	// 验证刷新令牌
-	valid, err := s.authDAO.ValidateRefreshToken(userId, tenantId, refreshToken)
+	valid, err := s.authDAO.ValidateRefreshToken(ctx, userId, tenantId, refreshToken)
 	if err != nil {
 		logger.Error("验证刷新令牌失败", err)
 		return "", "", errors.New("验证刷新令牌失败")
@@ -139,7 +140,7 @@ func (s *AuthService) RefreshToken(userId, tenantId, refreshToken string) (strin
 	}
 
 	// 获取用户信息
-	user, err := s.userDAO.GetUserById(userId, tenantId)
+	user, err := s.userDAO.GetUserById(ctx, userId, tenantId)
 	if err != nil {
 		logger.Error("查询用户失败", err, "userId", userId, "tenantId", tenantId)
 		return "", "", errors.New("查询用户失败")
@@ -168,7 +169,7 @@ func (s *AuthService) RefreshToken(userId, tenantId, refreshToken string) (strin
 	}
 
 	// 使旧的刷新令牌失效
-	err = s.authDAO.InvalidateRefreshToken(userId, tenantId, refreshToken)
+	err = s.authDAO.InvalidateRefreshToken(ctx, userId, tenantId, refreshToken)
 	if err != nil {
 		logger.Error("使旧刷新令牌失效失败", err)
 		// 继续执行，不影响主流程
@@ -179,7 +180,7 @@ func (s *AuthService) RefreshToken(userId, tenantId, refreshToken string) (strin
 	refreshExpiration := time.Now().Add(30 * 24 * time.Hour) // 30天
 
 	// 保存新的刷新令牌
-	err = s.authDAO.SaveRefreshToken(user.UserId, user.TenantId, newRefreshToken, refreshExpiration)
+	err = s.authDAO.SaveRefreshToken(ctx, user.UserId, user.TenantId, newRefreshToken, refreshExpiration)
 	if err != nil {
 		logger.Error("保存新刷新令牌失败", err)
 		// 继续执行，不影响主流程
@@ -189,10 +190,10 @@ func (s *AuthService) RefreshToken(userId, tenantId, refreshToken string) (strin
 }
 
 // Logout 用户登出
-func (s *AuthService) Logout(userId, tenantId, refreshToken string) error {
+func (s *AuthService) Logout(ctx context.Context, userId, tenantId, refreshToken string) error {
 	if refreshToken != "" {
 		// 使刷新令牌失效
-		err := s.authDAO.InvalidateRefreshToken(userId, tenantId, refreshToken)
+		err := s.authDAO.InvalidateRefreshToken(ctx, userId, tenantId, refreshToken)
 		if err != nil {
 			logger.Error("使刷新令牌失效失败", err)
 			// 继续执行，不影响主流程
@@ -204,13 +205,13 @@ func (s *AuthService) Logout(userId, tenantId, refreshToken string) error {
 }
 
 // ChangePassword 修改密码
-func (s *AuthService) ChangePassword(req *models.PasswordChangeRequest, operatorId string) error {
+func (s *AuthService) ChangePassword(ctx context.Context, req *models.PasswordChangeRequest, operatorId string) error {
 	if req.UserId == "" || req.OldPassword == "" || req.NewPassword == "" {
 		return errors.New("用户ID、旧密码和新密码不能为空")
 	}
 
 	// 获取用户信息
-	user, err := s.userDAO.GetUserById(req.UserId, "")
+	user, err := s.userDAO.GetUserById(ctx, req.UserId, "")
 	if err != nil {
 		logger.Error("获取用户信息失败", err)
 		return errors.New("获取用户信息失败")
@@ -226,5 +227,5 @@ func (s *AuthService) ChangePassword(req *models.PasswordChangeRequest, operator
 	}
 
 	// 修改密码
-	return s.userDAO.ChangePassword(req.UserId, user.TenantId, req.NewPassword, operatorId)
+	return s.userDAO.ChangePassword(ctx, req.UserId, user.TenantId, req.NewPassword, operatorId)
 }

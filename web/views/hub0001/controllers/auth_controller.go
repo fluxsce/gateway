@@ -65,7 +65,7 @@ func (c *AuthController) Login(ctx *gin.Context) {
 	userAgent := ctx.GetHeader("User-Agent")
 
 	// 处理登录请求
-	loginResp, err := c.authService.Login(&req, clientIP, userAgent)
+	loginResp, err := c.authService.Login(ctx, &req, clientIP, userAgent)
 	if err != nil {
 		// 根据错误类型设置不同的消息ID
 		var messageId string
@@ -110,7 +110,7 @@ func (c *AuthController) UserInfo(ctx *gin.Context) {
 	}
 
 	// 从数据库获取完整的用户信息
-	user, err := c.authService.GetUserInfo(userId, tenantId)
+	user, err := c.authService.GetUserInfo(ctx, userId, tenantId)
 	if err != nil {
 		logger.Error("获取用户信息失败", err)
 		response.ErrorJSON(ctx, "获取用户信息失败: "+err.Error(), constants.ED00009, http.StatusInternalServerError)
@@ -173,7 +173,7 @@ func (c *AuthController) RefreshToken(ctx *gin.Context) {
 	}
 
 	// 刷新令牌
-	newToken, newRefreshToken, err := c.authService.RefreshToken(userId, tenantId, req.RefreshToken)
+	newToken, newRefreshToken, err := c.authService.RefreshToken(ctx, userId, tenantId, req.RefreshToken)
 	if err != nil {
 		logger.Error("刷新令牌失败", err)
 
@@ -235,7 +235,7 @@ func (c *AuthController) Logout(ctx *gin.Context) {
 
 	// 如果提供了刷新令牌，则使其失效
 	if refreshToken != "" {
-		err := c.authService.Logout(userId, tenantId, refreshToken)
+		err := c.authService.Logout(ctx, userId, tenantId, refreshToken)
 		if err != nil {
 			logger.Error("登出处理失败", err)
 			// 继续执行，不影响主流程
@@ -295,7 +295,7 @@ func (c *AuthController) ChangePassword(ctx *gin.Context) {
 	}
 
 	// 修改密码
-	err := c.authService.ChangePassword(&req, userId)
+	err := c.authService.ChangePassword(ctx, &req, userId)
 	if err != nil {
 		logger.Error("修改密码失败", err)
 

@@ -31,19 +31,10 @@ func (u MySQLUser) PrimaryKey() string {
 func getMySQLTestDB(t *testing.T) database.Database {
 	// 创建测试数据库配置
 	config := &database.DbConfig{
-		Driver: database.DriverMySQL,
-		Name:   "mysql_test",
-		DSN:    "root:!@#wwe123@tcp(rm-bp1i81ckdj72o6vy2ao.mysql.rds.aliyuncs.com:3306)/wms_ftest?charset=utf8mb3&parseTime=True&loc=Local",
-		Pool: database.PoolConfig{
-			MaxOpenConns:    10,
-			MaxIdleConns:    5,
-			ConnMaxLifetime: 3600, // 1小时，单位秒
-			ConnMaxIdleTime: 1800, // 30分钟，单位秒
-		},
-		Log: database.LogConfig{
-			Enable:        true,
-			SlowThreshold: 100, // 100毫秒
-		},
+		Driver:  database.DriverMySQL,
+		Name:    "mysql_test",
+		Enabled: true,
+		DSN:     "root:datahub@tcp(121.43.231.91:63306)/shangjian_test?charset=utf8mb3&parseTime=True&loc=Local",
 	}
 
 	// 直接打开数据库连接
@@ -68,20 +59,20 @@ func setupMySQLTestTable(t *testing.T, db database.Database) {
 	ctx := context.Background()
 
 	// 先尝试删除表（如果存在）
-	_, err := db.Exec(ctx, "DROP TABLE IF EXISTS mysql_users", nil)
+	_, err := db.Exec(ctx, "DROP TABLE IF EXISTS mysql_users", []interface{}{}, true)
 	if err != nil {
 		t.Fatalf("删除测试表失败: %v", err)
 	}
 
-	// 创建测试表
+	// 创建测试表，使用DEFAULT CURRENT_TIMESTAMP
 	_, err = db.Exec(ctx, `
 		CREATE TABLE mysql_users (
 			id BIGINT AUTO_INCREMENT PRIMARY KEY,
 			name VARCHAR(255) NOT NULL,
 			email VARCHAR(255) NOT NULL UNIQUE,
-			created_at TIMESTAMP NULL
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)
-	`, nil)
+	`, []interface{}{}, true)
 	if err != nil {
 		t.Fatalf("创建测试表失败: %v", err)
 	}
@@ -92,7 +83,7 @@ func setupMySQLTestTable(t *testing.T, db database.Database) {
 // 清理测试表
 func cleanupMySQLTestTable(t *testing.T, db database.Database) {
 	ctx := context.Background()
-	_, err := db.Exec(ctx, "DROP TABLE IF EXISTS mysql_users", nil)
+	_, err := db.Exec(ctx, "DROP TABLE IF EXISTS mysql_users", []interface{}{}, true)
 	if err != nil {
 		t.Fatalf("清理测试表失败: %v", err)
 	}
@@ -113,7 +104,7 @@ func TestMySQLTableSetup(t *testing.T) {
 		Count int `db:"count"`
 	}
 	var result CountResult
-	err := db.QueryOne(ctx, &result, "SELECT COUNT(*) AS count FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'mysql_users'", nil)
+	err := db.QueryOne(ctx, &result, "SELECT COUNT(*) AS count FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'mysql_users'", []interface{}{}, true)
 	if err != nil {
 		t.Fatalf("验证表创建失败: %v", err)
 	}
@@ -135,17 +126,14 @@ func TestMySQLInsert(t *testing.T) {
 
 	ctx := context.Background()
 
-	// 使用当前时间而不是零值
-	// now := time.Now()
-
-	// 构建测试用户
+	// 构建测试用户 - 不设置时间，使用数据库默认值
 	user := MySQLUser{
 		Name:  "测试用户",
 		Email: "test@example.com",
 	}
 
 	// 插入记录
-	id, err := db.Insert(ctx, user.TableName(), user)
+	id, err := db.Insert(ctx, user.TableName(), user, true)
 	if err != nil {
 		t.Fatalf("插入用户记录失败: %v", err)
 	}
@@ -167,30 +155,26 @@ func TestMySQLBatchInsert(t *testing.T) {
 
 	ctx := context.Background()
 
-	// 测试批量插入
-	// 使用当前时间而不是零值
-	now := time.Now()
-
+	// 测试真正的批量插入 - 不设置时间，使用数据库默认值
 	users := []MySQLUser{
-		{Name: "用户A", Email: "usera@example.com", CreatedAt: now},
-		{Name: "用户B", Email: "userb@example.com", CreatedAt: now},
+		{Name: "用户A", Email: "usera@example.com"},
+		{Name: "用户B", Email: "userb@example.com"},
 		{Name: "用户C", Email: "userc@example.com"},
 	}
 
-	for i, user := range users {
-		id, err := db.Insert(ctx, user.TableName(), user)
-		if err != nil {
-			t.Fatalf("插入用户记录失败 (索引 %d): %v", i, err)
-		}
-		t.Logf("成功插入用户: ID=%d, Name=%s", id, user.Name)
+	// 使用真正的批量插入方法
+	affected, err := db.BatchInsert(ctx, users[0].TableName(), users, true)
+	if err != nil {
+		t.Fatalf("批量插入用户记录失败: %v", err)
 	}
+	t.Logf("批量插入成功，影响行数: %d", affected)
 
 	// 使用结构体接收查询结果
 	type CountResult struct {
 		Total int `db:"total"`
 	}
 	var result CountResult
-	err := db.QueryOne(ctx, &result, "SELECT COUNT(*) AS total FROM mysql_users", nil)
+	err = db.QueryOne(ctx, &result, "SELECT COUNT(*) AS total FROM mysql_users", []interface{}{}, true)
 	if err != nil {
 		t.Fatalf("验证插入数量失败: %v", err)
 	}
@@ -208,39 +192,38 @@ func TestMySQLQueryOne(t *testing.T) {
 	defer db.Close()
 
 	setupMySQLTestTable(t, db)
-	defer cleanupMySQLTestTable(t, db)
+	//defer cleanupMySQLTestTable(t, db)
 
 	ctx := context.Background()
 
-	// 先插入测试数据
-	now := time.Now()
-	user := MySQLUser{Name: "用户A", Email: "usera@example.com", CreatedAt: now}
-	id, err := db.Insert(ctx, user.TableName(), user)
+	// 先插入测试数据 - 不设置时间，使用数据库默认值
+	user := MySQLUser{Name: "测试用户", Email: "test@example.com"}
+	id, err := db.Insert(ctx, user.TableName(), user, true)
 	if err != nil {
 		t.Fatalf("测试准备: 插入用户失败: %v", err)
 	}
 
-	// 查询单条记录
-	var queriedUser MySQLUser
-	err = db.QueryOne(ctx, &queriedUser, "SELECT * FROM mysql_users WHERE id = ?", []interface{}{id})
+	// 测试查询单条记录
+	var singleUser MySQLUser
+	err = db.QueryOne(ctx, &singleUser, "SELECT * FROM mysql_users WHERE id = ?", []interface{}{id}, true)
 	if err != nil {
-		t.Fatalf("查询单个用户失败: %v", err)
+		t.Fatalf("查询单个用户记录失败: %v", err)
 	}
-
-	t.Logf("查询到用户: ID=%d, Name=%s, Email=%s", queriedUser.ID, queriedUser.Name, queriedUser.Email)
 
 	// 验证查询结果
-	if queriedUser.ID != id || queriedUser.Name != user.Name || queriedUser.Email != user.Email {
-		t.Errorf("查询结果不匹配，期望 Name=%s, Email=%s，实际为 Name=%s, Email=%s",
-			user.Name, user.Email, queriedUser.Name, queriedUser.Email)
+	if singleUser.ID != id || singleUser.Name != user.Name || singleUser.Email != user.Email {
+		t.Errorf("查询结果不匹配，期望 ID=%d, Name=%s, Email=%s，实际为 ID=%d, Name=%s, Email=%s",
+			id, user.Name, user.Email, singleUser.ID, singleUser.Name, singleUser.Email)
 	}
 
-	// 测试记录不存在的情况
-	err = db.QueryOne(ctx, &queriedUser, "SELECT * FROM mysql_users WHERE name = ?", []interface{}{"不存在的用户"})
+	t.Logf("查询到用户：ID: %d, 姓名: %s, 邮箱: %s", singleUser.ID, singleUser.Name, singleUser.Email)
+
+	// 测试查询不存在的记录
+	err = db.QueryOne(ctx, &singleUser, "SELECT * FROM mysql_users WHERE id = ?", []interface{}{99999}, true)
 	if err != database.ErrRecordNotFound {
-		t.Errorf("查询不存在的记录应返回ErrRecordNotFound, 实际返回: %v", err)
+		t.Errorf("查询不存在的记录应返回 ErrRecordNotFound，实际返回: %v", err)
 	} else {
-		t.Log("正确处理了不存在的记录")
+		t.Log("正确处理了不存在的记录查询")
 	}
 }
 
@@ -254,16 +237,15 @@ func TestMySQLQuery(t *testing.T) {
 
 	ctx := context.Background()
 
-	// 先插入测试数据
-	now := time.Now()
+	// 先插入测试数据 - 不设置时间，使用数据库默认值
 	users := []MySQLUser{
-		{Name: "用户A", Email: "usera@example.com", CreatedAt: now},
-		{Name: "用户B", Email: "userb@example.com", CreatedAt: now},
-		{Name: "用户C", Email: "userc@example.com", CreatedAt: now},
+		{Name: "用户A", Email: "usera@example.com"},
+		{Name: "用户B", Email: "userb@example.com"},
+		{Name: "用户C", Email: "userc@example.com"},
 	}
 
 	for _, user := range users {
-		_, err := db.Insert(ctx, user.TableName(), user)
+		_, err := db.Insert(ctx, user.TableName(), user, true)
 		if err != nil {
 			t.Fatalf("测试准备: 插入用户失败: %v", err)
 		}
@@ -271,7 +253,7 @@ func TestMySQLQuery(t *testing.T) {
 
 	// 查询多条记录
 	var queriedUsers []MySQLUser
-	err := db.Query(ctx, &queriedUsers, "SELECT * FROM mysql_users ORDER BY id", nil)
+	err := db.Query(ctx, &queriedUsers, "SELECT * FROM mysql_users ORDER BY id", nil, true)
 	if err != nil {
 		t.Fatalf("查询多条记录失败: %v", err)
 	}
@@ -297,10 +279,9 @@ func TestMySQLUpdate(t *testing.T) {
 
 	ctx := context.Background()
 
-	// 先插入测试数据
-	now := time.Now()
-	user := MySQLUser{Name: "用户B", Email: "userb@example.com", CreatedAt: now}
-	id, err := db.Insert(ctx, user.TableName(), user)
+	// 先插入测试数据 - 不设置时间，使用数据库默认值
+	user := MySQLUser{Name: "用户B", Email: "userb@example.com"}
+	id, err := db.Insert(ctx, user.TableName(), user, true)
 	if err != nil {
 		t.Fatalf("测试准备: 插入用户失败: %v", err)
 	}
@@ -310,7 +291,7 @@ func TestMySQLUpdate(t *testing.T) {
 		Name: "用户B(已更新)",
 	}
 
-	affected, err := db.Update(ctx, user.TableName(), updatedUser, "id = ?", []interface{}{id})
+	affected, err := db.Update(ctx, user.TableName(), updatedUser, "id = ?", []interface{}{id}, true)
 	if err != nil {
 		t.Fatalf("更新用户失败: %v", err)
 	}
@@ -323,7 +304,7 @@ func TestMySQLUpdate(t *testing.T) {
 
 	// 验证更新
 	var updatedRecord MySQLUser
-	err = db.QueryOne(ctx, &updatedRecord, "SELECT * FROM mysql_users WHERE id = ?", []interface{}{id})
+	err = db.QueryOne(ctx, &updatedRecord, "SELECT * FROM mysql_users WHERE id = ?", []interface{}{id}, true)
 	if err != nil {
 		t.Fatalf("查询更新后的用户失败: %v", err)
 	}
@@ -345,16 +326,15 @@ func TestMySQLDelete(t *testing.T) {
 
 	ctx := context.Background()
 
-	// 先插入测试数据
-	now := time.Now()
-	user := MySQLUser{Name: "用户C", Email: "userc@example.com", CreatedAt: now}
-	id, err := db.Insert(ctx, user.TableName(), user)
+	// 先插入测试数据 - 不设置时间，使用数据库默认值
+	user := MySQLUser{Name: "用户C", Email: "userc@example.com"}
+	id, err := db.Insert(ctx, user.TableName(), user, true)
 	if err != nil {
 		t.Fatalf("测试准备: 插入用户失败: %v", err)
 	}
 
 	// 删除用户
-	affected, err := db.Delete(ctx, user.TableName(), "id = ?", []interface{}{id})
+	affected, err := db.Delete(ctx, user.TableName(), "id = ?", []interface{}{id}, true)
 	if err != nil {
 		t.Fatalf("删除用户失败: %v", err)
 	}
@@ -367,7 +347,7 @@ func TestMySQLDelete(t *testing.T) {
 
 	// 验证删除
 	var deletedUser MySQLUser
-	err = db.QueryOne(ctx, &deletedUser, "SELECT * FROM mysql_users WHERE id = ?", []interface{}{id})
+	err = db.QueryOne(ctx, &deletedUser, "SELECT * FROM mysql_users WHERE id = ?", []interface{}{id}, true)
 	if err != database.ErrRecordNotFound {
 		t.Errorf("删除验证失败, 期望ErrRecordNotFound, 实际: %v", err)
 	} else {
@@ -381,53 +361,56 @@ func TestMySQLTransactionCommit(t *testing.T) {
 	defer db.Close()
 
 	setupMySQLTestTable(t, db)
-	defer cleanupMySQLTestTable(t, db)
+	//defer cleanupMySQLTestTable(t, db)
 
 	ctx := context.Background()
 
 	// 开始事务
-	tx, err := db.BeginTx(ctx)
+	err := db.BeginTx(ctx, &database.TxOptions{
+		Isolation: database.IsolationReadCommitted,
+		ReadOnly:  false,
+	})
 	if err != nil {
 		t.Fatalf("开始事务失败: %v", err)
 	}
 
-	// 在事务中执行多个操作
-	now := time.Now()
-	user1 := MySQLUser{Name: "事务用户1", Email: "tx1@example.com", CreatedAt: now}
-	user2 := MySQLUser{Name: "事务用户2", Email: "tx2@example.com", CreatedAt: now}
+	// 在事务中插入数据 - 不设置时间，使用数据库默认值
+	user1 := MySQLUser{Name: "事务用户1", Email: "tx1@example.com"}
+	user2 := MySQLUser{Name: "事务用户2", Email: "tx2@example.com"}
 
-	id1, err := tx.Insert(ctx, user1.TableName(), user1)
+	id1, err := db.Insert(ctx, user1.TableName(), user1, false)
 	if err != nil {
-		tx.Rollback()
+		db.Rollback()
 		t.Fatalf("事务中插入用户1失败: %v", err)
 	}
 
-	id2, err := tx.Insert(ctx, user2.TableName(), user2)
+	id2, err := db.Insert(ctx, user2.TableName(), user2, false)
 	if err != nil {
-		tx.Rollback()
+		db.Rollback()
 		t.Fatalf("事务中插入用户2失败: %v", err)
 	}
 
 	// 提交事务
-	err = tx.Commit()
+	err = db.Commit()
 	if err != nil {
 		t.Fatalf("提交事务失败: %v", err)
 	}
 
-	t.Logf("事务成功提交, 插入用户ID: %d, %d", id1, id2)
-
-	// 验证两条记录都插入成功
-	var count int
-	err = db.QueryOne(ctx, &count, "SELECT COUNT(*) FROM mysql_users WHERE email IN (?, ?)",
-		[]interface{}{user1.Email, user2.Email})
+	// 验证插入数据
+	type CountResult struct {
+		Count int `db:"count"`
+	}
+	var result CountResult
+	err = db.QueryOne(ctx, &result, "SELECT COUNT(*) as count FROM mysql_users WHERE email IN (?, ?)",
+		[]interface{}{user1.Email, user2.Email}, true)
 	if err != nil {
 		t.Fatalf("查询事务插入记录数失败: %v", err)
 	}
 
-	if count != 2 {
-		t.Errorf("事务提交验证失败, 期望记录数2, 实际: %d", count)
+	if result.Count != 2 {
+		t.Errorf("事务提交验证失败，期望插入2条记录，实际为 %d", result.Count)
 	} else {
-		t.Log("事务提交验证成功, 两条记录都已插入")
+		t.Logf("事务提交成功，插入用户ID: %d, %d", id1, id2)
 	}
 }
 
@@ -437,141 +420,94 @@ func TestMySQLTransactionRollback(t *testing.T) {
 	defer db.Close()
 
 	setupMySQLTestTable(t, db)
-	defer cleanupMySQLTestTable(t, db)
+	//defer cleanupMySQLTestTable(t, db)
 
 	ctx := context.Background()
 
 	// 开始事务
-	tx, err := db.BeginTx(ctx)
+	err := db.BeginTx(ctx, &database.TxOptions{
+		Isolation: database.IsolationReadCommitted,
+		ReadOnly:  false,
+	})
 	if err != nil {
 		t.Fatalf("开始事务失败: %v", err)
 	}
 
-	// 在事务中插入数据
-	now := time.Now()
-	rollbackUser := MySQLUser{
-		Name:      "回滚用户",
-		Email:     "rollback@example.com",
-		CreatedAt: now,
-	}
+	// 在事务中插入数据 - 不设置时间，使用数据库默认值
+	rollbackUser := MySQLUser{Name: "回滚用户", Email: "rollback@example.com"}
 
-	_, err = tx.Insert(ctx, rollbackUser.TableName(), rollbackUser)
+	_, err = db.Insert(ctx, rollbackUser.TableName(), rollbackUser, false)
 	if err != nil {
-		tx.Rollback()
+		db.Rollback()
 		t.Fatalf("事务中插入用户失败: %v", err)
 	}
 
 	// 回滚事务
-	err = tx.Rollback()
+	err = db.Rollback()
 	if err != nil {
 		t.Fatalf("回滚事务失败: %v", err)
 	}
 
 	// 验证数据未插入
-	var count int
-	err = db.QueryOne(ctx, &count, "SELECT COUNT(*) FROM mysql_users WHERE email = ?",
-		[]interface{}{rollbackUser.Email})
+	type CountResult struct {
+		Count int `db:"count"`
+	}
+	var result CountResult
+	err = db.QueryOne(ctx, &result, "SELECT COUNT(*) as count FROM mysql_users WHERE email = ?",
+		[]interface{}{rollbackUser.Email}, true)
 	if err != nil {
 		t.Fatalf("查询回滚记录失败: %v", err)
 	}
 
-	if count != 0 {
-		t.Errorf("事务回滚验证失败, 期望记录数0, 实际: %d", count)
+	if result.Count != 0 {
+		t.Errorf("事务回滚验证失败，期望0条记录，实际为 %d", result.Count)
 	} else {
-		t.Log("事务回滚验证成功, 记录未被插入")
+		t.Log("事务回滚成功，用户未被插入")
 	}
 }
 
-// 测试带选项的查询
-func TestMySQLQueryWithOptions(t *testing.T) {
-	db := getMySQLTestDB(t)
-	defer db.Close()
-
-	setupMySQLTestTable(t, db)
-	defer cleanupMySQLTestTable(t, db)
-
-	ctx := context.Background()
-
-	// 先插入测试数据
-	now := time.Now()
-	users := []MySQLUser{
-		{Name: "事务用户1", Email: "tx1@example.com", CreatedAt: now},
-		{Name: "事务用户2", Email: "tx2@example.com", CreatedAt: now},
-	}
-
-	for _, user := range users {
-		_, err := db.Insert(ctx, user.TableName(), user)
-		if err != nil {
-			t.Fatalf("测试准备: 插入用户失败: %v", err)
-		}
-	}
-
-	// 测试带选项的查询
-	var queriedUsers []MySQLUser
-	err := db.QueryWithOptions(
-		ctx,
-		&queriedUsers,
-		"SELECT * FROM mysql_users WHERE name LIKE ?",
-		[]interface{}{"%事务用户%"},
-		database.WithQueryTransaction(true),
-	)
-
-	if err != nil {
-		t.Fatalf("带选项查询失败: %v", err)
-	}
-
-	t.Logf("带选项查询成功, 返回 %d 条记录", len(queriedUsers))
-	for _, u := range queriedUsers {
-		t.Logf("用户: ID=%d, Name=%s", u.ID, u.Name)
-	}
-
-	// 验证查询结果数量
-	if len(queriedUsers) != len(users) {
-		t.Errorf("查询结果数量不匹配，期望 %d 条记录，实际为 %d", len(users), len(queriedUsers))
-	}
-}
-
-// 测试WithTx功能
+// 测试InTx自动管理事务
 func TestMySQLWithTx(t *testing.T) {
 	db := getMySQLTestDB(t)
 	defer db.Close()
 
 	setupMySQLTestTable(t, db)
-	defer cleanupMySQLTestTable(t, db)
+	//defer cleanupMySQLTestTable(t, db)
 
 	ctx := context.Background()
 
-	// 使用WithTx函数管理事务
-	now := time.Now()
-	withTxUser := MySQLUser{
-		Name:      "WithTx用户",
-		Email:     "withtx@example.com",
-		CreatedAt: now,
-	}
-
+	// 使用InTx方法自动管理事务
 	var insertedID int64
-	err := db.WithTx(nil, func(tx database.Transaction) error {
-		// 在事务中执行操作
-		id, err := tx.Insert(ctx, withTxUser.TableName(), withTxUser)
+	err := db.InTx(ctx, &database.TxOptions{
+		Isolation: database.IsolationReadCommitted,
+		ReadOnly:  false,
+	}, func() error {
+		// 在事务中插入用户 - 不设置时间，使用数据库默认值
+		withTxUser := MySQLUser{
+			Name:  "InTx测试用户",
+			Email: "intx@example.com",
+		}
+
+		id, err := db.Insert(ctx, withTxUser.TableName(), withTxUser, false)
 		if err != nil {
 			return err
 		}
 		insertedID = id
-		return nil // 返回nil表示成功, 事务会自动提交
+		return nil
 	})
 
 	if err != nil {
-		t.Fatalf("WithTx执行失败: %v", err)
+		t.Fatalf("InTx执行失败: %v", err)
 	}
 
-	// 验证记录已插入
+	// 验证用户已插入
 	var user MySQLUser
 	err = db.QueryOne(ctx, &user, "SELECT * FROM mysql_users WHERE id = ?",
-		[]interface{}{insertedID})
+		[]interface{}{insertedID}, true)
 
 	if err != nil {
-		t.Fatalf("验证WithTx插入记录失败: %v", err)
+		t.Fatalf("查询InTx插入的用户失败: %v", err)
 	}
 
-	t.Logf("WithTx功能验证成功, 插入用户: ID=%d, Name=%s", user.ID, user.Name)
+	t.Logf("InTx事务成功: 插入用户 ID: %d, 姓名: %s", user.ID, user.Name)
 }

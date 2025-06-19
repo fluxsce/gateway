@@ -24,13 +24,14 @@ func NewUserDAO(db database.Database) *UserDAO {
 
 // AddUser 添加用户
 // 参数:
+//   - ctx: 上下文对象
 //   - user: 用户信息
 //   - operatorId: 操作人ID
 //
 // 返回:
 //   - userId: 新创建的用户ID
 //   - err: 可能的错误
-func (dao *UserDAO) AddUser(user *models.User, operatorId string) (string, error) {
+func (dao *UserDAO) AddUser(ctx context.Context, user *models.User, operatorId string) (string, error) {
 	// 前端已经提供了经过校验的用户ID，无需在后端生成
 
 	// 验证用户ID是否存在
@@ -58,11 +59,8 @@ func (dao *UserDAO) AddUser(user *models.User, operatorId string) (string, error
 		user.UserExpireDate = now.AddDate(10, 0, 0)
 	}
 
-	// 创建上下文
-	ctx := context.Background()
-
 	// 使用数据库接口的Insert方法插入记录
-	_, err := dao.db.Insert(ctx, "HUB_USER", user)
+	_, err := dao.db.Insert(ctx, "HUB_USER", user, true)
 
 	if err != nil {
 		// 检查是否是用户名重复错误
@@ -76,7 +74,7 @@ func (dao *UserDAO) AddUser(user *models.User, operatorId string) (string, error
 }
 
 // GetUserById 根据用户ID获取用户信息
-func (dao *UserDAO) GetUserById(userId, tenantId string) (*models.User, error) {
+func (dao *UserDAO) GetUserById(ctx context.Context, userId, tenantId string) (*models.User, error) {
 	if userId == "" || tenantId == "" {
 		return nil, errors.New("userId和tenantId不能为空")
 	}
@@ -86,9 +84,8 @@ func (dao *UserDAO) GetUserById(userId, tenantId string) (*models.User, error) {
 		WHERE userId = ? AND tenantId = ?
 	`
 
-	ctx := context.Background()
 	var user models.User
-	err := dao.db.QueryOne(ctx, &user, query, []interface{}{userId, tenantId})
+	err := dao.db.QueryOne(ctx, &user, query, []interface{}{userId, tenantId}, true)
 
 	if err != nil {
 		if err == database.ErrRecordNotFound {
@@ -101,13 +98,13 @@ func (dao *UserDAO) GetUserById(userId, tenantId string) (*models.User, error) {
 }
 
 // UpdateUser 更新用户信息
-func (dao *UserDAO) UpdateUser(user *models.User, operatorId string) error {
+func (dao *UserDAO) UpdateUser(ctx context.Context, user *models.User, operatorId string) error {
 	if user.UserId == "" || user.TenantId == "" {
 		return errors.New("userId和tenantId不能为空")
 	}
 
 	// 首先获取用户当前版本
-	currentUser, err := dao.GetUserById(user.UserId, user.TenantId)
+	currentUser, err := dao.GetUserById(ctx, user.UserId, user.TenantId)
 	if err != nil {
 		return err
 	}
@@ -132,14 +129,13 @@ func (dao *UserDAO) UpdateUser(user *models.User, operatorId string) error {
 	`
 
 	// 执行更新
-	ctx := context.Background()
 	result, err := dao.db.Exec(ctx, sql, []interface{}{
 		user.RealName, user.DeptId, user.Email, user.Mobile,
 		user.Avatar, user.Gender, user.StatusFlag, user.DeptAdminFlag,
 		user.TenantAdminFlag, user.UserExpireDate, user.NoteText,
 		user.EditTime, user.EditWho, user.OprSeqFlag, user.CurrentVersion,
 		user.UserId, user.TenantId, currentUser.CurrentVersion,
-	})
+	}, true)
 
 	if err != nil {
 		return huberrors.WrapError(err, "更新用户失败")
@@ -154,13 +150,13 @@ func (dao *UserDAO) UpdateUser(user *models.User, operatorId string) error {
 }
 
 // DeleteUser 物理删除用户
-func (dao *UserDAO) DeleteUser(userId, tenantId, operatorId string) error {
+func (dao *UserDAO) DeleteUser(ctx context.Context, userId, tenantId, operatorId string) error {
 	if userId == "" || tenantId == "" {
 		return errors.New("userId和tenantId不能为空")
 	}
 
 	// 首先获取用户当前信息
-	currentUser, err := dao.GetUserById(userId, tenantId)
+	currentUser, err := dao.GetUserById(ctx, userId, tenantId)
 	if err != nil {
 		return err
 	}
@@ -172,8 +168,7 @@ func (dao *UserDAO) DeleteUser(userId, tenantId, operatorId string) error {
 	sql := `DELETE FROM HUB_USER WHERE userId = ? AND tenantId = ?`
 
 	// 执行删除
-	ctx := context.Background()
-	result, err := dao.db.Exec(ctx, sql, []interface{}{userId, tenantId})
+	result, err := dao.db.Exec(ctx, sql, []interface{}{userId, tenantId}, true)
 
 	if err != nil {
 		return huberrors.WrapError(err, "删除用户失败")
@@ -188,7 +183,7 @@ func (dao *UserDAO) DeleteUser(userId, tenantId, operatorId string) error {
 }
 
 // ListUsers 获取用户列表
-func (dao *UserDAO) ListUsers(tenantId string, page, pageSize int) ([]*models.User, int, error) {
+func (dao *UserDAO) ListUsers(ctx context.Context, tenantId string, page, pageSize int) ([]*models.User, int, error) {
 	if tenantId == "" {
 		return nil, 0, errors.New("tenantId不能为空")
 	}
@@ -211,11 +206,10 @@ func (dao *UserDAO) ListUsers(tenantId string, page, pageSize int) ([]*models.Us
 	`
 
 	// 执行查询，使用匿名结构体
-	ctx := context.Background()
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err := dao.db.QueryOne(ctx, &result, countSQL, []interface{}{tenantId})
+	err := dao.db.QueryOne(ctx, &result, countSQL, []interface{}{tenantId}, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询用户总数失败")
 	}
@@ -235,7 +229,7 @@ func (dao *UserDAO) ListUsers(tenantId string, page, pageSize int) ([]*models.Us
 	`
 
 	var users []*models.User
-	err = dao.db.Query(ctx, &users, listSQL, []interface{}{tenantId, pageSize, offset})
+	err = dao.db.Query(ctx, &users, listSQL, []interface{}{tenantId, pageSize, offset}, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询用户列表失败")
 	}
@@ -244,7 +238,7 @@ func (dao *UserDAO) ListUsers(tenantId string, page, pageSize int) ([]*models.Us
 }
 
 // FindUserByUsername 根据用户名查找用户
-func (dao *UserDAO) FindUserByUsername(username, tenantId string) (*models.User, error) {
+func (dao *UserDAO) FindUserByUsername(ctx context.Context, username, tenantId string) (*models.User, error) {
 	if username == "" || tenantId == "" {
 		return nil, errors.New("username和tenantId不能为空")
 	}
@@ -254,9 +248,8 @@ func (dao *UserDAO) FindUserByUsername(username, tenantId string) (*models.User,
 		WHERE userName = ? AND tenantId = ?
 	`
 
-	ctx := context.Background()
 	var user models.User
-	err := dao.db.QueryOne(ctx, &user, query, []interface{}{username, tenantId})
+	err := dao.db.QueryOne(ctx, &user, query, []interface{}{username, tenantId}, true)
 
 	if err != nil {
 		if err == database.ErrRecordNotFound {
@@ -277,13 +270,13 @@ func (dao *UserDAO) isDuplicateUserNameError(err error) bool {
 }
 
 // ChangePassword 修改密码
-func (dao *UserDAO) ChangePassword(userId, tenantId, newPassword, operatorId string) error {
+func (dao *UserDAO) ChangePassword(ctx context.Context, userId, tenantId, newPassword, operatorId string) error {
 	if userId == "" || tenantId == "" || newPassword == "" {
 		return errors.New("userId、tenantId和新密码不能为空")
 	}
 
 	// 首先获取用户当前信息
-	currentUser, err := dao.GetUserById(userId, tenantId)
+	currentUser, err := dao.GetUserById(ctx, userId, tenantId)
 	if err != nil {
 		return err
 	}
@@ -302,12 +295,11 @@ func (dao *UserDAO) ChangePassword(userId, tenantId, newPassword, operatorId str
 	`
 
 	// 执行更新
-	ctx := context.Background()
 	result, err := dao.db.Exec(ctx, sql, []interface{}{
 		newPassword,
 		now, operatorId,
 		userId, tenantId,
-	})
+	}, true)
 
 	if err != nil {
 		return huberrors.WrapError(err, "修改密码失败")
