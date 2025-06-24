@@ -37,7 +37,11 @@ const (
 	ED00108 = "ED00108" // 刷新令牌失败
 	ED00109 = "ED00109" // 密码错误
 	ED00110 = "ED00110" // 密码修改失败
-	ED00111 = "ED00111" // 登出失败
+	ED00111 = "ED00111" // 验证码不存在或已过期
+	ED00112 = "ED00112" // 验证码错误
+	ED00113 = "ED00113" // 短信发送失败
+	ED00114 = "ED00114" // Session不存在或已过期
+	ED00115 = "ED00115" // Session已过期
 )
 
 // 通用成功代码
@@ -56,6 +60,8 @@ const (
 	SD00103 = "SD00103" // 刷新令牌成功
 	SD00104 = "SD00104" // 登出成功
 	SD00105 = "SD00105" // 密码修改成功
+	SD00106 = "SD00106" // 验证码生成成功
+	SD00107 = "SD00107" // 验证码验证成功
 )
 
 // 提示代码
@@ -65,4 +71,20 @@ const (
 	ND00003 = "ND00003" // 系统维护中
 	ND00004 = "ND00004" // 版本更新
 	ND00005 = "ND00005" // 需要数据同步
+)
+
+// HUB Session和Cookie相关常量
+const (
+	// Cookie名称常量
+	HUB_SESSION_COOKIE = "HUB_LG"     // Session ID的Cookie名称
+
+	// Session配置常量
+	HUB_SESSION_DOMAIN   = ""           // Cookie域名，空表示当前域名
+	HUB_SESSION_PATH     = "/"          // Cookie路径
+	HUB_SESSION_SECURE   = false        // 是否仅HTTPS，生产环境应设为true
+	HUB_SESSION_HTTPONLY = true         // 是否仅HTTP访问，防止XSS
+	HUB_SESSION_SAMESITE = "Lax"        // SameSite策略
+
+	// Session超时时间配置（小时）
+	HUB_SESSION_EXPIRE_HOURS = 12       // Session默认过期时间：12小时
 )

@@ -97,6 +97,30 @@ func (dao *UserDAO) GetUserById(ctx context.Context, userId, tenantId string) (*
 	return &user, nil
 }
 
+// GetUserByUserId 仅根据用户ID获取用户信息（用于登录验证）
+func (dao *UserDAO) GetUserByUserId(ctx context.Context, userId string) (*models.User, error) {
+	if userId == "" {
+		return nil, errors.New("userId不能为空")
+	}
+
+	query := `
+		SELECT * FROM HUB_USER 
+		WHERE userId = ?
+	`
+
+	var user models.User
+	err := dao.db.QueryOne(ctx, &user, query, []interface{}{userId}, true)
+
+	if err != nil {
+		if err == database.ErrRecordNotFound {
+			return nil, nil // 没有找到记录，返回nil而不是错误
+		}
+		return nil, huberrors.WrapError(err, "查询用户失败")
+	}
+
+	return &user, nil
+}
+
 // UpdateUser 更新用户信息
 func (dao *UserDAO) UpdateUser(ctx context.Context, user *models.User, operatorId string) error {
 	if user.UserId == "" || user.TenantId == "" {

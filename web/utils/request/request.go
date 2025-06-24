@@ -1,10 +1,13 @@
 package request
 
 import (
+	"encoding/json"
 	"fmt"
 	"gohub/pkg/logger"
-	"gohub/web/utils/auth"
+	"gohub/web/globalmodels"
+	"gohub/web/middleware"
 	"gohub/web/utils/constants"
+	"io"
 	"mime/multipart"
 	"reflect"
 	"strconv"
@@ -17,7 +20,7 @@ import (
 
 // GetUserID 获取当前登录用户ID
 func GetUserID(c *gin.Context) string {
-	uc := auth.GetUserContext(c)
+	uc := middleware.GetUserContext(c)
 	if uc != nil {
 		return uc.UserId
 	}
@@ -26,25 +29,25 @@ func GetUserID(c *gin.Context) string {
 
 // GetTenantID 获取租户ID
 func GetTenantID(c *gin.Context) string {
-	uc := auth.GetUserContext(c)
+	uc := middleware.GetUserContext(c)
 	if uc != nil {
 		return uc.TenantId
 	}
-	return "default"
+	return ""
 }
 
 // GetOperatorID 获取操作人ID
 func GetOperatorID(c *gin.Context) string {
-	uc := auth.GetUserContext(c)
+	uc := middleware.GetUserContext(c)
 	if uc != nil {
 		return uc.UserId
 	}
-	return "system"
+	return ""
 }
 
 // GetUserName 获取当前登录用户名
 func GetUserName(c *gin.Context) string {
-	uc := auth.GetUserContext(c)
+	uc := middleware.GetUserContext(c)
 	if uc != nil {
 		return uc.UserName
 	}
@@ -52,8 +55,8 @@ func GetUserName(c *gin.Context) string {
 }
 
 // GetUserContext 获取完整的用户上下文
-func GetUserContext(c *gin.Context) *auth.UserContext {
-	return auth.GetUserContext(c)
+func GetUserContext(c *gin.Context) *globalmodels.UserContext {
+	return middleware.GetUserContext(c)
 }
 
 // GetPaginationParams 获取分页参数
@@ -79,39 +82,6 @@ func GetPaginationParams(c *gin.Context) (page, pageSize int) {
 	}
 
 	return page, pageSize
-}
-
-// GetQueryInt 获取请求中的整数参数
-func GetQueryInt(c *gin.Context, key string, defaultValue int) int {
-	valueStr := c.Query(key)
-	if valueStr == "" {
-		return defaultValue
-	}
-
-	value, err := strconv.Atoi(valueStr)
-	if err != nil {
-		return defaultValue
-	}
-
-	return value
-}
-
-// GetQueryBool 获取请求中的布尔参数
-func GetQueryBool(c *gin.Context, key string, defaultValue bool) bool {
-	valueStr := c.Query(key)
-	if valueStr == "" {
-		return defaultValue
-	}
-
-	// 处理常见的布尔值表示
-	switch valueStr {
-	case "1", "true", "True", "TRUE", "yes", "Yes", "YES", "y", "Y":
-		return true
-	case "0", "false", "False", "FALSE", "no", "No", "NO", "n", "N":
-		return false
-	default:
-		return defaultValue
-	}
 }
 
 // GetParamID 获取路径参数中的ID
@@ -178,7 +148,7 @@ func BindSafely(c *gin.Context, obj interface{}) error {
 	// 先尝试标准绑定
 	err := Bind(c, obj)
 	if err != nil {
-		logger.Warn("绑定出错，尝试自定义处理", "error", err.Error())
+		logger.WarnWithTrace(c, "绑定出错，尝试自定义处理", "error", err.Error())
 
 		// 不管错误类型，尝试使用Map先接收数据
 		var rawData map[string]interface{} = make(map[string]interface{})
@@ -189,7 +159,7 @@ func BindSafely(c *gin.Context, obj interface{}) error {
 				cleanAndSetValue(obj, rawData)
 				return nil
 			} else {
-				logger.Warn("JSON数据绑定到map失败", "error", bindErr.Error())
+				logger.WarnWithTrace(c, "JSON数据绑定到map失败", "error", bindErr.Error())
 			}
 		} else if strings.Contains(contentType, "application/x-www-form-urlencoded") ||
 			strings.Contains(contentType, "multipart/form-data") {
@@ -550,4 +520,149 @@ func GetFormFile(c *gin.Context, name string) (*multipart.FileHeader, error) {
 // SaveUploadedFile 保存上传的文件
 func SaveUploadedFile(c *gin.Context, fileHeader *multipart.FileHeader, dst string) error {
 	return c.SaveUploadedFile(fileHeader, dst)
+}
+
+// GetParam 通用参数获取方法，支持从多种数据源获取参数
+// 
+// 获取参数的优先级：
+// 1. Query参数 (如: ?key=value)  
+// 2. URL路径参数 (如: /api/user/:id)
+// 3. 根据Content-Type处理Body数据：
+//    - application/json: 从JSON body获取
+//    - application/x-www-form-urlencoded: 从表单数据获取
+//    - multipart/form-data: 从文件上传表单获取
+//
+// 使用示例：
+//   // 获取参数，如果没有则返回空字符串
+//   id := request.GetParam(c, "id")
+//   
+//   // 获取参数，如果没有则返回默认值
+//   status := request.GetParam(c, "status", "active")
+//
+// 支持的请求类型：
+//   GET  /api/config?configId=123                    // Query参数
+//   POST /api/config {"configId": "123"}             // JSON Body
+//   POST /api/config (form: configId=123)            // 表单数据
+//   GET  /api/config/123 (路由: /api/config/:configId) // URL参数
+//
+// 优先级：Query参数 > URL参数 > 根据Content-Type处理Body数据
+func GetParam(c *gin.Context, key string, defaultValue ...string) string {
+	// 1. 首先尝试从Query参数获取
+	if value := c.Query(key); value != "" {
+		return value
+	}
+	
+	// 2. 尝试从URL路径参数获取
+	if value := c.Param(key); value != "" {
+		return value
+	}
+	
+	// 3. 根据Content-Type处理Body数据
+	contentType := c.GetHeader("Content-Type")
+	
+	if strings.Contains(contentType, "application/json") {
+		// 处理JSON数据
+		if value := getParamFromJSON(c, key); value != "" {
+			return value
+		}
+	} else if strings.Contains(contentType, "application/x-www-form-urlencoded") {
+		// 处理表单数据 (application/x-www-form-urlencoded)
+		if value := c.PostForm(key); value != "" {
+			return value
+		}
+	} else if strings.Contains(contentType, "multipart/form-data") {
+		// 处理文件上传表单数据 (multipart/form-data)
+		if value := c.PostForm(key); value != "" {
+			return value
+		}
+	}
+	
+	// 4. 返回默认值
+	if len(defaultValue) > 0 {
+		return defaultValue[0]
+	}
+	
+	return ""
+}
+
+// getParamFromJSON 从JSON Body中获取参数
+func getParamFromJSON(c *gin.Context, key string) string {
+	// 检查是否已经有缓存的JSON数据
+	if c.Keys != nil {
+		if data, exists := c.Keys["_json_params"]; exists {
+			if jsonData, ok := data.(map[string]interface{}); ok {
+				if value, exists := jsonData[key]; exists {
+					if strValue, ok := value.(string); ok {
+						return strValue
+					}
+					// 如果不是字符串类型，尝试转换
+					return fmt.Sprint(value)
+				}
+			}
+		}
+	}
+	
+	// 如果没有缓存数据，尝试解析JSON
+	bodyBytes, err := c.GetRawData()
+	if err != nil || len(bodyBytes) == 0 {
+		return ""
+	}
+	
+	var jsonData map[string]interface{}
+	if err := json.Unmarshal(bodyBytes, &jsonData); err != nil {
+		return ""
+	}
+	
+	// 缓存解析结果，避免重复解析
+	if c.Keys == nil {
+		c.Keys = make(map[string]interface{})
+	}
+	c.Keys["_json_params"] = jsonData
+	
+	// 重新设置body，以便后续的绑定操作能正常工作
+	c.Request.Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
+	
+	// 获取参数值
+	if value, exists := jsonData[key]; exists {
+		if strValue, ok := value.(string); ok {
+			return strValue
+		}
+		// 如果不是字符串类型，尝试转换
+		return fmt.Sprint(value)
+	}
+	
+	return ""
+}
+
+// GetParamInt 获取整数类型参数
+func GetParamInt(c *gin.Context, key string, defaultValue int) int {
+	valueStr := GetParam(c, key)
+	if valueStr == "" {
+		return defaultValue
+	}
+	
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return defaultValue
+	}
+	
+	return value
+}
+
+// GetParamBool 获取布尔类型参数
+func GetParamBool(c *gin.Context, key string, defaultValue bool) bool {
+	valueStr := GetParam(c, key)
+	if valueStr == "" {
+		return defaultValue
+	}
+	
+	// 处理常见的布尔值表示
+	switch strings.ToLower(valueStr) {
+	case "1", "true", "t", "yes", "y", "on":
+		return true
+	case "0", "false", "f", "no", "n", "off":
+		return false
+	default:
+		return defaultValue
+	}
 }

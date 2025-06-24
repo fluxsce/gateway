@@ -40,7 +40,7 @@ func (dao *AuthDAO) UpdateLastLogin(ctx context.Context, userId, tenantId, login
 	}, true)
 
 	if err != nil {
-		logger.Error("更新登录信息失败", err, "userId", userId)
+		logger.ErrorWithTrace(ctx, "更新登录信息失败", err, "userId", userId)
 		return err
 	}
 
@@ -104,7 +104,7 @@ func (dao *AuthDAO) RecordLoginLog(ctx context.Context, logId, userId, tenantId,
 	}, true)
 
 	if err != nil {
-		logger.Error("记录登录日志失败", err, "userId", userId)
+		logger.ErrorWithTrace(ctx, "记录登录日志失败", err, "userId", userId)
 		return err
 	}
 
@@ -214,7 +214,7 @@ func (dao *AuthDAO) ValidateRefreshToken(ctx context.Context, userId, tenantId, 
 	}, true)
 
 	if err != nil {
-		logger.Error("验证刷新令牌失败", err, "userId", userId)
+		logger.ErrorWithTrace(ctx, "验证刷新令牌失败", err, "userId", userId)
 		return false, err
 	}
 
@@ -249,7 +249,7 @@ func (dao *AuthDAO) SaveRefreshToken(ctx context.Context, userId, tenantId, refr
 	}, true)
 
 	if err != nil {
-		logger.Error("保存刷新令牌失败", err, "userId", userId)
+		logger.ErrorWithTrace(ctx, "保存刷新令牌失败", err, "userId", userId)
 		return err
 	}
 
@@ -272,7 +272,7 @@ func (dao *AuthDAO) InvalidateRefreshToken(ctx context.Context, userId, tenantId
 	}, true)
 
 	if err != nil {
-		logger.Error("使刷新令牌失效失败", err, "userId", userId)
+		logger.ErrorWithTrace(ctx, "使刷新令牌失效失败", err, "userId", userId)
 		return err
 	}
 
@@ -295,7 +295,7 @@ func (dao *AuthDAO) CleanupExpiredTokens(ctx context.Context) (int, error) {
 	}, true)
 
 	if err != nil {
-		logger.Error("清理过期令牌失败", err)
+		logger.ErrorWithTrace(ctx, "清理过期令牌失败", err)
 		return 0, err
 	}
 

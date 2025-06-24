@@ -21,9 +21,17 @@ const (
 	// 用于修改请求体内容
 	BodyFilterType FilterType = "body"
 
-	// URLFilterType URL过滤器
-	// 用于修改请求URL（路径或完整URL）
+	// URLFilterType URL过滤器（通用类型）
+	// 用于URL路径相关的过滤操作
 	URLFilterType FilterType = "url"
+
+	// StripFilterType 前缀剥离过滤器
+	// 用于剥离URL路径前缀
+	StripFilterType FilterType = "strip"
+
+	// RewriteFilterType 路径重写过滤器
+	// 用于重写URL路径
+	RewriteFilterType FilterType = "rewrite"
 
 	// MethodFilterType HTTP方法过滤器
 	// 用于修改请求方法
@@ -60,6 +68,7 @@ const (
 type FilterConfig struct {
 	ID      string                 `yaml:"id" json:"id" mapstructure:"id"`
 	Name    string                 `yaml:"name" json:"name" mapstructure:"name"`
+	Type    string                 `yaml:"type" json:"type" mapstructure:"type"`                         // 明确的过滤器类型
 	Enabled bool                   `yaml:"enabled" json:"enabled" mapstructure:"enabled"`
 	Order   int                    `yaml:"order" json:"order" mapstructure:"order"`
 	Action  string                 `yaml:"action,omitempty" json:"action,omitempty" mapstructure:"action,omitempty"`

@@ -6,7 +6,7 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${workspaceFolder}/cmd/gateway/main.go",
+            "program": "${workspaceFolder}/cmd/app/main.go",
             "cwd": "${workspaceFolder}",
             "env": {
                 "GOHUB_ENV": "development"

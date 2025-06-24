@@ -1,5 +1,40 @@
 package security
 
+/*
+DefaultPolicy 使用说明和示例：
+
+1. IP访问控制示例：
+   - DefaultPolicy: "allow" + Blacklist: ["192.168.1.100"]
+     效果：允许所有IP访问，但拒绝192.168.1.100
+
+   - DefaultPolicy: "deny" + Whitelist: ["192.168.1.0/24"]
+     效果：只允许192.168.1.0/24网段访问，拒绝其他所有IP
+
+   - DefaultPolicy: "allow" + Whitelist: ["192.168.1.10"] + Blacklist: ["192.168.1.100"]
+     效果：优先拒绝192.168.1.100（黑名单优先），其他IP默认允许
+
+2. User-Agent访问控制示例：
+   - DefaultPolicy: "allow" + Blacklist: [".*bot.*"]
+     效果：允许所有访问，但拒绝包含"bot"的User-Agent
+
+   - DefaultPolicy: "deny" + Whitelist: ["Mozilla.*Firefox.*"]
+     效果：只允许Firefox浏览器访问
+
+3. API接口访问控制示例：
+   - DefaultPolicy: "allow" + Blacklist: ["/admin/*"]
+     效果：允许访问所有API，但拒绝/admin/路径下的请求
+
+   - DefaultPolicy: "deny" + Whitelist: ["/api/v1/*"] + AllowedMethods: ["GET", "POST"]
+     效果：只允许访问/api/v1/路径，且只支持GET和POST方法
+
+4. 域名访问控制示例：
+   - DefaultPolicy: "allow" + Blacklist: ["malicious.com"]
+     效果：允许所有域名访问，但拒绝malicious.com
+
+   - DefaultPolicy: "deny" + Whitelist: ["api.example.com"] + AllowSubdomains: true
+     效果：只允许api.example.com及其子域名访问
+*/
+
 import (
 	"fmt"
 	"net"
@@ -42,9 +77,24 @@ type SecurityHandler interface {
 }
 
 // SecurityConfig 安全配置
+// 
+// 安全配置提供多层访问控制机制，包括IP访问控制、User-Agent访问控制、
+// API接口访问控制和域名访问控制。每种控制都支持白名单和黑名单模式。
+//
+// DefaultPolicy 工作原理：
+// - "allow" 模式：默认允许访问，通过黑名单拒绝特定请求
+// - "deny" 模式：默认拒绝访问，只允许白名单中的请求
+//
+// 优先级规则：
+// 1. 黑名单优先级高于白名单（黑名单中的请求总是被拒绝）
+// 2. 白名单优先级高于默认策略
+// 3. 如果没有匹配任何白名单或黑名单，则使用默认策略
+//
 // 安全配置ID
 type SecurityConfig struct {
 	ID string `json:"id" yaml:"id" mapstructure:"id"`
+	// 安全配置名称
+	Name string `json:"name" yaml:"name" mapstructure:"name"`
 	// 是否启用安全检查
 	Enabled bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
 	// IP访问控制
@@ -63,9 +113,14 @@ type SecurityConfig struct {
 type IPAccessConfig struct {
 	// IP访问控制配置ID
 	ID string `json:"id" yaml:"id" mapstructure:"id"`
+	// IP访问控制配置名称
+	Name string `json:"name" yaml:"name" mapstructure:"name"`
 	// 是否启用IP访问控制
 	Enabled bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
 	// 默认策略: "allow" 或 "deny"
+	// - "allow": 默认允许访问，只有在黑名单中的IP会被拒绝
+	// - "deny": 默认拒绝访问，只有在白名单中的IP才被允许
+	// 注意: 黑名单优先级高于白名单，无论默认策略如何，黑名单中的IP都会被拒绝
 	DefaultPolicy string `json:"default_policy" yaml:"default_policy" mapstructure:"default_policy"`
 	// IP白名单
 	Whitelist []string `json:"whitelist" yaml:"whitelist" mapstructure:"whitelist"`
@@ -85,9 +140,14 @@ type IPAccessConfig struct {
 type UserAgentAccessConfig struct {
 	// User-Agent访问控制配置ID
 	ID string `json:"id" yaml:"id" mapstructure:"id"`
+	// User-Agent访问控制配置名称
+	Name string `json:"name" yaml:"name" mapstructure:"name"`
 	// 是否启用User-Agent访问控制
 	Enabled bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
 	// 默认策略: "allow" 或 "deny"
+	// - "allow": 默认允许访问，只有在黑名单中的User-Agent会被拒绝
+	// - "deny": 默认拒绝访问，只有在白名单中的User-Agent才被允许
+	// 注意: 黑名单优先级高于白名单，无论默认策略如何，黑名单中的User-Agent都会被拒绝
 	DefaultPolicy string `json:"default_policy" yaml:"default_policy" mapstructure:"default_policy"`
 	// User-Agent白名单（支持正则表达式）
 	Whitelist []string `json:"whitelist" yaml:"whitelist" mapstructure:"whitelist"`
@@ -101,9 +161,14 @@ type UserAgentAccessConfig struct {
 type APIAccessConfig struct {
 	// API访问控制配置ID
 	ID string `json:"id" yaml:"id" mapstructure:"id"`
+	// API访问控制配置名称
+	Name string `json:"name" yaml:"name" mapstructure:"name"`
 	// 是否启用API访问控制
 	Enabled bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
 	// 默认策略: "allow" 或 "deny"
+	// - "allow": 默认允许访问，只有在黑名单中的API路径会被拒绝
+	// - "deny": 默认拒绝访问，只有在白名单中的API路径才被允许
+	// 注意: 黑名单优先级高于白名单，无论默认策略如何，黑名单中的API路径都会被拒绝
 	DefaultPolicy string `json:"default_policy" yaml:"default_policy" mapstructure:"default_policy"`
 	// API路径白名单（支持通配符）
 	Whitelist []string `json:"whitelist" yaml:"whitelist" mapstructure:"whitelist"`
@@ -119,9 +184,14 @@ type APIAccessConfig struct {
 type DomainAccessConfig struct {
 	// 域名访问控制配置ID
 	ID string `json:"id" yaml:"id" mapstructure:"id"`
+	// 域名访问控制配置名称
+	Name string `json:"name" yaml:"name" mapstructure:"name"`
 	// 是否启用域名访问控制
 	Enabled bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
 	// 默认策略: "allow" 或 "deny"
+	// - "allow": 默认允许访问，只有在黑名单中的域名会被拒绝
+	// - "deny": 默认拒绝访问，只有在白名单中的域名才被允许
+	// 注意: 黑名单优先级高于白名单，无论默认策略如何，黑名单中的域名都会被拒绝
 	DefaultPolicy string `json:"default_policy" yaml:"default_policy" mapstructure:"default_policy"`
 	// 允许的域名列表
 	Whitelist []string `json:"whitelist" yaml:"whitelist" mapstructure:"whitelist"`
@@ -134,9 +204,11 @@ type DomainAccessConfig struct {
 // DefaultSecurityConfig 默认安全配置
 var DefaultSecurityConfig = SecurityConfig{
 	ID:      "default-security",
+	Name:    "Default Security Configuration",
 	Enabled: false,
 	IPAccess: IPAccessConfig{
 		ID:                 "default-ip-access",
+		Name:               "Default IP Access Control",
 		Enabled:            false,
 		DefaultPolicy:      "allow",
 		Whitelist:          []string{},
@@ -148,6 +220,7 @@ var DefaultSecurityConfig = SecurityConfig{
 	},
 	UserAgentAccess: UserAgentAccessConfig{
 		ID:            "default-useragent-access",
+		Name:          "Default User-Agent Access Control",
 		Enabled:       false,
 		DefaultPolicy: "allow",
 		Whitelist:     []string{},
@@ -156,6 +229,7 @@ var DefaultSecurityConfig = SecurityConfig{
 	},
 	APIAccess: APIAccessConfig{
 		ID:             "default-api-access",
+		Name:           "Default API Access Control",
 		Enabled:        false,
 		DefaultPolicy:  "allow",
 		Whitelist:      []string{},
@@ -165,6 +239,7 @@ var DefaultSecurityConfig = SecurityConfig{
 	},
 	DomainAccess: DomainAccessConfig{
 		ID:              "default-domain-access",
+		Name:            "Default Domain Access Control",
 		Enabled:         false,
 		DefaultPolicy:   "allow",
 		Whitelist:       []string{},
@@ -192,7 +267,9 @@ func NewSecurity(config *SecurityConfig) *Security {
 	if config != nil {
 		security.config = *config
 		security.enabled = config.Enabled
-		if config.ID != "" {
+		if config.Name != "" {
+			security.name = config.Name
+		} else if config.ID != "" {
 			security.name = config.ID
 		}
 	}
@@ -307,6 +384,13 @@ func (s *Security) SetConfig(config SecurityConfig) {
 }
 
 // checkIPAccess 检查IP访问权限
+// 
+// DefaultPolicy 实现逻辑：
+// 1. 优先检查黑名单：如果IP在黑名单中，直接拒绝
+// 2. 检查白名单：如果IP在白名单中，直接允许
+// 3. 应用默认策略：
+//    - "allow": 默认允许（黑名单之外的IP都允许）
+//    - "deny": 默认拒绝（只有白名单中的IP才允许）
 func (s *Security) checkIPAccess(ctx *core.Context) bool {
 	if !s.config.IPAccess.Enabled {
 		return true
@@ -322,32 +406,39 @@ func (s *Security) checkIPAccess(ctx *core.Context) bool {
 		return false
 	}
 
-	// 检查黑名单
+	// 1. 优先检查黑名单（黑名单优先级最高）
 	if s.isIPInList(clientIP, s.config.IPAccess.Blacklist) ||
 		s.isIPInCIDRList(ip, s.config.IPAccess.BlacklistCIDR) {
 		return false
 	}
 
-	// 检查白名单
-	if len(s.config.IPAccess.Whitelist) > 0 || len(s.config.IPAccess.WhitelistCIDR) > 0 {
-		if !s.isIPInList(clientIP, s.config.IPAccess.Whitelist) &&
-			!s.isIPInCIDRList(ip, s.config.IPAccess.WhitelistCIDR) {
-			return false
-		}
+	// 2. 检查白名单（白名单优先级高于默认策略）
+	isInWhitelist := s.isIPInList(clientIP, s.config.IPAccess.Whitelist) ||
+		s.isIPInCIDRList(ip, s.config.IPAccess.WhitelistCIDR)
+	
+	if isInWhitelist {
+		return true
 	}
 
-	// 检查默认策略
+	// 3. 应用默认策略
 	if s.config.IPAccess.DefaultPolicy == "deny" {
-		if !s.isIPInList(clientIP, s.config.IPAccess.Whitelist) &&
-			!s.isIPInCIDRList(ip, s.config.IPAccess.WhitelistCIDR) {
-			return false
-		}
+		// 默认拒绝：只有白名单中的IP才允许（已在上面检查过）
+		return false
 	}
 
+	// 默认允许：除了黑名单之外的IP都允许（黑名单已在上面检查过）
 	return true
 }
 
 // checkUserAgentAccess 检查User-Agent访问权限
+// 
+// DefaultPolicy 实现逻辑：
+// 1. 检查是否阻止空User-Agent
+// 2. 优先检查黑名单：如果User-Agent在黑名单中，直接拒绝
+// 3. 检查白名单：如果User-Agent在白名单中，直接允许
+// 4. 应用默认策略：
+//    - "allow": 默认允许（黑名单之外的User-Agent都允许）
+//    - "deny": 默认拒绝（只有白名单中的User-Agent才允许）
 func (s *Security) checkUserAgentAccess(ctx *core.Context) bool {
 	if !s.config.UserAgentAccess.Enabled {
 		return true
@@ -355,34 +446,42 @@ func (s *Security) checkUserAgentAccess(ctx *core.Context) bool {
 
 	userAgent := ctx.Request.Header.Get("User-Agent")
 
-	// 检查是否阻止空User-Agent
+	// 1. 检查是否阻止空User-Agent（优先级最高）
 	if s.config.UserAgentAccess.BlockEmpty && userAgent == "" {
 		return false
 	}
 
-	// 检查黑名单
+	// 2. 优先检查黑名单（黑名单优先级最高）
 	if s.isUserAgentInList(userAgent, s.config.UserAgentAccess.Blacklist) {
 		return false
 	}
 
-	// 检查白名单
-	if len(s.config.UserAgentAccess.Whitelist) > 0 {
-		if !s.isUserAgentInList(userAgent, s.config.UserAgentAccess.Whitelist) {
-			return false
-		}
+	// 3. 检查白名单（白名单优先级高于默认策略）
+	isInWhitelist := s.isUserAgentInList(userAgent, s.config.UserAgentAccess.Whitelist)
+	
+	if isInWhitelist {
+		return true
 	}
 
-	// 检查默认策略
+	// 4. 应用默认策略
 	if s.config.UserAgentAccess.DefaultPolicy == "deny" {
-		if !s.isUserAgentInList(userAgent, s.config.UserAgentAccess.Whitelist) {
-			return false
-		}
+		// 默认拒绝：只有白名单中的User-Agent才允许（已在上面检查过）
+		return false
 	}
 
+	// 默认允许：除了黑名单之外的User-Agent都允许（黑名单已在上面检查过）
 	return true
 }
 
 // checkAPIAccess 检查API接口访问权限
+// 
+// DefaultPolicy 实现逻辑：
+// 1. 检查HTTP方法限制
+// 2. 优先检查API路径黑名单：如果路径在黑名单中，直接拒绝
+// 3. 检查API路径白名单：如果路径在白名单中，直接允许
+// 4. 应用默认策略：
+//    - "allow": 默认允许（黑名单之外的API路径都允许）
+//    - "deny": 默认拒绝（只有白名单中的API路径才允许）
 func (s *Security) checkAPIAccess(ctx *core.Context) bool {
 	if !s.config.APIAccess.Enabled {
 		return true
@@ -391,7 +490,7 @@ func (s *Security) checkAPIAccess(ctx *core.Context) bool {
 	path := ctx.Request.URL.Path
 	method := ctx.Request.Method
 
-	// 检查HTTP方法
+	// 1. 检查HTTP方法限制（优先级最高）
 	if len(s.config.APIAccess.BlockedMethods) > 0 {
 		if s.isStringInList(method, s.config.APIAccess.BlockedMethods) {
 			return false
@@ -404,29 +503,37 @@ func (s *Security) checkAPIAccess(ctx *core.Context) bool {
 		}
 	}
 
-	// 检查API路径黑名单
+	// 2. 优先检查API路径黑名单（黑名单优先级最高）
 	if s.isPathInList(path, s.config.APIAccess.Blacklist) {
 		return false
 	}
 
-	// 检查API路径白名单
-	if len(s.config.APIAccess.Whitelist) > 0 {
-		if !s.isPathInList(path, s.config.APIAccess.Whitelist) {
-			return false
-		}
+	// 3. 检查API路径白名单（白名单优先级高于默认策略）
+	isInWhitelist := s.isPathInList(path, s.config.APIAccess.Whitelist)
+	
+	if isInWhitelist {
+		return true
 	}
 
-	// 检查默认策略
+	// 4. 应用默认策略
 	if s.config.APIAccess.DefaultPolicy == "deny" {
-		if !s.isPathInList(path, s.config.APIAccess.Whitelist) {
-			return false
-		}
+		// 默认拒绝：只有白名单中的API路径才允许（已在上面检查过）
+		return false
 	}
 
+	// 默认允许：除了黑名单之外的API路径都允许（黑名单已在上面检查过）
 	return true
 }
 
 // checkDomainAccess 检查域名访问权限
+// 
+// DefaultPolicy 实现逻辑：
+// 1. 获取并清理域名（移除端口号）
+// 2. 优先检查域名黑名单：如果域名在黑名单中，直接拒绝
+// 3. 检查域名白名单：如果域名在白名单中，直接允许
+// 4. 应用默认策略：
+//    - "allow": 默认允许（黑名单之外的域名都允许）
+//    - "deny": 默认拒绝（只有白名单中的域名才允许）
 func (s *Security) checkDomainAccess(ctx *core.Context) bool {
 	if !s.config.DomainAccess.Enabled {
 		return true
@@ -437,30 +544,30 @@ func (s *Security) checkDomainAccess(ctx *core.Context) bool {
 		return false
 	}
 
-	// 移除端口号
+	// 1. 移除端口号，获取纯域名
 	if colonIndex := strings.Index(host, ":"); colonIndex != -1 {
 		host = host[:colonIndex]
 	}
 
-	// 检查黑名单
+	// 2. 优先检查域名黑名单（黑名单优先级最高）
 	if s.isDomainInList(host, s.config.DomainAccess.Blacklist) {
 		return false
 	}
 
-	// 检查白名单
-	if len(s.config.DomainAccess.Whitelist) > 0 {
-		if !s.isDomainInList(host, s.config.DomainAccess.Whitelist) {
-			return false
-		}
+	// 3. 检查域名白名单（白名单优先级高于默认策略）
+	isInWhitelist := s.isDomainInList(host, s.config.DomainAccess.Whitelist)
+	
+	if isInWhitelist {
+		return true
 	}
 
-	// 检查默认策略
+	// 4. 应用默认策略
 	if s.config.DomainAccess.DefaultPolicy == "deny" {
-		if !s.isDomainInList(host, s.config.DomainAccess.Whitelist) {
-			return false
-		}
+		// 默认拒绝：只有白名单中的域名才允许（已在上面检查过）
+		return false
 	}
 
+	// 默认允许：除了黑名单之外的域名都允许（黑名单已在上面检查过）
 	return true
 }
 

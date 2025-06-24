@@ -36,15 +36,32 @@ func Init(router *gin.Engine, db database.Database) {
 	{
 		// 公开API - 不需要认证的路由
 		authGroup.POST("/login", routes.PublicAPI(), authController.Login)
+		authGroup.POST("/captcha", routes.PublicAPI(), authController.GetCaptcha)
 
-		// 受保护API - 需要认证的路由
-		// 使用新的认证中间件
-		routes.RegisterProtectedRoutes(router, APIPrefix, func(authenticated *gin.RouterGroup) {
-			authenticated.POST("/userinfo", authController.UserInfo)
-			authenticated.POST("/refresh-token", authController.RefreshToken)
-			authenticated.POST("/logout", authController.Logout)
-			authenticated.POST("/password", authController.ChangePassword)
-		})
+		// 受保护API - 需要Session认证的路由
+		sessionGroup := authGroup.Group("")
+		sessionGroup.Use(routes.AuthRequired()) // 必须有有效session
+		{
+			sessionGroup.GET("/userinfo", authController.UserInfo)
+			sessionGroup.POST("/refresh-session", authController.RefreshSession)
+			sessionGroup.POST("/logout", authController.Logout)
+			sessionGroup.PUT("/password", authController.ChangePassword)
+		}
+
+		// Session示例路由（如果要使用session验证，可以取消注释）
+		// sessionGroup := authGroup.Group("")
+		// sessionGroup.Use(routes.SessionRequired()) // 必须有有效session
+		// {
+		//     sessionGroup.GET("/session-info", authController.GetSessionInfo)
+		//     sessionGroup.POST("/session-refresh", authController.RefreshSession)
+		// }
+
+		// 可选session示例路由
+		// optionalSessionGroup := authGroup.Group("")
+		// optionalSessionGroup.Use(routes.OptionalSession()) // session可选
+		// {
+		//     optionalSessionGroup.GET("/public-with-session", authController.PublicWithOptionalSession)
+		// }
 
 		// 或者也可以继续使用路由组方式，但使用新的中间件
 		// protected := authGroup.Group("")

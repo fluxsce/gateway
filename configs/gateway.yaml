@@ -128,6 +128,7 @@ router:
           enabled: true
           order: 100
           action: "post-routing"
+          type: "url"
           config:
             type: "url"
             from_pattern: "/api/v1/users/(.*)"
@@ -138,6 +139,7 @@ router:
           enabled: true
           order: 200
           action: "post-routing"
+          type: "header"
           config:
             type: "header"
             action: "add"
@@ -214,6 +216,7 @@ router:
           enabled: true
           order: 100
           action: "post-routing"
+          type: "url"
           config:
             type: "url"
             from_pattern: "/api/v1/orders/(.*)"
@@ -270,6 +273,7 @@ router:
       enabled: true
       order: 10
       action: "pre-routing"
+      type: "header"
       config:
         type: "header"
         action: "add"
@@ -281,6 +285,7 @@ router:
       enabled: true
       order: 90
       action: "pre-routing"
+      type: "header"
       config:
         type: "header"
         action: "add"

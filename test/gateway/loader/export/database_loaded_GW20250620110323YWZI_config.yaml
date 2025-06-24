@@ -1,0 +1,350 @@
+instance_id: GW20250620110323YWZI
+base:
+    listen: 0.0.0.0:8080
+    name: test001
+    read_timeout: 30s
+    write_timeout: 30s
+    idle_timeout: 1m0s
+    max_body_size: 1048576
+    enable_https: false
+    cert_file: ""
+    key_file: ""
+    use_gin: true
+    enable_access_log: true
+    log_format: json
+    log_level: info
+    enable_gzip: true
+router:
+    id: RC20250622091536RC89
+    enabled: true
+    name: 默认Router
+    routes:
+        - id: RT20250623000122XNJJ
+          name: te
+          service_id: ""
+          path: /tes
+          methods:
+            - GET
+          enabled: true
+          priority: 100
+          metadata:
+            allowed_hosts:
+                - ""
+            enable_websocket: false
+            match_type: 1
+            retry_count: 0
+            retry_interval_ms: 1000
+            rewrite_path: ""
+            strip_prefix: false
+            timeout_ms: 30000
+          assertion_group_config:
+            id: RT20250623000122XNJJ_assertions
+            assertions:
+                - id: RA202506230946097TZP
+                  type: header
+                  name: test
+                  value: "100"
+                  operator: equal
+                  case_sensitive: true
+                  description: 断言测试
+                - id: RA20250623121402DJDH
+                  type: query
+                  name: aa
+                  value: ee
+                  operator: equal
+                  case_sensitive: true
+            all_required: true
+            description: te - 路由断言组
+          filter_config:
+            - id: FC20250623005830ECHA
+              name: tete
+              type: header
+              enabled: true
+              order: 1
+              action: post-routing
+              config:
+                headerName: ww
+                headerValue: www
+                isRequestHeader: true
+                modifierType: add
+                targetHeaderName: ""
+            - id: FC202506230058386ETF
+              name: ss
+              type: header
+              enabled: true
+              order: 1
+              action: post-routing
+              config:
+                headerName: s
+                headerValue: s
+                isRequestHeader: true
+                modifierType: add
+                targetHeaderName: ""
+          cors_config:
+            id: CORS20250623004601K16X
+            name: CORS跨域配置
+            enabled: true
+            allow_origins:
+                - '*'
+            allow_methods:
+                - GET
+                - POST
+                - PUT
+                - DELETE
+                - OPTIONS
+            allow_headers:
+                - Content-Type
+                - Authorization
+                - X-Requested-With
+            max_age: 86400
+          limiter_config:
+            id: RATE20250623004709N0NF
+            name: 限流规则
+            enabled: true
+            algorithm: token-bucket
+            rate: 100
+            burst: 200
+            error_status_code: 429
+            error_message: 请求过于频繁，请稍后再试
+          auth_config:
+            id: AUTH20250623004645QUEK
+            enabled: true
+            strategy: basic
+            name: 认证配置
+            config:
+                algorithm: HS256
+                clientID: ""
+                clientSecret: ""
+                expiration: 3600
+                includeInResponse: false
+                introspectEndpoint: ""
+                issuer: ""
+                keyLocation: header
+                keyName: X-API-Key
+                password: test
+                refreshWindow: 300
+                responseHeaderName: X-Auth-Token
+                scope: ""
+                secret: ""
+                tokenEndpoint: ""
+                username: test
+                validKeys: []
+                verifyExpiration: true
+                verifyIssuer: false
+          security_config:
+            id: SC20250623104550FZS3
+            name: tese
+            enabled: true
+            ip_access:
+                id: IP20250623115608JSDP
+                name: IP访问控制配置
+                enabled: true
+                default_policy: allow
+                whitelist:
+                    - '["192.168.0.1"]'
+                blacklist:
+                    - '[]'
+                whitelist_cidr:
+                    - '[]'
+                blacklist_cidr:
+                    - '[]'
+                trust_x_forwarded_for: false
+                trust_x_real_ip: false
+            user_agent_access:
+                id: ""
+                name: ""
+                enabled: false
+                default_policy: ""
+                whitelist: []
+                blacklist: []
+                block_empty: false
+            api_access:
+                id: API20250623121324K13C
+                name: API访问控制配置
+                enabled: true
+                default_policy: allow
+                whitelist:
+                    - '["/aa"]'
+                blacklist:
+                    - '[]'
+                allowed_methods:
+                    - '[]'
+                blocked_methods:
+                    - '[]'
+            domain_access:
+                id: ""
+                name: ""
+                enabled: false
+                default_policy: ""
+                whitelist: []
+                blacklist: []
+                allow_subdomains: false
+        - id: RT20250623001653MYGD
+          name: wew
+          service_id: SD202506231809578RN5
+          path: /ww
+          methods:
+            - GET
+            - POST
+          enabled: true
+          priority: 100
+          metadata:
+            allowed_hosts:
+                - ""
+            enable_websocket: false
+            match_type: 1
+            retry_count: 0
+            retry_interval_ms: 1000
+            rewrite_path: ""
+            strip_prefix: false
+            timeout_ms: 30000
+    default_priority: 100
+    enable_route_cache: true
+    route_cache_ttl: 300
+proxy:
+    id: PC20250623164657ORZC
+    enabled: true
+    type: http
+    name: 系统
+    service:
+        - id: SD202506231809578RN5
+          name: datahub
+          strategy: round-robin
+          nodes:
+            - id: db626e3672ce4b46886aa687bf6c1b76
+              url: http://192.168.1.0:8080
+              weight: 101
+              metadata: {}
+              health: true
+              enabled: true
+          load_balancer:
+            id: lb-SD202506231809578RN5
+            strategy: round-robin
+            health_check:
+                id: hc-SD202506231809578RN5
+                enabled: true
+                path: /health
+                method: GET
+                interval: 30s
+                timeout: 5s
+                healthy_threshold: 2
+                unhealthy_threshold: 3
+                expected_status_codes:
+                    - 200
+            session_affinity: false
+            sticky_session: false
+            max_retries: 4
+            retry_timeout: 5s
+            circuit_breaker: false
+    config:
+        followRedirects: true
+        keepAlive: true
+        maxIdleConns: 100
+        readTimeout: 60s
+        retryCount: 3
+        timeout: 60s
+        writeTimeout: 60s
+security:
+    id: SC20250620165413KXXS
+    name: 全局校验
+    enabled: true
+    ip_access:
+        id: IP20250621003333VTYH
+        name: IP访问控制
+        enabled: true
+        default_policy: allow
+        whitelist:
+            - '["192.168.33.22"]'
+        blacklist:
+            - '[]'
+        whitelist_cidr:
+            - '[]'
+        blacklist_cidr:
+            - '[]'
+        trust_x_forwarded_for: true
+        trust_x_real_ip: true
+    user_agent_access:
+        id: UA20250621114719THHO
+        name: User-Agent访问控制配置
+        enabled: true
+        default_policy: allow
+        whitelist:
+            - '["postman"]'
+        blacklist:
+            - '[]'
+        block_empty: true
+    api_access:
+        id: API20250621120822UK3D
+        name: API访问控制配置
+        enabled: true
+        default_policy: deny
+        whitelist:
+            - '[]'
+        blacklist:
+            - '[]'
+        allowed_methods:
+            - '[]'
+        blocked_methods:
+            - '["option"]'
+    domain_access:
+        id: DOM20250621120936ILIV
+        name: 域名访问控制配置
+        enabled: true
+        default_policy: deny
+        whitelist:
+            - '[]'
+        blacklist:
+            - '["www.baidu.com"]'
+        allow_subdomains: true
+auth:
+    id: AUTH202506211744211RDL
+    enabled: true
+    strategy: basic
+    name: 认证配置
+    config:
+        algorithm: HS256
+        clientID: ""
+        clientSecret: ""
+        expiration: 3600
+        includeInResponse: false
+        introspectEndpoint: ""
+        issuer: ""
+        keyLocation: header
+        keyName: X-API-Key
+        password: S
+        refreshWindow: 300
+        responseHeaderName: X-Auth-Token
+        scope: ""
+        secret: ""
+        tokenEndpoint: ""
+        username: S
+        validKeys: []
+        verifyExpiration: true
+        verifyIssuer: false
+cors:
+    id: CORS20250621153026CP3N
+    name: CORS跨域配置
+    enabled: true
+    allow_origins:
+        - '*'
+    allow_methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+    allow_headers:
+        - Content-Type
+        - Authorization
+        - X-Requested-With
+    allow_credentials: true
+    max_age: 86400
+rate_limit:
+    id: RATE202506212019168REJ
+    name: 限流规则
+    enabled: true
+    algorithm: token-bucket
+    rate: 100
+    burst: 200
+    error_status_code: 429
+    error_message: 请求过于频繁，请稍后再试

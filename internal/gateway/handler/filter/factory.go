@@ -23,23 +23,30 @@ func (f *FilterFactory) CreateFilter(config FilterConfig) (Filter, error) {
 		config.Name = config.ID
 	}
 
+	// 验证过滤器类型是否明确指定
+	if config.Type == "" {
+		return nil, fmt.Errorf("过滤器类型不能为空，必须明确指定")
+	}
+
 	// 使用配置中的order字段，如果没有则使用默认值100
 	order := config.Order
 	if order <= 0 {
 		order = 100
 	}
 
-	// 根据过滤器ID推断类型
-	filterType := f.inferFilterType(config)
-
-	// 根据过滤器类型委托给具体的实现类创建
-	switch filterType {
+	// 根据明确指定的过滤器类型创建对应的过滤器
+	switch FilterType(config.Type) {
 	case HeaderFilterType:
 		return HeaderFilterFromConfig(config)
 	case QueryParamFilterType:
 		return QueryParamFilterFromConfig(config)
 	case URLFilterType:
-		return URLFilterFromConfig(config)
+		// URL过滤器根据子类型分发到具体的过滤器
+		return createURLFilter(config)
+	case StripFilterType:
+		return StripPrefixFilterFromConfig(config)
+	case RewriteFilterType:
+		return PathRewriteFilterFromConfig(config)
 	case BodyFilterType:
 		return BodyFilterFromConfig(config)
 	case MethodFilterType:
@@ -49,52 +56,30 @@ func (f *FilterFactory) CreateFilter(config FilterConfig) (Filter, error) {
 	case ResponseFilterType:
 		return ResponseFilterFromConfig(config)
 	default:
-		return nil, fmt.Errorf("不支持的过滤器类型: %s", filterType)
+		return nil, fmt.Errorf("不支持的过滤器类型: %s", config.Type)
 	}
 }
 
-// inferFilterType 根据配置推断过滤器类型
-func (f *FilterFactory) inferFilterType(config FilterConfig) FilterType {
-	name := strings.ToLower(config.Name)
-	id := strings.ToLower(config.ID)
-
-	// 根据ID或名称中的关键词推断类型
-	if f.containsAny([]string{name, id}, []string{"header", "headers"}) {
-		return HeaderFilterType
-	}
-	if f.containsAny([]string{name, id}, []string{"query", "param", "parameter"}) {
-		return QueryParamFilterType
-	}
-	if f.containsAny([]string{name, id}, []string{"path", "url", "rewrite", "strip", "prefix"}) {
-		return URLFilterType
-	}
-	if f.containsAny([]string{name, id}, []string{"body", "content"}) {
-		return BodyFilterType
-	}
-	if f.containsAny([]string{name, id}, []string{"method", "verb"}) {
-		return MethodFilterType
-	}
-	if f.containsAny([]string{name, id}, []string{"cookie", "cookies"}) {
-		return CookieFilterType
-	}
-	if f.containsAny([]string{name, id}, []string{"response", "resp"}) {
-		return ResponseFilterType
-	}
-
-	// 默认返回头部过滤器类型
-	return HeaderFilterType
-}
-
-// containsAny 检查字符串列表中是否包含任意关键词
-func (f *FilterFactory) containsAny(texts []string, keywords []string) bool {
-	for _, text := range texts {
-		for _, keyword := range keywords {
-			if strings.Contains(text, keyword) {
-				return true
-			}
+// createURLFilter 创建URL过滤器（根据子类型分发）
+func createURLFilter(config FilterConfig) (Filter, error) {
+	// 从配置中获取URL过滤器的子类型
+	subType := "rewrite" // 默认为路径重写
+	if config.Config != nil {
+		if st, ok := config.Config["sub_type"].(string); ok {
+			subType = strings.ToLower(st)
 		}
 	}
-	return false
+
+	// 根据子类型创建对应的过滤器
+	switch subType {
+	case "strip", "strip-prefix":
+		return StripPrefixFilterFromConfig(config)
+	case "rewrite", "path-rewrite":
+		return PathRewriteFilterFromConfig(config)
+	default:
+		// 默认创建路径重写过滤器
+		return PathRewriteFilterFromConfig(config)
+	}
 }
 
 // GetSupportedFilterTypes 获取支持的过滤器类型列表
@@ -103,6 +88,8 @@ func GetSupportedFilterTypes() []FilterType {
 		HeaderFilterType,
 		QueryParamFilterType,
 		URLFilterType,
+		StripFilterType,
+		RewriteFilterType,
 		BodyFilterType,
 		MethodFilterType,
 		CookieFilterType,
@@ -115,7 +102,9 @@ func GetFilterTypeDescription(filterType FilterType) string {
 	descriptions := map[FilterType]string{
 		HeaderFilterType:     "请求头/响应头过滤器",
 		QueryParamFilterType: "查询参数过滤器",
-		URLFilterType:        "URL路径过滤器",
+		URLFilterType:        "URL路径过滤器（通用）",
+		StripFilterType:      "前缀剥离过滤器",
+		RewriteFilterType:    "路径重写过滤器",
 		BodyFilterType:       "请求体过滤器",
 		MethodFilterType:     "HTTP方法过滤器",
 		CookieFilterType:     "Cookie过滤器",

@@ -3,8 +3,10 @@ package dao
 import (
 	"context"
 	"errors"
+	"fmt"
 	"gohub/pkg/database"
 	"gohub/pkg/utils/huberrors"
+	"gohub/pkg/utils/random"
 	"gohub/web/views/hub0020/models"
 	"strings"
 	"time"
@@ -22,6 +24,62 @@ func NewGatewayInstanceDAO(db database.Database) *GatewayInstanceDAO {
 	}
 }
 
+// generateGatewayInstanceId 生成网关实例ID
+// 格式：GW + YYYYMMDD + HHMMSS + 4位随机数
+// 示例：GW20240615143022A1B2
+func (dao *GatewayInstanceDAO) generateGatewayInstanceId() string {
+	now := time.Now()
+	// 生成时间部分：YYYYMMDDHHMMSS
+	timeStr := now.Format("20060102150405")
+	
+	// 生成4位随机字符（大写字母和数字）
+	randomStr := random.GenerateRandomString(4)
+	
+	return fmt.Sprintf("GW%s%s", timeStr, randomStr)
+}
+
+
+
+// isGatewayInstanceIdExists 检查网关实例ID是否已存在
+func (dao *GatewayInstanceDAO) isGatewayInstanceIdExists(ctx context.Context, gatewayInstanceId string) (bool, error) {
+	query := `SELECT COUNT(*) as count FROM HUB_GATEWAY_INSTANCE WHERE gatewayInstanceId = ?`
+	
+	var result struct {
+		Count int `db:"count"`
+	}
+	
+	err := dao.db.QueryOne(ctx, &result, query, []interface{}{gatewayInstanceId}, true)
+	if err != nil {
+		return false, err
+	}
+	
+	return result.Count > 0, nil
+}
+
+// generateUniqueGatewayInstanceId 生成唯一的网关实例ID
+// 如果生成的ID已存在，会重新生成直到找到唯一的ID（最多尝试10次）
+func (dao *GatewayInstanceDAO) generateUniqueGatewayInstanceId(ctx context.Context) (string, error) {
+	const maxAttempts = 10
+	
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		gatewayInstanceId := dao.generateGatewayInstanceId()
+		
+		exists, err := dao.isGatewayInstanceIdExists(ctx, gatewayInstanceId)
+		if err != nil {
+			return "", huberrors.WrapError(err, "检查网关实例ID是否存在失败")
+		}
+		
+		if !exists {
+			return gatewayInstanceId, nil
+		}
+		
+		// 如果ID已存在，等待1毫秒后重试（确保时间戳不同）
+		time.Sleep(time.Millisecond)
+	}
+	
+	return "", errors.New("生成唯一网关实例ID失败，已达到最大尝试次数")
+}
+
 // AddGatewayInstance 添加网关实例
 // 参数:
 //   - ctx: 上下文对象
@@ -32,13 +90,27 @@ func NewGatewayInstanceDAO(db database.Database) *GatewayInstanceDAO {
 //   - gatewayInstanceId: 新创建的网关实例ID
 //   - err: 可能的错误
 func (dao *GatewayInstanceDAO) AddGatewayInstance(ctx context.Context, instance *models.GatewayInstance, operatorId string) (string, error) {
-	// 验证网关实例ID是否存在
-	if instance.GatewayInstanceId == "" {
-		return "", errors.New("网关实例ID不能为空")
-	}
-
+	// 验证租户ID
 	if instance.TenantId == "" {
 		return "", errors.New("租户ID不能为空")
+	}
+
+	// 自动生成网关实例ID（如果为空）
+	if instance.GatewayInstanceId == "" {
+		generatedId, err := dao.generateUniqueGatewayInstanceId(ctx)
+		if err != nil {
+			return "", huberrors.WrapError(err, "生成网关实例ID失败")
+		}
+		instance.GatewayInstanceId = generatedId
+	} else {
+		// 如果提供了ID，检查是否已存在
+		exists, err := dao.isGatewayInstanceIdExists(ctx, instance.GatewayInstanceId)
+		if err != nil {
+			return "", huberrors.WrapError(err, "检查网关实例ID是否存在失败")
+		}
+		if exists {
+			return "", errors.New("网关实例ID已存在")
+		}
 	}
 
 	// 设置一些自动填充的字段

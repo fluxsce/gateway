@@ -309,7 +309,69 @@ func (g *Gateway) Stop() error {
 	// 发送停止信号
 	close(g.stopCh)
 
+	// 清理处理器资源
+	// 注意：必须先关闭处理器资源，再关闭HTTP服务器
+	// 原因：
+	// 1. 处理器可能包含后台goroutine（如健康检查器），需要先停止它们
+	// 2. 避免处理器资源泄漏和zombie goroutine
+	// 3. 确保所有资源被正确释放，防止内存泄漏
+	
+	// 优先关闭代理处理器，因为它通常包含健康检查器和服务发现组件
+	// 这些组件会启动后台goroutine，如果不正确关闭会导致资源泄漏
+	// 注意：这里使用类型断言(interface{ Close() error })而不是直接定义Close方法的接口
+	// 这种设计的优势：
+	// 1. 松耦合：处理器接口(RouterHandler, ProxyHandler等)不需要包含Close方法
+	// 2. 可选实现：只有需要清理资源的处理器才需要实现Close方法
+	// 3. 接口隔离：符合接口隔离原则，保持接口精简
+	// 4. 向后兼容：添加新处理器时不强制实现Close方法
+	// 5. 动态发现：运行时动态检测处理器是否需要清理资源
+	if g.proxy != nil {
+		if closer, ok := g.proxy.(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				logger.Warn("关闭代理处理器失败", "error", err)
+			} else {
+				logger.Debug("代理处理器已关闭")
+			}
+		}
+	}
+
+	// 关闭其他处理器资源
+	// 使用类型断言检查处理器是否实现了Close方法
+	// 这种设计允许处理器自行决定是否需要清理资源
+	// 符合接口隔离原则，不强制所有处理器实现Close方法
+	if g.router != nil {
+		if closer, ok := g.router.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
+	}
+	
+	if g.auth != nil {
+		if closer, ok := g.auth.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
+	}
+	
+	if g.cors != nil {
+		if closer, ok := g.cors.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
+	}
+	
+	if g.security != nil {
+		if closer, ok := g.security.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
+	}
+	
+	if g.limiter != nil {
+		if closer, ok := g.limiter.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
+	}
+
 	// 关闭HTTP服务器
+	// 设置30秒超时确保正在处理的请求有足够时间完成
+	// 超时后会强制关闭，避免无限等待
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -319,6 +381,8 @@ func (g *Gateway) Stop() error {
 	}
 
 	// 等待所有goroutine结束
+	// 这确保了所有后台任务（包括请求处理）都已完成
+	// 防止主进程退出时留下zombie goroutine
 	g.wg.Wait()
 
 	g.running = false
@@ -337,4 +401,31 @@ func (g *Gateway) IsRunning() bool {
 // GetConfig 获取配置
 func (g *Gateway) GetConfig() *config.GatewayConfig {
 	return g.gatewayConfig
+}
+
+// Reload 重新加载网关配置
+// 允许在不重启服务的情况下更新网关的配置
+func (g *Gateway) Reload(newCfg *config.GatewayConfig) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if !g.running {
+		return fmt.Errorf("网关未运行，无法重载配置")
+	}
+
+	// 使用工厂方法重载配置
+	factory := NewGatewayFactory()
+	if err := factory.ReloadGateway(g, newCfg); err != nil {
+		return fmt.Errorf("重载网关配置失败: %w", err)
+	}
+
+	// 重新设置处理器链
+	g.engine = core.NewEngine()
+	g.setupHandlers()
+
+	logger.Info("网关配置重载成功", 
+		"instanceId", g.gatewayConfig.InstanceID,
+		"listen", g.gatewayConfig.Base.Listen)
+
+	return nil
 }

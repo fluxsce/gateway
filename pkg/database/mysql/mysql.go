@@ -50,12 +50,13 @@ func (m *MySQL) Connect(config *database.DbConfig) error {
 	m.config = config
 	m.logger = dblogger.NewDBLogger(config)
 
-	m.logger.LogConnecting(database.DriverMySQL, config.DSN)
+	// 使用背景上下文进行连接日志记录
+	m.logger.LogConnecting(context.Background(), database.DriverMySQL, config.DSN)
 
 	// 打开数据库连接
 	db, err := sql.Open("mysql", config.DSN)
 	if err != nil {
-		m.logger.LogError("打开MySQL连接", err)
+		m.logger.LogError(context.Background(), "打开MySQL连接", err)
 		return fmt.Errorf("failed to open MySQL connection: %w", err)
 	}
 
@@ -86,12 +87,12 @@ func (m *MySQL) Connect(config *database.DbConfig) error {
 
 	// 检查连接是否正常
 	if err := db.Ping(); err != nil {
-		m.logger.LogPing(err)
+		m.logger.LogPing(context.Background(), err)
 		return fmt.Errorf("MySQL connection test failed: %w", err)
 	}
 
 	m.db = db
-	m.logger.LogConnected(database.DriverMySQL, map[string]any{
+	m.logger.LogConnected(context.Background(), database.DriverMySQL, map[string]any{
 		"maxOpenConns":    maxOpenConns,
 		"maxIdleConns":    maxIdleConns,
 		"connMaxLifetime": connMaxLifetime.String(),
@@ -112,7 +113,7 @@ func (m *MySQL) Close() error {
 		m.currentTx = nil
 	}
 	if m.db != nil {
-		m.logger.LogDisconnect(database.DriverMySQL)
+		m.logger.LogDisconnect(context.Background(), database.DriverMySQL)
 		return m.db.Close()
 	}
 	return nil
@@ -185,7 +186,7 @@ func (m *MySQL) SetName(name string) {
 //   error: 连接异常时返回错误信息
 func (m *MySQL) Ping(ctx context.Context) error {
 	err := m.db.PingContext(ctx)
-	m.logger.LogPing(err)
+	m.logger.LogPing(ctx, err)
 	return err
 }
 
@@ -227,12 +228,12 @@ func (m *MySQL) BeginTx(ctx context.Context, options *database.TxOptions) error 
 
 	tx, err := m.db.BeginTx(ctx, sqlTxOpts)
 	if err != nil {
-		m.logger.LogTx("开始", err)
+		m.logger.LogTx(ctx, "开始", err)
 		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
 	}
 
 	m.currentTx = tx
-	m.logger.LogTx("开始", nil)
+	m.logger.LogTx(ctx, "开始", nil)
 	return nil
 }
 
@@ -251,7 +252,7 @@ func (m *MySQL) Commit() error {
 
 	err := m.currentTx.Commit()
 	m.currentTx = nil
-	m.logger.LogTx("提交", err)
+	m.logger.LogTx(context.Background(), "提交", err)
 	
 	if err != nil {
 		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
@@ -274,7 +275,7 @@ func (m *MySQL) Rollback() error {
 
 	err := m.currentTx.Rollback()
 	m.currentTx = nil
-	m.logger.LogTx("回滚", err)
+	m.logger.LogTx(context.Background(), "回滚", err)
 	
 	if err != nil {
 		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
@@ -352,13 +353,17 @@ func (m *MySQL) Exec(ctx context.Context, query string, args []interface{}, auto
 	result, err := executor.ExecContext(ctx, query, args...)
 	duration := time.Since(start)
 
-	m.logger.LogSQL("SQL执行", query, args, err, duration)
-
-	if err != nil {
-		return 0, err
+	var rowsAffected int64
+	if err == nil {
+		rowsAffected, err = result.RowsAffected()
 	}
 
-	rowsAffected, err := result.RowsAffected()
+	// 记录日志
+	extra := map[string]interface{}{
+		"rowsAffected": rowsAffected,
+	}
+	m.logger.LogSQL(ctx, "SQL执行", query, args, err, duration, extra)
+
 	if err != nil {
 		return 0, err
 	}
@@ -384,14 +389,34 @@ func (m *MySQL) Query(ctx context.Context, dest interface{}, query string, args 
 	rows, err := executor.QueryContext(ctx, query, args...)
 	duration := time.Since(start)
 
-	m.logger.LogSQL("SQL查询", query, args, err, duration)
-
 	if err != nil {
+		if err != sql.ErrNoRows {
+			m.logger.LogSQL(ctx, "SQL查询", query, args, err, duration, map[string]interface{}{
+				"rowCount": 0,
+			})
+		}
 		return err
 	}
 	defer rows.Close()
 
-	return scanRows(rows, dest)
+	err = scanRows(rows, dest)
+	rowCount := reflect.ValueOf(dest).Elem().Len()
+
+	// 只有在有错误且不是未找到记录时才记录错误
+	if err != nil && err != database.ErrRecordNotFound {
+		m.logger.LogSQL(ctx, "SQL查询", query, args, err, duration, map[string]interface{}{
+			"rowCount": 0,
+		})
+		return err
+	}
+
+	// 记录成功的查询及影响行数
+	extra := map[string]interface{}{
+		"rowCount": rowCount,
+	}
+	m.logger.LogSQL(ctx, "SQL查询", query, args, nil, duration, extra)
+
+	return err
 }
 
 // QueryOne 查询单条记录
@@ -412,14 +437,22 @@ func (m *MySQL) QueryOne(ctx context.Context, dest interface{}, query string, ar
 	row := executor.QueryRowContext(ctx, query, args...)
 	duration := time.Since(start)
 
-	var err error
-	if err = scanRow(row, dest); err != nil {
-		if err == sql.ErrNoRows {
-			err = database.ErrRecordNotFound
-		}
+	err := scanRow(row, dest)
+	
+	// 只有在有错误且不是未找到记录时才记录错误
+	if err != nil && err != database.ErrRecordNotFound {
+		m.logger.LogSQL(ctx, "SQL单行查询", query, args, err, duration, map[string]interface{}{
+			"rowCount": 0,
+		})
+		return err
 	}
 
-	m.logger.LogSQL("SQL单行查询", query, args, err, duration)
+	// 记录成功的查询及影响行数
+	extra := map[string]interface{}{
+		"rowCount": map[bool]int{true: 1, false: 0}[err == nil],
+	}
+	m.logger.LogSQL(ctx, "SQL单行查询", query, args, nil, duration, extra)
+
 	return err
 }
 
@@ -446,13 +479,25 @@ func (m *MySQL) Insert(ctx context.Context, table string, data interface{}, auto
 	result, err := executor.ExecContext(ctx, query, args...)
 	duration := time.Since(start)
 
-	m.logger.LogSQL("SQL插入", query, args, err, duration)
+	var lastInsertId int64
+	var rowsAffected int64
+	if err == nil {
+		lastInsertId, _ = result.LastInsertId()
+		rowsAffected, _ = result.RowsAffected()
+	}
+
+	// 记录日志
+	extra := map[string]interface{}{
+		"rowsAffected": rowsAffected,
+		"lastInsertId": lastInsertId,
+	}
+	m.logger.LogSQL(ctx, "SQL插入", query, args, err, duration, extra)
 
 	if err != nil {
 		return 0, err
 	}
 
-	return result.LastInsertId()
+	return lastInsertId, nil
 }
 
 // Update 更新记录
@@ -486,13 +531,22 @@ func (m *MySQL) Update(ctx context.Context, table string, data interface{}, wher
 	result, err := executor.ExecContext(ctx, query, setArgs...)
 	duration := time.Since(start)
 
-	m.logger.LogSQL("SQL更新", query, setArgs, err, duration)
+	var rowsAffected int64
+	if err == nil {
+		rowsAffected, _ = result.RowsAffected()
+	}
+
+	// 记录日志
+	extra := map[string]interface{}{
+		"rowsAffected": rowsAffected,
+	}
+	m.logger.LogSQL(ctx, "SQL更新", query, setArgs, err, duration, extra)
 
 	if err != nil {
 		return 0, err
 	}
 
-	return result.RowsAffected()
+	return rowsAffected, nil
 }
 
 // Delete 删除记录
@@ -518,13 +572,22 @@ func (m *MySQL) Delete(ctx context.Context, table string, where string, args []i
 	result, err := executor.ExecContext(ctx, query, args...)
 	duration := time.Since(start)
 
-	m.logger.LogSQL("SQL删除", query, args, err, duration)
+	var rowsAffected int64
+	if err == nil {
+		rowsAffected, _ = result.RowsAffected()
+	}
+
+	// 记录日志
+	extra := map[string]interface{}{
+		"rowsAffected": rowsAffected,
+	}
+	m.logger.LogSQL(ctx, "SQL删除", query, args, err, duration, extra)
 
 	if err != nil {
 		return 0, err
 	}
 
-	return result.RowsAffected()
+	return rowsAffected, nil
 }
 
 // BatchInsert 批量插入记录
@@ -586,13 +649,22 @@ func (m *MySQL) BatchInsert(ctx context.Context, table string, dataSlice interfa
 	result, err := executor.ExecContext(ctx, query, allArgs...)
 	duration := time.Since(start)
 
-	m.logger.LogSQL("SQL批量插入", query, allArgs, err, duration)
+	var rowsAffected int64
+	if err == nil {
+		rowsAffected, err = result.RowsAffected()
+	}
+
+	// 记录日志
+	extra := map[string]interface{}{
+		"rowsAffected": rowsAffected,
+	}
+	m.logger.LogSQL(ctx, "SQL批量插入", query, allArgs, err, duration, extra)
 
 	if err != nil {
 		return 0, err
 	}
 
-	return result.RowsAffected()
+	return rowsAffected, nil
 }
 
 // 工具函数
@@ -773,14 +845,19 @@ func scanRows(rows *sql.Rows, dest interface{}) error {
 		// 创建新的结构体实例
 		newElement := reflect.New(elementType)
 		
-		// 准备扫描目标
-		scanTargets, err := prepareScanTargets(newElement.Elem(), columns)
-		if err != nil {
-			return err
+		// 准备扫描目标（包含NULL值安全处理）
+		scanTargets, fields := prepareScanTargetsWithFields(newElement.Elem(), columns)
+		if len(scanTargets) == 0 {
+			return fmt.Errorf("no valid scan targets prepared")
 		}
 
 		// 扫描行数据
 		if err := rows.Scan(scanTargets...); err != nil {
+			return err
+		}
+
+		// 处理扫描后的值转换
+		if err := processScannedValues(scanTargets, fields); err != nil {
 			return err
 		}
 
@@ -797,7 +874,7 @@ func scanRows(rows *sql.Rows, dest interface{}) error {
 
 // scanRow 扫描单行结果到目标结构体
 // 将SQL查询返回的单行结果扫描到Go结构体中
-// 自动按字段顺序进行扫描（简化实现）
+// 自动按字段顺序进行扫描，支持NULL值安全处理
 // 参数:
 //   row: SQL查询返回的单行结果
 //   dest: 目标结构体的指针
@@ -819,6 +896,7 @@ func scanRow(row *sql.Row, dest interface{}) error {
 	// 简化实现：直接按字段顺序扫描
 	structType := structValue.Type()
 	var scanTargets []interface{}
+	var fields []reflect.Value
 
 	for i := 0; i < structValue.NumField(); i++ {
 		field := structValue.Field(i)
@@ -832,23 +910,34 @@ func scanRow(row *sql.Row, dest interface{}) error {
 			continue
 		}
 
-		scanTargets = append(scanTargets, field.Addr().Interface())
+		// 创建NULL值安全的扫描目标
+		scanTarget := createNullSafeScanTarget(field)
+		scanTargets = append(scanTargets, scanTarget)
+		fields = append(fields, field)
 	}
 
-	return row.Scan(scanTargets...)
+	if err := row.Scan(scanTargets...); err != nil {
+		if err == sql.ErrNoRows {
+			return database.ErrRecordNotFound
+		}
+		return err
+	}
+
+	// 处理扫描后的值转换
+	return processScannedValues(scanTargets, fields)
 }
 
-// prepareScanTargets 准备扫描目标
-// 根据数据库列名和结构体字段创建扫描目标切片
-// 为每个数据库列找到对应的结构体字段，如果找不到则使用丢弃变量
+// prepareScanTargetsWithFields 准备扫描目标并返回对应的字段
+// 为scanRows函数提供的增强版本，同时返回扫描目标和对应字段
 // 参数:
 //   structValue: 目标结构体的反射值
 //   columns: 数据库列名切片
 // 返回:
 //   []interface{}: 扫描目标切片，每个元素对应一个数据库列
-//   error: 准备失败时返回错误信息
-func prepareScanTargets(structValue reflect.Value, columns []string) ([]interface{}, error) {
+//   []reflect.Value: 对应的结构体字段切片
+func prepareScanTargetsWithFields(structValue reflect.Value, columns []string) ([]interface{}, []reflect.Value) {
 	var scanTargets []interface{}
+	var fields []reflect.Value
 
 	for _, column := range columns {
 		field, found := findFieldByColumn(structValue, column)
@@ -856,17 +945,25 @@ func prepareScanTargets(structValue reflect.Value, columns []string) ([]interfac
 			// 如果找不到对应字段，使用一个丢弃变量
 			var discard interface{}
 			scanTargets = append(scanTargets, &discard)
+			fields = append(fields, reflect.Value{}) // 空值占位
 			continue
 		}
 
 		if !field.CanSet() {
-			return nil, fmt.Errorf("field for column %s cannot be set", column)
+			// 字段不可设置，使用丢弃变量
+			var discard interface{}
+			scanTargets = append(scanTargets, &discard)
+			fields = append(fields, reflect.Value{}) // 空值占位
+			continue
 		}
 
-		scanTargets = append(scanTargets, field.Addr().Interface())
+		// 创建NULL值安全的扫描目标
+		scanTarget := createNullSafeScanTarget(field)
+		scanTargets = append(scanTargets, scanTarget)
+		fields = append(fields, field)
 	}
 
-	return scanTargets, nil
+	return scanTargets, fields
 }
 
 // findFieldByColumn 根据列名查找对应的结构体字段
@@ -897,4 +994,208 @@ func findFieldByColumn(structValue reflect.Value, column string) (reflect.Value,
 	}
 
 	return reflect.Value{}, false
+}
+
+// createNullSafeScanTarget 创建NULL值安全的扫描目标
+// 根据字段类型创建相应的sql.NullXXX类型，用于安全扫描可能为NULL的数据库值
+// 参数:
+//   field: 目标字段的反射值
+// 返回:
+//   interface{}: 扫描目标，可以是sql.NullString、sql.NullInt64等
+func createNullSafeScanTarget(field reflect.Value) interface{} {
+	fieldType := field.Type()
+	
+	switch fieldType.Kind() {
+	case reflect.String:
+		return &sql.NullString{}
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return &sql.NullInt64{}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return &sql.NullInt64{} // 使用Int64处理无符号整数
+	case reflect.Float32, reflect.Float64:
+		return &sql.NullFloat64{}
+	case reflect.Bool:
+		return &sql.NullBool{}
+	case reflect.Ptr:
+		// 如果是指针类型，创建对应基础类型的NULL扫描目标
+		elemType := fieldType.Elem()
+		switch elemType.Kind() {
+		case reflect.String:
+			return &sql.NullString{}
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return &sql.NullInt64{}
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return &sql.NullInt64{}
+		case reflect.Float32, reflect.Float64:
+			return &sql.NullFloat64{}
+		case reflect.Bool:
+			return &sql.NullBool{}
+		default:
+			if elemType == reflect.TypeOf(time.Time{}) {
+				return &sql.NullTime{}
+			}
+		}
+	case reflect.Struct:
+		// 特殊处理时间类型
+		if fieldType == reflect.TypeOf(time.Time{}) {
+			return &sql.NullTime{}
+		}
+	}
+	
+	// 如果无法确定类型，返回通用接口
+	var discard interface{}
+	return &discard
+}
+
+// processScannedValues 处理扫描后的值转换
+// 将sql.NullXXX类型的值转换为目标字段类型，处理NULL值
+// 参数:
+//   scanTargets: 扫描目标切片
+//   fields: 目标字段切片
+// 返回:
+//   error: 转换失败时返回错误信息
+func processScannedValues(scanTargets []interface{}, fields []reflect.Value) error {
+	for i, scanTarget := range scanTargets {
+		if i >= len(fields) {
+			continue
+		}
+		
+		field := fields[i]
+		if !field.IsValid() || !field.CanSet() {
+			continue
+		}
+		
+		// 根据扫描目标类型处理值转换
+		switch v := scanTarget.(type) {
+		case *sql.NullString:
+			if field.Kind() == reflect.Ptr {
+				// 处理指针类型字段
+				if v.Valid {
+					strValue := v.String
+					field.Set(reflect.ValueOf(&strValue))
+				} else {
+					field.Set(reflect.Zero(field.Type()))
+				}
+			} else {
+				// 处理非指针类型字段
+				if v.Valid {
+					field.SetString(v.String)
+				} else {
+					field.SetString("")
+				}
+			}
+		case *sql.NullInt64:
+			if field.Kind() == reflect.Ptr {
+				// 处理指针类型字段
+				if v.Valid {
+					elemType := field.Type().Elem()
+					switch elemType.Kind() {
+					case reflect.Int:
+						intValue := int(v.Int64)
+						field.Set(reflect.ValueOf(&intValue))
+					case reflect.Int8:
+						intValue := int8(v.Int64)
+						field.Set(reflect.ValueOf(&intValue))
+					case reflect.Int16:
+						intValue := int16(v.Int64)
+						field.Set(reflect.ValueOf(&intValue))
+					case reflect.Int32:
+						intValue := int32(v.Int64)
+						field.Set(reflect.ValueOf(&intValue))
+					case reflect.Int64:
+						intValue := v.Int64
+						field.Set(reflect.ValueOf(&intValue))
+					case reflect.Uint:
+						if v.Int64 >= 0 {
+							uintValue := uint(v.Int64)
+							field.Set(reflect.ValueOf(&uintValue))
+						} else {
+							field.Set(reflect.Zero(field.Type()))
+						}
+					case reflect.Uint8:
+						if v.Int64 >= 0 {
+							uintValue := uint8(v.Int64)
+							field.Set(reflect.ValueOf(&uintValue))
+						} else {
+							field.Set(reflect.Zero(field.Type()))
+						}
+					case reflect.Uint16:
+						if v.Int64 >= 0 {
+							uintValue := uint16(v.Int64)
+							field.Set(reflect.ValueOf(&uintValue))
+						} else {
+							field.Set(reflect.Zero(field.Type()))
+						}
+					case reflect.Uint32:
+						if v.Int64 >= 0 {
+							uintValue := uint32(v.Int64)
+							field.Set(reflect.ValueOf(&uintValue))
+						} else {
+							field.Set(reflect.Zero(field.Type()))
+						}
+					case reflect.Uint64:
+						if v.Int64 >= 0 {
+							uintValue := uint64(v.Int64)
+							field.Set(reflect.ValueOf(&uintValue))
+						} else {
+							field.Set(reflect.Zero(field.Type()))
+						}
+					}
+				} else {
+					field.Set(reflect.Zero(field.Type()))
+				}
+			} else {
+				// 处理非指针类型字段
+				if v.Valid {
+					switch field.Kind() {
+					case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+						field.SetInt(v.Int64)
+					case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+						if v.Int64 >= 0 {
+							field.SetUint(uint64(v.Int64))
+						} else {
+							field.SetUint(0)
+						}
+					}
+				} else {
+					switch field.Kind() {
+					case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+						field.SetInt(0)
+					case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+						field.SetUint(0)
+					}
+				}
+			}
+		case *sql.NullFloat64:
+			if v.Valid {
+				field.SetFloat(v.Float64)
+			} else {
+				field.SetFloat(0)
+			}
+		case *sql.NullBool:
+			if v.Valid {
+				field.SetBool(v.Bool)
+			} else {
+				field.SetBool(false)
+			}
+		case *sql.NullTime:
+			if v.Valid {
+				if field.Type() == reflect.TypeOf(time.Time{}) {
+					field.Set(reflect.ValueOf(v.Time))
+				} else if field.Type() == reflect.TypeOf(&time.Time{}) {
+					field.Set(reflect.ValueOf(&v.Time))
+				}
+			} else {
+				if field.Type() == reflect.TypeOf(time.Time{}) {
+					field.Set(reflect.ValueOf(time.Time{}))
+				} else if field.Type() == reflect.TypeOf(&time.Time{}) {
+					field.Set(reflect.ValueOf((*time.Time)(nil)))
+				}
+			}
+		default:
+			// 对于其他类型，不做处理
+		}
+	}
+	
+	return nil
 }

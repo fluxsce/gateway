@@ -1,0 +1,14 @@
+app:
+  #系统配置
+  name: "GoHub" # 系统名称
+  run_mode: "debug" # debug, release
+  gateway:
+    enabled: true # 是否启用网关
+    configSource: "database" # 网关配置加载源, 可选值: yaml 文件, json 文件, database 数据库
+    config_file: "./configs/gateway.yaml" # 网关配置文件路径, 默认使用yaml格式
+  web:
+    enabled: true # 是否启用web
+    config_file: "./configs/web.yaml" # web配置文件路径, 默认使用yaml格式
+  database:
+    enabled: true # 是否启用数据库
+    config_file: "./configs/database.yaml" # 数据库配置文件路径

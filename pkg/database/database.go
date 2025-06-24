@@ -370,6 +370,55 @@ func Open(config *DbConfig) (Database, error) {
 	return db, nil
 }
 
+// openWithoutLock 内部方法：打开数据库连接（不加锁）
+// 此方法假设调用者已经持有connMutex锁
+// 参数:
+//   config: 数据库配置，包含驱动类型、连接信息等
+// 返回:
+//   Database: 数据库接口实例
+//   error: 连接失败时返回错误信息
+func openWithoutLock(config *DbConfig) (Database, error) {
+	if config == nil {
+		return nil, fmt.Errorf("%w: config is nil", ErrConfigNotFound)
+	}
+
+	if !config.Enabled {
+		return nil, fmt.Errorf("database connection %s is disabled", config.Name)
+	}
+
+	creator, exists := dbCreators[config.Driver]
+	if !exists {
+		return nil, fmt.Errorf("unsupported database driver: %s", config.Driver)
+	}
+
+	// 生成DSN
+	if config.DSN == "" {
+		dsnStr, err := dsn.Generate(config)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate DSN for %s: %w", config.Driver, err)
+		}
+		config.DSN = dsnStr
+	}
+
+	connectionID := GetConnectionID(config)
+
+	// 检查是否已存在连接（此时调用者已持有锁）
+	if conn, exists := dbConnections[connectionID]; exists {
+		return conn, nil
+	}
+
+	// 创建新连接
+	db := creator()
+	if err := db.Connect(config); err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// 缓存连接
+	dbConnections[connectionID] = db
+
+	return db, nil
+}
+
 // GetConnection 获取已缓存的数据库连接
 // 从连接池中获取指定名称的数据库连接
 // 参数:
@@ -437,7 +486,7 @@ func LoadAllConnections(configPath string) (map[string]Database, error) {
 		}
 
 		// 创建数据库连接
-		db, err := Open(config)
+		db, err := openWithoutLock(config)
 		if err != nil {
 			return nil, fmt.Errorf("创建数据库连接 '%s' 失败: %w", name, err)
 		}

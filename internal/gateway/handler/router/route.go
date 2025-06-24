@@ -61,6 +61,9 @@ type RouteConfig struct {
 	// 路由ID - 路由的唯一标识符，用于引用和管理路由
 	ID string `json:"id" yaml:"id" mapstructure:"id"`
 
+	// 路由名称 - 路由的可读名称，用于显示和识别
+	Name string `json:"name" yaml:"name" mapstructure:"name"`
+
 	// 服务ID - 匹配此路由的请求将被转发到的目标服务ID
 	ServiceID string `json:"service_id" yaml:"service_id" mapstructure:"service_id"`
 
@@ -113,6 +116,7 @@ var DefaultRouteConfig = RouteConfig{
 	Priority: 100,
 	Methods:  []string{},
 	Metadata: make(map[string]interface{}),
+	Name:     "Default Route",
 }
 
 // Route 实现 RouteHandler 接口的具体路由结构
@@ -144,8 +148,13 @@ func NewRoute(config RouteConfig) (*Route, error) {
 	route := &Route{
 		config:       config,
 		enabled:      config.Enabled,
-		name:         config.ID,
+		name:         config.Name,
 		routeFilters: make([]filter.Filter, 0),
+	}
+
+	// 如果名称为空，使用ID作为名称
+	if route.name == "" {
+		route.name = config.ID
 	}
 
 	// 验证配置

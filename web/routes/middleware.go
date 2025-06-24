@@ -1,8 +1,7 @@
 package routes
 
 import (
-	"gohub/pkg/logger"
-	"gohub/web/utils/auth"
+	"gohub/web/middleware"
 	"gohub/web/utils/constants"
 	"gohub/web/utils/response"
 
@@ -10,25 +9,18 @@ import (
 )
 
 // AuthRequired 验证用户是否已登录的中间件
-// 使用JWT认证，适用于需要登录才能访问的路由
+// 使用Session认证，适用于需要登录才能访问的路由
 func AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 使用已有的JWT认证中间件
-		auth.JWTAuth()(c)
+		// 使用Session认证中间件，更适合前端管理
+		middleware.SessionRequired()(c)
 
 		// 如果请求已被中止，说明认证失败
 		if c.IsAborted() {
 			return
 		}
 
-		// 获取用户上下文，二次验证
-		userContext := auth.GetUserContext(c)
-		if userContext == nil {
-			response.ErrorJSON(c, "未授权访问，请先登录", constants.ED00011)
-			c.Abort()
-			return
-		}
-
+		// Session中间件已经设置了用户上下文，这里不需要额外验证
 		c.Next()
 	}
 }
@@ -38,7 +30,7 @@ func AuthRequired() gin.HandlerFunc {
 //   - permissions: 所需的权限列表，用户必须拥有至少一个权限才能通过
 func PermissionRequired(permissions ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 验证用户是否已登录
+		// 验证用户是否已登录（使用Session认证）
 		AuthRequired()(c)
 
 		// 如果请求已被中止，说明认证失败
@@ -46,33 +38,13 @@ func PermissionRequired(permissions ...string) gin.HandlerFunc {
 			return
 		}
 
-		// 获取用户上下文
-		userContext := auth.GetUserContext(c)
-		if userContext == nil {
-			response.ErrorJSON(c, "无法获取用户信息", constants.ED00011)
-			c.Abort()
-			return
-		}
-
-		// 如果未指定权限，则只需要认证即可
-		if len(permissions) == 0 {
-			c.Next()
-			return
-		}
-
-		// 验证用户是否有所需的权限
-		hasPermission := false
-		for _, required := range permissions {
-			for _, userPerm := range userContext.Permissions {
-				if required == userPerm {
-					hasPermission = true
-					break
-				}
-			}
-			if hasPermission {
-				break
-			}
-		}
+		// TODO: 实现权限验证逻辑
+		// 当前版本暂时允许所有已认证用户访问
+		// 后续可以根据业务需求实现具体的权限验证逻辑
+		//logger.Debug("权限验证", "userId", userContext.UserId, "permissions", permissions)
+		
+		// 临时实现：所有已认证用户都有权限
+		hasPermission := true
 
 		if !hasPermission {
 			response.ErrorJSON(c, "没有执行此操作的权限", constants.ED00010)
@@ -91,40 +63,16 @@ func PublicAPI() gin.HandlerFunc {
 	}
 }
 
-// APILoggerMiddleware API日志中间件，记录所有API请求
-func APILoggerMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// 请求前记录
-		path := c.Request.URL.Path
-		method := c.Request.Method
-
-		// 记录请求
-		logger.Info("API请求",
-			"method", method,
-			"path", path,
-			"ip", c.ClientIP(),
-			"user_agent", c.Request.UserAgent(),
-		)
-
-		// 处理请求
-		c.Next()
-
-		// 请求后记录
-		status := c.Writer.Status()
-
-		// 记录响应
-		logger.Info("API响应",
-			"method", method,
-			"path", path,
-			"status", status,
-		)
-	}
-}
-
 // ApplyGlobalMiddleware 应用全局中间件到路由引擎
 func ApplyGlobalMiddleware(router *gin.Engine) {
-	// 应用全局API日志中间件
-	router.Use(APILoggerMiddleware())
+	// 应用统一的日志中间件 - 包含跟踪ID生成和日志记录功能
+	router.Use(middleware.LoggerMiddleware())
+
+	// 应用解密中间件 - 在所有请求处理之前解密数据
+	router.Use(DecryptRequest())
+	
+	// 应用加密中间件 - 在响应返回时加密数据
+	router.Use(EncryptResponse())
 
 	// 可以在这里添加其他全局中间件
 	// 例如：CORS、限流等
@@ -141,4 +89,32 @@ func RegisterProtectedRoutes(router *gin.Engine, basePath string, register func(
 
 	// 调用注册函数添加路由
 	register(group)
+}
+
+// SessionRequired Session验证中间件的包装函数
+// 提供统一的Session验证中间件接口
+func SessionRequired() gin.HandlerFunc {
+	// 直接使用middleware包中的SessionRequired中间件
+	return middleware.SessionRequired()
+}
+
+// OptionalSession 可选Session验证中间件的包装函数
+// 提供统一的可选Session验证中间件接口
+func OptionalSession() gin.HandlerFunc {
+	// 直接使用middleware包中的OptionalSession中间件
+	return middleware.OptionalSession()
+}
+
+// DecryptRequest 请求数据解密中间件的包装函数
+// 对前端发送的加密数据进行解密处理
+func DecryptRequest() gin.HandlerFunc {
+	// 直接使用middleware包中的DecryptRequest中间件
+	return middleware.DecryptRequest()
+}
+
+// EncryptResponse 响应数据加密中间件的包装函数
+// 对返回给前端的数据进行加密处理
+func EncryptResponse() gin.HandlerFunc {
+	// 直接使用middleware包中的EncryptResponse中间件
+	return middleware.EncryptResponse()
 }

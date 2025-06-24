@@ -110,6 +110,8 @@ func (c *BaseCORSHandler) Validate() error {
 type CORSConfig struct {
 	// CORS配置ID
 	ID string `yaml:"id" json:"id" mapstructure:"id"`
+	// CORS配置名称
+	Name string `yaml:"name" json:"name" mapstructure:"name"`
 	// 是否启用CORS
 	Enabled bool `yaml:"enabled" json:"enabled" mapstructure:"enabled"`
 	// CORS策略
@@ -133,6 +135,7 @@ type CORSConfig struct {
 // DefaultCORSConfig 默认CORS配置
 var DefaultCORSConfig = CORSConfig{
 	ID:               "default-cors",
+	Name:             "Default CORS Configuration",
 	Enabled:          true,
 	Strategy:         StrategyDefault,
 	AllowOrigins:     []string{"*"},
@@ -146,6 +149,7 @@ var DefaultCORSConfig = CORSConfig{
 // StrictCORSConfig 严格CORS配置
 var StrictCORSConfig = CORSConfig{
 	ID:               "strict-cors",
+	Name:             "Strict CORS Configuration",
 	Enabled:          true,
 	Strategy:         StrategyStrict,
 	AllowOrigins:     []string{}, // 需要明确指定
@@ -159,6 +163,7 @@ var StrictCORSConfig = CORSConfig{
 // PermissiveCORSConfig 宽松CORS配置
 var PermissiveCORSConfig = CORSConfig{
 	ID:               "permissive-cors",
+	Name:             "Permissive CORS Configuration",
 	Enabled:          true,
 	Strategy:         StrategyPermissive,
 	AllowOrigins:     []string{"*"},
@@ -184,6 +189,24 @@ func NewCORS(config *CORSConfig) *CORS {
 
 	if config != nil {
 		cors.config = *config
+		
+		// 创建默认处理器
+		handler := &BaseCORSHandler{
+			Strategy: config.Strategy,
+			Enabled:  config.Enabled,
+			Config:   *config,
+		}
+		
+		// 设置处理器名称
+		if config.Name != "" {
+			handler.Name = config.Name
+		} else if config.ID != "" {
+			handler.Name = config.ID
+		} else {
+			handler.Name = "CORS Handler"
+		}
+		
+		cors.handler = handler
 	}
 
 	return cors

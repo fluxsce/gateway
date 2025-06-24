@@ -22,11 +22,11 @@ func TestFilterConfig(t *testing.T) {
 			config: &filter.FilterConfig{
 				ID:      "test-header-filter",
 				Name:    "Header Filter",
+				Type:    "header",
 				Enabled: true,
 				Order:   10,
 				Action:  "post-routing",
 				Config: map[string]interface{}{
-					"type":         "header",
 					"header_name":  "Content-Type",
 					"header_value": "application/json",
 					"operation":    "add",
@@ -39,11 +39,11 @@ func TestFilterConfig(t *testing.T) {
 			config: &filter.FilterConfig{
 				ID:      "test-query-filter",
 				Name:    "Query Param Filter",
+				Type:    "query-param",
 				Enabled: true,
 				Order:   20,
 				Action:  "post-routing",
 				Config: map[string]interface{}{
-					"type":        "query-param",
 					"param_name":  "version",
 					"param_value": "v1",
 					"operation":   "add",
@@ -56,11 +56,11 @@ func TestFilterConfig(t *testing.T) {
 			config: &filter.FilterConfig{
 				ID:      "test-url-filter",
 				Name:    "URL Filter",
+				Type:    "url",
 				Enabled: true,
 				Order:   30,
 				Action:  "post-routing",
 				Config: map[string]interface{}{
-					"type": "url",
 					"from": "/api/v1",
 					"to":   "/api",
 					"mode": "simple",
@@ -271,11 +271,11 @@ func TestHeaderFilter(t *testing.T) {
 	config := &filter.FilterConfig{
 		ID:      "test-header-filter",
 		Name:    "Header Filter",
+		Type:    "header",
 		Enabled: true,
 		Order:   10,
 		Action:  "post-routing",
 		Config: map[string]interface{}{
-			"type":         "header",
 			"header_name":  "X-Gateway",
 			"header_value": "true",
 			"operation":    "add",
@@ -335,11 +335,11 @@ func TestQueryParamFilter(t *testing.T) {
 	config := &filter.FilterConfig{
 		ID:      "test-query-filter",
 		Name:    "Query Filter",
+		Type:    "query-param",
 		Enabled: true,
 		Order:   20,
 		Action:  "post-routing",
 		Config: map[string]interface{}{
-			"type":        "query-param",
 			"param_name":  "version",
 			"param_value": "v1",
 			"operation":   "add",
@@ -466,11 +466,10 @@ func TestFilterFactory(t *testing.T) {
 			config: filter.FilterConfig{
 				ID:      "header-filter",
 				Name:    "Header Filter",
+				Type:    "header",
 				Enabled: true,
 				Order:   10,
-				Config: map[string]interface{}{
-					"type": "header",
-				},
+				Config: map[string]interface{}{},
 			},
 			expectError: false,
 			description: "有效的头部过滤器配置应该成功创建",
@@ -480,11 +479,10 @@ func TestFilterFactory(t *testing.T) {
 			config: filter.FilterConfig{
 				ID:      "query-filter",
 				Name:    "Query Filter",
+				Type:    "query-param",
 				Enabled: true,
 				Order:   20,
-				Config: map[string]interface{}{
-					"type": "query-param",
-				},
+				Config: map[string]interface{}{},
 			},
 			expectError: false,
 			description: "有效的查询参数过滤器配置应该成功创建",
@@ -541,11 +539,11 @@ func BenchmarkHeaderFilter(b *testing.B) {
 	config := &filter.FilterConfig{
 		ID:      "bench-header-filter",
 		Name:    "Header Filter",
+		Type:    "header",
 		Enabled: true,
 		Order:   10,
 		Action:  "post-routing",
 		Config: map[string]interface{}{
-			"type":         "header",
 			"header_name":  "Content-Type",
 			"header_value": "application/json",
 			"operation":    "add",

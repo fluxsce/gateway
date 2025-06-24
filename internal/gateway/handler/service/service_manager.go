@@ -303,11 +303,16 @@ func (m *DefaultServiceManager) Close() error {
 	defer m.mu.Unlock()
 
 	var lastErr error
-	for serviceID, service := range m.services {
+	for _, service := range m.services {
 		if err := service.Close(); err != nil {
 			lastErr = err
 		}
-		delete(m.services, serviceID)
+		// 注意：不再删除服务映射
+		// 原因：
+		// 1. 在网关重载场景下，可能还有正在处理的请求依赖这些服务记录
+		// 2. 删除服务映射可能导致正在进行的请求突然失败
+		// 3. 服务资源已经通过Close()方法释放，保留映射不会造成资源泄漏
+		// 4. 当ServiceManager本身被垃圾回收时，这些映射也会被回收
 	}
 
 	return lastErr

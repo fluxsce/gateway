@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	cacheapp "gohub/cmd/cache"
+	gatewayapp "gohub/cmd/gateway"
 	webapp "gohub/cmd/web"
 	"gohub/pkg/cache"
 	"gohub/pkg/config"
@@ -15,12 +16,14 @@ import (
 	"syscall"
 )
 
-// 全局数据库连接
+// 全局变量
 var (
 	// db 默认数据库连接
 	db database.Database
 	// dbConnections 所有数据库连接的映射
 	dbConnections map[string]database.Database
+	// gatewayApp 网关应用实例
+	gatewayApp *gatewayapp.GatewayApp
 )
 
 func main() {
@@ -61,6 +64,18 @@ func main() {
 
 	// 设置优雅退出
 	setupGracefulShutdown()
+
+	// 初始化网关应用
+	if err := initGateway(db); err != nil {
+		logger.Error("初始化网关应用失败", err)
+		os.Exit(1)
+	}
+
+	// 启动网关服务
+	if err := startGatewayServices(); err != nil {
+		logger.Error("启动网关服务失败", err)
+		os.Exit(1)
+	}
 
 	// 初始化并启动Web应用
 	if err := webapp.StartWebApp(db); err != nil {
@@ -158,18 +173,79 @@ func initDatabase() error {
 	return nil
 }
 
+// initGateway 初始化网关应用
+func initGateway(db database.Database) error {
+	// 创建网关应用实例
+	gatewayApp = gatewayapp.NewGatewayApp()
+	
+	// 初始化网关应用
+	if err := gatewayApp.Init(db); err != nil {
+		return huberrors.WrapError(err, "初始化网关应用失败")
+	}
+	
+	return nil
+}
+
+// startGatewayServices 启动网关服务
+func startGatewayServices() error {
+	if gatewayApp == nil {
+		return nil
+	}
+	
+	// 在单独的协程中启动网关服务
+	go func() {
+		if err := gatewayApp.Start(); err != nil {
+			logger.Error("网关服务启动失败", err)
+			// 网关启动失败时退出整个程序
+			os.Exit(1)
+		}
+	}()
+	
+	logger.Info("网关服务正在后台启动...")
+	return nil
+}
+
 
 // cleanupResources 清理资源
 // 应用退出前调用，确保所有资源被正确释放
 func cleanupResources() {
+	logger.Info("开始清理应用资源...")
+	
+	// 关闭网关应用
+	if gatewayApp != nil {
+		logger.Info("正在关闭网关应用...")
+		
+		// 获取网关状态信息
+		status := gatewayApp.GetStatus()
+		logger.Info("网关状态信息", 
+			"enabled", status["enabled"],
+			"total_instances", status["total_instances"],
+			"running_instances", status["running_instances"])
+		
+		if err := gatewayApp.Stop(); err != nil {
+			logger.Warn("关闭网关应用时发生错误", err)
+		} else {
+			logger.Info("网关应用已成功关闭")
+		}
+	} else {
+		logger.Info("网关应用未启动，跳过关闭")
+	}
+	
 	// 关闭所有缓存连接
+	logger.Info("正在关闭缓存连接...")
 	if err := cache.CloseAllConnections(); err != nil {
 		logger.Warn("关闭缓存连接时发生错误", err)
+	} else {
+		logger.Info("缓存连接已成功关闭")
 	}
 	
 	// 关闭所有数据库连接
+	logger.Info("正在关闭数据库连接...")
 	if err := database.CloseAllConnections(); err != nil {
-		// 直接传递err对象给logger，而不是作为键值对
 		logger.Warn("关闭数据库连接时发生错误", err)
+	} else {
+		logger.Info("数据库连接已成功关闭")
 	}
+	
+	logger.Info("应用资源清理完成")
 }

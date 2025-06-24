@@ -24,7 +24,7 @@ type StripPrefixFilter struct {
 // 返回值:
 // - *StripPrefixFilter: 创建的过滤器
 func NewStripPrefixFilter(name, prefix string, priority int) *StripPrefixFilter {
-	baseFilter := NewBaseFilter(URLFilterType, PostRouting, priority, true, name)
+	baseFilter := NewBaseFilter(StripFilterType, PostRouting, priority, true, name)
 	return &StripPrefixFilter{
 		BaseFilter: *baseFilter,
 		Prefix:     prefix,
@@ -59,4 +59,27 @@ func (f *StripPrefixFilter) Apply(ctx *core.Context) error {
 	}
 
 	return nil
+}
+
+// StripPrefixFilterFromConfig 从配置创建前缀剥离过滤器
+func StripPrefixFilterFromConfig(config FilterConfig) (Filter, error) {
+	prefix := ""
+	if config.Config != nil {
+		if p, ok := config.Config["prefix"].(string); ok {
+			prefix = p
+		}
+	}
+
+	// 使用配置中的order字段，如果没有则使用默认值100
+	order := config.Order
+	if order <= 0 {
+		order = 100
+	}
+
+	filter := NewStripPrefixFilter(config.Name, prefix, order)
+
+	// 存储原始配置
+	filter.BaseFilter.originalConfig = config
+
+	return filter, nil
 }

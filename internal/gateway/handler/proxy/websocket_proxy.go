@@ -119,8 +119,23 @@ func (w *WebSocketProxy) Validate() error {
 
 // Close 关闭WebSocket代理
 func (w *WebSocketProxy) Close() error {
+	var lastErr error
+	
 	// TODO: 关闭活跃的WebSocket连接
-	return nil
+	// 这里应该实现关闭所有活跃WebSocket连接的逻辑
+	// 包括发送关闭帧、等待关闭确认等
+	
+	// 关闭服务管理器
+	// 服务管理器包含健康检查器等需要清理的资源
+	if w.serviceManager != nil {
+		if closer, ok := w.serviceManager.(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				lastErr = err
+			}
+		}
+	}
+	
+	return lastErr
 }
 
 // NewWebSocketProxy 创建WebSocket代理

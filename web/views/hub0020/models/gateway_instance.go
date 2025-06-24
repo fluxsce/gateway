@@ -70,6 +70,9 @@ type GatewayInstance struct {
 	CurrentVersion int       `json:"currentVersion" form:"currentVersion" query:"currentVersion" db:"currentVersion"` // 当前版本号
 	ActiveFlag     string    `json:"activeFlag" form:"activeFlag" query:"activeFlag" db:"activeFlag"`                 // 活动状态标记(N非活动,Y活动)
 	NoteText       string    `json:"noteText" form:"noteText" query:"noteText" db:"noteText"`                         // 备注信息
+	
+	// 配置文件路径 - 新增字段，与数据库保持一致
+	ConfigFilePath string    `json:"configFilePath" form:"configFilePath" query:"configFilePath" db:"configFilePath"` // 配置文件路径
 }
 
 // TableName 返回表名

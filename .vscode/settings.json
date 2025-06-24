@@ -1,5 +1,5 @@
 {
-  "go.useLanguageServer": true,
+  "go.useLanguageServer": true, // 使用语言服务器，支持测试，语法检查，自动补全，影响非常卡顿
   "go.autocompleteUnimportedPackages": false,
   "go.gocodeAutoBuild": false,
   "go.lintOnSave": "off",

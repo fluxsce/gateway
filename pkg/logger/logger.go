@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,6 +18,17 @@ import (
 var (
 	// global logger instance
 	log *zap.Logger
+)
+
+const (
+	// TraceIDKey 跟踪ID在上下文中的键名
+	TraceIDKey = "trace_id"
+	// UserIdKey 用户ID在上下文中的键名
+	UserIdKey  = "userId"
+	// UserNameKey 用户名在上下文中的键名
+	UserNameKey = "userName"
+	// TenantIdKey 租户ID在上下文中的键名
+	TenantIdKey = "tenantId"
 )
 
 // LoggerConfig 日志配置结构体
@@ -251,6 +263,16 @@ func Info(msg string, args ...any) {
 	log.Info(msg, parseArgs(args...)...)
 }
 
+// InfoWithTrace 记录带跟踪ID的信息级别日志
+func InfoWithTrace(ctx context.Context, msg string, args ...any) {
+	if log == nil {
+		return
+	}
+	fields := parseArgs(args...)
+	fields = appendTraceID(ctx, fields)
+	log.Info(msg, fields...)
+}
+
 // Debug 记录调试级别日志
 // 参数格式与Info相同
 func Debug(msg string, args ...any) {
@@ -260,6 +282,16 @@ func Debug(msg string, args ...any) {
 	log.Debug(msg, parseArgs(args...)...)
 }
 
+// DebugWithTrace 记录带跟踪ID的调试级别日志
+func DebugWithTrace(ctx context.Context, msg string, args ...any) {
+	if log == nil {
+		return
+	}
+	fields := parseArgs(args...)
+	fields = appendTraceID(ctx, fields)
+	log.Debug(msg, fields...)
+}
+
 // Warn 记录警告级别日志
 // 参数格式与Info相同
 func Warn(msg string, args ...any) {
@@ -267,6 +299,16 @@ func Warn(msg string, args ...any) {
 		return
 	}
 	log.Warn(msg, parseArgs(args...)...)
+}
+
+// WarnWithTrace 记录带跟踪ID的警告级别日志
+func WarnWithTrace(ctx context.Context, msg string, args ...any) {
+	if log == nil {
+		return
+	}
+	fields := parseArgs(args...)
+	fields = appendTraceID(ctx, fields)
+	log.Warn(msg, fields...)
 }
 
 // Error 记录错误级别日志
@@ -293,6 +335,32 @@ func Error(msg string, args ...any) {
 	log.Error(msg, fields...)
 }
 
+// ErrorWithTrace 记录带跟踪ID的错误级别日志
+func ErrorWithTrace(ctx context.Context, msg string, args ...any) {
+	if log == nil {
+		return
+	}
+
+	// 处理常见的Error(msg, err)模式
+	if len(args) == 1 {
+		if err, ok := args[0].(error); ok {
+			// 使用huberrors获取完整错误栈信息
+			errorStack := huberrors.ErrorStack(err)
+			fields := []zap.Field{zap.Error(err), zap.String("error_stack", errorStack)}
+			fields = appendTraceID(ctx, fields)
+			log.Error(msg, fields...)
+			return
+		}
+	}
+
+	// 添加堆栈信息
+	fields := parseArgs(args...)
+	stack := captureStack(2)
+	fields = append(fields, zap.String("error_stack", stack))
+	fields = appendTraceID(ctx, fields)
+	log.Error(msg, fields...)
+}
+
 // Fatal 记录致命错误日志并终止程序
 // 参数格式与Error相同
 func Fatal(msg string, args ...any) {
@@ -314,6 +382,32 @@ func Fatal(msg string, args ...any) {
 	fields := parseArgs(args...)
 	stack := captureStack(2)
 	fields = append(fields, zap.String("error_stack", stack))
+	log.Fatal(msg, fields...)
+}
+
+// FatalWithTrace 记录带跟踪ID的致命错误日志并终止程序
+func FatalWithTrace(ctx context.Context, msg string, args ...any) {
+	if log == nil {
+		return
+	}
+
+	// 处理常见的Fatal(msg, err)模式
+	if len(args) == 1 {
+		if err, ok := args[0].(error); ok {
+			// 使用增强的堆栈跟踪
+			stack := captureErrorStack(err)
+			fields := []zap.Field{zap.Error(err), zap.String("error_stack", stack)}
+			fields = appendTraceID(ctx, fields)
+			log.Fatal(msg, fields...)
+			return
+		}
+	}
+
+	// 添加堆栈信息
+	fields := parseArgs(args...)
+	stack := captureStack(2)
+	fields = append(fields, zap.String("error_stack", stack))
+	fields = appendTraceID(ctx, fields)
 	log.Fatal(msg, fields...)
 }
 
@@ -457,4 +551,52 @@ func CreateLogDirectory(dir string) error {
 		}
 	}
 	return nil
+}
+
+// ===== 跟踪ID相关函数 =====
+
+// appendTraceID 为日志字段添加跟踪ID
+func appendTraceID(ctx context.Context, fields []zap.Field) []zap.Field {
+	if ctx == nil {
+		return fields
+	}
+	
+	if traceID := getTraceIDFromContext(ctx); traceID != "" {
+		fields = append(fields, zap.String("trace_id", traceID))
+	}
+	
+	// 添加用户ID
+	if userID, ok := ctx.Value(UserIdKey).(string); ok && userID != "" {
+		fields = append(fields, zap.String("userId", userID))
+	}
+	
+	// 添加用户名
+	if userName, ok := ctx.Value(UserNameKey).(string); ok && userName != "" {
+		fields = append(fields, zap.String("userName", userName))
+	}
+	
+	// 添加租户ID
+	if tenantID, ok := ctx.Value(TenantIdKey).(string); ok && tenantID != "" {
+		fields = append(fields, zap.String("tenantId", tenantID))
+	}
+	
+	return fields
+}
+
+// getTraceIDFromContext 从上下文中获取跟踪ID
+func getTraceIDFromContext(ctx context.Context) string {
+	if traceID, ok := ctx.Value(TraceIDKey).(string); ok {
+		return traceID
+	}
+	return ""
+}
+
+// WithTraceID 为上下文添加跟踪ID
+func WithTraceID(ctx context.Context, traceID string) context.Context {
+	return context.WithValue(ctx, TraceIDKey, traceID)
+}
+
+// GetTraceID 从上下文中获取跟踪ID（公开接口）
+func GetTraceID(ctx context.Context) string {
+	return getTraceIDFromContext(ctx)
 }

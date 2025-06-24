@@ -50,7 +50,7 @@ type PathRewriteFilter struct {
 // - *PathRewriteFilter: 创建的过滤器
 // - error: 创建过程中的错误
 func NewPathRewriteFilter(name, from, to string, mode PathRewriteMode, priority int) (*PathRewriteFilter, error) {
-	baseFilter := NewBaseFilter(URLFilterType, PostRouting, priority, true, name)
+	baseFilter := NewBaseFilter(RewriteFilterType, PostRouting, priority, true, name)
 	filter := &PathRewriteFilter{
 		BaseFilter: *baseFilter,
 		Mode:       mode,
@@ -115,4 +115,46 @@ func NewSimplePathRewriteFilter(name, from, to string, priority int) *PathRewrit
 // 简单封装了 NewPathRewriteFilter 函数，使用 RegexReplace 模式
 func NewRegexPathRewriteFilter(name, pattern, replacement string, priority int) (*PathRewriteFilter, error) {
 	return NewPathRewriteFilter(name, pattern, replacement, RegexReplace, priority)
+}
+
+// PathRewriteFilterFromConfig 从配置创建路径重写过滤器
+func PathRewriteFilterFromConfig(config FilterConfig) (Filter, error) {
+	from := ""
+	to := ""
+	mode := "simple"
+
+	if config.Config != nil {
+		if f, ok := config.Config["from"].(string); ok {
+			from = f
+		}
+		if t, ok := config.Config["to"].(string); ok {
+			to = t
+		}
+		if m, ok := config.Config["mode"].(string); ok {
+			mode = m
+		}
+	}
+
+	// 使用配置中的order字段，如果没有则使用默认值100
+	order := config.Order
+	if order <= 0 {
+		order = 100
+	}
+
+	var filter *PathRewriteFilter
+	var err error
+
+	if mode == "regex" {
+		filter, err = NewRegexPathRewriteFilter(config.Name, from, to, order)
+		if err != nil {
+			return nil, fmt.Errorf("创建正则路径重写过滤器失败: %w", err)
+		}
+	} else {
+		filter = NewSimplePathRewriteFilter(config.Name, from, to, order)
+	}
+
+	// 存储原始配置
+	filter.BaseFilter.originalConfig = config
+
+	return filter, nil
 }

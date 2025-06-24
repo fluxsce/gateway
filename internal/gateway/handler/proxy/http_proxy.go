@@ -190,12 +190,26 @@ func (h *HTTPProxy) Validate() error {
 
 // Close 关闭HTTP代理
 func (h *HTTPProxy) Close() error {
+	var lastErr error
+	
+	// 关闭HTTP客户端连接
 	if h.client != nil {
 		if transport, ok := h.client.Transport.(*http.Transport); ok {
 			transport.CloseIdleConnections()
 		}
 	}
-	return nil
+	
+	// 关闭服务管理器
+	// 服务管理器包含健康检查器等需要清理的资源
+	if h.serviceManager != nil {
+		if closer, ok := h.serviceManager.(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				lastErr = err
+			}
+		}
+	}
+	
+	return lastErr
 }
 
 // NewHTTPProxy 创建HTTP代理

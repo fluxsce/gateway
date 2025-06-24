@@ -1,410 +1,195 @@
 package loader
 
 import (
-	"database/sql"
-	"encoding/json"
+	"context"
 	"fmt"
-	"time"
 
 	"gohub/internal/gateway/config"
+	"gohub/internal/gateway/handler/auth"
+	"gohub/internal/gateway/handler/cors"
+	"gohub/internal/gateway/handler/limiter"
+	"gohub/internal/gateway/handler/proxy"
+	"gohub/internal/gateway/handler/router"
+	"gohub/internal/gateway/handler/security"
+	"gohub/internal/gateway/loader/dbloader"
+	"gohub/pkg/database"
+	"gohub/pkg/logger"
 )
 
 // DatabaseConfigLoader 数据库配置加载器
 type DatabaseConfigLoader struct {
-	factory *GatewayConfigFactory
-	db      *sql.DB
-	options *DatabaseOptions
-}
-
-// DatabaseOptions 数据库连接选项
-type DatabaseOptions struct {
-	Driver          string        `yaml:"driver" json:"driver"`                       // 数据库驱动 (mysql, postgresql, sqlite3)
-	DSN             string        `yaml:"dsn" json:"dsn"`                             // 数据源名称
-	MaxOpenConns    int           `yaml:"max_open_conns" json:"max_open_conns"`       // 最大打开连接数
-	MaxIdleConns    int           `yaml:"max_idle_conns" json:"max_idle_conns"`       // 最大空闲连接数
-	ConnMaxLifetime time.Duration `yaml:"conn_max_lifetime" json:"conn_max_lifetime"` // 连接最大生存时间
-	TableName       string        `yaml:"table_name" json:"table_name"`               // 配置表名
-}
-
-// GatewayConfigRecord 数据库中的配置记录
-type GatewayConfigRecord struct {
-	ID          string    `db:"id" json:"id"`
-	Name        string    `db:"name" json:"name"`
-	ConfigData  string    `db:"config_data" json:"config_data"` // JSON格式的配置数据
-	Version     int       `db:"version" json:"version"`         // 配置版本
-	Environment string    `db:"environment" json:"environment"` // 环境标识 (dev, test, prod)
-	IsActive    bool      `db:"is_active" json:"is_active"`     // 是否激活
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	CreatedBy   string    `db:"created_by" json:"created_by"`
-	UpdatedBy   string    `db:"updated_by" json:"updated_by"`
-	Description string    `db:"description" json:"description"`
+	db                   database.Database
+	tenantId             string
+	baseLoader           *dbloader.BaseConfigLoader
+	routerLoader         *dbloader.RouterConfigLoader
+	securityLoader       *dbloader.SecurityConfigLoader
+	authCORSLoader       *dbloader.AuthCORSConfigLoader
+	limiterServiceLoader *dbloader.LimiterServiceLoader
 }
 
 // NewDatabaseConfigLoader 创建数据库配置加载器
-func NewDatabaseConfigLoader(options *DatabaseOptions) (*DatabaseConfigLoader, error) {
-	if options == nil {
-		options = &DatabaseOptions{
-			Driver:          "sqlite3",
-			DSN:             "./gateway_configs.db",
-			MaxOpenConns:    10,
-			MaxIdleConns:    5,
-			ConnMaxLifetime: time.Hour,
-			TableName:       "gateway_configs",
+func NewDatabaseConfigLoader(db database.Database, tenantId string) *DatabaseConfigLoader {
+	return &DatabaseConfigLoader{
+		db:                   db,
+		tenantId:             tenantId,
+		baseLoader:           dbloader.NewBaseConfigLoader(db, tenantId),
+		routerLoader:         dbloader.NewRouterConfigLoader(db, tenantId),
+		securityLoader:       dbloader.NewSecurityConfigLoader(db, tenantId),
+		authCORSLoader:       dbloader.NewAuthCORSConfigLoader(db, tenantId),
+		limiterServiceLoader: dbloader.NewLimiterServiceLoader(db, tenantId),
+	}
+}
+
+// LoadGatewayConfig 从数据库加载网关配置
+func (loader *DatabaseConfigLoader) LoadGatewayConfig(instanceId string) (*config.GatewayConfig, error) {
+	ctx := context.Background()
+	
+	// 1. 加载网关实例基础配置
+	instance, err := loader.baseLoader.LoadGatewayInstance(ctx, instanceId)
+	if err != nil {
+		return nil, fmt.Errorf("加载网关实例配置失败: %w", err)
+	}
+	if instance == nil {
+		return nil, fmt.Errorf("网关实例不存在: %s", instanceId)
+	}
+
+	// 2. 构建网关配置
+	gatewayConfig := &config.GatewayConfig{
+		InstanceID: instanceId,
+		Base:       loader.baseLoader.BuildBaseConfig(instance),
+	}
+
+	// 3. 加载Router配置
+	routerConfig, err := loader.routerLoader.LoadRouterConfig(ctx, instanceId)
+	if err != nil {
+		logger.Warn("加载Router配置失败，使用默认配置", "error", err)
+		gatewayConfig.Router = router.DefaultRouterConfig
+	} else if routerConfig != nil {
+		gatewayConfig.Router = *routerConfig
+	} else {
+		gatewayConfig.Router = router.DefaultRouterConfig
+	}
+
+	// 4. 加载代理配置和服务定义
+	proxyConfig, err := loader.limiterServiceLoader.LoadProxyConfig(ctx, instanceId)
+	if err != nil {
+		logger.Warn("加载代理配置失败，使用默认配置", "error", err)
+		gatewayConfig.Proxy = proxy.DefaultProxyConfig
+	} else if proxyConfig != nil {
+		gatewayConfig.Proxy = *proxyConfig
+	} else {
+		gatewayConfig.Proxy = proxy.DefaultProxyConfig
+	}
+
+	// 5. 加载安全配置
+	securityConfig, err := loader.securityLoader.LoadSecurityConfig(ctx, instanceId)
+	if err != nil {
+		logger.Warn("加载安全配置失败，使用默认配置", "error", err)
+		gatewayConfig.Security = security.DefaultSecurityConfig
+	} else if securityConfig != nil {
+		gatewayConfig.Security = *securityConfig
+	} else {
+		gatewayConfig.Security = security.DefaultSecurityConfig
+	}
+
+	// 6. 加载认证配置
+	authConfig, err := loader.authCORSLoader.LoadAuthConfig(ctx, instanceId)
+	if err != nil {
+		logger.Warn("加载认证配置失败，使用默认配置", "error", err)
+		gatewayConfig.Auth = auth.AuthConfig{
+			Enabled:  false,
+			Strategy: auth.StrategyNoAuth,
+		}
+	} else if authConfig != nil {
+		gatewayConfig.Auth = *authConfig
+	} else {
+		gatewayConfig.Auth = auth.AuthConfig{
+			Enabled:  false,
+			Strategy: auth.StrategyNoAuth,
 		}
 	}
 
-	loader := &DatabaseConfigLoader{
-		factory: NewGatewayConfigFactory(ConfigSourceDB),
-		options: options,
-	}
-
-	// 初始化数据库连接
-	if err := loader.initDatabase(); err != nil {
-		return nil, fmt.Errorf("初始化数据库连接失败: %w", err)
-	}
-
-	return loader, nil
-}
-
-// initDatabase 初始化数据库连接
-func (d *DatabaseConfigLoader) initDatabase() error {
-	var err error
-	d.db, err = sql.Open(d.options.Driver, d.options.DSN)
+	// 7. 加载CORS配置
+	corsConfig, err := loader.authCORSLoader.LoadCORSConfig(ctx, instanceId)
 	if err != nil {
-		return fmt.Errorf("打开数据库连接失败: %w", err)
-	}
-
-	// 设置连接池参数
-	d.db.SetMaxOpenConns(d.options.MaxOpenConns)
-	d.db.SetMaxIdleConns(d.options.MaxIdleConns)
-	d.db.SetConnMaxLifetime(d.options.ConnMaxLifetime)
-
-	// 测试连接
-	if err := d.db.Ping(); err != nil {
-		return fmt.Errorf("数据库连接测试失败: %w", err)
-	}
-
-	// 创建配置表（如果不存在）
-	if err := d.createConfigTable(); err != nil {
-		return fmt.Errorf("创建配置表失败: %w", err)
-	}
-
-	return nil
-}
-
-// createConfigTable 创建配置表
-func (d *DatabaseConfigLoader) createConfigTable() error {
-	createTableSQL := fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s (
-			id VARCHAR(255) PRIMARY KEY,
-			name VARCHAR(255) NOT NULL,
-			config_data TEXT NOT NULL,
-			version INTEGER NOT NULL DEFAULT 1,
-			environment VARCHAR(50) NOT NULL DEFAULT 'default',
-			is_active BOOLEAN NOT NULL DEFAULT TRUE,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			created_by VARCHAR(255) DEFAULT 'system',
-			updated_by VARCHAR(255) DEFAULT 'system',
-			description TEXT
-		)
-	`, d.options.TableName)
-
-	_, err := d.db.Exec(createTableSQL)
-	return err
-}
-
-// LoadConfig 从数据库加载配置
-func (d *DatabaseConfigLoader) LoadConfig(configID string) (*config.GatewayConfig, error) {
-	if configID == "" {
-		return &config.DefaultGatewayConfig, nil
-	}
-
-	record, err := d.getConfigRecord(configID)
-	if err != nil {
-		return nil, fmt.Errorf("获取数据库配置记录失败: %w", err)
-	}
-
-	if record == nil {
-		return &config.DefaultGatewayConfig, nil
-	}
-
-	// 解析JSON配置数据
-	cfg := &config.GatewayConfig{}
-	if err := json.Unmarshal([]byte(record.ConfigData), cfg); err != nil {
-		return nil, fmt.Errorf("解析数据库配置数据失败: %w", err)
-	}
-
-	// 合并默认配置
-	d.factory.mergeDefaultConfig(cfg)
-
-	return cfg, nil
-}
-
-// getConfigRecord 获取配置记录
-func (d *DatabaseConfigLoader) getConfigRecord(configID string) (*GatewayConfigRecord, error) {
-	querySQL := fmt.Sprintf(`
-		SELECT id, name, config_data, version, environment, is_active, 
-		       created_at, updated_at, created_by, updated_by, description
-		FROM %s 
-		WHERE id = ? AND is_active = TRUE
-		ORDER BY version DESC
-		LIMIT 1
-	`, d.options.TableName)
-
-	row := d.db.QueryRow(querySQL, configID)
-
-	record := &GatewayConfigRecord{}
-	err := row.Scan(
-		&record.ID,
-		&record.Name,
-		&record.ConfigData,
-		&record.Version,
-		&record.Environment,
-		&record.IsActive,
-		&record.CreatedAt,
-		&record.UpdatedAt,
-		&record.CreatedBy,
-		&record.UpdatedBy,
-		&record.Description,
-	)
-
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("查询配置记录失败: %w", err)
-	}
-
-	return record, nil
-}
-
-// SaveConfig 保存配置到数据库
-func (d *DatabaseConfigLoader) SaveConfig(record *GatewayConfigRecord) error {
-	// 检查配置是否已存在
-	existing, err := d.getConfigRecord(record.ID)
-	if err != nil {
-		return fmt.Errorf("检查配置记录失败: %w", err)
-	}
-
-	if existing != nil {
-		// 更新现有配置
-		return d.updateConfig(record)
+		logger.Warn("加载CORS配置失败，使用默认配置", "error", err)
+		gatewayConfig.CORS = cors.DefaultCORSConfig
+	} else if corsConfig != nil {
+		gatewayConfig.CORS = *corsConfig
 	} else {
-		// 插入新配置
-		return d.insertConfig(record)
-	}
-}
-
-// insertConfig 插入新配置
-func (d *DatabaseConfigLoader) insertConfig(record *GatewayConfigRecord) error {
-	insertSQL := fmt.Sprintf(`
-		INSERT INTO %s (
-			id, name, config_data, version, environment, is_active,
-			created_at, updated_at, created_by, updated_by, description
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, d.options.TableName)
-
-	now := time.Now()
-	_, err := d.db.Exec(
-		insertSQL,
-		record.ID,
-		record.Name,
-		record.ConfigData,
-		record.Version,
-		record.Environment,
-		record.IsActive,
-		now,
-		now,
-		record.CreatedBy,
-		record.UpdatedBy,
-		record.Description,
-	)
-
-	return err
-}
-
-// updateConfig 更新配置
-func (d *DatabaseConfigLoader) updateConfig(record *GatewayConfigRecord) error {
-	updateSQL := fmt.Sprintf(`
-		UPDATE %s SET 
-			name = ?, config_data = ?, version = version + 1, 
-			environment = ?, is_active = ?, updated_at = ?, 
-			updated_by = ?, description = ?
-		WHERE id = ?
-	`, d.options.TableName)
-
-	_, err := d.db.Exec(
-		updateSQL,
-		record.Name,
-		record.ConfigData,
-		record.Environment,
-		record.IsActive,
-		time.Now(),
-		record.UpdatedBy,
-		record.Description,
-		record.ID,
-	)
-
-	return err
-}
-
-// ListConfigs 列出所有配置
-func (d *DatabaseConfigLoader) ListConfigs(environment string) ([]*GatewayConfigRecord, error) {
-	var querySQL string
-	var args []interface{}
-
-	if environment != "" {
-		querySQL = fmt.Sprintf(`
-			SELECT id, name, config_data, version, environment, is_active,
-			       created_at, updated_at, created_by, updated_by, description
-			FROM %s 
-			WHERE environment = ? AND is_active = TRUE
-			ORDER BY updated_at DESC
-		`, d.options.TableName)
-		args = []interface{}{environment}
-	} else {
-		querySQL = fmt.Sprintf(`
-			SELECT id, name, config_data, version, environment, is_active,
-			       created_at, updated_at, created_by, updated_by, description
-			FROM %s 
-			WHERE is_active = TRUE
-			ORDER BY updated_at DESC
-		`, d.options.TableName)
+		gatewayConfig.CORS = cors.DefaultCORSConfig
 	}
 
-	rows, err := d.db.Query(querySQL, args...)
+	// 8. 加载限流配置
+	rateLimitConfig, err := loader.limiterServiceLoader.LoadRateLimitConfig(ctx, instanceId)
 	if err != nil {
-		return nil, fmt.Errorf("查询配置列表失败: %w", err)
+		logger.Warn("加载限流配置失败，使用默认配置", "error", err)
+		gatewayConfig.RateLimit = limiter.RateLimitConfig{
+			Enabled:         false,
+			Algorithm:       limiter.AlgorithmTokenBucket,
+			Rate:            100,
+			Burst:           50,
+			ErrorStatusCode: 429,
+			ErrorMessage:    "Rate limit exceeded",
+		}
+	} else {
+		gatewayConfig.RateLimit = *rateLimitConfig
 	}
-	defer rows.Close()
 
-	var records []*GatewayConfigRecord
-	for rows.Next() {
-		record := &GatewayConfigRecord{}
-		err := rows.Scan(
-			&record.ID,
-			&record.Name,
-			&record.ConfigData,
-			&record.Version,
-			&record.Environment,
-			&record.IsActive,
-			&record.CreatedAt,
-			&record.UpdatedAt,
-			&record.CreatedBy,
-			&record.UpdatedBy,
-			&record.Description,
-		)
+	// 9. 为每个路由加载路由级别配置
+	for i := range gatewayConfig.Router.Routes {
+		route := &gatewayConfig.Router.Routes[i]
+		
+		// 加载路由级别的安全配置
+		routeSecurityConfig, err := loader.securityLoader.LoadRouteSecurityConfig(ctx, route.ID)
 		if err != nil {
-			return nil, fmt.Errorf("扫描配置记录失败: %w", err)
+			logger.Warn("加载路由安全配置失败", 
+				"routeId", route.ID, 
+				"error", err)
+		} else if routeSecurityConfig != nil {
+			route.SecurityConfig = routeSecurityConfig
 		}
-		records = append(records, record)
+
+		// 加载路由级别的认证配置
+		routeAuthConfig, err := loader.authCORSLoader.LoadRouteAuthConfig(ctx, route.ID)
+		if err != nil {
+			logger.Warn("加载路由认证配置失败", 
+				"routeId", route.ID, 
+				"error", err)
+		} else if routeAuthConfig != nil {
+			route.AuthConfig = routeAuthConfig
+		}
+
+		// 加载路由级别的CORS配置
+		routeCorsConfig, err := loader.authCORSLoader.LoadRouteCORSConfig(ctx, route.ID)
+		if err != nil {
+			logger.Warn("加载路由CORS配置失败", 
+				"routeId", route.ID, 
+				"error", err)
+		} else if routeCorsConfig != nil {
+			route.CorsConfig = routeCorsConfig
+		}
+
+		// 加载路由级别的限流配置
+		routeRateLimitConfig, err := loader.limiterServiceLoader.LoadRouteRateLimitConfig(ctx, route.ID)
+		if err != nil {
+			logger.Warn("加载路由限流配置失败", 
+				"routeId", route.ID, 
+				"error", err)
+		} else if routeRateLimitConfig != nil {
+			route.LimiterConfig = routeRateLimitConfig
+		}
+
+		// 加载路由级别的过滤器配置
+		routeFilters, err := loader.routerLoader.LoadRouteFilters(ctx, route.ID)
+		if err != nil {
+			logger.Warn("加载路由过滤器配置失败", 
+				"routeId", route.ID, 
+				"error", err)
+		} else if routeFilters != nil {
+			route.FilterConfig = routeFilters
+		}
 	}
 
-	return records, nil
-}
-
-// DeleteConfig 删除配置（软删除）
-func (d *DatabaseConfigLoader) DeleteConfig(configID string, deletedBy string) error {
-	updateSQL := fmt.Sprintf(`
-		UPDATE %s SET 
-			is_active = FALSE, updated_at = ?, updated_by = ?
-		WHERE id = ?
-	`, d.options.TableName)
-
-	_, err := d.db.Exec(updateSQL, time.Now(), deletedBy, configID)
-	return err
-}
-
-// ValidateConfig 验证数据库配置
-func (d *DatabaseConfigLoader) ValidateConfig(configID string) error {
-	if configID == "" {
-		return fmt.Errorf("配置ID不能为空")
-	}
-
-	record, err := d.getConfigRecord(configID)
-	if err != nil {
-		return fmt.Errorf("获取数据库配置失败: %w", err)
-	}
-
-	if record == nil {
-		return fmt.Errorf("配置ID %s 不存在", configID)
-	}
-
-	// 尝试解析配置数据
-	cfg := &config.GatewayConfig{}
-	if err := json.Unmarshal([]byte(record.ConfigData), cfg); err != nil {
-		return fmt.Errorf("配置数据格式验证失败: %w", err)
-	}
-
-	return nil
-}
-
-// ExportConfigToJSON 将配置导出为JSON格式
-func (d *DatabaseConfigLoader) ExportConfigToJSON(configID string, indent bool) (string, error) {
-	cfg, err := d.LoadConfig(configID)
-	if err != nil {
-		return "", fmt.Errorf("加载配置失败: %w", err)
-	}
-
-	var data []byte
-	if indent {
-		data, err = json.MarshalIndent(cfg, "", "  ")
-	} else {
-		data, err = json.Marshal(cfg)
-	}
-
-	if err != nil {
-		return "", fmt.Errorf("导出JSON配置失败: %w", err)
-	}
-
-	return string(data), nil
-}
-
-// ImportConfigFromJSON 从JSON导入配置
-func (d *DatabaseConfigLoader) ImportConfigFromJSON(configID, name, jsonData, environment, operator string) error {
-	// 验证JSON格式
-	cfg := &config.GatewayConfig{}
-	if err := json.Unmarshal([]byte(jsonData), cfg); err != nil {
-		return fmt.Errorf("JSON格式验证失败: %w", err)
-	}
-
-	record := &GatewayConfigRecord{
-		ID:          configID,
-		Name:        name,
-		ConfigData:  jsonData,
-		Version:     1,
-		Environment: environment,
-		IsActive:    true,
-		CreatedBy:   operator,
-		UpdatedBy:   operator,
-		Description: fmt.Sprintf("从JSON导入的配置 - %s", time.Now().Format("2006-01-02 15:04:05")),
-	}
-
-	return d.SaveConfig(record)
-}
-
-// Close 关闭数据库连接
-func (d *DatabaseConfigLoader) Close() error {
-	if d.db != nil {
-		return d.db.Close()
-	}
-	return nil
-}
-
-// GetDatabase 获取数据库连接
-func (d *DatabaseConfigLoader) GetDatabase() *sql.DB {
-	return d.db
-}
-
-// GetDatabaseOptions 获取数据库选项
-func (d *DatabaseConfigLoader) GetDatabaseOptions() *DatabaseOptions {
-	return d.options
-}
-
-// ReloadConfig 重新加载数据库配置
-func (d *DatabaseConfigLoader) ReloadConfig(configID string) (*config.GatewayConfig, error) {
-	return d.LoadConfig(configID)
+	return gatewayConfig, nil
 }

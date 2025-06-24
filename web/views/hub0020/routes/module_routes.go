@@ -86,6 +86,9 @@ func initGatewayInstanceRoutes(router *gin.RouterGroup, db database.Database) {
 
 		// 网关实例健康状态更新
 		instanceGroup.POST("/updateHealthStatus", gatewayInstanceController.UpdateHealthStatus)
+		
+		// 网关实例配置重载
+		instanceGroup.POST("/reloadGatewayInstance", gatewayInstanceController.ReloadGatewayInstance)
 	}
 }
 

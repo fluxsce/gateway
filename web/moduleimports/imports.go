@@ -8,16 +8,22 @@ import (
 	// 导入所有模块的routes包，这样它们的init函数会被自动执行
 	// 每个模块在导入时会通过init函数自动注册自己的路由
 
-	// hub0002模块
-	_ "gohub/web/views/hub0002/routes"
+	// hub002模块 - 安全配置管理模块（位于common目录）
+	_ "gohub/web/views/hubcommon002/routes"
 	// 添加其他模块的导入
 	// _ "gohub/web/views/hub0001/routes"
 	// _ "gohub/web/views/hub0003/routes"
 	// _ "gohub/web/views/hub0004/routes"
 	// 导入认证模块
 	_ "gohub/web/views/hub0001/routes"
+	// 导入用户管理模块
+	_ "gohub/web/views/hub0002/routes"
 	// 导入网关管理模块
 	_ "gohub/web/views/hub0020/routes"
+	// 导入路由管理模块
+	_ "gohub/web/views/hub0021/routes"
+	// 导入代理管理模块
+	_ "gohub/web/views/hub0022/routes"
 )
 
 // 这个包没有导出任何函数或变量

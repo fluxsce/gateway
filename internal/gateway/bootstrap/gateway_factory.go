@@ -17,6 +17,7 @@ import (
 	"gohub/internal/gateway/handler/router"
 	"gohub/internal/gateway/handler/security"
 	"gohub/internal/gateway/handler/service"
+	"gohub/pkg/logger"
 )
 
 // GatewayFactory 网关工厂
@@ -60,6 +61,31 @@ func (f *GatewayFactory) CreateGateway(cfg *config.GatewayConfig, configFile str
 	// 初始化和设置所有处理器
 	if err := f.initializeAndSetHandlers(gateway, cfg); err != nil {
 		return nil, fmt.Errorf("初始化处理器失败: %w", err)
+	}
+
+	return gateway, nil
+}
+
+// CreateGatewayWithPool 创建网关实例并添加到连接池
+func (f *GatewayFactory) CreateGatewayWithPool(cfg *config.GatewayConfig, configFile string) (*Gateway, error) {
+	// 创建网关实例
+	gateway, err := f.CreateGateway(cfg, configFile)
+	if err != nil {
+		return nil, err
+	}
+
+	// 获取全局连接池
+	pool := GetGlobalPool()
+	
+	// 确定实例ID
+	instanceID := cfg.InstanceID
+	if instanceID == "" {
+		instanceID = cfg.Base.Listen // 使用监听地址作为默认ID
+	}
+	
+	// 添加到连接池
+	if err := pool.Add(instanceID, gateway); err != nil {
+		return nil, fmt.Errorf("添加网关实例到连接池失败: %w", err)
 	}
 
 	return gateway, nil
@@ -158,5 +184,106 @@ func (f *GatewayFactory) initializeAndSetHandlers(gateway *Gateway, cfg *config.
 	gateway.cors = corsHandler
 	gateway.security = securityHandler
 	gateway.limiter = limiterHandler
+	return nil
+}
+
+// ReloadGateway 重新加载网关配置
+// 允许在不重启服务的情况下更新网关的配置
+func (f *GatewayFactory) ReloadGateway(gateway *Gateway, newCfg *config.GatewayConfig) error {
+	if gateway == nil {
+		return fmt.Errorf("网关实例不能为空")
+	}
+
+	if newCfg == nil {
+		return fmt.Errorf("新配置不能为空")
+	}
+
+	// 保存旧配置，以便在失败时回滚
+	oldConfig := gateway.gatewayConfig
+
+	// 更新网关配置
+	gateway.gatewayConfig = newCfg
+
+	// 更新HTTP服务器配置
+	gateway.server.ReadTimeout = newCfg.Base.ReadTimeout
+	gateway.server.WriteTimeout = newCfg.Base.WriteTimeout
+	gateway.server.IdleTimeout = newCfg.Base.IdleTimeout
+
+	// 如果监听地址发生变化，需要重启服务
+	if oldConfig.Base.Listen != newCfg.Base.Listen {
+		return fmt.Errorf("监听地址变更需要重启服务")
+	}
+
+	// 关闭旧的处理器资源，防止资源泄漏
+	// 优先关闭代理处理器，因为它通常包含健康检查器等后台资源
+	if gateway.proxy != nil {
+		if closer, ok := gateway.proxy.(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				logger.Warn("重载配置时关闭旧代理处理器失败", "error", err)
+			} else {
+				logger.Debug("重载配置时旧代理处理器已关闭")
+			}
+		}
+	}
+
+	// 关闭其他处理器资源
+	if gateway.router != nil {
+		if closer, ok := gateway.router.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
+	}
+	
+	if gateway.auth != nil {
+		if closer, ok := gateway.auth.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
+	}
+	
+	if gateway.cors != nil {
+		if closer, ok := gateway.cors.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
+	}
+	
+	if gateway.security != nil {
+		if closer, ok := gateway.security.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
+	}
+	
+	if gateway.limiter != nil {
+		if closer, ok := gateway.limiter.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
+	}
+
+	// 尝试重新初始化所有处理器
+	if err := f.initializeAndSetHandlers(gateway, newCfg); err != nil {
+		// 初始化失败，回滚配置
+		gateway.gatewayConfig = oldConfig
+		// 尝试恢复原有处理器
+		_ = f.initializeAndSetHandlers(gateway, oldConfig)
+		return fmt.Errorf("重新初始化处理器失败: %w", err)
+	}
+
+	// 更新实例ID
+	if oldConfig.InstanceID != newCfg.InstanceID && newCfg.InstanceID != "" {
+		// 获取全局连接池
+		pool := GetGlobalPool()
+		
+		// 从连接池中移除旧ID
+		if oldConfig.InstanceID != "" {
+			pool.Remove(oldConfig.InstanceID)
+		} else if oldConfig.Base.Listen != "" {
+			// 如果旧配置没有实例ID，尝试使用监听地址作为ID
+			pool.Remove(oldConfig.Base.Listen)
+		}
+		
+		// 使用新ID添加到连接池
+		if err := pool.Add(newCfg.InstanceID, gateway); err != nil {
+			return fmt.Errorf("更新连接池中的网关实例失败: %w", err)
+		}
+	}
+
 	return nil
 }

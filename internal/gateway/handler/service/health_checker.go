@@ -58,6 +58,11 @@ func (h *HTTPHealthChecker) Start() error {
 }
 
 // Stop 停止健康检查
+// 这个方法对于防止资源泄漏至关重要：
+// 1. 设置running标志为false，防止新的健康检查被执行
+// 2. 关闭stopCh通道，这会触发healthCheckLoop中的select语句退出循环
+// 3. 当healthCheckLoop退出后，相关的goroutine会结束，释放资源
+// 4. 如果不调用此方法，healthCheckLoop会一直运行，导致goroutine泄漏
 func (h *HTTPHealthChecker) Stop() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -256,6 +261,16 @@ func (h *HTTPHealthChecker) GetHealthStats() map[string]interface{} {
 	return stats
 }
 
+// Close 关闭健康检查器并清理资源
+// 实现此方法的目的：
+// 1. 符合gateway.go中使用的interface{ Close() error }类型断言
+// 2. 提供与Stop方法相同的功能，但遵循Go资源清理的命名惯例
+// 3. 确保即使通过类型断言调用也能正确停止健康检查goroutine
+// 4. 保持与其他组件（如代理处理器）的一致性
+func (h *HTTPHealthChecker) Close() error {
+	return h.Stop()
+}
+
 // NoOpHealthChecker 无操作健康检查器（用于禁用健康检查）
 type NoOpHealthChecker struct{}
 
@@ -282,6 +297,13 @@ func (n *NoOpHealthChecker) CheckNode(node *NodeConfig) bool {
 // RegisterCallback 注册健康状态变化回调（无操作）
 func (n *NoOpHealthChecker) RegisterCallback(callback HealthCheckCallback) {
 	// 无操作
+}
+
+// Close 关闭健康检查器（无操作）
+// 实现此方法是为了与其他健康检查器保持一致性
+// 并满足gateway.go中的类型断言检查
+func (n *NoOpHealthChecker) Close() error {
+	return nil
 }
 
 // AdvancedHealthChecker 高级健康检查器（支持自定义检查逻辑）
@@ -328,6 +350,11 @@ func (a *AdvancedHealthChecker) Start() error {
 }
 
 // Stop 停止健康检查
+// 这个方法对于防止资源泄漏至关重要：
+// 1. 设置running标志为false，防止新的健康检查被执行
+// 2. 关闭stopCh通道，这会触发healthCheckLoop中的select语句退出循环
+// 3. 当healthCheckLoop退出后，相关的goroutine会结束，释放资源
+// 4. 如果不调用此方法，healthCheckLoop会一直运行，导致goroutine泄漏
 func (a *AdvancedHealthChecker) Stop() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -493,4 +520,14 @@ func (a *AdvancedHealthChecker) RemoveNode(nodeID string) {
 	defer a.mu.Unlock()
 
 	delete(a.nodes, nodeID)
+}
+
+// Close 关闭健康检查器并清理资源
+// 实现此方法的目的：
+// 1. 符合gateway.go中使用的interface{ Close() error }类型断言
+// 2. 提供与Stop方法相同的功能，但遵循Go资源清理的命名惯例
+// 3. 确保即使通过类型断言调用也能正确停止健康检查goroutine
+// 4. 保持与其他组件（如代理处理器）的一致性
+func (a *AdvancedHealthChecker) Close() error {
+	return a.Stop()
 }

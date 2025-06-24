@@ -43,8 +43,22 @@ func (u *UDPProxy) Validate() error {
 
 // Close 关闭UDP代理
 func (u *UDPProxy) Close() error {
+	var lastErr error
+	
 	// TODO: 关闭活跃的UDP连接
-	return nil
+	// 这里应该实现关闭所有活跃UDP连接的逻辑
+	
+	// 关闭服务管理器
+	// 服务管理器包含健康检查器等需要清理的资源
+	if u.serviceManager != nil {
+		if closer, ok := u.serviceManager.(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				lastErr = err
+			}
+		}
+	}
+	
+	return lastErr
 }
 
 // NewUDPProxy 创建UDP代理

@@ -45,7 +45,7 @@ func (c *UserController) QueryUsers(ctx *gin.Context) {
 	// 调用DAO获取用户列表
 	users, total, err := c.userDAO.ListUsers(ctx, tenantId, page, pageSize)
 	if err != nil {
-		logger.Error("获取用户列表失败", err)
+		logger.ErrorWithTrace(ctx, "获取用户列表失败", err)
 		// 使用统一的错误响应
 		response.ErrorJSON(ctx, "获取用户列表失败: "+err.Error(), constants.ED00009)
 		return
@@ -87,7 +87,7 @@ func (c *UserController) AddUser(ctx *gin.Context) {
 	// 调用DAO添加用户
 	userId, err := c.userDAO.AddUser(ctx, &req, operatorId)
 	if err != nil {
-		logger.Error("创建用户失败", err)
+		logger.ErrorWithTrace(ctx, "创建用户失败", err)
 		response.ErrorJSON(ctx, "创建用户失败: "+err.Error(), constants.ED00009)
 		return
 	}
@@ -100,7 +100,7 @@ func (c *UserController) AddUser(ctx *gin.Context) {
 
 	newUser, err := c.userDAO.GetUserById(ctx, userId, tenantId)
 	if err != nil {
-		logger.Error("获取新创建的用户信息失败", err)
+		logger.ErrorWithTrace(ctx, "获取新创建的用户信息失败", err)
 		// 即使查询失败，也返回成功但只带有用户ID
 		response.SuccessJSON(ctx, gin.H{
 			"userId":  userId,
@@ -144,7 +144,7 @@ func (c *UserController) EditUser(ctx *gin.Context) {
 	// 获取现有用户信息
 	currentUser, err := c.userDAO.GetUserById(ctx, updateData.UserId, tenantId)
 	if err != nil {
-		logger.Error("获取用户信息失败", err)
+		logger.ErrorWithTrace(ctx, "获取用户信息失败", err)
 		response.ErrorJSON(ctx, "获取用户信息失败: "+err.Error(), constants.ED00009)
 		return
 	}
@@ -173,7 +173,7 @@ func (c *UserController) EditUser(ctx *gin.Context) {
 	// 调用DAO更新用户
 	err = c.userDAO.UpdateUser(ctx, &updateData, operatorId)
 	if err != nil {
-		logger.Error("更新用户失败", err)
+		logger.ErrorWithTrace(ctx, "更新用户失败", err)
 		response.ErrorJSON(ctx, "更新用户失败: "+err.Error(), constants.ED00009)
 		return
 	}
@@ -181,7 +181,7 @@ func (c *UserController) EditUser(ctx *gin.Context) {
 	// 查询更新后的用户信息
 	updatedUser, err := c.userDAO.GetUserById(ctx, updateData.UserId, tenantId)
 	if err != nil {
-		logger.Error("获取更新后的用户信息失败", err)
+		logger.ErrorWithTrace(ctx, "获取更新后的用户信息失败", err)
 		// 即使查询失败，也返回成功但只带有简单消息
 		response.SuccessJSON(ctx, gin.H{
 			"message": "更新成功，但获取详细信息失败",
@@ -228,7 +228,7 @@ func (c *UserController) Delete(ctx *gin.Context) {
 	// 调用DAO删除用户
 	err := c.userDAO.DeleteUser(ctx, userId, tenantId, operatorId)
 	if err != nil {
-		logger.Error("删除用户失败", err)
+		logger.ErrorWithTrace(ctx, "删除用户失败", err)
 		response.ErrorJSON(ctx, "删除用户失败: "+err.Error(), constants.ED00009)
 		return
 	}
