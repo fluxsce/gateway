@@ -22,6 +22,12 @@ func GenerateRandomString(length int) string {
 	return string(b)
 }
 
+// Generate32BitRandomString 生成32位随机字符串（大写字母和数字）
+// 专门用于生成符合数据库VARCHAR(32)字段的主键ID
+func Generate32BitRandomString() string {
+	return GenerateRandomString(32)
+}
+
 // pow10 计算10的n次方
 func pow10(n int) int64 {
 	result := int64(1)

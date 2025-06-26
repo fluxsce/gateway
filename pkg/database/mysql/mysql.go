@@ -11,6 +11,7 @@ import (
 
 	"gohub/pkg/database"
 	"gohub/pkg/database/dblogger"
+	"gohub/pkg/database/sqlutils"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -399,7 +400,7 @@ func (m *MySQL) Query(ctx context.Context, dest interface{}, query string, args 
 	}
 	defer rows.Close()
 
-	err = scanRows(rows, dest)
+	err = sqlutils.ScanRows(rows, dest)
 	rowCount := reflect.ValueOf(dest).Elem().Len()
 
 	// 只有在有错误且不是未找到记录时才记录错误
@@ -422,6 +423,7 @@ func (m *MySQL) Query(ctx context.Context, dest interface{}, query string, args 
 // QueryOne 查询单条记录
 // 执行SELECT语句并将结果扫描到目标结构体中
 // 如果查询不到记录，返回ErrRecordNotFound错误
+// 使用智能字段映射，支持数据库列数与结构体字段数不匹配的情况
 // 参数:
 //   ctx: 上下文，用于控制请求超时和取消
 //   dest: 目标结构体的指针，用于接收查询结果
@@ -432,16 +434,28 @@ func (m *MySQL) Query(ctx context.Context, dest interface{}, query string, args 
 //   error: 查询失败、扫描失败或记录不存在时返回错误信息
 func (m *MySQL) QueryOne(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error {
 	executor := m.getExecutor(autoCommit)
-	
-	start := time.Now()
-	row := executor.QueryRowContext(ctx, query, args...)
-	duration := time.Since(start)
+	/** 
+	 * 方法使用的是 QueryRowContext，它返回的是 *sql.Row，而 sql.Row 没有 Columns() 方法。
+	 * 我们需要修改 QueryOne 方法使用 QueryContext 替代，这样就能获取列信息并处理字段不匹配的问题
+	*/
 
-	err := scanRow(row, dest)
+	start := time.Now()
+	rows, err := executor.QueryContext(ctx, query, args...)
+	duration := time.Since(start)
+	
+	if err != nil {
+		m.logger.LogSQL(ctx, "SQL单行查询错误", query, args, err, duration, map[string]interface{}{
+			"rowCount": 0,
+		})
+		return err
+	}
+
+	// 使用智能扫描方式处理单行结果，支持字段数量不匹配
+	err = sqlutils.ScanOneRow(rows, dest)
 	
 	// 只有在有错误且不是未找到记录时才记录错误
 	if err != nil && err != database.ErrRecordNotFound {
-		m.logger.LogSQL(ctx, "SQL单行查询", query, args, err, duration, map[string]interface{}{
+		m.logger.LogSQL(ctx, "SQL单行查询错误", query, args, err, duration, map[string]interface{}{
 			"rowCount": 0,
 		})
 		return err
@@ -468,7 +482,7 @@ func (m *MySQL) QueryOne(ctx context.Context, dest interface{}, query string, ar
 //   int64: 插入记录的自增ID（如果有）
 //   error: 插入失败时返回错误信息
 func (m *MySQL) Insert(ctx context.Context, table string, data interface{}, autoCommit bool) (int64, error) {
-	query, args, err := buildInsertQuery(table, data)
+	query, args, err := sqlutils.BuildInsertQuery(table, data)
 	if err != nil {
 		return 0, err
 	}
@@ -514,7 +528,7 @@ func (m *MySQL) Insert(ctx context.Context, table string, data interface{}, auto
 //   int64: 受影响的行数
 //   error: 更新失败时返回错误信息
 func (m *MySQL) Update(ctx context.Context, table string, data interface{}, where string, args []interface{}, autoCommit bool) (int64, error) {
-	setClause, setArgs, err := buildUpdateQuery(table, data)
+	setClause, setArgs, err := sqlutils.BuildUpdateQuery(table, data)
 	if err != nil {
 		return 0, err
 	}
@@ -613,7 +627,7 @@ func (m *MySQL) BatchInsert(ctx context.Context, table string, dataSlice interfa
 
 	// 获取第一个元素来构建SQL结构
 	firstItem := slice.Index(0).Interface()
-	columns, _, err := extractColumnsAndValues(firstItem)
+	columns, _, err := sqlutils.ExtractColumnsAndValues(firstItem)
 	if err != nil {
 		return 0, err
 	}
@@ -630,7 +644,7 @@ func (m *MySQL) BatchInsert(ctx context.Context, table string, dataSlice interfa
 
 	for i := 0; i < slice.Len(); i++ {
 		item := slice.Index(i).Interface()
-		_, values, err := extractColumnsAndValues(item)
+		_, values, err := sqlutils.ExtractColumnsAndValues(item)
 		if err != nil {
 			return 0, err
 		}
@@ -668,534 +682,22 @@ func (m *MySQL) BatchInsert(ctx context.Context, table string, dataSlice interfa
 }
 
 // 工具函数
+// 注意：SQL格式化和结果处理相关的工具函数已移动到 sqlutils 包中
+// 请使用 sqlutils.BuildInsertQuery, sqlutils.ScanRows 等函数
 
-// buildInsertQuery 构建插入SQL语句
-// 根据数据结构体自动生成INSERT语句和参数
-// 会提取结构体字段作为列名，使用占位符构建VALUES子句
-// 参数:
-//   table: 目标表名
-//   data: 数据结构体，字段通过db tag映射到数据库列
-// 返回:
-//   string: 生成的INSERT SQL语句
-//   []interface{}: SQL参数值切片
-//   error: 构建失败时返回错误信息
-func buildInsertQuery(table string, data interface{}) (string, []interface{}, error) {
-	columns, values, err := extractColumnsAndValues(data)
-	if err != nil {
-		return "", nil, err
-	}
-
-	placeholders := make([]string, len(columns))
-	for i := range placeholders {
-		placeholders[i] = "?"
-	}
-
-	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
-		table,
-		strings.Join(columns, ", "),
-		strings.Join(placeholders, ", "))
-
-	return query, values, nil
-}
-
-// buildUpdateQuery 构建更新SQL语句的SET子句
-// 根据数据结构体自动生成UPDATE语句的SET部分和参数
-// 会提取结构体字段作为要更新的列，使用占位符构建SET子句
-// 参数:
-//   table: 目标表名（此参数在当前实现中未使用，保留用于扩展）
-//   data: 包含更新数据的结构体，字段通过db tag映射到数据库列
-// 返回:
-//   string: 生成的SET子句（如："name = ?, age = ?"）
-//   []interface{}: SET子句对应的参数值切片
-//   error: 构建失败时返回错误信息
-func buildUpdateQuery(table string, data interface{}) (string, []interface{}, error) {
-	columns, values, err := extractColumnsAndValues(data)
-	if err != nil {
-		return "", nil, err
-	}
-
-	setParts := make([]string, len(columns))
-	for i, column := range columns {
-		setParts[i] = column + " = ?"
-	}
-
-	return strings.Join(setParts, ", "), values, nil
-}
-
-// extractColumnsAndValues 从结构体中提取列名和值
-// 通过反射解析结构体，提取可用于数据库操作的列名和对应值
-// 支持db tag映射，跳过零值字段和忽略字段
-// 参数:
-//   data: 要解析的结构体或结构体指针
-// 返回:
-//   []string: 数据库列名切片
-//   []interface{}: 对应的值切片
-//   error: 解析失败时返回错误信息
-func extractColumnsAndValues(data interface{}) ([]string, []interface{}, error) {
-	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	if v.Kind() != reflect.Struct {
-		return nil, nil, fmt.Errorf("data must be a struct or pointer to struct")
-	}
-
-	t := v.Type()
-	var columns []string
-	var values []interface{}
-
-	for i := 0; i < v.NumField(); i++ {
-		field := v.Field(i)
-		structField := t.Field(i)
-
-		// 跳过未导出的字段
-		if !field.CanInterface() {
-			continue
-		}
-
-		// 获取数据库字段名
-		dbTag := structField.Tag.Get("db")
-		if dbTag == "" {
-			dbTag = strings.ToLower(structField.Name)
-		}
-
-		// 跳过忽略的字段
-		if dbTag == "-" {
-			continue
-		}
-
-		// 跳过零值字段（可选）
-		if isZeroValue(field) {
-			continue
-		}
-
-		columns = append(columns, dbTag)
-		values = append(values, field.Interface())
-	}
-
-	return columns, values, nil
-}
-
-// isZeroValue 检查值是否为零值
-// 判断反射值是否为对应类型的零值，用于跳过空字段
-// 支持常见的基本类型、指针类型和时间类型的零值检查
-// 参数:
-//   v: 要检查的反射值
-// 返回:
-//   bool: true表示是零值，false表示非零值
-func isZeroValue(v reflect.Value) bool {
-	switch v.Kind() {
-	case reflect.String:
-		return v.String() == ""
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return v.Int() == 0
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return v.Uint() == 0
-	case reflect.Float32, reflect.Float64:
-		return v.Float() == 0
-	case reflect.Bool:
-		return !v.Bool()
-	case reflect.Ptr, reflect.Interface:
-		return v.IsNil()
-	case reflect.Struct:
-		// 特殊处理时间类型
-		if v.Type() == reflect.TypeOf(time.Time{}) {
-			t := v.Interface().(time.Time)
-			return t.IsZero()
-		}
-		// 对于其他结构体类型，使用通用零值检查
-		return v.IsZero()
-	default:
-		return false
-	}
-}
-
-// scanRows 扫描多行结果到目标切片
-// 将SQL查询返回的多行结果扫描到Go切片中
-// 自动处理结构体字段到数据库列的映射
-// 参数:
-//   rows: SQL查询返回的行结果集
-//   dest: 目标切片的指针，元素类型应为结构体或结构体指针
-// 返回:
-//   error: 扫描失败时返回错误信息
-func scanRows(rows *sql.Rows, dest interface{}) error {
-	destValue := reflect.ValueOf(dest)
-	if destValue.Kind() != reflect.Ptr {
-		return fmt.Errorf("dest must be a pointer")
-	}
-
-	sliceValue := destValue.Elem()
-	if sliceValue.Kind() != reflect.Slice {
-		return fmt.Errorf("dest must be a pointer to slice")
-	}
-
-	elementType := sliceValue.Type().Elem()
-	isPtr := elementType.Kind() == reflect.Ptr
-	if isPtr {
-		elementType = elementType.Elem()
-	}
-
-	columns, err := rows.Columns()
-	if err != nil {
-		return err
-	}
-
-	for rows.Next() {
-		// 创建新的结构体实例
-		newElement := reflect.New(elementType)
-		
-		// 准备扫描目标（包含NULL值安全处理）
-		scanTargets, fields := prepareScanTargetsWithFields(newElement.Elem(), columns)
-		if len(scanTargets) == 0 {
-			return fmt.Errorf("no valid scan targets prepared")
-		}
-
-		// 扫描行数据
-		if err := rows.Scan(scanTargets...); err != nil {
-			return err
-		}
-
-		// 处理扫描后的值转换
-		if err := processScannedValues(scanTargets, fields); err != nil {
-			return err
-		}
-
-		// 添加到切片
-		if isPtr {
-			sliceValue.Set(reflect.Append(sliceValue, newElement))
-		} else {
-			sliceValue.Set(reflect.Append(sliceValue, newElement.Elem()))
-		}
-	}
-
-	return rows.Err()
-}
-
-// scanRow 扫描单行结果到目标结构体
-// 将SQL查询返回的单行结果扫描到Go结构体中
-// 自动按字段顺序进行扫描，支持NULL值安全处理
-// 参数:
-//   row: SQL查询返回的单行结果
-//   dest: 目标结构体的指针
-// 返回:
-//   error: 扫描失败时返回错误信息
-func scanRow(row *sql.Row, dest interface{}) error {
-	destValue := reflect.ValueOf(dest)
-	if destValue.Kind() != reflect.Ptr {
-		return fmt.Errorf("dest must be a pointer")
-	}
-
-	structValue := destValue.Elem()
-	if structValue.Kind() != reflect.Struct {
-		return fmt.Errorf("dest must be a pointer to struct")
-	}
-
-	// 这里简化处理，实际应该获取列名
-	// 由于sql.Row没有Columns方法，这里需要特殊处理
-	// 简化实现：直接按字段顺序扫描
-	structType := structValue.Type()
-	var scanTargets []interface{}
-	var fields []reflect.Value
-
-	for i := 0; i < structValue.NumField(); i++ {
-		field := structValue.Field(i)
-		if !field.CanSet() {
-			continue
-		}
-		
-		structField := structType.Field(i)
-		dbTag := structField.Tag.Get("db")
-		if dbTag == "-" {
-			continue
-		}
-
-		// 创建NULL值安全的扫描目标
-		scanTarget := createNullSafeScanTarget(field)
-		scanTargets = append(scanTargets, scanTarget)
-		fields = append(fields, field)
-	}
-
-	if err := row.Scan(scanTargets...); err != nil {
-		if err == sql.ErrNoRows {
-			return database.ErrRecordNotFound
-		}
-		return err
-	}
-
-	// 处理扫描后的值转换
-	return processScannedValues(scanTargets, fields)
-}
-
-// prepareScanTargetsWithFields 准备扫描目标并返回对应的字段
-// 为scanRows函数提供的增强版本，同时返回扫描目标和对应字段
-// 参数:
-//   structValue: 目标结构体的反射值
-//   columns: 数据库列名切片
-// 返回:
-//   []interface{}: 扫描目标切片，每个元素对应一个数据库列
-//   []reflect.Value: 对应的结构体字段切片
-func prepareScanTargetsWithFields(structValue reflect.Value, columns []string) ([]interface{}, []reflect.Value) {
-	var scanTargets []interface{}
-	var fields []reflect.Value
-
-	for _, column := range columns {
-		field, found := findFieldByColumn(structValue, column)
-		if !found {
-			// 如果找不到对应字段，使用一个丢弃变量
-			var discard interface{}
-			scanTargets = append(scanTargets, &discard)
-			fields = append(fields, reflect.Value{}) // 空值占位
-			continue
-		}
-
-		if !field.CanSet() {
-			// 字段不可设置，使用丢弃变量
-			var discard interface{}
-			scanTargets = append(scanTargets, &discard)
-			fields = append(fields, reflect.Value{}) // 空值占位
-			continue
-		}
-
-		// 创建NULL值安全的扫描目标
-		scanTarget := createNullSafeScanTarget(field)
-		scanTargets = append(scanTargets, scanTarget)
-		fields = append(fields, field)
-	}
-
-	return scanTargets, fields
-}
-
-// findFieldByColumn 根据列名查找对应的结构体字段
-// 通过db tag或字段名（转小写）匹配数据库列名
-// 支持db tag映射，优先使用tag定义的名称
-// 参数:
-//   structValue: 要搜索的结构体反射值
-//   column: 要匹配的数据库列名
-// 返回:
-//   reflect.Value: 找到的字段反射值
-//   bool: 是否找到匹配的字段
-func findFieldByColumn(structValue reflect.Value, column string) (reflect.Value, bool) {
-	structType := structValue.Type()
-
-	for i := 0; i < structValue.NumField(); i++ {
-		field := structValue.Field(i)
-		structField := structType.Field(i)
-
-		// 获取数据库字段名
-		dbTag := structField.Tag.Get("db")
-		if dbTag == "" {
-			dbTag = strings.ToLower(structField.Name)
-		}
-
-		if dbTag == column {
-			return field, true
-		}
-	}
-
-	return reflect.Value{}, false
-}
-
-// createNullSafeScanTarget 创建NULL值安全的扫描目标
-// 根据字段类型创建相应的sql.NullXXX类型，用于安全扫描可能为NULL的数据库值
-// 参数:
-//   field: 目标字段的反射值
-// 返回:
-//   interface{}: 扫描目标，可以是sql.NullString、sql.NullInt64等
-func createNullSafeScanTarget(field reflect.Value) interface{} {
-	fieldType := field.Type()
-	
-	switch fieldType.Kind() {
-	case reflect.String:
-		return &sql.NullString{}
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return &sql.NullInt64{}
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return &sql.NullInt64{} // 使用Int64处理无符号整数
-	case reflect.Float32, reflect.Float64:
-		return &sql.NullFloat64{}
-	case reflect.Bool:
-		return &sql.NullBool{}
-	case reflect.Ptr:
-		// 如果是指针类型，创建对应基础类型的NULL扫描目标
-		elemType := fieldType.Elem()
-		switch elemType.Kind() {
-		case reflect.String:
-			return &sql.NullString{}
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			return &sql.NullInt64{}
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			return &sql.NullInt64{}
-		case reflect.Float32, reflect.Float64:
-			return &sql.NullFloat64{}
-		case reflect.Bool:
-			return &sql.NullBool{}
-		default:
-			if elemType == reflect.TypeOf(time.Time{}) {
-				return &sql.NullTime{}
-			}
-		}
-	case reflect.Struct:
-		// 特殊处理时间类型
-		if fieldType == reflect.TypeOf(time.Time{}) {
-			return &sql.NullTime{}
-		}
-	}
-	
-	// 如果无法确定类型，返回通用接口
-	var discard interface{}
-	return &discard
-}
-
-// processScannedValues 处理扫描后的值转换
-// 将sql.NullXXX类型的值转换为目标字段类型，处理NULL值
-// 参数:
-//   scanTargets: 扫描目标切片
-//   fields: 目标字段切片
-// 返回:
-//   error: 转换失败时返回错误信息
-func processScannedValues(scanTargets []interface{}, fields []reflect.Value) error {
-	for i, scanTarget := range scanTargets {
-		if i >= len(fields) {
-			continue
-		}
-		
-		field := fields[i]
-		if !field.IsValid() || !field.CanSet() {
-			continue
-		}
-		
-		// 根据扫描目标类型处理值转换
-		switch v := scanTarget.(type) {
-		case *sql.NullString:
-			if field.Kind() == reflect.Ptr {
-				// 处理指针类型字段
-				if v.Valid {
-					strValue := v.String
-					field.Set(reflect.ValueOf(&strValue))
-				} else {
-					field.Set(reflect.Zero(field.Type()))
-				}
-			} else {
-				// 处理非指针类型字段
-				if v.Valid {
-					field.SetString(v.String)
-				} else {
-					field.SetString("")
-				}
-			}
-		case *sql.NullInt64:
-			if field.Kind() == reflect.Ptr {
-				// 处理指针类型字段
-				if v.Valid {
-					elemType := field.Type().Elem()
-					switch elemType.Kind() {
-					case reflect.Int:
-						intValue := int(v.Int64)
-						field.Set(reflect.ValueOf(&intValue))
-					case reflect.Int8:
-						intValue := int8(v.Int64)
-						field.Set(reflect.ValueOf(&intValue))
-					case reflect.Int16:
-						intValue := int16(v.Int64)
-						field.Set(reflect.ValueOf(&intValue))
-					case reflect.Int32:
-						intValue := int32(v.Int64)
-						field.Set(reflect.ValueOf(&intValue))
-					case reflect.Int64:
-						intValue := v.Int64
-						field.Set(reflect.ValueOf(&intValue))
-					case reflect.Uint:
-						if v.Int64 >= 0 {
-							uintValue := uint(v.Int64)
-							field.Set(reflect.ValueOf(&uintValue))
-						} else {
-							field.Set(reflect.Zero(field.Type()))
-						}
-					case reflect.Uint8:
-						if v.Int64 >= 0 {
-							uintValue := uint8(v.Int64)
-							field.Set(reflect.ValueOf(&uintValue))
-						} else {
-							field.Set(reflect.Zero(field.Type()))
-						}
-					case reflect.Uint16:
-						if v.Int64 >= 0 {
-							uintValue := uint16(v.Int64)
-							field.Set(reflect.ValueOf(&uintValue))
-						} else {
-							field.Set(reflect.Zero(field.Type()))
-						}
-					case reflect.Uint32:
-						if v.Int64 >= 0 {
-							uintValue := uint32(v.Int64)
-							field.Set(reflect.ValueOf(&uintValue))
-						} else {
-							field.Set(reflect.Zero(field.Type()))
-						}
-					case reflect.Uint64:
-						if v.Int64 >= 0 {
-							uintValue := uint64(v.Int64)
-							field.Set(reflect.ValueOf(&uintValue))
-						} else {
-							field.Set(reflect.Zero(field.Type()))
-						}
-					}
-				} else {
-					field.Set(reflect.Zero(field.Type()))
-				}
-			} else {
-				// 处理非指针类型字段
-				if v.Valid {
-					switch field.Kind() {
-					case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-						field.SetInt(v.Int64)
-					case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-						if v.Int64 >= 0 {
-							field.SetUint(uint64(v.Int64))
-						} else {
-							field.SetUint(0)
-						}
-					}
-				} else {
-					switch field.Kind() {
-					case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-						field.SetInt(0)
-					case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-						field.SetUint(0)
-					}
-				}
-			}
-		case *sql.NullFloat64:
-			if v.Valid {
-				field.SetFloat(v.Float64)
-			} else {
-				field.SetFloat(0)
-			}
-		case *sql.NullBool:
-			if v.Valid {
-				field.SetBool(v.Bool)
-			} else {
-				field.SetBool(false)
-			}
-		case *sql.NullTime:
-			if v.Valid {
-				if field.Type() == reflect.TypeOf(time.Time{}) {
-					field.Set(reflect.ValueOf(v.Time))
-				} else if field.Type() == reflect.TypeOf(&time.Time{}) {
-					field.Set(reflect.ValueOf(&v.Time))
-				}
-			} else {
-				if field.Type() == reflect.TypeOf(time.Time{}) {
-					field.Set(reflect.ValueOf(time.Time{}))
-				} else if field.Type() == reflect.TypeOf(&time.Time{}) {
-					field.Set(reflect.ValueOf((*time.Time)(nil)))
-				}
-			}
-		default:
-			// 对于其他类型，不做处理
-		}
-	}
-	
-	return nil
-}
+// 重构说明：
+// 1. SQL格式化功能已移动到 pkg/database/sqlutils/sql_format.go
+//    - BuildInsertQuery: 构建INSERT语句
+//    - BuildUpdateQuery: 构建UPDATE语句的SET子句
+//    - ExtractColumnsAndValues: 从结构体提取列名和值
+//    - IsZeroValue: 检查值是否为零值
+//
+// 2. 结果处理功能已移动到 pkg/database/sqlutils/result_format.go
+//    - ScanRows: 扫描多行结果到切片
+//    - ScanRow: 扫描单行结果到结构体
+//    - PrepareScanTargetsWithFields: 准备扫描目标
+//    - FindFieldByColumn: 根据列名查找字段
+//    - CreateNullSafeScanTarget: 创建NULL值安全的扫描目标
+//    - ProcessScannedValues: 处理扫描后的值转换
+//    - ScanRowsTraditional: 传统方式扫描多行结果
+//    - ScanRowsWithInterfaceSlice: 接口切片方式扫描多行结果

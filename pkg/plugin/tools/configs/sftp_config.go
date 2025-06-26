@@ -9,6 +9,17 @@ import (
 // SFTPConfig SFTP客户端配置
 // 包含连接、认证、传输等所有配置选项
 type SFTPConfig struct {
+	// ===== 基础标识 =====
+	
+	// 配置ID，用于唯一标识配置
+	ID string `json:"id" yaml:"id"`
+	
+	// 配置名称，用于显示和识别
+	Name string `json:"name" yaml:"name"`
+	
+	// 配置描述
+	Description string `json:"description,omitempty" yaml:"description,omitempty"`
+	
 	// ===== 连接配置 =====
 	
 	// 服务器地址
@@ -379,6 +390,9 @@ func (c ConflictResolution) String() string {
 // DefaultSFTPConfig 返回默认SFTP配置
 func DefaultSFTPConfig() *SFTPConfig {
 	return &SFTPConfig{
+		ID:                       "default",
+		Name:                     "Default SFTP Config",
+		Description:              "默认SFTP配置",
 		Port:                     22,
 		ConnectTimeout:           30 * time.Second,
 		ReadTimeout:              30 * time.Second,

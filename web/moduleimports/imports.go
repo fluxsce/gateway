@@ -12,12 +12,14 @@ import (
 	_ "gohub/web/views/hubcommon002/routes"
 	// 添加其他模块的导入
 	// _ "gohub/web/views/hub0001/routes"
-	// _ "gohub/web/views/hub0003/routes"
+
 	// _ "gohub/web/views/hub0004/routes"
 	// 导入认证模块
 	_ "gohub/web/views/hub0001/routes"
 	// 导入用户管理模块
 	_ "gohub/web/views/hub0002/routes"
+	// 导入定时任务管理模块
+	_ "gohub/web/views/hub0003/routes"
 	// 导入网关管理模块
 	_ "gohub/web/views/hub0020/routes"
 	// 导入路由管理模块

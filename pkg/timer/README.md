@@ -7,6 +7,7 @@
 ```
 pkg/timer/
 ├── timer.go              # 核心接口和类型定义
+├── timer_pool.go         # 全局调度器池管理
 ├── task.go              # 任务相关工具函数
 ├── scheduler.go         # 标准调度器实现
 ├── cron/               # Cron表达式解析
@@ -25,6 +26,7 @@ pkg/timer/
 
 - **多种调度策略**: 支持一次性执行、固定间隔、Cron表达式、延迟执行
 - **完整的任务管理**: 任务的增删改查、启动停止、手动触发
+- **调度器池管理**: 全局调度器池，支持多个调度器实例的统一管理
 - **内置执行器**: 日志输出、HTTP请求、系统命令等常用执行器
 - **自定义执行器**: 支持函数执行器，可以轻松扩展
 - **并发安全**: 使用工作线程池，支持并发执行
@@ -35,7 +37,88 @@ pkg/timer/
 
 > 📖 **详细启动指南**: 请查看 [STARTUP_GUIDE.md](./STARTUP_GUIDE.md) 获取完整的启动流程说明
 
-### 1. 基本使用
+### 1. 使用全局调度器池（推荐）
+
+```go
+package main
+
+import (
+    "time"
+    "github.com/gohub/pkg/timer"
+    "github.com/gohub/pkg/timer/executor"
+    "github.com/gohub/pkg/timer/storage"
+)
+
+func main() {
+    // 获取全局调度器池
+    pool := timer.GetTimerPool()
+    
+    // 创建存储
+    store := storage.NewMemoryStorage()
+    
+    // 创建任务配置
+    taskConfig := &timer.TaskConfig{
+        ID:           "my-task",
+        Name:         "示例任务",
+        ScheduleType: timer.ScheduleTypeInterval,
+        Interval:     time.Minute,
+        Enabled:      true,
+        Params:       "Hello World!",
+    }
+    
+    // 创建执行器
+    executor := executor.NewLogExecutor()
+    
+    // 向默认调度器添加任务
+    pool.AddTaskToDefault(taskConfig, executor, store)
+    
+    // 启动默认调度器
+    pool.StartDefaultScheduler(store)
+    
+    // 等待任务执行
+    time.Sleep(5 * time.Minute)
+    
+    // 停止所有调度器
+    pool.StopAllSchedulers()
+}
+```
+
+### 2. 创建多个调度器实例
+
+```go
+// 创建自定义调度器配置
+config1 := &timer.SchedulerConfig{
+    ID:             "scheduler-1",
+    Name:           "业务调度器",
+    MaxWorkers:     10,
+    QueueSize:      200,
+    DefaultTimeout: time.Minute * 30,
+    DefaultRetries: 3,
+}
+
+config2 := &timer.SchedulerConfig{
+    ID:             "scheduler-2", 
+    Name:           "监控调度器",
+    MaxWorkers:     5,
+    QueueSize:      50,
+    DefaultTimeout: time.Minute * 5,
+    DefaultRetries: 1,
+}
+
+// 创建调度器实例
+pool := timer.GetTimerPool()
+scheduler1, _ := pool.CreateScheduler(config1, store)
+scheduler2, _ := pool.CreateScheduler(config2, store)
+
+// 分别管理不同类型的任务
+scheduler1.AddTask(businessTaskConfig, businessExecutor)
+scheduler2.AddTask(monitorTaskConfig, monitorExecutor)
+
+// 启动所有调度器
+pool.StartAllSchedulers()
+```
+
+### 3. 基本使用（直接创建调度器）
 
 ```go
 package main
@@ -77,7 +160,7 @@ func main() {
 }
 ```
 
-### 2. Cron表达式任务
+### 4. Cron表达式任务
 
 ```go
 taskConfig := &timer.TaskConfig{
@@ -89,7 +172,7 @@ taskConfig := &timer.TaskConfig{
 }
 ```
 
-### 3. 自定义执行器
+### 5. 自定义执行器
 
 ```go
 customExecutor := executor.NewFunctionExecutor("MyTask", func(ctx context.Context, params interface{}) error {
@@ -98,7 +181,7 @@ customExecutor := executor.NewFunctionExecutor("MyTask", func(ctx context.Contex
 })
 ```
 
-### 4. HTTP健康检查任务
+### 6. HTTP健康检查任务
 
 ```go
 httpExecutor := executor.NewHTTPExecutor()
@@ -116,6 +199,19 @@ taskConfig := &timer.TaskConfig{
 ```
 
 ## API参考
+
+### 调度器池接口
+
+- `GetTimerPool()` - 获取全局调度器池实例
+- `CreateScheduler(config, storage)` - 创建新的调度器实例
+- `GetScheduler(schedulerID)` - 根据ID获取调度器实例
+- `RemoveScheduler(schedulerID)` - 移除指定调度器
+- `ListSchedulers()` - 获取所有调度器ID列表
+- `StartAllSchedulers()` - 启动所有调度器
+- `StopAllSchedulers()` - 停止所有调度器
+- `GetSchedulerInfo(schedulerID)` - 获取调度器详细信息
+- `GetDefaultScheduler(storage)` - 获取默认调度器
+- `AddTaskToDefault(config, executor, storage)` - 向默认调度器添加任务
 
 ### 调度器接口
 

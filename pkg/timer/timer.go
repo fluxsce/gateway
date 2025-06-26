@@ -219,6 +219,7 @@ type TaskScheduler interface {
 
 // SchedulerConfig 调度器配置
 type SchedulerConfig struct {
+	ID           string        `json:"id"`           // 调度器唯一标识
 	Name         string        `json:"name"`         // 调度器名称
 	MaxWorkers   int           `json:"maxWorkers"`   // 最大工作线程数
 	QueueSize    int           `json:"queueSize"`    // 任务队列大小
@@ -232,6 +233,7 @@ type SchedulerConfig struct {
 //   *SchedulerConfig: 包含默认配置的调度器配置对象
 func DefaultSchedulerConfig() *SchedulerConfig {
 	return &SchedulerConfig{
+		ID:             "default",          // 默认调度器ID
 		Name:           "DefaultScheduler", // 调度器名称
 		MaxWorkers:     5,                  // 最大工作线程数，控制并发执行的任务数量
 		QueueSize:      100,                // 任务队列大小，超过此数量的任务会被阻塞

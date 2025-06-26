@@ -16,6 +16,18 @@ const (
 	DriverPostgreSQL = "postgres"
 	// SQLite数据库驱动
 	DriverSQLite = "sqlite"
+	// SQL Server数据库驱动
+	DriverSQLServer = "sqlserver"
+	// Oracle数据库驱动
+	DriverOracle = "oracle"
+	// MariaDB数据库驱动 (兼容MySQL)
+	DriverMariaDB = "mariadb"
+	// TiDB数据库驱动 (兼容MySQL)
+	DriverTiDB = "tidb"
+	// ClickHouse数据库驱动
+	DriverClickHouse = "clickhouse"
+	// MongoDB数据库驱动 (NoSQL)
+	DriverMongoDB = "mongodb"
 )
 
 // ConnectionConfig 数据库连接配置

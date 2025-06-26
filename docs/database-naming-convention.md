@@ -49,6 +49,7 @@
 | currentVersion  | INT          | DEFAULT 1                               | 当前版本号，初始值为1，每次更新+1                                                          |
 | activeFlag      | VARCHAR(1)   | DEFAULT 'Y'                             | 活动状态标记，'N'表示非活动，'Y'表示活动                                                   |
 | noteText        | VARCHAR(500) | DEFAULT NULL                            | 备注信息                                                                                   |
+| extProperty     | TEXT         | DEFAULT NULL                            | 扩展属性，JSON格式                                                                         |
 | reserved1       | VARCHAR(500) | DEFAULT NULL                            | 预留字段1，用于业务扩展                                                                   |
 | reserved2       | VARCHAR(500) | DEFAULT NULL                            | 预留字段2，用于业务扩展                                                                   |
 | reserved3       | VARCHAR(500) | DEFAULT NULL                            | 预留字段3，用于业务扩展                                                                   |
@@ -144,6 +145,7 @@ CREATE TABLE `HUB_USER_ACCOUNT` (
   `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性，JSON格式',
   `reserved1` VARCHAR(500) DEFAULT NULL COMMENT '预留字段1',
   `reserved2` VARCHAR(500) DEFAULT NULL COMMENT '预留字段2',
   `reserved3` VARCHAR(500) DEFAULT NULL COMMENT '预留字段3',

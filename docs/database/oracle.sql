@@ -560,3 +560,172 @@ CREATE INDEX idx_HUB_GATEWAY_PROXY_CONFIG_type ON HUB_GATEWAY_PROXY_CONFIG(proxy
 CREATE INDEX idx_HUB_GATEWAY_PROXY_CONFIG_priority ON HUB_GATEWAY_PROXY_CONFIG(configPriority);
 CREATE INDEX idx_HUB_GATEWAY_PROXY_CONFIG_active ON HUB_GATEWAY_PROXY_CONFIG(activeFlag);
 COMMENT ON TABLE HUB_GATEWAY_PROXY_CONFIG IS '代理配置表 - 根据proxy.go逻辑设计,仅支持实例级代理配置';
+
+CREATE TABLE HUB_TIMER_SCHEDULER (
+                                     schedulerId           VARCHAR2(32) NOT NULL, -- 调度器ID，主键
+                                     tenantId              VARCHAR2(32) NOT NULL, -- 租户ID
+                                     schedulerName         VARCHAR2(100) NOT NULL, -- 调度器名称
+                                     schedulerInstanceId   VARCHAR2(100) NOT NULL, -- 调度器实例ID，用于集群环境区分
+
+                                     maxWorkers            NUMBER(10) DEFAULT 5 NOT NULL, -- 最大工作线程数
+                                     queueSize             NUMBER(10) DEFAULT 100 NOT NULL, -- 任务队列大小
+                                     defaultTimeoutSeconds NUMBER(20) DEFAULT 1800 NOT NULL, -- 默认超时时间秒数
+                                     defaultRetries        NUMBER(10) DEFAULT 3 NOT NULL, -- 默认重试次数
+
+                                     schedulerStatus       NUMBER(10) DEFAULT 1 NOT NULL, -- 调度器状态(1停止,2运行中,3暂停)
+                                     lastStartTime         DATE, -- 最后启动时间
+                                     lastStopTime          DATE, -- 最后停止时间
+
+                                     serverName            VARCHAR2(100), -- 服务器名称
+                                     serverIp              VARCHAR2(50), -- 服务器IP地址
+                                     serverPort            NUMBER(10), -- 服务器端口
+
+                                     totalTaskCount        NUMBER(10) DEFAULT 0 NOT NULL, -- 总任务数
+                                     runningTaskCount      NUMBER(10) DEFAULT 0 NOT NULL, -- 运行中任务数
+                                     lastHeartbeatTime     DATE, -- 最后心跳时间
+
+                                     addTime               DATE DEFAULT SYSDATE NOT NULL, -- 创建时间
+                                     addWho                VARCHAR2(32) NOT NULL, -- 创建人ID
+                                     editTime              DATE DEFAULT SYSDATE NOT NULL, -- 最后修改时间
+                                     editWho               VARCHAR2(32) NOT NULL, -- 最后修改人ID
+                                     oprSeqFlag            VARCHAR2(32) NOT NULL, -- 操作序列标识
+                                     currentVersion        NUMBER(10) DEFAULT 1 NOT NULL, -- 当前版本号
+                                     activeFlag            VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 活动状态标记(N非活动,Y活动)
+                                     noteText              VARCHAR2(500), -- 备注信息
+
+                                     reserved1             VARCHAR2(500), -- 预留字段1
+                                     reserved2             VARCHAR2(500), -- 预留字段2
+                                     reserved3             VARCHAR2(500), -- 预留字段3
+
+                                     CONSTRAINT PK_HUB_TIMER_SCHEDULER PRIMARY KEY (tenantId, schedulerId)
+);
+CREATE INDEX idx_HUB_TIMER_SCHEDULER_name ON HUB_TIMER_SCHEDULER(schedulerName);
+CREATE INDEX idx_HUB_TIMER_SCHEDULER_instanceId ON HUB_TIMER_SCHEDULER(schedulerInstanceId);
+CREATE INDEX idx_HUB_TIMER_SCHEDULER_status ON HUB_TIMER_SCHEDULER(schedulerStatus);
+CREATE INDEX idx_HUB_TIMER_SCHEDULER_heartbeat ON HUB_TIMER_SCHEDULER(lastHeartbeatTime);
+COMMENT ON TABLE HUB_TIMER_SCHEDULER IS '定时任务调度器表 - 存储调度器配置和状态信息';
+
+CREATE TABLE HUB_TIMER_TASK (
+                                taskId                VARCHAR2(32) NOT NULL, -- 任务ID，主键
+                                tenantId              VARCHAR2(32) NOT NULL, -- 租户ID
+
+                                taskName              VARCHAR2(200) NOT NULL, -- 任务名称
+                                taskDescription       VARCHAR2(500), -- 任务描述
+                                taskPriority          NUMBER(10) DEFAULT 1 NOT NULL, -- 任务优先级(1低,2普通,3高)
+                                schedulerId           VARCHAR2(32), -- 关联的调度器ID
+                                schedulerName         VARCHAR2(100), -- 调度器名称（冗余字段）
+
+                                scheduleType          NUMBER(10) NOT NULL, -- 调度类型(1一次性,2固定间隔,3Cron,4延迟执行,5实时执行)
+                                cronExpression        VARCHAR2(100), -- Cron表达式（scheduleType=3时必填）
+                                intervalSeconds       NUMBER(20), -- 执行间隔秒数（scheduleType=2时必填）
+                                delaySeconds          NUMBER(20), -- 延迟秒数（scheduleType=4时必填）
+                                startTime             DATE, -- 任务开始时间
+                                endTime               DATE, -- 任务结束时间
+
+                                maxRetries            NUMBER(10) DEFAULT 0 NOT NULL, -- 最大重试次数
+                                retryIntervalSeconds  NUMBER(20) DEFAULT 60 NOT NULL, -- 重试间隔秒数
+                                timeoutSeconds        NUMBER(20) DEFAULT 1800 NOT NULL, -- 执行超时时间秒数
+                                taskParams            CLOB, -- 任务参数，JSON格式存储
+
+                                taskStatus            NUMBER(10) DEFAULT 1 NOT NULL, -- 任务状态(1待执行,2运行中,3已完成,4失败,5取消)
+                                nextRunTime           DATE, -- 下次执行时间
+                                lastRunTime           DATE, -- 上次执行时间
+                                runCount              NUMBER(20) DEFAULT 0 NOT NULL, -- 执行总次数
+                                successCount          NUMBER(20) DEFAULT 0 NOT NULL, -- 成功次数
+                                failureCount          NUMBER(20) DEFAULT 0 NOT NULL, -- 失败次数
+
+                                lastExecutionId       VARCHAR2(32), -- 最后执行ID
+                                lastExecutionStartTime DATE, -- 最后执行开始时间
+                                lastExecutionEndTime   DATE, -- 最后执行结束时间
+                                lastExecutionDurationMs NUMBER(20), -- 最后执行耗时毫秒数
+                                lastExecutionStatus    NUMBER(10), -- 最后执行状态
+                                lastResultSuccess      VARCHAR2(1), -- 最后执行是否成功(N失败,Y成功)
+                                lastErrorMessage       CLOB, -- 最后错误信息
+                                lastRetryCount         NUMBER(10), -- 最后重试次数
+
+                                addTime               DATE DEFAULT SYSDATE NOT NULL, -- 创建时间
+                                addWho                VARCHAR2(32) NOT NULL, -- 创建人ID
+                                editTime              DATE DEFAULT SYSDATE NOT NULL, -- 最后修改时间
+                                editWho               VARCHAR2(32) NOT NULL, -- 最后修改人ID
+                                oprSeqFlag            VARCHAR2(32) NOT NULL, -- 操作序列标识
+                                currentVersion        NUMBER(10) DEFAULT 1 NOT NULL, -- 当前版本号
+                                activeFlag            VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 活动状态标记(N非活动,Y活动)
+                                noteText              VARCHAR2(500), -- 备注信息
+
+                                reserved1             VARCHAR2(500), -- 预留字段1
+                                reserved2             VARCHAR2(500), -- 预留字段2
+                                reserved3             VARCHAR2(500), -- 预留字段3
+
+                                CONSTRAINT PK_HUB_TIMER_TASK PRIMARY KEY (tenantId, taskId)
+);
+
+CREATE INDEX idx_HUB_TIMER_TASK_name ON HUB_TIMER_TASK(taskName);
+CREATE INDEX idx_HUB_TIMER_TASK_schedulerId ON HUB_TIMER_TASK(schedulerId);
+CREATE INDEX idx_HUB_TIMER_TASK_scheduleType ON HUB_TIMER_TASK(scheduleType);
+CREATE INDEX idx_HUB_TIMER_TASK_status ON HUB_TIMER_TASK(taskStatus);
+CREATE INDEX idx_HUB_TIMER_TASK_nextRunTime ON HUB_TIMER_TASK(nextRunTime);
+CREATE INDEX idx_HUB_TIMER_TASK_lastRunTime ON HUB_TIMER_TASK(lastRunTime);
+CREATE INDEX idx_HUB_TIMER_TASK_activeFlag ON HUB_TIMER_TASK(activeFlag);
+COMMENT ON TABLE HUB_TIMER_TASK IS '定时任务表 - 合并任务配置、运行时信息和最后执行结果';
+CREATE TABLE HUB_TIMER_EXECUTION_LOG (
+                                         executionId             VARCHAR2(32) NOT NULL, -- 执行ID，主键
+                                         tenantId                VARCHAR2(32) NOT NULL, -- 租户ID
+                                         taskId                  VARCHAR2(32) NOT NULL, -- 关联任务ID
+
+                                         taskName                VARCHAR2(200), -- 任务名称（冗余）
+                                         schedulerId             VARCHAR2(32), -- 调度器ID（冗余）
+
+                                         executionStartTime      DATE NOT NULL, -- 执行开始时间
+                                         executionEndTime        DATE, -- 执行结束时间
+                                         executionDurationMs     NUMBER(20), -- 执行耗时毫秒数
+                                         executionStatus         NUMBER(10) NOT NULL, -- 执行状态(1待执行,2运行中,3已完成,4失败,5取消)
+                                         resultSuccess           VARCHAR2(1) DEFAULT 'N' NOT NULL, -- 是否成功(N失败,Y成功)
+
+                                         errorMessage              CLOB, -- 错误信息
+                                         errorStackTrace           CLOB, -- 错误堆栈信息
+
+                                         retryCount              NUMBER(10) DEFAULT 0 NOT NULL, -- 重试次数
+                                         maxRetryCount           NUMBER(10) DEFAULT 0 NOT NULL, -- 最大重试次数
+
+                                         executionParams         CLOB, -- 执行参数，JSON格式
+                                         executionResult         CLOB, -- 执行结果，JSON格式
+
+                                         executorServerName      VARCHAR2(100), -- 执行服务器名称
+                                         executorServerIp        VARCHAR2(50), -- 执行服务器IP地址
+
+                                         logLevel                VARCHAR2(10), -- 日志级别(DEBUG,INFO,WARN,ERROR)
+                                         logMessage              CLOB, -- 日志消息内容
+                                         logTimestamp            DATE, -- 日志时间戳
+
+                                         executionPhase          VARCHAR2(50), -- 执行阶段(BEFORE_EXECUTE,EXECUTING,AFTER_EXECUTE,RETRY)
+                                         threadName              VARCHAR2(100), -- 执行线程名称
+                                         className               VARCHAR2(200), -- 执行类名
+                                         methodName              VARCHAR2(100), -- 执行方法名
+
+                                         exceptionClass          VARCHAR2(200), -- 异常类名
+                                         exceptionMessage        CLOB, -- 异常消息
+
+                                         addTime                 DATE DEFAULT SYSDATE NOT NULL, -- 创建时间
+                                         addWho                  VARCHAR2(32) NOT NULL, -- 创建人ID
+                                         editTime                DATE DEFAULT SYSDATE NOT NULL, -- 最后修改时间
+                                         editWho                 VARCHAR2(32) NOT NULL, -- 最后修改人ID
+                                         oprSeqFlag              VARCHAR2(32) NOT NULL, -- 操作序列标识
+                                         currentVersion          NUMBER(10) DEFAULT 1 NOT NULL, -- 当前版本号
+                                         activeFlag              VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 活动状态标记(N/Y)
+                                         noteText                VARCHAR2(500), -- 备注信息
+
+                                         reserved1               VARCHAR2(500), -- 预留字段1
+                                         reserved2               VARCHAR2(500), -- 预留字段2
+                                         reserved3               VARCHAR2(500), -- 预留字段3
+
+                                         CONSTRAINT PK_HUB_TIMER_EXECUTION_LOG PRIMARY KEY (tenantId, executionId)
+);
+CREATE INDEX idx_HUB_TIMER_EXECUTION_LOG_taskId ON HUB_TIMER_EXECUTION_LOG(taskId);
+CREATE INDEX idx_HUB_TIMER_EXECUTION_LOG_taskName ON HUB_TIMER_EXECUTION_LOG(taskName);
+CREATE INDEX idx_HUB_TIMER_EXECUTION_LOG_schedulerId ON HUB_TIMER_EXECUTION_LOG(schedulerId);
+CREATE INDEX idx_HUB_TIMER_EXECUTION_LOG_startTime ON HUB_TIMER_EXECUTION_LOG(executionStartTime);
+CREATE INDEX idx_HUB_TIMER_EXECUTION_LOG_status ON HUB_TIMER_EXECUTION_LOG(executionStatus);
+CREATE INDEX idx_HUB_TIMER_EXECUTION_LOG_success ON HUB_TIMER_EXECUTION_LOG(resultSuccess);
+CREATE INDEX idx_HUB_TIMER_EXECUTION_LOG_logLevel ON HUB_TIMER_EXECUTION_LOG(logLevel);
+CREATE INDEX idx_HUB_TIMER_EXECUTION_LOG_logTimestamp ON HUB_TIMER_EXECUTION_LOG(logTimestamp);
+COMMENT ON TABLE HUB_TIMER_EXECUTION_LOG IS '任务执行日志表 - 合并执行记录和日志信息';

@@ -7,7 +7,7 @@ import (
 	"log"
 	"sync"
 	"time"
-	
+
 	"gohub/pkg/timer/cron"
 )
 
@@ -198,6 +198,23 @@ func (s *StandardScheduler) StartTask(taskID string) error {
 		if err := s.storage.SaveTaskConfig(config); err != nil {
 			return fmt.Errorf("failed to update task config: %w", err)
 		}
+		
+		// 同时更新任务信息，确保状态一致
+		taskInfo, err := s.storage.LoadTaskInfo(taskID)
+		if err == nil && taskInfo != nil {
+			// 如果任务信息存在，更新配置和状态
+			taskInfo.Config = config
+			taskInfo.UpdatedAt = time.Now()
+			if err := s.storage.SaveTaskInfo(taskInfo); err != nil {
+				return fmt.Errorf("failed to update task info: %w", err)
+			}
+		} else {
+			// 如果任务信息不存在，创建一个新的
+			taskInfo = NewTaskInfo(config)
+			if err := s.storage.SaveTaskInfo(taskInfo); err != nil {
+				return fmt.Errorf("failed to create task info: %w", err)
+			}
+		}
 	}
 	
 	// 如果调度器正在运行且任务满足启动条件，立即开始调度
@@ -233,7 +250,22 @@ func (s *StandardScheduler) StopTask(taskID string) error {
 	
 	// 将任务标记为禁用状态并保存
 	config.Enabled = false
-	return s.storage.SaveTaskConfig(config)
+	if err := s.storage.SaveTaskConfig(config); err != nil {
+		return fmt.Errorf("failed to update task config: %w", err)
+	}
+	
+	// 同时更新任务信息，确保状态一致
+	taskInfo, err := s.storage.LoadTaskInfo(taskID)
+	if err == nil && taskInfo != nil {
+		// 如果任务信息存在，更新配置和状态
+		taskInfo.Config = config
+		taskInfo.UpdatedAt = time.Now()
+		if err := s.storage.SaveTaskInfo(taskInfo); err != nil {
+			return fmt.Errorf("failed to update task info: %w", err)
+		}
+	}
+	
+	return nil
 }
 
 // TriggerTask 手动触发任务执行
@@ -296,6 +328,11 @@ func (s *StandardScheduler) Start() error {
 		return errors.New("scheduler is already running")
 	}
 	
+	// 如果任务队列为nil（之前被Stop方法置为nil），重新初始化
+	if s.taskQueue == nil {
+		s.taskQueue = make(chan *taskJob, s.config.QueueSize)
+	}
+	
 	// 创建上下文用于控制调度器生命周期
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.running = true
@@ -348,7 +385,11 @@ func (s *StandardScheduler) Stop() error {
 	s.timers = make(map[string]*time.Timer)  // 重置定时器映射
 	
 	// 关闭任务队列，不再接受新任务
-	close(s.taskQueue)
+	// 使用安全的方式关闭通道，避免重复关闭
+	if s.taskQueue != nil {
+		close(s.taskQueue)
+		s.taskQueue = nil  // 设置为nil，防止重复关闭
+	}
 	
 	// 等待所有工作线程完成当前任务并退出
 	s.wg.Wait()

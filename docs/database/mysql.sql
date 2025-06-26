@@ -582,177 +582,20 @@ CREATE TABLE `HUB_GATEWAY_PROXY_CONFIG` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='代理配置表 - 根据proxy.go逻辑设计,仅支持实例级代理配置';
 
 -- =====================================================
--- 定时任务模块相关表结构设计
+-- 定时任务模块新表结构设计
 -- 模块前缀: HUB_TIMER
--- 设计时间: 205/06/24
+-- 设计说明：
+-- 1. 合并任务配置、运行时信息和最后执行结果到一个表
+-- 2. 历史执行记录单独存储
+-- 3. 简化表结构，减少关联查询
 -- =====================================================
 
--- 1. 任务配置表 - 存储定时任务的基本配置信息
-CREATE TABLE `HUB_TIMER_TASK_CONFIG` (
-  `taskConfigId` VARCHAR(32) NOT NULL COMMENT '任务配置ID，主键',
-  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
-  `taskId` VARCHAR(100) NOT NULL COMMENT '任务唯一标识，业务ID',
-  `taskName` VARCHAR(200) NOT NULL COMMENT '任务名称',
-  `taskDescription` VARCHAR(500) DEFAULT NULL COMMENT '任务描述',
-  `taskPriority` INT NOT NULL DEFAULT 1 COMMENT '任务优先级(1低优先级,2普通优先级,3高优先级)',
-  
-  -- 调度配置
-  `scheduleType` INT NOT NULL COMMENT '调度类型(1一次性执行,2固定间隔,3Cron表达式,4延迟执行,5实时执行)',
-  `cronExpression` VARCHAR(100) DEFAULT NULL COMMENT 'Cron表达式，scheduleType=3时必填',
-  `intervalSeconds` BIGINT DEFAULT NULL COMMENT '执行间隔秒数，scheduleType=2时必填',
-  `delaySeconds` BIGINT DEFAULT NULL COMMENT '延迟秒数，scheduleType=4时必填',
-  `startTime` DATETIME DEFAULT NULL COMMENT '任务开始时间',
-  `endTime` DATETIME DEFAULT NULL COMMENT '任务结束时间',
-  
-  -- 执行配置
-  `maxRetries` INT NOT NULL DEFAULT 0 COMMENT '最大重试次数',
-  `retryIntervalSeconds` BIGINT NOT NULL DEFAULT 60 COMMENT '重试间隔秒数',
-  `timeoutSeconds` BIGINT NOT NULL DEFAULT 1800 COMMENT '执行超时时间秒数',
-  
-  -- 任务参数
-  `taskParams` TEXT DEFAULT NULL COMMENT '任务参数，JSON格式存储',
-  
-  -- 通用字段
-  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
-  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
-  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
-  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
-  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
-  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
-  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
-  `reserved1` VARCHAR(500) DEFAULT NULL COMMENT '预留字段1',
-  `reserved2` VARCHAR(500) DEFAULT NULL COMMENT '预留字段2',
-  `reserved3` VARCHAR(500) DEFAULT NULL COMMENT '预留字段3',
-  `reserved4` VARCHAR(500) DEFAULT NULL COMMENT '预留字段4',
-  `reserved5` VARCHAR(500) DEFAULT NULL COMMENT '预留字段5',
-  `reserved6` VARCHAR(500) DEFAULT NULL COMMENT '预留字段6',
-  `reserved7` VARCHAR(500) DEFAULT NULL COMMENT '预留字段7',
-  `reserved8` VARCHAR(500) DEFAULT NULL COMMENT '预留字段8',
-  `reserved9` VARCHAR(500) DEFAULT NULL COMMENT '预留字段9',
-  `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
-  
-  PRIMARY KEY (`tenantId`, `taskConfigId`),
-  KEY `idx_HUB_TIMER_TASK_CONFIG_taskId` (`taskId`),
-  KEY `idx_HUB_TIMER_TASK_CONFIG_scheduleType` (`scheduleType`),
-  KEY `idx_HUB_TIMER_TASK_CONFIG_activeFlag` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='定时任务配置表';
-
--- 2. 任务运行时信息表 - 存储任务的运行状态和统计信息
-CREATE TABLE `HUB_TIMER_TASK_INFO` (
-  `taskInfoId` VARCHAR(32) NOT NULL COMMENT '任务信息ID，主键',
-  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
-  `taskConfigId` VARCHAR(32) NOT NULL COMMENT '关联任务配置ID',
-  `taskId` VARCHAR(100) NOT NULL COMMENT '任务唯一标识',
-  
-  -- 状态信息
-  `taskStatus` INT NOT NULL DEFAULT 1 COMMENT '任务状态(1待执行,2运行中,3已完成,4执行失败,5已取消)',
-  `nextRunTime` DATETIME DEFAULT NULL COMMENT '下次执行时间',
-  `lastRunTime` DATETIME DEFAULT NULL COMMENT '上次执行时间',
-  
-  -- 统计信息
-  `runCount` BIGINT NOT NULL DEFAULT 0 COMMENT '执行次数',
-  `successCount` BIGINT NOT NULL DEFAULT 0 COMMENT '成功次数',
-  `failureCount` BIGINT NOT NULL DEFAULT 0 COMMENT '失败次数',
-  
-  -- 最后执行结果
-  `lastResultId` VARCHAR(32) DEFAULT NULL COMMENT '最后执行结果ID',
-  `lastExecutionDurationMs` BIGINT DEFAULT NULL COMMENT '最后执行耗时毫秒数',
-  `lastErrorMessage` TEXT DEFAULT NULL COMMENT '最后错误信息',
-  
-  -- 通用字段
-  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
-  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
-  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
-  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
-  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
-  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
-  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
-  `reserved1` VARCHAR(500) DEFAULT NULL COMMENT '预留字段1',
-  `reserved2` VARCHAR(500) DEFAULT NULL COMMENT '预留字段2',
-  `reserved3` VARCHAR(500) DEFAULT NULL COMMENT '预留字段3',
-  `reserved4` VARCHAR(500) DEFAULT NULL COMMENT '预留字段4',
-  `reserved5` VARCHAR(500) DEFAULT NULL COMMENT '预留字段5',
-  `reserved6` VARCHAR(500) DEFAULT NULL COMMENT '预留字段6',
-  `reserved7` VARCHAR(500) DEFAULT NULL COMMENT '预留字段7',
-  `reserved8` VARCHAR(500) DEFAULT NULL COMMENT '预留字段8',
-  `reserved9` VARCHAR(500) DEFAULT NULL COMMENT '预留字段9',
-  `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
-  
-  PRIMARY KEY (`tenantId`, `taskInfoId`),
-  KEY `idx_HUB_TIMER_TASK_INFO_taskId` (`taskId`),
-  KEY `idx_HUB_TIMER_TASK_INFO_taskConfigId` (`taskConfigId`),
-  KEY `idx_HUB_TIMER_TASK_INFO_taskStatus` (`taskStatus`),
-  KEY `idx_HUB_TIMER_TASK_INFO_nextRunTime` (`nextRunTime`),
-  KEY `idx_HUB_TIMER_TASK_INFO_lastRunTime` (`lastRunTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='定时任务运行时信息表';
-
--- 3. 任务执行结果表 - 存储每次任务执行的详细结果
-CREATE TABLE `HUB_TIMER_TASK_RESULT` (
-  `taskResultId` VARCHAR(32) NOT NULL COMMENT '任务结果ID，主键',
-  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
-  `taskId` VARCHAR(100) NOT NULL COMMENT '任务唯一标识',
-  `taskConfigId` VARCHAR(32) NOT NULL COMMENT '关联任务配置ID',
-  
-  -- 执行信息
-  `executionStartTime` DATETIME NOT NULL COMMENT '执行开始时间',
-  `executionEndTime` DATETIME DEFAULT NULL COMMENT '执行结束时间',
-  `executionDurationMs` BIGINT DEFAULT NULL COMMENT '执行耗时毫秒数',
-  `executionStatus` INT NOT NULL COMMENT '执行状态(1待执行,2运行中,3已完成,4执行失败,5已取消)',
-  
-  -- 结果信息
-  `resultSuccess` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '执行是否成功(N失败,Y成功)',
-  `errorMessage` TEXT DEFAULT NULL COMMENT '错误信息',
-  `errorStackTrace` TEXT DEFAULT NULL COMMENT '错误堆栈信息',
-  
-  -- 重试信息
-  `retryCount` INT NOT NULL DEFAULT 0 COMMENT '重试次数',
-  `maxRetryCount` INT NOT NULL DEFAULT 0 COMMENT '最大重试次数',
-  
-  -- 执行参数和结果
-  `executionParams` TEXT DEFAULT NULL COMMENT '执行参数，JSON格式',
-  `executionResult` TEXT DEFAULT NULL COMMENT '执行结果，JSON格式',
-  
-  -- 服务器信息
-  `executorServerName` VARCHAR(100) DEFAULT NULL COMMENT '执行服务器名称',
-  `executorServerIp` VARCHAR(50) DEFAULT NULL COMMENT '执行服务器IP地址',
-  
-  -- 通用字段
-  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
-  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
-  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
-  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
-  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
-  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
-  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
-  `reserved1` VARCHAR(500) DEFAULT NULL COMMENT '预留字段1',
-  `reserved2` VARCHAR(500) DEFAULT NULL COMMENT '预留字段2',
-  `reserved3` VARCHAR(500) DEFAULT NULL COMMENT '预留字段3',
-  `reserved4` VARCHAR(500) DEFAULT NULL COMMENT '预留字段4',
-  `reserved5` VARCHAR(500) DEFAULT NULL COMMENT '预留字段5',
-  `reserved6` VARCHAR(500) DEFAULT NULL COMMENT '预留字段6',
-  `reserved7` VARCHAR(500) DEFAULT NULL COMMENT '预留字段7',
-  `reserved8` VARCHAR(500) DEFAULT NULL COMMENT '预留字段8',
-  `reserved9` VARCHAR(500) DEFAULT NULL COMMENT '预留字段9',
-  `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
-  
-  PRIMARY KEY (`tenantId`, `taskResultId`),
-  KEY `idx_HUB_TIMER_TASK_RESULT_taskId` (`taskId`),
-  KEY `idx_HUB_TIMER_TASK_RESULT_taskConfigId` (`taskConfigId`),
-  KEY `idx_HUB_TIMER_TASK_RESULT_executionStartTime` (`executionStartTime`),
-  KEY `idx_HUB_TIMER_TASK_RESULT_executionStatus` (`executionStatus`),
-  KEY `idx_HUB_TIMER_TASK_RESULT_resultSuccess` (`resultSuccess`),
-  KEY `idx_HUB_TIMER_TASK_RESULT_addTime` (`addTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='定时任务执行结果表';
-
--- 4. 调度器配置表 - 存储调度器实例的配置信息
-CREATE TABLE `HUB_TIMER_SCHEDULER_CONFIG` (
-  `schedulerConfigId` VARCHAR(32) NOT NULL COMMENT '调度器配置ID，主键',
+-- 1. 调度器配置表 - 存储调度器实例的配置信息
+CREATE TABLE `HUB_TIMER_SCHEDULER` (
+  `schedulerId` VARCHAR(32) NOT NULL COMMENT '调度器ID，主键',
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `schedulerName` VARCHAR(100) NOT NULL COMMENT '调度器名称',
-  `schedulerInstanceId` VARCHAR(100) NOT NULL COMMENT '调度器实例ID，用于集群环境区分',
+  `schedulerInstanceId` VARCHAR(100) DEFAULT NULL COMMENT '调度器实例ID，用于集群环境区分',
   
   -- 调度器配置
   `maxWorkers` INT NOT NULL DEFAULT 5 COMMENT '最大工作线程数',
@@ -784,6 +627,7 @@ CREATE TABLE `HUB_TIMER_SCHEDULER_CONFIG` (
   `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性，JSON格式',
   `reserved1` VARCHAR(500) DEFAULT NULL COMMENT '预留字段1',
   `reserved2` VARCHAR(500) DEFAULT NULL COMMENT '预留字段2',
   `reserved3` VARCHAR(500) DEFAULT NULL COMMENT '预留字段3',
@@ -795,24 +639,128 @@ CREATE TABLE `HUB_TIMER_SCHEDULER_CONFIG` (
   `reserved9` VARCHAR(500) DEFAULT NULL COMMENT '预留字段9',
   `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
   
-  PRIMARY KEY (`tenantId`, `schedulerConfigId`),
-  KEY `idx_HUB_TIMER_SCHEDULER_CONFIG_schedulerName` (`schedulerName`),
-  KEY `idx_HUB_TIMER_SCHEDULER_CONFIG_instanceId` (`schedulerInstanceId`),
-  KEY `idx_HUB_TIMER_SCHEDULER_CONFIG_schedulerStatus` (`schedulerStatus`),
-  KEY `idx_HUB_TIMER_SCHEDULER_CONFIG_lastHeartbeatTime` (`lastHeartbeatTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='定时任务调度器配置表';
+  PRIMARY KEY (`tenantId`, `schedulerId`),
+  KEY `idx_HUB_TIMER_SCHEDULER_name` (`schedulerName`),
+  KEY `idx_HUB_TIMER_SCHEDULER_instanceId` (`schedulerInstanceId`),
+  KEY `idx_HUB_TIMER_SCHEDULER_status` (`schedulerStatus`),
+  KEY `idx_HUB_TIMER_SCHEDULER_heartbeat` (`lastHeartbeatTime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='定时任务调度器表 - 存储调度器配置和状态信息';
 
--- 5. 任务执行日志表 - 存储任务执行过程中的日志信息
-CREATE TABLE `HUB_TIMER_TASK_LOG` (
-  `taskLogId` VARCHAR(32) NOT NULL COMMENT '任务日志ID，主键',
+-- 2. 任务表 - 合并配置、运行时信息和最后执行结果
+CREATE TABLE `HUB_TIMER_TASK` (
+  -- 主键信息
+  `taskId` VARCHAR(32) NOT NULL COMMENT '任务ID，主键',
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
-  `taskId` VARCHAR(100) NOT NULL COMMENT '任务唯一标识',
-  `taskResultId` VARCHAR(32) DEFAULT NULL COMMENT '关联任务结果ID',
+  
+  -- 任务配置信息
+  `taskName` VARCHAR(200) NOT NULL COMMENT '任务名称',
+  `taskDescription` VARCHAR(500) DEFAULT NULL COMMENT '任务描述',
+  `taskPriority` INT NOT NULL DEFAULT 1 COMMENT '任务优先级(1低优先级,2普通优先级,3高优先级)',
+  `schedulerId` VARCHAR(32) DEFAULT NULL COMMENT '关联的调度器ID',
+  `schedulerName` VARCHAR(100) DEFAULT NULL COMMENT '调度器名称（冗余字段，便于查询显示）',
+  
+  -- 调度配置
+  `scheduleType` INT NOT NULL COMMENT '调度类型(1一次性执行,2固定间隔,3Cron表达式,4延迟执行,5实时执行)',
+  `cronExpression` VARCHAR(100) DEFAULT NULL COMMENT 'Cron表达式，scheduleType=3时必填',
+  `intervalSeconds` BIGINT DEFAULT NULL COMMENT '执行间隔秒数，scheduleType=2时必填',
+  `delaySeconds` BIGINT DEFAULT NULL COMMENT '延迟秒数，scheduleType=4时必填',
+  `startTime` DATETIME DEFAULT NULL COMMENT '任务开始时间',
+  `endTime` DATETIME DEFAULT NULL COMMENT '任务结束时间',
+  
+  -- 执行配置
+  `maxRetries` INT NOT NULL DEFAULT 0 COMMENT '最大重试次数',
+  `retryIntervalSeconds` BIGINT NOT NULL DEFAULT 60 COMMENT '重试间隔秒数',
+  `timeoutSeconds` BIGINT NOT NULL DEFAULT 1800 COMMENT '执行超时时间秒数',
+  `taskParams` TEXT DEFAULT NULL COMMENT '任务参数，JSON格式存储',
+  
+  -- 运行时状态
+  `taskStatus` INT NOT NULL DEFAULT 1 COMMENT '任务状态(1待执行,2运行中,3已完成,4执行失败,5已取消)',
+  `nextRunTime` DATETIME DEFAULT NULL COMMENT '下次执行时间',
+  `lastRunTime` DATETIME DEFAULT NULL COMMENT '上次执行时间',
+  `runCount` BIGINT NOT NULL DEFAULT 0 COMMENT '执行总次数',
+  `successCount` BIGINT NOT NULL DEFAULT 0 COMMENT '成功次数',
+  `failureCount` BIGINT NOT NULL DEFAULT 0 COMMENT '失败次数',
+  
+  -- 最后执行结果
+  `lastExecutionId` VARCHAR(32) DEFAULT NULL COMMENT '最后执行ID',
+  `lastExecutionStartTime` DATETIME DEFAULT NULL COMMENT '最后执行开始时间',
+  `lastExecutionEndTime` DATETIME DEFAULT NULL COMMENT '最后执行结束时间',
+  `lastExecutionDurationMs` BIGINT DEFAULT NULL COMMENT '最后执行耗时毫秒数',
+  `lastExecutionStatus` INT DEFAULT NULL COMMENT '最后执行状态',
+  `lastResultSuccess` VARCHAR(1) DEFAULT NULL COMMENT '最后执行是否成功(N失败,Y成功)',
+  `lastErrorMessage` TEXT DEFAULT NULL COMMENT '最后错误信息',
+  `lastRetryCount` INT DEFAULT NULL COMMENT '最后重试次数',
+  
+  -- 通用字段
+  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
+  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
+  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
+  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性，JSON格式',
+  `reserved1` VARCHAR(500) DEFAULT NULL COMMENT '预留字段1',
+  `reserved2` VARCHAR(500) DEFAULT NULL COMMENT '预留字段2',
+  `reserved3` VARCHAR(500) DEFAULT NULL COMMENT '预留字段3',
+  `reserved4` VARCHAR(500) DEFAULT NULL COMMENT '预留字段4',
+  `reserved5` VARCHAR(500) DEFAULT NULL COMMENT '预留字段5',
+  `reserved6` VARCHAR(500) DEFAULT NULL COMMENT '预留字段6',
+  `reserved7` VARCHAR(500) DEFAULT NULL COMMENT '预留字段7',
+  `reserved8` VARCHAR(500) DEFAULT NULL COMMENT '预留字段8',
+  `reserved9` VARCHAR(500) DEFAULT NULL COMMENT '预留字段9',
+  `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
+  
+  PRIMARY KEY (`tenantId`, `taskId`),
+  KEY `idx_HUB_TIMER_TASK_name` (`taskName`),
+  KEY `idx_HUB_TIMER_TASK_schedulerId` (`schedulerId`),
+  KEY `idx_HUB_TIMER_TASK_scheduleType` (`scheduleType`),
+  KEY `idx_HUB_TIMER_TASK_status` (`taskStatus`),
+  KEY `idx_HUB_TIMER_TASK_nextRunTime` (`nextRunTime`),
+  KEY `idx_HUB_TIMER_TASK_lastRunTime` (`lastRunTime`),
+  KEY `idx_HUB_TIMER_TASK_activeFlag` (`activeFlag`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='定时任务表 - 合并任务配置、运行时信息和最后执行结果';
+
+-- 3. 任务执行历史表 - 存储所有执行记录
+-- 创建新的合并后的执行日志表
+CREATE TABLE `HUB_TIMER_EXECUTION_LOG` (
+  -- 主键信息
+  `executionId` VARCHAR(32) NOT NULL COMMENT '执行ID，主键',
+  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
+  `taskId` VARCHAR(32) NOT NULL COMMENT '关联任务ID',
+  
+  -- 任务信息（冗余）
+  `taskName` VARCHAR(200) DEFAULT NULL COMMENT '任务名称',
+  `schedulerId` VARCHAR(32) DEFAULT NULL COMMENT '调度器ID',
+  
+  -- 执行信息
+  `executionStartTime` DATETIME NOT NULL COMMENT '执行开始时间',
+  `executionEndTime` DATETIME DEFAULT NULL COMMENT '执行结束时间',
+  `executionDurationMs` BIGINT DEFAULT NULL COMMENT '执行耗时毫秒数',
+  `executionStatus` INT NOT NULL COMMENT '执行状态(1待执行,2运行中,3已完成,4执行失败,5已取消)',
+  `resultSuccess` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '执行是否成功(N失败,Y成功)',
+  
+  -- 错误信息
+  `errorMessage` TEXT DEFAULT NULL COMMENT '错误信息',
+  `errorStackTrace` TEXT DEFAULT NULL COMMENT '错误堆栈信息',
+  
+  -- 重试信息
+  `retryCount` INT NOT NULL DEFAULT 0 COMMENT '重试次数',
+  `maxRetryCount` INT NOT NULL DEFAULT 0 COMMENT '最大重试次数',
+  
+  -- 参数和结果
+  `executionParams` TEXT DEFAULT NULL COMMENT '执行参数，JSON格式',
+  `executionResult` TEXT DEFAULT NULL COMMENT '执行结果，JSON格式',
+  
+  -- 执行环境
+  `executorServerName` VARCHAR(100) DEFAULT NULL COMMENT '执行服务器名称',
+  `executorServerIp` VARCHAR(50) DEFAULT NULL COMMENT '执行服务器IP地址',
   
   -- 日志信息
-  `logLevel` VARCHAR(10) NOT NULL COMMENT '日志级别(DEBUG,INFO,WARN,ERROR)',
-  `logMessage` TEXT NOT NULL COMMENT '日志消息内容',
-  `logTimestamp` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '日志时间戳',
+  `logLevel` VARCHAR(10) DEFAULT NULL COMMENT '日志级别(DEBUG,INFO,WARN,ERROR)',
+  `logMessage` TEXT DEFAULT NULL COMMENT '日志消息内容',
+  `logTimestamp` DATETIME DEFAULT NULL COMMENT '日志时间戳',
   
   -- 执行上下文
   `executionPhase` VARCHAR(50) DEFAULT NULL COMMENT '执行阶段(BEFORE_EXECUTE,EXECUTING,AFTER_EXECUTE,RETRY)',
@@ -833,6 +781,7 @@ CREATE TABLE `HUB_TIMER_TASK_LOG` (
   `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性，JSON格式',
   `reserved1` VARCHAR(500) DEFAULT NULL COMMENT '预留字段1',
   `reserved2` VARCHAR(500) DEFAULT NULL COMMENT '预留字段2',
   `reserved3` VARCHAR(500) DEFAULT NULL COMMENT '预留字段3',
@@ -844,14 +793,16 @@ CREATE TABLE `HUB_TIMER_TASK_LOG` (
   `reserved9` VARCHAR(500) DEFAULT NULL COMMENT '预留字段9',
   `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
   
-  PRIMARY KEY (`tenantId`, `taskLogId`),
-  KEY `idx_HUB_TIMER_TASK_LOG_taskId` (`taskId`),
-  KEY `idx_HUB_TIMER_TASK_LOG_taskResultId` (`taskResultId`),
-  KEY `idx_HUB_TIMER_TASK_LOG_logLevel` (`logLevel`),
-  KEY `idx_HUB_TIMER_TASK_LOG_logTimestamp` (`logTimestamp`),
-  KEY `idx_HUB_TIMER_TASK_LOG_addTime` (`addTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='定时任务执行日志表';
-
+  PRIMARY KEY (`tenantId`, `executionId`),
+  KEY `idx_HUB_TIMER_EXECUTION_LOG_taskId` (`taskId`),
+  KEY `idx_HUB_TIMER_EXECUTION_LOG_taskName` (`taskName`),
+  KEY `idx_HUB_TIMER_EXECUTION_LOG_schedulerId` (`schedulerId`),
+  KEY `idx_HUB_TIMER_EXECUTION_LOG_startTime` (`executionStartTime`),
+  KEY `idx_HUB_TIMER_EXECUTION_LOG_status` (`executionStatus`),
+  KEY `idx_HUB_TIMER_EXECUTION_LOG_success` (`resultSuccess`),
+  KEY `idx_HUB_TIMER_EXECUTION_LOG_logLevel` (`logLevel`),
+  KEY `idx_HUB_TIMER_EXECUTION_LOG_logTimestamp` (`logTimestamp`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='任务执行日志表 - 合并执行记录和日志信息';
 
 -- ===================================================
 -- 通用配置工具表设计
@@ -859,11 +810,9 @@ CREATE TABLE `HUB_TIMER_TASK_LOG` (
 -- ===================================================
 
 -- 1. 工具配置主表
--- 存储各种工具的基础配置信息
 CREATE TABLE `HUB_TOOL_CONFIG` (
-  -- 主键和租户信息
-  `toolConfigId` VARCHAR(32) NOT NULL COMMENT '工具配置ID，主键',
-  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID，用于多租户数据隔离',
+  `toolConfigId` VARCHAR(32) NOT NULL COMMENT '工具配置ID',
+  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   
   -- 工具基础信息
   `toolName` VARCHAR(100) NOT NULL COMMENT '工具名称，如SFTP、SSH、FTP等',
@@ -895,14 +844,14 @@ CREATE TABLE `HUB_TOOL_CONFIG` (
   
   -- 状态和控制
   `configStatus` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '配置状态(N禁用,Y启用)',
-  `isDefault` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否为默认配置(N否,Y是)',
-  `priority` INT DEFAULT 100 COMMENT '优先级，数值越小优先级越高',
+  `defaultFlag` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否为默认配置(N否,Y是)',
+  `priorityLevel` INT DEFAULT 100 COMMENT '优先级，数值越小优先级越高',
   
   -- 安全和加密
   `encryptionType` VARCHAR(50) DEFAULT NULL COMMENT '加密类型，如AES256、RSA等',
   `encryptionKey` VARCHAR(100) DEFAULT NULL COMMENT '加密密钥标识',
   
-  -- 通用字段
+  -- 标准字段
   `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
   `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
@@ -911,6 +860,7 @@ CREATE TABLE `HUB_TOOL_CONFIG` (
   `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性，JSON格式',
   `reserved1` VARCHAR(500) DEFAULT NULL COMMENT '预留字段1',
   `reserved2` VARCHAR(500) DEFAULT NULL COMMENT '预留字段2',
   `reserved3` VARCHAR(500) DEFAULT NULL COMMENT '预留字段3',
@@ -922,137 +872,19 @@ CREATE TABLE `HUB_TOOL_CONFIG` (
   `reserved9` VARCHAR(500) DEFAULT NULL COMMENT '预留字段9',
   `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
   
-  -- 索引定义
   PRIMARY KEY (`tenantId`, `toolConfigId`),
-  KEY `idx_HUB_TOOL_CONFIG_tenantId` (`tenantId`),
   KEY `idx_HUB_TOOL_CONFIG_toolName` (`toolName`),
   KEY `idx_HUB_TOOL_CONFIG_toolType` (`toolType`),
   KEY `idx_HUB_TOOL_CONFIG_configName` (`configName`),
   KEY `idx_HUB_TOOL_CONFIG_configGroupId` (`configGroupId`),
   KEY `idx_HUB_TOOL_CONFIG_configStatus` (`configStatus`),
-  KEY `idx_HUB_TOOL_CONFIG_isDefault` (`isDefault`),
+  KEY `idx_HUB_TOOL_CONFIG_defaultFlag` (`defaultFlag`),
   KEY `idx_HUB_TOOL_CONFIG_activeFlag` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工具配置主表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工具配置主表 - 存储各种工具的基础配置信息';
 
--- 2. 工具配置历史表
--- 记录配置的变更历史，用于审计和回滚
-CREATE TABLE `HUB_TOOL_CONFIG_HISTORY` (
-  -- 主键和关联信息
-  `configHistoryId` VARCHAR(32) NOT NULL COMMENT '配置历史ID，主键',
-  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
-  `toolConfigId` VARCHAR(32) NOT NULL COMMENT '关联的工具配置ID',
-  
-  -- 变更信息
-  `changeType` VARCHAR(20) NOT NULL COMMENT '变更类型，如CREATE、UPDATE、DELETE',
-  `changeReason` VARCHAR(500) DEFAULT NULL COMMENT '变更原因',
-  `beforeData` TEXT DEFAULT NULL COMMENT '变更前的数据，JSON格式',
-  `afterData` TEXT DEFAULT NULL COMMENT '变更后的数据，JSON格式',
-  `changeFields` VARCHAR(1000) DEFAULT NULL COMMENT '变更的字段列表',
-  
-  -- 操作信息
-  `operationTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
-  `operatorId` VARCHAR(32) NOT NULL COMMENT '操作人ID',
-  `operatorName` VARCHAR(100) DEFAULT NULL COMMENT '操作人姓名',
-  `clientIpAddress` VARCHAR(50) DEFAULT NULL COMMENT '客户端IP地址',
-  `userAgent` VARCHAR(500) DEFAULT NULL COMMENT '用户代理信息',
-  
-  -- 通用字段
-  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
-  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
-  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
-  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
-  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
-  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
-  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
-  `reserved1` VARCHAR(500) DEFAULT NULL COMMENT '预留字段1',
-  `reserved2` VARCHAR(500) DEFAULT NULL COMMENT '预留字段2',
-  `reserved3` VARCHAR(500) DEFAULT NULL COMMENT '预留字段3',
-  `reserved4` VARCHAR(500) DEFAULT NULL COMMENT '预留字段4',
-  `reserved5` VARCHAR(500) DEFAULT NULL COMMENT '预留字段5',
-  `reserved6` VARCHAR(500) DEFAULT NULL COMMENT '预留字段6',
-  `reserved7` VARCHAR(500) DEFAULT NULL COMMENT '预留字段7',
-  `reserved8` VARCHAR(500) DEFAULT NULL COMMENT '预留字段8',
-  `reserved9` VARCHAR(500) DEFAULT NULL COMMENT '预留字段9',
-  `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
-  
-  -- 索引定义
-  PRIMARY KEY (`tenantId`, `configHistoryId`),
-  KEY `idx_HUB_TOOL_CONFIG_HISTORY_tenantId` (`tenantId`),
-  KEY `idx_HUB_TOOL_CONFIG_HISTORY_toolConfigId` (`toolConfigId`),
-  KEY `idx_HUB_TOOL_CONFIG_HISTORY_changeType` (`changeType`),
-  KEY `idx_HUB_TOOL_CONFIG_HISTORY_operationTime` (`operationTime`),
-  KEY `idx_HUB_TOOL_CONFIG_HISTORY_operatorId` (`operatorId`),
-  KEY `idx_HUB_TOOL_CONFIG_HISTORY_activeFlag` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工具配置历史表';
-
--- 3. 工具配置模板表
--- 存储预定义的配置模板，便于快速创建配置
-CREATE TABLE `HUB_TOOL_CONFIG_TEMPLATE` (
-  -- 主键和租户信息
-  `configTemplateId` VARCHAR(32) NOT NULL COMMENT '配置模板ID，主键',
-  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
-  
-  -- 模板基础信息
-  `templateName` VARCHAR(100) NOT NULL COMMENT '模板名称',
-  `templateDescription` VARCHAR(500) DEFAULT NULL COMMENT '模板描述',
-  `toolName` VARCHAR(100) NOT NULL COMMENT '适用的工具名称',
-  `toolType` VARCHAR(50) NOT NULL COMMENT '适用的工具类型',
-  `templateCategory` VARCHAR(50) DEFAULT NULL COMMENT '模板分类，如production、development、test',
-  
-  -- 模板内容
-  `templateContent` TEXT NOT NULL COMMENT '模板内容，JSON格式存储完整配置',
-  `defaultValues` TEXT DEFAULT NULL COMMENT '默认值配置，JSON格式',
-  `requiredFields` VARCHAR(1000) DEFAULT NULL COMMENT '必填字段列表，逗号分隔',
-  `optionalFields` VARCHAR(1000) DEFAULT NULL COMMENT '可选字段列表，逗号分隔',
-  
-  -- 模板属性
-  `isSystemTemplate` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否为系统模板(N否,Y是)',
-  `isPublic` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否为公共模板(N私有,Y公共)',
-  `templateVersion` VARCHAR(20) DEFAULT '1.0' COMMENT '模板版本号',
-  `compatibleVersions` VARCHAR(200) DEFAULT NULL COMMENT '兼容的工具版本列表',
-  
-  -- 使用统计
-  `useCount` INT DEFAULT 0 COMMENT '使用次数统计',
-  `lastUsedTime` DATETIME DEFAULT NULL COMMENT '最后使用时间',
-  
-  -- 通用字段
-  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
-  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
-  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
-  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
-  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
-  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
-  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
-  `reserved1` VARCHAR(500) DEFAULT NULL COMMENT '预留字段1',
-  `reserved2` VARCHAR(500) DEFAULT NULL COMMENT '预留字段2',
-  `reserved3` VARCHAR(500) DEFAULT NULL COMMENT '预留字段3',
-  `reserved4` VARCHAR(500) DEFAULT NULL COMMENT '预留字段4',
-  `reserved5` VARCHAR(500) DEFAULT NULL COMMENT '预留字段5',
-  `reserved6` VARCHAR(500) DEFAULT NULL COMMENT '预留字段6',
-  `reserved7` VARCHAR(500) DEFAULT NULL COMMENT '预留字段7',
-  `reserved8` VARCHAR(500) DEFAULT NULL COMMENT '预留字段8',
-  `reserved9` VARCHAR(500) DEFAULT NULL COMMENT '预留字段9',
-  `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
-  
-  -- 索引定义
-  PRIMARY KEY (`tenantId`, `configTemplateId`),
-  KEY `idx_HUB_TOOL_CONFIG_TEMPLATE_tenantId` (`tenantId`),
-  KEY `idx_HUB_TOOL_CONFIG_TEMPLATE_templateName` (`templateName`),
-  KEY `idx_HUB_TOOL_CONFIG_TEMPLATE_toolName` (`toolName`),
-  KEY `idx_HUB_TOOL_CONFIG_TEMPLATE_toolType` (`toolType`),
-  KEY `idx_HUB_TOOL_CONFIG_TEMPLATE_templateCategory` (`templateCategory`),
-  KEY `idx_HUB_TOOL_CONFIG_TEMPLATE_isSystemTemplate` (`isSystemTemplate`),
-  KEY `idx_HUB_TOOL_CONFIG_TEMPLATE_isPublic` (`isPublic`),
-  KEY `idx_HUB_TOOL_CONFIG_TEMPLATE_activeFlag` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工具配置模板表';
-
--- 4. 工具配置分组表
--- 用于对配置进行分组管理
+-- 2. 工具配置分组表
 CREATE TABLE `HUB_TOOL_CONFIG_GROUP` (
-  -- 主键和租户信息
-  `configGroupId` VARCHAR(32) NOT NULL COMMENT '配置分组ID，主键',
+  `configGroupId` VARCHAR(32) NOT NULL COMMENT '配置分组ID',
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   
   -- 分组信息
@@ -1073,7 +905,7 @@ CREATE TABLE `HUB_TOOL_CONFIG_GROUP` (
   `allowedUsers` TEXT DEFAULT NULL COMMENT '允许访问的用户列表，JSON格式',
   `allowedRoles` TEXT DEFAULT NULL COMMENT '允许访问的角色列表，JSON格式',
   
-  -- 通用字段
+  -- 标准字段
   `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
   `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
@@ -1082,6 +914,7 @@ CREATE TABLE `HUB_TOOL_CONFIG_GROUP` (
   `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性，JSON格式',
   `reserved1` VARCHAR(500) DEFAULT NULL COMMENT '预留字段1',
   `reserved2` VARCHAR(500) DEFAULT NULL COMMENT '预留字段2',
   `reserved3` VARCHAR(500) DEFAULT NULL COMMENT '预留字段3',
@@ -1093,48 +926,10 @@ CREATE TABLE `HUB_TOOL_CONFIG_GROUP` (
   `reserved9` VARCHAR(500) DEFAULT NULL COMMENT '预留字段9',
   `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
   
-  -- 索引定义
   PRIMARY KEY (`tenantId`, `configGroupId`),
-  KEY `idx_HUB_TOOL_CONFIG_GROUP_tenantId` (`tenantId`),
   KEY `idx_HUB_TOOL_CONFIG_GROUP_groupName` (`groupName`),
   KEY `idx_HUB_TOOL_CONFIG_GROUP_parentGroupId` (`parentGroupId`),
   KEY `idx_HUB_TOOL_CONFIG_GROUP_groupType` (`groupType`),
   KEY `idx_HUB_TOOL_CONFIG_GROUP_sortOrder` (`sortOrder`),
   KEY `idx_HUB_TOOL_CONFIG_GROUP_activeFlag` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工具配置分组表';
-
--- =====================================================
--- 外键约束定义（可选，根据实际需求决定是否启用）
--- =====================================================
-
--- 任务信息表关联任务配置表
--- ALTER TABLE `HUB_TIMER_TASK_INFO` 
--- ADD CONSTRAINT `fk_HUB_TIMER_TASK_INFO_taskConfigId` 
--- FOREIGN KEY (`tenantId`, `taskConfigId`) REFERENCES `HUB_TIMER_TASK_CONFIG`(`tenantId`, `taskConfigId`);
-
--- 任务结果表关联任务配置表
--- ALTER TABLE `HUB_TIMER_TASK_RESULT` 
--- ADD CONSTRAINT `fk_HUB_TIMER_TASK_RESULT_taskConfigId` 
--- FOREIGN KEY (`tenantId`, `taskConfigId`) REFERENCES `HUB_TIMER_TASK_CONFIG`(`tenantId`, `taskConfigId`);
-
--- 任务日志表关联任务结果表
--- ALTER TABLE `HUB_TIMER_TASK_LOG` 
--- ADD CONSTRAINT `fk_HUB_TIMER_TASK_LOG_taskResultId` 
--- FOREIGN KEY (`tenantId`, `taskResultId`) REFERENCES `HUB_TIMER_TASK_RESULT`(`tenantId`, `taskResultId`);
-
--- =====================================================
--- 初始化数据
--- =====================================================
-
--- 插入默认调度器配置
-INSERT INTO `HUB_TIMER_SCHEDULER_CONFIG` (
-  `schedulerConfigId`, `tenantId`, `schedulerName`, `schedulerInstanceId`, 
-  `maxWorkers`, `queueSize`, `defaultTimeoutSeconds`, `defaultRetries`,
-  `schedulerStatus`, `serverName`, `serverIp`,
-  `addWho`, `editWho`, `oprSeqFlag`
-) VALUES (
-  'DEFAULT_SCHEDULER_001', 'DEFAULT_TENANT', 'DefaultScheduler', 'SCHEDULER_INSTANCE_001',
-  5, 100, 1800, 3,
-  1, 'localhost', '127.0.0.1',
-  'SYSTEM', 'SYSTEM', 'INIT_001'
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工具配置分组表 - 用于对工具配置进行分组管理';

@@ -19,11 +19,13 @@ type CronSchedule interface {
 }
 
 // StandardCronParser 标准Cron解析器
-// 支持5字段格式：分钟 小时 日 月 周
+// 支持6字段格式：秒 分钟 小时 日 月 周
+// 也支持5字段格式：分钟 小时 日 月 周（为了向后兼容）
 type StandardCronParser struct{}
 
 // NewStandardCronParser 创建标准Cron解析器实例
-// 支持标准5字段Cron表达式格式：分钟 小时 日 月 周
+// 支持标准6字段Cron表达式格式：秒 分钟 小时 日 月 周
+// 也支持5字段格式：分钟 小时 日 月 周（为了向后兼容）
 // 返回:
 //   *StandardCronParser: 初始化的Cron解析器实例
 func NewStandardCronParser() *StandardCronParser {
@@ -31,45 +33,84 @@ func NewStandardCronParser() *StandardCronParser {
 }
 
 // Parse 解析Cron表达式字符串
-// 将5字段Cron表达式解析为可执行的调度对象
+// 支持6字段Cron表达式（秒 分钟 小时 日 月 周）和5字段格式（分钟 小时 日 月 周）
 // 支持通配符(*)、范围(1-5)、列表(1,3,5)、步长(*/2)等语法
 // 参数:
-//   expr: Cron表达式字符串，格式为"分钟 小时 日 月 周"
+//   expr: Cron表达式字符串，格式为"秒 分钟 小时 日 月 周"或"分钟 小时 日 月 周"
 // 返回:
 //   CronSchedule: 解析后的调度对象，用于计算下次执行时间
 //   error: 解析失败时返回错误信息
 func (p *StandardCronParser) Parse(expr string) (CronSchedule, error) {
 	fields := strings.Fields(expr)
-	if len(fields) != 5 {
-		return nil, fmt.Errorf("invalid cron expression: expected 5 fields, got %d", len(fields))
-	}
 	
-	minute, err := parseField(fields[0], 0, 59)
-	if err != nil {
-		return nil, fmt.Errorf("invalid minute field: %v", err)
-	}
+	var second, minute, hour, day, month, weekday []int
+	var err error
 	
-	hour, err := parseField(fields[1], 0, 23)
-	if err != nil {
-		return nil, fmt.Errorf("invalid hour field: %v", err)
-	}
-	
-	day, err := parseField(fields[2], 1, 31)
-	if err != nil {
-		return nil, fmt.Errorf("invalid day field: %v", err)
-	}
-	
-	month, err := parseField(fields[3], 1, 12)
-	if err != nil {
-		return nil, fmt.Errorf("invalid month field: %v", err)
-	}
-	
-	weekday, err := parseField(fields[4], 0, 6)
-	if err != nil {
-		return nil, fmt.Errorf("invalid weekday field: %v", err)
+	if len(fields) == 6 {
+		// 6字段格式：秒 分钟 小时 日 月 周
+		second, err = parseField(fields[0], 0, 59)
+		if err != nil {
+			return nil, fmt.Errorf("invalid second field: %v", err)
+		}
+		
+		minute, err = parseField(fields[1], 0, 59)
+		if err != nil {
+			return nil, fmt.Errorf("invalid minute field: %v", err)
+		}
+		
+		hour, err = parseField(fields[2], 0, 23)
+		if err != nil {
+			return nil, fmt.Errorf("invalid hour field: %v", err)
+		}
+		
+		day, err = parseField(fields[3], 1, 31)
+		if err != nil {
+			return nil, fmt.Errorf("invalid day field: %v", err)
+		}
+		
+		month, err = parseField(fields[4], 1, 12)
+		if err != nil {
+			return nil, fmt.Errorf("invalid month field: %v", err)
+		}
+		
+		weekday, err = parseField(fields[5], 0, 6)
+		if err != nil {
+			return nil, fmt.Errorf("invalid weekday field: %v", err)
+		}
+	} else if len(fields) == 5 {
+		// 5字段格式：分钟 小时 日 月 周（为了向后兼容）
+		second = []int{0} // 默认在0秒执行
+		
+		minute, err = parseField(fields[0], 0, 59)
+		if err != nil {
+			return nil, fmt.Errorf("invalid minute field: %v", err)
+		}
+		
+		hour, err = parseField(fields[1], 0, 23)
+		if err != nil {
+			return nil, fmt.Errorf("invalid hour field: %v", err)
+		}
+		
+		day, err = parseField(fields[2], 1, 31)
+		if err != nil {
+			return nil, fmt.Errorf("invalid day field: %v", err)
+		}
+		
+		month, err = parseField(fields[3], 1, 12)
+		if err != nil {
+			return nil, fmt.Errorf("invalid month field: %v", err)
+		}
+		
+		weekday, err = parseField(fields[4], 0, 6)
+		if err != nil {
+			return nil, fmt.Errorf("invalid weekday field: %v", err)
+		}
+	} else {
+		return nil, fmt.Errorf("invalid cron expression: expected 5 or 6 fields, got %d", len(fields))
 	}
 	
 	return &StandardCronSchedule{
+		second:  second,
 		minute:  minute,
 		hour:    hour,
 		day:     day,
@@ -80,6 +121,7 @@ func (p *StandardCronParser) Parse(expr string) (CronSchedule, error) {
 
 // StandardCronSchedule 标准Cron调度实现
 type StandardCronSchedule struct {
+	second  []int
 	minute  []int
 	hour    []int
 	day     []int
@@ -94,15 +136,15 @@ type StandardCronSchedule struct {
 // 返回:
 //   time.Time: 下次执行时间，如果找不到匹配时间则返回零值
 func (s *StandardCronSchedule) Next(t time.Time) time.Time {
-	// 从下一分钟开始计算
-	next := t.Add(time.Minute).Truncate(time.Minute)
+	// 从下一秒开始计算
+	next := t.Add(time.Second).Truncate(time.Second)
 	
-	// 最多向前搜索4年
-	for i := 0; i < 4*365*24*60; i++ {
+	// 最多向前搜索4年（以秒为单位）
+	for i := 0; i < 4*365*24*60*60; i++ {
 		if s.matches(next) {
 			return next
 		}
-		next = next.Add(time.Minute)
+		next = next.Add(time.Second)
 	}
 	
 	// 如果找不到匹配的时间，返回零值
@@ -111,7 +153,8 @@ func (s *StandardCronSchedule) Next(t time.Time) time.Time {
 
 // matches 检查时间是否匹配Cron表达式
 func (s *StandardCronSchedule) matches(t time.Time) bool {
-	return s.matchesField(s.minute, t.Minute()) &&
+	return s.matchesField(s.second, t.Second()) &&
+		s.matchesField(s.minute, t.Minute()) &&
 		s.matchesField(s.hour, t.Hour()) &&
 		s.matchesField(s.day, t.Day()) &&
 		s.matchesField(s.month, int(t.Month())) &&
@@ -243,20 +286,22 @@ func makeRange(start, end int) []int {
 	return result
 }
 
-// 预定义的常用Cron表达式
+// 预定义的常用Cron表达式（6字段格式：秒 分钟 小时 日 月 周）
 var (
+	// EverySecond 每秒执行
+	EverySecond = "* * * * * *"
 	// EveryMinute 每分钟执行
-	EveryMinute = "* * * * *"
+	EveryMinute = "0 * * * * *"
 	// Hourly 每小时执行
-	Hourly = "0 * * * *"
+	Hourly = "0 0 * * * *"
 	// Daily 每天执行
-	Daily = "0 0 * * *"
+	Daily = "0 0 0 * * *"
 	// Weekly 每周执行
-	Weekly = "0 0 * * 0"
+	Weekly = "0 0 0 * * 0"
 	// Monthly 每月执行
-	Monthly = "0 0 1 * *"
+	Monthly = "0 0 0 1 * *"
 	// Yearly 每年执行
-	Yearly = "0 0 1 1 *"
+	Yearly = "0 0 0 1 1 *"
 )
 
 // ParseCron 解析Cron表达式的便捷函数

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 	"time"
-	
+
 	"gohub/pkg/timer"
 	"gohub/pkg/timer/cron"
 	"gohub/pkg/timer/executor"
@@ -81,7 +81,7 @@ func CronTaskExample() {
 		Name:         "每5分钟执行的任务",
 		Description:  "使用Cron表达式每5分钟执行一次",
 		ScheduleType: timer.ScheduleTypeCron,
-		CronExpr:     "*/5 * * * *", // 每5分钟
+		CronExpr:     "0 */5 * * * *", // 每5分钟
 		Enabled:      true,
 		Params:       "Cron task executed!",
 	}
@@ -103,7 +103,7 @@ func CronTaskExample() {
 		cron.Hourly,
 		cron.Daily,
 		cron.Weekly,
-		"0 9 * * 1-5", // 工作日上午9点
+		"0 0 9 * * 1-5", // 工作日上午9点
 	}
 	
 	for _, expr := range expressions {
