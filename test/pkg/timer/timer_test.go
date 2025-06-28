@@ -234,52 +234,37 @@ func TestTaskConfig(t *testing.T) {
 	}
 }
 
-// TestTaskInfo 测试任务信息结构
-// 验证TaskInfo结构体的字段设置和访问
-func TestTaskInfo(t *testing.T) {
+// TestTaskConfig 测试任务配置的状态管理
+// 验证TaskConfig的状态管理方法
+func TestTaskConfigStateMethods(t *testing.T) {
 	// 创建任务配置
-	config := CreateTestTaskConfig("test-info-001", "信息测试任务", timer.ScheduleTypeInterval)
+	config := CreateTestTaskConfig("test-state-001", "状态测试任务", timer.ScheduleTypeInterval)
 
-	// 创建任务信息
-	now := time.Now()
-	nextRun := now.Add(time.Hour)
-	lastRun := now.Add(-time.Hour)
-
-	taskInfo := &timer.TaskInfo{
-		Config:       config,
-		Status:       timer.TaskStatusRunning,
-		NextRunTime:  &nextRun,
-		LastRunTime:  &lastRun,
-		RunCount:     10,
-		FailureCount: 2,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+	// 测试状态更新
+	config.UpdateStatus(timer.TaskStatusRunning)
+	if config.GetStatus() != timer.TaskStatusRunning {
+		t.Errorf("UpdateStatus failed, got %v, want %v", config.GetStatus(), timer.TaskStatusRunning)
 	}
 
-	// 验证字段值
-	if taskInfo.Config == nil || taskInfo.Config.ID != "test-info-001" {
-		t.Errorf("TaskInfo.Config.ID = %v, want %v", taskInfo.Config.ID, "test-info-001")
+	// 测试运行信息更新
+	result := &timer.TaskResult{
+		TaskID:   "test-state-001",
+		Status:   timer.TaskStatusCompleted,
+		Duration: time.Second * 10,
+	}
+	
+	config.UpdateRunInfo(result)
+	if config.GetRunCount() == 0 {
+		t.Error("UpdateRunInfo should increment run count")
 	}
 
-	if taskInfo.Status != timer.TaskStatusRunning {
-		t.Errorf("TaskInfo.Status = %v, want %v", taskInfo.Status, timer.TaskStatusRunning)
-	}
-
-	if taskInfo.RunCount != 10 {
-		t.Errorf("TaskInfo.RunCount = %v, want %v", taskInfo.RunCount, 10)
-	}
-
-	if taskInfo.FailureCount != 2 {
-		t.Errorf("TaskInfo.FailureCount = %v, want %v", taskInfo.FailureCount, 2)
-	}
-
-	// 验证时间字段
-	if taskInfo.NextRunTime == nil || !taskInfo.NextRunTime.Equal(nextRun) {
-		t.Errorf("TaskInfo.NextRunTime = %v, want %v", taskInfo.NextRunTime, &nextRun)
-	}
-
-	if taskInfo.LastRunTime == nil || !taskInfo.LastRunTime.Equal(lastRun) {
-		t.Errorf("TaskInfo.LastRunTime = %v, want %v", taskInfo.LastRunTime, &lastRun)
+	// 测试下次运行时间设置
+	nextRun := time.Now().Add(time.Hour)
+	config.SetNextRunTime(&nextRun)
+	
+	retrievedTime := config.GetNextRunTime()
+	if retrievedTime == nil || !retrievedTime.Equal(nextRun) {
+		t.Errorf("SetNextRunTime/GetNextRunTime failed, got %v, want %v", retrievedTime, &nextRun)
 	}
 }
 
@@ -382,16 +367,25 @@ func NewMockTaskExecutor(name string, executeFunc func(ctx context.Context, para
 }
 
 // Execute 实现TaskExecutor接口
-func (m *MockTaskExecutor) Execute(ctx context.Context, params interface{}) error {
+func (m *MockTaskExecutor) Execute(ctx context.Context, params interface{}) (*timer.ExecuteResult, error) {
+	var err error
 	if m.executeFunc != nil {
-		return m.executeFunc(ctx, params)
+		err = m.executeFunc(ctx, params)
 	}
-	return nil
+	return &timer.ExecuteResult{
+		Success: err == nil,
+		Message: "Mock execution completed",
+	}, err
 }
 
 // GetName 实现TaskExecutor接口
 func (m *MockTaskExecutor) GetName() string {
 	return m.name
+}
+
+// Close 实现TaskExecutor接口
+func (m *MockTaskExecutor) Close() error {
+	return nil
 }
 
 // TestTaskExecutorInterface 测试TaskExecutor接口
@@ -410,9 +404,12 @@ func TestTaskExecutorInterface(t *testing.T) {
 
 		// 验证执行
 		ctx := context.Background()
-		err := executor.Execute(ctx, "test-params")
+		result, err := executor.Execute(ctx, "test-params")
 		if err != nil {
 			t.Errorf("Execute() error = %v, want nil", err)
+		}
+		if !result.Success {
+			t.Error("Execute() result.Success = false, want true")
 		}
 	})
 
@@ -423,9 +420,12 @@ func TestTaskExecutorInterface(t *testing.T) {
 		})
 
 		ctx := context.Background()
-		err := executor.Execute(ctx, nil)
+		result, err := executor.Execute(ctx, nil)
 		if err == nil {
 			t.Error("Execute() error = nil, want error")
+		}
+		if result.Success {
+			t.Error("Execute() result.Success = true, want false")
 		}
 	})
 
@@ -443,9 +443,12 @@ func TestTaskExecutorInterface(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // 立即取消上下文
 
-		err := executor.Execute(ctx, nil)
+		result, err := executor.Execute(ctx, nil)
 		if err != context.Canceled {
 			t.Errorf("Execute() error = %v, want %v", err, context.Canceled)
+		}
+		if result.Success {
+			t.Error("Execute() result.Success = true, want false")
 		}
 	})
 }

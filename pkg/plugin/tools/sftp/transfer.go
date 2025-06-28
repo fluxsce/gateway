@@ -12,9 +12,10 @@ import (
 	
 	"gohub/pkg/plugin/tools/common"
 	"gohub/pkg/plugin/tools/configs"
+	"gohub/pkg/plugin/tools/types"
 )
 
-// UploadFile 上传单个文件到远程服务器
+// uploadFileImpl 上传单个文件到远程服务器的内部实现
 // 将本地文件上传到远程SFTP服务器的指定路径
 // 支持进度监控、断点续传、权限保持等功能
 // 参数:
@@ -25,7 +26,7 @@ import (
 // 返回:
 //   *common.TransferResult: 传输结果信息
 //   error: 上传失败时返回错误信息
-func (c *sftpClient) UploadFile(ctx context.Context, localPath, remotePath string, options *configs.SFTPTransferOptions) (*common.TransferResult, error) {
+func (c *sftpClient) uploadFileImpl(ctx context.Context, localPath, remotePath string, options *configs.SFTPTransferOptions) (*types.TransferResult, error) {
 	// 检查连接状态
 	if !c.IsConnected() {
 		return nil, common.NewConnectionError("未连接到SFTP服务器", nil)
@@ -63,7 +64,7 @@ func (c *sftpClient) UploadFile(ctx context.Context, localPath, remotePath strin
 	return c.executeUpload(ctx, localFile, localInfo, localPath, remotePath, options)
 }
 
-// DownloadFile 从远程服务器下载单个文件
+// downloadFileImpl 从远程服务器下载单个文件的内部实现
 // 将远程SFTP服务器上的文件下载到本地指定路径
 // 支持进度监控、断点续传、权限保持等功能
 // 参数:
@@ -74,7 +75,7 @@ func (c *sftpClient) UploadFile(ctx context.Context, localPath, remotePath strin
 // 返回:
 //   *common.TransferResult: 传输结果信息
 //   error: 下载失败时返回错误信息
-func (c *sftpClient) DownloadFile(ctx context.Context, remotePath, localPath string, options *configs.SFTPTransferOptions) (*common.TransferResult, error) {
+func (c *sftpClient) downloadFileImpl(ctx context.Context, remotePath, localPath string, options *configs.SFTPTransferOptions) (*types.TransferResult, error) {
 	// 检查连接状态
 	if !c.IsConnected() {
 		return nil, common.NewConnectionError("未连接到SFTP服务器", nil)
@@ -249,16 +250,16 @@ func (c *sftpClient) checkLocalFileExistence(localPath string, remoteInfo os.Fil
 }
 
 // createSkippedTransferResult 创建跳过传输的结果
-func (c *sftpClient) createSkippedTransferResult(transferType, localPath, remotePath string) *common.TransferResult {
-	var resultType common.TransferType
+func (c *sftpClient) createSkippedTransferResult(transferType, localPath, remotePath string) *types.TransferResult {
+	var resultType types.TransferType
 	if transferType == "upload" {
-		resultType = common.TransferTypeUpload
+		resultType = types.TransferTypeUpload
 	} else {
-		resultType = common.TransferTypeDownload
+		resultType = types.TransferTypeDownload
 	}
 	
 	now := time.Now()
-	return &common.TransferResult{
+	return &types.TransferResult{
 		OperationID:       common.GenerateUniqueID(transferType),
 		Type:              resultType,
 		LocalPath:         localPath,
@@ -275,7 +276,7 @@ func (c *sftpClient) createSkippedTransferResult(transferType, localPath, remote
 }
 
 // executeUpload 执行文件上传
-func (c *sftpClient) executeUpload(ctx context.Context, localFile *os.File, localInfo os.FileInfo, localPath, remotePath string, options *configs.SFTPTransferOptions) (*common.TransferResult, error) {
+func (c *sftpClient) executeUpload(ctx context.Context, localFile *os.File, localInfo os.FileInfo, localPath, remotePath string, options *configs.SFTPTransferOptions) (*types.TransferResult, error) {
 	// 创建远程文件
 	remoteFile, err := c.sftpClient.Create(remotePath)
 	if err != nil {
@@ -284,9 +285,9 @@ func (c *sftpClient) executeUpload(ctx context.Context, localFile *os.File, loca
 	defer remoteFile.Close()
 	
 	// 准备传输结果
-	result := &common.TransferResult{
+	result := &types.TransferResult{
 		OperationID:  common.GenerateUniqueID("upload"),
-		Type:         common.TransferTypeUpload,
+		Type:         types.TransferTypeUpload,
 		LocalPath:    localPath,
 		RemotePath:   remotePath,
 		StartTime:    time.Now(),
@@ -308,7 +309,7 @@ func (c *sftpClient) executeUpload(ctx context.Context, localFile *os.File, loca
 }
 
 // executeDownload 执行文件下载
-func (c *sftpClient) executeDownload(ctx context.Context, remoteFile *sftp.File, remoteInfo os.FileInfo, remotePath, localPath string, options *configs.SFTPTransferOptions) (*common.TransferResult, error) {
+func (c *sftpClient) executeDownload(ctx context.Context, remoteFile *sftp.File, remoteInfo os.FileInfo, remotePath, localPath string, options *configs.SFTPTransferOptions) (*types.TransferResult, error) {
 	// 创建本地文件
 	localFile, err := os.Create(localPath)
 	if err != nil {
@@ -317,9 +318,9 @@ func (c *sftpClient) executeDownload(ctx context.Context, remoteFile *sftp.File,
 	defer localFile.Close()
 	
 	// 准备传输结果
-	result := &common.TransferResult{
+	result := &types.TransferResult{
 		OperationID:  common.GenerateUniqueID("download"),
-		Type:         common.TransferTypeDownload,
+		Type:         types.TransferTypeDownload,
 		LocalPath:    localPath,
 		RemotePath:   remotePath,
 		StartTime:    time.Now(),
@@ -341,7 +342,7 @@ func (c *sftpClient) executeDownload(ctx context.Context, remoteFile *sftp.File,
 }
 
 // transferFile 执行实际的文件传输
-func (c *sftpClient) transferFile(ctx context.Context, src io.Reader, dst io.Writer, totalSize int64, result *common.TransferResult, options *configs.SFTPTransferOptions) error {
+func (c *sftpClient) transferFile(ctx context.Context, src io.Reader, dst io.Writer, totalSize int64, result *types.TransferResult, options *configs.SFTPTransferOptions) error {
 	// 创建进度监控器
 	progress := &progressMonitor{
 		ctx:              ctx,
@@ -388,7 +389,7 @@ func (c *sftpClient) transferFile(ctx context.Context, src io.Reader, dst io.Wri
 }
 
 // setRemoteFileAttributes 设置远程文件属性
-func (c *sftpClient) setRemoteFileAttributes(remoteFile *sftp.File, remotePath string, localInfo os.FileInfo, result *common.TransferResult, options *configs.SFTPTransferOptions) {
+func (c *sftpClient) setRemoteFileAttributes(remoteFile *sftp.File, remotePath string, localInfo os.FileInfo, result *types.TransferResult, options *configs.SFTPTransferOptions) {
 	// 设置文件权限
 	if options.PreservePermissions {
 		if err := remoteFile.Chmod(localInfo.Mode()); err != nil {
@@ -405,7 +406,7 @@ func (c *sftpClient) setRemoteFileAttributes(remoteFile *sftp.File, remotePath s
 }
 
 // setLocalFileAttributes 设置本地文件属性
-func (c *sftpClient) setLocalFileAttributes(localPath string, remoteInfo os.FileInfo, result *common.TransferResult, options *configs.SFTPTransferOptions) {
+func (c *sftpClient) setLocalFileAttributes(localPath string, remoteInfo os.FileInfo, result *types.TransferResult, options *configs.SFTPTransferOptions) {
 	// 设置文件权限
 	if options.PreservePermissions {
 		if err := os.Chmod(localPath, remoteInfo.Mode()); err != nil {
@@ -424,7 +425,7 @@ func (c *sftpClient) setLocalFileAttributes(localPath string, remoteInfo os.File
 // reportAttributeError 报告属性设置错误
 func (c *sftpClient) reportAttributeError(operationID, errorType, message, filePath string, err error) {
 	if c.errorCallback != nil {
-		c.errorCallback(&common.TransferError{
+		c.errorCallback(&types.TransferError{
 			OperationID:   operationID,
 			Type:          errorType,
 			Message:       message,
@@ -434,4 +435,6 @@ func (c *sftpClient) reportAttributeError(operationID, errorType, message, fileP
 			Timestamp:     time.Now(),
 		})
 	}
-} 
+}
+
+ 

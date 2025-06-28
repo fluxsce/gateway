@@ -673,6 +673,13 @@ CREATE TABLE `HUB_TIMER_TASK` (
   `timeoutSeconds` BIGINT NOT NULL DEFAULT 1800 COMMENT '执行超时时间秒数',
   `taskParams` TEXT DEFAULT NULL COMMENT '任务参数，JSON格式存储',
   
+  -- 任务执行器配置 - 关联到具体工具配置
+  `executorType` VARCHAR(50) DEFAULT NULL COMMENT '执行器类型(BUILTIN内置,SFTP文件传输,SSH远程执行,DATABASE数据库,HTTP接口调用等)',
+  `toolConfigId` VARCHAR(32) DEFAULT NULL COMMENT '关联的工具配置ID（如SFTP配置ID、数据库配置ID等）',
+  `toolConfigName` VARCHAR(100) DEFAULT NULL COMMENT '工具配置名称（冗余字段，便于显示）',
+  `operationType` VARCHAR(100) DEFAULT NULL COMMENT '执行操作类型（如文件上传、下载、SQL执行、接口调用等）',
+  `operationConfig` TEXT DEFAULT NULL COMMENT '操作参数配置，JSON格式存储具体操作的参数',
+  
   -- 运行时状态
   `taskStatus` INT NOT NULL DEFAULT 1 COMMENT '任务状态(1待执行,2运行中,3已完成,4执行失败,5已取消)',
   `nextRunTime` DATETIME DEFAULT NULL COMMENT '下次执行时间',
@@ -719,7 +726,10 @@ CREATE TABLE `HUB_TIMER_TASK` (
   KEY `idx_HUB_TIMER_TASK_status` (`taskStatus`),
   KEY `idx_HUB_TIMER_TASK_nextRunTime` (`nextRunTime`),
   KEY `idx_HUB_TIMER_TASK_lastRunTime` (`lastRunTime`),
-  KEY `idx_HUB_TIMER_TASK_activeFlag` (`activeFlag`)
+  KEY `idx_HUB_TIMER_TASK_activeFlag` (`activeFlag`),
+  KEY `idx_HUB_TIMER_TASK_executorType` (`executorType`),
+  KEY `idx_HUB_TIMER_TASK_toolConfigId` (`toolConfigId`),
+  KEY `idx_HUB_TIMER_TASK_operationType` (`operationType`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='定时任务表 - 合并任务配置、运行时信息和最后执行结果';
 
 -- 3. 任务执行历史表 - 存储所有执行记录

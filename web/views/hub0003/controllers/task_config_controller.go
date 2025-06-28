@@ -1,9 +1,12 @@
 package controllers
 
 import (
+	"context"
+	"fmt"
+	"gohub/internal/timerinit/sftp"
 	"gohub/pkg/database"
+	"gohub/pkg/logger"
 	"gohub/pkg/timer"
-	"gohub/pkg/timer/storage"
 	"gohub/pkg/utils/random"
 	"gohub/web/utils/constants"
 	"gohub/web/utils/request"
@@ -20,13 +23,39 @@ import (
 // TaskConfigController 任务配置控制器
 type TaskConfigController struct {
 	dao *hub0003dao.TaskDao
+	db  database.Database
 }
 
 // NewTaskConfigController 创建任务配置控制器
 func NewTaskConfigController(db database.Database) *TaskConfigController {
 	return &TaskConfigController{
 		dao: hub0003dao.NewTaskDao(db),
+		db:  db,
 	}
+}
+
+// BasicTaskExecutor 基本任务执行器实现
+type BasicTaskExecutor struct{}
+
+// Execute 执行任务
+func (e *BasicTaskExecutor) Execute(ctx context.Context, params interface{}) (*timer.ExecuteResult, error) {
+	// 这里可以根据实际需求实现任务执行逻辑
+	// 目前只是一个占位实现
+	result := &timer.ExecuteResult{
+		Success: true,
+		Message: "任务执行成功",
+	}
+	return result, nil
+}
+
+// GetName 获取执行器名称
+func (e *BasicTaskExecutor) GetName() string {
+	return "BasicTaskExecutor"
+}
+
+// Close 关闭执行器
+func (e *BasicTaskExecutor) Close() error {
+	return nil
 }
 
 // AddTaskConfig 添加任务配置
@@ -142,7 +171,7 @@ func (c *TaskConfigController) AddTaskConfig(ctx *gin.Context) {
 func (c *TaskConfigController) GetTaskConfig(ctx *gin.Context) {
 	// 解析请求参数
 	var params struct {
-		TaskId string `json:"taskId"`
+		TaskId string `json:"taskId" form:"taskId" query:"taskId"`
 	}
 	if err := request.BindSafely(ctx, &params); err != nil {
 		response.ErrorJSON(ctx, "参数解析失败: "+err.Error(), constants.ED00006)
@@ -271,7 +300,7 @@ func (c *TaskConfigController) UpdateTaskConfig(ctx *gin.Context) {
 func (c *TaskConfigController) DeleteTaskConfig(ctx *gin.Context) {
 	// 解析请求参数
 	var params struct {
-		TaskId string `json:"taskId"`
+		TaskId string `json:"taskId" form:"taskId" query:"taskId"`
 	}
 	if err := request.BindSafely(ctx, &params); err != nil {
 		response.ErrorJSON(ctx, "参数解析失败: "+err.Error(), constants.ED00006)
@@ -323,11 +352,11 @@ func (c *TaskConfigController) DeleteTaskConfig(ctx *gin.Context) {
 func (c *TaskConfigController) QueryTaskConfigs(ctx *gin.Context) {
 	// 解析请求参数
 	var params struct {
-		SchedulerId string `json:"schedulerId"`
-		TaskName    string `json:"taskName"`
-		TaskStatus  int    `json:"taskStatus"`
-		Page        int    `json:"page"`
-		PageSize    int    `json:"pageSize"`
+		SchedulerId string `json:"schedulerId" form:"schedulerId" query:"schedulerId"`
+		TaskName    string `json:"taskName" form:"taskName" query:"taskName"`
+		TaskStatus  int    `json:"taskStatus" form:"taskStatus" query:"taskStatus"`
+		Page        int    `json:"page" form:"page" query:"page"`
+		PageSize    int    `json:"pageSize" form:"pageSize" query:"pageSize"`
 	}
 	if err := request.BindSafely(ctx, &params); err != nil {
 		response.ErrorJSON(ctx, "参数解析失败: "+err.Error(), constants.ED00006)
@@ -390,8 +419,8 @@ func (c *TaskConfigController) QueryTaskConfigs(ctx *gin.Context) {
 func (c *TaskConfigController) UpdateTaskStatus(ctx *gin.Context) {
 	// 解析请求参数
 	var params struct {
-		TaskId     string `json:"taskId"`
-		TaskStatus int    `json:"taskStatus"`
+		TaskId     string `json:"taskId" form:"taskId" query:"taskId"`
+		TaskStatus int    `json:"taskStatus" form:"taskStatus" query:"taskStatus"`
 	}
 	if err := request.BindSafely(ctx, &params); err != nil {
 		response.ErrorJSON(ctx, "参数解析失败: "+err.Error(), constants.ED00006)
@@ -471,8 +500,8 @@ func (c *TaskConfigController) UpdateTaskStatus(ctx *gin.Context) {
 func (c *TaskConfigController) StartTask(ctx *gin.Context) {
 	// 解析请求参数
 	var params struct {
-		TaskId      string `json:"taskId"`
-		SchedulerId string `json:"schedulerId"`
+		TaskId      string `json:"taskId" form:"taskId" query:"taskId"`
+		SchedulerId string `json:"schedulerId" form:"schedulerId" query:"schedulerId"`
 	}
 	if err := request.BindSafely(ctx, &params); err != nil {
 		response.ErrorJSON(ctx, "参数解析失败: "+err.Error(), constants.ED00006)
@@ -515,20 +544,50 @@ func (c *TaskConfigController) StartTask(ctx *gin.Context) {
 		return
 	}
 
-	// 创建调度器配置
-	schedulerConfig := &timer.SchedulerConfig{
-		Name:           "TaskScheduler",
-		MaxWorkers:     5,
-		QueueSize:      100,
-		DefaultTimeout: 30 * time.Minute,
-		DefaultRetries: 3,
+	// 验证执行器类型
+	if task.ExecutorType == nil || *task.ExecutorType == "" {
+		response.ErrorJSON(ctx, "任务执行器类型不能为空", constants.ED00007)
+		return
 	}
 
-	// 创建内存存储
-	memStorage := storage.NewMemoryStorage()
+	// 根据任务的执行器类型进行任务注册
+	switch *task.ExecutorType {
+	case "SFTP_TRANSFER":
+		// 注册单个SFTP任务（包括调度器创建、任务注册、启动等完整流程）
+		if err := sftp.RegisterSFTPTaskById(ctx, c.db, tenantId, task.TaskId); err != nil {
+			response.ErrorJSON(ctx, "注册SFTP任务失败: "+err.Error(), constants.ED00009)
+			return
+		}
+		logger.Info("SFTP任务注册成功", "taskId", task.TaskId, "tenantId", tenantId)
+	case "HTTP_REQUEST":
+		// 这里可以添加HTTP请求任务的注册逻辑
+		// TODO: 实现HTTP请求任务注册
+		response.ErrorJSON(ctx, "HTTP请求任务注册功能尚未实现", constants.ED00009)
+		return
+	default:
+		response.ErrorJSON(ctx, fmt.Sprintf("不支持的执行器类型: %s", *task.ExecutorType), constants.ED00007)
+		return
+	}
 
-	// 创建调度器
-	scheduler := timer.NewStandardScheduler(schedulerConfig, memStorage)
+	// 获取全局定时器池
+	timerPool := timer.GetTimerPool()
+
+	// 获取调度器（注册完成后应该已存在）
+	scheduler, err := timerPool.GetScheduler(params.SchedulerId)
+	if err != nil {
+		response.ErrorJSON(ctx, "获取调度器失败: "+err.Error(), constants.ED00009)
+		return
+	}
+
+	// 启动调度器（如果还没有启动）
+	if !scheduler.IsRunning() {
+		err = scheduler.Start()
+		if err != nil {
+			response.ErrorJSON(ctx, "启动调度器失败: "+err.Error(), constants.ED00009)
+			return
+		}
+		logger.Info("调度器启动成功", "schedulerId", params.SchedulerId)
+	}
 
 	// 启动任务
 	err = scheduler.StartTask(task.TaskId)
@@ -536,6 +595,7 @@ func (c *TaskConfigController) StartTask(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "启动任务失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	logger.Info("任务启动成功", "taskId", task.TaskId)
 
 	// 更新任务状态为运行中
 	task.TaskStatus = 2 // 2-运行中
@@ -574,8 +634,8 @@ func (c *TaskConfigController) StartTask(ctx *gin.Context) {
 func (c *TaskConfigController) StopTask(ctx *gin.Context) {
 	// 解析请求参数
 	var params struct {
-		TaskId      string `json:"taskId"`
-		SchedulerId string `json:"schedulerId"`
+		TaskId      string `json:"taskId" form:"taskId" query:"taskId"`
+		SchedulerId string `json:"schedulerId" form:"schedulerId" query:"schedulerId"`
 	}
 	if err := request.BindSafely(ctx, &params); err != nil {
 		response.ErrorJSON(ctx, "参数解析失败: "+err.Error(), constants.ED00006)
@@ -618,20 +678,15 @@ func (c *TaskConfigController) StopTask(ctx *gin.Context) {
 		return
 	}
 
-	// 创建调度器配置
-	schedulerConfig := &timer.SchedulerConfig{
-		Name:           "TaskScheduler",
-		MaxWorkers:     5,
-		QueueSize:      100,
-		DefaultTimeout: 30 * time.Minute,
-		DefaultRetries: 3,
+	// 获取全局定时器池
+	timerPool := timer.GetTimerPool()
+
+	// 获取调度器
+	scheduler, err := timerPool.GetScheduler(params.SchedulerId)
+	if err != nil {
+		response.ErrorJSON(ctx, "获取调度器失败: "+err.Error(), constants.ED00009)
+		return
 	}
-
-	// 创建内存存储
-	memStorage := storage.NewMemoryStorage()
-
-	// 创建调度器
-	scheduler := timer.NewStandardScheduler(schedulerConfig, memStorage)
 
 	// 停止任务
 	err = scheduler.StopTask(task.TaskId)
@@ -639,7 +694,6 @@ func (c *TaskConfigController) StopTask(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "停止任务失败: "+err.Error(), constants.ED00009)
 		return
 	}
-
 	// 更新任务状态为已停止
 	task.TaskStatus = 1 // 1-已停止
 	task.EditTime = time.Now()

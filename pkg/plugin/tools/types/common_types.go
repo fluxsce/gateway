@@ -1,11 +1,110 @@
-// Package common 提供工具包的公共类型和函数
-// 定义了各种工具共享的数据结构和接口
-package common
+// Package types 定义工具包的共享类型
+// 提供各种工具共用的类型定义，作为所有工具类型的统一定义文件
+package types
 
 import (
 	"os"
 	"time"
 )
+
+// ===== 同步相关类型 =====
+
+// SyncMode 同步模式枚举
+type SyncMode int
+
+const (
+	// SyncModeUpload 仅上传（本地到远程）
+	SyncModeUpload SyncMode = iota + 1
+	
+	// SyncModeDownload 仅下载（远程到本地）
+	SyncModeDownload
+	
+	// SyncModeBidirectional 双向同步
+	SyncModeBidirectional
+)
+
+// String 返回同步模式的字符串表示
+func (s SyncMode) String() string {
+	switch s {
+	case SyncModeUpload:
+		return "upload"
+	case SyncModeDownload:
+		return "download"
+	case SyncModeBidirectional:
+		return "bidirectional"
+	default:
+		return "unknown"
+	}
+}
+
+// SyncResult 同步操作结果
+// 包含目录同步操作的详细结果信息
+type SyncResult struct {
+	// 同步模式
+	Mode SyncMode `json:"mode"`
+	
+	// 本地目录
+	LocalDirectory string `json:"local_directory"`
+	
+	// 远程目录
+	RemoteDirectory string `json:"remote_directory"`
+	
+	// 同步的文件数量
+	FilesSynced int `json:"files_synced"`
+	
+	// 创建的目录数量
+	DirectoriesCreated int `json:"directories_created"`
+	
+	// 删除的文件数量
+	FilesDeleted int `json:"files_deleted"`
+	
+	// 删除的目录数量
+	DirectoriesDeleted int `json:"directories_deleted"`
+	
+	// 冲突的文件数量
+	ConflictedFiles int `json:"conflicted_files"`
+	
+	// 总传输字节数
+	TotalBytesTransferred int64 `json:"total_bytes_transferred"`
+	
+	// 开始时间
+	StartTime time.Time `json:"start_time"`
+	
+	// 结束时间
+	EndTime time.Time `json:"end_time"`
+	
+	// 同步耗时
+	Duration time.Duration `json:"duration"`
+	
+	// 是否成功
+	Success bool `json:"success"`
+	
+	// 详细的同步操作列表
+	Operations []*SyncOperation `json:"operations"`
+	
+	// 错误信息
+	Errors []string `json:"errors,omitempty"`
+}
+
+// SyncOperation 同步操作详情
+type SyncOperation struct {
+	// 操作类型
+	Action string `json:"action"` // create, update, delete, skip
+	
+	// 文件路径
+	Path string `json:"path"`
+	
+	// 操作结果
+	Success bool `json:"success"`
+	
+	// 错误信息
+	Error string `json:"error,omitempty"`
+	
+	// 传输字节数
+	BytesTransferred int64 `json:"bytes_transferred,omitempty"`
+}
+
+// ===== 文件信息类型 =====
 
 // FileInfo 文件信息结构
 // 包含文件或目录的详细信息
@@ -37,6 +136,8 @@ type FileInfo struct {
 	// 额外属性
 	Attributes map[string]interface{} `json:"attributes,omitempty"`
 }
+
+// ===== 传输相关类型 =====
 
 // TransferType 传输类型枚举
 type TransferType int
@@ -190,13 +291,7 @@ type TransferOperation struct {
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
-// ProgressCallback 传输进度回调函数
-// 用于监控单个文件传输的进度
-type ProgressCallback func(progress *TransferProgress)
-
-// ErrorCallback 错误回调函数
-// 用于处理传输过程中的错误
-type ErrorCallback func(err *TransferError)
+// ===== 错误处理类型 =====
 
 // TransferError 传输错误信息
 type TransferError struct {
@@ -220,4 +315,14 @@ type TransferError struct {
 	
 	// 发生时间
 	Timestamp time.Time `json:"timestamp"`
-} 
+}
+
+// ===== 回调函数类型 =====
+
+// ProgressCallback 传输进度回调函数
+// 用于监控单个文件传输的进度
+type ProgressCallback func(progress *TransferProgress)
+
+// ErrorCallback 错误回调函数
+// 用于处理传输过程中的错误
+type ErrorCallback func(err *TransferError) 

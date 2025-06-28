@@ -7,8 +7,8 @@ import (
 // TimerScheduler 定义调度器配置，对应数据库表 HUB_TIMER_SCHEDULER
 type TimerScheduler struct {
 	// 主键信息
-	SchedulerId       string `json:"schedulerId" db:"schedulerId;primaryKey"`
-	TenantId          string `json:"tenantId" db:"tenantId;primaryKey"`
+	SchedulerId       string `json:"schedulerId" db:"schedulerId"`
+	TenantId          string `json:"tenantId" db:"tenantId"`
 	
 	// 基础信息
 	SchedulerName     string `json:"schedulerName" db:"schedulerName"`

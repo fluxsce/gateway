@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	
+	"gohub/pkg/plugin/tools/types"
 )
 
 // FileExists 检查文件是否存在
@@ -79,15 +81,15 @@ func EnsureDirectoryExists(path string, recursive bool) error {
 // 参数:
 //   path: 文件路径
 // 返回:
-//   *FileInfo: 文件信息
+//   *types.FileInfo: 文件信息
 //   error: 获取过程中的错误
-func GetFileInfo(path string) (*FileInfo, error) {
+func GetFileInfo(path string) (*types.FileInfo, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, err
 	}
 	
-	fileInfo := &FileInfo{
+	fileInfo := &types.FileInfo{
 		Name:    info.Name(),
 		Path:    path,
 		Size:    info.Size(),
@@ -244,14 +246,14 @@ func GenerateUniqueID(prefix string) string {
 //   includePatterns: 包含模式列表
 //   excludePatterns: 排除模式列表
 // 返回:
-//   []*FileInfo: 过滤后的文件列表
+//   []*types.FileInfo: 过滤后的文件列表
 //   error: 过滤过程中的错误
-func FilterFiles(files []*FileInfo, includePatterns, excludePatterns []string) ([]*FileInfo, error) {
+func FilterFiles(files []*types.FileInfo, includePatterns, excludePatterns []string) ([]*types.FileInfo, error) {
 	if len(includePatterns) == 0 && len(excludePatterns) == 0 {
 		return files, nil
 	}
 	
-	var result []*FileInfo
+	var result []*types.FileInfo
 	
 	for _, file := range files {
 		// 如果有排除模式，检查文件是否被排除

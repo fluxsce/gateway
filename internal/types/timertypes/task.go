@@ -9,8 +9,8 @@ import (
 // TimerTask 定义任务配置和运行时信息，对应数据库表 HUB_TIMER_TASK
 type TimerTask struct {
 	// 主键信息
-	TaskId            string `json:"taskId" db:"taskId;primaryKey"`
-	TenantId          string `json:"tenantId" db:"tenantId;primaryKey"`
+	TaskId            string `json:"taskId" db:"taskId"`
+	TenantId          string `json:"tenantId" db:"tenantId"`
 	
 	// 任务配置信息
 	TaskName          string  `json:"taskName" db:"taskName"`
@@ -32,6 +32,12 @@ type TimerTask struct {
 	RetryIntervalSeconds int64 `json:"retryIntervalSeconds" db:"retryIntervalSeconds"`
 	TimeoutSeconds    int64   `json:"timeoutSeconds" db:"timeoutSeconds"`
 	TaskParams        *string `json:"taskParams" db:"taskParams"`
+	// -- 任务执行器配置 - 关联到具体工具配置
+	ExecutorType      string  `json:"executorType" db:"executorType"`
+	ToolConfigId      string  `json:"toolConfigId" db:"toolConfigId"`
+	ToolConfigName    string  `json:"toolConfigName" db:"toolConfigName"`
+	OperationType     string  `json:"operationType" db:"operationType"`
+	OperationConfig   *string `json:"operationConfig" db:"operationConfig"`
 	
 	// 运行时状态
 	TaskStatus        int     `json:"taskStatus" db:"taskStatus"`

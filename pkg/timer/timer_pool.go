@@ -33,21 +33,16 @@ func GetTimerPool() *TimerPool {
 // CreateScheduler 创建新的调度器实例并添加到池中
 // 参数:
 //   config: 调度器配置，包含ID、名称等信息
-//   storage: 任务存储接口实现
 // 返回:
 //   TaskScheduler: 创建的调度器实例
 //   error: 创建失败时返回错误信息
-func (p *TimerPool) CreateScheduler(config *SchedulerConfig, storage TaskStorage) (TaskScheduler, error) {
+func (p *TimerPool) CreateScheduler(config *SchedulerConfig) (TaskScheduler, error) {
 	if config == nil {
 		return nil, errors.New("scheduler config cannot be nil")
 	}
 	
 	if config.ID == "" {
 		return nil, errors.New("scheduler ID cannot be empty")
-	}
-	
-	if storage == nil {
-		return nil, errors.New("task storage cannot be nil")
 	}
 	
 	p.mu.Lock()
@@ -59,7 +54,7 @@ func (p *TimerPool) CreateScheduler(config *SchedulerConfig, storage TaskStorage
 	}
 	
 	// 创建新的调度器实例
-	scheduler := NewStandardScheduler(config, storage)
+	scheduler := NewStandardScheduler(config)
 	
 	// 添加到池中
 	p.schedulers[config.ID] = scheduler
@@ -204,14 +199,14 @@ func (p *TimerPool) GetRunningSchedulers() []string {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	
-	var running []string
+	var runningIds []string
 	for id, scheduler := range p.schedulers {
 		if scheduler.IsRunning() {
-			running = append(running, id)
+			runningIds = append(runningIds, id)
 		}
 	}
 	
-	return running
+	return runningIds
 }
 
 // GetStoppedSchedulers 获取已停止的调度器ID列表
@@ -221,17 +216,17 @@ func (p *TimerPool) GetStoppedSchedulers() []string {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	
-	var stopped []string
+	var stoppedIds []string
 	for id, scheduler := range p.schedulers {
 		if !scheduler.IsRunning() {
-			stopped = append(stopped, id)
+			stoppedIds = append(stoppedIds, id)
 		}
 	}
 	
-	return stopped
+	return stoppedIds
 }
 
-// SchedulerInfo 调度器信息
+// SchedulerInfo 调度器信息结构
 type SchedulerInfo struct {
 	ID        string           `json:"id"`        // 调度器ID
 	Config    *SchedulerConfig `json:"config"`    // 调度器配置
@@ -254,14 +249,14 @@ func (p *TimerPool) GetSchedulerInfo(schedulerID string) (*SchedulerInfo, error)
 		return nil, fmt.Errorf("scheduler with ID %s not found", schedulerID)
 	}
 	
-	config := p.configs[schedulerID]
+	config, exists := p.configs[schedulerID]
+	if !exists {
+		return nil, fmt.Errorf("scheduler config with ID %s not found", schedulerID)
+	}
 	
 	// 获取任务数量
-	tasks, err := scheduler.ListTasks()
-	taskCount := 0
-	if err == nil {
-		taskCount = len(tasks)
-	}
+	tasks, _ := scheduler.ListTasks()
+	taskCount := len(tasks)
 	
 	return &SchedulerInfo{
 		ID:        schedulerID,
@@ -284,20 +279,15 @@ func (p *TimerPool) GetAllSchedulerInfo() []*SchedulerInfo {
 		config := p.configs[id]
 		
 		// 获取任务数量
-		tasks, err := scheduler.ListTasks()
-		taskCount := 0
-		if err == nil {
-			taskCount = len(tasks)
-		}
+		tasks, _ := scheduler.ListTasks()
+		taskCount := len(tasks)
 		
-		info := &SchedulerInfo{
+		infos = append(infos, &SchedulerInfo{
 			ID:        id,
 			Config:    config,
 			IsRunning: scheduler.IsRunning(),
 			TaskCount: taskCount,
-		}
-		
-		infos = append(infos, info)
+		})
 	}
 	
 	return infos

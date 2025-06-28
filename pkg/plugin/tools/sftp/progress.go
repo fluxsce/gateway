@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 	
-	"gohub/pkg/plugin/tools/common"
+	"gohub/pkg/plugin/tools/types"
 )
 
 // progressMonitor 进度监控器
@@ -34,7 +34,7 @@ type progressMonitor struct {
 	lastReportTime time.Time
 	
 	// 进度回调函数
-	progressCallback common.ProgressCallback
+	progressCallback types.ProgressCallback
 	
 	// 报告间隔
 	reportInterval time.Duration
@@ -85,7 +85,7 @@ func (pm *progressMonitor) update(n int) {
 	}
 	
 	// 创建进度信息
-	progress := &common.TransferProgress{
+	progress := &types.TransferProgress{
 		OperationID:      pm.operationID,
 		FilePath:         pm.filePath,
 		TotalBytes:       pm.totalBytes,
@@ -174,7 +174,7 @@ func (w *progressWriter) Write(p []byte) (int, error) {
 //   interval: 报告间隔
 // 返回:
 //   *progressMonitor: 创建的进度监控器
-func createProgressMonitor(ctx context.Context, operationID, filePath string, totalBytes int64, startTime time.Time, callback common.ProgressCallback, interval time.Duration) *progressMonitor {
+func createProgressMonitor(ctx context.Context, operationID, filePath string, totalBytes int64, startTime time.Time, callback types.ProgressCallback, interval time.Duration) *progressMonitor {
 	// 如果未指定报告间隔，使用默认值
 	if interval <= 0 {
 		interval = time.Second // 默认每秒报告一次

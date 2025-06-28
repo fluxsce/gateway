@@ -312,7 +312,7 @@ func Register(driver string, creator DriverCreator) {
 //   string: 连接唯一标识符
 func GetConnectionID(config *DbConfig) string {
 	if config.Name != "" {
-		return fmt.Sprintf("%s:%s", config.Driver, config.Name)
+		return config.Name
 	}
 	return fmt.Sprintf("%s:%s:%d:%s", config.Driver, config.Connection.Host, config.Connection.Port, config.Connection.Database)
 }

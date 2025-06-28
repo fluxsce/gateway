@@ -31,6 +31,13 @@ type TimerTask struct {
 	TimeoutSeconds    int64   `json:"timeoutSeconds" form:"timeoutSeconds" query:"timeoutSeconds" db:"timeoutSeconds"`
 	TaskParams        *string `json:"taskParams" form:"taskParams" query:"taskParams" db:"taskParams"`
 	
+	// 任务执行器配置 - 关联到具体工具配置
+	ExecutorType      *string `json:"executorType" form:"executorType" query:"executorType" db:"executorType"`
+	ToolConfigId      *string `json:"toolConfigId" form:"toolConfigId" query:"toolConfigId" db:"toolConfigId"`
+	ToolConfigName    *string `json:"toolConfigName" form:"toolConfigName" query:"toolConfigName" db:"toolConfigName"`
+	OperationType     *string `json:"operationType" form:"operationType" query:"operationType" db:"operationType"`
+	OperationConfig   *string `json:"operationConfig" form:"operationConfig" query:"operationConfig" db:"operationConfig"`
+	
 	// 运行时状态
 	TaskStatus        int     `json:"taskStatus" form:"taskStatus" query:"taskStatus" db:"taskStatus"`
 	NextRunTime       *time.Time `json:"nextRunTime" form:"nextRunTime" query:"nextRunTime" db:"nextRunTime"`

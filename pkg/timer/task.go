@@ -88,49 +88,30 @@ func CopyTaskConfig(config *TaskConfig) (*TaskConfig, error) {
 	return &copy, nil
 }
 
-// CopyTaskInfo 深拷贝任务信息
-// 使用JSON序列化/反序列化实现深拷贝，确保任务信息对象的独立性
+// NewTaskConfig 创建新的任务配置对象
+// 基于给定的基本信息创建初始的任务配置，包含初始状态信息
 // 参数:
-//   info: 源任务信息对象
+//   id: 任务ID
+//   name: 任务名称
+//   scheduleType: 调度类型
 // 返回:
-//   *TaskInfo: 拷贝后的新任务信息对象
-//   error: 拷贝过程中的错误
-func CopyTaskInfo(info *TaskInfo) (*TaskInfo, error) {
-	// 处理空信息的情况
-	if info == nil {
-		return nil, nil
-	}
-	
-	// 将任务信息对象序列化为JSON
-	data, err := json.Marshal(info)
-	if err != nil {
-		return nil, err
-	}
-	
-	// 将JSON反序列化为新的任务信息对象
-	var copy TaskInfo
-	if err := json.Unmarshal(data, &copy); err != nil {
-		return nil, err
-	}
-	
-	return &copy, nil
-}
-
-// NewTaskInfo 创建新的任务信息对象
-// 基于给定的任务配置创建初始的任务运行时信息
-// 参数:
-//   config: 任务配置对象
-// 返回:
-//   *TaskInfo: 初始化的任务信息对象，状态为待执行
-func NewTaskInfo(config *TaskConfig) *TaskInfo {
+//   *TaskConfig: 初始化的任务配置对象
+func NewTaskConfig(id, name string, scheduleType ScheduleType) *TaskConfig {
 	now := time.Now()
-	return &TaskInfo{
-		Config:       config,                // 关联的任务配置
-		Status:       TaskStatusPending,     // 初始状态为待执行
-		RunCount:     0,                     // 执行次数初始为0
-		FailureCount: 0,                     // 失败次数初始为0
-		CreatedAt:    now,                   // 创建时间
-		UpdatedAt:    now,                   // 更新时间
+	return &TaskConfig{
+		// 基本信息
+		ID:           id,
+		Name:         name,
+		Priority:     TaskPriorityNormal,
+		ScheduleType: scheduleType,
+		Enabled:      true,
+		CreatedAt:    now,
+		
+		// 运行时状态信息
+		Status:       TaskStatusPending,  // 初始状态为待执行
+		RunCount:     0,                  // 执行次数初始为0
+		FailureCount: 0,                  // 失败次数初始为0
+		UpdatedAt:    now,                // 更新时间
 	}
 }
 
@@ -198,11 +179,10 @@ func (c *TaskConfig) ShouldStart() bool {
 		return false
 	}
 	
-	// 检查是否还未到达开始时间
+	// 如果设置了开始时间，检查是否已到达开始时间
 	if c.StartTime != nil && time.Now().Before(*c.StartTime) {
 		return false
 	}
 	
-	// 所有条件都满足，任务可以启动
 	return true
 } 

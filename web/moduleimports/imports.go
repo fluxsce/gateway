@@ -26,6 +26,8 @@ import (
 	_ "gohub/web/views/hub0021/routes"
 	// 导入代理管理模块
 	_ "gohub/web/views/hub0022/routes"
+	//导入插件管理模块
+	_ "gohub/web/views/hubplugin/routes"
 )
 
 // 这个包没有导出任何函数或变量

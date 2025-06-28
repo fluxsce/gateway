@@ -6,7 +6,7 @@ import (
 	"gohub/pkg/database"
 	"gohub/pkg/logger"
 	"gohub/web/routes"
-	sftproutes "gohub/web/views/hubplugin/sftp/routes"
+	commonroutes "gohub/web/views/hubplugin/common/routes"
 
 	"github.com/gin-gonic/gin"
 )
@@ -47,7 +47,7 @@ func Init(router *gin.Engine, db database.Database) {
 	// 创建模块路由组
 	group := router.Group(APIPrefix, routes.AuthRequired())
 	//sftp路由哦欸之初始化
-	sftproutes.Init(group, db)
+	commonroutes.Init(group, db)
 }
 
 

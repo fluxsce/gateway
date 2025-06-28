@@ -7,8 +7,8 @@ import (
 // TimerExecutionLog 定义任务执行日志，对应数据库表 HUB_TIMER_EXECUTION_LOG
 type TimerExecutionLog struct {
 	// 主键信息
-	ExecutionId       string `json:"executionId" db:"executionId;primaryKey"`
-	TenantId          string `json:"tenantId" db:"tenantId;primaryKey"`
+	ExecutionId       string `json:"executionId" db:"executionId"`
+	TenantId          string `json:"tenantId" db:"tenantId"`
 	TaskId            string `json:"taskId" db:"taskId"`
 	
 	// 任务信息（冗余）

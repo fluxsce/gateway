@@ -39,6 +39,7 @@ func (dao *TaskDao) Update(ctx context.Context, task *hub0003models.TimerTask) (
 		"schedulerId = ?, schedulerName = ?, scheduleType = ?, cronExpression = ?, " +
 		"intervalSeconds = ?, delaySeconds = ?, startTime = ?, endTime = ?, " +
 		"maxRetries = ?, retryIntervalSeconds = ?, timeoutSeconds = ?, taskParams = ?, " +
+		"executorType = ?, toolConfigId = ?, toolConfigName = ?, operationType = ?, operationConfig = ?, " +
 		"editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = currentVersion + 1, noteText = ? " +
 		"WHERE tenantId = ? AND taskId = ? AND activeFlag = 'Y'"
 	
@@ -47,6 +48,7 @@ func (dao *TaskDao) Update(ctx context.Context, task *hub0003models.TimerTask) (
 		task.SchedulerId, task.SchedulerName, task.ScheduleType, task.CronExpression,
 		task.IntervalSeconds, task.DelaySeconds, task.StartTime, task.EndTime,
 		task.MaxRetries, task.RetryIntervalSeconds, task.TimeoutSeconds, task.TaskParams,
+		task.ExecutorType, task.ToolConfigId, task.ToolConfigName, task.OperationType, task.OperationConfig,
 		task.EditTime, task.EditWho, task.OprSeqFlag, task.NoteText,
 		task.TenantId, task.TaskId,
 	}
@@ -92,6 +94,21 @@ func (dao *TaskDao) Query(ctx context.Context, params map[string]interface{}, pa
 	if scheduleType, ok := params["scheduleType"].(int); ok && scheduleType > 0 {
 		whereClause += "AND scheduleType = ? "
 		args = append(args, scheduleType)
+	}
+	
+	if executorType, ok := params["executorType"].(string); ok && executorType != "" {
+		whereClause += "AND executorType = ? "
+		args = append(args, executorType)
+	}
+	
+	if toolConfigId, ok := params["toolConfigId"].(string); ok && toolConfigId != "" {
+		whereClause += "AND toolConfigId = ? "
+		args = append(args, toolConfigId)
+	}
+	
+	if operationType, ok := params["operationType"].(string); ok && operationType != "" {
+		whereClause += "AND operationType = ? "
+		args = append(args, operationType)
 	}
 	
 	// 计算总记录数
@@ -170,6 +187,49 @@ func (dao *TaskDao) UpdateExecutionResult(ctx context.Context, tenantId, taskId 
 		durationMs, status, resultSuccess,
 		errorMsg, retryCount, startTime,
 		tenantId, taskId,
+	}
+	
+	return dao.db.Exec(ctx, query, args, true)
+}
+
+// GetByToolConfigId 根据工具配置ID获取任务列表
+func (dao *TaskDao) GetByToolConfigId(ctx context.Context, tenantId, toolConfigId string) ([]*hub0003models.TimerTask, error) {
+	var tasks []*hub0003models.TimerTask
+	query := "SELECT * FROM " + (&hub0003models.TimerTask{}).TableName() + 
+		" WHERE tenantId = ? AND toolConfigId = ? AND activeFlag = 'Y' ORDER BY editTime DESC"
+	
+	err := dao.db.Query(ctx, &tasks, query, []interface{}{tenantId, toolConfigId}, true)
+	if err != nil {
+		return nil, err
+	}
+	return tasks, nil
+}
+
+// GetByExecutorType 根据执行器类型获取任务列表
+func (dao *TaskDao) GetByExecutorType(ctx context.Context, tenantId, executorType string) ([]*hub0003models.TimerTask, error) {
+	var tasks []*hub0003models.TimerTask
+	query := "SELECT * FROM " + (&hub0003models.TimerTask{}).TableName() + 
+		" WHERE tenantId = ? AND executorType = ? AND activeFlag = 'Y' ORDER BY editTime DESC"
+	
+	err := dao.db.Query(ctx, &tasks, query, []interface{}{tenantId, executorType}, true)
+	if err != nil {
+		return nil, err
+	}
+	return tasks, nil
+}
+
+// UpdateExecutorConfig 更新任务执行器配置
+func (dao *TaskDao) UpdateExecutorConfig(ctx context.Context, tenantId, taskId string, 
+	executorType, toolConfigId, toolConfigName, operationType *string, operationConfig *string, editWho string) (int64, error) {
+	
+	query := "UPDATE " + (&hub0003models.TimerTask{}).TableName() + 
+		" SET executorType = ?, toolConfigId = ?, toolConfigName = ?, operationType = ?, operationConfig = ?, " +
+		"editWho = ?, editTime = NOW(), currentVersion = currentVersion + 1 " +
+		"WHERE tenantId = ? AND taskId = ? AND activeFlag = 'Y'"
+	
+	args := []interface{}{
+		executorType, toolConfigId, toolConfigName, operationType, operationConfig,
+		editWho, tenantId, taskId,
 	}
 	
 	return dao.db.Exec(ctx, query, args, true)

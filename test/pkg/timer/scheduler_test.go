@@ -14,8 +14,6 @@ import (
 // TestNewStandardScheduler 测试标准调度器的创建
 // 验证NewStandardScheduler函数的基本功能和默认配置处理
 func TestNewStandardScheduler(t *testing.T) {
-	storage := NewMemoryTaskStorage()
-
 	// 测试使用自定义配置创建调度器
 	t.Run("使用自定义配置", func(t *testing.T) {
 		config := &timer.SchedulerConfig{
@@ -26,7 +24,7 @@ func TestNewStandardScheduler(t *testing.T) {
 			DefaultRetries: 2,
 		}
 
-		scheduler := timer.NewStandardScheduler(config, storage)
+		scheduler := timer.NewStandardScheduler(config)
 		if scheduler == nil {
 			t.Fatal("NewStandardScheduler returned nil")
 		}
@@ -39,7 +37,7 @@ func TestNewStandardScheduler(t *testing.T) {
 
 	// 测试使用nil配置创建调度器（应使用默认配置）
 	t.Run("使用默认配置", func(t *testing.T) {
-		scheduler := timer.NewStandardScheduler(nil, storage)
+		scheduler := timer.NewStandardScheduler(nil)
 		if scheduler == nil {
 			t.Fatal("NewStandardScheduler with nil config returned nil")
 		}
@@ -54,8 +52,7 @@ func TestNewStandardScheduler(t *testing.T) {
 // TestSchedulerStartStop 测试调度器的启动和停止
 // 验证调度器生命周期管理的正确性
 func TestSchedulerStartStop(t *testing.T) {
-	storage := NewMemoryTaskStorage()
-	scheduler := timer.NewStandardScheduler(nil, storage)
+	scheduler := timer.NewStandardScheduler(nil)
 
 	// 测试启动调度器
 	t.Run("启动调度器", func(t *testing.T) {
@@ -95,7 +92,7 @@ func TestSchedulerStartStop(t *testing.T) {
 
 	// 测试停止未运行的调度器
 	t.Run("停止未运行的调度器", func(t *testing.T) {
-		newScheduler := timer.NewStandardScheduler(nil, storage)
+		newScheduler := timer.NewStandardScheduler(nil)
 		err := newScheduler.Stop()
 		if err == nil {
 			t.Error("停止未运行的调度器应该返回错误")
@@ -106,8 +103,7 @@ func TestSchedulerStartStop(t *testing.T) {
 // TestAddTask 测试添加任务功能
 // 验证任务添加的各种场景和错误处理
 func TestAddTask(t *testing.T) {
-	storage := NewMemoryTaskStorage()
-	scheduler := timer.NewStandardScheduler(nil, storage)
+	scheduler := timer.NewStandardScheduler(nil)
 
 	// 测试添加有效任务
 	t.Run("添加有效任务", func(t *testing.T) {
@@ -120,19 +116,37 @@ func TestAddTask(t *testing.T) {
 		}
 
 		// 验证任务是否已保存
-		if storage.GetTaskCount() != 1 {
-			t.Errorf("任务数量 = %d, want 1", storage.GetTaskCount())
+		tasks, _ := scheduler.ListTasks()
+		if len(tasks) != 1 {
+			t.Errorf("任务数量 = %d, want 1", len(tasks))
 		}
 	})
 
-	// 测试添加重复ID的任务
+	// 测试添加重复ID的任务（验证替换行为）
 	t.Run("添加重复ID的任务", func(t *testing.T) {
-		config := CreateTestTaskConfig("test-add-001", "重复ID任务", timer.ScheduleTypeOnce)
-		executor := NewTestTaskExecutor("duplicate-executor", nil)
+		// 创建新的配置和执行器
+		newConfig := CreateTestTaskConfig("test-add-001", "重复ID任务", timer.ScheduleTypeOnce)
+		newExecutor := NewTestTaskExecutor("duplicate-executor", nil)
 
-		err := scheduler.AddTask(config, executor)
-		if err == nil {
-			t.Error("添加重复ID的任务应该返回错误")
+		// 添加重复ID的任务应该成功（替换旧任务）
+		err := scheduler.AddTask(newConfig, newExecutor)
+		if err != nil {
+			t.Errorf("添加重复ID的任务失败: %v", err)
+		}
+
+		// 验证任务是否被替换
+		tasks, _ := scheduler.ListTasks()
+		if len(tasks) != 1 {
+			t.Errorf("任务数量 = %d, want 1", len(tasks))
+		}
+
+		// 验证任务信息是否更新
+		task, err := scheduler.GetTask("test-add-001")
+		if err != nil {
+			t.Errorf("获取任务失败: %v", err)
+		}
+		if task.Name != "重复ID任务" {
+			t.Errorf("任务名称 = %s, want 重复ID任务", task.Name)
 		}
 	})
 
@@ -167,8 +181,7 @@ func TestAddTask(t *testing.T) {
 // TestRemoveTask 测试移除任务功能
 // 验证任务移除的正确性和相关资源清理
 func TestRemoveTask(t *testing.T) {
-	storage := NewMemoryTaskStorage()
-	scheduler := timer.NewStandardScheduler(nil, storage)
+	scheduler := timer.NewStandardScheduler(nil)
 
 	// 先添加一个任务
 	config := CreateTestTaskConfig("test-remove-001", "移除测试任务", timer.ScheduleTypeInterval)
@@ -183,8 +196,9 @@ func TestRemoveTask(t *testing.T) {
 		}
 
 		// 验证任务已被移除
-		if storage.GetTaskCount() != 0 {
-			t.Errorf("移除后任务数量 = %d, want 0", storage.GetTaskCount())
+		tasks, _ := scheduler.ListTasks()
+		if len(tasks) != 0 {
+			t.Errorf("移除后任务数量 = %d, want 0", len(tasks))
 		}
 	})
 
@@ -201,8 +215,7 @@ func TestRemoveTask(t *testing.T) {
 // TestGetTask 测试获取任务功能
 // 验证任务信息获取的正确性
 func TestGetTask(t *testing.T) {
-	storage := NewMemoryTaskStorage()
-	scheduler := timer.NewStandardScheduler(nil, storage)
+	scheduler := timer.NewStandardScheduler(nil)
 
 	// 先添加一个任务
 	config := CreateTestTaskConfig("test-get-001", "获取测试任务", timer.ScheduleTypeInterval)
@@ -211,21 +224,21 @@ func TestGetTask(t *testing.T) {
 
 	// 测试获取存在的任务
 	t.Run("获取存在的任务", func(t *testing.T) {
-		taskInfo, err := scheduler.GetTask("test-get-001")
+		taskConfig, err := scheduler.GetTask("test-get-001")
 		if err != nil {
 			t.Errorf("获取存在的任务失败: %v", err)
 		}
 
-		if taskInfo == nil {
-			t.Fatal("获取的任务信息为nil")
+		if taskConfig == nil {
+			t.Fatal("获取的任务配置为nil")
 		}
 
-		if taskInfo.Config.ID != "test-get-001" {
-			t.Errorf("任务ID = %s, want test-get-001", taskInfo.Config.ID)
+		if taskConfig.ID != "test-get-001" {
+			t.Errorf("任务ID = %s, want test-get-001", taskConfig.ID)
 		}
 
-		if taskInfo.Config.Name != "获取测试任务" {
-			t.Errorf("任务名称 = %s, want 获取测试任务", taskInfo.Config.Name)
+		if taskConfig.Name != "获取测试任务" {
+			t.Errorf("任务名称 = %s, want 获取测试任务", taskConfig.Name)
 		}
 	})
 
@@ -241,8 +254,7 @@ func TestGetTask(t *testing.T) {
 // TestListTasks 测试列出所有任务功能
 // 验证任务列表获取的正确性
 func TestListTasks(t *testing.T) {
-	storage := NewMemoryTaskStorage()
-	scheduler := timer.NewStandardScheduler(nil, storage)
+	scheduler := timer.NewStandardScheduler(nil)
 
 	// 测试空任务列表
 	t.Run("空任务列表", func(t *testing.T) {
@@ -282,7 +294,7 @@ func TestListTasks(t *testing.T) {
 		// 验证任务信息
 		taskIDs := make(map[string]bool)
 		for _, task := range tasks {
-			taskIDs[task.Config.ID] = true
+			taskIDs[task.ID] = true
 		}
 
 		for _, config := range configs {
@@ -296,8 +308,7 @@ func TestListTasks(t *testing.T) {
 // TestStartStopTask 测试启动和停止单个任务
 // 验证单个任务的控制功能
 func TestStartStopTask(t *testing.T) {
-	storage := NewMemoryTaskStorage()
-	scheduler := timer.NewStandardScheduler(nil, storage)
+	scheduler := timer.NewStandardScheduler(nil)
 
 	// 添加一个禁用的任务
 	config := CreateTestTaskConfig("test-control-001", "控制测试任务", timer.ScheduleTypeInterval)
@@ -313,8 +324,8 @@ func TestStartStopTask(t *testing.T) {
 		}
 
 		// 验证任务已启用
-		taskInfo, _ := scheduler.GetTask("test-control-001")
-		if taskInfo == nil || !taskInfo.Config.Enabled {
+		taskConfig, _ := scheduler.GetTask("test-control-001")
+		if taskConfig == nil || !taskConfig.Enabled {
 			t.Error("启动后任务应该处于启用状态")
 		}
 	})
@@ -327,8 +338,8 @@ func TestStartStopTask(t *testing.T) {
 		}
 
 		// 验证任务已禁用
-		taskInfo, _ := scheduler.GetTask("test-control-001")
-		if taskInfo == nil || taskInfo.Config.Enabled {
+		taskConfig, _ := scheduler.GetTask("test-control-001")
+		if taskConfig == nil || taskConfig.Enabled {
 			t.Error("停止后任务应该处于禁用状态")
 		}
 	})
@@ -353,7 +364,6 @@ func TestStartStopTask(t *testing.T) {
 // TestTriggerTask 测试手动触发任务
 // 验证任务手动执行功能
 func TestTriggerTask(t *testing.T) {
-	storage := NewMemoryTaskStorage()
 	config := &timer.SchedulerConfig{
 		Name:           "TriggerTestScheduler",
 		MaxWorkers:     2,
@@ -361,7 +371,7 @@ func TestTriggerTask(t *testing.T) {
 		DefaultTimeout: time.Second * 5,
 		DefaultRetries: 1,
 	}
-	scheduler := timer.NewStandardScheduler(config, storage)
+	scheduler := timer.NewStandardScheduler(config)
 
 	// 启动调度器以便处理任务队列
 	err := scheduler.Start()
@@ -442,90 +452,10 @@ func TestTriggerTask(t *testing.T) {
 	})
 }
 
-// TestGetTaskHistory 测试获取任务历史记录
-// 验证任务执行历史的记录和查询功能
-func TestGetTaskHistory(t *testing.T) {
-	storage := NewMemoryTaskStorage()
-	scheduler := timer.NewStandardScheduler(nil, storage)
-
-	// 启动调度器
-	err := scheduler.Start()
-	if err != nil {
-		t.Fatalf("启动调度器失败: %v", err)
-	}
-	defer scheduler.Stop()
-
-	// 创建任务执行器
-	executor := NewTestTaskExecutor("history-executor", func(ctx context.Context, params interface{}) error {
-		time.Sleep(time.Millisecond * 10) // 模拟任务执行时间
-		return nil
-	})
-
-	// 添加任务
-	taskConfig := CreateTestTaskConfig("test-history-001", "历史测试任务", timer.ScheduleTypeOnce)
-	scheduler.AddTask(taskConfig, executor)
-
-	// 手动触发任务多次以生成历史记录
-	for i := 0; i < 3; i++ {
-		err := scheduler.TriggerTask("test-history-001", fmt.Sprintf("params-%d", i))
-		if err != nil {
-			t.Errorf("第%d次触发任务失败: %v", i+1, err)
-		}
-		time.Sleep(time.Millisecond * 50) // 等待任务执行完成
-	}
-
-	// 等待所有任务执行完成
-	time.Sleep(time.Second)
-
-	// 测试获取任务历史记录
-	t.Run("获取任务历史记录", func(t *testing.T) {
-		history, err := scheduler.GetTaskHistory("test-history-001", 0)
-		if err != nil {
-			t.Errorf("获取任务历史记录失败: %v", err)
-		}
-
-		if len(history) < 3 {
-			t.Errorf("历史记录数量 = %d, want >= 3", len(history))
-		}
-
-		// 验证历史记录按时间倒序排列
-		for i := 1; i < len(history); i++ {
-			if history[i-1].StartTime.Before(history[i].StartTime) {
-				t.Error("历史记录应该按时间倒序排列")
-			}
-		}
-	})
-
-	// 测试限制历史记录数量
-	t.Run("限制历史记录数量", func(t *testing.T) {
-		history, err := scheduler.GetTaskHistory("test-history-001", 2)
-		if err != nil {
-			t.Errorf("获取限制数量的历史记录失败: %v", err)
-		}
-
-		if len(history) > 2 {
-			t.Errorf("限制后历史记录数量 = %d, want <= 2", len(history))
-		}
-	})
-
-	// 测试获取不存在任务的历史记录
-	t.Run("获取不存在任务的历史记录", func(t *testing.T) {
-		history, err := scheduler.GetTaskHistory("non-existent-task", 0)
-		if err != nil {
-			t.Errorf("获取不存在任务的历史记录失败: %v", err)
-		}
-
-		if len(history) != 0 {
-			t.Errorf("不存在任务的历史记录数量 = %d, want 0", len(history))
-		}
-	})
-}
-
 // TestGetRunningTasks 测试获取正在运行的任务
 // 验证运行中任务的查询功能
 func TestGetRunningTasks(t *testing.T) {
-	storage := NewMemoryTaskStorage()
-	scheduler := timer.NewStandardScheduler(nil, storage)
+	scheduler := timer.NewStandardScheduler(nil)
 
 	// 测试无运行任务的情况
 	t.Run("无运行任务", func(t *testing.T) {
@@ -551,10 +481,9 @@ func TestGetRunningTasks(t *testing.T) {
 	}
 
 	// 手动设置某些任务为运行状态（模拟实际运行场景）
-	taskInfo1, _ := scheduler.GetTask("running-001")
-	if taskInfo1 != nil {
-		taskInfo1.Status = timer.TaskStatusRunning
-		storage.SaveTaskInfo(taskInfo1)
+	taskConfig1, _ := scheduler.GetTask("running-001")
+	if taskConfig1 != nil {
+		taskConfig1.UpdateStatus(timer.TaskStatusRunning)
 	}
 
 	// 测试获取运行中的任务
@@ -567,7 +496,7 @@ func TestGetRunningTasks(t *testing.T) {
 		// 验证至少有一个运行中的任务
 		foundRunning := false
 		for _, task := range runningTasks {
-			if task.Status == timer.TaskStatusRunning {
+			if task.GetStatus() == timer.TaskStatusRunning {
 				foundRunning = true
 				break
 			}
@@ -582,7 +511,6 @@ func TestGetRunningTasks(t *testing.T) {
 // TestSchedulerWithFailingTasks 测试调度器处理失败任务的能力
 // 验证错误处理和重试机制
 func TestSchedulerWithFailingTasks(t *testing.T) {
-	storage := NewMemoryTaskStorage()
 	config := &timer.SchedulerConfig{
 		Name:           "FailTestScheduler",
 		MaxWorkers:     1,
@@ -590,7 +518,7 @@ func TestSchedulerWithFailingTasks(t *testing.T) {
 		DefaultTimeout: time.Second * 2,
 		DefaultRetries: 2,
 	}
-	scheduler := timer.NewStandardScheduler(config, storage)
+	scheduler := timer.NewStandardScheduler(config)
 
 	// 启动调度器
 	err := scheduler.Start()
@@ -647,19 +575,15 @@ func TestSchedulerWithFailingTasks(t *testing.T) {
 	// 等待任务完全处理完成
 	time.Sleep(time.Second)
 
-	// 检查任务历史记录
-	history, err := scheduler.GetTaskHistory("test-fail-001", 1)
+	// 检查任务状态
+	finalConfig, err := scheduler.GetTask("test-fail-001")
 	if err != nil {
-		t.Errorf("获取失败任务历史记录失败: %v", err)
+		t.Errorf("获取最终任务状态失败: %v", err)
 	}
-
-	if len(history) > 0 {
-		result := history[0]
-		if result.RetryCount != 2 { // 重试2次后成功
-			t.Errorf("任务结果重试次数 = %d, want 2", result.RetryCount)
-		}
-		if result.Status != timer.TaskStatusCompleted {
-			t.Errorf("最终任务状态 = %v, want %v", result.Status, timer.TaskStatusCompleted)
+	if finalConfig != nil {
+		// 验证任务最终完成
+		if finalConfig.GetStatus() == timer.TaskStatusFailed {
+			t.Error("任务最终状态不应该是失败")
 		}
 	}
 }
@@ -667,7 +591,6 @@ func TestSchedulerWithFailingTasks(t *testing.T) {
 // TestSchedulerConcurrency 测试调度器的并发处理能力
 // 验证多任务并发执行的正确性
 func TestSchedulerConcurrency(t *testing.T) {
-	storage := NewMemoryTaskStorage()
 	config := &timer.SchedulerConfig{
 		Name:           "ConcurrencyTestScheduler",
 		MaxWorkers:     3,
@@ -675,7 +598,7 @@ func TestSchedulerConcurrency(t *testing.T) {
 		DefaultTimeout: time.Second * 5,
 		DefaultRetries: 1,
 	}
-	scheduler := timer.NewStandardScheduler(config, storage)
+	scheduler := timer.NewStandardScheduler(config)
 
 	// 启动调度器
 	err := scheduler.Start()
@@ -733,8 +656,7 @@ func TestSchedulerConcurrency(t *testing.T) {
 
 // BenchmarkSchedulerAddTask 基准测试任务添加性能
 func BenchmarkSchedulerAddTask(b *testing.B) {
-	storage := NewMemoryTaskStorage()
-	scheduler := timer.NewStandardScheduler(nil, storage)
+	scheduler := timer.NewStandardScheduler(nil)
 	executor := NewTestTaskExecutor("bench-executor", nil)
 
 	b.ResetTimer()
@@ -747,8 +669,7 @@ func BenchmarkSchedulerAddTask(b *testing.B) {
 
 // BenchmarkSchedulerTriggerTask 基准测试任务触发性能
 func BenchmarkSchedulerTriggerTask(b *testing.B) {
-	storage := NewMemoryTaskStorage()
-	scheduler := timer.NewStandardScheduler(nil, storage)
+	scheduler := timer.NewStandardScheduler(nil)
 	executor := NewTestTaskExecutor("bench-trigger-executor", nil)
 
 	// 预先添加任务

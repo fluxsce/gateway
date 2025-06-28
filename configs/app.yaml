@@ -12,3 +12,8 @@ app:
   database:
     enabled: true # 是否启用数据库
     config_file: "./configs/database.yaml" # 数据库配置文件路径
+  timer:
+    enabled: true # 是否启用定时任务
+    sftp:
+      enabled: true # 是否启用sftp
+      
