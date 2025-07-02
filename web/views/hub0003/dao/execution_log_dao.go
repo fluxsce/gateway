@@ -3,6 +3,8 @@ package hub0003dao
 import (
 	"context"
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
+	"gohub/pkg/utils/ctime"
 	hub0003models "gohub/web/views/hub0003/models"
 )
 
@@ -55,7 +57,17 @@ func (dao *ExecutionLogDao) Update(ctx context.Context, log *hub0003models.Timer
 
 // Delete 删除执行日志（逻辑删除）
 func (dao *ExecutionLogDao) Delete(ctx context.Context, tenantId, executionId, editWho string) (int64, error) {
-	query := "UPDATE " + (&hub0003models.TimerExecutionLog{}).TableName() + " SET activeFlag = 'N', editWho = ?, editTime = NOW() " +
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+	
+	// 获取当前时间函数
+	timeFunc, err := sqlutils.GetCurrentTimeFunction(dbType)
+	if err != nil {
+		return 0, err
+	}
+	
+	query := "UPDATE " + (&hub0003models.TimerExecutionLog{}).TableName() + 
+		" SET activeFlag = 'N', editWho = ?, editTime = " + timeFunc + " " +
 		"WHERE tenantId = ? AND executionId = ? AND activeFlag = 'Y'"
 	return dao.db.Exec(ctx, query, []interface{}{editWho, tenantId, executionId}, true)
 }
@@ -103,23 +115,62 @@ func (dao *ExecutionLogDao) Query(ctx context.Context, params map[string]interfa
 		args = append(args, logLevel)
 	}
 	
-	// 计算总记录数
-	countQuery := "SELECT COUNT(*) FROM " + (&hub0003models.TimerExecutionLog{}).TableName() + " " + whereClause
+	// 处理执行开始时间范围查询
+	if startTime, ok := params["startTime"].(string); ok && startTime != "" {
+		// 使用自定义时间包解析时间字符串为time.Time类型
+		if parsedStartTime, err := ctime.ParseTimeString(startTime); err == nil {
+			whereClause += "AND executionStartTime >= ? "
+			args = append(args, parsedStartTime)
+		}
+	}
+	
+	if endTime, ok := params["endTime"].(string); ok && endTime != "" {
+		// 使用自定义时间包解析时间字符串为time.Time类型
+		if parsedEndTime, err := ctime.ParseTimeString(endTime); err == nil {
+			whereClause += "AND executionStartTime <= ? "
+			args = append(args, parsedEndTime)
+		}
+	}
+	
+	// 构建基础查询语句（用于COUNT查询）
+	baseQuery := "SELECT * FROM " + (&hub0003models.TimerExecutionLog{}).TableName() + " " + whereClause
+	
+	// 使用公共方法构建COUNT查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	// 查询总记录数
 	var result struct {
 		Count int64 `db:"COUNT(*)"`
 	}
-	err := dao.db.QueryOne(ctx, &result, countQuery, args, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, args, true)
 	if err != nil {
 		return nil, 0, err
 	}
 	total := result.Count
 	
-	// 查询数据
-	query := "SELECT * FROM " + (&hub0003models.TimerExecutionLog{}).TableName() + " " + whereClause +
-		"ORDER BY executionStartTime DESC LIMIT ?, ?"
-	args = append(args, (page-1)*pageSize, pageSize)
+	// 构建数据查询的基础语句（包含ORDER BY）
+	dataBaseQuery := "SELECT * FROM " + (&hub0003models.TimerExecutionLog{}).TableName() + " " + whereClause + " ORDER BY executionStartTime DESC"
 	
-	err = dao.db.Query(ctx, &logs, query, args, true)
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+	
+	// 创建分页信息
+	pagination := sqlutils.NewPaginationInfo(page, pageSize)
+	
+	// 使用公共方法构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, dataBaseQuery, pagination)
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	// 合并查询参数和分页参数
+	finalArgs := append(args, paginationArgs...)
+	
+	// 执行分页查询
+	err = dao.db.Query(ctx, &logs, paginatedQuery, finalArgs, true)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -135,23 +186,45 @@ func (dao *ExecutionLogDao) GetTaskLogs(ctx context.Context, tenantId, taskId st
 	whereClause := "WHERE activeFlag = 'Y' AND tenantId = ? AND taskId = ? "
 	args := []interface{}{tenantId, taskId}
 	
-	// 计算总记录数
-	countQuery := "SELECT COUNT(*) FROM " + (&hub0003models.TimerExecutionLog{}).TableName() + " " + whereClause
+	// 构建基础查询语句（用于COUNT查询）
+	baseQuery := "SELECT * FROM " + (&hub0003models.TimerExecutionLog{}).TableName() + " " + whereClause
+	
+	// 使用公共方法构建COUNT查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	// 查询总记录数
 	var result struct {
 		Count int64 `db:"COUNT(*)"`
 	}
-	err := dao.db.QueryOne(ctx, &result, countQuery, args, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, args, true)
 	if err != nil {
 		return nil, 0, err
 	}
 	total := result.Count
 	
-	// 查询数据
-	query := "SELECT * FROM " + (&hub0003models.TimerExecutionLog{}).TableName() + " " + whereClause +
-		"ORDER BY executionStartTime DESC LIMIT ?, ?"
-	args = append(args, (page-1)*pageSize, pageSize)
+	// 构建数据查询的基础语句（包含ORDER BY）
+	dataBaseQuery := "SELECT * FROM " + (&hub0003models.TimerExecutionLog{}).TableName() + " " + whereClause + " ORDER BY executionStartTime DESC"
 	
-	err = dao.db.Query(ctx, &logs, query, args, true)
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+	
+	// 创建分页信息
+	pagination := sqlutils.NewPaginationInfo(page, pageSize)
+	
+	// 使用公共方法构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, dataBaseQuery, pagination)
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	// 合并查询参数和分页参数
+	finalArgs := append(args, paginationArgs...)
+	
+	// 执行分页查询
+	err = dao.db.Query(ctx, &logs, paginatedQuery, finalArgs, true)
 	if err != nil {
 		return nil, 0, err
 	}

@@ -6,21 +6,23 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
-	
+
 	"github.com/pkg/sftp"
-	
+
 	"gohub/pkg/plugin/tools/common"
 	"gohub/pkg/plugin/tools/configs"
 	"gohub/pkg/plugin/tools/types"
 )
 
-// uploadFileImpl 上传单个文件到远程服务器的内部实现
-// 将本地文件上传到远程SFTP服务器的指定路径
+// uploadFileImpl 上传单个文件或目录到远程服务器的内部实现
+// 将本地文件或目录中的文件上传到远程SFTP服务器的指定路径
+// 如果本地路径是目录，将上传目录中的所有文件（不递归子目录）
 // 支持进度监控、断点续传、权限保持等功能
 // 参数:
 //   ctx: 上下文，用于进度监控和取消操作
-//   localPath: 本地文件路径
+//   localPath: 本地文件或目录路径
 //   remotePath: 远程目标路径
 //   options: 上传选项配置
 // 返回:
@@ -37,6 +39,24 @@ func (c *sftpClient) uploadFileImpl(ctx context.Context, localPath, remotePath s
 		options = c.config.DefaultTransferOptions
 	}
 	
+	// 检查本地路径是文件还是目录
+	localInfo, err := os.Stat(localPath)
+	if err != nil {
+		return nil, common.NewFileNotFoundError(localPath, err)
+	}
+	
+	// 如果是目录，执行目录文件上传
+	if localInfo.IsDir() {
+		return c.uploadDirectoryFiles(ctx, localPath, remotePath, options)
+	}
+	
+	// 如果是文件，执行单文件上传
+	return c.uploadSingleFile(ctx, localPath, remotePath, options)
+}
+
+// uploadSingleFile 上传单个文件的实现
+// 这是原来uploadFileImpl中的单文件上传逻辑
+func (c *sftpClient) uploadSingleFile(ctx context.Context, localPath, remotePath string, options *configs.SFTPTransferOptions) (*types.TransferResult, error) {
 	// 验证和准备本地文件
 	localFile, localInfo, err := c.prepareLocalFileForUpload(localPath, options)
 	if err != nil {
@@ -64,12 +84,110 @@ func (c *sftpClient) uploadFileImpl(ctx context.Context, localPath, remotePath s
 	return c.executeUpload(ctx, localFile, localInfo, localPath, remotePath, options)
 }
 
-// downloadFileImpl 从远程服务器下载单个文件的内部实现
-// 将远程SFTP服务器上的文件下载到本地指定路径
+// uploadDirectoryFiles 上传目录中的所有文件（不递归子目录）
+// 参数:
+//   ctx: 上下文，用于进度监控和取消操作
+//   localDir: 本地目录路径
+//   remoteDir: 远程目标目录路径
+//   options: 上传选项配置
+// 返回:
+//   *types.TransferResult: 汇总的传输结果信息
+//   error: 上传失败时返回错误信息
+func (c *sftpClient) uploadDirectoryFiles(ctx context.Context, localDir, remoteDir string, options *configs.SFTPTransferOptions) (*types.TransferResult, error) {
+	// 读取本地目录内容
+	entries, err := os.ReadDir(localDir)
+	if err != nil {
+		return nil, common.NewIOError(fmt.Sprintf("读取本地目录失败: %s", localDir), err)
+	}
+	
+	// 确保远程目录存在
+	if err := c.createRemoteDirectory(remoteDir); err != nil {
+		return nil, common.NewIOError(fmt.Sprintf("创建远程目录失败: %s", remoteDir), err)
+	}
+	
+	// 初始化汇总结果
+	summaryResult := &types.TransferResult{
+		OperationID:       fmt.Sprintf("upload-dir-%d", time.Now().UnixNano()),
+		Type:              types.TransferTypeUpload,
+		LocalPath:         localDir,
+		RemotePath:        remoteDir,
+		StartTime:         time.Now(),
+		Success:           true,
+		Metadata:          make(map[string]interface{}),
+	}
+	
+	var totalBytes int64
+	var fileCount int
+	var errors []string
+	var uploadedFiles []string
+	
+	// 遍历目录中的文件（不递归子目录）
+	for _, entry := range entries {
+		// 检查上下文是否被取消
+		select {
+		case <-ctx.Done():
+			summaryResult.Success = false
+			summaryResult.Error = fmt.Sprintf("操作被取消: %v", ctx.Err())
+			break
+		default:
+		}
+		
+		// 跳过子目录
+		if entry.IsDir() {
+			continue
+		}
+		
+		// 构造文件路径
+		localFilePath := filepath.Join(localDir, entry.Name())
+		// 远程路径使用正斜杠作为分隔符（SFTP标准）
+		remoteFilePath := remoteDir + "/" + entry.Name()
+		// 规范化远程路径，确保不会有双斜杠
+		remoteFilePath = filepath.ToSlash(filepath.Clean(remoteFilePath))
+		
+		// 上传单个文件
+		fileResult, err := c.uploadSingleFile(ctx, localFilePath, remoteFilePath, options)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("上传文件 %s 失败: %v", entry.Name(), err))
+			summaryResult.Success = false
+		} else if fileResult != nil {
+			totalBytes += fileResult.BytesTransferred
+			fileCount++
+			uploadedFiles = append(uploadedFiles, entry.Name())
+		}
+	}
+	
+	// 完成汇总
+	summaryResult.EndTime = time.Now()
+	summaryResult.Duration = summaryResult.EndTime.Sub(summaryResult.StartTime)
+	summaryResult.BytesTransferred = totalBytes
+	
+	// 计算平均速度
+	if summaryResult.Duration > 0 {
+		summaryResult.AverageSpeed = float64(totalBytes) / summaryResult.Duration.Seconds()
+	}
+	
+	// 设置元数据
+	summaryResult.Metadata["file_count"] = fileCount
+	summaryResult.Metadata["total_files_processed"] = len(entries)
+	summaryResult.Metadata["subdirectories_skipped"] = len(entries) - fileCount
+	summaryResult.Metadata["delete_source_enabled"] = c.shouldDeleteSourceAfterTransfer(options)
+	summaryResult.Metadata["uploaded_files"] = uploadedFiles
+	
+	// 如果有错误，将错误信息添加到结果中
+	if len(errors) > 0 {
+		summaryResult.Error = fmt.Sprintf("部分文件上传失败: %s", strings.Join(errors, "; "))
+	}
+	
+	return summaryResult, nil
+}
+
+// downloadFileImpl 从远程服务器下载单个文件或目录的内部实现
+// 将远程SFTP服务器上的文件或目录中的文件下载到本地指定路径
+// 如果远程路径是目录，将下载目录中的所有文件（不递归子目录）
 // 支持进度监控、断点续传、权限保持等功能
 // 参数:
 //   ctx: 上下文，用于进度监控和取消操作
-//   remotePath: 远程文件路径
+//   remotePath: 远程文件或目录路径
 //   localPath: 本地目标路径
 //   options: 下载选项配置
 // 返回:
@@ -86,6 +204,24 @@ func (c *sftpClient) downloadFileImpl(ctx context.Context, remotePath, localPath
 		options = c.config.DefaultTransferOptions
 	}
 	
+	// 检查远程路径是文件还是目录
+	remoteInfo, err := c.sftpClient.Stat(remotePath)
+	if err != nil {
+		return nil, common.NewFileNotFoundError(remotePath, err)
+	}
+	
+	// 如果是目录，执行目录文件下载
+	if remoteInfo.IsDir() {
+		return c.downloadDirectoryFiles(ctx, remotePath, localPath, options)
+	}
+	
+	// 如果是文件，执行单文件下载
+	return c.downloadSingleFile(ctx, remotePath, localPath, options)
+}
+
+// downloadSingleFile 下载单个文件的实现
+// 这是原来downloadFileImpl中的单文件下载逻辑
+func (c *sftpClient) downloadSingleFile(ctx context.Context, remotePath, localPath string, options *configs.SFTPTransferOptions) (*types.TransferResult, error) {
 	// 验证和准备远程文件
 	remoteFile, remoteInfo, err := c.prepareRemoteFileForDownload(remotePath, options)
 	if err != nil {
@@ -113,8 +249,106 @@ func (c *sftpClient) downloadFileImpl(ctx context.Context, remotePath, localPath
 	return c.executeDownload(ctx, remoteFile, remoteInfo, remotePath, localPath, options)
 }
 
+// downloadDirectoryFiles 下载远程目录中的所有文件（不递归子目录）
+// 参数:
+//   ctx: 上下文，用于进度监控和取消操作
+//   remoteDir: 远程目录路径
+//   localDir: 本地目标目录路径
+//   options: 下载选项配置
+// 返回:
+//   *types.TransferResult: 汇总的传输结果信息
+//   error: 下载失败时返回错误信息
+func (c *sftpClient) downloadDirectoryFiles(ctx context.Context, remoteDir, localDir string, options *configs.SFTPTransferOptions) (*types.TransferResult, error) {
+	// 读取远程目录内容
+	files, err := c.sftpClient.ReadDir(remoteDir)
+	if err != nil {
+		return nil, common.NewIOError(fmt.Sprintf("读取远程目录失败: %s", remoteDir), err)
+	}
+	
+	// 确保本地目录存在
+	if err := common.EnsureDirectoryExists(localDir, true); err != nil {
+		return nil, common.NewIOError(fmt.Sprintf("创建本地目录失败: %s", localDir), err)
+	}
+	
+	// 初始化汇总结果
+	summaryResult := &types.TransferResult{
+		OperationID:       fmt.Sprintf("download-dir-%d", time.Now().UnixNano()),
+		Type:              types.TransferTypeDownload,
+		LocalPath:         localDir,
+		RemotePath:        remoteDir,
+		StartTime:         time.Now(),
+		Success:           true,
+		Metadata:          make(map[string]interface{}),
+	}
+	
+	var totalBytes int64
+	var fileCount int
+	var errors []string
+	var downloadedFiles []string
+	
+	// 遍历目录中的文件（不递归子目录）
+	for _, file := range files {
+		// 检查上下文是否被取消
+		select {
+		case <-ctx.Done():
+			summaryResult.Success = false
+			summaryResult.Error = fmt.Sprintf("操作被取消: %v", ctx.Err())
+			break
+		default:
+		}
+		
+		// 跳过子目录
+		if file.IsDir() {
+			continue
+		}
+		
+		// 构造文件路径
+		// 远程路径使用正斜杠作为分隔符（SFTP标准）
+		remoteFilePath := remoteDir + "/" + file.Name()
+		// 规范化远程路径，确保不会有双斜杠
+		remoteFilePath = filepath.ToSlash(filepath.Clean(remoteFilePath))
+		localFilePath := filepath.Join(localDir, file.Name())
+		
+		// 下载单个文件
+		fileResult, err := c.downloadSingleFile(ctx, remoteFilePath, localFilePath, options)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("下载文件 %s 失败: %v", file.Name(), err))
+			summaryResult.Success = false
+		} else if fileResult != nil {
+			totalBytes += fileResult.BytesTransferred
+			fileCount++
+			downloadedFiles = append(downloadedFiles, file.Name())
+		}
+	}
+	
+	// 完成汇总
+	summaryResult.EndTime = time.Now()
+	summaryResult.Duration = summaryResult.EndTime.Sub(summaryResult.StartTime)
+	summaryResult.BytesTransferred = totalBytes
+	
+	// 计算平均速度
+	if summaryResult.Duration > 0 {
+		summaryResult.AverageSpeed = float64(totalBytes) / summaryResult.Duration.Seconds()
+	}
+	
+	// 设置元数据
+	summaryResult.Metadata["file_count"] = fileCount
+	summaryResult.Metadata["total_files_processed"] = len(files)
+	summaryResult.Metadata["subdirectories_skipped"] = len(files) - fileCount
+	summaryResult.Metadata["delete_source_enabled"] = c.shouldDeleteSourceAfterTransfer(options)
+	summaryResult.Metadata["downloaded_files"] = downloadedFiles
+	
+	// 如果有错误，将错误信息添加到结果中
+	if len(errors) > 0 {
+		summaryResult.Error = fmt.Sprintf("部分文件下载失败: %s", strings.Join(errors, "; "))
+	}
+	
+	return summaryResult, nil
+}
+
 // prepareLocalFileForUpload 准备本地文件用于上传
 // 验证本地文件的存在性、可读性和大小限制
+// 注意：此方法只处理文件，不处理目录
 func (c *sftpClient) prepareLocalFileForUpload(localPath string, options *configs.SFTPTransferOptions) (*os.File, os.FileInfo, error) {
 	// 打开本地文件
 	localFile, err := os.Open(localPath)
@@ -129,10 +363,10 @@ func (c *sftpClient) prepareLocalFileForUpload(localPath string, options *config
 		return nil, nil, common.NewIOError("获取本地文件信息失败", err)
 	}
 	
-	// 检查是否为目录
+	// 检查是否为目录（在这个方法中目录应该被视为错误，因为目录处理已经在上层分离）
 	if localInfo.IsDir() {
 		localFile.Close()
-		return nil, nil, common.NewInvalidArgumentError(fmt.Sprintf("本地路径是一个目录: %s", localPath))
+		return nil, nil, common.NewInvalidArgumentError(fmt.Sprintf("此方法只处理文件，收到目录路径: %s", localPath))
 	}
 	
 	// 检查文件大小限制
@@ -146,6 +380,7 @@ func (c *sftpClient) prepareLocalFileForUpload(localPath string, options *config
 
 // prepareRemoteFileForDownload 准备远程文件用于下载
 // 验证远程文件的存在性、可读性和大小限制
+// 注意：此方法只处理文件，不处理目录
 func (c *sftpClient) prepareRemoteFileForDownload(remotePath string, options *configs.SFTPTransferOptions) (*sftp.File, os.FileInfo, error) {
 	// 打开远程文件
 	remoteFile, err := c.sftpClient.Open(remotePath)
@@ -160,10 +395,10 @@ func (c *sftpClient) prepareRemoteFileForDownload(remotePath string, options *co
 		return nil, nil, common.NewIOError("获取远程文件信息失败", err)
 	}
 	
-	// 检查是否为目录
+	// 检查是否为目录（在这个方法中目录应该被视为错误，因为目录处理已经在上层分离）
 	if remoteInfo.IsDir() {
 		remoteFile.Close()
-		return nil, nil, common.NewInvalidArgumentError(fmt.Sprintf("远程路径是一个目录: %s", remotePath))
+		return nil, nil, common.NewInvalidArgumentError(fmt.Sprintf("此方法只处理文件，收到目录路径: %s", remotePath))
 	}
 	
 	// 检查文件大小限制
@@ -292,7 +527,16 @@ func (c *sftpClient) executeUpload(ctx context.Context, localFile *os.File, loca
 		RemotePath:   remotePath,
 		StartTime:    time.Now(),
 		Success:      false,
+		Metadata:     make(map[string]interface{}),
 	}
+	
+	// 记录文件名和完整路径信息
+	result.Metadata["local_filename"] = filepath.Base(localPath)
+	result.Metadata["remote_filename"] = filepath.Base(remotePath)
+	result.Metadata["full_local_path"] = localPath
+	result.Metadata["full_remote_path"] = remotePath
+	result.Metadata["operation_type"] = "single_file_upload"
+	result.Metadata["file_size"] = localInfo.Size()
 	
 	// 执行文件传输
 	if err := c.transferFile(ctx, localFile, remoteFile, localInfo.Size(), result, options); err != nil {
@@ -302,6 +546,14 @@ func (c *sftpClient) executeUpload(ctx context.Context, localFile *os.File, loca
 	
 	// 设置文件属性
 	c.setRemoteFileAttributes(remoteFile, remotePath, localInfo, result, options)
+	
+	// 检查是否需要删除源文件
+	if c.shouldDeleteSourceAfterTransfer(options) {
+		if err := c.deleteLocalSourceFile(localPath, result); err != nil {
+			// 删除源文件失败不影响上传结果，但记录错误
+			c.reportAttributeError(result.OperationID, "source_delete_error", "删除本地源文件失败", localPath, err)
+		}
+	}
 	
 	// 标记成功
 	result.Success = true
@@ -325,7 +577,16 @@ func (c *sftpClient) executeDownload(ctx context.Context, remoteFile *sftp.File,
 		RemotePath:   remotePath,
 		StartTime:    time.Now(),
 		Success:      false,
+		Metadata:     make(map[string]interface{}),
 	}
+	
+	// 记录文件名和完整路径信息
+	result.Metadata["local_filename"] = filepath.Base(localPath)
+	result.Metadata["remote_filename"] = filepath.Base(remotePath)
+	result.Metadata["full_local_path"] = localPath
+	result.Metadata["full_remote_path"] = remotePath
+	result.Metadata["operation_type"] = "single_file_download"
+	result.Metadata["file_size"] = remoteInfo.Size()
 	
 	// 执行文件传输
 	if err := c.transferFile(ctx, remoteFile, localFile, remoteInfo.Size(), result, options); err != nil {
@@ -335,6 +596,14 @@ func (c *sftpClient) executeDownload(ctx context.Context, remoteFile *sftp.File,
 	
 	// 设置文件属性
 	c.setLocalFileAttributes(localPath, remoteInfo, result, options)
+	
+	// 检查是否需要删除源文件
+	if c.shouldDeleteSourceAfterTransfer(options) {
+		if err := c.deleteRemoteSourceFile(remotePath, result); err != nil {
+			// 删除源文件失败不影响下载结果，但记录错误
+			c.reportAttributeError(result.OperationID, "source_delete_error", "删除远程源文件失败", remotePath, err)
+		}
+	}
 	
 	// 标记成功
 	result.Success = true
@@ -435,6 +704,57 @@ func (c *sftpClient) reportAttributeError(operationID, errorType, message, fileP
 			Timestamp:     time.Now(),
 		})
 	}
+}
+
+// shouldDeleteSourceAfterTransfer 检查是否应该在传输后删除源文件
+// 优先使用传入的options，如果为nil或未设置，则使用client配置的默认选项
+func (c *sftpClient) shouldDeleteSourceAfterTransfer(options *configs.SFTPTransferOptions) bool {
+	// 如果传入的options为nil，使用客户端的默认配置
+	if options == nil {
+		if c.config != nil && c.config.DefaultTransferOptions != nil {
+			return c.config.DefaultTransferOptions.DeleteSourceAfterTransfer
+		}
+		return false
+	}
+	
+	// 使用传入的options中的设置
+	return options.DeleteSourceAfterTransfer
+}
+
+// deleteLocalSourceFile 删除本地源文件
+func (c *sftpClient) deleteLocalSourceFile(localPath string, result *types.TransferResult) error {
+	err := os.Remove(localPath)
+	if err != nil {
+		return fmt.Errorf("删除本地源文件失败: %w", err)
+	}
+	
+	// 在结果元数据中记录删除操作
+	if result.Metadata == nil {
+		result.Metadata = make(map[string]interface{})
+	}
+	result.Metadata["source_file_deleted"] = true
+	result.Metadata["deleted_file_path"] = localPath
+	result.Metadata["delete_operation"] = "local_file"
+	
+	return nil
+}
+
+// deleteRemoteSourceFile 删除远程源文件
+func (c *sftpClient) deleteRemoteSourceFile(remotePath string, result *types.TransferResult) error {
+	err := c.sftpClient.Remove(remotePath)
+	if err != nil {
+		return fmt.Errorf("删除远程源文件失败: %w", err)
+	}
+	
+	// 在结果元数据中记录删除操作
+	if result.Metadata == nil {
+		result.Metadata = make(map[string]interface{})
+	}
+	result.Metadata["source_file_deleted"] = true
+	result.Metadata["deleted_file_path"] = remotePath
+	result.Metadata["delete_operation"] = "remote_file"
+	
+	return nil
 }
 
  

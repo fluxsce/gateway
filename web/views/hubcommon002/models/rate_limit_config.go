@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// RateLimitConfig 限流配置模型，对应数据库HUB_GATEWAY_RATE_LIMIT_CONFIG表
+// RateLimitConfig 限流配置模型，对应数据库HUB_GW_RATE_LIMIT_CONFIG表
 type RateLimitConfig struct {
 	TenantId             string     `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                                     // 租户ID，联合主键
 	RateLimitConfigId    string     `json:"rateLimitConfigId" form:"rateLimitConfigId" query:"rateLimitConfigId" db:"rateLimitConfigId"`             // 限流配置ID，联合主键
@@ -38,5 +38,5 @@ type RateLimitConfig struct {
 
 // TableName 返回表名
 func (RateLimitConfig) TableName() string {
-	return "HUB_GATEWAY_RATE_LIMIT_CONFIG"
+	return "HUB_GW_RATE_LIMIT_CONFIG"
 }

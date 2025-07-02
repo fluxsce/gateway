@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 	"gohub/pkg/utils/huberrors"
 	"gohub/pkg/utils/random"
 	"gohub/web/views/hubcommon002/models"
@@ -42,7 +43,7 @@ func (dao *UseragentAccessConfigDAO) generateUseragentAccessConfigId() string {
 
 // isUseragentAccessConfigIdExists 检查User-Agent访问配置ID是否已存在
 func (dao *UseragentAccessConfigDAO) isUseragentAccessConfigIdExists(ctx context.Context, useragentAccessConfigId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GATEWAY_USERAGENT_ACCESS_CONFIG WHERE useragentAccessConfigId = ?`
+	query := `SELECT COUNT(*) as count FROM HUB_GW_UA_ACCESS_CONFIG WHERE useragentAccessConfigId = ?`
 	
 	var result struct {
 		Count int `db:"count"`
@@ -112,7 +113,7 @@ func (dao *UseragentAccessConfigDAO) AddUseragentAccessConfig(ctx context.Contex
 		config.DefaultPolicy = "allow"
 	}
 
-	_, err := dao.db.Insert(ctx, "HUB_GATEWAY_USERAGENT_ACCESS_CONFIG", config, true)
+	_, err := dao.db.Insert(ctx, "HUB_GW_UA_ACCESS_CONFIG", config, true)
 	if err != nil {
 		return huberrors.WrapError(err, "添加User-Agent访问控制配置失败")
 	}
@@ -127,7 +128,7 @@ func (dao *UseragentAccessConfigDAO) GetUseragentAccessConfigBySecurityConfigId(
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_USERAGENT_ACCESS_CONFIG 
+		SELECT * FROM HUB_GW_UA_ACCESS_CONFIG 
 		WHERE securityConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
 	`
 
@@ -151,7 +152,7 @@ func (dao *UseragentAccessConfigDAO) GetUseragentAccessConfigById(ctx context.Co
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_USERAGENT_ACCESS_CONFIG 
+		SELECT * FROM HUB_GW_UA_ACCESS_CONFIG 
 		WHERE useragentAccessConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
 	`
 
@@ -191,7 +192,7 @@ func (dao *UseragentAccessConfigDAO) UpdateUseragentAccessConfig(ctx context.Con
 	config.OprSeqFlag = config.UseragentAccessConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
 
 	sql := `
-		UPDATE HUB_GATEWAY_USERAGENT_ACCESS_CONFIG SET
+		UPDATE HUB_GW_UA_ACCESS_CONFIG SET
 			configName = ?, defaultPolicy = ?, whitelistPatterns = ?, blacklistPatterns = ?,
 			blockEmptyUserAgent = ?, reserved1 = ?, reserved2 = ?, reserved3 = ?, reserved4 = ?, reserved5 = ?,
 			extProperty = ?, noteText = ?, editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?
@@ -223,7 +224,7 @@ func (dao *UseragentAccessConfigDAO) DeleteUseragentAccessConfig(ctx context.Con
 	}
 
 	sql := `
-		UPDATE HUB_GATEWAY_USERAGENT_ACCESS_CONFIG SET
+		UPDATE HUB_GW_UA_ACCESS_CONFIG SET
 			activeFlag = 'N', editTime = ?, editWho = ?
 		WHERE securityConfigId = ? AND tenantId = ?
 	`
@@ -246,23 +247,20 @@ func (dao *UseragentAccessConfigDAO) ListUseragentAccessConfigs(ctx context.Cont
 		return nil, 0, errors.New("tenantId不能为空")
 	}
 
-	// 确保分页参数有效
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 10
+	// 构建基础查询语句
+	baseQuery := "SELECT * FROM HUB_GW_UA_ACCESS_CONFIG WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY addTime DESC"
+
+	// 构建统计查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建统计查询失败")
 	}
 
-	// 计算偏移量
-	offset := (page - 1) * pageSize
-
-	// 查询总数
-	countQuery := `SELECT COUNT(*) FROM HUB_GATEWAY_USERAGENT_ACCESS_CONFIG WHERE tenantId = ? AND activeFlag = 'Y'`
+	// 执行统计查询
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err := dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId}, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId}, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询User-Agent访问控制配置总数失败")
 	}
@@ -273,16 +271,24 @@ func (dao *UseragentAccessConfigDAO) ListUseragentAccessConfigs(ctx context.Cont
 		return []*models.UseragentAccessConfig{}, 0, nil
 	}
 
-	// 查询数据
-	dataQuery := `
-		SELECT * FROM HUB_GATEWAY_USERAGENT_ACCESS_CONFIG 
-		WHERE tenantId = ? AND activeFlag = 'Y'
-		ORDER BY addTime DESC
-		LIMIT ? OFFSET ?
-	`
+	// 创建分页信息
+	pagination := sqlutils.NewPaginationInfo(page, pageSize)
 
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
+	}
+
+	// 合并查询参数
+	allArgs := append([]interface{}{tenantId}, paginationArgs...)
+
+	// 执行分页查询
 	var configs []*models.UseragentAccessConfig
-	err = dao.db.Query(ctx, &configs, dataQuery, []interface{}{tenantId, pageSize, offset}, true)
+	err = dao.db.Query(ctx, &configs, paginatedQuery, allArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询User-Agent访问控制配置列表失败")
 	}

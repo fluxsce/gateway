@@ -193,4 +193,93 @@ func BenchmarkNextExecution(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = schedule.Next(now)
 	}
+}
+
+// TestSpecificCronExpression 测试特定的cron表达式 "0 0 9 * * 1" (每周一上午9点)
+func TestSpecificCronExpression(t *testing.T) {
+	parser := cron.NewStandardCronParser()
+	expr := "0 0 9 * * 1" // 每周一上午9点
+
+	// 测试解析是否成功
+	schedule, err := parser.Parse(expr)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		from     time.Time
+		expected time.Time
+	}{
+		{
+			name: "从周五到下周一",
+			from: time.Date(2024, 1, 5, 10, 0, 0, 0, time.UTC), // 2024-01-05 是周五
+			expected: time.Date(2024, 1, 8, 9, 0, 0, 0, time.UTC), // 2024-01-08 是周一
+		},
+		{
+			name: "从周一9点前到周一9点",
+			from: time.Date(2024, 1, 8, 8, 30, 0, 0, time.UTC), // 2024-01-08 周一 8:30
+			expected: time.Date(2024, 1, 8, 9, 0, 0, 0, time.UTC), // 2024-01-08 周一 9:00
+		},
+		{
+			name: "从周一9点后到下周一9点",
+			from: time.Date(2024, 1, 8, 9, 30, 0, 0, time.UTC), // 2024-01-08 周一 9:30
+			expected: time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC), // 2024-01-15 下周一 9:00
+		},
+		{
+			name: "从周三到下周一",
+			from: time.Date(2024, 1, 10, 15, 0, 0, 0, time.UTC), // 2024-01-10 周三
+			expected: time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC), // 2024-01-15 周一
+		},
+		{
+			name: "从周日到周一",
+			from: time.Date(2024, 1, 7, 22, 0, 0, 0, time.UTC), // 2024-01-07 周日
+			expected: time.Date(2024, 1, 8, 9, 0, 0, 0, time.UTC), // 2024-01-08 周一
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := schedule.Next(tt.from)
+			if !got.Equal(tt.expected) {
+				t.Errorf("Next() = %v, want %v", got, tt.expected)
+				t.Errorf("From: %v (%s)", tt.from, tt.from.Weekday())
+				t.Errorf("Got:  %v (%s)", got, got.Weekday())
+				t.Errorf("Want: %v (%s)", tt.expected, tt.expected.Weekday())
+			}
+		})
+	}
+
+	// 测试连续的几次执行时间
+	t.Run("连续执行时间", func(t *testing.T) {
+		start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) // 2024-01-01 周一
+		var executions []time.Time
+		
+		current := start
+		for i := 0; i < 5; i++ {
+			next := schedule.Next(current)
+			executions = append(executions, next)
+			current = next.Add(time.Second) // 添加1秒避免重复
+		}
+
+		expected := []time.Time{
+			time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),  // 2024-01-01 周一 9:00
+			time.Date(2024, 1, 8, 9, 0, 0, 0, time.UTC),  // 2024-01-08 周一 9:00
+			time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC), // 2024-01-15 周一 9:00
+			time.Date(2024, 1, 22, 9, 0, 0, 0, time.UTC), // 2024-01-22 周一 9:00
+			time.Date(2024, 1, 29, 9, 0, 0, 0, time.UTC), // 2024-01-29 周一 9:00
+		}
+
+		for i, exec := range executions {
+			if !exec.Equal(expected[i]) {
+				t.Errorf("执行时间[%d] = %v, want %v", i, exec, expected[i])
+			}
+		}
+
+		// 打印执行时间以便查看
+		t.Logf("Cron表达式 '%s' 的连续执行时间:", expr)
+		for i, exec := range executions {
+			t.Logf("  %d: %v (%s)", i+1, exec, exec.Weekday())
+		}
+	})
 } 

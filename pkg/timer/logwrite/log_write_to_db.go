@@ -82,9 +82,9 @@ func createExecutionLog(taskConfig interface{}, taskResult interface{}, maxRetri
 	
 	// 判断执行是否成功
 	success := error == ""
-	executionStatus := StatusCompleted
+	executionStatus := int(StatusCompleted) // 使用基础int类型
 	if !success {
-		executionStatus = StatusFailed
+		executionStatus = int(StatusFailed)
 	}
 	
 	resultSuccess := "Y"
@@ -124,11 +124,11 @@ func createExecutionLog(taskConfig interface{}, taskResult interface{}, maxRetri
 		schedulerIdPtr = &schedulerId
 	}
 	
-	// 设置日志信息
-	logLevel := LogLevelInfo
+	// 设置日志信息（使用基础string类型）
+	logLevel := string(LogLevelInfo)
 	logMessage := "任务执行完成"
 	if !success {
-		logLevel = LogLevelError
+		logLevel = string(LogLevelError)
 		logMessage = "任务执行失败"
 	}
 	logTimestamp := now

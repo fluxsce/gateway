@@ -33,6 +33,11 @@ func (m *Manager) AddCache(name string, cache Cache) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
+	// 防止添加nil缓存实例
+	if cache == nil {
+		return fmt.Errorf("不能添加nil缓存实例 '%s'", name)
+	}
+
 	// 检查是否已存在同名实例
 	if _, exists := m.instances[name]; exists {
 		return fmt.Errorf("缓存实例 '%s' 已存在", name)

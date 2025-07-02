@@ -47,11 +47,11 @@ type TimerExecutionLog struct {
 	SchedulerId *string `json:"schedulerId,omitempty" db:"schedulerId"`
 
 	// 执行信息
-	ExecutionStartTime  time.Time        `json:"executionStartTime" db:"executionStartTime"`
-	ExecutionEndTime    *time.Time       `json:"executionEndTime,omitempty" db:"executionEndTime"`
-	ExecutionDurationMs *int64           `json:"executionDurationMs,omitempty" db:"executionDurationMs"`
-	ExecutionStatus     ExecutionStatus  `json:"executionStatus" db:"executionStatus"`
-	ResultSuccess       string           `json:"resultSuccess" db:"resultSuccess"` // Y/N
+	ExecutionStartTime  time.Time  `json:"executionStartTime" db:"executionStartTime"`
+	ExecutionEndTime    *time.Time `json:"executionEndTime,omitempty" db:"executionEndTime"`
+	ExecutionDurationMs *int64     `json:"executionDurationMs,omitempty" db:"executionDurationMs"`
+	ExecutionStatus     int        `json:"executionStatus" db:"executionStatus"`        // 使用基础int类型
+	ResultSuccess       string     `json:"resultSuccess" db:"resultSuccess"`             // Y/N
 
 	// 错误信息
 	ErrorMessage    *string `json:"errorMessage,omitempty" db:"errorMessage"`
@@ -70,15 +70,15 @@ type TimerExecutionLog struct {
 	ExecutorServerIp   *string `json:"executorServerIp,omitempty" db:"executorServerIp"`
 
 	// 日志信息
-	LogLevel     *ExecutionLogLevel `json:"logLevel,omitempty" db:"logLevel"`
-	LogMessage   *string            `json:"logMessage,omitempty" db:"logMessage"`
-	LogTimestamp *time.Time         `json:"logTimestamp,omitempty" db:"logTimestamp"`
+	LogLevel     *string    `json:"logLevel,omitempty" db:"logLevel"`         // 使用基础string类型
+	LogMessage   *string    `json:"logMessage,omitempty" db:"logMessage"`
+	LogTimestamp *time.Time `json:"logTimestamp,omitempty" db:"logTimestamp"`
 
 	// 执行上下文
-	ExecutionPhase *ExecutionPhase `json:"executionPhase,omitempty" db:"executionPhase"`
-	ThreadName     *string         `json:"threadName,omitempty" db:"threadName"`
-	ClassName      *string         `json:"className,omitempty" db:"className"`
-	MethodName     *string         `json:"methodName,omitempty" db:"methodName"`
+	ExecutionPhase *string `json:"executionPhase,omitempty" db:"executionPhase"` // 使用基础string类型
+	ThreadName     *string `json:"threadName,omitempty" db:"threadName"`
+	ClassName      *string `json:"className,omitempty" db:"className"`
+	MethodName     *string `json:"methodName,omitempty" db:"methodName"`
 
 	// 异常信息
 	ExceptionClass   *string `json:"exceptionClass,omitempty" db:"exceptionClass"`

@@ -21,6 +21,7 @@ type CronSchedule interface {
 // StandardCronParser 标准Cron解析器
 // 支持6字段格式：秒 分钟 小时 日 月 周
 // 也支持5字段格式：分钟 小时 日 月 周（为了向后兼容）
+// 支持的语法：通配符(*)、问号(?)、范围(1-5)、列表(1,3,5)、步长(*/2)
 type StandardCronParser struct{}
 
 // NewStandardCronParser 创建标准Cron解析器实例
@@ -34,7 +35,8 @@ func NewStandardCronParser() *StandardCronParser {
 
 // Parse 解析Cron表达式字符串
 // 支持6字段Cron表达式（秒 分钟 小时 日 月 周）和5字段格式（分钟 小时 日 月 周）
-// 支持通配符(*)、范围(1-5)、列表(1,3,5)、步长(*/2)等语法
+// 支持通配符(*)、问号(?)、范围(1-5)、列表(1,3,5)、步长(*/2)等语法
+// 注意: * 和 ? 都表示匹配所有可能的值，? 通常用于日期和星期字段
 // 参数:
 //   expr: Cron表达式字符串，格式为"秒 分钟 小时 日 月 周"或"分钟 小时 日 月 周"
 // 返回:
@@ -173,7 +175,7 @@ func (s *StandardCronSchedule) matchesField(field []int, value int) bool {
 
 // parseField 解析Cron字段
 func parseField(field string, min, max int) ([]int, error) {
-	if field == "*" {
+	if field == "*" || field == "?" {
 		return makeRange(min, max), nil
 	}
 	

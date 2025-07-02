@@ -183,7 +183,7 @@ func initRouterConfigRoutes(router *gin.RouterGroup, db database.Database) {
 
 // initFilterConfigRoutes 初始化过滤器配置相关路由
 // 将过滤器配置相关的所有API路由注册到指定的路由组
-// 根据README.md中的HUB_GATEWAY_FILTER_CONFIG表结构设计
+// 根据README.md中的HUB_GW_FILTER_CONFIG表结构设计
 // 支持实例级和路由级过滤器配置管理
 //
 // 过滤器类型支持：
@@ -280,7 +280,7 @@ func initFilterConfigRoutes(router *gin.RouterGroup, db database.Database) {
 
 // initServiceDefinitionRoutes 初始化服务定义相关路由
 // 将服务定义相关的所有API路由注册到指定的路由组
-// 根据README.md中的HUB_GATEWAY_SERVICE_DEFINITION表结构设计
+// 根据README.md中的HUB_GW_SERVICE_DEFINITION表结构设计
 // 支持服务定义的增删改查和按实例查询功能
 //
 // 服务定义功能说明：

@@ -37,5 +37,5 @@ type AuthConfig struct {
 
 // TableName 返回表名
 func (AuthConfig) TableName() string {
-	return "HUB_GATEWAY_AUTH_CONFIG"
+	return "HUB_GW_AUTH_CONFIG"
 }

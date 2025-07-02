@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// ProxyConfig 代理配置模型，对应数据库HUB_GATEWAY_PROXY_CONFIG表
+// ProxyConfig 代理配置模型，对应数据库HUB_GW_PROXY_CONFIG表
 type ProxyConfig struct {
 	TenantId          string `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                     // 租户ID，联合主键
 	ProxyConfigId     string `json:"proxyConfigId" form:"proxyConfigId" query:"proxyConfigId" db:"proxyConfigId"`                 // 代理配置ID，联合主键
@@ -45,10 +45,10 @@ type ProxyConfig struct {
 
 // TableName 返回表名
 func (ProxyConfig) TableName() string {
-	return "HUB_GATEWAY_PROXY_CONFIG"
+	return "HUB_GW_PROXY_CONFIG"
 }
 
-// ServiceDefinition 服务定义模型，对应数据库HUB_GATEWAY_SERVICE_DEFINITION表
+// ServiceDefinition 服务定义模型，对应数据库HUB_GW_SERVICE_DEFINITION表
 type ServiceDefinition struct {
 	TenantId            string `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                         // 租户ID，联合主键
 	ServiceDefinitionId string `json:"serviceDefinitionId" form:"serviceDefinitionId" query:"serviceDefinitionId" db:"serviceDefinitionId"` // 服务定义ID，联合主键
@@ -109,10 +109,10 @@ type ServiceDefinition struct {
 
 // TableName 返回表名
 func (ServiceDefinition) TableName() string {
-	return "HUB_GATEWAY_SERVICE_DEFINITION"
+	return "HUB_GW_SERVICE_DEFINITION"
 }
 
-// ServiceNode 服务节点模型，对应数据库HUB_GATEWAY_SERVICE_NODE表
+// ServiceNode 服务节点模型，对应数据库HUB_GW_SERVICE_NODE表
 type ServiceNode struct {
 	TenantId            string `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                         // 租户ID，联合主键
 	ServiceNodeId       string `json:"serviceNodeId" form:"serviceNodeId" query:"serviceNodeId" db:"serviceNodeId"`                     // 服务节点ID，联合主键
@@ -166,10 +166,10 @@ type ServiceNode struct {
 
 // TableName 返回表名
 func (ServiceNode) TableName() string {
-	return "HUB_GATEWAY_SERVICE_NODE"
+	return "HUB_GW_SERVICE_NODE"
 }
 
-// GatewayInstance 网关实例模型，对应数据库HUB_GATEWAY_INSTANCE表
+// GatewayInstance 网关实例模型，对应数据库HUB_GW_INSTANCE表
 type GatewayInstance struct {
 	TenantId          string `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                     // 租户ID，联合主键
 	GatewayInstanceId string `json:"gatewayInstanceId" form:"gatewayInstanceId" query:"gatewayInstanceId" db:"gatewayInstanceId"` // 网关实例ID，联合主键
@@ -239,5 +239,5 @@ type GatewayInstance struct {
 
 // TableName 返回表名
 func (GatewayInstance) TableName() string {
-	return "HUB_GATEWAY_INSTANCE"
+	return "HUB_GW_INSTANCE"
 } 

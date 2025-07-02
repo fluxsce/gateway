@@ -9,6 +9,7 @@ import (
 	"gohub/internal/gateway/handler/auth"
 	"gohub/internal/gateway/handler/cors"
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 )
 
 // AuthCORSConfigLoader 认证和CORS配置加载器
@@ -27,23 +28,43 @@ func NewAuthCORSConfigLoader(db database.Database, tenantId string) *AuthCORSCon
 
 // LoadAuthConfig 加载实例级别认证配置
 func (loader *AuthCORSConfigLoader) LoadAuthConfig(ctx context.Context, instanceId string) (*auth.AuthConfig, error) {
-	query := `
+	// 构建基础查询语句
+	baseQuery := `
 		SELECT tenantId, authConfigId, authName, authType, authStrategy, authConfig,
 		       exemptPaths, exemptHeaders, failureStatusCode, failureMessage
-		FROM HUB_GATEWAY_AUTH_CONFIG 
+		FROM HUB_GW_AUTH_CONFIG 
 		WHERE tenantId = ? AND gatewayInstanceId = ? AND activeFlag = 'Y'
 		ORDER BY configPriority ASC
-		LIMIT 1
 	`
 
-	var record AuthConfigRecord
-	err := loader.db.QueryOne(ctx, &record, query, []interface{}{loader.tenantId, instanceId}, true)
+	// 创建分页信息（只取第一条记录）
+	pagination := sqlutils.NewPaginationInfo(1, 1)
+
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(loader.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {
-		if err == database.ErrRecordNotFound {
-			return nil, nil
-		}
+		return nil, fmt.Errorf("构建分页查询失败: %w", err)
+	}
+
+	// 合并查询参数
+	allArgs := append([]interface{}{loader.tenantId, instanceId}, paginationArgs...)
+
+	// 执行查询
+	var records []AuthConfigRecord
+	err = loader.db.Query(ctx, &records, paginatedQuery, allArgs, true)
+	if err != nil {
 		return nil, fmt.Errorf("查询认证配置失败: %w", err)
 	}
+
+	// 如果没有找到记录，返回nil
+	if len(records) == 0 {
+		return nil, nil
+	}
+
+	record := records[0]
 
 	// 构建认证配置
 	authConf := &auth.AuthConfig{
@@ -98,23 +119,43 @@ func (loader *AuthCORSConfigLoader) LoadAuthConfig(ctx context.Context, instance
 
 // LoadRouteAuthConfig 加载路由级别认证配置
 func (loader *AuthCORSConfigLoader) LoadRouteAuthConfig(ctx context.Context, routeId string) (*auth.AuthConfig, error) {
-	query := `
+	// 构建基础查询语句
+	baseQuery := `
 		SELECT tenantId, authConfigId, authName, authType, authStrategy, authConfig,
 		       exemptPaths, exemptHeaders, failureStatusCode, failureMessage
-		FROM HUB_GATEWAY_AUTH_CONFIG 
+		FROM HUB_GW_AUTH_CONFIG 
 		WHERE tenantId = ? AND routeConfigId = ? AND activeFlag = 'Y'
 		ORDER BY configPriority ASC
-		LIMIT 1
 	`
 
-	var record AuthConfigRecord
-	err := loader.db.QueryOne(ctx, &record, query, []interface{}{loader.tenantId, routeId}, true)
+	// 创建分页信息（只取第一条记录）
+	pagination := sqlutils.NewPaginationInfo(1, 1)
+
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(loader.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {
-		if err == database.ErrRecordNotFound {
-			return nil, nil
-		}
+		return nil, fmt.Errorf("构建分页查询失败: %w", err)
+	}
+
+	// 合并查询参数
+	allArgs := append([]interface{}{loader.tenantId, routeId}, paginationArgs...)
+
+	// 执行查询
+	var records []AuthConfigRecord
+	err = loader.db.Query(ctx, &records, paginatedQuery, allArgs, true)
+	if err != nil {
 		return nil, fmt.Errorf("查询路由认证配置失败: %w", err)
 	}
+
+	// 如果没有找到记录，返回nil
+	if len(records) == 0 {
+		return nil, nil
+	}
+
+	record := records[0]
 
 	// 构建认证配置
 	authConf := &auth.AuthConfig{
@@ -169,23 +210,43 @@ func (loader *AuthCORSConfigLoader) LoadRouteAuthConfig(ctx context.Context, rou
 
 // LoadCORSConfig 加载实例级别CORS配置
 func (loader *AuthCORSConfigLoader) LoadCORSConfig(ctx context.Context, instanceId string) (*cors.CORSConfig, error) {
-	query := `
+	// 构建基础查询语句
+	baseQuery := `
 		SELECT tenantId, corsConfigId, configName, allowOrigins, allowMethods,
 		       allowHeaders, exposeHeaders, allowCredentials, maxAgeSeconds
-		FROM HUB_GATEWAY_CORS_CONFIG 
+		FROM HUB_GW_CORS_CONFIG 
 		WHERE tenantId = ? AND gatewayInstanceId = ? AND activeFlag = 'Y'
 		ORDER BY configPriority ASC
-		LIMIT 1
 	`
 
-	var record CORSConfigRecord
-	err := loader.db.QueryOne(ctx, &record, query, []interface{}{loader.tenantId, instanceId}, true)
+	// 创建分页信息（只取第一条记录）
+	pagination := sqlutils.NewPaginationInfo(1, 1)
+
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(loader.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {
-		if err == database.ErrRecordNotFound {
-			return nil, nil
-		}
+		return nil, fmt.Errorf("构建分页查询失败: %w", err)
+	}
+
+	// 合并查询参数
+	allArgs := append([]interface{}{loader.tenantId, instanceId}, paginationArgs...)
+
+	// 执行查询
+	var records []CORSConfigRecord
+	err = loader.db.Query(ctx, &records, paginatedQuery, allArgs, true)
+	if err != nil {
 		return nil, fmt.Errorf("查询CORS配置失败: %w", err)
 	}
+
+	// 如果没有找到记录，返回nil
+	if len(records) == 0 {
+		return nil, nil
+	}
+
+	record := records[0]
 
 	// 构建CORS配置
 	corsConf := &cors.CORSConfig{
@@ -203,7 +264,7 @@ func (loader *AuthCORSConfigLoader) LoadCORSConfig(ctx context.Context, instance
 	}
 
 	// 解析允许的方法
-	corsConf.AllowMethods = strings.Split(record.AllowMethods, ",")
+	corsConf.AllowMethods = parseArrayString(record.AllowMethods)
 
 	// 解析允许的头
 	if record.AllowHeaders != nil {
@@ -226,29 +287,49 @@ func (loader *AuthCORSConfigLoader) LoadCORSConfig(ctx context.Context, instance
 
 // LoadRouteCORSConfig 加载路由级别CORS配置
 func (loader *AuthCORSConfigLoader) LoadRouteCORSConfig(ctx context.Context, routeId string) (*cors.CORSConfig, error) {
-	query := `
+	// 构建基础查询语句
+	baseQuery := `
 		SELECT tenantId, corsConfigId, configName, allowOrigins, allowMethods,
 		       allowHeaders, exposeHeaders, allowCredentials, maxAgeSeconds
-		FROM HUB_GATEWAY_CORS_CONFIG 
+		FROM HUB_GW_CORS_CONFIG 
 		WHERE tenantId = ? AND routeConfigId = ? AND activeFlag = 'Y'
 		ORDER BY configPriority ASC
-		LIMIT 1
 	`
 
-	var record CORSConfigRecord
-	err := loader.db.QueryOne(ctx, &record, query, []interface{}{loader.tenantId, routeId}, true)
+	// 创建分页信息（只取第一条记录）
+	pagination := sqlutils.NewPaginationInfo(1, 1)
+
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(loader.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {
-		if err == database.ErrRecordNotFound {
-			return nil, nil
-		}
+		return nil, fmt.Errorf("构建分页查询失败: %w", err)
+	}
+
+	// 合并查询参数
+	allArgs := append([]interface{}{loader.tenantId, routeId}, paginationArgs...)
+
+	// 执行查询
+	var records []CORSConfigRecord
+	err = loader.db.Query(ctx, &records, paginatedQuery, allArgs, true)
+	if err != nil {
 		return nil, fmt.Errorf("查询路由CORS配置失败: %w", err)
 	}
 
+	// 如果没有找到记录，返回nil
+	if len(records) == 0 {
+		return nil, nil
+	}
+
+	record := records[0]
+
 	// 构建CORS配置
 	corsConf := &cors.CORSConfig{
-		ID:               record.CorsConfigId,
-		Name:             record.ConfigName,
-		Enabled:          true,
+		ID:              record.CorsConfigId,
+		Name:            record.ConfigName,
+		Enabled:         true,
 		AllowCredentials: record.AllowCredentials == "Y",
 		MaxAge:           record.MaxAgeSeconds,
 	}
@@ -260,7 +341,7 @@ func (loader *AuthCORSConfigLoader) LoadRouteCORSConfig(ctx context.Context, rou
 	}
 
 	// 解析允许的方法
-	corsConf.AllowMethods = strings.Split(record.AllowMethods, ",")
+	corsConf.AllowMethods = parseArrayString(record.AllowMethods)
 
 	// 解析允许的头
 	if record.AllowHeaders != nil {
@@ -279,4 +360,63 @@ func (loader *AuthCORSConfigLoader) LoadRouteCORSConfig(ctx context.Context, rou
 	}
 
 	return corsConf, nil
+}
+
+// parseArrayString 解析逗号分隔的字符串或JSON数组，处理空白字符和空字符串
+// 功能特性：
+// - 优先尝试解析JSON数组格式（如 ["a","b","c"]）
+// - 如果JSON解析失败，则按逗号分割字符串
+// - 去除每个元素的前后空白字符
+// - 过滤掉空字符串元素
+// - 返回清理后的字符串切片
+//
+// 参数:
+//   str: 要解析的字符串（JSON数组或逗号分隔字符串）
+// 返回:
+//   []string: 解析后的字符串切片
+//
+// 示例:
+//   parseArrayString(`["a","b","c"]`) 
+//   // 返回: ["a", "b", "c"]
+//   parseArrayString("a, b , c,, d ") 
+//   // 返回: ["a", "b", "c", "d"]
+func parseArrayString(str string) []string {
+	if str == "" {
+		return []string{}
+	}
+	
+	// 去除前后空白字符
+	str = strings.TrimSpace(str)
+	
+	// 优先尝试解析JSON数组
+	if strings.HasPrefix(str, "[") && strings.HasSuffix(str, "]") {
+		var jsonArray []string
+		if err := json.Unmarshal([]byte(str), &jsonArray); err == nil {
+			// JSON解析成功，过滤空字符串并去除空白字符
+			var result []string
+			for _, item := range jsonArray {
+				trimmed := strings.TrimSpace(item)
+				if trimmed != "" {
+					result = append(result, trimmed)
+				}
+			}
+			return result
+		}
+	}
+	
+	// JSON解析失败，按逗号分割
+	parts := strings.Split(str, ",")
+	
+	// 清理和过滤
+	var result []string
+	for _, part := range parts {
+		// 去除前后空白字符
+		trimmed := strings.TrimSpace(part)
+		// 过滤掉空字符串
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	
+	return result
 } 

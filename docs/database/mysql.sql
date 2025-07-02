@@ -1,7 +1,131 @@
-CREATE TABLE `HUB_GATEWAY_INSTANCE` (
+CREATE TABLE HUB_USER (
+    userId          VARCHAR(32)   NOT NULL COMMENT '用户ID，联合主键',
+    tenantId        VARCHAR(32)   NOT NULL COMMENT '租户ID，联合主键',
+    userName        VARCHAR(50)   NOT NULL COMMENT '用户名，登录账号',
+    password        VARCHAR(128)  NOT NULL COMMENT '密码，加密存储',
+    realName        VARCHAR(50)   NOT NULL COMMENT '真实姓名',
+    deptId          VARCHAR(32)   NOT NULL COMMENT '所属部门ID',
+    email           VARCHAR(255)  NULL     COMMENT '电子邮箱',
+    mobile          VARCHAR(20)   NULL     COMMENT '手机号码',
+    avatar          VARCHAR(500)  NULL     COMMENT '头像URL',
+    gender          INT           NULL     DEFAULT 0 COMMENT '性别：1-男，2-女，0-未知',
+    statusFlag      VARCHAR(1)    NOT NULL DEFAULT 'Y' COMMENT '状态：Y-启用，N-禁用',
+    deptAdminFlag   VARCHAR(1)    NOT NULL DEFAULT 'N' COMMENT '是否部门管理员：Y-是，N-否',
+    tenantAdminFlag VARCHAR(1)    NOT NULL DEFAULT 'N' COMMENT '是否租户管理员：Y-是，N-否',
+    userExpireDate  DATETIME      NOT NULL COMMENT '用户过期时间',
+    lastLoginTime   DATETIME      NULL     COMMENT '最后登录时间',
+    lastLoginIp     VARCHAR(128)  NULL     COMMENT '最后登录IP',
+    pwdUpdateTime   DATETIME      NULL     COMMENT '密码最后更新时间',
+    pwdErrorCount   INT           NOT NULL DEFAULT 0 COMMENT '密码错误次数',
+    lockTime        DATETIME      NULL     COMMENT '账号锁定时间',
+    addTime         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    addWho          VARCHAR(32)   NOT NULL COMMENT '创建人',
+    editTime        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+    editWho         VARCHAR(32)   NOT NULL COMMENT '修改人',
+    oprSeqFlag      VARCHAR(32)   NOT NULL COMMENT '操作序列标识',
+    currentVersion  INT           NOT NULL DEFAULT 1 COMMENT '当前版本号',
+    activeFlag      VARCHAR(1)    NOT NULL DEFAULT 'Y' COMMENT '活动状态标记：Y-活动，N-非活动',
+    noteText        TEXT          NULL     COMMENT '备注信息',
+    extProperty     TEXT          DEFAULT NULL COMMENT '扩展属性，JSON格式',
+    reserved1       VARCHAR(500)  DEFAULT NULL COMMENT '预留字段1',
+    reserved2       VARCHAR(500)  DEFAULT NULL COMMENT '预留字段2',
+    reserved3       VARCHAR(500)  DEFAULT NULL COMMENT '预留字段3',
+    reserved4       VARCHAR(500)  DEFAULT NULL COMMENT '预留字段4',
+    reserved5       VARCHAR(500)  DEFAULT NULL COMMENT '预留字段5',
+    reserved6       VARCHAR(500)  DEFAULT NULL COMMENT '预留字段6',
+    reserved7       VARCHAR(500)  DEFAULT NULL COMMENT '预留字段7',
+    reserved8       VARCHAR(500)  DEFAULT NULL COMMENT '预留字段8',
+    reserved9       VARCHAR(500)  DEFAULT NULL COMMENT '预留字段9',
+    reserved10      VARCHAR(500)  DEFAULT NULL COMMENT '预留字段10',
+    PRIMARY KEY (userId, tenantId),
+    INDEX UK_USER_NAME_TENANT (userName, tenantId), -- 普通索引代替 UNIQUE KEY
+    INDEX IDX_USER_TENANT (tenantId),
+    INDEX IDX_USER_DEPT (deptId),
+    INDEX IDX_USER_STATUS (statusFlag),
+    INDEX IDX_USER_EMAIL (email),
+    INDEX IDX_USER_MOBILE (mobile)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户信息表';
+
+INSERT INTO HUB_USER (
+    userId,
+    tenantId,
+    userName,
+    password,
+    realName,
+    deptId,
+    email,
+    mobile,
+    avatar,
+    gender,
+    statusFlag,
+    deptAdminFlag,
+    tenantAdminFlag,
+    userExpireDate,
+    oprSeqFlag,
+    currentVersion,
+    activeFlag,
+		addWho,
+		editWho,
+    noteText
+) VALUES (
+    'admin',                            -- userId
+    'default',                          -- tenantId
+    'admin',                            -- userName
+    '123456',                      -- password（使用 MySQL 内置 MD5 加密）
+    '系统管理员',                         -- realName
+    'D00000001',                        -- deptId
+    'admin@example.com',                -- email
+    '13800000000',                      -- mobile
+    'https://example.com/avatar.png',   -- avatar
+    1,                                  -- gender (1:男)
+    'Y',                                -- statusFlag
+    'N',                                -- deptAdminFlag
+    'Y',                                -- tenantAdminFlag
+    NOW() + INTERVAL 5 YEAR,            -- userExpireDate（5年后过期）
+    'SEQFLAG_001',                      -- oprSeqFlag
+    1,                                  -- currentVersion
+    'Y',                                -- activeFlag
+		'system',
+		'system',
+    '系统初始化管理员账号'              -- noteText
+);
+
+CREATE TABLE HUB_LOGIN_LOG (
+    logId           VARCHAR(32)   NOT NULL COMMENT '日志ID，主键',
+    userId          VARCHAR(32)   NOT NULL COMMENT '用户ID',
+    tenantId        VARCHAR(32)   NOT NULL COMMENT '租户ID',
+    userName        VARCHAR(50)   NOT NULL COMMENT '用户名',
+    loginTime       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '登录时间',
+    loginIp         VARCHAR(128)  NOT NULL COMMENT '登录IP',
+    loginLocation   VARCHAR(255)  NULL     COMMENT '登录地点',
+    loginType       INT           NOT NULL DEFAULT 1 COMMENT '登录类型：1-用户名密码，2-验证码，3-第三方',
+    deviceType      VARCHAR(50)   NULL     COMMENT '设备类型',
+    deviceInfo      TEXT          NULL     COMMENT '设备信息',
+    browserInfo     TEXT          NULL     COMMENT '浏览器信息',
+    osInfo          VARCHAR(255)  NULL     COMMENT '操作系统信息',
+    loginStatus     VARCHAR(1)    NOT NULL DEFAULT 'N' COMMENT '登录状态：Y-成功，N-失败',
+    logoutTime      DATETIME      NULL     COMMENT '登出时间',
+    sessionDuration INT           NULL     COMMENT '会话持续时长(秒)',
+    failReason      TEXT          NULL     COMMENT '失败原因',
+    addTime         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    addWho          VARCHAR(32)   NOT NULL COMMENT '创建人',
+    editTime        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+    editWho         VARCHAR(32)   NOT NULL COMMENT '修改人',
+    oprSeqFlag      VARCHAR(32)   NOT NULL COMMENT '操作序列标识',
+    currentVersion  INT           NOT NULL DEFAULT 1 COMMENT '当前版本号',
+    activeFlag      VARCHAR(1)    NOT NULL DEFAULT 'Y' COMMENT '活动状态标记：Y-活动，N-非活动',
+    PRIMARY KEY (logId),
+    INDEX IDX_LOGIN_USER (userId),
+    INDEX IDX_LOGIN_TIME (loginTime),
+    INDEX IDX_LOGIN_TENANT (tenantId),
+    INDEX IDX_LOGIN_STATUS (loginStatus),
+    INDEX IDX_LOGIN_TYPE (loginType)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户登录日志表';
+
+CREATE TABLE `HUB_GW_INSTANCE` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `gatewayInstanceId` VARCHAR(32) NOT NULL COMMENT '网关实例ID',
-    `instanceName` VARCHAR(100) NOT NULL COMMENT '实例名称',
+  `instanceName` VARCHAR(100) NOT NULL COMMENT '实例名称',
   `instanceDesc` VARCHAR(200) DEFAULT NULL COMMENT '实例描述',
   `bindAddress` VARCHAR(100) DEFAULT '0.0.0.0' COMMENT '绑定地址',
 
@@ -57,15 +181,15 @@ CREATE TABLE `HUB_GATEWAY_INSTANCE` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `gatewayInstanceId`),
-  INDEX `idx_HUB_GATEWAY_INSTANCE_bind_http` (`bindAddress`, `httpPort`),
-  INDEX `idx_HUB_GATEWAY_INSTANCE_bind_https` (`bindAddress`, `httpsPort`),
-  INDEX `idx_HUB_GATEWAY_INSTANCE_log` (`logConfigId`),
-  INDEX `idx_HUB_GATEWAY_INSTANCE_health` (`healthStatus`),
-  INDEX `idx_HUB_GATEWAY_INSTANCE_tls` (`tlsEnabled`)
+  INDEX `IDX_GW_INST_BIND_HTTP` (`bindAddress`, `httpPort`),
+  INDEX `IDX_GW_INST_BIND_HTTPS` (`bindAddress`, `httpsPort`),
+  INDEX `IDX_GW_INST_LOG` (`logConfigId`),
+  INDEX `IDX_GW_INST_HEALTH` (`healthStatus`),
+  INDEX `IDX_GW_INST_TLS` (`tlsEnabled`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网关实例表 - 记录网关实例基础配置，完整支持Go HTTP Server配置';
 
 
-CREATE TABLE `HUB_GATEWAY_ROUTER_CONFIG` (
+CREATE TABLE `HUB_GW_ROUTER_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `routerConfigId` VARCHAR(32) NOT NULL COMMENT 'Router配置ID',
   `gatewayInstanceId` VARCHAR(32) NOT NULL COMMENT '关联的网关实例ID',
@@ -123,14 +247,14 @@ CREATE TABLE `HUB_GATEWAY_ROUTER_CONFIG` (
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   
   PRIMARY KEY (`tenantId`, `routerConfigId`),
-  INDEX `idx_HUB_GATEWAY_ROUTER_CONFIG_instance` (`gatewayInstanceId`),
-  INDEX `idx_HUB_GATEWAY_ROUTER_CONFIG_name` (`routerName`),
-  INDEX `idx_HUB_GATEWAY_ROUTER_CONFIG_active` (`activeFlag`),
-  INDEX `idx_HUB_GATEWAY_ROUTER_CONFIG_cache` (`enableRouteCache`)
+  INDEX `IDX_GW_ROUTER_INST` (`gatewayInstanceId`),
+  INDEX `IDX_GW_ROUTER_NAME` (`routerName`),
+  INDEX `IDX_GW_ROUTER_ACTIVE` (`activeFlag`),
+  INDEX `IDX_GW_ROUTER_CACHE` (`enableRouteCache`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Router配置表 - 存储网关Router级别配置';
 
 
-CREATE TABLE `HUB_GATEWAY_ROUTE_CONFIG` (
+CREATE TABLE `HUB_GW_ROUTE_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `routeConfigId` VARCHAR(32) NOT NULL COMMENT '路由配置ID',
   `gatewayInstanceId` VARCHAR(32) NOT NULL COMMENT '关联的网关实例ID',
@@ -175,16 +299,16 @@ CREATE TABLE `HUB_GATEWAY_ROUTE_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动/禁用,Y活动/启用)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `routeConfigId`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_CONFIG_instance` (`gatewayInstanceId`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_CONFIG_service` (`serviceDefinitionId`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_CONFIG_log` (`logConfigId`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_CONFIG_priority` (`routePriority`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_CONFIG_path` (`routePath`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_CONFIG_active` (`activeFlag`)
+  INDEX `IDX_GW_ROUTE_INST` (`gatewayInstanceId`),
+  INDEX `IDX_GW_ROUTE_SERVICE` (`serviceDefinitionId`),
+  INDEX `IDX_GW_ROUTE_LOG` (`logConfigId`),
+  INDEX `IDX_GW_ROUTE_PRIORITY` (`routePriority`),
+  INDEX `IDX_GW_ROUTE_PATH` (`routePath`),
+  INDEX `IDX_GW_ROUTE_ACTIVE` (`activeFlag`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='路由定义表 - 存储API路由配置,使用activeFlag统一管理启用状态';
 
 
-CREATE TABLE `HUB_GATEWAY_ROUTE_ASSERTION` (
+CREATE TABLE `HUB_GW_ROUTE_ASSERTION` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `routeAssertionId` VARCHAR(32) NOT NULL COMMENT '路由断言ID',
   `routeConfigId` VARCHAR(32) NOT NULL COMMENT '关联的路由配置ID',
@@ -213,13 +337,13 @@ CREATE TABLE `HUB_GATEWAY_ROUTE_ASSERTION` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `routeAssertionId`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_ASSERTION_route` (`routeConfigId`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_ASSERTION_type` (`assertionType`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_ASSERTION_order` (`assertionOrder`)
+  INDEX `IDX_GW_ASSERT_ROUTE` (`routeConfigId`),
+  INDEX `IDX_GW_ASSERT_TYPE` (`assertionType`),
+  INDEX `IDX_GW_ASSERT_ORDER` (`assertionOrder`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='路由断言表 - 存储路由匹配断言规则';
 
 
-CREATE TABLE `HUB_GATEWAY_FILTER_CONFIG` (
+CREATE TABLE `HUB_GW_FILTER_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `filterConfigId` VARCHAR(32) NOT NULL COMMENT '过滤器配置ID',
   `gatewayInstanceId` VARCHAR(32) DEFAULT NULL COMMENT '网关实例ID(实例级过滤器)',
@@ -254,16 +378,16 @@ CREATE TABLE `HUB_GATEWAY_FILTER_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动/禁用,Y活动/启用)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `filterConfigId`),
-  INDEX `idx_HUB_GATEWAY_FILTER_CONFIG_instance` (`gatewayInstanceId`),
-  INDEX `idx_HUB_GATEWAY_FILTER_CONFIG_route` (`routeConfigId`),
-  INDEX `idx_HUB_GATEWAY_FILTER_CONFIG_type` (`filterType`),
-  INDEX `idx_HUB_GATEWAY_FILTER_CONFIG_action` (`filterAction`),
-  INDEX `idx_HUB_GATEWAY_FILTER_CONFIG_order` (`filterOrder`),
-  INDEX `idx_HUB_GATEWAY_FILTER_CONFIG_active` (`activeFlag`)
+  INDEX `IDX_GW_FILTER_INST` (`gatewayInstanceId`),
+  INDEX `IDX_GW_FILTER_ROUTE` (`routeConfigId`),
+  INDEX `IDX_GW_FILTER_TYPE` (`filterType`),
+  INDEX `IDX_GW_FILTER_ACTION` (`filterAction`),
+  INDEX `IDX_GW_FILTER_ORDER` (`filterOrder`),
+  INDEX `IDX_GW_FILTER_ACTIVE` (`activeFlag`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='过滤器配置表 - 根据filter.go逻辑设计,支持7种类型和3种执行时机';
 
 
-CREATE TABLE `HUB_GATEWAY_CORS_CONFIG` (
+CREATE TABLE `HUB_GW_CORS_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `corsConfigId` VARCHAR(32) NOT NULL COMMENT 'CORS配置ID',
   `gatewayInstanceId` VARCHAR(32) DEFAULT NULL COMMENT '网关实例ID(实例级CORS)',
@@ -291,13 +415,13 @@ CREATE TABLE `HUB_GATEWAY_CORS_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `corsConfigId`),
-  INDEX `idx_HUB_GATEWAY_CORS_CONFIG_instance` (`gatewayInstanceId`),
-  INDEX `idx_HUB_GATEWAY_CORS_CONFIG_route` (`routeConfigId`),
-  INDEX `idx_HUB_GATEWAY_CORS_CONFIG_priority` (`configPriority`)
+  INDEX `IDX_GW_CORS_INST` (`gatewayInstanceId`),
+  INDEX `IDX_GW_CORS_ROUTE` (`routeConfigId`),
+  INDEX `IDX_GW_CORS_PRIORITY` (`configPriority`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='跨域配置表 - 存储CORS相关配置';
 
 
-CREATE TABLE `HUB_GATEWAY_RATE_LIMIT_CONFIG` (
+CREATE TABLE `HUB_GW_RATE_LIMIT_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `rateLimitConfigId` VARCHAR(32) NOT NULL COMMENT '限流配置ID',
   `gatewayInstanceId` VARCHAR(32) DEFAULT NULL COMMENT '网关实例ID(实例级限流)',
@@ -317,7 +441,7 @@ CREATE TABLE `HUB_GATEWAY_RATE_LIMIT_CONFIG` (
   `rejectionStatusCode` INT NOT NULL DEFAULT 429 COMMENT '拒绝时的HTTP状态码',
   `rejectionMessage` VARCHAR(200) DEFAULT '请求过于频繁，请稍后再试' COMMENT '拒绝时的提示消息',
   `configPriority` INT NOT NULL DEFAULT 0 COMMENT '配置优先级,数值越小优先级越高',
-  `customConfig` TEXT DEFAULT '{}' COMMENT '自定义配置,JSON格式',
+  `customConfig` TEXT DEFAULT NULL COMMENT '自定义配置,JSON格式',
   
   -- 保留现有的标准字段
   `reserved1` VARCHAR(100) DEFAULT NULL COMMENT '预留字段1',
@@ -336,16 +460,16 @@ CREATE TABLE `HUB_GATEWAY_RATE_LIMIT_CONFIG` (
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   
   PRIMARY KEY (`tenantId`, `rateLimitConfigId`),
-  INDEX `idx_HUB_GATEWAY_RATE_LIMIT_CONFIG_instance` (`gatewayInstanceId`),
-  INDEX `idx_HUB_GATEWAY_RATE_LIMIT_CONFIG_route` (`routeConfigId`),
-  INDEX `idx_HUB_GATEWAY_RATE_LIMIT_CONFIG_strategy` (`keyStrategy`),
-  INDEX `idx_HUB_GATEWAY_RATE_LIMIT_CONFIG_algorithm` (`algorithm`),
-  INDEX `idx_HUB_GATEWAY_RATE_LIMIT_CONFIG_priority` (`configPriority`),
-  INDEX `idx_HUB_GATEWAY_RATE_LIMIT_CONFIG_active` (`activeFlag`)
+  INDEX `IDX_GW_RATE_INST` (`gatewayInstanceId`),
+  INDEX `IDX_GW_RATE_ROUTE` (`routeConfigId`),
+  INDEX `IDX_GW_RATE_STRATEGY` (`keyStrategy`),
+  INDEX `IDX_GW_RATE_ALGORITHM` (`algorithm`),
+  INDEX `IDX_GW_RATE_PRIORITY` (`configPriority`),
+  INDEX `IDX_GW_RATE_ACTIVE` (`activeFlag`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='限流配置表 - 存储流量限制规则';
 
 
-CREATE TABLE `HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG` (
+CREATE TABLE `HUB_GW_CIRCUIT_BREAKER_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `circuitBreakerConfigId` VARCHAR(32) NOT NULL COMMENT '熔断配置ID',
   `routeConfigId` VARCHAR(32) DEFAULT NULL COMMENT '路由配置ID(路由级熔断)',
@@ -390,15 +514,15 @@ CREATE TABLE `HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `circuitBreakerConfigId`),
-  INDEX `idx_HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG_route` (`routeConfigId`),
-  INDEX `idx_HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG_service` (`targetServiceId`),
-  INDEX `idx_HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG_strategy` (`keyStrategy`),
-  INDEX `idx_HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG_storage` (`storageType`),
-  INDEX `idx_HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG_priority` (`configPriority`)
+  INDEX `IDX_GW_CB_ROUTE` (`routeConfigId`),
+  INDEX `IDX_GW_CB_SERVICE` (`targetServiceId`),
+  INDEX `IDX_GW_CB_STRATEGY` (`keyStrategy`),
+  INDEX `IDX_GW_CB_STORAGE` (`storageType`),
+  INDEX `IDX_GW_CB_PRIORITY` (`configPriority`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='熔断配置表 - 根据CircuitBreakerConfig结构设计,支持完整的熔断策略配置';
 
 
-CREATE TABLE `HUB_GATEWAY_AUTH_CONFIG` (
+CREATE TABLE `HUB_GW_AUTH_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `authConfigId` VARCHAR(32) NOT NULL COMMENT '认证配置ID',
   `gatewayInstanceId` VARCHAR(32) DEFAULT NULL COMMENT '网关实例ID(实例级认证)',
@@ -427,14 +551,14 @@ CREATE TABLE `HUB_GATEWAY_AUTH_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `authConfigId`),
-  INDEX `idx_HUB_GATEWAY_AUTH_CONFIG_instance` (`gatewayInstanceId`),
-  INDEX `idx_HUB_GATEWAY_AUTH_CONFIG_route` (`routeConfigId`),
-  INDEX `idx_HUB_GATEWAY_AUTH_CONFIG_type` (`authType`),
-  INDEX `idx_HUB_GATEWAY_AUTH_CONFIG_priority` (`configPriority`)
+  INDEX `IDX_GW_AUTH_INST` (`gatewayInstanceId`),
+  INDEX `IDX_GW_AUTH_ROUTE` (`routeConfigId`),
+  INDEX `IDX_GW_AUTH_TYPE` (`authType`),
+  INDEX `IDX_GW_AUTH_PRIORITY` (`configPriority`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='认证配置表 - 存储认证相关规则';
 
 
-CREATE TABLE `HUB_GATEWAY_SERVICE_DEFINITION` (
+CREATE TABLE `HUB_GW_SERVICE_DEFINITION` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `serviceDefinitionId` VARCHAR(32) NOT NULL COMMENT '服务定义ID',
   `serviceName` VARCHAR(100) NOT NULL COMMENT '服务名称',
@@ -488,15 +612,15 @@ CREATE TABLE `HUB_GATEWAY_SERVICE_DEFINITION` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `serviceDefinitionId`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_DEFINITION_name` (`serviceName`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_DEFINITION_type` (`serviceType`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_DEFINITION_strategy` (`loadBalanceStrategy`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_DEFINITION_health` (`healthCheckEnabled`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_DEFINITION_proxy` (`proxyConfigId`)
+  INDEX `IDX_GW_SVC_NAME` (`serviceName`),
+  INDEX `IDX_GW_SVC_TYPE` (`serviceType`),
+  INDEX `IDX_GW_SVC_STRATEGY` (`loadBalanceStrategy`),
+  INDEX `IDX_GW_SVC_HEALTH` (`healthCheckEnabled`),
+  INDEX `IDX_GW_SVC_PROXY` (`proxyConfigId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务定义表 - 根据ServiceConfig结构设计,存储完整的服务配置';
 
 
-CREATE TABLE `HUB_GATEWAY_SERVICE_NODE` (
+CREATE TABLE `HUB_GW_SERVICE_NODE` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `serviceNodeId` VARCHAR(32) NOT NULL COMMENT '服务节点ID',
   `serviceDefinitionId` VARCHAR(32) NOT NULL COMMENT '关联的服务定义ID',
@@ -536,14 +660,14 @@ CREATE TABLE `HUB_GATEWAY_SERVICE_NODE` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `serviceNodeId`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_NODE_service` (`serviceDefinitionId`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_NODE_endpoint` (`nodeHost`, `nodePort`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_NODE_health` (`healthStatus`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_NODE_status` (`nodeStatus`)
+  INDEX `IDX_GW_NODE_SERVICE` (`serviceDefinitionId`),
+  INDEX `IDX_GW_NODE_ENDPOINT` (`nodeHost`, `nodePort`),
+  INDEX `IDX_GW_NODE_HEALTH` (`healthStatus`),
+  INDEX `IDX_GW_NODE_STATUS` (`nodeStatus`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务节点表 - 根据NodeConfig结构设计,存储服务节点实例信息';
 
 
-CREATE TABLE `HUB_GATEWAY_PROXY_CONFIG` (
+CREATE TABLE `HUB_GW_PROXY_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `proxyConfigId` VARCHAR(32) NOT NULL COMMENT '代理配置ID',
   `gatewayInstanceId` VARCHAR(32) NOT NULL COMMENT '网关实例ID(代理配置仅支持实例级)',
@@ -575,10 +699,10 @@ CREATE TABLE `HUB_GATEWAY_PROXY_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动/禁用,Y活动/启用)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `proxyConfigId`),
-  INDEX `idx_HUB_GATEWAY_PROXY_CONFIG_instance` (`gatewayInstanceId`),
-  INDEX `idx_HUB_GATEWAY_PROXY_CONFIG_type` (`proxyType`),
-  INDEX `idx_HUB_GATEWAY_PROXY_CONFIG_priority` (`configPriority`),
-  INDEX `idx_HUB_GATEWAY_PROXY_CONFIG_active` (`activeFlag`)
+  INDEX `IDX_GW_PROXY_INST` (`gatewayInstanceId`),
+  INDEX `IDX_GW_PROXY_TYPE` (`proxyType`),
+  INDEX `IDX_GW_PROXY_PRIORITY` (`configPriority`),
+  INDEX `IDX_GW_PROXY_ACTIVE` (`activeFlag`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='代理配置表 - 根据proxy.go逻辑设计,仅支持实例级代理配置';
 
 -- =====================================================
@@ -640,10 +764,10 @@ CREATE TABLE `HUB_TIMER_SCHEDULER` (
   `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
   
   PRIMARY KEY (`tenantId`, `schedulerId`),
-  KEY `idx_HUB_TIMER_SCHEDULER_name` (`schedulerName`),
-  KEY `idx_HUB_TIMER_SCHEDULER_instanceId` (`schedulerInstanceId`),
-  KEY `idx_HUB_TIMER_SCHEDULER_status` (`schedulerStatus`),
-  KEY `idx_HUB_TIMER_SCHEDULER_heartbeat` (`lastHeartbeatTime`)
+  KEY `IDX_TIMER_SCHED_NAME` (`schedulerName`),
+  KEY `IDX_TIMER_SCHED_INST` (`schedulerInstanceId`),
+  KEY `IDX_TIMER_SCHED_STATUS` (`schedulerStatus`),
+  KEY `IDX_TIMER_SCHED_HEART` (`lastHeartbeatTime`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='定时任务调度器表 - 存储调度器配置和状态信息';
 
 -- 2. 任务表 - 合并配置、运行时信息和最后执行结果
@@ -720,16 +844,16 @@ CREATE TABLE `HUB_TIMER_TASK` (
   `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
   
   PRIMARY KEY (`tenantId`, `taskId`),
-  KEY `idx_HUB_TIMER_TASK_name` (`taskName`),
-  KEY `idx_HUB_TIMER_TASK_schedulerId` (`schedulerId`),
-  KEY `idx_HUB_TIMER_TASK_scheduleType` (`scheduleType`),
-  KEY `idx_HUB_TIMER_TASK_status` (`taskStatus`),
-  KEY `idx_HUB_TIMER_TASK_nextRunTime` (`nextRunTime`),
-  KEY `idx_HUB_TIMER_TASK_lastRunTime` (`lastRunTime`),
-  KEY `idx_HUB_TIMER_TASK_activeFlag` (`activeFlag`),
-  KEY `idx_HUB_TIMER_TASK_executorType` (`executorType`),
-  KEY `idx_HUB_TIMER_TASK_toolConfigId` (`toolConfigId`),
-  KEY `idx_HUB_TIMER_TASK_operationType` (`operationType`)
+  KEY `IDX_TIMER_TASK_NAME` (`taskName`),
+  KEY `IDX_TIMER_TASK_SCHED` (`schedulerId`),
+  KEY `IDX_TIMER_TASK_TYPE` (`scheduleType`),
+  KEY `IDX_TIMER_TASK_STATUS` (`taskStatus`),
+  KEY `IDX_TIMER_TASK_NEXT` (`nextRunTime`),
+  KEY `IDX_TIMER_TASK_LAST` (`lastRunTime`),
+  KEY `IDX_TIMER_TASK_ACTIVE` (`activeFlag`),
+  KEY `IDX_TIMER_TASK_EXEC` (`executorType`),
+  KEY `IDX_TIMER_TASK_TOOL` (`toolConfigId`),
+  KEY `IDX_TIMER_TASK_OP` (`operationType`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='定时任务表 - 合并任务配置、运行时信息和最后执行结果';
 
 -- 3. 任务执行历史表 - 存储所有执行记录
@@ -804,14 +928,14 @@ CREATE TABLE `HUB_TIMER_EXECUTION_LOG` (
   `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
   
   PRIMARY KEY (`tenantId`, `executionId`),
-  KEY `idx_HUB_TIMER_EXECUTION_LOG_taskId` (`taskId`),
-  KEY `idx_HUB_TIMER_EXECUTION_LOG_taskName` (`taskName`),
-  KEY `idx_HUB_TIMER_EXECUTION_LOG_schedulerId` (`schedulerId`),
-  KEY `idx_HUB_TIMER_EXECUTION_LOG_startTime` (`executionStartTime`),
-  KEY `idx_HUB_TIMER_EXECUTION_LOG_status` (`executionStatus`),
-  KEY `idx_HUB_TIMER_EXECUTION_LOG_success` (`resultSuccess`),
-  KEY `idx_HUB_TIMER_EXECUTION_LOG_logLevel` (`logLevel`),
-  KEY `idx_HUB_TIMER_EXECUTION_LOG_logTimestamp` (`logTimestamp`)
+  KEY `IDX_TIMER_LOG_TASK` (`taskId`),
+  KEY `IDX_TIMER_LOG_NAME` (`taskName`),
+  KEY `IDX_TIMER_LOG_SCHED` (`schedulerId`),
+  KEY `IDX_TIMER_LOG_START` (`executionStartTime`),
+  KEY `IDX_TIMER_LOG_STATUS` (`executionStatus`),
+  KEY `IDX_TIMER_LOG_SUCCESS` (`resultSuccess`),
+  KEY `IDX_TIMER_LOG_LEVEL` (`logLevel`),
+  KEY `IDX_TIMER_LOG_TIME` (`logTimestamp`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='任务执行日志表 - 合并执行记录和日志信息';
 
 -- ===================================================
@@ -883,13 +1007,13 @@ CREATE TABLE `HUB_TOOL_CONFIG` (
   `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
   
   PRIMARY KEY (`tenantId`, `toolConfigId`),
-  KEY `idx_HUB_TOOL_CONFIG_toolName` (`toolName`),
-  KEY `idx_HUB_TOOL_CONFIG_toolType` (`toolType`),
-  KEY `idx_HUB_TOOL_CONFIG_configName` (`configName`),
-  KEY `idx_HUB_TOOL_CONFIG_configGroupId` (`configGroupId`),
-  KEY `idx_HUB_TOOL_CONFIG_configStatus` (`configStatus`),
-  KEY `idx_HUB_TOOL_CONFIG_defaultFlag` (`defaultFlag`),
-  KEY `idx_HUB_TOOL_CONFIG_activeFlag` (`activeFlag`)
+  KEY `IDX_TOOL_CONFIG_NAME` (`toolName`),
+  KEY `IDX_TOOL_CONFIG_TYPE` (`toolType`),
+  KEY `IDX_TOOL_CONFIG_CFGNAME` (`configName`),
+  KEY `IDX_TOOL_CONFIG_GROUP` (`configGroupId`),
+  KEY `IDX_TOOL_CONFIG_STATUS` (`configStatus`),
+  KEY `IDX_TOOL_CONFIG_DEFAULT` (`defaultFlag`),
+  KEY `IDX_TOOL_CONFIG_ACTIVE` (`activeFlag`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工具配置主表 - 存储各种工具的基础配置信息';
 
 -- 2. 工具配置分组表
@@ -937,9 +1061,189 @@ CREATE TABLE `HUB_TOOL_CONFIG_GROUP` (
   `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
   
   PRIMARY KEY (`tenantId`, `configGroupId`),
-  KEY `idx_HUB_TOOL_CONFIG_GROUP_groupName` (`groupName`),
-  KEY `idx_HUB_TOOL_CONFIG_GROUP_parentGroupId` (`parentGroupId`),
-  KEY `idx_HUB_TOOL_CONFIG_GROUP_groupType` (`groupType`),
-  KEY `idx_HUB_TOOL_CONFIG_GROUP_sortOrder` (`sortOrder`),
-  KEY `idx_HUB_TOOL_CONFIG_GROUP_activeFlag` (`activeFlag`)
+  KEY `IDX_TOOL_GROUP_NAME` (`groupName`),
+  KEY `IDX_TOOL_GROUP_PARENT` (`parentGroupId`),
+  KEY `IDX_TOOL_GROUP_TYPE` (`groupType`),
+  KEY `IDX_TOOL_GROUP_SORT` (`sortOrder`),
+  KEY `IDX_TOOL_GROUP_ACTIVE` (`activeFlag`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工具配置分组表 - 用于对工具配置进行分组管理';
+
+CREATE TABLE `HUB_GW_LOG_CONFIG` (
+  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
+  `logConfigId` VARCHAR(32) NOT NULL COMMENT '日志配置ID',
+  `configName` VARCHAR(100) NOT NULL COMMENT '配置名称',
+  `logLevel` VARCHAR(20) NOT NULL DEFAULT 'INFO' COMMENT '日志级别(DEBUG,INFO,WARN,ERROR)',
+  `logFormat` VARCHAR(50) NOT NULL DEFAULT 'JSON' COMMENT '日志格式(JSON,TEXT)',
+  `outputTargets` VARCHAR(200) NOT NULL DEFAULT 'CONSOLE' COMMENT '输出目标,逗号分隔(CONSOLE,FILE,DATABASE)',
+  `fileConfig` TEXT DEFAULT NULL COMMENT '文件输出配置,JSON格式',
+  `databaseConfig` TEXT DEFAULT NULL COMMENT '数据库输出配置,JSON格式',
+  `enableAccessLog` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '是否启用访问日志(N否,Y是)',
+  `enableErrorLog` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '是否启用错误日志(N否,Y是)',
+  `enableAuditLog` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否启用审计日志(N否,Y是)',
+  `logRetentionDays` INT NOT NULL DEFAULT 30 COMMENT '日志保留天数',
+  `sensitiveFields` TEXT DEFAULT NULL COMMENT '敏感字段列表,JSON数组格式',
+  `configPriority` INT NOT NULL DEFAULT 0 COMMENT '配置优先级,数值越小优先级越高',
+  `reserved1` VARCHAR(100) DEFAULT NULL COMMENT '预留字段1',
+  `reserved2` VARCHAR(100) DEFAULT NULL COMMENT '预留字段2',
+  `reserved3` INT DEFAULT NULL COMMENT '预留字段3',
+  `reserved4` INT DEFAULT NULL COMMENT '预留字段4',
+  `reserved5` DATETIME DEFAULT NULL COMMENT '预留字段5',
+  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性,JSON格式',
+  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
+  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
+  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
+  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+  PRIMARY KEY (`tenantId`, `logConfigId`),
+  INDEX `IDX_GW_LOG_NAME` (`configName`),
+  INDEX `IDX_GW_LOG_PRIORITY` (`configPriority`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='日志配置表 - 存储网关日志相关配置';
+
+-- 安全配置表 - 存储网关安全策略配置
+CREATE TABLE `HUB_GW_SECURITY_CONFIG` (
+  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
+  `securityConfigId` VARCHAR(32) NOT NULL COMMENT '安全配置ID',
+  `gatewayInstanceId` VARCHAR(32) DEFAULT NULL COMMENT '网关实例ID(实例级安全配置)',
+  `routeConfigId` VARCHAR(32) DEFAULT NULL COMMENT '路由配置ID(路由级安全配置)',
+  `configName` VARCHAR(100) NOT NULL COMMENT '安全配置名称',
+  `configDesc` VARCHAR(200) DEFAULT NULL COMMENT '安全配置描述',
+  `configPriority` INT NOT NULL DEFAULT 0 COMMENT '配置优先级,数值越小优先级越高',
+  `customConfigJson` TEXT DEFAULT NULL COMMENT '自定义配置参数,JSON格式',
+  `reserved1` VARCHAR(100) DEFAULT NULL COMMENT '预留字段1',
+  `reserved2` VARCHAR(100) DEFAULT NULL COMMENT '预留字段2',
+  `reserved3` INT DEFAULT NULL COMMENT '预留字段3',
+  `reserved4` INT DEFAULT NULL COMMENT '预留字段4',
+  `reserved5` DATETIME DEFAULT NULL COMMENT '预留字段5',
+  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性,JSON格式',
+  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
+  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
+  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
+  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+  PRIMARY KEY (`tenantId`, `securityConfigId`),
+  INDEX `idx_HUB_GW_SECURITY_CONFIG_instance` (`gatewayInstanceId`),
+  INDEX `idx_HUB_GW_SECURITY_CONFIG_route` (`routeConfigId`),
+  INDEX `idx_HUB_GW_SECURITY_CONFIG_priority` (`configPriority`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='安全配置表 - 存储网关安全策略配置';
+
+-- IP访问控制配置表 - 存储IP白名单黑名单规则
+CREATE TABLE `HUB_GW_IP_ACCESS_CONFIG` (
+  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
+  `ipAccessConfigId` VARCHAR(32) NOT NULL COMMENT 'IP访问配置ID',
+  `securityConfigId` VARCHAR(32) NOT NULL COMMENT '关联的安全配置ID',
+  `configName` VARCHAR(100) NOT NULL COMMENT 'IP访问配置名称',
+  `defaultPolicy` VARCHAR(10) NOT NULL DEFAULT 'allow' COMMENT '默认策略(allow允许,deny拒绝)',
+  `whitelistIps` TEXT DEFAULT NULL COMMENT 'IP白名单,JSON数组格式',
+  `blacklistIps` TEXT DEFAULT NULL COMMENT 'IP黑名单,JSON数组格式',
+  `whitelistCidrs` TEXT DEFAULT NULL COMMENT 'CIDR白名单,JSON数组格式',
+  `blacklistCidrs` TEXT DEFAULT NULL COMMENT 'CIDR黑名单,JSON数组格式',
+  `trustXForwardedFor` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '是否信任X-Forwarded-For头(N否,Y是)',
+  `trustXRealIp` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '是否信任X-Real-IP头(N否,Y是)',
+  `reserved1` VARCHAR(100) DEFAULT NULL COMMENT '预留字段1',
+  `reserved2` VARCHAR(100) DEFAULT NULL COMMENT '预留字段2',
+  `reserved3` INT DEFAULT NULL COMMENT '预留字段3',
+  `reserved4` INT DEFAULT NULL COMMENT '预留字段4',
+  `reserved5` DATETIME DEFAULT NULL COMMENT '预留字段5',
+  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性,JSON格式',
+  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
+  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
+  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
+  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+  PRIMARY KEY (`tenantId`, `ipAccessConfigId`),
+  INDEX `idx_HUB_GW_IP_ACCESS_CONFIG_security` (`securityConfigId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='IP访问控制配置表 - 存储IP白名单黑名单规则';
+
+-- User-Agent访问控制配置表 - 存储User-Agent过滤规则
+CREATE TABLE `HUB_GW_USERAGENT_ACCESS_CONFIG` (
+  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
+  `useragentAccessConfigId` VARCHAR(32) NOT NULL COMMENT 'User-Agent访问配置ID',
+  `securityConfigId` VARCHAR(32) NOT NULL COMMENT '关联的安全配置ID',
+  `configName` VARCHAR(100) NOT NULL COMMENT 'User-Agent访问配置名称',
+  `defaultPolicy` VARCHAR(10) NOT NULL DEFAULT 'allow' COMMENT '默认策略(allow允许,deny拒绝)',
+  `whitelistPatterns` TEXT DEFAULT NULL COMMENT 'User-Agent白名单模式,JSON数组格式,支持正则表达式',
+  `blacklistPatterns` TEXT DEFAULT NULL COMMENT 'User-Agent黑名单模式,JSON数组格式,支持正则表达式',
+  `blockEmptyUserAgent` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否阻止空User-Agent(N否,Y是)',
+  `reserved1` VARCHAR(100) DEFAULT NULL COMMENT '预留字段1',
+  `reserved2` VARCHAR(100) DEFAULT NULL COMMENT '预留字段2',
+  `reserved3` INT DEFAULT NULL COMMENT '预留字段3',
+  `reserved4` INT DEFAULT NULL COMMENT '预留字段4',
+  `reserved5` DATETIME DEFAULT NULL COMMENT '预留字段5',
+  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性,JSON格式',
+  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
+  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
+  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
+  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+  PRIMARY KEY (`tenantId`, `useragentAccessConfigId`),
+  INDEX `idx_HUB_GW_USERAGENT_ACCESS_CONFIG_security` (`securityConfigId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='User-Agent访问控制配置表 - 存储User-Agent过滤规则';
+
+-- API访问控制配置表 - 存储API路径和方法过滤规则
+CREATE TABLE `HUB_GW_API_ACCESS_CONFIG` (
+  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
+  `apiAccessConfigId` VARCHAR(32) NOT NULL COMMENT 'API访问配置ID',
+  `securityConfigId` VARCHAR(32) NOT NULL COMMENT '关联的安全配置ID',
+  `configName` VARCHAR(100) NOT NULL COMMENT 'API访问配置名称',
+  `defaultPolicy` VARCHAR(10) NOT NULL DEFAULT 'allow' COMMENT '默认策略(allow允许,deny拒绝)',
+  `whitelistPaths` TEXT DEFAULT NULL COMMENT 'API路径白名单,JSON数组格式,支持通配符',
+  `blacklistPaths` TEXT DEFAULT NULL COMMENT 'API路径黑名单,JSON数组格式,支持通配符',
+  `allowedMethods` VARCHAR(200) DEFAULT 'GET,POST,PUT,DELETE,PATCH,HEAD,OPTIONS' COMMENT '允许的HTTP方法,逗号分隔',
+  `blockedMethods` VARCHAR(200) DEFAULT NULL COMMENT '禁止的HTTP方法,逗号分隔',
+  `reserved1` VARCHAR(100) DEFAULT NULL COMMENT '预留字段1',
+  `reserved2` VARCHAR(100) DEFAULT NULL COMMENT '预留字段2',
+  `reserved3` INT DEFAULT NULL COMMENT '预留字段3',
+  `reserved4` INT DEFAULT NULL COMMENT '预留字段4',
+  `reserved5` DATETIME DEFAULT NULL COMMENT '预留字段5',
+  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性,JSON格式',
+  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
+  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
+  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
+  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+  PRIMARY KEY (`tenantId`, `apiAccessConfigId`),
+  INDEX `idx_HUB_GW_API_ACCESS_CONFIG_security` (`securityConfigId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='API访问控制配置表 - 存储API路径和方法过滤规则';
+
+-- 域名访问控制配置表 - 存储域名白名单黑名单规则
+CREATE TABLE `HUB_GW_DOMAIN_ACCESS_CONFIG` (
+  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
+  `domainAccessConfigId` VARCHAR(32) NOT NULL COMMENT '域名访问配置ID',
+  `securityConfigId` VARCHAR(32) NOT NULL COMMENT '关联的安全配置ID',
+  `configName` VARCHAR(100) NOT NULL COMMENT '域名访问配置名称',
+  `defaultPolicy` VARCHAR(10) NOT NULL DEFAULT 'allow' COMMENT '默认策略(allow允许,deny拒绝)',
+  `whitelistDomains` TEXT DEFAULT NULL COMMENT '域名白名单,JSON数组格式',
+  `blacklistDomains` TEXT DEFAULT NULL COMMENT '域名黑名单,JSON数组格式',
+  `allowSubdomains` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '是否允许子域名(N否,Y是)',
+  `reserved1` VARCHAR(100) DEFAULT NULL COMMENT '预留字段1',
+  `reserved2` VARCHAR(100) DEFAULT NULL COMMENT '预留字段2',
+  `reserved3` INT DEFAULT NULL COMMENT '预留字段3',
+  `reserved4` INT DEFAULT NULL COMMENT '预留字段4',
+  `reserved5` DATETIME DEFAULT NULL COMMENT '预留字段5',
+  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性,JSON格式',
+  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
+  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
+  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
+  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+  PRIMARY KEY (`tenantId`, `domainAccessConfigId`),
+  INDEX `idx_HUB_GW_DOMAIN_ACCESS_CONFIG_security` (`securityConfigId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='域名访问控制配置表 - 存储域名白名单黑名单规则';

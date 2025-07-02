@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// ServiceDefinition 服务定义模型，对应数据库HUB_GATEWAY_SERVICE_DEFINITION表
+// ServiceDefinition 服务定义模型，对应数据库HUB_GW_SERVICE_DEFINITION表
 type ServiceDefinition struct {
 	TenantId            string `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                         // 租户ID，联合主键
 	ServiceDefinitionId string `json:"serviceDefinitionId" form:"serviceDefinitionId" query:"serviceDefinitionId" db:"serviceDefinitionId"` // 服务定义ID，联合主键
@@ -67,7 +67,7 @@ type ServiceDefinition struct {
 
 // TableName 返回表名
 func (ServiceDefinition) TableName() string {
-	return "HUB_GATEWAY_SERVICE_DEFINITION"
+	return "HUB_GW_SERVICE_DEFINITION"
 }
 
 // ServiceDefinitionWithProxy 服务定义和代理配置的组合VO，用于按实例查询时的返回

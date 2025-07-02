@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// GatewayInstance 网关实例模型，对应数据库HUB_GATEWAY_INSTANCE表
+// GatewayInstance 网关实例模型，对应数据库HUB_GW_INSTANCE表
 type GatewayInstance struct {
 	TenantId          string `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                     // 租户ID，联合主键
 	GatewayInstanceId string `json:"gatewayInstanceId" form:"gatewayInstanceId" query:"gatewayInstanceId" db:"gatewayInstanceId"` // 网关实例ID，联合主键
@@ -77,5 +77,5 @@ type GatewayInstance struct {
 
 // TableName 返回表名
 func (GatewayInstance) TableName() string {
-	return "HUB_GATEWAY_INSTANCE"
+	return "HUB_GW_INSTANCE"
 }

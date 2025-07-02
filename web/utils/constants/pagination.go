@@ -6,7 +6,7 @@ package constants
 const DefaultPage = "1"
 
 // DefaultPageSize 默认每页记录数
-const DefaultPageSize = "10"
+const DefaultPageSize = "30"
 
 // MinPageSize 最小每页记录数
 const MinPageSize = 1

@@ -16,6 +16,7 @@ import (
 	"gohub/internal/gateway/handler/proxy"
 	"gohub/internal/gateway/handler/router"
 	"gohub/internal/gateway/handler/security"
+	"gohub/internal/gateway/logwrite"
 	"gohub/pkg/logger"
 )
 
@@ -221,8 +222,21 @@ func (g *Gateway) setupHandlers() {
 
 // ServeHTTP 实现http.Handler接口
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// 直接使用Engine处理请求，Engine会按照setupHandlers中设置的顺序执行处理器链
-	g.engine.Handle(w, r)
+	// 创建网关上下文，这个上下文将贯穿整个请求处理过程
+	ctx := core.NewContext(w, r)
+	// 使用Engine的HandleWithContext方法处理请求
+	// 这样可以确保日志记录使用的是同一个上下文
+	g.engine.HandleWithContext(ctx,w,r)
+	
+	// 链路处理完成后，异步写入访问日志
+	// 现在使用的是同一个上下文，包含完整的处理信息
+	go func() {
+		if err := logwrite.WriteLog("default-gateway-log", ctx); err != nil {
+			logger.Error("Failed to write access log", "error", err)
+		}
+	}()
+	
+	
 }
 
 // Start 启动网关

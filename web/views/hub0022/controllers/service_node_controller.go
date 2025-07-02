@@ -42,13 +42,8 @@ func (c *ServiceNodeController) QueryServiceNodes(ctx *gin.Context) {
 		return
 	}
 
-	// 设置默认分页参数
-	if req.Page < 1 {
-		req.Page = 1
-	}
-	if req.PageSize < 1 {
-		req.PageSize = 10
-	}
+	// 获取分页参数
+	page, pageSize := request.GetPaginationParams(ctx)
 
 	// 从上下文获取租户ID
 	tenantId := request.GetTenantID(ctx)
@@ -67,7 +62,7 @@ func (c *ServiceNodeController) QueryServiceNodes(ctx *gin.Context) {
 	}
 
 	// 调用DAO获取服务节点列表
-	nodes, total, err := c.serviceNodeDAO.QueryServiceNodes(ctx, tenantId, req.Page, req.PageSize, filters)
+	nodes, total, err := c.serviceNodeDAO.QueryServiceNodes(ctx, tenantId, page, pageSize, filters)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取服务节点列表失败", err)
 		response.ErrorJSON(ctx, "获取服务节点列表失败: "+err.Error(), constants.ED00009)
@@ -81,7 +76,7 @@ func (c *ServiceNodeController) QueryServiceNodes(ctx *gin.Context) {
 	}
 
 	// 创建分页信息并返回
-	pageInfo := response.NewPageInfo(req.Page, req.PageSize, total)
+	pageInfo := response.NewPageInfo(page, pageSize, total)
 	pageInfo.MainKey = "serviceNodeId"
 
 	// 使用统一的分页响应
@@ -466,10 +461,8 @@ func (c *ServiceNodeController) UpdateNodeHealth(ctx *gin.Context) {
 
 // QueryServiceNodesRequest 查询服务节点列表请求
 type QueryServiceNodesRequest struct {
-	Page                int    `json:"page" form:"page" query:"page"`                 // 页码
-	PageSize            int    `json:"pageSize" form:"pageSize" query:"pageSize"`     // 每页数量
-	NodeHost            string `json:"nodeHost" form:"nodeHost" query:"nodeHost"`     // 节点主机地址
-	HealthStatus        string `json:"healthStatus" form:"healthStatus" query:"healthStatus"` // 健康状态
+	NodeHost     string `json:"nodeHost" form:"nodeHost" query:"nodeHost"`         // 节点主机地址
+	HealthStatus string `json:"healthStatus" form:"healthStatus" query:"healthStatus"` // 健康状态
 }
 
 // DeleteServiceNodeRequest 删除服务节点请求

@@ -1,0 +1,137 @@
+# GoHub 交叉编译 Dockerfile
+# 支持从 Windows 构建 Linux/macOS/Windows 版本（包含 Oracle 支持）
+
+# 基础镜像：包含所有必要的构建工具
+FROM golang:1.21-bullseye AS base
+
+# 安装交叉编译工具和依赖
+RUN apt-get update && apt-get install -y \
+    gcc-aarch64-linux-gnu \
+    gcc-x86-64-linux-gnu \
+    libc6-dev-arm64-cross \
+    libc6-dev-amd64-cross \
+    wget \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Oracle Instant Client 准备阶段
+FROM base AS oracle-prep
+
+# 下载并安装 Oracle Instant Client (Linux x86_64)
+RUN mkdir -p /opt/oracle && \
+    cd /opt/oracle && \
+    wget -q https://download.oracle.com/otn_software/linux/instantclient/2118000/instantclient-basic-linux.x64-21.18.0.0.0.zip && \
+    unzip instantclient-basic-linux.x64-21.18.0.0.0.zip && \
+    rm instantclient-basic-linux.x64-21.18.0.0.0.zip && \
+    mv instantclient_21_18 instantclient-linux-amd64
+
+# 下载 Oracle Instant Client (Linux ARM64)
+RUN cd /opt/oracle && \
+    wget -q https://download.oracle.com/otn_software/linux/instantclient/2118000/instantclient-basic-linux.arm64-21.18.0.0.0.zip && \
+    unzip instantclient-basic-linux.arm64-21.18.0.0.0.zip && \
+    rm instantclient-basic-linux.arm64-21.18.0.0.0.zip && \
+    mv instantclient_21_18 instantclient-linux-arm64
+
+# 编译阶段
+FROM oracle-prep AS builder
+
+WORKDIR /build
+
+# 复制源代码
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+# 构建参数
+ARG TARGET_OS=linux
+ARG TARGET_ARCH=amd64
+ARG ENABLE_ORACLE=false
+ARG VERSION=latest
+ARG BUILD_TIME
+ARG GIT_COMMIT
+
+# 设置构建环境
+ENV CGO_ENABLED=1
+ENV GOOS=${TARGET_OS}
+ENV GOARCH=${TARGET_ARCH}
+
+# 根据目标操作系统和架构设置交叉编译工具
+RUN if [ "$TARGET_OS" = "windows" ]; then \
+        # Windows 构建不需要 CGO，使用纯 Go 构建
+        export CGO_ENABLED=0; \
+    elif [ "$TARGET_ARCH" = "arm64" ]; then \
+        export CC=aarch64-linux-gnu-gcc && \
+        export CXX=aarch64-linux-gnu-g++ && \
+        export CGO_LDFLAGS="-L/opt/oracle/instantclient-linux-arm64" && \
+        export LD_LIBRARY_PATH="/opt/oracle/instantclient-linux-arm64:$LD_LIBRARY_PATH" && \
+        export ORACLE_HOME="/opt/oracle/instantclient-linux-arm64"; \
+    else \
+        export CC=x86_64-linux-gnu-gcc && \
+        export CXX=x86_64-linux-gnu-g++ && \
+        export CGO_LDFLAGS="-L/opt/oracle/instantclient-linux-amd64" && \
+        export LD_LIBRARY_PATH="/opt/oracle/instantclient-linux-amd64:$LD_LIBRARY_PATH" && \
+        export ORACLE_HOME="/opt/oracle/instantclient-linux-amd64"; \
+    fi
+
+# 构建应用
+RUN set -x && \
+    if [ "$TARGET_OS" = "windows" ]; then \
+        echo "Building for Windows (Oracle not supported on Windows)..." && \
+        CGO_ENABLED=0 go build -ldflags="-s -w -X 'main.Version=${VERSION}' -X 'main.BuildTime=${BUILD_TIME}' -X 'main.GitCommit=${GIT_COMMIT}'" \
+            -o gohub-${TARGET_OS}-${TARGET_ARCH}.exe cmd/app/main.go; \
+    elif [ "$ENABLE_ORACLE" = "true" ]; then \
+        echo "Building with Oracle support..." && \
+        # 启用 Oracle 驱动
+        sed -i 's|// _ "gohub/pkg/database/oracle"|_ "gohub/pkg/database/oracle"|' pkg/database/alldriver/drivers.go && \
+        # 设置 Oracle 环境变量
+        if [ "$TARGET_ARCH" = "arm64" ]; then \
+            export LD_LIBRARY_PATH="/opt/oracle/instantclient-linux-arm64:$LD_LIBRARY_PATH" && \
+            export ORACLE_HOME="/opt/oracle/instantclient-linux-arm64" && \
+            export CC=aarch64-linux-gnu-gcc; \
+        else \
+            export LD_LIBRARY_PATH="/opt/oracle/instantclient-linux-amd64:$LD_LIBRARY_PATH" && \
+            export ORACLE_HOME="/opt/oracle/instantclient-linux-amd64" && \
+            export CC=x86_64-linux-gnu-gcc; \
+        fi && \
+        go build -tags oracle -ldflags="-s -w -X 'main.Version=${VERSION}' -X 'main.BuildTime=${BUILD_TIME}' -X 'main.GitCommit=${GIT_COMMIT}'" \
+            -o gohub-${TARGET_OS}-${TARGET_ARCH}-oracle cmd/app/main.go; \
+    else \
+        echo "Building without Oracle support..." && \
+        CGO_ENABLED=0 go build -ldflags="-s -w -X 'main.Version=${VERSION}' -X 'main.BuildTime=${BUILD_TIME}' -X 'main.GitCommit=${GIT_COMMIT}'" \
+            -o gohub-${TARGET_OS}-${TARGET_ARCH} cmd/app/main.go; \
+    fi
+
+# 运行时镜像
+FROM alpine:latest AS runtime
+
+RUN apk --no-cache add ca-certificates tzdata
+
+# 从构建阶段复制可执行文件
+COPY --from=builder /build/gohub-* /usr/local/bin/
+
+# 如果包含 Oracle 支持，复制必要的库文件
+ARG TARGET_ARCH=amd64
+ARG ENABLE_ORACLE=false
+
+RUN if [ "$ENABLE_ORACLE" = "true" ]; then \
+        mkdir -p /opt/oracle/instantclient; \
+    fi
+
+COPY --from=oracle-prep /opt/oracle/instantclient-linux-${TARGET_ARCH} /opt/oracle/instantclient/
+
+# 设置运行时环境
+ENV LD_LIBRARY_PATH=/opt/oracle/instantclient:$LD_LIBRARY_PATH
+ENV ORACLE_HOME=/opt/oracle/instantclient
+
+WORKDIR /app
+
+# 创建非 root 用户
+RUN addgroup -g 1001 -S gohub && \
+    adduser -S gohub -u 1001 -G gohub
+
+USER gohub
+
+EXPOSE 8080 9090
+
+CMD ["gohub"] 

@@ -3,6 +3,7 @@ package dao
 import (
 	"context"
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 	"gohub/web/views/hubplugin/common/models"
 	"strings"
 )
@@ -43,7 +44,7 @@ func (d *ToolConfigDao) Add(ctx context.Context, toolConfig *models.ToolConfig) 
 // GetById 根据ID获取工具配置
 func (d *ToolConfigDao) GetById(ctx context.Context, tenantId, toolConfigId string) (*models.ToolConfig, error) {
 	toolConfig := &models.ToolConfig{}
-	query := "SELECT * FROM " + toolConfig.TableName() + " WHERE tenantId = ? AND toolConfigId = ? AND activeFlag = 'Y'"
+	query := "SELECT * FROM " + toolConfig.TableName() + " WHERE tenantId = ? AND toolConfigId = ?"
 	err := d.db.QueryOne(ctx, toolConfig, query, []interface{}{tenantId, toolConfigId}, true)
 	if err != nil {
 		if err == database.ErrRecordNotFound {
@@ -184,19 +185,19 @@ func (d *ToolConfigDao) Update(ctx context.Context, toolConfig *models.ToolConfi
 	return d.db.Exec(ctx, query, args, true)
 }
 
-// Delete 删除工具配置（逻辑删除）
+// Delete 删除工具配置（物理删除）
 func (d *ToolConfigDao) Delete(ctx context.Context, tenantId, toolConfigId, operatorId string) (int64, error) {
-	query := "UPDATE " + (&models.ToolConfig{}).TableName() + " SET activeFlag = 'N', editWho = ?, editTime = NOW() " +
-		"WHERE tenantId = ? AND toolConfigId = ? AND activeFlag = 'Y'"
-	return d.db.Exec(ctx, query, []interface{}{operatorId, tenantId, toolConfigId}, true)
+	query := "DELETE FROM " + (&models.ToolConfig{}).TableName() + 
+		" WHERE tenantId = ? AND toolConfigId = ?"
+	return d.db.Exec(ctx, query, []interface{}{tenantId, toolConfigId}, true)
 }
 
 // Query 查询工具配置列表
 func (d *ToolConfigDao) Query(ctx context.Context, params map[string]interface{}, page, pageSize int) ([]*models.ToolConfig, int64, error) {
 	var toolConfigs []*models.ToolConfig
 
-	// 构建查询条件
-	whereClause := "WHERE activeFlag = 'Y' "
+	// 构建基础查询条件
+	whereClause := "WHERE 1=1 "
 	args := []interface{}{}
 
 	// 租户ID条件（必需）
@@ -235,12 +236,20 @@ func (d *ToolConfigDao) Query(ctx context.Context, params map[string]interface{}
 		args = append(args, "%"+hostAddress+"%")
 	}
 
+	// 构建基础查询语句
+	baseQuery := "SELECT * FROM " + (&models.ToolConfig{}).TableName() + " " + whereClause + "ORDER BY addTime DESC"
+
+	// 使用标准化的COUNT查询构建
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, err
+	}
+
 	// 计算总记录数
-	countQuery := "SELECT COUNT(*) FROM " + (&models.ToolConfig{}).TableName() + " " + whereClause
 	var result struct {
 		Count int64 `db:"COUNT(*)"`
 	}
-	err := d.db.QueryOne(ctx, &result, countQuery, args, true)
+	err = d.db.QueryOne(ctx, &result, countQuery, args, true)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -250,12 +259,23 @@ func (d *ToolConfigDao) Query(ctx context.Context, params map[string]interface{}
 		return []*models.ToolConfig{}, 0, nil
 	}
 
-	// 查询数据
-	query := "SELECT * FROM " + (&models.ToolConfig{}).TableName() + " " + whereClause +
-		"ORDER BY addTime DESC LIMIT ?, ?"
-	args = append(args, (page-1)*pageSize, pageSize)
+	// 创建分页信息
+	pagination := sqlutils.NewPaginationInfo(page, pageSize)
 
-	err = d.db.Query(ctx, &toolConfigs, query, args, true)
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(d.db)
+
+	// 使用标准化的分页查询构建
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// 合并查询参数
+	allArgs := append(args, paginationArgs...)
+
+	// 查询数据
+	err = d.db.Query(ctx, &toolConfigs, paginatedQuery, allArgs, true)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -267,7 +287,7 @@ func (d *ToolConfigDao) Query(ctx context.Context, params map[string]interface{}
 func (d *ToolConfigDao) GetByGroupId(ctx context.Context, tenantId, configGroupId string) ([]*models.ToolConfig, error) {
 	var toolConfigs []*models.ToolConfig
 	query := "SELECT * FROM " + (&models.ToolConfig{}).TableName() + 
-		" WHERE tenantId = ? AND configGroupId = ? AND activeFlag = 'Y' ORDER BY addTime DESC"
+		" WHERE tenantId = ? AND configGroupId = ? ORDER BY addTime DESC"
 	args := []interface{}{tenantId, configGroupId}
 
 	err := d.db.Query(ctx, &toolConfigs, query, args, true)

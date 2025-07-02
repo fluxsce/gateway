@@ -132,8 +132,17 @@ func (loader *DatabaseConfigLoader) LoadGatewayConfig(instanceId string) (*confi
 			ErrorStatusCode: 429,
 			ErrorMessage:    "Rate limit exceeded",
 		}
-	} else {
+	} else if rateLimitConfig != nil {
 		gatewayConfig.RateLimit = *rateLimitConfig
+	} else {
+		gatewayConfig.RateLimit = limiter.RateLimitConfig{
+			Enabled:         false,
+			Algorithm:       limiter.AlgorithmTokenBucket,
+			Rate:            100,
+			Burst:           50,
+			ErrorStatusCode: 429,
+			ErrorMessage:    "Rate limit exceeded",
+		}
 	}
 
 	// 9. 为每个路由加载路由级别配置

@@ -2,10 +2,11 @@ package dao
 
 import (
 	"context"
+	"errors"
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 	"gohub/pkg/utils/huberrors"
 	"gohub/web/views/hub0022/models"
-	"errors"
 )
 
 // GatewayInstanceDAO 网关实例数据访问对象
@@ -22,23 +23,20 @@ func NewGatewayInstanceDAO(db database.Database) *GatewayInstanceDAO {
 
 // ListAllGatewayInstances 获取所有网关实例列表（跨租户查询，仅限管理员使用）
 func (dao *GatewayInstanceDAO) ListAllGatewayInstances(ctx context.Context, page, pageSize int) ([]*models.GatewayInstance, int, error) {
-	// 确保分页参数有效
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 10
+	// 构建基础查询语句
+	baseQuery := "SELECT * FROM HUB_GW_INSTANCE WHERE activeFlag = 'Y' ORDER BY addTime DESC"
+
+	// 构建统计查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建统计查询失败")
 	}
 
-	// 计算偏移量
-	offset := (page - 1) * pageSize
-
-	// 查询总数
-	countQuery := `SELECT COUNT(*) FROM HUB_GATEWAY_INSTANCE WHERE activeFlag = 'Y'`
+	// 执行统计查询
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err := dao.db.QueryOne(ctx, &result, countQuery, []interface{}{}, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, []interface{}{}, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询网关实例总数失败")
 	}
@@ -49,16 +47,21 @@ func (dao *GatewayInstanceDAO) ListAllGatewayInstances(ctx context.Context, page
 		return []*models.GatewayInstance{}, 0, nil
 	}
 
-	// 查询数据
-	dataQuery := `
-		SELECT * FROM HUB_GATEWAY_INSTANCE 
-		WHERE activeFlag = 'Y'
-		ORDER BY addTime DESC
-		LIMIT ? OFFSET ?
-	`
+	// 创建分页信息
+	pagination := sqlutils.NewPaginationInfo(page, pageSize)
 
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
+	}
+
+	// 执行分页查询
 	var instances []*models.GatewayInstance
-	err = dao.db.Query(ctx, &instances, dataQuery, []interface{}{pageSize, offset}, true)
+	err = dao.db.Query(ctx, &instances, paginatedQuery, paginationArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询网关实例列表失败")
 	}
@@ -73,7 +76,7 @@ func (dao *GatewayInstanceDAO) GetGatewayInstanceById(ctx context.Context, gatew
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_INSTANCE 
+		SELECT * FROM HUB_GW_INSTANCE 
 		WHERE gatewayInstanceId = ? AND tenantId = ?
 	`
 
@@ -105,7 +108,7 @@ func (dao *GatewayInstanceDAO) DeleteGatewayInstance(ctx context.Context, gatewa
 	}
 
 	// 执行物理删除
-	sql := `DELETE FROM HUB_GATEWAY_INSTANCE WHERE gatewayInstanceId = ? AND tenantId = ?`
+	sql := `DELETE FROM HUB_GW_INSTANCE WHERE gatewayInstanceId = ? AND tenantId = ?`
 	
 	result, err := dao.db.Exec(ctx, sql, []interface{}{gatewayInstanceId, tenantId}, true)
 	if err != nil {
@@ -125,17 +128,6 @@ func (dao *GatewayInstanceDAO) QueryGatewayInstances(ctx context.Context, tenant
 	if tenantId == "" {
 		return nil, 0, errors.New("tenantId不能为空")
 	}
-
-	// 确保分页参数有效
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 10
-	}
-
-	// 计算偏移量
-	offset := (page - 1) * pageSize
 
 	// 构建基础查询条件
 	whereClause := "WHERE tenantId = ?"
@@ -157,12 +149,20 @@ func (dao *GatewayInstanceDAO) QueryGatewayInstances(ctx context.Context, tenant
 		}
 	}
 
-	// 查询总数
-	countQuery := `SELECT COUNT(*) FROM HUB_GATEWAY_INSTANCE ` + whereClause
+	// 构建基础查询语句
+	baseQuery := "SELECT * FROM HUB_GW_INSTANCE " + whereClause + " ORDER BY addTime DESC"
+
+	// 构建统计查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建统计查询失败")
+	}
+
+	// 执行统计查询
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err := dao.db.QueryOne(ctx, &result, countQuery, params, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询网关实例总数失败")
 	}
@@ -173,19 +173,24 @@ func (dao *GatewayInstanceDAO) QueryGatewayInstances(ctx context.Context, tenant
 		return []*models.GatewayInstance{}, 0, nil
 	}
 
-	// 查询数据
-	dataQuery := `
-		SELECT * FROM HUB_GATEWAY_INSTANCE 
-		` + whereClause + `
-		ORDER BY addTime DESC
-		LIMIT ? OFFSET ?
-	`
+	// 创建分页信息
+	pagination := sqlutils.NewPaginationInfo(page, pageSize)
 
-	// 添加分页参数
-	params = append(params, pageSize, offset)
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
 
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
+	}
+
+	// 合并查询参数
+	allArgs := append(params, paginationArgs...)
+
+	// 执行分页查询
 	var instances []*models.GatewayInstance
-	err = dao.db.Query(ctx, &instances, dataQuery, params, true)
+	err = dao.db.Query(ctx, &instances, paginatedQuery, allArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询网关实例列表失败")
 	}

@@ -780,12 +780,12 @@ CREATE TABLE `HUB_GATEWAY_CONFIG_BACKUP` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网关配置备份表 - 用于配置快照和回滚';
 ```
 
-### 12.2 网关实例表 (HUB_GATEWAY_INSTANCE)
+### 12.2 网关实例表 (HUB_GW_INSTANCE)
 
 记录网关实例的基础配置信息。
 
 ```sql
-CREATE TABLE `HUB_GATEWAY_INSTANCE` (
+CREATE TABLE `HUB_GW_INSTANCE` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `gatewayInstanceId` VARCHAR(32) NOT NULL COMMENT '网关实例ID',
     `instanceName` VARCHAR(100) NOT NULL COMMENT '实例名称',
@@ -844,20 +844,20 @@ CREATE TABLE `HUB_GATEWAY_INSTANCE` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `gatewayInstanceId`),
-  INDEX `idx_HUB_GATEWAY_INSTANCE_bind_http` (`bindAddress`, `httpPort`),
-  INDEX `idx_HUB_GATEWAY_INSTANCE_bind_https` (`bindAddress`, `httpsPort`),
-  INDEX `idx_HUB_GATEWAY_INSTANCE_log` (`logConfigId`),
-  INDEX `idx_HUB_GATEWAY_INSTANCE_health` (`healthStatus`),
-  INDEX `idx_HUB_GATEWAY_INSTANCE_tls` (`tlsEnabled`)
+  INDEX `idx_HUB_GW_INSTANCE_bind_http` (`bindAddress`, `httpPort`),
+  INDEX `idx_HUB_GW_INSTANCE_bind_https` (`bindAddress`, `httpsPort`),
+  INDEX `idx_HUB_GW_INSTANCE_log` (`logConfigId`),
+  INDEX `idx_HUB_GW_INSTANCE_health` (`healthStatus`),
+  INDEX `idx_HUB_GW_INSTANCE_tls` (`tlsEnabled`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网关实例表 - 记录网关实例基础配置，完整支持Go HTTP Server配置';
 ```
 
-### 12.3 Router配置表 (HUB_GATEWAY_ROUTER_CONFIG)
+### 12.3 Router配置表 (HUB_GW_ROUTER_CONFIG)
 
 存储网关Router级别的配置信息，包含路由缓存、过滤器执行等配置。
 
 ```sql
-CREATE TABLE `HUB_GATEWAY_ROUTER_CONFIG` (
+CREATE TABLE `HUB_GW_ROUTER_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `routerConfigId` VARCHAR(32) NOT NULL COMMENT 'Router配置ID',
   `gatewayInstanceId` VARCHAR(32) NOT NULL COMMENT '关联的网关实例ID',
@@ -915,19 +915,19 @@ CREATE TABLE `HUB_GATEWAY_ROUTER_CONFIG` (
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   
   PRIMARY KEY (`tenantId`, `routerConfigId`),
-  INDEX `idx_HUB_GATEWAY_ROUTER_CONFIG_instance` (`gatewayInstanceId`),
-  INDEX `idx_HUB_GATEWAY_ROUTER_CONFIG_name` (`routerName`),
-  INDEX `idx_HUB_GATEWAY_ROUTER_CONFIG_active` (`activeFlag`),
-  INDEX `idx_HUB_GATEWAY_ROUTER_CONFIG_cache` (`enableRouteCache`)
+  INDEX `idx_HUB_GW_ROUTER_CONFIG_instance` (`gatewayInstanceId`),
+  INDEX `idx_HUB_GW_ROUTER_CONFIG_name` (`routerName`),
+  INDEX `idx_HUB_GW_ROUTER_CONFIG_active` (`activeFlag`),
+  INDEX `idx_HUB_GW_ROUTER_CONFIG_cache` (`enableRouteCache`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Router配置表 - 存储网关Router级别配置';
 ```
 
-### 12.4 路由定义表 (HUB_GATEWAY_ROUTE_CONFIG)
+### 12.4 路由定义表 (HUB_GW_ROUTE_CONFIG)
 
 存储API路由的定义配置，包含服务关联字段。
 
 ```sql
-CREATE TABLE `HUB_GATEWAY_ROUTE_CONFIG` (
+CREATE TABLE `HUB_GW_ROUTE_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `routeConfigId` VARCHAR(32) NOT NULL COMMENT '路由配置ID',
   `gatewayInstanceId` VARCHAR(32) NOT NULL COMMENT '关联的网关实例ID',
@@ -972,21 +972,21 @@ CREATE TABLE `HUB_GATEWAY_ROUTE_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动/禁用,Y活动/启用)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `routeConfigId`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_CONFIG_instance` (`gatewayInstanceId`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_CONFIG_service` (`serviceDefinitionId`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_CONFIG_log` (`logConfigId`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_CONFIG_priority` (`routePriority`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_CONFIG_path` (`routePath`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_CONFIG_active` (`activeFlag`)
+  INDEX `idx_HUB_GW_ROUTE_CONFIG_instance` (`gatewayInstanceId`),
+  INDEX `idx_HUB_GW_ROUTE_CONFIG_service` (`serviceDefinitionId`),
+  INDEX `idx_HUB_GW_ROUTE_CONFIG_log` (`logConfigId`),
+  INDEX `idx_HUB_GW_ROUTE_CONFIG_priority` (`routePriority`),
+  INDEX `idx_HUB_GW_ROUTE_CONFIG_path` (`routePath`),
+  INDEX `idx_HUB_GW_ROUTE_CONFIG_active` (`activeFlag`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='路由定义表 - 存储API路由配置,使用activeFlag统一管理启用状态';
 ```
 
-### 12.4 路由断言表 (HUB_GATEWAY_ROUTE_ASSERTION)
+### 12.4 路由断言表 (HUB_GW_ROUTE_ASSERTION)
 
 存储路由的断言规则配置。
 
 ```sql
-CREATE TABLE `HUB_GATEWAY_ROUTE_ASSERTION` (
+CREATE TABLE `HUB_GW_ROUTE_ASSERTION` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `routeAssertionId` VARCHAR(32) NOT NULL COMMENT '路由断言ID',
   `routeConfigId` VARCHAR(32) NOT NULL COMMENT '关联的路由配置ID',
@@ -1015,18 +1015,18 @@ CREATE TABLE `HUB_GATEWAY_ROUTE_ASSERTION` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `routeAssertionId`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_ASSERTION_route` (`routeConfigId`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_ASSERTION_type` (`assertionType`),
-  INDEX `idx_HUB_GATEWAY_ROUTE_ASSERTION_order` (`assertionOrder`)
+  INDEX `idx_HUB_GW_ROUTE_ASSERTION_route` (`routeConfigId`),
+  INDEX `idx_HUB_GW_ROUTE_ASSERTION_type` (`assertionType`),
+  INDEX `idx_HUB_GW_ROUTE_ASSERTION_order` (`assertionOrder`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='路由断言表 - 存储路由匹配断言规则';
 ```
 
-### 12.5 过滤器配置表 (HUB_GATEWAY_FILTER_CONFIG)
+### 12.5 过滤器配置表 (HUB_GW_FILTER_CONFIG)
 
 存储前置和后置过滤器配置，根据代码中FilterType和FilterAction进行设计。
 
 ```sql
-CREATE TABLE `HUB_GATEWAY_FILTER_CONFIG` (
+CREATE TABLE `HUB_GW_FILTER_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `filterConfigId` VARCHAR(32) NOT NULL COMMENT '过滤器配置ID',
   `gatewayInstanceId` VARCHAR(32) DEFAULT NULL COMMENT '网关实例ID(实例级过滤器)',
@@ -1061,23 +1061,23 @@ CREATE TABLE `HUB_GATEWAY_FILTER_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动/禁用,Y活动/启用)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `filterConfigId`),
-  INDEX `idx_HUB_GATEWAY_FILTER_CONFIG_instance` (`gatewayInstanceId`),
-  INDEX `idx_HUB_GATEWAY_FILTER_CONFIG_route` (`routeConfigId`),
-  INDEX `idx_HUB_GATEWAY_FILTER_CONFIG_type` (`filterType`),
-  INDEX `idx_HUB_GATEWAY_FILTER_CONFIG_action` (`filterAction`),
-  INDEX `idx_HUB_GATEWAY_FILTER_CONFIG_order` (`filterOrder`),
-  INDEX `idx_HUB_GATEWAY_FILTER_CONFIG_active` (`activeFlag`)
+  INDEX `idx_HUB_GW_FILTER_CONFIG_instance` (`gatewayInstanceId`),
+  INDEX `idx_HUB_GW_FILTER_CONFIG_route` (`routeConfigId`),
+  INDEX `idx_HUB_GW_FILTER_CONFIG_type` (`filterType`),
+  INDEX `idx_HUB_GW_FILTER_CONFIG_action` (`filterAction`),
+  INDEX `idx_HUB_GW_FILTER_CONFIG_order` (`filterOrder`),
+  INDEX `idx_HUB_GW_FILTER_CONFIG_active` (`activeFlag`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='过滤器配置表 - 根据filter.go逻辑设计,支持7种类型和3种执行时机';
 ```
 
 
 
-### 12.11 跨域配置表 (HUB_GATEWAY_CORS_CONFIG)
+### 12.11 跨域配置表 (HUB_GW_CORS_CONFIG)
 
 存储跨域资源共享(CORS)配置。
 
 ```sql
-CREATE TABLE `HUB_GATEWAY_CORS_CONFIG` (
+CREATE TABLE `HUB_GW_CORS_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `corsConfigId` VARCHAR(32) NOT NULL COMMENT 'CORS配置ID',
   `gatewayInstanceId` VARCHAR(32) DEFAULT NULL COMMENT '网关实例ID(实例级CORS)',
@@ -1105,19 +1105,19 @@ CREATE TABLE `HUB_GATEWAY_CORS_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `corsConfigId`),
-  INDEX `idx_HUB_GATEWAY_CORS_CONFIG_instance` (`gatewayInstanceId`),
-  INDEX `idx_HUB_GATEWAY_CORS_CONFIG_route` (`routeConfigId`),
-  INDEX `idx_HUB_GATEWAY_CORS_CONFIG_priority` (`configPriority`)
+  INDEX `idx_HUB_GW_CORS_CONFIG_instance` (`gatewayInstanceId`),
+  INDEX `idx_HUB_GW_CORS_CONFIG_route` (`routeConfigId`),
+  INDEX `idx_HUB_GW_CORS_CONFIG_priority` (`configPriority`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='跨域配置表 - 存储CORS相关配置';
 ```
 
-### 12.12 限流配置表 (HUB_GATEWAY_RATE_LIMIT_CONFIG)
+### 12.12 限流配置表 (HUB_GW_RATE_LIMIT_CONFIG)
 
 存储流量限制配置，支持实例级和路由级限流。
 
 ```sql
 -- 修改后的限流配置表结构
-CREATE TABLE `HUB_GATEWAY_RATE_LIMIT_CONFIG` (
+CREATE TABLE `HUB_GW_RATE_LIMIT_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `rateLimitConfigId` VARCHAR(32) NOT NULL COMMENT '限流配置ID',
   `gatewayInstanceId` VARCHAR(32) DEFAULT NULL COMMENT '网关实例ID(实例级限流)',
@@ -1156,21 +1156,21 @@ CREATE TABLE `HUB_GATEWAY_RATE_LIMIT_CONFIG` (
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   
   PRIMARY KEY (`tenantId`, `rateLimitConfigId`),
-  INDEX `idx_HUB_GATEWAY_RATE_LIMIT_CONFIG_instance` (`gatewayInstanceId`),
-  INDEX `idx_HUB_GATEWAY_RATE_LIMIT_CONFIG_route` (`routeConfigId`),
-  INDEX `idx_HUB_GATEWAY_RATE_LIMIT_CONFIG_strategy` (`keyStrategy`),
-  INDEX `idx_HUB_GATEWAY_RATE_LIMIT_CONFIG_algorithm` (`algorithm`),
-  INDEX `idx_HUB_GATEWAY_RATE_LIMIT_CONFIG_priority` (`configPriority`),
-  INDEX `idx_HUB_GATEWAY_RATE_LIMIT_CONFIG_active` (`activeFlag`)
+  INDEX `idx_HUB_GW_RATE_LIMIT_CONFIG_instance` (`gatewayInstanceId`),
+  INDEX `idx_HUB_GW_RATE_LIMIT_CONFIG_route` (`routeConfigId`),
+  INDEX `idx_HUB_GW_RATE_LIMIT_CONFIG_strategy` (`keyStrategy`),
+  INDEX `idx_HUB_GW_RATE_LIMIT_CONFIG_algorithm` (`algorithm`),
+  INDEX `idx_HUB_GW_RATE_LIMIT_CONFIG_priority` (`configPriority`),
+  INDEX `idx_HUB_GW_RATE_LIMIT_CONFIG_active` (`activeFlag`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='限流配置表 - 存储流量限制规则';
 ```
 
-### 12.13 熔断配置表 (HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG)
+### 12.13 熔断配置表 (HUB_GW_CIRCUIT_BREAKER_CONFIG)
 
 存储熔断器配置，根据CircuitBreakerConfig结构设计，支持路由级和服务级熔断。
 
 ```sql
-CREATE TABLE `HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG` (
+CREATE TABLE `HUB_GW_CIRCUIT_BREAKER_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `circuitBreakerConfigId` VARCHAR(32) NOT NULL COMMENT '熔断配置ID',
   `routeConfigId` VARCHAR(32) DEFAULT NULL COMMENT '路由配置ID(路由级熔断)',
@@ -1215,20 +1215,20 @@ CREATE TABLE `HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `circuitBreakerConfigId`),
-  INDEX `idx_HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG_route` (`routeConfigId`),
-  INDEX `idx_HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG_service` (`targetServiceId`),
-  INDEX `idx_HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG_strategy` (`keyStrategy`),
-  INDEX `idx_HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG_storage` (`storageType`),
-  INDEX `idx_HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG_priority` (`configPriority`)
+  INDEX `idx_HUB_GW_CIRCUIT_BREAKER_CONFIG_route` (`routeConfigId`),
+  INDEX `idx_HUB_GW_CIRCUIT_BREAKER_CONFIG_service` (`targetServiceId`),
+  INDEX `idx_HUB_GW_CIRCUIT_BREAKER_CONFIG_strategy` (`keyStrategy`),
+  INDEX `idx_HUB_GW_CIRCUIT_BREAKER_CONFIG_storage` (`storageType`),
+  INDEX `idx_HUB_GW_CIRCUIT_BREAKER_CONFIG_priority` (`configPriority`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='熔断配置表 - 根据CircuitBreakerConfig结构设计,支持完整的熔断策略配置';
 ```
 
-### 12.14 认证配置表 (HUB_GATEWAY_AUTH_CONFIG)
+### 12.14 认证配置表 (HUB_GW_AUTH_CONFIG)
 
 存储认证相关配置，支持实例级和路由级认证。
 
 ```sql
-CREATE TABLE `HUB_GATEWAY_AUTH_CONFIG` (
+CREATE TABLE `HUB_GW_AUTH_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `authConfigId` VARCHAR(32) NOT NULL COMMENT '认证配置ID',
   `gatewayInstanceId` VARCHAR(32) DEFAULT NULL COMMENT '网关实例ID(实例级认证)',
@@ -1257,19 +1257,19 @@ CREATE TABLE `HUB_GATEWAY_AUTH_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `authConfigId`),
-  INDEX `idx_HUB_GATEWAY_AUTH_CONFIG_instance` (`gatewayInstanceId`),
-  INDEX `idx_HUB_GATEWAY_AUTH_CONFIG_route` (`routeConfigId`),
-  INDEX `idx_HUB_GATEWAY_AUTH_CONFIG_type` (`authType`),
-  INDEX `idx_HUB_GATEWAY_AUTH_CONFIG_priority` (`configPriority`)
+  INDEX `idx_HUB_GW_AUTH_CONFIG_instance` (`gatewayInstanceId`),
+  INDEX `idx_HUB_GW_AUTH_CONFIG_route` (`routeConfigId`),
+  INDEX `idx_HUB_GW_AUTH_CONFIG_type` (`authType`),
+  INDEX `idx_HUB_GW_AUTH_CONFIG_priority` (`configPriority`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='认证配置表 - 存储认证相关规则';
 ```
 
-### 12.15 服务定义表 (HUB_GATEWAY_SERVICE_DEFINITION)
+### 12.15 服务定义表 (HUB_GW_SERVICE_DEFINITION)
 
 存储后端服务的定义和配置，根据ServiceConfig结构设计，独立于路由，可被多个路由引用。
 
 ```sql
-CREATE TABLE `HUB_GATEWAY_SERVICE_DEFINITION` (
+CREATE TABLE `HUB_GW_SERVICE_DEFINITION` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `serviceDefinitionId` VARCHAR(32) NOT NULL COMMENT '服务定义ID',
   `serviceName` VARCHAR(100) NOT NULL COMMENT '服务名称',
@@ -1323,20 +1323,20 @@ CREATE TABLE `HUB_GATEWAY_SERVICE_DEFINITION` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `serviceDefinitionId`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_DEFINITION_name` (`serviceName`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_DEFINITION_type` (`serviceType`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_DEFINITION_strategy` (`loadBalanceStrategy`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_DEFINITION_health` (`healthCheckEnabled`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_DEFINITION_proxy` (`proxyConfigId`)
+  INDEX `idx_HUB_GW_SERVICE_DEFINITION_name` (`serviceName`),
+  INDEX `idx_HUB_GW_SERVICE_DEFINITION_type` (`serviceType`),
+  INDEX `idx_HUB_GW_SERVICE_DEFINITION_strategy` (`loadBalanceStrategy`),
+  INDEX `idx_HUB_GW_SERVICE_DEFINITION_health` (`healthCheckEnabled`),
+  INDEX `idx_HUB_GW_SERVICE_DEFINITION_proxy` (`proxyConfigId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务定义表 - 根据ServiceConfig结构设计,存储完整的服务配置';
 ```
 
-### 12.16 服务节点表 (HUB_GATEWAY_SERVICE_NODE)
+### 12.16 服务节点表 (HUB_GW_SERVICE_NODE)
 
 存储服务的具体节点实例信息，根据NodeConfig结构设计。
 
 ```sql
-CREATE TABLE `HUB_GATEWAY_SERVICE_NODE` (
+CREATE TABLE `HUB_GW_SERVICE_NODE` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `serviceNodeId` VARCHAR(32) NOT NULL COMMENT '服务节点ID',
   `serviceDefinitionId` VARCHAR(32) NOT NULL COMMENT '关联的服务定义ID',
@@ -1376,19 +1376,19 @@ CREATE TABLE `HUB_GATEWAY_SERVICE_NODE` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `serviceNodeId`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_NODE_service` (`serviceDefinitionId`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_NODE_endpoint` (`nodeHost`, `nodePort`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_NODE_health` (`healthStatus`),
-  INDEX `idx_HUB_GATEWAY_SERVICE_NODE_status` (`nodeStatus`)
+  INDEX `idx_HUB_GW_SERVICE_NODE_service` (`serviceDefinitionId`),
+  INDEX `idx_HUB_GW_SERVICE_NODE_endpoint` (`nodeHost`, `nodePort`),
+  INDEX `idx_HUB_GW_SERVICE_NODE_health` (`healthStatus`),
+  INDEX `idx_HUB_GW_SERVICE_NODE_status` (`nodeStatus`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务节点表 - 根据NodeConfig结构设计,存储服务节点实例信息';
 ```
 
-### 12.17 代理配置表 (HUB_GATEWAY_PROXY_CONFIG)
+### 12.17 代理配置表 (HUB_GW_PROXY_CONFIG)
 
 存储代理配置，根据ProxyConfig结构设计，**仅支持实例级配置**，支持HTTP、WebSocket、TCP、UDP等多种代理类型。
 
 ```sql
-CREATE TABLE `HUB_GATEWAY_PROXY_CONFIG` (
+CREATE TABLE `HUB_GW_PROXY_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `proxyConfigId` VARCHAR(32) NOT NULL COMMENT '代理配置ID',
   `gatewayInstanceId` VARCHAR(32) NOT NULL COMMENT '网关实例ID(代理配置仅支持实例级)',
@@ -1420,32 +1420,63 @@ CREATE TABLE `HUB_GATEWAY_PROXY_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动/禁用,Y活动/启用)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `proxyConfigId`),
-  INDEX `idx_HUB_GATEWAY_PROXY_CONFIG_instance` (`gatewayInstanceId`),
-  INDEX `idx_HUB_GATEWAY_PROXY_CONFIG_type` (`proxyType`),
-  INDEX `idx_HUB_GATEWAY_PROXY_CONFIG_priority` (`configPriority`),
-  INDEX `idx_HUB_GATEWAY_PROXY_CONFIG_active` (`activeFlag`)
+  INDEX `idx_HUB_GW_PROXY_CONFIG_instance` (`gatewayInstanceId`),
+  INDEX `idx_HUB_GW_PROXY_CONFIG_type` (`proxyType`),
+  INDEX `idx_HUB_GW_PROXY_CONFIG_priority` (`configPriority`),
+  INDEX `idx_HUB_GW_PROXY_CONFIG_active` (`activeFlag`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='代理配置表 - 根据proxy.go逻辑设计,仅支持实例级代理配置';
 ```
 
-### 12.18 日志配置表 (HUB_GATEWAY_LOG_CONFIG)
+### 12.18 日志配置表 (HUB_GW_LOG_CONFIG)
 
 存储网关的日志配置，独立于实例和路由，可被多个实例和路由引用。
 
 ```sql
-CREATE TABLE `HUB_GATEWAY_LOG_CONFIG` (
+CREATE TABLE `HUB_GW_LOG_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `logConfigId` VARCHAR(32) NOT NULL COMMENT '日志配置ID',
   `configName` VARCHAR(100) NOT NULL COMMENT '配置名称',
-  `logLevel` VARCHAR(20) NOT NULL DEFAULT 'INFO' COMMENT '日志级别(DEBUG,INFO,WARN,ERROR)',
-  `logFormat` VARCHAR(50) NOT NULL DEFAULT 'JSON' COMMENT '日志格式(JSON,TEXT)',
-  `outputTargets` VARCHAR(200) NOT NULL DEFAULT 'CONSOLE' COMMENT '输出目标,逗号分隔(CONSOLE,FILE,DATABASE)',
+  `configDesc` VARCHAR(200) DEFAULT NULL COMMENT '配置描述',
+  
+  -- 日志内容控制
+  `logFormat` VARCHAR(50) NOT NULL DEFAULT 'JSON' COMMENT '日志格式(JSON,TEXT,CSV)',
+  `recordRequestBody` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否记录请求体(N否,Y是)',
+  `recordResponseBody` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否记录响应体(N否,Y是)',
+  `recordHeaders` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '是否记录请求/响应头(N否,Y是)',
+  `maxBodySizeBytes` INT NOT NULL DEFAULT 4096 COMMENT '最大记录报文大小(字节)',
+  
+  -- 日志输出目标配置
+  `outputTargets` VARCHAR(200) NOT NULL DEFAULT 'CONSOLE' COMMENT '输出目标,逗号分隔(CONSOLE,FILE,DATABASE,MONGODB,ELASTICSEARCH)',
   `fileConfig` TEXT DEFAULT NULL COMMENT '文件输出配置,JSON格式',
   `databaseConfig` TEXT DEFAULT NULL COMMENT '数据库输出配置,JSON格式',
-  `enableAccessLog` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '是否启用访问日志(N否,Y是)',
-  `enableErrorLog` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '是否启用错误日志(N否,Y是)',
-  `enableAuditLog` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否启用审计日志(N否,Y是)',
+  `mongoConfig` TEXT DEFAULT NULL COMMENT 'MongoDB输出配置,JSON格式',
+  `elasticsearchConfig` TEXT DEFAULT NULL COMMENT 'Elasticsearch输出配置,JSON格式',
+  `clickhouseConfig` TEXT DEFAULT NULL COMMENT 'clickhouseConfig输出配置,JSON格式',
+  
+  -- 异步和批量处理配置
+  `enableAsyncLogging` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '是否启用异步日志(N否,Y是)',
+  `asyncQueueSize` INT NOT NULL DEFAULT 10000 COMMENT '异步队列大小',
+  `asyncFlushIntervalMs` INT NOT NULL DEFAULT 1000 COMMENT '异步刷新间隔(毫秒)',
+  `enableBatchProcessing` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '是否启用批量处理(N否,Y是)',
+  `batchSize` INT NOT NULL DEFAULT 100 COMMENT '批处理大小',
+  `batchTimeoutMs` INT NOT NULL DEFAULT 5000 COMMENT '批处理超时时间(毫秒)',
+  
+  -- 日志保留和轮转配置
   `logRetentionDays` INT NOT NULL DEFAULT 30 COMMENT '日志保留天数',
+  `enableFileRotation` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '是否启用文件轮转(N否,Y是)',
+  `maxFileSizeMB` INT DEFAULT 100 COMMENT '最大文件大小(MB)',
+  `maxFileCount` INT DEFAULT 10 COMMENT '最大文件数量',
+  `rotationPattern` VARCHAR(100) DEFAULT 'DAILY' COMMENT '轮转模式(HOURLY,DAILY,WEEKLY,SIZE_BASED)',
+  
+  -- 敏感数据处理
+  `enableSensitiveDataMasking` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '是否启用敏感数据脱敏(N否,Y是)',
   `sensitiveFields` TEXT DEFAULT NULL COMMENT '敏感字段列表,JSON数组格式',
+  `maskingPattern` VARCHAR(100) DEFAULT '***' COMMENT '脱敏替换模式',
+  
+  -- 性能优化配置
+  `bufferSize` INT NOT NULL DEFAULT 8192 COMMENT '缓冲区大小(字节)',
+  `flushThreshold` INT NOT NULL DEFAULT 100 COMMENT '刷新阈值(条目数)',
+  
   `configPriority` INT NOT NULL DEFAULT 0 COMMENT '配置优先级,数值越小优先级越高',
   `reserved1` VARCHAR(100) DEFAULT NULL COMMENT '预留字段1',
   `reserved2` VARCHAR(100) DEFAULT NULL COMMENT '预留字段2',
@@ -1462,25 +1493,235 @@ CREATE TABLE `HUB_GATEWAY_LOG_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `logConfigId`),
-  INDEX `idx_HUB_GATEWAY_LOG_CONFIG_name` (`configName`),
-  INDEX `idx_HUB_GATEWAY_LOG_CONFIG_priority` (`configPriority`)
+  INDEX `idx_HUB_GW_LOG_CONFIG_name` (`configName`),
+  INDEX `idx_HUB_GW_LOG_CONFIG_priority` (`configPriority`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='日志配置表 - 存储网关日志相关配置';
+```
+
+### 12.20 访问日志表 (HUB_GW_ACCESS_LOG)
+
+存储网关的访问日志记录，包含请求和响应的详细信息，以及完整的时间指标数据。
+
+```sql
+CREATE TABLE `HUB_GW_ACCESS_LOG` (
+  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
+  `traceId` VARCHAR(64) NOT NULL COMMENT '链路追踪ID(作为主键)',
+  `gatewayInstanceId` VARCHAR(32) NOT NULL COMMENT '网关实例ID',
+  `gatewayNodeIp` VARCHAR(50) NOT NULL COMMENT '网关节点IP地址',
+  `routeConfigId` VARCHAR(32) DEFAULT NULL COMMENT '路由配置ID',
+  `serviceDefinitionId` VARCHAR(32) DEFAULT NULL COMMENT '服务定义ID',
+  `logConfigId` VARCHAR(32) DEFAULT NULL COMMENT '日志配置ID',
+  
+  -- 请求基本信息
+  `requestMethod` VARCHAR(10) NOT NULL COMMENT '请求方法(GET,POST,PUT等)',
+  `requestPath` VARCHAR(1000) NOT NULL COMMENT '请求路径',
+  `requestQuery` VARCHAR(2000) DEFAULT NULL COMMENT '请求查询参数',
+  `requestSize` INT DEFAULT 0 COMMENT '请求大小(字节)',
+  `requestHeaders` TEXT DEFAULT NULL COMMENT '请求头信息,JSON格式',
+  `requestBody` TEXT DEFAULT NULL COMMENT '请求体(可选,根据配置决定是否记录)',
+  
+  -- 客户端信息
+  `clientIpAddress` VARCHAR(50) NOT NULL COMMENT '客户端IP地址',
+  `clientPort` INT DEFAULT NULL COMMENT '客户端端口',
+  `userAgent` VARCHAR(500) DEFAULT NULL COMMENT '用户代理信息',
+  `referer` VARCHAR(1000) DEFAULT NULL COMMENT '来源页面',
+  `userIdentifier` VARCHAR(100) DEFAULT NULL COMMENT '用户标识(如有)',
+  
+  -- 关键时间点 (所有时间字段均为DATETIME类型，精确到毫秒)
+  `gatewayReceivedTime` DATETIME(3) NOT NULL COMMENT '网关接收请求时间',
+  `gatewayStartProcessingTime` DATETIME(3) NOT NULL COMMENT '网关开始处理时间',
+  `backendRequestStartTime` DATETIME(3) DEFAULT NULL COMMENT '后端服务请求开始时间',
+  `backendResponseReceivedTime` DATETIME(3) DEFAULT NULL COMMENT '后端服务响应接收时间',
+  `gatewayFinishedProcessingTime` DATETIME(3) NOT NULL COMMENT '网关处理完成时间',
+  `gatewayResponseSentTime` DATETIME(3) NOT NULL COMMENT '网关响应发送时间',
+  
+  -- 计算的时间指标 (所有时间指标均为毫秒)
+  `totalProcessingTimeMs` INT NOT NULL COMMENT '总处理时间(毫秒)',
+  `gatewayProcessingTimeMs` INT NOT NULL COMMENT '网关处理时间(毫秒)',
+  `backendResponseTimeMs` INT DEFAULT NULL COMMENT '后端服务响应时间(毫秒)',
+  `networkLatencyMs` INT DEFAULT NULL COMMENT '网络延迟(毫秒)',
+  
+  -- 响应信息
+  `gatewayStatusCode` INT NOT NULL COMMENT '网关响应状态码',
+  `backendStatusCode` INT DEFAULT NULL COMMENT '后端服务状态码',
+  `responseSize` INT DEFAULT 0 COMMENT '响应大小(字节)',
+  `responseHeaders` TEXT DEFAULT NULL COMMENT '响应头信息,JSON格式',
+  `responseBody` TEXT DEFAULT NULL COMMENT '响应体(可选,根据配置决定是否记录)',
+  
+  -- 转发基本信息
+  `matchedRoute` VARCHAR(255) DEFAULT NULL COMMENT '匹配的路由路径',
+  `forwardAddress` VARCHAR(255) DEFAULT NULL COMMENT '转发地址',
+  `forwardMethod` VARCHAR(10) DEFAULT NULL COMMENT '转发方法',
+  `forwardParams` TEXT DEFAULT NULL COMMENT '转发参数,JSON格式',
+  `forwardHeaders` TEXT DEFAULT NULL COMMENT '转发头信息,JSON格式',
+  `forwardBody` TEXT DEFAULT NULL COMMENT '转发报文内容',
+  `loadBalancerDecision` VARCHAR(255) DEFAULT NULL COMMENT '负载均衡决策信息',
+  
+  -- 错误信息
+  `errorMessage` TEXT DEFAULT NULL COMMENT '错误信息(如有)',
+  `errorCode` VARCHAR(100) DEFAULT NULL COMMENT '错误代码(如有)',
+  
+  -- 追踪信息
+  `parentTraceId` VARCHAR(100) DEFAULT NULL COMMENT '父链路追踪ID',
+  
+  -- 日志重置标记和次数
+  `resetFlag` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '日志重置标记(N否,Y是)',
+  `retryCount` INT NOT NULL DEFAULT 0 COMMENT '重试次数',
+  `resetCount` INT NOT NULL DEFAULT 0 COMMENT '重置次数',
+  
+  -- 标准数据库字段
+  `logLevel` VARCHAR(20) NOT NULL DEFAULT 'INFO' COMMENT '日志级别',
+  `logType` VARCHAR(50) NOT NULL DEFAULT 'ACCESS' COMMENT '日志类型',
+  `reserved1` VARCHAR(100) DEFAULT NULL COMMENT '预留字段1',
+  `reserved2` VARCHAR(100) DEFAULT NULL COMMENT '预留字段2',
+  `reserved3` INT DEFAULT NULL COMMENT '预留字段3',
+  `reserved4` INT DEFAULT NULL COMMENT '预留字段4',
+  `reserved5` DATETIME DEFAULT NULL COMMENT '预留字段5',
+  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性,JSON格式',
+  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
+  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
+  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
+  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+  
+  PRIMARY KEY (`tenantId`, `traceId`),
+  INDEX `idx_HUB_GW_ACCESS_LOG_instance` (`gatewayInstanceId`),
+  INDEX `idx_HUB_GW_ACCESS_LOG_node_ip` (`gatewayNodeIp`),
+  INDEX `idx_HUB_GW_ACCESS_LOG_route` (`routeConfigId`),
+  INDEX `idx_HUB_GW_ACCESS_LOG_service` (`serviceDefinitionId`),
+  INDEX `idx_HUB_GW_ACCESS_LOG_log_config` (`logConfigId`),
+  INDEX `idx_HUB_GW_ACCESS_LOG_received_time` (`gatewayReceivedTime`),
+  INDEX `idx_HUB_GW_ACCESS_LOG_gateway_status` (`gatewayStatusCode`),
+  INDEX `idx_HUB_GW_ACCESS_LOG_backend_status` (`backendStatusCode`),
+  INDEX `idx_HUB_GW_ACCESS_LOG_client_ip` (`clientIpAddress`),
+  INDEX `idx_HUB_GW_ACCESS_LOG_processing_time` (`totalProcessingTimeMs`),
+  INDEX `idx_HUB_GW_ACCESS_LOG_parent_trace` (`parentTraceId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网关访问日志表 - 记录API网关的请求和响应详细信息及完整时间指标';
+```
+
+### 12.21 性能指标表 (HUB_GW_METRICS)
+
+存储网关聚合性能指标数据，用于监控、分析和优化网关性能。
+
+```sql
+CREATE TABLE `HUB_GW_METRICS` (
+  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
+  `metricsId` VARCHAR(32) NOT NULL COMMENT '指标记录ID',
+  `gatewayInstanceId` VARCHAR(32) NOT NULL COMMENT '网关实例ID',
+  `routeConfigId` VARCHAR(32) DEFAULT NULL COMMENT '路由配置ID',
+  `serviceDefinitionId` VARCHAR(32) DEFAULT NULL COMMENT '服务定义ID',
+  
+  -- 时间维度
+  `metricsTime` DATETIME NOT NULL COMMENT '指标记录时间',
+  `timeWindowSeconds` INT NOT NULL DEFAULT 60 COMMENT '统计时间窗口(秒)',
+  `timeGranularity` VARCHAR(20) NOT NULL DEFAULT 'MINUTE' COMMENT '时间粒度(SECOND,MINUTE,HOUR,DAY)',
+  
+  -- 请求指标
+  `totalRequests` INT NOT NULL DEFAULT 0 COMMENT '总请求数',
+  `successRequests` INT NOT NULL DEFAULT 0 COMMENT '成功请求数',
+  `failedRequests` INT NOT NULL DEFAULT 0 COMMENT '失败请求数',
+  `requestsPerSecond` DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '每秒请求数(QPS)',
+  
+  -- 响应时间指标(毫秒)
+  `avgResponseTimeMs` DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '平均响应时间(毫秒)',
+  `minResponseTimeMs` INT DEFAULT NULL COMMENT '最小响应时间(毫秒)',
+  `maxResponseTimeMs` INT DEFAULT NULL COMMENT '最大响应时间(毫秒)',
+  `p50ResponseTimeMs` INT DEFAULT NULL COMMENT '50%响应时间(毫秒)',
+  `p90ResponseTimeMs` INT DEFAULT NULL COMMENT '90%响应时间(毫秒)',
+  `p95ResponseTimeMs` INT DEFAULT NULL COMMENT '95%响应时间(毫秒)',
+  `p99ResponseTimeMs` INT DEFAULT NULL COMMENT '99%响应时间(毫秒)',
+  
+  -- 网关处理时间指标(毫秒)
+  `avgGatewayTimeMs` DECIMAL(10,2) DEFAULT NULL COMMENT '平均网关处理时间(毫秒)',
+  `maxGatewayTimeMs` INT DEFAULT NULL COMMENT '最大网关处理时间(毫秒)',
+  
+  -- 后端服务响应时间指标(毫秒)
+  `avgBackendTimeMs` DECIMAL(10,2) DEFAULT NULL COMMENT '平均后端服务响应时间(毫秒)',
+  `maxBackendTimeMs` INT DEFAULT NULL COMMENT '最大后端服务响应时间(毫秒)',
+  
+  -- 错误指标
+  `errorRate` DECIMAL(5,2) NOT NULL DEFAULT 0 COMMENT '错误率(%)',
+  `timeoutCount` INT NOT NULL DEFAULT 0 COMMENT '超时请求数',
+  `circuitBreakerTrips` INT NOT NULL DEFAULT 0 COMMENT '熔断器触发次数',
+  `rateLimitExceeds` INT NOT NULL DEFAULT 0 COMMENT '限流超限次数',
+  
+  -- 流量指标
+  `inboundTrafficBytes` BIGINT NOT NULL DEFAULT 0 COMMENT '入站流量(字节)',
+  `outboundTrafficBytes` BIGINT NOT NULL DEFAULT 0 COMMENT '出站流量(字节)',
+  `avgRequestSizeBytes` INT DEFAULT NULL COMMENT '平均请求大小(字节)',
+  `avgResponseSizeBytes` INT DEFAULT NULL COMMENT '平均响应大小(字节)',
+  
+  -- HTTP状态码分布
+  `status2xxCount` INT NOT NULL DEFAULT 0 COMMENT '2xx状态码数量',
+  `status3xxCount` INT NOT NULL DEFAULT 0 COMMENT '3xx状态码数量',
+  `status4xxCount` INT NOT NULL DEFAULT 0 COMMENT '4xx状态码数量',
+  `status5xxCount` INT NOT NULL DEFAULT 0 COMMENT '5xx状态码数量',
+  `statusCodeDistribution` TEXT DEFAULT NULL COMMENT '状态码详细分布,JSON格式',
+  
+  -- 资源使用指标
+  `cpuUsagePercent` DECIMAL(5,2) DEFAULT NULL COMMENT 'CPU使用率(%)',
+  `memoryUsageMB` INT DEFAULT NULL COMMENT '内存使用量(MB)',
+  `threadCount` INT DEFAULT NULL COMMENT '线程数',
+  `goroutineCount` INT DEFAULT NULL COMMENT 'Go协程数',
+  `openConnections` INT DEFAULT NULL COMMENT '开放连接数',
+  `activeRequests` INT DEFAULT NULL COMMENT '活动请求数',
+  
+  -- 缓存和健康指标
+  `cacheHitRate` DECIMAL(5,2) DEFAULT NULL COMMENT '缓存命中率(%)',
+  `upstreamServiceAvailability` DECIMAL(5,2) DEFAULT NULL COMMENT '上游服务可用性(%)',
+  `healthyEndpointCount` INT DEFAULT NULL COMMENT '健康端点数量',
+  `unhealthyEndpointCount` INT DEFAULT NULL COMMENT '不健康端点数量',
+  
+  -- 安全指标
+  `authFailureCount` INT DEFAULT NULL COMMENT '认证失败次数',
+  `blockedRequestCount` INT DEFAULT NULL COMMENT '被阻止的请求数',
+  
+  -- 标准数据库字段
+  `metricsSource` VARCHAR(50) NOT NULL DEFAULT 'GATEWAY' COMMENT '指标来源',
+  `reserved1` VARCHAR(100) DEFAULT NULL COMMENT '预留字段1',
+  `reserved2` VARCHAR(100) DEFAULT NULL COMMENT '预留字段2',
+  `reserved3` INT DEFAULT NULL COMMENT '预留字段3',
+  `reserved4` INT DEFAULT NULL COMMENT '预留字段4',
+  `reserved5` DATETIME DEFAULT NULL COMMENT '预留字段5',
+  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性,JSON格式',
+  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
+  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
+  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
+  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+  
+  PRIMARY KEY (`tenantId`, `metricsId`),
+  INDEX `idx_HUB_GW_METRICS_instance` (`gatewayInstanceId`),
+  INDEX `idx_HUB_GW_METRICS_route` (`routeConfigId`),
+  INDEX `idx_HUB_GW_METRICS_service` (`serviceDefinitionId`),
+  INDEX `idx_HUB_GW_METRICS_time` (`metricsTime`),
+  INDEX `idx_HUB_GW_METRICS_window` (`timeWindowSeconds`),
+  INDEX `idx_HUB_GW_METRICS_granularity` (`timeGranularity`),
+  INDEX `idx_HUB_GW_METRICS_error_rate` (`errorRate`),
+  INDEX `idx_HUB_GW_METRICS_response_time` (`avgResponseTimeMs`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网关性能指标表 - 记录API网关的聚合性能监控数据';
 ```
 
 ### 12.19 表关系说明
 
 #### 12.19.1 核心关系
 
-1. **HUB_GATEWAY_INSTANCE** (网关实例) 是整个配置的根节点
-2. **HUB_GATEWAY_ROUTER_CONFIG** (Router配置) 属于某个网关实例，定义Router级别配置
-3. **HUB_GATEWAY_ROUTE_CONFIG** (路由配置) 属于某个网关实例，定义API路由
-4. **HUB_GATEWAY_SERVICE_DEFINITION** (服务定义) 独立定义后端服务，可被多个路由引用
-5. **HUB_GATEWAY_SERVICE_NODE** (服务节点) 属于某个服务，定义具体节点
-6. **HUB_GATEWAY_ROUTE_ASSERTION** (路由断言) 属于某个路由，定义匹配规则
-7. **HUB_GATEWAY_LOG_CONFIG** (日志配置) 独立的日志配置，可被实例和路由引用
-8. **HUB_GATEWAY_FILTER_CONFIG** (过滤器配置) 支持实例级和路由级，包含7种类型和3种执行时机
-9. **HUB_GATEWAY_PROXY_CONFIG** (代理配置) **仅支持实例级**，支持4种代理类型
-10. **HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG** (熔断配置) 支持路由级和服务级熔断
+1. **HUB_GW_INSTANCE** (网关实例) 是整个配置的根节点
+2. **HUB_GW_ROUTER_CONFIG** (Router配置) 属于某个网关实例，定义Router级别配置
+3. **HUB_GW_ROUTE_CONFIG** (路由配置) 属于某个网关实例，定义API路由
+4. **HUB_GW_SERVICE_DEFINITION** (服务定义) 独立定义后端服务，可被多个路由引用
+5. **HUB_GW_SERVICE_NODE** (服务节点) 属于某个服务，定义具体节点
+6. **HUB_GW_ROUTE_ASSERTION** (路由断言) 属于某个路由，定义匹配规则
+7. **HUB_GW_LOG_CONFIG** (日志配置) 独立的日志配置，可被实例和路由引用
+8. **HUB_GW_FILTER_CONFIG** (过滤器配置) 支持实例级和路由级，包含7种类型和3种执行时机
+9. **HUB_GW_PROXY_CONFIG** (代理配置) **仅支持实例级**，支持4种代理类型
+10. **HUB_GW_CIRCUIT_BREAKER_CONFIG** (熔断配置) 支持路由级和服务级熔断
 
 **关联关系设计**：
 - 路由通过 `serviceDefinitionId` 字段直接关联服务（一对一关系）
@@ -1517,70 +1758,70 @@ CREATE TABLE `HUB_GATEWAY_LOG_CONFIG` (
 ```sql
 -- 添加外键约束（可选，根据实际需求决定）
 ALTER TABLE HUB_GATEWAY_CONFIG_BACKUP ADD CONSTRAINT fk_config_backup_instance 
-    FOREIGN KEY (tenantId, gatewayInstanceId) REFERENCES HUB_GATEWAY_INSTANCE(tenantId, gatewayInstanceId);
+    FOREIGN KEY (tenantId, gatewayInstanceId) REFERENCES HUB_GW_INSTANCE(tenantId, gatewayInstanceId);
 
-ALTER TABLE HUB_GATEWAY_ROUTE_CONFIG ADD CONSTRAINT fk_route_config_instance 
-    FOREIGN KEY (tenantId, gatewayInstanceId) REFERENCES HUB_GATEWAY_INSTANCE(tenantId, gatewayInstanceId);
+ALTER TABLE HUB_GW_ROUTE_CONFIG ADD CONSTRAINT fk_route_config_instance 
+    FOREIGN KEY (tenantId, gatewayInstanceId) REFERENCES HUB_GW_INSTANCE(tenantId, gatewayInstanceId);
 
-ALTER TABLE HUB_GATEWAY_ROUTE_CONFIG ADD CONSTRAINT fk_route_config_service 
-    FOREIGN KEY (tenantId, serviceDefinitionId) REFERENCES HUB_GATEWAY_SERVICE_DEFINITION(tenantId, serviceDefinitionId);
+ALTER TABLE HUB_GW_ROUTE_CONFIG ADD CONSTRAINT fk_route_config_service 
+    FOREIGN KEY (tenantId, serviceDefinitionId) REFERENCES HUB_GW_SERVICE_DEFINITION(tenantId, serviceDefinitionId);
 
-ALTER TABLE HUB_GATEWAY_INSTANCE ADD CONSTRAINT fk_instance_log_config 
-    FOREIGN KEY (tenantId, logConfigId) REFERENCES HUB_GATEWAY_LOG_CONFIG(tenantId, logConfigId);
+ALTER TABLE HUB_GW_INSTANCE ADD CONSTRAINT fk_instance_log_config 
+    FOREIGN KEY (tenantId, logConfigId) REFERENCES HUB_GW_LOG_CONFIG(tenantId, logConfigId);
 
-ALTER TABLE HUB_GATEWAY_ROUTE_CONFIG ADD CONSTRAINT fk_route_config_log 
-    FOREIGN KEY (tenantId, logConfigId) REFERENCES HUB_GATEWAY_LOG_CONFIG(tenantId, logConfigId);
+ALTER TABLE HUB_GW_ROUTE_CONFIG ADD CONSTRAINT fk_route_config_log 
+    FOREIGN KEY (tenantId, logConfigId) REFERENCES HUB_GW_LOG_CONFIG(tenantId, logConfigId);
 
-ALTER TABLE HUB_GATEWAY_ROUTE_ASSERTION ADD CONSTRAINT fk_route_assertion_route 
-    FOREIGN KEY (tenantId, routeConfigId) REFERENCES HUB_GATEWAY_ROUTE_CONFIG(tenantId, routeConfigId);
+ALTER TABLE HUB_GW_ROUTE_ASSERTION ADD CONSTRAINT fk_route_assertion_route 
+    FOREIGN KEY (tenantId, routeConfigId) REFERENCES HUB_GW_ROUTE_CONFIG(tenantId, routeConfigId);
 
-ALTER TABLE HUB_GATEWAY_SERVICE_NODE ADD CONSTRAINT fk_service_node_instance 
-    FOREIGN KEY (tenantId, gatewayInstanceId) REFERENCES HUB_GATEWAY_INSTANCE(tenantId, gatewayInstanceId);
+ALTER TABLE HUB_GW_SERVICE_NODE ADD CONSTRAINT fk_service_node_instance 
+    FOREIGN KEY (tenantId, gatewayInstanceId) REFERENCES HUB_GW_INSTANCE(tenantId, gatewayInstanceId);
 
-ALTER TABLE HUB_GATEWAY_SERVICE_NODE ADD CONSTRAINT fk_service_node_service 
-    FOREIGN KEY (tenantId, serviceDefinitionId) REFERENCES HUB_GATEWAY_SERVICE_DEFINITION(tenantId, serviceDefinitionId);
+ALTER TABLE HUB_GW_SERVICE_NODE ADD CONSTRAINT fk_service_node_service 
+    FOREIGN KEY (tenantId, serviceDefinitionId) REFERENCES HUB_GW_SERVICE_DEFINITION(tenantId, serviceDefinitionId);
 
 -- 熔断器配置外键约束（路由级和服务级）
-ALTER TABLE HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG ADD CONSTRAINT fk_circuit_breaker_route 
-    FOREIGN KEY (tenantId, routeConfigId) REFERENCES HUB_GATEWAY_ROUTE_CONFIG(tenantId, routeConfigId);
+ALTER TABLE HUB_GW_CIRCUIT_BREAKER_CONFIG ADD CONSTRAINT fk_circuit_breaker_route 
+    FOREIGN KEY (tenantId, routeConfigId) REFERENCES HUB_GW_ROUTE_CONFIG(tenantId, routeConfigId);
 
-ALTER TABLE HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG ADD CONSTRAINT fk_circuit_breaker_service 
-    FOREIGN KEY (tenantId, targetServiceId) REFERENCES HUB_GATEWAY_SERVICE_DEFINITION(tenantId, serviceDefinitionId);
+ALTER TABLE HUB_GW_CIRCUIT_BREAKER_CONFIG ADD CONSTRAINT fk_circuit_breaker_service 
+    FOREIGN KEY (tenantId, targetServiceId) REFERENCES HUB_GW_SERVICE_DEFINITION(tenantId, serviceDefinitionId);
 
 -- 安全配置外键约束
-ALTER TABLE HUB_GATEWAY_SECURITY_CONFIG ADD CONSTRAINT fk_security_config_instance 
-    FOREIGN KEY (tenantId, gatewayInstanceId) REFERENCES HUB_GATEWAY_INSTANCE(tenantId, gatewayInstanceId);
+ALTER TABLE HUB_GW_SECURITY_CONFIG ADD CONSTRAINT fk_security_config_instance 
+    FOREIGN KEY (tenantId, gatewayInstanceId) REFERENCES HUB_GW_INSTANCE(tenantId, gatewayInstanceId);
 
-ALTER TABLE HUB_GATEWAY_SECURITY_CONFIG ADD CONSTRAINT fk_security_config_route 
-    FOREIGN KEY (tenantId, routeConfigId) REFERENCES HUB_GATEWAY_ROUTE_CONFIG(tenantId, routeConfigId);
+ALTER TABLE HUB_GW_SECURITY_CONFIG ADD CONSTRAINT fk_security_config_route 
+    FOREIGN KEY (tenantId, routeConfigId) REFERENCES HUB_GW_ROUTE_CONFIG(tenantId, routeConfigId);
 
 -- 安全子配置外键约束
-ALTER TABLE HUB_GATEWAY_IP_ACCESS_CONFIG ADD CONSTRAINT fk_ip_access_security 
-    FOREIGN KEY (tenantId, securityConfigId) REFERENCES HUB_GATEWAY_SECURITY_CONFIG(tenantId, securityConfigId);
+ALTER TABLE HUB_GW_IP_ACCESS_CONFIG ADD CONSTRAINT fk_ip_access_security 
+    FOREIGN KEY (tenantId, securityConfigId) REFERENCES HUB_GW_SECURITY_CONFIG(tenantId, securityConfigId);
 
-ALTER TABLE HUB_GATEWAY_USERAGENT_ACCESS_CONFIG ADD CONSTRAINT fk_useragent_access_security 
-    FOREIGN KEY (tenantId, securityConfigId) REFERENCES HUB_GATEWAY_SECURITY_CONFIG(tenantId, securityConfigId);
+ALTER TABLE HUB_GW_UA_ACCESS_CONFIG ADD CONSTRAINT fk_useragent_access_security 
+    FOREIGN KEY (tenantId, securityConfigId) REFERENCES HUB_GW_SECURITY_CONFIG(tenantId, securityConfigId);
 
-ALTER TABLE HUB_GATEWAY_API_ACCESS_CONFIG ADD CONSTRAINT fk_api_access_security 
-    FOREIGN KEY (tenantId, securityConfigId) REFERENCES HUB_GATEWAY_SECURITY_CONFIG(tenantId, securityConfigId);
+ALTER TABLE HUB_GW_API_ACCESS_CONFIG ADD CONSTRAINT fk_api_access_security 
+    FOREIGN KEY (tenantId, securityConfigId) REFERENCES HUB_GW_SECURITY_CONFIG(tenantId, securityConfigId);
 
-ALTER TABLE HUB_GATEWAY_DOMAIN_ACCESS_CONFIG ADD CONSTRAINT fk_domain_access_security 
-    FOREIGN KEY (tenantId, securityConfigId) REFERENCES HUB_GATEWAY_SECURITY_CONFIG(tenantId, securityConfigId);
+ALTER TABLE HUB_GW_DOMAIN_ACCESS_CONFIG ADD CONSTRAINT fk_domain_access_security 
+    FOREIGN KEY (tenantId, securityConfigId) REFERENCES HUB_GW_SECURITY_CONFIG(tenantId, securityConfigId);
 
 -- 过滤器配置外键约束
-ALTER TABLE HUB_GATEWAY_FILTER_CONFIG ADD CONSTRAINT fk_filter_config_instance 
-    FOREIGN KEY (tenantId, gatewayInstanceId) REFERENCES HUB_GATEWAY_INSTANCE(tenantId, gatewayInstanceId);
+ALTER TABLE HUB_GW_FILTER_CONFIG ADD CONSTRAINT fk_filter_config_instance 
+    FOREIGN KEY (tenantId, gatewayInstanceId) REFERENCES HUB_GW_INSTANCE(tenantId, gatewayInstanceId);
 
-ALTER TABLE HUB_GATEWAY_FILTER_CONFIG ADD CONSTRAINT fk_filter_config_route 
-    FOREIGN KEY (tenantId, routeConfigId) REFERENCES HUB_GATEWAY_ROUTE_CONFIG(tenantId, routeConfigId);
+ALTER TABLE HUB_GW_FILTER_CONFIG ADD CONSTRAINT fk_filter_config_route 
+    FOREIGN KEY (tenantId, routeConfigId) REFERENCES HUB_GW_ROUTE_CONFIG(tenantId, routeConfigId);
 
 -- 代理配置外键约束(仅支持实例级)
-ALTER TABLE HUB_GATEWAY_PROXY_CONFIG ADD CONSTRAINT fk_proxy_config_instance 
-    FOREIGN KEY (tenantId, gatewayInstanceId) REFERENCES HUB_GATEWAY_INSTANCE(tenantId, gatewayInstanceId);
+ALTER TABLE HUB_GW_PROXY_CONFIG ADD CONSTRAINT fk_proxy_config_instance 
+    FOREIGN KEY (tenantId, gatewayInstanceId) REFERENCES HUB_GW_INSTANCE(tenantId, gatewayInstanceId);
     
 -- 服务定义关联代理配置外键约束
-ALTER TABLE HUB_GATEWAY_SERVICE_DEFINITION ADD CONSTRAINT fk_service_definition_proxy 
-    FOREIGN KEY (tenantId, proxyConfigId) REFERENCES HUB_GATEWAY_PROXY_CONFIG(tenantId, proxyConfigId);
+ALTER TABLE HUB_GW_SERVICE_DEFINITION ADD CONSTRAINT fk_service_definition_proxy 
+    FOREIGN KEY (tenantId, proxyConfigId) REFERENCES HUB_GW_PROXY_CONFIG(tenantId, proxyConfigId);
 ```
 
 #### 12.19.4 配置关联示例
@@ -1588,7 +1829,7 @@ ALTER TABLE HUB_GATEWAY_SERVICE_DEFINITION ADD CONSTRAINT fk_service_definition_
 **路由关联服务**：
 ```sql
 -- 路由关联服务
-UPDATE HUB_GATEWAY_ROUTE_CONFIG 
+UPDATE HUB_GW_ROUTE_CONFIG 
 SET serviceDefinitionId = 'SERVICE_001' 
 WHERE routeConfigId = 'ROUTE_001';
 ```
@@ -1596,7 +1837,7 @@ WHERE routeConfigId = 'ROUTE_001';
 **实例级日志配置**：
 ```sql
 -- 实例关联日志配置（所有路由共享）
-UPDATE HUB_GATEWAY_INSTANCE 
+UPDATE HUB_GW_INSTANCE 
 SET logConfigId = 'LOG_CONFIG_001' 
 WHERE gatewayInstanceId = 'GATEWAY_001';
 ```
@@ -1604,15 +1845,35 @@ WHERE gatewayInstanceId = 'GATEWAY_001';
 **路由级日志配置**：
 ```sql
 -- 路由关联特定日志配置（覆盖实例级配置）
-UPDATE HUB_GATEWAY_ROUTE_CONFIG 
+UPDATE HUB_GW_ROUTE_CONFIG 
 SET logConfigId = 'LOG_CONFIG_DEBUG_001' 
 WHERE routeConfigId = 'ROUTE_DEBUG_API';
+```
+
+**访问日志关联日志配置**：
+```sql
+-- 访问日志关联日志配置
+UPDATE HUB_GW_ACCESS_LOG
+SET logConfigId = 'LOG_CONFIG_DEBUG_001'
+WHERE routeConfigId = 'ROUTE_DEBUG_API';
+
+-- 批量更新访问日志的日志配置ID
+UPDATE HUB_GW_ACCESS_LOG a
+JOIN HUB_GW_ROUTE_CONFIG r ON a.routeConfigId = r.routeConfigId AND a.tenantId = r.tenantId
+SET a.logConfigId = r.logConfigId
+WHERE a.logConfigId IS NULL AND r.logConfigId IS NOT NULL;
+
+-- 使用实例级日志配置更新剩余的访问日志
+UPDATE HUB_GW_ACCESS_LOG a
+JOIN HUB_GW_INSTANCE i ON a.gatewayInstanceId = i.gatewayInstanceId AND a.tenantId = i.tenantId
+SET a.logConfigId = i.logConfigId
+WHERE a.logConfigId IS NULL AND i.logConfigId IS NOT NULL;
 ```
 
 **服务多节点负载均衡**：
 ```sql
 -- 服务下的多个节点
-INSERT INTO HUB_GATEWAY_SERVICE_NODE 
+INSERT INTO HUB_GW_SERVICE_NODE 
 (tenantId, serviceNodeId, serviceDefinitionId, nodeHost, nodePort, nodeWeight) 
 VALUES 
 ('TENANT_001', 'NODE_001', 'SERVICE_001', '192.168.1.10', 8080, 100),
@@ -1622,45 +1883,64 @@ VALUES
 
 **日志配置示例**：
 ```sql
--- 创建不同级别的日志配置
-INSERT INTO HUB_GATEWAY_LOG_CONFIG 
-(tenantId, logConfigId, configName, logLevel, outputTargets, configPriority) 
+-- 创建不同类型的日志配置
+INSERT INTO HUB_GW_LOG_CONFIG 
+(tenantId, logConfigId, configName, configDesc, outputTargets, enableAsyncLogging, asyncQueueSize, recordRequestBody, recordResponseBody, configPriority) 
 VALUES 
-('TENANT_001', 'LOG_CONFIG_001', '生产环境日志', 'INFO', 'FILE,DATABASE', 1),
-('TENANT_001', 'LOG_CONFIG_DEBUG_001', '调试日志', 'DEBUG', 'CONSOLE,FILE', 2);
+-- 生产环境日志：只记录基本信息，不记录请求响应体，使用文件和数据库存储
+('TENANT_001', 'LOG_CONFIG_001', '生产环境日志', '用于生产环境的标准日志配置', 'FILE,DATABASE', 'Y', 10000, 'N', 'N', 1),
+
+-- 调试日志：记录详细信息，包括请求响应体，使用控制台和文件存储
+('TENANT_001', 'LOG_CONFIG_DEBUG_001', '调试日志', '用于开发和测试环境的详细日志配置', 'CONSOLE,FILE', 'N', 5000, 'Y', 'Y', 2),
+
+-- MongoDB日志：将日志存储到MongoDB，适合大数据量分析
+('TENANT_001', 'LOG_CONFIG_MONGO_001', 'MongoDB日志', '将日志存储到MongoDB进行分析', 'MONGODB', 'Y', 20000, 'N', 'N', 3),
+
+-- 数据库日志：将日志存储到关系型数据库
+('TENANT_001', 'LOG_CONFIG_DB_001', '数据库日志', '将日志存储到数据库进行查询分析', 'DATABASE', 'Y', 10000, 'N', 'N', 4);
+
+-- 设置MongoDB配置
+UPDATE HUB_GW_LOG_CONFIG
+SET mongoConfig = '{"uri": "mongodb://localhost:27017", "database": "gateway_logs", "collection": "access_logs", "connectTimeout": 5000}'
+WHERE logConfigId = 'LOG_CONFIG_MONGO_001';
+
+-- 设置文件配置
+UPDATE HUB_GW_LOG_CONFIG
+SET fileConfig = '{"path": "/var/log/gateway", "prefix": "gateway-access", "extension": ".log", "compress": true}'
+WHERE logConfigId IN ('LOG_CONFIG_001', 'LOG_CONFIG_DEBUG_001');
 ```
 
 **安全配置示例**：
 ```sql
 -- 创建实例级安全配置
-INSERT INTO HUB_GATEWAY_SECURITY_CONFIG 
+INSERT INTO HUB_GW_SECURITY_CONFIG 
 (tenantId, securityConfigId, gatewayInstanceId, configName, configDesc, configPriority) 
 VALUES 
 ('TENANT_001', 'SECURITY_CONFIG_001', 'GATEWAY_001', '生产环境安全配置', '生产环境的安全策略', 1);
 
 -- 创建IP访问控制配置
-INSERT INTO HUB_GATEWAY_IP_ACCESS_CONFIG 
+INSERT INTO HUB_GW_IP_ACCESS_CONFIG 
 (tenantId, ipAccessConfigId, securityConfigId, configName, defaultPolicy, whitelistIps, blacklistIps) 
 VALUES 
 ('TENANT_001', 'IP_ACCESS_001', 'SECURITY_CONFIG_001', 'IP白名单配置', 'deny', 
  '["192.168.1.0/24", "10.0.0.0/8"]', '["1.2.3.4", "5.6.7.8"]');
 
 -- 创建User-Agent访问控制配置
-INSERT INTO HUB_GATEWAY_USERAGENT_ACCESS_CONFIG 
+INSERT INTO HUB_GW_UA_ACCESS_CONFIG 
 (tenantId, useragentAccessConfigId, securityConfigId, configName, defaultPolicy, blacklistPatterns, blockEmptyUserAgent) 
 VALUES 
 ('TENANT_001', 'UA_ACCESS_001', 'SECURITY_CONFIG_001', 'User-Agent过滤配置', 'allow', 
  '[".*bot.*", ".*crawler.*", ".*spider.*"]', 'Y');
 
 -- 创建API访问控制配置
-INSERT INTO HUB_GATEWAY_API_ACCESS_CONFIG 
+INSERT INTO HUB_GW_API_ACCESS_CONFIG 
 (tenantId, apiAccessConfigId, securityConfigId, configName, defaultPolicy, blacklistPaths, allowedMethods) 
 VALUES 
 ('TENANT_001', 'API_ACCESS_001', 'SECURITY_CONFIG_001', 'API路径过滤配置', 'allow', 
  '["/admin/*", "*.php", "/internal/*"]', 'GET,POST,PUT,DELETE');
 
 -- 创建域名访问控制配置
-INSERT INTO HUB_GATEWAY_DOMAIN_ACCESS_CONFIG 
+INSERT INTO HUB_GW_DOMAIN_ACCESS_CONFIG 
 (tenantId, domainAccessConfigId, securityConfigId, configName, defaultPolicy, whitelistDomains, allowSubdomains) 
 VALUES 
 ('TENANT_001', 'DOMAIN_ACCESS_001', 'SECURITY_CONFIG_001', '域名白名单配置', 'deny', 
@@ -1670,14 +1950,14 @@ VALUES
 **过滤器配置示例**：
 ```sql
 -- 创建实例级请求头过滤器
-INSERT INTO HUB_GATEWAY_FILTER_CONFIG 
+INSERT INTO HUB_GW_FILTER_CONFIG 
 (tenantId, filterConfigId, gatewayInstanceId, filterName, filterType, filterAction, filterOrder, filterConfig) 
 VALUES 
 ('TENANT_001', 'FILTER_001', 'GATEWAY_001', '全局请求头过滤器', 'header', 'pre-routing', 10, 
  '{"add_headers": {"X-Gateway-Version": "1.0.0"}, "remove_headers": ["X-Forwarded-For"]}');
 
 -- 创建路由级查询参数过滤器
-INSERT INTO HUB_GATEWAY_FILTER_CONFIG 
+INSERT INTO HUB_GW_FILTER_CONFIG 
 (tenantId, filterConfigId, routeConfigId, filterName, filterType, filterAction, filterOrder, filterConfig) 
 VALUES 
 ('TENANT_001', 'FILTER_002', 'ROUTE_001', 'API查询参数过滤器', 'query-param', 'post-routing', 20,
@@ -1687,14 +1967,14 @@ VALUES
 **代理配置示例**：
 ```sql
 -- 创建实例级HTTP代理配置
-INSERT INTO HUB_GATEWAY_PROXY_CONFIG 
+INSERT INTO HUB_GW_PROXY_CONFIG 
 (tenantId, proxyConfigId, gatewayInstanceId, proxyName, proxyType, proxyConfig) 
 VALUES 
 ('TENANT_001', 'PROXY_001', 'GATEWAY_001', 'HTTP代理配置', 'http', 
  '{"timeout": "10s", "follow_redirects": true, "keep_alive": true, "max_idle_conns": 100, "retry_count": 3}');
 
 -- 创建实例级WebSocket代理配置
-INSERT INTO HUB_GATEWAY_PROXY_CONFIG 
+INSERT INTO HUB_GW_PROXY_CONFIG 
 (tenantId, proxyConfigId, gatewayInstanceId, proxyName, proxyType, proxyConfig) 
 VALUES 
 ('TENANT_001', 'PROXY_002', 'GATEWAY_001', 'WebSocket代理配置', 'websocket', 
@@ -1704,13 +1984,13 @@ VALUES
 **熔断配置示例**：
 ```sql
 -- 创建路由级熔断配置
-INSERT INTO HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG 
+INSERT INTO HUB_GW_CIRCUIT_BREAKER_CONFIG 
 (tenantId, circuitBreakerConfigId, routeConfigId, breakerName, keyStrategy, errorRatePercent, minimumRequests, storageType) 
 VALUES 
 ('TENANT_001', 'CB_001', 'ROUTE_001', 'API熔断器', 'api', 50, 10, 'memory');
 
 -- 创建服务级熔断配置
-INSERT INTO HUB_GATEWAY_CIRCUIT_BREAKER_CONFIG 
+INSERT INTO HUB_GW_CIRCUIT_BREAKER_CONFIG 
 (tenantId, circuitBreakerConfigId, targetServiceId, breakerName, keyStrategy, errorRatePercent, slowCallThreshold, storageType) 
 VALUES 
 ('TENANT_001', 'CB_002', 'SERVICE_001', '服务熔断器', 'service', 60, 2000, 'redis');
@@ -1719,13 +1999,13 @@ VALUES
 **服务定义配置示例**：
 ```sql
 -- 创建带负载均衡的服务定义
-INSERT INTO HUB_GATEWAY_SERVICE_DEFINITION 
+INSERT INTO HUB_GW_SERVICE_DEFINITION 
 (tenantId, serviceDefinitionId, serviceName, proxyConfigId, loadBalanceStrategy, sessionAffinity, maxRetries, healthCheckEnabled, healthCheckPath) 
 VALUES 
 ('TENANT_001', 'SERVICE_001', '用户服务', 'PROXY_001', 'weighted-round-robin', 'Y', 3, 'Y', '/api/health');
 
 -- 创建服务发现类型的服务定义
-INSERT INTO HUB_GATEWAY_SERVICE_DEFINITION 
+INSERT INTO HUB_GW_SERVICE_DEFINITION 
 (tenantId, serviceDefinitionId, serviceName, serviceType, discoveryType, loadBalanceStrategy, discoveryConfig) 
 VALUES 
 ('TENANT_001', 'SERVICE_002', '订单服务', 1, 'CONSUL', 'consistent-hash', 
@@ -1735,7 +2015,7 @@ VALUES
 **服务节点配置示例**：
 ```sql
 -- 为服务创建多个节点
-INSERT INTO HUB_GATEWAY_SERVICE_NODE 
+INSERT INTO HUB_GW_SERVICE_NODE 
 (tenantId, serviceNodeId, gatewayInstanceId, serviceDefinitionId, nodeId, nodeUrl, nodeHost, nodePort, nodeWeight, nodeEnabled) 
 VALUES 
 ('TENANT_001', 'NODE_001', 'GATEWAY_001', 'SERVICE_001', 'user-service-1', 'http://192.168.1.10:8080', '192.168.1.10', 8080, 100, 'Y'),
@@ -1785,12 +2065,12 @@ VALUES
 - 配置优先级机制确保合理的配置覆盖关系
 - JSON格式存储复杂配置，灵活性与结构化并存
 
-### 12.6 安全配置表 (HUB_GATEWAY_SECURITY_CONFIG)
+### 12.6 安全配置表 (HUB_GW_SECURITY_CONFIG)
 
 存储网关安全配置，支持实例级和路由级安全策略。
 
 ```sql
-CREATE TABLE `HUB_GATEWAY_SECURITY_CONFIG` (
+CREATE TABLE `HUB_GW_SECURITY_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `securityConfigId` VARCHAR(32) NOT NULL COMMENT '安全配置ID',
   `gatewayInstanceId` VARCHAR(32) DEFAULT NULL COMMENT '网关实例ID(实例级安全配置)',
@@ -1814,18 +2094,18 @@ CREATE TABLE `HUB_GATEWAY_SECURITY_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `securityConfigId`),
-  INDEX `idx_HUB_GATEWAY_SECURITY_CONFIG_instance` (`gatewayInstanceId`),
-  INDEX `idx_HUB_GATEWAY_SECURITY_CONFIG_route` (`routeConfigId`),
-  INDEX `idx_HUB_GATEWAY_SECURITY_CONFIG_priority` (`configPriority`)
+  INDEX `idx_HUB_GW_SECURITY_CONFIG_instance` (`gatewayInstanceId`),
+  INDEX `idx_HUB_GW_SECURITY_CONFIG_route` (`routeConfigId`),
+  INDEX `idx_HUB_GW_SECURITY_CONFIG_priority` (`configPriority`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='安全配置表 - 存储网关安全策略配置';
 ```
 
-### 12.7 IP访问控制配置表 (HUB_GATEWAY_IP_ACCESS_CONFIG)
+### 12.7 IP访问控制配置表 (HUB_GW_IP_ACCESS_CONFIG)
 
 存储IP访问控制的详细配置。
 
 ```sql
-CREATE TABLE `HUB_GATEWAY_IP_ACCESS_CONFIG` (
+CREATE TABLE `HUB_GW_IP_ACCESS_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `ipAccessConfigId` VARCHAR(32) NOT NULL COMMENT 'IP访问配置ID',
   `securityConfigId` VARCHAR(32) NOT NULL COMMENT '关联的安全配置ID',
@@ -1852,16 +2132,16 @@ CREATE TABLE `HUB_GATEWAY_IP_ACCESS_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `ipAccessConfigId`),
-  INDEX `idx_HUB_GATEWAY_IP_ACCESS_CONFIG_security` (`securityConfigId`)
+  INDEX `idx_HUB_GW_IP_ACCESS_CONFIG_security` (`securityConfigId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='IP访问控制配置表 - 存储IP白名单黑名单规则';
 ```
 
-### 12.8 User-Agent访问控制配置表 (HUB_GATEWAY_USERAGENT_ACCESS_CONFIG)
+### 12.8 User-Agent访问控制配置表 (HUB_GW_UA_ACCESS_CONFIG)
 
 存储User-Agent访问控制的详细配置。
 
 ```sql
-CREATE TABLE `HUB_GATEWAY_USERAGENT_ACCESS_CONFIG` (
+CREATE TABLE `HUB_GW_UA_ACCESS_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `useragentAccessConfigId` VARCHAR(32) NOT NULL COMMENT 'User-Agent访问配置ID',
   `securityConfigId` VARCHAR(32) NOT NULL COMMENT '关联的安全配置ID',
@@ -1885,16 +2165,16 @@ CREATE TABLE `HUB_GATEWAY_USERAGENT_ACCESS_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `useragentAccessConfigId`),
-  INDEX `idx_HUB_GATEWAY_USERAGENT_ACCESS_CONFIG_security` (`securityConfigId`)
+  INDEX `idx_HUB_GW_UA_ACCESS_CONFIG_security` (`securityConfigId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='User-Agent访问控制配置表 - 存储User-Agent过滤规则';
 ```
 
-### 12.9 API访问控制配置表 (HUB_GATEWAY_API_ACCESS_CONFIG)
+### 12.9 API访问控制配置表 (HUB_GW_API_ACCESS_CONFIG)
 
 存储API接口访问控制的详细配置。
 
 ```sql
-CREATE TABLE `HUB_GATEWAY_API_ACCESS_CONFIG` (
+CREATE TABLE `HUB_GW_API_ACCESS_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `apiAccessConfigId` VARCHAR(32) NOT NULL COMMENT 'API访问配置ID',
   `securityConfigId` VARCHAR(32) NOT NULL COMMENT '关联的安全配置ID',
@@ -1919,16 +2199,16 @@ CREATE TABLE `HUB_GATEWAY_API_ACCESS_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `apiAccessConfigId`),
-  INDEX `idx_HUB_GATEWAY_API_ACCESS_CONFIG_security` (`securityConfigId`)
+  INDEX `idx_HUB_GW_API_ACCESS_CONFIG_security` (`securityConfigId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='API访问控制配置表 - 存储API路径和方法过滤规则';
 ```
 
-### 12.10 域名访问控制配置表 (HUB_GATEWAY_DOMAIN_ACCESS_CONFIG)
+### 12.10 域名访问控制配置表 (HUB_GW_DOMAIN_ACCESS_CONFIG)
 
 存储域名访问控制的详细配置。
 
 ```sql
-CREATE TABLE `HUB_GATEWAY_DOMAIN_ACCESS_CONFIG` (
+CREATE TABLE `HUB_GW_DOMAIN_ACCESS_CONFIG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `domainAccessConfigId` VARCHAR(32) NOT NULL COMMENT '域名访问配置ID',
   `securityConfigId` VARCHAR(32) NOT NULL COMMENT '关联的安全配置ID',
@@ -1952,6 +2232,6 @@ CREATE TABLE `HUB_GATEWAY_DOMAIN_ACCESS_CONFIG` (
   `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `domainAccessConfigId`),
-  INDEX `idx_HUB_GATEWAY_DOMAIN_ACCESS_CONFIG_security` (`securityConfigId`)
+  INDEX `idx_HUB_GW_DOMAIN_ACCESS_CONFIG_security` (`securityConfigId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='域名访问控制配置表 - 存储域名白名单黑名单规则';
 ```

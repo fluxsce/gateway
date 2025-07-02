@@ -3,6 +3,7 @@ package dao
 import (
 	"context"
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 	"gohub/web/views/hubplugin/common/models"
 )
 
@@ -26,7 +27,7 @@ func (d *ConfigGroupDao) Add(ctx context.Context, configGroup *models.ToolConfig
 // GetById 根据ID获取工具配置分组
 func (d *ConfigGroupDao) GetById(ctx context.Context, tenantId, configGroupId string) (*models.ToolConfigGroup, error) {
 	configGroup := &models.ToolConfigGroup{}
-	query := "SELECT * FROM " + configGroup.TableName() + " WHERE tenantId = ? AND configGroupId = ? AND activeFlag = 'Y'"
+	query := "SELECT * FROM " + configGroup.TableName() + " WHERE tenantId = ? AND configGroupId = ?"
 	err := d.db.QueryOne(ctx, configGroup, query, []interface{}{tenantId, configGroupId}, true)
 	if err != nil {
 		if err == database.ErrRecordNotFound {
@@ -44,7 +45,7 @@ func (d *ConfigGroupDao) Update(ctx context.Context, configGroup *models.ToolCon
 		"groupPath = ?, groupType = ?, sortOrder = ?, groupIcon = ?, groupColor = ?, " +
 		"accessLevel = ?, allowedUsers = ?, allowedRoles = ?, editTime = ?, editWho = ?, " +
 		"oprSeqFlag = ?, noteText = ?, extProperty = ?, currentVersion = currentVersion + 1 " +
-		"WHERE tenantId = ? AND configGroupId = ? AND activeFlag = 'Y'"
+		"WHERE tenantId = ? AND configGroupId = ?"
 
 	args := []interface{}{
 		configGroup.GroupName, configGroup.GroupDescription, configGroup.ParentGroupId,
@@ -59,11 +60,11 @@ func (d *ConfigGroupDao) Update(ctx context.Context, configGroup *models.ToolCon
 	return d.db.Exec(ctx, query, args, true)
 }
 
-// Delete 删除工具配置分组（逻辑删除）
+// Delete 删除工具配置分组（物理删除）
 func (d *ConfigGroupDao) Delete(ctx context.Context, tenantId, configGroupId, operatorId string) (int64, error) {
-	query := "UPDATE " + (&models.ToolConfigGroup{}).TableName() + " SET activeFlag = 'N', editWho = ?, editTime = NOW() " +
-		"WHERE tenantId = ? AND configGroupId = ? AND activeFlag = 'Y'"
-	return d.db.Exec(ctx, query, []interface{}{operatorId, tenantId, configGroupId}, true)
+	query := "DELETE FROM " + (&models.ToolConfigGroup{}).TableName() + 
+		" WHERE tenantId = ? AND configGroupId = ?"
+	return d.db.Exec(ctx, query, []interface{}{tenantId, configGroupId}, true)
 }
 
 // Query 查询工具配置分组列表
@@ -71,7 +72,7 @@ func (d *ConfigGroupDao) Query(ctx context.Context, params map[string]interface{
 	var configGroups []*models.ToolConfigGroup
 
 	// 构建查询条件
-	whereClause := "WHERE activeFlag = 'Y' "
+	whereClause := "WHERE 1=1 "
 	args := []interface{}{}
 
 	// 租户ID条件（必需）
@@ -98,12 +99,20 @@ func (d *ConfigGroupDao) Query(ctx context.Context, params map[string]interface{
 		args = append(args, groupType)
 	}
 
-	// 计算总记录数
-	countQuery := "SELECT COUNT(*) FROM " + (&models.ToolConfigGroup{}).TableName() + " " + whereClause
+	// 构建基础查询语句
+	baseQuery := "SELECT * FROM " + (&models.ToolConfigGroup{}).TableName() + " " + whereClause + "ORDER BY sortOrder ASC, addTime DESC"
+
+	// 构建统计查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// 执行统计查询
 	var result struct {
 		Count int64 `db:"COUNT(*)"`
 	}
-	err := d.db.QueryOne(ctx, &result, countQuery, args, true)
+	err = d.db.QueryOne(ctx, &result, countQuery, args, true)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -113,12 +122,23 @@ func (d *ConfigGroupDao) Query(ctx context.Context, params map[string]interface{
 		return []*models.ToolConfigGroup{}, 0, nil
 	}
 
-	// 查询数据
-	query := "SELECT * FROM " + (&models.ToolConfigGroup{}).TableName() + " " + whereClause +
-		"ORDER BY sortOrder ASC, addTime DESC LIMIT ?, ?"
-	args = append(args, (page-1)*pageSize, pageSize)
+	// 创建分页信息
+	pagination := sqlutils.NewPaginationInfo(page, pageSize)
 
-	err = d.db.Query(ctx, &configGroups, query, args, true)
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(d.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// 合并查询参数
+	allArgs := append(args, paginationArgs...)
+
+	// 执行分页查询
+	err = d.db.Query(ctx, &configGroups, paginatedQuery, allArgs, true)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -130,7 +150,7 @@ func (d *ConfigGroupDao) Query(ctx context.Context, params map[string]interface{
 func (d *ConfigGroupDao) GetByParentId(ctx context.Context, tenantId, parentGroupId string) ([]*models.ToolConfigGroup, error) {
 	var configGroups []*models.ToolConfigGroup
 	query := "SELECT * FROM " + (&models.ToolConfigGroup{}).TableName() + 
-		" WHERE tenantId = ? AND parentGroupId = ? AND activeFlag = 'Y' ORDER BY sortOrder ASC, addTime DESC"
+		" WHERE tenantId = ? AND parentGroupId = ? ORDER BY sortOrder ASC, addTime DESC"
 	args := []interface{}{tenantId, parentGroupId}
 
 	err := d.db.Query(ctx, &configGroups, query, args, true)

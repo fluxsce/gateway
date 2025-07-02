@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gohub/pkg/config"
 	"gohub/pkg/database/dbtypes"
 	"gohub/pkg/database/dsn"
 	"sync"
@@ -47,6 +48,7 @@ const (
 	DriverMySQL      = dbtypes.DriverMySQL
 	DriverPostgreSQL = dbtypes.DriverPostgreSQL
 	DriverSQLite     = dbtypes.DriverSQLite
+	DriverOracle     = dbtypes.DriverOracle
 )
 
 // DbConfig 数据库配置类型别名
@@ -430,6 +432,17 @@ func GetConnection(connectionName string) Database {
 	defer connMutex.RUnlock()
 
 	return dbConnections[connectionName]
+}
+
+// GetDefaultConnection 获取默认数据库连接
+// 默认连接名称为database.default
+// 返回:
+//   Database: 数据库接口实例
+func GetDefaultConnection() Database {
+	connMutex.RLock()
+	defer connMutex.RUnlock()
+
+	return dbConnections[config.GetString("database.default", "")]
 }
 
 // CloseAllConnections 关闭所有数据库连接

@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// RouteConfig 路由配置模型，对应数据库HUB_GATEWAY_ROUTE_CONFIG表
+// RouteConfig 路由配置模型，对应数据库HUB_GW_ROUTE_CONFIG表
 type RouteConfig struct {
 	TenantId          string `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                     // 租户ID，联合主键
 	RouteConfigId     string `json:"routeConfigId" form:"routeConfigId" query:"routeConfigId" db:"routeConfigId"`                 // 路由配置ID，联合主键
@@ -62,10 +62,10 @@ type RouteConfig struct {
 
 // TableName 返回表名
 func (RouteConfig) TableName() string {
-	return "HUB_GATEWAY_ROUTE_CONFIG"
+	return "HUB_GW_ROUTE_CONFIG"
 }
 
-// RouteAssertion 路由断言模型，对应数据库HUB_GATEWAY_ROUTE_ASSERTION表
+// RouteAssertion 路由断言模型，对应数据库HUB_GW_ROUTE_ASSERTION表
 type RouteAssertion struct {
 	TenantId          string `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                     // 租户ID，联合主键
 	RouteAssertionId  string `json:"routeAssertionId" form:"routeAssertionId" query:"routeAssertionId" db:"routeAssertionId"`     // 路由断言ID，联合主键
@@ -108,10 +108,10 @@ type RouteAssertion struct {
 
 // TableName 返回表名
 func (RouteAssertion) TableName() string {
-	return "HUB_GATEWAY_ROUTE_ASSERTION"
+	return "HUB_GW_ROUTE_ASSERTION"
 }
 
-// GatewayInstance 网关实例模型，对应数据库HUB_GATEWAY_INSTANCE表
+// GatewayInstance 网关实例模型，对应数据库HUB_GW_INSTANCE表
 type GatewayInstance struct {
 	TenantId          string `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                     // 租户ID，联合主键
 	GatewayInstanceId string `json:"gatewayInstanceId" form:"gatewayInstanceId" query:"gatewayInstanceId" db:"gatewayInstanceId"` // 网关实例ID，联合主键
@@ -181,10 +181,10 @@ type GatewayInstance struct {
 
 // TableName 返回表名
 func (GatewayInstance) TableName() string {
-	return "HUB_GATEWAY_INSTANCE"
+	return "HUB_GW_INSTANCE"
 }
 
-// RouterConfig Router配置模型，对应数据库HUB_GATEWAY_ROUTER_CONFIG表
+// RouterConfig Router配置模型，对应数据库HUB_GW_ROUTER_CONFIG表
 type RouterConfig struct {
 	TenantId          string `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                     // 租户ID，联合主键
 	RouterConfigId    string `json:"routerConfigId" form:"routerConfigId" query:"routerConfigId" db:"routerConfigId"`             // Router配置ID，联合主键
@@ -249,7 +249,7 @@ type RouterConfig struct {
 
 // TableName 返回表名
 func (RouterConfig) TableName() string {
-	return "HUB_GATEWAY_ROUTER_CONFIG"
+	return "HUB_GW_ROUTER_CONFIG"
 }
 
 // RouteConfigWithService 路由配置和服务定义的组合VO，用于关联查询时的返回

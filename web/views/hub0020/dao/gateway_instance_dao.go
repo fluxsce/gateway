@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 	"gohub/pkg/utils/huberrors"
 	"gohub/pkg/utils/random"
 	"gohub/web/views/hub0020/models"
@@ -42,7 +43,7 @@ func (dao *GatewayInstanceDAO) generateGatewayInstanceId() string {
 
 // isGatewayInstanceIdExists 检查网关实例ID是否已存在
 func (dao *GatewayInstanceDAO) isGatewayInstanceIdExists(ctx context.Context, gatewayInstanceId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GATEWAY_INSTANCE WHERE gatewayInstanceId = ?`
+	query := `SELECT COUNT(*) as count FROM HUB_GW_INSTANCE WHERE gatewayInstanceId = ?`
 	
 	var result struct {
 		Count int `db:"count"`
@@ -174,7 +175,7 @@ func (dao *GatewayInstanceDAO) AddGatewayInstance(ctx context.Context, instance 
 	}
 
 	// 使用数据库接口的Insert方法插入记录
-	_, err := dao.db.Insert(ctx, "HUB_GATEWAY_INSTANCE", instance, true)
+	_, err := dao.db.Insert(ctx, "HUB_GW_INSTANCE", instance, true)
 
 	if err != nil {
 		// 检查是否是实例名重复错误
@@ -194,7 +195,7 @@ func (dao *GatewayInstanceDAO) GetGatewayInstanceById(ctx context.Context, gatew
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_INSTANCE 
+		SELECT * FROM HUB_GW_INSTANCE 
 		WHERE gatewayInstanceId = ? AND tenantId = ?
 	`
 
@@ -234,7 +235,7 @@ func (dao *GatewayInstanceDAO) UpdateGatewayInstance(ctx context.Context, instan
 
 	// 构建更新SQL
 	sql := `
-		UPDATE HUB_GATEWAY_INSTANCE SET
+		UPDATE HUB_GW_INSTANCE SET
 			instanceName = ?, instanceDesc = ?, bindAddress = ?, httpPort = ?, httpsPort = ?,
 			tlsEnabled = ?, certStorageType = ?, certFilePath = ?, keyFilePath = ?,
 			certContent = ?, keyContent = ?, certChainContent = ?, certPassword = ?,
@@ -291,7 +292,7 @@ func (dao *GatewayInstanceDAO) DeleteGatewayInstance(ctx context.Context, gatewa
 	}
 
 	// 构建删除SQL
-	sql := `DELETE FROM HUB_GATEWAY_INSTANCE WHERE gatewayInstanceId = ? AND tenantId = ?`
+	sql := `DELETE FROM HUB_GW_INSTANCE WHERE gatewayInstanceId = ? AND tenantId = ?`
 
 	// 执行删除
 	result, err := dao.db.Exec(ctx, sql, []interface{}{gatewayInstanceId, tenantId}, true)
@@ -314,48 +315,48 @@ func (dao *GatewayInstanceDAO) ListGatewayInstances(ctx context.Context, tenantI
 		return nil, 0, errors.New("tenantId不能为空")
 	}
 
-	// 确保分页参数有效
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 10
+	// 构建基础查询
+	baseQuery := "SELECT * FROM HUB_GW_INSTANCE WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY addTime DESC"
+	args := []interface{}{tenantId}
+
+	// 构建统计查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建统计查询失败")
 	}
 
-	// 计算偏移量
-	offset := (page - 1) * pageSize
-
-	// 查询总数
-	countQuery := `SELECT COUNT(*) FROM HUB_GATEWAY_INSTANCE WHERE tenantId = ? AND activeFlag = 'Y'`
+	// 执行统计查询
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err := dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId}, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, args, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询网关实例总数失败")
 	}
-	total := result.Count
 
-	// 如果没有记录，直接返回空列表
-	if total == 0 {
+	if result.Count == 0 {
 		return []*models.GatewayInstance{}, 0, nil
 	}
 
-	// 查询数据
-	dataQuery := `
-		SELECT * FROM HUB_GATEWAY_INSTANCE 
-		WHERE tenantId = ? AND activeFlag = 'Y'
-		ORDER BY addTime DESC
-		LIMIT ? OFFSET ?
-	`
+	// 创建分页信息
+	paginationInfo := sqlutils.NewPaginationInfo(page, pageSize)
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, paginationInfo)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
+	}
+	allArgs := append(args, paginationArgs...)
 
+	// 执行分页查询
 	var instances []*models.GatewayInstance
-	err = dao.db.Query(ctx, &instances, dataQuery, []interface{}{tenantId, pageSize, offset}, true)
+	err = dao.db.Query(ctx, &instances, paginatedQuery, allArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询网关实例列表失败")
 	}
 
-	return instances, total, nil
+	return instances, result.Count, nil
 }
 
 // FindGatewayInstanceByName 根据实例名查找网关实例
@@ -365,7 +366,7 @@ func (dao *GatewayInstanceDAO) FindGatewayInstanceByName(ctx context.Context, in
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_INSTANCE 
+		SELECT * FROM HUB_GW_INSTANCE 
 		WHERE instanceName = ? AND tenantId = ? AND activeFlag = 'Y'
 	`
 
@@ -390,7 +391,7 @@ func (dao *GatewayInstanceDAO) UpdateHealthStatus(ctx context.Context, gatewayIn
 
 	now := time.Now()
 	sql := `
-		UPDATE HUB_GATEWAY_INSTANCE SET
+		UPDATE HUB_GW_INSTANCE SET
 			healthStatus = ?, lastHeartbeatTime = ?, editTime = ?, editWho = ?
 		WHERE gatewayInstanceId = ? AND tenantId = ?
 	`

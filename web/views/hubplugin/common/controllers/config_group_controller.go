@@ -324,8 +324,6 @@ func (c *ConfigGroupController) QueryConfigGroups(ctx *gin.Context) {
 		GroupName     string `json:"groupName" form:"groupName" query:"groupName"`
 		GroupType     string `json:"groupType" form:"groupType" query:"groupType"`
 		ParentGroupId string `json:"parentGroupId" form:"parentGroupId" query:"parentGroupId"`
-		Page          int    `json:"page" form:"page" query:"page"`
-		PageSize      int    `json:"pageSize" form:"pageSize" query:"pageSize"`
 	}
 	if err := request.BindSafely(ctx, &params); err != nil {
 		response.ErrorJSON(ctx, "参数解析失败: "+err.Error(), constants.ED00006)
@@ -341,13 +339,8 @@ func (c *ConfigGroupController) QueryConfigGroups(ctx *gin.Context) {
 		return
 	}
 
-	// 设置默认分页参数
-	if params.Page <= 0 {
-		params.Page = 1
-	}
-	if params.PageSize <= 0 {
-		params.PageSize = 10
-	}
+	// 获取分页参数
+	page, pageSize := request.GetPaginationParams(ctx)
 
 	// 构建查询条件，强制使用从上下文获取的租户ID
 	queryParams := map[string]interface{}{
@@ -358,7 +351,7 @@ func (c *ConfigGroupController) QueryConfigGroups(ctx *gin.Context) {
 	}
 
 	// 查询数据
-	configGroups, total, err := c.dao.Query(ctx, queryParams, params.Page, params.PageSize)
+	configGroups, total, err := c.dao.Query(ctx, queryParams, page, pageSize)
 	if err != nil {
 		response.ErrorJSON(ctx, "查询配置分组失败: "+err.Error(), constants.ED00009)
 		return
@@ -366,10 +359,10 @@ func (c *ConfigGroupController) QueryConfigGroups(ctx *gin.Context) {
 
 	// 构建分页信息
 	pageInfo := response.PageInfo{
-		PageIndex:      params.Page,
-		PageSize:       params.PageSize,
+		PageIndex:      page,
+		PageSize:       pageSize,
 		TotalCount:     int(total),
-		TotalPageIndex: int((total + int64(params.PageSize) - 1) / int64(params.PageSize)),
+		TotalPageIndex: int((total + int64(pageSize) - 1) / int64(pageSize)),
 		CurPageCount:   len(configGroups),
 	}
 

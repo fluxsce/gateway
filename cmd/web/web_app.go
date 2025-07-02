@@ -7,15 +7,14 @@ import (
 	"gohub/pkg/logger"
 	"gohub/pkg/utils/huberrors"
 	"gohub/web/routes"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	// 使用统一导入文件，自动导入所有模块
 	_ "gohub/web/moduleimports"
-	"net/http"
-	"path/filepath"
-	"runtime"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -161,6 +160,43 @@ func NewWebApp(db database.Database) *WebApp {
 			"path", staticPath)
 	}
 
+	// 配置Vue3前端静态资源服务
+	frontendPath := config.GetString("web.frontend.path", "./web/frontend/dist")
+	frontendPrefix := config.GetString("web.frontend.prefix", "/")
+	if frontendPath != "" {
+		// 静态资源文件（CSS、JS、图片等）
+		router.Static("/assets", filepath.Join(frontendPath, "assets"))
+		router.StaticFile("/favicon.ico", filepath.Join(frontendPath, "favicon.ico"))
+		
+		// 处理Vue3 SPA路由 - 所有未匹配的路由都返回index.html
+		router.NoRoute(func(c *gin.Context) {
+			// 如果是API请求，返回404
+			if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+				c.JSON(http.StatusNotFound, gin.H{
+					"code": 404,
+					"message": "API endpoint not found",
+				})
+				return
+			}
+			
+			// 对于前端路由，返回index.html
+			indexPath := filepath.Join(frontendPath, "index.html")
+			if _, err := os.Stat(indexPath); err == nil {
+				c.File(indexPath)
+			} else {
+				// 如果index.html不存在，返回简单的404页面
+				c.HTML(http.StatusNotFound, "404.html", gin.H{
+					"title": "页面未找到",
+					"message": "请求的页面不存在",
+				})
+			}
+		})
+		
+		logger.Info("Vue3前端静态资源服务已配置",
+			"path", frontendPath,
+			"prefix", frontendPrefix)
+	}
+
 	return &WebApp{
 		db:     db,
 		router: router,
@@ -184,32 +220,15 @@ func (app *WebApp) Router() *gin.Engine {
 
 // Init 初始化Web应用
 func (app *WebApp) Init() error {
-	// 获取web目录
-	_, b, _, _ := runtime.Caller(0)
-	// cmd/web/app.go所在的目录是cmd/web，我们要找web目录
-	// 项目结构：
-	// - gohub (项目根目录)
-	//   - cmd
-	//     - web
-	//       - app.go (当前文件)
-	//   - web
-	//     - views
-	//     - routes
-	//     - ...
-
-	// 需要定位到web目录，而不是项目根目录
-	rootDir := filepath.Dir(filepath.Dir(filepath.Dir(b))) // 项目根目录
-	basePath := filepath.Join(rootDir, "web")              // web目录
-
-	logger.Info("初始化路由", "basePath", basePath)
+	logger.Info("初始化Web应用路由")
 
 	// 应用全局中间件
 	routes.ApplyGlobalMiddleware(app.router)
 
-	// 创建路由发现器
-	discovery := routes.NewRouteDiscovery(basePath, app.db)
+	// 创建路由发现器（baseDir参数不再使用，为了兼容性保留）
+	discovery := routes.NewRouteDiscovery("", app.db)
 
-	// 发现并注册所有模块
+	// 发现所有已注册的模块（通过编译时注册机制）
 	modules := discovery.DiscoverModules()
 
 	// 创建模块管理器
@@ -224,6 +243,7 @@ func (app *WebApp) Init() error {
 	// 应用所有模块的路由
 	manager.RegisterAll(app.router)
 
+	logger.Info("Web应用路由初始化完成", "模块数量", len(modules))
 	return nil
 }
 

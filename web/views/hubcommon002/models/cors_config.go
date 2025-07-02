@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// CorsConfig CORS配置模型，对应数据库HUB_GATEWAY_CORS_CONFIG表
+// CorsConfig CORS配置模型，对应数据库HUB_GW_CORS_CONFIG表
 type CorsConfig struct {
 	TenantId         string     `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                               // 租户ID，联合主键
 	CorsConfigId     string     `json:"corsConfigId" form:"corsConfigId" query:"corsConfigId" db:"corsConfigId"`             // CORS配置ID，联合主键
@@ -36,5 +36,5 @@ type CorsConfig struct {
 
 // TableName 返回表名
 func (CorsConfig) TableName() string {
-	return "HUB_GATEWAY_CORS_CONFIG"
+	return "HUB_GW_CORS_CONFIG"
 }

@@ -100,7 +100,7 @@ func (c *AuthController) Login(ctx *gin.Context) {
 	userAgent := ctx.GetHeader("User-Agent")
 
 	// 验证用户登录信息
-	user, err := c.authService.ValidateLogin(ctx, &req)
+	user, err := c.authService.ValidateLogin(ctx, &req, clientIP)
 	if err != nil {
 		// 根据错误类型设置不同的消息ID
 		var messageId string

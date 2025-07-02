@@ -159,7 +159,7 @@ func (app *GatewayApp) loadFromDatabase() error {
 	
 	// 查询所有活动状态的网关实例
 	query := `SELECT tenantId, gatewayInstanceId 
-			  FROM HUB_GATEWAY_INSTANCE 
+			  FROM HUB_GW_INSTANCE 
 			  WHERE activeFlag = 'Y'`
 	
 	// 执行查询
@@ -171,27 +171,7 @@ func (app *GatewayApp) loadFromDatabase() error {
 	
 	// 检查是否找到实例
 	if len(gatewayInstances) == 0 {
-		logger.Warn("未找到活动的网关实例，使用默认实例")
-		
-		// 使用默认租户和默认实例ID
-		defaultTenantID := "default"
-		defaultInstanceID := "default"
-		
-		// 创建数据库配置加载器
-		dbLoader := loader.NewDatabaseConfigLoader(app.db, defaultTenantID)
-		
-		// 加载默认实例配置
-		cfg, err := dbLoader.LoadGatewayConfig(defaultInstanceID)
-		if err != nil {
-			return huberrors.WrapError(err, "加载默认网关配置失败")
-		}
-		
-		// 创建默认网关实例
-		if err := app.createGatewayInstance(cfg, "database:default"); err != nil {
-			return huberrors.WrapError(err, "创建默认网关实例失败")
-		}
-		
-		logger.Info("默认网关实例配置加载成功")
+		logger.Warn("未找到活动的网关实例，跳过网关配置加载")
 		return nil
 	}
 	

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 	"gohub/pkg/utils/huberrors"
 	"gohub/web/views/hub0022/models"
 	"strings"
@@ -54,12 +55,20 @@ func (dao *ServiceNodeDAO) QueryServiceNodes(ctx context.Context, tenantId strin
 		}
 	}
 
-	// 计算总数
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM HUB_GATEWAY_SERVICE_NODE %s", whereClause)
+	// 构建基础查询语句
+	baseQuery := fmt.Sprintf("SELECT * FROM HUB_GW_SERVICE_NODE %s ORDER BY addTime DESC", whereClause)
+
+	// 构建统计查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建统计查询失败")
+	}
+
+	// 执行统计查询
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err := dao.db.QueryOne(ctx, &result, countQuery, params, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询服务节点总数失败")
 	}
@@ -70,23 +79,24 @@ func (dao *ServiceNodeDAO) QueryServiceNodes(ctx context.Context, tenantId strin
 		return []*models.ServiceNodeModel{}, 0, nil
 	}
 
-	// 计算分页参数
-	offset := (page - 1) * pageSize
-	if offset < 0 {
-		offset = 0
+	// 创建分页信息
+	pagination := sqlutils.NewPaginationInfo(page, pageSize)
+
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
 	}
 
-	// 查询数据
-	query := fmt.Sprintf(`
-		SELECT * FROM HUB_GATEWAY_SERVICE_NODE 
-		%s 
-		ORDER BY addTime DESC 
-		LIMIT ? OFFSET ?
-	`, whereClause)
-	params = append(params, pageSize, offset)
+	// 合并查询参数
+	allArgs := append(params, paginationArgs...)
 
+	// 执行分页查询
 	var nodes []*models.ServiceNodeModel
-	err = dao.db.Query(ctx, &nodes, query, params, true)
+	err = dao.db.Query(ctx, &nodes, paginatedQuery, allArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询服务节点列表失败")
 	}
@@ -101,7 +111,7 @@ func (dao *ServiceNodeDAO) GetServiceNodeById(ctx context.Context, serviceNodeId
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_SERVICE_NODE 
+		SELECT * FROM HUB_GW_SERVICE_NODE 
 		WHERE serviceNodeId = ? AND tenantId = ?
 	`
 
@@ -124,7 +134,7 @@ func (dao *ServiceNodeDAO) GetServiceNodesByService(ctx context.Context, service
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_SERVICE_NODE 
+		SELECT * FROM HUB_GW_SERVICE_NODE 
 		WHERE serviceDefinitionId = ? AND tenantId = ? AND activeFlag = 'Y'
 		ORDER BY nodeWeight DESC, addTime ASC
 	`
@@ -197,7 +207,7 @@ func (dao *ServiceNodeDAO) CreateServiceNode(ctx context.Context, node *models.S
 
 	// 构建SQL语句
 	sql := `
-		INSERT INTO HUB_GATEWAY_SERVICE_NODE (
+		INSERT INTO HUB_GW_SERVICE_NODE (
 			tenantId, serviceNodeId, serviceDefinitionId, nodeId,
 			nodeUrl, nodeHost, nodePort, nodeProtocol, nodeWeight,
 			healthStatus, nodeMetadata, nodeStatus, lastHealthCheckTime,
@@ -276,7 +286,7 @@ func (dao *ServiceNodeDAO) UpdateServiceNode(ctx context.Context, node *models.S
 
 	// 构建更新SQL
 	sql := `
-		UPDATE HUB_GATEWAY_SERVICE_NODE SET
+		UPDATE HUB_GW_SERVICE_NODE SET
 			nodeId = ?, nodeUrl = ?,
 			nodeHost = ?, nodePort = ?, nodeProtocol = ?, nodeWeight = ?,
 			healthStatus = ?, nodeMetadata = ?, nodeStatus = ?,
@@ -327,7 +337,7 @@ func (dao *ServiceNodeDAO) DeleteServiceNode(ctx context.Context, serviceNodeId,
 	}
 
 	// 执行物理删除
-	sql := `DELETE FROM HUB_GATEWAY_SERVICE_NODE WHERE serviceNodeId = ? AND tenantId = ?`
+	sql := `DELETE FROM HUB_GW_SERVICE_NODE WHERE serviceNodeId = ? AND tenantId = ?`
 	
 	result, err := dao.db.Exec(ctx, sql, []interface{}{serviceNodeId, tenantId}, true)
 	if err != nil {
@@ -365,7 +375,7 @@ func (dao *ServiceNodeDAO) UpdateNodeHealth(ctx context.Context, serviceNodeId, 
 
 	// 构建更新SQL
 	sql := `
-		UPDATE HUB_GATEWAY_SERVICE_NODE SET
+		UPDATE HUB_GW_SERVICE_NODE SET
 			healthStatus = ?,
 			healthCheckResult = ?,
 			lastHealthCheckTime = ?,

@@ -62,8 +62,8 @@ func GetUserContext(c *gin.Context) *globalmodels.UserContext {
 // GetPaginationParams 获取分页参数
 func GetPaginationParams(c *gin.Context) (page, pageSize int) {
 	// 获取查询参数
-	pageStr := c.DefaultQuery("page", constants.DefaultPage)
-	pageSizeStr := c.DefaultQuery("pageSize", constants.DefaultPageSize)
+	pageStr := GetParam(c, "pageIndex", constants.DefaultPage)
+	pageSizeStr := GetParam(c, "pageSize", constants.DefaultPageSize)
 
 	// 转换参数
 	page, err := strconv.Atoi(pageStr)

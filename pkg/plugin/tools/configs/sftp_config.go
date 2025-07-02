@@ -218,6 +218,9 @@ type SFTPTransferOptions struct {
 	// 是否创建目标目录
 	CreateTargetDir bool `json:"createTargetDir" yaml:"create_target_dir"`
 	
+	// 是否在传输成功后删除源文件（实现移动操作）
+	DeleteSourceAfterTransfer bool `json:"deleteSourceAfterTransfer" yaml:"delete_source_after_transfer"`
+	
 	// 是否保持文件权限
 	PreservePermissions bool `json:"preservePermissions" yaml:"preserve_permissions"`
 	
@@ -417,23 +420,24 @@ func DefaultSFTPConfig() *SFTPConfig {
 // DefaultSFTPTransferOptions 返回默认SFTP传输选项
 func DefaultSFTPTransferOptions() *SFTPTransferOptions {
 	return &SFTPTransferOptions{
-		OverwriteExisting:      false,
-		SkipExisting:           true,
-		CreateTargetDir:        true,
-		PreservePermissions:    true,
-		PreserveTimestamps:     true,
-		VerifyIntegrity:        false,
-		BufferSize:             32 * 1024, // 32KB
-		ConcurrentTransfers:    3,
-		TransferTimeout:        5 * time.Minute,
-		RetryCount:             3,
-		RetryInterval:          time.Second,
-		MaxFileSize:            0, // 无限制
-		MinFileSize:            0,
-		ProgressReportInterval: time.Second,
-		EnableCompression:      false,
-		CompressionLevel:       6,
-		ContinueOnError:        true,
+		OverwriteExisting:         false,
+		SkipExisting:              true,
+		CreateTargetDir:           true,
+		DeleteSourceAfterTransfer: false, // 默认不删除源文件，避免意外数据丢失
+		PreservePermissions:       true,
+		PreserveTimestamps:        true,
+		VerifyIntegrity:           false,
+		BufferSize:                32 * 1024, // 32KB
+		ConcurrentTransfers:       3,
+		TransferTimeout:           5 * time.Minute,
+		RetryCount:                3,
+		RetryInterval:             time.Second,
+		MaxFileSize:               0, // 无限制
+		MinFileSize:               0,
+		ProgressReportInterval:    time.Second,
+		EnableCompression:         false,
+		CompressionLevel:          6,
+		ContinueOnError:           true,
 	}
 }
 

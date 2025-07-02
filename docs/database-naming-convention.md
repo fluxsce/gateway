@@ -33,6 +33,103 @@
 - 数量类型字段应以 `count`、`num` 或 `quantity` 结尾，如 `visitCount`、`stockQuantity`
 - 状态标记字段使用 `VARCHAR(1)` 类型，值为 'Y'/'N'，如 `activeFlag VARCHAR(1) DEFAULT 'Y'`
 
+### 1.4 表名称以及主键名称索引名称长度规范
+
+#### 1.4.1 表名称长度规范
+
+- **Oracle数据库**：表名最大长度为30个字符
+- **MySQL数据库**：表名最大长度为64个字符
+- **SQLite数据库**：表名最大长度为64个字符
+- 建议表名控制在25个字符以内，为后续扩展预留空间
+
+#### 1.4.2 主键名称长度规范
+
+- **Oracle数据库**：主键约束名最大长度为30个字符
+- **MySQL数据库**：主键约束名最大长度为64个字符
+- **SQLite数据库**：主键约束名最大长度为64个字符
+
+**主键命名规范**：
+- 格式：`PK_表名简写` 或 `PK_模块简写_功能简写`
+- 示例：
+  - `HUB_USER` → `PK_USER`
+  - `HUB_GW_INSTANCE` → `PK_GW_INSTANCE`
+  - `HUB_GW_ROUTER_CONFIG` → `PK_GW_ROUTER_CONFIG`
+  - `HUB_TIMER_SCHEDULER` → `PK_TIMER_SCHEDULER`
+
+#### 1.4.3 索引名称长度规范
+
+- **Oracle数据库**：索引名最大长度为30个字符
+- **MySQL数据库**：索引名最大长度为64个字符
+- **SQLite数据库**：索引名最大长度为64个字符
+
+**索引命名规范**：
+- 格式：`IDX_表名简写_字段简写` 或 `IDX_模块简写_字段简写`
+- 示例：
+  - `HUB_USER` 表的 `tenantId` 字段 → `IDX_USER_TENANT`
+  - `HUB_GW_INSTANCE` 表的 `bindAddress` 和 `httpPort` 字段 → `IDX_GW_INST_BIND_HTTP`
+  - `HUB_TIMER_TASK` 表的 `taskName` 字段 → `IDX_TIMER_TASK_NAME`
+
+#### 1.4.4 命名简写规则
+
+为了满足长度限制，采用以下简写规则：
+
+| 完整名称 | 简写 | 说明 |
+|---------|------|------|
+| HUB_GATEWAY | GW | 网关模块 |
+| HUB_TIMER | TIMER | 定时器模块 |
+| HUB_USER | USER | 用户模块 |
+| HUB_LOGIN | LOGIN | 登录模块 |
+| HUB_TOOL | TOOL | 工具模块 |
+| INSTANCE | INST | 实例 |
+| CONFIG | CFG | 配置 |
+| DEFINITION | DEF | 定义 |
+| ASSERTION | ASSERT | 断言 |
+| AUTHENTICATION | AUTH | 认证 |
+| RATE_LIMIT | RATE | 限流 |
+| CIRCUIT_BREAKER | CB | 熔断器 |
+| EXECUTION | EXEC | 执行 |
+| SCHEDULER | SCHED | 调度器 |
+| SERVICE | SVC | 服务 |
+| ROUTER | ROUTER | 路由器 |
+| FILTER | FILTER | 过滤器 |
+| PROXY | PROXY | 代理 |
+| NODE | NODE | 节点 |
+
+#### 1.4.5 长度检查建议
+
+在创建表结构时，建议进行以下检查：
+
+1. **表名长度检查**：确保表名不超过数据库限制
+2. **主键名长度检查**：确保主键约束名不超过数据库限制
+3. **索引名长度检查**：确保索引名不超过数据库限制
+4. **预留空间**：建议预留2-5个字符空间，避免后续修改时超出限制
+
+#### 1.4.6 示例
+
+```sql
+-- Oracle数据库示例（30字符限制）
+CREATE TABLE HUB_GW_INSTANCE (
+    tenantId VARCHAR2(32) NOT NULL,
+    gatewayInstanceId VARCHAR2(32) NOT NULL,
+    -- ... 其他字段
+    CONSTRAINT PK_GW_INSTANCE PRIMARY KEY (tenantId, gatewayInstanceId)
+);
+
+CREATE INDEX IDX_GW_INST_BIND_HTTP ON HUB_GW_INSTANCE(bindAddress, httpPort);
+CREATE INDEX IDX_GW_INST_LOG ON HUB_GW_INSTANCE(logConfigId);
+
+-- MySQL数据库示例（64字符限制，可以使用更长的名称）
+CREATE TABLE HUB_GW_INSTANCE (
+    tenantId VARCHAR(32) NOT NULL,
+    gatewayInstanceId VARCHAR(32) NOT NULL,
+    -- ... 其他字段
+    CONSTRAINT PK_GW_INSTANCE PRIMARY KEY (tenantId, gatewayInstanceId)
+);
+
+CREATE INDEX IDX_GW_INST_BIND_HTTP ON HUB_GW_INSTANCE(bindAddress, httpPort);
+CREATE INDEX IDX_GW_INST_LOG ON HUB_GW_INSTANCE(logConfigId);
+```
+
 ## 2. 必须包含的通用字段
 
 所有表必须包含以下字段：
@@ -89,12 +186,20 @@
 - 外键索引：所有外键字段必须创建索引
 - 常用查询字段：经常作为查询条件的字段应创建索引
 - 联合索引：多字段组合查询应考虑创建联合索引
-- 索引命名：idx*表名*字段名
+- 索引命名：遵循1.4.3节索引名称长度规范，使用`IDX_表名简写_字段简写`格式
+- 索引名称长度限制：
+  - Oracle数据库：30个字符
+  - MySQL数据库：64个字符
+  - SQLite数据库：64个字符
 
 ### 4.3 外键约束
 
 - 根据实际业务需求决定是否使用外键约束
-- 如使用外键，命名为：fk*表名*关联表名
+- 如使用外键，命名为：`FK_表名简写_关联表名简写`
+- 外键约束名称长度限制：
+  - Oracle数据库：30个字符
+  - MySQL数据库：64个字符
+  - SQLite数据库：64个字符
 - 一般推荐在应用层实现外键关系，数据库层不强制使用外键约束
 
 ### 4.4 表注释和字段注释
@@ -157,9 +262,8 @@ CREATE TABLE `HUB_USER_ACCOUNT` (
   `reserved9` VARCHAR(500) DEFAULT NULL COMMENT '预留字段9',
   `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
   PRIMARY KEY (`userAccountId`),
-  UNIQUE KEY `idx_HUB_USER_ACCOUNT_userName` (`userName`),
-  UNIQUE KEY `idx_HUB_USER_ACCOUNT_emailAddress` (`emailAddress`),
-  UNIQUE KEY `idx_HUB_USER_ACCOUNT_mobilePhone` (`mobilePhone`),
-  KEY `idx_HUB_USER_ACCOUNT_tenantId` (`tenantId`)
+  UNIQUE KEY `IDX_USER_ACCOUNT_USERNAME` (`userName`),
+  UNIQUE KEY `IDX_USER_ACCOUNT_EMAIL` (`emailAddress`),
+  UNIQUE KEY `IDX_USER_ACCOUNT_MOBILE` (`mobilePhone`),
+  KEY `IDX_USER_ACCOUNT_TENANT` (`tenantId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户账号表';
-```

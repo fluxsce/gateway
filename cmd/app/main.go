@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	cacheapp "gohub/cmd/cache"
 	gatewayapp "gohub/cmd/gateway"
+	timerinit "gohub/cmd/init"
 	webapp "gohub/cmd/web"
 	"gohub/pkg/cache"
 	"gohub/pkg/config"
@@ -62,6 +64,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	// 初始化定时任务
+	if err := timerinit.InitAllTimerTasks(context.Background(), db); err != nil {
+		logger.Error("初始化定时任务失败", err)
+		os.Exit(1)
+	}
+
 	// 设置优雅退出
 	setupGracefulShutdown()
 
@@ -105,13 +113,19 @@ func setupGracefulShutdown() {
 
 // initConfig 初始化配置
 func initConfig() error {
+	// 支持通过环境变量指定配置目录
+	configDir := os.Getenv("GOHUB_CONFIG_DIR")
+	if configDir == "" {
+		configDir = "./configs"
+	}
+	
 	// 加载配置文件，设置不清除现有配置，允许覆盖
 	options := config.LoadOptions{
 		ClearExisting: false,
 		AllowOverride: true,
 	}
 
-	err := config.LoadConfig("./configs", options)
+	err := config.LoadConfig(configDir, options)
 	if err != nil {
 		// 使用huberrors.WrapError包装错误，提供更多上下文
 		return huberrors.WrapError(err, "加载配置文件失败")
@@ -210,6 +224,13 @@ func startGatewayServices() error {
 // 应用退出前调用，确保所有资源被正确释放
 func cleanupResources() {
 	logger.Info("开始清理应用资源...")
+	
+	// 停止所有定时任务
+	if err := timerinit.StopAllTimerTasks(); err != nil {
+		logger.Warn("停止定时任务时发生错误", err)
+	} else {
+		logger.Info("定时任务已成功停止")
+	}
 	
 	// 关闭网关应用
 	if gatewayApp != nil {

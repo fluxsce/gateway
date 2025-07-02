@@ -128,8 +128,6 @@ func (c *GatewayInstanceController) GetGatewayInstance(ctx *gin.Context) {
 func (c *GatewayInstanceController) QueryGatewayInstances(ctx *gin.Context) {
 	// 绑定请求参数
 	var req struct {
-		Page         int    `json:"page" form:"page"`
-		PageSize     int    `json:"pageSize" form:"pageSize"`
 		InstanceName string `json:"instanceName" form:"instanceName"`
 		HealthStatus string `json:"healthStatus" form:"healthStatus"`
 		TlsEnabled   string `json:"tlsEnabled" form:"tlsEnabled"`
@@ -140,13 +138,8 @@ func (c *GatewayInstanceController) QueryGatewayInstances(ctx *gin.Context) {
 		return
 	}
 
-	// 设置默认分页参数
-	if req.Page < 1 {
-		req.Page = 1
-	}
-	if req.PageSize < 1 {
-		req.PageSize = 10
-	}
+	// 获取分页参数
+	page, pageSize := request.GetPaginationParams(ctx)
 
 	// 从上下文获取租户ID
 	tenantId := request.GetTenantID(ctx)
@@ -168,7 +161,7 @@ func (c *GatewayInstanceController) QueryGatewayInstances(ctx *gin.Context) {
 	}
 
 	// 调用DAO获取网关实例列表
-	instances, total, err := c.gatewayInstanceDAO.QueryGatewayInstances(ctx, tenantId, req.Page, req.PageSize, filters)
+	instances, total, err := c.gatewayInstanceDAO.QueryGatewayInstances(ctx, tenantId, page, pageSize, filters)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取网关实例列表失败", err)
 		response.ErrorJSON(ctx, "获取网关实例列表失败: "+err.Error(), constants.ED00009)
@@ -182,7 +175,7 @@ func (c *GatewayInstanceController) QueryGatewayInstances(ctx *gin.Context) {
 	}
 
 	// 创建分页信息并返回
-	pageInfo := response.NewPageInfo(req.Page, req.PageSize, total)
+	pageInfo := response.NewPageInfo(page, pageSize, total)
 	pageInfo.MainKey = "gatewayInstanceId"
 
 	// 使用统一的分页响应

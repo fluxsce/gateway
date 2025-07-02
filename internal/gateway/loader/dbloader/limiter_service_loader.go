@@ -11,6 +11,7 @@ import (
 	"gohub/internal/gateway/handler/proxy"
 	"gohub/internal/gateway/handler/service"
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 )
 
 // LimiterServiceLoader 限流和服务配置加载器
@@ -29,24 +30,44 @@ func NewLimiterServiceLoader(db database.Database, tenantId string) *LimiterServ
 
 // LoadRateLimitConfig 加载实例级别限流配置
 func (loader *LimiterServiceLoader) LoadRateLimitConfig(ctx context.Context, instanceId string) (*limiter.RateLimitConfig, error) {
-	query := `
+	// 构建基础查询语句
+	baseQuery := `
 		SELECT tenantId, rateLimitConfigId, limitName, algorithm, keyStrategy, 
 		       limitRate, burstCapacity, timeWindowSeconds, rejectionStatusCode, 
 		       rejectionMessage, customConfig
-		FROM HUB_GATEWAY_RATE_LIMIT_CONFIG 
+		FROM HUB_GW_RATE_LIMIT_CONFIG 
 		WHERE tenantId = ? AND gatewayInstanceId = ? AND activeFlag = 'Y'
 		ORDER BY configPriority ASC
-		LIMIT 1
 	`
 
-	var record RateLimitConfigRecord
-	err := loader.db.QueryOne(ctx, &record, query, []interface{}{loader.tenantId, instanceId}, true)
+	// 创建分页信息（只取第一条记录）
+	pagination := sqlutils.NewPaginationInfo(1, 1)
+
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(loader.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {
-		if err == database.ErrRecordNotFound {
-			return nil, nil
-		}
+		return nil, fmt.Errorf("构建分页查询失败: %w", err)
+	}
+
+	// 合并查询参数
+	allArgs := append([]interface{}{loader.tenantId, instanceId}, paginationArgs...)
+
+	// 执行查询
+	var records []RateLimitConfigRecord
+	err = loader.db.Query(ctx, &records, paginatedQuery, allArgs, true)
+	if err != nil {
 		return nil, fmt.Errorf("查询限流配置失败: %w", err)
 	}
+
+	// 如果没有找到记录，返回nil
+	if len(records) == 0 {
+		return nil, nil
+	}
+
+	record := records[0]
 
 	// 构建限流配置
 	rateLimitConf := &limiter.RateLimitConfig{
@@ -86,24 +107,44 @@ func (loader *LimiterServiceLoader) LoadRateLimitConfig(ctx context.Context, ins
 
 // LoadRouteRateLimitConfig 加载路由级别限流配置
 func (loader *LimiterServiceLoader) LoadRouteRateLimitConfig(ctx context.Context, routeId string) (*limiter.RateLimitConfig, error) {
-	query := `
+	// 构建基础查询语句
+	baseQuery := `
 		SELECT tenantId, rateLimitConfigId, limitName, algorithm, keyStrategy, 
 		       limitRate, burstCapacity, timeWindowSeconds, rejectionStatusCode, 
 		       rejectionMessage, customConfig
-		FROM HUB_GATEWAY_RATE_LIMIT_CONFIG 
+		FROM HUB_GW_RATE_LIMIT_CONFIG 
 		WHERE tenantId = ? AND routeConfigId = ? AND activeFlag = 'Y'
 		ORDER BY configPriority ASC
-		LIMIT 1
 	`
 
-	var record RateLimitConfigRecord
-	err := loader.db.QueryOne(ctx, &record, query, []interface{}{loader.tenantId, routeId}, true)
+	// 创建分页信息（只取第一条记录）
+	pagination := sqlutils.NewPaginationInfo(1, 1)
+
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(loader.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {
-		if err == database.ErrRecordNotFound {
-			return nil, fmt.Errorf("路由限流配置不存在")
-		}
+		return nil, fmt.Errorf("构建分页查询失败: %w", err)
+	}
+
+	// 合并查询参数
+	allArgs := append([]interface{}{loader.tenantId, routeId}, paginationArgs...)
+
+	// 执行查询
+	var records []RateLimitConfigRecord
+	err = loader.db.Query(ctx, &records, paginatedQuery, allArgs, true)
+	if err != nil {
 		return nil, fmt.Errorf("查询路由限流配置失败: %w", err)
 	}
+
+	// 如果没有找到记录，返回database.ErrRecordNotFound（保持原有逻辑）
+	if len(records) == 0 {
+		return nil, database.ErrRecordNotFound
+	}
+
+	record := records[0]
 
 	// 构建限流配置
 	rateLimitConf := &limiter.RateLimitConfig{
@@ -143,22 +184,42 @@ func (loader *LimiterServiceLoader) LoadRouteRateLimitConfig(ctx context.Context
 
 // LoadProxyConfig 加载代理配置
 func (loader *LimiterServiceLoader) LoadProxyConfig(ctx context.Context, instanceId string) (*proxy.ProxyConfig, error) {
-	query := `
+	// 构建基础查询语句
+	baseQuery := `
 		SELECT tenantId, proxyConfigId, proxyName, proxyType, proxyConfig, customConfig
-		FROM HUB_GATEWAY_PROXY_CONFIG 
+		FROM HUB_GW_PROXY_CONFIG 
 		WHERE tenantId = ? AND gatewayInstanceId = ? AND activeFlag = 'Y'
 		ORDER BY configPriority ASC
-		LIMIT 1
 	`
 
-	var record ProxyConfigRecord
-	err := loader.db.QueryOne(ctx, &record, query, []interface{}{loader.tenantId, instanceId}, true)
+	// 创建分页信息（只取第一条记录）
+	pagination := sqlutils.NewPaginationInfo(1, 1)
+
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(loader.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {
-		if err == database.ErrRecordNotFound {
-			return nil, nil
-		}
+		return nil, fmt.Errorf("构建分页查询失败: %w", err)
+	}
+
+	// 合并查询参数
+	allArgs := append([]interface{}{loader.tenantId, instanceId}, paginationArgs...)
+
+	// 执行查询
+	var records []ProxyConfigRecord
+	err = loader.db.Query(ctx, &records, paginatedQuery, allArgs, true)
+	if err != nil {
 		return nil, fmt.Errorf("查询代理配置失败: %w", err)
 	}
+
+	// 如果没有找到记录，返回nil
+	if len(records) == 0 {
+		return nil, nil
+	}
+
+	record := records[0]
 
 	// 构建代理配置
 	proxyConf := &proxy.ProxyConfig{
@@ -198,7 +259,7 @@ func (loader *LimiterServiceLoader) LoadProxyConfig(ctx context.Context, instanc
 	// 查询关联的服务配置 - 从服务定义表中查找关联到这个代理的服务
 	serviceQuery := `
 		SELECT serviceDefinitionId 
-		FROM HUB_GATEWAY_SERVICE_DEFINITION 
+		FROM HUB_GW_SERVICE_DEFINITION 
 		WHERE tenantId = ? AND proxyConfigId = ? AND activeFlag = 'Y'
 	`
 	var serviceIds []struct {
@@ -263,7 +324,7 @@ func (loader *LimiterServiceLoader) LoadServiceConfig(ctx context.Context, servi
 		       healthCheckIntervalSeconds, healthCheckTimeoutMs, healthyThreshold,
 		       unhealthyThreshold, expectedStatusCodes, healthCheckHeaders,
 		       loadBalancerConfig, serviceMetadata, activeFlag
-		FROM HUB_GATEWAY_SERVICE_DEFINITION 
+		FROM HUB_GW_SERVICE_DEFINITION 
 		WHERE tenantId = ? AND serviceDefinitionId = ? AND activeFlag = 'Y'
 	`
 
@@ -336,16 +397,7 @@ func (loader *LimiterServiceLoader) LoadServiceConfig(ctx context.Context, servi
 
 		// 解析期望的状态码
 		if record.ExpectedStatusCodes != "" {
-			var statusCodes []int
-			for _, code := range strings.Split(record.ExpectedStatusCodes, ",") {
-				if code != "" {
-					var statusCode int
-					if _, err := fmt.Sscanf(strings.TrimSpace(code), "%d", &statusCode); err == nil {
-						statusCodes = append(statusCodes, statusCode)
-					}
-				}
-			}
-			healthCheck.ExpectedStatusCodes = statusCodes
+			healthCheck.ExpectedStatusCodes = parseStatusCodes(record.ExpectedStatusCodes)
 		}
 
 		// 解析健康检查头
@@ -377,7 +429,7 @@ func (loader *LimiterServiceLoader) LoadServiceNodes(ctx context.Context, servic
 		SELECT tenantId, serviceNodeId, serviceDefinitionId, nodeId, nodeUrl,
 		       nodeHost, nodePort, nodeProtocol, nodeWeight, healthStatus,
 		       nodeMetadata, nodeStatus, activeFlag
-		FROM HUB_GATEWAY_SERVICE_NODE 
+		FROM HUB_GW_SERVICE_NODE 
 		WHERE tenantId = ? AND serviceDefinitionId = ? AND activeFlag = 'Y'
 		ORDER BY nodeWeight DESC
 	`
@@ -410,4 +462,69 @@ func (loader *LimiterServiceLoader) LoadServiceNodes(ctx context.Context, servic
 	}
 
 	return nodes, nil
+}
+
+// parseStatusCodes 解析逗号分隔的状态码字符串或JSON数组
+// 功能特性：
+// - 优先尝试解析JSON数组格式（如 ["200","201","202"]）
+// - 如果JSON解析失败，则按逗号分割字符串
+// - 将字符串转换为整数
+// - 过滤掉无效的状态码
+// - 返回清理后的整数切片
+//
+// 参数:
+//   str: 要解析的字符串（JSON数组或逗号分隔字符串）
+// 返回:
+//   []int: 解析后的状态码切片
+//
+// 示例:
+//   parseStatusCodes(`["200","201","202"]`) 
+//   // 返回: [200, 201, 202]
+//   parseStatusCodes("200, 201 , 202,, 404 ") 
+//   // 返回: [200, 201, 202, 404]
+func parseStatusCodes(str string) []int {
+	if str == "" {
+		return []int{}
+	}
+	
+	// 去除前后空白字符
+	str = strings.TrimSpace(str)
+	
+	// 优先尝试解析JSON数组
+	if strings.HasPrefix(str, "[") && strings.HasSuffix(str, "]") {
+		var jsonArray []string
+		if err := json.Unmarshal([]byte(str), &jsonArray); err == nil {
+			// JSON解析成功，转换为整数
+			var result []int
+			for _, item := range jsonArray {
+				trimmed := strings.TrimSpace(item)
+				if trimmed != "" {
+					var statusCode int
+					if _, err := fmt.Sscanf(trimmed, "%d", &statusCode); err == nil {
+						result = append(result, statusCode)
+					}
+				}
+			}
+			return result
+		}
+	}
+	
+	// JSON解析失败，按逗号分割
+	parts := strings.Split(str, ",")
+	
+	// 清理和转换
+	var result []int
+	for _, part := range parts {
+		// 去除前后空白字符
+		trimmed := strings.TrimSpace(part)
+		// 转换为整数
+		if trimmed != "" {
+			var statusCode int
+			if _, err := fmt.Sscanf(trimmed, "%d", &statusCode); err == nil {
+				result = append(result, statusCode)
+			}
+		}
+	}
+	
+	return result
 } 

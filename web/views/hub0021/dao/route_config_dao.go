@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 	"gohub/pkg/utils/huberrors"
 	"gohub/pkg/utils/random"
 	"gohub/web/views/hub0021/models"
@@ -40,7 +41,7 @@ func (dao *RouteConfigDAO) generateRouteConfigId() string {
 
 // isRouteConfigIdExists 检查路由配置ID是否已存在
 func (dao *RouteConfigDAO) isRouteConfigIdExists(ctx context.Context, routeConfigId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GATEWAY_ROUTE_CONFIG WHERE routeConfigId = ?`
+	query := `SELECT COUNT(*) as count FROM HUB_GW_ROUTE_CONFIG WHERE routeConfigId = ?`
 	
 	var result struct {
 		Count int `db:"count"`
@@ -156,7 +157,7 @@ func (dao *RouteConfigDAO) AddRouteConfig(ctx context.Context, routeConfig *mode
 	}
 
 	// 使用数据库接口的Insert方法插入记录
-	_, err := dao.db.Insert(ctx, "HUB_GATEWAY_ROUTE_CONFIG", routeConfig, true)
+	_, err := dao.db.Insert(ctx, "HUB_GW_ROUTE_CONFIG", routeConfig, true)
 
 	if err != nil {
 		// 检查是否是路由名重复错误
@@ -176,7 +177,7 @@ func (dao *RouteConfigDAO) GetRouteConfigById(ctx context.Context, routeConfigId
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_ROUTE_CONFIG 
+		SELECT * FROM HUB_GW_ROUTE_CONFIG 
 		WHERE routeConfigId = ? AND tenantId = ?
 	`
 
@@ -229,7 +230,7 @@ func (dao *RouteConfigDAO) UpdateRouteConfig(ctx context.Context, routeConfig *m
 
 	// 构建更新SQL
 	sql := `
-		UPDATE HUB_GATEWAY_ROUTE_CONFIG SET
+		UPDATE HUB_GW_ROUTE_CONFIG SET
 			gatewayInstanceId = ?, routeName = ?, routePath = ?, allowedMethods = ?, allowedHosts = ?,
 			matchType = ?, routePriority = ?, stripPathPrefix = ?, rewritePath = ?,
 			enableWebsocket = ?, timeoutMs = ?, retryCount = ?, retryIntervalMs = ?,
@@ -284,7 +285,7 @@ func (dao *RouteConfigDAO) DeleteRouteConfig(ctx context.Context, routeConfigId,
 	}
 
 	// 执行实际删除
-	sql := `DELETE FROM HUB_GATEWAY_ROUTE_CONFIG WHERE routeConfigId = ? AND tenantId = ?`
+	sql := `DELETE FROM HUB_GW_ROUTE_CONFIG WHERE routeConfigId = ? AND tenantId = ?`
 
 	result, err := dao.db.Exec(ctx, sql, []interface{}{routeConfigId, tenantId}, true)
 	if err != nil {
@@ -314,19 +315,8 @@ func (dao *RouteConfigDAO) ListRouteConfigs(ctx context.Context, tenantId string
 		args = append(args, gatewayInstanceId)
 	}
 
-	// 查询总数
-	countQuery := fmt.Sprintf("SELECT COUNT(*) as count FROM HUB_GATEWAY_ROUTE_CONFIG rc %s", whereClause)
-	var countResult struct {
-		Count int `db:"count"`
-	}
-	err := dao.db.QueryOne(ctx, &countResult, countQuery, args, true)
-	if err != nil {
-		return nil, 0, huberrors.WrapError(err, "查询路由配置总数失败")
-	}
-
-	// 查询数据（关联服务定义表）
-	offset := (page - 1) * pageSize
-	dataQuery := fmt.Sprintf(`
+	// 构建基础查询语句（关联服务定义表）
+	baseQuery := fmt.Sprintf(`
 		SELECT 
 			rc.tenantId,
 			rc.routeConfigId,
@@ -364,16 +354,50 @@ func (dao *RouteConfigDAO) ListRouteConfigs(ctx context.Context, tenantId string
 			sd.serviceDesc,
 			sd.serviceType,
 			sd.loadBalanceStrategy
-		FROM HUB_GATEWAY_ROUTE_CONFIG rc
-		LEFT JOIN HUB_GATEWAY_SERVICE_DEFINITION sd ON rc.tenantId = sd.tenantId AND rc.serviceDefinitionId = sd.serviceDefinitionId AND sd.activeFlag = 'Y'
+		FROM HUB_GW_ROUTE_CONFIG rc
+		LEFT JOIN HUB_GW_SERVICE_DEFINITION sd ON rc.tenantId = sd.tenantId AND rc.serviceDefinitionId = sd.serviceDefinitionId AND sd.activeFlag = 'Y'
 		%s 
-		ORDER BY rc.routePriority ASC, rc.addTime DESC 
-		LIMIT ? OFFSET ?
+		ORDER BY rc.routePriority ASC, rc.addTime DESC
 	`, whereClause)
-	args = append(args, pageSize, offset)
 
+	// 构建统计查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建统计查询失败")
+	}
+
+	// 执行统计查询
+	var countResult struct {
+		Count int `db:"COUNT(*)"`
+	}
+	err = dao.db.QueryOne(ctx, &countResult, countQuery, args, true)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "查询路由配置总数失败")
+	}
+
+	// 如果没有数据，直接返回
+	if countResult.Count == 0 {
+		return []*models.RouteConfigWithService{}, 0, nil
+	}
+
+	// 创建分页信息
+	paginationInfo := sqlutils.NewPaginationInfo(page, pageSize)
+
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, paginationInfo)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
+	}
+
+	// 合并查询参数
+	allArgs := append(args, paginationArgs...)
+
+	// 执行分页查询
 	var routeConfigs []*models.RouteConfigWithService
-	err = dao.db.Query(ctx, &routeConfigs, dataQuery, args, true)
+	err = dao.db.Query(ctx, &routeConfigs, paginatedQuery, allArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询路由配置列表失败")
 	}
@@ -395,7 +419,7 @@ func (dao *RouteConfigDAO) FindRouteConfigByName(ctx context.Context, routeName,
 		args = append(args, gatewayInstanceId)
 	}
 
-	query := fmt.Sprintf("SELECT * FROM HUB_GATEWAY_ROUTE_CONFIG %s", whereClause)
+	query := fmt.Sprintf("SELECT * FROM HUB_GW_ROUTE_CONFIG %s", whereClause)
 
 	var routeConfig models.RouteConfig
 	err := dao.db.QueryOne(ctx, &routeConfig, query, args, true)
@@ -450,8 +474,8 @@ func (dao *RouteConfigDAO) GetRouteConfigsByGatewayInstance(ctx context.Context,
 			sd.serviceDesc,
 			sd.serviceType,
 			sd.loadBalanceStrategy
-		FROM HUB_GATEWAY_ROUTE_CONFIG rc
-		LEFT JOIN HUB_GATEWAY_SERVICE_DEFINITION sd ON rc.tenantId = sd.tenantId AND rc.serviceDefinitionId = sd.serviceDefinitionId AND sd.activeFlag = 'Y'
+		FROM HUB_GW_ROUTE_CONFIG rc
+		LEFT JOIN HUB_GW_SERVICE_DEFINITION sd ON rc.tenantId = sd.tenantId AND rc.serviceDefinitionId = sd.serviceDefinitionId AND sd.activeFlag = 'Y'
 		WHERE rc.gatewayInstanceId = ? AND rc.tenantId = ? AND rc.activeFlag = 'Y'
 		ORDER BY rc.routePriority ASC, rc.addTime DESC
 	`
@@ -543,7 +567,7 @@ func (dao *RouteAssertionDAO) AddRouteAssertion(ctx context.Context, assertion *
 	}
 
 	// 使用数据库接口的Insert方法插入记录
-	_, err := dao.db.Insert(ctx, "HUB_GATEWAY_ROUTE_ASSERTION", assertion, true)
+	_, err := dao.db.Insert(ctx, "HUB_GW_ROUTE_ASSERTION", assertion, true)
 	if err != nil {
 		return "", huberrors.WrapError(err, "添加路由断言失败")
 	}
@@ -558,7 +582,7 @@ func (dao *RouteAssertionDAO) GetRouteAssertionsByRouteId(ctx context.Context, r
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_ROUTE_ASSERTION 
+		SELECT * FROM HUB_GW_ROUTE_ASSERTION 
 		WHERE routeConfigId = ? AND tenantId = ? 
 		ORDER BY assertionOrder ASC, addTime ASC
 	`
@@ -579,7 +603,7 @@ func (dao *RouteAssertionDAO) DeleteRouteAssertion(ctx context.Context, routeAss
 	}
 
 	// 执行实际删除
-	sql := `DELETE FROM HUB_GATEWAY_ROUTE_ASSERTION WHERE routeAssertionId = ? AND tenantId = ?`
+	sql := `DELETE FROM HUB_GW_ROUTE_ASSERTION WHERE routeAssertionId = ? AND tenantId = ?`
 
 	result, err := dao.db.Exec(ctx, sql, []interface{}{routeAssertionId, tenantId}, true)
 	if err != nil {
@@ -645,7 +669,7 @@ func (dao *RouteAssertionDAO) UpdateRouteAssertion(ctx context.Context, assertio
 
 	// 构建更新SQL
 	sql := `
-		UPDATE HUB_GATEWAY_ROUTE_ASSERTION SET
+		UPDATE HUB_GW_ROUTE_ASSERTION SET
 			routeConfigId = ?, assertionName = ?, assertionType = ?, assertionOperator = ?,
 			fieldName = ?, expectedValue = ?, patternValue = ?, caseSensitive = ?,
 			assertionOrder = ?, isRequired = ?, assertionDesc = ?, reserved1 = ?,
@@ -685,7 +709,7 @@ func (dao *RouteAssertionDAO) GetRouteAssertionById(ctx context.Context, routeAs
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_ROUTE_ASSERTION 
+		SELECT * FROM HUB_GW_ROUTE_ASSERTION 
 		WHERE routeAssertionId = ? AND tenantId = ?
 	`
 
@@ -726,7 +750,7 @@ func (dao *RouterConfigDAO) generateRouterConfigId() string {
 
 // isRouterConfigIdExists 检查Router配置ID是否已存在
 func (dao *RouterConfigDAO) isRouterConfigIdExists(ctx context.Context, routerConfigId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GATEWAY_ROUTER_CONFIG WHERE routerConfigId = ?`
+	query := `SELECT COUNT(*) as count FROM HUB_GW_ROUTER_CONFIG WHERE routerConfigId = ?`
 	
 	var result struct {
 		Count int `db:"count"`
@@ -846,7 +870,7 @@ func (dao *RouterConfigDAO) AddRouterConfig(ctx context.Context, routerConfig *m
 	}
 
 	// 使用数据库接口的Insert方法插入记录
-	_, err := dao.db.Insert(ctx, "HUB_GATEWAY_ROUTER_CONFIG", routerConfig, true)
+	_, err := dao.db.Insert(ctx, "HUB_GW_ROUTER_CONFIG", routerConfig, true)
 	if err != nil {
 		// 检查是否是Router名重复错误
 		if dao.isDuplicateRouterNameError(err) {
@@ -865,7 +889,7 @@ func (dao *RouterConfigDAO) GetRouterConfigById(ctx context.Context, routerConfi
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_ROUTER_CONFIG 
+		SELECT * FROM HUB_GW_ROUTER_CONFIG 
 		WHERE routerConfigId = ? AND tenantId = ?
 	`
 
@@ -905,7 +929,7 @@ func (dao *RouterConfigDAO) UpdateRouterConfig(ctx context.Context, routerConfig
 
 	// 构建更新SQL
 	sql := `
-		UPDATE HUB_GATEWAY_ROUTER_CONFIG SET
+		UPDATE HUB_GW_ROUTER_CONFIG SET
 			gatewayInstanceId = ?, routerName = ?, routerDesc = ?,
 			defaultPriority = ?, enableRouteCache = ?, routeCacheTtlSeconds = ?,
 			maxRoutes = ?, routeMatchTimeout = ?, enableStrictMode = ?,
@@ -964,7 +988,7 @@ func (dao *RouterConfigDAO) DeleteRouterConfig(ctx context.Context, routerConfig
 	}
 
 	// 执行实际删除
-	sql := `DELETE FROM HUB_GATEWAY_ROUTER_CONFIG WHERE routerConfigId = ? AND tenantId = ?`
+	sql := `DELETE FROM HUB_GW_ROUTER_CONFIG WHERE routerConfigId = ? AND tenantId = ?`
 
 	result, err := dao.db.Exec(ctx, sql, []interface{}{routerConfigId, tenantId}, true)
 	if err != nil {
@@ -985,14 +1009,6 @@ func (dao *RouterConfigDAO) ListRouterConfigs(ctx context.Context, tenantId stri
 		return nil, 0, errors.New("tenantId不能为空")
 	}
 
-	// 确保分页参数有效
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 10
-	}
-
 	// 构建查询条件
 	whereClause := "WHERE tenantId = ? AND activeFlag = 'Y'"
 	args := []interface{}{tenantId}
@@ -1002,12 +1018,20 @@ func (dao *RouterConfigDAO) ListRouterConfigs(ctx context.Context, tenantId stri
 		args = append(args, gatewayInstanceId)
 	}
 
-	// 查询总数
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM HUB_GATEWAY_ROUTER_CONFIG %s", whereClause)
+	// 构建基础查询语句
+	baseQuery := fmt.Sprintf("SELECT * FROM HUB_GW_ROUTER_CONFIG %s ORDER BY addTime DESC", whereClause)
+
+	// 构建统计查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建统计查询失败")
+	}
+
+	// 执行统计查询
 	var countResult struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err := dao.db.QueryOne(ctx, &countResult, countQuery, args, true)
+	err = dao.db.QueryOne(ctx, &countResult, countQuery, args, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询Router配置总数失败")
 	}
@@ -1017,17 +1041,24 @@ func (dao *RouterConfigDAO) ListRouterConfigs(ctx context.Context, tenantId stri
 		return []*models.RouterConfig{}, 0, nil
 	}
 
-	// 查询数据
-	offset := (page - 1) * pageSize
-	dataQuery := fmt.Sprintf(`
-		SELECT * FROM HUB_GATEWAY_ROUTER_CONFIG %s 
-		ORDER BY addTime DESC 
-		LIMIT ? OFFSET ?
-	`, whereClause)
-	args = append(args, pageSize, offset)
+	// 创建分页信息
+	paginationInfo := sqlutils.NewPaginationInfo(page, pageSize)
 
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, paginationInfo)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
+	}
+
+	// 合并查询参数
+	allArgs := append(args, paginationArgs...)
+
+	// 执行分页查询
 	var routerConfigs []*models.RouterConfig
-	err = dao.db.Query(ctx, &routerConfigs, dataQuery, args, true)
+	err = dao.db.Query(ctx, &routerConfigs, paginatedQuery, allArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询Router配置列表失败")
 	}
@@ -1042,7 +1073,7 @@ func (dao *RouterConfigDAO) GetRouterConfigsByGatewayInstance(ctx context.Contex
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_ROUTER_CONFIG 
+		SELECT * FROM HUB_GW_ROUTER_CONFIG 
 		WHERE gatewayInstanceId = ? AND tenantId = ? AND activeFlag = 'Y'
 		ORDER BY addTime DESC
 	`

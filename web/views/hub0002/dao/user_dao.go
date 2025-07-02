@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 	"gohub/pkg/utils/huberrors"
 	"gohub/web/views/hub0002/models"
 	"strings"
@@ -212,28 +213,30 @@ func (dao *UserDAO) ListUsers(ctx context.Context, tenantId string, page, pageSi
 		return nil, 0, errors.New("tenantId不能为空")
 	}
 
-	// 确保分页参数有效
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 10
-	}
+	// 创建分页信息
+	pagination := sqlutils.NewPaginationInfo(page, pageSize)
+	
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
 
-	// 计算偏移量
-	offset := (page - 1) * pageSize
-
-	// 查询总数
-	countSQL := `
-		SELECT COUNT(*) FROM HUB_USER
+	// 基础查询语句
+	baseQuery := `
+		SELECT * FROM HUB_USER
 		WHERE tenantId = ?
+		ORDER BY addTime DESC
 	`
 
-	// 执行查询，使用匿名结构体
+	// 构建计数查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建计数查询失败")
+	}
+
+	// 执行计数查询
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err := dao.db.QueryOne(ctx, &result, countSQL, []interface{}{tenantId}, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId}, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询用户总数失败")
 	}
@@ -244,16 +247,19 @@ func (dao *UserDAO) ListUsers(ctx context.Context, tenantId string, page, pageSi
 		return []*models.User{}, 0, nil
 	}
 
-	// 查询用户列表
-	listSQL := `
-		SELECT * FROM HUB_USER
-		WHERE tenantId = ?
-		ORDER BY addTime DESC
-		LIMIT ? OFFSET ?
-	`
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
+	}
 
+	// 合并查询参数：基础查询参数 + 分页参数
+	queryArgs := []interface{}{tenantId}
+	queryArgs = append(queryArgs, paginationArgs...)
+
+	// 执行分页查询
 	var users []*models.User
-	err = dao.db.Query(ctx, &users, listSQL, []interface{}{tenantId, pageSize, offset}, true)
+	err = dao.db.Query(ctx, &users, paginatedQuery, queryArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询用户列表失败")
 	}

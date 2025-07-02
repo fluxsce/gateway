@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 	"gohub/pkg/utils/huberrors"
 	"gohub/pkg/utils/random"
 	"gohub/web/views/hub0022/models"
@@ -41,7 +42,7 @@ func (dao *ServiceDefinitionDAO) generateServiceDefinitionId() string {
 
 // isServiceDefinitionIdExists 检查服务定义ID是否已存在
 func (dao *ServiceDefinitionDAO) isServiceDefinitionIdExists(ctx context.Context, serviceDefinitionId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GATEWAY_SERVICE_DEFINITION WHERE serviceDefinitionId = ?`
+	query := `SELECT COUNT(*) as count FROM HUB_GW_SERVICE_DEFINITION WHERE serviceDefinitionId = ?`
 	
 	var result struct {
 		Count int `db:"count"`
@@ -128,7 +129,7 @@ func (dao *ServiceDefinitionDAO) CreateServiceDefinition(ctx context.Context, se
 	}
 
 	// 插入记录
-	_, err := dao.db.Insert(ctx, "HUB_GATEWAY_SERVICE_DEFINITION", serviceDefinition, true)
+	_, err := dao.db.Insert(ctx, "HUB_GW_SERVICE_DEFINITION", serviceDefinition, true)
 	if err != nil {
 		return "", huberrors.WrapError(err, "创建服务定义失败")
 	}
@@ -143,7 +144,7 @@ func (dao *ServiceDefinitionDAO) GetServiceDefinitionById(ctx context.Context, s
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_SERVICE_DEFINITION 
+		SELECT * FROM HUB_GW_SERVICE_DEFINITION 
 		WHERE serviceDefinitionId = ? AND tenantId = ?
 	`
 
@@ -194,7 +195,7 @@ func (dao *ServiceDefinitionDAO) UpdateServiceDefinition(ctx context.Context, se
 	args := []interface{}{serviceDefinition.ServiceDefinitionId, serviceDefinition.TenantId, existing.CurrentVersion}
 
 	// 执行更新
-	affectedRows, err := dao.db.Update(ctx, "HUB_GATEWAY_SERVICE_DEFINITION", serviceDefinition, where, args, true)
+	affectedRows, err := dao.db.Update(ctx, "HUB_GW_SERVICE_DEFINITION", serviceDefinition, where, args, true)
 	if err != nil {
 		return huberrors.WrapError(err, "更新服务定义失败")
 	}
@@ -222,7 +223,7 @@ func (dao *ServiceDefinitionDAO) DeleteServiceDefinition(ctx context.Context, se
 	}
 
 	// 执行物理删除
-	sql := `DELETE FROM HUB_GATEWAY_SERVICE_DEFINITION WHERE serviceDefinitionId = ? AND tenantId = ?`
+	sql := `DELETE FROM HUB_GW_SERVICE_DEFINITION WHERE serviceDefinitionId = ? AND tenantId = ?`
 	
 	result, err := dao.db.Exec(ctx, sql, []interface{}{serviceDefinitionId, tenantId}, true)
 	if err != nil {
@@ -243,31 +244,47 @@ func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, ten
 		return nil, 0, errors.New("tenantId不能为空")
 	}
 
-	// 构建查询条件
-	whereClause := "tenantId = ? AND activeFlag = 'Y'"
-	args := []interface{}{tenantId}
+	// 构建基础查询语句
+	baseQuery := "SELECT * FROM HUB_GW_SERVICE_DEFINITION WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY addTime DESC"
 
-	// 查询总数
-	countQuery := fmt.Sprintf("SELECT COUNT(*) as count FROM HUB_GATEWAY_SERVICE_DEFINITION WHERE %s", whereClause)
-	var countResult struct {
-		Count int `db:"count"`
+	// 构建统计查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建统计查询失败")
 	}
-	err := dao.db.QueryOne(ctx, &countResult, countQuery, args, true)
+
+	// 执行统计查询
+	var countResult struct {
+		Count int `db:"COUNT(*)"`
+	}
+	err = dao.db.QueryOne(ctx, &countResult, countQuery, []interface{}{tenantId}, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询服务定义总数失败")
 	}
 
-	// 查询列表数据
-	offset := (page - 1) * pageSize
-	listQuery := fmt.Sprintf(`
-		SELECT * FROM HUB_GATEWAY_SERVICE_DEFINITION 
-		WHERE %s 
-		ORDER BY addTime DESC 
-		LIMIT %d OFFSET %d
-	`, whereClause, pageSize, offset)
+	// 如果没有记录，直接返回空列表
+	if countResult.Count == 0 {
+		return []*models.ServiceDefinition{}, 0, nil
+	}
 
+	// 创建分页信息
+	pagination := sqlutils.NewPaginationInfo(page, pageSize)
+
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
+	}
+
+	// 合并查询参数
+	allArgs := append([]interface{}{tenantId}, paginationArgs...)
+
+	// 执行分页查询
 	var serviceDefinitions []*models.ServiceDefinition
-	err = dao.db.Query(ctx, &serviceDefinitions, listQuery, args, true)
+	err = dao.db.Query(ctx, &serviceDefinitions, paginatedQuery, allArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询服务定义列表失败")
 	}

@@ -26,7 +26,7 @@ func NewCaptchaService() *CaptchaService {
 
 // GenerateCaptcha 生成验证码
 func (s *CaptchaService) GenerateCaptcha(ctx context.Context, req *models.CaptchaRequest) (*models.CaptchaResponse, error) {
-	// 默认类型为随机数验证码
+	// 默认类型为随机验证码（数字+字母）
 	if req.Type == "" {
 		req.Type = "random"
 	}
@@ -44,7 +44,7 @@ func (s *CaptchaService) GenerateCaptcha(ctx context.Context, req *models.Captch
 
 	switch req.Type {
 	case "random":
-		// 生成6位随机数验证码
+		// 生成6位随机验证码（数字+字母）
 		code = s.generateRandomCode(6)
 		captchaResp = &models.CaptchaResponse{
 			CaptchaId: captchaId,
@@ -56,7 +56,7 @@ func (s *CaptchaService) GenerateCaptcha(ctx context.Context, req *models.Captch
 		if req.Mobile == "" {
 			return nil, fmt.Errorf("手机号不能为空")
 		}
-		// 生成6位随机数验证码
+		// 生成6位随机验证码（数字+字母）
 		code = s.generateRandomCode(6)
 		
 		// TODO: 在这里添加短信发送逻辑
@@ -157,9 +157,11 @@ func (s *CaptchaService) generateCaptchaId() (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-// generateRandomCode 生成指定长度的随机数验证码
+// generateRandomCode 生成指定长度的随机验证码
+// 包含数字0-9和英文字母大小写，但排除容易混淆的字母O
 func (s *CaptchaService) generateRandomCode(length int) string {
-	const charset = "0123456789"
+	// 字符集：数字 + 大写字母（排除O） + 小写字母（排除o）
+	const charset = "0123456789ABCDEFGHIJKLMNPQRSTUVWXYZabcdefghijklmnpqrstuvwxyz"
 	randSource := mathRand.New(mathRand.NewSource(time.Now().UnixNano()))
 	code := make([]byte, length)
 	for i := range code {

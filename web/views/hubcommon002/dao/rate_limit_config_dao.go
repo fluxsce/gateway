@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 	"gohub/pkg/utils/huberrors"
 	"gohub/pkg/utils/random"
 	"gohub/web/views/hubcommon002/models"
@@ -40,7 +41,7 @@ func (dao *RateLimitConfigDAO) generateRateLimitConfigId() string {
 
 // isRateLimitConfigIdExists 检查限流配置ID是否已存在
 func (dao *RateLimitConfigDAO) isRateLimitConfigIdExists(ctx context.Context, rateLimitConfigId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GATEWAY_RATE_LIMIT_CONFIG WHERE rateLimitConfigId = ?`
+	query := `SELECT COUNT(*) as count FROM HUB_GW_RATE_LIMIT_CONFIG WHERE rateLimitConfigId = ?`
 	
 	var result struct {
 		Count int `db:"count"`
@@ -122,7 +123,7 @@ func (dao *RateLimitConfigDAO) AddRateLimitConfig(ctx context.Context, config *m
 		config.CustomConfig = "{}"
 	}
 
-	_, err := dao.db.Insert(ctx, "HUB_GATEWAY_RATE_LIMIT_CONFIG", config, true)
+	_, err := dao.db.Insert(ctx, "HUB_GW_RATE_LIMIT_CONFIG", config, true)
 	if err != nil {
 		return huberrors.WrapError(err, "添加限流配置失败")
 	}
@@ -137,7 +138,7 @@ func (dao *RateLimitConfigDAO) GetRateLimitConfig(tenantId, rateLimitConfigId st
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_RATE_LIMIT_CONFIG 
+		SELECT * FROM HUB_GW_RATE_LIMIT_CONFIG 
 		WHERE rateLimitConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
 	`
 
@@ -176,7 +177,7 @@ func (dao *RateLimitConfigDAO) UpdateRateLimitConfig(ctx context.Context, config
 	config.OprSeqFlag = config.RateLimitConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
 
 	sql := `
-		UPDATE HUB_GATEWAY_RATE_LIMIT_CONFIG SET
+		UPDATE HUB_GW_RATE_LIMIT_CONFIG SET
 			gatewayInstanceId = ?, routeConfigId = ?, limitName = ?, algorithm = ?, keyStrategy = ?,
 			limitRate = ?, burstCapacity = ?, timeWindowSeconds = ?, rejectionStatusCode = ?, 
 			rejectionMessage = ?, configPriority = ?, customConfig = ?,
@@ -218,7 +219,7 @@ func (dao *RateLimitConfigDAO) DeleteRateLimitConfig(tenantId, rateLimitConfigId
 
 	now := time.Now()
 	sql := `
-		UPDATE HUB_GATEWAY_RATE_LIMIT_CONFIG SET
+		UPDATE HUB_GW_RATE_LIMIT_CONFIG SET
 			activeFlag = 'N', editTime = ?, editWho = ?
 		WHERE rateLimitConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
 	`
@@ -240,37 +241,47 @@ func (dao *RateLimitConfigDAO) ListRateLimitConfigs(ctx context.Context, tenantI
 		return nil, 0, errors.New("tenantId不能为空")
 	}
 
-	// 设置默认分页参数
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = 10
+	// 构建基础查询语句
+	baseQuery := "SELECT * FROM HUB_GW_RATE_LIMIT_CONFIG WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY configPriority ASC, addTime DESC"
+
+	// 构建统计查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建统计查询失败")
 	}
 
-	// 计算偏移量
-	offset := (page - 1) * pageSize
-
-	// 查询总数
-	countQuery := `SELECT COUNT(*) as total FROM HUB_GATEWAY_RATE_LIMIT_CONFIG WHERE tenantId = ? AND activeFlag = 'Y'`
+	// 执行统计查询
 	var totalResult struct {
-		Total int `db:"total"`
+		Total int `db:"COUNT(*)"`
 	}
-	err := dao.db.QueryOne(ctx, &totalResult, countQuery, []interface{}{tenantId}, true)
+	err = dao.db.QueryOne(ctx, &totalResult, countQuery, []interface{}{tenantId}, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询限流配置总数失败")
 	}
 
-	// 查询配置列表
-	listQuery := `
-		SELECT * FROM HUB_GATEWAY_RATE_LIMIT_CONFIG 
-		WHERE tenantId = ? AND activeFlag = 'Y'
-		ORDER BY configPriority ASC, addTime DESC
-		LIMIT ? OFFSET ?
-	`
+	// 如果没有记录，直接返回空列表
+	if totalResult.Total == 0 {
+		return []*models.RateLimitConfig{}, 0, nil
+	}
 
+	// 创建分页信息
+	pagination := sqlutils.NewPaginationInfo(page, pageSize)
+
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
+	}
+
+	// 合并查询参数
+	allArgs := append([]interface{}{tenantId}, paginationArgs...)
+
+	// 执行分页查询
 	var configs []*models.RateLimitConfig
-	err = dao.db.Query(ctx, &configs, listQuery, []interface{}{tenantId, pageSize, offset}, true)
+	err = dao.db.Query(ctx, &configs, paginatedQuery, allArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询限流配置列表失败")
 	}
@@ -284,23 +295,40 @@ func (dao *RateLimitConfigDAO) GetRateLimitConfigByGatewayInstance(tenantId, gat
 		return nil, errors.New("tenantId和gatewayInstanceId不能为空")
 	}
 
-	sql := `
-		SELECT * FROM HUB_GATEWAY_RATE_LIMIT_CONFIG 
+	// 构建基础查询语句
+	baseQuery := `
+		SELECT * FROM HUB_GW_RATE_LIMIT_CONFIG 
 		WHERE tenantId = ? AND gatewayInstanceId = ? AND activeFlag = 'Y'
 		ORDER BY configPriority ASC, addTime DESC
-		LIMIT 1
 	`
 
-	var config models.RateLimitConfig
-	err := dao.db.QueryOne(context.Background(), &config, sql, []interface{}{tenantId, gatewayInstanceId}, true)
+	// 创建分页信息（只取第一条记录）
+	pagination := sqlutils.NewPaginationInfo(1, 1)
+
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
-			return nil, nil // 未找到配置，返回nil而不是错误
-		}
+		return nil, huberrors.WrapError(err, "构建分页查询失败")
+	}
+
+	// 合并查询参数
+	allArgs := append([]interface{}{tenantId, gatewayInstanceId}, paginationArgs...)
+
+	// 执行查询
+	var configs []*models.RateLimitConfig
+	err = dao.db.Query(context.Background(), &configs, paginatedQuery, allArgs, true)
+	if err != nil {
 		return nil, huberrors.WrapError(err, "查询网关实例限流配置失败")
 	}
 
-	return &config, nil
+	// 返回第一条记录或nil
+	if len(configs) > 0 {
+		return configs[0], nil
+	}
+	return nil, nil
 }
 
 // GetRateLimitConfigByRouteConfig 根据路由配置ID查询单个限流配置
@@ -309,23 +337,40 @@ func (dao *RateLimitConfigDAO) GetRateLimitConfigByRouteConfig(tenantId, routeCo
 		return nil, errors.New("tenantId和routeConfigId不能为空")
 	}
 
-	sql := `
-		SELECT * FROM HUB_GATEWAY_RATE_LIMIT_CONFIG 
+	// 构建基础查询语句
+	baseQuery := `
+		SELECT * FROM HUB_GW_RATE_LIMIT_CONFIG 
 		WHERE tenantId = ? AND routeConfigId = ? AND activeFlag = 'Y'
 		ORDER BY configPriority ASC, addTime DESC
-		LIMIT 1
 	`
 
-	var config models.RateLimitConfig
-	err := dao.db.QueryOne(context.Background(), &config, sql, []interface{}{tenantId, routeConfigId}, true)
+	// 创建分页信息（只取第一条记录）
+	pagination := sqlutils.NewPaginationInfo(1, 1)
+
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
-			return nil, nil // 未找到配置，返回nil而不是错误
-		}
+		return nil, huberrors.WrapError(err, "构建分页查询失败")
+	}
+
+	// 合并查询参数
+	allArgs := append([]interface{}{tenantId, routeConfigId}, paginationArgs...)
+
+	// 执行查询
+	var configs []*models.RateLimitConfig
+	err = dao.db.Query(context.Background(), &configs, paginatedQuery, allArgs, true)
+	if err != nil {
 		return nil, huberrors.WrapError(err, "查询路由配置限流配置失败")
 	}
 
-	return &config, nil
+	// 返回第一条记录或nil
+	if len(configs) > 0 {
+		return configs[0], nil
+	}
+	return nil, nil
 }
 
 // GetRateLimitConfigsByKeyStrategy 根据键策略查询限流配置列表
@@ -335,7 +380,7 @@ func (dao *RateLimitConfigDAO) GetRateLimitConfigsByKeyStrategy(ctx context.Cont
 	}
 
 	sql := `
-		SELECT * FROM HUB_GATEWAY_RATE_LIMIT_CONFIG 
+		SELECT * FROM HUB_GW_RATE_LIMIT_CONFIG 
 		WHERE tenantId = ? AND keyStrategy = ? AND activeFlag = 'Y'
 		ORDER BY configPriority ASC, addTime DESC
 	`
@@ -356,7 +401,7 @@ func (dao *RateLimitConfigDAO) GetRateLimitConfigsByAlgorithm(ctx context.Contex
 	}
 
 	sql := `
-		SELECT * FROM HUB_GATEWAY_RATE_LIMIT_CONFIG 
+		SELECT * FROM HUB_GW_RATE_LIMIT_CONFIG 
 		WHERE tenantId = ? AND algorithm = ? AND activeFlag = 'Y'
 		ORDER BY configPriority ASC, addTime DESC
 	`

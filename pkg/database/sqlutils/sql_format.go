@@ -20,6 +20,7 @@ package sqlutils
 
 import (
 	"fmt"
+	"gohub/pkg/database"
 	"gohub/pkg/database/dbtypes"
 	"reflect"
 	"strings"
@@ -40,6 +41,8 @@ const (
 	DatabaseSQLServer DatabaseType = dbtypes.DriverSQLServer
 	// Oracle 数据库
 	DatabaseOracle DatabaseType = dbtypes.DriverOracle
+	// Oracle 11g 数据库（需要特殊的分页语法）
+	DatabaseOracle11g DatabaseType = dbtypes.DriverOracle11g
 	// MariaDB 数据库 (兼容MySQL语法)
 	DatabaseMariaDB DatabaseType = dbtypes.DriverMariaDB
 	// TiDB 数据库 (兼容MySQL语法)
@@ -49,6 +52,22 @@ const (
 	// MongoDB 数据库 (NoSQL，仅用于标识)
 	DatabaseMongoDB DatabaseType = dbtypes.DriverMongoDB
 )
+
+
+// 通过调用database接口的GetDriver方法获取驱动名称，并转换为DatabaseType类型
+// 这是一个静态方法，提供统一的数据库类型获取逻辑
+//
+// 参数:
+//   db: database.Database
+// 返回:
+//   DatabaseType: 对应的数据库类型枚举值
+//
+// 使用示例:
+//   dbType := sqlutils.GetDatabaseType(dao.db)
+//   query, args, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+func GetDatabaseType(db database.Database) DatabaseType {
+	return DatabaseType(db.GetDriver())
+}
 
 // PaginationInfo 分页信息结构体
 type PaginationInfo struct {
@@ -284,7 +303,7 @@ func IsZeroValue(v reflect.Value) bool {
 // - 生成优化的分页查询，避免性能问题
 //
 // 参数:
-//   dbType: 数据库类型（mysql、postgresql、sqlserver、oracle、sqlite）
+//   dbType: 数据库类型（mysql、postgresql、sqlserver、oracle、oracle11g、sqlite）
 //   baseQuery: 基础查询语句（不包含分页部分）
 //   pagination: 分页信息对象
 // 返回:
@@ -334,8 +353,7 @@ func BuildPaginationQuery(dbType DatabaseType, baseQuery string, pagination *Pag
 		args = []interface{}{pagination.Offset, pagination.PageSize}
 
 	case DatabaseOracle:
-		// Oracle: 使用ROWNUM或ROW_NUMBER()窗口函数
-		// 这里使用Oracle 12c+的语法: OFFSET ... ROWS FETCH NEXT ... ROWS ONLY
+		// Oracle 12c+: 使用OFFSET ... ROWS FETCH NEXT ... ROWS ONLY
 		if !strings.Contains(strings.ToUpper(baseQuery), "ORDER BY") {
 			// Oracle需要ORDER BY子句
 			paginatedQuery = fmt.Sprintf("%s ORDER BY ROWID OFFSET ? ROWS FETCH NEXT ? ROWS ONLY", baseQuery)
@@ -343,6 +361,39 @@ func BuildPaginationQuery(dbType DatabaseType, baseQuery string, pagination *Pag
 			paginatedQuery = fmt.Sprintf("%s OFFSET ? ROWS FETCH NEXT ? ROWS ONLY", baseQuery)
 		}
 		args = []interface{}{pagination.Offset, pagination.PageSize}
+		
+	case DatabaseOracle11g:
+		// Oracle 11g: 使用ROW_NUMBER() OVER()子查询实现分页
+		// 格式: SELECT * FROM (SELECT t.*, ROW_NUMBER() OVER(ORDER BY ...) AS rn FROM (...) t) WHERE rn BETWEEN ? AND ?
+		var orderByClause string
+		
+		// 检查是否有ORDER BY子句
+		upperQuery := strings.ToUpper(baseQuery)
+		if !strings.Contains(upperQuery, "ORDER BY") {
+			// 没有ORDER BY，使用ROWID作为默认排序
+			orderByClause = "ORDER BY ROWID"
+		} else {
+			// 提取原始ORDER BY子句
+			orderByPos := strings.LastIndex(upperQuery, "ORDER BY")
+			orderByClause = baseQuery[orderByPos:]
+		}
+		
+		// 构建分页查询
+		startRow := pagination.Offset + 1
+		endRow := pagination.Offset + pagination.PageSize
+		
+		// 移除原始查询中的ORDER BY子句（如果有）
+		if strings.Contains(upperQuery, "ORDER BY") {
+			orderByPos := strings.LastIndex(upperQuery, "ORDER BY")
+			baseQuery = baseQuery[:orderByPos]
+		}
+		
+		paginatedQuery = fmt.Sprintf(
+			"SELECT * FROM (SELECT t.*, ROW_NUMBER() OVER(%s) AS rn FROM (%s) t) WHERE rn BETWEEN ? AND ?",
+			orderByClause,
+			baseQuery,
+		)
+		args = []interface{}{startRow, endRow}
 
 	case DatabaseClickHouse:
 		// ClickHouse: LIMIT ... OFFSET ...
@@ -493,6 +544,164 @@ func BuildCountQueryWithOptimization(dbType DatabaseType, baseQuery string) (str
 	default:
 		// 未知数据库类型，使用标准COUNT查询
 		return countQuery, nil
+	}
+}
+
+// BuildInsertQueryForOracle 为Oracle构建INSERT语句
+// Oracle特定的INSERT语句构建，支持Oracle语法特性
+// 参数:
+//   table: 目标表名
+//   data: 要插入的数据结构体
+// 返回:
+//   string: INSERT语句，使用Oracle的:1, :2占位符格式
+//   []interface{}: 参数值数组
+//   error: 构建失败时返回错误信息
+func BuildInsertQueryForOracle(table string, data interface{}) (string, []interface{}, error) {
+	columns, values, err := ExtractColumnsAndValues(data)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if len(columns) == 0 {
+		return "", nil, fmt.Errorf("no columns to insert")
+	}
+
+	// 为Oracle创建占位符格式 :1, :2, :3...
+	placeholders := make([]string, len(values))
+	for i := range placeholders {
+		placeholders[i] = fmt.Sprintf(":%d", i+1)
+	}
+
+	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+		table,
+		strings.Join(columns, ", "),
+		strings.Join(placeholders, ", "))
+
+	return query, values, nil
+}
+
+// BuildUpdateQueryForOracle 为Oracle构建UPDATE语句的SET子句
+// Oracle特定的UPDATE语句SET部分构建，使用Oracle占位符格式
+// 参数:
+//   table: 目标表名
+//   data: 包含更新数据的结构体
+// 返回:
+//   string: SET子句，使用Oracle的:1, :2占位符格式
+//   []interface{}: 参数值数组
+//   error: 构建失败时返回错误信息
+func BuildUpdateQueryForOracle(table string, data interface{}) (string, []interface{}, error) {
+	columns, values, err := ExtractColumnsAndValues(data)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if len(columns) == 0 {
+		return "", nil, fmt.Errorf("no columns to update")
+	}
+
+	// 为Oracle创建SET子句，使用占位符格式 :1, :2, :3...
+	var setClauses []string
+	for i, column := range columns {
+		setClauses = append(setClauses, fmt.Sprintf("%s = :%d", column, i+1))
+	}
+
+	setClause := strings.Join(setClauses, ", ")
+	return setClause, values, nil
+}
+
+// GetCurrentTimeFunction 获取当前时间的数据库函数
+// 根据不同数据库类型返回对应的当前时间函数名
+// 解决不同数据库NOW()函数的兼容性问题
+//
+// 支持的数据库：
+// - MySQL/MariaDB/TiDB: NOW()
+// - PostgreSQL: NOW()
+// - SQL Server: GETDATE()
+// - Oracle: SYSDATE
+// - SQLite: datetime('now')
+// - ClickHouse: now()
+//
+// 参数:
+//   dbType: 数据库类型
+// 返回:
+//   string: 对应数据库的当前时间函数
+//   error: 不支持的数据库类型返回错误
+//
+// 使用示例:
+//   dbType := GetDatabaseType(db)
+//   timeFunc, err := GetCurrentTimeFunction(dbType)
+//   query := fmt.Sprintf("UPDATE table SET editTime = %s", timeFunc)
+func GetCurrentTimeFunction(dbType DatabaseType) (string, error) {
+	switch dbType {
+	case DatabaseMySQL, DatabaseMariaDB, DatabaseTiDB:
+		return "NOW()", nil
+	case DatabasePostgreSQL:
+		return "NOW()", nil
+	case DatabaseSQLServer:
+		return "GETDATE()", nil
+	case DatabaseOracle:
+		return "SYSDATE", nil
+	case DatabaseOracle11g:
+		return "SYSDATE", nil
+	case DatabaseSQLite:
+		return "datetime('now')", nil
+	case DatabaseClickHouse:
+		return "now()", nil
+	case DatabaseMongoDB:
+		return "", fmt.Errorf("MongoDB does not support SQL time functions, use MongoDB-specific methods")
+	default:
+		return "", fmt.Errorf("unsupported database type: %s", dbType)
+	}
+}
+
+// GetCurrentTimeValue 获取当前时间的参数化值
+// 返回当前时间作为SQL参数，而不是函数调用
+// 适用于需要在参数中传递当前时间的场景
+//
+// 参数:
+//   dbType: 数据库类型（用于未来扩展，当前所有数据库都使用time.Now()）
+// 返回:
+//   interface{}: 当前时间值，可直接用作SQL参数
+//
+// 使用示例:
+//   now := GetCurrentTimeValue(GetDatabaseType(db))
+//   query := "UPDATE table SET editTime = ?"
+//   args := []interface{}{now}
+func GetCurrentTimeValue(dbType DatabaseType) interface{} {
+	// 当前所有数据库都支持time.Time类型作为参数
+	// 未来可以根据数据库类型返回不同的时间格式
+	return time.Now()
+}
+
+// BuildTimeUpdateClause 构建时间更新子句
+// 根据数据库类型生成兼容的时间更新语句
+// 支持函数调用和参数化两种方式
+//
+// 参数:
+//   dbType: 数据库类型
+//   columnName: 要更新的时间列名
+//   useFunction: 是否使用数据库函数（true）还是参数化值（false）
+// 返回:
+//   string: 时间更新子句
+//   interface{}: 如果是参数化方式，返回时间值；否则返回nil
+//   error: 构建失败时返回错误信息
+//
+// 使用示例:
+//   dbType := GetDatabaseType(db)
+//   clause, value, err := BuildTimeUpdateClause(dbType, "editTime", true)
+//   // 返回: "editTime = NOW()", nil, nil
+//   
+//   clause, value, err := BuildTimeUpdateClause(dbType, "editTime", false)
+//   // 返回: "editTime = ?", time.Now(), nil
+func BuildTimeUpdateClause(dbType DatabaseType, columnName string, useFunction bool) (string, interface{}, error) {
+	if useFunction {
+		timeFunc, err := GetCurrentTimeFunction(dbType)
+		if err != nil {
+			return "", nil, err
+		}
+		return fmt.Sprintf("%s = %s", columnName, timeFunc), nil, nil
+	} else {
+		return fmt.Sprintf("%s = ?", columnName), GetCurrentTimeValue(dbType), nil
 	}
 }
 

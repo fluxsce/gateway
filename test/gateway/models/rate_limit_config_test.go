@@ -29,7 +29,7 @@ func TestRateLimitConfig(t *testing.T) {
 	}
 
 	// 测试表名
-	assert.Equal(t, "HUB_GATEWAY_RATE_LIMIT_CONFIG", config.TableName())
+	assert.Equal(t, "HUB_GW_RATE_LIMIT_CONFIG", config.TableName())
 
 	// 测试字段值
 	assert.Equal(t, "tenant-001", config.TenantId)

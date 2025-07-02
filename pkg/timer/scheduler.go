@@ -546,14 +546,59 @@ func (s *StandardScheduler) shouldExecuteNow(config *TaskConfig, now time.Time) 
 		return false
 	}
 	
-	// 检查是否设置了下次执行时间
-	nextRunTime := config.GetNextRunTime()
-	if nextRunTime == nil {
-		return false // 没有设置执行时间，不执行
+	// 根据调度类型进行不同的判断
+	switch config.ScheduleType {
+	case ScheduleTypeOnce:
+		// 一次性任务：检查是否已执行过
+		if config.GetRunCount() > 0 {
+			return false // 已执行过，不再调度
+		}
+		
+		// 检查是否设置了开始时间且到了执行时间
+		if config.StartTime != nil {
+			return now.After(*config.StartTime) || now.Equal(*config.StartTime)
+		}
+		
+		// 没有设置开始时间，检查是否设置了下次执行时间
+		nextRunTime := config.GetNextRunTime()
+		return nextRunTime != nil && (now.After(*nextRunTime) || now.Equal(*nextRunTime))
+		
+	case ScheduleTypeDelay:
+		// 延迟执行任务：检查是否已执行过
+		if config.GetRunCount() > 0 {
+			return false // 已执行过，不再调度
+		}
+		
+		// 检查是否到了下次执行时间
+		nextRunTime := config.GetNextRunTime()
+		return nextRunTime != nil && (now.After(*nextRunTime) || now.Equal(*nextRunTime))
+		
+	case ScheduleTypeInterval:
+		// 固定间隔任务：检查是否到了下次执行时间
+		nextRunTime := config.GetNextRunTime()
+		if nextRunTime == nil {
+			return false
+		}
+		
+		// 检查当前时间是否已到达或超过计划执行时间
+		// 注意：now.Sub(nextRunTime)为负值表示还未到执行时间
+		return now.After(*nextRunTime) || now.Equal(*nextRunTime)
+		
+	case ScheduleTypeCron:
+		// Cron表达式任务：检查是否到了下次执行时间
+		nextRunTime := config.GetNextRunTime()
+		if nextRunTime == nil {
+			return false
+		}
+		
+		// 检查当前时间是否已到达或超过计划执行时间
+		return now.After(*nextRunTime) || now.Equal(*nextRunTime)
+		
+	default:
+		// 未知的调度类型，不执行
+		logger.Warn("未知的调度类型", "taskID", config.ID, "scheduleType", config.ScheduleType)
+		return false
 	}
-	
-	// 检查是否到了执行时间（允许1秒的误差，避免时间精度问题）
-	return now.After(*nextRunTime) || now.Sub(*nextRunTime) <= time.Second
 }
 
 // updateNextRunTime 更新任务的下次执行时间

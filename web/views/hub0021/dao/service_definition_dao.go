@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 	"gohub/pkg/utils/huberrors"
 	"gohub/web/views/hub0021/models"
 )
@@ -23,7 +24,7 @@ func NewServiceDefinitionDAO(db database.Database) *ServiceDefinitionDAO {
 
 // GetServiceDefinitionsByInstance 根据网关实例ID获取服务定义列表（关联查询）
 // 通过代理配置表进行关联查询：
-// HUB_GATEWAY_SERVICE_DEFINITION -> HUB_GATEWAY_PROXY_CONFIG -> HUB_GATEWAY_INSTANCE
+// HUB_GW_SERVICE_DEFINITION -> HUB_GW_PROXY_CONFIG -> HUB_GW_INSTANCE
 func (dao *ServiceDefinitionDAO) GetServiceDefinitionsByInstance(ctx context.Context, gatewayInstanceId, tenantId string) ([]*models.ServiceDefinitionWithProxy, error) {
 	if gatewayInstanceId == "" || tenantId == "" {
 		return nil, errors.New("gatewayInstanceId和tenantId不能为空")
@@ -77,9 +78,9 @@ func (dao *ServiceDefinitionDAO) GetServiceDefinitionsByInstance(ctx context.Con
 			sd.activeFlag,
 			sd.noteText
 			
-		FROM HUB_GATEWAY_SERVICE_DEFINITION sd
-		INNER JOIN HUB_GATEWAY_PROXY_CONFIG pc ON sd.tenantId = pc.tenantId AND sd.proxyConfigId = pc.proxyConfigId
-		INNER JOIN HUB_GATEWAY_INSTANCE gi ON pc.tenantId = gi.tenantId AND pc.gatewayInstanceId = gi.gatewayInstanceId
+		FROM HUB_GW_SERVICE_DEFINITION sd
+		INNER JOIN HUB_GW_PROXY_CONFIG pc ON sd.tenantId = pc.tenantId AND sd.proxyConfigId = pc.proxyConfigId
+		INNER JOIN HUB_GW_INSTANCE gi ON pc.tenantId = gi.tenantId AND pc.gatewayInstanceId = gi.gatewayInstanceId
 		WHERE gi.gatewayInstanceId = ? 
 		  AND gi.tenantId = ? 
 		ORDER BY sd.addTime DESC
@@ -101,7 +102,7 @@ func (dao *ServiceDefinitionDAO) GetServiceDefinitionById(ctx context.Context, s
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_SERVICE_DEFINITION 
+		SELECT * FROM HUB_GW_SERVICE_DEFINITION 
 		WHERE serviceDefinitionId = ? AND tenantId = ? AND activeFlag = 'Y'
 	`
 
@@ -141,44 +142,52 @@ func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, ten
 		}
 	}
 
-	// 计算总数
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM HUB_GATEWAY_SERVICE_DEFINITION %s", whereClause)
+	// 构建基础查询语句
+	baseQuery := fmt.Sprintf("SELECT * FROM HUB_GW_SERVICE_DEFINITION %s ORDER BY addTime DESC", whereClause)
+
+	// 构建统计查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建统计查询失败")
+	}
+
+	// 执行统计查询
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err := dao.db.QueryOne(ctx, &result, countQuery, params, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询服务定义总数失败")
 	}
-	total := result.Count
 
 	// 如果没有记录，直接返回空列表
-	if total == 0 {
+	if result.Count == 0 {
 		return []*models.ServiceDefinition{}, 0, nil
 	}
 
-	// 计算分页参数
-	offset := (page - 1) * pageSize
-	if offset < 0 {
-		offset = 0
+	// 创建分页信息
+	paginationInfo := sqlutils.NewPaginationInfo(page, pageSize)
+
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, paginationInfo)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
 	}
 
-	// 查询数据
-	query := fmt.Sprintf(`
-		SELECT * FROM HUB_GATEWAY_SERVICE_DEFINITION 
-		%s 
-		ORDER BY addTime DESC 
-		LIMIT ? OFFSET ?
-	`, whereClause)
-	params = append(params, pageSize, offset)
+	// 合并查询参数
+	allParams := append(params, paginationArgs...)
 
+	// 执行分页查询
 	var serviceDefinitions []*models.ServiceDefinition
-	err = dao.db.Query(ctx, &serviceDefinitions, query, params, true)
+	err = dao.db.Query(ctx, &serviceDefinitions, paginatedQuery, allParams, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询服务定义列表失败")
 	}
 
-	return serviceDefinitions, total, nil
+	return serviceDefinitions, result.Count, nil
 }
 
 // GetServiceDefinitionsByProxyConfig 根据代理配置ID获取服务定义列表
@@ -188,7 +197,7 @@ func (dao *ServiceDefinitionDAO) GetServiceDefinitionsByProxyConfig(ctx context.
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_SERVICE_DEFINITION 
+		SELECT * FROM HUB_GW_SERVICE_DEFINITION 
 		WHERE proxyConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
 		ORDER BY addTime DESC
 	`
@@ -210,8 +219,8 @@ func (dao *ServiceDefinitionDAO) CountServiceDefinitionsByInstance(ctx context.C
 
 	query := `
 		SELECT COUNT(*) as count
-		FROM HUB_GATEWAY_SERVICE_DEFINITION sd
-		INNER JOIN HUB_GATEWAY_PROXY_CONFIG pc ON sd.tenantId = pc.tenantId AND sd.proxyConfigId = pc.proxyConfigId
+		FROM HUB_GW_SERVICE_DEFINITION sd
+		INNER JOIN HUB_GW_PROXY_CONFIG pc ON sd.tenantId = pc.tenantId AND sd.proxyConfigId = pc.proxyConfigId
 		WHERE pc.gatewayInstanceId = ? 
 		  AND pc.tenantId = ? 
 		  AND sd.activeFlag = 'Y' 

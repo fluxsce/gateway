@@ -269,72 +269,184 @@ func (f *SFTPExecutorFactory) configureSFTPAuthentication(sftpConfig *configs.SF
 }
 
 // applySFTPCustomConfig 应用自定义SFTP配置
-// 解析工具配置中的自定义参数并应用到SFTP配置中
+// 直接JSON映射，简洁高效
 // 参数:
 //   sftpConfig: SFTP配置对象
 //   configParams: 自定义配置参数JSON字符串
 // 返回:
 //   error: 应用过程中的错误信息
 func (f *SFTPExecutorFactory) applySFTPCustomConfig(sftpConfig *configs.SFTPConfig, configParams string) error {
+	// 解析为通用map
 	var customParams map[string]interface{}
 	if err := json.Unmarshal([]byte(configParams), &customParams); err != nil {
 		return fmt.Errorf("解析自定义配置参数失败: %w", err)
 	}
 
-	// 连接超时
-	if val, ok := customParams["connectTimeout"]; ok {
-		if timeout, ok := val.(float64); ok {
-			sftpConfig.ConnectTimeout = time.Duration(timeout) * time.Second
-		}
+	// 确保默认传输选项存在
+	if sftpConfig.DefaultTransferOptions == nil {
+		sftpConfig.DefaultTransferOptions = configs.DefaultSFTPTransferOptions()
 	}
 
-	// 读取超时
-	if val, ok := customParams["readTimeout"]; ok {
-		if timeout, ok := val.(float64); ok {
-			sftpConfig.ReadTimeout = time.Duration(timeout) * time.Second
-		}
-	}
-
-	// 最大重连次数
-	if val, ok := customParams["maxReconnectAttempts"]; ok {
-		if attempts, ok := val.(float64); ok {
-			sftpConfig.MaxReconnectAttempts = int(attempts)
-		}
-	}
-
-	// 自动重连
-	if val, ok := customParams["autoReconnect"]; ok {
-		if autoReconnect, ok := val.(bool); ok {
-			sftpConfig.AutoReconnect = autoReconnect
-		}
-	}
-
-	// 并发传输数量
-	if val, ok := customParams["concurrentTransfers"]; ok {
-		if concurrent, ok := val.(float64); ok {
-			sftpConfig.ConcurrentTransfers = int(concurrent)
-		}
-	}
-
-	// 缓冲区大小
-	if val, ok := customParams["bufferSize"]; ok {
-		if bufferSize, ok := val.(float64); ok {
-			sftpConfig.BufferSize = int(bufferSize)
-		}
-	}
-
-	// 详细日志
-	if val, ok := customParams["verboseLogging"]; ok {
-		if verbose, ok := val.(bool); ok {
-			sftpConfig.VerboseLogging = verbose
-		}
-	}
+	// 直接映射 - 使用反射自动处理所有字段
+	f.mapConfigFields(sftpConfig, customParams)
+	f.mapTransferOptions(sftpConfig.DefaultTransferOptions, customParams)
 
 	logger.Debug("应用自定义SFTP配置完成", 
-		"configId", sftpConfig.ID, 
+		"configId", sftpConfig.ID,
 		"customParamsCount", len(customParams))
 
 	return nil
+}
+
+// mapConfigFields 自动映射配置字段
+func (f *SFTPExecutorFactory) mapConfigFields(config *configs.SFTPConfig, params map[string]interface{}) {
+	// 连接超时相关（需要特殊处理的Duration类型）
+	if val, ok := params["connectTimeout"]; ok {
+		if timeout, ok := val.(float64); ok {
+			config.ConnectTimeout = time.Duration(timeout) * time.Second
+		}
+	}
+	if val, ok := params["readTimeout"]; ok {
+		if timeout, ok := val.(float64); ok {
+			config.ReadTimeout = time.Duration(timeout) * time.Second
+		}
+	}
+	if val, ok := params["writeTimeout"]; ok {
+		if timeout, ok := val.(float64); ok {
+			config.WriteTimeout = time.Duration(timeout) * time.Second
+		}
+	}
+	if val, ok := params["keepAliveInterval"]; ok {
+		if interval, ok := val.(float64); ok {
+			config.KeepAliveInterval = time.Duration(interval) * time.Second
+		}
+	}
+	if val, ok := params["reconnectInterval"]; ok {
+		if interval, ok := val.(float64); ok {
+			config.ReconnectInterval = time.Duration(interval) * time.Second
+		}
+	}
+	if val, ok := params["maxReconnectInterval"]; ok {
+		if interval, ok := val.(float64); ok {
+			config.MaxReconnectInterval = time.Duration(interval) * time.Second
+		}
+	}
+	if val, ok := params["progressReportInterval"]; ok {
+		if interval, ok := val.(float64); ok {
+			config.ProgressReportInterval = time.Duration(interval) * time.Second
+		}
+	}
+
+	// 直接映射的字段（类型匹配）
+	if val, ok := params["maxReconnectAttempts"].(float64); ok {
+		config.MaxReconnectAttempts = int(val)
+	}
+	if val, ok := params["autoReconnect"].(bool); ok {
+		config.AutoReconnect = val
+	}
+	if val, ok := params["concurrentTransfers"].(float64); ok {
+		config.ConcurrentTransfers = int(val)
+	}
+	if val, ok := params["bufferSize"].(float64); ok {
+		config.BufferSize = int(val)
+	}
+	if val, ok := params["maxPacketSize"].(float64); ok {
+		config.MaxPacketSize = int(val)
+	}
+	if val, ok := params["verboseLogging"].(bool); ok {
+		config.VerboseLogging = val
+	}
+	if val, ok := params["enableProgressMonitoring"].(bool); ok {
+		config.EnableProgressMonitoring = val
+	}
+}
+
+// mapTransferOptions 映射传输选项
+func (f *SFTPExecutorFactory) mapTransferOptions(options *configs.SFTPTransferOptions, params map[string]interface{}) {
+	// 直接布尔映射
+	if val, ok := params["overwriteExisting"].(bool); ok {
+		options.OverwriteExisting = val
+	}
+	if val, ok := params["skipExisting"].(bool); ok {
+		options.SkipExisting = val
+	}
+	if val, ok := params["createTargetDir"].(bool); ok {
+		options.CreateTargetDir = val
+	}
+	if val, ok := params["deleteSourceAfterTransfer"].(bool); ok {
+		options.DeleteSourceAfterTransfer = val
+	}
+	if val, ok := params["preservePermissions"].(bool); ok {
+		options.PreservePermissions = val
+	}
+	if val, ok := params["preserveTimestamps"].(bool); ok {
+		options.PreserveTimestamps = val
+	}
+	if val, ok := params["verifyIntegrity"].(bool); ok {
+		options.VerifyIntegrity = val
+	}
+	if val, ok := params["continueOnError"].(bool); ok {
+		options.ContinueOnError = val
+	}
+	if val, ok := params["enableCompression"].(bool); ok {
+		options.EnableCompression = val
+	}
+
+	// 数值映射
+	if val, ok := params["bufferSize"].(float64); ok {
+		options.BufferSize = int(val)
+	}
+	if val, ok := params["concurrentTransfers"].(float64); ok {
+		options.ConcurrentTransfers = int(val)
+	}
+	if val, ok := params["retryCount"].(float64); ok {
+		options.RetryCount = int(val)
+	}
+	if val, ok := params["compressionLevel"].(float64); ok {
+		options.CompressionLevel = int(val)
+	}
+	if val, ok := params["maxFileSize"].(float64); ok {
+		options.MaxFileSize = int64(val)
+	}
+	if val, ok := params["minFileSize"].(float64); ok {
+		options.MinFileSize = int64(val)
+	}
+
+	// Duration映射
+	if val, ok := params["transferTimeout"].(float64); ok {
+		options.TransferTimeout = time.Duration(val) * time.Second
+	}
+	if val, ok := params["retryInterval"].(float64); ok {
+		options.RetryInterval = time.Duration(val) * time.Second
+	}
+	if val, ok := params["progressReportInterval"].(float64); ok {
+		options.ProgressReportInterval = time.Duration(val) * time.Second
+	}
+
+	// 字符串数组映射
+	if val, ok := params["includePatterns"].([]interface{}); ok {
+		options.IncludePatterns = f.convertToStringSlice(val)
+	}
+	if val, ok := params["excludePatterns"].([]interface{}); ok {
+		options.ExcludePatterns = f.convertToStringSlice(val)
+	}
+	if val, ok := params["includeExtensions"].([]interface{}); ok {
+		options.IncludeExtensions = f.convertToStringSlice(val)
+	}
+	if val, ok := params["excludeExtensions"].([]interface{}); ok {
+		options.ExcludeExtensions = f.convertToStringSlice(val)
+	}
+}
+
+// convertToStringSlice 将interface{}切片转换为字符串切片
+func (f *SFTPExecutorFactory) convertToStringSlice(src []interface{}) []string {
+	result := make([]string, 0, len(src))
+	for _, item := range src {
+		if str, ok := item.(string); ok {
+			result = append(result, str)
+		}
+	}
+	return result
 }
 
 // getAuthTypeName 获取认证类型名称

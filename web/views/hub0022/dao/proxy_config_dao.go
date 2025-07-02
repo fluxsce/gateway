@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 	"gohub/pkg/utils/huberrors"
 	"gohub/pkg/utils/random"
 	"gohub/web/views/hub0022/models"
@@ -41,7 +42,7 @@ func (dao *ProxyConfigDAO) generateProxyConfigId() string {
 
 // isProxyConfigIdExists 检查代理配置ID是否已存在
 func (dao *ProxyConfigDAO) isProxyConfigIdExists(ctx context.Context, proxyConfigId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GATEWAY_PROXY_CONFIG WHERE proxyConfigId = ?`
+	query := `SELECT COUNT(*) as count FROM HUB_GW_PROXY_CONFIG WHERE proxyConfigId = ?`
 	
 	var result struct {
 		Count int `db:"count"`
@@ -128,7 +129,7 @@ func (dao *ProxyConfigDAO) CreateProxyConfig(ctx context.Context, proxyConfig *m
 	}
 
 	// 插入记录
-	_, err := dao.db.Insert(ctx, "HUB_GATEWAY_PROXY_CONFIG", proxyConfig, true)
+	_, err := dao.db.Insert(ctx, "HUB_GW_PROXY_CONFIG", proxyConfig, true)
 	if err != nil {
 		return "", huberrors.WrapError(err, "创建代理配置失败")
 	}
@@ -143,7 +144,7 @@ func (dao *ProxyConfigDAO) GetProxyConfigById(ctx context.Context, proxyConfigId
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_PROXY_CONFIG 
+		SELECT * FROM HUB_GW_PROXY_CONFIG 
 		WHERE proxyConfigId = ? AND tenantId = ?
 	`
 
@@ -199,7 +200,7 @@ func (dao *ProxyConfigDAO) UpdateProxyConfig(ctx context.Context, proxyConfig *m
 	args := []interface{}{proxyConfig.ProxyConfigId, proxyConfig.TenantId, existing.CurrentVersion}
 
 	// 执行更新
-	affectedRows, err := dao.db.Update(ctx, "HUB_GATEWAY_PROXY_CONFIG", proxyConfig, where, args, true)
+	affectedRows, err := dao.db.Update(ctx, "HUB_GW_PROXY_CONFIG", proxyConfig, where, args, true)
 	if err != nil {
 		return huberrors.WrapError(err, "更新代理配置失败")
 	}
@@ -227,7 +228,7 @@ func (dao *ProxyConfigDAO) DeleteProxyConfig(ctx context.Context, proxyConfigId,
 	}
 
 	// 执行物理删除
-	sql := `DELETE FROM HUB_GATEWAY_PROXY_CONFIG WHERE proxyConfigId = ? AND tenantId = ?`
+	sql := `DELETE FROM HUB_GW_PROXY_CONFIG WHERE proxyConfigId = ? AND tenantId = ?`
 	
 	result, err := dao.db.Exec(ctx, sql, []interface{}{proxyConfigId, tenantId}, true)
 	if err != nil {
@@ -259,27 +260,47 @@ func (dao *ProxyConfigDAO) ListProxyConfigs(ctx context.Context, tenantId, gatew
 
 	whereClause := strings.Join(whereConditions, " AND ")
 
-	// 查询总数
-	countQuery := fmt.Sprintf("SELECT COUNT(*) as count FROM HUB_GATEWAY_PROXY_CONFIG WHERE %s", whereClause)
-	var countResult struct {
-		Count int `db:"count"`
+	// 构建基础查询语句
+	baseQuery := fmt.Sprintf("SELECT * FROM HUB_GW_PROXY_CONFIG WHERE %s ORDER BY addTime DESC", whereClause)
+
+	// 构建统计查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建统计查询失败")
 	}
-	err := dao.db.QueryOne(ctx, &countResult, countQuery, args, true)
+
+	// 执行统计查询
+	var countResult struct {
+		Count int `db:"COUNT(*)"`
+	}
+	err = dao.db.QueryOne(ctx, &countResult, countQuery, args, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询代理配置总数失败")
 	}
 
-	// 查询列表数据
-	offset := (page - 1) * pageSize
-	listQuery := fmt.Sprintf(`
-		SELECT * FROM HUB_GATEWAY_PROXY_CONFIG 
-		WHERE %s 
-		ORDER BY addTime DESC 
-		LIMIT %d OFFSET %d
-	`, whereClause, pageSize, offset)
+	// 如果没有记录，直接返回空列表
+	if countResult.Count == 0 {
+		return []*models.ProxyConfig{}, 0, nil
+	}
 
+	// 创建分页信息
+	pagination := sqlutils.NewPaginationInfo(page, pageSize)
+
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
+	}
+
+	// 合并查询参数
+	allArgs := append(args, paginationArgs...)
+
+	// 执行分页查询
 	var proxyConfigs []*models.ProxyConfig
-	err = dao.db.Query(ctx, &proxyConfigs, listQuery, args, true)
+	err = dao.db.Query(ctx, &proxyConfigs, paginatedQuery, allArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询代理配置列表失败")
 	}
@@ -294,7 +315,7 @@ func (dao *ProxyConfigDAO) GetProxyConfigsByGatewayInstance(ctx context.Context,
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_PROXY_CONFIG 
+		SELECT * FROM HUB_GW_PROXY_CONFIG 
 		WHERE gatewayInstanceId = ? AND tenantId = ? AND activeFlag = 'Y'
 		ORDER BY addTime DESC
 	`

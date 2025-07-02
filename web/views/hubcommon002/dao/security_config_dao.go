@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 	"gohub/pkg/utils/huberrors"
 	"gohub/pkg/utils/random"
 	"gohub/web/views/hubcommon002/models"
@@ -42,7 +43,7 @@ func (dao *SecurityConfigDAO) generateSecurityConfigId() string {
 
 // isSecurityConfigIdExists 检查安全配置ID是否已存在
 func (dao *SecurityConfigDAO) isSecurityConfigIdExists(ctx context.Context, securityConfigId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GATEWAY_SECURITY_CONFIG WHERE securityConfigId = ?`
+	query := `SELECT COUNT(*) as count FROM HUB_GW_SECURITY_CONFIG WHERE securityConfigId = ?`
 	
 	var result struct {
 		Count int `db:"count"`
@@ -129,7 +130,7 @@ func (dao *SecurityConfigDAO) AddSecurityConfig(ctx context.Context, config *mod
 	}
 
 	// 使用数据库接口的Insert方法插入记录
-	_, err := dao.db.Insert(ctx, "HUB_GATEWAY_SECURITY_CONFIG", config, true)
+	_, err := dao.db.Insert(ctx, "HUB_GW_SECURITY_CONFIG", config, true)
 
 	if err != nil {
 		// 检查是否是配置名重复错误
@@ -149,7 +150,7 @@ func (dao *SecurityConfigDAO) GetSecurityConfigById(ctx context.Context, securit
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_SECURITY_CONFIG 
+		SELECT * FROM HUB_GW_SECURITY_CONFIG 
 		WHERE securityConfigId = ? AND tenantId = ?
 	`
 
@@ -189,7 +190,7 @@ func (dao *SecurityConfigDAO) UpdateSecurityConfig(ctx context.Context, config *
 
 	// 构建更新SQL
 	sql := `
-		UPDATE HUB_GATEWAY_SECURITY_CONFIG SET
+		UPDATE HUB_GW_SECURITY_CONFIG SET
 			gatewayInstanceId = ?, routeConfigId = ?, configName = ?, configDesc = ?,
 			configPriority = ?, customConfigJson = ?, reserved1 = ?, reserved2 = ?,
 			reserved3 = ?, reserved4 = ?, reserved5 = ?, extProperty = ?, noteText = ?,
@@ -234,7 +235,7 @@ func (dao *SecurityConfigDAO) DeleteSecurityConfig(ctx context.Context, security
 	}
 
 	// 执行物理删除
-	sql := `DELETE FROM HUB_GATEWAY_SECURITY_CONFIG WHERE securityConfigId = ? AND tenantId = ?`
+	sql := `DELETE FROM HUB_GW_SECURITY_CONFIG WHERE securityConfigId = ? AND tenantId = ?`
 
 	result, err := dao.db.Exec(ctx, sql, []interface{}{securityConfigId, tenantId}, true)
 	if err != nil {
@@ -255,23 +256,20 @@ func (dao *SecurityConfigDAO) ListSecurityConfigs(ctx context.Context, tenantId 
 		return nil, 0, errors.New("tenantId不能为空")
 	}
 
-	// 确保分页参数有效
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 10
+	// 构建基础查询语句
+	baseQuery := "SELECT * FROM HUB_GW_SECURITY_CONFIG WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY configPriority ASC, addTime DESC"
+
+	// 构建统计查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建统计查询失败")
 	}
 
-	// 计算偏移量
-	offset := (page - 1) * pageSize
-
-	// 查询总数
-	countQuery := `SELECT COUNT(*) FROM HUB_GATEWAY_SECURITY_CONFIG WHERE tenantId = ? AND activeFlag = 'Y'`
+	// 执行统计查询
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err := dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId}, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId}, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询安全配置总数失败")
 	}
@@ -282,16 +280,24 @@ func (dao *SecurityConfigDAO) ListSecurityConfigs(ctx context.Context, tenantId 
 		return []*models.SecurityConfig{}, 0, nil
 	}
 
-	// 查询数据
-	dataQuery := `
-		SELECT * FROM HUB_GATEWAY_SECURITY_CONFIG 
-		WHERE tenantId = ? AND activeFlag = 'Y'
-		ORDER BY configPriority ASC, addTime DESC
-		LIMIT ? OFFSET ?
-	`
+	// 创建分页信息
+	pagination := sqlutils.NewPaginationInfo(page, pageSize)
 
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
+	}
+
+	// 合并查询参数
+	allArgs := append([]interface{}{tenantId}, paginationArgs...)
+
+	// 执行分页查询
 	var configs []*models.SecurityConfig
-	err = dao.db.Query(ctx, &configs, dataQuery, []interface{}{tenantId, pageSize, offset}, true)
+	err = dao.db.Query(ctx, &configs, paginatedQuery, allArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询安全配置列表失败")
 	}
@@ -306,7 +312,7 @@ func (dao *SecurityConfigDAO) FindSecurityConfigByName(ctx context.Context, conf
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_SECURITY_CONFIG 
+		SELECT * FROM HUB_GW_SECURITY_CONFIG 
 		WHERE configName = ? AND tenantId = ? AND activeFlag = 'Y'
 	`
 
@@ -330,7 +336,7 @@ func (dao *SecurityConfigDAO) ListSecurityConfigsByGatewayInstance(ctx context.C
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_SECURITY_CONFIG 
+		SELECT * FROM HUB_GW_SECURITY_CONFIG 
 		WHERE gatewayInstanceId = ? AND tenantId = ? 
 		ORDER BY configPriority ASC, addTime DESC
 	`
@@ -352,7 +358,7 @@ func (dao *SecurityConfigDAO) ListSecurityConfigsByRouteConfig(ctx context.Conte
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_SECURITY_CONFIG 
+		SELECT * FROM HUB_GW_SECURITY_CONFIG 
 		WHERE routeConfigId = ? AND tenantId = ?  
 		ORDER BY configPriority ASC, addTime DESC
 	`

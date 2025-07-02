@@ -125,6 +125,7 @@ func (l *DBLogger) LogError(ctx context.Context, operation string, err error) {
 }
 
 // formatSQL 格式化SQL语句，替换占位符以提高可读性
+// 支持标准?占位符和Oracle :1,:2格式占位符
 // 参数:
 //   - query: SQL查询语句
 //   - args: 查询参数
@@ -136,36 +137,50 @@ func (l *DBLogger) formatSQL(query string, args []any) string {
 		return query
 	}
 
-	// 简单实现：替换所有?为对应参数的字符串表示
 	formattedSQL := query
-	for _, arg := range args {
-		var argStr string
-		switch v := arg.(type) {
-		case string:
-			// 为字符串添加引号
-			argStr = fmt.Sprintf("'%s'", strings.ReplaceAll(v, "'", "\\'"))
-		case []byte:
-			// 二进制数据简化为[binary]
-			argStr = "[binary]"
-		case time.Time:
-			// 格式化时间
-			argStr = fmt.Sprintf("'%s'", v.Format(time.RFC3339))
-		case nil:
-			// NULL值
-			argStr = "NULL"
-		default:
-			// 其他类型直接转字符串
-			argStr = fmt.Sprintf("%v", v)
+	
+	// 检查是否为Oracle格式的占位符 (:1, :2, :3...)
+	if strings.Contains(query, ":1") || strings.Contains(query, ":2") {
+		// Oracle格式占位符替换
+		for i, arg := range args {
+			placeholder := fmt.Sprintf(":%d", i+1)
+			argStr := l.formatArgument(arg)
+			formattedSQL = strings.ReplaceAll(formattedSQL, placeholder, argStr)
 		}
-
-		// 替换第一个?
-		pos := strings.Index(formattedSQL, "?")
-		if pos >= 0 {
-			formattedSQL = formattedSQL[:pos] + argStr + formattedSQL[pos+1:]
+	} else {
+		// 标准?占位符替换
+		for _, arg := range args {
+			argStr := l.formatArgument(arg)
+			// 替换第一个?
+			pos := strings.Index(formattedSQL, "?")
+			if pos >= 0 {
+				formattedSQL = formattedSQL[:pos] + argStr + formattedSQL[pos+1:]
+			}
 		}
 	}
 
 	return formattedSQL
+}
+
+// formatArgument 格式化单个参数
+func (l *DBLogger) formatArgument(arg any) string {
+	switch v := arg.(type) {
+	case string:
+		// 为字符串添加引号
+		return fmt.Sprintf("'%s'", strings.ReplaceAll(v, "'", "\\'"))
+	case []byte:
+		// 二进制数据简化为[binary]
+		return "[binary]"
+	case time.Time:
+		// 格式化时间
+		return fmt.Sprintf("'%s'", v.Format(time.RFC3339))
+	case nil:
+		// NULL值
+		return "NULL"
+	default:
+		// 其他类型直接转字符串
+		return fmt.Sprintf("%v", v)
+	}
 }
 
 // LogQueryResult 记录查询结果

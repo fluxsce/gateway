@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// FilterConfig 过滤器配置模型，对应数据库HUB_GATEWAY_FILTER_CONFIG表
+// FilterConfig 过滤器配置模型，对应数据库HUB_GW_FILTER_CONFIG表
 type FilterConfig struct {
 	TenantId          string `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                     // 租户ID，联合主键
 	FilterConfigId    string `json:"filterConfigId" form:"filterConfigId" query:"filterConfigId" db:"filterConfigId"`             // 过滤器配置ID，联合主键
@@ -48,7 +48,7 @@ type FilterConfig struct {
 
 // TableName 返回表名
 func (FilterConfig) TableName() string {
-	return "HUB_GATEWAY_FILTER_CONFIG"
+	return "HUB_GW_FILTER_CONFIG"
 }
 
 // FilterType 过滤器类型常量

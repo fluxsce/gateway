@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 	"gohub/pkg/utils/huberrors"
 	"gohub/pkg/utils/random"
 	"gohub/web/views/hub0021/models"
@@ -41,7 +42,7 @@ func (dao *FilterConfigDAO) generateFilterConfigId() string {
 
 // isFilterConfigIdExists 检查过滤器配置ID是否已存在
 func (dao *FilterConfigDAO) isFilterConfigIdExists(ctx context.Context, filterConfigId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GATEWAY_FILTER_CONFIG WHERE filterConfigId = ?`
+	query := `SELECT COUNT(*) as count FROM HUB_GW_FILTER_CONFIG WHERE filterConfigId = ?`
 	
 	var result struct {
 		Count int `db:"count"`
@@ -164,7 +165,7 @@ func (dao *FilterConfigDAO) AddFilterConfig(ctx context.Context, filterConfig *m
 	}
 
 	// 使用数据库接口的Insert方法插入记录
-	_, err := dao.db.Insert(ctx, "HUB_GATEWAY_FILTER_CONFIG", filterConfig, true)
+	_, err := dao.db.Insert(ctx, "HUB_GW_FILTER_CONFIG", filterConfig, true)
 
 	if err != nil {
 		// 检查是否是过滤器名重复错误
@@ -184,7 +185,7 @@ func (dao *FilterConfigDAO) GetFilterConfigById(ctx context.Context, filterConfi
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_FILTER_CONFIG 
+		SELECT * FROM HUB_GW_FILTER_CONFIG 
 		WHERE filterConfigId = ? AND tenantId = ?
 	`
 
@@ -261,7 +262,7 @@ func (dao *FilterConfigDAO) UpdateFilterConfig(ctx context.Context, filterConfig
 
 	// 构建更新SQL
 	sql := `
-		UPDATE HUB_GATEWAY_FILTER_CONFIG SET
+		UPDATE HUB_GW_FILTER_CONFIG SET
 			gatewayInstanceId = ?, routeConfigId = ?, filterName = ?, filterType = ?, filterAction = ?,
 			filterOrder = ?, filterConfig = ?, filterDesc = ?, configId = ?,
 			reserved1 = ?, reserved2 = ?, reserved3 = ?, reserved4 = ?, reserved5 = ?,
@@ -311,7 +312,7 @@ func (dao *FilterConfigDAO) DeleteFilterConfig(ctx context.Context, filterConfig
 	}
 
 	// 执行实际删除
-	sql := `DELETE FROM HUB_GATEWAY_FILTER_CONFIG WHERE filterConfigId = ? AND tenantId = ?`
+	sql := `DELETE FROM HUB_GW_FILTER_CONFIG WHERE filterConfigId = ? AND tenantId = ?`
 
 	result, err := dao.db.Exec(ctx, sql, []interface{}{filterConfigId, tenantId}, true)
 	if err != nil {
@@ -353,13 +354,20 @@ func (dao *FilterConfigDAO) ListFilterConfigs(ctx context.Context, tenantId stri
 
 	whereClause := strings.Join(whereConditions, " AND ")
 
-	// 查询总数
-	countQuery := fmt.Sprintf("SELECT COUNT(*) as count FROM HUB_GATEWAY_FILTER_CONFIG WHERE %s", whereClause)
-	var countResult struct {
-		Count int `db:"count"`
+	// 构建基础查询语句
+	baseQuery := fmt.Sprintf("SELECT * FROM HUB_GW_FILTER_CONFIG WHERE %s ORDER BY filterAction ASC, filterOrder ASC, addTime DESC", whereClause)
+
+	// 构建统计查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建统计查询失败")
 	}
-	
-	err := dao.db.QueryOne(ctx, &countResult, countQuery, args, true)
+
+	// 执行统计查询
+	var countResult struct {
+		Count int `db:"COUNT(*)"`
+	}
+	err = dao.db.QueryOne(ctx, &countResult, countQuery, args, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询过滤器配置总数失败")
 	}
@@ -369,21 +377,24 @@ func (dao *FilterConfigDAO) ListFilterConfigs(ctx context.Context, tenantId stri
 		return []*models.FilterConfig{}, 0, nil
 	}
 
-	// 计算分页
-	offset := (page - 1) * pageSize
+	// 创建分页信息
+	paginationInfo := sqlutils.NewPaginationInfo(page, pageSize)
 
-	// 查询分页数据，按执行顺序排序
-	dataQuery := fmt.Sprintf(`
-		SELECT * FROM HUB_GATEWAY_FILTER_CONFIG 
-		WHERE %s 
-		ORDER BY filterAction ASC, filterOrder ASC, addTime DESC 
-		LIMIT ? OFFSET ?
-	`, whereClause)
-	
-	args = append(args, pageSize, offset)
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
 
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, paginationInfo)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
+	}
+
+	// 合并查询参数
+	allArgs := append(args, paginationArgs...)
+
+	// 执行分页查询
 	var filterConfigs []*models.FilterConfig
-	err = dao.db.Query(ctx, &filterConfigs, dataQuery, args, true)
+	err = dao.db.Query(ctx, &filterConfigs, paginatedQuery, allArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询过滤器配置列表失败")
 	}
@@ -398,7 +409,7 @@ func (dao *FilterConfigDAO) GetFilterConfigsByGatewayInstance(ctx context.Contex
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_FILTER_CONFIG 
+		SELECT * FROM HUB_GW_FILTER_CONFIG 
 		WHERE gatewayInstanceId = ? AND tenantId = ?
 		ORDER BY filterAction ASC, filterOrder ASC, addTime DESC
 	`
@@ -419,7 +430,7 @@ func (dao *FilterConfigDAO) GetFilterConfigsByRoute(ctx context.Context, routeCo
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_FILTER_CONFIG 
+		SELECT * FROM HUB_GW_FILTER_CONFIG 
 		WHERE routeConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
 		ORDER BY filterAction ASC, filterOrder ASC, addTime DESC
 	`
@@ -461,7 +472,7 @@ func (dao *FilterConfigDAO) GetFilterConfigsByType(ctx context.Context, filterTy
 	whereClause := strings.Join(whereConditions, " AND ")
 
 	query := fmt.Sprintf(`
-		SELECT * FROM HUB_GATEWAY_FILTER_CONFIG 
+		SELECT * FROM HUB_GW_FILTER_CONFIG 
 		WHERE %s
 		ORDER BY filterAction ASC, filterOrder ASC, addTime DESC
 	`, whereClause)
@@ -503,7 +514,7 @@ func (dao *FilterConfigDAO) GetFilterConfigsByAction(ctx context.Context, filter
 	whereClause := strings.Join(whereConditions, " AND ")
 
 	query := fmt.Sprintf(`
-		SELECT * FROM HUB_GATEWAY_FILTER_CONFIG 
+		SELECT * FROM HUB_GW_FILTER_CONFIG 
 		WHERE %s
 		ORDER BY filterOrder ASC, addTime DESC
 	`, whereClause)
@@ -541,7 +552,7 @@ func (dao *FilterConfigDAO) GetFilterExecutionChain(ctx context.Context, tenantI
 
 	// 按执行时机和执行顺序排序，确保执行链的正确顺序
 	query := fmt.Sprintf(`
-		SELECT * FROM HUB_GATEWAY_FILTER_CONFIG 
+		SELECT * FROM HUB_GW_FILTER_CONFIG 
 		WHERE %s
 		ORDER BY 
 			CASE filterAction 
@@ -571,7 +582,7 @@ func (dao *FilterConfigDAO) UpdateFilterOrder(ctx context.Context, filterConfigI
 
 	// 更新过滤器执行顺序
 	sql := `
-		UPDATE HUB_GATEWAY_FILTER_CONFIG SET
+		UPDATE HUB_GW_FILTER_CONFIG SET
 			filterOrder = ?, editTime = ?, editWho = ?
 		WHERE filterConfigId = ? AND tenantId = ?
 	`
@@ -605,7 +616,7 @@ func (dao *FilterConfigDAO) updateFilterConfigStatus(ctx context.Context, filter
 
 	// 更新过滤器配置状态
 	sql := `
-		UPDATE HUB_GATEWAY_FILTER_CONFIG SET
+		UPDATE HUB_GW_FILTER_CONFIG SET
 			activeFlag = ?, editTime = ?, editWho = ?
 		WHERE filterConfigId = ? AND tenantId = ?
 	`
@@ -653,7 +664,7 @@ func (dao *FilterConfigDAO) BatchUpdateFilterConfigs(ctx context.Context, filter
 	
 	// 构建完整的SQL语句
 	sql := fmt.Sprintf(`
-		UPDATE HUB_GATEWAY_FILTER_CONFIG SET %s
+		UPDATE HUB_GW_FILTER_CONFIG SET %s
 		WHERE filterConfigId IN (%s) AND tenantId = ?
 	`, strings.Join(setParts, ", "), placeholders)
 
@@ -683,7 +694,7 @@ func (dao *FilterConfigDAO) BatchDeleteFilterConfigs(ctx context.Context, filter
 	args = append(args, tenantId)
 
 	// 执行批量删除
-	sql := fmt.Sprintf(`DELETE FROM HUB_GATEWAY_FILTER_CONFIG WHERE filterConfigId IN (%s) AND tenantId = ?`, placeholders)
+	sql := fmt.Sprintf(`DELETE FROM HUB_GW_FILTER_CONFIG WHERE filterConfigId IN (%s) AND tenantId = ?`, placeholders)
 
 	_, err := dao.db.Exec(ctx, sql, args, true)
 	if err != nil {

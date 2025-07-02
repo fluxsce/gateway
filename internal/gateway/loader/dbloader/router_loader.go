@@ -10,6 +10,7 @@ import (
 	"gohub/internal/gateway/handler/filter"
 	"gohub/internal/gateway/handler/router"
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 	"gohub/pkg/logger"
 )
 
@@ -29,28 +30,47 @@ func NewRouterConfigLoader(db database.Database, tenantId string) *RouterConfigL
 
 // LoadRouterConfig 加载Router配置
 func (loader *RouterConfigLoader) LoadRouterConfig(ctx context.Context, instanceId string) (*router.RouterConfig, error) {
-	query := `
-		SELECT tenantId, routerConfigId, gatewayInstanceId, routerName, defaultPriority,
-		       enableRouteCache, routeCacheTtlSeconds, maxRoutes, routeMatchTimeout,
-		       enableStrictMode, enableMetrics, enableTracing, caseSensitive, removeTrailingSlash,
+	// 构建基础查询语句
+	baseQuery := `
+		SELECT tenantId, routerConfigId, routerName, defaultPriority, enableRouteCache,
+		       routeCacheTtlSeconds, enableStrictMode, enableMetrics, enableTracing, caseSensitive, removeTrailingSlash,
 		       enableGlobalFilters, filterExecutionMode, maxFilterChainDepth,
 		       enableRoutePooling, routePoolSize, enableAsyncProcessing,
 		       enableFallback, fallbackRoute, notFoundStatusCode, notFoundMessage,
 		       routerMetadata, customConfig, activeFlag
-		FROM HUB_GATEWAY_ROUTER_CONFIG 
+		FROM HUB_GW_ROUTER_CONFIG 
 		WHERE tenantId = ? AND gatewayInstanceId = ? AND activeFlag = 'Y'
 		ORDER BY defaultPriority ASC
-		LIMIT 1
 	`
 
-	var record RouterConfigRecord
-	err := loader.db.QueryOne(ctx, &record, query, []interface{}{loader.tenantId, instanceId}, true)
+	// 创建分页信息（只取第一条记录）
+	pagination := sqlutils.NewPaginationInfo(1, 1)
+
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(loader.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {
-		if err == database.ErrRecordNotFound {
-			return nil, nil
-		}
+		return nil, fmt.Errorf("构建分页查询失败: %w", err)
+	}
+
+	// 合并查询参数
+	allArgs := append([]interface{}{loader.tenantId, instanceId}, paginationArgs...)
+
+	// 执行查询
+	var records []RouterConfigRecord
+	err = loader.db.Query(ctx, &records, paginatedQuery, allArgs, true)
+	if err != nil {
 		return nil, fmt.Errorf("查询Router配置失败: %w", err)
 	}
+
+	// 如果没有找到记录，返回nil
+	if len(records) == 0 {
+		return nil, nil
+	}
+
+	record := records[0]
 
 	// 构建Router配置
 	routerConfig := &router.RouterConfig{
@@ -89,7 +109,7 @@ func (loader *RouterConfigLoader) LoadRoutes(ctx context.Context, instanceId str
 		       allowedMethods, allowedHosts, matchType, routePriority, stripPathPrefix,
 		       rewritePath, enableWebsocket, timeoutMs, retryCount, retryIntervalMs,
 		       serviceDefinitionId, logConfigId, routeMetadata, activeFlag
-		FROM HUB_GATEWAY_ROUTE_CONFIG 
+		FROM HUB_GW_ROUTE_CONFIG 
 		WHERE tenantId = ? AND gatewayInstanceId = ? AND activeFlag = 'Y'
 		ORDER BY routePriority ASC
 	`
@@ -134,7 +154,7 @@ func (loader *RouterConfigLoader) LoadRoutes(ctx context.Context, instanceId str
 		metadata["retry_interval_ms"] = record.RetryIntervalMs
 
 		if record.AllowedHosts != nil {
-			metadata["allowed_hosts"] = strings.Split(*record.AllowedHosts, ",")
+			metadata["allowed_hosts"] = parseStringArray(*record.AllowedHosts)
 		}
 		if record.RewritePath != nil {
 			metadata["rewrite_path"] = *record.RewritePath
@@ -182,7 +202,7 @@ func (loader *RouterConfigLoader) LoadRouteAssertionGroup(ctx context.Context, r
 		SELECT tenantId, routeAssertionId, routeConfigId, assertionName, assertionType,
 		       assertionOperator, fieldName, expectedValue, patternValue, caseSensitive,
 		       assertionOrder, isRequired, assertionDesc, activeFlag
-		FROM HUB_GATEWAY_ROUTE_ASSERTION 
+		FROM HUB_GW_ROUTE_ASSERTION 
 		WHERE tenantId = ? AND routeConfigId = ? AND activeFlag = 'Y'
 		ORDER BY assertionOrder ASC
 	`
@@ -198,25 +218,40 @@ func (loader *RouterConfigLoader) LoadRouteAssertionGroup(ctx context.Context, r
 	}
 
 	// 先查询路由元数据，获取断言组配置
-	metadataQuery := `
+	metadataBaseQuery := `
 		SELECT routeName, routeMetadata
-		FROM HUB_GATEWAY_ROUTE_CONFIG 
+		FROM HUB_GW_ROUTE_CONFIG 
 		WHERE tenantId = ? AND routeConfigId = ? AND activeFlag = 'Y'
-		LIMIT 1
 	`
-	var metadataRecord struct {
+
+	// 创建分页信息（只取第一条记录）
+	pagination := sqlutils.NewPaginationInfo(1, 1)
+
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(loader.db)
+
+	// 构建分页查询
+	metadataPaginatedQuery, metadataPaginationArgs, err := sqlutils.BuildPaginationQuery(dbType, metadataBaseQuery, pagination)
+	if err != nil {
+		return nil, fmt.Errorf("构建元数据分页查询失败: %w", err)
+	}
+
+	// 合并查询参数
+	metadataAllArgs := append([]interface{}{loader.tenantId, routeId}, metadataPaginationArgs...)
+
+	var metadataRecords []struct {
 		RouteName     string  `db:"routeName"`
 		RouteMetadata *string `db:"routeMetadata"`
 	}
-	err = loader.db.QueryOne(ctx, &metadataRecord, metadataQuery, []interface{}{loader.tenantId, routeId}, true)
+	err = loader.db.Query(ctx, &metadataRecords, metadataPaginatedQuery, metadataAllArgs, true)
 	
 	// 默认所有断言都必须满足
 	allRequired := true
 	
 	// 从元数据中获取断言组配置
-	if err == nil && metadataRecord.RouteMetadata != nil {
+	if err == nil && len(metadataRecords) > 0 && metadataRecords[0].RouteMetadata != nil {
 		var metadata map[string]interface{}
-		if err := json.Unmarshal([]byte(*metadataRecord.RouteMetadata), &metadata); err == nil {
+		if err := json.Unmarshal([]byte(*metadataRecords[0].RouteMetadata), &metadata); err == nil {
 			// 检查是否有断言组配置
 			if assertionGroupSettings, ok := metadata["assertion_group"]; ok {
 				if settings, ok := assertionGroupSettings.(map[string]interface{}); ok {
@@ -236,7 +271,7 @@ func (loader *RouterConfigLoader) LoadRouteAssertionGroup(ctx context.Context, r
 		ID:               routeId + "_assertions",
 		AllRequired:      allRequired, // 使用从元数据中获取的值
 		AssertionConfigs: make([]assertion.AssertionConfig, 0),
-		Description:      metadataRecord.RouteName + " - 路由断言组",
+		Description:      metadataRecords[0].RouteName + " - 路由断言组",
 	}
 
 	// 转换数据库记录为断言配置
@@ -297,7 +332,7 @@ func (loader *RouterConfigLoader) LoadRouteFilters(ctx context.Context, routeId 
 	query := `
 		SELECT tenantId, filterConfigId, filterName, filterType, filterAction,
 		       filterOrder, filterConfig, configId, activeFlag
-		FROM HUB_GATEWAY_FILTER_CONFIG 
+		FROM HUB_GW_FILTER_CONFIG 
 		WHERE tenantId = ? AND routeConfigId = ? AND activeFlag = 'Y'
 		ORDER BY filterOrder ASC
 	`
@@ -356,7 +391,7 @@ func (loader *RouterConfigLoader) LoadGlobalFilters(ctx context.Context, instanc
 	query := `
 		SELECT tenantId, filterConfigId, filterName, filterType, filterAction,
 		       filterOrder, filterConfig, configId, activeFlag
-		FROM HUB_GATEWAY_FILTER_CONFIG 
+		FROM HUB_GW_FILTER_CONFIG 
 		WHERE tenantId = ? AND gatewayInstanceId = ? AND routeConfigId IS NULL AND activeFlag = 'Y'
 		ORDER BY filterOrder ASC
 	`
@@ -407,4 +442,63 @@ func (loader *RouterConfigLoader) LoadGlobalFilters(ctx context.Context, instanc
 	}
 
 	return filters, nil
+}
+
+// parseStringArray 解析逗号分隔的字符串或JSON数组，处理空白字符和空字符串
+// 功能特性：
+// - 优先尝试解析JSON数组格式（如 ["a","b","c"]）
+// - 如果JSON解析失败，则按逗号分割字符串
+// - 去除每个元素的前后空白字符
+// - 过滤掉空字符串元素
+// - 返回清理后的字符串切片
+//
+// 参数:
+//   str: 要解析的字符串（JSON数组或逗号分隔字符串）
+// 返回:
+//   []string: 解析后的字符串切片
+//
+// 示例:
+//   parseStringArray(`["a","b","c"]`) 
+//   // 返回: ["a", "b", "c"]
+//   parseStringArray("a, b , c,, d ") 
+//   // 返回: ["a", "b", "c", "d"]
+func parseStringArray(str string) []string {
+	if str == "" {
+		return []string{}
+	}
+	
+	// 去除前后空白字符
+	str = strings.TrimSpace(str)
+	
+	// 优先尝试解析JSON数组
+	if strings.HasPrefix(str, "[") && strings.HasSuffix(str, "]") {
+		var jsonArray []string
+		if err := json.Unmarshal([]byte(str), &jsonArray); err == nil {
+			// JSON解析成功，过滤空字符串并去除空白字符
+			var result []string
+			for _, item := range jsonArray {
+				trimmed := strings.TrimSpace(item)
+				if trimmed != "" {
+					result = append(result, trimmed)
+				}
+			}
+			return result
+		}
+	}
+	
+	// JSON解析失败，按逗号分割
+	parts := strings.Split(str, ",")
+	
+	// 清理和过滤
+	var result []string
+	for _, part := range parts {
+		// 去除前后空白字符
+		trimmed := strings.TrimSpace(part)
+		// 过滤掉空字符串
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	
+	return result
 } 

@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// SecurityConfig 安全配置模型，对应数据库HUB_GATEWAY_SECURITY_CONFIG表
+// SecurityConfig 安全配置模型，对应数据库HUB_GW_SECURITY_CONFIG表
 type SecurityConfig struct {
 	TenantId          string     `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                     // 租户ID，联合主键
 	SecurityConfigId  string     `json:"securityConfigId" form:"securityConfigId" query:"securityConfigId" db:"securityConfigId"`   // 安全配置ID，联合主键
@@ -32,10 +32,10 @@ type SecurityConfig struct {
 
 // TableName 返回表名
 func (SecurityConfig) TableName() string {
-	return "HUB_GATEWAY_SECURITY_CONFIG"
+	return "HUB_GW_SECURITY_CONFIG"
 }
 
-// IpAccessConfig IP访问控制配置模型，对应数据库HUB_GATEWAY_IP_ACCESS_CONFIG表
+// IpAccessConfig IP访问控制配置模型，对应数据库HUB_GW_IP_ACCESS_CONFIG表
 type IpAccessConfig struct {
 	TenantId           string     `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                           // 租户ID，联合主键
 	IpAccessConfigId   string     `json:"ipAccessConfigId" form:"ipAccessConfigId" query:"ipAccessConfigId" db:"ipAccessConfigId"`         // IP访问配置ID，联合主键
@@ -66,10 +66,10 @@ type IpAccessConfig struct {
 
 // TableName 返回表名
 func (IpAccessConfig) TableName() string {
-	return "HUB_GATEWAY_IP_ACCESS_CONFIG"
+	return "HUB_GW_IP_ACCESS_CONFIG"
 }
 
-// UseragentAccessConfig User-Agent访问控制配置模型，对应数据库HUB_GATEWAY_USERAGENT_ACCESS_CONFIG表
+// UseragentAccessConfig User-Agent访问控制配置模型，对应数据库HUB_GW_UA_ACCESS_CONFIG表
 type UseragentAccessConfig struct {
 	TenantId                 string     `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                                                 // 租户ID，联合主键
 	UseragentAccessConfigId  string     `json:"useragentAccessConfigId" form:"useragentAccessConfigId" query:"useragentAccessConfigId" db:"useragentAccessConfigId"` // User-Agent访问配置ID，联合主键
@@ -97,10 +97,10 @@ type UseragentAccessConfig struct {
 
 // TableName 返回表名
 func (UseragentAccessConfig) TableName() string {
-	return "HUB_GATEWAY_USERAGENT_ACCESS_CONFIG"
+	return "HUB_GW_UA_ACCESS_CONFIG"
 }
 
-// ApiAccessConfig API访问控制配置模型，对应数据库HUB_GATEWAY_API_ACCESS_CONFIG表
+// ApiAccessConfig API访问控制配置模型，对应数据库HUB_GW_API_ACCESS_CONFIG表
 type ApiAccessConfig struct {
 	TenantId         string     `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                     // 租户ID，联合主键
 	ApiAccessConfigId string    `json:"apiAccessConfigId" form:"apiAccessConfigId" query:"apiAccessConfigId" db:"apiAccessConfigId"` // API访问配置ID，联合主键
@@ -129,10 +129,10 @@ type ApiAccessConfig struct {
 
 // TableName 返回表名
 func (ApiAccessConfig) TableName() string {
-	return "HUB_GATEWAY_API_ACCESS_CONFIG"
+	return "HUB_GW_API_ACCESS_CONFIG"
 }
 
-// DomainAccessConfig 域名访问控制配置模型，对应数据库HUB_GATEWAY_DOMAIN_ACCESS_CONFIG表
+// DomainAccessConfig 域名访问控制配置模型，对应数据库HUB_GW_DOMAIN_ACCESS_CONFIG表
 type DomainAccessConfig struct {
 	TenantId             string     `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                                     // 租户ID，联合主键
 	DomainAccessConfigId string     `json:"domainAccessConfigId" form:"domainAccessConfigId" query:"domainAccessConfigId" db:"domainAccessConfigId"` // 域名访问配置ID，联合主键
@@ -160,5 +160,5 @@ type DomainAccessConfig struct {
 
 // TableName 返回表名
 func (DomainAccessConfig) TableName() string {
-	return "HUB_GATEWAY_DOMAIN_ACCESS_CONFIG"
+	return "HUB_GW_DOMAIN_ACCESS_CONFIG"
 } 

@@ -62,13 +62,13 @@ web/views/hub0022/
 
 ## 数据库表
 
-### HUB_GATEWAY_PROXY_CONFIG (代理配置表)
+### HUB_GW_PROXY_CONFIG (代理配置表)
 存储网关代理配置信息，包括代理类型、配置内容、优先级等。
 
-### HUB_GATEWAY_SERVICE_DEFINITION (服务定义表)
+### HUB_GW_SERVICE_DEFINITION (服务定义表)
 存储服务定义信息，包括负载均衡策略、健康检查配置、服务发现配置等。
 
-### HUB_GATEWAY_SERVICE_NODE (服务节点表)
+### HUB_GW_SERVICE_NODE (服务节点表)
 存储服务的具体节点实例信息，包括节点URL、权重、健康状态等。
 
 ## 特性说明

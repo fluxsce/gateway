@@ -20,6 +20,8 @@ const (
 	DriverSQLServer = "sqlserver"
 	// Oracle数据库驱动
 	DriverOracle = "oracle"
+	// Oracle 11g数据库驱动（使用特殊分页语法）
+	DriverOracle11g = "oracle11g"
 	// MariaDB数据库驱动 (兼容MySQL)
 	DriverMariaDB = "mariadb"
 	// TiDB数据库驱动 (兼容MySQL)
@@ -31,30 +33,92 @@ const (
 )
 
 // ConnectionConfig 数据库连接配置
-// 描述数据库连接的基本信息
+// 描述数据库连接的基本信息，支持多种数据库类型
 type ConnectionConfig struct {
-	// Host 数据库主机地址
+	// === 通用连接参数 ===
+	
+	// Host 数据库主机地址 (MySQL, PostgreSQL, Oracle等需要)
 	Host string `mapstructure:"host"`
 
-	// Port 数据库端口
+	// Port 数据库端口 (MySQL, PostgreSQL, Oracle等需要)
 	Port int `mapstructure:"port"`
 
-	// Username 用户名
+	// Username 用户名 (MySQL, PostgreSQL, Oracle等需要)
 	Username string `mapstructure:"username"`
 
-	// Password 密码
+	// Password 密码 (MySQL, PostgreSQL, Oracle等需要)
 	Password string `mapstructure:"password"`
 
-	// Database 数据库名
+	// Database 数据库名 (MySQL, PostgreSQL等需要)
 	Database string `mapstructure:"database"`
 
-	// 特定于MySQL的参数
-	Charset   string `mapstructure:"charset"`
-	ParseTime bool   `mapstructure:"parse_time"`
-	Loc       string `mapstructure:"loc"`
+	// === MySQL特有参数 ===
+	
+	// Charset MySQL字符集
+	Charset string `mapstructure:"charset"`
+	// ParseTime MySQL是否解析时间类型
+	ParseTime bool `mapstructure:"parse_time"`
+	// Loc MySQL时区设置
+	Loc string `mapstructure:"loc"`
+	// MySQLConnectTimeout MySQL连接超时时间(秒)
+	MySQLConnectTimeout int `mapstructure:"mysql_connect_timeout"`
+	// MySQLReadTimeout MySQL读取超时时间(秒)
+	MySQLReadTimeout int `mapstructure:"mysql_read_timeout"`
+	// MySQLWriteTimeout MySQL写入超时时间(秒)
+	MySQLWriteTimeout int `mapstructure:"mysql_write_timeout"`
 
-	// 特定于PostgreSQL的参数
+	// === PostgreSQL特有参数 ===
+	
+	// SSLMode PostgreSQL SSL模式
 	SSLMode string `mapstructure:"sslmode"`
+	// PostgreSQLConnectTimeout PostgreSQL连接超时时间(秒)
+	PostgreSQLConnectTimeout int `mapstructure:"postgres_connect_timeout"`
+	// PostgreSQLStatementTimeout PostgreSQL语句超时时间(秒)
+	PostgreSQLStatementTimeout int `mapstructure:"postgres_statement_timeout"`
+
+	// === SQLite特有参数 ===
+	
+	// FilePath SQLite数据库文件路径 (优先于DSN中的路径)
+	FilePath string `mapstructure:"file_path"`
+	// JournalMode SQLite日志模式 (WAL, DELETE, TRUNCATE, PERSIST, MEMORY, OFF)
+	JournalMode string `mapstructure:"journal_mode"`
+	// SynchronousMode SQLite同步模式 (OFF, NORMAL, FULL, EXTRA)
+	SynchronousMode string `mapstructure:"synchronous_mode"`
+	// CacheMode SQLite缓存模式 (shared, private)
+	CacheMode string `mapstructure:"cache_mode"`
+	// ConnectionMode SQLite连接模式 (rwc, ro, rw, memory)
+	ConnectionMode string `mapstructure:"connection_mode"`
+	// CacheSize SQLite缓存大小 (页数或KB，负数表示KB)
+	CacheSize int `mapstructure:"cache_size"`
+	// BusyTimeout SQLite忙等待超时时间(毫秒)
+	BusyTimeout int `mapstructure:"busy_timeout"`
+	// ForeignKeys SQLite是否启用外键约束
+	ForeignKeys bool `mapstructure:"foreign_keys"`
+
+	// === Oracle特有参数 ===
+	
+	// ServiceName Oracle服务名 (推荐使用)
+	ServiceName string `mapstructure:"service_name"`
+	// SID Oracle系统标识符 (传统方式)
+	SID string `mapstructure:"sid"`
+	// UseSID 是否使用SID连接方式 (true: 使用SID, false: 使用服务名)
+	UseSID bool `mapstructure:"use_sid"`
+	// Timezone Oracle时区设置 (如: Asia/Shanghai, UTC等)
+	Timezone string `mapstructure:"timezone"`
+	// OracleConnectionTimeout Oracle连接超时时间(秒)
+	OracleConnectionTimeout int `mapstructure:"oracle_connection_timeout"`
+	// OracleReadTimeout Oracle读取超时时间(秒)  
+	OracleReadTimeout int `mapstructure:"oracle_read_timeout"`
+	// OracleWriteTimeout Oracle写入超时时间(秒)
+	OracleWriteTimeout int `mapstructure:"oracle_write_timeout"`
+	// NLSLang Oracle语言环境设置
+	NLSLang string `mapstructure:"nls_lang"`
+	// AutoCommit Oracle是否自动提交
+	AutoCommit bool `mapstructure:"auto_commit"`
+	// PrefetchRows Oracle预取行数
+	PrefetchRows int `mapstructure:"prefetch_rows"`
+	// LobPrefetchSize Oracle LOB预取大小
+	LobPrefetchSize int `mapstructure:"lob_prefetch_size"`
 }
 
 // PoolConfig 连接池配置

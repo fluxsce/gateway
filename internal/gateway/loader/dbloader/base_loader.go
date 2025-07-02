@@ -33,7 +33,7 @@ func (loader *BaseConfigLoader) LoadGatewayInstance(ctx context.Context, instanc
 		       maxWorkers, keepAliveEnabled, tcpKeepAliveEnabled, gracefulShutdownTimeoutMs,
 		       enableHttp2, tlsVersion, tlsCipherSuites, disableGeneralOptionsHandler,
 		       logConfigId, healthStatus, lastHeartbeatTime, instanceMetadata, activeFlag
-		FROM HUB_GATEWAY_INSTANCE 
+		FROM HUB_GW_INSTANCE 
 		WHERE tenantId = ? AND gatewayInstanceId = ? AND activeFlag = 'Y'
 	`
 

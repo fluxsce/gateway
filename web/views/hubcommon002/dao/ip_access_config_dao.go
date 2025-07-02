@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"gohub/pkg/database"
+	"gohub/pkg/database/sqlutils"
 	"gohub/pkg/utils/huberrors"
 	"gohub/pkg/utils/random"
 	"gohub/web/views/hubcommon002/models"
@@ -42,7 +43,7 @@ func (dao *IpAccessConfigDAO) generateIpAccessConfigId() string {
 
 // isIpAccessConfigIdExists 检查IP访问配置ID是否已存在
 func (dao *IpAccessConfigDAO) isIpAccessConfigIdExists(ctx context.Context, ipAccessConfigId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GATEWAY_IP_ACCESS_CONFIG WHERE ipAccessConfigId = ?`
+	query := `SELECT COUNT(*) as count FROM HUB_GW_IP_ACCESS_CONFIG WHERE ipAccessConfigId = ?`
 	
 	var result struct {
 		Count int `db:"count"`
@@ -115,7 +116,7 @@ func (dao *IpAccessConfigDAO) AddIpAccessConfig(ctx context.Context, config *mod
 		config.DefaultPolicy = "allow"
 	}
 
-	_, err := dao.db.Insert(ctx, "HUB_GATEWAY_IP_ACCESS_CONFIG", config, true)
+	_, err := dao.db.Insert(ctx, "HUB_GW_IP_ACCESS_CONFIG", config, true)
 	if err != nil {
 		return huberrors.WrapError(err, "添加IP访问控制配置失败")
 	}
@@ -130,7 +131,7 @@ func (dao *IpAccessConfigDAO) GetIpAccessConfigBySecurityConfigId(ctx context.Co
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_IP_ACCESS_CONFIG 
+		SELECT * FROM HUB_GW_IP_ACCESS_CONFIG 
 		WHERE securityConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
 	`
 
@@ -154,7 +155,7 @@ func (dao *IpAccessConfigDAO) GetIpAccessConfigById(ctx context.Context, ipAcces
 	}
 
 	query := `
-		SELECT * FROM HUB_GATEWAY_IP_ACCESS_CONFIG 
+		SELECT * FROM HUB_GW_IP_ACCESS_CONFIG 
 		WHERE ipAccessConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
 	`
 
@@ -194,7 +195,7 @@ func (dao *IpAccessConfigDAO) UpdateIpAccessConfig(ctx context.Context, config *
 	config.OprSeqFlag = config.IpAccessConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
 
 	sql := `
-		UPDATE HUB_GATEWAY_IP_ACCESS_CONFIG SET
+		UPDATE HUB_GW_IP_ACCESS_CONFIG SET
 			configName = ?, defaultPolicy = ?, whitelistIps = ?, blacklistIps = ?,
 			whitelistCidrs = ?, blacklistCidrs = ?, trustXForwardedFor = ?, trustXRealIp = ?,
 			reserved1 = ?, reserved2 = ?, reserved3 = ?, reserved4 = ?, reserved5 = ?,
@@ -228,7 +229,7 @@ func (dao *IpAccessConfigDAO) DeleteIpAccessConfig(ctx context.Context, security
 	}
 
 	sql := `
-		UPDATE HUB_GATEWAY_IP_ACCESS_CONFIG SET
+		UPDATE HUB_GW_IP_ACCESS_CONFIG SET
 			activeFlag = 'N', editTime = ?, editWho = ?
 		WHERE securityConfigId = ? AND tenantId = ?
 	`
@@ -251,23 +252,20 @@ func (dao *IpAccessConfigDAO) ListIpAccessConfigs(ctx context.Context, tenantId 
 		return nil, 0, errors.New("tenantId不能为空")
 	}
 
-	// 确保分页参数有效
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 10
+	// 构建基础查询语句
+	baseQuery := "SELECT * FROM HUB_GW_IP_ACCESS_CONFIG WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY addTime DESC"
+
+	// 构建统计查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建统计查询失败")
 	}
 
-	// 计算偏移量
-	offset := (page - 1) * pageSize
-
-	// 查询总数
-	countQuery := `SELECT COUNT(*) FROM HUB_GATEWAY_IP_ACCESS_CONFIG WHERE tenantId = ? AND activeFlag = 'Y'`
+	// 执行统计查询
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err := dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId}, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId}, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询IP访问控制配置总数失败")
 	}
@@ -278,16 +276,24 @@ func (dao *IpAccessConfigDAO) ListIpAccessConfigs(ctx context.Context, tenantId 
 		return []*models.IpAccessConfig{}, 0, nil
 	}
 
-	// 查询数据
-	dataQuery := `
-		SELECT * FROM HUB_GATEWAY_IP_ACCESS_CONFIG 
-		WHERE tenantId = ? AND activeFlag = 'Y'
-		ORDER BY addTime DESC
-		LIMIT ? OFFSET ?
-	`
+	// 创建分页信息
+	pagination := sqlutils.NewPaginationInfo(page, pageSize)
 
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 构建分页查询
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
+	}
+
+	// 合并查询参数
+	allArgs := append([]interface{}{tenantId}, paginationArgs...)
+
+	// 执行分页查询
 	var configs []*models.IpAccessConfig
-	err = dao.db.Query(ctx, &configs, dataQuery, []interface{}{tenantId, pageSize, offset}, true)
+	err = dao.db.Query(ctx, &configs, paginatedQuery, allArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询IP访问控制配置列表失败")
 	}

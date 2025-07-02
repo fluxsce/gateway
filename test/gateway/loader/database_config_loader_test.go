@@ -203,7 +203,7 @@ func TestDatabaseConnection(t *testing.T) {
 	ctx := context.Background()
 	
 	// 测试查询网关实例表
-	query := "SELECT COUNT(*) as count FROM HUB_GATEWAY_INSTANCE WHERE activeFlag = 'Y'"
+	query := "SELECT COUNT(*) as count FROM HUB_GW_INSTANCE WHERE activeFlag = 'Y'"
 	var result struct {
 		Count int `db:"count"`
 	}

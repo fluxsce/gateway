@@ -317,16 +317,7 @@ func (c *RateLimitConfigController) QueryRateLimitConfigs(ctx *gin.Context) {
 	logger.InfoWithTrace(ctx, "开始查询限流配置列表", "controller", "RateLimitConfigController", "action", "QueryRateLimitConfigs")
 
 	// 获取分页参数
-	page := request.GetParamInt(ctx, "page", 1)
-	pageSize := request.GetParamInt(ctx, "pageSize", 10)
-
-	// 设置默认值
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = 10
-	}
+	page, pageSize := request.GetPaginationParams(ctx)
 
 	// 强制从上下文获取租户ID
 	tenantId := request.GetTenantID(ctx)

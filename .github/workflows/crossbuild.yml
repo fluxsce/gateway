@@ -1,0 +1,361 @@
+name: Cross Platform Build
+
+on:
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本号'
+        required: false
+        default: 'latest'
+        type: string
+      enable_oracle:
+        description: '启用 Oracle 支持'
+        required: false
+        default: false
+        type: boolean
+      targets:
+        description: '构建目标 (用逗号分隔，如: linux-amd64,linux-arm64)'
+        required: false
+        default: 'linux-amd64,linux-arm64,darwin-amd64,darwin-arm64'
+        type: string
+  
+  # 推送到 main 分支时触发
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  
+  # Pull Request 时触发
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+env:
+  GO_VERSION: '1.21'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # 构建信息准备
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      build_time: ${{ steps.meta.outputs.build_time }}
+      git_commit: ${{ steps.meta.outputs.git_commit }}
+      targets: ${{ steps.parse.outputs.targets }}
+      matrix: ${{ steps.parse.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 生成构建元数据
+        id: meta
+        run: |
+          VERSION="${{ github.event.inputs.version || 'latest' }}"
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            VERSION="main-$(date +%Y%m%d-%H%M%S)"
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            VERSION="pr-${{ github.event.number }}"
+          fi
+          
+          BUILD_TIME=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          GIT_COMMIT=$(git rev-parse --short HEAD)
+          
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "build_time=${BUILD_TIME}" >> $GITHUB_OUTPUT
+          echo "git_commit=${GIT_COMMIT}" >> $GITHUB_OUTPUT
+
+      - name: 解析构建目标
+        id: parse
+        run: |
+          TARGETS_INPUT="${{ github.event.inputs.targets || 'linux-amd64,linux-arm64,darwin-amd64,darwin-arm64' }}"
+          
+          # 转换为 JSON 数组
+          TARGETS_JSON="["
+          IFS=',' read -ra TARGETS_ARRAY <<< "$TARGETS_INPUT"
+          for i in "${!TARGETS_ARRAY[@]}"; do
+            TARGET="${TARGETS_ARRAY[$i]}"
+            IFS='-' read -ra PARTS <<< "$TARGET"
+            OS="${PARTS[0]}"
+            ARCH="${PARTS[1]}"
+            
+            if [ $i -gt 0 ]; then
+              TARGETS_JSON="${TARGETS_JSON},"
+            fi
+            TARGETS_JSON="${TARGETS_JSON}{\"os\":\"${OS}\",\"arch\":\"${ARCH}\",\"target\":\"${TARGET}\"}"
+          done
+          TARGETS_JSON="${TARGETS_JSON}]"
+          
+          echo "targets=${TARGETS_INPUT}" >> $GITHUB_OUTPUT
+          echo "matrix=${TARGETS_JSON}" >> $GITHUB_OUTPUT
+
+  # 交叉编译构建
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: 安装交叉编译工具
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib gcc-mingw-w64
+          
+          # 安装 ARM64 交叉编译工具
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+          fi
+
+      - name: 下载 Oracle Instant Client (仅 Linux)
+        if: matrix.os == 'linux' && github.event.inputs.enable_oracle == 'true'
+        run: |
+          mkdir -p /tmp/oracle
+          cd /tmp/oracle
+          
+          if [ "${{ matrix.arch }}" = "amd64" ]; then
+            wget -q https://download.oracle.com/otn_software/linux/instantclient/2118000/instantclient-basic-linux.x64-21.18.0.0.0.zip
+            unzip instantclient-basic-linux.x64-21.18.0.0.0.zip
+            mv instantclient_21_18 instantclient
+          elif [ "${{ matrix.arch }}" = "arm64" ]; then
+            wget -q https://download.oracle.com/otn_software/linux/instantclient/2118000/instantclient-basic-linux.arm64-21.18.0.0.0.zip
+            unzip instantclient-basic-linux.arm64-21.18.0.0.0.zip  
+            mv instantclient_21_18 instantclient
+          fi
+          
+          echo "ORACLE_HOME=/tmp/oracle/instantclient" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/tmp/oracle/instantclient:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+      - name: 缓存 Go 模块
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: 下载依赖
+        run: go mod download
+
+      - name: 启用 Oracle 驱动 (如果需要)
+        if: matrix.os == 'linux' && github.event.inputs.enable_oracle == 'true'
+        run: |
+          # 取消注释 Oracle 驱动导入
+          sed -i 's|// _ "gohub/pkg/database/oracle"|_ "gohub/pkg/database/oracle"|' pkg/database/alldriver/drivers.go
+          echo "Oracle 驱动已启用"
+
+      - name: 构建应用
+        env:
+          CGO_ENABLED: ${{ matrix.os == 'linux' && github.event.inputs.enable_oracle == 'true' && '1' || '0' }}
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          CC: ${{ matrix.arch == 'arm64' && matrix.os == 'linux' && 'aarch64-linux-gnu-gcc' || '' }}
+        run: |
+          # 确定二进制文件名
+          BINARY_NAME="gohub-${{ matrix.target }}"
+          if [ "${{ github.event.inputs.enable_oracle }}" = "true" ] && [ "${{ matrix.os }}" = "linux" ]; then
+            BINARY_NAME="${BINARY_NAME}-oracle"
+            BUILD_TAGS="-tags oracle"
+          fi
+          
+          # 构建
+          go build $BUILD_TAGS \
+            -ldflags="-s -w -X 'main.Version=${{ needs.prepare.outputs.version }}' -X 'main.BuildTime=${{ needs.prepare.outputs.build_time }}' -X 'main.GitCommit=${{ needs.prepare.outputs.git_commit }}'" \
+            -o "${BINARY_NAME}" \
+            cmd/app/main.go
+          
+          # 显示文件信息
+          ls -lh "${BINARY_NAME}"
+          echo "BINARY_NAME=${BINARY_NAME}" >> $GITHUB_ENV
+
+      - name: 验证构建产物
+        run: |
+          if [ -f "${{ env.BINARY_NAME }}" ]; then
+            echo "✓ 构建成功: ${{ env.BINARY_NAME }}"
+            file "${{ env.BINARY_NAME }}"
+          else
+            echo "✗ 构建失败: 找不到二进制文件"
+            exit 1
+          fi
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v3
+        with:
+          name: gohub-${{ matrix.target }}${{ github.event.inputs.enable_oracle == 'true' && matrix.os == 'linux' && '-oracle' || '' }}
+          path: ${{ env.BINARY_NAME }}
+          retention-days: 30
+
+  # 构建 Docker 镜像 (仅 Linux)
+  docker:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    if: contains(needs.prepare.outputs.targets, 'linux-amd64')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 下载构建产物
+        uses: actions/download-artifact@v3
+        with:
+          name: gohub-linux-amd64${{ github.event.inputs.enable_oracle == 'true' && '-oracle' || '' }}
+          path: ./bin/
+
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 登录容器注册表
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 提取元数据
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=${{ needs.prepare.outputs.version }}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: 构建并推送 Docker 镜像
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./deployments/docker/Dockerfile
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
+            BUILD_TIME=${{ needs.prepare.outputs.build_time }}
+            GIT_COMMIT=${{ needs.prepare.outputs.git_commit }}
+
+  # 创建发布
+  release:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.version != 'latest'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 下载所有构建产物
+        uses: actions/download-artifact@v3
+        with:
+          path: ./artifacts/
+
+      - name: 准备发布文件
+        run: |
+          mkdir -p ./release
+          find ./artifacts -name 'gohub-*' -type f -exec cp {} ./release/ \;
+          
+          # 生成校验和
+          cd ./release
+          sha256sum * > checksums.txt
+          ls -la
+
+      - name: 生成发布说明
+        run: |
+          cat > release-notes.md << EOF
+          # GoHub ${{ needs.prepare.outputs.version }}
+          
+          构建时间: ${{ needs.prepare.outputs.build_time }}  
+          Git 提交: ${{ needs.prepare.outputs.git_commit }}
+          
+          ## 下载
+          
+          ### 支持的平台
+          
+          | 平台 | 架构 | 下载链接 |
+          |------|------|----------|
+          EOF
+          
+          cd ./release
+          for file in gohub-*; do
+            if [[ "$file" != "checksums.txt" ]]; then
+              platform=$(echo "$file" | sed 's/gohub-//' | sed 's/-oracle//')
+              echo "| $(echo $platform | tr '-' ' ') | | [$file]($file) |" >> ../release-notes.md
+            fi
+          done
+          
+          cat >> ../release-notes.md << EOF
+          
+          ## 验证
+          
+          下载后可使用以下命令验证文件完整性：
+          
+          \`\`\`bash
+          sha256sum -c checksums.txt
+          \`\`\`
+          
+          ## Oracle 支持
+          
+          带有 \`-oracle\` 后缀的版本包含 Oracle 数据库支持，使用前需要：
+          
+          1. 安装 Oracle Instant Client
+          2. 设置环境变量 \`LD_LIBRARY_PATH\`
+          3. 配置数据库连接
+          
+          详细说明请参考 [Oracle 安装指南](docs/database/oracle_installation.md)
+          EOF
+
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.prepare.outputs.version }}
+          name: GoHub ${{ needs.prepare.outputs.version }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: false
+          files: |
+            ./release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 构建总结
+  summary:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: 构建总结
+        run: |
+          echo "## 构建总结" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **版本**: ${{ needs.prepare.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **构建时间**: ${{ needs.prepare.outputs.build_time }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Git 提交**: ${{ needs.prepare.outputs.git_commit }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Oracle 支持**: ${{ github.event.inputs.enable_oracle || 'false' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **构建目标**: ${{ needs.prepare.outputs.targets }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.build.result }}" = "success" ]; then
+            echo "✅ **构建状态**: 成功" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **构建状态**: 失败" >> $GITHUB_STEP_SUMMARY
+          fi 
