@@ -64,7 +64,7 @@ go run cmd/app/main.go
 ## 🏗️ 架构概览
 
 ```mermaid
-flowchart TB
+graph TB
     Client[客户端] --> Gateway[API网关]
     Gateway --> PreProcess[前置处理]
     PreProcess --> Security[全局安全控制]
