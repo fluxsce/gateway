@@ -82,26 +82,25 @@ graph TB
     end
     
     ProxyForward --> |12.转发请求| Services[后端服务集群]
-    
     Services --> |13.响应返回| PostProcess[响应处理]
     PostProcess --> |14.响应转换| Gateway
     Gateway --> |15.响应返回| Client
     
-    Gateway --> |日志记录| Log[日志系统]
-    Gateway --> |指标收集| Monitor[监控系统]
-    Gateway --> |配置管理| Config[配置中心]
-    Gateway --> |缓存数据| Cache[(缓存)]
-    Gateway --> |持久化| DB[(数据库)]
+    Gateway --> Log[日志系统]
+    Gateway --> Monitor[监控系统]
+    Gateway --> Config[配置中心]
+    Gateway --> Cache[(缓存)]
+    Gateway --> DB[(数据库)]
     
-    classDef processStep fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef service fill:#bbf,stroke:#33f,stroke-width:2px;
-    classDef storage fill:#bfb,stroke:#3f3,stroke-width:2px;
-    classDef client fill:#fbb,stroke:#f33,stroke-width:2px;
+    classDef processStep fill:#f9f,stroke:#333,stroke-width:2px
+    classDef service fill:#bbf,stroke:#33f,stroke-width:2px
+    classDef storage fill:#bfb,stroke:#3f3,stroke-width:2px
+    classDef client fill:#fbb,stroke:#f33,stroke-width:2px
     
-    class PreProcess,Security,CORS,Auth,RateLimit,Router,RouteHandlers,Discovery,LoadBalance,CircuitBreaker,ProxyForward,PostProcess processStep;
-    class Services service;
-    class Log,Monitor,Config,Cache,DB storage;
-    class Client client;
+    class PreProcess,Security,CORS,Auth,RateLimit,Router,RouteHandlers,Discovery,LoadBalance,CircuitBreaker,ProxyForward,PostProcess processStep
+    class Services service
+    class Log,Monitor,Config,Cache,DB storage
+    class Client client
 ```
 
 ## 📚 文档导航
