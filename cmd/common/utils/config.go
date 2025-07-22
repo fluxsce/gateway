@@ -64,6 +64,29 @@ func GetConfigPath(filename string) string {
 	return filepath.Join(GetConfigDir(), filename)
 }
 
+// ResolvePath 解析路径，如果是相对路径则基于配置目录解析
+// 参数: path 要解析的路径
+// 返回: 解析后的绝对路径
+func ResolvePath(path string) string {
+	// 如果已经是绝对路径，直接返回
+	if filepath.IsAbs(path) {
+		return path
+	}
+	
+	// 获取配置目录
+	configDir := GetConfigDir()
+	
+	// 如果配置目录是绝对路径，则相对于配置目录解析
+	if filepath.IsAbs(configDir) {
+		// 获取配置目录的父目录（项目根目录）
+		projectRoot := filepath.Dir(configDir)
+		return filepath.Join(projectRoot, path)
+	}
+	
+	// 如果配置目录也是相对路径，则相对于当前工作目录解析
+	return path
+}
+
 // SetConfigDir 设置配置目录路径（用于程序内部动态设置）
 // 参数: dir 配置目录路径
 func SetConfigDir(dir string) {

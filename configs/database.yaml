@@ -90,7 +90,7 @@ database:
         port: 9000                  # ClickHouse TCP 原生协议端口
         username: "default"         # ClickHouse 默认用户
         password: "YiocaTTS91d*FY#ace{8iopl}"  # 密码，包含特殊字符
-        database: "gateway"           # 要连接的数据库名称
+        database: "gohub"           # 要连接的数据库名称
         
         # ClickHouse 官网标准DSN参数 - https://clickhouse.com/docs/zh/integrations/go
         clickhouse_compress: "lz4"                 # 压缩算法(none,lz4,zstd,gzip,deflate,br) 推荐lz4

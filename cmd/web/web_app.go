@@ -2,6 +2,7 @@ package webapp
 
 import (
 	"fmt"
+	"gateway/cmd/common/utils"
 	"gateway/pkg/config"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
@@ -154,26 +155,32 @@ func NewWebApp(db database.Database) *WebApp {
 	staticPath := config.GetString("web.static.path", "./web/static")
 	staticPrefix := config.GetString("web.static.prefix", "/static")
 	if staticPath != "" {
-		router.Static(staticPrefix, staticPath)
+		// 使用ResolvePath解析静态文件路径，处理环境变量指定的配置目录情况
+		resolvedStaticPath := utils.ResolvePath(staticPath)
+		router.Static(staticPrefix, resolvedStaticPath)
 		logger.Info("静态文件服务已配置",
 			"prefix", staticPrefix,
-			"path", staticPath)
+			"path", staticPath,
+			"resolvedPath", resolvedStaticPath)
 	}
 
 	// 配置Vue3前端静态资源服务
 	frontendPath := config.GetString("web.frontend.path", "./web/frontend/dist")
 	frontendPrefix := config.GetString("web.frontend.prefix", "/")
 	if frontendPath != "" {
+		// 使用ResolvePath解析前端文件路径，处理环境变量指定的配置目录情况
+		resolvedFrontendPath := utils.ResolvePath(frontendPath)
+		
 		// 静态资源文件（CSS、JS、图片等）
-		router.Static("/assets", filepath.Join(frontendPath, "assets"))
-		router.StaticFile("/favicon.ico", filepath.Join(frontendPath, "favicon.ico"))
+		router.Static("/assets", filepath.Join(resolvedFrontendPath, "assets"))
+		router.StaticFile("/favicon.ico", filepath.Join(resolvedFrontendPath, "favicon.ico"))
 
 		// 处理Vue3 SPA路由 - 所有未匹配的路由都返回index.html
 		router.NoRoute(func(c *gin.Context) {
 			path := c.Request.URL.Path
 
 			// 如果是API请求（包括/gateway/开头的路径），返回JSON格式的404
-			if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/gateway/") {
+			if strings.HasPrefix(path, "/api/") {
 				c.JSON(http.StatusNotFound, gin.H{
 					"code":    "404",
 					"message": "API endpoint not found",
@@ -184,7 +191,7 @@ func NewWebApp(db database.Database) *WebApp {
 			}
 
 			// 对于前端路由，返回index.html
-			indexPath := filepath.Join(frontendPath, "index.html")
+			indexPath := filepath.Join(resolvedFrontendPath, "index.html")
 			if _, err := os.Stat(indexPath); err == nil {
 				c.File(indexPath)
 			} else {
@@ -200,6 +207,7 @@ func NewWebApp(db database.Database) *WebApp {
 
 		logger.Info("Vue3前端静态资源服务已配置",
 			"path", frontendPath,
+			"resolvedPath", resolvedFrontendPath,
 			"prefix", frontendPrefix)
 	}
 
