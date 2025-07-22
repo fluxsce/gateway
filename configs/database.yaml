@@ -90,7 +90,7 @@ database:
         port: 9000                  # ClickHouse TCP 原生协议端口
         username: "default"         # ClickHouse 默认用户
         password: "YiocaTTS91d*FY#ace{8iopl}"  # 密码，包含特殊字符
-        database: "gohub"           # 要连接的数据库名称
+        database: "gateway"           # 要连接的数据库名称
         
         # ClickHouse 官网标准DSN参数 - https://clickhouse.com/docs/zh/integrations/go
         clickhouse_compress: "lz4"                 # 压缩算法(none,lz4,zstd,gzip,deflate,br) 推荐lz4
@@ -145,7 +145,7 @@ database:
         port: 3306
         username: readonly
         password: password
-        database: gohub
+        database: gateway
         charset: utf8mb4
         parse_time: true
         loc: Local
@@ -166,7 +166,7 @@ database:
         port: 5432
         username: postgres
         password: postgres
-        database: gohub
+        database: gateway
         sslmode: disable
       pool:
         max_open_conns: 50
@@ -295,7 +295,7 @@ cache:
         max_size: 10000         # 最大存储条目数
         
         # === 键配置 ===
-        key_prefix: "gohub:"    # 键前缀，用于区分不同应用
+        key_prefix: "gateway:"    # 键前缀，用于区分不同应用
         
         # === 淘汰策略 ===
         eviction_policy: "ttl"  # 淘汰策略: ttl(过期时间，已实现), lru(预留), random(预留), fifo(预留)
@@ -349,7 +349,7 @@ mongo:
       # === 基本连接信息 ===
       host: 121.43.231.91          # MongoDB主机地址
       port: 28729                  # MongoDB端口号，默认 27017
-      database: "gohub"            # 要连接的数据库名称
+      database: "gateway"            # 要连接的数据库名称
       
       # === 认证信息 ===
       username: "admin"             # 用户名，用于身份验证
@@ -376,7 +376,7 @@ mongo:
       writeConcernTimeout: "5s"    # 写关注超时时间
       
       # === 其他高级配置 ===
-      appName: "gohub"             # 应用程序名称，用于日志记录
+      appName: "gateway"             # 应用程序名称，用于日志记录
       retryWrites: true            # 是否自动重试写操作
       retryReads: true             # 是否自动重试读操作
       serverSelectionTimeoutMS: "30s"  # 服务器选择超时时间
@@ -398,7 +398,7 @@ mongo:
         - "mongo1.example.com:27017"
         - "mongo2.example.com:27017"
         - "mongo3.example.com:27017"
-      database: "gohub"
+      database: "gateway"
       
       # === 认证信息 ===
       username: "admin"
@@ -418,7 +418,7 @@ mongo:
       writeConcernTimeout: "5s"
       
       # === 其他高级配置 ===
-      appName: "gohub-replica"
+      appName: "gateway-replica"
       retryWrites: true
       retryReads: true
       serverSelectionTimeoutMS: "30s"
@@ -435,7 +435,7 @@ mongo:
       enabled: false               # 默认禁用
       host: "secure-mongo.example.com"
       port: 27017
-      database: "gohub_prod"
+      database: "gateway_prod"
       
       # === 认证信息 ===
       username: "prod_user"
@@ -462,7 +462,7 @@ mongo:
       writeConcernTimeout: "10s"   # 生产环境可能需要更长的超时时间
       
       # === 其他高级配置 ===
-      appName: "gohub-production"
+      appName: "gateway-production"
       retryWrites: true
       retryReads: true
       serverSelectionTimeoutMS: "60s"  # 生产环境更长的选择超时
@@ -479,7 +479,7 @@ mongo:
       enabled: false               # 默认禁用
       host: "localhost"
       port: 27017
-      database: "gohub_test"
+      database: "gateway_test"
       
       # === 认证信息（测试环境可能不需要认证） ===
       username: ""
@@ -499,7 +499,7 @@ mongo:
       writeConcernTimeout: "3s"
       
       # === 其他高级配置 ===
-      appName: "gohub-test"
+      appName: "gateway-test"
       retryWrites: false           # 测试环境可能不需要重试
       retryReads: false
       serverSelectionTimeoutMS: "10s"

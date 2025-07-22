@@ -6,30 +6,30 @@ import (
 	"sync"
 	"time"
 
-	"gohub/internal/gateway/logwrite/types"
-	"gohub/pkg/logger"
-	"gohub/pkg/mongo/client"
-	"gohub/pkg/mongo/factory"
-	"gohub/pkg/mongo/utils"
+	"gateway/internal/gateway/logwrite/types"
+	"gateway/pkg/logger"
+	"gateway/pkg/mongo/client"
+	"gateway/pkg/mongo/factory"
+	"gateway/pkg/mongo/utils"
 )
 
 // MongoWriter MongoDB日志写入器
 // 支持异步批量写入、连接池管理和自动重连
 type MongoWriter struct {
 	// 配置
-	config      *types.LogConfig
-	
+	config *types.LogConfig
+
 	// MongoDB连接
 	mongoClient *client.Client
-	
+
 	// 批量写入控制
 	buffer      []*types.AccessLog
 	bufferMutex sync.Mutex
-	
+
 	// 异步处理
 	logChan   chan *types.AccessLog
 	batchChan chan []*types.AccessLog
-	
+
 	// 控制协程
 	wg        sync.WaitGroup
 	closeChan chan struct{}
@@ -61,15 +61,11 @@ func NewMongoWriter(config *types.LogConfig) (*MongoWriter, error) {
 
 	// 创建临时 AccessLog 实例以获取表名
 	var accessLog types.AccessLog
-	logger.Info("MongoDB writer created successfully", 
+	logger.Info("MongoDB writer created successfully",
 		"collection", accessLog.TableName())
 
 	return writer, nil
 }
-
-
-
-
 
 // Write 写入单条日志
 func (w *MongoWriter) Write(ctx context.Context, log *types.AccessLog) error {
@@ -155,7 +151,7 @@ func (w *MongoWriter) insertOne(ctx context.Context, log *types.AccessLog) error
 	if err != nil {
 		return fmt.Errorf("failed to convert log to document: %w", err)
 	}
-	
+
 	// 获取默认数据库和集合 - 使用 AccessLog 的表名作为集合名称
 	var accessLog types.AccessLog
 	database, err := w.mongoClient.DefaultDatabase()
@@ -163,17 +159,17 @@ func (w *MongoWriter) insertOne(ctx context.Context, log *types.AccessLog) error
 		return fmt.Errorf("failed to get default database: %w", err)
 	}
 	collection := database.Collection(accessLog.TableName())
-	
+
 	// 直接插入转换后的文档
 	result, err := collection.InsertOne(ctx, doc, nil)
 	if err != nil {
 		return fmt.Errorf("failed to insert document: %w", err)
 	}
 
-	logger.Debug("MongoDB single document inserted", 
-		"trace_id", log.TraceID, 
+	logger.Debug("MongoDB single document inserted",
+		"trace_id", log.TraceID,
 		"inserted_id", result.InsertedID)
-	
+
 	return nil
 }
 
@@ -196,17 +192,17 @@ func (w *MongoWriter) insertMany(ctx context.Context, logs []*types.AccessLog) e
 		return fmt.Errorf("failed to get default database: %w", err)
 	}
 	collection := database.Collection(accessLog.TableName())
-	
+
 	// 批量插入文档
 	result, err := collection.InsertMany(ctx, documents, nil)
 	if err != nil {
 		return fmt.Errorf("failed to insert documents: %w", err)
 	}
 
-	logger.Debug("MongoDB batch documents inserted", 
+	logger.Debug("MongoDB batch documents inserted",
 		"count", len(documents),
 		"inserted_ids_count", len(result.InsertedIDs))
-	
+
 	return nil
 }
 
@@ -287,5 +283,3 @@ func (w *MongoWriter) bufferFlushWorker() {
 		}
 	}
 }
-
- 

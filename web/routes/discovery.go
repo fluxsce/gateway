@@ -1,8 +1,8 @@
 package routes
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,14 +29,14 @@ var registeredModules = make(map[string]*ModuleInfo)
 //   - initFunc: 路由注册函数
 func RegisterModuleRoutes(moduleName string, initFunc RouteInitFunc) {
 	// 根据模块名称推断API基础路径
-	basePath := "/gohub/" + moduleName
-	
+	basePath := "/gateway/" + moduleName
+
 	registeredModules[moduleName] = &ModuleInfo{
 		Name:     moduleName,
 		BasePath: basePath,
 		InitFunc: initFunc,
 	}
-	
+
 	logger.Info("已注册模块的路由初始化函数", "module", moduleName, "basePath", basePath)
 }
 
@@ -99,6 +99,7 @@ func GetRegisteredModules() map[string]*ModuleInfo {
 // GetModuleInfo 获取指定模块的信息
 // 参数:
 //   - moduleName: 模块名称
+//
 // 返回:
 //   - *ModuleInfo: 模块信息，如果不存在则返回nil
 func GetModuleInfo(moduleName string) *ModuleInfo {

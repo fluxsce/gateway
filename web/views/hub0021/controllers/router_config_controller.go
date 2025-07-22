@@ -1,13 +1,13 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hub0021/dao"
-	"gohub/web/views/hub0021/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hub0021/dao"
+	"gateway/web/views/hub0021/models"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,15 +15,15 @@ import (
 
 // RouterConfigController Router配置控制器
 type RouterConfigController struct {
-	db               database.Database
-	routerConfigDAO  *dao.RouterConfigDAO
+	db              database.Database
+	routerConfigDAO *dao.RouterConfigDAO
 }
 
 // NewRouterConfigController 创建Router配置控制器
 func NewRouterConfigController(db database.Database) *RouterConfigController {
 	return &RouterConfigController{
-		db:               db,
-		routerConfigDAO:  dao.NewRouterConfigDAO(db),
+		db:              db,
+		routerConfigDAO: dao.NewRouterConfigDAO(db),
 	}
 }
 
@@ -36,7 +36,7 @@ func NewRouterConfigController(db database.Database) *RouterConfigController {
 // @Param pageSize query int false "每页数量" default(10)
 // @Param gatewayInstanceId query string false "网关实例ID"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0021/queryRouterConfigs [post]
+// @Router /gateway/hub0021/queryRouterConfigs [post]
 func (c *RouterConfigController) QueryRouterConfigs(ctx *gin.Context) {
 	// 使用工具类获取分页参数
 	page, pageSize := request.GetPaginationParams(ctx)
@@ -76,7 +76,7 @@ func (c *RouterConfigController) QueryRouterConfigs(ctx *gin.Context) {
 // @Produce json
 // @Param routerConfig body models.RouterConfig true "Router配置信息"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0021/addRouterConfig [post]
+// @Router /gateway/hub0021/addRouterConfig [post]
 func (c *RouterConfigController) AddRouterConfig(ctx *gin.Context) {
 	var req models.RouterConfig
 	if err := request.BindSafely(ctx, &req); err != nil {
@@ -142,7 +142,7 @@ func (c *RouterConfigController) AddRouterConfig(ctx *gin.Context) {
 	// 返回完整的Router配置信息
 	configInfo := routerConfigToMap(newConfig)
 
-	logger.InfoWithTrace(ctx, "Router配置创建成功", 
+	logger.InfoWithTrace(ctx, "Router配置创建成功",
 		"routerConfigId", routerConfigId,
 		"tenantId", tenantId,
 		"operatorId", operatorId,
@@ -159,7 +159,7 @@ func (c *RouterConfigController) AddRouterConfig(ctx *gin.Context) {
 // @Produce json
 // @Param routerConfig body models.RouterConfig true "Router配置信息"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0021/editRouterConfig [post]
+// @Router /gateway/hub0021/editRouterConfig [post]
 func (c *RouterConfigController) EditRouterConfig(ctx *gin.Context) {
 	var updateData models.RouterConfig
 	if err := request.BindSafely(ctx, &updateData); err != nil {
@@ -212,7 +212,7 @@ func (c *RouterConfigController) EditRouterConfig(ctx *gin.Context) {
 
 	// 强制恢复不可修改的字段，防止前端恶意修改
 	updateData.RouterConfigId = routerConfigId
-	updateData.TenantId = tenantIdValue  // 强制使用数据库中的租户ID
+	updateData.TenantId = tenantIdValue // 强制使用数据库中的租户ID
 	updateData.AddTime = addTime
 	updateData.AddWho = addWho
 
@@ -249,7 +249,7 @@ func (c *RouterConfigController) EditRouterConfig(ctx *gin.Context) {
 // @Produce json
 // @Param request body DeleteRouterConfigRequest true "删除请求"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0021/deleteRouterConfig [post]
+// @Router /gateway/hub0021/deleteRouterConfig [post]
 func (c *RouterConfigController) DeleteRouterConfig(ctx *gin.Context) {
 	var req DeleteRouterConfigRequest
 	if err := request.BindSafely(ctx, &req); err != nil {
@@ -298,7 +298,7 @@ func (c *RouterConfigController) DeleteRouterConfig(ctx *gin.Context) {
 // @Produce json
 // @Param routerConfigId query string true "Router配置ID"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0021/routerConfig [post]
+// @Router /gateway/hub0021/routerConfig [post]
 func (c *RouterConfigController) GetRouterConfig(ctx *gin.Context) {
 	var req GetRouterConfigRequest
 	if err := request.BindSafely(ctx, &req); err != nil {
@@ -346,7 +346,7 @@ func (c *RouterConfigController) GetRouterConfig(ctx *gin.Context) {
 // @Produce json
 // @Param request body GetRouterConfigsByInstanceRequest true "查询请求"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0021/routerConfigs/byInstance [post]
+// @Router /gateway/hub0021/routerConfigs/byInstance [post]
 func (c *RouterConfigController) GetRouterConfigsByInstance(ctx *gin.Context) {
 	var req GetRouterConfigsByInstanceRequest
 	if err := request.BindSafely(ctx, &req); err != nil {
@@ -405,46 +405,46 @@ type GetRouterConfigsByInstanceRequest struct {
 // routerConfigToMap 将Router配置对象转换为Map
 func routerConfigToMap(config *models.RouterConfig) map[string]interface{} {
 	return map[string]interface{}{
-		"tenantId":               config.TenantId,
-		"routerConfigId":         config.RouterConfigId,
-		"gatewayInstanceId":      config.GatewayInstanceId,
-		"routerName":             config.RouterName,
-		"routerDesc":             config.RouterDesc,
-		"defaultPriority":        config.DefaultPriority,
-		"enableRouteCache":       config.EnableRouteCache,
-		"routeCacheTtlSeconds":   config.RouteCacheTtlSeconds,
-		"maxRoutes":              config.MaxRoutes,
-		"routeMatchTimeout":      config.RouteMatchTimeout,
-		"enableStrictMode":       config.EnableStrictMode,
-		"enableMetrics":          config.EnableMetrics,
-		"enableTracing":          config.EnableTracing,
-		"caseSensitive":          config.CaseSensitive,
-		"removeTrailingSlash":    config.RemoveTrailingSlash,
-		"enableGlobalFilters":    config.EnableGlobalFilters,
-		"filterExecutionMode":    config.FilterExecutionMode,
-		"maxFilterChainDepth":    config.MaxFilterChainDepth,
-		"enableRoutePooling":     config.EnableRoutePooling,
-		"routePoolSize":          config.RoutePoolSize,
-		"enableAsyncProcessing":  config.EnableAsyncProcessing,
-		"enableFallback":         config.EnableFallback,
-		"fallbackRoute":          config.FallbackRoute,
-		"notFoundStatusCode":     config.NotFoundStatusCode,
-		"notFoundMessage":        config.NotFoundMessage,
-		"routerMetadata":         config.RouterMetadata,
-		"customConfig":           config.CustomConfig,
-		"reserved1":              config.Reserved1,
-		"reserved2":              config.Reserved2,
-		"reserved3":              config.Reserved3,
-		"reserved4":              config.Reserved4,
-		"reserved5":              config.Reserved5,
-		"extProperty":            config.ExtProperty,
-		"addTime":                config.AddTime,
-		"addWho":                 config.AddWho,
-		"editTime":               config.EditTime,
-		"editWho":                config.EditWho,
-		"oprSeqFlag":             config.OprSeqFlag,
-		"currentVersion":         config.CurrentVersion,
-		"activeFlag":             config.ActiveFlag,
-		"noteText":               config.NoteText,
+		"tenantId":              config.TenantId,
+		"routerConfigId":        config.RouterConfigId,
+		"gatewayInstanceId":     config.GatewayInstanceId,
+		"routerName":            config.RouterName,
+		"routerDesc":            config.RouterDesc,
+		"defaultPriority":       config.DefaultPriority,
+		"enableRouteCache":      config.EnableRouteCache,
+		"routeCacheTtlSeconds":  config.RouteCacheTtlSeconds,
+		"maxRoutes":             config.MaxRoutes,
+		"routeMatchTimeout":     config.RouteMatchTimeout,
+		"enableStrictMode":      config.EnableStrictMode,
+		"enableMetrics":         config.EnableMetrics,
+		"enableTracing":         config.EnableTracing,
+		"caseSensitive":         config.CaseSensitive,
+		"removeTrailingSlash":   config.RemoveTrailingSlash,
+		"enableGlobalFilters":   config.EnableGlobalFilters,
+		"filterExecutionMode":   config.FilterExecutionMode,
+		"maxFilterChainDepth":   config.MaxFilterChainDepth,
+		"enableRoutePooling":    config.EnableRoutePooling,
+		"routePoolSize":         config.RoutePoolSize,
+		"enableAsyncProcessing": config.EnableAsyncProcessing,
+		"enableFallback":        config.EnableFallback,
+		"fallbackRoute":         config.FallbackRoute,
+		"notFoundStatusCode":    config.NotFoundStatusCode,
+		"notFoundMessage":       config.NotFoundMessage,
+		"routerMetadata":        config.RouterMetadata,
+		"customConfig":          config.CustomConfig,
+		"reserved1":             config.Reserved1,
+		"reserved2":             config.Reserved2,
+		"reserved3":             config.Reserved3,
+		"reserved4":             config.Reserved4,
+		"reserved5":             config.Reserved5,
+		"extProperty":           config.ExtProperty,
+		"addTime":               config.AddTime,
+		"addWho":                config.AddWho,
+		"editTime":              config.EditTime,
+		"editWho":               config.EditWho,
+		"oprSeqFlag":            config.OprSeqFlag,
+		"currentVersion":        config.CurrentVersion,
+		"activeFlag":            config.ActiveFlag,
+		"noteText":              config.NoteText,
 	}
-} 
+}

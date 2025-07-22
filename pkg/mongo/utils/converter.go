@@ -44,8 +44,8 @@ import (
 	"sync"
 	"time"
 
-	"gohub/pkg/mongo/types"
-	"gohub/pkg/utils/ctime"
+	"gateway/pkg/mongo/types"
+	"gateway/pkg/utils/ctime"
 )
 
 // ================================
@@ -72,21 +72,24 @@ func putPooledConverter(converter *DocumentConverter) {
 }
 
 // ConvertDocument 将MongoDB文档转换为Go结构体（静态方法）
-// 
+//
 // 参数：
-//   doc - 源MongoDB文档，不能为nil
-//   target - 目标结构体，必须是指针类型
+//
+//	doc - 源MongoDB文档，不能为nil
+//	target - 目标结构体，必须是指针类型
 //
 // 返回值：
-//   error - 转换错误，nil表示成功
+//
+//	error - 转换错误，nil表示成功
 //
 // 使用示例：
-//   var user User
-//   err := utils.ConvertDocument(doc, &user)
-//   if err != nil {
-//       log.Printf("转换失败: %v", err)
-//       return
-//   }
+//
+//	var user User
+//	err := utils.ConvertDocument(doc, &user)
+//	if err != nil {
+//	    log.Printf("转换失败: %v", err)
+//	    return
+//	}
 //
 // 注意事项：
 // - target必须是结构体指针类型
@@ -103,19 +106,22 @@ func ConvertDocument(doc types.Document, target interface{}) error {
 // ConvertDocuments 批量转换多个MongoDB文档为Go结构体切片（静态方法）
 //
 // 参数：
-//   docs - 源MongoDB文档列表，不能为nil
-//   targetSlice - 目标切片，必须是指向切片的指针
+//
+//	docs - 源MongoDB文档列表，不能为nil
+//	targetSlice - 目标切片，必须是指向切片的指针
 //
 // 返回值：
-//   error - 转换错误，nil表示成功
+//
+//	error - 转换错误，nil表示成功
 //
 // 使用示例：
-//   var users []User
-//   err := utils.ConvertDocuments(docs, &users)
-//   if err != nil {
-//       log.Printf("批量转换失败: %v", err)
-//       return
-//   }
+//
+//	var users []User
+//	err := utils.ConvertDocuments(docs, &users)
+//	if err != nil {
+//	    log.Printf("批量转换失败: %v", err)
+//	    return
+//	}
 //
 // 注意事项：
 // - targetSlice必须是指向切片的指针
@@ -131,15 +137,18 @@ func ConvertDocuments(docs []types.Document, targetSlice interface{}) error {
 // ConvertSingleField 转换单个字段值（静态方法）
 //
 // 参数：
-//   value - 源值，来自MongoDB文档
-//   target - 目标变量，必须是指针类型
+//
+//	value - 源值，来自MongoDB文档
+//	target - 目标变量，必须是指针类型
 //
 // 返回值：
-//   error - 转换错误，nil表示成功
+//
+//	error - 转换错误，nil表示成功
 //
 // 使用示例：
-//   var userID string
-//   err := utils.ConvertSingleField(doc["_id"], &userID)
+//
+//	var userID string
+//	err := utils.ConvertSingleField(doc["_id"], &userID)
 //
 // 注意事项：
 // - 适用于单个字段的类型转换
@@ -155,20 +164,23 @@ func ConvertSingleField(value interface{}, target interface{}) error {
 // ConvertGoTimeToMongo 将Go时间转换为MongoDB存储时间，避免时区误差（静态方法）
 //
 // 参数：
-//   goTime - Go语言的时间值
+//
+//	goTime - Go语言的时间值
 //
 // 返回值：
-//   time.Time - 转换后适合MongoDB存储的时间
+//
+//	time.Time - 转换后适合MongoDB存储的时间
 //
 // 使用示例：
-//   now := time.Now()
-//   mongoTime := utils.ConvertGoTimeToMongo(now)
-//   
-//   // 在结构体中使用
-//   user := User{
-//       Name: "张三",
-//       CreatedAt: utils.ConvertGoTimeToMongo(time.Now()),
-//   }
+//
+//	now := time.Now()
+//	mongoTime := utils.ConvertGoTimeToMongo(now)
+//
+//	// 在结构体中使用
+//	user := User{
+//	    Name: "张三",
+//	    CreatedAt: utils.ConvertGoTimeToMongo(time.Now()),
+//	}
 //
 // 时区处理原理：
 // - MongoDB驱动会自动将time.Time转换为UTC时间进行存储
@@ -190,7 +202,7 @@ func ConvertGoTimeToMongo(goTime time.Time) time.Time {
 		adjustedTime := goTime.Add(time.Duration(offset) * time.Second)
 		return adjustedTime
 	}
-	
+
 	// 如果已经是UTC时间，直接返回
 	return goTime
 }
@@ -209,7 +221,7 @@ func ConvertGoStringToMongo(goTimeStr string) (time.Time, error) {
 		adjustedTime := goTime.Add(time.Duration(offset) * time.Second)
 		return adjustedTime, nil
 	}
-	
+
 	// 如果已经是UTC时间，直接返回
 	return goTime, nil
 }
@@ -217,18 +229,21 @@ func ConvertGoStringToMongo(goTimeStr string) (time.Time, error) {
 // ConvertMap 将MongoDB文档转换为map[string]interface{}（静态方法）
 //
 // 参数：
-//   doc - 源MongoDB文档
+//
+//	doc - 源MongoDB文档
 //
 // 返回值：
-//   map[string]interface{} - 转换后的map
-//   error - 转换错误
+//
+//	map[string]interface{} - 转换后的map
+//	error - 转换错误
 //
 // 使用示例：
-//   result, err := utils.ConvertMap(doc)
-//   if err != nil {
-//       log.Printf("转换失败: %v", err)
-//       return
-//   }
+//
+//	result, err := utils.ConvertMap(doc)
+//	if err != nil {
+//	    log.Printf("转换失败: %v", err)
+//	    return
+//	}
 //
 // 注意事项：
 // - 适用于动态字段处理
@@ -244,19 +259,22 @@ func ConvertMap(doc types.Document) (map[string]interface{}, error) {
 // ValidateDocument 验证文档是否可以转换为指定结构体（静态方法）
 //
 // 参数：
-//   doc - 源MongoDB文档
-//   targetType - 目标结构体类型
+//
+//	doc - 源MongoDB文档
+//	targetType - 目标结构体类型
 //
 // 返回值：
-//   error - 验证错误，nil表示可以转换
+//
+//	error - 验证错误，nil表示可以转换
 //
 // 使用示例：
-//   userType := reflect.TypeOf(User{})
-//   err := utils.ValidateDocument(doc, userType)
-//   if err != nil {
-//       log.Printf("文档不兼容: %v", err)
-//       return
-//   }
+//
+//	userType := reflect.TypeOf(User{})
+//	err := utils.ValidateDocument(doc, userType)
+//	if err != nil {
+//	    log.Printf("文档不兼容: %v", err)
+//	    return
+//	}
 //
 // 注意事项：
 // - 用于预验证，避免转换失败
@@ -272,11 +290,13 @@ func ValidateDocument(doc types.Document, targetType reflect.Type) error {
 // NewConverter 创建新的文档转换器实例（推荐在DAO层使用）
 //
 // 返回值：
-//   *DocumentConverter - 转换器实例
+//
+//	*DocumentConverter - 转换器实例
 //
 // 使用示例：
-//   converter := utils.NewConverter()
-//   defer converter.ClearCache() // 可选：清理缓存
+//
+//	converter := utils.NewConverter()
+//	defer converter.ClearCache() // 可选：清理缓存
 //
 // 注意事项：
 // - 每个转换器实例都有独立的缓存
@@ -289,19 +309,22 @@ func NewConverter() *DocumentConverter {
 // ConvertToDocument 将Go结构体转换为MongoDB文档（静态方法）
 //
 // 参数：
-//   source - 源结构体，不能为nil
+//
+//	source - 源结构体，不能为nil
 //
 // 返回值：
-//   types.Document - 转换后的MongoDB文档
-//   error - 转换错误，nil表示成功
+//
+//	types.Document - 转换后的MongoDB文档
+//	error - 转换错误，nil表示成功
 //
 // 使用示例：
-//   user := User{Name: "张三", Age: 25}
-//   doc, err := utils.ConvertToDocument(user)
-//   if err != nil {
-//       log.Printf("转换失败: %v", err)
-//       return
-//   }
+//
+//	user := User{Name: "张三", Age: 25}
+//	doc, err := utils.ConvertToDocument(user)
+//	if err != nil {
+//	    log.Printf("转换失败: %v", err)
+//	    return
+//	}
 //
 // 注意事项：
 // - 支持结构体和结构体指针
@@ -318,19 +341,22 @@ func ConvertToDocument(source interface{}) (types.Document, error) {
 // ConvertToDocuments 批量转换多个Go结构体为MongoDB文档列表（静态方法）
 //
 // 参数：
-//   sourceSlice - 源结构体切片，不能为nil
+//
+//	sourceSlice - 源结构体切片，不能为nil
 //
 // 返回值：
-//   []types.Document - 转换后的MongoDB文档列表
-//   error - 转换错误，nil表示成功
+//
+//	[]types.Document - 转换后的MongoDB文档列表
+//	error - 转换错误，nil表示成功
 //
 // 使用示例：
-//   users := []User{{Name: "张三"}, {Name: "李四"}}
-//   docs, err := utils.ConvertToDocuments(users)
-//   if err != nil {
-//       log.Printf("批量转换失败: %v", err)
-//       return
-//   }
+//
+//	users := []User{{Name: "张三"}, {Name: "李四"}}
+//	docs, err := utils.ConvertToDocuments(users)
+//	if err != nil {
+//	    log.Printf("批量转换失败: %v", err)
+//	    return
+//	}
 //
 // 注意事项：
 // - 支持值切片和指针切片
@@ -345,15 +371,18 @@ func ConvertToDocuments(sourceSlice interface{}) ([]types.Document, error) {
 // ConvertFieldValue 转换单个字段值（静态方法）
 //
 // 参数：
-//   value - 源值
-//   target - 目标变量，必须是指针类型
+//
+//	value - 源值
+//	target - 目标变量，必须是指针类型
 //
 // 返回值：
-//   error - 转换错误，nil表示成功
+//
+//	error - 转换错误，nil表示成功
 //
 // 使用示例：
-//   var userID string
-//   err := utils.ConvertFieldValue(doc["_id"], &userID)
+//
+//	var userID string
+//	err := utils.ConvertFieldValue(doc["_id"], &userID)
 //
 // 注意事项：
 // - 适用于单个字段的类型转换
@@ -379,8 +408,9 @@ func ConvertFieldValue(value interface{}, target interface{}) error {
 // - 并发安全保护
 //
 // 使用示例：
-//   mapper := NewFieldMapper()
-//   fieldMap, err := mapper.GetFieldMap(userType)
+//
+//	mapper := NewFieldMapper()
+//	fieldMap, err := mapper.GetFieldMap(userType)
 //
 // 注意事项：
 // - 线程安全，支持多协程并发调用
@@ -390,11 +420,11 @@ type FieldMapper struct {
 	// 结构体字段映射缓存，减少反射开销
 	// key: 结构体类型, value: 字段映射信息
 	fieldCache map[reflect.Type]map[string]fieldInfo
-	
+
 	// 反向映射缓存：从字段名到文档键名
 	// key: 结构体类型, value: 字段名到文档键名的映射
 	reverseFieldCache map[reflect.Type]map[string]string
-	
+
 	// 保护缓存的读写锁，确保并发安全
 	mu sync.RWMutex
 }
@@ -403,25 +433,27 @@ type FieldMapper struct {
 //
 // 包含字段的详细信息，用于转换过程中的字段映射和类型处理
 type fieldInfo struct {
-	FieldIndex   int           // 字段在结构体中的索引位置
-	FieldType    reflect.Type  // 字段的反射类型信息
-	FieldName    string        // 字段名称
-	BsonTag      string        // bson标签内容（如果存在）
-	JsonTag      string        // json标签内容（如果存在）
-	DocumentKey  string        // 在文档中的键名（经过标签解析后）
-	IsPointer    bool          // 是否是指针类型
-	IsExported   bool          // 是否是导出字段
-	OmitEmpty    bool          // 是否设置了omitempty标签
+	FieldIndex  int          // 字段在结构体中的索引位置
+	FieldType   reflect.Type // 字段的反射类型信息
+	FieldName   string       // 字段名称
+	BsonTag     string       // bson标签内容（如果存在）
+	JsonTag     string       // json标签内容（如果存在）
+	DocumentKey string       // 在文档中的键名（经过标签解析后）
+	IsPointer   bool         // 是否是指针类型
+	IsExported  bool         // 是否是导出字段
+	OmitEmpty   bool         // 是否设置了omitempty标签
 }
 
 // NewFieldMapper 创建新的字段映射器
 //
 // 返回值：
-//   *FieldMapper - 字段映射器实例
+//
+//	*FieldMapper - 字段映射器实例
 //
 // 使用示例：
-//   mapper := NewFieldMapper()
-//   defer mapper.ClearCache() // 可选：清理缓存
+//
+//	mapper := NewFieldMapper()
+//	defer mapper.ClearCache() // 可选：清理缓存
 //
 // 注意事项：
 // - 每个映射器实例都有独立的缓存
@@ -436,11 +468,13 @@ func NewFieldMapper() *FieldMapper {
 // GetFieldMap 获取字段映射信息（文档键名 -> 字段信息）
 //
 // 参数：
-//   structType - 结构体类型
+//
+//	structType - 结构体类型
 //
 // 返回值：
-//   map[string]fieldInfo - 字段映射信息
-//   error - 获取错误
+//
+//	map[string]fieldInfo - 字段映射信息
+//	error - 获取错误
 //
 // 缓存机制：
 // - 首次访问时构建映射
@@ -472,7 +506,7 @@ func (fm *FieldMapper) GetFieldMap(structType reflect.Type) (map[string]fieldInf
 	// 遍历结构体字段
 	for i := 0; i < numFields; i++ {
 		field := structType.Field(i)
-		
+
 		// 跳过未导出字段
 		if !field.IsExported() {
 			continue
@@ -545,11 +579,13 @@ func (fm *FieldMapper) GetFieldMap(structType reflect.Type) (map[string]fieldInf
 // GetReverseFieldMap 获取反向字段映射（字段名 -> 文档键名）
 //
 // 参数：
-//   structType - 结构体类型
+//
+//	structType - 结构体类型
 //
 // 返回值：
-//   map[string]string - 反向字段映射
-//   error - 获取错误
+//
+//	map[string]string - 反向字段映射
+//	error - 获取错误
 //
 // 使用场景：
 // - 结构体转Document时使用
@@ -563,7 +599,7 @@ func (fm *FieldMapper) GetReverseFieldMap(structType reflect.Type) (map[string]s
 
 	fm.mu.RLock()
 	defer fm.mu.RUnlock()
-	
+
 	if reverseMap, exists := fm.reverseFieldCache[structType]; exists {
 		return reverseMap, nil
 	}
@@ -593,10 +629,6 @@ func (fm *FieldMapper) ClearCache() {
 // 转换器结构体定义
 // ================================
 
-
-
-
-
 // ================================
 // 转换器使用示例
 // ================================
@@ -615,9 +647,10 @@ func (fm *FieldMapper) ClearCache() {
 // - 并发安全保护
 //
 // 使用示例：
-//   converter := utils.NewDocumentConverter()
-//   err := converter.ConvertDocument(doc, &user)
-//   doc, err := converter.ConvertToDocument(user)
+//
+//	converter := utils.NewDocumentConverter()
+//	err := converter.ConvertDocument(doc, &user)
+//	doc, err := converter.ConvertToDocument(user)
 //
 // 注意事项：
 // - 线程安全，支持多协程并发调用
@@ -626,7 +659,7 @@ func (fm *FieldMapper) ClearCache() {
 type DocumentConverter struct {
 	// 字段映射器，处理字段映射相关逻辑
 	fieldMapper *FieldMapper
-	
+
 	// 字段值转换器，处理类型转换相关逻辑
 	valueConverter *FieldValueConverter
 }
@@ -638,11 +671,13 @@ type DocumentConverter struct {
 // NewDocumentConverter 创建新的文档转换器实例
 //
 // 返回值：
-//   *DocumentConverter - 转换器实例
+//
+//	*DocumentConverter - 转换器实例
 //
 // 使用示例：
-//   converter := utils.NewDocumentConverter()
-//   defer converter.ClearCache() // 可选：清理缓存
+//
+//	converter := utils.NewDocumentConverter()
+//	defer converter.ClearCache() // 可选：清理缓存
 //
 // 注意事项：
 // - 每个转换器实例都有独立的缓存
@@ -662,11 +697,13 @@ func NewDocumentConverter() *DocumentConverter {
 // ConvertDocument 将MongoDB文档转换为Go结构体（实例方法）
 //
 // 参数：
-//   doc - 源MongoDB文档，不能为nil
-//   target - 目标结构体，必须是指针类型
+//
+//	doc - 源MongoDB文档，不能为nil
+//	target - 目标结构体，必须是指针类型
 //
 // 返回值：
-//   error - 转换错误，nil表示成功
+//
+//	error - 转换错误，nil表示成功
 //
 // 转换过程：
 // 1. 验证参数有效性
@@ -723,11 +760,13 @@ func (c *DocumentConverter) ConvertDocument(doc types.Document, target interface
 // ConvertDocuments 批量转换多个文档（实例方法）
 //
 // 参数：
-//   docs - 源MongoDB文档列表，不能为nil
-//   targetSlice - 目标切片，必须是指向切片的指针
+//
+//	docs - 源MongoDB文档列表，不能为nil
+//	targetSlice - 目标切片，必须是指向切片的指针
 //
 // 返回值：
-//   error - 转换错误，nil表示成功
+//
+//	error - 转换错误，nil表示成功
 //
 // 转换过程：
 // 1. 验证参数有效性
@@ -812,11 +851,13 @@ func (c *DocumentConverter) ConvertDocuments(docs []types.Document, targetSlice 
 // ConvertSingleField 转换单个字段值（实例方法）
 //
 // 参数：
-//   value - 源值，来自MongoDB文档
-//   target - 目标变量，必须是指针类型
+//
+//	value - 源值，来自MongoDB文档
+//	target - 目标变量，必须是指针类型
 //
 // 返回值：
-//   error - 转换错误，nil表示成功
+//
+//	error - 转换错误，nil表示成功
 //
 // 使用场景：
 // - 单个字段的类型转换
@@ -854,11 +895,13 @@ func (c *DocumentConverter) ConvertSingleField(value interface{}, target interfa
 // ConvertMap 将MongoDB文档转换为map[string]interface{}（实例方法）
 //
 // 参数：
-//   doc - 源MongoDB文档
+//
+//	doc - 源MongoDB文档
 //
 // 返回值：
-//   map[string]interface{} - 转换后的map
-//   error - 转换错误
+//
+//	map[string]interface{} - 转换后的map
+//	error - 转换错误
 //
 // 使用场景：
 // - 动态字段处理
@@ -880,11 +923,13 @@ func (c *DocumentConverter) ConvertMap(doc types.Document) (map[string]interface
 // ValidateDocument 验证文档是否可以转换为指定结构体（实例方法）
 //
 // 参数：
-//   doc - 源MongoDB文档
-//   targetType - 目标结构体类型
+//
+//	doc - 源MongoDB文档
+//	targetType - 目标结构体类型
 //
 // 返回值：
-//   error - 验证错误，nil表示可以转换
+//
+//	error - 验证错误，nil表示可以转换
 //
 // 验证内容：
 // - 文档是否为nil
@@ -913,11 +958,13 @@ func (c *DocumentConverter) ValidateDocument(doc types.Document, targetType refl
 // ConvertToDocument 将Go结构体转换为MongoDB文档（实例方法）
 //
 // 参数：
-//   source - 源结构体，支持结构体或结构体指针
+//
+//	source - 源结构体，支持结构体或结构体指针
 //
 // 返回值：
-//   types.Document - 转换后的MongoDB文档
-//   error - 转换错误，nil表示成功
+//
+//	types.Document - 转换后的MongoDB文档
+//	error - 转换错误，nil表示成功
 //
 // 转换过程：
 // 1. 验证参数有效性
@@ -966,7 +1013,7 @@ func (c *DocumentConverter) ConvertToDocument(source interface{}) (types.Documen
 	// 遍历字段映射，转换每个字段
 	for docKey, fieldInfo := range fieldMap {
 		fieldValue := sourceValue.Field(fieldInfo.FieldIndex)
-		
+
 		// 处理指针类型
 		if fieldInfo.IsPointer {
 			if fieldValue.IsNil() {
@@ -1000,11 +1047,13 @@ func (c *DocumentConverter) ConvertToDocument(source interface{}) (types.Documen
 // ConvertToDocuments 批量转换Go结构体为MongoDB文档列表（实例方法）
 //
 // 参数：
-//   sourceSlice - 源结构体切片，支持值切片和指针切片
+//
+//	sourceSlice - 源结构体切片，支持值切片和指针切片
 //
 // 返回值：
-//   []types.Document - 转换后的MongoDB文档列表
-//   error - 转换错误，nil表示成功
+//
+//	[]types.Document - 转换后的MongoDB文档列表
+//	error - 转换错误，nil表示成功
 //
 // 转换过程：
 // 1. 验证参数有效性
@@ -1035,7 +1084,7 @@ func (c *DocumentConverter) ConvertToDocuments(sourceSlice interface{}) ([]types
 	// 逐个转换元素
 	for i := 0; i < length; i++ {
 		elem := sliceValue.Index(i)
-		
+
 		// 转换单个元素
 		doc, err := c.ConvertToDocument(elem.Interface())
 		if err != nil {
@@ -1071,12 +1120,14 @@ func (c *DocumentConverter) ClearCache() {
 // setFieldValue 设置字段值
 //
 // 参数：
-//   targetValue - 目标结构体值
-//   info - 字段信息
-//   docValue - 文档值
+//
+//	targetValue - 目标结构体值
+//	info - 字段信息
+//	docValue - 文档值
 //
 // 返回值：
-//   error - 设置错误
+//
+//	error - 设置错误
 //
 // 处理逻辑：
 // - 处理nil值
@@ -1118,11 +1169,13 @@ func (c *DocumentConverter) setFieldValue(targetValue reflect.Value, info fieldI
 // convertAndSetValue 转换并设置值
 //
 // 参数：
-//   fieldValue - 字段值
-//   docValue - 文档值
+//
+//	fieldValue - 字段值
+//	docValue - 文档值
 //
 // 返回值：
-//   error - 转换错误
+//
+//	error - 转换错误
 //
 // 支持的转换：
 // - 直接类型匹配
@@ -1132,7 +1185,7 @@ func (c *DocumentConverter) setFieldValue(targetValue reflect.Value, info fieldI
 func (c *DocumentConverter) convertAndSetValue(fieldValue reflect.Value, docValue interface{}) error {
 	fieldType := fieldValue.Type()
 	docValueType := reflect.TypeOf(docValue)
-	
+
 	// 直接类型匹配 - 最快的路径
 	if docValueType != nil && docValueType == fieldType {
 		fieldValue.Set(reflect.ValueOf(docValue))

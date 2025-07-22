@@ -3,8 +3,8 @@ package database
 import (
 	"testing"
 
-	"gohub/pkg/database/dbtypes"
-	"gohub/pkg/database/dsn"
+	"gateway/pkg/database/dbtypes"
+	"gateway/pkg/database/dsn"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -78,17 +78,17 @@ func TestGenerateSQLite(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := dsn.Generate(tt.config)
-			
+
 			if tt.hasError && err == nil {
 				t.Errorf("期望有错误，但没有错误")
 				return
 			}
-			
+
 			if !tt.hasError && err != nil {
 				t.Errorf("不期望有错误，但得到错误: %v", err)
 				return
 			}
-			
+
 			if result != tt.expected {
 				t.Errorf("期望DSN: %s, 实际得到: %s", tt.expected, result)
 			}
@@ -105,7 +105,7 @@ func TestGenerateSQLite(t *testing.T) {
 
 	dsn, err := dsn.GenerateSQLite(config)
 	assert.NoError(t, err)
-	
+
 	// 验证DSN包含自定义的busy_timeout
 	assert.Contains(t, dsn, "_busy_timeout=10000")
 	assert.Contains(t, dsn, "file:./custom.db")
@@ -220,17 +220,17 @@ func TestGenerateOracle(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := dsn.Generate(tt.config)
-			
+
 			if tt.hasError && err == nil {
 				t.Errorf("期望有错误，但没有错误")
 				return
 			}
-			
+
 			if !tt.hasError && err != nil {
 				t.Errorf("不期望有错误，但得到错误: %v", err)
 				return
 			}
-			
+
 			if result != tt.expected {
 				t.Errorf("期望DSN: %s, 实际得到: %s", tt.expected, result)
 			}
@@ -253,12 +253,12 @@ func TestGenerateOracle(t *testing.T) {
 
 	dsn, err := dsn.GenerateOracle(config)
 	assert.NoError(t, err)
-	
+
 	// 验证DSN包含自定义超时参数
 	assert.Contains(t, dsn, "CONNECTION_TIMEOUT=60")
 	assert.Contains(t, dsn, "READ_TIMEOUT=45")
 	assert.Contains(t, dsn, "WRITE_TIMEOUT=30")
-	
+
 	// 验证基本连接信息
 	assert.Contains(t, dsn, "oracleuser/oraclepass@oracle.example.com:1522/ORCL")
 }
@@ -276,12 +276,12 @@ func TestGenerateOracleWithSID(t *testing.T) {
 	}
 
 	expected := "scott/tiger@oracle-server:1521:XE"
-	
+
 	result, err := dsn.GenerateOracleWithSID(config, "XE")
 	if err != nil {
 		t.Fatalf("不期望有错误，但得到错误: %v", err)
 	}
-	
+
 	if result != expected {
 		t.Errorf("期望DSN: %s, 实际得到: %s", expected, result)
 	}
@@ -414,11 +414,11 @@ func TestValidateDSN(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := dsn.ValidateDSN(tt.driver, tt.dsn)
-			
+
 			if tt.hasError && err == nil {
 				t.Errorf("期望有错误，但没有错误")
 			}
-			
+
 			if !tt.hasError && err != nil {
 				t.Errorf("不期望有错误，但得到错误: %v", err)
 			}
@@ -443,12 +443,12 @@ func TestMySQLCompatibility(t *testing.T) {
 	}
 
 	expected := "root:password@tcp(localhost:3306)/testdb?charset=utf8mb4&parseTime=True&loc=Local"
-	
+
 	result, err := dsn.Generate(config)
 	if err != nil {
 		t.Fatalf("不期望有错误，但得到错误: %v", err)
 	}
-	
+
 	if result != expected {
 		t.Errorf("期望DSN: %s, 实际得到: %s", expected, result)
 	}
@@ -469,12 +469,12 @@ func TestPostgreSQLCompatibility(t *testing.T) {
 	}
 
 	expected := "postgresql://postgres:password@localhost:5432/testdb?sslmode=disable"
-	
+
 	result, err := dsn.Generate(config)
 	if err != nil {
 		t.Fatalf("不期望有错误，但得到错误: %v", err)
 	}
-	
+
 	if result != expected {
 		t.Errorf("期望DSN: %s, 实际得到: %s", expected, result)
 	}
@@ -501,7 +501,7 @@ func TestGenerateMySQL(t *testing.T) {
 
 	dsn, err := dsn.GenerateMySQL(config)
 	assert.NoError(t, err)
-	
+
 	// 验证DSN包含超时参数
 	assert.Contains(t, dsn, "timeout=10s")
 	assert.Contains(t, dsn, "readTimeout=20s")
@@ -509,7 +509,7 @@ func TestGenerateMySQL(t *testing.T) {
 	assert.Contains(t, dsn, "charset=utf8mb4")
 	assert.Contains(t, dsn, "parseTime=True")
 	assert.Contains(t, dsn, "loc=Asia%2FShanghai") // URL编码
-	
+
 	// 验证完整格式
 	expected := "testuser:testpass@tcp(127.0.0.1:3307)/testdb"
 	assert.Contains(t, dsn, expected)
@@ -520,25 +520,25 @@ func TestGeneratePostgreSQL(t *testing.T) {
 	// 测试带超时配置的PostgreSQL DSN
 	config := &dbtypes.DbConfig{
 		Connection: dbtypes.ConnectionConfig{
-			Host:                        "localhost",
-			Port:                        5433,
-			Username:                    "postgres",
-			Password:                    "password",
-			Database:                    "testdb",
-			SSLMode:                     "require",
-			PostgreSQLConnectTimeout:    15,
-			PostgreSQLStatementTimeout:  60,
+			Host:                       "localhost",
+			Port:                       5433,
+			Username:                   "postgres",
+			Password:                   "password",
+			Database:                   "testdb",
+			SSLMode:                    "require",
+			PostgreSQLConnectTimeout:   15,
+			PostgreSQLStatementTimeout: 60,
 		},
 	}
 
 	dsn, err := dsn.GeneratePostgreSQL(config)
 	assert.NoError(t, err)
-	
+
 	// 验证DSN包含超时参数
 	assert.Contains(t, dsn, "connect_timeout=15")
 	assert.Contains(t, dsn, "statement_timeout=60s")
 	assert.Contains(t, dsn, "sslmode=require")
-	
+
 	// 验证完整格式
 	expected := "postgresql://postgres:password@localhost:5433/testdb"
 	assert.Contains(t, dsn, expected)
@@ -555,7 +555,7 @@ func TestTimeoutDefaults(t *testing.T) {
 			Database: "db",
 		},
 	}
-	
+
 	mysqlDSN, err := dsn.GenerateMySQL(mysqlConfig)
 	assert.NoError(t, err)
 	// 没有配置超时参数时，DSN中不应包含timeout参数
@@ -572,21 +572,21 @@ func TestTimeoutDefaults(t *testing.T) {
 			Database: "ORCL",
 		},
 	}
-	
+
 	oracleDSN, err := dsn.GenerateOracle(oracleConfig)
 	assert.NoError(t, err)
 	// Oracle有默认超时配置
 	assert.Contains(t, oracleDSN, "CONNECTION_TIMEOUT=30")
 	assert.Contains(t, oracleDSN, "READ_TIMEOUT=30")
 	assert.Contains(t, oracleDSN, "WRITE_TIMEOUT=30")
-	
+
 	// SQLite默认超时
 	sqliteConfig := &dbtypes.DbConfig{
 		Connection: dbtypes.ConnectionConfig{
 			Database: "test.db",
 		},
 	}
-	
+
 	sqliteDSN, err := dsn.GenerateSQLite(sqliteConfig)
 	assert.NoError(t, err)
 	// SQLite有默认的busy_timeout
@@ -642,4 +642,4 @@ func TestOracleDSNGeneration(t *testing.T) {
 	if dsnStr[:len(expectedSIDPrefix)] != expectedSIDPrefix {
 		t.Errorf("期望SID DSN前缀为 '%s'，实际为 '%s'", expectedSIDPrefix, dsnStr[:len(expectedSIDPrefix)])
 	}
-} 
+}

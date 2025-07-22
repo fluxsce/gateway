@@ -1,6 +1,6 @@
-# GoHub 贡献指南
+# Gateway 贡献指南
 
-首先，感谢您对 GoHub 项目的关注和贡献意愿！本文档将帮助您了解如何为 GoHub 项目做出贡献。
+首先，感谢您对 Gateway 项目的关注和贡献意愿！本文档将帮助您了解如何为 Gateway 项目做出贡献。
 
 ## 📖 目录
 
@@ -20,14 +20,14 @@
 
 ### 1. Fork 项目
 
-1. 访问 [GoHub 项目主页](https://github.com/your-org/gohub)
+1. 访问 [Gateway 项目主页](https://github.com/your-org/gateway)
 2. 点击右上角的 "Fork" 按钮
 3. 克隆你 Fork 的仓库到本地
 
 ```bash
-git clone https://github.com/your-username/gohub.git
-cd gohub
-git remote add upstream https://github.com/your-org/gohub.git
+git clone https://github.com/your-username/gateway.git
+cd gateway
+git remote add upstream https://github.com/your-org/gateway.git
 ```
 
 ### 2. 创建开发分支
@@ -78,7 +78,7 @@ git push origin feature/your-feature-name
 go mod download
 
 # 2. 设置开发环境变量
-export GOHUB_ENV=development
+export GATEWAY_ENV=development
 
 # 3. 初始化数据库
 make db-init
@@ -184,7 +184,7 @@ const (
 #### 目录结构规范
 
 ```
-gohub/
+gateway/
 ├── cmd/                    # 应用程序入口点
 │   ├── gateway/           # 网关服务
 │   └── web/               # Web 管理界面
@@ -606,11 +606,11 @@ make benchmark
 
 ## 🐛 Bug 报告
 
-请使用 [Issue 模板](https://github.com/your-org/gohub/issues/new?template=bug_report.md) 报告 Bug。
+请使用 [Issue 模板](https://github.com/your-org/gateway/issues/new?template=bug_report.md) 报告 Bug。
 
 ### Bug 报告应包含
 
-1. **环境信息**：操作系统、Go 版本、GoHub 版本
+1. **环境信息**：操作系统、Go 版本、Gateway 版本
 2. **重现步骤**：详细的重现步骤
 3. **期望行为**：描述期望的正确行为
 4. **实际行为**：描述实际发生的错误行为
@@ -619,7 +619,7 @@ make benchmark
 
 ## 💡 功能请求
 
-请使用 [Feature Request 模板](https://github.com/your-org/gohub/issues/new?template=feature_request.md) 提出新功能请求。
+请使用 [Feature Request 模板](https://github.com/your-org/gateway/issues/new?template=feature_request.md) 提出新功能请求。
 
 ### 功能请求应包含
 
@@ -674,8 +674,8 @@ make benchmark
 如果您有任何问题或需要帮助，可以通过以下方式联系我们：
 
 - 📧 Email: [project-email@example.com](mailto:project-email@example.com)
-- 💬 GitHub Issues: [项目 Issues](https://github.com/your-org/gohub/issues)
+- 💬 GitHub Issues: [项目 Issues](https://github.com/your-org/gateway/issues)
 - 📱 微信群: [加入微信群聊]
 - 🐧 QQ群: [加入QQ群聊]
 
-感谢您对 GoHub 项目的贡献！🎉 
+感谢您对 Gateway 项目的贡献！🎉 

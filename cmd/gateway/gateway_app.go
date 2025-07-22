@@ -5,14 +5,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gohub/cmd/common/utils"
-	"gohub/internal/gateway/bootstrap"
-	gatewayconfig "gohub/internal/gateway/config"
-	"gohub/internal/gateway/loader"
-	"gohub/pkg/config"
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/pkg/utils/huberrors"
+	"gateway/cmd/common/utils"
+	"gateway/internal/gateway/bootstrap"
+	gatewayconfig "gateway/internal/gateway/config"
+	"gateway/internal/gateway/loader"
+	"gateway/pkg/config"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/pkg/utils/huberrors"
 )
 
 // 版本信息
@@ -37,14 +37,14 @@ func NewGatewayApp() *GatewayApp {
 func (app *GatewayApp) Init(db database.Database) error {
 	// 设置数据库连接
 	app.db = db
-	
+
 	// 检查是否启用网关
 	if !config.GetBool("app.gateway.enabled", false) {
 		logger.Info("网关应用已禁用，跳过初始化")
 		return nil
 	}
 
-	logger.Info("初始化 GoHub API 网关...", "version", Version)
+	logger.Info("初始化 Gateway API 网关...", "version", Version)
 
 	// 加载网关配置并创建实例
 	if err := app.loadGatewayFromConfig(); err != nil {
@@ -73,8 +73,8 @@ func (app *GatewayApp) Start() error {
 	// 记录启动状态
 	runningCount := len(app.pool.GetRunningGateways())
 	totalCount := app.pool.Count()
-	
-	logger.Info("网关启动完成", 
+
+	logger.Info("网关启动完成",
 		"version", Version,
 		"total_instances", totalCount,
 		"running_instances", runningCount)
@@ -107,13 +107,11 @@ func (app *GatewayApp) GetStatus() map[string]interface{} {
 	return status
 }
 
-
-
 // loadGatewayFromConfig 从配置加载网关实例
 func (app *GatewayApp) loadGatewayFromConfig() error {
 	// 获取配置源
 	configSource := config.GetString("app.gateway.configSource", "yaml")
-	
+
 	switch strings.ToLower(configSource) {
 	case "database":
 		return app.loadFromDatabase()
@@ -138,26 +136,26 @@ func (app *GatewayApp) loadFromFile() error {
 			configFile = utils.GetConfigPath(configFile)
 		}
 	}
-	
+
 	logger.Info("从文件加载网关配置", "file", configFile)
-	
+
 	// 选择配置加载器
 	var configLoader interface {
 		LoadConfig(string) (*gatewayconfig.GatewayConfig, error)
 	}
-	
+
 	if strings.HasSuffix(strings.ToLower(configFile), ".json") {
 		configLoader = loader.NewJSONConfigLoader()
 	} else {
 		configLoader = loader.NewYAMLConfigLoader()
 	}
-	
+
 	// 加载配置
 	cfg, err := configLoader.LoadConfig(configFile)
 	if err != nil {
 		return huberrors.WrapError(err, "加载配置文件失败: %s", configFile)
 	}
-	
+
 	// 创建网关实例
 	return app.createGatewayInstance(cfg, configFile)
 }
@@ -165,61 +163,61 @@ func (app *GatewayApp) loadFromFile() error {
 // loadFromDatabase 从数据库加载网关配置
 func (app *GatewayApp) loadFromDatabase() error {
 	logger.Info("从数据库加载网关配置")
-	
+
 	// 直接从数据库查询所有活动状态的网关实例
 	var gatewayInstances []struct {
-		TenantID         string `db:"tenantId"`
+		TenantID          string `db:"tenantId"`
 		GatewayInstanceID string `db:"gatewayInstanceId"`
 	}
-	
+
 	// 查询所有活动状态的网关实例
 	query := `SELECT tenantId, gatewayInstanceId 
 			  FROM HUB_GW_INSTANCE 
 			  WHERE activeFlag = 'Y'`
-	
+
 	// 执行查询
 	ctx := context.Background()
 	err := app.db.Query(ctx, &gatewayInstances, query, nil, true)
 	if err != nil {
 		return huberrors.WrapError(err, "查询网关实例失败")
 	}
-	
+
 	// 检查是否找到实例
 	if len(gatewayInstances) == 0 {
 		logger.Warn("未找到活动的网关实例，跳过网关配置加载")
 		return nil
 	}
-	
+
 	// 记录找到的实例数量
 	logger.Info("从数据库加载网关实例", "count", len(gatewayInstances))
-	
+
 	// 为每个实例加载配置并创建网关实例
 	for _, instance := range gatewayInstances {
 		// 创建数据库配置加载器，使用实例对应的租户ID
 		dbLoader := loader.NewDatabaseConfigLoader(app.db, instance.TenantID)
-		
+
 		// 加载网关配置
 		cfg, err := dbLoader.LoadGatewayConfig(instance.GatewayInstanceID)
 		if err != nil {
-			logger.Error("加载网关配置失败", err, 
-				"tenantId", instance.TenantID, 
+			logger.Error("加载网关配置失败", err,
+				"tenantId", instance.TenantID,
 				"instanceId", instance.GatewayInstanceID)
 			continue
 		}
-		
+
 		// 创建网关实例
 		if err := app.createGatewayInstance(cfg, "database:"+instance.GatewayInstanceID); err != nil {
-			logger.Error("创建网关实例失败", err, 
-				"tenantId", instance.TenantID, 
+			logger.Error("创建网关实例失败", err,
+				"tenantId", instance.TenantID,
 				"instanceId", instance.GatewayInstanceID)
 			continue
 		}
-		
-		logger.Info("网关实例配置加载成功", 
-			"tenantId", instance.TenantID, 
+
+		logger.Info("网关实例配置加载成功",
+			"tenantId", instance.TenantID,
 			"instanceId", instance.GatewayInstanceID)
 	}
-	
+
 	return nil
 }
 
@@ -227,24 +225,22 @@ func (app *GatewayApp) loadFromDatabase() error {
 func (app *GatewayApp) createGatewayInstance(cfg *gatewayconfig.GatewayConfig, source string) error {
 	// 创建网关工厂
 	factory := bootstrap.NewGatewayFactory()
-	
+
 	// 创建网关实例并添加到连接池
 	_, err := factory.CreateGatewayWithPool(cfg, source)
 	if err != nil {
 		return huberrors.WrapError(err, "创建网关实例失败")
 	}
-	
+
 	instanceID := cfg.InstanceID
 	if instanceID == "" {
 		instanceID = cfg.Base.Listen
 	}
-	
-	logger.Info("网关实例创建成功", 
+
+	logger.Info("网关实例创建成功",
 		"instanceId", instanceID,
 		"listen", cfg.Base.Listen,
 		"source", source)
-	
+
 	return nil
 }
-
-

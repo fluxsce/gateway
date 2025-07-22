@@ -1,7 +1,7 @@
 package filter
 
 import (
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // FilterType 过滤器类型
@@ -68,7 +68,7 @@ const (
 type FilterConfig struct {
 	ID      string                 `yaml:"id" json:"id" mapstructure:"id"`
 	Name    string                 `yaml:"name" json:"name" mapstructure:"name"`
-	Type    string                 `yaml:"type" json:"type" mapstructure:"type"`                         // 明确的过滤器类型
+	Type    string                 `yaml:"type" json:"type" mapstructure:"type"` // 明确的过滤器类型
 	Enabled bool                   `yaml:"enabled" json:"enabled" mapstructure:"enabled"`
 	Order   int                    `yaml:"order" json:"order" mapstructure:"order"`
 	Action  string                 `yaml:"action,omitempty" json:"action,omitempty" mapstructure:"action,omitempty"`

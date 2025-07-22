@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 func TestSimplePathHandling(t *testing.T) {
@@ -119,11 +119,11 @@ func TestSimplePathHandling(t *testing.T) {
 			if result != tt.expected {
 				t.Errorf("%s: 期望 %s, 实际 %s", tt.description, tt.expected, result)
 				// 添加调试信息
-				fmt.Printf("DEBUG: targetPath=%s, requestPath=%s, expected=%s, actual=%s\n", 
+				fmt.Printf("DEBUG: targetPath=%s, requestPath=%s, expected=%s, actual=%s\n",
 					tt.targetPath, tt.requestPath, tt.expected, result)
 			} else {
 				t.Logf("✅ %s: %s", tt.name, tt.description)
 			}
 		})
 	}
-} 
+}

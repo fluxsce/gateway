@@ -1,6 +1,6 @@
-# GoHub 项目调试指南
+# Gateway 项目调试指南
 
-本文档提供了在 GoHub 项目中进行调试的全面指南，帮助开发者快速定位和解决问题。
+本文档提供了在 Gateway 项目中进行调试的全面指南，帮助开发者快速定位和解决问题。
 
 ## 1. VSCode集成调试
 
@@ -41,7 +41,7 @@
 
 ### 日志级别
 
-GoHub项目使用结构化日志系统，支持以下日志级别：
+Gateway项目使用结构化日志系统，支持以下日志级别：
 
 - **Debug**: `logger.Debug()` - 详细的调试信息
 - **Info**: `logger.Info()` - 普通的信息消息
@@ -84,12 +84,12 @@ log:
 
 ## 3. 使用自定义错误进行调试
 
-GoHub 项目实现了增强的错误处理机制，可以准确获取错误发生的位置信息。
+Gateway 项目实现了增强的错误处理机制，可以准确获取错误发生的位置信息。
 
 ### 创建带位置信息的错误
 
 ```go
-import "gohub/pkg/utils/huberrors"
+import "gateway/pkg/utils/huberrors"
 
 // 创建新错误
 err := huberrors.NewError("数据验证失败: %s", reason)

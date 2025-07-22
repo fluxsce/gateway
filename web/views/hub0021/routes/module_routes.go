@@ -1,10 +1,10 @@
 package hub0021routes
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/routes"
-	"gohub/web/views/hub0021/controllers"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/routes"
+	"gateway/web/views/hub0021/controllers"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,7 +17,7 @@ var (
 
 	// APIPrefix API路径前缀，所有该模块的API都将以此为基础路径
 	// 实际路由时将根据RouteDiscovery的设置可能会使用"/api/hub0021"
-	APIPrefix = "/gohub/hub0021"
+	APIPrefix = "/gateway/hub0021"
 )
 
 // init 包初始化函数
@@ -204,15 +204,15 @@ func initRouterConfigRoutes(router *gin.RouterGroup, db database.Database) {
 //   - pre-response: 响应返回前执行
 //
 // API接口说明：
-//   1. 基础CRUD: 增删改查过滤器配置
-//   2. 条件查询: 按实例、路由、类型、执行时机查询
-//   3. 执行链管理: 获取和调整过滤器执行顺序
-//   4. 批量操作: 批量更新、删除、调整顺序
-//   5. 状态管理: 启用/禁用过滤器
-//   6. 配置验证: 验证过滤器配置的正确性
-//   7. 导入导出: 配置的批量导入导出
-//   8. 模板管理: 预定义的过滤器配置模板
-//   9. 统计信息: 过滤器配置使用情况统计
+//  1. 基础CRUD: 增删改查过滤器配置
+//  2. 条件查询: 按实例、路由、类型、执行时机查询
+//  3. 执行链管理: 获取和调整过滤器执行顺序
+//  4. 批量操作: 批量更新、删除、调整顺序
+//  5. 状态管理: 启用/禁用过滤器
+//  6. 配置验证: 验证过滤器配置的正确性
+//  7. 导入导出: 配置的批量导入导出
+//  8. 模板管理: 预定义的过滤器配置模板
+//  9. 统计信息: 过滤器配置使用情况统计
 //
 // 参数:
 //   - router: Gin路由组
@@ -287,14 +287,14 @@ func initFilterConfigRoutes(router *gin.RouterGroup, db database.Database) {
 // 支持服务定义的增删改查和按实例查询功能
 //
 // 服务定义功能说明：
-//   1. 基础CRUD: 增删改查服务定义
-//   2. 按实例查询: 根据网关实例ID获取关联的服务定义列表（通过代理配置关联）
-//   3. 按代理配置查询: 根据代理配置ID获取服务定义列表
-//   4. 服务发现集成: 支持CONSUL、EUREKA、NACOS等服务发现
-//   5. 负载均衡配置: 支持多种负载均衡策略
-//   6. 健康检查配置: 支持服务节点健康检查
-//   7. 熔断器配置: 支持服务熔断保护
-//   8. 会话亲和性: 支持粘性会话配置
+//  1. 基础CRUD: 增删改查服务定义
+//  2. 按实例查询: 根据网关实例ID获取关联的服务定义列表（通过代理配置关联）
+//  3. 按代理配置查询: 根据代理配置ID获取服务定义列表
+//  4. 服务发现集成: 支持CONSUL、EUREKA、NACOS等服务发现
+//  5. 负载均衡配置: 支持多种负载均衡策略
+//  6. 健康检查配置: 支持服务节点健康检查
+//  7. 熔断器配置: 支持服务熔断保护
+//  8. 会话亲和性: 支持粘性会话配置
 //
 // API接口说明：
 //   - /serviceDefinitions/byInstance: 根据网关实例ID获取服务定义列表（核心功能）
@@ -334,4 +334,4 @@ func initServiceDefinitionRoutes(router *gin.RouterGroup, db database.Database) 
 //   - func(router *gin.Engine, db database.Database): 返回Init函数引用
 func RegisterRoutesFunc() func(router *gin.Engine, db database.Database) {
 	return Init
-} 
+}

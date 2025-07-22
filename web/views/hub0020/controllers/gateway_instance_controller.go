@@ -1,17 +1,17 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hub0020/dao"
-	"gohub/web/views/hub0020/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hub0020/dao"
+	"gateway/web/views/hub0020/models"
 	"time"
 
-	"gohub/internal/gateway/bootstrap"
-	"gohub/internal/gateway/loader"
+	"gateway/internal/gateway/bootstrap"
+	"gateway/internal/gateway/loader"
 
 	"github.com/gin-gonic/gin"
 )
@@ -60,12 +60,12 @@ func (c *GatewayInstanceController) QueryGatewayInstances(ctx *gin.Context) {
 	instanceList := make([]map[string]interface{}, 0, len(instances))
 	for _, instance := range instances {
 		instanceInfo := gatewayInstanceToMap(instance)
-		
+
 		// 如果有关联的日志配置，查询并返回
 		if instance.LogConfigId != "" {
 			logConfig, err := c.logConfigDAO.GetLogConfigById(ctx, instance.LogConfigId, tenantId)
 			if err != nil {
-				logger.WarnWithTrace(ctx, "获取日志配置信息失败", 
+				logger.WarnWithTrace(ctx, "获取日志配置信息失败",
 					"gatewayInstanceId", instance.GatewayInstanceId,
 					"logConfigId", instance.LogConfigId,
 					"error", err)
@@ -73,7 +73,7 @@ func (c *GatewayInstanceController) QueryGatewayInstances(ctx *gin.Context) {
 				instanceInfo["logConfig"] = logConfigToMap(logConfig)
 			}
 		}
-		
+
 		instanceList = append(instanceList, instanceInfo)
 	}
 
@@ -163,7 +163,7 @@ func (c *GatewayInstanceController) AddGatewayInstance(ctx *gin.Context) {
 				}
 
 				logConfigId = req.LogConfigId
-				logger.InfoWithTrace(ctx, "日志配置更新成功", 
+				logger.InfoWithTrace(ctx, "日志配置更新成功",
 					"logConfigId", logConfigId,
 					"tenantId", tenantId,
 					"operatorId", operatorId,
@@ -179,7 +179,7 @@ func (c *GatewayInstanceController) AddGatewayInstance(ctx *gin.Context) {
 					return
 				}
 
-				logger.InfoWithTrace(ctx, "日志配置创建成功", 
+				logger.InfoWithTrace(ctx, "日志配置创建成功",
 					"logConfigId", logConfigId,
 					"tenantId", tenantId,
 					"operatorId", operatorId,
@@ -196,7 +196,7 @@ func (c *GatewayInstanceController) AddGatewayInstance(ctx *gin.Context) {
 				return
 			}
 
-			logger.InfoWithTrace(ctx, "日志配置创建成功", 
+			logger.InfoWithTrace(ctx, "日志配置创建成功",
 				"logConfigId", logConfigId,
 				"tenantId", tenantId,
 				"operatorId", operatorId,
@@ -228,14 +228,14 @@ func (c *GatewayInstanceController) AddGatewayInstance(ctx *gin.Context) {
 	gatewayInstanceId, err := c.gatewayInstanceDAO.AddGatewayInstance(ctx, &req, operatorId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "创建网关实例失败", err)
-		
+
 		// 如果日志配置是新创建的，需要删除（回滚）
 		if logConfigId != "" && req.LogConfigId == "" {
 			if deleteErr := c.logConfigDAO.DeleteLogConfig(ctx, logConfigId, tenantId, operatorId); deleteErr != nil {
 				logger.ErrorWithTrace(ctx, "回滚日志配置失败", deleteErr)
 			}
 		}
-		
+
 		response.ErrorJSON(ctx, "创建网关实例失败: "+err.Error(), constants.ED00009)
 		return
 	}
@@ -278,7 +278,7 @@ func (c *GatewayInstanceController) AddGatewayInstance(ctx *gin.Context) {
 		}
 	}
 
-	logger.InfoWithTrace(ctx, "网关实例创建成功", 
+	logger.InfoWithTrace(ctx, "网关实例创建成功",
 		"gatewayInstanceId", gatewayInstanceId,
 		"logConfigId", logConfigId,
 		"tenantId", tenantId,
@@ -349,13 +349,13 @@ func (c *GatewayInstanceController) EditGatewayInstance(ctx *gin.Context) {
 
 	// 强制恢复不可修改的字段，防止前端恶意修改
 	req.GatewayInstanceId = gatewayInstanceId
-	req.TenantId = tenantIdValue  // 强制使用数据库中的租户ID
+	req.TenantId = tenantIdValue // 强制使用数据库中的租户ID
 	req.AddTime = addTime
 	req.AddWho = addWho
 
 	// 处理日志配置
 	var logConfigId string
-	
+
 	// 确定要使用的日志配置ID：优先使用前端传入的，其次使用现有的
 	targetLogConfigId := req.LogConfigId
 	if targetLogConfigId == "" {
@@ -393,7 +393,7 @@ func (c *GatewayInstanceController) EditGatewayInstance(ctx *gin.Context) {
 					return
 				}
 
-				logger.InfoWithTrace(ctx, "日志配置创建成功", 
+				logger.InfoWithTrace(ctx, "日志配置创建成功",
 					"logConfigId", logConfigId,
 					"tenantId", tenantId,
 					"operatorId", operatorId,
@@ -415,8 +415,8 @@ func (c *GatewayInstanceController) EditGatewayInstance(ctx *gin.Context) {
 				}
 
 				logConfigId = targetLogConfigId
-				
-				logger.InfoWithTrace(ctx, "日志配置更新成功", 
+
+				logger.InfoWithTrace(ctx, "日志配置更新成功",
 					"logConfigId", logConfigId,
 					"tenantId", tenantId,
 					"operatorId", operatorId,
@@ -436,7 +436,7 @@ func (c *GatewayInstanceController) EditGatewayInstance(ctx *gin.Context) {
 				return
 			}
 
-			logger.InfoWithTrace(ctx, "日志配置创建成功", 
+			logger.InfoWithTrace(ctx, "日志配置创建成功",
 				"logConfigId", logConfigId,
 				"tenantId", tenantId,
 				"operatorId", operatorId,
@@ -493,7 +493,7 @@ func (c *GatewayInstanceController) EditGatewayInstance(ctx *gin.Context) {
 	if finalLogConfigId != "" {
 		logConfig, err := c.logConfigDAO.GetLogConfigById(ctx, finalLogConfigId, tenantId)
 		if err != nil {
-			logger.WarnWithTrace(ctx, "获取日志配置信息失败", 
+			logger.WarnWithTrace(ctx, "获取日志配置信息失败",
 				"gatewayInstanceId", updatedInstance.GatewayInstanceId,
 				"logConfigId", finalLogConfigId,
 				"error", err)
@@ -599,7 +599,7 @@ func (c *GatewayInstanceController) GetGatewayInstance(ctx *gin.Context) {
 	if instance.LogConfigId != "" {
 		logConfig, err := c.logConfigDAO.GetLogConfigById(ctx, instance.LogConfigId, tenantId)
 		if err != nil {
-			logger.WarnWithTrace(ctx, "获取日志配置信息失败", 
+			logger.WarnWithTrace(ctx, "获取日志配置信息失败",
 				"gatewayInstanceId", instance.GatewayInstanceId,
 				"logConfigId", instance.LogConfigId,
 				"error", err)
@@ -677,7 +677,7 @@ func (c *GatewayInstanceController) UpdateHealthStatus(ctx *gin.Context) {
 	// 根据健康状态启动或停止网关实例
 	if req.HealthStatus == "Y" {
 		// 启动网关实例
-		logger.InfoWithTrace(ctx, "准备启动网关实例", 
+		logger.InfoWithTrace(ctx, "准备启动网关实例",
 			"gatewayInstanceId", req.GatewayInstanceId,
 			"instanceName", instance.InstanceName)
 
@@ -693,7 +693,7 @@ func (c *GatewayInstanceController) UpdateHealthStatus(ctx *gin.Context) {
 
 			// 如果已经在运行，则不需要重新启动
 			if gateway.IsRunning() {
-				logger.InfoWithTrace(ctx, "网关实例已在运行中，无需重新启动", 
+				logger.InfoWithTrace(ctx, "网关实例已在运行中，无需重新启动",
 					"gatewayInstanceId", req.GatewayInstanceId)
 			} else {
 				// 重新启动已存在但未运行的实例
@@ -702,7 +702,7 @@ func (c *GatewayInstanceController) UpdateHealthStatus(ctx *gin.Context) {
 					response.ErrorJSON(ctx, "启动网关实例失败: "+err.Error(), constants.ED00009)
 					return
 				}
-				logger.InfoWithTrace(ctx, "网关实例启动成功", 
+				logger.InfoWithTrace(ctx, "网关实例启动成功",
 					"gatewayInstanceId", req.GatewayInstanceId)
 			}
 		} else {
@@ -741,12 +741,12 @@ func (c *GatewayInstanceController) UpdateHealthStatus(ctx *gin.Context) {
 				return
 			}
 
-			logger.InfoWithTrace(ctx, "网关实例创建并启动成功", 
+			logger.InfoWithTrace(ctx, "网关实例创建并启动成功",
 				"gatewayInstanceId", req.GatewayInstanceId)
 		}
 	} else if req.HealthStatus == "N" {
 		// 停止网关实例
-		logger.InfoWithTrace(ctx, "准备停止网关实例", 
+		logger.InfoWithTrace(ctx, "准备停止网关实例",
 			"gatewayInstanceId", req.GatewayInstanceId,
 			"instanceName", instance.InstanceName)
 
@@ -768,24 +768,24 @@ func (c *GatewayInstanceController) UpdateHealthStatus(ctx *gin.Context) {
 					logger.InfoWithTrace(ctx, "准备停止网关实例",
 						"gatewayInstanceId", req.GatewayInstanceId)
 				}
-				
+
 				// 然后停止网关实例
 				if err := gateway.Stop(); err != nil {
 					logger.ErrorWithTrace(ctx, "停止网关实例失败", err)
 					response.ErrorJSON(ctx, "停止网关实例失败: "+err.Error(), constants.ED00009)
 					return
 				}
-				
+
 				// 从连接池中移除
 				_ = gatewayPool.Remove(req.GatewayInstanceId)
-				logger.InfoWithTrace(ctx, "网关实例停止成功", 
+				logger.InfoWithTrace(ctx, "网关实例停止成功",
 					"gatewayInstanceId", req.GatewayInstanceId)
 			} else {
-				logger.InfoWithTrace(ctx, "网关实例已经停止，无需再次停止", 
+				logger.InfoWithTrace(ctx, "网关实例已经停止，无需再次停止",
 					"gatewayInstanceId", req.GatewayInstanceId)
 			}
 		} else {
-			logger.InfoWithTrace(ctx, "网关实例不在连接池中，无需停止", 
+			logger.InfoWithTrace(ctx, "网关实例不在连接池中，无需停止",
 				"gatewayInstanceId", req.GatewayInstanceId)
 		}
 	}
@@ -853,7 +853,7 @@ func (c *GatewayInstanceController) ReloadGatewayInstance(ctx *gin.Context) {
 	}
 
 	// 实现网关实例配置重载逻辑
-	logger.InfoWithTrace(ctx, "开始重载网关实例配置", 
+	logger.InfoWithTrace(ctx, "开始重载网关实例配置",
 		"gatewayInstanceId", req.GatewayInstanceId,
 		"tenantId", tenantId,
 		"operatorId", operatorId,
@@ -861,10 +861,10 @@ func (c *GatewayInstanceController) ReloadGatewayInstance(ctx *gin.Context) {
 
 	// 1. 获取网关连接池
 	gatewayPool := bootstrap.GetGlobalPool()
-	
+
 	// 2. 检查网关实例是否存在于连接池中
 	if !gatewayPool.Exists(req.GatewayInstanceId) {
-		logger.WarnWithTrace(ctx, "网关实例不在连接池中，无法重载", 
+		logger.WarnWithTrace(ctx, "网关实例不在连接池中，无法重载",
 			"gatewayInstanceId", req.GatewayInstanceId)
 		response.ErrorJSON(ctx, "网关实例未运行，无法重载配置", constants.ED00009)
 		return
@@ -880,7 +880,7 @@ func (c *GatewayInstanceController) ReloadGatewayInstance(ctx *gin.Context) {
 
 	// 4. 检查网关是否正在运行
 	if !gateway.IsRunning() {
-		logger.WarnWithTrace(ctx, "网关实例未运行，无法重载配置", 
+		logger.WarnWithTrace(ctx, "网关实例未运行，无法重载配置",
 			"gatewayInstanceId", req.GatewayInstanceId)
 		response.ErrorJSON(ctx, "网关实例未运行，无法重载配置", constants.ED00009)
 		return
@@ -903,7 +903,7 @@ func (c *GatewayInstanceController) ReloadGatewayInstance(ctx *gin.Context) {
 		return
 	}
 
-	logger.InfoWithTrace(ctx, "网关实例配置重载成功", 
+	logger.InfoWithTrace(ctx, "网关实例配置重载成功",
 		"gatewayInstanceId", req.GatewayInstanceId,
 		"tenantId", tenantId,
 		"operatorId", operatorId,
@@ -911,8 +911,8 @@ func (c *GatewayInstanceController) ReloadGatewayInstance(ctx *gin.Context) {
 
 	response.SuccessJSON(ctx, gin.H{
 		"gatewayInstanceId": req.GatewayInstanceId,
-		"instanceName": instance.InstanceName,
-		"message": "网关实例配置重载成功",
+		"instanceName":      instance.InstanceName,
+		"message":           "网关实例配置重载成功",
 	}, constants.SD00001)
 }
 
@@ -935,52 +935,52 @@ type ReloadGatewayInstanceRequest struct {
 // logConfigToMap 将日志配置对象转换为Map，过滤敏感字段
 func logConfigToMap(logConfig *models.LogConfig) map[string]interface{} {
 	return map[string]interface{}{
-		"tenantId":                     logConfig.TenantId,
-		"logConfigId":                  logConfig.LogConfigId,
-		"configName":                   logConfig.ConfigName,
-		"configDesc":                   logConfig.ConfigDesc,
-		"logFormat":                    logConfig.LogFormat,
-		"recordRequestBody":            logConfig.RecordRequestBody,
-		"recordResponseBody":           logConfig.RecordResponseBody,
-		"recordHeaders":                logConfig.RecordHeaders,
-		"maxBodySizeBytes":             logConfig.MaxBodySizeBytes,
-		"outputTargets":                logConfig.OutputTargets,
-		"fileConfig":                   logConfig.FileConfig,
-		"databaseConfig":               logConfig.DatabaseConfig,
-		"mongoConfig":                  logConfig.MongoConfig,
-		"elasticsearchConfig":          logConfig.ElasticsearchConfig,
-		"clickhouseConfig":             logConfig.ClickhouseConfig,
-		"enableAsyncLogging":           logConfig.EnableAsyncLogging,
-		"asyncQueueSize":               logConfig.AsyncQueueSize,
-		"asyncFlushIntervalMs":         logConfig.AsyncFlushIntervalMs,
-		"enableBatchProcessing":        logConfig.EnableBatchProcessing,
-		"batchSize":                    logConfig.BatchSize,
-		"batchTimeoutMs":               logConfig.BatchTimeoutMs,
-		"logRetentionDays":             logConfig.LogRetentionDays,
-		"enableFileRotation":           logConfig.EnableFileRotation,
-		"maxFileSizeMB":                logConfig.MaxFileSizeMB,
-		"maxFileCount":                 logConfig.MaxFileCount,
-		"rotationPattern":              logConfig.RotationPattern,
-		"enableSensitiveDataMasking":   logConfig.EnableSensitiveDataMasking,
-		"sensitiveFields":              logConfig.SensitiveFields,
-		"maskingPattern":               logConfig.MaskingPattern,
-		"bufferSize":                   logConfig.BufferSize,
-		"flushThreshold":               logConfig.FlushThreshold,
-		"configPriority":               logConfig.ConfigPriority,
-		"reserved1":                    logConfig.Reserved1,
-		"reserved2":                    logConfig.Reserved2,
-		"reserved3":                    logConfig.Reserved3,
-		"reserved4":                    logConfig.Reserved4,
-		"reserved5":                    logConfig.Reserved5,
-		"extProperty":                  logConfig.ExtProperty,
-		"addTime":                      logConfig.AddTime,
-		"addWho":                       logConfig.AddWho,
-		"editTime":                     logConfig.EditTime,
-		"editWho":                      logConfig.EditWho,
-		"oprSeqFlag":                   logConfig.OprSeqFlag,
-		"currentVersion":               logConfig.CurrentVersion,
-		"activeFlag":                   logConfig.ActiveFlag,
-		"noteText":                     logConfig.NoteText,
+		"tenantId":                   logConfig.TenantId,
+		"logConfigId":                logConfig.LogConfigId,
+		"configName":                 logConfig.ConfigName,
+		"configDesc":                 logConfig.ConfigDesc,
+		"logFormat":                  logConfig.LogFormat,
+		"recordRequestBody":          logConfig.RecordRequestBody,
+		"recordResponseBody":         logConfig.RecordResponseBody,
+		"recordHeaders":              logConfig.RecordHeaders,
+		"maxBodySizeBytes":           logConfig.MaxBodySizeBytes,
+		"outputTargets":              logConfig.OutputTargets,
+		"fileConfig":                 logConfig.FileConfig,
+		"databaseConfig":             logConfig.DatabaseConfig,
+		"mongoConfig":                logConfig.MongoConfig,
+		"elasticsearchConfig":        logConfig.ElasticsearchConfig,
+		"clickhouseConfig":           logConfig.ClickhouseConfig,
+		"enableAsyncLogging":         logConfig.EnableAsyncLogging,
+		"asyncQueueSize":             logConfig.AsyncQueueSize,
+		"asyncFlushIntervalMs":       logConfig.AsyncFlushIntervalMs,
+		"enableBatchProcessing":      logConfig.EnableBatchProcessing,
+		"batchSize":                  logConfig.BatchSize,
+		"batchTimeoutMs":             logConfig.BatchTimeoutMs,
+		"logRetentionDays":           logConfig.LogRetentionDays,
+		"enableFileRotation":         logConfig.EnableFileRotation,
+		"maxFileSizeMB":              logConfig.MaxFileSizeMB,
+		"maxFileCount":               logConfig.MaxFileCount,
+		"rotationPattern":            logConfig.RotationPattern,
+		"enableSensitiveDataMasking": logConfig.EnableSensitiveDataMasking,
+		"sensitiveFields":            logConfig.SensitiveFields,
+		"maskingPattern":             logConfig.MaskingPattern,
+		"bufferSize":                 logConfig.BufferSize,
+		"flushThreshold":             logConfig.FlushThreshold,
+		"configPriority":             logConfig.ConfigPriority,
+		"reserved1":                  logConfig.Reserved1,
+		"reserved2":                  logConfig.Reserved2,
+		"reserved3":                  logConfig.Reserved3,
+		"reserved4":                  logConfig.Reserved4,
+		"reserved5":                  logConfig.Reserved5,
+		"extProperty":                logConfig.ExtProperty,
+		"addTime":                    logConfig.AddTime,
+		"addWho":                     logConfig.AddWho,
+		"editTime":                   logConfig.EditTime,
+		"editWho":                    logConfig.EditWho,
+		"oprSeqFlag":                 logConfig.OprSeqFlag,
+		"currentVersion":             logConfig.CurrentVersion,
+		"activeFlag":                 logConfig.ActiveFlag,
+		"noteText":                   logConfig.NoteText,
 	}
 }
 

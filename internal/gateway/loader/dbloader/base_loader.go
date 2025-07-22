@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"gohub/internal/gateway/config"
-	"gohub/pkg/database"
+	"gateway/internal/gateway/config"
+	"gateway/pkg/database"
 )
 
 // BaseConfigLoader 基础配置加载器
@@ -61,7 +61,7 @@ func (loader *BaseConfigLoader) BuildBaseConfig(instance *GatewayInstanceRecord)
 		// 默认使用HTTP 8080端口
 		listen = fmt.Sprintf("%s:8080", instance.BindAddress)
 	}
-	
+
 	baseConfig := config.BaseConfig{
 		Listen:          listen,
 		Name:            instance.InstanceName,
@@ -93,4 +93,4 @@ func (loader *BaseConfigLoader) BuildBaseConfig(instance *GatewayInstanceRecord)
 	}
 
 	return baseConfig
-} 
+}

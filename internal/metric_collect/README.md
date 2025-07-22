@@ -56,9 +56,9 @@ internal/metric_collect/
 
 ```go
 import (
-    "gohub/internal/metric_collect/dao"
-    "gohub/internal/metric_collect/types"
-    "gohub/pkg/database"
+    "gateway/internal/metric_collect/dao"
+    "gateway/internal/metric_collect/types"
+    "gateway/pkg/database"
 )
 ```
 
@@ -194,7 +194,7 @@ if err != nil {
 ## 数据库依赖
 
 该模块依赖于项目中的数据库抽象层：
-- `gohub/pkg/database`: 提供数据库操作接口
+- `gateway/pkg/database`: 提供数据库操作接口
 - 支持MySQL、Oracle、SQLite等多种数据库
 - 支持事务操作和批量操作
 

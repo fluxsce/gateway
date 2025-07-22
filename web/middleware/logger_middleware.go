@@ -3,8 +3,8 @@ package middleware
 import (
 	"context"
 	"fmt"
-	"gohub/pkg/logger"
-	"gohub/pkg/utils/random"
+	"gateway/pkg/logger"
+	"gateway/pkg/utils/random"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -28,38 +28,38 @@ const (
 func LoggerMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
-		
+
 		// 1. 生成或获取跟踪ID
 		traceID := getOrGenerateTraceID(c)
-		
+
 		// 2. 设置跟踪ID到上下文
 		setTraceIDToContext(c, traceID)
-		
+
 		// 3. 获取请求信息
 		path := c.Request.URL.Path
 		method := c.Request.Method
 		clientIP := c.ClientIP()
 		userAgent := c.GetHeader("User-Agent")
-		
+
 		// 4. 记录请求开始日志
 		logger.InfoWithTrace(c.Request.Context(), "请求开始",
 			"method", method,
 			"path", path,
 			"client_ip", clientIP,
 			"user_agent", userAgent)
-		
+
 		// 5. 处理请求
 		c.Next()
-		
+
 		// 6. 计算处理时间和获取响应状态
 		duration := time.Since(start)
 		status := c.Writer.Status()
 		responseSize := c.Writer.Size()
-		
+
 		// 7. 记录请求结束日志
 		logLevel := getLogLevel(status)
 		logMessage := fmt.Sprintf("请求完成 - %s %s", method, path)
-		
+
 		switch logLevel {
 		case "error":
 			logger.ErrorWithTrace(c.Request.Context(), logMessage,
@@ -128,10 +128,10 @@ func generateTraceID() string {
 	// 生成时间部分
 	datePart := now.Format("20060102")
 	timePart := now.Format("150405")
-	
+
 	// 生成8位随机字符
 	randomPart := random.GenerateRandomString(8)
-	
+
 	return fmt.Sprintf("TRACE-%s-%s-%s", datePart, timePart, randomPart)
 }
 
@@ -166,4 +166,4 @@ func GetTraceIDFromContext(ctx context.Context) string {
 // WithTraceID 为上下文添加跟踪ID
 func WithTraceID(ctx context.Context, traceID string) context.Context {
 	return context.WithValue(ctx, TraceIDKey, traceID)
-} 
+}

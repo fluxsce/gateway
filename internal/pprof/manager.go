@@ -9,26 +9,26 @@ import (
 	"sync"
 	"time"
 
-	"gohub/pkg/logger"
+	"gateway/pkg/logger"
 )
 
 // Manager pprof管理器
 type Manager struct {
-	config      *Config
-	server      *http.Server
-	analyzer    *Analyzer
-	running     bool
-	mu          sync.RWMutex
-	stopCh      chan struct{}
-	wg          sync.WaitGroup
-	ctx         context.Context
-	cancel      context.CancelFunc
+	config   *Config
+	server   *http.Server
+	analyzer *Analyzer
+	running  bool
+	mu       sync.RWMutex
+	stopCh   chan struct{}
+	wg       sync.WaitGroup
+	ctx      context.Context
+	cancel   context.CancelFunc
 }
 
 // NewManager 创建pprof管理器
 func NewManager(config *Config) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	return &Manager{
 		config:   config,
 		analyzer: NewAnalyzer(config),
@@ -54,10 +54,10 @@ func (m *Manager) Start() error {
 
 	// 创建HTTP服务器
 	mux := http.NewServeMux()
-	
+
 	// 注册pprof路由
 	m.registerPprofRoutes(mux)
-	
+
 	// 注册自定义路由
 	m.registerCustomRoutes(mux)
 
@@ -73,7 +73,7 @@ func (m *Manager) Start() error {
 	go func() {
 		defer m.wg.Done()
 		logger.Info("启动pprof服务", "listen", m.config.Listen)
-		
+
 		if err := m.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("pprof服务启动失败", "error", err)
 		}
@@ -89,8 +89,8 @@ func (m *Manager) Start() error {
 	}
 
 	m.running = true
-	
-	logger.Info("pprof服务启动成功", 
+
+	logger.Info("pprof服务启动成功",
 		"service", m.config.ServiceName,
 		"listen", m.config.Listen,
 		"web_ui", fmt.Sprintf("http://localhost%s/debug/pprof/", m.config.Listen),
@@ -119,7 +119,7 @@ func (m *Manager) Stop() error {
 	if m.server != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		
+
 		if err := m.server.Shutdown(ctx); err != nil {
 			logger.Error("关闭pprof服务器失败", "error", err)
 		}
@@ -166,13 +166,13 @@ func (m *Manager) registerCustomRoutes(mux *http.ServeMux) {
 	// 服务信息
 	mux.HandleFunc("/info", func(w http.ResponseWriter, r *http.Request) {
 		info := map[string]interface{}{
-			"service":        m.config.ServiceName,
-			"listen":         m.config.Listen,
-			"auto_analysis":  m.config.AutoAnalysis.Enabled,
-			"running":        m.running,
-			"pprof_enabled":  m.config.Enabled,
+			"service":       m.config.ServiceName,
+			"listen":        m.config.Listen,
+			"auto_analysis": m.config.AutoAnalysis.Enabled,
+			"running":       m.running,
+			"pprof_enabled": m.config.Enabled,
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{
 			"service": "%s",
@@ -189,13 +189,13 @@ func (m *Manager) registerCustomRoutes(mux *http.ServeMux) {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		
+
 		go func() {
 			if err := m.analyzer.RunAnalysis(); err != nil {
 				logger.Error("手动分析失败", "error", err)
 			}
 		}()
-		
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("分析任务已启动"))
 	})
@@ -208,13 +208,13 @@ func (m *Manager) authMiddleware(next http.Handler) http.HandlerFunc {
 		if token == "" {
 			token = r.URL.Query().Get("token")
 		}
-		
+
 		if token != m.config.AuthToken {
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Write([]byte("Unauthorized"))
 			return
 		}
-		
+
 		next.ServeHTTP(w, r)
 	}
 }
@@ -224,7 +224,7 @@ func (m *Manager) runAutoAnalysis() {
 	ticker := time.NewTicker(m.config.AutoAnalysis.Interval)
 	defer ticker.Stop()
 
-	logger.Info("启动自动分析器", 
+	logger.Info("启动自动分析器",
 		"interval", m.config.AutoAnalysis.Interval,
 		"output_dir", m.config.AutoAnalysis.OutputDir,
 	)
@@ -251,12 +251,12 @@ func (m *Manager) GetStatus() map[string]interface{} {
 	defer m.mu.RUnlock()
 
 	return map[string]interface{}{
-		"running":        m.running,
-		"service_name":   m.config.ServiceName,
-		"listen":         m.config.Listen,
-		"auto_analysis":  m.config.AutoAnalysis.Enabled,
-		"auth_enabled":   m.config.EnableAuth,
-		"output_dir":     m.config.AutoAnalysis.OutputDir,
+		"running":       m.running,
+		"service_name":  m.config.ServiceName,
+		"listen":        m.config.Listen,
+		"auto_analysis": m.config.AutoAnalysis.Enabled,
+		"auth_enabled":  m.config.EnableAuth,
+		"output_dir":    m.config.AutoAnalysis.OutputDir,
 	}
 }
 
@@ -271,7 +271,7 @@ func (m *Manager) UpdateConfig(newConfig *Config) error {
 
 	m.config = newConfig
 	m.analyzer = NewAnalyzer(newConfig)
-	
+
 	logger.Info("pprof配置已更新")
 	return nil
 }
@@ -281,10 +281,10 @@ func (m *Manager) CreateOutputDir() error {
 	if m.config.AutoAnalysis.OutputDir == "" {
 		return nil
 	}
-	
+
 	if err := os.MkdirAll(m.config.AutoAnalysis.OutputDir, 0755); err != nil {
 		return fmt.Errorf("创建输出目录失败: %w", err)
 	}
-	
+
 	return nil
-} 
+}

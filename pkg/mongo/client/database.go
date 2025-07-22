@@ -8,16 +8,16 @@ import (
 
 	"go.mongodb.org/mongo-driver/mongo"
 
-	"gohub/pkg/mongo/errors"
-	"gohub/pkg/mongo/types"
+	"gateway/pkg/mongo/errors"
+	"gateway/pkg/mongo/types"
 )
 
 // Database MongoDB数据库实现
 // 实现types.MongoDatabase接口，提供数据库级别的操作
 type Database struct {
-	db     *mongo.Database    // MongoDB驱动数据库
-	client *Client           // 父客户端引用
-	name   string            // 数据库名称
+	db     *mongo.Database // MongoDB驱动数据库
+	client *Client         // 父客户端引用
+	name   string          // 数据库名称
 }
 
 // Name 获取数据库名称
@@ -99,4 +99,4 @@ func (d *Database) RunCommand(ctx context.Context, command types.Document, opts 
 func (d *Database) Watch(ctx context.Context, pipeline types.Pipeline, opts *types.ChangeStreamOptions) (types.ChangeStream, error) {
 	// 目前返回一个简单的错误，因为实际实现需要完整的变更流支持
 	return nil, errors.NewQueryError("ChangeStream not implemented yet", nil)
-} 
+}

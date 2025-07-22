@@ -1,13 +1,13 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hubcommon002/dao"
-	"gohub/web/views/hubcommon002/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hubcommon002/dao"
+	"gateway/web/views/hubcommon002/models"
 
 	"github.com/gin-gonic/gin"
 )
@@ -57,7 +57,7 @@ func (c *CorsConfigController) AddCorsConfig(ctx *gin.Context) {
 	// 调用DAO层添加CORS配置
 	err := c.dao.AddCorsConfig(ctx, &config, operatorId)
 	if err != nil {
-		logger.ErrorWithTrace(ctx, "添加CORS配置失败", "error", err.Error(), 
+		logger.ErrorWithTrace(ctx, "添加CORS配置失败", "error", err.Error(),
 			"corsConfigId", config.CorsConfigId, "tenantId", tenantId)
 		response.ErrorJSON(ctx, "添加CORS配置失败: "+err.Error(), constants.ED00009)
 		return
@@ -66,14 +66,14 @@ func (c *CorsConfigController) AddCorsConfig(ctx *gin.Context) {
 	// 查询最新的配置数据返回给前端
 	newConfig, err := c.dao.GetCorsConfig(config.TenantId, config.CorsConfigId)
 	if err != nil {
-		logger.WarnWithTrace(ctx, "添加成功但获取最新数据失败", "error", err.Error(), 
+		logger.WarnWithTrace(ctx, "添加成功但获取最新数据失败", "error", err.Error(),
 			"corsConfigId", config.CorsConfigId, "tenantId", tenantId)
 		// 添加成功但获取最新数据失败，仍然返回成功
 		response.SuccessJSON(ctx, gin.H{"message": "CORS配置添加成功"}, constants.SD00003)
 		return
 	}
 
-	logger.InfoWithTrace(ctx, "CORS配置添加成功", "corsConfigId", config.CorsConfigId, 
+	logger.InfoWithTrace(ctx, "CORS配置添加成功", "corsConfigId", config.CorsConfigId,
 		"tenantId", tenantId, "operatorId", operatorId)
 	response.SuccessJSON(ctx, newConfig, constants.SD00003)
 }
@@ -86,13 +86,13 @@ func (c *CorsConfigController) GetCorsConfig(ctx *gin.Context) {
 	var req struct {
 		// 按配置ID查询
 		CorsConfigId *string `json:"corsConfigId" form:"corsConfigId"`
-		
+
 		// 按网关实例ID查询
 		GatewayInstanceId *string `json:"gatewayInstanceId" form:"gatewayInstanceId"`
-		
+
 		// 按路由配置ID查询
 		RouteConfigId *string `json:"routeConfigId" form:"routeConfigId"`
-		
+
 		// 分页参数（用于按实例或路由查询时）
 		Page     int `json:"page" form:"page"`
 		PageSize int `json:"pageSize" form:"pageSize"`
@@ -105,7 +105,7 @@ func (c *CorsConfigController) GetCorsConfig(ctx *gin.Context) {
 	}
 
 	// 调试日志：输出接收到的参数
-	logger.InfoWithTrace(ctx, "接收到的查询参数", 
+	logger.InfoWithTrace(ctx, "接收到的查询参数",
 		"corsConfigId", func() string {
 			if req.CorsConfigId != nil {
 				return *req.CorsConfigId
@@ -145,7 +145,7 @@ func (c *CorsConfigController) GetCorsConfig(ctx *gin.Context) {
 	if req.RouteConfigId != nil && *req.RouteConfigId != "" {
 		hasValidParam = true
 	}
-	
+
 	if !hasValidParam {
 		response.ErrorJSON(ctx, "请提供corsConfigId、gatewayInstanceId或routeConfigId中的任意一个", constants.ED00007)
 		return
@@ -155,7 +155,7 @@ func (c *CorsConfigController) GetCorsConfig(ctx *gin.Context) {
 	if req.CorsConfigId != nil && *req.CorsConfigId != "" {
 		config, err := c.dao.GetCorsConfig(tenantId, *req.CorsConfigId)
 		if err != nil {
-			logger.ErrorWithTrace(ctx, "获取CORS配置失败", "error", err.Error(), 
+			logger.ErrorWithTrace(ctx, "获取CORS配置失败", "error", err.Error(),
 				"corsConfigId", *req.CorsConfigId, "tenantId", tenantId)
 			response.ErrorJSON(ctx, "获取CORS配置失败: "+err.Error(), constants.ED00009)
 			return
@@ -183,7 +183,7 @@ func (c *CorsConfigController) GetCorsConfig(ctx *gin.Context) {
 	if req.GatewayInstanceId != nil && *req.GatewayInstanceId != "" {
 		config, err := c.dao.GetCorsConfigByGatewayInstance(tenantId, *req.GatewayInstanceId)
 		if err != nil {
-			logger.ErrorWithTrace(ctx, "查询网关实例CORS配置失败", "error", err.Error(), 
+			logger.ErrorWithTrace(ctx, "查询网关实例CORS配置失败", "error", err.Error(),
 				"tenantId", tenantId, "gatewayInstanceId", *req.GatewayInstanceId)
 			response.ErrorJSON(ctx, "查询网关实例CORS配置失败: "+err.Error(), constants.ED00009)
 			return
@@ -194,7 +194,7 @@ func (c *CorsConfigController) GetCorsConfig(ctx *gin.Context) {
 			return
 		}
 
-		logger.InfoWithTrace(ctx, "查询网关实例CORS配置成功", "tenantId", tenantId, 
+		logger.InfoWithTrace(ctx, "查询网关实例CORS配置成功", "tenantId", tenantId,
 			"gatewayInstanceId", *req.GatewayInstanceId, "corsConfigId", config.CorsConfigId)
 		response.SuccessJSON(ctx, config, constants.SD00002)
 		return
@@ -204,7 +204,7 @@ func (c *CorsConfigController) GetCorsConfig(ctx *gin.Context) {
 	if req.RouteConfigId != nil && *req.RouteConfigId != "" {
 		config, err := c.dao.GetCorsConfigByRouteConfig(tenantId, *req.RouteConfigId)
 		if err != nil {
-			logger.ErrorWithTrace(ctx, "查询路由配置CORS配置失败", "error", err.Error(), 
+			logger.ErrorWithTrace(ctx, "查询路由配置CORS配置失败", "error", err.Error(),
 				"tenantId", tenantId, "routeConfigId", *req.RouteConfigId)
 			response.ErrorJSON(ctx, "查询路由配置CORS配置失败: "+err.Error(), constants.ED00009)
 			return
@@ -215,7 +215,7 @@ func (c *CorsConfigController) GetCorsConfig(ctx *gin.Context) {
 			return
 		}
 
-		logger.InfoWithTrace(ctx, "查询路由配置CORS配置成功", "tenantId", tenantId, 
+		logger.InfoWithTrace(ctx, "查询路由配置CORS配置成功", "tenantId", tenantId,
 			"routeConfigId", *req.RouteConfigId, "corsConfigId", config.CorsConfigId)
 		response.SuccessJSON(ctx, config, constants.SD00002)
 		return
@@ -260,7 +260,7 @@ func (c *CorsConfigController) UpdateCorsConfig(ctx *gin.Context) {
 	// 调用DAO层更新CORS配置
 	err := c.dao.UpdateCorsConfig(ctx, &config, operatorId)
 	if err != nil {
-		logger.ErrorWithTrace(ctx, "更新CORS配置失败", "error", err.Error(), 
+		logger.ErrorWithTrace(ctx, "更新CORS配置失败", "error", err.Error(),
 			"corsConfigId", corsConfigId, "tenantId", tenantId)
 		response.ErrorJSON(ctx, "更新CORS配置失败: "+err.Error(), constants.ED00009)
 		return
@@ -269,14 +269,14 @@ func (c *CorsConfigController) UpdateCorsConfig(ctx *gin.Context) {
 	// 查询最新的配置数据返回给前端
 	updatedConfig, err := c.dao.GetCorsConfig(tenantId, corsConfigId)
 	if err != nil {
-		logger.WarnWithTrace(ctx, "更新成功但获取最新数据失败", "error", err.Error(), 
+		logger.WarnWithTrace(ctx, "更新成功但获取最新数据失败", "error", err.Error(),
 			"corsConfigId", corsConfigId, "tenantId", tenantId)
 		// 更新成功但获取最新数据失败，仍然返回成功
 		response.SuccessJSON(ctx, gin.H{"message": "CORS配置更新成功"}, constants.SD00003)
 		return
 	}
 
-	logger.InfoWithTrace(ctx, "CORS配置更新成功", "corsConfigId", corsConfigId, 
+	logger.InfoWithTrace(ctx, "CORS配置更新成功", "corsConfigId", corsConfigId,
 		"tenantId", tenantId, "operatorId", operatorId)
 	response.SuccessJSON(ctx, updatedConfig, constants.SD00003)
 }
@@ -305,13 +305,13 @@ func (c *CorsConfigController) DeleteCorsConfig(ctx *gin.Context) {
 	// 调用DAO层删除CORS配置
 	err := c.dao.DeleteCorsConfig(tenantId, corsConfigId, operatorId)
 	if err != nil {
-		logger.ErrorWithTrace(ctx, "删除CORS配置失败", "error", err.Error(), 
+		logger.ErrorWithTrace(ctx, "删除CORS配置失败", "error", err.Error(),
 			"corsConfigId", corsConfigId, "tenantId", tenantId)
 		response.ErrorJSON(ctx, "删除CORS配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
 
-	logger.InfoWithTrace(ctx, "CORS配置删除成功", "corsConfigId", corsConfigId, 
+	logger.InfoWithTrace(ctx, "CORS配置删除成功", "corsConfigId", corsConfigId,
 		"tenantId", tenantId, "operatorId", operatorId)
 	response.SuccessJSON(ctx, gin.H{"message": "CORS配置删除成功"}, constants.SD00003)
 }
@@ -333,7 +333,7 @@ func (c *CorsConfigController) QueryCorsConfigs(ctx *gin.Context) {
 	// 调用DAO层查询CORS配置列表
 	configs, total, err := c.dao.ListCorsConfigs(ctx, tenantId, page, pageSize)
 	if err != nil {
-		logger.ErrorWithTrace(ctx, "查询CORS配置列表失败", "error", err.Error(), 
+		logger.ErrorWithTrace(ctx, "查询CORS配置列表失败", "error", err.Error(),
 			"tenantId", tenantId, "page", page, "pageSize", pageSize)
 		response.ErrorJSON(ctx, "查询CORS配置列表失败: "+err.Error(), constants.ED00009)
 		return
@@ -349,4 +349,4 @@ func (c *CorsConfigController) QueryCorsConfigs(ctx *gin.Context) {
 
 	logger.InfoWithTrace(ctx, "查询CORS配置列表成功", "tenantId", tenantId, "count", len(configs))
 	response.SuccessJSON(ctx, result, constants.SD00002)
-} 
+}

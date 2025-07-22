@@ -1,7 +1,7 @@
 # ========================================
-# GoHub API Gateway 配置文件
+# Gateway API Gateway 配置文件
 # ========================================
-# 这是 GoHub 网关的主配置文件，按照 GatewayConfig 结构定义
+# 这是 Gateway 网关的主配置文件，按照 GatewayConfig 结构定义
 # 每个配置项都与代码中的结构体字段一一对应
 
 # 网关实例ID
@@ -20,7 +20,7 @@ base:
   listen: ":38080"
   
   # 服务名称，用于日志和监控标识
-  name: "GoHub API Gateway"
+  name: "Gateway API Gateway"
   
   # HTTP 超时配置
   # 读取超时：从客户端读取请求的最大时间
@@ -277,7 +277,7 @@ router:
         type: "header"
         action: "add"
         name: "X-Powered-By"
-        value: "GoHub-Gateway"
+        value: "Gateway-Gateway"
 
 # ========================================
 # 代理配置 (Proxy Configuration)

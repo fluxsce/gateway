@@ -2,7 +2,7 @@ package filter
 
 import (
 	"fmt"
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 	"strings"
 )
 
@@ -136,17 +136,17 @@ func (f *QueryParamFilter) Apply(ctx *core.Context) error {
 	case RenameQueryParam:
 		// 重命名查询参数 - 只对已存在的参数执行
 		values := query[f.ParamName]
-		
+
 		// 检查原参数是否存在
 		if len(values) == 0 {
 			// 原参数不存在，跳过重命名操作
 			return nil
 		}
-		
+
 		// 原参数存在，执行重命名
 		// 删除旧的参数
 		query.Del(f.ParamName)
-		
+
 		// 设置新参数
 		if f.ParamValue != "" {
 			// 如果提供了新值，使用新值
@@ -157,7 +157,7 @@ func (f *QueryParamFilter) Apply(ctx *core.Context) error {
 				query.Add(f.TargetParamName, value)
 			}
 		}
-		
+
 		// 支持同名参数修改（当目标参数名与源参数名相同时）
 		if f.TargetParamName == f.ParamName && f.ParamValue != "" {
 			query.Set(f.ParamName, f.ParamValue)
@@ -191,12 +191,12 @@ func configureQueryParamFilter(queryFilter *QueryParamFilter, config map[string]
 		paramName, _ := paramConfig["paramName"].(string)
 		paramValue, _ := paramConfig["paramValue"].(string)
 		targetParamName, _ := paramConfig["targetParamName"].(string)
-		
+
 		// 参数验证
 		if paramName == "" {
 			return fmt.Errorf("paramName 不能为空")
 		}
-		
+
 		// 根据操作类型配置
 		switch strings.ToLower(modifierType) {
 		case "add":
@@ -219,7 +219,7 @@ func configureQueryParamFilter(queryFilter *QueryParamFilter, config map[string]
 		default:
 			return fmt.Errorf("无效的modifierType: %s", modifierType)
 		}
-		
+
 		return nil
 	}
 
@@ -228,11 +228,11 @@ func configureQueryParamFilter(queryFilter *QueryParamFilter, config map[string]
 		paramName, _ := paramConfig["param_name"].(string)
 		paramValue, _ := paramConfig["param_value"].(string)
 		targetParamName, _ := paramConfig["target_param_name"].(string)
-		
+
 		if paramName == "" {
 			return fmt.Errorf("param_name 不能为空")
 		}
-		
+
 		switch strings.ToLower(modifierType) {
 		case "add":
 			if paramValue == "" {
@@ -254,10 +254,9 @@ func configureQueryParamFilter(queryFilter *QueryParamFilter, config map[string]
 		default:
 			return fmt.Errorf("无效的modifier_type: %s", modifierType)
 		}
-		
+
 		return nil
 	}
-	
 
 	return nil
 }

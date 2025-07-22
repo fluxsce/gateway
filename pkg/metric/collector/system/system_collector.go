@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"gohub/pkg/metric/collector"
-	"gohub/pkg/metric/types"
+	"gateway/pkg/metric/collector"
+	"gateway/pkg/metric/types"
 
 	"github.com/shirou/gopsutil/v4/host"
 	gopsutilNet "github.com/shirou/gopsutil/v4/net"
@@ -489,17 +489,17 @@ func (c *SystemCollector) getNetworkInfo(ctx context.Context, metrics *types.Sys
 			isIPv4 := c.isIPv4Address(addr)
 			// 判断是否为常见的私网IPv4地址
 			isCommonPrivateIPv4 := isIPv4 && c.isCommonPrivateIPv4Address(addr)
-			
+
 			// 选择主IP地址的优先级：
 			// 1. 优先选择常见的私网IPv4地址（192.168.x.x）
 			// 2. 优先选择其他IPv4地址
 			// 3. 优先选择以太网接口
 			// 4. 其次是第一个非回环地址
 			shouldSelectAsPrimary := false
-			
+
 			// 获取当前主IP是否为常见私网IPv4地址
 			currentIsCommonPrivateIPv4 := primaryIP != "" && hasIPv4 && c.isCommonPrivateIPv4Address(primaryIP)
-			
+
 			if primaryIP == "" {
 				// 如果还没有主IP，直接选择
 				shouldSelectAsPrimary = true
@@ -518,7 +518,7 @@ func (c *SystemCollector) getNetworkInfo(ctx context.Context, metrics *types.Sys
 					}
 				}
 			}
-			
+
 			if shouldSelectAsPrimary {
 				primaryIP = addr
 				primaryInterface = iface.Name
@@ -532,7 +532,7 @@ func (c *SystemCollector) getNetworkInfo(ctx context.Context, metrics *types.Sys
 		// 处理MAC地址
 		if iface.HardwareAddr != "" {
 			networkInfo.MACAddresses = append(networkInfo.MACAddresses, iface.HardwareAddr)
-			
+
 			// 选择主MAC地址：优先以太网接口的MAC
 			if primaryMAC == "" || (!hasEthernet && c.isEthernetInterface(iface.Name)) {
 				primaryMAC = iface.HardwareAddr
@@ -594,9 +594,9 @@ func (c *SystemCollector) getInterfaceAddresses(interfaceName string) ([]string,
 //   - bool: 是否为以太网接口
 func (c *SystemCollector) isEthernetInterface(interfaceName string) bool {
 	lowerName := strings.ToLower(interfaceName)
-	return strings.HasPrefix(lowerName, "eth") || 
-		   strings.HasPrefix(lowerName, "en") || 
-		   strings.HasPrefix(lowerName, "em")
+	return strings.HasPrefix(lowerName, "eth") ||
+		strings.HasPrefix(lowerName, "en") ||
+		strings.HasPrefix(lowerName, "em")
 }
 
 // isIPv4Address 判断是否为IPv4地址
@@ -630,13 +630,13 @@ func (c *SystemCollector) isCommonPrivateIPv4Address(addr string) bool {
 
 	// 172.16.x.x - 172.31.x.x
 	if strings.HasPrefix(lowerAddr, "172.16.") || strings.HasPrefix(lowerAddr, "172.17.") ||
-	   strings.HasPrefix(lowerAddr, "172.18.") || strings.HasPrefix(lowerAddr, "172.19.") ||
-	   strings.HasPrefix(lowerAddr, "172.20.") || strings.HasPrefix(lowerAddr, "172.21.") ||
-	   strings.HasPrefix(lowerAddr, "172.22.") || strings.HasPrefix(lowerAddr, "172.23.") ||
-	   strings.HasPrefix(lowerAddr, "172.24.") || strings.HasPrefix(lowerAddr, "172.25.") ||
-	   strings.HasPrefix(lowerAddr, "172.26.") || strings.HasPrefix(lowerAddr, "172.27.") ||
-	   strings.HasPrefix(lowerAddr, "172.28.") || strings.HasPrefix(lowerAddr, "172.29.") ||
-	   strings.HasPrefix(lowerAddr, "172.30.") || strings.HasPrefix(lowerAddr, "172.31.") {
+		strings.HasPrefix(lowerAddr, "172.18.") || strings.HasPrefix(lowerAddr, "172.19.") ||
+		strings.HasPrefix(lowerAddr, "172.20.") || strings.HasPrefix(lowerAddr, "172.21.") ||
+		strings.HasPrefix(lowerAddr, "172.22.") || strings.HasPrefix(lowerAddr, "172.23.") ||
+		strings.HasPrefix(lowerAddr, "172.24.") || strings.HasPrefix(lowerAddr, "172.25.") ||
+		strings.HasPrefix(lowerAddr, "172.26.") || strings.HasPrefix(lowerAddr, "172.27.") ||
+		strings.HasPrefix(lowerAddr, "172.28.") || strings.HasPrefix(lowerAddr, "172.29.") ||
+		strings.HasPrefix(lowerAddr, "172.30.") || strings.HasPrefix(lowerAddr, "172.31.") {
 		return true
 	}
 
@@ -751,12 +751,12 @@ func (c *SystemCollector) isVirtualHostID(hostID string) bool {
 	if strings.HasPrefix(hostID, "VMware") {
 		return true
 	}
-	
+
 	// 检查是否为VirtualBox的主机ID模式
 	if strings.Contains(hostID, "VirtualBox") {
 		return true
 	}
-	
+
 	// 可以添加更多虚拟化平台的检查
 	return false
 }
@@ -776,7 +776,7 @@ func (c *SystemCollector) GetNetworkInfo() (*types.SystemNetworkInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return metrics.NetworkInfo, nil
 }
 
@@ -790,4 +790,4 @@ func (c *SystemCollector) GetServerType() string {
 	defer cancel()
 
 	return c.getServerType(ctx)
-} 
+}

@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/router"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/router"
 )
 
 func TestRouteMatching(t *testing.T) {
@@ -32,7 +32,7 @@ func TestRouteMatching(t *testing.T) {
 			requestPath: "/api/users/123",
 			expected:    false,
 		},
-		
+
 		// 前缀匹配测试
 		{
 			name:        "Prefix match - match",
@@ -48,7 +48,7 @@ func TestRouteMatching(t *testing.T) {
 			requestPath: "/api/orders",
 			expected:    false,
 		},
-		
+
 		// 正则匹配测试
 		{
 			name:        "Regex match - match",
@@ -125,4 +125,4 @@ func TestInvalidRegexPattern(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for invalid regex pattern, but got none")
 	}
-} 
+}

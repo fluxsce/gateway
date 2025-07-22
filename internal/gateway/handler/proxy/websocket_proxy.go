@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"gohub/internal/gateway/constants"
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/service"
+	"gateway/internal/gateway/constants"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/service"
 
 	"github.com/gorilla/websocket"
 )
@@ -24,11 +24,11 @@ type WebSocketConnection struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 	config     *WebSocketConfig
-	
+
 	// 连接状态
 	mu     sync.RWMutex
 	closed bool
-	
+
 	// 统计信息
 	clientToTarget int64 // 客户端到目标的消息数
 	targetToClient int64 // 目标到客户端的消息数
@@ -39,11 +39,11 @@ type WebSocketProxy struct {
 	*BaseProxyHandler
 	serviceManager service.ServiceManager
 	config         *WebSocketConfig
-	
+
 	// 连接管理
 	connections map[*WebSocketConnection]bool
 	connMutex   sync.RWMutex
-	
+
 	// WebSocket升级器
 	upgrader websocket.Upgrader
 }
@@ -86,7 +86,7 @@ func (w *WebSocketProxy) Handle(ctx *core.Context) bool {
 	// 设置服务名称和代理类型
 	ctx.Set(constants.ContextKeyServiceDefinitionName, w.GetName())
 	ctx.Set(constants.ContextKeyProxyType, w.GetType())
-	
+
 	// 设置转发开始时间
 	ctx.SetForwardStartTime(time.Now())
 
@@ -117,14 +117,14 @@ func (w *WebSocketProxy) ProxyRequest(ctx *core.Context, targetURL string) error
 	if target.Scheme == "https" {
 		wsScheme = "wss"
 	}
-	
+
 	targetWSURL := &url.URL{
 		Scheme:   wsScheme,
 		Host:     target.Host,
 		Path:     ctx.Request.URL.Path,
 		RawQuery: ctx.Request.URL.RawQuery,
 	}
-	
+
 	// 设置目标URL
 	ctx.SetTargetURL(targetWSURL.String())
 
@@ -142,7 +142,7 @@ func (w *WebSocketProxy) ProxyRequest(ctx *core.Context, targetURL string) error
 		ctx.SetForwardResponseTime(time.Now())
 		return fmt.Errorf("连接到目标服务失败: %w", err)
 	}
-	
+
 	// 设置后端状态码
 	if resp != nil {
 		ctx.Set(constants.BackendStatusCode, resp.StatusCode)
@@ -182,7 +182,7 @@ func (w *WebSocketProxy) ProxyRequest(ctx *core.Context, targetURL string) error
 	// 清理连接
 	w.closeConnection(wsConn)
 	ctx.SetForwardResponseTime(time.Now())
-	
+
 	return nil
 }
 
@@ -190,10 +190,10 @@ func (w *WebSocketProxy) ProxyRequest(ctx *core.Context, targetURL string) error
 func (w *WebSocketProxy) connectToTarget(targetURL *url.URL, req *http.Request) (*websocket.Conn, *http.Response, error) {
 	// 创建WebSocket拨号器
 	dialer := websocket.Dialer{
-		HandshakeTimeout: 10 * time.Second,
-		ReadBufferSize:   w.config.ReadBufferSize,
-		WriteBufferSize:  w.config.WriteBufferSize,
-		Subprotocols:     w.config.Subprotocols,
+		HandshakeTimeout:  10 * time.Second,
+		ReadBufferSize:    w.config.ReadBufferSize,
+		WriteBufferSize:   w.config.WriteBufferSize,
+		Subprotocols:      w.config.Subprotocols,
 		EnableCompression: w.config.EnableCompression,
 	}
 
@@ -292,13 +292,13 @@ func (w *WebSocketProxy) setupPingPong(wsConn *WebSocketConnection) {
 					wsConn.cancel()
 					return
 				}
-				
+
 				// 向目标发送ping
 				if err := wsConn.targetConn.WriteMessage(websocket.PingMessage, nil); err != nil {
 					wsConn.cancel()
 					return
 				}
-				
+
 			case <-wsConn.ctx.Done():
 				return
 			}
@@ -326,7 +326,7 @@ func (w *WebSocketProxy) proxyMessages(wsConn *WebSocketConnection) {
 
 	// 等待任一方向的消息传输结束
 	wg.Wait()
-	
+
 	// 取消连接上下文
 	wsConn.cancel()
 }
@@ -363,7 +363,7 @@ func (w *WebSocketProxy) copyMessages(src, dst *websocket.Conn, wsConn *WebSocke
 		if w.config.WriteTimeout > 0 {
 			dst.SetWriteDeadline(time.Now().Add(w.config.WriteTimeout))
 		}
-		
+
 		err = dst.WriteMessage(messageType, message)
 		if err != nil {
 			return
@@ -421,19 +421,19 @@ func (w *WebSocketProxy) setProxyHeaders(req *http.Request, headers http.Header,
 	} else {
 		headers.Set("X-Forwarded-For", w.getClientIP(req))
 	}
-	
+
 	headers.Set("X-Real-IP", w.getClientIP(req))
-	
+
 	scheme := "ws"
 	if req.TLS != nil {
 		scheme = "wss"
 	}
 	headers.Set("X-Forwarded-Proto", scheme)
 	headers.Set("X-Forwarded-Host", req.Host)
-	
+
 	// 设置User-Agent
 	if headers.Get("User-Agent") == "" {
-		headers.Set("User-Agent", "GoHub-Gateway/1.0")
+		headers.Set("User-Agent", "Gateway-Gateway/1.0")
 	}
 }
 
@@ -446,15 +446,15 @@ func (w *WebSocketProxy) getClientIP(req *http.Request) string {
 		}
 		return strings.TrimSpace(xff)
 	}
-	
+
 	if xri := req.Header.Get("X-Real-IP"); xri != "" {
 		return strings.TrimSpace(xri)
 	}
-	
+
 	if ip, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
 		return ip
 	}
-	
+
 	return req.RemoteAddr
 }
 
@@ -506,17 +506,17 @@ func (w *WebSocketProxy) closeConnection(wsConn *WebSocketConnection) {
 
 	// 关闭WebSocket连接
 	if wsConn.clientConn != nil {
-		wsConn.clientConn.WriteMessage(websocket.CloseMessage, 
+		wsConn.clientConn.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 		wsConn.clientConn.Close()
 	}
-	
+
 	if wsConn.targetConn != nil {
 		wsConn.targetConn.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 		wsConn.targetConn.Close()
 	}
-	
+
 	// 从连接池中移除
 	w.connMutex.Lock()
 	delete(w.connections, wsConn)
@@ -526,7 +526,7 @@ func (w *WebSocketProxy) closeConnection(wsConn *WebSocketConnection) {
 // Close 关闭WebSocket代理
 func (w *WebSocketProxy) Close() error {
 	var lastErr error
-	
+
 	// 关闭所有活跃的WebSocket连接
 	w.connMutex.Lock()
 	connections := make([]*WebSocketConnection, 0, len(w.connections))
@@ -534,12 +534,12 @@ func (w *WebSocketProxy) Close() error {
 		connections = append(connections, conn)
 	}
 	w.connMutex.Unlock()
-	
+
 	// 依次关闭所有连接
 	for _, conn := range connections {
 		w.closeConnection(conn)
 	}
-	
+
 	// 关闭服务管理器
 	if w.serviceManager != nil {
 		if closer, ok := w.serviceManager.(interface{ Close() error }); ok {
@@ -548,7 +548,7 @@ func (w *WebSocketProxy) Close() error {
 			}
 		}
 	}
-	
+
 	return lastErr
 }
 
@@ -563,23 +563,23 @@ func (w *WebSocketProxy) GetConnectionCount() int {
 func (w *WebSocketProxy) GetConnectionStats() map[string]interface{} {
 	w.connMutex.RLock()
 	defer w.connMutex.RUnlock()
-	
+
 	stats := map[string]interface{}{
 		"total_connections": len(w.connections),
-		"connections": make([]map[string]interface{}, 0, len(w.connections)),
+		"connections":       make([]map[string]interface{}, 0, len(w.connections)),
 	}
-	
+
 	for conn := range w.connections {
 		conn.mu.RLock()
 		connStats := map[string]interface{}{
 			"client_to_target": conn.clientToTarget,
 			"target_to_client": conn.targetToClient,
-			"closed": conn.closed,
+			"closed":           conn.closed,
 		}
 		conn.mu.RUnlock()
 		stats["connections"] = append(stats["connections"].([]map[string]interface{}), connStats)
 	}
-	
+
 	return stats
 }
 

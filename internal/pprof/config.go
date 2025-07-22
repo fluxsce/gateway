@@ -44,7 +44,7 @@ type AutoAnalysisConfig struct {
 var DefaultConfig = Config{
 	Enabled:      false,
 	Listen:       ":6060",
-	ServiceName:  "GoHub-pprof",
+	ServiceName:  "Gateway-pprof",
 	ReadTimeout:  30 * time.Second,
 	WriteTimeout: 30 * time.Second,
 	EnableAuth:   false,
@@ -57,4 +57,4 @@ var DefaultConfig = Config{
 		SaveHistory:          true,
 		HistoryRetentionDays: 7,
 	},
-} 
+}

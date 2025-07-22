@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/service"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/service"
 )
 
 // UDPProxy UDP代理实现
@@ -44,10 +44,10 @@ func (u *UDPProxy) Validate() error {
 // Close 关闭UDP代理
 func (u *UDPProxy) Close() error {
 	var lastErr error
-	
+
 	// TODO: 关闭活跃的UDP连接
 	// 这里应该实现关闭所有活跃UDP连接的逻辑
-	
+
 	// 关闭服务管理器
 	// 服务管理器包含健康检查器等需要清理的资源
 	if u.serviceManager != nil {
@@ -57,7 +57,7 @@ func (u *UDPProxy) Close() error {
 			}
 		}
 	}
-	
+
 	return lastErr
 }
 

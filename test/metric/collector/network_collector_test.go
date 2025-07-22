@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"gohub/pkg/metric/collector/network"
-	"gohub/pkg/metric/types"
+	"gateway/pkg/metric/collector/network"
+	"gateway/pkg/metric/types"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -60,11 +60,11 @@ func TestNetworkCollector_NetworkRate(t *testing.T) {
 	// 第一次采集
 	result1, err := collector.GetNetworkStats()
 	assert.NoError(t, err)
-	
+
 	// 等待一段时间
 	t.Log("等待3秒钟采集网络流量变化...")
 	time.Sleep(3 * time.Second)
-	
+
 	// 第二次采集
 	result2, err := collector.GetNetworkStats()
 	assert.NoError(t, err)
@@ -80,19 +80,19 @@ func TestNetworkCollector_NetworkRate(t *testing.T) {
 				break
 			}
 		}
-		
+
 		if iface2 == nil {
 			continue
 		}
-		
+
 		duration := iface2.LastCollectTime.Sub(iface1.LastCollectTime).Seconds()
 		if duration <= 0 {
 			continue
 		}
-		
+
 		receiveRate := float64(iface2.BytesReceived-iface1.BytesReceived) / duration / 1024 // KB/s
-		sendRate := float64(iface2.BytesSent-iface1.BytesSent) / duration / 1024 // KB/s
-		
+		sendRate := float64(iface2.BytesSent-iface1.BytesSent) / duration / 1024            // KB/s
+
 		t.Logf("接口: %s", iface1.Name)
 		t.Logf("接收速率: %.2f KB/s", receiveRate)
 		t.Logf("发送速率: %.2f KB/s", sendRate)
@@ -109,7 +109,7 @@ func TestNetworkCollector_ActiveInterfaces(t *testing.T) {
 	// 获取活动接口
 	interfaces, err := collector.GetActiveInterfaces()
 	assert.NoError(t, err)
-	
+
 	t.Log("\n=== 活动网络接口 ===")
 	for _, iface := range interfaces {
 		t.Logf("接口名称: %s", iface.Name)
@@ -126,7 +126,7 @@ func TestNetworkCollector_TotalTraffic(t *testing.T) {
 	// 获取总流量
 	bytesReceived, bytesSent, err := collector.GetTotalNetworkTraffic()
 	assert.NoError(t, err)
-	
+
 	t.Log("\n=== 总网络流量 ===")
 	t.Logf("总接收流量: %.2f MB", float64(bytesReceived)/(1024*1024))
 	t.Logf("总发送流量: %.2f MB", float64(bytesSent)/(1024*1024))
@@ -135,21 +135,21 @@ func TestNetworkCollector_TotalTraffic(t *testing.T) {
 func TestNetworkCollector_InterfaceByName(t *testing.T) {
 	collector := network.NewNetworkCollector()
 	collector.SetEnabled(true)
-	
+
 	// 获取所有接口
 	metrics, err := collector.GetNetworkStats()
 	assert.NoError(t, err)
-	
+
 	if len(metrics.Interfaces) > 0 {
 		// 选择第一个接口进行测试
 		firstInterface := metrics.Interfaces[0]
-		
+
 		// 测试GetInterfaceByName方法
 		iface, err := collector.GetInterfaceByName(firstInterface.Name)
 		assert.NoError(t, err)
 		assert.NotNil(t, iface)
 		assert.Equal(t, firstInterface.Name, iface.Name)
-		
+
 		t.Logf("\n=== 接口详情: %s ===", iface.Name)
 		t.Logf("MAC地址: %s", iface.HardwareAddr)
 		t.Logf("状态: %s", iface.Status)

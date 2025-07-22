@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/auth"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/auth"
 )
 
 func TestAuthConfig(t *testing.T) {

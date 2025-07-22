@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/circuitbreaker"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/circuitbreaker"
 )
 
 // Strategy 负载均衡策略

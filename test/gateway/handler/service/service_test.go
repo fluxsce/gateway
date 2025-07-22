@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gohub/internal/gateway/handler/service"
+	"gateway/internal/gateway/handler/service"
 )
 
 func TestServiceConfig(t *testing.T) {

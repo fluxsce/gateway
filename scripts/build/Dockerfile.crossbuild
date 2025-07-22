@@ -1,4 +1,4 @@
-# GoHub 交叉编译 Dockerfile
+# Gateway 交叉编译 Dockerfile
 # 支持从 Windows 构建 Linux/macOS/Windows 版本（包含 Oracle 支持）
 
 # 基础镜像：包含所有必要的构建工具
@@ -79,11 +79,11 @@ RUN set -x && \
     if [ "$TARGET_OS" = "windows" ]; then \
         echo "Building for Windows (Oracle not supported on Windows)..." && \
         CGO_ENABLED=0 go build -ldflags="-s -w -X 'main.Version=${VERSION}' -X 'main.BuildTime=${BUILD_TIME}' -X 'main.GitCommit=${GIT_COMMIT}'" \
-            -o gohub-${TARGET_OS}-${TARGET_ARCH}.exe cmd/app/main.go; \
+            -o gateway-${TARGET_OS}-${TARGET_ARCH}.exe cmd/app/main.go; \
     elif [ "$ENABLE_ORACLE" = "true" ]; then \
         echo "Building with Oracle support..." && \
         # 启用 Oracle 驱动
-        sed -i 's|// _ "gohub/pkg/database/oracle"|_ "gohub/pkg/database/oracle"|' pkg/database/alldriver/drivers.go && \
+        sed -i 's|// _ "gateway/pkg/database/oracle"|_ "gateway/pkg/database/oracle"|' pkg/database/alldriver/drivers.go && \
         # 设置 Oracle 环境变量
         if [ "$TARGET_ARCH" = "arm64" ]; then \
             export LD_LIBRARY_PATH="/opt/oracle/instantclient-linux-arm64:$LD_LIBRARY_PATH" && \
@@ -95,11 +95,11 @@ RUN set -x && \
             export CC=x86_64-linux-gnu-gcc; \
         fi && \
         go build -tags oracle -ldflags="-s -w -X 'main.Version=${VERSION}' -X 'main.BuildTime=${BUILD_TIME}' -X 'main.GitCommit=${GIT_COMMIT}'" \
-            -o gohub-${TARGET_OS}-${TARGET_ARCH}-oracle cmd/app/main.go; \
+            -o gateway-${TARGET_OS}-${TARGET_ARCH}-oracle cmd/app/main.go; \
     else \
         echo "Building without Oracle support..." && \
         CGO_ENABLED=0 go build -ldflags="-s -w -X 'main.Version=${VERSION}' -X 'main.BuildTime=${BUILD_TIME}' -X 'main.GitCommit=${GIT_COMMIT}'" \
-            -o gohub-${TARGET_OS}-${TARGET_ARCH} cmd/app/main.go; \
+            -o gateway-${TARGET_OS}-${TARGET_ARCH} cmd/app/main.go; \
     fi
 
 # 运行时镜像
@@ -108,7 +108,7 @@ FROM alpine:latest AS runtime
 RUN apk --no-cache add ca-certificates tzdata
 
 # 从构建阶段复制可执行文件
-COPY --from=builder /build/gohub-* /usr/local/bin/
+COPY --from=builder /build/gateway-* /usr/local/bin/
 
 # 如果包含 Oracle 支持，复制必要的库文件
 ARG TARGET_ARCH=amd64
@@ -127,11 +127,11 @@ ENV ORACLE_HOME=/opt/oracle/instantclient
 WORKDIR /app
 
 # 创建非 root 用户
-RUN addgroup -g 1001 -S gohub && \
-    adduser -S gohub -u 1001 -G gohub
+RUN addgroup -g 1001 -S gateway && \
+    adduser -S gateway -u 1001 -G gateway
 
-USER gohub
+USER gateway
 
 EXPOSE 8080 9090
 
-CMD ["gohub"] 
+CMD ["gateway"]

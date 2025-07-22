@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // TokenBucketLimiter 令牌桶限流器

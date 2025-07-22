@@ -1,5 +1,5 @@
 web:
-  name: "GoHub Web服务"
+  name: "Gateway Web服务"
   run_mode: "debug" # debug, release
   port: 12003
   read_timeout: 60 # 秒

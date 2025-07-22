@@ -8,19 +8,19 @@ import (
 
 	"go.mongodb.org/mongo-driver/mongo"
 
-	"gohub/pkg/mongo/errors"
+	"gateway/pkg/mongo/errors"
 )
 
 // Cursor MongoDB游标实现
 // 实现types.MongoCursor接口，提供结果遍历功能
 type Cursor struct {
-	cursor *mongo.Cursor      // MongoDB驱动游标
+	cursor *mongo.Cursor // MongoDB驱动游标
 }
 
 // Result 单个结果实现
 // 实现types.SingleResult接口，提供单个文档查询结果处理
 type Result struct {
-	result *mongo.SingleResult  // MongoDB驱动单个结果
+	result *mongo.SingleResult // MongoDB驱动单个结果
 }
 
 // === 游标方法实现 ===
@@ -87,4 +87,4 @@ func (r *Result) Err() error {
 		return err
 	}
 	return nil
-} 
+}

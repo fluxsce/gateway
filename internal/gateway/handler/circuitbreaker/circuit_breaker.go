@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // circuitBreakerImpl 熔断器实现

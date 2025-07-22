@@ -3,10 +3,10 @@ package dao
 import (
 	"context"
 	"errors"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/pkg/utils/huberrors"
-	"gohub/web/views/hub0002/models"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/huberrors"
+	"gateway/web/views/hub0002/models"
 	"strings"
 	"time"
 )
@@ -215,7 +215,7 @@ func (dao *UserDAO) ListUsers(ctx context.Context, tenantId string, page, pageSi
 
 	// 创建分页信息
 	pagination := sqlutils.NewPaginationInfo(page, pageSize)
-	
+
 	// 获取数据库类型
 	dbType := sqlutils.GetDatabaseType(dao.db)
 

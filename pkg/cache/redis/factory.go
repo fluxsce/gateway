@@ -2,22 +2,25 @@ package redis
 
 import (
 	"fmt"
-	"gohub/pkg/logger"
+	"gateway/pkg/logger"
 	"time"
 )
 
 // CreateFromConfig 从配置数据创建Redis缓存实例
 // 这是Redis模块对外提供的工厂方法，用于从通用配置创建Redis缓存
 // 参数:
-//   name: 连接名称
-//   configData: 配置数据，通常来自YAML配置文件
+//
+//	name: 连接名称
+//	configData: 配置数据，通常来自YAML配置文件
+//
 // 返回:
-//   *RedisCache: Redis缓存实例
-//   error: 创建失败时返回错误信息
+//
+//	*RedisCache: Redis缓存实例
+//	error: 创建失败时返回错误信息
 func CreateFromConfig(name string, configData interface{}) (*RedisCache, error) {
 	// 将interface{}转换为Redis配置
 	redisConfig := &RedisConfig{}
-	
+
 	// 使用类型断言来转换配置
 	if configMap, ok := configData.(map[string]interface{}); ok {
 		if err := mapConfigToRedisConfig(configMap, redisConfig); err != nil {
@@ -67,23 +70,23 @@ func mapConfigToRedisConfig(configMap map[string]interface{}, redisConfig *Redis
 	if enabled, ok := configMap["enabled"].(bool); ok {
 		redisConfig.Enabled = enabled
 	}
-	
+
 	if mode, ok := configMap["mode"].(string); ok {
 		redisConfig.Mode = ConnectionMode(mode)
 	}
-	
+
 	if host, ok := configMap["host"].(string); ok {
 		redisConfig.Host = host
 	}
-	
+
 	if port, ok := configMap["port"].(int); ok {
 		redisConfig.Port = port
 	}
-	
+
 	if password, ok := configMap["password"].(string); ok {
 		redisConfig.Password = password
 	}
-	
+
 	if database, ok := configMap["database"]; ok {
 		switch v := database.(type) {
 		case int:
@@ -102,7 +105,7 @@ func mapConfigToRedisConfig(configMap map[string]interface{}, redisConfig *Redis
 			redisConfig.PoolSize = int(v)
 		}
 	}
-	
+
 	if minIdleConns, ok := configMap["min_idle_connections"]; ok {
 		switch v := minIdleConns.(type) {
 		case int:
@@ -111,7 +114,7 @@ func mapConfigToRedisConfig(configMap map[string]interface{}, redisConfig *Redis
 			redisConfig.MinIdleConns = int(v)
 		}
 	}
-	
+
 	if maxRetries, ok := configMap["max_retries"]; ok {
 		switch v := maxRetries.(type) {
 		case int:
@@ -127,25 +130,25 @@ func mapConfigToRedisConfig(configMap map[string]interface{}, redisConfig *Redis
 			redisConfig.DialTimeout = duration
 		}
 	}
-	
+
 	if readTimeout, ok := configMap["read_timeout"].(string); ok {
 		if duration, err := time.ParseDuration(readTimeout); err == nil {
 			redisConfig.ReadTimeout = duration
 		}
 	}
-	
+
 	if writeTimeout, ok := configMap["write_timeout"].(string); ok {
 		if duration, err := time.ParseDuration(writeTimeout); err == nil {
 			redisConfig.WriteTimeout = duration
 		}
 	}
-	
+
 	if poolTimeout, ok := configMap["pool_timeout"].(string); ok {
 		if duration, err := time.ParseDuration(poolTimeout); err == nil {
 			redisConfig.PoolTimeout = duration
 		}
 	}
-	
+
 	if idleTimeout, ok := configMap["idle_timeout"].(string); ok {
 		if duration, err := time.ParseDuration(idleTimeout); err == nil {
 			redisConfig.IdleTimeout = int64(duration.Milliseconds())
@@ -173,7 +176,7 @@ func mapConfigToRedisConfig(configMap map[string]interface{}, redisConfig *Redis
 		}
 		redisConfig.SentinelAddrs = addrs
 	}
-	
+
 	if masterName, ok := configMap["master_name"].(string); ok {
 		redisConfig.MasterName = masterName
 	}
@@ -182,19 +185,19 @@ func mapConfigToRedisConfig(configMap map[string]interface{}, redisConfig *Redis
 	if enableTLS, ok := configMap["enable_tls"].(bool); ok {
 		redisConfig.TLSEnabled = enableTLS
 	}
-	
+
 	if insecureSkipVerify, ok := configMap["insecure_skip_verify"].(bool); ok {
 		redisConfig.TLSInsecureSkipVerify = insecureSkipVerify
 	}
-	
+
 	if certFile, ok := configMap["cert_file"].(string); ok {
 		redisConfig.TLSCertFile = certFile
 	}
-	
+
 	if keyFile, ok := configMap["key_file"].(string); ok {
 		redisConfig.TLSKeyFile = keyFile
 	}
-	
+
 	if caFile, ok := configMap["ca_file"].(string); ok {
 		redisConfig.TLSCACertFile = caFile
 	}
@@ -269,27 +272,27 @@ func ValidateConfig(configData interface{}) error {
 // 用于提供配置模板或作为配置参考
 func GetDefaultConfig() map[string]interface{} {
 	return map[string]interface{}{
-		"enabled":                true,
-		"mode":                   string(ModeSingle),
-		"host":                   "localhost",
-		"port":                   6379,
-		"password":               "",
-		"database":               0,
-		"pool_size":              10,
-		"min_idle_connections":   5,
-		"max_retries":            3,
-		"dial_timeout":           "5s",
-		"read_timeout":           "3s",
-		"write_timeout":          "3s",
-		"pool_timeout":           "4s",
-		"idle_timeout":           "300s",
-		"cluster_addrs":          []string{},
-		"sentinel_addrs":         []string{},
-		"master_name":            "",
-		"enable_tls":             false,
-		"insecure_skip_verify":   false,
-		"cert_file":              "",
-		"key_file":               "",
-		"ca_file":                "",
+		"enabled":              true,
+		"mode":                 string(ModeSingle),
+		"host":                 "localhost",
+		"port":                 6379,
+		"password":             "",
+		"database":             0,
+		"pool_size":            10,
+		"min_idle_connections": 5,
+		"max_retries":          3,
+		"dial_timeout":         "5s",
+		"read_timeout":         "3s",
+		"write_timeout":        "3s",
+		"pool_timeout":         "4s",
+		"idle_timeout":         "300s",
+		"cluster_addrs":        []string{},
+		"sentinel_addrs":       []string{},
+		"master_name":          "",
+		"enable_tls":           false,
+		"insecure_skip_verify": false,
+		"cert_file":            "",
+		"key_file":             "",
+		"ca_file":              "",
 	}
-} 
+}

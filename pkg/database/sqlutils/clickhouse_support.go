@@ -1,13 +1,13 @@
 package sqlutils
 
 import (
-	"gohub/pkg/database/sqlutils/clickhouseutils"
+	"gateway/pkg/database/sqlutils/clickhouseutils"
 	"reflect"
 )
 
 // IsClickHouseSpecificType 检查是否为ClickHouse特有类型
 func (fm *FieldMapper) IsClickHouseSpecificType(value interface{}) bool {
-    return clickhouseutils.IsClickHouseSpecificType(value)
+	return clickhouseutils.IsClickHouseSpecificType(value)
 }
 
 // convertClickHouseValue 处理ClickHouse特有类型到Go类型的转换
@@ -26,30 +26,30 @@ func (fm *FieldMapper) IsClickHouseSpecificType(value interface{}) bool {
 //   - 使用clickhouseutils包的转换器确保类型转换的准确性
 //   - 支持nil值的安全处理
 func (fm *FieldMapper) convertClickHouseValue(field reflect.Value, value interface{}) error {
-    if value == nil {
-        return nil
-    }
-    
-    if clickhouseutils.IsClickHouseSpecificType(value) {
-        converter := clickhouseutils.NewClickHouseTypeConverter()
-        return converter.ConvertClickHouseValueToField(field, value)
-    }
-    return nil
+	if value == nil {
+		return nil
+	}
+
+	if clickhouseutils.IsClickHouseSpecificType(value) {
+		converter := clickhouseutils.NewClickHouseTypeConverter()
+		return converter.ConvertClickHouseValueToField(field, value)
+	}
+	return nil
 }
 
 // HandleSpecialTypeConversion 处理特殊类型转换（ClickHouse扩展）
 // 扩展原有的Oracle类型转换，增加ClickHouse支持
 func HandleSpecialTypeConversionWithClickHouse(dest reflect.Value, value interface{}) error {
-    if value == nil {
-        return nil
-    }
-    
-    // 先尝试ClickHouse类型转换
-    if clickhouseutils.IsClickHouseSpecificType(value) {
-        converter := clickhouseutils.NewClickHouseTypeConverter()
-        return converter.ConvertClickHouseValueToField(dest, value)
-    }
-    
-    // 如果不是ClickHouse类型，使用原有的Oracle类型转换逻辑
-    return HandleSpecialTypeConversion(dest, value)
-} 
+	if value == nil {
+		return nil
+	}
+
+	// 先尝试ClickHouse类型转换
+	if clickhouseutils.IsClickHouseSpecificType(value) {
+		converter := clickhouseutils.NewClickHouseTypeConverter()
+		return converter.ConvertClickHouseValueToField(dest, value)
+	}
+
+	// 如果不是ClickHouse类型，使用原有的Oracle类型转换逻辑
+	return HandleSpecialTypeConversion(dest, value)
+}

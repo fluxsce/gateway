@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"gohub/pkg/metric/collector"
-	"gohub/pkg/metric/types"
+	"gateway/pkg/metric/collector"
+	"gateway/pkg/metric/types"
 
 	gopsutilNet "github.com/shirou/gopsutil/v4/net"
 )
@@ -39,9 +39,9 @@ func NewNetworkCollector() *NetworkCollector {
 			types.CollectorNameNetwork,
 			"基于gopsutil的网络资源采集器，提供跨平台网络信息采集",
 		),
-		timeout: DefaultCollectTimeout,
+		timeout:            DefaultCollectTimeout,
 		lastInterfaceStats: make(map[string]types.NetworkInterface),
-		isFirstCollect: true,
+		isFirstCollect:     true,
 	}
 }
 
@@ -162,7 +162,7 @@ func (c *NetworkCollector) getNetworkInterfaces(ctx context.Context) ([]types.Ne
 						interfaceStats.ReceiveRate = float64(interfaceStats.BytesReceived-last.BytesReceived) / duration
 						// 计算发送速率 (字节/秒)
 						interfaceStats.SendRate = float64(interfaceStats.BytesSent-last.BytesSent) / duration
-						
+
 						// 确保速率不为负数（可能由于计数器重置导致）
 						if interfaceStats.ReceiveRate < 0 {
 							interfaceStats.ReceiveRate = 0
@@ -185,7 +185,7 @@ func (c *NetworkCollector) getNetworkInterfaces(ctx context.Context) ([]types.Ne
 				Type:            c.getInterfaceType(gopsutilInterface.Name),
 				LastCollectTime: now,
 			}
-			
+
 			// 即使没有IO统计，也保存基本信息用于下次比较
 			c.lastInterfaceStats[gopsutilInterface.Name] = interfaceStats
 		}
@@ -250,7 +250,7 @@ func (c *NetworkCollector) getInterfaceStatus(flags []string) string {
 func (c *NetworkCollector) getInterfaceType(interfaceName string) string {
 	// 根据接口名称判断类型
 	lowerName := strings.ToLower(interfaceName)
-	
+
 	if strings.HasPrefix(lowerName, "lo") {
 		return "loopback"
 	}
@@ -343,4 +343,4 @@ func (c *NetworkCollector) GetTotalNetworkTraffic() (bytesReceived, bytesSent ui
 	}
 
 	return bytesReceived, bytesSent, nil
-} 
+}

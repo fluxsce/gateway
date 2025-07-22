@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"gohub/internal/metric_collect/dao"
-	"gohub/internal/metric_collect/types"
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/pkg/metric"
-	metricTypes "gohub/pkg/metric/types"
+	"gateway/internal/metric_collect/dao"
+	"gateway/internal/metric_collect/types"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/pkg/metric"
+	metricTypes "gateway/pkg/metric/types"
 )
 
 // MetricCollectorManager 指标采集管理器
@@ -27,59 +27,59 @@ import (
 type MetricCollectorManager struct {
 	// 配置信息
 	config *MetricConfig // 指标采集配置
-	
+
 	// 数据库连接
 	db database.Database // 数据库连接实例
-	
+
 	// DAO实例 - 数据访问对象，负责各类指标数据的数据库操作
-	serverInfoDAO         *dao.ServerInfoDAO         // 服务器信息DAO
-	cpuLogDAO            *dao.CpuLogDAO             // CPU日志DAO
-	memoryLogDAO         *dao.MemoryLogDAO          // 内存日志DAO
-	diskPartitionLogDAO  *dao.DiskPartitionLogDAO   // 磁盘分区日志DAO
-	diskIoLogDAO         *dao.DiskIoLogDAO          // 磁盘IO日志DAO
-	networkLogDAO        *dao.NetworkLogDAO         // 网络日志DAO
-	processLogDAO        *dao.ProcessLogDAO         // 进程日志DAO
-	processStatsLogDAO   *dao.ProcessStatsLogDAO    // 进程统计日志DAO
-	temperatureLogDAO    *dao.TemperatureLogDAO     // 温度日志DAO
-	
+	serverInfoDAO       *dao.ServerInfoDAO       // 服务器信息DAO
+	cpuLogDAO           *dao.CpuLogDAO           // CPU日志DAO
+	memoryLogDAO        *dao.MemoryLogDAO        // 内存日志DAO
+	diskPartitionLogDAO *dao.DiskPartitionLogDAO // 磁盘分区日志DAO
+	diskIoLogDAO        *dao.DiskIoLogDAO        // 磁盘IO日志DAO
+	networkLogDAO       *dao.NetworkLogDAO       // 网络日志DAO
+	processLogDAO       *dao.ProcessLogDAO       // 进程日志DAO
+	processStatsLogDAO  *dao.ProcessStatsLogDAO  // 进程统计日志DAO
+	temperatureLogDAO   *dao.TemperatureLogDAO   // 温度日志DAO
+
 	// 运行状态控制
-	running     bool              // 是否正在运行
-	stopChan    chan struct{}     // 停止信号通道
-	mu          sync.RWMutex      // 读写锁，保护运行状态
-	
+	running  bool          // 是否正在运行
+	stopChan chan struct{} // 停止信号通道
+	mu       sync.RWMutex  // 读写锁，保护运行状态
+
 	// 数据缓存
-	dataBuffer  *DataBuffer       // 数据缓冲区
-	
+	dataBuffer *DataBuffer // 数据缓冲区
+
 	// 服务器信息管理器
 	serverInfoManager *ServerInfoManager // 服务器信息管理器
-	
+
 	// 配置验证器
 	configValidator *ConfigValidator // 配置验证器实例
 }
 
 // DataBuffer 数据缓冲区
 // 用于批量缓存采集到的指标数据，提高数据库写入效率
-// 
+//
 // 设计原理：
 // - 减少数据库连接开销：批量插入比单条插入效率更高
 // - 提高系统吞吐量：异步写入，不阻塞数据采集
 // - 内存管理：定期刷新缓冲区，避免内存占用过高
 type DataBuffer struct {
-	cpuLogs            []*types.CpuLog            // CPU指标日志缓冲
-	memoryLogs         []*types.MemoryLog         // 内存指标日志缓冲
-	diskPartitionLogs  []*types.DiskPartitionLog  // 磁盘分区日志缓冲
-	diskIoLogs         []*types.DiskIoLog         // 磁盘IO日志缓冲
-	networkLogs        []*types.NetworkLog        // 网络指标日志缓冲
-	processLogs        []*types.ProcessLog        // 进程信息日志缓冲
-	processStatsLogs   []*types.ProcessStatsLog   // 进程统计日志缓冲
-	temperatureLogs    []*types.TemperatureLog    // 温度指标日志缓冲
-	mu                 sync.Mutex                 // 互斥锁，保护缓冲区数据
+	cpuLogs           []*types.CpuLog           // CPU指标日志缓冲
+	memoryLogs        []*types.MemoryLog        // 内存指标日志缓冲
+	diskPartitionLogs []*types.DiskPartitionLog // 磁盘分区日志缓冲
+	diskIoLogs        []*types.DiskIoLog        // 磁盘IO日志缓冲
+	networkLogs       []*types.NetworkLog       // 网络指标日志缓冲
+	processLogs       []*types.ProcessLog       // 进程信息日志缓冲
+	processStatsLogs  []*types.ProcessStatsLog  // 进程统计日志缓冲
+	temperatureLogs   []*types.TemperatureLog   // 温度指标日志缓冲
+	mu                sync.Mutex                // 互斥锁，保护缓冲区数据
 }
 
 // 全局管理器实例
 var (
 	globalManager *MetricCollectorManager // 全局指标采集管理器实例
-	initOnce      sync.Once                // 确保只初始化一次
+	initOnce      sync.Once               // 确保只初始化一次
 )
 
 // InitMetricCollector 初始化指标采集器
@@ -102,7 +102,7 @@ func InitMetricCollector(db database.Database) error {
 			logger.Error("初始化指标采集管理器失败", "error", err)
 			return
 		}
-		
+
 		// 如果配置了自动启动，则启动采集器
 		if globalManager.config.AutoStart {
 			if startErr := globalManager.Start(); startErr != nil {
@@ -113,7 +113,7 @@ func InitMetricCollector(db database.Database) error {
 			}
 		}
 	})
-	
+
 	return err
 }
 
@@ -129,19 +129,19 @@ func InitMetricCollector(db database.Database) error {
 func NewMetricCollectorManager(db database.Database) (*MetricCollectorManager, error) {
 	// 创建配置验证器
 	configValidator := NewConfigValidator()
-	
+
 	// 加载配置
 	cfg, err := configValidator.LoadMetricConfig()
 	if err != nil {
 		return nil, fmt.Errorf("加载指标采集配置失败: %w", err)
 	}
-	
+
 	// 检查是否启用
 	if !cfg.Enabled {
 		logger.Info("指标采集功能已禁用")
 		return nil, nil
 	}
-	
+
 	// 创建管理器实例
 	manager := &MetricCollectorManager{
 		config:          cfg,
@@ -150,24 +150,24 @@ func NewMetricCollectorManager(db database.Database) (*MetricCollectorManager, e
 		dataBuffer:      &DataBuffer{},
 		configValidator: configValidator,
 	}
-	
+
 	// 初始化DAO
 	manager.initDAOs()
-	
+
 	// 创建服务器信息管理器
 	manager.serverInfoManager = NewServerInfoManager(cfg, db)
-	
+
 	// 初始化服务器信息
 	if err := manager.serverInfoManager.InitializeServerInfo(); err != nil {
 		return nil, fmt.Errorf("初始化服务器信息失败: %w", err)
 	}
-	
+
 	// 配置metric采集器
 	manager.configureCollectors()
-	
-	logger.Info("指标采集管理器初始化成功", 
+
+	logger.Info("指标采集管理器初始化成功",
 		"config", cfg.String())
-	
+
 	return manager, nil
 }
 
@@ -183,11 +183,9 @@ func (m *MetricCollectorManager) initDAOs() {
 	m.processLogDAO = dao.NewProcessLogDAO(m.db)
 	m.processStatsLogDAO = dao.NewProcessStatsLogDAO(m.db)
 	m.temperatureLogDAO = dao.NewTemperatureLogDAO(m.db)
-	
+
 	logger.Debug("DAO实例初始化完成")
 }
-
-
 
 // configureCollectors 配置采集器
 // 根据配置启用或禁用相应的指标采集器
@@ -201,7 +199,7 @@ func (m *MetricCollectorManager) configureCollectors() {
 	for _, name := range metric.GetCollectorNames() {
 		metric.DisableCollector(name)
 	}
-	
+
 	// 根据配置启用采集器
 	if m.config.Collectors.CPU {
 		metric.EnableCollector(metricTypes.CollectorNameCPU)
@@ -221,8 +219,8 @@ func (m *MetricCollectorManager) configureCollectors() {
 	if m.config.Collectors.System {
 		metric.EnableCollector(metricTypes.CollectorNameSystem)
 	}
-	
-	logger.Info("采集器配置完成", 
+
+	logger.Info("采集器配置完成",
 		"enabled_collectors", m.config.GetEnabledCollectorNames())
 }
 
@@ -239,32 +237,32 @@ func (m *MetricCollectorManager) Start() error {
 	if m == nil || !m.config.Enabled {
 		return fmt.Errorf("指标采集未启用")
 	}
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if m.running {
 		return fmt.Errorf("指标采集已在运行")
 	}
-	
+
 	m.running = true
 	m.stopChan = make(chan struct{})
-	
+
 	// 启动采集协程
 	go m.collectLoop()
-	
+
 	// 启动数据刷新协程
 	go m.flushLoop()
-	
+
 	// 启动数据清理协程（如果启用）
 	if m.config.Storage.Retention.Enabled {
 		go m.cleanupLoop()
 	}
-	
-	logger.Info("指标采集启动成功", 
+
+	logger.Info("指标采集启动成功",
 		"collect_interval", m.config.CollectInterval,
 		"flush_interval", m.config.Storage.FlushInterval)
-	
+
 	return nil
 }
 
@@ -282,20 +280,20 @@ func (m *MetricCollectorManager) Stop() error {
 	if m == nil {
 		return nil
 	}
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if !m.running {
 		return fmt.Errorf("指标采集未在运行")
 	}
-	
+
 	m.running = false
 	close(m.stopChan)
-	
+
 	// 最后一次刷新数据
 	m.flushData()
-	
+
 	logger.Info("指标采集停止成功")
 	return nil
 }
@@ -309,7 +307,7 @@ func (m *MetricCollectorManager) IsRunning() bool {
 	if m == nil {
 		return false
 	}
-	
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.running
@@ -358,9 +356,9 @@ func (m *MetricCollectorManager) GetServerInfo() *types.ServerInfo {
 func (m *MetricCollectorManager) collectLoop() {
 	ticker := time.NewTicker(m.config.CollectInterval)
 	defer ticker.Stop()
-	
+
 	logger.Debug("采集循环启动", "interval", m.config.CollectInterval)
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -382,9 +380,9 @@ func (m *MetricCollectorManager) collectLoop() {
 func (m *MetricCollectorManager) flushLoop() {
 	ticker := time.NewTicker(m.config.Storage.FlushInterval)
 	defer ticker.Stop()
-	
+
 	logger.Debug("数据刷新循环启动", "interval", m.config.Storage.FlushInterval)
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -406,9 +404,9 @@ func (m *MetricCollectorManager) flushLoop() {
 func (m *MetricCollectorManager) cleanupLoop() {
 	ticker := time.NewTicker(m.config.Storage.Retention.CleanupInterval)
 	defer ticker.Stop()
-	
+
 	logger.Debug("数据清理循环启动", "interval", m.config.Storage.Retention.CleanupInterval)
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -433,19 +431,19 @@ func (m *MetricCollectorManager) cleanupLoop() {
 func (m *MetricCollectorManager) collectMetrics() {
 	collectTime := time.Now()
 	oprSeqFlag := fmt.Sprintf("COLLECT_%d", collectTime.Unix())
-	
+
 	logger.Debug("开始采集指标", "collect_time", collectTime)
-	
+
 	// 采集所有指标
 	allMetrics, err := metric.CollectAll()
 	if err != nil {
 		logger.Error("采集指标失败", "error", err)
 		return
 	}
-	
+
 	// 转换并缓存数据
 	m.convertAndBufferMetrics(allMetrics, collectTime, oprSeqFlag)
-	
+
 	logger.Debug("指标采集完成", "collect_time", collectTime)
 }
 
@@ -464,36 +462,36 @@ func (m *MetricCollectorManager) collectMetrics() {
 func (m *MetricCollectorManager) convertAndBufferMetrics(allMetrics *metricTypes.AllMetrics, collectTime time.Time, oprSeqFlag string) {
 	m.dataBuffer.mu.Lock()
 	defer m.dataBuffer.mu.Unlock()
-	
+
 	// CPU指标
 	if allMetrics.CPU != nil && m.config.Collectors.CPU {
 		cpuLog := types.NewCpuLogFromMetrics(allMetrics.CPU, m.config.TenantId, m.config.ServerId, m.config.Operator, collectTime, oprSeqFlag)
 		m.dataBuffer.cpuLogs = append(m.dataBuffer.cpuLogs, cpuLog)
 	}
-	
+
 	// 内存指标
 	if allMetrics.Memory != nil && m.config.Collectors.Memory {
 		memoryLog := types.NewMemoryLogFromMetrics(allMetrics.Memory, m.config.TenantId, m.config.ServerId, m.config.Operator, collectTime, oprSeqFlag)
 		m.dataBuffer.memoryLogs = append(m.dataBuffer.memoryLogs, memoryLog)
 	}
-	
+
 	// 磁盘指标
 	if allMetrics.Disk != nil && m.config.Collectors.Disk {
 		// 磁盘分区日志
 		partitionLogs := types.NewDiskPartitionLogsFromMetrics(allMetrics.Disk, m.config.TenantId, m.config.ServerId, m.config.Operator, collectTime, oprSeqFlag)
 		m.dataBuffer.diskPartitionLogs = append(m.dataBuffer.diskPartitionLogs, partitionLogs...)
-		
+
 		// 磁盘IO日志
 		ioLogs := types.NewDiskIoLogsFromMetrics(allMetrics.Disk, m.config.TenantId, m.config.ServerId, m.config.Operator, collectTime, oprSeqFlag)
 		m.dataBuffer.diskIoLogs = append(m.dataBuffer.diskIoLogs, ioLogs...)
 	}
-	
+
 	// 网络指标
 	if allMetrics.Network != nil && m.config.Collectors.Network {
 		networkLogs := types.NewNetworkLogsFromMetrics(allMetrics.Network, m.config.TenantId, m.config.ServerId, m.config.Operator, collectTime, oprSeqFlag)
 		m.dataBuffer.networkLogs = append(m.dataBuffer.networkLogs, networkLogs...)
 	}
-	
+
 	// 进程指标
 	if allMetrics.Process != nil && m.config.Collectors.Process {
 		// 进程统计日志
@@ -501,14 +499,14 @@ func (m *MetricCollectorManager) convertAndBufferMetrics(allMetrics *metricTypes
 			statsLog := types.NewProcessStatsLogFromMetrics(allMetrics.Process.SystemProcesses, m.config.TenantId, m.config.ServerId, m.config.Operator, collectTime, oprSeqFlag)
 			m.dataBuffer.processStatsLogs = append(m.dataBuffer.processStatsLogs, statsLog)
 		}
-		
+
 		// 当前进程日志
 		if allMetrics.Process.CurrentProcess != nil {
 			processLog := types.NewProcessLogFromMetrics(allMetrics.Process.CurrentProcess, m.config.TenantId, m.config.ServerId, m.config.Operator, collectTime, oprSeqFlag)
 			m.dataBuffer.processLogs = append(m.dataBuffer.processLogs, processLog)
 		}
 	}
-	
+
 	logger.Debug("指标数据已加入缓冲区",
 		"cpu_logs", len(m.dataBuffer.cpuLogs),
 		"memory_logs", len(m.dataBuffer.memoryLogs),
@@ -522,7 +520,7 @@ func (m *MetricCollectorManager) convertAndBufferMetrics(allMetrics *metricTypes
 // flushData 刷新数据到数据库
 func (m *MetricCollectorManager) flushData() {
 	ctx := context.Background()
-	
+
 	// 获取缓冲区数据
 	m.dataBuffer.mu.Lock()
 	cpuLogs := m.dataBuffer.cpuLogs
@@ -533,7 +531,7 @@ func (m *MetricCollectorManager) flushData() {
 	processLogs := m.dataBuffer.processLogs
 	processStatsLogs := m.dataBuffer.processStatsLogs
 	temperatureLogs := m.dataBuffer.temperatureLogs
-	
+
 	// 清空缓冲区
 	m.dataBuffer.cpuLogs = nil
 	m.dataBuffer.memoryLogs = nil
@@ -544,7 +542,7 @@ func (m *MetricCollectorManager) flushData() {
 	m.dataBuffer.processStatsLogs = nil
 	m.dataBuffer.temperatureLogs = nil
 	m.dataBuffer.mu.Unlock()
-	
+
 	// 批量插入数据
 	if len(cpuLogs) > 0 {
 		if err := m.cpuLogDAO.BatchInsertCpuLog(ctx, cpuLogs); err != nil {
@@ -553,7 +551,7 @@ func (m *MetricCollectorManager) flushData() {
 			logger.Debug("CPU日志插入成功", "count", len(cpuLogs))
 		}
 	}
-	
+
 	if len(memoryLogs) > 0 {
 		if err := m.memoryLogDAO.BatchInsertMemoryLog(ctx, memoryLogs); err != nil {
 			logger.Error("批量插入内存日志失败", "error", err, "count", len(memoryLogs))
@@ -561,7 +559,7 @@ func (m *MetricCollectorManager) flushData() {
 			logger.Debug("内存日志插入成功", "count", len(memoryLogs))
 		}
 	}
-	
+
 	if len(diskPartitionLogs) > 0 {
 		if err := m.diskPartitionLogDAO.BatchInsertDiskPartitionLog(ctx, diskPartitionLogs); err != nil {
 			logger.Error("批量插入磁盘分区日志失败", "error", err, "count", len(diskPartitionLogs))
@@ -569,7 +567,7 @@ func (m *MetricCollectorManager) flushData() {
 			logger.Debug("磁盘分区日志插入成功", "count", len(diskPartitionLogs))
 		}
 	}
-	
+
 	if len(diskIoLogs) > 0 {
 		if err := m.diskIoLogDAO.BatchInsertDiskIoLog(ctx, diskIoLogs); err != nil {
 			logger.Error("批量插入磁盘IO日志失败", "error", err, "count", len(diskIoLogs))
@@ -577,7 +575,7 @@ func (m *MetricCollectorManager) flushData() {
 			logger.Debug("磁盘IO日志插入成功", "count", len(diskIoLogs))
 		}
 	}
-	
+
 	if len(networkLogs) > 0 {
 		if err := m.networkLogDAO.BatchInsertNetworkLog(ctx, networkLogs); err != nil {
 			logger.Error("批量插入网络日志失败", "error", err, "count", len(networkLogs))
@@ -585,7 +583,7 @@ func (m *MetricCollectorManager) flushData() {
 			logger.Debug("网络日志插入成功", "count", len(networkLogs))
 		}
 	}
-	
+
 	if len(processLogs) > 0 {
 		if err := m.processLogDAO.BatchInsertProcessLog(ctx, processLogs); err != nil {
 			logger.Error("批量插入进程日志失败", "error", err, "count", len(processLogs))
@@ -593,7 +591,7 @@ func (m *MetricCollectorManager) flushData() {
 			logger.Debug("进程日志插入成功", "count", len(processLogs))
 		}
 	}
-	
+
 	if len(processStatsLogs) > 0 {
 		if err := m.processStatsLogDAO.BatchInsertProcessStatsLog(ctx, processStatsLogs); err != nil {
 			logger.Error("批量插入进程统计日志失败", "error", err, "count", len(processStatsLogs))
@@ -601,7 +599,7 @@ func (m *MetricCollectorManager) flushData() {
 			logger.Debug("进程统计日志插入成功", "count", len(processStatsLogs))
 		}
 	}
-	
+
 	if len(temperatureLogs) > 0 {
 		if err := m.temperatureLogDAO.BatchInsertTemperatureLog(ctx, temperatureLogs); err != nil {
 			logger.Error("批量插入温度日志失败", "error", err, "count", len(temperatureLogs))
@@ -616,44 +614,44 @@ func (m *MetricCollectorManager) cleanupOldData() {
 	if !m.config.Storage.Retention.Enabled {
 		return
 	}
-	
+
 	ctx := context.Background()
 	beforeTime := time.Now().AddDate(0, 0, -m.config.Storage.Retention.KeepDays)
-	
+
 	logger.Info("开始清理过期数据", "before_time", beforeTime, "keep_days", m.config.Storage.Retention.KeepDays)
-	
+
 	// 清理各类日志数据
 	if err := m.cpuLogDAO.DeleteCpuLogByTime(ctx, m.config.TenantId, beforeTime); err != nil {
 		logger.Error("清理CPU日志失败", "error", err)
 	}
-	
+
 	if err := m.memoryLogDAO.DeleteMemoryLogByTime(ctx, m.config.TenantId, beforeTime); err != nil {
 		logger.Error("清理内存日志失败", "error", err)
 	}
-	
+
 	if err := m.diskPartitionLogDAO.DeleteDiskPartitionLogByTime(ctx, m.config.TenantId, beforeTime); err != nil {
 		logger.Error("清理磁盘分区日志失败", "error", err)
 	}
-	
+
 	if err := m.diskIoLogDAO.DeleteDiskIoLogByTime(ctx, m.config.TenantId, beforeTime); err != nil {
 		logger.Error("清理磁盘IO日志失败", "error", err)
 	}
-	
+
 	if err := m.networkLogDAO.DeleteNetworkLogByTime(ctx, m.config.TenantId, beforeTime); err != nil {
 		logger.Error("清理网络日志失败", "error", err)
 	}
-	
+
 	if err := m.processLogDAO.DeleteProcessLogByTime(ctx, m.config.TenantId, beforeTime); err != nil {
 		logger.Error("清理进程日志失败", "error", err)
 	}
-	
+
 	if err := m.processStatsLogDAO.DeleteProcessStatsLogByTime(ctx, m.config.TenantId, beforeTime); err != nil {
 		logger.Error("清理进程统计日志失败", "error", err)
 	}
-	
+
 	if err := m.temperatureLogDAO.DeleteTemperatureLogByTime(ctx, m.config.TenantId, beforeTime); err != nil {
 		logger.Error("清理温度日志失败", "error", err)
 	}
-	
+
 	logger.Info("数据清理完成")
-} 
+}

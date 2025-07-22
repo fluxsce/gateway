@@ -3,12 +3,12 @@ package logwrite
 import (
 	"fmt"
 
-	"gohub/internal/gateway/logwrite/clickhouse"
-	"gohub/internal/gateway/logwrite/console"
-	"gohub/internal/gateway/logwrite/dbwrite"
-	"gohub/internal/gateway/logwrite/filewrite"
-	"gohub/internal/gateway/logwrite/mongowrite"
-	"gohub/internal/gateway/logwrite/types"
+	"gateway/internal/gateway/logwrite/clickhouse"
+	"gateway/internal/gateway/logwrite/console"
+	"gateway/internal/gateway/logwrite/dbwrite"
+	"gateway/internal/gateway/logwrite/filewrite"
+	"gateway/internal/gateway/logwrite/mongowrite"
+	"gateway/internal/gateway/logwrite/types"
 )
 
 // CreateWriter 根据配置创建写入器实例（静态方法）
@@ -16,15 +16,15 @@ func CreateWriter(config *types.LogConfig) (LogWriter, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
-	
+
 	// 获取输出目标类型（只有一种）
 	targets := config.GetOutputTargets()
 	if len(targets) == 0 {
 		return nil, fmt.Errorf("no output target specified")
 	}
-	
+
 	target := targets[0] // 只取第一个，因为只会有一种类型
-	
+
 	// 创建写入器实例
 	switch target {
 	case types.LogOutputConsole:
@@ -127,7 +127,7 @@ func ValidateConfig(config *types.LogConfig) error {
 	if len(targets) == 0 {
 		return fmt.Errorf("no output target specified")
 	}
-	
+
 	if len(targets) > 1 {
 		return fmt.Errorf("only one output target is allowed, got %d targets", len(targets))
 	}

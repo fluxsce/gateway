@@ -2,7 +2,7 @@
 
 ## 模块概述
 
-Hub0000 是 GoHub 平台的系统指标查询模块，专门用于查询和展示服务器性能监控数据。该模块直接引用 `internal/metric_collect/types` 中的类型定义，提供完整的 RESTful API 接口用于前端数据展示。
+Hub0000 是 Gateway 平台的系统指标查询模块，专门用于查询和展示服务器性能监控数据。该模块直接引用 `internal/metric_collect/types` 中的类型定义，提供完整的 RESTful API 接口用于前端数据展示。
 
 ## 目录结构
 
@@ -24,7 +24,7 @@ web/views/hub0000/
 ## API 接口文档
 
 ### 基础路径
-所有接口的基础路径为：`/gohub/hub0000`
+所有接口的基础路径为：`/gateway/hub0000`
 
 ### 统一响应格式
 ```json
@@ -53,7 +53,7 @@ web/views/hub0000/
 
 ### 1. 查询服务器信息列表
 ```
-POST /gohub/hub0000/server/query
+POST /gateway/hub0000/server/query
 ```
 
 **请求参数：**
@@ -105,7 +105,7 @@ POST /gohub/hub0000/server/query
 
 ### 2. 获取服务器信息详情
 ```
-POST /gohub/hub0000/server/detail
+POST /gateway/hub0000/server/detail
 ```
 
 **请求参数：**
@@ -176,7 +176,7 @@ POST /gohub/hub0000/server/detail
 
 ### 3. 获取指标汇总信息
 ```
-POST /gohub/hub0000/server/summary
+POST /gateway/hub0000/server/summary
 ```
 
 **请求参数：**
@@ -213,7 +213,7 @@ POST /gohub/hub0000/server/summary
 
 ### 1. CPU性能日志查询
 ```
-POST /gohub/hub0000/cpu/query
+POST /gateway/hub0000/cpu/query
 ```
 
 **请求参数：**
@@ -234,7 +234,7 @@ POST /gohub/hub0000/cpu/query
 
 ### 2. 内存性能日志查询
 ```
-POST /gohub/hub0000/memory/query
+POST /gateway/hub0000/memory/query
 ```
 
 **请求参数：**
@@ -256,7 +256,7 @@ POST /gohub/hub0000/memory/query
 
 ### 3. 磁盘分区日志查询
 ```
-POST /gohub/hub0000/disk/partition/query
+POST /gateway/hub0000/disk/partition/query
 ```
 
 **请求参数：**
@@ -279,7 +279,7 @@ POST /gohub/hub0000/disk/partition/query
 
 ### 4. 磁盘IO日志查询
 ```
-POST /gohub/hub0000/disk/io/query
+POST /gateway/hub0000/disk/io/query
 ```
 
 **请求参数：**
@@ -302,7 +302,7 @@ POST /gohub/hub0000/disk/io/query
 
 ### 5. 网络日志查询
 ```
-POST /gohub/hub0000/network/query
+POST /gateway/hub0000/network/query
 ```
 
 **请求参数：**
@@ -325,7 +325,7 @@ POST /gohub/hub0000/network/query
 
 ### 6. 进程日志查询
 ```
-POST /gohub/hub0000/process/query
+POST /gateway/hub0000/process/query
 ```
 
 **请求参数：**
@@ -349,7 +349,7 @@ POST /gohub/hub0000/process/query
 
 ### 7. 进程统计日志查询
 ```
-POST /gohub/hub0000/process/stats/query
+POST /gateway/hub0000/process/stats/query
 ```
 
 **请求参数：**
@@ -371,7 +371,7 @@ POST /gohub/hub0000/process/stats/query
 
 ### 8. 温度日志查询
 ```
-POST /gohub/hub0000/temperature/query
+POST /gateway/hub0000/temperature/query
 ```
 
 **请求参数：**
@@ -406,7 +406,7 @@ POST /gohub/hub0000/temperature/query
 ```javascript
 // 查询服务器列表
 const queryServers = async () => {
-  const response = await fetch('/gohub/hub0000/server/query', {
+  const response = await fetch('/gateway/hub0000/server/query', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -428,7 +428,7 @@ const queryServers = async () => {
 
 // 查询CPU性能数据
 const queryCpuLogs = async (serverId) => {
-  const response = await fetch('/gohub/hub0000/cpu/query', {
+  const response = await fetch('/gateway/hub0000/cpu/query', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -487,4 +487,4 @@ const queryCpuLogs = async (serverId) => {
 
 该模块设计为只读查询模块，不提供数据修改功能。如需要数据写入或修改，请使用相应的数据收集模块或管理接口。
 
-模块遵循 GoHub 项目的统一架构规范，可以方便地扩展新的查询接口和数据类型。 
+模块遵循 Gateway 项目的统一架构规范，可以方便地扩展新的查询接口和数据类型。 

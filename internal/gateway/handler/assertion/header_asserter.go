@@ -2,7 +2,7 @@ package assertion
 
 import (
 	"fmt"
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // HeaderAsserter HTTP头部断言器

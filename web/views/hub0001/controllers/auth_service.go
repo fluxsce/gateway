@@ -3,12 +3,12 @@ package controllers
 import (
 	"context"
 	"errors"
-	"gohub/pkg/logger"
-	"gohub/web/middleware"
-	authdao "gohub/web/views/hub0001/dao"
-	"gohub/web/views/hub0001/models"
-	hubdao "gohub/web/views/hub0002/dao"
-	hubmodels "gohub/web/views/hub0002/models"
+	"gateway/pkg/logger"
+	"gateway/web/middleware"
+	authdao "gateway/web/views/hub0001/dao"
+	"gateway/web/views/hub0001/models"
+	hubdao "gateway/web/views/hub0002/dao"
+	hubmodels "gateway/web/views/hub0002/models"
 	"time"
 )
 
@@ -27,10 +27,11 @@ func NewAuthService(authDAO *authdao.AuthDAO, userDAO *hubdao.UserDAO) *AuthServ
 }
 
 // ValidateLogin 验证用户登录信息
-// 
+//
 // 方法功能:
-//   验证用户登录凭据（用户ID、密码），不生成JWT令牌
-//   主要用于Session模式的登录验证，租户ID从用户信息中获取
+//
+//	验证用户登录凭据（用户ID、密码），不生成JWT令牌
+//	主要用于Session模式的登录验证，租户ID从用户信息中获取
 //
 // 参数说明:
 //   - ctx: 上下文对象
@@ -54,7 +55,7 @@ func NewAuthService(authDAO *authdao.AuthDAO, userDAO *hubdao.UserDAO) *AuthServ
 //   - 返回的用户对象包含完整的用户信息和租户信息
 func (s *AuthService) ValidateLogin(ctx context.Context, req *models.LoginRequest, clientIP string) (*hubmodels.User, error) {
 	// 参数验证
-	if req.UserId == "" || req.Password == ""{
+	if req.UserId == "" || req.Password == "" {
 		return nil, errors.New("用户ID、密码不能为空")
 	}
 

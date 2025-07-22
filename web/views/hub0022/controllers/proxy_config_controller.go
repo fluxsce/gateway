@@ -1,13 +1,13 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hub0022/dao"
-	"gohub/web/views/hub0022/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hub0022/dao"
+	"gateway/web/views/hub0022/models"
 
 	"github.com/gin-gonic/gin"
 )
@@ -35,7 +35,7 @@ func NewProxyConfigController(db database.Database) *ProxyConfigController {
 // @Param pageSize query int false "每页数量" default(10)
 // @Param gatewayInstanceId query string false "网关实例ID"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0022/queryProxyConfigs [post]
+// @Router /gateway/hub0022/queryProxyConfigs [post]
 func (c *ProxyConfigController) QueryProxyConfigs(ctx *gin.Context) {
 	// 使用工具类获取分页参数
 	page, pageSize := request.GetPaginationParams(ctx)
@@ -74,7 +74,7 @@ func (c *ProxyConfigController) QueryProxyConfigs(ctx *gin.Context) {
 // @Produce json
 // @Param proxyConfig body models.ProxyConfig true "代理配置信息"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0022/addProxyConfig [post]
+// @Router /gateway/hub0022/addProxyConfig [post]
 func (c *ProxyConfigController) CreateProxyConfig(ctx *gin.Context) {
 	var proxyConfig models.ProxyConfig
 	if err := request.BindSafely(ctx, &proxyConfig); err != nil {
@@ -149,7 +149,7 @@ func (c *ProxyConfigController) CreateProxyConfig(ctx *gin.Context) {
 // @Produce json
 // @Param proxyConfig body models.ProxyConfig true "代理配置信息"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0022/updateProxyConfig [post]
+// @Router /gateway/hub0022/updateProxyConfig [post]
 func (c *ProxyConfigController) EditProxyConfig(ctx *gin.Context) {
 	var updateData models.ProxyConfig
 	if err := request.BindSafely(ctx, &updateData); err != nil {
@@ -231,7 +231,7 @@ func (c *ProxyConfigController) EditProxyConfig(ctx *gin.Context) {
 // @Produce json
 // @Param request body DeleteProxyConfigRequest true "删除请求"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0022/deleteProxyConfig [post]
+// @Router /gateway/hub0022/deleteProxyConfig [post]
 func (c *ProxyConfigController) DeleteProxyConfig(ctx *gin.Context) {
 	var req DeleteProxyConfigRequest
 	if err := request.BindSafely(ctx, &req); err != nil {
@@ -300,7 +300,7 @@ func (c *ProxyConfigController) DeleteProxyConfig(ctx *gin.Context) {
 // @Produce json
 // @Param request body GetProxyConfigRequest true "查询请求"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0022/getProxyConfig [post]
+// @Router /gateway/hub0022/getProxyConfig [post]
 func (c *ProxyConfigController) GetProxyConfig(ctx *gin.Context) {
 	var req GetProxyConfigRequest
 	if err := request.BindSafely(ctx, &req); err != nil {
@@ -348,7 +348,7 @@ func (c *ProxyConfigController) GetProxyConfig(ctx *gin.Context) {
 // @Produce json
 // @Param request body GetProxyConfigsByInstanceRequest true "查询请求"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0022/getProxyConfigsByInstance [post]
+// @Router /gateway/hub0022/getProxyConfigsByInstance [post]
 func (c *ProxyConfigController) GetProxyConfigsByInstance(ctx *gin.Context) {
 	var req GetProxyConfigsByInstanceRequest
 	if err := request.BindSafely(ctx, &req); err != nil {
@@ -384,7 +384,7 @@ func (c *ProxyConfigController) GetProxyConfigsByInstance(ctx *gin.Context) {
 	}
 
 	// 使用统一的分页响应
-	response.SuccessJSON(ctx, proxyConfigList,constants.SD00002)
+	response.SuccessJSON(ctx, proxyConfigList, constants.SD00002)
 }
 
 // 请求结构体定义
@@ -424,4 +424,4 @@ func proxyConfigToMap(proxyConfig *models.ProxyConfig) map[string]interface{} {
 		"currentVersion":    proxyConfig.CurrentVersion,
 		"noteText":          proxyConfig.NoteText,
 	}
-} 
+}

@@ -2,7 +2,7 @@ package filter
 
 import (
 	"fmt"
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 	"strings"
 )
 
@@ -262,7 +262,7 @@ func configureHeaderFilter(headerFilter *HeaderFilter, config map[string]interfa
 		headerName, _ := headerConfig["headerName"].(string)
 		headerValue, _ := headerConfig["headerValue"].(string)
 		targetHeaderName, _ := headerConfig["targetHeaderName"].(string)
-		
+
 		// 处理isRequestHeader
 		var isRequestHeader bool
 		if irh, ok := headerConfig["isRequestHeader"].(bool); ok {
@@ -270,15 +270,15 @@ func configureHeaderFilter(headerFilter *HeaderFilter, config map[string]interfa
 		} else if irhStr, ok := headerConfig["isRequestHeader"].(string); ok {
 			isRequestHeader = strings.ToLower(irhStr) == "true"
 		}
-		
+
 		// 更新过滤器标志
 		headerFilter.IsRequestHeader = isRequestHeader
-		
+
 		// 参数验证
 		if headerName == "" {
 			return fmt.Errorf("headerName 不能为空")
 		}
-		
+
 		// 根据操作类型配置
 		switch strings.ToLower(modifierType) {
 		case "add":
@@ -301,7 +301,7 @@ func configureHeaderFilter(headerFilter *HeaderFilter, config map[string]interfa
 		default:
 			return fmt.Errorf("无效的modifierType: %s", modifierType)
 		}
-		
+
 		return nil
 	}
 
@@ -341,8 +341,6 @@ func configureHeaderFilter(headerFilter *HeaderFilter, config map[string]interfa
 
 	return nil
 }
-
-
 
 // containsAny 检查字符串列表中是否包含任意关键词
 func containsAny(texts []string, keywords []string) bool {

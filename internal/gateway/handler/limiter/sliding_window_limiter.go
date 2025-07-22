@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // SlidingWindowLimiter 滑动窗口限流器

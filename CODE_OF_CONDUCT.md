@@ -1,4 +1,4 @@
-# GoHub 社区行为准则
+# Gateway 社区行为准则
 
 ## 我们的承诺
 
@@ -36,7 +36,7 @@
 
 ## 适用范围
 
-本行为准则适用于所有 GoHub 项目空间，包括但不限于：
+本行为准则适用于所有 Gateway 项目空间，包括但不限于：
 
 * **GitHub 仓库**（Issues、Pull Requests、Discussions）
 * **官方社交媒体账户**
@@ -196,7 +196,7 @@
 如有任何关于本行为准则的问题，请通过以下方式联系我们：
 
 * **邮箱**: [conduct@example.com](mailto:conduct@example.com)
-* **GitHub**: 创建 [Issue](https://github.com/your-org/gohub/issues)
-* **官方网站**: [https://gohub.example.com](https://gohub.example.com)
+* **GitHub**: 创建 [Issue](https://github.com/your-org/gateway/issues)
+* **官方网站**: [https://gateway.example.com](https://gateway.example.com)
 
 感谢您帮助我们创建一个友好、安全、包容的开源社区！🤝 

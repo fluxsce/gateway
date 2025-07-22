@@ -1,10 +1,10 @@
 package cacheapp
 
 import (
-	"gohub/cmd/common/utils"
-	"gohub/pkg/cache"
-	"gohub/pkg/logger"
-	"gohub/pkg/utils/huberrors"
+	"gateway/cmd/common/utils"
+	"gateway/pkg/cache"
+	"gateway/pkg/logger"
+	"gateway/pkg/utils/huberrors"
 )
 
 // initCache 初始化缓存
@@ -33,7 +33,7 @@ func InitCache() (map[string]cache.Cache, error) {
 			"stats", stats)
 	}
 
-	return cacheConnections,nil
+	return cacheConnections, nil
 }
 
 // CloseAllConnections 关闭所有缓存连接

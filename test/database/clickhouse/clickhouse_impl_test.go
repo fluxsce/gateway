@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"gohub/pkg/database"
-	_ "gohub/pkg/database/alldriver" // 导入驱动确保注册
-	"gohub/pkg/database/dbtypes"
+	"gateway/pkg/database"
+	_ "gateway/pkg/database/alldriver" // 导入驱动确保注册
+	"gateway/pkg/database/dbtypes"
 	"sync"
 )
 
@@ -59,12 +59,12 @@ type ClickHouseComplexLog struct {
 	// 主键字段
 	TenantId string `db:"tenantId"`
 	TraceId  string `db:"traceId"`
-	
+
 	// 网关实例相关信息
 	GatewayInstanceId   string `db:"gatewayInstanceId"`
 	GatewayInstanceName string `db:"gatewayInstanceName"`
 	GatewayNodeIp       string `db:"gatewayNodeIp"`
-	
+
 	// 路由和服务相关信息
 	RouteConfigId       string `db:"routeConfigId"`
 	RouteName           string `db:"routeName"`
@@ -72,7 +72,7 @@ type ClickHouseComplexLog struct {
 	ServiceName         string `db:"serviceName"`
 	ProxyType           string `db:"proxyType"`
 	LogConfigId         string `db:"logConfigId"`
-	
+
 	// 请求基本信息
 	RequestMethod  string `db:"requestMethod"`
 	RequestPath    string `db:"requestPath"`
@@ -80,32 +80,32 @@ type ClickHouseComplexLog struct {
 	RequestSize    int32  `db:"requestSize"`
 	RequestHeaders string `db:"requestHeaders"`
 	RequestBody    string `db:"requestBody"`
-	
+
 	// 客户端信息 - 注意：这里使用基础类型而不是指针
 	ClientIpAddress string `db:"clientIpAddress"`
-	ClientPort      int32  `db:"clientPort"`  // 基础类型，不是指针
+	ClientPort      int32  `db:"clientPort"` // 基础类型，不是指针
 	UserAgent       string `db:"userAgent"`
 	Referer         string `db:"referer"`
 	UserIdentifier  string `db:"userIdentifier"`
-	
+
 	// 关键时间点 - 使用基础类型
 	GatewayStartProcessingTime    time.Time `db:"gatewayStartProcessingTime"`
 	BackendRequestStartTime       time.Time `db:"backendRequestStartTime"`       // 基础类型，不是指针
 	BackendResponseReceivedTime   time.Time `db:"backendResponseReceivedTime"`   // 基础类型，不是指针
 	GatewayFinishedProcessingTime time.Time `db:"gatewayFinishedProcessingTime"` // 基础类型，不是指针
-	
+
 	// 计算的时间指标 - 使用基础类型
 	TotalProcessingTimeMs   int32 `db:"totalProcessingTimeMs"`   // 基础类型，不是指针
 	GatewayProcessingTimeMs int32 `db:"gatewayProcessingTimeMs"` // 基础类型，不是指针
 	BackendResponseTimeMs   int32 `db:"backendResponseTimeMs"`   // 基础类型，不是指针
-	
+
 	// 响应信息
 	GatewayStatusCode int32  `db:"gatewayStatusCode"`
 	BackendStatusCode int32  `db:"backendStatusCode"` // 基础类型，不是指针
 	ResponseSize      int32  `db:"responseSize"`
 	ResponseHeaders   string `db:"responseHeaders"`
 	ResponseBody      string `db:"responseBody"`
-	
+
 	// 转发基本信息
 	MatchedRoute         string `db:"matchedRoute"`
 	ForwardAddress       string `db:"forwardAddress"`
@@ -114,27 +114,27 @@ type ClickHouseComplexLog struct {
 	ForwardHeaders       string `db:"forwardHeaders"`
 	ForwardBody          string `db:"forwardBody"`
 	LoadBalancerDecision string `db:"loadBalancerDecision"`
-	
+
 	// 错误信息
 	ErrorMessage string `db:"errorMessage"`
 	ErrorCode    string `db:"errorCode"`
-	
+
 	// 追踪信息
 	ParentTraceId string `db:"parentTraceId"`
-	
+
 	// 日志重置标记和次数
 	ResetFlag  string `db:"resetFlag"`
 	RetryCount int32  `db:"retryCount"`
 	ResetCount int32  `db:"resetCount"`
-	
+
 	// 标准数据库字段
 	LogLevel       string    `db:"logLevel"`
 	LogType        string    `db:"logType"`
 	Reserved1      string    `db:"reserved1"`
 	Reserved2      string    `db:"reserved2"`
-	Reserved3      int32     `db:"reserved3"`      // 基础类型，不是指针
-	Reserved4      int32     `db:"reserved4"`      // 基础类型，不是指针
-	Reserved5      time.Time `db:"reserved5"`      // 基础类型，不是指针
+	Reserved3      int32     `db:"reserved3"` // 基础类型，不是指针
+	Reserved4      int32     `db:"reserved4"` // 基础类型，不是指针
+	Reserved5      time.Time `db:"reserved5"` // 基础类型，不是指针
 	ExtProperty    string    `db:"extProperty"`
 	AddTime        time.Time `db:"addTime"`
 	AddWho         string    `db:"addWho"`
@@ -161,45 +161,45 @@ type ClickHouseComplexLogWithPointers struct {
 	// 主键字段
 	TenantId string `db:"tenantId"`
 	TraceId  string `db:"traceId"`
-	
+
 	// 网关实例相关信息
 	GatewayInstanceId   string `db:"gatewayInstanceId"`
 	GatewayInstanceName string `db:"gatewayInstanceName"`
 	GatewayNodeIp       string `db:"gatewayNodeIp"`
-	
+
 	// 请求基本信息
 	RequestMethod  string `db:"requestMethod"`
 	RequestPath    string `db:"requestPath"`
 	RequestQuery   string `db:"requestQuery"`
-	RequestSize    int    `db:"requestSize"`    // 使用int而不是int32
+	RequestSize    int    `db:"requestSize"` // 使用int而不是int32
 	RequestHeaders string `db:"requestHeaders"`
 	RequestBody    string `db:"requestBody"`
-	
+
 	// 客户端信息 - 使用指针类型（问题根源）
 	ClientIpAddress string `db:"clientIpAddress"`
-	ClientPort      *int   `db:"clientPort"`      // 指针类型！
+	ClientPort      *int   `db:"clientPort"` // 指针类型！
 	UserAgent       string `db:"userAgent"`
 	Referer         string `db:"referer"`
 	UserIdentifier  string `db:"userIdentifier"`
-	
+
 	// 关键时间点 - 使用指针类型（问题根源）
 	GatewayStartProcessingTime    time.Time  `db:"gatewayStartProcessingTime"`
 	BackendRequestStartTime       *time.Time `db:"backendRequestStartTime"`       // 指针类型！
 	BackendResponseReceivedTime   *time.Time `db:"backendResponseReceivedTime"`   // 指针类型！
 	GatewayFinishedProcessingTime *time.Time `db:"gatewayFinishedProcessingTime"` // 指针类型！
-	
+
 	// 计算的时间指标 - 使用指针类型（问题根源）
 	TotalProcessingTimeMs   int  `db:"totalProcessingTimeMs"`   // 使用int而不是int32
 	GatewayProcessingTimeMs int  `db:"gatewayProcessingTimeMs"` // 使用int而不是int32
 	BackendResponseTimeMs   *int `db:"backendResponseTimeMs"`   // 指针类型！
-	
+
 	// 响应信息
-	GatewayStatusCode int  `db:"gatewayStatusCode"`
-	BackendStatusCode *int `db:"backendStatusCode"` // 指针类型！
-	ResponseSize      int  `db:"responseSize"`
+	GatewayStatusCode int    `db:"gatewayStatusCode"`
+	BackendStatusCode *int   `db:"backendStatusCode"` // 指针类型！
+	ResponseSize      int    `db:"responseSize"`
 	ResponseHeaders   string `db:"responseHeaders"`
 	ResponseBody      string `db:"responseBody"`
-	
+
 	// 转发基本信息
 	MatchedRoute         string `db:"matchedRoute"`
 	ForwardAddress       string `db:"forwardAddress"`
@@ -208,36 +208,36 @@ type ClickHouseComplexLogWithPointers struct {
 	ForwardHeaders       string `db:"forwardHeaders"`
 	ForwardBody          string `db:"forwardBody"`
 	LoadBalancerDecision string `db:"loadBalancerDecision"`
-	
+
 	// 错误信息
 	ErrorMessage string `db:"errorMessage"`
 	ErrorCode    string `db:"errorCode"`
-	
+
 	// 追踪信息
 	ParentTraceId string `db:"parentTraceId"`
-	
+
 	// 日志重置标记和次数
 	ResetFlag  string `db:"resetFlag"`
 	RetryCount int    `db:"retryCount"`
 	ResetCount int    `db:"resetCount"`
-	
+
 	// 标准数据库字段
-	LogLevel       string    `db:"logLevel"`
-	LogType        string    `db:"logType"`
-	Reserved1      string    `db:"reserved1"`
-	Reserved2      string    `db:"reserved2"`
-	Reserved3      *int      `db:"reserved3"`      // 指针类型！
-	Reserved4      *int      `db:"reserved4"`      // 指针类型！
-	Reserved5      *time.Time `db:"reserved5"`     // 指针类型！
-	ExtProperty    string    `db:"extProperty"`
-	AddTime        time.Time `db:"addTime"`
-	AddWho         string    `db:"addWho"`
-	EditTime       time.Time `db:"editTime"`
-	EditWho        string    `db:"editWho"`
-	OprSeqFlag     string    `db:"oprSeqFlag"`
-	CurrentVersion int       `db:"currentVersion"`
-	ActiveFlag     string    `db:"activeFlag"`
-	NoteText       string    `db:"noteText"`
+	LogLevel       string     `db:"logLevel"`
+	LogType        string     `db:"logType"`
+	Reserved1      string     `db:"reserved1"`
+	Reserved2      string     `db:"reserved2"`
+	Reserved3      *int       `db:"reserved3"` // 指针类型！
+	Reserved4      *int       `db:"reserved4"` // 指针类型！
+	Reserved5      *time.Time `db:"reserved5"` // 指针类型！
+	ExtProperty    string     `db:"extProperty"`
+	AddTime        time.Time  `db:"addTime"`
+	AddWho         string     `db:"addWho"`
+	EditTime       time.Time  `db:"editTime"`
+	EditWho        string     `db:"editWho"`
+	OprSeqFlag     string     `db:"oprSeqFlag"`
+	CurrentVersion int        `db:"currentVersion"`
+	ActiveFlag     string     `db:"activeFlag"`
+	NoteText       string     `db:"noteText"`
 }
 
 // TableName 实现Model接口
@@ -259,11 +259,11 @@ func getClickHouseImplTestDB(t *testing.T) database.Database {
 		Enabled: true,
 		Driver:  database.DriverClickHouse,
 		Connection: dbtypes.ConnectionConfig{
-			Host:     "121.43.231.91",
-			Port:     9000,
-			Username: "default",
-			Password: "YiocaTTS91d*FY#ace{8iopl}",
-			Database: "gohub",
+			Host:               "121.43.231.91",
+			Port:               9000,
+			Username:           "default",
+			Password:           "YiocaTTS91d*FY#ace{8iopl}",
+			Database:           "gateway",
 			ClickHouseCompress: "lz4",
 			ClickHouseSecure:   false,
 			ClickHouseDebug:    false,
@@ -355,7 +355,7 @@ func setupClickHouseTestTable(t *testing.T, db database.Database) {
 // 清理测试表
 func cleanupClickHouseTestTable(t *testing.T, db database.Database) {
 	ctx := context.Background()
-	
+
 	_, err := db.Exec(ctx, "DROP TABLE IF EXISTS clickhouse_users", []interface{}{}, false)
 	if err != nil {
 		// 忽略表不存在的错误
@@ -367,7 +367,7 @@ func cleanupClickHouseTestTable(t *testing.T, db database.Database) {
 		// 忽略表不存在的错误
 		t.Logf("清理事件测试表: %v", err)
 	}
-	
+
 	t.Log("测试表清理成功")
 }
 
@@ -645,12 +645,12 @@ func TestClickHouseTimeSeriesData(t *testing.T) {
 		TotalValue float64 `db:"total_value"`
 	}
 
-	err = db.Query(ctx, &userEvents, 
+	err = db.Query(ctx, &userEvents,
 		`SELECT user_id, count as event_count, SUM(value) as total_value 
 		 FROM clickhouse_events 
 		 WHERE date = ? 
 		 GROUP BY user_id 
-		 ORDER BY user_id`, 
+		 ORDER BY user_id`,
 		[]interface{}{today}, true)
 	if err != nil {
 		t.Fatalf("查询用户统计失败: %v", err)
@@ -887,7 +887,7 @@ func BenchmarkClickHouseBatchInsertSizes(b *testing.B) {
 
 	// 测试不同的批次大小
 	sizes := []int{10, 100, 1000, 5000, 10000}
-	
+
 	for _, size := range sizes {
 		b.Run(fmt.Sprintf("BatchSize_%d", size), func(b *testing.B) {
 			setupClickHouseTestTable(&testing.T{}, db)
@@ -1098,7 +1098,7 @@ func BenchmarkClickHouseMemoryEfficiency(b *testing.B) {
 			// 记录详细性能指标
 			rowsPerSecond := float64(affected) / duration.Seconds()
 			mbPerSecond := (float64(affected) * 100) / 1024 / 1024 / duration.Seconds() // 假设每行约100字节
-			
+
 			b.ReportMetric(rowsPerSecond, "rows/sec")
 			b.ReportMetric(mbPerSecond, "MB/sec")
 			b.ReportMetric(float64(duration.Milliseconds()), "total_ms")
@@ -1119,10 +1119,10 @@ func TestClickHouseBatchInsertPerformanceReport(t *testing.T) {
 
 	// 测试不同批次大小的性能
 	batchSizes := []int{100, 1000, 5000, 10000}
-	
+
 	t.Log("ClickHouse批量插入性能测试报告")
 	t.Log("=====================================")
-	
+
 	for _, size := range batchSizes {
 		users := make([]ClickHouseUser, size)
 		for j := 0; j < size; j++ {
@@ -1139,7 +1139,7 @@ func TestClickHouseBatchInsertPerformanceReport(t *testing.T) {
 		// 执行多次测试取平均值
 		totalDuration := time.Duration(0)
 		const testRuns = 3
-		
+
 		for run := 0; run < testRuns; run++ {
 			// 清理表数据
 			_, err := db.Exec(ctx, "TRUNCATE TABLE clickhouse_users", []interface{}{}, true)
@@ -1164,14 +1164,14 @@ func TestClickHouseBatchInsertPerformanceReport(t *testing.T) {
 
 		avgDuration := totalDuration / testRuns
 		rowsPerSecond := float64(size) / avgDuration.Seconds()
-		
-		t.Logf("批次大小: %5d | 平均耗时: %8.2fms | 吞吐量: %8.0f rows/sec", 
+
+		t.Logf("批次大小: %5d | 平均耗时: %8.2fms | 吞吐量: %8.0f rows/sec",
 			size, float64(avgDuration.Nanoseconds())/1000000, rowsPerSecond)
 	}
-	
+
 	t.Log("=====================================")
 	t.Log("测试完成")
-} 
+}
 
 // 基准测试：高并发批量插入性能
 func BenchmarkClickHouseConcurrentBatchInsert(b *testing.B) {
@@ -1355,7 +1355,7 @@ func BenchmarkClickHouseAggregationQueries(b *testing.B) {
 				start := time.Now()
 
 				var result []struct {
-					Count        int64      `db:"count"`
+					Count       int64      `db:"count"`
 					Age         *int32     `db:"age"`
 					AvgAge      *float64   `db:"avg_age"`
 					UniqueCount *int64     `db:"unique_emails"`
@@ -1457,11 +1457,11 @@ func BenchmarkClickHouseConcurrentAggregation(b *testing.B) {
 
 							start := time.Now()
 							var result []struct {
-								Count        int64     `db:"count"`
-								Age         *int32    `db:"age"`
-								Date        *string   `db:"date"`
-								AvgAge      *float64  `db:"avg_age"`
-								UniqueCount *int64    `db:"unique_emails"`
+								Count       int64    `db:"count"`
+								Age         *int32   `db:"age"`
+								Date        *string  `db:"date"`
+								AvgAge      *float64 `db:"avg_age"`
+								UniqueCount *int64   `db:"unique_emails"`
 							}
 
 							err := db.Query(ctx, &result, query, nil, true)
@@ -1503,7 +1503,7 @@ func BenchmarkClickHouseConcurrentAggregation(b *testing.B) {
 			}
 		})
 	}
-} 
+}
 
 // 测试复杂字段批量插入 - 模拟真实AccessLog场景
 func TestClickHouseComplexFieldsBatchInsert(t *testing.T) {
@@ -1776,9 +1776,9 @@ func TestClickHouseComplexFieldsBatchInsert(t *testing.T) {
 
 	t.Logf("查询到%d条复杂日志记录", len(results))
 	for i, log := range results {
-		t.Logf("记录%d: TraceId=%s, Method=%s, Status=%d, ErrorMsg=%s", 
+		t.Logf("记录%d: TraceId=%s, Method=%s, Status=%d, ErrorMsg=%s",
 			i+1, log.TraceId, log.RequestMethod, log.GatewayStatusCode, log.ErrorMessage)
-		
+
 		// 验证特殊字符是否正确存储
 		if strings.Contains(log.RequestHeaders, `"Content-Type"`) {
 			t.Logf("✓ JSON格式的请求头正确存储")
@@ -1789,7 +1789,7 @@ func TestClickHouseComplexFieldsBatchInsert(t *testing.T) {
 	}
 
 	t.Log("复杂字段批量插入测试成功 - 所有特殊字符和复杂结构都正确处理")
-} 
+}
 
 // 测试指针类型批量插入 - 重现真实AccessLog的问题
 func TestClickHousePointerFieldsBatchInsert(t *testing.T) {
@@ -1886,7 +1886,7 @@ func TestClickHousePointerFieldsBatchInsert(t *testing.T) {
 	backendResponseTimeMs := 140
 	reserved3 := 100
 	reserved4 := 200
-	
+
 	complexLogsWithPointers := []ClickHouseComplexLogWithPointers{
 		{
 			TenantId:                      "tenant_001",
@@ -1901,19 +1901,19 @@ func TestClickHousePointerFieldsBatchInsert(t *testing.T) {
 			RequestHeaders:                `{"Content-Type": "application/json", "Authorization": "Bearer test123"}`,
 			RequestBody:                   `{"test": "pointer types", "data": "with special chars: \"quotes\" and \n newlines"}`,
 			ClientIpAddress:               "10.0.0.100",
-			ClientPort:                    &clientPort,                    // 指针类型
+			ClientPort:                    &clientPort, // 指针类型
 			UserAgent:                     `Mozilla/5.0 Test Agent`,
 			Referer:                       "https://test.example.com",
 			UserIdentifier:                "user_pointer_test",
 			GatewayStartProcessingTime:    now,
-			BackendRequestStartTime:       &[]time.Time{now.Add(10 * time.Millisecond)}[0],   // 指针类型
-			BackendResponseReceivedTime:   &[]time.Time{now.Add(150 * time.Millisecond)}[0],  // 指针类型
-			GatewayFinishedProcessingTime: &[]time.Time{now.Add(200 * time.Millisecond)}[0],  // 指针类型
+			BackendRequestStartTime:       &[]time.Time{now.Add(10 * time.Millisecond)}[0],  // 指针类型
+			BackendResponseReceivedTime:   &[]time.Time{now.Add(150 * time.Millisecond)}[0], // 指针类型
+			GatewayFinishedProcessingTime: &[]time.Time{now.Add(200 * time.Millisecond)}[0], // 指针类型
 			TotalProcessingTimeMs:         200,
 			GatewayProcessingTimeMs:       50,
-			BackendResponseTimeMs:         &backendResponseTimeMs,        // 指针类型
+			BackendResponseTimeMs:         &backendResponseTimeMs, // 指针类型
 			GatewayStatusCode:             200,
-			BackendStatusCode:             &backendStatusCode,            // 指针类型
+			BackendStatusCode:             &backendStatusCode, // 指针类型
 			ResponseSize:                  2048,
 			ResponseHeaders:               `{"Content-Type": "application/json"}`,
 			ResponseBody:                  `{"result": "success", "message": "Pointer test completed"}`,
@@ -1934,9 +1934,9 @@ func TestClickHousePointerFieldsBatchInsert(t *testing.T) {
 			LogType:                       "ACCESS",
 			Reserved1:                     "指针测试字段1",
 			Reserved2:                     "指针测试字段2",
-			Reserved3:                     &reserved3,                     // 指针类型
-			Reserved4:                     &reserved4,                     // 指针类型
-			Reserved5:                     &[]time.Time{now}[0],           // 指针类型
+			Reserved3:                     &reserved3,           // 指针类型
+			Reserved4:                     &reserved4,           // 指针类型
+			Reserved5:                     &[]time.Time{now}[0], // 指针类型
 			ExtProperty:                   `{"pointer_test": true, "special_chars": "test \"quotes\" and \n newlines"}`,
 			AddTime:                       now,
 			AddWho:                        "POINTER_TEST",
@@ -1960,19 +1960,19 @@ func TestClickHousePointerFieldsBatchInsert(t *testing.T) {
 			RequestHeaders:                `{"Accept": "application/json"}`,
 			RequestBody:                   "",
 			ClientIpAddress:               "10.0.0.200",
-			ClientPort:                    nil,                            // nil指针！
+			ClientPort:                    nil, // nil指针！
 			UserAgent:                     "Test Agent",
 			Referer:                       "",
 			UserIdentifier:                "",
 			GatewayStartProcessingTime:    now.Add(1 * time.Second),
-			BackendRequestStartTime:       nil,                           // nil指针！
-			BackendResponseReceivedTime:   nil,                           // nil指针！
-			GatewayFinishedProcessingTime: nil,                           // nil指针！
+			BackendRequestStartTime:       nil, // nil指针！
+			BackendResponseReceivedTime:   nil, // nil指针！
+			GatewayFinishedProcessingTime: nil, // nil指针！
 			TotalProcessingTimeMs:         0,
 			GatewayProcessingTimeMs:       0,
-			BackendResponseTimeMs:         nil,                           // nil指针！
+			BackendResponseTimeMs:         nil, // nil指针！
 			GatewayStatusCode:             500,
-			BackendStatusCode:             nil,                           // nil指针！
+			BackendStatusCode:             nil, // nil指针！
 			ResponseSize:                  128,
 			ResponseHeaders:               `{"Content-Type": "application/json", "X-Error": "pointer_test"}`,
 			ResponseBody:                  `{"error": "Pointer test with nil values", "message": "Testing nil pointer handling"}`,
@@ -1993,9 +1993,9 @@ func TestClickHousePointerFieldsBatchInsert(t *testing.T) {
 			LogType:                       "ACCESS",
 			Reserved1:                     "",
 			Reserved2:                     "",
-			Reserved3:                     nil,                           // nil指针！
-			Reserved4:                     nil,                           // nil指针！
-			Reserved5:                     nil,                           // nil指针！
+			Reserved3:                     nil, // nil指针！
+			Reserved4:                     nil, // nil指针！
+			Reserved5:                     nil, // nil指针！
 			ExtProperty:                   `{"nil_test": true}`,
 			AddTime:                       now.Add(1 * time.Second),
 			AddWho:                        "POINTER_TEST",
@@ -2019,7 +2019,7 @@ func TestClickHousePointerFieldsBatchInsert(t *testing.T) {
 		// 预期的错误 - 记录错误信息用于分析
 		t.Logf("❌ 指针类型批量插入失败（预期的错误）: %v", err)
 		t.Logf("⏱️ 失败耗时: %v", duration)
-		
+
 		// 检查是否是预期的解析错误
 		errorMsg := err.Error()
 		if strings.Contains(errorMsg, "Cannot parse input") {
@@ -2028,17 +2028,17 @@ func TestClickHousePointerFieldsBatchInsert(t *testing.T) {
 		if strings.Contains(errorMsg, "expected 'eof' before") {
 			t.Logf("✅ 确认是EOF解析错误，证实了问题根源")
 		}
-		
+
 		t.Log("🔍 指针类型测试结果：确认指针类型导致ClickHouse批量插入失败")
 		return // 测试达到目的，返回
 	}
 
 	// 如果意外成功了
 	t.Logf("⚠️ 意外成功：指针类型批量插入成功，影响行数: %d，耗时: %v", affected, duration)
-	
+
 	// 验证数据
 	time.Sleep(500 * time.Millisecond)
-	
+
 	var count struct {
 		Count int64 `db:"count"`
 	}
@@ -2049,4 +2049,4 @@ func TestClickHousePointerFieldsBatchInsert(t *testing.T) {
 
 	t.Logf("✅ 指针类型测试意外成功：插入%d条记录，查询到%d条记录", affected, count.Count)
 	t.Log("📝 注意：如果指针类型测试成功，可能是ClickHouse驱动版本或配置差异导致")
-} 
+}

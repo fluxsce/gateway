@@ -9,22 +9,22 @@ import (
 	"sync"
 	"time"
 
-	"gohub/pkg/database"
-	"gohub/pkg/database/dblogger"
-	"gohub/pkg/database/sqlutils"
+	"gateway/pkg/database"
+	"gateway/pkg/database/dblogger"
+	"gateway/pkg/database/sqlutils"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
 // 事务上下文键
-const txContextKey = "gohub.sqlite.transaction"
+const txContextKey = "gateway.sqlite.transaction"
 
 // TxContext 事务上下文信息
 type TxContext struct {
-	tx       *sql.Tx
-	id       string    // 事务ID
-	created  time.Time // 创建时间
-	options  *database.TxOptions
+	tx      *sql.Tx
+	id      string    // 事务ID
+	created time.Time // 创建时间
+	options *database.TxOptions
 }
 
 // setTxToContext 将事务信息设置到上下文中
@@ -57,19 +57,22 @@ func init() {
 // 8. 并发安全 - SQLite在WAL模式下支持多读单写并发访问
 // 9. Go底层优化 - 普通操作依赖Go database/sql的自动优化
 type SQLite struct {
-	db       *sql.DB
-	config   *database.DbConfig
-	logger   *dblogger.DBLogger
-	mu       sync.RWMutex
+	db     *sql.DB
+	config *database.DbConfig
+	logger *dblogger.DBLogger
+	mu     sync.RWMutex
 }
 
 // Connect 连接到SQLite数据库
 // 建立SQLite数据库连接，配置连接池参数，并验证连接可用性
 // SQLite特点：文件数据库，如果文件不存在会自动创建
 // 参数:
-//   config: SQLite数据库配置，包含DSN、连接池设置、日志配置等
+//
+//	config: SQLite数据库配置，包含DSN、连接池设置、日志配置等
+//
 // 返回:
-//   error: 连接建立失败时返回错误信息
+//
+//	error: 连接建立失败时返回错误信息
 func (s *SQLite) Connect(config *database.DbConfig) error {
 	s.config = config
 	s.logger = dblogger.NewDBLogger(config)
@@ -169,7 +172,8 @@ func (s *SQLite) configureDatabase(db *sql.DB) error {
 // Close 关闭数据库连接
 // 关闭SQLite数据库连接，释放相关资源
 // 返回:
-//   error: 关闭连接失败时返回错误信息
+//
+//	error: 关闭连接失败时返回错误信息
 func (s *SQLite) Close() error {
 	if s.db != nil {
 		s.logger.LogDisconnect(context.Background(), database.DriverSQLite)
@@ -182,7 +186,8 @@ func (s *SQLite) Close() error {
 // 获取当前SQLite连接使用的数据源名称
 // 返回值会被处理以隐藏敏感信息（虽然SQLite通常不含敏感信息）
 // 返回:
-//   string: 处理后的DSN字符串
+//
+//	string: 处理后的DSN字符串
 func (s *SQLite) DSN() string {
 	if s.config == nil {
 		return ""
@@ -194,7 +199,8 @@ func (s *SQLite) DSN() string {
 // 获取SQLite连接底层的标准库sql.DB实例
 // 用于需要直接访问底层数据库连接的场景
 // 返回:
-//   *sql.DB: 底层的sql.DB实例
+//
+//	*sql.DB: 底层的sql.DB实例
 func (s *SQLite) DB() *sql.DB {
 	return s.db
 }
@@ -202,7 +208,8 @@ func (s *SQLite) DB() *sql.DB {
 // DriverName 返回数据库驱动名称
 // 获取当前数据库使用的驱动名称标识
 // 返回:
-//   string: 固定返回"sqlite"
+//
+//	string: 固定返回"sqlite"
 func (s *SQLite) DriverName() string {
 	return database.DriverSQLite
 }
@@ -210,7 +217,8 @@ func (s *SQLite) DriverName() string {
 // GetDriver 获取数据库驱动类型
 // 实现Database接口，返回SQLite驱动标识
 // 返回:
-//   string: SQLite驱动类型标识
+//
+//	string: SQLite驱动类型标识
 func (s *SQLite) GetDriver() string {
 	return database.DriverSQLite
 }
@@ -218,7 +226,8 @@ func (s *SQLite) GetDriver() string {
 // GetName 获取数据库连接名称
 // 实现Database接口，返回当前连接的名称
 // 返回:
-//   string: 数据库连接名称，如果配置为空则返回空字符串
+//
+//	string: 数据库连接名称，如果配置为空则返回空字符串
 func (s *SQLite) GetName() string {
 	if s.config == nil {
 		return ""
@@ -229,7 +238,8 @@ func (s *SQLite) GetName() string {
 // SetName 设置数据库连接名称
 // 用于在创建连接后设置连接名称标识
 // 参数:
-//   name: 连接名称
+//
+//	name: 连接名称
 func (s *SQLite) SetName(name string) {
 	if s.config != nil {
 		s.config.Name = name
@@ -239,9 +249,12 @@ func (s *SQLite) SetName(name string) {
 // Ping 测试数据库连接
 // 向SQLite数据库发送ping请求，验证连接状态
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//
 // 返回:
-//   error: 连接异常时返回错误信息
+//
+//	error: 连接异常时返回错误信息
 func (s *SQLite) Ping(ctx context.Context) error {
 	err := s.db.PingContext(ctx)
 	s.logger.LogPing(ctx, err)
@@ -253,11 +266,14 @@ func (s *SQLite) Ping(ctx context.Context) error {
 // SQLite注意事项：SQLite支持的隔离级别有限，主要通过锁机制实现
 // 事务信息会绑定到返回的上下文中，支持多线程并发事务
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   options: 事务选项，包含隔离级别和只读设置
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	options: 事务选项，包含隔离级别和只读设置
+//
 // 返回:
-//   context.Context: 包含事务信息的新上下文
-//   error: 开始事务失败时返回错误信息
+//
+//	context.Context: 包含事务信息的新上下文
+//	error: 开始事务失败时返回错误信息
 func (s *SQLite) BeginTx(ctx context.Context, options *database.TxOptions) (context.Context, error) {
 	var sqlTxOpts *sql.TxOptions
 	if options != nil {
@@ -304,9 +320,12 @@ func (s *SQLite) BeginTx(ctx context.Context, options *database.TxOptions) (cont
 // Commit 提交事务
 // 提交指定上下文中的SQLite事务，使所有未提交的更改生效
 // 参数:
-//   ctx: 包含事务信息的上下文
+//
+//	ctx: 包含事务信息的上下文
+//
 // 返回:
-//   error: 提交事务失败时返回错误信息
+//
+//	error: 提交事务失败时返回错误信息
 func (s *SQLite) Commit(ctx context.Context) error {
 	txCtx, ok := getTxFromContext(ctx)
 	if !ok {
@@ -315,7 +334,7 @@ func (s *SQLite) Commit(ctx context.Context) error {
 
 	err := txCtx.tx.Commit()
 	s.logger.LogTx(ctx, "提交", err)
-	
+
 	if err != nil {
 		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
 	}
@@ -325,9 +344,12 @@ func (s *SQLite) Commit(ctx context.Context) error {
 // Rollback 回滚事务
 // 回滚指定上下文中的SQLite事务，撤销所有未提交的更改
 // 参数:
-//   ctx: 包含事务信息的上下文
+//
+//	ctx: 包含事务信息的上下文
+//
 // 返回:
-//   error: 回滚事务失败时返回错误信息
+//
+//	error: 回滚事务失败时返回错误信息
 func (s *SQLite) Rollback(ctx context.Context) error {
 	txCtx, ok := getTxFromContext(ctx)
 	if !ok {
@@ -336,7 +358,7 @@ func (s *SQLite) Rollback(ctx context.Context) error {
 
 	err := txCtx.tx.Rollback()
 	s.logger.LogTx(ctx, "回滚", err)
-	
+
 	if err != nil {
 		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
 	}
@@ -348,11 +370,14 @@ func (s *SQLite) Rollback(ctx context.Context) error {
 // 如果函数正常返回，自动提交事务
 // 如果函数返回错误或发生panic，自动回滚事务并将panic转换为错误
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   options: 事务选项，包含隔离级别和只读设置
-//   fn: 在事务中执行的函数，接收包含事务信息的上下文
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	options: 事务选项，包含隔离级别和只读设置
+//	fn: 在事务中执行的函数，接收包含事务信息的上下文
+//
 // 返回:
-//   error: 事务执行失败时返回错误信息，包括panic转换的错误
+//
+//	error: 事务执行失败时返回错误信息，包括panic转换的错误
 func (s *SQLite) InTx(ctx context.Context, options *database.TxOptions, fn func(context.Context) error) (err error) {
 	txCtx, err := s.BeginTx(ctx, options)
 	if err != nil {
@@ -380,10 +405,13 @@ func (s *SQLite) InTx(ctx context.Context, options *database.TxOptions, fn func(
 // 如果autoCommit为false且上下文包含活跃事务，返回事务执行器
 // 否则返回数据库连接执行器
 // 参数:
-//   ctx: 上下文，可能包含事务信息
-//   autoCommit: 是否自动提交
+//
+//	ctx: 上下文，可能包含事务信息
+//	autoCommit: 是否自动提交
+//
 // 返回:
-//   interface: 执行器接口，可以是*sql.Tx或*sql.DB
+//
+//	interface: 执行器接口，可以是*sql.Tx或*sql.DB
 func (s *SQLite) getExecutor(ctx context.Context, autoCommit bool) interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
@@ -402,16 +430,19 @@ func (s *SQLite) getExecutor(ctx context.Context, autoCommit bool) interface {
 // 执行INSERT、UPDATE、DELETE等不返回结果集的SQLite语句
 // 支持事务和非事务模式执行
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
-//   query: 要执行的SQL语句，可包含占位符
-//   args: SQL语句中占位符对应的参数值
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
+//	query: 要执行的SQL语句，可包含占位符
+//	args: SQL语句中占位符对应的参数值
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 执行失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 执行失败时返回错误信息
 func (s *SQLite) Exec(ctx context.Context, query string, args []interface{}, autoCommit bool) (int64, error) {
 	executor := s.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
 	result, err := executor.ExecContext(ctx, query, args...)
 	duration := time.Since(start)
@@ -438,16 +469,19 @@ func (s *SQLite) Exec(ctx context.Context, query string, args []interface{}, aut
 // 执行SELECT语句并将结果扫描到目标切片中
 // 自动处理结构体字段到数据库列的映射
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
-//   dest: 目标切片的指针，用于接收查询结果
-//   query: 要执行的SELECT语句，可包含占位符
-//   args: SQL语句中占位符对应的参数值
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
+//	dest: 目标切片的指针，用于接收查询结果
+//	query: 要执行的SELECT语句，可包含占位符
+//	args: SQL语句中占位符对应的参数值
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   error: 查询失败或扫描失败时返回错误信息
+//
+//	error: 查询失败或扫描失败时返回错误信息
 func (s *SQLite) Query(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error {
 	executor := s.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
 	rows, err := executor.QueryContext(ctx, query, args...)
 	duration := time.Since(start)
@@ -487,20 +521,23 @@ func (s *SQLite) Query(ctx context.Context, dest interface{}, query string, args
 // 如果查询不到记录，返回ErrRecordNotFound错误
 // 使用智能字段映射，支持数据库列数与结构体字段数不匹配的情况
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
-//   dest: 目标结构体的指针，用于接收查询结果
-//   query: 要执行的SELECT语句，可包含占位符
-//   args: SQL语句中占位符对应的参数值
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
+//	dest: 目标结构体的指针，用于接收查询结果
+//	query: 要执行的SELECT语句，可包含占位符
+//	args: SQL语句中占位符对应的参数值
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   error: 查询失败、扫描失败或记录不存在时返回错误信息
+//
+//	error: 查询失败、扫描失败或记录不存在时返回错误信息
 func (s *SQLite) QueryOne(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error {
 	executor := s.getExecutor(ctx, autoCommit)
 
 	start := time.Now()
 	rows, err := executor.QueryContext(ctx, query, args...)
 	duration := time.Since(start)
-	
+
 	if err != nil {
 		s.logger.LogSQL(ctx, "SQL单行查询错误", query, args, err, duration, map[string]interface{}{
 			"rowCount": 0,
@@ -510,7 +547,7 @@ func (s *SQLite) QueryOne(ctx context.Context, dest interface{}, query string, a
 
 	// 使用智能扫描方式处理单行结果，支持字段数量不匹配
 	err = sqlutils.ScanOneRow(rows, dest)
-	
+
 	// 只有在有错误且不是未找到记录时才记录错误
 	if err != nil && err != database.ErrRecordNotFound {
 		s.logger.LogSQL(ctx, "SQL单行查询错误", query, args, err, duration, map[string]interface{}{
@@ -533,13 +570,16 @@ func (s *SQLite) QueryOne(ctx context.Context, dest interface{}, query string, a
 // 会自动提取结构体字段作为列名和值，支持db tag映射
 // SQLite特点：支持ROWID自增主键
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
-//   table: 目标表名
-//   data: 要插入的数据结构体，字段通过db tag映射到数据库列
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
+//	table: 目标表名
+//	data: 要插入的数据结构体，字段通过db tag映射到数据库列
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 插入记录的自增ID（如果有）
-//   error: 插入失败时返回错误信息
+//
+//	int64: 插入记录的自增ID（如果有）
+//	error: 插入失败时返回错误信息
 func (s *SQLite) Insert(ctx context.Context, table string, data interface{}, autoCommit bool) (int64, error) {
 	query, args, err := sqlutils.BuildInsertQuery(table, data)
 	if err != nil {
@@ -547,7 +587,7 @@ func (s *SQLite) Insert(ctx context.Context, table string, data interface{}, aut
 	}
 
 	executor := s.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
 	result, err := executor.ExecContext(ctx, query, args...)
 	duration := time.Since(start)
@@ -577,15 +617,18 @@ func (s *SQLite) Insert(ctx context.Context, table string, data interface{}, aut
 // 根据提供的数据结构体和WHERE条件构建UPDATE语句并执行
 // 会自动提取结构体字段作为要更新的列和值
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
-//   table: 目标表名
-//   data: 包含更新数据的结构体，字段通过db tag映射到数据库列
-//   where: WHERE条件语句，可包含占位符
-//   args: WHERE条件中占位符对应的参数值
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
+//	table: 目标表名
+//	data: 包含更新数据的结构体，字段通过db tag映射到数据库列
+//	where: WHERE条件语句，可包含占位符
+//	args: WHERE条件中占位符对应的参数值
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 更新失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 更新失败时返回错误信息
 func (s *SQLite) Update(ctx context.Context, table string, data interface{}, where string, args []interface{}, autoCommit bool) (int64, error) {
 	setClause, setArgs, err := sqlutils.BuildUpdateQuery(table, data)
 	if err != nil {
@@ -599,7 +642,7 @@ func (s *SQLite) Update(ctx context.Context, table string, data interface{}, whe
 	}
 
 	executor := s.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
 	result, err := executor.ExecContext(ctx, query, setArgs...)
 	duration := time.Since(start)
@@ -625,14 +668,17 @@ func (s *SQLite) Update(ctx context.Context, table string, data interface{}, whe
 // Delete 删除记录
 // 根据WHERE条件构建DELETE语句并执行
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
-//   table: 目标表名
-//   where: WHERE条件语句，可包含占位符
-//   args: WHERE条件中占位符对应的参数值
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
+//	table: 目标表名
+//	where: WHERE条件语句，可包含占位符
+//	args: WHERE条件中占位符对应的参数值
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 删除失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 删除失败时返回错误信息
 func (s *SQLite) Delete(ctx context.Context, table string, where string, args []interface{}, autoCommit bool) (int64, error) {
 	query := fmt.Sprintf("DELETE FROM %s", table)
 	if where != "" {
@@ -640,7 +686,7 @@ func (s *SQLite) Delete(ctx context.Context, table string, where string, args []
 	}
 
 	executor := s.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
 	result, err := executor.ExecContext(ctx, query, args...)
 	duration := time.Since(start)
@@ -667,13 +713,16 @@ func (s *SQLite) Delete(ctx context.Context, table string, where string, args []
 // 将切片中的多个数据结构体批量插入到SQLite中
 // 使用单条INSERT语句提高插入性能，SQLite在事务中批量插入性能很好
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
-//   table: 目标表名
-//   dataSlice: 要插入的数据切片，每个元素都是结构体
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
+//	table: 目标表名
+//	dataSlice: 要插入的数据切片，每个元素都是结构体
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 插入失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 插入失败时返回错误信息
 func (s *SQLite) BatchInsert(ctx context.Context, table string, dataSlice interface{}, autoCommit bool) (int64, error) {
 	slice := reflect.ValueOf(dataSlice)
 	if slice.Kind() != reflect.Slice {
@@ -717,7 +766,7 @@ func (s *SQLite) BatchInsert(ctx context.Context, table string, dataSlice interf
 		strings.Join(allPlaceholders, ", "))
 
 	executor := s.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
 	result, err := executor.ExecContext(ctx, query, allArgs...)
 	duration := time.Since(start)
@@ -744,14 +793,17 @@ func (s *SQLite) BatchInsert(ctx context.Context, table string, dataSlice interf
 // 将切片中的多个数据结构体批量更新到SQLite中
 // 使用预编译循环执行方式提高性能
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
-//   table: 目标表名
-//   dataSlice: 要更新的数据切片，每个元素都是结构体
-//   keyFields: 用于匹配记录的关键字段列表（如主键字段）
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
+//	table: 目标表名
+//	dataSlice: 要更新的数据切片，每个元素都是结构体
+//	keyFields: 用于匹配记录的关键字段列表（如主键字段）
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 更新失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 更新失败时返回错误信息
 func (s *SQLite) BatchUpdate(ctx context.Context, table string, dataSlice interface{}, keyFields []string, autoCommit bool) (int64, error) {
 	slice := reflect.ValueOf(dataSlice)
 	if slice.Kind() != reflect.Slice {
@@ -772,12 +824,12 @@ func (s *SQLite) BatchUpdate(ctx context.Context, table string, dataSlice interf
 	// 分离SET字段和WHERE字段
 	var setColumns []string
 	var whereColumns []string
-	
+
 	keyFieldsMap := make(map[string]bool)
 	for _, key := range keyFields {
 		keyFieldsMap[key] = true
 	}
-	
+
 	for _, col := range allColumns {
 		if keyFieldsMap[col] {
 			whereColumns = append(whereColumns, col)
@@ -810,7 +862,7 @@ func (s *SQLite) BatchUpdate(ctx context.Context, table string, dataSlice interf
 		strings.Join(whereParts, " AND "))
 
 	executor := s.getExecutor(ctx, autoCommit)
-	
+
 	// 预编译语句
 	start := time.Now()
 	stmt, err := executor.PrepareContext(ctx, query)
@@ -820,7 +872,7 @@ func (s *SQLite) BatchUpdate(ctx context.Context, table string, dataSlice interf
 	defer stmt.Close()
 
 	var totalAffected int64
-	
+
 	// 循环执行
 	for i := 0; i < slice.Len(); i++ {
 		item := slice.Index(i).Interface()
@@ -874,14 +926,17 @@ func (s *SQLite) BatchUpdate(ctx context.Context, table string, dataSlice interf
 // 根据提供的数据切片批量删除记录，通过指定的关键字段匹配
 // 使用预编译循环执行方式提高性能
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
-//   table: 目标表名
-//   dataSlice: 包含要删除记录信息的数据切片，每个元素都是结构体
-//   keyFields: 用于匹配记录的关键字段列表（如主键字段）
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
+//	table: 目标表名
+//	dataSlice: 包含要删除记录信息的数据切片，每个元素都是结构体
+//	keyFields: 用于匹配记录的关键字段列表（如主键字段）
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 删除失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 删除失败时返回错误信息
 func (s *SQLite) BatchDelete(ctx context.Context, table string, dataSlice interface{}, keyFields []string, autoCommit bool) (int64, error) {
 	slice := reflect.ValueOf(dataSlice)
 	if slice.Kind() != reflect.Slice {
@@ -907,7 +962,7 @@ func (s *SQLite) BatchDelete(ctx context.Context, table string, dataSlice interf
 		strings.Join(whereParts, " AND "))
 
 	executor := s.getExecutor(ctx, autoCommit)
-	
+
 	// 预编译语句
 	start := time.Now()
 	stmt, err := executor.PrepareContext(ctx, query)
@@ -917,7 +972,7 @@ func (s *SQLite) BatchDelete(ctx context.Context, table string, dataSlice interf
 	defer stmt.Close()
 
 	var totalAffected int64
-	
+
 	// 循环执行
 	for i := 0; i < slice.Len(); i++ {
 		item := slice.Index(i).Interface()
@@ -969,14 +1024,17 @@ func (s *SQLite) BatchDelete(ctx context.Context, table string, dataSlice interf
 // BatchDeleteByKeys 根据主键列表批量删除记录
 // 使用IN子句的高效批量删除方式
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
-//   table: 目标表名
-//   keyField: 主键字段名
-//   keys: 要删除的主键值列表
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
+//	table: 目标表名
+//	keyField: 主键字段名
+//	keys: 要删除的主键值列表
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 删除失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 删除失败时返回错误信息
 func (s *SQLite) BatchDeleteByKeys(ctx context.Context, table string, keyField string, keys []interface{}, autoCommit bool) (int64, error) {
 	if len(keys) == 0 {
 		return 0, nil
@@ -992,7 +1050,7 @@ func (s *SQLite) BatchDeleteByKeys(ctx context.Context, table string, keyField s
 		table, keyField, strings.Join(placeholders, ", "))
 
 	executor := s.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
 	result, err := executor.ExecContext(ctx, query, keys...)
 	duration := time.Since(start)
@@ -1039,4 +1097,4 @@ func (s *SQLite) BatchDeleteByKeys(ctx context.Context, table string, keyField s
 // 3. 启用外键约束以保证数据完整性
 // 4. 事务隔离级别映射有限，主要由SQLite内部锁机制控制
 // 5. 支持:memory:内存数据库，适合测试场景
-// 6. 文件数据库如果不存在会自动创建 
+// 6. 文件数据库如果不存在会自动创建

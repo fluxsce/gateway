@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gohub/internal/gateway/config"
+	"gateway/internal/gateway/config"
 )
 
 func TestGatewayConfig(t *testing.T) {
@@ -320,7 +320,7 @@ func TestDefaultConfig(t *testing.T) {
 	defaultCfg := config.DefaultGatewayConfig
 
 	// 验证默认配置
-	assert.Equal(t, "GoHub Gateway", defaultCfg.Base.Name)
+	assert.Equal(t, "Gateway Gateway", defaultCfg.Base.Name)
 	assert.Equal(t, ":8080", defaultCfg.Base.Listen)
 	assert.Equal(t, "info", defaultCfg.Base.LogLevel)
 	assert.Equal(t, "json", defaultCfg.Base.LogFormat)

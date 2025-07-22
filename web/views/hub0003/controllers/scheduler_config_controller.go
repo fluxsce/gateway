@@ -1,13 +1,13 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/utils/random"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	hub0003dao "gohub/web/views/hub0003/dao"
-	hub0003models "gohub/web/views/hub0003/models"
+	"gateway/pkg/database"
+	"gateway/pkg/utils/random"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	hub0003dao "gateway/web/views/hub0003/dao"
+	hub0003models "gateway/web/views/hub0003/models"
 	"strings"
 	"time"
 
@@ -35,7 +35,7 @@ func NewSchedulerConfigController(db database.Database) *SchedulerConfigControll
 // @Produce json
 // @Param data body models.TimerScheduler true "调度器配置信息"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/scheduler/add [post]
+// @Router /gateway/hub0003/scheduler/add [post]
 func (c *SchedulerConfigController) AddSchedulerConfig(ctx *gin.Context) {
 	// 解析请求参数
 	var scheduler hub0003models.TimerScheduler
@@ -141,7 +141,7 @@ func (c *SchedulerConfigController) AddSchedulerConfig(ctx *gin.Context) {
 // @Produce json
 // @Param data body object true "查询参数"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/scheduler/get [post]
+// @Router /gateway/hub0003/scheduler/get [post]
 func (c *SchedulerConfigController) GetSchedulerConfig(ctx *gin.Context) {
 	// 解析请求参数
 	var params struct {
@@ -185,7 +185,7 @@ func (c *SchedulerConfigController) GetSchedulerConfig(ctx *gin.Context) {
 // @Produce json
 // @Param data body models.TimerScheduler true "调度器配置信息"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/scheduler/update [post]
+// @Router /gateway/hub0003/scheduler/update [post]
 func (c *SchedulerConfigController) UpdateSchedulerConfig(ctx *gin.Context) {
 	// 解析请求参数
 	var scheduler hub0003models.TimerScheduler
@@ -270,7 +270,7 @@ func (c *SchedulerConfigController) UpdateSchedulerConfig(ctx *gin.Context) {
 // @Produce json
 // @Param data body object true "删除参数"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/scheduler/delete [post]
+// @Router /gateway/hub0003/scheduler/delete [post]
 func (c *SchedulerConfigController) DeleteSchedulerConfig(ctx *gin.Context) {
 	// 解析请求参数
 	// 强制从上下文获取租户ID和操作人ID
@@ -314,7 +314,7 @@ func (c *SchedulerConfigController) DeleteSchedulerConfig(ctx *gin.Context) {
 // @Produce json
 // @Param data body object true "查询参数"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/scheduler/query [post]
+// @Router /gateway/hub0003/scheduler/query [post]
 func (c *SchedulerConfigController) QuerySchedulerConfigs(ctx *gin.Context) {
 	// 解析请求参数
 	var params struct {
@@ -372,7 +372,7 @@ func (c *SchedulerConfigController) QuerySchedulerConfigs(ctx *gin.Context) {
 // @Produce json
 // @Param data body object true "状态更新参数"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/scheduler/update-status [post]
+// @Router /gateway/hub0003/scheduler/update-status [post]
 func (c *SchedulerConfigController) UpdateSchedulerStatus(ctx *gin.Context) {
 	// 解析请求参数
 	var params struct {
@@ -423,4 +423,4 @@ func (c *SchedulerConfigController) UpdateSchedulerStatus(ctx *gin.Context) {
 	}
 
 	response.SuccessJSON(ctx, updatedScheduler, constants.SD00004)
-} 
+}

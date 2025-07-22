@@ -2,22 +2,25 @@ package memory
 
 import (
 	"fmt"
-	"gohub/pkg/logger"
+	"gateway/pkg/logger"
 	"time"
 )
 
 // CreateFromConfig 从配置数据创建内存缓存实例
 // 这是内存缓存模块对外提供的工厂方法，用于从通用配置创建内存缓存
 // 参数:
-//   name: 连接名称
-//   configData: 配置数据，通常来自YAML配置文件
+//
+//	name: 连接名称
+//	configData: 配置数据，通常来自YAML配置文件
+//
 // 返回:
-//   *MemoryCache: 内存缓存实例
-//   error: 创建失败时返回错误信息
+//
+//	*MemoryCache: 内存缓存实例
+//	error: 创建失败时返回错误信息
 func CreateFromConfig(name string, configData interface{}) (*MemoryCache, error) {
 	// 将interface{}转换为内存缓存配置
 	memoryConfig := &MemoryConfig{}
-	
+
 	// 使用类型断言来转换配置
 	if configMap, ok := configData.(map[string]interface{}); ok {
 		if err := mapConfigToMemoryConfig(configMap, memoryConfig); err != nil {
@@ -61,7 +64,7 @@ func mapConfigToMemoryConfig(configMap map[string]interface{}, memoryConfig *Mem
 	if enabled, ok := configMap["enabled"].(bool); ok {
 		memoryConfig.Enabled = enabled
 	}
-	
+
 	// 容量配置
 	if maxSize, ok := configMap["max_size"]; ok {
 		switch v := maxSize.(type) {
@@ -93,7 +96,7 @@ func mapConfigToMemoryConfig(configMap map[string]interface{}, memoryConfig *Mem
 	if enableMetrics, ok := configMap["enable_metrics"].(bool); ok {
 		memoryConfig.EnableMetrics = enableMetrics
 	}
-	
+
 	if metricsNamespace, ok := configMap["metrics_namespace"].(string); ok {
 		memoryConfig.MetricsNamespace = metricsNamespace
 	}
@@ -106,7 +109,7 @@ func mapConfigToMemoryConfig(configMap map[string]interface{}, memoryConfig *Mem
 			logger.Warn("解析default_expiration失败，使用默认值", "value", defaultExpStr, "error", err)
 		}
 	}
-	
+
 	if cleanupIntStr, ok := configMap["cleanup_interval"].(string); ok {
 		if duration, err := time.ParseDuration(cleanupIntStr); err == nil {
 			memoryConfig.CleanupInterval = duration
@@ -179,14 +182,14 @@ func ValidateConfig(configData interface{}) error {
 // 用于提供配置模板或作为配置参考
 func GetDefaultConfig() map[string]interface{} {
 	return map[string]interface{}{
-		"enabled":              true,
-		"max_size":             10000,
-		"key_prefix":           "",
-		"eviction_policy":      string(EvictionTTL), // 默认使用TTL策略
-		"default_expiration":   "1h",
-		"cleanup_interval":     "10m",
-		"enable_lazy_cleanup":  true,
-		"enable_metrics":       false,
-		"metrics_namespace":    "memory_cache",
+		"enabled":             true,
+		"max_size":            10000,
+		"key_prefix":          "",
+		"eviction_policy":     string(EvictionTTL), // 默认使用TTL策略
+		"default_expiration":  "1h",
+		"cleanup_interval":    "10m",
+		"enable_lazy_cleanup": true,
+		"enable_metrics":      false,
+		"metrics_namespace":   "memory_cache",
 	}
-} 
+}

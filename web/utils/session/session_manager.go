@@ -14,15 +14,16 @@
 //   - 全局函数: 便于在应用中使用的全局session管理器
 //
 // 使用示例:
-//   // 创建session
-//   sessionMgr := session.GetGlobalSessionManager()
-//   userContext, err := sessionMgr.CreateSession(ctx, userId, userName, ...)
-//   
-//   // 验证session
-//   userContext, err := sessionMgr.ValidateSession(ctx, sessionId)
-//   
-//   // 删除session
-//   err := sessionMgr.DeleteSession(ctx, sessionId)
+//
+//	// 创建session
+//	sessionMgr := session.GetGlobalSessionManager()
+//	userContext, err := sessionMgr.CreateSession(ctx, userId, userName, ...)
+//
+//	// 验证session
+//	userContext, err := sessionMgr.ValidateSession(ctx, sessionId)
+//
+//	// 删除session
+//	err := sessionMgr.DeleteSession(ctx, sessionId)
 //
 // 注意事项:
 //   - 需要预先初始化Redis缓存管理器
@@ -36,19 +37,20 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"gohub/pkg/cache"
-	"gohub/pkg/logger"
-	"gohub/web/globalmodels"
-	"gohub/web/utils/constants"
+	"gateway/pkg/cache"
+	"gateway/pkg/logger"
+	"gateway/web/globalmodels"
+	"gateway/web/utils/constants"
 	"time"
 )
 
 // SessionManager session管理器
 //
 // 结构说明:
-//   核心的session管理器，负责所有session相关的操作
-//   使用Redis作为存储后端，支持分布式部署和高并发访问
-//   直接使用UserContext存储所有session信息，简化了数据结构
+//
+//	核心的session管理器，负责所有session相关的操作
+//	使用Redis作为存储后端，支持分布式部署和高并发访问
+//	直接使用UserContext存储所有session信息，简化了数据结构
 //
 // 字段说明:
 //   - cacheManager: Redis缓存管理器，用于实际的数据存储操作
@@ -67,8 +69,9 @@ type SessionManager struct {
 // NewSessionManager 创建session管理器
 //
 // 方法功能:
-//   创建一个新的session管理器实例，使用全局配置的超时时间
-//   session过期时间从constants包的全局变量中获取
+//
+//	创建一个新的session管理器实例，使用全局配置的超时时间
+//	session过期时间从constants包的全局变量中获取
 //
 // 返回值:
 //   - *SessionManager: 新创建的session管理器实例
@@ -93,10 +96,11 @@ func NewSessionManager() *SessionManager {
 }
 
 // CreateSession 创建新的session
-// 
+//
 // 方法功能:
-//   为用户创建一个新的session会话，生成唯一的sessionId并创建UserContext
-//   将包含所有session信息的UserContext存储到Redis缓存中
+//
+//	为用户创建一个新的session会话，生成唯一的sessionId并创建UserContext
+//	将包含所有session信息的UserContext存储到Redis缓存中
 //
 // 参数说明:
 //   - ctx: 上下文对象，用于控制请求的生命周期、超时和取消操作
@@ -168,8 +172,9 @@ func (sm *SessionManager) CreateSession(ctx context.Context, userId, userName, r
 // ValidateSession 验证session并获取用户上下文
 //
 // 方法功能:
-//   验证session的有效性并返回用户上下文对象
-//   这是推荐的session验证方法，直接从Redis获取UserContext
+//
+//	验证session的有效性并返回用户上下文对象
+//	这是推荐的session验证方法，直接从Redis获取UserContext
 //
 // 参数说明:
 //   - ctx: 上下文对象，用于控制请求的生命周期和超时
@@ -222,8 +227,9 @@ func (sm *SessionManager) ValidateSession(ctx context.Context, sessionId string)
 // RefreshSession 刷新session过期时间
 //
 // 方法功能:
-//   延长session的有效期，重新设置过期时间并更新最后活动时间
-//   用于在session即将过期时延长用户的登录状态
+//
+//	延长session的有效期，重新设置过期时间并更新最后活动时间
+//	用于在session即将过期时延长用户的登录状态
 //
 // 参数说明:
 //   - ctx: 上下文对象，用于控制请求的生命周期和超时
@@ -252,7 +258,7 @@ func (sm *SessionManager) RefreshSession(ctx context.Context, sessionId string) 
 	now := time.Now()
 	expireDuration := time.Duration(constants.HUB_SESSION_EXPIRE_HOURS) * time.Hour
 	expireAt := now.Add(expireDuration)
-	
+
 	userContext.ExpireAt = &expireAt
 	userContext.LastActivity = &now
 
@@ -269,8 +275,9 @@ func (sm *SessionManager) RefreshSession(ctx context.Context, sessionId string) 
 // DeleteSession 删除session
 //
 // 方法功能:
-//   从Redis缓存中删除指定的session，用于用户登出或强制下线
-//   删除后该session将立即失效，无法再用于身份验证
+//
+//	从Redis缓存中删除指定的session，用于用户登出或强制下线
+//	删除后该session将立即失效，无法再用于身份验证
 //
 // 参数说明:
 //   - ctx: 上下文对象，用于控制请求的生命周期和超时
@@ -313,8 +320,9 @@ func (sm *SessionManager) DeleteSession(ctx context.Context, sessionId string) e
 // DeleteUserSessions 删除用户的所有session
 //
 // 方法功能:
-//   删除指定用户的所有session，实现用户在所有设备上的强制登出
-//   会遍历所有session找到属于该用户的session并逐个删除
+//
+//	删除指定用户的所有session，实现用户在所有设备上的强制登出
+//	会遍历所有session找到属于该用户的session并逐个删除
 //
 // 参数说明:
 //   - ctx: 上下文对象，用于控制请求的生命周期和超时
@@ -357,7 +365,7 @@ func (sm *SessionManager) DeleteUserSessions(ctx context.Context, userId string)
 	var deletedCount int
 	for _, key := range keys {
 		sessionId := key[len(sm.prefix):]
-		
+
 		// 获取用户上下文来检查用户ID
 		userContext, err := sm.getUserContext(ctx, sessionId)
 		if err != nil {
@@ -381,8 +389,9 @@ func (sm *SessionManager) DeleteUserSessions(ctx context.Context, userId string)
 // GetActiveSessionsCount 获取活跃session数量
 //
 // 方法功能:
-//   统计当前系统中所有活跃session的数量
-//   用于系统监控和统计分析
+//
+//	统计当前系统中所有活跃session的数量
+//	用于系统监控和统计分析
 //
 // 参数说明:
 //   - ctx: 上下文对象，用于控制请求的生命周期和超时
@@ -418,8 +427,9 @@ func (sm *SessionManager) GetActiveSessionsCount(ctx context.Context) (int, erro
 // CleanExpiredSessions 清理过期的session
 //
 // 方法功能:
-//   主动清理所有已过期的session，释放Redis存储空间
-//   通过遍历所有session并检查过期状态来实现清理
+//
+//	主动清理所有已过期的session，释放Redis存储空间
+//	通过遍历所有session并检查过期状态来实现清理
 //
 // 参数说明:
 //   - ctx: 上下文对象，用于控制请求的生命周期和超时
@@ -455,14 +465,14 @@ func (sm *SessionManager) CleanExpiredSessions(ctx context.Context) error {
 	var cleanedCount int
 	for _, key := range keys {
 		sessionId := key[len(sm.prefix):]
-		
+
 		// 检查session是否过期
 		userContext, err := sm.getUserContext(ctx, sessionId)
 		if err != nil {
 			// session不存在，跳过
 			continue
 		}
-		
+
 		// 如果过期，删除它
 		if userContext.ExpireAt != nil && time.Now().After(*userContext.ExpireAt) {
 			sm.DeleteSession(ctx, sessionId)
@@ -477,7 +487,8 @@ func (sm *SessionManager) CleanExpiredSessions(ctx context.Context) error {
 // storeUserContext 存储用户上下文到缓存
 //
 // 方法功能:
-//   将用户上下文序列化后存储到Redis缓存中
+//
+//	将用户上下文序列化后存储到Redis缓存中
 //
 // 参数说明:
 //   - ctx: 上下文对象
@@ -512,7 +523,8 @@ func (sm *SessionManager) storeUserContext(ctx context.Context, sessionId string
 // getUserContext 从缓存获取用户上下文
 //
 // 方法功能:
-//   从Redis缓存中获取用户上下文数据
+//
+//	从Redis缓存中获取用户上下文数据
 //
 // 参数说明:
 //   - ctx: 上下文对象
@@ -550,8 +562,9 @@ func (sm *SessionManager) getUserContext(ctx context.Context, sessionId string) 
 // generateSessionId 生成session ID
 //
 // 方法功能:
-//   生成一个加密安全的随机session ID
-//   使用crypto/rand生成高质量的随机数，确保session ID的唯一性和安全性
+//
+//	生成一个加密安全的随机session ID
+//	使用crypto/rand生成高质量的随机数，确保session ID的唯一性和安全性
 //
 // 返回值:
 //   - string: 64字符的十六进制字符串作为session ID
@@ -583,8 +596,9 @@ var (
 // GetGlobalSessionManager 获取全局session管理器实例
 //
 // 方法功能:
-//   获取全局单例的session管理器实例
-//   使用懒加载模式，首次调用时创建实例
+//
+//	获取全局单例的session管理器实例
+//	使用懒加载模式，首次调用时创建实例
 //
 // 返回值:
 //   - *SessionManager: 全局session管理器实例
@@ -608,8 +622,9 @@ func GetGlobalSessionManager() *SessionManager {
 // InitGlobalSessionManager 初始化全局session管理器
 //
 // 方法功能:
-//   初始化全局session管理器，使用全局配置的超时时间
-//   应该在应用启动时调用，在其他代码使用session管理器之前
+//
+//	初始化全局session管理器，使用全局配置的超时时间
+//	应该在应用启动时调用，在其他代码使用session管理器之前
 //
 // 使用场景:
 //   - 应用启动时的初始化阶段
@@ -621,4 +636,4 @@ func GetGlobalSessionManager() *SessionManager {
 //   - 超时时间从constants包的全局变量中获取
 func InitGlobalSessionManager() {
 	globalSessionManager = NewSessionManager()
-} 
+}

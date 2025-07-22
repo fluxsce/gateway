@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/service"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/service"
 )
 
 // TCPProxy TCP代理实现
@@ -59,10 +59,10 @@ func (t *TCPProxy) Validate() error {
 // Close 关闭TCP代理
 func (t *TCPProxy) Close() error {
 	var lastErr error
-	
+
 	// TODO: 关闭活跃的TCP连接
 	// 这里应该实现关闭所有活跃TCP连接的逻辑
-	
+
 	// 关闭服务管理器
 	// 服务管理器包含健康检查器等需要清理的资源
 	if t.serviceManager != nil {
@@ -72,7 +72,7 @@ func (t *TCPProxy) Close() error {
 			}
 		}
 	}
-	
+
 	return lastErr
 }
 

@@ -1,6 +1,6 @@
-# GoHub Gateway
+# Gateway Gateway
 
-GoHub Gateway 是一个基于 Go 语言开发的高性能 API 网关，提供路由转发、认证鉴权、流量控制等核心功能，是 GoHub 平台的统一入口。
+Gateway Gateway 是一个基于 Go 语言开发的高性能 API 网关，提供路由转发、认证鉴权、流量控制等核心功能，是 Gateway 平台的统一入口。
 
 ## 目录结构
 
@@ -506,7 +506,7 @@ routes:
           action: "post_response"
           config:
             add_headers:
-              X-Processed-By: "GoHub-Gateway"
+              X-Processed-By: "Gateway-Gateway"
               X-Response-Time: "${response_time}"
 
   # 管理 API - 需要 API Key 认证和最严格的安全控制

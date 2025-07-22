@@ -3,17 +3,17 @@ package starter
 import (
 	"context"
 	"fmt"
-	cacheapp "gohub/cmd/cache"
-	"gohub/cmd/common/utils"
-	gatewayapp "gohub/cmd/gateway"
-	timerinit "gohub/cmd/init"
-	webapp "gohub/cmd/web"
-	"gohub/pkg/cache"
-	"gohub/pkg/config"
-	"gohub/pkg/database"
-	_ "gohub/pkg/database/alldriver" // 导入数据库驱动以确保注册
-	"gohub/pkg/logger"
-	"gohub/pkg/utils/huberrors"
+	cacheapp "gateway/cmd/cache"
+	"gateway/cmd/common/utils"
+	gatewayapp "gateway/cmd/gateway"
+	timerinit "gateway/cmd/init"
+	webapp "gateway/cmd/web"
+	"gateway/pkg/cache"
+	"gateway/pkg/config"
+	"gateway/pkg/database"
+	_ "gateway/pkg/database/alldriver" // 导入数据库驱动以确保注册
+	"gateway/pkg/logger"
+	"gateway/pkg/utils/huberrors"
 	"log"
 	"os"
 	"os/signal"
@@ -45,7 +45,7 @@ func Starter() {
 		}
 		return
 	}
-	
+
 	// 检查是否在Linux服务模式下运行
 	if runtime.GOOS == "linux" && utils.IsServiceMode() {
 		log.Println("检测到Linux服务模式，启动Linux服务...")
@@ -62,16 +62,16 @@ func Starter() {
 	// 检查是否为服务模式
 	if utils.IsServiceMode() {
 		setupServiceLogging()
-		log.Println("GoHub 服务模式启动...")
+		log.Println("Gateway 服务模式启动...")
 	}
 
 	// 输出启动信息
-	fmt.Printf("GoHub 应用程序启动中...\n")
+	fmt.Printf("Gateway 应用程序启动中...\n")
 	fmt.Printf("配置目录: %s\n", utils.GetConfigDir())
 	fmt.Printf("支持的命令行参数:\n")
 	fmt.Printf("  --config <dir>  指定配置文件目录路径\n")
 	fmt.Printf("  --service       以服务模式运行\n")
-	fmt.Printf("环境变量: GOHUB_CONFIG_DIR\n")
+	fmt.Printf("环境变量: GATEWAY_CONFIG_DIR\n")
 	fmt.Printf("优先级: 命令行参数 > 环境变量 > 默认值(./configs)\n")
 	fmt.Println()
 
@@ -90,7 +90,7 @@ func Starter() {
 
 	// 服务模式下的特殊处理
 	if utils.IsServiceMode() {
-		log.Println("GoHub 服务启动完成，等待信号...")
+		log.Println("Gateway 服务启动完成，等待信号...")
 	}
 
 	// 保持主协程运行
@@ -120,7 +120,7 @@ func initializeAndStartApplication() error {
 	}
 
 	// 初始化MongoDB
-	if _,err :=  timerinit.InitializeMongoDB(); err != nil {
+	if _, err := timerinit.InitializeMongoDB(); err != nil {
 		return huberrors.WrapError(err, "初始化MongoDB失败")
 	}
 
@@ -210,18 +210,18 @@ func setupServiceLogging() {
 	// 重定向标准输出和错误输出
 	os.Stdout = file
 	os.Stderr = file
-	
+
 	// 设置日志输出
 	log.SetOutput(file)
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	
+
 	log.Printf("服务日志重定向已设置: %s", logFile)
 }
 
 // setupGracefulShutdown 设置优雅退出
 func setupGracefulShutdown() {
 	c := make(chan os.Signal, 1)
-	
+
 	// 监听不同的信号
 	if utils.IsServiceMode() {
 		// 服务模式下监听更多信号
@@ -233,13 +233,13 @@ func setupGracefulShutdown() {
 
 	go func() {
 		sig := <-c
-		
+
 		if utils.IsServiceMode() {
 			log.Printf("收到信号 %v，开始优雅退出...", sig)
 		} else {
 			fmt.Printf("收到信号 %v，开始优雅退出...\n", sig)
 		}
-		
+
 		// 处理不同信号
 		switch sig {
 		case syscall.SIGHUP:
@@ -257,9 +257,9 @@ func setupGracefulShutdown() {
 // stopApplication 停止应用
 func stopApplication() {
 	if utils.IsServiceMode() {
-		log.Println("开始停止GoHub服务...")
+		log.Println("开始停止Gateway服务...")
 	} else {
-		fmt.Println("开始停止GoHub应用...")
+		fmt.Println("开始停止Gateway应用...")
 	}
 
 	// 取消应用上下文
@@ -279,11 +279,11 @@ func stopApplication() {
 	cleanupResources()
 
 	if utils.IsServiceMode() {
-		log.Println("GoHub服务已停止")
+		log.Println("Gateway服务已停止")
 	} else {
-		fmt.Println("GoHub应用已停止")
+		fmt.Println("Gateway应用已停止")
 	}
-	
+
 	os.Exit(0)
 }
 
@@ -374,12 +374,12 @@ func initDatabase() error {
 func initGateway(db database.Database) error {
 	// 创建网关应用实例
 	gatewayApp = gatewayapp.NewGatewayApp()
-	
+
 	// 初始化网关应用
 	if err := gatewayApp.Init(db); err != nil {
 		return huberrors.WrapError(err, "初始化网关应用失败")
 	}
-	
+
 	return nil
 }
 
@@ -388,7 +388,7 @@ func startGatewayServices() error {
 	if gatewayApp == nil {
 		return nil
 	}
-	
+
 	// 在单独的协程中启动网关服务
 	go func() {
 		if err := gatewayApp.Start(); err != nil {
@@ -397,7 +397,7 @@ func startGatewayServices() error {
 			os.Exit(1)
 		}
 	}()
-	
+
 	logger.Info("网关服务正在后台启动...")
 	return nil
 }
@@ -413,23 +413,23 @@ func cleanupResources() {
 	}
 
 	logMsg("开始清理应用资源...")
-	
+
 	// 停止所有定时任务
 	if err := timerinit.StopAllTimerTasks(); err != nil {
 		logMsg("停止定时任务时发生错误: %v", err)
 	} else {
 		logMsg("定时任务已成功停止")
 	}
-	
+
 	// 关闭网关应用
 	if gatewayApp != nil {
 		logMsg("正在关闭网关应用...")
-		
+
 		// 获取网关状态信息
 		status := gatewayApp.GetStatus()
 		logMsg("网关状态信息 - enabled: %v, total_instances: %v, running_instances: %v",
 			status["enabled"], status["total_instances"], status["running_instances"])
-		
+
 		if err := gatewayApp.Stop(); err != nil {
 			logMsg("关闭网关应用时发生错误: %v", err)
 		} else {
@@ -438,7 +438,7 @@ func cleanupResources() {
 	} else {
 		logMsg("网关应用未启动，跳过关闭")
 	}
-	
+
 	// 关闭所有缓存连接
 	logMsg("正在关闭缓存连接...")
 	if err := cache.CloseAllConnections(); err != nil {
@@ -446,7 +446,7 @@ func cleanupResources() {
 	} else {
 		logMsg("缓存连接已成功关闭")
 	}
-	
+
 	// 关闭所有MongoDB连接
 	logMsg("正在关闭MongoDB连接...")
 	if err := timerinit.StopMongoDB(); err != nil {
@@ -454,7 +454,7 @@ func cleanupResources() {
 	} else {
 		logMsg("MongoDB连接已成功关闭")
 	}
-	
+
 	// 关闭所有数据库连接
 	logMsg("正在关闭数据库连接...")
 	if err := database.CloseAllConnections(); err != nil {
@@ -462,6 +462,6 @@ func cleanupResources() {
 	} else {
 		logMsg("数据库连接已成功关闭")
 	}
-	
+
 	logMsg("应用资源清理完成")
 }

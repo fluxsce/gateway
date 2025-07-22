@@ -3,7 +3,7 @@ chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
 :: Oracle开发环境快速设置脚本 - 支持非标准目录结构
-:: 用于GoHub项目Oracle驱动编译环境配置
+:: 用于Gateway项目Oracle驱动编译环境配置
 :: 版本: 1.1
 
 title Oracle开发环境快速设置
@@ -14,7 +14,7 @@ echo  Oracle开发环境快速设置 v1.1
 echo ==========================================
 echo.
 echo 此脚本帮助您快速配置Oracle开发环境
-echo 用于支持GoHub项目中Oracle驱动的编译
+echo 用于支持Gateway项目中Oracle驱动的编译
 echo.
 echo 功能:
 echo   ✓ 自动检测现有Oracle客户端 (支持非标准结构)
@@ -354,7 +354,7 @@ if %ORACLE_EXISTS% EQU 1 (
                     echo [✓] Oracle开发环境配置完整
                     echo     可以构建包含Oracle驱动的版本
                     echo.
-                    echo 下一步: 运行GoHub构建脚本选择Oracle版本
+                    echo 下一步: 运行Gateway构建脚本选择Oracle版本
                     echo     scripts\build\build-win2008-oracle.cmd
                 ) else (
                     echo [!] Oracle环境不完整 - 缺少链接库
@@ -388,7 +388,7 @@ echo 测试编译环境:
 echo   gcc --version
 echo   go version
 echo.
-echo 如果一切正常，可以运行GoHub构建脚本:
+echo 如果一切正常，可以运行Gateway构建脚本:
 echo   scripts\build\build-win2008-oracle.cmd
 echo.
 

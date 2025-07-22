@@ -1,13 +1,13 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hubcommon002/dao"
-	"gohub/web/views/hubcommon002/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hubcommon002/dao"
+	"gateway/web/views/hubcommon002/models"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,9 +28,9 @@ func NewSecurityConfigController(db database.Database) *SecurityConfigController
 func (c *SecurityConfigController) AddSecurityConfig(ctx *gin.Context) {
 	// 获取上下文用于跟踪
 	reqCtx := ctx
-	
-	logger.InfoWithTrace(reqCtx, "开始添加安全配置", 
-		"controller", "SecurityConfigController", 
+
+	logger.InfoWithTrace(reqCtx, "开始添加安全配置",
+		"controller", "SecurityConfigController",
 		"action", "AddSecurityConfig")
 
 	// 绑定请求参数
@@ -71,7 +71,7 @@ func (c *SecurityConfigController) AddSecurityConfig(ctx *gin.Context) {
 	securityConfigId, err := c.dao.AddSecurityConfig(reqCtx, &config, operatorId)
 	if err != nil {
 		logger.ErrorWithTrace(reqCtx, "添加安全配置失败", err,
-			"tenantId", tenantId, 
+			"tenantId", tenantId,
 			"operatorId", operatorId)
 		response.ErrorJSON(ctx, "添加安全配置失败: "+err.Error(), constants.ED00009)
 		return
@@ -92,9 +92,9 @@ func (c *SecurityConfigController) AddSecurityConfig(ctx *gin.Context) {
 		return
 	}
 
-	logger.InfoWithTrace(reqCtx, "安全配置添加成功", 
-		"securityConfigId", securityConfigId, 
-		"tenantId", tenantId, 
+	logger.InfoWithTrace(reqCtx, "安全配置添加成功",
+		"securityConfigId", securityConfigId,
+		"tenantId", tenantId,
 		"operatorId", operatorId)
 	response.SuccessJSON(ctx, newConfig, constants.SD00003)
 }
@@ -103,9 +103,9 @@ func (c *SecurityConfigController) AddSecurityConfig(ctx *gin.Context) {
 func (c *SecurityConfigController) GetSecurityConfig(ctx *gin.Context) {
 	// 获取上下文用于跟踪
 	reqCtx := ctx
-	
-	logger.InfoWithTrace(reqCtx, "开始获取安全配置详情", 
-		"controller", "SecurityConfigController", 
+
+	logger.InfoWithTrace(reqCtx, "开始获取安全配置详情",
+		"controller", "SecurityConfigController",
 		"action", "GetSecurityConfig")
 
 	// 获取安全配置ID参数（支持多种数据源）
@@ -132,22 +132,22 @@ func (c *SecurityConfigController) GetSecurityConfig(ctx *gin.Context) {
 	config, err := c.dao.GetSecurityConfigById(reqCtx, securityConfigId, tenantId)
 	if err != nil {
 		logger.ErrorWithTrace(reqCtx, "获取安全配置详情失败", err,
-			"securityConfigId", securityConfigId, 
+			"securityConfigId", securityConfigId,
 			"tenantId", tenantId)
 		response.ErrorJSON(ctx, "获取安全配置详情失败: "+err.Error(), constants.ED00009)
 		return
 	}
 
 	if config == nil {
-		logger.WarnWithTrace(reqCtx, "安全配置不存在", 
-			"securityConfigId", securityConfigId, 
+		logger.WarnWithTrace(reqCtx, "安全配置不存在",
+			"securityConfigId", securityConfigId,
 			"tenantId", tenantId)
 		response.ErrorJSON(ctx, "安全配置不存在", constants.ED00008)
 		return
 	}
 
-	logger.InfoWithTrace(reqCtx, "获取安全配置详情成功", 
-		"securityConfigId", securityConfigId, 
+	logger.InfoWithTrace(reqCtx, "获取安全配置详情成功",
+		"securityConfigId", securityConfigId,
 		"tenantId", tenantId)
 	response.SuccessJSON(ctx, config, constants.SD00002)
 }
@@ -209,7 +209,7 @@ func (c *SecurityConfigController) EditSecurityConfig(ctx *gin.Context) {
 		return
 	}
 
-	logger.InfoWithTrace(ctx, "安全配置编辑成功", "securityConfigId", config.SecurityConfigId, 
+	logger.InfoWithTrace(ctx, "安全配置编辑成功", "securityConfigId", config.SecurityConfigId,
 		"tenantId", tenantId, "operatorId", operatorId)
 	response.SuccessJSON(ctx, updatedConfig, constants.SD00003)
 }
@@ -248,7 +248,7 @@ func (c *SecurityConfigController) DeleteSecurityConfig(ctx *gin.Context) {
 		return
 	}
 
-	logger.InfoWithTrace(ctx, "安全配置删除成功", "securityConfigId", securityConfigId, 
+	logger.InfoWithTrace(ctx, "安全配置删除成功", "securityConfigId", securityConfigId,
 		"tenantId", tenantId, "operatorId", operatorId)
 	response.SuccessJSON(ctx, gin.H{"message": "安全配置删除成功"}, constants.SD00003)
 }
@@ -259,7 +259,7 @@ func (c *SecurityConfigController) QuerySecurityConfigs(ctx *gin.Context) {
 
 	// 使用工具类获取分页参数
 	page, pageSize := request.GetPaginationParams(ctx)
-	
+
 	// 强制从上下文获取租户ID
 	tenantId := request.GetTenantID(ctx)
 	if tenantId == "" {
@@ -279,7 +279,7 @@ func (c *SecurityConfigController) QuerySecurityConfigs(ctx *gin.Context) {
 	pageInfo := response.NewPageInfo(page, pageSize, total)
 	pageInfo.MainKey = "securityConfigId"
 
-	logger.InfoWithTrace(ctx, "查询安全配置列表成功", "tenantId", tenantId, 
+	logger.InfoWithTrace(ctx, "查询安全配置列表成功", "tenantId", tenantId,
 		"total", total, "page", page, "pageSize", pageSize)
 	response.PageJSON(ctx, configs, pageInfo, constants.SD00002)
 }
@@ -311,7 +311,7 @@ func (c *SecurityConfigController) QuerySecurityConfigsByGatewayInstance(ctx *gi
 		return
 	}
 
-	logger.InfoWithTrace(ctx, "查询网关实例安全配置列表成功", "gatewayInstanceId", gatewayInstanceId, 
+	logger.InfoWithTrace(ctx, "查询网关实例安全配置列表成功", "gatewayInstanceId", gatewayInstanceId,
 		"tenantId", tenantId, "count", len(configs))
 	response.SuccessJSON(ctx, configs, constants.SD00002)
 }
@@ -343,7 +343,7 @@ func (c *SecurityConfigController) QuerySecurityConfigsByRouteConfig(ctx *gin.Co
 		return
 	}
 
-	logger.InfoWithTrace(ctx, "查询路由配置安全配置列表成功", "routeConfigId", routeConfigId, 
+	logger.InfoWithTrace(ctx, "查询路由配置安全配置列表成功", "routeConfigId", routeConfigId,
 		"tenantId", tenantId, "count", len(configs))
 	response.SuccessJSON(ctx, configs, constants.SD00002)
-} 
+}

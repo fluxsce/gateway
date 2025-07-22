@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // ResponseOperation 响应操作类型
@@ -187,7 +187,7 @@ func (f *ResponseFilter) applyResponseModifications(ctx *core.Context) error {
 	if modificationsVal == nil {
 		return nil // 没有需要应用的修改
 	}
-	
+
 	modifications, ok := modificationsVal.([]ResponseModification)
 	if !ok {
 		return nil // 类型不匹配
@@ -358,7 +358,7 @@ func (f *ResponseFilter) setHeaderFiltering(modification *ResponseModification) 
 func (f *ResponseFilter) setBodyTransformations(modification *ResponseModification) {
 	if transformConfig, ok := f.BodyOperations["transform_body"].(map[string]interface{}); ok {
 		modification.BodyModificationType = "transform"
-		
+
 		if transformType, ok := transformConfig["type"].(string); ok {
 			// 这里可以根据转换类型设置不同的处理逻辑
 			switch transformType {
@@ -591,12 +591,12 @@ func configureResponseFilter(responseFilter *ResponseFilter, config map[string]i
 		bodyOperations, _ := responseConfig["bodyOperations"].(map[string]interface{})
 		statusOperations, _ := responseConfig["statusOperations"].(map[string]interface{})
 		conditions, _ := responseConfig["conditions"].(map[string]interface{})
-		
+
 		// 参数验证
 		if operation == "" {
 			return fmt.Errorf("operation 不能为空")
 		}
-		
+
 		// 设置操作类型
 		switch strings.ToLower(operation) {
 		case "add_headers", "modify_body", "set_status", "filter_headers", "transform_body", "validate_response":
@@ -604,39 +604,39 @@ func configureResponseFilter(responseFilter *ResponseFilter, config map[string]i
 		default:
 			return fmt.Errorf("无效的operation: %s，支持的类型: add_headers, modify_body, set_status, filter_headers, transform_body, validate_response", operation)
 		}
-		
+
 		// 设置是否在请求阶段设置
 		if setInRequestPhase, ok := responseConfig["setInRequestPhase"].(bool); ok {
 			responseFilter.SetInRequestPhase = setInRequestPhase
 		}
-		
+
 		// 设置过滤器配置
 		if filterConfig != nil {
 			responseFilter.FilterConfig = filterConfig
 		} else {
 			responseFilter.FilterConfig = make(map[string]interface{})
 		}
-		
+
 		// 设置响应头操作
 		if headerOperations != nil {
 			responseFilter.HeaderOperations = headerOperations
 		}
-		
+
 		// 设置响应体操作
 		if bodyOperations != nil {
 			responseFilter.BodyOperations = bodyOperations
 		}
-		
+
 		// 设置状态码操作
 		if statusOperations != nil {
 			responseFilter.StatusOperations = statusOperations
 		}
-		
+
 		// 设置条件
 		if conditions != nil {
 			responseFilter.Conditions = conditions
 		}
-		
+
 		return nil
 	}
 
@@ -675,4 +675,4 @@ func configureResponseFilter(responseFilter *ResponseFilter, config map[string]i
 	responseFilter.FilterConfig = responseConfig
 
 	return nil
-} 
+}

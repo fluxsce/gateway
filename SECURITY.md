@@ -1,8 +1,8 @@
-# GoHub 安全政策
+# Gateway 安全政策
 
 ## 🛡️ 支持的版本
 
-我们积极维护并提供安全更新的 GoHub 版本：
+我们积极维护并提供安全更新的 Gateway 版本：
 
 | 版本 | 支持状态 |
 | --- | --- |
@@ -19,7 +19,7 @@
 
 ### 报告渠道
 
-如果您发现了 GoHub 的安全漏洞，**请不要公开披露**，而是通过以下私密渠道报告：
+如果您发现了 Gateway 的安全漏洞，**请不要公开披露**，而是通过以下私密渠道报告：
 
 #### 主要联系方式
 - **邮箱**: [security@example.com](mailto:security@example.com)
@@ -29,7 +29,7 @@
 
 #### 备用联系方式
 - **私人邮件**: [admin@example.com](mailto:admin@example.com)
-- **GitHub Security Advisory**: [创建私密报告](https://github.com/your-org/gohub/security/advisories/new)
+- **GitHub Security Advisory**: [创建私密报告](https://github.com/your-org/gateway/security/advisories/new)
 
 ### 报告内容
 
@@ -41,7 +41,7 @@
 - **严重程度**：[您认为的严重程度等级]
 
 #### 📋 环境信息
-- **GoHub 版本**：[具体版本号]
+- **Gateway 版本**：[具体版本号]
 - **操作系统**：[OS类型和版本]
 - **Go 版本**：[Go版本]
 - **部署环境**：[Docker、Kubernetes、裸机等]
@@ -164,7 +164,7 @@ flowchart TD
 ### 历史公告
 
 查看历史安全公告：
-- [GitHub Security Advisories](https://github.com/your-org/gohub/security/advisories)
+- [GitHub Security Advisories](https://github.com/your-org/gateway/security/advisories)
 - [CVE 数据库记录](https://cve.mitre.org/)
 
 ## 🛠️ 安全工具
@@ -197,7 +197,7 @@ flowchart TD
 
 ### 安全讨论
 
-- **GitHub Discussions**: [安全话题讨论](https://github.com/your-org/gohub/discussions)
+- **GitHub Discussions**: [安全话题讨论](https://github.com/your-org/gateway/discussions)
 - **社区论坛**: [加入安全讨论组]
 - **技术分享**: 定期举办安全主题技术分享
 
@@ -232,4 +232,4 @@ flowchart TD
 - [CVE 数据库](https://cve.mitre.org/)
 - [国家信息安全漏洞库](https://www.cnnvd.org.cn/)
 
-**感谢您帮助保护 GoHub 和用户的安全！** 🛡️ 
+**感谢您帮助保护 Gateway 和用户的安全！** 🛡️ 

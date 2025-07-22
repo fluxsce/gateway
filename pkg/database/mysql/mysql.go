@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"gohub/pkg/database"
-	"gohub/pkg/database/dblogger"
-	"gohub/pkg/database/sqlutils"
+	"gateway/pkg/database"
+	"gateway/pkg/database/dblogger"
+	"gateway/pkg/database/sqlutils"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -35,23 +35,23 @@ func init() {
 // 7. Go底层优化 - 普通操作依赖Go database/sql的自动优化
 // 8. 智能预编译 - 仅在必要时（如批量操作）使用手动预编译
 type MySQL struct {
-	db       *sql.DB
-	config   *database.DbConfig
-	logger   *dblogger.DBLogger
-	mu       sync.RWMutex
+	db     *sql.DB
+	config *database.DbConfig
+	logger *dblogger.DBLogger
+	mu     sync.RWMutex
 	// 移除全局单一事务字段，改为上下文绑定
 	// currentTx *sql.Tx // 已删除 - 这是多线程问题的根源
 }
 
 // 事务上下文键，使用字符串常量更清晰
-const txContextKey = "gohub.mysql.transaction"
+const txContextKey = "gateway.mysql.transaction"
 
 // TxContext 事务上下文，包含事务和相关元数据
 type TxContext struct {
-	tx       *sql.Tx
-	id       string    // 事务ID，用于日志跟踪
-	created  time.Time // 事务创建时间
-	options  *database.TxOptions // 事务选项
+	tx      *sql.Tx
+	id      string              // 事务ID，用于日志跟踪
+	created time.Time           // 事务创建时间
+	options *database.TxOptions // 事务选项
 }
 
 // setTxToContext 将事务存储到上下文中
@@ -74,9 +74,12 @@ func generateTxID() string {
 // 建立MySQL数据库连接，配置连接池参数，并验证连接可用性
 // 会根据配置设置最大连接数、空闲连接数、连接生命周期等参数
 // 参数:
-//   config: MySQL数据库配置，包含DSN、连接池设置、日志配置等
+//
+//	config: MySQL数据库配置，包含DSN、连接池设置、日志配置等
+//
 // 返回:
-//   error: 连接建立失败时返回错误信息
+//
+//	error: 连接建立失败时返回错误信息
 func (m *MySQL) Connect(config *database.DbConfig) error {
 	m.config = config
 	m.logger = dblogger.NewDBLogger(config)
@@ -138,7 +141,8 @@ func (m *MySQL) Connect(config *database.DbConfig) error {
 // 注意：使用上下文绑定事务的情况下，Close不会自动回滚事务
 // 用户需要在关闭连接前手动处理事务
 // 返回:
-//   error: 关闭连接失败时返回错误信息
+//
+//	error: 关闭连接失败时返回错误信息
 func (m *MySQL) Close() error {
 	if m.db != nil {
 		m.logger.LogDisconnect(context.Background(), database.DriverMySQL)
@@ -151,7 +155,8 @@ func (m *MySQL) Close() error {
 // 获取当前MySQL连接使用的数据源名称
 // 返回值会被处理以隐藏敏感信息（如密码）
 // 返回:
-//   string: 处理后的DSN字符串，隐藏敏感信息
+//
+//	string: 处理后的DSN字符串，隐藏敏感信息
 func (m *MySQL) DSN() string {
 	if m.config == nil {
 		return ""
@@ -164,7 +169,8 @@ func (m *MySQL) DSN() string {
 // 获取MySQL连接底层的标准库sql.DB实例
 // 用于需要直接访问底层数据库连接的场景
 // 返回:
-//   *sql.DB: 底层的sql.DB实例
+//
+//	*sql.DB: 底层的sql.DB实例
 func (m *MySQL) DB() *sql.DB {
 	return m.db
 }
@@ -172,7 +178,8 @@ func (m *MySQL) DB() *sql.DB {
 // DriverName 返回数据库驱动名称
 // 获取当前数据库使用的驱动名称标识
 // 返回:
-//   string: 固定返回"mysql"
+//
+//	string: 固定返回"mysql"
 func (m *MySQL) DriverName() string {
 	return database.DriverMySQL
 }
@@ -180,7 +187,8 @@ func (m *MySQL) DriverName() string {
 // GetDriver 获取数据库驱动类型
 // 实现Database接口，返回MySQL驱动标识
 // 返回:
-//   string: MySQL驱动类型标识
+//
+//	string: MySQL驱动类型标识
 func (m *MySQL) GetDriver() string {
 	return database.DriverMySQL
 }
@@ -188,7 +196,8 @@ func (m *MySQL) GetDriver() string {
 // GetName 获取数据库连接名称
 // 实现Database接口，返回当前连接的名称
 // 返回:
-//   string: 数据库连接名称，如果配置为空则返回空字符串
+//
+//	string: 数据库连接名称，如果配置为空则返回空字符串
 func (m *MySQL) GetName() string {
 	if m.config == nil {
 		return ""
@@ -199,7 +208,8 @@ func (m *MySQL) GetName() string {
 // SetName 设置数据库连接名称
 // 用于在创建连接后设置连接名称标识
 // 参数:
-//   name: 连接名称
+//
+//	name: 连接名称
 func (m *MySQL) SetName(name string) {
 	if m.config != nil {
 		m.config.Name = name
@@ -209,9 +219,12 @@ func (m *MySQL) SetName(name string) {
 // Ping 测试数据库连接
 // 向MySQL服务器发送ping请求，验证连接状态
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//
 // 返回:
-//   error: 连接异常时返回错误信息
+//
+//	error: 连接异常时返回错误信息
 func (m *MySQL) Ping(ctx context.Context) error {
 	err := m.db.PingContext(ctx)
 	m.logger.LogPing(ctx, err)
@@ -222,11 +235,14 @@ func (m *MySQL) Ping(ctx context.Context) error {
 // 启动一个新的MySQL事务，支持指定隔离级别和只读属性
 // 多线程安全：每个上下文可以独立管理事务
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   options: 事务选项，包含隔离级别和只读设置
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	options: 事务选项，包含隔离级别和只读设置
+//
 // 返回:
-//   context.Context: 包含事务信息的新上下文
-//   error: 开始事务失败时返回错误信息
+//
+//	context.Context: 包含事务信息的新上下文
+//	error: 开始事务失败时返回错误信息
 func (m *MySQL) BeginTx(ctx context.Context, options *database.TxOptions) (context.Context, error) {
 	// 检查是否已经有事务
 	if _, ok := getTxFromContext(ctx); ok {
@@ -276,9 +292,12 @@ func (m *MySQL) BeginTx(ctx context.Context, options *database.TxOptions) (conte
 // Commit 提交事务
 // 提交上下文中的MySQL事务，使所有未提交的更改生效
 // 参数:
-//   ctx: 包含事务信息的上下文
+//
+//	ctx: 包含事务信息的上下文
+//
 // 返回:
-//   error: 提交事务失败时返回错误信息
+//
+//	error: 提交事务失败时返回错误信息
 func (m *MySQL) Commit(ctx context.Context) error {
 	txCtx, ok := getTxFromContext(ctx)
 	if !ok || txCtx.tx == nil {
@@ -288,7 +307,7 @@ func (m *MySQL) Commit(ctx context.Context) error {
 	err := txCtx.tx.Commit()
 	txCtx.tx = nil
 	m.logger.LogTx(ctx, "提交", err)
-	
+
 	if err != nil {
 		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
 	}
@@ -298,9 +317,12 @@ func (m *MySQL) Commit(ctx context.Context) error {
 // Rollback 回滚事务
 // 回滚上下文中的MySQL事务，撤销所有未提交的更改
 // 参数:
-//   ctx: 包含事务信息的上下文
+//
+//	ctx: 包含事务信息的上下文
+//
 // 返回:
-//   error: 回滚事务失败时返回错误信息
+//
+//	error: 回滚事务失败时返回错误信息
 func (m *MySQL) Rollback(ctx context.Context) error {
 	txCtx, ok := getTxFromContext(ctx)
 	if !ok || txCtx.tx == nil {
@@ -310,7 +332,7 @@ func (m *MySQL) Rollback(ctx context.Context) error {
 	err := txCtx.tx.Rollback()
 	txCtx.tx = nil
 	m.logger.LogTx(ctx, "回滚", err)
-	
+
 	if err != nil {
 		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
 	}
@@ -322,11 +344,14 @@ func (m *MySQL) Rollback(ctx context.Context) error {
 // 如果函数正常返回，自动提交事务
 // 如果函数返回错误或发生panic，自动回滚事务并将panic转换为错误
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   options: 事务选项，包含隔离级别和只读设置
-//   fn: 在事务中执行的函数，接收包含事务的上下文，返回error表示是否成功
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	options: 事务选项，包含隔离级别和只读设置
+//	fn: 在事务中执行的函数，接收包含事务的上下文，返回error表示是否成功
+//
 // 返回:
-//   error: 事务执行失败时返回错误信息，包括panic转换的错误
+//
+//	error: 事务执行失败时返回错误信息，包括panic转换的错误
 func (m *MySQL) InTx(ctx context.Context, options *database.TxOptions, fn func(context.Context) error) (err error) {
 	txCtx, err := m.BeginTx(ctx, options)
 	if err != nil {
@@ -354,10 +379,13 @@ func (m *MySQL) InTx(ctx context.Context, options *database.TxOptions, fn func(c
 // 如果autoCommit为false且上下文中存在活跃事务，返回事务执行器
 // 否则返回数据库连接执行器
 // 参数:
-//   ctx: 上下文，用于获取事务信息
-//   autoCommit: 是否自动提交
+//
+//	ctx: 上下文，用于获取事务信息
+//	autoCommit: 是否自动提交
+//
 // 返回:
-//   interface: 执行器接口，可以是*sql.Tx或*sql.DB
+//
+//	interface: 执行器接口，可以是*sql.Tx或*sql.DB
 func (m *MySQL) getExecutor(ctx context.Context, autoCommit bool) interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
@@ -377,18 +405,21 @@ func (m *MySQL) getExecutor(ctx context.Context, autoCommit bool) interface {
 // 使用Go底层自动优化，无需手动预编译
 // 支持事务和非事务模式执行
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   query: 要执行的SQL语句，可包含占位符
-//   args: SQL语句中占位符对应的参数值
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	query: 要执行的SQL语句，可包含占位符
+//	args: SQL语句中占位符对应的参数值
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 执行失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 执行失败时返回错误信息
 func (m *MySQL) Exec(ctx context.Context, query string, args []interface{}, autoCommit bool) (int64, error) {
 	executor := m.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
-	
+
 	// 直接执行，让Go底层自动优化
 	result, err := executor.ExecContext(ctx, query, args...)
 	duration := time.Since(start)
@@ -416,18 +447,21 @@ func (m *MySQL) Exec(ctx context.Context, query string, args []interface{}, auto
 // 使用Go底层自动优化，无需手动预编译
 // 自动处理结构体字段到数据库列的映射
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   dest: 目标切片的指针，用于接收查询结果
-//   query: 要执行的SELECT语句，可包含占位符
-//   args: SQL语句中占位符对应的参数值
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	dest: 目标切片的指针，用于接收查询结果
+//	query: 要执行的SELECT语句，可包含占位符
+//	args: SQL语句中占位符对应的参数值
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   error: 查询失败或扫描失败时返回错误信息
+//
+//	error: 查询失败或扫描失败时返回错误信息
 func (m *MySQL) Query(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error {
 	executor := m.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
-	
+
 	// 直接查询，让Go底层自动优化
 	rows, err := executor.QueryContext(ctx, query, args...)
 	duration := time.Since(start)
@@ -467,23 +501,26 @@ func (m *MySQL) Query(ctx context.Context, dest interface{}, query string, args 
 // 如果查询不到记录，返回ErrRecordNotFound错误
 // 使用智能字段映射，支持数据库列数与结构体字段数不匹配的情况
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   dest: 目标结构体的指针，用于接收查询结果
-//   query: 要执行的SELECT语句，可包含占位符
-//   args: SQL语句中占位符对应的参数值
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	dest: 目标结构体的指针，用于接收查询结果
+//	query: 要执行的SELECT语句，可包含占位符
+//	args: SQL语句中占位符对应的参数值
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   error: 查询失败、扫描失败或记录不存在时返回错误信息
+//
+//	error: 查询失败、扫描失败或记录不存在时返回错误信息
 func (m *MySQL) QueryOne(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error {
 	executor := m.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
-	
+
 	// 直接查询，让Go底层自动优化
 	// 使用QueryContext而不是QueryRowContext，以便获取列信息进行智能映射
 	rows, err := executor.QueryContext(ctx, query, args...)
 	duration := time.Since(start)
-	
+
 	if err != nil {
 		m.logger.LogSQL(ctx, "SQL单行查询错误", query, args, err, duration, map[string]interface{}{
 			"rowCount": 0,
@@ -493,7 +530,7 @@ func (m *MySQL) QueryOne(ctx context.Context, dest interface{}, query string, ar
 
 	// 使用智能扫描方式处理单行结果，支持字段数量不匹配
 	err = sqlutils.ScanOneRow(rows, dest)
-	
+
 	// 只有在有错误且不是未找到记录时才记录错误
 	if err != nil && err != database.ErrRecordNotFound {
 		m.logger.LogSQL(ctx, "SQL单行查询错误", query, args, err, duration, map[string]interface{}{
@@ -516,13 +553,16 @@ func (m *MySQL) QueryOne(ctx context.Context, dest interface{}, query string, ar
 // 使用Go底层自动优化，无需手动预编译
 // 会自动提取结构体字段作为列名和值，支持db tag映射
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   table: 目标表名
-//   data: 要插入的数据结构体，字段通过db tag映射到数据库列
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	table: 目标表名
+//	data: 要插入的数据结构体，字段通过db tag映射到数据库列
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 插入记录的自增ID（如果有）
-//   error: 插入失败时返回错误信息
+//
+//	int64: 插入记录的自增ID（如果有）
+//	error: 插入失败时返回错误信息
 func (m *MySQL) Insert(ctx context.Context, table string, data interface{}, autoCommit bool) (int64, error) {
 	query, args, err := sqlutils.BuildInsertQuery(table, data)
 	if err != nil {
@@ -530,9 +570,9 @@ func (m *MySQL) Insert(ctx context.Context, table string, data interface{}, auto
 	}
 
 	executor := m.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
-	
+
 	// 直接执行，让Go底层自动优化
 	result, err := executor.ExecContext(ctx, query, args...)
 	duration := time.Since(start)
@@ -562,15 +602,18 @@ func (m *MySQL) Insert(ctx context.Context, table string, data interface{}, auto
 // 根据提供的数据结构体和WHERE条件构建UPDATE语句并执行
 // 会自动提取结构体字段作为要更新的列和值
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   table: 目标表名
-//   data: 包含更新数据的结构体，字段通过db tag映射到数据库列
-//   where: WHERE条件语句，可包含占位符
-//   args: WHERE条件中占位符对应的参数值
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	table: 目标表名
+//	data: 包含更新数据的结构体，字段通过db tag映射到数据库列
+//	where: WHERE条件语句，可包含占位符
+//	args: WHERE条件中占位符对应的参数值
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 更新失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 更新失败时返回错误信息
 func (m *MySQL) Update(ctx context.Context, table string, data interface{}, where string, args []interface{}, autoCommit bool) (int64, error) {
 	setClause, setArgs, err := sqlutils.BuildUpdateQuery(table, data)
 	if err != nil {
@@ -584,9 +627,9 @@ func (m *MySQL) Update(ctx context.Context, table string, data interface{}, wher
 	}
 
 	executor := m.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
-	
+
 	// 直接执行，让Go底层自动优化
 	result, err := executor.ExecContext(ctx, query, setArgs...)
 	duration := time.Since(start)
@@ -613,14 +656,17 @@ func (m *MySQL) Update(ctx context.Context, table string, data interface{}, wher
 // 根据WHERE条件构建DELETE语句并执行
 // 使用Go底层自动优化，无需手动预编译
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   table: 目标表名
-//   where: WHERE条件语句，可包含占位符
-//   args: WHERE条件中占位符对应的参数值
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	table: 目标表名
+//	where: WHERE条件语句，可包含占位符
+//	args: WHERE条件中占位符对应的参数值
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 删除失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 删除失败时返回错误信息
 func (m *MySQL) Delete(ctx context.Context, table string, where string, args []interface{}, autoCommit bool) (int64, error) {
 	query := fmt.Sprintf("DELETE FROM %s", table)
 	if where != "" {
@@ -628,9 +674,9 @@ func (m *MySQL) Delete(ctx context.Context, table string, where string, args []i
 	}
 
 	executor := m.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
-	
+
 	// 直接执行，让Go底层自动优化
 	result, err := executor.ExecContext(ctx, query, args...)
 	duration := time.Since(start)
@@ -655,23 +701,23 @@ func (m *MySQL) Delete(ctx context.Context, table string, where string, args []i
 
 // BatchInsert 批量插入记录
 // 将切片中的多个数据结构体批量插入到MySQL中
-// 
+//
 // 注意：这是唯一保留手动预编译的方法，因为批量操作确实需要预编译优化
-// 
+//
 // 高效的预编译循环执行模式：
-//   1. 预编译一次：使用sql.PrepareContext()预编译单条INSERT语句
-//   2. 事务保证：默认在事务中执行，确保数据一致性
-//   3. 循环执行：在事务中循环执行预编译语句，逐条插入数据
-//   4. 错误处理：任何错误都会触发事务回滚，保证原子性
-//   5. 资源管理：自动关闭预编译语句和管理事务生命周期
+//  1. 预编译一次：使用sql.PrepareContext()预编译单条INSERT语句
+//  2. 事务保证：默认在事务中执行，确保数据一致性
+//  3. 循环执行：在事务中循环执行预编译语句，逐条插入数据
+//  4. 错误处理：任何错误都会触发事务回滚，保证原子性
+//  5. 资源管理：自动关闭预编译语句和管理事务生命周期
 //
 // 预编译循环执行流程：
-//   1. 分析数据结构，提取列信息
-//   2. 构建单条INSERT的预编译SQL语句
-//   3. 开始事务（autoCommit=true时自动创建，false时使用当前事务）
-//   4. 预编译单条INSERT语句（预编译一次，执行多次）
-//   5. 循环执行：for _, item := range dataSlice { stmt.Exec(item...) }
-//   6. 提交事务或在错误时回滚
+//  1. 分析数据结构，提取列信息
+//  2. 构建单条INSERT的预编译SQL语句
+//  3. 开始事务（autoCommit=true时自动创建，false时使用当前事务）
+//  4. 预编译单条INSERT语句（预编译一次，执行多次）
+//  5. 循环执行：for _, item := range dataSlice { stmt.Exec(item...) }
+//  6. 提交事务或在错误时回滚
 //
 // 优势对比：
 //   - vs 大SQL拼接：内存使用稳定，不受批量大小影响
@@ -684,13 +730,16 @@ func (m *MySQL) Delete(ctx context.Context, table string, where string, args []i
 //   - 任何单条记录插入失败都会回滚整个批次
 //
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   table: 目标表名
-//   dataSlice: 要插入的数据切片，每个元素都是结构体
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	table: 目标表名
+//	dataSlice: 要插入的数据切片，每个元素都是结构体
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 插入失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 插入失败时返回错误信息
 func (m *MySQL) BatchInsert(ctx context.Context, table string, dataSlice interface{}, autoCommit bool) (int64, error) {
 	slice := reflect.ValueOf(dataSlice)
 	if slice.Kind() != reflect.Slice {
@@ -722,7 +771,7 @@ func (m *MySQL) BatchInsert(ctx context.Context, table string, dataSlice interfa
 	// 第三步：开始事务（BatchInsert默认需要事务保证一致性）
 	var needCommit bool
 	var tx *sql.Tx
-	
+
 	if autoCommit {
 		// 自动提交模式：创建新事务
 		tx, err = m.db.BeginTx(ctx, nil)
@@ -788,9 +837,9 @@ func (m *MySQL) BatchInsert(ctx context.Context, table string, dataSlice interfa
 
 	// 记录执行日志
 	extra := map[string]interface{}{
-		"rowsAffected": totalRowsAffected,
-		"batchSize":    slice.Len(),
-		"columnsCount": len(columns),
+		"rowsAffected":  totalRowsAffected,
+		"batchSize":     slice.Len(),
+		"columnsCount":  len(columns),
 		"executionMode": "prepared_loop",
 	}
 	m.logger.LogSQL(ctx, "SQL批量插入", query, []interface{}{"[batch_data]"}, nil, duration, extra)
@@ -801,23 +850,26 @@ func (m *MySQL) BatchInsert(ctx context.Context, table string, dataSlice interfa
 // BatchUpdate 批量更新记录
 // 将切片中的多个数据结构体批量更新到MySQL中
 // 使用预编译循环执行模式，根据指定的关键字段进行匹配更新
-// 
+//
 // 高效的预编译循环执行模式：
-//   1. 预编译一次：使用sql.PrepareContext()预编译单条UPDATE语句
-//   2. 事务保证：默认在事务中执行，确保数据一致性
-//   3. 循环执行：在事务中循环执行预编译语句，逐条更新数据
-//   4. 错误处理：任何错误都会触发事务回滚，保证原子性
-//   5. 资源管理：自动关闭预编译语句和管理事务生命周期
+//  1. 预编译一次：使用sql.PrepareContext()预编译单条UPDATE语句
+//  2. 事务保证：默认在事务中执行，确保数据一致性
+//  3. 循环执行：在事务中循环执行预编译语句，逐条更新数据
+//  4. 错误处理：任何错误都会触发事务回滚，保证原子性
+//  5. 资源管理：自动关闭预编译语句和管理事务生命周期
 //
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   table: 目标表名
-//   dataSlice: 要更新的数据切片，每个元素都是结构体
-//   keyFields: 用于匹配记录的关键字段列表（如主键字段）
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	table: 目标表名
+//	dataSlice: 要更新的数据切片，每个元素都是结构体
+//	keyFields: 用于匹配记录的关键字段列表（如主键字段）
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 更新失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 更新失败时返回错误信息
 func (m *MySQL) BatchUpdate(ctx context.Context, table string, dataSlice interface{}, keyFields []string, autoCommit bool) (int64, error) {
 	slice := reflect.ValueOf(dataSlice)
 	if slice.Kind() != reflect.Slice {
@@ -842,7 +894,7 @@ func (m *MySQL) BatchUpdate(ctx context.Context, table string, dataSlice interfa
 	// 第二步：构建UPDATE语句，分离SET子句和WHERE子句
 	var setClauses []string
 	var whereClause []string
-	
+
 	for _, col := range columns {
 		isKeyField := false
 		for _, keyField := range keyFields {
@@ -851,14 +903,14 @@ func (m *MySQL) BatchUpdate(ctx context.Context, table string, dataSlice interfa
 				break
 			}
 		}
-		
+
 		if isKeyField {
 			whereClause = append(whereClause, col+" = ?")
 		} else {
 			setClauses = append(setClauses, col+" = ?")
 		}
 	}
-	
+
 	if len(setClauses) == 0 {
 		return 0, fmt.Errorf("no fields to update (all fields are key fields)")
 	}
@@ -871,7 +923,7 @@ func (m *MySQL) BatchUpdate(ctx context.Context, table string, dataSlice interfa
 	// 第三步：开始事务
 	var needCommit bool
 	var tx *sql.Tx
-	
+
 	if autoCommit {
 		tx, err = m.db.BeginTx(ctx, nil)
 		if err != nil {
@@ -919,7 +971,7 @@ func (m *MySQL) BatchUpdate(ctx context.Context, table string, dataSlice interfa
 					break
 				}
 			}
-			
+
 			if !isKeyField {
 				// 找到对应的值
 				for j, column := range columns {
@@ -930,7 +982,7 @@ func (m *MySQL) BatchUpdate(ctx context.Context, table string, dataSlice interfa
 				}
 			}
 		}
-		
+
 		// 添加WHERE条件的参数
 		for _, keyField := range keyFields {
 			for j, column := range columns {
@@ -967,9 +1019,9 @@ func (m *MySQL) BatchUpdate(ctx context.Context, table string, dataSlice interfa
 
 	// 记录执行日志
 	extra := map[string]interface{}{
-		"rowsAffected": totalRowsAffected,
-		"batchSize":    slice.Len(),
-		"keyFields":    keyFields,
+		"rowsAffected":  totalRowsAffected,
+		"batchSize":     slice.Len(),
+		"keyFields":     keyFields,
 		"executionMode": "prepared_loop",
 	}
 	m.logger.LogSQL(ctx, "SQL批量更新", query, []interface{}{"[batch_data]"}, nil, duration, extra)
@@ -980,23 +1032,26 @@ func (m *MySQL) BatchUpdate(ctx context.Context, table string, dataSlice interfa
 // BatchDelete 批量删除记录
 // 根据提供的数据切片批量删除记录，通过指定的关键字段匹配
 // 使用预编译循环执行模式提高性能
-// 
+//
 // 高效的预编译循环执行模式：
-//   1. 预编译一次：使用sql.PrepareContext()预编译单条DELETE语句
-//   2. 事务保证：默认在事务中执行，确保数据一致性
-//   3. 循环执行：在事务中循环执行预编译语句，逐条删除数据
-//   4. 错误处理：任何错误都会触发事务回滚，保证原子性
-//   5. 资源管理：自动关闭预编译语句和管理事务生命周期
+//  1. 预编译一次：使用sql.PrepareContext()预编译单条DELETE语句
+//  2. 事务保证：默认在事务中执行，确保数据一致性
+//  3. 循环执行：在事务中循环执行预编译语句，逐条删除数据
+//  4. 错误处理：任何错误都会触发事务回滚，保证原子性
+//  5. 资源管理：自动关闭预编译语句和管理事务生命周期
 //
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   table: 目标表名
-//   dataSlice: 包含要删除记录信息的数据切片，每个元素都是结构体
-//   keyFields: 用于匹配记录的关键字段列表（如主键字段）
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	table: 目标表名
+//	dataSlice: 包含要删除记录信息的数据切片，每个元素都是结构体
+//	keyFields: 用于匹配记录的关键字段列表（如主键字段）
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 删除失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 删除失败时返回错误信息
 func (m *MySQL) BatchDelete(ctx context.Context, table string, dataSlice interface{}, keyFields []string, autoCommit bool) (int64, error) {
 	slice := reflect.ValueOf(dataSlice)
 	if slice.Kind() != reflect.Slice {
@@ -1031,7 +1086,7 @@ func (m *MySQL) BatchDelete(ctx context.Context, table string, dataSlice interfa
 	// 第三步：开始事务
 	var needCommit bool
 	var tx *sql.Tx
-	
+
 	if autoCommit {
 		tx, err = m.db.BeginTx(ctx, nil)
 		if err != nil {
@@ -1106,9 +1161,9 @@ func (m *MySQL) BatchDelete(ctx context.Context, table string, dataSlice interfa
 
 	// 记录执行日志
 	extra := map[string]interface{}{
-		"rowsAffected": totalRowsAffected,
-		"batchSize":    slice.Len(),
-		"keyFields":    keyFields,
+		"rowsAffected":  totalRowsAffected,
+		"batchSize":     slice.Len(),
+		"keyFields":     keyFields,
 		"executionMode": "prepared_loop",
 	}
 	m.logger.LogSQL(ctx, "SQL批量删除", query, []interface{}{"[batch_data]"}, nil, duration, extra)
@@ -1119,16 +1174,19 @@ func (m *MySQL) BatchDelete(ctx context.Context, table string, dataSlice interfa
 // BatchDeleteByKeys 根据主键列表批量删除记录
 // 更高效的批量删除方式，直接提供主键值列表
 // 使用IN子句进行批量删除，比逐条删除更高效
-// 
+//
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   table: 目标表名
-//   keyField: 主键字段名
-//   keys: 要删除的主键值列表
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	table: 目标表名
+//	keyField: 主键字段名
+//	keys: 要删除的主键值列表
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 删除失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 删除失败时返回错误信息
 func (m *MySQL) BatchDeleteByKeys(ctx context.Context, table string, keyField string, keys []interface{}, autoCommit bool) (int64, error) {
 	if len(keys) == 0 {
 		return 0, nil
@@ -1150,9 +1208,9 @@ func (m *MySQL) BatchDeleteByKeys(ctx context.Context, table string, keyField st
 		strings.Join(placeholders, ", "))
 
 	executor := m.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
-	
+
 	// 直接执行，使用IN子句批量删除
 	result, err := executor.ExecContext(ctx, query, keys...)
 	duration := time.Since(start)
@@ -1164,9 +1222,9 @@ func (m *MySQL) BatchDeleteByKeys(ctx context.Context, table string, keyField st
 
 	// 记录日志
 	extra := map[string]interface{}{
-		"rowsAffected": rowsAffected,
-		"batchSize":    len(keys),
-		"keyField":     keyField,
+		"rowsAffected":  rowsAffected,
+		"batchSize":     len(keys),
+		"keyField":      keyField,
 		"executionMode": "in_clause",
 	}
 	m.logger.LogSQL(ctx, "SQL批量删除(主键)", query, keys, err, duration, extra)
@@ -1179,7 +1237,7 @@ func (m *MySQL) BatchDeleteByKeys(ctx context.Context, table string, keyField st
 }
 
 // 实现说明
-// 
+//
 // 1. 普通操作优化：
 //    - Exec、Query、QueryOne、Insert、Update、Delete等单次操作
 //    - 直接使用Go database/sql的ExecContext、QueryContext等方法

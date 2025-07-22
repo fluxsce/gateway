@@ -3,8 +3,8 @@ package dao
 import (
 	"context"
 	"fmt"
-	"gohub/internal/metric_collect/types"
-	"gohub/pkg/database"
+	"gateway/internal/metric_collect/types"
+	"gateway/pkg/database"
 	"time"
 )
 
@@ -26,7 +26,7 @@ func (dao *ServerInfoDAO) InsertServerInfo(ctx context.Context, serverInfo *type
 	serverInfo.EditTime = now
 	serverInfo.CurrentVersion = 1
 	serverInfo.ActiveFlag = types.ActiveFlagYes
-	
+
 	// 验证必填字段
 	if serverInfo.MetricServerId == "" {
 		return fmt.Errorf("服务器ID不能为空")
@@ -46,7 +46,7 @@ func (dao *ServerInfoDAO) InsertServerInfo(ctx context.Context, serverInfo *type
 	if serverInfo.OprSeqFlag == "" {
 		return fmt.Errorf("操作序列标识不能为空")
 	}
-	
+
 	tableName := serverInfo.TableName()
 	_, err := dao.db.Insert(ctx, tableName, serverInfo, true)
 	if err != nil {
@@ -60,7 +60,7 @@ func (dao *ServerInfoDAO) BatchInsertServerInfo(ctx context.Context, serverInfos
 	if len(serverInfos) == 0 {
 		return nil
 	}
-	
+
 	// 设置通用字段默认值
 	now := time.Now()
 	for _, serverInfo := range serverInfos {
@@ -68,7 +68,7 @@ func (dao *ServerInfoDAO) BatchInsertServerInfo(ctx context.Context, serverInfos
 		serverInfo.EditTime = now
 		serverInfo.CurrentVersion = 1
 		serverInfo.ActiveFlag = types.ActiveFlagYes
-		
+
 		// 验证必填字段
 		if serverInfo.MetricServerId == "" {
 			return fmt.Errorf("服务器ID不能为空")
@@ -89,15 +89,15 @@ func (dao *ServerInfoDAO) BatchInsertServerInfo(ctx context.Context, serverInfos
 			return fmt.Errorf("操作序列标识不能为空")
 		}
 	}
-	
+
 	tableName := serverInfos[0].TableName()
-	
+
 	// 转换为interface{}切片
 	items := make([]interface{}, len(serverInfos))
 	for i, serverInfo := range serverInfos {
 		items[i] = serverInfo
 	}
-	
+
 	_, err := dao.db.BatchInsert(ctx, tableName, items, true)
 	if err != nil {
 		return fmt.Errorf("批量插入服务器信息失败: %w", err)
@@ -113,10 +113,10 @@ func (dao *ServerInfoDAO) DeleteServerInfo(ctx context.Context, tenantId, metric
 	if metricServerId == "" {
 		return fmt.Errorf("服务器ID不能为空")
 	}
-	
+
 	tableName := (&types.ServerInfo{}).TableName()
 	sql := fmt.Sprintf("UPDATE %s SET activeFlag = ? WHERE tenantId = ? AND metricServerId = ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{types.ActiveFlagNo, tenantId, metricServerId}, true)
 	if err != nil {
 		return fmt.Errorf("删除服务器信息失败: %w", err)
@@ -129,10 +129,10 @@ func (dao *ServerInfoDAO) DeleteServerInfoByTime(ctx context.Context, tenantId s
 	if tenantId == "" {
 		return fmt.Errorf("租户ID不能为空")
 	}
-	
+
 	tableName := (&types.ServerInfo{}).TableName()
 	sql := fmt.Sprintf("DELETE FROM %s WHERE tenantId = ? AND addTime < ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{tenantId, beforeTime}, true)
 	if err != nil {
 		return fmt.Errorf("根据时间删除服务器信息失败: %w", err)
@@ -148,10 +148,10 @@ func (dao *ServerInfoDAO) GetServerInfoById(ctx context.Context, tenantId, metri
 	if metricServerId == "" {
 		return nil, fmt.Errorf("服务器ID不能为空")
 	}
-	
+
 	tableName := (&types.ServerInfo{}).TableName()
 	sql := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND metricServerId = ? AND activeFlag = ?", tableName)
-	
+
 	var serverInfo types.ServerInfo
 	err := dao.db.QueryOne(ctx, &serverInfo, sql, []interface{}{tenantId, metricServerId, types.ActiveFlagYes}, true)
 	if err != nil {
@@ -160,7 +160,7 @@ func (dao *ServerInfoDAO) GetServerInfoById(ctx context.Context, tenantId, metri
 		}
 		return nil, fmt.Errorf("查询服务器信息失败: %w", err)
 	}
-	
+
 	return &serverInfo, nil
 }
 
@@ -172,10 +172,10 @@ func (dao *ServerInfoDAO) GetServerInfoByHostname(ctx context.Context, tenantId,
 	if hostname == "" {
 		return nil, fmt.Errorf("主机名不能为空")
 	}
-	
+
 	tableName := (&types.ServerInfo{}).TableName()
 	sql := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND hostname = ? AND activeFlag = ?", tableName)
-	
+
 	var serverInfo types.ServerInfo
 	err := dao.db.QueryOne(ctx, &serverInfo, sql, []interface{}{tenantId, hostname, types.ActiveFlagYes}, true)
 	if err != nil {
@@ -184,7 +184,7 @@ func (dao *ServerInfoDAO) GetServerInfoByHostname(ctx context.Context, tenantId,
 		}
 		return nil, fmt.Errorf("查询服务器信息失败: %w", err)
 	}
-	
+
 	return &serverInfo, nil
 }
 
@@ -196,20 +196,20 @@ func (dao *ServerInfoDAO) UpdateServerInfo(ctx context.Context, serverInfo *type
 	if serverInfo.MetricServerId == "" {
 		return fmt.Errorf("服务器ID不能为空")
 	}
-	
+
 	// 更新时间和版本
 	now := time.Now()
 	serverInfo.EditTime = now
 	serverInfo.LastUpdateTime = now
 	serverInfo.CurrentVersion++
-	
+
 	tableName := serverInfo.TableName()
 	sql := fmt.Sprintf(`UPDATE %s SET 
 		hostname = ?, osType = ?, osVersion = ?, kernelVersion = ?, architecture = ?, 
 		bootTime = ?, ipAddress = ?, macAddress = ?, serverLocation = ?, serverType = ?, 
 		lastUpdateTime = ?, editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?
 		WHERE tenantId = ? AND metricServerId = ?`, tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{
 		serverInfo.Hostname, serverInfo.OsType, serverInfo.OsVersion, serverInfo.KernelVersion, serverInfo.Architecture,
 		serverInfo.BootTime, serverInfo.IpAddress, serverInfo.MacAddress, serverInfo.ServerLocation, serverInfo.ServerType,
@@ -220,4 +220,4 @@ func (dao *ServerInfoDAO) UpdateServerInfo(ctx context.Context, serverInfo *type
 		return fmt.Errorf("更新服务器信息失败: %w", err)
 	}
 	return nil
-} 
+}

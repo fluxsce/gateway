@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // FixedWindowLimiter 固定窗口限流器

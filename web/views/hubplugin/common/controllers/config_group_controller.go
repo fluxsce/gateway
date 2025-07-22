@@ -1,13 +1,13 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/utils/random"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hubplugin/common/dao"
-	"gohub/web/views/hubplugin/common/models"
+	"gateway/pkg/database"
+	"gateway/pkg/utils/random"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hubplugin/common/dao"
+	"gateway/web/views/hubplugin/common/models"
 	"strings"
 	"time"
 
@@ -367,4 +367,4 @@ func (c *ConfigGroupController) QueryConfigGroups(ctx *gin.Context) {
 	}
 
 	response.PageJSON(ctx, configGroups, pageInfo, constants.SD00002)
-} 
+}

@@ -6,13 +6,13 @@ import (
 	"sync"
 	"time"
 
-	"gohub/pkg/metric/collector/cpu"
-	"gohub/pkg/metric/collector/disk"
-	"gohub/pkg/metric/collector/memory"
-	"gohub/pkg/metric/collector/network"
-	"gohub/pkg/metric/collector/process"
-	"gohub/pkg/metric/collector/system"
-	"gohub/pkg/metric/types"
+	"gateway/pkg/metric/collector/cpu"
+	"gateway/pkg/metric/collector/disk"
+	"gateway/pkg/metric/collector/memory"
+	"gateway/pkg/metric/collector/network"
+	"gateway/pkg/metric/collector/process"
+	"gateway/pkg/metric/collector/system"
+	"gateway/pkg/metric/types"
 )
 
 // DefaultMetricManager 默认指标管理器
@@ -411,4 +411,4 @@ func (m *DefaultMetricManager) GetCollectorStatus() map[string]bool {
 	}
 
 	return status
-} 
+}

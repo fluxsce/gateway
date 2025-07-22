@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"gohub/pkg/metric/collector/disk"
-	"gohub/pkg/metric/types"
+	"gateway/pkg/metric/collector/disk"
+	"gateway/pkg/metric/types"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -67,10 +67,10 @@ func TestDiskCollector_IORate(t *testing.T) {
 	// 第一次采集
 	result1, err := collector.GetDiskIOStats()
 	assert.NoError(t, err)
-	
+
 	// 等待一段时间
 	time.Sleep(2 * time.Second)
-	
+
 	// 第二次采集
 	result2, err := collector.GetDiskIOStats()
 	assert.NoError(t, err)
@@ -82,9 +82,9 @@ func TestDiskCollector_IORate(t *testing.T) {
 			continue
 		}
 		device := result1[i].Device
-		readBytesRate := float64(result2[i].ReadBytes-result1[i].ReadBytes) / (2 * 1024 * 1024) // MB/s
+		readBytesRate := float64(result2[i].ReadBytes-result1[i].ReadBytes) / (2 * 1024 * 1024)    // MB/s
 		writeBytesRate := float64(result2[i].WriteBytes-result1[i].WriteBytes) / (2 * 1024 * 1024) // MB/s
-		
+
 		t.Logf("设备: %s", device)
 		t.Logf("读取速率: %.2f MB/s", readBytesRate)
 		t.Logf("写入速率: %.2f MB/s", writeBytesRate)
@@ -108,8 +108,8 @@ func TestDiskCollector_VirtualFS(t *testing.T) {
 
 	for _, tc := range testCases {
 		actual := disk.IsVirtualFileSystem(tc.device, tc.filesystem)
-		assert.Equal(t, tc.expected, actual, 
-			"设备:%s, 文件系统:%s 应该返回 %v", 
+		assert.Equal(t, tc.expected, actual,
+			"设备:%s, 文件系统:%s 应该返回 %v",
 			tc.device, tc.filesystem, tc.expected)
 	}
 }

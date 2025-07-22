@@ -1,10 +1,10 @@
 package hubcommon002routes
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/routes"
-	"gohub/web/views/hubcommon002/controllers"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/routes"
+	"gateway/web/views/hubcommon002/controllers"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,7 +17,7 @@ var (
 
 	// APIPrefix API路径前缀，所有该模块的API都将以此为基础路径
 	// 实际路由时将根据RouteDiscovery的设置可能会使用"/api/hubcommon002"
-	APIPrefix = "/gohub/hubcommon002"
+	APIPrefix = "/gateway/hubcommon002"
 )
 
 // init 包初始化函数
@@ -188,4 +188,4 @@ func initSecurityConfigRoutes(router *gin.RouterGroup, db database.Database) {
 //   - func(router *gin.Engine, db database.Database): 返回Init函数引用
 func RegisterRoutesFunc() func(router *gin.Engine, db database.Database) {
 	return Init
-} 
+}

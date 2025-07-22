@@ -1,7 +1,7 @@
 package limiter
 
 import (
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // NoneLimiter 无限制限流器

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"gohub/pkg/database"
-	_ "gohub/pkg/database/alldriver" // 导入驱动确保注册
+	"gateway/pkg/database"
+	_ "gateway/pkg/database/alldriver" // 导入驱动确保注册
 )
 
 // ConfigUser 用于测试的用户结构体

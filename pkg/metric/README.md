@@ -47,7 +47,7 @@ import (
     "log"
     "time"
     
-    "gohub/pkg/metric"
+    "gateway/pkg/metric"
 )
 
 func main() {
@@ -106,7 +106,7 @@ import (
     "log"
     "time"
     
-    "gohub/pkg/metric"
+    "gateway/pkg/metric"
 )
 
 func main() {
@@ -156,8 +156,8 @@ import (
     "log"
     "time"
     
-    "gohub/pkg/metric"
-    "gohub/pkg/metric/types"
+    "gateway/pkg/metric"
+    "gateway/pkg/metric/types"
 )
 
 func main() {
@@ -296,8 +296,8 @@ package main
 
 import (
     "time"
-    "gohub/pkg/metric/collector"
-    "gohub/pkg/metric/types"
+    "gateway/pkg/metric/collector"
+    "gateway/pkg/metric/types"
 )
 
 // 自定义采集器

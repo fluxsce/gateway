@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 func TestNewContext(t *testing.T) {

@@ -6,24 +6,24 @@ import (
 	"regexp"
 	"strings"
 
-	"gohub/internal/gateway/constants"
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/assertion"
-	"gohub/internal/gateway/handler/auth"
-	"gohub/internal/gateway/handler/cors"
-	"gohub/internal/gateway/handler/filter"
-	"gohub/internal/gateway/handler/limiter"
-	"gohub/internal/gateway/handler/security"
+	"gateway/internal/gateway/constants"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/assertion"
+	"gateway/internal/gateway/handler/auth"
+	"gateway/internal/gateway/handler/cors"
+	"gateway/internal/gateway/handler/filter"
+	"gateway/internal/gateway/handler/limiter"
+	"gateway/internal/gateway/handler/security"
 )
 
 // 路由匹配类型常量
 const (
 	// MatchTypeExact 精确匹配
 	MatchTypeExact = 0
-	
+
 	// MatchTypePrefix 前缀匹配
 	MatchTypePrefix = 1
-	
+
 	// MatchTypeRegex 正则匹配
 	MatchTypeRegex = 2
 )

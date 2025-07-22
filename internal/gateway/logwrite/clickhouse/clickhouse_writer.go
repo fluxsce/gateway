@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"gohub/internal/gateway/logwrite/types"
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
+	"gateway/internal/gateway/logwrite/types"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
 )
 
 // ClickHouseWriter 实现了 LogWriter 接口，专门用于将网关访问日志写入ClickHouse
@@ -19,20 +19,20 @@ import (
 type ClickHouseWriter struct {
 	// 日志配置
 	config *types.LogConfig
-	
+
 	// ClickHouse数据库连接实例
 	db database.Database
-	
+
 	// 异步处理相关
 	logQueue    chan *types.AccessLog // 异步日志队列
 	batchBuffer []*types.AccessLog    // 批量写入缓冲区
-	flushTicker *time.Ticker         // 定时刷新ticker
-	stopChan    chan struct{}        // 停止信号通道
-	wg          sync.WaitGroup       // 等待组，用于优雅关闭
-	
+	flushTicker *time.Ticker          // 定时刷新ticker
+	stopChan    chan struct{}         // 停止信号通道
+	wg          sync.WaitGroup        // 等待组，用于优雅关闭
+
 	// 互斥锁，保护批量缓冲区
 	mutex sync.Mutex
-	
+
 	// 状态标识
 	closed bool
 
@@ -149,7 +149,7 @@ func (w *ClickHouseWriter) Flush(ctx context.Context) error {
 	// 清空缓冲区
 	w.batchBuffer = w.batchBuffer[:0]
 	logger.Debug("Flushed ClickHouse batch buffer", "count", len(w.batchBuffer))
-	
+
 	return nil
 }
 
@@ -178,7 +178,7 @@ func (w *ClickHouseWriter) Close() error {
 		w.flushTicker.Stop()
 	}
 
-	logger.Info("ClickHouseWriter closed successfully", 
+	logger.Info("ClickHouseWriter closed successfully",
 		"totalInserted", w.insertedCount,
 		"totalBatches", w.batchCount)
 	return nil
@@ -219,7 +219,7 @@ func (w *ClickHouseWriter) startFlushTimer() {
 	}
 
 	w.flushTicker = time.NewTicker(time.Duration(w.config.AsyncFlushIntervalMs) * time.Millisecond)
-	
+
 	w.wg.Add(1)
 	go func() {
 		defer w.wg.Done()
@@ -308,7 +308,7 @@ func (w *ClickHouseWriter) batchWriteDirectly(ctx context.Context, logs []*types
 	// 记录性能指标
 	duration := time.Since(startTime)
 	recordsPerSecond := float64(len(logs)) / duration.Seconds()
-	
+
 	logger.Debug("ClickHouse batch write completed",
 		"count", len(logs),
 		"duration", duration,
@@ -317,4 +317,4 @@ func (w *ClickHouseWriter) batchWriteDirectly(ctx context.Context, logs []*types
 		"totalBatches", w.batchCount)
 
 	return nil
-} 
+}

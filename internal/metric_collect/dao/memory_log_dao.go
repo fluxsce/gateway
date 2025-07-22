@@ -3,8 +3,8 @@ package dao
 import (
 	"context"
 	"fmt"
-	"gohub/internal/metric_collect/types"
-	"gohub/pkg/database"
+	"gateway/internal/metric_collect/types"
+	"gateway/pkg/database"
 	"time"
 )
 
@@ -26,7 +26,7 @@ func (dao *MemoryLogDAO) InsertMemoryLog(ctx context.Context, memoryLog *types.M
 	memoryLog.EditTime = now
 	memoryLog.CurrentVersion = 1
 	memoryLog.ActiveFlag = types.ActiveFlagYes
-	
+
 	// 验证必填字段
 	if memoryLog.MetricMemoryLogId == "" {
 		return fmt.Errorf("内存采集日志ID不能为空")
@@ -46,7 +46,7 @@ func (dao *MemoryLogDAO) InsertMemoryLog(ctx context.Context, memoryLog *types.M
 	if memoryLog.OprSeqFlag == "" {
 		return fmt.Errorf("操作序列标识不能为空")
 	}
-	
+
 	tableName := memoryLog.TableName()
 	_, err := dao.db.Insert(ctx, tableName, memoryLog, true)
 	if err != nil {
@@ -60,7 +60,7 @@ func (dao *MemoryLogDAO) BatchInsertMemoryLog(ctx context.Context, memoryLogs []
 	if len(memoryLogs) == 0 {
 		return nil
 	}
-	
+
 	// 设置通用字段默认值
 	now := time.Now()
 	for _, memoryLog := range memoryLogs {
@@ -68,7 +68,7 @@ func (dao *MemoryLogDAO) BatchInsertMemoryLog(ctx context.Context, memoryLogs []
 		memoryLog.EditTime = now
 		memoryLog.CurrentVersion = 1
 		memoryLog.ActiveFlag = types.ActiveFlagYes
-		
+
 		// 验证必填字段
 		if memoryLog.MetricMemoryLogId == "" {
 			return fmt.Errorf("内存采集日志ID不能为空")
@@ -89,15 +89,15 @@ func (dao *MemoryLogDAO) BatchInsertMemoryLog(ctx context.Context, memoryLogs []
 			return fmt.Errorf("操作序列标识不能为空")
 		}
 	}
-	
+
 	tableName := memoryLogs[0].TableName()
-	
+
 	// 转换为interface{}切片
 	items := make([]interface{}, len(memoryLogs))
 	for i, memoryLog := range memoryLogs {
 		items[i] = memoryLog
 	}
-	
+
 	_, err := dao.db.BatchInsert(ctx, tableName, items, true)
 	if err != nil {
 		return fmt.Errorf("批量插入内存采集日志失败: %w", err)
@@ -113,10 +113,10 @@ func (dao *MemoryLogDAO) DeleteMemoryLog(ctx context.Context, tenantId, metricMe
 	if metricMemoryLogId == "" {
 		return fmt.Errorf("内存采集日志ID不能为空")
 	}
-	
+
 	tableName := (&types.MemoryLog{}).TableName()
 	sql := fmt.Sprintf("UPDATE %s SET activeFlag = ? WHERE tenantId = ? AND metricMemoryLogId = ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{types.ActiveFlagNo, tenantId, metricMemoryLogId}, true)
 	if err != nil {
 		return fmt.Errorf("删除内存采集日志失败: %w", err)
@@ -129,10 +129,10 @@ func (dao *MemoryLogDAO) DeleteMemoryLogByTime(ctx context.Context, tenantId str
 	if tenantId == "" {
 		return fmt.Errorf("租户ID不能为空")
 	}
-	
+
 	tableName := (&types.MemoryLog{}).TableName()
 	sql := fmt.Sprintf("DELETE FROM %s WHERE tenantId = ? AND collectTime < ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{tenantId, beforeTime}, true)
 	if err != nil {
 		return fmt.Errorf("根据时间删除内存采集日志失败: %w", err)
@@ -148,13 +148,13 @@ func (dao *MemoryLogDAO) DeleteMemoryLogByServer(ctx context.Context, tenantId, 
 	if metricServerId == "" {
 		return fmt.Errorf("服务器ID不能为空")
 	}
-	
+
 	tableName := (&types.MemoryLog{}).TableName()
 	sql := fmt.Sprintf("DELETE FROM %s WHERE tenantId = ? AND metricServerId = ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{tenantId, metricServerId}, true)
 	if err != nil {
 		return fmt.Errorf("根据服务器ID删除内存采集日志失败: %w", err)
 	}
 	return nil
-} 
+}

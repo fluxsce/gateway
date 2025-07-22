@@ -2,9 +2,9 @@ package dao
 
 import (
 	"context"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/web/views/hubplugin/common/models"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/web/views/hubplugin/common/models"
 )
 
 // ConfigGroupDao 工具配置分组数据访问对象
@@ -62,7 +62,7 @@ func (d *ConfigGroupDao) Update(ctx context.Context, configGroup *models.ToolCon
 
 // Delete 删除工具配置分组（物理删除）
 func (d *ConfigGroupDao) Delete(ctx context.Context, tenantId, configGroupId, operatorId string) (int64, error) {
-	query := "DELETE FROM " + (&models.ToolConfigGroup{}).TableName() + 
+	query := "DELETE FROM " + (&models.ToolConfigGroup{}).TableName() +
 		" WHERE tenantId = ? AND configGroupId = ?"
 	return d.db.Exec(ctx, query, []interface{}{tenantId, configGroupId}, true)
 }
@@ -149,7 +149,7 @@ func (d *ConfigGroupDao) Query(ctx context.Context, params map[string]interface{
 // GetByParentId 根据父分组ID获取子分组列表
 func (d *ConfigGroupDao) GetByParentId(ctx context.Context, tenantId, parentGroupId string) ([]*models.ToolConfigGroup, error) {
 	var configGroups []*models.ToolConfigGroup
-	query := "SELECT * FROM " + (&models.ToolConfigGroup{}).TableName() + 
+	query := "SELECT * FROM " + (&models.ToolConfigGroup{}).TableName() +
 		" WHERE tenantId = ? AND parentGroupId = ? ORDER BY sortOrder ASC, addTime DESC"
 	args := []interface{}{tenantId, parentGroupId}
 
@@ -159,4 +159,4 @@ func (d *ConfigGroupDao) GetByParentId(ctx context.Context, tenantId, parentGrou
 	}
 
 	return configGroups, nil
-} 
+}

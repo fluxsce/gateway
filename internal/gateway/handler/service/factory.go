@@ -2,7 +2,7 @@ package service
 
 import (
 	"fmt"
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // LoadBalancerFactory 负载均衡器工厂

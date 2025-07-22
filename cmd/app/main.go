@@ -1,8 +1,9 @@
 package main
 
 import (
-	"gohub/cmd/starter"
+	"gateway/cmd/starter"
 )
+
 func main() {
 	starter.Starter()
 }

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"gohub/internal/gateway/logwrite/types"
-	"gohub/pkg/database"
+	"gateway/internal/gateway/logwrite/types"
+	"gateway/pkg/database"
 )
 
 // LogConfigLoader 日志配置加载器
@@ -54,7 +54,6 @@ func (loader *LogConfigLoader) LoadLogConfig(ctx context.Context, logConfigId st
 	// 转换数据库记录为日志配置对象
 	return loader.buildLogConfig(&record), nil
 }
-
 
 // buildLogConfig 构建日志配置对象
 func (loader *LogConfigLoader) buildLogConfig(record *LogConfigRecord) *types.LogConfig {
@@ -113,4 +112,4 @@ func (loader *LogConfigLoader) ValidateLogConfig(config *types.LogConfig) error 
 	}
 
 	return config.Validate()
-} 
+}

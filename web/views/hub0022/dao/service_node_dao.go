@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/pkg/utils/huberrors"
-	"gohub/web/views/hub0022/models"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/huberrors"
+	"gateway/web/views/hub0022/models"
 	"strings"
 	"time"
 
@@ -43,7 +43,7 @@ func (dao *ServiceNodeDAO) QueryServiceNodes(ctx context.Context, tenantId strin
 			if key == "nodeEnabled" {
 				continue
 			}
-			
+
 			// 对于字符串类型的值，支持模糊查询
 			if strValue, ok := value.(string); ok && key == "nodeHost" {
 				whereClause += fmt.Sprintf(" AND %s LIKE ?", key)
@@ -338,7 +338,7 @@ func (dao *ServiceNodeDAO) DeleteServiceNode(ctx context.Context, serviceNodeId,
 
 	// 执行物理删除
 	sql := `DELETE FROM HUB_GW_SERVICE_NODE WHERE serviceNodeId = ? AND tenantId = ?`
-	
+
 	result, err := dao.db.Exec(ctx, sql, []interface{}{serviceNodeId, tenantId}, true)
 	if err != nil {
 		return huberrors.WrapError(err, "删除服务节点失败")
@@ -410,4 +410,4 @@ func (dao *ServiceNodeDAO) UpdateNodeHealth(ctx context.Context, serviceNodeId, 
 	}
 
 	return nil
-} 
+}

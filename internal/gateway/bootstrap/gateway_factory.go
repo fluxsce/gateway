@@ -7,17 +7,17 @@ import (
 	"net/http"
 	"time"
 
-	"gohub/internal/gateway/config"
-	"gohub/internal/gateway/constants"
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/auth"
-	"gohub/internal/gateway/handler/cors"
-	"gohub/internal/gateway/handler/limiter"
-	"gohub/internal/gateway/handler/proxy"
-	"gohub/internal/gateway/handler/router"
-	"gohub/internal/gateway/handler/security"
-	"gohub/internal/gateway/handler/service"
-	"gohub/pkg/logger"
+	"gateway/internal/gateway/config"
+	"gateway/internal/gateway/constants"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/auth"
+	"gateway/internal/gateway/handler/cors"
+	"gateway/internal/gateway/handler/limiter"
+	"gateway/internal/gateway/handler/proxy"
+	"gateway/internal/gateway/handler/router"
+	"gateway/internal/gateway/handler/security"
+	"gateway/internal/gateway/handler/service"
+	"gateway/pkg/logger"
 )
 
 // GatewayFactory 网关工厂
@@ -76,13 +76,13 @@ func (f *GatewayFactory) CreateGatewayWithPool(cfg *config.GatewayConfig, config
 
 	// 获取全局连接池
 	pool := GetGlobalPool()
-	
+
 	// 确定实例ID
 	instanceID := cfg.InstanceID
 	if instanceID == "" {
 		instanceID = cfg.Base.Listen // 使用监听地址作为默认ID
 	}
-	
+
 	// 添加到连接池
 	if err := pool.Add(instanceID, gateway); err != nil {
 		return nil, fmt.Errorf("添加网关实例到连接池失败: %w", err)
@@ -233,7 +233,7 @@ func (f *GatewayFactory) ReloadGateway(gateway *Gateway, newCfg *config.GatewayC
 	// 先创建新的engine，设置完成后再一次性替换，确保原子性
 	newEngine := core.NewEngine()
 	gateway.setupHandlers(newEngine)
-	
+
 	// 处理器链设置完成，现在可以安全替换engine
 	gateway.engine = newEngine
 
@@ -250,7 +250,7 @@ func (f *GatewayFactory) ReloadGateway(gateway *Gateway, newCfg *config.GatewayC
 	if oldConfig.InstanceID != newCfg.InstanceID && newCfg.InstanceID != "" {
 		// 获取全局连接池
 		pool := GetGlobalPool()
-		
+
 		// 从连接池中移除旧ID
 		if oldConfig.InstanceID != "" {
 			pool.Remove(oldConfig.InstanceID)
@@ -258,7 +258,7 @@ func (f *GatewayFactory) ReloadGateway(gateway *Gateway, newCfg *config.GatewayC
 			// 如果旧配置没有实例ID，尝试使用监听地址作为ID
 			pool.Remove(oldConfig.Base.Listen)
 		}
-		
+
 		// 使用新ID添加到连接池
 		if err := pool.Add(newCfg.InstanceID, gateway); err != nil {
 			return fmt.Errorf("更新连接池中的网关实例失败: %w", err)
@@ -289,7 +289,7 @@ func (f *GatewayFactory) closeOldHandlers(oldRouter, oldProxy, oldAuth, oldCors,
 			}
 		}
 	}
-	
+
 	if oldAuth != nil {
 		if closer, ok := oldAuth.(interface{ Close() error }); ok {
 			if err := closer.Close(); err != nil {
@@ -297,7 +297,7 @@ func (f *GatewayFactory) closeOldHandlers(oldRouter, oldProxy, oldAuth, oldCors,
 			}
 		}
 	}
-	
+
 	if oldCors != nil {
 		if closer, ok := oldCors.(interface{ Close() error }); ok {
 			if err := closer.Close(); err != nil {
@@ -305,7 +305,7 @@ func (f *GatewayFactory) closeOldHandlers(oldRouter, oldProxy, oldAuth, oldCors,
 			}
 		}
 	}
-	
+
 	if oldSecurity != nil {
 		if closer, ok := oldSecurity.(interface{ Close() error }); ok {
 			if err := closer.Close(); err != nil {
@@ -313,7 +313,7 @@ func (f *GatewayFactory) closeOldHandlers(oldRouter, oldProxy, oldAuth, oldCors,
 			}
 		}
 	}
-	
+
 	if oldLimiter != nil {
 		if closer, ok := oldLimiter.(interface{ Close() error }); ok {
 			if err := closer.Close(); err != nil {

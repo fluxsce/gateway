@@ -1,15 +1,15 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/pkg/utils/crypto"
-	"gohub/pkg/utils/random"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hubplugin/common/dao"
-	"gohub/web/views/hubplugin/common/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/pkg/utils/crypto"
+	"gateway/pkg/utils/random"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hubplugin/common/dao"
+	"gateway/web/views/hubplugin/common/models"
 	"strings"
 	"time"
 
@@ -300,7 +300,7 @@ func (c *ToolConfigController) UpdateToolConfig(ctx *gin.Context) {
 		if currentToolConfig.PasswordEncrypted != nil {
 			currentPassword = *currentToolConfig.PasswordEncrypted
 		}
-		
+
 		// 直接比对密码是否与数据库中的不同
 		if *toolConfig.PasswordEncrypted != currentPassword {
 			// 密码不同，需要加密保存
@@ -329,7 +329,7 @@ func (c *ToolConfigController) UpdateToolConfig(ctx *gin.Context) {
 		if currentToolConfig.KeyFileContent != nil {
 			currentKeyContent = *currentToolConfig.KeyFileContent
 		}
-		
+
 		// 直接比对私钥内容是否与数据库中的不同
 		if *toolConfig.KeyFileContent != currentKeyContent {
 			// 私钥内容不同，需要加密保存
@@ -497,4 +497,3 @@ func (c *ToolConfigController) QueryToolConfigs(ctx *gin.Context) {
 
 	response.PageJSON(ctx, toolConfigs, pageInfo, constants.SD00002)
 }
- 

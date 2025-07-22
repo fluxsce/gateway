@@ -3,7 +3,7 @@ package sqlutils
 import (
 	"database/sql"
 	"fmt"
-	"gohub/pkg/database"
+	"gateway/pkg/database"
 	"reflect"
 	"strings"
 	"time"
@@ -11,25 +11,25 @@ import (
 
 // FieldMapper 字段映射器，用于处理数据库列到结构体字段的映射
 type FieldMapper struct {
-	columns     []string                    // 数据库列名列表，按查询结果顺序排列
-	columnIndex map[string]int              // 列名到索引的快速查找映射表
-	structInfo  *StructInfo                 // 目标结构体的详细信息
+	columns     []string       // 数据库列名列表，按查询结果顺序排列
+	columnIndex map[string]int // 列名到索引的快速查找映射表
+	structInfo  *StructInfo    // 目标结构体的详细信息
 }
 
 // StructInfo 结构体信息
 type StructInfo struct {
-	fields        []FieldInfo            // 可映射字段信息列表
-	fieldMap      map[string]*FieldInfo  // 数据库字段名到字段信息的快速查找映射(精确匹配)
-	fieldMapLower map[string]*FieldInfo  // 数据库字段名(小写)到字段信息的快速查找映射(大小写不敏感匹配)
-	value         reflect.Value          // 结构体的反射值
+	fields        []FieldInfo           // 可映射字段信息列表
+	fieldMap      map[string]*FieldInfo // 数据库字段名到字段信息的快速查找映射(精确匹配)
+	fieldMapLower map[string]*FieldInfo // 数据库字段名(小写)到字段信息的快速查找映射(大小写不敏感匹配)
+	value         reflect.Value         // 结构体的反射值
 }
 
 // FieldInfo 字段信息
 type FieldInfo struct {
-	field     reflect.Value  // 字段的反射值
-	dbName    string         // 对应的数据库字段名
-	fieldType reflect.Type   // 字段的Go类型
-	index     int            // 字段在结构体中的索引位置
+	field     reflect.Value // 字段的反射值
+	dbName    string        // 对应的数据库字段名
+	fieldType reflect.Type  // 字段的Go类型
+	index     int           // 字段在结构体中的索引位置
 }
 
 // NewFieldMapper 创建字段映射器
@@ -84,7 +84,7 @@ func analyzeStruct(dest interface{}) (*StructInfo, error) {
 		if dbTag == "-" {
 			continue // 跳过显式忽略的字段
 		}
-		
+
 		// 强制要求db tag，避免字段名匹配的歧义和性能问题
 		// 这确保了精确的列到字段的映射，特别适用于Oracle等数据库
 		if dbTag == "" {
@@ -100,10 +100,10 @@ func analyzeStruct(dest interface{}) (*StructInfo, error) {
 
 		info.fields = append(info.fields, fieldInfo)
 		fieldInfoPtr := &info.fields[len(info.fields)-1]
-		
+
 		// 建立精确匹配映射（区分大小写）
 		info.fieldMap[dbTag] = fieldInfoPtr
-		
+
 		// 建立大小写不敏感匹配映射（解决Oracle等数据库大写列名问题）
 		// 所有字段都支持大小写不敏感匹配，提高Oracle等数据库的兼容性
 		info.fieldMapLower[strings.ToLower(dbTag)] = fieldInfoPtr
@@ -140,7 +140,7 @@ func (fm *FieldMapper) MapValues(values []interface{}) error {
 			// 如果精确匹配失败，尝试大小写不敏感匹配
 			fieldInfo, exists = fm.structInfo.fieldMapLower[strings.ToLower(colName)]
 		}
-		
+
 		if !exists {
 			// 如果仍然找不到匹配的字段，跳过这个列
 			continue
@@ -367,14 +367,18 @@ func ExtractValues(values []interface{}) []interface{} {
 // - db tag支持：通过tag映射自定义字段名
 //
 // 参数:
-//   rows: SQL查询返回的行结果集
-//   dest: 目标切片的指针，元素类型应为结构体或结构体指针
+//
+//	rows: SQL查询返回的行结果集
+//	dest: 目标切片的指针，元素类型应为结构体或结构体指针
+//
 // 返回:
-//   error: 扫描失败时返回错误信息
+//
+//	error: 扫描失败时返回错误信息
 //
 // 使用示例:
-//   var users []User
-//   err := ScanRows(rows, &users)
+//
+//	var users []User
+//	err := ScanRows(rows, &users)
 func ScanRows(rows *sql.Rows, dest interface{}) error {
 	destValue := reflect.ValueOf(dest)
 	if destValue.Kind() != reflect.Ptr {
@@ -424,27 +428,31 @@ func ScanRows(rows *sql.Rows, dest interface{}) error {
 // - 记录不存在检测：自动返回database.ErrRecordNotFound
 //
 // 参数:
-//   rows: SQL查询返回的行结果集
-//   dest: 目标结构体的指针
+//
+//	rows: SQL查询返回的行结果集
+//	dest: 目标结构体的指针
+//
 // 返回:
-//   error: 扫描失败或记录不存在时返回错误信息
+//
+//	error: 扫描失败或记录不存在时返回错误信息
 //
 // 使用示例:
-//   var user User
-//   err := ScanOneRow(rows, &user)
-//   if err == database.ErrRecordNotFound {
-//       // 处理记录不存在
-//   }
+//
+//	var user User
+//	err := ScanOneRow(rows, &user)
+//	if err == database.ErrRecordNotFound {
+//	    // 处理记录不存在
+//	}
 func ScanOneRow(rows *sql.Rows, dest interface{}) error {
 	defer rows.Close()
-	
+
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
 			return err
 		}
 		return database.ErrRecordNotFound
 	}
-	
+
 	destValue := reflect.ValueOf(dest)
 	if destValue.Kind() != reflect.Ptr {
 		return fmt.Errorf("dest must be a pointer")
@@ -484,13 +492,13 @@ func ScanOneRow(rows *sql.Rows, dest interface{}) error {
 	// 使用智能接口切片扫描方式
 	columnCount := len(columns)
 	scanValues := CreateInterfaceSlice(columnCount)
-	
+
 	if err := rows.Scan(scanValues...); err != nil {
 		return err
 	}
-	
+
 	actualValues := ExtractValues(scanValues)
-	
+
 	return fieldMapper.MapValues(actualValues)
 }
 
@@ -504,14 +512,18 @@ func ScanOneRow(rows *sql.Rows, dest interface{}) error {
 // - 建议在可能的情况下使用Query+ScanRows替代
 //
 // 参数:
-//   row: SQL查询返回的单行结果
-//   dest: 目标结构体的指针
+//
+//	row: SQL查询返回的单行结果
+//	dest: 目标结构体的指针
+//
 // 返回:
-//   error: 扫描失败时返回错误信息
+//
+//	error: 扫描失败时返回错误信息
 //
 // 使用示例:
-//   var user User
-//   err := ScanRow(row, &user)
+//
+//	var user User
+//	err := ScanRow(row, &user)
 func ScanRow(row *sql.Row, dest interface{}) error {
 	destValue := reflect.ValueOf(dest)
 	if destValue.Kind() != reflect.Ptr {
@@ -534,7 +546,7 @@ func ScanRow(row *sql.Row, dest interface{}) error {
 		if !field.CanSet() {
 			continue
 		}
-		
+
 		structField := structType.Field(i)
 		dbTag := structField.Tag.Get("db")
 		if dbTag == "-" {
@@ -567,11 +579,14 @@ func ScanRow(row *sql.Row, dest interface{}) error {
 // - 智能跳过：对于找不到或无法设置的字段使用丢弃变量
 //
 // 参数:
-//   structValue: 目标结构体的反射值
-//   columns: 数据库列名切片
+//
+//	structValue: 目标结构体的反射值
+//	columns: 数据库列名切片
+//
 // 返回:
-//   []interface{}: 扫描目标切片，每个元素对应一个数据库列
-//   []reflect.Value: 对应的结构体字段切片
+//
+//	[]interface{}: 扫描目标切片，每个元素对应一个数据库列
+//	[]reflect.Value: 对应的结构体字段切片
 func PrepareScanTargetsWithFields(structValue reflect.Value, columns []string) ([]interface{}, []reflect.Value) {
 	var scanTargets []interface{}
 	var fields []reflect.Value
@@ -605,7 +620,7 @@ func PrepareScanTargetsWithFields(structValue reflect.Value, columns []string) (
 
 // FindFieldByColumn 根据列名查找对应的结构体字段
 // 通过db tag（必需）进行精确或大小写不敏感匹配
-// 
+//
 // 性能优化：使用单次遍历，避免多轮循环
 // 匹配规则（按优先级）：
 // 1. db tag精确匹配（区分大小写）- 最高优先级
@@ -613,18 +628,21 @@ func PrepareScanTargetsWithFields(structValue reflect.Value, columns []string) (
 // 3. 所有字段必须有db tag，不再支持字段名fallback
 //
 // 参数:
-//   structValue: 要搜索的结构体反射值
-//   column: 要匹配的数据库列名
+//
+//	structValue: 要搜索的结构体反射值
+//	column: 要匹配的数据库列名
+//
 // 返回:
-//   reflect.Value: 找到的字段反射值
-//   bool: 是否找到匹配的字段
+//
+//	reflect.Value: 找到的字段反射值
+//	bool: 是否找到匹配的字段
 func FindFieldByColumn(structValue reflect.Value, column string) (reflect.Value, bool) {
 	structType := structValue.Type()
 	columnLower := strings.ToLower(column)
-	
+
 	// 用于存储大小写不敏感匹配的结果（优先级较低）
 	var caseInsensitiveMatch reflect.Value
-	
+
 	// 单次遍历，按优先级查找匹配
 	for i := 0; i < structValue.NumField(); i++ {
 		field := structValue.Field(i)
@@ -639,7 +657,7 @@ func FindFieldByColumn(structValue reflect.Value, column string) (reflect.Value,
 		if dbTag == column {
 			return field, true
 		}
-		
+
 		// 优先级2：db tag大小写不敏感匹配（存储备选结果）
 		if strings.ToLower(dbTag) == columnLower && !caseInsensitiveMatch.IsValid() {
 			caseInsensitiveMatch = field
@@ -661,17 +679,20 @@ func FindFieldByColumn(structValue reflect.Value, column string) (reflect.Value,
 // - string -> sql.NullString
 // - int/int64 -> sql.NullInt64
 // - float64 -> sql.NullFloat64
-// - bool -> sql.NullBool  
+// - bool -> sql.NullBool
 // - time.Time -> sql.NullTime
 // - 指针类型 -> 对应基础类型的NULL版本
 //
 // 参数:
-//   field: 目标字段的反射值
+//
+//	field: 目标字段的反射值
+//
 // 返回:
-//   interface{}: 扫描目标，可以是sql.NullString、sql.NullInt64等
+//
+//	interface{}: 扫描目标，可以是sql.NullString、sql.NullInt64等
 func CreateNullSafeScanTarget(field reflect.Value) interface{} {
 	fieldType := field.Type()
-	
+
 	switch fieldType.Kind() {
 	case reflect.String:
 		return &sql.NullString{}
@@ -708,7 +729,7 @@ func CreateNullSafeScanTarget(field reflect.Value) interface{} {
 			return &sql.NullTime{}
 		}
 	}
-	
+
 	// 如果无法确定类型，返回通用接口
 	var discard interface{}
 	return &discard
@@ -726,21 +747,24 @@ func CreateNullSafeScanTarget(field reflect.Value) interface{} {
 // - NULL值处理：设置为零值或nil（指针类型）
 //
 // 参数:
-//   scanTargets: 扫描目标切片
-//   fields: 目标字段切片
+//
+//	scanTargets: 扫描目标切片
+//	fields: 目标字段切片
+//
 // 返回:
-//   error: 转换失败时返回错误信息
+//
+//	error: 转换失败时返回错误信息
 func ProcessScannedValues(scanTargets []interface{}, fields []reflect.Value) error {
 	for i, scanTarget := range scanTargets {
 		if i >= len(fields) {
 			continue
 		}
-		
+
 		field := fields[i]
 		if !field.IsValid() || !field.CanSet() {
 			continue
 		}
-		
+
 		// 根据扫描目标类型处理值转换
 		switch v := scanTarget.(type) {
 		case *sql.NullString:
@@ -872,7 +896,7 @@ func ProcessScannedValues(scanTargets []interface{}, fields []reflect.Value) err
 			// 对于其他类型，不做处理
 		}
 	}
-	
+
 	return nil
 }
 
@@ -885,19 +909,22 @@ func ProcessScannedValues(scanTargets []interface{}, fields []reflect.Value) err
 // - 适合标准的ORM场景
 //
 // 参数:
-//   rows: SQL查询返回的行结果集
-//   dest: 目标切片的指针
-//   columns: 数据库列名切片
-//   elementType: 切片元素类型
-//   isPtr: 元素是否为指针类型
-//   sliceValue: 切片的反射值
+//
+//	rows: SQL查询返回的行结果集
+//	dest: 目标切片的指针
+//	columns: 数据库列名切片
+//	elementType: 切片元素类型
+//	isPtr: 元素是否为指针类型
+//	sliceValue: 切片的反射值
+//
 // 返回:
-//   error: 扫描失败时返回错误信息
+//
+//	error: 扫描失败时返回错误信息
 func ScanRowsTraditional(rows *sql.Rows, dest interface{}, columns []string, elementType reflect.Type, isPtr bool, sliceValue reflect.Value) error {
 	for rows.Next() {
 		// 创建新的结构体实例
 		newElement := reflect.New(elementType)
-		
+
 		// 准备扫描目标（包含NULL值安全处理）
 		scanTargets, fields := PrepareScanTargetsWithFields(newElement.Elem(), columns)
 		if len(scanTargets) == 0 {
@@ -935,39 +962,42 @@ func ScanRowsTraditional(rows *sql.Rows, dest interface{}, columns []string, ele
 // - 需要动态字段映射的场景
 //
 // 参数:
-//   rows: SQL查询返回的行结果集
-//   dest: 目标切片的指针
-//   columns: 数据库列名切片
-//   elementType: 切片元素类型
-//   isPtr: 元素是否为指针类型
-//   sliceValue: 切片的反射值
-//   fieldMapper: 字段映射器
+//
+//	rows: SQL查询返回的行结果集
+//	dest: 目标切片的指针
+//	columns: 数据库列名切片
+//	elementType: 切片元素类型
+//	isPtr: 元素是否为指针类型
+//	sliceValue: 切片的反射值
+//	fieldMapper: 字段映射器
+//
 // 返回:
-//   error: 扫描失败时返回错误信息
+//
+//	error: 扫描失败时返回错误信息
 func ScanRowsWithInterfaceSlice(rows *sql.Rows, dest interface{}, columns []string, elementType reflect.Type, isPtr bool, sliceValue reflect.Value, fieldMapper *FieldMapper) error {
 	columnCount := len(columns)
-	
+
 	for rows.Next() {
 		// 创建新的结构体实例
 		newElement := reflect.New(elementType)
-		
+
 		// 创建接口切片用于扫描所有列
 		scanValues := CreateInterfaceSlice(columnCount)
-		
+
 		// 扫描所有列到接口切片
 		if err := rows.Scan(scanValues...); err != nil {
 			return fmt.Errorf("failed to scan row: %v", err)
 		}
-		
+
 		// 提取实际值
 		actualValues := ExtractValues(scanValues)
-		
+
 		// 创建新的字段映射器用于当前行
 		currentFieldMapper, err := NewFieldMapper(columns, newElement.Interface())
 		if err != nil {
 			return fmt.Errorf("failed to create field mapper for current row: %v", err)
 		}
-		
+
 		// 将值映射到结构体字段
 		if err := currentFieldMapper.MapValues(actualValues); err != nil {
 			return fmt.Errorf("failed to map values to struct: %v", err)
@@ -986,7 +1016,7 @@ func ScanRowsWithInterfaceSlice(rows *sql.Rows, dest interface{}, columns []stri
 
 // ScanRowsToMaps 将查询结果扫描到 map 切片中（动态结果，无需预定义结构体）
 // 当不知道具体的数据结构或需要灵活处理查询结果时使用
-// 
+//
 // 优势：
 // - 无需预定义结构体，适合动态查询场景
 // - 自动处理所有列，包括SELECT *查询
@@ -999,18 +1029,22 @@ func ScanRowsWithInterfaceSlice(rows *sql.Rows, dest interface{}, columns []stri
 // - 适合中小型结果集和原型开发
 //
 // 参数:
-//   rows: SQL查询返回的行结果集
+//
+//	rows: SQL查询返回的行结果集
+//
 // 返回:
-//   []map[string]interface{}: 每行数据对应一个map
-//   error: 扫描失败时返回错误信息
+//
+//	[]map[string]interface{}: 每行数据对应一个map
+//	error: 扫描失败时返回错误信息
 //
 // 使用示例:
-//   rows, _ := db.Query("SELECT id, name, email FROM users")
-//   result, err := ScanRowsToMaps(rows)
-//   // result[0]["id"], result[0]["name"], result[0]["email"]
+//
+//	rows, _ := db.Query("SELECT id, name, email FROM users")
+//	result, err := ScanRowsToMaps(rows)
+//	// result[0]["id"], result[0]["name"], result[0]["email"]
 func ScanRowsToMaps(rows *sql.Rows) ([]map[string]interface{}, error) {
 	defer rows.Close()
-	
+
 	// 获取列信息
 	columns, err := rows.Columns()
 	if err != nil {
@@ -1023,21 +1057,21 @@ func ScanRowsToMaps(rows *sql.Rows) ([]map[string]interface{}, error) {
 	for rows.Next() {
 		// 为每行创建扫描目标
 		scanValues := CreateInterfaceSlice(columnCount)
-		
+
 		// 扫描当前行
 		if err := rows.Scan(scanValues...); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
-		
+
 		// 提取实际值并构建map
 		actualValues := ExtractValues(scanValues)
 		rowMap := make(map[string]interface{}, columnCount)
-		
+
 		for i, colName := range columns {
 			// 处理NULL值，将sql.NullXXX转换为Go原生类型或nil
 			rowMap[colName] = convertInterfaceValue(actualValues[i])
 		}
-		
+
 		results = append(results, rowMap)
 	}
 
@@ -1048,20 +1082,24 @@ func ScanRowsToMaps(rows *sql.Rows) ([]map[string]interface{}, error) {
 // 当查询单条记录但不想定义结构体时使用
 //
 // 参数:
-//   rows: SQL查询返回的行结果集
+//
+//	rows: SQL查询返回的行结果集
+//
 // 返回:
-//   map[string]interface{}: 单行数据的map表示
-//   error: 扫描失败或记录不存在时返回错误信息
+//
+//	map[string]interface{}: 单行数据的map表示
+//	error: 扫描失败或记录不存在时返回错误信息
 //
 // 使用示例:
-//   rows, _ := db.Query("SELECT id, name FROM users WHERE id = ?", 1)
-//   result, err := ScanOneRowToMap(rows)
-//   if err == database.ErrRecordNotFound {
-//       // 处理记录不存在
-//   }
+//
+//	rows, _ := db.Query("SELECT id, name FROM users WHERE id = ?", 1)
+//	result, err := ScanOneRowToMap(rows)
+//	if err == database.ErrRecordNotFound {
+//	    // 处理记录不存在
+//	}
 func ScanOneRowToMap(rows *sql.Rows) (map[string]interface{}, error) {
 	defer rows.Close()
-	
+
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
 			return nil, err
@@ -1069,7 +1107,7 @@ func ScanOneRowToMap(rows *sql.Rows) (map[string]interface{}, error) {
 		// 需要导入 database 包来使用 ErrRecordNotFound
 		return nil, fmt.Errorf("no rows found")
 	}
-	
+
 	// 获取列信息
 	columns, err := rows.Columns()
 	if err != nil {
@@ -1078,20 +1116,20 @@ func ScanOneRowToMap(rows *sql.Rows) (map[string]interface{}, error) {
 
 	columnCount := len(columns)
 	scanValues := CreateInterfaceSlice(columnCount)
-	
+
 	// 扫描行数据
 	if err := rows.Scan(scanValues...); err != nil {
 		return nil, fmt.Errorf("failed to scan row: %w", err)
 	}
-	
+
 	// 构建结果map
 	actualValues := ExtractValues(scanValues)
 	result := make(map[string]interface{}, columnCount)
-	
+
 	for i, colName := range columns {
 		result[colName] = convertInterfaceValue(actualValues[i])
 	}
-	
+
 	return result, nil
 }
 
@@ -1101,7 +1139,7 @@ func convertInterfaceValue(value interface{}) interface{} {
 	if value == nil {
 		return nil
 	}
-	
+
 	switch v := value.(type) {
 	case []byte:
 		// 将字节数组转换为字符串（常见于TEXT/VARCHAR列）
@@ -1134,29 +1172,33 @@ func convertInterfaceValue(value interface{}) interface{} {
 // - 灵活性：动态模式适合不确定数据结构的场景
 //
 // 参数:
-//   rows: SQL查询返回的行结果集
-//   dest: 目标切片的指针（结构体模式）或 nil（动态模式）
+//
+//	rows: SQL查询返回的行结果集
+//	dest: 目标切片的指针（结构体模式）或 nil（动态模式）
+//
 // 返回:
-//   interface{}: 结构体模式时返回nil，动态模式时返回[]map[string]interface{}
-//   error: 扫描失败时返回错误信息
+//
+//	interface{}: 结构体模式时返回nil，动态模式时返回[]map[string]interface{}
+//	error: 扫描失败时返回错误信息
 //
 // 使用示例:
-//   // 结构体模式
-//   var users []User
-//   _, err := ScanRowsUnified(rows, &users)
-//   
-//   // 动态模式
-//   result, err := ScanRowsUnified(rows, nil)
-//   if err == nil {
-//       mapResult := result.([]map[string]interface{})
-//       // 使用mapResult...
-//   }
+//
+//	// 结构体模式
+//	var users []User
+//	_, err := ScanRowsUnified(rows, &users)
+//
+//	// 动态模式
+//	result, err := ScanRowsUnified(rows, nil)
+//	if err == nil {
+//	    mapResult := result.([]map[string]interface{})
+//	    // 使用mapResult...
+//	}
 func ScanRowsUnified(rows *sql.Rows, dest interface{}) (interface{}, error) {
 	// 动态模式：dest为nil时返回map切片
 	if dest == nil {
 		return ScanRowsToMaps(rows)
 	}
-	
+
 	// 结构体模式：使用现有的ScanRows函数
 	err := ScanRows(rows, dest)
 	return nil, err
@@ -1172,29 +1214,33 @@ func ScanRowsUnified(rows *sql.Rows, dest interface{}) (interface{}, error) {
 // - 灵活性：动态模式适合不确定数据结构的场景
 //
 // 参数:
-//   rows: SQL查询返回的行结果集
-//   dest: 目标结构体的指针（结构体模式）或 nil（动态模式）
+//
+//	rows: SQL查询返回的行结果集
+//	dest: 目标结构体的指针（结构体模式）或 nil（动态模式）
+//
 // 返回:
-//   interface{}: 结构体模式时返回nil，动态模式时返回map[string]interface{}
-//   error: 扫描失败或记录不存在时返回错误信息
+//
+//	interface{}: 结构体模式时返回nil，动态模式时返回map[string]interface{}
+//	error: 扫描失败或记录不存在时返回错误信息
 //
 // 使用示例:
-//   // 结构体模式
-//   var user User
-//   _, err := ScanOneRowUnified(rows, &user)
-//   
-//   // 动态模式
-//   result, err := ScanOneRowUnified(rows, nil)
-//   if err == nil {
-//       mapResult := result.(map[string]interface{})
-//       // 使用mapResult...
-//   }
+//
+//	// 结构体模式
+//	var user User
+//	_, err := ScanOneRowUnified(rows, &user)
+//
+//	// 动态模式
+//	result, err := ScanOneRowUnified(rows, nil)
+//	if err == nil {
+//	    mapResult := result.(map[string]interface{})
+//	    // 使用mapResult...
+//	}
 func ScanOneRowUnified(rows *sql.Rows, dest interface{}) (interface{}, error) {
 	// 动态模式：dest为nil时返回map
 	if dest == nil {
 		return ScanOneRowToMap(rows)
 	}
-	
+
 	// 结构体模式：使用现有的ScanOneRow函数
 	err := ScanOneRow(rows, dest)
 	return nil, err
@@ -1204,16 +1250,20 @@ func ScanOneRowUnified(rows *sql.Rows, dest interface{}) (interface{}, error) {
 // 这是ScanRowsToMaps的别名，提供更简洁的函数名
 //
 // 参数:
-//   rows: SQL查询返回的行结果集
+//
+//	rows: SQL查询返回的行结果集
+//
 // 返回:
-//   []map[string]interface{}: 每行数据对应一个map
-//   error: 扫描失败时返回错误信息
+//
+//	[]map[string]interface{}: 每行数据对应一个map
+//	error: 扫描失败时返回错误信息
 //
 // 使用示例:
-//   result, err := ScanDynamic(rows)
-//   for _, row := range result {
-//       fmt.Printf("ID: %v, Name: %v\n", row["id"], row["name"])
-//   }
+//
+//	result, err := ScanDynamic(rows)
+//	for _, row := range result {
+//	    fmt.Printf("ID: %v, Name: %v\n", row["id"], row["name"])
+//	}
 func ScanDynamic(rows *sql.Rows) ([]map[string]interface{}, error) {
 	return ScanRowsToMaps(rows)
 }
@@ -1222,16 +1272,20 @@ func ScanDynamic(rows *sql.Rows) ([]map[string]interface{}, error) {
 // 这是ScanOneRowToMap的别名，提供更简洁的函数名
 //
 // 参数:
-//   rows: SQL查询返回的行结果集
+//
+//	rows: SQL查询返回的行结果集
+//
 // 返回:
-//   map[string]interface{}: 单行数据的map表示
-//   error: 扫描失败或记录不存在时返回错误信息
+//
+//	map[string]interface{}: 单行数据的map表示
+//	error: 扫描失败或记录不存在时返回错误信息
 //
 // 使用示例:
-//   result, err := ScanOneDynamic(rows)
-//   if err == nil {
-//       fmt.Printf("ID: %v, Name: %v\n", result["id"], result["name"])
-//   }
+//
+//	result, err := ScanOneDynamic(rows)
+//	if err == nil {
+//	    fmt.Printf("ID: %v, Name: %v\n", result["id"], result["name"])
+//	}
 func ScanOneDynamic(rows *sql.Rows) (map[string]interface{}, error) {
 	return ScanOneRowToMap(rows)
-} 
+}

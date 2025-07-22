@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gohub/pkg/config"
-	"gohub/pkg/database/dbtypes"
-	"gohub/pkg/database/dsn"
+	"gateway/pkg/config"
+	"gateway/pkg/database/dbtypes"
+	"gateway/pkg/database/dsn"
 	"sync"
 )
 
@@ -64,22 +64,22 @@ const (
 	// IsolationDefault 默认隔离级别
 	// 使用数据库默认的隔离级别，通常为读已提交
 	IsolationDefault IsolationLevel = 0
-	
+
 	// IsolationReadUncommitted 读未提交
 	// 最低隔离级别，允许读取未提交的数据
 	// 可能出现脏读、不可重复读、幻读问题
 	IsolationReadUncommitted IsolationLevel = 1
-	
+
 	// IsolationReadCommitted 读已提交
 	// 只允许读取已提交的数据，避免脏读
 	// 可能出现不可重复读、幻读问题
 	IsolationReadCommitted IsolationLevel = 2
-	
+
 	// IsolationRepeatableRead 可重复读
 	// 保证在同一事务中多次读取同样记录的结果是一致的
 	// 可能出现幻读问题
 	IsolationRepeatableRead IsolationLevel = 3
-	
+
 	// IsolationSerializable 串行化
 	// 最高隔离级别，完全避免脏读、不可重复读、幻读
 	// 提供最强的数据一致性保证，但并发性能最低
@@ -92,7 +92,7 @@ type TxOptions struct {
 	// Isolation 事务隔离级别
 	// 控制事务在并发环境下的数据可见性和一致性
 	Isolation IsolationLevel
-	
+
 	// ReadOnly 是否只读事务
 	// true: 只读事务，不允许修改数据，可以提高性能
 	// false: 读写事务，允许查询和修改数据
@@ -103,7 +103,7 @@ type TxOptions struct {
 // 通过autoCommit参数控制是否自动提交，简化事务处理
 type Database interface {
 	// === 连接管理 ===
-	
+
 	// Connect 连接数据库
 	// 根据提供的配置建立数据库连接，包括连接池设置、日志配置等
 	// 参数:
@@ -325,7 +325,7 @@ type Model interface {
 	// 返回:
 	//   string: 数据库表名
 	TableName() string
-	
+
 	// PrimaryKey 获取主键
 	// 返回当前模型的主键字段名
 	// 返回:
@@ -336,15 +336,17 @@ type Model interface {
 // DriverCreator 数据库驱动创建函数
 // 用于创建特定数据库驱动实例的工厂函数类型
 // 返回:
-//   Database: 数据库接口实例
+//
+//	Database: 数据库接口实例
 type DriverCreator func() Database
 
 // Register 注册数据库驱动
 // 将数据库驱动的创建函数注册到系统中
 // 支持的驱动类型由常量定义（MySQL、PostgreSQL、SQLite等）
 // 参数:
-//   driver: 驱动类型标识符
-//   creator: 驱动创建函数
+//
+//	driver: 驱动类型标识符
+//	creator: 驱动创建函数
 func Register(driver string, creator DriverCreator) {
 	dbCreators[driver] = creator
 }
@@ -353,9 +355,12 @@ func Register(driver string, creator DriverCreator) {
 // 为数据库连接生成唯一标识符，用于连接缓存
 // 优先使用配置中的连接名称，否则根据连接参数生成
 // 参数:
-//   config: 数据库配置
+//
+//	config: 数据库配置
+//
 // 返回:
-//   string: 连接唯一标识符
+//
+//	string: 连接唯一标识符
 func GetConnectionID(config *DbConfig) string {
 	if config.Name != "" {
 		return config.Name
@@ -367,10 +372,13 @@ func GetConnectionID(config *DbConfig) string {
 // 根据配置创建数据库连接，支持连接缓存和DSN自动生成
 // 如果连接已存在则复用，否则创建新连接
 // 参数:
-//   config: 数据库配置，包含驱动类型、连接信息等
+//
+//	config: 数据库配置，包含驱动类型、连接信息等
+//
 // 返回:
-//   Database: 数据库接口实例
-//   error: 连接失败时返回错误信息
+//
+//	Database: 数据库接口实例
+//	error: 连接失败时返回错误信息
 func Open(config *DbConfig) (Database, error) {
 	if config == nil {
 		return nil, fmt.Errorf("%w: config is nil", ErrConfigNotFound)
@@ -419,10 +427,13 @@ func Open(config *DbConfig) (Database, error) {
 // openWithoutLock 内部方法：打开数据库连接（不加锁）
 // 此方法假设调用者已经持有connMutex锁
 // 参数:
-//   config: 数据库配置，包含驱动类型、连接信息等
+//
+//	config: 数据库配置，包含驱动类型、连接信息等
+//
 // 返回:
-//   Database: 数据库接口实例
-//   error: 连接失败时返回错误信息
+//
+//	Database: 数据库接口实例
+//	error: 连接失败时返回错误信息
 func openWithoutLock(config *DbConfig) (Database, error) {
 	if config == nil {
 		return nil, fmt.Errorf("%w: config is nil", ErrConfigNotFound)
@@ -468,9 +479,12 @@ func openWithoutLock(config *DbConfig) (Database, error) {
 // GetConnection 获取已缓存的数据库连接
 // 从连接池中获取指定名称的数据库连接
 // 参数:
-//   connectionName: 连接名称或连接ID
+//
+//	connectionName: 连接名称或连接ID
+//
 // 返回:
-//   Database: 数据库接口实例，如果不存在则返回nil
+//
+//	Database: 数据库接口实例，如果不存在则返回nil
 func GetConnection(connectionName string) Database {
 	connMutex.RLock()
 	defer connMutex.RUnlock()
@@ -481,7 +495,8 @@ func GetConnection(connectionName string) Database {
 // GetDefaultConnection 获取默认数据库连接
 // 默认连接名称为database.default
 // 返回:
-//   Database: 数据库接口实例
+//
+//	Database: 数据库接口实例
 func GetDefaultConnection() Database {
 	connMutex.RLock()
 	defer connMutex.RUnlock()
@@ -493,7 +508,8 @@ func GetDefaultConnection() Database {
 // 关闭系统中所有已建立的数据库连接，释放资源
 // 通常在应用程序关闭时调用
 // 返回:
-//   error: 如果有连接关闭失败，返回包含所有错误的复合错误
+//
+//	error: 如果有连接关闭失败，返回包含所有错误的复合错误
 func CloseAllConnections() error {
 	connMutex.Lock()
 	defer connMutex.Unlock()
@@ -519,10 +535,13 @@ func CloseAllConnections() error {
 // 解析配置文件中的所有数据库连接配置，创建并缓存连接实例
 // 只有enabled为true的连接才会被创建
 // 参数:
-//   configPath: 配置文件路径
+//
+//	configPath: 配置文件路径
+//
 // 返回:
-//   map[string]Database: 连接名称到数据库实例的映射
-//   error: 加载失败时返回错误信息
+//
+//	map[string]Database: 连接名称到数据库实例的映射
+//	error: 加载失败时返回错误信息
 func LoadAllConnections(configPath string) (map[string]Database, error) {
 	connMutex.Lock()
 	defer connMutex.Unlock()

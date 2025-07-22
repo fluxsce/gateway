@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"gohub/pkg/database"
-	"gohub/pkg/database/dblogger"
-	"gohub/pkg/database/sqlutils"
+	"gateway/pkg/database"
+	"gateway/pkg/database/dblogger"
+	"gateway/pkg/database/sqlutils"
 
 	_ "github.com/ClickHouse/clickhouse-go/v2" // 导入ClickHouse驱动
 )
@@ -37,22 +37,22 @@ func init() {
 //
 // 注意：ClickHouse的事务支持有限，主要用于批量插入的原子性保证
 type ClickHouse struct {
-	db       *sql.DB
-	config   *database.DbConfig
-	logger   *dblogger.DBLogger
-	mu       sync.RWMutex
+	db     *sql.DB
+	config *database.DbConfig
+	logger *dblogger.DBLogger
+	mu     sync.RWMutex
 }
 
 // 事务上下文键，使用字符串常量更清晰
-const txContextKey = "gohub.clickhouse.transaction"
+const txContextKey = "gateway.clickhouse.transaction"
 
 // TxContext 事务上下文，包含事务和相关元数据
 // 注意：ClickHouse的事务支持有限，主要用于批量操作
 type TxContext struct {
-	tx       *sql.Tx
-	id       string    // 事务ID，用于日志跟踪
-	created  time.Time // 事务创建时间
-	options  *database.TxOptions // 事务选项
+	tx      *sql.Tx
+	id      string              // 事务ID，用于日志跟踪
+	created time.Time           // 事务创建时间
+	options *database.TxOptions // 事务选项
 }
 
 // setTxToContext 将事务存储到上下文中
@@ -75,9 +75,12 @@ func generateTxID() string {
 // 建立ClickHouse数据库连接，配置连接池参数，并验证连接可用性
 // 会根据配置设置最大连接数、空闲连接数、连接生命周期等参数
 // 参数:
-//   config: ClickHouse数据库配置，包含DSN、连接池设置、日志配置等
+//
+//	config: ClickHouse数据库配置，包含DSN、连接池设置、日志配置等
+//
 // 返回:
-//   error: 连接建立失败时返回错误信息
+//
+//	error: 连接建立失败时返回错误信息
 func (c *ClickHouse) Connect(config *database.DbConfig) error {
 	c.config = config
 	c.logger = dblogger.NewDBLogger(config)
@@ -142,7 +145,8 @@ func (c *ClickHouse) Connect(config *database.DbConfig) error {
 // 注意：使用上下文绑定事务的情况下，Close不会自动回滚事务
 // 用户需要在关闭连接前手动处理事务
 // 返回:
-//   error: 关闭连接失败时返回错误信息
+//
+//	error: 关闭连接失败时返回错误信息
 func (c *ClickHouse) Close() error {
 	if c.db != nil {
 		c.logger.LogDisconnect(context.Background(), database.DriverClickHouse)
@@ -155,7 +159,8 @@ func (c *ClickHouse) Close() error {
 // 获取当前ClickHouse连接使用的数据源名称
 // 返回值会被处理以隐藏敏感信息（如密码）
 // 返回:
-//   string: 处理后的DSN字符串，隐藏敏感信息
+//
+//	string: 处理后的DSN字符串，隐藏敏感信息
 func (c *ClickHouse) DSN() string {
 	if c.config == nil {
 		return ""
@@ -167,7 +172,8 @@ func (c *ClickHouse) DSN() string {
 // 获取ClickHouse连接底层的标准库sql.DB实例
 // 用于需要直接访问底层数据库连接的场景
 // 返回:
-//   *sql.DB: 底层的sql.DB实例
+//
+//	*sql.DB: 底层的sql.DB实例
 func (c *ClickHouse) DB() *sql.DB {
 	return c.db
 }
@@ -175,7 +181,8 @@ func (c *ClickHouse) DB() *sql.DB {
 // DriverName 返回数据库驱动名称
 // 获取当前数据库使用的驱动名称标识
 // 返回:
-//   string: 固定返回"clickhouse"
+//
+//	string: 固定返回"clickhouse"
 func (c *ClickHouse) DriverName() string {
 	return database.DriverClickHouse
 }
@@ -183,7 +190,8 @@ func (c *ClickHouse) DriverName() string {
 // GetDriver 获取数据库驱动类型
 // 实现Database接口，返回ClickHouse驱动标识
 // 返回:
-//   string: ClickHouse驱动类型标识
+//
+//	string: ClickHouse驱动类型标识
 func (c *ClickHouse) GetDriver() string {
 	return database.DriverClickHouse
 }
@@ -191,7 +199,8 @@ func (c *ClickHouse) GetDriver() string {
 // GetName 获取数据库连接名称
 // 实现Database接口，返回当前连接的名称
 // 返回:
-//   string: 数据库连接名称，如果配置为空则返回空字符串
+//
+//	string: 数据库连接名称，如果配置为空则返回空字符串
 func (c *ClickHouse) GetName() string {
 	if c.config == nil {
 		return ""
@@ -202,7 +211,8 @@ func (c *ClickHouse) GetName() string {
 // SetName 设置数据库连接名称
 // 用于在创建连接后设置连接名称标识
 // 参数:
-//   name: 连接名称
+//
+//	name: 连接名称
 func (c *ClickHouse) SetName(name string) {
 	if c.config != nil {
 		c.config.Name = name
@@ -212,9 +222,12 @@ func (c *ClickHouse) SetName(name string) {
 // Ping 测试数据库连接
 // 向ClickHouse服务器发送ping请求，验证连接状态
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//
 // 返回:
-//   error: 连接异常时返回错误信息
+//
+//	error: 连接异常时返回错误信息
 func (c *ClickHouse) Ping(ctx context.Context) error {
 	err := c.db.PingContext(ctx)
 	c.logger.LogPing(ctx, err)
@@ -226,11 +239,14 @@ func (c *ClickHouse) Ping(ctx context.Context) error {
 // 注意：ClickHouse的事务支持有限，主要用于批量操作的原子性保证
 // 多线程安全：每个上下文可以独立管理事务
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   options: 事务选项，包含隔离级别和只读设置
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	options: 事务选项，包含隔离级别和只读设置
+//
 // 返回:
-//   context.Context: 包含事务信息的新上下文
-//   error: 开始事务失败时返回错误信息
+//
+//	context.Context: 包含事务信息的新上下文
+//	error: 开始事务失败时返回错误信息
 func (c *ClickHouse) BeginTx(ctx context.Context, options *database.TxOptions) (context.Context, error) {
 	// 检查是否已经有事务
 	if _, ok := getTxFromContext(ctx); ok {
@@ -281,9 +297,12 @@ func (c *ClickHouse) BeginTx(ctx context.Context, options *database.TxOptions) (
 // Commit 提交事务
 // 提交上下文中的ClickHouse事务，使所有未提交的更改生效
 // 参数:
-//   ctx: 包含事务信息的上下文
+//
+//	ctx: 包含事务信息的上下文
+//
 // 返回:
-//   error: 提交事务失败时返回错误信息
+//
+//	error: 提交事务失败时返回错误信息
 func (c *ClickHouse) Commit(ctx context.Context) error {
 	txCtx, ok := getTxFromContext(ctx)
 	if !ok || txCtx.tx == nil {
@@ -294,7 +313,7 @@ func (c *ClickHouse) Commit(ctx context.Context) error {
 	// 清理事务引用，避免重复使用已提交的事务
 	txCtx.tx = nil
 	c.logger.LogTx(ctx, "提交", err)
-	
+
 	if err != nil {
 		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
 	}
@@ -304,9 +323,12 @@ func (c *ClickHouse) Commit(ctx context.Context) error {
 // Rollback 回滚事务
 // 回滚上下文中的ClickHouse事务，撤销所有未提交的更改
 // 参数:
-//   ctx: 包含事务信息的上下文
+//
+//	ctx: 包含事务信息的上下文
+//
 // 返回:
-//   error: 回滚事务失败时返回错误信息
+//
+//	error: 回滚事务失败时返回错误信息
 func (c *ClickHouse) Rollback(ctx context.Context) error {
 	txCtx, ok := getTxFromContext(ctx)
 	if !ok || txCtx.tx == nil {
@@ -317,7 +339,7 @@ func (c *ClickHouse) Rollback(ctx context.Context) error {
 	// 清理事务引用，避免重复使用已回滚的事务
 	txCtx.tx = nil
 	c.logger.LogTx(ctx, "回滚", err)
-	
+
 	if err != nil {
 		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
 	}
@@ -329,11 +351,14 @@ func (c *ClickHouse) Rollback(ctx context.Context) error {
 // 如果函数正常返回，自动提交事务
 // 如果函数返回错误或发生panic，自动回滚事务并将panic转换为错误
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   options: 事务选项，包含隔离级别和只读设置
-//   fn: 在事务中执行的函数，接收包含事务的上下文，返回error表示是否成功
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	options: 事务选项，包含隔离级别和只读设置
+//	fn: 在事务中执行的函数，接收包含事务的上下文，返回error表示是否成功
+//
 // 返回:
-//   error: 事务执行失败时返回错误信息，包括panic转换的错误
+//
+//	error: 事务执行失败时返回错误信息，包括panic转换的错误
 func (c *ClickHouse) InTx(ctx context.Context, options *database.TxOptions, fn func(context.Context) error) (err error) {
 	txCtx, err := c.BeginTx(ctx, options)
 	if err != nil {
@@ -361,10 +386,13 @@ func (c *ClickHouse) InTx(ctx context.Context, options *database.TxOptions, fn f
 // 如果autoCommit为false且上下文中存在活跃事务，返回事务执行器
 // 否则返回数据库连接执行器
 // 参数:
-//   ctx: 上下文，用于获取事务信息
-//   autoCommit: 是否自动提交
+//
+//	ctx: 上下文，用于获取事务信息
+//	autoCommit: 是否自动提交
+//
 // 返回:
-//   interface: 执行器接口，可以是*sql.Tx或*sql.DB
+//
+//	interface: 执行器接口，可以是*sql.Tx或*sql.DB
 func (c *ClickHouse) getExecutor(ctx context.Context, autoCommit bool) interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
@@ -384,18 +412,21 @@ func (c *ClickHouse) getExecutor(ctx context.Context, autoCommit bool) interface
 // 使用Go底层自动优化，无需手动预编译
 // 支持事务和非事务模式执行
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   query: 要执行的SQL语句，可包含占位符
-//   args: SQL语句中占位符对应的参数值
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	query: 要执行的SQL语句，可包含占位符
+//	args: SQL语句中占位符对应的参数值
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 执行失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 执行失败时返回错误信息
 func (c *ClickHouse) Exec(ctx context.Context, query string, args []interface{}, autoCommit bool) (int64, error) {
 	executor := c.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
-	
+
 	// 直接执行，让Go底层自动优化
 	result, err := executor.ExecContext(ctx, query, args...)
 	duration := time.Since(start)
@@ -413,7 +444,7 @@ func (c *ClickHouse) Exec(ctx context.Context, query string, args []interface{},
 	// 记录日志
 	extra := map[string]interface{}{
 		"rowsAffected": rowsAffected,
-		"note": "ClickHouse may not return accurate RowsAffected",
+		"note":         "ClickHouse may not return accurate RowsAffected",
 	}
 	c.logger.LogSQL(ctx, "SQL执行", query, args, err, duration, extra)
 
@@ -429,18 +460,21 @@ func (c *ClickHouse) Exec(ctx context.Context, query string, args []interface{},
 // 使用Go底层自动优化，无需手动预编译
 // 自动处理结构体字段到数据库列的映射
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   dest: 目标切片的指针，用于接收查询结果
-//   query: 要执行的SELECT语句，可包含占位符
-//   args: SQL语句中占位符对应的参数值
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	dest: 目标切片的指针，用于接收查询结果
+//	query: 要执行的SELECT语句，可包含占位符
+//	args: SQL语句中占位符对应的参数值
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   error: 查询失败或扫描失败时返回错误信息
+//
+//	error: 查询失败或扫描失败时返回错误信息
 func (c *ClickHouse) Query(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error {
 	executor := c.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
-	
+
 	// 直接查询，让Go底层自动优化
 	rows, err := executor.QueryContext(ctx, query, args...)
 	duration := time.Since(start)
@@ -480,23 +514,26 @@ func (c *ClickHouse) Query(ctx context.Context, dest interface{}, query string, 
 // 如果查询不到记录，返回ErrRecordNotFound错误
 // 使用智能字段映射，支持数据库列数与结构体字段数不匹配的情况
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   dest: 目标结构体的指针，用于接收查询结果
-//   query: 要执行的SELECT语句，可包含占位符
-//   args: SQL语句中占位符对应的参数值
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	dest: 目标结构体的指针，用于接收查询结果
+//	query: 要执行的SELECT语句，可包含占位符
+//	args: SQL语句中占位符对应的参数值
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   error: 查询失败、扫描失败或记录不存在时返回错误信息
+//
+//	error: 查询失败、扫描失败或记录不存在时返回错误信息
 func (c *ClickHouse) QueryOne(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error {
 	executor := c.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
-	
+
 	// 直接查询，让Go底层自动优化
 	// 使用QueryContext而不是QueryRowContext，以便获取列信息进行智能映射
 	rows, err := executor.QueryContext(ctx, query, args...)
 	duration := time.Since(start)
-	
+
 	if err != nil {
 		c.logger.LogSQL(ctx, "SQL单行查询错误", query, args, err, duration, map[string]interface{}{
 			"rowCount": 0,
@@ -506,7 +543,7 @@ func (c *ClickHouse) QueryOne(ctx context.Context, dest interface{}, query strin
 
 	// 使用智能扫描方式处理单行结果，支持字段数量不匹配
 	err = sqlutils.ScanOneRow(rows, dest)
-	
+
 	// 只有在有错误且不是未找到记录时才记录错误
 	if err != nil && err != database.ErrRecordNotFound {
 		c.logger.LogSQL(ctx, "SQL单行查询错误", query, args, err, duration, map[string]interface{}{
@@ -529,13 +566,16 @@ func (c *ClickHouse) QueryOne(ctx context.Context, dest interface{}, query strin
 // 使用Go底层自动优化，无需手动预编译
 // 会自动提取结构体字段作为列名和值，支持db tag映射
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   table: 目标表名
-//   data: 要插入的数据结构体，字段通过db tag映射到数据库列
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	table: 目标表名
+//	data: 要插入的数据结构体，字段通过db tag映射到数据库列
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 插入记录的自增ID（如果有）
-//   error: 插入失败时返回错误信息
+//
+//	int64: 插入记录的自增ID（如果有）
+//	error: 插入失败时返回错误信息
 func (c *ClickHouse) Insert(ctx context.Context, table string, data interface{}, autoCommit bool) (int64, error) {
 	query, args, err := sqlutils.BuildInsertQuery(table, data)
 	if err != nil {
@@ -543,9 +583,9 @@ func (c *ClickHouse) Insert(ctx context.Context, table string, data interface{},
 	}
 
 	executor := c.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
-	
+
 	// 直接执行，让Go底层自动优化
 	result, err := executor.ExecContext(ctx, query, args...)
 	duration := time.Since(start)
@@ -567,7 +607,7 @@ func (c *ClickHouse) Insert(ctx context.Context, table string, data interface{},
 	extra := map[string]interface{}{
 		"rowsAffected": rowsAffected,
 		"lastInsertId": lastInsertId,
-		"note": "ClickHouse doesn't support LastInsertId and may not return accurate RowsAffected",
+		"note":         "ClickHouse doesn't support LastInsertId and may not return accurate RowsAffected",
 	}
 	c.logger.LogSQL(ctx, "SQL插入", query, args, err, duration, extra)
 
@@ -583,15 +623,18 @@ func (c *ClickHouse) Insert(ctx context.Context, table string, data interface{},
 // 会自动提取结构体字段作为要更新的列和值
 // 注意：ClickHouse的UPDATE支持有限，主要用于ReplacingMergeTree等引擎
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   table: 目标表名
-//   data: 包含更新数据的结构体，字段通过db tag映射到数据库列
-//   where: WHERE条件语句，可包含占位符
-//   args: WHERE条件中占位符对应的参数值
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	table: 目标表名
+//	data: 包含更新数据的结构体，字段通过db tag映射到数据库列
+//	where: WHERE条件语句，可包含占位符
+//	args: WHERE条件中占位符对应的参数值
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 更新失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 更新失败时返回错误信息
 func (c *ClickHouse) Update(ctx context.Context, table string, data interface{}, where string, args []interface{}, autoCommit bool) (int64, error) {
 	setClause, setArgs, err := sqlutils.BuildUpdateQuery(table, data)
 	if err != nil {
@@ -606,9 +649,9 @@ func (c *ClickHouse) Update(ctx context.Context, table string, data interface{},
 	}
 
 	executor := c.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
-	
+
 	// 直接执行，让Go底层自动优化
 	result, err := executor.ExecContext(ctx, query, setArgs...)
 	duration := time.Since(start)
@@ -636,14 +679,17 @@ func (c *ClickHouse) Update(ctx context.Context, table string, data interface{},
 // 注意：ClickHouse的DELETE支持有限，主要用于ReplacingMergeTree等引擎
 // 使用Go底层自动优化，无需手动预编译
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   table: 目标表名
-//   where: WHERE条件语句，可包含占位符
-//   args: WHERE条件中占位符对应的参数值
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	table: 目标表名
+//	where: WHERE条件语句，可包含占位符
+//	args: WHERE条件中占位符对应的参数值
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 删除失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 删除失败时返回错误信息
 func (c *ClickHouse) Delete(ctx context.Context, table string, where string, args []interface{}, autoCommit bool) (int64, error) {
 	// 注意：ClickHouse的DELETE语法可能与标准SQL有所不同
 	query := fmt.Sprintf("ALTER TABLE %s DELETE", table)
@@ -652,9 +698,9 @@ func (c *ClickHouse) Delete(ctx context.Context, table string, where string, arg
 	}
 
 	executor := c.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
-	
+
 	// 直接执行，让Go底层自动优化
 	result, err := executor.ExecContext(ctx, query, args...)
 	duration := time.Since(start)
@@ -679,7 +725,7 @@ func (c *ClickHouse) Delete(ctx context.Context, table string, where string, arg
 
 // BatchInsert 高性能批量插入记录
 // 将切片中的多个数据结构体批量插入到ClickHouse中
-// 
+//
 // ClickHouse优化的高性能批量插入策略：
 // 1. 列式存储优化：一次性构建所有行数据，减少列式存储的重组开销
 // 2. 自适应批量处理：根据数据量智能分批，避免内存溢出
@@ -690,14 +736,14 @@ func (c *ClickHouse) Delete(ctx context.Context, table string, where string, arg
 // 7. 内存安全管理：智能释放大批量数据占用的内存
 //
 // 高效的批量INSERT语句模式：
-//   1. 智能分批：超过5000条自动分批处理，避免单次传输过大
-//   2. 数据预处理：自动转换指针类型和ClickHouse特有类型
-//   3. 分析数据结构，提取列信息
-//   4. 构建高效INSERT语句：INSERT INTO table (cols) VALUES (row1), (row2), ...
-//   5. 在事务中执行（autoCommit=true时自动创建，false时使用当前事务）
-//   6. 一次性提交所有数据，充分利用ClickHouse的列式存储优势
-//   7. 性能监控：实时记录插入效率和性能指标
-//   8. 内存清理：及时释放批次数据，避免内存堆积
+//  1. 智能分批：超过5000条自动分批处理，避免单次传输过大
+//  2. 数据预处理：自动转换指针类型和ClickHouse特有类型
+//  3. 分析数据结构，提取列信息
+//  4. 构建高效INSERT语句：INSERT INTO table (cols) VALUES (row1), (row2), ...
+//  5. 在事务中执行（autoCommit=true时自动创建，false时使用当前事务）
+//  6. 一次性提交所有数据，充分利用ClickHouse的列式存储优势
+//  7. 性能监控：实时记录插入效率和性能指标
+//  8. 内存清理：及时释放批次数据，避免内存堆积
 //
 // 性能优势：
 //   - vs 逐条插入：性能提升10-50倍
@@ -710,19 +756,22 @@ func (c *ClickHouse) Delete(ctx context.Context, table string, where string, arg
 //
 // 适用场景：
 //   - 大批量数据导入
-//   - 实时数据流批量写入  
+//   - 实时数据流批量写入
 //   - ETL数据处理
 //   - 日志数据批量入库
 //   - 包含指针类型字段的结构体数据
 //
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   table: 目标表名
-//   dataSlice: 要插入的数据切片，每个元素都是结构体
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	table: 目标表名
+//	dataSlice: 要插入的数据切片，每个元素都是结构体
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 插入失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 插入失败时返回错误信息
 func (c *ClickHouse) BatchInsert(ctx context.Context, table string, dataSlice interface{}, autoCommit bool) (int64, error) {
 	// 直接使用原始数据，让ClickHouse驱动处理类型转换
 	slice := reflect.ValueOf(dataSlice)
@@ -736,17 +785,17 @@ func (c *ClickHouse) BatchInsert(ctx context.Context, table string, dataSlice in
 	}
 
 	// ClickHouse优化：智能分批和执行策略选择
-	// 
+	//
 	// 执行策略选择：
 	// 1. 小批量(1-500)：使用Prepare预编译，最优内存和网络效率
 	// 2. 中批量(501-2000)：使用Prepare预编译，平衡性能和资源占用
 	// 3. 大批量(2001-5000)：使用批量INSERT，利用ClickHouse列式存储优势
 	// 4. 超大批量(>5000)：自动分批，使用最适合的策略，避免内存溢出
 	const (
-		maxBatchSize = 5000
+		maxBatchSize          = 5000
 		prepareBatchThreshold = 2000 // 超过此阈值使用批量INSERT而非prepare
 	)
-	
+
 	if totalLen <= maxBatchSize {
 		// 小批量和中批量：智能选择执行方式
 		if totalLen <= prepareBatchThreshold {
@@ -788,13 +837,13 @@ func (c *ClickHouse) BatchInsert(ctx context.Context, table string, dataSlice in
 		if err != nil {
 			// 大批量失败时，记录已处理的数据量
 			c.logger.LogSQL(ctx, "SQL大批量插入失败", "", nil, err, time.Since(start), map[string]interface{}{
-				"totalRecords":       totalLen,
-				"processedRecords":   totalRowsAffected,
-				"failedBatchIndex":   i / maxBatchSize + 1,
-				"totalBatches":       batchCount,
-				"failedBatchSize":    batchSlice.Len(),
+				"totalRecords":     totalLen,
+				"processedRecords": totalRowsAffected,
+				"failedBatchIndex": i/maxBatchSize + 1,
+				"totalBatches":     batchCount,
+				"failedBatchSize":  batchSlice.Len(),
 			})
-			return totalRowsAffected, fmt.Errorf("batch insert failed at batch %d/%d (records %d-%d): %w", 
+			return totalRowsAffected, fmt.Errorf("batch insert failed at batch %d/%d (records %d-%d): %w",
 				i/maxBatchSize+1, batchCount, i+1, end, err)
 		}
 
@@ -861,7 +910,7 @@ func (c *ClickHouse) BatchInsert(ctx context.Context, table string, dataSlice in
 func (c *ClickHouse) executeSingleBatchWithPrepare(ctx context.Context, table string, dataSlice interface{}, autoCommit bool) (int64, error) {
 	slice := reflect.ValueOf(dataSlice)
 	batchSize := slice.Len()
-	
+
 	// 第一步：分析数据结构，提取列信息
 	firstItem := slice.Index(0).Interface()
 	columns, _, err := sqlutils.ExtractColumnsAndValues(firstItem)
@@ -875,7 +924,7 @@ func (c *ClickHouse) executeSingleBatchWithPrepare(ctx context.Context, table st
 	for i := range placeholders {
 		placeholders[i] = "?"
 	}
-	
+
 	// 预编译SQL语句：简洁高效的单行INSERT
 	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
 		table,
@@ -886,7 +935,7 @@ func (c *ClickHouse) executeSingleBatchWithPrepare(ctx context.Context, table st
 	var needCommit bool
 	var tx *sql.Tx
 	var stmt *sql.Stmt
-	
+
 	// 使用defer确保资源始终被清理，即使发生panic
 	defer func() {
 		if stmt != nil {
@@ -897,7 +946,7 @@ func (c *ClickHouse) executeSingleBatchWithPrepare(ctx context.Context, table st
 			tx.Rollback()
 		}
 	}()
-	
+
 	if autoCommit {
 		// 自动提交模式：创建新事务
 		tx, err = c.db.BeginTx(ctx, nil)
@@ -923,7 +972,7 @@ func (c *ClickHouse) executeSingleBatchWithPrepare(ctx context.Context, table st
 	// 第五步：批量执行预编译语句
 	var totalRowsAffected int64
 	batchStart := time.Now()
-	
+
 	for i := 0; i < batchSize; i++ {
 		item := slice.Index(i).Interface()
 		_, values, err := sqlutils.ExtractColumnsAndValues(item)
@@ -958,7 +1007,7 @@ func (c *ClickHouse) executeSingleBatchWithPrepare(ctx context.Context, table st
 	// 第六步：清理资源并提交事务（如果是自动提交模式）
 	stmt.Close()
 	stmt = nil // 清理引用
-	
+
 	if needCommit {
 		if err := tx.Commit(); err != nil {
 			return 0, fmt.Errorf("failed to commit batch insert transaction: %w", err)
@@ -968,14 +1017,14 @@ func (c *ClickHouse) executeSingleBatchWithPrepare(ctx context.Context, table st
 
 	// 记录性能统计
 	c.logger.LogSQL(ctx, "SQL预编译批量插入", query, nil, nil, batchDuration, map[string]interface{}{
-		"batchSize":         batchSize,
-		"rowsAffected":      totalRowsAffected,
-		"executionMode":     "prepared_statement_batch",
-		"avgTimePerRecord":  fmt.Sprintf("%.3fms", float64(batchDuration.Nanoseconds())/float64(batchSize)/1000000),
-		"throughput":        fmt.Sprintf("%.2f records/sec", float64(batchSize)/batchDuration.Seconds()),
-		"optimization":      "prepare_once_execute_many_with_resource_cleanup",
-		"memoryOptimized":   true,
-		"resourceCleaned":   true,
+		"batchSize":        batchSize,
+		"rowsAffected":     totalRowsAffected,
+		"executionMode":    "prepared_statement_batch",
+		"avgTimePerRecord": fmt.Sprintf("%.3fms", float64(batchDuration.Nanoseconds())/float64(batchSize)/1000000),
+		"throughput":       fmt.Sprintf("%.2f records/sec", float64(batchSize)/batchDuration.Seconds()),
+		"optimization":     "prepare_once_execute_many_with_resource_cleanup",
+		"memoryOptimized":  true,
+		"resourceCleaned":  true,
 	})
 
 	return totalRowsAffected, nil
@@ -1000,7 +1049,7 @@ func (c *ClickHouse) executeSingleBatchWithPrepare(ctx context.Context, table st
 func (c *ClickHouse) executeSingleBatchWithBulkInsert(ctx context.Context, table string, dataSlice interface{}, autoCommit bool) (int64, error) {
 	slice := reflect.ValueOf(dataSlice)
 	batchSize := slice.Len()
-	
+
 	// 第一步：分析数据结构，提取列信息
 	firstItem := slice.Index(0).Interface()
 	columns, _, err := sqlutils.ExtractColumnsAndValues(firstItem)
@@ -1043,7 +1092,7 @@ func (c *ClickHouse) executeSingleBatchWithBulkInsert(ctx context.Context, table
 	// 第三步：准备事务执行环境
 	var needCommit bool
 	var tx *sql.Tx
-	
+
 	if autoCommit {
 		// 自动提交模式：创建新事务
 		tx, err = c.db.BeginTx(ctx, nil)
@@ -1119,14 +1168,17 @@ func (c *ClickHouse) executeSingleBatchWithBulkInsert(ctx context.Context, table
 // 注意：ClickHouse的UPDATE支持有限，这个方法主要用于兼容性
 // 建议使用INSERT INTO ... SELECT 或 ReplacingMergeTree 引擎替代
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   table: 目标表名
-//   dataSlice: 要更新的数据切片，每个元素都是结构体
-//   keyFields: 用于匹配记录的关键字段列表（如主键字段）
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	table: 目标表名
+//	dataSlice: 要更新的数据切片，每个元素都是结构体
+//	keyFields: 用于匹配记录的关键字段列表（如主键字段）
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 更新失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 更新失败时返回错误信息
 func (c *ClickHouse) BatchUpdate(ctx context.Context, table string, dataSlice interface{}, keyFields []string, autoCommit bool) (int64, error) {
 	// ClickHouse的UPDATE支持有限，这里提供基本实现但建议使用其他方案
 	slice := reflect.ValueOf(dataSlice)
@@ -1162,14 +1214,17 @@ func (c *ClickHouse) BatchUpdate(ctx context.Context, table string, dataSlice in
 // 根据提供的数据切片批量删除记录，通过指定的关键字段匹配
 // 注意：ClickHouse的DELETE支持有限，这个方法主要用于兼容性
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   table: 目标表名
-//   dataSlice: 包含要删除记录信息的数据切片，每个元素都是结构体
-//   keyFields: 用于匹配记录的关键字段列表（如主键字段）
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	table: 目标表名
+//	dataSlice: 包含要删除记录信息的数据切片，每个元素都是结构体
+//	keyFields: 用于匹配记录的关键字段列表（如主键字段）
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 删除失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 删除失败时返回错误信息
 func (c *ClickHouse) BatchDelete(ctx context.Context, table string, dataSlice interface{}, keyFields []string, autoCommit bool) (int64, error) {
 	// ClickHouse的DELETE支持有限，建议使用其他方案如ReplacingMergeTree
 	slice := reflect.ValueOf(dataSlice)
@@ -1213,14 +1268,17 @@ func (c *ClickHouse) BatchDelete(ctx context.Context, table string, dataSlice in
 // 更高效的批量删除方式，直接提供主键值列表
 // 注意：ClickHouse的DELETE支持有限，建议使用其他方案
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
-//   table: 目标表名
-//   keyField: 主键字段名
-//   keys: 要删除的主键值列表
-//   autoCommit: true-自动提交, false-在当前事务中执行
+//
+//	ctx: 上下文，用于控制请求超时和取消
+//	table: 目标表名
+//	keyField: 主键字段名
+//	keys: 要删除的主键值列表
+//	autoCommit: true-自动提交, false-在当前事务中执行
+//
 // 返回:
-//   int64: 受影响的行数
-//   error: 删除失败时返回错误信息
+//
+//	int64: 受影响的行数
+//	error: 删除失败时返回错误信息
 func (c *ClickHouse) BatchDeleteByKeys(ctx context.Context, table string, keyField string, keys []interface{}, autoCommit bool) (int64, error) {
 	if len(keys) == 0 {
 		return 0, nil
@@ -1243,9 +1301,9 @@ func (c *ClickHouse) BatchDeleteByKeys(ctx context.Context, table string, keyFie
 		strings.Join(placeholders, ", "))
 
 	executor := c.getExecutor(ctx, autoCommit)
-	
+
 	start := time.Now()
-	
+
 	// 直接执行，使用IN子句批量删除
 	result, err := executor.ExecContext(ctx, query, keys...)
 	duration := time.Since(start)
@@ -1257,9 +1315,9 @@ func (c *ClickHouse) BatchDeleteByKeys(ctx context.Context, table string, keyFie
 
 	// 记录日志
 	extra := map[string]interface{}{
-		"rowsAffected": rowsAffected,
-		"batchSize":    len(keys),
-		"keyField":     keyField,
+		"rowsAffected":  rowsAffected,
+		"batchSize":     len(keys),
+		"keyField":      keyField,
 		"executionMode": "in_clause",
 	}
 	c.logger.LogSQL(ctx, "SQL批量删除(主键)", query, keys, err, duration, extra)
@@ -1271,10 +1329,8 @@ func (c *ClickHouse) BatchDeleteByKeys(ctx context.Context, table string, keyFie
 	return rowsAffected, nil
 }
 
-
-
 // 实现说明
-// 
+//
 // 1. ClickHouse特性优化：
 //    - 批量插入使用单条大INSERT语句，充分利用列式存储优势
 //    - 连接池设置针对分析型查询进行优化
@@ -1293,4 +1349,4 @@ func (c *ClickHouse) BatchDeleteByKeys(ctx context.Context, table string, keyFie
 // 4. 工具函数依赖：
 //    - SQL格式化：sqlutils.BuildInsertQuery, BuildUpdateQuery等
 //    - 结果扫描：sqlutils.ScanRows, ScanOneRow等
-//    - 详细功能请参考 pkg/database/sqlutils/ 包 
+//    - 详细功能请参考 pkg/database/sqlutils/ 包

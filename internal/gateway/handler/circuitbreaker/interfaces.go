@@ -1,7 +1,7 @@
 package circuitbreaker
 
 import (
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // CircuitBreakerHandler 熔断处理器接口

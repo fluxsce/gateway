@@ -9,8 +9,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"gohub/pkg/mongo/errors"
-	"gohub/pkg/mongo/types"
+	"gateway/pkg/mongo/errors"
+	"gateway/pkg/mongo/types"
 )
 
 // === 替换操作 ===
@@ -182,7 +182,7 @@ func (c *Collection) CreateIndex(ctx context.Context, model types.IndexModel) (s
 
 	if model.Options != nil {
 		indexOptions := options.Index()
-		
+
 		if model.Options.Background != nil {
 			indexOptions.SetBackground(*model.Options.Background)
 		}
@@ -198,7 +198,7 @@ func (c *Collection) CreateIndex(ctx context.Context, model types.IndexModel) (s
 		if model.Options.Unique != nil {
 			indexOptions.SetUnique(*model.Options.Unique)
 		}
-		
+
 		indexModel.Options = indexOptions
 	}
 
@@ -238,4 +238,4 @@ func (c *Collection) DropIndex(ctx context.Context, name string) error {
 func (c *Collection) Watch(ctx context.Context, pipeline types.Pipeline, opts *types.ChangeStreamOptions) (types.ChangeStream, error) {
 	// 目前返回一个简单的错误，因为实际实现需要完整的变更流支持
 	return nil, errors.NewQueryError("ChangeStream not implemented yet", nil)
-} 
+}

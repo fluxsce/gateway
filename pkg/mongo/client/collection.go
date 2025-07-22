@@ -9,14 +9,14 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"gohub/pkg/mongo/errors"
-	"gohub/pkg/mongo/types"
+	"gateway/pkg/mongo/errors"
+	"gateway/pkg/mongo/types"
 )
 
 // Collection MongoDB集合实现
 // 实现types.MongoCollection接口，提供集合级别的CRUD操作
 type Collection struct {
-	coll     *mongo.Collection  // MongoDB驱动集合
+	coll     *mongo.Collection // MongoDB驱动集合
 	database *Database         // 父数据库引用
 	name     string            // 集合名称
 }
@@ -267,4 +267,4 @@ func (c *Collection) Drop(ctx context.Context) error {
 		return errors.NewQueryError("failed to drop collection", err)
 	}
 	return nil
-} 
+}

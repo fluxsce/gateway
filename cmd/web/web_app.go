@@ -2,11 +2,11 @@ package webapp
 
 import (
 	"fmt"
-	"gohub/pkg/config"
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/pkg/utils/huberrors"
-	"gohub/web/routes"
+	"gateway/pkg/config"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/pkg/utils/huberrors"
+	"gateway/web/routes"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,7 +14,7 @@ import (
 	"time"
 
 	// 使用统一导入文件，自动导入所有模块
-	_ "gohub/web/moduleimports"
+	_ "gateway/web/moduleimports"
 
 	"github.com/gin-gonic/gin"
 )
@@ -41,15 +41,15 @@ func corsMiddleware() gin.HandlerFunc {
 		maxAge := config.GetInt("web.cors.max_age", 86400)
 
 		// 记录调试信息
-		logger.Debug("CORS处理", 
-			"origin", origin, 
-			"method", method, 
+		logger.Debug("CORS处理",
+			"origin", origin,
+			"method", method,
 			"path", path,
 			"allowedOrigins", allowedOrigins)
 
 		// 强制设置CORS头部，无论是否有自定义ResponseWriter
 		header := c.Writer.Header()
-		
+
 		// 智能处理Origin设置
 		if allowedOrigins == "*" {
 			// 如果需要支持credentials，不能使用通配符
@@ -167,13 +167,13 @@ func NewWebApp(db database.Database) *WebApp {
 		// 静态资源文件（CSS、JS、图片等）
 		router.Static("/assets", filepath.Join(frontendPath, "assets"))
 		router.StaticFile("/favicon.ico", filepath.Join(frontendPath, "favicon.ico"))
-		
+
 		// 处理Vue3 SPA路由 - 所有未匹配的路由都返回index.html
 		router.NoRoute(func(c *gin.Context) {
 			path := c.Request.URL.Path
-			
-			// 如果是API请求（包括/gohub/开头的路径），返回JSON格式的404
-			if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/gohub/") {
+
+			// 如果是API请求（包括/gateway/开头的路径），返回JSON格式的404
+			if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/gateway/") {
 				c.JSON(http.StatusNotFound, gin.H{
 					"code":    "404",
 					"message": "API endpoint not found",
@@ -182,7 +182,7 @@ func NewWebApp(db database.Database) *WebApp {
 				})
 				return
 			}
-			
+
 			// 对于前端路由，返回index.html
 			indexPath := filepath.Join(frontendPath, "index.html")
 			if _, err := os.Stat(indexPath); err == nil {
@@ -197,7 +197,7 @@ func NewWebApp(db database.Database) *WebApp {
 				})
 			}
 		})
-		
+
 		logger.Info("Vue3前端静态资源服务已配置",
 			"path", frontendPath,
 			"prefix", frontendPrefix)
@@ -257,7 +257,7 @@ func (app *WebApp) Init() error {
 func (app *WebApp) Start() error {
 	readTimeout := config.GetInt("web.read_timeout", 60)
 	writeTimeout := config.GetInt("web.write_timeout", 60)
-	appName := config.GetString("web.name", "GoHub Web服务")
+	appName := config.GetString("web.name", "Gateway Web服务")
 	runMode := config.GetString("web.run_mode", "debug")
 
 	// 设置服务器超时时间

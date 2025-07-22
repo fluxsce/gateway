@@ -1,9 +1,9 @@
 package routes
 
 import (
-	"gohub/pkg/database"
-	"gohub/web/routes"
-	"gohub/web/views/hub0022/controllers"
+	"gateway/pkg/database"
+	"gateway/web/routes"
+	"gateway/web/views/hub0022/controllers"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,7 +16,7 @@ func RegisterHub0022Routes(router *gin.Engine, db database.Database) {
 	gatewayInstanceController := controllers.NewGatewayInstanceController(db)
 
 	// 创建路由组
-	apiGroup := router.Group("/gohub/hub0022",routes.AuthRequired())
+	apiGroup := router.Group("/gateway/hub0022", routes.AuthRequired())
 
 	// 代理配置管理路由
 	{
@@ -41,7 +41,7 @@ func RegisterHub0022Routes(router *gin.Engine, db database.Database) {
 
 	// 服务定义管理路由
 	{
-		// 获取服务定义列表 (GET请求，支持分页)  
+		// 获取服务定义列表 (GET请求，支持分页)
 		apiGroup.POST("/queryServiceDefinitions", serviceDefinitionController.QueryServiceDefinitions)
 
 		// 创建服务定义
@@ -61,10 +61,10 @@ func RegisterHub0022Routes(router *gin.Engine, db database.Database) {
 	{
 		// 获取所有网关实例列表 (POST请求，支持分页)
 		apiGroup.POST("/queryAllGatewayInstances", gatewayInstanceController.QueryAllGatewayInstances)
-		
+
 		// 获取网关实例详情
 		apiGroup.POST("/getGatewayInstance", gatewayInstanceController.GetGatewayInstance)
-		
+
 		// 获取租户下的网关实例列表
 		apiGroup.POST("/queryGatewayInstances", gatewayInstanceController.QueryGatewayInstances)
 	}
@@ -73,23 +73,23 @@ func RegisterHub0022Routes(router *gin.Engine, db database.Database) {
 	{
 		// 创建服务节点控制器
 		serviceNodeController := controllers.NewServiceNodeController(db)
-		
+
 		// 获取服务节点列表
 		apiGroup.POST("/queryServiceNodes", serviceNodeController.QueryServiceNodes)
-		
+
 		// 创建服务节点
 		apiGroup.POST("/addServiceNode", serviceNodeController.AddServiceNode)
-		
+
 		// 更新服务节点
 		apiGroup.POST("/editServiceNode", serviceNodeController.EditServiceNode)
-		
+
 		// 删除服务节点
 		apiGroup.POST("/deleteServiceNode", serviceNodeController.DeleteServiceNode)
-		
+
 		// 获取服务节点详情
 		apiGroup.POST("/getServiceNode", serviceNodeController.GetServiceNode)
-		
+
 		// 更新节点健康状态
 		apiGroup.POST("/updateNodeHealth", serviceNodeController.UpdateNodeHealth)
 	}
-} 
+}

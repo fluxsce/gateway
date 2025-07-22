@@ -3,10 +3,10 @@ package hubpluginroutes
 // 插件管理
 //管理所有插件路由
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/routes"
-	commonroutes "gohub/web/views/hubplugin/common/routes"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/routes"
+	commonroutes "gateway/web/views/hubplugin/common/routes"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,7 +19,7 @@ var (
 
 	// APIPrefix API路径前缀，所有该模块的API都将以此为基础路径
 	// 实际路由时将根据RouteDiscovery的设置可能会使用"/api/hubplugin"
-	APIPrefix = "/gohub/hubplugin"
+	APIPrefix = "/gateway/hubplugin"
 )
 
 // init 包初始化函数
@@ -50,7 +50,6 @@ func Init(router *gin.Engine, db database.Database) {
 	commonroutes.Init(group, db)
 }
 
-
 // RegisterRoutesFunc 返回路由注册函数
 // 此函数用于手动注册模块路由，可以通过以下方式使用：
 // 1. 在初始化阶段调用routes.RegisterModuleRoutes("hub002", hub002routes.RegisterRoutesFunc())
@@ -61,4 +60,4 @@ func Init(router *gin.Engine, db database.Database) {
 //   - func(router *gin.Engine, db database.Database): 返回Init函数引用
 func RegisterRoutesFunc() func(router *gin.Engine, db database.Database) {
 	return Init
-} 
+}

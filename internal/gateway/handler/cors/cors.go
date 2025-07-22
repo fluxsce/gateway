@@ -1,7 +1,7 @@
 package cors
 
 import (
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // CORSStrategy CORS策略类型
@@ -189,14 +189,14 @@ func NewCORS(config *CORSConfig) *CORS {
 
 	if config != nil {
 		cors.config = *config
-		
+
 		// 创建默认处理器
 		handler := &BaseCORSHandler{
 			Strategy: config.Strategy,
 			Enabled:  config.Enabled,
 			Config:   *config,
 		}
-		
+
 		// 设置处理器名称
 		if config.Name != "" {
 			handler.Name = config.Name
@@ -205,7 +205,7 @@ func NewCORS(config *CORSConfig) *CORS {
 		} else {
 			handler.Name = "CORS Handler"
 		}
-		
+
 		cors.handler = handler
 	}
 

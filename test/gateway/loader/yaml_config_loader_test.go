@@ -9,14 +9,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gohub/internal/gateway/config"
-	"gohub/internal/gateway/handler/auth"
-	"gohub/internal/gateway/handler/cors"
-	"gohub/internal/gateway/handler/limiter"
-	"gohub/internal/gateway/handler/proxy"
-	"gohub/internal/gateway/handler/router"
-	"gohub/internal/gateway/handler/security"
-	"gohub/internal/gateway/loader"
+	"gateway/internal/gateway/config"
+	"gateway/internal/gateway/handler/auth"
+	"gateway/internal/gateway/handler/cors"
+	"gateway/internal/gateway/handler/limiter"
+	"gateway/internal/gateway/handler/proxy"
+	"gateway/internal/gateway/handler/router"
+	"gateway/internal/gateway/handler/security"
+	"gateway/internal/gateway/loader"
 )
 
 func TestNewYAMLConfigLoader(t *testing.T) {

@@ -1,22 +1,22 @@
-# GoHub Windows 部署指南
+# Gateway Windows 部署指南
 
-本文档介绍如何在Windows环境下部署GoHub应用并将其注册为Windows服务。
+本文档介绍如何在Windows环境下部署Gateway应用并将其注册为Windows服务。
 
 ## 概述
 
-GoHub提供了两种Windows服务安装方式：
+Gateway提供了两种Windows服务安装方式：
 1. **原生方式** - 使用Windows内置的sc命令
 2. **NSSM方式** - 使用NSSM (Non-Sucking Service Manager) 工具
 
 ## 前置条件
 
-### 1. 编译GoHub应用
+### 1. 编译Gateway应用
 
-首先需要编译GoHub应用程序：
+首先需要编译Gateway应用程序：
 
 ```cmd
 # 编译标准版本
-cd /d F:\goWorkSpace\gohub
+cd /d F:\goWorkSpace\gateway
 .\scripts\build\build-win10-oracle.cmd
 
 # 或编译Windows 2008兼容版本
@@ -28,13 +28,13 @@ cd /d F:\goWorkSpace\gohub
 ### 2. 准备部署目录
 
 建议将编译好的程序部署到固定目录，例如：
-- `C:\Program Files\GoHub`
-- `D:\Apps\GoHub`
+- `C:\Program Files\Gateway`
+- `D:\Apps\Gateway`
 
 确保目录结构如下：
 ```
-GoHub/
-├── gohub-win10-oracle-amd64.exe (或 gohub-win2008-oracle-amd64.exe)
+Gateway/
+├── gateway-win10-oracle-amd64.exe (或 gateway-win2008-oracle-amd64.exe)
 ├── configs/
 │   ├── app.yaml
 │   ├── database.yaml
@@ -61,10 +61,10 @@ GoHub/
 .\scripts\deploy\install-service.cmd oracle
 
 # 指定自定义目录
-.\scripts\deploy\install-service.cmd -d "D:\Apps\GoHub"
+.\scripts\deploy\install-service.cmd -d "D:\Apps\Gateway"
 ```
 
-**注意：** 此方式要求GoHub程序支持`--service`参数，目前需要修改程序代码以支持Windows服务模式。
+**注意：** 此方式要求Gateway程序支持`--service`参数，目前需要修改程序代码以支持Windows服务模式。
 
 **智能检测功能：** 脚本具备以下自动检测能力：
 
@@ -74,12 +74,12 @@ GoHub/
    - 同目录执行：自动检测脚本当前目录
 
 2. **文件名检测** - 自动检测以下文件名：
-   - Oracle版本：`gohub-win10-oracle-amd64.exe`、`gohub-win2008-oracle-amd64.exe`、`gohub-oracle.exe`
-   - 标准版本：`gohub.exe`、`gohub-win10-amd64.exe`、`gohub-win2008-amd64.exe`
+   - Oracle版本：`gateway-win10-oracle-amd64.exe`、`gateway-win2008-oracle-amd64.exe`、`gateway-oracle.exe`
+   - 标准版本：`gateway.exe`、`gateway-win10-amd64.exe`、`gateway-win2008-amd64.exe`
 
 ### 方式二：NSSM方式 (推荐用于生产环境)
 
-使用NSSM工具将GoHub包装为Windows服务：
+使用NSSM工具将Gateway包装为Windows服务：
 
 #### 1. 下载NSSM
 
@@ -99,7 +99,7 @@ GoHub/
 .\scripts\deploy\install-service-nssm.cmd oracle
 
 # 指定自定义目录
-.\scripts\deploy\install-service-nssm.cmd -d "D:\Apps\GoHub"
+.\scripts\deploy\install-service-nssm.cmd -d "D:\Apps\Gateway"
 ```
 
 ## 服务管理
@@ -115,36 +115,36 @@ services.msc
 或使用命令行：
 ```cmd
 # 启动服务
-sc start GoHub
+sc start Gateway
 # 或
-net start GoHub
+net start Gateway
 
 # 停止服务
-sc stop GoHub
+sc stop Gateway
 # 或
-net stop GoHub
+net stop Gateway
 
 # 查看服务状态
-sc query GoHub
+sc query Gateway
 ```
 
 ### 2. 使用NSSM管理服务
 
 ```cmd
 # 启动服务
-nssm start GoHub
+nssm start Gateway
 
 # 停止服务
-nssm stop GoHub
+nssm stop Gateway
 
 # 重启服务
-nssm restart GoHub
+nssm restart Gateway
 
 # 查看服务状态
-nssm status GoHub
+nssm status Gateway
 
 # 编辑服务配置
-nssm edit GoHub
+nssm edit Gateway
 ```
 
 ### 3. 卸载服务
@@ -170,7 +170,7 @@ nssm edit GoHub
 .\scripts\deploy\uninstall-service.cmd oracle --keep-env
 
 # 卸载自定义服务名
-.\scripts\deploy\uninstall-service.cmd -s "Custom-GoHub-Service"
+.\scripts\deploy\uninstall-service.cmd -s "Custom-Gateway-Service"
 
 # 完整清理（推荐）
 .\scripts\deploy\uninstall-service.cmd oracle --clean-logs --force
@@ -188,7 +188,7 @@ nssm edit GoHub
 ### 1. 环境变量
 
 服务会自动设置以下环境变量：
-- `GOHUB_CONFIG_DIR` - 配置文件目录路径
+- `GATEWAY_CONFIG_DIR` - 配置文件目录路径
 
 ### 2. 日志文件
 
@@ -201,8 +201,8 @@ nssm edit GoHub
 ### 3. 服务配置
 
 服务默认配置：
-- **服务名称**：GoHub (或 GoHub-Oracle)
-- **显示名称**：GoHub Application Service
+- **服务名称**：Gateway (或 Gateway-Oracle)
+- **显示名称**：Gateway Application Service
 - **启动类型**：自动启动
 - **恢复策略**：失败时自动重启
 
@@ -215,14 +215,14 @@ nssm edit GoHub
 .\scripts\build\build-win10-oracle.cmd
 
 # 2. 创建部署目录
-mkdir C:\GoHub-Dev
-xcopy /E /I configs C:\GoHub-Dev\configs
-copy dist\gohub-win10-oracle-amd64.exe C:\GoHub-Dev\gohub-win10-oracle-amd64.exe
-xcopy /E /I scripts C:\GoHub-Dev\scripts
+mkdir C:\Gateway-Dev
+xcopy /E /I configs C:\Gateway-Dev\configs
+copy dist\gateway-win10-oracle-amd64.exe C:\Gateway-Dev\gateway-win10-oracle-amd64.exe
+xcopy /E /I scripts C:\Gateway-Dev\scripts
 
 # 3. 安装服务 (使用NSSM)
-cd C:\GoHub-Dev
-.\scripts\deploy\install-service-nssm.cmd oracle -d "C:\GoHub-Dev"
+cd C:\Gateway-Dev
+.\scripts\deploy\install-service-nssm.cmd oracle -d "C:\Gateway-Dev"
 ```
 
 ### 2. 生产环境部署
@@ -232,17 +232,17 @@ cd C:\GoHub-Dev
 .\scripts\build\build-win2008-oracle.cmd
 
 # 2. 创建部署目录
-mkdir "C:\Program Files\GoHub"
-xcopy /E /I configs "C:\Program Files\GoHub\configs"
-copy dist\gohub-win2008-oracle-amd64.exe "C:\Program Files\GoHub\gohub-win2008-oracle-amd64.exe"
-xcopy /E /I scripts "C:\Program Files\GoHub\scripts"
+mkdir "C:\Program Files\Gateway"
+xcopy /E /I configs "C:\Program Files\Gateway\configs"
+copy dist\gateway-win2008-oracle-amd64.exe "C:\Program Files\Gateway\gateway-win2008-oracle-amd64.exe"
+xcopy /E /I scripts "C:\Program Files\Gateway\scripts"
 
 # 3. 安装服务
-cd "C:\Program Files\GoHub"
+cd "C:\Program Files\Gateway"
 .\scripts\deploy\install-service-nssm.cmd oracle
 
 # 4. 验证服务
-sc query GoHub-Oracle
+sc query Gateway-Oracle
 ```
 
 ## 故障排除
@@ -258,8 +258,8 @@ sc query GoHub-Oracle
 查看日志：
 ```cmd
 # 查看服务日志
-type "C:\Program Files\GoHub\logs\service.log"
-type "C:\Program Files\GoHub\logs\service-error.log"
+type "C:\Program Files\Gateway\logs\service.log"
+type "C:\Program Files\Gateway\logs\service-error.log"
 ```
 
 ### 2. 权限问题
@@ -289,7 +289,7 @@ type "C:\Program Files\GoHub\logs\service-error.log"
 
 编辑NSSM服务配置：
 ```cmd
-nssm edit GoHub
+nssm edit Gateway
 ```
 
 可以配置：
@@ -307,10 +307,10 @@ nssm edit GoHub
 
 ### 3. 多实例部署
 
-可以部署多个GoHub实例：
+可以部署多个Gateway实例：
 ```cmd
 # 部署第二个实例
-.\scripts\deploy\install-service-nssm.cmd oracle -d "C:\GoHub-Instance2"
+.\scripts\deploy\install-service-nssm.cmd oracle -d "C:\Gateway-Instance2"
 ```
 
 ## 安全建议
@@ -340,15 +340,15 @@ nssm edit GoHub
 - **🎯 精确文件识别**：自动识别正确的可执行文件版本
 - **⚡ 动态路径解析**：根据脚本执行位置智能推导程序位置
 - **🛡️ 增强容错处理**：检测失败时提供详细的诊断信息
-- **⚙️ 配置目录统一化**：修复配置文件路径不一致问题，统一使用GOHUB_CONFIG_DIR环境变量
+- **⚙️ 配置目录统一化**：修复配置文件路径不一致问题，统一使用GATEWAY_CONFIG_DIR环境变量
 
 ### 支持的执行场景
 
 | 执行场景 | 脚本位置 | 程序位置 | 检测方式 |
 |----------|----------|----------|----------|
-| **源码开发** | `F:\gohub\scripts\deploy\` | `F:\gohub\` | 检测脚本上级目录 |
-| **部署环境** | `C:\Program Files\GoHub\scripts\` | `C:\Program Files\GoHub\` | 检测脚本父目录 |
-| **便携模式** | `C:\GoHub\` | `C:\GoHub\` | 检测脚本当前目录 |
+| **源码开发** | `F:\gateway\scripts\deploy\` | `F:\gateway\` | 检测脚本上级目录 |
+| **部署环境** | `C:\Program Files\Gateway\scripts\` | `C:\Program Files\Gateway\` | 检测脚本父目录 |
+| **便携模式** | `C:\Gateway\` | `C:\Gateway\` | 检测脚本当前目录 |
 | **自定义路径** | 任意位置 | 通过 `-d` 参数指定 | 使用指定目录 |
 
 ### 文件检测优先级
@@ -356,42 +356,42 @@ nssm edit GoHub
 脚本按以下优先级自动检测可执行文件：
 
 **Oracle版本** (使用 `oracle` 参数时)：
-1. `gohub-win10-oracle-amd64.exe` - Windows 10/11版本
-2. `gohub-win2008-oracle-amd64.exe` - Windows Server 2008版本  
-3. `gohub-oracle.exe` - 通用Oracle版本
+1. `gateway-win10-oracle-amd64.exe` - Windows 10/11版本
+2. `gateway-win2008-oracle-amd64.exe` - Windows Server 2008版本  
+3. `gateway-oracle.exe` - 通用Oracle版本
 
 **标准版本** (不使用 `oracle` 参数时)：
-1. `gohub.exe` - 标准版本
-2. `gohub-win10-amd64.exe` - Windows 10/11版本
-3. `gohub-win2008-amd64.exe` - Windows Server 2008版本
+1. `gateway.exe` - 标准版本
+2. `gateway-win10-amd64.exe` - Windows 10/11版本
+3. `gateway-win2008-amd64.exe` - Windows Server 2008版本
 
 ### 使用示例
 
 ```cmd
 # 在源码目录执行 - 自动检测到项目根目录
-F:\gohub\scripts\deploy> install-service-nssm.cmd oracle
+F:\gateway\scripts\deploy> install-service-nssm.cmd oracle
 
 # 在部署目录执行 - 自动检测到应用目录  
-C:\Program Files\GoHub\scripts> install-service-nssm.cmd oracle
+C:\Program Files\Gateway\scripts> install-service-nssm.cmd oracle
 
 # 在任意位置执行 - 手动指定目录
-D:\Tools> install-service-nssm.cmd oracle -d "C:\Program Files\GoHub"
+D:\Tools> install-service-nssm.cmd oracle -d "C:\Program Files\Gateway"
 ```
 
 ## 配置目录统一化修复
 
 **修复的问题：**
 - 原先数据库配置、缓存配置使用硬编码路径 `configs/database.yaml`
-- 主应用配置支持 `GOHUB_CONFIG_DIR` 环境变量，但其他组件不支持
+- 主应用配置支持 `GATEWAY_CONFIG_DIR` 环境变量，但其他组件不支持
 - 导致配置文件路径不一致，部署时可能出现配置文件找不到的问题
 
 **修复后的效果：**
-- 所有组件统一使用 `GOHUB_CONFIG_DIR` 环境变量
+- 所有组件统一使用 `GATEWAY_CONFIG_DIR` 环境变量
 - 配置文件路径完全一致，支持灵活的部署场景
 - 服务安装脚本自动设置环境变量，确保服务启动时使用正确的配置目录
 
 **配置目录优先级：**
-1. `GOHUB_CONFIG_DIR` 环境变量指定的目录
+1. `GATEWAY_CONFIG_DIR` 环境变量指定的目录
 2. `./configs` （相对于程序启动目录）
 3. `.` （程序启动目录）
 

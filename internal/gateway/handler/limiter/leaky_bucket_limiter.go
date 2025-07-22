@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // LeakyBucketLimiter 漏桶限流器

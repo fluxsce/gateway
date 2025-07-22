@@ -1,13 +1,13 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hub0021/dao"
-	"gohub/web/views/hub0021/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hub0021/dao"
+	"gateway/web/views/hub0021/models"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,9 +15,9 @@ import (
 
 // RouteConfigController 路由配置控制器
 type RouteConfigController struct {
-	db                 database.Database
-	routeConfigDAO     *dao.RouteConfigDAO
-	routeAssertionDAO  *dao.RouteAssertionDAO
+	db                database.Database
+	routeConfigDAO    *dao.RouteConfigDAO
+	routeAssertionDAO *dao.RouteAssertionDAO
 }
 
 // NewRouteConfigController 创建路由配置控制器
@@ -48,7 +48,7 @@ func (c *RouteConfigController) QueryRouteConfigs(ctx *gin.Context) {
 	page, pageSize := request.GetPaginationParams(ctx)
 	// 使用工具类获取租户ID
 	tenantId := request.GetTenantID(ctx)
-	
+
 	// 获取查询参数
 	queryParams := &dao.RouteConfigQueryParams{
 		TenantId:          tenantId,
@@ -158,7 +158,7 @@ func (c *RouteConfigController) AddRouteConfig(ctx *gin.Context) {
 	// 返回完整的路由配置信息，排除敏感字段
 	routeConfigInfo := routeConfigToMap(newRouteConfig)
 
-	logger.InfoWithTrace(ctx, "路由配置创建成功", 
+	logger.InfoWithTrace(ctx, "路由配置创建成功",
 		"routeConfigId", routeConfigId,
 		"tenantId", tenantId,
 		"operatorId", operatorId,
@@ -249,7 +249,7 @@ func (c *RouteConfigController) EditRouteConfig(ctx *gin.Context) {
 	// 返回更新后的路由配置信息
 	routeConfigInfo := routeConfigToMap(updatedRouteConfig)
 
-	logger.InfoWithTrace(ctx, "路由配置更新成功", 
+	logger.InfoWithTrace(ctx, "路由配置更新成功",
 		"routeConfigId", updateData.RouteConfigId,
 		"tenantId", tenantId,
 		"operatorId", operatorId,
@@ -315,7 +315,7 @@ func (c *RouteConfigController) DeleteRouteConfig(ctx *gin.Context) {
 		return
 	}
 
-	logger.InfoWithTrace(ctx, "路由配置删除成功", 
+	logger.InfoWithTrace(ctx, "路由配置删除成功",
 		"routeConfigId", req.RouteConfigId,
 		"tenantId", tenantId,
 		"operatorId", operatorId,
@@ -337,7 +337,7 @@ func (c *RouteConfigController) DeleteRouteConfig(ctx *gin.Context) {
 // @Success 200 {object} response.JsonData
 // @Router /api/hub0021/route-config [get]
 func (c *RouteConfigController) GetRouteConfig(ctx *gin.Context) {
-	routeConfigId := request.GetParam(ctx,"routeConfigId")
+	routeConfigId := request.GetParam(ctx, "routeConfigId")
 	if routeConfigId == "" {
 		response.ErrorJSON(ctx, "路由配置ID不能为空", constants.ED00007)
 		return
@@ -373,7 +373,7 @@ func (c *RouteConfigController) GetRouteConfig(ctx *gin.Context) {
 
 	// 转换为响应格式
 	routeConfigInfo := routeConfigToMap(routeConfig)
-	
+
 	// 添加断言信息
 	assertionList := make([]map[string]interface{}, 0, len(assertions))
 	for _, assertion := range assertions {
@@ -393,7 +393,7 @@ func (c *RouteConfigController) GetRouteConfig(ctx *gin.Context) {
 // @Success 200 {object} response.JsonData
 // @Router /api/hub0021/route-configs/by-instance [get]
 func (c *RouteConfigController) GetRouteConfigsByInstance(ctx *gin.Context) {
-	gatewayInstanceId := request.GetParam(ctx,"gatewayInstanceId")
+	gatewayInstanceId := request.GetParam(ctx, "gatewayInstanceId")
 	if gatewayInstanceId == "" {
 		response.ErrorJSON(ctx, "网关实例ID不能为空", constants.ED00007)
 		return
@@ -590,19 +590,19 @@ func routeConfigWithServiceToMap(routeConfig *models.RouteConfigWithService) map
 	} else {
 		result["serviceName"] = nil
 	}
-	
+
 	if routeConfig.ServiceDesc != nil {
 		result["serviceDesc"] = *routeConfig.ServiceDesc
 	} else {
 		result["serviceDesc"] = nil
 	}
-	
+
 	if routeConfig.ServiceType != nil {
 		result["serviceType"] = *routeConfig.ServiceType
 	} else {
 		result["serviceType"] = nil
 	}
-	
+
 	if routeConfig.LoadBalanceStrategy != nil {
 		result["loadBalanceStrategy"] = *routeConfig.LoadBalanceStrategy
 	} else {
@@ -610,4 +610,4 @@ func routeConfigWithServiceToMap(routeConfig *models.RouteConfigWithService) map
 	}
 
 	return result
-} 
+}

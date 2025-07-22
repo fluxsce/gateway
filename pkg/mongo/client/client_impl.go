@@ -9,18 +9,18 @@ import (
 
 	"go.mongodb.org/mongo-driver/mongo"
 
-	"gohub/pkg/mongo/config"
-	"gohub/pkg/mongo/errors"
-	"gohub/pkg/mongo/types"
+	"gateway/pkg/mongo/config"
+	"gateway/pkg/mongo/errors"
+	"gateway/pkg/mongo/types"
 )
 
 // Client MongoDB客户端实现
 // 实现types.MongoClient接口，提供连接管理和数据库访问功能
 type Client struct {
-	client    *mongo.Client                 // MongoDB驱动客户端
-	config    *config.MongoConfig          // 连接配置
-	mutex     sync.RWMutex                 // 读写锁，保护并发访问
-	databases map[string]*Database         // 数据库缓存
+	client    *mongo.Client        // MongoDB驱动客户端
+	config    *config.MongoConfig  // 连接配置
+	mutex     sync.RWMutex         // 读写锁，保护并发访问
+	databases map[string]*Database // 数据库缓存
 }
 
 // NewClient 创建新的MongoDB客户端
@@ -177,7 +177,7 @@ func (c *Client) Watch(ctx context.Context, pipeline types.Pipeline, opts *types
 func (c *Client) NumberSessionsInProgress() int {
 	// 目前返回0，因为会话管理的完整实现需要更多的工作
 	return 0
-} 
+}
 
 func (c *Client) GetConfig() *config.MongoConfig {
 	return c.config

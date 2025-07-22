@@ -3,8 +3,8 @@ package database
 import (
 	"testing"
 
-	"gohub/pkg/database"
-	"gohub/pkg/database/dbtypes"
+	"gateway/pkg/database"
+	"gateway/pkg/database/dbtypes"
 )
 
 // 测试数据库配置选项

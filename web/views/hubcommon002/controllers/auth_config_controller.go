@@ -2,13 +2,13 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hubcommon002/dao"
-	"gohub/web/views/hubcommon002/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hubcommon002/dao"
+	"gateway/web/views/hubcommon002/models"
 
 	"github.com/gin-gonic/gin"
 )
@@ -58,7 +58,7 @@ func (c *AuthConfigController) AddAuthConfig(ctx *gin.Context) {
 	// 调用DAO层添加认证配置
 	err := c.dao.AddAuthConfig(ctx, &config, operatorId)
 	if err != nil {
-		logger.ErrorWithTrace(ctx, "添加认证配置失败", "error", err.Error(), 
+		logger.ErrorWithTrace(ctx, "添加认证配置失败", "error", err.Error(),
 			"authConfigId", config.AuthConfigId, "tenantId", tenantId)
 		response.ErrorJSON(ctx, "添加认证配置失败: "+err.Error(), constants.ED00009)
 		return
@@ -67,14 +67,14 @@ func (c *AuthConfigController) AddAuthConfig(ctx *gin.Context) {
 	// 查询最新的配置数据返回给前端
 	newConfig, err := c.dao.GetAuthConfig(config.TenantId, config.AuthConfigId)
 	if err != nil {
-		logger.WarnWithTrace(ctx, "添加成功但获取最新数据失败", "error", err.Error(), 
+		logger.WarnWithTrace(ctx, "添加成功但获取最新数据失败", "error", err.Error(),
 			"authConfigId", config.AuthConfigId, "tenantId", tenantId)
 		// 添加成功但获取最新数据失败，仍然返回成功
 		response.SuccessJSON(ctx, gin.H{"message": "认证配置添加成功"}, constants.SD00003)
 		return
 	}
 
-	logger.InfoWithTrace(ctx, "认证配置添加成功", "authConfigId", config.AuthConfigId, 
+	logger.InfoWithTrace(ctx, "认证配置添加成功", "authConfigId", config.AuthConfigId,
 		"tenantId", tenantId, "operatorId", operatorId)
 	response.SuccessJSON(ctx, newConfig, constants.SD00003)
 }
@@ -87,13 +87,13 @@ func (c *AuthConfigController) GetAuthConfig(ctx *gin.Context) {
 	var req struct {
 		// 按配置ID查询
 		AuthConfigId *string `json:"authConfigId" form:"authConfigId"`
-		
+
 		// 按网关实例ID查询
 		GatewayInstanceId *string `json:"gatewayInstanceId" form:"gatewayInstanceId"`
-		
+
 		// 按路由配置ID查询
 		RouteConfigId *string `json:"routeConfigId" form:"routeConfigId"`
-		
+
 		// 分页参数（用于按实例或路由查询时）
 		Page     int `json:"page" form:"page"`
 		PageSize int `json:"pageSize" form:"pageSize"`
@@ -106,7 +106,7 @@ func (c *AuthConfigController) GetAuthConfig(ctx *gin.Context) {
 	}
 
 	// 调试日志：输出接收到的参数
-	logger.InfoWithTrace(ctx, "接收到的查询参数", 
+	logger.InfoWithTrace(ctx, "接收到的查询参数",
 		"authConfigId", func() string {
 			if req.AuthConfigId != nil {
 				return *req.AuthConfigId
@@ -146,7 +146,7 @@ func (c *AuthConfigController) GetAuthConfig(ctx *gin.Context) {
 	if req.RouteConfigId != nil && *req.RouteConfigId != "" {
 		hasValidParam = true
 	}
-	
+
 	if !hasValidParam {
 		response.ErrorJSON(ctx, "请提供authConfigId、gatewayInstanceId或routeConfigId中的任意一个", constants.ED00007)
 		return
@@ -156,7 +156,7 @@ func (c *AuthConfigController) GetAuthConfig(ctx *gin.Context) {
 	if req.AuthConfigId != nil && *req.AuthConfigId != "" {
 		config, err := c.dao.GetAuthConfig(tenantId, *req.AuthConfigId)
 		if err != nil {
-			logger.ErrorWithTrace(ctx, "获取认证配置失败", "error", err.Error(), 
+			logger.ErrorWithTrace(ctx, "获取认证配置失败", "error", err.Error(),
 				"authConfigId", *req.AuthConfigId, "tenantId", tenantId)
 			response.ErrorJSON(ctx, "获取认证配置失败: "+err.Error(), constants.ED00009)
 			return
@@ -176,7 +176,7 @@ func (c *AuthConfigController) GetAuthConfig(ctx *gin.Context) {
 	if req.GatewayInstanceId != nil && *req.GatewayInstanceId != "" {
 		config, err := c.dao.GetAuthConfigByGatewayInstance(tenantId, *req.GatewayInstanceId)
 		if err != nil {
-			logger.ErrorWithTrace(ctx, "查询网关实例认证配置失败", "error", err.Error(), 
+			logger.ErrorWithTrace(ctx, "查询网关实例认证配置失败", "error", err.Error(),
 				"tenantId", tenantId, "gatewayInstanceId", *req.GatewayInstanceId)
 			response.ErrorJSON(ctx, "查询网关实例认证配置失败: "+err.Error(), constants.ED00009)
 			return
@@ -187,7 +187,7 @@ func (c *AuthConfigController) GetAuthConfig(ctx *gin.Context) {
 			return
 		}
 
-		logger.InfoWithTrace(ctx, "查询网关实例认证配置成功", "tenantId", tenantId, 
+		logger.InfoWithTrace(ctx, "查询网关实例认证配置成功", "tenantId", tenantId,
 			"gatewayInstanceId", *req.GatewayInstanceId, "authConfigId", config.AuthConfigId)
 		response.SuccessJSON(ctx, config, constants.SD00002)
 		return
@@ -197,7 +197,7 @@ func (c *AuthConfigController) GetAuthConfig(ctx *gin.Context) {
 	if req.RouteConfigId != nil && *req.RouteConfigId != "" {
 		config, err := c.dao.GetAuthConfigByRouteConfig(tenantId, *req.RouteConfigId)
 		if err != nil {
-			logger.ErrorWithTrace(ctx, "查询路由配置认证配置失败", "error", err.Error(), 
+			logger.ErrorWithTrace(ctx, "查询路由配置认证配置失败", "error", err.Error(),
 				"tenantId", tenantId, "routeConfigId", *req.RouteConfigId)
 			response.ErrorJSON(ctx, "查询路由配置认证配置失败: "+err.Error(), constants.ED00009)
 			return
@@ -208,7 +208,7 @@ func (c *AuthConfigController) GetAuthConfig(ctx *gin.Context) {
 			return
 		}
 
-		logger.InfoWithTrace(ctx, "查询路由配置认证配置成功", "tenantId", tenantId, 
+		logger.InfoWithTrace(ctx, "查询路由配置认证配置成功", "tenantId", tenantId,
 			"routeConfigId", *req.RouteConfigId, "authConfigId", config.AuthConfigId)
 		response.SuccessJSON(ctx, config, constants.SD00002)
 		return
@@ -253,7 +253,7 @@ func (c *AuthConfigController) UpdateAuthConfig(ctx *gin.Context) {
 	// 调用DAO层更新认证配置
 	err := c.dao.UpdateAuthConfig(ctx, &config, operatorId)
 	if err != nil {
-		logger.ErrorWithTrace(ctx, "更新认证配置失败", "error", err.Error(), 
+		logger.ErrorWithTrace(ctx, "更新认证配置失败", "error", err.Error(),
 			"authConfigId", authConfigId, "tenantId", tenantId)
 		response.ErrorJSON(ctx, "更新认证配置失败: "+err.Error(), constants.ED00009)
 		return
@@ -262,14 +262,14 @@ func (c *AuthConfigController) UpdateAuthConfig(ctx *gin.Context) {
 	// 查询最新的配置数据返回给前端
 	updatedConfig, err := c.dao.GetAuthConfig(tenantId, authConfigId)
 	if err != nil {
-		logger.WarnWithTrace(ctx, "更新成功但获取最新数据失败", "error", err.Error(), 
+		logger.WarnWithTrace(ctx, "更新成功但获取最新数据失败", "error", err.Error(),
 			"authConfigId", authConfigId, "tenantId", tenantId)
 		// 更新成功但获取最新数据失败，仍然返回成功
 		response.SuccessJSON(ctx, gin.H{"message": "认证配置更新成功"}, constants.SD00003)
 		return
 	}
 
-	logger.InfoWithTrace(ctx, "认证配置更新成功", "authConfigId", authConfigId, 
+	logger.InfoWithTrace(ctx, "认证配置更新成功", "authConfigId", authConfigId,
 		"tenantId", tenantId, "operatorId", operatorId)
 	response.SuccessJSON(ctx, updatedConfig, constants.SD00003)
 }
@@ -298,13 +298,13 @@ func (c *AuthConfigController) DeleteAuthConfig(ctx *gin.Context) {
 	// 调用DAO层删除认证配置
 	err := c.dao.DeleteAuthConfig(tenantId, authConfigId, operatorId)
 	if err != nil {
-		logger.ErrorWithTrace(ctx, "删除认证配置失败", "error", err.Error(), 
+		logger.ErrorWithTrace(ctx, "删除认证配置失败", "error", err.Error(),
 			"authConfigId", authConfigId, "tenantId", tenantId)
 		response.ErrorJSON(ctx, "删除认证配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
 
-	logger.InfoWithTrace(ctx, "认证配置删除成功", "authConfigId", authConfigId, 
+	logger.InfoWithTrace(ctx, "认证配置删除成功", "authConfigId", authConfigId,
 		"tenantId", tenantId, "operatorId", operatorId)
 	response.SuccessJSON(ctx, gin.H{"message": "认证配置删除成功"}, constants.SD00003)
 }
@@ -326,7 +326,7 @@ func (c *AuthConfigController) QueryAuthConfigs(ctx *gin.Context) {
 	// 调用DAO层查询认证配置列表
 	configs, total, err := c.dao.ListAuthConfigs(ctx, tenantId, page, pageSize)
 	if err != nil {
-		logger.ErrorWithTrace(ctx, "查询认证配置列表失败", "error", err.Error(), 
+		logger.ErrorWithTrace(ctx, "查询认证配置列表失败", "error", err.Error(),
 			"tenantId", tenantId, "page", page, "pageSize", pageSize)
 		response.ErrorJSON(ctx, "查询认证配置列表失败: "+err.Error(), constants.ED00009)
 		return
@@ -342,4 +342,4 @@ func (c *AuthConfigController) QueryAuthConfigs(ctx *gin.Context) {
 
 	logger.InfoWithTrace(ctx, "查询认证配置列表成功", "tenantId", tenantId, "count", len(configs))
 	response.SuccessJSON(ctx, result, constants.SD00002)
-} 
+}

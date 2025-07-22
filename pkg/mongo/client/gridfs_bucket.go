@@ -18,16 +18,16 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 
-	"gohub/pkg/mongo/errors"
-	"gohub/pkg/mongo/types"
+	"gateway/pkg/mongo/errors"
+	"gateway/pkg/mongo/types"
 )
 
 // GridFSBucket GridFS桶实现
 // 实现types.GridFSBucket接口，提供文件存储操作
 type GridFSBucket struct {
-	bucket   *gridfs.Bucket    // MongoDB GridFS桶
-	database *Database         // 父数据库引用
-	name     string           // 桶名称
+	bucket   *gridfs.Bucket // MongoDB GridFS桶
+	database *Database      // 父数据库引用
+	name     string         // 桶名称
 }
 
 // NewGridFSBucket 创建新的GridFS桶
@@ -36,7 +36,7 @@ type GridFSBucket struct {
 // 返回值: GridFS桶接口实例，如果创建失败会返回一个包含错误信息的桶实例
 func NewGridFSBucket(database *Database, opts *types.GridFSBucketOptions) types.GridFSBucket {
 	var bucketOpts *options.BucketOptions
-	
+
 	if opts != nil {
 		bucketOpts = options.GridFSBucket()
 		if opts.BucketName != nil {
@@ -61,7 +61,7 @@ func NewGridFSBucket(database *Database, opts *types.GridFSBucketOptions) types.
 			}
 		}
 	}
-	
+
 	bucket, err := gridfs.NewBucket(database.db, bucketOpts)
 	if err != nil {
 		// 如果创建失败，返回一个包含错误信息的桶实例
@@ -71,7 +71,7 @@ func NewGridFSBucket(database *Database, opts *types.GridFSBucketOptions) types.
 			name:     getBucketName(opts),
 		}
 	}
-	
+
 	return &GridFSBucket{
 		bucket:   bucket,
 		database: database,
@@ -101,12 +101,12 @@ func (g *GridFSBucket) UploadFromStream(ctx context.Context, filename string, so
 	if g.bucket == nil {
 		return nil, errors.NewQueryError("GridFS bucket not initialized", nil)
 	}
-	
+
 	reader, ok := source.(io.Reader)
 	if !ok {
 		return nil, errors.NewQueryError("source must implement io.Reader", nil)
 	}
-	
+
 	var uploadOpts *options.UploadOptions
 	if opts != nil {
 		uploadOpts = options.GridFSUpload()
@@ -117,12 +117,12 @@ func (g *GridFSBucket) UploadFromStream(ctx context.Context, filename string, so
 			uploadOpts.SetMetadata(opts.Metadata)
 		}
 	}
-	
+
 	fileID, err := g.bucket.UploadFromStream(filename, reader, uploadOpts)
 	if err != nil {
 		return nil, errors.NewQueryError("failed to upload from stream", err)
 	}
-	
+
 	return fileID, nil
 }
 
@@ -136,18 +136,18 @@ func (g *GridFSBucket) UploadFromFile(ctx context.Context, localFilePath string,
 	if g.bucket == nil {
 		return nil, errors.NewQueryError("GridFS bucket not initialized", nil)
 	}
-	
+
 	file, err := os.Open(localFilePath)
 	if err != nil {
 		return nil, errors.NewQueryError("failed to open local file", err)
 	}
 	defer file.Close()
-	
+
 	// 如果filename为空，使用本地文件名
 	if filename == "" {
 		filename = filepath.Base(localFilePath)
 	}
-	
+
 	return g.UploadFromStream(ctx, filename, file, opts)
 }
 
@@ -161,7 +161,7 @@ func (g *GridFSBucket) UploadFromBytes(ctx context.Context, filename string, dat
 	if g.bucket == nil {
 		return nil, errors.NewQueryError("GridFS bucket not initialized", nil)
 	}
-	
+
 	reader := strings.NewReader(string(data))
 	return g.UploadFromStream(ctx, filename, reader, opts)
 }
@@ -178,17 +178,17 @@ func (g *GridFSBucket) DownloadToStream(ctx context.Context, fileID interface{},
 	if g.bucket == nil {
 		return errors.NewQueryError("GridFS bucket not initialized", nil)
 	}
-	
+
 	writer, ok := destination.(io.Writer)
 	if !ok {
 		return errors.NewQueryError("destination must implement io.Writer", nil)
 	}
-	
+
 	_, err := g.bucket.DownloadToStream(fileID, writer)
 	if err != nil {
 		return errors.NewQueryError("failed to download to stream", err)
 	}
-	
+
 	return nil
 }
 
@@ -202,22 +202,22 @@ func (g *GridFSBucket) DownloadToStreamByName(ctx context.Context, filename stri
 	if g.bucket == nil {
 		return errors.NewQueryError("GridFS bucket not initialized", nil)
 	}
-	
+
 	writer, ok := destination.(io.Writer)
 	if !ok {
 		return errors.NewQueryError("destination must implement io.Writer", nil)
 	}
-	
+
 	var downloadOpts *options.NameOptions
 	if opts != nil && opts.Revision != nil {
 		downloadOpts = options.GridFSName().SetRevision(*opts.Revision)
 	}
-	
+
 	_, err := g.bucket.DownloadToStreamByName(filename, writer, downloadOpts)
 	if err != nil {
 		return errors.NewQueryError("failed to download to stream by name", err)
 	}
-	
+
 	return nil
 }
 
@@ -231,18 +231,18 @@ func (g *GridFSBucket) DownloadToFile(ctx context.Context, fileID interface{}, l
 	if g.bucket == nil {
 		return errors.NewQueryError("GridFS bucket not initialized", nil)
 	}
-	
+
 	// 创建目录（如果不存在）
 	if err := os.MkdirAll(filepath.Dir(localFilePath), 0755); err != nil {
 		return errors.NewQueryError("failed to create directory", err)
 	}
-	
+
 	file, err := os.Create(localFilePath)
 	if err != nil {
 		return errors.NewQueryError("failed to create local file", err)
 	}
 	defer file.Close()
-	
+
 	return g.DownloadToStream(ctx, fileID, file, opts)
 }
 
@@ -256,18 +256,18 @@ func (g *GridFSBucket) DownloadToFileByName(ctx context.Context, filename string
 	if g.bucket == nil {
 		return errors.NewQueryError("GridFS bucket not initialized", nil)
 	}
-	
+
 	// 创建目录（如果不存在）
 	if err := os.MkdirAll(filepath.Dir(localFilePath), 0755); err != nil {
 		return errors.NewQueryError("failed to create directory", err)
 	}
-	
+
 	file, err := os.Create(localFilePath)
 	if err != nil {
 		return errors.NewQueryError("failed to create local file", err)
 	}
 	defer file.Close()
-	
+
 	return g.DownloadToStreamByName(ctx, filename, file, opts)
 }
 
@@ -280,13 +280,13 @@ func (g *GridFSBucket) DownloadToBytes(ctx context.Context, fileID interface{}, 
 	if g.bucket == nil {
 		return nil, errors.NewQueryError("GridFS bucket not initialized", nil)
 	}
-	
+
 	var buffer strings.Builder
 	err := g.DownloadToStream(ctx, fileID, &buffer, opts)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return []byte(buffer.String()), nil
 }
 
@@ -299,13 +299,13 @@ func (g *GridFSBucket) DownloadToBytesByName(ctx context.Context, filename strin
 	if g.bucket == nil {
 		return nil, errors.NewQueryError("GridFS bucket not initialized", nil)
 	}
-	
+
 	var buffer strings.Builder
 	err := g.DownloadToStreamByName(ctx, filename, &buffer, opts)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return []byte(buffer.String()), nil
 }
 
@@ -319,11 +319,11 @@ func (g *GridFSBucket) Delete(ctx context.Context, fileID interface{}) error {
 	if g.bucket == nil {
 		return errors.NewQueryError("GridFS bucket not initialized", nil)
 	}
-	
+
 	if err := g.bucket.Delete(fileID); err != nil {
 		return errors.NewQueryError("failed to delete file", err)
 	}
-	
+
 	return nil
 }
 
@@ -335,13 +335,13 @@ func (g *GridFSBucket) DeleteByName(ctx context.Context, filename string) error 
 	if g.bucket == nil {
 		return errors.NewQueryError("GridFS bucket not initialized", nil)
 	}
-	
+
 	// 查找文件ID
 	fileInfo, err := g.FindOne(ctx, types.Filter{"filename": filename}, nil)
 	if err != nil {
 		return errors.NewQueryError("failed to find file by name", err)
 	}
-	
+
 	return g.Delete(ctx, fileInfo.ID)
 }
 
@@ -356,7 +356,7 @@ func (g *GridFSBucket) Find(ctx context.Context, filter types.Filter, opts *type
 	if g.bucket == nil {
 		return nil, errors.NewQueryError("GridFS bucket not initialized", nil)
 	}
-	
+
 	var findOpts *options.GridFSFindOptions
 	if opts != nil {
 		findOpts = options.GridFSFind()
@@ -379,12 +379,12 @@ func (g *GridFSBucket) Find(ctx context.Context, filter types.Filter, opts *type
 			findOpts.SetSort(opts.Sort)
 		}
 	}
-	
+
 	cursor, err := g.bucket.Find(filter, findOpts)
 	if err != nil {
 		return nil, errors.NewQueryError("failed to find files", err)
 	}
-	
+
 	return &Cursor{cursor: cursor}, nil
 }
 
@@ -397,22 +397,22 @@ func (g *GridFSBucket) FindOne(ctx context.Context, filter types.Filter, opts *t
 	if g.bucket == nil {
 		return nil, errors.NewQueryError("GridFS bucket not initialized", nil)
 	}
-	
+
 	cursor, err := g.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, err
 	}
 	defer cursor.Close(ctx)
-	
+
 	if !cursor.Next(ctx) {
 		return nil, errors.NewQueryError("no file found", nil)
 	}
-	
+
 	var file types.GridFSFile
 	if err := cursor.Decode(&file); err != nil {
 		return nil, errors.NewQueryError("failed to decode file", err)
 	}
-	
+
 	return &file, nil
 }
 
@@ -445,7 +445,7 @@ func (g *GridFSBucket) ListFiles(ctx context.Context, filter types.Filter, opts 
 		return nil, err
 	}
 	defer cursor.Close(ctx)
-	
+
 	var files []*types.GridFSFile
 	for cursor.Next(ctx) {
 		var file types.GridFSFile
@@ -454,11 +454,11 @@ func (g *GridFSBucket) ListFiles(ctx context.Context, filter types.Filter, opts 
 		}
 		files = append(files, &file)
 	}
-	
+
 	if err := cursor.Err(); err != nil {
 		return nil, errors.NewQueryError("cursor error", err)
 	}
-	
+
 	return files, nil
 }
 
@@ -470,14 +470,14 @@ func (g *GridFSBucket) GetFileCount(ctx context.Context, filter types.Filter) (i
 	if g.bucket == nil {
 		return 0, errors.NewQueryError("GridFS bucket not initialized", nil)
 	}
-	
+
 	// 使用聚合查询统计文件数量
 	collection := g.database.db.Collection(g.name + ".files")
 	count, err := collection.CountDocuments(ctx, filter)
 	if err != nil {
 		return 0, errors.NewQueryError("failed to count files", err)
 	}
-	
+
 	return count, nil
 }
 
@@ -490,11 +490,11 @@ func (g *GridFSBucket) Rename(ctx context.Context, fileID interface{}, newFilena
 	if g.bucket == nil {
 		return errors.NewQueryError("GridFS bucket not initialized", nil)
 	}
-	
+
 	if err := g.bucket.Rename(fileID, newFilename); err != nil {
 		return errors.NewQueryError("failed to rename file", err)
 	}
-	
+
 	return nil
 }
 
@@ -507,7 +507,7 @@ func (g *GridFSBucket) Rename(ctx context.Context, fileID interface{}, newFilena
 // 返回值: 上传成功的文件ID列表和错误信息，如果某个文件上传失败会立即返回错误
 func (g *GridFSBucket) BatchUpload(ctx context.Context, files map[string]string, opts *types.GridFSUploadOptions) ([]interface{}, error) {
 	var uploadedIDs []interface{}
-	
+
 	for localPath, gridfsName := range files {
 		fileID, err := g.UploadFromFile(ctx, localPath, gridfsName, opts)
 		if err != nil {
@@ -515,7 +515,7 @@ func (g *GridFSBucket) BatchUpload(ctx context.Context, files map[string]string,
 		}
 		uploadedIDs = append(uploadedIDs, fileID)
 	}
-	
+
 	return uploadedIDs, nil
 }
 
@@ -526,7 +526,7 @@ func (g *GridFSBucket) BatchUpload(ctx context.Context, files map[string]string,
 // 返回值: 下载成功的文件路径列表和错误信息，如果某个文件下载失败会立即返回错误
 func (g *GridFSBucket) BatchDownload(ctx context.Context, files map[interface{}]string, opts *types.GridFSDownloadOptions) ([]string, error) {
 	var downloadedFiles []string
-	
+
 	for fileID, localPath := range files {
 		err := g.DownloadToFile(ctx, fileID, localPath, opts)
 		if err != nil {
@@ -534,7 +534,7 @@ func (g *GridFSBucket) BatchDownload(ctx context.Context, files map[interface{}]
 		}
 		downloadedFiles = append(downloadedFiles, localPath)
 	}
-	
+
 	return downloadedFiles, nil
 }
 
@@ -544,7 +544,7 @@ func (g *GridFSBucket) BatchDownload(ctx context.Context, files map[interface{}]
 // 返回值: 成功删除的文件数量和错误信息，即使某些文件删除失败也会继续删除其他文件
 func (g *GridFSBucket) BatchDelete(ctx context.Context, fileIDs []interface{}) (int64, error) {
 	var deletedCount int64
-	
+
 	for _, fileID := range fileIDs {
 		if err := g.Delete(ctx, fileID); err != nil {
 			// 记录错误但继续删除其他文件
@@ -552,7 +552,7 @@ func (g *GridFSBucket) BatchDelete(ctx context.Context, fileIDs []interface{}) (
 		}
 		deletedCount++
 	}
-	
+
 	return deletedCount, nil
 }
 
@@ -566,11 +566,11 @@ func (g *GridFSBucket) Drop(ctx context.Context) error {
 	if g.bucket == nil {
 		return errors.NewQueryError("GridFS bucket not initialized", nil)
 	}
-	
+
 	if err := g.bucket.Drop(); err != nil {
 		return errors.NewQueryError("failed to drop GridFS bucket", err)
 	}
-	
+
 	return nil
 }
 
@@ -603,4 +603,4 @@ func convertToBSONDocument(doc types.Document) bson.D {
 		result = append(result, bson.E{Key: key, Value: value})
 	}
 	return result
-} 
+}

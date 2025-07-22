@@ -1,10 +1,10 @@
 package hub0020routes
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/routes"
-	"gohub/web/views/hub0020/controllers"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/routes"
+	"gateway/web/views/hub0020/controllers"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,7 +17,7 @@ var (
 
 	// APIPrefix API路径前缀，所有该模块的API都将以此为基础路径
 	// 实际路由时将根据RouteDiscovery的设置可能会使用"/api/hub0020"
-	APIPrefix = "/gohub/hub0020"
+	APIPrefix = "/gateway/hub0020"
 )
 
 // init 包初始化函数
@@ -86,7 +86,7 @@ func initGatewayInstanceRoutes(router *gin.RouterGroup, db database.Database) {
 
 		// 网关实例健康状态更新
 		instanceGroup.POST("/updateHealthStatus", gatewayInstanceController.UpdateHealthStatus)
-		
+
 		// 网关实例配置重载
 		instanceGroup.POST("/reloadGatewayInstance", gatewayInstanceController.ReloadGatewayInstance)
 	}

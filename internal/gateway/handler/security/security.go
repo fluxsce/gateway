@@ -42,7 +42,7 @@ import (
 	"regexp"
 	"strings"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // SecurityHandler 安全处理器接口
@@ -77,7 +77,7 @@ type SecurityHandler interface {
 }
 
 // SecurityConfig 安全配置
-// 
+//
 // 安全配置提供多层访问控制机制，包括IP访问控制、User-Agent访问控制、
 // API接口访问控制和域名访问控制。每种控制都支持白名单和黑名单模式。
 //
@@ -384,13 +384,13 @@ func (s *Security) SetConfig(config SecurityConfig) {
 }
 
 // checkIPAccess 检查IP访问权限
-// 
+//
 // DefaultPolicy 实现逻辑：
 // 1. 优先检查黑名单：如果IP在黑名单中，直接拒绝
 // 2. 检查白名单：如果IP在白名单中，直接允许
 // 3. 应用默认策略：
-//    - "allow": 默认允许（黑名单之外的IP都允许）
-//    - "deny": 默认拒绝（只有白名单中的IP才允许）
+//   - "allow": 默认允许（黑名单之外的IP都允许）
+//   - "deny": 默认拒绝（只有白名单中的IP才允许）
 func (s *Security) checkIPAccess(ctx *core.Context) bool {
 	if !s.config.IPAccess.Enabled {
 		return true
@@ -415,7 +415,7 @@ func (s *Security) checkIPAccess(ctx *core.Context) bool {
 	// 2. 检查白名单（白名单优先级高于默认策略）
 	isInWhitelist := s.isIPInList(clientIP, s.config.IPAccess.Whitelist) ||
 		s.isIPInCIDRList(ip, s.config.IPAccess.WhitelistCIDR)
-	
+
 	if isInWhitelist {
 		return true
 	}
@@ -431,14 +431,14 @@ func (s *Security) checkIPAccess(ctx *core.Context) bool {
 }
 
 // checkUserAgentAccess 检查User-Agent访问权限
-// 
+//
 // DefaultPolicy 实现逻辑：
 // 1. 检查是否阻止空User-Agent
 // 2. 优先检查黑名单：如果User-Agent在黑名单中，直接拒绝
 // 3. 检查白名单：如果User-Agent在白名单中，直接允许
 // 4. 应用默认策略：
-//    - "allow": 默认允许（黑名单之外的User-Agent都允许）
-//    - "deny": 默认拒绝（只有白名单中的User-Agent才允许）
+//   - "allow": 默认允许（黑名单之外的User-Agent都允许）
+//   - "deny": 默认拒绝（只有白名单中的User-Agent才允许）
 func (s *Security) checkUserAgentAccess(ctx *core.Context) bool {
 	if !s.config.UserAgentAccess.Enabled {
 		return true
@@ -458,7 +458,7 @@ func (s *Security) checkUserAgentAccess(ctx *core.Context) bool {
 
 	// 3. 检查白名单（白名单优先级高于默认策略）
 	isInWhitelist := s.isUserAgentInList(userAgent, s.config.UserAgentAccess.Whitelist)
-	
+
 	if isInWhitelist {
 		return true
 	}
@@ -474,14 +474,14 @@ func (s *Security) checkUserAgentAccess(ctx *core.Context) bool {
 }
 
 // checkAPIAccess 检查API接口访问权限
-// 
+//
 // DefaultPolicy 实现逻辑：
 // 1. 检查HTTP方法限制
 // 2. 优先检查API路径黑名单：如果路径在黑名单中，直接拒绝
 // 3. 检查API路径白名单：如果路径在白名单中，直接允许
 // 4. 应用默认策略：
-//    - "allow": 默认允许（黑名单之外的API路径都允许）
-//    - "deny": 默认拒绝（只有白名单中的API路径才允许）
+//   - "allow": 默认允许（黑名单之外的API路径都允许）
+//   - "deny": 默认拒绝（只有白名单中的API路径才允许）
 func (s *Security) checkAPIAccess(ctx *core.Context) bool {
 	if !s.config.APIAccess.Enabled {
 		return true
@@ -510,7 +510,7 @@ func (s *Security) checkAPIAccess(ctx *core.Context) bool {
 
 	// 3. 检查API路径白名单（白名单优先级高于默认策略）
 	isInWhitelist := s.isPathInList(path, s.config.APIAccess.Whitelist)
-	
+
 	if isInWhitelist {
 		return true
 	}
@@ -526,14 +526,14 @@ func (s *Security) checkAPIAccess(ctx *core.Context) bool {
 }
 
 // checkDomainAccess 检查域名访问权限
-// 
+//
 // DefaultPolicy 实现逻辑：
 // 1. 获取并清理域名（移除端口号）
 // 2. 优先检查域名黑名单：如果域名在黑名单中，直接拒绝
 // 3. 检查域名白名单：如果域名在白名单中，直接允许
 // 4. 应用默认策略：
-//    - "allow": 默认允许（黑名单之外的域名都允许）
-//    - "deny": 默认拒绝（只有白名单中的域名才允许）
+//   - "allow": 默认允许（黑名单之外的域名都允许）
+//   - "deny": 默认拒绝（只有白名单中的域名才允许）
 func (s *Security) checkDomainAccess(ctx *core.Context) bool {
 	if !s.config.DomainAccess.Enabled {
 		return true
@@ -556,7 +556,7 @@ func (s *Security) checkDomainAccess(ctx *core.Context) bool {
 
 	// 3. 检查域名白名单（白名单优先级高于默认策略）
 	isInWhitelist := s.isDomainInList(host, s.config.DomainAccess.Whitelist)
-	
+
 	if isInWhitelist {
 		return true
 	}

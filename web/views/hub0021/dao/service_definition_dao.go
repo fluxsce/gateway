@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/pkg/utils/huberrors"
-	"gohub/web/views/hub0021/models"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/huberrors"
+	"gateway/web/views/hub0021/models"
 )
 
 // ServiceDefinitionDAO 服务定义数据访问对象
@@ -236,4 +236,4 @@ func (dao *ServiceDefinitionDAO) CountServiceDefinitionsByInstance(ctx context.C
 	}
 
 	return result.Count, nil
-} 
+}

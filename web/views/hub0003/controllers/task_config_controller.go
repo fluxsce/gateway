@@ -3,16 +3,16 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"gohub/internal/timerinit/sftp"
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/pkg/timer"
-	"gohub/pkg/utils/random"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	hub0003dao "gohub/web/views/hub0003/dao"
-	hub0003models "gohub/web/views/hub0003/models"
+	"gateway/internal/timerinit/sftp"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/pkg/timer"
+	"gateway/pkg/utils/random"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	hub0003dao "gateway/web/views/hub0003/dao"
+	hub0003models "gateway/web/views/hub0003/models"
 	"strings"
 	"time"
 
@@ -66,7 +66,7 @@ func (e *BasicTaskExecutor) Close() error {
 // @Produce json
 // @Param data body models.TimerTask true "任务配置信息"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/task/add [post]
+// @Router /gateway/hub0003/task/add [post]
 func (c *TaskConfigController) AddTaskConfig(ctx *gin.Context) {
 	// 解析请求参数
 	var task hub0003models.TimerTask
@@ -167,7 +167,7 @@ func (c *TaskConfigController) AddTaskConfig(ctx *gin.Context) {
 // @Produce json
 // @Param data body object true "查询参数"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/task/get [post]
+// @Router /gateway/hub0003/task/get [post]
 func (c *TaskConfigController) GetTaskConfig(ctx *gin.Context) {
 	// 解析请求参数
 	var params struct {
@@ -211,7 +211,7 @@ func (c *TaskConfigController) GetTaskConfig(ctx *gin.Context) {
 // @Produce json
 // @Param data body models.TimerTask true "任务配置信息"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/task/update [post]
+// @Router /gateway/hub0003/task/update [post]
 func (c *TaskConfigController) UpdateTaskConfig(ctx *gin.Context) {
 	// 解析请求参数
 	var task hub0003models.TimerTask
@@ -307,7 +307,7 @@ func (c *TaskConfigController) UpdateTaskConfig(ctx *gin.Context) {
 // @Produce json
 // @Param data body object true "删除参数"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/task/delete [post]
+// @Router /gateway/hub0003/task/delete [post]
 func (c *TaskConfigController) DeleteTaskConfig(ctx *gin.Context) {
 	// 解析请求参数
 	var params struct {
@@ -421,7 +421,7 @@ func (c *TaskConfigController) DeleteTaskConfig(ctx *gin.Context) {
 // @Produce json
 // @Param data body object true "查询参数"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/task/query [post]
+// @Router /gateway/hub0003/task/query [post]
 func (c *TaskConfigController) QueryTaskConfigs(ctx *gin.Context) {
 	// 解析请求参数
 	var params struct {
@@ -483,7 +483,7 @@ func (c *TaskConfigController) QueryTaskConfigs(ctx *gin.Context) {
 // @Produce json
 // @Param data body object true "状态更新参数"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/task/update-status [post]
+// @Router /gateway/hub0003/task/update-status [post]
 func (c *TaskConfigController) UpdateTaskStatus(ctx *gin.Context) {
 	// 解析请求参数
 	var params struct {
@@ -570,7 +570,7 @@ func (c *TaskConfigController) UpdateTaskStatus(ctx *gin.Context) {
 // @Produce json
 // @Param data body object true "启动任务参数"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/task/start [post]
+// @Router /gateway/hub0003/task/start [post]
 func (c *TaskConfigController) StartTask(ctx *gin.Context) {
 	// 解析请求参数
 	var params struct {
@@ -711,7 +711,7 @@ func (c *TaskConfigController) StartTask(ctx *gin.Context) {
 // @Produce json
 // @Param data body object true "停止任务参数"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/task/stop [post]
+// @Router /gateway/hub0003/task/stop [post]
 func (c *TaskConfigController) StopTask(ctx *gin.Context) {
 	// 解析请求参数
 	var params struct {
@@ -811,7 +811,7 @@ func (c *TaskConfigController) StopTask(ctx *gin.Context) {
 // @Produce json
 // @Param data body object true "立即执行任务参数"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/task/trigger [post]
+// @Router /gateway/hub0003/task/trigger [post]
 func (c *TaskConfigController) TriggerTask(ctx *gin.Context) {
 	// 解析请求参数
 	var params struct {
@@ -897,4 +897,4 @@ func (c *TaskConfigController) TriggerTask(ctx *gin.Context) {
 	}
 
 	response.SuccessJSON(ctx, updatedTask, constants.SD00004)
-} 
+}

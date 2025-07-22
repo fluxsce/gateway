@@ -2,7 +2,7 @@ package models
 
 import (
 	"encoding/json"
-	"gohub/internal/gateway/handler/limiter"
+	"gateway/internal/gateway/handler/limiter"
 )
 
 // RateLimitConfigConverter 限流配置转换器
@@ -160,4 +160,4 @@ func (c *RateLimitConfigConverter) MergeCustomConfig(base, override map[string]i
 	}
 
 	return result
-} 
+}

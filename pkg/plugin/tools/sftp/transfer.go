@@ -11,9 +11,9 @@ import (
 
 	"github.com/pkg/sftp"
 
-	"gohub/pkg/plugin/tools/common"
-	"gohub/pkg/plugin/tools/configs"
-	"gohub/pkg/plugin/tools/types"
+	"gateway/pkg/plugin/tools/common"
+	"gateway/pkg/plugin/tools/configs"
+	"gateway/pkg/plugin/tools/types"
 )
 
 // uploadFileImpl 上传单个文件或目录到远程服务器的内部实现
@@ -21,35 +21,38 @@ import (
 // 如果本地路径是目录，将上传目录中的所有文件（不递归子目录）
 // 支持进度监控、断点续传、权限保持等功能
 // 参数:
-//   ctx: 上下文，用于进度监控和取消操作
-//   localPath: 本地文件或目录路径
-//   remotePath: 远程目标路径
-//   options: 上传选项配置
+//
+//	ctx: 上下文，用于进度监控和取消操作
+//	localPath: 本地文件或目录路径
+//	remotePath: 远程目标路径
+//	options: 上传选项配置
+//
 // 返回:
-//   *common.TransferResult: 传输结果信息
-//   error: 上传失败时返回错误信息
+//
+//	*common.TransferResult: 传输结果信息
+//	error: 上传失败时返回错误信息
 func (c *sftpClient) uploadFileImpl(ctx context.Context, localPath, remotePath string, options *configs.SFTPTransferOptions) (*types.TransferResult, error) {
 	// 检查连接状态
 	if !c.IsConnected() {
 		return nil, common.NewConnectionError("未连接到SFTP服务器", nil)
 	}
-	
+
 	// 使用默认选项（如果未提供）
 	if options == nil {
 		options = c.config.DefaultTransferOptions
 	}
-	
+
 	// 检查本地路径是文件还是目录
 	localInfo, err := os.Stat(localPath)
 	if err != nil {
 		return nil, common.NewFileNotFoundError(localPath, err)
 	}
-	
+
 	// 如果是目录，执行目录文件上传
 	if localInfo.IsDir() {
 		return c.uploadDirectoryFiles(ctx, localPath, remotePath, options)
 	}
-	
+
 	// 如果是文件，执行单文件上传
 	return c.uploadSingleFile(ctx, localPath, remotePath, options)
 }
@@ -63,66 +66,69 @@ func (c *sftpClient) uploadSingleFile(ctx context.Context, localPath, remotePath
 		return nil, err
 	}
 	defer localFile.Close()
-	
+
 	// 处理远程路径和目录创建
 	if err := c.prepareRemotePathForUpload(remotePath, options); err != nil {
 		return nil, err
 	}
-	
+
 	// 检查远程文件存在性和覆盖策略
 	skipTransfer, err := c.checkRemoteFileExistence(remotePath, localInfo, options)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// 如果需要跳过传输，返回跳过结果
 	if skipTransfer {
 		return c.createSkippedTransferResult("upload", localPath, remotePath), nil
 	}
-	
+
 	// 执行文件上传
 	return c.executeUpload(ctx, localFile, localInfo, localPath, remotePath, options)
 }
 
 // uploadDirectoryFiles 上传目录中的所有文件（不递归子目录）
 // 参数:
-//   ctx: 上下文，用于进度监控和取消操作
-//   localDir: 本地目录路径
-//   remoteDir: 远程目标目录路径
-//   options: 上传选项配置
+//
+//	ctx: 上下文，用于进度监控和取消操作
+//	localDir: 本地目录路径
+//	remoteDir: 远程目标目录路径
+//	options: 上传选项配置
+//
 // 返回:
-//   *types.TransferResult: 汇总的传输结果信息
-//   error: 上传失败时返回错误信息
+//
+//	*types.TransferResult: 汇总的传输结果信息
+//	error: 上传失败时返回错误信息
 func (c *sftpClient) uploadDirectoryFiles(ctx context.Context, localDir, remoteDir string, options *configs.SFTPTransferOptions) (*types.TransferResult, error) {
 	// 读取本地目录内容
 	entries, err := os.ReadDir(localDir)
 	if err != nil {
 		return nil, common.NewIOError(fmt.Sprintf("读取本地目录失败: %s", localDir), err)
 	}
-	
+
 	// 确保远程目录存在（检查createTargetDir选项）
 	if options.CreateTargetDir {
 		if err := c.createRemoteDirectorySafe(remoteDir); err != nil {
 			return nil, common.NewIOError(fmt.Sprintf("创建远程目录失败: %s", remoteDir), err)
 		}
 	}
-	
+
 	// 初始化汇总结果
 	summaryResult := &types.TransferResult{
-		OperationID:       fmt.Sprintf("upload-dir-%d", time.Now().UnixNano()),
-		Type:              types.TransferTypeUpload,
-		LocalPath:         localDir,
-		RemotePath:        remoteDir,
-		StartTime:         time.Now(),
-		Success:           true,
-		Metadata:          make(map[string]interface{}),
+		OperationID: fmt.Sprintf("upload-dir-%d", time.Now().UnixNano()),
+		Type:        types.TransferTypeUpload,
+		LocalPath:   localDir,
+		RemotePath:  remoteDir,
+		StartTime:   time.Now(),
+		Success:     true,
+		Metadata:    make(map[string]interface{}),
 	}
-	
+
 	var totalBytes int64
 	var fileCount int
 	var errors []string
 	var uploadedFiles []string
-	
+
 	// 遍历目录中的文件（不递归子目录）
 	for _, entry := range entries {
 		// 检查上下文是否被取消
@@ -133,17 +139,17 @@ func (c *sftpClient) uploadDirectoryFiles(ctx context.Context, localDir, remoteD
 			break
 		default:
 		}
-		
+
 		// 跳过子目录
 		if entry.IsDir() {
 			continue
 		}
-		
+
 		// 构造文件路径，处理特殊字符
 		localFilePath := filepath.Join(localDir, entry.Name())
 		// 远程路径使用正斜杠作为分隔符（SFTP标准），安全处理特殊字符
 		remoteFilePath := c.buildSafeRemotePath(remoteDir, entry.Name())
-		
+
 		// 上传单个文件
 		fileResult, err := c.uploadSingleFile(ctx, localFilePath, remoteFilePath, options)
 		if err != nil {
@@ -155,17 +161,17 @@ func (c *sftpClient) uploadDirectoryFiles(ctx context.Context, localDir, remoteD
 			uploadedFiles = append(uploadedFiles, entry.Name())
 		}
 	}
-	
+
 	// 完成汇总
 	summaryResult.EndTime = time.Now()
 	summaryResult.Duration = summaryResult.EndTime.Sub(summaryResult.StartTime)
 	summaryResult.BytesTransferred = totalBytes
-	
+
 	// 计算平均速度
 	if summaryResult.Duration > 0 {
 		summaryResult.AverageSpeed = float64(totalBytes) / summaryResult.Duration.Seconds()
 	}
-	
+
 	// 设置元数据
 	summaryResult.Metadata["file_count"] = fileCount
 	summaryResult.Metadata["total_files_processed"] = len(entries)
@@ -173,12 +179,12 @@ func (c *sftpClient) uploadDirectoryFiles(ctx context.Context, localDir, remoteD
 	summaryResult.Metadata["delete_source_enabled"] = c.shouldDeleteSourceAfterTransfer(options)
 	summaryResult.Metadata["uploaded_files"] = uploadedFiles
 	summaryResult.Metadata["create_target_dir_enabled"] = options.CreateTargetDir
-	
+
 	// 如果有错误，将错误信息添加到结果中
 	if len(errors) > 0 {
 		summaryResult.Error = fmt.Sprintf("部分文件上传失败: %s", strings.Join(errors, "; "))
 	}
-	
+
 	return summaryResult, nil
 }
 
@@ -187,35 +193,38 @@ func (c *sftpClient) uploadDirectoryFiles(ctx context.Context, localDir, remoteD
 // 如果远程路径是目录，将下载目录中的所有文件（不递归子目录）
 // 支持进度监控、断点续传、权限保持等功能
 // 参数:
-//   ctx: 上下文，用于进度监控和取消操作
-//   remotePath: 远程文件或目录路径
-//   localPath: 本地目标路径
-//   options: 下载选项配置
+//
+//	ctx: 上下文，用于进度监控和取消操作
+//	remotePath: 远程文件或目录路径
+//	localPath: 本地目标路径
+//	options: 下载选项配置
+//
 // 返回:
-//   *common.TransferResult: 传输结果信息
-//   error: 下载失败时返回错误信息
+//
+//	*common.TransferResult: 传输结果信息
+//	error: 下载失败时返回错误信息
 func (c *sftpClient) downloadFileImpl(ctx context.Context, remotePath, localPath string, options *configs.SFTPTransferOptions) (*types.TransferResult, error) {
 	// 检查连接状态
 	if !c.IsConnected() {
 		return nil, common.NewConnectionError("未连接到SFTP服务器", nil)
 	}
-	
+
 	// 使用默认选项（如果未提供）
 	if options == nil {
 		options = c.config.DefaultTransferOptions
 	}
-	
+
 	// 检查远程路径是文件还是目录
 	remoteInfo, err := c.sftpClient.Stat(remotePath)
 	if err != nil {
 		return nil, common.NewFileNotFoundError(remotePath, err)
 	}
-	
+
 	// 如果是目录，执行目录文件下载
 	if remoteInfo.IsDir() {
 		return c.downloadDirectoryFiles(ctx, remotePath, localPath, options)
 	}
-	
+
 	// 如果是文件，执行单文件下载
 	return c.downloadSingleFile(ctx, remotePath, localPath, options)
 }
@@ -229,66 +238,69 @@ func (c *sftpClient) downloadSingleFile(ctx context.Context, remotePath, localPa
 		return nil, err
 	}
 	defer remoteFile.Close()
-	
+
 	// 处理本地路径和目录创建
 	if err := c.prepareLocalPathForDownload(localPath, options); err != nil {
 		return nil, err
 	}
-	
+
 	// 检查本地文件存在性和覆盖策略
 	skipTransfer, err := c.checkLocalFileExistence(localPath, remoteInfo, options)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// 如果需要跳过传输，返回跳过结果
 	if skipTransfer {
 		return c.createSkippedTransferResult("download", localPath, remotePath), nil
 	}
-	
+
 	// 执行文件下载
 	return c.executeDownload(ctx, remoteFile, remoteInfo, remotePath, localPath, options)
 }
 
 // downloadDirectoryFiles 下载远程目录中的所有文件（不递归子目录）
 // 参数:
-//   ctx: 上下文，用于进度监控和取消操作
-//   remoteDir: 远程目录路径
-//   localDir: 本地目标目录路径
-//   options: 下载选项配置
+//
+//	ctx: 上下文，用于进度监控和取消操作
+//	remoteDir: 远程目录路径
+//	localDir: 本地目标目录路径
+//	options: 下载选项配置
+//
 // 返回:
-//   *types.TransferResult: 汇总的传输结果信息
-//   error: 下载失败时返回错误信息
+//
+//	*types.TransferResult: 汇总的传输结果信息
+//	error: 下载失败时返回错误信息
 func (c *sftpClient) downloadDirectoryFiles(ctx context.Context, remoteDir, localDir string, options *configs.SFTPTransferOptions) (*types.TransferResult, error) {
 	// 读取远程目录内容
 	files, err := c.sftpClient.ReadDir(remoteDir)
 	if err != nil {
 		return nil, common.NewIOError(fmt.Sprintf("读取远程目录失败: %s", remoteDir), err)
 	}
-	
+
 	// 确保本地目录存在（检查createTargetDir选项）
 	if options.CreateTargetDir {
 		if err := common.EnsureDirectoryExists(localDir, true); err != nil {
 			return nil, common.NewIOError(fmt.Sprintf("创建本地目录失败: %s", localDir), err)
 		}
 	}
-	
+
 	// 初始化汇总结果
 	summaryResult := &types.TransferResult{
-		OperationID:       fmt.Sprintf("download-dir-%d", time.Now().UnixNano()),
-		Type:              types.TransferTypeDownload,
-		LocalPath:         localDir,
-		RemotePath:        remoteDir,
-		StartTime:         time.Now(),
-		Success:           true,
-		Metadata:          make(map[string]interface{}),
+		OperationID: fmt.Sprintf("download-dir-%d", time.Now().UnixNano()),
+		Type:        types.TransferTypeDownload,
+		LocalPath:   localDir,
+		RemotePath:  remoteDir,
+		StartTime:   time.Now(),
+		Success:     true,
+		Metadata:    make(map[string]interface{}),
 	}
-	
+
 	var totalBytes int64
 	var fileCount int
 	var errors []string
 	var downloadedFiles []string
-	
+
 	// 遍历目录中的文件（不递归子目录）
 	for _, file := range files {
 		// 检查上下文是否被取消
@@ -299,17 +311,17 @@ func (c *sftpClient) downloadDirectoryFiles(ctx context.Context, remoteDir, loca
 			break
 		default:
 		}
-		
+
 		// 跳过子目录
 		if file.IsDir() {
 			continue
 		}
-		
+
 		// 构造文件路径，处理特殊字符
 		// 远程路径使用正斜杠作为分隔符（SFTP标准），安全处理特殊字符
 		remoteFilePath := c.buildSafeRemotePath(remoteDir, file.Name())
 		localFilePath := filepath.Join(localDir, file.Name())
-		
+
 		// 下载单个文件
 		fileResult, err := c.downloadSingleFile(ctx, remoteFilePath, localFilePath, options)
 		if err != nil {
@@ -321,17 +333,17 @@ func (c *sftpClient) downloadDirectoryFiles(ctx context.Context, remoteDir, loca
 			downloadedFiles = append(downloadedFiles, file.Name())
 		}
 	}
-	
+
 	// 完成汇总
 	summaryResult.EndTime = time.Now()
 	summaryResult.Duration = summaryResult.EndTime.Sub(summaryResult.StartTime)
 	summaryResult.BytesTransferred = totalBytes
-	
+
 	// 计算平均速度
 	if summaryResult.Duration > 0 {
 		summaryResult.AverageSpeed = float64(totalBytes) / summaryResult.Duration.Seconds()
 	}
-	
+
 	// 设置元数据
 	summaryResult.Metadata["file_count"] = fileCount
 	summaryResult.Metadata["total_files_processed"] = len(files)
@@ -339,12 +351,12 @@ func (c *sftpClient) downloadDirectoryFiles(ctx context.Context, remoteDir, loca
 	summaryResult.Metadata["delete_source_enabled"] = c.shouldDeleteSourceAfterTransfer(options)
 	summaryResult.Metadata["downloaded_files"] = downloadedFiles
 	summaryResult.Metadata["create_target_dir_enabled"] = options.CreateTargetDir
-	
+
 	// 如果有错误，将错误信息添加到结果中
 	if len(errors) > 0 {
 		summaryResult.Error = fmt.Sprintf("部分文件下载失败: %s", strings.Join(errors, "; "))
 	}
-	
+
 	return summaryResult, nil
 }
 
@@ -357,26 +369,26 @@ func (c *sftpClient) prepareLocalFileForUpload(localPath string, options *config
 	if err != nil {
 		return nil, nil, common.NewFileNotFoundError(localPath, err)
 	}
-	
+
 	// 获取文件信息
 	localInfo, err := localFile.Stat()
 	if err != nil {
 		localFile.Close()
 		return nil, nil, common.NewIOError("获取本地文件信息失败", err)
 	}
-	
+
 	// 检查是否为目录（在这个方法中目录应该被视为错误，因为目录处理已经在上层分离）
 	if localInfo.IsDir() {
 		localFile.Close()
 		return nil, nil, common.NewInvalidArgumentError(fmt.Sprintf("此方法只处理文件，收到目录路径: %s", localPath))
 	}
-	
+
 	// 检查文件大小限制
 	if options.MaxFileSize > 0 && localInfo.Size() > options.MaxFileSize {
 		localFile.Close()
 		return nil, nil, common.NewInvalidArgumentError(fmt.Sprintf("文件大小超过限制: %d > %d", localInfo.Size(), options.MaxFileSize))
 	}
-	
+
 	return localFile, localInfo, nil
 }
 
@@ -389,26 +401,26 @@ func (c *sftpClient) prepareRemoteFileForDownload(remotePath string, options *co
 	if err != nil {
 		return nil, nil, common.NewFileNotFoundError(remotePath, err)
 	}
-	
+
 	// 获取远程文件信息
 	remoteInfo, err := c.sftpClient.Stat(remotePath)
 	if err != nil {
 		remoteFile.Close()
 		return nil, nil, common.NewIOError("获取远程文件信息失败", err)
 	}
-	
+
 	// 检查是否为目录（在这个方法中目录应该被视为错误，因为目录处理已经在上层分离）
 	if remoteInfo.IsDir() {
 		remoteFile.Close()
 		return nil, nil, common.NewInvalidArgumentError(fmt.Sprintf("此方法只处理文件，收到目录路径: %s", remotePath))
 	}
-	
+
 	// 检查文件大小限制
 	if options.MaxFileSize > 0 && remoteInfo.Size() > options.MaxFileSize {
 		remoteFile.Close()
 		return nil, nil, common.NewInvalidArgumentError(fmt.Sprintf("文件大小超过限制: %d > %d", remoteInfo.Size(), options.MaxFileSize))
 	}
-	
+
 	return remoteFile, remoteInfo, nil
 }
 
@@ -444,7 +456,7 @@ func (c *sftpClient) checkRemoteFileExistence(remotePath string, localInfo os.Fi
 		// 文件不存在，可以继续传输
 		return false, nil
 	}
-	
+
 	// 文件存在，检查跳过策略
 	if options.SkipExisting {
 		// 如果文件大小相同，跳过传输
@@ -452,12 +464,12 @@ func (c *sftpClient) checkRemoteFileExistence(remotePath string, localInfo os.Fi
 			return true, nil
 		}
 	}
-	
+
 	// 检查覆盖策略
 	if !options.OverwriteExisting {
 		return false, common.NewFileExistsError(remotePath, nil)
 	}
-	
+
 	return false, nil
 }
 
@@ -469,7 +481,7 @@ func (c *sftpClient) checkLocalFileExistence(localPath string, remoteInfo os.Fil
 		// 文件不存在，可以继续传输
 		return false, nil
 	}
-	
+
 	// 文件存在，检查跳过策略
 	if options.SkipExisting {
 		// 如果文件大小相同，跳过传输
@@ -477,12 +489,12 @@ func (c *sftpClient) checkLocalFileExistence(localPath string, remoteInfo os.Fil
 			return true, nil
 		}
 	}
-	
+
 	// 检查覆盖策略
 	if !options.OverwriteExisting {
 		return false, common.NewFileExistsError(localPath, nil)
 	}
-	
+
 	return false, nil
 }
 
@@ -494,21 +506,21 @@ func (c *sftpClient) createSkippedTransferResult(transferType, localPath, remote
 	} else {
 		resultType = types.TransferTypeDownload
 	}
-	
+
 	now := time.Now()
 	return &types.TransferResult{
-		OperationID:       common.GenerateUniqueID(transferType),
-		Type:              resultType,
-		LocalPath:         localPath,
-		RemotePath:        remotePath,
-		BytesTransferred:  0,
-		StartTime:         now,
-		EndTime:           now,
-		Duration:          0,
-		AverageSpeed:      0,
-		Success:           true,
-		Error:             "",
-		Metadata:          map[string]interface{}{"skipped": true},
+		OperationID:      common.GenerateUniqueID(transferType),
+		Type:             resultType,
+		LocalPath:        localPath,
+		RemotePath:       remotePath,
+		BytesTransferred: 0,
+		StartTime:        now,
+		EndTime:          now,
+		Duration:         0,
+		AverageSpeed:     0,
+		Success:          true,
+		Error:            "",
+		Metadata:         map[string]interface{}{"skipped": true},
 	}
 }
 
@@ -596,18 +608,18 @@ func (c *sftpClient) executeUpload(ctx context.Context, localFile *os.File, loca
 		return nil, common.NewIOError(fmt.Sprintf("创建远程文件失败: %s", remotePath), err)
 	}
 	defer remoteFile.Close()
-	
+
 	// 准备传输结果
 	result := &types.TransferResult{
-		OperationID:  common.GenerateUniqueID("upload"),
-		Type:         types.TransferTypeUpload,
-		LocalPath:    localPath,
-		RemotePath:   remotePath,
-		StartTime:    time.Now(),
-		Success:      false,
-		Metadata:     make(map[string]interface{}),
+		OperationID: common.GenerateUniqueID("upload"),
+		Type:        types.TransferTypeUpload,
+		LocalPath:   localPath,
+		RemotePath:  remotePath,
+		StartTime:   time.Now(),
+		Success:     false,
+		Metadata:    make(map[string]interface{}),
 	}
-	
+
 	// 记录文件名和完整路径信息
 	result.Metadata["local_filename"] = filepath.Base(localPath)
 	result.Metadata["remote_filename"] = filepath.Base(remotePath)
@@ -615,22 +627,22 @@ func (c *sftpClient) executeUpload(ctx context.Context, localFile *os.File, loca
 	result.Metadata["full_remote_path"] = remotePath
 	result.Metadata["operation_type"] = "single_file_upload"
 	result.Metadata["file_size"] = localInfo.Size()
-	
+
 	// 执行文件传输
 	if err := c.transferFile(ctx, localFile, remoteFile, localInfo.Size(), result, options); err != nil {
 		result.Error = err.Error()
 		return result, err
 	}
-	
+
 	// 收集后续操作的错误信息
 	var errors []string
 	var warnings []string
-	
+
 	// 设置文件属性
 	if err := c.setRemoteFileAttributes(remoteFile, remotePath, localInfo, result, options); err != nil {
 		warnings = append(warnings, fmt.Sprintf("设置文件属性失败: %v", err))
 	}
-	
+
 	// 检查是否需要备份本地文件（上传时在本地备份）
 	if options.BackupDir != "" {
 		if err := c.backupLocalFile(localPath, options.BackupDir, result); err != nil {
@@ -639,7 +651,7 @@ func (c *sftpClient) executeUpload(ctx context.Context, localFile *os.File, loca
 			c.reportAttributeError(result.OperationID, "backup_error", "备份本地文件失败", localPath, err)
 		}
 	}
-	
+
 	// 检查是否需要删除源文件
 	if c.shouldDeleteSourceAfterTransfer(options) {
 		// 关键修复：在删除文件前先关闭文件句柄（Windows系统要求）
@@ -650,14 +662,14 @@ func (c *sftpClient) executeUpload(ctx context.Context, localFile *os.File, loca
 				result.Metadata["close_file_warning"] = fmt.Sprintf("关闭文件句柄时出现警告: %v", closeErr)
 			}
 		}
-		
+
 		if err := c.deleteLocalSourceFile(localPath, result); err != nil {
 			// 删除源文件失败是严重错误，影响整体成功状态
 			errors = append(errors, fmt.Sprintf("删除本地源文件失败: %v", err))
 			c.reportAttributeError(result.OperationID, "source_delete_error", "删除本地源文件失败", localPath, err)
 		}
 	}
-	
+
 	// 构建最终结果
 	if len(errors) > 0 {
 		result.Success = false
@@ -671,7 +683,7 @@ func (c *sftpClient) executeUpload(ctx context.Context, localFile *os.File, loca
 			result.Error = fmt.Sprintf("上传成功但有警告: %s", strings.Join(warnings, "; "))
 		}
 	}
-	
+
 	// 在元数据中记录错误和警告信息
 	if len(errors) > 0 {
 		result.Metadata["post_transfer_errors"] = errors
@@ -679,7 +691,7 @@ func (c *sftpClient) executeUpload(ctx context.Context, localFile *os.File, loca
 	if len(warnings) > 0 {
 		result.Metadata["post_transfer_warnings"] = warnings
 	}
-	
+
 	return result, nil
 }
 
@@ -691,18 +703,18 @@ func (c *sftpClient) executeDownload(ctx context.Context, remoteFile *sftp.File,
 		return nil, common.NewIOError(fmt.Sprintf("创建本地文件失败: %s", localPath), err)
 	}
 	defer localFile.Close()
-	
+
 	// 准备传输结果
 	result := &types.TransferResult{
-		OperationID:  common.GenerateUniqueID("download"),
-		Type:         types.TransferTypeDownload,
-		LocalPath:    localPath,
-		RemotePath:   remotePath,
-		StartTime:    time.Now(),
-		Success:      false,
-		Metadata:     make(map[string]interface{}),
+		OperationID: common.GenerateUniqueID("download"),
+		Type:        types.TransferTypeDownload,
+		LocalPath:   localPath,
+		RemotePath:  remotePath,
+		StartTime:   time.Now(),
+		Success:     false,
+		Metadata:    make(map[string]interface{}),
 	}
-	
+
 	// 记录文件名和完整路径信息
 	result.Metadata["local_filename"] = filepath.Base(localPath)
 	result.Metadata["remote_filename"] = filepath.Base(remotePath)
@@ -710,22 +722,22 @@ func (c *sftpClient) executeDownload(ctx context.Context, remoteFile *sftp.File,
 	result.Metadata["full_remote_path"] = remotePath
 	result.Metadata["operation_type"] = "single_file_download"
 	result.Metadata["file_size"] = remoteInfo.Size()
-	
+
 	// 执行文件传输
 	if err := c.transferFile(ctx, remoteFile, localFile, remoteInfo.Size(), result, options); err != nil {
 		result.Error = err.Error()
 		return result, err
 	}
-	
+
 	// 收集后续操作的错误信息
 	var errors []string
 	var warnings []string
-	
+
 	// 设置文件属性
 	if err := c.setLocalFileAttributes(localPath, remoteInfo, result, options); err != nil {
 		warnings = append(warnings, fmt.Sprintf("设置文件属性失败: %v", err))
 	}
-	
+
 	// 检查是否需要备份远程文件（下载时在SFTP服务器备份）
 	if options.BackupDir != "" {
 		if err := c.backupRemoteFile(remotePath, options.BackupDir, result); err != nil {
@@ -734,7 +746,7 @@ func (c *sftpClient) executeDownload(ctx context.Context, remoteFile *sftp.File,
 			c.reportAttributeError(result.OperationID, "backup_error", "备份远程文件失败", remotePath, err)
 		}
 	}
-	
+
 	// 检查是否需要删除源文件
 	if c.shouldDeleteSourceAfterTransfer(options) {
 		// 关键修复：在删除远程文件前先关闭文件句柄
@@ -745,14 +757,14 @@ func (c *sftpClient) executeDownload(ctx context.Context, remoteFile *sftp.File,
 				result.Metadata["close_remote_file_warning"] = fmt.Sprintf("关闭远程文件句柄时出现警告: %v", closeErr)
 			}
 		}
-		
+
 		if err := c.deleteRemoteSourceFile(remotePath, result); err != nil {
 			// 删除源文件失败是严重错误，影响整体成功状态
 			errors = append(errors, fmt.Sprintf("删除远程源文件失败: %v", err))
 			c.reportAttributeError(result.OperationID, "source_delete_error", "删除远程源文件失败", remotePath, err)
 		}
 	}
-	
+
 	// 构建最终结果
 	if len(errors) > 0 {
 		result.Success = false
@@ -766,7 +778,7 @@ func (c *sftpClient) executeDownload(ctx context.Context, remoteFile *sftp.File,
 			result.Error = fmt.Sprintf("下载成功但有警告: %s", strings.Join(warnings, "; "))
 		}
 	}
-	
+
 	// 在元数据中记录错误和警告信息
 	if len(errors) > 0 {
 		result.Metadata["post_transfer_errors"] = errors
@@ -774,7 +786,7 @@ func (c *sftpClient) executeDownload(ctx context.Context, remoteFile *sftp.File,
 	if len(warnings) > 0 {
 		result.Metadata["post_transfer_warnings"] = warnings
 	}
-	
+
 	return result, nil
 }
 
@@ -790,45 +802,45 @@ func (c *sftpClient) transferFile(ctx context.Context, src io.Reader, dst io.Wri
 		progressCallback: c.progressCallback,
 		reportInterval:   options.ProgressReportInterval,
 	}
-	
+
 	// 创建带进度监控的读取器
 	reader := &progressReader{
 		reader:   src,
 		progress: progress,
 	}
-	
+
 	// 设置缓冲区大小
 	bufferSize := options.BufferSize
 	if bufferSize <= 0 {
 		bufferSize = 32 * 1024 // 默认32KB
 	}
-	
+
 	// 使用带缓冲的复制
 	buffer := make([]byte, bufferSize)
 	bytesTransferred, err := io.CopyBuffer(dst, reader, buffer)
 	endTime := time.Now()
-	
+
 	// 更新传输结果
 	result.BytesTransferred = bytesTransferred
 	result.EndTime = endTime
 	result.Duration = endTime.Sub(result.StartTime)
-	
+
 	// 计算平均速度
 	if result.Duration > 0 {
 		result.AverageSpeed = float64(bytesTransferred) / result.Duration.Seconds()
 	}
-	
+
 	if err != nil {
 		return common.NewIOError("文件传输失败", err)
 	}
-	
+
 	return nil
 }
 
 // setRemoteFileAttributes 设置远程文件属性
 func (c *sftpClient) setRemoteFileAttributes(remoteFile *sftp.File, remotePath string, localInfo os.FileInfo, result *types.TransferResult, options *configs.SFTPTransferOptions) error {
 	var errors []string
-	
+
 	// 设置文件权限
 	if options.PreservePermissions {
 		if err := remoteFile.Chmod(localInfo.Mode()); err != nil {
@@ -836,7 +848,7 @@ func (c *sftpClient) setRemoteFileAttributes(remoteFile *sftp.File, remotePath s
 			c.reportAttributeError(result.OperationID, "permission_error", "设置文件权限失败", remotePath, err)
 		}
 	}
-	
+
 	// 设置文件时间戳
 	if options.PreserveTimestamps {
 		if err := c.sftpClient.Chtimes(remotePath, time.Now(), localInfo.ModTime()); err != nil {
@@ -844,7 +856,7 @@ func (c *sftpClient) setRemoteFileAttributes(remoteFile *sftp.File, remotePath s
 			c.reportAttributeError(result.OperationID, "timestamp_error", "设置文件时间戳失败", remotePath, err)
 		}
 	}
-	
+
 	if len(errors) > 0 {
 		return fmt.Errorf(strings.Join(errors, "; "))
 	}
@@ -854,7 +866,7 @@ func (c *sftpClient) setRemoteFileAttributes(remoteFile *sftp.File, remotePath s
 // setLocalFileAttributes 设置本地文件属性
 func (c *sftpClient) setLocalFileAttributes(localPath string, remoteInfo os.FileInfo, result *types.TransferResult, options *configs.SFTPTransferOptions) error {
 	var errors []string
-	
+
 	// 设置文件权限
 	if options.PreservePermissions {
 		if err := os.Chmod(localPath, remoteInfo.Mode()); err != nil {
@@ -862,7 +874,7 @@ func (c *sftpClient) setLocalFileAttributes(localPath string, remoteInfo os.File
 			c.reportAttributeError(result.OperationID, "permission_error", "设置文件权限失败", localPath, err)
 		}
 	}
-	
+
 	// 设置文件时间戳
 	if options.PreserveTimestamps {
 		if err := os.Chtimes(localPath, time.Now(), remoteInfo.ModTime()); err != nil {
@@ -870,7 +882,7 @@ func (c *sftpClient) setLocalFileAttributes(localPath string, remoteInfo os.File
 			c.reportAttributeError(result.OperationID, "timestamp_error", "设置文件时间戳失败", localPath, err)
 		}
 	}
-	
+
 	if len(errors) > 0 {
 		return fmt.Errorf(strings.Join(errors, "; "))
 	}
@@ -902,7 +914,7 @@ func (c *sftpClient) shouldDeleteSourceAfterTransfer(options *configs.SFTPTransf
 		}
 		return false
 	}
-	
+
 	// 使用传入的options中的设置
 	return options.DeleteSourceAfterTransfer
 }
@@ -913,7 +925,7 @@ func (c *sftpClient) deleteLocalSourceFile(localPath string, result *types.Trans
 	if err != nil {
 		return fmt.Errorf("删除本地源文件失败: %w", err)
 	}
-	
+
 	// 在结果元数据中记录删除操作
 	if result.Metadata == nil {
 		result.Metadata = make(map[string]interface{})
@@ -921,7 +933,7 @@ func (c *sftpClient) deleteLocalSourceFile(localPath string, result *types.Trans
 	result.Metadata["source_file_deleted"] = true
 	result.Metadata["deleted_file_path"] = localPath
 	result.Metadata["delete_operation"] = "local_file"
-	
+
 	return nil
 }
 
@@ -931,7 +943,7 @@ func (c *sftpClient) deleteRemoteSourceFile(remotePath string, result *types.Tra
 	if err != nil {
 		return fmt.Errorf("删除远程源文件失败: %w", err)
 	}
-	
+
 	// 在结果元数据中记录删除操作
 	if result.Metadata == nil {
 		result.Metadata = make(map[string]interface{})
@@ -939,7 +951,7 @@ func (c *sftpClient) deleteRemoteSourceFile(remotePath string, result *types.Tra
 	result.Metadata["source_file_deleted"] = true
 	result.Metadata["deleted_file_path"] = remotePath
 	result.Metadata["delete_operation"] = "remote_file"
-	
+
 	return nil
 }
 
@@ -949,15 +961,15 @@ func (c *sftpClient) createRemoteDirectorySafe(remotePath string) error {
 	if remotePath == "" || remotePath == "/" || remotePath == "." {
 		return nil // 根目录或空路径，无需创建
 	}
-	
+
 	// 规范化路径，使用正斜杠
 	cleanPath := filepath.ToSlash(filepath.Clean(remotePath))
-	
+
 	// 检查目录是否已存在
 	if _, err := c.sftpClient.Stat(cleanPath); err == nil {
 		return nil // 目录已存在
 	}
-	
+
 	// 递归创建父目录
 	parentDir := filepath.Dir(cleanPath)
 	if parentDir != cleanPath && parentDir != "/" && parentDir != "." {
@@ -965,7 +977,7 @@ func (c *sftpClient) createRemoteDirectorySafe(remotePath string) error {
 			return fmt.Errorf("创建父目录失败 %s: %w", parentDir, err)
 		}
 	}
-	
+
 	// 创建当前目录
 	if err := c.sftpClient.Mkdir(cleanPath); err != nil {
 		// 检查是否因为目录已存在而失败（并发创建情况）
@@ -974,10 +986,8 @@ func (c *sftpClient) createRemoteDirectorySafe(remotePath string) error {
 		}
 		return fmt.Errorf("创建目录失败 %s: %w", cleanPath, err)
 	}
-	
+
 	return nil
 }
 
 // buildSafeRemotePath function has been moved to operations.go
-
- 

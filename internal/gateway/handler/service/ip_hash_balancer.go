@@ -4,7 +4,7 @@ import (
 	"crypto/md5"
 	"time"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // IPHashBalancer IP哈希负载均衡器

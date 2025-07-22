@@ -160,7 +160,7 @@ jobs:
         if: matrix.os == 'linux' && github.event.inputs.enable_oracle == 'true'
         run: |
           # 取消注释 Oracle 驱动导入
-          sed -i 's|// _ "gohub/pkg/database/oracle"|_ "gohub/pkg/database/oracle"|' pkg/database/alldriver/drivers.go
+          sed -i 's|// _ "gateway/pkg/database/oracle"|_ "gateway/pkg/database/oracle"|' pkg/database/alldriver/drivers.go
           echo "Oracle 驱动已启用"
 
       - name: 构建应用
@@ -171,7 +171,7 @@ jobs:
           CC: ${{ matrix.arch == 'arm64' && matrix.os == 'linux' && 'aarch64-linux-gnu-gcc' || '' }}
         run: |
           # 确定二进制文件名
-          BINARY_NAME="gohub-${{ matrix.target }}"
+          BINARY_NAME="gateway-${{ matrix.target }}"
           if [ "${{ github.event.inputs.enable_oracle }}" = "true" ] && [ "${{ matrix.os }}" = "linux" ]; then
             BINARY_NAME="${BINARY_NAME}-oracle"
             BUILD_TAGS="-tags oracle"
@@ -200,7 +200,7 @@ jobs:
       - name: 上传构建产物
         uses: actions/upload-artifact@v3
         with:
-          name: gohub-${{ matrix.target }}${{ github.event.inputs.enable_oracle == 'true' && matrix.os == 'linux' && '-oracle' || '' }}
+          name: gateway-${{ matrix.target }}${{ github.event.inputs.enable_oracle == 'true' && matrix.os == 'linux' && '-oracle' || '' }}
           path: ${{ env.BINARY_NAME }}
           retention-days: 30
 
@@ -216,7 +216,7 @@ jobs:
       - name: 下载构建产物
         uses: actions/download-artifact@v3
         with:
-          name: gohub-linux-amd64${{ github.event.inputs.enable_oracle == 'true' && '-oracle' || '' }}
+          name: gateway-linux-amd64${{ github.event.inputs.enable_oracle == 'true' && '-oracle' || '' }}
           path: ./bin/
 
       - name: 设置 Docker Buildx
@@ -272,7 +272,7 @@ jobs:
       - name: 准备发布文件
         run: |
           mkdir -p ./release
-          find ./artifacts -name 'gohub-*' -type f -exec cp {} ./release/ \;
+          find ./artifacts -name 'gateway-*' -type f -exec cp {} ./release/ \;
           
           # 生成校验和
           cd ./release
@@ -282,7 +282,7 @@ jobs:
       - name: 生成发布说明
         run: |
           cat > release-notes.md << EOF
-          # GoHub ${{ needs.prepare.outputs.version }}
+          # Gateway ${{ needs.prepare.outputs.version }}
           
           构建时间: ${{ needs.prepare.outputs.build_time }}  
           Git 提交: ${{ needs.prepare.outputs.git_commit }}
@@ -296,9 +296,9 @@ jobs:
           EOF
           
           cd ./release
-          for file in gohub-*; do
+          for file in gateway-*; do
             if [[ "$file" != "checksums.txt" ]]; then
-              platform=$(echo "$file" | sed 's/gohub-//' | sed 's/-oracle//')
+              platform=$(echo "$file" | sed 's/gateway-//' | sed 's/-oracle//')
               echo "| $(echo $platform | tr '-' ' ') | | [$file]($file) |" >> ../release-notes.md
             fi
           done
@@ -328,7 +328,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.prepare.outputs.version }}
-          name: GoHub ${{ needs.prepare.outputs.version }}
+          name: Gateway ${{ needs.prepare.outputs.version }}
           body_path: release-notes.md
           draft: false
           prerelease: false

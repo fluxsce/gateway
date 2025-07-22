@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"gohub/pkg/database"
-	_ "gohub/pkg/database/alldriver" // 导入所有驱动
-	"gohub/pkg/database/dbtypes"
+	"gateway/pkg/database"
+	_ "gateway/pkg/database/alldriver" // 导入所有驱动
+	"gateway/pkg/database/dbtypes"
 )
 
 // OracleUser 测试用户结构体
@@ -315,9 +315,8 @@ func TestOracleTransaction(t *testing.T) {
 	t.Log("Oracle事务测试完成")
 }
 
-
 // 运行测试命令示例：
 // go test -v ./test/database/oracle_test.go -run TestOracleDriverRegistration
 // go test -v ./test/database/oracle_test.go -run TestOracleConnection (需要Oracle环境)
 // go test -v ./test/database/oracle_test.go -run TestOracleDynamicQuery (需要Oracle环境)
-// go test -v ./test/database/oracle_test.go (需要Oracle环境) 
+// go test -v ./test/database/oracle_test.go (需要Oracle环境)

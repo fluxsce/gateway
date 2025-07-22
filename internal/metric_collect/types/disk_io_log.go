@@ -3,8 +3,8 @@ package types
 import (
 	"time"
 
-	metricTypes "gohub/pkg/metric/types"
-	"gohub/pkg/utils/random"
+	metricTypes "gateway/pkg/metric/types"
+	"gateway/pkg/utils/random"
 )
 
 // DiskIoLog 磁盘IO日志表对应的结构体
@@ -61,7 +61,7 @@ func (d *DiskIoLog) GetPrimaryKey() (string, string) {
 // NewDiskIoLogFromMetrics 从DiskIOStats创建DiskIoLog实例
 func NewDiskIoLogFromMetrics(ioStat *metricTypes.DiskIOStats, tenantId, serverId, operator string, collectTime time.Time, oprSeqFlag string, index int) *DiskIoLog {
 	now := time.Now()
-	
+
 	return &DiskIoLog{
 		MetricDiskIoLogId: random.Generate32BitRandomString(),
 		TenantId:          tenantId,
@@ -91,11 +91,11 @@ func NewDiskIoLogFromMetrics(ioStat *metricTypes.DiskIOStats, tenantId, serverId
 // NewDiskIoLogsFromMetrics 从DiskMetrics批量创建DiskIoLog实例
 func NewDiskIoLogsFromMetrics(diskMetrics *metricTypes.DiskMetrics, tenantId, serverId, operator string, collectTime time.Time, oprSeqFlag string) []*DiskIoLog {
 	var logs []*DiskIoLog
-	
+
 	for i, ioStat := range diskMetrics.IOStats {
 		log := NewDiskIoLogFromMetrics(&ioStat, tenantId, serverId, operator, collectTime, oprSeqFlag, i)
 		logs = append(logs, log)
 	}
-	
+
 	return logs
-} 
+}

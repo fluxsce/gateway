@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"gohub/pkg/metric/collector"
-	"gohub/pkg/metric/types"
+	"gateway/pkg/metric/collector"
+	"gateway/pkg/metric/types"
 
 	"github.com/shirou/gopsutil/v4/disk"
 )
@@ -19,7 +19,7 @@ import (
 const (
 	// 默认采集超时时间
 	DefaultCollectTimeout = 5 * time.Second
-	
+
 	// 扇区大小（字节）
 	SectorSize = 512
 )
@@ -46,8 +46,8 @@ func NewDiskCollector() *DiskCollector {
 			types.CollectorNameDisk,
 			"基于gopsutil的磁盘资源采集器，提供跨平台磁盘信息采集",
 		),
-		timeout: DefaultCollectTimeout,
-		lastIOStats: make(map[string]types.DiskIOStats),
+		timeout:        DefaultCollectTimeout,
+		lastIOStats:    make(map[string]types.DiskIOStats),
 		isFirstCollect: true,
 	}
 }
@@ -69,12 +69,12 @@ func (c *DiskCollector) Collect() (interface{}, error) {
 
 	// 记录最后一次采集时间
 	c.SetLastCollectTime(time.Now())
-	
+
 	// 第一次采集后设置标志为false
 	if c.isFirstCollect {
 		c.isFirstCollect = false
 	}
-	
+
 	return metrics, nil
 }
 
@@ -155,16 +155,16 @@ func (c *DiskCollector) getDiskPartitions(ctx context.Context) ([]types.DiskPart
 
 		// 转换为内部数据结构
 		diskPartition := types.DiskPartition{
-			Device:       partition.Device,
-			MountPoint:   partition.Mountpoint,
-			FileSystem:   partition.Fstype,
-			Total:        usage.Total,
-			Used:         usage.Used,
-			Free:         usage.Free,
-			UsagePercent: usage.UsedPercent,
-			InodesTotal:  usage.InodesTotal,
-			InodesUsed:   usage.InodesUsed,
-			InodesFree:   usage.InodesFree,
+			Device:             partition.Device,
+			MountPoint:         partition.Mountpoint,
+			FileSystem:         partition.Fstype,
+			Total:              usage.Total,
+			Used:               usage.Used,
+			Free:               usage.Free,
+			UsagePercent:       usage.UsedPercent,
+			InodesTotal:        usage.InodesTotal,
+			InodesUsed:         usage.InodesUsed,
+			InodesFree:         usage.InodesFree,
 			InodesUsagePercent: usage.InodesUsedPercent,
 		}
 
@@ -192,7 +192,7 @@ func (c *DiskCollector) getDiskIOStats(ctx context.Context) ([]types.DiskIOStats
 
 	now := time.Now()
 	var result []types.DiskIOStats
-	
+
 	// 获取读写锁
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -205,15 +205,15 @@ func (c *DiskCollector) getDiskIOStats(ctx context.Context) ([]types.DiskIOStats
 
 		// 转换为内部数据结构
 		iostat := types.DiskIOStats{
-			Device:       deviceName,
-			ReadCount:    counter.ReadCount,
-			WriteCount:   counter.WriteCount,
-			ReadBytes:    counter.ReadBytes,
-			WriteBytes:   counter.WriteBytes,
-			ReadTime:     counter.ReadTime,
-			WriteTime:    counter.WriteTime,
-			IOInProgress: counter.IopsInProgress,
-			IOTime:       counter.IoTime,
+			Device:          deviceName,
+			ReadCount:       counter.ReadCount,
+			WriteCount:      counter.WriteCount,
+			ReadBytes:       counter.ReadBytes,
+			WriteBytes:      counter.WriteBytes,
+			ReadTime:        counter.ReadTime,
+			WriteTime:       counter.WriteTime,
+			IOInProgress:    counter.IopsInProgress,
+			IOTime:          counter.IoTime,
 			LastCollectTime: now,
 		}
 
@@ -224,7 +224,7 @@ func (c *DiskCollector) getDiskIOStats(ctx context.Context) ([]types.DiskIOStats
 				if duration > 0 {
 					iostat.ReadRate = float64(counter.ReadBytes-last.ReadBytes) / duration
 					iostat.WriteRate = float64(counter.WriteBytes-last.WriteBytes) / duration
-					
+
 					// 确保速率不为负数（可能由于计数器重置导致）
 					if iostat.ReadRate < 0 {
 						iostat.ReadRate = 0
@@ -249,7 +249,7 @@ func (c *DiskCollector) getDiskIOStats(ctx context.Context) ([]types.DiskIOStats
 func (c *DiskCollector) GetDiskPartitions() ([]types.DiskPartition, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-	
+
 	return c.getDiskPartitions(ctx)
 }
 
@@ -258,7 +258,7 @@ func (c *DiskCollector) GetDiskPartitions() ([]types.DiskPartition, error) {
 func (c *DiskCollector) GetDiskIOStats() ([]types.DiskIOStats, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-	
+
 	return c.getDiskIOStats(ctx)
 }
 
@@ -275,13 +275,13 @@ func (c *DiskCollector) GetDiskUsageForPath(path string) (*types.DiskUsageInfo, 
 	}
 
 	return &types.DiskUsageInfo{
-		Total:        usage.Total,
-		Used:         usage.Used,
-		Free:         usage.Free,
-		UsagePercent: usage.UsedPercent,
-		InodesTotal:  usage.InodesTotal,
-		InodesUsed:   usage.InodesUsed,
-		InodesFree:   usage.InodesFree,
+		Total:              usage.Total,
+		Used:               usage.Used,
+		Free:               usage.Free,
+		UsagePercent:       usage.UsedPercent,
+		InodesTotal:        usage.InodesTotal,
+		InodesUsed:         usage.InodesUsed,
+		InodesFree:         usage.InodesFree,
 		InodesUsagePercent: usage.InodesUsedPercent,
 	}, nil
 }
@@ -325,4 +325,4 @@ func isPartition(device string) bool {
 		return lastChar >= '0' && lastChar <= '9'
 	}
 	return false
-} 
+}

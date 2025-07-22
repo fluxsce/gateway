@@ -1,13 +1,13 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hub0023/dao"
-	"gohub/web/views/hub0023/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hub0023/dao"
+	"gateway/web/views/hub0023/models"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -34,7 +34,7 @@ func NewGatewayLogController(db database.Database) *GatewayLogController {
 // @Produce json
 // @Param query body models.GatewayAccessLogQueryRequest true "查询参数"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0023/gateway-log/query [post]
+// @Router /gateway/hub0023/gateway-log/query [post]
 func (c *GatewayLogController) Query(ctx *gin.Context) {
 	// 解析查询参数
 	var req models.GatewayAccessLogQueryRequest
@@ -88,7 +88,7 @@ func (c *GatewayLogController) Query(ctx *gin.Context) {
 // @Produce json
 // @Param get body models.GatewayAccessLogGetRequest true "获取参数"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0023/gateway-log/get [post]
+// @Router /gateway/hub0023/gateway-log/get [post]
 func (c *GatewayLogController) Get(ctx *gin.Context) {
 	// 解析获取参数
 	var req models.GatewayAccessLogGetRequest
@@ -135,7 +135,7 @@ func (c *GatewayLogController) Get(ctx *gin.Context) {
 // @Produce json
 // @Param reset body models.GatewayAccessLogResetRequest true "重置参数"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0023/gateway-log/reset [post]
+// @Router /gateway/hub0023/gateway-log/reset [post]
 func (c *GatewayLogController) Reset(ctx *gin.Context) {
 	// 解析重置参数
 	var req models.GatewayAccessLogResetRequest
@@ -237,70 +237,68 @@ func gatewayLogSummaryToMap(gatewayLog *models.GatewayAccessLogSummary) map[stri
 // gatewayLogToMap 将网关日志转换为Map格式（用于详情查询，包含所有字段）
 func gatewayLogToMap(gatewayLog *models.GatewayAccessLog) map[string]interface{} {
 	return map[string]interface{}{
-		"tenantId":                       gatewayLog.TenantId,
-		"traceId":                        gatewayLog.TraceId,
-		"gatewayInstanceId":              gatewayLog.GatewayInstanceId,
-		"gatewayInstanceName":            gatewayLog.GatewayInstanceName,
-		"gatewayNodeIp":                  gatewayLog.GatewayNodeIp,
-		"routeConfigId":                  gatewayLog.RouteConfigId,
-		"routeName":                      gatewayLog.RouteName,
-		"serviceDefinitionId":            gatewayLog.ServiceDefinitionId,
-		"serviceName":                    gatewayLog.ServiceName,
-		"proxyType":                      gatewayLog.ProxyType,
-		"logConfigId":                    gatewayLog.LogConfigId,
-		"requestMethod":                  gatewayLog.RequestMethod,
-		"requestPath":                    gatewayLog.RequestPath,
-		"requestQuery":                   gatewayLog.RequestQuery,
-		"requestSize":                    gatewayLog.RequestSize,
-		"requestHeaders":                 gatewayLog.RequestHeaders,
-		"requestBody":                    gatewayLog.RequestBody,
-		"clientIpAddress":                gatewayLog.ClientIpAddress,
-		"clientPort":                     gatewayLog.ClientPort,
-		"userAgent":                      gatewayLog.UserAgent,
-		"referer":                        gatewayLog.Referer,
-		"userIdentifier":                 gatewayLog.UserIdentifier,
-		"gatewayStartProcessingTime":     gatewayLog.GatewayStartProcessingTime,
-		"backendRequestStartTime":        gatewayLog.BackendRequestStartTime,
-		"backendResponseReceivedTime":    gatewayLog.BackendResponseReceivedTime,
-		"gatewayFinishedProcessingTime":  gatewayLog.GatewayFinishedProcessingTime,
-		"totalProcessingTimeMs":          gatewayLog.TotalProcessingTimeMs,
-		"gatewayProcessingTimeMs":        gatewayLog.GatewayProcessingTimeMs,
-		"backendResponseTimeMs":          gatewayLog.BackendResponseTimeMs,
-		"gatewayStatusCode":              gatewayLog.GatewayStatusCode,
-		"backendStatusCode":              gatewayLog.BackendStatusCode,
-		"responseSize":                   gatewayLog.ResponseSize,
-		"responseHeaders":                gatewayLog.ResponseHeaders,
-		"responseBody":                   gatewayLog.ResponseBody,
-		"matchedRoute":                   gatewayLog.MatchedRoute,
-		"forwardAddress":                 gatewayLog.ForwardAddress,
-		"forwardMethod":                  gatewayLog.ForwardMethod,
-		"forwardParams":                  gatewayLog.ForwardParams,
-		"forwardHeaders":                 gatewayLog.ForwardHeaders,
-		"forwardBody":                    gatewayLog.ForwardBody,
-		"loadBalancerDecision":           gatewayLog.LoadBalancerDecision,
-		"errorMessage":                   gatewayLog.ErrorMessage,
-		"errorCode":                      gatewayLog.ErrorCode,
-		"parentTraceId":                  gatewayLog.ParentTraceId,
-		"resetFlag":                      gatewayLog.ResetFlag,
-		"retryCount":                     gatewayLog.RetryCount,
-		"resetCount":                     gatewayLog.ResetCount,
-		"logLevel":                       gatewayLog.LogLevel,
-		"logType":                        gatewayLog.LogType,
-		"reserved1":                      gatewayLog.Reserved1,
-		"reserved2":                      gatewayLog.Reserved2,
-		"reserved3":                      gatewayLog.Reserved3,
-		"reserved4":                      gatewayLog.Reserved4,
-		"reserved5":                      gatewayLog.Reserved5,
-		"extProperty":                    gatewayLog.ExtProperty,
-		"addTime":                        gatewayLog.AddTime,
-		"addWho":                         gatewayLog.AddWho,
-		"editTime":                       gatewayLog.EditTime,
-		"editWho":                        gatewayLog.EditWho,
-		"oprSeqFlag":                     gatewayLog.OprSeqFlag,
-		"currentVersion":                 gatewayLog.CurrentVersion,
-		"activeFlag":                     gatewayLog.ActiveFlag,
-		"noteText":                       gatewayLog.NoteText,
+		"tenantId":                      gatewayLog.TenantId,
+		"traceId":                       gatewayLog.TraceId,
+		"gatewayInstanceId":             gatewayLog.GatewayInstanceId,
+		"gatewayInstanceName":           gatewayLog.GatewayInstanceName,
+		"gatewayNodeIp":                 gatewayLog.GatewayNodeIp,
+		"routeConfigId":                 gatewayLog.RouteConfigId,
+		"routeName":                     gatewayLog.RouteName,
+		"serviceDefinitionId":           gatewayLog.ServiceDefinitionId,
+		"serviceName":                   gatewayLog.ServiceName,
+		"proxyType":                     gatewayLog.ProxyType,
+		"logConfigId":                   gatewayLog.LogConfigId,
+		"requestMethod":                 gatewayLog.RequestMethod,
+		"requestPath":                   gatewayLog.RequestPath,
+		"requestQuery":                  gatewayLog.RequestQuery,
+		"requestSize":                   gatewayLog.RequestSize,
+		"requestHeaders":                gatewayLog.RequestHeaders,
+		"requestBody":                   gatewayLog.RequestBody,
+		"clientIpAddress":               gatewayLog.ClientIpAddress,
+		"clientPort":                    gatewayLog.ClientPort,
+		"userAgent":                     gatewayLog.UserAgent,
+		"referer":                       gatewayLog.Referer,
+		"userIdentifier":                gatewayLog.UserIdentifier,
+		"gatewayStartProcessingTime":    gatewayLog.GatewayStartProcessingTime,
+		"backendRequestStartTime":       gatewayLog.BackendRequestStartTime,
+		"backendResponseReceivedTime":   gatewayLog.BackendResponseReceivedTime,
+		"gatewayFinishedProcessingTime": gatewayLog.GatewayFinishedProcessingTime,
+		"totalProcessingTimeMs":         gatewayLog.TotalProcessingTimeMs,
+		"gatewayProcessingTimeMs":       gatewayLog.GatewayProcessingTimeMs,
+		"backendResponseTimeMs":         gatewayLog.BackendResponseTimeMs,
+		"gatewayStatusCode":             gatewayLog.GatewayStatusCode,
+		"backendStatusCode":             gatewayLog.BackendStatusCode,
+		"responseSize":                  gatewayLog.ResponseSize,
+		"responseHeaders":               gatewayLog.ResponseHeaders,
+		"responseBody":                  gatewayLog.ResponseBody,
+		"matchedRoute":                  gatewayLog.MatchedRoute,
+		"forwardAddress":                gatewayLog.ForwardAddress,
+		"forwardMethod":                 gatewayLog.ForwardMethod,
+		"forwardParams":                 gatewayLog.ForwardParams,
+		"forwardHeaders":                gatewayLog.ForwardHeaders,
+		"forwardBody":                   gatewayLog.ForwardBody,
+		"loadBalancerDecision":          gatewayLog.LoadBalancerDecision,
+		"errorMessage":                  gatewayLog.ErrorMessage,
+		"errorCode":                     gatewayLog.ErrorCode,
+		"parentTraceId":                 gatewayLog.ParentTraceId,
+		"resetFlag":                     gatewayLog.ResetFlag,
+		"retryCount":                    gatewayLog.RetryCount,
+		"resetCount":                    gatewayLog.ResetCount,
+		"logLevel":                      gatewayLog.LogLevel,
+		"logType":                       gatewayLog.LogType,
+		"reserved1":                     gatewayLog.Reserved1,
+		"reserved2":                     gatewayLog.Reserved2,
+		"reserved3":                     gatewayLog.Reserved3,
+		"reserved4":                     gatewayLog.Reserved4,
+		"reserved5":                     gatewayLog.Reserved5,
+		"extProperty":                   gatewayLog.ExtProperty,
+		"addTime":                       gatewayLog.AddTime,
+		"addWho":                        gatewayLog.AddWho,
+		"editTime":                      gatewayLog.EditTime,
+		"editWho":                       gatewayLog.EditWho,
+		"oprSeqFlag":                    gatewayLog.OprSeqFlag,
+		"currentVersion":                gatewayLog.CurrentVersion,
+		"activeFlag":                    gatewayLog.ActiveFlag,
+		"noteText":                      gatewayLog.NoteText,
 	}
 }
-
- 

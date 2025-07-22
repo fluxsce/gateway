@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"gohub/internal/gateway/logwrite/types"
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
+	"gateway/internal/gateway/logwrite/types"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
 )
 
 // DBWriter 实现了 LogWriter 接口，用于将网关访问日志写入数据库
@@ -24,32 +24,32 @@ import (
 type DBWriter struct {
 	// 日志配置，包含异步和批量写入配置
 	config *types.LogConfig
-	
+
 	// 数据库连接实例
 	db database.Database
-	
+
 	// 异步处理相关
 	logQueue    chan *types.AccessLog // 异步日志队列
 	batchBuffer []*types.AccessLog    // 批量写入缓冲区
-	flushTicker *time.Ticker           // 定时刷新ticker
-	stopChan    chan struct{}          // 停止信号通道
-	wg          sync.WaitGroup         // 等待组，用于优雅关闭
-	
+	flushTicker *time.Ticker          // 定时刷新ticker
+	stopChan    chan struct{}         // 停止信号通道
+	wg          sync.WaitGroup        // 等待组，用于优雅关闭
+
 	// 互斥锁，保护批量缓冲区
 	mutex sync.Mutex
-	
+
 	// 状态标识
 	closed bool
 }
 
 // NewDBWriter 创建一个新的数据库日志写入器
-// 
+//
 // 创建过程:
-//   1. 获取数据库连接
-//   2. 根据配置决定是否启用异步模式
-//   3. 启动异步处理goroutine（如果启用异步）
-//   4. 启动定时刷新机制
-// 
+//  1. 获取数据库连接
+//  2. 根据配置决定是否启用异步模式
+//  3. 启动异步处理goroutine（如果启用异步）
+//  4. 启动定时刷新机制
+//
 // 参数:
 //   - config: 日志配置，包含异步和批量处理参数
 //
@@ -84,7 +84,7 @@ func NewDBWriter(config *types.LogConfig) (*DBWriter, error) {
 
 // Write 写入单条访问日志
 // 根据配置决定是同步写入数据库还是放入异步队列
-// 
+//
 // 参数:
 //   - ctx: 上下文，用于控制超时和取消
 //   - log: 要写入的访问日志
@@ -120,7 +120,7 @@ func (w *DBWriter) Write(ctx context.Context, log *types.AccessLog) error {
 }
 
 // BatchWrite 批量写入多条访问日志
-// 
+//
 // 参数:
 //   - ctx: 上下文
 //   - logs: 要写入的日志数组
@@ -156,10 +156,10 @@ func (w *DBWriter) BatchWrite(ctx context.Context, logs []*types.AccessLog) erro
 }
 
 // Flush 刷新缓冲区，将缓存的日志写入数据库
-// 
+//
 // 参数:
 //   - ctx: 上下文
-// 
+//
 // 返回:
 //   - error: 刷新失败时返回错误信息
 func (w *DBWriter) Flush(ctx context.Context) error {
@@ -184,12 +184,12 @@ func (w *DBWriter) Flush(ctx context.Context) error {
 	// 清空缓冲区
 	w.batchBuffer = w.batchBuffer[:0]
 	logger.Debug("Flushed batch buffer", "count", len(w.batchBuffer))
-	
+
 	return nil
 }
 
 // Close 关闭写入器，优雅停止异步处理并刷新缓冲区
-// 
+//
 // 返回:
 //   - error: 关闭失败时返回错误信息
 func (w *DBWriter) Close() error {
@@ -262,7 +262,7 @@ func (w *DBWriter) startFlushTimer() {
 	}
 
 	w.flushTicker = time.NewTicker(time.Duration(w.config.AsyncFlushIntervalMs) * time.Millisecond)
-	
+
 	w.wg.Add(1)
 	go func() {
 		defer w.wg.Done()
@@ -360,7 +360,3 @@ func (w *DBWriter) batchWriteDirectly(ctx context.Context, logs []*types.AccessL
 
 	return nil
 }
-
-
-
- 

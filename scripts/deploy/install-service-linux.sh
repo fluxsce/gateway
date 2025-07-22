@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# GoHub Linux服务安装脚本
+# Gateway Linux服务安装脚本
 # 版本: 2.3
 # 功能: 智能检测可执行文件并安装为systemd服务
 # 更新: 使用检测到的应用目录作为安装位置，配置和日志使用相对路径
@@ -16,10 +16,10 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # 配置变量 - 将在安装过程中基于检测到的APP_DIR进行更新
-SERVICE_NAME="gohub"
-SERVICE_USER="gohub"
-SERVICE_GROUP="gohub"
-INSTALL_DIR="/opt/gohub"  # 默认值，将被检测到的应用目录覆盖
+SERVICE_NAME="gateway"
+SERVICE_USER="gateway"
+SERVICE_GROUP="gateway"
+INSTALL_DIR="/opt/gateway"  # 默认值，将被检测到的应用目录覆盖
 LOG_DIR=""                # 将设置为 $APP_DIR/logs
 CONFIG_DIR=""             # 将设置为 $APP_DIR/configs
 WORK_DIR=""               # 将设置为 $APP_DIR
@@ -46,7 +46,7 @@ log_debug() {
 
 # 函数：显示帮助
 show_help() {
-    echo "GoHub Linux 服务安装脚本 v2.3"
+    echo "Gateway Linux 服务安装脚本 v2.3"
     echo
     echo "用法: $0 [oracle] [OPTIONS]"
     echo
@@ -56,13 +56,13 @@ show_help() {
     echo "选项:"
     echo "  -d, --dir DIR        应用程序目录 (默认: 自动检测)"
     echo "  -c, --config DIR     配置文件源目录 (默认: 自动检测)"
-    echo "  -s, --system         使用系统标准路径 (/opt/gohub, /var/log/gohub)"
+    echo "  -s, --system         使用系统标准路径 (/opt/gateway, /var/log/gateway)"
     echo "  -h, --help           显示帮助信息"
     echo
     echo "示例:"
     echo "  $0                   # 安装标准版本服务，使用检测到的目录"
     echo "  $0 oracle            # 安装Oracle版本服务"
-    echo "  $0 -d /opt/gohub     # 指定安装目录"
+    echo "  $0 -d /opt/gateway     # 指定安装目录"
     echo "  $0 -s                # 使用系统标准目录结构"
     echo
     echo "注意:"
@@ -151,28 +151,28 @@ detect_executable() {
     echo
     log_debug "检查位置1: $candidate_dir"
     if [[ -d "$candidate_dir" ]]; then
-        ls -la "$candidate_dir" | grep -i "gohub" || echo "  - 未找到GoHub相关文件"
+        ls -la "$candidate_dir" | grep -i "gateway" || echo "  - 未找到Gateway相关文件"
     else
         echo "  - 目录不存在"
     fi
     echo
     log_debug "检查位置2: $project_root"
     if [[ -d "$project_root" ]]; then
-        ls -la "$project_root" | grep -i "gohub" || echo "  - 未找到GoHub相关文件"
+        ls -la "$project_root" | grep -i "gateway" || echo "  - 未找到Gateway相关文件"
     else
         echo "  - 目录不存在"
     fi
     echo
     log_debug "检查位置3: $script_dir"
     if [[ -d "$script_dir" ]]; then
-        ls -la "$script_dir" | grep -i "gohub" || echo "  - 未找到GoHub相关文件"
+        ls -la "$script_dir" | grep -i "gateway" || echo "  - 未找到Gateway相关文件"
     else
         echo "  - 目录不存在"
     fi
     echo
     
     echo "请使用 -d 参数指定应用程序目录："
-    echo "  $0 -d /path/to/gohub"
+    echo "  $0 -d /path/to/gateway"
     echo
     log_debug "继续执行并使用脚本目录作为默认值..."
     read -p "按Enter继续..."
@@ -188,63 +188,63 @@ find_exe_in_dir() {
     
     # 首先检查Oracle版本的文件（如果指定了oracle参数）
     if [[ "$ORACLE_VERSION" == true ]]; then
-        if [[ -f "$check_dir/gohub-oracle" && -x "$check_dir/gohub-oracle" ]]; then
-            EXECUTABLE_PATH="$check_dir/gohub-oracle"
+        if [[ -f "$check_dir/gateway-oracle" && -x "$check_dir/gateway-oracle" ]]; then
+            EXECUTABLE_PATH="$check_dir/gateway-oracle"
             log_info "找到Oracle版本可执行文件: $EXECUTABLE_PATH"
             return 0
-        elif [[ -f "$check_dir/gohub-linux-oracle-amd64" && -x "$check_dir/gohub-linux-oracle-amd64" ]]; then
-            EXECUTABLE_PATH="$check_dir/gohub-linux-oracle-amd64"
+        elif [[ -f "$check_dir/gateway-linux-oracle-amd64" && -x "$check_dir/gateway-linux-oracle-amd64" ]]; then
+            EXECUTABLE_PATH="$check_dir/gateway-linux-oracle-amd64"
             log_info "找到Oracle版本可执行文件: $EXECUTABLE_PATH"
             return 0
-        elif [[ -f "$check_dir/gohub-centos7-oracle-amd64" && -x "$check_dir/gohub-centos7-oracle-amd64" ]]; then
-            EXECUTABLE_PATH="$check_dir/gohub-centos7-oracle-amd64"
+        elif [[ -f "$check_dir/gateway-centos7-oracle-amd64" && -x "$check_dir/gateway-centos7-oracle-amd64" ]]; then
+            EXECUTABLE_PATH="$check_dir/gateway-centos7-oracle-amd64"
             log_info "找到Oracle版本可执行文件: $EXECUTABLE_PATH"
             return 0
         fi
     fi
     
     # 如果没有找到Oracle版本文件，检查标准版本文件
-    if [[ -f "$check_dir/gohub" && -x "$check_dir/gohub" ]]; then
-        EXECUTABLE_PATH="$check_dir/gohub"
+    if [[ -f "$check_dir/gateway" && -x "$check_dir/gateway" ]]; then
+        EXECUTABLE_PATH="$check_dir/gateway"
         log_info "找到标准版本可执行文件: $EXECUTABLE_PATH"
         return 0
-    elif [[ -f "$check_dir/gohub-linux-amd64" && -x "$check_dir/gohub-linux-amd64" ]]; then
-        EXECUTABLE_PATH="$check_dir/gohub-linux-amd64"
+    elif [[ -f "$check_dir/gateway-linux-amd64" && -x "$check_dir/gateway-linux-amd64" ]]; then
+        EXECUTABLE_PATH="$check_dir/gateway-linux-amd64"
         log_info "找到标准版本可执行文件: $EXECUTABLE_PATH"
         return 0
-    elif [[ -f "$check_dir/gohub-centos7-amd64" && -x "$check_dir/gohub-centos7-amd64" ]]; then
-        EXECUTABLE_PATH="$check_dir/gohub-centos7-amd64"
+    elif [[ -f "$check_dir/gateway-centos7-amd64" && -x "$check_dir/gateway-centos7-amd64" ]]; then
+        EXECUTABLE_PATH="$check_dir/gateway-centos7-amd64"
         log_info "找到标准版本可执行文件: $EXECUTABLE_PATH"
         return 0
     fi
     
     # 如果还是没有找到，尝试自动检测Oracle版本
-    if [[ -f "$check_dir/gohub-linux-oracle-amd64" && -x "$check_dir/gohub-linux-oracle-amd64" ]]; then
-        EXECUTABLE_PATH="$check_dir/gohub-linux-oracle-amd64"
+    if [[ -f "$check_dir/gateway-linux-oracle-amd64" && -x "$check_dir/gateway-linux-oracle-amd64" ]]; then
+        EXECUTABLE_PATH="$check_dir/gateway-linux-oracle-amd64"
         ORACLE_VERSION=true
-        SERVICE_NAME="gohub"
+        SERVICE_NAME="gateway"
         log_info "自动检测到Oracle版本可执行文件"
         return 0
-    elif [[ -f "$check_dir/gohub-oracle" && -x "$check_dir/gohub-oracle" ]]; then
-        EXECUTABLE_PATH="$check_dir/gohub-oracle"
+    elif [[ -f "$check_dir/gateway-oracle" && -x "$check_dir/gateway-oracle" ]]; then
+        EXECUTABLE_PATH="$check_dir/gateway-oracle"
         ORACLE_VERSION=true
-        SERVICE_NAME="gohub"
+        SERVICE_NAME="gateway"
         log_info "自动检测到Oracle版本可执行文件"
         return 0
-    elif [[ -f "$check_dir/gohub-centos7-oracle-amd64" && -x "$check_dir/gohub-centos7-oracle-amd64" ]]; then
-        EXECUTABLE_PATH="$check_dir/gohub-centos7-oracle-amd64"
+    elif [[ -f "$check_dir/gateway-centos7-oracle-amd64" && -x "$check_dir/gateway-centos7-oracle-amd64" ]]; then
+        EXECUTABLE_PATH="$check_dir/gateway-centos7-oracle-amd64"
         ORACLE_VERSION=true
-        SERVICE_NAME="gohub"
+        SERVICE_NAME="gateway"
         log_info "自动检测到Oracle版本可执行文件"
         return 0
     fi
     
     # 搜索模式：如果上面没有找到，则使用原来的模式继续搜索
     local patterns=(
-        "gohub"
-        "gohub-*"
-        "GoHub"
-        "GoHub-*"
+        "gateway"
+        "gateway-*"
+        "Gateway"
+        "Gateway-*"
         "main"
     )
     
@@ -384,8 +384,8 @@ create_systemd_service() {
     
     cat > "/etc/systemd/system/$SERVICE_NAME.service" << EOF
 [Unit]
-Description=GoHub Gateway and Management Service
-Documentation=https://github.com/your-org/gohub
+Description=Gateway Gateway and Management Service
+Documentation=https://github.com/your-org/gateway
 After=network.target remote-fs.target nss-lookup.target
 Wants=network.target
 
@@ -402,8 +402,8 @@ StartLimitInterval=60
 StartLimitBurst=3
 
 # 环境变量
-Environment=GOHUB_CONFIG_DIR=$CONFIG_DIR
-Environment=GOHUB_LOG_DIR=$LOG_DIR
+Environment=GATEWAY_CONFIG_DIR=$CONFIG_DIR
+Environment=GATEWAY_LOG_DIR=$LOG_DIR
 
 # 安全设置
 NoNewPrivileges=true
@@ -500,7 +500,7 @@ cleanup_old_installation() {
 
 # 主函数
 main() {
-    echo "GoHub Linux服务安装脚本 v2.3"
+    echo "Gateway Linux服务安装脚本 v2.3"
     echo "================================="
     echo ""
     
@@ -560,10 +560,10 @@ main() {
     # 设置安装目录和其他路径
     if [[ "$USE_SYSTEM_PATHS" == true ]]; then
         # 使用系统标准路径
-        INSTALL_DIR="/opt/gohub"
-        LOG_DIR="/var/log/gohub"
+        INSTALL_DIR="/opt/gateway"
+        LOG_DIR="/var/log/gateway"
         CONFIG_DIR="$INSTALL_DIR/configs"
-        WORK_DIR="/var/lib/gohub"
+        WORK_DIR="/var/lib/gateway"
     else
         # 使用检测到的应用目录作为基础
         INSTALL_DIR="$(dirname "$EXECUTABLE_PATH")"
@@ -587,7 +587,7 @@ main() {
     
     echo ""
     echo "============================================"
-    echo "  GoHub Linux 服务安装配置"
+    echo "  Gateway Linux 服务安装配置"
     echo "============================================"
     echo ""
     echo "服务名称: $SERVICE_NAME"
@@ -633,7 +633,7 @@ main() {
     show_service_status
     
     echo ""
-    log_info "GoHub服务安装完成！"
+    log_info "Gateway服务安装完成！"
     echo "============================================"
     echo "  安装过程完成！"
     echo "============================================"

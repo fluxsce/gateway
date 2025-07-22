@@ -24,7 +24,7 @@ func InitStringCrypto(secretKey string) {
 // getDefaultStringCrypto 获取默认加密实例
 func getDefaultStringCrypto() *CryptoUtil {
 	if defaultStringCrypto == nil {
-		defaultStringCrypto = NewCryptoUtil("gohub-string-crypto-default-key")
+		defaultStringCrypto = NewCryptoUtil("gateway-string-crypto-default-key")
 	}
 	return defaultStringCrypto
 }
@@ -52,7 +52,7 @@ func DecryptString(encryptedString string) (string, error) {
 
 	// 移除前缀
 	dataStr := strings.TrimPrefix(encryptedString, EncryptedPrefix)
-	
+
 	// 分离数据和IV
 	parts := strings.Split(dataStr, ":")
 	if len(parts) != 2 {
@@ -135,11 +135,11 @@ func HashString(data string, algorithm ...string) (string, error) {
 // ValidatePassword 验证密码强度
 func ValidatePassword(password string) (bool, []string) {
 	var issues []string
-	
+
 	if len(password) < 8 {
 		issues = append(issues, "密码长度至少8位")
 	}
-	
+
 	if len(password) > 128 {
 		issues = append(issues, "密码长度最多128位")
 	}
@@ -182,7 +182,7 @@ func ValidatePassword(password string) (bool, []string) {
 func IsSensitiveField(fieldName string) bool {
 	sensitiveFields := []string{"password", "token", "secret", "key", "credential", "auth", "cert", "private"}
 	fieldLower := strings.ToLower(fieldName)
-	
+
 	for _, sensitive := range sensitiveFields {
 		if strings.Contains(fieldLower, strings.ToLower(sensitive)) {
 			return true
@@ -210,53 +210,53 @@ func DecryptSensitiveString(fieldName, value string) (string, error) {
 // BatchEncryptStrings 批量加密字符串
 func BatchEncryptStrings(data map[string]string) (map[string]string, error) {
 	result := make(map[string]string)
-	
+
 	for key, value := range data {
 		if value == "" {
 			result[key] = value
 			continue
 		}
-		
+
 		encrypted, err := EncryptSensitiveString(key, value)
 		if err != nil {
 			return nil, fmt.Errorf("加密字段 %s 失败: %w", key, err)
 		}
 		result[key] = encrypted
 	}
-	
+
 	return result, nil
 }
 
 // BatchDecryptStrings 批量解密字符串
 func BatchDecryptStrings(data map[string]string) (map[string]string, error) {
 	result := make(map[string]string)
-	
+
 	for key, value := range data {
 		if value == "" {
 			result[key] = value
 			continue
 		}
-		
+
 		decrypted, err := DecryptSensitiveString(key, value)
 		if err != nil {
 			return nil, fmt.Errorf("解密字段 %s 失败: %w", key, err)
 		}
 		result[key] = decrypted
 	}
-	
+
 	return result, nil
 }
 
 // GenerateHash 生成不同算法的哈希值
 func GenerateHash(data string) map[string]string {
 	hashes := make(map[string]string)
-	
+
 	algorithms := []string{"md5", "sha1", "sha256", "sha512"}
 	for _, algo := range algorithms {
 		if hash, err := HashString(data, algo); err == nil {
 			hashes[algo] = hash
 		}
 	}
-	
+
 	return hashes
-} 
+}

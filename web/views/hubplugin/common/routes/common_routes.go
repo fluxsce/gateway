@@ -3,8 +3,8 @@ package commonroutes
 // 插件管理
 //管理所有插件路由
 import (
-	"gohub/pkg/database"
-	"gohub/web/views/hubplugin/common/controllers"
+	"gateway/pkg/database"
+	"gateway/web/views/hubplugin/common/controllers"
 
 	"github.com/gin-gonic/gin"
 )
@@ -37,49 +37,48 @@ func Init(router *gin.RouterGroup, db database.Database) {
 func initCommonRoutes(router *gin.RouterGroup, db database.Database) {
 	// 创建SFTP路由组
 	commonGroup := router
-	
+
 	// 创建控制器实例
 	toolConfigController := controllers.NewToolConfigController(db)
 	configGroupController := controllers.NewConfigGroupController(db)
 	toolExecuteController := controllers.NewToolExecuteController(db)
-	
+
 	// SFTP工具配置管理路由 - 基础CRUD操作
 	{
 		// 添加SFTP配置
 		commonGroup.POST("/add", toolConfigController.AddToolConfig)
-		
+
 		// 查询SFTP配置列表
 		commonGroup.POST("/query", toolConfigController.QueryToolConfigs)
-		
+
 		// 获取SFTP配置详情
 		commonGroup.POST("/get", toolConfigController.GetToolConfig)
-		
+
 		// 更新SFTP配置
 		commonGroup.POST("/update", toolConfigController.UpdateToolConfig)
-		
+
 		// 删除SFTP配置
 		commonGroup.POST("/delete", toolConfigController.DeleteToolConfig)
-		
+
 		// 测试SFTP连接
 		commonGroup.POST("/test-connection", toolExecuteController.TestToolExecution)
 	}
 
-	
 	// SFTP配置分组管理路由
 	configGroupRoutes := commonGroup.Group("/config-group")
 	{
 		// 添加配置分组
 		configGroupRoutes.POST("/add", configGroupController.AddConfigGroup)
-		
+
 		// 查询配置分组列表
 		configGroupRoutes.POST("/query", configGroupController.QueryConfigGroups)
-		
+
 		// 获取配置分组详情
 		configGroupRoutes.POST("/get", configGroupController.GetConfigGroup)
-		
+
 		// 更新配置分组
 		configGroupRoutes.POST("/update", configGroupController.UpdateConfigGroup)
-		
+
 		// 删除配置分组
 		configGroupRoutes.POST("/delete", configGroupController.DeleteConfigGroup)
 	}

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"gohub/pkg/timer"
+	"gateway/pkg/timer"
 )
 
 // TestTaskStatus 测试任务状态枚举
@@ -252,7 +252,7 @@ func TestTaskConfigStateMethods(t *testing.T) {
 		Status:   timer.TaskStatusCompleted,
 		Duration: time.Second * 10,
 	}
-	
+
 	config.UpdateRunInfo(result)
 	if config.GetRunCount() == 0 {
 		t.Error("UpdateRunInfo should increment run count")
@@ -261,7 +261,7 @@ func TestTaskConfigStateMethods(t *testing.T) {
 	// 测试下次运行时间设置
 	nextRun := time.Now().Add(time.Hour)
 	config.SetNextRunTime(&nextRun)
-	
+
 	retrievedTime := config.GetNextRunTime()
 	if retrievedTime == nil || !retrievedTime.Equal(nextRun) {
 		t.Errorf("SetNextRunTime/GetNextRunTime failed, got %v, want %v", retrievedTime, &nextRun)
@@ -457,7 +457,7 @@ func TestTaskExecutorInterface(t *testing.T) {
 // 测试String方法的性能表现
 func BenchmarkTaskStatusString(b *testing.B) {
 	status := timer.TaskStatusRunning
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = status.String()
@@ -471,4 +471,4 @@ func BenchmarkDefaultSchedulerConfig(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = timer.DefaultSchedulerConfig()
 	}
-} 
+}

@@ -1,4 +1,4 @@
-module gohub
+module gateway
 
 go 1.24
 
@@ -10,6 +10,7 @@ require (
 	github.com/godror/godror v0.49.0
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/uuid v1.6.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/pkg/sftp v1.13.9
 	github.com/redis/go-redis/v9 v9.10.0
@@ -48,7 +49,6 @@ require (
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/godror/knownpb v0.3.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect

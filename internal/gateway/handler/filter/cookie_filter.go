@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // CookieOperation Cookie操作类型
@@ -108,8 +108,8 @@ func CookieFilterFromConfig(config FilterConfig) (Filter, error) {
 func NewCookieFilter(name string, action FilterAction, priority int) *CookieFilter {
 	baseFilter := NewBaseFilter(CookieFilterType, action, priority, true, name)
 	return &CookieFilter{
-		BaseFilter:       *baseFilter,
-		Operation:        AddCookie,
+		BaseFilter: *baseFilter,
+		Operation:  AddCookie,
 		CookieAttributes: &CookieAttributes{
 			Path:     "/",
 			MaxAge:   -1, // 默认为会话Cookie
@@ -328,15 +328,15 @@ func (f *CookieFilter) removeCookieFromRequest(ctx *core.Context) {
 // storeCookieInContext 将Cookie操作信息存储在上下文中供响应阶段使用
 func (f *CookieFilter) storeCookieInContext(ctx *core.Context, operation string) {
 	cookieData := map[string]interface{}{
-		"operation":   operation,
-		"name":        f.CookieName,
-		"value":       f.CookieValue,
-		"attributes":  f.CookieAttributes,
+		"operation":  operation,
+		"name":       f.CookieName,
+		"value":      f.CookieValue,
+		"attributes": f.CookieAttributes,
 	}
 
 	// 获取现有的响应Cookie列表
 	var responseCookies []map[string]interface{}
-	existingVal, exists := ctx.Get("response_cookies");
+	existingVal, exists := ctx.Get("response_cookies")
 	if exists && existingVal != nil {
 		if existing, ok := existingVal.([]map[string]interface{}); ok {
 			responseCookies = existing
@@ -500,7 +500,7 @@ func configureCookieFilter(cookieFilter *CookieFilter, config map[string]interfa
 		// 驼峰命名配置处理
 		cookieName, _ := cookieConfig["cookieName"].(string)
 		cookieValue, _ := cookieConfig["cookieValue"].(string)
-		
+
 		// 参数验证
 		if operation == "" {
 			return fmt.Errorf("operation 不能为空")
@@ -508,7 +508,7 @@ func configureCookieFilter(cookieFilter *CookieFilter, config map[string]interfa
 		if cookieName == "" {
 			return fmt.Errorf("cookieName 不能为空")
 		}
-		
+
 		// 设置操作类型
 		switch strings.ToLower(operation) {
 		case "add", "remove", "modify", "validate", "filter":
@@ -516,37 +516,37 @@ func configureCookieFilter(cookieFilter *CookieFilter, config map[string]interfa
 		default:
 			return fmt.Errorf("无效的operation: %s，支持的类型: add, remove, modify, validate, filter", operation)
 		}
-		
+
 		// 设置Cookie名称
 		cookieFilter.CookieName = cookieName
-		
+
 		// 设置Cookie值（可选）
 		if cookieValue != "" {
 			cookieFilter.CookieValue = cookieValue
 		}
-		
+
 		// 设置是否应用到响应
 		if applyToResponse, ok := cookieConfig["applyToResponse"].(bool); ok {
 			cookieFilter.ApplyToResponse = applyToResponse
 		}
-		
+
 		// 设置Cookie属性
 		if attrs, ok := cookieConfig["cookieAttributes"].(map[string]interface{}); ok {
 			if err := configureCookieAttributes(cookieFilter.CookieAttributes, attrs); err != nil {
 				return fmt.Errorf("配置Cookie属性失败: %w", err)
 			}
 		}
-		
+
 		// 设置验证规则
 		if rules, ok := cookieConfig["validationRules"].(map[string]interface{}); ok {
 			cookieFilter.ValidationRules = rules
 		}
-		
+
 		// 设置过滤条件
 		if conditions, ok := cookieConfig["filterConditions"].(map[string]interface{}); ok {
 			cookieFilter.FilterConditions = conditions
 		}
-		
+
 		return nil
 	}
 
@@ -678,4 +678,4 @@ func configureCookieAttributes(attrs *CookieAttributes, config map[string]interf
 	}
 
 	return nil
-} 
+}

@@ -1,11 +1,11 @@
-# GoHub - 企业级微服务治理平台
+# Gateway - 企业级微服务治理平台
 
-GoHub 是一个基于 Go 语言开发的企业级微服务治理平台，集成了高性能网关引擎、统一管理后台、用户权限系统、配置管理中心等多个核心组件。
+Gateway 是一个基于 Go 语言开发的企业级微服务治理平台，集成了高性能网关引擎、统一管理后台、用户权限系统、配置管理中心等多个核心组件。
 
 ## 📁 项目目录结构
 
 ```
-gohub/
+gateway/
 ├── api/                          # API相关文件
 │   ├── proto/                    # Protocol Buffers定义
 │   └── swagger/                  # Swagger API文档
@@ -77,97 +77,97 @@ gohub/
 
 ### 认证授权模块 (`hub0001`)
 ```bash
-POST /gohub/hub0001/login              # 用户登录
-POST /gohub/hub0001/logout             # 用户登出
-POST /gohub/hub0001/refresh-token      # 刷新访问令牌
-GET  /gohub/hub0001/captcha            # 获取图形验证码
-POST /gohub/hub0001/verify-captcha     # 验证图形验证码
+POST /gateway/hub0001/login              # 用户登录
+POST /gateway/hub0001/logout             # 用户登出
+POST /gateway/hub0001/refresh-token      # 刷新访问令牌
+GET  /gateway/hub0001/captcha            # 获取图形验证码
+POST /gateway/hub0001/verify-captcha     # 验证图形验证码
 ```
 
 ### 用户管理模块 (`hub0002`)
 ```bash
-POST /gohub/hub0002/user/add           # 创建新用户
-POST /gohub/hub0002/user/get           # 获取用户详情
-POST /gohub/hub0002/user/update        # 更新用户信息
-POST /gohub/hub0002/user/delete        # 删除用户
-POST /gohub/hub0002/user/query         # 查询用户列表
+POST /gateway/hub0002/user/add           # 创建新用户
+POST /gateway/hub0002/user/get           # 获取用户详情
+POST /gateway/hub0002/user/update        # 更新用户信息
+POST /gateway/hub0002/user/delete        # 删除用户
+POST /gateway/hub0002/user/query         # 查询用户列表
 ```
 
 ### 网关实例管理模块 (`hub0020`)
 ```bash
-POST /gohub/hub0020/instance/add       # 创建网关实例
-POST /gohub/hub0020/instance/get       # 获取实例详情
-POST /gohub/hub0020/instance/update    # 更新实例配置
-POST /gohub/hub0020/instance/delete    # 删除实例
-POST /gohub/hub0020/instance/query     # 查询实例列表
-POST /gohub/hub0020/instance/start     # 启动实例
-POST /gohub/hub0020/instance/stop      # 停止实例
+POST /gateway/hub0020/instance/add       # 创建网关实例
+POST /gateway/hub0020/instance/get       # 获取实例详情
+POST /gateway/hub0020/instance/update    # 更新实例配置
+POST /gateway/hub0020/instance/delete    # 删除实例
+POST /gateway/hub0020/instance/query     # 查询实例列表
+POST /gateway/hub0020/instance/start     # 启动实例
+POST /gateway/hub0020/instance/stop      # 停止实例
 ```
 
 ### 通用配置管理模块 (`hubcommon002`)
 
 #### 安全配置管理
 ```bash
-POST /gohub/hubcommon002/querySecurityConfigs              # 查询安全配置列表
-POST /gohub/hubcommon002/getSecurityConfig                 # 获取安全配置详情
-POST /gohub/hubcommon002/addSecurityConfig                 # 添加安全配置
-POST /gohub/hubcommon002/editSecurityConfig                # 编辑安全配置
-POST /gohub/hubcommon002/deleteSecurityConfig              # 删除安全配置
+POST /gateway/hubcommon002/querySecurityConfigs              # 查询安全配置列表
+POST /gateway/hubcommon002/getSecurityConfig                 # 获取安全配置详情
+POST /gateway/hubcommon002/addSecurityConfig                 # 添加安全配置
+POST /gateway/hubcommon002/editSecurityConfig                # 编辑安全配置
+POST /gateway/hubcommon002/deleteSecurityConfig              # 删除安全配置
 
 # IP访问控制
-POST /gohub/hubcommon002/ip-access/add                     # 添加IP访问配置
-POST /gohub/hubcommon002/ip-access/get                     # 获取IP访问配置
-POST /gohub/hubcommon002/ip-access/update                  # 更新IP访问配置
-POST /gohub/hubcommon002/ip-access/delete                  # 删除IP访问配置
-POST /gohub/hubcommon002/ip-access/query                   # 查询IP访问配置
+POST /gateway/hubcommon002/ip-access/add                     # 添加IP访问配置
+POST /gateway/hubcommon002/ip-access/get                     # 获取IP访问配置
+POST /gateway/hubcommon002/ip-access/update                  # 更新IP访问配置
+POST /gateway/hubcommon002/ip-access/delete                  # 删除IP访问配置
+POST /gateway/hubcommon002/ip-access/query                   # 查询IP访问配置
 
 # User-Agent访问控制
-POST /gohub/hubcommon002/useragent-access/add              # 添加UA访问配置
-POST /gohub/hubcommon002/useragent-access/get              # 获取UA访问配置
-POST /gohub/hubcommon002/useragent-access/update           # 更新UA访问配置
-POST /gohub/hubcommon002/useragent-access/delete           # 删除UA访问配置
-POST /gohub/hubcommon002/useragent-access/query            # 查询UA访问配置
+POST /gateway/hubcommon002/useragent-access/add              # 添加UA访问配置
+POST /gateway/hubcommon002/useragent-access/get              # 获取UA访问配置
+POST /gateway/hubcommon002/useragent-access/update           # 更新UA访问配置
+POST /gateway/hubcommon002/useragent-access/delete           # 删除UA访问配置
+POST /gateway/hubcommon002/useragent-access/query            # 查询UA访问配置
 
 # API访问控制
-POST /gohub/hubcommon002/api-access/add                    # 添加API访问配置
-POST /gohub/hubcommon002/api-access/get                    # 获取API访问配置
-POST /gohub/hubcommon002/api-access/update                 # 更新API访问配置
-POST /gohub/hubcommon002/api-access/delete                 # 删除API访问配置
-POST /gohub/hubcommon002/api-access/query                  # 查询API访问配置
+POST /gateway/hubcommon002/api-access/add                    # 添加API访问配置
+POST /gateway/hubcommon002/api-access/get                    # 获取API访问配置
+POST /gateway/hubcommon002/api-access/update                 # 更新API访问配置
+POST /gateway/hubcommon002/api-access/delete                 # 删除API访问配置
+POST /gateway/hubcommon002/api-access/query                  # 查询API访问配置
 
 # 域名访问控制
-POST /gohub/hubcommon002/domain-access/add                 # 添加域名访问配置
-POST /gohub/hubcommon002/domain-access/get                 # 获取域名访问配置
-POST /gohub/hubcommon002/domain-access/update              # 更新域名访问配置
-POST /gohub/hubcommon002/domain-access/delete              # 删除域名访问配置
-POST /gohub/hubcommon002/domain-access/query               # 查询域名访问配置
+POST /gateway/hubcommon002/domain-access/add                 # 添加域名访问配置
+POST /gateway/hubcommon002/domain-access/get                 # 获取域名访问配置
+POST /gateway/hubcommon002/domain-access/update              # 更新域名访问配置
+POST /gateway/hubcommon002/domain-access/delete              # 删除域名访问配置
+POST /gateway/hubcommon002/domain-access/query               # 查询域名访问配置
 ```
 
 #### CORS跨域配置
 ```bash
-POST /gohub/hubcommon002/cors/add                          # 添加CORS配置
-POST /gohub/hubcommon002/cors/get                          # 获取CORS配置
-POST /gohub/hubcommon002/cors/update                       # 更新CORS配置
-POST /gohub/hubcommon002/cors/delete                       # 删除CORS配置
-POST /gohub/hubcommon002/cors/query                        # 查询CORS配置列表
+POST /gateway/hubcommon002/cors/add                          # 添加CORS配置
+POST /gateway/hubcommon002/cors/get                          # 获取CORS配置
+POST /gateway/hubcommon002/cors/update                       # 更新CORS配置
+POST /gateway/hubcommon002/cors/delete                       # 删除CORS配置
+POST /gateway/hubcommon002/cors/query                        # 查询CORS配置列表
 ```
 
 #### 认证配置
 ```bash
-POST /gohub/hubcommon002/auth/add                          # 添加认证配置
-POST /gohub/hubcommon002/auth/get                          # 获取认证配置
-POST /gohub/hubcommon002/auth/update                       # 更新认证配置
-POST /gohub/hubcommon002/auth/delete                       # 删除认证配置
-POST /gohub/hubcommon002/auth/query                        # 查询认证配置列表
+POST /gateway/hubcommon002/auth/add                          # 添加认证配置
+POST /gateway/hubcommon002/auth/get                          # 获取认证配置
+POST /gateway/hubcommon002/auth/update                       # 更新认证配置
+POST /gateway/hubcommon002/auth/delete                       # 删除认证配置
+POST /gateway/hubcommon002/auth/query                        # 查询认证配置列表
 ```
 
 #### 限流配置
 ```bash
-POST /gohub/hubcommon002/rate-limit/add                    # 添加限流配置
-POST /gohub/hubcommon002/rate-limit/get                    # 获取限流配置
-POST /gohub/hubcommon002/rate-limit/update                 # 更新限流配置
-POST /gohub/hubcommon002/rate-limit/delete                 # 删除限流配置
-POST /gohub/hubcommon002/rate-limit/query                  # 查询限流配置列表
+POST /gateway/hubcommon002/rate-limit/add                    # 添加限流配置
+POST /gateway/hubcommon002/rate-limit/get                    # 获取限流配置
+POST /gateway/hubcommon002/rate-limit/update                 # 更新限流配置
+POST /gateway/hubcommon002/rate-limit/delete                 # 删除限流配置
+POST /gateway/hubcommon002/rate-limit/query                  # 查询限流配置列表
 ```
 
 ### API规范说明
@@ -218,7 +218,7 @@ POST /gohub/hubcommon002/rate-limit/query                  # 查询限流配置�
 1. **克隆项目**
 ```bash
 git clone <repository-url>
-cd gohub
+cd gateway
 ```
 
 2. **安装依赖**
@@ -232,7 +232,7 @@ go mod download
 mysql -u root -p < docs/database/mysql/init.sql
 
 # 导入表结构
-mysql -u root -p gohub < docs/database/mysql/HUB_GATEWAY_*.sql
+mysql -u root -p gateway < docs/database/mysql/HUB_GATEWAY_*.sql
 ```
 
 4. **修改配置文件**
@@ -273,7 +273,7 @@ mkdir -p web/views/hubXXXX/{controllers,dao,models,routes}
 3. **注册模块**
 ```go
 // 在 web/moduleimports/imports.go 中导入
-import _ "gohub/web/views/hubXXXX/routes"
+import _ "gateway/web/views/hubXXXX/routes"
 ```
 
 ### 添加新的配置管理模块
@@ -288,11 +288,11 @@ touch web/views/hubcommon002/controllers/new_config_controller.go
 
 2. **遵循统一API规范**
 ```go
-POST /gohub/hubcommon002/{config-type}/add     # 添加配置
-POST /gohub/hubcommon002/{config-type}/get     # 获取配置
-POST /gohub/hubcommon002/{config-type}/update  # 更新配置
-POST /gohub/hubcommon002/{config-type}/delete  # 删除配置
-POST /gohub/hubcommon002/{config-type}/query   # 查询配置列表
+POST /gateway/hubcommon002/{config-type}/add     # 添加配置
+POST /gateway/hubcommon002/{config-type}/get     # 获取配置
+POST /gateway/hubcommon002/{config-type}/update  # 更新配置
+POST /gateway/hubcommon002/{config-type}/delete  # 删除配置
+POST /gateway/hubcommon002/{config-type}/query   # 查询配置列表
 ```
 
 ### 数据库表设计规范
@@ -357,14 +357,14 @@ test/gateway/handler/newhandler/newhandler_test.go
 
 ```bash
 # 使用 Docker 快速启动
-docker run -d --name gohub-gateway \
+docker run -d --name gateway-gateway \
   -p 8080:8080 \
   -p 8090:8090 \
   -v $(pwd)/configs:/app/configs \
-  gohub/gateway:latest
+  gateway/gateway:latest
 
 # 使用 Docker Compose
-curl -O https://raw.githubusercontent.com/your-org/gohub/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/your-org/gateway/main/docker-compose.yml
 docker-compose up -d
 ```
 
@@ -372,23 +372,23 @@ docker-compose up -d
 
 ```bash
 # 使用 Helm 安装
-helm repo add gohub https://charts.gohub.io
-helm install gohub-gateway gohub/gohub-gateway
+helm repo add gateway https://charts.gateway.io
+helm install gateway-gateway gateway/gateway-gateway
 
 # 或使用 kubectl
-kubectl apply -f https://raw.githubusercontent.com/your-org/gohub/main/deployments/kubernetes/
+kubectl apply -f https://raw.githubusercontent.com/your-org/gateway/main/deployments/kubernetes/
 ```
 
 ## 📊 项目状态
 
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/your-org/gohub)
-![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/your-org/gohub)
-![GitHub](https://img.shields.io/github/license/your-org/gohub)
-![GitHub Workflow Status](https://img.shields.io/github/workflow/status/your-org/gohub/CI)
-![GitHub issues](https://img.shields.io/github/issues/your-org/gohub)
-![GitHub pull requests](https://img.shields.io/github/issues-pr/your-org/gohub)
-![GitHub stars](https://img.shields.io/github/stars/your-org/gohub)
-![GitHub forks](https://img.shields.io/github/forks/your-org/gohub)
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/your-org/gateway)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/your-org/gateway)
+![GitHub](https://img.shields.io/github/license/your-org/gateway)
+![GitHub Workflow Status](https://img.shields.io/github/workflow/status/your-org/gateway/CI)
+![GitHub issues](https://img.shields.io/github/issues/your-org/gateway)
+![GitHub pull requests](https://img.shields.io/github/issues-pr/your-org/gateway)
+![GitHub stars](https://img.shields.io/github/stars/your-org/gateway)
+![GitHub forks](https://img.shields.io/github/forks/your-org/gateway)
 
 ## 🏗️ 架构设计
 
@@ -464,18 +464,18 @@ graph TB
 
 我们欢迎所有形式的贡献！请查看 [贡献指南](CONTRIBUTING.md) 了解如何参与：
 
-- 🐛 [报告 Bug](https://github.com/your-org/gohub/issues/new?template=bug_report.md)
-- 💡 [提出功能建议](https://github.com/your-org/gohub/issues/new?template=feature_request.md)
-- ❓ [寻求帮助](https://github.com/your-org/gohub/issues/new?template=question.md)
-- 📝 [改进文档](https://github.com/your-org/gohub/tree/main/docs)
-- 🔧 [提交代码](https://github.com/your-org/gohub/pulls)
+- 🐛 [报告 Bug](https://github.com/your-org/gateway/issues/new?template=bug_report.md)
+- 💡 [提出功能建议](https://github.com/your-org/gateway/issues/new?template=feature_request.md)
+- ❓ [寻求帮助](https://github.com/your-org/gateway/issues/new?template=question.md)
+- 📝 [改进文档](https://github.com/your-org/gateway/tree/main/docs)
+- 🔧 [提交代码](https://github.com/your-org/gateway/pulls)
 
 ### 🌟 贡献者
 
-感谢所有为 GoHub 做出贡献的开发者：
+感谢所有为 Gateway 做出贡献的开发者：
 
-<a href="https://github.com/your-org/gohub/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=your-org/gohub" />
+<a href="https://github.com/your-org/gateway/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=your-org/gateway" />
 </a>
 
 ### 🏆 特别鸣谢
@@ -488,8 +488,8 @@ graph TB
 
 ### 社区交流
 
-- 💬 **GitHub Discussions**: [参与讨论](https://github.com/your-org/gohub/discussions)
-- 🐛 **问题反馈**: [提交 Issue](https://github.com/your-org/gohub/issues)
+- 💬 **GitHub Discussions**: [参与讨论](https://github.com/your-org/gateway/discussions)
+- 🐛 **问题反馈**: [提交 Issue](https://github.com/your-org/gateway/issues)
 - 📧 **邮件联系**: [project@example.com](mailto:project@example.com)
 
 ### 商业支持
@@ -500,16 +500,16 @@ graph TB
 
 ### 社交媒体
 
-- 🐦 **Twitter**: [@gohub_gateway](https://twitter.com/gohub_gateway)
+- 🐦 **Twitter**: [@gateway_gateway](https://twitter.com/gateway_gateway)
 - 📝 **博客**: [官方博客](https://blog.example.com)
-- 📺 **YouTube**: [技术视频](https://youtube.com/c/gohub)
+- 📺 **YouTube**: [技术视频](https://youtube.com/c/gateway)
 
 ## 📄 许可证
 
-GoHub 使用 [Apache License 2.0](LICENSE) 开源协议。
+Gateway 使用 [Apache License 2.0](LICENSE) 开源协议。
 
 ```
-Copyright 2024 GoHub Contributors
+Copyright 2024 Gateway Contributors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -526,23 +526,23 @@ limitations under the License.
 
 ## ⭐ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=your-org/gohub&type=Date)](https://star-history.com/#your-org/gohub&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=your-org/gateway&type=Date)](https://star-history.com/#your-org/gateway&Date)
 
 ## 🔗 相关项目
 
-- [GoHub Web UI](https://github.com/your-org/gohub-ui) - Web 管理界面
-- [GoHub CLI](https://github.com/your-org/gohub-cli) - 命令行工具
-- [GoHub Plugins](https://github.com/your-org/gohub-plugins) - 官方插件集合
-- [GoHub Examples](https://github.com/your-org/gohub-examples) - 使用示例和最佳实践
+- [Gateway Web UI](https://github.com/your-org/gateway-ui) - Web 管理界面
+- [Gateway CLI](https://github.com/your-org/gateway-cli) - 命令行工具
+- [Gateway Plugins](https://github.com/your-org/gateway-plugins) - 官方插件集合
+- [Gateway Examples](https://github.com/your-org/gateway-examples) - 使用示例和最佳实践
 
 ---
 
 <div align="center">
 
-**[官网](https://gohub.example.com) • [文档](https://docs.gohub.example.com) • [API参考](https://api.gohub.example.com) • [博客](https://blog.gohub.example.com)**
+**[官网](https://gateway.example.com) • [文档](https://docs.gateway.example.com) • [API参考](https://api.gateway.example.com) • [博客](https://blog.gateway.example.com)**
 
-Made with ❤️ by the GoHub community
+Made with ❤️ by the Gateway community
 
-如果 GoHub 对您有帮助，请给我们一个 ⭐️ 星标支持！
+如果 Gateway 对您有帮助，请给我们一个 ⭐️ 星标支持！
 
 </div>

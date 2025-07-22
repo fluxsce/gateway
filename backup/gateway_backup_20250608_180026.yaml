@@ -331,7 +331,7 @@ gateway:
         strategy: jwt
         jwt:
             secret: your-jwt-secret
-            issuer: gohub-gateway
+            issuer: gateway-gateway
             expiration: 3600
             algorithm: HS256
             verify_expiration: true

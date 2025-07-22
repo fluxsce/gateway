@@ -3,29 +3,29 @@ package types
 import (
 	"time"
 
-	metricTypes "gohub/pkg/metric/types"
-	"gohub/pkg/utils/random"
+	metricTypes "gateway/pkg/metric/types"
+	"gateway/pkg/utils/random"
 )
 
 // CpuLog CPU采集日志表对应的结构体
 type CpuLog struct {
 	// 业务字段
-	MetricCpuLogId   string    `json:"metricCpuLogId" db:"metricCpuLogId"`     // CPU采集日志ID
-	TenantId         string    `json:"tenantId" db:"tenantId"`                 // 租户ID
-	MetricServerId   string    `json:"metricServerId" db:"metricServerId"`     // 关联服务器ID
-	UsagePercent     float64   `json:"usagePercent" db:"usagePercent"`         // CPU使用率(0-100)
-	UserPercent      float64   `json:"userPercent" db:"userPercent"`           // 用户态CPU使用率
-	SystemPercent    float64   `json:"systemPercent" db:"systemPercent"`       // 系统态CPU使用率
-	IdlePercent      float64   `json:"idlePercent" db:"idlePercent"`           // 空闲CPU使用率
-	IoWaitPercent    float64   `json:"ioWaitPercent" db:"ioWaitPercent"`       // I/O等待CPU使用率
-	IrqPercent       float64   `json:"irqPercent" db:"irqPercent"`             // 中断处理CPU使用率
-	SoftIrqPercent   float64   `json:"softIrqPercent" db:"softIrqPercent"`     // 软中断处理CPU使用率
-	CoreCount        int       `json:"coreCount" db:"coreCount"`               // CPU核心数
-	LogicalCount     int       `json:"logicalCount" db:"logicalCount"`         // 逻辑CPU数
-	LoadAvg1         float64   `json:"loadAvg1" db:"loadAvg1"`                 // 1分钟负载平均值
-	LoadAvg5         float64   `json:"loadAvg5" db:"loadAvg5"`                 // 5分钟负载平均值
-	LoadAvg15        float64   `json:"loadAvg15" db:"loadAvg15"`               // 15分钟负载平均值
-	CollectTime      time.Time `json:"collectTime" db:"collectTime"`           // 采集时间
+	MetricCpuLogId string    `json:"metricCpuLogId" db:"metricCpuLogId"` // CPU采集日志ID
+	TenantId       string    `json:"tenantId" db:"tenantId"`             // 租户ID
+	MetricServerId string    `json:"metricServerId" db:"metricServerId"` // 关联服务器ID
+	UsagePercent   float64   `json:"usagePercent" db:"usagePercent"`     // CPU使用率(0-100)
+	UserPercent    float64   `json:"userPercent" db:"userPercent"`       // 用户态CPU使用率
+	SystemPercent  float64   `json:"systemPercent" db:"systemPercent"`   // 系统态CPU使用率
+	IdlePercent    float64   `json:"idlePercent" db:"idlePercent"`       // 空闲CPU使用率
+	IoWaitPercent  float64   `json:"ioWaitPercent" db:"ioWaitPercent"`   // I/O等待CPU使用率
+	IrqPercent     float64   `json:"irqPercent" db:"irqPercent"`         // 中断处理CPU使用率
+	SoftIrqPercent float64   `json:"softIrqPercent" db:"softIrqPercent"` // 软中断处理CPU使用率
+	CoreCount      int       `json:"coreCount" db:"coreCount"`           // CPU核心数
+	LogicalCount   int       `json:"logicalCount" db:"logicalCount"`     // 逻辑CPU数
+	LoadAvg1       float64   `json:"loadAvg1" db:"loadAvg1"`             // 1分钟负载平均值
+	LoadAvg5       float64   `json:"loadAvg5" db:"loadAvg5"`             // 5分钟负载平均值
+	LoadAvg15      float64   `json:"loadAvg15" db:"loadAvg15"`           // 15分钟负载平均值
+	CollectTime    time.Time `json:"collectTime" db:"collectTime"`       // 采集时间
 
 	// 通用字段
 	AddTime        time.Time `json:"addTime" db:"addTime"`               // 创建时间
@@ -62,7 +62,7 @@ func (c *CpuLog) GetPrimaryKey() (string, string) {
 // NewCpuLogFromMetrics 从CPUMetrics创建CpuLog实例
 func NewCpuLogFromMetrics(cpuMetrics *metricTypes.CPUMetrics, tenantId, serverId, operator string, collectTime time.Time, oprSeqFlag string) *CpuLog {
 	now := time.Now()
-	
+
 	return &CpuLog{
 		MetricCpuLogId: random.Generate32BitRandomString(),
 		TenantId:       tenantId,
@@ -88,4 +88,4 @@ func NewCpuLogFromMetrics(cpuMetrics *metricTypes.CPUMetrics, tenantId, serverId
 		CurrentVersion: 1,
 		ActiveFlag:     ActiveFlagYes,
 	}
-} 
+}

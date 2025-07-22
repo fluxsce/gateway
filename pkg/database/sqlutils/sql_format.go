@@ -20,8 +20,8 @@ package sqlutils
 
 import (
 	"fmt"
-	"gohub/pkg/database"
-	"gohub/pkg/database/dbtypes"
+	"gateway/pkg/database"
+	"gateway/pkg/database/dbtypes"
 	"reflect"
 	"strings"
 	"time"
@@ -53,18 +53,21 @@ const (
 	DatabaseMongoDB DatabaseType = dbtypes.DriverMongoDB
 )
 
-
 // 通过调用database接口的GetDriver方法获取驱动名称，并转换为DatabaseType类型
 // 这是一个静态方法，提供统一的数据库类型获取逻辑
 //
 // 参数:
-//   db: database.Database
+//
+//	db: database.Database
+//
 // 返回:
-//   DatabaseType: 对应的数据库类型枚举值
+//
+//	DatabaseType: 对应的数据库类型枚举值
 //
 // 使用示例:
-//   dbType := sqlutils.GetDatabaseType(dao.db)
-//   query, args, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+//
+//	dbType := sqlutils.GetDatabaseType(dao.db)
+//	query, args, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 func GetDatabaseType(db database.Database) DatabaseType {
 	return DatabaseType(db.GetDriver())
 }
@@ -80,10 +83,13 @@ type PaginationInfo struct {
 // 自动计算偏移量，确保页码和页大小的有效性
 //
 // 参数:
-//   page: 页码，从1开始，如果小于1则设为1
-//   pageSize: 每页大小，如果小于1则设为10
+//
+//	page: 页码，从1开始，如果小于1则设为1
+//	pageSize: 每页大小，如果小于1则设为10
+//
 // 返回:
-//   *PaginationInfo: 分页信息对象
+//
+//	*PaginationInfo: 分页信息对象
 func NewPaginationInfo(page, pageSize int) *PaginationInfo {
 	if page < 1 {
 		page = 1
@@ -91,7 +97,7 @@ func NewPaginationInfo(page, pageSize int) *PaginationInfo {
 	if pageSize < 1 {
 		pageSize = 10
 	}
-	
+
 	return &PaginationInfo{
 		Page:     page,
 		PageSize: pageSize,
@@ -110,16 +116,20 @@ func NewPaginationInfo(page, pageSize int) *PaginationInfo {
 // - 生成参数化查询，防止SQL注入
 //
 // 参数:
-//   table: 目标表名
-//   data: 数据结构体，字段通过db tag映射到数据库列
+//
+//	table: 目标表名
+//	data: 数据结构体，字段通过db tag映射到数据库列
+//
 // 返回:
-//   string: 生成的INSERT SQL语句
-//   []interface{}: SQL参数值切片
-//   error: 构建失败时返回错误信息
+//
+//	string: 生成的INSERT SQL语句
+//	[]interface{}: SQL参数值切片
+//	error: 构建失败时返回错误信息
 //
 // 示例:
-//   query, args, err := BuildInsertQuery("users", User{Name: "John", Age: 30})
-//   // 返回: "INSERT INTO users (name, age) VALUES (?, ?)", ["John", 30], nil
+//
+//	query, args, err := BuildInsertQuery("users", User{Name: "John", Age: 30})
+//	// 返回: "INSERT INTO users (name, age) VALUES (?, ?)", ["John", 30], nil
 func BuildInsertQuery(table string, data interface{}) (string, []interface{}, error) {
 	columns, values, err := ExtractColumnsAndValues(data)
 	if err != nil {
@@ -150,17 +160,21 @@ func BuildInsertQuery(table string, data interface{}) (string, []interface{}, er
 // - 返回可直接用于UPDATE语句的SET部分
 //
 // 参数:
-//   table: 目标表名（此参数在当前实现中未使用，保留用于扩展）
-//   data: 包含更新数据的结构体，字段通过db tag映射到数据库列
+//
+//	table: 目标表名（此参数在当前实现中未使用，保留用于扩展）
+//	data: 包含更新数据的结构体，字段通过db tag映射到数据库列
+//
 // 返回:
-//   string: 生成的SET子句（如："name = ?, age = ?"）
-//   []interface{}: SET子句对应的参数值切片
-//   error: 构建失败时返回错误信息
+//
+//	string: 生成的SET子句（如："name = ?, age = ?"）
+//	[]interface{}: SET子句对应的参数值切片
+//	error: 构建失败时返回错误信息
 //
 // 示例:
-//   setClause, args, err := BuildUpdateQuery("users", User{Name: "John", Age: 31})
-//   // 返回: "name = ?, age = ?", ["John", 31], nil
-//   // 完整UPDATE语句: UPDATE users SET name = ?, age = ? WHERE id = ?
+//
+//	setClause, args, err := BuildUpdateQuery("users", User{Name: "John", Age: 31})
+//	// 返回: "name = ?, age = ?", ["John", 31], nil
+//	// 完整UPDATE语句: UPDATE users SET name = ?, age = ? WHERE id = ?
 func BuildUpdateQuery(table string, data interface{}) (string, []interface{}, error) {
 	// UPDATE操作使用跳过零值的版本，只更新有效字段
 	columns, values, err := ExtractColumnsAndValuesSkipZero(data)
@@ -188,11 +202,14 @@ func BuildUpdateQuery(table string, data interface{}) (string, []interface{}, er
 // - 跳过未导出字段（小写开头的字段）
 //
 // 参数:
-//   data: 要解析的结构体或结构体指针
+//
+//	data: 要解析的结构体或结构体指针
+//
 // 返回:
-//   []string: 数据库列名切片
-//   []interface{}: 对应的值切片
-//   error: 解析失败时返回错误信息
+//
+//	[]string: 数据库列名切片
+//	[]interface{}: 对应的值切片
+//	error: 解析失败时返回错误信息
 //
 // 支持的字段类型：
 //   - 基本类型：int, string, bool, float等
@@ -259,11 +276,14 @@ func ExtractColumnsAndValues(data interface{}) ([]string, []interface{}, error) 
 // - 跳过未导出字段（小写开头的字段）
 //
 // 参数:
-//   data: 要解析的结构体或结构体指针
+//
+//	data: 要解析的结构体或结构体指针
+//
 // 返回:
-//   []string: 数据库列名切片（不包含零值字段）
-//   []interface{}: 对应的值切片（不包含零值字段）
-//   error: 解析失败时返回错误信息
+//
+//	[]string: 数据库列名切片（不包含零值字段）
+//	[]interface{}: 对应的值切片（不包含零值字段）
+//	error: 解析失败时返回错误信息
 //
 // 使用场景：
 //   - UPDATE操作，只更新非零值字段
@@ -327,9 +347,12 @@ func ExtractColumnsAndValuesSkipZero(data interface{}) ([]string, []interface{},
 // - 结构体：使用反射的IsZero方法
 //
 // 参数:
-//   v: 要检查的反射值
+//
+//	v: 要检查的反射值
+//
 // 返回:
-//   bool: true表示是零值，false表示非零值
+//
+//	bool: true表示是零值，false表示非零值
 //
 // 使用场景：
 //   - INSERT语句生成时跳过空字段
@@ -373,20 +396,24 @@ func IsZeroValue(v reflect.Value) bool {
 // - 生成优化的分页查询，避免性能问题
 //
 // 参数:
-//   dbType: 数据库类型（mysql、postgresql、sqlserver、oracle、oracle11g、sqlite）
-//   baseQuery: 基础查询语句（不包含分页部分）
-//   pagination: 分页信息对象
+//
+//	dbType: 数据库类型（mysql、postgresql、sqlserver、oracle、oracle11g、sqlite）
+//	baseQuery: 基础查询语句（不包含分页部分）
+//	pagination: 分页信息对象
+//
 // 返回:
-//   string: 包含分页的完整SQL语句
-//   []interface{}: 分页相关的参数值
-//   error: 构建失败时返回错误信息
+//
+//	string: 包含分页的完整SQL语句
+//	[]interface{}: 分页相关的参数值
+//	error: 构建失败时返回错误信息
 //
 // 使用示例:
-//   baseQuery := "SELECT * FROM users WHERE status = ?"
-//   pagination := NewPaginationInfo(2, 10)  // 第2页，每页10条
-//   query, args, err := BuildPaginationQuery(DatabaseMySQL, baseQuery, pagination)
-//   // MySQL: "SELECT * FROM users WHERE status = ? LIMIT ? OFFSET ?"
-//   // args: [10, 10] (pageSize, offset)
+//
+//	baseQuery := "SELECT * FROM users WHERE status = ?"
+//	pagination := NewPaginationInfo(2, 10)  // 第2页，每页10条
+//	query, args, err := BuildPaginationQuery(DatabaseMySQL, baseQuery, pagination)
+//	// MySQL: "SELECT * FROM users WHERE status = ? LIMIT ? OFFSET ?"
+//	// args: [10, 10] (pageSize, offset)
 func BuildPaginationQuery(dbType DatabaseType, baseQuery string, pagination *PaginationInfo) (string, []interface{}, error) {
 	if pagination == nil {
 		return baseQuery, nil, fmt.Errorf("pagination info is required")
@@ -431,12 +458,12 @@ func BuildPaginationQuery(dbType DatabaseType, baseQuery string, pagination *Pag
 			paginatedQuery = fmt.Sprintf("%s OFFSET ? ROWS FETCH NEXT ? ROWS ONLY", baseQuery)
 		}
 		args = []interface{}{pagination.Offset, pagination.PageSize}
-		
+
 	case DatabaseOracle11g:
 		// Oracle 11g: 使用ROW_NUMBER() OVER()子查询实现分页
 		// 格式: SELECT * FROM (SELECT t.*, ROW_NUMBER() OVER(ORDER BY ...) AS rn FROM (...) t) WHERE rn BETWEEN ? AND ?
 		var orderByClause string
-		
+
 		// 检查是否有ORDER BY子句
 		upperQuery := strings.ToUpper(baseQuery)
 		if !strings.Contains(upperQuery, "ORDER BY") {
@@ -447,17 +474,17 @@ func BuildPaginationQuery(dbType DatabaseType, baseQuery string, pagination *Pag
 			orderByPos := strings.LastIndex(upperQuery, "ORDER BY")
 			orderByClause = baseQuery[orderByPos:]
 		}
-		
+
 		// 构建分页查询
 		startRow := pagination.Offset + 1
 		endRow := pagination.Offset + pagination.PageSize
-		
+
 		// 移除原始查询中的ORDER BY子句（如果有）
 		if strings.Contains(upperQuery, "ORDER BY") {
 			orderByPos := strings.LastIndex(upperQuery, "ORDER BY")
 			baseQuery = baseQuery[:orderByPos]
 		}
-		
+
 		paginatedQuery = fmt.Sprintf(
 			"SELECT * FROM (SELECT t.*, ROW_NUMBER() OVER(%s) AS rn FROM (%s) t) WHERE rn BETWEEN ? AND ?",
 			orderByClause,
@@ -493,15 +520,19 @@ func BuildPaginationQuery(dbType DatabaseType, baseQuery string, pagination *Pag
 // - 处理GROUP BY和HAVING子句
 //
 // 参数:
-//   baseQuery: 原始查询语句
+//
+//	baseQuery: 原始查询语句
+//
 // 返回:
-//   string: COUNT查询语句
-//   error: 构建失败时返回错误信息
+//
+//	string: COUNT查询语句
+//	error: 构建失败时返回错误信息
 //
 // 使用示例:
-//   baseQuery := "SELECT u.*, p.name FROM users u JOIN profiles p ON u.id=p.user_id WHERE u.status = ? ORDER BY u.created_at"
-//   countQuery, err := BuildCountQuery(baseQuery)
-//   // 返回: "SELECT COUNT(*) FROM users u JOIN profiles p ON u.id=p.user_id WHERE u.status = ?"
+//
+//	baseQuery := "SELECT u.*, p.name FROM users u JOIN profiles p ON u.id=p.user_id WHERE u.status = ? ORDER BY u.created_at"
+//	countQuery, err := BuildCountQuery(baseQuery)
+//	// 返回: "SELECT COUNT(*) FROM users u JOIN profiles p ON u.id=p.user_id WHERE u.status = ?"
 func BuildCountQuery(baseQuery string) (string, error) {
 	if baseQuery == "" {
 		return "", fmt.Errorf("base query cannot be empty")
@@ -509,36 +540,36 @@ func BuildCountQuery(baseQuery string) (string, error) {
 
 	// 转换为大写进行关键字匹配，但保留原始查询用于构建
 	upperQuery := strings.ToUpper(baseQuery)
-	
+
 	// 查找SELECT和FROM的位置
 	selectPos := strings.Index(upperQuery, "SELECT")
 	fromPos := strings.Index(upperQuery, "FROM")
-	
+
 	if selectPos == -1 || fromPos == -1 {
 		return "", fmt.Errorf("invalid query: missing SELECT or FROM clause")
 	}
 
 	// 提取FROM之后的部分
 	fromClause := baseQuery[fromPos:]
-	
+
 	// 移除ORDER BY子句
 	orderByPos := strings.Index(strings.ToUpper(fromClause), "ORDER BY")
 	if orderByPos != -1 {
 		fromClause = fromClause[:orderByPos]
 	}
-	
+
 	// 移除LIMIT子句（MySQL、PostgreSQL、SQLite）
 	limitPos := strings.Index(strings.ToUpper(fromClause), "LIMIT")
 	if limitPos != -1 {
 		fromClause = fromClause[:limitPos]
 	}
-	
+
 	// 移除OFFSET子句（SQL Server、Oracle）
 	offsetPos := strings.Index(strings.ToUpper(fromClause), "OFFSET")
 	if offsetPos != -1 {
 		fromClause = fromClause[:offsetPos]
 	}
-	
+
 	// 移除FETCH子句（SQL Server、Oracle）
 	fetchPos := strings.Index(strings.ToUpper(fromClause), "FETCH")
 	if fetchPos != -1 {
@@ -547,7 +578,7 @@ func BuildCountQuery(baseQuery string) (string, error) {
 
 	// 构建COUNT查询
 	countQuery := fmt.Sprintf("SELECT COUNT(*) %s", strings.TrimSpace(fromClause))
-	
+
 	return countQuery, nil
 }
 
@@ -561,15 +592,19 @@ func BuildCountQuery(baseQuery string) (string, error) {
 // - 对于大表提供更高效的统计方案
 //
 // 参数:
-//   dbType: 数据库类型（可选优化）
-//   baseQuery: 原始查询语句
+//
+//	dbType: 数据库类型（可选优化）
+//	baseQuery: 原始查询语句
+//
 // 返回:
-//   string: 优化的COUNT查询语句
-//   error: 构建失败时返回错误信息
+//
+//	string: 优化的COUNT查询语句
+//	error: 构建失败时返回错误信息
 //
 // 使用示例:
-//   countQuery, err := BuildCountQueryWithOptimization(DatabaseMySQL, baseQuery)
-//   // 对于大表可能使用: SELECT COUNT(1) 或其他优化语法
+//
+//	countQuery, err := BuildCountQueryWithOptimization(DatabaseMySQL, baseQuery)
+//	// 对于大表可能使用: SELECT COUNT(1) 或其他优化语法
 func BuildCountQueryWithOptimization(dbType DatabaseType, baseQuery string) (string, error) {
 	// 首先使用标准方法构建基础COUNT查询
 	countQuery, err := BuildCountQuery(baseQuery)
@@ -620,12 +655,15 @@ func BuildCountQueryWithOptimization(dbType DatabaseType, baseQuery string) (str
 // BuildInsertQueryForOracle 为Oracle构建INSERT语句
 // Oracle特定的INSERT语句构建，支持Oracle语法特性
 // 参数:
-//   table: 目标表名
-//   data: 要插入的数据结构体
+//
+//	table: 目标表名
+//	data: 要插入的数据结构体
+//
 // 返回:
-//   string: INSERT语句，使用Oracle的:1, :2占位符格式
-//   []interface{}: 参数值数组
-//   error: 构建失败时返回错误信息
+//
+//	string: INSERT语句，使用Oracle的:1, :2占位符格式
+//	[]interface{}: 参数值数组
+//	error: 构建失败时返回错误信息
 func BuildInsertQueryForOracle(table string, data interface{}) (string, []interface{}, error) {
 	columns, values, err := ExtractColumnsAndValues(data)
 	if err != nil {
@@ -653,12 +691,15 @@ func BuildInsertQueryForOracle(table string, data interface{}) (string, []interf
 // BuildUpdateQueryForOracle 为Oracle构建UPDATE语句的SET子句
 // Oracle特定的UPDATE语句SET部分构建，使用Oracle占位符格式
 // 参数:
-//   table: 目标表名
-//   data: 包含更新数据的结构体
+//
+//	table: 目标表名
+//	data: 包含更新数据的结构体
+//
 // 返回:
-//   string: SET子句，使用Oracle的:1, :2占位符格式
-//   []interface{}: 参数值数组
-//   error: 构建失败时返回错误信息
+//
+//	string: SET子句，使用Oracle的:1, :2占位符格式
+//	[]interface{}: 参数值数组
+//	error: 构建失败时返回错误信息
 func BuildUpdateQueryForOracle(table string, data interface{}) (string, []interface{}, error) {
 	// UPDATE操作使用跳过零值的版本，只更新有效字段
 	columns, values, err := ExtractColumnsAndValuesSkipZero(data)
@@ -693,15 +734,19 @@ func BuildUpdateQueryForOracle(table string, data interface{}) (string, []interf
 // - ClickHouse: now()
 //
 // 参数:
-//   dbType: 数据库类型
+//
+//	dbType: 数据库类型
+//
 // 返回:
-//   string: 对应数据库的当前时间函数
-//   error: 不支持的数据库类型返回错误
+//
+//	string: 对应数据库的当前时间函数
+//	error: 不支持的数据库类型返回错误
 //
 // 使用示例:
-//   dbType := GetDatabaseType(db)
-//   timeFunc, err := GetCurrentTimeFunction(dbType)
-//   query := fmt.Sprintf("UPDATE table SET editTime = %s", timeFunc)
+//
+//	dbType := GetDatabaseType(db)
+//	timeFunc, err := GetCurrentTimeFunction(dbType)
+//	query := fmt.Sprintf("UPDATE table SET editTime = %s", timeFunc)
 func GetCurrentTimeFunction(dbType DatabaseType) (string, error) {
 	switch dbType {
 	case DatabaseMySQL, DatabaseMariaDB, DatabaseTiDB:
@@ -730,14 +775,18 @@ func GetCurrentTimeFunction(dbType DatabaseType) (string, error) {
 // 适用于需要在参数中传递当前时间的场景
 //
 // 参数:
-//   dbType: 数据库类型（用于未来扩展，当前所有数据库都使用time.Now()）
+//
+//	dbType: 数据库类型（用于未来扩展，当前所有数据库都使用time.Now()）
+//
 // 返回:
-//   interface{}: 当前时间值，可直接用作SQL参数
+//
+//	interface{}: 当前时间值，可直接用作SQL参数
 //
 // 使用示例:
-//   now := GetCurrentTimeValue(GetDatabaseType(db))
-//   query := "UPDATE table SET editTime = ?"
-//   args := []interface{}{now}
+//
+//	now := GetCurrentTimeValue(GetDatabaseType(db))
+//	query := "UPDATE table SET editTime = ?"
+//	args := []interface{}{now}
 func GetCurrentTimeValue(dbType DatabaseType) interface{} {
 	// 当前所有数据库都支持time.Time类型作为参数
 	// 未来可以根据数据库类型返回不同的时间格式
@@ -749,21 +798,25 @@ func GetCurrentTimeValue(dbType DatabaseType) interface{} {
 // 支持函数调用和参数化两种方式
 //
 // 参数:
-//   dbType: 数据库类型
-//   columnName: 要更新的时间列名
-//   useFunction: 是否使用数据库函数（true）还是参数化值（false）
+//
+//	dbType: 数据库类型
+//	columnName: 要更新的时间列名
+//	useFunction: 是否使用数据库函数（true）还是参数化值（false）
+//
 // 返回:
-//   string: 时间更新子句
-//   interface{}: 如果是参数化方式，返回时间值；否则返回nil
-//   error: 构建失败时返回错误信息
+//
+//	string: 时间更新子句
+//	interface{}: 如果是参数化方式，返回时间值；否则返回nil
+//	error: 构建失败时返回错误信息
 //
 // 使用示例:
-//   dbType := GetDatabaseType(db)
-//   clause, value, err := BuildTimeUpdateClause(dbType, "editTime", true)
-//   // 返回: "editTime = NOW()", nil, nil
-//   
-//   clause, value, err := BuildTimeUpdateClause(dbType, "editTime", false)
-//   // 返回: "editTime = ?", time.Now(), nil
+//
+//	dbType := GetDatabaseType(db)
+//	clause, value, err := BuildTimeUpdateClause(dbType, "editTime", true)
+//	// 返回: "editTime = NOW()", nil, nil
+//
+//	clause, value, err := BuildTimeUpdateClause(dbType, "editTime", false)
+//	// 返回: "editTime = ?", time.Now(), nil
 func BuildTimeUpdateClause(dbType DatabaseType, columnName string, useFunction bool) (string, interface{}, error) {
 	if useFunction {
 		timeFunc, err := GetCurrentTimeFunction(dbType)
@@ -775,4 +828,3 @@ func BuildTimeUpdateClause(dbType DatabaseType, columnName string, useFunction b
 		return fmt.Sprintf("%s = ?", columnName), GetCurrentTimeValue(dbType), nil
 	}
 }
-

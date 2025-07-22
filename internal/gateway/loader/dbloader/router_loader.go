@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"strings"
 
-	"gohub/internal/gateway/handler/assertion"
-	"gohub/internal/gateway/handler/filter"
-	"gohub/internal/gateway/handler/router"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/pkg/logger"
+	"gateway/internal/gateway/handler/assertion"
+	"gateway/internal/gateway/handler/filter"
+	"gateway/internal/gateway/handler/router"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/logger"
 )
 
 // RouterConfigLoader 路由配置加载器
@@ -74,12 +74,12 @@ func (loader *RouterConfigLoader) LoadRouterConfig(ctx context.Context, instance
 
 	// 构建Router配置
 	routerConfig := &router.RouterConfig{
-		ID:              record.RouterConfigId,
-		Enabled:         record.ActiveFlag == "Y",
-		Name:            record.RouterName,
-		DefaultPriority: record.DefaultPriority,
+		ID:               record.RouterConfigId,
+		Enabled:          record.ActiveFlag == "Y",
+		Name:             record.RouterName,
+		DefaultPriority:  record.DefaultPriority,
 		EnableRouteCache: record.EnableRouteCache == "Y",
-		RouteCacheTTL:   record.RouteCacheTtlSeconds,
+		RouteCacheTTL:    record.RouteCacheTtlSeconds,
 	}
 
 	// 加载路由配置
@@ -173,8 +173,8 @@ func (loader *RouterConfigLoader) LoadRoutes(ctx context.Context, instanceId str
 		// 加载断言组配置
 		assertionGroupConfig, err := loader.LoadRouteAssertionGroup(ctx, record.RouteConfigId)
 		if err != nil {
-			logger.Warn("加载路由断言组失败", 
-				"routeId", record.RouteConfigId, 
+			logger.Warn("加载路由断言组失败",
+				"routeId", record.RouteConfigId,
 				"error", err)
 		} else if assertionGroupConfig != nil {
 			routeConfig.AssertionGroupConfig = assertionGroupConfig
@@ -183,8 +183,8 @@ func (loader *RouterConfigLoader) LoadRoutes(ctx context.Context, instanceId str
 		// 加载过滤器配置
 		filters, err := loader.LoadRouteFilters(ctx, record.RouteConfigId)
 		if err != nil {
-			logger.Warn("加载路由过滤器失败", 
-				"routeId", record.RouteConfigId, 
+			logger.Warn("加载路由过滤器失败",
+				"routeId", record.RouteConfigId,
 				"error", err)
 		} else {
 			routeConfig.FilterConfig = filters
@@ -244,10 +244,10 @@ func (loader *RouterConfigLoader) LoadRouteAssertionGroup(ctx context.Context, r
 		RouteMetadata *string `db:"routeMetadata"`
 	}
 	err = loader.db.Query(ctx, &metadataRecords, metadataPaginatedQuery, metadataAllArgs, true)
-	
+
 	// 默认所有断言都必须满足
 	allRequired := true
-	
+
 	// 从元数据中获取断言组配置
 	if err == nil && len(metadataRecords) > 0 && metadataRecords[0].RouteMetadata != nil {
 		var metadata map[string]interface{}
@@ -277,10 +277,10 @@ func (loader *RouterConfigLoader) LoadRouteAssertionGroup(ctx context.Context, r
 	// 转换数据库记录为断言配置
 	for _, record := range records {
 		assertionConfig := assertion.AssertionConfig{
-			ID:          record.RouteAssertionId,
-			Type:        strings.ToLower(record.AssertionType), // 转换为小写
-			Name:        strings.ToLower(record.AssertionType),
-			Operator:    strings.ToLower(record.AssertionOperator), // 转换为小写
+			ID:            record.RouteAssertionId,
+			Type:          strings.ToLower(record.AssertionType), // 转换为小写
+			Name:          strings.ToLower(record.AssertionType),
+			Operator:      strings.ToLower(record.AssertionOperator), // 转换为小写
 			CaseSensitive: record.CaseSensitive == "Y",
 		}
 
@@ -348,8 +348,8 @@ func (loader *RouterConfigLoader) LoadRouteFilters(ctx context.Context, routeId 
 		// 解析过滤器配置
 		var config map[string]interface{}
 		if err := json.Unmarshal([]byte(record.FilterConfig), &config); err != nil {
-			logger.Error("解析过滤器配置失败", 
-				"filterId", record.FilterConfigId, 
+			logger.Error("解析过滤器配置失败",
+				"filterId", record.FilterConfigId,
 				"error", err)
 			continue
 		}
@@ -358,8 +358,8 @@ func (loader *RouterConfigLoader) LoadRouteFilters(ctx context.Context, routeId 
 		// 如果配置中有特定的子配置对象（如headerConfig），将其提升到顶层
 		flatConfig := make(map[string]interface{})
 		for key, value := range config {
-			if subConfig, ok := value.(map[string]interface{}); ok && 
-			   (key == "headerConfig" || key == "queryConfig" || key == "bodyConfig" || key == "urlConfig") {
+			if subConfig, ok := value.(map[string]interface{}); ok &&
+				(key == "headerConfig" || key == "queryConfig" || key == "bodyConfig" || key == "urlConfig") {
 				// 将子配置的内容提升到顶层
 				for subKey, subValue := range subConfig {
 					flatConfig[subKey] = subValue
@@ -407,8 +407,8 @@ func (loader *RouterConfigLoader) LoadGlobalFilters(ctx context.Context, instanc
 		// 解析过滤器配置
 		var config map[string]interface{}
 		if err := json.Unmarshal([]byte(record.FilterConfig), &config); err != nil {
-			logger.Error("解析全局过滤器配置失败", 
-				"filterId", record.FilterConfigId, 
+			logger.Error("解析全局过滤器配置失败",
+				"filterId", record.FilterConfigId,
 				"error", err)
 			continue
 		}
@@ -416,8 +416,8 @@ func (loader *RouterConfigLoader) LoadGlobalFilters(ctx context.Context, instanc
 		// 修复配置层级问题：直接使用解析的配置，不再嵌套
 		flatConfig := make(map[string]interface{})
 		for key, value := range config {
-			if subConfig, ok := value.(map[string]interface{}); ok && 
-			   (key == "headerConfig" || key == "queryConfig" || key == "bodyConfig" || key == "urlConfig") {
+			if subConfig, ok := value.(map[string]interface{}); ok &&
+				(key == "headerConfig" || key == "queryConfig" || key == "bodyConfig" || key == "urlConfig") {
 				// 将子配置的内容提升到顶层
 				for subKey, subValue := range subConfig {
 					flatConfig[subKey] = subValue
@@ -453,23 +453,27 @@ func (loader *RouterConfigLoader) LoadGlobalFilters(ctx context.Context, instanc
 // - 返回清理后的字符串切片
 //
 // 参数:
-//   str: 要解析的字符串（JSON数组或逗号分隔字符串）
+//
+//	str: 要解析的字符串（JSON数组或逗号分隔字符串）
+//
 // 返回:
-//   []string: 解析后的字符串切片
+//
+//	[]string: 解析后的字符串切片
 //
 // 示例:
-//   parseStringArray(`["a","b","c"]`) 
-//   // 返回: ["a", "b", "c"]
-//   parseStringArray("a, b , c,, d ") 
-//   // 返回: ["a", "b", "c", "d"]
+//
+//	parseStringArray(`["a","b","c"]`)
+//	// 返回: ["a", "b", "c"]
+//	parseStringArray("a, b , c,, d ")
+//	// 返回: ["a", "b", "c", "d"]
 func parseStringArray(str string) []string {
 	if str == "" {
 		return []string{}
 	}
-	
+
 	// 去除前后空白字符
 	str = strings.TrimSpace(str)
-	
+
 	// 优先尝试解析JSON数组
 	if strings.HasPrefix(str, "[") && strings.HasSuffix(str, "]") {
 		var jsonArray []string
@@ -485,10 +489,10 @@ func parseStringArray(str string) []string {
 			return result
 		}
 	}
-	
+
 	// JSON解析失败，按逗号分割
 	parts := strings.Split(str, ",")
-	
+
 	// 清理和过滤
 	var result []string
 	for _, part := range parts {
@@ -499,6 +503,6 @@ func parseStringArray(str string) []string {
 			result = append(result, trimmed)
 		}
 	}
-	
+
 	return result
-} 
+}

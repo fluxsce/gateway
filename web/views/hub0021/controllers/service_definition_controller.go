@@ -1,13 +1,13 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hub0021/dao"
-	"gohub/web/views/hub0021/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hub0021/dao"
+	"gateway/web/views/hub0021/models"
 
 	"github.com/gin-gonic/gin"
 )
@@ -34,7 +34,7 @@ func NewServiceDefinitionController(db database.Database) *ServiceDefinitionCont
 // @Produce json
 // @Param request body GetServiceDefinitionsByInstanceRequest true "查询参数"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0021/serviceDefinitions/byInstance [post]
+// @Router /gateway/hub0021/serviceDefinitions/byInstance [post]
 func (c *ServiceDefinitionController) GetServiceDefinitionsByInstance(ctx *gin.Context) {
 	var req GetServiceDefinitionsByInstanceRequest
 	if err := request.BindSafely(ctx, &req); err != nil {
@@ -89,7 +89,7 @@ func (c *ServiceDefinitionController) GetServiceDefinitionsByInstance(ctx *gin.C
 // @Produce json
 // @Param request body GetServiceDefinitionRequest true "查询参数"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0021/serviceDefinition [post]
+// @Router /gateway/hub0021/serviceDefinition [post]
 func (c *ServiceDefinitionController) GetServiceDefinitionById(ctx *gin.Context) {
 	var req GetServiceDefinitionRequest
 	if err := request.BindSafely(ctx, &req); err != nil {
@@ -145,7 +145,7 @@ func (c *ServiceDefinitionController) GetServiceDefinitionById(ctx *gin.Context)
 // @Param serviceName query string false "服务名称（模糊查询）"
 // @Param serviceType query int false "服务类型"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0021/queryServiceDefinitions [post]
+// @Router /gateway/hub0021/queryServiceDefinitions [post]
 func (c *ServiceDefinitionController) QueryServiceDefinitions(ctx *gin.Context) {
 	// 使用工具类获取分页参数
 	page, pageSize := request.GetPaginationParams(ctx)
@@ -159,12 +159,12 @@ func (c *ServiceDefinitionController) QueryServiceDefinitions(ctx *gin.Context) 
 
 	// 构建筛选条件
 	filters := make(map[string]interface{})
-	
+
 	// 服务名称模糊查询
 	if serviceName := ctx.Query("serviceName"); serviceName != "" {
 		filters["serviceName"] = serviceName
 	}
-	
+
 	// 服务类型
 	if serviceType := ctx.Query("serviceType"); serviceType != "" {
 		filters["serviceType"] = serviceType
@@ -216,30 +216,30 @@ type GetServiceDefinitionRequest struct {
 func serviceDefinitionWithProxyToMap(serviceDefinition *models.ServiceDefinitionWithProxy) map[string]interface{} {
 	return map[string]interface{}{
 		// 服务定义信息
-		"tenantId":                     serviceDefinition.TenantId,
-		"serviceDefinitionId":          serviceDefinition.ServiceDefinitionId,
-		"serviceName":                  serviceDefinition.ServiceName,
-		"serviceDesc":                  serviceDefinition.ServiceDesc,
-		"serviceType":                  serviceDefinition.ServiceType,
-		"loadBalanceStrategy":          serviceDefinition.LoadBalanceStrategy,
-		"discoveryType":                serviceDefinition.DiscoveryType,
-		"discoveryConfig":              serviceDefinition.DiscoveryConfig,
-		"sessionAffinity":              serviceDefinition.SessionAffinity,
-		"stickySession":                serviceDefinition.StickySession,
-		"maxRetries":                   serviceDefinition.MaxRetries,
-		"retryTimeoutMs":               serviceDefinition.RetryTimeoutMs,
-		"enableCircuitBreaker":         serviceDefinition.EnableCircuitBreaker,
-		"healthCheckEnabled":           serviceDefinition.HealthCheckEnabled,
-		"healthCheckPath":              serviceDefinition.HealthCheckPath,
-		"healthCheckMethod":            serviceDefinition.HealthCheckMethod,
-		"healthCheckIntervalSeconds":   serviceDefinition.HealthCheckIntervalSeconds,
-		"healthCheckTimeoutMs":         serviceDefinition.HealthCheckTimeoutMs,
-		"healthyThreshold":             serviceDefinition.HealthyThreshold,
-		"unhealthyThreshold":           serviceDefinition.UnhealthyThreshold,
-		"expectedStatusCodes":          serviceDefinition.ExpectedStatusCodes,
-		"healthCheckHeaders":           serviceDefinition.HealthCheckHeaders,
-		"loadBalancerConfig":           serviceDefinition.LoadBalancerConfig,
-		"serviceMetadata":              serviceDefinition.ServiceMetadata,
+		"tenantId":                   serviceDefinition.TenantId,
+		"serviceDefinitionId":        serviceDefinition.ServiceDefinitionId,
+		"serviceName":                serviceDefinition.ServiceName,
+		"serviceDesc":                serviceDefinition.ServiceDesc,
+		"serviceType":                serviceDefinition.ServiceType,
+		"loadBalanceStrategy":        serviceDefinition.LoadBalanceStrategy,
+		"discoveryType":              serviceDefinition.DiscoveryType,
+		"discoveryConfig":            serviceDefinition.DiscoveryConfig,
+		"sessionAffinity":            serviceDefinition.SessionAffinity,
+		"stickySession":              serviceDefinition.StickySession,
+		"maxRetries":                 serviceDefinition.MaxRetries,
+		"retryTimeoutMs":             serviceDefinition.RetryTimeoutMs,
+		"enableCircuitBreaker":       serviceDefinition.EnableCircuitBreaker,
+		"healthCheckEnabled":         serviceDefinition.HealthCheckEnabled,
+		"healthCheckPath":            serviceDefinition.HealthCheckPath,
+		"healthCheckMethod":          serviceDefinition.HealthCheckMethod,
+		"healthCheckIntervalSeconds": serviceDefinition.HealthCheckIntervalSeconds,
+		"healthCheckTimeoutMs":       serviceDefinition.HealthCheckTimeoutMs,
+		"healthyThreshold":           serviceDefinition.HealthyThreshold,
+		"unhealthyThreshold":         serviceDefinition.UnhealthyThreshold,
+		"expectedStatusCodes":        serviceDefinition.ExpectedStatusCodes,
+		"healthCheckHeaders":         serviceDefinition.HealthCheckHeaders,
+		"loadBalancerConfig":         serviceDefinition.LoadBalancerConfig,
+		"serviceMetadata":            serviceDefinition.ServiceMetadata,
 
 		// 代理配置信息
 		"proxyConfigId":     serviceDefinition.ProxyConfigId,
@@ -269,44 +269,44 @@ func serviceDefinitionWithProxyToMap(serviceDefinition *models.ServiceDefinition
 // serviceDefinitionToMap 将服务定义对象转换为Map格式，过滤敏感字段
 func serviceDefinitionToMap(serviceDefinition *models.ServiceDefinition) map[string]interface{} {
 	return map[string]interface{}{
-		"tenantId":                     serviceDefinition.TenantId,
-		"serviceDefinitionId":          serviceDefinition.ServiceDefinitionId,
-		"serviceName":                  serviceDefinition.ServiceName,
-		"serviceDesc":                  serviceDefinition.ServiceDesc,
-		"serviceType":                  serviceDefinition.ServiceType,
-		"proxyConfigId":                serviceDefinition.ProxyConfigId,
-		"loadBalanceStrategy":          serviceDefinition.LoadBalanceStrategy,
-		"discoveryType":                serviceDefinition.DiscoveryType,
-		"discoveryConfig":              serviceDefinition.DiscoveryConfig,
-		"sessionAffinity":              serviceDefinition.SessionAffinity,
-		"stickySession":                serviceDefinition.StickySession,
-		"maxRetries":                   serviceDefinition.MaxRetries,
-		"retryTimeoutMs":               serviceDefinition.RetryTimeoutMs,
-		"enableCircuitBreaker":         serviceDefinition.EnableCircuitBreaker,
-		"healthCheckEnabled":           serviceDefinition.HealthCheckEnabled,
-		"healthCheckPath":              serviceDefinition.HealthCheckPath,
-		"healthCheckMethod":            serviceDefinition.HealthCheckMethod,
-		"healthCheckIntervalSeconds":   serviceDefinition.HealthCheckIntervalSeconds,
-		"healthCheckTimeoutMs":         serviceDefinition.HealthCheckTimeoutMs,
-		"healthyThreshold":             serviceDefinition.HealthyThreshold,
-		"unhealthyThreshold":           serviceDefinition.UnhealthyThreshold,
-		"expectedStatusCodes":          serviceDefinition.ExpectedStatusCodes,
-		"healthCheckHeaders":           serviceDefinition.HealthCheckHeaders,
-		"loadBalancerConfig":           serviceDefinition.LoadBalancerConfig,
-		"serviceMetadata":              serviceDefinition.ServiceMetadata,
-		"reserved1":                    serviceDefinition.Reserved1,
-		"reserved2":                    serviceDefinition.Reserved2,
-		"reserved3":                    serviceDefinition.Reserved3,
-		"reserved4":                    serviceDefinition.Reserved4,
-		"reserved5":                    serviceDefinition.Reserved5,
-		"extProperty":                  serviceDefinition.ExtProperty,
-		"addTime":                      serviceDefinition.AddTime,
-		"addWho":                       serviceDefinition.AddWho,
-		"editTime":                     serviceDefinition.EditTime,
-		"editWho":                      serviceDefinition.EditWho,
-		"oprSeqFlag":                   serviceDefinition.OprSeqFlag,
-		"currentVersion":               serviceDefinition.CurrentVersion,
-		"activeFlag":                   serviceDefinition.ActiveFlag,
-		"noteText":                     serviceDefinition.NoteText,
+		"tenantId":                   serviceDefinition.TenantId,
+		"serviceDefinitionId":        serviceDefinition.ServiceDefinitionId,
+		"serviceName":                serviceDefinition.ServiceName,
+		"serviceDesc":                serviceDefinition.ServiceDesc,
+		"serviceType":                serviceDefinition.ServiceType,
+		"proxyConfigId":              serviceDefinition.ProxyConfigId,
+		"loadBalanceStrategy":        serviceDefinition.LoadBalanceStrategy,
+		"discoveryType":              serviceDefinition.DiscoveryType,
+		"discoveryConfig":            serviceDefinition.DiscoveryConfig,
+		"sessionAffinity":            serviceDefinition.SessionAffinity,
+		"stickySession":              serviceDefinition.StickySession,
+		"maxRetries":                 serviceDefinition.MaxRetries,
+		"retryTimeoutMs":             serviceDefinition.RetryTimeoutMs,
+		"enableCircuitBreaker":       serviceDefinition.EnableCircuitBreaker,
+		"healthCheckEnabled":         serviceDefinition.HealthCheckEnabled,
+		"healthCheckPath":            serviceDefinition.HealthCheckPath,
+		"healthCheckMethod":          serviceDefinition.HealthCheckMethod,
+		"healthCheckIntervalSeconds": serviceDefinition.HealthCheckIntervalSeconds,
+		"healthCheckTimeoutMs":       serviceDefinition.HealthCheckTimeoutMs,
+		"healthyThreshold":           serviceDefinition.HealthyThreshold,
+		"unhealthyThreshold":         serviceDefinition.UnhealthyThreshold,
+		"expectedStatusCodes":        serviceDefinition.ExpectedStatusCodes,
+		"healthCheckHeaders":         serviceDefinition.HealthCheckHeaders,
+		"loadBalancerConfig":         serviceDefinition.LoadBalancerConfig,
+		"serviceMetadata":            serviceDefinition.ServiceMetadata,
+		"reserved1":                  serviceDefinition.Reserved1,
+		"reserved2":                  serviceDefinition.Reserved2,
+		"reserved3":                  serviceDefinition.Reserved3,
+		"reserved4":                  serviceDefinition.Reserved4,
+		"reserved5":                  serviceDefinition.Reserved5,
+		"extProperty":                serviceDefinition.ExtProperty,
+		"addTime":                    serviceDefinition.AddTime,
+		"addWho":                     serviceDefinition.AddWho,
+		"editTime":                   serviceDefinition.EditTime,
+		"editWho":                    serviceDefinition.EditWho,
+		"oprSeqFlag":                 serviceDefinition.OprSeqFlag,
+		"currentVersion":             serviceDefinition.CurrentVersion,
+		"activeFlag":                 serviceDefinition.ActiveFlag,
+		"noteText":                   serviceDefinition.NoteText,
 	}
-} 
+}

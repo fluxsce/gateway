@@ -3,7 +3,7 @@ package auth
 import (
 	"encoding/base64"
 	"fmt"
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 	"strings"
 )
 

@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/assertion"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/assertion"
 )
 
 func TestAssertionConfig(t *testing.T) {

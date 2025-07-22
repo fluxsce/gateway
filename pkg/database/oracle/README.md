@@ -2,7 +2,7 @@
 
 ## 概述
 
-本包提供了 Oracle 数据库的完整实现，符合 `gohub/pkg/database` 包定义的统一数据库接口。支持 Oracle 11g、12c、18c、19c、21c 等版本。
+本包提供了 Oracle 数据库的完整实现，符合 `gateway/pkg/database` 包定义的统一数据库接口。支持 Oracle 11g、12c、18c、19c、21c 等版本。
 
 ## 功能特性
 
@@ -57,8 +57,8 @@ go get github.com/godror/godror@latest
 
 ```go
 import (
-    "gohub/pkg/database"
-    _ "gohub/pkg/database/alldriver" // 导入所有驱动，包括 Oracle
+    "gateway/pkg/database"
+    _ "gateway/pkg/database/alldriver" // 导入所有驱动，包括 Oracle
 )
 ```
 

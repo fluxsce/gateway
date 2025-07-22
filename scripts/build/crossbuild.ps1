@@ -1,4 +1,4 @@
-# GoHub 交叉编译脚本 (Windows PowerShell)
+# Gateway 交叉编译脚本 (Windows PowerShell)
 # 使用 Docker 在 Windows 上交叉编译 Linux/macOS/Windows 版本
 
 param(
@@ -15,7 +15,7 @@ param(
 # 显示帮助
 if ($Help) {
     Write-Host @"
-GoHub 交叉编译脚本
+Gateway 交叉编译脚本
 
 用法: .\crossbuild.ps1 [参数]
 
@@ -121,7 +121,7 @@ function Build-DockerImage {
         $GitCommit
     )
     
-    $imageName = "gohub-crossbuild"
+    $imageName = "gateway-crossbuild"
     $dockerfile = "$ProjectDir\scripts\build\Dockerfile.crossbuild"
     
     Write-Info "构建 Docker 镜像..."
@@ -173,7 +173,7 @@ function Copy-BuildArtifacts {
     Write-Info "从容器复制构建产物..."
     
     # 创建临时容器
-    $containerName = "gohub-crossbuild-temp-$(Get-Random)"
+    $containerName = "gateway-crossbuild-temp-$(Get-Random)"
     
     try {
         # 创建容器（不启动）
@@ -186,7 +186,7 @@ function Copy-BuildArtifacts {
         # 确定二进制文件名
         $suffix = if ($EnableOracle) { "-oracle" } else { "" }
         $extension = if ($TargetOS -eq "windows") { ".exe" } else { "" }
-        $binaryName = "gohub-$TargetOS-$TargetArch$suffix$extension"
+        $binaryName = "gateway-$TargetOS-$TargetArch$suffix$extension"
         
         # 复制二进制文件
         $sourcePath = "$containerName"+":/build/$binaryName"
@@ -253,7 +253,7 @@ function Test-BuildArtifact {
 
 # 主函数
 function Main {
-    Write-Info "开始 GoHub 交叉编译..."
+    Write-Info "开始 Gateway 交叉编译..."
     Write-Info "目标平台: $TargetOS/$TargetArch"
     Write-Info "Oracle 支持: $EnableOracle"
     Write-Info "版本: $Version"
@@ -319,7 +319,7 @@ function Main {
             if ($success) {
                 $suffix = if ($EnableOracle) { "-oracle" } else { "" }
                 $extension = if ($TargetOS -eq "windows") { ".exe" } else { "" }
-                $artifactPath = "$OutputDir\gohub-$TargetOS-$TargetArch$suffix$extension"
+                $artifactPath = "$OutputDir\gateway-$TargetOS-$TargetArch$suffix$extension"
                 
                 if (Test-BuildArtifact $artifactPath) {
                     Write-Info "交叉编译成功完成!"

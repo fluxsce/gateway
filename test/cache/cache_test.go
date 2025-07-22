@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	pkgcache "gohub/pkg/cache"
+	pkgcache "gateway/pkg/cache"
 )
 
 // TestMain 在所有测试开始前初始化缓存系统
@@ -39,7 +39,7 @@ func TestCacheBasicOperations(t *testing.T) {
 		t.Skip("缓存实例未初始化，跳过测试")
 		return
 	}
-	
+
 	// 不要关闭缓存，因为它是共享实例，其他测试可能需要使用
 
 	// 测试Set和Get
@@ -236,7 +236,7 @@ func TestCacheManager(t *testing.T) {
 		t.Skip("缓存实例未初始化，跳过测试")
 		return
 	}
-	
+
 	// 使用cache2进行简单测试
 	testCtx := context.Background()
 	testKey := "test:cache2:ping"

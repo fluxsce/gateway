@@ -1,6 +1,6 @@
 # CMD 公共工具包
 
-这个包提供了 GoHub 各个 cmd 应用程序共用的工具函数。
+这个包提供了 Gateway 各个 cmd 应用程序共用的工具函数。
 
 ## 配置目录管理
 
@@ -8,7 +8,7 @@
 
 - 🎯 **统一配置路径管理** - 所有 cmd 应用使用统一的配置路径获取方式
 - 🔧 **命令行参数支持** - 支持 `--config` 参数指定配置目录
-- 🌍 **环境变量支持** - 支持 `GOHUB_CONFIG_DIR` 环境变量
+- 🌍 **环境变量支持** - 支持 `GATEWAY_CONFIG_DIR` 环境变量
 - ⚡ **优先级控制** - 命令行参数 > 环境变量 > 默认值
 
 ### 使用方法
@@ -16,7 +16,7 @@
 #### 1. 导入包
 
 ```go
-import "gohub/cmd/common/utils"
+import "gateway/cmd/common/utils"
 ```
 
 #### 2. 获取配置目录
@@ -36,16 +36,16 @@ gatewayConfigPath := utils.GetConfigPath("gateway.yaml")
 
 ```bash
 # 使用默认配置目录 (./configs)
-./gohub-app
+./gateway-app
 
 # 通过命令行参数指定配置目录
-./gohub-app --config /path/to/config
+./gateway-app --config /path/to/config
 
 # 通过环境变量指定配置目录
-GOHUB_CONFIG_DIR=/path/to/config ./gohub-app
+GATEWAY_CONFIG_DIR=/path/to/config ./gateway-app
 
 # 命令行参数优先于环境变量
-GOHUB_CONFIG_DIR=/env/config ./gohub-app --config /cli/config
+GATEWAY_CONFIG_DIR=/env/config ./gateway-app --config /cli/config
 # 实际使用 /cli/config
 ```
 
@@ -54,7 +54,7 @@ GOHUB_CONFIG_DIR=/env/config ./gohub-app --config /cli/config
 配置目录的获取优先级：
 
 1. **命令行参数** (`--config`)
-2. **环境变量** (`GOHUB_CONFIG_DIR`)  
+2. **环境变量** (`GATEWAY_CONFIG_DIR`)  
 3. **默认值** (`./configs`)
 
 ### API 参考
@@ -95,8 +95,8 @@ GOHUB_CONFIG_DIR=/env/config ./gohub-app --config /cli/config
 package main
 
 import (
-    "gohub/cmd/common/utils"
-    "gohub/pkg/config"
+    "gateway/cmd/common/utils"
+    "gateway/pkg/config"
 )
 
 func initConfig() error {
@@ -121,7 +121,7 @@ func initDatabase() error {
 ```go
 package gatewayapp
 
-import "gohub/cmd/common/utils"
+import "gateway/cmd/common/utils"
 
 func loadFromFile() error {
     // 获取网关配置文件路径
@@ -150,17 +150,17 @@ go test ./cmd/common/utils
 
 ```bash
 # 开发环境 - 使用默认配置目录
-./gohub-app
+./gateway-app
 
 # 生产环境 - 使用环境变量
-GOHUB_CONFIG_DIR=/opt/gohub/configs ./gohub-app
+GATEWAY_CONFIG_DIR=/opt/gateway/configs ./gateway-app
 
 # 临时测试 - 使用命令行参数
-./gohub-app --config /tmp/test-configs
+./gateway-app --config /tmp/test-configs
 
 # Docker 容器中
-docker run -e GOHUB_CONFIG_DIR=/app/configs gohub-app
+docker run -e GATEWAY_CONFIG_DIR=/app/configs gateway-app
 
 # Windows 服务中（自动设置环境变量）
-# 服务会自动使用 GOHUB_CONFIG_DIR 环境变量
+# 服务会自动使用 GATEWAY_CONFIG_DIR 环境变量
 ``` 

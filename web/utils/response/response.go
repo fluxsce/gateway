@@ -2,7 +2,7 @@ package response
 
 import (
 	"encoding/json"
-	"gohub/pkg/logger"
+	"gateway/pkg/logger"
 	"net/http"
 
 	"github.com/gin-gonic/gin"

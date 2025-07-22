@@ -6,21 +6,21 @@ import (
 	"os"
 	"time"
 
-	"gohub/pkg/config"
-	"gohub/pkg/logger"
-	"gohub/pkg/utils/random"
+	"gateway/pkg/config"
+	"gateway/pkg/logger"
+	"gateway/pkg/utils/random"
 )
 
 // MetricConfig 指标采集配置
 // 定义了采集器的各种配置参数，包括采集间隔、存储配置、数据保留策略等
 type MetricConfig struct {
 	// 基础配置
-	Enabled         bool          `yaml:"enabled" mapstructure:"enabled" json:"enabled"`                               // 是否启用指标采集
-	CollectInterval time.Duration `yaml:"collect_interval" mapstructure:"collect_interval" json:"collect_interval"`   // 采集间隔时间
-	AutoStart       bool          `yaml:"auto_start" mapstructure:"auto_start" json:"auto_start"`                     // 是否自动启动
-	TenantId        string        `yaml:"tenant_id" mapstructure:"tenant_id" json:"tenant_id"`                        // 租户ID
-	ServerId        string        `yaml:"server_id" mapstructure:"server_id" json:"server_id"`                        // 服务器ID
-	Operator        string        `yaml:"operator" mapstructure:"operator" json:"operator"`                           // 操作人
+	Enabled         bool          `yaml:"enabled" mapstructure:"enabled" json:"enabled"`                            // 是否启用指标采集
+	CollectInterval time.Duration `yaml:"collect_interval" mapstructure:"collect_interval" json:"collect_interval"` // 采集间隔时间
+	AutoStart       bool          `yaml:"auto_start" mapstructure:"auto_start" json:"auto_start"`                   // 是否自动启动
+	TenantId        string        `yaml:"tenant_id" mapstructure:"tenant_id" json:"tenant_id"`                      // 租户ID
+	ServerId        string        `yaml:"server_id" mapstructure:"server_id" json:"server_id"`                      // 服务器ID
+	Operator        string        `yaml:"operator" mapstructure:"operator" json:"operator"`                         // 操作人
 
 	// 采集器配置
 	Collectors CollectorConfig `yaml:"collectors" mapstructure:"collectors" json:"collectors"`
@@ -44,9 +44,9 @@ type CollectorConfig struct {
 // StorageConfig 存储配置
 // 定义了数据存储相关的配置参数
 type StorageConfig struct {
-	BatchSize     int           `yaml:"batch_size" mapstructure:"batch_size" json:"batch_size"`           // 批量写入大小
+	BatchSize     int           `yaml:"batch_size" mapstructure:"batch_size" json:"batch_size"`             // 批量写入大小
 	FlushInterval time.Duration `yaml:"flush_interval" mapstructure:"flush_interval" json:"flush_interval"` // 数据刷新间隔
-	MaxRetry      int           `yaml:"max_retry" mapstructure:"max_retry" json:"max_retry"`               // 最大重试次数
+	MaxRetry      int           `yaml:"max_retry" mapstructure:"max_retry" json:"max_retry"`                // 最大重试次数
 
 	// 数据保留策略
 	Retention RetentionConfig `yaml:"retention" mapstructure:"retention" json:"retention"`
@@ -55,9 +55,9 @@ type StorageConfig struct {
 // RetentionConfig 数据保留配置
 // 定义了历史数据的保留和清理策略
 type RetentionConfig struct {
-	Enabled         bool          `yaml:"enabled" mapstructure:"enabled" json:"enabled"`                               // 是否启用数据清理
-	KeepDays        int           `yaml:"keep_days" mapstructure:"keep_days" json:"keep_days"`                         // 数据保留天数
-	CleanupInterval time.Duration `yaml:"cleanup_interval" mapstructure:"cleanup_interval" json:"cleanup_interval"`   // 清理执行间隔
+	Enabled         bool          `yaml:"enabled" mapstructure:"enabled" json:"enabled"`                            // 是否启用数据清理
+	KeepDays        int           `yaml:"keep_days" mapstructure:"keep_days" json:"keep_days"`                      // 数据保留天数
+	CleanupInterval time.Duration `yaml:"cleanup_interval" mapstructure:"cleanup_interval" json:"cleanup_interval"` // 清理执行间隔
 }
 
 // ConfigValidator 配置验证器
@@ -93,12 +93,12 @@ func (v *ConfigValidator) LoadMetricConfig() (*MetricConfig, error) {
 // 返回一个包含合理默认值的配置实例
 func (v *ConfigValidator) getDefaultMetricConfig() *MetricConfig {
 	cfg := &MetricConfig{
-		Enabled:         false,                // 默认不启用，需要显式配置
-		CollectInterval: 30 * time.Second,    // 默认30秒采集一次
-		AutoStart:       false,               // 默认不自动启动
-		TenantId:        "default",           // 默认租户
-		ServerId:        "",                  // 服务器ID将自动生成
-		Operator:        "system",            // 默认操作人
+		Enabled:         false,            // 默认不启用，需要显式配置
+		CollectInterval: 30 * time.Second, // 默认30秒采集一次
+		AutoStart:       false,            // 默认不自动启动
+		TenantId:        "default",        // 默认租户
+		ServerId:        "",               // 服务器ID将自动生成
+		Operator:        "system",         // 默认操作人
 	}
 
 	// 默认启用所有采集器（除了温度）
@@ -114,13 +114,13 @@ func (v *ConfigValidator) getDefaultMetricConfig() *MetricConfig {
 
 	// 默认存储配置
 	cfg.Storage = StorageConfig{
-		BatchSize:     100,                // 批量写入100条记录
-		FlushInterval: 60 * time.Second,   // 每60秒刷新一次
-		MaxRetry:      3,                  // 最大重试3次
+		BatchSize:     100,              // 批量写入100条记录
+		FlushInterval: 60 * time.Second, // 每60秒刷新一次
+		MaxRetry:      3,                // 最大重试3次
 		Retention: RetentionConfig{
-			Enabled:         true,              // 启用数据清理
-			KeepDays:        30,                // 保留30天数据
-			CleanupInterval: 24 * time.Hour,    // 每24小时清理一次
+			Enabled:         true,           // 启用数据清理
+			KeepDays:        30,             // 保留30天数据
+			CleanupInterval: 24 * time.Hour, // 每24小时清理一次
 		},
 	}
 
@@ -346,4 +346,4 @@ func (cfg *MetricConfig) IsValid() bool {
 func (cfg *MetricConfig) String() string {
 	return fmt.Sprintf("MetricConfig{Enabled: %t, CollectInterval: %v, TenantId: %s, ServerId: %s, EnabledCollectors: %v}",
 		cfg.Enabled, cfg.CollectInterval, cfg.TenantId, cfg.ServerId, cfg.GetEnabledCollectorNames())
-} 
+}

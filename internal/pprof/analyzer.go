@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"time"
 
-	"gohub/pkg/logger"
+	"gateway/pkg/logger"
 )
 
 // Analyzer pprof分析器
@@ -34,7 +34,7 @@ func (a *Analyzer) RunAnalysis() error {
 	// 创建时间戳目录
 	timestamp := time.Now().Format("20060102_150405")
 	outputDir := filepath.Join(a.config.AutoAnalysis.OutputDir, timestamp)
-	
+
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("创建输出目录失败: %w", err)
 	}
@@ -67,25 +67,25 @@ func (a *Analyzer) RunAnalysis() error {
 // collectProfiles 收集profile数据
 func (a *Analyzer) collectProfiles(outputDir string) error {
 	baseURL := fmt.Sprintf("http://localhost%s/debug/pprof", a.config.Listen)
-	
+
 	profiles := map[string]string{
-		"cpu":       fmt.Sprintf("%s/profile?seconds=%d", baseURL, int(a.config.AutoAnalysis.CPUSampleDuration.Seconds())),
-		"heap":      fmt.Sprintf("%s/heap", baseURL),
-		"goroutine": fmt.Sprintf("%s/goroutine", baseURL),
-		"allocs":    fmt.Sprintf("%s/allocs", baseURL),
-		"block":     fmt.Sprintf("%s/block", baseURL),
-		"mutex":     fmt.Sprintf("%s/mutex", baseURL),
+		"cpu":          fmt.Sprintf("%s/profile?seconds=%d", baseURL, int(a.config.AutoAnalysis.CPUSampleDuration.Seconds())),
+		"heap":         fmt.Sprintf("%s/heap", baseURL),
+		"goroutine":    fmt.Sprintf("%s/goroutine", baseURL),
+		"allocs":       fmt.Sprintf("%s/allocs", baseURL),
+		"block":        fmt.Sprintf("%s/block", baseURL),
+		"mutex":        fmt.Sprintf("%s/mutex", baseURL),
 		"threadcreate": fmt.Sprintf("%s/threadcreate", baseURL),
 	}
 
 	for profileType, url := range profiles {
 		filename := filepath.Join(outputDir, fmt.Sprintf("%s.prof", profileType))
-		
+
 		if err := a.downloadProfile(url, filename); err != nil {
 			logger.Error("下载profile失败", "type", profileType, "error", err)
 			continue
 		}
-		
+
 		logger.Debug("收集profile成功", "type", profileType, "file", filename)
 	}
 
@@ -137,7 +137,7 @@ func (a *Analyzer) generateReports(outputDir string) error {
 
 	for reportType, profileFile := range reports {
 		profilePath := filepath.Join(outputDir, profileFile)
-		
+
 		// 检查profile文件是否存在
 		if _, err := os.Stat(profilePath); os.IsNotExist(err) {
 			continue
@@ -165,7 +165,7 @@ func (a *Analyzer) generateReports(outputDir string) error {
 // generateTopReport 生成top报告
 func (a *Analyzer) generateTopReport(profilePath, outputDir, reportType string) error {
 	outputFile := filepath.Join(outputDir, fmt.Sprintf("%s_top.txt", reportType))
-	
+
 	cmd := exec.Command("go", "tool", "pprof", "-top", profilePath)
 	output, err := cmd.Output()
 	if err != nil {
@@ -178,7 +178,7 @@ func (a *Analyzer) generateTopReport(profilePath, outputDir, reportType string) 
 // generateDetailedReport 生成详细报告
 func (a *Analyzer) generateDetailedReport(profilePath, outputDir, reportType string) error {
 	outputFile := filepath.Join(outputDir, fmt.Sprintf("%s_list.txt", reportType))
-	
+
 	cmd := exec.Command("go", "tool", "pprof", "-list", ".*", profilePath)
 	output, err := cmd.Output()
 	if err != nil {
@@ -191,10 +191,10 @@ func (a *Analyzer) generateDetailedReport(profilePath, outputDir, reportType str
 // generateSystemReport 生成系统信息报告
 func (a *Analyzer) generateSystemReport(outputDir string) error {
 	outputFile := filepath.Join(outputDir, "system_info.txt")
-	
+
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-	
+
 	info := fmt.Sprintf(`系统信息报告
 生成时间: %s
 Go版本: %s
@@ -253,7 +253,7 @@ func (a *Analyzer) cleanupOldData() error {
 	}
 
 	cutoffTime := time.Now().AddDate(0, 0, -a.config.AutoAnalysis.HistoryRetentionDays)
-	
+
 	entries, err := os.ReadDir(a.config.AutoAnalysis.OutputDir)
 	if err != nil {
 		return err
@@ -306,13 +306,13 @@ func (a *Analyzer) GetAnalysisHistory() ([]string, error) {
 // GetAnalysisReport 获取指定时间的分析报告
 func (a *Analyzer) GetAnalysisReport(timestamp string) (map[string]string, error) {
 	reportDir := filepath.Join(a.config.AutoAnalysis.OutputDir, timestamp)
-	
+
 	if _, err := os.Stat(reportDir); os.IsNotExist(err) {
 		return nil, fmt.Errorf("分析报告不存在: %s", timestamp)
 	}
 
 	reports := make(map[string]string)
-	
+
 	// 读取所有报告文件
 	entries, err := os.ReadDir(reportDir)
 	if err != nil {
@@ -336,4 +336,4 @@ func (a *Analyzer) GetAnalysisReport(timestamp string) (map[string]string, error
 	}
 
 	return reports, nil
-} 
+}

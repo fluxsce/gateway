@@ -1,7 +1,7 @@
 package service
 
 import (
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 	"sync"
 	"time"
 )

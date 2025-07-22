@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/pkg/utils/ctime"
-	"gohub/pkg/utils/huberrors"
-	"gohub/web/views/hub0023/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/pkg/utils/ctime"
+	"gateway/pkg/utils/huberrors"
+	"gateway/web/views/hub0023/models"
 )
 
 // ClickHouseQueryDAO ClickHouse查询数据访问对象
@@ -72,7 +72,7 @@ func (dao *ClickHouseQueryDAO) QueryGatewayLogs(ctx context.Context, req *models
 	// 构建分页查询 - ClickHouse使用LIMIT OFFSET语法
 	var paginatedQuery string
 	var allArgs []interface{}
-	
+
 	if req.PageSize > 0 {
 		offset := (req.PageIndex - 1) * req.PageSize
 		paginatedQuery = baseQuery + fmt.Sprintf(" LIMIT %d OFFSET %d", req.PageSize, offset)
@@ -318,4 +318,4 @@ func (dao *ClickHouseQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLo
 	}
 
 	return whereClause, params, nil
-} 
+}

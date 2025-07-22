@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"gohub/pkg/mongo/types"
+	"gateway/pkg/mongo/types"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -31,9 +31,10 @@ import (
 // - 高性能的类型匹配
 //
 // 使用示例：
-//   converter := NewFieldValueConverter()
-//   result, err := converter.ConvertToGoValue(mongoValue, targetType)
-//   result, err := converter.ConvertFromGoValue(goValue)
+//
+//	converter := NewFieldValueConverter()
+//	result, err := converter.ConvertToGoValue(mongoValue, targetType)
+//	result, err := converter.ConvertFromGoValue(goValue)
 //
 // 注意事项：
 // - 线程安全，可以并发调用
@@ -46,11 +47,13 @@ type FieldValueConverter struct {
 // NewFieldValueConverter 创建新的字段值转换器
 //
 // 返回值：
-//   *FieldValueConverter - 字段值转换器实例
+//
+//	*FieldValueConverter - 字段值转换器实例
 //
 // 使用示例：
-//   converter := NewFieldValueConverter()
-//   // 无需清理，因为是无状态的
+//
+//	converter := NewFieldValueConverter()
+//	// 无需清理，因为是无状态的
 //
 // 注意事项：
 // - 无状态设计，可以全局复用
@@ -66,12 +69,14 @@ func NewFieldValueConverter() *FieldValueConverter {
 // ConvertToGoValue 将MongoDB文档值转换为Go类型（从MongoDB到Go）
 //
 // 参数：
-//   value - MongoDB文档中的值
-//   targetType - 目标Go类型
+//
+//	value - MongoDB文档中的值
+//	targetType - 目标Go类型
 //
 // 返回值：
-//   interface{} - 转换后的Go值
-//   error - 转换错误，nil表示成功
+//
+//	interface{} - 转换后的Go值
+//	error - 转换错误，nil表示成功
 //
 // 转换支持：
 // - 基本类型：string, int, float, bool等
@@ -84,7 +89,7 @@ func (fvc *FieldValueConverter) ConvertToGoValue(value interface{}, targetType r
 	}
 
 	valueType := reflect.TypeOf(value)
-	
+
 	// 直接类型匹配 - 最快的路径
 	if valueType != nil && valueType == targetType {
 		return value, nil
@@ -151,12 +156,14 @@ func (fvc *FieldValueConverter) ConvertToGoValue(value interface{}, targetType r
 // ConvertFromGoValue 将Go值转换为MongoDB文档兼容的值（从Go到MongoDB）
 //
 // 参数：
-//   value - Go语言的值
-//   structConverter - 结构体转换回调函数，用于处理结构体类型
+//
+//	value - Go语言的值
+//	structConverter - 结构体转换回调函数，用于处理结构体类型
 //
 // 返回值：
-//   interface{} - 转换后的MongoDB兼容值
-//   error - 转换错误，nil表示成功
+//
+//	interface{} - 转换后的MongoDB兼容值
+//	error - 转换错误，nil表示成功
 //
 // 转换规则：
 // - 基本类型直接返回
@@ -254,11 +261,13 @@ func (fvc *FieldValueConverter) ConvertFromGoValue(value interface{}, structConv
 // ConvertFromGoValueSimple 简单版本的Go值转换（不支持结构体递归转换）
 //
 // 参数：
-//   value - Go语言的值
+//
+//	value - Go语言的值
 //
 // 返回值：
-//   interface{} - 转换后的MongoDB兼容值
-//   error - 转换错误，nil表示成功
+//
+//	interface{} - 转换后的MongoDB兼容值
+//	error - 转换错误，nil表示成功
 //
 // 注意事项：
 // - 不支持结构体递归转换
@@ -271,10 +280,12 @@ func (fvc *FieldValueConverter) ConvertFromGoValueSimple(value interface{}) (int
 // IsEmptyValue 检查值是否为空（用于omitempty标签处理）
 //
 // 参数：
-//   v - 要检查的反射值
+//
+//	v - 要检查的反射值
 //
 // 返回值：
-//   bool - true表示为空值
+//
+//	bool - true表示为空值
 //
 // 空值定义：
 // - nil指针
@@ -523,16 +534,16 @@ func (fvc *FieldValueConverter) convertToTime(value interface{}) (time.Time, err
 	case string:
 		// 尝试多种时间格式
 		formats := []string{
-			time.RFC3339,     // 2006-01-02T15:04:05Z07:00 (带时区)
-			time.RFC3339Nano, // 2006-01-02T15:04:05.999999999Z07:00 (带时区)
+			time.RFC3339,          // 2006-01-02T15:04:05Z07:00 (带时区)
+			time.RFC3339Nano,      // 2006-01-02T15:04:05.999999999Z07:00 (带时区)
 			"2006-01-02 15:04:05", // 无时区信息，按本地时区解析
 			"2006-01-02T15:04:05", // 无时区信息，按本地时区解析
 			"2006-01-02",          // 仅日期，按本地时区解析
 		}
-		
+
 		var parsedTime time.Time
 		var err error
-		
+
 		for _, format := range formats {
 			parsedTime, err = time.Parse(format, v)
 			if err == nil {
@@ -540,7 +551,7 @@ func (fvc *FieldValueConverter) convertToTime(value interface{}) (time.Time, err
 				return parsedTime, nil
 			}
 		}
-		
+
 		// 如果标准格式都无法解析，尝试按本地时区解析
 		for _, format := range formats {
 			parsedTime, err = time.ParseInLocation(format, v, time.Local)
@@ -549,7 +560,7 @@ func (fvc *FieldValueConverter) convertToTime(value interface{}) (time.Time, err
 				return parsedTime, nil
 			}
 		}
-		
+
 		return time.Time{}, fmt.Errorf("无法解析时间格式，支持的格式: %v，当前值: %s", formats, v)
 	case int64:
 		// Unix时间戳（秒）- 直接返回本地时间
@@ -561,10 +572,10 @@ func (fvc *FieldValueConverter) convertToTime(value interface{}) (time.Time, err
 		// primitive.DateTime 转换为 time.Time
 		// primitive.DateTime 存储的是从Unix纪元开始的毫秒数（UTC时间）
 		// 需要除以1000转换为秒，然后创建time.Time对象
-		
+
 		// 创建UTC时间（MongoDB存储的是UTC时间戳）
 		utcTime := time.Unix(int64(v)/1000, (int64(v)%1000)*1000000).UTC()
-		
+
 		// 重要：由于写入时通过 ConvertGoTimeToMongo 预先加了时区偏移量
 		// 读取时需要减去时区偏移量，恢复原始的本地时间显示
 		if utcTime.Location() == time.UTC {
@@ -575,7 +586,7 @@ func (fvc *FieldValueConverter) convertToTime(value interface{}) (time.Time, err
 			adjustedTime := utcTime.Add(-time.Duration(offset) * time.Second)
 			return adjustedTime.In(time.Local), nil
 		}
-		
+
 		return utcTime, nil
 	default:
 		return time.Time{}, fmt.Errorf("无法转换为时间，源类型: %T", value)
@@ -641,10 +652,12 @@ func (fvc *FieldValueConverter) convertFloatToTargetType(value float64, targetTy
 // EnsureUTC 确保时间值为UTC时区（工具方法）
 //
 // 参数：
-//   t - 时间值
+//
+//	t - 时间值
 //
 // 返回值：
-//   time.Time - UTC时区的时间值
+//
+//	time.Time - UTC时区的时间值
 //
 // 使用场景：
 // - 手动转换时间为UTC时区
@@ -660,31 +673,34 @@ func (fvc *FieldValueConverter) EnsureUTC(t time.Time) time.Time {
 // ParseTimeWithTimezone 按指定时区解析时间字符串
 //
 // 参数：
-//   timeStr - 时间字符串
-//   format - 时间格式
-//   location - 时区信息，nil表示使用本地时区
+//
+//	timeStr - 时间字符串
+//	format - 时间格式
+//	location - 时区信息，nil表示使用本地时区
 //
 // 返回值：
-//   time.Time - 解析后的时间（保持指定时区）
-//   error - 解析错误
+//
+//	time.Time - 解析后的时间（保持指定时区）
+//	error - 解析错误
 //
 // 使用示例：
-//   // 按中国时区解析
-//   loc, _ := time.LoadLocation("Asia/Shanghai")
-//   t, err := converter.ParseTimeWithTimezone("2023-01-01 12:00:00", "2006-01-02 15:04:05", loc)
 //
-//   // 按本地时区解析
-//   t, err := converter.ParseTimeWithTimezone("2023-01-01 12:00:00", "2006-01-02 15:04:05", nil)
+//	// 按中国时区解析
+//	loc, _ := time.LoadLocation("Asia/Shanghai")
+//	t, err := converter.ParseTimeWithTimezone("2023-01-01 12:00:00", "2006-01-02 15:04:05", loc)
+//
+//	// 按本地时区解析
+//	t, err := converter.ParseTimeWithTimezone("2023-01-01 12:00:00", "2006-01-02 15:04:05", nil)
 func (fvc *FieldValueConverter) ParseTimeWithTimezone(timeStr, format string, location *time.Location) (time.Time, error) {
 	if location == nil {
 		location = time.Local
 	}
-	
+
 	parsedTime, err := time.ParseInLocation(format, timeStr, location)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("解析时间失败: %v", err)
 	}
-	
+
 	// 直接返回解析后的时间，保持原有时区信息
 	return parsedTime, nil
 }
@@ -692,10 +708,12 @@ func (fvc *FieldValueConverter) ParseTimeWithTimezone(timeStr, format string, lo
 // ConvertToLocalTime 将UTC时间转换为本地时间（仅用于显示）
 //
 // 参数：
-//   utcTime - UTC时间
+//
+//	utcTime - UTC时间
 //
 // 返回值：
-//   time.Time - 本地时区的时间
+//
+//	time.Time - 本地时区的时间
 //
 // 注意事项：
 // - 此方法用于时区转换
@@ -707,22 +725,25 @@ func (fvc *FieldValueConverter) ConvertToLocalTime(utcTime time.Time) time.Time 
 // ConvertToTimezone 将时间转换为指定时区
 //
 // 参数：
-//   t - 源时间
-//   location - 目标时区
+//
+//	t - 源时间
+//	location - 目标时区
 //
 // 返回值：
-//   time.Time - 指定时区的时间
-//   error - 转换错误
+//
+//	time.Time - 指定时区的时间
+//	error - 转换错误
 //
 // 使用示例：
-//   // 转换为中国时区
-//   loc, _ := time.LoadLocation("Asia/Shanghai")
-//   chinaTime, err := converter.ConvertToTimezone(utcTime, loc)
+//
+//	// 转换为中国时区
+//	loc, _ := time.LoadLocation("Asia/Shanghai")
+//	chinaTime, err := converter.ConvertToTimezone(utcTime, loc)
 func (fvc *FieldValueConverter) ConvertToTimezone(t time.Time, location *time.Location) (time.Time, error) {
 	if location == nil {
 		return time.Time{}, fmt.Errorf("时区信息不能为nil")
 	}
-	
+
 	return t.In(location), nil
 }
 
@@ -734,12 +755,14 @@ func (fvc *FieldValueConverter) ConvertToTimezone(t time.Time, location *time.Lo
 // 专门处理 MongoDB 的 primitive.A 类型和其他数组类型
 //
 // 参数：
-//   value - 源值（可能是 primitive.A、[]interface{} 或其他切片类型）
-//   targetType - 目标类型（切片或数组）
+//
+//	value - 源值（可能是 primitive.A、[]interface{} 或其他切片类型）
+//	targetType - 目标类型（切片或数组）
 //
 // 返回值：
-//   interface{} - 转换后的切片或数组
-//   error - 转换错误
+//
+//	interface{} - 转换后的切片或数组
+//	error - 转换错误
 //
 // 支持的转换：
 // - primitive.A -> []int, []string, []float64 等
@@ -752,7 +775,7 @@ func (fvc *FieldValueConverter) convertToSliceOrArray(value interface{}, targetT
 	}
 
 	var sourceSlice []interface{}
-	
+
 	// 处理不同的源类型
 	switch v := value.(type) {
 	case primitive.A:
@@ -823,22 +846,22 @@ func (fvc *FieldValueConverter) convertToSliceOrArray(value interface{}, targetT
 
 	// 获取目标元素类型
 	elemType := targetType.Elem()
-	
+
 	// 创建目标切片
 	resultSlice := reflect.MakeSlice(targetType, len(sourceSlice), len(sourceSlice))
-	
+
 	// 转换每个元素
 	for i, item := range sourceSlice {
 		convertedItem, err := fvc.ConvertToGoValue(item, elemType)
 		if err != nil {
 			return nil, fmt.Errorf("转换切片元素 %d 失败: %v", i, err)
 		}
-		
+
 		if convertedItem != nil {
 			resultSlice.Index(i).Set(reflect.ValueOf(convertedItem))
 		}
 	}
-	
+
 	// 处理数组类型
 	if targetType.Kind() == reflect.Array {
 		// 创建数组
@@ -849,6 +872,6 @@ func (fvc *FieldValueConverter) convertToSliceOrArray(value interface{}, targetT
 		reflect.Copy(resultArray, resultSlice)
 		return resultArray.Interface(), nil
 	}
-	
+
 	return resultSlice.Interface(), nil
 }

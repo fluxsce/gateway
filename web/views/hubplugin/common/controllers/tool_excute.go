@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"gohub/internal/timerinit/sftp"
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
+	"gateway/internal/timerinit/sftp"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
 
 	"github.com/gin-gonic/gin"
 )
@@ -41,7 +41,7 @@ func (c *ToolExecuteController) TestToolExecution(ctx *gin.Context) {
 		ToolConfigId string `json:"toolConfigId" binding:"required"`
 		ToolType     string `json:"toolType" binding:"required"`
 	}
-	
+
 	if err := request.BindSafely(ctx, &params); err != nil {
 		logger.Error("工具执行测试参数解析失败", "error", err, "params", params)
 		response.ErrorJSON(ctx, "参数解析失败: "+err.Error(), constants.ED00006)
@@ -63,7 +63,7 @@ func (c *ToolExecuteController) TestToolExecution(ctx *gin.Context) {
 
 	// 根据工具类型创建执行器并测试
 	result := c.testByToolType(testCtx, tenantId, params.ToolConfigId, params.ToolType)
-	
+
 	// 检查测试结果
 	if success, ok := result["success"].(bool); ok && success {
 		logger.Info("工具执行测试成功", "tenantId", tenantId, "toolConfigId", params.ToolConfigId, "toolType", params.ToolType)
@@ -98,10 +98,10 @@ func (c *ToolExecuteController) TestToolExecution(ctx *gin.Context) {
 		}
 
 		// 记录详细的错误日志
-		logger.Error("工具执行测试失败", 
-			"tenantId", tenantId, 
-			"toolConfigId", params.ToolConfigId, 
-			"toolType", params.ToolType, 
+		logger.Error("工具执行测试失败",
+			"tenantId", tenantId,
+			"toolConfigId", params.ToolConfigId,
+			"toolType", params.ToolType,
 			"message", errorMessage,
 			"detail", detailError,
 			"result", result)

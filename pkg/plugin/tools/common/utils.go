@@ -13,16 +13,19 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	
-	"gohub/pkg/plugin/tools/types"
+
+	"gateway/pkg/plugin/tools/types"
 )
 
 // FileExists 检查文件是否存在
 // 参数:
-//   path: 文件路径
+//
+//	path: 文件路径
+//
 // 返回:
-//   bool: 文件是否存在
-//   error: 检查过程中的错误
+//
+//	bool: 文件是否存在
+//	error: 检查过程中的错误
 func FileExists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err == nil {
@@ -36,10 +39,13 @@ func FileExists(path string) (bool, error) {
 
 // IsDirectory 检查路径是否为目录
 // 参数:
-//   path: 文件路径
+//
+//	path: 文件路径
+//
 // 返回:
-//   bool: 是否为目录
-//   error: 检查过程中的错误
+//
+//	bool: 是否为目录
+//	error: 检查过程中的错误
 func IsDirectory(path string) (bool, error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -50,16 +56,19 @@ func IsDirectory(path string) (bool, error) {
 
 // EnsureDirectoryExists 确保目录存在，如果不存在则创建
 // 参数:
-//   path: 目录路径
-//   recursive: 是否递归创建父目录
+//
+//	path: 目录路径
+//	recursive: 是否递归创建父目录
+//
 // 返回:
-//   error: 创建过程中的错误
+//
+//	error: 创建过程中的错误
 func EnsureDirectoryExists(path string, recursive bool) error {
 	exists, err := FileExists(path)
 	if err != nil {
 		return err
 	}
-	
+
 	if exists {
 		isDir, err := IsDirectory(path)
 		if err != nil {
@@ -70,7 +79,7 @@ func EnsureDirectoryExists(path string, recursive bool) error {
 		}
 		return nil
 	}
-	
+
 	if recursive {
 		return os.MkdirAll(path, 0755)
 	}
@@ -79,16 +88,19 @@ func EnsureDirectoryExists(path string, recursive bool) error {
 
 // GetFileInfo 获取文件信息
 // 参数:
-//   path: 文件路径
+//
+//	path: 文件路径
+//
 // 返回:
-//   *types.FileInfo: 文件信息
-//   error: 获取过程中的错误
+//
+//	*types.FileInfo: 文件信息
+//	error: 获取过程中的错误
 func GetFileInfo(path string) (*types.FileInfo, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	fileInfo := &types.FileInfo{
 		Name:    info.Name(),
 		Path:    path,
@@ -97,26 +109,29 @@ func GetFileInfo(path string) (*types.FileInfo, error) {
 		ModTime: info.ModTime(),
 		Mode:    info.Mode(),
 	}
-	
+
 	return fileInfo, nil
 }
 
 // CalculateFileChecksum 计算文件校验和
 // 参数:
-//   path: 文件路径
-//   algorithm: 校验和算法 (md5, sha1, sha256)
+//
+//	path: 文件路径
+//	algorithm: 校验和算法 (md5, sha1, sha256)
+//
 // 返回:
-//   string: 校验和字符串
-//   error: 计算过程中的错误
+//
+//	string: 校验和字符串
+//	error: 计算过程中的错误
 func CalculateFileChecksum(path string, algorithm string) (string, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return "", err
 	}
 	defer file.Close()
-	
+
 	var hasher hash.Hash
-	
+
 	switch strings.ToLower(algorithm) {
 	case "md5":
 		hasher = md5.New()
@@ -127,25 +142,28 @@ func CalculateFileChecksum(path string, algorithm string) (string, error) {
 	default:
 		return "", fmt.Errorf("unsupported checksum algorithm: %s", algorithm)
 	}
-	
+
 	if _, err := io.Copy(hasher, file); err != nil {
 		return "", err
 	}
-	
+
 	result := hasher.Sum(nil)
-	
+
 	return hex.EncodeToString(result), nil
 }
 
 // NormalizePath 标准化路径，处理路径分隔符和相对路径
 // 参数:
-//   path: 原始路径
-//   isUnix: 是否使用Unix风格路径（/）
+//
+//	path: 原始路径
+//	isUnix: 是否使用Unix风格路径（/）
+//
 // 返回:
-//   string: 标准化后的路径
+//
+//	string: 标准化后的路径
 func NormalizePath(path string, isUnix bool) string {
 	path = filepath.Clean(path)
-	
+
 	if isUnix {
 		return strings.ReplaceAll(path, "\\", "/")
 	}
@@ -154,13 +172,16 @@ func NormalizePath(path string, isUnix bool) string {
 
 // JoinPaths 连接路径，处理不同操作系统的路径分隔符
 // 参数:
-//   isUnix: 是否使用Unix风格路径（/）
-//   elem: 路径元素
+//
+//	isUnix: 是否使用Unix风格路径（/）
+//	elem: 路径元素
+//
 // 返回:
-//   string: 连接后的路径
+//
+//	string: 连接后的路径
 func JoinPaths(isUnix bool, elem ...string) string {
 	result := filepath.Join(elem...)
-	
+
 	if isUnix {
 		return strings.ReplaceAll(result, "\\", "/")
 	}
@@ -169,12 +190,15 @@ func JoinPaths(isUnix bool, elem ...string) string {
 
 // MatchPattern 检查路径是否匹配给定的模式
 // 参数:
-//   path: 文件路径
-//   pattern: 匹配模式（支持glob和正则表达式）
-//   isRegex: 是否为正则表达式模式
+//
+//	path: 文件路径
+//	pattern: 匹配模式（支持glob和正则表达式）
+//	isRegex: 是否为正则表达式模式
+//
 // 返回:
-//   bool: 是否匹配
-//   error: 匹配过程中的错误
+//
+//	bool: 是否匹配
+//	error: 匹配过程中的错误
 func MatchPattern(path string, pattern string, isRegex bool) (bool, error) {
 	if isRegex {
 		re, err := regexp.Compile(pattern)
@@ -183,15 +207,18 @@ func MatchPattern(path string, pattern string, isRegex bool) (bool, error) {
 		}
 		return re.MatchString(path), nil
 	}
-	
+
 	return filepath.Match(pattern, path)
 }
 
 // FormatBytes 格式化字节数为人类可读的形式
 // 参数:
-//   bytes: 字节数
+//
+//	bytes: 字节数
+//
 // 返回:
-//   string: 格式化后的字符串
+//
+//	string: 格式化后的字符串
 func FormatBytes(bytes int64) string {
 	const unit = 1024
 	if bytes < unit {
@@ -207,24 +234,27 @@ func FormatBytes(bytes int64) string {
 
 // FormatDuration 格式化持续时间为人类可读的形式
 // 参数:
-//   d: 持续时间
+//
+//	d: 持续时间
+//
 // 返回:
-//   string: 格式化后的字符串
+//
+//	string: 格式化后的字符串
 func FormatDuration(d time.Duration) string {
 	if d < time.Second {
 		return fmt.Sprintf("%d ms", d.Milliseconds())
 	}
-	
+
 	if d < time.Minute {
 		return fmt.Sprintf("%.1f sec", d.Seconds())
 	}
-	
+
 	if d < time.Hour {
 		minutes := d / time.Minute
 		seconds := (d % time.Minute) / time.Second
 		return fmt.Sprintf("%d min %d sec", minutes, seconds)
 	}
-	
+
 	hours := d / time.Hour
 	minutes := (d % time.Hour) / time.Minute
 	return fmt.Sprintf("%d hr %d min", hours, minutes)
@@ -232,9 +262,12 @@ func FormatDuration(d time.Duration) string {
 
 // GenerateUniqueID 生成唯一标识符
 // 参数:
-//   prefix: 标识符前缀
+//
+//	prefix: 标识符前缀
+//
 // 返回:
-//   string: 唯一标识符
+//
+//	string: 唯一标识符
 func GenerateUniqueID(prefix string) string {
 	timestamp := time.Now().UnixNano()
 	return fmt.Sprintf("%s_%d", prefix, timestamp)
@@ -242,19 +275,22 @@ func GenerateUniqueID(prefix string) string {
 
 // FilterFiles 根据模式过滤文件列表
 // 参数:
-//   files: 文件列表
-//   includePatterns: 包含模式列表
-//   excludePatterns: 排除模式列表
+//
+//	files: 文件列表
+//	includePatterns: 包含模式列表
+//	excludePatterns: 排除模式列表
+//
 // 返回:
-//   []*types.FileInfo: 过滤后的文件列表
-//   error: 过滤过程中的错误
+//
+//	[]*types.FileInfo: 过滤后的文件列表
+//	error: 过滤过程中的错误
 func FilterFiles(files []*types.FileInfo, includePatterns, excludePatterns []string) ([]*types.FileInfo, error) {
 	if len(includePatterns) == 0 && len(excludePatterns) == 0 {
 		return files, nil
 	}
-	
+
 	var result []*types.FileInfo
-	
+
 	for _, file := range files {
 		// 如果有排除模式，检查文件是否被排除
 		excluded := false
@@ -268,11 +304,11 @@ func FilterFiles(files []*types.FileInfo, includePatterns, excludePatterns []str
 				break
 			}
 		}
-		
+
 		if excluded {
 			continue
 		}
-		
+
 		// 如果有包含模式，检查文件是否被包含
 		included := len(includePatterns) == 0 // 如果没有包含模式，默认包含所有文件
 		for _, pattern := range includePatterns {
@@ -285,49 +321,52 @@ func FilterFiles(files []*types.FileInfo, includePatterns, excludePatterns []str
 				break
 			}
 		}
-		
+
 		if included {
 			result = append(result, file)
 		}
 	}
-	
+
 	return result, nil
 }
 
 // CopyFile 复制文件
 // 参数:
-//   src: 源文件路径
-//   dst: 目标文件路径
-//   bufferSize: 缓冲区大小
+//
+//	src: 源文件路径
+//	dst: 目标文件路径
+//	bufferSize: 缓冲区大小
+//
 // 返回:
-//   int64: 复制的字节数
-//   error: 复制过程中的错误
+//
+//	int64: 复制的字节数
+//	error: 复制过程中的错误
 func CopyFile(src, dst string, bufferSize int) (int64, error) {
 	sourceFile, err := os.Open(src)
 	if err != nil {
 		return 0, err
 	}
 	defer sourceFile.Close()
-	
+
 	// 获取源文件信息
 	sourceInfo, err := sourceFile.Stat()
 	if err != nil {
 		return 0, err
 	}
-	
+
 	// 创建目标文件
 	destFile, err := os.Create(dst)
 	if err != nil {
 		return 0, err
 	}
 	defer destFile.Close()
-	
+
 	// 设置目标文件权限与源文件相同
 	if err := os.Chmod(dst, sourceInfo.Mode()); err != nil {
 		return 0, err
 	}
-	
+
 	// 使用指定缓冲区大小复制文件内容
 	buffer := make([]byte, bufferSize)
 	return io.CopyBuffer(destFile, sourceFile, buffer)
-} 
+}

@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# GoHub pprof性能分析服务测试脚本
+# Gateway pprof性能分析服务测试脚本
 # 注意：pprof服务已集成到主应用中，请先启动主应用
 
 set -e
 
-echo "🚀 GoHub pprof测试脚本"
+echo "🚀 Gateway pprof测试脚本"
 echo "======================="
-echo "⚠️  注意：请确保GoHub主应用已启动"
+echo "⚠️  注意：请确保Gateway主应用已启动"
 echo ""
 
 # 配置
@@ -127,7 +127,7 @@ show_usage_examples() {
     echo "📚 使用示例:"
     echo "============"
     echo ""
-    echo "1. 启动GoHub主应用:"
+    echo "1. 启动Gateway主应用:"
     echo "   go run cmd/app/main.go"
     echo ""
     echo "2. CPU分析:"
@@ -178,7 +178,7 @@ main() {
     echo "🔍 检查pprof服务状态..."
     if ! curl -s -f "http://$PPROF_HOST/health" > /dev/null; then
         echo "❌ pprof服务未运行或无法访问"
-        echo "请确保GoHub主应用正在运行"
+        echo "请确保Gateway主应用正在运行"
         echo "启动命令: go run cmd/app/main.go"
         echo "确认配置: configs/app.yaml 中 app.pprof.enabled: true"
         exit 1

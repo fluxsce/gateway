@@ -1,6 +1,6 @@
-# GoHub Gateway 高级路由
+# Gateway Gateway 高级路由
 
-GoHub Gateway 的路由系统提供了强大而灵活的请求路由功能，支持多种匹配策略和高级功能。
+Gateway Gateway 的路由系统提供了强大而灵活的请求路由功能，支持多种匹配策略和高级功能。
 
 ## 路由类型
 

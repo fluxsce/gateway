@@ -3,10 +3,10 @@ package request
 import (
 	"encoding/json"
 	"fmt"
-	"gohub/pkg/logger"
-	"gohub/web/globalmodels"
-	"gohub/web/middleware"
-	"gohub/web/utils/constants"
+	"gateway/pkg/logger"
+	"gateway/web/globalmodels"
+	"gateway/web/middleware"
+	"gateway/web/utils/constants"
 	"io"
 	"mime/multipart"
 	"reflect"
@@ -523,27 +523,29 @@ func SaveUploadedFile(c *gin.Context, fileHeader *multipart.FileHeader, dst stri
 }
 
 // GetParam 通用参数获取方法，支持从多种数据源获取参数
-// 
+//
 // 获取参数的优先级：
-// 1. Query参数 (如: ?key=value)  
+// 1. Query参数 (如: ?key=value)
 // 2. URL路径参数 (如: /api/user/:id)
 // 3. 根据Content-Type处理Body数据：
-//    - application/json: 从JSON body获取
-//    - application/x-www-form-urlencoded: 从表单数据获取
-//    - multipart/form-data: 从文件上传表单获取
+//   - application/json: 从JSON body获取
+//   - application/x-www-form-urlencoded: 从表单数据获取
+//   - multipart/form-data: 从文件上传表单获取
 //
 // 使用示例：
-//   // 获取参数，如果没有则返回空字符串
-//   id := request.GetParam(c, "id")
-//   
-//   // 获取参数，如果没有则返回默认值
-//   status := request.GetParam(c, "status", "active")
+//
+//	// 获取参数，如果没有则返回空字符串
+//	id := request.GetParam(c, "id")
+//
+//	// 获取参数，如果没有则返回默认值
+//	status := request.GetParam(c, "status", "active")
 //
 // 支持的请求类型：
-//   GET  /api/config?configId=123                    // Query参数
-//   POST /api/config {"configId": "123"}             // JSON Body
-//   POST /api/config (form: configId=123)            // 表单数据
-//   GET  /api/config/123 (路由: /api/config/:configId) // URL参数
+//
+//	GET  /api/config?configId=123                    // Query参数
+//	POST /api/config {"configId": "123"}             // JSON Body
+//	POST /api/config (form: configId=123)            // 表单数据
+//	GET  /api/config/123 (路由: /api/config/:configId) // URL参数
 //
 // 优先级：Query参数 > URL参数 > 根据Content-Type处理Body数据
 func GetParam(c *gin.Context, key string, defaultValue ...string) string {
@@ -551,15 +553,15 @@ func GetParam(c *gin.Context, key string, defaultValue ...string) string {
 	if value := c.Query(key); value != "" {
 		return value
 	}
-	
+
 	// 2. 尝试从URL路径参数获取
 	if value := c.Param(key); value != "" {
 		return value
 	}
-	
+
 	// 3. 根据Content-Type处理Body数据
 	contentType := c.GetHeader("Content-Type")
-	
+
 	if strings.Contains(contentType, "application/json") {
 		// 处理JSON数据
 		if value := getParamFromJSON(c, key); value != "" {
@@ -576,12 +578,12 @@ func GetParam(c *gin.Context, key string, defaultValue ...string) string {
 			return value
 		}
 	}
-	
+
 	// 4. 返回默认值
 	if len(defaultValue) > 0 {
 		return defaultValue[0]
 	}
-	
+
 	return ""
 }
 
@@ -601,27 +603,27 @@ func getParamFromJSON(c *gin.Context, key string) string {
 			}
 		}
 	}
-	
+
 	// 如果没有缓存数据，尝试解析JSON
 	bodyBytes, err := c.GetRawData()
 	if err != nil || len(bodyBytes) == 0 {
 		return ""
 	}
-	
+
 	var jsonData map[string]interface{}
 	if err := json.Unmarshal(bodyBytes, &jsonData); err != nil {
 		return ""
 	}
-	
+
 	// 缓存解析结果，避免重复解析
 	if c.Keys == nil {
 		c.Keys = make(map[string]interface{})
 	}
 	c.Keys["_json_params"] = jsonData
-	
+
 	// 重新设置body，以便后续的绑定操作能正常工作
 	c.Request.Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
-	
+
 	// 获取参数值
 	if value, exists := jsonData[key]; exists {
 		if strValue, ok := value.(string); ok {
@@ -630,7 +632,7 @@ func getParamFromJSON(c *gin.Context, key string) string {
 		// 如果不是字符串类型，尝试转换
 		return fmt.Sprint(value)
 	}
-	
+
 	return ""
 }
 
@@ -640,12 +642,12 @@ func GetParamInt(c *gin.Context, key string, defaultValue int) int {
 	if valueStr == "" {
 		return defaultValue
 	}
-	
+
 	value, err := strconv.Atoi(valueStr)
 	if err != nil {
 		return defaultValue
 	}
-	
+
 	return value
 }
 
@@ -655,7 +657,7 @@ func GetParamBool(c *gin.Context, key string, defaultValue bool) bool {
 	if valueStr == "" {
 		return defaultValue
 	}
-	
+
 	// 处理常见的布尔值表示
 	switch strings.ToLower(valueStr) {
 	case "1", "true", "t", "yes", "y", "on":

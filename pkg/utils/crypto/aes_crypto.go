@@ -102,7 +102,7 @@ func (c *CryptoUtil) Decrypt(encryptedData *EncryptedData) (string, error) {
 
 	// CBC模式解密
 	mode := cipher.NewCBCDecrypter(block, iv)
-	
+
 	// 解密
 	mode.CryptBlocks(ciphertext, ciphertext)
 
@@ -166,7 +166,7 @@ func InitDefaultCrypto(secretKey string) {
 func GetDefaultCrypto() *CryptoUtil {
 	if defaultCryptoUtil == nil {
 		// 使用默认密钥
-		defaultCryptoUtil = NewCryptoUtil("gohub-default-encryption-key-32chars")
+		defaultCryptoUtil = NewCryptoUtil("gateway-default-encryption-key-32chars")
 	}
 	return defaultCryptoUtil
 }
@@ -189,4 +189,4 @@ func QuickEncryptJSON(data interface{}) (*EncryptedData, error) {
 // QuickDecryptToJSON 快速解密到JSON（使用默认实例）
 func QuickDecryptToJSON(encryptedData *EncryptedData, result interface{}) error {
 	return GetDefaultCrypto().DecryptToJSON(encryptedData, result)
-} 
+}

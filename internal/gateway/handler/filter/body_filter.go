@@ -7,7 +7,7 @@ import (
 	"io"
 	"strings"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // BodyModifierType 请求体修改类型
@@ -328,7 +328,7 @@ func (f *BodyFilter) addFields(ctx *core.Context, body []byte) error {
 			for key, value := range addFields {
 				jsonData[key] = value
 			}
-			
+
 			// 重新序列化
 			newBody, err := json.Marshal(jsonData)
 			if err != nil {
@@ -351,7 +351,7 @@ func (f *BodyFilter) removeFields(ctx *core.Context, body []byte) error {
 					delete(jsonData, fieldName)
 				}
 			}
-			
+
 			// 重新序列化
 			newBody, err := json.Marshal(jsonData)
 			if err != nil {
@@ -374,7 +374,7 @@ func (f *BodyFilter) replaceValues(ctx *core.Context, body []byte) error {
 					jsonData[key] = value
 				}
 			}
-			
+
 			// 重新序列化
 			newBody, err := json.Marshal(jsonData)
 			if err != nil {
@@ -400,7 +400,7 @@ func (f *BodyFilter) filterJSONFields(ctx *core.Context, body []byte) error {
 					}
 				}
 			}
-			
+
 			// 重新序列化
 			newBody, err := json.Marshal(filteredData)
 			if err != nil {
@@ -414,13 +414,14 @@ func (f *BodyFilter) filterJSONFields(ctx *core.Context, body []byte) error {
 
 // configureBodyFilter 配置请求体过滤器
 // 支持前端传递的驼峰命名配置格式：
-// {
-//   "modifierType": "transform|validate|modify|filter",  // 必需：修改类型
-//   "operation": "string",                               // 可选：具体操作名称
-//   "filterConfig": {"key": "value"},                    // 可选：过滤器具体配置
-//   "allowedContentTypes": ["application/json"],         // 可选：允许的内容类型
-//   "maxBodySize": 1048576                               // 可选：最大请求体大小（字节）
-// }
+//
+//	{
+//	  "modifierType": "transform|validate|modify|filter",  // 必需：修改类型
+//	  "operation": "string",                               // 可选：具体操作名称
+//	  "filterConfig": {"key": "value"},                    // 可选：过滤器具体配置
+//	  "allowedContentTypes": ["application/json"],         // 可选：允许的内容类型
+//	  "maxBodySize": 1048576                               // 可选：最大请求体大小（字节）
+//	}
 func configureBodyFilter(bodyFilter *BodyFilter, config map[string]interface{}) error {
 	if config == nil {
 		return nil
@@ -440,12 +441,12 @@ func configureBodyFilter(bodyFilter *BodyFilter, config map[string]interface{}) 
 		// 驼峰命名配置处理
 		operation, _ := bodyConfig["operation"].(string)
 		filterConfig, _ := bodyConfig["filterConfig"].(map[string]interface{})
-		
+
 		// 设置修改类型
 		if modifierType == "" {
 			return fmt.Errorf("modifierType 不能为空")
 		}
-		
+
 		// 验证modifierType的有效性
 		switch strings.ToLower(modifierType) {
 		case "transform", "validate", "modify", "filter":
@@ -453,21 +454,21 @@ func configureBodyFilter(bodyFilter *BodyFilter, config map[string]interface{}) 
 		default:
 			return fmt.Errorf("无效的modifierType: %s，支持的类型: transform, validate, modify, filter", modifierType)
 		}
-		
+
 		// 设置操作类型
 		if operation != "" {
 			bodyFilter.Operation = operation
 		} else {
 			bodyFilter.Operation = strings.ToLower(modifierType)
 		}
-		
+
 		// 设置过滤器配置
 		if filterConfig != nil {
 			bodyFilter.FilterConfig = filterConfig
 		} else {
 			bodyFilter.FilterConfig = make(map[string]interface{})
 		}
-		
+
 		// 设置允许的内容类型
 		if contentTypes, ok := bodyConfig["allowedContentTypes"].([]interface{}); ok {
 			bodyFilter.AllowedContentTypes = make([]string, len(contentTypes))
@@ -477,7 +478,7 @@ func configureBodyFilter(bodyFilter *BodyFilter, config map[string]interface{}) 
 				}
 			}
 		}
-		
+
 		// 设置最大请求体大小
 		if maxSize, ok := bodyConfig["maxBodySize"].(int64); ok {
 			bodyFilter.MaxBodySize = maxSize
@@ -486,7 +487,7 @@ func configureBodyFilter(bodyFilter *BodyFilter, config map[string]interface{}) 
 		} else if maxSizeFloat, ok := bodyConfig["maxBodySize"].(float64); ok {
 			bodyFilter.MaxBodySize = int64(maxSizeFloat)
 		}
-		
+
 		return nil
 	}
 
@@ -518,4 +519,4 @@ func configureBodyFilter(bodyFilter *BodyFilter, config map[string]interface{}) 
 	bodyFilter.FilterConfig = bodyConfig
 
 	return nil
-} 
+}

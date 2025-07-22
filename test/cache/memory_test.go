@@ -3,7 +3,7 @@ package cache
 import (
 	"context"
 	"fmt"
-	"gohub/pkg/cache/memory"
+	"gateway/pkg/cache/memory"
 	"sync"
 	"testing"
 	"time"
@@ -17,12 +17,12 @@ func TestMemoryCache_BasicOperations(t *testing.T) {
 	// 创建测试配置
 	config := &memory.MemoryConfig{
 		Enabled:           true,
-		MaxSize:          1000,
+		MaxSize:           1000,
 		DefaultExpiration: time.Hour,
-		CleanupInterval:  10 * time.Minute,
-		EvictionPolicy:   memory.EvictionTTL,
-		EnableMetrics:    true,
-		KeyPrefix:        "test:",
+		CleanupInterval:   10 * time.Minute,
+		EvictionPolicy:    memory.EvictionTTL,
+		EnableMetrics:     true,
+		KeyPrefix:         "test:",
 	}
 
 	cache, err := memory.NewMemoryCache(config)
@@ -103,9 +103,9 @@ func TestMemoryCache_TTLAndExpiration(t *testing.T) {
 	config := &memory.MemoryConfig{
 		Enabled:           true,
 		DefaultExpiration: 100 * time.Millisecond,
-		CleanupInterval:  50 * time.Millisecond,
+		CleanupInterval:   50 * time.Millisecond,
 		EnableLazyCleanup: true,
-		EvictionPolicy:   memory.EvictionTTL,
+		EvictionPolicy:    memory.EvictionTTL,
 	}
 
 	cache, err := memory.NewMemoryCache(config)
@@ -185,7 +185,7 @@ func TestMemoryCache_TTLAndExpiration(t *testing.T) {
 func TestMemoryCache_BatchOperations(t *testing.T) {
 	config := &memory.MemoryConfig{
 		Enabled:        true,
-		MaxSize:       1000,
+		MaxSize:        1000,
 		EvictionPolicy: memory.EvictionTTL,
 	}
 
@@ -479,10 +479,10 @@ func TestMemoryCache_ZSetOperations(t *testing.T) {
 func TestMemoryCache_AdvancedOperations(t *testing.T) {
 	config := &memory.MemoryConfig{
 		Enabled:           true,
-		MaxSize:          1000,
+		MaxSize:           1000,
 		DefaultExpiration: time.Hour,
-		EvictionPolicy:   memory.EvictionTTL,
-		KeyPrefix:        "advanced:",
+		EvictionPolicy:    memory.EvictionTTL,
+		KeyPrefix:         "advanced:",
 	}
 
 	cache, err := memory.NewMemoryCache(config)
@@ -583,7 +583,7 @@ func TestMemoryCache_AdvancedOperations(t *testing.T) {
 func TestMemoryCache_ConcurrentAccess(t *testing.T) {
 	config := &memory.MemoryConfig{
 		Enabled:        true,
-		MaxSize:       10000,
+		MaxSize:        10000,
 		EvictionPolicy: memory.EvictionTTL,
 		EnableMetrics:  true,
 	}
@@ -621,7 +621,7 @@ func TestMemoryCache_ConcurrentAccess(t *testing.T) {
 			for j := 0; j < numOperations; j++ {
 				key := fmt.Sprintf("concurrent_key_%d_%d", i, j)
 				expectedValue := fmt.Sprintf("value_%d_%d", i, j)
-				
+
 				value, err := cache.GetString(ctx, key)
 				assert.NoError(t, err)
 				assert.Equal(t, expectedValue, value)
@@ -695,9 +695,9 @@ func TestMemoryCache_Statistics(t *testing.T) {
 
 		// 验证统计数据
 		assert.Equal(t, "memory", stats["type"])
-		assert.True(t, stats["total_ops"].(int64) >= 3) // 至少3次操作
-		assert.True(t, stats["hits"].(int64) >= 2)      // 至少2次命中
-		assert.True(t, stats["misses"].(int64) >= 1)    // 至少1次未命中
+		assert.True(t, stats["total_ops"].(int64) >= 3)   // 至少3次操作
+		assert.True(t, stats["hits"].(int64) >= 2)        // 至少2次命中
+		assert.True(t, stats["misses"].(int64) >= 1)      // 至少1次未命中
 		assert.True(t, stats["total_items"].(int64) >= 2) // 至少2个项目
 
 		hitRate := stats["hit_rate"].(float64)
@@ -839,9 +839,9 @@ func TestMemoryCache_CleanupAndEviction(t *testing.T) {
 		config := &memory.MemoryConfig{
 			Enabled:           true,
 			DefaultExpiration: 50 * time.Millisecond,
-			CleanupInterval:  25 * time.Millisecond, // 快速清理
-			EnableLazyCleanup: false, // 禁用懒惰清理，只依赖定时清理
-			EvictionPolicy:   memory.EvictionTTL,
+			CleanupInterval:   25 * time.Millisecond, // 快速清理
+			EnableLazyCleanup: false,                 // 禁用懒惰清理，只依赖定时清理
+			EvictionPolicy:    memory.EvictionTTL,
 		}
 
 		cache, err := memory.NewMemoryCache(config)
@@ -875,7 +875,7 @@ func TestMemoryCache_CleanupAndEviction(t *testing.T) {
 	t.Run("容量限制测试", func(t *testing.T) {
 		config := &memory.MemoryConfig{
 			Enabled:        true,
-			MaxSize:       5, // 很小的容量
+			MaxSize:        5, // 很小的容量
 			EvictionPolicy: memory.EvictionTTL,
 		}
 
@@ -908,7 +908,7 @@ func TestMemoryCache_CleanupAndEviction(t *testing.T) {
 func BenchmarkMemoryCache_Operations(b *testing.B) {
 	config := &memory.MemoryConfig{
 		Enabled:        true,
-		MaxSize:       100000,
+		MaxSize:        100000,
 		EvictionPolicy: memory.EvictionTTL,
 		EnableMetrics:  false, // 禁用指标以提高性能
 	}
@@ -956,7 +956,7 @@ func BenchmarkMemoryCache_Operations(b *testing.B) {
 				if err != nil {
 					b.Fatal(err)
 				}
-				
+
 				_, err = cache.GetString(ctx, key)
 				if err != nil {
 					b.Fatal(err)

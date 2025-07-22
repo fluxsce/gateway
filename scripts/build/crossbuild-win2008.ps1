@@ -1,4 +1,4 @@
-# GoHub Windows Server 2008 兼容性构建脚本
+# Gateway Windows Server 2008 兼容性构建脚本
 # 解决在 Windows Server 2008 上运行时出现的系统调用错误
 
 param(
@@ -10,7 +10,7 @@ param(
 
 if ($Help) {
     Write-Host @"
-GoHub Windows Server 2008 兼容性构建脚本
+Gateway Windows Server 2008 兼容性构建脚本
 
 用法: .\crossbuild-win2008.ps1 [参数]
 
@@ -137,7 +137,7 @@ function Build-Win2008Compatible {
         "netgo,osusergo"
     )
     
-    $outputFile = Join-Path $OutputDir "gohub-windows-server2008-amd64.exe"
+    $outputFile = Join-Path $OutputDir "gateway-windows-server2008-amd64.exe"
     
     Write-Info "构建参数:"
     Write-Info "  GOOS: $env:GOOS"
@@ -227,7 +227,7 @@ Windows Server 2008 部署说明:
 
 # 主函数
 function Main {
-    Write-Info "GoHub Windows Server 2008 兼容性构建工具"
+    Write-Info "Gateway Windows Server 2008 兼容性构建工具"
     Write-Info "版本: $Version"
     Write-Info "输出目录: $OutputDir"
     

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"gohub/internal/timerinit/common/dao"
-	"gohub/internal/types/timertypes"
-	"gohub/pkg/logger"
-	"gohub/pkg/timer"
+	"gateway/internal/timerinit/common/dao"
+	"gateway/internal/types/timertypes"
+	"gateway/pkg/logger"
+	"gateway/pkg/timer"
 )
 
 // TaskExecutorFactory 任务执行器工厂接口
@@ -16,7 +16,7 @@ import (
 type TaskExecutorFactory interface {
 	// CreateExecutor 创建任务执行器
 	CreateExecutor(ctx context.Context, task *timertypes.TimerTask) (timer.TaskExecutor, error)
-	
+
 	// GetExecutorType 获取执行器类型
 	GetExecutorType() string
 }
@@ -32,10 +32,13 @@ type BaseTaskInitializer struct {
 // NewBaseTaskInitializer 创建基础任务初始化器实例
 // 基础任务初始化器是任务初始化的核心组件，负责协调任务的创建、配置和调度
 // 参数:
-//   daoManager: 数据访问对象管理器，用于数据库操作
-//   factory: 任务执行器工厂，用于创建特定类型的任务执行器
+//
+//	daoManager: 数据访问对象管理器，用于数据库操作
+//	factory: 任务执行器工厂，用于创建特定类型的任务执行器
+//
 // 返回:
-//   *BaseTaskInitializer: 初始化器实例
+//
+//	*BaseTaskInitializer: 初始化器实例
 func NewBaseTaskInitializer(daoManager *dao.DAOManager, factory TaskExecutorFactory) *BaseTaskInitializer {
 	return &BaseTaskInitializer{
 		daoManager: daoManager,
@@ -48,10 +51,13 @@ func NewBaseTaskInitializer(daoManager *dao.DAOManager, factory TaskExecutorFact
 // 这是任务初始化的主入口方法，负责查询、转换和初始化指定租户下的所有相关任务
 // 支持批量初始化，提供详细的成功/失败统计信息
 // 参数:
-//   ctx: 上下文对象，用于控制请求生命周期和传递元数据
-//   tenantId: 租户ID，用于多租户环境下的任务隔离
+//
+//	ctx: 上下文对象，用于控制请求生命周期和传递元数据
+//	tenantId: 租户ID，用于多租户环境下的任务隔离
+//
 // 返回:
-//   error: 初始化过程中的错误信息，如果部分任务失败会返回汇总错误
+//
+//	error: 初始化过程中的错误信息，如果部分任务失败会返回汇总错误
 func (init *BaseTaskInitializer) InitializeTasks(ctx context.Context, tenantId string) error {
 	// 查询任务列表
 	tasks, err := init.getTasks(ctx, tenantId)
@@ -60,21 +66,21 @@ func (init *BaseTaskInitializer) InitializeTasks(ctx context.Context, tenantId s
 	}
 
 	if len(tasks) == 0 {
-		logger.Info("未找到需要初始化的任务", 
-			"tenantId", tenantId, 
+		logger.Info("未找到需要初始化的任务",
+			"tenantId", tenantId,
 			"executorType", init.factory.GetExecutorType())
 		return nil
 	}
 
-	logger.Info("开始初始化任务", 
-		"tenantId", tenantId, 
+	logger.Info("开始初始化任务",
+		"tenantId", tenantId,
 		"executorType", init.factory.GetExecutorType(),
 		"taskCount", len(tasks))
 
 	// 初始化每个任务
 	var initErrors []error
 	successCount := 0
-	
+
 	for _, task := range tasks {
 		if err := init.initializeSingleTask(ctx, task); err != nil {
 			logger.Error("任务初始化失败",
@@ -87,7 +93,7 @@ func (init *BaseTaskInitializer) InitializeTasks(ctx context.Context, tenantId s
 		successCount++
 	}
 
-	logger.Info("任务初始化完成", 
+	logger.Info("任务初始化完成",
 		"tenantId", tenantId,
 		"executorType", init.factory.GetExecutorType(),
 		"totalCount", len(tasks),
@@ -105,17 +111,20 @@ func (init *BaseTaskInitializer) InitializeTasks(ctx context.Context, tenantId s
 // InitializeSingleTask 初始化单个任务（公开方法）
 // 提供公开的接口用于初始化单个指定的任务
 // 参数:
-//   ctx: 上下文对象，用于控制请求生命周期
-//   task: 要初始化的数据库任务对象
+//
+//	ctx: 上下文对象，用于控制请求生命周期
+//	task: 要初始化的数据库任务对象
+//
 // 返回:
-//   error: 初始化过程中的错误信息
+//
+//	error: 初始化过程中的错误信息
 func (init *BaseTaskInitializer) InitializeSingleTask(ctx context.Context, task *timertypes.TimerTask) error {
-	logger.Info("开始初始化单个任务", 
-		"taskId", task.TaskId, 
+	logger.Info("开始初始化单个任务",
+		"taskId", task.TaskId,
 		"taskName", task.TaskName,
 		"tenantId", task.TenantId,
 		"executorType", init.factory.GetExecutorType())
-	
+
 	// 调用私有的初始化方法
 	if err := init.initializeSingleTask(ctx, task); err != nil {
 		logger.Error("单个任务初始化失败",
@@ -125,12 +134,12 @@ func (init *BaseTaskInitializer) InitializeSingleTask(ctx context.Context, task 
 			"error", err)
 		return err
 	}
-	
-	logger.Info("单个任务初始化完成", 
-		"taskId", task.TaskId, 
+
+	logger.Info("单个任务初始化完成",
+		"taskId", task.TaskId,
 		"taskName", task.TaskName,
 		"tenantId", task.TenantId)
-	
+
 	return nil
 }
 
@@ -138,20 +147,23 @@ func (init *BaseTaskInitializer) InitializeSingleTask(ctx context.Context, task 
 // 根据租户ID和执行器类型查询数据库中的活动任务列表
 // 只查询状态为活动的任务，并按任务名称排序
 // 参数:
-//   ctx: 上下文对象，用于控制请求生命周期
-//   tenantId: 租户ID，用于多租户隔离
+//
+//	ctx: 上下文对象，用于控制请求生命周期
+//	tenantId: 租户ID，用于多租户隔离
+//
 // 返回:
-//   []*timertypes.TimerTask: 查询到的任务列表
-//   error: 查询过程中的错误信息
+//
+//	[]*timertypes.TimerTask: 查询到的任务列表
+//	error: 查询过程中的错误信息
 func (init *BaseTaskInitializer) getTasks(ctx context.Context, tenantId string) ([]*timertypes.TimerTask, error) {
 	executorType := init.factory.GetExecutorType()
 	activeFlag := "Y"
-	
+
 	query := &dao.TimerTaskQuery{
-		TenantId:     &tenantId,
-		ExecutorType: &executorType,
-		ActiveFlag:   &activeFlag,
-		OrderBy:      "taskName",
+		TenantId:       &tenantId,
+		ExecutorType:   &executorType,
+		ActiveFlag:     &activeFlag,
+		OrderBy:        "taskName",
 		OrderDirection: "ASC",
 	}
 
@@ -174,10 +186,13 @@ func (init *BaseTaskInitializer) getTasks(ctx context.Context, tenantId string) 
 // 完成单个任务的完整初始化流程：创建执行器、转换配置、添加到调度器、启动任务
 // 这是任务初始化的核心逻辑，确保任务能够正确地被调度和执行
 // 参数:
-//   ctx: 上下文对象，用于控制请求生命周期
-//   task: 要初始化的数据库任务对象
+//
+//	ctx: 上下文对象，用于控制请求生命周期
+//	task: 要初始化的数据库任务对象
+//
 // 返回:
-//   error: 初始化过程中的错误信息
+//
+//	error: 初始化过程中的错误信息
 func (init *BaseTaskInitializer) initializeSingleTask(ctx context.Context, task *timertypes.TimerTask) error {
 	// 创建任务执行器
 	executor, err := init.factory.CreateExecutor(ctx, task)
@@ -220,19 +235,22 @@ func (init *BaseTaskInitializer) initializeSingleTask(ctx context.Context, task 
 // 将数据库中的TimerTask对象转换为timer系统使用的TaskConfig对象
 // 包含完整的任务配置信息，如调度规则、执行参数、时间限制等
 // 参数:
-//   task: 数据库中的任务对象，包含所有持久化的任务信息
+//
+//	task: 数据库中的任务对象，包含所有持久化的任务信息
+//
 // 返回:
-//   *timer.TaskConfig: 转换后的任务配置对象
-//   error: 转换过程中的错误信息
+//
+//	*timer.TaskConfig: 转换后的任务配置对象
+//	error: 转换过程中的错误信息
 func (init *BaseTaskInitializer) convertToTimerConfig(task *timertypes.TimerTask) (*timer.TaskConfig, error) {
 	// 创建基础任务配置
 	config := &timer.TaskConfig{
-		ID:          task.TaskId,
-		Name:        task.TaskName,
-		Priority:    init.convertPriority(task.TaskPriority),
-		Enabled:     task.IsActive(),
-		MaxRetries:  task.MaxRetries,
-		Timeout:     time.Duration(task.TimeoutSeconds) * time.Second,
+		ID:            task.TaskId,
+		Name:          task.TaskName,
+		Priority:      init.convertPriority(task.TaskPriority),
+		Enabled:       task.IsActive(),
+		MaxRetries:    task.MaxRetries,
+		Timeout:       time.Duration(task.TimeoutSeconds) * time.Second,
 		RetryInterval: time.Duration(task.RetryIntervalSeconds) * time.Second,
 	}
 
@@ -275,10 +293,13 @@ func (init *BaseTaskInitializer) convertToTimerConfig(task *timertypes.TimerTask
 // 根据数据库任务的调度类型和参数，设置TaskConfig的调度相关配置
 // 支持Cron表达式、固定间隔、延迟执行等多种调度模式
 // 参数:
-//   config: 要设置的任务配置对象
-//   task: 数据库中的任务对象，包含调度参数
+//
+//	config: 要设置的任务配置对象
+//	task: 数据库中的任务对象，包含调度参数
+//
 // 返回:
-//   error: 配置设置过程中的错误信息
+//
+//	error: 配置设置过程中的错误信息
 func (init *BaseTaskInitializer) setScheduleConfig(config *timer.TaskConfig, task *timertypes.TimerTask) error {
 	// 设置调度类型
 	config.ScheduleType = init.convertScheduleType(task.ScheduleType)
@@ -327,9 +348,12 @@ func (init *BaseTaskInitializer) setScheduleConfig(config *timer.TaskConfig, tas
 // convertPriority 转换任务优先级
 // 将数据库中的整数优先级值转换为timer系统的TaskPriority枚举
 // 参数:
-//   priority: 数据库中的优先级整数值
+//
+//	priority: 数据库中的优先级整数值
+//
 // 返回:
-//   timer.TaskPriority: 对应的任务优先级枚举值
+//
+//	timer.TaskPriority: 对应的任务优先级枚举值
 func (init *BaseTaskInitializer) convertPriority(priority int) timer.TaskPriority {
 	switch priority {
 	case timertypes.TaskPriorityLow:
@@ -344,9 +368,12 @@ func (init *BaseTaskInitializer) convertPriority(priority int) timer.TaskPriorit
 // convertScheduleType 转换调度类型
 // 将数据库中的整数调度类型值转换为timer系统的ScheduleType枚举
 // 参数:
-//   scheduleType: 数据库中的调度类型整数值
+//
+//	scheduleType: 数据库中的调度类型整数值
+//
 // 返回:
-//   timer.ScheduleType: 对应的调度类型枚举值
+//
+//	timer.ScheduleType: 对应的调度类型枚举值
 func (init *BaseTaskInitializer) convertScheduleType(scheduleType int) timer.ScheduleType {
 	switch scheduleType {
 	case timertypes.ScheduleTypeOneTime:
@@ -365,9 +392,12 @@ func (init *BaseTaskInitializer) convertScheduleType(scheduleType int) timer.Sch
 // convertTaskStatus 转换任务状态
 // 将数据库中的整数任务状态值转换为timer系统的TaskStatus枚举
 // 参数:
-//   status: 数据库中的任务状态整数值
+//
+//	status: 数据库中的任务状态整数值
+//
 // 返回:
-//   timer.TaskStatus: 对应的任务状态枚举值
+//
+//	timer.TaskStatus: 对应的任务状态枚举值
 func (init *BaseTaskInitializer) convertTaskStatus(status int) timer.TaskStatus {
 	switch status {
 	case timertypes.TaskStatusPending:
@@ -389,12 +419,15 @@ func (init *BaseTaskInitializer) convertTaskStatus(status int) timer.TaskStatus 
 // 根据租户ID和调度器ID获取已存在的调度器，如果不存在则创建新的调度器
 // 调度器是任务执行的核心组件，负责任务的调度和执行管理
 // 参数:
-//   ctx: 上下文对象，用于控制请求生命周期
-//   tenantId: 租户ID，用于多租户隔离
-//   schedulerId: 调度器ID指针，可能为空
+//
+//	ctx: 上下文对象，用于控制请求生命周期
+//	tenantId: 租户ID，用于多租户隔离
+//	schedulerId: 调度器ID指针，可能为空
+//
 // 返回:
-//   timer.TaskScheduler: 获取或创建的调度器实例
-//   error: 操作过程中的错误信息
+//
+//	timer.TaskScheduler: 获取或创建的调度器实例
+//	error: 操作过程中的错误信息
 func (init *BaseTaskInitializer) getOrCreateScheduler(ctx context.Context, tenantId string, schedulerId *string) (timer.TaskScheduler, error) {
 	// 确定调度器ID：优先使用指定的ID，否则生成默认ID
 	var schedId string
@@ -423,20 +456,23 @@ func (init *BaseTaskInitializer) getOrCreateScheduler(ctx context.Context, tenan
 // 新创建的调度器会自动启动，开始处理任务调度
 // 调度器配置优先从数据库加载，如果数据库中没有配置则使用默认值
 // 参数:
-//   ctx: 上下文对象，用于控制请求生命周期
-//   tenantId: 租户ID，用于标识和隔离
-//   schedulerId: 调度器的唯一标识符
+//
+//	ctx: 上下文对象，用于控制请求生命周期
+//	tenantId: 租户ID，用于标识和隔离
+//	schedulerId: 调度器的唯一标识符
+//
 // 返回:
-//   timer.TaskScheduler: 创建的调度器实例
-//   error: 创建过程中的错误信息
+//
+//	timer.TaskScheduler: 创建的调度器实例
+//	error: 创建过程中的错误信息
 func (init *BaseTaskInitializer) createNewScheduler(ctx context.Context, tenantId, schedulerId string) (timer.TaskScheduler, error) {
 	// 尝试从数据库加载调度器配置
 	config, err := init.loadSchedulerConfig(ctx, tenantId, schedulerId)
 	if err != nil {
 		// 如果数据库加载失败，使用默认配置
-		logger.Warn("从数据库加载调度器配置失败，使用默认配置", 
-			"schedulerId", schedulerId, 
-			"tenantId", tenantId, 
+		logger.Warn("从数据库加载调度器配置失败，使用默认配置",
+			"schedulerId", schedulerId,
+			"tenantId", tenantId,
 			"error", err)
 		config = init.createDefaultSchedulerConfig(tenantId, schedulerId)
 	}
@@ -460,12 +496,15 @@ func (init *BaseTaskInitializer) createNewScheduler(ctx context.Context, tenantI
 // 根据租户ID和调度器ID查询数据库中的调度器配置信息
 // 支持多租户环境下的调度器配置隔离和个性化设置
 // 参数:
-//   ctx: 上下文对象，用于控制请求生命周期
-//   tenantId: 租户ID，用于多租户隔离
-//   schedulerId: 调度器ID，用于唯一标识调度器
+//
+//	ctx: 上下文对象，用于控制请求生命周期
+//	tenantId: 租户ID，用于多租户隔离
+//	schedulerId: 调度器ID，用于唯一标识调度器
+//
 // 返回:
-//   *timer.SchedulerConfig: 从数据库加载的调度器配置
-//   error: 加载过程中的错误信息
+//
+//	*timer.SchedulerConfig: 从数据库加载的调度器配置
+//	error: 加载过程中的错误信息
 func (init *BaseTaskInitializer) loadSchedulerConfig(ctx context.Context, tenantId, schedulerId string) (*timer.SchedulerConfig, error) {
 	// 查询调度器配置
 	schedulerData, err := init.daoManager.GetSchedulerDAO().GetSchedulerById(ctx, tenantId, schedulerId)
@@ -481,7 +520,7 @@ func (init *BaseTaskInitializer) loadSchedulerConfig(ctx context.Context, tenant
 	config := &timer.SchedulerConfig{
 		ID:       schedulerId,
 		Name:     schedulerData.SchedulerName,
-		TenantId: tenantId, // 设置租户ID
+		TenantId: tenantId,                           // 设置租户ID
 		Tasks:    make(map[string]*timer.TaskConfig), // 初始化任务映射
 	}
 
@@ -516,7 +555,7 @@ func (init *BaseTaskInitializer) loadSchedulerConfig(ctx context.Context, tenant
 	// 设置调度间隔，使用默认值（数据库表中没有此字段）
 	config.ScheduleInterval = 10 * time.Second // 默认10秒
 
-	logger.Info("从数据库加载调度器配置成功", 
+	logger.Info("从数据库加载调度器配置成功",
 		"schedulerId", schedulerId,
 		"tenantId", tenantId,
 		"schedulerName", config.Name,
@@ -534,24 +573,27 @@ func (init *BaseTaskInitializer) loadSchedulerConfig(ctx context.Context, tenant
 // 当数据库中没有配置或加载失败时，使用此方法创建默认的调度器配置
 // 默认配置适用于大多数场景，提供合理的性能和资源使用平衡
 // 参数:
-//   tenantId: 租户ID，用于生成调度器名称
-//   schedulerId: 调度器ID，用于唯一标识
+//
+//	tenantId: 租户ID，用于生成调度器名称
+//	schedulerId: 调度器ID，用于唯一标识
+//
 // 返回:
-//   *timer.SchedulerConfig: 默认的调度器配置对象
+//
+//	*timer.SchedulerConfig: 默认的调度器配置对象
 func (init *BaseTaskInitializer) createDefaultSchedulerConfig(tenantId, schedulerId string) *timer.SchedulerConfig {
 	config := &timer.SchedulerConfig{
-		ID:               schedulerId,                                                                    // 调度器唯一标识
-		Name:             fmt.Sprintf("%s调度器_%s", init.factory.GetExecutorType(), tenantId),              // 调度器显示名称
-		TenantId:         tenantId,                                                                       // 租户ID标识
-		MaxWorkers:       10,                                                                            // 最大工作线程数
-		QueueSize:        100,                                                                           // 任务队列大小
-		DefaultTimeout:   30 * time.Minute,                                                              // 默认任务超时时间
-		DefaultRetries:   3,                                                                             // 默认重试次数
-		ScheduleInterval: 10 * time.Second,                                                              // 调度扫描间隔
-		Tasks:            make(map[string]*timer.TaskConfig),                                             // 初始化任务映射
+		ID:               schedulerId,                                                       // 调度器唯一标识
+		Name:             fmt.Sprintf("%s调度器_%s", init.factory.GetExecutorType(), tenantId), // 调度器显示名称
+		TenantId:         tenantId,                                                          // 租户ID标识
+		MaxWorkers:       10,                                                                // 最大工作线程数
+		QueueSize:        100,                                                               // 任务队列大小
+		DefaultTimeout:   30 * time.Minute,                                                  // 默认任务超时时间
+		DefaultRetries:   3,                                                                 // 默认重试次数
+		ScheduleInterval: 10 * time.Second,                                                  // 调度扫描间隔
+		Tasks:            make(map[string]*timer.TaskConfig),                                // 初始化任务映射
 	}
 
-	logger.Info("使用默认调度器配置", 
+	logger.Info("使用默认调度器配置",
 		"schedulerId", schedulerId,
 		"tenantId", tenantId,
 		"configTenantId", config.TenantId,
@@ -562,4 +604,4 @@ func (init *BaseTaskInitializer) createDefaultSchedulerConfig(tenantId, schedule
 		"scheduleInterval", config.ScheduleInterval)
 
 	return config
-} 
+}

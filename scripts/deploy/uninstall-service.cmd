@@ -5,15 +5,15 @@ setlocal EnableDelayedExpansion
 :: 设置错误处理 - 即使有错误也不退出
 set ORIGINAL_ERRORLEVEL=%errorlevel%
 
-:: GoHub Windows 服务卸载脚本
+:: Gateway Windows 服务卸载脚本
 :: 用法: uninstall-service.cmd [options]
 
-title GoHub Windows 服务卸载
+title Gateway Windows 服务卸载
 
 :: 显示调试信息
 echo.
 echo ==========================================
-echo  GoHub Windows 服务卸载调试信息
+echo  Gateway Windows 服务卸载调试信息
 echo ==========================================
 echo.
 echo [DEBUG] 脚本路径: %~dp0
@@ -41,7 +41,7 @@ if %errorLevel% neq 0 (
 )
 
 :: 默认配置
-set SERVICE_NAME=GoHub
+set SERVICE_NAME=Gateway
 set ORACLE_VERSION=false
 set CLEAN_LOGS=false
 set CLEAN_ENV=true
@@ -51,7 +51,7 @@ set CLEAN_ENV=true
 :: 检查是否为Oracle版本
 if "%~1"=="oracle" (
     set ORACLE_VERSION=true
-    set SERVICE_NAME=GoHub
+    set SERVICE_NAME=Gateway
     shift
 )
 
@@ -91,7 +91,7 @@ goto :show_help
 :: 显示帮助
 :show_help
 echo.
-echo GoHub Windows 服务卸载脚本
+echo Gateway Windows 服务卸载脚本
 echo.
 echo 用法: %~nx0 [oracle] [OPTIONS]
 echo.
@@ -107,9 +107,9 @@ echo   -h, --help             显示帮助信息
 echo.
 echo 注意:
 echo   - 脚本会自动检测Oracle版本服务
-echo   - 所有版本都使用统一的服务名称GoHub
-echo   - 兼容旧版本的GoHub-Oracle服务清理
-echo   - 如果检测到多个GoHub服务，会自动卸载所有相关服务
+echo   - 所有版本都使用统一的服务名称Gateway
+echo   - 兼容旧版本的Gateway-Oracle服务清理
+echo   - 如果检测到多个Gateway服务，会自动卸载所有相关服务
 echo   - 默认自动确认，无需手动输入
 echo.
 echo 示例:
@@ -131,7 +131,7 @@ echo.
 
 echo.
 echo ==========================================
-echo  GoHub Windows 服务卸载
+echo  Gateway Windows 服务卸载
 echo ==========================================
 echo.
 echo 服务名称: %SERVICE_NAME%
@@ -142,22 +142,22 @@ echo.
 :: 自动检测Oracle版本服务（保持兼容性）
 if "%ORACLE_VERSION%"=="false" (
     echo [INFO] 检查是否有旧版本的Oracle服务...
-    sc query "GoHub-Oracle" >nul 2>&1
+    sc query "Gateway-Oracle" >nul 2>&1
     if %errorlevel% equ 0 (
-        echo [INFO] 检测到旧版本Oracle服务，切换到GoHub-Oracle进行清理
-        set SERVICE_NAME=GoHub-Oracle
+        echo [INFO] 检测到旧版本Oracle服务，切换到Gateway-Oracle进行清理
+        set SERVICE_NAME=Gateway-Oracle
         set ORACLE_VERSION=true
     )
 )
 
 :: 如果两个服务都存在，自动卸载所有相关服务
-sc query "GoHub" >nul 2>&1
+sc query "Gateway" >nul 2>&1
 set GO_HUB_EXISTS=%errorlevel%
-sc query "GoHub-Oracle" >nul 2>&1
+sc query "Gateway-Oracle" >nul 2>&1
 set GO_HUB_ORACLE_EXISTS=%errorlevel%
 
 if %GO_HUB_EXISTS% equ 0 if %GO_HUB_ORACLE_EXISTS% equ 0 (
-    echo [INFO] 检测到系统中同时存在两个GoHub服务，将自动卸载所有相关服务
+    echo [INFO] 检测到系统中同时存在两个Gateway服务，将自动卸载所有相关服务
     echo [INFO] 首先卸载: %SERVICE_NAME%
 )
 
@@ -170,7 +170,7 @@ if %errorlevel% neq 0 (
     
     echo [DEBUG] 尝试列出所有相关服务...
     if "%DEBUG_MODE%"=="false" (
-        sc query type= service | findstr /i "gohub" || echo [DEBUG] 未找到任何GoHub相关服务
+        sc query type= service | findstr /i "gateway" || echo [DEBUG] 未找到任何Gateway相关服务
     ) else (
         echo [DEBUG] 跳过服务列表检查（权限限制）
     )
@@ -277,18 +277,18 @@ if "%CLEAN_LOGS%"=="true" (
 :: 如果还有另一个服务存在，自动卸载
 if %GO_HUB_EXISTS% equ 0 if %GO_HUB_ORACLE_EXISTS% equ 0 (
     echo.
-    echo [INFO] Checking if other GoHub services need to be uninstalled...
-    if "%SERVICE_NAME%"=="GoHub" (
-        sc query "GoHub-Oracle" >nul 2>&1
+    echo [INFO] Checking if other Gateway services need to be uninstalled...
+    if "%SERVICE_NAME%"=="Gateway" (
+        sc query "Gateway-Oracle" >nul 2>&1
         if %errorlevel% equ 0 (
-            echo [INFO] Auto uninstalling GoHub-Oracle service...
-            call :uninstall_single_service "GoHub-Oracle"
+            echo [INFO] Auto uninstalling Gateway-Oracle service...
+            call :uninstall_single_service "Gateway-Oracle"
         )
     ) else (
-        sc query "GoHub" >nul 2>&1
+        sc query "Gateway" >nul 2>&1
         if %errorlevel% equ 0 (
-            echo [INFO] Auto uninstalling GoHub service...
-            call :uninstall_single_service "GoHub"
+            echo [INFO] Auto uninstalling Gateway service...
+            call :uninstall_single_service "Gateway"
         )
     )
 )
@@ -457,8 +457,8 @@ for %%d in (%LOG_DIRS%) do (
             )
         )
         
-        :: 删除GoHub相关的其他日志文件
-        for %%f in ("%%d\gohub*.log" "%%d\*-gohub*.log") do (
+        :: 删除Gateway相关的其他日志文件
+        for %%f in ("%%d\gateway*.log" "%%d\*-gateway*.log") do (
             if exist "%%f" (
                 del "%%f" >nul 2>&1
                 if %errorlevel% equ 0 (

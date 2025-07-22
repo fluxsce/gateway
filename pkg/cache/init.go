@@ -3,10 +3,10 @@ package cache
 import (
 	"context"
 	"fmt"
-	"gohub/pkg/cache/memory"
-	"gohub/pkg/cache/redis"
-	"gohub/pkg/config"
-	"gohub/pkg/logger"
+	"gateway/pkg/cache/memory"
+	"gateway/pkg/cache/redis"
+	"gateway/pkg/config"
+	"gateway/pkg/logger"
 	"time"
 )
 
@@ -18,7 +18,7 @@ type CacheConnectionConfig struct {
 
 // CacheRootConfig 缓存配置根结构
 type CacheRootConfig struct {
-	Default     string                        `mapstructure:"default"`     // 默认连接名称
+	Default     string                            `mapstructure:"default"`     // 默认连接名称
 	Connections map[string]*CacheConnectionConfig `mapstructure:"connections"` // 连接配置映射
 }
 
@@ -26,10 +26,13 @@ type CacheRootConfig struct {
 // 解析配置文件中的所有缓存连接配置，支持Redis和内存缓存
 // 只有enabled为true的连接才会被创建
 // 参数:
-//   configPath: 数据库配置文件路径（包含缓存配置）
+//
+//	configPath: 数据库配置文件路径（包含缓存配置）
+//
 // 返回:
-//   map[string]Cache: 连接名称到缓存实例的映射
-//   error: 加载失败时返回错误信息
+//
+//	map[string]Cache: 连接名称到缓存实例的映射
+//	error: 加载失败时返回错误信息
 func LoadAllCacheConnections(configPath string) (map[string]Cache, error) {
 	// 首先加载配置文件
 	if err := config.LoadConfigFile(configPath); err != nil {
@@ -122,7 +125,7 @@ func LoadAllCacheConnections(configPath string) (map[string]Cache, error) {
 
 // createCacheFromConfig 根据配置类型创建缓存实例
 // 这是统一的入口点，负责分发到各个模块的工厂方法
-// 
+//
 // 注意：此函数解决了Go语言中类型化nil的问题
 // 当工厂方法返回(*ConcreteType)(nil)时，赋值给接口变量后 != nil，但调用方法会空指针异常
 // 通过在此处统一检查并转换为真正的nil，避免了接口中包含类型化nil的问题
@@ -293,7 +296,8 @@ func GetDefaultConfigs() map[string]interface{} {
 // CloseAllConnections 关闭所有缓存连接
 // 应用关闭时调用，清理所有缓存连接资源
 // 返回:
-//   error: 关闭过程中的第一个错误
+//
+//	error: 关闭过程中的第一个错误
 func CloseAllConnections() error {
 	return CloseAllCaches()
 }

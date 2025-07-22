@@ -3,12 +3,12 @@ package dao
 import (
 	"context"
 	"fmt"
-	"gohub/internal/metric_collect/types"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/pkg/utils/ctime"
-	"gohub/pkg/utils/huberrors"
-	"gohub/web/views/hub0000/models"
+	"gateway/internal/metric_collect/types"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/ctime"
+	"gateway/pkg/utils/huberrors"
+	"gateway/web/views/hub0000/models"
 	"strings"
 )
 
@@ -120,10 +120,10 @@ func (dao *MetricQueryDAO) buildOrderByClauseForServerInfo(orderBy, orderType st
 func (dao *MetricQueryDAO) buildPaginatedQuery(baseQuery string, page, pageSize int) (string, []interface{}, error) {
 	// 获取数据库类型
 	dbType := sqlutils.GetDatabaseType(dao.db)
-	
+
 	// 创建分页信息
 	pagination := sqlutils.NewPaginationInfo(page, pageSize)
-	
+
 	// 构建分页查询
 	return sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 }
@@ -136,7 +136,7 @@ func (dao *MetricQueryDAO) QueryServerInfoList(ctx context.Context, req *models.
 	// 基础条件：只查询指定租户的活跃服务器
 	conditions = append(conditions, "tenantId = ?")
 	params = append(params, req.TenantId)
-	
+
 	conditions = append(conditions, "activeFlag = ?")
 	params = append(params, "Y")
 
@@ -147,7 +147,7 @@ func (dao *MetricQueryDAO) QueryServerInfoList(ctx context.Context, req *models.
 	var totalResult struct {
 		Total int `db:"total"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &totalResult, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询服务器信息总数失败")
@@ -155,7 +155,7 @@ func (dao *MetricQueryDAO) QueryServerInfoList(ctx context.Context, req *models.
 
 	// 构建基础查询语句
 	orderByClause := dao.buildOrderByClauseForServerInfo(req.OrderBy, req.OrderType)
-	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s", 
+	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s",
 		(&types.ServerInfo{}).TableName(), whereClause, orderByClause)
 
 	// 构建分页查询
@@ -183,7 +183,7 @@ func (dao *MetricQueryDAO) GetServerInfoDetail(ctx context.Context, tenantId, se
 	}
 
 	query := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND metricServerId = ?", (&types.ServerInfo{}).TableName())
-	
+
 	var server types.ServerInfo
 	err := dao.db.QueryOne(ctx, &server, query, []interface{}{tenantId, serverId}, true)
 	if err != nil {
@@ -239,7 +239,7 @@ func (dao *MetricQueryDAO) QueryCpuLogList(ctx context.Context, req *models.CpuL
 	var totalResult struct {
 		Total int `db:"total"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &totalResult, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询CPU日志总数失败")
@@ -247,7 +247,7 @@ func (dao *MetricQueryDAO) QueryCpuLogList(ctx context.Context, req *models.CpuL
 
 	// 构建基础查询语句
 	orderByClause := dao.buildOrderByClause(req.OrderBy, req.OrderType)
-	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s", 
+	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s",
 		(&types.CpuLog{}).TableName(), whereClause, orderByClause)
 
 	// 构建分页查询
@@ -316,7 +316,7 @@ func (dao *MetricQueryDAO) QueryMemoryLogList(ctx context.Context, req *models.M
 	var totalResult struct {
 		Total int `db:"total"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &totalResult, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询内存日志总数失败")
@@ -324,7 +324,7 @@ func (dao *MetricQueryDAO) QueryMemoryLogList(ctx context.Context, req *models.M
 
 	// 构建基础查询语句
 	orderByClause := dao.buildOrderByClause(req.OrderBy, req.OrderType)
-	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s", 
+	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s",
 		(&types.MemoryLog{}).TableName(), whereClause, orderByClause)
 
 	// 构建分页查询
@@ -398,7 +398,7 @@ func (dao *MetricQueryDAO) QueryDiskPartitionLogList(ctx context.Context, req *m
 	var totalResult struct {
 		Total int `db:"total"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &totalResult, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询磁盘分区日志总数失败")
@@ -406,7 +406,7 @@ func (dao *MetricQueryDAO) QueryDiskPartitionLogList(ctx context.Context, req *m
 
 	// 构建基础查询语句
 	orderByClause := dao.buildOrderByClause(req.OrderBy, req.OrderType)
-	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s", 
+	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s",
 		(&types.DiskPartitionLog{}).TableName(), whereClause, orderByClause)
 
 	// 构建分页查询
@@ -425,4 +425,4 @@ func (dao *MetricQueryDAO) QueryDiskPartitionLogList(ctx context.Context, req *m
 	}
 
 	return diskPartitionLogs, totalResult.Total, nil
-} 
+}

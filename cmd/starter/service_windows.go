@@ -45,7 +45,7 @@ func (m *windowsService) Execute(args []string, r <-chan svc.ChangeRequest, chan
 		State:   svc.StartPending,
 		Accepts: 0,
 	}
-	m.logInfo("GoHub服务正在启动...")
+	m.logInfo("Gateway服务正在启动...")
 
 	// 启动应用程序
 	appStarted := make(chan error, 1)
@@ -55,9 +55,9 @@ func (m *windowsService) Execute(args []string, r <-chan svc.ChangeRequest, chan
 				appStarted <- fmt.Errorf("应用启动时发生panic: %v", r)
 			}
 		}()
-		
-		// 启动GoHub应用
-		if err := startGoHubApplication(); err != nil {
+
+		// 启动Gateway应用
+		if err := startGatewayApplication(); err != nil {
 			appStarted <- err
 			return
 		}
@@ -76,7 +76,7 @@ func (m *windowsService) Execute(args []string, r <-chan svc.ChangeRequest, chan
 			return false, 1 // 不重新启动服务，返回错误码1
 		}
 		// 应用启动成功
-		m.logInfo("GoHub应用启动成功")
+		m.logInfo("Gateway应用启动成功")
 		changes <- svc.Status{
 			State:   svc.Running,
 			Accepts: cmdsAccepted,
@@ -92,8 +92,8 @@ func (m *windowsService) Execute(args []string, r <-chan svc.ChangeRequest, chan
 	}
 
 	// 服务运行循环
-	m.logInfo("GoHub服务运行中，等待控制请求...")
-	
+	m.logInfo("Gateway服务运行中，等待控制请求...")
+
 	for {
 		select {
 		case c := <-r:
@@ -106,11 +106,11 @@ func (m *windowsService) Execute(args []string, r <-chan svc.ChangeRequest, chan
 					State:   svc.StopPending,
 					Accepts: 0,
 				}
-				
+
 				// 停止应用
-				stopGoHubApplication()
-				
-				m.logInfo("GoHub服务已停止")
+				stopGatewayApplication()
+
+				m.logInfo("Gateway服务已停止")
 				changes <- svc.Status{
 					State:   svc.Stopped,
 					Accepts: 0,
@@ -125,8 +125,8 @@ func (m *windowsService) Execute(args []string, r <-chan svc.ChangeRequest, chan
 
 // runWindowsService 运行Windows服务
 func runWindowsService() error {
-	serviceName := "GoHub"
-	
+	serviceName := "Gateway"
+
 	// 检查是否在服务环境中运行
 	isWinService, err := svc.IsWindowsService()
 	if err != nil {
@@ -143,9 +143,9 @@ func runWindowsService() error {
 	if err := setupWindowsServiceLogging(); err != nil {
 		return fmt.Errorf("设置Windows服务日志失败: %v", err)
 	}
-	
+
 	log.Printf("[INFO] 以Windows服务模式运行，服务名: %s", serviceName)
-	
+
 	// 创建事件日志 - 简化处理，避免API调用问题
 	var elog debug.Log
 	// 优先尝试使用Windows事件日志
@@ -182,7 +182,7 @@ func runWindowsService() error {
 // runWindowsServiceDebug 以调试模式运行Windows服务
 func runWindowsServiceDebug(serviceName string) error {
 	log.Printf("[DEBUG] 启动Windows服务调试模式，服务名: %s", serviceName)
-	
+
 	service := &windowsService{
 		name: serviceName,
 		elog: debug.New(serviceName),
@@ -192,9 +192,9 @@ func runWindowsServiceDebug(serviceName string) error {
 	return debug.Run(serviceName, service)
 }
 
-// startGoHubApplication 启动GoHub应用程序
-func startGoHubApplication() error {
-	log.Printf("[INFO] Windows服务模式 - 开始启动GoHub应用...")
+// startGatewayApplication 启动Gateway应用程序
+func startGatewayApplication() error {
+	log.Printf("[INFO] Windows服务模式 - 开始启动Gateway应用...")
 
 	// 设置应用上下文
 	appContext, appCancel = context.WithCancel(context.Background())
@@ -205,29 +205,27 @@ func startGoHubApplication() error {
 		return fmt.Errorf("初始化应用失败: %v", err)
 	}
 
-	log.Printf("[INFO] GoHub应用在Windows服务模式下启动完成")
+	log.Printf("[INFO] Gateway应用在Windows服务模式下启动完成")
 	return nil
 }
 
-// stopGoHubApplication 停止GoHub应用程序
-func stopGoHubApplication() {
-	log.Printf("[INFO] 开始停止GoHub应用...")
-	
+// stopGatewayApplication 停止Gateway应用程序
+func stopGatewayApplication() {
+	log.Printf("[INFO] 开始停止Gateway应用...")
+
 	if appCancel != nil {
 		appCancel()
 	}
-	
+
 	cleanupResources()
-	log.Printf("[INFO] GoHub应用停止完成")
+	log.Printf("[INFO] Gateway应用停止完成")
 }
-
-
 
 // setupWindowsServiceLogging 设置Windows服务日志
 func setupWindowsServiceLogging() error {
 	// 在Windows服务模式下，我们需要将日志重定向到文件
 	// 因为Windows服务没有控制台输出
-	
+
 	// 使用starter.go中已有的setupServiceLogging函数
 	setupServiceLogging()
 	return nil
@@ -237,4 +235,4 @@ func setupWindowsServiceLogging() error {
 func runLinuxService() error {
 	log.Println("Linux服务仅在Linux系统上支持")
 	return nil
-} 
+}

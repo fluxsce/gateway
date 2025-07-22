@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/pkg/utils/huberrors"
-	"gohub/pkg/utils/random"
-	"gohub/web/views/hubcommon002/models"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/huberrors"
+	"gateway/pkg/utils/random"
+	"gateway/web/views/hubcommon002/models"
 	"strings"
 	"time"
 )
@@ -32,51 +32,49 @@ func (dao *UseragentAccessConfigDAO) generateUseragentAccessConfigId() string {
 	now := time.Now()
 	// 生成时间部分：YYYYMMDDHHMMSS
 	timeStr := now.Format("20060102150405")
-	
+
 	// 生成4位随机字符（大写字母和数字）
 	randomStr := random.GenerateRandomString(4)
-	
+
 	return fmt.Sprintf("UA%s%s", timeStr, randomStr)
 }
-
-
 
 // isUseragentAccessConfigIdExists 检查User-Agent访问配置ID是否已存在
 func (dao *UseragentAccessConfigDAO) isUseragentAccessConfigIdExists(ctx context.Context, useragentAccessConfigId string) (bool, error) {
 	query := `SELECT COUNT(*) as count FROM HUB_GW_UA_ACCESS_CONFIG WHERE useragentAccessConfigId = ?`
-	
+
 	var result struct {
 		Count int `db:"count"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &result, query, []interface{}{useragentAccessConfigId}, true)
 	if err != nil {
 		return false, err
 	}
-	
+
 	return result.Count > 0, nil
 }
 
 // generateUniqueUseragentAccessConfigId 生成唯一的User-Agent访问配置ID
 func (dao *UseragentAccessConfigDAO) generateUniqueUseragentAccessConfigId(ctx context.Context) (string, error) {
 	const maxAttempts = 10
-	
+
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		useragentAccessConfigId := dao.generateUseragentAccessConfigId()
-		
+
 		exists, err := dao.isUseragentAccessConfigIdExists(ctx, useragentAccessConfigId)
 		if err != nil {
 			return "", huberrors.WrapError(err, "检查User-Agent访问配置ID是否存在失败")
 		}
-		
+
 		if !exists {
 			return useragentAccessConfigId, nil
 		}
-		
+
 		// 如果ID已存在，等待1毫秒后重试（确保时间戳不同）
 		time.Sleep(time.Millisecond)
 	}
-	
+
 	return "", errors.New("生成唯一User-Agent访问配置ID失败，已达到最大尝试次数")
 }
 
@@ -190,7 +188,7 @@ func (dao *UseragentAccessConfigDAO) UpdateUseragentAccessConfig(ctx context.Con
 	config.EditWho = operatorId
 	config.CurrentVersion = currentConfig.CurrentVersion + 1
 	config.OprSeqFlag = config.UseragentAccessConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
-	
+
 	// 保持活动标记不变，如果没有设置则使用当前值
 	if config.ActiveFlag == "" {
 		config.ActiveFlag = currentConfig.ActiveFlag
@@ -298,4 +296,4 @@ func (dao *UseragentAccessConfigDAO) ListUseragentAccessConfigs(ctx context.Cont
 	}
 
 	return configs, total, nil
-} 
+}

@@ -3,8 +3,8 @@ package dao
 import (
 	"context"
 	"fmt"
-	"gohub/internal/metric_collect/types"
-	"gohub/pkg/database"
+	"gateway/internal/metric_collect/types"
+	"gateway/pkg/database"
 	"time"
 )
 
@@ -26,7 +26,7 @@ func (dao *CpuLogDAO) InsertCpuLog(ctx context.Context, cpuLog *types.CpuLog) er
 	cpuLog.EditTime = now
 	cpuLog.CurrentVersion = 1
 	cpuLog.ActiveFlag = types.ActiveFlagYes
-	
+
 	// 验证必填字段
 	if cpuLog.MetricCpuLogId == "" {
 		return fmt.Errorf("CPU采集日志ID不能为空")
@@ -46,7 +46,7 @@ func (dao *CpuLogDAO) InsertCpuLog(ctx context.Context, cpuLog *types.CpuLog) er
 	if cpuLog.OprSeqFlag == "" {
 		return fmt.Errorf("操作序列标识不能为空")
 	}
-	
+
 	tableName := cpuLog.TableName()
 	_, err := dao.db.Insert(ctx, tableName, cpuLog, true)
 	if err != nil {
@@ -60,7 +60,7 @@ func (dao *CpuLogDAO) BatchInsertCpuLog(ctx context.Context, cpuLogs []*types.Cp
 	if len(cpuLogs) == 0 {
 		return nil
 	}
-	
+
 	// 设置通用字段默认值
 	now := time.Now()
 	for _, cpuLog := range cpuLogs {
@@ -68,7 +68,7 @@ func (dao *CpuLogDAO) BatchInsertCpuLog(ctx context.Context, cpuLogs []*types.Cp
 		cpuLog.EditTime = now
 		cpuLog.CurrentVersion = 1
 		cpuLog.ActiveFlag = types.ActiveFlagYes
-		
+
 		// 验证必填字段
 		if cpuLog.MetricCpuLogId == "" {
 			return fmt.Errorf("CPU采集日志ID不能为空")
@@ -89,15 +89,15 @@ func (dao *CpuLogDAO) BatchInsertCpuLog(ctx context.Context, cpuLogs []*types.Cp
 			return fmt.Errorf("操作序列标识不能为空")
 		}
 	}
-	
+
 	tableName := cpuLogs[0].TableName()
-	
+
 	// 转换为interface{}切片
 	items := make([]interface{}, len(cpuLogs))
 	for i, cpuLog := range cpuLogs {
 		items[i] = cpuLog
 	}
-	
+
 	_, err := dao.db.BatchInsert(ctx, tableName, items, true)
 	if err != nil {
 		return fmt.Errorf("批量插入CPU采集日志失败: %w", err)
@@ -113,10 +113,10 @@ func (dao *CpuLogDAO) DeleteCpuLog(ctx context.Context, tenantId, metricCpuLogId
 	if metricCpuLogId == "" {
 		return fmt.Errorf("CPU采集日志ID不能为空")
 	}
-	
+
 	tableName := (&types.CpuLog{}).TableName()
 	sql := fmt.Sprintf("UPDATE %s SET activeFlag = ? WHERE tenantId = ? AND metricCpuLogId = ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{types.ActiveFlagNo, tenantId, metricCpuLogId}, true)
 	if err != nil {
 		return fmt.Errorf("删除CPU采集日志失败: %w", err)
@@ -129,10 +129,10 @@ func (dao *CpuLogDAO) DeleteCpuLogByTime(ctx context.Context, tenantId string, b
 	if tenantId == "" {
 		return fmt.Errorf("租户ID不能为空")
 	}
-	
+
 	tableName := (&types.CpuLog{}).TableName()
 	sql := fmt.Sprintf("DELETE FROM %s WHERE tenantId = ? AND collectTime < ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{tenantId, beforeTime}, true)
 	if err != nil {
 		return fmt.Errorf("根据时间删除CPU采集日志失败: %w", err)
@@ -148,13 +148,13 @@ func (dao *CpuLogDAO) DeleteCpuLogByServer(ctx context.Context, tenantId, metric
 	if metricServerId == "" {
 		return fmt.Errorf("服务器ID不能为空")
 	}
-	
+
 	tableName := (&types.CpuLog{}).TableName()
 	sql := fmt.Sprintf("DELETE FROM %s WHERE tenantId = ? AND metricServerId = ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{tenantId, metricServerId}, true)
 	if err != nil {
 		return fmt.Errorf("根据服务器ID删除CPU采集日志失败: %w", err)
 	}
 	return nil
-} 
+}

@@ -1,13 +1,13 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hub0022/dao"
-	"gohub/web/views/hub0022/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hub0022/dao"
+	"gateway/web/views/hub0022/models"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,9 +15,9 @@ import (
 
 // ServiceDefinitionController 服务定义控制器
 type ServiceDefinitionController struct {
-	db                     database.Database
-	serviceDefinitionDAO   *dao.ServiceDefinitionDAO
-	serviceNodeDAO         *dao.ServiceNodeDAO
+	db                   database.Database
+	serviceDefinitionDAO *dao.ServiceDefinitionDAO
+	serviceNodeDAO       *dao.ServiceNodeDAO
 }
 
 // NewServiceDefinitionController 创建服务定义控制器
@@ -387,36 +387,36 @@ type GetServiceDefinitionRequest struct {
 // serviceDefinitionToMap 将服务定义转换为Map格式，过滤敏感字段
 func serviceDefinitionToMap(serviceDefinition *models.ServiceDefinition) map[string]interface{} {
 	return map[string]interface{}{
-		"tenantId":                     serviceDefinition.TenantId,
-		"serviceDefinitionId":          serviceDefinition.ServiceDefinitionId,
-		"serviceName":                  serviceDefinition.ServiceName,
-		"serviceDesc":                  serviceDefinition.ServiceDesc,
-		"serviceType":                  serviceDefinition.ServiceType,
-		"loadBalanceStrategy":          serviceDefinition.LoadBalanceStrategy,
-		"discoveryType":                serviceDefinition.DiscoveryType,
-		"discoveryConfig":              serviceDefinition.DiscoveryConfig,
-		"sessionAffinity":              serviceDefinition.SessionAffinity,
-		"stickySession":                serviceDefinition.StickySession,
-		"maxRetries":                   serviceDefinition.MaxRetries,
-		"retryTimeoutMs":               serviceDefinition.RetryTimeoutMs,
-		"enableCircuitBreaker":         serviceDefinition.EnableCircuitBreaker,
-		"healthCheckEnabled":           serviceDefinition.HealthCheckEnabled,
-		"healthCheckPath":              serviceDefinition.HealthCheckPath,
-		"healthCheckMethod":            serviceDefinition.HealthCheckMethod,
-		"healthCheckIntervalSeconds":   serviceDefinition.HealthCheckIntervalSeconds,
-		"healthCheckTimeoutMs":         serviceDefinition.HealthCheckTimeoutMs,
-		"healthyThreshold":             serviceDefinition.HealthyThreshold,
-		"unhealthyThreshold":           serviceDefinition.UnhealthyThreshold,
-		"expectedStatusCodes":          serviceDefinition.ExpectedStatusCodes,
-		"healthCheckHeaders":           serviceDefinition.HealthCheckHeaders,
-		"loadBalancerConfig":           serviceDefinition.LoadBalancerConfig,
-		"serviceMetadata":              serviceDefinition.ServiceMetadata,
-		"activeFlag":                   serviceDefinition.ActiveFlag,
-		"addTime":                      serviceDefinition.AddTime,
-		"addWho":                       serviceDefinition.AddWho,
-		"editTime":                     serviceDefinition.EditTime,
-		"editWho":                      serviceDefinition.EditWho,
-		"currentVersion":               serviceDefinition.CurrentVersion,
-		"noteText":                     serviceDefinition.NoteText,
+		"tenantId":                   serviceDefinition.TenantId,
+		"serviceDefinitionId":        serviceDefinition.ServiceDefinitionId,
+		"serviceName":                serviceDefinition.ServiceName,
+		"serviceDesc":                serviceDefinition.ServiceDesc,
+		"serviceType":                serviceDefinition.ServiceType,
+		"loadBalanceStrategy":        serviceDefinition.LoadBalanceStrategy,
+		"discoveryType":              serviceDefinition.DiscoveryType,
+		"discoveryConfig":            serviceDefinition.DiscoveryConfig,
+		"sessionAffinity":            serviceDefinition.SessionAffinity,
+		"stickySession":              serviceDefinition.StickySession,
+		"maxRetries":                 serviceDefinition.MaxRetries,
+		"retryTimeoutMs":             serviceDefinition.RetryTimeoutMs,
+		"enableCircuitBreaker":       serviceDefinition.EnableCircuitBreaker,
+		"healthCheckEnabled":         serviceDefinition.HealthCheckEnabled,
+		"healthCheckPath":            serviceDefinition.HealthCheckPath,
+		"healthCheckMethod":          serviceDefinition.HealthCheckMethod,
+		"healthCheckIntervalSeconds": serviceDefinition.HealthCheckIntervalSeconds,
+		"healthCheckTimeoutMs":       serviceDefinition.HealthCheckTimeoutMs,
+		"healthyThreshold":           serviceDefinition.HealthyThreshold,
+		"unhealthyThreshold":         serviceDefinition.UnhealthyThreshold,
+		"expectedStatusCodes":        serviceDefinition.ExpectedStatusCodes,
+		"healthCheckHeaders":         serviceDefinition.HealthCheckHeaders,
+		"loadBalancerConfig":         serviceDefinition.LoadBalancerConfig,
+		"serviceMetadata":            serviceDefinition.ServiceMetadata,
+		"activeFlag":                 serviceDefinition.ActiveFlag,
+		"addTime":                    serviceDefinition.AddTime,
+		"addWho":                     serviceDefinition.AddWho,
+		"editTime":                   serviceDefinition.EditTime,
+		"editWho":                    serviceDefinition.EditWho,
+		"currentVersion":             serviceDefinition.CurrentVersion,
+		"noteText":                   serviceDefinition.NoteText,
 	}
-} 
+}

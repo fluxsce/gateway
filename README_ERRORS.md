@@ -1,8 +1,8 @@
-# GoHub 错误处理模块使用指南
+# Gateway 错误处理模块使用指南
 
 ## 功能概述
 
-GoHub 提供了一套增强的错误处理机制，通过 `pkg/utils/huberrors` 包，可以创建带有精确位置信息的错误。主要特点：
+Gateway 提供了一套增强的错误处理机制，通过 `pkg/utils/huberrors` 包，可以创建带有精确位置信息的错误。主要特点：
 
 1. 自动捕获错误发生的**精确文件名、行号和函数名**
 2. 与日志系统深度集成，提供完整的错误栈信息
@@ -15,7 +15,7 @@ GoHub 提供了一套增强的错误处理机制，通过 `pkg/utils/huberrors` 
 
 ```go
 import (
-    "gohub/pkg/utils/huberrors"
+    "gateway/pkg/utils/huberrors"
 )
 ```
 

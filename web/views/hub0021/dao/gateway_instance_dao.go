@@ -2,10 +2,10 @@ package dao
 
 import (
 	"context"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/pkg/utils/huberrors"
-	"gohub/web/views/hub0021/models"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/huberrors"
+	"gateway/web/views/hub0021/models"
 )
 
 // GatewayInstanceDAO 网关实例数据访问对象
@@ -65,4 +65,4 @@ func (dao *GatewayInstanceDAO) ListAllGatewayInstances(ctx context.Context, page
 	}
 
 	return instances, result.Count, nil
-} 
+}

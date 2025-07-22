@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/filter"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/filter"
 )
 
 func TestFilterConfig(t *testing.T) {
@@ -469,7 +469,7 @@ func TestFilterFactory(t *testing.T) {
 				Type:    "header",
 				Enabled: true,
 				Order:   10,
-				Config: map[string]interface{}{},
+				Config:  map[string]interface{}{},
 			},
 			expectError: false,
 			description: "有效的头部过滤器配置应该成功创建",
@@ -482,7 +482,7 @@ func TestFilterFactory(t *testing.T) {
 				Type:    "query-param",
 				Enabled: true,
 				Order:   20,
-				Config: map[string]interface{}{},
+				Config:  map[string]interface{}{},
 			},
 			expectError: false,
 			description: "有效的查询参数过滤器配置应该成功创建",

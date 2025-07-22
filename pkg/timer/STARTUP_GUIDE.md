@@ -11,9 +11,9 @@ import (
     "context"
     "time"
     
-    "gohub/pkg/timer"
-    "gohub/pkg/timer/executor"
-    "gohub/pkg/timer/storage"
+    "gateway/pkg/timer"
+    "gateway/pkg/timer/executor"
+    "gateway/pkg/timer/storage"
 )
 ```
 
@@ -167,9 +167,9 @@ import (
     "syscall"
     "time"
     
-    "gohub/pkg/timer"
-    "gohub/pkg/timer/executor"
-    "gohub/pkg/timer/storage"
+    "gateway/pkg/timer"
+    "gateway/pkg/timer/executor"
+    "gateway/pkg/timer/storage"
 )
 
 func main() {

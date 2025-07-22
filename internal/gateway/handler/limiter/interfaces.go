@@ -1,7 +1,7 @@
 package limiter
 
 import (
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // RateLimitAlgorithm 限流算法类型

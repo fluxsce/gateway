@@ -2,7 +2,7 @@ package assertion
 
 import (
 	"fmt"
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // QueryParamAsserter 查询参数断言器

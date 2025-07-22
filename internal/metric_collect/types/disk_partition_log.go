@@ -3,8 +3,8 @@ package types
 import (
 	"time"
 
-	metricTypes "gohub/pkg/metric/types"
-	"gohub/pkg/utils/random"
+	metricTypes "gateway/pkg/metric/types"
+	"gateway/pkg/utils/random"
 )
 
 // DiskPartitionLog 磁盘分区日志表对应的结构体
@@ -61,7 +61,7 @@ func (d *DiskPartitionLog) GetPrimaryKey() (string, string) {
 // NewDiskPartitionLogFromMetrics 从DiskPartition创建DiskPartitionLog实例
 func NewDiskPartitionLogFromMetrics(partition *metricTypes.DiskPartition, tenantId, serverId, operator string, collectTime time.Time, oprSeqFlag string, index int) *DiskPartitionLog {
 	now := time.Now()
-	
+
 	return &DiskPartitionLog{
 		MetricDiskPartitionLogId: random.Generate32BitRandomString(),
 		TenantId:                 tenantId,
@@ -91,11 +91,11 @@ func NewDiskPartitionLogFromMetrics(partition *metricTypes.DiskPartition, tenant
 // NewDiskPartitionLogsFromMetrics 从DiskMetrics批量创建DiskPartitionLog实例
 func NewDiskPartitionLogsFromMetrics(diskMetrics *metricTypes.DiskMetrics, tenantId, serverId, operator string, collectTime time.Time, oprSeqFlag string) []*DiskPartitionLog {
 	var logs []*DiskPartitionLog
-	
+
 	for i, partition := range diskMetrics.Partitions {
 		log := NewDiskPartitionLogFromMetrics(&partition, tenantId, serverId, operator, collectTime, oprSeqFlag, i)
 		logs = append(logs, log)
 	}
-	
+
 	return logs
-} 
+}

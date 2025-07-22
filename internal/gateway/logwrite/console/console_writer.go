@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"gohub/internal/gateway/logwrite/types"
+	"gateway/internal/gateway/logwrite/types"
 )
 
 // ConsoleWriter 控制台日志写入器
@@ -14,13 +14,13 @@ import (
 type ConsoleWriter struct {
 	// 配置选项
 	config *types.LogConfig
-	
+
 	// 输出格式化器
 	formatter Formatter
-	
+
 	// 并发控制
 	mutex sync.Mutex
-	
+
 	// 输出目标
 	output *os.File
 }
@@ -161,7 +161,7 @@ func getStatusColor(statusCode int) string {
 	case statusCode >= 500:
 		return "\033[35m" // 紫色 - 服务器错误
 	default:
-		return "\033[0m"  // 默认颜色
+		return "\033[0m" // 默认颜色
 	}
 }
 
@@ -179,6 +179,6 @@ func getMethodColor(method string) string {
 	case "PATCH":
 		return "\033[36m" // 青色
 	default:
-		return "\033[0m"  // 默认颜色
+		return "\033[0m" // 默认颜色
 	}
-} 
+}

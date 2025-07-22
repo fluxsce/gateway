@@ -1,10 +1,10 @@
 package hub0002routes
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/routes"
-	"gohub/web/views/hub0002/controllers"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/routes"
+	"gateway/web/views/hub0002/controllers"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,7 +17,7 @@ var (
 
 	// APIPrefix API路径前缀，所有该模块的API都将以此为基础路径
 	// 实际路由时将根据RouteDiscovery的设置可能会使用"/api/hub0002"
-	APIPrefix = "/gohub/hub0002"
+	APIPrefix = "/gateway/hub0002"
 )
 
 // init 包初始化函数

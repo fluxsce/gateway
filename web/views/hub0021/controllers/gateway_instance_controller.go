@@ -1,13 +1,13 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hub0021/dao"
-	"gohub/web/views/hub0021/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hub0021/dao"
+	"gateway/web/views/hub0021/models"
 
 	"github.com/gin-gonic/gin"
 )
@@ -34,7 +34,7 @@ func NewGatewayInstanceController(db database.Database) *GatewayInstanceControll
 // @Param page query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0021/queryAllGatewayInstances [post]
+// @Router /gateway/hub0021/queryAllGatewayInstances [post]
 func (c *GatewayInstanceController) QueryAllGatewayInstances(ctx *gin.Context) {
 	// 使用工具类获取分页参数
 	page, pageSize := request.GetPaginationParams(ctx)
@@ -109,4 +109,4 @@ func gatewayInstanceToMap(instance *models.GatewayInstance) map[string]interface
 		"activeFlag":                   instance.ActiveFlag,
 		"noteText":                     instance.NoteText,
 	}
-} 
+}

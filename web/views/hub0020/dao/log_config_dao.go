@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/pkg/logger"
-	"gohub/pkg/utils/random"
-	"gohub/web/views/hub0020/models"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/logger"
+	"gateway/pkg/utils/random"
+	"gateway/web/views/hub0020/models"
 )
 
 // LogConfigDAO 日志配置数据访问对象
@@ -132,9 +132,9 @@ func (dao *LogConfigDAO) UpdateLogConfig(ctx context.Context, logConfig *models.
 // GetLogConfigById 根据ID获取日志配置
 func (dao *LogConfigDAO) GetLogConfigById(ctx context.Context, logConfigId, tenantId string) (*models.LogConfig, error) {
 	logConfig := &models.LogConfig{}
-	query := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND logConfigId = ? AND activeFlag = 'Y'", 
+	query := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND logConfigId = ? AND activeFlag = 'Y'",
 		logConfig.TableName())
-	
+
 	err := dao.db.QueryOne(ctx, logConfig, query, []interface{}{tenantId, logConfigId}, true)
 	if err != nil {
 		if err == database.ErrRecordNotFound {
@@ -150,7 +150,7 @@ func (dao *LogConfigDAO) GetLogConfigById(ctx context.Context, logConfigId, tena
 // ListLogConfigs 获取日志配置列表
 func (dao *LogConfigDAO) ListLogConfigs(ctx context.Context, tenantId string, page, pageSize int) ([]*models.LogConfig, int64, error) {
 	tableName := (&models.LogConfig{}).TableName()
-	
+
 	// 构建基础查询
 	baseQuery := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY configPriority ASC, addTime DESC", tableName)
 	args := []interface{}{tenantId}
@@ -230,10 +230,10 @@ func (dao *LogConfigDAO) DeleteLogConfig(ctx context.Context, logConfigId, tenan
 func (dao *LogConfigDAO) GetLogConfigsByTenant(ctx context.Context, tenantId string) ([]*models.LogConfig, error) {
 	var logConfigs []*models.LogConfig
 	tableName := (&models.LogConfig{}).TableName()
-	
-	query := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY configPriority ASC, addTime DESC", 
+
+	query := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY configPriority ASC, addTime DESC",
 		tableName)
-	
+
 	err := dao.db.Query(ctx, &logConfigs, query, []interface{}{tenantId}, true)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "查询租户日志配置失败", err)
@@ -246,9 +246,9 @@ func (dao *LogConfigDAO) GetLogConfigsByTenant(ctx context.Context, tenantId str
 // CheckLogConfigExists 检查日志配置是否存在
 func (dao *LogConfigDAO) CheckLogConfigExists(ctx context.Context, logConfigId, tenantId string) (bool, error) {
 	tableName := (&models.LogConfig{}).TableName()
-	countQuery := fmt.Sprintf("SELECT COUNT(*) as count FROM %s WHERE tenantId = ? AND logConfigId = ? AND activeFlag = 'Y'", 
+	countQuery := fmt.Sprintf("SELECT COUNT(*) as count FROM %s WHERE tenantId = ? AND logConfigId = ? AND activeFlag = 'Y'",
 		tableName)
-	
+
 	var result struct {
 		Count int `db:"count"`
 	}
@@ -265,11 +265,11 @@ func (dao *LogConfigDAO) CheckLogConfigExists(ctx context.Context, logConfigId, 
 func (dao *LogConfigDAO) GetDefaultLogConfig(ctx context.Context, tenantId string) (*models.LogConfig, error) {
 	var logConfigs []*models.LogConfig
 	tableName := (&models.LogConfig{}).TableName()
-	
+
 	// 获取优先级最高的配置（数值越小优先级越高）
-	query := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY configPriority ASC, addTime DESC LIMIT 1", 
+	query := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY configPriority ASC, addTime DESC LIMIT 1",
 		tableName)
-	
+
 	err := dao.db.Query(ctx, &logConfigs, query, []interface{}{tenantId}, true)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "查询默认日志配置失败", err)
@@ -281,4 +281,4 @@ func (dao *LogConfigDAO) GetDefaultLogConfig(ctx context.Context, tenantId strin
 	}
 
 	return logConfigs[0], nil
-} 
+}

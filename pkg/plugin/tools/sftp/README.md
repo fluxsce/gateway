@@ -112,8 +112,8 @@ import (
     "fmt"
     "time"
     
-    "gohub/pkg/plugin/tools/sftp"
-    "gohub/pkg/plugin/tools/configs"
+    "gateway/pkg/plugin/tools/sftp"
+    "gateway/pkg/plugin/tools/configs"
 )
 
 func main() {

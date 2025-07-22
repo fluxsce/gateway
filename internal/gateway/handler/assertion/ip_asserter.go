@@ -1,7 +1,7 @@
 package assertion
 
 import (
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 	"net"
 	"strings"
 )

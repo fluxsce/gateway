@@ -85,8 +85,8 @@ memory_cache:
 ```go
 import (
     "time"
-    "github.com/yourusername/gohub/pkg/cache"
-    "github.com/yourusername/gohub/pkg/cache/memory"
+    "github.com/yourusername/gateway/pkg/cache"
+    "github.com/yourusername/gateway/pkg/cache/memory"
 )
 
 // 创建内存缓存实例

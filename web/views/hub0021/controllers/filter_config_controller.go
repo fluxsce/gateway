@@ -2,13 +2,13 @@ package controllers
 
 import (
 	"encoding/json"
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hub0021/dao"
-	"gohub/web/views/hub0021/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hub0021/dao"
+	"gateway/web/views/hub0021/models"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,8 +16,8 @@ import (
 
 // FilterConfigController 过滤器配置控制器
 type FilterConfigController struct {
-	db               database.Database
-	filterConfigDAO  *dao.FilterConfigDAO
+	db              database.Database
+	filterConfigDAO *dao.FilterConfigDAO
 }
 
 // NewFilterConfigController 创建过滤器配置控制器
@@ -720,8 +720,8 @@ func (c *FilterConfigController) GetFilterConfigStats(ctx *gin.Context) {
 
 	// 统计信息
 	stats := map[string]interface{}{
-		"total": len(filterConfigs),
-		"byType": make(map[string]int),
+		"total":    len(filterConfigs),
+		"byType":   make(map[string]int),
 		"byAction": make(map[string]int),
 		"byStatus": map[string]int{
 			"active":   0,
@@ -736,10 +736,10 @@ func (c *FilterConfigController) GetFilterConfigStats(ctx *gin.Context) {
 	for _, config := range filterConfigs {
 		// 按类型统计
 		byType[config.FilterType]++
-		
+
 		// 按执行时机统计
 		byAction[config.FilterAction]++
-		
+
 		// 按状态统计
 		if config.ActiveFlag == "Y" {
 			byStatus["active"]++
@@ -853,10 +853,10 @@ type EnableDisableFilterConfigRequest struct {
 
 // CreateFromTemplateRequest 从模板创建过滤器配置请求
 type CreateFromTemplateRequest struct {
-	TemplateName      string `json:"templateName" form:"templateName" binding:"required"`           // 模板名称
-	FilterName        string `json:"filterName" form:"filterName" binding:"required"`               // 过滤器名称
-	GatewayInstanceId string `json:"gatewayInstanceId" form:"gatewayInstanceId"`                    // 网关实例ID
-	RouteConfigId     string `json:"routeConfigId" form:"routeConfigId"`                            // 路由配置ID
+	TemplateName      string `json:"templateName" form:"templateName" binding:"required"` // 模板名称
+	FilterName        string `json:"filterName" form:"filterName" binding:"required"`     // 过滤器名称
+	GatewayInstanceId string `json:"gatewayInstanceId" form:"gatewayInstanceId"`          // 网关实例ID
+	RouteConfigId     string `json:"routeConfigId" form:"routeConfigId"`                  // 路由配置ID
 }
 
 // ImportFilterConfigsRequest 导入过滤器配置请求
@@ -868,7 +868,7 @@ type ImportFilterConfigsRequest struct {
 func (c *FilterConfigController) BatchUpdateFilterConfigs(ctx *gin.Context) {
 	var req struct {
 		FilterConfigIds []string               `json:"filterConfigIds" form:"filterConfigIds" binding:"required"` // 过滤器配置ID列表
-		Updates         map[string]interface{} `json:"updates" form:"updates" binding:"required"`                  // 更新字段
+		Updates         map[string]interface{} `json:"updates" form:"updates" binding:"required"`                 // 更新字段
 	}
 
 	if err := request.BindSafely(ctx, &req); err != nil {
@@ -908,8 +908,8 @@ func (c *FilterConfigController) BatchUpdateFilterConfigs(ctx *gin.Context) {
 		"operatorId", operatorId)
 
 	response.SuccessJSON(ctx, gin.H{
-		"message":        "批量更新过滤器配置成功",
-		"updatedCount":   len(req.FilterConfigIds),
+		"message":         "批量更新过滤器配置成功",
+		"updatedCount":    len(req.FilterConfigIds),
 		"filterConfigIds": req.FilterConfigIds,
 	}, constants.SD00004)
 }
@@ -957,8 +957,8 @@ func (c *FilterConfigController) BatchDeleteFilterConfigs(ctx *gin.Context) {
 		"operatorId", operatorId)
 
 	response.SuccessJSON(ctx, gin.H{
-		"message":        "批量删除过滤器配置成功",
-		"deletedCount":   len(req.FilterConfigIds),
+		"message":         "批量删除过滤器配置成功",
+		"deletedCount":    len(req.FilterConfigIds),
 		"filterConfigIds": req.FilterConfigIds,
 	}, constants.SD00005)
 }
@@ -1015,8 +1015,8 @@ func (c *FilterConfigController) BatchUpdateFilterOrder(ctx *gin.Context) {
 		"operatorId", operatorId)
 
 	response.SuccessJSON(ctx, gin.H{
-		"message":        "批量更新过滤器配置执行顺序成功",
-		"updatedCount":   len(updatedIds),
+		"message":         "批量更新过滤器配置执行顺序成功",
+		"updatedCount":    len(updatedIds),
 		"filterConfigIds": updatedIds,
 	}, constants.SD00004)
 }
@@ -1055,8 +1055,8 @@ func (c *FilterConfigController) GetFilterConfigUsage(ctx *gin.Context) {
 		"totalUsage": 2,
 		"lastUsed":   time.Now(),
 		"statistics": map[string]interface{}{
-			"requestCount":  1000,
-			"errorCount":    5,
+			"requestCount":    1000,
+			"errorCount":      5,
 			"avgResponseTime": "120ms",
 		},
 	}
@@ -1091,4 +1091,4 @@ func filterConfigToMap(filterConfig *models.FilterConfig) map[string]interface{}
 		"activeFlag":        filterConfig.ActiveFlag,
 		"noteText":          filterConfig.NoteText,
 	}
-} 
+}

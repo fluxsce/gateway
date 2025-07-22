@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"gohub/internal/gateway/handler/security"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/pkg/logger"
+	"gateway/internal/gateway/handler/security"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/logger"
 )
 
 // SecurityConfigLoader 安全配置加载器
@@ -475,23 +475,27 @@ func (loader *SecurityConfigLoader) LoadDomainAccessConfig(ctx context.Context, 
 // - 返回清理后的字符串切片
 //
 // 参数:
-//   str: 要解析的字符串（JSON数组或逗号分隔字符串）
+//
+//	str: 要解析的字符串（JSON数组或逗号分隔字符串）
+//
 // 返回:
-//   []string: 解析后的字符串切片
+//
+//	[]string: 解析后的字符串切片
 //
 // 示例:
-//   parseCommaSeparatedString(`["a","b","c"]`) 
-//   // 返回: ["a", "b", "c"]
-//   parseCommaSeparatedString("a, b , c,, d ") 
-//   // 返回: ["a", "b", "c", "d"]
+//
+//	parseCommaSeparatedString(`["a","b","c"]`)
+//	// 返回: ["a", "b", "c"]
+//	parseCommaSeparatedString("a, b , c,, d ")
+//	// 返回: ["a", "b", "c", "d"]
 func parseCommaSeparatedString(str string) []string {
 	if str == "" {
 		return []string{}
 	}
-	
+
 	// 去除前后空白字符
 	str = strings.TrimSpace(str)
-	
+
 	// 优先尝试解析JSON数组
 	if strings.HasPrefix(str, "[") && strings.HasSuffix(str, "]") {
 		var jsonArray []string
@@ -507,10 +511,10 @@ func parseCommaSeparatedString(str string) []string {
 			return result
 		}
 	}
-	
+
 	// JSON解析失败，按逗号分割
 	parts := strings.Split(str, ",")
-	
+
 	// 清理和过滤
 	var result []string
 	for _, part := range parts {
@@ -521,6 +525,6 @@ func parseCommaSeparatedString(str string) []string {
 			result = append(result, trimmed)
 		}
 	}
-	
+
 	return result
-} 
+}

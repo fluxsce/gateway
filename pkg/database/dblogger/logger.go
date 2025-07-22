@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"gohub/pkg/database/dbtypes"
-	"gohub/pkg/logger"
+	"gateway/pkg/database/dbtypes"
+	"gateway/pkg/logger"
 )
 
 // DBLogger 数据库日志记录器
@@ -138,7 +138,7 @@ func (l *DBLogger) formatSQL(query string, args []any) string {
 	}
 
 	formattedSQL := query
-	
+
 	// 检查是否为Oracle格式的占位符 (:1, :2, :3...)
 	if strings.Contains(query, ":1") || strings.Contains(query, ":2") {
 		// Oracle格式占位符替换

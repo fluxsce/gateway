@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gohub/internal/gateway/config"
-	"gohub/internal/gateway/handler/router"
-	"gohub/internal/gateway/loader"
+	"gateway/internal/gateway/config"
+	"gateway/internal/gateway/handler/router"
+	"gateway/internal/gateway/loader"
 )
 
 func TestNewGatewayConfigFactory(t *testing.T) {
@@ -452,7 +452,7 @@ func TestGatewayConfigFactory_LoadRealConfigAndExport(t *testing.T) {
 
 		// 验证配置的关键字段
 		assert.Equal(t, "gateway-001", cfg.InstanceID)
-		assert.Equal(t, "GoHub API Gateway", cfg.Base.Name)
+		assert.Equal(t, "Gateway API Gateway", cfg.Base.Name)
 		assert.Equal(t, ":38080", cfg.Base.Listen)
 		assert.Equal(t, "default-router", cfg.Router.ID)
 		assert.Equal(t, "Default Router", cfg.Router.Name)

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"gohub/internal/gateway/config"
+	"gateway/internal/gateway/config"
 )
 
 // JSONConfigLoader JSON配置加载器

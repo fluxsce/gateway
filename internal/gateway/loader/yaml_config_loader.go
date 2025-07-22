@@ -6,7 +6,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"gohub/internal/gateway/config"
+	"gateway/internal/gateway/config"
 )
 
 // YAMLConfigLoader YAML配置加载器

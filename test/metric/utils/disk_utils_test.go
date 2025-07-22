@@ -6,8 +6,8 @@ import (
 	"runtime"
 	"testing"
 
-	"gohub/pkg/metric/types"
-	"gohub/pkg/metric/utils"
+	"gateway/pkg/metric/types"
+	"gateway/pkg/metric/utils"
 )
 
 // TestFormatDiskUsage 测试格式化磁盘使用信息函数
@@ -35,9 +35,9 @@ func TestFormatDiskUsage(t *testing.T) {
 		{
 			name: "小容量磁盘",
 			info: &types.DiskUsageInfo{
-				Total:        1024,      // 1KB
-				Used:         512,       // 512B
-				Free:         512,       // 512B
+				Total:        1024, // 1KB
+				Used:         512,  // 512B
+				Free:         512,  // 512B
 				UsagePercent: 50.0,
 			},
 			expected: "总空间: 1.0 KB, 已使用: 512 B (50.0%), 可用: 512 B",
@@ -64,13 +64,13 @@ func TestFormatDiskUsageDetailed(t *testing.T) {
 		{
 			name: "带 inode 信息",
 			info: &types.DiskUsageInfo{
-				Total:        100 * 1024 * 1024 * 1024, // 100GB
-				Used:         50 * 1024 * 1024 * 1024,  // 50GB
-				Free:         50 * 1024 * 1024 * 1024,  // 50GB
-				UsagePercent: 50.0,
-				InodesTotal:  1000,
-				InodesUsed:   300,
-				InodesFree:   700,
+				Total:              100 * 1024 * 1024 * 1024, // 100GB
+				Used:               50 * 1024 * 1024 * 1024,  // 50GB
+				Free:               50 * 1024 * 1024 * 1024,  // 50GB
+				UsagePercent:       50.0,
+				InodesTotal:        1000,
+				InodesUsed:         300,
+				InodesFree:         700,
 				InodesUsagePercent: 30.0,
 			},
 			expected: "总空间: 100.0 GB, 已使用: 50.0 GB (50.0%), 可用: 50.0 GB\ninode: 总数: 1000, 已使用: 300 (30.0%), 可用: 700",
@@ -239,7 +239,7 @@ func TestGetDiskUsageMultipleWithInvalidPath(t *testing.T) {
 // TestDiskUsageInfoValidation 测试磁盘使用信息的一致性
 func TestDiskUsageInfoValidation(t *testing.T) {
 	tempDir := t.TempDir()
-	
+
 	info, err := utils.GetDiskUsage(tempDir)
 	if err != nil {
 		t.Fatalf("GetDiskUsage() error = %v", err)
@@ -263,7 +263,7 @@ func TestDiskUsageInfoValidation(t *testing.T) {
 // BenchmarkGetDiskUsage 性能测试
 func BenchmarkGetDiskUsage(b *testing.B) {
 	tempDir := b.TempDir()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := utils.GetDiskUsage(tempDir)

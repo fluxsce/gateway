@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gohub/internal/gateway/bootstrap"
-	"gohub/internal/gateway/loader"
+	"gateway/internal/gateway/bootstrap"
+	"gateway/internal/gateway/loader"
 )
 
 // TestRealConfigBootstrap 使用真实配置文件测试网关的加载和启动

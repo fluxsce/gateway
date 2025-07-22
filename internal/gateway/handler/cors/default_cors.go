@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // DefaultCORSHandler 默认CORS处理器

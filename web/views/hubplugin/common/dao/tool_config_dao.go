@@ -2,9 +2,9 @@ package dao
 
 import (
 	"context"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/web/views/hubplugin/common/models"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/web/views/hubplugin/common/models"
 	"strings"
 )
 
@@ -60,125 +60,125 @@ func (d *ToolConfigDao) Update(ctx context.Context, toolConfig *models.ToolConfi
 	// 构建动态更新语句，跳过nil字段
 	var setParts []string
 	var args []interface{}
-	
+
 	// 基础字段（总是更新）
 	setParts = append(setParts, "toolName = ?", "toolType = ?", "configName = ?")
 	args = append(args, toolConfig.ToolName, toolConfig.ToolType, toolConfig.ConfigName)
-	
+
 	// 可选字段（根据是否为nil决定是否更新）
 	if toolConfig.ToolVersion != nil {
 		setParts = append(setParts, "toolVersion = ?")
 		args = append(args, ptrToString(toolConfig.ToolVersion))
 	}
-	
+
 	if toolConfig.ConfigDescription != nil {
 		setParts = append(setParts, "configDescription = ?")
 		args = append(args, ptrToString(toolConfig.ConfigDescription))
 	}
-	
+
 	if toolConfig.ConfigGroupId != nil {
 		setParts = append(setParts, "configGroupId = ?")
 		args = append(args, ptrToString(toolConfig.ConfigGroupId))
 	}
-	
+
 	if toolConfig.ConfigGroupName != nil {
 		setParts = append(setParts, "configGroupName = ?")
 		args = append(args, ptrToString(toolConfig.ConfigGroupName))
 	}
-	
+
 	if toolConfig.HostAddress != nil {
 		setParts = append(setParts, "hostAddress = ?")
 		args = append(args, ptrToString(toolConfig.HostAddress))
 	}
-	
+
 	if toolConfig.PortNumber != nil {
 		setParts = append(setParts, "portNumber = ?")
 		args = append(args, ptrToInt(toolConfig.PortNumber))
 	}
-	
+
 	if toolConfig.ProtocolType != nil {
 		setParts = append(setParts, "protocolType = ?")
 		args = append(args, ptrToString(toolConfig.ProtocolType))
 	}
-	
+
 	if toolConfig.AuthType != nil {
 		setParts = append(setParts, "authType = ?")
 		args = append(args, ptrToString(toolConfig.AuthType))
 	}
-	
+
 	if toolConfig.UserName != nil {
 		setParts = append(setParts, "userName = ?")
 		args = append(args, ptrToString(toolConfig.UserName))
 	}
-	
+
 	// 敏感字段：只有当不为nil时才更新
 	if toolConfig.PasswordEncrypted != nil {
 		setParts = append(setParts, "passwordEncrypted = ?")
 		args = append(args, ptrToString(toolConfig.PasswordEncrypted))
 	}
-	
+
 	if toolConfig.KeyFilePath != nil {
 		setParts = append(setParts, "keyFilePath = ?")
 		args = append(args, ptrToString(toolConfig.KeyFilePath))
 	}
-	
+
 	if toolConfig.KeyFileContent != nil {
 		setParts = append(setParts, "keyFileContent = ?")
 		args = append(args, ptrToString(toolConfig.KeyFileContent))
 	}
-	
+
 	if toolConfig.ConfigParameters != nil {
 		setParts = append(setParts, "configParameters = ?")
 		args = append(args, ptrToString(toolConfig.ConfigParameters))
 	}
-	
+
 	if toolConfig.EnvironmentVariables != nil {
 		setParts = append(setParts, "environmentVariables = ?")
 		args = append(args, ptrToString(toolConfig.EnvironmentVariables))
 	}
-	
+
 	if toolConfig.CustomSettings != nil {
 		setParts = append(setParts, "customSettings = ?")
 		args = append(args, ptrToString(toolConfig.CustomSettings))
 	}
-	
+
 	// 状态字段（总是更新）
 	setParts = append(setParts, "configStatus = ?", "defaultFlag = ?")
 	args = append(args, toolConfig.ConfigStatus, toolConfig.DefaultFlag)
-	
+
 	if toolConfig.PriorityLevel != nil {
 		setParts = append(setParts, "priorityLevel = ?")
 		args = append(args, ptrToInt(toolConfig.PriorityLevel))
 	}
-	
+
 	if toolConfig.EncryptionType != nil {
 		setParts = append(setParts, "encryptionType = ?")
 		args = append(args, ptrToString(toolConfig.EncryptionType))
 	}
-	
+
 	if toolConfig.EncryptionKey != nil {
 		setParts = append(setParts, "encryptionKey = ?")
 		args = append(args, ptrToString(toolConfig.EncryptionKey))
 	}
-	
+
 	// 系统字段（总是更新）
 	setParts = append(setParts, "editTime = ?", "editWho = ?", "oprSeqFlag = ?", "currentVersion = currentVersion + 1")
 	args = append(args, toolConfig.EditTime, toolConfig.EditWho, toolConfig.OprSeqFlag)
-	
+
 	if toolConfig.NoteText != nil {
 		setParts = append(setParts, "noteText = ?")
 		args = append(args, ptrToString(toolConfig.NoteText))
 	}
-	
+
 	if toolConfig.ExtProperty != nil {
 		setParts = append(setParts, "extProperty = ?")
 		args = append(args, ptrToString(toolConfig.ExtProperty))
 	}
-	
+
 	// 构建完整的UPDATE语句
-	query := "UPDATE " + toolConfig.TableName() + " SET " + strings.Join(setParts, ", ") + 
+	query := "UPDATE " + toolConfig.TableName() + " SET " + strings.Join(setParts, ", ") +
 		" WHERE tenantId = ? AND toolConfigId = ? "
-	
+
 	// 添加WHERE条件的参数
 	args = append(args, toolConfig.TenantId, toolConfig.ToolConfigId)
 
@@ -187,7 +187,7 @@ func (d *ToolConfigDao) Update(ctx context.Context, toolConfig *models.ToolConfi
 
 // Delete 删除工具配置（物理删除）
 func (d *ToolConfigDao) Delete(ctx context.Context, tenantId, toolConfigId, operatorId string) (int64, error) {
-	query := "DELETE FROM " + (&models.ToolConfig{}).TableName() + 
+	query := "DELETE FROM " + (&models.ToolConfig{}).TableName() +
 		" WHERE tenantId = ? AND toolConfigId = ?"
 	return d.db.Exec(ctx, query, []interface{}{tenantId, toolConfigId}, true)
 }
@@ -286,7 +286,7 @@ func (d *ToolConfigDao) Query(ctx context.Context, params map[string]interface{}
 // GetByGroupId 根据分组ID获取工具配置列表
 func (d *ToolConfigDao) GetByGroupId(ctx context.Context, tenantId, configGroupId string) ([]*models.ToolConfig, error) {
 	var toolConfigs []*models.ToolConfig
-	query := "SELECT * FROM " + (&models.ToolConfig{}).TableName() + 
+	query := "SELECT * FROM " + (&models.ToolConfig{}).TableName() +
 		" WHERE tenantId = ? AND configGroupId = ? ORDER BY addTime DESC"
 	args := []interface{}{tenantId, configGroupId}
 
@@ -303,4 +303,4 @@ func (d *ToolConfigDao) TestConnection(ctx context.Context, toolConfig *models.T
 	// TODO: 实现SFTP连接测试逻辑
 	// 这里可以调用SFTP客户端进行连接测试
 	return nil
-} 
+}

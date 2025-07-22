@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"gohub/pkg/cache/redis"
+	"gateway/pkg/cache/redis"
 )
 
 func TestRedisConfigDefaults(t *testing.T) {
@@ -200,4 +200,4 @@ func TestRedisConfigGetType(t *testing.T) {
 	if config.GetType() != "redis" {
 		t.Errorf("Expected type 'redis', got %s", config.GetType())
 	}
-} 
+}

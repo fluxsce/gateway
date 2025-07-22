@@ -3,7 +3,7 @@ package service
 import (
 	"sync"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // LeastConnectionBalancer 最少连接负载均衡器

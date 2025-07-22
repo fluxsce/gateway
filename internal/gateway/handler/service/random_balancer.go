@@ -4,7 +4,7 @@ import (
 	"math/rand"
 	"time"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // RandomBalancer 随机负载均衡器

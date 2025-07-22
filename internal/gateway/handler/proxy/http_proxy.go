@@ -13,18 +13,18 @@ import (
 	"time"
 
 	"crypto/tls"
-	"gohub/internal/gateway/constants"
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/service"
+	"gateway/internal/gateway/constants"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/service"
 )
 
 // HTTPProxy HTTP代理实现
 type HTTPProxy struct {
 	*BaseProxyHandler
-	client              *http.Client
-	serviceManager      service.ServiceManager
-	config              *HTTPProxyConfig
-	wsUpgradeHandler    *WebSocketUpgradeHandler // WebSocket升级处理器
+	client           *http.Client
+	serviceManager   service.ServiceManager
+	config           *HTTPProxyConfig
+	wsUpgradeHandler *WebSocketUpgradeHandler // WebSocket升级处理器
 }
 
 // Handle 处理HTTP代理请求
@@ -47,7 +47,7 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 		})
 		return false
 	}
-	
+
 	// 从负载均衡器获取目标节点
 	node, err := h.serviceManager.SelectNode(serviceID, ctx)
 	if err != nil {
@@ -57,7 +57,7 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 		})
 		return false
 	}
-	
+
 	// 代理请求
 	err = h.ProxyRequest(ctx, node.URL)
 	if err != nil {
@@ -82,7 +82,7 @@ func (h *HTTPProxy) ProxyRequest(ctx *core.Context, targetURL string) error {
 
 	// 智能处理路径拼接
 	finalPath := h.buildProxyPath(ctx, target.Path)
-	
+
 	// 构建代理请求URL
 	proxyURL := &url.URL{
 		Scheme:   target.Scheme,
@@ -90,10 +90,10 @@ func (h *HTTPProxy) ProxyRequest(ctx *core.Context, targetURL string) error {
 		Path:     finalPath,
 		RawQuery: ctx.Request.URL.RawQuery,
 	}
-	
+
 	// 设置目标URL
 	ctx.SetTargetURL(proxyURL.String())
-	
+
 	// 创建代理请求
 	var body io.Reader
 	if ctx.Request.Body != nil {
@@ -136,15 +136,15 @@ func (h *HTTPProxy) ProxyRequest(ctx *core.Context, targetURL string) error {
 
 	// 设置必需的代理头部
 	h.setProxyHeaders(ctx.Request, proxyReq, target.Host)
-	
+
 	//设置服务名称
 	ctx.Set(constants.ContextKeyServiceDefinitionName, h.GetName())
 	//设置代理类型
 	ctx.Set(constants.ContextKeyProxyType, h.GetType())
-	
+
 	// 设置转发开始时间
 	ctx.SetForwardStartTime(time.Now())
-	
+
 	// 使用defer确保无论成功失败都能保存header参数和设置转发结束时间
 	defer func() {
 		// 在响应处理完成后复制header，避免影响核心时间统计
@@ -153,13 +153,13 @@ func (h *HTTPProxy) ProxyRequest(ctx *core.Context, targetURL string) error {
 			headersCopy[k] = append([]string(nil), v...)
 		}
 		ctx.Set(constants.ContextKeyForwardHeaders, headersCopy)
-		
+
 		// 确保设置了转发结束时间（处理超时等异常情况）
 		if ctx.GetForwardResponseTime().IsZero() {
 			ctx.SetForwardResponseTime(time.Now())
 		}
 	}()
-	
+
 	// 发送代理请求
 	resp, err := h.client.Do(proxyReq)
 	if err != nil {
@@ -175,8 +175,8 @@ func (h *HTTPProxy) ProxyRequest(ctx *core.Context, targetURL string) error {
 		for name, values := range resp.Header {
 			lowerName := strings.ToLower(name)
 			// 跳过SSE特殊处理方法中已设置的头部
-			if lowerName == "content-type" || lowerName == "cache-control" || 
-			   lowerName == "connection" || lowerName == "access-control-allow-origin" {
+			if lowerName == "content-type" || lowerName == "cache-control" ||
+				lowerName == "connection" || lowerName == "access-control-allow-origin" {
 				continue
 			}
 			// 保留Transfer-Encoding用于分块传输
@@ -190,7 +190,7 @@ func (h *HTTPProxy) ProxyRequest(ctx *core.Context, targetURL string) error {
 				ctx.Writer.Header().Add(name, value)
 			}
 		}
-		
+
 		// 使用专门的SSE处理方法
 		return h.handleSSEResponse(ctx, resp)
 	}
@@ -241,21 +241,21 @@ func (h *HTTPProxy) Validate() error {
 // Close 关闭HTTP代理
 func (h *HTTPProxy) Close() error {
 	var lastErr error
-	
+
 	// 优雅关闭WebSocket升级处理器
 	if h.wsUpgradeHandler != nil {
 		if err := h.wsUpgradeHandler.Shutdown(30 * time.Second); err != nil {
 			lastErr = fmt.Errorf("关闭WebSocket升级处理器失败: %w", err)
 		}
 	}
-	
+
 	// 关闭HTTP客户端连接
 	if h.client != nil {
 		if transport, ok := h.client.Transport.(*http.Transport); ok {
 			transport.CloseIdleConnections()
 		}
 	}
-	
+
 	// 关闭服务管理器
 	// 服务管理器包含健康检查器等需要清理的资源
 	if h.serviceManager != nil {
@@ -267,7 +267,7 @@ func (h *HTTPProxy) Close() error {
 			}
 		}
 	}
-	
+
 	return lastErr
 }
 
@@ -282,7 +282,7 @@ func NewHTTPProxy(config ProxyConfig, serviceManager service.ServiceManager) (*H
 
 	// 创建WebSocket升级处理器（如果需要支持WebSocket升级）
 	wsUpgradeHandler := NewWebSocketUpgradeHandler(serviceManager, nil)
-	
+
 	// 从HTTP配置中继承参数
 	wsUpgradeHandler.InheritFromHTTPConfig(&httpConfig)
 
@@ -322,19 +322,19 @@ func (h *HTTPProxy) handleWebSocketUpgrade(ctx *core.Context) bool {
 // 3. 前缀一样：处理重复拼接问题
 func (h *HTTPProxy) buildProxyPath(ctx *core.Context, targetPath string) string {
 	requestPath := ctx.Request.URL.Path
-	
+
 	// 记住原始目标路径是否以斜杠结尾
 	originalTargetHasSlash := strings.HasSuffix(targetPath, "/")
-	
+
 	// 清理路径
 	targetPath = h.cleanPath(targetPath)
 	requestPath = h.cleanPath(requestPath)
-	
+
 	// 1. 目标路径为空或只有斜杠：使用请求地址
 	if targetPath == "" || targetPath == "/" {
 		return requestPath
 	}
-	
+
 	// 2. 前缀不一样：直接使用目标地址
 	if !h.hasSamePrefix(targetPath, requestPath) {
 		// 如果原始目标路径有斜杠，保留它
@@ -343,7 +343,7 @@ func (h *HTTPProxy) buildProxyPath(ctx *core.Context, targetPath string) string 
 		}
 		return targetPath
 	}
-	
+
 	// 3. 前缀一样：处理重复拼接问题
 	// 特殊情况：如果路径完全相同，直接返回目标路径
 	if targetPath == requestPath {
@@ -352,12 +352,12 @@ func (h *HTTPProxy) buildProxyPath(ctx *core.Context, targetPath string) string 
 		}
 		return targetPath
 	}
-	
+
 	// 如果请求路径以目标路径为前缀，直接返回请求路径避免重复
 	if strings.HasPrefix(requestPath, targetPath) {
 		return requestPath
 	}
-	
+
 	// 否则根据是否有斜杠决定拼接方式
 	if originalTargetHasSlash {
 		// 目标路径原本有斜杠，直接拼接
@@ -375,24 +375,24 @@ func (h *HTTPProxy) buildProxyPath(ctx *core.Context, targetPath string) string 
 func (h *HTTPProxy) hasSamePrefix(targetPath, requestPath string) bool {
 	// 获取目标路径的基础部分（去掉结尾斜杠）
 	basePath := strings.TrimSuffix(targetPath, "/")
-	
+
 	// 特殊情况：如果目标路径是根路径，只有请求路径也是根路径才算相同前缀
 	if basePath == "" {
 		return requestPath == "/"
 	}
-	
+
 	// 如果请求路径不以目标路径开头，前缀不同
 	if !strings.HasPrefix(requestPath, basePath) {
 		return false
 	}
-	
+
 	// 检查路径边界：确保匹配的是完整的路径段
 	// 例如："/ap" 不应该匹配 "/api/v1"
 	if len(requestPath) > len(basePath) {
 		nextChar := requestPath[len(basePath)]
 		return nextChar == '/'
 	}
-	
+
 	// 请求路径长度等于或小于目标路径，认为是相同前缀
 	return true
 }
@@ -402,12 +402,12 @@ func (h *HTTPProxy) cleanPath(p string) string {
 	if p == "" {
 		return "/"
 	}
-	
+
 	// 确保以 / 开头
 	if !strings.HasPrefix(p, "/") {
 		p = "/" + p
 	}
-	
+
 	// 使用 path.Clean 清理路径
 	return path.Clean(p)
 }
@@ -426,25 +426,25 @@ func (h *HTTPProxy) handleSSEResponse(ctx *core.Context, resp *http.Response) er
 	ctx.Writer.Header().Set("Cache-Control", "no-cache")
 	ctx.Writer.Header().Set("Connection", "keep-alive")
 	ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-	
+
 	// 设置响应状态码
 	ctx.Writer.WriteHeader(resp.StatusCode)
 	ctx.Set(constants.BackendStatusCode, resp.StatusCode)
 	ctx.Set(constants.GatewayStatusCode, resp.StatusCode)
 	ctx.SetResponded()
-	
+
 	// 获取Flusher接口用于实时刷新
 	flusher, ok := ctx.Writer.(http.Flusher)
 	if !ok {
 		return fmt.Errorf("响应写入器不支持刷新操作")
 	}
-	
+
 	// 立即刷新响应头
 	flusher.Flush()
-	
+
 	// 使用较小的缓冲区确保实时性（类似nginx proxy_buffering off）
 	buffer := make([]byte, 1024) // 1KB缓冲区
-	
+
 	for {
 		n, err := resp.Body.Read(buffer)
 		if n > 0 {
@@ -461,7 +461,7 @@ func (h *HTTPProxy) handleSSEResponse(ctx *core.Context, resp *http.Response) er
 			return fmt.Errorf("读取SSE数据失败: %w", err)
 		}
 	}
-	
+
 	// 只在成功处理完SSE流后设置响应时间
 	ctx.SetForwardResponseTime(time.Now())
 	return nil
@@ -481,7 +481,7 @@ func (h *HTTPProxy) handleRegularResponse(ctx *core.Context, resp *http.Response
 	ctx.Set(constants.BackendStatusCode, resp.StatusCode)
 	ctx.Set(constants.GatewayStatusCode, resp.StatusCode)
 	ctx.SetResponded()
-	
+
 	// 复制响应体
 	config := h.GetHTTPConfig()
 	if config.CopyResponseBody {
@@ -504,7 +504,7 @@ func (h *HTTPProxy) handleRegularResponse(ctx *core.Context, resp *http.Response
 			return fmt.Errorf("复制响应体失败: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -545,7 +545,7 @@ func isConnectionHeader(name string, headers http.Header) bool {
 	if connectionHeaders == "" {
 		return false
 	}
-	
+
 	// 解析Connection头部中的token
 	for _, token := range strings.Split(connectionHeaders, ",") {
 		token = strings.TrimSpace(token)
@@ -560,19 +560,19 @@ func isConnectionHeader(name string, headers http.Header) bool {
 func (h *HTTPProxy) setProxyHeaders(req *http.Request, proxyReq *http.Request, targetHost string) {
 	// 获取配置，如果没有配置则使用默认值
 	config := h.GetHTTPConfig()
-	
+
 	// 1. 设置标准代理头部
 	if config.SetHeaders != nil {
 		for key, value := range config.SetHeaders {
 			proxyReq.Header.Set(key, value)
 		}
 	}
-	
+
 	// 2. 设置默认的代理头部（如果没有在配置中设置）
 	if proxyReq.Header.Get("User-Agent") == "" {
-		proxyReq.Header.Set("User-Agent", "GoHub-Gateway/1.0")
+		proxyReq.Header.Set("User-Agent", "Gateway-Gateway/1.0")
 	}
-	
+
 	// 3. 设置X-Forwarded-* 头部
 	if config.AddXForwardedFor {
 		if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
@@ -581,11 +581,11 @@ func (h *HTTPProxy) setProxyHeaders(req *http.Request, proxyReq *http.Request, t
 			proxyReq.Header.Set("X-Forwarded-For", h.getClientIP(req))
 		}
 	}
-	
+
 	if config.AddXRealIP {
 		proxyReq.Header.Set("X-Real-IP", h.getClientIP(req))
 	}
-	
+
 	if config.AddXForwardedProto {
 		scheme := "http"
 		if req.TLS != nil {
@@ -593,11 +593,11 @@ func (h *HTTPProxy) setProxyHeaders(req *http.Request, proxyReq *http.Request, t
 		}
 		proxyReq.Header.Set("X-Forwarded-Proto", scheme)
 	}
-	
+
 	if config.AddXForwardedFor { // 如果启用了X-Forwarded-For，也启用X-Forwarded-Host
 		proxyReq.Header.Set("X-Forwarded-Host", req.Host)
 	}
-	
+
 	// 4. 处理Host头部
 	if config.PreserveHost {
 		// 保留原始Host头部 - 使用req.Host而不是header中的Host
@@ -609,24 +609,24 @@ func (h *HTTPProxy) setProxyHeaders(req *http.Request, proxyReq *http.Request, t
 		// 设置为目标主机（默认行为）
 		proxyReq.Header.Set("Host", targetHost)
 	}
-	
+
 	// 5. 处理需要隐藏的头部
 	if config.HideHeaders != nil {
 		for _, headerName := range config.HideHeaders {
 			proxyReq.Header.Del(headerName)
 		}
 	}
-	
+
 	// 6. 处理需要明确传递的头部
 	passHeaders := config.PassHeaders
-	
+
 	if passHeaders != nil && len(passHeaders) > 0 {
 		// 创建一个新的头部map，只包含允许的头部
 		allowedHeaders := make(map[string]bool)
 		for _, headerName := range passHeaders {
 			allowedHeaders[strings.ToLower(headerName)] = true
 		}
-		
+
 		// 过滤头部
 		for name := range proxyReq.Header {
 			if !allowedHeaders[strings.ToLower(name)] && !isSystemHeader(name) {
@@ -634,7 +634,7 @@ func (h *HTTPProxy) setProxyHeaders(req *http.Request, proxyReq *http.Request, t
 			}
 		}
 	}
-	
+
 	// 7. 设置Connection头部 - 根据HTTP版本和KeepAlive配置
 	if config.KeepAlive && config.HTTPVersion == "1.1" {
 		proxyReq.Header.Set("Connection", "")
@@ -646,22 +646,20 @@ func (h *HTTPProxy) setProxyHeaders(req *http.Request, proxyReq *http.Request, t
 // 系统头部不应该被proxy_pass_header过滤
 func isSystemHeader(name string) bool {
 	systemHeaders := map[string]bool{
-		"host":                true,
-		"x-forwarded-for":     true,
-		"x-real-ip":           true,
-		"x-forwarded-proto":   true,
-		"x-forwarded-host":    true,
-		"user-agent":          true,
+		"host":              true,
+		"x-forwarded-for":   true,
+		"x-real-ip":         true,
+		"x-forwarded-proto": true,
+		"x-forwarded-host":  true,
+		"user-agent":        true,
 	}
 	return systemHeaders[strings.ToLower(name)]
 }
 
-
-
 // getClientIP 获取客户端真实IP
 func (h *HTTPProxy) getClientIP(req *http.Request) string {
 	// 优先级：X-Forwarded-For > X-Real-IP > RemoteAddr
-	
+
 	// 1. 检查X-Forwarded-For头部
 	if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
 		// 取第一个IP（原始客户端IP）
@@ -670,17 +668,17 @@ func (h *HTTPProxy) getClientIP(req *http.Request) string {
 		}
 		return strings.TrimSpace(xff)
 	}
-	
+
 	// 2. 检查X-Real-IP头部
 	if xri := req.Header.Get("X-Real-IP"); xri != "" {
 		return strings.TrimSpace(xri)
 	}
-	
+
 	// 3. 使用RemoteAddr
 	if ip, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
 		return ip
 	}
-	
+
 	return req.RemoteAddr
 }
 
@@ -710,58 +708,58 @@ func (h *HTTPProxy) createHTTPClient(config HTTPProxyConfig) *http.Client {
 	if connectTimeout == 0 {
 		connectTimeout = 30 * time.Second
 	}
-	
+
 	readTimeout := config.ReadTimeout
 	if readTimeout == 0 {
 		readTimeout = 30 * time.Second
 	}
-	
+
 	// 创建TLS配置
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: config.TLSInsecureSkipVerify,
 		MinVersion:         parseTLSVersion(config.TLSMinVersion),
 		ServerName:         config.TLSServerName,
 	}
-	
+
 	// 设置最大TLS版本（如果配置了）
 	if config.TLSMaxVersion != "" {
 		tlsConfig.MaxVersion = parseTLSVersion(config.TLSMaxVersion)
 	}
-	
+
 	// 创建传输层配置
 	transport := &http.Transport{
 		// 连接池配置
-		MaxIdleConns:        config.MaxIdleConns,                    // 全局最大空闲连接数
-		MaxIdleConnsPerHost: config.MaxIdleConns / 4,                // 每个主机的最大空闲连接数
-		MaxConnsPerHost:     config.MaxIdleConns * 2,                // 每个主机的最大连接数
-		IdleConnTimeout:     config.IdleConnTimeout,                 // 空闲连接超时
-		
+		MaxIdleConns:        config.MaxIdleConns,     // 全局最大空闲连接数
+		MaxIdleConnsPerHost: config.MaxIdleConns / 4, // 每个主机的最大空闲连接数
+		MaxConnsPerHost:     config.MaxIdleConns * 2, // 每个主机的最大连接数
+		IdleConnTimeout:     config.IdleConnTimeout,  // 空闲连接超时
+
 		// 超时配置
-		TLSHandshakeTimeout:   10 * time.Second,                     // TLS握手超时
-		ResponseHeaderTimeout: readTimeout,                          // 响应头超时
-		ExpectContinueTimeout: 1 * time.Second,                      // 100-continue超时
-		
+		TLSHandshakeTimeout:   10 * time.Second, // TLS握手超时
+		ResponseHeaderTimeout: readTimeout,      // 响应头超时
+		ExpectContinueTimeout: 1 * time.Second,  // 100-continue超时
+
 		// Keep-Alive配置
-		DisableKeepAlives: !config.KeepAlive,                        // 根据配置决定是否禁用Keep-Alive
-		
+		DisableKeepAlives: !config.KeepAlive, // 根据配置决定是否禁用Keep-Alive
+
 		// 缓冲区配置
-		ReadBufferSize:  config.BufferSize,                          // 读缓冲区大小
-		WriteBufferSize: config.BufferSize,                          // 写缓冲区大小
-		
+		ReadBufferSize:  config.BufferSize, // 读缓冲区大小
+		WriteBufferSize: config.BufferSize, // 写缓冲区大小
+
 		// 连接拨号配置
 		DialContext: (&net.Dialer{
-			Timeout:   connectTimeout,                                // 连接超时
-			KeepAlive: 30 * time.Second,                             // TCP Keep-Alive间隔
+			Timeout:   connectTimeout,   // 连接超时
+			KeepAlive: 30 * time.Second, // TCP Keep-Alive间隔
 		}).DialContext,
-		
+
 		// 使用配置的TLS设置
 		TLSClientConfig: tlsConfig,
 	}
-	
+
 	// 创建客户端
 	client := &http.Client{
 		Transport: transport,
-		Timeout:   config.Timeout,                                   // 总超时时间
+		Timeout:   config.Timeout, // 总超时时间
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if !config.FollowRedirects {
 				return http.ErrUseLastResponse
@@ -773,8 +771,6 @@ func (h *HTTPProxy) createHTTPClient(config HTTPProxyConfig) *http.Client {
 			return nil
 		},
 	}
-	
+
 	return client
 }
-
-

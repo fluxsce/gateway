@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/pkg/utils/huberrors"
-	"gohub/pkg/utils/random"
-	"gohub/web/views/hub0020/models"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/huberrors"
+	"gateway/pkg/utils/random"
+	"gateway/web/views/hub0020/models"
 	"strings"
 	"time"
 )
@@ -32,28 +32,26 @@ func (dao *GatewayInstanceDAO) generateGatewayInstanceId() string {
 	now := time.Now()
 	// 生成时间部分：YYYYMMDDHHMMSS
 	timeStr := now.Format("20060102150405")
-	
+
 	// 生成4位随机字符（大写字母和数字）
 	randomStr := random.GenerateRandomString(4)
-	
+
 	return fmt.Sprintf("GW%s%s", timeStr, randomStr)
 }
-
-
 
 // isGatewayInstanceIdExists 检查网关实例ID是否已存在
 func (dao *GatewayInstanceDAO) isGatewayInstanceIdExists(ctx context.Context, gatewayInstanceId string) (bool, error) {
 	query := `SELECT COUNT(*) as count FROM HUB_GW_INSTANCE WHERE gatewayInstanceId = ?`
-	
+
 	var result struct {
 		Count int `db:"count"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &result, query, []interface{}{gatewayInstanceId}, true)
 	if err != nil {
 		return false, err
 	}
-	
+
 	return result.Count > 0, nil
 }
 
@@ -61,23 +59,23 @@ func (dao *GatewayInstanceDAO) isGatewayInstanceIdExists(ctx context.Context, ga
 // 如果生成的ID已存在，会重新生成直到找到唯一的ID（最多尝试10次）
 func (dao *GatewayInstanceDAO) generateUniqueGatewayInstanceId(ctx context.Context) (string, error) {
 	const maxAttempts = 10
-	
+
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		gatewayInstanceId := dao.generateGatewayInstanceId()
-		
+
 		exists, err := dao.isGatewayInstanceIdExists(ctx, gatewayInstanceId)
 		if err != nil {
 			return "", huberrors.WrapError(err, "检查网关实例ID是否存在失败")
 		}
-		
+
 		if !exists {
 			return gatewayInstanceId, nil
 		}
-		
+
 		// 如果ID已存在，等待1毫秒后重试（确保时间戳不同）
 		time.Sleep(time.Millisecond)
 	}
-	
+
 	return "", errors.New("生成唯一网关实例ID失败，已达到最大尝试次数")
 }
 

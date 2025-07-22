@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/pkg/utils/huberrors"
-	"gohub/pkg/utils/random"
-	"gohub/web/views/hubcommon002/models"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/huberrors"
+	"gateway/pkg/utils/random"
+	"gateway/web/views/hubcommon002/models"
 	"strings"
 	"time"
 )
@@ -38,38 +38,38 @@ func (dao *ApiAccessConfigDAO) generateApiAccessConfigId() string {
 // isApiAccessConfigIdExists 检查API访问配置ID是否已存在
 func (dao *ApiAccessConfigDAO) isApiAccessConfigIdExists(ctx context.Context, apiAccessConfigId string) (bool, error) {
 	query := `SELECT COUNT(*) as count FROM HUB_GW_API_ACCESS_CONFIG WHERE apiAccessConfigId = ?`
-	
+
 	var result struct {
 		Count int `db:"count"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &result, query, []interface{}{apiAccessConfigId}, true)
 	if err != nil {
 		return false, err
 	}
-	
+
 	return result.Count > 0, nil
 }
 
 // generateUniqueApiAccessConfigId 生成唯一的API访问配置ID
 func (dao *ApiAccessConfigDAO) generateUniqueApiAccessConfigId(ctx context.Context) (string, error) {
 	const maxAttempts = 10
-	
+
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		apiAccessConfigId := dao.generateApiAccessConfigId()
-		
+
 		exists, err := dao.isApiAccessConfigIdExists(ctx, apiAccessConfigId)
 		if err != nil {
 			return "", huberrors.WrapError(err, "检查API访问配置ID是否存在失败")
 		}
-		
+
 		if !exists {
 			return apiAccessConfigId, nil
 		}
-		
+
 		time.Sleep(time.Millisecond)
 	}
-	
+
 	return "", errors.New("生成唯一API访问配置ID失败，已达到最大尝试次数")
 }
 
@@ -160,7 +160,7 @@ func (dao *ApiAccessConfigDAO) UpdateApiAccessConfig(ctx context.Context, config
 	// 保留不可修改的字段
 	config.AddTime = currentConfig.AddTime
 	config.AddWho = currentConfig.AddWho
-	
+
 	// 如果没有设置活动标记，保持原有状态
 	if config.ActiveFlag == "" {
 		config.ActiveFlag = currentConfig.ActiveFlag
@@ -268,4 +268,4 @@ func (dao *ApiAccessConfigDAO) ListApiAccessConfigs(ctx context.Context, tenantI
 	}
 
 	return configs, total, nil
-} 
+}

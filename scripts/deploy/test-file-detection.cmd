@@ -2,10 +2,10 @@
 chcp 65001
 setlocal EnableDelayedExpansion
 
-:: GoHub 文件名检测测试脚本
+:: Gateway 文件名检测测试脚本
 :: 用于验证服务安装脚本的文件名检测功能
 
-title GoHub 文件名检测测试
+title Gateway 文件名检测测试
 
 set APP_DIR=
 set ORACLE_VERSION=false
@@ -32,7 +32,7 @@ call :detect_app_dir
 
 echo.
 echo ==========================================
-echo  GoHub 文件名检测测试
+echo  Gateway 文件名检测测试
 echo ==========================================
 echo.
 echo 测试目录: %APP_DIR%
@@ -44,48 +44,48 @@ set EXE_FILE=
 if "%ORACLE_VERSION%"=="true" (
     echo 检测Oracle版本可执行文件...
     echo.
-    if exist "%APP_DIR%\gohub-win10-oracle-amd64.exe" (
-        set EXE_FILE=%APP_DIR%\gohub-win10-oracle-amd64.exe
-        echo ✓ 找到: gohub-win10-oracle-amd64.exe
+    if exist "%APP_DIR%\gateway-win10-oracle-amd64.exe" (
+        set EXE_FILE=%APP_DIR%\gateway-win10-oracle-amd64.exe
+        echo ✓ 找到: gateway-win10-oracle-amd64.exe
     ) else (
-        echo ✗ 未找到: gohub-win10-oracle-amd64.exe
+        echo ✗ 未找到: gateway-win10-oracle-amd64.exe
     )
     
-    if exist "%APP_DIR%\gohub-win2008-oracle-amd64.exe" (
-        if "%EXE_FILE%"=="" set EXE_FILE=%APP_DIR%\gohub-win2008-oracle-amd64.exe
-        echo ✓ 找到: gohub-win2008-oracle-amd64.exe
+    if exist "%APP_DIR%\gateway-win2008-oracle-amd64.exe" (
+        if "%EXE_FILE%"=="" set EXE_FILE=%APP_DIR%\gateway-win2008-oracle-amd64.exe
+        echo ✓ 找到: gateway-win2008-oracle-amd64.exe
     ) else (
-        echo ✗ 未找到: gohub-win2008-oracle-amd64.exe
+        echo ✗ 未找到: gateway-win2008-oracle-amd64.exe
     )
     
-    if exist "%APP_DIR%\gohub-oracle.exe" (
-        if "%EXE_FILE%"=="" set EXE_FILE=%APP_DIR%\gohub-oracle.exe
-        echo ✓ 找到: gohub-oracle.exe
+    if exist "%APP_DIR%\gateway-oracle.exe" (
+        if "%EXE_FILE%"=="" set EXE_FILE=%APP_DIR%\gateway-oracle.exe
+        echo ✓ 找到: gateway-oracle.exe
     ) else (
-        echo ✗ 未找到: gohub-oracle.exe
+        echo ✗ 未找到: gateway-oracle.exe
     )
 ) else (
     echo 检测标准版本可执行文件...
     echo.
-    if exist "%APP_DIR%\gohub.exe" (
-        set EXE_FILE=%APP_DIR%\gohub.exe
-        echo ✓ 找到: gohub.exe
+    if exist "%APP_DIR%\gateway.exe" (
+        set EXE_FILE=%APP_DIR%\gateway.exe
+        echo ✓ 找到: gateway.exe
     ) else (
-        echo ✗ 未找到: gohub.exe
+        echo ✗ 未找到: gateway.exe
     )
     
-    if exist "%APP_DIR%\gohub-win10-amd64.exe" (
-        if "%EXE_FILE%"=="" set EXE_FILE=%APP_DIR%\gohub-win10-amd64.exe
-        echo ✓ 找到: gohub-win10-amd64.exe
+    if exist "%APP_DIR%\gateway-win10-amd64.exe" (
+        if "%EXE_FILE%"=="" set EXE_FILE=%APP_DIR%\gateway-win10-amd64.exe
+        echo ✓ 找到: gateway-win10-amd64.exe
     ) else (
-        echo ✗ 未找到: gohub-win10-amd64.exe
+        echo ✗ 未找到: gateway-win10-amd64.exe
     )
     
-    if exist "%APP_DIR%\gohub-win2008-amd64.exe" (
-        if "%EXE_FILE%"=="" set EXE_FILE=%APP_DIR%\gohub-win2008-amd64.exe
-        echo ✓ 找到: gohub-win2008-amd64.exe
+    if exist "%APP_DIR%\gateway-win2008-amd64.exe" (
+        if "%EXE_FILE%"=="" set EXE_FILE=%APP_DIR%\gateway-win2008-amd64.exe
+        echo ✓ 找到: gateway-win2008-amd64.exe
     ) else (
-        echo ✗ 未找到: gohub-win2008-amd64.exe
+        echo ✗ 未找到: gateway-win2008-amd64.exe
     )
 )
 
@@ -100,14 +100,14 @@ if "%EXE_FILE%"=="" (
     echo.
     if "%ORACLE_VERSION%"=="true" (
         echo 期望的Oracle版本文件名：
-        echo   - gohub-win10-oracle-amd64.exe
-        echo   - gohub-win2008-oracle-amd64.exe
-        echo   - gohub-oracle.exe
+        echo   - gateway-win10-oracle-amd64.exe
+        echo   - gateway-win2008-oracle-amd64.exe
+        echo   - gateway-oracle.exe
     ) else (
         echo 期望的标准版本文件名：
-        echo   - gohub.exe
-        echo   - gohub-win10-amd64.exe
-        echo   - gohub-win2008-amd64.exe
+        echo   - gateway.exe
+        echo   - gateway-win10-amd64.exe
+        echo   - gateway-win2008-amd64.exe
     )
     echo.
     echo 请运行构建脚本生成可执行文件：
@@ -169,18 +169,18 @@ echo [WARN] 无法检测到应用程序目录，使用项目根目录进行测�
 set APP_DIR=%SCRIPT_DIR%\..\..
 exit /b 0
 
-:: 检查目录中是否包含GoHub可执行文件
+:: 检查目录中是否包含Gateway可执行文件
 :check_app_files
 set CHECK_DIR=%~1
 if "%CHECK_DIR:~-1%"=="\" set CHECK_DIR=%CHECK_DIR:~0,-1%
 
-:: 检查是否存在任何GoHub可执行文件
-if exist "%CHECK_DIR%\gohub*.exe" exit /b 0
+:: 检查是否存在任何Gateway可执行文件
+if exist "%CHECK_DIR%\gateway*.exe" exit /b 0
 if exist "%CHECK_DIR%\*.exe" (
-    :: 进一步检查是否是GoHub相关的exe文件
+    :: 进一步检查是否是Gateway相关的exe文件
     for %%f in ("%CHECK_DIR%\*.exe") do (
         set filename=%%~nxf
-        echo !filename! | findstr /i "gohub" >nul && exit /b 0
+        echo !filename! | findstr /i "gateway" >nul && exit /b 0
     )
 )
 

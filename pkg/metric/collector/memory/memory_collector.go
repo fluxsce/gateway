@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"gohub/pkg/metric/collector"
-	"gohub/pkg/metric/types"
+	"gateway/pkg/metric/collector"
+	"gateway/pkg/metric/types"
 
 	"github.com/shirou/gopsutil/v4/mem"
 )
@@ -95,7 +95,7 @@ func (c *MemoryCollector) getVirtualMemoryStats(ctx context.Context, metrics *ty
 	metrics.Used = vmStat.Used
 	metrics.UsagePercent = vmStat.UsedPercent
 	metrics.Free = vmStat.Free
-	
+
 	// 根据平台可用性设置缓存和缓冲区信息
 	if vmStat.Cached > 0 {
 		metrics.Cached = vmStat.Cached
@@ -183,4 +183,4 @@ func (c *MemoryCollector) GetSwapUsagePercent() (float64, error) {
 		return 0, err
 	}
 	return metrics.SwapUsagePercent, nil
-} 
+}

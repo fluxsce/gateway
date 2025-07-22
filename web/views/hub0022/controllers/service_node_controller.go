@@ -1,13 +1,13 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hub0022/dao"
-	"gohub/web/views/hub0022/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hub0022/dao"
+	"gateway/web/views/hub0022/models"
 
 	"github.com/gin-gonic/gin"
 )
@@ -34,7 +34,7 @@ func NewServiceNodeController(db database.Database) *ServiceNodeController {
 // @Produce json
 // @Param request body QueryServiceNodesRequest true "查询参数"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0022/queryServiceNodes [post]
+// @Router /gateway/hub0022/queryServiceNodes [post]
 func (c *ServiceNodeController) QueryServiceNodes(ctx *gin.Context) {
 	var req QueryServiceNodesRequest
 	if err := request.BindSafely(ctx, &req); err != nil {
@@ -94,7 +94,7 @@ func (c *ServiceNodeController) QueryServiceNodes(ctx *gin.Context) {
 // @Produce json
 // @Param serviceNode body models.ServiceNodeModel true "服务节点信息"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0022/addServiceNode [post]
+// @Router /gateway/hub0022/addServiceNode [post]
 func (c *ServiceNodeController) AddServiceNode(ctx *gin.Context) {
 	var serviceNode models.ServiceNodeModel
 	if err := request.BindSafely(ctx, &serviceNode); err != nil {
@@ -182,7 +182,7 @@ func (c *ServiceNodeController) AddServiceNode(ctx *gin.Context) {
 // @Produce json
 // @Param serviceNode body models.ServiceNodeModel true "服务节点信息"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0022/updateServiceNode [post]
+// @Router /gateway/hub0022/updateServiceNode [post]
 func (c *ServiceNodeController) EditServiceNode(ctx *gin.Context) {
 	var updateData models.ServiceNodeModel
 	if err := request.BindSafely(ctx, &updateData); err != nil {
@@ -265,7 +265,7 @@ func (c *ServiceNodeController) EditServiceNode(ctx *gin.Context) {
 // @Produce json
 // @Param request body DeleteServiceNodeRequest true "删除请求"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0022/deleteServiceNode [post]
+// @Router /gateway/hub0022/deleteServiceNode [post]
 func (c *ServiceNodeController) DeleteServiceNode(ctx *gin.Context) {
 	var req DeleteServiceNodeRequest
 	if err := request.BindSafely(ctx, &req); err != nil {
@@ -336,7 +336,7 @@ func (c *ServiceNodeController) DeleteServiceNode(ctx *gin.Context) {
 // @Produce json
 // @Param request body GetServiceNodeRequest true "查询请求"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0022/getServiceNode [post]
+// @Router /gateway/hub0022/getServiceNode [post]
 func (c *ServiceNodeController) GetServiceNode(ctx *gin.Context) {
 	var req GetServiceNodeRequest
 	if err := request.BindSafely(ctx, &req); err != nil {
@@ -376,7 +376,6 @@ func (c *ServiceNodeController) GetServiceNode(ctx *gin.Context) {
 	response.SuccessJSON(ctx, nodeInfo, constants.SD00002)
 }
 
-
 // UpdateNodeHealth 更新节点健康状态
 // @Summary 更新节点健康状态
 // @Description 更新节点的健康状态
@@ -385,7 +384,7 @@ func (c *ServiceNodeController) GetServiceNode(ctx *gin.Context) {
 // @Produce json
 // @Param request body UpdateNodeHealthRequest true "更新请求"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0022/updateNodeHealth [post]
+// @Router /gateway/hub0022/updateNodeHealth [post]
 func (c *ServiceNodeController) UpdateNodeHealth(ctx *gin.Context) {
 	var req UpdateNodeHealthRequest
 	if err := request.BindSafely(ctx, &req); err != nil {
@@ -453,8 +452,8 @@ func (c *ServiceNodeController) UpdateNodeHealth(ctx *gin.Context) {
 // QueryServiceNodesRequest 查询服务节点列表请求
 type QueryServiceNodesRequest struct {
 	ServiceDefinitionId string `json:"serviceDefinitionId" form:"serviceDefinitionId" query:"serviceDefinitionId"` // 服务定义ID
-	NodeHost            string `json:"nodeHost" form:"nodeHost" query:"nodeHost"`                                 // 节点主机地址
-	HealthStatus        string `json:"healthStatus" form:"healthStatus" query:"healthStatus"`                     // 健康状态
+	NodeHost            string `json:"nodeHost" form:"nodeHost" query:"nodeHost"`                                  // 节点主机地址
+	HealthStatus        string `json:"healthStatus" form:"healthStatus" query:"healthStatus"`                      // 健康状态
 }
 
 // DeleteServiceNodeRequest 删除服务节点请求
@@ -469,34 +468,34 @@ type GetServiceNodeRequest struct {
 
 // UpdateNodeHealthRequest 更新节点健康状态请求
 type UpdateNodeHealthRequest struct {
-	ServiceNodeId     string `json:"serviceNodeId" form:"serviceNodeId" query:"serviceNodeId" binding:"required"`         // 服务节点ID
-	HealthStatus      string `json:"healthStatus" form:"healthStatus" query:"healthStatus" binding:"required"`             // 健康状态(N不健康,Y健康)
-	HealthCheckResult string `json:"healthCheckResult" form:"healthCheckResult" query:"healthCheckResult"`                 // 健康检查结果详情
+	ServiceNodeId     string `json:"serviceNodeId" form:"serviceNodeId" query:"serviceNodeId" binding:"required"` // 服务节点ID
+	HealthStatus      string `json:"healthStatus" form:"healthStatus" query:"healthStatus" binding:"required"`    // 健康状态(N不健康,Y健康)
+	HealthCheckResult string `json:"healthCheckResult" form:"healthCheckResult" query:"healthCheckResult"`        // 健康检查结果详情
 }
 
 // serviceNodeToMap 将服务节点转换为Map格式
 func serviceNodeToMap(serviceNode *models.ServiceNodeModel) map[string]interface{} {
 	return map[string]interface{}{
-		"tenantId":             serviceNode.TenantId,
-		"serviceNodeId":        serviceNode.ServiceNodeId,
-		"serviceDefinitionId":  serviceNode.ServiceDefinitionId,
-		"nodeId":               serviceNode.NodeId,
-		"nodeUrl":              serviceNode.NodeUrl,
-		"nodeHost":             serviceNode.NodeHost,
-		"nodePort":             serviceNode.NodePort,
-		"nodeProtocol":         serviceNode.NodeProtocol,
-		"nodeWeight":           serviceNode.NodeWeight,
-		"healthStatus":         serviceNode.HealthStatus,
-		"nodeMetadata":         serviceNode.NodeMetadata,
-		"nodeStatus":           serviceNode.NodeStatus,
-		"lastHealthCheckTime":  serviceNode.LastHealthCheckTime,
-		"healthCheckResult":    serviceNode.HealthCheckResult,
-		"activeFlag":           serviceNode.ActiveFlag,
-		"addTime":              serviceNode.AddTime,
-		"addWho":               serviceNode.AddWho,
-		"editTime":             serviceNode.EditTime,
-		"editWho":              serviceNode.EditWho,
-		"currentVersion":       serviceNode.CurrentVersion,
-		"noteText":             serviceNode.NoteText,
+		"tenantId":            serviceNode.TenantId,
+		"serviceNodeId":       serviceNode.ServiceNodeId,
+		"serviceDefinitionId": serviceNode.ServiceDefinitionId,
+		"nodeId":              serviceNode.NodeId,
+		"nodeUrl":             serviceNode.NodeUrl,
+		"nodeHost":            serviceNode.NodeHost,
+		"nodePort":            serviceNode.NodePort,
+		"nodeProtocol":        serviceNode.NodeProtocol,
+		"nodeWeight":          serviceNode.NodeWeight,
+		"healthStatus":        serviceNode.HealthStatus,
+		"nodeMetadata":        serviceNode.NodeMetadata,
+		"nodeStatus":          serviceNode.NodeStatus,
+		"lastHealthCheckTime": serviceNode.LastHealthCheckTime,
+		"healthCheckResult":   serviceNode.HealthCheckResult,
+		"activeFlag":          serviceNode.ActiveFlag,
+		"addTime":             serviceNode.AddTime,
+		"addWho":              serviceNode.AddWho,
+		"editTime":            serviceNode.EditTime,
+		"editWho":             serviceNode.EditWho,
+		"currentVersion":      serviceNode.CurrentVersion,
+		"noteText":            serviceNode.NoteText,
 	}
-} 
+}

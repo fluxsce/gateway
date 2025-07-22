@@ -3,9 +3,9 @@ package dao
 import (
 	"context"
 	"fmt"
-	"gohub/internal/metric_collect/types"
-	"gohub/pkg/utils/huberrors"
-	"gohub/web/views/hub0000/models"
+	"gateway/internal/metric_collect/types"
+	"gateway/pkg/utils/huberrors"
+	"gateway/web/views/hub0000/models"
 	"strings"
 )
 
@@ -62,7 +62,7 @@ func (dao *MetricQueryDAO) QueryDiskIoLogList(ctx context.Context, req *models.D
 	var totalResult struct {
 		Total int `db:"total"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &totalResult, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询磁盘IO日志总数失败")
@@ -70,7 +70,7 @@ func (dao *MetricQueryDAO) QueryDiskIoLogList(ctx context.Context, req *models.D
 
 	// 构建基础查询语句
 	orderByClause := dao.buildOrderByClause(req.OrderBy, req.OrderType)
-	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s", 
+	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s",
 		(&types.DiskIoLog{}).TableName(), whereClause, orderByClause)
 
 	// 构建分页查询
@@ -144,7 +144,7 @@ func (dao *MetricQueryDAO) QueryNetworkLogList(ctx context.Context, req *models.
 	var totalResult struct {
 		Total int `db:"total"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &totalResult, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询网络日志总数失败")
@@ -152,7 +152,7 @@ func (dao *MetricQueryDAO) QueryNetworkLogList(ctx context.Context, req *models.
 
 	// 构建基础查询语句
 	orderByClause := dao.buildOrderByClause(req.OrderBy, req.OrderType)
-	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s", 
+	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s",
 		(&types.NetworkLog{}).TableName(), whereClause, orderByClause)
 
 	// 构建分页查询
@@ -231,7 +231,7 @@ func (dao *MetricQueryDAO) QueryProcessLogList(ctx context.Context, req *models.
 	var totalResult struct {
 		Total int `db:"total"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &totalResult, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询进程日志总数失败")
@@ -239,7 +239,7 @@ func (dao *MetricQueryDAO) QueryProcessLogList(ctx context.Context, req *models.
 
 	// 构建基础查询语句
 	orderByClause := dao.buildOrderByClause(req.OrderBy, req.OrderType)
-	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s", 
+	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s",
 		(&types.ProcessLog{}).TableName(), whereClause, orderByClause)
 
 	// 构建分页查询
@@ -308,7 +308,7 @@ func (dao *MetricQueryDAO) QueryProcessStatsLogList(ctx context.Context, req *mo
 	var totalResult struct {
 		Total int `db:"total"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &totalResult, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询进程统计日志总数失败")
@@ -316,7 +316,7 @@ func (dao *MetricQueryDAO) QueryProcessStatsLogList(ctx context.Context, req *mo
 
 	// 构建基础查询语句
 	orderByClause := dao.buildOrderByClause(req.OrderBy, req.OrderType)
-	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s", 
+	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s",
 		(&types.ProcessStatsLog{}).TableName(), whereClause, orderByClause)
 
 	// 构建分页查询
@@ -380,7 +380,7 @@ func (dao *MetricQueryDAO) QueryTemperatureLogList(ctx context.Context, req *mod
 	var totalResult struct {
 		Total int `db:"total"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &totalResult, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询温度日志总数失败")
@@ -388,7 +388,7 @@ func (dao *MetricQueryDAO) QueryTemperatureLogList(ctx context.Context, req *mod
 
 	// 构建基础查询语句
 	orderByClause := dao.buildOrderByClause(req.OrderBy, req.OrderType)
-	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s", 
+	baseQuery := fmt.Sprintf("SELECT * FROM %s %s %s",
 		(&types.TemperatureLog{}).TableName(), whereClause, orderByClause)
 
 	// 构建分页查询
@@ -408,5 +408,3 @@ func (dao *MetricQueryDAO) QueryTemperatureLogList(ctx context.Context, req *mod
 
 	return temperatureLogs, totalResult.Total, nil
 }
-
- 

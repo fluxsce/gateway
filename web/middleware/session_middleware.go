@@ -1,10 +1,10 @@
 package middleware
 
 import (
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/response"
-	"gohub/web/utils/session"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/response"
+	"gateway/web/utils/session"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -28,7 +28,7 @@ func SessionRequired() gin.HandlerFunc {
 		userContext, err := sessionManager.ValidateSession(ctx, sessionId)
 		if err != nil {
 			logger.WarnWithTrace(ctx, "Session验证失败", "error", err, "sessionId", sessionId)
-			
+
 			var messageId string
 			switch {
 			case err.Error() == "session不存在或已过期":
@@ -38,7 +38,7 @@ func SessionRequired() gin.HandlerFunc {
 			default:
 				messageId = constants.ED00011
 			}
-			
+
 			response.ErrorJSON(ctx, "登录已过期，请重新登录", messageId, http.StatusUnauthorized)
 			ctx.Abort()
 			return
@@ -145,5 +145,3 @@ func GetSessionId(ctx *gin.Context) string {
 	}
 	return ""
 }
-
- 

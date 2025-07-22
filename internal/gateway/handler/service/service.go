@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/circuitbreaker"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/circuitbreaker"
 )
 
 // Service 服务结构体，包含所有服务相关的功能

@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"gohub/pkg/database"
-	_ "gohub/pkg/database/alldriver" // 导入驱动确保注册
-	"gohub/pkg/database/dbtypes"
-	"gohub/pkg/database/dsn"
+	"gateway/pkg/database"
+	_ "gateway/pkg/database/alldriver" // 导入驱动确保注册
+	"gateway/pkg/database/dbtypes"
+	"gateway/pkg/database/dsn"
 )
 
 // ConfigClickHouseEvent 用于测试的事件结构体
@@ -71,11 +71,11 @@ func TestClickHouseConnection(t *testing.T) {
 		Enabled: true,
 		Driver:  database.DriverClickHouse,
 		Connection: dbtypes.ConnectionConfig{
-			Host:     "121.43.231.91",
-			Port:     9000,
-			Username: "default",
-			Password: "YiocaTTS91d*FY#ace{8iopl}",
-			Database: "default",
+			Host:               "121.43.231.91",
+			Port:               9000,
+			Username:           "default",
+			Password:           "YiocaTTS91d*FY#ace{8iopl}",
+			Database:           "default",
 			ClickHouseCompress: "lz4",
 		},
 	}
@@ -111,10 +111,10 @@ func TestClickHouseDSNGeneration(t *testing.T) {
 			Password: "YiocaTTS91d*FY#ace{8iopl}",
 			Database: "default",
 			// ClickHouse 特有参数
-			ClickHouseCompress:            "lz4",
-			ClickHouseSecure:              false,
-			ClickHouseDebug:               false,
-			ClickHouseDialTimeout:         5,
+			ClickHouseCompress:    "lz4",
+			ClickHouseSecure:      false,
+			ClickHouseDebug:       false,
+			ClickHouseDialTimeout: 5,
 		},
 	}
 
@@ -164,13 +164,13 @@ func TestClickHouseConfigParameters(t *testing.T) {
 				Enabled: true,
 				Driver:  database.DriverClickHouse,
 				Connection: dbtypes.ConnectionConfig{
-					Host:                "121.43.231.91",
-					Port:                8123,
-					Username:            "default",
-					Password:            "",
-					Database:            "default",
-					ClickHouseCompress:  "lz4",
-					ClickHouseDebug:     false,
+					Host:               "121.43.231.91",
+					Port:               8123,
+					Username:           "default",
+					Password:           "",
+					Database:           "default",
+					ClickHouseCompress: "lz4",
+					ClickHouseDebug:    false,
 				},
 			},
 		},
@@ -181,11 +181,11 @@ func TestClickHouseConfigParameters(t *testing.T) {
 				Enabled: true,
 				Driver:  database.DriverClickHouse,
 				Connection: dbtypes.ConnectionConfig{
-					Host:                        "121.43.231.91",
-					Port:                        8123,
-					Username:                    "default",
-					Password:                    "",
-					Database:                    "default",
+					Host:     "121.43.231.91",
+					Port:     8123,
+					Username: "default",
+					Password: "",
+					Database: "default",
 				},
 			},
 		},
@@ -235,27 +235,26 @@ func TestClickHouseConnectionName(t *testing.T) {
 	t.Logf("ClickHouse连接名称: %s", name)
 }
 
-
 // 测试ClickHouse配置加载
 func TestClickHouseLoadFromConfig(t *testing.T) {
 	// 这个测试验证从YAML配置文件加载ClickHouse配置
 	// 需要确保configs/database.yaml文件中有clickhouse_main配置
-	
+
 	// 注意：这个测试假设配置文件存在且正确
 	config := &dbtypes.DbConfig{
 		Name:    "clickhouse_main",
 		Enabled: true,
 		Driver:  database.DriverClickHouse,
 		Connection: dbtypes.ConnectionConfig{
-			Host:     "121.43.231.91",
-			Port:     9000,
-			Username: "default",
-			Password: "YiocaTTS91d*FY#ace{8iopl}",
-			Database: "gohub",
-			ClickHouseCompress:            "lz4",
-			ClickHouseSecure:              false,
-			ClickHouseDebug:               false,
-			ClickHouseDialTimeout:         5,
+			Host:                  "121.43.231.91",
+			Port:                  9000,
+			Username:              "default",
+			Password:              "YiocaTTS91d*FY#ace{8iopl}",
+			Database:              "gateway",
+			ClickHouseCompress:    "lz4",
+			ClickHouseSecure:      false,
+			ClickHouseDebug:       false,
+			ClickHouseDialTimeout: 5,
 		},
 		Pool: dbtypes.PoolConfig{
 			MaxOpenConns:    50,
@@ -281,7 +280,7 @@ func TestClickHouseLoadFromConfig(t *testing.T) {
 	}
 
 	t.Log("从配置文件加载ClickHouse连接成功")
-} 
+}
 
 // 测试ClickHouse特殊字符密码处理
 func TestClickHouseSpecialCharactersInPassword(t *testing.T) {
@@ -296,7 +295,7 @@ func TestClickHouseSpecialCharactersInPassword(t *testing.T) {
 			name:     "包含#和{}字符",
 			password: "YiocaTTS91d*FY#ace{8iopl}",
 			username: "default",
-			database: "gohub",
+			database: "gateway",
 		},
 		{
 			name:     "包含&和=字符",
@@ -331,11 +330,11 @@ func TestClickHouseSpecialCharactersInPassword(t *testing.T) {
 				Enabled: true,
 				Driver:  database.DriverClickHouse,
 				Connection: dbtypes.ConnectionConfig{
-					Host:     "121.43.231.91",
-					Port:     8123,
-					Username: tc.username,
-					Password: tc.password,
-					Database: tc.database,
+					Host:               "121.43.231.91",
+					Port:               8123,
+					Username:           tc.username,
+					Password:           tc.password,
+					Database:           tc.database,
 					ClickHouseCompress: "lz4",
 					ClickHouseDebug:    false,
 				},
@@ -353,17 +352,17 @@ func TestClickHouseSpecialCharactersInPassword(t *testing.T) {
 
 			// 验证生成的DSN格式是否正确
 			t.Logf("生成的DSN: %s", config.DSN)
-			
+
 			// 检查DSN是否包含正确转义的特殊字符
 			if config.DSN == "" {
 				t.Fatal("DSN不应该为空")
 			}
-			
+
 			// 验证DSN格式
 			if !strings.HasPrefix(config.DSN, "tcp://") {
 				t.Fatalf("DSN应该以tcp://开头，实际: %s", config.DSN)
 			}
-			
+
 			// 验证DSN包含必要的参数
 			if !strings.Contains(config.DSN, "database=") {
 				t.Fatal("DSN应该包含database参数")
@@ -374,7 +373,7 @@ func TestClickHouseSpecialCharactersInPassword(t *testing.T) {
 			if tc.password != "" && !strings.Contains(config.DSN, "password=") {
 				t.Fatal("DSN应该包含password参数")
 			}
-			
+
 			t.Logf("特殊字符密码 '%s' 的DSN生成测试通过", tc.password)
 		})
 	}
@@ -412,14 +411,14 @@ func TestClickHouseDSNValidation(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := dsn.ValidateDSN(database.DriverClickHouse, tc.dsn)
-			
+
 			if tc.shouldErr && err == nil {
 				t.Fatalf("期望错误但没有收到错误，DSN: %s", tc.dsn)
 			}
 			if !tc.shouldErr && err != nil {
 				t.Fatalf("不期望错误但收到错误: %v，DSN: %s", err, tc.dsn)
 			}
-			
+
 			if err == nil {
 				t.Logf("DSN验证通过: %s", tc.dsn)
 			} else {
@@ -427,4 +426,4 @@ func TestClickHouseDSNValidation(t *testing.T) {
 			}
 		})
 	}
-} 
+}

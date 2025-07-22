@@ -1,13 +1,13 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hub0021/dao"
-	"gohub/web/views/hub0021/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hub0021/dao"
+	"gateway/web/views/hub0021/models"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -75,7 +75,7 @@ func (c *RouteAssertionController) AddRouteAssertion(ctx *gin.Context) {
 		return
 	}
 
-	logger.InfoWithTrace(ctx, "路由断言创建成功", 
+	logger.InfoWithTrace(ctx, "路由断言创建成功",
 		"routeAssertionId", routeAssertionId,
 		"routeConfigId", req.RouteConfigId,
 		"tenantId", tenantId,
@@ -153,7 +153,7 @@ func (c *RouteAssertionController) EditRouteAssertion(ctx *gin.Context) {
 		return
 	}
 
-	logger.InfoWithTrace(ctx, "路由断言更新成功", 
+	logger.InfoWithTrace(ctx, "路由断言更新成功",
 		"routeAssertionId", updatedAssertion.RouteAssertionId,
 		"routeConfigId", updatedAssertion.RouteConfigId,
 		"tenantId", tenantId,
@@ -247,7 +247,7 @@ func (c *RouteAssertionController) DeleteRouteAssertion(ctx *gin.Context) {
 		return
 	}
 
-	logger.InfoWithTrace(ctx, "路由断言删除成功", 
+	logger.InfoWithTrace(ctx, "路由断言删除成功",
 		"routeAssertionId", req.RouteAssertionId,
 		"tenantId", tenantId,
 		"operatorId", operatorId)
@@ -261,4 +261,4 @@ func (c *RouteAssertionController) DeleteRouteAssertion(ctx *gin.Context) {
 // DeleteRouteAssertionRequest 删除路由断言请求结构
 type DeleteRouteAssertionRequest struct {
 	RouteAssertionId string `json:"routeAssertionId" form:"routeAssertionId" binding:"required"` // 路由断言ID
-} 
+}

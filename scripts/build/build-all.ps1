@@ -1,4 +1,4 @@
-# GoHub 批量交叉编译脚本
+# Gateway 批量交叉编译脚本
 # 一次性构建多个目标平台版本
 
 param(
@@ -12,7 +12,7 @@ param(
 
 if ($Help) {
     Write-Host @"
-GoHub 批量交叉编译脚本
+Gateway 批量交叉编译脚本
 
 用法: .\build-all.ps1 [参数]
 
@@ -174,7 +174,7 @@ if ($successCount -gt 0) {
         if ($result.Status -eq "SUCCESS") {
             $suffix = if ($EnableOracle -and $result.Target.StartsWith("linux")) { "-oracle" } else { "" }
             $extension = if ($result.Target.StartsWith("windows")) { ".exe" } else { "" }
-            $fileName = "gohub-$($result.Target)$suffix$extension"
+            $fileName = "gateway-$($result.Target)$suffix$extension"
             $filePath = Join-Path $OutputDir $fileName
             if (Test-Path $filePath) {
                 $fileSize = [math]::Round((Get-Item $filePath).Length / 1MB, 2)

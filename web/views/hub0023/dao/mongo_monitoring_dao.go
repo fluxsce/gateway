@@ -7,13 +7,13 @@ import (
 	"strconv"
 	"time"
 
-	"gohub/pkg/logger"
-	"gohub/pkg/mongo/client"
-	"gohub/pkg/mongo/types"
-	"gohub/pkg/mongo/utils"
-	"gohub/pkg/utils/ctime"
-	"gohub/pkg/utils/huberrors"
-	"gohub/web/views/hub0023/models"
+	"gateway/pkg/logger"
+	"gateway/pkg/mongo/client"
+	"gateway/pkg/mongo/types"
+	"gateway/pkg/mongo/utils"
+	"gateway/pkg/utils/ctime"
+	"gateway/pkg/utils/huberrors"
+	"gateway/web/views/hub0023/models"
 )
 
 // MongoMonitoringDAO MongoDB监控数据访问对象
@@ -21,10 +21,10 @@ import (
 //
 // 重要提示：
 // 1. 为了优化查询性能，建议在MongoDB中创建以下复合索引：
-//    - {gatewayStartProcessingTime: 1, tenantId: 1, gatewayInstanceId: 1}
-//    - {requestPath: 1, gatewayStartProcessingTime: 1}
-//    - {serviceName: 1, gatewayStartProcessingTime: 1}
-//    - {gatewayStatusCode: 1, gatewayStartProcessingTime: 1}
+//   - {gatewayStartProcessingTime: 1, tenantId: 1, gatewayInstanceId: 1}
+//   - {requestPath: 1, gatewayStartProcessingTime: 1}
+//   - {serviceName: 1, gatewayStartProcessingTime: 1}
+//   - {gatewayStatusCode: 1, gatewayStartProcessingTime: 1}
 //
 // 2. 所有聚合查询都使用投影(projection)来限制返回字段，避免传输不必要的大字段
 // 3. 查询时间范围已在控制器层限制为24小时内，防止大数据量查询
@@ -60,7 +60,7 @@ func (dao *MongoMonitoringDAO) GetGatewayMonitoringOverview(ctx context.Context,
 
 	// 获取网关日志集合
 	collection := dao.getGatewayLogCollection()
-	
+
 	// 构建聚合管道
 	// 注意：这里只进行统计聚合，不返回具体的文档内容，避免大数据传输
 	pipeline := []types.Document{
@@ -109,7 +109,7 @@ func (dao *MongoMonitoringDAO) GetGatewayMonitoringOverview(ctx context.Context,
 				"avgResponseTime": types.Document{
 					"$avg": types.Document{
 						"$cond": types.Document{
-							"if": types.Document{"$ne": []interface{}{"$totalProcessingTimeMs", nil}},
+							"if":   types.Document{"$ne": []interface{}{"$totalProcessingTimeMs", nil}},
 							"then": "$totalProcessingTimeMs",
 							"else": "$$REMOVE", // 排除空值，不参与平均值计算
 						},
@@ -119,7 +119,7 @@ func (dao *MongoMonitoringDAO) GetGatewayMonitoringOverview(ctx context.Context,
 				"minResponseTime": types.Document{
 					"$min": types.Document{
 						"$cond": types.Document{
-							"if": types.Document{"$ne": []interface{}{"$totalProcessingTimeMs", nil}},
+							"if":   types.Document{"$ne": []interface{}{"$totalProcessingTimeMs", nil}},
 							"then": "$totalProcessingTimeMs",
 							"else": "$$REMOVE",
 						},
@@ -129,7 +129,7 @@ func (dao *MongoMonitoringDAO) GetGatewayMonitoringOverview(ctx context.Context,
 				"maxResponseTime": types.Document{
 					"$max": types.Document{
 						"$cond": types.Document{
-							"if": types.Document{"$ne": []interface{}{"$totalProcessingTimeMs", nil}},
+							"if":   types.Document{"$ne": []interface{}{"$totalProcessingTimeMs", nil}},
 							"then": "$totalProcessingTimeMs",
 							"else": "$$REMOVE",
 						},
@@ -162,7 +162,7 @@ func (dao *MongoMonitoringDAO) GetGatewayMonitoringOverview(ctx context.Context,
 			logger.ErrorWithTrace(ctx, "聚合结果转换失败", "error", err)
 			return nil, huberrors.WrapError(err, "聚合结果转换失败")
 		}
-		
+
 		// 平均响应时间最多保留两位小数
 		overview.AvgResponseTimeMs = roundToTwoDecimalPlaces(overview.AvgResponseTimeMs)
 	}
@@ -188,10 +188,10 @@ func (dao *MongoMonitoringDAO) GetRequestMetricsTrend(ctx context.Context, req *
 
 	// 获取时间分组格式，根据粒度优化分组策略
 	timeGroupFormat := dao.getTimeGroupFormat(req.TimeGranularity)
-	
+
 	// 获取网关日志集合
 	collection := dao.getGatewayLogCollection()
-	
+
 	// 构建聚合管道
 	// 注意：使用时间分组减少数据点数量，避免返回过多细粒度数据
 	pipeline := []types.Document{
@@ -282,13 +282,13 @@ func (dao *MongoMonitoringDAO) GetRequestMetricsTrend(ctx context.Context, req *
 
 	// 处理转换结果，计算衍生字段
 	timeGranularitySeconds := dao.getTimeGranularitySeconds(req.TimeGranularity)
-	
+
 	for i := range resultItems {
 		// 将SourceTimestamp转换为毫秒时间戳
 		if !resultItems[i].SourceTimestamp.IsZero() {
 			resultItems[i].Timestamp = resultItems[i].SourceTimestamp.UnixMilli()
 		}
-		
+
 		// 计算QPS：考虑时间粒度，提供准确的每秒请求数
 		if resultItems[i].TotalRequests > 0 && timeGranularitySeconds > 0 {
 			resultItems[i].RequestsPerSecond = float64(resultItems[i].TotalRequests) / float64(timeGranularitySeconds)
@@ -323,10 +323,10 @@ func (dao *MongoMonitoringDAO) GetResponseTimeMetricsTrend(ctx context.Context, 
 
 	// 获取时间分组格式
 	timeGroupFormat := dao.getTimeGroupFormat(req.TimeGranularity)
-	
+
 	// 获取网关日志集合
 	collection := dao.getGatewayLogCollection()
-	
+
 	// 构建聚合管道
 	pipeline := []types.Document{
 		// 第一阶段：匹配查询条件，包括响应时间有效性检查
@@ -353,7 +353,7 @@ func (dao *MongoMonitoringDAO) GetResponseTimeMetricsTrend(ctx context.Context, 
 				"responseTimeValues": types.Document{
 					"$push": types.Document{
 						"$cond": types.Document{
-							"if": types.Document{"$lte": []interface{}{"$$ROOT.totalProcessingTimeMs", 60000}}, // 限制最大值60秒
+							"if":   types.Document{"$lte": []interface{}{"$$ROOT.totalProcessingTimeMs", 60000}}, // 限制最大值60秒
 							"then": "$totalProcessingTimeMs",
 							"else": "$$REMOVE",
 						},
@@ -406,10 +406,10 @@ func (dao *MongoMonitoringDAO) GetResponseTimeMetricsTrend(ctx context.Context, 
 		if !resultItems[i].SourceTimestamp.IsZero() {
 			resultItems[i].Timestamp = resultItems[i].SourceTimestamp.UnixMilli()
 		}
-		
+
 		// 平均响应时间最多保留两位小数
 		resultItems[i].AvgResponseTimeMs = roundToTwoDecimalPlaces(resultItems[i].AvgResponseTimeMs)
-		
+
 		// 计算百分位数：在应用层处理，避免复杂的MongoDB聚合
 		if len(resultItems[i].ResponseTimeValues) > 0 {
 			var values []int
@@ -423,7 +423,7 @@ func (dao *MongoMonitoringDAO) GetResponseTimeMetricsTrend(ctx context.Context, 
 				// 现在 v 已经是 int 类型，直接使用
 				values = append(values, v)
 			}
-			
+
 			// 计算百分位数
 			if len(values) > 0 {
 				sort.Ints(values)
@@ -455,7 +455,7 @@ func (dao *MongoMonitoringDAO) GetStatusCodeDistribution(ctx context.Context, re
 
 	// 获取网关日志集合
 	collection := dao.getGatewayLogCollection()
-	
+
 	// 构建聚合管道
 	// 这是一个简单的分组统计，性能良好
 	pipeline := []types.Document{
@@ -466,7 +466,7 @@ func (dao *MongoMonitoringDAO) GetStatusCodeDistribution(ctx context.Context, re
 		// 第二阶段：按状态码分组统计
 		{
 			"$group": types.Document{
-				"_id":   "$gatewayStatusCode", // 按状态码分组
+				"_id":   "$gatewayStatusCode",      // 按状态码分组
 				"count": types.Document{"$sum": 1}, // 计算每个状态码的出现次数
 			},
 		},
@@ -515,12 +515,12 @@ func (dao *MongoMonitoringDAO) GetStatusCodeDistribution(ctx context.Context, re
 	for i := range resultItems {
 		// 将StatusCodeValue转换为字符串
 		resultItems[i].StatusCode = strconv.FormatInt(resultItems[i].StatusCodeValue, 10)
-		
+
 		// 计算百分比
 		if totalCount > 0 {
 			resultItems[i].Percentage = float64(resultItems[i].Count) / float64(totalCount) * 100
 		}
-		
+
 		// 设置状态码分类和描述
 		resultItems[i].Category = dao.getStatusCodeCategory(resultItems[i].StatusCode)
 		resultItems[i].Description = dao.getStatusCodeDescription(resultItems[i].StatusCode)
@@ -547,7 +547,7 @@ func (dao *MongoMonitoringDAO) GetHotRoutes(ctx context.Context, req *models.Gat
 
 	// 获取网关日志集合
 	collection := dao.getGatewayLogCollection()
-	
+
 	// 设置合理的默认限制，防止返回过多数据
 	limit := req.HotRouteLimit
 	if limit <= 0 {
@@ -557,7 +557,7 @@ func (dao *MongoMonitoringDAO) GetHotRoutes(ctx context.Context, req *models.Gat
 		limit = 50
 		logger.WarnWithTrace(ctx, "热点路由查询数量被限制", "requestedLimit", req.HotRouteLimit, "actualLimit", limit)
 	}
-	
+
 	// 构建聚合管道
 	pipeline := []types.Document{
 		// 第一阶段：匹配查询条件
@@ -672,12 +672,12 @@ func (dao *MongoMonitoringDAO) GetHotRoutes(ctx context.Context, req *models.Gat
 	for i := range resultItems {
 		// 将RoutePathValue转换为RoutePath
 		resultItems[i].RoutePath = resultItems[i].RoutePathValue
-		
+
 		// 计算错误率
 		if resultItems[i].RequestCount > 0 {
 			resultItems[i].ErrorRate = float64(resultItems[i].ErrorCount) / float64(resultItems[i].RequestCount) * 100
 		}
-		
+
 		// 计算QPS
 		if resultItems[i].RequestCount > 0 && timeRangeSeconds > 0 {
 			resultItems[i].QPS = float64(resultItems[i].RequestCount) / timeRangeSeconds
@@ -688,7 +688,7 @@ func (dao *MongoMonitoringDAO) GetHotRoutes(ctx context.Context, req *models.Gat
 }
 
 // buildMonitoringFilter 构建监控数据查询条件
-// 
+//
 // 查询优化说明：
 // - 优先使用精确匹配的字段，便于索引利用
 // - 时间范围查询放在最前面，充分利用时间索引
@@ -700,7 +700,7 @@ func (dao *MongoMonitoringDAO) buildMonitoringFilter(req *models.GatewayMonitori
 	// 时间范围查询（必须字段，优先设置以利用时间索引）
 	if req.StartTime != "" || req.EndTime != "" {
 		timeFilter := map[string]interface{}{}
-		
+
 		if req.StartTime != "" {
 			startTime, err := dao.parseTimeString(req.StartTime)
 			if err != nil {
@@ -709,7 +709,7 @@ func (dao *MongoMonitoringDAO) buildMonitoringFilter(req *models.GatewayMonitori
 			// 应用时区转换，确保与MongoDB存储的时间格式一致
 			timeFilter["$gte"] = utils.ConvertGoTimeToMongo(startTime)
 		}
-		
+
 		if req.EndTime != "" {
 			endTime, err := dao.parseTimeString(req.EndTime)
 			if err != nil {
@@ -718,7 +718,7 @@ func (dao *MongoMonitoringDAO) buildMonitoringFilter(req *models.GatewayMonitori
 			// 应用时区转换，确保与MongoDB存储的时间格式一致
 			timeFilter["$lte"] = utils.ConvertGoTimeToMongo(endTime)
 		}
-		
+
 		filter["gatewayStartProcessingTime"] = timeFilter
 	}
 
@@ -741,7 +741,7 @@ func (dao *MongoMonitoringDAO) buildMonitoringFilter(req *models.GatewayMonitori
 	if req.ServiceName != "" {
 		filter["serviceName"] = req.ServiceName
 	}
-	
+
 	// 模糊查询字段（使用正则表达式，性能相对较低，放在最后）
 	if req.RequestPath != "" {
 		filter["requestPath"] = types.Document{
@@ -765,13 +765,13 @@ func (dao *MongoMonitoringDAO) parseTimeString(timeStr string) (time.Time, error
 	if timeStr == "" {
 		return time.Time{}, nil
 	}
-	
+
 	// 使用ctime包解析时间字符串，支持多种格式
 	parsedTime, err := ctime.ParseTimeString(timeStr)
 	if err != nil {
 		return time.Time{}, huberrors.WrapError(err, "时间格式解析失败")
 	}
-	
+
 	return parsedTime, nil
 }
 
@@ -810,7 +810,7 @@ func (dao *MongoMonitoringDAO) getStatusCodeCategory(statusCode string) string {
 	if statusCode == "" {
 		return "未知"
 	}
-	
+
 	switch statusCode[0] {
 	case '1':
 		return "信息响应"
@@ -842,7 +842,7 @@ func (dao *MongoMonitoringDAO) getStatusCodeDescription(statusCode string) strin
 		"503": "服务不可用",
 		"504": "网关超时",
 	}
-	
+
 	if desc, exists := descriptions[statusCode]; exists {
 		return desc
 	}
@@ -855,17 +855,17 @@ func calculatePercentile(values []int, percentile float64) int {
 	if len(values) == 0 {
 		return 0
 	}
-	
+
 	// 计算索引位置
 	index := percentile * float64(len(values)-1)
 	lower := int(math.Floor(index))
 	upper := int(math.Ceil(index))
-	
+
 	// 如果索引相同，直接返回该值
 	if lower == upper {
 		return values[lower]
 	}
-	
+
 	// 线性插值计算
 	weight := index - float64(lower)
 	return int(float64(values[lower])*(1-weight) + float64(values[upper])*weight)
@@ -875,18 +875,19 @@ func calculatePercentile(values []int, percentile float64) int {
 // 自动去除不必要的尾随零
 //
 // 示例：
-//   120.00 -> 120
-//   120.50 -> 120.5
-//   120.56 -> 120.56
-//   120.567 -> 120.57 (四舍五入)
+//
+//	120.00 -> 120
+//	120.50 -> 120.5
+//	120.56 -> 120.56
+//	120.567 -> 120.57 (四舍五入)
 func roundToTwoDecimalPlaces(value float64) float64 {
 	if value == 0 {
 		return 0
 	}
-	
+
 	// 先四舍五入到两位小数
 	rounded := math.Round(value*100) / 100
-	
+
 	// 使用 strconv.FormatFloat 去除尾随零，然后转换回 float64
 	formatted := strconv.FormatFloat(rounded, 'f', -1, 64)
 	result, err := strconv.ParseFloat(formatted, 64)
@@ -894,6 +895,6 @@ func roundToTwoDecimalPlaces(value float64) float64 {
 		// 如果转换失败，返回原始的四舍五入结果
 		return rounded
 	}
-	
+
 	return result
-} 
+}

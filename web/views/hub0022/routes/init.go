@@ -1,8 +1,8 @@
 package routes
 
 import (
-	"gohub/pkg/database"
-	"gohub/web/routes"
+	"gateway/pkg/database"
+	"gateway/web/routes"
 
 	"github.com/gin-gonic/gin"
 )
@@ -21,4 +21,4 @@ func init() {
 func InitHub0022Routes(router *gin.Engine, db database.Database) {
 	// 调用具体的路由注册函数
 	RegisterHub0022Routes(router, db)
-} 
+}

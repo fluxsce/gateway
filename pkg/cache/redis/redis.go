@@ -9,8 +9,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"gohub/pkg/config"
-	"gohub/pkg/logger"
+	"gateway/pkg/config"
+	"gateway/pkg/logger"
 )
 
 // RedisCache Redis缓存实现
@@ -245,6 +245,7 @@ func LoadRedisConfigFromFile() (*RedisConfig, error) {
 // 如果配置了前缀，会自动在前缀和键之间添加分隔符
 // 参数:
 //   - key: 原始缓存键
+//
 // 返回:
 //   - string: 带前缀的完整缓存键，格式为 "prefix.key" 或直接返回key（无前缀时）
 func (r *RedisCache) buildKey(key string) string {
@@ -262,19 +263,20 @@ func (r *RedisCache) buildKey(key string) string {
 // 从完整的缓存键中提取原始键名，去除前缀部分
 // 参数:
 //   - key: 完整的缓存键（包含前缀）
+//
 // 返回:
 //   - string: 去除前缀后的原始键名
 func (r *RedisCache) parseKey(key string) string {
 	if r.keyPrefix == "" {
 		return key
 	}
-	
+
 	// 构建完整前缀（包含分隔符）
 	fullPrefix := r.keyPrefix
 	if !strings.HasSuffix(r.keyPrefix, ".") && !strings.HasSuffix(r.keyPrefix, ":") {
 		fullPrefix = r.keyPrefix + "."
 	}
-	
+
 	if strings.HasPrefix(key, fullPrefix) {
 		return key[len(fullPrefix):]
 	}
@@ -285,6 +287,7 @@ func (r *RedisCache) parseKey(key string) string {
 // 处理过期时间逻辑：0表示使用默认过期时间，负数表示永不过期
 // 参数:
 //   - expiration: 输入的过期时间
+//
 // 返回:
 //   - time.Duration: 最终使用的过期时间
 func (r *RedisCache) resolveExpiration(expiration time.Duration) time.Duration {
@@ -304,6 +307,7 @@ func (r *RedisCache) resolveExpiration(expiration time.Duration) time.Duration {
 // 参数:
 //   - ctx: 上下文，用于控制请求超时和取消
 //   - key: 缓存键名（不包含前缀）
+//
 // 返回:
 //   - []byte: 缓存值的字节数组，键不存在时返回nil
 //   - error: 获取失败时返回错误，键不存在不算错误
@@ -311,14 +315,14 @@ func (r *RedisCache) Get(ctx context.Context, key string) ([]byte, error) {
 	if key == "" {
 		return nil, fmt.Errorf("缓存键不能为空")
 	}
-	
+
 	fullKey := r.buildKey(key)
 	result, err := r.getUniversalClient().Get(ctx, fullKey).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return nil, nil // 键不存在时返回nil而不是错误
 		}
-		logger.ErrorWithTrace(ctx,"redis get error", "error", err)
+		logger.ErrorWithTrace(ctx, "redis get error", "error", err)
 		return nil, fmt.Errorf("redis get error: %w", err)
 	}
 	return []byte(result), nil
@@ -329,6 +333,7 @@ func (r *RedisCache) Get(ctx context.Context, key string) ([]byte, error) {
 // 参数:
 //   - ctx: 上下文，用于控制请求超时和取消
 //   - key: 缓存键名（不包含前缀）
+//
 // 返回:
 //   - string: 缓存值的字符串，键不存在时返回空字符串
 //   - error: 获取失败时返回错误，键不存在不算错误
@@ -336,7 +341,7 @@ func (r *RedisCache) GetString(ctx context.Context, key string) (string, error) 
 	if key == "" {
 		return "", fmt.Errorf("缓存键不能为空")
 	}
-	
+
 	fullKey := r.buildKey(key)
 	result, err := r.getUniversalClient().Get(ctx, fullKey).Result()
 	if err != nil {
@@ -355,6 +360,7 @@ func (r *RedisCache) GetString(ctx context.Context, key string) (string, error) 
 //   - key: 缓存键名（不包含前缀）
 //   - value: 要缓存的值（字节数组）
 //   - expiration: 过期时间，0表示使用配置的默认过期时间，负数表示永不过期
+//
 // 返回:
 //   - error: 设置失败时返回错误信息
 func (r *RedisCache) Set(ctx context.Context, key string, value []byte, expiration time.Duration) error {
@@ -364,10 +370,10 @@ func (r *RedisCache) Set(ctx context.Context, key string, value []byte, expirati
 	if value == nil {
 		return fmt.Errorf("缓存值不能为nil")
 	}
-	
+
 	// 处理过期时间：0表示使用默认过期时间，负数表示永不过期
 	finalExpiration := r.resolveExpiration(expiration)
-	
+
 	fullKey := r.buildKey(key)
 	err := r.getUniversalClient().Set(ctx, fullKey, value, finalExpiration).Err()
 	if err != nil {
@@ -383,16 +389,17 @@ func (r *RedisCache) Set(ctx context.Context, key string, value []byte, expirati
 //   - key: 缓存键名（不包含前缀）
 //   - value: 要缓存的字符串值
 //   - expiration: 过期时间，0表示使用配置的默认过期时间，负数表示永不过期
+//
 // 返回:
 //   - error: 设置失败时返回错误信息
 func (r *RedisCache) SetString(ctx context.Context, key string, value string, expiration time.Duration) error {
 	if key == "" {
 		return fmt.Errorf("缓存键不能为空")
 	}
-	
+
 	// 处理过期时间：0表示使用默认过期时间，负数表示永不过期
 	finalExpiration := r.resolveExpiration(expiration)
-	
+
 	fullKey := r.buildKey(key)
 	err := r.getUniversalClient().Set(ctx, fullKey, value, finalExpiration).Err()
 	if err != nil {
@@ -406,14 +413,16 @@ func (r *RedisCache) SetString(ctx context.Context, key string, value string, ex
 // 参数:
 //   - ctx: 上下文，用于控制请求超时和取消
 //   - key: 要删除的缓存键名（不包含前缀）
+//
 // 返回:
 //   - error: 删除失败时返回错误信息
+//
 // 注意: 删除不存在的键不会返回错误
 func (r *RedisCache) Delete(ctx context.Context, key string) error {
 	if key == "" {
 		return fmt.Errorf("缓存键不能为空")
 	}
-	
+
 	fullKey := r.buildKey(key)
 	err := r.getUniversalClient().Del(ctx, fullKey).Err()
 	if err != nil {
@@ -437,9 +446,11 @@ func (r *RedisCache) Exists(ctx context.Context, key string) (bool, error) {
 // 参数:
 //   - ctx: 上下文，用于控制请求超时和取消
 //   - keys: 要获取的键名列表（不包含前缀）
+//
 // 返回:
 //   - map[string][]byte: 键值映射，只包含存在的键值对
 //   - error: 获取失败时返回错误信息
+//
 // 注意: 不存在的键不会出现在返回的映射中
 func (r *RedisCache) MGet(ctx context.Context, keys []string) (map[string][]byte, error) {
 	if len(keys) == 0 {
@@ -483,9 +494,11 @@ func (r *RedisCache) MGet(ctx context.Context, keys []string) (map[string][]byte
 // 参数:
 //   - ctx: 上下文，用于控制请求超时和取消
 //   - keys: 要获取的键名列表（不包含前缀）
+//
 // 返回:
 //   - map[string]string: 键值映射，只包含存在的键值对
 //   - error: 获取失败时返回错误信息
+//
 // 注意: 不存在的键不会出现在返回的映射中
 func (r *RedisCache) MGetString(ctx context.Context, keys []string) (map[string]string, error) {
 	if len(keys) == 0 {
@@ -531,7 +544,7 @@ func (r *RedisCache) MSet(ctx context.Context, kvPairs map[string][]byte, expira
 	}
 
 	client := r.getUniversalClient()
-	
+
 	// 处理过期时间：0表示使用默认过期时间，负数表示永不过期
 	finalExpiration := r.resolveExpiration(expiration)
 
@@ -568,6 +581,7 @@ func (r *RedisCache) MSet(ctx context.Context, kvPairs map[string][]byte, expira
 //   - ctx: 上下文，用于控制请求超时和取消
 //   - kvPairs: 键值对映射
 //   - expiration: 过期时间，0表示使用配置的默认过期时间，负数表示永不过期
+//
 // 返回:
 //   - error: 设置失败时返回错误信息
 func (r *RedisCache) MSetString(ctx context.Context, kvPairs map[string]string, expiration time.Duration) error {
@@ -576,7 +590,7 @@ func (r *RedisCache) MSetString(ctx context.Context, kvPairs map[string]string, 
 	}
 
 	client := r.getUniversalClient()
-	
+
 	// 处理过期时间：0表示使用默认过期时间，负数表示永不过期
 	finalExpiration := r.resolveExpiration(expiration)
 
@@ -654,6 +668,7 @@ func (r *RedisCache) Decrement(ctx context.Context, key string, delta int64) (in
 //   - key: 缓存键名（不包含前缀）
 //   - value: 要设置的值（字节数组）
 //   - expiration: 过期时间，0表示使用配置的默认过期时间，负数表示永不过期
+//
 // 返回:
 //   - bool: true表示设置成功（键不存在），false表示键已存在
 //   - error: 操作失败时返回错误信息
@@ -664,10 +679,10 @@ func (r *RedisCache) SetNX(ctx context.Context, key string, value []byte, expira
 	if value == nil {
 		return false, fmt.Errorf("缓存值不能为nil")
 	}
-	
+
 	// 处理过期时间：0表示使用默认过期时间，负数表示永不过期
 	finalExpiration := r.resolveExpiration(expiration)
-	
+
 	fullKey := r.buildKey(key)
 	result, err := r.getUniversalClient().SetNX(ctx, fullKey, value, finalExpiration).Result()
 	if err != nil {
@@ -683,6 +698,7 @@ func (r *RedisCache) SetNX(ctx context.Context, key string, value []byte, expira
 //   - key: 缓存键名（不包含前缀）
 //   - value: 要设置的字符串值
 //   - expiration: 过期时间，0表示使用配置的默认过期时间，负数表示永不过期
+//
 // 返回:
 //   - bool: true表示设置成功（键不存在），false表示键已存在
 //   - error: 操作失败时返回错误信息
@@ -690,10 +706,10 @@ func (r *RedisCache) SetNXString(ctx context.Context, key string, value string, 
 	if key == "" {
 		return false, fmt.Errorf("缓存键不能为空")
 	}
-	
+
 	// 处理过期时间：0表示使用默认过期时间，负数表示永不过期
 	finalExpiration := r.resolveExpiration(expiration)
-	
+
 	fullKey := r.buildKey(key)
 	result, err := r.getUniversalClient().SetNX(ctx, fullKey, value, finalExpiration).Result()
 	if err != nil {
@@ -738,7 +754,7 @@ func (r *RedisCache) Ping(ctx context.Context) error {
 //   - error: 关闭连接时的错误信息
 func (r *RedisCache) Close() error {
 	var closeErr error
-	
+
 	// 关闭集群客户端
 	if r.isCluster && r.clusterClient != nil {
 		if err := r.clusterClient.Close(); err != nil {
@@ -746,7 +762,7 @@ func (r *RedisCache) Close() error {
 		}
 		r.clusterClient = nil // 防止重复关闭
 	}
-	
+
 	// 关闭单机/哨兵客户端
 	if r.client != nil {
 		if err := r.client.Close(); err != nil {
@@ -758,7 +774,7 @@ func (r *RedisCache) Close() error {
 		}
 		r.client = nil // 防止重复关闭
 	}
-	
+
 	return closeErr
 }
 
@@ -786,13 +802,13 @@ func (r *RedisCache) Stats() map[string]interface{} {
 
 	// 获取配置信息
 	stats["config"] = map[string]interface{}{
-		"mode":             string(r.config.Mode),
+		"mode":              string(r.config.Mode),
 		"connection_string": r.config.GetConnectionString(),
-		"pool_size":        r.config.PoolSize,
-		"min_idle_conns":   r.config.MinIdleConns,
-		"max_idle_conns":   r.config.MaxIdleConns,
-		"key_prefix":       r.keyPrefix,
-		"is_cluster":       r.isCluster,
+		"pool_size":         r.config.PoolSize,
+		"min_idle_conns":    r.config.MinIdleConns,
+		"max_idle_conns":    r.config.MaxIdleConns,
+		"key_prefix":        r.keyPrefix,
+		"is_cluster":        r.isCluster,
 	}
 
 	return stats
@@ -811,6 +827,7 @@ func (r *RedisCache) FlushAll(ctx context.Context) error {
 // 快速检查Redis连接状态，不发送网络请求
 // 返回:
 //   - bool: true表示连接对象存在，false表示连接已关闭或不存在
+//
 // 注意: 该方法只检查连接对象是否存在，不检查网络连通性
 func (r *RedisCache) IsConnected() bool {
 	if r.isCluster {
@@ -827,7 +844,7 @@ func (r *RedisCache) IsConnected() bool {
 func (r *RedisCache) CheckResourceLeak() (bool, map[string]interface{}) {
 	if !r.IsConnected() {
 		return false, map[string]interface{}{
-			"status": "disconnected",
+			"status":        "disconnected",
 			"leak_detected": false,
 		}
 	}
@@ -841,7 +858,7 @@ func (r *RedisCache) CheckResourceLeak() (bool, map[string]interface{}) {
 
 	if poolStats == nil {
 		return false, map[string]interface{}{
-			"status": "no_pool_stats",
+			"status":        "no_pool_stats",
 			"leak_detected": false,
 		}
 	}
@@ -894,8 +911,10 @@ func (r *RedisCache) CheckResourceLeak() (bool, map[string]interface{}) {
 // 参数:
 //   - ctx: 上下文，用于控制请求超时和取消
 //   - db: 目标数据库编号（0-15）
+//
 // 返回:
 //   - error: 切换失败时返回错误信息
+//
 // 注意: 集群模式不支持数据库选择，因为集群中的数据是分片的
 func (r *RedisCache) SelectDB(ctx context.Context, db int) error {
 	if r.isCluster {
@@ -930,25 +949,25 @@ func (r *RedisCache) Keys(ctx context.Context, pattern string) ([]string, error)
 	if pattern == "" {
 		return nil, fmt.Errorf("匹配模式不能为空")
 	}
-	
+
 	// 如果有前缀，需要在模式前加上前缀
 	fullPattern := pattern
 	if r.keyPrefix != "" {
 		fullPattern = r.buildKey(pattern)
 	}
-	
+
 	keys, err := r.getUniversalClient().Keys(ctx, fullPattern).Result()
 	if err != nil {
 		return nil, fmt.Errorf("redis keys error: %w", err)
 	}
-	
+
 	// 如果有前缀，需要去掉前缀
 	if r.keyPrefix != "" {
 		for i, key := range keys {
 			keys[i] = r.parseKey(key)
 		}
 	}
-	
+
 	return keys, nil
 }
 
@@ -969,7 +988,7 @@ func (r *RedisCache) GetSet(ctx context.Context, key string, value []byte) ([]by
 	if value == nil {
 		return nil, fmt.Errorf("缓存值不能为nil")
 	}
-	
+
 	fullKey := r.buildKey(key)
 	result, err := r.getUniversalClient().GetSet(ctx, fullKey, value).Result()
 	if err != nil {
@@ -986,7 +1005,7 @@ func (r *RedisCache) GetSetString(ctx context.Context, key string, value string)
 	if key == "" {
 		return "", fmt.Errorf("缓存键不能为空")
 	}
-	
+
 	fullKey := r.buildKey(key)
 	result, err := r.getUniversalClient().GetSet(ctx, fullKey, value).Result()
 	if err != nil {
@@ -1003,7 +1022,7 @@ func (r *RedisCache) Append(ctx context.Context, key string, value string) (int,
 	if key == "" {
 		return 0, fmt.Errorf("缓存键不能为空")
 	}
-	
+
 	fullKey := r.buildKey(key)
 	result, err := r.getUniversalClient().Append(ctx, fullKey, value).Result()
 	if err != nil {
@@ -1020,7 +1039,7 @@ func (r *RedisCache) HSet(ctx context.Context, key, field, value string) error {
 	if field == "" {
 		return fmt.Errorf("字段名不能为空")
 	}
-	
+
 	fullKey := r.buildKey(key)
 	err := r.getUniversalClient().HSet(ctx, fullKey, field, value).Err()
 	if err != nil {
@@ -1037,7 +1056,7 @@ func (r *RedisCache) HGet(ctx context.Context, key, field string) (string, error
 	if field == "" {
 		return "", fmt.Errorf("字段名不能为空")
 	}
-	
+
 	fullKey := r.buildKey(key)
 	result, err := r.getUniversalClient().HGet(ctx, fullKey, field).Result()
 	if err != nil {
@@ -1054,7 +1073,7 @@ func (r *RedisCache) HGetAll(ctx context.Context, key string) (map[string]string
 	if key == "" {
 		return nil, fmt.Errorf("缓存键不能为空")
 	}
-	
+
 	fullKey := r.buildKey(key)
 	result, err := r.getUniversalClient().HGetAll(ctx, fullKey).Result()
 	if err != nil {
@@ -1071,7 +1090,7 @@ func (r *RedisCache) HDel(ctx context.Context, key string, fields ...string) (in
 	if len(fields) == 0 {
 		return 0, nil
 	}
-	
+
 	fullKey := r.buildKey(key)
 	result, err := r.getUniversalClient().HDel(ctx, fullKey, fields...).Result()
 	if err != nil {
@@ -1088,14 +1107,14 @@ func (r *RedisCache) LPush(ctx context.Context, key string, values ...string) (i
 	if len(values) == 0 {
 		return 0, nil
 	}
-	
+
 	fullKey := r.buildKey(key)
 	// 转换为interface{}切片
 	vals := make([]interface{}, len(values))
 	for i, v := range values {
 		vals[i] = v
 	}
-	
+
 	result, err := r.getUniversalClient().LPush(ctx, fullKey, vals...).Result()
 	if err != nil {
 		return 0, fmt.Errorf("redis lpush error: %w", err)
@@ -1111,14 +1130,14 @@ func (r *RedisCache) RPush(ctx context.Context, key string, values ...string) (i
 	if len(values) == 0 {
 		return 0, nil
 	}
-	
+
 	fullKey := r.buildKey(key)
 	// 转换为interface{}切片
 	vals := make([]interface{}, len(values))
 	for i, v := range values {
 		vals[i] = v
 	}
-	
+
 	result, err := r.getUniversalClient().RPush(ctx, fullKey, vals...).Result()
 	if err != nil {
 		return 0, fmt.Errorf("redis rpush error: %w", err)
@@ -1131,7 +1150,7 @@ func (r *RedisCache) LPop(ctx context.Context, key string) (string, error) {
 	if key == "" {
 		return "", fmt.Errorf("缓存键不能为空")
 	}
-	
+
 	fullKey := r.buildKey(key)
 	result, err := r.getUniversalClient().LPop(ctx, fullKey).Result()
 	if err != nil {
@@ -1148,7 +1167,7 @@ func (r *RedisCache) RPop(ctx context.Context, key string) (string, error) {
 	if key == "" {
 		return "", fmt.Errorf("缓存键不能为空")
 	}
-	
+
 	fullKey := r.buildKey(key)
 	result, err := r.getUniversalClient().RPop(ctx, fullKey).Result()
 	if err != nil {
@@ -1165,7 +1184,7 @@ func (r *RedisCache) LLen(ctx context.Context, key string) (int64, error) {
 	if key == "" {
 		return 0, fmt.Errorf("缓存键不能为空")
 	}
-	
+
 	fullKey := r.buildKey(key)
 	result, err := r.getUniversalClient().LLen(ctx, fullKey).Result()
 	if err != nil {
@@ -1182,14 +1201,14 @@ func (r *RedisCache) SAdd(ctx context.Context, key string, members ...string) (i
 	if len(members) == 0 {
 		return 0, nil
 	}
-	
+
 	fullKey := r.buildKey(key)
 	// 转换为interface{}切片
 	vals := make([]interface{}, len(members))
 	for i, v := range members {
 		vals[i] = v
 	}
-	
+
 	result, err := r.getUniversalClient().SAdd(ctx, fullKey, vals...).Result()
 	if err != nil {
 		return 0, fmt.Errorf("redis sadd error: %w", err)
@@ -1205,14 +1224,14 @@ func (r *RedisCache) SRem(ctx context.Context, key string, members ...string) (i
 	if len(members) == 0 {
 		return 0, nil
 	}
-	
+
 	fullKey := r.buildKey(key)
 	// 转换为interface{}切片
 	vals := make([]interface{}, len(members))
 	for i, v := range members {
 		vals[i] = v
 	}
-	
+
 	result, err := r.getUniversalClient().SRem(ctx, fullKey, vals...).Result()
 	if err != nil {
 		return 0, fmt.Errorf("redis srem error: %w", err)
@@ -1225,7 +1244,7 @@ func (r *RedisCache) SMembers(ctx context.Context, key string) ([]string, error)
 	if key == "" {
 		return nil, fmt.Errorf("缓存键不能为空")
 	}
-	
+
 	fullKey := r.buildKey(key)
 	result, err := r.getUniversalClient().SMembers(ctx, fullKey).Result()
 	if err != nil {
@@ -1239,7 +1258,7 @@ func (r *RedisCache) SIsMember(ctx context.Context, key string, member string) (
 	if key == "" {
 		return false, fmt.Errorf("缓存键不能为空")
 	}
-	
+
 	fullKey := r.buildKey(key)
 	result, err := r.getUniversalClient().SIsMember(ctx, fullKey, member).Result()
 	if err != nil {
@@ -1253,7 +1272,7 @@ func (r *RedisCache) ZAdd(ctx context.Context, key string, score float64, member
 	if key == "" {
 		return 0, fmt.Errorf("缓存键不能为空")
 	}
-	
+
 	fullKey := r.buildKey(key)
 	z := redis.Z{Score: score, Member: member}
 	result, err := r.getUniversalClient().ZAdd(ctx, fullKey, z).Result()
@@ -1271,14 +1290,14 @@ func (r *RedisCache) ZRem(ctx context.Context, key string, members ...string) (i
 	if len(members) == 0 {
 		return 0, nil
 	}
-	
+
 	fullKey := r.buildKey(key)
 	// 转换为interface{}切片
 	vals := make([]interface{}, len(members))
 	for i, v := range members {
 		vals[i] = v
 	}
-	
+
 	result, err := r.getUniversalClient().ZRem(ctx, fullKey, vals...).Result()
 	if err != nil {
 		return 0, fmt.Errorf("redis zrem error: %w", err)
@@ -1291,7 +1310,7 @@ func (r *RedisCache) ZScore(ctx context.Context, key string, member string) (flo
 	if key == "" {
 		return 0, fmt.Errorf("缓存键不能为空")
 	}
-	
+
 	fullKey := r.buildKey(key)
 	result, err := r.getUniversalClient().ZScore(ctx, fullKey, member).Result()
 	if err != nil {
@@ -1308,7 +1327,7 @@ func (r *RedisCache) ZRange(ctx context.Context, key string, start, stop int64) 
 	if key == "" {
 		return nil, fmt.Errorf("缓存键不能为空")
 	}
-	
+
 	fullKey := r.buildKey(key)
 	result, err := r.getUniversalClient().ZRange(ctx, fullKey, start, stop).Result()
 	if err != nil {

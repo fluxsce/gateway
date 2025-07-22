@@ -3,8 +3,8 @@ package dao
 import (
 	"context"
 	"fmt"
-	"gohub/internal/metric_collect/types"
-	"gohub/pkg/database"
+	"gateway/internal/metric_collect/types"
+	"gateway/pkg/database"
 	"time"
 )
 
@@ -26,7 +26,7 @@ func (dao *ProcessStatsLogDAO) InsertProcessStatsLog(ctx context.Context, proces
 	processStatsLog.EditTime = now
 	processStatsLog.CurrentVersion = 1
 	processStatsLog.ActiveFlag = types.ActiveFlagYes
-	
+
 	// 验证必填字段
 	if processStatsLog.MetricProcessStatsLogId == "" {
 		return fmt.Errorf("进程统计日志ID不能为空")
@@ -46,7 +46,7 @@ func (dao *ProcessStatsLogDAO) InsertProcessStatsLog(ctx context.Context, proces
 	if processStatsLog.OprSeqFlag == "" {
 		return fmt.Errorf("操作序列标识不能为空")
 	}
-	
+
 	tableName := processStatsLog.TableName()
 	_, err := dao.db.Insert(ctx, tableName, processStatsLog, true)
 	if err != nil {
@@ -60,7 +60,7 @@ func (dao *ProcessStatsLogDAO) BatchInsertProcessStatsLog(ctx context.Context, p
 	if len(processStatsLogs) == 0 {
 		return nil
 	}
-	
+
 	// 设置通用字段默认值
 	now := time.Now()
 	for _, processStatsLog := range processStatsLogs {
@@ -68,7 +68,7 @@ func (dao *ProcessStatsLogDAO) BatchInsertProcessStatsLog(ctx context.Context, p
 		processStatsLog.EditTime = now
 		processStatsLog.CurrentVersion = 1
 		processStatsLog.ActiveFlag = types.ActiveFlagYes
-		
+
 		// 验证必填字段
 		if processStatsLog.MetricProcessStatsLogId == "" {
 			return fmt.Errorf("进程统计日志ID不能为空")
@@ -89,15 +89,15 @@ func (dao *ProcessStatsLogDAO) BatchInsertProcessStatsLog(ctx context.Context, p
 			return fmt.Errorf("操作序列标识不能为空")
 		}
 	}
-	
+
 	tableName := processStatsLogs[0].TableName()
-	
+
 	// 转换为interface{}切片
 	items := make([]interface{}, len(processStatsLogs))
 	for i, processStatsLog := range processStatsLogs {
 		items[i] = processStatsLog
 	}
-	
+
 	_, err := dao.db.BatchInsert(ctx, tableName, items, true)
 	if err != nil {
 		return fmt.Errorf("批量插入进程统计日志失败: %w", err)
@@ -113,10 +113,10 @@ func (dao *ProcessStatsLogDAO) DeleteProcessStatsLog(ctx context.Context, tenant
 	if metricProcessStatsLogId == "" {
 		return fmt.Errorf("进程统计日志ID不能为空")
 	}
-	
+
 	tableName := (&types.ProcessStatsLog{}).TableName()
 	sql := fmt.Sprintf("UPDATE %s SET activeFlag = ? WHERE tenantId = ? AND metricProcessStatsLogId = ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{types.ActiveFlagNo, tenantId, metricProcessStatsLogId}, true)
 	if err != nil {
 		return fmt.Errorf("删除进程统计日志失败: %w", err)
@@ -129,10 +129,10 @@ func (dao *ProcessStatsLogDAO) DeleteProcessStatsLogByTime(ctx context.Context, 
 	if tenantId == "" {
 		return fmt.Errorf("租户ID不能为空")
 	}
-	
+
 	tableName := (&types.ProcessStatsLog{}).TableName()
 	sql := fmt.Sprintf("DELETE FROM %s WHERE tenantId = ? AND collectTime < ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{tenantId, beforeTime}, true)
 	if err != nil {
 		return fmt.Errorf("根据时间删除进程统计日志失败: %w", err)
@@ -148,13 +148,13 @@ func (dao *ProcessStatsLogDAO) DeleteProcessStatsLogByServer(ctx context.Context
 	if metricServerId == "" {
 		return fmt.Errorf("服务器ID不能为空")
 	}
-	
+
 	tableName := (&types.ProcessStatsLog{}).TableName()
 	sql := fmt.Sprintf("DELETE FROM %s WHERE tenantId = ? AND metricServerId = ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{tenantId, metricServerId}, true)
 	if err != nil {
 		return fmt.Errorf("根据服务器ID删除进程统计日志失败: %w", err)
 	}
 	return nil
-} 
+}

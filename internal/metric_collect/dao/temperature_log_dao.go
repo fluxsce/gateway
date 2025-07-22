@@ -3,8 +3,8 @@ package dao
 import (
 	"context"
 	"fmt"
-	"gohub/internal/metric_collect/types"
-	"gohub/pkg/database"
+	"gateway/internal/metric_collect/types"
+	"gateway/pkg/database"
 	"time"
 )
 
@@ -26,7 +26,7 @@ func (dao *TemperatureLogDAO) InsertTemperatureLog(ctx context.Context, temperat
 	temperatureLog.EditTime = now
 	temperatureLog.CurrentVersion = 1
 	temperatureLog.ActiveFlag = types.ActiveFlagYes
-	
+
 	// 验证必填字段
 	if temperatureLog.MetricTemperatureLogId == "" {
 		return fmt.Errorf("温度信息日志ID不能为空")
@@ -46,7 +46,7 @@ func (dao *TemperatureLogDAO) InsertTemperatureLog(ctx context.Context, temperat
 	if temperatureLog.OprSeqFlag == "" {
 		return fmt.Errorf("操作序列标识不能为空")
 	}
-	
+
 	tableName := temperatureLog.TableName()
 	_, err := dao.db.Insert(ctx, tableName, temperatureLog, true)
 	if err != nil {
@@ -60,7 +60,7 @@ func (dao *TemperatureLogDAO) BatchInsertTemperatureLog(ctx context.Context, tem
 	if len(temperatureLogs) == 0 {
 		return nil
 	}
-	
+
 	// 设置通用字段默认值
 	now := time.Now()
 	for _, temperatureLog := range temperatureLogs {
@@ -68,7 +68,7 @@ func (dao *TemperatureLogDAO) BatchInsertTemperatureLog(ctx context.Context, tem
 		temperatureLog.EditTime = now
 		temperatureLog.CurrentVersion = 1
 		temperatureLog.ActiveFlag = types.ActiveFlagYes
-		
+
 		// 验证必填字段
 		if temperatureLog.MetricTemperatureLogId == "" {
 			return fmt.Errorf("温度信息日志ID不能为空")
@@ -89,15 +89,15 @@ func (dao *TemperatureLogDAO) BatchInsertTemperatureLog(ctx context.Context, tem
 			return fmt.Errorf("操作序列标识不能为空")
 		}
 	}
-	
+
 	tableName := temperatureLogs[0].TableName()
-	
+
 	// 转换为interface{}切片
 	items := make([]interface{}, len(temperatureLogs))
 	for i, temperatureLog := range temperatureLogs {
 		items[i] = temperatureLog
 	}
-	
+
 	_, err := dao.db.BatchInsert(ctx, tableName, items, true)
 	if err != nil {
 		return fmt.Errorf("批量插入温度信息日志失败: %w", err)
@@ -113,10 +113,10 @@ func (dao *TemperatureLogDAO) DeleteTemperatureLog(ctx context.Context, tenantId
 	if metricTemperatureLogId == "" {
 		return fmt.Errorf("温度信息日志ID不能为空")
 	}
-	
+
 	tableName := (&types.TemperatureLog{}).TableName()
 	sql := fmt.Sprintf("UPDATE %s SET activeFlag = ? WHERE tenantId = ? AND metricTemperatureLogId = ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{types.ActiveFlagNo, tenantId, metricTemperatureLogId}, true)
 	if err != nil {
 		return fmt.Errorf("删除温度信息日志失败: %w", err)
@@ -129,10 +129,10 @@ func (dao *TemperatureLogDAO) DeleteTemperatureLogByTime(ctx context.Context, te
 	if tenantId == "" {
 		return fmt.Errorf("租户ID不能为空")
 	}
-	
+
 	tableName := (&types.TemperatureLog{}).TableName()
 	sql := fmt.Sprintf("DELETE FROM %s WHERE tenantId = ? AND collectTime < ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{tenantId, beforeTime}, true)
 	if err != nil {
 		return fmt.Errorf("根据时间删除温度信息日志失败: %w", err)
@@ -148,13 +148,13 @@ func (dao *TemperatureLogDAO) DeleteTemperatureLogByServer(ctx context.Context, 
 	if metricServerId == "" {
 		return fmt.Errorf("服务器ID不能为空")
 	}
-	
+
 	tableName := (&types.TemperatureLog{}).TableName()
 	sql := fmt.Sprintf("DELETE FROM %s WHERE tenantId = ? AND metricServerId = ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{tenantId, metricServerId}, true)
 	if err != nil {
 		return fmt.Errorf("根据服务器ID删除温度信息日志失败: %w", err)
 	}
 	return nil
-} 
+}

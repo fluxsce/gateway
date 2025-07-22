@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gohub/internal/gateway/handler/limiter"
-	"gohub/web/views/hubcommon002/models"
+	"gateway/internal/gateway/handler/limiter"
+	"gateway/web/views/hubcommon002/models"
 )
 
 func TestRateLimitConfig(t *testing.T) {
@@ -354,7 +354,7 @@ func TestRateLimitConfigConverter_MergeCustomConfig(t *testing.T) {
 	}
 
 	override := map[string]interface{}{
-		"timeout": 60, // 覆盖现有值
+		"timeout": 60,   // 覆盖现有值
 		"debug":   true, // 新增值
 	}
 
@@ -371,4 +371,4 @@ func TestRateLimitConfigConverter_MergeCustomConfig(t *testing.T) {
 
 	baseResult := converter.MergeCustomConfig(base, nil)
 	assert.Equal(t, base, baseResult, "覆盖配置为nil时应该返回基础配置")
-} 
+}

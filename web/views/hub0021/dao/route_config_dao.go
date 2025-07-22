@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/pkg/utils/huberrors"
-	"gohub/pkg/utils/random"
-	"gohub/web/views/hub0021/models"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/huberrors"
+	"gateway/pkg/utils/random"
+	"gateway/web/views/hub0021/models"
 	"strings"
 	"time"
 )
@@ -44,26 +44,26 @@ func (dao *RouteConfigDAO) generateRouteConfigId() string {
 	now := time.Now()
 	// 生成时间部分：YYYYMMDDHHMMSS
 	timeStr := now.Format("20060102150405")
-	
+
 	// 生成4位随机字符（大写字母和数字）
 	randomStr := random.GenerateRandomString(4)
-	
+
 	return fmt.Sprintf("RT%s%s", timeStr, randomStr)
 }
 
 // isRouteConfigIdExists 检查路由配置ID是否已存在
 func (dao *RouteConfigDAO) isRouteConfigIdExists(ctx context.Context, routeConfigId string) (bool, error) {
 	query := `SELECT COUNT(*) as count FROM HUB_GW_ROUTE_CONFIG WHERE routeConfigId = ?`
-	
+
 	var result struct {
 		Count int `db:"count"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &result, query, []interface{}{routeConfigId}, true)
 	if err != nil {
 		return false, err
 	}
-	
+
 	return result.Count > 0, nil
 }
 
@@ -71,23 +71,23 @@ func (dao *RouteConfigDAO) isRouteConfigIdExists(ctx context.Context, routeConfi
 // 如果生成的ID已存在，会重新生成直到找到唯一的ID（最多尝试10次）
 func (dao *RouteConfigDAO) generateUniqueRouteConfigId(ctx context.Context) (string, error) {
 	const maxAttempts = 10
-	
+
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		routeConfigId := dao.generateRouteConfigId()
-		
+
 		exists, err := dao.isRouteConfigIdExists(ctx, routeConfigId)
 		if err != nil {
 			return "", huberrors.WrapError(err, "检查路由配置ID是否存在失败")
 		}
-		
+
 		if !exists {
 			return routeConfigId, nil
 		}
-		
+
 		// 如果ID已存在，等待1毫秒后重试（确保时间戳不同）
 		time.Sleep(time.Millisecond)
 	}
-	
+
 	return "", errors.New("生成唯一路由配置ID失败，已达到最大尝试次数")
 }
 
@@ -254,11 +254,11 @@ func (dao *RouteConfigDAO) UpdateRouteConfig(ctx context.Context, routeConfig *m
 
 	// 执行更新
 	result, err := dao.db.Exec(ctx, sql, []interface{}{
-		routeConfig.GatewayInstanceId, routeConfig.RouteName, routeConfig.RoutePath, 
+		routeConfig.GatewayInstanceId, routeConfig.RouteName, routeConfig.RoutePath,
 		routeConfig.AllowedMethods, routeConfig.AllowedHosts,
 		routeConfig.MatchType, routeConfig.RoutePriority, routeConfig.StripPathPrefix, routeConfig.RewritePath,
 		routeConfig.EnableWebsocket, routeConfig.TimeoutMs, routeConfig.RetryCount, routeConfig.RetryIntervalMs,
-		routeConfig.ServiceDefinitionId, routeConfig.LogConfigId, routeConfig.RouteMetadata, 
+		routeConfig.ServiceDefinitionId, routeConfig.LogConfigId, routeConfig.RouteMetadata,
 		routeConfig.Reserved1, routeConfig.Reserved2, routeConfig.Reserved3, routeConfig.Reserved4, routeConfig.Reserved5,
 		routeConfig.ExtProperty, routeConfig.NoteText,
 		routeConfig.EditTime, routeConfig.EditWho, routeConfig.CurrentVersion,
@@ -549,10 +549,10 @@ func (dao *RouteAssertionDAO) generateRouteAssertionId() string {
 	now := time.Now()
 	// 生成时间部分：YYYYMMDDHHMMSS
 	timeStr := now.Format("20060102150405")
-	
+
 	// 生成4位随机字符（大写字母和数字）
 	randomStr := random.GenerateRandomString(4)
-	
+
 	return fmt.Sprintf("RA%s%s", timeStr, randomStr)
 }
 
@@ -773,49 +773,49 @@ func (dao *RouterConfigDAO) generateRouterConfigId() string {
 	now := time.Now()
 	// 生成时间部分：YYYYMMDDHHMMSS
 	timeStr := now.Format("20060102150405")
-	
+
 	// 生成4位随机字符（大写字母和数字）
 	randomStr := random.GenerateRandomString(4)
-	
+
 	return fmt.Sprintf("RC%s%s", timeStr, randomStr)
 }
 
 // isRouterConfigIdExists 检查Router配置ID是否已存在
 func (dao *RouterConfigDAO) isRouterConfigIdExists(ctx context.Context, routerConfigId string) (bool, error) {
 	query := `SELECT COUNT(*) as count FROM HUB_GW_ROUTER_CONFIG WHERE routerConfigId = ?`
-	
+
 	var result struct {
 		Count int `db:"count"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &result, query, []interface{}{routerConfigId}, true)
 	if err != nil {
 		return false, err
 	}
-	
+
 	return result.Count > 0, nil
 }
 
 // generateUniqueRouterConfigId 生成唯一的Router配置ID
 func (dao *RouterConfigDAO) generateUniqueRouterConfigId(ctx context.Context) (string, error) {
 	const maxAttempts = 10
-	
+
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		routerConfigId := dao.generateRouterConfigId()
-		
+
 		exists, err := dao.isRouterConfigIdExists(ctx, routerConfigId)
 		if err != nil {
 			return "", huberrors.WrapError(err, "检查Router配置ID是否存在失败")
 		}
-		
+
 		if !exists {
 			return routerConfigId, nil
 		}
-		
+
 		// 如果ID已存在，等待1毫秒后重试（确保时间戳不同）
 		time.Sleep(time.Millisecond)
 	}
-	
+
 	return "", errors.New("生成唯一Router配置ID失败，已达到最大尝试次数")
 }
 
@@ -1126,7 +1126,7 @@ func (dao *RouterConfigDAO) isDuplicateRouterNameError(err error) bool {
 	}
 	errStr := strings.ToLower(err.Error())
 	return strings.Contains(errStr, "duplicate") && strings.Contains(errStr, "routername")
-} 
+}
 
 // GetRouteStatistics 获取路由统计信息
 func (dao *RouteConfigDAO) GetRouteStatistics(ctx context.Context, tenantId string, gatewayInstanceId string) (map[string]int, error) {
@@ -1182,4 +1182,4 @@ func (dao *RouteConfigDAO) GetRouteStatistics(ctx context.Context, tenantId stri
 	}
 
 	return statistics, nil
-} 
+}

@@ -1,8 +1,8 @@
-# GoHub 部署指南
+# Gateway 部署指南
 
 ## 概述
 
-本文档详细说明了 GoHub 应用的编译、部署和运维过程，适用于不同的部署环境。
+本文档详细说明了 Gateway 应用的编译、部署和运维过程，适用于不同的部署环境。
 
 ## 系统要求
 
@@ -136,7 +136,7 @@ go version  # 需要 Go 1.19+
 
 # 克隆项目（如果需要）
 git clone <repository-url>
-cd gohub
+cd gateway
 
 # Go版本切换（如果需要）
 # Windows环境
@@ -193,7 +193,7 @@ go mod tidy
 #### 开发环境编译
 ```bash
 # 编译到 bin 目录（仅支持 MySQL）
-go build -o bin/gohub cmd/app/main.go
+go build -o bin/gateway cmd/app/main.go
 ```
 
 #### Oracle 支持的编译
@@ -243,7 +243,7 @@ go build -o bin/gohub cmd/app/main.go
 成功编译的输出示例：
 ```
 [SUCCESS] Build completed
-Output: dist\gohub-win2008-oracle-amd64.exe
+Output: dist\gateway-win2008-oracle-amd64.exe
 Size: 55 MB
 ```
 
@@ -258,7 +258,7 @@ export ORACLE_HOME=/opt/oracle/instantclient_21_18
 # 编辑 pkg/database/alldriver/drivers.go，取消注释Oracle导入
 
 # 3. 编译
-go build -o bin/gohub cmd/app/main.go
+go build -o bin/gateway cmd/app/main.go
 ```
 
 **macOS 环境Oracle编译**
@@ -269,7 +269,7 @@ export DYLD_LIBRARY_PATH=/opt/oracle/instantclient_19_8:$DYLD_LIBRARY_PATH
 export ORACLE_HOME=/opt/oracle/instantclient_19_8
 
 # 2. 启用Oracle驱动并编译
-go build -o bin/gohub cmd/app/main.go
+go build -o bin/gateway cmd/app/main.go
 ```
 
 #### 生产环境编译
@@ -277,13 +277,13 @@ go build -o bin/gohub cmd/app/main.go
 **标准编译（仅MySQL支持）**
 ```bash
 # Linux 64位（无需后缀）
-GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o gohub-linux-amd64 cmd/app/main.go
+GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o gateway-linux-amd64 cmd/app/main.go
 
 # Windows 64位（必须带.exe后缀）
-GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o gohub-windows-amd64.exe cmd/app/main.go
+GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o gateway-windows-amd64.exe cmd/app/main.go
 
 # macOS 64位（无需后缀）
-GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o gohub-darwin-amd64 cmd/app/main.go
+GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o gateway-darwin-amd64 cmd/app/main.go
 ```
 
 **Oracle支持的生产编译**
@@ -291,14 +291,14 @@ GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o gohub-darwin-amd64 cmd/app
 # 注意：Oracle编译需要在目标平台进行，不支持交叉编译
 
 # Linux 64位（在Linux环境执行，无需后缀）
-CGO_ENABLED=1 go build -ldflags="-s -w" -o gohub-linux-amd64-oracle cmd/app/main.go
+CGO_ENABLED=1 go build -ldflags="-s -w" -o gateway-linux-amd64-oracle cmd/app/main.go
 
 # Windows 64位（在Windows环境执行，必须带.exe后缀）
 $env:CGO_ENABLED = "1"
-go build -ldflags="-s -w" -o gohub-windows-amd64-oracle.exe cmd/app/main.go
+go build -ldflags="-s -w" -o gateway-windows-amd64-oracle.exe cmd/app/main.go
 
 # macOS 64位（在macOS环境执行，无需后缀）
-CGO_ENABLED=1 go build -ldflags="-s -w" -o gohub-darwin-amd64-oracle cmd/app/main.go
+CGO_ENABLED=1 go build -ldflags="-s -w" -o gateway-darwin-amd64-oracle cmd/app/main.go
 ```
 
 #### 编译参数说明
@@ -312,8 +312,8 @@ CGO_ENABLED=1 go build -ldflags="-s -w" -o gohub-darwin-amd64-oracle cmd/app/mai
 
 #### 目录结构
 ```
-/opt/gohub/                    # 部署根目录
-├── gohub                      # 可执行文件
+/opt/gateway/                    # 部署根目录
+├── gateway                      # 可执行文件
 ├── configs/                   # 配置文件目录
 │   ├── app.yaml              # 应用配置
 │   ├── database.yaml         # 数据库配置
@@ -338,36 +338,36 @@ CGO_ENABLED=1 go build -ldflags="-s -w" -o gohub-darwin-amd64-oracle cmd/app/mai
 #### 部署步骤
 ```bash
 # 1. 创建部署目录
-sudo mkdir -p /opt/gohub/{configs,logs,backup,scripts,web/static,web/frontend/dist}
+sudo mkdir -p /opt/gateway/{configs,logs,backup,scripts,web/static,web/frontend/dist}
 
 # 2. 复制可执行文件
-sudo cp gohub-linux-amd64 /opt/gohub/gohub
-sudo chmod +x /opt/gohub/gohub
+sudo cp gateway-linux-amd64 /opt/gateway/gateway
+sudo chmod +x /opt/gateway/gateway
 
 # 3. 复制配置文件
-sudo cp -r configs/* /opt/gohub/configs/
+sudo cp -r configs/* /opt/gateway/configs/
 
 # 4. 复制Vue3前端静态资源
 # 假设Vue3项目已打包到 ./frontend/dist 目录
-sudo cp -r ./frontend/dist/* /opt/gohub/web/frontend/dist/
+sudo cp -r ./frontend/dist/* /opt/gateway/web/frontend/dist/
 
 # 5. 复制后端静态资源（如果有）
-sudo cp -r web/static/* /opt/gohub/web/static/
+sudo cp -r web/static/* /opt/gateway/web/static/
 
 # 6. 设置权限
-sudo chown -R gohub:gohub /opt/gohub
-sudo chmod 644 /opt/gohub/configs/*.yaml
-sudo chmod 755 /opt/gohub/web/frontend/dist
+sudo chown -R gateway:gateway /opt/gateway
+sudo chmod 644 /opt/gateway/configs/*.yaml
+sudo chmod 755 /opt/gateway/web/frontend/dist
 ```
 
 #### 启动脚本
 ```bash
-# /opt/gohub/scripts/start.sh
+# /opt/gateway/scripts/start.sh
 #!/bin/bash
-cd /opt/gohub
-./gohub > logs/app.log 2>&1 &
-echo $! > logs/gohub.pid
-echo "GoHub started with PID: $(cat logs/gohub.pid)"
+cd /opt/gateway
+./gateway > logs/app.log 2>&1 &
+echo $! > logs/gateway.pid
+echo "Gateway started with PID: $(cat logs/gateway.pid)"
 ```
 
 ### 方案2: 使用环境变量部署
@@ -375,35 +375,35 @@ echo "GoHub started with PID: $(cat logs/gohub.pid)"
 #### 环境变量配置
 ```bash
 # 配置文件路径
-export GOHUB_CONFIG_DIR="/etc/gohub/configs"
+export GATEWAY_CONFIG_DIR="/etc/gateway/configs"
 
 # 数据库配置（可选，会覆盖配置文件）
-export GOHUB_DATABASE_HOST="localhost"
-export GOHUB_DATABASE_PORT="3306"
-export GOHUB_DATABASE_USER="gohub"
-export GOHUB_DATABASE_PASSWORD="your_password"
+export GATEWAY_DATABASE_HOST="localhost"
+export GATEWAY_DATABASE_PORT="3306"
+export GATEWAY_DATABASE_USER="gateway"
+export GATEWAY_DATABASE_PASSWORD="your_password"
 
 # 日志级别
-export GOHUB_LOG_LEVEL="info"
+export GATEWAY_LOG_LEVEL="info"
 ```
 
 #### 部署步骤
 ```bash
 # 1. 创建系统级配置目录
-sudo mkdir -p /etc/gohub/configs
+sudo mkdir -p /etc/gateway/configs
 
 # 2. 复制配置文件
-sudo cp configs/* /etc/gohub/configs/
+sudo cp configs/* /etc/gateway/configs/
 
 # 3. 复制可执行文件到系统路径
-sudo cp gohub-linux-amd64 /usr/local/bin/gohub
-sudo chmod +x /usr/local/bin/gohub
+sudo cp gateway-linux-amd64 /usr/local/bin/gateway
+sudo chmod +x /usr/local/bin/gateway
 
 # 4. 设置环境变量
-echo 'export GOHUB_CONFIG_DIR="/etc/gohub/configs"' | sudo tee /etc/environment
+echo 'export GATEWAY_CONFIG_DIR="/etc/gateway/configs"' | sudo tee /etc/environment
 
 # 5. 启动
-GOHUB_CONFIG_DIR="/etc/gohub/configs" gohub
+GATEWAY_CONFIG_DIR="/etc/gateway/configs" gateway
 ```
 
 ### 方案3: Docker 部署
@@ -423,14 +423,14 @@ RUN go mod download
 COPY . .
 
 # 标准编译（仅MySQL）
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o gohub cmd/app/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o gateway cmd/app/main.go
 
 # Oracle编译版本（需要时取消注释以下行）
 # COPY --from=oracle-instant-client /opt/oracle/instantclient_21_18 /opt/oracle/instantclient_21_18
 # ENV LD_LIBRARY_PATH=/opt/oracle/instantclient_21_18:$LD_LIBRARY_PATH
 # ENV ORACLE_HOME=/opt/oracle/instantclient_21_18
-# RUN sed -i 's|// _ "gohub/pkg/database/oracle"|_ "gohub/pkg/database/oracle"|' pkg/database/alldriver/drivers.go
-# RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o gohub-oracle cmd/app/main.go
+# RUN sed -i 's|// _ "gateway/pkg/database/oracle"|_ "gateway/pkg/database/oracle"|' pkg/database/alldriver/drivers.go
+# RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o gateway-oracle cmd/app/main.go
 
 # 运行阶段
 FROM alpine:latest
@@ -448,7 +448,7 @@ ENV TZ=Asia/Shanghai
 WORKDIR /app
 
 # 从构建阶段复制二进制文件
-COPY --from=builder /app/gohub .
+COPY --from=builder /app/gateway .
 
 # 复制配置文件
 COPY configs/ ./configs/
@@ -463,12 +463,12 @@ COPY web/static/ ./web/static/
 RUN mkdir -p logs backup
 
 # 创建非 root 用户
-RUN addgroup -g 1001 -S gohub && \
-    adduser -S gohub -u 1001 -G gohub
+RUN addgroup -g 1001 -S gateway && \
+    adduser -S gateway -u 1001 -G gateway
 
 # 设置权限
-RUN chown -R gohub:gohub /app
-USER gohub
+RUN chown -R gateway:gateway /app
+USER gateway
 
 # 暴露端口（根据你的配置调整）
 EXPOSE 8080 9090
@@ -478,7 +478,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
 # 启动应用
-CMD ["./gohub"]
+CMD ["./gateway"]
 ```
 
 #### Docker Compose
@@ -487,14 +487,14 @@ CMD ["./gohub"]
 version: '3.8'
 
 services:
-  gohub:
+  gateway:
     build: .
     ports:
       - "8080:8080"
       - "9090:9090"
     environment:
-      - GOHUB_LOG_LEVEL=info
-      - GOHUB_DATABASE_HOST=mysql
+      - GATEWAY_LOG_LEVEL=info
+      - GATEWAY_DATABASE_HOST=mysql
     volumes:
       - ./logs:/app/logs
       - ./backup:/app/backup
@@ -509,9 +509,9 @@ services:
     image: mysql:8.0
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: gohub
-      MYSQL_USER: gohub
-      MYSQL_PASSWORD: gohubpassword
+      MYSQL_DATABASE: gateway
+      MYSQL_USER: gateway
+      MYSQL_PASSWORD: gatewaypassword
     volumes:
       - mysql_data:/var/lib/mysql
       - ./docs/database/mysql.sql:/docker-entrypoint-initdb.d/init.sql
@@ -550,13 +550,13 @@ volumes:
 #### Docker 部署步骤
 ```bash
 # 1. 构建镜像
-docker build -t gohub:latest .
+docker build -t gateway:latest .
 
 # 2. 使用 docker-compose 启动
 docker-compose up -d
 
 # 3. 查看日志
-docker-compose logs -f gohub
+docker-compose logs -f gateway
 
 # 4. 停止服务
 docker-compose down
@@ -566,27 +566,27 @@ docker-compose down
 
 #### 服务配置文件
 ```ini
-# /etc/systemd/system/gohub.service
+# /etc/systemd/system/gateway.service
 [Unit]
-Description=GoHub Application
-Documentation=https://github.com/your-org/gohub
+Description=Gateway Application
+Documentation=https://github.com/your-org/gateway
 After=network.target mysql.service redis.service
 Wants=mysql.service redis.service
 
 [Service]
 Type=simple
-User=gohub
-Group=gohub
-WorkingDirectory=/opt/gohub
-ExecStart=/opt/gohub/gohub
+User=gateway
+Group=gateway
+WorkingDirectory=/opt/gateway
+ExecStart=/opt/gateway/gateway
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=mixed
 KillSignal=SIGTERM
 TimeoutStopSec=30
 
 # 环境变量
-Environment=GOHUB_CONFIG_DIR=/opt/gohub/configs
-Environment=GOHUB_LOG_LEVEL=info
+Environment=GATEWAY_CONFIG_DIR=/opt/gateway/configs
+Environment=GATEWAY_LOG_LEVEL=info
 
 # 重启策略
 Restart=always
@@ -603,7 +603,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ReadWritePaths=/opt/gohub/logs /opt/gohub/backup
+ReadWritePaths=/opt/gateway/logs /opt/gateway/backup
 
 [Install]
 WantedBy=multi-user.target
@@ -612,31 +612,31 @@ WantedBy=multi-user.target
 #### Systemd 部署步骤
 ```bash
 # 1. 创建用户
-sudo useradd -r -s /bin/false gohub
+sudo useradd -r -s /bin/false gateway
 
 # 2. 设置权限
-sudo chown -R gohub:gohub /opt/gohub
+sudo chown -R gateway:gateway /opt/gateway
 
 # 3. 安装服务文件
 sudo systemctl daemon-reload
 
 # 4. 启用服务
-sudo systemctl enable gohub.service
+sudo systemctl enable gateway.service
 
 # 5. 启动服务
-sudo systemctl start gohub.service
+sudo systemctl start gateway.service
 
 # 6. 查看状态
-sudo systemctl status gohub.service
+sudo systemctl status gateway.service
 
 # 7. 查看日志
-sudo journalctl -u gohub.service -f
+sudo journalctl -u gateway.service -f
 ```
 
 ## 配置文件说明
 
 ### 配置文件位置优先级
-1. `GOHUB_CONFIG_DIR` 环境变量指定的目录
+1. `GATEWAY_CONFIG_DIR` 环境变量指定的目录
 2. `./configs` （相对于启动目录）
 3. `.` （当前启动目录）
 
@@ -645,7 +645,7 @@ sudo journalctl -u gohub.service -f
 #### app.yaml - 应用配置
 ```yaml
 app:
-  name: "GoHub"
+  name: "Gateway"
   version: "1.0.0"
   debug: false
   
@@ -668,8 +668,8 @@ database:
       driver: "mysql"
       host: "localhost"
       port: 3306
-      database: "gohub"
-      username: "gohub"
+      database: "gateway"
+      username: "gateway"
       password: "password"
     
     # Oracle 配置示例
@@ -679,7 +679,7 @@ database:
       host: "localhost"
       port: 1521
       database: "XE"         # 服务名或SID
-      username: "gohub"
+      username: "gateway"
       password: "password"
       # Oracle 特有配置
       connect_string: "localhost:1521/XE"  # 完整连接字符串
@@ -702,7 +702,7 @@ logger:
 #### web.yaml - Web配置
 ```yaml
 web:
-  name: "GoHub Web服务"
+  name: "Gateway Web服务"
   port: 8080
   run_mode: "release"  # debug 或 release
   
@@ -736,28 +736,28 @@ web:
 #### 标准部署
 ```bash
 # 启动
-cd /opt/gohub && ./gohub
+cd /opt/gateway && ./gateway
 
 # 后台启动
-cd /opt/gohub && nohup ./gohub > logs/app.log 2>&1 &
+cd /opt/gateway && nohup ./gateway > logs/app.log 2>&1 &
 
 # 停止
-pkill -f gohub
+pkill -f gateway
 ```
 
 #### Systemd 服务
 ```bash
 # 启动
-sudo systemctl start gohub
+sudo systemctl start gateway
 
 # 停止
-sudo systemctl stop gohub
+sudo systemctl stop gateway
 
 # 重启
-sudo systemctl restart gohub
+sudo systemctl restart gateway
 
 # 查看状态
-sudo systemctl status gohub
+sudo systemctl status gateway
 ```
 
 #### Docker
@@ -769,29 +769,29 @@ docker-compose up -d
 docker-compose down
 
 # 重启
-docker-compose restart gohub
+docker-compose restart gateway
 ```
 
 ### 监控和日志
 
 #### 日志文件位置
 - **应用日志**: `logs/app.log`
-- **系统日志**: `journalctl -u gohub`
-- **Docker日志**: `docker-compose logs gohub`
+- **系统日志**: `journalctl -u gateway`
+- **Docker日志**: `docker-compose logs gateway`
 
 #### 监控指标
 ```bash
 # 检查进程
-ps aux | grep gohub
+ps aux | grep gateway
 
 # 检查端口
 netstat -tulpn | grep :8080
 
 # 检查资源使用
-top -p $(pgrep gohub)
+top -p $(pgrep gateway)
 
 # 检查文件句柄
-lsof -p $(pgrep gohub)
+lsof -p $(pgrep gateway)
 ```
 
 ### 健康检查
@@ -809,19 +809,19 @@ curl http://localhost:9090/health
 ```bash
 #!/bin/bash
 # health_check.sh
-PID=$(pgrep gohub)
+PID=$(pgrep gateway)
 if [ -z "$PID" ]; then
-    echo "GoHub is not running"
+    echo "Gateway is not running"
     exit 1
 fi
 
 # 检查HTTP响应
 if ! curl -f http://localhost:8080/health >/dev/null 2>&1; then
-    echo "GoHub health check failed"
+    echo "Gateway health check failed"
     exit 1
 fi
 
-echo "GoHub is healthy"
+echo "Gateway is healthy"
 exit 0
 ```
 
@@ -830,19 +830,19 @@ exit 0
 #### 配置文件备份
 ```bash
 # 创建备份
-tar -czf gohub-config-$(date +%Y%m%d).tar.gz configs/
+tar -czf gateway-config-$(date +%Y%m%d).tar.gz configs/
 
 # 恢复备份
-tar -xzf gohub-config-20231201.tar.gz
+tar -xzf gateway-config-20231201.tar.gz
 ```
 
 #### 数据库备份
 ```bash
 # MySQL 备份
-mysqldump -u gohub -p gohub > backup/gohub-$(date +%Y%m%d).sql
+mysqldump -u gateway -p gateway > backup/gateway-$(date +%Y%m%d).sql
 
 # 恢复
-mysql -u gohub -p gohub < backup/gohub-20231201.sql
+mysql -u gateway -p gateway < backup/gateway-20231201.sql
 ```
 
 ## 故障排查
@@ -852,7 +852,7 @@ mysql -u gohub -p gohub < backup/gohub-20231201.sql
 #### 1. 配置文件未找到
 ```
 错误: 加载配置文件失败
-解决: 确保配置文件在正确路径，或设置 GOHUB_CONFIG_DIR 环境变量
+解决: 确保配置文件在正确路径，或设置 GATEWAY_CONFIG_DIR 环境变量
 ```
 
 #### 2. 数据库连接失败
@@ -1007,7 +1007,7 @@ performance:
 ```bash
 # 设置适当的文件权限
 chmod 600 configs/*.yaml  # 配置文件只有所有者可读写
-chmod 700 /opt/gohub       # 目录只有所有者可访问
+chmod 700 /opt/gateway       # 目录只有所有者可访问
 ```
 
 ### 数据库安全
@@ -1049,7 +1049,7 @@ chmod 700 /opt/gohub       # 目录只有所有者可访问
 
 ### 项目结构
 ```
-gohub/
+gateway/
 ├── web/
 │   ├── frontend/              # Vue3前端项目
 │   │   ├── src/              # 源代码
@@ -1100,7 +1100,7 @@ export default defineConfig({
 ```bash
 # 生产环境配置
 VITE_API_BASE_URL=/api
-VITE_APP_TITLE=GoHub管理系统
+VITE_APP_TITLE=Gateway管理系统
 ```
 
 #### package.json 脚本
@@ -1140,8 +1140,8 @@ npm run deploy
 
 #### 3. 部署验证
 ```bash
-# 启动GoHub服务
-./gohub
+# 启动Gateway服务
+./gateway
 
 # 访问前端页面
 curl http://localhost:8080/

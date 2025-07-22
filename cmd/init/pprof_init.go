@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"gohub/internal/pprof"
-	"gohub/pkg/config"
-	"gohub/pkg/logger"
+	"gateway/internal/pprof"
+	"gateway/pkg/config"
+	"gateway/pkg/logger"
 )
 
 var (
@@ -93,4 +93,4 @@ func loadPprofConfig() *pprof.Config {
 	}
 
 	return &pprofConfig
-} 
+}

@@ -2,8 +2,8 @@ package dao
 
 import (
 	"context"
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
 	"strings"
 	"time"
 

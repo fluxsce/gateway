@@ -3,7 +3,7 @@ package service
 import (
 	"sync/atomic"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // RoundRobinBalancer 轮询负载均衡器

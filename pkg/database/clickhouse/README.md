@@ -41,9 +41,9 @@ go get github.com/ClickHouse/clickhouse-go
 
 ```go
 import (
-    "gohub/pkg/database"
-    "gohub/pkg/database/dbtypes"
-    _ "gohub/pkg/database/clickhouse" // 导入ClickHouse实现
+    "gateway/pkg/database"
+    "gateway/pkg/database/dbtypes"
+    _ "gateway/pkg/database/clickhouse" // 导入ClickHouse实现
 )
 
 // ClickHouse配置
@@ -67,7 +67,7 @@ config := &dbtypes.DbConfig{
         ClickHouseWriteTimeout:         30,     // 写入超时30秒
         ClickHouseDialTimeout:          30,     // 拨号超时30秒
         ClickHouseMaxExecutionTime:     3600,   // 最大执行时间1小时
-        ClickHouseClientName:           "gohub-app", // 客户端名称
+        ClickHouseClientName:           "gateway-app", // 客户端名称
         ClickHouseBlockBufferSize:      10,     // 块缓冲区大小
         ClickHouseMaxCompressionBuffer: 10240,  // 最大压缩缓冲区
         ClickHouseConnOpenStrategy:     "time", // 连接打开策略
@@ -282,7 +282,7 @@ database:
         clickhouse_write_timeout: 30                 # 写入超时(秒)
         clickhouse_dial_timeout: 30                  # 拨号超时(秒)
         clickhouse_max_execution_time: 3600          # 最大执行时间(秒)
-        clickhouse_client_name: "gohub-app"          # 客户端名称
+        clickhouse_client_name: "gateway-app"          # 客户端名称
         clickhouse_block_buffer_size: 10             # 块缓冲区大小
         clickhouse_max_compression_buffer: 10240     # 最大压缩缓冲区
         clickhouse_conn_open_strategy: "time"        # 连接打开策略(in_order/time/random)
@@ -317,7 +317,7 @@ database:
         clickhouse_read_timeout: 60                  # 分析查询可能较慢
         clickhouse_write_timeout: 60
         clickhouse_alt_hosts: "clickhouse-node2:9000,clickhouse-node3:9000"
-        clickhouse_client_name: "gohub-analytics"
+        clickhouse_client_name: "gateway-analytics"
         clickhouse_settings: "max_memory_usage=20000000000,max_threads=8"
       
       pool:
@@ -358,7 +358,7 @@ CLICKHOUSE_READ_TIMEOUT=30
 CLICKHOUSE_WRITE_TIMEOUT=30
 CLICKHOUSE_DIAL_TIMEOUT=30
 CLICKHOUSE_MAX_EXECUTION_TIME=3600
-CLICKHOUSE_CLIENT_NAME=gohub-app
+CLICKHOUSE_CLIENT_NAME=gateway-app
 CLICKHOUSE_BLOCK_BUFFER_SIZE=10
 CLICKHOUSE_MAX_COMPRESSION_BUFFER=10240
 CLICKHOUSE_CONN_OPEN_STRATEGY=time
@@ -366,7 +366,7 @@ CLICKHOUSE_ALT_HOSTS=host2:9000,host3:9000
 CLICKHOUSE_SETTINGS=max_memory_usage=10000000000,send_logs_level=info
 
 # 或者使用完整DSN
-CLICKHOUSE_DSN="tcp://localhost:9000?database=analytics&username=default&password=&compress=1&secure=false&debug=false&connection_timeout=10&read_timeout=30&write_timeout=30&client_name=gohub-app"
+CLICKHOUSE_DSN="tcp://localhost:9000?database=analytics&username=default&password=&compress=1&secure=false&debug=false&connection_timeout=10&read_timeout=30&write_timeout=30&client_name=gateway-app"
 ```
 
 ## ClickHouse配置参数详解
@@ -976,7 +976,7 @@ ClickHouse与Go类型的映射关系：
 ## 错误处理
 
 ```go
-import "gohub/pkg/database"
+import "gateway/pkg/database"
 
 // 常见错误处理
 _, err := db.Insert(ctx, "events", event, true)

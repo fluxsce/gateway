@@ -1,6 +1,6 @@
-# GoHub Gateway 路由系统
+# Gateway Gateway 路由系统
 
-本文档概述了 GoHub Gateway 的路由系统，该系统经过多次迭代优化，现已支持高级路由功能。
+本文档概述了 Gateway Gateway 的路由系统，该系统经过多次迭代优化，现已支持高级路由功能。
 
 ## 主要特性
 

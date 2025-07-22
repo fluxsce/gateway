@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/proxy"
-	"gohub/internal/gateway/handler/service"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/proxy"
+	"gateway/internal/gateway/handler/service"
 )
 
 // MockServiceManager 简单的mock服务管理器
@@ -34,13 +34,13 @@ func (m *MockServiceManager) SelectNode(serviceID string, ctx *core.Context) (*s
 
 // 实现ServiceManager接口的其他方法（测试用简单实现）
 func (m *MockServiceManager) AddService(config *service.ServiceConfig) error { return nil }
-func (m *MockServiceManager) RemoveService(serviceID string) error { return nil }
+func (m *MockServiceManager) RemoveService(serviceID string) error           { return nil }
 func (m *MockServiceManager) GetService(serviceID string) (*service.ServiceConfig, bool) {
 	return nil, false
 }
-func (m *MockServiceManager) ListServices() []*service.ServiceConfig { return nil }
+func (m *MockServiceManager) ListServices() []*service.ServiceConfig                   { return nil }
 func (m *MockServiceManager) AddNode(serviceID string, node *service.NodeConfig) error { return nil }
-func (m *MockServiceManager) RemoveNode(serviceID, nodeID string) error { return nil }
+func (m *MockServiceManager) RemoveNode(serviceID, nodeID string) error                { return nil }
 func (m *MockServiceManager) UpdateNodeHealth(serviceID, nodeID string, healthy bool) error {
 	return nil
 }
@@ -62,7 +62,7 @@ func (m *MockServiceManager) GetServiceStats(serviceID string) (map[string]inter
 }
 func (m *MockServiceManager) RecordServiceSuccess(serviceID string, responseTime time.Duration) {}
 func (m *MockServiceManager) RecordServiceFailure(serviceID string)                             {}
-func (m *MockServiceManager) Close() error                                                     { return nil }
+func (m *MockServiceManager) Close() error                                                      { return nil }
 
 // TestWebSocketUpgradeHandler_IsWebSocketUpgrade 测试WebSocket升级检测
 func TestWebSocketUpgradeHandler_IsWebSocketUpgrade(t *testing.T) {
@@ -213,4 +213,4 @@ func TestHTTPProxy_Integration(t *testing.T) {
 	if !httpProxy.IsEnabled() {
 		t.Error("HTTP proxy should be enabled")
 	}
-} 
+}

@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"gohub/internal/gateway/constants"
-	"gohub/pkg/utils/random"
+	"gateway/internal/gateway/constants"
+	"gateway/pkg/utils/random"
 )
 
 // Engine 是网关的核心引擎，协调所有处理器处理请求
@@ -70,7 +70,7 @@ func (e *Engine) UseFunc(handlerFunc HandlerFunc) *Engine {
 // 参数:
 // - w: HTTP响应写入器，用于向客户端发送响应
 // - r: HTTP请求对象，包含客户端请求的所有信息
-func (e *Engine) HandleWithContext(gatewayCtx *Context,w http.ResponseWriter, r *http.Request) {
+func (e *Engine) HandleWithContext(gatewayCtx *Context, w http.ResponseWriter, r *http.Request) {
 	// 生成32位唯一trace_id用于链路追踪和日志关联
 	// 使用并发安全的唯一ID生成器，确保在高并发环境下的唯一性
 	// 这个trace_id将贯穿整个请求处理过程，便于问题排查和性能分析
@@ -149,4 +149,3 @@ func (e *Engine) HandleWithContext(gatewayCtx *Context,w http.ResponseWriter, r 
 		ctx.Set(constants.GatewayStatusCode, http.StatusNotFound)
 	}
 }
-

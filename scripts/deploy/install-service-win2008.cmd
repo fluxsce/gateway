@@ -6,15 +6,15 @@ setlocal EnableDelayedExpansion
 :: 设置错误处理 - 即使有错误也不退出
 set ORIGINAL_ERRORLEVEL=%errorlevel%
 
-:: GoHub Windows Server 2008 服务安装脚本
+:: Gateway Windows Server 2008 服务安装脚本
 :: 用法: install-service-win2008.cmd [options]
 
-title GoHub Windows 服务安装 - Windows Server 2008
+title Gateway Windows 服务安装 - Windows Server 2008
 
 :: 显示调试信息
 echo.
 echo ==========================================
-echo  GoHub Windows 服务安装调试信息
+echo  Gateway Windows 服务安装调试信息
 echo  Windows Server 2008 兼容版本
 echo ==========================================
 echo.
@@ -57,17 +57,17 @@ if %errorLevel% neq 0 (
 )
 
 :: 默认配置
-set SERVICE_NAME=GoHub
-set SERVICE_DISPLAY_NAME=GoHub Application Service
-set SERVICE_DESCRIPTION=GoHub API Gateway and Web Application Service
+set SERVICE_NAME=Gateway
+set SERVICE_DISPLAY_NAME=Gateway Application Service
+set SERVICE_DESCRIPTION=Gateway API Gateway and Web Application Service
 set ORACLE_VERSION=false
 
 :: 检查是否为Oracle版本
 if "%~1"=="oracle" (
     set ORACLE_VERSION=true
-    set SERVICE_NAME=GoHub
-    set SERVICE_DISPLAY_NAME=GoHub Application Service
-    set SERVICE_DESCRIPTION=GoHub API Gateway and Web Application Service
+    set SERVICE_NAME=Gateway
+    set SERVICE_DISPLAY_NAME=Gateway Application Service
+    set SERVICE_DESCRIPTION=Gateway API Gateway and Web Application Service
     shift
 )
 
@@ -105,7 +105,7 @@ goto :show_help
 :: 显示帮助
 :show_help
 echo.
-echo GoHub Windows Server 2008 服务安装脚本
+echo Gateway Windows Server 2008 服务安装脚本
 echo.
 echo 用法: %~nx0 [oracle] [OPTIONS]
 echo.
@@ -120,12 +120,12 @@ echo.
 echo 示例:
 echo   %~nx0                           # 安装标准版本服务
 echo   %~nx0 oracle                    # 安装Oracle版本服务
-echo   %~nx0 -d "C:\Program Files\GoHub"  # 指定安装目录
+echo   %~nx0 -d "C:\Program Files\Gateway"  # 指定安装目录
 echo.
 echo 注意:
 echo   - 此版本专为Windows Server 2008优化
 echo   - 脚本会自动检测Oracle版本可执行文件
-echo   - 所有版本都使用统一的服务名称GoHub
+echo   - 所有版本都使用统一的服务名称Gateway
 echo.
 if "%~1"=="-h" (
     pause
@@ -167,7 +167,7 @@ set LOG_DIR=%EXE_DIR%\logs
 
 echo.
 echo ==========================================
-echo  GoHub Windows 服务安装
+echo  Gateway Windows 服务安装
 echo ==========================================
 echo.
 echo 服务名称: %SERVICE_NAME%
@@ -285,28 +285,28 @@ if %errorlevel% neq 0 (
 )
 
 :: 设置配置目录环境变量
-echo [DEBUG] 设置GOHUB_CONFIG_DIR环境变量...
-reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\%SERVICE_NAME%\Environment" /v GOHUB_CONFIG_DIR /t REG_SZ /d "%CONFIG_DIR%" /f >nul 2>&1
+echo [DEBUG] 设置GATEWAY_CONFIG_DIR环境变量...
+reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\%SERVICE_NAME%\Environment" /v GATEWAY_CONFIG_DIR /t REG_SZ /d "%CONFIG_DIR%" /f >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [DEBUG] GOHUB_CONFIG_DIR环境变量设置失败，错误码: %errorlevel%
+    echo [DEBUG] GATEWAY_CONFIG_DIR环境变量设置失败，错误码: %errorlevel%
 ) else (
-    echo [DEBUG] ✓ GOHUB_CONFIG_DIR环境变量设置成功
+    echo [DEBUG] ✓ GATEWAY_CONFIG_DIR环境变量设置成功
 )
 
 :: 设置日志重定向环境变量
 echo [DEBUG] 设置日志重定向环境变量...
-reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\%SERVICE_NAME%\Environment" /v GOHUB_LOG_FILE /t REG_SZ /d "%LOG_DIR%\service.log" /f >nul 2>&1
+reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\%SERVICE_NAME%\Environment" /v GATEWAY_LOG_FILE /t REG_SZ /d "%LOG_DIR%\service.log" /f >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [DEBUG] GOHUB_LOG_FILE环境变量设置失败，错误码: %errorlevel%
+    echo [DEBUG] GATEWAY_LOG_FILE环境变量设置失败，错误码: %errorlevel%
 ) else (
-    echo [DEBUG] ✓ GOHUB_LOG_FILE环境变量设置成功
+    echo [DEBUG] ✓ GATEWAY_LOG_FILE环境变量设置成功
 )
 
-reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\%SERVICE_NAME%\Environment" /v GOHUB_ERROR_LOG_FILE /t REG_SZ /d "%LOG_DIR%\service-error.log" /f >nul 2>&1
+reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\%SERVICE_NAME%\Environment" /v GATEWAY_ERROR_LOG_FILE /t REG_SZ /d "%LOG_DIR%\service-error.log" /f >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [DEBUG] GOHUB_ERROR_LOG_FILE环境变量设置失败，错误码: %errorlevel%
+    echo [DEBUG] GATEWAY_ERROR_LOG_FILE环境变量设置失败，错误码: %errorlevel%
 ) else (
-    echo [DEBUG] ✓ GOHUB_ERROR_LOG_FILE环境变量设置成功
+    echo [DEBUG] ✓ GATEWAY_ERROR_LOG_FILE环境变量设置成功
 )
 
 echo [INFO] 服务安装成功！
@@ -319,8 +319,8 @@ echo   配置目录: %CONFIG_DIR%
 echo   日志目录: %LOG_DIR%
 echo   日志文件: %LOG_DIR%\service.log
 echo   错误日志: %LOG_DIR%\service-error.log
-echo   环境变量: GOHUB_CONFIG_DIR=%CONFIG_DIR%
-echo   日志环境变量: GOHUB_LOG_FILE=%LOG_DIR%\service.log
+echo   环境变量: GATEWAY_CONFIG_DIR=%CONFIG_DIR%
+echo   日志环境变量: GATEWAY_LOG_FILE=%LOG_DIR%\service.log
 echo   Oracle版本: %ORACLE_VERSION%
 echo   Windows Server 2008 模式: %WIN2008_MODE%
 echo.
@@ -398,7 +398,7 @@ if "%DEBUG_MODE%"=="false" (
 echo.
 echo [DEBUG] 验证环境变量...
 if "%DEBUG_MODE%"=="false" (
-    reg query "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\%SERVICE_NAME%\Environment" /v GOHUB_CONFIG_DIR 2>nul | findstr "GOHUB_CONFIG_DIR"
+    reg query "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\%SERVICE_NAME%\Environment" /v GATEWAY_CONFIG_DIR 2>nul | findstr "GATEWAY_CONFIG_DIR"
     if %errorlevel% neq 0 (
         echo [DEBUG] 环境变量未设置或查询失败
     )
@@ -477,30 +477,30 @@ echo [DEBUG] 列出各检测位置的内容：
 echo.
 echo [DEBUG] 检查位置1: %CANDIDATE_DIR%
 if exist "%CANDIDATE_DIR%" (
-    dir /b "%CANDIDATE_DIR%\*.exe" 2>nul | findstr /i "gohub"
-    if %errorlevel% neq 0 echo   - 未找到GoHub相关exe文件
+    dir /b "%CANDIDATE_DIR%\*.exe" 2>nul | findstr /i "gateway"
+    if %errorlevel% neq 0 echo   - 未找到Gateway相关exe文件
 ) else (
     echo   - 目录不存在
 )
 echo.
 echo [DEBUG] 检查位置2: %PROJECT_DIR%
 if exist "%PROJECT_DIR%" (
-    dir /b "%PROJECT_DIR%\*.exe" 2>nul | findstr /i "gohub"
-    if %errorlevel% neq 0 echo   - 未找到GoHub相关exe文件
+    dir /b "%PROJECT_DIR%\*.exe" 2>nul | findstr /i "gateway"
+    if %errorlevel% neq 0 echo   - 未找到Gateway相关exe文件
 ) else (
     echo   - 目录不存在
 )
 echo.
 echo [DEBUG] 检查位置3: %SCRIPT_DIR%
 if exist "%SCRIPT_DIR%" (
-    dir /b "%SCRIPT_DIR%\*.exe" 2>nul | findstr /i "gohub"
-    if %errorlevel% neq 0 echo   - 未找到GoHub相关exe文件
+    dir /b "%SCRIPT_DIR%\*.exe" 2>nul | findstr /i "gateway"
+    if %errorlevel% neq 0 echo   - 未找到Gateway相关exe文件
 ) else (
     echo   - 目录不存在
 )
 echo.
 echo 请使用 -d 参数指定应用程序目录：
-echo   %~nx0 -d "C:\Program Files\GoHub"
+echo   %~nx0 -d "C:\Program Files\Gateway"
 echo.
 echo [DEBUG] 继续执行并使用脚本目录作为默认值...
 pause
@@ -515,49 +515,49 @@ if "%CHECK_DIR:~-1%"=="\" set CHECK_DIR=%CHECK_DIR:~0,-1%
 for %%i in ("%CHECK_DIR%") do set CHECK_DIR=%%~fi
 
 :: 优先检查Windows Server 2008专用版本
-if exist "%CHECK_DIR%\gohub-win2008-amd64.exe" (
-    set EXE_FILE=%CHECK_DIR%\gohub-win2008-amd64.exe
+if exist "%CHECK_DIR%\gateway-win2008-amd64.exe" (
+    set EXE_FILE=%CHECK_DIR%\gateway-win2008-amd64.exe
     echo [INFO] 找到Windows Server 2008专用版本
     exit /b 0
-) else if exist "%CHECK_DIR%\gohub-win2008-oracle-amd64.exe" (
-    set EXE_FILE=%CHECK_DIR%\gohub-win2008-oracle-amd64.exe
+) else if exist "%CHECK_DIR%\gateway-win2008-oracle-amd64.exe" (
+    set EXE_FILE=%CHECK_DIR%\gateway-win2008-oracle-amd64.exe
     set ORACLE_VERSION=true
-    set SERVICE_NAME=GoHub
-    set SERVICE_DISPLAY_NAME=GoHub Application Service
+    set SERVICE_NAME=Gateway
+    set SERVICE_DISPLAY_NAME=Gateway Application Service
     echo [INFO] 自动检测到Windows Server 2008 Oracle版本可执行文件
     exit /b 0
 )
 
 :: 检查Oracle版本的文件（如果指定了oracle参数）
 if "%ORACLE_VERSION%"=="true" (
-    if exist "%CHECK_DIR%\gohub-win10-oracle-amd64.exe" (
-        set EXE_FILE=%CHECK_DIR%\gohub-win10-oracle-amd64.exe
+    if exist "%CHECK_DIR%\gateway-win10-oracle-amd64.exe" (
+        set EXE_FILE=%CHECK_DIR%\gateway-win10-oracle-amd64.exe
         echo [INFO] 找到Oracle版本可执行文件（Win10兼容）
         exit /b 0
-    ) else if exist "%CHECK_DIR%\gohub-oracle.exe" (
-        set EXE_FILE=%CHECK_DIR%\gohub-oracle.exe
+    ) else if exist "%CHECK_DIR%\gateway-oracle.exe" (
+        set EXE_FILE=%CHECK_DIR%\gateway-oracle.exe
         echo [INFO] 找到Oracle版本可执行文件
         exit /b 0
     )
 )
 
 :: 如果没有找到专用版本，检查标准版本文件
-if exist "%CHECK_DIR%\gohub.exe" (
-    set EXE_FILE=%CHECK_DIR%\gohub.exe
+if exist "%CHECK_DIR%\gateway.exe" (
+    set EXE_FILE=%CHECK_DIR%\gateway.exe
     echo [INFO] 找到标准版本可执行文件
     exit /b 0
-) else if exist "%CHECK_DIR%\gohub-win10-amd64.exe" (
-    set EXE_FILE=%CHECK_DIR%\gohub-win10-amd64.exe
+) else if exist "%CHECK_DIR%\gateway-win10-amd64.exe" (
+    set EXE_FILE=%CHECK_DIR%\gateway-win10-amd64.exe
     echo [INFO] 找到Win10版本可执行文件（兼容使用）
     exit /b 0
 )
 
 :: 如果还是没有找到，尝试自动检测Oracle版本
-if exist "%CHECK_DIR%\gohub-oracle.exe" (
-    set EXE_FILE=%CHECK_DIR%\gohub-oracle.exe
+if exist "%CHECK_DIR%\gateway-oracle.exe" (
+    set EXE_FILE=%CHECK_DIR%\gateway-oracle.exe
     set ORACLE_VERSION=true
-    set SERVICE_NAME=GoHub
-    set SERVICE_DISPLAY_NAME=GoHub Application Service
+    set SERVICE_NAME=Gateway
+    set SERVICE_DISPLAY_NAME=Gateway Application Service
     echo [INFO] 自动检测到Oracle版本可执行文件
     exit /b 0
 )

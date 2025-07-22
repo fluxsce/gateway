@@ -12,7 +12,7 @@
 package sqlutils
 
 import (
-	"gohub/pkg/database/sqlutils/oracleutils"
+	"gateway/pkg/database/sqlutils/oracleutils"
 	"reflect"
 )
 
@@ -30,10 +30,10 @@ import (
 //   - 对nil值返回false，避免空指针异常
 //   - 通过oracleutils包进行具体的类型判断
 func (fm *FieldMapper) IsOracleSpecificType(value interface{}) bool {
-    if value == nil {
-        return false
-    }
-    return oracleutils.IsOracleSpecificType(value)
+	if value == nil {
+		return false
+	}
+	return oracleutils.IsOracleSpecificType(value)
 }
 
 // HandleSpecialTypeConversion 处理特殊数据库类型的转换
@@ -51,15 +51,15 @@ func (fm *FieldMapper) IsOracleSpecificType(value interface{}) bool {
 //   - 使用oracleutils包中的转换器进行具体转换
 //   - 支持Oracle所有特有类型到Go类型的映射
 func HandleSpecialTypeConversion(dest reflect.Value, value interface{}) error {
-    if value == nil {
-        return nil
-    }
-    
-    if oracleutils.IsOracleSpecificType(value) {
-        converter := oracleutils.NewOracleTypeConverter()
-        return converter.ConvertOracleValueToField(dest, value)
-    }
-    return nil
+	if value == nil {
+		return nil
+	}
+
+	if oracleutils.IsOracleSpecificType(value) {
+		converter := oracleutils.NewOracleTypeConverter()
+		return converter.ConvertOracleValueToField(dest, value)
+	}
+	return nil
 }
 
 // convertOracleValue 处理Oracle特有类型到Go类型的转换
@@ -78,13 +78,13 @@ func HandleSpecialTypeConversion(dest reflect.Value, value interface{}) error {
 //   - 使用oracleutils包的转换器确保类型转换的准确性
 //   - 支持nil值的安全处理
 func (fm *FieldMapper) convertOracleValue(field reflect.Value, value interface{}) error {
-    if value == nil {
-        return nil
-    }
-    
-    if oracleutils.IsOracleSpecificType(value) {
-        converter := oracleutils.NewOracleTypeConverter()
-        return converter.ConvertOracleValueToField(field, value)
-    }
-    return nil
+	if value == nil {
+		return nil
+	}
+
+	if oracleutils.IsOracleSpecificType(value) {
+		converter := oracleutils.NewOracleTypeConverter()
+		return converter.ConvertOracleValueToField(field, value)
+	}
+	return nil
 }

@@ -44,9 +44,9 @@ package main
 
 import (
     "time"
-    "github.com/gohub/pkg/timer"
-    "github.com/gohub/pkg/timer/executor"
-    "github.com/gohub/pkg/timer/storage"
+    "github.com/gateway/pkg/timer"
+    "github.com/gateway/pkg/timer/executor"
+    "github.com/gateway/pkg/timer/storage"
 )
 
 func main() {
@@ -125,9 +125,9 @@ package main
 
 import (
     "time"
-    "github.com/gohub/pkg/timer"
-    "github.com/gohub/pkg/timer/executor"
-    "github.com/gohub/pkg/timer/storage"
+    "github.com/gateway/pkg/timer"
+    "github.com/gateway/pkg/timer/executor"
+    "github.com/gateway/pkg/timer/storage"
 )
 
 func main() {
@@ -247,7 +247,7 @@ taskConfig := &timer.TaskConfig{
 ## 运行示例
 
 ```go
-import "github.com/gohub/pkg/timer/examples"
+import "github.com/gateway/pkg/timer/examples"
 
 // 运行基本示例
 examples.BasicUsageExample()

@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/pkg/utils/huberrors"
-	"gohub/pkg/utils/random"
-	"gohub/web/views/hub0022/models"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/huberrors"
+	"gateway/pkg/utils/random"
+	"gateway/web/views/hub0022/models"
 )
 
 // ProxyConfigDAO 代理配置数据访问对象
@@ -33,49 +33,49 @@ func (dao *ProxyConfigDAO) generateProxyConfigId() string {
 	now := time.Now()
 	// 生成时间部分：YYYYMMDDHHMMSS
 	timeStr := now.Format("20060102150405")
-	
+
 	// 生成4位随机字符（大写字母和数字）
 	randomStr := random.GenerateRandomString(4)
-	
+
 	return fmt.Sprintf("PC%s%s", timeStr, randomStr)
 }
 
 // isProxyConfigIdExists 检查代理配置ID是否已存在
 func (dao *ProxyConfigDAO) isProxyConfigIdExists(ctx context.Context, proxyConfigId string) (bool, error) {
 	query := `SELECT COUNT(*) as count FROM HUB_GW_PROXY_CONFIG WHERE proxyConfigId = ?`
-	
+
 	var result struct {
 		Count int `db:"count"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &result, query, []interface{}{proxyConfigId}, true)
 	if err != nil {
 		return false, err
 	}
-	
+
 	return result.Count > 0, nil
 }
 
 // generateUniqueProxyConfigId 生成唯一的代理配置ID
 func (dao *ProxyConfigDAO) generateUniqueProxyConfigId(ctx context.Context) (string, error) {
 	const maxAttempts = 10
-	
+
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		proxyConfigId := dao.generateProxyConfigId()
-		
+
 		exists, err := dao.isProxyConfigIdExists(ctx, proxyConfigId)
 		if err != nil {
 			return "", huberrors.WrapError(err, "检查代理配置ID是否存在失败")
 		}
-		
+
 		if !exists {
 			return proxyConfigId, nil
 		}
-		
+
 		// 如果ID已存在，等待1毫秒后重试（确保时间戳不同）
 		time.Sleep(time.Millisecond)
 	}
-	
+
 	return "", errors.New("生成唯一代理配置ID失败，已达到最大尝试次数")
 }
 
@@ -229,7 +229,7 @@ func (dao *ProxyConfigDAO) DeleteProxyConfig(ctx context.Context, proxyConfigId,
 
 	// 执行物理删除
 	sql := `DELETE FROM HUB_GW_PROXY_CONFIG WHERE proxyConfigId = ? AND tenantId = ?`
-	
+
 	result, err := dao.db.Exec(ctx, sql, []interface{}{proxyConfigId, tenantId}, true)
 	if err != nil {
 		return huberrors.WrapError(err, "删除代理配置失败")
@@ -327,4 +327,4 @@ func (dao *ProxyConfigDAO) GetProxyConfigsByGatewayInstance(ctx context.Context,
 	}
 
 	return proxyConfigs, nil
-} 
+}

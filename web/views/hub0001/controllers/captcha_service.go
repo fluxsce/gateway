@@ -5,9 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"gohub/pkg/cache"
-	"gohub/pkg/logger"
-	"gohub/web/views/hub0001/models"
+	"gateway/pkg/cache"
+	"gateway/pkg/logger"
+	"gateway/web/views/hub0001/models"
 	mathRand "math/rand"
 	"strconv"
 	"strings"
@@ -69,20 +69,20 @@ func (s *CaptchaService) GenerateCaptcha(ctx context.Context, req *models.Captch
 		}
 		// 生成6位随机验证码（数字+字母）
 		code = s.generateRandomCode(6)
-		
+
 		// TODO: 在这里添加短信发送逻辑
 		// err := s.sendSMSCode(req.Mobile, code)
 		// if err != nil {
 		//     logger.ErrorWithTrace(ctx, "发送短信验证码失败", "error", err, "mobile", req.Mobile)
 		//     return nil, fmt.Errorf("短信发送失败: %w", err)
 		// }
-		
+
 		captchaResp = &models.CaptchaResponse{
 			CaptchaId: captchaId,
 			Code:      "", // 短信验证码不返回code
 			ExpireAt:  expireTime.Unix(),
 		}
-		
+
 		logger.Info("短信验证码发送", "mobile", req.Mobile, "captchaId", captchaId)
 	default:
 		return nil, fmt.Errorf("不支持的验证码类型: %s", req.Type)
@@ -199,22 +199,22 @@ func (s *CaptchaService) generateMathExpression() (string, int) {
 		expression = fmt.Sprintf("%d + %d", num1, num2)
 	case "-":
 		// 减法：确保结果为正数，num1 > num2
-		num1 = randSource.Intn(50) + 10  // 10-59
+		num1 = randSource.Intn(50) + 10    // 10-59
 		num2 = randSource.Intn(num1-1) + 1 // 1 到 num1-1，确保结果为正
 		answer = num1 - num2
 		expression = fmt.Sprintf("%d - %d", num1, num2)
 	case "*":
 		// 乘法：较小的数字避免结果过大
-		num1 = randSource.Intn(12) + 1  // 1-12
-		num2 = randSource.Intn(12) + 1  // 1-12
+		num1 = randSource.Intn(12) + 1 // 1-12
+		num2 = randSource.Intn(12) + 1 // 1-12
 		answer = num1 * num2
 		expression = fmt.Sprintf("%d × %d", num1, num2)
 	case "/":
 		// 除法：确保能够整除
 		// 先生成答案，再生成被除数
-		answer = randSource.Intn(20) + 1    // 答案1-20
-		num2 = randSource.Intn(10) + 2      // 除数2-11
-		num1 = answer * num2                // 被除数 = 答案 × 除数
+		answer = randSource.Intn(20) + 1 // 答案1-20
+		num2 = randSource.Intn(10) + 2   // 除数2-11
+		num1 = answer * num2             // 被除数 = 答案 × 除数
 		expression = fmt.Sprintf("%d ÷ %d", num1, num2)
 	}
 
@@ -228,4 +228,4 @@ func (s *CaptchaService) generateMathExpression() (string, int) {
 //     // 2. 发送验证码到指定手机号
 //     // 3. 处理发送结果
 //     return nil
-// } 
+// }

@@ -2,15 +2,15 @@ package middleware
 
 import (
 	"errors"
-	"gohub/pkg/config"
-	"gohub/pkg/logger"
+	"gateway/pkg/config"
+	"gateway/pkg/logger"
 	"net/http"
 	"strings"
 	"time"
 
+	"gateway/web/globalmodels"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
-	"gohub/web/globalmodels"
 )
 
 // 上下文键常量
@@ -127,7 +127,7 @@ func GenerateToken(userId, tenantId, userName, realName, deptId string) (string,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    "gohub",
+			Issuer:    "gateway",
 		},
 	}
 

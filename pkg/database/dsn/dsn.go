@@ -4,8 +4,8 @@ package dsn
 
 import (
 	"fmt"
-	"gohub/pkg/database/dbtypes"
-	huberrors "gohub/pkg/utils/huberrors"
+	"gateway/pkg/database/dbtypes"
+	huberrors "gateway/pkg/utils/huberrors"
 	"net/url"
 	"strings"
 )
@@ -142,7 +142,7 @@ func GeneratePostgreSQL(config *dbtypes.DbConfig) (string, error) {
 	// 构建PostgreSQL参数
 	params := make([]string, 0)
 	params = append(params, "sslmode="+sslmode)
-	
+
 	// 设置超时参数 - PostgreSQL需要时间单位
 	if config.Connection.PostgreSQLConnectTimeout > 0 {
 		params = append(params, fmt.Sprintf("connect_timeout=%ds", config.Connection.PostgreSQLConnectTimeout))
@@ -175,40 +175,40 @@ func GenerateSQLite(config *dbtypes.DbConfig) (string, error) {
 	// SQLite的数据库"名称"实际上是文件路径
 	// 如果Database字段为空或者是特殊值，使用默认配置
 	dbPath := config.Connection.Database
-	
+
 	// 处理特殊情况
 	if dbPath == "" || dbPath == ":memory:" {
 		return ":memory:", nil
 	}
-	
+
 	// 如果Database字段看起来不像文件路径，使用默认路径
 	if !strings.Contains(dbPath, ".") && !strings.Contains(dbPath, "/") && !strings.Contains(dbPath, "\\") {
 		dbPath = fmt.Sprintf("./%s.db", dbPath)
 	}
-	
+
 	// 构建SQLite参数
 	params := make([]string, 0)
-	
+
 	// 默认参数
-	params = append(params, "cache=shared")     // 共享缓存
-	params = append(params, "mode=rwc")         // 读写创建模式
-	params = append(params, "_journal_mode=WAL") // WAL模式
+	params = append(params, "cache=shared")        // 共享缓存
+	params = append(params, "mode=rwc")            // 读写创建模式
+	params = append(params, "_journal_mode=WAL")   // WAL模式
 	params = append(params, "_synchronous=NORMAL") // 正常同步
-	params = append(params, "_foreign_keys=1")  // 启用外键
-	
+	params = append(params, "_foreign_keys=1")     // 启用外键
+
 	// 设置busy_timeout，如果配置了则使用配置值，否则使用默认5秒
 	busyTimeout := 5000 // 默认5秒
 	if config.Connection.BusyTimeout > 0 {
 		busyTimeout = config.Connection.BusyTimeout
 	}
 	params = append(params, fmt.Sprintf("_busy_timeout=%d", busyTimeout))
-	
+
 	// 如果有参数，使用file:前缀
 	if len(params) > 0 {
 		dsn := fmt.Sprintf("file:%s?%s", dbPath, strings.Join(params, "&"))
 		return dsn, nil
 	}
-	
+
 	// 简单文件路径
 	return dbPath, nil
 }
@@ -231,87 +231,87 @@ func GenerateOracle(config *dbtypes.DbConfig) (string, error) {
 	if config.Connection.Password == "" {
 		return "", huberrors.NewError("Oracle数据库需要password参数")
 	}
-	
+
 	// 获取端口，默认为1521
 	port := 1521
 	if config.Connection.Port > 0 {
 		port = config.Connection.Port
 	}
-	
+
 	// 确定服务名或SID
 	// 优先使用Database字段作为服务名，这是最常见的配置方式
 	serviceName := config.Connection.Database
 	if serviceName == "" {
 		return "", huberrors.NewError("Oracle数据库需要database参数(作为服务名)")
 	}
-	
+
 	// 构建基本连接字符串 - 对用户名和密码进行URL编码以支持特殊字符
 	// Oracle DSN格式: oracle://username:password@host:port/service_name
-	dsn := fmt.Sprintf("oracle://%s:%s@%s:%d/%s", 
-		url.QueryEscape(config.Connection.Username), 
-		url.QueryEscape(config.Connection.Password), 
-		config.Connection.Host, 
-		port, 
+	dsn := fmt.Sprintf("oracle://%s:%s@%s:%d/%s",
+		url.QueryEscape(config.Connection.Username),
+		url.QueryEscape(config.Connection.Password),
+		config.Connection.Host,
+		port,
 		serviceName)
-	
+
 	// 构建Oracle特有参数
 	params := make([]string, 0)
-	
+
 	// 设置超时参数，如果配置了则使用配置值，否则使用默认30秒 - Oracle需要时间单位
 	connectionTimeout := 30
 	if config.Connection.OracleConnectionTimeout > 0 {
 		connectionTimeout = config.Connection.OracleConnectionTimeout
 	}
 	params = append(params, fmt.Sprintf("CONNECTION_TIMEOUT=%ds", connectionTimeout))
-	
+
 	readTimeout := 30
 	if config.Connection.OracleReadTimeout > 0 {
 		readTimeout = config.Connection.OracleReadTimeout
 	}
 	params = append(params, fmt.Sprintf("READ_TIMEOUT=%ds", readTimeout))
-	
+
 	writeTimeout := 30
 	if config.Connection.OracleWriteTimeout > 0 {
 		writeTimeout = config.Connection.OracleWriteTimeout
 	}
 	params = append(params, fmt.Sprintf("WRITE_TIMEOUT=%ds", writeTimeout))
-	
+
 	// 时区设置
 	timezone := "Asia/Shanghai" // 默认使用中国时区
 	if config.Connection.Timezone != "" {
 		timezone = config.Connection.Timezone
 	}
 	params = append(params, fmt.Sprintf("TIMEZONE=%s", timezone))
-	
+
 	// 字符集设置
 	nlsLang := "AMERICAN_AMERICA.UTF8"
 	if config.Connection.NLSLang != "" {
 		nlsLang = config.Connection.NLSLang
 	}
 	params = append(params, fmt.Sprintf("NLS_LANG=%s", nlsLang))
-	
+
 	// 添加Oracle字符集参数 - 解决中文字符编码问题
-	params = append(params, "CHARSET=UTF8")           // 明确指定连接字符集
+	params = append(params, "CHARSET=UTF8")              // 明确指定连接字符集
 	params = append(params, "NLS_CHARACTERSET=AL32UTF8") // 数据库字符集
-	
+
 	// 性能优化参数
 	prefetchRows := 500
 	if config.Connection.PrefetchRows > 0 {
 		prefetchRows = config.Connection.PrefetchRows
 	}
 	params = append(params, fmt.Sprintf("PREFETCH_ROWS=%d", prefetchRows))
-	
+
 	lobPrefetchSize := 4096
 	if config.Connection.LobPrefetchSize > 0 {
 		lobPrefetchSize = config.Connection.LobPrefetchSize
 	}
 	params = append(params, fmt.Sprintf("LOB_PREFETCH_SIZE=%d", lobPrefetchSize))
-	
+
 	// 如果有参数，添加到DSN
 	if len(params) > 0 {
 		dsn += "?" + strings.Join(params, "&")
 	}
-	
+
 	return dsn, nil
 }
 
@@ -338,22 +338,22 @@ func GenerateOracleWithSID(config *dbtypes.DbConfig, sid string) (string, error)
 	if sid == "" {
 		return "", huberrors.NewError("SID参数不能为空")
 	}
-	
+
 	// 获取端口，默认为1521
 	port := 1521
 	if config.Connection.Port > 0 {
 		port = config.Connection.Port
 	}
-	
+
 	// 构建SID连接字符串 - 对用户名和密码进行URL编码以支持特殊字符
 	// Oracle SID DSN格式: oracle://username:password@host:port?sid=SID
-	dsn := fmt.Sprintf("oracle://%s:%s@%s:%d?sid=%s", 
-		url.QueryEscape(config.Connection.Username), 
-		url.QueryEscape(config.Connection.Password), 
-		config.Connection.Host, 
-		port, 
+	dsn := fmt.Sprintf("oracle://%s:%s@%s:%d?sid=%s",
+		url.QueryEscape(config.Connection.Username),
+		url.QueryEscape(config.Connection.Password),
+		config.Connection.Host,
+		port,
 		sid)
-	
+
 	return dsn, nil
 }
 
@@ -389,7 +389,7 @@ func GenerateClickHouse(config *dbtypes.DbConfig) (string, error) {
 	// 构建主机地址列表 - 官网标准：多个主机用逗号分隔
 	// 格式: clickhouse://host1:port1,host2:port2/database
 	hostList := fmt.Sprintf("%s:%d", config.Connection.Host, port)
-	
+
 	// 如果配置了额外的主机，追加到地址列表
 	if config.Connection.ClickHouseHosts != "" {
 		hostList += "," + config.Connection.ClickHouseHosts
@@ -424,7 +424,7 @@ func GenerateClickHouse(config *dbtypes.DbConfig) (string, error) {
 	}
 	// 验证压缩算法是否支持
 	validCompressAlgos := map[string]bool{
-		"none": true, "lz4": true, "zstd": true, 
+		"none": true, "lz4": true, "zstd": true,
 		"gzip": true, "deflate": true, "br": true,
 		"true": true, "false": true, // 向后兼容
 	}
@@ -494,7 +494,7 @@ func ValidateDSN(driver string, dsn string) error {
 	if dsn == "" {
 		return huberrors.NewError("DSN不能为空")
 	}
-	
+
 	switch driver {
 	case dbtypes.DriverMySQL:
 		if !strings.Contains(dsn, "@tcp(") {
@@ -520,6 +520,6 @@ func ValidateDSN(driver string, dsn string) error {
 	default:
 		return huberrors.NewError("不支持的数据库驱动类型: %s", driver)
 	}
-	
+
 	return nil
 }

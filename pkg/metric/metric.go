@@ -6,9 +6,9 @@ package metric
 import (
 	"time"
 
-	"gohub/pkg/metric/manager"
-	"gohub/pkg/metric/types"
-	"gohub/pkg/metric/utils"
+	"gateway/pkg/metric/manager"
+	"gateway/pkg/metric/types"
+	"gateway/pkg/metric/utils"
 )
 
 // DefaultManager 默认的全局指标管理器
@@ -297,4 +297,4 @@ func GetCollectInterval() time.Duration {
 		return defaultManager.GetCollectInterval()
 	}
 	return time.Duration(types.DefaultCollectInterval) * time.Second
-} 
+}

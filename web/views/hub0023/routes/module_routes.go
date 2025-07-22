@@ -1,12 +1,12 @@
 package gatewaylogroutes
 
 import (
-	"gohub/pkg/config"
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/pkg/mongo/factory"
-	"gohub/web/routes"
-	"gohub/web/views/hub0023/controllers"
+	"gateway/pkg/config"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/pkg/mongo/factory"
+	"gateway/web/routes"
+	"gateway/web/views/hub0023/controllers"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,7 +17,7 @@ var (
 	ModuleName = "hub0023"
 
 	// APIPrefix API路径前缀
-	APIPrefix = "/gohub/hub0023"
+	APIPrefix = "/gateway/hub0023"
 )
 
 // init 包初始化函数
@@ -52,27 +52,27 @@ func Init(router *gin.Engine, db database.Database) {
 				initDatabaseRoutes(protectedGroup, db)
 				return
 			}
-			
+
 			mongoController := controllers.NewMongoQueryController(mongoClient)
 			logger.Info("使用MongoDB查询控制器")
-			
+
 			{
 				// MongoDB 网关日志查询API - 列表查询，不返回大字段以提高性能
 				protectedGroup.POST("/gateway-log/query", mongoController.QueryGatewayLogs)
-				
+
 				// MongoDB 网关日志详情获取API - 返回完整字段信息，包括大字段
 				protectedGroup.POST("/gateway-log/get", mongoController.GetGatewayLog)
-				
+
 				// MongoDB 网关日志统计API
 				protectedGroup.POST("/gateway-log/count", mongoController.CountGatewayLogs)
-				
+
 				// MongoDB 网关监控API - 监控概览数据
 				protectedGroup.POST("/gateway-log/monitoring/overview", mongoController.GetGatewayMonitoringOverview)
-				
+
 				// MongoDB 网关监控API - 监控图表数据
 				protectedGroup.POST("/gateway-log/monitoring/chart-data", mongoController.GetGatewayMonitoringChartData)
 			}
-			
+
 		case "clickhouse":
 			// 使用 ClickHouse 查询控制器
 			clickhouseDB := database.GetConnection("clickhouse_main")
@@ -82,27 +82,27 @@ func Init(router *gin.Engine, db database.Database) {
 				initDatabaseRoutes(protectedGroup, db)
 				return
 			}
-			
+
 			clickhouseController := controllers.NewClickHouseQueryController(clickhouseDB)
 			logger.Info("使用ClickHouse查询控制器")
-			
+
 			{
 				// ClickHouse 网关日志查询API
 				protectedGroup.POST("/gateway-log/query", clickhouseController.QueryGatewayLogs)
-				
+
 				// ClickHouse 网关日志详情获取API
 				protectedGroup.POST("/gateway-log/get", clickhouseController.GetGatewayLog)
-				
+
 				// ClickHouse 网关日志统计API
 				protectedGroup.POST("/gateway-log/count", clickhouseController.CountGatewayLogs)
-				
+
 				// ClickHouse 网关监控API - 监控概览数据
 				protectedGroup.POST("/gateway-log/monitoring/overview", clickhouseController.GetGatewayMonitoringOverview)
-				
+
 				// ClickHouse 网关监控API - 监控图表数据
 				protectedGroup.POST("/gateway-log/monitoring/chart-data", clickhouseController.GetGatewayMonitoringChartData)
 			}
-			
+
 		default:
 			// 使用默认的关系数据库查询控制器
 			initDatabaseRoutes(protectedGroup, db)
@@ -123,20 +123,20 @@ func Init(router *gin.Engine, db database.Database) {
 func initDatabaseRoutes(protectedGroup *gin.RouterGroup, db database.Database) {
 	gatewayLogController := controllers.NewGatewayLogController(db)
 	logger.Info("使用关系数据库查询控制器")
-	
+
 	// 关系数据库网关日志查询API - 列表查询，不返回大字段以提高性能
 	protectedGroup.POST("/gateway-log/query", gatewayLogController.Query)
-	
+
 	// 关系数据库网关日志详情获取API - 返回完整字段信息，包括大字段
 	protectedGroup.POST("/gateway-log/get", gatewayLogController.Get)
-	
+
 	// 关系数据库网关日志重置API（支持批量）
 	protectedGroup.POST("/gateway-log/reset", gatewayLogController.Reset)
-	
+
 	// 关系数据库网关监控API - 监控概览数据
 	// 注意：这里需要后续实现相应的方法
 	// protectedGroup.POST("/gateway-log/monitoring/overview", gatewayLogController.GetMonitoringOverview)
-	
+
 	// 关系数据库网关监控API - 监控图表数据
 	// 注意：这里需要后续实现相应的方法
 	// protectedGroup.POST("/gateway-log/monitoring/chart-data", gatewayLogController.GetMonitoringChartData)
@@ -145,4 +145,4 @@ func initDatabaseRoutes(protectedGroup *gin.RouterGroup, db database.Database) {
 // RegisterRoutesFunc 返回路由注册函数
 func RegisterRoutesFunc() func(router *gin.Engine, db database.Database) {
 	return Init
-} 
+}

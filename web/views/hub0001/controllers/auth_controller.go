@@ -1,17 +1,17 @@
 package controllers
 
 import (
-	"gohub/pkg/config"
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/middleware"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/utils/session"
-	authdao "gohub/web/views/hub0001/dao"
-	"gohub/web/views/hub0001/models"
-	hubdao "gohub/web/views/hub0002/dao"
+	"gateway/pkg/config"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/middleware"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/utils/session"
+	authdao "gateway/web/views/hub0001/dao"
+	"gateway/web/views/hub0001/models"
+	hubdao "gateway/web/views/hub0002/dao"
 	"net/http"
 	"time"
 
@@ -79,7 +79,7 @@ func (c *AuthController) Login(ctx *gin.Context) {
 		err := c.captchaService.VerifyCaptcha(ctx, req.CaptchaId, req.CaptchaCode)
 		if err != nil {
 			logger.ErrorWithTrace(ctx, "验证码验证失败", "error", err, "captchaId", req.CaptchaId)
-			
+
 			// 根据错误类型设置不同的消息ID
 			var messageId string
 			switch {
@@ -90,7 +90,7 @@ func (c *AuthController) Login(ctx *gin.Context) {
 			default:
 				messageId = constants.ED00001
 			}
-			
+
 			response.ErrorJSON(ctx, err.Error(), messageId)
 			return
 		}
@@ -148,21 +148,21 @@ func (c *AuthController) Login(ctx *gin.Context) {
 
 	// 登录成功响应
 	loginResp := gin.H{
-		"userId":     user.UserId,
-		"userName":   user.UserName,
-		"realName":   user.RealName,
-		"tenantId":   user.TenantId,
-		"deptId":     user.DeptId,
-		"email":      user.Email,
-		"mobile":     user.Mobile,
-		"avatar":     user.Avatar,
-		"sessionId":  sessionData.SessionId,
-		"loginTime":  sessionData.LoginTime,
-		"expireAt":   sessionData.ExpireAt.Unix(),
-		"clientIP":   clientIP,
-		"userAgent":  userAgent,
+		"userId":    user.UserId,
+		"userName":  user.UserName,
+		"realName":  user.RealName,
+		"tenantId":  user.TenantId,
+		"deptId":    user.DeptId,
+		"email":     user.Email,
+		"mobile":    user.Mobile,
+		"avatar":    user.Avatar,
+		"sessionId": sessionData.SessionId,
+		"loginTime": sessionData.LoginTime,
+		"expireAt":  sessionData.ExpireAt.Unix(),
+		"clientIP":  clientIP,
+		"userAgent": userAgent,
 		// 返回web.yaml中的read_timeout配置，单位为秒，转换为毫秒
-		"timeout":    config.GetInt("web.read_timeout", 30)*1000,
+		"timeout": config.GetInt("web.read_timeout", 30) * 1000,
 	}
 
 	response.SuccessJSON(ctx, loginResp, constants.SD00101)
@@ -224,7 +224,7 @@ func (c *AuthController) RefreshSession(ctx *gin.Context) {
 	err := c.sessionManager.RefreshSession(ctx, userContext.SessionId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "刷新session失败", "error", err, "sessionId", userContext.SessionId, "userId", userContext.UserId)
-		
+
 		// 根据错误类型设置不同的消息ID
 		var messageId string
 		switch {
@@ -233,7 +233,7 @@ func (c *AuthController) RefreshSession(ctx *gin.Context) {
 		default:
 			messageId = constants.ED00108
 		}
-		
+
 		response.ErrorJSON(ctx, "刷新会话失败: "+err.Error(), messageId, http.StatusInternalServerError)
 		return
 	}
@@ -271,7 +271,7 @@ func (c *AuthController) RefreshSession(ctx *gin.Context) {
 func (c *AuthController) Logout(ctx *gin.Context) {
 	// 从用户上下文中获取用户信息
 	userContext := middleware.GetUserContext(ctx)
-	
+
 	var sessionId string
 	var userId string
 
@@ -284,12 +284,12 @@ func (c *AuthController) Logout(ctx *gin.Context) {
 	if sessionId == "" {
 		// 尝试从表单获取sessionId
 		sessionId = ctx.PostForm("sessionId")
-		
+
 		// 尝试从header获取sessionId
 		if sessionId == "" {
 			sessionId = ctx.GetHeader("X-Session-Id")
 		}
-		
+
 		// 尝试从Cookie获取sessionId
 		if sessionId == "" {
 			sessionId = c.getSessionIdFromCookie(ctx)
@@ -431,7 +431,7 @@ func (c *AuthController) GetCaptcha(ctx *gin.Context) {
 	captchaResp, err := c.captchaService.GenerateCaptcha(ctx, &req)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "生成验证码失败", "error", err)
-		
+
 		// 根据错误类型设置不同的消息ID
 		var messageId string
 		switch {
@@ -442,7 +442,7 @@ func (c *AuthController) GetCaptcha(ctx *gin.Context) {
 		default:
 			messageId = constants.ED00001
 		}
-		
+
 		response.ErrorJSON(ctx, err.Error(), messageId)
 		return
 	}
@@ -453,8 +453,9 @@ func (c *AuthController) GetCaptcha(ctx *gin.Context) {
 // setSessionCookie 设置Session Cookie
 //
 // 方法功能:
-//   在用户登录成功后设置包含session ID的Cookie
-//   Cookie配置遵循安全最佳实践，包括HttpOnly、SameSite等设置
+//
+//	在用户登录成功后设置包含session ID的Cookie
+//	Cookie配置遵循安全最佳实践，包括HttpOnly、SameSite等设置
 //
 // 参数说明:
 //   - ctx: Gin上下文对象
@@ -474,30 +475,31 @@ func (c *AuthController) GetCaptcha(ctx *gin.Context) {
 //   - 配合session中间件实现自动身份验证
 func (c *AuthController) setSessionCookie(ctx *gin.Context, sessionId string, expireAt time.Time) {
 	maxAge := int(time.Until(expireAt).Seconds())
-	
+
 	// 确保maxAge不为负数
 	if maxAge < 0 {
 		maxAge = 0
 	}
-	
+
 	ctx.SetCookie(
-		constants.HUB_SESSION_COOKIE, // name
-		sessionId,                    // value
-		maxAge,                       // maxAge (seconds)
-		constants.HUB_SESSION_PATH,   // path
-		constants.HUB_SESSION_DOMAIN, // domain
-		constants.HUB_SESSION_SECURE, // secure
+		constants.HUB_SESSION_COOKIE,   // name
+		sessionId,                      // value
+		maxAge,                         // maxAge (seconds)
+		constants.HUB_SESSION_PATH,     // path
+		constants.HUB_SESSION_DOMAIN,   // domain
+		constants.HUB_SESSION_SECURE,   // secure
 		constants.HUB_SESSION_HTTPONLY, // httpOnly
 	)
-	
+
 	logger.InfoWithTrace(ctx, "Session Cookie已设置", "sessionId", sessionId, "expireAt", expireAt)
 }
 
 // clearSessionCookie 清除Session Cookie
 //
 // 方法功能:
-//   在用户登出时清除session相关的Cookie
-//   通过设置过期时间为过去时间来删除Cookie
+//
+//	在用户登出时清除session相关的Cookie
+//	通过设置过期时间为过去时间来删除Cookie
 //
 // 参数说明:
 //   - ctx: Gin上下文对象
@@ -513,23 +515,24 @@ func (c *AuthController) setSessionCookie(ctx *gin.Context, sessionId string, ex
 //   - 安全策略要求清除Cookie时
 func (c *AuthController) clearSessionCookie(ctx *gin.Context) {
 	ctx.SetCookie(
-		constants.HUB_SESSION_COOKIE, // name
-		"",                           // value (empty)
-		-1,                           // maxAge (-1 means delete immediately)
-		constants.HUB_SESSION_PATH,   // path
-		constants.HUB_SESSION_DOMAIN, // domain
-		constants.HUB_SESSION_SECURE, // secure
+		constants.HUB_SESSION_COOKIE,   // name
+		"",                             // value (empty)
+		-1,                             // maxAge (-1 means delete immediately)
+		constants.HUB_SESSION_PATH,     // path
+		constants.HUB_SESSION_DOMAIN,   // domain
+		constants.HUB_SESSION_SECURE,   // secure
 		constants.HUB_SESSION_HTTPONLY, // httpOnly
 	)
-	
+
 	logger.InfoWithTrace(ctx, "Session Cookie已清除")
 }
 
 // getSessionIdFromCookie 从Cookie中获取Session ID
 //
 // 方法功能:
-//   从请求的Cookie中提取session ID
-//   这是一个辅助方法，用于支持通过Cookie传递session ID
+//
+//	从请求的Cookie中提取session ID
+//	这是一个辅助方法，用于支持通过Cookie传递session ID
 //
 // 参数说明:
 //   - ctx: Gin上下文对象

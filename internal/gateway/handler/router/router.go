@@ -3,9 +3,9 @@ package router
 import (
 	"errors"
 	"fmt"
-	"gohub/internal/gateway/constants"
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/filter"
+	"gateway/internal/gateway/constants"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/filter"
 	"sort"
 	"sync"
 )
@@ -47,7 +47,6 @@ type RouterHandler interface {
 	// Validate 验证配置
 	Validate() error
 }
-
 
 // RouterConfig 路由器配置结构
 type RouterConfig struct {
@@ -134,10 +133,10 @@ func (r *Router) Handle(ctx *core.Context) bool {
 	if !r.enabled {
 		return false
 	}
-	
+
 	// 检查全局前置过滤器并保存原始信息
 	hasGlobalPreFilters := PreserveOriginalRequestInfoIfNeeded(ctx, r.routerFilters)
-	
+
 	// 应用全局前置过滤器
 	if len(r.routerFilters) > 0 {
 		for _, f := range r.routerFilters {
@@ -180,14 +179,14 @@ func (r *Router) Handle(ctx *core.Context) bool {
 func PreserveOriginalRequestInfoIfNeeded(ctx *core.Context, filters []filter.Filter) bool {
 	// 检查是否有修改类过滤器
 	hasModifiers := HasModificationFilters(filters)
-	
+
 	if !hasModifiers {
 		return false
 	}
-	
+
 	// 检查是否需要保存请求头
 	needsHeaders := NeedsHeaderPreservation(filters)
-	
+
 	// 保存原始信息
 	PreserveOriginalRequestInfo(ctx, needsHeaders)
 	return true
@@ -199,12 +198,12 @@ func PreserveOriginalRequestInfo(ctx *core.Context, needsHeaders bool) {
 	if req == nil {
 		return
 	}
-	
+
 	// 保存原始请求信息到上下文
 	ctx.Set(constants.ContextKeyOriginalMethod, req.Method)
 	ctx.Set(constants.ContextKeyOriginalURLPath, req.URL.Path)
 	ctx.Set(constants.ContextKeyOriginalQueryString, req.URL.RawQuery)
-	
+
 	// 保存原始请求头（深拷贝，仅在需要时）
 	if needsHeaders {
 		originalHeaders := make(map[string][]string)
@@ -239,12 +238,12 @@ func NeedsHeaderPreservation(filters []filter.Filter) bool {
 func IsModificationFilterType(filterType filter.FilterType) bool {
 	switch filterType {
 	case filter.QueryParamFilterType,
-		 filter.HeaderFilterType,
-		 filter.BodyFilterType,
-		 filter.URLFilterType,
-		 filter.StripFilterType,
-		 filter.RewriteFilterType,
-		 filter.MethodFilterType:
+		filter.HeaderFilterType,
+		filter.BodyFilterType,
+		filter.URLFilterType,
+		filter.StripFilterType,
+		filter.RewriteFilterType,
+		filter.MethodFilterType:
 		return true
 	default:
 		return false

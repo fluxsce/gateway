@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/pkg/utils/huberrors"
-	"gohub/pkg/utils/random"
-	"gohub/web/views/hubcommon002/models"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/huberrors"
+	"gateway/pkg/utils/random"
+	"gateway/web/views/hubcommon002/models"
 	"strings"
 	"time"
 )
@@ -32,49 +32,49 @@ func (dao *IpAccessConfigDAO) generateIpAccessConfigId() string {
 	now := time.Now()
 	// 生成时间部分：YYYYMMDDHHMMSS
 	timeStr := now.Format("20060102150405")
-	
+
 	// 生成4位随机字符（大写字母和数字）
 	randomStr := random.GenerateRandomString(4)
-	
+
 	return fmt.Sprintf("IP%s%s", timeStr, randomStr)
 }
 
 // isIpAccessConfigIdExists 检查IP访问配置ID是否已存在
 func (dao *IpAccessConfigDAO) isIpAccessConfigIdExists(ctx context.Context, ipAccessConfigId string) (bool, error) {
 	query := `SELECT COUNT(*) as count FROM HUB_GW_IP_ACCESS_CONFIG WHERE ipAccessConfigId = ?`
-	
+
 	var result struct {
 		Count int `db:"count"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &result, query, []interface{}{ipAccessConfigId}, true)
 	if err != nil {
 		return false, err
 	}
-	
+
 	return result.Count > 0, nil
 }
 
 // generateUniqueIpAccessConfigId 生成唯一的IP访问配置ID
 func (dao *IpAccessConfigDAO) generateUniqueIpAccessConfigId(ctx context.Context) (string, error) {
 	const maxAttempts = 10
-	
+
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		ipAccessConfigId := dao.generateIpAccessConfigId()
-		
+
 		exists, err := dao.isIpAccessConfigIdExists(ctx, ipAccessConfigId)
 		if err != nil {
 			return "", huberrors.WrapError(err, "检查IP访问配置ID是否存在失败")
 		}
-		
+
 		if !exists {
 			return ipAccessConfigId, nil
 		}
-		
+
 		// 如果ID已存在，等待1毫秒后重试（确保时间戳不同）
 		time.Sleep(time.Millisecond)
 	}
-	
+
 	return "", errors.New("生成唯一IP访问配置ID失败，已达到最大尝试次数")
 }
 
@@ -195,7 +195,7 @@ func (dao *IpAccessConfigDAO) UpdateIpAccessConfig(ctx context.Context, config *
 	// 保留不可修改的字段
 	config.AddTime = currentConfig.AddTime
 	config.AddWho = currentConfig.AddWho
-	
+
 	// 如果没有设置活动标记，保持原有状态
 	if config.ActiveFlag == "" {
 		config.ActiveFlag = currentConfig.ActiveFlag
@@ -312,4 +312,4 @@ func (dao *IpAccessConfigDAO) ListIpAccessConfigs(ctx context.Context, tenantId 
 	}
 
 	return configs, total, nil
-} 
+}

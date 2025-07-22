@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // JWTAuth JWT认证处理器

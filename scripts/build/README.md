@@ -1,6 +1,6 @@
-# GoHub 交叉编译构建脚本
+# Gateway 交叉编译构建脚本
 
-本目录包含用于 GoHub 项目的交叉编译构建脚本，支持在 Windows 环境下构建多个目标平台的二进制文件。
+本目录包含用于 Gateway 项目的交叉编译构建脚本，支持在 Windows 环境下构建多个目标平台的二进制文件。
 
 ## 支持的目标平台
 
@@ -76,7 +76,7 @@ PowerShell 交叉编译脚本：
 - 使用 `CGO_ENABLED=0` 进行纯 Go 编译
 - 生成 `.exe` 可执行文件
 - 不支持 Oracle 数据库驱动（Oracle 驱动需要 CGO）
-- 文件名格式：`gohub-windows-amd64.exe`
+- 文件名格式：`gateway-windows-amd64.exe`
 
 ### 系统要求
 - Windows 10/11 开发环境
@@ -89,12 +89,12 @@ PowerShell 交叉编译脚本：
 
 ```
 dist/
-├── gohub-linux-amd64           # Linux 64位版本
-├── gohub-linux-amd64-oracle    # Linux 64位版本（Oracle支持）
-├── gohub-linux-arm64           # Linux ARM64版本
-├── gohub-darwin-amd64          # macOS Intel版本
-├── gohub-darwin-arm64          # macOS ARM版本
-└── gohub-windows-amd64.exe     # Windows 64位版本 ⭐
+├── gateway-linux-amd64           # Linux 64位版本
+├── gateway-linux-amd64-oracle    # Linux 64位版本（Oracle支持）
+├── gateway-linux-arm64           # Linux ARM64版本
+├── gateway-darwin-amd64          # macOS Intel版本
+├── gateway-darwin-arm64          # macOS ARM版本
+└── gateway-windows-amd64.exe     # Windows 64位版本 ⭐
 ```
 
 ## 使用示例
@@ -110,11 +110,11 @@ powershell -ExecutionPolicy Bypass -File ".\scripts\build\crossbuild.ps1" -Targe
 ```
 
 ### 在 Windows Server 2008 上部署
-1. 将构建的 `gohub-windows-amd64.exe` 复制到目标服务器
+1. 将构建的 `gateway-windows-amd64.exe` 复制到目标服务器
 2. 准备配置文件（`configs/` 目录）
 3. 直接运行：
    ```cmd
-   gohub-windows-amd64.exe
+   gateway-windows-amd64.exe
    ```
 
 ## 故障排查
@@ -157,11 +157,11 @@ powershell -ExecutionPolicy Bypass -File ".\scripts\build\crossbuild.ps1" -Targe
 - ✅ 支持 Oracle 数据库驱动（仅限 Linux）
 - ✅ Docker 容器化构建环境 
 
-# GoHub Windows Server 2008 Oracle兼容构建脚本
+# Gateway Windows Server 2008 Oracle兼容构建脚本
 
 ## 📋 概述
 
-本目录包含了专门为Windows Server 2008系统设计的GoHub构建脚本，支持Oracle数据库驱动和纯Go两种构建模式。
+本目录包含了专门为Windows Server 2008系统设计的Gateway构建脚本，支持Oracle数据库驱动和纯Go两种构建模式。
 
 ## 🎯 主要特性
 
@@ -296,15 +296,15 @@ gcc --version
 ## 📋 输出文件说明
 
 ### Oracle版本构建输出
-- `gohub-windows-server2008-oracle-amd64.exe`: 主程序
+- `gateway-windows-server2008-oracle-amd64.exe`: 主程序
 - `Windows-Server-2008-Oracle驱动版本-部署说明.txt`: 详细部署文档
-- `启动GoHub-Oracle驱动版本.cmd`: 启动脚本
+- `启动Gateway-Oracle驱动版本.cmd`: 启动脚本
 - `Oracle环境检查.cmd`: 环境诊断工具
 
 ### 纯Go版本构建输出
-- `gohub-windows-server2008-pure-amd64.exe`: 主程序
+- `gateway-windows-server2008-pure-amd64.exe`: 主程序
 - `Windows-Server-2008-纯Go版本-部署说明.txt`: 部署文档
-- `启动GoHub-纯Go版本.cmd`: 启动脚本
+- `启动Gateway-纯Go版本.cmd`: 启动脚本
 
 ## 🔄 版本历史
 

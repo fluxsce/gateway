@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/cors"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/cors"
 )
 
 func TestCORSConfig(t *testing.T) {

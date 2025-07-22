@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"gohub/pkg/database"
-	"gohub/pkg/database/dbtypes"
-	_ "gohub/pkg/database/sqlite" // 导入SQLite实现
+	"gateway/pkg/database"
+	"gateway/pkg/database/dbtypes"
+	_ "gateway/pkg/database/sqlite" // 导入SQLite实现
 )
 
 // SqliteUser 测试用户结构体
@@ -296,4 +296,4 @@ func TestSQLiteBatchInsert(t *testing.T) {
 	if count != 3 {
 		t.Fatalf("Expected 3 records, got %d", count)
 	}
-} 
+}

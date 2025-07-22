@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"time"
 
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/pkg/utils/ctime"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hub0023/dao"
-	"gohub/web/views/hub0023/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/pkg/utils/ctime"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hub0023/dao"
+	"gateway/web/views/hub0023/models"
 
 	"github.com/gin-gonic/gin"
 )
@@ -39,7 +39,7 @@ func NewClickHouseQueryController(db database.Database) *ClickHouseQueryControll
 // @Produce json
 // @Param query body models.GatewayMonitoringQueryRequest true "查询参数"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0023/clickhouse-gateway-monitoring/overview [post]
+// @Router /gateway/hub0023/clickhouse-gateway-monitoring/overview [post]
 func (c *ClickHouseQueryController) GetGatewayMonitoringOverview(ctx *gin.Context) {
 	// 解析查询参数
 	var req models.GatewayMonitoringQueryRequest
@@ -84,7 +84,7 @@ func (c *ClickHouseQueryController) GetGatewayMonitoringOverview(ctx *gin.Contex
 // @Produce json
 // @Param query body models.GatewayMonitoringQueryRequest true "查询参数"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0023/clickhouse-gateway-monitoring/chart-data [post]
+// @Router /gateway/hub0023/clickhouse-gateway-monitoring/chart-data [post]
 func (c *ClickHouseQueryController) GetGatewayMonitoringChartData(ctx *gin.Context) {
 	// 解析查询参数
 	var req models.GatewayMonitoringQueryRequest
@@ -145,10 +145,10 @@ func (c *ClickHouseQueryController) GetGatewayMonitoringChartData(ctx *gin.Conte
 
 	// 构建图表数据
 	chartData := &models.GatewayMonitoringChartData{
-		RequestTrend:            requestTrend,
-		ResponseTimeTrend:       responseTimeTrend,
+		RequestTrend:           requestTrend,
+		ResponseTimeTrend:      responseTimeTrend,
 		StatusCodeDistribution: statusCodeDistribution,
-		HotRoutes:               hotRoutes,
+		HotRoutes:              hotRoutes,
 	}
 
 	response.SuccessJSON(ctx, chartData, constants.SD00002)
@@ -163,7 +163,7 @@ func (c *ClickHouseQueryController) GetGatewayMonitoringChartData(ctx *gin.Conte
 // @Produce json
 // @Param query body models.GatewayAccessLogQueryRequest true "查询参数"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0023/clickhouse-gateway-log/query [post]
+// @Router /gateway/hub0023/clickhouse-gateway-log/query [post]
 func (c *ClickHouseQueryController) QueryGatewayLogs(ctx *gin.Context) {
 	// 解析查询参数
 	var req models.GatewayAccessLogQueryRequest
@@ -210,7 +210,7 @@ func (c *ClickHouseQueryController) QueryGatewayLogs(ctx *gin.Context) {
 // @Produce json
 // @Param get body models.GatewayAccessLogGetRequest true "获取参数"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0023/clickhouse-gateway-log/get [post]
+// @Router /gateway/hub0023/clickhouse-gateway-log/get [post]
 func (c *ClickHouseQueryController) GetGatewayLog(ctx *gin.Context) {
 	// 解析获取参数
 	var req models.GatewayAccessLogGetRequest
@@ -254,7 +254,7 @@ func (c *ClickHouseQueryController) GetGatewayLog(ctx *gin.Context) {
 // @Produce json
 // @Param count body models.GatewayAccessLogQueryRequest true "统计参数"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0023/clickhouse-gateway-log/count [post]
+// @Router /gateway/hub0023/clickhouse-gateway-log/count [post]
 func (c *ClickHouseQueryController) CountGatewayLogs(ctx *gin.Context) {
 	// 解析统计参数
 	var req models.GatewayAccessLogQueryRequest
@@ -320,4 +320,4 @@ func (c *ClickHouseQueryController) validateTimeRange(req *models.GatewayMonitor
 	}
 
 	return nil
-} 
+}

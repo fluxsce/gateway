@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"time"
 
-	"gohub/pkg/logger"
-	"gohub/pkg/mongo/client"
-	"gohub/pkg/utils/ctime"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hub0023/dao"
-	"gohub/web/views/hub0023/models"
+	"gateway/pkg/logger"
+	"gateway/pkg/mongo/client"
+	"gateway/pkg/utils/ctime"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hub0023/dao"
+	"gateway/web/views/hub0023/models"
 
 	"github.com/gin-gonic/gin"
 )
@@ -39,7 +39,7 @@ func NewMongoQueryController(mongoClient *client.Client) *MongoQueryController {
 // @Produce json
 // @Param query body models.GatewayMonitoringQueryRequest true "查询参数"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0023/mongo-gateway-monitoring/overview [post]
+// @Router /gateway/hub0023/mongo-gateway-monitoring/overview [post]
 func (c *MongoQueryController) GetGatewayMonitoringOverview(ctx *gin.Context) {
 	// 解析查询参数
 	var req models.GatewayMonitoringQueryRequest
@@ -84,7 +84,7 @@ func (c *MongoQueryController) GetGatewayMonitoringOverview(ctx *gin.Context) {
 // @Produce json
 // @Param query body models.GatewayMonitoringQueryRequest true "查询参数"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0023/mongo-gateway-monitoring/chart-data [post]
+// @Router /gateway/hub0023/mongo-gateway-monitoring/chart-data [post]
 func (c *MongoQueryController) GetGatewayMonitoringChartData(ctx *gin.Context) {
 	// 解析查询参数
 	var req models.GatewayMonitoringQueryRequest
@@ -145,10 +145,10 @@ func (c *MongoQueryController) GetGatewayMonitoringChartData(ctx *gin.Context) {
 
 	// 构建图表数据
 	chartData := &models.GatewayMonitoringChartData{
-		RequestTrend:            requestTrend,
-		ResponseTimeTrend:       responseTimeTrend,
+		RequestTrend:           requestTrend,
+		ResponseTimeTrend:      responseTimeTrend,
 		StatusCodeDistribution: statusCodeDistribution,
-		HotRoutes:               hotRoutes,
+		HotRoutes:              hotRoutes,
 	}
 
 	response.SuccessJSON(ctx, chartData, constants.SD00002)
@@ -229,7 +229,7 @@ func (c *MongoQueryController) validateTimeGranularity(granularity models.TimeGr
 // @Produce json
 // @Param query body models.GatewayAccessLogQueryRequest true "查询参数"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0023/mongo-gateway-log/query [post]
+// @Router /gateway/hub0023/mongo-gateway-log/query [post]
 func (c *MongoQueryController) QueryGatewayLogs(ctx *gin.Context) {
 	// 解析查询参数
 	var req models.GatewayAccessLogQueryRequest
@@ -276,7 +276,7 @@ func (c *MongoQueryController) QueryGatewayLogs(ctx *gin.Context) {
 // @Produce json
 // @Param get body models.GatewayAccessLogGetRequest true "获取参数"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0023/mongo-gateway-log/get [post]
+// @Router /gateway/hub0023/mongo-gateway-log/get [post]
 func (c *MongoQueryController) GetGatewayLog(ctx *gin.Context) {
 	// 解析获取参数
 	var req models.GatewayAccessLogGetRequest
@@ -320,7 +320,7 @@ func (c *MongoQueryController) GetGatewayLog(ctx *gin.Context) {
 // @Produce json
 // @Param count body models.GatewayAccessLogQueryRequest true "统计参数"
 // @Success 200 {object} response.JsonData
-// @Router /gohub/hub0023/mongo-gateway-log/count [post]
+// @Router /gateway/hub0023/mongo-gateway-log/count [post]
 func (c *MongoQueryController) CountGatewayLogs(ctx *gin.Context) {
 	// 解析统计参数
 	var req models.GatewayAccessLogQueryRequest
@@ -347,7 +347,7 @@ func (c *MongoQueryController) CountGatewayLogs(ctx *gin.Context) {
 	}
 
 	response.SuccessJSON(ctx, gin.H{
-		"count": count,
+		"count":      count,
 		"collection": models.GatewayAccessLog{}.TableName(),
 	}, constants.SD00002)
 }

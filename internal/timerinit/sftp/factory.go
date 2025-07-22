@@ -6,16 +6,16 @@ import (
 	"fmt"
 	"time"
 
-	"gohub/internal/timerinit/common/dao"
-	"gohub/internal/timerinit/common/taskinit"
-	"gohub/internal/types/timertypes"
-	"gohub/internal/types/tooltypes"
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/pkg/plugin/tools/configs"
-	sftpTool "gohub/pkg/plugin/tools/sftp"
-	"gohub/pkg/timer"
-	"gohub/pkg/utils/crypto"
+	"gateway/internal/timerinit/common/dao"
+	"gateway/internal/timerinit/common/taskinit"
+	"gateway/internal/types/timertypes"
+	"gateway/internal/types/tooltypes"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/pkg/plugin/tools/configs"
+	sftpTool "gateway/pkg/plugin/tools/sftp"
+	"gateway/pkg/timer"
+	"gateway/pkg/utils/crypto"
 )
 
 // SFTPExecutorFactory SFTP任务执行器工厂
@@ -27,9 +27,12 @@ type SFTPExecutorFactory struct {
 
 // NewSFTPExecutorFactory 创建SFTP执行器工厂实例
 // 参数:
-//   daoManager: 数据访问对象管理器，用于查询工具配置
+//
+//	daoManager: 数据访问对象管理器，用于查询工具配置
+//
 // 返回:
-//   taskinit.TaskExecutorFactory: 任务执行器工厂接口实现
+//
+//	taskinit.TaskExecutorFactory: 任务执行器工厂接口实现
 func NewSFTPExecutorFactory(daoManager *dao.DAOManager) taskinit.TaskExecutorFactory {
 	return &SFTPExecutorFactory{
 		daoManager: daoManager,
@@ -39,7 +42,8 @@ func NewSFTPExecutorFactory(daoManager *dao.DAOManager) taskinit.TaskExecutorFac
 // GetExecutorType 获取执行器类型
 // 返回SFTP传输执行器的类型标识，用于任务分类和路由
 // 返回:
-//   string: 执行器类型标识
+//
+//	string: 执行器类型标识
 func (f *SFTPExecutorFactory) GetExecutorType() string {
 	return "SFTP_TRANSFER"
 }
@@ -48,11 +52,14 @@ func (f *SFTPExecutorFactory) GetExecutorType() string {
 // 根据任务配置创建SFTP执行器实例，所有SFTP相关配置仅从toolConfig获取
 // 这种设计将SFTP配置与定时器任务配置解耦，便于独立维护
 // 参数:
-//   ctx: 上下文对象，用于控制请求生命周期
-//   task: 定时器任务配置，仅用于获取基本信息和工具配置ID
+//
+//	ctx: 上下文对象，用于控制请求生命周期
+//	task: 定时器任务配置，仅用于获取基本信息和工具配置ID
+//
 // 返回:
-//   timer.TaskExecutor: 创建的SFTP任务执行器
-//   error: 创建过程中的错误信息
+//
+//	timer.TaskExecutor: 创建的SFTP任务执行器
+//	error: 创建过程中的错误信息
 func (f *SFTPExecutorFactory) CreateExecutor(ctx context.Context, task *timertypes.TimerTask) (timer.TaskExecutor, error) {
 	// 验证必要的任务信息
 	if task.ToolConfigId == "" {
@@ -100,7 +107,7 @@ func (f *SFTPExecutorFactory) CreateExecutor(ctx context.Context, task *timertyp
 		configParameters: configParameters,
 	}
 
-	logger.Info("SFTP任务执行器创建成功", 
+	logger.Info("SFTP任务执行器创建成功",
 		"taskId", task.TaskId,
 		"taskName", task.TaskName,
 		"toolConfigId", task.ToolConfigId,
@@ -114,12 +121,15 @@ func (f *SFTPExecutorFactory) CreateExecutor(ctx context.Context, task *timertyp
 // getToolConfig 获取工具配置
 // 根据租户ID和工具配置ID从数据库查询工具配置信息
 // 参数:
-//   ctx: 上下文对象，用于控制请求生命周期
-//   tenantId: 租户ID，用于多租户隔离
-//   toolConfigId: 工具配置ID，唯一标识工具配置
+//
+//	ctx: 上下文对象，用于控制请求生命周期
+//	tenantId: 租户ID，用于多租户隔离
+//	toolConfigId: 工具配置ID，唯一标识工具配置
+//
 // 返回:
-//   *tooltypes.ToolConfig: 工具配置对象
-//   error: 查询过程中的错误信息
+//
+//	*tooltypes.ToolConfig: 工具配置对象
+//	error: 查询过程中的错误信息
 func (f *SFTPExecutorFactory) getToolConfig(ctx context.Context, tenantId, toolConfigId string) (*tooltypes.ToolConfig, error) {
 	if tenantId == "" {
 		return nil, fmt.Errorf("租户ID不能为空")
@@ -144,14 +154,17 @@ func (f *SFTPExecutorFactory) getToolConfig(ctx context.Context, tenantId, toolC
 // 将数据库中的工具配置转换为SFTP客户端所需的配置格式
 // 所有SFTP相关配置都从toolConfig获取，确保配置的一致性和可维护性
 // 参数:
-//   toolConfig: 工具配置对象，包含SFTP连接和认证信息
+//
+//	toolConfig: 工具配置对象，包含SFTP连接和认证信息
+//
 // 返回:
-//   *configs.SFTPConfig: SFTP客户端配置对象
-//   error: 转换过程中的错误信息
+//
+//	*configs.SFTPConfig: SFTP客户端配置对象
+//	error: 转换过程中的错误信息
 func (f *SFTPExecutorFactory) createSFTPConfig(toolConfig *tooltypes.ToolConfig) (*configs.SFTPConfig, error) {
 	// 创建默认SFTP配置
 	sftpConfig := configs.DefaultSFTPConfig()
-	
+
 	// 设置基础信息
 	sftpConfig.ID = toolConfig.ToolConfigId
 	sftpConfig.Name = toolConfig.ConfigName
@@ -188,7 +201,7 @@ func (f *SFTPExecutorFactory) createSFTPConfig(toolConfig *tooltypes.ToolConfig)
 		}
 	}
 
-	logger.Info("SFTP配置创建成功", 
+	logger.Info("SFTP配置创建成功",
 		"configId", sftpConfig.ID,
 		"host", sftpConfig.Host,
 		"port", sftpConfig.Port,
@@ -201,10 +214,13 @@ func (f *SFTPExecutorFactory) createSFTPConfig(toolConfig *tooltypes.ToolConfig)
 // configureSFTPAuthentication 配置SFTP认证信息
 // 根据工具配置中的认证类型设置相应的认证方式
 // 参数:
-//   sftpConfig: SFTP配置对象
-//   toolConfig: 工具配置对象，包含认证信息
+//
+//	sftpConfig: SFTP配置对象
+//	toolConfig: 工具配置对象，包含认证信息
+//
 // 返回:
-//   error: 配置过程中的错误信息
+//
+//	error: 配置过程中的错误信息
 func (f *SFTPExecutorFactory) configureSFTPAuthentication(sftpConfig *configs.SFTPConfig, toolConfig *tooltypes.ToolConfig) error {
 	if toolConfig.AuthType == nil {
 		return fmt.Errorf("认证类型不能为空")
@@ -216,7 +232,7 @@ func (f *SFTPExecutorFactory) configureSFTPAuthentication(sftpConfig *configs.SF
 		if toolConfig.PasswordEncrypted == nil || *toolConfig.PasswordEncrypted == "" {
 			return fmt.Errorf("密码认证要求提供密码")
 		}
-		
+
 		// 解密密码
 		decryptedPassword := *toolConfig.PasswordEncrypted
 		if crypto.IsEncryptedString(*toolConfig.PasswordEncrypted) {
@@ -230,11 +246,11 @@ func (f *SFTPExecutorFactory) configureSFTPAuthentication(sftpConfig *configs.SF
 		} else {
 			logger.Debug("SFTP密码未加密，直接使用", "configId", toolConfig.ToolConfigId)
 		}
-		
+
 		sftpConfig.PasswordAuth = &configs.PasswordAuthConfig{
 			Password: decryptedPassword,
 		}
-		
+
 	case tooltypes.AuthTypePublicKey:
 		// 公钥认证
 		if toolConfig.KeyFileContent == nil && toolConfig.KeyFilePath == nil {
@@ -260,7 +276,7 @@ func (f *SFTPExecutorFactory) configureSFTPAuthentication(sftpConfig *configs.SF
 			}
 			sftpConfig.PublicKeyAuth.PrivateKeyData = []byte(decryptedKeyContent)
 		}
-		
+
 	default:
 		return fmt.Errorf("不支持的认证类型: %v", *toolConfig.AuthType)
 	}
@@ -272,10 +288,13 @@ func (f *SFTPExecutorFactory) configureSFTPAuthentication(sftpConfig *configs.SF
 // 直接JSON反序列化到配置结构体，简洁高效
 // 支持嵌套和扁平化两种配置方式
 // 参数:
-//   sftpConfig: SFTP配置对象
-//   configParams: 自定义配置参数JSON字符串
+//
+//	sftpConfig: SFTP配置对象
+//	configParams: 自定义配置参数JSON字符串
+//
 // 返回:
-//   error: 应用过程中的错误信息
+//
+//	error: 应用过程中的错误信息
 func (f *SFTPExecutorFactory) applySFTPCustomConfig(sftpConfig *configs.SFTPConfig, configParams string) error {
 	// 确保默认传输选项存在
 	if sftpConfig.DefaultTransferOptions == nil {
@@ -300,9 +319,12 @@ func (f *SFTPExecutorFactory) applySFTPCustomConfig(sftpConfig *configs.SFTPConf
 // getAuthTypeName 获取认证类型名称
 // 用于日志记录，将认证类型枚举转换为可读的字符串
 // 参数:
-//   toolConfig: 工具配置对象
+//
+//	toolConfig: 工具配置对象
+//
 // 返回:
-//   string: 认证类型名称
+//
+//	string: 认证类型名称
 func (f *SFTPExecutorFactory) getAuthTypeName(toolConfig *tooltypes.ToolConfig) string {
 	if toolConfig.AuthType == nil {
 		return "未知"
@@ -320,13 +342,16 @@ func (f *SFTPExecutorFactory) getAuthTypeName(toolConfig *tooltypes.ToolConfig) 
 // CreateSFTPExecutorStatic 静态方法创建SFTP执行器
 // 提供一个便捷的静态方法，直接创建SFTP任务执行器
 // 参数:
-//   ctx: 上下文对象
-//   db: 数据库连接
-//   tenantId: 租户ID
-//   toolConfigId: 工具配置ID
+//
+//	ctx: 上下文对象
+//	db: 数据库连接
+//	tenantId: 租户ID
+//	toolConfigId: 工具配置ID
+//
 // 返回:
-//   *SFTPTaskExecutor: SFTP任务执行器
-//   error: 创建过程中的错误信息
+//
+//	*SFTPTaskExecutor: SFTP任务执行器
+//	error: 创建过程中的错误信息
 func CreateSFTPExecutorStatic(ctx context.Context, db database.Database, tenantId, toolConfigId string) (*SFTPTaskExecutor, error) {
 	// 创建临时任务对象
 	task := &timertypes.TimerTask{
@@ -342,17 +367,17 @@ func CreateSFTPExecutorStatic(ctx context.Context, db database.Database, tenantI
 	// 创建工厂实例
 	daoManager := dao.NewDAOManager(db)
 	factory := NewSFTPExecutorFactory(daoManager)
-	
+
 	executor, err := factory.CreateExecutor(ctx, task)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// 类型断言转换为SFTP执行器
 	sftpExecutor, ok := executor.(*SFTPTaskExecutor)
 	if !ok {
 		return nil, fmt.Errorf("创建的执行器类型不匹配，期望*SFTPTaskExecutor")
 	}
-	
+
 	return sftpExecutor, nil
 }

@@ -1,7 +1,7 @@
 package routes
 
 import (
-	"gohub/pkg/database"
+	"gateway/pkg/database"
 	"path/filepath"
 	"runtime"
 	"strings"

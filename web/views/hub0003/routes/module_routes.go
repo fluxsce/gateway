@@ -1,10 +1,10 @@
 package hub0003routes
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/routes"
-	"gohub/web/views/hub0003/controllers"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/routes"
+	"gateway/web/views/hub0003/controllers"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,7 +15,7 @@ var (
 	ModuleName = "hub0003"
 
 	// APIPrefix API路径前缀，所有该模块的API都将以此为基础路径
-	APIPrefix = "/gohub/hub0003"
+	APIPrefix = "/gateway/hub0003"
 )
 
 // init 包初始化函数
@@ -51,7 +51,7 @@ func initSchedulerRoutes(router *gin.RouterGroup, db database.Database) {
 		schedulerGroup.POST("/delete", schedulerController.DeleteSchedulerConfig)
 		schedulerGroup.POST("/query", schedulerController.QuerySchedulerConfigs)
 		schedulerGroup.POST("/update-status", schedulerController.UpdateSchedulerStatus)
-		
+
 		// 调度器控制操作 - TODO: 需要在控制器中实现这些方法
 		// schedulerGroup.POST("/start", schedulerController.StartScheduler)
 		// schedulerGroup.POST("/stop", schedulerController.StopScheduler)
@@ -73,11 +73,11 @@ func initTaskRoutes(router *gin.RouterGroup, db database.Database) {
 		taskGroup.POST("/delete", taskController.DeleteTaskConfig)
 		taskGroup.POST("/query", taskController.QueryTaskConfigs)
 		taskGroup.POST("/update-status", taskController.UpdateTaskStatus)
-		
+
 		// 任务控制操作
 		taskGroup.POST("/start", taskController.StartTask)
 		taskGroup.POST("/stop", taskController.StopTask)
-		
+
 		// 任务执行操作
 		taskGroup.POST("/trigger", taskController.TriggerTask) // 立即执行任务
 	}
@@ -96,4 +96,4 @@ func initExecutionLogRoutes(router *gin.RouterGroup, db database.Database) {
 		logGroup.POST("/query", executionLogController.QueryTaskLogs)
 		logGroup.POST("/task-logs", executionLogController.GetTaskLogsByTaskId)
 	}
-} 
+}

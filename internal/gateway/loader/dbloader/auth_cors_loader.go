@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"gohub/internal/gateway/handler/auth"
-	"gohub/internal/gateway/handler/cors"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
+	"gateway/internal/gateway/handler/auth"
+	"gateway/internal/gateway/handler/cors"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
 )
 
 // AuthCORSConfigLoader 认证和CORS配置加载器
@@ -250,9 +250,9 @@ func (loader *AuthCORSConfigLoader) LoadCORSConfig(ctx context.Context, instance
 
 	// 构建CORS配置
 	corsConf := &cors.CORSConfig{
-		ID:              record.CorsConfigId,
-		Name:            record.ConfigName,
-		Enabled:         true,
+		ID:               record.CorsConfigId,
+		Name:             record.ConfigName,
+		Enabled:          true,
 		AllowCredentials: record.AllowCredentials == "Y",
 		MaxAge:           record.MaxAgeSeconds,
 	}
@@ -327,9 +327,9 @@ func (loader *AuthCORSConfigLoader) LoadRouteCORSConfig(ctx context.Context, rou
 
 	// 构建CORS配置
 	corsConf := &cors.CORSConfig{
-		ID:              record.CorsConfigId,
-		Name:            record.ConfigName,
-		Enabled:         true,
+		ID:               record.CorsConfigId,
+		Name:             record.ConfigName,
+		Enabled:          true,
 		AllowCredentials: record.AllowCredentials == "Y",
 		MaxAge:           record.MaxAgeSeconds,
 	}
@@ -371,23 +371,27 @@ func (loader *AuthCORSConfigLoader) LoadRouteCORSConfig(ctx context.Context, rou
 // - 返回清理后的字符串切片
 //
 // 参数:
-//   str: 要解析的字符串（JSON数组或逗号分隔字符串）
+//
+//	str: 要解析的字符串（JSON数组或逗号分隔字符串）
+//
 // 返回:
-//   []string: 解析后的字符串切片
+//
+//	[]string: 解析后的字符串切片
 //
 // 示例:
-//   parseArrayString(`["a","b","c"]`) 
-//   // 返回: ["a", "b", "c"]
-//   parseArrayString("a, b , c,, d ") 
-//   // 返回: ["a", "b", "c", "d"]
+//
+//	parseArrayString(`["a","b","c"]`)
+//	// 返回: ["a", "b", "c"]
+//	parseArrayString("a, b , c,, d ")
+//	// 返回: ["a", "b", "c", "d"]
 func parseArrayString(str string) []string {
 	if str == "" {
 		return []string{}
 	}
-	
+
 	// 去除前后空白字符
 	str = strings.TrimSpace(str)
-	
+
 	// 优先尝试解析JSON数组
 	if strings.HasPrefix(str, "[") && strings.HasSuffix(str, "]") {
 		var jsonArray []string
@@ -403,10 +407,10 @@ func parseArrayString(str string) []string {
 			return result
 		}
 	}
-	
+
 	// JSON解析失败，按逗号分割
 	parts := strings.Split(str, ",")
-	
+
 	// 清理和过滤
 	var result []string
 	for _, part := range parts {
@@ -417,6 +421,6 @@ func parseArrayString(str string) []string {
 			result = append(result, trimmed)
 		}
 	}
-	
+
 	return result
-} 
+}

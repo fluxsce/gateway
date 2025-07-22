@@ -1,13 +1,13 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-:: GoHub Oracle Build Script for Windows 10/11
+:: Gateway Oracle Build Script for Windows 10/11
 :: Optimized for modern Windows environments
 
-title GoHub Oracle Build - Windows 10/11
+title Gateway Oracle Build - Windows 10/11
 
 echo ==========================================
-echo  GoHub Oracle Build for Windows 10/11
+echo  Gateway Oracle Build for Windows 10/11
 echo ==========================================
 echo.
 
@@ -176,7 +176,7 @@ set GOOS=windows
 set GOARCH=amd64
 
 :: Output file
-set OUTPUT_FILE=dist\gohub-!VERSION_SUFFIX!-amd64.exe
+set OUTPUT_FILE=dist\gateway-!VERSION_SUFFIX!-amd64.exe
 set VERSION_INFO=!VERSION_SUFFIX!-v3.1
 
 :: Build flags with optimizations for modern Windows

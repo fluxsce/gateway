@@ -1,10 +1,10 @@
 package authroutes
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/routes"
-	"gohub/web/views/hub0001/controllers"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/routes"
+	"gateway/web/views/hub0001/controllers"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,7 +15,7 @@ var (
 	ModuleName = "hub0001"
 
 	// APIPrefix API路径前缀
-	APIPrefix = "/gohub/user"
+	APIPrefix = "/gateway/user"
 )
 
 // init 包初始化函数

@@ -3,8 +3,8 @@ package dao
 import (
 	"context"
 	"fmt"
-	"gohub/internal/metric_collect/types"
-	"gohub/pkg/database"
+	"gateway/internal/metric_collect/types"
+	"gateway/pkg/database"
 	"time"
 )
 
@@ -26,7 +26,7 @@ func (dao *DiskPartitionLogDAO) InsertDiskPartitionLog(ctx context.Context, disk
 	diskPartitionLog.EditTime = now
 	diskPartitionLog.CurrentVersion = 1
 	diskPartitionLog.ActiveFlag = types.ActiveFlagYes
-	
+
 	// 验证必填字段
 	if diskPartitionLog.MetricDiskPartitionLogId == "" {
 		return fmt.Errorf("磁盘分区日志ID不能为空")
@@ -46,7 +46,7 @@ func (dao *DiskPartitionLogDAO) InsertDiskPartitionLog(ctx context.Context, disk
 	if diskPartitionLog.OprSeqFlag == "" {
 		return fmt.Errorf("操作序列标识不能为空")
 	}
-	
+
 	tableName := diskPartitionLog.TableName()
 	_, err := dao.db.Insert(ctx, tableName, diskPartitionLog, true)
 	if err != nil {
@@ -60,7 +60,7 @@ func (dao *DiskPartitionLogDAO) BatchInsertDiskPartitionLog(ctx context.Context,
 	if len(diskPartitionLogs) == 0 {
 		return nil
 	}
-	
+
 	// 设置通用字段默认值
 	now := time.Now()
 	for _, diskPartitionLog := range diskPartitionLogs {
@@ -68,7 +68,7 @@ func (dao *DiskPartitionLogDAO) BatchInsertDiskPartitionLog(ctx context.Context,
 		diskPartitionLog.EditTime = now
 		diskPartitionLog.CurrentVersion = 1
 		diskPartitionLog.ActiveFlag = types.ActiveFlagYes
-		
+
 		// 验证必填字段
 		if diskPartitionLog.MetricDiskPartitionLogId == "" {
 			return fmt.Errorf("磁盘分区日志ID不能为空")
@@ -89,15 +89,15 @@ func (dao *DiskPartitionLogDAO) BatchInsertDiskPartitionLog(ctx context.Context,
 			return fmt.Errorf("操作序列标识不能为空")
 		}
 	}
-	
+
 	tableName := diskPartitionLogs[0].TableName()
-	
+
 	// 转换为interface{}切片
 	items := make([]interface{}, len(diskPartitionLogs))
 	for i, diskPartitionLog := range diskPartitionLogs {
 		items[i] = diskPartitionLog
 	}
-	
+
 	_, err := dao.db.BatchInsert(ctx, tableName, items, true)
 	if err != nil {
 		return fmt.Errorf("批量插入磁盘分区日志失败: %w", err)
@@ -113,10 +113,10 @@ func (dao *DiskPartitionLogDAO) DeleteDiskPartitionLog(ctx context.Context, tena
 	if metricDiskPartitionLogId == "" {
 		return fmt.Errorf("磁盘分区日志ID不能为空")
 	}
-	
+
 	tableName := (&types.DiskPartitionLog{}).TableName()
 	sql := fmt.Sprintf("UPDATE %s SET activeFlag = ? WHERE tenantId = ? AND metricDiskPartitionLogId = ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{types.ActiveFlagNo, tenantId, metricDiskPartitionLogId}, true)
 	if err != nil {
 		return fmt.Errorf("删除磁盘分区日志失败: %w", err)
@@ -129,10 +129,10 @@ func (dao *DiskPartitionLogDAO) DeleteDiskPartitionLogByTime(ctx context.Context
 	if tenantId == "" {
 		return fmt.Errorf("租户ID不能为空")
 	}
-	
+
 	tableName := (&types.DiskPartitionLog{}).TableName()
 	sql := fmt.Sprintf("DELETE FROM %s WHERE tenantId = ? AND collectTime < ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{tenantId, beforeTime}, true)
 	if err != nil {
 		return fmt.Errorf("根据时间删除磁盘分区日志失败: %w", err)
@@ -148,13 +148,13 @@ func (dao *DiskPartitionLogDAO) DeleteDiskPartitionLogByServer(ctx context.Conte
 	if metricServerId == "" {
 		return fmt.Errorf("服务器ID不能为空")
 	}
-	
+
 	tableName := (&types.DiskPartitionLog{}).TableName()
 	sql := fmt.Sprintf("DELETE FROM %s WHERE tenantId = ? AND metricServerId = ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{tenantId, metricServerId}, true)
 	if err != nil {
 		return fmt.Errorf("根据服务器ID删除磁盘分区日志失败: %w", err)
 	}
 	return nil
-} 
+}

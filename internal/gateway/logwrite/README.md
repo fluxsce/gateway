@@ -136,7 +136,7 @@ elasticsearch_config:
 
 ### 1. 初始化日志管理器
 ```go
-import "gohub/internal/gateway/logwrite"
+import "gateway/internal/gateway/logwrite"
 
 // 创建配置
 config := &types.LogConfig{

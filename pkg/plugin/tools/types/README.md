@@ -49,7 +49,7 @@ package main
 
 import (
     "time"
-    "gohub/pkg/plugin/tools/types"
+    "gateway/pkg/plugin/tools/types"
 )
 
 func main() {

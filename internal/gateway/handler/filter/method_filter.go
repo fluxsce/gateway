@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // MethodFilterMode 方法过滤模式
@@ -123,7 +123,7 @@ func (f *MethodFilter) Apply(ctx *core.Context) error {
 			return nil
 		}
 
-		return fmt.Errorf("method %s not allowed, allowed methods: %s", 
+		return fmt.Errorf("method %s not allowed, allowed methods: %s",
 			ctx.Request.Method, f.getAllowedMethodsString())
 	}
 
@@ -449,4 +449,4 @@ func configureMethodFilter(methodFilter *MethodFilter, config map[string]interfa
 	}
 
 	return nil
-} 
+}

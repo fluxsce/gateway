@@ -3,10 +3,10 @@ package dao
 import (
 	"context"
 	"errors"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/pkg/utils/huberrors"
-	"gohub/web/views/hub0022/models"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/huberrors"
+	"gateway/web/views/hub0022/models"
 )
 
 // GatewayInstanceDAO 网关实例数据访问对象
@@ -109,7 +109,7 @@ func (dao *GatewayInstanceDAO) DeleteGatewayInstance(ctx context.Context, gatewa
 
 	// 执行物理删除
 	sql := `DELETE FROM HUB_GW_INSTANCE WHERE gatewayInstanceId = ? AND tenantId = ?`
-	
+
 	result, err := dao.db.Exec(ctx, sql, []interface{}{gatewayInstanceId, tenantId}, true)
 	if err != nil {
 		return huberrors.WrapError(err, "删除网关实例失败")
@@ -196,4 +196,4 @@ func (dao *GatewayInstanceDAO) QueryGatewayInstances(ctx context.Context, tenant
 	}
 
 	return instances, total, nil
-} 
+}

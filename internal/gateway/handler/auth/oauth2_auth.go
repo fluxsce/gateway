@@ -2,7 +2,7 @@ package auth
 
 import (
 	"fmt"
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 	"strings"
 )
 

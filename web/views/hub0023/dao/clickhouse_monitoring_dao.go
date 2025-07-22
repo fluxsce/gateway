@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/pkg/utils/ctime"
-	"gohub/pkg/utils/huberrors"
-	"gohub/web/views/hub0023/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/pkg/utils/ctime"
+	"gateway/pkg/utils/huberrors"
+	"gateway/web/views/hub0023/models"
 )
 
 // ClickHouseMonitoringDAO ClickHouse监控数据访问对象
@@ -17,8 +17,8 @@ import (
 //
 // 重要提示：
 // 1. 为了优化查询性能，建议在ClickHouse中创建以下索引：
-//    - PRIMARY KEY (gatewayStartProcessingTime, tenantId) 基于时间的主键
-//    - ORDER BY (gatewayStartProcessingTime, tenantId, gatewayInstanceId) 排序键
+//   - PRIMARY KEY (gatewayStartProcessingTime, tenantId) 基于时间的主键
+//   - ORDER BY (gatewayStartProcessingTime, tenantId, gatewayInstanceId) 排序键
 //
 // 2. 所有聚合查询都经过优化，充分利用ClickHouse的列式存储特性
 // 3. 查询时间范围已在控制器层限制为24小时内，防止大数据量查询
@@ -57,12 +57,12 @@ func (dao *ClickHouseMonitoringDAO) GetGatewayMonitoringOverview(ctx context.Con
 
 	// 执行查询
 	var result struct {
-		TotalRequests     int64   `db:"totalRequests"`
-		SuccessRequests   int64   `db:"successRequests"`
-		FailedRequests    int64   `db:"failedRequests"`
-		AvgResponseTime   float64 `db:"avgResponseTime"`
-		MinResponseTime   float64 `db:"minResponseTime"`
-		MaxResponseTime   float64 `db:"maxResponseTime"`
+		TotalRequests   int64   `db:"totalRequests"`
+		SuccessRequests int64   `db:"successRequests"`
+		FailedRequests  int64   `db:"failedRequests"`
+		AvgResponseTime float64 `db:"avgResponseTime"`
+		MinResponseTime float64 `db:"minResponseTime"`
+		MaxResponseTime float64 `db:"maxResponseTime"`
 	}
 
 	err = dao.db.QueryOne(ctx, &result, sql, params, true)
@@ -206,7 +206,7 @@ func (dao *ClickHouseMonitoringDAO) GetResponseTimeMetricsTrend(ctx context.Cont
 	for _, result := range results {
 		// 平均响应时间最多保留两位小数
 		avgResponseTime := roundToTwoDecimalPlaces(result.AvgResponseTime)
-		
+
 		metrics = append(metrics, models.ResponseTimeMetrics{
 			Timestamp:         result.Timestamp,
 			RequestCount:      result.RequestCount,
@@ -559,5 +559,3 @@ func (dao *ClickHouseMonitoringDAO) getStatusCodeDescription(statusCode string) 
 	}
 	return "Unknown"
 }
-
- 

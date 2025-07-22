@@ -8,8 +8,8 @@ import (
 	"runtime"
 	"strings"
 
-	"gohub/pkg/config"
-	huberrors "gohub/pkg/utils/huberrors"
+	"gateway/pkg/config"
+	huberrors "gateway/pkg/utils/huberrors"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -25,7 +25,7 @@ const (
 	// TraceIDKey 跟踪ID在上下文中的键名
 	TraceIDKey = "trace_id"
 	// UserIdKey 用户ID在上下文中的键名
-	UserIdKey  = "userId"
+	UserIdKey = "userId"
 	// UserNameKey 用户名在上下文中的键名
 	UserNameKey = "userName"
 	// TenantIdKey 租户ID在上下文中的键名
@@ -84,7 +84,7 @@ func Setup() error {
 }
 
 // Init 初始化日志系统
-// 
+//
 // 该函数负责设置全局日志实例，支持多级别、多输出的日志配置
 // 主要功能包括：
 // 1. 解析日志级别和堆栈跟踪级别
@@ -102,16 +102,16 @@ func Init(config *LoggerConfig) error {
 	// 使用默认配置当没有提供配置时
 	if config == nil {
 		config = &LoggerConfig{
-			Level:           "info",        // 默认信息级别
-			DefaultOutput:   "stdout",      // 默认输出到标准输出
-			Encoding:        "json",        // 默认JSON编码
-			ShowCaller:      true,          // 显示调用者信息
-			StacktraceLevel: "warn",        // 警告级别及以上显示堆栈
-			LogPath:         "./logs",      // 默认日志目录
-			MaxSize:         100,           // 默认100MB轮转
-			MaxBackups:      10,            // 默认保留10个文件
-			MaxAge:          30,            // 默认保留30天
-			Compress:        true,          // 默认启用压缩
+			Level:           "info",   // 默认信息级别
+			DefaultOutput:   "stdout", // 默认输出到标准输出
+			Encoding:        "json",   // 默认JSON编码
+			ShowCaller:      true,     // 显示调用者信息
+			StacktraceLevel: "warn",   // 警告级别及以上显示堆栈
+			LogPath:         "./logs", // 默认日志目录
+			MaxSize:         100,      // 默认100MB轮转
+			MaxBackups:      10,       // 默认保留10个文件
+			MaxAge:          30,       // 默认保留30天
+			Compress:        true,     // 默认启用压缩
 		}
 	}
 
@@ -142,9 +142,9 @@ func Init(config *LoggerConfig) error {
 	var encoder zapcore.Encoder
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder // 使用ISO8601时间格式
-	
+
 	if config.Encoding == "json" {
-		encoder = zapcore.NewJSONEncoder(encoderConfig)    // JSON格式，适合生产环境
+		encoder = zapcore.NewJSONEncoder(encoderConfig) // JSON格式，适合生产环境
 	} else {
 		encoder = zapcore.NewConsoleEncoder(encoderConfig) // 控制台格式，适合开发环境
 	}
@@ -214,12 +214,12 @@ func Init(config *LoggerConfig) error {
 
 	// 添加日志选项
 	options := []zap.Option{}
-	
+
 	// 添加调用者信息（文件名、行号、函数名）
 	if config.ShowCaller {
 		options = append(options, zap.AddCaller())
 	}
-	
+
 	// 添加堆栈跟踪，用于错误诊断
 	options = append(options, zap.AddStacktrace(stacktraceLevel))
 
@@ -231,9 +231,9 @@ func Init(config *LoggerConfig) error {
 // getWriteSyncer 根据输出路径创建相应的写入器
 // 支持以下输出类型：
 // - "stdout": 标准输出
-// - "stderr": 标准错误输出  
+// - "stderr": 标准错误输出
 // - 文件路径: 使用 lumberjack 实现日志轮转的文件输出
-// 
+//
 // 参数:
 //   - output: 输出目标路径或特殊值(stdout/stderr)
 //   - logPath: 日志文件根目录，用于相对路径拼接
@@ -286,21 +286,21 @@ func getWriteSyncer(output string, logPath string, logConfig *LoggerConfig) zapc
 	// 3. 删除超过 MaxAge 天的旧文件
 	// 4. 根据 Compress 配置决定是否压缩旧文件
 	lumberjackLogger := &lumberjack.Logger{
-		Filename:   output,                    // 日志文件路径
-		MaxSize:    getMaxSize(logConfig),     // 单个日志文件最大尺寸(MB)
-		MaxBackups: getMaxBackups(logConfig),  // 保留的旧日志文件最大数量
-		MaxAge:     getMaxAge(logConfig),      // 保留的旧日志文件最大天数
-		Compress:   getCompress(logConfig),    // 是否压缩旧日志文件
-		LocalTime:  true,                      // 使用本地时间命名轮转文件
+		Filename:   output,                   // 日志文件路径
+		MaxSize:    getMaxSize(logConfig),    // 单个日志文件最大尺寸(MB)
+		MaxBackups: getMaxBackups(logConfig), // 保留的旧日志文件最大数量
+		MaxAge:     getMaxAge(logConfig),     // 保留的旧日志文件最大天数
+		Compress:   getCompress(logConfig),   // 是否压缩旧日志文件
+		LocalTime:  true,                     // 使用本地时间命名轮转文件
 	}
 
 	return zapcore.AddSync(lumberjackLogger)
 }
 
 // getMaxSize 获取日志文件最大尺寸配置
-// 
+//
 // 日志轮转的触发条件之一，当日志文件达到此大小时会创建新文件
-// 
+//
 // 参数:
 //   - config: 日志配置对象
 //
@@ -381,7 +381,7 @@ func ensureDir(dirPath string) error {
 // ===== 基础接口 =====
 
 // Info 记录信息级别日志
-// 
+//
 // 信息级别用于记录应用程序的一般信息，如业务流程、状态变更等
 // 这是生产环境中最常用的日志级别，用于追踪应用程序的正常运行状态
 //
@@ -832,26 +832,26 @@ func appendTraceID(ctx context.Context, fields []zap.Field) []zap.Field {
 	if ctx == nil {
 		return fields
 	}
-	
+
 	if traceID := getTraceIDFromContext(ctx); traceID != "" {
 		fields = append(fields, zap.String("trace_id", traceID))
 	}
-	
+
 	// 添加用户ID
 	if userID, ok := ctx.Value(UserIdKey).(string); ok && userID != "" {
 		fields = append(fields, zap.String("userId", userID))
 	}
-	
+
 	// 添加用户名
 	if userName, ok := ctx.Value(UserNameKey).(string); ok && userName != "" {
 		fields = append(fields, zap.String("userName", userName))
 	}
-	
+
 	// 添加租户ID
 	if tenantID, ok := ctx.Value(TenantIdKey).(string); ok && tenantID != "" {
 		fields = append(fields, zap.String("tenantId", tenantID))
 	}
-	
+
 	return fields
 }
 

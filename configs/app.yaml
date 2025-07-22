@@ -1,6 +1,6 @@
 app:
   #系统配置
-  name: "GoHub" # 系统名称
+  name: "Gateway" # 系统名称
   run_mode: "debug" # debug, release
   
   # 全局时区配置
@@ -60,7 +60,7 @@ app:
   pprof:
     enabled: false                    # 是否启用pprof服务
     listen: ":6060"                 # 监听地址和端口
-    service_name: "GoHub-pprof"     # 服务名称
+    service_name: "Gateway-pprof"     # 服务名称
     read_timeout: 30s               # 读取超时时间
     write_timeout: 30s              # 写入超时时间
     enable_auth: false              # 是否启用认证

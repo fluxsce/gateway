@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 
-	"gohub/internal/gateway/config"
+	"gateway/internal/gateway/config"
 )
 
 // ConfigSource 配置源类型
@@ -203,7 +203,7 @@ func (f *GatewayConfigFactory) createDefaultConfig() *config.GatewayConfig {
 func setDefaultValues(v *viper.Viper) {
 	// 基础配置默认值
 	v.SetDefault("base.listen", ":8080")
-	v.SetDefault("base.name", "GoHub Gateway")
+	v.SetDefault("base.name", "Gateway Gateway")
 	v.SetDefault("base.read_timeout", "30s")
 	v.SetDefault("base.write_timeout", "30s")
 	v.SetDefault("base.idle_timeout", "120s")

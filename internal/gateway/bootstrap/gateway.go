@@ -8,17 +8,17 @@ import (
 	"sync"
 	"time"
 
-	"gohub/internal/gateway/config"
-	"gohub/internal/gateway/constants"
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/auth"
-	"gohub/internal/gateway/handler/cors"
-	"gohub/internal/gateway/handler/limiter"
-	"gohub/internal/gateway/handler/proxy"
-	"gohub/internal/gateway/handler/router"
-	"gohub/internal/gateway/handler/security"
-	"gohub/internal/gateway/logwrite"
-	"gohub/pkg/logger"
+	"gateway/internal/gateway/config"
+	"gateway/internal/gateway/constants"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/auth"
+	"gateway/internal/gateway/handler/cors"
+	"gateway/internal/gateway/handler/limiter"
+	"gateway/internal/gateway/handler/proxy"
+	"gateway/internal/gateway/handler/router"
+	"gateway/internal/gateway/handler/security"
+	"gateway/internal/gateway/logwrite"
+	"gateway/pkg/logger"
 )
 
 // Gateway 网关核心结构
@@ -227,7 +227,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := core.NewContext(w, r)
 	// 使用Engine的HandleWithContext方法处理请求
 	// 这样可以确保日志记录使用的是同一个上下文
-	g.engine.HandleWithContext(ctx,w,r)
+	g.engine.HandleWithContext(ctx, w, r)
 	// 设置响应时间
 	ctx.SetResponseTime(time.Now())
 	// 设置实例名称
@@ -235,30 +235,29 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//设置日志配置ID
 	ctx.Set(constants.ContextKeyLogConfigID, g.gatewayConfig.Log.LogConfigID)
 	//设置租户ID
-	ctx.Set(constants.ContextKeyTenantID,g.gatewayConfig.Log.TenantID)
+	ctx.Set(constants.ContextKeyTenantID, g.gatewayConfig.Log.TenantID)
 	// 链路处理完成后，异步写入访问日志
 	// 创建独立的context用于日志写入，避免HTTP请求context取消导致的问题
 	go func() {
 		// 创建独立的context，设置合理的超时时间
 		logCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		
+
 		// 将原始的HTTP请求context替换为独立的context
 		// 这样日志写入就不会因为HTTP请求结束而失败
 		originalCtx := ctx.Ctx
 		ctx.Ctx = logCtx
-		
+
 		// 确保在函数结束时恢复原始context（虽然这里不是必需的，但是好的实践）
 		defer func() {
 			ctx.Ctx = originalCtx
 		}()
-		
+
 		if err := logwrite.WriteLog(g.gatewayConfig.InstanceID, ctx); err != nil {
 			logger.Error("Failed to write access log", "error", err)
 		}
 	}()
-	
-	
+
 }
 
 // Start 启动网关
@@ -352,7 +351,7 @@ func (g *Gateway) Stop() error {
 	// 1. 处理器可能包含后台goroutine（如健康检查器），需要先停止它们
 	// 2. 避免处理器资源泄漏和zombie goroutine
 	// 3. 确保所有资源被正确释放，防止内存泄漏
-	
+
 	// 优先关闭代理处理器，因为它通常包含健康检查器和服务发现组件
 	// 这些组件会启动后台goroutine，如果不正确关闭会导致资源泄漏
 	// 注意：这里使用类型断言(interface{ Close() error })而不是直接定义Close方法的接口
@@ -381,25 +380,25 @@ func (g *Gateway) Stop() error {
 			_ = closer.Close()
 		}
 	}
-	
+
 	if g.auth != nil {
 		if closer, ok := g.auth.(interface{ Close() error }); ok {
 			_ = closer.Close()
 		}
 	}
-	
+
 	if g.cors != nil {
 		if closer, ok := g.cors.(interface{ Close() error }); ok {
 			_ = closer.Close()
 		}
 	}
-	
+
 	if g.security != nil {
 		if closer, ok := g.security.(interface{ Close() error }); ok {
 			_ = closer.Close()
 		}
 	}
-	
+
 	if g.limiter != nil {
 		if closer, ok := g.limiter.(interface{ Close() error }); ok {
 			_ = closer.Close()
@@ -407,7 +406,7 @@ func (g *Gateway) Stop() error {
 	}
 	// 关闭日志处理器
 	logwrite.CloseLogWriter(g.gatewayConfig.InstanceID)
-	
+
 	// 关闭HTTP服务器
 	// 设置30秒超时确保正在处理的请求有足够时间完成
 	// 超时后会强制关闭，避免无限等待
@@ -463,7 +462,7 @@ func (g *Gateway) Reload(newCfg *config.GatewayConfig) error {
 	if err != nil {
 		return fmt.Errorf("重载日志处理器失败: %w", err)
 	}
-	logger.Info("网关配置重载成功", 
+	logger.Info("网关配置重载成功",
 		"instanceId", g.gatewayConfig.InstanceID,
 		"listen", g.gatewayConfig.Base.Listen)
 

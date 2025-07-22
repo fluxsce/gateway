@@ -3,8 +3,8 @@ package types
 import (
 	"time"
 
-	metricTypes "gohub/pkg/metric/types"
-	"gohub/pkg/utils/random"
+	metricTypes "gateway/pkg/metric/types"
+	"gateway/pkg/utils/random"
 )
 
 // ProcessStatsLog 进程统计日志表对应的结构体
@@ -55,7 +55,7 @@ func (p *ProcessStatsLog) GetPrimaryKey() (string, string) {
 // NewProcessStatsLogFromMetrics 从ProcessSystemStats创建ProcessStatsLog实例
 func NewProcessStatsLogFromMetrics(stats *metricTypes.ProcessSystemStats, tenantId, serverId, operator string, collectTime time.Time, oprSeqFlag string) *ProcessStatsLog {
 	now := time.Now()
-	
+
 	return &ProcessStatsLog{
 		MetricProcessStatsLogId: random.Generate32BitRandomString(),
 		TenantId:                tenantId,
@@ -74,4 +74,4 @@ func NewProcessStatsLogFromMetrics(stats *metricTypes.ProcessSystemStats, tenant
 		CurrentVersion:          1,
 		ActiveFlag:              ActiveFlagYes,
 	}
-} 
+}

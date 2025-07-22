@@ -20,17 +20,17 @@ func parseFlags() {
 	if flagsParsed {
 		return
 	}
-	
+
 	var configFlag string
 	flag.StringVar(&configFlag, "config", "", "指定配置文件目录路径")
 	flag.BoolVar(&serviceMode, "service", false, "以服务模式运行")
 	flag.Parse()
-	
+
 	// 如果通过命令行参数指定了配置目录，则使用该值
 	if configFlag != "" {
 		configDir = configFlag
 	}
-	
+
 	flagsParsed = true
 }
 
@@ -39,10 +39,10 @@ func parseFlags() {
 func GetConfigDir() string {
 	// 确保命令行参数已解析
 	parseFlags()
-	
+
 	if configDir == "" {
 		// 优先使用环境变量
-		configDir = os.Getenv("GOHUB_CONFIG_DIR")
+		configDir = os.Getenv("GATEWAY_CONFIG_DIR")
 		if configDir == "" {
 			// 使用默认值
 			configDir = "./configs"
@@ -75,4 +75,4 @@ func ResetFlags() {
 	flagsParsed = false
 	configDir = ""
 	serviceMode = false
-} 
+}

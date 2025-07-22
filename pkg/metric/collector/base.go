@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"gohub/pkg/metric/types"
+	"gateway/pkg/metric/types"
 )
 
 // BaseCollector 基础采集器结构体
@@ -21,19 +21,19 @@ import (
 type BaseCollector struct {
 	// 采集器名称 - 用于标识不同的采集器
 	name string
-	
+
 	// 采集器描述 - 用于说明采集器的功能
 	description string
-	
+
 	// 是否启用 - 控制采集器是否执行采集操作
 	enabled bool
-	
+
 	// 最后采集时间 - 记录上次执行采集的时间戳
 	lastCollectTime time.Time
-	
+
 	// 采集间隔 - 控制采集频率，避免过于频繁的采集
 	collectInterval time.Duration
-	
+
 	// 读写锁 - 保证并发安全，支持多个 goroutine 同时读取
 	mu sync.RWMutex
 }
@@ -42,11 +42,13 @@ type BaseCollector struct {
 // 这是基础采集器的工厂函数，为所有采集器提供统一的初始化方式
 //
 // 参数:
-//   name: 采集器名称，应该是唯一的标识符
-//   description: 采集器描述，用于说明其功能
+//
+//	name: 采集器名称，应该是唯一的标识符
+//	description: 采集器描述，用于说明其功能
 //
 // 返回:
-//   *BaseCollector: 初始化完成的基础采集器实例
+//
+//	*BaseCollector: 初始化完成的基础采集器实例
 //
 // 默认配置:
 //   - 采集器默认启用
@@ -54,7 +56,8 @@ type BaseCollector struct {
 //   - 最后采集时间为零值（从未采集）
 //
 // 使用示例:
-//   base := NewBaseCollector("cpu", "CPU使用率采集器")
+//
+//	base := NewBaseCollector("cpu", "CPU使用率采集器")
 func NewBaseCollector(name, description string) *BaseCollector {
 	return &BaseCollector{
 		name:            name,
@@ -68,7 +71,8 @@ func NewBaseCollector(name, description string) *BaseCollector {
 // 线程安全地获取采集器的名称标识
 //
 // 返回:
-//   string: 采集器名称
+//
+//	string: 采集器名称
 //
 // 注意: 使用读锁保证并发安全
 func (c *BaseCollector) GetName() string {
@@ -81,7 +85,8 @@ func (c *BaseCollector) GetName() string {
 // 线程安全地获取采集器的功能描述
 //
 // 返回:
-//   string: 采集器描述信息
+//
+//	string: 采集器描述信息
 //
 // 注意: 使用读锁保证并发安全
 func (c *BaseCollector) GetDescription() string {
@@ -94,7 +99,8 @@ func (c *BaseCollector) GetDescription() string {
 // 线程安全地检查采集器当前的启用状态
 //
 // 返回:
-//   bool: true 表示启用，false 表示禁用
+//
+//	bool: true 表示启用，false 表示禁用
 //
 // 用途:
 //   - 在执行采集前检查是否应该执行
@@ -110,7 +116,8 @@ func (c *BaseCollector) IsEnabled() bool {
 // 线程安全地设置采集器的启用/禁用状态
 //
 // 参数:
-//   enabled: true 启用采集器，false 禁用采集器
+//
+//	enabled: true 启用采集器，false 禁用采集器
 //
 // 用途:
 //   - 动态控制采集器的工作状态
@@ -128,7 +135,8 @@ func (c *BaseCollector) SetEnabled(enabled bool) {
 // 线程安全地获取采集器上次执行采集的时间戳
 //
 // 返回:
-//   time.Time: 最后采集时间，如果从未采集则为零值
+//
+//	time.Time: 最后采集时间，如果从未采集则为零值
 //
 // 用途:
 //   - 计算采集间隔
@@ -144,14 +152,15 @@ func (c *BaseCollector) GetLastCollectTime() time.Time {
 // 线程安全地更新采集器的最后采集时间戳
 //
 // 参数:
-//   t: 采集时间戳，通常使用 time.Now()
+//
+//	t: 采集时间戳，通常使用 time.Now()
 //
 // 用途:
 //   - 在完成采集后更新时间戳
 //   - 用于采集间隔控制
 //   - 支持采集器状态跟踪
 //
-// 注意: 
+// 注意:
 //   - 使用写锁保证并发安全
 //   - 应该在每次采集完成后调用
 func (c *BaseCollector) SetLastCollectTime(t time.Time) {
@@ -164,7 +173,8 @@ func (c *BaseCollector) SetLastCollectTime(t time.Time) {
 // 线程安全地获取采集器的采集间隔设置
 //
 // 返回:
-//   time.Duration: 采集间隔时长
+//
+//	time.Duration: 采集间隔时长
 //
 // 用途:
 //   - 查看当前采集频率设置
@@ -180,7 +190,8 @@ func (c *BaseCollector) GetCollectInterval() time.Duration {
 // 线程安全地设置采集器的采集间隔
 //
 // 参数:
-//   interval: 采集间隔时长，建议不要设置过短以避免系统负载过高
+//
+//	interval: 采集间隔时长，建议不要设置过短以避免系统负载过高
 //
 // 用途:
 //   - 动态调整采集频率
@@ -204,12 +215,13 @@ func (c *BaseCollector) SetCollectInterval(interval time.Duration) {
 // 综合考虑采集器状态和时间间隔，判断是否应该执行采集操作
 //
 // 返回:
-//   bool: true 表示应该执行采集，false 表示不应该执行
+//
+//	bool: true 表示应该执行采集，false 表示不应该执行
 //
 // 判断逻辑:
-//   1. 首先检查采集器是否启用
-//   2. 然后检查是否超过了采集间隔
-//   3. 两个条件都满足才返回 true
+//  1. 首先检查采集器是否启用
+//  2. 然后检查是否超过了采集间隔
+//  3. 两个条件都满足才返回 true
 //
 // 用途:
 //   - 在采集主循环中控制采集频率
@@ -217,22 +229,23 @@ func (c *BaseCollector) SetCollectInterval(interval time.Duration) {
 //   - 支持动态启用/禁用采集器
 //
 // 使用示例:
-//   if collector.ShouldCollect() {
-//       // 执行采集操作
-//       metrics, err := collector.Collect()
-//       if err == nil {
-//           collector.SetLastCollectTime(time.Now())
-//       }
-//   }
+//
+//	if collector.ShouldCollect() {
+//	    // 执行采集操作
+//	    metrics, err := collector.Collect()
+//	    if err == nil {
+//	        collector.SetLastCollectTime(time.Now())
+//	    }
+//	}
 func (c *BaseCollector) ShouldCollect() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	// 首先检查采集器是否启用
 	if !c.enabled {
 		return false
 	}
-	
+
 	// 检查是否超过采集间隔
 	return time.Since(c.lastCollectTime) >= c.collectInterval
 }
@@ -246,10 +259,11 @@ func (c *BaseCollector) ShouldCollect() bool {
 //   - 提供更简洁的 API
 //
 // 使用示例:
-//   metrics, err := collector.Collect()
-//   if err == nil {
-//       collector.UpdateCollectTime()
-//   }
+//
+//	metrics, err := collector.Collect()
+//	if err == nil {
+//	    collector.UpdateCollectTime()
+//	}
 func (c *BaseCollector) UpdateCollectTime() {
 	c.SetLastCollectTime(time.Now())
 }
@@ -258,7 +272,8 @@ func (c *BaseCollector) UpdateCollectTime() {
 // 返回采集器的综合状态信息，用于监控和调试
 //
 // 返回:
-//   map[string]interface{}: 包含采集器状态的映射
+//
+//	map[string]interface{}: 包含采集器状态的映射
 //
 // 返回字段:
 //   - "name": 采集器名称
@@ -276,16 +291,16 @@ func (c *BaseCollector) UpdateCollectTime() {
 func (c *BaseCollector) GetCollectStatus() map[string]interface{} {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	timeSinceLastCollect := time.Since(c.lastCollectTime)
-	
+
 	return map[string]interface{}{
-		"name":                     c.name,
-		"description":              c.description,
-		"enabled":                  c.enabled,
-		"last_collect_time":        c.lastCollectTime,
-		"collect_interval":         c.collectInterval.Seconds(),
-		"should_collect":           c.enabled && timeSinceLastCollect >= c.collectInterval,
+		"name":                    c.name,
+		"description":             c.description,
+		"enabled":                 c.enabled,
+		"last_collect_time":       c.lastCollectTime,
+		"collect_interval":        c.collectInterval.Seconds(),
+		"should_collect":          c.enabled && timeSinceLastCollect >= c.collectInterval,
 		"time_since_last_collect": timeSinceLastCollect.Seconds(),
 	}
-} 
+}

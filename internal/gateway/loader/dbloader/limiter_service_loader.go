@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"gohub/internal/gateway/handler/limiter"
-	"gohub/internal/gateway/handler/proxy"
-	"gohub/internal/gateway/handler/service"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
+	"gateway/internal/gateway/handler/limiter"
+	"gateway/internal/gateway/handler/proxy"
+	"gateway/internal/gateway/handler/service"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
 )
 
 // LimiterServiceLoader 限流和服务配置加载器
@@ -347,10 +347,10 @@ func (loader *LimiterServiceLoader) LoadServiceConfig(ctx context.Context, servi
 	// 设置健康检查配置
 	if record.HealthCheckEnabled == "Y" {
 		healthCheck := &service.HealthConfig{
-			ID:                 fmt.Sprintf("hc-%s", record.ServiceDefinitionId),
-			Enabled:           true,
-			Path:              record.HealthCheckPath,
-			Method:            record.HealthCheckMethod,
+			ID:                  fmt.Sprintf("hc-%s", record.ServiceDefinitionId),
+			Enabled:             true,
+			Path:                record.HealthCheckPath,
+			Method:              record.HealthCheckMethod,
 			ExpectedStatusCodes: []int{200},
 		}
 
@@ -423,11 +423,11 @@ func (loader *LimiterServiceLoader) LoadServiceNodes(ctx context.Context, servic
 	var nodes []*service.NodeConfig
 	for _, record := range records {
 		node := &service.NodeConfig{
-			ID:       record.ServiceNodeId,
-			URL:      record.NodeUrl,
-			Weight:   record.NodeWeight,
-			Health:   record.HealthStatus == "Y",
-			Enabled:  record.ActiveFlag == "Y",
+			ID:      record.ServiceNodeId,
+			URL:     record.NodeUrl,
+			Weight:  record.NodeWeight,
+			Health:  record.HealthStatus == "Y",
+			Enabled: record.ActiveFlag == "Y",
 		}
 
 		// 解析节点元数据
@@ -453,23 +453,27 @@ func (loader *LimiterServiceLoader) LoadServiceNodes(ctx context.Context, servic
 // - 返回清理后的整数切片
 //
 // 参数:
-//   str: 要解析的字符串（JSON数组或逗号分隔字符串）
+//
+//	str: 要解析的字符串（JSON数组或逗号分隔字符串）
+//
 // 返回:
-//   []int: 解析后的状态码切片
+//
+//	[]int: 解析后的状态码切片
 //
 // 示例:
-//   parseStatusCodes(`["200","201","202"]`) 
-//   // 返回: [200, 201, 202]
-//   parseStatusCodes("200, 201 , 202,, 404 ") 
-//   // 返回: [200, 201, 202, 404]
+//
+//	parseStatusCodes(`["200","201","202"]`)
+//	// 返回: [200, 201, 202]
+//	parseStatusCodes("200, 201 , 202,, 404 ")
+//	// 返回: [200, 201, 202, 404]
 func parseStatusCodes(str string) []int {
 	if str == "" {
 		return []int{}
 	}
-	
+
 	// 去除前后空白字符
 	str = strings.TrimSpace(str)
-	
+
 	// 优先尝试解析JSON数组
 	if strings.HasPrefix(str, "[") && strings.HasSuffix(str, "]") {
 		var jsonArray []string
@@ -488,10 +492,10 @@ func parseStatusCodes(str string) []int {
 			return result
 		}
 	}
-	
+
 	// JSON解析失败，按逗号分割
 	parts := strings.Split(str, ",")
-	
+
 	// 清理和转换
 	var result []int
 	for _, part := range parts {
@@ -505,6 +509,6 @@ func parseStatusCodes(str string) []int {
 			}
 		}
 	}
-	
+
 	return result
-} 
+}

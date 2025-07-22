@@ -17,10 +17,10 @@ import (
 	"sync"
 	"time"
 
-	"gohub/pkg/config"
-	"gohub/pkg/logger"
-	"gohub/pkg/mongo/client"
-	mongoConfig "gohub/pkg/mongo/config"
+	"gateway/pkg/config"
+	"gateway/pkg/logger"
+	"gateway/pkg/mongo/client"
+	mongoConfig "gateway/pkg/mongo/config"
 )
 
 // === 配置结构定义 ===
@@ -28,9 +28,9 @@ import (
 // MongoRootConfig MongoDB根配置结构
 // 定义MongoDB配置文件的根结构
 type MongoRootConfig struct {
-	Enabled     bool                                    `mapstructure:"enabled"`     // 是否启用MongoDB
-	Default     string                                  `mapstructure:"default"`     // 默认连接名称
-	Connections map[string]*mongoConfig.MongoConfig     `mapstructure:"connections"` // 连接配置映射
+	Enabled     bool                                `mapstructure:"enabled"`     // 是否启用MongoDB
+	Default     string                              `mapstructure:"default"`     // 默认连接名称
+	Connections map[string]*mongoConfig.MongoConfig `mapstructure:"connections"` // 连接配置映射
 }
 
 // === 连接管理器 ===
@@ -52,40 +52,42 @@ func NewManager() *Manager {
 
 // Connect 创建新的MongoDB连接
 // 创建并存储一个新的MongoDB连接，如果连接名称已存在则返回错误
-// 
+//
 // 参数：
-//   ctx: 上下文，用于超时控制和取消操作
-//   name: 连接名称，用于标识和获取连接
-//   cfg: MongoDB配置信息
+//
+//	ctx: 上下文，用于超时控制和取消操作
+//	name: 连接名称，用于标识和获取连接
+//	cfg: MongoDB配置信息
 //
 // 返回：
-//   *client.Client: 创建的客户端实例
-//   error: 操作过程中的错误
+//
+//	*client.Client: 创建的客户端实例
+//	error: 操作过程中的错误
 func (m *Manager) Connect(ctx context.Context, name string, cfg *mongoConfig.MongoConfig) (*client.Client, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	
+
 	// 检查连接是否已存在
 	if _, exists := m.connections[name]; exists {
 		return nil, fmt.Errorf("connection '%s' already exists", name)
 	}
-	
+
 	// 验证配置
 	if err := cfg.Validate(); err != nil {
 		logger.Error("MongoDB配置验证失败", "name", name, "error", err)
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
-	
+
 	// 创建新的客户端
 	mongoClient := client.NewClient()
-	
+
 	// 建立连接
 	logger.Info("正在建立MongoDB连接", "name", name, "host", cfg.Host, "port", cfg.Port, "database", cfg.Database)
 	if err := mongoClient.Connect(ctx, cfg); err != nil {
 		logger.Error("MongoDB连接建立失败", "name", name, "host", cfg.Host, "port", cfg.Port, "error", err)
 		return nil, fmt.Errorf("failed to connect to MongoDB: %w", err)
 	}
-	
+
 	// 测试连接
 	logger.Info("正在测试MongoDB连接", "name", name)
 	if err := mongoClient.Ping(ctx); err != nil {
@@ -93,10 +95,10 @@ func (m *Manager) Connect(ctx context.Context, name string, cfg *mongoConfig.Mon
 		mongoClient.Disconnect(ctx) // 清理失败的连接
 		return nil, fmt.Errorf("failed to ping MongoDB: %w", err)
 	}
-	
+
 	// 存储连接
 	m.connections[name] = mongoClient
-	
+
 	return mongoClient, nil
 }
 
@@ -104,20 +106,22 @@ func (m *Manager) Connect(ctx context.Context, name string, cfg *mongoConfig.Mon
 // 返回已存在的MongoDB连接，如果连接不存在则返回错误
 //
 // 参数：
-//   name: 连接名称
+//
+//	name: 连接名称
 //
 // 返回：
-//   *client.Client: 客户端实例
-//   error: 连接不存在的错误
+//
+//	*client.Client: 客户端实例
+//	error: 连接不存在的错误
 func (m *Manager) GetConnection(name string) (*client.Client, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	
+
 	conn, exists := m.connections[name]
 	if !exists {
 		return nil, fmt.Errorf("connection '%s' not found", name)
 	}
-	
+
 	return conn, nil
 }
 
@@ -125,11 +129,13 @@ func (m *Manager) GetConnection(name string) (*client.Client, error) {
 // 返回已存在的MongoDB连接，如果连接不存在则返回错误
 //
 // 参数：
-//   name: 连接名称
+//
+//	name: 连接名称
 //
 // 返回：
-//   *client.Client: 客户端实例
-//   error: 连接不存在的错误
+//
+//	*client.Client: 客户端实例
+//	error: 连接不存在的错误
 func (m *Manager) GetDefaultConnection() (*client.Client, error) {
 	return GetConnection(config.GetString("mongo.default", ""))
 }
@@ -138,28 +144,30 @@ func (m *Manager) GetDefaultConnection() (*client.Client, error) {
 // 断开连接并从管理器中移除，如果连接不存在则返回错误
 //
 // 参数：
-//   ctx: 上下文，用于超时控制
-//   name: 连接名称
+//
+//	ctx: 上下文，用于超时控制
+//	name: 连接名称
 //
 // 返回：
-//   error: 操作过程中的错误
+//
+//	error: 操作过程中的错误
 func (m *Manager) RemoveConnection(ctx context.Context, name string) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	
+
 	conn, exists := m.connections[name]
 	if !exists {
 		return fmt.Errorf("connection '%s' not found", name)
 	}
-	
+
 	// 断开连接
 	if err := conn.Disconnect(ctx); err != nil {
 		return fmt.Errorf("failed to disconnect '%s': %w", name, err)
 	}
-	
+
 	// 从管理器中移除
 	delete(m.connections, name)
-	
+
 	return nil
 }
 
@@ -167,16 +175,18 @@ func (m *Manager) RemoveConnection(ctx context.Context, name string) error {
 // 断开所有连接并清空管理器，返回遇到的第一个错误
 //
 // 参数：
-//   ctx: 上下文，用于超时控制
+//
+//	ctx: 上下文，用于超时控制
 //
 // 返回：
-//   error: 操作过程中的错误
+//
+//	error: 操作过程中的错误
 func (m *Manager) CloseAll(ctx context.Context) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	
+
 	var firstError error
-	
+
 	// 遍历所有连接并断开
 	for name, conn := range m.connections {
 		if err := conn.Disconnect(ctx); err != nil {
@@ -185,10 +195,10 @@ func (m *Manager) CloseAll(ctx context.Context) error {
 			}
 		}
 	}
-	
+
 	// 清空连接池
 	m.connections = make(map[string]*client.Client)
-	
+
 	return firstError
 }
 
@@ -196,16 +206,17 @@ func (m *Manager) CloseAll(ctx context.Context) error {
 // 返回当前管理器中所有连接的名称列表
 //
 // 返回：
-//   []string: 连接名称列表
+//
+//	[]string: 连接名称列表
 func (m *Manager) ListConnections() []string {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	
+
 	names := make([]string, 0, len(m.connections))
 	for name := range m.connections {
 		names = append(names, name)
 	}
-	
+
 	return names
 }
 
@@ -214,7 +225,7 @@ func (m *Manager) ListConnections() []string {
 func (m *Manager) Stats() map[string]map[string]interface{} {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	
+
 	stats := make(map[string]map[string]interface{})
 	for name := range m.connections {
 		stats[name] = map[string]interface{}{
@@ -223,7 +234,7 @@ func (m *Manager) Stats() map[string]map[string]interface{} {
 			"type":      "mongodb",
 		}
 	}
-	
+
 	return stats
 }
 
@@ -266,11 +277,13 @@ func ListConnections() []string {
 // 返回已存在的MongoDB连接，如果连接不存在则返回错误
 //
 // 参数：
-//   name: 连接名称
+//
+//	name: 连接名称
 //
 // 返回：
-//   *client.Client: 客户端实例
-//   error: 连接不存在的错误
+//
+//	*client.Client: 客户端实例
+//	error: 连接不存在的错误
 func GetDefaultConnection() (*client.Client, error) {
 	return globalManager.GetDefaultConnection()
 }
@@ -280,10 +293,13 @@ func GetDefaultConnection() (*client.Client, error) {
 // LoadAllMongoConnections 从配置文件加载所有MongoDB连接
 // 解析配置文件中的所有MongoDB连接配置，只初始化enabled为true的连接
 // 参数:
-//   configPath: 数据库配置文件路径（包含MongoDB配置）
+//
+//	configPath: 数据库配置文件路径（包含MongoDB配置）
+//
 // 返回:
-//   map[string]*client.Client: 连接名称到客户端实例的映射
-//   error: 加载失败时返回错误信息
+//
+//	map[string]*client.Client: 连接名称到客户端实例的映射
+//	error: 加载失败时返回错误信息
 func LoadAllMongoConnections(configPath string) (map[string]*client.Client, error) {
 	// 首先加载配置文件
 	if err := config.LoadConfigFile(configPath); err != nil {
@@ -312,13 +328,13 @@ func LoadAllMongoConnections(configPath string) (map[string]*client.Client, erro
 	// 遍历所有配置，创建启用的连接
 	for name, connConfig := range mongoRootConfig.Connections {
 		logger.Info("正在处理MongoDB连接配置", "name", name, "enabled", connConfig.Enabled)
-		
+
 		// 跳过禁用的连接
 		if !connConfig.Enabled {
 			logger.Info("跳过禁用的MongoDB连接", "name", name)
 			continue
 		}
-		
+
 		// 验证配置
 		if err := connConfig.Validate(); err != nil {
 			logger.Error("MongoDB连接配置验证失败", "name", name, "error", err)
@@ -443,7 +459,8 @@ func ReloadConnection(name string, connConfig *mongoConfig.MongoConfig) error {
 // CloseAllConnections 关闭所有MongoDB连接
 // 应用关闭时调用，清理所有MongoDB连接资源
 // 返回:
-//   error: 关闭过程中的第一个错误
+//
+//	error: 关闭过程中的第一个错误
 func CloseAllConnections() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -454,27 +471,29 @@ func CloseAllConnections() error {
 
 // NewClientFromURI 从URI创建客户端
 // 根据MongoDB连接URI创建客户端实例
-// 
+//
 // 参数：
-//   ctx: 上下文，用于超时控制
-//   uri: MongoDB连接URI
+//
+//	ctx: 上下文，用于超时控制
+//	uri: MongoDB连接URI
 //
 // 返回：
-//   *client.Client: 创建的客户端实例
-//   error: 操作过程中的错误
+//
+//	*client.Client: 创建的客户端实例
+//	error: 操作过程中的错误
 func NewClientFromURI(ctx context.Context, uri string) (*client.Client, error) {
 	// 解析URI并创建配置
 	// 这里简化处理，实际应用中需要完整的URI解析
 	cfg := mongoConfig.NewDefaultConfig()
-	
+
 	// 创建客户端
 	mongoClient := client.NewClient()
-	
+
 	// 建立连接
 	if err := mongoClient.Connect(ctx, cfg); err != nil {
 		return nil, fmt.Errorf("failed to connect using URI: %w", err)
 	}
-	
+
 	return mongoClient, nil
 }
 
@@ -482,24 +501,26 @@ func NewClientFromURI(ctx context.Context, uri string) (*client.Client, error) {
 // 根据配置文件路径创建客户端实例
 //
 // 参数：
-//   ctx: 上下文，用于超时控制
-//   configPath: 配置文件路径
+//
+//	ctx: 上下文，用于超时控制
+//	configPath: 配置文件路径
 //
 // 返回：
-//   *client.Client: 创建的客户端实例
-//   error: 操作过程中的错误
+//
+//	*client.Client: 创建的客户端实例
+//	error: 操作过程中的错误
 func NewClientFromConfig(ctx context.Context, configPath string) (*client.Client, error) {
 	// 从配置文件加载配置
 	// 这里简化处理，实际应用中需要实现配置文件读取
 	cfg := mongoConfig.NewDefaultConfig()
-	
+
 	// 创建客户端
 	mongoClient := client.NewClient()
-	
+
 	// 建立连接
 	if err := mongoClient.Connect(ctx, cfg); err != nil {
 		return nil, fmt.Errorf("failed to connect using config file: %w", err)
 	}
-	
+
 	return mongoClient, nil
 }

@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/pkg/utils/huberrors"
-	"gohub/pkg/utils/random"
-	"gohub/web/views/hubcommon002/models"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/huberrors"
+	"gateway/pkg/utils/random"
+	"gateway/web/views/hubcommon002/models"
 	"strings"
 	"time"
 )
@@ -38,38 +38,38 @@ func (dao *DomainAccessConfigDAO) generateDomainAccessConfigId() string {
 // isDomainAccessConfigIdExists 检查域名访问配置ID是否已存在
 func (dao *DomainAccessConfigDAO) isDomainAccessConfigIdExists(ctx context.Context, domainAccessConfigId string) (bool, error) {
 	query := `SELECT COUNT(*) as count FROM HUB_GW_DOMAIN_ACCESS_CONFIG WHERE domainAccessConfigId = ?`
-	
+
 	var result struct {
 		Count int `db:"count"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &result, query, []interface{}{domainAccessConfigId}, true)
 	if err != nil {
 		return false, err
 	}
-	
+
 	return result.Count > 0, nil
 }
 
 // generateUniqueDomainAccessConfigId 生成唯一的域名访问配置ID
 func (dao *DomainAccessConfigDAO) generateUniqueDomainAccessConfigId(ctx context.Context) (string, error) {
 	const maxAttempts = 10
-	
+
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		domainAccessConfigId := dao.generateDomainAccessConfigId()
-		
+
 		exists, err := dao.isDomainAccessConfigIdExists(ctx, domainAccessConfigId)
 		if err != nil {
 			return "", huberrors.WrapError(err, "检查域名访问配置ID是否存在失败")
 		}
-		
+
 		if !exists {
 			return domainAccessConfigId, nil
 		}
-		
+
 		time.Sleep(time.Millisecond)
 	}
-	
+
 	return "", errors.New("生成唯一域名访问配置ID失败，已达到最大尝试次数")
 }
 
@@ -163,7 +163,7 @@ func (dao *DomainAccessConfigDAO) UpdateDomainAccessConfig(ctx context.Context, 
 	// 保留不可修改的字段
 	config.AddTime = currentConfig.AddTime
 	config.AddWho = currentConfig.AddWho
-	
+
 	// 如果没有设置活动标记，保持原有状态
 	if config.ActiveFlag == "" {
 		config.ActiveFlag = currentConfig.ActiveFlag
@@ -278,4 +278,4 @@ func (dao *DomainAccessConfigDAO) ListDomainAccessConfigs(ctx context.Context, t
 	}
 
 	return configs, total, nil
-} 
+}

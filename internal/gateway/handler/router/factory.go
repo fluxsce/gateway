@@ -2,7 +2,7 @@ package router
 
 import (
 	"fmt"
-	"gohub/internal/gateway/handler/filter"
+	"gateway/internal/gateway/handler/filter"
 )
 
 // RouterHandlerFactory 路由处理器工厂

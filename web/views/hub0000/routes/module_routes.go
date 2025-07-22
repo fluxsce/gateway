@@ -1,10 +1,10 @@
 package routes
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/routes"
-	"gohub/web/views/hub0000/controllers"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/routes"
+	"gateway/web/views/hub0000/controllers"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,7 +15,7 @@ var (
 	ModuleName = "hub0000"
 
 	// APIPrefix API路径前缀
-	APIPrefix = "/gohub/hub0000"
+	APIPrefix = "/gateway/hub0000"
 )
 
 // init 包初始化函数
@@ -43,8 +43,8 @@ func Init(router *gin.Engine, db database.Database) {
 		// 服务器信息相关路由
 		serverGroup := protectedGroup.Group("/server")
 		{
-			serverGroup.POST("/query", controller.QueryServerInfoList)    // 查询服务器信息列表
-			serverGroup.POST("/detail", controller.GetServerInfoDetail)   // 获取服务器信息详情
+			serverGroup.POST("/query", controller.QueryServerInfoList)  // 查询服务器信息列表
+			serverGroup.POST("/detail", controller.GetServerInfoDetail) // 获取服务器信息详情
 		}
 
 		// CPU性能日志路由
@@ -75,7 +75,7 @@ func Init(router *gin.Engine, db database.Database) {
 		// 进程相关路由
 		processGroup := protectedGroup.Group("/process")
 		{
-			processGroup.POST("/query", controller.QueryProcessLogList)      // 查询进程日志列表
+			processGroup.POST("/query", controller.QueryProcessLogList)            // 查询进程日志列表
 			processGroup.POST("/stats/query", controller.QueryProcessStatsLogList) // 查询进程统计日志列表
 		}
 
@@ -100,4 +100,4 @@ func Init(router *gin.Engine, db database.Database) {
 // RegisterRoutesFunc 返回路由注册函数
 func RegisterRoutesFunc() func(router *gin.Engine, db database.Database) {
 	return Init
-} 
+}

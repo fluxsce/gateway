@@ -3,8 +3,8 @@ package dao
 import (
 	"context"
 	"fmt"
-	"gohub/internal/metric_collect/types"
-	"gohub/pkg/database"
+	"gateway/internal/metric_collect/types"
+	"gateway/pkg/database"
 	"time"
 )
 
@@ -26,7 +26,7 @@ func (dao *DiskIoLogDAO) InsertDiskIoLog(ctx context.Context, diskIoLog *types.D
 	diskIoLog.EditTime = now
 	diskIoLog.CurrentVersion = 1
 	diskIoLog.ActiveFlag = types.ActiveFlagYes
-	
+
 	// 验证必填字段
 	if diskIoLog.MetricDiskIoLogId == "" {
 		return fmt.Errorf("磁盘IO日志ID不能为空")
@@ -46,7 +46,7 @@ func (dao *DiskIoLogDAO) InsertDiskIoLog(ctx context.Context, diskIoLog *types.D
 	if diskIoLog.OprSeqFlag == "" {
 		return fmt.Errorf("操作序列标识不能为空")
 	}
-	
+
 	tableName := diskIoLog.TableName()
 	_, err := dao.db.Insert(ctx, tableName, diskIoLog, true)
 	if err != nil {
@@ -60,7 +60,7 @@ func (dao *DiskIoLogDAO) BatchInsertDiskIoLog(ctx context.Context, diskIoLogs []
 	if len(diskIoLogs) == 0 {
 		return nil
 	}
-	
+
 	// 设置通用字段默认值
 	now := time.Now()
 	for _, diskIoLog := range diskIoLogs {
@@ -68,7 +68,7 @@ func (dao *DiskIoLogDAO) BatchInsertDiskIoLog(ctx context.Context, diskIoLogs []
 		diskIoLog.EditTime = now
 		diskIoLog.CurrentVersion = 1
 		diskIoLog.ActiveFlag = types.ActiveFlagYes
-		
+
 		// 验证必填字段
 		if diskIoLog.MetricDiskIoLogId == "" {
 			return fmt.Errorf("磁盘IO日志ID不能为空")
@@ -89,15 +89,15 @@ func (dao *DiskIoLogDAO) BatchInsertDiskIoLog(ctx context.Context, diskIoLogs []
 			return fmt.Errorf("操作序列标识不能为空")
 		}
 	}
-	
+
 	tableName := diskIoLogs[0].TableName()
-	
+
 	// 转换为interface{}切片
 	items := make([]interface{}, len(diskIoLogs))
 	for i, diskIoLog := range diskIoLogs {
 		items[i] = diskIoLog
 	}
-	
+
 	_, err := dao.db.BatchInsert(ctx, tableName, items, true)
 	if err != nil {
 		return fmt.Errorf("批量插入磁盘IO日志失败: %w", err)
@@ -113,10 +113,10 @@ func (dao *DiskIoLogDAO) DeleteDiskIoLog(ctx context.Context, tenantId, metricDi
 	if metricDiskIoLogId == "" {
 		return fmt.Errorf("磁盘IO日志ID不能为空")
 	}
-	
+
 	tableName := (&types.DiskIoLog{}).TableName()
 	sql := fmt.Sprintf("UPDATE %s SET activeFlag = ? WHERE tenantId = ? AND metricDiskIoLogId = ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{types.ActiveFlagNo, tenantId, metricDiskIoLogId}, true)
 	if err != nil {
 		return fmt.Errorf("删除磁盘IO日志失败: %w", err)
@@ -129,10 +129,10 @@ func (dao *DiskIoLogDAO) DeleteDiskIoLogByTime(ctx context.Context, tenantId str
 	if tenantId == "" {
 		return fmt.Errorf("租户ID不能为空")
 	}
-	
+
 	tableName := (&types.DiskIoLog{}).TableName()
 	sql := fmt.Sprintf("DELETE FROM %s WHERE tenantId = ? AND collectTime < ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{tenantId, beforeTime}, true)
 	if err != nil {
 		return fmt.Errorf("根据时间删除磁盘IO日志失败: %w", err)
@@ -148,13 +148,13 @@ func (dao *DiskIoLogDAO) DeleteDiskIoLogByServer(ctx context.Context, tenantId, 
 	if metricServerId == "" {
 		return fmt.Errorf("服务器ID不能为空")
 	}
-	
+
 	tableName := (&types.DiskIoLog{}).TableName()
 	sql := fmt.Sprintf("DELETE FROM %s WHERE tenantId = ? AND metricServerId = ?", tableName)
-	
+
 	_, err := dao.db.Exec(ctx, sql, []interface{}{tenantId, metricServerId}, true)
 	if err != nil {
 		return fmt.Errorf("根据服务器ID删除磁盘IO日志失败: %w", err)
 	}
 	return nil
-} 
+}

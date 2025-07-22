@@ -1,8 +1,8 @@
-# GoHub pprof性能分析模块
+# Gateway pprof性能分析模块
 
 ## 概述
 
-GoHub pprof模块提供了完整的性能分析解决方案，支持实时性能监控、自动数据收集和分析报告生成。该模块已集成到主应用中，随主应用一起启动。
+Gateway pprof模块提供了完整的性能分析解决方案，支持实时性能监控、自动数据收集和分析报告生成。该模块已集成到主应用中，随主应用一起启动。
 
 ## 功能特性
 
@@ -47,7 +47,7 @@ app:
   pprof:
     enabled: true                    # 是否启用pprof服务
     listen: ":6060"                 # 监听地址
-    service_name: "GoHub-pprof"     # 服务名称
+    service_name: "Gateway-pprof"     # 服务名称
     read_timeout: 30s               # 读取超时时间
     write_timeout: 30s              # 写入超时时间
     enable_auth: false              # 是否启用认证
@@ -65,8 +65,8 @@ app:
 ### 3. 环境变量配置
 
 ```bash
-export GOHUB_APP_PPROF_ENABLED=true
-export GOHUB_APP_PPROF_LISTEN=:6060
+export GATEWAY_APP_PPROF_ENABLED=true
+export GATEWAY_APP_PPROF_LISTEN=:6060
 ```
 
 ## 性能分析
@@ -234,14 +234,14 @@ go run cmd/app/main.go
 
 ```yaml
 app:
-  name: "GoHub"
+  name: "Gateway"
   run_mode: "debug"
   
   # pprof性能分析配置
   pprof:
     enabled: true                    # 启用pprof服务
     listen: ":6060"                 # 监听端口
-    service_name: "GoHub-pprof"
+    service_name: "Gateway-pprof"
     read_timeout: 30s
     write_timeout: 30s
     enable_auth: false

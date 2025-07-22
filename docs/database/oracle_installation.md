@@ -83,14 +83,14 @@ echo $env:PATH
    ```go
    import (
        // 导入MySQL驱动包，确保其init()函数被调用
-       _ "gohub/pkg/database/mysql"
+       _ "gateway/pkg/database/mysql"
        
        // 启用Oracle驱动 - 取消注释以下行
-       _ "gohub/pkg/database/oracle"
+       _ "gateway/pkg/database/oracle"
        
        // 未来可能添加的其他驱动
-       // _ "gohub/pkg/database/postgres"
-       // _ "gohub/pkg/database/sqlite"
+       // _ "gateway/pkg/database/postgres"
+       // _ "gateway/pkg/database/sqlite"
    )
    ```
 
@@ -107,9 +107,9 @@ echo $env:PATH
 package main
 
 import (
-    "gohub/pkg/database"
-    _ "gohub/pkg/database/mysql"        // MySQL 支持
-    _ "gohub/pkg/database/oracle"       // Oracle 支持
+    "gateway/pkg/database"
+    _ "gateway/pkg/database/mysql"        // MySQL 支持
+    _ "gateway/pkg/database/oracle"       // Oracle 支持
 )
 
 func main() {
@@ -177,8 +177,8 @@ import (
     "fmt"
     "log"
 
-    "gohub/pkg/database"
-    _ "gohub/pkg/database/oracle"
+    "gateway/pkg/database"
+    _ "gateway/pkg/database/oracle"
 )
 
 func main() {

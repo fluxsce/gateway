@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // PathRewriteMode 路径重写模式
@@ -74,7 +74,7 @@ func NewPathRewriteFilter(name, from, to string, mode PathRewriteMode, priority 
 func parseRewriteConfig(config map[string]interface{}) (from, to, mode string, err error) {
 	// 设置默认值
 	mode = "simple"
-	
+
 	// 优先支持前端驼峰命名格式
 	if rewriteConfig, ok := config["rewriteConfig"].(map[string]interface{}); ok {
 		// 从rewriteConfig中提取参数
@@ -99,7 +99,7 @@ func parseRewriteConfig(config map[string]interface{}) (from, to, mode string, e
 			mode = strings.ToLower(m)
 		}
 	}
-	
+
 	// 参数验证
 	if from == "" {
 		return "", "", "", fmt.Errorf("重写规则的from参数不能为空")
@@ -107,12 +107,12 @@ func parseRewriteConfig(config map[string]interface{}) (from, to, mode string, e
 	if to == "" {
 		return "", "", "", fmt.Errorf("重写规则的to参数不能为空")
 	}
-	
+
 	// 验证模式的有效性
 	if mode != "simple" && mode != "regex" {
 		return "", "", "", fmt.Errorf("无效的重写模式: %s，支持的模式: simple, regex", mode)
 	}
-	
+
 	return from, to, mode, nil
 }
 
@@ -165,13 +165,14 @@ func NewRegexPathRewriteFilter(name, pattern, replacement string, priority int) 
 
 // PathRewriteFilterFromConfig 从配置创建路径重写过滤器
 // 支持前端传递的驼峰命名配置格式：
-// {
-//   "rewriteConfig": {
-//     "mode": "simple|regex",     // 重写模式
-//     "from": "string",           // 查找内容
-//     "to": "string"              // 替换内容
-//   }
-// }
+//
+//	{
+//	  "rewriteConfig": {
+//	    "mode": "simple|regex",     // 重写模式
+//	    "from": "string",           // 查找内容
+//	    "to": "string"              // 替换内容
+//	  }
+//	}
 func PathRewriteFilterFromConfig(config FilterConfig) (Filter, error) {
 	// 解析重写配置
 	from, to, mode, parseErr := parseRewriteConfig(config.Config)

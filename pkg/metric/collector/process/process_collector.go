@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"gohub/pkg/metric/collector"
-	"gohub/pkg/metric/types"
+	"gateway/pkg/metric/collector"
+	"gateway/pkg/metric/types"
 
 	"github.com/shirou/gopsutil/v4/process"
 )
@@ -25,7 +25,7 @@ type ProcessCollector struct {
 
 // NewProcessCollector 创建进程信息采集器
 // 使用 gopsutil 实现跨平台进程信息采集
-// 
+//
 // 返回值:
 //   - *ProcessCollector: 新创建的进程采集器实例
 func NewProcessCollector() *ProcessCollector {
@@ -40,7 +40,7 @@ func NewProcessCollector() *ProcessCollector {
 
 // Collect 执行采集
 // 统一的采集入口，使用gopsutil简化实现
-// 
+//
 // 返回值:
 //   - interface{}: 采集到的进程指标数据
 //   - error: 采集过程中的错误
@@ -60,7 +60,7 @@ func (c *ProcessCollector) Collect() (interface{}, error) {
 
 // GetProcessInfo 获取进程信息
 // 使用 gopsutil 采集当前进程信息和系统进程统计
-// 
+//
 // 返回值:
 //   - *types.ProcessMetrics: 进程指标数据，包括当前进程信息和系统进程统计
 //   - error: 获取过程中的错误
@@ -93,10 +93,10 @@ func (c *ProcessCollector) GetProcessInfo() (*types.ProcessMetrics, error) {
 
 // getCurrentProcessInfo 获取当前进程信息
 // 使用 gopsutil 获取当前进程的详细信息，包括内存使用、CPU使用率、线程数等
-// 
+//
 // 参数:
 //   - ctx: 上下文，用于控制操作超时
-// 
+//
 // 返回值:
 //   - *types.ProcessInfo: 当前进程的详细信息
 //   - error: 获取过程中的错误
@@ -110,13 +110,13 @@ func (c *ProcessCollector) getCurrentProcessInfo(ctx context.Context) (*types.Pr
 
 	// 获取当前进程PID
 	pid := int32(os.Getpid())
-	
+
 	// 使用 gopsutil 创建进程对象
 	proc, err := process.NewProcessWithContext(ctx, pid)
 	if err != nil {
 		return nil, fmt.Errorf("gopsutil创建进程对象失败: %w", err)
 	}
-	
+
 	processInfo := &types.ProcessInfo{
 		PID: pid,
 	}
@@ -124,7 +124,7 @@ func (c *ProcessCollector) getCurrentProcessInfo(ctx context.Context) (*types.Pr
 	// 获取进程名称
 	if name, err := proc.NameWithContext(ctx); err == nil {
 		processInfo.Name = name
-}
+	}
 
 	// 获取父进程ID
 	if ppid, err := proc.PpidWithContext(ctx); err == nil {
@@ -191,10 +191,10 @@ func (c *ProcessCollector) getCurrentProcessInfo(ctx context.Context) (*types.Pr
 
 // getSystemProcessStats 获取系统进程统计
 // 使用 gopsutil 获取系统中所有进程的统计信息，包括运行、睡眠、停止、僵尸进程数量
-// 
+//
 // 参数:
 //   - ctx: 上下文，用于控制操作超时
-// 
+//
 // 返回值:
 //   - *types.ProcessSystemStats: 系统进程统计信息
 //   - error: 获取过程中的错误
@@ -225,15 +225,15 @@ func (c *ProcessCollector) getSystemProcessStats(ctx context.Context) (*types.Pr
 		// 根据状态分类统计（取第一个状态）
 		switch c.convertProcessStatus(statusList[0]) {
 		case "running":
-					stats.Running++
+			stats.Running++
 		case "sleeping":
-					stats.Sleeping++
+			stats.Sleeping++
 		case "stopped":
-					stats.Stopped++
+			stats.Stopped++
 		case "zombie":
-					stats.Zombie++
-				}
-				stats.Total++
+			stats.Zombie++
+		}
+		stats.Total++
 	}
 
 	return stats, nil
@@ -241,10 +241,10 @@ func (c *ProcessCollector) getSystemProcessStats(ctx context.Context) (*types.Pr
 
 // convertProcessStatus 转换进程状态
 // 将 gopsutil 返回的进程状态转换为内部使用的标准状态字符串
-// 
+//
 // 参数:
 //   - status: gopsutil 返回的进程状态字符串
-// 
+//
 // 返回值:
 //   - string: 标准化的进程状态字符串
 func (c *ProcessCollector) convertProcessStatus(status string) string {
@@ -268,7 +268,7 @@ func (c *ProcessCollector) convertProcessStatus(status string) string {
 
 // SetTimeout 设置采集超时时间
 // 用于控制进程信息采集操作的最大执行时间
-// 
+//
 // 参数:
 //   - timeout: 超时时间
 func (c *ProcessCollector) SetTimeout(timeout time.Duration) {
@@ -277,7 +277,7 @@ func (c *ProcessCollector) SetTimeout(timeout time.Duration) {
 
 // GetTimeout 获取采集超时时间
 // 返回当前设置的采集超时时间
-// 
+//
 // 返回值:
 //   - time.Duration: 当前的超时时间设置
 func (c *ProcessCollector) GetTimeout() time.Duration {
@@ -286,7 +286,7 @@ func (c *ProcessCollector) GetTimeout() time.Duration {
 
 // GetCurrentPID 获取当前进程ID
 // 这是一个便捷方法，直接返回当前进程的PID
-// 
+//
 // 返回值:
 //   - int32: 当前进程的PID
 func (c *ProcessCollector) GetCurrentPID() int32 {
@@ -295,7 +295,7 @@ func (c *ProcessCollector) GetCurrentPID() int32 {
 
 // GetCurrentProcessName 获取当前进程名称
 // 这是一个便捷方法，用于快速获取当前进程的名称
-// 
+//
 // 返回值:
 //   - string: 当前进程的名称
 //   - error: 获取过程中的错误
@@ -309,7 +309,7 @@ func (c *ProcessCollector) GetCurrentProcessName() (string, error) {
 
 // GetProcessCount 获取系统进程总数
 // 这是一个便捷方法，用于快速获取系统中运行的进程总数
-// 
+//
 // 返回值:
 //   - uint32: 系统进程总数
 //   - error: 获取过程中的错误
@@ -323,7 +323,7 @@ func (c *ProcessCollector) GetProcessCount() (uint32, error) {
 
 // GetCurrentProcessMemoryUsage 获取当前进程内存使用量
 // 这是一个便捷方法，用于快速获取当前进程的内存使用情况
-// 
+//
 // 返回值:
 //   - uint64: 内存使用量（字节）
 //   - float64: 内存使用率（百分比）
@@ -338,7 +338,7 @@ func (c *ProcessCollector) GetCurrentProcessMemoryUsage() (uint64, float64, erro
 
 // GetCurrentProcessCPUUsage 获取当前进程CPU使用率
 // 这是一个便捷方法，用于快速获取当前进程的CPU使用率
-// 
+//
 // 返回值:
 //   - float64: CPU使用率（百分比）
 //   - error: 获取过程中的错误
@@ -352,10 +352,10 @@ func (c *ProcessCollector) GetCurrentProcessCPUUsage() (float64, error) {
 
 // GetProcessesByStatus 根据状态获取进程数量
 // 这是一个便捷方法，用于获取特定状态的进程数量
-// 
+//
 // 参数:
 //   - status: 进程状态（"running", "sleeping", "stopped", "zombie"）
-// 
+//
 // 返回值:
 //   - uint32: 指定状态的进程数量
 //   - error: 获取过程中的错误
@@ -377,4 +377,4 @@ func (c *ProcessCollector) GetProcessesByStatus(status string) (uint32, error) {
 	default:
 		return 0, fmt.Errorf("不支持的进程状态: %s", status)
 	}
-} 
+}

@@ -3,7 +3,7 @@ package service
 import (
 	"sync"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // WeightedRoundRobinBalancer 加权轮询负载均衡器

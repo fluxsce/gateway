@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // APIKeyAuth API Key认证器

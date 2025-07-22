@@ -4,7 +4,7 @@ package dbtypes
 
 import (
 	"fmt"
-	"gohub/pkg/config"
+	"gateway/pkg/config"
 )
 
 // 支持的数据库类型常量
@@ -36,7 +36,7 @@ const (
 // 描述数据库连接的基本信息，支持多种数据库类型
 type ConnectionConfig struct {
 	// === 通用连接参数 ===
-	
+
 	// Host 数据库主机地址 (MySQL, PostgreSQL, Oracle等需要)
 	Host string `mapstructure:"host"`
 
@@ -53,7 +53,7 @@ type ConnectionConfig struct {
 	Database string `mapstructure:"database"`
 
 	// === MySQL特有参数 ===
-	
+
 	// Charset MySQL字符集
 	Charset string `mapstructure:"charset"`
 	// ParseTime MySQL是否解析时间类型
@@ -68,7 +68,7 @@ type ConnectionConfig struct {
 	MySQLWriteTimeout int `mapstructure:"mysql_write_timeout"`
 
 	// === PostgreSQL特有参数 ===
-	
+
 	// SSLMode PostgreSQL SSL模式
 	SSLMode string `mapstructure:"sslmode"`
 	// PostgreSQLConnectTimeout PostgreSQL连接超时时间(秒)
@@ -77,7 +77,7 @@ type ConnectionConfig struct {
 	PostgreSQLStatementTimeout int `mapstructure:"postgres_statement_timeout"`
 
 	// === SQLite特有参数 ===
-	
+
 	// FilePath SQLite数据库文件路径 (优先于DSN中的路径)
 	FilePath string `mapstructure:"file_path"`
 	// JournalMode SQLite日志模式 (WAL, DELETE, TRUNCATE, PERSIST, MEMORY, OFF)
@@ -96,7 +96,7 @@ type ConnectionConfig struct {
 	ForeignKeys bool `mapstructure:"foreign_keys"`
 
 	// === Oracle特有参数 ===
-	
+
 	// ServiceName Oracle服务名 (推荐使用)
 	ServiceName string `mapstructure:"service_name"`
 	// SID Oracle系统标识符 (传统方式)
@@ -107,7 +107,7 @@ type ConnectionConfig struct {
 	Timezone string `mapstructure:"timezone"`
 	// OracleConnectionTimeout Oracle连接超时时间(秒)
 	OracleConnectionTimeout int `mapstructure:"oracle_connection_timeout"`
-	// OracleReadTimeout Oracle读取超时时间(秒)  
+	// OracleReadTimeout Oracle读取超时时间(秒)
 	OracleReadTimeout int `mapstructure:"oracle_read_timeout"`
 	// OracleWriteTimeout Oracle写入超时时间(秒)
 	OracleWriteTimeout int `mapstructure:"oracle_write_timeout"`
@@ -122,14 +122,14 @@ type ConnectionConfig struct {
 
 	// === ClickHouse官网标准DSN参数 ===
 	// 参考: https://clickhouse.com/docs/zh/integrations/go#databasesql-api
-	
+
 	// ClickHouseCompress 压缩算法 (none,lz4,zstd,gzip,deflate,br) 默认"none"
 	ClickHouseCompress string `mapstructure:"clickhouse_compress"`
 	// ClickHouseCompressLevel 压缩级别 (0-11,算法相关) 默认0
 	ClickHouseCompressLevel int `mapstructure:"clickhouse_compress_level"`
 	// ClickHouseSecure 是否建立安全SSL连接 (默认false)
 	ClickHouseSecure bool `mapstructure:"clickhouse_secure"`
-	// ClickHouseSkipVerify 跳过证书验证 (默认false)  
+	// ClickHouseSkipVerify 跳过证书验证 (默认false)
 	ClickHouseSkipVerify bool `mapstructure:"clickhouse_skip_verify"`
 	// ClickHouseDebug 启用调试输出 (默认false)
 	ClickHouseDebug bool `mapstructure:"clickhouse_debug"`
@@ -218,7 +218,7 @@ type DbConfig struct {
 type DatabasesConfig struct {
 	// Default 默认数据库连接名称
 	Default string `mapstructure:"default"`
-	
+
 	// Connections 所有数据库连接的配置映射
 	Connections map[string]*DbConfig `mapstructure:"connections"`
 }
@@ -226,10 +226,13 @@ type DatabasesConfig struct {
 // LoadDatabaseConfigs 从配置文件加载所有数据库配置
 // 解析YAML配置文件，返回所有数据库连接的配置
 // 参数:
-//   configPath: 配置文件路径
+//
+//	configPath: 配置文件路径
+//
 // 返回:
-//   map[string]*DbConfig: 连接名称到配置的映射
-//   error: 加载失败时返回错误信息
+//
+//	map[string]*DbConfig: 连接名称到配置的映射
+//	error: 加载失败时返回错误信息
 func LoadDatabaseConfigs(configPath string) (map[string]*DbConfig, error) {
 	// 加载配置文件
 	if err := config.LoadConfigFile(configPath, config.LoadOptions{
@@ -249,17 +252,17 @@ func LoadDatabaseConfigs(configPath string) (map[string]*DbConfig, error) {
 	for name, cfg := range dbConfig.Connections {
 		// 设置连接名称
 		cfg.Name = name
-		
+
 		// 如果未设置enabled，默认为true
 		if cfg.Driver != "" && !cfg.hasEnabledSet() {
 			cfg.Enabled = true
 		}
-		
+
 		// 验证必要字段
 		if cfg.Driver == "" {
 			return nil, fmt.Errorf("数据库连接 '%s' 缺少driver配置", name)
 		}
-		
+
 		// 设置默认连接池配置
 		if cfg.Pool.MaxOpenConns == 0 {
 			cfg.Pool.MaxOpenConns = 100
@@ -273,7 +276,7 @@ func LoadDatabaseConfigs(configPath string) (map[string]*DbConfig, error) {
 		if cfg.Pool.ConnMaxIdleTime == 0 {
 			cfg.Pool.ConnMaxIdleTime = 1800 // 30分钟
 		}
-		
+
 		// 设置默认日志配置
 		if cfg.Log.SlowThreshold == 0 {
 			cfg.Log.SlowThreshold = 200 // 200毫秒

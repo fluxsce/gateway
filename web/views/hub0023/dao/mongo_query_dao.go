@@ -4,13 +4,13 @@ import (
 	"context"
 	"time"
 
-	"gohub/pkg/logger"
-	"gohub/pkg/mongo/client"
-	"gohub/pkg/mongo/types"
-	"gohub/pkg/mongo/utils"
-	"gohub/pkg/utils/ctime"
-	"gohub/pkg/utils/huberrors"
-	"gohub/web/views/hub0023/models"
+	"gateway/pkg/logger"
+	"gateway/pkg/mongo/client"
+	"gateway/pkg/mongo/types"
+	"gateway/pkg/mongo/utils"
+	"gateway/pkg/utils/ctime"
+	"gateway/pkg/utils/huberrors"
+	"gateway/web/views/hub0023/models"
 )
 
 // MongoQueryDAO MongoDB查询数据访问对象
@@ -32,15 +32,15 @@ func (dao *MongoQueryDAO) QueryGatewayLogs(ctx context.Context, req *models.Gate
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "构建查询条件失败")
 	}
-	
+
 	// 检查查询条件，避免无条件查询返回过多数据
 	if dao.isEmptyFilter(filter) && req.PageSize > 100 {
 		logger.WarnWithTrace(ctx, "查询条件为空且页面大小超过100，可能返回大量数据", "pageSize", req.PageSize)
 	}
-	
+
 	// 构建查询选项
 	findOptions := &types.FindOptions{}
-	
+
 	// 设置分页
 	if req.PageSize > 0 {
 		pageLimit := int64(req.PageSize)
@@ -50,7 +50,7 @@ func (dao *MongoQueryDAO) QueryGatewayLogs(ctx context.Context, req *models.Gate
 			findOptions.Skip = &pageSkip
 		}
 	}
-	
+
 	// 设置排序（默认按网关开始处理时间倒序，与SQL版本保持一致）
 	findOptions.Sort = map[string]interface{}{
 		"gatewayStartProcessingTime": -1,
@@ -61,7 +61,7 @@ func (dao *MongoQueryDAO) QueryGatewayLogs(ctx context.Context, req *models.Gate
 
 	// 获取网关日志集合
 	collection := dao.getGatewayLogCollection()
-	
+
 	// 执行查询，直接使用传入的context
 	cursor, err := collection.Find(ctx, filter, findOptions)
 	if err != nil {
@@ -78,14 +78,14 @@ func (dao *MongoQueryDAO) QueryGatewayLogs(ctx context.Context, req *models.Gate
 			logger.ErrorWithTrace(ctx, "MongoDB游标解码失败", "error", err)
 			return nil, 0, huberrors.WrapError(err, "MongoDB游标解码失败")
 		}
-		
+
 		// 使用转换工具转换单个文档
 		var log models.GatewayAccessLogSummary
 		if err := utils.ConvertDocument(document, &log); err != nil {
 			logger.ErrorWithTrace(ctx, "MongoDB文档转换失败", "error", err)
 			return nil, 0, huberrors.WrapError(err, "MongoDB文档转换失败")
 		}
-		
+
 		logs = append(logs, log)
 	}
 
@@ -129,7 +129,7 @@ func (dao *MongoQueryDAO) GetGatewayLogByKey(ctx context.Context, tenantId, trac
 
 	// 获取网关日志集合
 	collection := dao.getGatewayLogCollection()
-	
+
 	// 执行查询，直接使用传入的context
 	result := collection.FindOne(ctx, filter, nil)
 	if result.Err() != nil {
@@ -164,7 +164,7 @@ func (dao *MongoQueryDAO) CountGatewayLogs(ctx context.Context, req *models.Gate
 
 	// 获取网关日志集合
 	collection := dao.getGatewayLogCollection()
-	
+
 	// 执行统计，直接使用传入的context
 	count, err := collection.Count(ctx, filter, nil)
 	if err != nil {
@@ -207,13 +207,13 @@ func (dao *MongoQueryDAO) parseTimeString(timeStr string) (time.Time, error) {
 	if timeStr == "" {
 		return time.Time{}, nil
 	}
-	
+
 	// 使用ctime包解析时间字符串，支持多种格式
 	parsedTime, err := ctime.ParseTimeString(timeStr)
 	if err != nil {
 		return time.Time{}, huberrors.WrapError(err, "时间格式解析失败")
 	}
-	
+
 	return parsedTime, nil
 }
 
@@ -224,7 +224,7 @@ func (dao *MongoQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLogQuer
 	// 使用ctime包处理时间范围查询，并使用convert方法处理时区
 	if req.StartTime != "" || req.EndTime != "" {
 		timeFilter := map[string]interface{}{}
-		
+
 		if req.StartTime != "" {
 			startTime, err := dao.parseTimeString(req.StartTime)
 			if err != nil {
@@ -234,7 +234,7 @@ func (dao *MongoQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLogQuer
 			mongoStartTime := utils.ConvertGoTimeToMongo(startTime)
 			timeFilter["$gte"] = mongoStartTime
 		}
-		
+
 		if req.EndTime != "" {
 			endTime, err := dao.parseTimeString(req.EndTime)
 			if err != nil {
@@ -244,7 +244,7 @@ func (dao *MongoQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLogQuer
 			mongoEndTime := utils.ConvertGoTimeToMongo(endTime)
 			timeFilter["$lte"] = mongoEndTime
 		}
-		
+
 		filter["gatewayStartProcessingTime"] = timeFilter
 	}
 
@@ -252,7 +252,7 @@ func (dao *MongoQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLogQuer
 	if req.TenantId != "" {
 		filter["tenantId"] = req.TenantId
 	}
-	
+
 	if req.TraceId != "" {
 		filter["traceId"] = req.TraceId
 	}
@@ -345,4 +345,4 @@ func (dao *MongoQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLogQuer
 	// 关键词搜索 - 删除OR条件，因为其他字段已经有like查询
 
 	return filter, nil
-} 
+}

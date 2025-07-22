@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // StripPrefixFilter 前缀剥离过滤器

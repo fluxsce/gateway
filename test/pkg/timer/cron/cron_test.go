@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"gohub/pkg/timer/cron"
+	"gateway/pkg/timer/cron"
 )
 
 func TestStandardCronParser_Parse(t *testing.T) {
@@ -50,33 +50,33 @@ func TestStandardCronSchedule_Next(t *testing.T) {
 		expected time.Time
 	}{
 		{
-			name: "每分钟",
-			expr: "0 * * * * *",
-			from: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
+			name:     "每分钟",
+			expr:     "0 * * * * *",
+			from:     time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
 			expected: time.Date(2024, 1, 1, 12, 1, 0, 0, time.UTC),
 		},
 		{
-			name: "每小时",
-			expr: "0 0 * * * *",
-			from: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
+			name:     "每小时",
+			expr:     "0 0 * * * *",
+			from:     time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
 			expected: time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC),
 		},
 		{
-			name: "每天午夜",
-			expr: "0 0 0 * * *",
-			from: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
+			name:     "每天午夜",
+			expr:     "0 0 0 * * *",
+			from:     time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
 			expected: time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC),
 		},
 		{
-			name: "每周日",
-			expr: "0 0 0 * * 0",
-			from: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			name:     "每周日",
+			expr:     "0 0 0 * * 0",
+			from:     time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 			expected: time.Date(2024, 1, 7, 0, 0, 0, 0, time.UTC),
 		},
 		{
-			name: "每月1号",
-			expr: "0 0 0 1 * *",
-			from: time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC),
+			name:     "每月1号",
+			expr:     "0 0 0 1 * *",
+			from:     time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC),
 			expected: time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
 		},
 	}
@@ -106,28 +106,28 @@ func TestPredefinedExpressions(t *testing.T) {
 		expected time.Time
 	}{
 		{
-			name: "EverySecond",
-			expr: cron.EverySecond,
+			name:     "EverySecond",
+			expr:     cron.EverySecond,
 			expected: now.Add(time.Second),
 		},
 		{
-			name: "EveryMinute",
-			expr: cron.EveryMinute,
+			name:     "EveryMinute",
+			expr:     cron.EveryMinute,
 			expected: time.Date(2024, 1, 1, 12, 1, 0, 0, time.UTC),
 		},
 		{
-			name: "Hourly",
-			expr: cron.Hourly,
+			name:     "Hourly",
+			expr:     cron.Hourly,
 			expected: time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC),
 		},
 		{
-			name: "Daily",
-			expr: cron.Daily,
+			name:     "Daily",
+			expr:     cron.Daily,
 			expected: time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC),
 		},
 		{
-			name: "Monthly",
-			expr: cron.Monthly,
+			name:     "Monthly",
+			expr:     cron.Monthly,
 			expected: time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
 		},
 	}
@@ -212,29 +212,29 @@ func TestSpecificCronExpression(t *testing.T) {
 		expected time.Time
 	}{
 		{
-			name: "从周五到下周一",
-			from: time.Date(2024, 1, 5, 10, 0, 0, 0, time.UTC), // 2024-01-05 是周五
-			expected: time.Date(2024, 1, 8, 9, 0, 0, 0, time.UTC), // 2024-01-08 是周一
+			name:     "从周五到下周一",
+			from:     time.Date(2024, 1, 5, 10, 0, 0, 0, time.UTC), // 2024-01-05 是周五
+			expected: time.Date(2024, 1, 8, 9, 0, 0, 0, time.UTC),  // 2024-01-08 是周一
 		},
 		{
-			name: "从周一9点前到周一9点",
-			from: time.Date(2024, 1, 8, 8, 30, 0, 0, time.UTC), // 2024-01-08 周一 8:30
-			expected: time.Date(2024, 1, 8, 9, 0, 0, 0, time.UTC), // 2024-01-08 周一 9:00
+			name:     "从周一9点前到周一9点",
+			from:     time.Date(2024, 1, 8, 8, 30, 0, 0, time.UTC), // 2024-01-08 周一 8:30
+			expected: time.Date(2024, 1, 8, 9, 0, 0, 0, time.UTC),  // 2024-01-08 周一 9:00
 		},
 		{
-			name: "从周一9点后到下周一9点",
-			from: time.Date(2024, 1, 8, 9, 30, 0, 0, time.UTC), // 2024-01-08 周一 9:30
+			name:     "从周一9点后到下周一9点",
+			from:     time.Date(2024, 1, 8, 9, 30, 0, 0, time.UTC), // 2024-01-08 周一 9:30
 			expected: time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC), // 2024-01-15 下周一 9:00
 		},
 		{
-			name: "从周三到下周一",
-			from: time.Date(2024, 1, 10, 15, 0, 0, 0, time.UTC), // 2024-01-10 周三
-			expected: time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC), // 2024-01-15 周一
+			name:     "从周三到下周一",
+			from:     time.Date(2024, 1, 10, 15, 0, 0, 0, time.UTC), // 2024-01-10 周三
+			expected: time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC),  // 2024-01-15 周一
 		},
 		{
-			name: "从周日到周一",
-			from: time.Date(2024, 1, 7, 22, 0, 0, 0, time.UTC), // 2024-01-07 周日
-			expected: time.Date(2024, 1, 8, 9, 0, 0, 0, time.UTC), // 2024-01-08 周一
+			name:     "从周日到周一",
+			from:     time.Date(2024, 1, 7, 22, 0, 0, 0, time.UTC), // 2024-01-07 周日
+			expected: time.Date(2024, 1, 8, 9, 0, 0, 0, time.UTC),  // 2024-01-08 周一
 		},
 	}
 
@@ -254,7 +254,7 @@ func TestSpecificCronExpression(t *testing.T) {
 	t.Run("连续执行时间", func(t *testing.T) {
 		start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) // 2024-01-01 周一
 		var executions []time.Time
-		
+
 		current := start
 		for i := 0; i < 5; i++ {
 			next := schedule.Next(current)
@@ -282,4 +282,4 @@ func TestSpecificCronExpression(t *testing.T) {
 			t.Logf("  %d: %v (%s)", i+1, exec, exec.Weekday())
 		}
 	})
-} 
+}

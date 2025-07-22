@@ -68,8 +68,8 @@ package main
 
 import (
     "context"
-    "gohub/internal/timerinit/sftp"
-    "gohub/pkg/database"
+    "gateway/internal/timerinit/sftp"
+    "gateway/pkg/database"
 )
 
 func main() {
@@ -97,9 +97,9 @@ package main
 
 import (
     "context"
-    "gohub/internal/timerinit/sftp"
-    "gohub/pkg/database"
-    "gohub/pkg/logger"
+    "gateway/internal/timerinit/sftp"
+    "gateway/pkg/database"
+    "gateway/pkg/logger"
 )
 
 func initSFTPTasks() {

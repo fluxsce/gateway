@@ -1,9 +1,9 @@
 package routes
 
 import (
-	"gohub/web/middleware"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/response"
+	"gateway/web/middleware"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/response"
 
 	"github.com/gin-gonic/gin"
 )
@@ -42,7 +42,7 @@ func PermissionRequired(permissions ...string) gin.HandlerFunc {
 		// 当前版本暂时允许所有已认证用户访问
 		// 后续可以根据业务需求实现具体的权限验证逻辑
 		//logger.Debug("权限验证", "userId", userContext.UserId, "permissions", permissions)
-		
+
 		// 临时实现：所有已认证用户都有权限
 		hasPermission := true
 
@@ -70,7 +70,7 @@ func ApplyGlobalMiddleware(router *gin.Engine) {
 
 	// 应用解密中间件 - 在所有请求处理之前解密数据
 	router.Use(DecryptRequest())
-	
+
 	// 应用加密中间件 - 在响应返回时加密数据
 	router.Use(EncryptResponse())
 

@@ -32,9 +32,9 @@ go get github.com/mattn/go-sqlite3
 
 ```go
 import (
-    "gohub/pkg/database"
-    "gohub/pkg/database/dbtypes"
-    _ "gohub/pkg/database/sqlite" // 导入SQLite实现
+    "gateway/pkg/database"
+    "gateway/pkg/database/dbtypes"
+    _ "gateway/pkg/database/sqlite" // 导入SQLite实现
 )
 
 // 内存数据库配置
@@ -239,9 +239,9 @@ package main
 import (
     "context"
     "log"
-    "gohub/pkg/database"
-    "gohub/pkg/database/dbtypes"
-    _ "gohub/pkg/database/sqlite"
+    "gateway/pkg/database"
+    "gateway/pkg/database/dbtypes"
+    _ "gateway/pkg/database/sqlite"
 )
 
 func main() {

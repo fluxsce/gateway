@@ -1,13 +1,13 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-:: GoHub CentOS 7 Build Script for Windows 10/11
+:: Gateway CentOS 7 Build Script for Windows 10/11
 :: Optimized for cross-compilation to CentOS 7
 
-title GoHub CentOS 7 Build - Windows 10/11
+title Gateway CentOS 7 Build - Windows 10/11
 
 echo ==========================================
-echo  GoHub CentOS 7 Build for Windows 10/11
+echo  Gateway CentOS 7 Build for Windows 10/11
 echo ==========================================
 echo.
 
@@ -82,7 +82,7 @@ set GIT_COMMIT=unknown
 for /f %%i in ('git rev-parse --short HEAD 2^>nul') do set GIT_COMMIT=%%i
 
 :: Output file
-set OUTPUT_FILE=dist\gohub-!VERSION_SUFFIX!-amd64
+set OUTPUT_FILE=dist\gateway-!VERSION_SUFFIX!-amd64
 set VERSION_INFO=!VERSION_SUFFIX!-v3.1
 
 :: Build flags optimized for CentOS 7

@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/circuitbreaker"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/circuitbreaker"
 )
 
 func TestCircuitBreakerConfig(t *testing.T) {

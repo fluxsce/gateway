@@ -3,8 +3,8 @@ package types
 import (
 	"time"
 
-	metricTypes "gohub/pkg/metric/types"
-	"gohub/pkg/utils/random"
+	metricTypes "gateway/pkg/metric/types"
+	"gateway/pkg/utils/random"
 )
 
 // MemoryLog 内存采集日志表对应的结构体
@@ -62,7 +62,7 @@ func (m *MemoryLog) GetPrimaryKey() (string, string) {
 // NewMemoryLogFromMetrics 从MemoryMetrics创建MemoryLog实例
 func NewMemoryLogFromMetrics(memoryMetrics *metricTypes.MemoryMetrics, tenantId, serverId, operator string, collectTime time.Time, oprSeqFlag string) *MemoryLog {
 	now := time.Now()
-	
+
 	return &MemoryLog{
 		MetricMemoryLogId: random.Generate32BitRandomString(),
 		TenantId:          tenantId,
@@ -88,4 +88,4 @@ func NewMemoryLogFromMetrics(memoryMetrics *metricTypes.MemoryMetrics, tenantId,
 		CurrentVersion:    1,
 		ActiveFlag:        ActiveFlagYes,
 	}
-} 
+}

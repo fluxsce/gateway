@@ -7,20 +7,20 @@ import (
 	"strings"
 	"time"
 
-	"gohub/pkg/database"
-	"gohub/pkg/database/sqlutils"
-	"gohub/pkg/utils/huberrors"
-	"gohub/pkg/utils/random"
-	"gohub/web/views/hub0022/models"
+	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/huberrors"
+	"gateway/pkg/utils/random"
+	"gateway/web/views/hub0022/models"
 )
 
 // ServiceDefinitionQueryFilter 服务定义查询过滤条件
 type ServiceDefinitionQueryFilter struct {
-	ServiceName          string `json:"serviceName,omitempty" form:"serviceName" query:"serviceName"`          // 服务名称（模糊查询）
-	ServiceType          string `json:"serviceType,omitempty" form:"serviceType" query:"serviceType"`          // 服务类型（精确匹配）
-	LoadBalanceStrategy  string `json:"loadBalanceStrategy,omitempty" form:"loadBalanceStrategy" query:"loadBalanceStrategy"`  // 负载均衡策略（精确匹配）
-	ActiveFlag           string `json:"activeFlag,omitempty" form:"activeFlag" query:"activeFlag"`           // 激活状态（精确匹配）
-	ProxyConfigId        string `json:"proxyConfigId,omitempty" form:"proxyConfigId" query:"proxyConfigId"`        // 代理配置ID（精确匹配）
+	ServiceName         string `json:"serviceName,omitempty" form:"serviceName" query:"serviceName"`                         // 服务名称（模糊查询）
+	ServiceType         string `json:"serviceType,omitempty" form:"serviceType" query:"serviceType"`                         // 服务类型（精确匹配）
+	LoadBalanceStrategy string `json:"loadBalanceStrategy,omitempty" form:"loadBalanceStrategy" query:"loadBalanceStrategy"` // 负载均衡策略（精确匹配）
+	ActiveFlag          string `json:"activeFlag,omitempty" form:"activeFlag" query:"activeFlag"`                            // 激活状态（精确匹配）
+	ProxyConfigId       string `json:"proxyConfigId,omitempty" form:"proxyConfigId" query:"proxyConfigId"`                   // 代理配置ID（精确匹配）
 }
 
 // ServiceDefinitionDAO 服务定义数据访问对象
@@ -42,49 +42,49 @@ func (dao *ServiceDefinitionDAO) generateServiceDefinitionId() string {
 	now := time.Now()
 	// 生成时间部分：YYYYMMDDHHMMSS
 	timeStr := now.Format("20060102150405")
-	
+
 	// 生成4位随机字符（大写字母和数字）
 	randomStr := random.GenerateRandomString(4)
-	
+
 	return fmt.Sprintf("SD%s%s", timeStr, randomStr)
 }
 
 // isServiceDefinitionIdExists 检查服务定义ID是否已存在
 func (dao *ServiceDefinitionDAO) isServiceDefinitionIdExists(ctx context.Context, serviceDefinitionId string) (bool, error) {
 	query := `SELECT COUNT(*) as count FROM HUB_GW_SERVICE_DEFINITION WHERE serviceDefinitionId = ?`
-	
+
 	var result struct {
 		Count int `db:"count"`
 	}
-	
+
 	err := dao.db.QueryOne(ctx, &result, query, []interface{}{serviceDefinitionId}, true)
 	if err != nil {
 		return false, err
 	}
-	
+
 	return result.Count > 0, nil
 }
 
 // generateUniqueServiceDefinitionId 生成唯一的服务定义ID
 func (dao *ServiceDefinitionDAO) generateUniqueServiceDefinitionId(ctx context.Context) (string, error) {
 	const maxAttempts = 10
-	
+
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		serviceDefinitionId := dao.generateServiceDefinitionId()
-		
+
 		exists, err := dao.isServiceDefinitionIdExists(ctx, serviceDefinitionId)
 		if err != nil {
 			return "", huberrors.WrapError(err, "检查服务定义ID是否存在失败")
 		}
-		
+
 		if !exists {
 			return serviceDefinitionId, nil
 		}
-		
+
 		// 如果ID已存在，等待1毫秒后重试（确保时间戳不同）
 		time.Sleep(time.Millisecond)
 	}
-	
+
 	return "", errors.New("生成唯一服务定义ID失败，已达到最大尝试次数")
 }
 
@@ -233,7 +233,7 @@ func (dao *ServiceDefinitionDAO) DeleteServiceDefinition(ctx context.Context, se
 
 	// 执行物理删除
 	sql := `DELETE FROM HUB_GW_SERVICE_DEFINITION WHERE serviceDefinitionId = ? AND tenantId = ?`
-	
+
 	result, err := dao.db.Exec(ctx, sql, []interface{}{serviceDefinitionId, tenantId}, true)
 	if err != nil {
 		return huberrors.WrapError(err, "删除服务定义失败")
@@ -350,4 +350,4 @@ func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, ten
 	}
 
 	return serviceDefinitions, int64(countResult.Count), nil
-} 
+}

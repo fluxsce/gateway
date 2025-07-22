@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"gohub/internal/gateway/logwrite/types"
-	"gohub/pkg/logger"
+	"gateway/internal/gateway/logwrite/types"
+	"gateway/pkg/logger"
 )
 
 // FileWriter 文件日志写入器
@@ -23,23 +23,23 @@ type FileWriter struct {
 	// 配置
 	config     *types.LogConfig
 	fileConfig *types.FileOutputConfig
-	
+
 	// 文件相关
 	currentFile *os.File
 	writer      *bufio.Writer
-	
+
 	// 轮转相关
 	currentSize int64
 	lastRotate  time.Time
-	
+
 	// 并发控制
 	mutex sync.RWMutex
-	
+
 	// 缓冲控制
 	buffer      []string
 	bufferSize  int
 	flushTicker *time.Ticker
-	
+
 	// 关闭控制
 	closeChan chan struct{}
 	wg        sync.WaitGroup
@@ -71,12 +71,12 @@ func NewFileWriter(config *types.LogConfig) (*FileWriter, error) {
 	}
 
 	writer := &FileWriter{
-		config:      config,
-		fileConfig:  fileConfig,
-		bufferSize:  config.BufferSize,
-		buffer:      make([]string, 0, config.FlushThreshold),
-		closeChan:   make(chan struct{}),
-		lastRotate:  time.Now(),
+		config:     config,
+		fileConfig: fileConfig,
+		bufferSize: config.BufferSize,
+		buffer:     make([]string, 0, config.FlushThreshold),
+		closeChan:  make(chan struct{}),
+		lastRotate: time.Now(),
 	}
 
 	// 创建日志目录
@@ -106,7 +106,7 @@ func (w *FileWriter) Write(ctx context.Context, log *types.AccessLog) error {
 
 	// 格式化日志
 	formatted := w.formatLog(log)
-	
+
 	// 检查是否需要轮转
 	if w.needRotate(len(formatted)) {
 		if err := w.rotate(); err != nil {
@@ -116,7 +116,7 @@ func (w *FileWriter) Write(ctx context.Context, log *types.AccessLog) error {
 
 	// 添加到缓冲区
 	w.buffer = append(w.buffer, formatted)
-	
+
 	// 检查是否需要立即刷新
 	if len(w.buffer) >= w.config.FlushThreshold {
 		return w.flushBuffer()
@@ -299,7 +299,7 @@ func (w *FileWriter) getLogFileName() string {
 	if prefix == "" {
 		prefix = "gateway"
 	}
-	
+
 	extension := w.fileConfig.Extension
 	if extension == "" {
 		extension = ".log"
@@ -318,13 +318,13 @@ func (w *FileWriter) renameCurrentFile() error {
 	}
 
 	currentPath := w.currentFile.Name()
-	
+
 	// 生成备份文件名
 	dir := filepath.Dir(currentPath)
 	base := filepath.Base(currentPath)
 	ext := filepath.Ext(base)
 	name := strings.TrimSuffix(base, ext)
-	
+
 	timestamp := time.Now().Format("20060102_150405")
 	backupName := fmt.Sprintf("%s_%s%s", name, timestamp, ext)
 	backupPath := filepath.Join(dir, backupName)
@@ -345,7 +345,7 @@ func (w *FileWriter) renameCurrentFile() error {
 // compressFile 压缩文件
 func (w *FileWriter) compressFile(filePath string) {
 	gzipPath := filePath + ".gz"
-	
+
 	// 打开原文件
 	src, err := os.Open(filePath)
 	if err != nil {
@@ -406,7 +406,7 @@ func (w *FileWriter) startFlushTicker() {
 	}
 
 	w.flushTicker = time.NewTicker(interval)
-	
+
 	w.wg.Add(1)
 	go func() {
 		defer w.wg.Done()
@@ -426,7 +426,7 @@ func (w *FileWriter) startFlushTicker() {
 // cleanupRoutine 清理协程
 func (w *FileWriter) cleanupRoutine() {
 	defer w.wg.Done()
-	
+
 	ticker := time.NewTicker(time.Hour) // 每小时检查一次
 	defer ticker.Stop()
 
@@ -487,7 +487,7 @@ func (w *FileWriter) cleanupByCount() {
 // cleanupByAge 按时间清理
 func (w *FileWriter) cleanupByAge() {
 	cutoff := time.Now().AddDate(0, 0, -w.fileConfig.MaxAge)
-	
+
 	pattern := filepath.Join(w.fileConfig.Path, w.fileConfig.Prefix+"*"+w.fileConfig.Extension+"*")
 	files, err := filepath.Glob(pattern)
 	if err != nil {
@@ -507,4 +507,4 @@ func (w *FileWriter) cleanupByAge() {
 			}
 		}
 	}
-} 
+}

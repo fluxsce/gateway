@@ -88,7 +88,7 @@ func LoadConfig(configDir string, options ...LoadOptions) error {
 	global.viper.AddConfigPath(".")
 
 	// 设置环境变量前缀
-	global.viper.SetEnvPrefix("GOHUB")
+	global.viper.SetEnvPrefix("GATEWAY")
 	global.viper.AutomaticEnv()
 
 	// 读取配置文件
@@ -192,7 +192,7 @@ func (c *Config) Load(path string) error {
 	c.viper.AddConfigPath("./configs")
 
 	// 设置环境变量前缀
-	c.viper.SetEnvPrefix("GOHUB")
+	c.viper.SetEnvPrefix("GATEWAY")
 	c.viper.AutomaticEnv()
 
 	// 读取配置文件

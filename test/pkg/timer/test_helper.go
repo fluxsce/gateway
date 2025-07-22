@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"gohub/pkg/timer"
+	"gateway/pkg/timer"
 )
 
 // CreateTestTaskConfig 创建用于测试的任务配置
@@ -12,6 +12,7 @@ import (
 //   - id: 任务ID
 //   - name: 任务名称
 //   - scheduleType: 调度类型
+//
 // 返回:
 //   - *timer.TaskConfig: 任务配置对象
 func CreateTestTaskConfig(id string, name string, scheduleType timer.ScheduleType) *timer.TaskConfig {
@@ -53,6 +54,7 @@ type TestTaskExecutor struct {
 // 参数:
 //   - name: 执行器名称
 //   - executeFunc: 执行函数，如果为nil则使用默认的空实现
+//
 // 返回:
 //   - *TestTaskExecutor: 测试执行器实例
 func NewTestTaskExecutor(name string, executeFunc func(ctx context.Context, params interface{}) error) *TestTaskExecutor {
@@ -94,6 +96,7 @@ func (e *TestTaskExecutor) Close() error {
 //   - condition: 条件函数，返回true表示条件满足
 //   - timeout: 最大等待时间
 //   - interval: 检查间隔
+//
 // 返回:
 //   - bool: true表示条件满足，false表示超时
 func WaitForCondition(condition func() bool, timeout time.Duration, interval time.Duration) bool {
@@ -105,4 +108,4 @@ func WaitForCondition(condition func() bool, timeout time.Duration, interval tim
 		time.Sleep(interval)
 	}
 	return false
-} 
+}

@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gohub/internal/gateway/core"
-	"gohub/internal/gateway/handler/proxy"
-	"gohub/internal/gateway/handler/service"
+	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/proxy"
+	"gateway/internal/gateway/handler/service"
 )
 
 func TestProxyConfig(t *testing.T) {

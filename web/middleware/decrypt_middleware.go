@@ -9,10 +9,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"gohub/pkg/config"
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/response"
+	"gateway/pkg/config"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/response"
 	"io"
 	"net/http"
 	"strings"
@@ -79,7 +79,7 @@ func DecryptRequest() gin.HandlerFunc {
 		// 将解密后的数据重新设置到请求体
 		c.Request.Body = io.NopCloser(strings.NewReader(decryptedData))
 		c.Request.ContentLength = int64(len(decryptedData))
-		
+
 		// 更新Content-Type（如果需要）
 		if newContentType != "" {
 			c.Request.Header.Set("Content-Type", newContentType)
@@ -87,7 +87,7 @@ func DecryptRequest() gin.HandlerFunc {
 
 		// 设置解密标记
 		c.Set("decrypted", true)
-		
+
 		logger.Debug("请求数据解密成功", "originalSize", len(body), "decryptedSize", len(decryptedData))
 		c.Next()
 	}
@@ -150,7 +150,7 @@ func (w *encryptResponseWriter) WriteHeader(code int) {
 	if w.body != nil && w.body.Len() > 0 {
 		// 加密响应数据
 		originalData := w.body.String()
-		
+
 		// 检查是否为JSON格式
 		if isValidJSON(originalData) {
 			encryptedData, iv, err := encryptAES(originalData)
@@ -181,7 +181,7 @@ func (w *encryptResponseWriter) WriteHeader(code int) {
 			w.ResponseWriter.Header().Set("X-Encrypted", "true")
 			w.ResponseWriter.WriteHeader(code)
 			w.ResponseWriter.Write(jsonData)
-			
+
 			logger.Debug("响应数据加密成功", "originalSize", len(originalData), "encryptedSize", len(jsonData))
 			return
 		}
@@ -200,8 +200,8 @@ func getEncryptionKey() []byte {
 	key := config.GetString("app.encryption_key", "")
 	if key == "" {
 		// 使用默认密钥
-		key = "gohub-default-encryption-key-32chars"
-		
+		key = "gateway-default-encryption-key-32chars"
+
 		// 根据环境给出不同的提示
 		if IsProductionEnvironment() {
 			logger.Error("生产环境必须配置app.encryption_key，当前使用默认密钥存在安全风险")
@@ -244,7 +244,7 @@ func decryptAES(encryptedText, ivText string) (string, error) {
 
 	// CBC模式解密
 	mode := cipher.NewCBCDecrypter(block, iv)
-	
+
 	// 解密
 	mode.CryptBlocks(ciphertext, ciphertext)
 
@@ -326,7 +326,7 @@ func isEncryptionEnabled() bool {
 
 	// 2. 检查环境变量
 	env := config.GetString("app.env", "development")
-	
+
 	// 开发环境下检查是否强制禁用加密
 	if env == "development" {
 		devEncryptionDisabled := config.GetBool("app.dev_disable_encryption", false)
@@ -366,7 +366,7 @@ func decryptRequestData(body []byte, contentType string) (string, string, error)
 	} else if strings.Contains(contentType, "multipart/form-data") {
 		return decryptMultipartData(body, contentType)
 	}
-	
+
 	return "", "", fmt.Errorf("不支持的Content-Type: %s", contentType)
 }
 
@@ -401,7 +401,7 @@ func decryptJSONData(body []byte) (string, string, error) {
 func decryptFormURLEncodedData(body []byte) (string, string, error) {
 	// 解析form数据
 	bodyStr := string(body)
-	
+
 	// 查找加密数据字段
 	values, err := parseFormData(bodyStr)
 	if err != nil {
@@ -411,7 +411,7 @@ func decryptFormURLEncodedData(body []byte) (string, string, error) {
 	// 获取加密数据和IV
 	encryptedDataStr, hasData := values["data"]
 	ivStr, hasIV := values["iv"]
-	
+
 	if !hasData || !hasIV {
 		return "", "", fmt.Errorf("form数据中缺少data或iv字段")
 	}
@@ -442,7 +442,7 @@ func decryptMultipartData(body []byte, contentType string) (string, string, erro
 	// 获取加密数据和IV
 	encryptedDataStr, hasData := values["data"]
 	ivStr, hasIV := values["iv"]
-	
+
 	if !hasData || !hasIV {
 		return "", "", fmt.Errorf("multipart数据中缺少data或iv字段")
 	}
@@ -459,35 +459,35 @@ func decryptMultipartData(body []byte, contentType string) (string, string, erro
 // parseFormData 解析form-urlencoded数据
 func parseFormData(data string) (map[string]string, error) {
 	values := make(map[string]string)
-	
+
 	pairs := strings.Split(data, "&")
 	for _, pair := range pairs {
 		if pair == "" {
 			continue
 		}
-		
+
 		kv := strings.SplitN(pair, "=", 2)
 		if len(kv) != 2 {
 			continue
 		}
-		
+
 		key := kv[0]
 		value := kv[1]
-		
+
 		// URL解码
 		decodedKey, err := decodeURLComponent(key)
 		if err != nil {
 			continue
 		}
-		
+
 		decodedValue, err := decodeURLComponent(value)
 		if err != nil {
 			continue
 		}
-		
+
 		values[decodedKey] = decodedValue
 	}
-	
+
 	return values, nil
 }
 
@@ -506,33 +506,33 @@ func extractBoundary(contentType string) string {
 // parseMultipartData 解析multipart数据
 func parseMultipartData(body []byte, boundary string) (map[string]string, error) {
 	values := make(map[string]string)
-	
+
 	// 分割数据
 	delimiter := "--" + boundary
 	parts := strings.Split(string(body), delimiter)
-	
+
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
 		if part == "" || part == "--" {
 			continue
 		}
-		
+
 		// 分离头部和内容
 		sections := strings.SplitN(part, "\r\n\r\n", 2)
 		if len(sections) != 2 {
 			continue
 		}
-		
+
 		headers := sections[0]
 		content := strings.TrimRight(sections[1], "\r\n")
-		
+
 		// 解析Content-Disposition头
 		name := extractFieldName(headers)
 		if name != "" {
 			values[name] = content
 		}
 	}
-	
+
 	return values, nil
 }
 
@@ -561,7 +561,7 @@ func extractFieldName(headers string) string {
 func decodeURLComponent(s string) (string, error) {
 	// 简单的URL解码实现
 	s = strings.ReplaceAll(s, "+", " ")
-	
+
 	result := make([]byte, 0, len(s))
 	for i := 0; i < len(s); i++ {
 		if s[i] == '%' && i+2 < len(s) {
@@ -576,7 +576,7 @@ func decodeURLComponent(s string) (string, error) {
 			result = append(result, s[i])
 		}
 	}
-	
+
 	return string(result), nil
 }
 
@@ -585,7 +585,7 @@ func parseHex(s string) (byte, error) {
 	if len(s) != 2 {
 		return 0, fmt.Errorf("invalid hex length")
 	}
-	
+
 	var result byte
 	for i, c := range s {
 		var digit byte
@@ -599,13 +599,13 @@ func parseHex(s string) (byte, error) {
 		default:
 			return 0, fmt.Errorf("invalid hex character")
 		}
-		
+
 		if i == 0 {
 			result = digit << 4
 		} else {
 			result |= digit
 		}
 	}
-	
+
 	return result, nil
-} 
+}

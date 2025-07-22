@@ -1,4 +1,4 @@
-﻿// Package client 鎻愪緵MongoDB宸ュ叿鍑芥暟
+// Package client 鎻愪緵MongoDB宸ュ叿鍑芥暟
 //
 // 姝ゆ枃浠跺寘鍚玀ongoDB鎿嶄綔鐩稿叧鐨勫伐鍏峰嚱鏁?
 package client
@@ -9,8 +9,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	"gohub/pkg/mongo/errors"
-	"gohub/pkg/mongo/types"
+	"gateway/pkg/mongo/errors"
+	"gateway/pkg/mongo/types"
 )
 
 // === ObjectID宸ュ叿鍑芥暟 ===
@@ -61,4 +61,4 @@ func M(doc types.Document) bson.M {
 // 杩斿洖褰撳墠UTC鏃堕棿
 func Now() time.Time {
 	return time.Now().UTC()
-} 
+}

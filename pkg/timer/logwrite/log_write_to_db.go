@@ -7,10 +7,10 @@ import (
 	"reflect"
 	"time"
 
-	"gohub/pkg/config"
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/pkg/utils/random"
+	"gateway/pkg/config"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/pkg/utils/random"
 )
 
 // WriteTaskExecutionLog 静态方法：写入任务执行日志
@@ -25,7 +25,7 @@ func WriteTaskExecutionLog(ctx context.Context, taskConfig interface{}, taskResu
 
 	// 创建日志记录
 	log := createExecutionLog(taskConfig, taskResult, maxRetries, tenantId, schedulerId)
-	
+
 	// 设置默认值
 	setLogDefaults(log)
 
@@ -42,17 +42,17 @@ func WriteTaskExecutionLog(ctx context.Context, taskConfig interface{}, taskResu
 // createExecutionLog 创建执行日志记录
 func createExecutionLog(taskConfig interface{}, taskResult interface{}, maxRetries int, tenantId, schedulerId string) *TimerExecutionLog {
 	now := time.Now()
-	
+
 	// 设置默认租户ID
 	if tenantId == "" {
 		tenantId = "DEFAULT"
 	}
-	
+
 	// 提取任务信息
 	taskID := getStringField(taskConfig, "ID")
 	taskName := getStringField(taskConfig, "Name")
 	params := getField(taskConfig, "Params")
-	
+
 	// 提取执行结果信息
 	startTime := getTimeField(taskResult, "StartTime")
 	endTime := getTimeField(taskResult, "EndTime")
@@ -60,16 +60,16 @@ func createExecutionLog(taskConfig interface{}, taskResult interface{}, maxRetri
 	error := getStringField(taskResult, "Error")
 	retryCount := getIntField(taskResult, "RetryCount")
 	result := getField(taskResult, "Result")
-	
+
 	// 如果开始时间为空，使用当前时间
 	if startTime.IsZero() {
 		startTime = now
 	}
-	
+
 	// 计算结束时间和时长
 	var endTimePtr *time.Time
 	var durationMs *int64
-	
+
 	if !endTime.IsZero() {
 		endTimePtr = &endTime
 		duration := endTime.Sub(startTime).Milliseconds()
@@ -80,19 +80,19 @@ func createExecutionLog(taskConfig interface{}, taskResult interface{}, maxRetri
 		durationValue := duration.Milliseconds()
 		durationMs = &durationValue
 	}
-	
+
 	// 判断执行是否成功
 	success := error == ""
 	executionStatus := int(StatusCompleted) // 使用基础int类型
 	if !success {
 		executionStatus = int(StatusFailed)
 	}
-	
+
 	resultSuccess := "Y"
 	if !success {
 		resultSuccess = "N"
 	}
-	
+
 	// 序列化参数和结果
 	var paramsStr, resultStr *string
 	if params != nil {
@@ -107,24 +107,24 @@ func createExecutionLog(taskConfig interface{}, taskResult interface{}, maxRetri
 			resultStr = &resultString
 		}
 	}
-	
+
 	// 设置错误信息
 	var errorMessage *string
 	if error != "" {
 		errorMessage = &error
 	}
-	
+
 	// 设置任务名称和调度器ID
 	var taskNamePtr *string
 	if taskName != "" {
 		taskNamePtr = &taskName
 	}
-	
+
 	var schedulerIdPtr *string
 	if schedulerId != "" {
 		schedulerIdPtr = &schedulerId
 	}
-	
+
 	// 设置日志信息（使用基础string类型）
 	logLevel := string(LogLevelInfo)
 	logMessage := "任务执行完成"
@@ -135,38 +135,38 @@ func createExecutionLog(taskConfig interface{}, taskResult interface{}, maxRetri
 	logTimestamp := now
 
 	return &TimerExecutionLog{
-		ExecutionId:        generateExecutionId(),
-		TenantId:           tenantId,
-		TaskId:            taskID,
-		TaskName:          taskNamePtr,
-		SchedulerId:       schedulerIdPtr,
-		ExecutionStartTime: startTime,
-		ExecutionEndTime:   endTimePtr,
+		ExecutionId:         generateExecutionId(),
+		TenantId:            tenantId,
+		TaskId:              taskID,
+		TaskName:            taskNamePtr,
+		SchedulerId:         schedulerIdPtr,
+		ExecutionStartTime:  startTime,
+		ExecutionEndTime:    endTimePtr,
 		ExecutionDurationMs: durationMs,
-		ExecutionStatus:    executionStatus,
-		ResultSuccess:     resultSuccess,
-		ErrorMessage:      errorMessage,
-		RetryCount:        retryCount,
-		MaxRetryCount:     maxRetries,
-		ExecutionParams:   paramsStr,
-		ExecutionResult:   resultStr,
-		LogLevel:          &logLevel,
-		LogMessage:        &logMessage,
-		LogTimestamp:      &logTimestamp,
-		AddTime:           now,
-		EditTime:          now,
-		AddWho:            "SYSTEM",
-		EditWho:           "SYSTEM",
-		OprSeqFlag:        fmt.Sprintf("LOG_%d", now.UnixNano()),
-		CurrentVersion:    1,
-		ActiveFlag:        "Y",
+		ExecutionStatus:     executionStatus,
+		ResultSuccess:       resultSuccess,
+		ErrorMessage:        errorMessage,
+		RetryCount:          retryCount,
+		MaxRetryCount:       maxRetries,
+		ExecutionParams:     paramsStr,
+		ExecutionResult:     resultStr,
+		LogLevel:            &logLevel,
+		LogMessage:          &logMessage,
+		LogTimestamp:        &logTimestamp,
+		AddTime:             now,
+		EditTime:            now,
+		AddWho:              "SYSTEM",
+		EditWho:             "SYSTEM",
+		OprSeqFlag:          fmt.Sprintf("LOG_%d", now.UnixNano()),
+		CurrentVersion:      1,
+		ActiveFlag:          "Y",
 	}
 }
 
 // setLogDefaults 设置日志默认值
 func setLogDefaults(log *TimerExecutionLog) {
 	now := time.Now()
-	
+
 	if log.AddTime.IsZero() {
 		log.AddTime = now
 	}
@@ -294,5 +294,3 @@ func generateExecutionId() string {
 	// 格式：EXEC_前缀 + 32位唯一字符串
 	return random.Generate32BitRandomString()
 }
-
-

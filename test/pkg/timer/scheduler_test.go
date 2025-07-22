@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"gohub/pkg/timer"
+	"gateway/pkg/timer"
 )
 
 // TestNewStandardScheduler 测试标准调度器的创建
@@ -617,7 +617,7 @@ func TestSchedulerConcurrency(t *testing.T) {
 		executor := NewTestTaskExecutor(fmt.Sprintf("concurrent-executor-%d", i), func(ctx context.Context, params interface{}) error {
 			// 模拟任务执行时间
 			time.Sleep(time.Millisecond * 100)
-			
+
 			mu.Lock()
 			completedCount++
 			mu.Unlock()
@@ -682,4 +682,4 @@ func BenchmarkSchedulerTriggerTask(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		scheduler.TriggerTask("bench-trigger-task", fmt.Sprintf("params-%d", i))
 	}
-} 
+}

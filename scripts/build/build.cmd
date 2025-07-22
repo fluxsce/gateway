@@ -2,15 +2,15 @@
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
-:: GoHub 交叉编译批处理脚本
+:: Gateway 交叉编译批处理脚本
 :: 提供简单的图形化选择界面
 
-title GoHub 交叉编译工具
+title Gateway 交叉编译工具
 
 :MAIN_MENU
 cls
 echo ==========================================
-echo          GoHub 交叉编译工具
+echo          Gateway 交叉编译工具
 echo ==========================================
 echo.
 echo 请选择操作:
@@ -224,6 +224,6 @@ goto MAIN_MENU
 
 :EXIT
 echo.
-echo 感谢使用 GoHub 交叉编译工具!
+echo 感谢使用 Gateway 交叉编译工具!
 pause
 exit /b 0 

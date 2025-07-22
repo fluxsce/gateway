@@ -1,13 +1,13 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/pkg/logger"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	"gohub/web/views/hub0000/dao"
-	"gohub/web/views/hub0000/models"
+	"gateway/pkg/database"
+	"gateway/pkg/logger"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	"gateway/web/views/hub0000/dao"
+	"gateway/web/views/hub0000/models"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -572,5 +572,3 @@ func (c *MetricQueryController) QueryTemperatureLogList(ctx *gin.Context) {
 	logger.InfoWithTrace(ctx, "查询温度日志列表成功", "tenantId", tenantId, "total", total, "page", page)
 	response.PageJSON(ctx, temperatureLogList, pageInfo, constants.SD00002)
 }
-
- 

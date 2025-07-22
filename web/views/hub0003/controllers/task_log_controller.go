@@ -1,11 +1,11 @@
 package controllers
 
 import (
-	"gohub/pkg/database"
-	"gohub/web/utils/constants"
-	"gohub/web/utils/request"
-	"gohub/web/utils/response"
-	hub0003dao "gohub/web/views/hub0003/dao"
+	"gateway/pkg/database"
+	"gateway/web/utils/constants"
+	"gateway/web/utils/request"
+	"gateway/web/utils/response"
+	hub0003dao "gateway/web/views/hub0003/dao"
 
 	"github.com/gin-gonic/gin"
 )
@@ -32,13 +32,13 @@ func NewTaskLogController(db database.Database) *TaskLogController {
 // @Param executionLogId formData string false "执行日志ID"
 // @Param data body object false "查询参数"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/log/get [post]
+// @Router /gateway/hub0003/log/get [post]
 func (c *TaskLogController) GetTaskLog(ctx *gin.Context) {
 	// 解析请求参数 - 支持JSON、Form和Query参数
 	var params struct {
 		ExecutionLogId string `json:"executionLogId" form:"executionLogId" query:"executionLogId"`
 	}
-	
+
 	// 优先尝试绑定JSON参数
 	if err := request.BindSafely(ctx, &params); err != nil {
 		response.ErrorJSON(ctx, "参数解析失败: "+err.Error(), constants.ED00006)
@@ -85,17 +85,17 @@ func (c *TaskLogController) GetTaskLog(ctx *gin.Context) {
 // @Param pageSize query integer false "页大小"
 // @Param data body object false "查询参数"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/log/query [post]
+// @Router /gateway/hub0003/log/query [post]
 func (c *TaskLogController) QueryTaskLogs(ctx *gin.Context) {
 	// 解析请求参数 - 支持JSON、Form和Query参数
 	var params struct {
 		TaskId          string `json:"taskId" form:"taskId" query:"taskId"`
 		SchedulerId     string `json:"schedulerId" form:"schedulerId" query:"schedulerId"`
 		ExecutionStatus int    `json:"executionStatus" form:"executionStatus" query:"executionStatus"`
-		StartTime       string `json:"startTime" form:"startTime" query:"startTime"`       // 执行开始时间范围-开始时间
-		EndTime         string `json:"endTime" form:"endTime" query:"endTime"`             // 执行开始时间范围-结束时间
+		StartTime       string `json:"startTime" form:"startTime" query:"startTime"` // 执行开始时间范围-开始时间
+		EndTime         string `json:"endTime" form:"endTime" query:"endTime"`       // 执行开始时间范围-结束时间
 	}
-	
+
 	// 优先尝试绑定JSON参数
 	if err := request.BindSafely(ctx, &params); err != nil {
 		response.ErrorJSON(ctx, "参数解析失败: "+err.Error(), constants.ED00006)
@@ -154,13 +154,13 @@ func (c *TaskLogController) QueryTaskLogs(ctx *gin.Context) {
 // @Param pageSize query integer false "页大小"
 // @Param data body object false "查询参数"
 // @Success 200 {object} response.Response
-// @Router /gohub/hub0003/log/by-task [post]
+// @Router /gateway/hub0003/log/by-task [post]
 func (c *TaskLogController) GetTaskLogsByTaskId(ctx *gin.Context) {
 	// 解析请求参数 - 支持JSON、Form和Query参数
 	var params struct {
 		TaskId string `json:"taskId" form:"taskId" query:"taskId"`
 	}
-	
+
 	// 优先尝试绑定JSON参数
 	if err := request.BindSafely(ctx, &params); err != nil {
 		response.ErrorJSON(ctx, "参数解析失败: "+err.Error(), constants.ED00006)
@@ -208,4 +208,4 @@ func (c *TaskLogController) GetTaskLogsByTaskId(ctx *gin.Context) {
 	}
 
 	response.PageJSON(ctx, logs, pageInfo, constants.SD00002)
-} 
+}

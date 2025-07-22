@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"time"
 
-	metricTypes "gohub/pkg/metric/types"
-	"gohub/pkg/utils/random"
+	metricTypes "gateway/pkg/metric/types"
+	"gateway/pkg/utils/random"
 )
 
 // NetworkLog 网络接口日志表对应的结构体
@@ -68,15 +68,15 @@ func NewNetworkLogFromMetrics(iface *metricTypes.NetworkInterface, tenantId, ser
 	// 转换IP地址列表为JSON字符串
 	ipAddressesBytes, _ := json.Marshal(iface.IPAddresses)
 	ipAddressesStr := string(ipAddressesBytes)
-	
+
 	// 处理接口类型
 	var interfaceType *string
 	if iface.Type != "" {
 		interfaceType = &iface.Type
 	}
-	
+
 	now := time.Now()
-	
+
 	return &NetworkLog{
 		MetricNetworkLogId: random.Generate32BitRandomString(),
 		TenantId:           tenantId,
@@ -110,11 +110,11 @@ func NewNetworkLogFromMetrics(iface *metricTypes.NetworkInterface, tenantId, ser
 // NewNetworkLogsFromMetrics 从NetworkMetrics批量创建NetworkLog实例
 func NewNetworkLogsFromMetrics(networkMetrics *metricTypes.NetworkMetrics, tenantId, serverId, operator string, collectTime time.Time, oprSeqFlag string) []*NetworkLog {
 	var logs []*NetworkLog
-	
+
 	for i, iface := range networkMetrics.Interfaces {
 		log := NewNetworkLogFromMetrics(&iface, tenantId, serverId, operator, collectTime, oprSeqFlag, i)
 		logs = append(logs, log)
 	}
-	
+
 	return logs
-} 
+}

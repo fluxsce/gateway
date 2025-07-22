@@ -3,7 +3,7 @@ package proxy
 import (
 	"fmt"
 
-	"gohub/internal/gateway/handler/service"
+	"gateway/internal/gateway/handler/service"
 )
 
 // ProxyFactory 代理工厂

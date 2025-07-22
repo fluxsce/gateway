@@ -3,13 +3,13 @@ package config
 import (
 	"time"
 
-	"gohub/internal/gateway/handler/auth"
-	"gohub/internal/gateway/handler/cors"
-	"gohub/internal/gateway/handler/limiter"
-	"gohub/internal/gateway/handler/proxy"
-	"gohub/internal/gateway/handler/router"
-	"gohub/internal/gateway/handler/security"
-	"gohub/internal/gateway/logwrite/types"
+	"gateway/internal/gateway/handler/auth"
+	"gateway/internal/gateway/handler/cors"
+	"gateway/internal/gateway/handler/limiter"
+	"gateway/internal/gateway/handler/proxy"
+	"gateway/internal/gateway/handler/router"
+	"gateway/internal/gateway/handler/security"
+	"gateway/internal/gateway/logwrite/types"
 )
 
 // GatewayConfig 网关总体配置
@@ -69,7 +69,7 @@ type BaseConfig struct {
 var DefaultGatewayConfig = GatewayConfig{
 	Base: BaseConfig{
 		Listen:          ":8080",
-		Name:            "GoHub Gateway",
+		Name:            "Gateway Gateway",
 		ReadTimeout:     30 * time.Second,
 		WriteTimeout:    30 * time.Second,
 		IdleTimeout:     120 * time.Second,

@@ -9,7 +9,7 @@
             "program": "${workspaceFolder}/cmd/app/main.go",
             "cwd": "${workspaceFolder}",
             "env": {
-                "GOHUB_ENV": "development"
+                "GATEWAY_ENV": "development"
             },
             "args": []
         },
@@ -21,7 +21,7 @@
             "program": "${workspaceFolder}/cmd/app/main.go",
             "cwd": "${workspaceFolder}",
             "env": {
-                "GOHUB_ENV": "development",
+                "GATEWAY_ENV": "development",
                 "DEBUG": "true"
             },
             "args": []
@@ -33,7 +33,7 @@
             "mode": "test",
             "program": "${file}",
             "env": {
-                "GOHUB_ENV": "testing"
+                "GATEWAY_ENV": "testing"
             },
             "args": ["-v"]
         },
@@ -44,7 +44,7 @@
             "mode": "test",
             "program": "${fileDirname}",
             "env": {
-                "GOHUB_ENV": "testing"
+                "GATEWAY_ENV": "testing"
             },
             "args": ["-v"]
         },
@@ -56,7 +56,7 @@
             "program": "${workspaceFolder}/cmd/test/debug_sample.go",
             "cwd": "${workspaceFolder}",
             "env": {
-                "GOHUB_ENV": "development",
+                "GATEWAY_ENV": "development",
                 "DEBUG": "true"
             },
             "args": []

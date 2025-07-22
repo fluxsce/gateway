@@ -9,29 +9,29 @@ import (
 	// 每个模块在导入时会通过init函数自动注册自己的路由
 
 	// hub002模块 - 安全配置管理模块（位于common目录）
-	_ "gohub/web/views/hubcommon002/routes"
+	_ "gateway/web/views/hubcommon002/routes"
 	// 添加其他模块的导入
-	// _ "gohub/web/views/hub0001/routes"
+	// _ "gateway/web/views/hub0001/routes"
 
-	// _ "gohub/web/views/hub0004/routes"
+	// _ "gateway/web/views/hub0004/routes"
 	// 导入指标查询模块
-	_ "gohub/web/views/hub0000/routes"
+	_ "gateway/web/views/hub0000/routes"
 	// 导入认证模块
-	_ "gohub/web/views/hub0001/routes"
+	_ "gateway/web/views/hub0001/routes"
 	// 导入用户管理模块
-	_ "gohub/web/views/hub0002/routes"
+	_ "gateway/web/views/hub0002/routes"
 	// 导入定时任务管理模块
-	_ "gohub/web/views/hub0003/routes"
+	_ "gateway/web/views/hub0003/routes"
 	// 导入网关管理模块
-	_ "gohub/web/views/hub0020/routes"
+	_ "gateway/web/views/hub0020/routes"
 	// 导入路由管理模块
-	_ "gohub/web/views/hub0021/routes"
+	_ "gateway/web/views/hub0021/routes"
 	// 导入代理管理模块
-	_ "gohub/web/views/hub0022/routes"
+	_ "gateway/web/views/hub0022/routes"
 	// 导入网关日志管理模块
-	_ "gohub/web/views/hub0023/routes"
+	_ "gateway/web/views/hub0023/routes"
 	//导入插件管理模块
-	_ "gohub/web/views/hubplugin/routes"
+	_ "gateway/web/views/hubplugin/routes"
 )
 
 // 这个包没有导出任何函数或变量

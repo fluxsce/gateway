@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"gohub/internal/gateway/core"
+	"gateway/internal/gateway/core"
 )
 
 // ConsistentHashBalancer 一致性哈希负载均衡器

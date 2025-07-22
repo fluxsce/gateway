@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"gohub/pkg/metric/collector"
-	"gohub/pkg/metric/types"
+	"gateway/pkg/metric/collector"
+	"gateway/pkg/metric/types"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/load"
@@ -119,7 +119,7 @@ func (c *CPUCollector) getCPUStats(ctx context.Context, metrics *types.CPUMetric
 	if err != nil {
 		return fmt.Errorf("获取CPU使用率失败: %w", err)
 	}
-	
+
 	if len(percentages) > 0 {
 		metrics.UsagePercent = percentages[0]
 	}
@@ -132,8 +132,8 @@ func (c *CPUCollector) getCPUStats(ctx context.Context, metrics *types.CPUMetric
 
 	if len(times) > 0 {
 		cpuTime := times[0]
-		total := cpuTime.User + cpuTime.System + cpuTime.Idle + cpuTime.Nice + 
-				cpuTime.Iowait + cpuTime.Irq + cpuTime.Softirq + cpuTime.Steal
+		total := cpuTime.User + cpuTime.System + cpuTime.Idle + cpuTime.Nice +
+			cpuTime.Iowait + cpuTime.Irq + cpuTime.Softirq + cpuTime.Steal
 
 		if total > 0 {
 			metrics.UserPercent = (cpuTime.User / total) * 100
@@ -146,7 +146,7 @@ func (c *CPUCollector) getCPUStats(ctx context.Context, metrics *types.CPUMetric
 	}
 
 	return nil
-	}
+}
 
 // getLoadAverage 获取负载平均值
 // 使用 gopsutil 获取系统负载平均值（主要在Linux/Unix系统有效）
@@ -168,9 +168,9 @@ func (c *CPUCollector) getLoadAverage(ctx context.Context, metrics *types.CPUMet
 		return
 	}
 
-		metrics.LoadAvg1 = loadAvg.Load1
-		metrics.LoadAvg5 = loadAvg.Load5
-		metrics.LoadAvg15 = loadAvg.Load15
+	metrics.LoadAvg1 = loadAvg.Load1
+	metrics.LoadAvg5 = loadAvg.Load5
+	metrics.LoadAvg15 = loadAvg.Load15
 }
 
 // SetTimeout 设置采集超时时间
@@ -181,4 +181,4 @@ func (c *CPUCollector) SetTimeout(timeout time.Duration) {
 // GetTimeout 获取采集超时时间
 func (c *CPUCollector) GetTimeout() time.Duration {
 	return c.timeout
-} 
+}

@@ -3,8 +3,8 @@ package bootstrap
 import (
 	"sync"
 
-	"gohub/pkg/logger"
-	"gohub/pkg/utils/huberrors"
+	"gateway/pkg/logger"
+	"gateway/pkg/utils/huberrors"
 )
 
 // 网关连接池设计说明：
@@ -20,7 +20,7 @@ import (
 type gatewayPool struct {
 	// 网关实例映射 - key: InstanceID, value: Gateway
 	gateways map[string]*Gateway
-	
+
 	// 读写锁保护并发访问
 	mu sync.RWMutex
 }
@@ -37,22 +37,22 @@ func (p *gatewayPool) Add(instanceID string, gateway *Gateway) error {
 	if instanceID == "" {
 		return huberrors.NewError("实例ID不能为空")
 	}
-	
+
 	if gateway == nil {
 		return huberrors.NewError("网关实例不能为nil")
 	}
-	
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	
+
 	// 检查实例ID是否已存在
 	if _, exists := p.gateways[instanceID]; exists {
 		return huberrors.NewError("网关实例ID '%s' 已存在", instanceID)
 	}
-	
+
 	// 添加到连接池
 	p.gateways[instanceID] = gateway
-	
+
 	logger.Info("网关实例已添加到连接池", "instanceId", instanceID)
 	return nil
 }
@@ -62,16 +62,16 @@ func (p *gatewayPool) Remove(instanceID string) error {
 	if instanceID == "" {
 		return huberrors.NewError("实例ID不能为空")
 	}
-	
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	
+
 	// 检查实例是否存在
 	gateway, exists := p.gateways[instanceID]
 	if !exists {
 		return huberrors.NewError("网关实例ID '%s' 不存在", instanceID)
 	}
-	
+
 	// 如果网关正在运行，先停止它
 	if gateway.IsRunning() {
 		if err := gateway.Stop(); err != nil {
@@ -79,10 +79,10 @@ func (p *gatewayPool) Remove(instanceID string) error {
 			return huberrors.WrapError(err, "停止网关实例失败")
 		}
 	}
-	
+
 	// 从连接池中删除
 	delete(p.gateways, instanceID)
-	
+
 	logger.Info("网关实例已从连接池中移除", "instanceId", instanceID)
 	return nil
 }
@@ -92,15 +92,15 @@ func (p *gatewayPool) Get(instanceID string) (*Gateway, error) {
 	if instanceID == "" {
 		return nil, huberrors.NewError("实例ID不能为空")
 	}
-	
+
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	
+
 	gateway, exists := p.gateways[instanceID]
 	if !exists {
 		return nil, huberrors.NewError("网关实例ID '%s' 不存在", instanceID)
 	}
-	
+
 	return gateway, nil
 }
 
@@ -108,13 +108,13 @@ func (p *gatewayPool) Get(instanceID string) (*Gateway, error) {
 func (p *gatewayPool) GetAll() map[string]*Gateway {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	
+
 	// 创建副本以避免并发修改
 	result := make(map[string]*Gateway)
 	for id, gateway := range p.gateways {
 		result[id] = gateway
 	}
-	
+
 	return result
 }
 
@@ -122,7 +122,7 @@ func (p *gatewayPool) GetAll() map[string]*Gateway {
 func (p *gatewayPool) Exists(instanceID string) bool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	
+
 	_, exists := p.gateways[instanceID]
 	return exists
 }
@@ -131,7 +131,7 @@ func (p *gatewayPool) Exists(instanceID string) bool {
 func (p *gatewayPool) Count() int {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	
+
 	return len(p.gateways)
 }
 
@@ -139,14 +139,14 @@ func (p *gatewayPool) Count() int {
 func (p *gatewayPool) GetRunningGateways() map[string]*Gateway {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	
+
 	result := make(map[string]*Gateway)
 	for id, gateway := range p.gateways {
 		if gateway.IsRunning() {
 			result[id] = gateway
 		}
 	}
-	
+
 	return result
 }
 
@@ -158,7 +158,7 @@ func (p *gatewayPool) StartAll() error {
 		gateways[id] = gateway
 	}
 	p.mu.RUnlock()
-	
+
 	var errors []string
 	for id, gateway := range gateways {
 		if !gateway.IsRunning() {
@@ -170,11 +170,11 @@ func (p *gatewayPool) StartAll() error {
 			}
 		}
 	}
-	
+
 	if len(errors) > 0 {
 		return huberrors.NewError("部分网关实例启动失败: %v", errors)
 	}
-	
+
 	logger.Info("所有网关实例启动成功", "count", len(gateways))
 	return nil
 }
@@ -187,7 +187,7 @@ func (p *gatewayPool) StopAll() error {
 		gateways[id] = gateway
 	}
 	p.mu.RUnlock()
-	
+
 	var errors []string
 	for id, gateway := range gateways {
 		if gateway.IsRunning() {
@@ -199,11 +199,11 @@ func (p *gatewayPool) StopAll() error {
 			}
 		}
 	}
-	
+
 	if len(errors) > 0 {
 		return huberrors.NewError("部分网关实例停止失败: %v", errors)
 	}
-	
+
 	logger.Info("所有网关实例停止成功", "count", len(gateways))
 	return nil
 }
@@ -214,13 +214,13 @@ func (p *gatewayPool) Clear() error {
 	if err := p.StopAll(); err != nil {
 		return err
 	}
-	
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	
+
 	// 清空map
 	p.gateways = make(map[string]*Gateway)
-	
+
 	logger.Info("网关连接池已清空")
 	return nil
 }
@@ -229,12 +229,12 @@ func (p *gatewayPool) Clear() error {
 func (p *gatewayPool) GetInstanceIDs() []string {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	
+
 	ids := make([]string, 0, len(p.gateways))
 	for id := range p.gateways {
 		ids = append(ids, id)
 	}
-	
+
 	return ids
 }
 
@@ -267,4 +267,4 @@ func GetGlobalPool() GatewayPool {
 		logger.Info("全局网关连接池初始化完成")
 	})
 	return globalPool
-} 
+}

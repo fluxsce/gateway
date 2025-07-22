@@ -99,8 +99,8 @@ app:
 
 ```go
 import (
-    metricInit "gohub/internal/metric_collect/init"
-    "gohub/pkg/database"
+    metricInit "gateway/internal/metric_collect/init"
+    "gateway/pkg/database"
 )
 
 func main() {
@@ -124,7 +124,7 @@ func main() {
 获取全局管理器进行运行时控制：
 
 ```go
-import metricInit "gohub/internal/metric_collect/init"
+import metricInit "gateway/internal/metric_collect/init"
 
 // 获取全局管理器
 manager := metricInit.GetGlobalManager()
