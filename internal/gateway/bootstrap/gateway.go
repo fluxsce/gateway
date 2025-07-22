@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gohub/internal/gateway/config"
+	"gohub/internal/gateway/constants"
 	"gohub/internal/gateway/core"
 	"gohub/internal/gateway/handler/auth"
 	"gohub/internal/gateway/handler/cors"
@@ -71,7 +72,7 @@ type Gateway struct {
 }
 
 // setupHandlers 设置处理器链 - 网关处理的核心思想
-func (g *Gateway) setupHandlers() {
+func (g *Gateway) setupHandlers(engine *core.Engine) {
 	// 处理器执行顺序说明：
 	// 详细处理流程说明：
 	// 1. 请求接收：HTTP服务器接收客户端请求
@@ -154,7 +155,7 @@ func (g *Gateway) setupHandlers() {
 
 	// 添加全局安全处理器（仅当启用时）
 	if g.security != nil && g.gatewayConfig.Security.Enabled {
-		g.engine.UseFunc(func(ctx *core.Context) bool {
+		engine.UseFunc(func(ctx *core.Context) bool {
 			if !g.security.Handle(ctx) {
 				logger.Warn("全局安全检查失败", "path", ctx.Request.URL.Path)
 				return false
@@ -165,7 +166,7 @@ func (g *Gateway) setupHandlers() {
 
 	// 添加全局CORS处理器（仅当启用时）
 	if g.cors != nil && g.gatewayConfig.CORS.Enabled {
-		g.engine.UseFunc(func(ctx *core.Context) bool {
+		engine.UseFunc(func(ctx *core.Context) bool {
 			if !g.cors.Handle(ctx) {
 				logger.Debug("全局CORS检查失败", "path", ctx.Request.URL.Path)
 				return false
@@ -176,7 +177,7 @@ func (g *Gateway) setupHandlers() {
 
 	// 添加全局认证处理器（仅当启用时）- 认证在限流前，避免无效请求消耗资源
 	if g.auth != nil && g.gatewayConfig.Auth.Enabled {
-		g.engine.UseFunc(func(ctx *core.Context) bool {
+		engine.UseFunc(func(ctx *core.Context) bool {
 			if !g.auth.Handle(ctx) {
 				logger.Warn("全局认证失败", "path", ctx.Request.URL.Path)
 				return false
@@ -187,7 +188,7 @@ func (g *Gateway) setupHandlers() {
 
 	// 添加全局限流处理器（仅当启用且设置了速率时）
 	if g.limiter != nil && g.gatewayConfig.RateLimit.Enabled && g.gatewayConfig.RateLimit.Rate > 0 {
-		g.engine.UseFunc(func(ctx *core.Context) bool {
+		engine.UseFunc(func(ctx *core.Context) bool {
 			if !g.limiter.Handle(ctx) {
 				logger.Warn("全局限流触发", "path", ctx.Request.URL.Path)
 				return false
@@ -200,7 +201,7 @@ func (g *Gateway) setupHandlers() {
 
 	// 添加路由处理器 - 路由匹配和路由级别的处理器链执行
 	// 路由处理器内部会执行路由级别的安全、CORS、限流、熔断、认证处理
-	g.engine.UseFunc(func(ctx *core.Context) bool {
+	engine.UseFunc(func(ctx *core.Context) bool {
 		if !g.router.Handle(ctx) {
 			logger.Debug("路由处理失败", "path", ctx.Request.URL.Path)
 			return false
@@ -211,7 +212,7 @@ func (g *Gateway) setupHandlers() {
 	// === 第三层：代理转发 ===
 
 	// 添加代理处理器
-	g.engine.UseFunc(func(ctx *core.Context) bool {
+	engine.UseFunc(func(ctx *core.Context) bool {
 		if !g.proxy.Handle(ctx) {
 			logger.Error("代理转发失败", "path", ctx.Request.URL.Path)
 			return false
@@ -227,11 +228,32 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 使用Engine的HandleWithContext方法处理请求
 	// 这样可以确保日志记录使用的是同一个上下文
 	g.engine.HandleWithContext(ctx,w,r)
-	
+	// 设置响应时间
+	ctx.SetResponseTime(time.Now())
+	// 设置实例名称
+	ctx.Set(constants.ContextKeyGatewayInstanceName, g.gatewayConfig.Base.Name)
+	//设置日志配置ID
+	ctx.Set(constants.ContextKeyLogConfigID, g.gatewayConfig.Log.LogConfigID)
+	//设置租户ID
+	ctx.Set(constants.ContextKeyTenantID,g.gatewayConfig.Log.TenantID)
 	// 链路处理完成后，异步写入访问日志
-	// 现在使用的是同一个上下文，包含完整的处理信息
+	// 创建独立的context用于日志写入，避免HTTP请求context取消导致的问题
 	go func() {
-		if err := logwrite.WriteLog("default-gateway-log", ctx); err != nil {
+		// 创建独立的context，设置合理的超时时间
+		logCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		
+		// 将原始的HTTP请求context替换为独立的context
+		// 这样日志写入就不会因为HTTP请求结束而失败
+		originalCtx := ctx.Ctx
+		ctx.Ctx = logCtx
+		
+		// 确保在函数结束时恢复原始context（虽然这里不是必需的，但是好的实践）
+		defer func() {
+			ctx.Ctx = originalCtx
+		}()
+		
+		if err := logwrite.WriteLog(g.gatewayConfig.InstanceID, ctx); err != nil {
 			logger.Error("Failed to write access log", "error", err)
 		}
 	}()
@@ -249,7 +271,7 @@ func (g *Gateway) Start() error {
 	}
 
 	// 设置处理器链
-	g.setupHandlers()
+	g.setupHandlers(g.engine)
 
 	// 创建一个通道用于接收启动错误
 	errCh := make(chan error, 1)
@@ -263,7 +285,8 @@ func (g *Gateway) Start() error {
 	listener.Close()
 
 	logger.Info("启动网关服务", "listen", g.gatewayConfig.Base.Listen)
-
+	// 初始化日志处理器
+	logwrite.InitLogManager(g.gatewayConfig.InstanceID, &g.gatewayConfig.Log)
 	// 启动HTTP服务器
 	g.wg.Add(1)
 	go func() {
@@ -382,7 +405,9 @@ func (g *Gateway) Stop() error {
 			_ = closer.Close()
 		}
 	}
-
+	// 关闭日志处理器
+	logwrite.CloseLogWriter(g.gatewayConfig.InstanceID)
+	
 	// 关闭HTTP服务器
 	// 设置30秒超时确保正在处理的请求有足够时间完成
 	// 超时后会强制关闭，避免无限等待
@@ -428,15 +453,16 @@ func (g *Gateway) Reload(newCfg *config.GatewayConfig) error {
 	}
 
 	// 使用工厂方法重载配置
+	// 注意：ReloadGateway方法内部已经处理了engine的重建和处理器链设置
 	factory := NewGatewayFactory()
 	if err := factory.ReloadGateway(g, newCfg); err != nil {
 		return fmt.Errorf("重载网关配置失败: %w", err)
 	}
-
-	// 重新设置处理器链
-	g.engine = core.NewEngine()
-	g.setupHandlers()
-
+	// 重新初始化日志处理器
+	err := logwrite.UpdateLogWriter(g.gatewayConfig.InstanceID, &g.gatewayConfig.Log)
+	if err != nil {
+		return fmt.Errorf("重载日志处理器失败: %w", err)
+	}
 	logger.Info("网关配置重载成功", 
 		"instanceId", g.gatewayConfig.InstanceID,
 		"listen", g.gatewayConfig.Base.Listen)

@@ -48,3 +48,22 @@ func (fm *FieldMapper) IsOracleSpecificType(value interface{}) bool {
 func (fm *FieldMapper) convertOracleValue(field reflect.Value, value interface{}) error {
     return nil
 }
+
+// HandleSpecialTypeConversion 处理特殊数据库类型转换的禁用版本
+//
+// 参数：
+//   - dest: 目标字段的反射值（在禁用版本中不会被使用）
+//   - value: 要转换的值（在禁用版本中不会被使用）
+//
+// 返回：
+//   - error: 始终返回nil
+//
+// 说明：
+//   - 这是Oracle支持被禁用时的替代实现
+//   - 用于在不需要Oracle支持时编译使用
+//   - 通过build tag "no_oracle" 控制是否启用
+//   - 始终返回nil，表示不进行任何特殊类型转换
+//   - 允许ClickHouse支持等其他组件正常编译和运行
+func HandleSpecialTypeConversion(dest reflect.Value, value interface{}) error {
+    return nil
+}

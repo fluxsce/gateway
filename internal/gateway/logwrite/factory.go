@@ -3,13 +3,12 @@ package logwrite
 import (
 	"fmt"
 
+	"gohub/internal/gateway/logwrite/clickhouse"
 	"gohub/internal/gateway/logwrite/console"
 	"gohub/internal/gateway/logwrite/dbwrite"
-	"gohub/internal/gateway/logwrite/elasticsearch"
 	"gohub/internal/gateway/logwrite/filewrite"
 	"gohub/internal/gateway/logwrite/mongowrite"
 	"gohub/internal/gateway/logwrite/types"
-	"gohub/pkg/logger"
 )
 
 // CreateWriter 根据配置创建写入器实例（静态方法）
@@ -83,18 +82,16 @@ func createMongoWriter(config *types.LogConfig) (LogWriter, error) {
 
 // createElasticsearchWriter 创建Elasticsearch写入器
 func createElasticsearchWriter(config *types.LogConfig) (LogWriter, error) {
-	writer, err := elasticsearch.NewESWriter(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create elasticsearch writer: %w", err)
-	}
-	return writer, nil
+	return nil, fmt.Errorf("elasticsearch writer not implemented")
 }
 
 // createClickHouseWriter 创建ClickHouse写入器
 func createClickHouseWriter(config *types.LogConfig) (LogWriter, error) {
-	// TODO: 实现ClickHouse写入器
-	logger.Warn("ClickHouse writer not implemented yet")
-	return nil, fmt.Errorf("clickhouse writer not implemented")
+	writer, err := clickhouse.NewClickHouseWriter(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create clickhouse writer: %w", err)
+	}
+	return writer, nil
 }
 
 // GetSupportedTargets 获取支持的输出目标列表（静态方法）
@@ -105,7 +102,7 @@ func GetSupportedTargets() []types.LogOutputTarget {
 		types.LogOutputDatabase,
 		types.LogOutputMongoDB,
 		types.LogOutputElasticsearch,
-		// types.LogOutputClickHouse, // 暂未实现
+		types.LogOutputClickHouse, // 已实现
 	}
 }
 

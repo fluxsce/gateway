@@ -133,7 +133,7 @@ func (dao *AuthConfigDAO) GetAuthConfig(tenantId, authConfigId string) (*models.
 
 	query := `
 		SELECT * FROM HUB_GW_AUTH_CONFIG 
-		WHERE authConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
+		WHERE authConfigId = ? AND tenantId = ?
 	`
 
 	var config models.AuthConfig
@@ -170,33 +170,46 @@ func (dao *AuthConfigDAO) UpdateAuthConfig(ctx context.Context, config *models.A
 	config.CurrentVersion = currentConfig.CurrentVersion + 1
 	config.OprSeqFlag = config.AuthConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
 
+	// 保留不可修改的字段
+	config.AddTime = currentConfig.AddTime
+	config.AddWho = currentConfig.AddWho
+	
+	// 如果没有设置活动标记，保持原有状态
+	if config.ActiveFlag == "" {
+		config.ActiveFlag = currentConfig.ActiveFlag
+	}
+
 	sql := `
 		UPDATE HUB_GW_AUTH_CONFIG SET
 			gatewayInstanceId = ?, routeConfigId = ?, authName = ?, authType = ?,
 			authStrategy = ?, authConfig = ?, exemptPaths = ?, exemptHeaders = ?,
 			failureStatusCode = ?, failureMessage = ?, configPriority = ?, reserved1 = ?,
 			reserved2 = ?, reserved3 = ?, reserved4 = ?, reserved5 = ?, extProperty = ?,
-			noteText = ?, editTime = ?, editWho = ?, currentVersion = ?, oprSeqFlag = ?
-		WHERE authConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
+			noteText = ?, editTime = ?, editWho = ?, currentVersion = ?, oprSeqFlag = ?, activeFlag = ?
+		WHERE authConfigId = ? AND tenantId = ? AND currentVersion = ?
 	`
 
-	_, err = dao.db.Exec(ctx, sql, []interface{}{
+	result, err := dao.db.Exec(ctx, sql, []interface{}{
 		config.GatewayInstanceId, config.RouteConfigId, config.AuthName, config.AuthType,
 		config.AuthStrategy, config.AuthConfig, config.ExemptPaths, config.ExemptHeaders,
 		config.FailureStatusCode, config.FailureMessage, config.ConfigPriority, config.Reserved1,
 		config.Reserved2, config.Reserved3, config.Reserved4, config.Reserved5, config.ExtProperty,
-		config.NoteText, config.EditTime, config.EditWho, config.CurrentVersion, config.OprSeqFlag,
-		config.AuthConfigId, config.TenantId,
+		config.NoteText, config.EditTime, config.EditWho, config.CurrentVersion, config.OprSeqFlag, config.ActiveFlag,
+		config.AuthConfigId, config.TenantId, currentConfig.CurrentVersion,
 	}, true)
 
 	if err != nil {
 		return huberrors.WrapError(err, "更新认证配置失败")
 	}
 
+	if result == 0 {
+		return errors.New("认证配置数据已被其他用户修改，请刷新后重试")
+	}
+
 	return nil
 }
 
-// DeleteAuthConfig 软删除认证配置
+// DeleteAuthConfig 物理删除认证配置
 func (dao *AuthConfigDAO) DeleteAuthConfig(tenantId, authConfigId, operatorId string) error {
 	if authConfigId == "" || tenantId == "" {
 		return errors.New("authConfigId和tenantId不能为空")
@@ -211,19 +224,16 @@ func (dao *AuthConfigDAO) DeleteAuthConfig(tenantId, authConfigId, operatorId st
 		return errors.New("认证配置不存在")
 	}
 
-	now := time.Now()
-	sql := `
-		UPDATE HUB_GW_AUTH_CONFIG SET
-			activeFlag = 'N', editTime = ?, editWho = ?
-		WHERE authConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
-	`
+	// 执行物理删除
+	sql := `DELETE FROM HUB_GW_AUTH_CONFIG WHERE authConfigId = ? AND tenantId = ?`
 
-	_, err = dao.db.Exec(context.Background(), sql, []interface{}{
-		now, operatorId, authConfigId, tenantId,
-	}, true)
-
+	result, err := dao.db.Exec(context.Background(), sql, []interface{}{authConfigId, tenantId}, true)
 	if err != nil {
 		return huberrors.WrapError(err, "删除认证配置失败")
+	}
+
+	if result == 0 {
+		return errors.New("未找到要删除的认证配置")
 	}
 
 	return nil
@@ -236,7 +246,7 @@ func (dao *AuthConfigDAO) ListAuthConfigs(ctx context.Context, tenantId string, 
 	}
 
 	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_AUTH_CONFIG WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY configPriority ASC, addTime DESC"
+	baseQuery := "SELECT * FROM HUB_GW_AUTH_CONFIG WHERE tenantId = ? ORDER BY configPriority ASC, addTime DESC"
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
@@ -292,7 +302,7 @@ func (dao *AuthConfigDAO) GetAuthConfigByGatewayInstance(tenantId, gatewayInstan
 	// 构建基础查询语句
 	baseQuery := `
 		SELECT * FROM HUB_GW_AUTH_CONFIG 
-		WHERE tenantId = ? AND gatewayInstanceId = ? AND activeFlag = 'Y'
+		WHERE tenantId = ? AND gatewayInstanceId = ?
 		ORDER BY configPriority ASC, addTime DESC
 	`
 
@@ -334,7 +344,7 @@ func (dao *AuthConfigDAO) GetAuthConfigByRouteConfig(tenantId, routeConfigId str
 	// 构建基础查询语句
 	baseQuery := `
 		SELECT * FROM HUB_GW_AUTH_CONFIG 
-		WHERE tenantId = ? AND routeConfigId = ? AND activeFlag = 'Y'
+		WHERE tenantId = ? AND routeConfigId = ?
 		ORDER BY configPriority ASC, addTime DESC
 	`
 

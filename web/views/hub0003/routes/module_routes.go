@@ -78,9 +78,8 @@ func initTaskRoutes(router *gin.RouterGroup, db database.Database) {
 		taskGroup.POST("/start", taskController.StartTask)
 		taskGroup.POST("/stop", taskController.StopTask)
 		
-		// 任务执行操作 - TODO: 需要在控制器中实现这些方法
-		// taskGroup.POST("/execute", taskController.ExecuteTask)
-		// taskGroup.POST("/trigger", taskController.TriggerTask)
+		// 任务执行操作
+		taskGroup.POST("/trigger", taskController.TriggerTask) // 立即执行任务
 	}
 }
 

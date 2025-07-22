@@ -119,7 +119,7 @@ func (dao *ApiAccessConfigDAO) GetApiAccessConfigBySecurityConfigId(ctx context.
 
 	query := `
 		SELECT * FROM HUB_GW_API_ACCESS_CONFIG 
-		WHERE securityConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
+		WHERE securityConfigId = ? AND tenantId = ?
 	`
 
 	var config models.ApiAccessConfig
@@ -157,18 +157,27 @@ func (dao *ApiAccessConfigDAO) UpdateApiAccessConfig(ctx context.Context, config
 	config.CurrentVersion = currentConfig.CurrentVersion + 1
 	config.OprSeqFlag = config.ApiAccessConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
 
+	// 保留不可修改的字段
+	config.AddTime = currentConfig.AddTime
+	config.AddWho = currentConfig.AddWho
+	
+	// 如果没有设置活动标记，保持原有状态
+	if config.ActiveFlag == "" {
+		config.ActiveFlag = currentConfig.ActiveFlag
+	}
+
 	sql := `
 		UPDATE HUB_GW_API_ACCESS_CONFIG SET
 			configName = ?, defaultPolicy = ?, whitelistPaths = ?, blacklistPaths = ?,
 			allowedMethods = ?, blockedMethods = ?, reserved1 = ?, reserved2 = ?, reserved3 = ?, reserved4 = ?, reserved5 = ?,
-			extProperty = ?, noteText = ?, editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?
+			extProperty = ?, noteText = ?, editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?, activeFlag = ?
 		WHERE apiAccessConfigId = ? AND tenantId = ? AND currentVersion = ?
 	`
 
 	result, err := dao.db.Exec(ctx, sql, []interface{}{
 		config.ConfigName, config.DefaultPolicy, config.WhitelistPaths, config.BlacklistPaths,
 		config.AllowedMethods, config.BlockedMethods, config.Reserved1, config.Reserved2, config.Reserved3, config.Reserved4, config.Reserved5,
-		config.ExtProperty, config.NoteText, config.EditTime, config.EditWho, config.OprSeqFlag, config.CurrentVersion,
+		config.ExtProperty, config.NoteText, config.EditTime, config.EditWho, config.OprSeqFlag, config.CurrentVersion, config.ActiveFlag,
 		config.ApiAccessConfigId, config.TenantId, currentConfig.CurrentVersion,
 	}, true)
 
@@ -190,12 +199,11 @@ func (dao *ApiAccessConfigDAO) DeleteApiAccessConfig(ctx context.Context, securi
 	}
 
 	sql := `
-		UPDATE HUB_GW_API_ACCESS_CONFIG SET
-			activeFlag = 'N', editTime = ?, editWho = ?
+		DELETE FROM HUB_GW_API_ACCESS_CONFIG
 		WHERE securityConfigId = ? AND tenantId = ?
 	`
 
-	result, err := dao.db.Exec(ctx, sql, []interface{}{time.Now(), operatorId, securityConfigId, tenantId}, true)
+	result, err := dao.db.Exec(ctx, sql, []interface{}{securityConfigId, tenantId}, true)
 	if err != nil {
 		return huberrors.WrapError(err, "删除API访问控制配置失败")
 	}
@@ -214,7 +222,7 @@ func (dao *ApiAccessConfigDAO) ListApiAccessConfigs(ctx context.Context, tenantI
 	}
 
 	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_API_ACCESS_CONFIG WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY addTime DESC"
+	baseQuery := "SELECT * FROM HUB_GW_API_ACCESS_CONFIG WHERE tenantId = ? ORDER BY addTime DESC"
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)

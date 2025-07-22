@@ -220,7 +220,7 @@ func TestRouterHandler(t *testing.T) {
 	}
 }
 
-func TestRouteMatching(t *testing.T) {
+func TestRouteMatching1(t *testing.T) {
 	tests := []struct {
 		name        string
 		routePath   string

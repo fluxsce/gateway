@@ -413,19 +413,92 @@ func (f *BodyFilter) filterJSONFields(ctx *core.Context, body []byte) error {
 }
 
 // configureBodyFilter 配置请求体过滤器
+// 支持前端传递的驼峰命名配置格式：
+// {
+//   "modifierType": "transform|validate|modify|filter",  // 必需：修改类型
+//   "operation": "string",                               // 可选：具体操作名称
+//   "filterConfig": {"key": "value"},                    // 可选：过滤器具体配置
+//   "allowedContentTypes": ["application/json"],         // 可选：允许的内容类型
+//   "maxBodySize": 1048576                               // 可选：最大请求体大小（字节）
+// }
 func configureBodyFilter(bodyFilter *BodyFilter, config map[string]interface{}) error {
 	if config == nil {
 		return nil
 	}
 
+	// 首先检查是否有嵌套的 bodyConfig 配置
+	var bodyConfig map[string]interface{}
+	if nestedConfig, ok := config["bodyConfig"].(map[string]interface{}); ok {
+		bodyConfig = nestedConfig
+	} else {
+		// 如果没有嵌套配置，直接使用顶级配置
+		bodyConfig = config
+	}
+
+	// 优先支持前端驼峰命名格式
+	if modifierType, ok := bodyConfig["modifierType"].(string); ok {
+		// 驼峰命名配置处理
+		operation, _ := bodyConfig["operation"].(string)
+		filterConfig, _ := bodyConfig["filterConfig"].(map[string]interface{})
+		
+		// 设置修改类型
+		if modifierType == "" {
+			return fmt.Errorf("modifierType 不能为空")
+		}
+		
+		// 验证modifierType的有效性
+		switch strings.ToLower(modifierType) {
+		case "transform", "validate", "modify", "filter":
+			bodyFilter.ModifierType = BodyModifierType(strings.ToLower(modifierType))
+		default:
+			return fmt.Errorf("无效的modifierType: %s，支持的类型: transform, validate, modify, filter", modifierType)
+		}
+		
+		// 设置操作类型
+		if operation != "" {
+			bodyFilter.Operation = operation
+		} else {
+			bodyFilter.Operation = strings.ToLower(modifierType)
+		}
+		
+		// 设置过滤器配置
+		if filterConfig != nil {
+			bodyFilter.FilterConfig = filterConfig
+		} else {
+			bodyFilter.FilterConfig = make(map[string]interface{})
+		}
+		
+		// 设置允许的内容类型
+		if contentTypes, ok := bodyConfig["allowedContentTypes"].([]interface{}); ok {
+			bodyFilter.AllowedContentTypes = make([]string, len(contentTypes))
+			for i, ct := range contentTypes {
+				if ctStr, ok := ct.(string); ok {
+					bodyFilter.AllowedContentTypes[i] = ctStr
+				}
+			}
+		}
+		
+		// 设置最大请求体大小
+		if maxSize, ok := bodyConfig["maxBodySize"].(int64); ok {
+			bodyFilter.MaxBodySize = maxSize
+		} else if maxSizeInt, ok := bodyConfig["maxBodySize"].(int); ok {
+			bodyFilter.MaxBodySize = int64(maxSizeInt)
+		} else if maxSizeFloat, ok := bodyConfig["maxBodySize"].(float64); ok {
+			bodyFilter.MaxBodySize = int64(maxSizeFloat)
+		}
+		
+		return nil
+	}
+
+	// 兼容旧的下划线命名格式
 	// 设置操作类型
-	if operation, ok := config["operation"].(string); ok {
+	if operation, ok := bodyConfig["operation"].(string); ok {
 		bodyFilter.Operation = operation
 		bodyFilter.ModifierType = BodyModifierType(operation)
 	}
 
 	// 设置允许的内容类型
-	if contentTypes, ok := config["allowed_content_types"].([]interface{}); ok {
+	if contentTypes, ok := bodyConfig["allowed_content_types"].([]interface{}); ok {
 		bodyFilter.AllowedContentTypes = make([]string, len(contentTypes))
 		for i, ct := range contentTypes {
 			if ctStr, ok := ct.(string); ok {
@@ -435,14 +508,14 @@ func configureBodyFilter(bodyFilter *BodyFilter, config map[string]interface{}) 
 	}
 
 	// 设置最大请求体大小
-	if maxSize, ok := config["max_body_size"].(int64); ok {
+	if maxSize, ok := bodyConfig["max_body_size"].(int64); ok {
 		bodyFilter.MaxBodySize = maxSize
-	} else if maxSizeInt, ok := config["max_body_size"].(int); ok {
+	} else if maxSizeInt, ok := bodyConfig["max_body_size"].(int); ok {
 		bodyFilter.MaxBodySize = int64(maxSizeInt)
 	}
 
 	// 存储完整配置
-	bodyFilter.FilterConfig = config
+	bodyFilter.FilterConfig = bodyConfig
 
 	return nil
 } 

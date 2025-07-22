@@ -230,6 +230,12 @@ type SFTPTransferOptions struct {
 	// 是否验证传输完整性
 	VerifyIntegrity bool `json:"verifyIntegrity" yaml:"verify_integrity"`
 	
+	// ===== 备份配置 =====
+	
+	// 备份目录路径，用于存储成功传输的文件备份
+	// 上传时备份本地文件，下载时备份下载的文件
+	BackupDir string `json:"backupDir" yaml:"backup_dir"`
+	
 	// ===== 性能参数 =====
 	
 	// 缓冲区大小
@@ -438,6 +444,7 @@ func DefaultSFTPTransferOptions() *SFTPTransferOptions {
 		EnableCompression:         false,
 		CompressionLevel:          6,
 		ContinueOnError:           true,
+		BackupDir:                 "",
 	}
 }
 

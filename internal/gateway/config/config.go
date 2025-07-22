@@ -9,6 +9,7 @@ import (
 	"gohub/internal/gateway/handler/proxy"
 	"gohub/internal/gateway/handler/router"
 	"gohub/internal/gateway/handler/security"
+	"gohub/internal/gateway/logwrite/types"
 )
 
 // GatewayConfig 网关总体配置
@@ -29,6 +30,7 @@ type GatewayConfig struct {
 	// 限流配置
 	RateLimit limiter.RateLimitConfig `json:"rate_limit" yaml:"rate_limit" mapstructure:"rate_limit"`
 	// 注意：熔断器配置不在全局级别，而是在路由级别或服务级别进行配置
+	Log types.LogConfig `json:"log" yaml:"log" mapstructure:"log"`
 }
 
 // BaseConfig 基础配置

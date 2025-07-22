@@ -14,6 +14,8 @@ import (
 	// _ "gohub/web/views/hub0001/routes"
 
 	// _ "gohub/web/views/hub0004/routes"
+	// 导入指标查询模块
+	_ "gohub/web/views/hub0000/routes"
 	// 导入认证模块
 	_ "gohub/web/views/hub0001/routes"
 	// 导入用户管理模块
@@ -26,6 +28,8 @@ import (
 	_ "gohub/web/views/hub0021/routes"
 	// 导入代理管理模块
 	_ "gohub/web/views/hub0022/routes"
+	// 导入网关日志管理模块
+	_ "gohub/web/views/hub0023/routes"
 	//导入插件管理模块
 	_ "gohub/web/views/hubplugin/routes"
 )

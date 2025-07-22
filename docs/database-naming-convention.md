@@ -137,7 +137,7 @@ CREATE INDEX IDX_GW_INST_LOG ON HUB_GW_INSTANCE(logConfigId);
 | 字段名          | 类型         | 默认值                                  | 说明                                                                                       |
 | --------------- | ------------ | --------------------------------------- | ------------------------------------------------------------------------------------------ |
 | tablePrimaryKey | VARCHAR(32)  | -                                       | 主键，使用UUID或其他生成策略，不使用自增。根据表名具体命名，如userAccountId, orderInfoId等 |
-| tenantId        | VARCHAR(32)  | NOT NULL                                | 租户ID，用于多租户数据隔离                                                                 |
+| tenantId        | VARCHAR(32)  | NOT NULL                                | 主键，租户ID，用于多租户数据隔离                                                                 |
 | addTime         | DATETIME     | DEFAULT CURRENT_TIMESTAMP               | 创建时间，自动设置为当前时间                                                               |
 | addWho          | VARCHAR(32)  | -                                       | 创建人ID，关联用户表                                                                       |
 | editTime        | DATETIME     | DEFAULT CURRENT_TIMESTAMP ON UPDATE... | 最后修改时间，创建时设置为当前时间，更新时自动更新                                         |

@@ -10,6 +10,7 @@ import (
 	"gohub/pkg/config"
 	"gohub/pkg/database"
 	"gohub/pkg/logger"
+	"gohub/pkg/utils/random"
 )
 
 // WriteTaskExecutionLog 静态方法：写入任务执行日志
@@ -287,20 +288,11 @@ func getField(obj interface{}, fieldName string) interface{} {
 }
 
 // generateExecutionId 生成执行ID
+// 使用高并发安全的随机数生成器确保唯一性
 func generateExecutionId() string {
-	return fmt.Sprintf("EXEC_%s_%s",
-		time.Now().Format("20060102150405"),
-		generateRandomString(6))
-}
-
-// generateRandomString 生成指定长度的随机字符串
-func generateRandomString(length int) string {
-	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[time.Now().UnixNano()%int64(len(charset))]
-	}
-	return string(b)
+	// 使用32位唯一字符串生成器，确保高并发下的唯一性
+	// 格式：EXEC_前缀 + 32位唯一字符串
+	return random.Generate32BitRandomString()
 }
 
 

@@ -130,7 +130,7 @@ func (dao *CorsConfigDAO) GetCorsConfig(tenantId, corsConfigId string) (*models.
 
 	query := `
 		SELECT * FROM HUB_GW_CORS_CONFIG 
-		WHERE corsConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
+		WHERE corsConfigId = ? AND tenantId = ?
 	`
 
 	var config models.CorsConfig
@@ -167,30 +167,44 @@ func (dao *CorsConfigDAO) UpdateCorsConfig(ctx context.Context, config *models.C
 	config.CurrentVersion = currentConfig.CurrentVersion + 1
 	config.OprSeqFlag = config.CorsConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
 
+	// 保留不可修改的字段
+	config.AddTime = currentConfig.AddTime
+	config.AddWho = currentConfig.AddWho
+	
+	// 如果没有设置活动标记，保持原有状态
+	if config.ActiveFlag == "" {
+		config.ActiveFlag = currentConfig.ActiveFlag
+	}
+
 	sql := `
 		UPDATE HUB_GW_CORS_CONFIG SET
 			gatewayInstanceId = ?, routeConfigId = ?, configName = ?, allowOrigins = ?,
 			allowMethods = ?, allowHeaders = ?, exposeHeaders = ?, allowCredentials = ?,
 			maxAgeSeconds = ?, configPriority = ?, noteText = ?, editTime = ?, editWho = ?,
-			currentVersion = ?, oprSeqFlag = ?
-		WHERE corsConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
+			currentVersion = ?, oprSeqFlag = ?, activeFlag = ?
+		WHERE corsConfigId = ? AND tenantId = ? AND currentVersion = ?
 	`
 
-	_, err = dao.db.Exec(ctx, sql, []interface{}{
+	result, err := dao.db.Exec(ctx, sql, []interface{}{
 		config.GatewayInstanceId, config.RouteConfigId, config.ConfigName, config.AllowOrigins,
 		config.AllowMethods, config.AllowHeaders, config.ExposeHeaders, config.AllowCredentials,
 		config.MaxAgeSeconds, config.ConfigPriority, config.NoteText, config.EditTime, config.EditWho,
-		config.CurrentVersion, config.OprSeqFlag, config.CorsConfigId, config.TenantId,
+		config.CurrentVersion, config.OprSeqFlag, config.ActiveFlag,
+		config.CorsConfigId, config.TenantId, currentConfig.CurrentVersion,
 	}, true)
 
 	if err != nil {
 		return huberrors.WrapError(err, "更新CORS配置失败")
 	}
 
+	if result == 0 {
+		return errors.New("CORS配置数据已被其他用户修改，请刷新后重试")
+	}
+
 	return nil
 }
 
-// DeleteCorsConfig 软删除CORS配置
+// DeleteCorsConfig 物理删除CORS配置
 func (dao *CorsConfigDAO) DeleteCorsConfig(tenantId, corsConfigId, operatorId string) error {
 	if corsConfigId == "" || tenantId == "" {
 		return errors.New("corsConfigId和tenantId不能为空")
@@ -205,19 +219,16 @@ func (dao *CorsConfigDAO) DeleteCorsConfig(tenantId, corsConfigId, operatorId st
 		return errors.New("CORS配置不存在")
 	}
 
-	now := time.Now()
-	sql := `
-		UPDATE HUB_GW_CORS_CONFIG SET
-			activeFlag = 'N', editTime = ?, editWho = ?
-		WHERE corsConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
-	`
+	// 执行物理删除
+	sql := `DELETE FROM HUB_GW_CORS_CONFIG WHERE corsConfigId = ? AND tenantId = ?`
 
-	_, err = dao.db.Exec(context.Background(), sql, []interface{}{
-		now, operatorId, corsConfigId, tenantId,
-	}, true)
-
+	result, err := dao.db.Exec(context.Background(), sql, []interface{}{corsConfigId, tenantId}, true)
 	if err != nil {
 		return huberrors.WrapError(err, "删除CORS配置失败")
+	}
+
+	if result == 0 {
+		return errors.New("未找到要删除的CORS配置")
 	}
 
 	return nil
@@ -230,7 +241,7 @@ func (dao *CorsConfigDAO) ListCorsConfigs(ctx context.Context, tenantId string, 
 	}
 
 	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_CORS_CONFIG WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY configPriority ASC, addTime DESC"
+	baseQuery := "SELECT * FROM HUB_GW_CORS_CONFIG WHERE tenantId = ? ORDER BY configPriority ASC, addTime DESC"
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
@@ -284,7 +295,7 @@ func (dao *CorsConfigDAO) ListCorsConfigsByGatewayInstance(ctx context.Context, 
 	}
 
 	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_CORS_CONFIG WHERE tenantId = ? AND gatewayInstanceId = ? AND activeFlag = 'Y' ORDER BY configPriority ASC, addTime DESC"
+	baseQuery := "SELECT * FROM HUB_GW_CORS_CONFIG WHERE tenantId = ? AND gatewayInstanceId = ? ORDER BY configPriority ASC, addTime DESC"
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
@@ -338,7 +349,7 @@ func (dao *CorsConfigDAO) ListCorsConfigsByRouteConfig(ctx context.Context, tena
 	}
 
 	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_CORS_CONFIG WHERE tenantId = ? AND routeConfigId = ? AND activeFlag = 'Y' ORDER BY configPriority ASC, addTime DESC"
+	baseQuery := "SELECT * FROM HUB_GW_CORS_CONFIG WHERE tenantId = ? AND routeConfigId = ? ORDER BY configPriority ASC, addTime DESC"
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
@@ -394,7 +405,7 @@ func (dao *CorsConfigDAO) GetCorsConfigByGatewayInstance(tenantId, gatewayInstan
 	// 构建基础查询语句
 	baseQuery := `
 		SELECT * FROM HUB_GW_CORS_CONFIG 
-		WHERE tenantId = ? AND gatewayInstanceId = ? AND activeFlag = 'Y'
+		WHERE tenantId = ? AND gatewayInstanceId = ?
 		ORDER BY configPriority ASC, addTime DESC
 	`
 
@@ -436,7 +447,7 @@ func (dao *CorsConfigDAO) GetCorsConfigByRouteConfig(tenantId, routeConfigId str
 	// 构建基础查询语句
 	baseQuery := `
 		SELECT * FROM HUB_GW_CORS_CONFIG 
-		WHERE tenantId = ? AND routeConfigId = ? AND activeFlag = 'Y'
+		WHERE tenantId = ? AND routeConfigId = ?
 		ORDER BY configPriority ASC, addTime DESC
 	`
 

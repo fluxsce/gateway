@@ -70,6 +70,52 @@ func NewPathRewriteFilter(name, from, to string, mode PathRewriteMode, priority 
 	return filter, nil
 }
 
+// parseRewriteConfig 解析路径重写配置
+func parseRewriteConfig(config map[string]interface{}) (from, to, mode string, err error) {
+	// 设置默认值
+	mode = "simple"
+	
+	// 优先支持前端驼峰命名格式
+	if rewriteConfig, ok := config["rewriteConfig"].(map[string]interface{}); ok {
+		// 从rewriteConfig中提取参数
+		if f, ok := rewriteConfig["from"].(string); ok {
+			from = f
+		}
+		if t, ok := rewriteConfig["to"].(string); ok {
+			to = t
+		}
+		if m, ok := rewriteConfig["mode"].(string); ok {
+			mode = strings.ToLower(m)
+		}
+	} else {
+		// 兼容旧的直接配置格式
+		if f, ok := config["from"].(string); ok {
+			from = f
+		}
+		if t, ok := config["to"].(string); ok {
+			to = t
+		}
+		if m, ok := config["mode"].(string); ok {
+			mode = strings.ToLower(m)
+		}
+	}
+	
+	// 参数验证
+	if from == "" {
+		return "", "", "", fmt.Errorf("重写规则的from参数不能为空")
+	}
+	if to == "" {
+		return "", "", "", fmt.Errorf("重写规则的to参数不能为空")
+	}
+	
+	// 验证模式的有效性
+	if mode != "simple" && mode != "regex" {
+		return "", "", "", fmt.Errorf("无效的重写模式: %s，支持的模式: simple, regex", mode)
+	}
+	
+	return from, to, mode, nil
+}
+
 // Apply 实现Filter接口
 // 根据配置的规则重写请求路径
 func (f *PathRewriteFilter) Apply(ctx *core.Context) error {
@@ -118,21 +164,19 @@ func NewRegexPathRewriteFilter(name, pattern, replacement string, priority int) 
 }
 
 // PathRewriteFilterFromConfig 从配置创建路径重写过滤器
+// 支持前端传递的驼峰命名配置格式：
+// {
+//   "rewriteConfig": {
+//     "mode": "simple|regex",     // 重写模式
+//     "from": "string",           // 查找内容
+//     "to": "string"              // 替换内容
+//   }
+// }
 func PathRewriteFilterFromConfig(config FilterConfig) (Filter, error) {
-	from := ""
-	to := ""
-	mode := "simple"
-
-	if config.Config != nil {
-		if f, ok := config.Config["from"].(string); ok {
-			from = f
-		}
-		if t, ok := config.Config["to"].(string); ok {
-			to = t
-		}
-		if m, ok := config.Config["mode"].(string); ok {
-			mode = m
-		}
+	// 解析重写配置
+	from, to, mode, parseErr := parseRewriteConfig(config.Config)
+	if parseErr != nil {
+		return nil, parseErr
 	}
 
 	// 使用配置中的order字段，如果没有则使用默认值100
@@ -142,12 +186,12 @@ func PathRewriteFilterFromConfig(config FilterConfig) (Filter, error) {
 	}
 
 	var filter *PathRewriteFilter
-	var err error
+	var createErr error
 
 	if mode == "regex" {
-		filter, err = NewRegexPathRewriteFilter(config.Name, from, to, order)
-		if err != nil {
-			return nil, fmt.Errorf("创建正则路径重写过滤器失败: %w", err)
+		filter, createErr = NewRegexPathRewriteFilter(config.Name, from, to, order)
+		if createErr != nil {
+			return nil, fmt.Errorf("创建正则路径重写过滤器失败: %w", createErr)
 		}
 	} else {
 		filter = NewSimplePathRewriteFilter(config.Name, from, to, order)

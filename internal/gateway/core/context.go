@@ -45,6 +45,18 @@ type Context struct {
 	// 用于计算请求处理耗时，统计性能指标
 	startTime time.Time
 
+	// 响应时间
+	// 记录向客户端发送响应的时间点
+	responseTime time.Time
+
+	// 转发开始时间
+	// 记录开始向后端服务转发请求的时间点
+	forwardStartTime time.Time
+
+	// 转发响应时间
+	// 记录收到后端服务响应的时间点
+	forwardResponseTime time.Time
+
 	// 目标URL
 	// 存储请求应该转发到的后端服务URL
 	targetURL string
@@ -113,20 +125,36 @@ func (c *Context) Get(key string) (interface{}, bool) {
 	return value, exists
 }
 
-// MustGet 从上下文获取值，如果不存在则panic
+// MustGet 从上下文获取值，如果不存在则返回错误
 // 参数:
 // - key: 键名
 // 返回值:
 // - 对应的值
-// 当确定某个键必须存在时使用，例如获取必要的认证信息
-// 如果键不存在，会导致panic，应谨慎使用
-func (c *Context) MustGet(key string) interface{} {
+// - error: 如果键不存在则返回错误
+// 这是一个安全的获取方法，不会导致程序崩溃
+func (c *Context) MustGet(key string) (interface{}, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if value, exists := c.data[key]; exists {
+		return value, nil
+	}
+	return nil, fmt.Errorf("key \"%s\" does not exist in context", key)
+}
+
+// GetOrDefault 从上下文获取值，如果不存在则返回默认值
+// 参数:
+// - key: 键名
+// - defaultValue: 默认值
+// 返回值:
+// - 对应的值或默认值
+// 这是一个更安全的获取方法，永远不会出错
+func (c *Context) GetOrDefault(key string, defaultValue interface{}) interface{} {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if value, exists := c.data[key]; exists {
 		return value
 	}
-	panic("Key \"" + key + "\" does not exist")
+	return defaultValue
 }
 
 // GetString 获取字符串值
@@ -287,6 +315,93 @@ func (c *Context) Elapsed() time.Duration {
 	return time.Since(c.startTime)
 }
 
+// SetResponseTime 设置响应时间
+// 记录向客户端发送响应的时间点，用于性能分析
+func (c *Context) SetResponseTime(t time.Time) {
+	c.responseTime = t
+}
+
+// GetResponseTime 获取响应时间
+// 返回值:
+// - 响应时间
+// 用于计算从请求开始到响应发送的总耗时
+func (c *Context) GetResponseTime() time.Time {
+	return c.responseTime
+}
+
+// GetStartTime 获取请求开始时间
+// 返回值:
+// - 请求开始时间
+// 用于日志记录和性能分析
+func (c *Context) GetStartTime() time.Time {
+	return c.startTime
+}
+
+// SetForwardStartTime 设置转发开始时间
+// 参数:
+// - t: 转发开始时间
+// 记录开始向后端服务转发请求的时间点
+func (c *Context) SetForwardStartTime(t time.Time) {
+	c.forwardStartTime = t
+}
+
+// GetForwardStartTime 获取转发开始时间
+// 返回值:
+// - 转发开始时间
+// 用于计算转发前的网关处理耗时
+func (c *Context) GetForwardStartTime() time.Time {
+	return c.forwardStartTime
+}
+
+// SetForwardResponseTime 设置转发响应时间
+// 参数:
+// - t: 转发响应时间
+// 记录收到后端服务响应的时间点
+func (c *Context) SetForwardResponseTime(t time.Time) {
+	c.forwardResponseTime = t
+}
+
+// GetForwardResponseTime 获取转发响应时间
+// 返回值:
+// - 转发响应时间
+// 用于计算后端服务的响应耗时
+func (c *Context) GetForwardResponseTime() time.Time {
+	return c.forwardResponseTime
+}
+
+// GetForwardDuration 获取转发耗时
+// 返回值:
+// - 转发耗时(从转发开始到收到响应的时间间隔)
+// 用于统计后端服务的响应时间
+func (c *Context) GetForwardDuration() time.Duration {
+	if c.forwardStartTime.IsZero() || c.forwardResponseTime.IsZero() {
+		return 0
+	}
+	return c.forwardResponseTime.Sub(c.forwardStartTime)
+}
+
+// GetPreForwardDuration 获取转发前耗时
+// 返回值:
+// - 转发前耗时(从请求开始到转发开始的时间间隔)
+// 用于统计网关自身的处理时间
+func (c *Context) GetPreForwardDuration() time.Duration {
+	if c.forwardStartTime.IsZero() {
+		return 0
+	}
+	return c.forwardStartTime.Sub(c.startTime)
+}
+
+// GetPostForwardDuration 获取转发后耗时
+// 返回值:
+// - 转发后耗时(从收到后端响应到客户端响应发送的时间间隔)
+// 用于统计网关响应处理时间
+func (c *Context) GetPostForwardDuration() time.Duration {
+	if c.forwardResponseTime.IsZero() || c.responseTime.IsZero() {
+		return 0
+	}
+	return c.responseTime.Sub(c.forwardResponseTime)
+}
+
 // JSON 返回JSON响应
 // 参数:
 // - statusCode: HTTP状态码
@@ -358,6 +473,7 @@ func (c *Context) IsResponded() bool {
 // 主要供代理处理器等需要直接写入响应的场景使用
 func (c *Context) SetResponded() {
 	c.responded = true
+	c.responseTime = time.Now() // 记录响应时间
 }
 
 // Reset 重置上下文
@@ -376,6 +492,11 @@ func (c *Context) Reset() {
 	c.serviceID = ""
 	c.matchedPath = ""
 	c.Errors = c.Errors[:0] // 清空错误切片但保留底层数组
+	
+	// 重置时间字段
+	c.responseTime = time.Time{}
+	c.forwardStartTime = time.Time{}
+	c.forwardResponseTime = time.Time{}
 }
 
 // SetPathParams 设置路径参数

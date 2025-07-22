@@ -1,6 +1,7 @@
 package cacheapp
 
 import (
+	"gohub/cmd/common/utils"
 	"gohub/pkg/cache"
 	"gohub/pkg/logger"
 	"gohub/pkg/utils/huberrors"
@@ -8,7 +9,8 @@ import (
 
 // initCache 初始化缓存
 func InitCache() (map[string]cache.Cache, error) {
-	configPath := "configs/database.yaml" // 使用同一个配置文件
+	// 使用统一的配置文件路径
+	configPath := utils.GetConfigPath("database.yaml")
 
 	// 加载所有缓存连接
 	var err error
@@ -20,7 +22,8 @@ func InitCache() (map[string]cache.Cache, error) {
 
 	// 输出连接信息
 	logger.Info("缓存连接成功",
-		"total_connections", len(cacheConnections))
+		"total_connections", len(cacheConnections),
+		"config_path", configPath)
 
 	// 列出所有连接
 	for name, conn := range cacheConnections {

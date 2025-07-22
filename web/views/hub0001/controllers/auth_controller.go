@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"gohub/pkg/config"
 	"gohub/pkg/database"
 	"gohub/pkg/logger"
 	"gohub/web/middleware"
@@ -160,6 +161,8 @@ func (c *AuthController) Login(ctx *gin.Context) {
 		"expireAt":   sessionData.ExpireAt.Unix(),
 		"clientIP":   clientIP,
 		"userAgent":  userAgent,
+		// 返回web.yaml中的read_timeout配置，单位为秒，转换为毫秒
+		"timeout":    config.GetInt("web.read_timeout", 30)*1000,
 	}
 
 	response.SuccessJSON(ctx, loginResp, constants.SD00101)

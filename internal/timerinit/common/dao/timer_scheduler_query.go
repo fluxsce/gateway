@@ -401,10 +401,10 @@ func (dao *TimerSchedulerDAO) QuerySchedulers(ctx context.Context, query *TimerS
 // GetSchedulerById 根据ID获取调度器
 func (dao *TimerSchedulerDAO) GetSchedulerById(ctx context.Context, tenantId, schedulerId string) (*timertypes.TimerScheduler, error) {
 	tableName := (&timertypes.TimerScheduler{}).TableName()
-	sql := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND schedulerId = ?", tableName)
+	sql := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND schedulerId = ? AND activeFlag = ?", tableName)
 	
 	var scheduler timertypes.TimerScheduler
-	err := dao.db.QueryOne(ctx, &scheduler, sql, []interface{}{tenantId, schedulerId}, true)
+	err := dao.db.QueryOne(ctx, &scheduler, sql, []interface{}{tenantId, schedulerId, timertypes.ActiveFlagYes}, true)
 	if err != nil {
 		if err == database.ErrRecordNotFound {
 			return nil, nil
@@ -417,6 +417,9 @@ func (dao *TimerSchedulerDAO) GetSchedulerById(ctx context.Context, tenantId, sc
 
 // CreateScheduler 创建调度器
 func (dao *TimerSchedulerDAO) CreateScheduler(ctx context.Context, scheduler *timertypes.TimerScheduler) error {
+	// 设置活动标记为Y
+	scheduler.ActiveFlag = timertypes.ActiveFlagYes
+	
 	tableName := (&timertypes.TimerScheduler{}).TableName()
 	_, err := dao.db.Insert(ctx, tableName, scheduler, true)
 	if err != nil {

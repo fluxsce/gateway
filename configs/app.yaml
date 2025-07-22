@@ -2,9 +2,49 @@ app:
   #系统配置
   name: "GoHub" # 系统名称
   run_mode: "debug" # debug, release
+  
+  # 全局时区配置
+  # 该配置会在应用启动时设置 time.Local，影响所有时间字段的存储和显示
+  # 支持的时区格式：
+  #   - Asia/Shanghai (中国标准时间)
+  #   - America/New_York (美国东部时间)
+  #   - Europe/London (英国时间)
+  #   - UTC (世界标准时间)
+  #   - Local (系统本地时区)
+  local_timezone: "Asia/Shanghai"
+  
+  # 指标采集配置
+  metrics:
+    enabled: true                    # 是否启用指标采集
+    collect_interval: 60s            # 采集间隔时间（支持：s秒、m分钟、h小时，如：30s、5m、1h）
+    auto_start: true                 # 是否自动启动采集
+    tenant_id: "default"             # 租户ID
+    server_id: ""                    # 服务器ID，为空时自动生成
+    operator: "system"               # 操作人标识
+    # 采集器启用配置
+    collectors:
+      cpu: true                      # CPU指标采集
+      memory: true                   # 内存指标采集
+      disk: true                     # 磁盘指标采集
+      network: true                  # 网络指标采集
+      process: true                  # 进程指标采集
+      system: true                   # 系统指标采集
+      temperature: false             # 温度指标采集（可能不支持所有系统）
+    # 数据存储配置
+    storage:
+      batch_size: 100                # 批量插入大小
+      flush_interval: 60s            # 数据刷新间隔
+      max_retry: 3                   # 最大重试次数
+      # 数据保留策略
+      retention:
+        enabled: true                # 是否启用数据清理
+        keep_days: 30                # 保留天数
+        cleanup_interval: 60s        # 清理检查间隔
+  
   gateway:
     enabled: true # 是否启用网关
     configSource: "database" # 网关配置加载源, 可选值: yaml 文件, json 文件, database 数据库
+    log_query_type: "clickhouse" # 日志查询类型, 可选值: mongo, database, clickhouse
     config_file: "./configs/gateway.yaml" # 网关配置文件路径, 默认使用yaml格式
   web:
     enabled: true # 是否启用web
@@ -16,4 +56,21 @@ app:
     enabled: true # 是否启用定时任务
     sftp:
       enabled: true # 是否启用sftp
+  # pprof性能分析配置
+  pprof:
+    enabled: false                    # 是否启用pprof服务
+    listen: ":6060"                 # 监听地址和端口
+    service_name: "GoHub-pprof"     # 服务名称
+    read_timeout: 30s               # 读取超时时间
+    write_timeout: 30s              # 写入超时时间
+    enable_auth: false              # 是否启用认证
+    auth_token: ""                  # 认证token（如果启用认证）
+    # 自动分析配置
+    auto_analysis:
+      enabled: false                     # 是否启用自动分析
+      interval: 30m                      # 分析间隔时间
+      cpu_sample_duration: 30s           # CPU采样时间
+      output_dir: "./pprof_analysis"     # 输出目录
+      save_history: true                 # 是否保存历史数据
+      history_retention_days: 7          # 历史数据保留天数
       

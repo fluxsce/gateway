@@ -574,38 +574,105 @@ func configureResponseFilter(responseFilter *ResponseFilter, config map[string]i
 		return nil
 	}
 
+	// 首先检查是否有嵌套的 responseConfig 配置
+	var responseConfig map[string]interface{}
+	if nestedConfig, ok := config["responseConfig"].(map[string]interface{}); ok {
+		responseConfig = nestedConfig
+	} else {
+		// 如果没有嵌套配置，直接使用顶级配置
+		responseConfig = config
+	}
+
+	// 优先支持前端驼峰命名格式
+	if operation, ok := responseConfig["operation"].(string); ok {
+		// 驼峰命名配置处理
+		filterConfig, _ := responseConfig["filterConfig"].(map[string]interface{})
+		headerOperations, _ := responseConfig["headerOperations"].(map[string]interface{})
+		bodyOperations, _ := responseConfig["bodyOperations"].(map[string]interface{})
+		statusOperations, _ := responseConfig["statusOperations"].(map[string]interface{})
+		conditions, _ := responseConfig["conditions"].(map[string]interface{})
+		
+		// 参数验证
+		if operation == "" {
+			return fmt.Errorf("operation 不能为空")
+		}
+		
+		// 设置操作类型
+		switch strings.ToLower(operation) {
+		case "add_headers", "modify_body", "set_status", "filter_headers", "transform_body", "validate_response":
+			responseFilter.Operation = ResponseOperation(strings.ToLower(operation))
+		default:
+			return fmt.Errorf("无效的operation: %s，支持的类型: add_headers, modify_body, set_status, filter_headers, transform_body, validate_response", operation)
+		}
+		
+		// 设置是否在请求阶段设置
+		if setInRequestPhase, ok := responseConfig["setInRequestPhase"].(bool); ok {
+			responseFilter.SetInRequestPhase = setInRequestPhase
+		}
+		
+		// 设置过滤器配置
+		if filterConfig != nil {
+			responseFilter.FilterConfig = filterConfig
+		} else {
+			responseFilter.FilterConfig = make(map[string]interface{})
+		}
+		
+		// 设置响应头操作
+		if headerOperations != nil {
+			responseFilter.HeaderOperations = headerOperations
+		}
+		
+		// 设置响应体操作
+		if bodyOperations != nil {
+			responseFilter.BodyOperations = bodyOperations
+		}
+		
+		// 设置状态码操作
+		if statusOperations != nil {
+			responseFilter.StatusOperations = statusOperations
+		}
+		
+		// 设置条件
+		if conditions != nil {
+			responseFilter.Conditions = conditions
+		}
+		
+		return nil
+	}
+
+	// 兼容旧的下划线命名格式
 	// 设置操作类型
-	if operation, ok := config["operation"].(string); ok {
+	if operation, ok := responseConfig["operation"].(string); ok {
 		responseFilter.Operation = ResponseOperation(operation)
 	}
 
 	// 设置是否在请求阶段设置
-	if setInRequest, ok := config["set_in_request_phase"].(bool); ok {
+	if setInRequest, ok := responseConfig["set_in_request_phase"].(bool); ok {
 		responseFilter.SetInRequestPhase = setInRequest
 	}
 
 	// 设置响应头操作
-	if headerOps, ok := config["header_operations"].(map[string]interface{}); ok {
+	if headerOps, ok := responseConfig["header_operations"].(map[string]interface{}); ok {
 		responseFilter.HeaderOperations = headerOps
 	}
 
 	// 设置响应体操作
-	if bodyOps, ok := config["body_operations"].(map[string]interface{}); ok {
+	if bodyOps, ok := responseConfig["body_operations"].(map[string]interface{}); ok {
 		responseFilter.BodyOperations = bodyOps
 	}
 
 	// 设置状态码操作
-	if statusOps, ok := config["status_operations"].(map[string]interface{}); ok {
+	if statusOps, ok := responseConfig["status_operations"].(map[string]interface{}); ok {
 		responseFilter.StatusOperations = statusOps
 	}
 
 	// 设置条件
-	if conditions, ok := config["conditions"].(map[string]interface{}); ok {
+	if conditions, ok := responseConfig["conditions"].(map[string]interface{}); ok {
 		responseFilter.Conditions = conditions
 	}
 
 	// 存储完整配置
-	responseFilter.FilterConfig = config
+	responseFilter.FilterConfig = responseConfig
 
 	return nil
 } 

@@ -199,6 +199,11 @@ func (fm *FieldMapper) convertValue(field reflect.Value, value interface{}) erro
 		return fm.convertOracleValue(field, value)
 	}
 
+	// 其次尝试处理ClickHouse特有类型
+	if fm.IsClickHouseSpecificType(value) {
+		return fm.convertClickHouseValue(field, value)
+	}
+
 	fieldType := field.Type()
 	switch v := value.(type) {
 	case []byte:

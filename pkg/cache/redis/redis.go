@@ -10,6 +10,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"gohub/pkg/config"
+	"gohub/pkg/logger"
 )
 
 // RedisCache Redis缓存实现
@@ -317,6 +318,7 @@ func (r *RedisCache) Get(ctx context.Context, key string) ([]byte, error) {
 		if err == redis.Nil {
 			return nil, nil // 键不存在时返回nil而不是错误
 		}
+		logger.ErrorWithTrace(ctx,"redis get error", "error", err)
 		return nil, fmt.Errorf("redis get error: %w", err)
 	}
 	return []byte(result), nil

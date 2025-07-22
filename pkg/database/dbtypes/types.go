@@ -119,6 +119,28 @@ type ConnectionConfig struct {
 	PrefetchRows int `mapstructure:"prefetch_rows"`
 	// LobPrefetchSize Oracle LOB预取大小
 	LobPrefetchSize int `mapstructure:"lob_prefetch_size"`
+
+	// === ClickHouse官网标准DSN参数 ===
+	// 参考: https://clickhouse.com/docs/zh/integrations/go#databasesql-api
+	
+	// ClickHouseCompress 压缩算法 (none,lz4,zstd,gzip,deflate,br) 默认"none"
+	ClickHouseCompress string `mapstructure:"clickhouse_compress"`
+	// ClickHouseCompressLevel 压缩级别 (0-11,算法相关) 默认0
+	ClickHouseCompressLevel int `mapstructure:"clickhouse_compress_level"`
+	// ClickHouseSecure 是否建立安全SSL连接 (默认false)
+	ClickHouseSecure bool `mapstructure:"clickhouse_secure"`
+	// ClickHouseSkipVerify 跳过证书验证 (默认false)  
+	ClickHouseSkipVerify bool `mapstructure:"clickhouse_skip_verify"`
+	// ClickHouseDebug 启用调试输出 (默认false)
+	ClickHouseDebug bool `mapstructure:"clickhouse_debug"`
+	// ClickHouseDialTimeout 拨号超时时间(秒) (默认30s)
+	ClickHouseDialTimeout int `mapstructure:"clickhouse_dial_timeout"`
+	// ClickHouseBlockBufferSize 块缓冲区大小 (默认2)
+	ClickHouseBlockBufferSize int `mapstructure:"clickhouse_block_buffer_size"`
+	// ClickHouseConnOpenStrategy 连接打开策略 (random/in_order) 默认"random"
+	ClickHouseConnOpenStrategy string `mapstructure:"clickhouse_conn_open_strategy"`
+	// ClickHouseHosts 负载均衡主机列表 (格式: "host1:9000,host2:9000") 官网标准参数
+	ClickHouseHosts string `mapstructure:"clickhouse_hosts"`
 }
 
 // PoolConfig 连接池配置

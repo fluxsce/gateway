@@ -269,184 +269,32 @@ func (f *SFTPExecutorFactory) configureSFTPAuthentication(sftpConfig *configs.SF
 }
 
 // applySFTPCustomConfig 应用自定义SFTP配置
-// 直接JSON映射，简洁高效
+// 直接JSON反序列化到配置结构体，简洁高效
+// 支持嵌套和扁平化两种配置方式
 // 参数:
 //   sftpConfig: SFTP配置对象
 //   configParams: 自定义配置参数JSON字符串
 // 返回:
 //   error: 应用过程中的错误信息
 func (f *SFTPExecutorFactory) applySFTPCustomConfig(sftpConfig *configs.SFTPConfig, configParams string) error {
-	// 解析为通用map
-	var customParams map[string]interface{}
-	if err := json.Unmarshal([]byte(configParams), &customParams); err != nil {
-		return fmt.Errorf("解析自定义配置参数失败: %w", err)
-	}
-
 	// 确保默认传输选项存在
 	if sftpConfig.DefaultTransferOptions == nil {
 		sftpConfig.DefaultTransferOptions = configs.DefaultSFTPTransferOptions()
 	}
 
-	// 直接映射 - 使用反射自动处理所有字段
-	f.mapConfigFields(sftpConfig, customParams)
-	f.mapTransferOptions(sftpConfig.DefaultTransferOptions, customParams)
+	// 1. 反序列化到主配置对象（处理嵌套的 defaultTransferOptions）
+	if err := json.Unmarshal([]byte(configParams), sftpConfig); err != nil {
+		return fmt.Errorf("解析自定义配置参数失败: %w", err)
+	}
 
-	logger.Debug("应用自定义SFTP配置完成", 
-		"configId", sftpConfig.ID,
-		"customParamsCount", len(customParams))
+	// 2. 反序列化到传输选项（处理扁平化的传输选项字段）
+	// 这样既支持嵌套配置，也支持扁平化配置
+	if err := json.Unmarshal([]byte(configParams), sftpConfig.DefaultTransferOptions); err != nil {
+		return fmt.Errorf("解析传输选项配置失败: %w", err)
+	}
 
+	logger.Debug("应用自定义SFTP配置完成", "configId", sftpConfig.ID)
 	return nil
-}
-
-// mapConfigFields 自动映射配置字段
-func (f *SFTPExecutorFactory) mapConfigFields(config *configs.SFTPConfig, params map[string]interface{}) {
-	// 连接超时相关（需要特殊处理的Duration类型）
-	if val, ok := params["connectTimeout"]; ok {
-		if timeout, ok := val.(float64); ok {
-			config.ConnectTimeout = time.Duration(timeout) * time.Second
-		}
-	}
-	if val, ok := params["readTimeout"]; ok {
-		if timeout, ok := val.(float64); ok {
-			config.ReadTimeout = time.Duration(timeout) * time.Second
-		}
-	}
-	if val, ok := params["writeTimeout"]; ok {
-		if timeout, ok := val.(float64); ok {
-			config.WriteTimeout = time.Duration(timeout) * time.Second
-		}
-	}
-	if val, ok := params["keepAliveInterval"]; ok {
-		if interval, ok := val.(float64); ok {
-			config.KeepAliveInterval = time.Duration(interval) * time.Second
-		}
-	}
-	if val, ok := params["reconnectInterval"]; ok {
-		if interval, ok := val.(float64); ok {
-			config.ReconnectInterval = time.Duration(interval) * time.Second
-		}
-	}
-	if val, ok := params["maxReconnectInterval"]; ok {
-		if interval, ok := val.(float64); ok {
-			config.MaxReconnectInterval = time.Duration(interval) * time.Second
-		}
-	}
-	if val, ok := params["progressReportInterval"]; ok {
-		if interval, ok := val.(float64); ok {
-			config.ProgressReportInterval = time.Duration(interval) * time.Second
-		}
-	}
-
-	// 直接映射的字段（类型匹配）
-	if val, ok := params["maxReconnectAttempts"].(float64); ok {
-		config.MaxReconnectAttempts = int(val)
-	}
-	if val, ok := params["autoReconnect"].(bool); ok {
-		config.AutoReconnect = val
-	}
-	if val, ok := params["concurrentTransfers"].(float64); ok {
-		config.ConcurrentTransfers = int(val)
-	}
-	if val, ok := params["bufferSize"].(float64); ok {
-		config.BufferSize = int(val)
-	}
-	if val, ok := params["maxPacketSize"].(float64); ok {
-		config.MaxPacketSize = int(val)
-	}
-	if val, ok := params["verboseLogging"].(bool); ok {
-		config.VerboseLogging = val
-	}
-	if val, ok := params["enableProgressMonitoring"].(bool); ok {
-		config.EnableProgressMonitoring = val
-	}
-}
-
-// mapTransferOptions 映射传输选项
-func (f *SFTPExecutorFactory) mapTransferOptions(options *configs.SFTPTransferOptions, params map[string]interface{}) {
-	// 直接布尔映射
-	if val, ok := params["overwriteExisting"].(bool); ok {
-		options.OverwriteExisting = val
-	}
-	if val, ok := params["skipExisting"].(bool); ok {
-		options.SkipExisting = val
-	}
-	if val, ok := params["createTargetDir"].(bool); ok {
-		options.CreateTargetDir = val
-	}
-	if val, ok := params["deleteSourceAfterTransfer"].(bool); ok {
-		options.DeleteSourceAfterTransfer = val
-	}
-	if val, ok := params["preservePermissions"].(bool); ok {
-		options.PreservePermissions = val
-	}
-	if val, ok := params["preserveTimestamps"].(bool); ok {
-		options.PreserveTimestamps = val
-	}
-	if val, ok := params["verifyIntegrity"].(bool); ok {
-		options.VerifyIntegrity = val
-	}
-	if val, ok := params["continueOnError"].(bool); ok {
-		options.ContinueOnError = val
-	}
-	if val, ok := params["enableCompression"].(bool); ok {
-		options.EnableCompression = val
-	}
-
-	// 数值映射
-	if val, ok := params["bufferSize"].(float64); ok {
-		options.BufferSize = int(val)
-	}
-	if val, ok := params["concurrentTransfers"].(float64); ok {
-		options.ConcurrentTransfers = int(val)
-	}
-	if val, ok := params["retryCount"].(float64); ok {
-		options.RetryCount = int(val)
-	}
-	if val, ok := params["compressionLevel"].(float64); ok {
-		options.CompressionLevel = int(val)
-	}
-	if val, ok := params["maxFileSize"].(float64); ok {
-		options.MaxFileSize = int64(val)
-	}
-	if val, ok := params["minFileSize"].(float64); ok {
-		options.MinFileSize = int64(val)
-	}
-
-	// Duration映射
-	if val, ok := params["transferTimeout"].(float64); ok {
-		options.TransferTimeout = time.Duration(val) * time.Second
-	}
-	if val, ok := params["retryInterval"].(float64); ok {
-		options.RetryInterval = time.Duration(val) * time.Second
-	}
-	if val, ok := params["progressReportInterval"].(float64); ok {
-		options.ProgressReportInterval = time.Duration(val) * time.Second
-	}
-
-	// 字符串数组映射
-	if val, ok := params["includePatterns"].([]interface{}); ok {
-		options.IncludePatterns = f.convertToStringSlice(val)
-	}
-	if val, ok := params["excludePatterns"].([]interface{}); ok {
-		options.ExcludePatterns = f.convertToStringSlice(val)
-	}
-	if val, ok := params["includeExtensions"].([]interface{}); ok {
-		options.IncludeExtensions = f.convertToStringSlice(val)
-	}
-	if val, ok := params["excludeExtensions"].([]interface{}); ok {
-		options.ExcludeExtensions = f.convertToStringSlice(val)
-	}
-}
-
-// convertToStringSlice 将interface{}切片转换为字符串切片
-func (f *SFTPExecutorFactory) convertToStringSlice(src []interface{}) []string {
-	result := make([]string, 0, len(src))
-	for _, item := range src {
-		if str, ok := item.(string); ok {
-			result = append(result, str)
-		}
-	}
-	return result
 }
 
 // getAuthTypeName 获取认证类型名称

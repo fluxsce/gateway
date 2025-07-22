@@ -12,6 +12,7 @@ import (
 	"gohub/internal/gateway/handler/router"
 	"gohub/internal/gateway/handler/security"
 	"gohub/internal/gateway/loader/dbloader"
+	"gohub/internal/gateway/logwrite/types"
 	"gohub/pkg/database"
 	"gohub/pkg/logger"
 )
@@ -25,6 +26,7 @@ type DatabaseConfigLoader struct {
 	securityLoader       *dbloader.SecurityConfigLoader
 	authCORSLoader       *dbloader.AuthCORSConfigLoader
 	limiterServiceLoader *dbloader.LimiterServiceLoader
+	logConfigLoader      *dbloader.LogConfigLoader
 }
 
 // NewDatabaseConfigLoader 创建数据库配置加载器
@@ -37,6 +39,7 @@ func NewDatabaseConfigLoader(db database.Database, tenantId string) *DatabaseCon
 		securityLoader:       dbloader.NewSecurityConfigLoader(db, tenantId),
 		authCORSLoader:       dbloader.NewAuthCORSConfigLoader(db, tenantId),
 		limiterServiceLoader: dbloader.NewLimiterServiceLoader(db, tenantId),
+		logConfigLoader:      dbloader.NewLogConfigLoader(db, tenantId),
 	}
 }
 
@@ -145,7 +148,24 @@ func (loader *DatabaseConfigLoader) LoadGatewayConfig(instanceId string) (*confi
 		}
 	}
 
-	// 9. 为每个路由加载路由级别配置
+	// 9. 加载日志配置
+	var logConfig *types.LogConfig
+	
+	// 如果实例配置了日志配置ID，则必须能够加载到对应的配置
+	if instance.LogConfigId != nil && *instance.LogConfigId != "" {
+		logConfig, err = loader.logConfigLoader.LoadLogConfig(ctx, *instance.LogConfigId)
+		if err != nil {
+			return nil, fmt.Errorf("加载实例日志配置失败，配置ID: %s, 错误: %w", *instance.LogConfigId, err)
+		}
+		if logConfig == nil {
+			return nil, fmt.Errorf("实例日志配置不存在，配置ID: %s", *instance.LogConfigId)
+		}
+	}
+	
+	// 设置日志配置
+	gatewayConfig.Log = *logConfig
+
+	// 10. 为每个路由加载路由级别配置
 	for i := range gatewayConfig.Router.Routes {
 		route := &gatewayConfig.Router.Routes[i]
 		
@@ -198,6 +218,9 @@ func (loader *DatabaseConfigLoader) LoadGatewayConfig(instanceId string) (*confi
 		} else if routeFilters != nil {
 			route.FilterConfig = routeFilters
 		}
+
+		// 注意：路由级别的日志配置需要在路由配置结构中添加相应字段后才能启用
+		// TODO: 在 router.RouteConfig 中添加 LogConfigId 和 LogConfig 字段
 	}
 
 	return gatewayConfig, nil

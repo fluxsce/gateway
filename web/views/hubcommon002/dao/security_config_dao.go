@@ -39,8 +39,6 @@ func (dao *SecurityConfigDAO) generateSecurityConfigId() string {
 	return fmt.Sprintf("SC%s%s", timeStr, randomStr)
 }
 
-
-
 // isSecurityConfigIdExists 检查安全配置ID是否已存在
 func (dao *SecurityConfigDAO) isSecurityConfigIdExists(ctx context.Context, securityConfigId string) (bool, error) {
 	query := `SELECT COUNT(*) as count FROM HUB_GW_SECURITY_CONFIG WHERE securityConfigId = ?`
@@ -188,13 +186,22 @@ func (dao *SecurityConfigDAO) UpdateSecurityConfig(ctx context.Context, config *
 	config.EditWho = operatorId
 	config.OprSeqFlag = config.SecurityConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
 
+	// 保留不可修改的字段
+	config.AddTime = currentConfig.AddTime
+	config.AddWho = currentConfig.AddWho
+	
+	// 如果没有设置活动标记，保持原有状态
+	if config.ActiveFlag == "" {
+		config.ActiveFlag = currentConfig.ActiveFlag
+	}
+
 	// 构建更新SQL
 	sql := `
 		UPDATE HUB_GW_SECURITY_CONFIG SET
 			gatewayInstanceId = ?, routeConfigId = ?, configName = ?, configDesc = ?,
 			configPriority = ?, customConfigJson = ?, reserved1 = ?, reserved2 = ?,
 			reserved3 = ?, reserved4 = ?, reserved5 = ?, extProperty = ?, noteText = ?,
-			editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?
+			editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?, activeFlag = ?
 		WHERE securityConfigId = ? AND tenantId = ? AND currentVersion = ?
 	`
 
@@ -203,7 +210,7 @@ func (dao *SecurityConfigDAO) UpdateSecurityConfig(ctx context.Context, config *
 		config.GatewayInstanceId, config.RouteConfigId, config.ConfigName, config.ConfigDesc,
 		config.ConfigPriority, config.CustomConfigJson, config.Reserved1, config.Reserved2,
 		config.Reserved3, config.Reserved4, config.Reserved5, config.ExtProperty, config.NoteText,
-		config.EditTime, config.EditWho, config.OprSeqFlag, config.CurrentVersion,
+		config.EditTime, config.EditWho, config.OprSeqFlag, config.CurrentVersion, config.ActiveFlag,
 		config.SecurityConfigId, config.TenantId, currentConfig.CurrentVersion,
 	}, true)
 
@@ -257,7 +264,7 @@ func (dao *SecurityConfigDAO) ListSecurityConfigs(ctx context.Context, tenantId 
 	}
 
 	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_SECURITY_CONFIG WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY configPriority ASC, addTime DESC"
+	baseQuery := "SELECT * FROM HUB_GW_SECURITY_CONFIG WHERE tenantId = ? ORDER BY configPriority ASC, addTime DESC"
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
@@ -313,7 +320,7 @@ func (dao *SecurityConfigDAO) FindSecurityConfigByName(ctx context.Context, conf
 
 	query := `
 		SELECT * FROM HUB_GW_SECURITY_CONFIG 
-		WHERE configName = ? AND tenantId = ? AND activeFlag = 'Y'
+		WHERE configName = ? AND tenantId = ?
 	`
 
 	var config models.SecurityConfig

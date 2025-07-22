@@ -37,6 +37,10 @@ func NewRouteConfigController(db database.Database) *RouteConfigController {
 // @Param page query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
 // @Param gatewayInstanceId query string false "网关实例ID"
+// @Param routeName query string false "路由名称(支持模糊匹配)"
+// @Param routePath query string false "路由路径(支持模糊匹配)"
+// @Param matchType query int false "匹配类型(0:精确匹配,1:前缀匹配,2:正则匹配)"
+// @Param activeFlag query string false "激活状态(Y:激活,N:未激活)"
 // @Success 200 {object} response.JsonData
 // @Router /api/hub0021/route-configs [get]
 func (c *RouteConfigController) QueryRouteConfigs(ctx *gin.Context) {
@@ -44,11 +48,21 @@ func (c *RouteConfigController) QueryRouteConfigs(ctx *gin.Context) {
 	page, pageSize := request.GetPaginationParams(ctx)
 	// 使用工具类获取租户ID
 	tenantId := request.GetTenantID(ctx)
-	// 获取网关实例ID参数
-	gatewayInstanceId := request.GetParam(ctx,"gatewayInstanceId")
+	
+	// 获取查询参数
+	queryParams := &dao.RouteConfigQueryParams{
+		TenantId:          tenantId,
+		GatewayInstanceId: request.GetParam(ctx, "gatewayInstanceId"),
+		RouteName:         request.GetParam(ctx, "routeName"),
+		RoutePath:         request.GetParam(ctx, "routePath"),
+		MatchType:         request.GetParamInt(ctx, "matchType", 0),
+		ActiveFlag:        request.GetParam(ctx, "activeFlag"),
+		Page:              page,
+		PageSize:          pageSize,
+	}
 
 	// 调用DAO获取路由配置列表（关联服务定义）
-	routeConfigs, total, err := c.routeConfigDAO.ListRouteConfigs(ctx, tenantId, gatewayInstanceId, page, pageSize)
+	routeConfigs, total, err := c.routeConfigDAO.ListRouteConfigs(ctx, queryParams)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取路由配置列表失败", err)
 		// 使用统一的错误响应
@@ -411,6 +425,51 @@ func (c *RouteConfigController) GetRouteConfigsByInstance(ctx *gin.Context) {
 		"routeConfigs":      routeConfigList,
 		"total":             len(routeConfigList),
 	}, constants.SD00002)
+}
+
+// GetRouteStatistics 获取路由统计信息
+// @Summary 获取路由统计信息
+// @Description 获取指定租户和网关实例的路由统计信息
+// @Tags 路由配置管理
+// @Produce json
+// @Param gatewayInstanceId query string false "网关实例ID"
+// @Success 200 {object} response.JsonData
+// @Router /api/hub0021/route-statistics [get]
+func (c *RouteConfigController) GetRouteStatistics(ctx *gin.Context) {
+	// 获取租户ID
+	tenantId := request.GetTenantID(ctx)
+	if tenantId == "" {
+		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
+		return
+	}
+
+	// 获取网关实例ID参数
+	gatewayInstanceId := request.GetParam(ctx, "gatewayInstanceId")
+
+	// 调用DAO获取路由统计信息
+	statistics, err := c.routeConfigDAO.GetRouteStatistics(ctx, tenantId, gatewayInstanceId)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "获取路由统计信息失败", err)
+		response.ErrorJSON(ctx, "获取路由统计信息失败: "+err.Error(), constants.ED00009)
+		return
+	}
+
+	// 构建响应数据，确保字段名与前端接口一致
+	responseData := gin.H{
+		"totalRoutes":       statistics["totalRoutes"],
+		"activeRoutes":      statistics["activeRoutes"],
+		"inactiveRoutes":    statistics["inactiveRoutes"],
+		"exactMatchRoutes":  statistics["exactMatchRoutes"],
+		"prefixMatchRoutes": statistics["prefixMatchRoutes"],
+		"regexMatchRoutes":  statistics["regexMatchRoutes"],
+	}
+
+	logger.InfoWithTrace(ctx, "路由统计信息查询成功",
+		"tenantId", tenantId,
+		"gatewayInstanceId", gatewayInstanceId,
+		"totalRoutes", statistics["totalRoutes"])
+
+	response.SuccessJSON(ctx, responseData, constants.SD00002)
 }
 
 // DeleteRouteConfigRequest 删除路由配置请求结构

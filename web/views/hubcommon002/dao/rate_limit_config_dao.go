@@ -139,7 +139,7 @@ func (dao *RateLimitConfigDAO) GetRateLimitConfig(tenantId, rateLimitConfigId st
 
 	query := `
 		SELECT * FROM HUB_GW_RATE_LIMIT_CONFIG 
-		WHERE rateLimitConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
+		WHERE rateLimitConfigId = ? AND tenantId = ?
 	`
 
 	var config models.RateLimitConfig
@@ -176,33 +176,46 @@ func (dao *RateLimitConfigDAO) UpdateRateLimitConfig(ctx context.Context, config
 	config.CurrentVersion = currentConfig.CurrentVersion + 1
 	config.OprSeqFlag = config.RateLimitConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
 
+	// 保留不可修改的字段
+	config.AddTime = currentConfig.AddTime
+	config.AddWho = currentConfig.AddWho
+	
+	// 如果没有设置活动标记，保持原有状态
+	if config.ActiveFlag == "" {
+		config.ActiveFlag = currentConfig.ActiveFlag
+	}
+
 	sql := `
 		UPDATE HUB_GW_RATE_LIMIT_CONFIG SET
 			gatewayInstanceId = ?, routeConfigId = ?, limitName = ?, algorithm = ?, keyStrategy = ?,
 			limitRate = ?, burstCapacity = ?, timeWindowSeconds = ?, rejectionStatusCode = ?, 
 			rejectionMessage = ?, configPriority = ?, customConfig = ?,
 			reserved1 = ?, reserved2 = ?, reserved3 = ?, reserved4 = ?, reserved5 = ?,
-			extProperty = ?, noteText = ?, editTime = ?, editWho = ?, currentVersion = ?, oprSeqFlag = ?
-		WHERE rateLimitConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
+			extProperty = ?, noteText = ?, editTime = ?, editWho = ?, currentVersion = ?, oprSeqFlag = ?, activeFlag = ?
+		WHERE rateLimitConfigId = ? AND tenantId = ? AND currentVersion = ?
 	`
 
-	_, err = dao.db.Exec(ctx, sql, []interface{}{
+	result, err := dao.db.Exec(ctx, sql, []interface{}{
 		config.GatewayInstanceId, config.RouteConfigId, config.LimitName, config.Algorithm, config.KeyStrategy,
 		config.LimitRate, config.BurstCapacity, config.TimeWindowSeconds, config.RejectionStatusCode, 
 		config.RejectionMessage, config.ConfigPriority, config.CustomConfig,
 		config.Reserved1, config.Reserved2, config.Reserved3, config.Reserved4, config.Reserved5,
-		config.ExtProperty, config.NoteText, config.EditTime, config.EditWho, config.CurrentVersion, config.OprSeqFlag,
-		config.RateLimitConfigId, config.TenantId,
+		config.ExtProperty, config.NoteText, config.EditTime, config.EditWho, config.CurrentVersion, config.OprSeqFlag, config.ActiveFlag,
+		config.RateLimitConfigId, config.TenantId, currentConfig.CurrentVersion,
 	}, true)
 
 	if err != nil {
 		return huberrors.WrapError(err, "更新限流配置失败")
 	}
 
+	if result == 0 {
+		return errors.New("限流配置数据已被其他用户修改，请刷新后重试")
+	}
+
 	return nil
 }
 
-// DeleteRateLimitConfig 软删除限流配置
+// DeleteRateLimitConfig 物理删除限流配置
 func (dao *RateLimitConfigDAO) DeleteRateLimitConfig(tenantId, rateLimitConfigId, operatorId string) error {
 	if rateLimitConfigId == "" || tenantId == "" {
 		return errors.New("rateLimitConfigId和tenantId不能为空")
@@ -217,19 +230,16 @@ func (dao *RateLimitConfigDAO) DeleteRateLimitConfig(tenantId, rateLimitConfigId
 		return errors.New("限流配置不存在")
 	}
 
-	now := time.Now()
-	sql := `
-		UPDATE HUB_GW_RATE_LIMIT_CONFIG SET
-			activeFlag = 'N', editTime = ?, editWho = ?
-		WHERE rateLimitConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
-	`
+	// 执行物理删除
+	sql := `DELETE FROM HUB_GW_RATE_LIMIT_CONFIG WHERE rateLimitConfigId = ? AND tenantId = ?`
 
-	_, err = dao.db.Exec(context.Background(), sql, []interface{}{
-		now, operatorId, rateLimitConfigId, tenantId,
-	}, true)
-
+	result, err := dao.db.Exec(context.Background(), sql, []interface{}{rateLimitConfigId, tenantId}, true)
 	if err != nil {
 		return huberrors.WrapError(err, "删除限流配置失败")
+	}
+
+	if result == 0 {
+		return errors.New("未找到要删除的限流配置")
 	}
 
 	return nil
@@ -242,7 +252,7 @@ func (dao *RateLimitConfigDAO) ListRateLimitConfigs(ctx context.Context, tenantI
 	}
 
 	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_RATE_LIMIT_CONFIG WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY configPriority ASC, addTime DESC"
+	baseQuery := "SELECT * FROM HUB_GW_RATE_LIMIT_CONFIG WHERE tenantId = ? ORDER BY configPriority ASC, addTime DESC"
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
@@ -298,7 +308,7 @@ func (dao *RateLimitConfigDAO) GetRateLimitConfigByGatewayInstance(tenantId, gat
 	// 构建基础查询语句
 	baseQuery := `
 		SELECT * FROM HUB_GW_RATE_LIMIT_CONFIG 
-		WHERE tenantId = ? AND gatewayInstanceId = ? AND activeFlag = 'Y'
+		WHERE tenantId = ? AND gatewayInstanceId = ?
 		ORDER BY configPriority ASC, addTime DESC
 	`
 
@@ -340,7 +350,7 @@ func (dao *RateLimitConfigDAO) GetRateLimitConfigByRouteConfig(tenantId, routeCo
 	// 构建基础查询语句
 	baseQuery := `
 		SELECT * FROM HUB_GW_RATE_LIMIT_CONFIG 
-		WHERE tenantId = ? AND routeConfigId = ? AND activeFlag = 'Y'
+		WHERE tenantId = ? AND routeConfigId = ?
 		ORDER BY configPriority ASC, addTime DESC
 	`
 
@@ -381,7 +391,7 @@ func (dao *RateLimitConfigDAO) GetRateLimitConfigsByKeyStrategy(ctx context.Cont
 
 	sql := `
 		SELECT * FROM HUB_GW_RATE_LIMIT_CONFIG 
-		WHERE tenantId = ? AND keyStrategy = ? AND activeFlag = 'Y'
+		WHERE tenantId = ? AND keyStrategy = ?
 		ORDER BY configPriority ASC, addTime DESC
 	`
 
@@ -402,7 +412,7 @@ func (dao *RateLimitConfigDAO) GetRateLimitConfigsByAlgorithm(ctx context.Contex
 
 	sql := `
 		SELECT * FROM HUB_GW_RATE_LIMIT_CONFIG 
-		WHERE tenantId = ? AND algorithm = ? AND activeFlag = 'Y'
+		WHERE tenantId = ? AND algorithm = ?
 		ORDER BY configPriority ASC, addTime DESC
 	`
 

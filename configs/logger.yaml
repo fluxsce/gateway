@@ -23,7 +23,7 @@ log:
   # 是否使用绝对路径 (true: 直接使用文件路径，false: 将路径视为相对于log_path)
   use_absolute_path: false
   # 单个日志文件最大尺寸(MB)
-  max_size: 100
+  max_size: 1
   # 保留的旧日志文件最大数量
   max_backups: 10
   # 保留的旧日志文件最大天数

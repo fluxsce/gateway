@@ -189,6 +189,7 @@ func (f *GatewayFactory) initializeAndSetHandlers(gateway *Gateway, cfg *config.
 
 // ReloadGateway 重新加载网关配置
 // 允许在不重启服务的情况下更新网关的配置
+// 采用无缝切换策略：先初始化新资源，成功后再关闭旧资源
 func (f *GatewayFactory) ReloadGateway(gateway *Gateway, newCfg *config.GatewayConfig) error {
 	if gateway == nil {
 		return fmt.Errorf("网关实例不能为空")
@@ -198,73 +199,52 @@ func (f *GatewayFactory) ReloadGateway(gateway *Gateway, newCfg *config.GatewayC
 		return fmt.Errorf("新配置不能为空")
 	}
 
-	// 保存旧配置，以便在失败时回滚
+	// 保存旧配置和旧处理器，以便在失败时回滚
 	oldConfig := gateway.gatewayConfig
-
-	// 更新网关配置
-	gateway.gatewayConfig = newCfg
-
-	// 更新HTTP服务器配置
-	gateway.server.ReadTimeout = newCfg.Base.ReadTimeout
-	gateway.server.WriteTimeout = newCfg.Base.WriteTimeout
-	gateway.server.IdleTimeout = newCfg.Base.IdleTimeout
+	oldRouter := gateway.router
+	oldProxy := gateway.proxy
+	oldAuth := gateway.auth
+	oldCors := gateway.cors
+	oldSecurity := gateway.security
+	oldLimiter := gateway.limiter
 
 	// 如果监听地址发生变化，需要重启服务
 	if oldConfig.Base.Listen != newCfg.Base.Listen {
 		return fmt.Errorf("监听地址变更需要重启服务")
 	}
 
-	// 关闭旧的处理器资源，防止资源泄漏
-	// 优先关闭代理处理器，因为它通常包含健康检查器等后台资源
-	if gateway.proxy != nil {
-		if closer, ok := gateway.proxy.(interface{ Close() error }); ok {
-			if err := closer.Close(); err != nil {
-				logger.Warn("重载配置时关闭旧代理处理器失败", "error", err)
-			} else {
-				logger.Debug("重载配置时旧代理处理器已关闭")
-			}
-		}
-	}
+	// 临时更新网关配置
+	gateway.gatewayConfig = newCfg
 
-	// 关闭其他处理器资源
-	if gateway.router != nil {
-		if closer, ok := gateway.router.(interface{ Close() error }); ok {
-			_ = closer.Close()
-		}
-	}
-	
-	if gateway.auth != nil {
-		if closer, ok := gateway.auth.(interface{ Close() error }); ok {
-			_ = closer.Close()
-		}
-	}
-	
-	if gateway.cors != nil {
-		if closer, ok := gateway.cors.(interface{ Close() error }); ok {
-			_ = closer.Close()
-		}
-	}
-	
-	if gateway.security != nil {
-		if closer, ok := gateway.security.(interface{ Close() error }); ok {
-			_ = closer.Close()
-		}
-	}
-	
-	if gateway.limiter != nil {
-		if closer, ok := gateway.limiter.(interface{ Close() error }); ok {
-			_ = closer.Close()
-		}
-	}
-
-	// 尝试重新初始化所有处理器
+	// 尝试初始化新的处理器
 	if err := f.initializeAndSetHandlers(gateway, newCfg); err != nil {
-		// 初始化失败，回滚配置
+		// 初始化失败，回滚配置和处理器
 		gateway.gatewayConfig = oldConfig
-		// 尝试恢复原有处理器
-		_ = f.initializeAndSetHandlers(gateway, oldConfig)
+		gateway.router = oldRouter
+		gateway.proxy = oldProxy
+		gateway.auth = oldAuth
+		gateway.cors = oldCors
+		gateway.security = oldSecurity
+		gateway.limiter = oldLimiter
 		return fmt.Errorf("重新初始化处理器失败: %w", err)
 	}
+
+	// 新处理器初始化成功，重新创建engine并设置处理器链
+	// 先创建新的engine，设置完成后再一次性替换，确保原子性
+	newEngine := core.NewEngine()
+	gateway.setupHandlers(newEngine)
+	
+	// 处理器链设置完成，现在可以安全替换engine
+	gateway.engine = newEngine
+
+	// engine设置完成后，现在可以安全关闭旧处理器
+	// 关闭旧的处理器资源，防止资源泄漏
+	f.closeOldHandlers(oldRouter, oldProxy, oldAuth, oldCors, oldSecurity, oldLimiter)
+
+	// 更新HTTP服务器配置
+	gateway.server.ReadTimeout = newCfg.Base.ReadTimeout
+	gateway.server.WriteTimeout = newCfg.Base.WriteTimeout
+	gateway.server.IdleTimeout = newCfg.Base.IdleTimeout
 
 	// 更新实例ID
 	if oldConfig.InstanceID != newCfg.InstanceID && newCfg.InstanceID != "" {
@@ -286,4 +266,59 @@ func (f *GatewayFactory) ReloadGateway(gateway *Gateway, newCfg *config.GatewayC
 	}
 
 	return nil
+}
+
+// closeOldHandlers 关闭旧的处理器资源
+func (f *GatewayFactory) closeOldHandlers(oldRouter, oldProxy, oldAuth, oldCors, oldSecurity, oldLimiter interface{}) {
+	// 优先关闭代理处理器，因为它通常包含健康检查器等后台资源
+	if oldProxy != nil {
+		if closer, ok := oldProxy.(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				logger.Warn("重载配置时关闭旧代理处理器失败", "error", err)
+			} else {
+				logger.Debug("重载配置时旧代理处理器已关闭")
+			}
+		}
+	}
+
+	// 关闭其他处理器资源
+	if oldRouter != nil {
+		if closer, ok := oldRouter.(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				logger.Warn("重载配置时关闭旧路由处理器失败", "error", err)
+			}
+		}
+	}
+	
+	if oldAuth != nil {
+		if closer, ok := oldAuth.(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				logger.Warn("重载配置时关闭旧认证处理器失败", "error", err)
+			}
+		}
+	}
+	
+	if oldCors != nil {
+		if closer, ok := oldCors.(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				logger.Warn("重载配置时关闭旧CORS处理器失败", "error", err)
+			}
+		}
+	}
+	
+	if oldSecurity != nil {
+		if closer, ok := oldSecurity.(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				logger.Warn("重载配置时关闭旧安全处理器失败", "error", err)
+			}
+		}
+	}
+	
+	if oldLimiter != nil {
+		if closer, ok := oldLimiter.(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				logger.Warn("重载配置时关闭旧限流处理器失败", "error", err)
+			}
+		}
+	}
 }

@@ -20,6 +20,28 @@ import (
 	_ "github.com/godror/godror"
 )
 
+// 事务上下文键
+const txContextKey = "gohub.oracle.transaction"
+
+// TxContext 事务上下文信息
+type TxContext struct {
+	tx       *sql.Tx
+	id       string    // 事务ID
+	created  time.Time // 创建时间
+	options  *database.TxOptions
+}
+
+// setTxToContext 将事务信息设置到上下文中
+func setTxToContext(ctx context.Context, txCtx *TxContext) context.Context {
+	return context.WithValue(ctx, txContextKey, txCtx)
+}
+
+// getTxFromContext 从上下文中获取事务信息
+func getTxFromContext(ctx context.Context) (*TxContext, bool) {
+	txCtx, ok := ctx.Value(txContextKey).(*TxContext)
+	return txCtx, ok
+}
+
 // 注册Oracle驱动
 func init() {
 	database.Register(database.DriverOracle, func() database.Database {
@@ -37,19 +59,18 @@ func init() {
 // Oracle Oracle数据库实现
 // 核心特性:
 // 1. 统一的数据库接口实现 - 符合database.Database接口规范
-// 2. 灵活的事务管理 - 支持不同隔离级别和可定制的事务选项
+// 2. 多线程安全事务管理 - 支持上下文绑定的事务，每个goroutine独立管理事务
 // 3. 自动连接池管理 - 配置最大连接数、空闲连接和连接生命周期
 // 4. 智能日志记录 - 支持慢查询检测和SQL执行日志
 // 5. 结构体映射 - 自动将Go结构体与数据库表映射
-// 6. 带选项的操作 - 每个数据库操作都有带选项的版本，支持自定义执行行为
-// 7. 活跃事务追踪 - 通过内部映射跟踪所有活跃事务
-// 8. Oracle特性支持 - 支持Oracle特有的序列、过程调用等特性，自动转换占位符
+// 6. 上下文绑定事务 - 事务信息存储在context中，避免全局状态冲突
+// 7. Oracle特性支持 - 支持Oracle特有的序列、过程调用等特性，自动转换占位符
+// 8. Go底层优化 - 普通操作依赖Go database/sql的自动优化
 type Oracle struct {
 	db       *sql.DB
 	config   *database.DbConfig
 	logger   *dblogger.DBLogger
 	mu       sync.RWMutex
-	currentTx *sql.Tx // 当前活跃的事务
 	isOracle11g bool
 }
 
@@ -152,10 +173,6 @@ func (o *Oracle) Connect(config *database.DbConfig) error {
 // 返回:
 //   error: 关闭连接失败时返回错误信息
 func (o *Oracle) Close() error {
-	if o.currentTx != nil {
-		o.currentTx.Rollback()
-		o.currentTx = nil
-	}
 	if o.db != nil {
 		o.logger.LogDisconnect(context.Background(), database.DriverOracle)
 		return o.db.Close()
@@ -241,20 +258,14 @@ func (o *Oracle) Ping(ctx context.Context) error {
 
 // BeginTx 开始事务
 // 启动一个新的Oracle事务，支持指定隔离级别和只读属性
-// 如果已有活跃事务，会返回错误
+// 事务信息会绑定到返回的上下文中，支持多线程并发事务
 // 参数:
 //   ctx: 上下文，用于控制请求超时和取消
 //   options: 事务选项，包含隔离级别和只读设置
 // 返回:
+//   context.Context: 包含事务信息的新上下文
 //   error: 开始事务失败时返回错误信息
-func (o *Oracle) BeginTx(ctx context.Context, options *database.TxOptions) error {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-
-	if o.currentTx != nil {
-		return fmt.Errorf("transaction already active")
-	}
-
+func (o *Oracle) BeginTx(ctx context.Context, options *database.TxOptions) (context.Context, error) {
 	var sqlTxOpts *sql.TxOptions
 	if options != nil {
 		sqlTxOpts = &sql.TxOptions{
@@ -278,30 +289,37 @@ func (o *Oracle) BeginTx(ctx context.Context, options *database.TxOptions) error
 	tx, err := o.db.BeginTx(ctx, sqlTxOpts)
 	if err != nil {
 		o.logger.LogTx(ctx, "开始", err)
-		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
+		return ctx, fmt.Errorf("%w: %v", database.ErrTransaction, err)
 	}
 
-	o.currentTx = tx
-	o.logger.LogTx(ctx, "开始", nil)
-	return nil
+	// 创建事务上下文
+	txCtx := &TxContext{
+		tx:      tx,
+		id:      fmt.Sprintf("oracle-tx-%d", time.Now().UnixNano()),
+		created: time.Now(),
+		options: options,
+	}
+
+	// 将事务信息绑定到上下文
+	newCtx := setTxToContext(ctx, txCtx)
+	o.logger.LogTx(newCtx, "开始", nil)
+	return newCtx, nil
 }
 
 // Commit 提交事务
-// 提交当前活跃的Oracle事务，使所有未提交的更改生效
-// 如果没有活跃事务，会返回错误
+// 提交指定上下文中的Oracle事务，使所有未提交的更改生效
+// 参数:
+//   ctx: 包含事务信息的上下文
 // 返回:
 //   error: 提交事务失败时返回错误信息
-func (o *Oracle) Commit() error {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-
-	if o.currentTx == nil {
-		return fmt.Errorf("no active transaction")
+func (o *Oracle) Commit(ctx context.Context) error {
+	txCtx, ok := getTxFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("no active transaction in context")
 	}
 
-	err := o.currentTx.Commit()
-	o.currentTx = nil
-	o.logger.LogTx(context.Background(), "提交", err)
+	err := txCtx.tx.Commit()
+	o.logger.LogTx(ctx, "提交", err)
 	
 	if err != nil {
 		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
@@ -310,21 +328,19 @@ func (o *Oracle) Commit() error {
 }
 
 // Rollback 回滚事务
-// 回滚当前活跃的Oracle事务，撤销所有未提交的更改
-// 如果没有活跃事务，会返回错误
+// 回滚指定上下文中的Oracle事务，撤销所有未提交的更改
+// 参数:
+//   ctx: 包含事务信息的上下文
 // 返回:
 //   error: 回滚事务失败时返回错误信息
-func (o *Oracle) Rollback() error {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-
-	if o.currentTx == nil {
-		return fmt.Errorf("no active transaction")
+func (o *Oracle) Rollback(ctx context.Context) error {
+	txCtx, ok := getTxFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("no active transaction in context")
 	}
 
-	err := o.currentTx.Rollback()
-	o.currentTx = nil
-	o.logger.LogTx(context.Background(), "回滚", err)
+	err := txCtx.tx.Rollback()
+	o.logger.LogTx(ctx, "回滚", err)
 	
 	if err != nil {
 		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
@@ -333,53 +349,55 @@ func (o *Oracle) Rollback() error {
 }
 
 // InTx 在事务中执行函数
-// 自动管理Oracle事务的生命周期
+// 自动管理Oracle事务的生命周期，支持上下文绑定的事务
 // 如果函数正常返回，自动提交事务
-// 如果函数返回错误或发生panic，自动回滚事务
+// 如果函数返回错误或发生panic，自动回滚事务并将panic转换为错误
 // 参数:
 //   ctx: 上下文，用于控制请求超时和取消
 //   options: 事务选项，包含隔离级别和只读设置
-//   fn: 在事务中执行的函数，返回error表示是否成功
+//   fn: 在事务中执行的函数，接收包含事务信息的上下文
 // 返回:
-//   error: 事务执行失败时返回错误信息
-func (o *Oracle) InTx(ctx context.Context, options *database.TxOptions, fn func() error) error {
-	if err := o.BeginTx(ctx, options); err != nil {
+//   error: 事务执行失败时返回错误信息，包括panic转换的错误
+func (o *Oracle) InTx(ctx context.Context, options *database.TxOptions, fn func(context.Context) error) (err error) {
+	txCtx, err := o.BeginTx(ctx, options)
+	if err != nil {
 		return err
 	}
 
 	defer func() {
 		if r := recover(); r != nil {
-			o.Rollback()
-			panic(r)
+			o.Rollback(txCtx)
+			// 将panic转换为错误，避免程序崩溃
+			err = fmt.Errorf("transaction panic recovered: %v", r)
 		}
 	}()
 
-	if err := fn(); err != nil {
-		o.Rollback()
+	if err := fn(txCtx); err != nil {
+		o.Rollback(txCtx)
 		return err
 	}
 
-	return o.Commit()
+	return o.Commit(txCtx)
 }
 
 // getExecutor 获取执行器（事务或连接）
-// 根据autoCommit参数和当前事务状态返回合适的执行器
-// 如果autoCommit为false且存在活跃事务，返回事务执行器
+// 根据autoCommit参数和上下文中的事务状态返回合适的执行器
+// 如果autoCommit为false且上下文包含活跃事务，返回事务执行器
 // 否则返回数据库连接执行器
 // 参数:
+//   ctx: 上下文，可能包含事务信息
 //   autoCommit: 是否自动提交
 // 返回:
 //   interface: 执行器接口，可以是*sql.Tx或*sql.DB
-func (o *Oracle) getExecutor(autoCommit bool) interface {
+func (o *Oracle) getExecutor(ctx context.Context, autoCommit bool) interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
 	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
 } {
-	o.mu.RLock()
-	defer o.mu.RUnlock()
-
-	if !autoCommit && o.currentTx != nil {
-		return o.currentTx
+	if !autoCommit {
+		if txCtx, ok := getTxFromContext(ctx); ok {
+			return txCtx.tx
+		}
 	}
 	return o.db
 }
@@ -388,7 +406,7 @@ func (o *Oracle) getExecutor(autoCommit bool) interface {
 // 执行INSERT、UPDATE、DELETE等不返回结果集的Oracle语句
 // 支持事务和非事务模式执行
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
+//   ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
 //   query: 要执行的SQL语句，使用标准的?占位符
 //   args: SQL语句中占位符对应的参数值
 //   autoCommit: true-自动提交, false-在当前事务中执行
@@ -396,7 +414,7 @@ func (o *Oracle) getExecutor(autoCommit bool) interface {
 //   int64: 受影响的行数
 //   error: 执行失败时返回错误信息
 func (o *Oracle) Exec(ctx context.Context, query string, args []interface{}, autoCommit bool) (int64, error) {
-	executor := o.getExecutor(autoCommit)
+	executor := o.getExecutor(ctx, autoCommit)
 	
 	// 转换占位符为Oracle格式
 	convertedQuery := o.convertPlaceholders(query)
@@ -427,7 +445,7 @@ func (o *Oracle) Exec(ctx context.Context, query string, args []interface{}, aut
 // 执行SELECT语句并将结果扫描到目标切片中
 // 自动处理结构体字段到数据库列的映射
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
+//   ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
 //   dest: 目标切片的指针，用于接收查询结果
 //   query: 要执行的SELECT语句，使用标准的?占位符
 //   args: SQL语句中占位符对应的参数值
@@ -435,7 +453,7 @@ func (o *Oracle) Exec(ctx context.Context, query string, args []interface{}, aut
 // 返回:
 //   error: 查询失败或扫描失败时返回错误信息
 func (o *Oracle) Query(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error {
-	executor := o.getExecutor(autoCommit)
+	executor := o.getExecutor(ctx, autoCommit)
 	
 	// 转换占位符为Oracle格式
 	convertedQuery := o.convertPlaceholders(query)
@@ -481,7 +499,7 @@ func (o *Oracle) Query(ctx context.Context, dest interface{}, query string, args
 // 如果查询不到记录，返回ErrRecordNotFound错误
 // 使用智能字段映射，支持数据库列数与结构体字段数不匹配的情况
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
+//   ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
 //   dest: 目标结构体的指针，用于接收查询结果
 //   query: 要执行的SELECT语句，使用标准的?占位符
 //   args: SQL语句中占位符对应的参数值
@@ -489,7 +507,7 @@ func (o *Oracle) Query(ctx context.Context, dest interface{}, query string, args
 // 返回:
 //   error: 查询失败、扫描失败或记录不存在时返回错误信息
 func (o *Oracle) QueryOne(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error {
-	executor := o.getExecutor(autoCommit)
+	executor := o.getExecutor(ctx, autoCommit)
 
 	// 转换占位符为Oracle格式
 	convertedQuery := o.convertPlaceholders(query)
@@ -532,7 +550,7 @@ func (o *Oracle) QueryOne(ctx context.Context, dest interface{}, query string, a
 // 会自动提取结构体字段作为列名和值，支持db tag映射
 // 对于Oracle，会自动处理RETURNING子句获取自增ID（通过序列）
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
+//   ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
 //   table: 目标表名
 //   data: 要插入的数据结构体，字段通过db tag映射到数据库列
 //   autoCommit: true-自动提交, false-在当前事务中执行
@@ -545,7 +563,7 @@ func (o *Oracle) Insert(ctx context.Context, table string, data interface{}, aut
 		return 0, err
 	}
 
-	executor := o.getExecutor(autoCommit)
+	executor := o.getExecutor(ctx, autoCommit)
 	
 	// 转换占位符为Oracle格式
 	convertedQuery := o.convertPlaceholders(query)
@@ -581,7 +599,7 @@ func (o *Oracle) Insert(ctx context.Context, table string, data interface{}, aut
 // 根据提供的数据结构体和WHERE条件构建UPDATE语句并执行
 // 会自动提取结构体字段作为要更新的列和值
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
+//   ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
 //   table: 目标表名
 //   data: 包含更新数据的结构体，字段通过db tag映射到数据库列
 //   where: WHERE条件语句，使用标准的?占位符
@@ -604,7 +622,7 @@ func (o *Oracle) Update(ctx context.Context, table string, data interface{}, whe
 		finalArgs = append(finalArgs, args...) // 再添加WHERE子句的参数
 	}
 
-	executor := o.getExecutor(autoCommit)
+	executor := o.getExecutor(ctx, autoCommit)
 	
 	// 转换占位符为Oracle格式
 	convertedQuery := o.convertPlaceholders(query)
@@ -634,7 +652,7 @@ func (o *Oracle) Update(ctx context.Context, table string, data interface{}, whe
 // Delete 删除记录
 // 根据WHERE条件构建DELETE语句并执行
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
+//   ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
 //   table: 目标表名
 //   where: WHERE条件语句，使用标准的?占位符
 //   args: WHERE条件中占位符对应的参数值
@@ -648,7 +666,7 @@ func (o *Oracle) Delete(ctx context.Context, table string, where string, args []
 		query += " WHERE " + where
 	}
 
-	executor := o.getExecutor(autoCommit)
+	executor := o.getExecutor(ctx, autoCommit)
 	
 	// 转换占位符为Oracle格式
 	convertedQuery := o.convertPlaceholders(query)
@@ -677,9 +695,17 @@ func (o *Oracle) Delete(ctx context.Context, table string, where string, args []
 
 // BatchInsert 批量插入记录
 // 将切片中的多个数据结构体批量插入到Oracle中
-// 使用多个单独的INSERT语句进行批量插入（更稳定的方式）
+// 使用高效的预编译循环执行模式
+// 
+// 高效的预编译循环执行模式：
+//   1. 预编译一次：使用sql.PrepareContext()预编译单条INSERT语句
+//   2. 事务保证：默认在事务中执行，确保数据一致性
+//   3. 循环执行：在事务中循环执行预编译语句，逐条插入数据
+//   4. 错误处理：任何错误都会触发事务回滚，保证原子性
+//   5. Oracle适配：自动转换占位符格式，支持Oracle特有的序列处理
+//
 // 参数:
-//   ctx: 上下文，用于控制请求超时和取消
+//   ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
 //   table: 目标表名
 //   dataSlice: 要插入的数据切片，每个元素都是结构体
 //   autoCommit: true-自动提交, false-在当前事务中执行
@@ -696,44 +722,484 @@ func (o *Oracle) BatchInsert(ctx context.Context, table string, dataSlice interf
 		return 0, nil
 	}
 
-	executor := o.getExecutor(autoCommit)
-	var totalRowsAffected int64
+	// 第一步：分析数据结构，提取列信息
+	firstItem := slice.Index(0).Interface()
+	columns, _, err := sqlutils.ExtractColumnsAndValues(firstItem)
+	if err != nil {
+		return 0, err
+	}
+
+	// 第二步：构建单条INSERT的预编译SQL语句（使用标准?占位符）
+	placeholders := make([]string, len(columns))
+	for i := range placeholders {
+		placeholders[i] = "?"
+	}
+	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+		table,
+		strings.Join(columns, ", "),
+		strings.Join(placeholders, ", "))
+
+	// 第三步：开始事务（BatchInsert默认需要事务保证一致性）
+	var needCommit bool
+	var tx *sql.Tx
 	
+	if autoCommit {
+		// 自动提交模式：创建新事务
+		tx, err = o.db.BeginTx(ctx, nil)
+		if err != nil {
+			return 0, fmt.Errorf("failed to begin transaction: %w", err)
+		}
+		needCommit = true
+	} else {
+		// 手动事务模式：使用当前事务
+		txCtx, ok := getTxFromContext(ctx)
+		if !ok || txCtx.tx == nil {
+			return 0, fmt.Errorf("no active transaction for batch insert")
+		}
+		tx = txCtx.tx
+	}
+
+	// 第四步：预编译单条INSERT语句（转换为Oracle占位符格式）
+	convertedQuery := o.convertPlaceholders(query)
 	start := time.Now()
-	
-	// 使用简单的逐条插入方式，更加稳定
+	stmt, err := tx.PrepareContext(ctx, convertedQuery)
+	if err != nil {
+		if needCommit {
+			tx.Rollback()
+		}
+		return 0, fmt.Errorf("failed to prepare batch insert statement: %w", err)
+	}
+	defer stmt.Close()
+
+	// 第五步：循环执行预编译语句，逐条插入数据
+	var totalRowsAffected int64
 	for i := 0; i < slice.Len(); i++ {
 		item := slice.Index(i).Interface()
-		query, args, err := sqlutils.BuildInsertQueryForOracle(table, item)
+		_, values, err := sqlutils.ExtractColumnsAndValues(item)
 		if err != nil {
-			return 0, err
+			if needCommit {
+				tx.Rollback()
+			}
+			return 0, fmt.Errorf("failed to extract values from item %d: %w", i, err)
 		}
-		
-		// 转换占位符为Oracle格式
-		convertedQuery := o.convertPlaceholders(query)
-		
-		result, err := executor.ExecContext(ctx, convertedQuery, args...)
+
+		// 执行单条插入
+		result, err := stmt.ExecContext(ctx, values...)
 		if err != nil {
-			o.logger.LogSQL(ctx, "SQL批量插入失败", query, args, err, time.Since(start), map[string]interface{}{
-				"rowsAffected": totalRowsAffected,
-				"failedIndex":  i,
-			})
-			return totalRowsAffected, err
+			if needCommit {
+				tx.Rollback() // 出现错误时回滚事务
+			}
+			return 0, fmt.Errorf("failed to insert item %d: %w", i, err)
 		}
-		
+
+		// 累计影响行数
 		if rowsAffected, err := result.RowsAffected(); err == nil {
 			totalRowsAffected += rowsAffected
 		}
 	}
-	
 	duration := time.Since(start)
 
-	// 记录日志
+	// 第六步：提交事务（如果是自动提交模式）
+	if needCommit {
+		if err := tx.Commit(); err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to commit batch insert transaction: %w", err)
+		}
+	}
+
+	// 记录执行日志
 	extra := map[string]interface{}{
 		"rowsAffected": totalRowsAffected,
 		"batchSize":    slice.Len(),
+		"columnsCount": len(columns),
+		"executionMode": "prepared_loop",
 	}
-	o.logger.LogSQL(ctx, "SQL批量插入", fmt.Sprintf("批量插入到 %s", table), nil, nil, duration, extra)
+	o.logger.LogSQL(ctx, "SQL批量插入", query, []interface{}{"[batch_data]"}, nil, duration, extra)
 
 	return totalRowsAffected, nil
+}
+
+// BatchUpdate 批量更新记录
+// 将切片中的多个数据结构体批量更新到Oracle中
+// 使用预编译循环执行模式，根据指定的关键字段进行匹配更新
+// 
+// 高效的预编译循环执行模式：
+//   1. 预编译一次：使用sql.PrepareContext()预编译单条UPDATE语句
+//   2. 事务保证：默认在事务中执行，确保数据一致性
+//   3. 循环执行：在事务中循环执行预编译语句，逐条更新数据
+//   4. 错误处理：任何错误都会触发事务回滚，保证原子性
+//   5. Oracle适配：自动转换占位符格式
+//
+// 参数:
+//   ctx: 上下文，用于控制请求超时和取消
+//   table: 目标表名
+//   dataSlice: 要更新的数据切片，每个元素都是结构体
+//   keyFields: 用于匹配记录的关键字段列表（如主键字段）
+//   autoCommit: true-自动提交, false-在当前事务中执行
+// 返回:
+//   int64: 受影响的行数
+//   error: 更新失败时返回错误信息
+func (o *Oracle) BatchUpdate(ctx context.Context, table string, dataSlice interface{}, keyFields []string, autoCommit bool) (int64, error) {
+	slice := reflect.ValueOf(dataSlice)
+	if slice.Kind() != reflect.Slice {
+		return 0, fmt.Errorf("dataSlice must be a slice")
+	}
+
+	if slice.Len() == 0 {
+		return 0, nil
+	}
+
+	if len(keyFields) == 0 {
+		return 0, fmt.Errorf("keyFields cannot be empty")
+	}
+
+	// 第一步：分析数据结构，提取列信息
+	firstItem := slice.Index(0).Interface()
+	columns, _, err := sqlutils.ExtractColumnsAndValues(firstItem)
+	if err != nil {
+		return 0, err
+	}
+
+	// 第二步：构建UPDATE语句，分离SET子句和WHERE子句
+	var setClauses []string
+	var whereClause []string
+	
+	for _, col := range columns {
+		isKeyField := false
+		for _, keyField := range keyFields {
+			if col == keyField {
+				isKeyField = true
+				break
+			}
+		}
+		
+		if isKeyField {
+			whereClause = append(whereClause, col+" = ?")
+		} else {
+			setClauses = append(setClauses, col+" = ?")
+		}
+	}
+	
+	if len(setClauses) == 0 {
+		return 0, fmt.Errorf("no fields to update (all fields are key fields)")
+	}
+
+	query := fmt.Sprintf("UPDATE %s SET %s WHERE %s",
+		table,
+		strings.Join(setClauses, ", "),
+		strings.Join(whereClause, " AND "))
+
+	// 第三步：开始事务
+	var needCommit bool
+	var tx *sql.Tx
+	
+	if autoCommit {
+		tx, err = o.db.BeginTx(ctx, nil)
+		if err != nil {
+			return 0, fmt.Errorf("failed to begin transaction: %w", err)
+		}
+		needCommit = true
+	} else {
+		txCtx, ok := getTxFromContext(ctx)
+		if !ok || txCtx.tx == nil {
+			return 0, fmt.Errorf("no active transaction for batch update")
+		}
+		tx = txCtx.tx
+	}
+
+	// 第四步：预编译UPDATE语句（转换为Oracle占位符格式）
+	convertedQuery := o.convertPlaceholders(query)
+	start := time.Now()
+	stmt, err := tx.PrepareContext(ctx, convertedQuery)
+	if err != nil {
+		if needCommit {
+			tx.Rollback()
+		}
+		return 0, fmt.Errorf("failed to prepare batch update statement: %w", err)
+	}
+	defer stmt.Close()
+
+	// 第五步：循环执行预编译语句，逐条更新数据
+	var totalRowsAffected int64
+	for i := 0; i < slice.Len(); i++ {
+		item := slice.Index(i).Interface()
+		_, values, err := sqlutils.ExtractColumnsAndValues(item)
+		if err != nil {
+			if needCommit {
+				tx.Rollback()
+			}
+			return 0, fmt.Errorf("failed to extract values from item %d: %w", i, err)
+		}
+
+		// 重新排列参数：SET子句参数 + WHERE子句参数
+		var args []interface{}
+		for _, col := range columns {
+			isKeyField := false
+			for _, keyField := range keyFields {
+				if col == keyField {
+					isKeyField = true
+					break
+				}
+			}
+			
+			if !isKeyField {
+				// 找到对应的值
+				for j, column := range columns {
+					if column == col {
+						args = append(args, values[j])
+						break
+					}
+				}
+			}
+		}
+		
+		// 添加WHERE条件的参数
+		for _, keyField := range keyFields {
+			for j, column := range columns {
+				if column == keyField {
+					args = append(args, values[j])
+					break
+				}
+			}
+		}
+
+		// 执行单条更新
+		result, err := stmt.ExecContext(ctx, args...)
+		if err != nil {
+			if needCommit {
+				tx.Rollback()
+			}
+			return 0, fmt.Errorf("failed to update item %d: %w", i, err)
+		}
+
+		// 累计影响行数
+		if rowsAffected, err := result.RowsAffected(); err == nil {
+			totalRowsAffected += rowsAffected
+		}
+	}
+	duration := time.Since(start)
+
+	// 第六步：提交事务（如果是自动提交模式）
+	if needCommit {
+		if err := tx.Commit(); err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to commit batch update transaction: %w", err)
+		}
+	}
+
+	// 记录执行日志
+	extra := map[string]interface{}{
+		"rowsAffected": totalRowsAffected,
+		"batchSize":    slice.Len(),
+		"keyFields":    keyFields,
+		"executionMode": "prepared_loop",
+	}
+	o.logger.LogSQL(ctx, "SQL批量更新", query, []interface{}{"[batch_data]"}, nil, duration, extra)
+
+	return totalRowsAffected, nil
+}
+
+// BatchDelete 批量删除记录
+// 根据提供的数据切片批量删除记录，通过指定的关键字段匹配
+// 使用预编译循环执行模式提高性能
+// 
+// 高效的预编译循环执行模式：
+//   1. 预编译一次：使用sql.PrepareContext()预编译单条DELETE语句
+//   2. 事务保证：默认在事务中执行，确保数据一致性
+//   3. 循环执行：在事务中循环执行预编译语句，逐条删除数据
+//   4. 错误处理：任何错误都会触发事务回滚，保证原子性
+//   5. Oracle适配：自动转换占位符格式
+//
+// 参数:
+//   ctx: 上下文，用于控制请求超时和取消
+//   table: 目标表名
+//   dataSlice: 包含要删除记录信息的数据切片，每个元素都是结构体
+//   keyFields: 用于匹配记录的关键字段列表（如主键字段）
+//   autoCommit: true-自动提交, false-在当前事务中执行
+// 返回:
+//   int64: 受影响的行数
+//   error: 删除失败时返回错误信息
+func (o *Oracle) BatchDelete(ctx context.Context, table string, dataSlice interface{}, keyFields []string, autoCommit bool) (int64, error) {
+	slice := reflect.ValueOf(dataSlice)
+	if slice.Kind() != reflect.Slice {
+		return 0, fmt.Errorf("dataSlice must be a slice")
+	}
+
+	if slice.Len() == 0 {
+		return 0, nil
+	}
+
+	if len(keyFields) == 0 {
+		return 0, fmt.Errorf("keyFields cannot be empty")
+	}
+
+	// 第一步：分析数据结构，提取列信息
+	firstItem := slice.Index(0).Interface()
+	columns, _, err := sqlutils.ExtractColumnsAndValues(firstItem)
+	if err != nil {
+		return 0, err
+	}
+
+	// 第二步：构建DELETE语句的WHERE子句
+	var whereClause []string
+	for _, keyField := range keyFields {
+		whereClause = append(whereClause, keyField+" = ?")
+	}
+
+	query := fmt.Sprintf("DELETE FROM %s WHERE %s",
+		table,
+		strings.Join(whereClause, " AND "))
+
+	// 第三步：开始事务
+	var needCommit bool
+	var tx *sql.Tx
+	
+	if autoCommit {
+		tx, err = o.db.BeginTx(ctx, nil)
+		if err != nil {
+			return 0, fmt.Errorf("failed to begin transaction: %w", err)
+		}
+		needCommit = true
+	} else {
+		txCtx, ok := getTxFromContext(ctx)
+		if !ok || txCtx.tx == nil {
+			return 0, fmt.Errorf("no active transaction for batch delete")
+		}
+		tx = txCtx.tx
+	}
+
+	// 第四步：预编译DELETE语句（转换为Oracle占位符格式）
+	convertedQuery := o.convertPlaceholders(query)
+	start := time.Now()
+	stmt, err := tx.PrepareContext(ctx, convertedQuery)
+	if err != nil {
+		if needCommit {
+			tx.Rollback()
+		}
+		return 0, fmt.Errorf("failed to prepare batch delete statement: %w", err)
+	}
+	defer stmt.Close()
+
+	// 第五步：循环执行预编译语句，逐条删除数据
+	var totalRowsAffected int64
+	for i := 0; i < slice.Len(); i++ {
+		item := slice.Index(i).Interface()
+		_, values, err := sqlutils.ExtractColumnsAndValues(item)
+		if err != nil {
+			if needCommit {
+				tx.Rollback()
+			}
+			return 0, fmt.Errorf("failed to extract values from item %d: %w", i, err)
+		}
+
+		// 提取WHERE条件的参数值
+		var args []interface{}
+		for _, keyField := range keyFields {
+			for j, column := range columns {
+				if column == keyField {
+					args = append(args, values[j])
+					break
+				}
+			}
+		}
+
+		// 执行单条删除
+		result, err := stmt.ExecContext(ctx, args...)
+		if err != nil {
+			if needCommit {
+				tx.Rollback()
+			}
+			return 0, fmt.Errorf("failed to delete item %d: %w", i, err)
+		}
+
+		// 累计影响行数
+		if rowsAffected, err := result.RowsAffected(); err == nil {
+			totalRowsAffected += rowsAffected
+		}
+	}
+	duration := time.Since(start)
+
+	// 第六步：提交事务（如果是自动提交模式）
+	if needCommit {
+		if err := tx.Commit(); err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to commit batch delete transaction: %w", err)
+		}
+	}
+
+	// 记录执行日志
+	extra := map[string]interface{}{
+		"rowsAffected": totalRowsAffected,
+		"batchSize":    slice.Len(),
+		"keyFields":    keyFields,
+		"executionMode": "prepared_loop",
+	}
+	o.logger.LogSQL(ctx, "SQL批量删除", query, []interface{}{"[batch_data]"}, nil, duration, extra)
+
+	return totalRowsAffected, nil
+}
+
+// BatchDeleteByKeys 根据主键列表批量删除记录
+// 更高效的批量删除方式，直接提供主键值列表
+// 使用IN子句进行批量删除，比逐条删除更高效
+// 
+// 参数:
+//   ctx: 上下文，用于控制请求超时和取消
+//   table: 目标表名
+//   keyField: 主键字段名
+//   keys: 要删除的主键值列表
+//   autoCommit: true-自动提交, false-在当前事务中执行
+// 返回:
+//   int64: 受影响的行数
+//   error: 删除失败时返回错误信息
+func (o *Oracle) BatchDeleteByKeys(ctx context.Context, table string, keyField string, keys []interface{}, autoCommit bool) (int64, error) {
+	if len(keys) == 0 {
+		return 0, nil
+	}
+
+	if keyField == "" {
+		return 0, fmt.Errorf("keyField cannot be empty")
+	}
+
+	// 构建IN子句的占位符
+	placeholders := make([]string, len(keys))
+	for i := range placeholders {
+		placeholders[i] = "?"
+	}
+
+	query := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)",
+		table,
+		keyField,
+		strings.Join(placeholders, ", "))
+
+	executor := o.getExecutor(ctx, autoCommit)
+	
+	// 转换占位符为Oracle格式
+	convertedQuery := o.convertPlaceholders(query)
+	
+	start := time.Now()
+	
+	// 直接执行，使用IN子句批量删除
+	result, err := executor.ExecContext(ctx, convertedQuery, keys...)
+	duration := time.Since(start)
+
+	var rowsAffected int64
+	if err == nil {
+		rowsAffected, _ = result.RowsAffected()
+	}
+
+	// 记录日志
+	extra := map[string]interface{}{
+		"rowsAffected": rowsAffected,
+		"batchSize":    len(keys),
+		"keyField":     keyField,
+		"executionMode": "in_clause",
+	}
+	o.logger.LogSQL(ctx, "SQL批量删除(主键)", query, keys, err, duration, extra)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return rowsAffected, nil
 } 

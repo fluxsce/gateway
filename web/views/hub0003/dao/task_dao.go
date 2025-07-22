@@ -41,6 +41,7 @@ func (dao *TaskDao) Update(ctx context.Context, task *hub0003models.TimerTask) (
 		"intervalSeconds = ?, delaySeconds = ?, startTime = ?, endTime = ?, " +
 		"maxRetries = ?, retryIntervalSeconds = ?, timeoutSeconds = ?, taskParams = ?, " +
 		"executorType = ?, toolConfigId = ?, toolConfigName = ?, operationType = ?, operationConfig = ?, " +
+		"taskStatus = ?, activeFlag = ?, " +
 		"editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = currentVersion + 1, noteText = ? " +
 		"WHERE tenantId = ? AND taskId = ?"
 	
@@ -50,6 +51,7 @@ func (dao *TaskDao) Update(ctx context.Context, task *hub0003models.TimerTask) (
 		task.IntervalSeconds, task.DelaySeconds, task.StartTime, task.EndTime,
 		task.MaxRetries, task.RetryIntervalSeconds, task.TimeoutSeconds, task.TaskParams,
 		task.ExecutorType, task.ToolConfigId, task.ToolConfigName, task.OperationType, task.OperationConfig,
+		task.TaskStatus, task.ActiveFlag,
 		task.EditTime, task.EditWho, task.OprSeqFlag, task.NoteText,
 		task.TenantId, task.TaskId,
 	}
@@ -110,6 +112,12 @@ func (dao *TaskDao) Query(ctx context.Context, params map[string]interface{}, pa
 	if operationType, ok := params["operationType"].(string); ok && operationType != "" {
 		whereClause += "AND operationType = ? "
 		args = append(args, operationType)
+	}
+	
+	// 支持活动状态过滤（可选）
+	if activeFlag, ok := params["activeFlag"].(string); ok && activeFlag != "" {
+		whereClause += "AND activeFlag = ? "
+		args = append(args, activeFlag)
 	}
 	
 	// 构建基础查询语句（用于COUNT查询）

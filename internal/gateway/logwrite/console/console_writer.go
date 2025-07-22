@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 
 	"gohub/internal/gateway/logwrite/types"
@@ -67,24 +66,20 @@ func (w *ConsoleWriter) Write(ctx context.Context, log *types.AccessLog) error {
 	return err
 }
 
-// BatchWrite 批量写入日志
+// BatchWrite 批量写入日志（简化实现，逐条写入）
 func (w *ConsoleWriter) BatchWrite(ctx context.Context, logs []*types.AccessLog) error {
 	if len(logs) == 0 {
 		return nil
 	}
 
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
-
-	var builder strings.Builder
+	// 控制台输出不需要复杂的批量优化，直接逐条写入
 	for _, log := range logs {
-		formatted := w.formatter.Format(log)
-		builder.WriteString(formatted)
-		builder.WriteString("\n")
+		if err := w.Write(ctx, log); err != nil {
+			return err
+		}
 	}
 
-	_, err := w.output.WriteString(builder.String())
-	return err
+	return nil
 }
 
 // Flush 刷新输出缓冲区
@@ -97,6 +92,11 @@ func (w *ConsoleWriter) Flush(ctx context.Context) error {
 func (w *ConsoleWriter) Close() error {
 	// 不关闭标准输出
 	return nil
+}
+
+// GetLogConfig 获取日志配置
+func (w *ConsoleWriter) GetLogConfig() *types.LogConfig {
+	return w.config
 }
 
 // JSONFormatter JSON格式化器
@@ -125,7 +125,7 @@ func (f *TextFormatter) Format(log *types.AccessLog) string {
 
 	return fmt.Sprintf("%s[%s]%s %s%s %s%s %s%d%s %dB %dms %s",
 		"\033[36m", // 时间颜色 - 青色
-		log.GatewayReceivedTime.Format("2006-01-02 15:04:05.000"),
+		log.GatewayStartProcessingTime.Format("2006-01-02 15:04:05.000"),
 		resetColor,
 		methodColor,
 		log.RequestMethod,

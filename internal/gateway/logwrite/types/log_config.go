@@ -180,101 +180,6 @@ type ClickHouseOutputConfig struct {
 	Compress       bool   `json:"compress"`       // 是否启用压缩
 }
 
-// 工厂方法：创建默认的生产环境日志配置
-func NewProductionLogConfig(tenantID, configID string) *LogConfig {
-	return &LogConfig{
-		TenantID:          tenantID,
-		LogConfigID:       configID,
-		ConfigName:        "生产环境日志配置",
-		ConfigDesc:        "适用于生产环境的标准日志配置",
-		LogFormat:         string(LogFormatJSON),
-		RecordRequestBody: "N",
-		RecordResponseBody: "N",
-		RecordHeaders:     "Y",
-		MaxBodySizeBytes:  DefaultMaxBodySizeBytes,
-		OutputTargets:     string(LogOutputFile) + "," + string(LogOutputDatabase),
-		EnableAsyncLogging: "Y",
-		AsyncQueueSize:    DefaultAsyncQueueSize,
-		AsyncFlushIntervalMs: 1000,
-		EnableBatchProcessing: "Y",
-		BatchSize:         DefaultBatchSize,
-		BatchTimeoutMs:    DefaultBatchTimeoutMs,
-		LogRetentionDays:  DefaultLogRetentionDays,
-		EnableFileRotation: "Y",
-		MaxFileSizeMB:     DefaultMaxFileSizeMB,
-		MaxFileCount:      DefaultMaxFileCount,
-		RotationPattern:   string(RotationDaily),
-		EnableSensitiveDataMasking: "Y",
-		MaskingPattern:    "***",
-		BufferSize:        DefaultBufferSize,
-		FlushThreshold:    DefaultFlushThreshold,
-		ConfigPriority:    1,
-		ActiveFlag:        "Y",
-	}
-}
-
-// 工厂方法：创建开发/调试环境日志配置
-func NewDevelopmentLogConfig(tenantID, configID string) *LogConfig {
-	return &LogConfig{
-		TenantID:          tenantID,
-		LogConfigID:       configID,
-		ConfigName:        "开发环境日志配置",
-		ConfigDesc:        "适用于开发和调试环境的详细日志配置",
-		LogFormat:         string(LogFormatJSON),
-		RecordRequestBody: "Y",
-		RecordResponseBody: "Y",
-		RecordHeaders:     "Y",
-		MaxBodySizeBytes:  16384, // 更大的记录限制
-		OutputTargets:     string(LogOutputConsole) + "," + string(LogOutputFile),
-		EnableAsyncLogging: "N", // 同步日志便于调试
-		AsyncQueueSize:    5000,
-		AsyncFlushIntervalMs: 500,
-		EnableBatchProcessing: "N",
-		BatchSize:         50,
-		BatchTimeoutMs:    2000,
-		LogRetentionDays:  7,
-		EnableFileRotation: "Y",
-		MaxFileSizeMB:     50,
-		MaxFileCount:      5,
-		RotationPattern:   string(RotationDaily),
-		EnableSensitiveDataMasking: "N", // 开发环境不脱敏，便于调试
-		MaskingPattern:    "***",
-		BufferSize:        4096,
-		FlushThreshold:    50,
-		ConfigPriority:    2,
-		ActiveFlag:        "Y",
-	}
-}
-
-// 工厂方法：创建高性能日志配置(ClickHouse)
-func NewHighPerformanceLogConfig(tenantID, configID string) *LogConfig {
-	return &LogConfig{
-		TenantID:          tenantID,
-		LogConfigID:       configID,
-		ConfigName:        "高性能日志配置",
-		ConfigDesc:        "适用于大规模日志分析的ClickHouse配置",
-		LogFormat:         string(LogFormatJSON),
-		RecordRequestBody: "N",
-		RecordResponseBody: "N",
-		RecordHeaders:     "Y",
-		MaxBodySizeBytes:  DefaultMaxBodySizeBytes,
-		OutputTargets:     string(LogOutputClickHouse),
-		EnableAsyncLogging: "Y",
-		AsyncQueueSize:    50000, // 更大的队列
-		AsyncFlushIntervalMs: 2000,
-		EnableBatchProcessing: "Y",
-		BatchSize:         1000, // 更大的批次
-		BatchTimeoutMs:    10000,
-		LogRetentionDays:  90, // 更长的保留期
-		EnableFileRotation: "N", // ClickHouse不需要文件轮转
-		EnableSensitiveDataMasking: "Y",
-		MaskingPattern:    "***",
-		BufferSize:        16384,
-		FlushThreshold:    500,
-		ConfigPriority:    3,
-		ActiveFlag:        "Y",
-	}
-}
 
 // GetOutputTargets 获取输出目标列表
 func (c *LogConfig) GetOutputTargets() []LogOutputTarget {
@@ -546,7 +451,7 @@ func (c *LogConfig) SetDefaults() {
 	}
 	
 	if c.AsyncFlushIntervalMs == 0 {
-		c.AsyncFlushIntervalMs = 1000
+		c.AsyncFlushIntervalMs = 10000
 	}
 	
 	if c.EnableBatchProcessing == "" {

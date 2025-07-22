@@ -3,8 +3,10 @@ package router
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 
+	"gohub/internal/gateway/constants"
 	"gohub/internal/gateway/core"
 	"gohub/internal/gateway/handler/assertion"
 	"gohub/internal/gateway/handler/auth"
@@ -13,6 +15,32 @@ import (
 	"gohub/internal/gateway/handler/limiter"
 	"gohub/internal/gateway/handler/security"
 )
+
+// 路由匹配类型常量
+const (
+	// MatchTypeExact 精确匹配
+	MatchTypeExact = 0
+	
+	// MatchTypePrefix 前缀匹配
+	MatchTypePrefix = 1
+	
+	// MatchTypeRegex 正则匹配
+	MatchTypeRegex = 2
+)
+
+// GetMatchTypeName 获取匹配类型名称
+func GetMatchTypeName(matchType int) string {
+	switch matchType {
+	case MatchTypeExact:
+		return "精确匹配"
+	case MatchTypePrefix:
+		return "前缀匹配"
+	case MatchTypeRegex:
+		return "正则匹配"
+	default:
+		return "未知匹配类型"
+	}
+}
 
 // RouteHandler 路由处理器接口
 // 所有路由处理器都必须实现此接口
@@ -51,6 +79,9 @@ type RouteHandler interface {
 	// - bool: 是否匹配
 	// - error: 匹配过程中的错误
 	Match(ctx *core.Context) (bool, error)
+
+	// GetRouteFilters 获取路由过滤器
+	GetRouteFilters() []filter.Filter
 }
 
 // Config 路由配置结构
@@ -69,6 +100,9 @@ type RouteConfig struct {
 
 	// 路由路径 - 用于创建断言，根据需要生成不同类型的路径断言
 	Path string `json:"path" yaml:"path" mapstructure:"path"`
+
+	// 匹配类型 - 路径匹配方式: 0=精确匹配, 1=前缀匹配, 2=正则匹配
+	MatchType int `json:"match_type" yaml:"match_type" mapstructure:"match_type"`
 
 	// 允许的HTTP方法，为空表示允许所有方法
 	// 例如: ["GET", "POST"]、["*"]
@@ -112,11 +146,12 @@ type RouteConfig struct {
 
 // DefaultRouteConfig 默认路由配置
 var DefaultRouteConfig = RouteConfig{
-	Enabled:  true,
-	Priority: 100,
-	Methods:  []string{},
-	Metadata: make(map[string]interface{}),
-	Name:     "Default Route",
+	Enabled:   true,
+	Priority:  100,
+	MatchType: MatchTypePrefix, // 默认使用前缀匹配
+	Methods:   []string{},
+	Metadata:  make(map[string]interface{}),
+	Name:      "Default Route",
 }
 
 // Route 实现 RouteHandler 接口的具体路由结构
@@ -135,6 +170,9 @@ type Route struct {
 
 	// 路由级别过滤器
 	routeFilters []filter.Filter
+
+	// 编译后的正则表达式，用于正则匹配模式
+	compiledRegex *regexp.Regexp
 
 	// 功能模块处理器
 	corsHandler     cors.CORSHandler
@@ -186,6 +224,15 @@ func NewRoute(config RouteConfig) (*Route, error) {
 			// 将过滤器添加到切片中
 			route.routeFilters = append(route.routeFilters, filterInstance)
 		}
+	}
+
+	// 如果是正则匹配模式，预编译正则表达式
+	if config.MatchType == MatchTypeRegex {
+		compiledRegex, err := regexp.Compile(config.Path)
+		if err != nil {
+			return nil, fmt.Errorf("compile regex pattern failed: %w", err)
+		}
+		route.compiledRegex = compiledRegex
 	}
 
 	// 初始化功能模块处理器
@@ -251,6 +298,8 @@ func (r *Route) Handle(ctx *core.Context) bool {
 
 	// 设置路由信息到上下文
 	ctx.SetRouteID(r.config.ID)
+	//设置路由名称
+	ctx.Set(constants.ContextKeyRouteConfigName, r.config.Name)
 	ctx.SetServiceID(r.config.ServiceID)
 	ctx.SetMatchedPath(r.config.Path)
 
@@ -314,7 +363,7 @@ func (r *Route) Match(ctx *core.Context) (bool, error) {
 		return false, nil
 	}
 
-	// 1. 优先检查路径前缀匹配
+	// 1. 检查路径匹配（根据MatchType决定匹配方式）
 	if !r.isPathMatched(req.URL.Path) {
 		return false, nil
 	}
@@ -336,7 +385,7 @@ func (r *Route) Match(ctx *core.Context) (bool, error) {
 	return true, nil
 }
 
-// isPathMatched 检查请求路径是否匹配路由路径前缀
+// isPathMatched 检查请求路径是否匹配路由路径，根据MatchType选择匹配方式
 func (r *Route) isPathMatched(requestPath string) bool {
 	routePath := r.config.Path
 
@@ -350,6 +399,30 @@ func (r *Route) isPathMatched(requestPath string) bool {
 		routePath = "/" + routePath
 	}
 
+	// 根据匹配类型选择匹配方式
+	switch r.config.MatchType {
+	case MatchTypeExact:
+		// 精确匹配
+		return r.matchExact(requestPath, routePath)
+	case MatchTypePrefix:
+		// 前缀匹配
+		return r.matchPrefix(requestPath, routePath)
+	case MatchTypeRegex:
+		// 正则匹配
+		return r.matchRegex(requestPath, routePath)
+	default:
+		// 默认使用前缀匹配
+		return r.matchPrefix(requestPath, routePath)
+	}
+}
+
+// matchExact 精确匹配
+func (r *Route) matchExact(requestPath, routePath string) bool {
+	return requestPath == routePath
+}
+
+// matchPrefix 前缀匹配
+func (r *Route) matchPrefix(requestPath, routePath string) bool {
 	// 处理通配符匹配
 	if strings.Contains(routePath, "*") {
 		return r.matchWithWildcard(requestPath, routePath)
@@ -357,6 +430,24 @@ func (r *Route) isPathMatched(requestPath string) bool {
 
 	// 前缀匹配
 	return strings.HasPrefix(requestPath, routePath)
+}
+
+// matchRegex 正则匹配
+func (r *Route) matchRegex(requestPath, routePath string) bool {
+	// 使用预编译的正则表达式
+	if r.compiledRegex != nil {
+		return r.compiledRegex.MatchString(requestPath)
+	}
+
+	// 如果没有预编译的正则表达式，尝试即时编译
+	regex, err := regexp.Compile(routePath)
+	if err != nil {
+		// 如果正则表达式编译失败，回退到前缀匹配
+		return r.matchPrefix(requestPath, routePath)
+	}
+
+	// 执行正则匹配
+	return regex.MatchString(requestPath)
 }
 
 // matchWithWildcard 处理带通配符的路径匹配
@@ -474,6 +565,18 @@ func (config *RouteConfig) Validate() error {
 		return fmt.Errorf("invalid route path format: %w", err)
 	}
 
+	// 验证匹配类型
+	if config.MatchType < MatchTypeExact || config.MatchType > MatchTypeRegex {
+		return fmt.Errorf("invalid match type: %d, must be 0 (exact), 1 (prefix), or 2 (regex)", config.MatchType)
+	}
+
+	// 如果是正则匹配，验证正则表达式是否有效
+	if config.MatchType == MatchTypeRegex {
+		if _, err := regexp.Compile(config.Path); err != nil {
+			return fmt.Errorf("invalid regex pattern in path: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -495,7 +598,13 @@ func (config *RouteConfig) Clone() RouteConfig {
 		}
 	}
 
+	// MatchType 是基础类型，已经通过结构体赋值自动复制
+
 	return clone
+}
+
+func (r *Route) GetRouteFilters() []filter.Filter {
+	return r.routeFilters
 }
 
 // RouteFromConfig 从配置创建路由

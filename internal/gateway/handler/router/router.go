@@ -3,6 +3,7 @@ package router
 import (
 	"errors"
 	"fmt"
+	"gohub/internal/gateway/constants"
 	"gohub/internal/gateway/core"
 	"gohub/internal/gateway/handler/filter"
 	"sort"
@@ -46,6 +47,7 @@ type RouterHandler interface {
 	// Validate 验证配置
 	Validate() error
 }
+
 
 // RouterConfig 路由器配置结构
 type RouterConfig struct {
@@ -132,7 +134,10 @@ func (r *Router) Handle(ctx *core.Context) bool {
 	if !r.enabled {
 		return false
 	}
-
+	
+	// 检查全局前置过滤器并保存原始信息
+	hasGlobalPreFilters := PreserveOriginalRequestInfoIfNeeded(ctx, r.routerFilters)
+	
 	// 应用全局前置过滤器
 	if len(r.routerFilters) > 0 {
 		for _, f := range r.routerFilters {
@@ -161,8 +166,89 @@ func (r *Router) Handle(ctx *core.Context) bool {
 		return false
 	}
 
+	// 如果全局前置过滤器没有保存原始信息，检查路由过滤器
+	if !hasGlobalPreFilters {
+		PreserveOriginalRequestInfoIfNeeded(ctx, route.GetRouteFilters())
+	}
+
 	// 处理匹配到的路由
 	return route.Handle(ctx)
+}
+
+// PreserveOriginalRequestInfoIfNeeded 统一的静态方法：检查过滤器并保存原始请求信息
+// 返回是否保存了原始信息
+func PreserveOriginalRequestInfoIfNeeded(ctx *core.Context, filters []filter.Filter) bool {
+	// 检查是否有修改类过滤器
+	hasModifiers := HasModificationFilters(filters)
+	
+	if !hasModifiers {
+		return false
+	}
+	
+	// 检查是否需要保存请求头
+	needsHeaders := NeedsHeaderPreservation(filters)
+	
+	// 保存原始信息
+	PreserveOriginalRequestInfo(ctx, needsHeaders)
+	return true
+}
+
+// PreserveOriginalRequestInfo 静态方法：保存原始请求信息到上下文
+func PreserveOriginalRequestInfo(ctx *core.Context, needsHeaders bool) {
+	req := ctx.Request
+	if req == nil {
+		return
+	}
+	
+	// 保存原始请求信息到上下文
+	ctx.Set(constants.ContextKeyOriginalMethod, req.Method)
+	ctx.Set(constants.ContextKeyOriginalURLPath, req.URL.Path)
+	ctx.Set(constants.ContextKeyOriginalQueryString, req.URL.RawQuery)
+	
+	// 保存原始请求头（深拷贝，仅在需要时）
+	if needsHeaders {
+		originalHeaders := make(map[string][]string)
+		for name, values := range req.Header {
+			originalHeaders[name] = append([]string{}, values...)
+		}
+		ctx.Set(constants.ContextKeyOriginalHeaders, originalHeaders)
+	}
+}
+
+// HasModificationFilters 静态方法：检查过滤器列表是否包含修改类过滤器
+func HasModificationFilters(filters []filter.Filter) bool {
+	for _, f := range filters {
+		if IsModificationFilterType(f.GetType()) {
+			return true
+		}
+	}
+	return false
+}
+
+// NeedsHeaderPreservation 静态方法：检查是否需要保存请求头
+func NeedsHeaderPreservation(filters []filter.Filter) bool {
+	for _, f := range filters {
+		if f.GetType() == filter.HeaderFilterType {
+			return true
+		}
+	}
+	return false
+}
+
+// IsModificationFilterType 静态方法：判断过滤器类型是否为修改类
+func IsModificationFilterType(filterType filter.FilterType) bool {
+	switch filterType {
+	case filter.QueryParamFilterType,
+		 filter.HeaderFilterType,
+		 filter.BodyFilterType,
+		 filter.URLFilterType,
+		 filter.StripFilterType,
+		 filter.RewriteFilterType,
+		 filter.MethodFilterType:
+		return true
+	default:
+		return false
+	}
 }
 
 // findRoute 查找匹配的路由

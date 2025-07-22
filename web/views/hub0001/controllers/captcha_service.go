@@ -9,6 +9,8 @@ import (
 	"gohub/pkg/logger"
 	"gohub/web/views/hub0001/models"
 	mathRand "math/rand"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -49,6 +51,15 @@ func (s *CaptchaService) GenerateCaptcha(ctx context.Context, req *models.Captch
 		captchaResp = &models.CaptchaResponse{
 			CaptchaId: captchaId,
 			Code:      code,
+			ExpireAt:  expireTime.Unix(),
+		}
+	case "math":
+		// 生成数学验证码（加减乘除）
+		mathExpression, answer := s.generateMathExpression()
+		code = strconv.Itoa(answer) // 存储答案用于验证
+		captchaResp = &models.CaptchaResponse{
+			CaptchaId: captchaId,
+			Code:      mathExpression, // 返回数学表达式给前端显示
 			ExpireAt:  expireTime.Unix(),
 		}
 	case "sms":
@@ -121,8 +132,8 @@ func (s *CaptchaService) VerifyCaptcha(ctx context.Context, captchaId, code stri
 		return fmt.Errorf("验证码不存在或已过期")
 	}
 
-	// 验证码错误
-	if storedCode != code {
+	// 验证码错误（不区分大小写）
+	if !strings.EqualFold(code, storedCode) {
 		logger.Info("验证码错误", "captchaId", captchaId, "input", code, "stored", storedCode)
 		return fmt.Errorf("验证码错误")
 	}
@@ -161,13 +172,53 @@ func (s *CaptchaService) generateCaptchaId() (string, error) {
 // 包含数字0-9和英文字母大小写，但排除容易混淆的字母O
 func (s *CaptchaService) generateRandomCode(length int) string {
 	// 字符集：数字 + 大写字母（排除O） + 小写字母（排除o）
-	const charset = "0123456789ABCDEFGHIJKLMNPQRSTUVWXYZabcdefghijklmnpqrstuvwxyz"
+	const charset = "0123456789"
 	randSource := mathRand.New(mathRand.NewSource(time.Now().UnixNano()))
 	code := make([]byte, length)
 	for i := range code {
 		code[i] = charset[randSource.Intn(len(charset))]
 	}
 	return string(code)
+}
+
+// generateMathExpression 生成一个数学验证码表达式
+func (s *CaptchaService) generateMathExpression() (string, int) {
+	randSource := mathRand.New(mathRand.NewSource(time.Now().UnixNano()))
+	operators := []string{"+", "-", "*", "/"}
+	operator := operators[randSource.Intn(len(operators))]
+
+	var num1, num2, answer int
+	var expression string
+
+	switch operator {
+	case "+":
+		// 加法：1-50范围内的数字
+		num1 = randSource.Intn(50) + 1
+		num2 = randSource.Intn(50) + 1
+		answer = num1 + num2
+		expression = fmt.Sprintf("%d + %d", num1, num2)
+	case "-":
+		// 减法：确保结果为正数，num1 > num2
+		num1 = randSource.Intn(50) + 10  // 10-59
+		num2 = randSource.Intn(num1-1) + 1 // 1 到 num1-1，确保结果为正
+		answer = num1 - num2
+		expression = fmt.Sprintf("%d - %d", num1, num2)
+	case "*":
+		// 乘法：较小的数字避免结果过大
+		num1 = randSource.Intn(12) + 1  // 1-12
+		num2 = randSource.Intn(12) + 1  // 1-12
+		answer = num1 * num2
+		expression = fmt.Sprintf("%d × %d", num1, num2)
+	case "/":
+		// 除法：确保能够整除
+		// 先生成答案，再生成被除数
+		answer = randSource.Intn(20) + 1    // 答案1-20
+		num2 = randSource.Intn(10) + 2      // 除数2-11
+		num1 = answer * num2                // 被除数 = 答案 × 除数
+		expression = fmt.Sprintf("%d ÷ %d", num1, num2)
+	}
+
+	return expression, answer
 }
 
 // sendSMSCode 发送短信验证码（扩展功能，当前为预留接口）

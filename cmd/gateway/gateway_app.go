@@ -2,8 +2,10 @@ package gatewayapp
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 
+	"gohub/cmd/common/utils"
 	"gohub/internal/gateway/bootstrap"
 	gatewayconfig "gohub/internal/gateway/config"
 	"gohub/internal/gateway/loader"
@@ -105,6 +107,8 @@ func (app *GatewayApp) GetStatus() map[string]interface{} {
 	return status
 }
 
+
+
 // loadGatewayFromConfig 从配置加载网关实例
 func (app *GatewayApp) loadGatewayFromConfig() error {
 	// 获取配置源
@@ -122,7 +126,18 @@ func (app *GatewayApp) loadGatewayFromConfig() error {
 
 // loadFromFile 从文件加载网关配置
 func (app *GatewayApp) loadFromFile() error {
-	configFile := config.GetString("app.gateway.config_file", "./configs/gateway.yaml")
+	// 使用统一的配置文件路径构建方式
+	configFile := config.GetString("app.gateway.config_file", "")
+	if configFile == "" {
+		// 如果配置中没有指定文件路径，使用默认路径
+		configFile = utils.GetConfigPath("gateway.yaml")
+	} else {
+		// 如果指定了相对路径，且不是绝对路径，则基于配置目录构建
+		if !filepath.IsAbs(configFile) && !strings.HasPrefix(configFile, "./") && !strings.HasPrefix(configFile, "../") {
+			// 如果是纯文件名，则基于配置目录构建
+			configFile = utils.GetConfigPath(configFile)
+		}
+	}
 	
 	logger.Info("从文件加载网关配置", "file", configFile)
 	

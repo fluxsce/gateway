@@ -89,9 +89,6 @@ func RegisterHub0022Routes(router *gin.Engine, db database.Database) {
 		// 获取服务节点详情
 		apiGroup.POST("/getServiceNode", serviceNodeController.GetServiceNode)
 		
-		// 根据服务定义获取节点列表
-		apiGroup.POST("/getServiceNodesByService", serviceNodeController.GetServiceNodesByService)
-		
 		// 更新节点健康状态
 		apiGroup.POST("/updateNodeHealth", serviceNodeController.UpdateNodeHealth)
 	}

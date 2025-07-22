@@ -72,7 +72,10 @@ type GatewayInstance struct {
 	NoteText       string    `json:"noteText" form:"noteText" query:"noteText" db:"noteText"`                         // 备注信息
 	
 	// 配置文件路径 - 新增字段，与数据库保持一致
-	ConfigFilePath string    `json:"configFilePath" form:"configFilePath" query:"configFilePath" db:"configFilePath"` // 配置文件路径
+	ConfigFilePath string    `json:"configFilePath" form:"configFilePath" query:"configFilePath" db:"-"` // 配置文件路径
+	
+	// 关联的日志配置 - 前端传入，不存储在数据库中
+	LogConfig *LogConfig `json:"logConfig,omitempty" form:"logConfig" db:"-"` // 关联的日志配置
 }
 
 // TableName 返回表名

@@ -252,6 +252,12 @@ func (c *TaskConfigController) UpdateTaskConfig(ctx *gin.Context) {
 		return
 	}
 
+	// 检查活动状态
+	if currentTask.ActiveFlag != "Y" {
+		response.ErrorJSON(ctx, "任务已被删除或不可用", constants.ED00008)
+		return
+	}
+
 	// 保留不可修改的字段，确保关键字段不被前端覆盖
 	taskId := currentTask.TaskId
 	tenantIdValue := currentTask.TenantId
@@ -267,6 +273,11 @@ func (c *TaskConfigController) UpdateTaskConfig(ctx *gin.Context) {
 	task.TaskId = taskId
 	task.AddTime = addTime
 	task.AddWho = addWho
+
+	// 如果参数中没有传递ActiveFlag，则保持原有状态
+	if task.ActiveFlag == "" {
+		task.ActiveFlag = currentTask.ActiveFlag
+	}
 
 	// 更新OprSeqFlag
 	task.OprSeqFlag = random.Generate32BitRandomString()
@@ -300,7 +311,8 @@ func (c *TaskConfigController) UpdateTaskConfig(ctx *gin.Context) {
 func (c *TaskConfigController) DeleteTaskConfig(ctx *gin.Context) {
 	// 解析请求参数
 	var params struct {
-		TaskId string `json:"taskId" form:"taskId" query:"taskId"`
+		TaskId      string `json:"taskId" form:"taskId" query:"taskId"`
+		SchedulerId string `json:"schedulerId" form:"schedulerId" query:"schedulerId"`
 	}
 	if err := request.BindSafely(ctx, &params); err != nil {
 		response.ErrorJSON(ctx, "参数解析失败: "+err.Error(), constants.ED00006)
@@ -327,12 +339,73 @@ func (c *TaskConfigController) DeleteTaskConfig(ctx *gin.Context) {
 		return
 	}
 
+	// 获取任务配置信息
+	task, err := c.dao.GetById(ctx, tenantId, params.TaskId)
+	if err != nil {
+		response.ErrorJSON(ctx, "获取任务配置失败: "+err.Error(), constants.ED00009)
+		return
+	}
+
+	if task == nil {
+		response.ErrorJSON(ctx, "任务配置不存在", constants.ED00008)
+		return
+	}
+
+	// 如果任务是活跃状态，需要先停止任务
+	if task.ActiveFlag == "Y" {
+		// 验证调度器ID
+		schedulerId := params.SchedulerId
+		if schedulerId == "" && task.SchedulerId != nil {
+			schedulerId = *task.SchedulerId
+		}
+		if schedulerId == "" {
+			response.ErrorJSON(ctx, "任务处于活跃状态，需要提供调度器ID才能停止任务", constants.ED00007)
+			return
+		}
+
+		// 获取全局定时器池
+		timerPool := timer.GetTimerPool()
+
+		// 获取调度器
+		scheduler, err := timerPool.GetScheduler(schedulerId)
+		if err != nil {
+			response.ErrorJSON(ctx, "获取调度器失败，无法停止任务: "+err.Error(), constants.ED00009)
+			return
+		}
+
+		// 尝试停止任务
+		err = scheduler.StopTask(task.TaskId)
+		if err != nil {
+			response.ErrorJSON(ctx, "停止任务失败，无法删除: "+err.Error(), constants.ED00009)
+			return
+		}
+		logger.Info("任务停止成功，准备删除", "taskId", task.TaskId)
+
+		// 更新任务状态为已停止和不活跃
+		task.TaskStatus = 1 // 1-已停止
+		task.ActiveFlag = "N"
+		task.EditTime = time.Now()
+		task.EditWho = operatorId
+
+		// 更新OprSeqFlag
+		task.OprSeqFlag = random.Generate32BitRandomString()
+
+		// 更新数据库状态
+		_, err = c.dao.Update(ctx, task)
+		if err != nil {
+			logger.Error("更新任务状态失败，但任务已停止", "taskId", task.TaskId, "error", err.Error())
+			// 继续执行删除，因为任务已经停止
+		}
+	}
+
 	// 删除记录
-	_, err := c.dao.Delete(ctx, tenantId, params.TaskId, operatorId)
+	_, err = c.dao.Delete(ctx, tenantId, params.TaskId, operatorId)
 	if err != nil {
 		response.ErrorJSON(ctx, "删除任务配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+
+	logger.Info("任务配置删除成功", "taskId", params.TaskId, "tenantId", tenantId)
 
 	response.SuccessJSON(ctx, gin.H{
 		"taskId":  params.TaskId,
@@ -355,6 +428,7 @@ func (c *TaskConfigController) QueryTaskConfigs(ctx *gin.Context) {
 		SchedulerId string `json:"schedulerId" form:"schedulerId" query:"schedulerId"`
 		TaskName    string `json:"taskName" form:"taskName" query:"taskName"`
 		TaskStatus  int    `json:"taskStatus" form:"taskStatus" query:"taskStatus"`
+		ActiveFlag  string `json:"activeFlag" form:"activeFlag" query:"activeFlag"`
 	}
 	if err := request.BindSafely(ctx, &params); err != nil {
 		response.ErrorJSON(ctx, "参数解析失败: "+err.Error(), constants.ED00006)
@@ -379,6 +453,7 @@ func (c *TaskConfigController) QueryTaskConfigs(ctx *gin.Context) {
 		"schedulerId": params.SchedulerId,
 		"taskName":    params.TaskName,
 		"taskStatus":  params.TaskStatus,
+		"activeFlag":  params.ActiveFlag,
 	}
 
 	// 查询数据
@@ -453,6 +528,12 @@ func (c *TaskConfigController) UpdateTaskStatus(ctx *gin.Context) {
 
 	if task == nil {
 		response.ErrorJSON(ctx, "任务配置不存在", constants.ED00008)
+		return
+	}
+
+	// 检查活动状态
+	if task.ActiveFlag != "Y" {
+		response.ErrorJSON(ctx, "任务已被删除或不可用", constants.ED00008)
 		return
 	}
 
@@ -537,6 +618,28 @@ func (c *TaskConfigController) StartTask(ctx *gin.Context) {
 		return
 	}
 
+	// 检查活动状态 - 只有活跃的任务才能启动
+	if task.ActiveFlag != "Y" {
+		response.ErrorJSON(ctx, "任务已被删除或不可用", constants.ED00008)
+		return
+	}
+
+	// 先更新活动标记状态和任务状态
+	task.ActiveFlag = "Y"
+	task.TaskStatus = 2 // 2-运行中
+	task.EditTime = time.Now()
+	task.EditWho = operatorId
+
+	// 更新OprSeqFlag
+	task.OprSeqFlag = random.Generate32BitRandomString()
+
+	// 更新数据库
+	_, err = c.dao.Update(ctx, task)
+	if err != nil {
+		response.ErrorJSON(ctx, "更新任务状态失败: "+err.Error(), constants.ED00009)
+		return
+	}
+
 	// 验证执行器类型
 	if task.ExecutorType == nil || *task.ExecutorType == "" {
 		response.ErrorJSON(ctx, "任务执行器类型不能为空", constants.ED00007)
@@ -589,21 +692,6 @@ func (c *TaskConfigController) StartTask(ctx *gin.Context) {
 		return
 	}
 	logger.Info("任务启动成功", "taskId", task.TaskId)
-
-	// 更新任务状态为运行中
-	task.TaskStatus = 2 // 2-运行中
-	task.EditTime = time.Now()
-	task.EditWho = operatorId
-
-	// 更新OprSeqFlag
-	task.OprSeqFlag = random.Generate32BitRandomString()
-
-	// 更新数据库
-	_, err = c.dao.Update(ctx, task)
-	if err != nil {
-		response.ErrorJSON(ctx, "更新任务状态失败: "+err.Error(), constants.ED00009)
-		return
-	}
 
 	// 查询最新数据
 	updatedTask, err := c.dao.GetById(ctx, tenantId, task.TaskId)
@@ -687,8 +775,11 @@ func (c *TaskConfigController) StopTask(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "停止任务失败: "+err.Error(), constants.ED00009)
 		return
 	}
-	// 更新任务状态为已停止
+	logger.Info("任务停止成功", "taskId", task.TaskId)
+
+	// 停止完成后更新活动标记状态
 	task.TaskStatus = 1 // 1-已停止
+	task.ActiveFlag = "N"
 	task.EditTime = time.Now()
 	task.EditWho = operatorId
 
@@ -701,6 +792,102 @@ func (c *TaskConfigController) StopTask(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新任务状态失败: "+err.Error(), constants.ED00009)
 		return
 	}
+
+	// 查询最新数据
+	updatedTask, err := c.dao.GetById(ctx, tenantId, task.TaskId)
+	if err != nil {
+		response.ErrorJSON(ctx, "获取更新后的任务配置失败: "+err.Error(), constants.ED00009)
+		return
+	}
+
+	response.SuccessJSON(ctx, updatedTask, constants.SD00004)
+}
+
+// TriggerTask 立即执行任务
+// @Summary 立即执行任务
+// @Description 立即执行指定的任务（不需要等待定时调度）
+// @Tags 任务管理
+// @Accept json
+// @Produce json
+// @Param data body object true "立即执行任务参数"
+// @Success 200 {object} response.Response
+// @Router /gohub/hub0003/task/trigger [post]
+func (c *TaskConfigController) TriggerTask(ctx *gin.Context) {
+	// 解析请求参数
+	var params struct {
+		TaskId      string `json:"taskId" form:"taskId" query:"taskId"`
+		SchedulerId string `json:"schedulerId" form:"schedulerId" query:"schedulerId"`
+	}
+	if err := request.BindSafely(ctx, &params); err != nil {
+		response.ErrorJSON(ctx, "参数解析失败: "+err.Error(), constants.ED00006)
+		return
+	}
+
+	// 强制从上下文获取租户ID和操作人ID
+	tenantId := request.GetTenantID(ctx)
+	operatorId := request.GetOperatorID(ctx)
+
+	// 验证上下文中的必要信息
+	if tenantId == "" {
+		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
+		return
+	}
+	if operatorId == "" {
+		response.ErrorJSON(ctx, "无法获取操作人信息", constants.ED00007)
+		return
+	}
+
+	// 参数验证
+	if params.TaskId == "" {
+		response.ErrorJSON(ctx, "任务ID不能为空", constants.ED00007)
+		return
+	}
+	if params.SchedulerId == "" {
+		response.ErrorJSON(ctx, "调度器ID不能为空", constants.ED00007)
+		return
+	}
+
+	// 获取任务配置
+	task, err := c.dao.GetById(ctx, tenantId, params.TaskId)
+	if err != nil {
+		response.ErrorJSON(ctx, "获取任务配置失败: "+err.Error(), constants.ED00009)
+		return
+	}
+
+	if task == nil {
+		response.ErrorJSON(ctx, "任务不存在", constants.ED00008)
+		return
+	}
+
+	// 检查活动状态 - 只有活跃的任务才能立即执行
+	if task.ActiveFlag != "Y" {
+		response.ErrorJSON(ctx, "任务不可用", constants.ED00008)
+		return
+	}
+
+	// 验证执行器类型
+	if task.ExecutorType == nil || *task.ExecutorType == "" {
+		response.ErrorJSON(ctx, "任务执行器类型不能为空", constants.ED00007)
+		return
+	}
+
+	// 获取全局定时器池
+	timerPool := timer.GetTimerPool()
+
+	// 获取调度器
+	scheduler, err := timerPool.GetScheduler(params.SchedulerId)
+	if err != nil {
+		response.ErrorJSON(ctx, "获取调度器失败: "+err.Error(), constants.ED00009)
+		return
+	}
+
+	// 立即执行任务
+	err = scheduler.TriggerTask(task.TaskId, nil)
+	if err != nil {
+		response.ErrorJSON(ctx, "立即执行任务失败: "+err.Error(), constants.ED00009)
+		return
+	}
+	logger.Info("任务立即执行成功", "taskId", task.TaskId)
 
 	// 查询最新数据
 	updatedTask, err := c.dao.GetById(ctx, tenantId, task.TaskId)

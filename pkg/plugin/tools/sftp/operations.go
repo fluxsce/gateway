@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
-	
+
 	"gohub/pkg/plugin/tools/common"
 	"gohub/pkg/plugin/tools/configs"
 	"gohub/pkg/plugin/tools/types"
@@ -267,24 +268,34 @@ func (c *sftpClient) executeSingleTransferOperation(ctx context.Context, op *typ
 	}
 }
 
-
-
 // ===== 辅助方法 =====
+
+// buildSafeRemotePath 构建安全的远程路径
+// 正确处理路径分隔符和特殊字符
+func (c *sftpClient) buildSafeRemotePath(remoteDir, fileName string) string {
+	// 确保目录路径以正斜杠结尾
+	if !strings.HasSuffix(remoteDir, "/") {
+		remoteDir += "/"
+	}
+	
+	// 组合路径
+	fullPath := remoteDir + fileName
+	
+	// 规范化路径，确保使用正斜杠且没有双斜杠
+	cleanPath := filepath.ToSlash(filepath.Clean(fullPath))
+	
+	// 处理以斜杠开头的情况
+	if strings.HasPrefix(cleanPath, "./") {
+		cleanPath = cleanPath[2:]
+	}
+	
+	return cleanPath
+}
 
 // createRemoteDirectory 创建远程目录
 // 递归创建远程目录，类似于 mkdir -p
 func (c *sftpClient) createRemoteDirectory(path string) error {
-	// 检查目录是否已存在
-	info, err := c.sftpClient.Stat(path)
-	if err == nil {
-		if info.IsDir() {
-			return nil // 目录已存在
-		}
-		return fmt.Errorf("路径已存在但不是目录: %s", path)
-	}
-	
-	// 使用SFTP客户端的MkdirAll方法递归创建目录
-	return c.sftpClient.MkdirAll(path)
+	return c.createRemoteDirectorySafe(path)
 }
 
 // removeDirectoryRecursive 递归删除远程目录

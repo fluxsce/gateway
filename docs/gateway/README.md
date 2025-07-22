@@ -1507,15 +1507,19 @@ CREATE TABLE `HUB_GW_ACCESS_LOG` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `traceId` VARCHAR(64) NOT NULL COMMENT '链路追踪ID(作为主键)',
   `gatewayInstanceId` VARCHAR(32) NOT NULL COMMENT '网关实例ID',
+  `gatewayInstanceName` VARCHAR(300) DEFAULT NULL COMMENT '网关实例名称(冗余字段,便于查询显示)',
   `gatewayNodeIp` VARCHAR(50) NOT NULL COMMENT '网关节点IP地址',
   `routeConfigId` VARCHAR(32) DEFAULT NULL COMMENT '路由配置ID',
+  `routeName` VARCHAR(300) DEFAULT NULL COMMENT '路由名称(冗余字段,便于查询显示)',
   `serviceDefinitionId` VARCHAR(32) DEFAULT NULL COMMENT '服务定义ID',
+  `serviceName` VARCHAR(300) DEFAULT NULL COMMENT '服务名称(冗余字段,便于查询显示)',
+  `proxyType` VARCHAR(50) DEFAULT NULL COMMENT '代理类型(http,websocket,tcp,udp,可为空)',
   `logConfigId` VARCHAR(32) DEFAULT NULL COMMENT '日志配置ID',
   
   -- 请求基本信息
   `requestMethod` VARCHAR(10) NOT NULL COMMENT '请求方法(GET,POST,PUT等)',
   `requestPath` VARCHAR(1000) NOT NULL COMMENT '请求路径',
-  `requestQuery` VARCHAR(2000) DEFAULT NULL COMMENT '请求查询参数',
+  `requestQuery` TEXT DEFAULT NULL COMMENT '请求查询参数',
   `requestSize` INT DEFAULT 0 COMMENT '请求大小(字节)',
   `requestHeaders` TEXT DEFAULT NULL COMMENT '请求头信息,JSON格式',
   `requestBody` TEXT DEFAULT NULL COMMENT '请求体(可选,根据配置决定是否记录)',
@@ -1523,23 +1527,20 @@ CREATE TABLE `HUB_GW_ACCESS_LOG` (
   -- 客户端信息
   `clientIpAddress` VARCHAR(50) NOT NULL COMMENT '客户端IP地址',
   `clientPort` INT DEFAULT NULL COMMENT '客户端端口',
-  `userAgent` VARCHAR(500) DEFAULT NULL COMMENT '用户代理信息',
+  `userAgent` VARCHAR(1000) DEFAULT NULL COMMENT '用户代理信息',
   `referer` VARCHAR(1000) DEFAULT NULL COMMENT '来源页面',
   `userIdentifier` VARCHAR(100) DEFAULT NULL COMMENT '用户标识(如有)',
   
   -- 关键时间点 (所有时间字段均为DATETIME类型，精确到毫秒)
-  `gatewayReceivedTime` DATETIME(3) NOT NULL COMMENT '网关接收请求时间',
-  `gatewayStartProcessingTime` DATETIME(3) NOT NULL COMMENT '网关开始处理时间',
-  `backendRequestStartTime` DATETIME(3) DEFAULT NULL COMMENT '后端服务请求开始时间',
-  `backendResponseReceivedTime` DATETIME(3) DEFAULT NULL COMMENT '后端服务响应接收时间',
-  `gatewayFinishedProcessingTime` DATETIME(3) NOT NULL COMMENT '网关处理完成时间',
-  `gatewayResponseSentTime` DATETIME(3) NOT NULL COMMENT '网关响应发送时间',
+  `gatewayStartProcessingTime` DATETIME(3) NOT NULL COMMENT '网关开始处理时间(请求开始处理，必填)',
+  `backendRequestStartTime` DATETIME(3) DEFAULT NULL COMMENT '后端服务请求开始时间(可选)',
+  `backendResponseReceivedTime` DATETIME(3) DEFAULT NULL COMMENT '后端服务响应接收时间(可选)',
+  `gatewayFinishedProcessingTime` DATETIME(3) DEFAULT NULL COMMENT '网关处理完成时间(可选，正在处理中或异常中断时为空)',
   
   -- 计算的时间指标 (所有时间指标均为毫秒)
-  `totalProcessingTimeMs` INT NOT NULL COMMENT '总处理时间(毫秒)',
-  `gatewayProcessingTimeMs` INT NOT NULL COMMENT '网关处理时间(毫秒)',
-  `backendResponseTimeMs` INT DEFAULT NULL COMMENT '后端服务响应时间(毫秒)',
-  `networkLatencyMs` INT DEFAULT NULL COMMENT '网络延迟(毫秒)',
+  `totalProcessingTimeMs` INT DEFAULT NULL COMMENT '总处理时间(毫秒，当gatewayFinishedProcessingTime为空时为NULL)',
+  `gatewayProcessingTimeMs` INT DEFAULT NULL COMMENT '网关处理时间(毫秒，当gatewayFinishedProcessingTime为空时为NULL)',
+  `backendResponseTimeMs` INT DEFAULT NULL COMMENT '后端服务响应时间(毫秒，可选)',
   
   -- 响应信息
   `gatewayStatusCode` INT NOT NULL COMMENT '网关响应状态码',
@@ -1549,13 +1550,13 @@ CREATE TABLE `HUB_GW_ACCESS_LOG` (
   `responseBody` TEXT DEFAULT NULL COMMENT '响应体(可选,根据配置决定是否记录)',
   
   -- 转发基本信息
-  `matchedRoute` VARCHAR(255) DEFAULT NULL COMMENT '匹配的路由路径',
-  `forwardAddress` VARCHAR(255) DEFAULT NULL COMMENT '转发地址',
+  `matchedRoute` VARCHAR(500) DEFAULT NULL COMMENT '匹配的路由路径',
+  `forwardAddress` TEXT DEFAULT NULL COMMENT '转发地址',
   `forwardMethod` VARCHAR(10) DEFAULT NULL COMMENT '转发方法',
   `forwardParams` TEXT DEFAULT NULL COMMENT '转发参数,JSON格式',
   `forwardHeaders` TEXT DEFAULT NULL COMMENT '转发头信息,JSON格式',
   `forwardBody` TEXT DEFAULT NULL COMMENT '转发报文内容',
-  `loadBalancerDecision` VARCHAR(255) DEFAULT NULL COMMENT '负载均衡决策信息',
+  `loadBalancerDecision` VARCHAR(500) DEFAULT NULL COMMENT '负载均衡决策信息',
   
   -- 错误信息
   `errorMessage` TEXT DEFAULT NULL COMMENT '错误信息(如有)',
@@ -1588,18 +1589,21 @@ CREATE TABLE `HUB_GW_ACCESS_LOG` (
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   
   PRIMARY KEY (`tenantId`, `traceId`),
-  INDEX `idx_HUB_GW_ACCESS_LOG_instance` (`gatewayInstanceId`),
-  INDEX `idx_HUB_GW_ACCESS_LOG_node_ip` (`gatewayNodeIp`),
-  INDEX `idx_HUB_GW_ACCESS_LOG_route` (`routeConfigId`),
-  INDEX `idx_HUB_GW_ACCESS_LOG_service` (`serviceDefinitionId`),
-  INDEX `idx_HUB_GW_ACCESS_LOG_log_config` (`logConfigId`),
-  INDEX `idx_HUB_GW_ACCESS_LOG_received_time` (`gatewayReceivedTime`),
-  INDEX `idx_HUB_GW_ACCESS_LOG_gateway_status` (`gatewayStatusCode`),
-  INDEX `idx_HUB_GW_ACCESS_LOG_backend_status` (`backendStatusCode`),
-  INDEX `idx_HUB_GW_ACCESS_LOG_client_ip` (`clientIpAddress`),
-  INDEX `idx_HUB_GW_ACCESS_LOG_processing_time` (`totalProcessingTimeMs`),
-  INDEX `idx_HUB_GW_ACCESS_LOG_parent_trace` (`parentTraceId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网关访问日志表 - 记录API网关的请求和响应详细信息及完整时间指标';
+  -- 核心查询索引（高频查询字段）
+  INDEX `idx_HUB_GW_ACCESS_LOG_time_instance` (`gatewayStartProcessingTime`, `gatewayInstanceId`),
+  INDEX `idx_HUB_GW_ACCESS_LOG_time_route` (`gatewayStartProcessingTime`, `routeConfigId`),
+  INDEX `idx_HUB_GW_ACCESS_LOG_time_service` (`gatewayStartProcessingTime`, `serviceDefinitionId`),
+  
+  -- 名称字段查询索引（利用冗余字段，避免JOIN）
+  INDEX `idx_HUB_GW_ACCESS_LOG_instance_name` (`gatewayInstanceName`, `gatewayStartProcessingTime`),
+  INDEX `idx_HUB_GW_ACCESS_LOG_route_name` (`routeName`, `gatewayStartProcessingTime`),
+  INDEX `idx_HUB_GW_ACCESS_LOG_service_name` (`serviceName`, `gatewayStartProcessingTime`),
+  
+  -- 业务查询索引
+  INDEX `idx_HUB_GW_ACCESS_LOG_client_ip` (`clientIpAddress`, `gatewayStartProcessingTime`),
+  INDEX `idx_HUB_GW_ACCESS_LOG_status_time` (`gatewayStatusCode`, `gatewayStartProcessingTime`),
+  INDEX `idx_HUB_GW_ACCESS_LOG_proxy_type` (`proxyType`, `gatewayStartProcessingTime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网关访问日志表 - 记录API网关的请求和响应详细信息,开始时间必填,完成时间可选(支持处理中状态),含冗余字段优化查询性能';
 ```
 
 ### 12.21 性能指标表 (HUB_GW_METRICS)
@@ -1611,8 +1615,12 @@ CREATE TABLE `HUB_GW_METRICS` (
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `metricsId` VARCHAR(32) NOT NULL COMMENT '指标记录ID',
   `gatewayInstanceId` VARCHAR(32) NOT NULL COMMENT '网关实例ID',
+  `gatewayInstanceName` VARCHAR(100) DEFAULT NULL COMMENT '网关实例名称(冗余字段,便于查询显示)',
   `routeConfigId` VARCHAR(32) DEFAULT NULL COMMENT '路由配置ID',
+  `routeName` VARCHAR(100) DEFAULT NULL COMMENT '路由名称(冗余字段,便于查询显示)',
   `serviceDefinitionId` VARCHAR(32) DEFAULT NULL COMMENT '服务定义ID',
+  `serviceName` VARCHAR(100) DEFAULT NULL COMMENT '服务名称(冗余字段,便于查询显示)',
+  `proxyType` VARCHAR(50) DEFAULT NULL COMMENT '代理类型(http,websocket,tcp,udp,可为空)',
   
   -- 时间维度
   `metricsTime` DATETIME NOT NULL COMMENT '指标记录时间',
@@ -1697,15 +1705,20 @@ CREATE TABLE `HUB_GW_METRICS` (
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   
   PRIMARY KEY (`tenantId`, `metricsId`),
-  INDEX `idx_HUB_GW_METRICS_instance` (`gatewayInstanceId`),
-  INDEX `idx_HUB_GW_METRICS_route` (`routeConfigId`),
-  INDEX `idx_HUB_GW_METRICS_service` (`serviceDefinitionId`),
-  INDEX `idx_HUB_GW_METRICS_time` (`metricsTime`),
-  INDEX `idx_HUB_GW_METRICS_window` (`timeWindowSeconds`),
-  INDEX `idx_HUB_GW_METRICS_granularity` (`timeGranularity`),
-  INDEX `idx_HUB_GW_METRICS_error_rate` (`errorRate`),
-  INDEX `idx_HUB_GW_METRICS_response_time` (`avgResponseTimeMs`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网关性能指标表 - 记录API网关的聚合性能监控数据';
+  -- 时间维度核心索引（性能指标查询的主要维度）
+  INDEX `idx_HUB_GW_METRICS_time_granularity` (`metricsTime`, `timeGranularity`),
+  INDEX `idx_HUB_GW_METRICS_time_instance` (`metricsTime`, `gatewayInstanceId`),
+  INDEX `idx_HUB_GW_METRICS_time_route` (`metricsTime`, `routeConfigId`),
+  INDEX `idx_HUB_GW_METRICS_time_service` (`metricsTime`, `serviceDefinitionId`),
+  
+  -- 名称字段查询索引（利用冗余字段进行报表查询）
+  INDEX `idx_HUB_GW_METRICS_instance_name_time` (`gatewayInstanceName`, `metricsTime`),
+  INDEX `idx_HUB_GW_METRICS_route_name_time` (`routeName`, `metricsTime`),
+  INDEX `idx_HUB_GW_METRICS_service_name_time` (`serviceName`, `metricsTime`),
+  
+  -- 性能分析索引（用于性能排序和过滤）
+  INDEX `idx_HUB_GW_METRICS_proxy_type_time` (`proxyType`, `metricsTime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网关性能指标表 - 记录API网关的聚合性能监控数据,含冗余字段优化查询性能';
 ```
 
 ### 12.19 表关系说明

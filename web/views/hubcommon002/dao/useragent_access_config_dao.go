@@ -129,7 +129,7 @@ func (dao *UseragentAccessConfigDAO) GetUseragentAccessConfigBySecurityConfigId(
 
 	query := `
 		SELECT * FROM HUB_GW_UA_ACCESS_CONFIG 
-		WHERE securityConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
+		WHERE securityConfigId = ? AND tenantId = ?
 	`
 
 	var config models.UseragentAccessConfig
@@ -153,7 +153,7 @@ func (dao *UseragentAccessConfigDAO) GetUseragentAccessConfigById(ctx context.Co
 
 	query := `
 		SELECT * FROM HUB_GW_UA_ACCESS_CONFIG 
-		WHERE useragentAccessConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
+		WHERE useragentAccessConfigId = ? AND tenantId = ?
 	`
 
 	var config models.UseragentAccessConfig
@@ -190,19 +190,24 @@ func (dao *UseragentAccessConfigDAO) UpdateUseragentAccessConfig(ctx context.Con
 	config.EditWho = operatorId
 	config.CurrentVersion = currentConfig.CurrentVersion + 1
 	config.OprSeqFlag = config.UseragentAccessConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
+	
+	// 保持活动标记不变，如果没有设置则使用当前值
+	if config.ActiveFlag == "" {
+		config.ActiveFlag = currentConfig.ActiveFlag
+	}
 
 	sql := `
 		UPDATE HUB_GW_UA_ACCESS_CONFIG SET
 			configName = ?, defaultPolicy = ?, whitelistPatterns = ?, blacklistPatterns = ?,
 			blockEmptyUserAgent = ?, reserved1 = ?, reserved2 = ?, reserved3 = ?, reserved4 = ?, reserved5 = ?,
-			extProperty = ?, noteText = ?, editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?
+			extProperty = ?, noteText = ?, editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?, activeFlag = ?
 		WHERE useragentAccessConfigId = ? AND tenantId = ? AND currentVersion = ?
 	`
 
 	result, err := dao.db.Exec(ctx, sql, []interface{}{
 		config.ConfigName, config.DefaultPolicy, config.WhitelistPatterns, config.BlacklistPatterns,
 		config.BlockEmptyUserAgent, config.Reserved1, config.Reserved2, config.Reserved3, config.Reserved4, config.Reserved5,
-		config.ExtProperty, config.NoteText, config.EditTime, config.EditWho, config.OprSeqFlag, config.CurrentVersion,
+		config.ExtProperty, config.NoteText, config.EditTime, config.EditWho, config.OprSeqFlag, config.CurrentVersion, config.ActiveFlag,
 		config.UseragentAccessConfigId, config.TenantId, currentConfig.CurrentVersion,
 	}, true)
 
@@ -224,12 +229,11 @@ func (dao *UseragentAccessConfigDAO) DeleteUseragentAccessConfig(ctx context.Con
 	}
 
 	sql := `
-		UPDATE HUB_GW_UA_ACCESS_CONFIG SET
-			activeFlag = 'N', editTime = ?, editWho = ?
+		DELETE FROM HUB_GW_UA_ACCESS_CONFIG 
 		WHERE securityConfigId = ? AND tenantId = ?
 	`
 
-	result, err := dao.db.Exec(ctx, sql, []interface{}{time.Now(), operatorId, securityConfigId, tenantId}, true)
+	result, err := dao.db.Exec(ctx, sql, []interface{}{securityConfigId, tenantId}, true)
 	if err != nil {
 		return huberrors.WrapError(err, "删除User-Agent访问控制配置失败")
 	}
@@ -248,7 +252,7 @@ func (dao *UseragentAccessConfigDAO) ListUseragentAccessConfigs(ctx context.Cont
 	}
 
 	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_UA_ACCESS_CONFIG WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY addTime DESC"
+	baseQuery := "SELECT * FROM HUB_GW_UA_ACCESS_CONFIG WHERE tenantId = ? ORDER BY addTime DESC"
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)

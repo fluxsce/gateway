@@ -247,11 +247,69 @@ func configureHeaderFilter(headerFilter *HeaderFilter, config map[string]interfa
 		return nil
 	}
 
-	// 单个头部操作配置
-	if headerName, ok := config["header_name"].(string); ok {
-		if headerValue, ok := config["header_value"].(string); ok {
+	// 首先检查是否有嵌套的 headerConfig 配置
+	var headerConfig map[string]interface{}
+	if nestedConfig, ok := config["headerConfig"].(map[string]interface{}); ok {
+		headerConfig = nestedConfig
+	} else {
+		// 如果没有嵌套配置，直接使用顶级配置
+		headerConfig = config
+	}
+
+	// 优先支持前端驼峰命名格式
+	if modifierType, ok := headerConfig["modifierType"].(string); ok {
+		// 驼峰命名配置处理
+		headerName, _ := headerConfig["headerName"].(string)
+		headerValue, _ := headerConfig["headerValue"].(string)
+		targetHeaderName, _ := headerConfig["targetHeaderName"].(string)
+		
+		// 处理isRequestHeader
+		var isRequestHeader bool
+		if irh, ok := headerConfig["isRequestHeader"].(bool); ok {
+			isRequestHeader = irh
+		} else if irhStr, ok := headerConfig["isRequestHeader"].(string); ok {
+			isRequestHeader = strings.ToLower(irhStr) == "true"
+		}
+		
+		// 更新过滤器标志
+		headerFilter.IsRequestHeader = isRequestHeader
+		
+		// 参数验证
+		if headerName == "" {
+			return fmt.Errorf("headerName 不能为空")
+		}
+		
+		// 根据操作类型配置
+		switch strings.ToLower(modifierType) {
+		case "add":
+			if headerValue == "" {
+				return fmt.Errorf("add操作需要headerValue参数")
+			}
+			headerFilter.ConfigureAdd(headerName, headerValue)
+		case "set":
+			if headerValue == "" {
+				return fmt.Errorf("set操作需要headerValue参数")
+			}
+			headerFilter.ConfigureSet(headerName, headerValue)
+		case "remove":
+			headerFilter.ConfigureRemove(headerName)
+		case "rename":
+			if targetHeaderName == "" {
+				return fmt.Errorf("rename操作需要targetHeaderName参数")
+			}
+			headerFilter.ConfigureRename(headerName, targetHeaderName)
+		default:
+			return fmt.Errorf("无效的modifierType: %s", modifierType)
+		}
+		
+		return nil
+	}
+
+	// 兼容旧的下划线命名格式
+	if headerName, ok := headerConfig["header_name"].(string); ok {
+		if headerValue, ok := headerConfig["header_value"].(string); ok {
 			operation := "add"
-			if op, ok := config["operation"].(string); ok {
+			if op, ok := headerConfig["operation"].(string); ok {
 				operation = strings.ToLower(op)
 			}
 
@@ -263,7 +321,7 @@ func configureHeaderFilter(headerFilter *HeaderFilter, config map[string]interfa
 			case "remove":
 				headerFilter.ConfigureRemove(headerName)
 			case "rename":
-				if newName, ok := config["new_name"].(string); ok {
+				if newName, ok := headerConfig["new_name"].(string); ok {
 					headerFilter.ConfigureRename(headerName, newName)
 				}
 			default:
@@ -273,7 +331,7 @@ func configureHeaderFilter(headerFilter *HeaderFilter, config map[string]interfa
 	}
 
 	// 批量头部操作配置
-	if headers, ok := config["headers"].(map[string]interface{}); ok {
+	if headers, ok := headerConfig["headers"].(map[string]interface{}); ok {
 		for name, value := range headers {
 			if valueStr, ok := value.(string); ok {
 				headerFilter.ConfigureAdd(name, valueStr)
@@ -283,6 +341,8 @@ func configureHeaderFilter(headerFilter *HeaderFilter, config map[string]interfa
 
 	return nil
 }
+
+
 
 // containsAny 检查字符串列表中是否包含任意关键词
 func containsAny(texts []string, keywords []string) bool {

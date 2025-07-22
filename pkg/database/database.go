@@ -49,6 +49,7 @@ const (
 	DriverPostgreSQL = dbtypes.DriverPostgreSQL
 	DriverSQLite     = dbtypes.DriverSQLite
 	DriverOracle     = dbtypes.DriverOracle
+	DriverClickHouse = dbtypes.DriverClickHouse
 )
 
 // DbConfig 数据库配置类型别名
@@ -219,31 +220,74 @@ type Database interface {
 	//   error: 插入失败时返回错误信息
 	BatchInsert(ctx context.Context, table string, dataSlice interface{}, autoCommit bool) (int64, error)
 
+	// BatchUpdate 批量更新记录
+	// 将切片中的多个数据结构体批量更新到数据库中
+	// 使用单条UPDATE语句提高性能，根据主键或指定字段进行更新
+	// 参数:
+	//   ctx: 上下文，用于控制请求超时和取消
+	//   table: 目标表名
+	//   dataSlice: 要更新的数据切片，每个元素都是结构体
+	//   keyFields: 用于匹配记录的关键字段列表（如主键字段）
+	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	// 返回:
+	//   int64: 受影响的行数
+	//   error: 更新失败时返回错误信息
+	BatchUpdate(ctx context.Context, table string, dataSlice interface{}, keyFields []string, autoCommit bool) (int64, error)
+
+	// BatchDelete 批量删除记录
+	// 根据提供的数据切片批量删除记录，通过指定的关键字段匹配
+	// 参数:
+	//   ctx: 上下文，用于控制请求超时和取消
+	//   table: 目标表名
+	//   dataSlice: 包含要删除记录信息的数据切片，每个元素都是结构体
+	//   keyFields: 用于匹配记录的关键字段列表（如主键字段）
+	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	// 返回:
+	//   int64: 受影响的行数
+	//   error: 删除失败时返回错误信息
+	BatchDelete(ctx context.Context, table string, dataSlice interface{}, keyFields []string, autoCommit bool) (int64, error)
+
+	// BatchDeleteByKeys 根据主键列表批量删除记录
+	// 更高效的批量删除方式，直接提供主键值列表
+	// 参数:
+	//   ctx: 上下文，用于控制请求超时和取消
+	//   table: 目标表名
+	//   keyField: 主键字段名
+	//   keys: 要删除的主键值列表
+	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	// 返回:
+	//   int64: 受影响的行数
+	//   error: 删除失败时返回错误信息
+	BatchDeleteByKeys(ctx context.Context, table string, keyField string, keys []interface{}, autoCommit bool) (int64, error)
+
 	// === 事务控制 ===
 
 	// BeginTx 开始事务
 	// 启动一个新的数据库事务，可以指定隔离级别和只读属性
-	// 如果已有活跃事务，会返回错误
+	// 多线程安全：每个上下文可以独立管理事务
 	// 参数:
 	//   ctx: 上下文，用于控制请求超时和取消
 	//   options: 事务选项，包含隔离级别和只读设置
 	// 返回:
+	//   context.Context: 包含事务信息的新上下文
 	//   error: 开始事务失败时返回错误信息
-	BeginTx(ctx context.Context, options *TxOptions) error
+	BeginTx(ctx context.Context, options *TxOptions) (context.Context, error)
 
 	// Commit 提交事务
-	// 提交当前活跃的事务，使所有未提交的更改生效
-	// 如果没有活跃事务，会返回错误
+	// 提交上下文中的事务，使所有未提交的更改生效
+	// 参数:
+	//   ctx: 包含事务信息的上下文
 	// 返回:
 	//   error: 提交失败时返回错误信息
-	Commit() error
+	Commit(ctx context.Context) error
 
 	// Rollback 回滚事务
-	// 回滚当前活跃的事务，撤销所有未提交的更改
-	// 如果没有活跃事务，会返回错误
+	// 回滚上下文中的事务，撤销所有未提交的更改
+	// 参数:
+	//   ctx: 包含事务信息的上下文
 	// 返回:
 	//   error: 回滚失败时返回错误信息
-	Rollback() error
+	Rollback(ctx context.Context) error
 
 	// InTx 在事务中执行函数
 	// 自动处理事务的开始、提交和回滚
@@ -252,10 +296,10 @@ type Database interface {
 	// 参数:
 	//   ctx: 上下文，用于控制请求超时和取消
 	//   options: 事务选项，包含隔离级别和只读设置
-	//   fn: 在事务中执行的函数，返回error表示是否成功
+	//   fn: 在事务中执行的函数，接收包含事务的上下文，返回error表示是否成功
 	// 返回:
 	//   error: 事务执行失败时返回错误信息
-	InTx(ctx context.Context, options *TxOptions, fn func() error) error
+	InTx(ctx context.Context, options *TxOptions, fn func(context.Context) error) error
 
 	// === 工具方法 ===
 

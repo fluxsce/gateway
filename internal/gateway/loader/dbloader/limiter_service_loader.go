@@ -283,34 +283,6 @@ func (loader *LimiterServiceLoader) LoadProxyConfig(ctx context.Context, instanc
 		}
 	}
 
-	// 如果没有找到关联的服务，尝试查询关联表（如果存在）
-	if len(proxyConf.Service) == 0 {
-		// 尝试查询可能存在的关联表
-		relQuery := `
-			SELECT serviceDefinitionId 
-			FROM HUB_GATEWAY_PROXY_SERVICE_REL 
-			WHERE tenantId = ? AND proxyConfigId = ? AND activeFlag = 'Y'
-		`
-		var relServiceIds []struct {
-			ServiceDefinitionId string `db:"serviceDefinitionId"`
-		}
-		err = loader.db.Query(ctx, &relServiceIds, relQuery, []interface{}{loader.tenantId, record.ProxyConfigId}, true)
-		if err == nil && len(relServiceIds) > 0 {
-			for _, record := range relServiceIds {
-				serviceConfig, err := loader.LoadServiceConfig(ctx, record.ServiceDefinitionId)
-				if err != nil {
-					return nil, fmt.Errorf("加载服务配置失败: %w", err)
-				}
-				if serviceConfig != nil {
-					if proxyConf.Service == nil {
-						proxyConf.Service = make([]*service.ServiceConfig, 0)
-					}
-					proxyConf.Service = append(proxyConf.Service, serviceConfig)
-				}
-			}
-		}
-	}
-
 	return proxyConf, nil
 }
 
@@ -412,6 +384,14 @@ func (loader *LimiterServiceLoader) LoadServiceConfig(ctx context.Context, servi
 	}
 
 	serviceConf.LoadBalancer = lbConfig
+
+	// 解析服务元数据
+	if record.ServiceMetadata != nil && *record.ServiceMetadata != "" {
+		var serviceMetadata map[string]string
+		if err := json.Unmarshal([]byte(*record.ServiceMetadata), &serviceMetadata); err == nil {
+			serviceConf.ServiceMetadata = serviceMetadata
+		}
+	}
 
 	// 加载服务节点
 	nodes, err := loader.LoadServiceNodes(ctx, serviceId)

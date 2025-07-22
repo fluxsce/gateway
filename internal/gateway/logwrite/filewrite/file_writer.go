@@ -193,6 +193,11 @@ func (w *FileWriter) Close() error {
 	return nil
 }
 
+// GetLogConfig 获取日志配置
+func (w *FileWriter) GetLogConfig() *types.LogConfig {
+	return w.config
+}
+
 // formatLog 格式化日志
 func (w *FileWriter) formatLog(log *types.AccessLog) string {
 	switch types.LogFormat(w.config.LogFormat) {

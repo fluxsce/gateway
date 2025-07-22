@@ -853,10 +853,17 @@ CREATE TABLE HUB_TIMER_EXECUTION_LOG (
                                          currentVersion          NUMBER(10) DEFAULT 1 NOT NULL, -- 当前版本号
                                          activeFlag              VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 活动状态标记(N/Y)
                                          noteText                VARCHAR2(500), -- 备注信息
-
+                                         extProperty             CLOB, -- 扩展属性，JSON格式
                                          reserved1               VARCHAR2(500), -- 预留字段1
                                          reserved2               VARCHAR2(500), -- 预留字段2
                                          reserved3               VARCHAR2(500), -- 预留字段3
+                                         reserved4               VARCHAR2(500), -- 预留字段4
+                                         reserved5               VARCHAR2(500), -- 预留字段5
+                                         reserved6               VARCHAR2(500), -- 预留字段6
+                                         reserved7               VARCHAR2(500), -- 预留字段7
+                                         reserved8               VARCHAR2(500), -- 预留字段8
+                                         reserved9               VARCHAR2(500), -- 预留字段9
+                                         reserved10              VARCHAR2(500), -- 预留字段10
 
                                          CONSTRAINT PK_TIMER_EXECUTION_LOG PRIMARY KEY (tenantId, executionId)
 );
@@ -1007,34 +1014,65 @@ CREATE INDEX IDX_TOOL_GROUP_ACTIVE     ON HUB_TOOL_CONFIG_GROUP(activeFlag);
 COMMENT ON TABLE HUB_TOOL_CONFIG_GROUP IS '工具配置分组表 - 用于对工具配置进行分组管理';
 
 CREATE TABLE HUB_GW_LOG_CONFIG (
-                                        tenantId VARCHAR2(32) NOT NULL,
-                                        logConfigId VARCHAR2(32) NOT NULL,
-                                        configName VARCHAR2(100) NOT NULL,
-                                        logLevel VARCHAR2(20) DEFAULT 'INFO' NOT NULL,
-                                        logFormat VARCHAR2(50) DEFAULT 'JSON' NOT NULL,
-                                        outputTargets VARCHAR2(200) DEFAULT 'CONSOLE' NOT NULL,
-                                        fileConfig CLOB DEFAULT NULL,
-                                        databaseConfig CLOB DEFAULT NULL,
-                                        enableAccessLog VARCHAR2(1) DEFAULT 'Y' NOT NULL,
-                                        enableErrorLog VARCHAR2(1) DEFAULT 'Y' NOT NULL,
-                                        enableAuditLog VARCHAR2(1) DEFAULT 'N' NOT NULL,
-                                        logRetentionDays NUMBER(10) DEFAULT 30 NOT NULL,
-                                        sensitiveFields CLOB DEFAULT NULL,
-                                        configPriority NUMBER(10) DEFAULT 0 NOT NULL,
-                                        reserved1 VARCHAR2(100) DEFAULT NULL,
-                                        reserved2 VARCHAR2(100) DEFAULT NULL,
-                                        reserved3 NUMBER(10) DEFAULT NULL,
-                                        reserved4 NUMBER(10) DEFAULT NULL,
-                                        reserved5 TIMESTAMP DEFAULT NULL,
-                                        extProperty CLOB DEFAULT NULL,
-                                        addTime TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
-                                        addWho VARCHAR2(32) NOT NULL,
-                                        editTime TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
-                                        editWho VARCHAR2(32) NOT NULL,
-                                        oprSeqFlag VARCHAR2(32) NOT NULL,
-                                        currentVersion NUMBER(10) DEFAULT 1 NOT NULL,
-                                        activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
-                                        noteText VARCHAR2(500) DEFAULT NULL,
+                                        tenantId VARCHAR2(32) NOT NULL, -- 租户ID
+                                        logConfigId VARCHAR2(32) NOT NULL, -- 日志配置ID
+                                        configName VARCHAR2(100) NOT NULL, -- 配置名称
+                                        configDesc VARCHAR2(200) DEFAULT NULL, -- 配置描述
+                                        
+                                        -- 日志内容控制
+                                        logFormat VARCHAR2(50) DEFAULT 'JSON' NOT NULL, -- 日志格式(JSON,TEXT,CSV)
+                                        recordRequestBody VARCHAR2(1) DEFAULT 'N' NOT NULL, -- 是否记录请求体(N否,Y是)
+                                        recordResponseBody VARCHAR2(1) DEFAULT 'N' NOT NULL, -- 是否记录响应体(N否,Y是)
+                                        recordHeaders VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 是否记录请求/响应头(N否,Y是)
+                                        maxBodySizeBytes NUMBER(10) DEFAULT 4096 NOT NULL, -- 最大记录报文大小(字节)
+                                        
+                                        -- 日志输出目标配置
+                                        outputTargets VARCHAR2(200) DEFAULT 'CONSOLE' NOT NULL, -- 输出目标,逗号分隔(CONSOLE,FILE,DATABASE,MONGODB,ELASTICSEARCH)
+                                        fileConfig CLOB DEFAULT NULL, -- 文件输出配置,JSON格式
+                                        databaseConfig CLOB DEFAULT NULL, -- 数据库输出配置,JSON格式
+                                        mongoConfig CLOB DEFAULT NULL, -- MongoDB输出配置,JSON格式
+                                        elasticsearchConfig CLOB DEFAULT NULL, -- Elasticsearch输出配置,JSON格式
+                                        clickhouseConfig CLOB DEFAULT NULL, -- Clickhouse输出配置,JSON格式
+                                        
+                                        -- 异步和批量处理配置
+                                        enableAsyncLogging VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 是否启用异步日志(N否,Y是)
+                                        asyncQueueSize NUMBER(10) DEFAULT 10000 NOT NULL, -- 异步队列大小
+                                        asyncFlushIntervalMs NUMBER(10) DEFAULT 1000 NOT NULL, -- 异步刷新间隔(毫秒)
+                                        enableBatchProcessing VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 是否启用批量处理(N否,Y是)
+                                        batchSize NUMBER(10) DEFAULT 100 NOT NULL, -- 批处理大小
+                                        batchTimeoutMs NUMBER(10) DEFAULT 5000 NOT NULL, -- 批处理超时时间(毫秒)
+                                        
+                                        -- 日志保留和轮转配置
+                                        logRetentionDays NUMBER(10) DEFAULT 30 NOT NULL, -- 日志保留天数
+                                        enableFileRotation VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 是否启用文件轮转(N否,Y是)
+                                        maxFileSizeMB NUMBER(10) DEFAULT 100, -- 最大文件大小(MB)
+                                        maxFileCount NUMBER(10) DEFAULT 10, -- 最大文件数量
+                                        rotationPattern VARCHAR2(100) DEFAULT 'DAILY', -- 轮转模式(HOURLY,DAILY,WEEKLY,SIZE_BASED)
+                                        
+                                        -- 敏感数据处理
+                                        enableSensitiveDataMasking VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 是否启用敏感数据脱敏(N否,Y是)
+                                        sensitiveFields CLOB DEFAULT NULL, -- 敏感字段列表,JSON数组格式
+                                        maskingPattern VARCHAR2(100) DEFAULT '***', -- 脱敏替换模式
+                                        
+                                        -- 性能优化配置
+                                        bufferSize NUMBER(10) DEFAULT 8192 NOT NULL, -- 缓冲区大小(字节)
+                                        flushThreshold NUMBER(10) DEFAULT 100 NOT NULL, -- 刷新阈值(条目数)
+                                        
+                                        configPriority NUMBER(10) DEFAULT 0 NOT NULL, -- 配置优先级,数值越小优先级越高
+                                        reserved1 VARCHAR2(100) DEFAULT NULL, -- 预留字段1
+                                        reserved2 VARCHAR2(100) DEFAULT NULL, -- 预留字段2
+                                        reserved3 NUMBER(10) DEFAULT NULL, -- 预留字段3
+                                        reserved4 NUMBER(10) DEFAULT NULL, -- 预留字段4
+                                        reserved5 DATE DEFAULT NULL, -- 预留字段5
+                                        extProperty CLOB DEFAULT NULL, -- 扩展属性,JSON格式
+                                        addTime DATE DEFAULT SYSDATE NOT NULL, -- 创建时间
+                                        addWho VARCHAR2(32) NOT NULL, -- 创建人ID
+                                        editTime DATE DEFAULT SYSDATE NOT NULL, -- 最后修改时间
+                                        editWho VARCHAR2(32) NOT NULL, -- 最后修改人ID
+                                        oprSeqFlag VARCHAR2(32) NOT NULL, -- 操作序列标识
+                                        currentVersion NUMBER(10) DEFAULT 1 NOT NULL, -- 当前版本号
+                                        activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 活动状态标记(N非活动,Y活动)
+                                        noteText VARCHAR2(500) DEFAULT NULL, -- 备注信息
                                         CONSTRAINT PK_GW_LOG_CONFIG PRIMARY KEY (tenantId, logConfigId)
 );
 
@@ -1043,6 +1081,108 @@ COMMENT ON TABLE HUB_GW_LOG_CONFIG IS '日志配置表 - 存储网关日志相�
 -- 创建索引（注意Oracle索引名最长30个字符）
 CREATE INDEX IDX_GW_LOG_NAME ON HUB_GW_LOG_CONFIG (configName);
 CREATE INDEX IDX_GW_LOG_PRIORITY ON HUB_GW_LOG_CONFIG (configPriority);
+
+
+CREATE TABLE HUB_GW_ACCESS_LOG (
+                                   tenantId VARCHAR2(32) NOT NULL,
+                                   traceId VARCHAR2(64) NOT NULL,
+                                   gatewayInstanceId VARCHAR2(32) NOT NULL,
+                                   gatewayInstanceName VARCHAR2(300),
+                                   gatewayNodeIp VARCHAR2(50) NOT NULL,
+                                   routeConfigId VARCHAR2(32),
+                                   routeName VARCHAR2(300),
+                                   serviceDefinitionId VARCHAR2(32),
+                                   serviceName VARCHAR2(300),
+                                   proxyType VARCHAR2(50),
+                                   logConfigId VARCHAR2(32),
+
+    -- 请求基本信息
+                                   requestMethod VARCHAR2(10) NOT NULL,
+                                   requestPath VARCHAR2(1000) NOT NULL,
+                                   requestQuery CLOB,
+                                   requestSize NUMBER(10) DEFAULT 0,
+                                   requestHeaders CLOB,
+                                   requestBody CLOB,
+
+    -- 客户端信息
+                                   clientIpAddress VARCHAR2(50) NOT NULL,
+                                   clientPort NUMBER(10),
+                                   userAgent VARCHAR2(1000),
+                                   referer VARCHAR2(1000),
+                                   userIdentifier VARCHAR2(100),
+
+    -- 关键时间点 (Oracle使用TIMESTAMP类型，精确到毫秒)
+                                   gatewayStartProcessingTime TIMESTAMP(3) NOT NULL,
+                                   backendRequestStartTime TIMESTAMP(3),
+                                   backendResponseReceivedTime TIMESTAMP(3),
+                                   gatewayFinishedProcessingTime TIMESTAMP(3),
+
+    -- 计算的时间指标 (毫秒)
+                                   totalProcessingTimeMs NUMBER(10),
+                                   gatewayProcessingTimeMs NUMBER(10),
+                                   backendResponseTimeMs NUMBER(10),
+
+    -- 响应信息
+                                   gatewayStatusCode NUMBER(10) NOT NULL,
+                                   backendStatusCode NUMBER(10),
+                                   responseSize NUMBER(10) DEFAULT 0,
+                                   responseHeaders CLOB,
+                                   responseBody CLOB,
+
+    -- 转发基本信息
+                                   matchedRoute VARCHAR2(500),
+                                   forwardAddress CLOB,
+                                   forwardMethod VARCHAR2(10),
+                                   forwardParams CLOB,
+                                   forwardHeaders CLOB,
+                                   forwardBody CLOB,
+                                   loadBalancerDecision VARCHAR2(1000),
+
+    -- 错误信息
+                                   errorMessage CLOB,
+                                   errorCode VARCHAR2(100),
+
+    -- 追踪信息
+                                   parentTraceId VARCHAR2(100),
+
+    -- 日志重置标记和次数
+                                   resetFlag VARCHAR2(1) DEFAULT 'N' NOT NULL,
+                                   retryCount NUMBER(10) DEFAULT 0 NOT NULL,
+                                   resetCount NUMBER(10) DEFAULT 0 NOT NULL,
+
+    -- 标准数据库字段
+                                   logLevel VARCHAR2(20) DEFAULT 'INFO' NOT NULL,
+                                   logType VARCHAR2(50) DEFAULT 'ACCESS' NOT NULL,
+                                   reserved1 VARCHAR2(100),
+                                   reserved2 VARCHAR2(100),
+                                   reserved3 NUMBER(10),
+                                   reserved4 NUMBER(10),
+                                   reserved5 TIMESTAMP,
+                                   extProperty CLOB,
+                                   addTime TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+                                   addWho VARCHAR2(32) NOT NULL,
+                                   editTime TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+                                   editWho VARCHAR2(32) NOT NULL,
+                                   oprSeqFlag VARCHAR2(32) NOT NULL,
+                                   currentVersion NUMBER(10) DEFAULT 1 NOT NULL,
+                                   activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+                                   noteText VARCHAR2(500),
+
+                                   CONSTRAINT pk_HUB_GW_ACCESS_LOG PRIMARY KEY (tenantId, traceId)
+);
+
+-- 添加表注释
+COMMENT ON TABLE HUB_GW_ACCESS_LOG IS '网关访问日志表 - 记录API网关的请求和响应详细信息,开始时间必填,完成时间可选(支持处理中状态),含冗余字段优化查询性能';
+-- 创建索引（索引名称控制在30个字符以内）
+CREATE INDEX idx_gw_log_time_inst ON HUB_GW_ACCESS_LOG (gatewayStartProcessingTime, gatewayInstanceId);
+CREATE INDEX idx_gw_log_time_route ON HUB_GW_ACCESS_LOG (gatewayStartProcessingTime, routeConfigId);
+CREATE INDEX idx_gw_log_time_service ON HUB_GW_ACCESS_LOG (gatewayStartProcessingTime, serviceDefinitionId);
+CREATE INDEX idx_gw_log_inst_name ON HUB_GW_ACCESS_LOG (gatewayInstanceName, gatewayStartProcessingTime);
+CREATE INDEX idx_gw_log_route_name ON HUB_GW_ACCESS_LOG (routeName, gatewayStartProcessingTime);
+CREATE INDEX idx_gw_log_service_name ON HUB_GW_ACCESS_LOG (serviceName, gatewayStartProcessingTime);
+CREATE INDEX idx_gw_log_client_ip ON HUB_GW_ACCESS_LOG (clientIpAddress, gatewayStartProcessingTime);
+CREATE INDEX idx_gw_log_status_time ON HUB_GW_ACCESS_LOG (gatewayStatusCode, gatewayStartProcessingTime);
+CREATE INDEX idx_gw_log_proxy_type ON HUB_GW_ACCESS_LOG (proxyType, gatewayStartProcessingTime);
 
 CREATE TABLE HUB_GW_CORS_CONFIG (
                                     tenantId VARCHAR2(32) NOT NULL,
@@ -1233,3 +1373,437 @@ CREATE TABLE HUB_GW_DOMAIN_ACCESS_CONFIG (
 );
 CREATE INDEX IDX_GW_DOMAIN_SECURITY ON HUB_GW_DOMAIN_ACCESS_CONFIG(securityConfigId);
 COMMENT ON TABLE HUB_GW_DOMAIN_ACCESS_CONFIG IS '域名访问控制配置表 - 存储域名白名单黑名单规则';
+
+--------------------------------------------------------------
+-- 指标采集配置表 - 存储指标采集配置
+--------------------------------------------------------------
+-- Oracle 指标采集表结构创建脚本
+-- 由 MySQL 版本自动转换
+
+-- 1. 服务器信息主表
+CREATE TABLE HUB_METRIC_SERVER_INFO (
+                                        metricServerId VARCHAR2(64) NOT NULL,
+                                        tenantId VARCHAR2(64) NOT NULL,
+                                        hostname VARCHAR2(255) NOT NULL,
+                                        osType VARCHAR2(100) NOT NULL,
+                                        osVersion VARCHAR2(255) NOT NULL,
+                                        kernelVersion VARCHAR2(255),
+                                        architecture VARCHAR2(100) NOT NULL,
+                                        bootTime DATE NOT NULL,
+                                        ipAddress VARCHAR2(45),
+                                        macAddress VARCHAR2(17),
+                                        serverLocation VARCHAR2(255),
+                                        serverType VARCHAR2(50),
+                                        lastUpdateTime DATE NOT NULL,
+                                        networkInfo CLOB,
+                                        systemInfo CLOB,
+                                        hardwareInfo CLOB,
+                                        addTime DATE DEFAULT SYSDATE NOT NULL,
+                                        addWho VARCHAR2(64) NOT NULL,
+                                        editTime DATE DEFAULT SYSDATE NOT NULL,
+                                        editWho VARCHAR2(64) NOT NULL,
+                                        oprSeqFlag VARCHAR2(64) NOT NULL,
+                                        currentVersion NUMBER(10,0) DEFAULT 1 NOT NULL,
+                                        activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+                                        noteText CLOB,
+                                        extProperty CLOB,
+                                        reserved1 VARCHAR2(500),
+                                        reserved2 VARCHAR2(500),
+                                        reserved3 VARCHAR2(500),
+                                        reserved4 VARCHAR2(500),
+                                        reserved5 VARCHAR2(500),
+                                        reserved6 VARCHAR2(500),
+                                        reserved7 VARCHAR2(500),
+                                        reserved8 VARCHAR2(500),
+                                        reserved9 VARCHAR2(500),
+                                        reserved10 VARCHAR2(500),
+                                        CONSTRAINT PK_METRIC_SRVINFO PRIMARY KEY (tenantId, metricServerId)
+);
+
+CREATE UNIQUE INDEX IDX_SRVINFO_HOST ON HUB_METRIC_SERVER_INFO(hostname);
+CREATE INDEX IDX_SRVINFO_OS ON HUB_METRIC_SERVER_INFO(osType);
+CREATE INDEX IDX_SRVINFO_IP ON HUB_METRIC_SERVER_INFO(ipAddress);
+CREATE INDEX IDX_SRVINFO_TYPE ON HUB_METRIC_SERVER_INFO(serverType);
+CREATE INDEX IDX_SRVINFO_ACTIVE ON HUB_METRIC_SERVER_INFO(activeFlag);
+CREATE INDEX IDX_SRVINFO_UPDATE ON HUB_METRIC_SERVER_INFO(lastUpdateTime);
+
+COMMENT ON TABLE HUB_METRIC_SERVER_INFO IS '服务器信息主表';
+
+-- 2. CPU采集日志表
+CREATE TABLE HUB_METRIC_CPU_LOG (
+                                    metricCpuLogId VARCHAR2(32) NOT NULL,
+                                    tenantId VARCHAR2(32) NOT NULL,
+                                    metricServerId VARCHAR2(32) NOT NULL,
+                                    usagePercent NUMBER(5,2) DEFAULT 0.00 NOT NULL,
+                                    userPercent NUMBER(5,2) DEFAULT 0.00 NOT NULL,
+                                    systemPercent NUMBER(5,2) DEFAULT 0.00 NOT NULL,
+                                    idlePercent NUMBER(5,2) DEFAULT 0.00 NOT NULL,
+                                    ioWaitPercent NUMBER(5,2) DEFAULT 0.00 NOT NULL,
+                                    irqPercent NUMBER(5,2) DEFAULT 0.00 NOT NULL,
+                                    softIrqPercent NUMBER(5,2) DEFAULT 0.00 NOT NULL,
+                                    coreCount NUMBER(10,0) DEFAULT 0 NOT NULL,
+                                    logicalCount NUMBER(10,0) DEFAULT 0 NOT NULL,
+                                    loadAvg1 NUMBER(8,2) DEFAULT 0.00 NOT NULL,
+                                    loadAvg5 NUMBER(8,2) DEFAULT 0.00 NOT NULL,
+                                    loadAvg15 NUMBER(8,2) DEFAULT 0.00 NOT NULL,
+                                    collectTime DATE NOT NULL,
+                                    addTime DATE DEFAULT SYSDATE NOT NULL,
+                                    addWho VARCHAR2(32) NOT NULL,
+                                    editTime DATE DEFAULT SYSDATE NOT NULL,
+                                    editWho VARCHAR2(32) NOT NULL,
+                                    oprSeqFlag VARCHAR2(32) NOT NULL,
+                                    currentVersion NUMBER(10,0) DEFAULT 1 NOT NULL,
+                                    activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+                                    noteText VARCHAR2(500),
+                                    extProperty CLOB,
+                                    reserved1 VARCHAR2(500),
+                                    reserved2 VARCHAR2(500),
+                                    reserved3 VARCHAR2(500),
+                                    reserved4 VARCHAR2(500),
+                                    reserved5 VARCHAR2(500),
+                                    reserved6 VARCHAR2(500),
+                                    reserved7 VARCHAR2(500),
+                                    reserved8 VARCHAR2(500),
+                                    reserved9 VARCHAR2(500),
+                                    reserved10 VARCHAR2(500),
+                                    CONSTRAINT PK_METRIC_CPU_LOG PRIMARY KEY (tenantId, metricCpuLogId)
+);
+CREATE INDEX IDX_CPULOG_SERVER ON HUB_METRIC_CPU_LOG(metricServerId);
+CREATE INDEX IDX_CPULOG_TIME ON HUB_METRIC_CPU_LOG(collectTime);
+CREATE INDEX IDX_CPULOG_USAGE ON HUB_METRIC_CPU_LOG(usagePercent);
+CREATE INDEX IDX_CPULOG_ACTIVE ON HUB_METRIC_CPU_LOG(activeFlag);
+CREATE INDEX IDX_CPULOG_SRV_TIME ON HUB_METRIC_CPU_LOG(metricServerId, collectTime);
+CREATE INDEX IDX_CPULOG_TNT_TIME ON HUB_METRIC_CPU_LOG(tenantId, collectTime);
+COMMENT ON TABLE HUB_METRIC_CPU_LOG IS 'CPU采集日志表';
+
+-- 3. 内存采集日志表
+CREATE TABLE HUB_METRIC_MEMORY_LOG (
+                                       metricMemoryLogId VARCHAR2(32) NOT NULL,
+                                       tenantId VARCHAR2(32) NOT NULL,
+                                       metricServerId VARCHAR2(32) NOT NULL,
+                                       totalMemory NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                       availableMemory NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                       usedMemory NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                       usagePercent NUMBER(5,2) DEFAULT 0.00 NOT NULL,
+                                       freeMemory NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                       cachedMemory NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                       buffersMemory NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                       sharedMemory NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                       swapTotal NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                       swapUsed NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                       swapFree NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                       swapUsagePercent NUMBER(5,2) DEFAULT 0.00 NOT NULL,
+                                       collectTime DATE NOT NULL,
+                                       addTime DATE DEFAULT SYSDATE NOT NULL,
+                                       addWho VARCHAR2(32) NOT NULL,
+                                       editTime DATE DEFAULT SYSDATE NOT NULL,
+                                       editWho VARCHAR2(32) NOT NULL,
+                                       oprSeqFlag VARCHAR2(32) NOT NULL,
+                                       currentVersion NUMBER(10,0) DEFAULT 1 NOT NULL,
+                                       activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+                                       noteText VARCHAR2(500),
+                                       extProperty CLOB,
+                                       reserved1 VARCHAR2(500),
+                                       reserved2 VARCHAR2(500),
+                                       reserved3 VARCHAR2(500),
+                                       reserved4 VARCHAR2(500),
+                                       reserved5 VARCHAR2(500),
+                                       reserved6 VARCHAR2(500),
+                                       reserved7 VARCHAR2(500),
+                                       reserved8 VARCHAR2(500),
+                                       reserved9 VARCHAR2(500),
+                                       reserved10 VARCHAR2(500),
+                                       CONSTRAINT PK_MEM_LOG PRIMARY KEY (tenantId, metricMemoryLogId)
+);
+CREATE INDEX IDX_MEMLOG_SERVER ON HUB_METRIC_MEMORY_LOG(metricServerId);
+CREATE INDEX IDX_MEMLOG_TIME ON HUB_METRIC_MEMORY_LOG(collectTime);
+CREATE INDEX IDX_MEMLOG_USAGE ON HUB_METRIC_MEMORY_LOG(usagePercent);
+CREATE INDEX IDX_MEMLOG_ACTIVE ON HUB_METRIC_MEMORY_LOG(activeFlag);
+CREATE INDEX IDX_MEMLOG_SRV_TIME ON HUB_METRIC_MEMORY_LOG(metricServerId, collectTime);
+CREATE INDEX IDX_MEMLOG_TNT_TIME ON HUB_METRIC_MEMORY_LOG(tenantId, collectTime);
+COMMENT ON TABLE HUB_METRIC_MEMORY_LOG IS '内存采集日志表';
+
+-- 4. 磁盘分区日志表
+CREATE TABLE HUB_METRIC_DISK_PART_LOG (
+                                          metricDiskPartitionLogId VARCHAR2(32) NOT NULL,
+                                          tenantId VARCHAR2(32) NOT NULL,
+                                          metricServerId VARCHAR2(32) NOT NULL,
+                                          deviceName VARCHAR2(100) NOT NULL,
+                                          mountPoint VARCHAR2(200) NOT NULL,
+                                          fileSystem VARCHAR2(50) NOT NULL,
+                                          totalSpace NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                          usedSpace NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                          freeSpace NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                          usagePercent NUMBER(5,2) DEFAULT 0.00 NOT NULL,
+                                          inodesTotal NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                          inodesUsed NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                          inodesFree NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                          inodesUsagePercent NUMBER(5,2) DEFAULT 0.00 NOT NULL,
+                                          collectTime DATE NOT NULL,
+                                          addTime DATE DEFAULT SYSDATE NOT NULL,
+                                          addWho VARCHAR2(32) NOT NULL,
+                                          editTime DATE DEFAULT SYSDATE NOT NULL,
+                                          editWho VARCHAR2(32) NOT NULL,
+                                          oprSeqFlag VARCHAR2(32) NOT NULL,
+                                          currentVersion NUMBER(10,0) DEFAULT 1 NOT NULL,
+                                          activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+                                          noteText VARCHAR2(500),
+                                          extProperty CLOB,
+                                          reserved1 VARCHAR2(500),
+                                          reserved2 VARCHAR2(500),
+                                          reserved3 VARCHAR2(500),
+                                          reserved4 VARCHAR2(500),
+                                          reserved5 VARCHAR2(500),
+                                          reserved6 VARCHAR2(500),
+                                          reserved7 VARCHAR2(500),
+                                          reserved8 VARCHAR2(500),
+                                          reserved9 VARCHAR2(500),
+                                          reserved10 VARCHAR2(500),
+                                          CONSTRAINT PK_DISK_PART_LOG PRIMARY KEY (tenantId, metricDiskPartitionLogId)
+);
+CREATE INDEX IDX_DSKPART_SERVER ON HUB_METRIC_DISK_PART_LOG(metricServerId);
+CREATE INDEX IDX_DSKPART_TIME ON HUB_METRIC_DISK_PART_LOG(collectTime);
+CREATE INDEX IDX_DSKPART_DEVICE ON HUB_METRIC_DISK_PART_LOG(deviceName);
+CREATE INDEX IDX_DSKPART_USAGE ON HUB_METRIC_DISK_PART_LOG(usagePercent);
+CREATE INDEX IDX_DSKPART_ACTIVE ON HUB_METRIC_DISK_PART_LOG(activeFlag);
+CREATE INDEX IDX_DSKPART_SRV_TIME ON HUB_METRIC_DISK_PART_LOG(metricServerId, collectTime);
+CREATE INDEX IDX_DSKPART_SRV_DEV ON HUB_METRIC_DISK_PART_LOG(metricServerId, deviceName);
+CREATE INDEX IDX_DSKPART_TNT_TIME ON HUB_METRIC_DISK_PART_LOG(tenantId, collectTime);
+COMMENT ON TABLE HUB_METRIC_DISK_PART_LOG IS '磁盘分区采集日志表';
+
+-- 5. 磁盘IO日志表
+CREATE TABLE HUB_METRIC_DISK_IO_LOG (
+                                        metricDiskIoLogId VARCHAR2(32) NOT NULL,
+                                        tenantId VARCHAR2(32) NOT NULL,
+                                        metricServerId VARCHAR2(32) NOT NULL,
+                                        deviceName VARCHAR2(100) NOT NULL,
+                                        readCount NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        writeCount NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        readBytes NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        writeBytes NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        readTime NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        writeTime NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        ioInProgress NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        ioTime NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        readRate NUMBER(20,2) DEFAULT 0.00 NOT NULL,
+                                        writeRate NUMBER(20,2) DEFAULT 0.00 NOT NULL,
+                                        collectTime DATE NOT NULL,
+                                        addTime DATE DEFAULT SYSDATE NOT NULL,
+                                        addWho VARCHAR2(32) NOT NULL,
+                                        editTime DATE DEFAULT SYSDATE NOT NULL,
+                                        editWho VARCHAR2(32) NOT NULL,
+                                        oprSeqFlag VARCHAR2(32) NOT NULL,
+                                        currentVersion NUMBER(10,0) DEFAULT 1 NOT NULL,
+                                        activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+                                        noteText VARCHAR2(500),
+                                        extProperty CLOB,
+                                        reserved1 VARCHAR2(500),
+                                        reserved2 VARCHAR2(500),
+                                        reserved3 VARCHAR2(500),
+                                        reserved4 VARCHAR2(500),
+                                        reserved5 VARCHAR2(500),
+                                        reserved6 VARCHAR2(500),
+                                        reserved7 VARCHAR2(500),
+                                        reserved8 VARCHAR2(500),
+                                        reserved9 VARCHAR2(500),
+                                        reserved10 VARCHAR2(500),
+                                        CONSTRAINT PK_DISK_IO_LOG PRIMARY KEY (tenantId, metricDiskIoLogId)
+);
+CREATE INDEX IDX_DSKIO_SERVER ON HUB_METRIC_DISK_IO_LOG(metricServerId);
+CREATE INDEX IDX_DSKIO_TIME ON HUB_METRIC_DISK_IO_LOG(collectTime);
+CREATE INDEX IDX_DSKIO_DEVICE ON HUB_METRIC_DISK_IO_LOG(deviceName);
+CREATE INDEX IDX_DSKIO_ACTIVE ON HUB_METRIC_DISK_IO_LOG(activeFlag);
+CREATE INDEX IDX_DSKIO_SRV_TIME ON HUB_METRIC_DISK_IO_LOG(metricServerId, collectTime);
+CREATE INDEX IDX_DSKIO_SRV_DEV ON HUB_METRIC_DISK_IO_LOG(metricServerId, deviceName);
+CREATE INDEX IDX_DSKIO_TNT_TIME ON HUB_METRIC_DISK_IO_LOG(tenantId, collectTime);
+COMMENT ON TABLE HUB_METRIC_DISK_IO_LOG IS '磁盘IO采集日志表';
+
+-- 6. 网络接口日志表
+CREATE TABLE HUB_METRIC_NETWORK_LOG (
+                                        metricNetworkLogId VARCHAR2(32) NOT NULL,
+                                        tenantId VARCHAR2(32) NOT NULL,
+                                        metricServerId VARCHAR2(32) NOT NULL,
+                                        interfaceName VARCHAR2(100) NOT NULL,
+                                        hardwareAddr VARCHAR2(50),
+                                        ipAddresses CLOB,
+                                        interfaceStatus VARCHAR2(20) NOT NULL,
+                                        interfaceType VARCHAR2(50),
+                                        bytesReceived NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        bytesSent NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        packetsReceived NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        packetsSent NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        errorsReceived NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        errorsSent NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        droppedReceived NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        droppedSent NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        receiveRate NUMBER(20,2) DEFAULT 0 NOT NULL,
+                                        sendRate NUMBER(20,2) DEFAULT 0 NOT NULL,
+                                        collectTime DATE NOT NULL,
+                                        addTime DATE DEFAULT SYSDATE NOT NULL,
+                                        addWho VARCHAR2(32) NOT NULL,
+                                        editTime DATE DEFAULT SYSDATE NOT NULL,
+                                        editWho VARCHAR2(32) NOT NULL,
+                                        oprSeqFlag VARCHAR2(32) NOT NULL,
+                                        currentVersion NUMBER(10,0) DEFAULT 1 NOT NULL,
+                                        activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+                                        noteText VARCHAR2(500),
+                                        extProperty CLOB,
+                                        reserved1 VARCHAR2(500),
+                                        reserved2 VARCHAR2(500),
+                                        reserved3 VARCHAR2(500),
+                                        reserved4 VARCHAR2(500),
+                                        reserved5 VARCHAR2(500),
+                                        reserved6 VARCHAR2(500),
+                                        reserved7 VARCHAR2(500),
+                                        reserved8 VARCHAR2(500),
+                                        reserved9 VARCHAR2(500),
+                                        reserved10 VARCHAR2(500),
+                                        CONSTRAINT PK_NET_LOG PRIMARY KEY (tenantId, metricNetworkLogId)
+);
+CREATE INDEX IDX_NETLOG_SERVER ON HUB_METRIC_NETWORK_LOG(metricServerId);
+CREATE INDEX IDX_NETLOG_TIME ON HUB_METRIC_NETWORK_LOG(collectTime);
+CREATE INDEX IDX_NETLOG_IFACE ON HUB_METRIC_NETWORK_LOG(interfaceName);
+CREATE INDEX IDX_NETLOG_STATUS ON HUB_METRIC_NETWORK_LOG(interfaceStatus);
+CREATE INDEX IDX_NETLOG_ACTIVE ON HUB_METRIC_NETWORK_LOG(activeFlag);
+CREATE INDEX IDX_NETLOG_SRV_TIME ON HUB_METRIC_NETWORK_LOG(metricServerId, collectTime);
+CREATE INDEX IDX_NETLOG_SRV_IF ON HUB_METRIC_NETWORK_LOG(metricServerId, interfaceName);
+CREATE INDEX IDX_NETLOG_TNT_TIME ON HUB_METRIC_NETWORK_LOG(tenantId, collectTime);
+COMMENT ON TABLE HUB_METRIC_NETWORK_LOG IS '网络接口采集日志表';
+
+-- 7. 进程信息日志表
+CREATE TABLE HUB_METRIC_PROCESS_LOG (
+                                        metricProcessLogId VARCHAR2(32) NOT NULL,
+                                        tenantId VARCHAR2(32) NOT NULL,
+                                        metricServerId VARCHAR2(32) NOT NULL,
+                                        processId NUMBER(10,0) NOT NULL,
+                                        parentProcessId NUMBER(10,0),
+                                        processName VARCHAR2(200) NOT NULL,
+                                        processStatus VARCHAR2(50) NOT NULL,
+                                        createTime DATE NOT NULL,
+                                        runTime NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        memoryUsage NUMBER(19,0) DEFAULT 0 NOT NULL,
+                                        memoryPercent NUMBER(5,2) DEFAULT 0.00 NOT NULL,
+                                        cpuPercent NUMBER(5,2) DEFAULT 0.00 NOT NULL,
+                                        threadCount NUMBER(10,0) DEFAULT 0 NOT NULL,
+                                        fileDescriptorCount NUMBER(10,0) DEFAULT 0 NOT NULL,
+                                        commandLine CLOB,
+                                        executablePath VARCHAR2(500),
+                                        workingDirectory VARCHAR2(500),
+                                        collectTime DATE NOT NULL,
+                                        addTime DATE DEFAULT SYSDATE NOT NULL,
+                                        addWho VARCHAR2(32) NOT NULL,
+                                        editTime DATE DEFAULT SYSDATE NOT NULL,
+                                        editWho VARCHAR2(32) NOT NULL,
+                                        oprSeqFlag VARCHAR2(32) NOT NULL,
+                                        currentVersion NUMBER(10,0) DEFAULT 1 NOT NULL,
+                                        activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+                                        noteText VARCHAR2(500),
+                                        extProperty CLOB,
+                                        reserved1 VARCHAR2(500),
+                                        reserved2 VARCHAR2(500),
+                                        reserved3 VARCHAR2(500),
+                                        reserved4 VARCHAR2(500),
+                                        reserved5 VARCHAR2(500),
+                                        reserved6 VARCHAR2(500),
+                                        reserved7 VARCHAR2(500),
+                                        reserved8 VARCHAR2(500),
+                                        reserved9 VARCHAR2(500),
+                                        reserved10 VARCHAR2(500),
+                                        CONSTRAINT PK_PROC_LOG PRIMARY KEY (tenantId, metricProcessLogId)
+);
+CREATE INDEX IDX_PROCLOG_SERVER ON HUB_METRIC_PROCESS_LOG(metricServerId);
+CREATE INDEX IDX_PROCLOG_TIME ON HUB_METRIC_PROCESS_LOG(collectTime);
+CREATE INDEX IDX_PROCLOG_PID ON HUB_METRIC_PROCESS_LOG(processId);
+CREATE INDEX IDX_PROCLOG_NAME ON HUB_METRIC_PROCESS_LOG(processName);
+CREATE INDEX IDX_PROCLOG_STATUS ON HUB_METRIC_PROCESS_LOG(processStatus);
+CREATE INDEX IDX_PROCLOG_ACTIVE ON HUB_METRIC_PROCESS_LOG(activeFlag);
+CREATE INDEX IDX_PROCLOG_SRV_TIME ON HUB_METRIC_PROCESS_LOG(metricServerId, collectTime);
+CREATE INDEX IDX_PROCLOG_SRV_PID ON HUB_METRIC_PROCESS_LOG(metricServerId, processId);
+CREATE INDEX IDX_PROCLOG_TNT_TIME ON HUB_METRIC_PROCESS_LOG(tenantId, collectTime);
+COMMENT ON TABLE HUB_METRIC_PROCESS_LOG IS '进程信息采集日志表';
+
+-- 8. 进程统计日志表
+CREATE TABLE HUB_METRIC_PROCSTAT_LOG (
+                                         metricProcessStatsLogId VARCHAR2(32) NOT NULL,
+                                         tenantId VARCHAR2(32) NOT NULL,
+                                         metricServerId VARCHAR2(32) NOT NULL,
+                                         runningCount NUMBER(10,0) DEFAULT 0 NOT NULL,
+                                         sleepingCount NUMBER(10,0) DEFAULT 0 NOT NULL,
+                                         stoppedCount NUMBER(10,0) DEFAULT 0 NOT NULL,
+                                         zombieCount NUMBER(10,0) DEFAULT 0 NOT NULL,
+                                         totalCount NUMBER(10,0) DEFAULT 0 NOT NULL,
+                                         collectTime DATE NOT NULL,
+                                         addTime DATE DEFAULT SYSDATE NOT NULL,
+                                         addWho VARCHAR2(32) NOT NULL,
+                                         editTime DATE DEFAULT SYSDATE NOT NULL,
+                                         editWho VARCHAR2(32) NOT NULL,
+                                         oprSeqFlag VARCHAR2(32) NOT NULL,
+                                         currentVersion NUMBER(10,0) DEFAULT 1 NOT NULL,
+                                         activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+                                         noteText VARCHAR2(500),
+                                         extProperty CLOB,
+                                         reserved1 VARCHAR2(500),
+                                         reserved2 VARCHAR2(500),
+                                         reserved3 VARCHAR2(500),
+                                         reserved4 VARCHAR2(500),
+                                         reserved5 VARCHAR2(500),
+                                         reserved6 VARCHAR2(500),
+                                         reserved7 VARCHAR2(500),
+                                         reserved8 VARCHAR2(500),
+                                         reserved9 VARCHAR2(500),
+                                         reserved10 VARCHAR2(500),
+                                         CONSTRAINT PK_PROCSTAT_LOG PRIMARY KEY (tenantId, metricProcessStatsLogId)
+);
+CREATE INDEX IDX_PROCSTAT_SERVER ON HUB_METRIC_PROCSTAT_LOG(metricServerId);
+CREATE INDEX IDX_PROCSTAT_TIME ON HUB_METRIC_PROCSTAT_LOG(collectTime);
+CREATE INDEX IDX_PROCSTAT_ACTIVE ON HUB_METRIC_PROCSTAT_LOG(activeFlag);
+CREATE INDEX IDX_PROCSTAT_SRV_TIME ON HUB_METRIC_PROCSTAT_LOG(metricServerId, collectTime);
+CREATE INDEX IDX_PROCSTAT_TNT_TIME ON HUB_METRIC_PROCSTAT_LOG(tenantId, collectTime);
+COMMENT ON TABLE HUB_METRIC_PROCSTAT_LOG IS '进程统计采集日志表';
+
+-- 9. 温度信息日志表
+CREATE TABLE HUB_METRIC_TEMP_LOG (
+                                     metricTemperatureLogId VARCHAR2(32) NOT NULL,
+                                     tenantId VARCHAR2(32) NOT NULL,
+                                     metricServerId VARCHAR2(32) NOT NULL,
+                                     sensorName VARCHAR2(100) NOT NULL,
+                                     temperatureValue NUMBER(6,2) DEFAULT 0.00 NOT NULL,
+                                     highThreshold NUMBER(6,2),
+                                     criticalThreshold NUMBER(6,2),
+                                     collectTime DATE NOT NULL,
+                                     addTime DATE DEFAULT SYSDATE NOT NULL,
+                                     addWho VARCHAR2(32) NOT NULL,
+                                     editTime DATE DEFAULT SYSDATE NOT NULL,
+                                     editWho VARCHAR2(32) NOT NULL,
+                                     oprSeqFlag VARCHAR2(32) NOT NULL,
+                                     currentVersion NUMBER(10,0) DEFAULT 1 NOT NULL,
+                                     activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+                                     noteText VARCHAR2(500),
+                                     extProperty CLOB,
+                                     reserved1 VARCHAR2(500),
+                                     reserved2 VARCHAR2(500),
+                                     reserved3 VARCHAR2(500),
+                                     reserved4 VARCHAR2(500),
+                                     reserved5 VARCHAR2(500),
+                                     reserved6 VARCHAR2(500),
+                                     reserved7 VARCHAR2(500),
+                                     reserved8 VARCHAR2(500),
+                                     reserved9 VARCHAR2(500),
+                                     reserved10 VARCHAR2(500),
+                                     CONSTRAINT PK_TEMP_LOG PRIMARY KEY (tenantId, metricTemperatureLogId)
+);
+CREATE INDEX IDX_TEMPLOG_SERVER ON HUB_METRIC_TEMP_LOG(metricServerId);
+CREATE INDEX IDX_TEMPLOG_TIME ON HUB_METRIC_TEMP_LOG(collectTime);
+CREATE INDEX IDX_TEMPLOG_SENSOR ON HUB_METRIC_TEMP_LOG(sensorName);
+CREATE INDEX IDX_TEMPLOG_ACTIVE ON HUB_METRIC_TEMP_LOG(activeFlag);
+CREATE INDEX IDX_TEMPLOG_SRV_TIME ON HUB_METRIC_TEMP_LOG(metricServerId, collectTime);
+CREATE INDEX IDX_TEMPLOG_SRV_SEN ON HUB_METRIC_TEMP_LOG(metricServerId, sensorName);
+CREATE INDEX IDX_TEMPLOG_TNT_TIME ON HUB_METRIC_TEMP_LOG(tenantId, collectTime);
+COMMENT ON TABLE HUB_METRIC_TEMP_LOG IS '温度信息采集日志表'; 
+
+
+
+
+
+
+

@@ -68,7 +68,8 @@ func TestContextMustGet(t *testing.T) {
 	ctx.Set("existing_key", "test_value")
 
 	// 测试MustGet存在的键
-	value := ctx.MustGet("existing_key")
+	value, err := ctx.MustGet("existing_key")
+	assert.NoError(t, err, "MustGet不应该返回错误")
 	assert.Equal(t, "test_value", value, "MustGet应该返回正确的值")
 
 	// 测试MustGet不存在的键（应该panic）

@@ -45,6 +45,8 @@ type ServiceConfig struct {
 	CircuitBreaker *circuitbreaker.CircuitBreakerConfig `yaml:"circuit_breaker,omitempty" json:"circuit_breaker,omitempty" mapstructure:"circuit_breaker,omitempty"` // 该服务的熔断器配置
 	// 负载均衡配置
 	LoadBalancer *LoadBalancerConfig `yaml:"load_balancer,omitempty" json:"load_balancer,omitempty" mapstructure:"load_balancer,omitempty"` // 该服务的负载均衡配置
+	// 服务元数据
+	ServiceMetadata map[string]string `yaml:"service_metadata,omitempty" json:"service_metadata,omitempty" mapstructure:"service_metadata,omitempty"` // 服务级别的元数据配置
 }
 
 // LoadBalancer 负载均衡器接口

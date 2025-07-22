@@ -4,39 +4,29 @@ package constants
 const (
 	// 连接相关
 	ContextKeyConnectionStartTime = "connection_start_time" // 连接建立时间
-	ContextKeyConnectionID        = "connection_id"         // 连接ID
-
-	// 请求处理相关
-	ContextKeyRequestProcessingStart = "request_processing_start" // 请求开始处理时间
-	ContextKeyTotalResponseTime      = "total_response_time"      // 总响应时间
-	ContextKeyProcessingTime         = "processing_time"          // 处理时间
-	ContextKeyResponseEndTime        = "response_end_time"        // 响应结束时间
-
-	// 路由相关
-	ContextKeyPathParams  = "path_params"  // 路径参数
-	ContextKeyRouteID     = "route_id"     // 路由ID
-	ContextKeyServiceID   = "service_id"   // 服务ID
-	ContextKeyTargetURL   = "target_url"   // 目标URL
-	ContextKeyMatchedPath = "matched_path" // 匹配的路径
-
-	// 认证相关
-	ContextKeyUserID      = "user_id"     // 用户ID
-	ContextKeyUserInfo    = "user_info"   // 用户信息
-	ContextKeyAuthToken   = "auth_token"  // 认证令牌
 	ContextKeyPermissions = "permissions" // 权限信息
-
-	// 限流相关
-	ContextKeyRateLimitInfo = "rate_limit_info" // 限流信息
-	ContextKeyClientIP      = "client_ip"       // 客户端IP
-
-	// 熔断相关
-	ContextKeyCircuitBreakerState = "circuit_breaker_state" // 熔断器状态
-
-	// 监控相关
-	ContextKeyRequestID = "request_id" // 请求ID
 	ContextKeyTraceID   = "trace_id"   // 链路追踪ID
-	ContextKeySpanID    = "span_id"    // Span ID
-	ContextKeyMetrics   = "metrics"    // 指标信息
+	ContextKeyTenantID  = "tenant_id"  // 租户ID
+	ContextKeyGatewayInstanceID = "gateway_instance_id" // 网关实例ID
+	ContextKeyGatewayInstanceName = "gateway_instance_name" // 网关实例名称
+	ContextKeyGatewayNodeIP = "gateway_node_ip" // 网关节点IP
+	ContextKeyRouteConfigID = "route_config_id" // 路由配置ID
+	ContextKeyRouteConfigName = "route_config_name" // 路由配置名称	
+	ContextKeyServiceDefinitionID = "service_definition_id" // 服务定义ID
+	ContextKeyServiceDefinitionName = "service_definition_name" // 服务定义名称
+	ContextKeyLogConfigID = "log_config_id" // 日志配置ID
+	ContextKeyLogConfigName = "log_config_name" // 日志配置名称
+	ContextKeyProxyType = "proxy_type" // 代理类型（http,websocket,tcp,udp）
+	ContextKeyForwardParams = "forward_params" // 转发参数
+	ContextKeyForwardHeaders = "forward_headers" // 转发请求头
+	ContextKeyForwardBody = "forward_body" // 转发请求体
+	ContextKeyLoadBalancerDecision = "load_balancer_decision" // 负载均衡决策
+	
+	// 原始请求信息保存相关常量
+	ContextKeyOriginalMethod           = "original_method"            // 原始HTTP方法
+	ContextKeyOriginalURLPath          = "original_url_path"          // 原始URL路径
+	ContextKeyOriginalQueryString      = "original_query_string"      // 原始查询字符串
+	ContextKeyOriginalHeaders          = "original_headers"           // 原始请求头
 )
 
 // HTTP Headers - 常用的HTTP头部常量
@@ -137,3 +127,33 @@ const (
 	MetricCircuitBreakerState = "gateway_circuit_breaker_state"
 	MetricErrorsTotal         = "gateway_errors_total"
 )
+
+// Gateway Status Codes - 网关自身产生的状态码
+const (
+	// 网关状态码常量
+	GatewayStatusCode = "gateway_status_code"
+	BackendStatusCode = "backend_status_code"
+	
+	// 网关正常处理状态码（通常与后端保持一致）
+	GatewayStatusOK                 = 200 // 网关正常处理
+	GatewayStatusCreated            = 201 // 网关正常处理创建请求
+	GatewayStatusAccepted           = 202 // 网关正常处理异步请求
+	GatewayStatusNoContent          = 204 // 网关正常处理无内容响应
+	
+	// 网关层面的客户端错误
+	GatewayStatusBadRequest         = 400 // 网关检测到请求格式错误
+	GatewayStatusUnauthorized       = 401 // 网关认证失败
+	GatewayStatusForbidden          = 403 // 网关授权失败
+	GatewayStatusNotFound           = 404 // 网关路由未找到
+	GatewayStatusMethodNotAllowed   = 405 // 网关检测到方法不允许
+	GatewayStatusRequestTimeout     = 408 // 网关请求超时
+	GatewayStatusTooManyRequests    = 429 // 网关限流
+	
+	// 网关层面的服务端错误
+	GatewayStatusInternalError      = 500 // 网关内部错误
+	GatewayStatusBadGateway         = 502 // 网关无法连接后端
+	GatewayStatusServiceUnavailable = 503 // 网关检测到服务不可用
+	GatewayStatusGatewayTimeout     = 504 // 网关转发超时
+	GatewayStatusCircuitBreakerOpen = 521 // 网关熔断器打开（自定义状态码）
+)
+

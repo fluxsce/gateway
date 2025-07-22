@@ -104,6 +104,9 @@ func initRouteConfigRoutes(router *gin.RouterGroup, db database.Database) {
 		configGroup.POST("/addRouteConfig", routeConfigController.AddRouteConfig)
 		configGroup.POST("/editRouteConfig", routeConfigController.EditRouteConfig)
 		configGroup.POST("/deleteRouteConfig", routeConfigController.DeleteRouteConfig)
+
+		// 路由统计信息
+		configGroup.POST("/routeStatistics", routeConfigController.GetRouteStatistics)
 	}
 }
 

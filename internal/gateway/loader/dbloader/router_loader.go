@@ -124,11 +124,12 @@ func (loader *RouterConfigLoader) LoadRoutes(ctx context.Context, instanceId str
 	for _, record := range records {
 		// 构建路由配置
 		routeConfig := router.RouteConfig{
-			ID:       record.RouteConfigId,
-			Name:     record.RouteName,
-			Path:     record.RoutePath,
-			Priority: record.RoutePriority,
-			Enabled:  record.ActiveFlag == "Y",
+			ID:        record.RouteConfigId,
+			Name:      record.RouteName,
+			Path:      record.RoutePath,
+			MatchType: record.MatchType,
+			Priority:  record.RoutePriority,
+			Enabled:   record.ActiveFlag == "Y",
 		}
 
 		// 设置服务ID
@@ -146,7 +147,6 @@ func (loader *RouterConfigLoader) LoadRoutes(ctx context.Context, instanceId str
 
 		// 构建元数据
 		metadata := make(map[string]interface{})
-		metadata["match_type"] = record.MatchType
 		metadata["strip_prefix"] = record.StripPathPrefix == "Y"
 		metadata["enable_websocket"] = record.EnableWebsocket == "Y"
 		metadata["timeout_ms"] = record.TimeoutMs

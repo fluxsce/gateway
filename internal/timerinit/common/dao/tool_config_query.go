@@ -396,10 +396,10 @@ func (dao *ToolConfigDAO) QueryConfigs(ctx context.Context, query *ToolConfigQue
 // GetConfigById 根据ID获取工具配置
 func (dao *ToolConfigDAO) GetConfigById(ctx context.Context, tenantId, toolConfigId string) (*tooltypes.ToolConfig, error) {
 	tableName := (&tooltypes.ToolConfig{}).TableName()
-	sql := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND toolConfigId = ?", tableName)
+	sql := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND toolConfigId = ? AND activeFlag = ?", tableName)
 	
 	var config tooltypes.ToolConfig
-	err := dao.db.QueryOne(ctx, &config, sql, []interface{}{tenantId, toolConfigId}, true)
+	err := dao.db.QueryOne(ctx, &config, sql, []interface{}{tenantId, toolConfigId, tooltypes.ActiveFlagYes}, true)
 	if err != nil {
 		if err == database.ErrRecordNotFound {
 			return nil, nil
@@ -412,6 +412,9 @@ func (dao *ToolConfigDAO) GetConfigById(ctx context.Context, tenantId, toolConfi
 
 // CreateConfig 创建工具配置
 func (dao *ToolConfigDAO) CreateConfig(ctx context.Context, config *tooltypes.ToolConfig) error {
+	// 设置活动标记为Y
+	config.ActiveFlag = tooltypes.ActiveFlagYes
+	
 	tableName := (&tooltypes.ToolConfig{}).TableName()
 	_, err := dao.db.Insert(ctx, tableName, config, true)
 	if err != nil {

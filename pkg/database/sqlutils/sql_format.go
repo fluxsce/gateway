@@ -162,7 +162,8 @@ func BuildInsertQuery(table string, data interface{}) (string, []interface{}, er
 //   // 返回: "name = ?, age = ?", ["John", 31], nil
 //   // 完整UPDATE语句: UPDATE users SET name = ?, age = ? WHERE id = ?
 func BuildUpdateQuery(table string, data interface{}) (string, []interface{}, error) {
-	columns, values, err := ExtractColumnsAndValues(data)
+	// UPDATE操作使用跳过零值的版本，只更新有效字段
+	columns, values, err := ExtractColumnsAndValuesSkipZero(data)
 	if err != nil {
 		return "", nil, err
 	}
@@ -177,13 +178,13 @@ func BuildUpdateQuery(table string, data interface{}) (string, []interface{}, er
 
 // ExtractColumnsAndValues 从结构体中提取列名和值
 // 通过反射解析结构体，提取可用于数据库操作的列名和对应值
-// 支持db tag映射，跳过零值字段和忽略字段
+// 支持db tag映射和忽略字段，默认包含所有字段（包括零值字段）
 //
 // 解析规则：
 // - 支持db tag自定义字段名：`db:"custom_name"`
 // - 忽略字段：`db:"-"`
 // - 未指定tag时使用字段名小写作为列名
-// - 自动跳过零值字段，避免插入/更新空数据
+// - 包含零值字段，确保数据库操作的字段数量一致
 // - 跳过未导出字段（小写开头的字段）
 //
 // 参数:
@@ -232,7 +233,76 @@ func ExtractColumnsAndValues(data interface{}) ([]string, []interface{}, error) 
 			continue
 		}
 
-		// 跳过零值字段（可选）
+		// 注意：对于数据库插入操作，不应该跳过零值字段
+		// 零值可能是有效的业务数据，且数据库表结构要求字段数量一致
+		// 只有在明确标记为忽略的字段（db:"-"）才应该跳过
+		// if IsZeroValue(field) {
+		// 	continue
+		// }
+
+		columns = append(columns, dbTag)
+		values = append(values, field.Interface())
+	}
+
+	return columns, values, nil
+}
+
+// ExtractColumnsAndValuesSkipZero 从结构体中提取列名和值，跳过零值字段
+// 这是专门为UPDATE操作设计的函数，只提取非零值字段
+// 适用于只想更新有效数据的场景
+//
+// 解析规则：
+// - 支持db tag自定义字段名：`db:"custom_name"`
+// - 忽略字段：`db:"-"`
+// - 未指定tag时使用字段名小写作为列名
+// - 自动跳过零值字段，只更新有效数据
+// - 跳过未导出字段（小写开头的字段）
+//
+// 参数:
+//   data: 要解析的结构体或结构体指针
+// 返回:
+//   []string: 数据库列名切片（不包含零值字段）
+//   []interface{}: 对应的值切片（不包含零值字段）
+//   error: 解析失败时返回错误信息
+//
+// 使用场景：
+//   - UPDATE操作，只更新非零值字段
+//   - 增量更新，避免覆盖有效数据
+func ExtractColumnsAndValuesSkipZero(data interface{}) ([]string, []interface{}, error) {
+	v := reflect.ValueOf(data)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	if v.Kind() != reflect.Struct {
+		return nil, nil, fmt.Errorf("data must be a struct or pointer to struct")
+	}
+
+	t := v.Type()
+	var columns []string
+	var values []interface{}
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		structField := t.Field(i)
+
+		// 跳过未导出的字段
+		if !field.CanInterface() {
+			continue
+		}
+
+		// 获取数据库字段名
+		dbTag := structField.Tag.Get("db")
+		if dbTag == "" {
+			dbTag = strings.ToLower(structField.Name)
+		}
+
+		// 跳过忽略的字段
+		if dbTag == "-" {
+			continue
+		}
+
+		// 跳过零值字段（UPDATE场景）
 		if IsZeroValue(field) {
 			continue
 		}
@@ -590,7 +660,8 @@ func BuildInsertQueryForOracle(table string, data interface{}) (string, []interf
 //   []interface{}: 参数值数组
 //   error: 构建失败时返回错误信息
 func BuildUpdateQueryForOracle(table string, data interface{}) (string, []interface{}, error) {
-	columns, values, err := ExtractColumnsAndValues(data)
+	// UPDATE操作使用跳过零值的版本，只更新有效字段
+	columns, values, err := ExtractColumnsAndValuesSkipZero(data)
 	if err != nil {
 		return "", nil, err
 	}

@@ -293,8 +293,17 @@ func configureMethodFilter(methodFilter *MethodFilter, config map[string]interfa
 		return nil
 	}
 
+	// 首先检查是否有嵌套的 methodConfig 配置
+	var methodConfig map[string]interface{}
+	if nestedConfig, ok := config["methodConfig"].(map[string]interface{}); ok {
+		methodConfig = nestedConfig
+	} else {
+		// 如果没有嵌套配置，直接使用顶级配置
+		methodConfig = config
+	}
+
 	// 设置过滤模式
-	if mode, ok := config["mode"].(string); ok {
+	if mode, ok := methodConfig["mode"].(string); ok {
 		switch strings.ToLower(mode) {
 		case "allow":
 			methodFilter.Mode = AllowMode
@@ -305,71 +314,133 @@ func configureMethodFilter(methodFilter *MethodFilter, config map[string]interfa
 		}
 	}
 
-	// 设置允许的方法
-	if methods, ok := config["allowed_methods"].([]interface{}); ok {
-		methodFilter.AllowedMethods = make([]string, len(methods))
+	// 设置允许的方法 - 支持 camelCase (allowedMethods) 和下划线 (allowed_methods)
+	var allowedMethods []string
+	if methods, ok := methodConfig["allowedMethods"].([]interface{}); ok {
+		allowedMethods = make([]string, len(methods))
 		for i, method := range methods {
 			if methodStr, ok := method.(string); ok {
 				if methodFilter.CaseSensitive {
-					methodFilter.AllowedMethods[i] = methodStr
+					allowedMethods[i] = methodStr
 				} else {
-					methodFilter.AllowedMethods[i] = strings.ToUpper(methodStr)
+					allowedMethods[i] = strings.ToUpper(methodStr)
 				}
 			}
 		}
-	} else if methodsStr, ok := config["allowed_methods"].([]string); ok {
-		methodFilter.AllowedMethods = make([]string, len(methodsStr))
+	} else if methodsStr, ok := methodConfig["allowedMethods"].([]string); ok {
+		allowedMethods = make([]string, len(methodsStr))
 		for i, method := range methodsStr {
 			if methodFilter.CaseSensitive {
-				methodFilter.AllowedMethods[i] = method
+				allowedMethods[i] = method
 			} else {
-				methodFilter.AllowedMethods[i] = strings.ToUpper(method)
+				allowedMethods[i] = strings.ToUpper(method)
 			}
 		}
-	}
-
-	// 设置拒绝的方法
-	if methods, ok := config["denied_methods"].([]interface{}); ok {
-		methodFilter.DeniedMethods = make([]string, len(methods))
+	} else if methods, ok := methodConfig["allowed_methods"].([]interface{}); ok {
+		allowedMethods = make([]string, len(methods))
 		for i, method := range methods {
 			if methodStr, ok := method.(string); ok {
 				if methodFilter.CaseSensitive {
-					methodFilter.DeniedMethods[i] = methodStr
+					allowedMethods[i] = methodStr
 				} else {
-					methodFilter.DeniedMethods[i] = strings.ToUpper(methodStr)
+					allowedMethods[i] = strings.ToUpper(methodStr)
 				}
 			}
 		}
-	} else if methodsStr, ok := config["denied_methods"].([]string); ok {
-		methodFilter.DeniedMethods = make([]string, len(methodsStr))
+	} else if methodsStr, ok := methodConfig["allowed_methods"].([]string); ok {
+		allowedMethods = make([]string, len(methodsStr))
 		for i, method := range methodsStr {
 			if methodFilter.CaseSensitive {
-				methodFilter.DeniedMethods[i] = method
+				allowedMethods[i] = method
 			} else {
-				methodFilter.DeniedMethods[i] = strings.ToUpper(method)
+				allowedMethods[i] = strings.ToUpper(method)
 			}
 		}
 	}
+	if len(allowedMethods) > 0 {
+		methodFilter.AllowedMethods = allowedMethods
+	}
 
-	// 设置拒绝状态码
-	if status, ok := config["reject_status"].(int); ok {
+	// 设置拒绝的方法 - 支持 camelCase (deniedMethods) 和下划线 (denied_methods)
+	var deniedMethods []string
+	if methods, ok := methodConfig["deniedMethods"].([]interface{}); ok {
+		deniedMethods = make([]string, len(methods))
+		for i, method := range methods {
+			if methodStr, ok := method.(string); ok {
+				if methodFilter.CaseSensitive {
+					deniedMethods[i] = methodStr
+				} else {
+					deniedMethods[i] = strings.ToUpper(methodStr)
+				}
+			}
+		}
+	} else if methodsStr, ok := methodConfig["deniedMethods"].([]string); ok {
+		deniedMethods = make([]string, len(methodsStr))
+		for i, method := range methodsStr {
+			if methodFilter.CaseSensitive {
+				deniedMethods[i] = method
+			} else {
+				deniedMethods[i] = strings.ToUpper(method)
+			}
+		}
+	} else if methods, ok := methodConfig["denied_methods"].([]interface{}); ok {
+		deniedMethods = make([]string, len(methods))
+		for i, method := range methods {
+			if methodStr, ok := method.(string); ok {
+				if methodFilter.CaseSensitive {
+					deniedMethods[i] = methodStr
+				} else {
+					deniedMethods[i] = strings.ToUpper(methodStr)
+				}
+			}
+		}
+	} else if methodsStr, ok := methodConfig["denied_methods"].([]string); ok {
+		deniedMethods = make([]string, len(methodsStr))
+		for i, method := range methodsStr {
+			if methodFilter.CaseSensitive {
+				deniedMethods[i] = method
+			} else {
+				deniedMethods[i] = strings.ToUpper(method)
+			}
+		}
+	}
+	if len(deniedMethods) > 0 {
+		methodFilter.DeniedMethods = deniedMethods
+	}
+
+	// 设置拒绝状态码 - 支持 camelCase (rejectStatusCode) 和下划线 (reject_status)
+	if status, ok := methodConfig["rejectStatusCode"].(int); ok {
 		methodFilter.RejectStatusCode = status
-	} else if statusFloat, ok := config["reject_status"].(float64); ok {
+	} else if statusFloat, ok := methodConfig["rejectStatusCode"].(float64); ok {
+		methodFilter.RejectStatusCode = int(statusFloat)
+	} else if status, ok := methodConfig["reject_status"].(int); ok {
+		methodFilter.RejectStatusCode = status
+	} else if statusFloat, ok := methodConfig["reject_status"].(float64); ok {
 		methodFilter.RejectStatusCode = int(statusFloat)
 	}
 
-	// 设置拒绝消息
-	if message, ok := config["reject_message"].(string); ok {
+	// 设置拒绝消息 - 支持 camelCase (rejectMessage) 和下划线 (reject_message)
+	if message, ok := methodConfig["rejectMessage"].(string); ok {
+		methodFilter.RejectMessage = message
+	} else if message, ok := methodConfig["reject_message"].(string); ok {
 		methodFilter.RejectMessage = message
 	}
 
-	// 设置大小写敏感性
-	if caseSensitive, ok := config["case_sensitive"].(bool); ok {
+	// 设置大小写敏感性 - 支持 camelCase (caseSensitive) 和下划线 (case_sensitive)
+	if caseSensitive, ok := methodConfig["caseSensitive"].(bool); ok {
+		methodFilter.SetCaseSensitive(caseSensitive)
+	} else if caseSensitive, ok := methodConfig["case_sensitive"].(bool); ok {
 		methodFilter.SetCaseSensitive(caseSensitive)
 	}
 
-	// 设置自定义响应头
-	if headers, ok := config["custom_headers"].(map[string]interface{}); ok {
+	// 设置自定义响应头 - 支持 camelCase (customHeaders) 和下划线 (custom_headers)
+	if headers, ok := methodConfig["customHeaders"].(map[string]interface{}); ok {
+		for key, value := range headers {
+			if valueStr, ok := value.(string); ok {
+				methodFilter.AddCustomHeader(key, valueStr)
+			}
+		}
+	} else if headers, ok := methodConfig["custom_headers"].(map[string]interface{}); ok {
 		for key, value := range headers {
 			if valueStr, ok := value.(string); ok {
 				methodFilter.AddCustomHeader(key, valueStr)

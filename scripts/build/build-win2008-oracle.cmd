@@ -150,7 +150,7 @@ echo.
 )
 
 :: Build configuration
-set BUILD_TAGS=netgo,osusergo,ora
+set BUILD_TAGS=netgo,osusergo,ora,windows
 set OUTPUT_SUFFIX=oracle
 set VERSION_SUFFIX=win2008-oracle
 

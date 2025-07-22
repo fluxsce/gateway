@@ -383,10 +383,8 @@ func (c *ProxyConfigController) GetProxyConfigsByInstance(ctx *gin.Context) {
 		proxyConfigList = append(proxyConfigList, proxyConfigToMap(proxyConfig))
 	}
 
-	response.SuccessJSON(ctx, gin.H{
-		"proxyConfigs": proxyConfigList,
-		"total":        len(proxyConfigList),
-	}, constants.SD00002)
+	// 使用统一的分页响应
+	response.SuccessJSON(ctx, proxyConfigList,constants.SD00002)
 }
 
 // 请求结构体定义

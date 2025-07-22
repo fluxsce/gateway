@@ -486,40 +486,105 @@ func configureCookieFilter(cookieFilter *CookieFilter, config map[string]interfa
 		return nil
 	}
 
+	// 首先检查是否有嵌套的 cookieConfig 配置
+	var cookieConfig map[string]interface{}
+	if nestedConfig, ok := config["cookieConfig"].(map[string]interface{}); ok {
+		cookieConfig = nestedConfig
+	} else {
+		// 如果没有嵌套配置，直接使用顶级配置
+		cookieConfig = config
+	}
+
+	// 优先支持前端驼峰命名格式
+	if operation, ok := cookieConfig["operation"].(string); ok {
+		// 驼峰命名配置处理
+		cookieName, _ := cookieConfig["cookieName"].(string)
+		cookieValue, _ := cookieConfig["cookieValue"].(string)
+		
+		// 参数验证
+		if operation == "" {
+			return fmt.Errorf("operation 不能为空")
+		}
+		if cookieName == "" {
+			return fmt.Errorf("cookieName 不能为空")
+		}
+		
+		// 设置操作类型
+		switch strings.ToLower(operation) {
+		case "add", "remove", "modify", "validate", "filter":
+			cookieFilter.Operation = CookieOperation(strings.ToLower(operation))
+		default:
+			return fmt.Errorf("无效的operation: %s，支持的类型: add, remove, modify, validate, filter", operation)
+		}
+		
+		// 设置Cookie名称
+		cookieFilter.CookieName = cookieName
+		
+		// 设置Cookie值（可选）
+		if cookieValue != "" {
+			cookieFilter.CookieValue = cookieValue
+		}
+		
+		// 设置是否应用到响应
+		if applyToResponse, ok := cookieConfig["applyToResponse"].(bool); ok {
+			cookieFilter.ApplyToResponse = applyToResponse
+		}
+		
+		// 设置Cookie属性
+		if attrs, ok := cookieConfig["cookieAttributes"].(map[string]interface{}); ok {
+			if err := configureCookieAttributes(cookieFilter.CookieAttributes, attrs); err != nil {
+				return fmt.Errorf("配置Cookie属性失败: %w", err)
+			}
+		}
+		
+		// 设置验证规则
+		if rules, ok := cookieConfig["validationRules"].(map[string]interface{}); ok {
+			cookieFilter.ValidationRules = rules
+		}
+		
+		// 设置过滤条件
+		if conditions, ok := cookieConfig["filterConditions"].(map[string]interface{}); ok {
+			cookieFilter.FilterConditions = conditions
+		}
+		
+		return nil
+	}
+
+	// 兼容旧的下划线命名格式
 	// 设置操作类型
-	if operation, ok := config["operation"].(string); ok {
+	if operation, ok := cookieConfig["operation"].(string); ok {
 		cookieFilter.Operation = CookieOperation(operation)
 	}
 
 	// 设置Cookie名称
-	if name, ok := config["cookie_name"].(string); ok {
+	if name, ok := cookieConfig["cookie_name"].(string); ok {
 		cookieFilter.CookieName = name
 	}
 
 	// 设置Cookie值
-	if value, ok := config["cookie_value"].(string); ok {
+	if value, ok := cookieConfig["cookie_value"].(string); ok {
 		cookieFilter.CookieValue = value
 	}
 
 	// 设置是否应用到响应
-	if applyToResponse, ok := config["apply_to_response"].(bool); ok {
+	if applyToResponse, ok := cookieConfig["apply_to_response"].(bool); ok {
 		cookieFilter.ApplyToResponse = applyToResponse
 	}
 
 	// 设置Cookie属性
-	if attrs, ok := config["cookie_attributes"].(map[string]interface{}); ok {
+	if attrs, ok := cookieConfig["cookie_attributes"].(map[string]interface{}); ok {
 		if err := configureCookieAttributes(cookieFilter.CookieAttributes, attrs); err != nil {
 			return fmt.Errorf("配置Cookie属性失败: %w", err)
 		}
 	}
 
 	// 设置验证规则
-	if rules, ok := config["validation_rules"].(map[string]interface{}); ok {
+	if rules, ok := cookieConfig["validation_rules"].(map[string]interface{}); ok {
 		cookieFilter.ValidationRules = rules
 	}
 
 	// 设置过滤条件
-	if conditions, ok := config["filter_conditions"].(map[string]interface{}); ok {
+	if conditions, ok := cookieConfig["filter_conditions"].(map[string]interface{}); ok {
 		cookieFilter.FilterConditions = conditions
 	}
 
@@ -532,42 +597,61 @@ func configureCookieAttributes(attrs *CookieAttributes, config map[string]interf
 		return nil
 	}
 
-	// 设置域名
+	// 设置域名 - 支持驼峰命名
 	if domain, ok := config["domain"].(string); ok {
 		attrs.Domain = domain
 	}
 
-	// 设置路径
+	// 设置路径 - 支持驼峰命名
 	if path, ok := config["path"].(string); ok {
 		attrs.Path = path
 	}
 
-	// 设置最大年龄
-	if maxAge, ok := config["max_age"].(int); ok {
+	// 设置最大年龄 - 支持驼峰命名 (maxAge) 和下划线 (max_age)
+	if maxAge, ok := config["maxAge"].(int); ok {
+		attrs.MaxAge = maxAge
+	} else if maxAgeFloat, ok := config["maxAge"].(float64); ok {
+		attrs.MaxAge = int(maxAgeFloat)
+	} else if maxAge, ok := config["max_age"].(int); ok {
 		attrs.MaxAge = maxAge
 	} else if maxAgeFloat, ok := config["max_age"].(float64); ok {
 		attrs.MaxAge = int(maxAgeFloat)
 	}
 
-	// 设置过期时间
+	// 设置过期时间 - 支持驼峰命名
 	if expires, ok := config["expires"].(string); ok {
 		if expireTime, err := time.Parse(time.RFC3339, expires); err == nil {
 			attrs.Expires = &expireTime
 		}
 	}
 
-	// 设置Secure属性
+	// 设置Secure属性 - 支持驼峰命名
 	if secure, ok := config["secure"].(bool); ok {
 		attrs.Secure = secure
 	}
 
-	// 设置HttpOnly属性
-	if httpOnly, ok := config["http_only"].(bool); ok {
+	// 设置HttpOnly属性 - 支持驼峰命名 (httpOnly) 和下划线 (http_only)
+	if httpOnly, ok := config["httpOnly"].(bool); ok {
+		attrs.HttpOnly = httpOnly
+	} else if httpOnly, ok := config["http_only"].(bool); ok {
 		attrs.HttpOnly = httpOnly
 	}
 
-	// 设置SameSite属性
-	if sameSite, ok := config["same_site"].(string); ok {
+	// 设置SameSite属性 - 支持驼峰命名 (sameSite) 和下划线 (same_site)
+	if sameSite, ok := config["sameSite"].(string); ok {
+		switch strings.ToLower(sameSite) {
+		case "strict":
+			attrs.SameSite = http.SameSiteStrictMode
+		case "lax":
+			attrs.SameSite = http.SameSiteLaxMode
+		case "none":
+			attrs.SameSite = http.SameSiteNoneMode
+		default:
+			attrs.SameSite = http.SameSiteDefaultMode
+		}
+	} else if sameSiteInt, ok := config["sameSite"].(int); ok {
+		attrs.SameSite = http.SameSite(sameSiteInt)
+	} else if sameSite, ok := config["same_site"].(string); ok {
 		switch strings.ToLower(sameSite) {
 		case "strict":
 			attrs.SameSite = http.SameSiteStrictMode
@@ -582,7 +666,7 @@ func configureCookieAttributes(attrs *CookieAttributes, config map[string]interf
 		attrs.SameSite = http.SameSite(sameSiteInt)
 	}
 
-	// 设置自定义属性
+	// 设置自定义属性 - 支持驼峰命名
 	if custom, ok := config["custom"].(map[string]interface{}); ok {
 		for key, value := range custom {
 			if valueStr, ok := value.(string); ok {

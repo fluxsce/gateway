@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math/rand"
 	"reflect"
 	"strings"
 	"sync"
@@ -26,18 +27,47 @@ func init() {
 // MySQL MySQL数据库实现
 // 核心特性:
 // 1. 统一的数据库接口实现 - 符合database.Database接口规范
-// 2. 灵活的事务管理 - 支持不同隔离级别和可定制的事务选项
+// 2. 多线程安全事务管理 - 支持多个goroutine并发开始和管理独立的事务
 // 3. 自动连接池管理 - 配置最大连接数、空闲连接和连接生命周期
 // 4. 智能日志记录 - 支持慢查询检测和SQL执行日志
 // 5. 结构体映射 - 自动将Go结构体与数据库表映射
-// 6. 带选项的操作 - 每个数据库操作都有带选项的版本，支持自定义执行行为
-// 7. 活跃事务追踪 - 通过内部映射跟踪所有活跃事务
+// 6. 上下文绑定事务 - 事务信息存储在context中，避免全局状态冲突
+// 7. Go底层优化 - 普通操作依赖Go database/sql的自动优化
+// 8. 智能预编译 - 仅在必要时（如批量操作）使用手动预编译
 type MySQL struct {
 	db       *sql.DB
 	config   *database.DbConfig
 	logger   *dblogger.DBLogger
 	mu       sync.RWMutex
-	currentTx *sql.Tx // 当前活跃的事务
+	// 移除全局单一事务字段，改为上下文绑定
+	// currentTx *sql.Tx // 已删除 - 这是多线程问题的根源
+}
+
+// 事务上下文键，使用字符串常量更清晰
+const txContextKey = "gohub.mysql.transaction"
+
+// TxContext 事务上下文，包含事务和相关元数据
+type TxContext struct {
+	tx       *sql.Tx
+	id       string    // 事务ID，用于日志跟踪
+	created  time.Time // 事务创建时间
+	options  *database.TxOptions // 事务选项
+}
+
+// setTxToContext 将事务存储到上下文中
+func setTxToContext(ctx context.Context, txCtx *TxContext) context.Context {
+	return context.WithValue(ctx, txContextKey, txCtx)
+}
+
+// getTxFromContext 从上下文中获取事务
+func getTxFromContext(ctx context.Context) (*TxContext, bool) {
+	txCtx, ok := ctx.Value(txContextKey).(*TxContext)
+	return txCtx, ok
+}
+
+// generateTxID 生成事务ID
+func generateTxID() string {
+	return fmt.Sprintf("tx_%d_%d", time.Now().UnixNano(), rand.Int63())
 }
 
 // Connect 连接到MySQL数据库
@@ -105,14 +135,11 @@ func (m *MySQL) Connect(config *database.DbConfig) error {
 
 // Close 关闭数据库连接
 // 关闭MySQL数据库连接，释放相关资源
-// 如果存在活跃事务，会先回滚事务再关闭连接
+// 注意：使用上下文绑定事务的情况下，Close不会自动回滚事务
+// 用户需要在关闭连接前手动处理事务
 // 返回:
 //   error: 关闭连接失败时返回错误信息
 func (m *MySQL) Close() error {
-	if m.currentTx != nil {
-		m.currentTx.Rollback()
-		m.currentTx = nil
-	}
 	if m.db != nil {
 		m.logger.LogDisconnect(context.Background(), database.DriverMySQL)
 		return m.db.Close()
@@ -193,18 +220,17 @@ func (m *MySQL) Ping(ctx context.Context) error {
 
 // BeginTx 开始事务
 // 启动一个新的MySQL事务，支持指定隔离级别和只读属性
-// 如果已有活跃事务，会返回错误
+// 多线程安全：每个上下文可以独立管理事务
 // 参数:
 //   ctx: 上下文，用于控制请求超时和取消
 //   options: 事务选项，包含隔离级别和只读设置
 // 返回:
+//   context.Context: 包含事务信息的新上下文
 //   error: 开始事务失败时返回错误信息
-func (m *MySQL) BeginTx(ctx context.Context, options *database.TxOptions) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.currentTx != nil {
-		return fmt.Errorf("transaction already active")
+func (m *MySQL) BeginTx(ctx context.Context, options *database.TxOptions) (context.Context, error) {
+	// 检查是否已经有事务
+	if _, ok := getTxFromContext(ctx); ok {
+		return ctx, fmt.Errorf("transaction already active in context")
 	}
 
 	var sqlTxOpts *sql.TxOptions
@@ -230,30 +256,38 @@ func (m *MySQL) BeginTx(ctx context.Context, options *database.TxOptions) error 
 	tx, err := m.db.BeginTx(ctx, sqlTxOpts)
 	if err != nil {
 		m.logger.LogTx(ctx, "开始", err)
-		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
+		return ctx, fmt.Errorf("%w: %v", database.ErrTransaction, err)
 	}
 
-	m.currentTx = tx
-	m.logger.LogTx(ctx, "开始", nil)
-	return nil
+	txCtx := &TxContext{
+		tx:      tx,
+		id:      generateTxID(),
+		created: time.Now(),
+		options: options,
+	}
+
+	// 将事务信息绑定到上下文
+	newCtx := setTxToContext(ctx, txCtx)
+	m.logger.LogTx(newCtx, "开始", nil)
+
+	return newCtx, nil
 }
 
 // Commit 提交事务
-// 提交当前活跃的MySQL事务，使所有未提交的更改生效
-// 如果没有活跃事务，会返回错误
+// 提交上下文中的MySQL事务，使所有未提交的更改生效
+// 参数:
+//   ctx: 包含事务信息的上下文
 // 返回:
 //   error: 提交事务失败时返回错误信息
-func (m *MySQL) Commit() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.currentTx == nil {
-		return fmt.Errorf("no active transaction")
+func (m *MySQL) Commit(ctx context.Context) error {
+	txCtx, ok := getTxFromContext(ctx)
+	if !ok || txCtx.tx == nil {
+		return fmt.Errorf("no active transaction in context")
 	}
 
-	err := m.currentTx.Commit()
-	m.currentTx = nil
-	m.logger.LogTx(context.Background(), "提交", err)
+	err := txCtx.tx.Commit()
+	txCtx.tx = nil
+	m.logger.LogTx(ctx, "提交", err)
 	
 	if err != nil {
 		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
@@ -262,21 +296,20 @@ func (m *MySQL) Commit() error {
 }
 
 // Rollback 回滚事务
-// 回滚当前活跃的MySQL事务，撤销所有未提交的更改
-// 如果没有活跃事务，会返回错误
+// 回滚上下文中的MySQL事务，撤销所有未提交的更改
+// 参数:
+//   ctx: 包含事务信息的上下文
 // 返回:
 //   error: 回滚事务失败时返回错误信息
-func (m *MySQL) Rollback() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.currentTx == nil {
-		return fmt.Errorf("no active transaction")
+func (m *MySQL) Rollback(ctx context.Context) error {
+	txCtx, ok := getTxFromContext(ctx)
+	if !ok || txCtx.tx == nil {
+		return fmt.Errorf("no active transaction in context")
 	}
 
-	err := m.currentTx.Rollback()
-	m.currentTx = nil
-	m.logger.LogTx(context.Background(), "回滚", err)
+	err := txCtx.tx.Rollback()
+	txCtx.tx = nil
+	m.logger.LogTx(ctx, "回滚", err)
 	
 	if err != nil {
 		return fmt.Errorf("%w: %v", database.ErrTransaction, err)
@@ -287,57 +320,61 @@ func (m *MySQL) Rollback() error {
 // InTx 在事务中执行函数
 // 自动管理MySQL事务的生命周期
 // 如果函数正常返回，自动提交事务
-// 如果函数返回错误或发生panic，自动回滚事务
+// 如果函数返回错误或发生panic，自动回滚事务并将panic转换为错误
 // 参数:
 //   ctx: 上下文，用于控制请求超时和取消
 //   options: 事务选项，包含隔离级别和只读设置
-//   fn: 在事务中执行的函数，返回error表示是否成功
+//   fn: 在事务中执行的函数，接收包含事务的上下文，返回error表示是否成功
 // 返回:
-//   error: 事务执行失败时返回错误信息
-func (m *MySQL) InTx(ctx context.Context, options *database.TxOptions, fn func() error) error {
-	if err := m.BeginTx(ctx, options); err != nil {
+//   error: 事务执行失败时返回错误信息，包括panic转换的错误
+func (m *MySQL) InTx(ctx context.Context, options *database.TxOptions, fn func(context.Context) error) (err error) {
+	txCtx, err := m.BeginTx(ctx, options)
+	if err != nil {
 		return err
 	}
 
 	defer func() {
 		if r := recover(); r != nil {
-			m.Rollback()
-			panic(r)
+			m.Rollback(txCtx)
+			// 将panic转换为错误，避免程序崩溃
+			err = fmt.Errorf("transaction panic recovered: %v", r)
 		}
 	}()
 
-	if err := fn(); err != nil {
-		m.Rollback()
+	if err := fn(txCtx); err != nil {
+		m.Rollback(txCtx)
 		return err
 	}
 
-	return m.Commit()
+	return m.Commit(txCtx)
 }
 
 // getExecutor 获取执行器（事务或连接）
-// 根据autoCommit参数和当前事务状态返回合适的执行器
-// 如果autoCommit为false且存在活跃事务，返回事务执行器
+// 根据autoCommit参数和上下文中的事务状态返回合适的执行器
+// 如果autoCommit为false且上下文中存在活跃事务，返回事务执行器
 // 否则返回数据库连接执行器
 // 参数:
+//   ctx: 上下文，用于获取事务信息
 //   autoCommit: 是否自动提交
 // 返回:
 //   interface: 执行器接口，可以是*sql.Tx或*sql.DB
-func (m *MySQL) getExecutor(autoCommit bool) interface {
+func (m *MySQL) getExecutor(ctx context.Context, autoCommit bool) interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
 	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
 } {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	if !autoCommit && m.currentTx != nil {
-		return m.currentTx
+	if !autoCommit {
+		txCtx, ok := getTxFromContext(ctx)
+		if ok && txCtx.tx != nil {
+			return txCtx.tx
+		}
 	}
 	return m.db
 }
 
 // Exec 执行SQL语句
 // 执行INSERT、UPDATE、DELETE等不返回结果集的MySQL语句
+// 使用Go底层自动优化，无需手动预编译
 // 支持事务和非事务模式执行
 // 参数:
 //   ctx: 上下文，用于控制请求超时和取消
@@ -348,9 +385,11 @@ func (m *MySQL) getExecutor(autoCommit bool) interface {
 //   int64: 受影响的行数
 //   error: 执行失败时返回错误信息
 func (m *MySQL) Exec(ctx context.Context, query string, args []interface{}, autoCommit bool) (int64, error) {
-	executor := m.getExecutor(autoCommit)
+	executor := m.getExecutor(ctx, autoCommit)
 	
 	start := time.Now()
+	
+	// 直接执行，让Go底层自动优化
 	result, err := executor.ExecContext(ctx, query, args...)
 	duration := time.Since(start)
 
@@ -374,6 +413,7 @@ func (m *MySQL) Exec(ctx context.Context, query string, args []interface{}, auto
 
 // Query 查询多条记录
 // 执行SELECT语句并将结果扫描到目标切片中
+// 使用Go底层自动优化，无需手动预编译
 // 自动处理结构体字段到数据库列的映射
 // 参数:
 //   ctx: 上下文，用于控制请求超时和取消
@@ -384,9 +424,11 @@ func (m *MySQL) Exec(ctx context.Context, query string, args []interface{}, auto
 // 返回:
 //   error: 查询失败或扫描失败时返回错误信息
 func (m *MySQL) Query(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error {
-	executor := m.getExecutor(autoCommit)
+	executor := m.getExecutor(ctx, autoCommit)
 	
 	start := time.Now()
+	
+	// 直接查询，让Go底层自动优化
 	rows, err := executor.QueryContext(ctx, query, args...)
 	duration := time.Since(start)
 
@@ -433,13 +475,12 @@ func (m *MySQL) Query(ctx context.Context, dest interface{}, query string, args 
 // 返回:
 //   error: 查询失败、扫描失败或记录不存在时返回错误信息
 func (m *MySQL) QueryOne(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error {
-	executor := m.getExecutor(autoCommit)
-	/** 
-	 * 方法使用的是 QueryRowContext，它返回的是 *sql.Row，而 sql.Row 没有 Columns() 方法。
-	 * 我们需要修改 QueryOne 方法使用 QueryContext 替代，这样就能获取列信息并处理字段不匹配的问题
-	*/
-
+	executor := m.getExecutor(ctx, autoCommit)
+	
 	start := time.Now()
+	
+	// 直接查询，让Go底层自动优化
+	// 使用QueryContext而不是QueryRowContext，以便获取列信息进行智能映射
 	rows, err := executor.QueryContext(ctx, query, args...)
 	duration := time.Since(start)
 	
@@ -472,6 +513,7 @@ func (m *MySQL) QueryOne(ctx context.Context, dest interface{}, query string, ar
 
 // Insert 插入记录
 // 根据提供的数据结构体自动构建INSERT语句并执行
+// 使用Go底层自动优化，无需手动预编译
 // 会自动提取结构体字段作为列名和值，支持db tag映射
 // 参数:
 //   ctx: 上下文，用于控制请求超时和取消
@@ -487,9 +529,11 @@ func (m *MySQL) Insert(ctx context.Context, table string, data interface{}, auto
 		return 0, err
 	}
 
-	executor := m.getExecutor(autoCommit)
+	executor := m.getExecutor(ctx, autoCommit)
 	
 	start := time.Now()
+	
+	// 直接执行，让Go底层自动优化
 	result, err := executor.ExecContext(ctx, query, args...)
 	duration := time.Since(start)
 
@@ -539,9 +583,11 @@ func (m *MySQL) Update(ctx context.Context, table string, data interface{}, wher
 		setArgs = append(setArgs, args...)
 	}
 
-	executor := m.getExecutor(autoCommit)
+	executor := m.getExecutor(ctx, autoCommit)
 	
 	start := time.Now()
+	
+	// 直接执行，让Go底层自动优化
 	result, err := executor.ExecContext(ctx, query, setArgs...)
 	duration := time.Since(start)
 
@@ -565,6 +611,7 @@ func (m *MySQL) Update(ctx context.Context, table string, data interface{}, wher
 
 // Delete 删除记录
 // 根据WHERE条件构建DELETE语句并执行
+// 使用Go底层自动优化，无需手动预编译
 // 参数:
 //   ctx: 上下文，用于控制请求超时和取消
 //   table: 目标表名
@@ -580,9 +627,11 @@ func (m *MySQL) Delete(ctx context.Context, table string, where string, args []i
 		query += " WHERE " + where
 	}
 
-	executor := m.getExecutor(autoCommit)
+	executor := m.getExecutor(ctx, autoCommit)
 	
 	start := time.Now()
+	
+	// 直接执行，让Go底层自动优化
 	result, err := executor.ExecContext(ctx, query, args...)
 	duration := time.Since(start)
 
@@ -606,7 +655,34 @@ func (m *MySQL) Delete(ctx context.Context, table string, where string, args []i
 
 // BatchInsert 批量插入记录
 // 将切片中的多个数据结构体批量插入到MySQL中
-// 使用单条INSERT语句提高插入性能
+// 
+// 注意：这是唯一保留手动预编译的方法，因为批量操作确实需要预编译优化
+// 
+// 高效的预编译循环执行模式：
+//   1. 预编译一次：使用sql.PrepareContext()预编译单条INSERT语句
+//   2. 事务保证：默认在事务中执行，确保数据一致性
+//   3. 循环执行：在事务中循环执行预编译语句，逐条插入数据
+//   4. 错误处理：任何错误都会触发事务回滚，保证原子性
+//   5. 资源管理：自动关闭预编译语句和管理事务生命周期
+//
+// 预编译循环执行流程：
+//   1. 分析数据结构，提取列信息
+//   2. 构建单条INSERT的预编译SQL语句
+//   3. 开始事务（autoCommit=true时自动创建，false时使用当前事务）
+//   4. 预编译单条INSERT语句（预编译一次，执行多次）
+//   5. 循环执行：for _, item := range dataSlice { stmt.Exec(item...) }
+//   6. 提交事务或在错误时回滚
+//
+// 优势对比：
+//   - vs 大SQL拼接：内存使用稳定，不受批量大小影响
+//   - vs 多次Insert调用：减少预编译开销，事务保证一致性
+//   - vs Go底层自动优化：批量操作时手动预编译性能更优
+//
+// 注意：
+//   - BatchInsert默认需要事务，确保批量操作的原子性
+//   - 适合中小批量（≤1000条），大批量建议业务层分批调用
+//   - 任何单条记录插入失败都会回滚整个批次
+//
 // 参数:
 //   ctx: 上下文，用于控制请求超时和取消
 //   table: 目标表名
@@ -625,54 +701,475 @@ func (m *MySQL) BatchInsert(ctx context.Context, table string, dataSlice interfa
 		return 0, nil
 	}
 
-	// 获取第一个元素来构建SQL结构
+	// 第一步：分析数据结构，提取列信息
 	firstItem := slice.Index(0).Interface()
 	columns, _, err := sqlutils.ExtractColumnsAndValues(firstItem)
 	if err != nil {
 		return 0, err
 	}
 
-	// 构建批量插入SQL
+	// 第二步：构建单条INSERT的预编译SQL语句
+	// 这是最高效的方式：预编译一次，循环执行多次
 	placeholders := make([]string, len(columns))
 	for i := range placeholders {
 		placeholders[i] = "?"
 	}
-	placeholder := "(" + strings.Join(placeholders, ", ") + ")"
+	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+		table,
+		strings.Join(columns, ", "),
+		strings.Join(placeholders, ", "))
 
-	var allPlaceholders []string
-	var allArgs []interface{}
+	// 第三步：开始事务（BatchInsert默认需要事务保证一致性）
+	var needCommit bool
+	var tx *sql.Tx
+	
+	if autoCommit {
+		// 自动提交模式：创建新事务
+		tx, err = m.db.BeginTx(ctx, nil)
+		if err != nil {
+			return 0, fmt.Errorf("failed to begin transaction: %w", err)
+		}
+		needCommit = true
+	} else {
+		// 手动事务模式：使用当前事务
+		txCtx, ok := getTxFromContext(ctx)
+		if !ok || txCtx.tx == nil {
+			return 0, fmt.Errorf("no active transaction for batch insert")
+		}
+		tx = txCtx.tx
+	}
 
+	// 第四步：预编译单条INSERT语句
+	start := time.Now()
+	stmt, err := tx.PrepareContext(ctx, query)
+	if err != nil {
+		if needCommit {
+			tx.Rollback()
+		}
+		return 0, fmt.Errorf("failed to prepare batch insert statement: %w", err)
+	}
+	defer stmt.Close()
+
+	// 第五步：循环执行预编译语句，逐条插入数据
+	var totalRowsAffected int64
 	for i := 0; i < slice.Len(); i++ {
 		item := slice.Index(i).Interface()
 		_, values, err := sqlutils.ExtractColumnsAndValues(item)
 		if err != nil {
-			return 0, err
+			if needCommit {
+				tx.Rollback()
+			}
+			return 0, fmt.Errorf("failed to extract values from item %d: %w", i, err)
 		}
-		allPlaceholders = append(allPlaceholders, placeholder)
-		allArgs = append(allArgs, values...)
+
+		// 执行单条插入
+		result, err := stmt.ExecContext(ctx, values...)
+		if err != nil {
+			if needCommit {
+				tx.Rollback() // 出现错误时回滚事务
+			}
+			return 0, fmt.Errorf("failed to insert item %d: %w", i, err)
+		}
+
+		// 累计影响行数
+		if rowsAffected, err := result.RowsAffected(); err == nil {
+			totalRowsAffected += rowsAffected
+		}
+	}
+	duration := time.Since(start)
+
+	// 第六步：提交事务（如果是自动提交模式）
+	if needCommit {
+		if err := tx.Commit(); err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to commit batch insert transaction: %w", err)
+		}
 	}
 
-	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES %s",
-		table,
-		strings.Join(columns, ", "),
-		strings.Join(allPlaceholders, ", "))
+	// 记录执行日志
+	extra := map[string]interface{}{
+		"rowsAffected": totalRowsAffected,
+		"batchSize":    slice.Len(),
+		"columnsCount": len(columns),
+		"executionMode": "prepared_loop",
+	}
+	m.logger.LogSQL(ctx, "SQL批量插入", query, []interface{}{"[batch_data]"}, nil, duration, extra)
 
-	executor := m.getExecutor(autoCommit)
+	return totalRowsAffected, nil
+}
+
+// BatchUpdate 批量更新记录
+// 将切片中的多个数据结构体批量更新到MySQL中
+// 使用预编译循环执行模式，根据指定的关键字段进行匹配更新
+// 
+// 高效的预编译循环执行模式：
+//   1. 预编译一次：使用sql.PrepareContext()预编译单条UPDATE语句
+//   2. 事务保证：默认在事务中执行，确保数据一致性
+//   3. 循环执行：在事务中循环执行预编译语句，逐条更新数据
+//   4. 错误处理：任何错误都会触发事务回滚，保证原子性
+//   5. 资源管理：自动关闭预编译语句和管理事务生命周期
+//
+// 参数:
+//   ctx: 上下文，用于控制请求超时和取消
+//   table: 目标表名
+//   dataSlice: 要更新的数据切片，每个元素都是结构体
+//   keyFields: 用于匹配记录的关键字段列表（如主键字段）
+//   autoCommit: true-自动提交, false-在当前事务中执行
+// 返回:
+//   int64: 受影响的行数
+//   error: 更新失败时返回错误信息
+func (m *MySQL) BatchUpdate(ctx context.Context, table string, dataSlice interface{}, keyFields []string, autoCommit bool) (int64, error) {
+	slice := reflect.ValueOf(dataSlice)
+	if slice.Kind() != reflect.Slice {
+		return 0, fmt.Errorf("dataSlice must be a slice")
+	}
+
+	if slice.Len() == 0 {
+		return 0, nil
+	}
+
+	if len(keyFields) == 0 {
+		return 0, fmt.Errorf("keyFields cannot be empty")
+	}
+
+	// 第一步：分析数据结构，提取列信息
+	firstItem := slice.Index(0).Interface()
+	columns, _, err := sqlutils.ExtractColumnsAndValues(firstItem)
+	if err != nil {
+		return 0, err
+	}
+
+	// 第二步：构建UPDATE语句，分离SET子句和WHERE子句
+	var setClauses []string
+	var whereClause []string
+	
+	for _, col := range columns {
+		isKeyField := false
+		for _, keyField := range keyFields {
+			if col == keyField {
+				isKeyField = true
+				break
+			}
+		}
+		
+		if isKeyField {
+			whereClause = append(whereClause, col+" = ?")
+		} else {
+			setClauses = append(setClauses, col+" = ?")
+		}
+	}
+	
+	if len(setClauses) == 0 {
+		return 0, fmt.Errorf("no fields to update (all fields are key fields)")
+	}
+
+	query := fmt.Sprintf("UPDATE %s SET %s WHERE %s",
+		table,
+		strings.Join(setClauses, ", "),
+		strings.Join(whereClause, " AND "))
+
+	// 第三步：开始事务
+	var needCommit bool
+	var tx *sql.Tx
+	
+	if autoCommit {
+		tx, err = m.db.BeginTx(ctx, nil)
+		if err != nil {
+			return 0, fmt.Errorf("failed to begin transaction: %w", err)
+		}
+		needCommit = true
+	} else {
+		txCtx, ok := getTxFromContext(ctx)
+		if !ok || txCtx.tx == nil {
+			return 0, fmt.Errorf("no active transaction for batch update")
+		}
+		tx = txCtx.tx
+	}
+
+	// 第四步：预编译UPDATE语句
+	start := time.Now()
+	stmt, err := tx.PrepareContext(ctx, query)
+	if err != nil {
+		if needCommit {
+			tx.Rollback()
+		}
+		return 0, fmt.Errorf("failed to prepare batch update statement: %w", err)
+	}
+	defer stmt.Close()
+
+	// 第五步：循环执行预编译语句，逐条更新数据
+	var totalRowsAffected int64
+	for i := 0; i < slice.Len(); i++ {
+		item := slice.Index(i).Interface()
+		_, values, err := sqlutils.ExtractColumnsAndValues(item)
+		if err != nil {
+			if needCommit {
+				tx.Rollback()
+			}
+			return 0, fmt.Errorf("failed to extract values from item %d: %w", i, err)
+		}
+
+		// 重新排列参数：SET子句参数 + WHERE子句参数
+		var args []interface{}
+		for _, col := range columns {
+			isKeyField := false
+			for _, keyField := range keyFields {
+				if col == keyField {
+					isKeyField = true
+					break
+				}
+			}
+			
+			if !isKeyField {
+				// 找到对应的值
+				for j, column := range columns {
+					if column == col {
+						args = append(args, values[j])
+						break
+					}
+				}
+			}
+		}
+		
+		// 添加WHERE条件的参数
+		for _, keyField := range keyFields {
+			for j, column := range columns {
+				if column == keyField {
+					args = append(args, values[j])
+					break
+				}
+			}
+		}
+
+		// 执行单条更新
+		result, err := stmt.ExecContext(ctx, args...)
+		if err != nil {
+			if needCommit {
+				tx.Rollback()
+			}
+			return 0, fmt.Errorf("failed to update item %d: %w", i, err)
+		}
+
+		// 累计影响行数
+		if rowsAffected, err := result.RowsAffected(); err == nil {
+			totalRowsAffected += rowsAffected
+		}
+	}
+	duration := time.Since(start)
+
+	// 第六步：提交事务（如果是自动提交模式）
+	if needCommit {
+		if err := tx.Commit(); err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to commit batch update transaction: %w", err)
+		}
+	}
+
+	// 记录执行日志
+	extra := map[string]interface{}{
+		"rowsAffected": totalRowsAffected,
+		"batchSize":    slice.Len(),
+		"keyFields":    keyFields,
+		"executionMode": "prepared_loop",
+	}
+	m.logger.LogSQL(ctx, "SQL批量更新", query, []interface{}{"[batch_data]"}, nil, duration, extra)
+
+	return totalRowsAffected, nil
+}
+
+// BatchDelete 批量删除记录
+// 根据提供的数据切片批量删除记录，通过指定的关键字段匹配
+// 使用预编译循环执行模式提高性能
+// 
+// 高效的预编译循环执行模式：
+//   1. 预编译一次：使用sql.PrepareContext()预编译单条DELETE语句
+//   2. 事务保证：默认在事务中执行，确保数据一致性
+//   3. 循环执行：在事务中循环执行预编译语句，逐条删除数据
+//   4. 错误处理：任何错误都会触发事务回滚，保证原子性
+//   5. 资源管理：自动关闭预编译语句和管理事务生命周期
+//
+// 参数:
+//   ctx: 上下文，用于控制请求超时和取消
+//   table: 目标表名
+//   dataSlice: 包含要删除记录信息的数据切片，每个元素都是结构体
+//   keyFields: 用于匹配记录的关键字段列表（如主键字段）
+//   autoCommit: true-自动提交, false-在当前事务中执行
+// 返回:
+//   int64: 受影响的行数
+//   error: 删除失败时返回错误信息
+func (m *MySQL) BatchDelete(ctx context.Context, table string, dataSlice interface{}, keyFields []string, autoCommit bool) (int64, error) {
+	slice := reflect.ValueOf(dataSlice)
+	if slice.Kind() != reflect.Slice {
+		return 0, fmt.Errorf("dataSlice must be a slice")
+	}
+
+	if slice.Len() == 0 {
+		return 0, nil
+	}
+
+	if len(keyFields) == 0 {
+		return 0, fmt.Errorf("keyFields cannot be empty")
+	}
+
+	// 第一步：分析数据结构，提取列信息
+	firstItem := slice.Index(0).Interface()
+	columns, _, err := sqlutils.ExtractColumnsAndValues(firstItem)
+	if err != nil {
+		return 0, err
+	}
+
+	// 第二步：构建DELETE语句的WHERE子句
+	var whereClause []string
+	for _, keyField := range keyFields {
+		whereClause = append(whereClause, keyField+" = ?")
+	}
+
+	query := fmt.Sprintf("DELETE FROM %s WHERE %s",
+		table,
+		strings.Join(whereClause, " AND "))
+
+	// 第三步：开始事务
+	var needCommit bool
+	var tx *sql.Tx
+	
+	if autoCommit {
+		tx, err = m.db.BeginTx(ctx, nil)
+		if err != nil {
+			return 0, fmt.Errorf("failed to begin transaction: %w", err)
+		}
+		needCommit = true
+	} else {
+		txCtx, ok := getTxFromContext(ctx)
+		if !ok || txCtx.tx == nil {
+			return 0, fmt.Errorf("no active transaction for batch delete")
+		}
+		tx = txCtx.tx
+	}
+
+	// 第四步：预编译DELETE语句
+	start := time.Now()
+	stmt, err := tx.PrepareContext(ctx, query)
+	if err != nil {
+		if needCommit {
+			tx.Rollback()
+		}
+		return 0, fmt.Errorf("failed to prepare batch delete statement: %w", err)
+	}
+	defer stmt.Close()
+
+	// 第五步：循环执行预编译语句，逐条删除数据
+	var totalRowsAffected int64
+	for i := 0; i < slice.Len(); i++ {
+		item := slice.Index(i).Interface()
+		_, values, err := sqlutils.ExtractColumnsAndValues(item)
+		if err != nil {
+			if needCommit {
+				tx.Rollback()
+			}
+			return 0, fmt.Errorf("failed to extract values from item %d: %w", i, err)
+		}
+
+		// 提取WHERE条件的参数值
+		var args []interface{}
+		for _, keyField := range keyFields {
+			for j, column := range columns {
+				if column == keyField {
+					args = append(args, values[j])
+					break
+				}
+			}
+		}
+
+		// 执行单条删除
+		result, err := stmt.ExecContext(ctx, args...)
+		if err != nil {
+			if needCommit {
+				tx.Rollback()
+			}
+			return 0, fmt.Errorf("failed to delete item %d: %w", i, err)
+		}
+
+		// 累计影响行数
+		if rowsAffected, err := result.RowsAffected(); err == nil {
+			totalRowsAffected += rowsAffected
+		}
+	}
+	duration := time.Since(start)
+
+	// 第六步：提交事务（如果是自动提交模式）
+	if needCommit {
+		if err := tx.Commit(); err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to commit batch delete transaction: %w", err)
+		}
+	}
+
+	// 记录执行日志
+	extra := map[string]interface{}{
+		"rowsAffected": totalRowsAffected,
+		"batchSize":    slice.Len(),
+		"keyFields":    keyFields,
+		"executionMode": "prepared_loop",
+	}
+	m.logger.LogSQL(ctx, "SQL批量删除", query, []interface{}{"[batch_data]"}, nil, duration, extra)
+
+	return totalRowsAffected, nil
+}
+
+// BatchDeleteByKeys 根据主键列表批量删除记录
+// 更高效的批量删除方式，直接提供主键值列表
+// 使用IN子句进行批量删除，比逐条删除更高效
+// 
+// 参数:
+//   ctx: 上下文，用于控制请求超时和取消
+//   table: 目标表名
+//   keyField: 主键字段名
+//   keys: 要删除的主键值列表
+//   autoCommit: true-自动提交, false-在当前事务中执行
+// 返回:
+//   int64: 受影响的行数
+//   error: 删除失败时返回错误信息
+func (m *MySQL) BatchDeleteByKeys(ctx context.Context, table string, keyField string, keys []interface{}, autoCommit bool) (int64, error) {
+	if len(keys) == 0 {
+		return 0, nil
+	}
+
+	if keyField == "" {
+		return 0, fmt.Errorf("keyField cannot be empty")
+	}
+
+	// 构建IN子句的占位符
+	placeholders := make([]string, len(keys))
+	for i := range placeholders {
+		placeholders[i] = "?"
+	}
+
+	query := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)",
+		table,
+		keyField,
+		strings.Join(placeholders, ", "))
+
+	executor := m.getExecutor(ctx, autoCommit)
 	
 	start := time.Now()
-	result, err := executor.ExecContext(ctx, query, allArgs...)
+	
+	// 直接执行，使用IN子句批量删除
+	result, err := executor.ExecContext(ctx, query, keys...)
 	duration := time.Since(start)
 
 	var rowsAffected int64
 	if err == nil {
-		rowsAffected, err = result.RowsAffected()
+		rowsAffected, _ = result.RowsAffected()
 	}
 
 	// 记录日志
 	extra := map[string]interface{}{
 		"rowsAffected": rowsAffected,
+		"batchSize":    len(keys),
+		"keyField":     keyField,
+		"executionMode": "in_clause",
 	}
-	m.logger.LogSQL(ctx, "SQL批量插入", query, allArgs, err, duration, extra)
+	m.logger.LogSQL(ctx, "SQL批量删除(主键)", query, keys, err, duration, extra)
 
 	if err != nil {
 		return 0, err
@@ -681,23 +1178,20 @@ func (m *MySQL) BatchInsert(ctx context.Context, table string, dataSlice interfa
 	return rowsAffected, nil
 }
 
-// 工具函数
-// 注意：SQL格式化和结果处理相关的工具函数已移动到 sqlutils 包中
-// 请使用 sqlutils.BuildInsertQuery, sqlutils.ScanRows 等函数
-
-// 重构说明：
-// 1. SQL格式化功能已移动到 pkg/database/sqlutils/sql_format.go
-//    - BuildInsertQuery: 构建INSERT语句
-//    - BuildUpdateQuery: 构建UPDATE语句的SET子句
-//    - ExtractColumnsAndValues: 从结构体提取列名和值
-//    - IsZeroValue: 检查值是否为零值
+// 实现说明
+// 
+// 1. 普通操作优化：
+//    - Exec、Query、QueryOne、Insert、Update、Delete等单次操作
+//    - 直接使用Go database/sql的ExecContext、QueryContext等方法
+//    - 依赖Go底层的自动优化和驱动层优化
+//    - 简化代码，减少预编译语句管理的复杂度
 //
-// 2. 结果处理功能已移动到 pkg/database/sqlutils/result_format.go
-//    - ScanRows: 扫描多行结果到切片
-//    - ScanRow: 扫描单行结果到结构体
-//    - PrepareScanTargetsWithFields: 准备扫描目标
-//    - FindFieldByColumn: 根据列名查找字段
-//    - CreateNullSafeScanTarget: 创建NULL值安全的扫描目标
-//    - ProcessScannedValues: 处理扫描后的值转换
-//    - ScanRowsTraditional: 传统方式扫描多行结果
-//    - ScanRowsWithInterfaceSlice: 接口切片方式扫描多行结果
+// 2. 批量操作优化：
+//    - BatchInsert等批量操作仍使用手动预编译
+//    - 一次预编译，多次执行，显著提升批量操作性能
+//    - 在事务中执行，保证数据一致性
+//
+// 3. 工具函数依赖：
+//    - SQL格式化：sqlutils.BuildInsertQuery, BuildUpdateQuery等
+//    - 结果扫描：sqlutils.ScanRows, ScanOneRow等
+//    - 详细功能请参考 pkg/database/sqlutils/ 包

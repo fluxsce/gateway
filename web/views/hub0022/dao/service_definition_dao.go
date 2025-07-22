@@ -14,6 +14,15 @@ import (
 	"gohub/web/views/hub0022/models"
 )
 
+// ServiceDefinitionQueryFilter 服务定义查询过滤条件
+type ServiceDefinitionQueryFilter struct {
+	ServiceName          string `json:"serviceName,omitempty" form:"serviceName" query:"serviceName"`          // 服务名称（模糊查询）
+	ServiceType          string `json:"serviceType,omitempty" form:"serviceType" query:"serviceType"`          // 服务类型（精确匹配）
+	LoadBalanceStrategy  string `json:"loadBalanceStrategy,omitempty" form:"loadBalanceStrategy" query:"loadBalanceStrategy"`  // 负载均衡策略（精确匹配）
+	ActiveFlag           string `json:"activeFlag,omitempty" form:"activeFlag" query:"activeFlag"`           // 激活状态（精确匹配）
+	ProxyConfigId        string `json:"proxyConfigId,omitempty" form:"proxyConfigId" query:"proxyConfigId"`        // 代理配置ID（精确匹配）
+}
+
 // ServiceDefinitionDAO 服务定义数据访问对象
 type ServiceDefinitionDAO struct {
 	db database.Database
@@ -239,13 +248,64 @@ func (dao *ServiceDefinitionDAO) DeleteServiceDefinition(ctx context.Context, se
 }
 
 // ListServiceDefinitions 分页查询服务定义列表
-func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, tenantId string, page, pageSize int) ([]*models.ServiceDefinition, int, error) {
+func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, tenantId string, page, pageSize int, filter *ServiceDefinitionQueryFilter) ([]*models.ServiceDefinition, int64, error) {
 	if tenantId == "" {
 		return nil, 0, errors.New("tenantId不能为空")
 	}
 
+	// 动态构建WHERE条件
+	var whereConditions []string
+	var queryArgs []interface{}
+
+	// 基础条件：租户ID
+	whereConditions = append(whereConditions, "tenantId = ?")
+	queryArgs = append(queryArgs, tenantId)
+
+	// 如果没有传入filter，创建一个空的
+	if filter == nil {
+		filter = &ServiceDefinitionQueryFilter{}
+	}
+
+	// 激活状态过滤
+	if filter.ActiveFlag != "" {
+		whereConditions = append(whereConditions, "activeFlag = ?")
+		queryArgs = append(queryArgs, filter.ActiveFlag)
+	} else {
+		// 默认只查询激活的记录
+		whereConditions = append(whereConditions, "activeFlag = 'Y'")
+	}
+
+	// 服务名称（模糊查询）
+	if filter.ServiceName != "" {
+		whereConditions = append(whereConditions, "serviceName LIKE ?")
+		queryArgs = append(queryArgs, "%"+filter.ServiceName+"%")
+	}
+
+	// 服务类型（精确匹配）
+	if filter.ServiceType != "" {
+		whereConditions = append(whereConditions, "serviceType = ?")
+		queryArgs = append(queryArgs, filter.ServiceType)
+	}
+
+	// 负载均衡策略（精确匹配）
+	if filter.LoadBalanceStrategy != "" {
+		whereConditions = append(whereConditions, "loadBalanceStrategy = ?")
+		queryArgs = append(queryArgs, filter.LoadBalanceStrategy)
+	}
+
+	// 代理配置ID（精确匹配）
+	// 注意：根据实际表结构调整字段名
+	if filter.ProxyConfigId != "" {
+		// TODO: 根据实际表结构调整字段名
+		whereConditions = append(whereConditions, "proxyConfigId = ?")
+		queryArgs = append(queryArgs, filter.ProxyConfigId)
+	}
+
+	// 构建完整的WHERE子句
+	whereClause := strings.Join(whereConditions, " AND ")
+
 	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_SERVICE_DEFINITION WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY addTime DESC"
+	baseQuery := fmt.Sprintf("SELECT * FROM HUB_GW_SERVICE_DEFINITION WHERE %s ORDER BY addTime DESC", whereClause)
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
@@ -257,7 +317,7 @@ func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, ten
 	var countResult struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err = dao.db.QueryOne(ctx, &countResult, countQuery, []interface{}{tenantId}, true)
+	err = dao.db.QueryOne(ctx, &countResult, countQuery, queryArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询服务定义总数失败")
 	}
@@ -279,8 +339,8 @@ func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, ten
 		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
 	}
 
-	// 合并查询参数
-	allArgs := append([]interface{}{tenantId}, paginationArgs...)
+	// 合并查询参数（先是WHERE条件参数，再是分页参数）
+	allArgs := append(queryArgs, paginationArgs...)
 
 	// 执行分页查询
 	var serviceDefinitions []*models.ServiceDefinition
@@ -289,5 +349,5 @@ func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, ten
 		return nil, 0, huberrors.WrapError(err, "查询服务定义列表失败")
 	}
 
-	return serviceDefinitions, countResult.Count, nil
+	return serviceDefinitions, int64(countResult.Count), nil
 } 

@@ -56,7 +56,7 @@ database:
         
         # Oracle特有参数
         timezone: "Asia/Shanghai"  # 时区设置，默认为系统时区
-        nls_lang: "AMERICAN_AMERICA.UTF8"  # NLS语言环境
+        nls_lang: "CHINESE_CHINA.AL32UTF8"  # NLS语言环境
         connection_timeout: 30     # 连接超时时间(秒)
         read_timeout: 30          # 读取超时时间(秒) 
         write_timeout: 30         # 写入超时时间(秒)
@@ -78,6 +78,64 @@ database:
       # 事务配置
       transaction:
         default_use: false     # 默认是否使用事务
+    
+    # ClickHouse 连接
+    clickhouse_main:
+      enabled: true
+      driver: "clickhouse"
+      
+      # ClickHouse 连接配置
+      connection:
+        host: "121.43.231.91"
+        port: 9000                  # ClickHouse TCP 原生协议端口
+        username: "default"         # ClickHouse 默认用户
+        password: "YiocaTTS91d*FY#ace{8iopl}"  # 密码，包含特殊字符
+        database: "gohub"           # 要连接的数据库名称
+        
+        # ClickHouse 官网标准DSN参数 - https://clickhouse.com/docs/zh/integrations/go
+        clickhouse_compress: "lz4"                 # 压缩算法(none,lz4,zstd,gzip,deflate,br) 推荐lz4
+        clickhouse_compress_level: 1               # 压缩级别(0-11) 1为轻量压缩
+        clickhouse_secure: false                   # 建立安全SSL连接(端口:9440)
+        clickhouse_skip_verify: false              # 跳过证书验证(默认false)
+        clickhouse_debug: false                    # 启用调试输出(默认false)
+        clickhouse_dial_timeout: 30                # 拨号超时时间(秒) 官网标准30s
+        clickhouse_block_buffer_size: 2            # 块缓冲区大小(默认2)
+        clickhouse_conn_open_strategy: "random"    # 连接策略(random/in_order) 默认random
+        
+        # === 集群和负载均衡参数 ===
+        
+        # 额外主机列表 - 自动拼接到地址部分 (官网标准格式)
+        # 格式：host2:port2,host3:port3 (会自动拼接成 host1:port1,host2:port2,host3:port3)
+        # 最终DSN: clickhouse://host1:port1,host2:port2,host3:port3/database
+        clickhouse_hosts: ""
+        
+        # === 官网标准配置示例 ===
+        # 集群高可用:
+        # clickhouse_alt_hosts: "clickhouse-node2:9000,clickhouse-node3:9000"
+        # 
+        # 性能优化设置:
+        # clickhouse_settings: "max_memory_usage=8000000000,max_threads=4,use_uncompressed_cache=1,read_timeout=30,write_timeout=30"
+        #
+        # TLS连接示例:
+        # clickhouse_secure: true              # 启用TLS，端口自动切换到9440
+        # clickhouse_compress: "zstd"          # TLS下推荐使用zstd压缩
+        
+      # 连接池配置
+      pool:
+        max_open_conns: 50          # 最大打开连接数（ClickHouse 推荐较少连接）
+        max_idle_conns: 10          # 最大空闲连接数
+        conn_max_lifetime: 3600     # 连接最大生命周期(秒)
+        conn_max_idle_time: 1800    # 连接最大空闲时间(秒)
+        
+      # 日志配置
+      log:
+        enable: true                # 是否启用SQL日志
+        slow_threshold: 1000        # 慢查询阈值(毫秒)，分析查询通常较慢
+        
+      # 事务配置
+      transaction:
+        default_use: false          # ClickHouse 事务支持有限，默认不使用
+    
     # MySQL 只读连接
     mysql_read:
       driver: mysql
@@ -130,7 +188,7 @@ database:
 # ===========================================
 cache:
   # 默认使用的缓存连接名称
-  default: memory_cache
+  default: redis_primary
   
   # 缓存连接配置 - 支持多种类型：redis, memory
   connections:
@@ -140,7 +198,7 @@ cache:
     redis_primary:
       type: redis                 # 缓存类型：redis
       config:
-        enabled: false             # 是否启用该连接
+        enabled: true             # 是否启用该连接
         mode: "single"            # 连接模式: single(单机), sentinel(哨兵), cluster(集群)
         
         # === 单机模式连接配置 ===
@@ -159,7 +217,7 @@ cache:
         read_timeout: "3s"        # 读取数据的超时时间
         write_timeout: "3s"       # 写入数据的超时时间
         pool_timeout: "4s"        # 从连接池获取连接的超时时间
-        idle_timeout: "1800s"     # 空闲连接超时时间
+        idle_timeout: "60s"     # 空闲连接超时时间
         
         # === TLS配置 ===
         enable_tls: false         # 是否启用TLS
@@ -277,4 +335,177 @@ cache:
         enable_lazy_cleanup: true
         enable_metrics: true    # 需要监控会话指标
         metrics_namespace: "session_cache"
+# ===========================================
+# MongoDB配置 - 支持单机、副本集、分片集群
+# ===========================================
+mongo:
+  enabled: true
+  default: "mongo_main"
+  connections:
+    # MongoDB 主连接 - 单机模式
+    mongo_main:
+      id: "mongo_main"             # 配置ID，用于标识和引用
+      enabled: true
+      # === 基本连接信息 ===
+      host: 121.43.231.91          # MongoDB主机地址
+      port: 28729                  # MongoDB端口号，默认 27017
+      database: "gohub"            # 要连接的数据库名称
+      
+      # === 认证信息 ===
+      username: "admin"             # 用户名，用于身份验证
+      password: "admin123"          # 密码，用于身份验证
+      authdb: "admin"              # 认证数据库名称，通常为 "admin"
+      
+      # === 连接池配置 ===
+      maxPoolSize: 100             # 最大连接池大小，默认 100
+      minPoolSize: 5               # 最小连接池大小，默认 5
+      maxIdleTimeMS: "30m"         # 连接最大空闲时间，默认 30分钟
+      connectTimeoutMS: "10s"      # 连接超时时间，默认 10秒
+      
+      # === SSL/TLS 配置 ===
+      enableTLS: false             # 是否启用TLS加密连接
+      tlsCertFile: ""              # TLS客户端证书文件路径
+      tlsKeyFile: ""               # TLS客户端私钥文件路径
+      tlsCAFile: ""                # TLS CA证书文件路径
+      tlsSkipVerify: false         # 是否跳过TLS证书验证（仅用于测试）
+      
+      # === 读写偏好配置 ===
+      readPreference: "primary"    # 读偏好：primary, secondary, nearest等
+      readConcern: "local"         # 读关注级别：local, majority, linearizable
+      writeConcern: "majority"     # 写关注级别：majority, 1, 0等
+      writeConcernTimeout: "5s"    # 写关注超时时间
+      
+      # === 其他高级配置 ===
+      appName: "gohub"             # 应用程序名称，用于日志记录
+      retryWrites: true            # 是否自动重试写操作
+      retryReads: true             # 是否自动重试读操作
+      serverSelectionTimeoutMS: "30s"  # 服务器选择超时时间
+      socketTimeoutMS: "0s"        # Socket操作超时时间（0表示无限制）
+      heartbeatIntervalMS: "10s"   # 心跳检查间隔时间
+      
+      # === 日志配置 ===
+      enableLogging: true          # 是否启用MongoDB驱动日志
+      logLevel: "info"             # 日志级别：debug, info, warn, error
 
+    # MongoDB 副本集连接示例
+    mongo_replica:
+      id: "mongo_replica"          # 配置ID，用于标识和引用
+      enabled: false               # 默认禁用
+      
+      # === 副本集配置 ===
+      replicaSet: "rs0"           # 副本集名称
+      hosts:                      # 副本集中的主机地址列表
+        - "mongo1.example.com:27017"
+        - "mongo2.example.com:27017"
+        - "mongo3.example.com:27017"
+      database: "gohub"
+      
+      # === 认证信息 ===
+      username: "admin"
+      password: "password"
+      authdb: "admin"
+      
+      # === 连接池配置 ===
+      maxPoolSize: 200
+      minPoolSize: 10
+      maxIdleTimeMS: "30m"
+      connectTimeoutMS: "10s"
+      
+      # === 读写偏好配置 ===
+      readPreference: "secondaryPreferred"  # 优先从副本读取
+      readConcern: "majority"               # 大多数读关注
+      writeConcern: "majority"
+      writeConcernTimeout: "5s"
+      
+      # === 其他高级配置 ===
+      appName: "gohub-replica"
+      retryWrites: true
+      retryReads: true
+      serverSelectionTimeoutMS: "30s"
+      socketTimeoutMS: "0s"
+      heartbeatIntervalMS: "10s"
+      
+      # === 日志配置 ===
+      enableLogging: true
+      logLevel: "info"
+
+    # MongoDB SSL连接示例（用于生产环境）
+    mongo_ssl:
+      id: "mongo_ssl"              # 配置ID，用于标识和引用
+      enabled: false               # 默认禁用
+      host: "secure-mongo.example.com"
+      port: 27017
+      database: "gohub_prod"
+      
+      # === 认证信息 ===
+      username: "prod_user"
+      password: "secure_password"
+      authdb: "admin"
+      
+      # === SSL/TLS 配置 ===
+      enableTLS: true              # 启用TLS
+      tlsCertFile: "/path/to/client.pem"     # 客户端证书
+      tlsKeyFile: "/path/to/client-key.pem"  # 客户端私钥
+      tlsCAFile: "/path/to/ca.pem"           # CA证书
+      tlsSkipVerify: false         # 不跳过证书验证
+      
+      # === 连接池配置 ===
+      maxPoolSize: 50
+      minPoolSize: 5
+      maxIdleTimeMS: "20m"
+      connectTimeoutMS: "15s"      # SSL连接可能需要更长时间
+      
+      # === 读写偏好配置 ===
+      readPreference: "primary"
+      readConcern: "majority"
+      writeConcern: "majority"
+      writeConcernTimeout: "10s"   # 生产环境可能需要更长的超时时间
+      
+      # === 其他高级配置 ===
+      appName: "gohub-production"
+      retryWrites: true
+      retryReads: true
+      serverSelectionTimeoutMS: "60s"  # 生产环境更长的选择超时
+      socketTimeoutMS: "30s"
+      heartbeatIntervalMS: "10s"
+      
+      # === 日志配置 ===
+      enableLogging: true
+      logLevel: "warn"             # 生产环境减少日志输出
+
+    # MongoDB 测试环境连接
+    mongo_test:
+      id: "mongo_test"             # 配置ID，用于标识和引用
+      enabled: false               # 默认禁用
+      host: "localhost"
+      port: 27017
+      database: "gohub_test"
+      
+      # === 认证信息（测试环境可能不需要认证） ===
+      username: ""
+      password: ""
+      authdb: ""
+      
+      # === 连接池配置（测试环境使用较小的连接池） ===
+      maxPoolSize: 20
+      minPoolSize: 2
+      maxIdleTimeMS: "10m"
+      connectTimeoutMS: "5s"
+      
+      # === 读写偏好配置 ===
+      readPreference: "primary"
+      readConcern: "local"         # 测试环境使用本地读关注
+      writeConcern: "1"            # 测试环境使用较低的写关注
+      writeConcernTimeout: "3s"
+      
+      # === 其他高级配置 ===
+      appName: "gohub-test"
+      retryWrites: false           # 测试环境可能不需要重试
+      retryReads: false
+      serverSelectionTimeoutMS: "10s"
+      socketTimeoutMS: "5s"
+      heartbeatIntervalMS: "5s"
+      
+      # === 日志配置 ===
+      enableLogging: true
+      logLevel: "debug"            # 测试环境启用详细日志

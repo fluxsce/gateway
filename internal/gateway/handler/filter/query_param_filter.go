@@ -96,10 +96,14 @@ func (f *QueryParamFilter) ConfigureRemove(paramName string) *QueryParamFilter {
 }
 
 // ConfigureRename 配置为重命名查询参数
-func (f *QueryParamFilter) ConfigureRename(paramName, targetParamName string) *QueryParamFilter {
+func (f *QueryParamFilter) ConfigureRename(paramName, targetParamName string, paramValue ...string) *QueryParamFilter {
 	f.ModifierType = RenameQueryParam
 	f.ParamName = paramName
 	f.TargetParamName = targetParamName
+	// 如果提供了新值，使用新值
+	if len(paramValue) > 0 {
+		f.ParamValue = paramValue[0]
+	}
 	return f
 }
 
@@ -116,21 +120,47 @@ func (f *QueryParamFilter) Apply(ctx *core.Context) error {
 		// 添加查询参数（不替换已有值）
 		query.Add(f.ParamName, f.ParamValue)
 	case SetQueryParam:
-		// 设置查询参数（替换已有值）
+		// 设置查询参数（只对已存在的参数替换值）
+		if _, exists := query[f.ParamName]; !exists {
+			// 参数不存在，跳过设置操作
+			return nil
+		}
 		query.Set(f.ParamName, f.ParamValue)
 	case RemoveQueryParam:
-		// 移除查询参数
+		// 移除查询参数（只对已存在的参数执行删除）
+		if _, exists := query[f.ParamName]; !exists {
+			// 参数不存在，跳过删除操作
+			return nil
+		}
 		query.Del(f.ParamName)
 	case RenameQueryParam:
-		// 重命名查询参数
+		// 重命名查询参数 - 只对已存在的参数执行
 		values := query[f.ParamName]
-		if len(values) > 0 {
-			// 复制值到新的参数
+		
+		// 检查原参数是否存在
+		if len(values) == 0 {
+			// 原参数不存在，跳过重命名操作
+			return nil
+		}
+		
+		// 原参数存在，执行重命名
+		// 删除旧的参数
+		query.Del(f.ParamName)
+		
+		// 设置新参数
+		if f.ParamValue != "" {
+			// 如果提供了新值，使用新值
+			query.Set(f.TargetParamName, f.ParamValue)
+		} else {
+			// 复制原有值到新的参数名
 			for _, value := range values {
 				query.Add(f.TargetParamName, value)
 			}
-			// 删除旧的参数
-			query.Del(f.ParamName)
+		}
+		
+		// 支持同名参数修改（当目标参数名与源参数名相同时）
+		if f.TargetParamName == f.ParamName && f.ParamValue != "" {
+			query.Set(f.ParamName, f.ParamValue)
 		}
 	}
 
@@ -146,39 +176,88 @@ func configureQueryParamFilter(queryFilter *QueryParamFilter, config map[string]
 		return nil
 	}
 
-	// 单个参数操作配置
-	if paramName, ok := config["param_name"].(string); ok {
-		if paramValue, ok := config["param_value"].(string); ok {
-			operation := "add"
-			if op, ok := config["operation"].(string); ok {
-				operation = strings.ToLower(op)
-			}
-
-			switch operation {
-			case "add":
-				queryFilter.ConfigureAdd(paramName, paramValue)
-			case "set":
-				queryFilter.ConfigureSet(paramName, paramValue)
-			case "remove":
-				queryFilter.ConfigureRemove(paramName)
-			case "rename":
-				if newName, ok := config["new_name"].(string); ok {
-					queryFilter.ConfigureRename(paramName, newName)
-				}
-			default:
-				queryFilter.ConfigureAdd(paramName, paramValue)
-			}
-		}
+	// 首先检查是否有嵌套的 queryParamConfig 配置
+	var paramConfig map[string]interface{}
+	if nestedConfig, ok := config["queryParamConfig"].(map[string]interface{}); ok {
+		paramConfig = nestedConfig
+	} else {
+		// 如果没有嵌套配置，直接使用顶级配置
+		paramConfig = config
 	}
 
-	// 批量参数操作配置
-	if params, ok := config["params"].(map[string]interface{}); ok {
-		for name, value := range params {
-			if valueStr, ok := value.(string); ok {
-				queryFilter.ConfigureAdd(name, valueStr)
-			}
+	// 优先支持前端驼峰命名格式
+	if modifierType, ok := paramConfig["modifierType"].(string); ok {
+		// 驼峰命名配置处理
+		paramName, _ := paramConfig["paramName"].(string)
+		paramValue, _ := paramConfig["paramValue"].(string)
+		targetParamName, _ := paramConfig["targetParamName"].(string)
+		
+		// 参数验证
+		if paramName == "" {
+			return fmt.Errorf("paramName 不能为空")
 		}
+		
+		// 根据操作类型配置
+		switch strings.ToLower(modifierType) {
+		case "add":
+			if paramValue == "" {
+				return fmt.Errorf("add操作需要paramValue参数")
+			}
+			queryFilter.ConfigureAdd(paramName, paramValue)
+		case "set":
+			if paramValue == "" {
+				return fmt.Errorf("set操作需要paramValue参数")
+			}
+			queryFilter.ConfigureSet(paramName, paramValue)
+		case "remove":
+			queryFilter.ConfigureRemove(paramName)
+		case "rename":
+			if targetParamName == "" {
+				return fmt.Errorf("rename操作需要targetParamName参数")
+			}
+			queryFilter.ConfigureRename(paramName, targetParamName, paramValue)
+		default:
+			return fmt.Errorf("无效的modifierType: %s", modifierType)
+		}
+		
+		return nil
 	}
+
+	// 支持下划线命名格式 (modifier_type, param_name等)
+	if modifierType, ok := paramConfig["modifier_type"].(string); ok {
+		paramName, _ := paramConfig["param_name"].(string)
+		paramValue, _ := paramConfig["param_value"].(string)
+		targetParamName, _ := paramConfig["target_param_name"].(string)
+		
+		if paramName == "" {
+			return fmt.Errorf("param_name 不能为空")
+		}
+		
+		switch strings.ToLower(modifierType) {
+		case "add":
+			if paramValue == "" {
+				return fmt.Errorf("add操作需要param_value参数")
+			}
+			queryFilter.ConfigureAdd(paramName, paramValue)
+		case "set":
+			if paramValue == "" {
+				return fmt.Errorf("set操作需要param_value参数")
+			}
+			queryFilter.ConfigureSet(paramName, paramValue)
+		case "remove":
+			queryFilter.ConfigureRemove(paramName)
+		case "rename":
+			if targetParamName == "" {
+				return fmt.Errorf("rename操作需要target_param_name参数")
+			}
+			queryFilter.ConfigureRename(paramName, targetParamName, paramValue)
+		default:
+			return fmt.Errorf("无效的modifier_type: %s", modifierType)
+		}
+		
+		return nil
+	}
+	
 
 	return nil
 }

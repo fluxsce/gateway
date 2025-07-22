@@ -103,8 +103,27 @@ func (e *Engine) HandleWithContext(gatewayCtx *Context,w http.ResponseWriter, r 
 	ctx.Set(constants.ContextKeyTraceID, traceID)
 
 	// 设置时间信息到上下文，用于性能统计和监控
-	ctx.startTime = realStartTime
-	ctx.Set(constants.ContextKeyRequestProcessingStart, requestStartTime)
+	// 重要设计决策：使用requestStartTime而不是realStartTime
+	// 原因如下：
+	// 1. HTTP Keep-Alive连接复用：一个TCP连接可以处理多个HTTP请求
+	//    - realStartTime是TCP连接建立时间，只在连接建立时设置一次
+	//    - 同一连接上的多个HTTP请求会共享相同的realStartTime
+	//    - 这会导致后续请求的"耗时"包含连接空闲时间，统计结果错误
+	// 2. 业务语义准确性：我们要统计的是HTTP请求处理性能，不是连接性能
+	//    - 第1个请求：耗时 = 响应时间 - realStartTime (包含连接建立等待)
+	//    - 第2个请求：耗时 = 响应时间 - realStartTime (包含5秒空闲时间!) ❌错误
+	//    - 正确计算：耗时 = 响应时间 - requestStartTime (纯HTTP处理时间) ✅正确
+	// 3. 监控和SLA统计的实用性：
+	//    - API响应时间监控需要的是单个请求的处理时间
+	//    - 性能瓶颈分析需要准确的请求级别统计
+	//    - 连接级别的时间统计应该单独实现，不应混合在请求统计中
+	// 4. 实际场景示例：
+	//    - 10:00:00 TCP连接建立 (realStartTime)
+	//    - 10:00:01 第1个HTTP请求 (实际处理100ms)
+	//    - 10:00:05 第2个HTTP请求 (实际处理80ms)
+	//    - 如果用realStartTime：第2个请求"耗时"=5.08秒 (完全错误!)
+	//    - 如果用requestStartTime：第2个请求耗时=80ms (正确!)
+	ctx.startTime = requestStartTime
 
 	// 执行完整的处理器链
 	// 这是网关的核心处理逻辑，会依次执行：
@@ -126,6 +145,8 @@ func (e *Engine) HandleWithContext(gatewayCtx *Context,w http.ResponseWriter, r 
 			"path":     r.URL.Path,
 			"method":   r.Method,
 		})
+		// 设置网关状态码
+		ctx.Set(constants.GatewayStatusCode, http.StatusNotFound)
 	}
 }
 

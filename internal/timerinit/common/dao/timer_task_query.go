@@ -422,10 +422,10 @@ func (dao *TimerTaskDAO) QueryTasks(ctx context.Context, query *TimerTaskQuery) 
 // GetTaskById 根据ID获取任务
 func (dao *TimerTaskDAO) GetTaskById(ctx context.Context, tenantId, taskId string) (*timertypes.TimerTask, error) {
 	tableName := (&timertypes.TimerTask{}).TableName()
-	sql := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND taskId = ?", tableName)
+	sql := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND taskId = ? AND activeFlag = ?", tableName)
 	
 	var task timertypes.TimerTask
-	err := dao.db.QueryOne(ctx, &task, sql, []interface{}{tenantId, taskId}, true)
+	err := dao.db.QueryOne(ctx, &task, sql, []interface{}{tenantId, taskId, timertypes.ActiveFlagYes}, true)
 	if err != nil {
 		if err == database.ErrRecordNotFound {
 			return nil, nil
@@ -438,6 +438,9 @@ func (dao *TimerTaskDAO) GetTaskById(ctx context.Context, tenantId, taskId strin
 
 // CreateTask 创建任务
 func (dao *TimerTaskDAO) CreateTask(ctx context.Context, task *timertypes.TimerTask) error {
+	// 设置活动标记为Y
+	task.ActiveFlag = timertypes.ActiveFlagYes
+	
 	tableName := (&timertypes.TimerTask{}).TableName()
 	_, err := dao.db.Insert(ctx, tableName, task, true)
 	if err != nil {
@@ -459,10 +462,10 @@ func (dao *TimerTaskDAO) UpdateTask(ctx context.Context, task *timertypes.TimerT
 	return nil
 }
 
-// DeleteTask 删除任务（软删除）
+// DeleteTask 删除任务（物理删除）
 func (dao *TimerTaskDAO) DeleteTask(ctx context.Context, tenantId, taskId string) error {
 	tableName := (&timertypes.TimerTask{}).TableName()
-	sql := fmt.Sprintf("UPDATE %s SET activeFlag = 'N' WHERE tenantId = ? AND taskId = ?", tableName)
+	sql := fmt.Sprintf("DELETE FROM %s WHERE tenantId = ? AND taskId = ?", tableName)
 	
 	_, err := dao.db.Exec(ctx, sql, []interface{}{tenantId, taskId}, true)
 	if err != nil {
@@ -473,9 +476,12 @@ func (dao *TimerTaskDAO) DeleteTask(ctx context.Context, tenantId, taskId string
 
 // GetTasksByScheduler 根据调度器ID获取任务列表
 func (dao *TimerTaskDAO) GetTasksByScheduler(ctx context.Context, tenantId, schedulerId string) ([]timertypes.TimerTask, error) {
+	activeFlag := timertypes.ActiveFlagYes
+	
 	query := &TimerTaskQuery{
 		TenantId:    &tenantId,
 		SchedulerId: &schedulerId,
+		ActiveFlag:  &activeFlag,
 		OrderBy:     "taskPriority",
 		OrderDirection: "DESC",
 	}

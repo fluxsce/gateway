@@ -288,3 +288,40 @@ type ProxyConfigRecord struct {
 	ProxyConfig         string  `db:"proxyConfig"`
 	CustomConfig        *string `db:"customConfig"`
 } 
+
+// LogConfigRecord 日志配置数据库记录
+type LogConfigRecord struct {
+	TenantId                   string  `db:"tenantId"`
+	LogConfigId                string  `db:"logConfigId"`
+	ConfigName                 string  `db:"configName"`
+	ConfigDesc                 string  `db:"configDesc"`
+	LogFormat                  string  `db:"logFormat"`
+	RecordRequestBody          string  `db:"recordRequestBody"`
+	RecordResponseBody         string  `db:"recordResponseBody"`
+	RecordHeaders              string  `db:"recordHeaders"`
+	MaxBodySizeBytes           int     `db:"maxBodySizeBytes"`
+	OutputTargets              string  `db:"outputTargets"`
+	FileConfig                 string  `db:"fileConfig"`
+	DatabaseConfig             string  `db:"databaseConfig"`
+	MongoConfig                string  `db:"mongoConfig"`
+	ElasticsearchConfig        string  `db:"elasticsearchConfig"`
+	ClickhouseConfig           string  `db:"clickhouseConfig"`
+	EnableAsyncLogging         string  `db:"enableAsyncLogging"`
+	AsyncQueueSize             int     `db:"asyncQueueSize"`
+	AsyncFlushIntervalMs       int     `db:"asyncFlushIntervalMs"`
+	EnableBatchProcessing      string  `db:"enableBatchProcessing"`
+	BatchSize                  int     `db:"batchSize"`
+	BatchTimeoutMs             int     `db:"batchTimeoutMs"`
+	LogRetentionDays           int     `db:"logRetentionDays"`
+	EnableFileRotation         string  `db:"enableFileRotation"`
+	MaxFileSizeMB              *int    `db:"maxFileSizeMB"`
+	MaxFileCount               *int    `db:"maxFileCount"`
+	RotationPattern            string  `db:"rotationPattern"`
+	EnableSensitiveDataMasking string  `db:"enableSensitiveDataMasking"`
+	SensitiveFields            string  `db:"sensitiveFields"`
+	MaskingPattern             string  `db:"maskingPattern"`
+	BufferSize                 int     `db:"bufferSize"`
+	FlushThreshold             int     `db:"flushThreshold"`
+	ConfigPriority             int     `db:"configPriority"`
+	ActiveFlag                 string  `db:"activeFlag"`
+}

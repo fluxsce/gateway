@@ -13,6 +13,18 @@ import (
 	"time"
 )
 
+// RouteConfigQueryParams 路由配置查询参数
+type RouteConfigQueryParams struct {
+	TenantId          string // 租户ID
+	GatewayInstanceId string // 网关实例ID
+	RouteName         string // 路由名称(支持模糊匹配)
+	RoutePath         string // 路由路径(支持模糊匹配)
+	MatchType         int    // 匹配类型(0:精确匹配,1:前缀匹配,2:正则匹配)
+	ActiveFlag        string // 激活状态(Y:激活,N:未激活)
+	Page              int    // 页码
+	PageSize          int    // 每页数量
+}
+
 // RouteConfigDAO 路由配置数据访问对象
 type RouteConfigDAO struct {
 	db database.Database
@@ -134,7 +146,7 @@ func (dao *RouteConfigDAO) AddRouteConfig(ctx context.Context, routeConfig *mode
 	routeConfig.ActiveFlag = "Y"
 
 	// 设置默认值
-	if routeConfig.MatchType == 0 {
+	if routeConfig.MatchType < 0 || routeConfig.MatchType > 2 {
 		routeConfig.MatchType = 1 // 默认前缀匹配
 	}
 	if routeConfig.RoutePriority == 0 {
@@ -301,18 +313,38 @@ func (dao *RouteConfigDAO) DeleteRouteConfig(ctx context.Context, routeConfigId,
 }
 
 // ListRouteConfigs 获取路由配置列表（分页，关联服务定义）
-func (dao *RouteConfigDAO) ListRouteConfigs(ctx context.Context, tenantId string, gatewayInstanceId string, page, pageSize int) ([]*models.RouteConfigWithService, int, error) {
-	if tenantId == "" {
+func (dao *RouteConfigDAO) ListRouteConfigs(ctx context.Context, params *RouteConfigQueryParams) ([]*models.RouteConfigWithService, int, error) {
+	if params.TenantId == "" {
 		return nil, 0, errors.New("tenantId不能为空")
 	}
 
 	// 构建查询条件
-	whereClause := "WHERE rc.tenantId = ? AND rc.activeFlag = 'Y'"
-	args := []interface{}{tenantId}
+	whereClause := "WHERE rc.tenantId = ?"
+	args := []interface{}{params.TenantId}
 
-	if gatewayInstanceId != "" {
+	// 激活状态过滤：如果指定了activeFlag参数则使用，否则默认只显示激活的记录
+	if params.ActiveFlag != "" {
+		whereClause += " AND rc.activeFlag = ?"
+		args = append(args, params.ActiveFlag)
+	} else {
+		whereClause += " AND rc.activeFlag = 'Y'"
+	}
+
+	if params.GatewayInstanceId != "" {
 		whereClause += " AND rc.gatewayInstanceId = ?"
-		args = append(args, gatewayInstanceId)
+		args = append(args, params.GatewayInstanceId)
+	}
+	if params.RouteName != "" {
+		whereClause += " AND rc.routeName LIKE ?"
+		args = append(args, "%"+params.RouteName+"%")
+	}
+	if params.RoutePath != "" {
+		whereClause += " AND rc.routePath LIKE ?"
+		args = append(args, "%"+params.RoutePath+"%")
+	}
+	if params.MatchType > 0 {
+		whereClause += " AND rc.matchType = ?"
+		args = append(args, params.MatchType)
 	}
 
 	// 构建基础查询语句（关联服务定义表）
@@ -381,7 +413,7 @@ func (dao *RouteConfigDAO) ListRouteConfigs(ctx context.Context, tenantId string
 	}
 
 	// 创建分页信息
-	paginationInfo := sqlutils.NewPaginationInfo(page, pageSize)
+	paginationInfo := sqlutils.NewPaginationInfo(params.Page, params.PageSize)
 
 	// 获取数据库类型
 	dbType := sqlutils.GetDatabaseType(dao.db)
@@ -1094,4 +1126,60 @@ func (dao *RouterConfigDAO) isDuplicateRouterNameError(err error) bool {
 	}
 	errStr := strings.ToLower(err.Error())
 	return strings.Contains(errStr, "duplicate") && strings.Contains(errStr, "routername")
+} 
+
+// GetRouteStatistics 获取路由统计信息
+func (dao *RouteConfigDAO) GetRouteStatistics(ctx context.Context, tenantId string, gatewayInstanceId string) (map[string]int, error) {
+	if tenantId == "" {
+		return nil, errors.New("tenantId不能为空")
+	}
+
+	// 构建查询条件
+	whereClause := "WHERE tenantId = ?"
+	args := []interface{}{tenantId}
+
+	if gatewayInstanceId != "" {
+		whereClause += " AND gatewayInstanceId = ?"
+		args = append(args, gatewayInstanceId)
+	}
+
+	// 构建统计查询SQL
+	query := fmt.Sprintf(`
+		SELECT 
+			COUNT(*) as totalRoutes,
+			SUM(CASE WHEN activeFlag = 'Y' THEN 1 ELSE 0 END) as activeRoutes,
+			SUM(CASE WHEN activeFlag = 'N' THEN 1 ELSE 0 END) as inactiveRoutes,
+			SUM(CASE WHEN matchType = 0 THEN 1 ELSE 0 END) as exactMatchRoutes,
+			SUM(CASE WHEN matchType = 1 THEN 1 ELSE 0 END) as prefixMatchRoutes,
+			SUM(CASE WHEN matchType = 2 THEN 1 ELSE 0 END) as regexMatchRoutes
+		FROM HUB_GW_ROUTE_CONFIG 
+		%s
+	`, whereClause)
+
+	// 执行统计查询
+	var result struct {
+		TotalRoutes       int `db:"totalRoutes"`
+		ActiveRoutes      int `db:"activeRoutes"`
+		InactiveRoutes    int `db:"inactiveRoutes"`
+		ExactMatchRoutes  int `db:"exactMatchRoutes"`
+		PrefixMatchRoutes int `db:"prefixMatchRoutes"`
+		RegexMatchRoutes  int `db:"regexMatchRoutes"`
+	}
+
+	err := dao.db.QueryOne(ctx, &result, query, args, true)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "查询路由统计信息失败")
+	}
+
+	// 返回统计结果
+	statistics := map[string]int{
+		"totalRoutes":       result.TotalRoutes,
+		"activeRoutes":      result.ActiveRoutes,
+		"inactiveRoutes":    result.InactiveRoutes,
+		"exactMatchRoutes":  result.ExactMatchRoutes,
+		"prefixMatchRoutes": result.PrefixMatchRoutes,
+		"regexMatchRoutes":  result.RegexMatchRoutes,
+	}
+
+	return statistics, nil
 } 

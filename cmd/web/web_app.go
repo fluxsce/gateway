@@ -170,11 +170,15 @@ func NewWebApp(db database.Database) *WebApp {
 		
 		// 处理Vue3 SPA路由 - 所有未匹配的路由都返回index.html
 		router.NoRoute(func(c *gin.Context) {
-			// 如果是API请求，返回404
-			if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			path := c.Request.URL.Path
+			
+			// 如果是API请求（包括/gohub/开头的路径），返回JSON格式的404
+			if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/gohub/") {
 				c.JSON(http.StatusNotFound, gin.H{
-					"code": 404,
+					"code":    "404",
 					"message": "API endpoint not found",
+					"data":    nil,
+					"path":    path,
 				})
 				return
 			}
@@ -184,10 +188,12 @@ func NewWebApp(db database.Database) *WebApp {
 			if _, err := os.Stat(indexPath); err == nil {
 				c.File(indexPath)
 			} else {
-				// 如果index.html不存在，返回简单的404页面
-				c.HTML(http.StatusNotFound, "404.html", gin.H{
-					"title": "页面未找到",
-					"message": "请求的页面不存在",
+				// 如果index.html不存在，也返回JSON格式的404（避免HTML渲染器问题）
+				c.JSON(http.StatusNotFound, gin.H{
+					"code":    "404",
+					"message": "Page not found",
+					"data":    nil,
+					"path":    path,
 				})
 			}
 		})

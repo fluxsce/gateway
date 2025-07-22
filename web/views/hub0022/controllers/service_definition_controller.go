@@ -31,11 +31,16 @@ func NewServiceDefinitionController(db database.Database) *ServiceDefinitionCont
 
 // QueryServiceDefinitions 获取服务定义列表
 // @Summary 获取服务定义列表
-// @Description 分页获取服务定义列表
+// @Description 分页获取服务定义列表，支持多种过滤条件
 // @Tags 服务定义管理
 // @Produce json
 // @Param page query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
+// @Param serviceName query string false "服务名称(模糊查询)"
+// @Param serviceType query string false "服务类型"
+// @Param loadBalanceStrategy query string false "负载均衡策略"
+// @Param activeFlag query string false "激活状态"
+// @Param proxyConfigId query string false "代理配置ID"
 // @Success 200 {object} response.JsonData
 // @Router /api/hub0022/service-definitions [get]
 func (c *ServiceDefinitionController) QueryServiceDefinitions(ctx *gin.Context) {
@@ -44,8 +49,14 @@ func (c *ServiceDefinitionController) QueryServiceDefinitions(ctx *gin.Context) 
 	// 使用工具类获取租户ID
 	tenantId := request.GetTenantID(ctx)
 
+	// 构建查询过滤条件
+	filter := &dao.ServiceDefinitionQueryFilter{}
+	if err := request.BindSafely(ctx, filter); err != nil {
+		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
+		return
+	}
 	// 调用DAO获取服务定义列表
-	serviceDefinitions, total, err := c.serviceDefinitionDAO.ListServiceDefinitions(ctx, tenantId, page, pageSize)
+	serviceDefinitions, total, err := c.serviceDefinitionDAO.ListServiceDefinitions(ctx, tenantId, page, pageSize, filter)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取服务定义列表失败", err)
 		response.ErrorJSON(ctx, "获取服务定义列表失败: "+err.Error(), constants.ED00009)
@@ -59,7 +70,7 @@ func (c *ServiceDefinitionController) QueryServiceDefinitions(ctx *gin.Context) 
 	}
 
 	// 创建分页信息并返回
-	pageInfo := response.NewPageInfo(page, pageSize, total)
+	pageInfo := response.NewPageInfo(page, pageSize, int(total))
 	pageInfo.MainKey = "serviceDefinitionId"
 
 	// 使用统一的分页响应

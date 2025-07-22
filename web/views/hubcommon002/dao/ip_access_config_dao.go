@@ -39,8 +39,6 @@ func (dao *IpAccessConfigDAO) generateIpAccessConfigId() string {
 	return fmt.Sprintf("IP%s%s", timeStr, randomStr)
 }
 
-
-
 // isIpAccessConfigIdExists 检查IP访问配置ID是否已存在
 func (dao *IpAccessConfigDAO) isIpAccessConfigIdExists(ctx context.Context, ipAccessConfigId string) (bool, error) {
 	query := `SELECT COUNT(*) as count FROM HUB_GW_IP_ACCESS_CONFIG WHERE ipAccessConfigId = ?`
@@ -132,7 +130,7 @@ func (dao *IpAccessConfigDAO) GetIpAccessConfigBySecurityConfigId(ctx context.Co
 
 	query := `
 		SELECT * FROM HUB_GW_IP_ACCESS_CONFIG 
-		WHERE securityConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
+		WHERE securityConfigId = ? AND tenantId = ?
 	`
 
 	var config models.IpAccessConfig
@@ -156,7 +154,7 @@ func (dao *IpAccessConfigDAO) GetIpAccessConfigById(ctx context.Context, ipAcces
 
 	query := `
 		SELECT * FROM HUB_GW_IP_ACCESS_CONFIG 
-		WHERE ipAccessConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
+		WHERE ipAccessConfigId = ? AND tenantId = ?
 	`
 
 	var config models.IpAccessConfig
@@ -194,12 +192,21 @@ func (dao *IpAccessConfigDAO) UpdateIpAccessConfig(ctx context.Context, config *
 	config.CurrentVersion = currentConfig.CurrentVersion + 1
 	config.OprSeqFlag = config.IpAccessConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
 
+	// 保留不可修改的字段
+	config.AddTime = currentConfig.AddTime
+	config.AddWho = currentConfig.AddWho
+	
+	// 如果没有设置活动标记，保持原有状态
+	if config.ActiveFlag == "" {
+		config.ActiveFlag = currentConfig.ActiveFlag
+	}
+
 	sql := `
 		UPDATE HUB_GW_IP_ACCESS_CONFIG SET
 			configName = ?, defaultPolicy = ?, whitelistIps = ?, blacklistIps = ?,
 			whitelistCidrs = ?, blacklistCidrs = ?, trustXForwardedFor = ?, trustXRealIp = ?,
 			reserved1 = ?, reserved2 = ?, reserved3 = ?, reserved4 = ?, reserved5 = ?,
-			extProperty = ?, noteText = ?, editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?
+			extProperty = ?, noteText = ?, editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?, activeFlag = ?
 		WHERE ipAccessConfigId = ? AND tenantId = ? AND currentVersion = ?
 	`
 
@@ -207,7 +214,7 @@ func (dao *IpAccessConfigDAO) UpdateIpAccessConfig(ctx context.Context, config *
 		config.ConfigName, config.DefaultPolicy, config.WhitelistIps, config.BlacklistIps,
 		config.WhitelistCidrs, config.BlacklistCidrs, config.TrustXForwardedFor, config.TrustXRealIp,
 		config.Reserved1, config.Reserved2, config.Reserved3, config.Reserved4, config.Reserved5,
-		config.ExtProperty, config.NoteText, config.EditTime, config.EditWho, config.OprSeqFlag, config.CurrentVersion,
+		config.ExtProperty, config.NoteText, config.EditTime, config.EditWho, config.OprSeqFlag, config.CurrentVersion, config.ActiveFlag,
 		config.IpAccessConfigId, config.TenantId, currentConfig.CurrentVersion,
 	}, true)
 
@@ -222,19 +229,25 @@ func (dao *IpAccessConfigDAO) UpdateIpAccessConfig(ctx context.Context, config *
 	return nil
 }
 
-// DeleteIpAccessConfig 删除IP访问控制配置
+// DeleteIpAccessConfig 物理删除IP访问控制配置
 func (dao *IpAccessConfigDAO) DeleteIpAccessConfig(ctx context.Context, securityConfigId, tenantId, operatorId string) error {
 	if securityConfigId == "" || tenantId == "" {
 		return errors.New("securityConfigId和tenantId不能为空")
 	}
 
-	sql := `
-		UPDATE HUB_GW_IP_ACCESS_CONFIG SET
-			activeFlag = 'N', editTime = ?, editWho = ?
-		WHERE securityConfigId = ? AND tenantId = ?
-	`
+	// 首先检查配置是否存在
+	config, err := dao.GetIpAccessConfigBySecurityConfigId(ctx, securityConfigId, tenantId)
+	if err != nil {
+		return err
+	}
+	if config == nil {
+		return errors.New("IP访问控制配置不存在")
+	}
 
-	result, err := dao.db.Exec(ctx, sql, []interface{}{time.Now(), operatorId, securityConfigId, tenantId}, true)
+	// 执行物理删除
+	sql := `DELETE FROM HUB_GW_IP_ACCESS_CONFIG WHERE securityConfigId = ? AND tenantId = ?`
+
+	result, err := dao.db.Exec(ctx, sql, []interface{}{securityConfigId, tenantId}, true)
 	if err != nil {
 		return huberrors.WrapError(err, "删除IP访问控制配置失败")
 	}
@@ -253,7 +266,7 @@ func (dao *IpAccessConfigDAO) ListIpAccessConfigs(ctx context.Context, tenantId 
 	}
 
 	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_IP_ACCESS_CONFIG WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY addTime DESC"
+	baseQuery := "SELECT * FROM HUB_GW_IP_ACCESS_CONFIG WHERE tenantId = ? ORDER BY addTime DESC"
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)

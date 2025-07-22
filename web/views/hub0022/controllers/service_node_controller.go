@@ -54,6 +54,9 @@ func (c *ServiceNodeController) QueryServiceNodes(ctx *gin.Context) {
 
 	// 构建筛选条件
 	filters := make(map[string]interface{})
+	if req.ServiceDefinitionId != "" {
+		filters["serviceDefinitionId"] = req.ServiceDefinitionId
+	}
 	if req.NodeHost != "" {
 		filters["nodeHost"] = req.NodeHost
 	}
@@ -117,6 +120,10 @@ func (c *ServiceNodeController) AddServiceNode(ctx *gin.Context) {
 	serviceNode.TenantId = tenantId
 
 	// 验证必填字段
+	if serviceNode.ServiceDefinitionId == "" {
+		response.ErrorJSON(ctx, "服务定义ID不能为空", constants.ED00007)
+		return
+	}
 	if serviceNode.NodeHost == "" || serviceNode.NodePort == 0 {
 		response.ErrorJSON(ctx, "节点主机地址和端口不能为空", constants.ED00007)
 		return
@@ -158,6 +165,7 @@ func (c *ServiceNodeController) AddServiceNode(ctx *gin.Context) {
 
 	logger.InfoWithTrace(ctx, "服务节点创建成功",
 		"serviceNodeId", serviceNodeId,
+		"serviceDefinitionId", newServiceNode.ServiceDefinitionId,
 		"tenantId", tenantId,
 		"operatorId", operatorId,
 		"nodeHost", newServiceNode.NodeHost,
@@ -242,6 +250,7 @@ func (c *ServiceNodeController) EditServiceNode(ctx *gin.Context) {
 
 	logger.InfoWithTrace(ctx, "服务节点更新成功",
 		"serviceNodeId", updateData.ServiceNodeId,
+		"serviceDefinitionId", updatedServiceNode.ServiceDefinitionId,
 		"tenantId", tenantId,
 		"operatorId", operatorId)
 
@@ -307,6 +316,7 @@ func (c *ServiceNodeController) DeleteServiceNode(ctx *gin.Context) {
 
 	logger.InfoWithTrace(ctx, "服务节点删除成功",
 		"serviceNodeId", req.ServiceNodeId,
+		"serviceDefinitionId", existingServiceNode.ServiceDefinitionId,
 		"tenantId", tenantId,
 		"operatorId", operatorId,
 		"nodeHost", existingServiceNode.NodeHost,
@@ -366,25 +376,6 @@ func (c *ServiceNodeController) GetServiceNode(ctx *gin.Context) {
 	response.SuccessJSON(ctx, nodeInfo, constants.SD00002)
 }
 
-// GetServiceNodesByService 根据服务定义获取节点列表
-// @Summary 根据服务定义获取节点列表
-// @Description 根据服务定义ID获取节点列表
-// @Tags 服务节点管理
-// @Accept json
-// @Produce json
-// @Param request body GetServiceNodesByServiceRequest true "查询请求"
-// @Success 200 {object} response.JsonData
-// @Router /gohub/hub0022/getServiceNodesByService [post]
-func (c *ServiceNodeController) GetServiceNodesByService(ctx *gin.Context) {
-	// 此方法不再需要，因为不再需要服务定义ID关联
-	// 但为了保持API兼容性，我们返回一个空列表
-	
-	response.SuccessJSON(ctx, gin.H{
-		"serviceNodes": []interface{}{},
-		"total":        0,
-		"message":      "服务节点不再与服务定义关联",
-	}, constants.SD00002)
-}
 
 // UpdateNodeHealth 更新节点健康状态
 // @Summary 更新节点健康状态
@@ -461,8 +452,9 @@ func (c *ServiceNodeController) UpdateNodeHealth(ctx *gin.Context) {
 
 // QueryServiceNodesRequest 查询服务节点列表请求
 type QueryServiceNodesRequest struct {
-	NodeHost     string `json:"nodeHost" form:"nodeHost" query:"nodeHost"`         // 节点主机地址
-	HealthStatus string `json:"healthStatus" form:"healthStatus" query:"healthStatus"` // 健康状态
+	ServiceDefinitionId string `json:"serviceDefinitionId" form:"serviceDefinitionId" query:"serviceDefinitionId"` // 服务定义ID
+	NodeHost            string `json:"nodeHost" form:"nodeHost" query:"nodeHost"`                                 // 节点主机地址
+	HealthStatus        string `json:"healthStatus" form:"healthStatus" query:"healthStatus"`                     // 健康状态
 }
 
 // DeleteServiceNodeRequest 删除服务节点请求
@@ -475,11 +467,6 @@ type GetServiceNodeRequest struct {
 	ServiceNodeId string `json:"serviceNodeId" form:"serviceNodeId" query:"serviceNodeId" binding:"required"` // 服务节点ID
 }
 
-// GetServiceNodesByServiceRequest 根据服务定义获取节点列表请求
-type GetServiceNodesByServiceRequest struct {
-	ServiceDefinitionId string `json:"serviceDefinitionId" form:"serviceDefinitionId" query:"serviceDefinitionId" binding:"required"` // 服务定义ID
-}
-
 // UpdateNodeHealthRequest 更新节点健康状态请求
 type UpdateNodeHealthRequest struct {
 	ServiceNodeId     string `json:"serviceNodeId" form:"serviceNodeId" query:"serviceNodeId" binding:"required"`         // 服务节点ID
@@ -490,25 +477,26 @@ type UpdateNodeHealthRequest struct {
 // serviceNodeToMap 将服务节点转换为Map格式
 func serviceNodeToMap(serviceNode *models.ServiceNodeModel) map[string]interface{} {
 	return map[string]interface{}{
-		"tenantId":            serviceNode.TenantId,
-		"serviceNodeId":       serviceNode.ServiceNodeId,
-		"nodeId":              serviceNode.NodeId,
-		"nodeUrl":             serviceNode.NodeUrl,
-		"nodeHost":            serviceNode.NodeHost,
-		"nodePort":            serviceNode.NodePort,
-		"nodeProtocol":        serviceNode.NodeProtocol,
-		"nodeWeight":          serviceNode.NodeWeight,
-		"healthStatus":        serviceNode.HealthStatus,
-		"nodeMetadata":        serviceNode.NodeMetadata,
-		"nodeStatus":          serviceNode.NodeStatus,
-		"lastHealthCheckTime": serviceNode.LastHealthCheckTime,
-		"healthCheckResult":   serviceNode.HealthCheckResult,
-		"activeFlag":          serviceNode.ActiveFlag,
-		"addTime":             serviceNode.AddTime,
-		"addWho":              serviceNode.AddWho,
-		"editTime":            serviceNode.EditTime,
-		"editWho":             serviceNode.EditWho,
-		"currentVersion":      serviceNode.CurrentVersion,
-		"noteText":            serviceNode.NoteText,
+		"tenantId":             serviceNode.TenantId,
+		"serviceNodeId":        serviceNode.ServiceNodeId,
+		"serviceDefinitionId":  serviceNode.ServiceDefinitionId,
+		"nodeId":               serviceNode.NodeId,
+		"nodeUrl":              serviceNode.NodeUrl,
+		"nodeHost":             serviceNode.NodeHost,
+		"nodePort":             serviceNode.NodePort,
+		"nodeProtocol":         serviceNode.NodeProtocol,
+		"nodeWeight":           serviceNode.NodeWeight,
+		"healthStatus":         serviceNode.HealthStatus,
+		"nodeMetadata":         serviceNode.NodeMetadata,
+		"nodeStatus":           serviceNode.NodeStatus,
+		"lastHealthCheckTime":  serviceNode.LastHealthCheckTime,
+		"healthCheckResult":    serviceNode.HealthCheckResult,
+		"activeFlag":           serviceNode.ActiveFlag,
+		"addTime":              serviceNode.AddTime,
+		"addWho":               serviceNode.AddWho,
+		"editTime":             serviceNode.EditTime,
+		"editWho":              serviceNode.EditWho,
+		"currentVersion":       serviceNode.CurrentVersion,
+		"noteText":             serviceNode.NoteText,
 	}
 } 

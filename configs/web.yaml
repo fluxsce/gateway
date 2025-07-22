@@ -26,3 +26,6 @@ web:
   static:
     path: "./web/static"
     prefix: "/static" 
+  frontend:
+    path: "./web/frontend/dist"
+    prefix: "/" 

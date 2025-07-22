@@ -20,6 +20,7 @@ import (
 type GatewayInstanceController struct {
 	db                 database.Database
 	gatewayInstanceDAO *dao.GatewayInstanceDAO
+	logConfigDAO       *dao.LogConfigDAO
 }
 
 // NewGatewayInstanceController 创建网关实例控制器
@@ -27,6 +28,7 @@ func NewGatewayInstanceController(db database.Database) *GatewayInstanceControll
 	return &GatewayInstanceController{
 		db:                 db,
 		gatewayInstanceDAO: dao.NewGatewayInstanceDAO(db),
+		logConfigDAO:       dao.NewLogConfigDAO(db),
 	}
 }
 
@@ -54,10 +56,25 @@ func (c *GatewayInstanceController) QueryGatewayInstances(ctx *gin.Context) {
 		return
 	}
 
-	// 转换为响应格式，过滤敏感字段
+	// 转换为响应格式，过滤敏感字段，并查询关联的日志配置
 	instanceList := make([]map[string]interface{}, 0, len(instances))
 	for _, instance := range instances {
-		instanceList = append(instanceList, gatewayInstanceToMap(instance))
+		instanceInfo := gatewayInstanceToMap(instance)
+		
+		// 如果有关联的日志配置，查询并返回
+		if instance.LogConfigId != "" {
+			logConfig, err := c.logConfigDAO.GetLogConfigById(ctx, instance.LogConfigId, tenantId)
+			if err != nil {
+				logger.WarnWithTrace(ctx, "获取日志配置信息失败", 
+					"gatewayInstanceId", instance.GatewayInstanceId,
+					"logConfigId", instance.LogConfigId,
+					"error", err)
+			} else if logConfig != nil {
+				instanceInfo["logConfig"] = logConfigToMap(logConfig)
+			}
+		}
+		
+		instanceList = append(instanceList, instanceInfo)
 	}
 
 	// 创建分页信息并返回
@@ -70,11 +87,11 @@ func (c *GatewayInstanceController) QueryGatewayInstances(ctx *gin.Context) {
 
 // AddGatewayInstance 创建网关实例
 // @Summary 创建网关实例
-// @Description 创建新的网关实例
+// @Description 创建新的网关实例，支持同时创建关联的日志配置
 // @Tags 网关实例管理
 // @Accept json
 // @Produce json
-// @Param instance body models.GatewayInstance true "网关实例信息"
+// @Param instance body models.GatewayInstance true "网关实例信息，可包含日志配置"
 // @Success 200 {object} response.JsonData
 // @Router /api/hub0020/gateway-instances [post]
 func (c *GatewayInstanceController) AddGatewayInstance(ctx *gin.Context) {
@@ -98,7 +115,7 @@ func (c *GatewayInstanceController) AddGatewayInstance(ctx *gin.Context) {
 		return
 	}
 
-	// 设置从上下文获取的租户ID和操作人信息
+	// 设置网关实例的租户ID和操作人信息
 	req.TenantId = tenantId
 	req.AddWho = operatorId
 	req.EditWho = operatorId
@@ -108,10 +125,117 @@ func (c *GatewayInstanceController) AddGatewayInstance(ctx *gin.Context) {
 	// 清空网关实例ID，让DAO自动生成
 	req.GatewayInstanceId = ""
 
+	// 处理日志配置
+	var logConfigId string
+	if req.LogConfig != nil {
+		// 设置日志配置的租户ID和操作人信息
+		req.LogConfig.TenantId = tenantId
+		req.LogConfig.AddWho = operatorId
+		req.LogConfig.EditWho = operatorId
+		req.LogConfig.AddTime = time.Now()
+		req.LogConfig.EditTime = time.Now()
+
+		// 检查是否传入了现有的日志配置ID（从GatewayInstance对象中获取）
+		if req.LogConfigId != "" {
+			// 如果指定了日志配置ID，检查是否存在，存在则更新
+			existingLogConfig, err := c.logConfigDAO.GetLogConfigById(ctx, req.LogConfigId, tenantId)
+			if err != nil {
+				logger.ErrorWithTrace(ctx, "获取现有日志配置失败", err)
+				response.ErrorJSON(ctx, "获取现有日志配置失败: "+err.Error(), constants.ED00009)
+				return
+			}
+
+			if existingLogConfig != nil {
+				// 保留不可修改的字段
+				req.LogConfig.LogConfigId = req.LogConfigId // 使用GatewayInstance中的LogConfigId
+				req.LogConfig.AddTime = existingLogConfig.AddTime
+				req.LogConfig.AddWho = existingLogConfig.AddWho
+				req.LogConfig.OprSeqFlag = existingLogConfig.OprSeqFlag
+				req.LogConfig.CurrentVersion = existingLogConfig.CurrentVersion
+				req.LogConfig.ActiveFlag = existingLogConfig.ActiveFlag
+
+				// 更新现有日志配置
+				err = c.logConfigDAO.UpdateLogConfig(ctx, req.LogConfig, operatorId)
+				if err != nil {
+					logger.ErrorWithTrace(ctx, "更新日志配置失败", err)
+					response.ErrorJSON(ctx, "更新日志配置失败: "+err.Error(), constants.ED00009)
+					return
+				}
+
+				logConfigId = req.LogConfigId
+				logger.InfoWithTrace(ctx, "日志配置更新成功", 
+					"logConfigId", logConfigId,
+					"tenantId", tenantId,
+					"operatorId", operatorId,
+					"configName", req.LogConfig.ConfigName)
+			} else {
+				// 日志配置ID不存在，创建新的
+				req.LogConfig.LogConfigId = "" // 清空ID让DAO自动生成
+				var err error
+				logConfigId, err = c.logConfigDAO.AddLogConfig(ctx, req.LogConfig, operatorId)
+				if err != nil {
+					logger.ErrorWithTrace(ctx, "创建日志配置失败", err)
+					response.ErrorJSON(ctx, "创建日志配置失败: "+err.Error(), constants.ED00009)
+					return
+				}
+
+				logger.InfoWithTrace(ctx, "日志配置创建成功", 
+					"logConfigId", logConfigId,
+					"tenantId", tenantId,
+					"operatorId", operatorId,
+					"configName", req.LogConfig.ConfigName)
+			}
+		} else {
+			// 没有指定日志配置ID，创建新的
+			req.LogConfig.LogConfigId = "" // 确保ID为空让DAO自动生成
+			var err error
+			logConfigId, err = c.logConfigDAO.AddLogConfig(ctx, req.LogConfig, operatorId)
+			if err != nil {
+				logger.ErrorWithTrace(ctx, "创建日志配置失败", err)
+				response.ErrorJSON(ctx, "创建日志配置失败: "+err.Error(), constants.ED00009)
+				return
+			}
+
+			logger.InfoWithTrace(ctx, "日志配置创建成功", 
+				"logConfigId", logConfigId,
+				"tenantId", tenantId,
+				"operatorId", operatorId,
+				"configName", req.LogConfig.ConfigName)
+		}
+
+		// 将日志配置ID关联到网关实例
+		req.LogConfigId = logConfigId
+	} else if req.LogConfigId != "" {
+		// 如果没有传入日志配置内容，但指定了日志配置ID，直接使用该ID
+		// 验证该日志配置是否存在
+		existingLogConfig, err := c.logConfigDAO.GetLogConfigById(ctx, req.LogConfigId, tenantId)
+		if err != nil {
+			logger.ErrorWithTrace(ctx, "获取指定的日志配置失败", err)
+			response.ErrorJSON(ctx, "获取指定的日志配置失败: "+err.Error(), constants.ED00009)
+			return
+		}
+		if existingLogConfig == nil {
+			response.ErrorJSON(ctx, "指定的日志配置不存在", constants.ED00008)
+			return
+		}
+		logConfigId = req.LogConfigId
+	}
+
+	// 清空LogConfig字段，避免存储到数据库
+	req.LogConfig = nil
+
 	// 调用DAO添加网关实例
 	gatewayInstanceId, err := c.gatewayInstanceDAO.AddGatewayInstance(ctx, &req, operatorId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "创建网关实例失败", err)
+		
+		// 如果日志配置是新创建的，需要删除（回滚）
+		if logConfigId != "" && req.LogConfigId == "" {
+			if deleteErr := c.logConfigDAO.DeleteLogConfig(ctx, logConfigId, tenantId, operatorId); deleteErr != nil {
+				logger.ErrorWithTrace(ctx, "回滚日志配置失败", deleteErr)
+			}
+		}
+		
 		response.ErrorJSON(ctx, "创建网关实例失败: "+err.Error(), constants.ED00009)
 		return
 	}
@@ -123,6 +247,7 @@ func (c *GatewayInstanceController) AddGatewayInstance(ctx *gin.Context) {
 		// 即使查询失败，也返回成功但只带有网关实例ID
 		response.SuccessJSON(ctx, gin.H{
 			"gatewayInstanceId": gatewayInstanceId,
+			"logConfigId":       logConfigId,
 			"tenantId":          tenantId,
 			"message":           "网关实例创建成功，但获取详细信息失败",
 		}, constants.SD00003)
@@ -133,6 +258,7 @@ func (c *GatewayInstanceController) AddGatewayInstance(ctx *gin.Context) {
 		logger.ErrorWithTrace(ctx, "新创建的网关实例不存在", "gatewayInstanceId", gatewayInstanceId)
 		response.SuccessJSON(ctx, gin.H{
 			"gatewayInstanceId": gatewayInstanceId,
+			"logConfigId":       logConfigId,
 			"tenantId":          tenantId,
 			"message":           "网关实例创建成功，但查询详细信息为空",
 		}, constants.SD00003)
@@ -142,8 +268,19 @@ func (c *GatewayInstanceController) AddGatewayInstance(ctx *gin.Context) {
 	// 返回完整的网关实例信息，排除敏感字段
 	instanceInfo := gatewayInstanceToMap(newInstance)
 
+	// 如果有日志配置，也返回日志配置信息
+	if logConfigId != "" {
+		logConfig, err := c.logConfigDAO.GetLogConfigById(ctx, logConfigId, tenantId)
+		if err != nil {
+			logger.WarnWithTrace(ctx, "获取日志配置信息失败", err)
+		} else if logConfig != nil {
+			instanceInfo["logConfig"] = logConfigToMap(logConfig)
+		}
+	}
+
 	logger.InfoWithTrace(ctx, "网关实例创建成功", 
 		"gatewayInstanceId", gatewayInstanceId,
+		"logConfigId", logConfigId,
 		"tenantId", tenantId,
 		"operatorId", operatorId,
 		"instanceName", newInstance.InstanceName)
@@ -153,22 +290,22 @@ func (c *GatewayInstanceController) AddGatewayInstance(ctx *gin.Context) {
 
 // EditGatewayInstance 更新网关实例
 // @Summary 更新网关实例
-// @Description 更新网关实例信息
+// @Description 更新网关实例信息，支持同时更新关联的日志配置
 // @Tags 网关实例管理
 // @Accept json
 // @Produce json
-// @Param instance body models.GatewayInstance true "网关实例信息"
+// @Param instance body models.GatewayInstance true "网关实例信息，可包含日志配置"
 // @Success 200 {object} response.JsonData
 // @Router /api/hub0020/gateway-instances [put]
 func (c *GatewayInstanceController) EditGatewayInstance(ctx *gin.Context) {
-	var updateData models.GatewayInstance
-	if err := request.BindSafely(ctx, &updateData); err != nil {
+	var req models.GatewayInstance
+	if err := request.BindSafely(ctx, &req); err != nil {
 		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
 		return
 	}
 
 	// 验证必填字段
-	if updateData.GatewayInstanceId == "" {
+	if req.GatewayInstanceId == "" {
 		response.ErrorJSON(ctx, "网关实例ID不能为空", constants.ED00007)
 		return
 	}
@@ -188,7 +325,7 @@ func (c *GatewayInstanceController) EditGatewayInstance(ctx *gin.Context) {
 	}
 
 	// 获取现有网关实例信息
-	currentInstance, err := c.gatewayInstanceDAO.GetGatewayInstanceById(ctx, updateData.GatewayInstanceId, tenantId)
+	currentInstance, err := c.gatewayInstanceDAO.GetGatewayInstanceById(ctx, req.GatewayInstanceId, tenantId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取网关实例信息失败", err)
 		response.ErrorJSON(ctx, "获取网关实例信息失败: "+err.Error(), constants.ED00009)
@@ -207,17 +344,130 @@ func (c *GatewayInstanceController) EditGatewayInstance(ctx *gin.Context) {
 	addWho := currentInstance.AddWho
 
 	// 设置更新时间和操作人（从上下文获取）
-	updateData.EditTime = time.Now()
-	updateData.EditWho = operatorId
+	req.EditTime = time.Now()
+	req.EditWho = operatorId
 
 	// 强制恢复不可修改的字段，防止前端恶意修改
-	updateData.GatewayInstanceId = gatewayInstanceId
-	updateData.TenantId = tenantIdValue  // 强制使用数据库中的租户ID
-	updateData.AddTime = addTime
-	updateData.AddWho = addWho
+	req.GatewayInstanceId = gatewayInstanceId
+	req.TenantId = tenantIdValue  // 强制使用数据库中的租户ID
+	req.AddTime = addTime
+	req.AddWho = addWho
+
+	// 处理日志配置
+	var logConfigId string
+	
+	// 确定要使用的日志配置ID：优先使用前端传入的，其次使用现有的
+	targetLogConfigId := req.LogConfigId
+	if targetLogConfigId == "" {
+		targetLogConfigId = currentInstance.LogConfigId
+	}
+
+	if req.LogConfig != nil {
+		// 有日志配置内容需要处理
+		// 设置日志配置的租户ID和操作人信息
+		req.LogConfig.TenantId = tenantId
+		req.LogConfig.EditWho = operatorId
+		req.LogConfig.EditTime = time.Now()
+
+		if targetLogConfigId != "" {
+			// 更新现有日志配置
+			// 获取现有日志配置信息，保留不可修改的字段
+			existingLogConfig, err := c.logConfigDAO.GetLogConfigById(ctx, targetLogConfigId, tenantId)
+			if err != nil {
+				logger.ErrorWithTrace(ctx, "获取现有日志配置失败", err)
+				response.ErrorJSON(ctx, "获取现有日志配置失败: "+err.Error(), constants.ED00009)
+				return
+			}
+
+			if existingLogConfig == nil {
+				// 如果指定的日志配置不存在，创建新的
+				req.LogConfig.LogConfigId = ""
+				req.LogConfig.AddWho = operatorId
+				req.LogConfig.AddTime = time.Now()
+
+				var err error
+				logConfigId, err = c.logConfigDAO.AddLogConfig(ctx, req.LogConfig, operatorId)
+				if err != nil {
+					logger.ErrorWithTrace(ctx, "创建日志配置失败", err)
+					response.ErrorJSON(ctx, "创建日志配置失败: "+err.Error(), constants.ED00009)
+					return
+				}
+
+				logger.InfoWithTrace(ctx, "日志配置创建成功", 
+					"logConfigId", logConfigId,
+					"tenantId", tenantId,
+					"operatorId", operatorId,
+					"configName", req.LogConfig.ConfigName)
+			} else {
+				// 更新现有日志配置
+				req.LogConfig.LogConfigId = targetLogConfigId
+				req.LogConfig.AddTime = existingLogConfig.AddTime
+				req.LogConfig.AddWho = existingLogConfig.AddWho
+				req.LogConfig.OprSeqFlag = existingLogConfig.OprSeqFlag
+				req.LogConfig.CurrentVersion = existingLogConfig.CurrentVersion
+				req.LogConfig.ActiveFlag = existingLogConfig.ActiveFlag
+
+				err = c.logConfigDAO.UpdateLogConfig(ctx, req.LogConfig, operatorId)
+				if err != nil {
+					logger.ErrorWithTrace(ctx, "更新日志配置失败", err)
+					response.ErrorJSON(ctx, "更新日志配置失败: "+err.Error(), constants.ED00009)
+					return
+				}
+
+				logConfigId = targetLogConfigId
+				
+				logger.InfoWithTrace(ctx, "日志配置更新成功", 
+					"logConfigId", logConfigId,
+					"tenantId", tenantId,
+					"operatorId", operatorId,
+					"configName", req.LogConfig.ConfigName)
+			}
+		} else {
+			// 创建新的日志配置
+			req.LogConfig.LogConfigId = ""
+			req.LogConfig.AddWho = operatorId
+			req.LogConfig.AddTime = time.Now()
+
+			var err error
+			logConfigId, err = c.logConfigDAO.AddLogConfig(ctx, req.LogConfig, operatorId)
+			if err != nil {
+				logger.ErrorWithTrace(ctx, "创建日志配置失败", err)
+				response.ErrorJSON(ctx, "创建日志配置失败: "+err.Error(), constants.ED00009)
+				return
+			}
+
+			logger.InfoWithTrace(ctx, "日志配置创建成功", 
+				"logConfigId", logConfigId,
+				"tenantId", tenantId,
+				"operatorId", operatorId,
+				"configName", req.LogConfig.ConfigName)
+		}
+
+		// 更新网关实例的日志配置关联
+		req.LogConfigId = logConfigId
+	} else if targetLogConfigId != "" {
+		// 没有传入日志配置内容，但有日志配置ID，直接使用该ID
+		// 验证该日志配置是否存在
+		existingLogConfig, err := c.logConfigDAO.GetLogConfigById(ctx, targetLogConfigId, tenantId)
+		if err != nil {
+			logger.ErrorWithTrace(ctx, "获取指定的日志配置失败", err)
+			response.ErrorJSON(ctx, "获取指定的日志配置失败: "+err.Error(), constants.ED00009)
+			return
+		}
+		if existingLogConfig == nil {
+			logger.WarnWithTrace(ctx, "指定的日志配置不存在，将清空关联", "logConfigId", targetLogConfigId)
+			req.LogConfigId = ""
+		} else {
+			req.LogConfigId = targetLogConfigId
+			logConfigId = targetLogConfigId
+		}
+	}
+
+	// 清空LogConfig字段，避免存储到数据库
+	req.LogConfig = nil
 
 	// 调用DAO更新网关实例
-	err = c.gatewayInstanceDAO.UpdateGatewayInstance(ctx, &updateData, operatorId)
+	err = c.gatewayInstanceDAO.UpdateGatewayInstance(ctx, &req, operatorId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "更新网关实例失败", err)
 		response.ErrorJSON(ctx, "更新网关实例失败: "+err.Error(), constants.ED00009)
@@ -225,7 +475,7 @@ func (c *GatewayInstanceController) EditGatewayInstance(ctx *gin.Context) {
 	}
 
 	// 查询更新后的网关实例信息
-	updatedInstance, err := c.gatewayInstanceDAO.GetGatewayInstanceById(ctx, updateData.GatewayInstanceId, tenantId)
+	updatedInstance, err := c.gatewayInstanceDAO.GetGatewayInstanceById(ctx, req.GatewayInstanceId, tenantId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取更新后的网关实例信息失败", err)
 		// 即使查询失败，也返回成功但只带有简单消息
@@ -237,6 +487,20 @@ func (c *GatewayInstanceController) EditGatewayInstance(ctx *gin.Context) {
 
 	// 返回完整的网关实例信息，排除敏感字段
 	instanceInfo := gatewayInstanceToMap(updatedInstance)
+
+	// 如果有日志配置，也返回日志配置信息
+	finalLogConfigId := updatedInstance.LogConfigId
+	if finalLogConfigId != "" {
+		logConfig, err := c.logConfigDAO.GetLogConfigById(ctx, finalLogConfigId, tenantId)
+		if err != nil {
+			logger.WarnWithTrace(ctx, "获取日志配置信息失败", 
+				"gatewayInstanceId", updatedInstance.GatewayInstanceId,
+				"logConfigId", finalLogConfigId,
+				"error", err)
+		} else if logConfig != nil {
+			instanceInfo["logConfig"] = logConfigToMap(logConfig)
+		}
+	}
 
 	response.SuccessJSON(ctx, instanceInfo, constants.SD00004)
 }
@@ -330,6 +594,19 @@ func (c *GatewayInstanceController) GetGatewayInstance(ctx *gin.Context) {
 
 	// 转换为响应格式，排除敏感字段
 	instanceInfo := gatewayInstanceToMap(instance)
+
+	// 如果有关联的日志配置，查询并返回
+	if instance.LogConfigId != "" {
+		logConfig, err := c.logConfigDAO.GetLogConfigById(ctx, instance.LogConfigId, tenantId)
+		if err != nil {
+			logger.WarnWithTrace(ctx, "获取日志配置信息失败", 
+				"gatewayInstanceId", instance.GatewayInstanceId,
+				"logConfigId", instance.LogConfigId,
+				"error", err)
+		} else if logConfig != nil {
+			instanceInfo["logConfig"] = logConfigToMap(logConfig)
+		}
+	}
 
 	response.SuccessJSON(ctx, instanceInfo, constants.SD00001)
 }
@@ -653,6 +930,58 @@ type UpdateHealthStatusRequest struct {
 // ReloadGatewayInstanceRequest 重载网关实例请求
 type ReloadGatewayInstanceRequest struct {
 	GatewayInstanceId string `json:"gatewayInstanceId" form:"gatewayInstanceId" binding:"required"` // 网关实例ID
+}
+
+// logConfigToMap 将日志配置对象转换为Map，过滤敏感字段
+func logConfigToMap(logConfig *models.LogConfig) map[string]interface{} {
+	return map[string]interface{}{
+		"tenantId":                     logConfig.TenantId,
+		"logConfigId":                  logConfig.LogConfigId,
+		"configName":                   logConfig.ConfigName,
+		"configDesc":                   logConfig.ConfigDesc,
+		"logFormat":                    logConfig.LogFormat,
+		"recordRequestBody":            logConfig.RecordRequestBody,
+		"recordResponseBody":           logConfig.RecordResponseBody,
+		"recordHeaders":                logConfig.RecordHeaders,
+		"maxBodySizeBytes":             logConfig.MaxBodySizeBytes,
+		"outputTargets":                logConfig.OutputTargets,
+		"fileConfig":                   logConfig.FileConfig,
+		"databaseConfig":               logConfig.DatabaseConfig,
+		"mongoConfig":                  logConfig.MongoConfig,
+		"elasticsearchConfig":          logConfig.ElasticsearchConfig,
+		"clickhouseConfig":             logConfig.ClickhouseConfig,
+		"enableAsyncLogging":           logConfig.EnableAsyncLogging,
+		"asyncQueueSize":               logConfig.AsyncQueueSize,
+		"asyncFlushIntervalMs":         logConfig.AsyncFlushIntervalMs,
+		"enableBatchProcessing":        logConfig.EnableBatchProcessing,
+		"batchSize":                    logConfig.BatchSize,
+		"batchTimeoutMs":               logConfig.BatchTimeoutMs,
+		"logRetentionDays":             logConfig.LogRetentionDays,
+		"enableFileRotation":           logConfig.EnableFileRotation,
+		"maxFileSizeMB":                logConfig.MaxFileSizeMB,
+		"maxFileCount":                 logConfig.MaxFileCount,
+		"rotationPattern":              logConfig.RotationPattern,
+		"enableSensitiveDataMasking":   logConfig.EnableSensitiveDataMasking,
+		"sensitiveFields":              logConfig.SensitiveFields,
+		"maskingPattern":               logConfig.MaskingPattern,
+		"bufferSize":                   logConfig.BufferSize,
+		"flushThreshold":               logConfig.FlushThreshold,
+		"configPriority":               logConfig.ConfigPriority,
+		"reserved1":                    logConfig.Reserved1,
+		"reserved2":                    logConfig.Reserved2,
+		"reserved3":                    logConfig.Reserved3,
+		"reserved4":                    logConfig.Reserved4,
+		"reserved5":                    logConfig.Reserved5,
+		"extProperty":                  logConfig.ExtProperty,
+		"addTime":                      logConfig.AddTime,
+		"addWho":                       logConfig.AddWho,
+		"editTime":                     logConfig.EditTime,
+		"editWho":                      logConfig.EditWho,
+		"oprSeqFlag":                   logConfig.OprSeqFlag,
+		"currentVersion":               logConfig.CurrentVersion,
+		"activeFlag":                   logConfig.ActiveFlag,
+		"noteText":                     logConfig.NoteText,
+	}
 }
 
 // gatewayInstanceToMap 将网关实例对象转换为Map，过滤敏感字段
