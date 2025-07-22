@@ -67,7 +67,7 @@ go run cmd/app/main.go
 graph TB
     Client[客户端] --> |HTTP/HTTPS请求| Gateway[API网关]
     
-    subgraph "网关处理流程"
+    subgraph 网关处理流程
         Gateway --> |1.请求接收| PreProcess[前置处理]
         PreProcess --> |2.请求解析| Security[全局安全控制]
         Security --> |3.安全检查| CORS[全局CORS处理]
