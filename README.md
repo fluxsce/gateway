@@ -65,42 +65,29 @@ go run cmd/app/main.go
 
 ```mermaid
 graph TB
-    Client[客户端] --> |HTTP/HTTPS请求| Gateway[API网关]
+    Client[客户端] --> Gateway[API网关]
+    Gateway --> PreProcess[前置处理]
+    PreProcess --> Security[全局安全控制]
+    Security --> CORS[全局CORS处理]
+    CORS --> Auth[全局认证鉴权]
+    Auth --> RateLimit[全局限流控制]
+    RateLimit --> Router[路由匹配]
+    Router --> RouteHandlers[路由级处理器链]
+    RouteHandlers --> Discovery[服务发现]
+    Discovery --> LoadBalance[负载均衡]
+    LoadBalance --> CircuitBreaker[熔断检查]
+    CircuitBreaker --> ProxyForward[请求转发]
     
-    subgraph 网关处理流程
-        Gateway --> |1.请求接收| PreProcess[前置处理]
-        PreProcess --> |2.请求解析| Security[全局安全控制]
-        Security --> |3.安全检查| CORS[全局CORS处理]
-        CORS --> |4.跨域处理| Auth[全局认证鉴权]
-        Auth --> |5.身份验证| RateLimit[全局限流控制]
-        RateLimit --> |6.流量控制| Router[路由匹配]
-        Router --> |7.路由决策| RouteHandlers[路由级处理器链]
-        RouteHandlers --> |8.路由处理| Discovery[服务发现]
-        Discovery --> |9.发现服务| LoadBalance[负载均衡]
-        LoadBalance --> |10.选择实例| CircuitBreaker[熔断检查]
-        CircuitBreaker --> |11.故障检测| ProxyForward[请求转发]
-    end
-    
-    ProxyForward --> |12.转发请求| Services[后端服务集群]
-    Services --> |13.响应返回| PostProcess[响应处理]
-    PostProcess --> |14.响应转换| Gateway
-    Gateway --> |15.响应返回| Client
+    ProxyForward --> Services[后端服务集群]
+    Services --> PostProcess[响应处理]
+    PostProcess --> Gateway
+    Gateway --> Client
     
     Gateway --> Log[日志系统]
     Gateway --> Monitor[监控系统]
     Gateway --> Config[配置中心]
     Gateway --> Cache[(缓存)]
     Gateway --> DB[(数据库)]
-    
-    classDef processStep fill:#f9f,stroke:#333,stroke-width:2px
-    classDef service fill:#bbf,stroke:#33f,stroke-width:2px
-    classDef storage fill:#bfb,stroke:#3f3,stroke-width:2px
-    classDef client fill:#fbb,stroke:#f33,stroke-width:2px
-    
-    class PreProcess,Security,CORS,Auth,RateLimit,Router,RouteHandlers,Discovery,LoadBalance,CircuitBreaker,ProxyForward,PostProcess processStep
-    class Services service
-    class Log,Monitor,Config,Cache,DB storage
-    class Client client
 ```
 
 ## 📚 文档导航

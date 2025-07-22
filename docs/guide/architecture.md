@@ -10,64 +10,29 @@ Gateway is designed as a cloud-native, high-performance API gateway built with G
 
 ```mermaid
 graph TB
-    subgraph "Client Layer"
-        WebApp[Web Application]
-        MobileApp[Mobile App]
-        ThirdParty[Third Party Services]
-        CLI[CLI Tools]
-    end
+    WebApp[Web Application] --> LB[Load Balancer]
+    MobileApp[Mobile App] --> LB
+    ThirdParty[Third Party Services] --> LB
+    CLI[CLI Tools] --> LB
     
-    subgraph "Gateway Layer"
-        LB[Load Balancer]
-        Gateway1[Gateway Instance 1]
-        Gateway2[Gateway Instance 2]
-        GatewayN[Gateway Instance N]
-    end
+    LB --> Gateway1[Gateway Instance 1]
+    LB --> Gateway2[Gateway Instance 2]
+    LB --> GatewayN[Gateway Instance N]
     
-    subgraph "Data Layer"
-        Redis[(Redis Cache)]
-        MySQL[(MySQL)]
-        MongoDB[(MongoDB)]
-        ClickHouse[(ClickHouse)]
-    end
+    Gateway1 --> Redis[(Redis Cache)]
+    Gateway1 --> MySQL[(MySQL)]
+    Gateway1 --> MongoDB[(MongoDB)]
+    Gateway1 --> ClickHouse[(ClickHouse)]
     
-    subgraph "Backend Services"
-        UserService[User Service]
-        OrderService[Order Service]
-        ProductService[Product Service]
-        PaymentService[Payment Service]
-    end
+    Gateway1 --> UserService[User Service]
+    Gateway1 --> OrderService[Order Service]
+    Gateway1 --> ProductService[Product Service]
+    Gateway1 --> PaymentService[Payment Service]
     
-    subgraph "Infrastructure"
-        Monitoring[Monitoring]
-        Logging[Centralized Logging]
-        Metrics[Metrics Collection]
-        Tracing[Distributed Tracing]
-    end
-    
-    WebApp --> LB
-    MobileApp --> LB
-    ThirdParty --> LB
-    CLI --> LB
-    
-    LB --> Gateway1
-    LB --> Gateway2
-    LB --> GatewayN
-    
-    Gateway1 --> Redis
-    Gateway1 --> MySQL
-    Gateway1 --> MongoDB
-    Gateway1 --> ClickHouse
-    
-    Gateway1 --> UserService
-    Gateway1 --> OrderService
-    Gateway1 --> ProductService
-    Gateway1 --> PaymentService
-    
-    Gateway1 --> Monitoring
-    Gateway1 --> Logging
-    Gateway1 --> Metrics
-    Gateway1 --> Tracing
+    Gateway1 --> Monitoring[Monitoring]
+    Gateway1 --> Logging[Centralized Logging]
+    Gateway1 --> Metrics[Metrics Collection]
+    Gateway1 --> Tracing[Distributed Tracing]
 ```
 
 ### Core Principles
@@ -85,64 +50,29 @@ graph TB
 
 ```mermaid
 graph TB
-    subgraph "Gateway Core"
-        Router[Request Router]
-        Proxy[HTTP Proxy]
-        Engine[Core Engine]
-        Context[Request Context]
-    end
+    Router[Request Router] --> Auth[Authentication]
+    Engine[Core Engine] --> Router
+    Engine --> Proxy[HTTP Proxy]
     
-    subgraph "Middleware Pipeline"
-        Auth[Authentication]
-        RateLimit[Rate Limiter]
-        CORS[CORS Handler]
-        Security[Security Filter]
-        CircuitBreaker[Circuit Breaker]
-        Transform[Request/Response Transform]
-    end
+    Auth --> RateLimit[Rate Limiter]
+    RateLimit --> CORS[CORS Handler]
+    CORS --> Security[Security Filter]
+    Security --> CircuitBreaker[Circuit Breaker]
+    CircuitBreaker --> Transform[Request/Response Transform]
     
-    subgraph "Backend Integration"
-        LoadBalancer[Load Balancer]
-        HealthCheck[Health Checker]
-        ServiceDiscovery[Service Discovery]
-        ConnectionPool[Connection Pool]
-    end
+    Transform --> LoadBalancer[Load Balancer]
+    LoadBalancer --> HealthCheck[Health Checker]
+    LoadBalancer --> ServiceDiscovery[Service Discovery]
+    LoadBalancer --> ConnectionPool[Connection Pool]
     
-    subgraph "Data & Cache"
-        ConfigLoader[Config Loader]
-        CacheManager[Cache Manager]
-        DatabaseManager[Database Manager]
-        MetricsCollector[Metrics Collector]
-    end
+    Engine --> ConfigLoader[Config Loader]
+    Engine --> CacheManager[Cache Manager]
+    Engine --> DatabaseManager[Database Manager]
+    Engine --> MetricsCollector[Metrics Collector]
     
-    subgraph "Management"
-        WebUI[Web Interface]
-        RestAPI[REST API]
-        AdminConsole[Admin Console]
-        ConfigManager[Configuration Manager]
-    end
-    
-    Engine --> Router
-    Engine --> Proxy
-    Router --> Auth
-    Auth --> RateLimit
-    RateLimit --> CORS
-    CORS --> Security
-    Security --> CircuitBreaker
-    CircuitBreaker --> Transform
-    Transform --> LoadBalancer
-    LoadBalancer --> HealthCheck
-    LoadBalancer --> ServiceDiscovery
-    LoadBalancer --> ConnectionPool
-    
-    Engine --> ConfigLoader
-    Engine --> CacheManager
-    Engine --> DatabaseManager
-    Engine --> MetricsCollector
-    
-    WebUI --> RestAPI
-    RestAPI --> AdminConsole
-    AdminConsole --> ConfigManager
+    WebUI[Web Interface] --> RestAPI[REST API]
+    RestAPI --> AdminConsole[Admin Console]
+    AdminConsole --> ConfigManager[Configuration Manager]
     ConfigManager --> Engine
 ```
 
@@ -152,54 +82,28 @@ graph TB
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant Gateway
-    participant Auth
-    participant RateLimit
-    participant Router
-    participant CircuitBreaker
-    participant LoadBalancer
-    participant Backend
-    participant Cache
-    participant Database
-    
     Client->>Gateway: HTTP Request
     Gateway->>Auth: Authenticate Request
     Auth->>Database: Validate Credentials
     Database-->>Auth: Auth Result
     Auth-->>Gateway: Authentication Status
     
-    alt Authentication Success
-        Gateway->>RateLimit: Check Rate Limit
-        RateLimit->>Cache: Get Rate Limit State
-        Cache-->>RateLimit: Current State
-        RateLimit-->>Gateway: Rate Limit Status
-        
-        alt Rate Limit OK
-            Gateway->>Router: Route Request
-            Router->>CircuitBreaker: Check Circuit State
-            CircuitBreaker-->>Router: Circuit Status
-            
-            alt Circuit Closed
-                Router->>LoadBalancer: Select Backend
-                LoadBalancer->>Backend: Forward Request
-                Backend-->>LoadBalancer: Response
-                LoadBalancer-->>Router: Response
-                Router-->>Gateway: Response
-                Gateway->>Cache: Update Cache (if needed)
-                Gateway-->>Client: HTTP Response
-            else Circuit Open
-                Router-->>Gateway: Circuit Open Error
-                Gateway-->>Client: Service Unavailable
-            end
-        else Rate Limit Exceeded
-            RateLimit-->>Gateway: Rate Limit Error
-            Gateway-->>Client: Too Many Requests
-        end
-    else Authentication Failed
-        Auth-->>Gateway: Auth Error
-        Gateway-->>Client: Unauthorized
-    end
+    Gateway->>RateLimit: Check Rate Limit
+    RateLimit->>Cache: Get Rate Limit State
+    Cache-->>RateLimit: Current State
+    RateLimit-->>Gateway: Rate Limit Status
+    
+    Gateway->>Router: Route Request
+    Router->>CircuitBreaker: Check Circuit State
+    CircuitBreaker-->>Router: Circuit Status
+    
+    Router->>LoadBalancer: Select Backend
+    LoadBalancer->>Backend: Forward Request
+    Backend-->>LoadBalancer: Response
+    LoadBalancer-->>Router: Response
+    Router-->>Gateway: Response
+    Gateway->>Cache: Update Cache
+    Gateway-->>Client: HTTP Response
 ```
 
 ### Configuration Loading Flow
@@ -261,42 +165,30 @@ graph TD
 
 ```mermaid
 graph LR
-    subgraph "Pre-Processing"
-        A[Request Received] --> B[Parse Request]
-        B --> C[Create Context]
-        C --> D[Apply Pre-Filters]
-    end
+    A[Request Received] --> B[Parse Request]
+    B --> C[Create Context]
+    C --> D[Apply Pre-Filters]
     
-    subgraph "Authentication"
-        D --> E[Extract Credentials]
-        E --> F[Validate Authentication]
-        F --> G[Load User Context]
-    end
+    D --> E[Extract Credentials]
+    E --> F[Validate Authentication]
+    F --> G[Load User Context]
     
-    subgraph "Authorization"
-        G --> H[Check Permissions]
-        H --> I[Apply Security Policies]
-        I --> J[Rate Limit Check]
-    end
+    G --> H[Check Permissions]
+    H --> I[Apply Security Policies]
+    I --> J[Rate Limit Check]
     
-    subgraph "Routing"
-        J --> K[Match Route]
-        K --> L[Apply Route Filters]
-        L --> M[Transform Request]
-    end
+    J --> K[Match Route]
+    K --> L[Apply Route Filters]
+    L --> M[Transform Request]
     
-    subgraph "Proxy"
-        M --> N[Select Backend]
-        N --> O[Circuit Breaker Check]
-        O --> P[Forward Request]
-    end
+    M --> N[Select Backend]
+    N --> O[Circuit Breaker Check]
+    O --> P[Forward Request]
     
-    subgraph "Response"
-        P --> Q[Receive Response]
-        Q --> R[Transform Response]
-        R --> S[Apply Response Filters]
-        S --> T[Send to Client]
-    end
+    P --> Q[Receive Response]
+    Q --> R[Transform Response]
+    R --> S[Apply Response Filters]
+    S --> T[Send to Client]
 ```
 
 ### Middleware Chain Processing
@@ -324,83 +216,37 @@ graph TD
 
 ```mermaid
 graph TB
-    subgraph "Configuration Sources"
-        Files[YAML Files]
-        Env[Environment Variables]
-        DB[Database Config]
-        API[Config API]
-    end
+    Files[YAML Files] --> Loader[Config Loader]
+    Env[Environment Variables] --> Loader
+    DB[Database Config] --> Loader
+    API[Config API] --> Loader
     
-    subgraph "Configuration Processing"
-        Loader[Config Loader]
-        Validator[Config Validator]
-        Merger[Config Merger]
-        Watcher[File Watcher]
-    end
+    Loader --> Validator[Config Validator]
+    Validator --> Merger[Config Merger]
+    Merger --> Memory[In-Memory Config]
+    Memory --> Cache[Config Cache]
+    Cache --> Backup[Config Backup]
     
-    subgraph "Configuration Storage"
-        Memory[In-Memory Config]
-        Cache[Config Cache]
-        Backup[Config Backup]
-    end
-    
-    subgraph "Configuration Distribution"
-        HotReload[Hot Reload]
-        Notification[Change Notification]
-        Sync[Multi-Instance Sync]
-    end
-    
-    Files --> Loader
-    Env --> Loader
-    DB --> Loader
-    API --> Loader
-    
-    Loader --> Validator
-    Validator --> Merger
-    Merger --> Memory
-    Memory --> Cache
-    Cache --> Backup
-    
-    Watcher --> HotReload
-    HotReload --> Notification
-    Notification --> Sync
+    Watcher[File Watcher] --> HotReload[Hot Reload]
+    HotReload --> Notification[Change Notification]
+    Notification --> Sync[Multi-Instance Sync]
 ```
 
 ### Caching Architecture
 
 ```mermaid
 graph LR
-    subgraph "Cache Layers"
-        L1[L1: Request Cache]
-        L2[L2: Route Cache]
-        L3[L3: Session Cache]
-        L4[L4: Response Cache]
-    end
+    L1[L1: Request Cache] --> Memory[In-Memory Cache]
+    L2[L2: Route Cache] --> Memory
+    L3[L3: Session Cache] --> Redis[Redis Cache]
+    L4[L4: Response Cache] --> Redis
     
-    subgraph "Cache Backends"
-        Memory[In-Memory Cache]
-        Redis[Redis Cache]
-        Distributed[Distributed Cache]
-    end
+    Memory --> LRU[LRU Eviction]
+    Memory --> TTL[TTL Expiration]
+    Redis --> WriteThrough[Write-Through]
+    Redis --> WriteBack[Write-Back]
     
-    subgraph "Cache Strategies"
-        LRU[LRU Eviction]
-        TTL[TTL Expiration]
-        WriteThrough[Write-Through]
-        WriteBack[Write-Back]
-    end
-    
-    L1 --> Memory
-    L2 --> Memory
-    L3 --> Redis
-    L4 --> Redis
-    
-    Memory --> LRU
-    Memory --> TTL
-    Redis --> WriteThrough
-    Redis --> WriteBack
-    
-    Redis --> Distributed
+    Redis --> Distributed[Distributed Cache]
 ```
 
 ## 🌐 Scalability Architecture
@@ -409,54 +255,29 @@ graph LR
 
 ```mermaid
 graph TB
-    subgraph "Load Balancer"
-        LB[External Load Balancer]
-        Health[Health Checks]
-    end
+    LB[External Load Balancer] --> GW1[Gateway Instance 1]
+    LB --> GW2[Gateway Instance 2]
+    LB --> GW3[Gateway Instance 3]
+    LB --> GWN[Gateway Instance N]
     
-    subgraph "Gateway Cluster"
-        GW1[Gateway Instance 1]
-        GW2[Gateway Instance 2]
-        GW3[Gateway Instance 3]
-        GWN[Gateway Instance N]
-    end
-    
-    subgraph "Shared State"
-        ConfigStore[(Configuration Store)]
-        SessionStore[(Session Store)]
-        MetricsStore[(Metrics Store)]
-    end
-    
-    subgraph "Backend Pool"
-        BE1[Backend Service 1]
-        BE2[Backend Service 2]
-        BE3[Backend Service 3]
-        BEN[Backend Service N]
-    end
-    
-    LB --> GW1
-    LB --> GW2
-    LB --> GW3
-    LB --> GWN
-    
-    GW1 --> ConfigStore
+    GW1 --> ConfigStore[(Configuration Store)]
     GW2 --> ConfigStore
     GW3 --> ConfigStore
     GWN --> ConfigStore
     
-    GW1 --> SessionStore
+    GW1 --> SessionStore[(Session Store)]
     GW2 --> SessionStore
     GW3 --> SessionStore
     GWN --> SessionStore
     
-    GW1 --> BE1
-    GW1 --> BE2
+    GW1 --> BE1[Backend Service 1]
+    GW1 --> BE2[Backend Service 2]
     GW2 --> BE2
-    GW2 --> BE3
+    GW2 --> BE3[Backend Service 3]
     GW3 --> BE3
-    GW3 --> BEN
+    GW3 --> BEN[Backend Service N]
     
-    Health --> GW1
+    Health[Health Checks] --> GW1
     Health --> GW2
     Health --> GW3
     Health --> GWN
@@ -494,56 +315,23 @@ graph TD
 
 ```mermaid
 graph TB
-    subgraph "Network Security"
-        Firewall[Firewall Rules]
-        DDoS[DDoS Protection]
-        VPN[VPN Access]
-    end
-    
-    subgraph "Transport Security"
-        TLS[TLS/SSL Encryption]
-        Certificates[Certificate Management]
-        HSTS[HTTP Strict Transport Security]
-    end
-    
-    subgraph "Application Security"
-        Authentication[Authentication Layer]
-        Authorization[Authorization Layer]
-        InputValidation[Input Validation]
-        OutputSanitization[Output Sanitization]
-    end
-    
-    subgraph "Data Security"
-        Encryption[Data Encryption]
-        TokenMgmt[Token Management]
-        SecretMgmt[Secret Management]
-        KeyRotation[Key Rotation]
-    end
-    
-    subgraph "Monitoring Security"
-        AuditLog[Audit Logging]
-        SecurityAlerts[Security Alerts]
-        ThreatDetection[Threat Detection]
-        IncidentResponse[Incident Response]
-    end
-    
-    Firewall --> TLS
-    DDoS --> TLS
-    VPN --> Authentication
+    Firewall[Firewall Rules] --> TLS[TLS/SSL Encryption]
+    DDoS[DDoS Protection] --> TLS
+    VPN[VPN Access] --> Authentication[Authentication Layer]
     
     TLS --> Authentication
-    Certificates --> Authorization
-    HSTS --> InputValidation
+    Certificates[Certificate Management] --> Authorization[Authorization Layer]
+    HSTS[HTTP Strict Transport Security] --> InputValidation[Input Validation]
     
-    Authentication --> Encryption
-    Authorization --> TokenMgmt
-    InputValidation --> SecretMgmt
-    OutputSanitization --> KeyRotation
+    Authentication --> Encryption[Data Encryption]
+    Authorization --> TokenMgmt[Token Management]
+    InputValidation --> SecretMgmt[Secret Management]
+    OutputSanitization[Output Sanitization] --> KeyRotation[Key Rotation]
     
-    Encryption --> AuditLog
-    TokenMgmt --> SecurityAlerts
-    SecretMgmt --> ThreatDetection
-    KeyRotation --> IncidentResponse
+    Encryption --> AuditLog[Audit Logging]
+    TokenMgmt --> SecurityAlerts[Security Alerts]
+    SecretMgmt --> ThreatDetection[Threat Detection]
+    KeyRotation --> IncidentResponse[Incident Response]
 ```
 
 ## 📊 Monitoring Architecture
@@ -552,53 +340,23 @@ graph TB
 
 ```mermaid
 graph LR
-    subgraph "Data Collection"
-        Metrics[Metrics Collection]
-        Logs[Log Aggregation]
-        Traces[Distributed Tracing]
-    end
+    Metrics[Metrics Collection] --> MetricsDB[(Prometheus)]
+    Logs[Log Aggregation] --> LogsDB[(Elasticsearch)]
+    Traces[Distributed Tracing] --> TracesDB[(Jaeger)]
     
-    subgraph "Data Processing"
-        MetricsDB[(Prometheus)]
-        LogsDB[(Elasticsearch)]
-        TracesDB[(Jaeger)]
-    end
+    MetricsDB --> Grafana[Grafana Dashboards]
+    LogsDB --> Kibana[Kibana]
+    TracesDB --> Jaeger[Jaeger UI]
     
-    subgraph "Visualization"
-        Grafana[Grafana Dashboards]
-        Kibana[Kibana]
-        Jaeger[Jaeger UI]
-    end
-    
-    subgraph "Alerting"
-        AlertManager[Alert Manager]
-        Notifications[Notifications]
-        OnCall[On-Call System]
-    end
-    
-    Metrics --> MetricsDB
-    Logs --> LogsDB
-    Traces --> TracesDB
-    
-    MetricsDB --> Grafana
-    LogsDB --> Kibana
-    TracesDB --> Jaeger
-    
-    MetricsDB --> AlertManager
-    AlertManager --> Notifications
-    Notifications --> OnCall
+    MetricsDB --> AlertManager[Alert Manager]
+    AlertManager --> Notifications[Notifications]
+    Notifications --> OnCall[On-Call System]
 ```
 
 ### Metrics Collection Flow
 
 ```mermaid
 sequenceDiagram
-    participant Gateway
-    participant MetricsCollector
-    participant Prometheus
-    participant Grafana
-    participant AlertManager
-    
     Gateway->>MetricsCollector: Emit Metrics
     MetricsCollector->>MetricsCollector: Aggregate Metrics
     MetricsCollector->>Prometheus: Expose Metrics Endpoint
@@ -617,83 +375,37 @@ sequenceDiagram
 
 ```mermaid
 graph TB
-    subgraph "Application Container"
-        Gateway[Gateway Binary]
-        Config[Configuration Files]
-        Scripts[Startup Scripts]
-        Assets[Static Assets]
-    end
+    Gateway[Gateway Binary] --> LogShipper[Log Shipper]
+    Gateway --> MetricsExporter[Metrics Exporter]
+    Gateway --> ConfigReloader[Config Reloader]
     
-    subgraph "Sidecar Containers"
-        LogShipper[Log Shipper]
-        MetricsExporter[Metrics Exporter]
-        ConfigReloader[Config Reloader]
-    end
-    
-    subgraph "Infrastructure"
-        Network[Container Network]
-        Volumes[Persistent Volumes]
-        Secrets[Secret Management]
-    end
-    
-    Gateway --> LogShipper
-    Gateway --> MetricsExporter
-    Gateway --> ConfigReloader
-    
-    LogShipper --> Network
+    LogShipper --> Network[Container Network]
     MetricsExporter --> Network
-    ConfigReloader --> Volumes
+    ConfigReloader --> Volumes[Persistent Volumes]
     
-    Config --> Volumes
-    Scripts --> Volumes
-    Secrets --> Gateway
+    Config[Configuration Files] --> Volumes
+    Scripts[Startup Scripts] --> Volumes
+    Secrets[Secret Management] --> Gateway
 ```
 
 ### Kubernetes Deployment
 
 ```mermaid
 graph TB
-    subgraph "Kubernetes Cluster"
-        subgraph "Namespace: gateway"
-            Deployment[Gateway Deployment]
-            Service[Gateway Service]
-            ConfigMap[Configuration ConfigMap]
-            Secret[Secrets]
-            HPA[Horizontal Pod Autoscaler]
-        end
-        
-        subgraph "Namespace: monitoring"
-            Prometheus[Prometheus]
-            Grafana[Grafana]
-            AlertManager[AlertManager]
-        end
-        
-        subgraph "Namespace: data"
-            Redis[Redis Cluster]
-            MySQL[MySQL]
-            MongoDB[MongoDB]
-        end
-        
-        subgraph "Ingress"
-            IngressController[Ingress Controller]
-            LoadBalancer[Load Balancer]
-        end
-    end
+    LoadBalancer[Load Balancer] --> IngressController[Ingress Controller]
+    IngressController --> Service[Gateway Service]
+    Service --> Deployment[Gateway Deployment]
+    Deployment --> ConfigMap[Configuration ConfigMap]
+    Deployment --> Secret[Secrets]
+    HPA[Horizontal Pod Autoscaler] --> Deployment
     
-    LoadBalancer --> IngressController
-    IngressController --> Service
-    Service --> Deployment
-    Deployment --> ConfigMap
-    Deployment --> Secret
-    HPA --> Deployment
+    Deployment --> Redis[Redis Cluster]
+    Deployment --> MySQL[MySQL]
+    Deployment --> MongoDB[MongoDB]
     
-    Deployment --> Redis
-    Deployment --> MySQL
-    Deployment --> MongoDB
-    
-    Deployment --> Prometheus
-    Prometheus --> Grafana
-    Prometheus --> AlertManager
+    Deployment --> Prometheus[Prometheus]
+    Prometheus --> Grafana[Grafana]
+    Prometheus --> AlertManager[AlertManager]
 ```
 
 ## 🔧 Technology Stack
@@ -763,8 +475,8 @@ gantt
     title Gateway Architecture Roadmap
     dateFormat  YYYY-MM-DD
     section Phase 1
-    Plugin System    :active, 2024-01-01, 90d
-    GraphQL Support  :active, 2024-02-01, 120d
+    Plugin System    :2024-01-01, 90d
+    GraphQL Support  :2024-02-01, 120d
     section Phase 2
     Service Mesh     :2024-04-01, 150d
     gRPC Proxy       :2024-05-01, 120d
