@@ -110,8 +110,11 @@ func (c *ServiceDefinitionController) GetServiceDefinitionById(ctx *gin.Context)
 		return
 	}
 
+	// 获取activeFlag参数
+	activeFlag := request.GetParam(ctx, "activeFlag")
+
 	// 调用DAO获取服务定义
-	serviceDefinition, err := c.serviceDefinitionDAO.GetServiceDefinitionById(ctx, req.ServiceDefinitionId, tenantId)
+	serviceDefinition, err := c.serviceDefinitionDAO.GetServiceDefinitionById(ctx, req.ServiceDefinitionId, tenantId, activeFlag)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取服务定义失败", err)
 		response.ErrorJSON(ctx, "获取服务定义失败: "+err.Error(), constants.ED00009)
@@ -180,8 +183,11 @@ func (c *ServiceDefinitionController) QueryServiceDefinitions(ctx *gin.Context) 
 		filters["loadBalanceStrategy"] = loadBalanceStrategy
 	}
 
+	// 获取activeFlag参数
+	activeFlag := request.GetParam(ctx, "activeFlag")
+
 	// 调用DAO获取服务定义列表
-	serviceDefinitions, total, err := c.serviceDefinitionDAO.ListServiceDefinitions(ctx, tenantId, page, pageSize, filters)
+	serviceDefinitions, total, err := c.serviceDefinitionDAO.ListServiceDefinitions(ctx, tenantId, activeFlag, page, pageSize, filters)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取服务定义列表失败", err)
 		response.ErrorJSON(ctx, "获取服务定义列表失败: "+err.Error(), constants.ED00009)

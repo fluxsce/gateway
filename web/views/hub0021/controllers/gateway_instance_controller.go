@@ -38,9 +38,12 @@ func NewGatewayInstanceController(db database.Database) *GatewayInstanceControll
 func (c *GatewayInstanceController) QueryAllGatewayInstances(ctx *gin.Context) {
 	// 使用工具类获取分页参数
 	page, pageSize := request.GetPaginationParams(ctx)
+	
+	// 获取activeFlag参数
+	activeFlag := request.GetParam(ctx, "activeFlag")
 
 	// 调用DAO获取所有网关实例列表
-	instances, total, err := c.gatewayInstanceDAO.ListAllGatewayInstances(ctx, page, pageSize)
+	instances, total, err := c.gatewayInstanceDAO.ListAllGatewayInstances(ctx, activeFlag, page, pageSize)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取所有网关实例列表失败", err)
 		// 使用统一的错误响应

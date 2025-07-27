@@ -37,9 +37,10 @@ func (c *FilterConfigController) QueryFilterConfigs(ctx *gin.Context) {
 	// 获取可选的查询参数
 	gatewayInstanceId := request.GetParam(ctx, "gatewayInstanceId")
 	routeConfigId := request.GetParam(ctx, "routeConfigId")
+	activeFlag := request.GetParam(ctx, "activeFlag")
 
 	// 调用DAO获取过滤器配置列表
-	filterConfigs, total, err := c.filterConfigDAO.ListFilterConfigs(ctx, tenantId, gatewayInstanceId, routeConfigId, page, pageSize)
+	filterConfigs, total, err := c.filterConfigDAO.ListFilterConfigs(ctx, tenantId, gatewayInstanceId, routeConfigId, activeFlag, page, pageSize)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取过滤器配置列表失败", err)
 		response.ErrorJSON(ctx, "获取过滤器配置列表失败: "+err.Error(), constants.ED00009)
@@ -314,8 +315,11 @@ func (c *FilterConfigController) GetFilterConfigsByRoute(ctx *gin.Context) {
 		return
 	}
 
+	// 获取activeFlag参数
+	activeFlag := request.GetParam(ctx, "activeFlag")
+
 	// 调用DAO获取过滤器配置列表
-	filterConfigs, err := c.filterConfigDAO.GetFilterConfigsByRoute(ctx, routeConfigId, tenantId)
+	filterConfigs, err := c.filterConfigDAO.GetFilterConfigsByRoute(ctx, routeConfigId, tenantId, activeFlag)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取路由过滤器配置列表失败", err)
 		response.ErrorJSON(ctx, "获取路由过滤器配置列表失败: "+err.Error(), constants.ED00009)
@@ -347,8 +351,11 @@ func (c *FilterConfigController) GetFilterConfigsByType(ctx *gin.Context) {
 		return
 	}
 
+	// 获取activeFlag参数
+	activeFlag := request.GetParam(ctx, "activeFlag")
+
 	// 调用DAO获取过滤器配置列表
-	filterConfigs, err := c.filterConfigDAO.GetFilterConfigsByType(ctx, filterType, tenantId, gatewayInstanceId, routeConfigId)
+	filterConfigs, err := c.filterConfigDAO.GetFilterConfigsByType(ctx, filterType, tenantId, gatewayInstanceId, routeConfigId, activeFlag)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "根据类型获取过滤器配置列表失败", err)
 		response.ErrorJSON(ctx, "根据类型获取过滤器配置列表失败: "+err.Error(), constants.ED00009)
@@ -384,8 +391,11 @@ func (c *FilterConfigController) GetFilterConfigsByAction(ctx *gin.Context) {
 		return
 	}
 
+	// 获取activeFlag参数
+	activeFlag := request.GetParam(ctx, "activeFlag")
+
 	// 调用DAO获取过滤器配置列表
-	filterConfigs, err := c.filterConfigDAO.GetFilterConfigsByAction(ctx, filterAction, tenantId, gatewayInstanceId, routeConfigId)
+	filterConfigs, err := c.filterConfigDAO.GetFilterConfigsByAction(ctx, filterAction, tenantId, gatewayInstanceId, routeConfigId, activeFlag)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "根据执行时机获取过滤器配置列表失败", err)
 		response.ErrorJSON(ctx, "根据执行时机获取过滤器配置列表失败: "+err.Error(), constants.ED00009)
@@ -416,8 +426,11 @@ func (c *FilterConfigController) GetFilterExecutionChain(ctx *gin.Context) {
 		return
 	}
 
+	// 获取activeFlag参数
+	activeFlag := request.GetParam(ctx, "activeFlag")
+
 	// 调用DAO获取过滤器执行链
-	filterConfigs, err := c.filterConfigDAO.GetFilterExecutionChain(ctx, tenantId, gatewayInstanceId, routeConfigId)
+	filterConfigs, err := c.filterConfigDAO.GetFilterExecutionChain(ctx, tenantId, gatewayInstanceId, routeConfigId, activeFlag)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取过滤器执行链失败", err)
 		response.ErrorJSON(ctx, "获取过滤器执行链失败: "+err.Error(), constants.ED00009)
@@ -710,8 +723,11 @@ func (c *FilterConfigController) GetFilterConfigStats(ctx *gin.Context) {
 		return
 	}
 
-	// 获取所有过滤器配置
-	filterConfigs, _, err := c.filterConfigDAO.ListFilterConfigs(ctx, tenantId, gatewayInstanceId, routeConfigId, 1, 10000)
+	// 获取activeFlag参数
+	activeFlag := request.GetParam(ctx, "activeFlag")
+
+	// 获取过滤器配置
+	filterConfigs, _, err := c.filterConfigDAO.ListFilterConfigs(ctx, tenantId, gatewayInstanceId, routeConfigId, activeFlag, 1, 10000)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取过滤器配置统计信息失败", err)
 		response.ErrorJSON(ctx, "获取过滤器配置统计信息失败: "+err.Error(), constants.ED00009)
@@ -762,8 +778,11 @@ func (c *FilterConfigController) ExportFilterConfigs(ctx *gin.Context) {
 		return
 	}
 
+	// 获取activeFlag参数
+	activeFlag := request.GetParam(ctx, "activeFlag")
+
 	// 获取过滤器配置列表
-	filterConfigs, _, err := c.filterConfigDAO.ListFilterConfigs(ctx, tenantId, gatewayInstanceId, routeConfigId, 1, 10000)
+	filterConfigs, _, err := c.filterConfigDAO.ListFilterConfigs(ctx, tenantId, gatewayInstanceId, routeConfigId, activeFlag, 1, 10000)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "导出过滤器配置失败", err)
 		response.ErrorJSON(ctx, "导出过滤器配置失败: "+err.Error(), constants.ED00009)

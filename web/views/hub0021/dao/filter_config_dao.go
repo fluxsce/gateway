@@ -328,7 +328,7 @@ func (dao *FilterConfigDAO) DeleteFilterConfig(ctx context.Context, filterConfig
 }
 
 // ListFilterConfigs 获取过滤器配置列表
-func (dao *FilterConfigDAO) ListFilterConfigs(ctx context.Context, tenantId string, gatewayInstanceId string, routeConfigId string, page, pageSize int) ([]*models.FilterConfig, int, error) {
+func (dao *FilterConfigDAO) ListFilterConfigs(ctx context.Context, tenantId string, gatewayInstanceId string, routeConfigId string, activeFlag string, page, pageSize int) ([]*models.FilterConfig, int, error) {
 	if tenantId == "" {
 		return nil, 0, errors.New("tenantId不能为空")
 	}
@@ -349,8 +349,11 @@ func (dao *FilterConfigDAO) ListFilterConfigs(ctx context.Context, tenantId stri
 		args = append(args, routeConfigId)
 	}
 
-	// 只查询活动状态的记录
-	whereConditions = append(whereConditions, "activeFlag = 'Y'")
+	// 添加activeFlag条件（如果指定了activeFlag参数）
+	if activeFlag != "" {
+		whereConditions = append(whereConditions, "activeFlag = ?")
+		args = append(args, activeFlag)
+	}
 
 	whereClause := strings.Join(whereConditions, " AND ")
 
@@ -424,19 +427,31 @@ func (dao *FilterConfigDAO) GetFilterConfigsByGatewayInstance(ctx context.Contex
 }
 
 // GetFilterConfigsByRoute 根据路由配置ID获取过滤器配置列表
-func (dao *FilterConfigDAO) GetFilterConfigsByRoute(ctx context.Context, routeConfigId, tenantId string) ([]*models.FilterConfig, error) {
+func (dao *FilterConfigDAO) GetFilterConfigsByRoute(ctx context.Context, routeConfigId, tenantId string, activeFlag string) ([]*models.FilterConfig, error) {
 	if routeConfigId == "" || tenantId == "" {
 		return nil, errors.New("routeConfigId和tenantId不能为空")
 	}
 
-	query := `
+	// 构建查询条件
+	whereConditions := []string{"routeConfigId = ?", "tenantId = ?"}
+	args := []interface{}{routeConfigId, tenantId}
+
+	// 添加activeFlag条件（如果指定了activeFlag参数）
+	if activeFlag != "" {
+		whereConditions = append(whereConditions, "activeFlag = ?")
+		args = append(args, activeFlag)
+	}
+
+	whereClause := strings.Join(whereConditions, " AND ")
+
+	query := fmt.Sprintf(`
 		SELECT * FROM HUB_GW_FILTER_CONFIG 
-		WHERE routeConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
+		WHERE %s
 		ORDER BY filterAction ASC, filterOrder ASC, addTime DESC
-	`
+	`, whereClause)
 
 	var filterConfigs []*models.FilterConfig
-	err := dao.db.Query(ctx, &filterConfigs, query, []interface{}{routeConfigId, tenantId}, true)
+	err := dao.db.Query(ctx, &filterConfigs, query, args, true)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "查询路由过滤器配置失败")
 	}
@@ -445,7 +460,7 @@ func (dao *FilterConfigDAO) GetFilterConfigsByRoute(ctx context.Context, routeCo
 }
 
 // GetFilterConfigsByType 根据过滤器类型获取过滤器配置列表
-func (dao *FilterConfigDAO) GetFilterConfigsByType(ctx context.Context, filterType, tenantId string, gatewayInstanceId, routeConfigId string) ([]*models.FilterConfig, error) {
+func (dao *FilterConfigDAO) GetFilterConfigsByType(ctx context.Context, filterType, tenantId string, gatewayInstanceId, routeConfigId string, activeFlag string) ([]*models.FilterConfig, error) {
 	if filterType == "" || tenantId == "" {
 		return nil, errors.New("filterType和tenantId不能为空")
 	}
@@ -456,8 +471,14 @@ func (dao *FilterConfigDAO) GetFilterConfigsByType(ctx context.Context, filterTy
 	}
 
 	// 构建查询条件
-	whereConditions := []string{"tenantId = ?", "filterType = ?", "activeFlag = 'Y'"}
+	whereConditions := []string{"tenantId = ?", "filterType = ?"}
 	args := []interface{}{tenantId, filterType}
+
+	// 添加activeFlag条件（如果指定了activeFlag参数）
+	if activeFlag != "" {
+		whereConditions = append(whereConditions, "activeFlag = ?")
+		args = append(args, activeFlag)
+	}
 
 	// 添加可选的网关实例ID或路由配置ID条件
 	if gatewayInstanceId != "" {
@@ -487,7 +508,7 @@ func (dao *FilterConfigDAO) GetFilterConfigsByType(ctx context.Context, filterTy
 }
 
 // GetFilterConfigsByAction 根据执行时机获取过滤器配置列表
-func (dao *FilterConfigDAO) GetFilterConfigsByAction(ctx context.Context, filterAction, tenantId string, gatewayInstanceId, routeConfigId string) ([]*models.FilterConfig, error) {
+func (dao *FilterConfigDAO) GetFilterConfigsByAction(ctx context.Context, filterAction, tenantId string, gatewayInstanceId, routeConfigId string, activeFlag string) ([]*models.FilterConfig, error) {
 	if filterAction == "" || tenantId == "" {
 		return nil, errors.New("filterAction和tenantId不能为空")
 	}
@@ -498,8 +519,14 @@ func (dao *FilterConfigDAO) GetFilterConfigsByAction(ctx context.Context, filter
 	}
 
 	// 构建查询条件
-	whereConditions := []string{"tenantId = ?", "filterAction = ?", "activeFlag = 'Y'"}
+	whereConditions := []string{"tenantId = ?", "filterAction = ?"}
 	args := []interface{}{tenantId, filterAction}
+
+	// 添加activeFlag条件（如果指定了activeFlag参数）
+	if activeFlag != "" {
+		whereConditions = append(whereConditions, "activeFlag = ?")
+		args = append(args, activeFlag)
+	}
 
 	// 添加可选的网关实例ID或路由配置ID条件
 	if gatewayInstanceId != "" {
@@ -529,14 +556,20 @@ func (dao *FilterConfigDAO) GetFilterConfigsByAction(ctx context.Context, filter
 }
 
 // GetFilterExecutionChain 获取过滤器执行链（按执行时机和顺序排序）
-func (dao *FilterConfigDAO) GetFilterExecutionChain(ctx context.Context, tenantId string, gatewayInstanceId, routeConfigId string) ([]*models.FilterConfig, error) {
+func (dao *FilterConfigDAO) GetFilterExecutionChain(ctx context.Context, tenantId string, gatewayInstanceId, routeConfigId string, activeFlag string) ([]*models.FilterConfig, error) {
 	if tenantId == "" {
 		return nil, errors.New("tenantId不能为空")
 	}
 
 	// 构建查询条件
-	whereConditions := []string{"tenantId = ?", "activeFlag = 'Y'"}
+	whereConditions := []string{"tenantId = ?"}
 	args := []interface{}{tenantId}
+
+	// 添加activeFlag条件（如果指定了activeFlag参数）
+	if activeFlag != "" {
+		whereConditions = append(whereConditions, "activeFlag = ?")
+		args = append(args, activeFlag)
+	}
 
 	// 添加可选的网关实例ID或路由配置ID条件
 	if gatewayInstanceId != "" {

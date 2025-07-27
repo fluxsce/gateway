@@ -406,8 +406,11 @@ func (c *RouteConfigController) GetRouteConfigsByInstance(ctx *gin.Context) {
 		return
 	}
 
+	// 获取activeFlag参数
+	activeFlag := request.GetParam(ctx, "activeFlag")
+
 	// 调用DAO获取路由配置列表
-	routeConfigs, err := c.routeConfigDAO.GetRouteConfigsByGatewayInstance(ctx, gatewayInstanceId, tenantId)
+	routeConfigs, err := c.routeConfigDAO.GetRouteConfigsByGatewayInstance(ctx, gatewayInstanceId, tenantId, activeFlag)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取网关实例路由配置失败", err)
 		response.ErrorJSON(ctx, "获取网关实例路由配置失败: "+err.Error(), constants.ED00009)

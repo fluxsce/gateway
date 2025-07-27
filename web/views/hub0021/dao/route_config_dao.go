@@ -463,12 +463,24 @@ func (dao *RouteConfigDAO) FindRouteConfigByName(ctx context.Context, routeName,
 }
 
 // GetRouteConfigsByGatewayInstance 根据网关实例ID获取所有路由配置（关联服务定义）
-func (dao *RouteConfigDAO) GetRouteConfigsByGatewayInstance(ctx context.Context, gatewayInstanceId, tenantId string) ([]*models.RouteConfigWithService, error) {
+func (dao *RouteConfigDAO) GetRouteConfigsByGatewayInstance(ctx context.Context, gatewayInstanceId, tenantId string, activeFlag string) ([]*models.RouteConfigWithService, error) {
 	if gatewayInstanceId == "" || tenantId == "" {
 		return nil, errors.New("gatewayInstanceId和tenantId不能为空")
 	}
 
-	query := `
+	// 构建查询条件
+	whereConditions := []string{"rc.gatewayInstanceId = ?", "rc.tenantId = ?"}
+	args := []interface{}{gatewayInstanceId, tenantId}
+
+	// 添加activeFlag条件（如果指定了activeFlag参数）
+	if activeFlag != "" {
+		whereConditions = append(whereConditions, "rc.activeFlag = ?")
+		args = append(args, activeFlag)
+	}
+
+	whereClause := strings.Join(whereConditions, " AND ")
+
+	query := fmt.Sprintf(`
 		SELECT 
 			rc.tenantId,
 			rc.routeConfigId,
@@ -508,12 +520,12 @@ func (dao *RouteConfigDAO) GetRouteConfigsByGatewayInstance(ctx context.Context,
 			sd.loadBalanceStrategy
 		FROM HUB_GW_ROUTE_CONFIG rc
 		LEFT JOIN HUB_GW_SERVICE_DEFINITION sd ON rc.tenantId = sd.tenantId AND rc.serviceDefinitionId = sd.serviceDefinitionId AND sd.activeFlag = 'Y'
-		WHERE rc.gatewayInstanceId = ? AND rc.tenantId = ? AND rc.activeFlag = 'Y'
+		WHERE %s
 		ORDER BY rc.routePriority ASC, rc.addTime DESC
-	`
+	`, whereClause)
 
 	var routeConfigs []*models.RouteConfigWithService
-	err := dao.db.Query(ctx, &routeConfigs, query, []interface{}{gatewayInstanceId, tenantId}, true)
+	err := dao.db.Query(ctx, &routeConfigs, query, args, true)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "查询网关实例路由配置失败")
 	}
@@ -1036,19 +1048,27 @@ func (dao *RouterConfigDAO) DeleteRouterConfig(ctx context.Context, routerConfig
 }
 
 // ListRouterConfigs 获取Router配置列表
-func (dao *RouterConfigDAO) ListRouterConfigs(ctx context.Context, tenantId string, gatewayInstanceId string, page, pageSize int) ([]*models.RouterConfig, int, error) {
+func (dao *RouterConfigDAO) ListRouterConfigs(ctx context.Context, tenantId string, gatewayInstanceId string, activeFlag string, page, pageSize int) ([]*models.RouterConfig, int, error) {
 	if tenantId == "" {
 		return nil, 0, errors.New("tenantId不能为空")
 	}
 
 	// 构建查询条件
-	whereClause := "WHERE tenantId = ? AND activeFlag = 'Y'"
+	whereConditions := []string{"tenantId = ?"}
 	args := []interface{}{tenantId}
 
+	// 添加activeFlag条件（如果指定了activeFlag参数）
+	if activeFlag != "" {
+		whereConditions = append(whereConditions, "activeFlag = ?")
+		args = append(args, activeFlag)
+	}
+
 	if gatewayInstanceId != "" {
-		whereClause += " AND gatewayInstanceId = ?"
+		whereConditions = append(whereConditions, "gatewayInstanceId = ?")
 		args = append(args, gatewayInstanceId)
 	}
+
+	whereClause := "WHERE " + strings.Join(whereConditions, " AND ")
 
 	// 构建基础查询语句
 	baseQuery := fmt.Sprintf("SELECT * FROM HUB_GW_ROUTER_CONFIG %s ORDER BY addTime DESC", whereClause)
@@ -1099,19 +1119,31 @@ func (dao *RouterConfigDAO) ListRouterConfigs(ctx context.Context, tenantId stri
 }
 
 // GetRouterConfigsByGatewayInstance 根据网关实例ID获取所有Router配置
-func (dao *RouterConfigDAO) GetRouterConfigsByGatewayInstance(ctx context.Context, gatewayInstanceId, tenantId string) ([]*models.RouterConfig, error) {
+func (dao *RouterConfigDAO) GetRouterConfigsByGatewayInstance(ctx context.Context, gatewayInstanceId, tenantId string, activeFlag string) ([]*models.RouterConfig, error) {
 	if gatewayInstanceId == "" || tenantId == "" {
 		return nil, errors.New("gatewayInstanceId和tenantId不能为空")
 	}
 
-	query := `
+	// 构建查询条件
+	whereConditions := []string{"gatewayInstanceId = ?", "tenantId = ?"}
+	args := []interface{}{gatewayInstanceId, tenantId}
+
+	// 添加activeFlag条件（如果指定了activeFlag参数）
+	if activeFlag != "" {
+		whereConditions = append(whereConditions, "activeFlag = ?")
+		args = append(args, activeFlag)
+	}
+
+	whereClause := strings.Join(whereConditions, " AND ")
+
+	query := fmt.Sprintf(`
 		SELECT * FROM HUB_GW_ROUTER_CONFIG 
-		WHERE gatewayInstanceId = ? AND tenantId = ? AND activeFlag = 'Y'
+		WHERE %s
 		ORDER BY addTime DESC
-	`
+	`, whereClause)
 
 	var routerConfigs []*models.RouterConfig
-	err := dao.db.Query(ctx, &routerConfigs, query, []interface{}{gatewayInstanceId, tenantId}, true)
+	err := dao.db.Query(ctx, &routerConfigs, query, args, true)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "查询网关实例Router配置失败")
 	}

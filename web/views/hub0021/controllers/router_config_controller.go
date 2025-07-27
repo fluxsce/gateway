@@ -45,9 +45,12 @@ func (c *RouterConfigController) QueryRouterConfigs(ctx *gin.Context) {
 
 	// 获取可选的网关实例ID参数
 	gatewayInstanceId := ctx.Query("gatewayInstanceId")
+	
+	// 获取activeFlag参数
+	activeFlag := request.GetParam(ctx, "activeFlag")
 
 	// 调用DAO获取Router配置列表
-	routerConfigs, total, err := c.routerConfigDAO.ListRouterConfigs(ctx, tenantId, gatewayInstanceId, page, pageSize)
+	routerConfigs, total, err := c.routerConfigDAO.ListRouterConfigs(ctx, tenantId, gatewayInstanceId, activeFlag, page, pageSize)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取Router配置列表失败", err)
 		response.ErrorJSON(ctx, "获取Router配置列表失败: "+err.Error(), constants.ED00009)
@@ -368,8 +371,11 @@ func (c *RouterConfigController) GetRouterConfigsByInstance(ctx *gin.Context) {
 		return
 	}
 
+	// 获取activeFlag参数
+	activeFlag := request.GetParam(ctx, "activeFlag")
+
 	// 调用DAO获取Router配置列表
-	configs, err := c.routerConfigDAO.GetRouterConfigsByGatewayInstance(ctx, req.GatewayInstanceId, tenantId)
+	configs, err := c.routerConfigDAO.GetRouterConfigsByGatewayInstance(ctx, req.GatewayInstanceId, tenantId, activeFlag)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取网关实例Router配置列表失败", err)
 		response.ErrorJSON(ctx, "获取Router配置列表失败: "+err.Error(), constants.ED00009)

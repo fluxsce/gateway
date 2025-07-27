@@ -2,6 +2,7 @@ package dao
 
 import (
 	"context"
+	"fmt"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/huberrors"
@@ -21,9 +22,19 @@ func NewGatewayInstanceDAO(db database.Database) *GatewayInstanceDAO {
 }
 
 // ListAllGatewayInstances 获取所有网关实例列表（跨租户查询，仅限管理员使用）
-func (dao *GatewayInstanceDAO) ListAllGatewayInstances(ctx context.Context, page, pageSize int) ([]*models.GatewayInstance, int, error) {
+func (dao *GatewayInstanceDAO) ListAllGatewayInstances(ctx context.Context, activeFlag string, page, pageSize int) ([]*models.GatewayInstance, int, error) {
+	// 构建查询条件
+	whereClause := ""
+	args := []interface{}{}
+
+	// 添加activeFlag条件（如果指定了activeFlag参数）
+	if activeFlag != "" {
+		whereClause = "WHERE activeFlag = ?"
+		args = append(args, activeFlag)
+	}
+
 	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_INSTANCE WHERE activeFlag = 'Y' ORDER BY addTime DESC"
+	baseQuery := fmt.Sprintf("SELECT * FROM HUB_GW_INSTANCE %s ORDER BY addTime DESC", whereClause)
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
@@ -35,7 +46,7 @@ func (dao *GatewayInstanceDAO) ListAllGatewayInstances(ctx context.Context, page
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err = dao.db.QueryOne(ctx, &result, countQuery, []interface{}{}, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, args, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询网关实例总数失败")
 	}
@@ -57,9 +68,12 @@ func (dao *GatewayInstanceDAO) ListAllGatewayInstances(ctx context.Context, page
 		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
 	}
 
+	// 合并查询参数
+	allArgs := append(args, paginationArgs...)
+
 	// 执行分页查询
 	var instances []*models.GatewayInstance
-	err = dao.db.Query(ctx, &instances, paginatedQuery, paginationArgs, true)
+	err = dao.db.Query(ctx, &instances, paginatedQuery, allArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询网关实例列表失败")
 	}

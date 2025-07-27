@@ -8,6 +8,7 @@ import (
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/huberrors"
 	"gateway/web/views/hub0021/models"
+	"strings"
 )
 
 // ServiceDefinitionDAO 服务定义数据访问对象
@@ -96,18 +97,30 @@ func (dao *ServiceDefinitionDAO) GetServiceDefinitionsByInstance(ctx context.Con
 }
 
 // GetServiceDefinitionById 根据ID获取服务定义
-func (dao *ServiceDefinitionDAO) GetServiceDefinitionById(ctx context.Context, serviceDefinitionId, tenantId string) (*models.ServiceDefinition, error) {
+func (dao *ServiceDefinitionDAO) GetServiceDefinitionById(ctx context.Context, serviceDefinitionId, tenantId string, activeFlag string) (*models.ServiceDefinition, error) {
 	if serviceDefinitionId == "" || tenantId == "" {
 		return nil, errors.New("serviceDefinitionId和tenantId不能为空")
 	}
 
-	query := `
+	// 构建查询条件
+	whereConditions := []string{"serviceDefinitionId = ?", "tenantId = ?"}
+	args := []interface{}{serviceDefinitionId, tenantId}
+
+	// 添加activeFlag条件（如果指定了activeFlag参数）
+	if activeFlag != "" {
+		whereConditions = append(whereConditions, "activeFlag = ?")
+		args = append(args, activeFlag)
+	}
+
+	whereClause := strings.Join(whereConditions, " AND ")
+
+	query := fmt.Sprintf(`
 		SELECT * FROM HUB_GW_SERVICE_DEFINITION 
-		WHERE serviceDefinitionId = ? AND tenantId = ? AND activeFlag = 'Y'
-	`
+		WHERE %s
+	`, whereClause)
 
 	var serviceDefinition models.ServiceDefinition
-	err := dao.db.QueryOne(ctx, &serviceDefinition, query, []interface{}{serviceDefinitionId, tenantId}, true)
+	err := dao.db.QueryOne(ctx, &serviceDefinition, query, args, true)
 	if err != nil {
 		if err == database.ErrRecordNotFound {
 			return nil, nil // 没有找到记录，返回nil
@@ -119,28 +132,36 @@ func (dao *ServiceDefinitionDAO) GetServiceDefinitionById(ctx context.Context, s
 }
 
 // ListServiceDefinitions 分页查询服务定义列表
-func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, tenantId string, page, pageSize int, filters map[string]interface{}) ([]*models.ServiceDefinition, int, error) {
+func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, tenantId string, activeFlag string, page, pageSize int, filters map[string]interface{}) ([]*models.ServiceDefinition, int, error) {
 	if tenantId == "" {
 		return nil, 0, errors.New("tenantId不能为空")
 	}
 
 	// 构建查询条件
-	whereClause := "WHERE tenantId = ? AND activeFlag = 'Y'"
+	whereConditions := []string{"tenantId = ?"}
 	params := []interface{}{tenantId}
+
+	// 添加activeFlag条件（如果指定了activeFlag参数）
+	if activeFlag != "" {
+		whereConditions = append(whereConditions, "activeFlag = ?")
+		params = append(params, activeFlag)
+	}
 
 	// 添加筛选条件
 	for key, value := range filters {
 		if value != nil && value != "" {
 			// 对于字符串类型的值，支持模糊查询
 			if strValue, ok := value.(string); ok && (key == "serviceName" || key == "serviceDesc") {
-				whereClause += fmt.Sprintf(" AND %s LIKE ?", key)
+				whereConditions = append(whereConditions, fmt.Sprintf("%s LIKE ?", key))
 				params = append(params, "%"+strValue+"%")
 			} else {
-				whereClause += fmt.Sprintf(" AND %s = ?", key)
+				whereConditions = append(whereConditions, fmt.Sprintf("%s = ?", key))
 				params = append(params, value)
 			}
 		}
 	}
+
+	whereClause := "WHERE " + strings.Join(whereConditions, " AND ")
 
 	// 构建基础查询语句
 	baseQuery := fmt.Sprintf("SELECT * FROM HUB_GW_SERVICE_DEFINITION %s ORDER BY addTime DESC", whereClause)
@@ -191,19 +212,31 @@ func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, ten
 }
 
 // GetServiceDefinitionsByProxyConfig 根据代理配置ID获取服务定义列表
-func (dao *ServiceDefinitionDAO) GetServiceDefinitionsByProxyConfig(ctx context.Context, proxyConfigId, tenantId string) ([]*models.ServiceDefinition, error) {
+func (dao *ServiceDefinitionDAO) GetServiceDefinitionsByProxyConfig(ctx context.Context, proxyConfigId, tenantId string, activeFlag string) ([]*models.ServiceDefinition, error) {
 	if proxyConfigId == "" || tenantId == "" {
 		return nil, errors.New("proxyConfigId和tenantId不能为空")
 	}
 
-	query := `
+	// 构建查询条件
+	whereConditions := []string{"proxyConfigId = ?", "tenantId = ?"}
+	args := []interface{}{proxyConfigId, tenantId}
+
+	// 添加activeFlag条件（如果指定了activeFlag参数）
+	if activeFlag != "" {
+		whereConditions = append(whereConditions, "activeFlag = ?")
+		args = append(args, activeFlag)
+	}
+
+	whereClause := strings.Join(whereConditions, " AND ")
+
+	query := fmt.Sprintf(`
 		SELECT * FROM HUB_GW_SERVICE_DEFINITION 
-		WHERE proxyConfigId = ? AND tenantId = ? AND activeFlag = 'Y'
+		WHERE %s
 		ORDER BY addTime DESC
-	`
+	`, whereClause)
 
 	var serviceDefinitions []*models.ServiceDefinition
-	err := dao.db.Query(ctx, &serviceDefinitions, query, []interface{}{proxyConfigId, tenantId}, true)
+	err := dao.db.Query(ctx, &serviceDefinitions, query, args, true)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "获取代理配置关联的服务定义失败")
 	}
@@ -212,25 +245,40 @@ func (dao *ServiceDefinitionDAO) GetServiceDefinitionsByProxyConfig(ctx context.
 }
 
 // CountServiceDefinitionsByInstance 统计网关实例关联的服务定义数量
-func (dao *ServiceDefinitionDAO) CountServiceDefinitionsByInstance(ctx context.Context, gatewayInstanceId, tenantId string) (int, error) {
+func (dao *ServiceDefinitionDAO) CountServiceDefinitionsByInstance(ctx context.Context, gatewayInstanceId, tenantId string, serviceActiveFlag, proxyActiveFlag string) (int, error) {
 	if gatewayInstanceId == "" || tenantId == "" {
 		return 0, errors.New("gatewayInstanceId和tenantId不能为空")
 	}
 
-	query := `
+	// 构建查询条件
+	whereConditions := []string{"pc.gatewayInstanceId = ?", "pc.tenantId = ?"}
+	args := []interface{}{gatewayInstanceId, tenantId}
+
+	// 添加服务定义activeFlag条件（如果指定了serviceActiveFlag参数）
+	if serviceActiveFlag != "" {
+		whereConditions = append(whereConditions, "sd.activeFlag = ?")
+		args = append(args, serviceActiveFlag)
+	}
+
+	// 添加代理配置activeFlag条件（如果指定了proxyActiveFlag参数）
+	if proxyActiveFlag != "" {
+		whereConditions = append(whereConditions, "pc.activeFlag = ?")
+		args = append(args, proxyActiveFlag)
+	}
+
+	whereClause := strings.Join(whereConditions, " AND ")
+
+	query := fmt.Sprintf(`
 		SELECT COUNT(*) as count
 		FROM HUB_GW_SERVICE_DEFINITION sd
 		INNER JOIN HUB_GW_PROXY_CONFIG pc ON sd.tenantId = pc.tenantId AND sd.proxyConfigId = pc.proxyConfigId
-		WHERE pc.gatewayInstanceId = ? 
-		  AND pc.tenantId = ? 
-		  AND sd.activeFlag = 'Y' 
-		  AND pc.activeFlag = 'Y'
-	`
+		WHERE %s
+	`, whereClause)
 
 	var result struct {
 		Count int `db:"count"`
 	}
-	err := dao.db.QueryOne(ctx, &result, query, []interface{}{gatewayInstanceId, tenantId}, true)
+	err := dao.db.QueryOne(ctx, &result, query, args, true)
 	if err != nil {
 		return 0, huberrors.WrapError(err, "统计网关实例关联的服务定义数量失败")
 	}
