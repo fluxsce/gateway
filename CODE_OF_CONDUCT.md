@@ -1,202 +1,206 @@
-# Gateway 社区行为准则
+# Gateway Community Code of Conduct
 
-## 我们的承诺
+## Our Pledge
 
-为了营造一个开放和友好的环境，我们作为贡献者和维护者承诺：无论年龄、体型、身体健全与否、民族、性别认同和表达、经验水平、教育程度、社会地位、国籍、外表、种族、宗教或性取向如何，我们都致力于为每个人创造一个无骚扰的参与体验。
+To foster an open and welcoming environment, we as contributors and maintainers pledge to 
+make participation in our community a harassment-free experience for everyone, regardless of age, 
+body size, disability, ethnicity, gender identity and expression, level of experience, education, 
+socio-economic status, nationality, personal appearance, race, religion, or sexual orientation.
 
-## 我们的标准
 
-有助于创造正面环境的行为包括但不限于：
+## Our Standards
 
-### ✅ 积极行为
+Examples of behavior that contribute to a positive environment include：
 
-* **使用友好和包容的语言**
-* **尊重不同的观点和经历**
-* **优雅地接受建设性的批评**
-* **关注对社区最有利的事情**
-* **对其他社区成员表示同理心**
-* **在讨论中保持耐心和理解**
-* **分享知识并帮助新手**
-* **积极协作，避免恶性竞争**
-* **承认和感谢他人的贡献**
+### ✅ Positive Behavior
 
-### ❌ 不当行为
+* **Using welcoming and inclusive language**
+* **Respecting differing viewpoints and experiences**
+* **Gracefully accepting constructive criticism**
+* **Focusing on what is best for the community**
+* **Showing empathy toward other community members**
+* **Being patient and understanding in discussions**
+* **Sharing knowledge and helping newcomers**
+* **Collaborating actively and avoiding unhealthy competition**
+* **Acknowledging and appreciating others' contributions**
 
-不当行为包括但不限于：
+### ❌ Unacceptable Behavior
 
-* **使用性化的语言或图像，以及不受欢迎的性关注或勾引**
-* **人身攻击、侮辱性/贬损性评论，人格攻击或政治攻击**
-* **公开或私下骚扰**
-* **未经明确许可，发布他人的私人信息（如物理地址或电子邮件地址）**
-* **故意传播虚假或误导性信息**
-* **垃圾邮件、无关内容或过度推广**
-* **在专业环境中可以合理认为不当的其他行为**
-* **威胁暴力或暴力语言**
-* **跟踪或骚扰行为**
+Unacceptable behaviors include, but are not limited to：
 
-## 适用范围
+* **The use of sexualized language or imagery, and unwelcome sexual attention or advances**
+* **Personal attacks, insulting/derogatory comments, ad hominem arguments, or political attacks**
+* **Public or private harassment**
+* **Publishing others' private information (e.g., physical or email addresses) without explicit permission**
+* **Deliberately spreading false or misleading information**
+* **Spamming, off-topic content, or excessive self-promotion**
+* **Other conduct that could reasonably be considered inappropriate in a professional setting**
+* **Threats of violence or violent language**
+* **Stalking or harassment**
 
-本行为准则适用于所有 Gateway 项目空间，包括但不限于：
+## Scope
 
-* **GitHub 仓库**（Issues、Pull Requests、Discussions）
-* **官方社交媒体账户**
-* **技术会议和聚会**
-* **在线或离线活动**
-* **电子邮件通信**
-* **即时通讯群组**（微信群、QQ群等）
+This Code of Conduct applies to all Gateway project spaces, including but not limited to：
 
-当个人代表项目或其社区时，本行为准则也适用于公共场所。代表项目或社区的情况包括使用官方项目电子邮件地址、通过官方社交媒体账户发布或作为指定代表在在线或离线活动中行事。
+* **GitHub repositories**（Issues、Pull Requests、Discussions）
+* **Official social media accounts**
+* **Technical conferences and meetups**
+* **Online or offline events**
+* **Email communications**
+* **Instant messaging groups**（WeChat, QQ groups, etc.）
 
-## 报告指南
+This Code of Conduct also applies when an individual is representing the project or its community in public spaces. Representation includes using an official project email address, posting via an official social media account, or acting as an appointed representative at an online or offline event.
 
-### 如何报告
+## Reporting Guidelines
 
-如果您遭遇或目睹违反行为准则的行为，请通过以下方式报告：
+### How to Report
 
-#### 📧 邮件报告
-* **主要联系人**: [conduct@example.com](mailto:conduct@example.com)
-* **备用联系人**: [admin@example.com](mailto:admin@example.com)
+If you experience or witness a violation of this Code of Conduct, please report it via：
 
-#### 📝 报告内容
+#### 📧 Email Reporting
+* **Primary Contact**: [conduct@example.com](mailto:conduct@example.com)
+* **Secondary Contact**: [admin@example.com](mailto:admin@example.com)
 
-请在报告中包含以下信息：
+#### 📝 Report Contents
 
-1. **您的联系信息**（以便我们跟进）
-2. **涉事人员的姓名/用户名**
-3. **违规行为的详细描述**
-4. **事件发生的时间和地点**
-5. **如有可能，提供相关证据**（截图、链接等）
-6. **是否还有其他目击者**
-7. **您希望我们采取的行动**
+Please include the following in your report：
 
-### 报告处理流程
+1. **Your contact information**（for follow-up）
+2. **Name/username of the involved party**
+3. **Detailed description of the violation**
+4. **Time and location of the incident**
+5. **Evidence, if available**（screenshots, links, etc.）
+6. **Whether there were other witnesses**
+7. **Action you would like us to take**
 
-1. **确认收到** - 我们将在 24 小时内确认收到您的报告
-2. **初步调查** - 3 个工作日内进行初步调查
-3. **详细调查** - 必要时进行更详细的调查，可能需要 1-2 周
-4. **决定措施** - 根据调查结果决定适当的措施
-5. **执行措施** - 实施相应的纠正措施
-6. **跟进反馈** - 向报告者反馈处理结果
+### Reporting Process
 
-### 保密和匿名
+1. **Acknowledgement** - We will confirm receipt of your report within 24 hours.
+2. **Initial Investigation** - A preliminary review will be conducted within 3 business days.
+3. **Detailed Investigation** - If necessary, a deeper investigation may take 1-2 weeks.
+4. **Decision on Action** - Appropriate corrective measures will be determined based on findings.
+5. **Implementation** - The decided actions will be enforced.
+6. **Follow-up** - The reporter will receive feedback on the outcome.
 
-* **保密承诺**: 所有报告都将被保密处理
-* **匿名选项**: 支持匿名报告，但可能影响我们的跟进能力
-* **隐私保护**: 我们承诺保护报告者和被报告者的隐私
+### Confidentiality & Anonymity
 
-## 执行措施
+* **Confidentiality**: All reports will be handled confidentially.
+* **Anonymous Reporting**: Anonymous reports are accepted but may limit our ability to follow up.
+* **Privacy Protection**: We commit to protecting the privacy of both reporters and reported parties.
 
-项目维护者有权利和责任删除、编辑或拒绝评论、提交、代码、wiki 编辑、问题和其他不符合本行为准则的贡献。
+## Enforcement
 
-### 纠正措施
+Project maintainers have the right and responsibility to remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that do not align with this Code of Conduct.
+### Corrective Actions
 
-根据违规行为的严重程度，我们可能采取以下措施：
+Depending on the severity of the violation, the following measures may be taken：
 
-#### 1. 📢 警告
-**适用情况**: 轻微违规，初次犯错
+#### 1. 📢 Warning
+**Applicable for**: Minor violations, first-time offenses
 
-* 私下警告，解释违规行为的性质
-* 要求停止不当行为
-* 记录警告以备将来参考
+* Private warning explaining the nature of the violation
+* Request to cease inappropriate behavior
+* Documentation of the warning for future reference
 
-#### 2. 🔇 临时限制
-**适用情况**: 持续的轻微违规或中等程度的违规
+#### 2. 🔇 Temporary Restrictions
+**Applicable for**: Repeated minor violations or moderate offenses
 
-* 临时禁止参与项目互动（1-7天）
-* 限制在特定平台的活动
-* 要求公开道歉（如适用）
+* Temporary ban from project interactions（1-7 days）
+* Restricted activity on specific platforms
+* Requirement for a public apology（if applicable）
 
-#### 3. ⏸️ 临时禁止
-**适用情况**: 严重违规或多次违规
+#### 3. ⏸️ Temporary Ban
+**Applicable for**: Serious or repeated violations
 
-* 禁止参与所有项目活动（1-4周）
-* 禁止参与项目相关的公共和私人互动
-* 期间不得联系涉事人员
+* Ban from all project activities（1-4 weeks）
+* Prohibition from public and private interactions related to the project
+* No contact with involved parties during the ban
 
-#### 4. 🚫 永久禁止
-**适用情况**: 极严重违规，如持续骚扰或威胁
+#### 4. 🚫 No contact with involved parties during the ban
+**Applicable for**: Extreme violations, such as persistent harassment or threats
 
-* 永久禁止参与所有项目活动
-* 从所有项目平台移除
-* 不得以任何形式参与项目
+* Permanent ban from all project activities
+* Removal from all project platforms
+* Prohibition from any form of participation
 
-### 申诉程序
+### Appeal Process
 
-如果您认为对您采取的措施是错误的，您可以：
+If you believe an action taken against you was unjust, you may：
 
-1. **发送申诉邮件** 到 [appeal@example.com](mailto:appeal@example.com)
-2. **提供详细说明** 为什么您认为措施是不当的
-3. **等待审查** 我们将在 7 个工作日内审查您的申诉
-4. **接收决定** 申诉结果将是最终决定
+1. **Submit an appeal** to [appeal@example.com](mailto:appeal@example.com)
+2. **Provide a detailed explanation** of why you believe the action was inappropriate
+3. **Await review** We will review your appeal within 7 business days
+4. **Receive a decision** The appeal outcome will be final
 
-## 社区建设
+## Community Building
 
-### 积极参与
+### Active Participation
 
-我们鼓励社区成员：
+We encourage community members to：
 
-* **积极参与讨论** 并提供建设性反馈
-* **帮助新手** 学习和成长
-* **分享知识** 和最佳实践
-* **庆祝成就** 和里程碑
-* **推广项目** 和社区价值观
+* **Engage constructively in discussions**
+* **Help newcomers learn and grow**
+* **Share knowledge and best practices**
+* **Celebrate achievements and milestones**
+* **Promote the project and its values**
 
-### 冲突解决
+### Conflict Resolution
 
-当出现分歧时：
+When disagreements arise：
 
-1. **保持冷静和专业**
-2. **关注技术问题而非个人**
-3. **寻求理解对方观点**
-4. **寻求妥协方案**
-5. **必要时寻求中介帮助**
+1. **Remain calm and professional**
+2. **Focus on technical issues, not individuals**
+3. **Seek to understand opposing viewpoints**
+4. **Work toward compromise**
+5. **Request mediation if necessary**
 
-### 包容性
+### Inclusivity
 
-我们致力于创建一个包容性的社区：
+We are committed to fostering an inclusive community by：
 
-* **欢迎所有背景的人**
-* **使用包容性语言**
-* **考虑文化差异**
-* **提供多语言支持**
-* **确保无障碍访问**
+* **Welcoming people of all backgrounds**
+* **Using inclusive language**
+* **Respecting cultural differences**
+* **Providing multilingual support**
+* **Ensuring accessibility**
 
-## 维护者责任
+## Maintainer Responsibilities
 
-项目维护者有责任：
+Project maintainers are responsible for：
 
-* **澄清可接受行为的标准**
-* **对违规行为采取公正和适当的纠正措施**
-* **移除、编辑或拒绝不当内容**
-* **临时或永久禁止违规的贡献者**
-* **保护社区成员的安全和福祉**
+* **Clarifying acceptable behavior standards**
+* **Taking fair and appropriate corrective actions**
+* **Removing, editing, or rejecting inappropriate content**
+* **Temporarily or permanently banning violators**
+* **Ensuring the safety and well-being of community members**
 
-维护者如果不遵循或执行本行为准则，可能会面临项目领导层其他成员所决定的暂时或永久后果。
+Maintainers who do not follow or enforce this Code of Conduct may face temporary or 
+permanent repercussions as determined by other project leadership members.。
 
-## 版本和更新
+## Version & Updates
 
-* **版本**: 1.0
-* **生效日期**: 2024年1月1日
-* **最后更新**: 2024年1月1日
+* **Version**: 1.0
+* **Effective Date**: January 1, 2024
+* **Last Updated**: January 1, 2024
 
-本行为准则可能会定期更新。重大更改将通过项目公告通知社区。
+This Code of Conduct may be updated periodically. Significant changes will be announced to the community via project notifications.
 
-## 致谢
+## Acknowledgments
 
-本行为准则改编自 [Contributor Covenant](https://www.contributor-covenant.org/)，版本 2.1，可在 [https://www.contributor-covenant.org/version/2/1/code_of_conduct.html](https://www.contributor-covenant.org/version/2/1/code_of_conduct.html) 查看。
+This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org/), version 2.1, available at [https://www.contributor-covenant.org/version/2/1/code_of_conduct.html](https://www.contributor-covenant.org/version/2/1/code_of_conduct.html) 查看。
 
-社区影响指导方针的灵感来自 [Mozilla 的社区参与指导原则](https://github.com/mozilla/diversity)。
+Community Impact Guidelines were inspired by [Mozilla’s Community Participation Guidelines](https://github.com/mozilla/diversity)。
 
-关于此行为准则的常见问题解答，请查看 [FAQ](https://www.contributor-covenant.org/faq)。翻译版本请查看 [https://www.contributor-covenant.org/translations](https://www.contributor-covenant.org/translations)。
+For answers to common questions about this Code of Conduct, see the [FAQ](https://www.contributor-covenant.org/faq)。Translations are [https://www.contributor-covenant.org/translations](https://www.contributor-covenant.org/translations)。
 
 ---
 
-## 联系信息
+## Contact Information
 
-如有任何关于本行为准则的问题，请通过以下方式联系我们：
+For questions regarding this Code of Conduct, please contact us via：
 
-* **邮箱**: [conduct@example.com](mailto:conduct@example.com)
+* **Email**: [conduct@example.com](mailto:conduct@example.com)
 * **GitHub**: 创建 [Issue](https://github.com/your-org/gateway/issues)
-* **官方网站**: [https://gateway.example.com](https://gateway.example.com)
+* **Official Website**: [https://gateway.example.com](https://gateway.example.com)
 
-感谢您帮助我们创建一个友好、安全、包容的开源社区！🤝 
+Thank you for helping us create a friendly, safe, and inclusive open-source community! 🤝 

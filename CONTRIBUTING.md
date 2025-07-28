@@ -1,28 +1,29 @@
-# Gateway 贡献指南
+# Gateway Contribution Guide
 
-首先，感谢您对 Gateway 项目的关注和贡献意愿！本文档将帮助您了解如何为 Gateway 项目做出贡献。
+First of all, thank you for your interest in the Gateway project and your willingness to contribute!
+This document will help you understand how to contribute to Gateway efficiently and in a standardized manner.
 
-## 📖 目录
+## 📖 Table of Contents
 
-- [🚀 快速开始](#快速开始)
-- [🏗️ 开发环境设置](#开发环境设置)
-- [📝 开发规范](#开发规范)
-- [🎯 Git 提交规范](#git-提交规范)
-- [🔀 分支管理策略](#分支管理策略)
-- [🧪 测试规范](#测试规范)
-- [📋 代码审查流程](#代码审查流程)
-- [🐛 Bug 报告](#bug-报告)
-- [💡 功能请求](#功能请求)
-- [📄 文档贡献](#文档贡献)
-- [🏆 贡献者认可](#贡献者认可)
+- [🚀 Quick Start](#Quick Start)
+- [🏗️ Development Environment Setup](#Development Environment Setup)
+- [📝 Development Standards](#Development Standards)
+- [🎯 Git Commit Standards](#git-Commit Standards)
+- [🔀 Branch Management Strategy](#Branch Management Strategy)
+- [🧪 Testing Standards](#Testing Standards)
+- [📋 Code Review Process](#Code Review Process)
+- [🐛 Bug Reports](#bug-Reports)
+- [💡 Feature Requests](#Feature Requests)
+- [📄 Documentation Contributions](#Documentation Contributions)
+- [🏆 Contributor Recognition](#Contributor Recognition)
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 1. Fork 项目
+### 1. Fork and Clone the Project
 
-1. 访问 [Gateway 项目主页](https://github.com/your-org/gateway)
-2. 点击右上角的 "Fork" 按钮
-3. 克隆你 Fork 的仓库到本地
+1. Visit the [Gateway project homepage](https://github.com/your-org/gateway)
+2. Click the "Fork" button in the top right corner
+3. Clone your forked repository locally
 
 ```bash
 git clone https://github.com/your-username/gateway.git
@@ -30,150 +31,150 @@ cd gateway
 git remote add upstream https://github.com/your-org/gateway.git
 ```
 
-### 2. 创建开发分支
+### 2. Create a Development Branch
 
 ```bash
-# 确保主分支是最新的
+# Ensure the main branch is up-to-date
 git checkout main
 git pull upstream main
 
-# 创建功能分支
+# Create a feature branch
 git checkout -b feature/your-feature-name
 ```
 
-### 3. 进行开发并提交
+### 3. Develop and Commit
 
 ```bash
-# 进行代码修改后
+# After making code changes
 git add .
 git commit -m "feat: add your feature description"
 git push origin feature/your-feature-name
 ```
 
-### 4. 创建 Pull Request
+### 4. Create a Pull Request
 
-在 GitHub 上创建 Pull Request，详细描述您的更改。
+Create a Pull Request on GitHub, describing your changes in detail.
 
-## 🏗️ 开发环境设置
+## 🏗️ Development Environment Setup
 
-### 必需软件
+### Required Software
 
-- **Go**: 1.19+ (推荐最新稳定版本)
+- **Go**: 1.19+ (recommended latest stable version)
 - **Git**: 2.20+
-- **Make**: 构建工具
-- **Docker**: 可选，用于容器化部署
-- **MySQL**: 8.0+ (开发和测试)
-- **Redis**: 6.0+ (可选)
+- **Make**: Build tool
+- **Docker**: Optional, for containerized deployment
+- **MySQL**: 8.0+ (development and testing)
+- **Redis**: 6.0+ (optional)
 
-### IDE 推荐
+### Recommended IDEs
 
-- **VS Code** + Go 扩展
+- **VS Code** + Go extension
 - **GoLand** (JetBrains)
 - **Vim/Neovim** + vim-go
 
-### 开发环境配置
+### Development Environment Configuration
 
 ```bash
-# 1. 安装依赖
+# 1. Install dependencies
 go mod download
 
-# 2. 设置开发环境变量
+# 2. Set development environment variables
 export GATEWAY_ENV=development
 
-# 3. 初始化数据库
+# 3. Initialize the database
 make db-init
 
-# 4. 运行项目
+# 4. Run the project
 make dev
 
-# 5. 运行测试
+# 5. Run tests
 make test
 ```
 
-## 📝 开发规范
+## 📝 Development Standards
 
-### 代码风格
+### Code Style
 
-#### Go 代码规范
+#### Go Code Standards
 
-我们遵循标准的 Go 代码风格指南：
+We follow standard Go code style guidelines:：
 
-1. **使用 gofmt 格式化代码**
+1. **Format code with gofmt**
 ```bash
 go fmt ./...
 ```
 
-2. **使用 goimports 管理导入**
+2. **Manage imports with goimports**
 ```bash
 goimports -w .
 ```
 
-3. **使用 golangci-lint 进行静态检查**
+3. **Static analysis with golangci-lint**
 ```bash
 golangci-lint run
 ```
 
-#### 命名规范
+#### Naming Conventions
 
-**包名（Package）**
+**Package Names**
 ```go
-// ✅ 推荐
+// ✅ Recommended
 package gateway
 package handler
 package config
 
-// ❌ 不推荐
+// ❌ Not recommended
 package gatewayPackage
 package handlerUtils
 ```
 
-**接口名（Interface）**
+**Interface Names**
 ```go
-// ✅ 推荐
+// ✅ Recommended
 type Reader interface {}
 type Writer interface {}
 type ConfigLoader interface {}
 
-// ❌ 不推荐  
+// ❌ Not recommended  
 type IReader interface {}
 type ReaderInterface interface {}
 ```
 
-**结构体名（Struct）**
+**Struct Names**
 ```go
-// ✅ 推荐
+// ✅ Recommended
 type GatewayConfig struct {}
 type HTTPProxy struct {}
 type WebSocketConnection struct {}
 
-// ❌ 不推荐
+// ❌ Not recommended
 type gatewayConfig struct {}
 type Http_Proxy struct {}
 ```
 
-**函数名（Function）**
+**Function Names**
 ```go
-// ✅ 推荐
+// ✅ Recommended
 func LoadConfig() {}
 func NewHTTPProxy() {}
 func (h *HTTPProxy) HandleRequest() {}
 
-// ❌ 不推荐
+// ❌ Not recommended
 func loadconfig() {}
 func new_http_proxy() {}
 func (h *HTTPProxy) handle_request() {}
 ```
 
-**常量名（Constant）**
+**Constant Names**
 ```go
-// ✅ 推荐
+// ✅ Recommended
 const (
     DefaultTimeout = 30 * time.Second
     MaxRetryCount  = 3
     APIVersion     = "v1"
 )
 
-// ❌ 不推荐
+// ❌ Not recommended
 const (
     default_timeout = 30 * time.Second
     MAX_RETRY_COUNT = 3
@@ -181,80 +182,80 @@ const (
 )
 ```
 
-#### 目录结构规范
+#### Directory Structure Standards
 
 ```
 gateway/
-├── cmd/                    # 应用程序入口点
-│   ├── gateway/           # 网关服务
-│   └── web/               # Web 管理界面
-├── internal/              # 内部包（不可导入）
-│   ├── gateway/           # 网关核心实现
-│   │   ├── core/         # 核心引擎
-│   │   ├── handler/      # 处理器
-│   │   └── config/       # 配置管理
-│   ├── auth/             # 认证授权
-│   ├── storage/          # 存储层
-│   └── service/          # 业务服务层
-├── pkg/                   # 公共包（可导入）
-│   ├── logger/           # 日志工具
-│   ├── database/         # 数据库工具
-│   └── utils/            # 通用工具
-├── api/                   # API 定义
-├── web/                   # Web 应用
-├── docs/                  # 文档
-├── scripts/               # 脚本
-├── configs/               # 配置文件
-└── test/                  # 测试文件
+├── cmd/                    # Application entry points
+│   ├── gateway/           # Gateway service
+│   └── web/               # Web management interface
+├── internal/              # Internal packages (not importable)
+│   ├── gateway/           # Gateway core implementation
+│   │   ├── core/         # Core engine
+│   │   ├── handler/      # Handlers
+│   │   └── config/       # Configuration management
+│   ├── auth/             # Authentication and authorization
+│   ├── storage/          # Storage layer
+│   └── service/          # Business service layer
+├── pkg/                   # Public packages (importable)
+│   ├── logger/           # Logging utilities
+│   ├── database/         # Database utilities
+│   └── utils/            # General utilities
+├── api/                   # API definitions
+├── web/                   # Web application
+├── docs/                  # Documentation
+├── scripts/               # Scripts
+├── configs/               # Configuration files
+└── test/                  # Test files
 ```
 
-#### 错误处理规范
+#### Error Handling Standards
 
 ```go
-// ✅ 推荐：包装错误并添加上下文
+// ✅ Recommended：Wrap errors and add context
 func LoadConfig(path string) (*Config, error) {
     data, err := os.ReadFile(path)
     if err != nil {
-        return nil, fmt.Errorf("读取配置文件失败 %s: %w", path, err)
+        return nil, fmt.Errorf("failed to read config file %s: %w", path, err)
     }
     
     var config Config
     if err := yaml.Unmarshal(data, &config); err != nil {
-        return nil, fmt.Errorf("解析配置文件失败: %w", err)
+        return nil, fmt.Errorf("failed to parse config file: %w", err)
     }
     
     return &config, nil
 }
 
-// ❌ 不推荐：忽略或简单返回错误
+// ❌ Not recommended：Ignore or simply return errors
 func LoadConfig(path string) (*Config, error) {
-    data, _ := os.ReadFile(path) // 忽略错误
+    data, _ := os.ReadFile(path) // Ignore error
     var config Config
     yaml.Unmarshal(data, &config)
     return &config, nil
 }
 ```
 
-#### 日志记录规范
+#### Logging Standards
 
 ```go
-// ✅ 推荐：结构化日志
-logger.Info("处理请求",
+// ✅ Recommended：Structured logging
+logger.Info("Handling request",
     zap.String("method", req.Method),
     zap.String("path", req.URL.Path),
     zap.Duration("duration", duration),
     zap.String("remote_addr", req.RemoteAddr),
 )
 
-// ❌ 不推荐：格式化字符串
-logger.Infof("处理请求 %s %s 耗时 %v 来自 %s", 
+// ❌ Not recommended：Formatted strings
+logger.Infof("Handling request %s %s took %v from %s", 
     req.Method, req.URL.Path, duration, req.RemoteAddr)
 ```
 
-#### 配置管理规范
+#### Configuration Management Standards
 
 ```go
-// ✅ 推荐：使用结构体标签进行配置映射
+// ✅ Recommended：Use struct tags for configuration mapping
 type ServerConfig struct {
     Host         string        `yaml:"host" json:"host" mapstructure:"host"`
     Port         int           `yaml:"port" json:"port" mapstructure:"port"`
@@ -262,7 +263,7 @@ type ServerConfig struct {
     WriteTimeout time.Duration `yaml:"write_timeout" json:"write_timeout" mapstructure:"write_timeout"`
 }
 
-// 提供默认值
+// Provide default values
 func DefaultServerConfig() ServerConfig {
     return ServerConfig{
         Host:         "0.0.0.0",
@@ -273,59 +274,60 @@ func DefaultServerConfig() ServerConfig {
 }
 ```
 
-### 注释规范
+### Commenting Standards
 
 ```go
-// Package gateway 实现高性能的微服务网关
+// Package gateway implements a high-performance microservice gateway
 // 
-// 该包提供了完整的网关功能，包括：
-//   - HTTP/HTTPS 代理
-//   - WebSocket 代理
-//   - 负载均衡
-//   - 限流
-//   - 认证授权
+// This package provides complete gateway functionality including：
+//   - HTTP/HTTPS proxy
+//   - WebSocket proxy
+//   - Load balancing
+//   - Rate limiting
+//   - Authentication and authorization
 //
-// 基本使用方法：
+// Basic usage：
 //   gateway := gateway.New(config)
 //   gateway.Start()
 package gateway
 
-// GatewayConfig 网关配置
+// GatewayConfig gateway configuration
 //
-// 包含网关运行所需的所有配置项，支持从 YAML 文件或环境变量加载。
+// Contains all configuration items required for gateway operation,
+// supports loading from YAML files or environment variables.
 type GatewayConfig struct {
-    // Server 服务器配置
+    // Server server configuration
     Server ServerConfig `yaml:"server" json:"server"`
     
-    // Router 路由配置
+    // Router routing configuration
     Router RouterConfig `yaml:"router" json:"router"`
 }
 
-// NewGateway 创建新的网关实例
+// NewGateway creates a new gateway instance
 //
-// 参数：
-//   - config: 网关配置，不能为 nil
+// Parameters：
+//   - config: Gateway configuration, cannot be nil
 //
-// 返回值：
-//   - *Gateway: 网关实例
-//   - error: 创建过程中的错误
+// Returns：
+//   - *Gateway: Gateway instance
+//   - error: Error during creation
 //
-// 示例：
+// Example：
 //   config := LoadConfig("gateway.yaml")
 //   gateway, err := NewGateway(config)
 //   if err != nil {
 //       log.Fatal(err)
 //   }
 func NewGateway(config *GatewayConfig) (*Gateway, error) {
-    // 实现...
+    // Implementation...
 }
 ```
 
-## 🎯 Git 提交规范
+## 🎯 Git Commit Standards
 
-我们使用 [Conventional Commits](https://www.conventionalcommits.org/) 规范。
+We use [Conventional Commits](https://www.conventionalcommits.org/) standards.
 
-### 提交消息格式
+### Commit Message Format
 
 ```
 <type>[optional scope]: <description>
@@ -335,132 +337,132 @@ func NewGateway(config *GatewayConfig) (*Gateway, error) {
 [optional footer(s)]
 ```
 
-### 提交类型（Type）
+### Commit Types
 
-| 类型 | 描述 | 示例 |
+| Type | Description | Example |
 |------|------|------|
-| `feat` | 新功能 | `feat: 添加 WebSocket 代理支持` |
-| `fix` | Bug 修复 | `fix: 修复内存泄漏问题` |
-| `docs` | 文档更新 | `docs: 更新 API 文档` |
-| `style` | 代码格式调整（不影响功能） | `style: 格式化代码` |
-| `refactor` | 重构（不是新功能，也不是修复bug） | `refactor: 重构配置加载逻辑` |
-| `test` | 添加或修改测试 | `test: 添加网关代理测试` |
-| `chore` | 构建过程或辅助工具的变动 | `chore: 更新依赖版本` |
-| `perf` | 性能优化 | `perf: 优化路由匹配算法` |
-| `ci` | CI/CD 相关更改 | `ci: 添加 GitHub Actions 工作流` |
-| `build` | 构建系统或外部依赖更改 | `build: 更新 Makefile` |
-| `revert` | 回滚之前的提交 | `revert: 回滚 feat: 添加缓存功能` |
+| `feat` | New feature | `feat: add WebSocket proxy support` |
+| `fix` | Bug fix | `fix: fix memory leak issue` |
+| `docs` | Documentation updates | `docs: update API documentation` |
+| `style` | Code formatting changes（no functional impact） | `style: format code` |
+| `refactor` | Refactoring（not a new feature or bug fix） | `refactor: refactor config loading logic` |
+| `test` | 	Add or modify tests | `test: add gateway proxy tests` |
+| `chore` | Build process or tooling changes | `chore: update dependency versions` |
+| `perf` | Performance optimization | `perf: optimize route matching algorithm` |
+| `ci` | CI/CD related changes | `ci: add GitHub Actions workflow` |
+| `build` | Build system or external dependency changes | `build: update Makefile` |
+| `revert` | Revert a previous commit | `revert: revert feat: add caching feature` |
 
-### 作用域（Scope）
+### Scope
 
-建议的作用域：
+Suggested scopes：
 
-- `gateway` - 网关核心
-- `auth` - 认证授权
-- `config` - 配置管理
-- `handler` - 处理器
-- `middleware` - 中间件
-- `storage` - 存储层
-- `web` - Web 界面
-- `api` - API 接口
-- `docs` - 文档
-- `test` - 测试
+- `gateway` - Gateway core
+- `auth` - Authentication and authorization
+- `config` - Configuration management
+- `handler` - Handlers
+- `middleware` - Middleware
+- `storage` - Storage layer
+- `web` - Web interface
+- `api` - API interfaces
+- `docs` - Documentation
+- `test` - Tests
 
-### 提交消息示例
+### Commit Message Examples
 
 ```bash
-# 添加新功能
-git commit -m "feat(gateway): 添加 WebSocket 代理支持"
+# Add new feature
+git commit -m "feat(gateway): add WebSocket proxy support"
 
-# 修复 Bug
-git commit -m "fix(auth): 修复 JWT 令牌验证失败问题"
+# Fix Bug
+git commit -m "fix(auth): fix JWT token validation failure"
 
-# 文档更新
-git commit -m "docs(api): 更新认证 API 文档"
+# Documentation update
+git commit -m "docs(api): update authentication API documentation"
 
-# 重构代码
-git commit -m "refactor(config): 使用 Viper 重构配置加载"
+# Refactor code
+git commit -m "refactor(config): refactor config loading using Viper"
 
-# 性能优化
-git commit -m "perf(gateway): 优化请求路由匹配性能"
+# Performance optimization
+git commit -m "perf(gateway): optimize request route matching performance"
 
-# 添加测试
-git commit -m "test(handler): 添加限流处理器单元测试"
+# Add tests
+git commit -m "test(handler): add rate limiting handler unit tests"
 ```
 
-### 详细提交消息示例
+### Detailed Commit Message Example
 
 ```
-feat(gateway): 添加 WebSocket 代理支持
+feat(gateway): add WebSocket proxy support
 
-- 实现 WebSocket 连接升级处理
-- 添加双向消息代理转发
-- 支持子协议和扩展协商
-- 添加连接池管理和统计
+- Implement WebSocket connection upgrade handling
+- Add bidirectional message proxy forwarding
+- Support subprotocol and extension negotiation
+- Add connection pool management and statistics
 
 Closes #123
 ```
 
-### 破坏性变更（Breaking Changes）
+### Breaking Changes
 
 ```
-feat(api)!: 重构认证 API 接口
+feat(api)!: refactor authentication API interface
 
-BREAKING CHANGE: 认证接口响应格式发生变化
-- 移除 `user` 字段
-- 添加 `userInfo` 嵌套对象
-- `token` 字段重命名为 `accessToken`
+BREAKING CHANGE: Authentication interface response format changed
+- Remove `user` field
+- Add `userInfo` nested object
+- Rename `token` field to `accessToken`
 
-迁移指南请参考: docs/migration/v2.0.md
+Migration guide: docs/migration/v2.0.md
 ```
 
-## 🔀 分支管理策略
+## 🔀 Branch Management Strategy
 
-我们使用 **Git Flow** 分支模型：
+We use the **Git Flow** branching model：
 
-### 主要分支
+### Main Branches
 
-- **`main`**: 主分支，始终保持可发布状态
-- **`develop`**: 开发分支，包含最新的开发功能
+- **`main`**: Main branch, always in a releasable state
+- **`develop`**: Development branch, contains latest development features
 
-### 辅助分支
+### Supporting Branches
 
-- **`feature/*`**: 功能分支
-  - 从 `develop` 分支创建
-  - 完成后合并回 `develop`
-  - 命名格式：`feature/feature-name`
+- **`feature/*`**: Feature branches
+  - Created from `develop` when complete
+  - Merged back into `develop`
+  - Naming format：`feature/feature-name`
 
-- **`release/*`**: 发布分支
-  - 从 `develop` 分支创建
-  - 完成后合并到 `main` 和 `develop`
-  - 命名格式：`release/v1.2.0`
+- **`release/*`**: Release branches
+  - Created from `develop`
+  - Merged into `main` and `develop` when complete
+  - Naming format：`release/v1.2.0`
 
-- **`hotfix/*`**: 热修复分支
-  - 从 `main` 分支创建
-  - 完成后合并到 `main` 和 `develop`
-  - 命名格式：`hotfix/fix-critical-bug`
+- **`hotfix/*`**: Hotfix branches
+  - Created from `main`
+  - Merged into `main` and `develop` when complete
+  - Naming format：`hotfix/fix-critical-bug`
 
-### 分支操作示例
+### Branch Operation Examples
 
 ```bash
-# 创建功能分支
+# Create feature branch
 git checkout develop
 git pull origin develop
 git checkout -b feature/websocket-proxy
 
-# 开发完成后
+# After development
 git checkout develop
 git pull origin develop
 git merge --no-ff feature/websocket-proxy
 git push origin develop
 git branch -d feature/websocket-proxy
 
-# 创建发布分支
+# Create release branch
 git checkout develop
 git pull origin develop
 git checkout -b release/v1.2.0
 
-# 发布完成后
+# After release
 git checkout main
 git merge --no-ff release/v1.2.0
 git tag v1.2.0
@@ -469,49 +471,49 @@ git merge --no-ff release/v1.2.0
 git branch -d release/v1.2.0
 ```
 
-## 🧪 测试规范
+## 🧪 Testing Standards
 
-### 测试类型
+### Test Types
 
-1. **单元测试** - 测试单个函数或方法
-2. **集成测试** - 测试组件间的交互
-3. **端到端测试** - 测试完整的用户场景
+1. **Unit Tests** - Test individual functions or methods
+2. **Integration Tests** - Test interactions between components
+3. **End-to-End Tests** - Test complete user scenarios
 
-### 测试文件结构
+### Test File Structure
 
 ```
 test/
-├── unit/                  # 单元测试
+├── unit/                  # Unit tests
 │   ├── gateway/
 │   ├── auth/
 │   └── config/
-├── integration/           # 集成测试
+├── integration/           # Integration tests
 │   ├── api/
 │   └── database/
-└── e2e/                   # 端到端测试
+└── e2e/                   # End-to-end tests
     └── scenarios/
 ```
 
-### 测试命名规范
+### Test Naming Standards
 
 ```go
-// 测试函数命名: Test + 被测试的函数名 + 测试场景
+// Test function naming: Test + Function being tested + Test scenario
 func TestLoadConfig_ValidFile_Success(t *testing.T) {}
 func TestLoadConfig_InvalidPath_ReturnsError(t *testing.T) {}
 func TestLoadConfig_MalformedYAML_ReturnsError(t *testing.T) {}
 
-// 基准测试命名: Benchmark + 被测试的函数名
+// Benchmark naming: Benchmark + Function being tested
 func BenchmarkRouteMatch(b *testing.B) {}
 
-// 示例测试命名: Example + 被测试的函数名
+// Example test naming: Example + Function being tested
 func ExampleNewGateway() {}
 ```
 
-### 测试用例编写规范
+### Test Case Writing Standards
 
 ```go
 func TestHTTPProxy_ProxyRequest_Success(t *testing.T) {
-    // Arrange - 准备测试数据
+    // Arrange - Prepare test data
     config := DefaultHTTPProxyConfig()
     proxy := NewHTTPProxy(config, mockServiceManager)
     
@@ -519,163 +521,162 @@ func TestHTTPProxy_ProxyRequest_Success(t *testing.T) {
     rec := httptest.NewRecorder()
     ctx := core.NewContext(rec, req)
     
-    // Act - 执行被测试的操作
+    // Act - Execute the operation being tested
     err := proxy.ProxyRequest(ctx, "http://backend-service")
     
-    // Assert - 验证结果
+    // Assert - Verify results
     assert.NoError(t, err)
     assert.Equal(t, http.StatusOK, rec.Code)
     assert.Contains(t, rec.Body.String(), "expected-content")
 }
 ```
 
-### 运行测试
+### Running Tests
 
 ```bash
-# 运行所有测试
+# Run all tests
 make test
 
-# 运行单元测试
+# Run unit tests
 make test-unit
 
-# 运行集成测试
+# Run integration tests
 make test-integration
 
-# 运行端到端测试
+# Run end-to-end tests
 make test-e2e
 
-# 生成覆盖率报告
+# Generate coverage report
 make test-coverage
 
-# 运行基准测试
+# Run benchmarks
 make benchmark
 ```
 
-## 📋 代码审查流程
+## 📋 Code Review Process
 
-### Pull Request 要求
+### Pull Request Requirements
 
-1. **PR 标题**：遵循提交消息规范
-2. **描述清晰**：说明改动的内容和原因
-3. **测试充分**：包含相应的测试用例
-4. **文档更新**：如果需要，更新相关文档
-5. **无冲突**：确保与目标分支无冲突
+1. **PR Title**：Follow commit message standards
+2. **Clear Description**：Explain what was changed and why
+3. **Adequate Testing**：Include corresponding test cases
+4. **Documentation Updates**：Update relevant documentation if needed
+5. **No Conflicts**：Ensure no conflicts with target branch
 
-### PR 模板
+### PR Template
 
 ```markdown
-## 🎯 变更类型
-- [ ] Bug 修复
-- [ ] 新功能
-- [ ] 破坏性变更
-- [ ] 文档更新
-- [ ] 代码重构
-- [ ] 性能优化
-- [ ] 测试添加
+## 🎯 Change Type
+- [ ] Bug Fix
+- [ ] New Feature
+- [ ] Breaking Change
+- [ ] Documentation Update
+- [ ] Code Refactor
+- [ ] Performance Optimization
+- [ ] Test Addition
 
-## 📝 变更描述
-简要描述本次变更的内容和原因。
+## 📝 Change Description
+Briefly describe the content and reason for this change.
 
-## 🧪 测试情况
-- [ ] 添加了单元测试
-- [ ] 添加了集成测试
-- [ ] 手动测试通过
-- [ ] 所有现有测试通过
+## 🧪 Testing Status
+- [ ] Added unit tests
+- [ ] Added integration tests
+- [ ] Manual testing passed
+- [ ] All existing tests passed
 
-## 📚 相关文档
-如果有相关的 Issue、文档或其他 PR，请在此列出。
+## 📚 Related Documentation
+List any related Issues, documentation, or other PRs here.
 
-## 🔍 检查清单
-- [ ] 代码遵循项目规范
-- [ ] 提交消息遵循约定式提交规范
-- [ ] 添加了必要的测试
-- [ ] 更新了相关文档
-- [ ] 通过了所有 CI 检查
+## 🔍 Checklist
+- [ ] Code follows project standards
+- [ ] Commit messages follow conventional commit standards
+- [ ] Added necessary tests
+- [ ] Updated relevant documentation
+- [ ] Passed all CI checks
 ```
 
-### 审查标准
+### Review Criteria
 
-代码审查重点关注：
+Code reviews focus on：
 
-1. **功能正确性**：代码是否实现了预期功能
-2. **代码质量**：可读性、可维护性、性能
-3. **安全性**：是否存在安全漏洞
-4. **测试覆盖**：是否有足够的测试
-5. **文档完整**：是否需要更新文档
-6. **向后兼容**：是否破坏现有 API
+1. **Functional Correctness**：Does the code implement the expected functionality
+2. **Code Quality**：Readability, maintainability, performance
+3. **Security**：Are there any security vulnerabilities
+4. **Test Coverage**：Are there sufficient tests
+5. **Documentation Completeness**：Does documentation need updating
+6. **Backward Compatibility**：Does it break existing APIs
 
-## 🐛 Bug 报告
+## 🐛 Bug Reports
 
-请使用 [Issue 模板](https://github.com/your-org/gateway/issues/new?template=bug_report.md) 报告 Bug。
+Please use the [Issue template](https://github.com/your-org/gateway/issues/new?template=bug_report.md) to report bugs.
 
-### Bug 报告应包含
+### Bug Reports Should Include
 
-1. **环境信息**：操作系统、Go 版本、Gateway 版本
-2. **重现步骤**：详细的重现步骤
-3. **期望行为**：描述期望的正确行为
-4. **实际行为**：描述实际发生的错误行为
-5. **错误日志**：相关的错误日志或堆栈跟踪
-6. **附加信息**：配置文件、屏幕截图等
+1. **Environment Information**：OS, Go version, Gateway version
+2. **Reproduction Steps**：Detailed steps to reproduce
+3. **Expected Behavior**：Description of expected correct behavior
+4. **Actual Behavior**：Description of actual erroneous behavior
+5. **Error Logs**：Relevant error logs or stack traces
+6. **Additional Information**：Configuration files, screenshots, etc.
 
-## 💡 功能请求
+## 💡 Feature Requests
 
-请使用 [Feature Request 模板](https://github.com/your-org/gateway/issues/new?template=feature_request.md) 提出新功能请求。
+Please use the [Feature Request template](https://github.com/your-org/gateway/issues/new?template=feature_request.md) to propose new features.
 
-### 功能请求应包含
+### Feature Requests Should Include
 
-1. **功能概述**：简要描述建议的功能
-2. **使用场景**：描述什么情况下需要这个功能
-3. **解决方案**：建议的实现方案
-4. **替代方案**：其他可能的解决方案
-5. **附加信息**：相关的参考资料、竞品分析等
+1. **Feature Overview**：Brief description of the proposed feature
+2. **Use Case**：Describe when this feature would be needed
+3. **Solution**：Suggested implementation approach
+4. **Alternatives**：Other possible solutions
+5. **Additional Information**：Relevant references, competitive analysis, etc.
 
-## 📄 文档贡献
+## 📄 Documentation Contributions
 
-文档同样重要！我们欢迎以下类型的文档贡献：
+Documentation is equally important! We welcome the following types of documentation contributions：
 
-1. **API 文档**：API 接口文档和示例
-2. **用户指南**：安装、配置、使用指南
-3. **开发文档**：架构设计、开发指南
-4. **教程**：最佳实践、常见场景教程
-5. **翻译**：文档的多语言版本
+1. **API Documentation**：API interface documentation and examples
+2. **User Guides**：Installation, configuration, usage guides
+3. **Development Documentation**：Architecture design, development guides
+4. **Tutorials**：Best practices, common scenario tutorials
+5. **Translations**：Multilingual versions of documentation
 
-### 文档规范
+### Documentation Standards
 
-- 使用 **Markdown** 格式
-- 遵循 **中文文案排版指北**
-- 添加适当的**目录结构**
-- 包含**代码示例**和**屏幕截图**
-- 保持文档的**时效性**
+- Use **Markdown** format
+- Follow **Chinese Copywriting Guidelines**
+- Add appropriate **table of contents**
+- Include**code examples**and**screenshots**
+- Maintain documentation**timeliness**
 
-## 🏆 贡献者认可
+## 🏆 Contributor Recognition
 
-我们重视每一位贡献者的付出！
+We value every contributor's efforts!
 
-### 贡献类型
+### Contribution Types
 
-- 💻 代码贡献
-- 📝 文档改进
-- 🐛 Bug 报告
-- 💡 功能建议
-- 🤔 问题解答
-- 🌍 翻译贡献
-- 🎨 设计贡献
+- 💻 Code development
+- 📝 Documentation maintenance
+- 🐛 Issue reporting
+- 💡 New ideas
+- 🌍 Translation support
 
-### 认可方式
 
-- **Contributors 页面**：在项目主页展示所有贡献者
-- **Release Notes**：在版本发布说明中感谢贡献者
-- **社区荣誉**：定期评选优秀贡献者
+### Recognition Methods
+
+- **Contributors Page**：Show all contributors on the project homepage
+- **Release Notes**：Thank contributors in version release notes
+- **Community Honors**：Regularly recognize outstanding contributors
 
 ---
 
-## 📞 联系我们
+## 📞 Contact Us
 
-如果您有任何问题或需要帮助，可以通过以下方式联系我们：
+If you have any questions or need help, you can contact us through：
 
 - 📧 Email: [project-email@example.com](mailto:project-email@example.com)
-- 💬 GitHub Issues: [项目 Issues](https://github.com/your-org/gateway/issues)
-- 📱 微信群: [加入微信群聊]
-- 🐧 QQ群: [加入QQ群聊]
+- 💬 GitHub Issues: [Project Issues](https://github.com/your-org/gateway/issues)
+- 📱 WeChat Group: [Join WeChat group]
+- 🐧 QQ Group: [Join QQ group]
 
-感谢您对 Gateway 项目的贡献！🎉 
+Thank you again for your contributions！🎉 
