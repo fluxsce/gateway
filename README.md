@@ -3,7 +3,6 @@
   <img src="docs/images/FLUX_Gateway_CN.jpg" width="80%" alt="Gateway Logo">
 </p>
 
-# Gateway API Gateway
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License">
