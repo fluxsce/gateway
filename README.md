@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://www.flux.com.cn/" target="_blank">
-  <img src="docs/images/FLUX_Gateway_CN.jpg" width="80%" alt="Gateway Logo">
+  <img src="docs/images/FLUX_Gateway_CN.jpg" width="90%" alt="Gateway Logo">
 </p>
 
 
