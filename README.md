@@ -1,5 +1,6 @@
 <p align="center">
-  <img src="https://via.placeholder.com/120x120.png?text=Logo" width="120" alt="Gateway Logo">
+  <a href="https://www.flux.com.cn/" target="_blank">
+  <img src="docs/images/FLUX_Gateway_CN.jpg" width="80%" alt="Gateway Logo">
 </p>
 
 # Gateway API Gateway
@@ -29,7 +30,7 @@
 ## 🚩 主要特性
 
 - 🚀 高性能路由与负载均衡
-- 🔒 多种认证与安全防护
+- 🔒 多种认证与安全防护[](url)
 - 📊 实时监控与可观测性
 - 🧩 插件化扩展
 - ☁️ 云原生友好
