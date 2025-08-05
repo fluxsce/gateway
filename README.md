@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://via.placeholder.com/120x120.png?text=Logo" width="120" alt="Gateway Logo">
+  <a href="https://www.flux.com.cn/" target="_blank">
+  <img src="docs/images/FLUX_Gateway_CN.jpg" width="90%" alt="Gateway Logo">
 </p>
 
-# Gateway API Gateway
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License">
@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  Gateway 是一个用 Go 语言构建的现代化 API 网关，提供路由、负载均衡、限流、熔断、认证授权等全面的 API 管理功能。
+  FLUX Gateway 是一款基于 Go 语言开发的现代化 API 网关，依托 Go 语言的高性能与简洁特性，集成了路由分发、负载均衡、流量限流、服务熔断及认证授权等核心能力。提供全链路 API 管理可视化功能，助力用户高效管控接口生命周期，为分布式系统构建稳定、安全、可观测的 API 接入层。
 </p>
 
 <p align="center">
@@ -29,7 +29,7 @@
 ## 🚩 主要特性
 
 - 🚀 高性能路由与负载均衡
-- 🔒 多种认证与安全防护
+- 🔒 多种认证与安全防护[](url)
 - 📊 实时监控与可观测性
 - 🧩 插件化扩展
 - ☁️ 云原生友好
