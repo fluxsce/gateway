@@ -38,6 +38,11 @@ func getTxFromContext(ctx context.Context) (*TxContext, bool) {
 	return txCtx, ok
 }
 
+// generateTxID 生成事务ID
+func generateTxID() string {
+	return fmt.Sprintf("sqlite-tx-%d", time.Now().UnixNano())
+}
+
 // 注册SQLite驱动
 func init() {
 	database.Register(database.DriverSQLite, func() database.Database {
@@ -263,8 +268,11 @@ func (s *SQLite) Ping(ctx context.Context) error {
 
 // BeginTx 开始事务
 // 启动一个新的SQLite事务
-// SQLite注意事项：SQLite支持的隔离级别有限，主要通过锁机制实现
-// 事务信息会绑定到返回的上下文中，支持多线程并发事务
+// SQLite注意事项：
+// 1. SQLite支持的隔离级别有限，主要通过锁机制实现
+// 2. WAL模式下支持多读单写，但写事务仍然是串行的
+// 3. 事务信息会绑定到返回的上下文中，避免全局状态冲突
+// 4. 每个上下文可以独立管理事务，但SQLite层面写操作会串行化
 // 参数:
 //
 //	ctx: 上下文，用于控制请求超时和取消
@@ -275,6 +283,10 @@ func (s *SQLite) Ping(ctx context.Context) error {
 //	context.Context: 包含事务信息的新上下文
 //	error: 开始事务失败时返回错误信息
 func (s *SQLite) BeginTx(ctx context.Context, options *database.TxOptions) (context.Context, error) {
+	// 检查是否已经有活跃事务
+	if _, ok := getTxFromContext(ctx); ok {
+		return ctx, fmt.Errorf("transaction already active in context")
+	}
 	var sqlTxOpts *sql.TxOptions
 	if options != nil {
 		sqlTxOpts = &sql.TxOptions{
@@ -306,7 +318,7 @@ func (s *SQLite) BeginTx(ctx context.Context, options *database.TxOptions) (cont
 	// 创建事务上下文
 	txCtx := &TxContext{
 		tx:      tx,
-		id:      fmt.Sprintf("sqlite-tx-%d", time.Now().UnixNano()),
+		id:      generateTxID(),
 		created: time.Now(),
 		options: options,
 	}
@@ -328,11 +340,12 @@ func (s *SQLite) BeginTx(ctx context.Context, options *database.TxOptions) (cont
 //	error: 提交事务失败时返回错误信息
 func (s *SQLite) Commit(ctx context.Context) error {
 	txCtx, ok := getTxFromContext(ctx)
-	if !ok {
+	if !ok || txCtx.tx == nil {
 		return fmt.Errorf("no active transaction in context")
 	}
 
 	err := txCtx.tx.Commit()
+	txCtx.tx = nil // 清理事务指针
 	s.logger.LogTx(ctx, "提交", err)
 
 	if err != nil {
@@ -352,11 +365,12 @@ func (s *SQLite) Commit(ctx context.Context) error {
 //	error: 回滚事务失败时返回错误信息
 func (s *SQLite) Rollback(ctx context.Context) error {
 	txCtx, ok := getTxFromContext(ctx)
-	if !ok {
+	if !ok || txCtx.tx == nil {
 		return fmt.Errorf("no active transaction in context")
 	}
 
 	err := txCtx.tx.Rollback()
+	txCtx.tx = nil // 清理事务指针
 	s.logger.LogTx(ctx, "回滚", err)
 
 	if err != nil {
@@ -419,7 +433,8 @@ func (s *SQLite) getExecutor(ctx context.Context, autoCommit bool) interface {
 	PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
 } {
 	if !autoCommit {
-		if txCtx, ok := getTxFromContext(ctx); ok {
+		txCtx, ok := getTxFromContext(ctx)
+		if ok && txCtx.tx != nil {
 			return txCtx.tx
 		}
 	}
@@ -711,7 +726,14 @@ func (s *SQLite) Delete(ctx context.Context, table string, where string, args []
 
 // BatchInsert 批量插入记录
 // 将切片中的多个数据结构体批量插入到SQLite中
-// 使用单条INSERT语句提高插入性能，SQLite在事务中批量插入性能很好
+//
+// SQLite批量插入特点：
+// 1. 使用预编译循环执行模式：预编译一次，循环执行多次
+// 2. 事务保证：默认在事务中执行，确保数据一致性
+// 3. WAL模式优化：在WAL模式下批量插入性能很好
+// 4. 错误处理：任何错误都会触发事务回滚，保证原子性
+// 5. 资源管理：自动关闭预编译语句和管理事务生命周期
+//
 // 参数:
 //
 //	ctx: 上下文，用于控制请求超时和取消，可能包含事务信息
@@ -740,53 +762,93 @@ func (s *SQLite) BatchInsert(ctx context.Context, table string, dataSlice interf
 		return 0, err
 	}
 
-	// 构建批量插入SQL
+	// 构建单条INSERT的预编译SQL语句（参考MySQL实现）
 	placeholders := make([]string, len(columns))
 	for i := range placeholders {
 		placeholders[i] = "?"
 	}
-	placeholder := "(" + strings.Join(placeholders, ", ") + ")"
+	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+		table,
+		strings.Join(columns, ", "),
+		strings.Join(placeholders, ", "))
 
-	var allPlaceholders []string
-	var allArgs []interface{}
+	// 开始事务（BatchInsert默认需要事务保证一致性）
+	var needCommit bool
+	var tx *sql.Tx
 
+	if autoCommit {
+		// 自动提交模式：创建新事务
+		tx, err = s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return 0, fmt.Errorf("failed to begin transaction: %w", err)
+		}
+		needCommit = true
+	} else {
+		// 手动事务模式：使用当前事务
+		txCtx, ok := getTxFromContext(ctx)
+		if !ok || txCtx.tx == nil {
+			return 0, fmt.Errorf("no active transaction for batch insert")
+		}
+		tx = txCtx.tx
+	}
+
+	// 预编译单条INSERT语句
+	start := time.Now()
+	stmt, err := tx.PrepareContext(ctx, query)
+	if err != nil {
+		if needCommit {
+			tx.Rollback()
+		}
+		return 0, fmt.Errorf("failed to prepare batch insert statement: %w", err)
+	}
+	defer stmt.Close()
+
+	// 循环执行预编译语句，逐条插入数据
+	var totalRowsAffected int64
 	for i := 0; i < slice.Len(); i++ {
 		item := slice.Index(i).Interface()
 		_, values, err := sqlutils.ExtractColumnsAndValues(item)
 		if err != nil {
-			return 0, err
+			if needCommit {
+				tx.Rollback()
+			}
+			return 0, fmt.Errorf("failed to extract values from item %d: %w", i, err)
 		}
-		allPlaceholders = append(allPlaceholders, placeholder)
-		allArgs = append(allArgs, values...)
+
+		// 执行单条插入
+		result, err := stmt.ExecContext(ctx, values...)
+		if err != nil {
+			if needCommit {
+				tx.Rollback() // 出现错误时回滚事务
+			}
+			return 0, fmt.Errorf("failed to insert item %d: %w", i, err)
+		}
+
+		// 累计影响行数
+		if rowsAffected, err := result.RowsAffected(); err == nil {
+			totalRowsAffected += rowsAffected
+		}
 	}
-
-	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES %s",
-		table,
-		strings.Join(columns, ", "),
-		strings.Join(allPlaceholders, ", "))
-
-	executor := s.getExecutor(ctx, autoCommit)
-
-	start := time.Now()
-	result, err := executor.ExecContext(ctx, query, allArgs...)
 	duration := time.Since(start)
 
-	var rowsAffected int64
-	if err == nil {
-		rowsAffected, err = result.RowsAffected()
+	// 提交事务（如果是自动提交模式）
+	if needCommit {
+		if err := tx.Commit(); err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to commit batch insert transaction: %w", err)
+		}
 	}
 
-	// 记录日志
+	// 记录执行日志
 	extra := map[string]interface{}{
-		"rowsAffected": rowsAffected,
+		"rowsAffected":  totalRowsAffected,
+		"batchSize":     slice.Len(),
+		"columnsCount":  len(columns),
+		"executionMode": "prepared_loop",
 	}
-	s.logger.LogSQL(ctx, "SQL批量插入", query, allArgs, err, duration, extra)
+	s.logger.LogSQL(ctx, "SQL批量插入", query, []interface{}{"[batch_data]"}, nil, duration, extra)
 
-	if err != nil {
-		return 0, err
-	}
-
-	return rowsAffected, nil
+	return totalRowsAffected, nil
 }
 
 // BatchUpdate 批量更新记录
@@ -1098,3 +1160,10 @@ func (s *SQLite) BatchDeleteByKeys(ctx context.Context, table string, keyField s
 // 4. 事务隔离级别映射有限，主要由SQLite内部锁机制控制
 // 5. 支持:memory:内存数据库，适合测试场景
 // 6. 文件数据库如果不存在会自动创建
+//
+// 多线程事务限制：
+// 1. SQLite支持多读单写：多个读事务可以并发，但写事务是串行的
+// 2. WAL模式优化：虽然启用了WAL模式，但写操作仍然需要获取独占锁
+// 3. 上下文绑定：事务信息绑定到上下文，支持多个 goroutine 独立管理事务
+// 4. 性能考虑：对于高并发写入场景，建议考虑使用MySQL等关系型数据库
+// 5. 适用场景：适合轻量级应用、开发测试、嵌入式系统等场景

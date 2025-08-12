@@ -5,7 +5,7 @@
 # 数据库配置
 database:
   # 默认连接名称
-  default: oracle_main
+  default: mysql
   
   # 各种数据库连接的配置
   connections:
@@ -36,7 +36,7 @@ database:
         default_isolation: 3 # 默认隔离级别: 1=读未提交, 2=读已提交, 3=可重复读, 4=可串行化
     # Oracle主数据库连接
     oracle_main:
-      enabled: true
+      enabled: false
       driver: "oracle"
       
       # 方式1: 使用DSN连接字符串 (推荐)

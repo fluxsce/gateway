@@ -60,7 +60,10 @@ go mod download
 go run cmd/app/main.go
 ```
 
-详细使用说明请参考[快速开始指南](docs/quickstart.md)。
+更多信息：
+- 快速体验：[快速开始指南](docs/guide/quickstart.md)
+- 本地环境搭建：[部署指南](docs/guide/deployment.md)
+- 详细配置说明：[配置手册](docs/guide/configuration.md)
 
 ## 🏗️ 架构概览
 
