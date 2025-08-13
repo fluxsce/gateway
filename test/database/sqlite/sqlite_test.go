@@ -15,7 +15,7 @@ import (
 
 // SQLiteUser 用于测试的用户结构体
 type SQLiteUser struct {
-	ID        int64     `db:"id"`
+	ID        *int64    `db:"id"`
 	Name      string    `db:"name"`
 	Email     string    `db:"email"`
 	CreatedAt time.Time `db:"created_at"`
@@ -23,7 +23,7 @@ type SQLiteUser struct {
 
 // TableName 实现Model接口
 func (u SQLiteUser) TableName() string {
-	return "sqlite_users"
+	return "test_users"
 }
 
 // PrimaryKey 实现Model接口
@@ -44,7 +44,7 @@ func getSQLiteTestDB(t *testing.T) (database.Database, string) {
 	// 创建测试数据库配置
 	config := &database.DbConfig{
 		Driver:  database.DriverSQLite,
-		Name:    "sqlite_test",
+		Name:    fmt.Sprintf("sqlite_test_%d", time.Now().UnixNano()),
 		Enabled: true,
 		DSN:     dbPath, // SQLite 使用文件路径作为 DSN
 		Pool: dbtypes.PoolConfig{
@@ -84,14 +84,14 @@ func setupSQLiteTestTable(t *testing.T, db database.Database) {
 	ctx := context.Background()
 
 	// 先尝试删除表（如果存在）
-	_, err := db.Exec(ctx, "DROP TABLE IF EXISTS sqlite_users", []interface{}{}, true)
+	_, err := db.Exec(ctx, "DROP TABLE IF EXISTS test_users", []interface{}{}, true)
 	if err != nil {
 		t.Fatalf("删除测试表失败: %v", err)
 	}
 
 	// 创建测试表，SQLite语法
 	_, err = db.Exec(ctx, `
-		CREATE TABLE sqlite_users (
+		CREATE TABLE test_users (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL,
 			email TEXT NOT NULL UNIQUE,
@@ -108,7 +108,7 @@ func setupSQLiteTestTable(t *testing.T, db database.Database) {
 // 清理测试表和文件
 func cleanupSQLiteTest(t *testing.T, db database.Database, tempDir string) {
 	ctx := context.Background()
-	_, err := db.Exec(ctx, "DROP TABLE IF EXISTS sqlite_users", []interface{}{}, true)
+	_, err := db.Exec(ctx, "DROP TABLE IF EXISTS test_users", []interface{}{}, true)
 	if err != nil {
 		t.Logf("清理测试表警告: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestSQLiteConnection(t *testing.T) {
 		Count int `db:"count"`
 	}
 	var result CountResult
-	err := db.QueryOne(ctx, &result, "SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name='sqlite_users'", []interface{}{}, true)
+	err := db.QueryOne(ctx, &result, "SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name='test_users'", []interface{}{}, true)
 	if err != nil {
 		t.Fatalf("验证表创建失败: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestSQLiteInsert(t *testing.T) {
 
 	// 验证插入的数据
 	var insertedUser SQLiteUser
-	err = db.QueryOne(ctx, &insertedUser, "SELECT * FROM sqlite_users WHERE id = ?", []interface{}{id}, true)
+	err = db.QueryOne(ctx, &insertedUser, "SELECT * FROM test_users WHERE id = ?", []interface{}{id}, true)
 	if err != nil {
 		t.Fatalf("查询插入的用户失败: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestSQLiteBatchInsert(t *testing.T) {
 		Total int `db:"total"`
 	}
 	var result CountResult
-	err = db.QueryOne(ctx, &result, "SELECT COUNT(*) AS total FROM sqlite_users", []interface{}{}, true)
+	err = db.QueryOne(ctx, &result, "SELECT COUNT(*) AS total FROM test_users", []interface{}{}, true)
 	if err != nil {
 		t.Fatalf("验证插入数量失败: %v", err)
 	}
@@ -231,7 +231,7 @@ func TestSQLiteBatchInsert(t *testing.T) {
 
 	// 验证所有用户都被正确插入
 	var allUsers []SQLiteUser
-	err = db.Query(ctx, &allUsers, "SELECT * FROM sqlite_users ORDER BY id", nil, true)
+	err = db.Query(ctx, &allUsers, "SELECT * FROM test_users ORDER BY id", nil, true)
 	if err != nil {
 		t.Fatalf("查询所有用户失败: %v", err)
 	}
@@ -263,22 +263,30 @@ func TestSQLiteQueryOne(t *testing.T) {
 
 	// 测试查询单条记录
 	var singleUser SQLiteUser
-	err = db.QueryOne(ctx, &singleUser, "SELECT * FROM sqlite_users WHERE id = ?", []interface{}{id}, true)
+	err = db.QueryOne(ctx, &singleUser, "SELECT * FROM test_users WHERE id = ?", []interface{}{id}, true)
 	if err != nil {
 		t.Fatalf("查询单个用户记录失败: %v", err)
 	}
 
 	// 验证查询结果
-	if singleUser.ID != id || singleUser.Name != user.Name || singleUser.Email != user.Email {
+	if singleUser.ID == nil || *singleUser.ID != id || singleUser.Name != user.Name || singleUser.Email != user.Email {
+		var actualID int64 = -1
+		if singleUser.ID != nil {
+			actualID = *singleUser.ID
+		}
 		t.Errorf("查询结果不匹配，期望 ID=%d, Name=%s, Email=%s，实际为 ID=%d, Name=%s, Email=%s",
-			id, user.Name, user.Email, singleUser.ID, singleUser.Name, singleUser.Email)
+			id, user.Name, user.Email, actualID, singleUser.Name, singleUser.Email)
 	}
 
+	var displayID int64 = -1
+	if singleUser.ID != nil {
+		displayID = *singleUser.ID
+	}
 	t.Logf("查询到用户：ID: %d, 姓名: %s, 邮箱: %s, 创建时间: %s",
-		singleUser.ID, singleUser.Name, singleUser.Email, singleUser.CreatedAt.Format("2006-01-02 15:04:05"))
+		displayID, singleUser.Name, singleUser.Email, singleUser.CreatedAt.Format("2006-01-02 15:04:05"))
 
 	// 测试查询不存在的记录
-	err = db.QueryOne(ctx, &singleUser, "SELECT * FROM sqlite_users WHERE id = ?", []interface{}{99999}, true)
+	err = db.QueryOne(ctx, &singleUser, "SELECT * FROM test_users WHERE id = ?", []interface{}{99999}, true)
 	if err != database.ErrRecordNotFound {
 		t.Errorf("查询不存在的记录应返回 ErrRecordNotFound，实际返回: %v", err)
 	} else {
@@ -311,14 +319,18 @@ func TestSQLiteQuery(t *testing.T) {
 
 	// 查询多条记录
 	var queriedUsers []SQLiteUser
-	err := db.Query(ctx, &queriedUsers, "SELECT * FROM sqlite_users ORDER BY id", nil, true)
+	err := db.Query(ctx, &queriedUsers, "SELECT * FROM test_users ORDER BY id", nil, true)
 	if err != nil {
 		t.Fatalf("查询多条记录失败: %v", err)
 	}
 
 	t.Logf("查询到 %d 条记录", len(queriedUsers))
 	for _, u := range queriedUsers {
-		t.Logf("用户: ID=%d, Name=%s, Email=%s", u.ID, u.Name, u.Email)
+		var displayID int64 = -1
+		if u.ID != nil {
+			displayID = *u.ID
+		}
+		t.Logf("用户: ID=%d, Name=%s, Email=%s", displayID, u.Name, u.Email)
 	}
 
 	// 验证查询结果数量
@@ -361,7 +373,7 @@ func TestSQLiteUpdate(t *testing.T) {
 
 	// 验证更新
 	var updatedRecord SQLiteUser
-	err = db.QueryOne(ctx, &updatedRecord, "SELECT * FROM sqlite_users WHERE id = ?", []interface{}{id}, true)
+	err = db.QueryOne(ctx, &updatedRecord, "SELECT * FROM test_users WHERE id = ?", []interface{}{id}, true)
 	if err != nil {
 		t.Fatalf("查询更新后的用户失败: %v", err)
 	}
@@ -369,7 +381,11 @@ func TestSQLiteUpdate(t *testing.T) {
 	if updatedRecord.Name != "更新测试用户(已更新)" {
 		t.Errorf("更新失败, 期望名称为 '更新测试用户(已更新)', 实际为: %s", updatedRecord.Name)
 	} else {
-		t.Logf("验证更新成功: ID=%d, Name=%s", updatedRecord.ID, updatedRecord.Name)
+		var displayID int64 = -1
+		if updatedRecord.ID != nil {
+			displayID = *updatedRecord.ID
+		}
+		t.Logf("验证更新成功: ID=%d, Name=%s", displayID, updatedRecord.Name)
 	}
 }
 
@@ -403,7 +419,7 @@ func TestSQLiteDelete(t *testing.T) {
 
 	// 验证删除
 	var deletedUser SQLiteUser
-	err = db.QueryOne(ctx, &deletedUser, "SELECT * FROM sqlite_users WHERE id = ?", []interface{}{id}, true)
+	err = db.QueryOne(ctx, &deletedUser, "SELECT * FROM test_users WHERE id = ?", []interface{}{id}, true)
 	if err != database.ErrRecordNotFound {
 		t.Errorf("删除验证失败, 期望ErrRecordNotFound, 实际: %v", err)
 	} else {
@@ -456,7 +472,7 @@ func TestSQLiteTransactionCommit(t *testing.T) {
 		Count int `db:"count"`
 	}
 	var result CountResult
-	err = db.QueryOne(ctx, &result, "SELECT COUNT(*) as count FROM sqlite_users WHERE email IN (?, ?)",
+	err = db.QueryOne(ctx, &result, "SELECT COUNT(*) as count FROM test_users WHERE email IN (?, ?)",
 		[]interface{}{user1.Email, user2.Email}, true)
 	if err != nil {
 		t.Fatalf("查询事务插入记录数失败: %v", err)
@@ -507,7 +523,7 @@ func TestSQLiteTransactionRollback(t *testing.T) {
 		Count int `db:"count"`
 	}
 	var result CountResult
-	err = db.QueryOne(ctx, &result, "SELECT COUNT(*) as count FROM sqlite_users WHERE email = ?",
+	err = db.QueryOne(ctx, &result, "SELECT COUNT(*) as count FROM test_users WHERE email = ?",
 		[]interface{}{rollbackUser.Email}, true)
 	if err != nil {
 		t.Fatalf("查询回滚记录失败: %v", err)
@@ -555,14 +571,18 @@ func TestSQLiteWithTx(t *testing.T) {
 
 	// 验证用户已插入
 	var user SQLiteUser
-	err = db.QueryOne(ctx, &user, "SELECT * FROM sqlite_users WHERE id = ?",
+	err = db.QueryOne(ctx, &user, "SELECT * FROM test_users WHERE id = ?",
 		[]interface{}{insertedID}, true)
 
 	if err != nil {
 		t.Fatalf("查询InTx插入的用户失败: %v", err)
 	}
 
-	t.Logf("SQLite InTx事务成功: 插入用户 ID: %d, 姓名: %s", user.ID, user.Name)
+	var displayID int64 = -1
+	if user.ID != nil {
+		displayID = *user.ID
+	}
+	t.Logf("SQLite InTx事务成功: 插入用户 ID: %d, 姓名: %s", displayID, user.Name)
 }
 
 // 测试批量更新
@@ -587,7 +607,7 @@ func TestSQLiteBatchUpdate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("准备数据: 插入用户失败: %v", err)
 		}
-		users[i].ID = id
+		users[i].ID = &id
 	}
 
 	// 更新用户名称
@@ -609,7 +629,7 @@ func TestSQLiteBatchUpdate(t *testing.T) {
 
 	// 验证更新结果
 	var updatedUsers []SQLiteUser
-	err = db.Query(ctx, &updatedUsers, "SELECT * FROM sqlite_users ORDER BY id", nil, true)
+	err = db.Query(ctx, &updatedUsers, "SELECT * FROM test_users ORDER BY id", nil, true)
 	if err != nil {
 		t.Fatalf("查询更新后的用户失败: %v", err)
 	}
@@ -644,7 +664,7 @@ func TestSQLiteBatchDelete(t *testing.T) {
 		if err != nil {
 			t.Fatalf("准备数据: 插入用户失败: %v", err)
 		}
-		users[i].ID = id
+		users[i].ID = &id
 	}
 
 	// 执行批量删除（删除前两个用户）
@@ -665,7 +685,7 @@ func TestSQLiteBatchDelete(t *testing.T) {
 		Count int `db:"count"`
 	}
 	var result CountResult
-	err = db.QueryOne(ctx, &result, "SELECT COUNT(*) as count FROM sqlite_users", nil, true)
+	err = db.QueryOne(ctx, &result, "SELECT COUNT(*) as count FROM test_users", nil, true)
 	if err != nil {
 		t.Fatalf("查询剩余用户数失败: %v", err)
 	}
@@ -722,7 +742,7 @@ func TestSQLiteBatchDeleteByKeys(t *testing.T) {
 		Count int `db:"count"`
 	}
 	var result CountResult
-	err = db.QueryOne(ctx, &result, "SELECT COUNT(*) as count FROM sqlite_users", nil, true)
+	err = db.QueryOne(ctx, &result, "SELECT COUNT(*) as count FROM test_users", nil, true)
 	if err != nil {
 		t.Fatalf("查询剩余用户数失败: %v", err)
 	}
@@ -775,7 +795,7 @@ func TestSQLiteConcurrentTransactions(t *testing.T) {
 		Count int `db:"count"`
 	}
 	var result CountResult
-	err = db.QueryOne(ctx, &result, "SELECT COUNT(*) as count FROM sqlite_users", nil, true)
+	err = db.QueryOne(ctx, &result, "SELECT COUNT(*) as count FROM test_users", nil, true)
 	if err != nil {
 		t.Fatalf("查询事务结果失败: %v", err)
 	}

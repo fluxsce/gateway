@@ -13,7 +13,7 @@ import (
 	// _ "gateway/pkg/database/oracle"
 	// 未来可能添加的其他驱动
 	// _ "gateway/pkg/database/postgres"
-	// _ "gateway/pkg/database/sqlite"
+	_ "gateway/pkg/database/sqlite"
 )
 
 // 此包不包含实际代码，仅用于导入其他包

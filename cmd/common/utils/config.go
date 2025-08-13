@@ -72,17 +72,17 @@ func ResolvePath(path string) string {
 	if filepath.IsAbs(path) {
 		return path
 	}
-	
+
 	// 获取配置目录
 	configDir := GetConfigDir()
-	
+
 	// 如果配置目录是绝对路径，则相对于配置目录解析
 	if filepath.IsAbs(configDir) {
 		// 获取配置目录的父目录（项目根目录）
 		projectRoot := filepath.Dir(configDir)
 		return filepath.Join(projectRoot, path)
 	}
-	
+
 	// 如果配置目录也是相对路径，则相对于当前工作目录解析
 	return path
 }

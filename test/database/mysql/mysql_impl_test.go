@@ -34,7 +34,7 @@ func getMySQLTestDB(t *testing.T) database.Database {
 		Driver:  database.DriverMySQL,
 		Name:    "mysql_test",
 		Enabled: true,
-		DSN:     "root:datahub@tcp(121.43.231.91:63306)/shangjian_test?charset=utf8mb3&parseTime=True&loc=Local",
+		DSN:     "root:your_password@tcp(localhost:3306)/test_db?charset=utf8mb4&parseTime=True&loc=Local",
 	}
 
 	// 直接打开数据库连接

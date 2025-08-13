@@ -36,7 +36,7 @@ func TestOracleConnection(t *testing.T) {
 		Name:    "test_oracle",
 		Driver:  "oracle",
 		Enabled: true,
-		DSN:     "oracle://DATAHUB_250624:20250624_TMPpAssw0d123@47.117.1.78:62345/fluxv6pdb", // 请根据实际环境修改
+		DSN:     "oracle://username:password@localhost:1521/XE", // 请根据实际环境修改
 		Pool: dbtypes.PoolConfig{
 			MaxOpenConns:    10,
 			MaxIdleConns:    5,
@@ -97,7 +97,7 @@ func TestOracleBasicOperations(t *testing.T) {
 		Name:    "test_oracle",
 		Driver:  "oracle",
 		Enabled: true,
-		DSN:     "oracle://DATAHUB_250624:20250624_TMPpAssw0d123@47.117.1.78:62345/fluxv6pdb",
+		DSN:     "oracle://username:password@localhost:1521/XE",
 		Pool: dbtypes.PoolConfig{
 			MaxOpenConns:    10,
 			MaxIdleConns:    5,
@@ -225,7 +225,7 @@ func TestOracleTransaction(t *testing.T) {
 		Name:    "test_oracle",
 		Driver:  "oracle",
 		Enabled: true,
-		DSN:     "oracle://DATAHUB_250624:20250624_TMPpAssw0d123@47.117.1.78:62345/fluxv6pdb",
+		DSN:     "oracle://username:password@localhost:1521/XE",
 		Pool: dbtypes.PoolConfig{
 			MaxOpenConns:    10,
 			MaxIdleConns:    5,

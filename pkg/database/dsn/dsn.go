@@ -165,6 +165,7 @@ func GeneratePostgreSQL(config *dbtypes.DbConfig) (string, error) {
 }
 
 // GenerateSQLite 生成SQLite数据库的DSN连接字符串
+// 注意：此函数优先考虑数据安全性，确保不会因配置错误导致数据丢失
 // 参数:
 //   - config: 数据库配置
 //
@@ -172,16 +173,24 @@ func GeneratePostgreSQL(config *dbtypes.DbConfig) (string, error) {
 //   - string: SQLite格式的DSN
 //   - error: 错误信息
 func GenerateSQLite(config *dbtypes.DbConfig) (string, error) {
-	// SQLite的数据库"名称"实际上是文件路径
-	// 如果Database字段为空或者是特殊值，使用默认配置
-	dbPath := config.Connection.Database
+	// === 数据安全验证 ===
+	if err := validateSQLiteConfigSafety(config); err != nil {
+		return "", err
+	}
+
+	// 确定数据库文件路径
+	// 优先使用FilePath字段，其次使用Database字段
+	dbPath := config.Connection.FilePath
+	if dbPath == "" {
+		dbPath = config.Connection.Database
+	}
 
 	// 处理特殊情况
 	if dbPath == "" || dbPath == ":memory:" {
 		return ":memory:", nil
 	}
 
-	// 如果Database字段看起来不像文件路径，使用默认路径
+	// 如果路径看起来不像文件路径，使用默认路径
 	if !strings.Contains(dbPath, ".") && !strings.Contains(dbPath, "/") && !strings.Contains(dbPath, "\\") {
 		dbPath = fmt.Sprintf("./%s.db", dbPath)
 	}
@@ -189,21 +198,114 @@ func GenerateSQLite(config *dbtypes.DbConfig) (string, error) {
 	// 构建SQLite参数
 	params := make([]string, 0)
 
-	// 默认参数
-	params = append(params, "cache=shared")        // 共享缓存
-	params = append(params, "mode=rwc")            // 读写创建模式
-	params = append(params, "_journal_mode=WAL")   // WAL模式
-	params = append(params, "_synchronous=NORMAL") // 正常同步
-	params = append(params, "_foreign_keys=1")     // 启用外键
+	// === 缓存模式设置 ===
+	cacheMode := config.Connection.CacheMode
+	if cacheMode == "" {
+		cacheMode = "shared" // 默认共享缓存
+	}
+	params = append(params, "cache="+cacheMode)
 
-	// 设置busy_timeout，如果配置了则使用配置值，否则使用默认5秒
-	busyTimeout := 5000 // 默认5秒
-	if config.Connection.BusyTimeout > 0 {
-		busyTimeout = config.Connection.BusyTimeout
+	// === 连接模式设置 ===
+	connectionMode := config.Connection.ConnectionMode
+	if connectionMode == "" {
+		connectionMode = "rwc" // 默认读写创建模式
+	}
+	params = append(params, "mode="+connectionMode)
+
+	// === 日志模式设置 ===
+	journalMode := config.Connection.JournalMode
+	if journalMode == "" {
+		journalMode = "WAL" // 默认WAL模式
+	}
+	params = append(params, "_journal_mode="+journalMode)
+
+	// === 同步模式设置 - 数据安全优先 ===
+	synchronousMode := config.Connection.SynchronousMode
+	if synchronousMode == "" {
+		// 数据安全优先：默认使用FULL同步模式，确保数据完整性
+		// NORMAL模式在系统崩溃时可能丢失最后的事务数据
+		synchronousMode = "FULL"
+	}
+	// 验证同步模式的安全性
+	if synchronousMode == "OFF" {
+		// OFF模式存在数据丢失风险，强制警告
+		// 在生产环境中不建议使用OFF模式
+		synchronousMode = "NORMAL" // 最低安全级别
+	}
+	params = append(params, "_synchronous="+synchronousMode)
+
+	// === 外键约束设置 - 默认启用以保证数据完整性 ===
+	foreignKeys := config.Connection.ForeignKeys
+	// 数据安全优先：默认启用外键约束以保证数据完整性
+	// 在生产环境中，外键约束是重要的数据完整性保障
+	if foreignKeys {
+		params = append(params, "_foreign_keys=1")
+	} else {
+		// 即使配置为false，也给出明确的设置，确保行为可预期
+		params = append(params, "_foreign_keys=0")
+	}
+
+	// === 忙等待超时设置 ===
+	busyTimeout := config.Connection.BusyTimeout
+	if busyTimeout == 0 {
+		busyTimeout = 5000 // 默认5秒
 	}
 	params = append(params, fmt.Sprintf("_busy_timeout=%d", busyTimeout))
 
-	// 如果有参数，使用file:前缀
+	// === 缓存大小设置 ===
+	if config.Connection.CacheSize != 0 {
+		params = append(params, fmt.Sprintf("_cache_size=%d", config.Connection.CacheSize))
+	}
+
+	// === 自动清理模式设置 ===
+	if config.Connection.AutoVacuum != "" {
+		params = append(params, "_auto_vacuum="+config.Connection.AutoVacuum)
+	}
+
+	// === 临时存储模式设置 ===
+	if config.Connection.TempStore != "" {
+		params = append(params, "_temp_store="+config.Connection.TempStore)
+	}
+
+	// === 页面大小设置 ===
+	if config.Connection.PageSize > 0 {
+		params = append(params, fmt.Sprintf("_page_size=%d", config.Connection.PageSize))
+	}
+
+	// === 最大页数设置 ===
+	if config.Connection.MaxPageCount > 0 {
+		params = append(params, fmt.Sprintf("_max_page_count=%d", config.Connection.MaxPageCount))
+	}
+
+	// === 锁定模式设置 ===
+	if config.Connection.LockingMode != "" {
+		params = append(params, "_locking_mode="+config.Connection.LockingMode)
+	}
+
+	// === 安全删除模式设置 - 数据安全优先 ===
+	secureDelete := config.Connection.SecureDelete
+	if secureDelete == "" {
+		// 默认启用安全删除，防止敏感数据泄露
+		secureDelete = "true"
+	}
+	params = append(params, "_secure_delete="+secureDelete)
+
+	// === WAL自动检查点设置 - 确保数据及时持久化 ===
+	walAutocheckpoint := config.Connection.WALAutocheckpoint
+	if walAutocheckpoint == 0 && journalMode == "WAL" {
+		// WAL模式下默认设置合理的检查点间隔，防止WAL文件过大
+		walAutocheckpoint = 1000 // 1000页，约4MB
+	}
+	if walAutocheckpoint > 0 {
+		params = append(params, fmt.Sprintf("_wal_autocheckpoint=%d", walAutocheckpoint))
+	}
+
+	// === 只读模式设置 ===
+	if config.Connection.QueryOnly {
+		params = append(params, "_query_only=1")
+	}
+
+	// 构建完整DSN
 	if len(params) > 0 {
 		dsn := fmt.Sprintf("file:%s?%s", dbPath, strings.Join(params, "&"))
 		return dsn, nil
@@ -519,6 +621,80 @@ func ValidateDSN(driver string, dsn string) error {
 		}
 	default:
 		return huberrors.NewError("不支持的数据库驱动类型: %s", driver)
+	}
+
+	return nil
+}
+
+// validateSQLiteConfigSafety 验证SQLite配置的数据安全性
+// 检查可能导致数据丢失的危险配置组合
+// 参数:
+//   - config: 数据库配置
+//
+// 返回:
+//   - error: 发现安全风险时返回错误
+func validateSQLiteConfigSafety(config *dbtypes.DbConfig) error {
+	if config == nil || config.Connection == (dbtypes.ConnectionConfig{}) {
+		return nil // 空配置使用默认安全设置
+	}
+
+	conn := &config.Connection
+
+	// === 检查危险的同步模式组合 ===
+	if conn.SynchronousMode == "OFF" && conn.JournalMode != "WAL" {
+		return huberrors.NewError("数据安全风险：synchronous=OFF + journal_mode=%s 可能导致数据丢失，建议使用WAL模式", conn.JournalMode)
+	}
+
+	// === 检查危险的日志模式 ===
+	if conn.JournalMode == "OFF" {
+		return huberrors.NewError("数据安全风险：journal_mode=OFF 会禁用事务日志，可能导致数据库损坏")
+	}
+
+	if conn.JournalMode == "MEMORY" && conn.SynchronousMode == "OFF" {
+		return huberrors.NewError("数据安全风险：journal_mode=MEMORY + synchronous=OFF 组合在系统崩溃时会丢失所有数据")
+	}
+
+	// === 检查连接模式安全性 ===
+	if conn.ConnectionMode == "memory" && conn.JournalMode != "" && conn.JournalMode != "MEMORY" {
+		return huberrors.NewError("配置冲突：内存数据库(mode=memory)应该使用journal_mode=MEMORY")
+	}
+
+	// === 检查页面大小合理性 ===
+	if conn.PageSize > 0 {
+		validPageSizes := []int{512, 1024, 2048, 4096, 8192, 16384, 32768, 65536}
+		isValid := false
+		for _, size := range validPageSizes {
+			if conn.PageSize == size {
+				isValid = true
+				break
+			}
+		}
+		if !isValid {
+			return huberrors.NewError("无效的页面大小：%d，有效值为：512, 1024, 2048, 4096, 8192, 16384, 32768, 65536", conn.PageSize)
+		}
+	}
+
+	// === 检查缓存大小合理性 ===
+	if conn.CacheSize < -2000000 { // 小于-2GB
+		return huberrors.NewError("缓存大小过大：%d KB，可能导致内存不足", -conn.CacheSize)
+	}
+
+	// === 检查超时设置 ===
+	if conn.BusyTimeout < 0 {
+		return huberrors.NewError("无效的忙等待超时：%d，必须为非负数", conn.BusyTimeout)
+	}
+
+	// === 检查WAL模式配置 ===
+	if conn.JournalMode == "WAL" {
+		if conn.LockingMode == "EXCLUSIVE" {
+			return huberrors.NewError("配置冲突：WAL模式不支持EXCLUSIVE锁定模式")
+		}
+
+		// WAL模式建议启用共享缓存
+		if conn.CacheMode == "private" {
+			// 这不是错误，但给出警告建议
+			// 在实际应用中可以记录警告日志
+		}
 	}
 
 	return nil

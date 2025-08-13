@@ -38,13 +38,13 @@ func (e ConfigClickHouseEvent) PrimaryKey() string {
 func getClickHouseTestDB(t *testing.T) database.Database {
 	// 创建测试数据库配置
 	// 注意：DSN中的密码特殊字符需要URL编码
-	// 原密码: YiocaTTS91d*FY#ace{8iopl}
-	// 编码后: YiocaTTS91d%2AFY%23ace%7B8iopl%7D
+	// 原密码: your_password
+	// 编码后: your_password
 	config := &dbtypes.DbConfig{
 		Name:    "clickhouse_test",
 		Enabled: true,
 		Driver:  database.DriverClickHouse,
-		DSN:     "tcp://121.43.231.91:9000/default?username=default&password=YiocaTTS91d%2AFY%23ace%7B8iopl%7D&compress=true&debug=false",
+		DSN:     "tcp://localhost:9000/default?username=default&password=your_password&compress=true&debug=false",
 	}
 
 	// 打开数据库连接
@@ -71,10 +71,10 @@ func TestClickHouseConnection(t *testing.T) {
 		Enabled: true,
 		Driver:  database.DriverClickHouse,
 		Connection: dbtypes.ConnectionConfig{
-			Host:               "121.43.231.91",
+			Host:               "localhost",
 			Port:               9000,
 			Username:           "default",
-			Password:           "YiocaTTS91d*FY#ace{8iopl}",
+			Password:           "your_password",
 			Database:           "default",
 			ClickHouseCompress: "lz4",
 		},
@@ -105,10 +105,10 @@ func TestClickHouseDSNGeneration(t *testing.T) {
 		Enabled: true,
 		Driver:  database.DriverClickHouse,
 		Connection: dbtypes.ConnectionConfig{
-			Host:     "121.43.231.91",
+			Host:     "localhost",
 			Port:     9000,
 			Username: "default",
-			Password: "YiocaTTS91d*FY#ace{8iopl}",
+			Password: "your_password",
 			Database: "default",
 			// ClickHouse 特有参数
 			ClickHouseCompress:    "lz4",
@@ -149,7 +149,7 @@ func TestClickHouseConfigParameters(t *testing.T) {
 				Enabled: true,
 				Driver:  database.DriverClickHouse,
 				Connection: dbtypes.ConnectionConfig{
-					Host:     "121.43.231.91",
+					Host:     "localhost",
 					Port:     8123,
 					Username: "default",
 					Password: "",
@@ -164,7 +164,7 @@ func TestClickHouseConfigParameters(t *testing.T) {
 				Enabled: true,
 				Driver:  database.DriverClickHouse,
 				Connection: dbtypes.ConnectionConfig{
-					Host:               "121.43.231.91",
+					Host:               "localhost",
 					Port:               8123,
 					Username:           "default",
 					Password:           "",
@@ -181,7 +181,7 @@ func TestClickHouseConfigParameters(t *testing.T) {
 				Enabled: true,
 				Driver:  database.DriverClickHouse,
 				Connection: dbtypes.ConnectionConfig{
-					Host:     "121.43.231.91",
+					Host:     "localhost",
 					Port:     8123,
 					Username: "default",
 					Password: "",
@@ -246,10 +246,10 @@ func TestClickHouseLoadFromConfig(t *testing.T) {
 		Enabled: true,
 		Driver:  database.DriverClickHouse,
 		Connection: dbtypes.ConnectionConfig{
-			Host:                  "121.43.231.91",
+			Host:                  "localhost",
 			Port:                  9000,
 			Username:              "default",
-			Password:              "YiocaTTS91d*FY#ace{8iopl}",
+			Password:              "your_password",
 			Database:              "gateway",
 			ClickHouseCompress:    "lz4",
 			ClickHouseSecure:      false,
@@ -293,7 +293,7 @@ func TestClickHouseSpecialCharactersInPassword(t *testing.T) {
 	}{
 		{
 			name:     "包含#和{}字符",
-			password: "YiocaTTS91d*FY#ace{8iopl}",
+			password: "your_password",
 			username: "default",
 			database: "gateway",
 		},
@@ -330,7 +330,7 @@ func TestClickHouseSpecialCharactersInPassword(t *testing.T) {
 				Enabled: true,
 				Driver:  database.DriverClickHouse,
 				Connection: dbtypes.ConnectionConfig{
-					Host:               "121.43.231.91",
+					Host:               "localhost",
 					Port:               8123,
 					Username:           tc.username,
 					Password:           tc.password,
@@ -403,7 +403,7 @@ func TestClickHouseDSNValidation(t *testing.T) {
 		},
 		{
 			name:      "包含特殊字符的正确DSN",
-			dsn:       "tcp://127.0.0.1:9000?database=test&username=default&password=YiocaTTS91d%2AFY%23ace%7B8iopl%7D",
+			dsn:       "tcp://127.0.0.1:9000?database=test&username=default&password=your_password",
 			shouldErr: false,
 		},
 	}

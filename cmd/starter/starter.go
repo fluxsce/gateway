@@ -114,6 +114,11 @@ func initializeAndStartApplication() error {
 		return huberrors.WrapError(err, "初始化数据库失败")
 	}
 
+	// 初始化数据库脚本
+	if err := initDatabaseScripts(); err != nil {
+		return huberrors.WrapError(err, "初始化数据库脚本失败")
+	}
+
 	// 初始化缓存
 	if err := initCache(); err != nil {
 		return huberrors.WrapError(err, "初始化缓存失败")
@@ -368,6 +373,48 @@ func initDatabase() error {
 	}
 
 	return nil
+}
+
+// initDatabaseScripts 初始化数据库脚本
+func initDatabaseScripts() error {
+	// 检查是否启用脚本初始化
+	enableScriptInit := config.GetBool("database.enable_script_initialization", true)
+	if !enableScriptInit {
+		logger.Info("数据库脚本初始化已禁用")
+		return nil
+	}
+
+	// 获取超时配置
+	timeoutMinutes := config.GetInt("database.script_initialization_timeout", 30)
+
+	// 创建脚本初始化上下文
+	initCtx, cancel := context.WithTimeout(appContext, time.Duration(timeoutMinutes)*time.Minute)
+	defer cancel()
+
+	// 直接调用database_script_init.go中的方法
+	summary, err := timerinit.InitializeDatabaseScripts(initCtx, db)
+	if err != nil {
+		return huberrors.WrapError(err, "数据库脚本初始化失败")
+	}
+
+	// 输出初始化结果
+	logger.Info("数据库脚本初始化完成",
+		"成功数据库", summary.SuccessfulDatabases,
+		"失败数据库", summary.FailedDatabases,
+		"执行时间", summary.TotalDuration,
+		"SQL语句数", getTotalExecutedStatements(summary))
+
+	return nil
+}
+
+// getTotalExecutedStatements 计算总执行语句数
+// 辅助函数，用于统计数据库初始化过程中执行的SQL语句总数
+func getTotalExecutedStatements(summary *timerinit.InitializationSummary) int {
+	total := 0
+	for _, result := range summary.Results {
+		total += result.StatementsExecuted
+	}
+	return total
 }
 
 // initGateway 初始化网关应用

@@ -259,10 +259,10 @@ func getClickHouseImplTestDB(t *testing.T) database.Database {
 		Enabled: true,
 		Driver:  database.DriverClickHouse,
 		Connection: dbtypes.ConnectionConfig{
-			Host:               "121.43.231.91",
+			Host:               "localhost",
 			Port:               9000,
 			Username:           "default",
-			Password:           "YiocaTTS91d*FY#ace{8iopl}",
+			Password:           "your_password",
 			Database:           "gateway",
 			ClickHouseCompress: "lz4",
 			ClickHouseSecure:   false,

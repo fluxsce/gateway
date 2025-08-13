@@ -78,7 +78,7 @@ type ConnectionConfig struct {
 
 	// === SQLite特有参数 ===
 
-	// FilePath SQLite数据库文件路径 (优先于DSN中的路径)
+	// FilePath SQLite数据库文件路径 (优先于Database字段)
 	FilePath string `mapstructure:"file_path"`
 	// JournalMode SQLite日志模式 (WAL, DELETE, TRUNCATE, PERSIST, MEMORY, OFF)
 	JournalMode string `mapstructure:"journal_mode"`
@@ -94,6 +94,22 @@ type ConnectionConfig struct {
 	BusyTimeout int `mapstructure:"busy_timeout"`
 	// ForeignKeys SQLite是否启用外键约束
 	ForeignKeys bool `mapstructure:"foreign_keys"`
+	// AutoVacuum SQLite自动清理模式 (NONE, FULL, INCREMENTAL)
+	AutoVacuum string `mapstructure:"auto_vacuum"`
+	// TempStore SQLite临时存储模式 (DEFAULT, FILE, MEMORY)
+	TempStore string `mapstructure:"temp_store"`
+	// MaxPageCount SQLite最大页数限制
+	MaxPageCount int `mapstructure:"max_page_count"`
+	// PageSize SQLite页面大小 (512, 1024, 2048, 4096, 8192, 16384, 32768, 65536)
+	PageSize int `mapstructure:"page_size"`
+	// LockingMode SQLite锁定模式 (NORMAL, EXCLUSIVE)
+	LockingMode string `mapstructure:"locking_mode"`
+	// SecureDelete SQLite安全删除模式 (true, false, fast)
+	SecureDelete string `mapstructure:"secure_delete"`
+	// WALAutocheckpoint WAL模式自动检查点间隔
+	WALAutocheckpoint int `mapstructure:"wal_autocheckpoint"`
+	// QueryOnly SQLite只读模式
+	QueryOnly bool `mapstructure:"query_only"`
 
 	// === Oracle特有参数 ===
 

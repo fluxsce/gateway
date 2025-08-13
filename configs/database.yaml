@@ -1,25 +1,46 @@
 # ===========================================
 # 数据库与缓存系统配置文件
 # ===========================================
+# 
+# 当前配置说明：
+# - 默认使用 SQLite 数据库 (sqlite_main)
+# - 默认使用内存缓存 (memory_cache)
+# - 其他数据库连接已禁用，仅保留示例配置
+# - 敏感信息已替换为占位符
+# 
+# ===========================================
 
 # 数据库配置
 database:
   # 默认连接名称
-  default: mysql
+  default: sqlite_main
+  
+  # === 数据库脚本初始化配置 ===
+  # 是否启用数据库脚本自动初始化（应用启动时执行）
+  enable_script_initialization: true
+  
+  # 是否允许部分数据库初始化失败（true: 允许部分失败继续启动, false: 任何失败都终止启动）
+  allow_partial_failure: false
+  
+  # 脚本初始化超时时间（分钟）
+  script_initialization_timeout: 30
+  
+  # 脚本文件目录路径（相对于应用根目录）
+  script_directory: "scripts/db"
   
   # 各种数据库连接的配置
   connections:
     # MySQL 主连接
     mysql:
       driver: mysql
-      enabled: true # 启用状态（可选，默认为true）
+      enabled: false # 禁用MySQL连接
       dsn: "" # 如果提供DSN，将忽略下面的结构化配置
       connection:
-        host: 121.43.231.91
-        port: 63306
+        host: localhost
+        port: 3306
         username: root
-        password: "datahub"
-        database: shangjian_test
+        password: "your_password"
+        database: gateway_db
         charset: utf8mb4
         parse_time: true
         loc: Local
@@ -48,11 +69,11 @@ database:
       
       # 方式2: 使用结构化连接配置 (如果未设置dsn，将使用此配置自动生成)
       connection:
-        host: "47.117.1.78"
-        port: 62345
-        username: "DATAHUB_250624"
-        password: "20250624_TMPpAssw0d123"
-        database: "fluxv6pdb"  # Oracle的SERVICE_NAME或SID
+        host: "localhost"
+        port: 1521
+        username: "your_username"
+        password: "your_password"
+        database: "XE"  # Oracle的SERVICE_NAME或SID
         
         # Oracle特有参数
         timezone: "Asia/Shanghai"  # 时区设置，默认为系统时区
@@ -81,16 +102,16 @@ database:
     
     # ClickHouse 连接
     clickhouse_main:
-      enabled: true
+      enabled: false
       driver: "clickhouse"
       
       # ClickHouse 连接配置
       connection:
-        host: "121.43.231.91"
+        host: "localhost"
         port: 9000                  # ClickHouse TCP 原生协议端口
         username: "default"         # ClickHouse 默认用户
-        password: "YiocaTTS91d*FY#ace{8iopl}"  # 密码，包含特殊字符
-        database: "gohub"           # 要连接的数据库名称
+        password: "your_password"   # 密码
+        database: "gateway_db"      # 要连接的数据库名称
         
         # ClickHouse 官网标准DSN参数 - https://clickhouse.com/docs/zh/integrations/go
         clickhouse_compress: "lz4"                 # 压缩算法(none,lz4,zstd,gzip,deflate,br) 推荐lz4
@@ -174,37 +195,174 @@ database:
       log:
         slow_threshold: 200
 
-    # SQLite 连接示例
-    sqlite:
+    # ===== SQLite 数据库配置 =====
+    # 
+    # 重要提示：SQLite配置优先考虑数据安全性，避免数据丢失风险
+    # 危险配置组合：
+    # - synchronous=OFF + journal_mode!=WAL (可能丢失事务数据)
+    # - journal_mode=OFF (禁用事务日志，数据库可能损坏)
+    # - journal_mode=MEMORY + synchronous=OFF (系统崩溃时丢失所有数据)
+    # 
+    # 推荐安全配置：
+    # - journal_mode=WAL + synchronous=FULL (最高安全性)
+    # - foreign_keys=true (保证数据完整性)
+    # - secure_delete=true (防止敏感数据泄露)
+    
+    # SQLite 主连接 - 生产环境配置(数据安全优先)
+    sqlite_main:
       driver: sqlite
-      enabled: false # 禁用此连接
+      enabled: true                 # 启用SQLite连接
+      
+      # 方式1: 使用DSN连接字符串 (如果设置了DSN，将忽略下面的结构化配置)
+      # SQLite DSN格式: file:path/to/database.db?param1=value1&param2=value2
+      # 或者简单路径: ./data/app.db 或 :memory: (内存数据库)
+      # dsn: "file:./data/gateway.db?cache=shared&mode=rwc&_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=1"
+      
+      # 方式2: 使用结构化连接配置 (推荐，更清晰)
       connection:
-        database: database.sqlite
+        # === 基本路径配置 ===
+        database: "D:/data/gateway/db/gateway.db"     # 数据库文件路径 (相对或绝对路径)
+        # file_path: "./data/gateway.db"  # 可选：显式指定文件路径，优先于database字段
+        
+        # === SQLite核心参数 - 数据安全优先配置 ===
+        journal_mode: "WAL"               # 日志模式: WAL(推荐,最安全), DELETE, TRUNCATE, PERSIST, MEMORY, OFF(危险)
+        synchronous_mode: "FULL"          # 同步模式: FULL(最安全,默认), NORMAL(平衡), OFF(危险,可能丢数据)
+        cache_mode: "shared"              # 缓存模式: shared(共享,推荐), private(私有)
+        connection_mode: "rwc"            # 连接模式: rwc(读写创建), ro(只读), rw(读写), memory(内存)
+        foreign_keys: true                # 启用外键约束(保证数据完整性)
+        
+        # === 性能优化参数 ===
+        cache_size: -64000                # 缓存大小: 负数表示KB(-64000=64MB), 正数表示页数
+        busy_timeout: 10000               # 忙等待超时(毫秒): 10秒
+        page_size: 4096                   # 页面大小: 512,1024,2048,4096(推荐),8192,16384,32768,65536
+        
+        # === 高级配置参数 ===
+        auto_vacuum: "INCREMENTAL"        # 自动清理: NONE(关闭), FULL(完全), INCREMENTAL(增量,推荐)
+        temp_store: "MEMORY"              # 临时存储: DEFAULT, FILE, MEMORY(推荐)
+        locking_mode: "NORMAL"            # 锁定模式: NORMAL(推荐), EXCLUSIVE
+        secure_delete: "true"             # 安全删除: true(最安全,默认), false(性能优先), fast(平衡)
+        wal_autocheckpoint: 1000          # WAL自动检查点间隔(页数)
+        max_page_count: 1073741823        # 最大页数限制(约4TB@4KB页面)
+        query_only: false                 # 只读模式: false(可读写), true(只读)
+        
+      # 连接池配置 (SQLite建议较小的连接数)
+      pool:
+        max_open_conns: 10                # 最大打开连接数 (SQLite推荐1-10)
+        max_idle_conns: 5                 # 最大空闲连接数
+        conn_max_lifetime: 3600           # 连接最大生命周期(秒): 1小时
+        conn_max_idle_time: 1800          # 连接最大空闲时间(秒): 30分钟
+        
+      # 日志配置
       log:
-        slow_threshold: 100 
+        enable: true                      # 启用SQL日志
+        slow_threshold: 100               # 慢查询阈值(毫秒): SQLite通常很快
+        
+      # 事务配置
+      transaction:
+        default_use: true                 # 默认使用事务 (SQLite事务开销小)
+
+    # SQLite 内存数据库 - 用于测试和缓存
+    sqlite_memory:
+      driver: sqlite
+      enabled: false                      # 默认禁用
+      connection:
+        database: ":memory:"              # 内存数据库
+        journal_mode: "MEMORY"            # 内存模式下的日志
+        synchronous_mode: "OFF"           # 内存数据库可以关闭同步
+        cache_mode: "private"             # 内存数据库使用私有缓存
+        connection_mode: "memory"         # 内存连接模式
+        foreign_keys: true
+        cache_size: -32000                # 32MB内存缓存
+        busy_timeout: 1000                # 1秒超时
+        temp_store: "MEMORY"
+      pool:
+        max_open_conns: 5                 # 内存数据库连接数更少
+        max_idle_conns: 2
+        conn_max_lifetime: 1800           # 30分钟
+        conn_max_idle_time: 900           # 15分钟
+      log:
+        enable: false                     # 内存数据库通常不需要日志
+        slow_threshold: 50
+      transaction:
+        default_use: false                # 内存数据库可以不使用事务
+
+    # SQLite 只读连接 - 用于报表和查询
+    sqlite_readonly:
+      driver: sqlite
+      enabled: false                      # 默认禁用
+      connection:
+        database: "./data/gateway_readonly.db"
+        journal_mode: "WAL"               # 只读也可以使用WAL
+        synchronous_mode: "NORMAL"
+        cache_mode: "shared"              # 共享缓存提高性能
+        connection_mode: "ro"             # 只读模式
+        foreign_keys: true
+        cache_size: -128000               # 128MB缓存 (只读可以用更多缓存)
+        busy_timeout: 30000               # 30秒超时 (只读操作可以等待更久)
+        query_only: true                  # 启用只读模式
+      pool:
+        max_open_conns: 20                # 只读连接可以更多
+        max_idle_conns: 10
+        conn_max_lifetime: 7200           # 2小时
+        conn_max_idle_time: 3600          # 1小时
+      log:
+        enable: true
+        slow_threshold: 200               # 只读查询可能更复杂
+      transaction:
+        default_use: false                # 只读不需要事务
+
+    # SQLite 高性能配置 - 用于高并发场景
+    sqlite_performance:
+      driver: sqlite
+      enabled: false                      # 默认禁用
+      connection:
+        database: "./data/gateway_perf.db"
+        journal_mode: "WAL"               # WAL模式最适合并发
+        synchronous_mode: "NORMAL"        # 平衡性能和安全
+        cache_mode: "shared"              # 共享缓存
+        connection_mode: "rwc"
+        foreign_keys: false               # 高性能场景可以关闭外键检查
+        cache_size: -256000               # 256MB大缓存
+        busy_timeout: 5000                # 5秒超时
+        page_size: 8192                   # 更大的页面大小
+        auto_vacuum: "NONE"               # 关闭自动清理以提高性能
+        temp_store: "MEMORY"              # 临时数据存内存
+        locking_mode: "NORMAL"
+        secure_delete: "false"            # 关闭安全删除提高性能
+        wal_autocheckpoint: 10000         # 更大的检查点间隔
+      pool:
+        max_open_conns: 1                 # SQLite在高并发下建议单连接
+        max_idle_conns: 1
+        conn_max_lifetime: 86400          # 24小时
+        conn_max_idle_time: 7200          # 2小时
+      log:
+        enable: false                     # 高性能场景关闭日志
+        slow_threshold: 500
+      transaction:
+        default_use: true 
 
 # ===========================================
 # 缓存配置 - 支持Redis和内存缓存
 # ===========================================
 cache:
   # 默认使用的缓存连接名称
-  default: redis_primary
+  default: memory_cache
   
   # 缓存连接配置 - 支持多种类型：redis, memory
   connections:
     # ===== Redis 缓存配置 =====
     
-    # Redis 主连接 - 单机模式
+            # Redis 主连接 - 单机模式
     redis_primary:
       type: redis                 # 缓存类型：redis
       config:
-        enabled: true             # 是否启用该连接
+        enabled: false            # 禁用Redis连接
         mode: "single"            # 连接模式: single(单机), sentinel(哨兵), cluster(集群)
         
         # === 单机模式连接配置 ===
-        host: 121.43.231.91       # Redis服务器地址
-        port: 63791               # Redis服务器端口
-        password: "3112a1e4c2ea11e4:Pwd20160308"  # Redis认证密码
+        host: localhost           # Redis服务器地址
+        port: 6379                # Redis服务器端口
+        password: "your_password" # Redis认证密码
         database: 0               # Redis数据库编号，范围0-15
         
         # === 连接池配置 ===
@@ -239,7 +397,7 @@ cache:
           - "127.0.0.1:26380" 
           - "127.0.0.1:26381"
         master_name: "mymaster"   # 主节点名称
-        password: "datahub"       # Redis认证密码
+        password: "your_password" # Redis认证密码
         database: 0
         
         # === 连接池配置 ===
@@ -339,21 +497,21 @@ cache:
 # MongoDB配置 - 支持单机、副本集、分片集群
 # ===========================================
 mongo:
-  enabled: true
+  enabled: false
   default: "mongo_main"
   connections:
     # MongoDB 主连接 - 单机模式
     mongo_main:
       id: "mongo_main"             # 配置ID，用于标识和引用
-      enabled: true
+      enabled: false
       # === 基本连接信息 ===
-      host: 121.43.231.91          # MongoDB主机地址
-      port: 28729                  # MongoDB端口号，默认 27017
-      database: "gateway"            # 要连接的数据库名称
+      host: localhost              # MongoDB主机地址
+      port: 27017                  # MongoDB端口号，默认 27017
+      database: "gateway"          # 要连接的数据库名称
       
       # === 认证信息 ===
-      username: "admin"             # 用户名，用于身份验证
-      password: "admin123"          # 密码，用于身份验证
+      username: "admin"            # 用户名，用于身份验证
+      password: "your_password"    # 密码，用于身份验证
       authdb: "admin"              # 认证数据库名称，通常为 "admin"
       
       # === 连接池配置 ===
