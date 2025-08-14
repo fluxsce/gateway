@@ -124,7 +124,7 @@ graph TB
 
 ## 📞 联系方式
 
-- 📧 **邮箱**: [gateway@example.com](mailto:gateway@example.com)
+- 📧 **邮箱**: [fluxopensource@flux.com.cn](mailto:fluxopensource@flux.com.cn)
 - 💬 **GitHub Issues**: [提交问题](https://github.com/your-org/gateway/issues)
 - 📱 **微信群**: 扫描下方二维码加入交流群
 - 🐧 **QQ群**: 123456789
