@@ -120,7 +120,7 @@ We welcome all contributions! For details, please refer to the [CONTRIBUTING.md]
 
 ## 📞 Contact
 
-- 📧 **Email**: [gateway@example.com](mailto:gateway@example.com)
+- 📧 **Email**: [fluxopensource@flux.com.cn](mailto:fluxopensource@flux.com.cn)
 - 💬 **GitHub Issues**: [Submit Issues](https://github.com/your-org/gateway/issues)
 - 📱 **WeChat Group**: Scan the QR code below to join the community
 - 🐧 **QQ Group**: 123456789
