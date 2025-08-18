@@ -221,7 +221,7 @@ database:
       # 方式2: 使用结构化连接配置 (推荐，更清晰)
       connection:
         # === 基本路径配置 ===
-        database: "D:/data/gateway/db/gateway.db"     # 数据库文件路径 (相对或绝对路径)
+        database: "./scripts/data/gateway.db"     # 数据库文件路径 (相对或绝对路径)
         # file_path: "./data/gateway.db"  # 可选：显式指定文件路径，优先于database字段
         
         # === SQLite核心参数 - 数据安全优先配置 ===

@@ -253,12 +253,24 @@ func ExtractColumnsAndValues(data interface{}) ([]string, []interface{}, error) 
 		// 注意：对于数据库插入操作，不应该跳过零值字段
 		// 零值可能是有效的业务数据，且数据库表结构要求字段数量一致
 		// 只有在明确标记为忽略的字段（db:"-"）才应该跳过
+		// 但是，对于时间类型的零值，需要特殊处理，转换为NULL避免MySQL的'0000-00-00'错误
 		// if IsZeroValue(field) {
 		// 	continue
 		// }
 
 		columns = append(columns, dbTag)
-		values = append(values, field.Interface())
+		
+		// 特殊处理时间类型的零值，转换为NULL
+		if field.Type() == reflect.TypeOf(time.Time{}) {
+			t := field.Interface().(time.Time)
+			if t.IsZero() {
+				values = append(values, nil) // 使用NULL而不是零时间
+			} else {
+				values = append(values, field.Interface())
+			}
+		} else {
+			values = append(values, field.Interface())
+		}
 	}
 
 	return columns, values, nil
@@ -328,7 +340,18 @@ func ExtractColumnsAndValuesSkipZero(data interface{}) ([]string, []interface{},
 		}
 
 		columns = append(columns, dbTag)
-		values = append(values, field.Interface())
+		
+		// 特殊处理时间类型的零值，转换为NULL（虽然在SkipZero版本中零值已被跳过，但为了一致性保留此逻辑）
+		if field.Type() == reflect.TypeOf(time.Time{}) {
+			t := field.Interface().(time.Time)
+			if t.IsZero() {
+				values = append(values, nil) // 使用NULL而不是零时间
+			} else {
+				values = append(values, field.Interface())
+			}
+		} else {
+			values = append(values, field.Interface())
+		}
 	}
 
 	return columns, values, nil

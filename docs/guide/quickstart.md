@@ -150,7 +150,7 @@ cors:
 
 - 支持 RESTful 管理 API（如 /admin/configs）
 - 支持配置文件热加载（修改后自动生效）
-- 支持 Web 管理界面（如 http://localhost:8090）
+- 支持 Web 管理界面（如 http://localhost:12003）
 - 支持动态路由、限流、认证等参数的在线调整
 
 ---

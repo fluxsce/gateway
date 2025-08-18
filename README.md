@@ -48,6 +48,24 @@
 
 ## 🚀 快速开始
 
+### 环境准备
+
+#### Windows 用户特别说明
+
+由于项目依赖CGO，Windows用户需要先安装C编译器：
+
+1. **下载并安装TDM-GCC编译器**
+   - 访问 [TDM-GCC下载页面](https://jmeubank.github.io/tdm-gcc/download/)
+   - 推荐下载：`tdm64-gcc-10.3.0-2.exe` (64+32位MinGW-w64版本)
+   - 安装完成后**重新打开命令行窗口**
+
+2. **配置Go代理（国内用户推荐）**
+   ```bash
+   go env -w GOPROXY=https://goproxy.cn
+   ```
+
+#### 启动步骤
+
 ```bash
 # 克隆项目
 git clone https://github.com/your-org/gateway.git

@@ -170,7 +170,7 @@ func NewWebApp(db database.Database) *WebApp {
 	if frontendPath != "" {
 		// 使用ResolvePath解析前端文件路径，处理环境变量指定的配置目录情况
 		resolvedFrontendPath := utils.ResolvePath(frontendPath)
-		
+
 		// 静态资源文件（CSS、JS、图片等）
 		router.Static("/assets", filepath.Join(resolvedFrontendPath, "assets"))
 		router.StaticFile("/favicon.ico", filepath.Join(resolvedFrontendPath, "favicon.ico"))
@@ -278,6 +278,7 @@ func (app *WebApp) Start() error {
 
 	logger.Info("Web服务器启动",
 		"port", app.port,
+		"address", fmt.Sprintf("http://localhost:%d", app.port),
 		"mode", runMode,
 		"name", appName)
 
