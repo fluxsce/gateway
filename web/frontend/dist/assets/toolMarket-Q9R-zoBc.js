@@ -1,0 +1,1 @@
+const a={title:"工具市场",searchPlaceholder:"搜索工具...",noToolsFound:"未找到相关工具",categories:{all:"全部",utility:"实用工具",chart:"图表工具",form:"表单工具",table:"表格工具",layout:"布局工具",data:"数据处理",ui:"UI组件",business:"业务组件"},actions:{install:"安装",uninstall:"卸载",configure:"配置",preview:"预览"},status:{available:"可安装",installed:"已安装",installing:"安装中",updating:"更新中",error:"错误"}};export{a as default};
