@@ -68,7 +68,7 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/your-org/gateway.git
+git clone https://github.com/fluxsce/gateway.git
 cd gateway
 
 # 安装依赖
@@ -143,7 +143,7 @@ graph TB
 ## 📞 联系方式
 
 - 📧 **邮箱**: [fluxopensource@flux.com.cn](mailto:fluxopensource@flux.com.cn)
-- 💬 **GitHub Issues**: [提交问题](https://github.com/your-org/gateway/issues)
+- 💬 **GitHub Issues**: [提交问题](https://github.com/fluxsce/gateway/issues)
 - 📱 **微信群**: 扫描下方二维码加入交流群
 - 🐧 **QQ群**: 123456789
 - 🛡️ **安全报告**: security@yourcompany.com
@@ -155,8 +155,8 @@ graph TB
 ## ⭐ Star 历史
 
 <p align="center">
-  <a href="https://star-history.com/#your-org/gateway">
-    <img src="https://api.star-history.com/svg?repos=your-org/gateway&type=Date" alt="Star History Chart" width="600">
+  <a href="https://star-history.com/#fluxsce/gateway">
+    <img src="https://api.star-history.com/svg?repos=fluxsce/gateway&type=Date" alt="Star History Chart" width="600">
   </a>
 </p>
 
@@ -164,7 +164,7 @@ graph TB
 
 ## 🙏 致谢与贡献者
 
-感谢 [所有贡献者](https://github.com/your-org/gateway/graphs/contributors) 的付出与支持！
+感谢 [所有贡献者](https://github.com/fluxsce/gateway/graphs/contributors) 的付出与支持！
 
 <p align="center">
   <sub>Built with ❤️ by the Gateway team</sub>
