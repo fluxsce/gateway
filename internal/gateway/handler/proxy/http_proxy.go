@@ -423,7 +423,8 @@ func (h *HTTPProxy) isSSEResponse(resp *http.Response) bool {
 func (h *HTTPProxy) handleSSEResponse(ctx *core.Context, resp *http.Response) error {
 	// 确保设置正确的SSE头部
 	ctx.Writer.Header().Set("Content-Type", "text/event-stream")
-	ctx.Writer.Header().Set("Cache-Control", "no-cache")
+	//sse禁用缓存头部
+	ctx.Writer.Header().Set("Cache-Control", "no-store, no-cache")
 	ctx.Writer.Header().Set("Connection", "keep-alive")
 	ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -726,6 +727,16 @@ func (h *HTTPProxy) createHTTPClient(config HTTPProxyConfig) *http.Client {
 		tlsConfig.MaxVersion = parseTLSVersion(config.TLSMaxVersion)
 	}
 
+	// 根据是否启用代理缓冲来调整缓冲区大小
+	readBufferSize := config.BufferSize
+	writeBufferSize := config.BufferSize
+
+	// 如果禁用代理缓冲（通常用于SSE等实时流），使用更小的缓冲区
+	if !config.ProxyBuffering {
+		readBufferSize = 1024  // 1KB，更适合实时流
+		writeBufferSize = 1024 // 1KB，更适合实时流
+	}
+
 	// 创建传输层配置
 	transport := &http.Transport{
 		// 连接池配置
@@ -742,9 +753,9 @@ func (h *HTTPProxy) createHTTPClient(config HTTPProxyConfig) *http.Client {
 		// Keep-Alive配置
 		DisableKeepAlives: !config.KeepAlive, // 根据配置决定是否禁用Keep-Alive
 
-		// 缓冲区配置
-		ReadBufferSize:  config.BufferSize, // 读缓冲区大小
-		WriteBufferSize: config.BufferSize, // 写缓冲区大小
+		// 缓冲区配置 - 根据代理缓冲设置动态调整
+		ReadBufferSize:  readBufferSize,  // 读缓冲区大小
+		WriteBufferSize: writeBufferSize, // 写缓冲区大小
 
 		// 连接拨号配置
 		DialContext: (&net.Dialer{
