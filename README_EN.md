@@ -17,11 +17,11 @@
 </p>
 
 <p align="center">
-  FLUX Gateway is a modern API gateway developed in Go, integrating essential features such as routing, load balancing, rate limiting, circuit breaking, and authentication/authorization. It provides full-link API management visualization to help users efficiently manage the API lifecycle, building a stable, secure, and observable API access layer for distributed systems.
+  FLUX Gateway is a modern API gateway developed in Go. Leveraging Go&#39;s high performance and simplicity, it integrates core capabilities such as routing, load balancing, rate limiting, circuit breaking, and authentication/authorization. It provides end-to-end API management visualization to help users efficiently manage the API lifecycle, building a stable, secure, and observable API access layer for distributed systems.
 </p>
 
 <p align="center">
-  <strong>English</strong> | <a href="#zh">简体中文</a>
+  <strong>English</strong> | <a href="README.md">简体中文</a>
 </p>
 
 ---
@@ -31,7 +31,7 @@
 - 🚀 High-performance routing and load balancing
 - 🔒 Multiple authentication and security protections
 - 📊 Real-time monitoring and observability
-- 🧩 Plugin extensibility
+- 🧩 Plugin-based extensibility
 - ☁️ Cloud-native friendly
 
 ---
@@ -47,9 +47,27 @@
 
 ## 🚀 Quick Start
 
+### Environment Preparation
+
+#### Special Note for Windows Users
+
+This project depends on CGO. Windows users need to install a C compiler first:
+
+1. Download and install TDM-GCC
+   - Visit: https://jmeubank.github.io/tdm-gcc/download/
+   - Recommended: `tdm64-gcc-10.3.0-2.exe` (64+32-bit MinGW-w64 version)
+   - After installation, reopen your terminal
+
+2. Configure Go proxy (recommended for mainland China users)
+   ```bash
+   go env -w GOPROXY=https://goproxy.cn
+   ```
+
+#### Startup Steps
+
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/gateway.git
+git clone https://github.com/fluxsce/gateway.git
 cd gateway
 
 # Install dependencies
@@ -59,7 +77,10 @@ go mod download
 go run cmd/app/main.go
 ```
 
-Refer to the [Quick Start Guide](docs/quickstart.md) for detailed instructions.
+More information:
+- Quick try: [Quick Start](docs/guide/quickstart.md)
+- Local environment setup: [Deployment Guide](docs/guide/deployment.md)
+- Detailed configuration: [Configuration Manual](docs/guide/configuration.md)
 
 ## 🏗️ Architecture Overview
 
@@ -77,12 +98,12 @@ graph TB
     Discovery --> LoadBalance[Load Balancing]
     LoadBalance --> CircuitBreaker[Circuit Breaking]
     CircuitBreaker --> ProxyForward[Request Forwarding]
-
+    
     ProxyForward --> Services[Backend Service Cluster]
     Services --> PostProcess[Response Handling]
     PostProcess --> Gateway
     Gateway --> Client
-
+    
     Gateway --> Log[Logging System]
     Gateway --> Monitor[Monitoring System]
     Gateway --> Config[Configuration Center]
@@ -121,7 +142,7 @@ We welcome all contributions! For details, please refer to the [CONTRIBUTING.md]
 ## 📞 Contact
 
 - 📧 **Email**: [fluxopensource@flux.com.cn](mailto:fluxopensource@flux.com.cn)
-- 💬 **GitHub Issues**: [Submit Issues](https://github.com/your-org/gateway/issues)
+- 💬 **GitHub Issues**: [Submit Issues](https://github.com/fluxsce/gateway/issues)
 - 📱 **WeChat Group**: Scan the QR code below to join the community
 - 🐧 **QQ Group**: 123456789
 - 🛡️ **Security Reports**: security@yourcompany.com
@@ -133,8 +154,8 @@ This project is licensed under the [Apache License 2.0](LICENSE).
 ## ⭐ Star History
 
 <p align="center">
-  <a href="https://star-history.com/#your-org/gateway">
-    <img src="https://api.star-history.com/svg?repos=your-org/gateway&type=Date" alt="Star History Chart" width="600">
+  <a href="https://star-history.com/#fluxsce/gateway">
+    <img src="https://api.star-history.com/svg?repos=fluxsce/gateway&type=Date" alt="Star History Chart" width="600">
   </a>
 </p>
 
@@ -142,7 +163,7 @@ This project is licensed under the [Apache License 2.0](LICENSE).
 
 ## 🙏 Acknowledgements & Contributors
 
-Thanks to [all contributors](https://github.com/your-org/gateway/graphs/contributors) for their efforts and support!
+Thanks to [all contributors](https://github.com/fluxsce/gateway/graphs/contributors) for their efforts and support!
 
 <p align="center">
   <sub>Built with ❤️ by the Gateway team</sub>
