@@ -25,6 +25,12 @@
   <a href="README_EN.md">English</a> | <strong>简体中文</strong>
 </p>
 
+<p align="center">
+  <a href="https://matrix.to/#/#fluxsce/gateway:gitter.im">
+    <img src="https://badges.gitter.im/Join/Chat.svg"/>
+  </a>
+</p>
+
 ---
 
 ## 🚩 主要特性
