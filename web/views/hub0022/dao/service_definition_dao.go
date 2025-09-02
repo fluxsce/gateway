@@ -36,17 +36,13 @@ func NewServiceDefinitionDAO(db database.Database) *ServiceDefinitionDAO {
 }
 
 // generateServiceDefinitionId 生成服务定义ID
-// 格式：SD + YYYYMMDD + HHMMSS + 4位随机数
-// 示例：SD20240615143022A1B2
+// 使用32位唯一字符串确保全局唯一性，避免时间戳冲突
+// 格式：SD + 30位唯一字符串
 func (dao *ServiceDefinitionDAO) generateServiceDefinitionId() string {
-	now := time.Now()
-	// 生成时间部分：YYYYMMDDHHMMSS
-	timeStr := now.Format("20060102150405")
-
-	// 生成4位随机字符（大写字母和数字）
-	randomStr := random.GenerateRandomString(4)
-
-	return fmt.Sprintf("SD%s%s", timeStr, randomStr)
+	// 使用random包的32位唯一字符串生成方法
+	uniqueStr := random.Generate32BitRandomString()
+	// 取前30位，加上SD前缀，总长度为32位
+	return fmt.Sprintf("SD%s", uniqueStr[:30])
 }
 
 // isServiceDefinitionIdExists 检查服务定义ID是否已存在
@@ -66,12 +62,15 @@ func (dao *ServiceDefinitionDAO) isServiceDefinitionIdExists(ctx context.Context
 }
 
 // generateUniqueServiceDefinitionId 生成唯一的服务定义ID
+// 由于使用了基于时间戳+进程标识+原子计数器+强随机数的算法，
+// 理论上已经保证了唯一性，但为了额外安全，仍保留数据库检查
 func (dao *ServiceDefinitionDAO) generateUniqueServiceDefinitionId(ctx context.Context) (string, error) {
-	const maxAttempts = 10
+	const maxAttempts = 3 // 减少重试次数，因为冲突概率极低
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		serviceDefinitionId := dao.generateServiceDefinitionId()
 
+		// 检查ID是否已存在
 		exists, err := dao.isServiceDefinitionIdExists(ctx, serviceDefinitionId)
 		if err != nil {
 			return "", huberrors.WrapError(err, "检查服务定义ID是否存在失败")
@@ -81,8 +80,7 @@ func (dao *ServiceDefinitionDAO) generateUniqueServiceDefinitionId(ctx context.C
 			return serviceDefinitionId, nil
 		}
 
-		// 如果ID已存在，等待1毫秒后重试（确保时间戳不同）
-		time.Sleep(time.Millisecond)
+		// 理论上不应该到达这里，但如果真的冲突了，无需等待直接重新生成
 	}
 
 	return "", errors.New("生成唯一服务定义ID失败，已达到最大尝试次数")
@@ -125,7 +123,8 @@ func (dao *ServiceDefinitionDAO) CreateServiceDefinition(ctx context.Context, se
 	serviceDefinition.AddWho = operatorId
 	serviceDefinition.EditTime = now
 	serviceDefinition.EditWho = operatorId
-	serviceDefinition.OprSeqFlag = serviceDefinition.ServiceDefinitionId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
+	// 使用简单的时间戳作为操作序列标识
+	serviceDefinition.OprSeqFlag = serviceDefinition.ServiceDefinitionId
 	serviceDefinition.CurrentVersion = 1
 	serviceDefinition.ActiveFlag = "Y"
 
@@ -197,7 +196,8 @@ func (dao *ServiceDefinitionDAO) UpdateServiceDefinition(ctx context.Context, se
 	// 更新修改信息
 	serviceDefinition.EditTime = time.Now()
 	serviceDefinition.EditWho = operatorId
-	serviceDefinition.OprSeqFlag = serviceDefinition.ServiceDefinitionId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
+	// 使用简单的时间戳作为操作序列标识
+	serviceDefinition.OprSeqFlag = serviceDefinition.ServiceDefinitionId
 
 	// 构建更新条件
 	where := "serviceDefinitionId = ? AND tenantId = ? AND currentVersion = ?"

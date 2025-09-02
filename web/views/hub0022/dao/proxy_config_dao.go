@@ -119,7 +119,7 @@ func (dao *ProxyConfigDAO) CreateProxyConfig(ctx context.Context, proxyConfig *m
 	proxyConfig.AddWho = operatorId
 	proxyConfig.EditTime = now
 	proxyConfig.EditWho = operatorId
-	proxyConfig.OprSeqFlag = proxyConfig.ProxyConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
+	proxyConfig.OprSeqFlag = proxyConfig.ProxyConfigId
 	proxyConfig.CurrentVersion = 1
 	proxyConfig.ActiveFlag = "Y"
 
@@ -193,7 +193,7 @@ func (dao *ProxyConfigDAO) UpdateProxyConfig(ctx context.Context, proxyConfig *m
 	// 更新修改信息
 	proxyConfig.EditTime = time.Now()
 	proxyConfig.EditWho = operatorId
-	proxyConfig.OprSeqFlag = proxyConfig.ProxyConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
+	proxyConfig.OprSeqFlag = proxyConfig.ProxyConfigId
 
 	// 构建更新条件
 	where := "proxyConfigId = ? AND tenantId = ? AND currentVersion = ?"

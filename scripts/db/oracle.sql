@@ -1801,9 +1801,392 @@ CREATE INDEX IDX_TEMPLOG_SRV_SEN ON HUB_METRIC_TEMP_LOG(metricServerId, sensorNa
 CREATE INDEX IDX_TEMPLOG_TNT_TIME ON HUB_METRIC_TEMP_LOG(tenantId, collectTime);
 COMMENT ON TABLE HUB_METRIC_TEMP_LOG IS '温度信息采集日志表'; 
 
+-- =====================================================
+-- 服务注册中心数据库表结构设计 (Oracle版本)
+-- =====================================================
 
+-- 服务分组表 - 存储服务分组和授权信息
+CREATE TABLE HUB_REGISTRY_SERVICE_GROUP (
+                                            serviceGroupId VARCHAR2(32) NOT NULL, -- 服务分组ID，主键
+                                            tenantId VARCHAR2(32) NOT NULL, -- 租户ID，用于多租户数据隔离
 
+    -- 分组基本信息
+                                            groupName VARCHAR2(100) NOT NULL, -- 分组名称
+                                            groupDescription VARCHAR2(500), -- 分组描述
+                                            groupType VARCHAR2(50) DEFAULT 'BUSINESS' NOT NULL, -- 分组类型(BUSINESS,SYSTEM,TEST)
 
+    -- 授权信息
+                                            ownerUserId VARCHAR2(32) NOT NULL, -- 分组所有者用户ID
+                                            adminUserIds CLOB, -- 管理员用户ID列表，JSON格式
+                                            readUserIds CLOB, -- 只读用户ID列表，JSON格式
+                                            accessControlEnabled VARCHAR2(1) DEFAULT 'N' NOT NULL, -- 是否启用访问控制(N否,Y是)
+
+    -- 配置信息
+                                            defaultProtocolType VARCHAR2(20) DEFAULT 'HTTP' NOT NULL, -- 默认协议类型
+                                            defaultLoadBalanceStrategy VARCHAR2(50) DEFAULT 'ROUND_ROBIN' NOT NULL, -- 默认负载均衡策略
+                                            defaultHealthCheckUrl VARCHAR2(500) DEFAULT '/health' NOT NULL, -- 默认健康检查URL
+                                            defaultHealthCheckIntervalSeconds NUMBER(10) DEFAULT 30 NOT NULL, -- 默认健康检查间隔(秒)
+
+    -- 通用字段
+                                            addTime DATE DEFAULT SYSDATE NOT NULL, -- 创建时间
+                                            addWho VARCHAR2(32) NOT NULL, -- 创建人ID
+                                            editTime DATE DEFAULT SYSDATE NOT NULL, -- 最后修改时间
+                                            editWho VARCHAR2(32) NOT NULL, -- 最后修改人ID
+                                            oprSeqFlag VARCHAR2(32) NOT NULL, -- 操作序列标识
+                                            currentVersion NUMBER(10) DEFAULT 1 NOT NULL, -- 当前版本号
+                                            activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 活动状态标记(N非活动,Y活动)
+                                            noteText VARCHAR2(500), -- 备注信息
+                                            extProperty CLOB, -- 扩展属性，JSON格式
+                                            reserved1 VARCHAR2(500), -- 预留字段1
+                                            reserved2 VARCHAR2(500), -- 预留字段2
+                                            reserved3 VARCHAR2(500), -- 预留字段3
+                                            reserved4 VARCHAR2(500), -- 预留字段4
+                                            reserved5 VARCHAR2(500), -- 预留字段5
+                                            reserved6 VARCHAR2(500), -- 预留字段6
+                                            reserved7 VARCHAR2(500), -- 预留字段7
+                                            reserved8 VARCHAR2(500), -- 预留字段8
+                                            reserved9 VARCHAR2(500), -- 预留字段9
+                                            reserved10 VARCHAR2(500), -- 预留字段10
+
+                                            CONSTRAINT PK_REGISTRY_SERVICE_GROUP PRIMARY KEY (tenantId, serviceGroupId)
+);
+CREATE INDEX IDX_REG_GROUP_NAME ON HUB_REGISTRY_SERVICE_GROUP(tenantId, groupName);
+CREATE INDEX IDX_REG_GROUP_TYPE ON HUB_REGISTRY_SERVICE_GROUP(groupType);
+CREATE INDEX IDX_REG_GROUP_OWNER ON HUB_REGISTRY_SERVICE_GROUP(ownerUserId);
+CREATE INDEX IDX_REG_GROUP_ACTIVE ON HUB_REGISTRY_SERVICE_GROUP(activeFlag);
+COMMENT ON TABLE HUB_REGISTRY_SERVICE_GROUP IS '服务分组表 - 存储服务分组和授权信息';
+
+-- 服务表 - 存储服务基本信息
+CREATE TABLE HUB_REGISTRY_SERVICE (
+                                      tenantId VARCHAR2(32) NOT NULL, -- 租户ID，用于多租户数据隔离
+                                      serviceName VARCHAR2(100) NOT NULL, -- 服务名称，主键
+
+    -- 关联分组（主键关联）
+                                      serviceGroupId VARCHAR2(32) NOT NULL, -- 服务分组ID，关联HUB_REGISTRY_SERVICE_GROUP表主键
+    -- 冗余字段（便于查询和展示）
+                                      groupName VARCHAR2(100) NOT NULL, -- 分组名称，冗余字段便于查询
+
+    -- 服务基本信息
+                                      serviceDescription VARCHAR2(500), -- 服务描述
+
+    -- 服务配置
+                                      protocolType VARCHAR2(20) DEFAULT 'HTTP' NOT NULL, -- 协议类型(HTTP,HTTPS,TCP,UDP,GRPC)
+                                      contextPath VARCHAR2(200) DEFAULT '' NOT NULL, -- 上下文路径
+                                      loadBalanceStrategy VARCHAR2(50) DEFAULT 'ROUND_ROBIN' NOT NULL, -- 负载均衡策略
+
+    -- 健康检查配置
+                                      healthCheckUrl VARCHAR2(500) DEFAULT '/health' NOT NULL, -- 健康检查URL
+                                      healthCheckIntervalSeconds NUMBER(10) DEFAULT 30 NOT NULL, -- 健康检查间隔(秒)
+                                      healthCheckTimeoutSeconds NUMBER(10) DEFAULT 5 NOT NULL, -- 健康检查超时(秒)
+                                      healthCheckType VARCHAR2(20) DEFAULT 'HTTP' NOT NULL, -- 健康检查类型(HTTP,TCP)
+                                      healthCheckMode VARCHAR2(20) DEFAULT 'ACTIVE' NOT NULL, -- 健康检查模式(ACTIVE:主动探测,PASSIVE:客户端上报)
+
+    -- 元数据和标签
+                                      metadataJson CLOB, -- 服务元数据，JSON格式
+                                      tagsJson CLOB, -- 服务标签，JSON格式
+
+    -- 通用字段
+                                      addTime DATE DEFAULT SYSDATE NOT NULL, -- 创建时间
+                                      addWho VARCHAR2(32) NOT NULL, -- 创建人ID
+                                      editTime DATE DEFAULT SYSDATE NOT NULL, -- 最后修改时间
+                                      editWho VARCHAR2(32) NOT NULL, -- 最后修改人ID
+                                      oprSeqFlag VARCHAR2(32) NOT NULL, -- 操作序列标识
+                                      currentVersion NUMBER(10) DEFAULT 1 NOT NULL, -- 当前版本号
+                                      activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 活动状态标记(N非活动,Y活动)
+                                      noteText VARCHAR2(500), -- 备注信息
+                                      extProperty CLOB, -- 扩展属性，JSON格式
+                                      reserved1 VARCHAR2(500), -- 预留字段1
+                                      reserved2 VARCHAR2(500), -- 预留字段2
+                                      reserved3 VARCHAR2(500), -- 预留字段3
+                                      reserved4 VARCHAR2(500), -- 预留字段4
+                                      reserved5 VARCHAR2(500), -- 预留字段5
+                                      reserved6 VARCHAR2(500), -- 预留字段6
+                                      reserved7 VARCHAR2(500), -- 预留字段7
+                                      reserved8 VARCHAR2(500), -- 预留字段8
+                                      reserved9 VARCHAR2(500), -- 预留字段9
+                                      reserved10 VARCHAR2(500), -- 预留字段10
+
+                                      CONSTRAINT PK_REGISTRY_SERVICE PRIMARY KEY (tenantId, serviceName)
+);
+CREATE INDEX IDX_REG_SVC_GROUP_ID ON HUB_REGISTRY_SERVICE(tenantId, serviceGroupId);
+CREATE INDEX IDX_REG_SVC_GROUP_NAME ON HUB_REGISTRY_SERVICE(groupName);
+CREATE INDEX IDX_REG_SVC_ACTIVE ON HUB_REGISTRY_SERVICE(activeFlag);
+COMMENT ON TABLE HUB_REGISTRY_SERVICE IS '服务表 - 存储服务的基本信息和配置';
+
+-- 服务实例表 - 存储具体的服务实例
+CREATE TABLE HUB_REGISTRY_SERVICE_INSTANCE (
+                                               serviceInstanceId VARCHAR2(100) NOT NULL, -- 服务实例ID，主键
+                                               tenantId VARCHAR2(32) NOT NULL, -- 租户ID，用于多租户数据隔离
+
+    -- 关联服务和分组（主键关联）
+                                               serviceGroupId VARCHAR2(32) NOT NULL, -- 服务分组ID，关联HUB_REGISTRY_SERVICE_GROUP表主键
+    -- 冗余字段（便于查询和展示）
+                                               serviceName VARCHAR2(100) NOT NULL, -- 服务名称，冗余字段便于查询
+                                               groupName VARCHAR2(100) NOT NULL, -- 分组名称，冗余字段便于查询
+
+    -- 网络连接信息
+                                               hostAddress VARCHAR2(100) NOT NULL, -- 主机地址
+                                               portNumber NUMBER(10) NOT NULL, -- 端口号
+                                               contextPath VARCHAR2(200) DEFAULT '' NOT NULL, -- 上下文路径
+
+    -- 实例状态信息
+                                               instanceStatus VARCHAR2(20) DEFAULT 'UP' NOT NULL, -- 实例状态(UP,DOWN,STARTING,OUT_OF_SERVICE)
+                                               healthStatus VARCHAR2(20) DEFAULT 'UNKNOWN' NOT NULL, -- 健康状态(HEALTHY,UNHEALTHY,UNKNOWN)
+
+    -- 负载均衡配置
+                                               weightValue NUMBER(10) DEFAULT 100 NOT NULL, -- 权重值
+
+    -- 客户端信息
+                                               clientId VARCHAR2(100), -- 客户端ID
+                                               clientVersion VARCHAR2(50), -- 客户端版本
+                                               clientType VARCHAR2(50) DEFAULT 'SERVICE' NOT NULL, -- 客户端类型(SERVICE,GATEWAY,ADMIN)
+                                               tempInstanceFlag VARCHAR2(1) DEFAULT 'N' NOT NULL, -- 临时实例标记(Y是临时实例,N否)
+
+    -- 健康检查统计
+                                               heartbeatFailCount NUMBER(10) DEFAULT 0 NOT NULL, -- 心跳检查失败次数，仅用于计数
+
+    -- 元数据和标签
+                                               metadataJson CLOB, -- 实例元数据，JSON格式
+                                               tagsJson CLOB, -- 实例标签，JSON格式
+
+    -- 时间戳信息
+                                               registerTime DATE DEFAULT SYSDATE NOT NULL, -- 注册时间
+                                               lastHeartbeatTime DATE, -- 最后心跳时间
+                                               lastHealthCheckTime DATE, -- 最后健康检查时间
+
+    -- 通用字段
+                                               addTime DATE DEFAULT SYSDATE NOT NULL, -- 创建时间
+                                               addWho VARCHAR2(32) NOT NULL, -- 创建人ID
+                                               editTime DATE DEFAULT SYSDATE NOT NULL, -- 最后修改时间
+                                               editWho VARCHAR2(32) NOT NULL, -- 最后修改人ID
+                                               oprSeqFlag VARCHAR2(32) NOT NULL, -- 操作序列标识
+                                               currentVersion NUMBER(10) DEFAULT 1 NOT NULL, -- 当前版本号
+                                               activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 活动状态标记(N非活动,Y活动)
+                                               noteText VARCHAR2(500), -- 备注信息
+                                               extProperty CLOB, -- 扩展属性，JSON格式
+                                               reserved1 VARCHAR2(500), -- 预留字段1
+                                               reserved2 VARCHAR2(500), -- 预留字段2
+                                               reserved3 VARCHAR2(500), -- 预留字段3
+                                               reserved4 VARCHAR2(500), -- 预留字段4
+                                               reserved5 VARCHAR2(500), -- 预留字段5
+                                               reserved6 VARCHAR2(500), -- 预留字段6
+                                               reserved7 VARCHAR2(500), -- 预留字段7
+                                               reserved8 VARCHAR2(500), -- 预留字段8
+                                               reserved9 VARCHAR2(500), -- 预留字段9
+                                               reserved10 VARCHAR2(500), -- 预留字段10
+
+                                               CONSTRAINT PK_REGISTRY_SVC_INSTANCE PRIMARY KEY (tenantId, serviceInstanceId)
+);
+CREATE INDEX IDX_REG_INST_COMPOSITE ON HUB_REGISTRY_SERVICE_INSTANCE(tenantId, serviceGroupId, serviceName, hostAddress, portNumber);
+CREATE INDEX IDX_REG_INST_GROUP_ID ON HUB_REGISTRY_SERVICE_INSTANCE(tenantId, serviceGroupId);
+CREATE INDEX IDX_REG_INST_SVC_NAME ON HUB_REGISTRY_SERVICE_INSTANCE(serviceName);
+CREATE INDEX IDX_REG_INST_GROUP_NAME ON HUB_REGISTRY_SERVICE_INSTANCE(groupName);
+CREATE INDEX IDX_REG_INST_STATUS ON HUB_REGISTRY_SERVICE_INSTANCE(instanceStatus);
+CREATE INDEX IDX_REG_INST_HEALTH ON HUB_REGISTRY_SERVICE_INSTANCE(healthStatus);
+CREATE INDEX IDX_REG_INST_HEARTBEAT ON HUB_REGISTRY_SERVICE_INSTANCE(lastHeartbeatTime);
+CREATE INDEX IDX_REG_INST_HOST_PORT ON HUB_REGISTRY_SERVICE_INSTANCE(hostAddress, portNumber);
+CREATE INDEX IDX_REG_INST_CLIENT ON HUB_REGISTRY_SERVICE_INSTANCE(clientId);
+CREATE INDEX IDX_REG_INST_ACTIVE ON HUB_REGISTRY_SERVICE_INSTANCE(activeFlag);
+CREATE INDEX IDX_REG_INST_TEMP ON HUB_REGISTRY_SERVICE_INSTANCE(tempInstanceFlag);
+COMMENT ON TABLE HUB_REGISTRY_SERVICE_INSTANCE IS '服务实例表 - 存储具体的服务实例信息';
+
+-- 服务事件日志表 - 记录服务变更事件
+CREATE TABLE HUB_REGISTRY_SERVICE_EVENT (
+                                            serviceEventId VARCHAR2(32) NOT NULL, -- 服务事件ID，主键
+                                            tenantId VARCHAR2(32) NOT NULL, -- 租户ID，用于多租户数据隔离
+
+    -- 关联主键字段（用于精确关联到对应表记录）
+                                            serviceGroupId VARCHAR2(32), -- 服务分组ID，关联HUB_REGISTRY_SERVICE_GROUP表主键
+                                            serviceInstanceId VARCHAR2(100), -- 服务实例ID，关联HUB_REGISTRY_SERVICE_INSTANCE表主键
+
+    -- 事件基本信息（冗余字段，便于查询和展示）
+                                            groupName VARCHAR2(100), -- 分组名称，冗余字段便于查询
+                                            serviceName VARCHAR2(100), -- 服务名称，冗余字段便于查询
+                                            hostAddress VARCHAR2(100), -- 主机地址，冗余字段便于查询
+                                            portNumber NUMBER(10), -- 端口号，冗余字段便于查询
+                                            nodeIpAddress VARCHAR2(100), -- 节点IP地址，记录程序运行的IP
+                                            eventType VARCHAR2(50) NOT NULL, -- 事件类型(GROUP_CREATE,GROUP_UPDATE,GROUP_DELETE,SERVICE_CREATE,SERVICE_UPDATE,SERVICE_DELETE,INSTANCE_REGISTER,INSTANCE_DEREGISTER,INSTANCE_HEARTBEAT,INSTANCE_HEALTH_CHANGE,INSTANCE_STATUS_CHANGE)
+                                            eventSource VARCHAR2(100), -- 事件来源
+
+    -- 事件数据
+                                            eventDataJson CLOB, -- 事件数据，JSON格式
+                                            eventMessage VARCHAR2(1000), -- 事件消息描述
+
+    -- 时间信息
+                                            eventTime DATE DEFAULT SYSDATE NOT NULL, -- 事件发生时间
+
+    -- 通用字段
+                                            addTime DATE DEFAULT SYSDATE NOT NULL, -- 创建时间
+                                            addWho VARCHAR2(32) NOT NULL, -- 创建人ID
+                                            editTime DATE DEFAULT SYSDATE NOT NULL, -- 最后修改时间
+                                            editWho VARCHAR2(32) NOT NULL, -- 最后修改人ID
+                                            oprSeqFlag VARCHAR2(32) NOT NULL, -- 操作序列标识
+                                            currentVersion NUMBER(10) DEFAULT 1 NOT NULL, -- 当前版本号
+                                            activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 活动状态标记(N非活动,Y活动)
+                                            noteText VARCHAR2(500), -- 备注信息
+                                            extProperty CLOB, -- 扩展属性，JSON格式
+                                            reserved1 VARCHAR2(500), -- 预留字段1
+                                            reserved2 VARCHAR2(500), -- 预留字段2
+                                            reserved3 VARCHAR2(500), -- 预留字段3
+                                            reserved4 VARCHAR2(500), -- 预留字段4
+                                            reserved5 VARCHAR2(500), -- 预留字段5
+                                            reserved6 VARCHAR2(500), -- 预留字段6
+                                            reserved7 VARCHAR2(500), -- 预留字段7
+                                            reserved8 VARCHAR2(500), -- 预留字段8
+                                            reserved9 VARCHAR2(500), -- 预留字段9
+                                            reserved10 VARCHAR2(500), -- 预留字段10
+
+                                            CONSTRAINT PK_REGISTRY_SVC_EVENT PRIMARY KEY (tenantId, serviceEventId)
+);
+CREATE INDEX IDX_REG_EVENT_GROUP_ID ON HUB_REGISTRY_SERVICE_EVENT(tenantId, serviceGroupId, eventTime);
+CREATE INDEX IDX_REG_EVENT_INST_ID ON HUB_REGISTRY_SERVICE_EVENT(tenantId, serviceInstanceId, eventTime);
+CREATE INDEX IDX_REG_EVENT_GROUP_NAME ON HUB_REGISTRY_SERVICE_EVENT(tenantId, groupName, eventTime);
+CREATE INDEX IDX_REG_EVENT_SVC_NAME ON HUB_REGISTRY_SERVICE_EVENT(tenantId, serviceName, eventTime);
+CREATE INDEX IDX_REG_EVENT_HOST ON HUB_REGISTRY_SERVICE_EVENT(tenantId, hostAddress, portNumber, eventTime);
+CREATE INDEX IDX_REG_EVENT_NODE_IP ON HUB_REGISTRY_SERVICE_EVENT(tenantId, nodeIpAddress, eventTime);
+CREATE INDEX IDX_REG_EVENT_TYPE ON HUB_REGISTRY_SERVICE_EVENT(eventType, eventTime);
+CREATE INDEX IDX_REG_EVENT_TIME ON HUB_REGISTRY_SERVICE_EVENT(eventTime);
+COMMENT ON TABLE HUB_REGISTRY_SERVICE_EVENT IS '服务事件日志表 - 记录服务注册发现相关的所有事件';
+
+-- 外部注册中心配置表 - 存储外部注册中心连接配置
+CREATE TABLE HUB_REGISTRY_EXTERNAL_CONFIG (
+                                              externalConfigId VARCHAR2(32) NOT NULL, -- 外部配置ID，主键
+                                              tenantId VARCHAR2(32) NOT NULL, -- 租户ID，用于多租户数据隔离
+
+    -- 配置基本信息
+                                              configName VARCHAR2(100) NOT NULL, -- 配置名称
+                                              configDescription VARCHAR2(500), -- 配置描述
+                                              registryType VARCHAR2(50) NOT NULL, -- 注册中心类型(CONSUL,NACOS,ETCD,EUREKA,ZOOKEEPER)
+                                              environmentName VARCHAR2(50) DEFAULT 'default' NOT NULL, -- 环境名称(dev,test,prod,default)
+
+    -- 连接配置
+                                              serverAddress VARCHAR2(500) NOT NULL, -- 服务器地址，多个地址用逗号分隔
+                                              serverPort NUMBER(10), -- 服务器端口
+                                              serverPath VARCHAR2(200), -- 服务器路径
+                                              serverScheme VARCHAR2(10) DEFAULT 'http' NOT NULL, -- 连接协议(http,https)
+
+    -- 认证配置
+                                              authEnabled VARCHAR2(1) DEFAULT 'N' NOT NULL, -- 是否启用认证(N否,Y是)
+                                              username VARCHAR2(100), -- 用户名
+                                              password VARCHAR2(200), -- 密码
+                                              accessToken VARCHAR2(500), -- 访问令牌
+                                              secretKey VARCHAR2(200), -- 密钥
+
+    -- 连接配置
+                                              connectionTimeout NUMBER(10) DEFAULT 5000 NOT NULL, -- 连接超时时间(毫秒)
+                                              readTimeout NUMBER(10) DEFAULT 10000 NOT NULL, -- 读取超时时间(毫秒)
+                                              maxRetries NUMBER(10) DEFAULT 3 NOT NULL, -- 最大重试次数
+                                              retryInterval NUMBER(10) DEFAULT 1000 NOT NULL, -- 重试间隔(毫秒)
+
+    -- 特定配置
+                                              specificConfig CLOB, -- 特定注册中心配置，JSON格式
+                                              fieldMapping CLOB, -- 字段映射配置，JSON格式
+
+    -- 故障转移配置
+                                              failoverEnabled VARCHAR2(1) DEFAULT 'N' NOT NULL, -- 是否启用故障转移(N否,Y是)
+                                              failoverConfigId VARCHAR2(32), -- 故障转移配置ID
+                                              failoverStrategy VARCHAR2(50) DEFAULT 'MANUAL' NOT NULL, -- 故障转移策略(MANUAL,AUTO)
+
+    -- 数据同步配置
+                                              syncEnabled VARCHAR2(1) DEFAULT 'N' NOT NULL, -- 是否启用数据同步(N否,Y是)
+                                              syncInterval NUMBER(10) DEFAULT 30 NOT NULL, -- 同步间隔(秒)
+                                              conflictResolution VARCHAR2(50) DEFAULT 'primary_wins' NOT NULL, -- 冲突解决策略(primary_wins,secondary_wins,merge)
+
+    -- 通用字段
+                                              addTime DATE DEFAULT SYSDATE NOT NULL, -- 创建时间
+                                              addWho VARCHAR2(32) NOT NULL, -- 创建人ID
+                                              editTime DATE DEFAULT SYSDATE NOT NULL, -- 最后修改时间
+                                              editWho VARCHAR2(32) NOT NULL, -- 最后修改人ID
+                                              oprSeqFlag VARCHAR2(32) NOT NULL, -- 操作序列标识
+                                              currentVersion NUMBER(10) DEFAULT 1 NOT NULL, -- 当前版本号
+                                              activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 活动状态标记(N非活动,Y活动)
+                                              noteText VARCHAR2(500), -- 备注信息
+                                              extProperty CLOB, -- 扩展属性，JSON格式
+                                              reserved1 VARCHAR2(500), -- 预留字段1
+                                              reserved2 VARCHAR2(500), -- 预留字段2
+                                              reserved3 VARCHAR2(500), -- 预留字段3
+                                              reserved4 VARCHAR2(500), -- 预留字段4
+                                              reserved5 VARCHAR2(500), -- 预留字段5
+                                              reserved6 VARCHAR2(500), -- 预留字段6
+                                              reserved7 VARCHAR2(500), -- 预留字段7
+                                              reserved8 VARCHAR2(500), -- 预留字段8
+                                              reserved9 VARCHAR2(500), -- 预留字段9
+                                              reserved10 VARCHAR2(500), -- 预留字段10
+
+                                              CONSTRAINT PK_REGISTRY_EXT_CONFIG PRIMARY KEY (tenantId, externalConfigId)
+);
+CREATE INDEX IDX_REG_EXT_CFG_NAME ON HUB_REGISTRY_EXTERNAL_CONFIG(tenantId, configName, environmentName);
+CREATE INDEX IDX_REG_EXT_CFG_TYPE ON HUB_REGISTRY_EXTERNAL_CONFIG(registryType);
+CREATE INDEX IDX_REG_EXT_CFG_ENV ON HUB_REGISTRY_EXTERNAL_CONFIG(environmentName);
+CREATE INDEX IDX_REG_EXT_CFG_ACTIVE ON HUB_REGISTRY_EXTERNAL_CONFIG(activeFlag);
+COMMENT ON TABLE HUB_REGISTRY_EXTERNAL_CONFIG IS '外部注册中心配置表 - 存储外部注册中心的连接和配置信息';
+
+-- 外部注册中心状态表 - 存储外部注册中心运行状态
+CREATE TABLE HUB_REGISTRY_EXTERNAL_STATUS (
+                                              externalStatusId VARCHAR2(32) NOT NULL, -- 外部状态ID，主键
+                                              tenantId VARCHAR2(32) NOT NULL, -- 租户ID，用于多租户数据隔离
+                                              externalConfigId VARCHAR2(32) NOT NULL, -- 外部配置ID
+
+    -- 连接状态
+                                              connectionStatus VARCHAR2(20) DEFAULT 'DISCONNECTED' NOT NULL, -- 连接状态(CONNECTED,DISCONNECTED,CONNECTING,ERROR)
+                                              healthStatus VARCHAR2(20) DEFAULT 'UNKNOWN' NOT NULL, -- 健康状态(HEALTHY,UNHEALTHY,UNKNOWN)
+                                              lastConnectTime DATE, -- 最后连接时间
+                                              lastDisconnectTime DATE, -- 最后断开时间
+                                              lastHealthCheckTime DATE, -- 最后健康检查时间
+
+    -- 性能指标
+                                              responseTime NUMBER(10) DEFAULT 0 NOT NULL, -- 响应时间(毫秒)
+                                              successCount NUMBER(19) DEFAULT 0 NOT NULL, -- 成功次数
+                                              errorCount NUMBER(19) DEFAULT 0 NOT NULL, -- 错误次数
+                                              timeoutCount NUMBER(19) DEFAULT 0 NOT NULL, -- 超时次数
+
+    -- 故障转移状态
+                                              failoverStatus VARCHAR2(20) DEFAULT 'NORMAL' NOT NULL, -- 故障转移状态(NORMAL,FAILOVER,RECOVERING)
+                                              failoverTime DATE, -- 故障转移时间
+                                              failoverCount NUMBER(10) DEFAULT 0 NOT NULL, -- 故障转移次数
+                                              recoverTime DATE, -- 恢复时间
+
+    -- 同步状态
+                                              syncStatus VARCHAR2(20) DEFAULT 'IDLE' NOT NULL, -- 同步状态(IDLE,SYNCING,ERROR)
+                                              lastSyncTime DATE, -- 最后同步时间
+                                              syncSuccessCount NUMBER(19) DEFAULT 0 NOT NULL, -- 同步成功次数
+                                              syncErrorCount NUMBER(19) DEFAULT 0 NOT NULL, -- 同步错误次数
+
+    -- 错误信息
+                                              lastErrorMessage VARCHAR2(1000), -- 最后错误消息
+                                              lastErrorTime DATE, -- 最后错误时间
+                                              errorDetails CLOB, -- 错误详情，JSON格式
+
+    -- 通用字段
+                                              addTime DATE DEFAULT SYSDATE NOT NULL, -- 创建时间
+                                              addWho VARCHAR2(32) NOT NULL, -- 创建人ID
+                                              editTime DATE DEFAULT SYSDATE NOT NULL, -- 最后修改时间
+                                              editWho VARCHAR2(32) NOT NULL, -- 最后修改人ID
+                                              oprSeqFlag VARCHAR2(32) NOT NULL, -- 操作序列标识
+                                              currentVersion NUMBER(10) DEFAULT 1 NOT NULL, -- 当前版本号
+                                              activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 活动状态标记(N非活动,Y活动)
+                                              noteText VARCHAR2(500), -- 备注信息
+                                              extProperty CLOB, -- 扩展属性，JSON格式
+                                              reserved1 VARCHAR2(500), -- 预留字段1
+                                              reserved2 VARCHAR2(500), -- 预留字段2
+                                              reserved3 VARCHAR2(500), -- 预留字段3
+                                              reserved4 VARCHAR2(500), -- 预留字段4
+                                              reserved5 VARCHAR2(500), -- 预留字段5
+                                              reserved6 VARCHAR2(500), -- 预留字段6
+                                              reserved7 VARCHAR2(500), -- 预留字段7
+                                              reserved8 VARCHAR2(500), -- 预留字段8
+                                              reserved9 VARCHAR2(500), -- 预留字段9
+                                              reserved10 VARCHAR2(500), -- 预留字段10
+
+                                              CONSTRAINT PK_REGISTRY_EXT_STATUS PRIMARY KEY (tenantId, externalStatusId)
+);
+CREATE INDEX IDX_REG_EXT_STS_CFG ON HUB_REGISTRY_EXTERNAL_STATUS(tenantId, externalConfigId);
+CREATE INDEX IDX_REG_EXT_STS_CONN ON HUB_REGISTRY_EXTERNAL_STATUS(connectionStatus);
+CREATE INDEX IDX_REG_EXT_STS_HEALTH ON HUB_REGISTRY_EXTERNAL_STATUS(healthStatus);
+CREATE INDEX IDX_REG_EXT_STS_FAILOVER ON HUB_REGISTRY_EXTERNAL_STATUS(failoverStatus);
+CREATE INDEX IDX_REG_EXT_STS_SYNC ON HUB_REGISTRY_EXTERNAL_STATUS(syncStatus);
+CREATE INDEX IDX_REG_EXT_STS_ACTIVE ON HUB_REGISTRY_EXTERNAL_STATUS(activeFlag);
+COMMENT ON TABLE HUB_REGISTRY_EXTERNAL_STATUS IS '外部注册中心状态表 - 存储外部注册中心的实时运行状态和性能指标';
 
 
 

@@ -134,6 +134,11 @@ func initializeAndStartApplication() error {
 		return huberrors.WrapError(err, "初始化定时任务失败")
 	}
 
+	// 初始化注册中心（必须在Web应用之前初始化，因为Web层会使用注册中心）
+	if err := initRegistry(); err != nil {
+		return huberrors.WrapError(err, "初始化注册中心失败")
+	}
+
 	// 初始化网关应用
 	if err := initGateway(db); err != nil {
 		return huberrors.WrapError(err, "初始化网关应用失败")
@@ -430,6 +435,30 @@ func initGateway(db database.Database) error {
 	return nil
 }
 
+// initRegistry 初始化注册中心
+// 初始化并启动服务注册与发现功能
+func initRegistry() error {
+	// 检查是否启用注册中心
+	if !config.GetBool("app.registry.enabled", true) {
+		logger.Info("注册中心未启用，跳过初始化")
+		return nil
+	}
+
+	// 获取默认租户ID
+	tenantId := config.GetString("app.registry.tenant_id", "default")
+
+	// 初始化注册中心 - 现在返回的是布尔值，表示是否成功初始化
+	success := timerinit.InitRegistry(appContext, db, tenantId)
+	if !success {
+		logger.Warn("注册中心未能成功初始化，系统将以不使用注册中心模式运行")
+		// 注意：这里不将其视为致命错误，而是允许系统继续运行
+	} else {
+		logger.Info("注册中心初始化并启动成功")
+	}
+
+	return nil
+}
+
 // startGatewayServices 启动网关服务
 func startGatewayServices() error {
 	if gatewayApp == nil {
@@ -500,6 +529,14 @@ func cleanupResources() {
 		logMsg("关闭MongoDB连接时发生错误: %v", err)
 	} else {
 		logMsg("MongoDB连接已成功关闭")
+	}
+
+	// 停止注册中心服务
+	logMsg("正在停止注册中心服务...")
+	if err := timerinit.StopRegistry(appContext); err != nil {
+		logMsg("停止注册中心服务时发生错误: %v", err)
+	} else {
+		logMsg("注册中心服务已成功停止")
 	}
 
 	// 关闭所有数据库连接

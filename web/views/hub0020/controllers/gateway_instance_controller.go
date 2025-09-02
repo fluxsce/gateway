@@ -125,6 +125,9 @@ func (c *GatewayInstanceController) AddGatewayInstance(ctx *gin.Context) {
 	// 清空网关实例ID，让DAO自动生成
 	req.GatewayInstanceId = ""
 
+	// 设置默认健康状态为停止状态（N）
+	req.HealthStatus = "N"
+
 	// 处理日志配置
 	var logConfigId string
 	if req.LogConfig != nil {

@@ -1,542 +1,603 @@
 package core
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
 )
 
-// 常量定义
-const (
-	// 标志位
-	FlagYes = "Y"
-	FlagNo  = "N"
-
-	// 实例状态
-	InstanceStatusUp           = "UP"
-	InstanceStatusDown         = "DOWN"
-	InstanceStatusStarting     = "STARTING"
-	InstanceStatusOutOfService = "OUT_OF_SERVICE"
-
-	// 健康状态
-	HealthStatusHealthy   = "HEALTHY"
-	HealthStatusUnhealthy = "UNHEALTHY"
-	HealthStatusUnknown   = "UNKNOWN"
-
-	// 分组类型
-	GroupTypeBusiness = "BUSINESS"
-	GroupTypeSystem   = "SYSTEM"
-	GroupTypeTest     = "TEST"
-
-	// 客户端类型
-	ClientTypeService = "SERVICE"
-	ClientTypeGateway = "GATEWAY"
-	ClientTypeAdmin   = "ADMIN"
-
-	// 事件类型
-	EventTypeGroupCreate          = "GROUP_CREATE"
-	EventTypeGroupUpdate          = "GROUP_UPDATE"
-	EventTypeGroupDelete          = "GROUP_DELETE"
-	EventTypeServiceCreate        = "SERVICE_CREATE"
-	EventTypeServiceUpdate        = "SERVICE_UPDATE"
-	EventTypeServiceDelete        = "SERVICE_DELETE"
-	EventTypeInstanceRegister     = "INSTANCE_REGISTER"
-	EventTypeInstanceDeregister   = "INSTANCE_DEREGISTER"
-	EventTypeInstanceHeartbeat    = "INSTANCE_HEARTBEAT"
-	EventTypeInstanceHealthChange = "INSTANCE_HEALTH_CHANGE"
-	EventTypeInstanceStatusChange = "INSTANCE_STATUS_CHANGE"
-
-	// 注册中心类型
-	RegistryTypeSystem    = "SYSTEM"
-	RegistryTypeConsul    = "CONSUL"
-	RegistryTypeNacos     = "NACOS"
-	RegistryTypeEtcd      = "ETCD"
-	RegistryTypeEureka    = "EUREKA"
-	RegistryTypeZookeeper = "ZOOKEEPER"
-
-	// 连接状态
-	ConnectionStatusConnected    = "CONNECTED"
-	ConnectionStatusDisconnected = "DISCONNECTED"
-	ConnectionStatusConnecting   = "CONNECTING"
-	ConnectionStatusError        = "ERROR"
-
-	// 故障转移状态
-	FailoverStatusNormal     = "NORMAL"
-	FailoverStatusFailover   = "FAILOVER"
-	FailoverStatusRecovering = "RECOVERING"
-
-	// 同步状态
-	SyncStatusIdle    = "IDLE"
-	SyncStatusSyncing = "SYNCING"
-	SyncStatusError   = "ERROR"
-)
-
-// ================== 独立注册中心表结构 ==================
-
-// ServiceGroup 服务分组表 - 对应 HUB_REGISTRY_SERVICE_GROUP
+// ServiceGroup 服务分组信息
+// 对应数据库表：HUB_REGISTRY_SERVICE_GROUP
 type ServiceGroup struct {
-	// 主键和租户信息
-	ServiceGroupId string `json:"serviceGroupId" db:"serviceGroupId"`
-	TenantId       string `json:"tenantId" db:"tenantId"`
+	// 主键信息
+	ServiceGroupId string `json:"serviceGroupId" db:"serviceGroupId"` // 服务分组ID，主键
+	TenantId       string `json:"tenantId" db:"tenantId"`             // 租户ID，用于多租户数据隔离
 
 	// 分组基本信息
-	GroupName        string `json:"groupName" db:"groupName"`
-	GroupDescription string `json:"groupDescription,omitempty" db:"groupDescription"`
-	GroupType        string `json:"groupType" db:"groupType"`
+	GroupName        string `json:"groupName" db:"groupName"`               // 分组名称
+	GroupDescription string `json:"groupDescription" db:"groupDescription"` // 分组描述
+	GroupType        string `json:"groupType" db:"groupType"`               // 分组类型
 
 	// 授权信息
-	OwnerUserId          string `json:"ownerUserId" db:"ownerUserId"`
-	AdminUserIds         string `json:"adminUserIds,omitempty" db:"adminUserIds"`
-	ReadUserIds          string `json:"readUserIds,omitempty" db:"readUserIds"`
-	AccessControlEnabled string `json:"accessControlEnabled" db:"accessControlEnabled"`
+	OwnerUserId          string `json:"ownerUserId" db:"ownerUserId"`                   // 分组所有者用户ID
+	AdminUserIds         string `json:"adminUserIds" db:"adminUserIds"`                 // 管理员用户ID列表，JSON格式
+	ReadUserIds          string `json:"readUserIds" db:"readUserIds"`                   // 只读用户ID列表，JSON格式
+	AccessControlEnabled string `json:"accessControlEnabled" db:"accessControlEnabled"` // 是否启用访问控制
 
-	// 配置信息
-	DefaultProtocolType               string `json:"defaultProtocolType" db:"defaultProtocolType"`
-	DefaultLoadBalanceStrategy        string `json:"defaultLoadBalanceStrategy" db:"defaultLoadBalanceStrategy"`
-	DefaultHealthCheckUrl             string `json:"defaultHealthCheckUrl" db:"defaultHealthCheckUrl"`
-	DefaultHealthCheckIntervalSeconds int    `json:"defaultHealthCheckIntervalSeconds" db:"defaultHealthCheckIntervalSeconds"`
+	// 默认配置
+	DefaultProtocolType               string `json:"defaultProtocolType" db:"defaultProtocolType"`                             // 默认协议类型
+	DefaultLoadBalanceStrategy        string `json:"defaultLoadBalanceStrategy" db:"defaultLoadBalanceStrategy"`               // 默认负载均衡策略
+	DefaultHealthCheckUrl             string `json:"defaultHealthCheckUrl" db:"defaultHealthCheckUrl"`                         // 默认健康检查URL
+	DefaultHealthCheckIntervalSeconds int    `json:"defaultHealthCheckIntervalSeconds" db:"defaultHealthCheckIntervalSeconds"` // 默认健康检查间隔
 
 	// 通用字段
-	AddTime        time.Time `json:"addTime" db:"addTime"`
-	AddWho         string    `json:"addWho" db:"addWho"`
-	EditTime       time.Time `json:"editTime" db:"editTime"`
-	EditWho        string    `json:"editWho" db:"editWho"`
-	OprSeqFlag     string    `json:"oprSeqFlag" db:"oprSeqFlag"`
-	CurrentVersion int       `json:"currentVersion" db:"currentVersion"`
-	ActiveFlag     string    `json:"activeFlag" db:"activeFlag"`
-	NoteText       string    `json:"noteText,omitempty" db:"noteText"`
-	ExtProperty    string    `json:"extProperty,omitempty" db:"extProperty"`
+	AddTime        time.Time `json:"addTime" db:"addTime"`               // 创建时间
+	AddWho         string    `json:"addWho" db:"addWho"`                 // 创建人ID
+	EditTime       time.Time `json:"editTime" db:"editTime"`             // 最后修改时间
+	EditWho        string    `json:"editWho" db:"editWho"`               // 最后修改人ID
+	OprSeqFlag     string    `json:"oprSeqFlag" db:"oprSeqFlag"`         // 操作序列标识
+	CurrentVersion int       `json:"currentVersion" db:"currentVersion"` // 当前版本号
+	ActiveFlag     string    `json:"activeFlag" db:"activeFlag"`         // 活动状态标记
+	NoteText       string    `json:"noteText" db:"noteText"`             // 备注信息
+	ExtProperty    string    `json:"extProperty" db:"extProperty"`       // 扩展属性
+
+	// 预留字段
+	Reserved1  string `json:"reserved1" db:"reserved1"`   // 预留字段1
+	Reserved2  string `json:"reserved2" db:"reserved2"`   // 预留字段2
+	Reserved3  string `json:"reserved3" db:"reserved3"`   // 预留字段3
+	Reserved4  string `json:"reserved4" db:"reserved4"`   // 预留字段4
+	Reserved5  string `json:"reserved5" db:"reserved5"`   // 预留字段5
+	Reserved6  string `json:"reserved6" db:"reserved6"`   // 预留字段6
+	Reserved7  string `json:"reserved7" db:"reserved7"`   // 预留字段7
+	Reserved8  string `json:"reserved8" db:"reserved8"`   // 预留字段8
+	Reserved9  string `json:"reserved9" db:"reserved9"`   // 预留字段9
+	Reserved10 string `json:"reserved10" db:"reserved10"` // 预留字段10
+
+	// 内存缓存专用字段，非数据库字段
+	Services map[string]*Service `json:"services,omitempty" db:"-"` // 该服务组下的所有服务，key为serviceName
 }
 
-// Service 服务表 - 对应 HUB_REGISTRY_SERVICE
+// Service 服务信息
+// 对应数据库表：HUB_REGISTRY_SERVICE
 type Service struct {
-	// 主键和租户信息
-	TenantId    string `json:"tenantId" db:"tenantId"`
-	ServiceName string `json:"serviceName" db:"serviceName"`
+	// 主键信息
+	TenantId    string `json:"tenantId" db:"tenantId"`       // 租户ID
+	ServiceName string `json:"serviceName" db:"serviceName"` // 服务名称，主键
 
-	// 关联分组
-	GroupName string `json:"groupName" db:"groupName"`
+	// 关联分组信息
+	ServiceGroupId string `json:"serviceGroupId" db:"serviceGroupId"` // 服务分组ID
+	GroupName      string `json:"groupName" db:"groupName"`           // 分组名称（冗余字段）
 
 	// 服务基本信息
-	ServiceDescription string `json:"serviceDescription,omitempty" db:"serviceDescription"`
+	ServiceDescription string `json:"serviceDescription" db:"serviceDescription"` // 服务描述
 
 	// 服务配置
-	ProtocolType        string `json:"protocolType" db:"protocolType"`
-	ContextPath         string `json:"contextPath" db:"contextPath"`
-	LoadBalanceStrategy string `json:"loadBalanceStrategy" db:"loadBalanceStrategy"`
+	ProtocolType        string `json:"protocolType" db:"protocolType"`               // 协议类型
+	ContextPath         string `json:"contextPath" db:"contextPath"`                 // 上下文路径
+	LoadBalanceStrategy string `json:"loadBalanceStrategy" db:"loadBalanceStrategy"` // 负载均衡策略
 
 	// 健康检查配置
-	HealthCheckUrl             string `json:"healthCheckUrl" db:"healthCheckUrl"`
-	HealthCheckIntervalSeconds int    `json:"healthCheckIntervalSeconds" db:"healthCheckIntervalSeconds"`
-	HealthCheckTimeoutSeconds  int    `json:"healthCheckTimeoutSeconds" db:"healthCheckTimeoutSeconds"`
+	HealthCheckUrl             string `json:"healthCheckUrl" db:"healthCheckUrl"`                         // 健康检查URL
+	HealthCheckIntervalSeconds int    `json:"healthCheckIntervalSeconds" db:"healthCheckIntervalSeconds"` // 健康检查间隔
+	HealthCheckTimeoutSeconds  int    `json:"healthCheckTimeoutSeconds" db:"healthCheckTimeoutSeconds"`   // 健康检查超时
+	HealthCheckType            string `json:"healthCheckType" db:"healthCheckType"`                       // 健康检查类型(HTTP,TCP)
+	HealthCheckMode            string `json:"healthCheckMode" db:"healthCheckMode"`                       // 健康检查模式(ACTIVE:主动探测,PASSIVE:客户端上报)
 
 	// 元数据和标签
-	MetadataJson string `json:"metadataJson,omitempty" db:"metadataJson"`
-	TagsJson     string `json:"tagsJson,omitempty" db:"tagsJson"`
+	MetadataJson string `json:"metadataJson" db:"metadataJson"` // 服务元数据，JSON格式
+	TagsJson     string `json:"tagsJson" db:"tagsJson"`         // 服务标签，JSON格式
 
 	// 通用字段
-	AddTime        time.Time `json:"addTime" db:"addTime"`
-	AddWho         string    `json:"addWho" db:"addWho"`
-	EditTime       time.Time `json:"editTime" db:"editTime"`
-	EditWho        string    `json:"editWho" db:"editWho"`
-	OprSeqFlag     string    `json:"oprSeqFlag" db:"oprSeqFlag"`
-	CurrentVersion int       `json:"currentVersion" db:"currentVersion"`
-	ActiveFlag     string    `json:"activeFlag" db:"activeFlag"`
-	NoteText       string    `json:"noteText,omitempty" db:"noteText"`
-	ExtProperty    string    `json:"extProperty,omitempty" db:"extProperty"`
+	AddTime        time.Time `json:"addTime" db:"addTime"`               // 创建时间
+	AddWho         string    `json:"addWho" db:"addWho"`                 // 创建人ID
+	EditTime       time.Time `json:"editTime" db:"editTime"`             // 最后修改时间
+	EditWho        string    `json:"editWho" db:"editWho"`               // 最后修改人ID
+	OprSeqFlag     string    `json:"oprSeqFlag" db:"oprSeqFlag"`         // 操作序列标识
+	CurrentVersion int       `json:"currentVersion" db:"currentVersion"` // 当前版本号
+	ActiveFlag     string    `json:"activeFlag" db:"activeFlag"`         // 活动状态标记
+	NoteText       string    `json:"noteText" db:"noteText"`             // 备注信息
+	ExtProperty    string    `json:"extProperty" db:"extProperty"`       // 扩展属性
+
+	// 预留字段
+	Reserved1  string `json:"reserved1" db:"reserved1"`   // 预留字段1
+	Reserved2  string `json:"reserved2" db:"reserved2"`   // 预留字段2
+	Reserved3  string `json:"reserved3" db:"reserved3"`   // 预留字段3
+	Reserved4  string `json:"reserved4" db:"reserved4"`   // 预留字段4
+	Reserved5  string `json:"reserved5" db:"reserved5"`   // 预留字段5
+	Reserved6  string `json:"reserved6" db:"reserved6"`   // 预留字段6
+	Reserved7  string `json:"reserved7" db:"reserved7"`   // 预留字段7
+	Reserved8  string `json:"reserved8" db:"reserved8"`   // 预留字段8
+	Reserved9  string `json:"reserved9" db:"reserved9"`   // 预留字段9
+	Reserved10 string `json:"reserved10" db:"reserved10"` // 预留字段10
+
+	// 内存缓存专用字段，非数据库字段
+	Instances []*ServiceInstance `json:"instances,omitempty" db:"-"` // 该服务下的所有实例
 }
 
-// ServiceInstance 服务实例表 - 对应 HUB_REGISTRY_SERVICE_INSTANCE
+// ServiceInstance 服务实例信息
+// 对应数据库表：HUB_REGISTRY_SERVICE_INSTANCE
 type ServiceInstance struct {
-	// 主键和租户信息
-	ServiceInstanceId string `json:"serviceInstanceId" db:"serviceInstanceId"`
-	TenantId          string `json:"tenantId" db:"tenantId"`
+	// 主键信息
+	ServiceInstanceId string `json:"serviceInstanceId" db:"serviceInstanceId"` // 服务实例ID，主键
+	TenantId          string `json:"tenantId" db:"tenantId"`                   // 租户ID
 
-	// 关联服务
-	ServiceName string `json:"serviceName" db:"serviceName"`
-	GroupName   string `json:"groupName" db:"groupName"`
+	// 关联信息
+	ServiceGroupId string `json:"serviceGroupId" db:"serviceGroupId"` // 服务分组ID
+	ServiceName    string `json:"serviceName" db:"serviceName"`       // 服务名称（冗余字段）
+	GroupName      string `json:"groupName" db:"groupName"`           // 分组名称（冗余字段）
 
 	// 网络连接信息
-	HostAddress string `json:"hostAddress" db:"hostAddress"`
-	PortNumber  int    `json:"portNumber" db:"portNumber"`
-	ContextPath string `json:"contextPath" db:"contextPath"`
+	HostAddress string `json:"hostAddress" db:"hostAddress"` // 主机地址
+	PortNumber  int    `json:"portNumber" db:"portNumber"`   // 端口号
+	ContextPath string `json:"contextPath" db:"contextPath"` // 上下文路径
 
 	// 实例状态信息
-	InstanceStatus string `json:"instanceStatus" db:"instanceStatus"`
-	HealthStatus   string `json:"healthStatus" db:"healthStatus"`
+	InstanceStatus string `json:"instanceStatus" db:"instanceStatus"` // 实例状态
+	HealthStatus   string `json:"healthStatus" db:"healthStatus"`     // 健康状态
 
 	// 负载均衡配置
-	WeightValue int `json:"weightValue" db:"weightValue"`
+	WeightValue int `json:"weightValue" db:"weightValue"` // 权重值
 
 	// 客户端信息
-	ClientId      string `json:"clientId,omitempty" db:"clientId"`
-	ClientVersion string `json:"clientVersion,omitempty" db:"clientVersion"`
-	ClientType    string `json:"clientType" db:"clientType"`
+	ClientId         string `json:"clientId" db:"clientId"`                 // 客户端ID
+	ClientVersion    string `json:"clientVersion" db:"clientVersion"`       // 客户端版本
+	ClientType       string `json:"clientType" db:"clientType"`             // 客户端类型
+	TempInstanceFlag string `json:"tempInstanceFlag" db:"tempInstanceFlag"` // 临时实例标记(Y是临时实例,N否)
+
+	// 健康检查统计
+	HeartbeatFailCount int `json:"heartbeatFailCount" db:"heartbeatFailCount"` // 心跳检查失败次数，仅用于计数
 
 	// 元数据和标签
-	MetadataJson string `json:"metadataJson,omitempty" db:"metadataJson"`
-	TagsJson     string `json:"tagsJson,omitempty" db:"tagsJson"`
+	MetadataJson string `json:"metadataJson" db:"metadataJson"` // 实例元数据，JSON格式
+	TagsJson     string `json:"tagsJson" db:"tagsJson"`         // 实例标签，JSON格式
 
 	// 时间戳信息
-	RegisterTime        time.Time  `json:"registerTime" db:"registerTime"`
-	LastHeartbeatTime   *time.Time `json:"lastHeartbeatTime,omitempty" db:"lastHeartbeatTime"`
-	LastHealthCheckTime *time.Time `json:"lastHealthCheckTime,omitempty" db:"lastHealthCheckTime"`
+	RegisterTime        time.Time  `json:"registerTime" db:"registerTime"`               // 注册时间
+	LastHeartbeatTime   *time.Time `json:"lastHeartbeatTime" db:"lastHeartbeatTime"`     // 最后心跳时间
+	LastHealthCheckTime *time.Time `json:"lastHealthCheckTime" db:"lastHealthCheckTime"` // 最后健康检查时间
 
 	// 通用字段
-	AddTime        time.Time `json:"addTime" db:"addTime"`
-	AddWho         string    `json:"addWho" db:"addWho"`
-	EditTime       time.Time `json:"editTime" db:"editTime"`
-	EditWho        string    `json:"editWho" db:"editWho"`
-	OprSeqFlag     string    `json:"oprSeqFlag" db:"oprSeqFlag"`
-	CurrentVersion int       `json:"currentVersion" db:"currentVersion"`
-	ActiveFlag     string    `json:"activeFlag" db:"activeFlag"`
-	NoteText       string    `json:"noteText,omitempty" db:"noteText"`
-	ExtProperty    string    `json:"extProperty,omitempty" db:"extProperty"`
+	AddTime        time.Time `json:"addTime" db:"addTime"`               // 创建时间
+	AddWho         string    `json:"addWho" db:"addWho"`                 // 创建人ID
+	EditTime       time.Time `json:"editTime" db:"editTime"`             // 最后修改时间
+	EditWho        string    `json:"editWho" db:"editWho"`               // 最后修改人ID
+	OprSeqFlag     string    `json:"oprSeqFlag" db:"oprSeqFlag"`         // 操作序列标识
+	CurrentVersion int       `json:"currentVersion" db:"currentVersion"` // 当前版本号
+	ActiveFlag     string    `json:"activeFlag" db:"activeFlag"`         // 活动状态标记
+	NoteText       string    `json:"noteText" db:"noteText"`             // 备注信息
+	ExtProperty    string    `json:"extProperty" db:"extProperty"`       // 扩展属性
+
+	// 预留字段
+	Reserved1  string `json:"reserved1" db:"reserved1"`   // 预留字段1
+	Reserved2  string `json:"reserved2" db:"reserved2"`   // 预留字段2
+	Reserved3  string `json:"reserved3" db:"reserved3"`   // 预留字段3
+	Reserved4  string `json:"reserved4" db:"reserved4"`   // 预留字段4
+	Reserved5  string `json:"reserved5" db:"reserved5"`   // 预留字段5
+	Reserved6  string `json:"reserved6" db:"reserved6"`   // 预留字段6
+	Reserved7  string `json:"reserved7" db:"reserved7"`   // 预留字段7
+	Reserved8  string `json:"reserved8" db:"reserved8"`   // 预留字段8
+	Reserved9  string `json:"reserved9" db:"reserved9"`   // 预留字段9
+	Reserved10 string `json:"reserved10" db:"reserved10"` // 预留字段10
 }
 
-// ServiceEvent 服务事件日志表 - 对应 HUB_REGISTRY_SERVICE_EVENT
+// ServiceEvent 服务事件信息
+// 对应数据库表：HUB_REGISTRY_SERVICE_EVENT
 type ServiceEvent struct {
-	// 主键和租户信息
-	ServiceEventId int64  `json:"serviceEventId" db:"serviceEventId"`
-	TenantId       string `json:"tenantId" db:"tenantId"`
+	// 主键信息
+	ServiceEventId string `json:"serviceEventId" db:"serviceEventId"` // 服务事件ID，主键
+	TenantId       string `json:"tenantId" db:"tenantId"`             // 租户ID
 
-	// 事件基本信息
-	GroupName   string `json:"groupName" db:"groupName"`
-	ServiceName string `json:"serviceName" db:"serviceName"`
-	HostAddress string `json:"hostAddress,omitempty" db:"hostAddress"`
-	PortNumber  *int   `json:"portNumber,omitempty" db:"portNumber"`
-	EventType   string `json:"eventType" db:"eventType"`
-	EventSource string `json:"eventSource,omitempty" db:"eventSource"`
+	// 关联信息
+	ServiceGroupId    string `json:"serviceGroupId" db:"serviceGroupId"`       // 服务分组ID
+	ServiceInstanceId string `json:"serviceInstanceId" db:"serviceInstanceId"` // 服务实例ID
+
+	// 事件基本信息（冗余字段）
+	GroupName     string `json:"groupName" db:"groupName"`         // 分组名称
+	ServiceName   string `json:"serviceName" db:"serviceName"`     // 服务名称
+	HostAddress   string `json:"hostAddress" db:"hostAddress"`     // 主机地址
+	PortNumber    int    `json:"portNumber" db:"portNumber"`       // 端口号
+	NodeIpAddress string `json:"nodeIpAddress" db:"nodeIpAddress"` // 节点IP地址，记录程序运行的IP
+
+	EventType   string `json:"eventType" db:"eventType"`     // 事件类型
+	EventSource string `json:"eventSource" db:"eventSource"` // 事件来源
 
 	// 事件数据
-	EventDataJson string `json:"eventDataJson,omitempty" db:"eventDataJson"`
-	EventMessage  string `json:"eventMessage,omitempty" db:"eventMessage"`
+	EventDataJson string `json:"eventDataJson" db:"eventDataJson"` // 事件数据，JSON格式
+	EventMessage  string `json:"eventMessage" db:"eventMessage"`   // 事件消息描述
 
 	// 时间信息
-	EventTime time.Time `json:"eventTime" db:"eventTime"`
+	EventTime time.Time `json:"eventTime" db:"eventTime"` // 事件发生时间
+
+	// 数据传递专用字段（非数据库字段）
+	Service  *Service         `json:"service,omitempty" db:"-"`  // 关联的服务对象，用于事件处理时的数据传递
+	Instance *ServiceInstance `json:"instance,omitempty" db:"-"` // 关联的实例对象，用于事件处理时的数据传递
 
 	// 通用字段
-	AddTime        time.Time `json:"addTime" db:"addTime"`
-	AddWho         string    `json:"addWho" db:"addWho"`
-	EditTime       time.Time `json:"editTime" db:"editTime"`
-	EditWho        string    `json:"editWho" db:"editWho"`
-	OprSeqFlag     string    `json:"oprSeqFlag" db:"oprSeqFlag"`
-	CurrentVersion int       `json:"currentVersion" db:"currentVersion"`
-	ActiveFlag     string    `json:"activeFlag" db:"activeFlag"`
-	NoteText       string    `json:"noteText,omitempty" db:"noteText"`
-	ExtProperty    string    `json:"extProperty,omitempty" db:"extProperty"`
+	AddTime        time.Time `json:"addTime" db:"addTime"`               // 创建时间
+	AddWho         string    `json:"addWho" db:"addWho"`                 // 创建人ID
+	EditTime       time.Time `json:"editTime" db:"editTime"`             // 最后修改时间
+	EditWho        string    `json:"editWho" db:"editWho"`               // 最后修改人ID
+	OprSeqFlag     string    `json:"oprSeqFlag" db:"oprSeqFlag"`         // 操作序列标识
+	CurrentVersion int       `json:"currentVersion" db:"currentVersion"` // 当前版本号
+	ActiveFlag     string    `json:"activeFlag" db:"activeFlag"`         // 活动状态标记
+	NoteText       string    `json:"noteText" db:"noteText"`             // 备注信息
+	ExtProperty    string    `json:"extProperty" db:"extProperty"`       // 扩展属性
+
+	// 预留字段
+	Reserved1  string `json:"reserved1" db:"reserved1"`   // 预留字段1
+	Reserved2  string `json:"reserved2" db:"reserved2"`   // 预留字段2
+	Reserved3  string `json:"reserved3" db:"reserved3"`   // 预留字段3
+	Reserved4  string `json:"reserved4" db:"reserved4"`   // 预留字段4
+	Reserved5  string `json:"reserved5" db:"reserved5"`   // 预留字段5
+	Reserved6  string `json:"reserved6" db:"reserved6"`   // 预留字段6
+	Reserved7  string `json:"reserved7" db:"reserved7"`   // 预留字段7
+	Reserved8  string `json:"reserved8" db:"reserved8"`   // 预留字段8
+	Reserved9  string `json:"reserved9" db:"reserved9"`   // 预留字段9
+	Reserved10 string `json:"reserved10" db:"reserved10"` // 预留字段10
 }
 
-// ================== 外部注册中心表结构 ==================
+// 常量定义
 
-// ExternalRegistryConfig 外部注册中心配置表 - 对应 HUB_REGISTRY_EXTERNAL_CONFIG
-type ExternalRegistryConfig struct {
-	// 主键和租户信息
-	ExternalConfigId string `json:"externalConfigId" db:"externalConfigId"`
-	TenantId         string `json:"tenantId" db:"tenantId"`
+// 实例状态常量
+const (
+	InstanceStatusUp           = "UP"             // 运行中
+	InstanceStatusDown         = "DOWN"           // 停止
+	InstanceStatusStarting     = "STARTING"       // 启动中
+	InstanceStatusOutOfService = "OUT_OF_SERVICE" // 暂停服务
+)
 
-	// 配置基本信息
-	ConfigName        string `json:"configName" db:"configName"`
-	ConfigDescription string `json:"configDescription,omitempty" db:"configDescription"`
-	RegistryType      string `json:"registryType" db:"registryType"`
-	EnvironmentName   string `json:"environmentName" db:"environmentName"`
+// 健康状态常量
+const (
+	HealthStatusHealthy   = "HEALTHY"   // 健康
+	HealthStatusUnhealthy = "UNHEALTHY" // 不健康
+	HealthStatusUnknown   = "UNKNOWN"   // 未知
+)
 
-	// 连接配置
-	ServerAddress string `json:"serverAddress" db:"serverAddress"`
-	ServerPort    *int   `json:"serverPort,omitempty" db:"serverPort"`
-	ServerPath    string `json:"serverPath,omitempty" db:"serverPath"`
-	ServerScheme  string `json:"serverScheme" db:"serverScheme"`
+// 客户端类型常量
+const (
+	ClientTypeService = "SERVICE" // 服务
+	ClientTypeGateway = "GATEWAY" // 网关
+	ClientTypeAdmin   = "ADMIN"   // 管理端
+)
 
-	// 认证配置
-	AuthEnabled string `json:"authEnabled" db:"authEnabled"`
-	Username    string `json:"username,omitempty" db:"username"`
-	Password    string `json:"password,omitempty" db:"password"`
-	AccessToken string `json:"accessToken,omitempty" db:"accessToken"`
-	SecretKey   string `json:"secretKey,omitempty" db:"secretKey"`
+// 协议类型常量
+const (
+	ProtocolTypeHTTP  = "HTTP"  // HTTP协议
+	ProtocolTypeHTTPS = "HTTPS" // HTTPS协议
+	ProtocolTypeTCP   = "TCP"   // TCP协议
+	ProtocolTypeUDP   = "UDP"   // UDP协议
+	ProtocolTypeGRPC  = "GRPC"  // GRPC协议
+)
 
-	// 连接配置
-	ConnectionTimeout int `json:"connectionTimeout" db:"connectionTimeout"`
-	ReadTimeout       int `json:"readTimeout" db:"readTimeout"`
-	MaxRetries        int `json:"maxRetries" db:"maxRetries"`
-	RetryInterval     int `json:"retryInterval" db:"retryInterval"`
+// 负载均衡策略常量
+const (
+	LoadBalanceRoundRobin         = "ROUND_ROBIN"          // 轮询
+	LoadBalanceWeightedRoundRobin = "WEIGHTED_ROUND_ROBIN" // 加权轮询
+	LoadBalanceLeastConnections   = "LEAST_CONNECTIONS"    // 最少连接数
+	LoadBalanceIpHash             = "IP_HASH"              // IP哈希
+	LoadBalanceRandom             = "RANDOM"               // 随机
+)
 
-	// 特定配置
-	SpecificConfig string `json:"specificConfig,omitempty" db:"specificConfig"`
-	FieldMapping   string `json:"fieldMapping,omitempty" db:"fieldMapping"`
+// 临时实例标记常量
+const (
+	TempInstanceFlagYes = "Y" // 是临时实例
+	TempInstanceFlagNo  = "N" // 不是临时实例
+)
 
-	// 故障转移配置
-	FailoverEnabled  string `json:"failoverEnabled" db:"failoverEnabled"`
-	FailoverConfigId string `json:"failoverConfigId,omitempty" db:"failoverConfigId"`
-	FailoverStrategy string `json:"failoverStrategy" db:"failoverStrategy"`
+// 事件类型常量
+const (
+	// 分组相关事件
+	EventTypeServiceGroupCreated = "SERVICE_GROUP_CREATED" // 服务组创建
+	EventTypeServiceGroupUpdated = "SERVICE_GROUP_UPDATED" // 服务组更新
+	EventTypeServiceGroupDeleted = "SERVICE_GROUP_DELETED" // 服务组删除
 
-	// 数据同步配置
-	SyncEnabled        string `json:"syncEnabled" db:"syncEnabled"`
-	SyncInterval       int    `json:"syncInterval" db:"syncInterval"`
-	ConflictResolution string `json:"conflictResolution" db:"conflictResolution"`
+	// 服务相关事件
+	EventTypeServiceRegistered   = "SERVICE_REGISTERED"   // 服务注册
+	EventTypeServiceUpdated      = "SERVICE_UPDATED"      // 服务更新
+	EventTypeServiceDeregistered = "SERVICE_DEREGISTERED" // 服务注销
 
-	// 通用字段
-	AddTime        time.Time `json:"addTime" db:"addTime"`
-	AddWho         string    `json:"addWho" db:"addWho"`
-	EditTime       time.Time `json:"editTime" db:"editTime"`
-	EditWho        string    `json:"editWho" db:"editWho"`
-	OprSeqFlag     string    `json:"oprSeqFlag" db:"oprSeqFlag"`
-	CurrentVersion int       `json:"currentVersion" db:"currentVersion"`
-	ActiveFlag     string    `json:"activeFlag" db:"activeFlag"`
-	NoteText       string    `json:"noteText,omitempty" db:"noteText"`
-	ExtProperty    string    `json:"extProperty,omitempty" db:"extProperty"`
+	// 实例相关事件
+	EventTypeInstanceRegistered       = "INSTANCE_REGISTERED"        // 实例注册
+	EventTypeInstanceDeregistered     = "INSTANCE_DEREGISTERED"      // 实例注销
+	EventTypeInstanceUpdated          = "INSTANCE_UPDATED"           // 实例更新
+	EventTypeInstanceHeartbeatUpdated = "INSTANCE_HEARTBEAT_UPDATED" // 实例心跳更新
+	EventTypeInstanceHealthChange     = "INSTANCE_HEALTH_CHANGE"     // 实例健康状态变更
+	EventTypeInstanceStatusChange     = "INSTANCE_STATUS_CHANGE"     // 实例状态变更
+)
+
+// 事件源常量
+const (
+	EventSourceRegistryManager = "RegistryManager" // 注册中心管理器
+	EventSourceHealthMonitor   = "HealthMonitor"   // 健康监控器
+	EventSourceWebController   = "WebController"   // Web控制器
+	EventSourceSDKService      = "SDKService"      // SDK服务
+	EventSourceSystem          = "SYSTEM"          // 系统
+	EventSourceClient          = "CLIENT"          // 客户端
+	EventSourceScheduler       = "SCHEDULER"       // 调度器
+	EventSourceDatabase        = "DATABASE"        // 数据库
+)
+
+// Context 键常量
+const (
+	ContextKeyEventSource = "EventSource" // 事件源上下文键
+)
+
+// GetEventSourceFromContext 从 context 中获取事件源，如果没有设置则返回默认值
+func GetEventSourceFromContext(ctx context.Context, defaultEventSource string) string {
+	if eventSource, ok := ctx.Value(ContextKeyEventSource).(string); ok && eventSource != "" {
+		return eventSource
+	}
+	return defaultEventSource
 }
 
-// ExternalRegistryStatus 外部注册中心状态表 - 对应 HUB_REGISTRY_EXTERNAL_STATUS
-type ExternalRegistryStatus struct {
-	// 主键和租户信息
-	ExternalStatusId string `json:"externalStatusId" db:"externalStatusId"`
-	TenantId         string `json:"tenantId" db:"tenantId"`
-	ExternalConfigId string `json:"externalConfigId" db:"externalConfigId"`
-
-	// 连接状态
-	ConnectionStatus    string     `json:"connectionStatus" db:"connectionStatus"`
-	HealthStatus        string     `json:"healthStatus" db:"healthStatus"`
-	LastConnectTime     *time.Time `json:"lastConnectTime,omitempty" db:"lastConnectTime"`
-	LastDisconnectTime  *time.Time `json:"lastDisconnectTime,omitempty" db:"lastDisconnectTime"`
-	LastHealthCheckTime *time.Time `json:"lastHealthCheckTime,omitempty" db:"lastHealthCheckTime"`
-
-	// 性能指标
-	ResponseTime int   `json:"responseTime" db:"responseTime"`
-	SuccessCount int64 `json:"successCount" db:"successCount"`
-	ErrorCount   int64 `json:"errorCount" db:"errorCount"`
-	TimeoutCount int64 `json:"timeoutCount" db:"timeoutCount"`
-
-	// 故障转移状态
-	FailoverStatus string     `json:"failoverStatus" db:"failoverStatus"`
-	FailoverTime   *time.Time `json:"failoverTime,omitempty" db:"failoverTime"`
-	FailoverCount  int        `json:"failoverCount" db:"failoverCount"`
-	RecoverTime    *time.Time `json:"recoverTime,omitempty" db:"recoverTime"`
-
-	// 同步状态
-	SyncStatus       string     `json:"syncStatus" db:"syncStatus"`
-	LastSyncTime     *time.Time `json:"lastSyncTime,omitempty" db:"lastSyncTime"`
-	SyncSuccessCount int64      `json:"syncSuccessCount" db:"syncSuccessCount"`
-	SyncErrorCount   int64      `json:"syncErrorCount" db:"syncErrorCount"`
-
-	// 错误信息
-	LastErrorMessage string     `json:"lastErrorMessage,omitempty" db:"lastErrorMessage"`
-	LastErrorTime    *time.Time `json:"lastErrorTime,omitempty" db:"lastErrorTime"`
-	ErrorDetails     string     `json:"errorDetails,omitempty" db:"errorDetails"`
-
-	// 通用字段
-	AddTime        time.Time `json:"addTime" db:"addTime"`
-	AddWho         string    `json:"addWho" db:"addWho"`
-	EditTime       time.Time `json:"editTime" db:"editTime"`
-	EditWho        string    `json:"editWho" db:"editWho"`
-	OprSeqFlag     string    `json:"oprSeqFlag" db:"oprSeqFlag"`
-	CurrentVersion int       `json:"currentVersion" db:"currentVersion"`
-	ActiveFlag     string    `json:"activeFlag" db:"activeFlag"`
-	NoteText       string    `json:"noteText,omitempty" db:"noteText"`
-	ExtProperty    string    `json:"extProperty,omitempty" db:"extProperty"`
+// WithEventSource 在 context 中设置事件源
+func WithEventSource(ctx context.Context, eventSource string) context.Context {
+	return context.WithValue(ctx, ContextKeyEventSource, eventSource)
 }
 
-// ================== 辅助方法 ==================
-
-// GetMetadata 获取元数据
-func (si *ServiceInstance) GetMetadata() map[string]string {
-	if si.MetadataJson == "" {
-		return make(map[string]string)
+// GetValidInstanceStatuses 获取所有有效的实例状态
+func GetValidInstanceStatuses() []string {
+	return []string{
+		InstanceStatusUp,
+		InstanceStatusDown,
+		InstanceStatusStarting,
+		InstanceStatusOutOfService,
 	}
-
-	var metadata map[string]string
-	if err := json.Unmarshal([]byte(si.MetadataJson), &metadata); err != nil {
-		return make(map[string]string)
-	}
-	return metadata
 }
 
-// SetMetadata 设置元数据
-func (si *ServiceInstance) SetMetadata(metadata map[string]string) error {
-	if metadata == nil {
-		si.MetadataJson = ""
-		return nil
+// GetValidHealthStatuses 获取所有有效的健康状态
+func GetValidHealthStatuses() []string {
+	return []string{
+		HealthStatusHealthy,
+		HealthStatusUnhealthy,
+		HealthStatusUnknown,
 	}
-
-	data, err := json.Marshal(metadata)
-	if err != nil {
-		return err
-	}
-	si.MetadataJson = string(data)
-	return nil
 }
 
-// GetTags 获取标签
-func (si *ServiceInstance) GetTags() []string {
-	if si.TagsJson == "" {
-		return []string{}
+// GetValidClientTypes 获取所有有效的客户端类型
+func GetValidClientTypes() []string {
+	return []string{
+		ClientTypeService,
+		ClientTypeGateway,
+		ClientTypeAdmin,
 	}
-
-	var tags []string
-	if err := json.Unmarshal([]byte(si.TagsJson), &tags); err != nil {
-		return []string{}
-	}
-	return tags
 }
 
-// SetTags 设置标签
-func (si *ServiceInstance) SetTags(tags []string) error {
-	if tags == nil {
-		si.TagsJson = ""
-		return nil
+// GetValidTempInstanceFlags 获取所有有效的临时实例标记
+func GetValidTempInstanceFlags() []string {
+	return []string{
+		TempInstanceFlagYes,
+		TempInstanceFlagNo,
 	}
-
-	data, err := json.Marshal(tags)
-	if err != nil {
-		return err
-	}
-	si.TagsJson = string(data)
-	return nil
 }
 
-// GetURL 获取服务实例URL
-func (si *ServiceInstance) GetURL() string {
-	metadata := si.GetMetadata()
-	protocol := metadata["protocol"]
-	if protocol == "" {
-		protocol = "http"
+// GetValidProtocolTypes 获取所有有效的协议类型
+func GetValidProtocolTypes() []string {
+	return []string{
+		ProtocolTypeHTTP,
+		ProtocolTypeHTTPS,
+		ProtocolTypeTCP,
+		ProtocolTypeUDP,
+		ProtocolTypeGRPC,
 	}
-
-	if si.ContextPath == "" {
-		return fmt.Sprintf("%s://%s:%d", protocol, si.HostAddress, si.PortNumber)
-	}
-	return fmt.Sprintf("%s://%s:%d%s", protocol, si.HostAddress, si.PortNumber, si.ContextPath)
 }
 
-// IsHealthy 检查实例是否健康
+// GetValidLoadBalanceStrategies 获取所有有效的负载均衡策略
+func GetValidLoadBalanceStrategies() []string {
+	return []string{
+		LoadBalanceRoundRobin,
+		LoadBalanceWeightedRoundRobin,
+		LoadBalanceLeastConnections,
+		LoadBalanceIpHash,
+		LoadBalanceRandom,
+	}
+}
+
+// IsValidInstanceStatus 检查实例状态是否有效
+func IsValidInstanceStatus(status string) bool {
+	validStatuses := GetValidInstanceStatuses()
+	for _, validStatus := range validStatuses {
+		if status == validStatus {
+			return true
+		}
+	}
+	return false
+}
+
+// IsValidHealthStatus 检查健康状态是否有效
+func IsValidHealthStatus(status string) bool {
+	validStatuses := GetValidHealthStatuses()
+	for _, validStatus := range validStatuses {
+		if status == validStatus {
+			return true
+		}
+	}
+	return false
+}
+
+// IsValidClientType 检查客户端类型是否有效
+func IsValidClientType(clientType string) bool {
+	validTypes := GetValidClientTypes()
+	for _, validType := range validTypes {
+		if clientType == validType {
+			return true
+		}
+	}
+	return false
+}
+
+// IsValidTempInstanceFlag 检查临时实例标记是否有效
+func IsValidTempInstanceFlag(flag string) bool {
+	validFlags := GetValidTempInstanceFlags()
+	for _, validFlag := range validFlags {
+		if flag == validFlag {
+			return true
+		}
+	}
+	return false
+}
+
+// IsHealthy 判断实例是否健康
 func (si *ServiceInstance) IsHealthy() bool {
-	return si.HealthStatus == HealthStatusHealthy
+	return si.HealthStatus == HealthStatusHealthy && si.InstanceStatus == InstanceStatusUp
 }
 
-// IsActive 检查实例是否活跃
-func (si *ServiceInstance) IsActive() bool {
-	return si.ActiveFlag == FlagYes
-}
-
-// IsUp 检查实例是否运行中
-func (si *ServiceInstance) IsUp() bool {
-	return si.InstanceStatus == InstanceStatusUp
-}
-
-// IsAvailable 检查实例是否可用
+// IsAvailable 判断实例是否可用于服务发现
 func (si *ServiceInstance) IsAvailable() bool {
-	return si.IsActive() && si.IsUp() && si.IsHealthy()
+	return si.IsHealthy() && si.ActiveFlag == "Y"
 }
 
-// GetSpecificConfig 获取特定配置
-func (erc *ExternalRegistryConfig) GetSpecificConfig() map[string]interface{} {
-	if erc.SpecificConfig == "" {
-		return make(map[string]interface{})
+// GetFullAddress 获取实例的完整地址
+func (si *ServiceInstance) GetFullAddress() string {
+	portStr := fmt.Sprintf("%d", si.PortNumber)
+	if si.ContextPath != "" && si.ContextPath != "/" {
+		return si.HostAddress + ":" + portStr + si.ContextPath
 	}
-
-	var config map[string]interface{}
-	if err := json.Unmarshal([]byte(erc.SpecificConfig), &config); err != nil {
-		return make(map[string]interface{})
-	}
-	return config
+	return si.HostAddress + ":" + portStr
 }
 
-// SetSpecificConfig 设置特定配置
-func (erc *ExternalRegistryConfig) SetSpecificConfig(config map[string]interface{}) error {
-	if config == nil {
-		erc.SpecificConfig = ""
+// CreateCacheKey 创建缓存键
+func CreateInstanceCacheKey(tenantId, instanceId string) string {
+	return "instance:" + tenantId + ":" + instanceId
+}
+
+// CreateInstanceListCacheKey 创建实例列表缓存键
+func CreateInstanceListCacheKey(tenantId, serviceName, groupName string) string {
+	return "instances:" + tenantId + ":" + groupName + ":" + serviceName
+}
+
+// CreateServiceCacheKey 创建服务缓存键
+func CreateServiceCacheKey(tenantId, serviceName string) string {
+	return "service:" + tenantId + ":" + serviceName
+}
+
+// =============================================================================
+// 对象拷贝方法
+// =============================================================================
+
+// DeepCopy 深拷贝服务分组对象
+// 通过JSON序列化/反序列化实现完整的深拷贝，包括嵌套的Services map
+func (sg *ServiceGroup) DeepCopy() (*ServiceGroup, error) {
+	data, err := json.Marshal(sg)
+	if err != nil {
+		return nil, fmt.Errorf("序列化ServiceGroup失败: %w", err)
+	}
+
+	var copy ServiceGroup
+	if err := json.Unmarshal(data, &copy); err != nil {
+		return nil, fmt.Errorf("反序列化ServiceGroup失败: %w", err)
+	}
+
+	return &copy, nil
+}
+
+// ShallowCopy 浅拷贝服务分组对象
+// 复制所有基本字段，但Services map使用相同的引用
+func (sg *ServiceGroup) ShallowCopy() *ServiceGroup {
+	if sg == nil {
 		return nil
 	}
 
-	data, err := json.Marshal(config)
+	copy := *sg
+	return &copy
+}
+
+// DeepCopy 深拷贝服务对象
+// 通过JSON序列化/反序列化实现完整的深拷贝，包括嵌套的Instances切片
+func (s *Service) DeepCopy() (*Service, error) {
+	data, err := json.Marshal(s)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("序列化Service失败: %w", err)
 	}
-	erc.SpecificConfig = string(data)
-	return nil
+
+	var copy Service
+	if err := json.Unmarshal(data, &copy); err != nil {
+		return nil, fmt.Errorf("反序列化Service失败: %w", err)
+	}
+
+	return &copy, nil
 }
 
-// GetFieldMapping 获取字段映射
-func (erc *ExternalRegistryConfig) GetFieldMapping() map[string]string {
-	if erc.FieldMapping == "" {
-		return make(map[string]string)
-	}
-
-	var mapping map[string]string
-	if err := json.Unmarshal([]byte(erc.FieldMapping), &mapping); err != nil {
-		return make(map[string]string)
-	}
-	return mapping
-}
-
-// SetFieldMapping 设置字段映射
-func (erc *ExternalRegistryConfig) SetFieldMapping(mapping map[string]string) error {
-	if mapping == nil {
-		erc.FieldMapping = ""
+// ShallowCopy 浅拷贝服务对象
+// 复制所有基本字段，但Instances切片使用相同的引用
+func (s *Service) ShallowCopy() *Service {
+	if s == nil {
 		return nil
 	}
 
-	data, err := json.Marshal(mapping)
+	copy := *s
+	return &copy
+}
+
+// DeepCopy 深拷贝服务实例对象
+func (si *ServiceInstance) DeepCopy() (*ServiceInstance, error) {
+	data, err := json.Marshal(si)
 	if err != nil {
-		return err
-	}
-	erc.FieldMapping = string(data)
-	return nil
-}
-
-// IsAuthEnabled 检查是否启用认证
-func (erc *ExternalRegistryConfig) IsAuthEnabled() bool {
-	return erc.AuthEnabled == FlagYes
-}
-
-// IsFailoverEnabled 检查是否启用故障转移
-func (erc *ExternalRegistryConfig) IsFailoverEnabled() bool {
-	return erc.FailoverEnabled == FlagYes
-}
-
-// IsSyncEnabled 检查是否启用同步
-func (erc *ExternalRegistryConfig) IsSyncEnabled() bool {
-	return erc.SyncEnabled == FlagYes
-}
-
-// IsActive 检查配置是否活跃
-func (erc *ExternalRegistryConfig) IsActive() bool {
-	return erc.ActiveFlag == FlagYes
-}
-
-// GetErrorDetails 获取错误详情
-func (ers *ExternalRegistryStatus) GetErrorDetails() map[string]interface{} {
-	if ers.ErrorDetails == "" {
-		return make(map[string]interface{})
+		return nil, fmt.Errorf("序列化ServiceInstance失败: %w", err)
 	}
 
-	var details map[string]interface{}
-	if err := json.Unmarshal([]byte(ers.ErrorDetails), &details); err != nil {
-		return make(map[string]interface{})
+	var copy ServiceInstance
+	if err := json.Unmarshal(data, &copy); err != nil {
+		return nil, fmt.Errorf("反序列化ServiceInstance失败: %w", err)
 	}
-	return details
+
+	return &copy, nil
 }
 
-// SetErrorDetails 设置错误详情
-func (ers *ExternalRegistryStatus) SetErrorDetails(details map[string]interface{}) error {
-	if details == nil {
-		ers.ErrorDetails = ""
+// ShallowCopy 浅拷贝服务实例对象
+func (si *ServiceInstance) ShallowCopy() *ServiceInstance {
+	if si == nil {
 		return nil
 	}
 
-	data, err := json.Marshal(details)
+	copy := *si
+	return &copy
+}
+
+// DeepCopy 深拷贝服务事件对象
+// 通过JSON序列化/反序列化实现完整的深拷贝，包括嵌套的Service和Instance对象
+func (se *ServiceEvent) DeepCopy() (*ServiceEvent, error) {
+	data, err := json.Marshal(se)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("序列化ServiceEvent失败: %w", err)
 	}
-	ers.ErrorDetails = string(data)
-	return nil
+
+	var copy ServiceEvent
+	if err := json.Unmarshal(data, &copy); err != nil {
+		return nil, fmt.Errorf("反序列化ServiceEvent失败: %w", err)
+	}
+
+	return &copy, nil
 }
 
-// IsConnected 检查是否已连接
-func (ers *ExternalRegistryStatus) IsConnected() bool {
-	return ers.ConnectionStatus == ConnectionStatusConnected
-}
+// =============================================================================
+// 使用说明和最佳实践
+// =============================================================================
 
-// IsHealthy 检查是否健康
-func (ers *ExternalRegistryStatus) IsHealthy() bool {
-	return ers.HealthStatus == HealthStatusHealthy
-}
+/*
+拷贝方法使用指南：
+
+1. 深拷贝 (DeepCopy)：
+   - 使用JSON序列化/反序列化实现完整的深拷贝
+   - 适用于需要完全独立的对象副本的场景
+   - 包含所有嵌套对象和切片的完整拷贝
+   - 性能开销相对较大，但数据完全隔离
+
+   使用示例：
+   originalService := &Service{...}
+   copiedService, err := originalService.DeepCopy()
+   if err != nil {
+       // 处理错误
+   }
+
+2. 浅拷贝 (ShallowCopy)：
+   - 复制结构体的所有基本字段
+   - 嵌套对象和切片使用相同的内存引用
+   - 性能开销小，适用于只需要修改基本字段的场景
+   - 注意：修改嵌套对象会影响原对象
+
+   使用示例：
+   originalInstance := &ServiceInstance{...}
+   copiedInstance := originalInstance.ShallowCopy()
+*/

@@ -48,8 +48,8 @@ type ScriptExecutionResult struct {
 	Skipped bool
 }
 
-// ScriptExecutionHistory 脚本执行历史记录
-// 用于跟踪已执行的脚本，防止重复执行
+// ScriptExecutionHistory 脚本执行历史记录（文件级别）
+// 用于跟踪脚本文件的整体执行状态
 type ScriptExecutionHistory struct {
 	// ExecutionId 执行记录ID
 	ExecutionId string `db:"executionId" json:"executionId"`
@@ -80,6 +80,46 @@ type ScriptExecutionHistory struct {
 
 	// StatementsExecuted 执行的SQL语句数量
 	StatementsExecuted int `db:"statementsExecuted" json:"statementsExecuted"`
+
+	// ErrorMessage 错误信息（如果有）
+	ErrorMessage string `db:"errorMessage" json:"errorMessage"`
+
+	// CreatedAt 记录创建时间
+	CreatedAt time.Time `db:"createdAt" json:"createdAt"`
+}
+
+// StatementExecutionHistory SQL语句执行历史记录（语句级别）
+// 用于跟踪每个SQL语句的执行状态，支持增量执行
+type StatementExecutionHistory struct {
+	// StatementId 语句执行记录ID
+	StatementId string `db:"statementId" json:"statementId"`
+
+	// TenantId 租户ID
+	TenantId string `db:"tenantId" json:"tenantId"`
+
+	// ScriptName 所属脚本名称
+	ScriptName string `db:"scriptName" json:"scriptName"`
+
+	// StatementHash 语句内容哈希（用于唯一标识）
+	StatementHash string `db:"statementHash" json:"statementHash"`
+
+	// StatementType 语句类型（CREATE_TABLE, CREATE_INDEX等）
+	StatementType string `db:"statementType" json:"statementType"`
+
+	// StatementContent SQL语句内容
+	StatementContent string `db:"statementContent" json:"statementContent"`
+
+	// DatabaseDriver 数据库驱动类型
+	DatabaseDriver string `db:"databaseDriver" json:"databaseDriver"`
+
+	// ExecutionStatus 执行状态（SUCCESS, FAILED, SKIPPED）
+	ExecutionStatus string `db:"executionStatus" json:"executionStatus"`
+
+	// ExecutionTime 执行时间
+	ExecutionTime time.Time `db:"executionTime" json:"executionTime"`
+
+	// ExecutionDuration 执行耗时（毫秒）
+	ExecutionDuration int64 `db:"executionDuration" json:"executionDuration"`
 
 	// ErrorMessage 错误信息（如果有）
 	ErrorMessage string `db:"errorMessage" json:"errorMessage"`
@@ -199,7 +239,7 @@ func InitializeDatabaseScripts(ctx context.Context, db database.Database) (*Init
 			"driver", driver,
 			"error", result.Error,
 			"duration", result.Duration)
-		return summary, fmt.Errorf("数据库脚本初始化失败: %w", result.Error)
+		return summary, nil
 	}
 
 	return summary, nil
@@ -239,23 +279,8 @@ func executeScriptForDatabase(ctx context.Context, databaseName string, conn dat
 	scriptVersion := calculateScriptVersion(scriptContent)
 	result.ScriptVersion = scriptVersion
 
-	// 检查脚本是否已经执行过
-	scriptName := filepath.Base(scriptFile)
-	executed, err := isScriptAlreadyExecuted(ctx, conn, driver, scriptName, scriptVersion)
-	if err != nil {
-		logger.Warn("检查脚本执行历史失败，继续执行脚本", "error", err)
-	} else if executed {
-		logger.Info("脚本已执行过相同版本，跳过执行",
-			"database", databaseName,
-			"driver", driver,
-			"script", scriptFile,
-			"version", scriptVersion)
-
-		result.Skipped = true
-		result.Success = true
-		result.Duration = time.Since(startTime)
-		return result
-	}
+	// 注意：现在我们不再检查整个脚本是否执行过，而是在语句级别进行检查
+	// 这样允许增量执行新添加的语句，而不需要重新执行整个脚本
 
 	logger.Info("开始执行数据库脚本",
 		"database", databaseName,
@@ -264,19 +289,20 @@ func executeScriptForDatabase(ctx context.Context, databaseName string, conn dat
 		"version", scriptVersion)
 
 	// 根据数据库类型执行脚本
+	scriptName := filepath.Base(scriptFile)
 	switch driver {
 	case dbtypes.DriverMySQL, dbtypes.DriverSQLite, dbtypes.DriverOracle, dbtypes.DriverClickHouse:
-		// SQL类型数据库
-		stmtCount, err := executeSQLScript(ctx, conn, string(scriptContent))
+		// SQL类型数据库 - 按语句级别执行
+		stmtCount, err := executeSQLScriptByStatements(ctx, conn, driver, scriptName, string(scriptContent))
 		result.StatementsExecuted = stmtCount
 		if err != nil {
 			result.Error = fmt.Errorf("执行SQL脚本失败: %w", err)
-			// 记录执行失败的历史
+			// 记录脚本整体执行失败的历史
 			recordScriptExecution(ctx, conn, driver, scriptName, scriptFile, scriptVersion, "FAILED",
 				result.Duration, stmtCount, err.Error())
 		} else {
 			result.Success = true
-			// 记录执行成功的历史
+			// 记录脚本整体执行成功的历史
 			recordScriptExecution(ctx, conn, driver, scriptName, scriptFile, scriptVersion, "SUCCESS",
 				result.Duration, stmtCount, "")
 		}
@@ -312,17 +338,18 @@ func executeScriptForDatabase(ctx context.Context, databaseName string, conn dat
 	return result
 }
 
-// executeSQLScript 执行SQL脚本
-// 解析并执行SQL脚本中的所有语句，支持多语句执行
-func executeSQLScript(ctx context.Context, conn database.Database, scriptContent string) (int, error) {
+// executeSQLScriptByStatements 按语句级别执行SQL脚本
+// 解析SQL脚本，检查每个语句是否已执行，只执行未执行的语句，支持增量执行
+func executeSQLScriptByStatements(ctx context.Context, conn database.Database, driver, scriptName, scriptContent string) (int, error) {
 	// 分割SQL语句
 	statements := splitSQLStatements(scriptContent)
 
-	logger.Info("SQL脚本分析完成", "total_statements", len(statements))
+	logger.Info("SQL脚本分析完成", "script", scriptName, "total_statements", len(statements))
 
 	executedCount := 0
+	skippedCount := 0
 
-	// 逐条执行SQL语句
+	// 逐条检查并执行SQL语句
 	for i, stmt := range statements {
 		// 跳过空语句和注释
 		stmt = strings.TrimSpace(stmt)
@@ -330,34 +357,84 @@ func executeSQLScript(ctx context.Context, conn database.Database, scriptContent
 			continue
 		}
 
+		// 计算语句哈希值
+		stmtHash := calculateStatementHash(stmt)
+		stmtType := getSQLStatementType(stmt)
+
+		// 检查语句执行状态
+		executionStatus, err := getStatementExecutionStatus(ctx, conn, driver, scriptName, stmtHash)
+		if err != nil {
+			logger.Warn("检查语句执行历史失败，继续执行",
+				"statement_index", i+1,
+				"statement_hash", stmtHash,
+				"error", err)
+		} else {
+			switch executionStatus {
+			case "SUCCESS":
+				logger.Info("语句已成功执行过，跳过",
+					"script", scriptName,
+					"statement_index", i+1,
+					"statement_type", stmtType,
+					"statement_hash", stmtHash,
+					"statement_preview", truncateString(stmt, 100))
+				skippedCount++
+				continue
+			case "FAILED", "SKIPPED":
+				logger.Info("语句之前执行失败或跳过，重新执行",
+					"script", scriptName,
+					"statement_index", i+1,
+					"statement_type", stmtType,
+					"statement_hash", stmtHash,
+					"previous_status", executionStatus)
+			case "":
+				logger.Debug("语句未执行过，准备执行",
+					"script", scriptName,
+					"statement_index", i+1,
+					"statement_type", stmtType,
+					"statement_hash", stmtHash)
+			}
+		}
+
 		// 记录即将执行的语句（用于调试）
 		logger.Debug("准备执行SQL语句",
 			"statement_index", i+1,
-			"statement_type", getSQLStatementType(stmt),
+			"statement_type", stmtType,
+			"statement_hash", stmtHash,
 			"statement_preview", truncateString(stmt, 200))
 
 		// 执行SQL语句
-		_, err := conn.Exec(ctx, stmt, nil, false)
+		startTime := time.Now()
+		_, err = conn.Exec(ctx, stmt, nil, false)
+		duration := time.Since(startTime)
+
 		if err != nil {
 			// 记录执行失败的语句信息
 			logger.Error("SQL语句执行失败",
 				"statement_index", i+1,
-				"statement_type", getSQLStatementType(stmt),
+				"statement_type", stmtType,
+				"statement_hash", stmtHash,
 				"statement_preview", truncateString(stmt, 200),
 				"full_statement", stmt,
 				"error", err)
+
+			// 记录语句执行失败的历史（自动判断插入或更新）
+			recordStatementExecution(ctx, conn, driver, scriptName, stmtHash, stmtType, stmt, "FAILED", duration, err.Error())
+
 			return executedCount, fmt.Errorf("执行第%d条SQL语句失败: %w", i+1, err)
 		}
+
+		// 记录语句执行成功的历史（自动判断插入或更新）
+		recordStatementExecution(ctx, conn, driver, scriptName, stmtHash, stmtType, stmt, "SUCCESS", duration, "")
 
 		executedCount++
 
 		// 每执行10条语句记录一次进度（降低频率以便调试）
 		if executedCount%10 == 0 {
-			logger.Info("SQL脚本执行进度", "executed", executedCount, "total", len(statements))
+			logger.Info("SQL脚本执行进度", "script", scriptName, "executed", executedCount, "skipped", skippedCount, "total", len(statements))
 		}
 	}
 
-	logger.Info("SQL脚本执行完成", "total_executed", executedCount)
+	logger.Info("SQL脚本执行完成", "script", scriptName, "total_executed", executedCount, "total_skipped", skippedCount, "total_statements", len(statements))
 	return executedCount, nil
 }
 
@@ -564,7 +641,7 @@ func CheckScriptInitializationConfig() (bool, bool, int, string) {
 }
 
 // ensureScriptHistoryTable 确保脚本执行历史表存在
-// 创建用于跟踪脚本执行历史的表，支持多种数据库类型
+// 创建用于跟踪脚本执行历史的表（包括文件级别和语句级别），支持多种数据库类型
 // 该表用于记录每次脚本执行的详细信息，包括版本、状态、耗时等
 // 参数:
 //   - ctx: 上下文对象，用于控制创建表的超时和取消
@@ -574,6 +651,23 @@ func CheckScriptInitializationConfig() (bool, bool, int, string) {
 // 返回:
 //   - error: 创建表失败时返回错误信息
 func ensureScriptHistoryTable(ctx context.Context, conn database.Database, driver string) error {
+	// 首先创建脚本执行历史表（文件级别）
+	err := createScriptHistoryTable(ctx, conn, driver)
+	if err != nil {
+		return fmt.Errorf("创建脚本执行历史表失败: %w", err)
+	}
+
+	// 然后创建语句执行历史表（语句级别）
+	err = createStatementHistoryTable(ctx, conn, driver)
+	if err != nil {
+		return fmt.Errorf("创建语句执行历史表失败: %w", err)
+	}
+
+	return nil
+}
+
+// createScriptHistoryTable 创建脚本执行历史表（文件级别）
+func createScriptHistoryTable(ctx context.Context, conn database.Database, driver string) error {
 	var createTableSQL string
 
 	switch driver {
@@ -681,6 +775,117 @@ SETTINGS index_granularity = 8192;`
 	return nil
 }
 
+// createStatementHistoryTable 创建语句执行历史表（语句级别）
+func createStatementHistoryTable(ctx context.Context, conn database.Database, driver string) error {
+	var createTableSQL string
+
+	switch driver {
+	case dbtypes.DriverMySQL:
+		createTableSQL = `
+CREATE TABLE IF NOT EXISTS HUB_STATEMENT_EXECUTION_HISTORY (
+    statementId VARCHAR(32) NOT NULL PRIMARY KEY,
+    tenantId VARCHAR(32) NOT NULL DEFAULT 'default',
+    scriptName VARCHAR(255) NOT NULL,
+    statementHash VARCHAR(32) NOT NULL,
+    statementType VARCHAR(50) NOT NULL,
+    statementContent TEXT NOT NULL,
+    databaseDriver VARCHAR(50) NOT NULL,
+    executionStatus VARCHAR(20) NOT NULL,
+    executionTime DATETIME NOT NULL,
+    executionDuration BIGINT NOT NULL DEFAULT 0,
+    errorMessage TEXT,
+    createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX IDX_STMT_HIST_NAME (scriptName),
+    INDEX IDX_STMT_HIST_HASH (statementHash),
+    INDEX IDX_STMT_HIST_TYPE (statementType),
+    INDEX IDX_STMT_HIST_STATUS (executionStatus),
+    INDEX IDX_STMT_HIST_DRIVER (databaseDriver),
+    INDEX IDX_STMT_HIST_TIME (executionTime),
+    UNIQUE KEY UK_STMT_HASH (tenantId, scriptName, statementHash, databaseDriver)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='SQL语句执行历史表';`
+
+	case dbtypes.DriverSQLite:
+		createTableSQL = `
+CREATE TABLE IF NOT EXISTS HUB_STATEMENT_EXECUTION_HISTORY (
+    statementId TEXT NOT NULL PRIMARY KEY,
+    tenantId TEXT NOT NULL DEFAULT 'default',
+    scriptName TEXT NOT NULL,
+    statementHash TEXT NOT NULL,
+    statementType TEXT NOT NULL,
+    statementContent TEXT NOT NULL,
+    databaseDriver TEXT NOT NULL,
+    executionStatus TEXT NOT NULL,
+    executionTime DATETIME NOT NULL,
+    executionDuration INTEGER NOT NULL DEFAULT 0,
+    errorMessage TEXT,
+    createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS IDX_STMT_HIST_NAME ON HUB_STATEMENT_EXECUTION_HISTORY(scriptName);
+CREATE INDEX IF NOT EXISTS IDX_STMT_HIST_HASH ON HUB_STATEMENT_EXECUTION_HISTORY(statementHash);
+CREATE INDEX IF NOT EXISTS IDX_STMT_HIST_TYPE ON HUB_STATEMENT_EXECUTION_HISTORY(statementType);
+CREATE INDEX IF NOT EXISTS IDX_STMT_HIST_STATUS ON HUB_STATEMENT_EXECUTION_HISTORY(executionStatus);
+CREATE INDEX IF NOT EXISTS IDX_STMT_HIST_DRIVER ON HUB_STATEMENT_EXECUTION_HISTORY(databaseDriver);
+CREATE INDEX IF NOT EXISTS IDX_STMT_HIST_TIME ON HUB_STATEMENT_EXECUTION_HISTORY(executionTime);
+CREATE UNIQUE INDEX IF NOT EXISTS UK_STMT_HASH ON HUB_STATEMENT_EXECUTION_HISTORY(tenantId, scriptName, statementHash, databaseDriver);`
+
+	case dbtypes.DriverOracle:
+		createTableSQL = `
+BEGIN
+    EXECUTE IMMEDIATE 'CREATE TABLE HUB_STATEMENT_EXECUTION_HISTORY (
+        statementId VARCHAR2(32) NOT NULL PRIMARY KEY,
+        tenantId VARCHAR2(32) DEFAULT ''default'' NOT NULL,
+        scriptName VARCHAR2(255) NOT NULL,
+        statementHash VARCHAR2(32) NOT NULL,
+        statementType VARCHAR2(50) NOT NULL,
+        statementContent CLOB NOT NULL,
+        databaseDriver VARCHAR2(50) NOT NULL,
+        executionStatus VARCHAR2(20) NOT NULL,
+        executionTime DATE NOT NULL,
+        executionDuration NUMBER(19) DEFAULT 0 NOT NULL,
+        errorMessage CLOB,
+        createdAt DATE DEFAULT SYSDATE NOT NULL
+    )';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE != -955 THEN
+            RAISE;
+        END IF;
+END;`
+
+	case dbtypes.DriverClickHouse:
+		createTableSQL = `
+CREATE TABLE IF NOT EXISTS HUB_STATEMENT_EXECUTION_HISTORY (
+    statementId String,
+    tenantId String DEFAULT 'default',
+    scriptName String,
+    statementHash String,
+    statementType String,
+    statementContent String,
+    databaseDriver String,
+    executionStatus String,
+    executionTime DateTime,
+    executionDuration Int64 DEFAULT 0,
+    errorMessage String,
+    createdAt DateTime DEFAULT now()
+) ENGINE = MergeTree()
+ORDER BY (tenantId, scriptName, statementHash)
+SETTINGS index_granularity = 8192;`
+
+	default:
+		return fmt.Errorf("不支持的数据库驱动类型: %s", driver)
+	}
+
+	logger.Debug("创建语句执行历史表", "driver", driver)
+	_, err := conn.Exec(ctx, createTableSQL, nil, false)
+	if err != nil {
+		return fmt.Errorf("创建语句执行历史表失败: %w", err)
+	}
+
+	logger.Debug("语句执行历史表创建成功", "driver", driver)
+	return nil
+}
+
 // calculateScriptVersion 计算脚本版本
 // 使用MD5哈希计算脚本内容的版本标识，用于检测脚本内容是否发生变化
 // 参数:
@@ -693,41 +898,80 @@ func calculateScriptVersion(scriptContent []byte) string {
 	return fmt.Sprintf("%x", hash)
 }
 
-// isScriptAlreadyExecuted 检查脚本是否已经执行过
-// 查询脚本执行历史表，检查指定版本的脚本是否已成功执行
+// calculateStatementHash 计算SQL语句哈希值
+// 使用MD5哈希计算SQL语句内容的唯一标识，用于跟踪语句执行状态
+// 参数:
+//   - statement: SQL语句内容字符串
+//
+// 返回:
+//   - string: 语句内容的MD5哈希值（32位十六进制字符串）
+func calculateStatementHash(statement string) string {
+	// 先标准化语句：去除首尾空格，统一换行符
+	normalized := strings.TrimSpace(strings.ReplaceAll(statement, "\r\n", "\n"))
+	hash := md5.Sum([]byte(normalized))
+	return fmt.Sprintf("%x", hash)
+}
+
+// isStatementAlreadyExecuted 检查SQL语句是否已经执行过
+// 查询语句执行历史表，检查指定哈希值的语句是否已成功执行
 // 参数:
 //   - ctx: 上下文对象，用于控制查询超时和取消
 //   - conn: 数据库连接实例
 //   - driver: 数据库驱动类型
 //   - scriptName: 脚本文件名
-//   - scriptVersion: 脚本版本（MD5哈希值）
+//   - statementHash: 语句哈希值
 //
 // 返回:
-//   - bool: true表示脚本已执行过，false表示未执行过
+//   - bool: true表示语句已执行过，false表示未执行过
 //   - error: 查询失败时返回错误信息
-func isScriptAlreadyExecuted(ctx context.Context, conn database.Database, driver, scriptName, scriptVersion string) (bool, error) {
+//
+// getStatementExecutionStatus 获取语句的执行状态
+// 查询语句执行历史表，获取指定语句的最新执行状态
+// 参数:
+//   - ctx: 上下文对象，用于控制查询超时和取消
+//   - conn: 数据库连接实例
+//   - driver: 数据库驱动类型
+//   - scriptName: 脚本文件名
+//   - statementHash: 语句哈希值
+//
+// 返回:
+//   - string: 执行状态（SUCCESS, FAILED, SKIPPED, 空字符串表示未执行过）
+//   - error: 查询失败时返回错误信息
+func getStatementExecutionStatus(ctx context.Context, conn database.Database, driver, scriptName, statementHash string) (string, error) {
 	tenantId := config.GetString("database.tenant_id", "default")
 
-	query := `SELECT COUNT(*) as count FROM HUB_SCRIPT_EXECUTION_HISTORY 
-			  WHERE tenantId = ? AND scriptName = ? AND scriptVersion = ? 
-			  AND databaseDriver = ? AND executionStatus = 'SUCCESS'`
+	query := `SELECT executionStatus FROM HUB_STATEMENT_EXECUTION_HISTORY 
+			  WHERE tenantId = ? AND scriptName = ? AND statementHash = ? 
+			  AND databaseDriver = ? 
+			  ORDER BY executionTime DESC LIMIT 1`
 
 	// 定义结果结构体
-	type CountResult struct {
-		Count int `db:"count"`
+	type StatusResult struct {
+		ExecutionStatus string `db:"executionStatus"`
 	}
 
-	var result CountResult
-	err := conn.QueryOne(ctx, &result, query, []interface{}{tenantId, scriptName, scriptVersion, driver}, true)
+	var result StatusResult
+	err := conn.QueryOne(ctx, &result, query, []interface{}{tenantId, scriptName, statementHash, driver}, true)
 	if err != nil {
-		// 如果表不存在或查询失败，认为脚本未执行过
-		if strings.Contains(err.Error(), "no such table") || strings.Contains(err.Error(), "doesn't exist") {
-			return false, nil
+		// 如果表不存在或查询失败，认为语句未执行过
+		if strings.Contains(err.Error(), "no such table") || strings.Contains(err.Error(), "doesn't exist") ||
+			strings.Contains(err.Error(), "no rows") {
+			logger.Debug("语句未执行过或历史表不存在",
+				"table", "HUB_STATEMENT_EXECUTION_HISTORY",
+				"script", scriptName,
+				"statement_hash", statementHash)
+			return "", nil
 		}
-		return false, fmt.Errorf("查询脚本执行历史失败: %w", err)
+		return "", fmt.Errorf("查询语句执行状态失败: %w", err)
 	}
 
-	return result.Count > 0, nil
+	logger.Debug("查询语句执行状态完成",
+		"script", scriptName,
+		"statement_hash", statementHash,
+		"driver", driver,
+		"status", result.ExecutionStatus)
+
+	return result.ExecutionStatus, nil
 }
 
 // recordScriptExecution 记录脚本执行历史
@@ -773,6 +1017,110 @@ func recordScriptExecution(ctx context.Context, conn database.Database, driver, 
 			"status", status,
 			"duration_ms", durationMs)
 	}
+}
+
+// recordStatementExecution 记录SQL语句执行历史
+// 将SQL语句执行结果保存到语句历史表中，如果记录已存在则更新，不存在则插入
+// 参数:
+//   - ctx: 上下文对象，用于控制操作超时和取消
+//   - conn: 数据库连接实例
+//   - driver: 数据库驱动类型
+//   - scriptName: 脚本文件名
+//   - statementHash: 语句哈希值
+//   - statementType: 语句类型
+//   - statementContent: 语句内容
+//   - status: 执行状态（SUCCESS, FAILED, SKIPPED）
+//   - duration: 执行耗时
+//   - errorMessage: 错误信息（如果有）
+func recordStatementExecution(ctx context.Context, conn database.Database, driver, scriptName, statementHash, statementType, statementContent, status string, duration time.Duration, errorMessage string) {
+	tenantId := config.GetString("database.tenant_id", "default")
+	now := time.Now()
+	durationMs := duration.Milliseconds()
+
+	// 首先检查记录是否存在
+	checkQuery := `SELECT statementId FROM HUB_STATEMENT_EXECUTION_HISTORY 
+				   WHERE tenantId = ? AND scriptName = ? AND statementHash = ? AND databaseDriver = ?`
+
+	type ExistingRecord struct {
+		StatementId string `db:"statementId"`
+	}
+
+	var existing ExistingRecord
+	err := conn.QueryOne(ctx, &existing, checkQuery, []interface{}{tenantId, scriptName, statementHash, driver}, true)
+
+	if err != nil && !strings.Contains(err.Error(), "no rows") &&
+		!strings.Contains(err.Error(), "no such table") && !strings.Contains(err.Error(), "doesn't exist") {
+		logger.Error("检查语句执行历史记录失败",
+			"error", err,
+			"script", scriptName,
+			"statement_hash", statementHash)
+		return
+	}
+
+	if existing.StatementId != "" {
+		// 记录存在，执行更新
+		updateSQL := `UPDATE HUB_STATEMENT_EXECUTION_HISTORY 
+					  SET executionStatus = ?, executionTime = ?, executionDuration = ?, 
+					      errorMessage = ?, createdAt = ?
+					  WHERE statementId = ?`
+
+		_, err = conn.Exec(ctx, updateSQL, []interface{}{
+			status, now, durationMs, errorMessage, now, existing.StatementId,
+		}, false)
+
+		if err != nil {
+			logger.Error("更新语句执行历史失败",
+				"error", err,
+				"script", scriptName,
+				"statement_hash", statementHash,
+				"statement_id", existing.StatementId,
+				"status", status)
+		} else {
+			logger.Debug("语句执行历史更新成功",
+				"script", scriptName,
+				"statement_hash", statementHash,
+				"statement_id", existing.StatementId,
+				"status", status,
+				"duration_ms", durationMs)
+		}
+	} else {
+		// 记录不存在，执行插入
+		statementId := generateStatementId()
+		insertSQL := `INSERT INTO HUB_STATEMENT_EXECUTION_HISTORY 
+					  (statementId, tenantId, scriptName, statementHash, statementType, statementContent, 
+					   databaseDriver, executionStatus, executionTime, executionDuration, errorMessage, createdAt)
+					  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+		_, err = conn.Exec(ctx, insertSQL, []interface{}{
+			statementId, tenantId, scriptName, statementHash, statementType, statementContent,
+			driver, status, now, durationMs, errorMessage, now,
+		}, false)
+
+		if err != nil {
+			logger.Error("插入语句执行历史失败",
+				"error", err,
+				"script", scriptName,
+				"statement_hash", statementHash,
+				"statement_id", statementId,
+				"status", status)
+		} else {
+			logger.Debug("语句执行历史插入成功",
+				"script", scriptName,
+				"statement_hash", statementHash,
+				"statement_id", statementId,
+				"status", status,
+				"duration_ms", durationMs)
+		}
+	}
+}
+
+// generateStatementId 生成语句执行记录ID
+// 生成唯一的语句执行记录标识符，基于当前时间戳和纳秒数
+// 返回:
+//   - string: 格式为 "STMT_时间戳_纳秒" 的唯一标识符
+func generateStatementId() string {
+	now := time.Now()
+	return fmt.Sprintf("STMT_%d_%d", now.Unix(), now.Nanosecond()%1000000)
 }
 
 // generateExecutionId 生成执行记录ID

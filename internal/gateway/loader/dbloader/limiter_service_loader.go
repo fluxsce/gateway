@@ -389,7 +389,36 @@ func (loader *LimiterServiceLoader) LoadServiceConfig(ctx context.Context, servi
 	if record.ServiceMetadata != nil && *record.ServiceMetadata != "" {
 		var serviceMetadata map[string]string
 		if err := json.Unmarshal([]byte(*record.ServiceMetadata), &serviceMetadata); err == nil {
+			// 直接解析成功，使用解析的数据
 			serviceConf.ServiceMetadata = serviceMetadata
+		} else {
+			// 如果直接解析失败（可能包含嵌套数据），则先解析为interface{}再提取扁平字段
+			var rawMetadata map[string]interface{}
+			if err := json.Unmarshal([]byte(*record.ServiceMetadata), &rawMetadata); err == nil {
+				serviceMetadata = make(map[string]string)
+				// 只提取字符串类型的扁平字段
+				for key, value := range rawMetadata {
+					if strValue, ok := value.(string); ok {
+						serviceMetadata[key] = strValue
+					}
+				}
+				serviceConf.ServiceMetadata = serviceMetadata
+			}
+		}
+
+		// 添加服务发现相关的元数据（从数据库其他字段获取）
+		if serviceConf.ServiceMetadata != nil {
+			if record.DiscoveryType != nil && *record.DiscoveryType != "" {
+				serviceConf.ServiceMetadata["discoveryType"] = *record.DiscoveryType
+				serviceConf.ServiceMetadata["discovery_type"] = *record.DiscoveryType // 兼容下划线格式
+			}
+
+			if record.DiscoveryConfig != nil && *record.DiscoveryConfig != "" {
+				serviceConf.ServiceMetadata["discoveryConfig"] = *record.DiscoveryConfig
+				serviceConf.ServiceMetadata["discovery_config"] = *record.DiscoveryConfig // 兼容下划线格式
+			}
+			//租户id默认传入避免后续使用没有对应字段
+			serviceConf.ServiceMetadata["tenantId"] = record.TenantId
 		}
 	}
 

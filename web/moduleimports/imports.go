@@ -30,8 +30,14 @@ import (
 	_ "gateway/web/views/hub0022/routes"
 	// 导入网关日志管理模块
 	_ "gateway/web/views/hub0023/routes"
+	// 导入服务分组命名空间管理模块
+	_ "gateway/web/views/hub0040/routes"
+	// 导入服务注册列表管理模块
+	_ "gateway/web/views/hub0041/routes"
 	//导入插件管理模块
 	_ "gateway/web/views/hubplugin/routes"
+	// 导入SDK服务模块
+	_ "gateway/web/sdkservice/regist/routes"
 )
 
 // 这个包没有导出任何函数或变量

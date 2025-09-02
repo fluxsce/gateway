@@ -973,8 +973,8 @@ CREATE TABLE IF NOT EXISTS HUB_GW_LOG_CONFIG (
     PRIMARY KEY (tenantId, logConfigId)
 );
 
-CREATE INDEX idx_HUB_GW_LOG_CONFIG_name ON HUB_GW_LOG_CONFIG(configName);
-CREATE INDEX idx_HUB_GW_LOG_CONFIG_priority ON HUB_GW_LOG_CONFIG(configPriority);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_LOG_CONFIG_name ON HUB_GW_LOG_CONFIG(configName);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_LOG_CONFIG_priority ON HUB_GW_LOG_CONFIG(configPriority);
 
 -- 21. 网关访问日志表
 CREATE TABLE IF NOT EXISTS HUB_GW_ACCESS_LOG (
@@ -1044,15 +1044,15 @@ CREATE TABLE IF NOT EXISTS HUB_GW_ACCESS_LOG (
     PRIMARY KEY (tenantId, traceId)
 );
 
-CREATE INDEX idx_HUB_GW_ACCESS_LOG_time_instance ON HUB_GW_ACCESS_LOG(gatewayStartProcessingTime, gatewayInstanceId);
-CREATE INDEX idx_HUB_GW_ACCESS_LOG_time_route ON HUB_GW_ACCESS_LOG(gatewayStartProcessingTime, routeConfigId);
-CREATE INDEX idx_HUB_GW_ACCESS_LOG_time_service ON HUB_GW_ACCESS_LOG(gatewayStartProcessingTime, serviceDefinitionId);
-CREATE INDEX idx_HUB_GW_ACCESS_LOG_instance_name ON HUB_GW_ACCESS_LOG(gatewayInstanceName, gatewayStartProcessingTime);
-CREATE INDEX idx_HUB_GW_ACCESS_LOG_route_name ON HUB_GW_ACCESS_LOG(routeName, gatewayStartProcessingTime);
-CREATE INDEX idx_HUB_GW_ACCESS_LOG_service_name ON HUB_GW_ACCESS_LOG(serviceName, gatewayStartProcessingTime);
-CREATE INDEX idx_HUB_GW_ACCESS_LOG_client_ip ON HUB_GW_ACCESS_LOG(clientIpAddress, gatewayStartProcessingTime);
-CREATE INDEX idx_HUB_GW_ACCESS_LOG_status_time ON HUB_GW_ACCESS_LOG(gatewayStatusCode, gatewayStartProcessingTime);
-CREATE INDEX idx_HUB_GW_ACCESS_LOG_proxy_type ON HUB_GW_ACCESS_LOG(proxyType, gatewayStartProcessingTime);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_time_instance ON HUB_GW_ACCESS_LOG(gatewayStartProcessingTime, gatewayInstanceId);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_time_route ON HUB_GW_ACCESS_LOG(gatewayStartProcessingTime, routeConfigId);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_time_service ON HUB_GW_ACCESS_LOG(gatewayStartProcessingTime, serviceDefinitionId);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_instance_name ON HUB_GW_ACCESS_LOG(gatewayInstanceName, gatewayStartProcessingTime);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_route_name ON HUB_GW_ACCESS_LOG(routeName, gatewayStartProcessingTime);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_service_name ON HUB_GW_ACCESS_LOG(serviceName, gatewayStartProcessingTime);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_client_ip ON HUB_GW_ACCESS_LOG(clientIpAddress, gatewayStartProcessingTime);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_status_time ON HUB_GW_ACCESS_LOG(gatewayStatusCode, gatewayStartProcessingTime);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_proxy_type ON HUB_GW_ACCESS_LOG(proxyType, gatewayStartProcessingTime);
 
 -- 22. 安全配置表
 CREATE TABLE IF NOT EXISTS HUB_GW_SECURITY_CONFIG (
@@ -1081,9 +1081,9 @@ CREATE TABLE IF NOT EXISTS HUB_GW_SECURITY_CONFIG (
     PRIMARY KEY (tenantId, securityConfigId)
 );
 
-CREATE INDEX idx_HUB_GW_SECURITY_CONFIG_instance ON HUB_GW_SECURITY_CONFIG(gatewayInstanceId);
-CREATE INDEX idx_HUB_GW_SECURITY_CONFIG_route ON HUB_GW_SECURITY_CONFIG(routeConfigId);
-CREATE INDEX idx_HUB_GW_SECURITY_CONFIG_priority ON HUB_GW_SECURITY_CONFIG(configPriority);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_SECURITY_CONFIG_instance ON HUB_GW_SECURITY_CONFIG(gatewayInstanceId);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_SECURITY_CONFIG_route ON HUB_GW_SECURITY_CONFIG(routeConfigId);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_SECURITY_CONFIG_priority ON HUB_GW_SECURITY_CONFIG(configPriority);
 
 -- 23. IP访问控制配置表
 CREATE TABLE IF NOT EXISTS HUB_GW_IP_ACCESS_CONFIG (
@@ -1115,7 +1115,7 @@ CREATE TABLE IF NOT EXISTS HUB_GW_IP_ACCESS_CONFIG (
     PRIMARY KEY (tenantId, ipAccessConfigId)
 );
 
-CREATE INDEX idx_HUB_GW_IP_ACCESS_CONFIG_security ON HUB_GW_IP_ACCESS_CONFIG(securityConfigId);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_IP_ACCESS_CONFIG_security ON HUB_GW_IP_ACCESS_CONFIG(securityConfigId);
 
 -- 24. User-Agent访问控制配置表
 CREATE TABLE IF NOT EXISTS HUB_GW_USERAGENT_ACCESS_CONFIG (
@@ -1144,7 +1144,7 @@ CREATE TABLE IF NOT EXISTS HUB_GW_USERAGENT_ACCESS_CONFIG (
     PRIMARY KEY (tenantId, useragentAccessConfigId)
 );
 
-CREATE INDEX idx_HUB_GW_USERAGENT_ACCESS_CONFIG_security ON HUB_GW_USERAGENT_ACCESS_CONFIG(securityConfigId);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_USERAGENT_ACCESS_CONFIG_security ON HUB_GW_USERAGENT_ACCESS_CONFIG(securityConfigId);
 
 -- 25. API访问控制配置表
 CREATE TABLE IF NOT EXISTS HUB_GW_API_ACCESS_CONFIG (
@@ -1174,7 +1174,7 @@ CREATE TABLE IF NOT EXISTS HUB_GW_API_ACCESS_CONFIG (
     PRIMARY KEY (tenantId, apiAccessConfigId)
 );
 
-CREATE INDEX idx_HUB_GW_API_ACCESS_CONFIG_security ON HUB_GW_API_ACCESS_CONFIG(securityConfigId);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_API_ACCESS_CONFIG_security ON HUB_GW_API_ACCESS_CONFIG(securityConfigId);
 
 -- 26. 域名访问控制配置表
 CREATE TABLE IF NOT EXISTS HUB_GW_DOMAIN_ACCESS_CONFIG (
@@ -1203,7 +1203,7 @@ CREATE TABLE IF NOT EXISTS HUB_GW_DOMAIN_ACCESS_CONFIG (
     PRIMARY KEY (tenantId, domainAccessConfigId)
 );
 
-CREATE INDEX idx_HUB_GW_DOMAIN_ACCESS_CONFIG_security ON HUB_GW_DOMAIN_ACCESS_CONFIG(securityConfigId);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_DOMAIN_ACCESS_CONFIG_security ON HUB_GW_DOMAIN_ACCESS_CONFIG(securityConfigId);
 
 -- 27. 服务器信息主表
 CREATE TABLE IF NOT EXISTS HUB_METRIC_SERVER_INFO (
@@ -1245,7 +1245,7 @@ CREATE TABLE IF NOT EXISTS HUB_METRIC_SERVER_INFO (
     PRIMARY KEY (tenantId, metricServerId)
 );
 
-CREATE UNIQUE INDEX IDX_METRIC_SERVER_HOST ON HUB_METRIC_SERVER_INFO(hostname);
+CREATE INDEX IDX_METRIC_SERVER_HOST ON HUB_METRIC_SERVER_INFO(hostname);
 CREATE INDEX IDX_METRIC_SERVER_OS ON HUB_METRIC_SERVER_INFO(osType);
 CREATE INDEX IDX_METRIC_SERVER_IP ON HUB_METRIC_SERVER_INFO(ipAddress);
 CREATE INDEX IDX_METRIC_SERVER_TYPE ON HUB_METRIC_SERVER_INFO(serverType);
@@ -1623,6 +1623,410 @@ CREATE INDEX IDX_METRIC_TEMP_ACTIVE ON HUB_METRIC_TEMPERATURE_LOG(activeFlag);
 CREATE INDEX IDX_METRIC_TEMP_SRV_TIME ON HUB_METRIC_TEMPERATURE_LOG(metricServerId, collectTime);
 CREATE INDEX IDX_METRIC_TEMP_SRV_SENSOR ON HUB_METRIC_TEMPERATURE_LOG(metricServerId, sensorName);
 CREATE INDEX IDX_METRIC_TEMP_TNT_TIME ON HUB_METRIC_TEMPERATURE_LOG(tenantId, collectTime);
+
+-- =====================================================
+-- 服务注册中心相关表结构
+-- 基于 service_registry.sql 转换为 SQLite 格式
+-- =====================================================
+
+-- 服务分组表 - 存储服务分组和授权信息
+CREATE TABLE IF NOT EXISTS HUB_REGISTRY_SERVICE_GROUP (
+  -- 主键和租户信息
+  serviceGroupId TEXT NOT NULL,
+  tenantId TEXT NOT NULL,
+  
+  -- 分组基本信息
+  groupName TEXT NOT NULL,
+  groupDescription TEXT,
+  groupType TEXT DEFAULT 'BUSINESS',
+  
+  -- 授权信息
+  ownerUserId TEXT NOT NULL,
+  adminUserIds TEXT,
+  readUserIds TEXT,
+  accessControlEnabled TEXT DEFAULT 'N',
+  
+  -- 配置信息
+  defaultProtocolType TEXT DEFAULT 'HTTP',
+  defaultLoadBalanceStrategy TEXT DEFAULT 'ROUND_ROBIN',
+  defaultHealthCheckUrl TEXT DEFAULT '/health',
+  defaultHealthCheckIntervalSeconds INTEGER DEFAULT 30,
+  
+  -- 通用字段
+  addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  addWho TEXT NOT NULL,
+  editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y',
+  noteText TEXT,
+  extProperty TEXT,
+  reserved1 TEXT,
+  reserved2 TEXT,
+  reserved3 TEXT,
+  reserved4 TEXT,
+  reserved5 TEXT,
+  reserved6 TEXT,
+  reserved7 TEXT,
+  reserved8 TEXT,
+  reserved9 TEXT,
+  reserved10 TEXT,
+  
+  PRIMARY KEY (tenantId, serviceGroupId)
+);
+
+-- 服务表 - 存储服务基本信息
+CREATE TABLE IF NOT EXISTS HUB_REGISTRY_SERVICE (
+  -- 主键和租户信息
+  tenantId TEXT NOT NULL,
+  serviceName TEXT NOT NULL,
+  
+  -- 关联分组（主键关联）
+  serviceGroupId TEXT NOT NULL,
+  -- 冗余字段（便于查询和展示）
+  groupName TEXT NOT NULL,
+  
+  -- 服务基本信息
+  serviceDescription TEXT,
+  
+  -- 服务配置
+  protocolType TEXT DEFAULT 'HTTP',
+  contextPath TEXT DEFAULT '',
+  loadBalanceStrategy TEXT DEFAULT 'ROUND_ROBIN',
+  
+  -- 健康检查配置
+  healthCheckUrl TEXT DEFAULT '/health',
+  healthCheckIntervalSeconds INTEGER DEFAULT 30,
+  healthCheckTimeoutSeconds INTEGER DEFAULT 5,
+  healthCheckType TEXT DEFAULT 'HTTP',
+  healthCheckMode TEXT DEFAULT 'ACTIVE',
+  
+  -- 元数据和标签
+  metadataJson TEXT,
+  tagsJson TEXT,
+  
+  -- 通用字段
+  addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  addWho TEXT NOT NULL,
+  editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y',
+  noteText TEXT,
+  extProperty TEXT,
+  reserved1 TEXT,
+  reserved2 TEXT,
+  reserved3 TEXT,
+  reserved4 TEXT,
+  reserved5 TEXT,
+  reserved6 TEXT,
+  reserved7 TEXT,
+  reserved8 TEXT,
+  reserved9 TEXT,
+  reserved10 TEXT,
+  
+  PRIMARY KEY (tenantId, serviceName)
+);
+
+-- 服务实例表 - 存储具体的服务实例
+CREATE TABLE IF NOT EXISTS HUB_REGISTRY_SERVICE_INSTANCE (
+  -- 主键和租户信息
+  serviceInstanceId TEXT NOT NULL,
+  tenantId TEXT NOT NULL,
+  
+  -- 关联服务和分组（主键关联）
+  serviceGroupId TEXT NOT NULL,
+  -- 冗余字段（便于查询和展示）
+  serviceName TEXT NOT NULL,
+  groupName TEXT NOT NULL,
+  
+  -- 网络连接信息
+  hostAddress TEXT NOT NULL,
+  portNumber INTEGER NOT NULL,
+  contextPath TEXT DEFAULT '',
+  
+  -- 实例状态信息
+  instanceStatus TEXT NOT NULL DEFAULT 'UP',
+  healthStatus TEXT NOT NULL DEFAULT 'UNKNOWN',
+  
+  -- 负载均衡配置
+  weightValue INTEGER NOT NULL DEFAULT 100,
+  
+  -- 客户端信息
+  clientId TEXT,
+  clientVersion TEXT,
+  clientType TEXT DEFAULT 'SERVICE',
+  tempInstanceFlag TEXT NOT NULL DEFAULT 'N',
+  
+  -- 健康检查统计
+  heartbeatFailCount INTEGER NOT NULL DEFAULT 0,
+  
+  -- 元数据和标签
+  metadataJson TEXT,
+  tagsJson TEXT,
+  
+  -- 时间戳信息
+  registerTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  lastHeartbeatTime DATETIME,
+  lastHealthCheckTime DATETIME,
+  
+  -- 通用字段
+  addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  addWho TEXT NOT NULL,
+  editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y',
+  noteText TEXT,
+  extProperty TEXT,
+  reserved1 TEXT,
+  reserved2 TEXT,
+  reserved3 TEXT,
+  reserved4 TEXT,
+  reserved5 TEXT,
+  reserved6 TEXT,
+  reserved7 TEXT,
+  reserved8 TEXT,
+  reserved9 TEXT,
+  reserved10 TEXT,
+  
+  PRIMARY KEY (tenantId, serviceInstanceId)
+);
+
+-- 服务事件日志表 - 记录服务变更事件
+CREATE TABLE IF NOT EXISTS HUB_REGISTRY_SERVICE_EVENT (
+  -- 主键和租户信息
+  serviceEventId TEXT NOT NULL,
+  tenantId TEXT NOT NULL,
+  
+  -- 关联主键字段（用于精确关联到对应表记录）
+  serviceGroupId TEXT,
+  serviceInstanceId TEXT,
+  
+  -- 事件基本信息（冗余字段，便于查询和展示）
+  groupName TEXT,
+  serviceName TEXT,
+  hostAddress TEXT,
+  portNumber INTEGER,
+  nodeIpAddress TEXT,
+  eventType TEXT NOT NULL,
+  eventSource TEXT,
+  
+  -- 事件数据
+  eventDataJson TEXT,
+  eventMessage TEXT,
+  
+  -- 时间信息
+  eventTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  
+  -- 通用字段
+  addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  addWho TEXT NOT NULL,
+  editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y',
+  noteText TEXT,
+  extProperty TEXT,
+  reserved1 TEXT,
+  reserved2 TEXT,
+  reserved3 TEXT,
+  reserved4 TEXT,
+  reserved5 TEXT,
+  reserved6 TEXT,
+  reserved7 TEXT,
+  reserved8 TEXT,
+  reserved9 TEXT,
+  reserved10 TEXT,
+  
+  PRIMARY KEY (tenantId, serviceEventId)
+);
+
+-- 外部注册中心配置表 - 存储外部注册中心连接配置
+CREATE TABLE IF NOT EXISTS HUB_REGISTRY_EXTERNAL_CONFIG (
+  -- 主键和租户信息
+  externalConfigId TEXT NOT NULL,
+  tenantId TEXT NOT NULL,
+  
+  -- 配置基本信息
+  configName TEXT NOT NULL,
+  configDescription TEXT,
+  registryType TEXT NOT NULL,
+  environmentName TEXT NOT NULL DEFAULT 'default',
+  
+  -- 连接配置
+  serverAddress TEXT NOT NULL,
+  serverPort INTEGER,
+  serverPath TEXT,
+  serverScheme TEXT DEFAULT 'http',
+  
+  -- 认证配置
+  authEnabled TEXT DEFAULT 'N',
+  username TEXT,
+  password TEXT,
+  accessToken TEXT,
+  secretKey TEXT,
+  
+  -- 连接配置
+  connectionTimeout INTEGER DEFAULT 5000,
+  readTimeout INTEGER DEFAULT 10000,
+  maxRetries INTEGER DEFAULT 3,
+  retryInterval INTEGER DEFAULT 1000,
+  
+  -- 特定配置
+  specificConfig TEXT,
+  fieldMapping TEXT,
+  
+  -- 故障转移配置
+  failoverEnabled TEXT DEFAULT 'N',
+  failoverConfigId TEXT,
+  failoverStrategy TEXT DEFAULT 'MANUAL',
+  
+  -- 数据同步配置
+  syncEnabled TEXT DEFAULT 'N',
+  syncInterval INTEGER DEFAULT 30,
+  conflictResolution TEXT DEFAULT 'primary_wins',
+  
+  -- 通用字段
+  addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  addWho TEXT NOT NULL,
+  editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y',
+  noteText TEXT,
+  extProperty TEXT,
+  reserved1 TEXT,
+  reserved2 TEXT,
+  reserved3 TEXT,
+  reserved4 TEXT,
+  reserved5 TEXT,
+  reserved6 TEXT,
+  reserved7 TEXT,
+  reserved8 TEXT,
+  reserved9 TEXT,
+  reserved10 TEXT,
+  
+  PRIMARY KEY (tenantId, externalConfigId)
+);
+
+-- 外部注册中心状态表 - 存储外部注册中心运行状态
+CREATE TABLE IF NOT EXISTS HUB_REGISTRY_EXTERNAL_STATUS (
+  -- 主键和租户信息
+  externalStatusId TEXT NOT NULL,
+  tenantId TEXT NOT NULL,
+  externalConfigId TEXT NOT NULL,
+  
+  -- 连接状态
+  connectionStatus TEXT NOT NULL DEFAULT 'DISCONNECTED',
+  healthStatus TEXT NOT NULL DEFAULT 'UNKNOWN',
+  lastConnectTime DATETIME,
+  lastDisconnectTime DATETIME,
+  lastHealthCheckTime DATETIME,
+  
+  -- 性能指标
+  responseTime INTEGER DEFAULT 0,
+  successCount INTEGER DEFAULT 0,
+  errorCount INTEGER DEFAULT 0,
+  timeoutCount INTEGER DEFAULT 0,
+  
+  -- 故障转移状态
+  failoverStatus TEXT DEFAULT 'NORMAL',
+  failoverTime DATETIME,
+  failoverCount INTEGER DEFAULT 0,
+  recoverTime DATETIME,
+  
+  -- 同步状态
+  syncStatus TEXT DEFAULT 'IDLE',
+  lastSyncTime DATETIME,
+  syncSuccessCount INTEGER DEFAULT 0,
+  syncErrorCount INTEGER DEFAULT 0,
+  
+  -- 错误信息
+  lastErrorMessage TEXT,
+  lastErrorTime DATETIME,
+  errorDetails TEXT,
+  
+  -- 通用字段
+  addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  addWho TEXT NOT NULL,
+  editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y',
+  noteText TEXT,
+  extProperty TEXT,
+  reserved1 TEXT,
+  reserved2 TEXT,
+  reserved3 TEXT,
+  reserved4 TEXT,
+  reserved5 TEXT,
+  reserved6 TEXT,
+  reserved7 TEXT,
+  reserved8 TEXT,
+  reserved9 TEXT,
+  reserved10 TEXT,
+  
+  PRIMARY KEY (tenantId, externalStatusId)
+);
+
+-- =====================================================
+-- 服务注册中心相关索引
+-- =====================================================
+
+-- HUB_REGISTRY_SERVICE_GROUP 索引
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_GROUP_NAME ON HUB_REGISTRY_SERVICE_GROUP(tenantId, groupName);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_GROUP_TYPE ON HUB_REGISTRY_SERVICE_GROUP(groupType);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_GROUP_OWNER ON HUB_REGISTRY_SERVICE_GROUP(ownerUserId);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_GROUP_ACTIVE ON HUB_REGISTRY_SERVICE_GROUP(activeFlag);
+
+-- HUB_REGISTRY_SERVICE 索引
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_SVC_GROUP_ID ON HUB_REGISTRY_SERVICE(tenantId, serviceGroupId);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_SVC_GROUP_NAME ON HUB_REGISTRY_SERVICE(groupName);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_SVC_ACTIVE ON HUB_REGISTRY_SERVICE(activeFlag);
+
+-- HUB_REGISTRY_SERVICE_INSTANCE 索引
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_INSTANCE ON HUB_REGISTRY_SERVICE_INSTANCE(tenantId, serviceGroupId, serviceName, hostAddress, portNumber);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_INST_GROUP_ID ON HUB_REGISTRY_SERVICE_INSTANCE(tenantId, serviceGroupId);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_INST_SVC_NAME ON HUB_REGISTRY_SERVICE_INSTANCE(serviceName);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_INST_GROUP_NAME ON HUB_REGISTRY_SERVICE_INSTANCE(groupName);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_INST_STATUS ON HUB_REGISTRY_SERVICE_INSTANCE(instanceStatus);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_INST_HEALTH ON HUB_REGISTRY_SERVICE_INSTANCE(healthStatus);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_INST_HEARTBEAT ON HUB_REGISTRY_SERVICE_INSTANCE(lastHeartbeatTime);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_INST_HOST_PORT ON HUB_REGISTRY_SERVICE_INSTANCE(hostAddress, portNumber);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_INST_CLIENT ON HUB_REGISTRY_SERVICE_INSTANCE(clientId);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_INST_ACTIVE ON HUB_REGISTRY_SERVICE_INSTANCE(activeFlag);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_INST_TEMP ON HUB_REGISTRY_SERVICE_INSTANCE(tempInstanceFlag);
+
+-- HUB_REGISTRY_SERVICE_EVENT 索引
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EVENT_GROUP_ID ON HUB_REGISTRY_SERVICE_EVENT(tenantId, serviceGroupId, eventTime);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EVENT_INSTANCE_ID ON HUB_REGISTRY_SERVICE_EVENT(tenantId, serviceInstanceId, eventTime);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EVENT_GROUP_NAME ON HUB_REGISTRY_SERVICE_EVENT(tenantId, groupName, eventTime);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EVENT_SVC_NAME ON HUB_REGISTRY_SERVICE_EVENT(tenantId, serviceName, eventTime);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EVENT_HOST ON HUB_REGISTRY_SERVICE_EVENT(tenantId, hostAddress, portNumber, eventTime);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EVENT_NODE_IP ON HUB_REGISTRY_SERVICE_EVENT(tenantId, nodeIpAddress, eventTime);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EVENT_TYPE ON HUB_REGISTRY_SERVICE_EVENT(eventType, eventTime);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EVENT_TIME ON HUB_REGISTRY_SERVICE_EVENT(eventTime);
+
+-- HUB_REGISTRY_EXTERNAL_CONFIG 索引
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_CONFIG_NAME ON HUB_REGISTRY_EXTERNAL_CONFIG(tenantId, configName, environmentName);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_CONFIG_TYPE ON HUB_REGISTRY_EXTERNAL_CONFIG(registryType);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_CONFIG_ENV ON HUB_REGISTRY_EXTERNAL_CONFIG(environmentName);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_CONFIG_ACTIVE ON HUB_REGISTRY_EXTERNAL_CONFIG(activeFlag);
+
+-- HUB_REGISTRY_EXTERNAL_STATUS 索引
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_STATUS_CONFIG ON HUB_REGISTRY_EXTERNAL_STATUS(tenantId, externalConfigId);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_STATUS_CONN ON HUB_REGISTRY_EXTERNAL_STATUS(connectionStatus);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_STATUS_HEALTH ON HUB_REGISTRY_EXTERNAL_STATUS(healthStatus);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_STATUS_FAILOVER ON HUB_REGISTRY_EXTERNAL_STATUS(failoverStatus);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_STATUS_SYNC ON HUB_REGISTRY_EXTERNAL_STATUS(syncStatus);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_STATUS_ACTIVE ON HUB_REGISTRY_EXTERNAL_STATUS(activeFlag);
 
 -- =====================================================
 -- SQLite特殊配置和优化

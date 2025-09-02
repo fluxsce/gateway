@@ -15,7 +15,9 @@ import (
 	"crypto/tls"
 	"gateway/internal/gateway/constants"
 	"gateway/internal/gateway/core"
+	proxyutils "gateway/internal/gateway/handler/proxy/proxy-utils"
 	"gateway/internal/gateway/handler/service"
+	registryManager "gateway/internal/registry/manager"
 )
 
 // HTTPProxy HTTP代理实现
@@ -48,12 +50,14 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 		return false
 	}
 
-	// 从负载均衡器获取目标节点
-	node, err := h.serviceManager.SelectNode(serviceID, ctx)
+	// 尝试从服务管理器获取目标节点
+	node, err := h.selectTargetNode(ctx, serviceID)
 	if err != nil {
 		ctx.AddError(fmt.Errorf("选择目标节点失败: %w", err))
 		ctx.Abort(http.StatusServiceUnavailable, map[string]string{
-			"error": "服务不可用",
+			"error":   "服务不可用",
+			"details": err.Error(), // 添加具体错误信息
+			"service": serviceID,   // 添加服务ID信息
 		})
 		return false
 	}
@@ -63,7 +67,10 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 	if err != nil {
 		ctx.AddError(fmt.Errorf("代理请求失败: %w", err))
 		ctx.Abort(http.StatusBadGateway, map[string]string{
-			"error": "代理请求失败",
+			"error":      "代理请求失败",
+			"details":    err.Error(), // 添加具体错误信息
+			"target_url": node.URL,    // 添加目标URL信息
+			"service":    serviceID,   // 添加服务ID信息
 		})
 		ctx.Set(constants.GatewayStatusCode, constants.GatewayStatusBadGateway)
 		return false
@@ -298,6 +305,12 @@ func NewHTTPProxy(config ProxyConfig, serviceManager service.ServiceManager) (*H
 	httpProxy.client = httpProxy.createHTTPClient(httpConfig)
 
 	return httpProxy, nil
+}
+
+// NewHTTPProxyWithRegistry 创建带注册中心支持的HTTP代理（已弃用，使用NewHTTPProxy）
+// Deprecated: 使用NewHTTPProxy代替，注册中心会自动获取
+func NewHTTPProxyWithRegistry(config ProxyConfig, serviceManager service.ServiceManager, _ interface{}) (*HTTPProxy, error) {
+	return NewHTTPProxy(config, serviceManager)
 }
 
 // handleWebSocketUpgrade 处理WebSocket协议升级
@@ -784,4 +797,49 @@ func (h *HTTPProxy) createHTTPClient(config HTTPProxyConfig) *http.Client {
 	}
 
 	return client
+}
+
+// selectTargetNode 选择目标节点，支持服务注册中心发现
+func (h *HTTPProxy) selectTargetNode(ctx *core.Context, serviceID string) (*service.NodeConfig, error) {
+	// 首先尝试从服务管理器获取服务配置
+	serviceConfig, exists := h.serviceManager.GetService(serviceID)
+	if !exists {
+		return nil, fmt.Errorf("服务 %s 不存在", serviceID)
+	}
+
+	// 检查是否为注册中心服务
+	if proxyutils.IsRegistryService(serviceConfig.ServiceMetadata) {
+		// 使用注册中心服务发现
+		return h.selectNodeFromRegistry(ctx, serviceConfig)
+	}
+
+	// 使用传统的负载均衡选择节点
+	return h.serviceManager.SelectNode(serviceID, ctx)
+}
+
+// selectNodeFromRegistry 从注册中心选择节点
+func (h *HTTPProxy) selectNodeFromRegistry(ctx *core.Context, serviceConfig *service.ServiceConfig) (*service.NodeConfig, error) {
+	// 使用静态方法从注册中心创建节点配置（内部会自动获取注册中心管理器实例）
+	node, err := proxyutils.CreateNodeFromRegistry(ctx, serviceConfig)
+	if err != nil {
+		return nil, fmt.Errorf("从注册中心创建节点配置失败: %w", err)
+	}
+
+	// 记录服务发现结果到上下文
+	ctx.Set("discovery_type", "REGISTRY")
+	ctx.Set("discovered_instance", map[string]interface{}{
+		"instanceId":     node.ID,
+		"url":            node.URL,
+		"tenantId":       node.Metadata["tenantId"],
+		"serviceGroupId": node.Metadata["serviceGroupId"],
+		"serviceName":    node.Metadata["serviceName"],
+		"healthStatus":   node.Metadata["healthStatus"],
+	})
+
+	return node, nil
+}
+
+// GetRegistryManager 获取注册中心管理器
+func (h *HTTPProxy) GetRegistryManager() *registryManager.RegistryManager {
+	return registryManager.GetInstance()
 }

@@ -2,363 +2,166 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"time"
 )
 
-// ================== 存储接口 ==================
-
-// Storage 存储接口 - 独立注册中心存储
-type Storage interface {
-	// 服务分组管理
-	SaveServiceGroup(ctx context.Context, group *ServiceGroup) error
-	GetServiceGroup(ctx context.Context, tenantId, groupName string) (*ServiceGroup, error)
-	DeleteServiceGroup(ctx context.Context, tenantId, groupName string) error
-	ListServiceGroups(ctx context.Context, tenantId string) ([]*ServiceGroup, error)
-
-	// 服务管理
-	SaveService(ctx context.Context, service *Service) error
-	GetService(ctx context.Context, tenantId, serviceName string) (*Service, error)
-	DeleteService(ctx context.Context, tenantId, serviceName string) error
-	ListServices(ctx context.Context, tenantId, groupName string) ([]*Service, error)
-
-	// 服务实例管理
-	SaveInstance(ctx context.Context, instance *ServiceInstance) error
-	GetInstance(ctx context.Context, tenantId, instanceId string) (*ServiceInstance, error)
-	DeleteInstance(ctx context.Context, tenantId, instanceId string) error
-	ListInstances(ctx context.Context, tenantId, serviceName, groupName string) ([]*ServiceInstance, error)
-	ListAllInstances(ctx context.Context, tenantId string) ([]*ServiceInstance, error)
-
-	// 实例状态管理
-	UpdateHeartbeat(ctx context.Context, tenantId, instanceId string) error
-	UpdateInstanceHealth(ctx context.Context, tenantId, instanceId string, healthStatus string) error
-	UpdateInstanceStatus(ctx context.Context, tenantId, instanceId string, instanceStatus string) error
-
-	// 服务发现
-	GetServiceNames(ctx context.Context, tenantId, groupName string) ([]string, error)
-	GetInstances(ctx context.Context, tenantId, serviceName, groupName string, filters ...InstanceFilter) ([]*ServiceInstance, error)
-
-	// 事件日志
-	LogEvent(ctx context.Context, event *ServiceEvent) error
-	GetEvents(ctx context.Context, tenantId string, filters ...EventFilter) ([]*ServiceEvent, error)
-
-	// 健康检查
-	GetUnhealthyInstances(ctx context.Context, tenantId string, timeout time.Duration) ([]*ServiceInstance, error)
-
-	// 统计信息
-	GetStats(ctx context.Context, tenantId string) (*StorageStats, error)
-}
-
-// ExternalStorage 外部注册中心存储接口
-type ExternalStorage interface {
-	// 配置管理
-	SaveExternalConfig(ctx context.Context, config *ExternalRegistryConfig) error
-	GetExternalConfig(ctx context.Context, tenantId, configId string) (*ExternalRegistryConfig, error)
-	DeleteExternalConfig(ctx context.Context, tenantId, configId string) error
-	ListExternalConfigs(ctx context.Context, tenantId, registryType, environment string) ([]*ExternalRegistryConfig, error)
-
-	// 状态管理
-	SaveExternalStatus(ctx context.Context, status *ExternalRegistryStatus) error
-	GetExternalStatus(ctx context.Context, tenantId, configId string) (*ExternalRegistryStatus, error)
-	UpdateExternalStatus(ctx context.Context, tenantId, configId string, updates map[string]interface{}) error
-
-	// 连接管理
-	Connect(ctx context.Context, config *ExternalRegistryConfig) error
-	Disconnect(ctx context.Context, configId string) error
-	IsConnected(configId string) bool
-
-	// 健康检查
-	HealthCheck(ctx context.Context, configId string) error
-	GetConnectionStatus(configId string) string
-
-	// 服务发现（代理模式）
-	DiscoverServices(ctx context.Context, configId string, filters ...ServiceFilter) ([]*UnifiedServiceInstance, error)
-	DiscoverInstances(ctx context.Context, configId, serviceName string, filters ...InstanceFilter) ([]*UnifiedServiceInstance, error)
-
-	// 监控
-	GetMetrics(ctx context.Context, configId string) (*ExternalRegistryMetrics, error)
-}
-
-// ================== 服务注册中心接口 ==================
-
-// Registry 服务注册中心接口
-type Registry interface {
-	// 启动
-	Start() error
-
-	// 服务实例管理
-	Register(ctx context.Context, instance *ServiceInstance) error
-	Deregister(ctx context.Context, tenantId, instanceId string) error
-	Heartbeat(ctx context.Context, tenantId, instanceId string) error
-
-	// 服务发现
-	Discover(ctx context.Context, tenantId, serviceName, groupName string, filters ...InstanceFilter) ([]*ServiceInstance, error)
-	GetInstance(ctx context.Context, tenantId, instanceId string) (*ServiceInstance, error)
-	ListServices(ctx context.Context, tenantId, groupName string) ([]string, error)
-
-	// 事件订阅
-	Subscribe(ctx context.Context, tenantId, serviceName, groupName string) (<-chan *ServiceEvent, error)
-	Unsubscribe(ctx context.Context, tenantId, serviceName, groupName string) error
-
-	// 健康状态管理
-	UpdateHealth(ctx context.Context, tenantId, instanceId string, healthStatus string) error
-
-	// 关闭
-	Close() error
-}
-
-// ================== 事件系统接口 ==================
-
-// EventPublisher 事件发布器接口
-type EventPublisher interface {
-	// 启动
-	Start() error
-
-	// 发布事件
-	Publish(ctx context.Context, event *ServiceEvent) error
-
-	// 订阅事件
-	Subscribe(ctx context.Context, tenantId, serviceName, groupName string) (<-chan *ServiceEvent, error)
-	Unsubscribe(ctx context.Context, tenantId, serviceName, groupName string) error
-
-	// 关闭
-	Close() error
-}
-
-// ================== 健康检查接口 ==================
-
-// HealthChecker 健康检查器接口
-type HealthChecker interface {
-	// 检查单个实例
-	CheckInstance(ctx context.Context, instance *ServiceInstance) *HealthCheckResult
-
-	// 批量检查实例
-	CheckInstances(ctx context.Context, instances []*ServiceInstance) []*HealthCheckResult
-
-	// 启动健康检查
+// Manager 注册中心管理器接口
+// 负责各组件的生命周期管理，包括初始化、启动和停止
+type Manager interface {
+	// Start 启动注册中心服务
+	// 按照依赖顺序启动各个组件
 	Start(ctx context.Context) error
 
-	// 停止健康检查
-	Stop() error
+	// Stop 停止注册中心服务
+	// 优雅停止所有组件
+	Stop(ctx context.Context) error
 
-	// 添加实例到检查列表
-	AddInstance(instance *ServiceInstance) error
-
-	// 从检查列表移除实例
-	RemoveInstance(instanceId string) error
-
-	// 获取健康检查统计
-	GetStats() *HealthCheckStats
-
-	// 加载实例
-	LoadInstances(ctx context.Context, tenantId string) error
-}
-
-// ================== 过滤器接口 ==================
-
-// InstanceFilter 实例过滤器接口
-type InstanceFilter interface {
-	Filter(instances []*ServiceInstance) []*ServiceInstance
-	Name() string
-}
-
-// ServiceFilter 服务过滤器接口
-type ServiceFilter interface {
-	Filter(services []*Service) []*Service
-	Name() string
-}
-
-// EventFilter 事件过滤器接口
-type EventFilter interface {
-	Filter(events []*ServiceEvent) []*ServiceEvent
-	Name() string
-}
-
-// ================== 管理器接口 ==================
-
-// Manager 注册中心管理器接口
-type Manager interface {
-	// 初始化
-	Initialize() error
-
-	// 启动
-	Start() error
-
-	// 停止
-	Stop() error
-
-	// 获取注册中心实例
-	GetRegistry() Registry
-
-	// 获取存储实例
-	GetStorage() Storage
-
-	// 获取外部存储实例
-	GetExternalStorage() ExternalStorage
-
-	// 获取事件发布器
+	// GetEventPublisher 获取事件发布器实例
 	GetEventPublisher() EventPublisher
 
-	// 获取健康检查器
+	// GetHealthChecker 获取健康检查器实例
 	GetHealthChecker() HealthChecker
 
-	// 获取统计信息
-	GetStats() *ManagerStats
+	// IsReady 检查服务是否就绪
+	IsReady() bool
 
-	// 获取运行状态
-	IsRunning() bool
-
-	// 获取健康状态
-	GetHealthStatus() map[string]interface{}
+	// GetCache 获取缓存存储实例
+	GetCache() CacheStorage
 }
 
-// ================== 数据结构 ==================
+// CacheStorage 缓存存储接口
+// 定义内存缓存操作，用于提高查询性能
+type CacheStorage interface {
+	// 服务组相关操作
+	GetServiceGroup(ctx context.Context, tenantId, serviceGroupId string) (*ServiceGroup, error)
+	SetServiceGroup(ctx context.Context, tenantId string, serviceGroup *ServiceGroup) error
+	DeleteServiceGroup(ctx context.Context, tenantId, serviceGroupId string) error
+	ListServiceGroups(ctx context.Context, tenantId string) ([]*ServiceGroup, error)
 
-// UnifiedServiceInstance 统一服务实例模型（用于外部注册中心）
-type UnifiedServiceInstance struct {
-	// 基础信息
-	ID          string `json:"id"`
-	ServiceName string `json:"serviceName"`
-	GroupName   string `json:"groupName,omitempty"`
-	Namespace   string `json:"namespace,omitempty"`
+	// 服务相关操作
+	GetService(ctx context.Context, tenantId, serviceGroupId, serviceName string) (*Service, error)
+	SetService(ctx context.Context, tenantId string, service *Service) error
+	DeleteService(ctx context.Context, tenantId, serviceGroupId, serviceName string) error
+	ListServices(ctx context.Context, tenantId, serviceGroupId string) ([]*Service, error)
 
-	// 网络信息
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Protocol string `json:"protocol"`
+	// 实例相关操作
+	GetInstance(ctx context.Context, tenantId, instanceId string) (*ServiceInstance, error)
+	SetInstance(ctx context.Context, tenantId string, instance *ServiceInstance) error
+	DeleteInstance(ctx context.Context, tenantId, instanceId string) error
+	ListInstances(ctx context.Context, tenantId, serviceGroupId, serviceName string) ([]*ServiceInstance, error)
 
-	// 状态信息
-	Status string `json:"status"`
-	Health string `json:"health"`
-	Weight int    `json:"weight"`
+	//服务发现相关操作
+	DiscoverInstance(ctx context.Context, tenantId, serviceGroupId, serviceName string) (*ServiceInstance, error)
+	UpdateInstanceHealth(ctx context.Context, tenantId, instanceId string, status string, checkTime time.Time) error
 
-	// 元数据
-	Metadata map[string]string `json:"metadata"`
-	Tags     []string          `json:"tags"`
-
-	// 时间戳
-	RegisterTime   time.Time `json:"registerTime"`
-	LastUpdateTime time.Time `json:"lastUpdateTime"`
-
-	// 注册中心特有字段
-	RegistryType string      `json:"registryType"`
-	OriginalData interface{} `json:"originalData,omitempty"`
+	// 缓存管理操作
+	GetStats() CacheStats
+	Clear() error
 }
 
-// HealthCheckResult 健康检查结果
-type HealthCheckResult struct {
-	InstanceId    string        `json:"instanceId"`
-	Status        string        `json:"status"`
-	ResponseTime  time.Duration `json:"responseTime"`
-	Error         error         `json:"error,omitempty"`
-	CheckTime     time.Time     `json:"checkTime"`
-	StatusChanged bool          `json:"statusChanged"`
+// EventPublisher 事件发布器接口
+// 负责发布服务相关的事件，支持异步处理和事件订阅
+type EventPublisher interface {
+	// Publish 发布事件
+	// 异步发布事件到订阅者
+	Publish(ctx context.Context, event *ServiceEvent) error
+
+	// Subscribe 订阅事件
+	// 注册事件订阅者，订阅者通过接口方法处理事件
+	Subscribe(subscriber EventSubscriber) error
+
+	// Unsubscribe 取消订阅
+	// 取消事件订阅者
+	Unsubscribe(subscriber EventSubscriber) error
+
+	// Start 启动事件系统
+	Start(ctx context.Context) error
+
+	// Stop 停止事件系统
+	Stop(ctx context.Context) error
 }
 
-// HealthCheckStats 健康检查统计
+// HealthChecker 健康检查器接口
+// 负责定期检查服务实例的健康状态
+type HealthChecker interface {
+	// Start 启动健康检查
+	Start(ctx context.Context) error
+
+	// Stop 停止健康检查
+	Stop(ctx context.Context) error
+
+	// SetCheckInterval 设置健康检查间隔
+	SetCheckInterval(interval time.Duration)
+
+	// GetStats 获取健康检查统计信息
+	GetStats() HealthCheckStats
+}
+
+// EventSubscriber 事件订阅者接口
+// 定义事件订阅者的基本行为，统一包含关闭方法
+type EventSubscriber interface {
+	// HandleEvent 处理事件
+	HandleEvent(ctx context.Context, event *ServiceEvent) error
+
+	// GetEventTypes 获取订阅的事件类型
+	// 返回nil或空数组表示订阅所有事件类型
+	GetEventTypes() []string
+
+	// GetSubscriberName 获取订阅者名称，用于日志和调试
+	GetSubscriberName() string
+
+	// Close 关闭订阅者，清理资源
+	// 对于不需要资源清理的订阅者，可以返回nil
+	Close() error
+}
+
+// InstanceFilter 实例过滤器
+// 用于在查询实例时进行条件过滤
+type InstanceFilter struct {
+	InstanceStatus []string `json:"instanceStatus,omitempty"` // 实例状态过滤
+	HealthStatus   []string `json:"healthStatus,omitempty"`   // 健康状态过滤
+	ClientType     []string `json:"clientType,omitempty"`     // 客户端类型过滤
+	Tags           []string `json:"tags,omitempty"`           // 标签过滤
+	MetadataKeys   []string `json:"metadataKeys,omitempty"`   // 元数据键过滤
+	HostAddress    string   `json:"hostAddress,omitempty"`    // 主机地址过滤（模糊匹配）
+	MinWeight      *int     `json:"minWeight,omitempty"`      // 最小权重过滤
+	MaxWeight      *int     `json:"maxWeight,omitempty"`      // 最大权重过滤
+}
+
+// ServiceFilter 服务过滤器
+// 用于在查询服务时进行条件过滤
+type ServiceFilter struct {
+	ProtocolType        []string `json:"protocolType,omitempty"`        // 协议类型过滤
+	LoadBalanceStrategy []string `json:"loadBalanceStrategy,omitempty"` // 负载均衡策略过滤
+	GroupName           string   `json:"groupName,omitempty"`           // 分组名称过滤
+	Tags                []string `json:"tags,omitempty"`                // 标签过滤
+	MetadataKeys        []string `json:"metadataKeys,omitempty"`        // 元数据键过滤
+}
+
+// EventFilter 事件过滤器
+// 用于事件订阅时的条件过滤
+type EventFilter struct {
+	EventTypes   []string `json:"eventTypes,omitempty"`   // 事件类型过滤
+	ServiceNames []string `json:"serviceNames,omitempty"` // 服务名称过滤
+	GroupNames   []string `json:"groupNames,omitempty"`   // 分组名称过滤
+	TenantIds    []string `json:"tenantIds,omitempty"`    // 租户ID过滤
+}
+
+// CacheStats 缓存统计信息
+type CacheStats struct {
+	HitCount     int64   `json:"hitCount"`     // 命中次数
+	MissCount    int64   `json:"missCount"`    // 未命中次数
+	HitRate      float64 `json:"hitRate"`      // 命中率
+	TotalEntries int64   `json:"totalEntries"` // 总条目数
+	MemoryUsage  int64   `json:"memoryUsage"`  // 内存使用量（字节）
+}
+
+// HealthCheckStats 健康检查统计信息
 type HealthCheckStats struct {
-	TotalInstances      int           `json:"totalInstances"`
-	HealthyInstances    int           `json:"healthyInstances"`
-	UnhealthyInstances  int           `json:"unhealthyInstances"`
-	LastCheckTime       time.Time     `json:"lastCheckTime"`
-	AverageResponseTime time.Duration `json:"averageResponseTime"`
-	CheckCount          int64         `json:"checkCount"`
-	ErrorCount          int64         `json:"errorCount"`
-}
-
-// StorageStats 存储统计
-type StorageStats struct {
-	TenantId       string    `json:"tenantId"`
-	GroupCount     int       `json:"groupCount"`
-	ServiceCount   int       `json:"serviceCount"`
-	InstanceCount  int       `json:"instanceCount"`
-	EventCount     int64     `json:"eventCount"`
-	LastUpdateTime time.Time `json:"lastUpdateTime"`
-}
-
-// ManagerStats 管理器统计
-type ManagerStats struct {
-	Running       bool      `json:"running"`
-	TenantId      string    `json:"tenantId"`
-	Mode          string    `json:"mode"`
-	StartTime     time.Time `json:"startTime"`
-	ServiceCount  int       `json:"serviceCount"`
-	InstanceCount int       `json:"instanceCount"`
-	Services      []string  `json:"services"`
-}
-
-// ExternalRegistryMetrics 外部注册中心指标
-type ExternalRegistryMetrics struct {
-	ConfigId         string        `json:"configId"`
-	RegistryType     string        `json:"registryType"`
-	ConnectionStatus string        `json:"connectionStatus"`
-	HealthStatus     string        `json:"healthStatus"`
-	ResponseTime     time.Duration `json:"responseTime"`
-	RequestCount     int64         `json:"requestCount"`
-	SuccessCount     int64         `json:"successCount"`
-	ErrorCount       int64         `json:"errorCount"`
-	LastCheckTime    time.Time     `json:"lastCheckTime"`
-}
-
-// ================== 回调函数类型 ==================
-
-// InstanceChangeCallback 实例变更回调
-type InstanceChangeCallback func(event *ServiceEvent)
-
-// ServiceChangeCallback 服务变更回调
-type ServiceChangeCallback func(serviceName string, instances []*UnifiedServiceInstance)
-
-// HealthChangeCallback 健康状态变更回调
-type HealthChangeCallback func(instanceId string, oldStatus, newStatus string)
-
-// ConfigChangeCallback 配置变更回调
-type ConfigChangeCallback func(configId string, changeType string, config *ExternalRegistryConfig)
-
-// ================== 错误定义 ==================
-
-// 常见错误
-var (
-	ErrInstanceNotFound       = fmt.Errorf("service instance not found")
-	ErrServiceNotFound        = fmt.Errorf("service not found")
-	ErrGroupNotFound          = fmt.Errorf("service group not found")
-	ErrConfigNotFound         = fmt.Errorf("external config not found")
-	ErrInstanceExists         = fmt.Errorf("service instance already exists")
-	ErrServiceExists          = fmt.Errorf("service already exists")
-	ErrGroupExists            = fmt.Errorf("service group already exists")
-	ErrInvalidParameter       = fmt.Errorf("invalid parameter")
-	ErrConnectionFailed       = fmt.Errorf("connection failed")
-	ErrNotConnected           = fmt.Errorf("not connected")
-	ErrTooManySubscribers     = fmt.Errorf("too many subscribers")
-	ErrRegistryNotRunning     = fmt.Errorf("registry not running")
-	ErrHealthCheckFailed      = fmt.Errorf("health check failed")
-	ErrConfigValidationFailed = fmt.Errorf("config validation failed")
-)
-
-// ================== 工具函数 ==================
-
-// NewServiceEvent 创建服务事件
-func NewServiceEvent(tenantId, eventType, serviceName, groupName, source, message string) *ServiceEvent {
-	return &ServiceEvent{
-		TenantId:     tenantId,
-		EventType:    eventType,
-		ServiceName:  serviceName,
-		GroupName:    groupName,
-		EventSource:  source,
-		EventMessage: message,
-		EventTime:    time.Now(),
-		AddTime:      time.Now(),
-		EditTime:     time.Now(),
-		ActiveFlag:   FlagYes,
-	}
-}
-
-// NewHealthCheckResult 创建健康检查结果
-func NewHealthCheckResult(instanceId, status string, responseTime time.Duration, err error) *HealthCheckResult {
-	return &HealthCheckResult{
-		InstanceId:   instanceId,
-		Status:       status,
-		ResponseTime: responseTime,
-		Error:        err,
-		CheckTime:    time.Now(),
-	}
+	TotalChecks     int64   `json:"totalChecks"`     // 总检查次数
+	SuccessChecks   int64   `json:"successChecks"`   // 成功检查次数
+	FailedChecks    int64   `json:"failedChecks"`    // 失败检查次数
+	SuccessRate     float64 `json:"successRate"`     // 成功率
+	AvgResponseTime int64   `json:"avgResponseTime"` // 平均响应时间（毫秒）
+	ActiveInstances int64   `json:"activeInstances"` // 活跃实例数
 }

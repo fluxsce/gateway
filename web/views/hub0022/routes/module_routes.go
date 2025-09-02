@@ -92,4 +92,14 @@ func RegisterHub0022Routes(router *gin.Engine, db database.Database) {
 		// 更新节点健康状态
 		apiGroup.POST("/updateNodeHealth", serviceNodeController.UpdateNodeHealth)
 	}
+
+	// 服务注册路由（转发到hub0041模块）
+	{
+		// 查询服务注册列表
+		apiGroup.POST("/registServiceQuery", func(c *gin.Context) {
+			// 转发请求到hub0041模块的queryServices接口
+			c.Request.URL.Path = "/gateway/hub0041/queryServices"
+			router.HandleContext(c)
+		})
+	}
 }

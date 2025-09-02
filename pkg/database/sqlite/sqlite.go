@@ -166,6 +166,11 @@ func (s *SQLite) configureDatabase(db *sql.DB) error {
 		return fmt.Errorf("failed to set cache size: %w", err)
 	}
 
+	// 设置忙等待超时 - 关键修复：解决"database table is locked"错误
+	if _, err := db.Exec("PRAGMA busy_timeout = 30000"); err != nil {
+		return fmt.Errorf("failed to set busy timeout: %w", err)
+	}
+
 	// 启用外键约束
 	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
 		return fmt.Errorf("failed to enable foreign keys: %w", err)
