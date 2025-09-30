@@ -72,6 +72,10 @@ type Service struct {
 	// 服务基本信息
 	ServiceDescription string `json:"serviceDescription" db:"serviceDescription"` // 服务描述
 
+	// 注册管理配置
+	RegistryType           string `json:"registryType" db:"registryType"`                     // 注册类型(INTERNAL:内部管理,NACOS:Nacos注册中心,CONSUL:Consul,EUREKA:Eureka,ETCD:ETCD,ZOOKEEPER:ZooKeeper)
+	ExternalRegistryConfig string `json:"externalRegistryConfig" db:"externalRegistryConfig"` // 外部注册中心配置，JSON格式，仅当registryType非INTERNAL时使用
+
 	// 服务配置
 	ProtocolType        string `json:"protocolType" db:"protocolType"`               // 协议类型
 	ContextPath         string `json:"contextPath" db:"contextPath"`                 // 上下文路径
@@ -279,6 +283,16 @@ const (
 	LoadBalanceRandom             = "RANDOM"               // 随机
 )
 
+// 注册类型常量
+const (
+	RegistryTypeInternal  = "INTERNAL"  // 内部管理（默认）
+	RegistryTypeNacos     = "NACOS"     // Nacos注册中心
+	RegistryTypeConsul    = "CONSUL"    // Consul注册中心
+	RegistryTypeEureka    = "EUREKA"    // Eureka注册中心
+	RegistryTypeEtcd      = "ETCD"      // ETCD注册中心
+	RegistryTypeZookeeper = "ZOOKEEPER" // ZooKeeper注册中心
+)
+
 // 临时实例标记常量
 const (
 	TempInstanceFlagYes = "Y" // 是临时实例
@@ -394,6 +408,18 @@ func GetValidLoadBalanceStrategies() []string {
 	}
 }
 
+// GetValidRegistryTypes 获取所有有效的注册类型
+func GetValidRegistryTypes() []string {
+	return []string{
+		RegistryTypeInternal,
+		RegistryTypeNacos,
+		RegistryTypeConsul,
+		RegistryTypeEureka,
+		RegistryTypeEtcd,
+		RegistryTypeZookeeper,
+	}
+}
+
 // IsValidInstanceStatus 检查实例状态是否有效
 func IsValidInstanceStatus(status string) bool {
 	validStatuses := GetValidInstanceStatuses()
@@ -436,6 +462,27 @@ func IsValidTempInstanceFlag(flag string) bool {
 		}
 	}
 	return false
+}
+
+// IsValidRegistryType 检查注册类型是否有效
+func IsValidRegistryType(registryType string) bool {
+	validTypes := GetValidRegistryTypes()
+	for _, validType := range validTypes {
+		if registryType == validType {
+			return true
+		}
+	}
+	return false
+}
+
+// IsExternalRegistry 判断服务是否使用外部注册中心
+func (s *Service) IsExternalRegistry() bool {
+	return s.RegistryType != RegistryTypeInternal
+}
+
+// IsInternalRegistry 判断服务是否使用内部注册中心
+func (s *Service) IsInternalRegistry() bool {
+	return s.RegistryType == RegistryTypeInternal
 }
 
 // IsHealthy 判断实例是否健康

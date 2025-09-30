@@ -86,7 +86,7 @@ func (c *MetricQueryController) GetServerInfoDetail(ctx *gin.Context) {
 
 	// 定义请求参数
 	var req struct {
-		ServerId string `json:"serverId" form:"serverId" binding:"required"`
+		MetricServerId string `json:"metricServerId" form:"metricServerId" binding:"required"`
 	}
 
 	// 绑定请求参数
@@ -103,9 +103,9 @@ func (c *MetricQueryController) GetServerInfoDetail(ctx *gin.Context) {
 	}
 
 	// 调用DAO层获取服务器信息详情
-	serverInfo, err := c.dao.GetServerInfoDetail(ctx, tenantId, req.ServerId)
+	serverInfo, err := c.dao.GetServerInfoDetail(ctx, tenantId, req.MetricServerId)
 	if err != nil {
-		logger.ErrorWithTrace(ctx, "获取服务器信息详情失败", "error", err.Error(), "tenantId", tenantId, "serverId", req.ServerId)
+		logger.ErrorWithTrace(ctx, "获取服务器信息详情失败", "error", err.Error(), "tenantId", tenantId, "metricServerId", req.MetricServerId)
 		response.ErrorJSON(ctx, "获取服务器信息详情失败: "+err.Error(), constants.ED00009)
 		return
 	}
@@ -129,7 +129,7 @@ func (c *MetricQueryController) GetServerInfoDetail(ctx *gin.Context) {
 		"timestamp":    time.Now(),
 	}
 
-	logger.InfoWithTrace(ctx, "获取服务器信息详情成功", "tenantId", tenantId, "serverId", req.ServerId)
+	logger.InfoWithTrace(ctx, "获取服务器信息详情成功", "tenantId", tenantId, "metricServerId", req.MetricServerId)
 	response.SuccessJSON(ctx, detailResponse, constants.SD00002)
 }
 

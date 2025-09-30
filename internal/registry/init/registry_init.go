@@ -141,8 +141,9 @@ func (i *RegistryInitializer) loadServiceGroups(ctx context.Context, mgr core.Ma
 
 // loadServices 加载服务数据
 func (i *RegistryInitializer) loadServices(ctx context.Context, mgr core.Manager) error {
-	// 构建查询SQL - 使用全字段查询绑定
+	// 构建查询SQL - 使用全字段查询绑定，包含注册类型和外部注册配置
 	query := `SELECT tenantId, serviceName, serviceGroupId, groupName, serviceDescription,
+		registryType, externalRegistryConfig,
 		protocolType, contextPath, loadBalanceStrategy, 
 		healthCheckUrl, healthCheckIntervalSeconds, healthCheckTimeoutSeconds, healthCheckType, healthCheckMode,
 		metadataJson, tagsJson, 

@@ -1869,6 +1869,10 @@ CREATE TABLE HUB_REGISTRY_SERVICE (
     -- 服务基本信息
                                       serviceDescription VARCHAR2(500), -- 服务描述
 
+    -- 注册管理配置
+                                      registryType VARCHAR2(20) DEFAULT 'INTERNAL' NOT NULL, -- 注册类型(INTERNAL:内部管理,NACOS:Nacos注册中心,CONSUL:Consul,EUREKA:Eureka,ETCD:ETCD,ZOOKEEPER:ZooKeeper)
+                                      externalRegistryConfig CLOB, -- 外部注册中心配置，JSON格式，仅当registryType非INTERNAL时使用
+
     -- 服务配置
                                       protocolType VARCHAR2(20) DEFAULT 'HTTP' NOT NULL, -- 协议类型(HTTP,HTTPS,TCP,UDP,GRPC)
                                       contextPath VARCHAR2(200) DEFAULT '' NOT NULL, -- 上下文路径
@@ -1910,8 +1914,9 @@ CREATE TABLE HUB_REGISTRY_SERVICE (
 );
 CREATE INDEX IDX_REG_SVC_GROUP_ID ON HUB_REGISTRY_SERVICE(tenantId, serviceGroupId);
 CREATE INDEX IDX_REG_SVC_GROUP_NAME ON HUB_REGISTRY_SERVICE(groupName);
+CREATE INDEX IDX_REG_SVC_REGISTRY_TYPE ON HUB_REGISTRY_SERVICE(registryType);
 CREATE INDEX IDX_REG_SVC_ACTIVE ON HUB_REGISTRY_SERVICE(activeFlag);
-COMMENT ON TABLE HUB_REGISTRY_SERVICE IS '服务表 - 存储服务的基本信息和配置';
+COMMENT ON TABLE HUB_REGISTRY_SERVICE IS '服务表 - 存储服务的基本信息和配置，支持内部管理和外部注册中心代理模式';
 
 -- 服务实例表 - 存储具体的服务实例
 CREATE TABLE HUB_REGISTRY_SERVICE_INSTANCE (
@@ -2048,145 +2053,38 @@ CREATE INDEX IDX_REG_EVENT_TYPE ON HUB_REGISTRY_SERVICE_EVENT(eventType, eventTi
 CREATE INDEX IDX_REG_EVENT_TIME ON HUB_REGISTRY_SERVICE_EVENT(eventTime);
 COMMENT ON TABLE HUB_REGISTRY_SERVICE_EVENT IS '服务事件日志表 - 记录服务注册发现相关的所有事件';
 
--- 外部注册中心配置表 - 存储外部注册中心连接配置
-CREATE TABLE HUB_REGISTRY_EXTERNAL_CONFIG (
-                                              externalConfigId VARCHAR2(32) NOT NULL, -- 外部配置ID，主键
-                                              tenantId VARCHAR2(32) NOT NULL, -- 租户ID，用于多租户数据隔离
-
-    -- 配置基本信息
-                                              configName VARCHAR2(100) NOT NULL, -- 配置名称
-                                              configDescription VARCHAR2(500), -- 配置描述
-                                              registryType VARCHAR2(50) NOT NULL, -- 注册中心类型(CONSUL,NACOS,ETCD,EUREKA,ZOOKEEPER)
-                                              environmentName VARCHAR2(50) DEFAULT 'default' NOT NULL, -- 环境名称(dev,test,prod,default)
-
-    -- 连接配置
-                                              serverAddress VARCHAR2(500) NOT NULL, -- 服务器地址，多个地址用逗号分隔
-                                              serverPort NUMBER(10), -- 服务器端口
-                                              serverPath VARCHAR2(200), -- 服务器路径
-                                              serverScheme VARCHAR2(10) DEFAULT 'http' NOT NULL, -- 连接协议(http,https)
-
-    -- 认证配置
-                                              authEnabled VARCHAR2(1) DEFAULT 'N' NOT NULL, -- 是否启用认证(N否,Y是)
-                                              username VARCHAR2(100), -- 用户名
-                                              password VARCHAR2(200), -- 密码
-                                              accessToken VARCHAR2(500), -- 访问令牌
-                                              secretKey VARCHAR2(200), -- 密钥
-
-    -- 连接配置
-                                              connectionTimeout NUMBER(10) DEFAULT 5000 NOT NULL, -- 连接超时时间(毫秒)
-                                              readTimeout NUMBER(10) DEFAULT 10000 NOT NULL, -- 读取超时时间(毫秒)
-                                              maxRetries NUMBER(10) DEFAULT 3 NOT NULL, -- 最大重试次数
-                                              retryInterval NUMBER(10) DEFAULT 1000 NOT NULL, -- 重试间隔(毫秒)
-
-    -- 特定配置
-                                              specificConfig CLOB, -- 特定注册中心配置，JSON格式
-                                              fieldMapping CLOB, -- 字段映射配置，JSON格式
-
-    -- 故障转移配置
-                                              failoverEnabled VARCHAR2(1) DEFAULT 'N' NOT NULL, -- 是否启用故障转移(N否,Y是)
-                                              failoverConfigId VARCHAR2(32), -- 故障转移配置ID
-                                              failoverStrategy VARCHAR2(50) DEFAULT 'MANUAL' NOT NULL, -- 故障转移策略(MANUAL,AUTO)
-
-    -- 数据同步配置
-                                              syncEnabled VARCHAR2(1) DEFAULT 'N' NOT NULL, -- 是否启用数据同步(N否,Y是)
-                                              syncInterval NUMBER(10) DEFAULT 30 NOT NULL, -- 同步间隔(秒)
-                                              conflictResolution VARCHAR2(50) DEFAULT 'primary_wins' NOT NULL, -- 冲突解决策略(primary_wins,secondary_wins,merge)
-
-    -- 通用字段
-                                              addTime DATE DEFAULT SYSDATE NOT NULL, -- 创建时间
-                                              addWho VARCHAR2(32) NOT NULL, -- 创建人ID
-                                              editTime DATE DEFAULT SYSDATE NOT NULL, -- 最后修改时间
-                                              editWho VARCHAR2(32) NOT NULL, -- 最后修改人ID
-                                              oprSeqFlag VARCHAR2(32) NOT NULL, -- 操作序列标识
-                                              currentVersion NUMBER(10) DEFAULT 1 NOT NULL, -- 当前版本号
-                                              activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 活动状态标记(N非活动,Y活动)
-                                              noteText VARCHAR2(500), -- 备注信息
-                                              extProperty CLOB, -- 扩展属性，JSON格式
-                                              reserved1 VARCHAR2(500), -- 预留字段1
-                                              reserved2 VARCHAR2(500), -- 预留字段2
-                                              reserved3 VARCHAR2(500), -- 预留字段3
-                                              reserved4 VARCHAR2(500), -- 预留字段4
-                                              reserved5 VARCHAR2(500), -- 预留字段5
-                                              reserved6 VARCHAR2(500), -- 预留字段6
-                                              reserved7 VARCHAR2(500), -- 预留字段7
-                                              reserved8 VARCHAR2(500), -- 预留字段8
-                                              reserved9 VARCHAR2(500), -- 预留字段9
-                                              reserved10 VARCHAR2(500), -- 预留字段10
-
-                                              CONSTRAINT PK_REGISTRY_EXT_CONFIG PRIMARY KEY (tenantId, externalConfigId)
-);
-CREATE INDEX IDX_REG_EXT_CFG_NAME ON HUB_REGISTRY_EXTERNAL_CONFIG(tenantId, configName, environmentName);
-CREATE INDEX IDX_REG_EXT_CFG_TYPE ON HUB_REGISTRY_EXTERNAL_CONFIG(registryType);
-CREATE INDEX IDX_REG_EXT_CFG_ENV ON HUB_REGISTRY_EXTERNAL_CONFIG(environmentName);
-CREATE INDEX IDX_REG_EXT_CFG_ACTIVE ON HUB_REGISTRY_EXTERNAL_CONFIG(activeFlag);
-COMMENT ON TABLE HUB_REGISTRY_EXTERNAL_CONFIG IS '外部注册中心配置表 - 存储外部注册中心的连接和配置信息';
-
--- 外部注册中心状态表 - 存储外部注册中心运行状态
-CREATE TABLE HUB_REGISTRY_EXTERNAL_STATUS (
-                                              externalStatusId VARCHAR2(32) NOT NULL, -- 外部状态ID，主键
-                                              tenantId VARCHAR2(32) NOT NULL, -- 租户ID，用于多租户数据隔离
-                                              externalConfigId VARCHAR2(32) NOT NULL, -- 外部配置ID
-
-    -- 连接状态
-                                              connectionStatus VARCHAR2(20) DEFAULT 'DISCONNECTED' NOT NULL, -- 连接状态(CONNECTED,DISCONNECTED,CONNECTING,ERROR)
-                                              healthStatus VARCHAR2(20) DEFAULT 'UNKNOWN' NOT NULL, -- 健康状态(HEALTHY,UNHEALTHY,UNKNOWN)
-                                              lastConnectTime DATE, -- 最后连接时间
-                                              lastDisconnectTime DATE, -- 最后断开时间
-                                              lastHealthCheckTime DATE, -- 最后健康检查时间
-
-    -- 性能指标
-                                              responseTime NUMBER(10) DEFAULT 0 NOT NULL, -- 响应时间(毫秒)
-                                              successCount NUMBER(19) DEFAULT 0 NOT NULL, -- 成功次数
-                                              errorCount NUMBER(19) DEFAULT 0 NOT NULL, -- 错误次数
-                                              timeoutCount NUMBER(19) DEFAULT 0 NOT NULL, -- 超时次数
-
-    -- 故障转移状态
-                                              failoverStatus VARCHAR2(20) DEFAULT 'NORMAL' NOT NULL, -- 故障转移状态(NORMAL,FAILOVER,RECOVERING)
-                                              failoverTime DATE, -- 故障转移时间
-                                              failoverCount NUMBER(10) DEFAULT 0 NOT NULL, -- 故障转移次数
-                                              recoverTime DATE, -- 恢复时间
-
-    -- 同步状态
-                                              syncStatus VARCHAR2(20) DEFAULT 'IDLE' NOT NULL, -- 同步状态(IDLE,SYNCING,ERROR)
-                                              lastSyncTime DATE, -- 最后同步时间
-                                              syncSuccessCount NUMBER(19) DEFAULT 0 NOT NULL, -- 同步成功次数
-                                              syncErrorCount NUMBER(19) DEFAULT 0 NOT NULL, -- 同步错误次数
-
-    -- 错误信息
-                                              lastErrorMessage VARCHAR2(1000), -- 最后错误消息
-                                              lastErrorTime DATE, -- 最后错误时间
-                                              errorDetails CLOB, -- 错误详情，JSON格式
-
-    -- 通用字段
-                                              addTime DATE DEFAULT SYSDATE NOT NULL, -- 创建时间
-                                              addWho VARCHAR2(32) NOT NULL, -- 创建人ID
-                                              editTime DATE DEFAULT SYSDATE NOT NULL, -- 最后修改时间
-                                              editWho VARCHAR2(32) NOT NULL, -- 最后修改人ID
-                                              oprSeqFlag VARCHAR2(32) NOT NULL, -- 操作序列标识
-                                              currentVersion NUMBER(10) DEFAULT 1 NOT NULL, -- 当前版本号
-                                              activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 活动状态标记(N非活动,Y活动)
-                                              noteText VARCHAR2(500), -- 备注信息
-                                              extProperty CLOB, -- 扩展属性，JSON格式
-                                              reserved1 VARCHAR2(500), -- 预留字段1
-                                              reserved2 VARCHAR2(500), -- 预留字段2
-                                              reserved3 VARCHAR2(500), -- 预留字段3
-                                              reserved4 VARCHAR2(500), -- 预留字段4
-                                              reserved5 VARCHAR2(500), -- 预留字段5
-                                              reserved6 VARCHAR2(500), -- 预留字段6
-                                              reserved7 VARCHAR2(500), -- 预留字段7
-                                              reserved8 VARCHAR2(500), -- 预留字段8
-                                              reserved9 VARCHAR2(500), -- 预留字段9
-                                              reserved10 VARCHAR2(500), -- 预留字段10
-
-                                              CONSTRAINT PK_REGISTRY_EXT_STATUS PRIMARY KEY (tenantId, externalStatusId)
-);
-CREATE INDEX IDX_REG_EXT_STS_CFG ON HUB_REGISTRY_EXTERNAL_STATUS(tenantId, externalConfigId);
-CREATE INDEX IDX_REG_EXT_STS_CONN ON HUB_REGISTRY_EXTERNAL_STATUS(connectionStatus);
-CREATE INDEX IDX_REG_EXT_STS_HEALTH ON HUB_REGISTRY_EXTERNAL_STATUS(healthStatus);
-CREATE INDEX IDX_REG_EXT_STS_FAILOVER ON HUB_REGISTRY_EXTERNAL_STATUS(failoverStatus);
-CREATE INDEX IDX_REG_EXT_STS_SYNC ON HUB_REGISTRY_EXTERNAL_STATUS(syncStatus);
-CREATE INDEX IDX_REG_EXT_STS_ACTIVE ON HUB_REGISTRY_EXTERNAL_STATUS(activeFlag);
-COMMENT ON TABLE HUB_REGISTRY_EXTERNAL_STATUS IS '外部注册中心状态表 - 存储外部注册中心的实时运行状态和性能指标';
+-- =====================================================
+-- 数据库表结构设计说明
+-- =====================================================
+-- 
+-- 注册类型说明：
+-- 1. INTERNAL: 内部管理（默认）- 服务实例直接注册到本系统数据库
+-- 2. NACOS: Nacos注册中心 - 服务实例注册到Nacos，本系统作为代理
+-- 3. CONSUL: Consul注册中心 - 服务实例注册到Consul，本系统作为代理
+-- 4. EUREKA: Eureka注册中心 - 服务实例注册到Eureka，本系统作为代理
+-- 5. ETCD: ETCD注册中心 - 服务实例注册到ETCD，本系统作为代理
+-- 6. ZOOKEEPER: ZooKeeper注册中心 - 服务实例注册到ZooKeeper，本系统作为代理
+--
+-- 外部注册中心配置格式（externalRegistryConfig字段JSON示例）：
+-- {
+--   "serverAddress": "192.168.0.120:8848",
+--   "namespace": "ea63c755-3d65-4203-87d7-5ee6837f5bc9",
+--   "groupName": "datahub-test-group",
+--   "username": "nacos",
+--   "password": "nacos",
+--   "timeout": 10000,
+--   "enableAuth": true,
+--   "connectionPool": {
+--     "maxConnections": 10,
+--     "connectionTimeout": 5000
+--   }
+-- }
+--
+-- 使用场景：
+-- - registryType = 'INTERNAL': 传统的服务注册，实例信息存储在本地数据库
+-- - registryType = 'NACOS': 服务作为Nacos和第三方应用的代理，提供统一的服务发现接口
+-- - 其他类型: 类似Nacos，作为对应注册中心的代理
+-- =====================================================
 
 
 

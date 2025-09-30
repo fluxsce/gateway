@@ -45,7 +45,7 @@ func init() {
 //   - db: 数据库连接实例
 func Init(router *gin.Engine, db database.Database) {
 	// 创建模块路由组
-	group := router.Group(APIPrefix, routes.AuthRequired())
+	group := router.Group(APIPrefix, routes.PermissionRequired()...)
 	//sftp路由哦欸之初始化
 	commonroutes.Init(group, db)
 }

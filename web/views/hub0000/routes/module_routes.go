@@ -35,7 +35,7 @@ func Init(router *gin.Engine, db database.Database) {
 	{
 		// 需要认证的路由
 		protectedGroup := metricGroup.Group("")
-		protectedGroup.Use(routes.AuthRequired()) // 必须有有效session
+		protectedGroup.Use(routes.PermissionRequired()...) // 必须有有效session
 
 		// 创建控制器实例
 		controller := controllers.NewMetricQueryController(db)

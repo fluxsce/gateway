@@ -1839,7 +1839,7 @@ CREATE TABLE `HUB_METRIC_PROCSTAT_LOG` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='进程统计采集日志表';
 
 -- 9. 温度信息日志表
-CREATE TABLE `HUB_METRIC_TEMPERATURE_LOG` (
+CREATE TABLE `HUB_METRIC_TEMP_LOG` (
   `metricTemperatureLogId` VARCHAR(32) NOT NULL COMMENT '温度信息日志ID',
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
   `metricServerId` VARCHAR(32) NOT NULL COMMENT '关联服务器ID',
@@ -1947,6 +1947,10 @@ CREATE TABLE `HUB_REGISTRY_SERVICE` (
   -- 服务基本信息
   `serviceDescription` VARCHAR(500) DEFAULT NULL COMMENT '服务描述',
   
+  -- 注册管理配置
+  `registryType` VARCHAR(20) NOT NULL DEFAULT 'INTERNAL' COMMENT '注册类型(INTERNAL:内部管理,NACOS:Nacos注册中心,CONSUL:Consul,EUREKA:Eureka,ETCD:ETCD,ZOOKEEPER:ZooKeeper)',
+  `externalRegistryConfig` TEXT DEFAULT NULL COMMENT '外部注册中心配置，JSON格式，仅当registryType非INTERNAL时使用',
+  
   -- 服务配置
   `protocolType` VARCHAR(20) DEFAULT 'HTTP' COMMENT '协议类型(HTTP,HTTPS,TCP,UDP,GRPC)',
   `contextPath` VARCHAR(200) DEFAULT '' COMMENT '上下文路径',
@@ -1990,8 +1994,9 @@ CREATE TABLE `HUB_REGISTRY_SERVICE` (
   KEY `IDX_REGISTRY_SVC_GROUP_ID` (`tenantId`, `serviceGroupId`),
   -- 冗余字段索引（用于业务查询和展示）
   KEY `IDX_REGISTRY_SVC_GROUP_NAME` (`groupName`),
+  KEY `IDX_REGISTRY_SVC_REGISTRY_TYPE` (`registryType`),
   KEY `IDX_REGISTRY_SVC_ACTIVE` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务表 - 存储服务的基本信息和配置';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务表 - 存储服务的基本信息和配置，支持内部管理和外部注册中心代理模式';
 
 -- 服务实例表 - 存储具体的服务实例
 CREATE TABLE `HUB_REGISTRY_SERVICE_INSTANCE` (
@@ -2136,144 +2141,35 @@ CREATE TABLE `HUB_REGISTRY_SERVICE_EVENT` (
   KEY `IDX_REGISTRY_EVENT_TIME` (`eventTime`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务事件日志表 - 记录服务注册发现相关的所有事件';
 
--- 外部注册中心配置表 - 存储外部注册中心连接配置
-CREATE TABLE `HUB_REGISTRY_EXTERNAL_CONFIG` (
-  -- 主键和租户信息
-  `externalConfigId` VARCHAR(32) NOT NULL COMMENT '外部配置ID，主键',
-  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID，用于多租户数据隔离',
-  
-  -- 配置基本信息
-  `configName` VARCHAR(100) NOT NULL COMMENT '配置名称',
-  `configDescription` VARCHAR(500) DEFAULT NULL COMMENT '配置描述',
-  `registryType` VARCHAR(50) NOT NULL COMMENT '注册中心类型(CONSUL,NACOS,ETCD,EUREKA,ZOOKEEPER)',
-  `environmentName` VARCHAR(50) NOT NULL DEFAULT 'default' COMMENT '环境名称(dev,test,prod,default)',
-  
-  -- 连接配置
-  `serverAddress` VARCHAR(500) NOT NULL COMMENT '服务器地址，多个地址用逗号分隔',
-  `serverPort` INT DEFAULT NULL COMMENT '服务器端口',
-  `serverPath` VARCHAR(200) DEFAULT NULL COMMENT '服务器路径',
-  `serverScheme` VARCHAR(10) DEFAULT 'http' COMMENT '连接协议(http,https)',
-  
-  -- 认证配置
-  `authEnabled` VARCHAR(1) DEFAULT 'N' COMMENT '是否启用认证(N否,Y是)',
-  `username` VARCHAR(100) DEFAULT NULL COMMENT '用户名',
-  `password` VARCHAR(200) DEFAULT NULL COMMENT '密码',
-  `accessToken` VARCHAR(500) DEFAULT NULL COMMENT '访问令牌',
-  `secretKey` VARCHAR(200) DEFAULT NULL COMMENT '密钥',
-  
-  -- 连接配置
-  `connectionTimeout` INT DEFAULT 5000 COMMENT '连接超时时间(毫秒)',
-  `readTimeout` INT DEFAULT 10000 COMMENT '读取超时时间(毫秒)',
-  `maxRetries` INT DEFAULT 3 COMMENT '最大重试次数',
-  `retryInterval` INT DEFAULT 1000 COMMENT '重试间隔(毫秒)',
-  
-  -- 特定配置
-  `specificConfig` TEXT DEFAULT NULL COMMENT '特定注册中心配置，JSON格式',
-  `fieldMapping` TEXT DEFAULT NULL COMMENT '字段映射配置，JSON格式',
-  
-  -- 故障转移配置
-  `failoverEnabled` VARCHAR(1) DEFAULT 'N' COMMENT '是否启用故障转移(N否,Y是)',
-  `failoverConfigId` VARCHAR(32) DEFAULT NULL COMMENT '故障转移配置ID',
-  `failoverStrategy` VARCHAR(50) DEFAULT 'MANUAL' COMMENT '故障转移策略(MANUAL,AUTO)',
-  
-  -- 数据同步配置
-  `syncEnabled` VARCHAR(1) DEFAULT 'N' COMMENT '是否启用数据同步(N否,Y是)',
-  `syncInterval` INT DEFAULT 30 COMMENT '同步间隔(秒)',
-  `conflictResolution` VARCHAR(50) DEFAULT 'primary_wins' COMMENT '冲突解决策略(primary_wins,secondary_wins,merge)',
-  
-  -- 通用字段
-  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
-  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
-  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
-  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
-  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
-  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
-  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
-  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性，JSON格式',
-  `reserved1` VARCHAR(500) DEFAULT NULL COMMENT '预留字段1',
-  `reserved2` VARCHAR(500) DEFAULT NULL COMMENT '预留字段2',
-  `reserved3` VARCHAR(500) DEFAULT NULL COMMENT '预留字段3',
-  `reserved4` VARCHAR(500) DEFAULT NULL COMMENT '预留字段4',
-  `reserved5` VARCHAR(500) DEFAULT NULL COMMENT '预留字段5',
-  `reserved6` VARCHAR(500) DEFAULT NULL COMMENT '预留字段6',
-  `reserved7` VARCHAR(500) DEFAULT NULL COMMENT '预留字段7',
-  `reserved8` VARCHAR(500) DEFAULT NULL COMMENT '预留字段8',
-  `reserved9` VARCHAR(500) DEFAULT NULL COMMENT '预留字段9',
-  `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
-  
-  -- 主键和索引
-  PRIMARY KEY (`tenantId`, `externalConfigId`),
-  KEY `IDX_REGISTRY_EXT_CONFIG_NAME` (`tenantId`, `configName`, `environmentName`),
-  KEY `IDX_REGISTRY_EXT_CONFIG_TYPE` (`registryType`),
-  KEY `IDX_REGISTRY_EXT_CONFIG_ENV` (`environmentName`),
-  KEY `IDX_REGISTRY_EXT_CONFIG_ACTIVE` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='外部注册中心配置表 - 存储外部注册中心的连接和配置信息';
-
--- 外部注册中心状态表 - 存储外部注册中心运行状态
-CREATE TABLE `HUB_REGISTRY_EXTERNAL_STATUS` (
-  -- 主键和租户信息
-  `externalStatusId` VARCHAR(32) NOT NULL COMMENT '外部状态ID，主键',
-  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID，用于多租户数据隔离',
-  `externalConfigId` VARCHAR(32) NOT NULL COMMENT '外部配置ID',
-  
-  -- 连接状态
-  `connectionStatus` VARCHAR(20) NOT NULL DEFAULT 'DISCONNECTED' COMMENT '连接状态(CONNECTED,DISCONNECTED,CONNECTING,ERROR)',
-  `healthStatus` VARCHAR(20) NOT NULL DEFAULT 'UNKNOWN' COMMENT '健康状态(HEALTHY,UNHEALTHY,UNKNOWN)',
-  `lastConnectTime` DATETIME DEFAULT NULL COMMENT '最后连接时间',
-  `lastDisconnectTime` DATETIME DEFAULT NULL COMMENT '最后断开时间',
-  `lastHealthCheckTime` DATETIME DEFAULT NULL COMMENT '最后健康检查时间',
-  
-  -- 性能指标
-  `responseTime` INT DEFAULT 0 COMMENT '响应时间(毫秒)',
-  `successCount` BIGINT DEFAULT 0 COMMENT '成功次数',
-  `errorCount` BIGINT DEFAULT 0 COMMENT '错误次数',
-  `timeoutCount` BIGINT DEFAULT 0 COMMENT '超时次数',
-  
-  -- 故障转移状态
-  `failoverStatus` VARCHAR(20) DEFAULT 'NORMAL' COMMENT '故障转移状态(NORMAL,FAILOVER,RECOVERING)',
-  `failoverTime` DATETIME DEFAULT NULL COMMENT '故障转移时间',
-  `failoverCount` INT DEFAULT 0 COMMENT '故障转移次数',
-  `recoverTime` DATETIME DEFAULT NULL COMMENT '恢复时间',
-  
-  -- 同步状态
-  `syncStatus` VARCHAR(20) DEFAULT 'IDLE' COMMENT '同步状态(IDLE,SYNCING,ERROR)',
-  `lastSyncTime` DATETIME DEFAULT NULL COMMENT '最后同步时间',
-  `syncSuccessCount` BIGINT DEFAULT 0 COMMENT '同步成功次数',
-  `syncErrorCount` BIGINT DEFAULT 0 COMMENT '同步错误次数',
-  
-  -- 错误信息
-  `lastErrorMessage` VARCHAR(1000) DEFAULT NULL COMMENT '最后错误消息',
-  `lastErrorTime` DATETIME DEFAULT NULL COMMENT '最后错误时间',
-  `errorDetails` TEXT DEFAULT NULL COMMENT '错误详情，JSON格式',
-  
-  -- 通用字段
-  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
-  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
-  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
-  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
-  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
-  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
-  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
-  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性，JSON格式',
-  `reserved1` VARCHAR(500) DEFAULT NULL COMMENT '预留字段1',
-  `reserved2` VARCHAR(500) DEFAULT NULL COMMENT '预留字段2',
-  `reserved3` VARCHAR(500) DEFAULT NULL COMMENT '预留字段3',
-  `reserved4` VARCHAR(500) DEFAULT NULL COMMENT '预留字段4',
-  `reserved5` VARCHAR(500) DEFAULT NULL COMMENT '预留字段5',
-  `reserved6` VARCHAR(500) DEFAULT NULL COMMENT '预留字段6',
-  `reserved7` VARCHAR(500) DEFAULT NULL COMMENT '预留字段7',
-  `reserved8` VARCHAR(500) DEFAULT NULL COMMENT '预留字段8',
-  `reserved9` VARCHAR(500) DEFAULT NULL COMMENT '预留字段9',
-  `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
-  
-  -- 主键和索引
-  PRIMARY KEY (`tenantId`, `externalStatusId`),
-  KEY `IDX_REGISTRY_EXT_STATUS_CONFIG` (`tenantId`, `externalConfigId`),
-  KEY `IDX_REGISTRY_EXT_STATUS_CONN` (`connectionStatus`),
-  KEY `IDX_REGISTRY_EXT_STATUS_HEALTH` (`healthStatus`),
-  KEY `IDX_REGISTRY_EXT_STATUS_FAILOVER` (`failoverStatus`),
-  KEY `IDX_REGISTRY_EXT_STATUS_SYNC` (`syncStatus`),
-  KEY `IDX_REGISTRY_EXT_STATUS_ACTIVE` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='外部注册中心状态表 - 存储外部注册中心的实时运行状态和性能指标';
+-- =====================================================
+-- 数据库表结构设计说明
+-- =====================================================
+-- 
+-- 注册类型说明：
+-- 1. INTERNAL: 内部管理（默认）- 服务实例直接注册到本系统数据库
+-- 2. NACOS: Nacos注册中心 - 服务实例注册到Nacos，本系统作为代理
+-- 3. CONSUL: Consul注册中心 - 服务实例注册到Consul，本系统作为代理
+-- 4. EUREKA: Eureka注册中心 - 服务实例注册到Eureka，本系统作为代理
+-- 5. ETCD: ETCD注册中心 - 服务实例注册到ETCD，本系统作为代理
+-- 6. ZOOKEEPER: ZooKeeper注册中心 - 服务实例注册到ZooKeeper，本系统作为代理
+--
+-- 外部注册中心配置格式（externalRegistryConfig字段JSON示例）：
+-- {
+--   "serverAddress": "192.168.0.120:8848",
+--   "namespace": "ea63c755-3d65-4203-87d7-5ee6837f5bc9",
+--   "groupName": "datahub-test-group",
+--   "username": "nacos",
+--   "password": "nacos",
+--   "timeout": 10000,
+--   "enableAuth": true,
+--   "connectionPool": {
+--     "maxConnections": 10,
+--     "connectionTimeout": 5000
+--   }
+-- }
+--
+-- 使用场景：
+-- - registryType = 'INTERNAL': 传统的服务注册，实例信息存储在本地数据库
+-- - registryType = 'NACOS': 服务作为Nacos和第三方应用的代理，提供统一的服务发现接口
+-- - 其他类型: 类似Nacos，作为对应注册中心的代理
+-- =====================================================

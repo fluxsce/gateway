@@ -7,6 +7,7 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/huberrors"
+	"gateway/web/middleware"
 	"gateway/web/routes"
 	"net/http"
 	"os"
@@ -234,7 +235,12 @@ func (app *WebApp) Router() *gin.Engine {
 
 // Init 初始化Web应用
 func (app *WebApp) Init() error {
-	logger.Info("初始化Web应用路由")
+	logger.Info("初始化Web应用")
+
+	// 初始化权限服务（必须在路由注册之前）
+	logger.Info("初始化权限服务")
+	middleware.InitPermissionService(app.db)
+	logger.Info("权限服务初始化完成")
 
 	// 应用全局中间件
 	routes.ApplyGlobalMiddleware(app.router)

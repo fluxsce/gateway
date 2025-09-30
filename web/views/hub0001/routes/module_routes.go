@@ -40,7 +40,7 @@ func Init(router *gin.Engine, db database.Database) {
 
 		// 受保护API - 需要Session认证的路由
 		sessionGroup := authGroup.Group("")
-		sessionGroup.Use(routes.AuthRequired()) // 必须有有效session
+		sessionGroup.Use(routes.PermissionRequired()...) // 必须有有效session
 		{
 			sessionGroup.GET("/userinfo", authController.UserInfo)
 			sessionGroup.POST("/refresh-session", authController.RefreshSession)
@@ -65,7 +65,7 @@ func Init(router *gin.Engine, db database.Database) {
 
 		// 或者也可以继续使用路由组方式，但使用新的中间件
 		// protected := authGroup.Group("")
-		// protected.Use(routes.AuthRequired())
+		// protected.Use(routes.PermissionRequired()...)
 		// {
 		//     protected.GET("/userinfo", authController.UserInfo)
 		//     protected.POST("/refresh-token", authController.RefreshToken)

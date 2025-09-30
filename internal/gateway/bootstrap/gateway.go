@@ -17,6 +17,7 @@ import (
 	"gateway/internal/gateway/handler/proxy"
 	"gateway/internal/gateway/handler/router"
 	"gateway/internal/gateway/handler/security"
+	"gateway/internal/gateway/loader/dbloader"
 	"gateway/internal/gateway/logwrite"
 	"gateway/pkg/logger"
 )
@@ -278,6 +279,8 @@ func (g *Gateway) Start() error {
 	// 在启动前检查端口是否已被占用
 	listener, err := net.Listen("tcp", g.server.Addr)
 	if err != nil {
+		// 端口占用或绑定失败，更新数据库状态
+		g.updateHealthStatus("N", fmt.Sprintf("端口绑定失败: %v", err))
 		return fmt.Errorf("端口 %s 已被占用或无法绑定: %w", g.server.Addr, err)
 	}
 	// 关闭测试用的监听器
@@ -320,11 +323,15 @@ func (g *Gateway) Start() error {
 	// 等待短暂时间检查是否有立即出现的错误
 	select {
 	case err := <-errCh:
+		// 启动失败，更新数据库状态
+		g.updateHealthStatus("N", fmt.Sprintf("启动失败: %v", err))
 		return fmt.Errorf("启动HTTP服务器失败: %w", err)
 	case <-time.After(100 * time.Millisecond):
 		// 没有立即出现错误，认为启动成功
 		g.running = true
 		g.stopCh = make(chan struct{})
+		// 启动成功，更新数据库状态
+		g.updateHealthStatus("Y", "")
 		logger.Info("网关服务启动成功")
 	}
 
@@ -439,6 +446,21 @@ func (g *Gateway) IsRunning() bool {
 // GetConfig 获取配置
 func (g *Gateway) GetConfig() *config.GatewayConfig {
 	return g.gatewayConfig
+}
+
+// updateHealthStatus 更新网关实例健康状态
+func (g *Gateway) updateHealthStatus(healthStatus string, errorMsg string) {
+	// 检查是否有实例ID和租户ID
+	instanceId := g.gatewayConfig.InstanceID
+	tenantId := g.gatewayConfig.Log.TenantID
+	
+	if instanceId == "" || tenantId == "" {
+		logger.Debug("缺少instanceId或tenantId，跳过健康状态更新", "instanceId", instanceId, "tenantId", tenantId)
+		return
+	}
+	
+	// 调用静态方法更新健康状态
+	dbloader.UpdateGatewayHealthStatus(tenantId, instanceId, healthStatus, errorMsg)
 }
 
 // Reload 重新加载网关配置

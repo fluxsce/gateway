@@ -34,6 +34,8 @@ import (
 	_ "gateway/web/views/hub0040/routes"
 	// 导入服务注册列表管理模块
 	_ "gateway/web/views/hub0041/routes"
+	// 导入隧道服务器管理模块
+	_ "gateway/web/views/hub0060/routes"
 	//导入插件管理模块
 	_ "gateway/web/views/hubplugin/routes"
 	// 导入SDK服务模块

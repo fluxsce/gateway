@@ -30,6 +30,8 @@ func NewServiceInstanceDAO(db database.Database) *ServiceInstanceDAO {
 
 // QueryServiceInstances 分页查询服务实例列表
 //
+// 优先从注册中心管理器缓存获取，包括外部注册中心的实例
+//
 // 参数：
 //   - ctx: 上下文对象
 //   - tenantId: 租户ID
@@ -57,6 +59,159 @@ func (dao *ServiceInstanceDAO) QueryServiceInstances(ctx context.Context, tenant
 	if pageSize > 100 {
 		pageSize = 100 // 限制最大分页大小
 	}
+
+	// 获取注册中心管理器实例
+	registryManager := manager.GetInstance()
+
+	var allInstances []*models.ServiceInstance
+
+	// 如果指定了服务名称，优先从缓存获取
+	if serviceName != "" {
+		// 直接从数据库获取服务基本信息，避免与service_dao.go形成死循环
+		var service struct {
+			ServiceGroupId string `db:"serviceGroupId"`
+			RegistryType   string `db:"registryType"`
+		}
+
+		serviceQuery := `SELECT serviceGroupId, registryType FROM HUB_REGISTRY_SERVICE WHERE tenantId = ? AND serviceName = ?`
+		serviceArgs := []interface{}{tenantId, serviceName}
+
+		if activeFlag != "" {
+			serviceQuery += " AND activeFlag = ?"
+			serviceArgs = append(serviceArgs, activeFlag)
+		}
+
+		err := dao.db.QueryOne(ctx, &service, serviceQuery, serviceArgs, true)
+		if err != nil {
+			if strings.Contains(err.Error(), "no rows") || strings.Contains(err.Error(), "not found") {
+				return []*models.ServiceInstance{}, 0, nil
+			}
+			return nil, 0, huberrors.WrapError(err, "获取服务信息失败")
+		}
+
+		// 从注册中心管理器获取实例列表（包括外部注册中心的实例）
+		coreInstances, err := registryManager.ListInstances(ctx, tenantId, service.ServiceGroupId, serviceName)
+		if err != nil {
+			// 判断服务的注册类型，决定错误处理策略
+			if service.RegistryType != "" && service.RegistryType != "INTERNAL" {
+				// 外部注册中心的服务，抛出错误，不回退到数据库
+				logger.ErrorWithTrace(ctx, "从外部注册中心获取实例失败",
+					"serviceName", serviceName,
+					"registryType", service.RegistryType,
+					"error", err)
+				return nil, 0, huberrors.WrapError(err, "从外部注册中心获取服务实例失败: %s", service.RegistryType)
+			} else {
+				// 内部注册中心的服务，回退到数据库查询
+				logger.WarnWithTrace(ctx, "从注册中心管理器获取实例失败，回退到数据库查询",
+					"serviceName", serviceName,
+					"registryType", service.RegistryType,
+					"error", err)
+				return dao.queryInstancesFromDatabase(ctx, tenantId, activeFlag, serviceName, groupName, instanceStatus, healthStatus, hostAddress, page, pageSize)
+			}
+		}
+
+		// 转换 core.ServiceInstance 到 models.ServiceInstance
+		for _, coreInstance := range coreInstances {
+			modelInstance := &models.ServiceInstance{
+				ServiceInstanceId:   coreInstance.ServiceInstanceId,
+				TenantId:            coreInstance.TenantId,
+				ServiceGroupId:      coreInstance.ServiceGroupId,
+				ServiceName:         coreInstance.ServiceName,
+				GroupName:           coreInstance.GroupName,
+				HostAddress:         coreInstance.HostAddress,
+				PortNumber:          coreInstance.PortNumber,
+				ContextPath:         coreInstance.ContextPath,
+				InstanceStatus:      coreInstance.InstanceStatus,
+				HealthStatus:        coreInstance.HealthStatus,
+				WeightValue:         coreInstance.WeightValue,
+				ClientId:            coreInstance.ClientId,
+				ClientVersion:       coreInstance.ClientVersion,
+				ClientType:          coreInstance.ClientType,
+				TempInstanceFlag:    coreInstance.TempInstanceFlag,
+				HeartbeatFailCount:  coreInstance.HeartbeatFailCount,
+				MetadataJson:        coreInstance.MetadataJson,
+				TagsJson:            coreInstance.TagsJson,
+				RegisterTime:        coreInstance.RegisterTime,
+				LastHeartbeatTime:   coreInstance.LastHeartbeatTime,
+				LastHealthCheckTime: coreInstance.LastHealthCheckTime,
+				AddTime:             coreInstance.AddTime,
+				AddWho:              coreInstance.AddWho,
+				EditTime:            coreInstance.EditTime,
+				EditWho:             coreInstance.EditWho,
+				OprSeqFlag:          coreInstance.OprSeqFlag,
+				CurrentVersion:      coreInstance.CurrentVersion,
+				ActiveFlag:          coreInstance.ActiveFlag,
+				NoteText:            coreInstance.NoteText,
+				ExtProperty:         coreInstance.ExtProperty,
+				Reserved1:           coreInstance.Reserved1,
+				Reserved2:           coreInstance.Reserved2,
+				Reserved3:           coreInstance.Reserved3,
+				Reserved4:           coreInstance.Reserved4,
+				Reserved5:           coreInstance.Reserved5,
+				Reserved6:           coreInstance.Reserved6,
+				Reserved7:           coreInstance.Reserved7,
+				Reserved8:           coreInstance.Reserved8,
+				Reserved9:           coreInstance.Reserved9,
+				Reserved10:          coreInstance.Reserved10,
+			}
+			allInstances = append(allInstances, modelInstance)
+		}
+	} else {
+		// 如果没有指定服务名称，回退到数据库查询
+		return dao.queryInstancesFromDatabase(ctx, tenantId, activeFlag, serviceName, groupName, instanceStatus, healthStatus, hostAddress, page, pageSize)
+	}
+
+	// 应用过滤条件
+	var filteredInstances []*models.ServiceInstance
+	for _, instance := range allInstances {
+		// 活动状态过滤
+		if activeFlag != "" && instance.ActiveFlag != activeFlag {
+			continue
+		}
+
+		// 分组名称过滤
+		if groupName != "" && instance.GroupName != groupName {
+			continue
+		}
+
+		// 实例状态过滤
+		if instanceStatus != "" && instance.InstanceStatus != instanceStatus {
+			continue
+		}
+
+		// 健康状态过滤
+		if healthStatus != "" && instance.HealthStatus != healthStatus {
+			continue
+		}
+
+		// 主机地址过滤（模糊查询）
+		if hostAddress != "" && !strings.Contains(instance.HostAddress, hostAddress) {
+			continue
+		}
+
+		filteredInstances = append(filteredInstances, instance)
+	}
+
+	// 手动分页
+	total := len(filteredInstances)
+	start := (page - 1) * pageSize
+	end := start + pageSize
+
+	if start >= total {
+		// 超出范围，返回空结果
+		return []*models.ServiceInstance{}, total, nil
+	}
+
+	if end > total {
+		end = total
+	}
+
+	instances := filteredInstances[start:end]
+	return instances, total, nil
+}
+
+// queryInstancesFromDatabase 从数据库查询服务实例列表（回退方法）
+func (dao *ServiceInstanceDAO) queryInstancesFromDatabase(ctx context.Context, tenantId, activeFlag, serviceName, groupName, instanceStatus, healthStatus, hostAddress string, page, pageSize int) ([]*models.ServiceInstance, int, error) {
 	// 构建基础查询条件
 	whereConditions := []string{"tenantId = ?"}
 	args := []interface{}{tenantId}
@@ -132,6 +287,8 @@ func (dao *ServiceInstanceDAO) QueryServiceInstances(ctx context.Context, tenant
 
 // GetServiceInstance 根据实例ID获取服务实例详情
 //
+// 优先从注册中心管理器缓存获取，包括外部注册中心的实例
+//
 // 参数：
 //   - ctx: 上下文对象
 //   - tenantId: 租户ID
@@ -142,6 +299,73 @@ func (dao *ServiceInstanceDAO) QueryServiceInstances(ctx context.Context, tenant
 //   - *models.ServiceInstance: 服务实例信息
 //   - error: 错误信息
 func (dao *ServiceInstanceDAO) GetServiceInstance(ctx context.Context, tenantId, serviceInstanceId, activeFlag string) (*models.ServiceInstance, error) {
+	// 获取注册中心管理器实例
+	registryManager := manager.GetInstance()
+
+	// 先尝试从注册中心管理器获取实例（包括外部注册中心的实例）
+	coreInstance, err := registryManager.GetInstance(ctx, tenantId, serviceInstanceId)
+	if err != nil {
+		// 如果从缓存获取失败，回退到数据库查询
+		logger.DebugWithTrace(ctx, "从注册中心管理器获取实例失败，回退到数据库查询",
+			"instanceId", serviceInstanceId,
+			"error", err)
+		return dao.getInstanceFromDatabase(ctx, tenantId, serviceInstanceId, activeFlag)
+	}
+
+	// 应用活动状态过滤
+	if activeFlag != "" && coreInstance.ActiveFlag != activeFlag {
+		return nil, huberrors.WrapError(fmt.Errorf("实例状态不匹配"), "服务实例不存在")
+	}
+
+	// 转换 core.ServiceInstance 到 models.ServiceInstance
+	modelInstance := &models.ServiceInstance{
+		ServiceInstanceId:   coreInstance.ServiceInstanceId,
+		TenantId:            coreInstance.TenantId,
+		ServiceGroupId:      coreInstance.ServiceGroupId,
+		ServiceName:         coreInstance.ServiceName,
+		GroupName:           coreInstance.GroupName,
+		HostAddress:         coreInstance.HostAddress,
+		PortNumber:          coreInstance.PortNumber,
+		ContextPath:         coreInstance.ContextPath,
+		InstanceStatus:      coreInstance.InstanceStatus,
+		HealthStatus:        coreInstance.HealthStatus,
+		WeightValue:         coreInstance.WeightValue,
+		ClientId:            coreInstance.ClientId,
+		ClientVersion:       coreInstance.ClientVersion,
+		ClientType:          coreInstance.ClientType,
+		TempInstanceFlag:    coreInstance.TempInstanceFlag,
+		HeartbeatFailCount:  coreInstance.HeartbeatFailCount,
+		MetadataJson:        coreInstance.MetadataJson,
+		TagsJson:            coreInstance.TagsJson,
+		RegisterTime:        coreInstance.RegisterTime,
+		LastHeartbeatTime:   coreInstance.LastHeartbeatTime,
+		LastHealthCheckTime: coreInstance.LastHealthCheckTime,
+		AddTime:             coreInstance.AddTime,
+		AddWho:              coreInstance.AddWho,
+		EditTime:            coreInstance.EditTime,
+		EditWho:             coreInstance.EditWho,
+		OprSeqFlag:          coreInstance.OprSeqFlag,
+		CurrentVersion:      coreInstance.CurrentVersion,
+		ActiveFlag:          coreInstance.ActiveFlag,
+		NoteText:            coreInstance.NoteText,
+		ExtProperty:         coreInstance.ExtProperty,
+		Reserved1:           coreInstance.Reserved1,
+		Reserved2:           coreInstance.Reserved2,
+		Reserved3:           coreInstance.Reserved3,
+		Reserved4:           coreInstance.Reserved4,
+		Reserved5:           coreInstance.Reserved5,
+		Reserved6:           coreInstance.Reserved6,
+		Reserved7:           coreInstance.Reserved7,
+		Reserved8:           coreInstance.Reserved8,
+		Reserved9:           coreInstance.Reserved9,
+		Reserved10:          coreInstance.Reserved10,
+	}
+
+	return modelInstance, nil
+}
+
+// getInstanceFromDatabase 从数据库获取服务实例详情（回退方法）
+func (dao *ServiceInstanceDAO) getInstanceFromDatabase(ctx context.Context, tenantId, serviceInstanceId, activeFlag string) (*models.ServiceInstance, error) {
 	whereConditions := []string{"tenantId = ?", "serviceInstanceId = ?"}
 	args := []interface{}{tenantId, serviceInstanceId}
 

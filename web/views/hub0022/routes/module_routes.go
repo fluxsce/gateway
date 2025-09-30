@@ -16,7 +16,7 @@ func RegisterHub0022Routes(router *gin.Engine, db database.Database) {
 	gatewayInstanceController := controllers.NewGatewayInstanceController(db)
 
 	// 创建路由组
-	apiGroup := router.Group("/gateway/hub0022", routes.AuthRequired())
+	apiGroup := router.Group("/gateway/hub0022", routes.PermissionRequired()...)
 
 	// 代理配置管理路由
 	{

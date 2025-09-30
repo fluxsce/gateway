@@ -2,14 +2,13 @@ package routes
 
 import (
 	"gateway/web/middleware"
-	"gateway/web/utils/constants"
-	"gateway/web/utils/response"
 
 	"github.com/gin-gonic/gin"
 )
 
 // AuthRequired 验证用户是否已登录的中间件
 // 使用Session认证，适用于需要登录才能访问的路由
+// 这个中间件只负责认证，不进行权限校验
 func AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 使用Session认证中间件，更适合前端管理
@@ -25,34 +24,27 @@ func AuthRequired() gin.HandlerFunc {
 	}
 }
 
-// PermissionRequired 验证用户是否有特定权限的中间件
-// 参数:
-//   - permissions: 所需的权限列表，用户必须拥有至少一个权限才能通过
-func PermissionRequired(permissions ...string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// 验证用户是否已登录（使用Session认证）
-		AuthRequired()(c)
-
-		// 如果请求已被中止，说明认证失败
-		if c.IsAborted() {
-			return
-		}
-
-		// TODO: 实现权限验证逻辑
-		// 当前版本暂时允许所有已认证用户访问
-		// 后续可以根据业务需求实现具体的权限验证逻辑
-		//logger.Debug("权限验证", "userId", userContext.UserId, "permissions", permissions)
-
-		// 临时实现：所有已认证用户都有权限
-		hasPermission := true
-
-		if !hasPermission {
-			response.ErrorJSON(c, "没有执行此操作的权限", constants.ED00010)
-			c.Abort()
-			return
-		}
-
-		c.Next()
+// PermissionRequired 验证用户权限的中间件组合
+// 返回认证和权限校验的中间件数组，第一个是认证，第二个是权限校验
+// 权限参数从请求中获取（header、query、form）
+//
+// 返回:
+//
+//	[]gin.HandlerFunc: 中间件数组，[0]认证中间件，[1]权限校验中间件
+//
+// 使用示例:
+//
+//	// 基本使用
+//	router.GET("/users", PermissionRequired()..., handler)
+//
+//	// 前端需要在请求中传递权限参数：
+//	// Header: X-Permission-moduleCode: hub0002
+//	// Header: X-Permission-buttonCode: hub0002:user:create
+//	// 或 Query: ?moduleCode=hub0002&buttonCode=hub0002:user:create
+func PermissionRequired() []gin.HandlerFunc {
+	return []gin.HandlerFunc{
+		AuthRequired(), // 认证中间件
+		//middleware.PermissionRequired(), // 权限校验中间件
 	}
 }
 

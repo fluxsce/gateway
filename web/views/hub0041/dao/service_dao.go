@@ -61,6 +61,11 @@ func (dao *ServiceDAO) QueryServices(ctx context.Context, req *models.ServiceQue
 		params = append(params, req.ProtocolType)
 	}
 
+	if req.RegistryType != "" {
+		whereClause += " AND registryType = ?"
+		params = append(params, req.RegistryType)
+	}
+
 	if req.Keyword != "" {
 		whereClause += " AND (serviceName LIKE ? OR serviceDescription LIKE ?)"
 		keyword := "%" + req.Keyword + "%"
@@ -70,6 +75,7 @@ func (dao *ServiceDAO) QueryServices(ctx context.Context, req *models.ServiceQue
 	// 构建基础查询语句 - 查询完整的服务信息
 	baseQuery := fmt.Sprintf(`
 		SELECT tenantId, serviceName, serviceGroupId, groupName, serviceDescription,
+			   registryType, externalRegistryConfig,
 			   protocolType, contextPath, loadBalanceStrategy,
 			   healthCheckUrl, healthCheckIntervalSeconds, healthCheckTimeoutSeconds, healthCheckType, healthCheckMode,
 			   metadataJson, tagsJson,
@@ -123,18 +129,64 @@ func (dao *ServiceDAO) QueryServices(ctx context.Context, req *models.ServiceQue
 		return nil, 0, huberrors.WrapError(err, "查询服务数据失败")
 	}
 
-	// 为每个服务关联实例信息
+	// 为每个服务关联实例信息，避免与service_instance_dao.go形成死循环
 	if len(services) > 0 {
-		instanceDAO := NewServiceInstanceDAO(dao.db)
+		registryManager := manager.GetInstance()
 		for i := range services {
-			// 查询服务实例
-			instances, _, err := instanceDAO.QueryServiceInstances(ctx, req.TenantId, "", services[i].ServiceName, "", "", "", "", 1, 1000)
+			// 从注册中心管理器获取实例列表
+			coreInstances, err := registryManager.ListInstances(ctx, req.TenantId, services[i].ServiceGroupId, services[i].ServiceName)
 			if err != nil {
-				logger.WarnWithTrace(ctx, "查询服务实例失败", "error", err, "serviceName", services[i].ServiceName)
-				// 查询实例失败不影响服务查询结果，返回空实例列表
+				logger.WarnWithTrace(ctx, "从注册中心管理器获取实例失败", "error", err, "serviceName", services[i].ServiceName)
+				// 获取实例失败不影响服务查询结果，返回空实例列表
 				services[i].Instances = []*models.ServiceInstance{}
 			} else {
-				services[i].Instances = instances
+				// 转换 core.ServiceInstance 到 models.ServiceInstance
+				services[i].Instances = make([]*models.ServiceInstance, 0, len(coreInstances))
+				for _, coreInstance := range coreInstances {
+					modelInstance := &models.ServiceInstance{
+						ServiceInstanceId:   coreInstance.ServiceInstanceId,
+						TenantId:            coreInstance.TenantId,
+						ServiceGroupId:      coreInstance.ServiceGroupId,
+						ServiceName:         coreInstance.ServiceName,
+						GroupName:           coreInstance.GroupName,
+						HostAddress:         coreInstance.HostAddress,
+						PortNumber:          coreInstance.PortNumber,
+						ContextPath:         coreInstance.ContextPath,
+						InstanceStatus:      coreInstance.InstanceStatus,
+						HealthStatus:        coreInstance.HealthStatus,
+						WeightValue:         coreInstance.WeightValue,
+						ClientId:            coreInstance.ClientId,
+						ClientVersion:       coreInstance.ClientVersion,
+						ClientType:          coreInstance.ClientType,
+						TempInstanceFlag:    coreInstance.TempInstanceFlag,
+						HeartbeatFailCount:  coreInstance.HeartbeatFailCount,
+						MetadataJson:        coreInstance.MetadataJson,
+						TagsJson:            coreInstance.TagsJson,
+						RegisterTime:        coreInstance.RegisterTime,
+						LastHeartbeatTime:   coreInstance.LastHeartbeatTime,
+						LastHealthCheckTime: coreInstance.LastHealthCheckTime,
+						AddTime:             coreInstance.AddTime,
+						AddWho:              coreInstance.AddWho,
+						EditTime:            coreInstance.EditTime,
+						EditWho:             coreInstance.EditWho,
+						OprSeqFlag:          coreInstance.OprSeqFlag,
+						CurrentVersion:      coreInstance.CurrentVersion,
+						ActiveFlag:          coreInstance.ActiveFlag,
+						NoteText:            coreInstance.NoteText,
+						ExtProperty:         coreInstance.ExtProperty,
+						Reserved1:           coreInstance.Reserved1,
+						Reserved2:           coreInstance.Reserved2,
+						Reserved3:           coreInstance.Reserved3,
+						Reserved4:           coreInstance.Reserved4,
+						Reserved5:           coreInstance.Reserved5,
+						Reserved6:           coreInstance.Reserved6,
+						Reserved7:           coreInstance.Reserved7,
+						Reserved8:           coreInstance.Reserved8,
+						Reserved9:           coreInstance.Reserved9,
+						Reserved10:          coreInstance.Reserved10,
+					}
+					services[i].Instances = append(services[i].Instances, modelInstance)
+				}
 			}
 		}
 	}
@@ -183,6 +235,7 @@ func (dao *ServiceDAO) GetService(ctx context.Context, tenantId, serviceName, ac
 	whereClause := strings.Join(whereConditions, " AND ")
 
 	query := `SELECT tenantId, serviceName, serviceGroupId, groupName, serviceDescription,
+		registryType, externalRegistryConfig,
 		protocolType, contextPath, loadBalanceStrategy,
 		healthCheckUrl, healthCheckIntervalSeconds, healthCheckTimeoutSeconds, healthCheckType, healthCheckMode,
 		metadataJson, tagsJson,
@@ -199,21 +252,72 @@ func (dao *ServiceDAO) GetService(ctx context.Context, tenantId, serviceName, ac
 		return nil, huberrors.WrapError(err, "获取服务信息失败")
 	}
 
-	// 关联查询服务实例
-	instanceDAO := NewServiceInstanceDAO(dao.db)
-	instances, _, err := instanceDAO.QueryServiceInstances(ctx, tenantId, "", service.ServiceName, "", "", "", "", 1, 1000)
+	// 从注册中心管理器获取服务实例，避免与service_instance_dao.go形成死循环
+	registryManager := manager.GetInstance()
+	coreInstances, err := registryManager.ListInstances(ctx, tenantId, service.ServiceGroupId, service.ServiceName)
 	if err != nil {
-		logger.WarnWithTrace(ctx, "查询服务实例失败", "error", err, "serviceName", service.ServiceName)
-		// 查询实例失败不影响服务查询结果，返回空实例列表
+		logger.WarnWithTrace(ctx, "从注册中心管理器获取实例失败", "error", err, "serviceName", service.ServiceName)
+		// 获取实例失败不影响服务查询结果，返回空实例列表
 		service.Instances = []*models.ServiceInstance{}
 	} else {
-		service.Instances = instances
+		// 转换 core.ServiceInstance 到 models.ServiceInstance
+		service.Instances = make([]*models.ServiceInstance, 0, len(coreInstances))
+		for _, coreInstance := range coreInstances {
+			modelInstance := &models.ServiceInstance{
+				ServiceInstanceId:   coreInstance.ServiceInstanceId,
+				TenantId:            coreInstance.TenantId,
+				ServiceGroupId:      coreInstance.ServiceGroupId,
+				ServiceName:         coreInstance.ServiceName,
+				GroupName:           coreInstance.GroupName,
+				HostAddress:         coreInstance.HostAddress,
+				PortNumber:          coreInstance.PortNumber,
+				ContextPath:         coreInstance.ContextPath,
+				InstanceStatus:      coreInstance.InstanceStatus,
+				HealthStatus:        coreInstance.HealthStatus,
+				WeightValue:         coreInstance.WeightValue,
+				ClientId:            coreInstance.ClientId,
+				ClientVersion:       coreInstance.ClientVersion,
+				ClientType:          coreInstance.ClientType,
+				TempInstanceFlag:    coreInstance.TempInstanceFlag,
+				HeartbeatFailCount:  coreInstance.HeartbeatFailCount,
+				MetadataJson:        coreInstance.MetadataJson,
+				TagsJson:            coreInstance.TagsJson,
+				RegisterTime:        coreInstance.RegisterTime,
+				LastHeartbeatTime:   coreInstance.LastHeartbeatTime,
+				LastHealthCheckTime: coreInstance.LastHealthCheckTime,
+				AddTime:             coreInstance.AddTime,
+				AddWho:              coreInstance.AddWho,
+				EditTime:            coreInstance.EditTime,
+				EditWho:             coreInstance.EditWho,
+				OprSeqFlag:          coreInstance.OprSeqFlag,
+				CurrentVersion:      coreInstance.CurrentVersion,
+				ActiveFlag:          coreInstance.ActiveFlag,
+				NoteText:            coreInstance.NoteText,
+				ExtProperty:         coreInstance.ExtProperty,
+				Reserved1:           coreInstance.Reserved1,
+				Reserved2:           coreInstance.Reserved2,
+				Reserved3:           coreInstance.Reserved3,
+				Reserved4:           coreInstance.Reserved4,
+				Reserved5:           coreInstance.Reserved5,
+				Reserved6:           coreInstance.Reserved6,
+				Reserved7:           coreInstance.Reserved7,
+				Reserved8:           coreInstance.Reserved8,
+				Reserved9:           coreInstance.Reserved9,
+				Reserved10:          coreInstance.Reserved10,
+			}
+			service.Instances = append(service.Instances, modelInstance)
+		}
 	}
 
 	return service, nil
 }
 
-// UpdateService 更新服务信息
+// UpdateService 更新服务信息（推荐方式）
+//
+// 此方法会调用 registry_manager.UpdateService，确保：
+// 1. 事件发布
+// 2. 缓存更新
+// 3. 完整的生命周期管理
 //
 // 参数：
 //   - ctx: 上下文对象
@@ -224,32 +328,82 @@ func (dao *ServiceDAO) GetService(ctx context.Context, tenantId, serviceName, ac
 //   - *models.Service: 更新后的服务信息
 //   - error: 错误信息
 func (dao *ServiceDAO) UpdateService(ctx context.Context, service *models.Service, operatorId string) (*models.Service, error) {
+	// 获取注册中心管理器实例
+	registryManager := manager.GetInstance()
+
 	// 更新审计信息
 	service.EditTime = time.Now()
 	service.EditWho = operatorId
 	service.CurrentVersion++
 	service.OprSeqFlag = random.Generate32BitRandomString()
 
-	// 使用主键更新
-	where := "tenantId = ? AND serviceName = ?"
-	args := []interface{}{service.TenantId, service.ServiceName}
+	// 转换 models.Service 到 core.Service
+	coreService := &core.Service{
+		TenantId:                   service.TenantId,
+		ServiceName:                service.ServiceName,
+		ServiceGroupId:             service.ServiceGroupId,
+		GroupName:                  service.GroupName,
+		ServiceDescription:         service.ServiceDescription,
+		RegistryType:               service.RegistryType,
+		ExternalRegistryConfig:     service.ExternalRegistryConfig,
+		ProtocolType:               service.ProtocolType,
+		ContextPath:                service.ContextPath,
+		LoadBalanceStrategy:        service.LoadBalanceStrategy,
+		HealthCheckUrl:             service.HealthCheckUrl,
+		HealthCheckIntervalSeconds: service.HealthCheckIntervalSeconds,
+		HealthCheckTimeoutSeconds:  service.HealthCheckTimeoutSeconds,
+		HealthCheckType:            service.HealthCheckType,
+		HealthCheckMode:            service.HealthCheckMode,
+		MetadataJson:               service.MetadataJson,
+		TagsJson:                   service.TagsJson,
+		AddTime:                    service.AddTime,
+		AddWho:                     service.AddWho,
+		EditTime:                   service.EditTime,
+		EditWho:                    service.EditWho,
+		OprSeqFlag:                 service.OprSeqFlag,
+		CurrentVersion:             service.CurrentVersion,
+		ActiveFlag:                 service.ActiveFlag,
+		NoteText:                   service.NoteText,
+		ExtProperty:                service.ExtProperty,
+	}
 
-	affectedRows, err := dao.db.Update(ctx, "HUB_REGISTRY_SERVICE", service, where, args, true)
+	// 通过注册中心管理器更新服务（RegisterService方法内部会判断是更新还是新增）
+	updatedCoreService, err := registryManager.RegisterService(ctx, coreService)
 	if err != nil {
-		return nil, huberrors.WrapError(err, "更新服务失败")
+		return nil, huberrors.WrapError(err, "通过注册中心管理器更新服务失败")
 	}
 
-	if affectedRows == 0 {
-		return nil, huberrors.WrapError(fmt.Errorf("未找到要更新的服务记录"), "服务不存在")
+	// 转换回 models.Service 并返回
+	resultService := &models.Service{
+		TenantId:                   updatedCoreService.TenantId,
+		ServiceName:                updatedCoreService.ServiceName,
+		ServiceGroupId:             updatedCoreService.ServiceGroupId,
+		GroupName:                  updatedCoreService.GroupName,
+		ServiceDescription:         updatedCoreService.ServiceDescription,
+		RegistryType:               updatedCoreService.RegistryType,
+		ExternalRegistryConfig:     updatedCoreService.ExternalRegistryConfig,
+		ProtocolType:               updatedCoreService.ProtocolType,
+		ContextPath:                updatedCoreService.ContextPath,
+		LoadBalanceStrategy:        updatedCoreService.LoadBalanceStrategy,
+		HealthCheckUrl:             updatedCoreService.HealthCheckUrl,
+		HealthCheckIntervalSeconds: updatedCoreService.HealthCheckIntervalSeconds,
+		HealthCheckTimeoutSeconds:  updatedCoreService.HealthCheckTimeoutSeconds,
+		HealthCheckType:            updatedCoreService.HealthCheckType,
+		HealthCheckMode:            updatedCoreService.HealthCheckMode,
+		MetadataJson:               updatedCoreService.MetadataJson,
+		TagsJson:                   updatedCoreService.TagsJson,
+		AddTime:                    updatedCoreService.AddTime,
+		AddWho:                     updatedCoreService.AddWho,
+		EditTime:                   updatedCoreService.EditTime,
+		EditWho:                    updatedCoreService.EditWho,
+		OprSeqFlag:                 updatedCoreService.OprSeqFlag,
+		CurrentVersion:             updatedCoreService.CurrentVersion,
+		ActiveFlag:                 updatedCoreService.ActiveFlag,
+		NoteText:                   updatedCoreService.NoteText,
+		ExtProperty:                updatedCoreService.ExtProperty,
 	}
 
-	// 返回更新后的服务信息，包含实例列表
-	updatedService, err := dao.GetService(ctx, service.TenantId, service.ServiceName, "")
-	if err != nil {
-		return nil, huberrors.WrapError(err, "获取更新后的服务信息失败")
-	}
-
-	return updatedService, nil
+	return resultService, nil
 }
 
 // DeleteService 删除服务（已废弃，请使用 DeregisterServiceViaManager）
@@ -429,11 +583,23 @@ func (dao *ServiceDAO) GetHealthCheckModeOptions() []string {
 	}
 }
 
+// GetRegistryTypeOptions 获取注册类型选项
+func (dao *ServiceDAO) GetRegistryTypeOptions() []string {
+	return []string{
+		"INTERNAL",  // 内部管理（默认）
+		"NACOS",     // Nacos注册中心
+		"CONSUL",    // Consul注册中心
+		"EUREKA",    // Eureka注册中心
+		"ETCD",      // ETCD注册中心
+		"ZOOKEEPER", // ZooKeeper注册中心
+	}
+}
+
 // RegisterServiceViaManager 通过注册中心管理器注册服务（推荐方式）
 //
 // 此方法会调用 registry_manager.RegisterService，确保：
 // 1. 事件发布
-// 2. 缓存更新  
+// 2. 缓存更新
 // 3. 完整的生命周期管理
 //
 // 参数：
@@ -447,10 +613,13 @@ func (dao *ServiceDAO) GetHealthCheckModeOptions() []string {
 func (dao *ServiceDAO) RegisterServiceViaManager(ctx context.Context, service *models.Service, operatorId string) (*models.Service, error) {
 	// 获取注册中心管理器实例
 	registryManager := manager.GetInstance()
-	
+
 	// 设置默认值
 	if service.ActiveFlag == "" {
 		service.ActiveFlag = "Y"
+	}
+	if service.RegistryType == "" {
+		service.RegistryType = "INTERNAL" // 默认为内部管理
 	}
 	if service.ProtocolType == "" {
 		service.ProtocolType = "HTTP"
@@ -476,69 +645,73 @@ func (dao *ServiceDAO) RegisterServiceViaManager(ctx context.Context, service *m
 	if service.HealthCheckMode == "" {
 		service.HealthCheckMode = "ACTIVE" // 默认为主动探测模式
 	}
-	
+
 	// 转换 models.Service 到 core.Service
 	coreService := &core.Service{
-		TenantId:                     service.TenantId,
-		ServiceName:                  service.ServiceName,
-		ServiceGroupId:               service.ServiceGroupId,
-		GroupName:                    service.GroupName,
-		ServiceDescription:           service.ServiceDescription,
-		ProtocolType:                 service.ProtocolType,
-		ContextPath:                  service.ContextPath,
-		LoadBalanceStrategy:          service.LoadBalanceStrategy,
-		HealthCheckUrl:               service.HealthCheckUrl,
-		HealthCheckIntervalSeconds:   service.HealthCheckIntervalSeconds,
-		HealthCheckTimeoutSeconds:    service.HealthCheckTimeoutSeconds,
-		HealthCheckType:              service.HealthCheckType,
-		HealthCheckMode:              service.HealthCheckMode,
-		MetadataJson:                 service.MetadataJson,
-		TagsJson:                     service.TagsJson,
-		AddTime:                      time.Now(),
-		AddWho:                       operatorId,
-		EditTime:                     time.Now(),
-		EditWho:                      operatorId,
-		OprSeqFlag:                   random.Generate32BitRandomString(),
-		CurrentVersion:               1,
-		ActiveFlag:                   service.ActiveFlag,
-		NoteText:                     service.NoteText,
-		ExtProperty:                  service.ExtProperty,
+		TenantId:                   service.TenantId,
+		ServiceName:                service.ServiceName,
+		ServiceGroupId:             service.ServiceGroupId,
+		GroupName:                  service.GroupName,
+		ServiceDescription:         service.ServiceDescription,
+		RegistryType:               service.RegistryType,
+		ExternalRegistryConfig:     service.ExternalRegistryConfig,
+		ProtocolType:               service.ProtocolType,
+		ContextPath:                service.ContextPath,
+		LoadBalanceStrategy:        service.LoadBalanceStrategy,
+		HealthCheckUrl:             service.HealthCheckUrl,
+		HealthCheckIntervalSeconds: service.HealthCheckIntervalSeconds,
+		HealthCheckTimeoutSeconds:  service.HealthCheckTimeoutSeconds,
+		HealthCheckType:            service.HealthCheckType,
+		HealthCheckMode:            service.HealthCheckMode,
+		MetadataJson:               service.MetadataJson,
+		TagsJson:                   service.TagsJson,
+		AddTime:                    time.Now(),
+		AddWho:                     operatorId,
+		EditTime:                   time.Now(),
+		EditWho:                    operatorId,
+		OprSeqFlag:                 random.Generate32BitRandomString(),
+		CurrentVersion:             1,
+		ActiveFlag:                 service.ActiveFlag,
+		NoteText:                   service.NoteText,
+		ExtProperty:                service.ExtProperty,
 	}
-	
+
 	// 通过注册中心管理器注册服务
 	registeredService, err := registryManager.RegisterService(ctx, coreService)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "通过注册中心管理器注册服务失败")
 	}
-	
+
 	// 转换回 models.Service 并返回
 	resultService := &models.Service{
-		TenantId:                     registeredService.TenantId,
-		ServiceName:                  registeredService.ServiceName,
-		ServiceGroupId:               registeredService.ServiceGroupId,
-		GroupName:                    registeredService.GroupName,
-		ServiceDescription:           registeredService.ServiceDescription,
-		ProtocolType:                 registeredService.ProtocolType,
-		ContextPath:                  registeredService.ContextPath,
-		LoadBalanceStrategy:          registeredService.LoadBalanceStrategy,
-		HealthCheckUrl:               registeredService.HealthCheckUrl,
-		HealthCheckIntervalSeconds:   registeredService.HealthCheckIntervalSeconds,
-		HealthCheckTimeoutSeconds:    registeredService.HealthCheckTimeoutSeconds,
-		HealthCheckType:              registeredService.HealthCheckType,
-		HealthCheckMode:              registeredService.HealthCheckMode,
-		MetadataJson:                 registeredService.MetadataJson,
-		TagsJson:                     registeredService.TagsJson,
-		AddTime:                      registeredService.AddTime,
-		AddWho:                       registeredService.AddWho,
-		EditTime:                     registeredService.EditTime,
-		EditWho:                      registeredService.EditWho,
-		OprSeqFlag:                   registeredService.OprSeqFlag,
-		CurrentVersion:               registeredService.CurrentVersion,
-		ActiveFlag:                   registeredService.ActiveFlag,
-		NoteText:                     registeredService.NoteText,
-		ExtProperty:                  registeredService.ExtProperty,
+		TenantId:                   registeredService.TenantId,
+		ServiceName:                registeredService.ServiceName,
+		ServiceGroupId:             registeredService.ServiceGroupId,
+		GroupName:                  registeredService.GroupName,
+		ServiceDescription:         registeredService.ServiceDescription,
+		RegistryType:               registeredService.RegistryType,
+		ExternalRegistryConfig:     registeredService.ExternalRegistryConfig,
+		ProtocolType:               registeredService.ProtocolType,
+		ContextPath:                registeredService.ContextPath,
+		LoadBalanceStrategy:        registeredService.LoadBalanceStrategy,
+		HealthCheckUrl:             registeredService.HealthCheckUrl,
+		HealthCheckIntervalSeconds: registeredService.HealthCheckIntervalSeconds,
+		HealthCheckTimeoutSeconds:  registeredService.HealthCheckTimeoutSeconds,
+		HealthCheckType:            registeredService.HealthCheckType,
+		HealthCheckMode:            registeredService.HealthCheckMode,
+		MetadataJson:               registeredService.MetadataJson,
+		TagsJson:                   registeredService.TagsJson,
+		AddTime:                    registeredService.AddTime,
+		AddWho:                     registeredService.AddWho,
+		EditTime:                   registeredService.EditTime,
+		EditWho:                    registeredService.EditWho,
+		OprSeqFlag:                 registeredService.OprSeqFlag,
+		CurrentVersion:             registeredService.CurrentVersion,
+		ActiveFlag:                 registeredService.ActiveFlag,
+		NoteText:                   registeredService.NoteText,
+		ExtProperty:                registeredService.ExtProperty,
 	}
-	
+
 	return resultService, nil
 }
 
@@ -559,19 +732,19 @@ func (dao *ServiceDAO) RegisterServiceViaManager(ctx context.Context, service *m
 func (dao *ServiceDAO) DeregisterServiceViaManager(ctx context.Context, tenantId, serviceName string) error {
 	// 获取注册中心管理器实例
 	registryManager := manager.GetInstance()
-	
+
 	// 首先获取服务信息以获取 serviceGroupId
 	service, err := dao.GetService(ctx, tenantId, serviceName, "")
 	if err != nil {
 		return huberrors.WrapError(err, "获取服务信息失败")
 	}
-	
+
 	// 通过注册中心管理器注销服务
 	err = registryManager.DeregisterService(ctx, tenantId, service.ServiceGroupId, serviceName)
 	if err != nil {
 		return huberrors.WrapError(err, "通过注册中心管理器注销服务失败")
 	}
-	
+
 	return nil
 }
 

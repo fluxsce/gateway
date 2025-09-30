@@ -47,7 +47,7 @@ func RegisterHub0041Routes(router *gin.Engine, db database.Database) {
 
 	// 需要认证的路由
 	protectedGroup := hub0041Group.Group("")
-	protectedGroup.Use(routes.AuthRequired()) // 必须有有效session
+	protectedGroup.Use(routes.PermissionRequired()...) // 必须有有效session
 
 	// 服务管理路由
 	{

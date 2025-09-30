@@ -1,6 +1,8 @@
 package database
 
 import (
+	"fmt"
+	"net/url"
 	"testing"
 
 	"gateway/pkg/database/dbtypes"
@@ -546,6 +548,7 @@ func TestGeneratePostgreSQL(t *testing.T) {
 
 // TestTimeoutDefaults 测试默认超时配置
 func TestTimeoutDefaults(t *testing.T) {
+	fmt.Println(url.QueryEscape("PrdRootpwd&123")) // 期望输出：PrdRootpwd%26123
 	// MySQL默认超时
 	mysqlConfig := &dbtypes.DbConfig{
 		Connection: dbtypes.ConnectionConfig{

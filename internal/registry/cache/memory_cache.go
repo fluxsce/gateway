@@ -12,6 +12,7 @@ import (
 
 // MemoryCache 基于 sync.Map 的高并发内存缓存实现
 // 采用 TenantId -> ServiceGroupId -> ServiceName -> ServiceInstance[] 的层次结构
+// 集成外部注册中心管理，根据服务的注册类型自动同步到外部注册中心
 type MemoryCache struct {
 	// 租户映射: tenantId -> map[serviceGroupId]*core.ServiceGroup
 	tenants sync.Map
@@ -22,6 +23,9 @@ type MemoryCache struct {
 
 	// 负载均衡器工厂，全局唯一实例
 	lbFactory *LoadBalancerFactory
+
+	// 外部注册中心管理器
+	externalManager *ExternalRegistryCacheManager
 
 	// 统计信息
 	stats struct {
@@ -41,7 +45,8 @@ type instanceLocation struct {
 // NewMemoryCache 创建基于 sync.Map 的高并发缓存实例
 func NewMemoryCache() core.CacheStorage {
 	return &MemoryCache{
-		lbFactory: NewLoadBalancerFactory(),
+		lbFactory:       NewLoadBalancerFactory(),
+		externalManager: NewExternalRegistryCacheManager(),
 	}
 }
 
@@ -368,6 +373,17 @@ func (c *MemoryCache) SetService(ctx context.Context, tenantId string, service *
 		"serviceName", service.ServiceName,
 		"instanceCount", len(newService.Instances))
 
+	// 如果是外部注册中心的服务，注册到外部注册中心
+	if service.IsExternalRegistry() {
+		if err := c.externalManager.RegisterService(ctx, service); err != nil {
+			logger.WarnWithTrace(ctx, "注册服务到外部注册中心失败",
+				"serviceName", service.ServiceName,
+				"registryType", service.RegistryType,
+				"error", err)
+			// 外部注册失败不影响内存缓存操作的成功
+		}
+	}
+
 	return nil
 }
 
@@ -386,6 +402,16 @@ func (c *MemoryCache) DeleteService(ctx context.Context, tenantId, serviceGroupI
 	service, exists := group.Services[serviceName]
 	if !exists {
 		return nil // 服务不存在，视为删除成功
+	}
+
+	// 如果是外部注册中心的服务，从外部注册中心注销服务并清理资源
+	if service.IsExternalRegistry() {
+		if err := c.externalManager.DeregisterService(ctx, service); err != nil {
+			logger.WarnWithTrace(ctx, "从外部注册中心注销服务失败",
+				"serviceName", service.ServiceName,
+				"registryType", service.RegistryType,
+				"error", err)
+		}
 	}
 
 	// 删除该服务下所有实例的索引
@@ -472,6 +498,10 @@ func (c *MemoryCache) GetInstance(ctx context.Context, tenantId, instanceId stri
 	value, exists := c.instanceIndex.Load(instanceId)
 	if !exists {
 		c.recordMiss()
+		// 对于外部注册中心的实例，实例ID不在内存索引中是正常的
+		logger.DebugWithTrace(ctx, "实例不在内存索引中，可能是外部注册中心实例",
+			"tenantId", tenantId,
+			"instanceId", instanceId)
 		return nil, fmt.Errorf("实例缓存未命中: %s", instanceId)
 	}
 
@@ -483,28 +513,27 @@ func (c *MemoryCache) GetInstance(ctx context.Context, tenantId, instanceId stri
 		return nil, fmt.Errorf("实例租户不匹配: %s", instanceId)
 	}
 
-	// 获取服务组
-	groups, exists := c.getTenantGroups(tenantId)
-	if !exists {
+	// 获取服务信息以确定注册类型
+	service, err := c.GetService(ctx, tenantId, loc.serviceGroupId, loc.serviceName)
+	if err != nil {
 		c.recordMiss()
-		return nil, fmt.Errorf("租户缓存未命中: %s", tenantId)
+		return nil, fmt.Errorf("获取服务信息失败: %w", err)
 	}
 
-	// 获取服务组
-	group, exists := groups[loc.serviceGroupId]
-	if !exists {
+	// 如果是外部注册中心的服务，实例不应该在内存中维护
+	if service.IsExternalRegistry() {
+		logger.WarnWithTrace(ctx, "外部注册中心的实例不应该在内存索引中",
+			"tenantId", tenantId,
+			"instanceId", instanceId,
+			"serviceName", service.ServiceName,
+			"registryType", service.RegistryType)
+		// 删除错误的索引
+		c.instanceIndex.Delete(instanceId)
 		c.recordMiss()
-		return nil, fmt.Errorf("服务组缓存未命中: %s", loc.serviceGroupId)
+		return nil, fmt.Errorf("外部注册中心实例不在内存缓存中: %s", instanceId)
 	}
 
-	// 获取服务
-	service, exists := group.Services[loc.serviceName]
-	if !exists {
-		c.recordMiss()
-		return nil, fmt.Errorf("服务缓存未命中: %s", loc.serviceName)
-	}
-
-	// 查找实例
+	// 内部注册中心的服务，从内存中查找实例
 	for _, instance := range service.Instances {
 		if instance.ServiceInstanceId == instanceId {
 			c.recordHit()
@@ -528,6 +557,22 @@ func (c *MemoryCache) SetInstance(ctx context.Context, tenantId string, instance
 		return fmt.Errorf("租户ID不匹配")
 	}
 
+	// 先获取服务信息以确定注册类型
+	service, err := c.GetService(ctx, tenantId, instance.ServiceGroupId, instance.ServiceName)
+	if err != nil {
+		logger.WarnWithTrace(ctx, "获取服务信息失败，无法确定注册类型",
+			"instanceId", instance.ServiceInstanceId,
+			"serviceName", instance.ServiceName,
+			"error", err)
+		return fmt.Errorf("获取服务信息失败: %w", err)
+	}
+
+	// 如果是外部注册中心的服务，只注册到外部，不在内存中维护实例状态
+	if service.IsExternalRegistry() {
+		return c.externalManager.RegisterInstance(ctx, instance, service)
+	}
+
+	// 内部注册中心的服务，正常处理内存缓存
 	// 获取现有的租户服务组映射
 	value, exists := c.tenants.Load(tenantId)
 
@@ -653,10 +698,17 @@ func (c *MemoryCache) SetInstance(ctx context.Context, tenantId string, instance
 
 // DeleteInstance 删除服务实例
 func (c *MemoryCache) DeleteInstance(ctx context.Context, tenantId, instanceId string) error {
+	// 先尝试获取服务信息以确定注册类型
 	// 通过索引快速定位实例
 	value, exists := c.instanceIndex.Load(instanceId)
 	if !exists {
-		return nil // 实例不存在，视为删除成功
+		// 实例不在内存索引中，可能是外部注册中心的实例
+		// 外部实例由外部注册中心维护，内存缓存不处理
+		logger.DebugWithTrace(ctx, "外部注册中心实例删除",
+			"tenantId", tenantId,
+			"instanceId", instanceId,
+			"note", "外部实例由外部注册中心维护，内存缓存不处理")
+		return nil
 	}
 
 	loc := value.(instanceLocation)
@@ -666,6 +718,20 @@ func (c *MemoryCache) DeleteInstance(ctx context.Context, tenantId, instanceId s
 		return nil // 实例租户不匹配，视为删除成功
 	}
 
+	// 获取服务信息以确定注册类型
+	service, err := c.GetService(ctx, tenantId, loc.serviceGroupId, loc.serviceName)
+	if err == nil && service.IsExternalRegistry() {
+		// 外部注册中心的服务，外部实例由外部注册中心维护，内存缓存不处理
+		logger.DebugWithTrace(ctx, "外部注册中心实例删除",
+			"tenantId", tenantId,
+			"instanceId", instanceId,
+			"serviceName", service.ServiceName,
+			"registryType", service.RegistryType,
+			"note", "外部实例由外部注册中心维护，内存缓存不处理")
+		return nil
+	}
+
+	// 内部注册中心的服务，正常处理内存缓存删除
 	// 删除实例索引（先删除索引，避免后续操作失败时出现不一致）
 	c.instanceIndex.Delete(instanceId)
 
@@ -800,6 +866,12 @@ func (c *MemoryCache) ListInstances(ctx context.Context, tenantId, serviceGroupI
 		return make([]*core.ServiceInstance, 0), nil
 	}
 
+	// 如果是外部注册中心的服务，直接从外部获取实例
+	if service.IsExternalRegistry() {
+		return c.externalManager.GetServiceInstances(ctx, service)
+	}
+
+	// 内部注册中心的服务，从内存缓存获取
 	if service.Instances == nil {
 		return make([]*core.ServiceInstance, 0), nil
 	}
@@ -821,6 +893,17 @@ func (c *MemoryCache) ListInstances(ctx context.Context, tenantId, serviceGroupI
 
 // DiscoverInstance 发现一个健康的服务实例
 func (c *MemoryCache) DiscoverInstance(ctx context.Context, tenantId, serviceGroupId, serviceName string) (*core.ServiceInstance, error) {
+	// 获取服务配置
+	service, err := c.GetService(ctx, tenantId, serviceGroupId, serviceName)
+	if err != nil {
+		return nil, fmt.Errorf("获取服务配置失败: %w", err)
+	}
+
+	// 如果是外部注册中心的服务，直接从外部获取实例
+	if service.IsExternalRegistry() {
+		return c.externalManager.DiscoverHealthyInstance(ctx, service)
+	}
+
 	// 获取所有实例（包括不健康的实例）
 	allInstances, err := c.ListInstances(ctx, tenantId, serviceGroupId, serviceName)
 	if err != nil {
@@ -832,11 +915,6 @@ func (c *MemoryCache) DiscoverInstance(ctx context.Context, tenantId, serviceGro
 		return nil, fmt.Errorf("没有找到服务实例: %s", serviceName)
 	}
 
-	// 获取服务的负载均衡策略
-	service, err := c.GetService(ctx, tenantId, serviceGroupId, serviceName)
-	if err != nil {
-		return nil, fmt.Errorf("获取服务配置失败: %w", err)
-	}
 	strategy := service.LoadBalanceStrategy
 
 	// 创建服务标识
@@ -871,7 +949,12 @@ func (c *MemoryCache) UpdateInstanceHealth(ctx context.Context, tenantId, instan
 	// 通过索引快速定位实例
 	value, exists := c.instanceIndex.Load(instanceId)
 	if !exists {
-		return fmt.Errorf("实例缓存未命中: %s", instanceId)
+		// 对于外部注册中心的实例，不在内存中维护，直接返回成功
+		logger.DebugWithTrace(ctx, "实例不在内存索引中，可能是外部注册中心实例，跳过健康状态更新",
+			"tenantId", tenantId,
+			"instanceId", instanceId,
+			"status", status)
+		return nil
 	}
 
 	loc := value.(instanceLocation)
@@ -881,6 +964,24 @@ func (c *MemoryCache) UpdateInstanceHealth(ctx context.Context, tenantId, instan
 		return fmt.Errorf("实例租户不匹配: %s", instanceId)
 	}
 
+	// 获取服务信息以确定注册类型
+	service, err := c.GetService(ctx, tenantId, loc.serviceGroupId, loc.serviceName)
+	if err != nil {
+		return fmt.Errorf("获取服务信息失败: %w", err)
+	}
+
+	// 如果是外部注册中心的服务，不更新内存中的实例状态
+	if service.IsExternalRegistry() {
+		logger.DebugWithTrace(ctx, "外部注册中心服务实例健康状态由外部维护",
+			"tenantId", tenantId,
+			"instanceId", instanceId,
+			"serviceName", service.ServiceName,
+			"registryType", service.RegistryType,
+			"status", status)
+		return nil
+	}
+
+	// 内部注册中心的服务，更新内存中的实例健康状态
 	// 获取服务组
 	groups, exists := c.getTenantGroups(tenantId)
 	if !exists {
@@ -894,13 +995,13 @@ func (c *MemoryCache) UpdateInstanceHealth(ctx context.Context, tenantId, instan
 	}
 
 	// 获取服务
-	service, exists := group.Services[loc.serviceName]
+	serviceFromGroup, exists := group.Services[loc.serviceName]
 	if !exists {
 		return fmt.Errorf("服务缓存未命中: %s", loc.serviceName)
 	}
 
 	// 查找并更新实例
-	for _, instance := range service.Instances {
+	for _, instance := range serviceFromGroup.Instances {
 		if instance.ServiceInstanceId == instanceId {
 			// 记录原始状态用于调试
 			oldStatus := instance.HealthStatus
@@ -982,6 +1083,11 @@ func (c *MemoryCache) Clear() error {
 		c.instanceIndex.Delete(key)
 		return true
 	})
+
+	// 关闭外部注册中心连接
+	if closeErr := c.externalManager.Close(); closeErr != nil {
+		logger.Warn("关闭外部注册中心连接失败", "error", closeErr)
+	}
 
 	logger.Info("清空缓存", "tenantCount", tenantCount)
 	return nil

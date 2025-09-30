@@ -19,6 +19,10 @@ type Service struct {
 	// 服务基本信息
 	ServiceDescription string `json:"serviceDescription" form:"serviceDescription" query:"serviceDescription" db:"serviceDescription"` // 服务描述
 
+	// 注册管理配置
+	RegistryType           string `json:"registryType" form:"registryType" query:"registryType" db:"registryType"`                                                   // 注册类型(INTERNAL:内部管理,NACOS:Nacos注册中心,CONSUL:Consul,EUREKA:Eureka,ETCD:ETCD,ZOOKEEPER:ZooKeeper)
+	ExternalRegistryConfig string `json:"externalRegistryConfig,omitempty" form:"externalRegistryConfig" query:"externalRegistryConfig" db:"externalRegistryConfig"` // 外部注册中心配置，JSON格式，仅当registryType非INTERNAL时使用
+
 	// 服务配置
 	ProtocolType        string `json:"protocolType" form:"protocolType" query:"protocolType" db:"protocolType"`                             // 协议类型(HTTP,HTTPS,TCP,UDP,GRPC)
 	ContextPath         string `json:"contextPath" form:"contextPath" query:"contextPath" db:"contextPath"`                                 // 上下文路径
@@ -66,6 +70,7 @@ type ServiceQueryRequest struct {
 	GroupName    string `json:"groupName" form:"groupName"`       // 分组名称过滤
 	ServiceName  string `json:"serviceName" form:"serviceName"`   // 服务名称过滤（模糊查询）
 	ProtocolType string `json:"protocolType" form:"protocolType"` // 协议类型过滤
+	RegistryType string `json:"registryType" form:"registryType"` // 注册类型过滤(INTERNAL,NACOS,CONSUL,EUREKA,ETCD,ZOOKEEPER)
 	Keyword      string `json:"keyword" form:"keyword"`           // 关键字搜索（服务名称、描述）
 
 	// 分页参数

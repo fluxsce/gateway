@@ -336,15 +336,20 @@ func (h *HTTPProxy) handleWebSocketUpgrade(ctx *core.Context) bool {
 func (h *HTTPProxy) buildProxyPath(ctx *core.Context, targetPath string) string {
 	requestPath := ctx.Request.URL.Path
 
-	// 记住原始目标路径是否以斜杠结尾
+	// 记住原始路径的斜杠状态
 	originalTargetHasSlash := strings.HasSuffix(targetPath, "/")
+	originalRequestHasSlash := strings.HasSuffix(requestPath, "/")
 
 	// 清理路径
 	targetPath = h.cleanPath(targetPath)
 	requestPath = h.cleanPath(requestPath)
 
-	// 1. 目标路径为空或只有斜杠：使用请求地址
+	// 1. 目标路径为空或只有斜杠：使用请求地址，但要保留原始请求路径的斜杠状态
 	if targetPath == "" || targetPath == "/" {
+		// 如果原始请求路径以斜杠结尾且清理后不是根路径，需要恢复斜杠
+		if originalRequestHasSlash && requestPath != "/" {
+			return requestPath + "/"
+		}
 		return requestPath
 	}
 

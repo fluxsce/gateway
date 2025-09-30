@@ -205,9 +205,9 @@ func (dao *MetricQueryDAO) QueryCpuLogList(ctx context.Context, req *models.CpuL
 	conditions = append(conditions, "tenantId = ?")
 	params = append(params, req.TenantId)
 
-	if req.ServerId != nil && *req.ServerId != "" {
+	if req.MetricServerId != nil && *req.MetricServerId != "" {
 		conditions = append(conditions, "metricServerId = ?")
-		params = append(params, *req.ServerId)
+		params = append(params, *req.MetricServerId)
 	}
 
 	// 时间条件
@@ -277,9 +277,9 @@ func (dao *MetricQueryDAO) QueryMemoryLogList(ctx context.Context, req *models.M
 	conditions = append(conditions, "tenantId = ?")
 	params = append(params, req.TenantId)
 
-	if req.ServerId != nil && *req.ServerId != "" {
+	if req.MetricServerId != nil && *req.MetricServerId != "" {
 		conditions = append(conditions, "metricServerId = ?")
-		params = append(params, *req.ServerId)
+		params = append(params, *req.MetricServerId)
 	}
 
 	// 时间条件
@@ -354,9 +354,9 @@ func (dao *MetricQueryDAO) QueryDiskPartitionLogList(ctx context.Context, req *m
 	conditions = append(conditions, "tenantId = ?")
 	params = append(params, req.TenantId)
 
-	if req.ServerId != nil && *req.ServerId != "" {
+	if req.MetricServerId != nil && *req.MetricServerId != "" {
 		conditions = append(conditions, "metricServerId = ?")
-		params = append(params, *req.ServerId)
+		params = append(params, *req.MetricServerId)
 	}
 
 	// 时间条件

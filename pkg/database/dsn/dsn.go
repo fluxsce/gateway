@@ -103,15 +103,21 @@ func GenerateMySQL(config *dbtypes.DbConfig) (string, error) {
 		port = config.Connection.Port
 	}
 
-	// 组装完整DSN - 对用户名和密码进行URL编码以支持特殊字符
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?%s",
-		url.QueryEscape(config.Connection.Username),
-		url.QueryEscape(config.Connection.Password),
+	// 直接构建MySQL DSN，不对用户名和密码进行编码
+	// 因为本地工具连接正常，说明MySQL能直接处理这些特殊字符
+	// 格式: username:password@tcp(host:port)/database?params
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
+		config.Connection.Username,
+		config.Connection.Password,
 		config.Connection.Host,
 		port,
 		config.Connection.Database,
-		paramStr,
 	)
+
+	// 添加查询参数
+	if paramStr != "" {
+		dsn += "?" + paramStr
+	}
 
 	return dsn, nil
 }

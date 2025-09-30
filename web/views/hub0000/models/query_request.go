@@ -9,14 +9,14 @@ import (
 
 // BaseQueryRequest 基础查询请求
 type BaseQueryRequest struct {
-	TenantId  string  `json:"tenantId" form:"tenantId"`   // 租户ID
-	ServerId  *string `json:"serverId" form:"serverId"`   // 服务器ID (对应数据库中的metricServerId字段)
-	StartTime string  `json:"startTime" form:"startTime"` // 开始时间字符串
-	EndTime   string  `json:"endTime" form:"endTime"`     // 结束时间字符串
-	Page      int     `json:"page" form:"page"`           // 页码
-	PageSize  int     `json:"pageSize" form:"pageSize"`   // 每页数量
-	OrderBy   string  `json:"orderBy" form:"orderBy"`     // 排序字段
-	OrderType string  `json:"orderType" form:"orderType"` // 排序类型(ASC/DESC)
+	TenantId        string  `json:"tenantId" form:"tenantId"`               // 租户ID
+	MetricServerId  *string `json:"metricServerId" form:"metricServerId"`   // 服务器ID (对应数据库中的metricServerId字段)
+	StartTime       string  `json:"startTime" form:"startTime"`             // 开始时间字符串
+	EndTime         string  `json:"endTime" form:"endTime"`                 // 结束时间字符串
+	Page            int     `json:"page" form:"page"`                       // 页码
+	PageSize        int     `json:"pageSize" form:"pageSize"`               // 每页数量
+	OrderBy         string  `json:"orderBy" form:"orderBy"`                 // 排序字段
+	OrderType       string  `json:"orderType" form:"orderType"`             // 排序类型(ASC/DESC)
 }
 
 // GetStartTime 获取解析后的开始时间

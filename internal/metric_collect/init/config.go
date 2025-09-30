@@ -287,16 +287,25 @@ func (v *ConfigValidator) validateRetentionConfig(cfg *RetentionConfig) error {
 }
 
 // generateServerId 生成服务器ID
-// 使用主机名+随机字符串+时间戳生成唯一的服务器标识
+// 使用主机名+IP地址生成稳定且唯一的服务器标识
 func (v *ConfigValidator) generateServerId() string {
 	hostname, _ := os.Hostname()
 	if hostname == "" {
 		hostname = "unknown"
 	}
 
-	// 使用主机名+随机字符串生成唯一ID
-	randomStr := random.GenerateRandomString(8)
-	data := fmt.Sprintf("%s-%s-%d", hostname, randomStr, time.Now().Unix())
+	// 使用random包提供的节点IP地址
+	localIP := random.GetNodeIP()
+	if localIP == "" || localIP == "127.0.0.1" {
+		// 如果获取IP地址失败或为环回地址，使用随机字符串作为后备方案
+		localIP = random.GenerateRandomString(12)
+		logger.Warn("无法获取有效的节点IP地址，使用随机字符串作为后备", "fallback", localIP)
+	} else {
+		logger.Debug("使用节点IP地址生成服务器ID", "hostname", hostname, "ip", localIP)
+	}
+
+	// 使用主机名+IP地址生成稳定的服务器ID
+	data := fmt.Sprintf("%s-%s", hostname, localIP)
 	hash := md5.Sum([]byte(data))
 	return fmt.Sprintf("server_%x", hash)[:16]
 }
@@ -347,3 +356,4 @@ func (cfg *MetricConfig) String() string {
 	return fmt.Sprintf("MetricConfig{Enabled: %t, CollectInterval: %v, TenantId: %s, ServerId: %s, EnabledCollectors: %v}",
 		cfg.Enabled, cfg.CollectInterval, cfg.TenantId, cfg.ServerId, cfg.GetEnabledCollectorNames())
 }
+

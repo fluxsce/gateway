@@ -7,6 +7,7 @@ import (
 
 	"gateway/internal/gateway/config"
 	"gateway/pkg/database"
+	"gateway/pkg/logger"
 )
 
 // BaseConfigLoader 基础配置加载器
@@ -93,4 +94,55 @@ func (loader *BaseConfigLoader) BuildBaseConfig(instance *GatewayInstanceRecord)
 	}
 
 	return baseConfig
+}
+
+// UpdateGatewayHealthStatus 更新网关实例健康状态（静态方法）
+// 使用默认数据库连接更新指定租户和实例的健康状态
+func UpdateGatewayHealthStatus(tenantId, instanceId, healthStatus, errorMsg string) {
+	// 获取默认数据库连接
+	db := database.GetDefaultConnection()
+	if db == nil {
+		logger.Warn("无法获取默认数据库连接，跳过健康状态更新", "instanceId", instanceId)
+		return
+	}
+	
+	// 使用超时上下文避免阻塞
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	
+	// 生成当前时间，不使用数据库函数
+	now := time.Now()
+	
+	// 限制错误信息长度，避免超出reserved1字段限制（通常100字符）
+	if len(errorMsg) > 100 {
+		errorMsg = errorMsg[:97] + "..."
+	}
+	
+	var query string
+	var args []interface{}
+	
+	// 根据是否有错误信息构建不同的SQL
+	if errorMsg != "" {
+		query = `
+			UPDATE HUB_GW_INSTANCE 
+			SET healthStatus = ?, lastHeartbeatTime = ?, reserved1 = ?
+			WHERE tenantId = ? AND gatewayInstanceId = ?
+		`
+		args = []interface{}{healthStatus, now, errorMsg, tenantId, instanceId}
+	} else {
+		query = `
+			UPDATE HUB_GW_INSTANCE 
+			SET healthStatus = ?, lastHeartbeatTime = ?, reserved1 = NULL
+			WHERE tenantId = ? AND gatewayInstanceId = ?
+		`
+		args = []interface{}{healthStatus, now, tenantId, instanceId}
+	}
+	
+	// 执行更新
+	_, err := db.Exec(ctx, query, args, true)
+	if err != nil {
+		logger.Warn("更新网关实例健康状态失败", "error", err, "instanceId", instanceId, "healthStatus", healthStatus)
+	} else {
+		logger.Debug("网关实例健康状态已更新", "instanceId", instanceId, "healthStatus", healthStatus)
+	}
 }

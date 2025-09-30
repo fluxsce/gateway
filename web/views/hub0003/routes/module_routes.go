@@ -28,7 +28,7 @@ func init() {
 // Init 初始化模块路由
 func Init(router *gin.Engine, db database.Database) {
 	// 创建模块路由组，所有路由都需要认证
-	group := router.Group(APIPrefix, routes.AuthRequired())
+	group := router.Group(APIPrefix, routes.PermissionRequired()...)
 
 	// 初始化各个子模块的路由
 	initSchedulerRoutes(group, db)

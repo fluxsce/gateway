@@ -18,9 +18,9 @@ func (dao *MetricQueryDAO) QueryDiskIoLogList(ctx context.Context, req *models.D
 	conditions = append(conditions, "tenantId = ?")
 	params = append(params, req.TenantId)
 
-	if req.ServerId != nil && *req.ServerId != "" {
+	if req.MetricServerId != nil && *req.MetricServerId != "" {
 		conditions = append(conditions, "metricServerId = ?")
-		params = append(params, *req.ServerId)
+		params = append(params, *req.MetricServerId)
 	}
 
 	// 时间条件
@@ -100,9 +100,9 @@ func (dao *MetricQueryDAO) QueryNetworkLogList(ctx context.Context, req *models.
 	conditions = append(conditions, "tenantId = ?")
 	params = append(params, req.TenantId)
 
-	if req.ServerId != nil && *req.ServerId != "" {
+	if req.MetricServerId != nil && *req.MetricServerId != "" {
 		conditions = append(conditions, "metricServerId = ?")
-		params = append(params, *req.ServerId)
+		params = append(params, *req.MetricServerId)
 	}
 
 	// 时间条件
@@ -182,9 +182,9 @@ func (dao *MetricQueryDAO) QueryProcessLogList(ctx context.Context, req *models.
 	conditions = append(conditions, "tenantId = ?")
 	params = append(params, req.TenantId)
 
-	if req.ServerId != nil && *req.ServerId != "" {
+	if req.MetricServerId != nil && *req.MetricServerId != "" {
 		conditions = append(conditions, "metricServerId = ?")
-		params = append(params, *req.ServerId)
+		params = append(params, *req.MetricServerId)
 	}
 
 	// 时间条件
@@ -269,9 +269,9 @@ func (dao *MetricQueryDAO) QueryProcessStatsLogList(ctx context.Context, req *mo
 	conditions = append(conditions, "tenantId = ?")
 	params = append(params, req.TenantId)
 
-	if req.ServerId != nil && *req.ServerId != "" {
+	if req.MetricServerId != nil && *req.MetricServerId != "" {
 		conditions = append(conditions, "metricServerId = ?")
-		params = append(params, *req.ServerId)
+		params = append(params, *req.MetricServerId)
 	}
 
 	// 时间条件
@@ -346,9 +346,9 @@ func (dao *MetricQueryDAO) QueryTemperatureLogList(ctx context.Context, req *mod
 	conditions = append(conditions, "tenantId = ?")
 	params = append(params, req.TenantId)
 
-	if req.ServerId != nil && *req.ServerId != "" {
+	if req.MetricServerId != nil && *req.MetricServerId != "" {
 		conditions = append(conditions, "metricServerId = ?")
-		params = append(params, *req.ServerId)
+		params = append(params, *req.MetricServerId)
 	}
 
 	// 时间条件

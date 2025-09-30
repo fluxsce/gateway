@@ -470,7 +470,7 @@ func startGatewayServices() error {
 		if err := gatewayApp.Start(); err != nil {
 			logger.Error("网关服务启动失败", err)
 			// 网关启动失败时退出整个程序
-			os.Exit(1)
+			//os.Exit(1)
 		}
 	}()
 

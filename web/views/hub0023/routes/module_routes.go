@@ -39,7 +39,7 @@ func Init(router *gin.Engine, db database.Database) {
 	{
 		// 需要认证的路由
 		protectedGroup := gatewayLogGroup.Group("")
-		protectedGroup.Use(routes.AuthRequired()) // 必须有有效session
+		protectedGroup.Use(routes.PermissionRequired()...) // 必须有有效session
 
 		// 根据配置选择控制器
 		switch logQueryType {

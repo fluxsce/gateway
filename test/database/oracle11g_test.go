@@ -66,5 +66,5 @@ func TestOracle11gPagination(t *testing.T) {
 
 // contains 辅助函数，检查字符串是否包含子串
 func contains(s, substr string) bool {
-	return s != "" && substr != "" && s != substr && s != "" && strings.Contains(s, substr)
+	return s != "" && substr != "" && s != substr && strings.Contains(s, substr)
 }

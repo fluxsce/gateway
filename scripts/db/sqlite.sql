@@ -1585,7 +1585,7 @@ CREATE INDEX IDX_METRIC_PROC_STATS_SRV_TIME ON HUB_METRIC_PROCSTAT_LOG(metricSer
 CREATE INDEX IDX_METRIC_PROC_STATS_TNT_TIME ON HUB_METRIC_PROCSTAT_LOG(tenantId, collectTime);
 
 -- 35. 温度信息日志表
-CREATE TABLE IF NOT EXISTS HUB_METRIC_TEMPERATURE_LOG (
+CREATE TABLE IF NOT EXISTS HUB_METRIC_TEMP_LOG (
     metricTemperatureLogId TEXT NOT NULL,
     tenantId TEXT NOT NULL,
     metricServerId TEXT NOT NULL,
@@ -1616,13 +1616,13 @@ CREATE TABLE IF NOT EXISTS HUB_METRIC_TEMPERATURE_LOG (
     PRIMARY KEY (tenantId, metricTemperatureLogId)
 );
 
-CREATE INDEX IDX_METRIC_TEMP_SERVER ON HUB_METRIC_TEMPERATURE_LOG(metricServerId);
-CREATE INDEX IDX_METRIC_TEMP_TIME ON HUB_METRIC_TEMPERATURE_LOG(collectTime);
-CREATE INDEX IDX_METRIC_TEMP_SENSOR ON HUB_METRIC_TEMPERATURE_LOG(sensorName);
-CREATE INDEX IDX_METRIC_TEMP_ACTIVE ON HUB_METRIC_TEMPERATURE_LOG(activeFlag);
-CREATE INDEX IDX_METRIC_TEMP_SRV_TIME ON HUB_METRIC_TEMPERATURE_LOG(metricServerId, collectTime);
-CREATE INDEX IDX_METRIC_TEMP_SRV_SENSOR ON HUB_METRIC_TEMPERATURE_LOG(metricServerId, sensorName);
-CREATE INDEX IDX_METRIC_TEMP_TNT_TIME ON HUB_METRIC_TEMPERATURE_LOG(tenantId, collectTime);
+CREATE INDEX IDX_METRIC_TEMP_SERVER ON HUB_METRIC_TEMP_LOG(metricServerId);
+CREATE INDEX IDX_METRIC_TEMP_TIME ON HUB_METRIC_TEMP_LOG(collectTime);
+CREATE INDEX IDX_METRIC_TEMP_SENSOR ON HUB_METRIC_TEMP_LOG(sensorName);
+CREATE INDEX IDX_METRIC_TEMP_ACTIVE ON HUB_METRIC_TEMP_LOG(activeFlag);
+CREATE INDEX IDX_METRIC_TEMP_SRV_TIME ON HUB_METRIC_TEMP_LOG(metricServerId, collectTime);
+CREATE INDEX IDX_METRIC_TEMP_SRV_SENSOR ON HUB_METRIC_TEMP_LOG(metricServerId, sensorName);
+CREATE INDEX IDX_METRIC_TEMP_TNT_TIME ON HUB_METRIC_TEMP_LOG(tenantId, collectTime);
 
 -- =====================================================
 -- 服务注册中心相关表结构
@@ -1689,6 +1689,10 @@ CREATE TABLE IF NOT EXISTS HUB_REGISTRY_SERVICE (
   
   -- 服务基本信息
   serviceDescription TEXT,
+  
+  -- 注册管理配置
+  registryType TEXT NOT NULL DEFAULT 'INTERNAL',
+  externalRegistryConfig TEXT,
   
   -- 服务配置
   protocolType TEXT DEFAULT 'HTTP',
@@ -1846,135 +1850,38 @@ CREATE TABLE IF NOT EXISTS HUB_REGISTRY_SERVICE_EVENT (
   PRIMARY KEY (tenantId, serviceEventId)
 );
 
--- 外部注册中心配置表 - 存储外部注册中心连接配置
-CREATE TABLE IF NOT EXISTS HUB_REGISTRY_EXTERNAL_CONFIG (
-  -- 主键和租户信息
-  externalConfigId TEXT NOT NULL,
-  tenantId TEXT NOT NULL,
-  
-  -- 配置基本信息
-  configName TEXT NOT NULL,
-  configDescription TEXT,
-  registryType TEXT NOT NULL,
-  environmentName TEXT NOT NULL DEFAULT 'default',
-  
-  -- 连接配置
-  serverAddress TEXT NOT NULL,
-  serverPort INTEGER,
-  serverPath TEXT,
-  serverScheme TEXT DEFAULT 'http',
-  
-  -- 认证配置
-  authEnabled TEXT DEFAULT 'N',
-  username TEXT,
-  password TEXT,
-  accessToken TEXT,
-  secretKey TEXT,
-  
-  -- 连接配置
-  connectionTimeout INTEGER DEFAULT 5000,
-  readTimeout INTEGER DEFAULT 10000,
-  maxRetries INTEGER DEFAULT 3,
-  retryInterval INTEGER DEFAULT 1000,
-  
-  -- 特定配置
-  specificConfig TEXT,
-  fieldMapping TEXT,
-  
-  -- 故障转移配置
-  failoverEnabled TEXT DEFAULT 'N',
-  failoverConfigId TEXT,
-  failoverStrategy TEXT DEFAULT 'MANUAL',
-  
-  -- 数据同步配置
-  syncEnabled TEXT DEFAULT 'N',
-  syncInterval INTEGER DEFAULT 30,
-  conflictResolution TEXT DEFAULT 'primary_wins',
-  
-  -- 通用字段
-  addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  addWho TEXT NOT NULL,
-  editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  editWho TEXT NOT NULL,
-  oprSeqFlag TEXT NOT NULL,
-  currentVersion INTEGER NOT NULL DEFAULT 1,
-  activeFlag TEXT NOT NULL DEFAULT 'Y',
-  noteText TEXT,
-  extProperty TEXT,
-  reserved1 TEXT,
-  reserved2 TEXT,
-  reserved3 TEXT,
-  reserved4 TEXT,
-  reserved5 TEXT,
-  reserved6 TEXT,
-  reserved7 TEXT,
-  reserved8 TEXT,
-  reserved9 TEXT,
-  reserved10 TEXT,
-  
-  PRIMARY KEY (tenantId, externalConfigId)
-);
-
--- 外部注册中心状态表 - 存储外部注册中心运行状态
-CREATE TABLE IF NOT EXISTS HUB_REGISTRY_EXTERNAL_STATUS (
-  -- 主键和租户信息
-  externalStatusId TEXT NOT NULL,
-  tenantId TEXT NOT NULL,
-  externalConfigId TEXT NOT NULL,
-  
-  -- 连接状态
-  connectionStatus TEXT NOT NULL DEFAULT 'DISCONNECTED',
-  healthStatus TEXT NOT NULL DEFAULT 'UNKNOWN',
-  lastConnectTime DATETIME,
-  lastDisconnectTime DATETIME,
-  lastHealthCheckTime DATETIME,
-  
-  -- 性能指标
-  responseTime INTEGER DEFAULT 0,
-  successCount INTEGER DEFAULT 0,
-  errorCount INTEGER DEFAULT 0,
-  timeoutCount INTEGER DEFAULT 0,
-  
-  -- 故障转移状态
-  failoverStatus TEXT DEFAULT 'NORMAL',
-  failoverTime DATETIME,
-  failoverCount INTEGER DEFAULT 0,
-  recoverTime DATETIME,
-  
-  -- 同步状态
-  syncStatus TEXT DEFAULT 'IDLE',
-  lastSyncTime DATETIME,
-  syncSuccessCount INTEGER DEFAULT 0,
-  syncErrorCount INTEGER DEFAULT 0,
-  
-  -- 错误信息
-  lastErrorMessage TEXT,
-  lastErrorTime DATETIME,
-  errorDetails TEXT,
-  
-  -- 通用字段
-  addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  addWho TEXT NOT NULL,
-  editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  editWho TEXT NOT NULL,
-  oprSeqFlag TEXT NOT NULL,
-  currentVersion INTEGER NOT NULL DEFAULT 1,
-  activeFlag TEXT NOT NULL DEFAULT 'Y',
-  noteText TEXT,
-  extProperty TEXT,
-  reserved1 TEXT,
-  reserved2 TEXT,
-  reserved3 TEXT,
-  reserved4 TEXT,
-  reserved5 TEXT,
-  reserved6 TEXT,
-  reserved7 TEXT,
-  reserved8 TEXT,
-  reserved9 TEXT,
-  reserved10 TEXT,
-  
-  PRIMARY KEY (tenantId, externalStatusId)
-);
+-- =====================================================
+-- 数据库表结构设计说明
+-- =====================================================
+-- 
+-- 注册类型说明：
+-- 1. INTERNAL: 内部管理（默认）- 服务实例直接注册到本系统数据库
+-- 2. NACOS: Nacos注册中心 - 服务实例注册到Nacos，本系统作为代理
+-- 3. CONSUL: Consul注册中心 - 服务实例注册到Consul，本系统作为代理
+-- 4. EUREKA: Eureka注册中心 - 服务实例注册到Eureka，本系统作为代理
+-- 5. ETCD: ETCD注册中心 - 服务实例注册到ETCD，本系统作为代理
+-- 6. ZOOKEEPER: ZooKeeper注册中心 - 服务实例注册到ZooKeeper，本系统作为代理
+--
+-- 外部注册中心配置格式（externalRegistryConfig字段JSON示例）：
+-- {
+--   "serverAddress": "192.168.0.120:8848",
+--   "namespace": "ea63c755-3d65-4203-87d7-5ee6837f5bc9",
+--   "groupName": "datahub-test-group",
+--   "username": "nacos",
+--   "password": "nacos",
+--   "timeout": 10000,
+--   "enableAuth": true,
+--   "connectionPool": {
+--     "maxConnections": 10,
+--     "connectionTimeout": 5000
+--   }
+-- }
+--
+-- 使用场景：
+-- - registryType = 'INTERNAL': 传统的服务注册，实例信息存储在本地数据库
+-- - registryType = 'NACOS': 服务作为Nacos和第三方应用的代理，提供统一的服务发现接口
+-- - 其他类型: 类似Nacos，作为对应注册中心的代理
+-- =====================================================
 
 -- =====================================================
 -- 服务注册中心相关索引
@@ -1989,6 +1896,7 @@ CREATE INDEX IF NOT EXISTS IDX_REGISTRY_GROUP_ACTIVE ON HUB_REGISTRY_SERVICE_GRO
 -- HUB_REGISTRY_SERVICE 索引
 CREATE INDEX IF NOT EXISTS IDX_REGISTRY_SVC_GROUP_ID ON HUB_REGISTRY_SERVICE(tenantId, serviceGroupId);
 CREATE INDEX IF NOT EXISTS IDX_REGISTRY_SVC_GROUP_NAME ON HUB_REGISTRY_SERVICE(groupName);
+CREATE INDEX IF NOT EXISTS IDX_REGISTRY_SVC_REGISTRY_TYPE ON HUB_REGISTRY_SERVICE(registryType);
 CREATE INDEX IF NOT EXISTS IDX_REGISTRY_SVC_ACTIVE ON HUB_REGISTRY_SERVICE(activeFlag);
 
 -- HUB_REGISTRY_SERVICE_INSTANCE 索引
@@ -2014,19 +1922,6 @@ CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EVENT_NODE_IP ON HUB_REGISTRY_SERVICE_EV
 CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EVENT_TYPE ON HUB_REGISTRY_SERVICE_EVENT(eventType, eventTime);
 CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EVENT_TIME ON HUB_REGISTRY_SERVICE_EVENT(eventTime);
 
--- HUB_REGISTRY_EXTERNAL_CONFIG 索引
-CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_CONFIG_NAME ON HUB_REGISTRY_EXTERNAL_CONFIG(tenantId, configName, environmentName);
-CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_CONFIG_TYPE ON HUB_REGISTRY_EXTERNAL_CONFIG(registryType);
-CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_CONFIG_ENV ON HUB_REGISTRY_EXTERNAL_CONFIG(environmentName);
-CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_CONFIG_ACTIVE ON HUB_REGISTRY_EXTERNAL_CONFIG(activeFlag);
-
--- HUB_REGISTRY_EXTERNAL_STATUS 索引
-CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_STATUS_CONFIG ON HUB_REGISTRY_EXTERNAL_STATUS(tenantId, externalConfigId);
-CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_STATUS_CONN ON HUB_REGISTRY_EXTERNAL_STATUS(connectionStatus);
-CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_STATUS_HEALTH ON HUB_REGISTRY_EXTERNAL_STATUS(healthStatus);
-CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_STATUS_FAILOVER ON HUB_REGISTRY_EXTERNAL_STATUS(failoverStatus);
-CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_STATUS_SYNC ON HUB_REGISTRY_EXTERNAL_STATUS(syncStatus);
-CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EXT_STATUS_ACTIVE ON HUB_REGISTRY_EXTERNAL_STATUS(activeFlag);
 
 -- =====================================================
 -- SQLite特殊配置和优化
