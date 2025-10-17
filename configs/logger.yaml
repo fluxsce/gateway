@@ -19,7 +19,7 @@ log:
   # 调试日志专用输出路径 (可选)
   debug_output: "debug.log"
   # 日志文件根目录 (用于相对路径)
-  log_path: "D:/data/gateway/logs"
+  log_path: "./logs"
   # 是否使用绝对路径 (true: 直接使用文件路径，false: 将路径视为相对于log_path)
   use_absolute_path: false
   # 单个日志文件最大尺寸(MB)

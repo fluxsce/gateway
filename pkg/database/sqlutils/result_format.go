@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gateway/pkg/database"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -215,6 +216,49 @@ func (fm *FieldMapper) convertValue(field reflect.Value, value interface{}) erro
 		if fieldType.Kind() == reflect.Ptr && fieldType.Elem().Kind() == reflect.String {
 			strValue := string(v)
 			field.Set(reflect.ValueOf(&strValue))
+			return nil
+		}
+		// 处理[]byte到数值类型的转换（DECIMAL类型会被MySQL驱动转换为[]byte）
+		if fieldType.Kind() == reflect.Float32 || fieldType.Kind() == reflect.Float64 {
+			floatVal, err := strconv.ParseFloat(string(v), 64)
+			if err != nil {
+				return fmt.Errorf("cannot convert []byte to %s: %w", fieldType.Kind(), err)
+			}
+			field.SetFloat(floatVal)
+			return nil
+		}
+		// 处理指针类型的浮点字段
+		if fieldType.Kind() == reflect.Ptr {
+			elemType := fieldType.Elem()
+			if elemType.Kind() == reflect.Float32 || elemType.Kind() == reflect.Float64 {
+				floatVal, err := strconv.ParseFloat(string(v), 64)
+				if err != nil {
+					return fmt.Errorf("cannot convert []byte to *%s: %w", elemType.Kind(), err)
+				}
+				if elemType.Kind() == reflect.Float32 {
+					float32Val := float32(floatVal)
+					field.Set(reflect.ValueOf(&float32Val))
+				} else {
+					field.Set(reflect.ValueOf(&floatVal))
+				}
+				return nil
+			}
+		}
+		// 处理[]byte到整数类型的转换
+		if fieldType.Kind() >= reflect.Int && fieldType.Kind() <= reflect.Int64 {
+			intVal, err := strconv.ParseInt(string(v), 10, 64)
+			if err != nil {
+				return fmt.Errorf("cannot convert []byte to %s: %w", fieldType.Kind(), err)
+			}
+			field.SetInt(intVal)
+			return nil
+		}
+		if fieldType.Kind() >= reflect.Uint && fieldType.Kind() <= reflect.Uint64 {
+			uintVal, err := strconv.ParseUint(string(v), 10, 64)
+			if err != nil {
+				return fmt.Errorf("cannot convert []byte to %s: %w", fieldType.Kind(), err)
+			}
+			field.SetUint(uintVal)
 			return nil
 		}
 	case int64:

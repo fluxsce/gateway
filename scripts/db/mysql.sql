@@ -7,7 +7,7 @@ CREATE TABLE HUB_USER (
     deptId          VARCHAR(32)   NOT NULL COMMENT '所属部门ID',
     email           VARCHAR(255)  NULL     COMMENT '电子邮箱',
     mobile          VARCHAR(20)   NULL     COMMENT '手机号码',
-    avatar          VARCHAR(500)  NULL     COMMENT '头像URL',
+    avatar          LONGTEXT      NULL     COMMENT '头像URL或Base64数据',
     gender          INT           NULL     DEFAULT 0 COMMENT '性别：1-男，2-女，0-未知',
     statusFlag      VARCHAR(1)    NOT NULL DEFAULT 'Y' COMMENT '状态：Y-启用，N-禁用',
     deptAdminFlag   VARCHAR(1)    NOT NULL DEFAULT 'N' COMMENT '是否部门管理员：Y-是，N-否',
@@ -89,6 +89,14 @@ INSERT INTO HUB_USER (
 		'system',
     '系统初始化管理员账号'              -- noteText
 );
+
+-- =====================================================
+-- ALTER 变更语句：用户头像字段类型调整
+-- 变更日期：2025-10-10
+-- 变更原因：支持存储Base64编码的图片数据
+-- 兼容性：向后兼容，现有URL数据不受影响
+-- =====================================================
+ALTER TABLE HUB_USER MODIFY COLUMN avatar LONGTEXT NULL COMMENT '头像URL或Base64数据';
 
 CREATE TABLE HUB_LOGIN_LOG (
     logId           VARCHAR(32)   NOT NULL COMMENT '日志ID，主键',
@@ -2173,3 +2181,500 @@ CREATE TABLE `HUB_REGISTRY_SERVICE_EVENT` (
 -- - registryType = 'NACOS': 服务作为Nacos和第三方应用的代理，提供统一的服务发现接口
 -- - 其他类型: 类似Nacos，作为对应注册中心的代理
 -- =====================================================
+-- ==========================================
+-- JVM监控系统数据库表结构设计
+-- 基于 flux-datahub-registry-monitor JVM监控模型
+-- 遵循数据库设计规范 (naming-convention.md)
+-- ==========================================
+
+-- ==========================================
+-- 1. JVM资源信息主表
+-- 存储JVM整体资源监控信息的快照数据
+-- ==========================================
+CREATE TABLE HUB_MONITOR_JVM_RESOURCE (
+                                          jvmResourceId VARCHAR(100) NOT NULL COMMENT 'JVM资源记录ID（由应用端生成的唯一标识），主键',
+                                          tenantId VARCHAR(32) NOT NULL COMMENT '租户ID',
+                                          serviceGroupId VARCHAR(32) NOT NULL COMMENT '服务分组ID，主键',
+
+    -- 应用标识信息
+                                          applicationName VARCHAR(100) NOT NULL COMMENT '应用名称',
+                                          groupName VARCHAR(100) NOT NULL COMMENT '分组名称',
+                                          hostName VARCHAR(100) DEFAULT NULL COMMENT '主机名',
+                                          hostIpAddress VARCHAR(50) DEFAULT NULL COMMENT '主机IP地址',
+
+    -- 时间相关字段
+                                          collectionTime DATETIME NOT NULL COMMENT '数据采集时间',
+                                          jvmStartTime DATETIME NOT NULL COMMENT 'JVM启动时间',
+                                          jvmUptimeMs BIGINT NOT NULL DEFAULT 0 COMMENT 'JVM运行时长（毫秒）',
+
+    -- 健康状态字段
+                                          healthyFlag VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT 'JVM整体健康标记(Y健康,N异常)',
+                                          healthGrade VARCHAR(20) DEFAULT NULL COMMENT 'JVM健康等级(EXCELLENT/GOOD/FAIR/POOR)',
+                                          requiresAttentionFlag VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否需要立即关注(Y是,N否)',
+                                          summaryText VARCHAR(500) DEFAULT NULL COMMENT '监控摘要信息',
+
+    -- 系统属性（JSON格式）
+                                          systemPropertiesJson LONGTEXT DEFAULT NULL COMMENT 'JVM系统属性，JSON格式（可能包含大量系统属性）',
+
+    -- 通用字段
+                                          addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                                          addWho VARCHAR(32) DEFAULT NULL COMMENT '创建人ID',
+                                          editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+                                          editWho VARCHAR(32) DEFAULT NULL COMMENT '最后修改人ID',
+                                          oprSeqFlag VARCHAR(32) DEFAULT NULL COMMENT '操作序列标识',
+                                          currentVersion INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+                                          activeFlag VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+                                          noteText VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+
+                                          PRIMARY KEY (tenantId, serviceGroupId, jvmResourceId),
+                                          KEY IDX_MONITOR_JVM_APP (applicationName),
+                                          KEY IDX_MONITOR_JVM_TIME (collectionTime),
+                                          KEY IDX_MONITOR_JVM_HEALTH (healthyFlag, requiresAttentionFlag),
+                                          KEY IDX_MONITOR_JVM_HOST (hostIpAddress),
+                                          KEY IDX_MONITOR_JVM_GROUP (serviceGroupId, groupName)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='JVM资源监控主表';
+
+-- ==========================================
+-- 2. 内存信息表（堆内存和非堆内存）
+-- 存储JVM堆内存和非堆内存的使用情况
+-- ==========================================
+CREATE TABLE HUB_MONITOR_JVM_MEMORY (
+                                        jvmMemoryId VARCHAR(32) NOT NULL COMMENT 'JVM内存记录ID，主键',
+                                        tenantId VARCHAR(32) NOT NULL COMMENT '租户ID',
+                                        jvmResourceId VARCHAR(100) NOT NULL COMMENT '关联的JVM资源ID',
+
+    -- 内存类型
+                                        memoryType VARCHAR(20) NOT NULL COMMENT '内存类型(HEAP/NON_HEAP)',
+
+    -- 内存使用情况（字节）
+                                        initMemoryBytes BIGINT NOT NULL DEFAULT 0 COMMENT '初始内存大小（字节）',
+                                        usedMemoryBytes BIGINT NOT NULL DEFAULT 0 COMMENT '已使用内存大小（字节）',
+                                        committedMemoryBytes BIGINT NOT NULL DEFAULT 0 COMMENT '已提交内存大小（字节）',
+                                        maxMemoryBytes BIGINT NOT NULL DEFAULT -1 COMMENT '最大内存大小（字节），-1表示无限制',
+
+    -- 计算指标
+                                        usagePercent DECIMAL(5,2) NOT NULL DEFAULT 0.00 COMMENT '内存使用率（百分比）',
+                                        healthyFlag VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '内存健康标记(Y健康,N异常)',
+
+    -- 时间字段
+                                        collectionTime DATETIME NOT NULL COMMENT '数据采集时间',
+
+    -- 通用字段
+                                        addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                                        addWho VARCHAR(32) DEFAULT NULL COMMENT '创建人ID',
+                                        editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+                                        editWho VARCHAR(32) DEFAULT NULL COMMENT '最后修改人ID',
+                                        oprSeqFlag VARCHAR(32) DEFAULT NULL COMMENT '操作序列标识',
+                                        currentVersion INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+                                        activeFlag VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+                                        noteText VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+
+                                        PRIMARY KEY (tenantId, jvmMemoryId),
+                                        KEY IDX_MONITOR_MEM_RES (jvmResourceId),
+                                        KEY IDX_MONITOR_MEM_TYPE (memoryType),
+                                        KEY IDX_MONITOR_MEM_TIME (collectionTime),
+                                        KEY IDX_MONITOR_MEM_USAGE (usagePercent)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='JVM内存监控表';
+
+-- ==========================================
+-- 3. 内存池信息表
+-- 存储具体内存池的详细使用情况（Eden、Survivor、Old Gen、Metaspace等）
+-- ==========================================
+CREATE TABLE HUB_MONITOR_JVM_MEM_POOL (
+                                          memoryPoolId VARCHAR(32) NOT NULL COMMENT '内存池记录ID，主键',
+                                          tenantId VARCHAR(32) NOT NULL COMMENT '租户ID',
+                                          jvmResourceId VARCHAR(100) NOT NULL COMMENT '关联的JVM资源ID',
+
+    -- 内存池基本信息
+                                          poolName VARCHAR(100) NOT NULL COMMENT '内存池名称',
+                                          poolType VARCHAR(20) NOT NULL COMMENT '内存池类型(HEAP/NON_HEAP)',
+                                          poolCategory VARCHAR(50) DEFAULT NULL COMMENT '内存池分类（年轻代/老年代/元数据空间/代码缓存/其他）',
+
+    -- 当前使用情况
+                                          currentInitBytes BIGINT NOT NULL DEFAULT 0 COMMENT '当前初始内存（字节）',
+                                          currentUsedBytes BIGINT NOT NULL DEFAULT 0 COMMENT '当前已使用内存（字节）',
+                                          currentCommittedBytes BIGINT NOT NULL DEFAULT 0 COMMENT '当前已提交内存（字节）',
+                                          currentMaxBytes BIGINT NOT NULL DEFAULT -1 COMMENT '当前最大内存（字节）',
+                                          currentUsagePercent DECIMAL(5,2) NOT NULL DEFAULT 0.00 COMMENT '当前使用率（百分比）',
+
+    -- 峰值使用情况
+                                          peakInitBytes BIGINT DEFAULT 0 COMMENT '峰值初始内存（字节）',
+                                          peakUsedBytes BIGINT DEFAULT 0 COMMENT '峰值已使用内存（字节）',
+                                          peakCommittedBytes BIGINT DEFAULT 0 COMMENT '峰值已提交内存（字节）',
+                                          peakMaxBytes BIGINT DEFAULT -1 COMMENT '峰值最大内存（字节）',
+                                          peakUsagePercent DECIMAL(5,2) DEFAULT 0.00 COMMENT '峰值使用率（百分比）',
+
+    -- 阈值监控
+                                          usageThresholdSupported VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否支持使用阈值监控(Y是,N否)',
+                                          usageThresholdBytes BIGINT DEFAULT 0 COMMENT '使用阈值（字节）',
+                                          usageThresholdCount BIGINT DEFAULT 0 COMMENT '使用阈值超越次数',
+                                          collectionUsageSupported VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否支持收集使用量监控(Y是,N否)',
+
+    -- 健康状态
+                                          healthyFlag VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '内存池健康标记(Y健康,N异常)',
+
+    -- 时间字段
+                                          collectionTime DATETIME NOT NULL COMMENT '数据采集时间',
+
+    -- 通用字段
+                                          addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                                          addWho VARCHAR(32) DEFAULT NULL COMMENT '创建人ID',
+                                          editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+                                          editWho VARCHAR(32) DEFAULT NULL COMMENT '最后修改人ID',
+                                          oprSeqFlag VARCHAR(32) DEFAULT NULL COMMENT '操作序列标识',
+                                          currentVersion INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+                                          activeFlag VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+                                          noteText VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+
+                                          PRIMARY KEY (tenantId, memoryPoolId),
+                                          KEY IDX_MONITOR_POOL_RES (jvmResourceId),
+                                          KEY IDX_MONITOR_POOL_NAME (poolName),
+                                          KEY IDX_MONITOR_POOL_TYPE (poolType),
+                                          KEY IDX_MONITOR_POOL_CAT (poolCategory),
+                                          KEY IDX_MONITOR_POOL_TIME (collectionTime)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='JVM内存池监控表';
+
+-- ==========================================
+-- 4. GC快照表（jstat -gc 风格，每次采集一条汇总记录）
+-- 存储每次采集时刻的GC状态快照，包含完整的内存区域数据
+-- 每次采集插入一条记录，包含所有GC收集器的汇总数据
+-- ==========================================
+CREATE TABLE HUB_MONITOR_JVM_GC (
+                                    gcSnapshotId VARCHAR(32) NOT NULL COMMENT 'GC快照记录ID，主键',
+                                    tenantId VARCHAR(32) NOT NULL COMMENT '租户ID',
+                                    jvmResourceId VARCHAR(100) NOT NULL COMMENT '关联的JVM资源ID',
+
+    -- GC累积统计（从JVM启动到当前采集时刻）
+                                    collectionCount BIGINT NOT NULL DEFAULT 0 COMMENT 'GC总次数（累积，所有GC收集器汇总）',
+                                    collectionTimeMs BIGINT NOT NULL DEFAULT 0 COMMENT 'GC总耗时（毫秒，累积，所有GC收集器汇总）',
+
+    -- ===== jstat -gc 风格的内存区域数据（单位：KB） =====
+
+    -- Survivor区
+                                    s0c BIGINT DEFAULT 0 COMMENT 'Survivor 0 区容量（KB）',
+                                    s1c BIGINT DEFAULT 0 COMMENT 'Survivor 1 区容量（KB）',
+                                    s0u BIGINT DEFAULT 0 COMMENT 'Survivor 0 区使用量（KB）',
+                                    s1u BIGINT DEFAULT 0 COMMENT 'Survivor 1 区使用量（KB）',
+
+    -- Eden区
+                                    ec BIGINT DEFAULT 0 COMMENT 'Eden 区容量（KB）',
+                                    eu BIGINT DEFAULT 0 COMMENT 'Eden 区使用量（KB）',
+
+    -- Old区
+                                    oc BIGINT DEFAULT 0 COMMENT 'Old 区容量（KB）',
+                                    ou BIGINT DEFAULT 0 COMMENT 'Old 区使用量（KB）',
+
+    -- Metaspace
+                                    mc BIGINT DEFAULT 0 COMMENT 'Metaspace 容量（KB）',
+                                    mu BIGINT DEFAULT 0 COMMENT 'Metaspace 使用量（KB）',
+
+    -- 压缩类空间
+                                    ccsc BIGINT DEFAULT 0 COMMENT '压缩类空间容量（KB）',
+                                    ccsu BIGINT DEFAULT 0 COMMENT '压缩类空间使用量（KB）',
+
+    -- GC统计（jstat -gc 格式）
+                                    ygc BIGINT DEFAULT 0 COMMENT '年轻代GC次数',
+                                    ygct DECIMAL(10,3) DEFAULT 0.000 COMMENT '年轻代GC总时间（秒）',
+                                    fgc BIGINT DEFAULT 0 COMMENT 'Full GC次数',
+                                    fgct DECIMAL(10,3) DEFAULT 0.000 COMMENT 'Full GC总时间（秒）',
+                                    gct DECIMAL(10,3) DEFAULT 0.000 COMMENT '总GC时间（秒）',
+
+    -- 时间戳信息
+                                    collectionTime DATETIME NOT NULL COMMENT '数据采集时间戳',
+
+    -- 通用字段
+                                    addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                                    addWho VARCHAR(32) DEFAULT NULL COMMENT '创建人ID',
+                                    editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+                                    editWho VARCHAR(32) DEFAULT NULL COMMENT '最后修改人ID',
+                                    oprSeqFlag VARCHAR(32) DEFAULT NULL COMMENT '操作序列标识',
+                                    currentVersion INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+                                    activeFlag VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+                                    noteText VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+
+                                    PRIMARY KEY (tenantId, gcSnapshotId),
+                                    KEY IDX_MONITOR_GC_RES (jvmResourceId),
+                                    KEY IDX_MONITOR_GC_TIME (collectionTime),
+                                    KEY IDX_MONITOR_GC_RES_TIME (jvmResourceId, collectionTime)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='JVM GC快照表（jstat -gc风格，每次采集一条汇总记录）';
+
+-- ==========================================
+-- 5. 线程信息表
+-- 存储JVM线程的详细监控数据
+-- ==========================================
+CREATE TABLE HUB_MONITOR_JVM_THREAD (
+                                        jvmThreadId VARCHAR(32) NOT NULL COMMENT 'JVM线程记录ID，主键',
+                                        tenantId VARCHAR(32) NOT NULL COMMENT '租户ID',
+                                        jvmResourceId VARCHAR(100) NOT NULL COMMENT '关联的JVM资源ID',
+
+    -- 基础线程统计
+                                        currentThreadCount INT NOT NULL DEFAULT 0 COMMENT '当前线程数',
+                                        daemonThreadCount INT NOT NULL DEFAULT 0 COMMENT '守护线程数',
+                                        userThreadCount INT NOT NULL DEFAULT 0 COMMENT '用户线程数',
+                                        peakThreadCount INT NOT NULL DEFAULT 0 COMMENT '峰值线程数',
+                                        totalStartedThreadCount BIGINT NOT NULL DEFAULT 0 COMMENT '总启动线程数',
+
+    -- 性能指标
+                                        threadGrowthRatePercent DECIMAL(5,2) DEFAULT 0.00 COMMENT '线程增长率（百分比）',
+                                        daemonThreadRatioPercent DECIMAL(5,2) DEFAULT 0.00 COMMENT '守护线程比例（百分比）',
+
+    -- 监控功能支持状态
+                                        cpuTimeSupported VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT 'CPU时间监控是否支持(Y是,N否)',
+                                        cpuTimeEnabled VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT 'CPU时间监控是否启用(Y是,N否)',
+                                        memoryAllocSupported VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '内存分配监控是否支持(Y是,N否)',
+                                        memoryAllocEnabled VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '内存分配监控是否启用(Y是,N否)',
+                                        contentionSupported VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '争用监控是否支持(Y是,N否)',
+                                        contentionEnabled VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '争用监控是否启用(Y是,N否)',
+
+    -- 健康状态
+                                        healthyFlag VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '线程健康标记(Y健康,N异常)',
+                                        healthGrade VARCHAR(20) DEFAULT NULL COMMENT '线程健康等级(EXCELLENT/GOOD/FAIR/POOR)',
+                                        requiresAttentionFlag VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否需要立即关注(Y是,N否)',
+                                        potentialIssuesJson LONGTEXT DEFAULT NULL COMMENT '潜在问题列表，JSON格式',
+
+    -- 时间字段
+                                        collectionTime DATETIME NOT NULL COMMENT '数据采集时间',
+
+    -- 通用字段
+                                        addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                                        addWho VARCHAR(32) DEFAULT NULL COMMENT '创建人ID',
+                                        editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+                                        editWho VARCHAR(32) DEFAULT NULL COMMENT '最后修改人ID',
+                                        oprSeqFlag VARCHAR(32) DEFAULT NULL COMMENT '操作序列标识',
+                                        currentVersion INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+                                        activeFlag VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+                                        noteText VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+
+                                        PRIMARY KEY (tenantId, jvmThreadId),
+                                        KEY IDX_MONITOR_THR_RES (jvmResourceId),
+                                        KEY IDX_MONITOR_THR_TIME (collectionTime),
+                                        KEY IDX_MONITOR_THR_HEALTH (healthyFlag, requiresAttentionFlag),
+                                        KEY IDX_MONITOR_THR_COUNT (currentThreadCount)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='JVM线程监控表';
+
+-- ==========================================
+-- 6. 线程状态统计表
+-- 存储不同状态下的线程数量分布
+-- ==========================================
+CREATE TABLE HUB_MONITOR_JVM_THR_STATE (
+                                           threadStateId VARCHAR(32) NOT NULL COMMENT '线程状态记录ID，主键',
+                                           tenantId VARCHAR(32) NOT NULL COMMENT '租户ID',
+                                           jvmThreadId VARCHAR(32) NOT NULL COMMENT '关联的JVM线程记录ID',
+                                           jvmResourceId VARCHAR(100) NOT NULL COMMENT '关联的JVM资源ID',
+
+    -- 线程状态分布
+                                           newThreadCount INT NOT NULL DEFAULT 0 COMMENT 'NEW状态线程数',
+                                           runnableThreadCount INT NOT NULL DEFAULT 0 COMMENT 'RUNNABLE状态线程数',
+                                           blockedThreadCount INT NOT NULL DEFAULT 0 COMMENT 'BLOCKED状态线程数',
+                                           waitingThreadCount INT NOT NULL DEFAULT 0 COMMENT 'WAITING状态线程数',
+                                           timedWaitingThreadCount INT NOT NULL DEFAULT 0 COMMENT 'TIMED_WAITING状态线程数',
+                                           terminatedThreadCount INT NOT NULL DEFAULT 0 COMMENT 'TERMINATED状态线程数',
+                                           totalThreadCount INT NOT NULL DEFAULT 0 COMMENT '总线程数',
+
+    -- 比例指标
+                                           activeThreadRatioPercent DECIMAL(5,2) DEFAULT 0.00 COMMENT '活跃线程比例（百分比）',
+                                           blockedThreadRatioPercent DECIMAL(5,2) DEFAULT 0.00 COMMENT '阻塞线程比例（百分比）',
+                                           waitingThreadRatioPercent DECIMAL(5,2) DEFAULT 0.00 COMMENT '等待状态线程比例（百分比）',
+
+    -- 健康状态
+                                           healthyFlag VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '线程状态健康标记(Y健康,N异常)',
+                                           healthGrade VARCHAR(20) DEFAULT NULL COMMENT '健康等级(EXCELLENT/GOOD/FAIR/POOR)',
+
+    -- 时间字段
+                                           collectionTime DATETIME NOT NULL COMMENT '数据采集时间',
+
+    -- 通用字段
+                                           addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                                           addWho VARCHAR(32) DEFAULT NULL COMMENT '创建人ID',
+                                           editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+                                           editWho VARCHAR(32) DEFAULT NULL COMMENT '最后修改人ID',
+                                           oprSeqFlag VARCHAR(32) DEFAULT NULL COMMENT '操作序列标识',
+                                           currentVersion INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+                                           activeFlag VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+                                           noteText VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+
+                                           PRIMARY KEY (tenantId, threadStateId),
+                                           KEY IDX_MONITOR_THRST_THR (jvmThreadId),
+                                           KEY IDX_MONITOR_THRST_RES (jvmResourceId),
+                                           KEY IDX_MONITOR_THRST_TIME (collectionTime),
+                                           KEY IDX_MONITOR_THRST_BLOCK (blockedThreadCount)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='JVM线程状态统计表';
+
+-- ==========================================
+-- 7. 死锁检测信息表
+-- 存储JVM中检测到的死锁情况
+-- ==========================================
+CREATE TABLE HUB_MONITOR_JVM_DEADLOCK (
+                                          deadlockId VARCHAR(32) NOT NULL COMMENT '死锁记录ID，主键',
+                                          tenantId VARCHAR(32) NOT NULL COMMENT '租户ID',
+                                          jvmThreadId VARCHAR(32) NOT NULL COMMENT '关联的JVM线程记录ID',
+                                          jvmResourceId VARCHAR(100) NOT NULL COMMENT '关联的JVM资源ID',
+
+    -- 死锁基本信息
+                                          hasDeadlockFlag VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否检测到死锁(Y是,N否)',
+                                          deadlockThreadCount INT NOT NULL DEFAULT 0 COMMENT '死锁线程数量',
+                                          deadlockThreadIds TEXT DEFAULT NULL COMMENT '死锁线程ID列表，逗号分隔',
+                                          deadlockThreadNames TEXT DEFAULT NULL COMMENT '死锁线程名称列表，逗号分隔',
+
+    -- 死锁严重程度
+                                          severityLevel VARCHAR(20) DEFAULT NULL COMMENT '严重程度(LOW/MEDIUM/HIGH/CRITICAL)',
+                                          severityDescription VARCHAR(200) DEFAULT NULL COMMENT '严重程度描述',
+                                          affectedThreadGroups INT DEFAULT 0 COMMENT '影响的线程组数量',
+
+    -- 时间信息
+                                          detectionTime DATETIME DEFAULT NULL COMMENT '死锁检测时间',
+                                          deadlockDurationMs BIGINT DEFAULT 0 COMMENT '死锁持续时间（毫秒）',
+                                          collectionTime DATETIME NOT NULL COMMENT '数据采集时间',
+
+    -- 诊断信息
+                                          descriptionText VARCHAR(500) DEFAULT NULL COMMENT '死锁描述信息',
+                                          recommendedAction VARCHAR(500) DEFAULT NULL COMMENT '建议的解决方案',
+                                          alertLevel VARCHAR(20) DEFAULT NULL COMMENT '告警级别(INFO/WARNING/ERROR/CRITICAL/EMERGENCY)',
+                                          requiresActionFlag VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否需要立即处理(Y是,N否)',
+
+    -- 通用字段
+                                          addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                                          addWho VARCHAR(32) DEFAULT NULL COMMENT '创建人ID',
+                                          editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+                                          editWho VARCHAR(32) DEFAULT NULL COMMENT '最后修改人ID',
+                                          oprSeqFlag VARCHAR(32) DEFAULT NULL COMMENT '操作序列标识',
+                                          currentVersion INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+                                          activeFlag VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+                                          noteText VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+
+                                          PRIMARY KEY (tenantId, deadlockId),
+                                          KEY IDX_MONITOR_DL_THR (jvmThreadId),
+                                          KEY IDX_MONITOR_DL_RES (jvmResourceId),
+                                          KEY IDX_MONITOR_DL_TIME (collectionTime),
+                                          KEY IDX_MONITOR_DL_FLAG (hasDeadlockFlag),
+                                          KEY IDX_MONITOR_DL_SEV (severityLevel),
+                                          KEY IDX_MONITOR_DL_ALERT (alertLevel)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='JVM死锁检测信息表';
+
+-- ==========================================
+-- 8. 类加载信息表
+-- 存储JVM类加载器的统计信息
+-- ==========================================
+CREATE TABLE HUB_MONITOR_JVM_CLASS (
+                                       classLoadingId VARCHAR(32) NOT NULL COMMENT '类加载记录ID，主键',
+                                       tenantId VARCHAR(32) NOT NULL COMMENT '租户ID',
+                                       jvmResourceId VARCHAR(100) NOT NULL COMMENT '关联的JVM资源ID',
+
+    -- 类加载统计
+                                       loadedClassCount INT NOT NULL DEFAULT 0 COMMENT '当前已加载类数量',
+                                       totalLoadedClassCount BIGINT NOT NULL DEFAULT 0 COMMENT '总加载类数量',
+                                       unloadedClassCount BIGINT NOT NULL DEFAULT 0 COMMENT '已卸载类数量',
+
+    -- 比例指标
+                                       classUnloadRatePercent DECIMAL(5,2) DEFAULT 0.00 COMMENT '类卸载率（百分比）',
+                                       classRetentionRatePercent DECIMAL(5,2) DEFAULT 0.00 COMMENT '类保留率（百分比）',
+
+    -- 配置状态
+                                       verboseClassLoading VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否启用详细类加载输出(Y是,N否)',
+
+    -- 性能指标
+                                       loadingRatePerHour DECIMAL(10,2) DEFAULT 0.00 COMMENT '每小时平均类加载数量',
+                                       loadingEfficiency DECIMAL(5,2) DEFAULT 0.00 COMMENT '类加载效率',
+                                       memoryEfficiency VARCHAR(100) DEFAULT NULL COMMENT '内存使用效率评估',
+                                       loaderHealth VARCHAR(50) DEFAULT NULL COMMENT '类加载器健康状况',
+
+    -- 健康状态
+                                       healthyFlag VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '类加载健康标记(Y健康,N异常)',
+                                       healthGrade VARCHAR(20) DEFAULT NULL COMMENT '健康等级(EXCELLENT/GOOD/FAIR/POOR)',
+                                       requiresAttentionFlag VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否需要立即关注(Y是,N否)',
+                                       potentialIssuesJson LONGTEXT DEFAULT NULL COMMENT '潜在问题列表，JSON格式',
+
+    -- 时间字段
+                                       collectionTime DATETIME NOT NULL COMMENT '数据采集时间',
+
+    -- 通用字段
+                                       addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                                       addWho VARCHAR(32) DEFAULT NULL COMMENT '创建人ID',
+                                       editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+                                       editWho VARCHAR(32) DEFAULT NULL COMMENT '最后修改人ID',
+                                       oprSeqFlag VARCHAR(32) DEFAULT NULL COMMENT '操作序列标识',
+                                       currentVersion INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+                                       activeFlag VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+                                       noteText VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+
+                                       PRIMARY KEY (tenantId, classLoadingId),
+                                       KEY IDX_MONITOR_CLS_RES (jvmResourceId),
+                                       KEY IDX_MONITOR_CLS_TIME (collectionTime),
+                                       KEY IDX_MONITOR_CLS_HEALTH (healthyFlag, requiresAttentionFlag),
+                                       KEY IDX_MONITOR_CLS_COUNT (loadedClassCount)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='JVM类加载监控表';
+
+-- ==========================================
+-- 索引说明
+-- ==========================================
+-- 1. 所有表都建立了tenantId相关的复合主键，支持多租户数据隔离
+-- 2. 为关联字段（jvmResourceId等）创建了索引，提高关联查询性能
+-- 3. 为时间字段（collectionTime）创建了索引，支持时间范围查询
+-- 4. 为健康状态字段创建了索引，便于快速筛选异常数据
+-- 5. 为常用查询条件字段创建了索引，提高查询效率
+
+-- ==========================================
+-- 表关系说明
+-- ==========================================
+-- HUB_MONITOR_JVM_RESOURCE (主表)
+--   ├── HUB_MONITOR_JVM_MEMORY (1:N，一个JVM资源对应多个内存记录：堆内存+非堆内存)
+--   ├── HUB_MONITOR_JVM_MEM_POOL (1:N，一个JVM资源对应多个内存池)
+--   ├── HUB_MONITOR_JVM_GC (1:N，一个JVM资源对应多个GC收集器)
+--   ├── HUB_MONITOR_JVM_THREAD (1:1，一个JVM资源对应一个线程信息记录)
+--   │   ├── HUB_MONITOR_JVM_THR_STATE (1:1，一个线程信息对应一个线程状态统计)
+--   │   └── HUB_MONITOR_JVM_DEADLOCK (1:1，一个线程信息对应一个死锁检测记录)
+--   └── HUB_MONITOR_JVM_CLASS (1:1，一个JVM资源对应一个类加载信息记录)
+-- ==========================================
+-- 9. 应用监控数据表
+-- 存储应用层面的各种监控数据（线程池、连接池、自定义指标等）
+-- 对应 ThirdPartyMonitorData 采集的所有监控数据
+-- ==========================================
+CREATE TABLE HUB_MONITOR_APP_DATA (
+                                      appDataId VARCHAR(32) NOT NULL COMMENT '应用监控数据ID，主键',
+                                      tenantId VARCHAR(32) NOT NULL COMMENT '租户ID',
+                                      jvmResourceId VARCHAR(100) NOT NULL COMMENT '关联的JVM资源ID',
+
+    -- 数据分类标识
+                                      dataType VARCHAR(50) NOT NULL COMMENT '数据类型(THREAD_POOL:线程池/CONNECTION_POOL:连接池/CUSTOM_METRIC:自定义指标/CACHE_POOL:缓存池/MESSAGE_QUEUE:消息队列)',
+                                      dataName VARCHAR(100) NOT NULL COMMENT '数据名称（如：线程池名称、指标名称等）',
+                                      dataCategory VARCHAR(50) DEFAULT NULL COMMENT '数据分类（如：业务线程池/IO线程池/业务指标/技术指标）',
+
+    -- 监控数据（JSON格式存储，支持不同类型的数据结构）
+                                      dataJson LONGTEXT NOT NULL COMMENT '监控数据，JSON格式，包含具体的监控指标和值',
+
+    -- 核心指标（从JSON中提取的关键指标，便于查询和索引）
+                                      primaryValue DECIMAL(20,4) DEFAULT NULL COMMENT '主要指标值（如：使用率、数量等）',
+                                      secondaryValue DECIMAL(20,4) DEFAULT NULL COMMENT '次要指标值（如：最大值、平均值等）',
+                                      statusValue VARCHAR(50) DEFAULT NULL COMMENT '状态值（如：健康状态、连接状态等）',
+
+    -- 健康状态
+                                      healthyFlag VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '健康标记(Y健康,N异常)',
+                                      healthGrade VARCHAR(20) DEFAULT NULL COMMENT '健康等级(EXCELLENT/GOOD/FAIR/POOR/CRITICAL)',
+                                      requiresAttentionFlag VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否需要立即关注(Y是,N否)',
+
+    -- 标签和维度（便于分组查询）
+                                      tagsJson TEXT DEFAULT NULL COMMENT '标签信息，JSON格式（如：{"poolType":"business","environment":"prod"}）',
+
+    -- 时间字段
+                                      collectionTime DATETIME NOT NULL COMMENT '数据采集时间',
+
+    -- 通用字段
+                                      addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                                      addWho VARCHAR(32) DEFAULT NULL COMMENT '创建人ID',
+                                      editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+                                      editWho VARCHAR(32) DEFAULT NULL COMMENT '最后修改人ID',
+                                      oprSeqFlag VARCHAR(32) DEFAULT NULL COMMENT '操作序列标识',
+                                      currentVersion INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+                                      activeFlag VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+                                      noteText VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+
+                                      PRIMARY KEY (tenantId, appDataId),
+                                      KEY IDX_MONITOR_APP_DATA_RES (jvmResourceId),
+                                      KEY IDX_MONITOR_APP_DATA_TYPE (dataType),
+                                      KEY IDX_MONITOR_APP_DATA_NAME (dataName),
+                                      KEY IDX_MONITOR_APP_DATA_TIME (collectionTime),
+                                      KEY IDX_MONITOR_APP_DATA_HEALTH (healthyFlag, requiresAttentionFlag),
+                                      KEY IDX_MONITOR_APP_DATA_PRIMARY (primaryValue),
+                                      KEY IDX_MONITOR_APP_DATA_STATUS (statusValue),
+                                      KEY IDX_MONITOR_APP_DATA_RES_TYPE_NAME (jvmResourceId, dataType, dataName, collectionTime)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='应用监控数据表';

@@ -14,6 +14,7 @@ import (
 	_ "gateway/pkg/database/alldriver" // 导入数据库驱动以确保注册
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/huberrors"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -21,6 +22,8 @@ import (
 	"runtime"
 	"syscall"
 	"time"
+
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // 全局变量
@@ -201,6 +204,8 @@ func initPprofService() error {
 }
 
 // setupServiceLogging 设置服务模式日志
+// 使用lumberjack实现日志轮转，避免日志文件无限增长
+// 注意：只重定向标准log包的输出，不影响logger包（zap）的输出
 func setupServiceLogging() {
 	// 创建日志目录
 	logDir := filepath.Join(filepath.Dir(os.Args[0]), "logs")
@@ -209,23 +214,27 @@ func setupServiceLogging() {
 		return
 	}
 
-	// 打开日志文件
+	// 使用lumberjack实现日志轮转
 	logFile := filepath.Join(logDir, "service.log")
-	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		log.Printf("打开日志文件失败: %v", err)
-		return
+	lumberjackLogger := &lumberjack.Logger{
+		Filename:   logFile,
+		MaxSize:    100,  // 单个文件最大100MB
+		MaxBackups: 10,   // 保留最多10个旧文件
+		MaxAge:     30,   // 保留最多30天
+		Compress:   true, // 压缩旧文件
+		LocalTime:  true, // 使用本地时间
 	}
 
-	// 重定向标准输出和错误输出
-	os.Stdout = file
-	os.Stderr = file
+	// 创建MultiWriter，同时输出到文件和控制台（如果需要）
+	// 服务模式下不输出到控制台，只输出到文件
+	multiWriter := io.MultiWriter(lumberjackLogger)
 
-	// 设置日志输出
-	log.SetOutput(file)
+	// 只设置标准log包的输出，不重定向os.Stdout和os.Stderr
+	// 这样logger包（zap）可以独立控制其输出目标
+	log.SetOutput(multiWriter)
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	log.Printf("服务日志重定向已设置: %s", logFile)
+	log.Printf("服务日志已设置（支持轮转）: %s (MaxSize: 100MB, MaxBackups: 10, MaxAge: 30天)", logFile)
 }
 
 // setupGracefulShutdown 设置优雅退出

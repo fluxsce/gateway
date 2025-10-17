@@ -76,7 +76,7 @@ echo Godror version: !GODROR_VERSION!
 echo.
 
 :: Oracle environment setup
-set ORACLE_HOME=D:\SDK\instantclient_21_18
+set ORACLE_HOME=D:\sdk\instantclient\instantclient_21_18
 set PATH=!ORACLE_HOME!;%PATH%
 set CGO_CFLAGS=-I!ORACLE_HOME!\sdk\include
 set CGO_LDFLAGS=-L!ORACLE_HOME!\sdk\lib\msvc -loci

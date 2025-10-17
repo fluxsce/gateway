@@ -73,9 +73,11 @@ func initUserRoutes(router *gin.RouterGroup, db database.Database) {
 		// 将所有路由放到受保护的路由组中
 		// 为每个用户路由加上AuthRequired中间件
 		userGroup.POST("/queryUsers", userController.QueryUsers)
+		userGroup.POST("/getUser", userController.GetUser)
 		userGroup.POST("/addUser", userController.AddUser)
 		userGroup.POST("/editUser", userController.EditUser)
 		userGroup.POST("/deleteUser", userController.Delete)
+		userGroup.POST("/changePassword", userController.ChangePassword)
 	}
 }
 

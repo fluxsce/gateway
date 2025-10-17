@@ -1923,6 +1923,510 @@ CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EVENT_TYPE ON HUB_REGISTRY_SERVICE_EVENT
 CREATE INDEX IF NOT EXISTS IDX_REGISTRY_EVENT_TIME ON HUB_REGISTRY_SERVICE_EVENT(eventTime);
 
 
+-- ==========================================
+-- 1. JVM资源信息主表
+-- 存储JVM整体资源监控信息的快照数据
+-- ==========================================
+CREATE TABLE IF NOT EXISTS HUB_MONITOR_JVM_RESOURCE (
+    jvmResourceId TEXT NOT NULL, -- JVM资源记录ID（由应用端生成的唯一标识），主键
+    tenantId TEXT NOT NULL, -- 租户ID
+    serviceGroupId TEXT NOT NULL, -- 服务分组ID，主键
+    
+    -- 应用标识信息
+    applicationName TEXT NOT NULL, -- 应用名称
+    groupName TEXT NOT NULL, -- 分组名称
+    hostName TEXT DEFAULT NULL, -- 主机名
+    hostIpAddress TEXT DEFAULT NULL, -- 主机IP地址
+    
+    -- 时间相关字段
+    collectionTime TEXT NOT NULL, -- 数据采集时间
+    jvmStartTime TEXT NOT NULL, -- JVM启动时间
+    jvmUptimeMs INTEGER DEFAULT 0 NOT NULL, -- JVM运行时长（毫秒）
+    
+    -- 健康状态字段
+    healthyFlag TEXT DEFAULT 'Y' NOT NULL CHECK(healthyFlag IN ('Y','N')), -- JVM整体健康标记(Y健康,N异常)
+    healthGrade TEXT DEFAULT NULL, -- JVM健康等级(EXCELLENT/GOOD/FAIR/POOR)
+    requiresAttentionFlag TEXT DEFAULT 'N' NOT NULL CHECK(requiresAttentionFlag IN ('Y','N')), -- 是否需要立即关注(Y是,N否)
+    summaryText TEXT DEFAULT NULL, -- 监控摘要信息
+    
+    -- 系统属性（JSON格式）
+    systemPropertiesJson TEXT DEFAULT NULL, -- JVM系统属性，JSON格式（可能包含大量系统属性）
+    
+    -- 通用字段
+    addTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 创建时间
+    addWho TEXT DEFAULT NULL, -- 创建人ID
+    editTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 最后修改时间
+    editWho TEXT DEFAULT NULL, -- 最后修改人ID
+    oprSeqFlag TEXT DEFAULT NULL, -- 操作序列标识
+    currentVersion INTEGER DEFAULT 1 NOT NULL, -- 当前版本号
+    activeFlag TEXT DEFAULT 'Y' NOT NULL CHECK(activeFlag IN ('Y','N')), -- 活动状态标记(N非活动,Y活动)
+    noteText TEXT DEFAULT NULL, -- 备注信息
+    
+    PRIMARY KEY (tenantId, serviceGroupId, jvmResourceId)
+);
+
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_JVM_APP ON HUB_MONITOR_JVM_RESOURCE(applicationName);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_JVM_TIME ON HUB_MONITOR_JVM_RESOURCE(collectionTime);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_JVM_HEALTH ON HUB_MONITOR_JVM_RESOURCE(healthyFlag, requiresAttentionFlag);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_JVM_HOST ON HUB_MONITOR_JVM_RESOURCE(hostIpAddress);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_JVM_GROUP ON HUB_MONITOR_JVM_RESOURCE(serviceGroupId, groupName);
+
+-- ==========================================
+-- 2. 内存信息表（堆内存和非堆内存）
+-- 存储JVM堆内存和非堆内存的使用情况
+-- ==========================================
+CREATE TABLE IF NOT EXISTS HUB_MONITOR_JVM_MEMORY (
+    jvmMemoryId TEXT NOT NULL, -- JVM内存记录ID，主键
+    tenantId TEXT NOT NULL, -- 租户ID
+    jvmResourceId TEXT NOT NULL, -- 关联的JVM资源ID
+    
+    -- 内存类型
+    memoryType TEXT NOT NULL, -- 内存类型(HEAP/NON_HEAP)
+    
+    -- 内存使用情况（字节）
+    initMemoryBytes INTEGER DEFAULT 0 NOT NULL, -- 初始内存大小（字节）
+    usedMemoryBytes INTEGER DEFAULT 0 NOT NULL, -- 已使用内存大小（字节）
+    committedMemoryBytes INTEGER DEFAULT 0 NOT NULL, -- 已提交内存大小（字节）
+    maxMemoryBytes INTEGER DEFAULT -1 NOT NULL, -- 最大内存大小（字节），-1表示无限制
+    
+    -- 计算指标
+    usagePercent REAL DEFAULT 0.00 NOT NULL, -- 内存使用率（百分比）
+    healthyFlag TEXT DEFAULT 'Y' NOT NULL CHECK(healthyFlag IN ('Y','N')), -- 内存健康标记(Y健康,N异常)
+    
+    -- 时间字段
+    collectionTime TEXT NOT NULL, -- 数据采集时间
+    
+    -- 通用字段
+    addTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 创建时间
+    addWho TEXT DEFAULT NULL, -- 创建人ID
+    editTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 最后修改时间
+    editWho TEXT DEFAULT NULL, -- 最后修改人ID
+    oprSeqFlag TEXT DEFAULT NULL, -- 操作序列标识
+    currentVersion INTEGER DEFAULT 1 NOT NULL, -- 当前版本号
+    activeFlag TEXT DEFAULT 'Y' NOT NULL CHECK(activeFlag IN ('Y','N')), -- 活动状态标记(N非活动,Y活动)
+    noteText TEXT DEFAULT NULL, -- 备注信息
+    
+    PRIMARY KEY (tenantId, jvmMemoryId)
+);
+
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_MEM_RES ON HUB_MONITOR_JVM_MEMORY(jvmResourceId);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_MEM_TYPE ON HUB_MONITOR_JVM_MEMORY(memoryType);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_MEM_TIME ON HUB_MONITOR_JVM_MEMORY(collectionTime);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_MEM_USAGE ON HUB_MONITOR_JVM_MEMORY(usagePercent);
+
+-- ==========================================
+-- 3. 内存池信息表
+-- 存储具体内存池的详细使用情况（Eden、Survivor、Old Gen、Metaspace等）
+-- ==========================================
+CREATE TABLE IF NOT EXISTS HUB_MONITOR_JVM_MEM_POOL (
+    memoryPoolId TEXT NOT NULL, -- 内存池记录ID，主键
+    tenantId TEXT NOT NULL, -- 租户ID
+    jvmResourceId TEXT NOT NULL, -- 关联的JVM资源ID
+    
+    -- 内存池基本信息
+    poolName TEXT NOT NULL, -- 内存池名称
+    poolType TEXT NOT NULL, -- 内存池类型(HEAP/NON_HEAP)
+    poolCategory TEXT DEFAULT NULL, -- 内存池分类（年轻代/老年代/元数据空间/代码缓存/其他）
+    
+    -- 当前使用情况
+    currentInitBytes INTEGER DEFAULT 0 NOT NULL, -- 当前初始内存（字节）
+    currentUsedBytes INTEGER DEFAULT 0 NOT NULL, -- 当前已使用内存（字节）
+    currentCommittedBytes INTEGER DEFAULT 0 NOT NULL, -- 当前已提交内存（字节）
+    currentMaxBytes INTEGER DEFAULT -1 NOT NULL, -- 当前最大内存（字节）
+    currentUsagePercent REAL DEFAULT 0.00 NOT NULL, -- 当前使用率（百分比）
+    
+    -- 峰值使用情况
+    peakInitBytes INTEGER DEFAULT 0, -- 峰值初始内存（字节）
+    peakUsedBytes INTEGER DEFAULT 0, -- 峰值已使用内存（字节）
+    peakCommittedBytes INTEGER DEFAULT 0, -- 峰值已提交内存（字节）
+    peakMaxBytes INTEGER DEFAULT -1, -- 峰值最大内存（字节）
+    peakUsagePercent REAL DEFAULT 0.00, -- 峰值使用率（百分比）
+    
+    -- 阈值监控
+    usageThresholdSupported TEXT DEFAULT 'N' NOT NULL CHECK(usageThresholdSupported IN ('Y','N')), -- 是否支持使用阈值监控(Y是,N否)
+    usageThresholdBytes INTEGER DEFAULT 0, -- 使用阈值（字节）
+    usageThresholdCount INTEGER DEFAULT 0, -- 使用阈值超越次数
+    collectionUsageSupported TEXT DEFAULT 'N' NOT NULL CHECK(collectionUsageSupported IN ('Y','N')), -- 是否支持收集使用量监控(Y是,N否)
+    
+    -- 健康状态
+    healthyFlag TEXT DEFAULT 'Y' NOT NULL CHECK(healthyFlag IN ('Y','N')), -- 内存池健康标记(Y健康,N异常)
+    
+    -- 时间字段
+    collectionTime TEXT NOT NULL, -- 数据采集时间
+    
+    -- 通用字段
+    addTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 创建时间
+    addWho TEXT DEFAULT NULL, -- 创建人ID
+    editTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 最后修改时间
+    editWho TEXT DEFAULT NULL, -- 最后修改人ID
+    oprSeqFlag TEXT DEFAULT NULL, -- 操作序列标识
+    currentVersion INTEGER DEFAULT 1 NOT NULL, -- 当前版本号
+    activeFlag TEXT DEFAULT 'Y' NOT NULL CHECK(activeFlag IN ('Y','N')), -- 活动状态标记(N非活动,Y活动)
+    noteText TEXT DEFAULT NULL, -- 备注信息
+    
+    PRIMARY KEY (tenantId, memoryPoolId)
+);
+
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_POOL_RES ON HUB_MONITOR_JVM_MEM_POOL(jvmResourceId);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_POOL_NAME ON HUB_MONITOR_JVM_MEM_POOL(poolName);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_POOL_TYPE ON HUB_MONITOR_JVM_MEM_POOL(poolType);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_POOL_CAT ON HUB_MONITOR_JVM_MEM_POOL(poolCategory);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_POOL_TIME ON HUB_MONITOR_JVM_MEM_POOL(collectionTime);
+
+-- ==========================================
+-- 4. GC快照表（jstat -gc 风格，每次采集一条汇总记录）
+-- 存储每次采集时刻的GC状态快照，包含完整的内存区域数据
+-- 每次采集插入一条记录，包含所有GC收集器的汇总数据
+-- ==========================================
+CREATE TABLE IF NOT EXISTS HUB_MONITOR_JVM_GC (
+    gcSnapshotId TEXT NOT NULL, -- GC快照记录ID，主键
+    tenantId TEXT NOT NULL, -- 租户ID
+    jvmResourceId TEXT NOT NULL, -- 关联的JVM资源ID
+    
+    -- GC累积统计（从JVM启动到当前采集时刻）
+    collectionCount INTEGER DEFAULT 0 NOT NULL, -- GC总次数（累积，所有GC收集器汇总）
+    collectionTimeMs INTEGER DEFAULT 0 NOT NULL, -- GC总耗时（毫秒，累积，所有GC收集器汇总）
+    
+    -- ===== jstat -gc 风格的内存区域数据（单位：KB） =====
+    
+    -- Survivor区
+    s0c INTEGER DEFAULT 0, -- Survivor 0 区容量（KB）
+    s1c INTEGER DEFAULT 0, -- Survivor 1 区容量（KB）
+    s0u INTEGER DEFAULT 0, -- Survivor 0 区使用量（KB）
+    s1u INTEGER DEFAULT 0, -- Survivor 1 区使用量（KB）
+    
+    -- Eden区
+    ec INTEGER DEFAULT 0, -- Eden 区容量（KB）
+    eu INTEGER DEFAULT 0, -- Eden 区使用量（KB）
+    
+    -- Old区
+    oc INTEGER DEFAULT 0, -- Old 区容量（KB）
+    ou INTEGER DEFAULT 0, -- Old 区使用量（KB）
+    
+    -- Metaspace
+    mc INTEGER DEFAULT 0, -- Metaspace 容量（KB）
+    mu INTEGER DEFAULT 0, -- Metaspace 使用量（KB）
+    
+    -- 压缩类空间
+    ccsc INTEGER DEFAULT 0, -- 压缩类空间容量（KB）
+    ccsu INTEGER DEFAULT 0, -- 压缩类空间使用量（KB）
+    
+    -- GC统计（jstat -gc 格式）
+    ygc INTEGER DEFAULT 0, -- 年轻代GC次数
+    ygct REAL DEFAULT 0.000, -- 年轻代GC总时间（秒）
+    fgc INTEGER DEFAULT 0, -- Full GC次数
+    fgct REAL DEFAULT 0.000, -- Full GC总时间（秒）
+    gct REAL DEFAULT 0.000, -- 总GC时间（秒）
+    
+    -- 时间戳信息
+    collectionTime TEXT NOT NULL, -- 数据采集时间戳
+    
+    -- 通用字段
+    addTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 创建时间
+    addWho TEXT DEFAULT NULL, -- 创建人ID
+    editTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 最后修改时间
+    editWho TEXT DEFAULT NULL, -- 最后修改人ID
+    oprSeqFlag TEXT DEFAULT NULL, -- 操作序列标识
+    currentVersion INTEGER DEFAULT 1 NOT NULL, -- 当前版本号
+    activeFlag TEXT DEFAULT 'Y' NOT NULL CHECK(activeFlag IN ('Y','N')), -- 活动状态标记(N非活动,Y活动)
+    noteText TEXT DEFAULT NULL, -- 备注信息
+    
+    PRIMARY KEY (tenantId, gcSnapshotId)
+);
+
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_GC_RES ON HUB_MONITOR_JVM_GC(jvmResourceId);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_GC_TIME ON HUB_MONITOR_JVM_GC(collectionTime);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_GC_RES_TIME ON HUB_MONITOR_JVM_GC(jvmResourceId, collectionTime);
+
+-- ==========================================
+-- 5. 线程信息表
+-- 存储JVM线程的详细监控数据
+-- ==========================================
+CREATE TABLE IF NOT EXISTS HUB_MONITOR_JVM_THREAD (
+    jvmThreadId TEXT NOT NULL, -- JVM线程记录ID，主键
+    tenantId TEXT NOT NULL, -- 租户ID
+    jvmResourceId TEXT NOT NULL, -- 关联的JVM资源ID
+    
+    -- 基础线程统计
+    currentThreadCount INTEGER DEFAULT 0 NOT NULL, -- 当前线程数
+    daemonThreadCount INTEGER DEFAULT 0 NOT NULL, -- 守护线程数
+    userThreadCount INTEGER DEFAULT 0 NOT NULL, -- 用户线程数
+    peakThreadCount INTEGER DEFAULT 0 NOT NULL, -- 峰值线程数
+    totalStartedThreadCount INTEGER DEFAULT 0 NOT NULL, -- 总启动线程数
+    
+    -- 性能指标
+    threadGrowthRatePercent REAL DEFAULT 0.00, -- 线程增长率（百分比）
+    daemonThreadRatioPercent REAL DEFAULT 0.00, -- 守护线程比例（百分比）
+    
+    -- 监控功能支持状态
+    cpuTimeSupported TEXT DEFAULT 'N' NOT NULL CHECK(cpuTimeSupported IN ('Y','N')), -- CPU时间监控是否支持(Y是,N否)
+    cpuTimeEnabled TEXT DEFAULT 'N' NOT NULL CHECK(cpuTimeEnabled IN ('Y','N')), -- CPU时间监控是否启用(Y是,N否)
+    memoryAllocSupported TEXT DEFAULT 'N' NOT NULL CHECK(memoryAllocSupported IN ('Y','N')), -- 内存分配监控是否支持(Y是,N否)
+    memoryAllocEnabled TEXT DEFAULT 'N' NOT NULL CHECK(memoryAllocEnabled IN ('Y','N')), -- 内存分配监控是否启用(Y是,N否)
+    contentionSupported TEXT DEFAULT 'N' NOT NULL CHECK(contentionSupported IN ('Y','N')), -- 争用监控是否支持(Y是,N否)
+    contentionEnabled TEXT DEFAULT 'N' NOT NULL CHECK(contentionEnabled IN ('Y','N')), -- 争用监控是否启用(Y是,N否)
+    
+    -- 健康状态
+    healthyFlag TEXT DEFAULT 'Y' NOT NULL CHECK(healthyFlag IN ('Y','N')), -- 线程健康标记(Y健康,N异常)
+    healthGrade TEXT DEFAULT NULL, -- 线程健康等级(EXCELLENT/GOOD/FAIR/POOR)
+    requiresAttentionFlag TEXT DEFAULT 'N' NOT NULL CHECK(requiresAttentionFlag IN ('Y','N')), -- 是否需要立即关注(Y是,N否)
+    potentialIssuesJson TEXT DEFAULT NULL, -- 潜在问题列表，JSON格式
+    
+    -- 时间字段
+    collectionTime TEXT NOT NULL, -- 数据采集时间
+    
+    -- 通用字段
+    addTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 创建时间
+    addWho TEXT DEFAULT NULL, -- 创建人ID
+    editTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 最后修改时间
+    editWho TEXT DEFAULT NULL, -- 最后修改人ID
+    oprSeqFlag TEXT DEFAULT NULL, -- 操作序列标识
+    currentVersion INTEGER DEFAULT 1 NOT NULL, -- 当前版本号
+    activeFlag TEXT DEFAULT 'Y' NOT NULL CHECK(activeFlag IN ('Y','N')), -- 活动状态标记(N非活动,Y活动)
+    noteText TEXT DEFAULT NULL, -- 备注信息
+    
+    PRIMARY KEY (tenantId, jvmThreadId)
+);
+
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_THR_RES ON HUB_MONITOR_JVM_THREAD(jvmResourceId);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_THR_TIME ON HUB_MONITOR_JVM_THREAD(collectionTime);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_THR_HEALTH ON HUB_MONITOR_JVM_THREAD(healthyFlag, requiresAttentionFlag);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_THR_COUNT ON HUB_MONITOR_JVM_THREAD(currentThreadCount);
+
+-- ==========================================
+-- 6. 线程状态统计表
+-- 存储不同状态下的线程数量分布
+-- ==========================================
+CREATE TABLE IF NOT EXISTS HUB_MONITOR_JVM_THR_STATE (
+    threadStateId TEXT NOT NULL, -- 线程状态记录ID，主键
+    tenantId TEXT NOT NULL, -- 租户ID
+    jvmThreadId TEXT NOT NULL, -- 关联的JVM线程记录ID
+    jvmResourceId TEXT NOT NULL, -- 关联的JVM资源ID
+    
+    -- 线程状态分布
+    newThreadCount INTEGER DEFAULT 0 NOT NULL, -- NEW状态线程数
+    runnableThreadCount INTEGER DEFAULT 0 NOT NULL, -- RUNNABLE状态线程数
+    blockedThreadCount INTEGER DEFAULT 0 NOT NULL, -- BLOCKED状态线程数
+    waitingThreadCount INTEGER DEFAULT 0 NOT NULL, -- WAITING状态线程数
+    timedWaitingThreadCount INTEGER DEFAULT 0 NOT NULL, -- TIMED_WAITING状态线程数
+    terminatedThreadCount INTEGER DEFAULT 0 NOT NULL, -- TERMINATED状态线程数
+    totalThreadCount INTEGER DEFAULT 0 NOT NULL, -- 总线程数
+    
+    -- 比例指标
+    activeThreadRatioPercent REAL DEFAULT 0.00, -- 活跃线程比例（百分比）
+    blockedThreadRatioPercent REAL DEFAULT 0.00, -- 阻塞线程比例（百分比）
+    waitingThreadRatioPercent REAL DEFAULT 0.00, -- 等待状态线程比例（百分比）
+    
+    -- 健康状态
+    healthyFlag TEXT DEFAULT 'Y' NOT NULL CHECK(healthyFlag IN ('Y','N')), -- 线程状态健康标记(Y健康,N异常)
+    healthGrade TEXT DEFAULT NULL, -- 健康等级(EXCELLENT/GOOD/FAIR/POOR)
+    
+    -- 时间字段
+    collectionTime TEXT NOT NULL, -- 数据采集时间
+    
+    -- 通用字段
+    addTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 创建时间
+    addWho TEXT DEFAULT NULL, -- 创建人ID
+    editTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 最后修改时间
+    editWho TEXT DEFAULT NULL, -- 最后修改人ID
+    oprSeqFlag TEXT DEFAULT NULL, -- 操作序列标识
+    currentVersion INTEGER DEFAULT 1 NOT NULL, -- 当前版本号
+    activeFlag TEXT DEFAULT 'Y' NOT NULL CHECK(activeFlag IN ('Y','N')), -- 活动状态标记(N非活动,Y活动)
+    noteText TEXT DEFAULT NULL, -- 备注信息
+    
+    PRIMARY KEY (tenantId, threadStateId)
+);
+
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_THRST_THR ON HUB_MONITOR_JVM_THR_STATE(jvmThreadId);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_THRST_RES ON HUB_MONITOR_JVM_THR_STATE(jvmResourceId);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_THRST_TIME ON HUB_MONITOR_JVM_THR_STATE(collectionTime);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_THRST_BLOCK ON HUB_MONITOR_JVM_THR_STATE(blockedThreadCount);
+
+-- ==========================================
+-- 7. 死锁检测信息表
+-- 存储JVM中检测到的死锁情况
+-- ==========================================
+CREATE TABLE IF NOT EXISTS HUB_MONITOR_JVM_DEADLOCK (
+    deadlockId TEXT NOT NULL, -- 死锁记录ID，主键
+    tenantId TEXT NOT NULL, -- 租户ID
+    jvmThreadId TEXT NOT NULL, -- 关联的JVM线程记录ID
+    jvmResourceId TEXT NOT NULL, -- 关联的JVM资源ID
+    
+    -- 死锁基本信息
+    hasDeadlockFlag TEXT DEFAULT 'N' NOT NULL CHECK(hasDeadlockFlag IN ('Y','N')), -- 是否检测到死锁(Y是,N否)
+    deadlockThreadCount INTEGER DEFAULT 0 NOT NULL, -- 死锁线程数量
+    deadlockThreadIds TEXT DEFAULT NULL, -- 死锁线程ID列表，逗号分隔
+    deadlockThreadNames TEXT DEFAULT NULL, -- 死锁线程名称列表，逗号分隔
+    
+    -- 死锁严重程度
+    severityLevel TEXT DEFAULT NULL, -- 严重程度(LOW/MEDIUM/HIGH/CRITICAL)
+    severityDescription TEXT DEFAULT NULL, -- 严重程度描述
+    affectedThreadGroups INTEGER DEFAULT 0, -- 影响的线程组数量
+    
+    -- 时间信息
+    detectionTime TEXT DEFAULT NULL, -- 死锁检测时间
+    deadlockDurationMs INTEGER DEFAULT 0, -- 死锁持续时间（毫秒）
+    collectionTime TEXT NOT NULL, -- 数据采集时间
+    
+    -- 诊断信息
+    descriptionText TEXT DEFAULT NULL, -- 死锁描述信息
+    recommendedAction TEXT DEFAULT NULL, -- 建议的解决方案
+    alertLevel TEXT DEFAULT NULL, -- 告警级别(INFO/WARNING/ERROR/CRITICAL/EMERGENCY)
+    requiresActionFlag TEXT DEFAULT 'N' NOT NULL CHECK(requiresActionFlag IN ('Y','N')), -- 是否需要立即处理(Y是,N否)
+    
+    -- 通用字段
+    addTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 创建时间
+    addWho TEXT DEFAULT NULL, -- 创建人ID
+    editTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 最后修改时间
+    editWho TEXT DEFAULT NULL, -- 最后修改人ID
+    oprSeqFlag TEXT DEFAULT NULL, -- 操作序列标识
+    currentVersion INTEGER DEFAULT 1 NOT NULL, -- 当前版本号
+    activeFlag TEXT DEFAULT 'Y' NOT NULL CHECK(activeFlag IN ('Y','N')), -- 活动状态标记(N非活动,Y活动)
+    noteText TEXT DEFAULT NULL, -- 备注信息
+    
+    PRIMARY KEY (tenantId, deadlockId)
+);
+
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_DL_THR ON HUB_MONITOR_JVM_DEADLOCK(jvmThreadId);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_DL_RES ON HUB_MONITOR_JVM_DEADLOCK(jvmResourceId);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_DL_TIME ON HUB_MONITOR_JVM_DEADLOCK(collectionTime);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_DL_FLAG ON HUB_MONITOR_JVM_DEADLOCK(hasDeadlockFlag);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_DL_SEV ON HUB_MONITOR_JVM_DEADLOCK(severityLevel);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_DL_ALERT ON HUB_MONITOR_JVM_DEADLOCK(alertLevel);
+
+-- ==========================================
+-- 8. 类加载信息表
+-- 存储JVM类加载器的统计信息
+-- ==========================================
+CREATE TABLE IF NOT EXISTS HUB_MONITOR_JVM_CLASS (
+    classLoadingId TEXT NOT NULL, -- 类加载记录ID，主键
+    tenantId TEXT NOT NULL, -- 租户ID
+    jvmResourceId TEXT NOT NULL, -- 关联的JVM资源ID
+    
+    -- 类加载统计
+    loadedClassCount INTEGER DEFAULT 0 NOT NULL, -- 当前已加载类数量
+    totalLoadedClassCount INTEGER DEFAULT 0 NOT NULL, -- 总加载类数量
+    unloadedClassCount INTEGER DEFAULT 0 NOT NULL, -- 已卸载类数量
+    
+    -- 比例指标
+    classUnloadRatePercent REAL DEFAULT 0.00, -- 类卸载率（百分比）
+    classRetentionRatePercent REAL DEFAULT 0.00, -- 类保留率（百分比）
+    
+    -- 配置状态
+    verboseClassLoading TEXT DEFAULT 'N' NOT NULL CHECK(verboseClassLoading IN ('Y','N')), -- 是否启用详细类加载输出(Y是,N否)
+    
+    -- 性能指标
+    loadingRatePerHour REAL DEFAULT 0.00, -- 每小时平均类加载数量
+    loadingEfficiency REAL DEFAULT 0.00, -- 类加载效率
+    memoryEfficiency TEXT DEFAULT NULL, -- 内存使用效率评估
+    loaderHealth TEXT DEFAULT NULL, -- 类加载器健康状况
+    
+    -- 健康状态
+    healthyFlag TEXT DEFAULT 'Y' NOT NULL CHECK(healthyFlag IN ('Y','N')), -- 类加载健康标记(Y健康,N异常)
+    healthGrade TEXT DEFAULT NULL, -- 健康等级(EXCELLENT/GOOD/FAIR/POOR)
+    requiresAttentionFlag TEXT DEFAULT 'N' NOT NULL CHECK(requiresAttentionFlag IN ('Y','N')), -- 是否需要立即关注(Y是,N否)
+    potentialIssuesJson TEXT DEFAULT NULL, -- 潜在问题列表，JSON格式
+    
+    -- 时间字段
+    collectionTime TEXT NOT NULL, -- 数据采集时间
+    
+    -- 通用字段
+    addTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 创建时间
+    addWho TEXT DEFAULT NULL, -- 创建人ID
+    editTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 最后修改时间
+    editWho TEXT DEFAULT NULL, -- 最后修改人ID
+    oprSeqFlag TEXT DEFAULT NULL, -- 操作序列标识
+    currentVersion INTEGER DEFAULT 1 NOT NULL, -- 当前版本号
+    activeFlag TEXT DEFAULT 'Y' NOT NULL CHECK(activeFlag IN ('Y','N')), -- 活动状态标记(N非活动,Y活动)
+    noteText TEXT DEFAULT NULL, -- 备注信息
+    
+    PRIMARY KEY (tenantId, classLoadingId)
+);
+
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_CLS_RES ON HUB_MONITOR_JVM_CLASS(jvmResourceId);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_CLS_TIME ON HUB_MONITOR_JVM_CLASS(collectionTime);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_CLS_HEALTH ON HUB_MONITOR_JVM_CLASS(healthyFlag, requiresAttentionFlag);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_CLS_COUNT ON HUB_MONITOR_JVM_CLASS(loadedClassCount);
+
+-- ==========================================
+-- 9. 应用监控数据表
+-- 存储应用层面的各种监控数据（线程池、连接池、自定义指标等）
+-- 对应 ThirdPartyMonitorData 采集的所有监控数据
+-- ==========================================
+CREATE TABLE IF NOT EXISTS HUB_MONITOR_APP_DATA (
+    appDataId TEXT NOT NULL, -- 应用监控数据ID，主键
+    tenantId TEXT NOT NULL, -- 租户ID
+    jvmResourceId TEXT NOT NULL, -- 关联的JVM资源ID
+    
+    -- 数据分类标识
+    dataType TEXT NOT NULL, -- 数据类型(THREAD_POOL:线程池/CONNECTION_POOL:连接池/CUSTOM_METRIC:自定义指标/CACHE_POOL:缓存池/MESSAGE_QUEUE:消息队列)
+    dataName TEXT NOT NULL, -- 数据名称（如：线程池名称、指标名称等）
+    dataCategory TEXT DEFAULT NULL, -- 数据分类（如：业务线程池/IO线程池/业务指标/技术指标）
+    
+    -- 监控数据（JSON格式存储，支持不同类型的数据结构）
+    dataJson TEXT NOT NULL, -- 监控数据，JSON格式，包含具体的监控指标和值
+    
+    -- 核心指标（从JSON中提取的关键指标，便于查询和索引）
+    primaryValue REAL DEFAULT NULL, -- 主要指标值（如：使用率、数量等）
+    secondaryValue REAL DEFAULT NULL, -- 次要指标值（如：最大值、平均值等）
+    statusValue TEXT DEFAULT NULL, -- 状态值（如：健康状态、连接状态等）
+    
+    -- 健康状态
+    healthyFlag TEXT DEFAULT 'Y' NOT NULL CHECK(healthyFlag IN ('Y','N')), -- 健康标记(Y健康,N异常)
+    healthGrade TEXT DEFAULT NULL, -- 健康等级(EXCELLENT/GOOD/FAIR/POOR/CRITICAL)
+    requiresAttentionFlag TEXT DEFAULT 'N' NOT NULL CHECK(requiresAttentionFlag IN ('Y','N')), -- 是否需要立即关注(Y是,N否)
+    
+    -- 标签和维度（便于分组查询）
+    tagsJson TEXT DEFAULT NULL, -- 标签信息，JSON格式（如：{"poolType":"business","environment":"prod"}）
+    
+    -- 时间字段
+    collectionTime TEXT NOT NULL, -- 数据采集时间
+    
+    -- 通用字段
+    addTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 创建时间
+    addWho TEXT DEFAULT NULL, -- 创建人ID
+    editTime TEXT DEFAULT (datetime('now','localtime')) NOT NULL, -- 最后修改时间
+    editWho TEXT DEFAULT NULL, -- 最后修改人ID
+    oprSeqFlag TEXT DEFAULT NULL, -- 操作序列标识
+    currentVersion INTEGER DEFAULT 1 NOT NULL, -- 当前版本号
+    activeFlag TEXT DEFAULT 'Y' NOT NULL CHECK(activeFlag IN ('Y','N')), -- 活动状态标记(N非活动,Y活动)
+    noteText TEXT DEFAULT NULL, -- 备注信息
+    
+    PRIMARY KEY (tenantId, appDataId)
+);
+
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_APP_DATA_RES ON HUB_MONITOR_APP_DATA(jvmResourceId);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_APP_DATA_TYPE ON HUB_MONITOR_APP_DATA(dataType);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_APP_DATA_NAME ON HUB_MONITOR_APP_DATA(dataName);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_APP_DATA_TIME ON HUB_MONITOR_APP_DATA(collectionTime);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_APP_DATA_HEALTH ON HUB_MONITOR_APP_DATA(healthyFlag, requiresAttentionFlag);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_APP_DATA_PRIMARY ON HUB_MONITOR_APP_DATA(primaryValue);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_APP_DATA_STATUS ON HUB_MONITOR_APP_DATA(statusValue);
+CREATE INDEX IF NOT EXISTS IDX_MONITOR_APP_DATA_COMPOSITE ON HUB_MONITOR_APP_DATA(jvmResourceId, dataType, dataName, collectionTime);
+
+-- ==========================================
+-- 索引说明
+-- ==========================================
+-- 1. 所有表都建立了tenantId相关的复合主键，支持多租户数据隔离
+-- 2. 为关联字段（jvmResourceId等）创建了索引，提高关联查询性能
+-- 3. 为时间字段（collectionTime）创建了索引，支持时间范围查询
+-- 4. 为健康状态字段创建了索引，便于快速筛选异常数据
+-- 5. 为常用查询条件字段创建了索引，提高查询效率
+
+-- ==========================================
+-- 表关系说明
+-- ==========================================
+-- HUB_MONITOR_JVM_RESOURCE (主表)
+--   ├── HUB_MONITOR_JVM_MEMORY (1:N，一个JVM资源对应多个内存记录：堆内存+非堆内存)
+--   ├── HUB_MONITOR_JVM_MEM_POOL (1:N，一个JVM资源对应多个内存池)
+--   ├── HUB_MONITOR_JVM_GC (1:N，一个JVM资源对应多个GC收集器)
+--   ├── HUB_MONITOR_JVM_THREAD (1:1，一个JVM资源对应一个线程信息记录)
+--   │   ├── HUB_MONITOR_JVM_THR_STATE (1:1，一个线程信息对应一个线程状态统计)
+--   │   └── HUB_MONITOR_JVM_DEADLOCK (1:1，一个线程信息对应一个死锁检测记录)
+--   ├── HUB_MONITOR_JVM_CLASS (1:1，一个JVM资源对应一个类加载信息记录)
+--   └── HUB_MONITOR_APP_DATA (1:N，一个JVM资源对应多个应用监控数据)
+-- ==========================================
+
 -- =====================================================
 -- SQLite特殊配置和优化
 -- =====================================================

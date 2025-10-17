@@ -43,6 +43,11 @@ func (dao *RegistryDAO) RegisterService(ctx context.Context, service *core.Servi
 	service.ActiveFlag = "Y"
 	service.CurrentVersion = 1
 
+	// 如果注册类型为空，默认设置为INTERNAL（内部管理）
+	if service.RegistryType == "" {
+		service.RegistryType = "INTERNAL"
+	}
+
 	// 注册服务
 	_, err := dao.registryManager.RegisterService(ctx, service)
 	if err != nil {

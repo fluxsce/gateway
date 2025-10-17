@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 
+	"gateway/cmd/common/utils"
 	"gateway/pkg/config"
 	huberrors "gateway/pkg/utils/huberrors"
 
@@ -264,11 +265,15 @@ func getWriteSyncer(output string, logPath string, logConfig *LoggerConfig) zapc
 		useAbsolutePath = config.GetBool("log.use_absolute_path", false)
 	}
 
-	// 处理相对路径，除非启用了绝对路径模式
-	// 当使用相对路径时，将输出路径与日志根目录拼接
+	// 使用 config.go 的路径处理来解析日志文件路径
+	// 这确保了在不同运行环境下都能正确处理相对路径
 	if !useAbsolutePath && logPath != "" && !filepath.IsAbs(output) {
+		// 先拼接日志根目录和文件名
 		output = filepath.Join(logPath, output)
 	}
+
+	// 使用统一的路径解析
+	output = utils.ResolvePath(output)
 
 	// 确保日志目录存在
 	// 如果目录不存在则创建，创建失败时回退到标准输出

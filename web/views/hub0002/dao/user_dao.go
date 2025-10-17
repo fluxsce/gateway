@@ -299,10 +299,19 @@ func (dao *UserDAO) isDuplicateUserNameError(err error) bool {
 			strings.Contains(err.Error(), "UK_USER_NAME_TENANT")
 }
 
-// ChangePassword 修改密码
-func (dao *UserDAO) ChangePassword(ctx context.Context, userId, tenantId, newPassword, operatorId string) error {
-	if userId == "" || tenantId == "" || newPassword == "" {
-		return errors.New("userId、tenantId和新密码不能为空")
+// ChangePassword 修改密码（需验证旧密码）
+// 参数:
+//   - ctx: 上下文对象
+//   - userId: 用户ID
+//   - tenantId: 租户ID
+//   - oldPassword: 旧密码（明文）
+//   - newPassword: 新密码（明文）
+//
+// 返回:
+//   - error: 可能的错误
+func (dao *UserDAO) ChangePassword(ctx context.Context, userId, tenantId, oldPassword, newPassword string) error {
+	if userId == "" || tenantId == "" || oldPassword == "" || newPassword == "" {
+		return errors.New("用户ID、租户ID、旧密码和新密码均不能为空")
 	}
 
 	// 首先获取用户当前信息
@@ -314,20 +323,36 @@ func (dao *UserDAO) ChangePassword(ctx context.Context, userId, tenantId, newPas
 		return errors.New("用户不存在")
 	}
 
+	// 验证旧密码是否正确
+	// 注意：这里假设数据库中存储的是明文密码或已加密的密码
+	// 如果是加密存储，需要使用相同的加密方式验证
+	if currentUser.Password != oldPassword {
+		return errors.New("原密码错误")
+	}
+
+	// 新旧密码不能相同
+	if oldPassword == newPassword {
+		return errors.New("新密码不能与原密码相同")
+	}
+
 	// 构建更新SQL
 	now := time.Now()
 	sql := `
 		UPDATE HUB_USER SET
 			password = ?,
+			pwdUpdateTime = ?,
 			editTime = ?, 
 			editWho = ?
 		WHERE userId = ? AND tenantId = ?
 	`
 
 	// 执行更新
+	// 注意：这里的 editWho 使用 userId，表示用户自己修改密码
 	result, err := dao.db.Exec(ctx, sql, []interface{}{
 		newPassword,
-		now, operatorId,
+		now,
+		now,
+		userId,
 		userId, tenantId,
 	}, true)
 

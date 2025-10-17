@@ -195,6 +195,96 @@ func (c *UserController) EditUser(ctx *gin.Context) {
 	response.SuccessJSON(ctx, userInfo, constants.SD00004)
 }
 
+// GetUser 获取用户详情
+// @Summary 获取用户详情
+// @Description 根据用户ID获取用户详细信息
+// @Tags 用户管理
+// @Accept json
+// @Produce json
+// @Param request body object{userId=string} true "用户ID"
+// @Success 200 {object} response.JsonData{data=map[string]interface{}}
+// @Router /api/hub0002/getUser [post]
+func (c *UserController) GetUser(ctx *gin.Context) {
+	// 从请求体中获取用户ID
+	userId := request.GetParam(ctx, "userId")
+	if userId == "" {
+		response.ErrorJSON(ctx, "用户ID不能为空", constants.ED00006)
+		return
+	}
+
+	// 使用工具类获取租户ID
+	tenantId := request.GetTenantID(ctx)
+
+	// 调用DAO获取用户信息
+	user, err := c.userDAO.GetUserById(ctx, userId, tenantId)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "获取用户详情失败", err)
+		response.ErrorJSON(ctx, "获取用户详情失败: "+err.Error(), constants.ED00009)
+		return
+	}
+
+	if user == nil {
+		response.ErrorJSON(ctx, "用户不存在", constants.ED00008)
+		return
+	}
+
+	// 返回用户信息，排除密码
+	userInfo := userToMap(user)
+
+	response.SuccessJSON(ctx, userInfo, constants.SD00002)
+}
+
+// ChangePassword 修改密码
+// @Summary 修改用户密码
+// @Description 用户修改自己的密码，需要验证旧密码
+// @Tags 用户管理
+// @Accept json
+// @Produce json
+// @Param request body object{userId=string,tenantId=string,oldPassword=string,newPassword=string} true "密码修改参数"
+// @Success 200 {object} response.JsonData
+// @Router /api/hub0002/changePassword [post]
+func (c *UserController) ChangePassword(ctx *gin.Context) {
+	// 从请求体中获取参数
+	userId := request.GetParam(ctx, "userId")
+	tenantId := request.GetParam(ctx, "tenantId")
+	oldPassword := request.GetParam(ctx, "oldPassword")
+	newPassword := request.GetParam(ctx, "newPassword")
+
+	// 参数验证
+	if userId == "" {
+		response.ErrorJSON(ctx, "用户ID不能为空", constants.ED00006)
+		return
+	}
+	if tenantId == "" {
+		response.ErrorJSON(ctx, "租户ID不能为空", constants.ED00006)
+		return
+	}
+	if oldPassword == "" {
+		response.ErrorJSON(ctx, "旧密码不能为空", constants.ED00006)
+		return
+	}
+	if newPassword == "" {
+		response.ErrorJSON(ctx, "新密码不能为空", constants.ED00006)
+		return
+	}
+
+	// 密码强度验证（可选，根据业务需求调整）
+	if len(newPassword) < 6 {
+		response.ErrorJSON(ctx, "新密码长度不能少于6位", constants.ED00006)
+		return
+	}
+
+	// 调用DAO层修改密码
+	err := c.userDAO.ChangePassword(ctx, userId, tenantId, oldPassword, newPassword)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "修改密码失败", err)
+		response.ErrorJSON(ctx, err.Error(), constants.ED00009)
+		return
+	}
+
+	response.SuccessJSON(ctx, nil, constants.SD00003)
+}
+
 // Delete 删除用户
 // @Summary 删除用户
 // @Description 删除用户
