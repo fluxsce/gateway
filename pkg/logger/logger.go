@@ -48,6 +48,8 @@ type LoggerConfig struct {
 	DefaultOutput string `mapstructure:"default_output"`
 	// ErrorOutput 错误日志输出路径
 	ErrorOutput string `mapstructure:"error_output"`
+	// WarnOutput 警告日志输出路径
+	WarnOutput string `mapstructure:"warn_output"`
 	// InfoOutput 信息日志输出路径
 	InfoOutput string `mapstructure:"info_output"`
 	// DebugOutput 调试日志输出路径
@@ -174,6 +176,22 @@ func Init(config *LoggerConfig) error {
 				}),
 			)
 			cores = append(cores, errorCore)
+		}
+	}
+
+	// 警告日志输出核心
+	// 只处理警告级别的日志，实现日志分级存储
+	if config.WarnOutput != "" && config.WarnOutput != config.DefaultOutput {
+		warnWriter := getWriteSyncer(config.WarnOutput, config.LogPath, config)
+		if warnWriter != nil {
+			warnCore := zapcore.NewCore(
+				encoder,
+				warnWriter,
+				zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+					return lvl == zapcore.WarnLevel && lvl >= level
+				}),
+			)
+			cores = append(cores, warnCore)
 		}
 	}
 

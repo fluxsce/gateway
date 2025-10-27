@@ -78,11 +78,23 @@ func RegisterHub0060Routes(router *gin.Engine, db database.Database) {
 
 		// 服务器状态选项
 		protectedGroup.POST("/getServerStatusOptions", tunnelServerController.GetServerStatusOptions)
+
+		// 启动隧道服务器
+		protectedGroup.POST("/startTunnelServer", tunnelServerController.StartTunnelServer)
+
+		// 停止隧道服务器
+		protectedGroup.POST("/stopTunnelServer", tunnelServerController.StopTunnelServer)
+
+		// 重启隧道服务器
+		protectedGroup.POST("/restartTunnelServer", tunnelServerController.RestartTunnelServer)
+
+		// 重新加载隧道服务器配置
+		protectedGroup.POST("/reloadTunnelServerConfig", tunnelServerController.ReloadTunnelServerConfig)
 	}
 
 	logger.Info("hub0060模块路由注册完成",
 		"module", ModuleName,
 		"prefix", APIPrefix,
 		"services", "隧道服务器管理",
-		"features", "查询、创建、查看、编辑、删除、状态管理、统计信息、连接测试")
+		"features", "查询、创建、查看、编辑、删除、状态管理、统计信息、连接测试、启动、停止、重启、配置重载")
 }

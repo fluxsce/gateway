@@ -23,6 +23,12 @@ import (
 	"gateway/pkg/logger"
 )
 
+// 全局隧道管理器实例
+var (
+	globalManager     *TunnelManager
+	globalManagerLock sync.RWMutex
+)
+
 // TunnelManager 隧道管理器是整个隧道系统的核心控制器
 //
 // 它负责协调和管理：
@@ -123,10 +129,11 @@ func (tm *TunnelManager) Initialize(ctx context.Context) error {
 // StartServer 启动指定的隧道服务器
 //
 // 启动过程包括：
-// 1. 启动控制端口监听
-// 2. 加载和启动静态代理配置
-// 3. 初始化会话管理器
-// 4. 启动后台维护任务
+// 1. 检查服务器是否存在，不存在则从数据库重新加载
+// 2. 启动控制端口监听
+// 3. 加载和启动静态代理配置
+// 4. 初始化会话管理器
+// 5. 启动后台维护任务
 //
 // 参数:
 //   - ctx: 上下文对象
@@ -140,7 +147,32 @@ func (tm *TunnelManager) StartServer(ctx context.Context, serverID string) error
 
 	tunnelServer, exists := tm.servers[serverID]
 	if !exists {
-		return fmt.Errorf("server %s not found", serverID)
+		// 服务器不存在，尝试从数据库重新加载
+		logger.Info("服务器不存在，尝试从数据库加载", map[string]interface{}{
+			"serverID": serverID,
+		})
+
+		serverConfig, err := tm.storageManager.GetTunnelServerRepository().GetByID(ctx, serverID)
+		if err != nil {
+			return fmt.Errorf("从数据库加载服务器配置失败: %w", err)
+		}
+
+		if serverConfig == nil {
+			return fmt.Errorf("服务器 %s 在数据库中不存在", serverID)
+		}
+
+		if serverConfig.ActiveFlag != types.ActiveFlagYes {
+			return fmt.Errorf("服务器 %s 未激活", serverID)
+		}
+
+		// 创建服务器实例
+		tunnelServer = server.NewTunnelServer(serverConfig, tm.storageManager)
+		tm.servers[serverID] = tunnelServer
+
+		logger.Info("服务器配置已从数据库加载", map[string]interface{}{
+			"serverID":   serverID,
+			"serverName": serverConfig.ServerName,
+		})
 	}
 
 	if err := tunnelServer.Start(ctx); err != nil {
@@ -161,6 +193,7 @@ func (tm *TunnelManager) StartServer(ctx context.Context, serverID string) error
 // 2. 关闭所有代理端口监听
 // 3. 保存会话状态到数据库
 // 4. 清理资源和缓存
+// 5. 从内存缓存中删除服务器实例
 //
 // 参数:
 //   - ctx: 上下文对象
@@ -181,7 +214,10 @@ func (tm *TunnelManager) StopServer(ctx context.Context, serverID string) error 
 		return fmt.Errorf("failed to stop server %s: %w", serverID, err)
 	}
 
-	logger.Info("Tunnel server stopped", map[string]interface{}{
+	// 停止成功后，从缓存中删除
+	delete(tm.servers, serverID)
+
+	logger.Info("Tunnel server stopped and removed from cache", map[string]interface{}{
 		"serverID": serverID,
 	})
 
@@ -191,10 +227,11 @@ func (tm *TunnelManager) StopServer(ctx context.Context, serverID string) error 
 // StartClient 启动指定的隧道客户端
 //
 // 启动过程包括：
-// 1. 建立与服务器的控制连接
-// 2. 进行身份认证
-// 3. 注册本地服务
-// 4. 启动心跳保活机制
+// 1. 检查客户端是否存在，不存在则从数据库重新加载
+// 2. 建立与服务器的控制连接
+// 3. 进行身份认证
+// 4. 注册本地服务
+// 5. 启动心跳保活机制
 //
 // 参数:
 //   - ctx: 上下文对象
@@ -208,7 +245,32 @@ func (tm *TunnelManager) StartClient(ctx context.Context, clientID string) error
 
 	tunnelClient, exists := tm.clients[clientID]
 	if !exists {
-		return fmt.Errorf("client %s not found", clientID)
+		// 客户端不存在，尝试从数据库重新加载
+		logger.Info("客户端不存在，尝试从数据库加载", map[string]interface{}{
+			"clientID": clientID,
+		})
+
+		clientConfig, err := tm.storageManager.GetTunnelClientRepository().GetByID(ctx, clientID)
+		if err != nil {
+			return fmt.Errorf("从数据库加载客户端配置失败: %w", err)
+		}
+
+		if clientConfig == nil {
+			return fmt.Errorf("客户端 %s 在数据库中不存在", clientID)
+		}
+
+		if clientConfig.ActiveFlag != types.ActiveFlagYes {
+			return fmt.Errorf("客户端 %s 未激活", clientID)
+		}
+
+		// 创建客户端实例
+		tunnelClient = client.NewTunnelClient(clientConfig)
+		tm.clients[clientID] = tunnelClient
+
+		logger.Info("客户端配置已从数据库加载", map[string]interface{}{
+			"clientID":   clientID,
+			"clientName": clientConfig.ClientName,
+		})
 	}
 
 	if err := tunnelClient.Start(ctx); err != nil {
@@ -229,6 +291,7 @@ func (tm *TunnelManager) StartClient(ctx context.Context, clientID string) error
 // 2. 断开控制连接
 // 3. 清理本地代理资源
 // 4. 更新连接状态到数据库
+// 5. 从内存缓存中删除客户端实例
 //
 // 参数:
 //   - ctx: 上下文对象
@@ -249,7 +312,10 @@ func (tm *TunnelManager) StopClient(ctx context.Context, clientID string) error 
 		return fmt.Errorf("failed to stop client %s: %w", clientID, err)
 	}
 
-	logger.Info("Tunnel client stopped", map[string]interface{}{
+	// 停止成功后，从缓存中删除
+	delete(tm.clients, clientID)
+
+	logger.Info("Tunnel client stopped and removed from cache", map[string]interface{}{
 		"clientID": clientID,
 	})
 
@@ -780,4 +846,183 @@ func (tm *TunnelManager) validateServiceConfig(ctx context.Context, service *typ
 	}
 
 	return nil
+}
+
+// ReloadServerConfig 重新加载指定服务器的配置
+//
+// 从数据库重新加载服务器配置，更新内存缓存
+// 如果服务器正在运行，需要先停止再重新启动才能应用新配置
+//
+// 参数:
+//   - ctx: 上下文对象
+//   - serverID: 服务器唯一标识
+//
+// 返回:
+//   - error: 重新加载过程中的错误
+func (tm *TunnelManager) ReloadServerConfig(ctx context.Context, serverID string) error {
+	tm.mutex.Lock()
+	defer tm.mutex.Unlock()
+
+	// 从数据库加载最新配置
+	serverConfig, err := tm.storageManager.GetTunnelServerRepository().GetByID(ctx, serverID)
+	if err != nil {
+		return fmt.Errorf("从数据库加载服务器配置失败: %w", err)
+	}
+
+	if serverConfig == nil {
+		// 配置不存在，从缓存中删除
+		delete(tm.servers, serverID)
+		logger.Info("服务器配置不存在，已从缓存删除", map[string]interface{}{
+			"serverID": serverID,
+		})
+		return nil
+	}
+
+	if serverConfig.ActiveFlag != types.ActiveFlagYes {
+		// 配置已禁用，从缓存中删除
+		delete(tm.servers, serverID)
+		logger.Info("服务器配置已禁用，已从缓存删除", map[string]interface{}{
+			"serverID": serverID,
+		})
+		return nil
+	}
+
+	// 创建新的服务器实例
+	tunnelServer := server.NewTunnelServer(serverConfig, tm.storageManager)
+	tm.servers[serverID] = tunnelServer
+
+	logger.Info("服务器配置已重新加载", map[string]interface{}{
+		"serverID":   serverID,
+		"serverName": serverConfig.ServerName,
+	})
+
+	return nil
+}
+
+// ReloadClientConfig 重新加载指定客户端的配置
+//
+// 从数据库重新加载客户端配置，更新内存缓存
+// 如果客户端正在运行，需要先停止再重新启动才能应用新配置
+//
+// 参数:
+//   - ctx: 上下文对象
+//   - clientID: 客户端唯一标识
+//
+// 返回:
+//   - error: 重新加载过程中的错误
+func (tm *TunnelManager) ReloadClientConfig(ctx context.Context, clientID string) error {
+	tm.mutex.Lock()
+	defer tm.mutex.Unlock()
+
+	// 从数据库加载最新配置
+	clientConfig, err := tm.storageManager.GetTunnelClientRepository().GetByID(ctx, clientID)
+	if err != nil {
+		return fmt.Errorf("从数据库加载客户端配置失败: %w", err)
+	}
+
+	if clientConfig == nil {
+		// 配置不存在，从缓存中删除
+		delete(tm.clients, clientID)
+		logger.Info("客户端配置不存在，已从缓存删除", map[string]interface{}{
+			"clientID": clientID,
+		})
+		return nil
+	}
+
+	if clientConfig.ActiveFlag != types.ActiveFlagYes {
+		// 配置已禁用，从缓存中删除
+		delete(tm.clients, clientID)
+		logger.Info("客户端配置已禁用，已从缓存删除", map[string]interface{}{
+			"clientID": clientID,
+		})
+		return nil
+	}
+
+	// 创建新的客户端实例
+	tunnelClient := client.NewTunnelClient(clientConfig)
+	tm.clients[clientID] = tunnelClient
+
+	logger.Info("客户端配置已重新加载", map[string]interface{}{
+		"clientID":   clientID,
+		"clientName": clientConfig.ClientName,
+	})
+
+	return nil
+}
+
+// ReloadAllConfigs 重新加载所有配置
+//
+// 从数据库重新加载所有服务器和客户端配置，更新内存缓存
+// 注意：正在运行的实例不会自动重启，需要手动重启才能应用新配置
+//
+// 参数:
+//   - ctx: 上下文对象
+//
+// 返回:
+//   - error: 重新加载过程中的错误
+func (tm *TunnelManager) ReloadAllConfigs(ctx context.Context) error {
+	logger.Info("开始重新加载所有隧道配置", nil)
+
+	// 重新加载服务器配置
+	if err := tm.loadTunnelServers(ctx); err != nil {
+		return fmt.Errorf("重新加载服务器配置失败: %w", err)
+	}
+
+	// 重新加载客户端配置
+	if err := tm.loadTunnelClients(ctx); err != nil {
+		return fmt.Errorf("重新加载客户端配置失败: %w", err)
+	}
+
+	logger.Info("所有隧道配置重新加载完成", map[string]interface{}{
+		"servers": len(tm.servers),
+		"clients": len(tm.clients),
+	})
+
+	return nil
+}
+
+// SetGlobalManager 设置全局隧道管理器实例
+//
+// 此函数用于在应用启动时设置全局管理器实例，
+// 使其他模块可以通过 GetGlobalManager() 访问
+//
+// 参数:
+//   - manager: 隧道管理器实例
+func SetGlobalManager(manager *TunnelManager) {
+	globalManagerLock.Lock()
+	defer globalManagerLock.Unlock()
+
+	globalManager = manager
+	logger.Info("全局隧道管理器实例已设置", nil)
+}
+
+// GetGlobalManager 获取全局隧道管理器实例
+//
+// 返回全局隧道管理器实例，如果未设置则返回 nil
+//
+// 返回:
+//   - *TunnelManager: 全局隧道管理器实例
+//
+// 使用示例:
+//
+//	manager := tunnel.GetGlobalManager()
+//	if manager != nil {
+//	    manager.StartServer(ctx, "server-001")
+//	}
+func GetGlobalManager() *TunnelManager {
+	globalManagerLock.RLock()
+	defer globalManagerLock.RUnlock()
+
+	return globalManager
+}
+
+// IsGlobalManagerReady 检查全局隧道管理器是否已就绪
+//
+// 返回:
+//   - bool: true 表示全局管理器已设置，false 表示未设置
+func IsGlobalManagerReady() bool {
+	globalManagerLock.RLock()
+	defer globalManagerLock.RUnlock()
+
+	return globalManager != nil
 }

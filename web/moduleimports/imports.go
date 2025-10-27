@@ -38,6 +38,8 @@ import (
 	_ "gateway/web/views/hub0042/routes"
 	// 导入隧道服务器管理模块
 	_ "gateway/web/views/hub0060/routes"
+	// 导入隧道映射管理模块
+	_ "gateway/web/views/hub0061/routes"
 	//导入插件管理模块
 	_ "gateway/web/views/hubplugin/routes"
 	// 导入SDK服务模块

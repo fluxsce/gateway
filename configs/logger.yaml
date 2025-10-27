@@ -1,7 +1,7 @@
 # 日志配置
 log:
   # 日志级别: debug, info, warn, error, dpanic, panic, fatal
-  level: "debug"
+  level: "info"
   # 日志输出: stdout, stderr, 或文件路径
   output: stdout
   # 编码格式: json, console
@@ -14,6 +14,8 @@ log:
   default_output: "stdout"
   # 错误日志专用输出路径 (可选)
   error_output: "error.log"
+  # 警告日志专用输出路径 (可选)
+  warn_output: "warn.log"
   # 信息日志专用输出路径 (可选)
   info_output: "info.log"
   # 调试日志专用输出路径 (可选)

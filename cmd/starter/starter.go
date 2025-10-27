@@ -167,6 +167,9 @@ func initializeAndStartApplication() error {
 		return huberrors.WrapError(err, "初始化指标收集器失败")
 	}
 
+	// 初始化隧道管理器（失败不影响应用启动）
+	initTunnelManager()
+
 	return nil
 }
 
@@ -200,6 +203,33 @@ func initPprofService() error {
 	if err := timerinit.InitPprofService(appContext); err != nil {
 		return huberrors.WrapError(err, "初始化pprof服务失败")
 	}
+	return nil
+}
+
+// initTunnelManager 初始化隧道管理器
+// 注意：隧道管理器启动失败不会影响整个应用启动，只记录错误日志
+func initTunnelManager() error {
+	// 初始化隧道管理器
+	tunnelManager, err := timerinit.InitializeTunnelManager(appContext, db)
+	if err != nil {
+		logger.Error("初始化隧道管理器失败", "error", err)
+		// 不返回错误，允许应用继续启动
+		return nil
+	}
+
+	// 如果隧道管理器未启用，直接返回
+	if tunnelManager == nil {
+		return nil
+	}
+
+	// 启动隧道管理器
+	if err := timerinit.StartTunnelManager(appContext); err != nil {
+		logger.Error("启动隧道管理器失败", "error", err)
+		// 不返回错误，允许应用继续启动
+		return nil
+	}
+
+	logger.Info("隧道管理器初始化并启动成功")
 	return nil
 }
 
@@ -292,6 +322,11 @@ func stopApplication() {
 	// 停止指标收集器
 	if err := timerinit.StopMetricCollector(); err != nil {
 		logger.Error("停止指标收集器失败", "error", err)
+	}
+
+	// 停止隧道管理器
+	if err := timerinit.StopTunnelManager(appContext); err != nil {
+		logger.Error("停止隧道管理器失败", "error", err)
 	}
 
 	// 清理资源

@@ -172,9 +172,30 @@ func NewWebApp(db database.Database) *WebApp {
 		// 使用ResolvePath解析前端文件路径，处理环境变量指定的配置目录情况
 		resolvedFrontendPath := utils.ResolvePath(frontendPath)
 
-		// 静态资源文件（CSS、JS、图片等）
-		router.Static("/assets", filepath.Join(resolvedFrontendPath, "assets"))
-		router.StaticFile("/favicon.ico", filepath.Join(resolvedFrontendPath, "favicon.ico"))
+		// 根据前缀配置静态资源路径
+		if frontendPrefix == "/" {
+			// 默认根路径模式：前端占据根路径
+			router.Static("/assets", filepath.Join(resolvedFrontendPath, "assets"))
+			router.StaticFile("/favicon.ico", filepath.Join(resolvedFrontendPath, "favicon.ico"))
+		} else {
+			// 自定义前缀模式：前端在特定路径下（如 /admin, /web）
+			router.Static(frontendPrefix+"/assets", filepath.Join(resolvedFrontendPath, "assets"))
+			router.StaticFile(frontendPrefix+"/favicon.ico", filepath.Join(resolvedFrontendPath, "favicon.ico"))
+
+			// 前端首页路由
+			router.GET(frontendPrefix, func(c *gin.Context) {
+				indexPath := filepath.Join(resolvedFrontendPath, "index.html")
+				c.File(indexPath)
+			})
+
+			// 确保前缀路径末尾有斜杠时也能访问
+			if !strings.HasSuffix(frontendPrefix, "/") {
+				router.GET(frontendPrefix+"/", func(c *gin.Context) {
+					indexPath := filepath.Join(resolvedFrontendPath, "index.html")
+					c.File(indexPath)
+				})
+			}
+		}
 
 		// 处理Vue3 SPA路由 - 所有未匹配的路由都返回index.html
 		router.NoRoute(func(c *gin.Context) {
@@ -209,7 +230,13 @@ func NewWebApp(db database.Database) *WebApp {
 		logger.Info("Vue3前端静态资源服务已配置",
 			"path", frontendPath,
 			"resolvedPath", resolvedFrontendPath,
-			"prefix", frontendPrefix)
+			"prefix", frontendPrefix,
+			"mode", func() string {
+				if frontendPrefix == "/" {
+					return "根路径模式"
+				}
+				return "自定义前缀模式"
+			}())
 	}
 
 	return &WebApp{

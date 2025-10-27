@@ -318,3 +318,94 @@ func (c *TunnelServerController) GenerateAuthToken(ctx *gin.Context) {
 	token := random.Generate32BitRandomString()
 	response.SuccessJSON(ctx, gin.H{"authToken": token}, "GENERATE_AUTH_TOKEN")
 }
+
+// StartTunnelServer 启动隧道服务器
+func (c *TunnelServerController) StartTunnelServer(ctx *gin.Context) {
+	tunnelServerId := request.GetParam(ctx, "tunnelServerId")
+	if tunnelServerId == "" {
+		response.ErrorJSON(ctx, "参数格式错误: "+tunnelServerId, "START_TUNNEL_SERVER")
+		return
+	}
+
+	// 调用DAO层启动服务器
+	err := c.tunnelServerDAO.StartTunnelServer(tunnelServerId)
+	if err != nil {
+		logger.Error("启动隧道服务器失败", "tunnelServerId", tunnelServerId, "error", err)
+		response.ErrorJSON(ctx, "启动失败: "+err.Error(), "START_TUNNEL_SERVER")
+		return
+	}
+
+	logger.Info("启动隧道服务器成功", "tunnelServerId", tunnelServerId)
+	response.SuccessJSON(ctx, gin.H{
+		"tunnelServerId": tunnelServerId,
+		"message":        "服务器启动成功",
+	}, "START_TUNNEL_SERVER")
+}
+
+// StopTunnelServer 停止隧道服务器
+func (c *TunnelServerController) StopTunnelServer(ctx *gin.Context) {
+	tunnelServerId := request.GetParam(ctx, "tunnelServerId")
+	if tunnelServerId == "" {
+		response.ErrorJSON(ctx, "参数格式错误: "+tunnelServerId, "START_TUNNEL_SERVER")
+		return
+	}
+
+	// 调用DAO层停止服务器
+	err := c.tunnelServerDAO.StopTunnelServer(tunnelServerId)
+	if err != nil {
+		logger.Error("停止隧道服务器失败", "tunnelServerId", tunnelServerId, "error", err)
+		response.ErrorJSON(ctx, "停止失败: "+err.Error(), "STOP_TUNNEL_SERVER")
+		return
+	}
+
+	logger.Info("停止隧道服务器成功", "tunnelServerId", tunnelServerId)
+	response.SuccessJSON(ctx, gin.H{
+		"tunnelServerId": tunnelServerId,
+		"message":        "服务器停止成功",
+	}, "STOP_TUNNEL_SERVER")
+}
+
+// RestartTunnelServer 重启隧道服务器
+func (c *TunnelServerController) RestartTunnelServer(ctx *gin.Context) {
+	tunnelServerId := request.GetParam(ctx, "tunnelServerId")
+	if tunnelServerId == "" {
+		response.ErrorJSON(ctx, "参数格式错误: "+tunnelServerId, "START_TUNNEL_SERVER")
+		return
+	}
+	// 调用DAO层重启服务器
+	err := c.tunnelServerDAO.RestartTunnelServer(tunnelServerId)
+	if err != nil {
+		logger.Error("重启隧道服务器失败", "tunnelServerId", tunnelServerId, "error", err)
+		response.ErrorJSON(ctx, "重启失败: "+err.Error(), "RESTART_TUNNEL_SERVER")
+		return
+	}
+
+	logger.Info("重启隧道服务器成功", "tunnelServerId", tunnelServerId)
+	response.SuccessJSON(ctx, gin.H{
+		"tunnelServerId": tunnelServerId,
+		"message":        "服务器重启成功",
+	}, "RESTART_TUNNEL_SERVER")
+}
+
+// ReloadTunnelServerConfig 重新加载隧道服务器配置
+func (c *TunnelServerController) ReloadTunnelServerConfig(ctx *gin.Context) {
+	tunnelServerId := request.GetParam(ctx, "tunnelServerId")
+	if tunnelServerId == "" {
+		response.ErrorJSON(ctx, "参数格式错误: "+tunnelServerId, "START_TUNNEL_SERVER")
+		return
+	}
+
+	// 调用DAO层重新加载配置
+	err := c.tunnelServerDAO.ReloadTunnelServerConfig(tunnelServerId)
+	if err != nil {
+		logger.Error("重新加载隧道服务器配置失败", "tunnelServerId", tunnelServerId, "error", err)
+		response.ErrorJSON(ctx, "重新加载配置失败: "+err.Error(), "RELOAD_TUNNEL_SERVER_CONFIG")
+		return
+	}
+
+	logger.Info("重新加载隧道服务器配置成功", "tunnelServerId", tunnelServerId)
+	response.SuccessJSON(ctx, gin.H{
+		"tunnelServerId": tunnelServerId,
+		"message":        "配置重新加载成功",
+	}, "RELOAD_TUNNEL_SERVER_CONFIG")
+}

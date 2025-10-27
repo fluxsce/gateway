@@ -20,9 +20,9 @@ type TunnelServer struct {
 	VhostHttpPort     *int       `json:"vhostHttpPort" db:"vhostHttpPort"`
 	VhostHttpsPort    *int       `json:"vhostHttpsPort" db:"vhostHttpsPort"`
 	MaxClients        int        `json:"maxClients" db:"maxClients"`
-	TokenAuth         bool       `json:"tokenAuth" db:"tokenAuth"`
+	TokenAuth         string     `json:"tokenAuth" db:"tokenAuth"` // Y/N
 	AuthToken         string     `json:"authToken" db:"authToken"`
-	TlsEnable         bool       `json:"tlsEnable" db:"tlsEnable"`
+	TlsEnable         string     `json:"tlsEnable" db:"tlsEnable"` // Y/N
 	TlsCertFile       *string    `json:"tlsCertFile" db:"tlsCertFile"`
 	TlsKeyFile        *string    `json:"tlsKeyFile" db:"tlsKeyFile"`
 	HeartbeatInterval int        `json:"heartbeatInterval" db:"heartbeatInterval"`
@@ -65,10 +65,10 @@ type TunnelServerNode struct {
 	HttpUser            *string    `json:"httpUser" db:"httpUser"`
 	HttpPassword        *string    `json:"httpPassword" db:"httpPassword"`
 	HostHeaderRewrite   *string    `json:"hostHeaderRewrite" db:"hostHeaderRewrite"`
-	Headers             *string    `json:"headers" db:"headers"`     // JSON格式
-	Locations           *string    `json:"locations" db:"locations"` // JSON格式
-	Compression         bool       `json:"compression" db:"compression"`
-	Encryption          bool       `json:"encryption" db:"encryption"`
+	Headers             *string    `json:"headers" db:"headers"`         // JSON格式
+	Locations           *string    `json:"locations" db:"locations"`     // JSON格式
+	Compression         string     `json:"compression" db:"compression"` // Y/N
+	Encryption          string     `json:"encryption" db:"encryption"`   // Y/N
 	SecretKey           *string    `json:"secretKey" db:"secretKey"`
 	HealthCheckType     *string    `json:"healthCheckType" db:"healthCheckType"`
 	HealthCheckUrl      *string    `json:"healthCheckUrl" db:"healthCheckUrl"`
@@ -109,8 +109,8 @@ type TunnelClient struct {
 	ServerAddress      string     `json:"serverAddress" db:"serverAddress"`
 	ServerPort         int        `json:"serverPort" db:"serverPort"`
 	AuthToken          string     `json:"authToken" db:"authToken"`
-	TlsEnable          bool       `json:"tlsEnable" db:"tlsEnable"`
-	AutoReconnect      bool       `json:"autoReconnect" db:"autoReconnect"`
+	TlsEnable          string     `json:"tlsEnable" db:"tlsEnable"`         // Y/N
+	AutoReconnect      string     `json:"autoReconnect" db:"autoReconnect"` // Y/N
 	MaxRetries         int        `json:"maxRetries" db:"maxRetries"`
 	RetryInterval      int        `json:"retryInterval" db:"retryInterval"`
 	HeartbeatInterval  int        `json:"heartbeatInterval" db:"heartbeatInterval"`
@@ -155,10 +155,10 @@ type TunnelService struct {
 	HttpUser           *string    `json:"httpUser" db:"httpUser"`
 	HttpPassword       *string    `json:"httpPassword" db:"httpPassword"`
 	HostHeaderRewrite  *string    `json:"hostHeaderRewrite" db:"hostHeaderRewrite"`
-	Headers            *string    `json:"headers" db:"headers"`     // JSON格式
-	Locations          *string    `json:"locations" db:"locations"` // JSON格式
-	UseEncryption      bool       `json:"useEncryption" db:"useEncryption"`
-	UseCompression     bool       `json:"useCompression" db:"useCompression"`
+	Headers            *string    `json:"headers" db:"headers"`               // JSON格式
+	Locations          *string    `json:"locations" db:"locations"`           // JSON格式
+	UseEncryption      string     `json:"useEncryption" db:"useEncryption"`   // Y/N
+	UseCompression     string     `json:"useCompression" db:"useCompression"` // Y/N
 	SecretKey          *string    `json:"secretKey" db:"secretKey"`
 	BandwidthLimit     *string    `json:"bandwidthLimit" db:"bandwidthLimit"`
 	MaxConnections     *int       `json:"maxConnections" db:"maxConnections"`

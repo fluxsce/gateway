@@ -10,6 +10,8 @@ import (
 	"gateway/web/views/hub0060/models"
 	"strings"
 	"time"
+
+	"gateway/internal/tunnel"
 )
 
 // TunnelServerDAO 隧道服务器数据访问对象
@@ -440,4 +442,144 @@ func (dao *TunnelServerDAO) GetTunnelServerList() ([]*models.TunnelServer, error
 	}
 
 	return servers, nil
+}
+
+// StartTunnelServer 启动隧道服务器
+func (dao *TunnelServerDAO) StartTunnelServer(tunnelServerId string) error {
+	ctx := context.Background()
+
+	// 获取隧道管理器
+	tunnelManager := getTunnelManager()
+	if tunnelManager == nil {
+		return huberrors.NewError("隧道管理器未初始化")
+	}
+
+	// 调用隧道管理器启动服务器
+	err := tunnelManager.StartServer(ctx, tunnelServerId)
+	if err != nil {
+		return huberrors.WrapError(err, "启动隧道服务器失败")
+	}
+
+	// 更新数据库中的服务器状态为运行中
+	updateQuery := `
+		UPDATE HUB_TUNNEL_SERVER
+		SET serverStatus = ?, startTime = ?, editTime = ?
+		WHERE tunnelServerId = ?
+	`
+	now := time.Now()
+	_, err = dao.db.Exec(ctx, updateQuery, []interface{}{"running", now, now, tunnelServerId}, false)
+	if err != nil {
+		logger.Error("更新服务器状态失败", "tunnelServerId", tunnelServerId, "error", err)
+		// 不返回错误，因为服务器已经启动成功
+	}
+
+	logger.Info("启动隧道服务器成功", "tunnelServerId", tunnelServerId)
+	return nil
+}
+
+// StopTunnelServer 停止隧道服务器
+func (dao *TunnelServerDAO) StopTunnelServer(tunnelServerId string) error {
+	ctx := context.Background()
+
+	// 获取隧道管理器
+	tunnelManager := getTunnelManager()
+	if tunnelManager == nil {
+		return huberrors.NewError("隧道管理器未初始化")
+	}
+
+	// 调用隧道管理器停止服务器
+	err := tunnelManager.StopServer(ctx, tunnelServerId)
+	if err != nil {
+		return huberrors.WrapError(err, "停止隧道服务器失败")
+	}
+
+	// 更新数据库中的服务器状态为已停止
+	updateQuery := `
+		UPDATE HUB_TUNNEL_SERVER
+		SET serverStatus = ?, editTime = ?
+		WHERE tunnelServerId = ?
+	`
+	now := time.Now()
+	_, err = dao.db.Exec(ctx, updateQuery, []interface{}{"stopped", now, tunnelServerId}, false)
+	if err != nil {
+		logger.Error("更新服务器状态失败", "tunnelServerId", tunnelServerId, "error", err)
+		// 不返回错误，因为服务器已经停止成功
+	}
+
+	logger.Info("停止隧道服务器成功", "tunnelServerId", tunnelServerId)
+	return nil
+}
+
+// RestartTunnelServer 重启隧道服务器
+func (dao *TunnelServerDAO) RestartTunnelServer(tunnelServerId string) error {
+	ctx := context.Background()
+
+	// 获取隧道管理器
+	tunnelManager := getTunnelManager()
+	if tunnelManager == nil {
+		return huberrors.NewError("隧道管理器未初始化")
+	}
+
+	logger.Info("开始重启隧道服务器", "tunnelServerId", tunnelServerId)
+
+	// 先停止服务器
+	err := tunnelManager.StopServer(ctx, tunnelServerId)
+	if err != nil {
+		logger.Warn("停止服务器失败，尝试继续启动", "tunnelServerId", tunnelServerId, "error", err)
+		// 不返回错误，继续尝试启动
+	}
+
+	// 再启动服务器（会自动从数据库加载最新配置）
+	err = tunnelManager.StartServer(ctx, tunnelServerId)
+	if err != nil {
+		// 更新状态为错误
+		updateQuery := `
+			UPDATE HUB_TUNNEL_SERVER
+			SET serverStatus = ?, editTime = ?
+			WHERE tunnelServerId = ?
+		`
+		dao.db.Exec(ctx, updateQuery, []interface{}{"error", time.Now(), tunnelServerId}, false)
+		return huberrors.WrapError(err, "重启隧道服务器失败")
+	}
+
+	// 更新数据库中的服务器状态为运行中
+	updateQuery := `
+		UPDATE HUB_TUNNEL_SERVER
+		SET serverStatus = ?, startTime = ?, editTime = ?
+		WHERE tunnelServerId = ?
+	`
+	now := time.Now()
+	_, err = dao.db.Exec(ctx, updateQuery, []interface{}{"running", now, now, tunnelServerId}, false)
+	if err != nil {
+		logger.Error("更新服务器状态失败", "tunnelServerId", tunnelServerId, "error", err)
+	}
+
+	logger.Info("重启隧道服务器成功", "tunnelServerId", tunnelServerId)
+	return nil
+}
+
+// ReloadTunnelServerConfig 重新加载隧道服务器配置
+func (dao *TunnelServerDAO) ReloadTunnelServerConfig(tunnelServerId string) error {
+	ctx := context.Background()
+
+	// 获取隧道管理器
+	tunnelManager := getTunnelManager()
+	if tunnelManager == nil {
+		return huberrors.NewError("隧道管理器未初始化")
+	}
+
+	// 调用隧道管理器重新加载配置
+	err := tunnelManager.ReloadServerConfig(ctx, tunnelServerId)
+	if err != nil {
+		return huberrors.WrapError(err, "重新加载隧道服务器配置失败")
+	}
+
+	logger.Info("重新加载隧道服务器配置成功", "tunnelServerId", tunnelServerId)
+	return nil
+}
+
+// getTunnelManager 获取隧道管理器实例
+// 直接从 tunnel 包获取全局实例
+func getTunnelManager() *tunnel.TunnelManager {
+	return tunnel.GetGlobalManager()
 }
