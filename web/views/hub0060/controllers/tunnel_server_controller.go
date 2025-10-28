@@ -292,7 +292,7 @@ func (c *TunnelServerController) GetServerStatusOptions(ctx *gin.Context) {
 
 // GetTunnelServerList 获取隧道服务器列表（用于下拉选择）
 func (c *TunnelServerController) GetTunnelServerList(ctx *gin.Context) {
-	servers, err := c.tunnelServerDAO.GetTunnelServerList()
+	servers, err := c.tunnelServerDAO.GetTunnelServerList(ctx)
 	if err != nil {
 		logger.Error("获取隧道服务器列表失败", "error", err)
 		response.ErrorJSON(ctx, "获取失败: "+err.Error(), "GET_TUNNEL_SERVER_LIST")

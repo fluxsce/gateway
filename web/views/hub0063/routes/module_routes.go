@@ -9,89 +9,57 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// 模块配置
 var (
-	// ModuleName 模块名称
 	ModuleName = "hub0063"
-
-	// APIPrefix API路径前缀
-	APIPrefix = "/gateway/hub0063"
+	APIPrefix  = "/gateway/hub0063"
 )
 
-// init 包初始化函数，自动注册hub0063模块的路由
 func init() {
-	// 注册hub0063模块的路由初始化函数到全局路由注册表
 	routes.RegisterModuleRoutes(ModuleName, Init)
 	logger.Info("模块路由自动注册", "module", ModuleName)
 }
 
-// Init 初始化hub0063模块的所有路由
-// 这是模块的主要路由注册函数，会被路由发现器自动调用
-// 参数:
-//   - router: Gin路由引擎
-//   - db: 数据库连接
 func Init(router *gin.Engine, db database.Database) {
 	RegisterHub0063Routes(router, db)
 }
 
-// RegisterHub0063Routes 注册hub0063模块的所有路由
 func RegisterHub0063Routes(router *gin.Engine, db database.Database) {
-	// 创建控制器实例
-	tunnelServiceController := controllers.NewTunnelServiceController(db)
-	logger.Info("隧道服务配置管理控制器已创建", "module", ModuleName)
+	serviceController := controllers.NewTunnelServiceController(db)
+	logger.Info("控制器已创建", "module", ModuleName)
 
-	// 创建模块路由组
 	hub0063Group := router.Group(APIPrefix)
 
-	// 需要认证的路由
+	// 需要权限验证的路由组
 	protectedGroup := hub0063Group.Group("")
-	protectedGroup.Use(routes.PermissionRequired()...) // 必须有有效session
+	protectedGroup.Use(routes.PermissionRequired()...)
 
-	// 隧道服务配置管理路由
 	{
-		// 查询隧道服务列表（支持分页、搜索和过滤）
-		protectedGroup.POST("/queryTunnelServices", tunnelServiceController.QueryTunnelServices)
+		// 基础CRUD操作
+		protectedGroup.POST("/queryTunnelServices", serviceController.QueryTunnelServices)
+		protectedGroup.POST("/getTunnelService", serviceController.GetTunnelService)
+		protectedGroup.POST("/createTunnelService", serviceController.CreateTunnelService)
+		protectedGroup.POST("/updateTunnelService", serviceController.UpdateTunnelService)
+		protectedGroup.POST("/deleteTunnelService", serviceController.DeleteTunnelService)
 
-		// 获取隧道服务详情
-		protectedGroup.POST("/getTunnelService", tunnelServiceController.GetTunnelService)
+		// 统计查询
+		protectedGroup.POST("/getServiceStats", serviceController.GetServiceStats)
 
-		// 创建隧道服务
-		protectedGroup.POST("/createTunnelService", tunnelServiceController.CreateTunnelService)
+		// 服务管理操作
+		protectedGroup.POST("/enableService", serviceController.EnableService)
+		protectedGroup.POST("/disableService", serviceController.DisableService)
 
-		// 更新隧道服务信息
-		protectedGroup.POST("/updateTunnelService", tunnelServiceController.UpdateTunnelService)
+		// 端口管理
+		protectedGroup.POST("/allocateRemotePort", serviceController.AllocateRemotePort)
+		protectedGroup.POST("/releaseRemotePort", serviceController.ReleaseRemotePort)
 
-		// 删除隧道服务
-		protectedGroup.POST("/deleteTunnelService", tunnelServiceController.DeleteTunnelService)
+		// 关联数据查询
+		protectedGroup.POST("/getServicesByClient", serviceController.GetServicesByClient)
+		protectedGroup.POST("/getServiceConnections", serviceController.GetServiceConnections)
+		protectedGroup.POST("/getServiceTraffic", serviceController.GetServiceTraffic)
 
-		// 更新隧道服务状态
-		protectedGroup.POST("/updateTunnelServiceStatus", tunnelServiceController.UpdateTunnelServiceStatus)
-
-		// 更新隧道服务流量统计
-		protectedGroup.POST("/updateTunnelServiceTraffic", tunnelServiceController.UpdateTunnelServiceTraffic)
-
-		// 获取隧道服务统计信息
-		protectedGroup.POST("/getTunnelServiceStats", tunnelServiceController.GetTunnelServiceStats)
-
-		// 根据客户端ID获取服务列表
-		protectedGroup.POST("/getTunnelServicesByClientId", tunnelServiceController.GetTunnelServicesByClientId)
-
-		// 检查远程端口是否可用
-		protectedGroup.POST("/checkRemotePortAvailable", tunnelServiceController.CheckRemotePortAvailable)
-
-		// 检查自定义域名是否可用
-		protectedGroup.POST("/checkCustomDomainAvailable", tunnelServiceController.CheckCustomDomainAvailable)
-
-		// 服务类型选项
-		protectedGroup.POST("/getServiceTypeOptions", tunnelServiceController.GetServiceTypeOptions)
-
-		// 服务状态选项
-		protectedGroup.POST("/getServiceStatusOptions", tunnelServiceController.GetServiceStatusOptions)
+		// 选项数据
+		protectedGroup.POST("/getServiceTypeOptions", serviceController.GetServiceTypeOptions)
 	}
 
-	logger.Info("hub0063模块路由注册完成",
-		"module", ModuleName,
-		"prefix", APIPrefix,
-		"services", "隧道服务配置管理",
-		"features", "查询、创建、查看、编辑、删除、状态管理、流量统计、端口检查、域名检查")
+	logger.Info("模块路由注册完成", "module", ModuleName, "prefix", APIPrefix, "routes", 14)
 }

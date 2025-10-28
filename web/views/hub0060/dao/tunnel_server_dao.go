@@ -423,8 +423,7 @@ func (dao *TunnelServerDAO) CheckServerNameExists(serverName, excludeId string) 
 }
 
 // GetTunnelServerList 获取隧道服务器列表（用于下拉选择）
-func (dao *TunnelServerDAO) GetTunnelServerList() ([]*models.TunnelServer, error) {
-	ctx := context.Background()
+func (dao *TunnelServerDAO) GetTunnelServerList(ctx context.Context) ([]*models.TunnelServer, error) {
 
 	// 只查询活跃的服务器，并只返回必要的字段
 	query := `

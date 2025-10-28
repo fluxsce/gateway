@@ -1,100 +1,86 @@
 package controllers
 
 import (
-	"fmt"
 	"strings"
-	"time"
 
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/utils/request"
 	"gateway/web/utils/response"
 	"gateway/web/views/hub0062/dao"
 	"gateway/web/views/hub0062/models"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
-// TunnelClientController 隧道客户端控制器
 type TunnelClientController struct {
-	tunnelClientDAO *dao.TunnelClientDAO
+	clientDAO *dao.TunnelClientDAO
 }
 
-// NewTunnelClientController 创建隧道客户端控制器实例
 func NewTunnelClientController(db database.Database) *TunnelClientController {
 	return &TunnelClientController{
-		tunnelClientDAO: dao.NewTunnelClientDAO(db),
+		clientDAO: dao.NewTunnelClientDAO(db),
 	}
 }
 
 // getCurrentUser 获取当前用户
 func (c *TunnelClientController) getCurrentUser(ctx *gin.Context) string {
-	// 简化实现：返回默认用户
-	// 实际项目中应该从session或JWT token中获取用户信息
+	if userName := request.GetUserName(ctx); userName != "" {
+		return userName
+	}
+	if userID := request.GetUserID(ctx); userID != "" {
+		return userID
+	}
 	return "admin"
 }
 
-// QueryTunnelClients 查询隧道客户端列表
+// QueryTunnelClients 查询客户端列表
 func (c *TunnelClientController) QueryTunnelClients(ctx *gin.Context) {
 	var req models.TunnelClientQueryRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		logger.Error("绑定查询参数失败", "error", err)
+	if err := request.Bind(ctx, &req); err != nil {
 		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "QUERY_TUNNEL_CLIENTS")
 		return
 	}
 
-	// 参数验证
+	// 参数验证和默认值
 	if req.PageSize <= 0 {
 		req.PageSize = 20
 	}
 	if req.PageIndex <= 0 {
 		req.PageIndex = 1
 	}
-	if req.PageSize > 100 {
-		req.PageSize = 100
-	}
 
-	clients, total, err := c.tunnelClientDAO.QueryTunnelClients(&req)
+	clients, total, err := c.clientDAO.QueryTunnelClients(&req)
 	if err != nil {
-		logger.Error("查询隧道客户端列表失败", "error", err)
-		response.ErrorJSON(ctx, "查询失败: "+err.Error(), "QUERY_TUNNEL_CLIENTS")
+		response.ErrorJSON(ctx, "查询客户端列表失败: "+err.Error(), "QUERY_TUNNEL_CLIENTS")
 		return
 	}
 
-	// 创建分页信息
 	pageInfo := response.NewPageInfo(req.PageIndex, req.PageSize, total)
-
 	response.PageJSON(ctx, clients, pageInfo, "QUERY_TUNNEL_CLIENTS")
 }
 
-// GetTunnelClient 获取隧道客户端详情
+// GetTunnelClient 获取客户端详情
 func (c *TunnelClientController) GetTunnelClient(ctx *gin.Context) {
-	type Request struct {
-		TunnelClientId string `json:"tunnelClientId" binding:"required"`
-	}
-
-	var req Request
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		logger.Error("绑定参数失败", "error", err)
-		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "GET_TUNNEL_CLIENT")
+	tunnelClientId := ctx.PostForm("tunnelClientId")
+	if tunnelClientId == "" {
+		response.ErrorJSON(ctx, "客户端ID不能为空", "GET_TUNNEL_CLIENT")
 		return
 	}
 
-	client, err := c.tunnelClientDAO.GetTunnelClient(req.TunnelClientId)
+	client, err := c.clientDAO.GetTunnelClient(tunnelClientId)
 	if err != nil {
-		logger.Error("获取隧道客户端详情失败", "tunnelClientId", req.TunnelClientId, "error", err)
-		response.ErrorJSON(ctx, "获取失败: "+err.Error(), "GET_TUNNEL_CLIENT")
+		response.ErrorJSON(ctx, "获取客户端详情失败: "+err.Error(), "GET_TUNNEL_CLIENT")
 		return
 	}
 
 	response.SuccessJSON(ctx, client, "GET_TUNNEL_CLIENT")
 }
 
-// CreateTunnelClient 创建隧道客户端
+// CreateTunnelClient 创建客户端
 func (c *TunnelClientController) CreateTunnelClient(ctx *gin.Context) {
 	var client models.TunnelClient
-	if err := ctx.ShouldBindJSON(&client); err != nil {
-		logger.Error("绑定参数失败", "error", err)
+	if err := request.Bind(ctx, &client); err != nil {
 		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "CREATE_TUNNEL_CLIENT")
 		return
 	}
@@ -104,335 +90,262 @@ func (c *TunnelClientController) CreateTunnelClient(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "客户端名称不能为空", "CREATE_TUNNEL_CLIENT")
 		return
 	}
-	if strings.TrimSpace(client.ClientAddress) == "" {
-		response.ErrorJSON(ctx, "客户端地址不能为空", "CREATE_TUNNEL_CLIENT")
+	if strings.TrimSpace(client.ServerAddress) == "" {
+		response.ErrorJSON(ctx, "服务器地址不能为空", "CREATE_TUNNEL_CLIENT")
 		return
 	}
-	if strings.TrimSpace(client.TunnelServerId) == "" {
-		response.ErrorJSON(ctx, "隧道服务器ID不能为空", "CREATE_TUNNEL_CLIENT")
+	if client.ServerPort <= 0 || client.ServerPort > 65535 {
+		response.ErrorJSON(ctx, "服务器端口必须在1-65535之间", "CREATE_TUNNEL_CLIENT")
 		return
-	}
-	if client.HeartbeatInterval <= 0 {
-		client.HeartbeatInterval = 30 // 默认30秒
-	}
-	if client.MaxRetries <= 0 {
-		client.MaxRetries = 3 // 默认3次
-	}
-	if client.RetryInterval <= 0 {
-		client.RetryInterval = 5 // 默认5秒
 	}
 
-	// 检查客户端名称是否重复
-	exists, err := c.tunnelClientDAO.CheckClientNameExists(client.ClientName, "")
+	// 设置创建人
+	currentUser := c.getCurrentUser(ctx)
+	client.AddWho = currentUser
+	client.EditWho = currentUser
+
+	// 创建客户端
+	createdClient, err := c.clientDAO.CreateTunnelClient(&client)
 	if err != nil {
-		logger.Error("检查客户端名称是否存在失败", "error", err)
-		response.ErrorJSON(ctx, "检查失败: "+err.Error(), "CREATE_TUNNEL_CLIENT")
-		return
-	}
-	if exists {
-		response.ErrorJSON(ctx, "客户端名称已存在", "CREATE_TUNNEL_CLIENT")
+		response.ErrorJSON(ctx, "创建客户端失败: "+err.Error(), "CREATE_TUNNEL_CLIENT")
 		return
 	}
 
-	// 生成ID和设置审计字段
-	client.TunnelClientId = uuid.New().String()
-	client.AddWho = c.getCurrentUser(ctx)
-	client.EditWho = client.AddWho
-	client.OprSeqFlag = uuid.New().String()
-
-	// 生成认证令牌
-	if strings.TrimSpace(client.AuthToken) == "" {
-		client.AuthToken = uuid.New().String()
-	}
-
-	err = c.tunnelClientDAO.CreateTunnelClient(&client)
-	if err != nil {
-		logger.Error("创建隧道客户端失败", "error", err)
-		response.ErrorJSON(ctx, "创建失败: "+err.Error(), "CREATE_TUNNEL_CLIENT")
-		return
-	}
-
-	logger.Info("创建隧道客户端成功", "tunnelClientId", client.TunnelClientId, "clientName", client.ClientName)
-	result := map[string]interface{}{
-		"tunnelClientId": client.TunnelClientId,
-		"message":        "创建成功",
-	}
-	response.SuccessJSON(ctx, result, "CREATE_TUNNEL_CLIENT")
+	logger.Info("创建客户端成功", "tunnelClientId", createdClient.TunnelClientId, "clientName", createdClient.ClientName, "user", currentUser)
+	response.SuccessJSON(ctx, createdClient, "CREATE_TUNNEL_CLIENT")
 }
 
-// UpdateTunnelClient 更新隧道客户端
+// UpdateTunnelClient 更新客户端
 func (c *TunnelClientController) UpdateTunnelClient(ctx *gin.Context) {
 	var client models.TunnelClient
-	if err := ctx.ShouldBindJSON(&client); err != nil {
-		logger.Error("绑定参数失败", "error", err)
+	if err := request.Bind(ctx, &client); err != nil {
 		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "UPDATE_TUNNEL_CLIENT")
 		return
 	}
 
 	// 参数验证
 	if strings.TrimSpace(client.TunnelClientId) == "" {
-		response.ErrorJSON(ctx, "隧道客户端ID不能为空", "UPDATE_TUNNEL_CLIENT")
+		response.ErrorJSON(ctx, "客户端ID不能为空", "UPDATE_TUNNEL_CLIENT")
 		return
 	}
 	if strings.TrimSpace(client.ClientName) == "" {
 		response.ErrorJSON(ctx, "客户端名称不能为空", "UPDATE_TUNNEL_CLIENT")
 		return
 	}
-	if strings.TrimSpace(client.ClientAddress) == "" {
-		response.ErrorJSON(ctx, "客户端地址不能为空", "UPDATE_TUNNEL_CLIENT")
+	if strings.TrimSpace(client.ServerAddress) == "" {
+		response.ErrorJSON(ctx, "服务器地址不能为空", "UPDATE_TUNNEL_CLIENT")
 		return
 	}
-	if strings.TrimSpace(client.TunnelServerId) == "" {
-		response.ErrorJSON(ctx, "隧道服务器ID不能为空", "UPDATE_TUNNEL_CLIENT")
+	if client.ServerPort <= 0 || client.ServerPort > 65535 {
+		response.ErrorJSON(ctx, "服务器端口必须在1-65535之间", "UPDATE_TUNNEL_CLIENT")
 		return
-	}
-	if client.HeartbeatInterval <= 0 {
-		client.HeartbeatInterval = 30 // 默认30秒
-	}
-	if client.MaxRetries <= 0 {
-		client.MaxRetries = 3 // 默认3次
-	}
-	if client.RetryInterval <= 0 {
-		client.RetryInterval = 5 // 默认5秒
 	}
 
-	// 检查客户端名称是否重复
-	exists, err := c.tunnelClientDAO.CheckClientNameExists(client.ClientName, client.TunnelClientId)
+	// 设置修改人
+	currentUser := c.getCurrentUser(ctx)
+	client.EditWho = currentUser
+
+	// 更新客户端
+	updatedClient, err := c.clientDAO.UpdateTunnelClient(&client)
 	if err != nil {
-		logger.Error("检查客户端名称是否存在失败", "error", err)
-		response.ErrorJSON(ctx, "检查失败: "+err.Error(), "UPDATE_TUNNEL_CLIENT")
-		return
-	}
-	if exists {
-		response.ErrorJSON(ctx, "客户端名称已存在", "UPDATE_TUNNEL_CLIENT")
+		response.ErrorJSON(ctx, "更新客户端失败: "+err.Error(), "UPDATE_TUNNEL_CLIENT")
 		return
 	}
 
-	// 设置审计字段
-	client.EditWho = c.getCurrentUser(ctx)
-
-	err = c.tunnelClientDAO.UpdateTunnelClient(&client)
-	if err != nil {
-		logger.Error("更新隧道客户端失败", "error", err)
-		response.ErrorJSON(ctx, "更新失败: "+err.Error(), "UPDATE_TUNNEL_CLIENT")
-		return
-	}
-
-	logger.Info("更新隧道客户端成功", "tunnelClientId", client.TunnelClientId, "clientName", client.ClientName)
-	result := map[string]interface{}{
-		"message": "更新成功",
-	}
-	response.SuccessJSON(ctx, result, "UPDATE_TUNNEL_CLIENT")
+	logger.Info("更新客户端成功", "tunnelClientId", updatedClient.TunnelClientId, "clientName", updatedClient.ClientName, "user", currentUser)
+	response.SuccessJSON(ctx, updatedClient, "UPDATE_TUNNEL_CLIENT")
 }
 
-// DeleteTunnelClient 删除隧道客户端
+// DeleteTunnelClient 删除客户端
 func (c *TunnelClientController) DeleteTunnelClient(ctx *gin.Context) {
-	type Request struct {
-		TunnelClientId string `json:"tunnelClientId" binding:"required"`
-	}
-
-	var req Request
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		logger.Error("绑定参数失败", "error", err)
-		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "DELETE_TUNNEL_CLIENT")
+	tunnelClientId := ctx.PostForm("tunnelClientId")
+	if tunnelClientId == "" {
+		response.ErrorJSON(ctx, "客户端ID不能为空", "DELETE_TUNNEL_CLIENT")
 		return
 	}
 
-	editWho := c.getCurrentUser(ctx)
-	err := c.tunnelClientDAO.DeleteTunnelClient(req.TunnelClientId, editWho)
+	currentUser := c.getCurrentUser(ctx)
+
+	// 删除客户端
+	deletedClient, err := c.clientDAO.DeleteTunnelClient(tunnelClientId, currentUser)
 	if err != nil {
-		logger.Error("删除隧道客户端失败", "tunnelClientId", req.TunnelClientId, "error", err)
-		response.ErrorJSON(ctx, "删除失败: "+err.Error(), "DELETE_TUNNEL_CLIENT")
+		response.ErrorJSON(ctx, "删除客户端失败: "+err.Error(), "DELETE_TUNNEL_CLIENT")
 		return
 	}
 
-	logger.Info("删除隧道客户端成功", "tunnelClientId", req.TunnelClientId)
-	result := map[string]interface{}{
-		"message": "删除成功",
-	}
-	response.SuccessJSON(ctx, result, "DELETE_TUNNEL_CLIENT")
+	logger.Info("删除客户端成功", "tunnelClientId", tunnelClientId, "user", currentUser)
+	response.SuccessJSON(ctx, deletedClient, "DELETE_TUNNEL_CLIENT")
 }
 
-// UpdateTunnelClientStatus 更新隧道客户端状态
-func (c *TunnelClientController) UpdateTunnelClientStatus(ctx *gin.Context) {
-	type Request struct {
-		TunnelClientId     string `json:"tunnelClientId" binding:"required"`
-		Status             string `json:"status" binding:"required"`
-		RegisteredServices int    `json:"registeredServices"`
-		ActiveProxies      int    `json:"activeProxies"`
-		TotalTraffic       int64  `json:"totalTraffic"`
-	}
-
-	var req Request
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		logger.Error("绑定参数失败", "error", err)
-		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "UPDATE_TUNNEL_CLIENT_STATUS")
-		return
-	}
-
-	// 状态验证
-	validStatuses := []string{"CONNECTED", "DISCONNECTED", "RECONNECTING"}
-	isValid := false
-	for _, status := range validStatuses {
-		if req.Status == status {
-			isValid = true
-			break
-		}
-	}
-	if !isValid {
-		response.ErrorJSON(ctx, "无效的客户端状态", "UPDATE_TUNNEL_CLIENT_STATUS")
-		return
-	}
-
-	err := c.tunnelClientDAO.UpdateTunnelClientStatus(req.TunnelClientId, req.Status, req.RegisteredServices, req.ActiveProxies, req.TotalTraffic)
+// GetClientStats 获取客户端统计信息
+func (c *TunnelClientController) GetClientStats(ctx *gin.Context) {
+	stats, err := c.clientDAO.GetClientStats()
 	if err != nil {
-		logger.Error("更新隧道客户端状态失败", "tunnelClientId", req.TunnelClientId, "error", err)
-		response.ErrorJSON(ctx, "更新失败: "+err.Error(), "UPDATE_TUNNEL_CLIENT_STATUS")
+		response.ErrorJSON(ctx, "获取客户端统计信息失败: "+err.Error(), "GET_CLIENT_STATS")
 		return
 	}
 
-	logger.Info("更新隧道客户端状态成功", "tunnelClientId", req.TunnelClientId, "status", req.Status)
-	result := map[string]interface{}{
-		"message": "状态更新成功",
-	}
-	response.SuccessJSON(ctx, result, "UPDATE_TUNNEL_CLIENT_STATUS")
+	response.SuccessJSON(ctx, stats, "GET_CLIENT_STATS")
 }
 
-// UpdateTunnelClientConnection 更新隧道客户端连接信息
-func (c *TunnelClientController) UpdateTunnelClientConnection(ctx *gin.Context) {
-	type Request struct {
-		TunnelClientId string `json:"tunnelClientId" binding:"required"`
-		Status         string `json:"status" binding:"required"`
-	}
-
-	var req Request
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		logger.Error("绑定参数失败", "error", err)
-		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "UPDATE_TUNNEL_CLIENT_CONNECTION")
+// GetClientStatus 获取客户端实时状态
+func (c *TunnelClientController) GetClientStatus(ctx *gin.Context) {
+	tunnelClientId := ctx.PostForm("tunnelClientId")
+	if tunnelClientId == "" {
+		response.ErrorJSON(ctx, "客户端ID不能为空", "GET_CLIENT_STATUS")
 		return
 	}
 
-	// 状态验证
-	validStatuses := []string{"CONNECTED", "DISCONNECTED", "RECONNECTING"}
-	isValid := false
-	for _, status := range validStatuses {
-		if req.Status == status {
-			isValid = true
-			break
-		}
-	}
-	if !isValid {
-		response.ErrorJSON(ctx, "无效的客户端状态", "UPDATE_TUNNEL_CLIENT_CONNECTION")
-		return
-	}
-
-	err := c.tunnelClientDAO.UpdateTunnelClientConnection(req.TunnelClientId, req.Status)
+	status, err := c.clientDAO.GetClientStatus(tunnelClientId)
 	if err != nil {
-		logger.Error("更新隧道客户端连接信息失败", "tunnelClientId", req.TunnelClientId, "error", err)
-		response.ErrorJSON(ctx, "更新失败: "+err.Error(), "UPDATE_TUNNEL_CLIENT_CONNECTION")
+		response.ErrorJSON(ctx, "获取客户端状态失败: "+err.Error(), "GET_CLIENT_STATUS")
 		return
 	}
 
-	logger.Info("更新隧道客户端连接信息成功", "tunnelClientId", req.TunnelClientId, "status", req.Status)
-	result := map[string]interface{}{
-		"message": "连接状态更新成功",
-	}
-	response.SuccessJSON(ctx, result, "UPDATE_TUNNEL_CLIENT_CONNECTION")
+	response.SuccessJSON(ctx, status, "GET_CLIENT_STATUS")
 }
 
-// GetTunnelClientStats 获取隧道客户端统计信息
-func (c *TunnelClientController) GetTunnelClientStats(ctx *gin.Context) {
-	stats, err := c.tunnelClientDAO.GetTunnelClientStats()
+// ResetAuthToken 重置客户端认证令牌
+func (c *TunnelClientController) ResetAuthToken(ctx *gin.Context) {
+	var req models.ResetAuthTokenRequest
+	if err := request.Bind(ctx, &req); err != nil {
+		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "RESET_AUTH_TOKEN")
+		return
+	}
+
+	if strings.TrimSpace(req.TunnelClientId) == "" {
+		response.ErrorJSON(ctx, "客户端ID不能为空", "RESET_AUTH_TOKEN")
+		return
+	}
+
+	currentUser := c.getCurrentUser(ctx)
+
+	// 重置认证令牌
+	result, err := c.clientDAO.ResetAuthToken(req.TunnelClientId, currentUser)
 	if err != nil {
-		logger.Error("获取隧道客户端统计信息失败", "error", err)
-		response.ErrorJSON(ctx, "获取失败: "+err.Error(), "GET_TUNNEL_CLIENT_STATS")
+		response.ErrorJSON(ctx, "重置认证令牌失败: "+err.Error(), "RESET_AUTH_TOKEN")
 		return
 	}
 
-	response.SuccessJSON(ctx, stats, "GET_TUNNEL_CLIENT_STATS")
+	logger.Info("重置认证令牌成功", "tunnelClientId", req.TunnelClientId, "user", currentUser)
+	response.SuccessJSON(ctx, result, "RESET_AUTH_TOKEN")
 }
 
-// GetClientStatusOptions 获取客户端状态选项
-func (c *TunnelClientController) GetClientStatusOptions(ctx *gin.Context) {
-	options := c.tunnelClientDAO.GetClientStatusOptions()
-	response.SuccessJSON(ctx, options, "GET_CLIENT_STATUS_OPTIONS")
-}
-
-// GetTunnelClientsByServerId 根据服务器ID获取客户端列表
-func (c *TunnelClientController) GetTunnelClientsByServerId(ctx *gin.Context) {
-	type Request struct {
-		TunnelServerId string `json:"tunnelServerId" binding:"required"`
-	}
-
-	var req Request
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		logger.Error("绑定参数失败", "error", err)
-		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "GET_TUNNEL_CLIENTS_BY_SERVER_ID")
+// DisconnectClient 强制断开客户端连接
+func (c *TunnelClientController) DisconnectClient(ctx *gin.Context) {
+	var req models.DisconnectClientRequest
+	if err := request.Bind(ctx, &req); err != nil {
+		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "DISCONNECT_CLIENT")
 		return
 	}
 
-	clients, err := c.tunnelClientDAO.GetTunnelClientsByServerId(req.TunnelServerId)
+	if strings.TrimSpace(req.TunnelClientId) == "" {
+		response.ErrorJSON(ctx, "客户端ID不能为空", "DISCONNECT_CLIENT")
+		return
+	}
+
+	currentUser := c.getCurrentUser(ctx)
+
+	// 断开客户端连接
+	err := c.clientDAO.DisconnectClient(req.TunnelClientId, req.Reason, currentUser)
 	if err != nil {
-		logger.Error("根据服务器ID获取客户端列表失败", "tunnelServerId", req.TunnelServerId, "error", err)
-		response.ErrorJSON(ctx, "获取失败: "+err.Error(), "GET_TUNNEL_CLIENTS_BY_SERVER_ID")
+		response.ErrorJSON(ctx, "断开客户端连接失败: "+err.Error(), "DISCONNECT_CLIENT")
 		return
 	}
 
-	// 转换为下拉选项格式
-	options := make([]map[string]interface{}, 0, len(clients))
-	for _, client := range clients {
-		option := map[string]interface{}{
-			"value":              client.TunnelClientId,
-			"label":              fmt.Sprintf("%s (%s)", client.ClientName, client.ClientStatus),
-			"status":             client.ClientStatus,
-			"registeredServices": client.RegisteredServices,
-			"activeProxies":      client.ActiveProxies,
-		}
-		options = append(options, option)
-	}
-
-	response.SuccessJSON(ctx, options, "GET_TUNNEL_CLIENTS_BY_SERVER_ID")
+	logger.Info("断开客户端连接成功", "tunnelClientId", req.TunnelClientId, "reason", req.Reason, "user", currentUser)
+	response.SuccessJSON(ctx, gin.H{
+		"tunnelClientId": req.TunnelClientId,
+		"message":        "客户端连接已断开",
+	}, "DISCONNECT_CLIENT")
 }
 
-// GenerateAuthToken 生成新的认证令牌
-func (c *TunnelClientController) GenerateAuthToken(ctx *gin.Context) {
-	token := uuid.New().String()
-	result := map[string]interface{}{
-		"authToken": token,
-	}
-	response.SuccessJSON(ctx, result, "GENERATE_AUTH_TOKEN")
-}
-
-// TestClientConnection 测试客户端连接
-func (c *TunnelClientController) TestClientConnection(ctx *gin.Context) {
-	type Request struct {
-		TunnelClientId string `json:"tunnelClientId" binding:"required"`
-	}
-
-	var req Request
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		logger.Error("绑定参数失败", "error", err)
-		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "TEST_CLIENT_CONNECTION")
+// BatchEnableClients 批量启用客户端
+func (c *TunnelClientController) BatchEnableClients(ctx *gin.Context) {
+	var req models.BatchOperationRequest
+	if err := request.Bind(ctx, &req); err != nil {
+		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "BATCH_ENABLE_CLIENTS")
 		return
 	}
 
-	// 获取客户端信息
-	client, err := c.tunnelClientDAO.GetTunnelClient(req.TunnelClientId)
+	if len(req.ClientIds) == 0 {
+		response.ErrorJSON(ctx, "客户端ID列表不能为空", "BATCH_ENABLE_CLIENTS")
+		return
+	}
+
+	currentUser := c.getCurrentUser(ctx)
+
+	// 批量启用客户端
+	result, err := c.clientDAO.BatchEnableClients(req.ClientIds, currentUser)
 	if err != nil {
-		logger.Error("获取隧道客户端详情失败", "tunnelClientId", req.TunnelClientId, "error", err)
-		response.ErrorJSON(ctx, "获取失败: "+err.Error(), "TEST_CLIENT_CONNECTION")
+		response.ErrorJSON(ctx, "批量启用客户端失败: "+err.Error(), "BATCH_ENABLE_CLIENTS")
 		return
 	}
 
-	// 这里可以实现实际的连接测试逻辑
-	// 简化实现，直接返回成功
-	result := map[string]interface{}{
-		"success":    true,
-		"message":    "客户端连接测试成功",
-		"clientName": client.ClientName,
-		"status":     client.ClientStatus,
-		"testTime":   time.Now().Format("2006-01-02 15:04:05"),
+	logger.Info("批量启用客户端完成", "successCount", result.SuccessCount, "failedCount", result.FailedCount, "user", currentUser)
+	response.SuccessJSON(ctx, result, "BATCH_ENABLE_CLIENTS")
+}
+
+// BatchDisableClients 批量禁用客户端
+func (c *TunnelClientController) BatchDisableClients(ctx *gin.Context) {
+	var req models.BatchOperationRequest
+	if err := request.Bind(ctx, &req); err != nil {
+		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "BATCH_DISABLE_CLIENTS")
+		return
 	}
 
-	response.SuccessJSON(ctx, result, "TEST_CLIENT_CONNECTION")
+	if len(req.ClientIds) == 0 {
+		response.ErrorJSON(ctx, "客户端ID列表不能为空", "BATCH_DISABLE_CLIENTS")
+		return
+	}
+
+	currentUser := c.getCurrentUser(ctx)
+
+	// 批量禁用客户端
+	result, err := c.clientDAO.BatchDisableClients(req.ClientIds, currentUser)
+	if err != nil {
+		response.ErrorJSON(ctx, "批量禁用客户端失败: "+err.Error(), "BATCH_DISABLE_CLIENTS")
+		return
+	}
+
+	logger.Info("批量禁用客户端完成", "successCount", result.SuccessCount, "failedCount", result.FailedCount, "user", currentUser)
+	response.SuccessJSON(ctx, result, "BATCH_DISABLE_CLIENTS")
+}
+
+// GetConnectionStatusOptions 获取连接状态选项
+func (c *TunnelClientController) GetConnectionStatusOptions(ctx *gin.Context) {
+	options := []gin.H{
+		{"value": "connected", "label": "已连接"},
+		{"value": "disconnected", "label": "已断开"},
+		{"value": "connecting", "label": "连接中"},
+		{"value": "error", "label": "错误"},
+	}
+
+	response.SuccessJSON(ctx, options, "GET_CONNECTION_STATUS_OPTIONS")
+}
+
+// GetClientServices 获取客户端注册的服务列表
+func (c *TunnelClientController) GetClientServices(ctx *gin.Context) {
+	tunnelClientId := ctx.PostForm("tunnelClientId")
+	if tunnelClientId == "" {
+		response.ErrorJSON(ctx, "客户端ID不能为空", "GET_CLIENT_SERVICES")
+		return
+	}
+
+	// TODO: 实现从 hub0063 模块查询服务列表
+	// 这里暂时返回空列表，等 hub0063 模块开发完成后再实现
+	response.SuccessJSON(ctx, []interface{}{}, "GET_CLIENT_SERVICES")
+}
+
+// GetClientSessions 获取客户端会话列表
+func (c *TunnelClientController) GetClientSessions(ctx *gin.Context) {
+	tunnelClientId := ctx.PostForm("tunnelClientId")
+	if tunnelClientId == "" {
+		response.ErrorJSON(ctx, "客户端ID不能为空", "GET_CLIENT_SESSIONS")
+		return
+	}
+
+	// TODO: 实现从 hub0064 模块查询会话列表
+	// 这里暂时返回空列表，等 hub0064 模块开发完成后再实现
+	response.SuccessJSON(ctx, []interface{}{}, "GET_CLIENT_SESSIONS")
 }

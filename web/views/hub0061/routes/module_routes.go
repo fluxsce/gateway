@@ -37,8 +37,8 @@ func Init(router *gin.Engine, db database.Database) {
 // RegisterHub0061Routes 注册hub0061模块的所有路由
 func RegisterHub0061Routes(router *gin.Engine, db database.Database) {
 	// 创建控制器实例
-	tunnelMappingController := controllers.NewTunnelMappingController(db)
-	logger.Info("隧道映射管理控制器已创建", "module", ModuleName)
+	serverNodeController := controllers.NewServerNodeController(db)
+	logger.Info("静态端口映射管理控制器已创建", "module", ModuleName)
 
 	// 创建模块路由组
 	hub0061Group := router.Group(APIPrefix)
@@ -47,63 +47,48 @@ func RegisterHub0061Routes(router *gin.Engine, db database.Database) {
 	protectedGroup := hub0061Group.Group("")
 	protectedGroup.Use(routes.PermissionRequired()...) // 必须有有效session
 
-	// 隧道映射管理路由
+	// 静态端口映射管理路由
 	{
-		// 查询隧道映射列表（支持分页、搜索和过滤）
-		protectedGroup.POST("/queryTunnelMappings", tunnelMappingController.QueryTunnelMappings)
+		// 查询节点列表（支持分页、搜索和过滤）
+		protectedGroup.POST("/queryServerNodes", serverNodeController.QueryServerNodes)
 
-		// 获取隧道映射详情
-		protectedGroup.POST("/getTunnelMapping", tunnelMappingController.GetTunnelMapping)
+		// 获取节点详情
+		protectedGroup.POST("/getServerNode", serverNodeController.GetServerNode)
 
-		// 创建隧道映射
-		protectedGroup.POST("/createTunnelMapping", tunnelMappingController.CreateTunnelMapping)
+		// 创建节点
+		protectedGroup.POST("/createServerNode", serverNodeController.CreateServerNode)
 
-		// 更新隧道映射信息
-		protectedGroup.POST("/updateTunnelMapping", tunnelMappingController.UpdateTunnelMapping)
+		// 更新节点
+		protectedGroup.POST("/updateServerNode", serverNodeController.UpdateServerNode)
 
-		// 删除隧道映射
-		protectedGroup.POST("/deleteTunnelMapping", tunnelMappingController.DeleteTunnelMapping)
+		// 删除节点
+		protectedGroup.POST("/deleteServerNode", serverNodeController.DeleteServerNode)
 
-		// 更新隧道映射状态
-		protectedGroup.POST("/updateTunnelMappingStatus", tunnelMappingController.UpdateTunnelMappingStatus)
+		// 获取节点统计信息
+		protectedGroup.POST("/getNodeStats", serverNodeController.GetNodeStats)
 
-		// 更新隧道映射流量统计
-		protectedGroup.POST("/updateTunnelMappingTraffic", tunnelMappingController.UpdateTunnelMappingTraffic)
+		// 检查端口冲突
+		protectedGroup.POST("/checkPortConflict", serverNodeController.CheckPortConflict)
 
-		// 获取隧道映射统计信息
-		protectedGroup.POST("/getTunnelMappingStats", tunnelMappingController.GetTunnelMappingStats)
-	}
+		// 按服务器查询节点列表
+		protectedGroup.POST("/getNodesByServer", serverNodeController.GetNodesByServer)
 
-	// 验证和检查路由
-	{
-		// 检查端口是否可用
-		protectedGroup.POST("/checkPortAvailable", tunnelMappingController.CheckPortAvailable)
+		// 获取代理类型选项
+		protectedGroup.POST("/getProxyTypeOptions", serverNodeController.GetProxyTypeOptions)
 
-		// 检查域名是否可用
-		protectedGroup.POST("/checkDomainAvailable", tunnelMappingController.CheckDomainAvailable)
+		// 启用节点
+		protectedGroup.POST("/enableServerNode", serverNodeController.EnableServerNode)
 
-		// 获取端口使用列表
-		protectedGroup.POST("/getPortUsageList", tunnelMappingController.GetPortUsageList)
+		// 禁用节点
+		protectedGroup.POST("/disableServerNode", serverNodeController.DisableServerNode)
 
-		// 获取域名使用列表
-		protectedGroup.POST("/getDomainUsageList", tunnelMappingController.GetDomainUsageList)
-	}
-
-	// 配置和元数据路由
-	{
-		// 映射类型选项
-		protectedGroup.POST("/getMappingTypeOptions", tunnelMappingController.GetMappingTypeOptions)
-
-		// 映射状态选项
-		protectedGroup.POST("/getMappingStatusOptions", tunnelMappingController.GetMappingStatusOptions)
-
-		// 协议选项
-		protectedGroup.POST("/getProtocolOptions", tunnelMappingController.GetProtocolOptions)
+		// 批量创建节点
+		protectedGroup.POST("/batchCreateNodes", serverNodeController.BatchCreateNodes)
 	}
 
 	logger.Info("hub0061模块路由注册完成",
 		"module", ModuleName,
 		"prefix", APIPrefix,
-		"services", "隧道静态映射管理",
-		"features", "端口映射、域名映射、子域名映射、SSL配置、访问控制、负载均衡、限流、缓存、日志")
+		"services", "静态端口映射管理",
+		"features", "查询、创建、查看、编辑、删除、端口冲突检测、批量操作、启用/禁用")
 }
