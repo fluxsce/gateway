@@ -1,0 +1,1 @@
+const e={title:"动态服务管理",stats:{total:"总服务数",active:"活跃服务",inactive:"未激活服务",error:"错误服务",connections:"总连接数",traffic:"总流量"},table:{serviceName:"服务名称",serviceType:"服务类型",serviceStatus:"服务状态",localPort:"本地端口",remotePort:"远程端口",connectionCount:"连接数",registeredTime:"注册时间"},status:{active:"活跃",inactive:"未激活",error:"错误",offline:"离线"}};export{e as default};
