@@ -26,6 +26,12 @@ web:
   static:
     path: "./web/static"
     prefix: "/static" 
+  
+  # 前端静态资源配置
   frontend:
     path: "./web/frontend/dist"
-    prefix: "/" 
+    # prefix 配置说明：
+    # "/" - 根路径模式（默认）：前端占据根路径，适合前端为主的应用
+    # "/admin" - 自定义前缀模式：前端在 /admin 路径下，适合管理后台
+    # "/web" - 自定义前缀模式：前端在 /web 路径下，适合多应用共存
+    prefix: "/gatewayweb" 
