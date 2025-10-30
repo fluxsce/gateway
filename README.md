@@ -150,9 +150,10 @@ graph TB
 
 - 📧 **邮箱**: [fluxopensource@flux.com.cn](mailto:fluxopensource@flux.com.cn)
 - 💬 **GitHub Issues**: [提交问题](https://github.com/fluxsce/gateway/issues)
+- 💬 **GitHub Discussion**: [提交讨论](https://github.com/orgs/fluxsce/discussions)
 - 📱 **微信群**: 扫描下方二维码加入交流群
-- 🐧 **QQ群**: 123456789
-- 🛡️ **安全报告**: security@yourcompany.com
+
+
 
 ## 📜 开源协议
 
