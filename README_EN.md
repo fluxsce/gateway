@@ -145,14 +145,6 @@ We welcome all contributions! For details, please refer to the [CONTRIBUTING.md]
 
 - [FAQ](docs/faq.md)
 
-## 📞 Contact
-
-- 📧 **Email**: [fluxopensource@flux.com.cn](mailto:fluxopensource@flux.com.cn)
-- 💬 **GitHub Issues**: [Submit Issues](https://github.com/fluxsce/gateway/issues)
-- 📱 **WeChat Group**: Scan the QR code below to join the community
-- 🐧 **QQ Group**: 123456789
-- 🛡️ **Security Reports**: security@yourcompany.com
-
 ## 📜 License
 
 This project is licensed under the [Apache License 2.0](LICENSE).
@@ -170,6 +162,16 @@ This project is licensed under the [Apache License 2.0](LICENSE).
 ## 🙏 Acknowledgements & Contributors
 
 Thanks to [all contributors](https://github.com/fluxsce/gateway/graphs/contributors) for their efforts and support!
+## 📞 Contact
+
+- 📧 **Email**: [fluxopensource@flux.com.cn](mailto:fluxopensource@flux.com.cn)
+- 💬 **GitHub Issues**: [Submit Issues](https://github.com/fluxsce/gateway/issues)
+- 📱 **WeChat Group**: Scan the QR code below to join the community
+<div style="display: flex; gap: 15px;"> <div style="flex: 1;"> <img src="docs/images/QW.png" alt="图片1" style="width: 25%; max-width: 40px;">  </div> 
+<div style="flex: 1;"> <img src="docs/images/WX.jpg" alt="图片2" style="width: 25%; max-width: 40px;">  </div> </div>
+
+
+
 
 <p align="center">
   <sub>Built with ❤️ by the Gateway team</sub>
