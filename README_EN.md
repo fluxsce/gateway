@@ -171,8 +171,6 @@ Thanks to [all contributors](https://github.com/fluxsce/gateway/graphs/contribut
 <div style="flex: 1;"> <img src="docs/images/WX.jpg" alt="图片2" style="width: 25%; max-width: 40px;">  </div> </div>
 
 
-
-
 <p align="center">
   <sub>Built with ❤️ by the Gateway team</sub>
 </p>
