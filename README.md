@@ -145,17 +145,7 @@ graph TB
 ## ❓ 常见问题
 
 - [FAQ / 常见问题解答](docs/faq.md)
-
-## 📞 联系方式
-
-- 📧 **邮箱**: [fluxopensource@flux.com.cn](mailto:fluxopensource@flux.com.cn)
-- 💬 **GitHub Issues**: [提交问题](https://github.com/fluxsce/gateway/issues)
-- 💬 **GitHub Discussion**: [提交讨论](https://github.com/orgs/fluxsce/discussions)
-- 📱 **微信群**: 扫描下方二维码加入交流群
-<div style="display: flex; gap: 15px;"> <div style="flex: 1;"> <img src="docs/images/QW.png" alt="图片1" style="width: 20%; max-width: 40px;"> </div> 
-<div style="flex: 1;"> <img src="docs/images/WX.jpg" alt="图片2" style="width: 20%; max-width: 40px;"></div> </div>
-
-
+  
 ## 📜 开源协议
 
 本项目使用 [Apache License 2.0](LICENSE) 开源协议。
@@ -167,12 +157,21 @@ graph TB
     <img src="https://api.star-history.com/svg?repos=fluxsce/gateway&type=Date" alt="Star History Chart" width="600">
   </a>
 </p>
-
 ---
 
 ## 🙏 致谢与贡献者
 
-感谢 [所有贡献者](https://github.com/fluxsce/gateway/graphs/contributors) 的付出与支持！
+感谢 [所有贡献者](https://github.com/fluxsce/gateway/graphs/contributors) 的付出与支持！  
+
+## 📞 联系方式
+
+- 📧 **邮箱**: [fluxopensource@flux.com.cn](mailto:fluxopensource@flux.com.cn)
+- 💬 **GitHub Issues**: [提交问题](https://github.com/fluxsce/gateway/issues)
+- 💬 **GitHub Discussion**: [提交讨论](https://github.com/orgs/fluxsce/discussions)
+- 📱 **微信群**: 扫描下方二维码加入交流群
+<div style="display: flex; gap: 15px;"> <div style="flex: 1;"> <img src="docs/images/QW.png" alt="图片1" style="width: 20%; max-width: 40px;"> </div> 
+<div style="flex: 1;"> <img src="docs/images/WX.jpg" alt="图片2" style="width: 20%; max-width: 40px;"></div> </div>
+
 
 <p align="center">
   <sub>Built with ❤️ by the Gateway team</sub>
