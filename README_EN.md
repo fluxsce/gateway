@@ -168,9 +168,16 @@ Thanks to [all contributors](https://github.com/fluxsce/gateway/graphs/contribut
 - 💬 **GitHub Issues**: [Submit Issues](https://github.com/fluxsce/gateway/issues)
 - 📱 **WeChat Group**: Scan the QR code below to join the community
 
-<table align="left" style="border: none; border-collapse: collapse;"> <tr> <td style="text-align: center; padding: 120px; border: none;"> <img src="docs/images/QW.png" alt="企业微信二维码" style="width: 220px; height: 350px; object-fit: contain;"> </td> <td style="text-align: center; padding: 120px; border: none;"> <img src="docs/images/WX.jpg" alt="微信二维码" style="width: 220px; height: 350px; object-fit: contain;"> </td> </tr> </table>
+<table align="left" style="border: none; border-collapse: collapse;"> <tr> <td style="text-align: center; padding: 160px; border: none;"> <img src="docs/images/QW.png" alt="企业微信二维码" style="width: 220px; height: 380px; object-fit: contain;"> </td> <td style="text-align: center; padding: 160px; border: none;"> <img src="docs/images/WX.jpg" alt="微信二维码" style="width: 220px; height: 380px; object-fit: contain;"> </td> </tr> </table>
 <br></br>
-
+<br></br>
+<br></br>
+<br></br>
+<br></br>
+<br></br>
+<br></br>
+<br></br>
+<br></br>
 <p align="center">
   <sub>Built with ❤️ by the Gateway team</sub>
 </p>
