@@ -152,7 +152,8 @@ graph TB
 - 💬 **GitHub Issues**: [提交问题](https://github.com/fluxsce/gateway/issues)
 - 💬 **GitHub Discussion**: [提交讨论](https://github.com/orgs/fluxsce/discussions)
 - 📱 **微信群**: 扫描下方二维码加入交流群
-
+<div style="display: flex; gap: 15px;"> <div style="flex: 1;"> <img src="docs/images/QW.png" alt="图片1" style="width: 20%; max-width: 40px;"> </div> 
+<div style="flex: 1;"> <img src="docs/images/WX.jpg" alt="图片2" style="width: 20%; max-width: 40px;"></div> </div>
 
 
 ## 📜 开源协议
