@@ -169,10 +169,16 @@ graph TB
 - 💬 **GitHub Issues**: [提交问题](https://github.com/fluxsce/gateway/issues)
 - 💬 **GitHub Discussion**: [提交讨论](https://github.com/orgs/fluxsce/discussions)
 - 📱 **微信群**: 扫描下方二维码加入交流群
-<div style="display: flex; gap: 15px;"> <div style="flex: 1;"> <img src="docs/images/QW.png" alt="图片1" style="width: 20%; max-width: 40px;"> </div> 
-<div style="flex: 1;"> <img src="docs/images/WX.jpg" alt="图片2" style="width: 20%; max-width: 40px;"></div> </div>
-
-
+<table align="left" style="border: none; border-collapse: collapse;"> <tr> <td style="text-align: center; padding: 200px; border: none;"> <img src="docs/images/QW.png" alt="企业微信二维码" style="width: 250px; height: 380px; object-fit: contain;"> </td> <td style="text-align: center; padding: 200px; border: none;"> <img src="docs/images/WX.jpg" alt="微信二维码" style="width: 250px; height: 380px; object-fit: contain;"> </td> </tr> </table>
+<br></br>
+<br></br>
+<br></br>
+<br></br>
+<br></br>
+<br></br>
+<br></br>
+<br></br>
+<br></br>
 <p align="center">
   <sub>Built with ❤️ by the Gateway team</sub>
 </p>
