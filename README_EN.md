@@ -165,7 +165,8 @@ Thanks to [all contributors](https://github.com/fluxsce/gateway/graphs/contribut
 ## 📞 Contact
 
 - 📧 **Email**: [fluxopensource@flux.com.cn](mailto:fluxopensource@flux.com.cn)
-- 💬 **GitHub Issues**: [Submit Issues](https://github.com/fluxsce/gateway/issues)
+- 💬 **GitHub Issues**: [Open an issue](https://github.com/fluxsce/gateway/issues)
+- 💬 **GitHub Discussion**: [Start a discussion](https://github.com/orgs/fluxsce/discussions)
 - 📱 **WeChat Group**: Scan the QR code below to join the community
 
 <table align="left" style="border: none; border-collapse: collapse;"> <tr> <td style="text-align: center; padding: 200px; border: none;"> <img src="docs/images/QW.png" alt="企业微信二维码" style="width: 250px; height: 380px; object-fit: contain;"> </td> <td style="text-align: center; padding: 200px; border: none;"> <img src="docs/images/WX.jpg" alt="微信二维码" style="width: 250px; height: 380px; object-fit: contain;"> </td> </tr> </table>
