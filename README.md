@@ -157,7 +157,6 @@ graph TB
     <img src="https://api.star-history.com/svg?repos=fluxsce/gateway&type=Date" alt="Star History Chart" width="600">
   </a>
 </p>
----
 
 ## 🙏 致谢与贡献者
 
