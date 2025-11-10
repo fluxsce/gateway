@@ -6,7 +6,7 @@ Gateway 项目组非常重视安全问题。我们感谢社区用户对项目安
 
 如果您认为在 Gateway 中发现了安全漏洞，请**不要**在 GitHub issue 中公开讨论，而是按照以下步骤操作：
 
-1. 发送邮件至 security@yourcompany.com
+1. 发送邮件至 fluxopensource@flux.com.cn
 2. 邮件主题请包含 "[Security]" 前缀
 3. 邮件内容请尽可能详细描述漏洞情况
 
@@ -34,21 +34,20 @@ Gateway 项目组非常重视安全问题。我们感谢社区用户对项目安
 安全更新通过以下渠道发布：
 
 - GitHub Security Advisories
-- [安全公告邮件列表](mailto:security-announce@yourcompany.com)
-- [项目发布页面](https://github.com/your-org/gateway/releases)
+- [安全公告邮件列表](mailto:fluxopensource@flux.com.cn)
+- [项目发布页面](https://github.com/fluxsce/gateway/releases)
 
 ## 安全相关文档
 
-- [安全配置指南](docs/security/configuration.md)
-- [安全最佳实践](docs/security/best-practices.md)
-- [已知漏洞列表](docs/security/known-vulnerabilities.md)
+- [安全配置指南](docs/zh-CN/security/configuration.md)
+- [安全最佳实践](docs/zh-CN/security/best-practices.md)
+- [已知漏洞列表](docs/zh-CN/security/known-vulnerabilities.md)
 
 ## 安全问题反馈
 
 如有其他安全相关问题，请联系：
 
-- 邮箱：security@yourcompany.com
-- PGP 密钥：[下载](https://yourcompany.com/security/pgp-key.asc)
+- 邮箱：fluxopensource@flux.com.cn
 
 ## 最近更新
 

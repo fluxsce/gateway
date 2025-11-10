@@ -38,8 +38,14 @@ type ScriptExecutionResult struct {
 	// Duration 执行耗时
 	Duration time.Duration
 
-	// StatementsExecuted 执行的SQL语句数量
+	// StatementsExecuted 成功执行的SQL语句数量
 	StatementsExecuted int
+
+	// StatementsFailed 失败的SQL语句数量
+	StatementsFailed int
+
+	// StatementsSkipped 跳过的SQL语句数量
+	StatementsSkipped int
 
 	// ScriptVersion 脚本版本（基于内容的MD5哈希）
 	ScriptVersion string
@@ -228,16 +234,28 @@ func InitializeDatabaseScripts(ctx context.Context, db database.Database) (*Init
 				"script_version", result.ScriptVersion,
 				"duration", result.Duration)
 		} else {
-			logger.Info("数据库脚本初始化成功",
-				"driver", driver,
-				"statements", result.StatementsExecuted,
-				"duration", result.Duration)
+			if result.StatementsFailed > 0 {
+				logger.Warn("数据库脚本初始化完成（部分语句失败）",
+					"driver", driver,
+					"executed", result.StatementsExecuted,
+					"failed", result.StatementsFailed,
+					"skipped", result.StatementsSkipped,
+					"duration", result.Duration)
+			} else {
+				logger.Info("数据库脚本初始化成功",
+					"driver", driver,
+					"executed", result.StatementsExecuted,
+					"skipped", result.StatementsSkipped,
+					"duration", result.Duration)
+			}
 		}
 	} else {
 		summary.FailedDatabases = 1
 		logger.Error("数据库脚本初始化失败",
 			"driver", driver,
 			"error", result.Error,
+			"executed", result.StatementsExecuted,
+			"failed", result.StatementsFailed,
 			"duration", result.Duration)
 		return summary, nil
 	}
@@ -293,18 +311,31 @@ func executeScriptForDatabase(ctx context.Context, databaseName string, conn dat
 	switch driver {
 	case dbtypes.DriverMySQL, dbtypes.DriverSQLite, dbtypes.DriverOracle, dbtypes.DriverClickHouse:
 		// SQL类型数据库 - 按语句级别执行
-		stmtCount, err := executeSQLScriptByStatements(ctx, conn, driver, scriptName, string(scriptContent))
-		result.StatementsExecuted = stmtCount
+		executedCount, failedCount, skippedCount, err := executeSQLScriptByStatements(ctx, conn, driver, scriptName, string(scriptContent))
+		result.StatementsExecuted = executedCount
+		result.StatementsFailed = failedCount
+		result.StatementsSkipped = skippedCount
+
 		if err != nil {
 			result.Error = fmt.Errorf("执行SQL脚本失败: %w", err)
 			// 记录脚本整体执行失败的历史
 			recordScriptExecution(ctx, conn, driver, scriptName, scriptFile, scriptVersion, "FAILED",
-				result.Duration, stmtCount, err.Error())
+				result.Duration, executedCount, err.Error())
 		} else {
+			// 只要没有致命错误，就认为执行成功（即使有部分语句失败）
 			result.Success = true
-			// 记录脚本整体执行成功的历史
-			recordScriptExecution(ctx, conn, driver, scriptName, scriptFile, scriptVersion, "SUCCESS",
-				result.Duration, stmtCount, "")
+			status := "SUCCESS"
+			errorMsg := ""
+
+			// 如果有失败的语句，标记为部分成功
+			if failedCount > 0 {
+				status = "PARTIAL_SUCCESS"
+				errorMsg = fmt.Sprintf("%d条语句执行失败", failedCount)
+			}
+
+			// 记录脚本整体执行历史
+			recordScriptExecution(ctx, conn, driver, scriptName, scriptFile, scriptVersion, status,
+				result.Duration, executedCount, errorMsg)
 		}
 
 	case dbtypes.DriverMongoDB:
@@ -322,15 +353,28 @@ func executeScriptForDatabase(ctx context.Context, databaseName string, conn dat
 	result.Duration = time.Since(startTime)
 
 	if result.Success {
-		logger.Info("数据库脚本执行成功",
-			"database", databaseName,
-			"statements", result.StatementsExecuted,
-			"duration", result.Duration,
-			"version", scriptVersion)
+		if result.StatementsFailed > 0 {
+			logger.Warn("数据库脚本执行完成（部分语句失败）",
+				"database", databaseName,
+				"executed", result.StatementsExecuted,
+				"failed", result.StatementsFailed,
+				"skipped", result.StatementsSkipped,
+				"duration", result.Duration,
+				"version", scriptVersion)
+		} else {
+			logger.Info("数据库脚本执行成功",
+				"database", databaseName,
+				"executed", result.StatementsExecuted,
+				"skipped", result.StatementsSkipped,
+				"duration", result.Duration,
+				"version", scriptVersion)
+		}
 	} else {
 		logger.Error("数据库脚本执行失败",
 			"database", databaseName,
 			"error", result.Error,
+			"executed", result.StatementsExecuted,
+			"failed", result.StatementsFailed,
 			"duration", result.Duration,
 			"version", scriptVersion)
 	}
@@ -340,7 +384,9 @@ func executeScriptForDatabase(ctx context.Context, databaseName string, conn dat
 
 // executeSQLScriptByStatements 按语句级别执行SQL脚本
 // 解析SQL脚本，检查每个语句是否已执行，只执行未执行的语句，支持增量执行
-func executeSQLScriptByStatements(ctx context.Context, conn database.Database, driver, scriptName, scriptContent string) (int, error) {
+// 单条语句失败不会中断整个初始化流程，会继续执行后续语句
+// 返回值: (成功执行数, 失败数, 跳过数, error)
+func executeSQLScriptByStatements(ctx context.Context, conn database.Database, driver, scriptName, scriptContent string) (int, int, int, error) {
 	// 分割SQL语句
 	statements := splitSQLStatements(scriptContent)
 
@@ -348,6 +394,8 @@ func executeSQLScriptByStatements(ctx context.Context, conn database.Database, d
 
 	executedCount := 0
 	skippedCount := 0
+	failedCount := 0
+	var failedStatements []string
 
 	// 逐条检查并执行SQL语句
 	for i, stmt := range statements {
@@ -409,18 +457,22 @@ func executeSQLScriptByStatements(ctx context.Context, conn database.Database, d
 
 		if err != nil {
 			// 记录执行失败的语句信息
-			logger.Error("SQL语句执行失败",
+			logger.Warn("SQL语句执行失败，继续执行后续语句",
 				"statement_index", i+1,
 				"statement_type", stmtType,
 				"statement_hash", stmtHash,
 				"statement_preview", truncateString(stmt, 200),
-				"full_statement", stmt,
 				"error", err)
 
 			// 记录语句执行失败的历史（自动判断插入或更新）
 			recordStatementExecution(ctx, conn, driver, scriptName, stmtHash, stmtType, stmt, "FAILED", duration, err.Error())
 
-			return executedCount, fmt.Errorf("执行第%d条SQL语句失败: %w", i+1, err)
+			// 记录失败的语句信息，但不中断执行
+			failedCount++
+			failedStatements = append(failedStatements, fmt.Sprintf("第%d条: %s (错误: %v)", i+1, truncateString(stmt, 100), err))
+
+			// 继续执行下一条语句
+			continue
 		}
 
 		// 记录语句执行成功的历史（自动判断插入或更新）
@@ -430,12 +482,27 @@ func executeSQLScriptByStatements(ctx context.Context, conn database.Database, d
 
 		// 每执行10条语句记录一次进度（降低频率以便调试）
 		if executedCount%10 == 0 {
-			logger.Info("SQL脚本执行进度", "script", scriptName, "executed", executedCount, "skipped", skippedCount, "total", len(statements))
+			logger.Info("SQL脚本执行进度", "script", scriptName, "executed", executedCount, "skipped", skippedCount, "failed", failedCount, "total", len(statements))
 		}
 	}
 
-	logger.Info("SQL脚本执行完成", "script", scriptName, "total_executed", executedCount, "total_skipped", skippedCount, "total_statements", len(statements))
-	return executedCount, nil
+	// 汇总执行结果
+	logger.Info("SQL脚本执行完成",
+		"script", scriptName,
+		"total_executed", executedCount,
+		"total_skipped", skippedCount,
+		"total_failed", failedCount,
+		"total_statements", len(statements))
+
+	// 如果有失败的语句，记录详细信息但不返回错误
+	if failedCount > 0 {
+		logger.Warn("部分SQL语句执行失败",
+			"script", scriptName,
+			"failed_count", failedCount,
+			"failed_statements", failedStatements)
+	}
+
+	return executedCount, failedCount, skippedCount, nil
 }
 
 // splitSQLStatements 分割SQL脚本为独立的语句
@@ -953,15 +1020,23 @@ func getStatementExecutionStatus(ctx context.Context, conn database.Database, dr
 	var result StatusResult
 	err := conn.QueryOne(ctx, &result, query, []interface{}{tenantId, scriptName, statementHash, driver}, true)
 	if err != nil {
-		// 如果表不存在或查询失败，认为语句未执行过
-		if strings.Contains(err.Error(), "no such table") || strings.Contains(err.Error(), "doesn't exist") ||
-			strings.Contains(err.Error(), "no rows") {
+		// 判断是否是预期的"记录不存在"或"表不存在"错误
+		isRecordNotFound := strings.Contains(err.Error(), "no rows") ||
+			strings.Contains(err.Error(), "record not found") ||
+			strings.Contains(err.Error(), "not found")
+		isTableNotExist := strings.Contains(err.Error(), "no such table") ||
+			strings.Contains(err.Error(), "doesn't exist") ||
+			(strings.Contains(err.Error(), "table") && strings.Contains(err.Error(), "not exist"))
+
+		// 如果是预期的情况，认为语句未执行过
+		if isRecordNotFound || isTableNotExist {
 			logger.Debug("语句未执行过或历史表不存在",
 				"table", "HUB_STATEMENT_EXECUTION_HISTORY",
 				"script", scriptName,
 				"statement_hash", statementHash)
 			return "", nil
 		}
+		// 其他错误才返回错误信息
 		return "", fmt.Errorf("查询语句执行状态失败: %w", err)
 	}
 
@@ -1048,8 +1123,16 @@ func recordStatementExecution(ctx context.Context, conn database.Database, drive
 	var existing ExistingRecord
 	err := conn.QueryOne(ctx, &existing, checkQuery, []interface{}{tenantId, scriptName, statementHash, driver}, true)
 
-	if err != nil && !strings.Contains(err.Error(), "no rows") &&
-		!strings.Contains(err.Error(), "no such table") && !strings.Contains(err.Error(), "doesn't exist") {
+	// 判断是否是真正的错误（排除"记录不存在"的情况）
+	isRecordNotFound := err != nil && (strings.Contains(err.Error(), "no rows") ||
+		strings.Contains(err.Error(), "record not found") ||
+		strings.Contains(err.Error(), "not found"))
+	isTableNotExist := err != nil && (strings.Contains(err.Error(), "no such table") ||
+		strings.Contains(err.Error(), "doesn't exist") ||
+		strings.Contains(err.Error(), "table") && strings.Contains(err.Error(), "not exist"))
+
+	// 只有在非预期错误时才记录错误日志
+	if err != nil && !isRecordNotFound && !isTableNotExist {
 		logger.Error("检查语句执行历史记录失败",
 			"error", err,
 			"script", scriptName,

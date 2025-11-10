@@ -4,12 +4,11 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net"
 	"sync"
 	"time"
 
+	"gateway/internal/tunnel/storage"
 	"gateway/internal/tunnel/types"
 	"gateway/pkg/logger"
 )
@@ -21,16 +20,15 @@ type tunnelClient struct {
 	status      *ClientStatus
 	statusMutex sync.RWMutex
 
+	// 存储管理器（用于数据库操作）
+	storageManager storage.RepositoryManager
+
 	// 子组件
 	controlConn      ControlConnection
 	serviceManager   ServiceManager
 	proxyManager     ProxyManager
 	heartbeatManager HeartbeatManager
 	reconnectManager ReconnectManager
-
-	// 服务列表
-	registeredServices map[string]*types.TunnelService
-	servicesMutex      sync.RWMutex
 
 	// 控制状态
 	ctx          context.Context
@@ -44,6 +42,7 @@ type tunnelClient struct {
 //
 // 参数:
 //   - config: 客户端配置对象
+//   - storageManager: 存储管理器，用于数据库操作
 //
 // 返回:
 //   - TunnelClient: 隧道客户端接口实例
@@ -52,15 +51,15 @@ type tunnelClient struct {
 //   - 创建客户端实例并初始化各个子组件
 //   - 设置初始状态和配置参数
 //   - 建立组件间的协调关系
-func NewTunnelClient(config *types.TunnelClient) TunnelClient {
+func NewTunnelClient(config *types.TunnelClient, storageManager storage.RepositoryManager) TunnelClient {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	client := &tunnelClient{
-		config:             config,
-		registeredServices: make(map[string]*types.TunnelService),
-		ctx:                ctx,
-		cancel:             cancel,
-		running:            false,
+		config:         config,
+		storageManager: storageManager,
+		ctx:            ctx,
+		cancel:         cancel,
+		running:        false,
 		status: &ClientStatus{
 			Status:             StatusDisconnected,
 			ServerAddress:      config.ServerAddress,
@@ -78,7 +77,7 @@ func NewTunnelClient(config *types.TunnelClient) TunnelClient {
 	client.controlConn = NewControlConnection(client)
 	client.serviceManager = NewServiceManager(client)
 	client.proxyManager = NewProxyManager(client)
-	client.heartbeatManager = NewHeartbeatManager(client.controlConn)
+	client.heartbeatManager = NewHeartbeatManager(client)
 	client.reconnectManager = NewReconnectManager(client)
 
 	logger.Info("Tunnel client created", map[string]interface{}{
@@ -98,7 +97,6 @@ func (c *tunnelClient) Start(ctx context.Context) error {
 		c.runningMutex.Unlock()
 		return fmt.Errorf("client is already running")
 	}
-	c.running = true
 	c.runningMutex.Unlock()
 
 	c.updateStatus(StatusConnecting, false)
@@ -130,12 +128,38 @@ func (c *tunnelClient) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to start heartbeat manager: %w", err)
 	}
 
-	// 启动消息处理循环
-	c.wg.Add(1)
-	go c.messageLoop()
-
 	c.updateStatus(StatusConnected, true)
 	c.updateConnectTime()
+
+	// 更新数据库连接状态
+	if c.storageManager != nil {
+		connectTime := time.Now()
+		if err := c.storageManager.GetTunnelClientRepository().UpdateConnectionStatus(
+			ctx,
+			c.config.TunnelClientId,
+			types.ConnectionStatusConnected,
+			&connectTime,
+		); err != nil {
+			logger.Error("Failed to update connection status in database", map[string]interface{}{
+				"clientId": c.config.TunnelClientId,
+				"error":    err.Error(),
+			})
+		}
+	}
+
+	// 自动加载并注册数据库中已有的服务（应用重启恢复）
+	if err := c.loadAndRegisterServices(ctx); err != nil {
+		logger.Error("Failed to load and register services from database", map[string]interface{}{
+			"clientId": c.config.TunnelClientId,
+			"error":    err.Error(),
+		})
+		// 不中断启动流程，只记录错误
+	}
+
+	// 启动成功后才更新 running 状态
+	c.runningMutex.Lock()
+	c.running = true
+	c.runningMutex.Unlock()
 
 	logger.Info("Tunnel client started successfully", map[string]interface{}{
 		"clientId":   c.config.TunnelClientId,
@@ -161,19 +185,19 @@ func (c *tunnelClient) Stop(ctx context.Context) error {
 	})
 
 	// 注销所有服务
-	c.servicesMutex.RLock()
-	serviceIDs := make([]string, 0, len(c.registeredServices))
-	for serviceID := range c.registeredServices {
-		serviceIDs = append(serviceIDs, serviceID)
-	}
-	c.servicesMutex.RUnlock()
-
-	for _, serviceID := range serviceIDs {
-		if err := c.UnregisterService(ctx, serviceID); err != nil {
-			logger.Error("Failed to unregister service during shutdown", map[string]interface{}{
-				"serviceId": serviceID,
-				"error":     err.Error(),
-			})
+	services, err := c.serviceManager.GetAllServices(ctx)
+	if err != nil {
+		logger.Error("Failed to get services for shutdown", map[string]interface{}{
+			"error": err.Error(),
+		})
+	} else {
+		for _, service := range services {
+			if err := c.UnregisterService(ctx, service.TunnelServiceId); err != nil {
+				logger.Error("Failed to unregister service during shutdown", map[string]interface{}{
+					"serviceId": service.TunnelServiceId,
+					"error":     err.Error(),
+				})
+			}
 		}
 	}
 
@@ -211,6 +235,23 @@ func (c *tunnelClient) Stop(ctx context.Context) error {
 	select {
 	case <-done:
 		c.updateStatus(StatusStopped, false)
+
+		// 更新数据库连接状态
+		if c.storageManager != nil {
+			disconnectTime := time.Now()
+			if err := c.storageManager.GetTunnelClientRepository().UpdateConnectionStatus(
+				ctx,
+				c.config.TunnelClientId,
+				types.ConnectionStatusDisconnected,
+				&disconnectTime,
+			); err != nil {
+				logger.Error("Failed to update connection status in database", map[string]interface{}{
+					"clientId": c.config.TunnelClientId,
+					"error":    err.Error(),
+				})
+			}
+		}
+
 		logger.Info("Tunnel client stopped successfully", map[string]interface{}{
 			"clientId":   c.config.TunnelClientId,
 			"clientName": c.config.ClientName,
@@ -270,29 +311,50 @@ func (c *tunnelClient) RegisterService(ctx context.Context, service *types.Tunne
 		return fmt.Errorf("client is not connected")
 	}
 
+	// 验证服务ID
+	if service.TunnelServiceId == "" {
+		return fmt.Errorf("service ID is required")
+	}
+
 	// 验证服务配置
 	if err := c.serviceManager.ValidateService(ctx, service); err != nil {
 		return fmt.Errorf("service validation failed: %w", err)
 	}
 
-	// 设置服务基本信息
+	// 设置客户端ID（确保一致性）
 	service.TunnelClientId = c.config.TunnelClientId
-	service.TunnelServiceId = c.generateServiceID(service.ServiceName)
 
 	// 注册服务
 	if err := c.serviceManager.RegisterService(ctx, service); err != nil {
 		return fmt.Errorf("failed to register service: %w", err)
 	}
 
-	// 添加到本地服务列表
-	c.servicesMutex.Lock()
-	c.registeredServices[service.TunnelServiceId] = service
-	c.servicesMutex.Unlock()
-
 	// 更新状态
 	c.statusMutex.Lock()
 	c.status.RegisteredServices++
+	serviceCount := c.status.RegisteredServices
 	c.statusMutex.Unlock()
+
+	// 更新数据库服务数量
+	if c.storageManager != nil {
+		// 获取当前客户端信息
+		currentClient, err := c.storageManager.GetTunnelClientRepository().GetByID(ctx, c.config.TunnelClientId)
+		if err != nil {
+			logger.Error("Failed to get client info from database", map[string]interface{}{
+				"clientId": c.config.TunnelClientId,
+				"error":    err.Error(),
+			})
+		} else if currentClient != nil {
+			currentClient.ServiceCount = serviceCount
+			if err := c.storageManager.GetTunnelClientRepository().Update(ctx, currentClient); err != nil {
+				logger.Error("Failed to update service count in database", map[string]interface{}{
+					"clientId":     c.config.TunnelClientId,
+					"serviceCount": serviceCount,
+					"error":        err.Error(),
+				})
+			}
+		}
+	}
 
 	logger.Info("Service registered", map[string]interface{}{
 		"serviceId":   service.TunnelServiceId,
@@ -306,13 +368,10 @@ func (c *tunnelClient) RegisterService(ctx context.Context, service *types.Tunne
 
 // UnregisterService 注销服务
 func (c *tunnelClient) UnregisterService(ctx context.Context, serviceID string) error {
-	// 从本地服务列表中查找
-	c.servicesMutex.RLock()
-	service, exists := c.registeredServices[serviceID]
-	c.servicesMutex.RUnlock()
-
-	if !exists {
-		return fmt.Errorf("service %s not found", serviceID)
+	// 从 serviceManager 获取服务信息
+	service, err := c.serviceManager.GetService(ctx, serviceID)
+	if err != nil {
+		return fmt.Errorf("service %s not found: %w", serviceID, err)
 	}
 
 	// 注销服务
@@ -320,17 +379,34 @@ func (c *tunnelClient) UnregisterService(ctx context.Context, serviceID string) 
 		return fmt.Errorf("failed to unregister service: %w", err)
 	}
 
-	// 从本地服务列表中移除
-	c.servicesMutex.Lock()
-	delete(c.registeredServices, serviceID)
-	c.servicesMutex.Unlock()
-
 	// 更新状态
 	c.statusMutex.Lock()
 	if c.status.RegisteredServices > 0 {
 		c.status.RegisteredServices--
 	}
+	serviceCount := c.status.RegisteredServices
 	c.statusMutex.Unlock()
+
+	// 更新数据库服务数量
+	if c.storageManager != nil {
+		// 获取当前客户端信息
+		currentClient, err := c.storageManager.GetTunnelClientRepository().GetByID(ctx, c.config.TunnelClientId)
+		if err != nil {
+			logger.Error("Failed to get client info from database", map[string]interface{}{
+				"clientId": c.config.TunnelClientId,
+				"error":    err.Error(),
+			})
+		} else if currentClient != nil {
+			currentClient.ServiceCount = serviceCount
+			if err := c.storageManager.GetTunnelClientRepository().Update(ctx, currentClient); err != nil {
+				logger.Error("Failed to update service count in database", map[string]interface{}{
+					"clientId":     c.config.TunnelClientId,
+					"serviceCount": serviceCount,
+					"error":        err.Error(),
+				})
+			}
+		}
+	}
 
 	logger.Info("Service unregistered", map[string]interface{}{
 		"serviceId":   serviceID,
@@ -342,342 +418,23 @@ func (c *tunnelClient) UnregisterService(ctx context.Context, serviceID string) 
 
 // GetRegisteredServices 获取已注册的服务
 func (c *tunnelClient) GetRegisteredServices() []*types.TunnelService {
-	c.servicesMutex.RLock()
-	defer c.servicesMutex.RUnlock()
-
-	services := make([]*types.TunnelService, 0, len(c.registeredServices))
-	for _, service := range c.registeredServices {
-		services = append(services, service)
+	services, err := c.serviceManager.GetAllServices(context.Background())
+	if err != nil {
+		logger.Error("Failed to get registered services", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return []*types.TunnelService{}
 	}
-
 	return services
 }
 
-// messageLoop 消息处理循环
-func (c *tunnelClient) messageLoop() {
-	defer c.wg.Done()
-
-	for {
-		select {
-		case <-c.ctx.Done():
-			return
-		default:
-			// 接收控制消息
-			msg, err := c.controlConn.ReceiveMessage(c.ctx)
-			if err != nil {
-				if c.ctx.Err() != nil {
-					return // 正常关闭
-				}
-
-				logger.Error("Failed to receive message", map[string]interface{}{
-					"error": err.Error(),
-				})
-
-				// 触发重连
-				c.reconnectManager.TriggerReconnect(c.ctx, "message_receive_error")
-				continue
-			}
-
-			// 处理消息
-			if err := c.handleMessage(msg); err != nil {
-				logger.Error("Failed to handle message", map[string]interface{}{
-					"messageType": msg.Type,
-					"error":       err.Error(),
-				})
-			}
-		}
-	}
-}
-
-// handleMessage 处理控制消息
-func (c *tunnelClient) handleMessage(msg *ControlMessage) error {
-	switch msg.Type {
-	case MessageTypeNewProxy:
-		return c.handleNewProxyMessage(msg)
-	case MessageTypeCloseProxy:
-		return c.handleCloseProxyMessage(msg)
-	case MessageTypeProxyRequest:
-		return c.handleProxyRequestMessage(msg)
-	case MessageTypePreConnectRequest:
-		return c.handlePreConnectRequestMessage(msg)
-	case MessageTypeNotification:
-		return c.handleNotificationMessage(msg)
-	case MessageTypeError:
-		return c.handleErrorMessage(msg)
-	default:
-		logger.Warn("Unknown message type", map[string]interface{}{
-			"messageType": msg.Type,
-		})
-	}
-
-	return nil
-}
-
-// handleNewProxyMessage 处理新代理消息
-func (c *tunnelClient) handleNewProxyMessage(msg *ControlMessage) error {
-	serviceID, ok := msg.Data["serviceId"].(string)
-	if !ok {
-		return fmt.Errorf("missing serviceId in new proxy message")
-	}
-
-	remotePort, ok := msg.Data["remotePort"].(float64)
-	if !ok {
-		return fmt.Errorf("missing remotePort in new proxy message")
-	}
-
-	// 查找服务
-	c.servicesMutex.RLock()
-	service, exists := c.registeredServices[serviceID]
-	c.servicesMutex.RUnlock()
-
-	if !exists {
-		return fmt.Errorf("service %s not found for proxy", serviceID)
-	}
-
-	// 启动代理
-	return c.proxyManager.StartProxy(c.ctx, service, int(remotePort))
-}
-
-// handleCloseProxyMessage 处理关闭代理消息
-func (c *tunnelClient) handleCloseProxyMessage(msg *ControlMessage) error {
-	serviceID, ok := msg.Data["serviceId"].(string)
-	if !ok {
-		return fmt.Errorf("missing serviceId in close proxy message")
-	}
-
-	return c.proxyManager.StopProxy(c.ctx, serviceID)
-}
-
-// handleProxyRequestMessage 处理代理请求消息
-//
-// 当服务器接收到外网连接请求且连接池中没有可用连接时，
-// 会发送此消息通知客户端建立新的数据连接。
-//
-// 参数:
-//   - msg: 代理请求控制消息
-//
-// 返回:
-//   - error: 处理失败时返回错误
-//
-// 工作流程:
-//  1. 解析消息中的服务ID和连接ID
-//  2. 异步启动数据连接建立过程
-//  3. 避免阻塞消息处理循环
-//
-// 注意:
-//   - 此方法立即返回，实际连接建立在后台进行
-//   - 连接建立失败会记录错误日志
-func (c *tunnelClient) handleProxyRequestMessage(msg *ControlMessage) error {
-	serviceID, ok := msg.Data["serviceId"].(string)
-	if !ok {
-		return fmt.Errorf("missing serviceId in proxy request message")
-	}
-
-	connectionID, ok := msg.Data["connectionId"].(string)
-	if !ok {
-		return fmt.Errorf("missing connectionId in proxy request message")
-	}
-
-	logger.Info("Received proxy request", map[string]interface{}{
-		"serviceId":    serviceID,
-		"connectionId": connectionID,
-	})
-
-	// 异步建立数据连接，避免阻塞消息处理循环
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
-		if err := c.establishDataConnection(serviceID, connectionID); err != nil {
-			logger.Error("Failed to establish data connection", map[string]interface{}{
-				"serviceId":    serviceID,
-				"connectionId": connectionID,
-				"error":        err.Error(),
-			})
-		}
-	}()
-
-	return nil
-}
-
-// handlePreConnectRequestMessage 处理预连接请求消息
-//
-// 当服务器的连接池需要补充连接时，会发送此消息请求客户端
-// 预先建立数据连接并加入连接池，以提高后续请求的响应速度。
-//
-// 参数:
-//   - msg: 预连接请求控制消息
-//
-// 返回:
-//   - error: 处理失败时返回错误
-//
-// 工作流程:
-//  1. 解析消息中的服务ID和池化标识
-//  2. 异步建立池化数据连接
-//  3. 连接建立后保持活跃等待服务器使用
-//
-// 注意:
-//   - 池化连接与普通连接的生命周期不同
-//   - 连接建立后会长期保持活跃状态
-func (c *tunnelClient) handlePreConnectRequestMessage(msg *ControlMessage) error {
-	serviceID, ok := msg.Data["serviceId"].(string)
-	if !ok {
-		return fmt.Errorf("missing serviceId in pre-connect request message")
-	}
-
-	isPooled, _ := msg.Data["pooled"].(bool)
-
-	logger.Info("Received pre-connect request", map[string]interface{}{
-		"serviceId": serviceID,
-		"pooled":    isPooled,
-	})
-
-	// 异步建立池化数据连接
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
-		if err := c.establishPooledDataConnection(serviceID); err != nil {
-			logger.Error("Failed to establish pooled data connection", map[string]interface{}{
-				"serviceId": serviceID,
-				"error":     err.Error(),
-			})
-		}
-	}()
-
-	return nil
-}
-
-// establishPooledDataConnection 建立池化数据连接
-//
-// 为连接池建立数据连接。与普通数据连接不同，池化连接在握手完成后
-// 需要保持活跃状态，等待服务器的使用。连接会被服务器加入连接池，
-// 当有外网请求时可以被复用。
-//
-// 参数:
-//   - serviceID: 服务唯一标识符
-//
-// 返回:
-//   - error: 建立连接失败时返回错误
-//
-// 注意:
-//   - 池化连接建立后会阻塞等待服务器使用
-//   - 连接断开时会自动清理资源
-//   - 支持上下文取消和优雅关闭
-func (c *tunnelClient) establishPooledDataConnection(serviceID string) error {
-	// 查找服务配置
-	c.servicesMutex.RLock()
-	service, exists := c.registeredServices[serviceID]
-	c.servicesMutex.RUnlock()
-
-	if !exists {
-		return fmt.Errorf("service %s not found", serviceID)
-	}
-
-	// 建立到服务器的数据连接
-	serverAddr := net.JoinHostPort(c.config.ServerAddress, fmt.Sprintf("%d", c.config.ServerPort))
-	dataConn, err := net.DialTimeout("tcp", serverAddr, 10*time.Second)
+// getRegisteredService 获取已注册的服务（供内部使用）
+func (c *tunnelClient) getRegisteredService(serviceID string) *types.TunnelService {
+	service, err := c.serviceManager.GetService(context.Background(), serviceID)
 	if err != nil {
-		return fmt.Errorf("failed to connect to server for pooled data connection: %w", err)
+		return nil
 	}
-
-	// 为长连接（如SSE）启用TCP KeepAlive
-	if tcpConn, ok := dataConn.(*net.TCPConn); ok {
-		tcpConn.SetKeepAlive(true)
-		tcpConn.SetKeepAlivePeriod(30 * time.Second)
-		// 禁用Nagle算法以减少延迟（对流式数据重要）
-		tcpConn.SetNoDelay(true)
-	}
-
-	logger.Info("Pooled data connection established", map[string]interface{}{
-		"serviceId":  serviceID,
-		"serverAddr": serverAddr,
-	})
-
-	// 发送池化连接握手消息（使用服务ID作为连接ID）
-	if err := c.sendPooledDataConnectionHandshake(dataConn, serviceID); err != nil {
-		dataConn.Close()
-		return fmt.Errorf("failed to send pooled data connection handshake: %w", err)
-	}
-
-	// 关键修复：池化连接需要保持活跃并等待服务器使用
-	// 当服务器从连接池中取出此连接用于数据传输时，
-	// 连接会被传递给代理管理器进行实际的数据转发
-	logger.Debug("Pooled connection ready, waiting for server to use", map[string]interface{}{
-		"serviceId": serviceID,
-	})
-
-	// 使用代理管理器处理这个池化连接
-	// 这样连接会保持活跃，等待服务器的数据传输请求
-	return c.proxyManager.HandlePooledConnection(c.ctx, dataConn, service)
-}
-
-// sendPooledDataConnectionHandshake 发送池化数据连接握手消息
-func (c *tunnelClient) sendPooledDataConnectionHandshake(conn net.Conn, serviceID string) error {
-	// 创建数据连接标识消息（池化连接使用服务ID）
-	handshake := map[string]interface{}{
-		"type":         "data_connection",
-		"connectionId": serviceID, // 池化连接使用服务ID
-		"clientId":     c.config.TunnelClientId,
-		"pooled":       true, // 标识这是池化连接
-	}
-
-	// 序列化消息
-	data, err := json.Marshal(handshake)
-	if err != nil {
-		return fmt.Errorf("failed to marshal pooled handshake: %w", err)
-	}
-
-	// 发送消息长度和内容
-	lengthBuf := make([]byte, 4)
-	msgLen := len(data)
-	lengthBuf[0] = byte(msgLen >> 24)
-	lengthBuf[1] = byte(msgLen >> 16)
-	lengthBuf[2] = byte(msgLen >> 8)
-	lengthBuf[3] = byte(msgLen)
-
-	// 发送长度
-	if _, err := conn.Write(lengthBuf); err != nil {
-		return fmt.Errorf("failed to write message length: %w", err)
-	}
-
-	// 发送数据
-	if _, err := conn.Write(data); err != nil {
-		return fmt.Errorf("failed to write handshake data: %w", err)
-	}
-
-	logger.Debug("Pooled data connection handshake sent", map[string]interface{}{
-		"serviceId":  serviceID,
-		"messageLen": msgLen,
-	})
-
-	return nil
-}
-
-// handleNotificationMessage 处理通知消息
-func (c *tunnelClient) handleNotificationMessage(msg *ControlMessage) error {
-	message, ok := msg.Data["message"].(string)
-	if !ok {
-		return fmt.Errorf("missing message in notification")
-	}
-
-	logger.Info("Server notification", map[string]interface{}{
-		"message": message,
-	})
-
-	return nil
-}
-
-// handleErrorMessage 处理错误消息
-func (c *tunnelClient) handleErrorMessage(msg *ControlMessage) error {
-	if msg.Error != nil {
-		c.addError(fmt.Sprintf("Server error: %s - %s", msg.Error.Code, msg.Error.Message))
-		logger.Error("Server error", map[string]interface{}{
-			"code":    msg.Error.Code,
-			"message": msg.Error.Message,
-			"details": msg.Error.Details,
-		})
-	}
-
-	return nil
+	return service
 }
 
 // updateStatus 更新客户端状态
@@ -686,92 +443,6 @@ func (c *tunnelClient) updateStatus(status string, connected bool) {
 	c.status.Status = status
 	c.status.Connected = connected
 	c.statusMutex.Unlock()
-}
-
-// establishDataConnection 建立数据连接
-// 当收到服务器的代理请求时，客户端需要建立一个新的TCP连接到服务器
-// 这个连接用于传输实际的数据，而不是控制消息
-func (c *tunnelClient) establishDataConnection(serviceID, connectionID string) error {
-	// 查找服务配置
-	c.servicesMutex.RLock()
-	_, exists := c.registeredServices[serviceID]
-	c.servicesMutex.RUnlock()
-
-	if !exists {
-		return fmt.Errorf("service %s not found", serviceID)
-	}
-
-	// 建立到服务器的数据连接
-	serverAddr := net.JoinHostPort(c.config.ServerAddress, fmt.Sprintf("%d", c.config.ServerPort))
-	dataConn, err := net.DialTimeout("tcp", serverAddr, 10*time.Second)
-	if err != nil {
-		return fmt.Errorf("failed to connect to server for data connection: %w", err)
-	}
-
-	// 为长连接（如SSE）启用TCP KeepAlive
-	if tcpConn, ok := dataConn.(*net.TCPConn); ok {
-		tcpConn.SetKeepAlive(true)
-		tcpConn.SetKeepAlivePeriod(30 * time.Second)
-		// 禁用Nagle算法以减少延迟（对流式数据重要）
-		tcpConn.SetNoDelay(true)
-	}
-
-	logger.Info("Data connection established", map[string]interface{}{
-		"serviceId":    serviceID,
-		"connectionId": connectionID,
-		"serverAddr":   serverAddr,
-	})
-
-	// 发送数据连接标识消息
-	if err := c.sendDataConnectionHandshake(dataConn, connectionID); err != nil {
-		dataConn.Close()
-		return fmt.Errorf("failed to send data connection handshake: %w", err)
-	}
-
-	// 将数据连接交给代理管理器处理
-	return c.proxyManager.HandleProxyConnection(c.ctx, dataConn, serviceID)
-}
-
-// sendDataConnectionHandshake 发送数据连接握手消息
-// 用于告诉服务器这是一个数据连接，并关联到特定的连接ID
-func (c *tunnelClient) sendDataConnectionHandshake(conn net.Conn, connectionID string) error {
-	// 创建数据连接标识消息
-	handshake := map[string]interface{}{
-		"type":         "data_connection",
-		"connectionId": connectionID,
-		"clientId":     c.config.TunnelClientId,
-	}
-
-	// 序列化消息
-	data, err := json.Marshal(handshake)
-	if err != nil {
-		return fmt.Errorf("failed to marshal handshake: %w", err)
-	}
-
-	// 发送消息长度和内容
-	lengthBuf := make([]byte, 4)
-	msgLen := len(data)
-	lengthBuf[0] = byte(msgLen >> 24)
-	lengthBuf[1] = byte(msgLen >> 16)
-	lengthBuf[2] = byte(msgLen >> 8)
-	lengthBuf[3] = byte(msgLen)
-
-	// 发送长度
-	if _, err := conn.Write(lengthBuf); err != nil {
-		return fmt.Errorf("failed to write message length: %w", err)
-	}
-
-	// 发送数据
-	if _, err := conn.Write(data); err != nil {
-		return fmt.Errorf("failed to write handshake data: %w", err)
-	}
-
-	logger.Debug("Data connection handshake sent", map[string]interface{}{
-		"connectionId": connectionID,
-		"messageLen":   msgLen,
-	})
-
-	return nil
 }
 
 // updateConnectTime 更新连接时间
@@ -797,11 +468,6 @@ func (c *tunnelClient) isConnected() bool {
 	return c.controlConn.IsConnected()
 }
 
-// generateServiceID 生成服务ID
-func (c *tunnelClient) generateServiceID(serviceName string) string {
-	return fmt.Sprintf("%s_%s_%d", c.config.TunnelClientId, serviceName, time.Now().UnixNano())
-}
-
 // GetControlConnection 获取控制连接（供子组件使用）
 func (c *tunnelClient) GetControlConnection() ControlConnection {
 	return c.controlConn
@@ -810,4 +476,118 @@ func (c *tunnelClient) GetControlConnection() ControlConnection {
 // GetProxyManager 获取代理管理器（供子组件使用）
 func (c *tunnelClient) GetProxyManager() ProxyManager {
 	return c.proxyManager
+}
+
+// loadAndRegisterServices 从数据库加载并注册服务
+//
+// 在客户端启动时调用，用于恢复应用重启前已注册的服务。
+// 这确保了服务注册的持久性，即使应用重启也能自动恢复。
+//
+// 参数:
+//   - ctx: 上下文对象
+//
+// 返回:
+//   - error: 加载或注册失败时的错误
+//
+// 工作流程:
+//  1. 从数据库查询该客户端的所有活跃服务
+//  2. 过滤出状态为 active 的服务
+//  3. 逐个调用 RegisterService 重新注册到服务器
+//  4. 记录成功和失败的服务数量
+//
+// 注意:
+//   - 注册失败不会中断整个流程
+//   - 只加载 activeFlag='Y' 的服务
+//   - 服务注册失败会记录错误但继续处理下一个
+func (c *tunnelClient) loadAndRegisterServices(ctx context.Context) error {
+	if c.storageManager == nil {
+		logger.Debug("Storage manager not available, skipping service loading", nil)
+		return nil
+	}
+
+	// 从数据库查询该客户端的所有服务
+	services, err := c.storageManager.GetTunnelServiceRepository().GetByClientID(ctx, c.config.TunnelClientId)
+	if err != nil {
+		return fmt.Errorf("failed to query services from database: %w", err)
+	}
+
+	if len(services) == 0 {
+		logger.Info("No services found in database for this client", map[string]interface{}{
+			"clientId": c.config.TunnelClientId,
+		})
+		return nil
+	}
+
+	logger.Info("Loading services from database", map[string]interface{}{
+		"clientId":     c.config.TunnelClientId,
+		"serviceCount": len(services),
+	})
+
+	// 统计注册结果
+	successCount := 0
+	failureCount := 0
+
+	// 逐个注册服务
+	for _, service := range services {
+		// 跳过非活跃状态的服务
+		if service.ActiveFlag != types.ActiveFlagYes {
+			logger.Debug("Skipping inactive service", map[string]interface{}{
+				"serviceId":   service.TunnelServiceId,
+				"serviceName": service.ServiceName,
+			})
+			continue
+		}
+
+		// 检查服务是否已经在本地注册（可能是之前的残留）
+		existingService := c.getRegisteredService(service.TunnelServiceId)
+		if existingService != nil {
+			logger.Info("Service already registered locally, unregistering before re-registration", map[string]interface{}{
+				"serviceId":   service.TunnelServiceId,
+				"serviceName": service.ServiceName,
+			})
+
+			// 先卸载已存在的服务
+			if err := c.serviceManager.UnregisterService(ctx, service.TunnelServiceId); err != nil {
+				logger.Error("Failed to unregister existing service", map[string]interface{}{
+					"serviceId":   service.TunnelServiceId,
+					"serviceName": service.ServiceName,
+					"error":       err.Error(),
+				})
+				// 即使卸载失败，也尝试重新注册
+			}
+		}
+
+		// 注册服务到服务器
+		if err := c.RegisterService(ctx, service); err != nil {
+			logger.Error("Failed to register service during startup", map[string]interface{}{
+				"serviceId":   service.TunnelServiceId,
+				"serviceName": service.ServiceName,
+				"error":       err.Error(),
+			})
+			failureCount++
+			// 继续处理下一个服务，不中断整个流程
+			continue
+		}
+
+		logger.Info("Service registered successfully during startup", map[string]interface{}{
+			"serviceId":   service.TunnelServiceId,
+			"serviceName": service.ServiceName,
+			"serviceType": service.ServiceType,
+		})
+		successCount++
+	}
+
+	logger.Info("Service loading completed", map[string]interface{}{
+		"clientId":     c.config.TunnelClientId,
+		"totalCount":   len(services),
+		"successCount": successCount,
+		"failureCount": failureCount,
+	})
+
+	// 如果所有服务都失败了，返回错误
+	if failureCount > 0 && successCount == 0 {
+		return fmt.Errorf("all %d services failed to register", failureCount)
+	}
+
+	return nil
 }

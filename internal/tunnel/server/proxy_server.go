@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"gateway/internal/tunnel/types"
 	"gateway/pkg/logger"
+	"gateway/pkg/utils/random"
 )
 
 // proxyServer 反向代理服务器实现
@@ -283,6 +285,9 @@ func (s *proxyServer) HandleProxyConnection(ctx context.Context, conn net.Conn, 
 	// 尝试从连接池获取可用的数据连接
 	if dataConn := s.getAvailableDataConnection(proxyID); dataConn != nil {
 		// 使用池化连接直接桥接
+		logger.Debug("Using pooled data connection", map[string]interface{}{
+			"serviceId": proxyID,
+		})
 		return s.bridgeConnectionsDirect(ctx, conn, dataConn, proxy)
 	}
 
@@ -333,10 +338,18 @@ func (s *proxyServer) HandleProxyConnection(ctx context.Context, conn net.Conn, 
 // bridgeConnectionsDirect 直接桥接连接（使用池化连接）
 func (s *proxyServer) bridgeConnectionsDirect(ctx context.Context, clientConn, dataConn net.Conn, proxy *reverseProxyInstance) error {
 	defer clientConn.Close()
+
+	// 注意：不要在这里关闭 dataConn，让 defer 中的逻辑决定是归还还是关闭
+	shouldReturnToPool := true
 	defer func() {
-		// 尝试将数据连接归还到池中
-		if !s.returnDataConnection(proxy.service.TunnelServiceId, dataConn) {
-			// 如果无法归还到池中，则关闭连接
+		if shouldReturnToPool {
+			// 尝试将数据连接归还到池中
+			if !s.returnDataConnection(proxy.service.TunnelServiceId, dataConn) {
+				// 如果无法归还到池中，则关闭连接
+				dataConn.Close()
+			}
+		} else {
+			// 连接有问题，直接关闭
 			dataConn.Close()
 		}
 	}()
@@ -345,47 +358,85 @@ func (s *proxyServer) bridgeConnectionsDirect(ctx context.Context, clientConn, d
 		"serviceId": proxy.service.TunnelServiceId,
 	})
 
+	// 清除之前可能设置的超时时间
+	clientConn.SetDeadline(time.Time{})
+	dataConn.SetDeadline(time.Time{})
+
 	// 使用两个goroutine实现双向转发
 	done := make(chan struct{}, 2)
 	var totalBytes int64
+	var copyErrors sync.Map // 记录复制错误
 
 	// 外网客户端 -> 内网服务 (通过数据连接)
 	go func() {
 		defer func() { done <- struct{}{} }()
 		bytes, err := io.Copy(dataConn, clientConn)
-		if err != nil && err != io.EOF {
-			logger.Debug("Client to data connection closed", map[string]interface{}{
-				"error":     err.Error(),
-				"serviceId": proxy.service.TunnelServiceId,
-			})
-		}
 		atomic.AddInt64(&totalBytes, bytes)
+
+		// 关闭写入方向，让对方知道不会再有数据
+		if tcpConn, ok := dataConn.(*net.TCPConn); ok {
+			tcpConn.CloseWrite()
+		}
+
+		if err != nil && err != io.EOF {
+			copyErrors.Store("clientToData", err)
+		}
 	}()
 
 	// 内网服务 -> 外网客户端 (通过数据连接)
 	go func() {
 		defer func() { done <- struct{}{} }()
 		bytes, err := io.Copy(clientConn, dataConn)
-		if err != nil && err != io.EOF {
-			logger.Debug("Data to client connection closed", map[string]interface{}{
-				"error":     err.Error(),
-				"serviceId": proxy.service.TunnelServiceId,
-			})
-		}
 		atomic.AddInt64(&totalBytes, bytes)
+
+		// 关闭写入方向，让对方知道不会再有数据
+		if tcpConn, ok := clientConn.(*net.TCPConn); ok {
+			tcpConn.CloseWrite()
+		}
+
+		if err != nil && err != io.EOF {
+			copyErrors.Store("dataToClient", err)
+		}
 	}()
 
-	// 等待任一方向的传输完成
+	// 等待两个方向都完成
+	<-done
 	<-done
 
 	// 更新流量统计
 	atomic.AddInt64(&proxy.totalTraffic, totalBytes)
 
-	logger.Debug("Direct connection bridge completed", map[string]interface{}{
-		"serviceId":    proxy.service.TunnelServiceId,
-		"totalBytes":   totalBytes,
-		"totalTraffic": atomic.LoadInt64(&proxy.totalTraffic),
+	// 检查是否有真正的错误（非正常关闭）
+	hasError := false
+	copyErrors.Range(func(key, value interface{}) bool {
+		if err, ok := value.(error); ok {
+			errMsg := err.Error()
+			// 检查是否是正常的连接关闭
+			if !strings.Contains(errMsg, "use of closed network connection") &&
+				!strings.Contains(errMsg, "i/o timeout") &&
+				!strings.Contains(errMsg, "connection reset") &&
+				!strings.Contains(errMsg, "broken pipe") {
+				hasError = true
+				shouldReturnToPool = false // 连接有错误，不归还到池中
+				logger.Error("Connection bridge error", map[string]interface{}{
+					"direction":  key,
+					"error":      errMsg,
+					"serviceId":  proxy.service.TunnelServiceId,
+					"totalBytes": totalBytes,
+				})
+			}
+		}
+		return true
 	})
+
+	if !hasError {
+		logger.Debug("Direct connection bridge completed successfully", map[string]interface{}{
+			"serviceId":       proxy.service.TunnelServiceId,
+			"totalBytes":      totalBytes,
+			"totalTraffic":    atomic.LoadInt64(&proxy.totalTraffic),
+			"returningToPool": shouldReturnToPool,
+		})
+	}
 
 	return nil
 }
@@ -458,9 +509,15 @@ func (s *proxyServer) addToConnectionPool(serviceID string, conn net.Conn) bool 
 	select {
 	case pool.availableConns <- conn:
 		atomic.AddInt32(&pool.currentSize, 1)
+		logger.Debug("Added connection to pool", map[string]interface{}{
+			"serviceId": serviceID,
+		})
 		return true
 	default:
 		// 池已满
+		logger.Warn("Data connection pool full, connection will be closed", map[string]interface{}{
+			"serviceId": serviceID,
+		})
 		return false
 	}
 }
@@ -495,14 +552,31 @@ func (s *proxyServer) startReverseProxyListener(ctx context.Context, proxy *reve
 		for {
 			clientConn, err := listener.Accept()
 			if err != nil {
+				// 检查上下文是否已取消
 				select {
 				case <-ctx.Done():
+					logger.Info("Reverse proxy listener stopped by context", map[string]interface{}{
+						"serviceId": proxy.service.TunnelServiceId,
+					})
 					return
 				default:
+					// 检查是否是监听器关闭导致的错误
+					// 使用字符串包含检查 "use of closed network connection" 错误
+					errMsg := err.Error()
+					if strings.Contains(errMsg, "use of closed network connection") {
+						logger.Info("Reverse proxy listener closed", map[string]interface{}{
+							"serviceId": proxy.service.TunnelServiceId,
+						})
+						return
+					}
+
+					// 其他错误，记录日志并继续
 					logger.Error("Failed to accept connection", map[string]interface{}{
 						"error":     err.Error(),
 						"serviceId": proxy.service.TunnelServiceId,
 					})
+					// 短暂延迟，避免错误循环过快
+					time.Sleep(100 * time.Millisecond)
 					continue
 				}
 			}
@@ -558,13 +632,7 @@ func (s *proxyServer) notifyClientConnection(proxyConn *proxyConnection) error {
 // bridgeConnections 桥接外网连接和内网数据连接
 func (s *proxyServer) bridgeConnections(ctx context.Context, proxyConn *proxyConnection, proxy *reverseProxyInstance) error {
 	defer proxyConn.clientConn.Close()
-	defer func() {
-		// 尝试将数据连接归还到池中，而不是直接关闭
-		if !s.returnDataConnection(proxy.service.TunnelServiceId, proxyConn.dataConn) {
-			// 如果无法归还到池中，则关闭连接
-			proxyConn.dataConn.Close()
-		}
-	}()
+	defer proxyConn.dataConn.Close() // 非池化连接使用后直接关闭
 
 	// 移除等待连接
 	s.removePendingConnection(proxyConn.connectionID)
@@ -574,23 +642,29 @@ func (s *proxyServer) bridgeConnections(ctx context.Context, proxyConn *proxyCon
 		"connectionId": proxyConn.connectionID,
 	})
 
+	// 不设置超时时间，让长连接（如SSH）可以持续工作
+	// TCP KeepAlive 会自动检测连接状态
+
 	// 使用两个goroutine实现双向转发
 	done := make(chan struct{}, 2)
 	var totalBytes int64
+	var copyErrors sync.Map
 
 	// 外网客户端 -> 内网服务 (通过数据连接)
 	go func() {
 		defer func() { done <- struct{}{} }()
 		bytes, err := io.Copy(proxyConn.dataConn, proxyConn.clientConn)
-		if err != nil && err != io.EOF {
-			// 对于流式协议，连接断开是正常的
-			logger.Debug("Client to data connection closed", map[string]interface{}{
-				"error":        err.Error(),
-				"serviceId":    proxyConn.serviceID,
-				"connectionId": proxyConn.connectionID,
-			})
-		}
 		atomic.AddInt64(&totalBytes, bytes)
+
+		// 关闭写入方向
+		if tcpConn, ok := proxyConn.dataConn.(*net.TCPConn); ok {
+			tcpConn.CloseWrite()
+		}
+
+		if err != nil && err != io.EOF {
+			copyErrors.Store("clientToData", err)
+		}
+
 		logger.Debug("Client->Data transfer completed", map[string]interface{}{
 			"bytes":        bytes,
 			"serviceId":    proxyConn.serviceID,
@@ -602,15 +676,17 @@ func (s *proxyServer) bridgeConnections(ctx context.Context, proxyConn *proxyCon
 	go func() {
 		defer func() { done <- struct{}{} }()
 		bytes, err := io.Copy(proxyConn.clientConn, proxyConn.dataConn)
-		if err != nil && err != io.EOF {
-			// 对于流式协议，连接断开是正常的
-			logger.Debug("Data to client connection closed", map[string]interface{}{
-				"error":        err.Error(),
-				"serviceId":    proxyConn.serviceID,
-				"connectionId": proxyConn.connectionID,
-			})
-		}
 		atomic.AddInt64(&totalBytes, bytes)
+
+		// 关闭写入方向
+		if tcpConn, ok := proxyConn.clientConn.(*net.TCPConn); ok {
+			tcpConn.CloseWrite()
+		}
+
+		if err != nil && err != io.EOF {
+			copyErrors.Store("dataToClient", err)
+		}
+
 		logger.Debug("Data->Client transfer completed", map[string]interface{}{
 			"bytes":        bytes,
 			"serviceId":    proxyConn.serviceID,
@@ -618,18 +694,41 @@ func (s *proxyServer) bridgeConnections(ctx context.Context, proxyConn *proxyCon
 		})
 	}()
 
-	// 等待任一方向的传输完成
+	// 等待两个方向都完成
+	<-done
 	<-done
 
 	// 更新流量统计
 	atomic.AddInt64(&proxy.totalTraffic, totalBytes)
 
-	logger.Info("Connection bridge completed", map[string]interface{}{
-		"serviceId":    proxyConn.serviceID,
-		"connectionId": proxyConn.connectionID,
-		"totalBytes":   totalBytes,
-		"totalTraffic": atomic.LoadInt64(&proxy.totalTraffic),
+	// 检查是否有真正的错误
+	hasError := false
+	copyErrors.Range(func(key, value interface{}) bool {
+		if err, ok := value.(error); ok {
+			errMsg := err.Error()
+			if !strings.Contains(errMsg, "use of closed network connection") &&
+				!strings.Contains(errMsg, "i/o timeout") &&
+				!strings.Contains(errMsg, "connection reset") {
+				hasError = true
+				logger.Error("Connection bridge error", map[string]interface{}{
+					"direction":    key,
+					"error":        errMsg,
+					"serviceId":    proxyConn.serviceID,
+					"connectionId": proxyConn.connectionID,
+				})
+			}
+		}
+		return true
 	})
+
+	if !hasError {
+		logger.Info("Connection bridge completed", map[string]interface{}{
+			"serviceId":    proxyConn.serviceID,
+			"connectionId": proxyConn.connectionID,
+			"totalBytes":   totalBytes,
+			"totalTraffic": atomic.LoadInt64(&proxy.totalTraffic),
+		})
+	}
 
 	return nil
 }
@@ -694,18 +793,24 @@ func (s *proxyServer) sendProxyRequestToClient(clientID string, message *types.C
 
 // generateConnectionID 生成连接唯一标识符
 //
-// 使用当前纳秒时间戳生成唯一的连接ID，
-// 用于标识和匹配代理连接与数据连接。
+// 使用高强度随机字符串生成器，确保在高并发和分布式环境下的唯一性。
+// 生成的ID格式：conn_<20位随机字符串>
+//
+// 返回:
+//   - string: 唯一的连接标识符
 func generateConnectionID() string {
-	return fmt.Sprintf("conn_%d", time.Now().UnixNano())
+	return fmt.Sprintf("conn_%s", random.GenerateRandomString(20))
 }
 
 // generateSessionID 生成会话唯一标识符
 //
-// 使用当前纳秒时间戳生成唯一的会话ID，
-// 用于控制消息的会话标识。
+// 使用高强度随机字符串生成器，确保在高并发和分布式环境下的唯一性。
+// 生成的ID格式：session_<20位随机字符串>
+//
+// 返回:
+//   - string: 唯一的会话标识符
 func generateSessionID() string {
-	return fmt.Sprintf("session_%d", time.Now().UnixNano())
+	return fmt.Sprintf("session_%s", random.GenerateRandomString(20))
 }
 
 // getOrCreateDataConnectionPool 获取或创建数据连接池
@@ -835,7 +940,7 @@ func (s *proxyServer) cleanupIdleConnections(pool *dataConnectionPool) {
 func (s *proxyServer) requestNewDataConnection(serviceID, clientID string) {
 	// 创建预连接请求消息
 	preConnReq := types.ControlMessage{
-		Type:      "pre_connect_request",
+		Type:      types.MessageTypePreConnectRequest,
 		SessionID: generateSessionID(),
 		Data: map[string]interface{}{
 			"serviceId": serviceID,
@@ -846,7 +951,7 @@ func (s *proxyServer) requestNewDataConnection(serviceID, clientID string) {
 
 	// 发送给客户端
 	if err := s.controlServer.SendMessageToClient(clientID, &preConnReq); err != nil {
-		logger.Error("Failed to request new data connection", map[string]interface{}{
+		logger.Warn("Failed to request new data connection", map[string]interface{}{
 			"error":     err.Error(),
 			"serviceId": serviceID,
 			"clientId":  clientID,
@@ -864,12 +969,41 @@ func (s *proxyServer) getAvailableDataConnection(serviceID string) net.Conn {
 		return nil
 	}
 
+	// 尝试获取连接并验证有效性
 	select {
 	case conn := <-pool.availableConns:
-		logger.Debug("Reused pooled data connection", map[string]interface{}{
-			"serviceId": serviceID,
-		})
-		return conn
+		if conn != nil {
+			// 验证连接是否仍然有效
+			conn.SetReadDeadline(time.Now().Add(1 * time.Millisecond))
+			one := make([]byte, 1)
+			_, err := conn.Read(one)
+			conn.SetReadDeadline(time.Time{})
+
+			if err == nil {
+				// 不应该读到数据（空闲连接）
+				conn.Close()
+				atomic.AddInt32(&pool.currentSize, -1)
+				logger.Warn("Data connection from pool has unexpected data, discarding", map[string]interface{}{
+					"serviceId": serviceID,
+				})
+				return nil
+			} else if err == io.EOF || (err != nil && !isNetTimeout(err)) {
+				// 连接已关闭或有错误
+				conn.Close()
+				atomic.AddInt32(&pool.currentSize, -1)
+				logger.Warn("Data connection from pool is closed, will request new connection", map[string]interface{}{
+					"serviceId": serviceID,
+				})
+				return nil
+			} else if isNetTimeout(err) {
+				// 超时是正常的，连接有效
+				logger.Debug("Reused pooled data connection", map[string]interface{}{
+					"serviceId": serviceID,
+				})
+				return conn
+			}
+		}
+		return nil
 	default:
 		// 没有可用连接
 		return nil
@@ -889,15 +1023,24 @@ func (s *proxyServer) returnDataConnection(serviceID string, conn net.Conn) bool
 
 	select {
 	case pool.availableConns <- conn:
-		logger.Debug("Returned connection to pool", map[string]interface{}{
-			"serviceId": serviceID,
-		})
 		return true // 成功归还到池中
 	default:
 		// 池已满，需要调用者关闭连接
 		atomic.AddInt32(&pool.currentSize, -1)
+		logger.Warn("Data connection pool full, connection will be closed", map[string]interface{}{
+			"serviceId": serviceID,
+		})
 		return false
 	}
+}
+
+// isNetTimeout 检查是否是网络超时错误
+func isNetTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+	netErr, ok := err.(net.Error)
+	return ok && netErr.Timeout()
 }
 
 // Stop 停止反向代理服务器

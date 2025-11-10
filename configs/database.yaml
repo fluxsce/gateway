@@ -20,7 +20,7 @@ database:
   enable_script_initialization: true
   
   # 是否允许部分数据库初始化失败（true: 允许部分失败继续启动, false: 任何失败都终止启动）
-  allow_partial_failure: false
+  allow_partial_failure: true
   
   # 脚本初始化超时时间（分钟）
   script_initialization_timeout: 30
@@ -33,14 +33,14 @@ database:
     # MySQL 主连接
     mysql:
       driver: mysql
-      enabled: false # 禁用MySQL连接
+      enabled: true # 禁用MySQL连接
       dsn: "" # 如果提供DSN，将忽略下面的结构化配置
       connection:
-        host: localhost
+        host: 192.168.0.120
         port: 3306
         username: root
-        password: "your_password"
-        database: gateway_db
+        password: "datahub"
+        database: gateway_dev
         charset: utf8mb4
         parse_time: true
         loc: Local

@@ -251,7 +251,7 @@ func (dao *TunnelServerDAO) UpdateTunnelServer(server *models.TunnelServer) (*mo
 	return updatedServer, nil
 }
 
-// DeleteTunnelServer 删除隧道服务器（逻辑删除）
+// DeleteTunnelServer 删除隧道服务器（物理删除）
 func (dao *TunnelServerDAO) DeleteTunnelServer(tunnelServerId, editWho string) (*models.TunnelServer, error) {
 	ctx := context.Background()
 
@@ -261,30 +261,20 @@ func (dao *TunnelServerDAO) DeleteTunnelServer(tunnelServerId, editWho string) (
 		return nil, huberrors.WrapError(err, "获取隧道服务器信息失败")
 	}
 
-	// 逻辑删除（设置activeFlag为'N'）
-	server.ActiveFlag = "N"
-	server.EditTime = time.Now()
-	server.EditWho = editWho
-	server.CurrentVersion++
+	// 物理删除
+	deleteSQL := `
+		DELETE FROM HUB_TUNNEL_SERVER
+		WHERE tunnelServerId = ?
+	`
 
-	// 更新数据库
-	whereClause := "tunnelServerId = ?"
-	args := []interface{}{tunnelServerId}
-
-	_, err = dao.db.Update(ctx, "HUB_TUNNEL_SERVER", server, whereClause, args, true)
+	_, err = dao.db.Exec(ctx, deleteSQL, []interface{}{tunnelServerId}, false)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "删除隧道服务器失败")
 	}
 
 	logger.Info("删除隧道服务器成功", "tunnelServerId", tunnelServerId, "editWho", editWho)
 
-	// 返回更新后的服务器信息
-	updatedServer, err := dao.GetTunnelServer(tunnelServerId)
-	if err != nil {
-		return nil, huberrors.WrapError(err, "获取更新后的服务器信息失败")
-	}
-
-	return updatedServer, nil
+	return server, nil
 }
 
 // UpdateTunnelServerStatus 更新隧道服务器状态

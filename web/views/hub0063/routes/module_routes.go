@@ -44,22 +44,10 @@ func RegisterHub0063Routes(router *gin.Engine, db database.Database) {
 		// 统计查询
 		protectedGroup.POST("/getServiceStats", serviceController.GetServiceStats)
 
-		// 服务管理操作
-		protectedGroup.POST("/enableService", serviceController.EnableService)
-		protectedGroup.POST("/disableService", serviceController.DisableService)
-
-		// 端口管理
-		protectedGroup.POST("/allocateRemotePort", serviceController.AllocateRemotePort)
-		protectedGroup.POST("/releaseRemotePort", serviceController.ReleaseRemotePort)
-
-		// 关联数据查询
-		protectedGroup.POST("/getServicesByClient", serviceController.GetServicesByClient)
-		protectedGroup.POST("/getServiceConnections", serviceController.GetServiceConnections)
-		protectedGroup.POST("/getServiceTraffic", serviceController.GetServiceTraffic)
-
-		// 选项数据
-		protectedGroup.POST("/getServiceTypeOptions", serviceController.GetServiceTypeOptions)
+		// 服务注册和注销（与隧道管理器集成）
+		protectedGroup.POST("/registerService", serviceController.RegisterService)
+		protectedGroup.POST("/unregisterService", serviceController.UnregisterService)
 	}
 
-	logger.Info("模块路由注册完成", "module", ModuleName, "prefix", APIPrefix, "routes", 14)
+	logger.Info("模块路由注册完成", "module", ModuleName, "prefix", APIPrefix, "routes", 8)
 }

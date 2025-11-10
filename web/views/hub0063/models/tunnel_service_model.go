@@ -71,12 +71,12 @@ type TunnelServiceQueryRequest struct {
 
 // TunnelServiceStats 服务统计信息
 type TunnelServiceStats struct {
-	TotalServices    int   `json:"totalServices"`    // 总服务数量
-	ActiveServices   int   `json:"activeServices"`   // 活跃服务数量
-	InactiveServices int   `json:"inactiveServices"` // 非活跃服务数量
-	ErrorServices    int   `json:"errorServices"`    // 错误服务数量
-	TotalConnections int64 `json:"totalConnections"` // 总连接数
-	TotalTraffic     int64 `json:"totalTraffic"`     // 总流量
+	TotalServices    int   `json:"totalServices" db:"totalServices"`       // 总服务数量
+	ActiveServices   int   `json:"activeServices" db:"activeServices"`     // 活跃服务数量
+	InactiveServices int   `json:"inactiveServices" db:"inactiveServices"` // 非活跃服务数量
+	ErrorServices    int   `json:"errorServices" db:"errorServices"`       // 错误服务数量
+	TotalConnections int64 `json:"totalConnections" db:"totalConnections"` // 总连接数
+	TotalTraffic     int64 `json:"totalTraffic" db:"totalTraffic"`         // 总流量
 }
 
 // ServiceTrafficRequest 服务流量查询请求

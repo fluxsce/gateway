@@ -269,6 +269,14 @@ func (app *WebApp) Init() error {
 	middleware.InitPermissionService(app.db)
 	logger.Info("权限服务初始化完成")
 
+	// 注册健康检查接口（必须在所有中间件之前，确保不受认证等中间件影响）
+	app.router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ok",
+			"time":   time.Now().Unix(),
+		})
+	})
+
 	// 应用全局中间件
 	routes.ApplyGlobalMiddleware(app.router)
 

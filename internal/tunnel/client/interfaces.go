@@ -283,7 +283,35 @@ type ControlConnection interface {
 	//   - 消息发送是线程安全的
 	//   - 大消息会自动分片发送
 	//   - 发送失败会触发连接检查
-	SendMessage(ctx context.Context, message *ControlMessage) error
+	SendMessage(ctx context.Context, message *types.ControlMessage) error
+
+	// SendMessageAndWaitResponse 发送控制消息并等待响应
+	//
+	// 参数:
+	//   - ctx: 上下文，用于控制发送和等待过程
+	//   - message: 要发送的控制消息
+	//   - timeout: 等待响应的超时时间
+	//
+	// 返回:
+	//   - *types.ControlMessage: 服务器的响应消息
+	//   - error: 发送失败或等待超时时返回错误
+	//
+	// 功能:
+	//   - 发送控制消息到服务器
+	//   - 阻塞等待服务器响应
+	//   - 通过SessionID匹配请求和响应
+	//   - 支持超时控制
+	//
+	// 使用场景:
+	//   - 服务注册/注销需要确认结果
+	//   - 需要同步等待服务器响应的操作
+	//   - 需要获取服务器返回的数据（如分配的端口）
+	//
+	// 注意事项:
+	//   - 此方法会阻塞直到收到响应或超时
+	//   - SessionID必须唯一以正确匹配响应
+	//   - 超时后会自动清理等待状态
+	SendMessageAndWaitResponse(ctx context.Context, message *types.ControlMessage, timeout time.Duration) (*types.ControlMessage, error)
 
 	// ReceiveMessage 接收控制消息
 	//
@@ -291,7 +319,7 @@ type ControlConnection interface {
 	//   - ctx: 上下文，用于控制接收超时
 	//
 	// 返回:
-	//   - *ControlMessage: 接收到的控制消息
+	//   - *types.ControlMessage: 接收到的控制消息
 	//   - error: 接收失败时返回错误
 	//
 	// 功能:
@@ -310,7 +338,7 @@ type ControlConnection interface {
 	//   - 此方法会阻塞直到收到消息或超时
 	//   - 连接断开时会返回特定错误
 	//   - 需要在循环中调用以持续接收消息
-	ReceiveMessage(ctx context.Context) (*ControlMessage, error)
+	ReceiveMessage(ctx context.Context) (*types.ControlMessage, error)
 
 	// IsConnected 检查连接状态
 	//
@@ -672,6 +700,61 @@ type ProxyManager interface {
 	//   - 支持上下文取消和优雅关闭
 	//   - 连接断开时自动清理资源
 	HandlePooledConnection(ctx context.Context, conn net.Conn, service *types.TunnelService) error
+
+	// GetOrCreateServerConnection 获取或创建到服务器的连接
+	//
+	// 参数:
+	//   - ctx: 上下文
+	//   - serviceID: 服务ID
+	//   - client: 隧道客户端实例
+	//
+	// 返回:
+	//   - net.Conn: 到服务器的数据连接
+	//   - bool: 是否从连接池获取（true=复用，false=新建）
+	//   - error: 获取失败时返回错误
+	//
+	// 功能:
+	//   - 优先从连接池获取可用连接
+	//   - 池中无可用连接时建立新连接
+	//   - 自动配置TCP选项（KeepAlive、NoDelay等）
+	//   - 支持连接复用以提升性能
+	//
+	// 连接池机制:
+	//   - 每个服务维护独立的服务器连接池
+	//   - 默认池大小：10个连接
+	//   - 连接使用后可归还到池中复用
+	//   - 自动清理失效连接
+	//
+	// 注意事项:
+	//   - 从池中获取的连接可能已建立握手
+	//   - 新建连接需要发送握手消息
+	//   - 连接使用完毕应归还或关闭
+	GetOrCreateServerConnection(ctx context.Context, serviceID string, client *tunnelClient) (net.Conn, bool, error)
+
+	// ReturnServerConnection 归还服务器连接到池中
+	//
+	// 参数:
+	//   - serviceID: 服务ID
+	//   - conn: 要归还的连接
+	//
+	// 返回:
+	//   - bool: 是否成功归还（true=已归还，false=池满/关闭）
+	//
+	// 功能:
+	//   - 将使用完毕的连接归还到池中
+	//   - 池满时拒绝归还
+	//   - 自动验证连接有效性
+	//
+	// 归还策略:
+	//   - 只归还健康的连接
+	//   - 有错误的连接应直接关闭
+	//   - 池满时调用者需关闭连接
+	//
+	// 注意事项:
+	//   - 归还失败时调用者需要关闭连接
+	//   - 不要归还已关闭或有错误的连接
+	//   - 归还后不应再使用该连接
+	ReturnServerConnection(serviceID string, conn net.Conn) bool
 }
 
 // HeartbeatManager 心跳管理器接口
@@ -1090,23 +1173,6 @@ type ConnectionInfo struct {
 	BytesReceived int64     `json:"bytesReceived"`
 }
 
-// ControlMessage 控制消息
-type ControlMessage struct {
-	Type      string                 `json:"type"`
-	RequestID string                 `json:"requestId,omitempty"`
-	SessionID string                 `json:"sessionId,omitempty"`
-	Data      map[string]interface{} `json:"data"`
-	Timestamp time.Time              `json:"timestamp"`
-	Error     *ErrorInfo             `json:"error,omitempty"`
-}
-
-// ErrorInfo 错误信息
-type ErrorInfo struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Details string `json:"details,omitempty"`
-}
-
 // ProxyInfo 代理信息
 type ProxyInfo struct {
 	ServiceID         string    `json:"serviceId"`
@@ -1202,27 +1268,4 @@ const (
 	ProxyStatusRunning = "running"
 	ProxyStatusStopped = "stopped"
 	ProxyStatusError   = "error"
-)
-
-// 消息类型常量
-const (
-	// 客户端发送的消息类型
-	MessageTypeAuth              = "auth"
-	MessageTypeHeartbeat         = "heartbeat"
-	MessageTypeRegisterService   = "register_service"
-	MessageTypeUnregisterService = "unregister_service"
-	MessageTypeServiceStatus     = "service_status"
-	MessageTypeNewProxy          = "new_proxy"
-	MessageTypeCloseProxy        = "close_proxy"
-	MessageTypeProxyData         = "proxy_data"
-
-	// 服务端响应的消息类型
-	MessageTypeAuthResponse      = "auth_response"
-	MessageTypeHeartbeatResponse = "heartbeat_response"
-	MessageTypeServiceResponse   = "service_response"
-	MessageTypeProxyResponse     = "proxy_response"
-	MessageTypeProxyRequest      = "proxy_request"
-	MessageTypePreConnectRequest = "pre_connect_request"
-	MessageTypeError             = "error"
-	MessageTypeNotification      = "notification"
 )

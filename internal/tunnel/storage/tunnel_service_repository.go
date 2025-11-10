@@ -44,12 +44,30 @@ func (r *TunnelServiceRepositoryImpl) Create(ctx context.Context, service *types
 		return errors.New("隧道服务ID不能为空")
 	}
 
+	// 检查服务是否已存在
+	existing, err := r.GetByID(ctx, service.TunnelServiceId)
+	if err != nil {
+		return err
+	}
+
+	// 如果服务已存在，进行更新而不是创建
+	if existing != nil {
+		// 保留一些原有字段
+		service.AddTime = existing.AddTime
+		service.AddWho = existing.AddWho
+		service.CurrentVersion = existing.CurrentVersion
+
+		// 更新服务
+		return r.Update(ctx, service)
+	}
+
 	// 设置默认值
 	now := time.Now()
 	service.AddTime = now
 	service.EditTime = now
 	service.RegisteredTime = now
-	service.OprSeqFlag = service.TunnelServiceId + "_" + strings.ReplaceAll(now.String(), ".", "")[:8]
+	// 修复 oprSeqFlag 长度问题：使用时间戳（更短）
+	service.OprSeqFlag = service.TunnelServiceId[:min(len(service.TunnelServiceId), 16)] + "_" + now.Format("20060102150405")
 	service.CurrentVersion = 1
 	if service.ActiveFlag == "" {
 		service.ActiveFlag = "Y"
@@ -59,7 +77,7 @@ func (r *TunnelServiceRepositoryImpl) Create(ctx context.Context, service *types
 	}
 
 	// 使用数据库接口插入记录
-	_, err := r.db.Insert(ctx, "HUB_TUNNEL_SERVICE", service, true)
+	_, err = r.db.Insert(ctx, "HUB_TUNNEL_SERVICE", service, true)
 	if err != nil {
 		if r.isDuplicateKeyError(err) {
 			return huberrors.WrapError(err, "隧道服务ID已存在")
@@ -68,6 +86,14 @@ func (r *TunnelServiceRepositoryImpl) Create(ctx context.Context, service *types
 	}
 
 	return nil
+}
+
+// min 返回两个整数中的较小值
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // GetByID 根据ID获取服务
@@ -224,6 +250,8 @@ func (r *TunnelServiceRepositoryImpl) GetByRemotePort(ctx context.Context, remot
 
 // Update 更新服务配置
 //
+// 使用数据库快捷方法按主键更新记录
+//
 // 参数:
 //   - ctx: 上下文对象
 //   - service: 隧道服务配置信息
@@ -247,32 +275,12 @@ func (r *TunnelServiceRepositoryImpl) Update(ctx context.Context, service *types
 	// 更新版本和修改信息
 	service.CurrentVersion = current.CurrentVersion + 1
 	service.EditTime = time.Now()
-	service.OprSeqFlag = service.TunnelServiceId + "_" + strings.ReplaceAll(service.EditTime.String(), ".", "")[:8]
+	// 修复 oprSeqFlag 长度问题：使用时间戳（更短）
+	service.OprSeqFlag = service.TunnelServiceId[:min(len(service.TunnelServiceId), 16)] + "_" + service.EditTime.Format("20060102150405")
 
-	// 构建更新SQL
-	sql := `
-		UPDATE HUB_TUNNEL_SERVICE SET
-			serviceName = ?, serviceDescription = ?, serviceType = ?, localAddress = ?,
-			localPort = ?, remotePort = ?, customDomains = ?, subDomain = ?, httpUser = ?,
-			httpPassword = ?, hostHeaderRewrite = ?, headers = ?, locations = ?, useEncryption = ?,
-			useCompression = ?, secretKey = ?, bandwidthLimit = ?, maxConnections = ?,
-			healthCheckType = ?, healthCheckUrl = ?, serviceStatus = ?, lastActiveTime = ?,
-			connectionCount = ?, totalConnections = ?, totalTraffic = ?, serviceConfig = ?,
-			editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?, noteText = ?, extProperty = ?
-		WHERE tunnelServiceId = ? AND currentVersion = ?
-	`
-
-	result, err := r.db.Exec(ctx, sql, []interface{}{
-		service.ServiceName, service.ServiceDescription, service.ServiceType, service.LocalAddress,
-		service.LocalPort, service.RemotePort, service.CustomDomains, service.SubDomain, service.HttpUser,
-		service.HttpPassword, service.HostHeaderRewrite, service.Headers, service.Locations, service.UseEncryption,
-		service.UseCompression, service.SecretKey, service.BandwidthLimit, service.MaxConnections,
-		service.HealthCheckType, service.HealthCheckUrl, service.ServiceStatus, service.LastActiveTime,
-		service.ConnectionCount, service.TotalConnections, service.TotalTraffic, service.ServiceConfig,
-		service.EditTime, service.EditWho, service.OprSeqFlag, service.CurrentVersion, service.NoteText, service.ExtProperty,
-		service.TunnelServiceId, current.CurrentVersion,
-	}, true)
-
+	// 使用数据库快捷方法按主键更新
+	// 只需要指定 WHERE 条件，数据库接口会自动提取结构体的所有字段
+	result, err := r.db.Update(ctx, "HUB_TUNNEL_SERVICE", service, "tunnelServiceId = ?", []interface{}{service.TunnelServiceId}, true)
 	if err != nil {
 		return huberrors.WrapError(err, "更新隧道服务失败")
 	}

@@ -84,10 +84,12 @@ go mod download
 go run cmd/app/main.go
 ```
 
-更多信息：
-- 快速体验：[快速开始指南](docs/guide/quickstart.md)
-- 本地环境搭建：[部署指南](docs/guide/deployment.md)
-- 详细配置说明：[配置手册](docs/guide/configuration.md)
+**访问控制台**
+- 浏览器访问：http://localhost:12003/gatewayweb
+- 默认用户名：`admin`
+- 默认密码：`123456`
+
+---
 
 ## 🏗️ 架构概览
 
@@ -120,19 +122,17 @@ graph TB
 
 ## 📚 文档导航
 
-| 文档类型 | 描述 | 链接 |
-|---------|------|------|
-| 🚀 **快速开始** | 5分钟上手指南 | [快速开始](docs/guide/quickstart.md) |
-| 🛠️ **安装指南** | 详细的安装和部署说明 | [安装指南](docs/guide/installation.md) |
-| 📝 **部署指南** | 详细的部署和运维说明 | [部署指南](docs/guide/deployment.md) |
-| ⚙️ **配置手册** | 完整的配置参数说明 | [配置手册](docs/guide/configuration.md) |
-| 📖 **用户手册** | 功能使用和最佳实践 | [用户手册](docs/guide/user-guide.md) |
-| 🔧 **开发指南** | 开发、构建和测试 | [开发指南](docs/guide/development.md) |
-| 🏗️ **架构设计** | 系统架构和设计理念 | [架构设计](docs/guide/architecture.md) |
-| 💾 **数据库规范** | 数据库设计规范 | [数据库规范](docs/database/naming-convention.md) |
-| 🐞 **调试指南** | 调试技巧和错误处理 | [调试指南](docs/debugging/debugging-guide.md) |
-| 🔍 **错误处理** | 错误处理最佳实践 | [错误处理](docs/debugging/error-handling.md) |
-| 🛡️ **安全指南** | 安全最佳实践与漏洞报告 | [安全指南](SECURITY.md) |
+| 章节 | 文档 | 描述 |
+|---------|----------|-------------|
+| 📖 | **[完整文档](docs/zh-CN/README.md)** | 查看所有中文文档 |
+| 01 | [项目介绍](docs/zh-CN/01-项目介绍.md) | 了解核心能力、系统架构和使用场景 |
+| 02 | [开发指南](docs/zh-CN/02-快速开始.md) | 开发环境搭建、项目结构和快速上手 |
+| 03 | [安装部署](docs/zh-CN/03-安装部署.md) | 详细的安装和部署步骤 |
+| 04 | [容器化部署](docs/zh-CN/04-容器化部署.md) | Docker 和 Kubernetes 容器化部署 |
+| 05 | [数据库规范](docs/zh-CN/05-数据库规范.md) | 数据库设计规范和最佳实践 |
+| 06 | [调试指南](docs/zh-CN/06-调试指南.md) | 调试技巧、性能分析和问题排查 |
+| 07 | [错误处理](docs/zh-CN/07-错误处理.md) | 错误处理机制和最佳实践 |
+| 🛡️ | [安全指南](SECURITY.md) | 安全最佳实践与漏洞报告 |
 
 ## 📜 行为准则
 
@@ -158,16 +158,18 @@ graph TB
   </a>
 </p>
 
+---
+
 ## 🙏 致谢与贡献者
 
-感谢 [所有贡献者](https://github.com/fluxsce/gateway/graphs/contributors) 的付出与支持！  
-
+感谢 [所有贡献者](https://github.com/fluxsce/gateway/graphs/contributors) 的付出与支持！
 ## 📞 联系方式
 
 - 📧 **邮箱**: [fluxopensource@flux.com.cn](mailto:fluxopensource@flux.com.cn)
 - 💬 **GitHub Issues**: [提交问题](https://github.com/fluxsce/gateway/issues)
 - 💬 **GitHub Discussion**: [提交讨论](https://github.com/orgs/fluxsce/discussions)
 - 📱 **微信群**: 扫描下方二维码加入交流群
+
 <table align="left" style="border: none; border-collapse: collapse;"> <tr> <td style="text-align: center; padding: 200px; border: none;"> <img src="docs/images/QW.png" alt="企业微信二维码" style="width: 250px; height: 380px; object-fit: contain;"> </td> <td style="text-align: center; padding: 200px; border: none;"> <img src="docs/images/WX.jpg" alt="微信二维码" style="width: 250px; height: 380px; object-fit: contain;"> </td> </tr> </table>
 <br></br>
 <br></br>

@@ -23,6 +23,7 @@ type serviceRegistry struct {
 	services      map[string]*serviceInfo
 	serviceMutex  sync.RWMutex
 	clientIndex   map[string][]string // clientID -> serviceIDs
+	proxyServer   ProxyServer         // 代理服务器引用，用于启动代理
 }
 
 // serviceInfo 服务信息
@@ -71,6 +72,7 @@ func NewServiceRegistryImpl(storage storage.RepositoryManager) ServiceRegistry {
 		portAllocator: allocator,
 		services:      make(map[string]*serviceInfo),
 		clientIndex:   make(map[string][]string),
+		proxyServer:   nil, // 稍后由 tunnel_server 设置
 	}
 
 	// 加载现有服务
@@ -79,41 +81,84 @@ func NewServiceRegistryImpl(storage storage.RepositoryManager) ServiceRegistry {
 	return registry
 }
 
+// SetProxyServer 设置代理服务器引用
+// 由 tunnel_server 在初始化时调用
+func (sr *serviceRegistry) SetProxyServer(proxyServer ProxyServer) {
+	sr.proxyServer = proxyServer
+}
+
 // RegisterService 注册服务
 //
 // 参数:
 //   - ctx: 上下文
 //   - clientID: 客户端ID
-//   - service: 要注册的服务对象
+//   - service: 要注册的服务对象（由客户端提供，包含完整配置）
 //
 // 返回:
 //   - error: 注册失败时返回错误
 //
 // 功能:
 //   - 验证服务配置
-//   - 分配远程端口（如果需要）
+//   - 分配远程端口（如果客户端未指定）
 //   - 检查端口冲突
 //   - 持久化服务到数据库
 //   - 添加到内存索引
+//
+// 注意:
+//   - 服务端不应该覆盖客户端提供的 serviceId
+//   - 只在必要时设置服务端管理的字段（状态、时间等）
 func (sr *serviceRegistry) RegisterService(ctx context.Context, clientID string, service *types.TunnelService) error {
+	// 验证必需字段
+	if service.TunnelServiceId == "" {
+		return fmt.Errorf("service ID is required")
+	}
+
 	// 验证服务配置
 	if err := sr.ValidateServiceConfig(ctx, service); err != nil {
 		return fmt.Errorf("service configuration validation failed: %w", err)
 	}
 
-	// 设置服务基本信息
-	service.TunnelClientId = clientID
-	service.TunnelServiceId = sr.generateServiceID(service.ServiceName)
-	service.ServiceStatus = types.ServiceStatusActive
-	service.RegisteredTime = time.Now()
-	service.LastActiveTime = &[]time.Time{time.Now()}[0]
-	service.AddTime = time.Now()
-	service.EditTime = time.Now()
-	service.AddWho = "system"
-	service.EditWho = "system"
-	service.ActiveFlag = types.ActiveFlagYes
+	// 检查服务ID是否已存在
+	sr.serviceMutex.RLock()
+	_, exists := sr.services[service.TunnelServiceId]
+	sr.serviceMutex.RUnlock()
 
-	// 分配远程端口
+	if exists {
+		return fmt.Errorf("service %s already registered", service.TunnelServiceId)
+	}
+
+	// 确保 clientID 一致
+	service.TunnelClientId = clientID
+
+	// 只在未设置时设置服务端管理的字段
+	if service.ServiceStatus == "" {
+		service.ServiceStatus = types.ServiceStatusActive
+	}
+
+	now := time.Now()
+	if service.RegisteredTime.IsZero() {
+		service.RegisteredTime = now
+	}
+	if service.LastActiveTime == nil {
+		service.LastActiveTime = &now
+	}
+	if service.AddTime.IsZero() {
+		service.AddTime = now
+	}
+	if service.EditTime.IsZero() {
+		service.EditTime = now
+	}
+	if service.AddWho == "" {
+		service.AddWho = "system"
+	}
+	if service.EditWho == "" {
+		service.EditWho = "system"
+	}
+	if service.ActiveFlag == "" {
+		service.ActiveFlag = types.ActiveFlagYes
+	}
+
+	// 分配远程端口（只在客户端未指定时）
 	if service.RemotePort == nil || *service.RemotePort == 0 {
 		port, err := sr.AllocatePort(ctx, service.ServiceType, nil)
 		if err != nil {
@@ -121,7 +166,7 @@ func (sr *serviceRegistry) RegisterService(ctx context.Context, clientID string,
 		}
 		service.RemotePort = &port
 	} else {
-		// 检查指定端口是否可用
+		// 检查客户端指定的端口是否可用
 		if err := sr.checkPortAvailable(*service.RemotePort, service.TunnelServiceId); err != nil {
 			return fmt.Errorf("port %d not available: %w", *service.RemotePort, err)
 		}
@@ -157,6 +202,60 @@ func (sr *serviceRegistry) RegisterService(ctx context.Context, clientID string,
 		"serviceType": service.ServiceType,
 		"remotePort":  *service.RemotePort,
 	})
+
+	// 启动代理服务器监听
+	if sr.proxyServer != nil {
+		proxyConfig := &ProxyConfig{
+			ProxyID:    service.TunnelServiceId,
+			ProxyType:  service.ServiceType,
+			ListenPort: *service.RemotePort,
+		}
+
+		if err := sr.proxyServer.StartProxy(ctx, proxyConfig); err != nil {
+			// 启动代理失败，回滚注册
+			logger.Error("Failed to start proxy server, rolling back service registration", map[string]interface{}{
+				"serviceId": service.TunnelServiceId,
+				"error":     err.Error(),
+			})
+
+			// 从内存索引中移除
+			sr.serviceMutex.Lock()
+			delete(sr.services, service.TunnelServiceId)
+			if serviceIDs, ok := sr.clientIndex[clientID]; ok {
+				var newServiceIDs []string
+				for _, id := range serviceIDs {
+					if id != service.TunnelServiceId {
+						newServiceIDs = append(newServiceIDs, id)
+					}
+				}
+				if len(newServiceIDs) == 0 {
+					delete(sr.clientIndex, clientID)
+				} else {
+					sr.clientIndex[clientID] = newServiceIDs
+				}
+			}
+			sr.serviceMutex.Unlock()
+
+			// 释放端口
+			if service.RemotePort != nil {
+				sr.ReleasePort(ctx, *service.RemotePort)
+			}
+
+			// 删除数据库记录
+			sr.storage.GetTunnelServiceRepository().Delete(ctx, service.TunnelServiceId)
+
+			return fmt.Errorf("failed to start proxy server: %w", err)
+		}
+
+		logger.Info("Proxy server started for service", map[string]interface{}{
+			"serviceId":  service.TunnelServiceId,
+			"remotePort": *service.RemotePort,
+		})
+	} else {
+		logger.Warn("ProxyServer not set, service registered but proxy not started", map[string]interface{}{
+			"serviceId": service.TunnelServiceId,
+		})
+	}
 
 	return nil
 }
@@ -200,6 +299,21 @@ func (sr *serviceRegistry) UnregisterService(ctx context.Context, serviceID stri
 
 	if !exists {
 		return fmt.Errorf("service %s not found", serviceID)
+	}
+
+	// 停止代理服务器
+	if sr.proxyServer != nil {
+		if err := sr.proxyServer.StopProxy(ctx, serviceID); err != nil {
+			logger.Error("Failed to stop proxy server", map[string]interface{}{
+				"error":     err.Error(),
+				"serviceId": serviceID,
+			})
+			// 继续执行清理，即使停止代理失败
+		} else {
+			logger.Info("Proxy server stopped for service", map[string]interface{}{
+				"serviceId": serviceID,
+			})
+		}
 	}
 
 	// 释放端口

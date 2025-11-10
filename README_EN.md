@@ -83,10 +83,12 @@ go mod download
 go run cmd/app/main.go
 ```
 
-More information:
-- Quick try: [Quick Start](docs/guide/quickstart.md)
-- Local environment setup: [Deployment Guide](docs/guide/deployment.md)
-- Detailed configuration: [Configuration Manual](docs/guide/configuration.md)
+**Access Console**
+- Browser: http://localhost:12003/gatewayweb
+- Default Username: `admin`
+- Default Password: `123456`
+
+---
 
 ## 🏗️ Architecture Overview
 
@@ -117,21 +119,19 @@ graph TB
     Gateway --> DB[Database]
 ```
 
-## 📚 Documentation Index
+## 📚 Documentation Navigation
 
-| Type | Description | Link |
-|------|-------------|------|
-| 🚀 **Quick Start** | 5-Minute Getting Started Guide | [Quick Start](docs/guide/quickstart.md) |
-| 🛠️ **Installation Guide** | Detailed installation and deployment instructions | [Installation Guide](docs/guide/installation.md) |
-| 📝 **Deployment Guide** | Deployment and operations guide | [Deployment Guide](docs/guide/deployment.md) |
-| ⚙️ **Configuration Manual** | Full configuration reference | [Configuration Manual](docs/guide/configuration.md) |
-| 📖 **User Guide** | Feature usage and best practices | [User Guide](docs/guide/user-guide.md) |
-| 🔧 **Developer Guide** | Development, build, and testing | [Developer Guide](docs/guide/development.md) |
-| 🏗️ **Architecture Design** | System architecture and design concepts | [Architecture Design](docs/guide/architecture.md) |
-| 💾 **Database Specification** | Database design standards | [Database Specification](docs/database/naming-convention.md) |
-| 🐞 **Debugging Guide** | Debugging tips and error handling | [Debugging Guide](docs/debugging/debugging-guide.md) |
-| 🔍 **Error Handling** | Error handling best practices | [Error Handling](docs/debugging/error-handling.md) |
-| 🛡️ **Security Guide** | Security best practices and vulnerability reporting | [Security Guide](SECURITY.md) |
+| Chapter | Document | Description |
+|---------|----------|-------------|
+| 📖 | **[Complete Documentation](docs/en/README.md)** | View all English documentation |
+| 01 | [Project Introduction](docs/en/01-introduction.md) | Understand core capabilities, system architecture, and use cases |
+| 02 | [Development Guide](docs/en/02-quick-start.md) | Development environment setup, project structure, and quick start |
+| 03 | [Installation & Deployment](docs/en/03-installation.md) | Detailed installation and deployment steps |
+| 04 | [Containerized Deployment](docs/en/04-container-deployment.md) | Docker and Kubernetes containerized deployment |
+| 05 | [Database Specifications](docs/en/05-database-specs.md) | Database design specifications and best practices |
+| 06 | [Debugging Guide](docs/en/06-debugging.md) | Debugging techniques, performance analysis, and troubleshooting |
+| 07 | [Error Handling](docs/en/07-error-handling.md) | Error handling mechanisms and best practices |
+| 🛡️ | [Security Guide](SECURITY.md) | Security best practices and vulnerability reporting |
 
 ## 📜 Code of Conduct
 

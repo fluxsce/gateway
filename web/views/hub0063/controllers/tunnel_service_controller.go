@@ -117,6 +117,14 @@ func (c *TunnelServiceController) CreateTunnelService(ctx *gin.Context) {
 		return
 	}
 
+	// 设置租户ID
+	tenantId := request.GetTenantID(ctx)
+	if tenantId == "" {
+		response.ErrorJSON(ctx, "租户ID不能为空", "CREATE_TUNNEL_SERVICE")
+		return
+	}
+	service.TenantId = tenantId
+
 	// 设置创建人
 	currentUser := c.getCurrentUser(ctx)
 	service.AddWho = currentUser
@@ -210,173 +218,48 @@ func (c *TunnelServiceController) GetServiceStats(ctx *gin.Context) {
 	response.SuccessJSON(ctx, stats, "GET_SERVICE_STATS")
 }
 
-// GetServiceTypeOptions 获取服务类型选项
-func (c *TunnelServiceController) GetServiceTypeOptions(ctx *gin.Context) {
-	options := []gin.H{
-		{"value": "tcp", "label": "TCP"},
-		{"value": "udp", "label": "UDP"},
-		{"value": "http", "label": "HTTP"},
-		{"value": "https", "label": "HTTPS"},
-		{"value": "stcp", "label": "STCP（安全TCP）"},
-		{"value": "sudp", "label": "SUDP（安全UDP）"},
-		{"value": "xtcp", "label": "XTCP（P2P TCP）"},
-	}
-
-	response.SuccessJSON(ctx, options, "GET_SERVICE_TYPE_OPTIONS")
-}
-
-// GetServicesByClient 按客户端查询服务列表
-func (c *TunnelServiceController) GetServicesByClient(ctx *gin.Context) {
-	var req models.ServicesByClientRequest
-	if err := request.Bind(ctx, &req); err != nil {
-		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "GET_SERVICES_BY_CLIENT")
-		return
-	}
-
-	if strings.TrimSpace(req.TunnelClientId) == "" {
-		response.ErrorJSON(ctx, "客户端ID不能为空", "GET_SERVICES_BY_CLIENT")
-		return
-	}
-
-	services, err := c.serviceDAO.GetServicesByClient(&req)
-	if err != nil {
-		response.ErrorJSON(ctx, "查询客户端服务列表失败: "+err.Error(), "GET_SERVICES_BY_CLIENT")
-		return
-	}
-
-	response.SuccessJSON(ctx, services, "GET_SERVICES_BY_CLIENT")
-}
-
-// AllocateRemotePort 分配远程端口
-func (c *TunnelServiceController) AllocateRemotePort(ctx *gin.Context) {
-	var req models.AllocatePortRequest
-	if err := request.Bind(ctx, &req); err != nil {
-		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "ALLOCATE_REMOTE_PORT")
-		return
-	}
-
-	if strings.TrimSpace(req.TunnelServiceId) == "" {
-		response.ErrorJSON(ctx, "服务ID不能为空", "ALLOCATE_REMOTE_PORT")
-		return
-	}
-
-	result, err := c.serviceDAO.AllocateRemotePort(req.TunnelServiceId, req.PreferredPort)
-	if err != nil {
-		response.ErrorJSON(ctx, "分配远程端口失败: "+err.Error(), "ALLOCATE_REMOTE_PORT")
-		return
-	}
-
-	logger.Info("分配远程端口成功", "tunnelServiceId", req.TunnelServiceId, "remotePort", result.RemotePort)
-	response.SuccessJSON(ctx, result, "ALLOCATE_REMOTE_PORT")
-}
-
-// ReleaseRemotePort 释放远程端口
-func (c *TunnelServiceController) ReleaseRemotePort(ctx *gin.Context) {
-	var req models.ReleasePortRequest
-	if err := request.Bind(ctx, &req); err != nil {
-		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "RELEASE_REMOTE_PORT")
-		return
-	}
-
-	if strings.TrimSpace(req.TunnelServiceId) == "" {
-		response.ErrorJSON(ctx, "服务ID不能为空", "RELEASE_REMOTE_PORT")
-		return
-	}
-
-	err := c.serviceDAO.ReleaseRemotePort(req.TunnelServiceId)
-	if err != nil {
-		response.ErrorJSON(ctx, "释放远程端口失败: "+err.Error(), "RELEASE_REMOTE_PORT")
-		return
-	}
-
-	logger.Info("释放远程端口成功", "tunnelServiceId", req.TunnelServiceId)
-	response.SuccessJSON(ctx, gin.H{
-		"tunnelServiceId": req.TunnelServiceId,
-		"message":         "端口已释放",
-	}, "RELEASE_REMOTE_PORT")
-}
-
-// GetServiceConnections 获取服务连接列表
-func (c *TunnelServiceController) GetServiceConnections(ctx *gin.Context) {
+// RegisterService 注册服务到隧道管理器
+// 将服务注册到隧道系统，使其可以被客户端使用
+func (c *TunnelServiceController) RegisterService(ctx *gin.Context) {
 	tunnelServiceId := ctx.PostForm("tunnelServiceId")
 	if tunnelServiceId == "" {
-		response.ErrorJSON(ctx, "服务ID不能为空", "GET_SERVICE_CONNECTIONS")
+		response.ErrorJSON(ctx, "服务ID不能为空", "REGISTER_SERVICE")
 		return
 	}
 
-	// TODO: 实现从 hub0065 模块查询连接列表
-	// 这里暂时返回空列表，等 hub0065 模块开发完成后再实现
-	response.SuccessJSON(ctx, []interface{}{}, "GET_SERVICE_CONNECTIONS")
-}
-
-// GetServiceTraffic 获取服务流量统计
-func (c *TunnelServiceController) GetServiceTraffic(ctx *gin.Context) {
-	var req models.ServiceTrafficRequest
-	if err := request.Bind(ctx, &req); err != nil {
-		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "GET_SERVICE_TRAFFIC")
-		return
-	}
-
-	if strings.TrimSpace(req.TunnelServiceId) == "" {
-		response.ErrorJSON(ctx, "服务ID不能为空", "GET_SERVICE_TRAFFIC")
-		return
-	}
-
-	// TODO: 实现从 hub0066 模块查询流量统计
-	// 这里暂时返回模拟数据
-	response.SuccessJSON(ctx, models.ServiceTrafficResponse{
-		TunnelServiceId:   req.TunnelServiceId,
-		ServiceName:       "service-name",
-		TotalConnections:  0,
-		ActiveConnections: 0,
-		TotalTraffic:      0,
-		AvgResponseTime:   0,
-		TrafficByHour:     []int64{},
-	}, "GET_SERVICE_TRAFFIC")
-}
-
-// EnableService 启用服务
-func (c *TunnelServiceController) EnableService(ctx *gin.Context) {
-	tunnelServiceId := ctx.PostForm("tunnelServiceId")
-	if tunnelServiceId == "" {
-		response.ErrorJSON(ctx, "服务ID不能为空", "ENABLE_SERVICE")
-		return
-	}
-
-	currentUser := c.getCurrentUser(ctx)
-
-	err := c.serviceDAO.EnableService(tunnelServiceId, currentUser)
+	// 调用DAO层注册服务
+	err := c.serviceDAO.RegisterService(tunnelServiceId)
 	if err != nil {
-		response.ErrorJSON(ctx, "启用服务失败: "+err.Error(), "ENABLE_SERVICE")
+		response.ErrorJSON(ctx, "注册服务失败: "+err.Error(), "REGISTER_SERVICE")
 		return
 	}
 
-	logger.Info("启用服务成功", "tunnelServiceId", tunnelServiceId, "user", currentUser)
+	logger.Info("服务注册成功", "tunnelServiceId", tunnelServiceId)
 	response.SuccessJSON(ctx, gin.H{
 		"tunnelServiceId": tunnelServiceId,
-		"message":         "服务已启用",
-	}, "ENABLE_SERVICE")
+		"message":         "服务注册成功",
+	}, "REGISTER_SERVICE")
 }
 
-// DisableService 禁用服务
-func (c *TunnelServiceController) DisableService(ctx *gin.Context) {
+// UnregisterService 从隧道管理器注销服务
+// 从隧道系统中注销服务，停止服务的代理功能
+func (c *TunnelServiceController) UnregisterService(ctx *gin.Context) {
 	tunnelServiceId := ctx.PostForm("tunnelServiceId")
 	if tunnelServiceId == "" {
-		response.ErrorJSON(ctx, "服务ID不能为空", "DISABLE_SERVICE")
+		response.ErrorJSON(ctx, "服务ID不能为空", "UNREGISTER_SERVICE")
 		return
 	}
 
-	currentUser := c.getCurrentUser(ctx)
-
-	err := c.serviceDAO.DisableService(tunnelServiceId, currentUser)
+	// 调用DAO层注销服务
+	err := c.serviceDAO.UnregisterService(tunnelServiceId)
 	if err != nil {
-		response.ErrorJSON(ctx, "禁用服务失败: "+err.Error(), "DISABLE_SERVICE")
+		response.ErrorJSON(ctx, "注销服务失败: "+err.Error(), "UNREGISTER_SERVICE")
 		return
 	}
 
-	logger.Info("禁用服务成功", "tunnelServiceId", tunnelServiceId, "user", currentUser)
+	logger.Info("服务注销成功", "tunnelServiceId", tunnelServiceId)
 	response.SuccessJSON(ctx, gin.H{
 		"tunnelServiceId": tunnelServiceId,
-		"message":         "服务已禁用",
-	}, "DISABLE_SERVICE")
+		"message":         "服务注销成功",
+	}, "UNREGISTER_SERVICE")
 }

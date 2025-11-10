@@ -41,13 +41,13 @@ func RegisterHub0062Routes(router *gin.Engine, db database.Database) {
 		protectedGroup.POST("/updateTunnelClient", clientController.UpdateTunnelClient)
 		protectedGroup.POST("/deleteTunnelClient", clientController.DeleteTunnelClient)
 
-		// 统计和状态查询
+		// 统计信息
 		protectedGroup.POST("/getClientStats", clientController.GetClientStats)
-		protectedGroup.POST("/getClientStatus", clientController.GetClientStatus)
 
 		// 客户端管理操作
-		protectedGroup.POST("/resetAuthToken", clientController.ResetAuthToken)
-		protectedGroup.POST("/disconnectClient", clientController.DisconnectClient)
+		protectedGroup.POST("/startClient", clientController.StartClient)
+		protectedGroup.POST("/stopClient", clientController.StopClient)
+		protectedGroup.POST("/restartClient", clientController.RestartClient)
 
 		// 批量操作
 		protectedGroup.POST("/batchEnableClients", clientController.BatchEnableClients)
@@ -56,10 +56,7 @@ func RegisterHub0062Routes(router *gin.Engine, db database.Database) {
 		// 关联数据查询
 		protectedGroup.POST("/getClientServices", clientController.GetClientServices)
 		protectedGroup.POST("/getClientSessions", clientController.GetClientSessions)
-
-		// 选项数据
-		protectedGroup.POST("/getConnectionStatusOptions", clientController.GetConnectionStatusOptions)
 	}
 
-	logger.Info("模块路由注册完成", "module", ModuleName, "prefix", APIPrefix, "routes", 13)
+	logger.Info("模块路由注册完成", "module", ModuleName, "prefix", APIPrefix, "routes", 11)
 }

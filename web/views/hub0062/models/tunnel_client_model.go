@@ -17,6 +17,7 @@ type TunnelClient struct {
 	ClientVersion     string `json:"clientVersion" form:"clientVersion" query:"clientVersion" db:"clientVersion"`                 // 客户端版本
 	OperatingSystem   string `json:"operatingSystem" form:"operatingSystem" query:"operatingSystem" db:"operatingSystem"`         // 操作系统
 	ClientIpAddress   string `json:"clientIpAddress" form:"clientIpAddress" query:"clientIpAddress" db:"clientIpAddress"`         // 客户端IP地址
+	ClientMacAddress  string `json:"clientMacAddress" form:"clientMacAddress" query:"clientMacAddress" db:"clientMacAddress"`     // 客户端MAC地址
 
 	// 服务器连接配置
 	ServerAddress string `json:"serverAddress" form:"serverAddress" query:"serverAddress" db:"serverAddress"` // 服务器地址
@@ -42,10 +43,12 @@ type TunnelClient struct {
 	ConnectionStatus   string     `json:"connectionStatus" form:"connectionStatus" query:"connectionStatus" db:"connectionStatus"`         // 连接状态(connected,disconnected,connecting,error)
 	LastConnectTime    *time.Time `json:"lastConnectTime" form:"lastConnectTime" query:"lastConnectTime" db:"lastConnectTime"`             // 最后连接时间
 	LastDisconnectTime *time.Time `json:"lastDisconnectTime" form:"lastDisconnectTime" query:"lastDisconnectTime" db:"lastDisconnectTime"` // 最后断开时间
-	DisconnectReason   string     `json:"disconnectReason" form:"disconnectReason" query:"disconnectReason" db:"disconnectReason"`         // 断开原因
 
 	// 服务统计
 	ServiceCount int `json:"serviceCount" form:"serviceCount" query:"serviceCount" db:"serviceCount"` // 服务数量
+
+	// 配置信息
+	ClientConfig string `json:"clientConfig,omitempty" form:"clientConfig" query:"clientConfig" db:"clientConfig"` // 客户端配置，JSON格式
 
 	// 通用审计字段
 	AddTime        time.Time `json:"addTime" form:"addTime" query:"addTime" db:"addTime"`                             // 创建时间
@@ -75,41 +78,12 @@ type TunnelClientQueryRequest struct {
 
 // TunnelClientStats 客户端统计信息
 type TunnelClientStats struct {
-	TotalClients        int `json:"totalClients"`        // 总客户端数量
-	ConnectedClients    int `json:"connectedClients"`    // 已连接客户端数量
-	DisconnectedClients int `json:"disconnectedClients"` // 已断开客户端数量
-	ErrorClients        int `json:"errorClients"`        // 错误状态客户端数量
-	TotalServices       int `json:"totalServices"`       // 总服务数量
-	TotalReconnects     int `json:"totalReconnects"`     // 总重连次数
-}
-
-// ClientStatusResponse 客户端状态响应
-type ClientStatusResponse struct {
-	TunnelClientId   string     `json:"tunnelClientId"`   // 客户端ID
-	ClientName       string     `json:"clientName"`       // 客户端名称
-	ConnectionStatus string     `json:"connectionStatus"` // 连接状态
-	LastConnectTime  *time.Time `json:"lastConnectTime"`  // 最后连接时间
-	LastHeartbeat    *time.Time `json:"lastHeartbeat"`    // 最后心跳时间
-	ServiceCount     int        `json:"serviceCount"`     // 服务数量
-	TotalConnectTime int64      `json:"totalConnectTime"` // 总连接时长(秒)
-	ReconnectCount   int        `json:"reconnectCount"`   // 重连次数
-}
-
-// ResetAuthTokenRequest 重置认证令牌请求
-type ResetAuthTokenRequest struct {
-	TunnelClientId string `json:"tunnelClientId" form:"tunnelClientId" binding:"required"` // 客户端ID
-}
-
-// ResetAuthTokenResponse 重置认证令牌响应
-type ResetAuthTokenResponse struct {
-	TunnelClientId string `json:"tunnelClientId"` // 客户端ID
-	AuthToken      string `json:"authToken"`      // 新的认证令牌
-}
-
-// DisconnectClientRequest 断开客户端连接请求
-type DisconnectClientRequest struct {
-	TunnelClientId string `json:"tunnelClientId" form:"tunnelClientId" binding:"required"` // 客户端ID
-	Reason         string `json:"reason" form:"reason"`                                    // 断开原因
+	TotalClients        int `json:"totalClients" db:"totalClients"`               // 总客户端数量
+	ConnectedClients    int `json:"connectedClients" db:"connectedClients"`       // 已连接客户端数量
+	DisconnectedClients int `json:"disconnectedClients" db:"disconnectedClients"` // 已断开客户端数量
+	ErrorClients        int `json:"errorClients" db:"errorClients"`               // 错误状态客户端数量
+	TotalServices       int `json:"totalServices" db:"totalServices"`             // 总服务数量
+	TotalReconnects     int `json:"totalReconnects" db:"totalReconnects"`         // 总重连次数
 }
 
 // BatchOperationRequest 批量操作请求

@@ -56,6 +56,17 @@ app:
     enabled: true # 是否启用定时任务
     sftp:
       enabled: true # 是否启用sftp
+  # 隧道管理器配置
+  tunnel:
+    enabled: true                  # 是否启用隧道管理器
+    auto_start: true                # 是否自动启动所有隧道
+    tenant_id: "default"            # 租户ID
+  
+  # 注册中心配置
+  registry:
+    enabled: true                   # 是否启用注册中心
+    tenant_id: "default"            # 租户ID
+  
   # pprof性能分析配置
   pprof:
     enabled: false                    # 是否启用pprof服务

@@ -13,6 +13,7 @@ import (
 
 	"gateway/internal/tunnel/types"
 	"gateway/pkg/logger"
+	"gateway/pkg/utils/random"
 )
 
 // controlServer 控制服务器实现
@@ -56,7 +57,7 @@ func NewControlServerImpl(tunnelServer TunnelServer) ControlServer {
 	return &controlServer{
 		tunnelServer:     tunnelServer,
 		activeConns:      make(map[string]*controlConnection),
-		heartbeatTimeout: 30 * time.Second,
+		heartbeatTimeout: 180 * time.Second,
 	}
 }
 
@@ -128,12 +129,18 @@ func (s *controlServer) Stop(ctx context.Context) error {
 		s.listener.Close()
 	}
 
-	// 关闭所有活跃连接
-	s.connMutex.Lock()
+	// 收集所有需要关闭的连接（不持有锁）
+	s.connMutex.RLock()
+	connsToClose := make([]*controlConnection, 0, len(s.activeConns))
 	for _, conn := range s.activeConns {
+		connsToClose = append(connsToClose, conn)
+	}
+	s.connMutex.RUnlock()
+
+	// 在不持有锁的情况下关闭所有连接
+	for _, conn := range connsToClose {
 		conn.conn.Close()
 	}
-	s.connMutex.Unlock()
 
 	// 等待所有协程退出
 	done := make(chan struct{})
@@ -286,18 +293,21 @@ func (s *controlServer) handleControlConnection(ctx context.Context, conn net.Co
 //   - 查找指定客户端的控制连接
 //   - 发送控制消息到客户端
 func (s *controlServer) SendMessageToClient(clientID string, message *types.ControlMessage) error {
+	// 快速查找连接（短时间持有读锁）
 	s.connMutex.RLock()
 	conn, exists := s.activeConns[clientID]
+	authenticated := exists && conn.authenticated
 	s.connMutex.RUnlock()
 
 	if !exists {
 		return fmt.Errorf("client %s not found or not connected", clientID)
 	}
 
-	if !conn.authenticated {
+	if !authenticated {
 		return fmt.Errorf("client %s not authenticated", clientID)
 	}
 
+	// 在不持有锁的情况下发送消息
 	return s.sendControlMessage(conn, message)
 }
 
@@ -454,19 +464,26 @@ func (s *controlServer) handleAuth(conn *controlConnection, msg *types.ControlMe
 		return s.sendResponse(conn, msg, false, "missing token")
 	}
 
-	// 验证客户端和令牌
+	// 验证客户端和令牌（不持有锁）
 	config := s.tunnelServer.GetConfig()
 	if config.AuthToken != token {
 		return s.sendResponse(conn, msg, false, "invalid token")
 	}
 
-	// 设置连接状态
+	// 检查是否已有相同客户端连接（需要处理重复连接）
+	s.connMutex.Lock()
+	if existingConn, exists := s.activeConns[clientID]; exists {
+		// 关闭旧连接
+		logger.Warn("Duplicate client connection, closing old connection", map[string]interface{}{
+			"clientId": clientID,
+		})
+		go existingConn.conn.Close()
+	}
+
+	// 设置连接状态并添加到活跃连接
 	conn.clientID = clientID
 	conn.sessionID = msg.SessionID
 	conn.authenticated = true
-
-	// 添加到活跃连接
-	s.connMutex.Lock()
 	s.activeConns[clientID] = conn
 	s.connMutex.Unlock()
 
@@ -494,64 +511,118 @@ func (s *controlServer) handleRegisterService(conn *controlConnection, msg *type
 	}
 
 	// 解析服务配置
-	serviceData, ok := msg.Data["service"].(map[string]interface{})
+	// 关键改进：直接从客户端接收完整的 types.TunnelService 对象
+	// 避免字段遗漏和类型转换错误
+	serviceData, ok := msg.Data["service"]
 	if !ok {
 		return s.sendResponse(conn, msg, false, "missing service data")
 	}
 
-	serviceName, ok := serviceData["name"].(string)
-	if !ok {
-		return s.sendResponse(conn, msg, false, "missing service name")
+	// 将 service 数据转换为 types.TunnelService
+	// 使用 JSON 序列化/反序列化来处理类型转换
+	var service types.TunnelService
+
+	// 将 serviceData 重新编码为 JSON，然后解码到 service 结构体
+	// 这样可以正确处理 json tag 的映射
+	serviceJSON, err := json.Marshal(serviceData)
+	if err != nil {
+		logger.Error("Failed to marshal service data", map[string]interface{}{
+			"error":       err.Error(),
+			"clientId":    conn.clientID,
+			"serviceData": serviceData,
+		})
+		return s.sendResponse(conn, msg, false, fmt.Sprintf("failed to parse service data: %v", err))
 	}
 
-	// 创建服务对象
-	service := &types.TunnelService{
-		TunnelServiceId:  generateID("service"),
-		TunnelClientId:   conn.clientID,
-		ServiceName:      serviceName,
-		ServiceType:      getStringValue(serviceData, "type", "tcp"),
-		LocalAddress:     getStringValue(serviceData, "localAddress", "127.0.0.1"),
-		LocalPort:        getIntValue(serviceData, "localPort", 80),
-		ServiceStatus:    types.ServiceStatusActive,
-		RegisteredTime:   time.Now(),
-		LastActiveTime:   &[]time.Time{time.Now()}[0],
-		ConnectionCount:  0,
-		TotalConnections: 0,
-		TotalTraffic:     0,
-		AddTime:          time.Now(),
-		EditTime:         time.Now(),
-		ActiveFlag:       types.ActiveFlagYes,
+	if err := json.Unmarshal(serviceJSON, &service); err != nil {
+		logger.Error("Failed to unmarshal service data", map[string]interface{}{
+			"error":       err.Error(),
+			"clientId":    conn.clientID,
+			"serviceJSON": string(serviceJSON),
+		})
+		return s.sendResponse(conn, msg, false, fmt.Sprintf("failed to unmarshal service data: %v", err))
 	}
+
+	// 验证必需字段
+	if service.TunnelServiceId == "" {
+		logger.Warn("Service registration missing serviceId", map[string]interface{}{
+			"clientId":    conn.clientID,
+			"serviceJSON": string(serviceJSON),
+			"service":     service,
+		})
+		return s.sendResponse(conn, msg, false, "missing serviceId")
+	}
+
+	if service.ServiceName == "" {
+		return s.sendResponse(conn, msg, false, "missing serviceName")
+	}
+
+	// 强制覆盖客户端ID，确保一致性
+	service.TunnelClientId = conn.clientID
+
+	// 服务器端设置的状态和时间字段
+	// 这些字段由服务器管理，客户端提供的值会被覆盖
+	service.ServiceStatus = types.ServiceStatusActive
+	now := time.Now()
+	service.RegisteredTime = now
+	service.LastActiveTime = &now
+	service.ConnectionCount = 0
+	service.TotalConnections = 0
+	service.TotalTraffic = 0
+	service.AddTime = now
+	service.EditTime = now
+	service.ActiveFlag = types.ActiveFlagYes
+
+	// 如果客户端没有指定远程端口，服务器需要分配一个
+	// （这部分逻辑由服务注册器处理）
+
+	logger.Info("Registering service with complete data", map[string]interface{}{
+		"clientId":      conn.clientID,
+		"serviceId":     service.TunnelServiceId,
+		"serviceName":   service.ServiceName,
+		"serviceType":   service.ServiceType,
+		"localAddress":  service.LocalAddress,
+		"localPort":     service.LocalPort,
+		"remotePort":    service.RemotePort,
+		"customDomains": service.CustomDomains,
+		"subDomain":     service.SubDomain,
+	})
 
 	// 通过隧道服务器的服务注册器注册服务
-	if err := s.tunnelServer.GetServiceRegistry().RegisterService(context.Background(), conn.clientID, service); err != nil {
+	if err := s.tunnelServer.GetServiceRegistry().RegisterService(context.Background(), conn.clientID, &service); err != nil {
 		logger.Error("Failed to register service with service registry", map[string]interface{}{
 			"error":       err.Error(),
 			"clientId":    conn.clientID,
-			"serviceName": serviceName,
+			"serviceId":   service.TunnelServiceId,
+			"serviceName": service.ServiceName,
 		})
 		return s.sendResponse(conn, msg, false, fmt.Sprintf("failed to register service: %v", err))
 	}
 
 	// 添加到连接的服务列表
 	conn.serviceMutex.Lock()
-	conn.services[serviceName] = service
+	conn.services[service.ServiceName] = &service
 	conn.serviceMutex.Unlock()
 
 	logger.Info("Service registered successfully", map[string]interface{}{
 		"clientId":    conn.clientID,
-		"serviceName": serviceName,
+		"serviceId":   service.TunnelServiceId,
+		"serviceName": service.ServiceName,
 		"serviceType": service.ServiceType,
 		"localPort":   service.LocalPort,
-		"remotePort":  *service.RemotePort,
+		"remotePort":  service.RemotePort,
 	})
 
 	// 返回成功响应，包含分配的远程端口
 	responseData := map[string]interface{}{
-		"success":    true,
-		"message":    "service registered successfully",
-		"serviceId":  service.TunnelServiceId,
-		"remotePort": *service.RemotePort,
+		"success":   true,
+		"message":   "service registered successfully",
+		"serviceId": service.TunnelServiceId,
+	}
+
+	// 如果有远程端口，返回给客户端
+	if service.RemotePort != nil {
+		responseData["remotePort"] = *service.RemotePort
 	}
 
 	response := types.ControlMessage{
@@ -650,9 +721,17 @@ func (s *controlServer) removeConnection(conn *controlConnection) {
 
 	// 控制连接只负责通信，不管理监听器
 
-	// 注销所有服务
+	// 收集需要注销的服务（短时间持有锁）
 	conn.serviceMutex.Lock()
+	servicesToUnregister := make([]*types.TunnelService, 0, len(conn.services))
 	for _, service := range conn.services {
+		servicesToUnregister = append(servicesToUnregister, service)
+	}
+	conn.services = make(map[string]*types.TunnelService)
+	conn.serviceMutex.Unlock()
+
+	// 在不持有锁的情况下注销所有服务
+	for _, service := range servicesToUnregister {
 		if err := s.tunnelServer.GetServiceRegistry().UnregisterService(context.Background(), service.TunnelServiceId); err != nil {
 			logger.Error("Failed to unregister service during connection cleanup", map[string]interface{}{
 				"error":     err.Error(),
@@ -661,15 +740,15 @@ func (s *controlServer) removeConnection(conn *controlConnection) {
 			})
 		}
 	}
-	conn.services = make(map[string]*types.TunnelService)
-	conn.serviceMutex.Unlock()
 
+	// 从活跃连接中移除（短时间持有锁）
 	s.connMutex.Lock()
 	delete(s.activeConns, conn.clientID)
 	s.connMutex.Unlock()
 
 	logger.Info("Connection removed and all services cleaned up", map[string]interface{}{
-		"clientId": conn.clientID,
+		"clientId":     conn.clientID,
+		"serviceCount": len(servicesToUnregister),
 	})
 }
 
@@ -688,8 +767,17 @@ func getIntValue(data map[string]interface{}, key string, defaultValue int) int 
 	return defaultValue
 }
 
+// generateID 生成唯一标识符
+//
+// 使用高强度随机字符串生成器，确保在高并发和分布式环境下的唯一性。
+//
+// 参数:
+//   - prefix: ID前缀，用于标识ID类型
+//
+// 返回:
+//   - string: 唯一标识符，格式为 <prefix>_<20位随机字符串>
 func generateID(prefix string) string {
-	return fmt.Sprintf("%s_%d", prefix, time.Now().UnixNano())
+	return fmt.Sprintf("%s_%s", prefix, random.GenerateRandomString(20))
 }
 
 // sendControlMessage 发送控制消息

@@ -7,11 +7,13 @@ import (
 	"sync"
 	"time"
 
+	"gateway/internal/tunnel/types"
 	"gateway/pkg/logger"
 )
 
 // heartbeatManager 心跳管理器实现
 type heartbeatManager struct {
+	client        *tunnelClient
 	controlConn   ControlConnection
 	interval      time.Duration
 	lastHeartbeat time.Time
@@ -24,9 +26,10 @@ type heartbeatManager struct {
 }
 
 // NewHeartbeatManager 创建心跳管理器实例
-func NewHeartbeatManager(controlConn ControlConnection) HeartbeatManager {
+func NewHeartbeatManager(client *tunnelClient) HeartbeatManager {
 	return &heartbeatManager{
-		controlConn: controlConn,
+		client:      client,
+		controlConn: client.controlConn,
 		stats: &HeartbeatStats{
 			TotalSent:      0,
 			TotalReceived:  0,
@@ -96,9 +99,9 @@ func (hm *heartbeatManager) Stop(ctx context.Context) error {
 func (hm *heartbeatManager) SendHeartbeat(ctx context.Context) error {
 	start := time.Now()
 
-	heartbeatMsg := &ControlMessage{
-		Type:      MessageTypeHeartbeat,
-		RequestID: hm.generateRequestID(),
+	heartbeatMsg := &types.ControlMessage{
+		Type:      types.MessageTypeHeartbeat,
+		SessionID: hm.generateRequestID(),
 		Data:      map[string]interface{}{},
 		Timestamp: start,
 	}
@@ -112,6 +115,25 @@ func (hm *heartbeatManager) SendHeartbeat(ctx context.Context) error {
 	latency := time.Since(start).Milliseconds()
 	hm.updateStats(true, float64(latency))
 	hm.lastHeartbeat = time.Now()
+
+	// 更新数据库心跳时间（定期更新，避免频繁写数据库）
+	if hm.client != nil && hm.client.storageManager != nil {
+		// 只有在心跳间隔较长（大于10秒）或每5次心跳更新一次数据库
+		if hm.interval > 10*time.Second || hm.stats.TotalSent%5 == 0 {
+			go func() {
+				if err := hm.client.storageManager.GetTunnelClientRepository().UpdateHeartbeat(
+					context.Background(),
+					hm.client.config.TunnelClientId,
+					hm.lastHeartbeat,
+				); err != nil {
+					logger.Debug("Failed to update heartbeat in database", map[string]interface{}{
+						"clientId": hm.client.config.TunnelClientId,
+						"error":    err.Error(),
+					})
+				}
+			}()
+		}
+	}
 
 	return nil
 }

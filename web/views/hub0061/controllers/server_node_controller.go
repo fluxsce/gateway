@@ -70,19 +70,15 @@ func (c *ServerNodeController) QueryServerNodes(ctx *gin.Context) {
 
 // GetServerNode 获取服务器节点详情
 func (c *ServerNodeController) GetServerNode(ctx *gin.Context) {
-	type Request struct {
-		ServerNodeId string `json:"serverNodeId" binding:"required"`
-	}
-
-	var req Request
-	if err := request.Bind(ctx, &req); err != nil {
-		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "GET_SERVER_NODE")
+	serverNodeId := request.GetParam(ctx, "serverNodeId")
+	if serverNodeId == "" {
+		response.ErrorJSON(ctx, "参数格式错误: serverNodeId不能为空", "GET_SERVER_NODE")
 		return
 	}
 
-	node, err := c.serverNodeDAO.GetServerNode(req.ServerNodeId)
+	node, err := c.serverNodeDAO.GetServerNode(serverNodeId)
 	if err != nil {
-		logger.Error("获取节点详情失败", "serverNodeId", req.ServerNodeId, "error", err)
+		logger.Error("获取节点详情失败", "serverNodeId", serverNodeId, "error", err)
 		response.ErrorJSON(ctx, "获取失败: "+err.Error(), "GET_SERVER_NODE")
 		return
 	}
@@ -123,6 +119,14 @@ func (c *ServerNodeController) CreateServerNode(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "目标端口必须在1-65535之间", "CREATE_SERVER_NODE")
 		return
 	}
+
+	// 设置租户ID
+	tenantId := request.GetTenantID(ctx)
+	if tenantId == "" {
+		response.ErrorJSON(ctx, "租户ID不能为空", "CREATE_SERVER_NODE")
+		return
+	}
+	node.TenantId = tenantId
 
 	// 生成ID和审计字段
 	node.ServerNodeId = random.Generate32BitRandomString()
@@ -182,25 +186,21 @@ func (c *ServerNodeController) UpdateServerNode(ctx *gin.Context) {
 
 // DeleteServerNode 删除服务器节点
 func (c *ServerNodeController) DeleteServerNode(ctx *gin.Context) {
-	type Request struct {
-		ServerNodeId string `json:"serverNodeId" binding:"required"`
-	}
-
-	var req Request
-	if err := request.Bind(ctx, &req); err != nil {
-		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "DELETE_SERVER_NODE")
+	serverNodeId := request.GetParam(ctx, "serverNodeId")
+	if serverNodeId == "" {
+		response.ErrorJSON(ctx, "参数格式错误: serverNodeId不能为空", "DELETE_SERVER_NODE")
 		return
 	}
 
 	editWho := c.getCurrentUser(ctx)
-	deletedNode, err := c.serverNodeDAO.DeleteServerNode(req.ServerNodeId, editWho)
+	deletedNode, err := c.serverNodeDAO.DeleteServerNode(serverNodeId, editWho)
 	if err != nil {
-		logger.Error("删除节点失败", "serverNodeId", req.ServerNodeId, "error", err)
+		logger.Error("删除节点失败", "serverNodeId", serverNodeId, "error", err)
 		response.ErrorJSON(ctx, "删除失败: "+err.Error(), "DELETE_SERVER_NODE")
 		return
 	}
 
-	logger.Info("删除服务器节点成功", "serverNodeId", req.ServerNodeId)
+	logger.Info("删除服务器节点成功", "serverNodeId", serverNodeId)
 	response.SuccessJSON(ctx, deletedNode, "DELETE_SERVER_NODE")
 }
 
@@ -243,19 +243,15 @@ func (c *ServerNodeController) CheckPortConflict(ctx *gin.Context) {
 
 // GetNodesByServer 按服务器查询节点列表
 func (c *ServerNodeController) GetNodesByServer(ctx *gin.Context) {
-	type Request struct {
-		TunnelServerId string `json:"tunnelServerId" binding:"required"`
-	}
-
-	var req Request
-	if err := request.Bind(ctx, &req); err != nil {
-		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "GET_NODES_BY_SERVER")
+	tunnelServerId := request.GetParam(ctx, "tunnelServerId")
+	if tunnelServerId == "" {
+		response.ErrorJSON(ctx, "参数格式错误: tunnelServerId不能为空", "GET_NODES_BY_SERVER")
 		return
 	}
 
-	nodes, err := c.serverNodeDAO.GetNodesByServer(req.TunnelServerId)
+	nodes, err := c.serverNodeDAO.GetNodesByServer(tunnelServerId)
 	if err != nil {
-		logger.Error("查询服务器节点列表失败", "tunnelServerId", req.TunnelServerId, "error", err)
+		logger.Error("查询服务器节点列表失败", "tunnelServerId", tunnelServerId, "error", err)
 		response.ErrorJSON(ctx, "查询失败: "+err.Error(), "GET_NODES_BY_SERVER")
 		return
 	}
@@ -271,48 +267,40 @@ func (c *ServerNodeController) GetProxyTypeOptions(ctx *gin.Context) {
 
 // EnableServerNode 启用节点
 func (c *ServerNodeController) EnableServerNode(ctx *gin.Context) {
-	type Request struct {
-		ServerNodeId string `json:"serverNodeId" binding:"required"`
-	}
-
-	var req Request
-	if err := request.Bind(ctx, &req); err != nil {
-		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "ENABLE_SERVER_NODE")
+	serverNodeId := request.GetParam(ctx, "serverNodeId")
+	if serverNodeId == "" {
+		response.ErrorJSON(ctx, "参数格式错误: serverNodeId不能为空", "ENABLE_SERVER_NODE")
 		return
 	}
 
-	err := c.serverNodeDAO.EnableServerNode(req.ServerNodeId)
+	err := c.serverNodeDAO.EnableServerNode(serverNodeId)
 	if err != nil {
-		logger.Error("启用节点失败", "serverNodeId", req.ServerNodeId, "error", err)
+		logger.Error("启用节点失败", "serverNodeId", serverNodeId, "error", err)
 		response.ErrorJSON(ctx, "启用失败: "+err.Error(), "ENABLE_SERVER_NODE")
 		return
 	}
 
-	logger.Info("启用服务器节点成功", "serverNodeId", req.ServerNodeId)
-	response.SuccessJSON(ctx, gin.H{"serverNodeId": req.ServerNodeId, "message": "启用成功"}, "ENABLE_SERVER_NODE")
+	logger.Info("启用服务器节点成功", "serverNodeId", serverNodeId)
+	response.SuccessJSON(ctx, gin.H{"serverNodeId": serverNodeId, "message": "启用成功"}, "ENABLE_SERVER_NODE")
 }
 
 // DisableServerNode 禁用节点
 func (c *ServerNodeController) DisableServerNode(ctx *gin.Context) {
-	type Request struct {
-		ServerNodeId string `json:"serverNodeId" binding:"required"`
-	}
-
-	var req Request
-	if err := request.Bind(ctx, &req); err != nil {
-		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "DISABLE_SERVER_NODE")
+	serverNodeId := request.GetParam(ctx, "serverNodeId")
+	if serverNodeId == "" {
+		response.ErrorJSON(ctx, "参数格式错误: serverNodeId不能为空", "DISABLE_SERVER_NODE")
 		return
 	}
 
-	err := c.serverNodeDAO.DisableServerNode(req.ServerNodeId)
+	err := c.serverNodeDAO.DisableServerNode(serverNodeId)
 	if err != nil {
-		logger.Error("禁用节点失败", "serverNodeId", req.ServerNodeId, "error", err)
+		logger.Error("禁用节点失败", "serverNodeId", serverNodeId, "error", err)
 		response.ErrorJSON(ctx, "禁用失败: "+err.Error(), "DISABLE_SERVER_NODE")
 		return
 	}
 
-	logger.Info("禁用服务器节点成功", "serverNodeId", req.ServerNodeId)
-	response.SuccessJSON(ctx, gin.H{"serverNodeId": req.ServerNodeId, "message": "禁用成功"}, "DISABLE_SERVER_NODE")
+	logger.Info("禁用服务器节点成功", "serverNodeId", serverNodeId)
+	response.SuccessJSON(ctx, gin.H{"serverNodeId": serverNodeId, "message": "禁用成功"}, "DISABLE_SERVER_NODE")
 }
 
 // BatchCreateNodes 批量创建节点
@@ -332,11 +320,21 @@ func (c *ServerNodeController) BatchCreateNodes(ctx *gin.Context) {
 		return
 	}
 
+	// 获取租户ID
+	tenantId := request.GetTenantID(ctx)
+	if tenantId == "" {
+		response.ErrorJSON(ctx, "租户ID不能为空", "BATCH_CREATE_NODES")
+		return
+	}
+
 	currentUser := c.getCurrentUser(ctx)
 	var createdNodes []*models.TunnelServerNode
 	var errors []map[string]interface{}
 
 	for i, node := range req.Nodes {
+		// 设置租户ID
+		node.TenantId = tenantId
+
 		// 生成ID和审计字段
 		node.ServerNodeId = random.Generate32BitRandomString()
 		node.AddWho = currentUser

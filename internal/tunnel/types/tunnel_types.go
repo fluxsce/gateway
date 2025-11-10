@@ -320,13 +320,26 @@ const (
 	ActiveFlagYes = "Y"
 	ActiveFlagNo  = "N"
 
-	// 控制消息类型
-	MessageTypeAuth              = "auth"
-	MessageTypeHeartbeat         = "heartbeat"
-	MessageTypeRegisterService   = "register_service"
-	MessageTypeUnregisterService = "unregister_service"
-	MessageTypeProxyRequest      = "proxy_request"
-	MessageTypeResponse          = "response"
+	// ============================================================
+	// 控制消息类型 - Control Message Types
+	// ============================================================
+
+	// 客户端 → 服务端 (Client to Server)
+	// 客户端发送给服务端的控制消息
+	MessageTypeAuth              = "auth"               // 客户端认证请求
+	MessageTypeHeartbeat         = "heartbeat"          // 客户端心跳消息
+	MessageTypeRegisterService   = "register_service"   // 客户端注册服务请求
+	MessageTypeUnregisterService = "unregister_service" // 客户端注销服务请求
+
+	// 服务端 → 客户端 (Server to Client)
+	// 服务端发送给客户端的控制消息
+	MessageTypeResponse          = "response"            // 服务端响应消息（通用响应）
+	MessageTypeNewProxy          = "new_proxy"           // 服务端通知客户端启动新代理
+	MessageTypeCloseProxy        = "close_proxy"         // 服务端通知客户端关闭代理
+	MessageTypeProxyRequest      = "proxy_request"       // 服务端请求客户端建立数据连接
+	MessageTypePreConnectRequest = "pre_connect_request" // 服务端请求客户端预建立连接池
+	MessageTypeNotification      = "notification"        // 服务端通知消息
+	MessageTypeError             = "error"               // 服务端错误消息
 )
 
 // ControlMessage 控制消息结构

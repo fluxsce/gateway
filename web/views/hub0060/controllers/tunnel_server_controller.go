@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"strings"
 
 	"gateway/pkg/database"
@@ -75,20 +74,16 @@ func (c *TunnelServerController) QueryTunnelServers(ctx *gin.Context) {
 
 // GetTunnelServer 获取隧道服务器详情
 func (c *TunnelServerController) GetTunnelServer(ctx *gin.Context) {
-	type Request struct {
-		TunnelServerId string `json:"tunnelServerId" binding:"required"`
-	}
-
-	var req Request
-	if err := request.Bind(ctx, &req); err != nil {
-		logger.Error("绑定参数失败", "error", err)
-		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "GET_TUNNEL_SERVER")
+	// 直接从请求参数获取
+	tunnelServerId := request.GetParam(ctx, "tunnelServerId")
+	if tunnelServerId == "" {
+		response.ErrorJSON(ctx, "隧道服务器ID不能为空", "GET_TUNNEL_SERVER")
 		return
 	}
 
-	server, err := c.tunnelServerDAO.GetTunnelServer(req.TunnelServerId)
+	server, err := c.tunnelServerDAO.GetTunnelServer(tunnelServerId)
 	if err != nil {
-		logger.Error("获取隧道服务器详情失败", "tunnelServerId", req.TunnelServerId, "error", err)
+		logger.Error("获取隧道服务器详情失败", "tunnelServerId", tunnelServerId, "error", err)
 		response.ErrorJSON(ctx, "获取失败: "+err.Error(), "GET_TUNNEL_SERVER")
 		return
 	}
@@ -131,6 +126,14 @@ func (c *TunnelServerController) CreateTunnelServer(ctx *gin.Context) {
 	}
 
 	// 服务器名称重复性检查已经移到DAO层实现
+
+	// 设置租户ID
+	tenantId := request.GetTenantID(ctx)
+	if tenantId == "" {
+		response.ErrorJSON(ctx, "租户ID不能为空", "CREATE_TUNNEL_SERVER")
+		return
+	}
+	server.TenantId = tenantId
 
 	// 生成ID和设置审计字段
 	server.TunnelServerId = random.Generate32BitRandomString()
@@ -210,34 +213,50 @@ func (c *TunnelServerController) UpdateTunnelServer(ctx *gin.Context) {
 
 // DeleteTunnelServer 删除隧道服务器
 func (c *TunnelServerController) DeleteTunnelServer(ctx *gin.Context) {
-	type Request struct {
-		TunnelServerId string `json:"tunnelServerId" binding:"required"`
-	}
-
-	var req Request
-	if err := request.Bind(ctx, &req); err != nil {
-		logger.Error("绑定参数失败", "error", err)
-		response.ErrorJSON(ctx, "参数格式错误: "+err.Error(), "DELETE_TUNNEL_SERVER")
+	// 直接从请求参数获取
+	tunnelServerId := request.GetParam(ctx, "tunnelServerId")
+	if tunnelServerId == "" {
+		response.ErrorJSON(ctx, "隧道服务器ID不能为空", "DELETE_TUNNEL_SERVER")
 		return
 	}
 
-	editWho := c.getCurrentUser(ctx)
-	deletedServer, err := c.tunnelServerDAO.DeleteTunnelServer(req.TunnelServerId, editWho)
+	// 先检查服务器状态
+	server, err := c.tunnelServerDAO.GetTunnelServer(tunnelServerId)
 	if err != nil {
-		logger.Error("删除隧道服务器失败", "tunnelServerId", req.TunnelServerId, "error", err)
+		logger.Error("获取隧道服务器信息失败", "tunnelServerId", tunnelServerId, "error", err)
+		response.ErrorJSON(ctx, "获取服务器信息失败: "+err.Error(), "DELETE_TUNNEL_SERVER")
+		return
+	}
+
+	// 如果服务器正在运行，先停止服务
+	if server.ServerStatus == "running" {
+		logger.Info("服务器正在运行，先停止服务", "tunnelServerId", tunnelServerId)
+		if err := c.tunnelServerDAO.StopTunnelServer(tunnelServerId); err != nil {
+			logger.Error("停止隧道服务器失败", "tunnelServerId", tunnelServerId, "error", err)
+			response.ErrorJSON(ctx, "删除前停止服务失败: "+err.Error(), "DELETE_TUNNEL_SERVER")
+			return
+		}
+		logger.Info("服务器已停止", "tunnelServerId", tunnelServerId)
+	}
+
+	// 执行删除操作
+	editWho := c.getCurrentUser(ctx)
+	deletedServer, err := c.tunnelServerDAO.DeleteTunnelServer(tunnelServerId, editWho)
+	if err != nil {
+		logger.Error("删除隧道服务器失败", "tunnelServerId", tunnelServerId, "error", err)
 		response.ErrorJSON(ctx, "删除失败: "+err.Error(), "DELETE_TUNNEL_SERVER")
 		return
 	}
 
-	logger.Info("删除隧道服务器成功", "tunnelServerId", req.TunnelServerId)
+	logger.Info("删除隧道服务器成功", "tunnelServerId", tunnelServerId)
 	response.SuccessJSON(ctx, deletedServer, "DELETE_TUNNEL_SERVER")
 }
 
 // UpdateTunnelServerStatus 更新隧道服务器状态
 func (c *TunnelServerController) UpdateTunnelServerStatus(ctx *gin.Context) {
 	type Request struct {
-		TunnelServerId string `json:"tunnelServerId" binding:"required"`
-		Status         string `json:"status" binding:"required"`
+		TunnelServerId string `json:"tunnelServerId" form:"tunnelServerId" query:"tunnelServerId" binding:"required"`
+		Status         string `json:"status" form:"status" query:"status" binding:"required"`
 	}
 
 	var req Request
@@ -299,18 +318,7 @@ func (c *TunnelServerController) GetTunnelServerList(ctx *gin.Context) {
 		return
 	}
 
-	// 转换为下拉选项格式
-	options := make([]map[string]interface{}, 0, len(servers))
-	for _, server := range servers {
-		option := map[string]interface{}{
-			"value":  server.TunnelServerId,
-			"label":  fmt.Sprintf("%s (%s:%d)", server.ServerName, server.ControlAddress, server.ControlPort),
-			"status": server.ServerStatus,
-		}
-		options = append(options, option)
-	}
-
-	response.SuccessJSON(ctx, options, "GET_TUNNEL_SERVER_LIST")
+	response.SuccessJSON(ctx, servers, "GET_TUNNEL_SERVER_LIST")
 }
 
 // GenerateAuthToken 生成新的认证令牌

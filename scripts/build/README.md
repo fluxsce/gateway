@@ -37,6 +37,40 @@ Windows 批处理脚本，提供图形化菜单界面：
 9. 自定义构建
 10. 查看帮助
 
+### build-centos7.sh ⭐ 新增
+Linux Shell 脚本，用于在 Linux 环境下构建 CentOS 7 兼容版本：
+
+```bash
+# 使用当前 Go 版本构建
+./scripts/build/build-centos7.sh
+
+# 指定 Go 版本构建
+./scripts/build/build-centos7.sh 1.20
+```
+
+**特性：**
+- 自动检测 Go 版本
+- 支持指定 Go 版本构建（1.19, 1.20, 1.21+）
+- 自动选择对应的 go.mod 文件
+- 纯 Go 编译（CGO_ENABLED=0）
+- 优化的 CentOS 7 兼容性
+- 自动恢复原始 go.mod
+
+### build-win10-centos7.cmd
+Windows 批处理脚本，用于在 Windows 环境下交叉编译 CentOS 7 版本：
+
+```cmd
+.\scripts\build\build-win10-centos7.cmd
+
+REM 指定 Go 版本
+.\scripts\build\build-win10-centos7.cmd 1.20
+```
+
+**特性：**
+- 与 build-centos7.sh 功能对应
+- 在 Windows 上交叉编译 Linux 二进制
+- 自动检测和切换 Go 版本
+
 ### crossbuild.ps1
 PowerShell 交叉编译脚本：
 
@@ -83,6 +117,58 @@ PowerShell 交叉编译脚本：
 - Docker Desktop（用于交叉编译）
 - PowerShell 5.0+
 
+## CentOS 7 专用构建 ⭐ 新增
+
+针对 CentOS 7 系统的优化构建，确保在旧版 Linux 系统上的兼容性。
+
+### ⚠️ 重要说明：SQLite 支持
+
+**SQLite 需要 CGO 支持**，构建时有两个选项：
+
+#### 选项 1：纯 Go 构建（推荐）
+- ✅ **优点**：完全静态编译，无外部依赖，跨平台部署简单
+- ❌ **缺点**：不支持 SQLite
+- 🗄️ **支持的数据库**：MySQL, ClickHouse
+- 🔧 **构建标签**：`netgo,osusergo,no_oracle,no_sqlite`
+- ⚙️ **编译配置**：`CGO_ENABLED=0`
+
+#### 选项 2：包含 SQLite 支持
+- ✅ **优点**：支持 SQLite 数据库
+- ❌ **缺点**：需要 GCC 编译器，二进制文件有外部依赖
+- 🗄️ **支持的数据库**：MySQL, SQLite, ClickHouse
+- 🔧 **构建标签**：`netgo,no_oracle`
+- ⚙️ **编译配置**：`CGO_ENABLED=1`
+
+### 构建标签说明
+- `netgo`: 使用纯 Go 网络实现
+- `osusergo`: 使用纯 Go 用户/组查询
+- `no_oracle`: 禁用 Oracle 驱动（避免 CGO 依赖）
+- `no_sqlite`: 禁用 SQLite 驱动（避免 CGO 依赖）
+
+### 使用场景
+- 需要在 CentOS 7 上部署
+- 需要最大化兼容性
+- 不需要 Oracle 数据库支持
+- 根据是否需要 SQLite 选择构建模式
+
+### 构建方式
+
+**在 Linux 上构建：**
+```bash
+./scripts/build/build-centos7.sh
+# 脚本会提示选择：
+# 1) 包含 SQLite 支持（需要 GCC）
+# 2) 纯 Go 构建（推荐，无 SQLite）
+```
+
+**在 Windows 上交叉编译：**
+```cmd
+.\scripts\build\build-win10-centos7.cmd
+# 脚本会提示选择：
+# 1) 纯 Go 构建（推荐，无 SQLite）
+# 2) 包含 SQLite 支持（需要 MinGW/GCC）
+```
+
 ## 构建产物
 
 构建完成的二进制文件将保存在 `./dist/` 目录下：
@@ -92,12 +178,49 @@ dist/
 ├── gateway-linux-amd64           # Linux 64位版本
 ├── gateway-linux-amd64-oracle    # Linux 64位版本（Oracle支持）
 ├── gateway-linux-arm64           # Linux ARM64版本
+├── gateway-centos7-amd64         # CentOS 7 版本 ⭐
 ├── gateway-darwin-amd64          # macOS Intel版本
 ├── gateway-darwin-arm64          # macOS ARM版本
-└── gateway-windows-amd64.exe     # Windows 64位版本 ⭐
+└── gateway-windows-amd64.exe     # Windows 64位版本
 ```
 
+**注意：**
+- `gateway-centos7-amd64` 文件名固定，不随构建模式改变（用于应用自动注册）
+- 构建时可选择是否包含 SQLite 支持，但输出文件名保持一致
+
 ## 使用示例
+
+### 快速构建 CentOS 7 版本
+
+**在 Linux 环境：**
+```bash
+# 赋予执行权限
+chmod +x ./scripts/build/build-centos7.sh
+
+# 使用当前 Go 版本构建
+./scripts/build/build-centos7.sh
+
+# 使用指定 Go 版本构建
+./scripts/build/build-centos7.sh 1.20
+```
+
+**在 Windows 环境：**
+```cmd
+# 使用当前 Go 版本构建
+.\scripts\build\build-win10-centos7.cmd
+
+# 使用指定 Go 版本构建
+.\scripts\build\build-win10-centos7.cmd 1.20
+```
+
+### 在 CentOS 7 上部署
+1. 将构建的 `gateway-centos7-amd64` 复制到目标服务器
+2. 准备配置文件（`configs/` 目录）
+3. 赋予执行权限并运行：
+   ```bash
+   chmod +x gateway-centos7-amd64
+   ./gateway-centos7-amd64
+   ```
 
 ### 快速构建 Windows 版本
 ```cmd
@@ -144,6 +267,13 @@ powershell -ExecutionPolicy Bypass -File ".\scripts\build\crossbuild.ps1" -Targe
 ```
 
 ## 更新日志
+
+### v1.2.0 (2025-10-24)
+- ✅ 新增 CentOS 7 专用构建脚本（Linux 和 Windows 版本）
+- ✅ 支持自动检测和切换 Go 版本
+- ✅ 优化构建标签以提高 CentOS 7 兼容性
+- ✅ 改进模块文件管理和恢复机制
+- ✅ 增强错误处理和诊断信息
 
 ### v1.1.0
 - ✅ 新增 Windows Server 2008 64位构建支持

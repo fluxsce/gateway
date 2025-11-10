@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"gateway/internal/tunnel"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/logger"
@@ -58,8 +59,6 @@ func (dao *TunnelServiceDAO) QueryTunnelServices(req *models.TunnelServiceQueryR
 	if req.ActiveFlag != "" {
 		whereConditions = append(whereConditions, "activeFlag = ?")
 		args = append(args, req.ActiveFlag)
-	} else {
-		whereConditions = append(whereConditions, "activeFlag = 'Y'")
 	}
 
 	if req.Keyword != "" {
@@ -135,7 +134,7 @@ func (dao *TunnelServiceDAO) GetTunnelService(tunnelServiceId string) (*models.T
 		       serviceStatus, registeredTime, lastActiveTime, connectionCount, totalConnections, totalTraffic,
 		       addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag, noteText, extProperty
 		FROM HUB_TUNNEL_SERVICE
-		WHERE tunnelServiceId = ? AND activeFlag = 'Y'
+		WHERE tunnelServiceId = ?
 	`
 
 	service := &models.TunnelService{}
@@ -268,20 +267,20 @@ func (dao *TunnelServiceDAO) UpdateTunnelService(service *models.TunnelService) 
 
 	updateSQL := `
 		UPDATE HUB_TUNNEL_SERVICE SET
-			serviceName = ?, serviceDescription = ?, serviceType = ?,
+			tunnelClientId = ?, serviceName = ?, serviceDescription = ?, serviceType = ?,
 			localAddress = ?, localPort = ?, remotePort = ?, customDomains = ?, subDomain = ?,
 			useEncryption = ?, useCompression = ?, bandwidthLimit = ?, maxConnections = ?,
 			editTime = ?, editWho = ?, currentVersion = ?,
-			noteText = ?, extProperty = ?
-		WHERE tunnelServiceId = ? AND activeFlag = 'Y' AND currentVersion = ?
+			activeFlag = ?, noteText = ?, extProperty = ?
+		WHERE tunnelServiceId = ? AND currentVersion = ?
 	`
 
 	rowsAffected, err := dao.db.Exec(ctx, updateSQL, []interface{}{
-		service.ServiceName, service.ServiceDescription, service.ServiceType,
+		service.TunnelClientId, service.ServiceName, service.ServiceDescription, service.ServiceType,
 		service.LocalAddress, service.LocalPort, service.RemotePort, service.CustomDomains, service.SubDomain,
 		service.UseEncryption, service.UseCompression, service.BandwidthLimit, service.MaxConnections,
 		service.EditTime, service.EditWho, service.CurrentVersion,
-		service.NoteText, service.ExtProperty,
+		service.ActiveFlag, service.NoteText, service.ExtProperty,
 		service.TunnelServiceId, existing.CurrentVersion,
 	}, false)
 
@@ -299,7 +298,7 @@ func (dao *TunnelServiceDAO) UpdateTunnelService(service *models.TunnelService) 
 	return dao.GetTunnelService(service.TunnelServiceId)
 }
 
-// DeleteTunnelService 删除服务（逻辑删除）
+// DeleteTunnelService 删除服务（物理删除）
 func (dao *TunnelServiceDAO) DeleteTunnelService(tunnelServiceId, editWho string) (*models.TunnelService, error) {
 	ctx := context.Background()
 
@@ -309,14 +308,13 @@ func (dao *TunnelServiceDAO) DeleteTunnelService(tunnelServiceId, editWho string
 		return nil, err
 	}
 
-	// 逻辑删除
+	// 物理删除
 	deleteSQL := `
-		UPDATE HUB_TUNNEL_SERVICE
-		SET activeFlag = 'N', editTime = ?, editWho = ?, currentVersion = currentVersion + 1
-		WHERE tunnelServiceId = ? AND activeFlag = 'Y'
+		DELETE FROM HUB_TUNNEL_SERVICE
+		WHERE tunnelServiceId = ?
 	`
 
-	_, err = dao.db.Exec(ctx, deleteSQL, []interface{}{time.Now(), editWho, tunnelServiceId}, false)
+	_, err = dao.db.Exec(ctx, deleteSQL, []interface{}{tunnelServiceId}, false)
 	if err != nil {
 		logger.Error("删除服务失败", "tunnelServiceId", tunnelServiceId, "error", err)
 		errMsg := "删除服务失败: " + err.Error()
@@ -330,7 +328,6 @@ func (dao *TunnelServiceDAO) DeleteTunnelService(tunnelServiceId, editWho string
 	}
 
 	logger.Info("删除服务成功", "tunnelServiceId", tunnelServiceId)
-	service.ActiveFlag = "N"
 	return service, nil
 }
 
@@ -347,7 +344,6 @@ func (dao *TunnelServiceDAO) GetServiceStats() (*models.TunnelServiceStats, erro
 			SUM(totalConnections) as totalConnections,
 			SUM(totalTraffic) as totalTraffic
 		FROM HUB_TUNNEL_SERVICE
-		WHERE activeFlag = 'Y'
 	`
 
 	stats := &models.TunnelServiceStats{}
@@ -361,151 +357,6 @@ func (dao *TunnelServiceDAO) GetServiceStats() (*models.TunnelServiceStats, erro
 	return stats, nil
 }
 
-// GetServicesByClient 按客户端查询服务列表
-func (dao *TunnelServiceDAO) GetServicesByClient(req *models.ServicesByClientRequest) ([]*models.TunnelService, error) {
-	ctx := context.Background()
-
-	whereConditions := []string{"tunnelClientId = ?", "activeFlag = 'Y'"}
-	args := []interface{}{req.TunnelClientId}
-
-	if req.ServiceStatus != "" {
-		whereConditions = append(whereConditions, "serviceStatus = ?")
-		args = append(args, req.ServiceStatus)
-	}
-
-	whereClause := strings.Join(whereConditions, " AND ")
-
-	querySQL := fmt.Sprintf(`
-		SELECT tunnelServiceId, tenantId, tunnelClientId, userId, serviceName, serviceDescription,
-		       serviceType, localAddress, localPort, remotePort, customDomains, subDomain,
-		       useEncryption, useCompression, bandwidthLimit, maxConnections,
-		       serviceStatus, registeredTime, lastActiveTime, connectionCount, totalConnections, totalTraffic,
-		       addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag, noteText, extProperty
-		FROM HUB_TUNNEL_SERVICE
-		WHERE %s
-		ORDER BY registeredTime DESC
-	`, whereClause)
-
-	services := []*models.TunnelService{}
-	err := dao.db.Query(ctx, &services, querySQL, args, true)
-	if err != nil {
-		logger.Error("查询客户端服务列表失败", "tunnelClientId", req.TunnelClientId, "error", err)
-		errMsg := "查询客户端服务列表失败: " + err.Error()
-		return nil, huberrors.NewError(errMsg)
-	}
-
-	return services, nil
-}
-
-// AllocateRemotePort 分配远程端口
-func (dao *TunnelServiceDAO) AllocateRemotePort(tunnelServiceId string, preferredPort int) (*models.AllocatePortResponse, error) {
-	ctx := context.Background()
-
-	// 检查服务是否存在
-	service, err := dao.GetTunnelService(tunnelServiceId)
-	if err != nil {
-		return nil, err
-	}
-
-	// 检查服务类型是否需要端口
-	if service.ServiceType != "tcp" && service.ServiceType != "udp" {
-		return nil, huberrors.NewError("只有TCP/UDP类型的服务需要分配远程端口")
-	}
-
-	// 如果已经分配了端口，直接返回
-	if service.RemotePort != nil && *service.RemotePort > 0 {
-		return &models.AllocatePortResponse{
-			TunnelServiceId: tunnelServiceId,
-			RemotePort:      *service.RemotePort,
-		}, nil
-	}
-
-	// 分配端口
-	allocatedPort, err := dao.findAvailablePort(preferredPort)
-	if err != nil {
-		return nil, err
-	}
-
-	// 更新服务的远程端口
-	updateSQL := `
-		UPDATE HUB_TUNNEL_SERVICE
-		SET remotePort = ?, editTime = ?, currentVersion = currentVersion + 1
-		WHERE tunnelServiceId = ? AND activeFlag = 'Y'
-	`
-
-	_, err = dao.db.Exec(ctx, updateSQL, []interface{}{allocatedPort, time.Now(), tunnelServiceId}, false)
-	if err != nil {
-		logger.Error("分配远程端口失败", "tunnelServiceId", tunnelServiceId, "error", err)
-		errMsg := "分配远程端口失败: " + err.Error()
-		return nil, huberrors.NewError(errMsg)
-	}
-
-	logger.Info("分配远程端口成功", "tunnelServiceId", tunnelServiceId, "remotePort", allocatedPort)
-	return &models.AllocatePortResponse{
-		TunnelServiceId: tunnelServiceId,
-		RemotePort:      allocatedPort,
-	}, nil
-}
-
-// ReleaseRemotePort 释放远程端口
-func (dao *TunnelServiceDAO) ReleaseRemotePort(tunnelServiceId string) error {
-	ctx := context.Background()
-
-	// 检查服务是否存在
-	_, err := dao.GetTunnelService(tunnelServiceId)
-	if err != nil {
-		return err
-	}
-
-	// 释放端口
-	updateSQL := `
-		UPDATE HUB_TUNNEL_SERVICE
-		SET remotePort = NULL, editTime = ?, currentVersion = currentVersion + 1
-		WHERE tunnelServiceId = ? AND activeFlag = 'Y'
-	`
-
-	_, err = dao.db.Exec(ctx, updateSQL, []interface{}{time.Now(), tunnelServiceId}, false)
-	if err != nil {
-		logger.Error("释放远程端口失败", "tunnelServiceId", tunnelServiceId, "error", err)
-		errMsg := "释放远程端口失败: " + err.Error()
-		return huberrors.NewError(errMsg)
-	}
-
-	logger.Info("释放远程端口成功", "tunnelServiceId", tunnelServiceId)
-	return nil
-}
-
-// EnableService 启用服务
-func (dao *TunnelServiceDAO) EnableService(tunnelServiceId, editWho string) error {
-	return dao.updateServiceStatus(tunnelServiceId, "active", editWho)
-}
-
-// DisableService 禁用服务
-func (dao *TunnelServiceDAO) DisableService(tunnelServiceId, editWho string) error {
-	return dao.updateServiceStatus(tunnelServiceId, "inactive", editWho)
-}
-
-// updateServiceStatus 更新服务状态
-func (dao *TunnelServiceDAO) updateServiceStatus(tunnelServiceId, status, editWho string) error {
-	ctx := context.Background()
-
-	updateSQL := `
-		UPDATE HUB_TUNNEL_SERVICE
-		SET serviceStatus = ?, editTime = ?, editWho = ?, currentVersion = currentVersion + 1
-		WHERE tunnelServiceId = ? AND activeFlag = 'Y'
-	`
-
-	_, err := dao.db.Exec(ctx, updateSQL, []interface{}{status, time.Now(), editWho, tunnelServiceId}, false)
-	if err != nil {
-		logger.Error("更新服务状态失败", "tunnelServiceId", tunnelServiceId, "status", status, "error", err)
-		errMsg := "更新服务状态失败: " + err.Error()
-		return huberrors.NewError(errMsg)
-	}
-
-	logger.Info("更新服务状态成功", "tunnelServiceId", tunnelServiceId, "status", status)
-	return nil
-}
-
 // checkServiceNameExists 检查服务名称是否存在
 func (dao *TunnelServiceDAO) checkServiceNameExists(serviceName, excludeServiceId string) (bool, error) {
 	ctx := context.Background()
@@ -513,7 +364,7 @@ func (dao *TunnelServiceDAO) checkServiceNameExists(serviceName, excludeServiceI
 	querySQL := `
 		SELECT COUNT(*) as count
 		FROM HUB_TUNNEL_SERVICE 
-		WHERE serviceName = ? AND activeFlag = 'Y'
+		WHERE serviceName = ?
 	`
 	args := []interface{}{serviceName}
 
@@ -535,14 +386,14 @@ func (dao *TunnelServiceDAO) checkServiceNameExists(serviceName, excludeServiceI
 	return countResult.Count > 0, nil
 }
 
-// checkClientExists 检查客户端是否存在且激活
+// checkClientExists 检查客户端是否存在
 func (dao *TunnelServiceDAO) checkClientExists(tunnelClientId string) (bool, error) {
 	ctx := context.Background()
 
 	querySQL := `
 		SELECT COUNT(*) as count
 		FROM HUB_TUNNEL_CLIENT 
-		WHERE tunnelClientId = ? AND activeFlag = 'Y'
+		WHERE tunnelClientId = ?
 	`
 
 	var countResult struct {
@@ -565,7 +416,7 @@ func (dao *TunnelServiceDAO) updateClientServiceCount(tunnelClientId string, del
 	updateSQL := `
 		UPDATE HUB_TUNNEL_CLIENT
 		SET serviceCount = serviceCount + ?, editTime = ?, currentVersion = currentVersion + 1
-		WHERE tunnelClientId = ? AND activeFlag = 'Y'
+		WHERE tunnelClientId = ?
 	`
 
 	_, err := dao.db.Exec(ctx, updateSQL, []interface{}{delta, time.Now(), tunnelClientId}, false)
@@ -577,78 +428,109 @@ func (dao *TunnelServiceDAO) updateClientServiceCount(tunnelClientId string, del
 	return nil
 }
 
-// findAvailablePort 查找可用端口
-func (dao *TunnelServiceDAO) findAvailablePort(preferredPort int) (int, error) {
+// RegisterService 注册服务到隧道管理器
+// 参考 tunnel.TunnelManager.RegisterService 方法
+func (dao *TunnelServiceDAO) RegisterService(tunnelServiceId string) error {
 	ctx := context.Background()
 
-	// 端口范围：10000-60000
-	startPort := 10000
-	endPort := 60000
+	// 1. 查询服务信息
+	service, err := dao.GetTunnelService(tunnelServiceId)
+	if err != nil {
+		return huberrors.NewError("查询服务信息失败: " + err.Error())
+	}
 
-	// 如果指定了首选端口，先检查是否可用
-	if preferredPort >= startPort && preferredPort <= endPort {
-		available, err := dao.isPortAvailable(preferredPort)
-		if err != nil {
-			return 0, err
-		}
-		if available {
-			return preferredPort, nil
+	if service == nil {
+		return huberrors.NewError("服务不存在")
+	}
+
+	if service.ActiveFlag != "Y" {
+		return huberrors.NewError("服务未激活，无法注册")
+	}
+
+	// 2. 获取全局隧道管理器
+	tunnelManager := getTunnelManager()
+	if tunnelManager == nil {
+		// 如果隧道管理器未初始化，仅更新数据库状态
+		logger.Warn("隧道管理器未初始化，仅更新数据库状态", "tunnelServiceId", tunnelServiceId)
+	} else {
+
+		// 4. 调用隧道管理器的 RegisterService 方法
+		if err := tunnelManager.RegisterService(ctx, tunnelServiceId); err != nil {
+			logger.Error("注册服务到隧道管理器失败", "tunnelServiceId", tunnelServiceId, "error", err)
+			return huberrors.NewError("注册服务失败: " + err.Error())
 		}
 	}
 
-	// 查询已使用的端口
-	querySQL := `
-		SELECT remotePort
-		FROM HUB_TUNNEL_SERVICE
-		WHERE remotePort IS NOT NULL AND activeFlag = 'Y'
-		ORDER BY remotePort
+	// 5. 更新服务状态为 active
+	updateSQL := `
+		UPDATE HUB_TUNNEL_SERVICE
+		SET serviceStatus = 'active', 
+		    registeredTime = ?,
+		    lastActiveTime = ?,
+		    editTime = ?,
+		    currentVersion = currentVersion + 1
+		WHERE tunnelServiceId = ?
 	`
 
-	var usedPorts []struct {
-		RemotePort int `db:"remotePort"`
-	}
-	err := dao.db.Query(ctx, &usedPorts, querySQL, []interface{}{}, true)
+	now := time.Now()
+	_, err = dao.db.Exec(ctx, updateSQL, []interface{}{now, now, now, tunnelServiceId}, false)
 	if err != nil {
-		logger.Error("查询已使用端口失败", "error", err)
-		errMsg := "查询已使用端口失败: " + err.Error()
-		return 0, huberrors.NewError(errMsg)
+		logger.Error("更新服务状态失败", "tunnelServiceId", tunnelServiceId, "error", err)
+		return huberrors.NewError("更新服务状态失败: " + err.Error())
 	}
 
-	// 构建已使用端口的集合
-	usedPortMap := make(map[int]bool)
-	for _, p := range usedPorts {
-		usedPortMap[p.RemotePort] = true
-	}
-
-	// 查找第一个可用端口
-	for port := startPort; port <= endPort; port++ {
-		if !usedPortMap[port] {
-			return port, nil
-		}
-	}
-
-	return 0, huberrors.NewError("没有可用的端口")
+	logger.Info("服务注册成功", "tunnelServiceId", tunnelServiceId, "serviceName", service.ServiceName)
+	return nil
 }
 
-// isPortAvailable 检查端口是否可用
-func (dao *TunnelServiceDAO) isPortAvailable(port int) (bool, error) {
+// UnregisterService 从隧道管理器注销服务
+func (dao *TunnelServiceDAO) UnregisterService(tunnelServiceId string) error {
 	ctx := context.Background()
 
-	querySQL := `
-		SELECT COUNT(*) as count
-		FROM HUB_TUNNEL_SERVICE
-		WHERE remotePort = ? AND activeFlag = 'Y'
+	// 1. 查询服务信息
+	service, err := dao.GetTunnelService(tunnelServiceId)
+	if err != nil {
+		return huberrors.NewError("查询服务信息失败: " + err.Error())
+	}
+
+	if service == nil {
+		return huberrors.NewError("服务不存在")
+	}
+
+	// 2. 获取全局隧道管理器
+	tunnelManager := getTunnelManager()
+	if tunnelManager == nil {
+		// 如果隧道管理器未初始化，仅更新数据库状态
+		logger.Warn("隧道管理器未初始化，仅更新数据库状态", "tunnelServiceId", tunnelServiceId)
+	} else {
+		// 3. 调用隧道管理器的 UnregisterService 方法
+		if err := tunnelManager.UnregisterService(ctx, tunnelServiceId); err != nil {
+			logger.Error("从隧道管理器注销服务失败", "tunnelServiceId", tunnelServiceId, "error", err)
+			return huberrors.NewError("注销服务失败: " + err.Error())
+		}
+	}
+
+	// 4. 更新服务状态为 inactive
+	updateSQL := `
+		UPDATE HUB_TUNNEL_SERVICE
+		SET serviceStatus = 'inactive',
+		    editTime = ?,
+		    currentVersion = currentVersion + 1
+		WHERE tunnelServiceId = ?
 	`
 
-	var countResult struct {
-		Count int `db:"count"`
-	}
-	err := dao.db.QueryOne(ctx, &countResult, querySQL, []interface{}{port}, true)
+	_, err = dao.db.Exec(ctx, updateSQL, []interface{}{time.Now(), tunnelServiceId}, false)
 	if err != nil {
-		logger.Error("检查端口可用性失败", "port", port, "error", err)
-		errMsg := "检查端口可用性失败: " + err.Error()
-		return false, huberrors.NewError(errMsg)
+		logger.Error("更新服务状态失败", "tunnelServiceId", tunnelServiceId, "error", err)
+		return huberrors.NewError("更新服务状态失败: " + err.Error())
 	}
 
-	return countResult.Count == 0, nil
+	logger.Info("服务注销成功", "tunnelServiceId", tunnelServiceId, "serviceName", service.ServiceName)
+	return nil
+}
+
+// getTunnelManager 获取全局隧道管理器实例
+func getTunnelManager() *tunnel.TunnelManager {
+	// 从全局单例获取隧道管理器
+	return tunnel.GetGlobalManager()
 }

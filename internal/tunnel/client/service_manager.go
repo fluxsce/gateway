@@ -4,6 +4,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
@@ -53,40 +54,80 @@ func NewServiceManager(client *tunnelClient) ServiceManager {
 func (sm *serviceManager) RegisterService(ctx context.Context, service *types.TunnelService) error {
 	// 检查服务是否已存在
 	sm.mutex.RLock()
-	if _, exists := sm.services[service.TunnelServiceId]; exists {
-		sm.mutex.RUnlock()
-		return fmt.Errorf("service %s already registered", service.TunnelServiceId)
-	}
+	existingService, exists := sm.services[service.TunnelServiceId]
 	sm.mutex.RUnlock()
 
-	// 向服务器发送注册请求
-	registerMsg := &ControlMessage{
-		Type:      MessageTypeRegisterService,
-		RequestID: sm.generateRequestID(),
+	if exists {
+		// 服务已存在，先注销再重新注册
+		logger.Info("Service already exists, unregistering before re-registration", map[string]interface{}{
+			"serviceId":   service.TunnelServiceId,
+			"serviceName": existingService.service.ServiceName,
+		})
+
+		if err := sm.UnregisterService(ctx, service.TunnelServiceId); err != nil {
+			logger.Error("Failed to unregister existing service", map[string]interface{}{
+				"serviceId": service.TunnelServiceId,
+				"error":     err.Error(),
+			})
+			// 继续尝试注册，即使注销失败
+		}
+	}
+
+	// 向服务器发送注册请求并等待响应
+	// 关键修复：将 service 对象先序列化为 JSON，再反序列化为 map[string]interface{}
+	// 这样可以确保 JSON tag 正确映射，避免服务器端反序列化失败
+
+	// 第一步：将 service 对象序列化为 JSON 字节
+	serviceJSON, err := json.Marshal(service)
+	if err != nil {
+		return fmt.Errorf("failed to marshal service: %w", err)
+	}
+
+	// 第二步：将 JSON 字节反序列化为 map[string]interface{}
+	var serviceMap map[string]interface{}
+	if err := json.Unmarshal(serviceJSON, &serviceMap); err != nil {
+		return fmt.Errorf("failed to unmarshal service to map: %w", err)
+	}
+
+	// 调试：记录即将发送的service对象
+	logger.Debug("Preparing to register service", map[string]interface{}{
+		"serviceId":      service.TunnelServiceId,
+		"serviceName":    service.ServiceName,
+		"tunnelClientId": service.TunnelClientId,
+		"serviceMapKeys": len(serviceMap),
+	})
+
+	registerMsg := &types.ControlMessage{
+		Type:      types.MessageTypeRegisterService,
+		SessionID: sm.generateRequestID(),
 		Data: map[string]interface{}{
-			"service": map[string]interface{}{
-				"serviceId":      service.TunnelServiceId,
-				"serviceName":    service.ServiceName,
-				"serviceType":    service.ServiceType,
-				"localAddress":   service.LocalAddress,
-				"localPort":      service.LocalPort,
-				"remotePort":     service.RemotePort,
-				"customDomains":  service.CustomDomains,
-				"subDomain":      service.SubDomain,
-				"httpUser":       service.HttpUser,
-				"httpPassword":   service.HttpPassword,
-				"useEncryption":  service.UseEncryption,
-				"useCompression": service.UseCompression,
-				"secretKey":      service.SecretKey,
-				"bandwidthLimit": service.BandwidthLimit,
-				"maxConnections": service.MaxConnections,
-			},
+			"service": serviceMap, // 发送 map 而不是结构体
 		},
 		Timestamp: time.Now(),
 	}
 
-	if err := sm.client.controlConn.SendMessage(ctx, registerMsg); err != nil {
+	// 发送请求并等待服务器响应（超时10秒）
+	response, err := sm.client.controlConn.SendMessageAndWaitResponse(ctx, registerMsg, 10*time.Second)
+	if err != nil {
 		return fmt.Errorf("failed to send register service message: %w", err)
+	}
+
+	// 检查响应是否成功
+	success, _ := response.Data["success"].(bool)
+	message, _ := response.Data["message"].(string)
+	if !success {
+		return fmt.Errorf("server rejected service registration: %s", message)
+	}
+
+	// 获取服务器分配的远程端口（如果有）
+	remotePort := 0
+	if port, ok := response.Data["remotePort"].(float64); ok && port > 0 {
+		remotePort = int(port)
+		service.RemotePort = &remotePort
+		logger.Info("Server assigned remote port", map[string]interface{}{
+			"serviceId":  service.TunnelServiceId,
+			"remotePort": remotePort,
+		})
 	}
 
 	// 创建服务信息
@@ -102,11 +143,21 @@ func (sm *serviceManager) RegisterService(ctx context.Context, service *types.Tu
 	sm.services[service.TunnelServiceId] = serviceInfo
 	sm.mutex.Unlock()
 
-	logger.Info("Service registered with server", map[string]interface{}{
+	// 启动代理实例（关键修复：确保在第一次数据连接之前创建 proxy 实例）
+	if err := sm.client.proxyManager.StartProxy(ctx, service, remotePort); err != nil {
+		// 启动代理失败，回滚服务注册
+		sm.mutex.Lock()
+		delete(sm.services, service.TunnelServiceId)
+		sm.mutex.Unlock()
+		return fmt.Errorf("failed to start proxy: %w", err)
+	}
+
+	logger.Info("Service registered with server and proxy started", map[string]interface{}{
 		"serviceId":   service.TunnelServiceId,
 		"serviceName": service.ServiceName,
 		"serviceType": service.ServiceType,
 		"localPort":   service.LocalPort,
+		"remotePort":  remotePort,
 	})
 
 	return nil
@@ -133,18 +184,40 @@ func (sm *serviceManager) UnregisterService(ctx context.Context, serviceID strin
 		}
 	}
 
-	// 向服务器发送注销请求
-	unregisterMsg := &ControlMessage{
-		Type:      MessageTypeUnregisterService,
-		RequestID: sm.generateRequestID(),
-		Data: map[string]interface{}{
+	// 停止代理实例
+	if err := sm.client.proxyManager.StopProxy(ctx, serviceID); err != nil {
+		logger.Error("Failed to stop proxy during unregister", map[string]interface{}{
 			"serviceId": serviceID,
+			"error":     err.Error(),
+		})
+		// 继续注销流程，即使停止代理失败
+	}
+
+	// 向服务器发送注销请求并等待响应
+	unregisterMsg := &types.ControlMessage{
+		Type:      types.MessageTypeUnregisterService,
+		SessionID: sm.generateRequestID(),
+		Data: map[string]interface{}{
+			"serviceId":   serviceID,
+			"serviceName": serviceInfo.service.ServiceName,
 		},
 		Timestamp: time.Now(),
 	}
 
-	if err := sm.client.controlConn.SendMessage(ctx, unregisterMsg); err != nil {
+	// 发送请求并等待服务器响应（超时10秒）
+	response, err := sm.client.controlConn.SendMessageAndWaitResponse(ctx, unregisterMsg, 10*time.Second)
+	if err != nil {
 		return fmt.Errorf("failed to send unregister service message: %w", err)
+	}
+
+	// 检查响应是否成功
+	success, _ := response.Data["success"].(bool)
+	message, _ := response.Data["message"].(string)
+	if !success {
+		logger.Warn("Server reported unregister failure, but will remove locally", map[string]interface{}{
+			"serviceId": serviceID,
+			"message":   message,
+		})
 	}
 
 	// 从服务列表中移除
@@ -152,7 +225,7 @@ func (sm *serviceManager) UnregisterService(ctx context.Context, serviceID strin
 	delete(sm.services, serviceID)
 	sm.mutex.Unlock()
 
-	logger.Info("Service unregistered from server", map[string]interface{}{
+	logger.Info("Service unregistered from server and proxy stopped", map[string]interface{}{
 		"serviceId":   serviceID,
 		"serviceName": serviceInfo.service.ServiceName,
 	})

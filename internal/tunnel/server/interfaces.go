@@ -82,51 +82,6 @@ type ProxyServer interface {
 	HandleClientDataConnection(ctx context.Context, conn net.Conn, connectionID string) error
 }
 
-// ForwardProxyServer 正向代理服务器接口（处理客户端到外部服务器的代理）
-type ForwardProxyServer interface {
-	// StartProxy 启动指定类型的正向代理服务
-	StartProxy(ctx context.Context, config *ProxyConfig) error
-
-	// StopProxy 停止指定的正向代理服务
-	StopProxy(ctx context.Context, proxyID string) error
-
-	// GetActiveProxies 获取活跃的正向代理服务
-	GetActiveProxies() []*ProxyInfo
-
-	// HandleProxyConnection 处理正向代理连接
-	HandleProxyConnection(ctx context.Context, conn net.Conn, proxyID string) error
-}
-
-// SessionManager 会话管理器接口
-type SessionManager interface {
-	// CreateSession 创建会话
-	CreateSession(ctx context.Context, clientID string, conn net.Conn) (*types.TunnelSession, error)
-
-	// GetSession 获取会话
-	GetSession(ctx context.Context, sessionID string) (*types.TunnelSession, error)
-
-	// GetSessionByToken 根据令牌获取会话
-	GetSessionByToken(ctx context.Context, token string) (*types.TunnelSession, error)
-
-	// UpdateSession 更新会话信息
-	UpdateSession(ctx context.Context, session *types.TunnelSession) error
-
-	// CloseSession 关闭会话
-	CloseSession(ctx context.Context, sessionID string) error
-
-	// GetActiveSessions 获取活跃会话
-	GetActiveSessions(ctx context.Context) []*types.TunnelSession
-
-	// SendHeartbeat 发送心跳
-	SendHeartbeat(ctx context.Context, sessionID string) error
-
-	// CheckTimeout 检查会话超时
-	CheckTimeout(ctx context.Context) ([]*types.TunnelSession, error)
-
-	// GetExpiredSessions 获取过期会话
-	GetExpiredSessions(ctx context.Context, expireThreshold time.Duration) ([]*types.TunnelSession, error)
-}
-
 // ServiceRegistry 服务注册器接口
 type ServiceRegistry interface {
 	// RegisterService 注册服务
@@ -151,24 +106,6 @@ type ServiceRegistry interface {
 	ValidateServiceConfig(ctx context.Context, service *types.TunnelService) error
 }
 
-// ConnectionTracker 连接跟踪器接口
-type ConnectionTracker interface {
-	// TrackConnection 跟踪连接
-	TrackConnection(ctx context.Context, connection *types.TunnelConnection) error
-
-	// UpdateConnectionStats 更新连接统计
-	UpdateConnectionStats(ctx context.Context, connectionID string, stats *ConnectionStats) error
-
-	// CloseConnection 关闭连接跟踪
-	CloseConnection(ctx context.Context, connectionID string) error
-
-	// GetActiveConnections 获取活跃连接
-	GetActiveConnections(ctx context.Context) []*types.TunnelConnection
-
-	// GetConnectionStats 获取连接统计
-	GetConnectionStats(ctx context.Context, timeRange TimeRange) (*ConnectionStatsReport, error)
-}
-
 // LoadBalancer 负载均衡器接口
 type LoadBalancer interface {
 	// SelectNode 选择最优节点
@@ -185,13 +122,11 @@ type LoadBalancer interface {
 
 // ServerStatus 服务器状态
 type ServerStatus struct {
-	Status            string    `json:"status"`
-	StartTime         time.Time `json:"startTime"`
-	Uptime            int64     `json:"uptime"`
-	ConnectedClients  int       `json:"connectedClients"`
-	ActiveSessions    int       `json:"activeSessions"`
-	ActiveConnections int       `json:"activeConnections"`
-	TotalTraffic      int64     `json:"totalTraffic"`
+	Status           string    `json:"status"`
+	StartTime        time.Time `json:"startTime"`
+	Uptime           int64     `json:"uptime"`
+	ConnectedClients int       `json:"connectedClients"`
+	TotalTraffic     int64     `json:"totalTraffic"`
 }
 
 // ProxyConfig 代理配置
@@ -216,41 +151,6 @@ type ProxyInfo struct {
 	ActiveConnections int       `json:"activeConnections"`
 	TotalConnections  int64     `json:"totalConnections"`
 	TotalTraffic      int64     `json:"totalTraffic"`
-}
-
-// ConnectionStats 连接统计
-type ConnectionStats struct {
-	BytesReceived   int64     `json:"bytesReceived"`
-	BytesSent       int64     `json:"bytesSent"`
-	PacketsReceived int64     `json:"packetsReceived"`
-	PacketsSent     int64     `json:"packetsSent"`
-	LastActivity    time.Time `json:"lastActivity"`
-	Latency         float64   `json:"latency"`
-	ErrorCount      int       `json:"errorCount"`
-}
-
-// ConnectionStatsReport 连接统计报告
-type ConnectionStatsReport struct {
-	TimeRange         TimeRange      `json:"timeRange"`
-	TotalConnections  int            `json:"totalConnections"`
-	ActiveConnections int            `json:"activeConnections"`
-	TotalTraffic      int64          `json:"totalTraffic"`
-	AverageLatency    float64        `json:"averageLatency"`
-	ErrorRate         float64        `json:"errorRate"`
-	TopSources        []*SourceStats `json:"topSources"`
-}
-
-// TimeRange 时间范围
-type TimeRange struct {
-	StartTime time.Time `json:"startTime"`
-	EndTime   time.Time `json:"endTime"`
-}
-
-// SourceStats 来源统计
-type SourceStats struct {
-	SourceIP        string `json:"sourceIp"`
-	ConnectionCount int    `json:"connectionCount"`
-	TotalTraffic    int64  `json:"totalTraffic"`
 }
 
 // NodeStats 节点统计

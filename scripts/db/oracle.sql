@@ -2607,6 +2607,269 @@ COMMENT ON TABLE HUB_MONITOR_APP_DATA IS '应用监控数据表';
 --   ├── HUB_MONITOR_JVM_CLASS (1:1，一个JVM资源对应一个类加载信息记录)
 --   └── HUB_MONITOR_APP_DATA (1:N，一个JVM资源对应多个应用监控数据)
 -- ==========================================
+-- =========================================
+-- 基于FRP架构的隧道管理系统 - Oracle数据库表结构设计
+-- 参考FRP（Fast Reverse Proxy）设计模式
+-- 遵循naming-convention.md数据库规范
+-- =========================================
 
+-- =========================================
+-- 1. 隧道服务器表（控制端口）
+-- =========================================
+
+-- 隧道服务器配置表 - 管理控制端口和核心配置
+CREATE TABLE HUB_TUNNEL_SERVER (
+  tunnelServerId VARCHAR2(32) NOT NULL,
+  tenantId VARCHAR2(32) NOT NULL,
+  serverName VARCHAR2(100) NOT NULL,
+  serverDescription VARCHAR2(500),
+  controlAddress VARCHAR2(50) DEFAULT '0.0.0.0' NOT NULL,
+  controlPort NUMBER(10) DEFAULT 7000 NOT NULL,
+  dashboardPort NUMBER(10) DEFAULT 7500,
+  vhostHttpPort NUMBER(10) DEFAULT 80,
+  vhostHttpsPort NUMBER(10) DEFAULT 443,
+  maxClients NUMBER(10) DEFAULT 1000 NOT NULL,
+  tokenAuth VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+  authToken VARCHAR2(100),
+  tlsEnable VARCHAR2(1) DEFAULT 'N' NOT NULL,
+  tlsCertFile VARCHAR2(255),
+  tlsKeyFile VARCHAR2(255),
+  heartbeatInterval NUMBER(10) DEFAULT 30 NOT NULL,
+  heartbeatTimeout NUMBER(10) DEFAULT 90 NOT NULL,
+  logLevel VARCHAR2(10) DEFAULT 'info' NOT NULL,
+  maxPortsPerClient NUMBER(10) DEFAULT 10,
+  allowPorts CLOB,
+  serverStatus VARCHAR2(20) DEFAULT 'stopped' NOT NULL,
+  startTime TIMESTAMP,
+  configVersion VARCHAR2(32),
+  addTime TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+  addWho VARCHAR2(32) NOT NULL,
+  editTime TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+  editWho VARCHAR2(32) NOT NULL,
+  oprSeqFlag VARCHAR2(32) NOT NULL,
+  currentVersion NUMBER(10) DEFAULT 1 NOT NULL,
+  activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+  noteText VARCHAR2(500),
+  extProperty CLOB,
+  reserved1 VARCHAR2(500),
+  reserved2 VARCHAR2(500),
+  reserved3 VARCHAR2(500),
+  reserved4 VARCHAR2(500),
+  reserved5 VARCHAR2(500),
+  reserved6 VARCHAR2(500),
+  reserved7 VARCHAR2(500),
+  reserved8 VARCHAR2(500),
+  reserved9 VARCHAR2(500),
+  reserved10 VARCHAR2(500),
+  CONSTRAINT PK_TUNNEL_SERVER PRIMARY KEY (tunnelServerId),
+  CONSTRAINT UK_TUNNEL_SVR_NAME UNIQUE (serverName)
+);
+
+CREATE INDEX IDX_TUNNEL_SVR_TENANT ON HUB_TUNNEL_SERVER(tenantId);
+CREATE INDEX IDX_TUNNEL_SVR_CTRL ON HUB_TUNNEL_SERVER(controlAddress, controlPort);
+CREATE INDEX IDX_TUNNEL_SVR_STATUS ON HUB_TUNNEL_SERVER(serverStatus);
+
+COMMENT ON TABLE HUB_TUNNEL_SERVER IS '隧道服务器配置表，管理控制端口和核心配置';
+COMMENT ON COLUMN HUB_TUNNEL_SERVER.tunnelServerId IS '隧道服务器ID，主键';
+COMMENT ON COLUMN HUB_TUNNEL_SERVER.tenantId IS '租户ID';
+COMMENT ON COLUMN HUB_TUNNEL_SERVER.serverName IS '服务器名称';
+
+-- =========================================
+-- 2. 服务器节点表（静态端口映射）
+-- =========================================
+
+CREATE TABLE HUB_TUNNEL_SERVER_NODE (
+  serverNodeId VARCHAR2(32) NOT NULL,
+  tenantId VARCHAR2(32) NOT NULL,
+  tunnelServerId VARCHAR2(32) NOT NULL,
+  nodeName VARCHAR2(100) NOT NULL,
+  nodeType VARCHAR2(20) DEFAULT 'static' NOT NULL,
+  proxyType VARCHAR2(20) NOT NULL,
+  listenAddress VARCHAR2(50) DEFAULT '0.0.0.0' NOT NULL,
+  listenPort NUMBER(10) NOT NULL,
+  targetAddress VARCHAR2(50) NOT NULL,
+  targetPort NUMBER(10) NOT NULL,
+  customDomains CLOB,
+  subDomain VARCHAR2(100),
+  httpUser VARCHAR2(50),
+  httpPassword VARCHAR2(100),
+  hostHeaderRewrite VARCHAR2(255),
+  headers CLOB,
+  locations CLOB,
+  compression VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+  encryption VARCHAR2(1) DEFAULT 'N' NOT NULL,
+  secretKey VARCHAR2(100),
+  healthCheckType VARCHAR2(20) DEFAULT 'tcp',
+  healthCheckUrl VARCHAR2(255),
+  healthCheckInterval NUMBER(10) DEFAULT 60,
+  maxConnections NUMBER(10) DEFAULT 100,
+  nodeStatus VARCHAR2(20) DEFAULT 'active' NOT NULL,
+  lastHealthCheck TIMESTAMP,
+  connectionCount NUMBER(10) DEFAULT 0,
+  totalConnections NUMBER(19) DEFAULT 0,
+  totalBytes NUMBER(19) DEFAULT 0,
+  createdTime TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+  addTime TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+  addWho VARCHAR2(32) NOT NULL,
+  editTime TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+  editWho VARCHAR2(32) NOT NULL,
+  oprSeqFlag VARCHAR2(32) NOT NULL,
+  currentVersion NUMBER(10) DEFAULT 1 NOT NULL,
+  activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+  noteText VARCHAR2(500),
+  extProperty CLOB,
+  reserved1 VARCHAR2(500),
+  reserved2 VARCHAR2(500),
+  reserved3 VARCHAR2(500),
+  reserved4 VARCHAR2(500),
+  reserved5 VARCHAR2(500),
+  reserved6 VARCHAR2(500),
+  reserved7 VARCHAR2(500),
+  reserved8 VARCHAR2(500),
+  reserved9 VARCHAR2(500),
+  reserved10 VARCHAR2(500),
+  CONSTRAINT PK_TUNNEL_SVR_NODE PRIMARY KEY (serverNodeId),
+  CONSTRAINT UK_TUNNEL_NODE_NAME UNIQUE (nodeName),
+  CONSTRAINT UK_TUNNEL_NODE_PORT UNIQUE (listenAddress, listenPort, proxyType)
+);
+
+CREATE INDEX IDX_TUNNEL_NODE_TENANT ON HUB_TUNNEL_SERVER_NODE(tenantId);
+CREATE INDEX IDX_TUNNEL_NODE_SERVER ON HUB_TUNNEL_SERVER_NODE(tunnelServerId);
+CREATE INDEX IDX_TUNNEL_NODE_TYPE ON HUB_TUNNEL_SERVER_NODE(nodeType, proxyType);
+CREATE INDEX IDX_TUNNEL_NODE_STATUS ON HUB_TUNNEL_SERVER_NODE(nodeStatus);
+CREATE INDEX IDX_TUNNEL_NODE_HEALTH ON HUB_TUNNEL_SERVER_NODE(lastHealthCheck);
+
+COMMENT ON TABLE HUB_TUNNEL_SERVER_NODE IS '隧道服务器节点表，管理静态端口映射和数据端口转发';
+
+-- =========================================
+-- 3. 客户端注册表（动态连接）
+-- =========================================
+
+CREATE TABLE HUB_TUNNEL_CLIENT (
+  tunnelClientId VARCHAR2(32) NOT NULL,
+  tenantId VARCHAR2(32) NOT NULL,
+  userId VARCHAR2(32) NOT NULL,
+  clientName VARCHAR2(100) NOT NULL,
+  clientDescription VARCHAR2(500),
+  clientVersion VARCHAR2(20),
+  operatingSystem VARCHAR2(50),
+  clientIpAddress VARCHAR2(50),
+  clientMacAddress VARCHAR2(20),
+  serverAddress VARCHAR2(100) NOT NULL,
+  serverPort NUMBER(10) DEFAULT 7000 NOT NULL,
+  authToken VARCHAR2(100) NOT NULL,
+  tlsEnable VARCHAR2(1) DEFAULT 'N' NOT NULL,
+  autoReconnect VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+  maxRetries NUMBER(10) DEFAULT 5 NOT NULL,
+  retryInterval NUMBER(10) DEFAULT 20 NOT NULL,
+  heartbeatInterval NUMBER(10) DEFAULT 30 NOT NULL,
+  heartbeatTimeout NUMBER(10) DEFAULT 90 NOT NULL,
+  connectionStatus VARCHAR2(20) DEFAULT 'disconnected' NOT NULL,
+  lastConnectTime TIMESTAMP,
+  lastDisconnectTime TIMESTAMP,
+  totalConnectTime NUMBER(19) DEFAULT 0,
+  reconnectCount NUMBER(10) DEFAULT 0,
+  serviceCount NUMBER(10) DEFAULT 0,
+  lastHeartbeat TIMESTAMP,
+  clientConfig CLOB,
+  addTime TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+  addWho VARCHAR2(32) NOT NULL,
+  editTime TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+  editWho VARCHAR2(32) NOT NULL,
+  oprSeqFlag VARCHAR2(32) NOT NULL,
+  currentVersion NUMBER(10) DEFAULT 1 NOT NULL,
+  activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+  noteText VARCHAR2(500),
+  extProperty CLOB,
+  reserved1 VARCHAR2(500),
+  reserved2 VARCHAR2(500),
+  reserved3 VARCHAR2(500),
+  reserved4 VARCHAR2(500),
+  reserved5 VARCHAR2(500),
+  reserved6 VARCHAR2(500),
+  reserved7 VARCHAR2(500),
+  reserved8 VARCHAR2(500),
+  reserved9 VARCHAR2(500),
+  reserved10 VARCHAR2(500),
+  CONSTRAINT PK_TUNNEL_CLIENT PRIMARY KEY (tunnelClientId),
+  CONSTRAINT UK_TUNNEL_CLIENT_NAME UNIQUE (clientName)
+);
+
+CREATE INDEX IDX_TUNNEL_CLIENT_TENANT ON HUB_TUNNEL_CLIENT(tenantId);
+CREATE INDEX IDX_TUNNEL_CLIENT_USER ON HUB_TUNNEL_CLIENT(userId);
+CREATE INDEX IDX_TUNNEL_CLIENT_STATUS ON HUB_TUNNEL_CLIENT(connectionStatus);
+CREATE INDEX IDX_TUNNEL_CLIENT_IP ON HUB_TUNNEL_CLIENT(clientIpAddress);
+CREATE INDEX IDX_TUNNEL_CLIENT_HB ON HUB_TUNNEL_CLIENT(lastHeartbeat);
+
+COMMENT ON TABLE HUB_TUNNEL_CLIENT IS '隧道客户端表，管理客户端连接认证和状态跟踪';
+
+-- =========================================
+-- 4. 服务配置表（动态注册的服务）
+-- =========================================
+
+CREATE TABLE HUB_TUNNEL_SERVICE (
+  tunnelServiceId VARCHAR2(32) NOT NULL,
+  tenantId VARCHAR2(32) NOT NULL,
+  tunnelClientId VARCHAR2(32) NOT NULL,
+  userId VARCHAR2(32) NOT NULL,
+  serviceName VARCHAR2(100) NOT NULL,
+  serviceDescription VARCHAR2(500),
+  serviceType VARCHAR2(20) NOT NULL,
+  localAddress VARCHAR2(50) DEFAULT '127.0.0.1' NOT NULL,
+  localPort NUMBER(10) NOT NULL,
+  remotePort NUMBER(10),
+  customDomains CLOB,
+  subDomain VARCHAR2(100),
+  httpUser VARCHAR2(50),
+  httpPassword VARCHAR2(100),
+  hostHeaderRewrite VARCHAR2(255),
+  headers CLOB,
+  locations CLOB,
+  useEncryption VARCHAR2(1) DEFAULT 'N' NOT NULL,
+  useCompression VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+  secretKey VARCHAR2(100),
+  bandwidthLimit VARCHAR2(20),
+  maxConnections NUMBER(10) DEFAULT 100,
+  healthCheckType VARCHAR2(20),
+  healthCheckUrl VARCHAR2(255),
+  serviceStatus VARCHAR2(20) DEFAULT 'active' NOT NULL,
+  registeredTime TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+  lastActiveTime TIMESTAMP,
+  connectionCount NUMBER(10) DEFAULT 0,
+  totalConnections NUMBER(19) DEFAULT 0,
+  totalTraffic NUMBER(19) DEFAULT 0,
+  serviceConfig CLOB,
+  addTime TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+  addWho VARCHAR2(32) NOT NULL,
+  editTime TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+  editWho VARCHAR2(32) NOT NULL,
+  oprSeqFlag VARCHAR2(32) NOT NULL,
+  currentVersion NUMBER(10) DEFAULT 1 NOT NULL,
+  activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+  noteText VARCHAR2(500),
+  extProperty CLOB,
+  reserved1 VARCHAR2(500),
+  reserved2 VARCHAR2(500),
+  reserved3 VARCHAR2(500),
+  reserved4 VARCHAR2(500),
+  reserved5 VARCHAR2(500),
+  reserved6 VARCHAR2(500),
+  reserved7 VARCHAR2(500),
+  reserved8 VARCHAR2(500),
+  reserved9 VARCHAR2(500),
+  reserved10 VARCHAR2(500),
+  CONSTRAINT PK_TUNNEL_SERVICE PRIMARY KEY (tunnelServiceId),
+  CONSTRAINT UK_TUNNEL_SVC_NAME UNIQUE (serviceName)
+);
+
+CREATE INDEX IDX_TUNNEL_SVC_TENANT ON HUB_TUNNEL_SERVICE(tenantId);
+CREATE INDEX IDX_TUNNEL_SVC_CLIENT ON HUB_TUNNEL_SERVICE(tunnelClientId);
+CREATE INDEX IDX_TUNNEL_SVC_USER ON HUB_TUNNEL_SERVICE(userId);
+CREATE INDEX IDX_TUNNEL_SVC_TYPE ON HUB_TUNNEL_SERVICE(serviceType);
+CREATE INDEX IDX_TUNNEL_SVC_STATUS ON HUB_TUNNEL_SERVICE(serviceStatus);
+CREATE INDEX IDX_TUNNEL_SVC_PORT ON HUB_TUNNEL_SERVICE(remotePort);
+CREATE INDEX IDX_TUNNEL_SVC_DOMAIN ON HUB_TUNNEL_SERVICE(subDomain);
+
+COMMENT ON TABLE HUB_TUNNEL_SERVICE IS '隧道服务配置表，管理客户端动态注册的服务配置';
 
 

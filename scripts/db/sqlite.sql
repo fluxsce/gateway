@@ -2403,7 +2403,251 @@ CREATE INDEX IF NOT EXISTS IDX_MONITOR_APP_DATA_HEALTH ON HUB_MONITOR_APP_DATA(h
 CREATE INDEX IF NOT EXISTS IDX_MONITOR_APP_DATA_PRIMARY ON HUB_MONITOR_APP_DATA(primaryValue);
 CREATE INDEX IF NOT EXISTS IDX_MONITOR_APP_DATA_STATUS ON HUB_MONITOR_APP_DATA(statusValue);
 CREATE INDEX IF NOT EXISTS IDX_MONITOR_APP_DATA_COMPOSITE ON HUB_MONITOR_APP_DATA(jvmResourceId, dataType, dataName, collectionTime);
+-- =========================================
+-- 基于FRP架构的隧道管理系统 - SQLite数据库表结构设计
+-- 参考FRP（Fast Reverse Proxy）设计模式
+-- 遵循naming-convention.md数据库规范
+-- =========================================
 
+-- =========================================
+-- 1. 隧道服务器表（控制端口）
+-- =========================================
+
+-- 隧道服务器配置表 - 管理控制端口和核心配置
+CREATE TABLE HUB_TUNNEL_SERVER (
+  tunnelServerId TEXT NOT NULL PRIMARY KEY,
+  tenantId TEXT NOT NULL,
+  serverName TEXT NOT NULL UNIQUE,
+  serverDescription TEXT,
+  controlAddress TEXT NOT NULL DEFAULT '0.0.0.0',
+  controlPort INTEGER NOT NULL DEFAULT 7000,
+  dashboardPort INTEGER DEFAULT 7500,
+  vhostHttpPort INTEGER DEFAULT 80,
+  vhostHttpsPort INTEGER DEFAULT 443,
+  maxClients INTEGER NOT NULL DEFAULT 1000,
+  tokenAuth TEXT NOT NULL DEFAULT 'Y' CHECK(tokenAuth IN ('Y', 'N')),
+  authToken TEXT,
+  tlsEnable TEXT NOT NULL DEFAULT 'N' CHECK(tlsEnable IN ('Y', 'N')),
+  tlsCertFile TEXT,
+  tlsKeyFile TEXT,
+  heartbeatInterval INTEGER NOT NULL DEFAULT 30,
+  heartbeatTimeout INTEGER NOT NULL DEFAULT 90,
+  logLevel TEXT NOT NULL DEFAULT 'info',
+  maxPortsPerClient INTEGER DEFAULT 10,
+  allowPorts TEXT,
+  serverStatus TEXT NOT NULL DEFAULT 'stopped',
+  startTime TEXT,
+  configVersion TEXT,
+  addTime TEXT NOT NULL DEFAULT (datetime('now')),
+  addWho TEXT NOT NULL,
+  editTime TEXT NOT NULL DEFAULT (datetime('now')),
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y' CHECK(activeFlag IN ('Y', 'N')),
+  noteText TEXT,
+  extProperty TEXT,
+  reserved1 TEXT,
+  reserved2 TEXT,
+  reserved3 TEXT,
+  reserved4 TEXT,
+  reserved5 TEXT,
+  reserved6 TEXT,
+  reserved7 TEXT,
+  reserved8 TEXT,
+  reserved9 TEXT,
+  reserved10 TEXT
+);
+
+CREATE INDEX IDX_TUNNEL_SVR_TENANT ON HUB_TUNNEL_SERVER(tenantId);
+CREATE INDEX IDX_TUNNEL_SVR_CTRL ON HUB_TUNNEL_SERVER(controlAddress, controlPort);
+CREATE INDEX IDX_TUNNEL_SVR_STATUS ON HUB_TUNNEL_SERVER(serverStatus);
+
+-- =========================================
+-- 2. 服务器节点表（静态端口映射）
+-- =========================================
+
+CREATE TABLE HUB_TUNNEL_SERVER_NODE (
+  serverNodeId TEXT NOT NULL PRIMARY KEY,
+  tenantId TEXT NOT NULL,
+  tunnelServerId TEXT NOT NULL,
+  nodeName TEXT NOT NULL UNIQUE,
+  nodeType TEXT NOT NULL DEFAULT 'static',
+  proxyType TEXT NOT NULL,
+  listenAddress TEXT NOT NULL DEFAULT '0.0.0.0',
+  listenPort INTEGER NOT NULL,
+  targetAddress TEXT NOT NULL,
+  targetPort INTEGER NOT NULL,
+  customDomains TEXT,
+  subDomain TEXT,
+  httpUser TEXT,
+  httpPassword TEXT,
+  hostHeaderRewrite TEXT,
+  headers TEXT,
+  locations TEXT,
+  compression TEXT NOT NULL DEFAULT 'Y' CHECK(compression IN ('Y', 'N')),
+  encryption TEXT NOT NULL DEFAULT 'N' CHECK(encryption IN ('Y', 'N')),
+  secretKey TEXT,
+  healthCheckType TEXT DEFAULT 'tcp',
+  healthCheckUrl TEXT,
+  healthCheckInterval INTEGER DEFAULT 60,
+  maxConnections INTEGER DEFAULT 100,
+  nodeStatus TEXT NOT NULL DEFAULT 'active',
+  lastHealthCheck TEXT,
+  connectionCount INTEGER DEFAULT 0,
+  totalConnections INTEGER DEFAULT 0,
+  totalBytes INTEGER DEFAULT 0,
+  createdTime TEXT NOT NULL DEFAULT (datetime('now')),
+  addTime TEXT NOT NULL DEFAULT (datetime('now')),
+  addWho TEXT NOT NULL,
+  editTime TEXT NOT NULL DEFAULT (datetime('now')),
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y' CHECK(activeFlag IN ('Y', 'N')),
+  noteText TEXT,
+  extProperty TEXT,
+  reserved1 TEXT,
+  reserved2 TEXT,
+  reserved3 TEXT,
+  reserved4 TEXT,
+  reserved5 TEXT,
+  reserved6 TEXT,
+  reserved7 TEXT,
+  reserved8 TEXT,
+  reserved9 TEXT,
+  reserved10 TEXT,
+  UNIQUE(listenAddress, listenPort, proxyType)
+);
+
+CREATE INDEX IDX_TUNNEL_NODE_TENANT ON HUB_TUNNEL_SERVER_NODE(tenantId);
+CREATE INDEX IDX_TUNNEL_NODE_SERVER ON HUB_TUNNEL_SERVER_NODE(tunnelServerId);
+CREATE INDEX IDX_TUNNEL_NODE_TYPE ON HUB_TUNNEL_SERVER_NODE(nodeType, proxyType);
+CREATE INDEX IDX_TUNNEL_NODE_STATUS ON HUB_TUNNEL_SERVER_NODE(nodeStatus);
+CREATE INDEX IDX_TUNNEL_NODE_HEALTH ON HUB_TUNNEL_SERVER_NODE(lastHealthCheck);
+
+-- =========================================
+-- 3. 客户端注册表（动态连接）
+-- =========================================
+
+CREATE TABLE HUB_TUNNEL_CLIENT (
+  tunnelClientId TEXT NOT NULL PRIMARY KEY,
+  tenantId TEXT NOT NULL,
+  userId TEXT NOT NULL,
+  clientName TEXT NOT NULL UNIQUE,
+  clientDescription TEXT,
+  clientVersion TEXT,
+  operatingSystem TEXT,
+  clientIpAddress TEXT,
+  clientMacAddress TEXT,
+  serverAddress TEXT NOT NULL,
+  serverPort INTEGER NOT NULL DEFAULT 7000,
+  authToken TEXT NOT NULL,
+  tlsEnable TEXT NOT NULL DEFAULT 'N' CHECK(tlsEnable IN ('Y', 'N')),
+  autoReconnect TEXT NOT NULL DEFAULT 'Y' CHECK(autoReconnect IN ('Y', 'N')),
+  maxRetries INTEGER NOT NULL DEFAULT 5,
+  retryInterval INTEGER NOT NULL DEFAULT 20,
+  heartbeatInterval INTEGER NOT NULL DEFAULT 30,
+  heartbeatTimeout INTEGER NOT NULL DEFAULT 90,
+  connectionStatus TEXT NOT NULL DEFAULT 'disconnected',
+  lastConnectTime TEXT,
+  lastDisconnectTime TEXT,
+  totalConnectTime INTEGER DEFAULT 0,
+  reconnectCount INTEGER DEFAULT 0,
+  serviceCount INTEGER DEFAULT 0,
+  lastHeartbeat TEXT,
+  clientConfig TEXT,
+  addTime TEXT NOT NULL DEFAULT (datetime('now')),
+  addWho TEXT NOT NULL,
+  editTime TEXT NOT NULL DEFAULT (datetime('now')),
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y' CHECK(activeFlag IN ('Y', 'N')),
+  noteText TEXT,
+  extProperty TEXT,
+  reserved1 TEXT,
+  reserved2 TEXT,
+  reserved3 TEXT,
+  reserved4 TEXT,
+  reserved5 TEXT,
+  reserved6 TEXT,
+  reserved7 TEXT,
+  reserved8 TEXT,
+  reserved9 TEXT,
+  reserved10 TEXT
+);
+
+CREATE INDEX IDX_TUNNEL_CLIENT_TENANT ON HUB_TUNNEL_CLIENT(tenantId);
+CREATE INDEX IDX_TUNNEL_CLIENT_USER ON HUB_TUNNEL_CLIENT(userId);
+CREATE INDEX IDX_TUNNEL_CLIENT_STATUS ON HUB_TUNNEL_CLIENT(connectionStatus);
+CREATE INDEX IDX_TUNNEL_CLIENT_IP ON HUB_TUNNEL_CLIENT(clientIpAddress);
+CREATE INDEX IDX_TUNNEL_CLIENT_HB ON HUB_TUNNEL_CLIENT(lastHeartbeat);
+
+-- =========================================
+-- 4. 服务配置表（动态注册的服务）
+-- =========================================
+
+CREATE TABLE HUB_TUNNEL_SERVICE (
+  tunnelServiceId TEXT NOT NULL PRIMARY KEY,
+  tenantId TEXT NOT NULL,
+  tunnelClientId TEXT NOT NULL,
+  userId TEXT NOT NULL,
+  serviceName TEXT NOT NULL UNIQUE,
+  serviceDescription TEXT,
+  serviceType TEXT NOT NULL,
+  localAddress TEXT NOT NULL DEFAULT '127.0.0.1',
+  localPort INTEGER NOT NULL,
+  remotePort INTEGER,
+  customDomains TEXT,
+  subDomain TEXT,
+  httpUser TEXT,
+  httpPassword TEXT,
+  hostHeaderRewrite TEXT,
+  headers TEXT,
+  locations TEXT,
+  useEncryption TEXT NOT NULL DEFAULT 'N' CHECK(useEncryption IN ('Y', 'N')),
+  useCompression TEXT NOT NULL DEFAULT 'Y' CHECK(useCompression IN ('Y', 'N')),
+  secretKey TEXT,
+  bandwidthLimit TEXT,
+  maxConnections INTEGER DEFAULT 100,
+  healthCheckType TEXT,
+  healthCheckUrl TEXT,
+  serviceStatus TEXT NOT NULL DEFAULT 'active',
+  registeredTime TEXT NOT NULL DEFAULT (datetime('now')),
+  lastActiveTime TEXT,
+  connectionCount INTEGER DEFAULT 0,
+  totalConnections INTEGER DEFAULT 0,
+  totalTraffic INTEGER DEFAULT 0,
+  serviceConfig TEXT,
+  addTime TEXT NOT NULL DEFAULT (datetime('now')),
+  addWho TEXT NOT NULL,
+  editTime TEXT NOT NULL DEFAULT (datetime('now')),
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y' CHECK(activeFlag IN ('Y', 'N')),
+  noteText TEXT,
+  extProperty TEXT,
+  reserved1 TEXT,
+  reserved2 TEXT,
+  reserved3 TEXT,
+  reserved4 TEXT,
+  reserved5 TEXT,
+  reserved6 TEXT,
+  reserved7 TEXT,
+  reserved8 TEXT,
+  reserved9 TEXT,
+  reserved10 TEXT
+);
+
+CREATE INDEX IDX_TUNNEL_SVC_TENANT ON HUB_TUNNEL_SERVICE(tenantId);
+CREATE INDEX IDX_TUNNEL_SVC_CLIENT ON HUB_TUNNEL_SERVICE(tunnelClientId);
+CREATE INDEX IDX_TUNNEL_SVC_USER ON HUB_TUNNEL_SERVICE(userId);
+CREATE INDEX IDX_TUNNEL_SVC_TYPE ON HUB_TUNNEL_SERVICE(serviceType);
+CREATE INDEX IDX_TUNNEL_SVC_STATUS ON HUB_TUNNEL_SERVICE(serviceStatus);
+CREATE INDEX IDX_TUNNEL_SVC_PORT ON HUB_TUNNEL_SERVICE(remotePort);
+CREATE INDEX IDX_TUNNEL_SVC_DOMAIN ON HUB_TUNNEL_SERVICE(subDomain);
 -- ==========================================
 -- 索引说明
 -- ==========================================

@@ -202,20 +202,24 @@ func (tm *TunnelManager) StartServer(ctx context.Context, serverID string) error
 // 返回:
 //   - error: 停止过程中的错误，如果成功则返回nil
 func (tm *TunnelManager) StopServer(ctx context.Context, serverID string) error {
-	tm.mutex.Lock()
-	defer tm.mutex.Unlock()
-
+	// 先获取服务器实例（不持有锁）
+	tm.mutex.RLock()
 	tunnelServer, exists := tm.servers[serverID]
+	tm.mutex.RUnlock()
+
 	if !exists {
 		return fmt.Errorf("server %s not found", serverID)
 	}
 
+	// 在不持有 manager 锁的情况下停止服务器，避免死锁
 	if err := tunnelServer.Stop(ctx); err != nil {
 		return fmt.Errorf("failed to stop server %s: %w", serverID, err)
 	}
 
 	// 停止成功后，从缓存中删除
+	tm.mutex.Lock()
 	delete(tm.servers, serverID)
+	tm.mutex.Unlock()
 
 	logger.Info("Tunnel server stopped and removed from cache", map[string]interface{}{
 		"serverID": serverID,
@@ -264,7 +268,7 @@ func (tm *TunnelManager) StartClient(ctx context.Context, clientID string) error
 		}
 
 		// 创建客户端实例
-		tunnelClient = client.NewTunnelClient(clientConfig)
+		tunnelClient = client.NewTunnelClient(clientConfig, tm.storageManager)
 		tm.clients[clientID] = tunnelClient
 
 		logger.Info("客户端配置已从数据库加载", map[string]interface{}{
@@ -300,20 +304,24 @@ func (tm *TunnelManager) StartClient(ctx context.Context, clientID string) error
 // 返回:
 //   - error: 停止过程中的错误，如果成功则返回nil
 func (tm *TunnelManager) StopClient(ctx context.Context, clientID string) error {
-	tm.mutex.Lock()
-	defer tm.mutex.Unlock()
-
+	// 先获取客户端实例（不持有锁）
+	tm.mutex.RLock()
 	tunnelClient, exists := tm.clients[clientID]
+	tm.mutex.RUnlock()
+
 	if !exists {
 		return fmt.Errorf("client %s not found", clientID)
 	}
 
+	// 在不持有 manager 锁的情况下停止客户端，避免死锁
 	if err := tunnelClient.Stop(ctx); err != nil {
 		return fmt.Errorf("failed to stop client %s: %w", clientID, err)
 	}
 
 	// 停止成功后，从缓存中删除
+	tm.mutex.Lock()
 	delete(tm.clients, clientID)
+	tm.mutex.Unlock()
 
 	logger.Info("Tunnel client stopped and removed from cache", map[string]interface{}{
 		"clientID": clientID,
@@ -449,39 +457,125 @@ func (tm *TunnelManager) CreateStaticProxy(ctx context.Context, node *types.Tunn
 // 适用于：开发环境的Web服务、微服务、临时服务等场景。
 //
 // 注册过程：
-// 1. 验证服务配置（名称冲突、端口分配）
-// 2. 保存服务信息到数据库
-// 3. 通知相关服务器更新路由规则
+// 1. 从数据库查询服务配置
+// 2. 查找关联的客户端实例
+// 3. 调用客户端的RegisterService方法进行注册
 //
 // 参数:
 //   - ctx: 上下文对象
-//   - service: 服务配置信息
+//   - serviceID: 要注册的服务ID
 //
 // 返回:
 //   - error: 注册过程中的错误，如果成功则返回nil
 //
 // 示例:
 //
-//	webService := &types.TunnelService{
-//		ServiceName: "my-web-app",
-//		ServiceType: types.ProxyTypeHTTP,
-//		LocalPort:   8080,
-//		SubDomain:   "myapp",
-//	}
-//	err := tm.RegisterService(ctx, webService)
-func (tm *TunnelManager) RegisterService(ctx context.Context, service *types.TunnelService) error {
-	// 验证服务配置
-	if err := tm.validateServiceConfig(ctx, service); err != nil {
-		return fmt.Errorf("invalid service configuration: %w", err)
+//	err := tm.RegisterService(ctx, "service-001")
+func (tm *TunnelManager) RegisterService(ctx context.Context, serviceID string) error {
+	// 1. 从数据库查询服务配置
+	service, err := tm.storageManager.GetTunnelServiceRepository().GetByID(ctx, serviceID)
+	if err != nil {
+		return fmt.Errorf("failed to get service: %w", err)
 	}
 
-	// 保存到数据库
-	if err := tm.storageManager.GetTunnelServiceRepository().Create(ctx, service); err != nil {
-		return fmt.Errorf("failed to register service: %w", err)
+	if service == nil {
+		return fmt.Errorf("service %s not found", serviceID)
+	}
+
+	// 2. 查找关联的客户端
+	tm.mutex.RLock()
+	tunnelClient, exists := tm.clients[service.TunnelClientId]
+	tm.mutex.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("client %s not found or offline", service.TunnelClientId)
+	}
+
+	// 3. 调用客户端的RegisterService方法进行注册
+	if err := tunnelClient.RegisterService(ctx, service); err != nil {
+		logger.Error("Failed to register service on client", err, map[string]interface{}{
+			"serviceID":   serviceID,
+			"serviceName": service.ServiceName,
+			"clientID":    service.TunnelClientId,
+		})
+		return fmt.Errorf("failed to register service on client: %w", err)
 	}
 
 	logger.Info("Service registered successfully", map[string]interface{}{
 		"serviceID":   service.TunnelServiceId,
+		"serviceName": service.ServiceName,
+		"serviceType": service.ServiceType,
+		"clientID":    service.TunnelClientId,
+	})
+
+	return nil
+}
+
+// UnregisterService 注销动态服务
+//
+// 从隧道系统中注销服务，停止服务的代理功能。
+// 适用于：服务下线、临时停用、配置变更等场景。
+//
+// 注销过程：
+// 1. 查询服务信息验证服务存在
+// 2. 查找关联的客户端实例
+// 3. 调用客户端的UnregisterService方法注销服务
+// 4. 更新数据库服务状态为inactive
+// 5. 清理相关资源和路由规则
+//
+// 参数:
+//   - ctx: 上下文对象
+//   - serviceID: 要注销的服务唯一标识
+//
+// 返回:
+//   - error: 注销过程中的错误，如果成功则返回nil
+//
+// 示例:
+//
+//	err := tm.UnregisterService(ctx, "service-001")
+func (tm *TunnelManager) UnregisterService(ctx context.Context, serviceID string) error {
+	// 1. 查询服务信息
+	service, err := tm.storageManager.GetTunnelServiceRepository().GetByID(ctx, serviceID)
+	if err != nil {
+		return fmt.Errorf("failed to get service: %w", err)
+	}
+
+	if service == nil {
+		return fmt.Errorf("service %s not found", serviceID)
+	}
+
+	// 2. 查找关联的客户端
+	tm.mutex.RLock()
+	tunnelClient, exists := tm.clients[service.TunnelClientId]
+	tm.mutex.RUnlock()
+
+	if exists {
+		// 3. 调用客户端的UnregisterService方法注销服务
+		if err := tunnelClient.UnregisterService(ctx, service.ServiceName); err != nil {
+			logger.Error("Failed to unregister service from client", err, map[string]interface{}{
+				"serviceID":   serviceID,
+				"serviceName": service.ServiceName,
+				"clientID":    service.TunnelClientId,
+			})
+			// 即使客户端注销失败，也继续更新数据库状态
+		} else {
+			logger.Info("Service unregistered from client successfully", map[string]interface{}{
+				"serviceID":   serviceID,
+				"serviceName": service.ServiceName,
+				"clientID":    service.TunnelClientId,
+			})
+		}
+	} else {
+		// 客户端不在线或不存在，仅更新数据库状态
+		logger.Warn("Client not found or offline, only update database status", map[string]interface{}{
+			"serviceID": serviceID,
+			"clientID":  service.TunnelClientId,
+		})
+	}
+
+	// 4. 更新数据库服务状态（通过DAO层已经处理，这里不需要重复更新）
+	logger.Info("Service unregistered successfully", map[string]interface{}{
+		"serviceID":   serviceID,
 		"serviceName": service.ServiceName,
 		"serviceType": service.ServiceType,
 	})
@@ -514,35 +608,47 @@ func (tm *TunnelManager) GetSystemMetrics(ctx context.Context) (*monitor.SystemM
 // GetConnectionStats 获取指定时间范围内的连接统计报告
 //
 // 统计信息包括：
-// - 总连接数和活跃连接数
-// - 平均延迟和错误率
-// - 流量统计和吞吐量
-// - 按时间分组的详细数据
+// 注意：连接统计由各组件（control_server, proxy_server）自行维护
+// 此方法返回服务器级别的基本统计信息
 //
 // 参数:
 //   - ctx: 上下文对象
-//   - timeRange: 统计的时间范围
 //
 // 返回:
-//   - *server.ConnectionStatsReport: 连接统计报告
+//   - map[string]interface{}: 连接统计信息
 //   - error: 统计过程中的错误
-func (tm *TunnelManager) GetConnectionStats(ctx context.Context, timeRange monitor.TimeRange) (*server.ConnectionStatsReport, error) {
+func (tm *TunnelManager) GetConnectionStats(ctx context.Context) (map[string]interface{}, error) {
 	tm.mutex.RLock()
 	defer tm.mutex.RUnlock()
 
-	// TODO: 聚合所有服务器的连接统计
-	var totalReport *server.ConnectionStatsReport
+	stats := make(map[string]interface{})
 
-	for serverID, tunnelServer := range tm.servers {
-		// 获取服务器的连接跟踪器
-		// TODO: 实现连接统计聚合逻辑
-		logger.Debug("Collecting connection stats", map[string]interface{}{
-			"serverID": serverID,
-		})
-		_ = tunnelServer
+	// 统计服务器数量
+	stats["totalServers"] = len(tm.servers)
+	stats["totalClients"] = len(tm.clients)
+
+	// 统计活跃连接
+	activeServers := 0
+	activeClients := 0
+
+	for _, tunnelServer := range tm.servers {
+		status := tunnelServer.GetStatus()
+		if status.Status == types.ServerStatusRunning {
+			activeServers++
+		}
 	}
 
-	return totalReport, nil
+	for _, tunnelClient := range tm.clients {
+		status := tunnelClient.GetStatus()
+		if status.Status == types.ConnectionStatusConnected {
+			activeClients++
+		}
+	}
+
+	stats["activeServers"] = activeServers
+	stats["activeClients"] = activeClients
+
+	return stats, nil
 }
 
 // StartAll 启动所有已加载的隧道服务器和客户端
@@ -768,7 +874,7 @@ func (tm *TunnelManager) loadTunnelClients(ctx context.Context) error {
 
 	for _, clientConfig := range clients {
 		if clientConfig.ActiveFlag == types.ActiveFlagYes {
-			tunnelClient := client.NewTunnelClient(clientConfig)
+			tunnelClient := client.NewTunnelClient(clientConfig, tm.storageManager)
 			tm.clients[clientConfig.TunnelClientId] = tunnelClient
 
 			logger.Info("Tunnel client loaded", map[string]interface{}{
@@ -812,37 +918,6 @@ func (tm *TunnelManager) validateNodeConfig(ctx context.Context, node *types.Tun
 	}
 	if !isValid {
 		return fmt.Errorf("invalid proxy type: %s", node.ProxyType)
-	}
-
-	return nil
-}
-
-// validateServiceConfig 验证服务配置的有效性
-//
-// 验证项目包括：
-// 1. 服务名称唯一性：确保服务名称在租户内唯一
-// 2. 远程端口冲突检查：如果指定了远程端口，检查是否已被占用
-// 3. 配置完整性验证：检查必要字段是否完整
-//
-// 参数:
-//   - ctx: 上下文对象
-//   - service: 要验证的服务配置
-//
-// 返回:
-//   - error: 验证失败的具体错误信息
-func (tm *TunnelManager) validateServiceConfig(ctx context.Context, service *types.TunnelService) error {
-	// 检查服务名称冲突
-	existingService, err := tm.storageManager.GetTunnelServiceRepository().GetByName(ctx, service.ServiceName)
-	if err == nil && existingService != nil {
-		return fmt.Errorf("service name %s is already in use", service.ServiceName)
-	}
-
-	// 检查远程端口冲突（如果指定）
-	if service.RemotePort != nil {
-		existingService, err := tm.storageManager.GetTunnelServiceRepository().GetByRemotePort(ctx, *service.RemotePort)
-		if err == nil && existingService != nil {
-			return fmt.Errorf("remote port %d is already in use by service %s", *service.RemotePort, existingService.ServiceName)
-		}
 	}
 
 	return nil
@@ -939,7 +1014,7 @@ func (tm *TunnelManager) ReloadClientConfig(ctx context.Context, clientID string
 	}
 
 	// 创建新的客户端实例
-	tunnelClient := client.NewTunnelClient(clientConfig)
+	tunnelClient := client.NewTunnelClient(clientConfig, tm.storageManager)
 	tm.clients[clientID] = tunnelClient
 
 	logger.Info("客户端配置已重新加载", map[string]interface{}{

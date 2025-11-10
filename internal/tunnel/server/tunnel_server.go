@@ -51,14 +51,13 @@ import (
 //		log.Fatal(err)
 //	}
 type DefaultTunnelServer struct {
-	config            *types.TunnelServer
-	storageManager    storage.RepositoryManager
-	controlServer     ControlServer
-	proxyServer       ProxyServer
-	sessionManager    SessionManager
-	serviceRegistry   ServiceRegistry
-	connectionTracker ConnectionTracker
-	loadBalancer      LoadBalancer
+	config          *types.TunnelServer
+	storageManager  storage.RepositoryManager
+	controlServer   ControlServer
+	proxyServer     ProxyServer        // 反向代理服务器（用于隧道服务）
+	staticProxyMgr  StaticProxyManager // 静态代理管理器（用于端口转发和负载均衡）
+	serviceRegistry ServiceRegistry
+	loadBalancer    LoadBalancer // 负载均衡器（被静态代理管理器使用）
 
 	// 状态管理
 	status           *ServerStatus
@@ -92,12 +91,10 @@ func NewTunnelServer(config *types.TunnelServer, storageManager storage.Reposito
 		connectedClients: make(map[string]*types.TunnelClient),
 		stopChan:         make(chan struct{}),
 		status: &ServerStatus{
-			Status:            types.ServerStatusStopped,
-			StartTime:         time.Now(),
-			ConnectedClients:  0,
-			ActiveSessions:    0,
-			ActiveConnections: 0,
-			TotalTraffic:      0,
+			Status:           types.ServerStatusStopped,
+			StartTime:        time.Now(),
+			ConnectedClients: 0,
+			TotalTraffic:     0,
 		},
 	}
 }
@@ -204,9 +201,8 @@ func (s *DefaultTunnelServer) Start(ctx context.Context) error {
 //   - 停止后的服务器可以重新启动
 func (s *DefaultTunnelServer) Stop(ctx context.Context) error {
 	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
 	if s.status.Status == types.ServerStatusStopped {
+		s.mutex.Unlock()
 		return nil
 	}
 
@@ -217,6 +213,13 @@ func (s *DefaultTunnelServer) Stop(ctx context.Context) error {
 	// 发送停止信号
 	close(s.stopChan)
 
+	// 收集需要注销的客户端列表（不持有锁）
+	clientsToUnregister := make(map[string]*types.TunnelClient)
+	for clientID, client := range s.connectedClients {
+		clientsToUnregister[clientID] = client
+	}
+	s.mutex.Unlock()
+
 	// 停止控制服务器
 	if s.controlServer != nil {
 		if err := s.controlServer.Stop(ctx); err != nil {
@@ -224,15 +227,22 @@ func (s *DefaultTunnelServer) Stop(ctx context.Context) error {
 		}
 	}
 
-	// 停止代理服务器
+	// 停止反向代理服务器
 	if s.proxyServer != nil {
 		if err := s.proxyServer.Stop(ctx); err != nil {
 			logger.Error("Failed to stop proxy server", err)
 		}
 	}
 
-	// 关闭所有客户端连接
-	for clientID, client := range s.connectedClients {
+	// 停止静态代理管理器
+	if s.staticProxyMgr != nil {
+		if err := s.staticProxyMgr.Stop(ctx); err != nil {
+			logger.Error("Failed to stop static proxy manager", err)
+		}
+	}
+
+	// 在不持有锁的情况下注销所有客户端，避免死锁
+	for clientID, client := range clientsToUnregister {
 		if err := s.UnregisterClient(ctx, clientID); err != nil {
 			logger.Error("Failed to unregister client", err, map[string]interface{}{
 				"clientID":   clientID,
@@ -242,8 +252,10 @@ func (s *DefaultTunnelServer) Stop(ctx context.Context) error {
 	}
 
 	// 更新服务器状态
+	s.mutex.Lock()
 	s.status.Status = types.ServerStatusStopped
 	s.status.Uptime = time.Since(s.status.StartTime).Milliseconds()
+	s.mutex.Unlock()
 
 	// 更新数据库状态
 	if err := s.storageManager.GetTunnelServerRepository().UpdateStatus(ctx, s.config.TunnelServerId, types.ServerStatusStopped, nil); err != nil {
@@ -289,14 +301,6 @@ func (s *DefaultTunnelServer) GetStatus() ServerStatus {
 	}
 
 	status.ConnectedClients = len(s.connectedClients)
-
-	if s.sessionManager != nil {
-		status.ActiveSessions = len(s.sessionManager.GetActiveSessions(context.Background()))
-	}
-
-	if s.connectionTracker != nil {
-		status.ActiveConnections = len(s.connectionTracker.GetActiveConnections(context.Background()))
-	}
 
 	return status
 }
@@ -433,21 +437,8 @@ func (s *DefaultTunnelServer) UnregisterClient(ctx context.Context, clientID str
 		return fmt.Errorf("client %s is not registered", clientID)
 	}
 
-	// 关闭客户端的所有会话
-	if s.sessionManager != nil {
-		sessions := s.sessionManager.GetActiveSessions(ctx)
-		for _, session := range sessions {
-			if session.TunnelClientId == clientID {
-				if err := s.sessionManager.CloseSession(ctx, session.TunnelSessionId); err != nil {
-					logger.Error("Failed to close client session", err, map[string]interface{}{
-						"sessionID": session.TunnelSessionId,
-					})
-				}
-			}
-		}
-	}
-
 	// 注销客户端的所有服务
+	// 注意：会话管理由 control_server 负责，客户端断开时会自动清理
 	if s.serviceRegistry != nil {
 		services, err := s.serviceRegistry.GetServicesByClient(ctx, clientID)
 		if err == nil {
@@ -558,76 +549,72 @@ func (s *DefaultTunnelServer) BroadcastMessage(ctx context.Context, message []by
 
 // initializeComponents 初始化组件
 func (s *DefaultTunnelServer) initializeComponents() error {
+	// 创建组件工厂
+	factory := NewComponentFactory()
+
+	// 初始化负载均衡器（需要先初始化，因为静态代理管理器依赖它）
+	s.loadBalancer = factory.CreateLoadBalancer("round_robin")
+
 	// 初始化控制服务器
-	s.controlServer = NewControlServer(s)
+	s.controlServer = factory.CreateControlServer(s)
 
-	// 初始化代理服务器
-	s.proxyServer = NewProxyServer(s, s.controlServer)
+	// 初始化反向代理服务器（用于隧道服务）
+	s.proxyServer = factory.CreateProxyServer(s, s.controlServer)
 
-	// 初始化会话管理器
-	s.sessionManager = NewSessionManager(s.storageManager)
+	// 设置代理服务器的控制服务器引用
+	s.controlServer.SetProxyServer(s.proxyServer)
+
+	// 初始化静态代理管理器（用于端口转发和负载均衡）
+	s.staticProxyMgr = NewStaticProxyManager(s.config.TunnelServerId, s.storageManager, s.loadBalancer)
 
 	// 初始化服务注册器
-	s.serviceRegistry = NewServiceRegistry(s.storageManager)
+	s.serviceRegistry = factory.CreateServiceRegistry(s.storageManager)
 
-	// 初始化连接跟踪器
-	s.connectionTracker = NewConnectionTracker(s.storageManager)
-
-	// 初始化负载均衡器
-	s.loadBalancer = NewLoadBalancer("round_robin")
+	// 设置服务注册器的代理服务器引用
+	if sr, ok := s.serviceRegistry.(*serviceRegistry); ok {
+		sr.SetProxyServer(s.proxyServer)
+	}
 
 	return nil
 }
 
-// loadStaticProxies 加载静态代理节点
+// loadStaticProxies 加载并启动静态代理节点
+//
+// 静态代理节点用于端口转发和负载均衡场景，由独立的静态代理管理器管理。
+// 该方法在服务器启动时调用，负责初始化和启动所有静态代理。
+//
+// 使用场景：
+//   - 端口转发：将监听端口的请求转发到目标地址
+//   - 负载均衡：使用负载均衡器在多个后端节点间分配请求
+//   - 高可用：支持后端节点的健康检查和故障转移
 func (s *DefaultTunnelServer) loadStaticProxies(ctx context.Context) error {
-	nodes, err := s.storageManager.GetTunnelServerNodeRepository().GetByServerID(ctx, s.config.TunnelServerId)
-	if err != nil {
-		return fmt.Errorf("failed to load server nodes: %w", err)
+	logger.Info("Loading static proxies", map[string]interface{}{
+		"serverID": s.config.TunnelServerId,
+	})
+
+	// 初始化静态代理管理器（加载配置）
+	if err := s.staticProxyMgr.Initialize(ctx); err != nil {
+		return fmt.Errorf("failed to initialize static proxy manager: %w", err)
 	}
 
-	for _, node := range nodes {
-		if node.NodeType == types.NodeTypeStatic && node.NodeStatus == types.NodeStatusActive {
-			proxyConfig := &ProxyConfig{
-				ProxyID:       node.ServerNodeId,
-				ProxyType:     node.ProxyType,
-				ListenAddress: node.ListenAddress,
-				ListenPort:    node.ListenPort,
-				TargetAddress: node.TargetAddress,
-				TargetPort:    node.TargetPort,
-				Options:       make(map[string]interface{}),
-			}
-
-			// 添加代理选项
-			if node.CustomDomains != nil {
-				proxyConfig.Options["customDomains"] = *node.CustomDomains
-			}
-			if node.SubDomain != nil {
-				proxyConfig.Options["subDomain"] = *node.SubDomain
-			}
-
-			if err := s.proxyServer.StartProxy(ctx, proxyConfig); err != nil {
-				logger.Error("Failed to start static proxy", err, map[string]interface{}{
-					"nodeID":    node.ServerNodeId,
-					"nodeName":  node.NodeName,
-					"proxyType": node.ProxyType,
-				})
-				continue
-			}
-
-			logger.Info("Static proxy started", map[string]interface{}{
-				"nodeID":     node.ServerNodeId,
-				"nodeName":   node.NodeName,
-				"proxyType":  node.ProxyType,
-				"listenPort": node.ListenPort,
-			})
-		}
+	// 启动所有静态代理
+	if err := s.staticProxyMgr.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start static proxies: %w", err)
 	}
+
+	// 获取活跃代理数量
+	activeProxies := s.staticProxyMgr.GetActiveProxies()
+	logger.Info("Static proxies loaded successfully", map[string]interface{}{
+		"serverID":   s.config.TunnelServerId,
+		"proxyCount": len(activeProxies),
+	})
 
 	return nil
 }
 
 // backgroundTasks 后台任务
+// 注意：各组件（control_server, proxy_server, static_proxy_manager）都有自己的维护逻辑
+// 这里只做服务器级别的简单统计更新
 func (s *DefaultTunnelServer) backgroundTasks(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -639,35 +626,8 @@ func (s *DefaultTunnelServer) backgroundTasks(ctx context.Context) {
 		case <-s.stopChan:
 			return
 		case <-ticker.C:
-			// 执行定期任务
-			s.performHealthChecks(ctx)
+			// 更新服务器级别的统计信息
 			s.updateMetrics(ctx)
-			s.cleanupExpiredSessions(ctx)
-		}
-	}
-}
-
-// performHealthChecks 执行健康检查
-func (s *DefaultTunnelServer) performHealthChecks(ctx context.Context) {
-	// 检查客户端心跳超时
-	if s.sessionManager != nil {
-		timeoutSessions, err := s.sessionManager.CheckTimeout(ctx)
-		if err != nil {
-			logger.Error("Failed to check session timeout", err)
-			return
-		}
-
-		for _, session := range timeoutSessions {
-			logger.Warn("Session timeout detected", map[string]interface{}{
-				"sessionID": session.TunnelSessionId,
-				"clientID":  session.TunnelClientId,
-			})
-
-			if err := s.UnregisterClient(ctx, session.TunnelClientId); err != nil {
-				logger.Error("Failed to unregister timeout client", err, map[string]interface{}{
-					"clientID": session.TunnelClientId,
-				})
-			}
 		}
 	}
 }
@@ -679,67 +639,4 @@ func (s *DefaultTunnelServer) updateMetrics(ctx context.Context) {
 	s.mutex.RUnlock()
 
 	s.status.ConnectedClients = clientCount
-
-	if s.sessionManager != nil {
-		s.status.ActiveSessions = len(s.sessionManager.GetActiveSessions(ctx))
-	}
-
-	if s.connectionTracker != nil {
-		s.status.ActiveConnections = len(s.connectionTracker.GetActiveConnections(ctx))
-	}
-}
-
-// cleanupExpiredSessions 清理过期会话
-//
-// 定期扫描并清理超时或无效的会话，释放系统资源。
-// 这是一个重要的维护任务，防止内存泄漏和资源浪费。
-//
-// 清理策略：
-// 1. 检查会话最后活跃时间
-// 2. 识别超过超时阈值的会话
-// 3. 清理相关连接和资源
-// 4. 更新数据库记录
-// 5. 记录清理统计信息
-//
-// 参数:
-//   - ctx: 清理过程的上下文
-//
-// 触发时机：
-//   - 后台任务定期执行
-//   - 内存使用达到阈值时
-//   - 手动触发清理
-func (s *DefaultTunnelServer) cleanupExpiredSessions(ctx context.Context) {
-	if s.sessionManager == nil {
-		return
-	}
-
-	// 获取过期会话
-	expiredSessions, err := s.sessionManager.GetExpiredSessions(ctx, 5*time.Minute)
-	if err != nil {
-		logger.Error("Failed to get expired sessions", err)
-		return
-	}
-
-	if len(expiredSessions) == 0 {
-		return
-	}
-
-	logger.Info("Cleaning up expired sessions", map[string]interface{}{
-		"expiredCount": len(expiredSessions),
-	})
-
-	// 清理每个过期会话
-	for _, session := range expiredSessions {
-		if err := s.sessionManager.CloseSession(ctx, session.TunnelSessionId); err != nil {
-			logger.Error("Failed to close expired session", err, map[string]interface{}{
-				"sessionID": session.TunnelSessionId,
-				"clientID":  session.TunnelClientId,
-			})
-		} else {
-			logger.Debug("Expired session cleaned up", map[string]interface{}{
-				"sessionID": session.TunnelSessionId,
-				"clientID":  session.TunnelClientId,
-			})
-		}
-	}
 }

@@ -1,17 +1,19 @@
 package dao
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
 
+	"gateway/internal/tunnel"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/huberrors"
 	"gateway/pkg/utils/random"
 	"gateway/web/views/hub0062/models"
+
+	"github.com/gin-gonic/gin"
 )
 
 type TunnelClientDAO struct {
@@ -23,8 +25,8 @@ func NewTunnelClientDAO(db database.Database) *TunnelClientDAO {
 }
 
 // QueryTunnelClients 查询客户端列表（分页）
-func (dao *TunnelClientDAO) QueryTunnelClients(req *models.TunnelClientQueryRequest) ([]*models.TunnelClient, int, error) {
-	ctx := context.Background()
+func (dao *TunnelClientDAO) QueryTunnelClients(ginCtx *gin.Context, req *models.TunnelClientQueryRequest) ([]*models.TunnelClient, int, error) {
+	ctx := ginCtx.Request.Context()
 
 	// 构建WHERE条件
 	whereConditions := []string{"1=1"}
@@ -53,8 +55,6 @@ func (dao *TunnelClientDAO) QueryTunnelClients(req *models.TunnelClientQueryRequ
 	if req.ActiveFlag != "" {
 		whereConditions = append(whereConditions, "activeFlag = ?")
 		args = append(args, req.ActiveFlag)
-	} else {
-		whereConditions = append(whereConditions, "activeFlag = 'Y'")
 	}
 
 	if req.Keyword != "" {
@@ -68,11 +68,11 @@ func (dao *TunnelClientDAO) QueryTunnelClients(req *models.TunnelClientQueryRequ
 	// 构建基础查询
 	baseQuery := fmt.Sprintf(`
 		SELECT tunnelClientId, tenantId, userId, clientName, clientDescription, 
-		       clientVersion, operatingSystem, clientIpAddress, serverAddress, serverPort,
+		       clientVersion, operatingSystem, clientIpAddress, clientMacAddress, serverAddress, serverPort,
 		       authToken, tlsEnable, autoReconnect, maxRetries, retryInterval,
 		       reconnectCount, totalConnectTime, heartbeatInterval, heartbeatTimeout, lastHeartbeat,
-		       connectionStatus, lastConnectTime, lastDisconnectTime, disconnectReason, serviceCount,
-		       addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag, noteText, extProperty
+		       connectionStatus, lastConnectTime, lastDisconnectTime, serviceCount,
+		       clientConfig, addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag, noteText, extProperty
 		FROM HUB_TUNNEL_CLIENT
 		WHERE %s
 		ORDER BY editTime DESC
@@ -121,18 +121,18 @@ func (dao *TunnelClientDAO) QueryTunnelClients(req *models.TunnelClientQueryRequ
 }
 
 // GetTunnelClient 获取客户端详情
-func (dao *TunnelClientDAO) GetTunnelClient(tunnelClientId string) (*models.TunnelClient, error) {
-	ctx := context.Background()
+func (dao *TunnelClientDAO) GetTunnelClient(ginCtx *gin.Context, tunnelClientId string) (*models.TunnelClient, error) {
+	ctx := ginCtx.Request.Context()
 
 	querySQL := `
 		SELECT tunnelClientId, tenantId, userId, clientName, clientDescription, 
-		       clientVersion, operatingSystem, clientIpAddress, serverAddress, serverPort,
+		       clientVersion, operatingSystem, clientIpAddress, clientMacAddress, serverAddress, serverPort,
 		       authToken, tlsEnable, autoReconnect, maxRetries, retryInterval,
 		       reconnectCount, totalConnectTime, heartbeatInterval, heartbeatTimeout, lastHeartbeat,
-		       connectionStatus, lastConnectTime, lastDisconnectTime, disconnectReason, serviceCount,
-		       addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag, noteText, extProperty
+		       connectionStatus, lastConnectTime, lastDisconnectTime, serviceCount,
+		       clientConfig, addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag, noteText, extProperty
 		FROM HUB_TUNNEL_CLIENT
-		WHERE tunnelClientId = ? AND activeFlag = 'Y'
+		WHERE tunnelClientId = ?
 	`
 
 	client := &models.TunnelClient{}
@@ -147,8 +147,8 @@ func (dao *TunnelClientDAO) GetTunnelClient(tunnelClientId string) (*models.Tunn
 }
 
 // CreateTunnelClient 创建客户端
-func (dao *TunnelClientDAO) CreateTunnelClient(client *models.TunnelClient) (*models.TunnelClient, error) {
-	ctx := context.Background()
+func (dao *TunnelClientDAO) CreateTunnelClient(ginCtx *gin.Context, client *models.TunnelClient) (*models.TunnelClient, error) {
+	ctx := ginCtx.Request.Context()
 
 	// 生成客户端ID
 	if client.TunnelClientId == "" {
@@ -161,7 +161,7 @@ func (dao *TunnelClientDAO) CreateTunnelClient(client *models.TunnelClient) (*mo
 	}
 
 	// 检查客户端名称唯一性
-	exists, err := dao.checkClientNameExists(client.ClientName, client.TenantId, "")
+	exists, err := dao.checkClientNameExists(ginCtx, client.ClientName, client.TenantId, "")
 	if err != nil {
 		return nil, err
 	}
@@ -203,34 +203,8 @@ func (dao *TunnelClientDAO) CreateTunnelClient(client *models.TunnelClient) (*mo
 		client.ServiceCount = 0
 	}
 
-	// 插入数据库
-	insertSQL := `
-		INSERT INTO HUB_TUNNEL_CLIENT (
-			tunnelClientId, tenantId, userId, clientName, clientDescription,
-			clientVersion, operatingSystem, clientIpAddress, serverAddress, serverPort,
-			authToken, tlsEnable, autoReconnect, maxRetries, retryInterval,
-			reconnectCount, totalConnectTime, heartbeatInterval, heartbeatTimeout, lastHeartbeat,
-			connectionStatus, lastConnectTime, lastDisconnectTime, disconnectReason, serviceCount,
-			addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag, noteText, extProperty
-		) VALUES (
-			?, ?, ?, ?, ?,
-			?, ?, ?, ?, ?,
-			?, ?, ?, ?, ?,
-			?, ?, ?, ?, ?,
-			?, ?, ?, ?, ?,
-			?, ?, ?, ?, ?, ?, ?, ?, ?
-		)
-	`
-
-	_, err = dao.db.Exec(ctx, insertSQL, []interface{}{
-		client.TunnelClientId, client.TenantId, client.UserId, client.ClientName, client.ClientDescription,
-		client.ClientVersion, client.OperatingSystem, client.ClientIpAddress, client.ServerAddress, client.ServerPort,
-		client.AuthToken, client.TlsEnable, client.AutoReconnect, client.MaxRetries, client.RetryInterval,
-		client.ReconnectCount, client.TotalConnectTime, client.HeartbeatInterval, client.HeartbeatTimeout, client.LastHeartbeat,
-		client.ConnectionStatus, client.LastConnectTime, client.LastDisconnectTime, client.DisconnectReason, client.ServiceCount,
-		client.AddTime, client.AddWho, client.EditTime, client.EditWho, client.OprSeqFlag, client.CurrentVersion, client.ActiveFlag, client.NoteText, client.ExtProperty,
-	}, false)
-
+	// 插入数据库（使用便捷方法）
+	_, err = dao.db.Insert(ctx, "HUB_TUNNEL_CLIENT", client, true)
 	if err != nil {
 		logger.Error("创建客户端失败", "clientName", client.ClientName, "error", err)
 		errMsg := "创建客户端失败: " + err.Error()
@@ -242,18 +216,18 @@ func (dao *TunnelClientDAO) CreateTunnelClient(client *models.TunnelClient) (*mo
 }
 
 // UpdateTunnelClient 更新客户端
-func (dao *TunnelClientDAO) UpdateTunnelClient(client *models.TunnelClient) (*models.TunnelClient, error) {
-	ctx := context.Background()
+func (dao *TunnelClientDAO) UpdateTunnelClient(ginCtx *gin.Context, client *models.TunnelClient) (*models.TunnelClient, error) {
+	ctx := ginCtx.Request.Context()
 
 	// 检查客户端是否存在
-	existing, err := dao.GetTunnelClient(client.TunnelClientId)
+	existing, err := dao.GetTunnelClient(ginCtx, client.TunnelClientId)
 	if err != nil {
 		return nil, err
 	}
 
 	// 检查客户端名称唯一性（排除自己）
 	if client.ClientName != existing.ClientName {
-		exists, err := dao.checkClientNameExists(client.ClientName, client.TenantId, client.TunnelClientId)
+		exists, err := dao.checkClientNameExists(ginCtx, client.ClientName, client.TenantId, client.TunnelClientId)
 		if err != nil {
 			return nil, err
 		}
@@ -270,19 +244,21 @@ func (dao *TunnelClientDAO) UpdateTunnelClient(client *models.TunnelClient) (*mo
 	updateSQL := `
 		UPDATE HUB_TUNNEL_CLIENT SET
 			clientName = ?, clientDescription = ?, clientVersion = ?, operatingSystem = ?,
-			clientIpAddress = ?, serverAddress = ?, serverPort = ?, tlsEnable = ?,
-			autoReconnect = ?, maxRetries = ?, retryInterval = ?, heartbeatInterval = ?,
-			heartbeatTimeout = ?, editTime = ?, editWho = ?, currentVersion = ?,
-			noteText = ?, extProperty = ?
-		WHERE tunnelClientId = ? AND activeFlag = 'Y' AND currentVersion = ?
+			clientIpAddress = ?, clientMacAddress = ?, serverAddress = ?, serverPort = ?,
+			authToken = ?, tlsEnable = ?, autoReconnect = ?, maxRetries = ?, retryInterval = ?,
+			heartbeatInterval = ?, heartbeatTimeout = ?, clientConfig = ?,
+			editTime = ?, editWho = ?, currentVersion = ?,
+			activeFlag = ?, noteText = ?, extProperty = ?
+		WHERE tunnelClientId = ? AND currentVersion = ?
 	`
 
 	rowsAffected, err := dao.db.Exec(ctx, updateSQL, []interface{}{
 		client.ClientName, client.ClientDescription, client.ClientVersion, client.OperatingSystem,
-		client.ClientIpAddress, client.ServerAddress, client.ServerPort, client.TlsEnable,
-		client.AutoReconnect, client.MaxRetries, client.RetryInterval, client.HeartbeatInterval,
-		client.HeartbeatTimeout, client.EditTime, client.EditWho, client.CurrentVersion,
-		client.NoteText, client.ExtProperty,
+		client.ClientIpAddress, client.ClientMacAddress, client.ServerAddress, client.ServerPort,
+		client.AuthToken, client.TlsEnable, client.AutoReconnect, client.MaxRetries, client.RetryInterval,
+		client.HeartbeatInterval, client.HeartbeatTimeout, client.ClientConfig,
+		client.EditTime, client.EditWho, client.CurrentVersion,
+		client.ActiveFlag, client.NoteText, client.ExtProperty,
 		client.TunnelClientId, existing.CurrentVersion,
 	}, false)
 
@@ -297,15 +273,15 @@ func (dao *TunnelClientDAO) UpdateTunnelClient(client *models.TunnelClient) (*mo
 	}
 
 	logger.Info("更新客户端成功", "tunnelClientId", client.TunnelClientId)
-	return dao.GetTunnelClient(client.TunnelClientId)
+	return dao.GetTunnelClient(ginCtx, client.TunnelClientId)
 }
 
-// DeleteTunnelClient 删除客户端（逻辑删除）
-func (dao *TunnelClientDAO) DeleteTunnelClient(tunnelClientId, editWho string) (*models.TunnelClient, error) {
-	ctx := context.Background()
+// DeleteTunnelClient 删除客户端（物理删除）
+func (dao *TunnelClientDAO) DeleteTunnelClient(ginCtx *gin.Context, tunnelClientId, editWho string) (*models.TunnelClient, error) {
+	ctx := ginCtx.Request.Context()
 
 	// 检查客户端是否存在
-	client, err := dao.GetTunnelClient(tunnelClientId)
+	client, err := dao.GetTunnelClient(ginCtx, tunnelClientId)
 	if err != nil {
 		return nil, err
 	}
@@ -315,14 +291,13 @@ func (dao *TunnelClientDAO) DeleteTunnelClient(tunnelClientId, editWho string) (
 		return nil, huberrors.NewError("客户端下还有关联的服务，无法删除")
 	}
 
-	// 逻辑删除
+	// 物理删除
 	deleteSQL := `
-		UPDATE HUB_TUNNEL_CLIENT
-		SET activeFlag = 'N', editTime = ?, editWho = ?, currentVersion = currentVersion + 1
-		WHERE tunnelClientId = ? AND activeFlag = 'Y'
+		DELETE FROM HUB_TUNNEL_CLIENT
+		WHERE tunnelClientId = ?
 	`
 
-	_, err = dao.db.Exec(ctx, deleteSQL, []interface{}{time.Now(), editWho, tunnelClientId}, false)
+	_, err = dao.db.Exec(ctx, deleteSQL, []interface{}{tunnelClientId}, false)
 	if err != nil {
 		logger.Error("删除客户端失败", "tunnelClientId", tunnelClientId, "error", err)
 		errMsg := "删除客户端失败: " + err.Error()
@@ -330,13 +305,12 @@ func (dao *TunnelClientDAO) DeleteTunnelClient(tunnelClientId, editWho string) (
 	}
 
 	logger.Info("删除客户端成功", "tunnelClientId", tunnelClientId)
-	client.ActiveFlag = "N"
 	return client, nil
 }
 
 // GetClientStats 获取客户端统计信息
-func (dao *TunnelClientDAO) GetClientStats() (*models.TunnelClientStats, error) {
-	ctx := context.Background()
+func (dao *TunnelClientDAO) GetClientStats(ginCtx *gin.Context) (*models.TunnelClientStats, error) {
+	ctx := ginCtx.Request.Context()
 
 	querySQL := `
 		SELECT 
@@ -347,7 +321,6 @@ func (dao *TunnelClientDAO) GetClientStats() (*models.TunnelClientStats, error) 
 			SUM(serviceCount) as totalServices,
 			SUM(reconnectCount) as totalReconnects
 		FROM HUB_TUNNEL_CLIENT
-		WHERE activeFlag = 'Y'
 	`
 
 	stats := &models.TunnelClientStats{}
@@ -361,101 +334,94 @@ func (dao *TunnelClientDAO) GetClientStats() (*models.TunnelClientStats, error) 
 	return stats, nil
 }
 
-// GetClientStatus 获取客户端实时状态
-func (dao *TunnelClientDAO) GetClientStatus(tunnelClientId string) (*models.ClientStatusResponse, error) {
-	ctx := context.Background()
-
-	querySQL := `
-		SELECT tunnelClientId, clientName, connectionStatus, lastConnectTime, lastHeartbeat,
-		       serviceCount, totalConnectTime, reconnectCount
-		FROM HUB_TUNNEL_CLIENT
-		WHERE tunnelClientId = ? AND activeFlag = 'Y'
-	`
-
-	status := &models.ClientStatusResponse{}
-	err := dao.db.QueryOne(ctx, status, querySQL, []interface{}{tunnelClientId}, true)
-	if err != nil {
-		logger.Error("查询客户端状态失败", "tunnelClientId", tunnelClientId, "error", err)
-		errMsg := "查询客户端状态失败: " + err.Error()
-		return nil, huberrors.NewError(errMsg)
-	}
-
-	return status, nil
-}
-
-// ResetAuthToken 重置客户端认证令牌
-func (dao *TunnelClientDAO) ResetAuthToken(tunnelClientId, editWho string) (*models.ResetAuthTokenResponse, error) {
-	ctx := context.Background()
+// StartClient 启动客户端（连接到服务器）
+func (dao *TunnelClientDAO) StartClient(ginCtx *gin.Context, tunnelClientId string) error {
+	ctx := ginCtx.Request.Context()
 
 	// 检查客户端是否存在
-	_, err := dao.GetTunnelClient(tunnelClientId)
-	if err != nil {
-		return nil, err
-	}
-
-	// 生成新的认证令牌
-	newToken := random.GenerateRandomString(32)
-
-	updateSQL := `
-		UPDATE HUB_TUNNEL_CLIENT
-		SET authToken = ?, editTime = ?, editWho = ?, currentVersion = currentVersion + 1
-		WHERE tunnelClientId = ? AND activeFlag = 'Y'
-	`
-
-	_, err = dao.db.Exec(ctx, updateSQL, []interface{}{newToken, time.Now(), editWho, tunnelClientId}, false)
-	if err != nil {
-		logger.Error("重置认证令牌失败", "tunnelClientId", tunnelClientId, "error", err)
-		errMsg := "重置认证令牌失败: " + err.Error()
-		return nil, huberrors.NewError(errMsg)
-	}
-
-	logger.Info("重置认证令牌成功", "tunnelClientId", tunnelClientId)
-	return &models.ResetAuthTokenResponse{
-		TunnelClientId: tunnelClientId,
-		AuthToken:      newToken,
-	}, nil
-}
-
-// DisconnectClient 强制断开客户端连接
-func (dao *TunnelClientDAO) DisconnectClient(tunnelClientId, reason, editWho string) error {
-	ctx := context.Background()
-
-	// 检查客户端是否存在
-	client, err := dao.GetTunnelClient(tunnelClientId)
+	_, err := dao.GetTunnelClient(ginCtx, tunnelClientId)
 	if err != nil {
 		return err
 	}
 
-	if client.ConnectionStatus != "connected" {
-		return huberrors.NewError("客户端未连接，无需断开")
+	// 调用TunnelManager启动客户端
+	tunnelManager := getTunnelManager()
+	if tunnelManager == nil {
+		return huberrors.NewError("隧道管理器未初始化")
 	}
 
-	// 更新连接状态
-	updateSQL := `
-		UPDATE HUB_TUNNEL_CLIENT
-		SET connectionStatus = 'disconnected', 
-		    lastDisconnectTime = ?, 
-		    disconnectReason = ?,
-		    editTime = ?, 
-		    editWho = ?, 
-		    currentVersion = currentVersion + 1
-		WHERE tunnelClientId = ? AND activeFlag = 'Y'
-	`
-
-	_, err = dao.db.Exec(ctx, updateSQL, []interface{}{time.Now(), reason, time.Now(), editWho, tunnelClientId}, false)
+	err = tunnelManager.StartClient(ctx, tunnelClientId)
 	if err != nil {
-		logger.Error("断开客户端连接失败", "tunnelClientId", tunnelClientId, "error", err)
-		errMsg := "断开客户端连接失败: " + err.Error()
-		return huberrors.NewError(errMsg)
+		logger.Error("启动客户端失败", "tunnelClientId", tunnelClientId, "error", err)
+		return huberrors.WrapError(err, "启动客户端失败")
 	}
 
-	logger.Info("断开客户端连接成功", "tunnelClientId", tunnelClientId, "reason", reason)
+	logger.Info("启动客户端成功", "tunnelClientId", tunnelClientId)
+	return nil
+}
+
+// StopClient 停止客户端（断开连接）
+func (dao *TunnelClientDAO) StopClient(ginCtx *gin.Context, tunnelClientId string) error {
+	ctx := ginCtx.Request.Context()
+
+	// 检查客户端是否存在
+	_, err := dao.GetTunnelClient(ginCtx, tunnelClientId)
+	if err != nil {
+		return err
+	}
+
+	// 调用TunnelManager停止客户端
+	tunnelManager := getTunnelManager()
+	if tunnelManager == nil {
+		return huberrors.NewError("隧道管理器未初始化")
+	}
+
+	err = tunnelManager.StopClient(ctx, tunnelClientId)
+	if err != nil {
+		logger.Error("停止客户端失败", "tunnelClientId", tunnelClientId, "error", err)
+		return huberrors.WrapError(err, "停止客户端失败")
+	}
+
+	logger.Info("停止客户端成功", "tunnelClientId", tunnelClientId)
+	return nil
+}
+
+// RestartClient 重启客户端（重新连接）
+func (dao *TunnelClientDAO) RestartClient(ginCtx *gin.Context, tunnelClientId string) error {
+	ctx := ginCtx.Request.Context()
+
+	// 检查客户端是否存在
+	_, err := dao.GetTunnelClient(ginCtx, tunnelClientId)
+	if err != nil {
+		return err
+	}
+
+	// 调用TunnelManager重启客户端（先停止再启动）
+	tunnelManager := getTunnelManager()
+	if tunnelManager == nil {
+		return huberrors.NewError("隧道管理器未初始化")
+	}
+
+	// 先停止
+	err = tunnelManager.StopClient(ctx, tunnelClientId)
+	if err != nil {
+		logger.Warn("停止客户端时出错（可能未运行）", "tunnelClientId", tunnelClientId, "error", err)
+	}
+
+	// 再启动
+	err = tunnelManager.StartClient(ctx, tunnelClientId)
+	if err != nil {
+		logger.Error("重启客户端失败", "tunnelClientId", tunnelClientId, "error", err)
+		return huberrors.WrapError(err, "重启客户端失败")
+	}
+
+	logger.Info("重启客户端成功", "tunnelClientId", tunnelClientId)
 	return nil
 }
 
 // BatchEnableClients 批量启用客户端
-func (dao *TunnelClientDAO) BatchEnableClients(clientIds []string, editWho string) (*models.BatchOperationResponse, error) {
-	ctx := context.Background()
+func (dao *TunnelClientDAO) BatchEnableClients(ginCtx *gin.Context, clientIds []string, editWho string) (*models.BatchOperationResponse, error) {
+	ctx := ginCtx.Request.Context()
 	response := &models.BatchOperationResponse{
 		SuccessCount: 0,
 		FailedCount:  0,
@@ -484,8 +450,8 @@ func (dao *TunnelClientDAO) BatchEnableClients(clientIds []string, editWho strin
 }
 
 // BatchDisableClients 批量禁用客户端
-func (dao *TunnelClientDAO) BatchDisableClients(clientIds []string, editWho string) (*models.BatchOperationResponse, error) {
-	ctx := context.Background()
+func (dao *TunnelClientDAO) BatchDisableClients(ginCtx *gin.Context, clientIds []string, editWho string) (*models.BatchOperationResponse, error) {
+	ctx := ginCtx.Request.Context()
 	response := &models.BatchOperationResponse{
 		SuccessCount: 0,
 		FailedCount:  0,
@@ -514,13 +480,13 @@ func (dao *TunnelClientDAO) BatchDisableClients(clientIds []string, editWho stri
 }
 
 // checkClientNameExists 检查客户端名称是否存在
-func (dao *TunnelClientDAO) checkClientNameExists(clientName, tenantId, excludeClientId string) (bool, error) {
-	ctx := context.Background()
+func (dao *TunnelClientDAO) checkClientNameExists(ginCtx *gin.Context, clientName, tenantId, excludeClientId string) (bool, error) {
+	ctx := ginCtx.Request.Context()
 
 	querySQL := `
 		SELECT COUNT(*) as count
 		FROM HUB_TUNNEL_CLIENT 
-		WHERE clientName = ? AND tenantId = ? AND activeFlag = 'Y'
+		WHERE clientName = ? AND tenantId = ?
 	`
 	args := []interface{}{clientName, tenantId}
 
@@ -540,4 +506,9 @@ func (dao *TunnelClientDAO) checkClientNameExists(clientName, tenantId, excludeC
 	}
 
 	return countResult.Count > 0, nil
+}
+
+// getTunnelManager 获取全局隧道管理器实例
+func getTunnelManager() *tunnel.TunnelManager {
+	return tunnel.GetGlobalManager()
 }

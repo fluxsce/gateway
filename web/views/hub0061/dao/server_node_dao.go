@@ -34,8 +34,6 @@ func (dao *ServerNodeDAO) QueryServerNodes(req *models.ServerNodeQueryRequest) (
 	if req.ActiveFlag != "" {
 		whereClause += " AND activeFlag = ?"
 		params = append(params, req.ActiveFlag)
-	} else {
-		whereClause += " AND activeFlag = 'Y'"
 	}
 
 	if req.TunnelServerId != "" {
@@ -269,7 +267,7 @@ func (dao *ServerNodeDAO) UpdateServerNode(node *models.TunnelServerNode) (*mode
 	return dao.GetServerNode(node.ServerNodeId)
 }
 
-// DeleteServerNode 删除服务器节点（逻辑删除）
+// DeleteServerNode 删除服务器节点（物理删除）
 func (dao *ServerNodeDAO) DeleteServerNode(serverNodeId, editWho string) (*models.TunnelServerNode, error) {
 	ctx := context.Background()
 
@@ -278,15 +276,12 @@ func (dao *ServerNodeDAO) DeleteServerNode(serverNodeId, editWho string) (*model
 		return nil, huberrors.WrapError(err, "获取节点信息失败")
 	}
 
-	node.ActiveFlag = "N"
-	node.EditTime = time.Now()
-	node.EditWho = editWho
-	node.CurrentVersion++
+	deleteSQL := `
+		DELETE FROM HUB_TUNNEL_SERVER_NODE
+		WHERE serverNodeId = ?
+	`
 
-	whereClause := "serverNodeId = ?"
-	args := []interface{}{serverNodeId}
-
-	_, err = dao.db.Update(ctx, "HUB_TUNNEL_SERVER_NODE", node, whereClause, args, true)
+	_, err = dao.db.Exec(ctx, deleteSQL, []interface{}{serverNodeId}, false)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "删除节点失败")
 	}
