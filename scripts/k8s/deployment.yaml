@@ -1,0 +1,205 @@
+---
+# ============================================
+# Deployment - FLUX Gateway Application
+# ============================================
+# 说明:
+#   - 部署 2 个副本实现高可用
+#   - 使用滚动更新策略，零停机升级
+#   - 配置资源限制和健康检查
+#   - 使用非 root 用户运行，增强安全性
+# ============================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: gateway
+  labels:
+    app: gateway
+    version: v2.0.2
+    component: application
+spec:
+  # 副本数量（建议生产环境至少 2 个）
+  replicas: 1
+  
+  # 滚动更新策略
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1           # 最多可以比期望副本数多 1 个
+      maxUnavailable: 0     # 更新时保证所有副本可用
+  
+  # Pod 选择器
+  selector:
+    matchLabels:
+      app: gateway
+  
+  # Pod 模板
+  template:
+    metadata:
+      labels:
+        app: gateway
+        version: v2.0.2
+      annotations:
+        # Prometheus 监控配置
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "12003"
+        prometheus.io/path: "/metrics"
+    
+    spec:
+      # Pod 安全上下文（使用非 root 用户运行）
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000      # gateway 用户
+        runAsGroup: 1000     # gateway 组
+        fsGroup: 1000        # 文件系统组
+
+      # 应用容器
+      containers:
+        - name: gateway
+          # 镜像地址（阿里云镜像仓库）
+          image: crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:2.0.2
+          # 镜像拉取策略（总是拉取最新镜像）
+          imagePullPolicy: Always
+          
+          # 容器端口定义
+          ports:
+            - name: http          # API Gateway 端口
+              containerPort: 8080
+              protocol: TCP
+            - name: web           # Web 控制台端口
+              containerPort: 12003
+              protocol: TCP
+            - name: tunnel        # 隧道控制端口
+              containerPort: 7000
+              protocol: TCP
+
+          # 环境变量配置
+          env:
+            # 时区设置
+            - name: TZ
+              value: "Asia/Shanghai"
+            
+            # 日志级别（debug/info/warn/error）
+            - name: GATEWAY_LOG_LEVEL
+              value: "info"
+            
+            # Pod 元数据（用于日志追踪和监控）
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+
+          # 卷挂载配置
+          volumeMounts:
+            # 配置文件（只读）
+            - name: config
+              mountPath: /opt/gateway/configs
+              readOnly: true
+            
+            # 日志目录（可写）
+            - name: logs
+              mountPath: /opt/gateway/logs
+            
+            # 数据目录（可写）
+            - name: data
+              mountPath: /opt/gateway/data
+
+          # 资源限制和请求
+          resources:
+            # 最小资源请求
+            requests:
+              memory: "256Mi"     # 最小内存 256MB
+              cpu: "250m"         # 最小 CPU 0.25 核
+            # 最大资源限制
+            limits:
+              memory: "512Mi"     # 最大内存 512MB
+              cpu: "500m"         # 最大 CPU 0.5 核
+
+          # 存活探针（检测容器是否存活，失败则重启）
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 12003
+            initialDelaySeconds: 30   # 启动后 30 秒开始探测
+            periodSeconds: 10         # 每 10 秒探测一次
+            timeoutSeconds: 5         # 探测超时时间 5 秒
+            successThreshold: 1       # 成功 1 次即为健康
+            failureThreshold: 3       # 连续失败 3 次则重启
+
+          # 就绪探针（检测容器是否就绪，未就绪则不接收流量）
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 12003
+            initialDelaySeconds: 10   # 启动后 10 秒开始探测
+            periodSeconds: 5          # 每 5 秒探测一次
+            timeoutSeconds: 3         # 探测超时时间 3 秒
+            successThreshold: 1       # 成功 1 次即为就绪
+            failureThreshold: 3       # 连续失败 3 次则标记为未就绪
+
+          # 启动探针（检测容器是否启动完成）
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 12003
+            initialDelaySeconds: 0    # 立即开始探测
+            periodSeconds: 5          # 每 5 秒探测一次
+            timeoutSeconds: 3         # 探测超时时间 3 秒
+            successThreshold: 1       # 成功 1 次即为启动完成
+            failureThreshold: 12      # 最多失败 12 次（60 秒）
+
+          # 容器安全上下文
+          securityContext:
+            allowPrivilegeEscalation: false   # 禁止权限提升
+            readOnlyRootFilesystem: false     # 允许写入（日志和数据需要）
+            capabilities:
+              drop:
+                - ALL                         # 移除所有 Linux capabilities
+
+      # 卷定义
+      volumes:
+        # ConfigMap 卷（配置文件）
+        - name: config
+          configMap:
+            name: gateway-config
+            defaultMode: 0644
+        
+        # EmptyDir 卷（日志目录，Pod 重启后清空）
+        - name: logs
+          emptyDir: {}
+        
+        # EmptyDir 卷（数据目录，Pod 重启后清空）
+        - name: data
+          emptyDir: {}
+
+      # 优雅终止时间（30 秒内完成清理工作）
+      terminationGracePeriodSeconds: 30
+
+      # Pod 反亲和性配置（尽量分散到不同节点）
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - gateway
+                topologyKey: kubernetes.io/hostname
+
+      # DNS 策略（使用集群 DNS）
+      dnsPolicy: ClusterFirst
+      
+      # 重启策略（总是重启）
+      restartPolicy: Always
+

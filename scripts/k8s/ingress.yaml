@@ -1,0 +1,106 @@
+---
+# ============================================
+# Ingress - Gateway Ingress Rules
+# 说明: 使用宿主机网络，通过域名访问
+# ============================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gateway-ingress-rules
+  namespace: gateway
+  labels:
+    app: gateway
+    component: ingress
+  annotations:
+    # 使用 NGINX Ingress Controller（使用新的注解方式）
+    
+    # 基础配置
+    # 注意：不要使用 rewrite-target，让路径保持原样传递给后端
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    
+    # 超时配置
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    
+    # 缓冲配置
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+    
+    # WebSocket 支持
+    nginx.ingress.kubernetes.io/websocket-services: "gateway-service"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/proxy-set-headers: |
+      Upgrade $http_upgrade
+      Connection "upgrade"
+    
+    # CORS 配置
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+spec:
+  # 使用 ingressClassName 替代 deprecated 的 annotation
+  ingressClassName: nginx
+  
+  rules:
+    # 使用域名访问（gateway.local）
+    # 注意：路径匹配顺序很重要！更具体的路径要放在前面
+    - host: gateway.local
+      http:
+        paths:
+          # Web 控制台（必须在 / 之前）
+          - path: /gatewayweb
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-service
+                port:
+                  number: 12003
+          # Gateway API（必须在 / 之前）
+          - path: /gateway
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-service
+                port:
+                  number: 12003
+          # API Gateway（放在最后，作为默认路由）
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-service
+                port:
+                  number: 8080
+    
+    # 默认路由（不指定 host，使用宿主机 IP 访问）
+    # 注意：路径匹配顺序很重要！更具体的路径要放在前面
+    - http:
+        paths:
+          # Web 控制台（必须在 / 之前）
+          - path: /gatewayweb
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-service
+                port:
+                  number: 12003
+          # Gateway API（必须在 / 之前）
+          - path: /gateway
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-service
+                port:
+                  number: 12003
+          # API Gateway（放在最后，作为默认路由）
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-service
+                port:
+                  number: 8080
+

@@ -1,0 +1,129 @@
+# ============================================
+# FLUX Gateway - Docker Compose 部署
+# ============================================
+# 说明:
+#   - 使用 Docker Compose 快速部署 Gateway 及其依赖服务
+#   - 包含 MySQL、Redis 和 Gateway 应用
+#   - 所有端口都使用非标准端口避免冲突
+# ============================================
+
+services:
+  # ============================================
+  # MySQL 数据库
+  # ============================================
+  mysql:
+    image: mysql:8.0
+    container_name: gateway-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: gateway
+      MYSQL_USER: gateway
+      MYSQL_PASSWORD: gateway123
+      TZ: Asia/Shanghai
+    ports:
+      - "13306:3306"  # 使用 13306 避免与宿主机 MySQL 冲突
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ../../scripts/db/frp_tunnel_management.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --max_connections=1000
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gateway-network
+
+  # ============================================
+  # Redis 缓存（可选）
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: gateway-redis
+    restart: unless-stopped
+    ports:
+      - "16379:6379"  # 使用 16379 避免与宿主机 Redis 冲突
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --requirepass redis123
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gateway-network
+
+  # ============================================
+  # Gateway 应用
+  # ============================================
+  gateway:
+    image: datahub-images/gateway:2.0.2
+    container_name: gateway-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      TZ: Asia/Shanghai
+      GATEWAY_LOG_LEVEL: info
+    ports:
+      - "18280:8080"   # API Gateway 端口（使用 18280 避免冲突）
+      - "12203:12003"  # Web 控制台端口（使用 12203 避免冲突）
+      - "17000:7000"   # 隧道控制端口（使用 17000 避免冲突）
+      - "12222:2222"   # 隧道映射端口示例（使用 12222 避免冲突）
+    volumes:
+      # 配置文件
+      - ../../configs:/opt/gateway/configs:ro
+      # 日志目录
+      - ../../logs:/opt/gateway/logs
+      # Web 静态资源（如果需要自定义）
+      - ../../web/static:/opt/gateway/web/static:ro
+      # Web 前端资源（如果需要自定义）
+      - ../../web/frontend/dist:/opt/gateway/web/frontend/dist:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:12003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - gateway-network
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+# ============================================
+# 网络配置
+# ============================================
+networks:
+  gateway-network:
+    driver: bridge
+    ipam:
+      config:
+        # 使用较少冲突的网段（避免与现有网络冲突）
+        - subnet: 172.28.0.0/16
+          gateway: 172.28.0.1
+
+# ============================================
+# 数据卷
+# ============================================
+volumes:
+  mysql-data:
+    driver: local
+  redis-data:
+    driver: local
+

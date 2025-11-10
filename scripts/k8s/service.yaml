@@ -1,0 +1,39 @@
+---
+# ============================================
+# Service - Gateway NodePort Service
+# 说明: 使用 NodePort 类型，通过宿主机端口访问
+# ============================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+  namespace: gateway
+  labels:
+    app: gateway
+    component: service
+spec:
+  type: NodePort
+  selector:
+    app: gateway
+  ports:
+    # 核心服务端口（外网从 30001 开始避免冲突）
+    - name: http
+      port: 8080
+      targetPort: 8080
+      nodePort: 30001
+      protocol: TCP
+    - name: web
+      port: 12003
+      targetPort: 12003
+      nodePort: 30002
+      protocol: TCP
+    - name: tunnel
+      port: 7000
+      targetPort: 7000
+      nodePort: 30003
+      protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+

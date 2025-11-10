@@ -1,0 +1,141 @@
+# ============================================
+# FLUX Gateway - Oracle Support Docker Build
+# 支持系统: Linux (Debian Bookworm)
+# 支持架构: amd64
+# 支持数据库: MySQL, SQLite, Oracle
+# ============================================
+
+# ============================================
+# Stage 1: Builder (构建阶段)
+# ============================================
+FROM golang:1.23 AS builder
+
+# 设置工作目录
+WORKDIR /build
+
+# 设置 Go 环境变量
+ENV GOTOOLCHAIN=auto \
+    GOPROXY=https://goproxy.cn,https://goproxy.io,https://mirrors.aliyun.com/goproxy/,direct \
+    GOSUMDB=sum.golang.google.cn \
+    GO111MODULE=on
+
+# 安装构建依赖
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libaio1 \
+    wget \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# 下载并安装 Oracle Instant Client
+RUN mkdir -p /opt/oracle && \
+    cd /opt/oracle && \
+    wget https://download.oracle.com/otn_software/linux/instantclient/2118000/instantclient-basic-linux.x64-21.18.0.0.0dbru.zip && \
+    wget https://download.oracle.com/otn_software/linux/instantclient/2118000/instantclient-sdk-linux.x64-21.18.0.0.0dbru.zip && \
+    unzip -qo instantclient-basic-linux.x64-21.18.0.0.0dbru.zip && \
+    unzip -qo instantclient-sdk-linux.x64-21.18.0.0.0dbru.zip && \
+    rm -f *.zip
+
+# 设置 Oracle 环境变量
+ENV ORACLE_HOME=/opt/oracle/instantclient_21_18
+ENV LD_LIBRARY_PATH=$ORACLE_HOME:$LD_LIBRARY_PATH
+ENV CGO_ENABLED=1
+
+# 复制 go.mod 和 go.sum
+COPY go.mod go.sum ./
+
+# 下载依赖
+RUN go mod download
+
+# 复制源代码
+COPY . .
+
+# 编译应用（启用 CGO，支持 Oracle）
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
+    go build -a \
+    -ldflags="-w -s -X main.Version=2.0.2 -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    -o gateway \
+    cmd/app/main.go
+
+# ============================================
+# Stage 2: Runtime (运行阶段)
+# ============================================
+FROM debian:bookworm-slim
+
+# 设置标签
+LABEL maintainer="fluxopensource@flux.com.cn" \
+      version="2.0.2-oracle" \
+      description="FLUX Gateway with Oracle Database Support"
+
+# 安装运行时依赖和常用工具
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    tzdata \
+    curl \
+    libaio1 \
+    telnet \
+    less \
+    vim \
+    net-tools \
+    iputils-ping \
+    && rm -rf /var/lib/apt/lists/*
+
+# 设置时区
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# 从构建阶段复制 Oracle Instant Client
+COPY --from=builder /opt/oracle/instantclient_21_18 /opt/oracle/instantclient_21_18
+
+# 设置 Oracle 环境变量
+ENV ORACLE_HOME=/opt/oracle/instantclient_21_18
+ENV LD_LIBRARY_PATH=$ORACLE_HOME:$LD_LIBRARY_PATH
+
+# 创建非 root 用户
+RUN groupadd -g 1000 gateway && \
+    useradd -u 1000 -g gateway -s /bin/bash -m gateway
+
+# 创建标准部署目录结构（参考 docs/zh-CN/03-安装部署.md）
+WORKDIR /opt/gateway
+
+# 从构建阶段复制可执行文件
+COPY --from=builder /build/gateway /opt/gateway/gateway
+
+# 复制配置文件
+COPY --chown=gateway:gateway configs /opt/gateway/configs
+
+# 复制 Web 静态资源和前端资源
+COPY --chown=gateway:gateway web/static /opt/gateway/web/static
+COPY --chown=gateway:gateway web/frontend/dist /opt/gateway/web/frontend/dist
+
+# 创建必要的目录
+RUN mkdir -p /opt/gateway/logs \
+    /opt/gateway/data \
+    /opt/gateway/backup \
+    /opt/gateway/scripts/db \
+    /opt/gateway/scripts/deploy \
+    /opt/gateway/pprof_analysis && \
+    chown -R gateway:gateway /opt/gateway/logs \
+    /opt/gateway/data \
+    /opt/gateway/backup \
+    /opt/gateway/scripts \
+    /opt/gateway/pprof_analysis
+
+# 复制数据库脚本（可选，用于容器内初始化）
+COPY --chown=gateway:gateway scripts/db/ /opt/gateway/scripts/db/
+
+# 切换到非 root 用户
+USER gateway
+
+# 暴露端口
+EXPOSE 8080 12003 7000
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:12003/health || exit 1
+
+# 启动命令
+ENTRYPOINT ["/opt/gateway/gateway"]
+CMD ["--config", "/opt/gateway/configs"]
+
