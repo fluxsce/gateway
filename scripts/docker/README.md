@@ -89,7 +89,7 @@ ENV GOSUMDB=sum.golang.google.cn
 docker build \
     --build-arg GOPROXY=https://your-proxy.com \
     -f scripts/docker/Dockerfile \
-    -t datahub-images/gateway:2.0.2 .
+    -t datahub-images/gateway:2.0.3 .
 ```
 
 ### 使用构建脚本
@@ -115,10 +115,10 @@ docker build \
 cd /path/to/gateway
 
 # 构建标准版
-docker build -f scripts/docker/Dockerfile -t datahub-images/gateway:2.0.2 .
+docker build -f scripts/docker/Dockerfile -t datahub-images/gateway:2.0.3 .
 
 # 构建 Oracle 版
-docker build -f scripts/docker/Dockerfile.oracle -t datahub-images/gateway:2.0.2-oracle .
+docker build -f scripts/docker/Dockerfile.oracle -t datahub-images/gateway:2.0.3-oracle .
 ```
 
 ---
@@ -158,17 +158,17 @@ docker build -f scripts/docker/Dockerfile.oracle -t datahub-images/gateway:2.0.2
 docker login
 
 # 推送到 Docker Hub
-docker push datahub-images/gateway:2.0.2
+docker push datahub-images/gateway:2.0.3
 
 # 登录阿里云镜像仓库
 docker login crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com
 
 # 标记镜像
-docker tag datahub-images/gateway:2.0.2 \
-  crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:2.0.2
+docker tag datahub-images/gateway:2.0.3 \
+  crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:2.0.3
 
 # 推送到阿里云
-docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:2.0.2
+docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:2.0.3
 ```
 
 ---
@@ -227,8 +227,8 @@ docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 - **地址**: docker.io
 - **镜像名**: datahub-images/gateway
 - **标签**:
-  - `2.0.2` - 标准版
-  - `2.0.2-oracle` - Oracle 版
+  - `2.0.3` - 标准版
+  - `2.0.3-oracle` - Oracle 版
   - `latest` - 最新标准版
   - `latest-oracle` - 最新 Oracle 版
 
@@ -237,8 +237,8 @@ docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 - **命名空间**: datahub-images
 - **镜像名**: datahub-images/gateway
 - **标签**:
-  - `2.0.2` - 标准版
-  - `2.0.2-oracle` - Oracle 版
+  - `2.0.3` - 标准版
+  - `2.0.3-oracle` - Oracle 版
   - `latest` - 最新标准版
   - `latest-oracle` - 最新 Oracle 版
 
@@ -246,12 +246,12 @@ docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 
 ```bash
 # 从 Docker Hub 拉取
-docker pull datahub-images/gateway:2.0.2
-docker pull datahub-images/gateway:2.0.2-oracle
+docker pull datahub-images/gateway:2.0.3
+docker pull datahub-images/gateway:2.0.3-oracle
 
 # 从阿里云拉取
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:2.0.2
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:2.0.2-oracle
+docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:2.0.3
+docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:2.0.3-oracle
 ```
 
 ---
@@ -274,7 +274,7 @@ docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 - **密码**: redis123
 
 #### Gateway 服务
-- **镜像**: datahub-images/gateway:2.0.2
+- **镜像**: datahub-images/gateway:2.0.3
 - **端口**:
   - 18280: API Gateway (容器内 8080)
   - 12203: Web 控制台 (容器内 12003)
