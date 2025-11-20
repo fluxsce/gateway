@@ -231,42 +231,16 @@ func (dao *GatewayInstanceDAO) UpdateGatewayInstance(ctx context.Context, instan
 	instance.EditWho = operatorId
 	instance.OprSeqFlag = instance.GatewayInstanceId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
 
-	// 构建更新SQL
-	sql := `
-		UPDATE HUB_GW_INSTANCE SET
-			instanceName = ?, instanceDesc = ?, bindAddress = ?, httpPort = ?, httpsPort = ?,
-			tlsEnabled = ?, certStorageType = ?, certFilePath = ?, keyFilePath = ?,
-			certContent = ?, keyContent = ?, certChainContent = ?, certPassword = ?,
-			maxConnections = ?, readTimeoutMs = ?, writeTimeoutMs = ?, idleTimeoutMs = ?,
-			maxHeaderBytes = ?, maxWorkers = ?, keepAliveEnabled = ?, tcpKeepAliveEnabled = ?,
-			gracefulShutdownTimeoutMs = ?, enableHttp2 = ?, tlsVersion = ?, tlsCipherSuites = ?,
-			disableGeneralOptionsHandler = ?, logConfigId = ?, healthStatus = ?, 
-			lastHeartbeatTime = ?, instanceMetadata = ?, reserved1 = ?, reserved2 = ?,
-			reserved3 = ?, reserved4 = ?, reserved5 = ?, extProperty = ?, noteText = ?,
-			editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?
-		WHERE gatewayInstanceId = ? AND tenantId = ? AND currentVersion = ?
-	`
+	// 使用 Update 方法自动构建更新SQL（乐观锁：基于当前版本号）
+	where := "gatewayInstanceId = ? AND tenantId = ? AND currentVersion = ?"
+	args := []interface{}{instance.GatewayInstanceId, instance.TenantId, currentInstance.CurrentVersion}
 
-	// 执行更新
-	result, err := dao.db.Exec(ctx, sql, []interface{}{
-		instance.InstanceName, instance.InstanceDesc, instance.BindAddress, instance.HttpPort, instance.HttpsPort,
-		instance.TlsEnabled, instance.CertStorageType, instance.CertFilePath, instance.KeyFilePath,
-		instance.CertContent, instance.KeyContent, instance.CertChainContent, instance.CertPassword,
-		instance.MaxConnections, instance.ReadTimeoutMs, instance.WriteTimeoutMs, instance.IdleTimeoutMs,
-		instance.MaxHeaderBytes, instance.MaxWorkers, instance.KeepAliveEnabled, instance.TcpKeepAliveEnabled,
-		instance.GracefulShutdownTimeoutMs, instance.EnableHttp2, instance.TlsVersion, instance.TlsCipherSuites,
-		instance.DisableGeneralOptionsHandler, instance.LogConfigId, instance.HealthStatus,
-		instance.LastHeartbeatTime, instance.InstanceMetadata, instance.Reserved1, instance.Reserved2,
-		instance.Reserved3, instance.Reserved4, instance.Reserved5, instance.ExtProperty, instance.NoteText,
-		instance.EditTime, instance.EditWho, instance.OprSeqFlag, instance.CurrentVersion,
-		instance.GatewayInstanceId, instance.TenantId, currentInstance.CurrentVersion,
-	}, true)
-
+	result, err := dao.db.Update(ctx, "HUB_GW_INSTANCE", instance, where, args, true)
 	if err != nil {
 		return huberrors.WrapError(err, "更新网关实例失败")
 	}
 
-	// 检查是否有记录被更新
+	// 检查是否有记录被更新（乐观锁校验）
 	if result == 0 {
 		return errors.New("网关实例数据已被其他用户修改，请刷新后重试")
 	}

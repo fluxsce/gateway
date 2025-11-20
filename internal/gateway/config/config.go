@@ -53,6 +53,8 @@ type BaseConfig struct {
 	CertFile string `json:"cert_file" yaml:"cert_file" mapstructure:"cert_file"`
 	// HTTPS密钥
 	KeyFile string `json:"key_file" yaml:"key_file" mapstructure:"key_file"`
+	// 私钥密码（用于解密加密的私钥）
+	KeyPassword string `json:"key_password" yaml:"key_password" mapstructure:"key_password"`
 	// 是否启用Gin框架
 	UseGin bool `json:"use_gin" yaml:"use_gin" mapstructure:"use_gin"`
 	// 是否启用访问日志

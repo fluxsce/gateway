@@ -79,7 +79,7 @@ type ProxyServer interface {
 	HandleProxyConnection(ctx context.Context, conn net.Conn, proxyID string) error
 
 	// HandleClientDataConnection 处理客户端数据连接
-	HandleClientDataConnection(ctx context.Context, conn net.Conn, connectionID string) error
+	HandleClientDataConnection(ctx context.Context, conn net.Conn, connectionID string, clientID string) error
 }
 
 // ServiceRegistry 服务注册器接口

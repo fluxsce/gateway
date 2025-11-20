@@ -215,7 +215,7 @@ func (g *Gateway) setupHandlers(engine *core.Engine) {
 	// 添加代理处理器
 	engine.UseFunc(func(ctx *core.Context) bool {
 		if !g.proxy.Handle(ctx) {
-			logger.Error("代理转发失败", "path", ctx.Request.URL.Path)
+			logger.Debug("代理转发失败", "path", ctx.Request.URL.Path)
 			return false
 		}
 		return true
@@ -229,36 +229,105 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 使用Engine的HandleWithContext方法处理请求
 	// 这样可以确保日志记录使用的是同一个上下文
 	g.engine.HandleWithContext(ctx, w, r)
-	// 设置响应时间
-	ctx.SetResponseTime(time.Now())
 	// 设置实例名称
 	ctx.Set(constants.ContextKeyGatewayInstanceName, g.gatewayConfig.Base.Name)
 	//设置日志配置ID
 	ctx.Set(constants.ContextKeyLogConfigID, g.gatewayConfig.Log.LogConfigID)
 	//设置租户ID
 	ctx.Set(constants.ContextKeyTenantID, g.gatewayConfig.Log.TenantID)
-	// 链路处理完成后，异步写入访问日志
-	// 创建独立的context用于日志写入，避免HTTP请求context取消导致的问题
+
+	// 在 Handler 完成后、启动异步写入前，立即缓存 HTTP 对象（Request、Writer）中的必要信息
+	// 重要：不能在异步 goroutine 中直接访问 ctx.Request、ctx.Writer
+	// 因为这些对象的生命周期与 HTTP 请求绑定，ServeHTTP 返回后可能被回收
+	g.snapshotHTTPData(ctx)
+	// 设置响应时间
+	ctx.SetResponseTime(time.Now())
+	// 异步写入访问日志
+	// Context 对象本身可以安全使用（data、时间字段等），只是不能访问 Request 和 Writer
 	go func() {
-		// 创建独立的context，设置合理的超时时间
+		// 添加panic恢复机制，防止日志写入错误导致整个服务崩溃
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Error("Panic in access log writer", "error", r, "instanceID", g.gatewayConfig.InstanceID)
+			}
+		}()
+
+		// 创建独立的context用于日志写入，替换原来的 HTTP 请求 context
 		logCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		// 将原始的HTTP请求context替换为独立的context
-		// 这样日志写入就不会因为HTTP请求结束而失败
+		// 替换上下文中的 context.Context，避免使用已取消的 HTTP 请求 context
 		originalCtx := ctx.Ctx
 		ctx.Ctx = logCtx
-
-		// 确保在函数结束时恢复原始context（虽然这里不是必需的，但是好的实践）
 		defer func() {
 			ctx.Ctx = originalCtx
 		}()
 
+		// 写入访问日志
+		// 注意：logwrite.WriteLog 内部不能访问 ctx.Request 和 ctx.Writer
+		// 所有需要的数据都已经缓存在 ctx.data 中
 		if err := logwrite.WriteLog(g.gatewayConfig.InstanceID, ctx); err != nil {
 			logger.Error("Failed to write access log", "error", err)
 		}
 	}()
 
+}
+
+// snapshotHTTPData 在 Handler 完成后立即缓存 HTTP 对象中的必要数据到上下文
+// 重要：必须在 ServeHTTP 返回前调用，因为 HTTP 对象（Request、Writer）的生命周期与请求绑定
+// 缓存后，异步 goroutine 可以安全使用 Context 对象，但不能直接访问 Request 和 Writer
+func (g *Gateway) snapshotHTTPData(ctx *core.Context) {
+	// 使用 defer recover 防止快照过程中的任何错误
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Warn("Failed to snapshot HTTP data", "error", r)
+		}
+	}()
+
+	// 从 Request 中提取并缓存关键信息
+	if ctx.Request != nil {
+		// 缓存请求基本信息
+		ctx.Set("_snapshot_request_method", ctx.Request.Method)
+		ctx.Set("_snapshot_request_url", ctx.Request.URL.String())
+		ctx.Set("_snapshot_request_proto", ctx.Request.Proto)
+		ctx.Set("_snapshot_request_host", ctx.Request.Host)
+		ctx.Set("_snapshot_request_remote_addr", ctx.Request.RemoteAddr)
+		ctx.Set("_snapshot_request_uri", ctx.Request.RequestURI)
+
+		// 缓存请求大小（从 Content-Length 获取）
+		if ctx.Request.ContentLength >= 0 {
+			ctx.Set("_snapshot_request_size", int(ctx.Request.ContentLength))
+		} else {
+			ctx.Set("_snapshot_request_size", -1) // 未知大小
+		}
+
+		// 深拷贝请求头（保持原始键名，不修改）
+		if ctx.Request.Header != nil {
+			requestHeaders := make(map[string][]string, len(ctx.Request.Header))
+			for key, values := range ctx.Request.Header {
+				valuesCopy := make([]string, len(values))
+				copy(valuesCopy, values)
+				requestHeaders[key] = valuesCopy
+			}
+			ctx.Set("_snapshot_request_headers", requestHeaders)
+		}
+	}
+
+	// 从 Writer 中提取并缓存响应头（保持原始键名，不修改）
+	if ctx.Writer != nil {
+		respHeaders := ctx.Writer.Header()
+		if respHeaders != nil {
+			responseHeaders := make(map[string][]string, len(respHeaders))
+			for key, values := range respHeaders {
+				valuesCopy := make([]string, len(values))
+				copy(valuesCopy, values)
+				responseHeaders[key] = valuesCopy
+			}
+			ctx.Set("_snapshot_response_headers", responseHeaders)
+		}
+	}
+
+	logger.Debug("HTTP data snapshot created for async logging", "instanceID", g.gatewayConfig.InstanceID)
 }
 
 // Start 启动网关
@@ -296,7 +365,9 @@ func (g *Gateway) Start() error {
 
 		var err error
 		if g.gatewayConfig.Base.EnableHTTPS {
-			err = g.server.ListenAndServeTLS(g.gatewayConfig.Base.CertFile, g.gatewayConfig.Base.KeyFile)
+			// 使用TLSConfig启动HTTPS服务器
+			// 传递空字符串，因为证书已经在TLSConfig中配置
+			err = g.server.ListenAndServeTLS("", "")
 		} else {
 			err = g.server.ListenAndServe()
 		}
@@ -453,12 +524,12 @@ func (g *Gateway) updateHealthStatus(healthStatus string, errorMsg string) {
 	// 检查是否有实例ID和租户ID
 	instanceId := g.gatewayConfig.InstanceID
 	tenantId := g.gatewayConfig.Log.TenantID
-	
+
 	if instanceId == "" || tenantId == "" {
 		logger.Debug("缺少instanceId或tenantId，跳过健康状态更新", "instanceId", instanceId, "tenantId", tenantId)
 		return
 	}
-	
+
 	// 调用静态方法更新健康状态
 	dbloader.UpdateGatewayHealthStatus(tenantId, instanceId, healthStatus, errorMsg)
 }

@@ -366,8 +366,43 @@ func (rm *reconnectManager) attemptReconnect() error {
 		return fmt.Errorf("failed to reconnect: %w", err)
 	}
 
+	// 等待一小段时间确保连接和认证完成
+	// 这可以避免在连接未完全建立时尝试注册服务
+	time.Sleep(100 * time.Millisecond)
+
+	// 验证连接是否真正建立（最多等待2秒）
+	maxWait := 2 * time.Second
+	waitInterval := 100 * time.Millisecond
+	waited := time.Duration(0)
+	for !rm.client.isConnected() && waited < maxWait {
+		time.Sleep(waitInterval)
+		waited += waitInterval
+	}
+
+	if !rm.client.isConnected() {
+		return fmt.Errorf("connection established but not fully ready after %v", waited)
+	}
+
+	// 关键修复：先停止旧的心跳管理器，再启动新的
+	// 因为旧的心跳管理器可能还在运行（running=true），直接 Start 会被跳过
+	logger.Info("Stopping old heartbeat manager before restart", nil)
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	if err := rm.client.heartbeatManager.Stop(stopCtx); err != nil {
+		logger.Warn("Failed to stop old heartbeat manager", map[string]interface{}{
+			"error": err.Error(),
+		})
+		// 继续尝试启动，不阻塞重连流程
+	}
+	stopCancel()
+
+	// 等待一小段时间确保心跳管理器完全停止
+	time.Sleep(200 * time.Millisecond)
+
 	// 重新启动心跳
 	heartbeatInterval := time.Duration(rm.client.config.HeartbeatInterval) * time.Second
+	logger.Info("Starting new heartbeat manager after reconnect", map[string]interface{}{
+		"interval": heartbeatInterval.String(),
+	})
 	if err := rm.client.heartbeatManager.Start(rm.ctx, heartbeatInterval); err != nil {
 		return fmt.Errorf("failed to restart heartbeat: %w", err)
 	}
@@ -414,6 +449,7 @@ func (rm *reconnectManager) attemptReconnect() error {
 	}
 
 	// 关键修复：重连成功后，重新注册所有服务
+	// 确保连接完全建立后再注册服务，避免 "client is not connected" 错误
 	logger.Info("Reconnection successful, re-registering services", map[string]interface{}{
 		"clientId": rm.client.config.TunnelClientId,
 	})
@@ -485,30 +521,55 @@ func (rm *reconnectManager) reregisterServices() error {
 			continue
 		}
 
-		// 创建带超时的上下文，避免单个服务注册阻塞太久
-		registerCtx, registerCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		// 关键修复：对每个服务进行重试
+		// 重连后立即注册可能失败（连接还在建立中，消息处理循环还在初始化）
+		maxRetries := 3
+		retryInterval := 2 * time.Second
+		registered := false
 
-		// 注册服务到服务器
-		err := rm.client.RegisterService(registerCtx, service)
-		registerCancel() // 立即释放资源
+		for attempt := 1; attempt <= maxRetries && !registered; attempt++ {
+			// 创建带超时的上下文，避免单个服务注册阻塞太久
+			registerCtx, registerCancel := context.WithTimeout(context.Background(), 30*time.Second)
 
-		if err != nil {
-			logger.Error("Failed to re-register service after reconnection", map[string]interface{}{
-				"serviceId":   service.TunnelServiceId,
-				"serviceName": service.ServiceName,
-				"error":       err.Error(),
-			})
-			failureCount++
-			// 继续处理下一个服务，不中断整个流程
-			continue
+			// 注册服务到服务器
+			err := rm.client.RegisterService(registerCtx, service)
+			registerCancel() // 立即释放资源
+
+			if err != nil {
+				logger.Error("Failed to re-register service after reconnection", map[string]interface{}{
+					"serviceId":   service.TunnelServiceId,
+					"serviceName": service.ServiceName,
+					"attempt":     attempt,
+					"maxRetries":  maxRetries,
+					"error":       err.Error(),
+				})
+
+				// 如果不是最后一次尝试，等待后重试
+				if attempt < maxRetries {
+					logger.Info("Waiting before retry service registration", map[string]interface{}{
+						"serviceId":     service.TunnelServiceId,
+						"serviceName":   service.ServiceName,
+						"attempt":       attempt,
+						"retryInterval": retryInterval.String(),
+					})
+					time.Sleep(retryInterval)
+					// 指数退避：每次重试间隔翻倍
+					retryInterval *= 2
+				} else {
+					// 所有重试都失败了
+					failureCount++
+				}
+			} else {
+				logger.Info("Service re-registered successfully after reconnection", map[string]interface{}{
+					"serviceId":   service.TunnelServiceId,
+					"serviceName": service.ServiceName,
+					"serviceType": service.ServiceType,
+					"attempt":     attempt,
+				})
+				successCount++
+				registered = true
+			}
 		}
-
-		logger.Info("Service re-registered successfully after reconnection", map[string]interface{}{
-			"serviceId":   service.TunnelServiceId,
-			"serviceName": service.ServiceName,
-			"serviceType": service.ServiceType,
-		})
-		successCount++
 	}
 
 	logger.Info("Service re-registration completed", map[string]interface{}{

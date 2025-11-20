@@ -37,9 +37,9 @@ database:
       dsn: "" # 如果提供DSN，将忽略下面的结构化配置
       connection:
         host: 192.168.0.120
-        port: 3306
+        port: 63306
         username: root
-        password: "datahub"
+        password: "Datahub@Flux2024"
         database: gateway_dev
         charset: utf8mb4
         parse_time: true

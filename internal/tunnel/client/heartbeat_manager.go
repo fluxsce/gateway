@@ -1,5 +1,80 @@
 // Package client 提供心跳管理器的完整实现
 // 心跳管理器负责维护客户端与服务器之间的连接活性检测
+//
+// # 心跳机制
+//
+// ## 概述
+//
+// 心跳管理器通过定期发送心跳消息来检测连接状态，当检测到连接异常时
+// 自动触发重连机制，确保客户端与服务器的连接始终保持活跃。
+//
+// ## 核心功能
+//
+// ### 1. 定期心跳
+//   - 按配置的间隔定期发送心跳消息
+//   - 记录心跳延迟和成功率统计
+//   - 更新最后心跳时间到数据库
+//
+// ### 2. 连接监控
+//   - 监控心跳发送是否成功
+//   - 统计连续失败次数
+//   - 达到阈值时触发自动重连
+//
+// ### 3. 故障检测
+//   - 连续失败阈值：3次（可配置）
+//   - 失败原因：网络中断、连接关闭、服务器无响应
+//   - 触发重连后重置计数器
+//
+// ## 重连触发逻辑
+//
+// ### 触发条件
+//  1. 心跳连续失败 3 次
+//  2. 每次失败都会增加计数器
+//  3. 达到阈值时检查是否已在重连中
+//  4. 如果未在重连中，异步触发重连
+//
+// ### 防重复触发
+//  1. 检查 IsReconnecting() 状态
+//  2. 触发后重置失败计数器
+//  3. 避免同时触发多个重连流程
+//
+// ### 恢复检测
+//  1. 心跳成功后重置失败计数器
+//  2. 记录恢复日志
+//  3. 继续正常心跳循环
+//
+// ## 与重连管理器的协作
+//
+// ### 工作流程
+//  1. 心跳检测到连续失败
+//     ↓
+//  2. 触发 ReconnectManager.TriggerReconnect()
+//     ↓
+//  3. 重连管理器断开旧连接
+//     ↓
+//  4. 重连管理器重新建立连接
+//     ↓
+//  5. 重连管理器重启心跳管理器
+//     ↓
+//  6. 心跳恢复正常
+//
+// ### 生命周期管理
+//   - 初次启动：随客户端启动而启动
+//   - 重连时：旧的心跳管理器停止，新的重新启动
+//   - 停止时：随客户端停止而停止
+//
+// ## 最佳实践
+//
+// ### 配置建议
+//   - 心跳间隔：5-30秒
+//   - 连续失败阈值：3次
+//   - 心跳超时：5秒
+//
+// ### 监控指标
+//   - 心跳发送总数
+//   - 心跳成功率
+//   - 平均延迟
+//   - 连续失败次数
 package client
 
 import (
@@ -162,6 +237,10 @@ func (hm *heartbeatManager) heartbeatLoop() {
 	ticker := time.NewTicker(hm.interval)
 	defer ticker.Stop()
 
+	// 连续失败计数器
+	consecutiveFailures := 0
+	maxConsecutiveFailures := 3 // 连续失败3次触发重连
+
 	for {
 		select {
 		case <-hm.ctx.Done():
@@ -169,8 +248,43 @@ func (hm *heartbeatManager) heartbeatLoop() {
 		case <-ticker.C:
 			if err := hm.SendHeartbeat(hm.ctx); err != nil {
 				logger.Error("Failed to send heartbeat", map[string]interface{}{
-					"error": err.Error(),
+					"error":               err.Error(),
+					"consecutiveFailures": consecutiveFailures + 1,
 				})
+
+				consecutiveFailures++
+
+				// 关键修复：心跳连续失败达到阈值时触发重连
+				// 这是心跳机制检测连接断开的主要方式
+				if consecutiveFailures >= maxConsecutiveFailures {
+					logger.Warn("Heartbeat failed multiple times, triggering reconnect", map[string]interface{}{
+						"consecutiveFailures": consecutiveFailures,
+						"threshold":           maxConsecutiveFailures,
+					})
+
+					// 检查是否已在重连中
+					if hm.client.reconnectManager != nil && !hm.client.reconnectManager.IsReconnecting() {
+						// 异步触发重连，避免阻塞心跳循环
+						go func() {
+							if err := hm.client.reconnectManager.TriggerReconnect(context.Background(), "heartbeat_consecutive_failures"); err != nil {
+								logger.Error("Failed to trigger reconnect from heartbeat", map[string]interface{}{
+									"error": err.Error(),
+								})
+							}
+						}()
+					}
+
+					// 重置计数器，避免重复触发
+					consecutiveFailures = 0
+				}
+			} else {
+				// 心跳成功，重置失败计数器
+				if consecutiveFailures > 0 {
+					logger.Info("Heartbeat recovered", map[string]interface{}{
+						"previousFailures": consecutiveFailures,
+					})
+					consecutiveFailures = 0
+				}
 			}
 		}
 	}

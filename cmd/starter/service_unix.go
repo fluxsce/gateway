@@ -9,7 +9,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 )
@@ -82,28 +81,9 @@ func runLinuxService() error {
 
 // setupLinuxServiceLogging 设置Linux服务日志
 func setupLinuxServiceLogging() error {
-	// 创建日志目录 - 使用可执行文件目录下的logs目录
-	logDir := filepath.Join(filepath.Dir(os.Args[0]), "logs")
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		return fmt.Errorf("创建日志目录失败: %v", err)
-	}
-
-	// 设置日志文件
-	logFile := filepath.Join(logDir, "service.log")
-	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		return fmt.Errorf("打开日志文件失败: %v", err)
-	}
-
-	// 重定向标准输出和错误输出
-	os.Stdout = file
-	os.Stderr = file
-
-	// 设置日志格式
-	log.SetOutput(file)
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-
-	log.Printf("🔧 Linux服务日志已设置: %s", logFile)
+	// 使用starter.go中已有的setupServiceLogging函数
+	// 这样可以统一使用lumberjack实现日志轮转
+	setupServiceLogging()
 	return nil
 }
 

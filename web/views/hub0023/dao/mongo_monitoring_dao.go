@@ -2,7 +2,6 @@ package dao
 
 import (
 	"context"
-	"math"
 	"sort"
 	"strconv"
 	"time"
@@ -847,54 +846,4 @@ func (dao *MongoMonitoringDAO) getStatusCodeDescription(statusCode string) strin
 		return desc
 	}
 	return "未知状态码"
-}
-
-// calculatePercentile 计算百分位数
-// 使用线性插值方法计算精确的百分位数值
-func calculatePercentile(values []int, percentile float64) int {
-	if len(values) == 0 {
-		return 0
-	}
-
-	// 计算索引位置
-	index := percentile * float64(len(values)-1)
-	lower := int(math.Floor(index))
-	upper := int(math.Ceil(index))
-
-	// 如果索引相同，直接返回该值
-	if lower == upper {
-		return values[lower]
-	}
-
-	// 线性插值计算
-	weight := index - float64(lower)
-	return int(float64(values[lower])*(1-weight) + float64(values[upper])*weight)
-}
-
-// roundToTwoDecimalPlaces 将浮点数最多保留两位小数
-// 自动去除不必要的尾随零
-//
-// 示例：
-//
-//	120.00 -> 120
-//	120.50 -> 120.5
-//	120.56 -> 120.56
-//	120.567 -> 120.57 (四舍五入)
-func roundToTwoDecimalPlaces(value float64) float64 {
-	if value == 0 {
-		return 0
-	}
-
-	// 先四舍五入到两位小数
-	rounded := math.Round(value*100) / 100
-
-	// 使用 strconv.FormatFloat 去除尾随零，然后转换回 float64
-	formatted := strconv.FormatFloat(rounded, 'f', -1, 64)
-	result, err := strconv.ParseFloat(formatted, 64)
-	if err != nil {
-		// 如果转换失败，返回原始的四舍五入结果
-		return rounded
-	}
-
-	return result
 }

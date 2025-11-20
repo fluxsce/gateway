@@ -135,42 +135,17 @@
 //   - 适合短连接场景（HTTP请求）
 //   - 延迟较高（需要TCP握手）
 //
-// ### 2. 池化数据连接（Pooled Connection）
-//
-// 工作流程：
-//  1. 服务器主动发送 pre_connect_request 消息
-//  2. 客户端预先建立数据连接并发送到服务器
-//  3. 服务器将连接放入连接池
-//  4. 外网请求到达时，服务器从池中取出连接使用
-//  5. 使用完毕后，连接可能被归还到池中复用
-//
-// 特点：
-//   - 预先建立，快速响应
-//   - 适合高并发场景
-//   - 延迟低（无需TCP握手）
-//   - 需要维护连接池
-//
 // ## 连接池架构
 //
-// ### 客户端侧（三层连接池）
+// ### 客户端侧（无连接池）
 //
-// 1. 服务器连接池（Client → Server）
-//   - 位置：proxy_manager.go
-//   - 池大小：50个连接/服务（高并发优化）
-//   - 用途：复用客户端到服务器的数据连接
-//   - 管理：GetOrCreateServerConnection() / ReturnServerConnection()
-//
-// 2. 本地连接池（Client → Local Service）
-//   - 位置：proxy_manager.go
-//   - 池大小：50个连接/服务（高并发优化）
-//   - 用途：复用客户端到本地服务的连接
+// 客户端不维护连接池，连接由服务端控制生命周期：
+//   - 服务端发送 proxy_request 通知客户端建立连接
+//   - 客户端建立 serverConn（数据连接）和 localConn（本地服务连接）
+//   - 两个连接绑定，生命周期一致
+//   - 客户端保持连接打开，直到服务端关闭
+//   - 当 relayData 返回时，连接已关闭，直接清理
 //   - 管理：HandleProxyConnection() 内部管理
-//
-// 3. 服务端连接池（Server Side）
-//   - 位置：server/proxy_server.go
-//   - 池大小：10个连接/服务
-//   - 用途：服务器端预建立的数据连接池
-//   - 管理：getOrCreateDataConnectionPool()
 //
 // ## 连接生命周期
 //
@@ -239,6 +214,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -642,8 +618,31 @@ func (cc *controlConnection) receiveMessageDirect() (*types.ControlMessage, erro
 
 	// 解析消息长度
 	msgLen := int(lengthBuf[0])<<24 | int(lengthBuf[1])<<16 | int(lengthBuf[2])<<8 | int(lengthBuf[3])
-	if msgLen <= 0 || msgLen > 1024*1024 { // 限制消息大小为1MB
-		return nil, fmt.Errorf("invalid message length: %d", msgLen)
+
+	// 关键修复：更严格的消息长度验证
+	// 检查消息长度是否合理，以及长度字段是否全为0（可能是连接关闭时的填充字节）
+	if msgLen <= 0 || msgLen > 1024*1024 {
+		allZeros := lengthBuf[0] == 0 && lengthBuf[1] == 0 && lengthBuf[2] == 0 && lengthBuf[3] == 0
+		logger.Error("Invalid message length on control connection", map[string]interface{}{
+			"messageLength": msgLen,
+			"lengthBytes":   lengthBuf,
+			"allZeros":      allZeros,
+			"remoteAddr":    conn.RemoteAddr().String(),
+			"localAddr":     conn.LocalAddr().String(),
+			"possibleCause": "connection_closed_or_reset",
+		})
+		return nil, fmt.Errorf("invalid message length: %d (possible connection closed or reset)", msgLen)
+	}
+
+	// 关键修复：检查消息长度是否太小（可能是读取错误）
+	if msgLen < 10 {
+		logger.Error("Message length too small, possible read error", map[string]interface{}{
+			"messageLength": msgLen,
+			"lengthBytes":   lengthBuf,
+			"remoteAddr":    conn.RemoteAddr().String(),
+			"localAddr":     conn.LocalAddr().String(),
+		})
+		return nil, fmt.Errorf("message length too small: %d (possible read error or connection issue)", msgLen)
 	}
 
 	// 读取消息内容
@@ -652,10 +651,119 @@ func (cc *controlConnection) receiveMessageDirect() (*types.ControlMessage, erro
 		return nil, fmt.Errorf("failed to read message data: %w", err)
 	}
 
+	// 关键修复：在反序列化前检查消息内容
+	// 如果消息内容全为0x00，说明可能是连接关闭时的填充字节
+	allNullBytes := true
+	for i := 0; i < len(msgBuf) && i < 100; i++ { // 只检查前100字节
+		if msgBuf[i] != 0 {
+			allNullBytes = false
+			break
+		}
+	}
+	if allNullBytes && len(msgBuf) > 0 {
+		logger.Error("Message content is all null bytes, possible connection issue", map[string]interface{}{
+			"messageLength": msgLen,
+			"remoteAddr":    conn.RemoteAddr().String(),
+			"localAddr":     conn.LocalAddr().String(),
+			"possibleCause": "connection_closed_or_reset",
+		})
+		return nil, fmt.Errorf("message content is all null bytes (possible connection closed or reset)")
+	}
+
+	// 关键修复：检查消息是否以JSON格式开头
+	// 有效的JSON消息应该以 '{' 或 '[' 开头（去除前导空白和null字节）
+	msgStart := 0
+	// 跳过前导空白字符
+	for msgStart < len(msgBuf) && (msgBuf[msgStart] == ' ' || msgBuf[msgStart] == '\t' || msgBuf[msgStart] == '\n' || msgBuf[msgStart] == '\r') {
+		msgStart++
+	}
+
+	// 关键修复：如果消息前面有null字节，尝试跳过它们
+	// 这可能是消息边界错位导致的（读取位置不正确）
+	if msgStart < len(msgBuf) && msgBuf[msgStart] == 0 {
+		nullByteCount := 0
+		originalStart := msgStart
+		// 跳过连续的null字节
+		for msgStart < len(msgBuf) && msgBuf[msgStart] == 0 {
+			msgStart++
+			nullByteCount++
+		}
+
+		// 如果跳过了null字节，记录警告
+		if nullByteCount > 0 {
+			logger.Warn("Skipped leading null bytes in message, possible message boundary misalignment", map[string]interface{}{
+				"messageLength": msgLen,
+				"nullByteCount": nullByteCount,
+				"originalStart": originalStart,
+				"newStart":      msgStart,
+				"remoteAddr":    conn.RemoteAddr().String(),
+				"localAddr":     conn.LocalAddr().String(),
+				"possibleCause": "message_boundary_misalignment_or_connection_confusion",
+			})
+		}
+	}
+
+	// 检查是否找到了有效的JSON起始字符
+	if msgStart >= len(msgBuf) || (msgBuf[msgStart] != '{' && msgBuf[msgStart] != '[') {
+		// 消息不是有效的JSON格式，记录详细信息
+		previewLen := 50
+		if len(msgBuf) < previewLen {
+			previewLen = len(msgBuf)
+		}
+		logger.Error("Message does not start with valid JSON, possible connection confusion", map[string]interface{}{
+			"messageLength": msgLen,
+			"firstByte":     msgBuf[0],
+			"msgStart":      msgStart,
+			"previewBytes":  string(msgBuf[:previewLen]),
+			"remoteAddr":    conn.RemoteAddr().String(),
+			"localAddr":     conn.LocalAddr().String(),
+			"possibleCause": "data_connection_data_sent_to_control_connection_or_corrupted_data",
+		})
+		return nil, fmt.Errorf("message does not start with valid JSON (first byte: 0x%02x, msgStart: %d, possible connection confusion)", msgBuf[0], msgStart)
+	}
+
+	// 关键修复：如果跳过了null字节，使用从msgStart开始的数据进行解析
+	if msgStart > 0 {
+		msgBuf = msgBuf[msgStart:]
+		logger.Debug("Using message data after skipping leading bytes", map[string]interface{}{
+			"skippedBytes": msgStart,
+			"remainingLen": len(msgBuf),
+		})
+	}
+
 	// 反序列化消息
 	var message types.ControlMessage
 	if err := json.Unmarshal(msgBuf, &message); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal message: %w", err)
+		// 关键修复：记录更详细的错误信息，帮助定位问题根源
+		previewLen := 100
+		if len(msgBuf) < previewLen {
+			previewLen = len(msgBuf)
+		}
+		// 检查是否包含大量null字节
+		nullByteCount := 0
+		for i := 0; i < previewLen; i++ {
+			if msgBuf[i] == 0 {
+				nullByteCount++
+			}
+		}
+
+		// 获取前20字节用于诊断
+		firstBytesLen := 20
+		if len(msgBuf) < firstBytesLen {
+			firstBytesLen = len(msgBuf)
+		}
+
+		logger.Error("Failed to unmarshal message on control connection", map[string]interface{}{
+			"error":         err.Error(),
+			"messageLength": msgLen,
+			"nullByteCount": nullByteCount,
+			"previewBytes":  string(msgBuf[:previewLen]),
+			"firstBytes":    msgBuf[:firstBytesLen],
+			"remoteAddr":    conn.RemoteAddr().String(),
+			"localAddr":     conn.LocalAddr().String(),
+			"possibleCause": "connection_confusion_or_corrupted_data_from_server",
+		})
+		return nil, fmt.Errorf("failed to unmarshal message: %w (possible connection confusion or corrupted data from server)", err)
 	}
 
 	// 更新连接统计
@@ -815,8 +923,6 @@ func (cc *controlConnection) handleMessage(msg *types.ControlMessage) error {
 		return cc.handleCloseProxyMessage(msg)
 	case types.MessageTypeProxyRequest:
 		return cc.handleProxyRequestMessage(msg)
-	case types.MessageTypePreConnectRequest:
-		return cc.handlePreConnectRequestMessage(msg)
 	case types.MessageTypeNotification:
 		return cc.handleNotificationMessage(msg)
 	case types.MessageTypeError:
@@ -917,33 +1023,10 @@ func (cc *controlConnection) handleProxyRequestMessage(msg *types.ControlMessage
 				"connectionId": connectionID,
 				"error":        err.Error(),
 			})
-		}
-	}()
-
-	return nil
-}
-
-// handlePreConnectRequestMessage 处理预连接请求消息
-func (cc *controlConnection) handlePreConnectRequestMessage(msg *types.ControlMessage) error {
-	serviceID, ok := msg.Data["serviceId"].(string)
-	if !ok {
-		return fmt.Errorf("missing serviceId in pre-connect request message")
-	}
-
-	isPooled, _ := msg.Data["pooled"].(bool)
-
-	logger.Info("Received pre-connect request", map[string]interface{}{
-		"serviceId": serviceID,
-		"pooled":    isPooled,
-	})
-
-	// 异步建立池化数据连接
-	go func() {
-		if err := cc.establishPooledDataConnection(serviceID); err != nil {
-			logger.Error("Failed to establish pooled data connection", map[string]interface{}{
-				"serviceId": serviceID,
-				"error":     err.Error(),
-			})
+			// 关键修复：建立连接失败时，通知服务端清理等待连接
+			// 这样可以避免服务端等待30秒超时
+			// 注意：这里不能直接访问 proxyServer，需要通过控制连接发送错误消息
+			// 但由于服务端已经有超时机制和连接池降级，这里只记录错误即可
 		}
 	}()
 
@@ -984,8 +1067,9 @@ func (cc *controlConnection) handleErrorMessage(msg *types.ControlMessage) error
 // 当收到服务器的代理请求时，客户端需要建立一个新的TCP连接到服务器
 // 这个连接用于传输实际的数据，而不是控制消息
 func (cc *controlConnection) establishDataConnection(serviceID, connectionID string) error {
-	// 创建带超时的上下文
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// 创建带超时的上下文，使用控制连接的上下文作为父上下文
+	// 这样当控制连接关闭时，数据连接建立也会被取消
+	ctx, cancel := context.WithTimeout(cc.ctx, 30*time.Second)
 	defer cancel()
 
 	// 查找服务配置
@@ -994,91 +1078,126 @@ func (cc *controlConnection) establishDataConnection(serviceID, connectionID str
 		return fmt.Errorf("service %s not found", serviceID)
 	}
 
-	// 从连接池获取或创建到服务器的数据连接
-	dataConn, fromPool, err := cc.client.proxyManager.GetOrCreateServerConnection(ctx, serviceID, cc.client)
+	logger.Info("Starting data connection establishment", map[string]interface{}{
+		"serviceId":    serviceID,
+		"connectionId": connectionID,
+		"step":         "create_new_connection",
+	})
+
+	// 关键修复：服务器请求新数据连接时，必须建立新连接，不能从池中取
+	// 原因：
+	// 1. 服务器发送 proxy_request 说明需要新连接，如果服务器端连接池有连接就不会请求
+	// 2. 从池中取出的连接可能已经发送过握手，服务器端可能已经将其放入池中
+	// 3. 复用池中的连接会导致连接状态混乱，可能残留数据，导致服务器误判连接类型
+	// 4. 新连接建立后，使用完毕可以归还到池中供后续使用
+	connectionStartTime := time.Now()
+	dataConn, err := cc.createNewServerConnection(ctx, serviceID)
+	connectionDuration := time.Since(connectionStartTime)
+
+	// 如果创建连接失败或连接为 nil，立即返回，不要继续
 	if err != nil {
-		return fmt.Errorf("failed to get server connection: %w", err)
+		logger.Error("Failed to create new server connection", map[string]interface{}{
+			"serviceId":          serviceID,
+			"connectionId":       connectionID,
+			"error":              err.Error(),
+			"connectionDuration": connectionDuration,
+			"step":               "create_new_connection",
+		})
+		return fmt.Errorf("failed to create new server connection: %w", err)
+	}
+
+	if dataConn == nil {
+		logger.Error("Server connection is nil", map[string]interface{}{
+			"serviceId":          serviceID,
+			"connectionId":       connectionID,
+			"connectionDuration": connectionDuration,
+			"step":               "create_new_connection",
+		})
+		return fmt.Errorf("server connection is nil")
 	}
 
 	logger.Info("Data connection ready", map[string]interface{}{
-		"serviceId":    serviceID,
-		"connectionId": connectionID,
-		"fromPool":     fromPool,
+		"serviceId":          serviceID,
+		"connectionId":       connectionID,
+		"connectionDuration": connectionDuration,
+		"step":               "connection_ready",
 	})
 
-	// 发送数据连接标识消息
+	// 关键修复：立即发送握手消息，不要做复杂验证
+	// 原因：
+	// 1. 连接刚建立，理论上应该是有效的
+	// 2. 验证过程会增加时间窗口，连接可能在此期间被关闭
+	// 3. 如果连接已关闭，Write 操作会立即返回错误，可以快速检测
+	// 4. 服务器端已经设置了120秒读取超时，有足够时间接收握手
+	// 5. 立即发送可以减少 broken pipe 错误的概率
+	// 6. dataConn 已经在前面检查过不为 nil，这里直接使用
+
+	// 立即发送数据连接标识消息（不要延迟）
+	// 如果连接已关闭，Write 会立即返回错误，可以快速检测并重试
 	if err := cc.sendDataConnectionHandshake(dataConn, connectionID); err != nil {
 		dataConn.Close()
+		// 如果是 broken pipe 或连接关闭错误，记录详细信息以便排查
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "broken pipe") || strings.Contains(errMsg, "connection reset") {
+			logger.Error("Connection closed before handshake sent (broken pipe)", map[string]interface{}{
+				"serviceId":    serviceID,
+				"connectionId": connectionID,
+				"error":        errMsg,
+			})
+		}
 		return fmt.Errorf("failed to send data connection handshake: %w", err)
 	}
 
 	// 将数据连接交给代理管理器处理
+	// 注意：HandleProxyConnection 会在使用完毕后尝试将连接归还到池中
 	return cc.client.proxyManager.HandleProxyConnection(cc.ctx, dataConn, serviceID)
 }
 
-// establishPooledDataConnection 建立池化数据连接
-//
-// 为连接池建立数据连接。与普通数据连接不同，池化连接在握手完成后
-// 需要保持活跃状态，等待服务器的使用。连接会被服务器加入连接池，
-// 当有外网请求时可以被复用。
-//
-// 参数:
-//   - serviceID: 服务唯一标识符
-//
-// 返回:
-//   - error: 建立连接失败时返回错误
-//
-// 注意:
-//   - 池化连接建立后会阻塞等待服务器使用
-//   - 连接断开时会自动清理资源
-//   - 支持上下文取消和优雅关闭
-func (cc *controlConnection) establishPooledDataConnection(serviceID string) error {
-	// 创建带超时的上下文
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// 查找服务配置
-	service, err := cc.client.serviceManager.GetService(ctx, serviceID)
-	if err != nil {
-		return fmt.Errorf("service %s not found", serviceID)
-	}
-
-	// 建立到服务器的数据连接
+// createNewServerConnection 创建新的服务器数据连接
+// 专门用于响应服务器的 proxy_request 请求，必须建立新连接，不能从池中取
+func (cc *controlConnection) createNewServerConnection(ctx context.Context, serviceID string) (net.Conn, error) {
+	// 建立新的服务器连接
 	serverAddr := net.JoinHostPort(cc.client.config.ServerAddress, fmt.Sprintf("%d", cc.client.config.ServerPort))
-	dataConn, err := net.DialTimeout("tcp", serverAddr, 10*time.Second)
+
+	logger.Info("Creating new server connection for proxy request", map[string]interface{}{
+		"serviceId":  serviceID,
+		"serverAddr": serverAddr,
+		"timeout":    "30s",
+		"timestamp":  time.Now(),
+	})
+
+	// 建立TCP连接
+	connectStartTime := time.Now()
+	conn, err := net.DialTimeout("tcp", serverAddr, 30*time.Second)
+	connectDuration := time.Since(connectStartTime)
+
 	if err != nil {
-		return fmt.Errorf("failed to connect to server for pooled data connection: %w", err)
+		logger.Error("Failed to create new server connection", map[string]interface{}{
+			"serviceId":       serviceID,
+			"serverAddr":      serverAddr,
+			"error":           err.Error(),
+			"connectDuration": connectDuration,
+			"timestamp":       time.Now(),
+		})
+		return nil, fmt.Errorf("failed to connect to server: %w", err)
 	}
 
-	// 为长连接（如SSE）启用TCP KeepAlive
-	if tcpConn, ok := dataConn.(*net.TCPConn); ok {
+	// 设置 TCP 选项
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
 		tcpConn.SetKeepAlive(true)
 		tcpConn.SetKeepAlivePeriod(30 * time.Second)
-		// 禁用Nagle算法以减少延迟（对流式数据重要）
 		tcpConn.SetNoDelay(true)
 	}
 
-	logger.Info("Pooled data connection established", map[string]interface{}{
-		"serviceId":  serviceID,
-		"serverAddr": serverAddr,
+	logger.Info("Successfully created new server connection", map[string]interface{}{
+		"serviceId":       serviceID,
+		"serverAddr":      serverAddr,
+		"connectDuration": connectDuration,
+		"localAddr":       conn.LocalAddr().String(),
+		"remoteAddr":      conn.RemoteAddr().String(),
 	})
 
-	// 发送池化连接握手消息（使用服务ID作为连接ID）
-	if err := cc.sendPooledDataConnectionHandshake(dataConn, serviceID); err != nil {
-		dataConn.Close()
-		return fmt.Errorf("failed to send pooled data connection handshake: %w", err)
-	}
-
-	// 关键修复：池化连接需要保持活跃并等待服务器使用
-	// 当服务器从连接池中取出此连接用于数据传输时，
-	// 连接会被传递给代理管理器进行实际的数据转发
-	logger.Debug("Pooled connection ready, waiting for server to use", map[string]interface{}{
-		"serviceId": serviceID,
-	})
-
-	// 使用代理管理器处理这个池化连接
-	// 这样连接会保持活跃，等待服务器的数据传输请求
-	return cc.client.proxyManager.HandlePooledConnection(cc.ctx, dataConn, service)
+	return conn, nil
 }
 
 // sendDataConnectionHandshake 发送数据连接握手消息
@@ -1105,6 +1224,10 @@ func (cc *controlConnection) sendDataConnectionHandshake(conn net.Conn, connecti
 	lengthBuf[2] = byte(msgLen >> 8)
 	lengthBuf[3] = byte(msgLen)
 
+	// 关键修复：设置写超时，避免在连接已断开时长时间阻塞
+	conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	defer conn.SetWriteDeadline(time.Time{}) // 清除超时
+
 	// 发送长度
 	if _, err := conn.Write(lengthBuf); err != nil {
 		return fmt.Errorf("failed to write message length: %w", err)
@@ -1118,48 +1241,6 @@ func (cc *controlConnection) sendDataConnectionHandshake(conn net.Conn, connecti
 	logger.Debug("Data connection handshake sent", map[string]interface{}{
 		"connectionId": connectionID,
 		"messageLen":   msgLen,
-	})
-
-	return nil
-}
-
-// sendPooledDataConnectionHandshake 发送池化数据连接握手消息
-func (cc *controlConnection) sendPooledDataConnectionHandshake(conn net.Conn, serviceID string) error {
-	// 创建数据连接标识消息（池化连接使用服务ID）
-	handshake := map[string]interface{}{
-		"type":         "data_connection",
-		"connectionId": serviceID, // 池化连接使用服务ID
-		"clientId":     cc.client.config.TunnelClientId,
-		"pooled":       true, // 标识这是池化连接
-	}
-
-	// 序列化消息
-	data, err := json.Marshal(handshake)
-	if err != nil {
-		return fmt.Errorf("failed to marshal pooled handshake: %w", err)
-	}
-
-	// 发送消息长度和内容
-	lengthBuf := make([]byte, 4)
-	msgLen := len(data)
-	lengthBuf[0] = byte(msgLen >> 24)
-	lengthBuf[1] = byte(msgLen >> 16)
-	lengthBuf[2] = byte(msgLen >> 8)
-	lengthBuf[3] = byte(msgLen)
-
-	// 发送长度
-	if _, err := conn.Write(lengthBuf); err != nil {
-		return fmt.Errorf("failed to write message length: %w", err)
-	}
-
-	// 发送数据
-	if _, err := conn.Write(data); err != nil {
-		return fmt.Errorf("failed to write handshake data: %w", err)
-	}
-
-	logger.Debug("Pooled data connection handshake sent", map[string]interface{}{
-		"serviceId":  serviceID,
-		"messageLen": msgLen,
 	})
 
 	return nil

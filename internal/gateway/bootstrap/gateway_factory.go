@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"gateway/internal/gateway/handler/security"
 	"gateway/internal/gateway/handler/service"
 	"gateway/pkg/logger"
+	"gateway/pkg/utils/cert"
 )
 
 // GatewayFactory 网关工厂
@@ -58,6 +60,16 @@ func (f *GatewayFactory) CreateGateway(cfg *config.GatewayConfig, configFile str
 		ConnContext: f.createConnContext,
 	}
 
+	// 如果启用HTTPS，配置TLS
+	if cfg.Base.EnableHTTPS {
+		tlsConfig, err := f.createTLSConfig(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("创建TLS配置失败: %w", err)
+		}
+		gateway.server.TLSConfig = tlsConfig
+		logger.Info("TLS配置已加载", "certFile", cfg.Base.CertFile, "keyFile", cfg.Base.KeyFile)
+	}
+
 	// 初始化和设置所有处理器
 	if err := f.initializeAndSetHandlers(gateway, cfg); err != nil {
 		return nil, fmt.Errorf("初始化处理器失败: %w", err)
@@ -96,6 +108,33 @@ func (f *GatewayFactory) CreateGatewayWithPool(cfg *config.GatewayConfig, config
 func (f *GatewayFactory) createConnContext(ctx context.Context, conn net.Conn) context.Context {
 	// 直接在连接建立时记录时间并添加到上下文
 	return context.WithValue(ctx, constants.ContextKeyConnectionStartTime, time.Now())
+}
+
+// createTLSConfig 创建TLS配置
+func (f *GatewayFactory) createTLSConfig(cfg *config.GatewayConfig) (*tls.Config, error) {
+	// 创建证书加载器配置
+	// TLSVersions和CipherSuites留空，使用默认安全配置
+	certConfig := &cert.CertConfig{
+		CertFile:     cfg.Base.CertFile,
+		KeyFile:      cfg.Base.KeyFile,
+		KeyPassword:  cfg.Base.KeyPassword, // 私钥密码（如果私钥加密）
+		TLSVersions:  []string{},           // 使用默认：TLS 1.2+
+		CipherSuites: []string{},           // 使用默认安全加密套件
+	}
+
+	// 创建证书加载器
+	certLoader := cert.NewCertLoader(certConfig)
+
+	// 创建TLS配置
+	tlsConfig, err := certLoader.CreateTLSConfig()
+	if err != nil {
+		return nil, fmt.Errorf("创建TLS配置失败: %w", err)
+	}
+
+	// 注意：ServerName 是客户端配置，服务器端不需要设置
+	// 服务器端TLS配置已完成
+
+	return tlsConfig, nil
 }
 
 // initializeAndSetHandlers 初始化所有处理器并设置到网关
@@ -245,6 +284,22 @@ func (f *GatewayFactory) ReloadGateway(gateway *Gateway, newCfg *config.GatewayC
 	gateway.server.ReadTimeout = newCfg.Base.ReadTimeout
 	gateway.server.WriteTimeout = newCfg.Base.WriteTimeout
 	gateway.server.IdleTimeout = newCfg.Base.IdleTimeout
+
+	// 更新TLS配置（如果启用HTTPS）
+	// 注意：即使证书文件路径没变，证书内容也可能更新（如证书续期），所以每次都重新加载
+	if newCfg.Base.EnableHTTPS {
+		logger.Info("重新加载TLS配置")
+		tlsConfig, err := f.createTLSConfig(newCfg)
+		if err != nil {
+			logger.Warn("重新加载TLS配置失败，继续使用旧配置", "error", err)
+			// TLS配置加载失败不应该导致整个重载失败，继续使用旧配置
+		} else {
+			gateway.server.TLSConfig = tlsConfig
+			logger.Info("TLS配置已更新",
+				"certFile", newCfg.Base.CertFile,
+				"keyFile", newCfg.Base.KeyFile)
+		}
+	}
 
 	// 更新实例ID
 	if oldConfig.InstanceID != newCfg.InstanceID && newCfg.InstanceID != "" {

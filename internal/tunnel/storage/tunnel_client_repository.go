@@ -4,6 +4,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -250,7 +251,7 @@ func (r *TunnelClientRepositoryImpl) UpdateConnectionStatus(ctx context.Context,
 				connectionStatus = ?,
 				lastConnectTime = ?,
 				editTime = ?
-			WHERE tunnelClientId = ? AND activeFlag = 'Y'
+			WHERE tunnelClientId = ?
 		`
 		args = []interface{}{status, connectTime, time.Now(), clientID}
 	} else {
@@ -259,7 +260,7 @@ func (r *TunnelClientRepositoryImpl) UpdateConnectionStatus(ctx context.Context,
 				connectionStatus = ?,
 				lastDisconnectTime = ?,
 				editTime = ?
-			WHERE tunnelClientId = ? AND activeFlag = 'Y'
+			WHERE tunnelClientId = ?
 		`
 		args = []interface{}{status, connectTime, time.Now(), clientID}
 	}
@@ -270,7 +271,7 @@ func (r *TunnelClientRepositoryImpl) UpdateConnectionStatus(ctx context.Context,
 	}
 
 	if result == 0 {
-		return errors.New("未找到要更新的客户端")
+		return fmt.Errorf("未找到要更新的客户端（客户端ID: %s）", clientID)
 	}
 
 	return nil
@@ -286,7 +287,7 @@ func (r *TunnelClientRepositoryImpl) UpdateHeartbeat(ctx context.Context, client
 		UPDATE HUB_TUNNEL_CLIENT SET
 			lastHeartbeat = ?,
 			editTime = ?
-		WHERE tunnelClientId = ? AND activeFlag = 'Y'
+		WHERE tunnelClientId = ?
 	`
 
 	result, err := r.db.Exec(ctx, sql, []interface{}{
@@ -300,7 +301,7 @@ func (r *TunnelClientRepositoryImpl) UpdateHeartbeat(ctx context.Context, client
 	}
 
 	if result == 0 {
-		return errors.New("未找到要更新的客户端")
+		return fmt.Errorf("未找到要更新的客户端（客户端ID: %s）", clientID)
 	}
 
 	return nil
@@ -317,7 +318,7 @@ func (r *TunnelClientRepositoryImpl) UpdateReconnectInfo(ctx context.Context, cl
 			reconnectCount = ?,
 			totalConnectTime = ?,
 			editTime = ?
-		WHERE tunnelClientId = ? AND activeFlag = 'Y'
+		WHERE tunnelClientId = ?
 	`
 
 	result, err := r.db.Exec(ctx, sql, []interface{}{
@@ -332,7 +333,7 @@ func (r *TunnelClientRepositoryImpl) UpdateReconnectInfo(ctx context.Context, cl
 	}
 
 	if result == 0 {
-		return errors.New("未找到要更新的客户端")
+		return fmt.Errorf("未找到要更新的客户端（客户端ID: %s）", clientID)
 	}
 
 	return nil

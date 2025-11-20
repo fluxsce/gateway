@@ -106,26 +106,27 @@ func (c *tunnelClient) Start(ctx context.Context) error {
 		"clientName": c.config.ClientName,
 	})
 
-	// 启动重连管理器
-	if err := c.reconnectManager.Start(c.ctx); err != nil {
-		c.updateStatus(StatusError, false)
-		c.addError(fmt.Sprintf("Failed to start reconnect manager: %v", err))
-		return fmt.Errorf("failed to start reconnect manager: %w", err)
-	}
-
-	// 建立控制连接
+	// 1. 先建立控制连接（这是基础，其他组件都依赖它）
 	if err := c.controlConn.Connect(c.ctx, c.config.ServerAddress, c.config.ServerPort); err != nil {
 		c.updateStatus(StatusError, false)
 		c.addError(fmt.Sprintf("Failed to connect to server: %v", err))
 		return fmt.Errorf("failed to connect to server: %w", err)
 	}
 
-	// 启动心跳管理器
+	// 2. 启动心跳管理器（需要连接已建立）
 	heartbeatInterval := time.Duration(c.config.HeartbeatInterval) * time.Second
 	if err := c.heartbeatManager.Start(c.ctx, heartbeatInterval); err != nil {
 		c.updateStatus(StatusError, false)
 		c.addError(fmt.Sprintf("Failed to start heartbeat manager: %v", err))
 		return fmt.Errorf("failed to start heartbeat manager: %w", err)
+	}
+
+	// 3. 启动重连管理器（监控连接状态，在连接断开时自动重连）
+	// 注意：重连管理器应该在连接建立后启动，这样它才能正确监控连接状态
+	if err := c.reconnectManager.Start(c.ctx); err != nil {
+		c.updateStatus(StatusError, false)
+		c.addError(fmt.Sprintf("Failed to start reconnect manager: %v", err))
+		return fmt.Errorf("failed to start reconnect manager: %w", err)
 	}
 
 	c.updateStatus(StatusConnected, true)

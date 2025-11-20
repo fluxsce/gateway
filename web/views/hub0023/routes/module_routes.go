@@ -134,12 +134,10 @@ func initDatabaseRoutes(protectedGroup *gin.RouterGroup, db database.Database) {
 	protectedGroup.POST("/gateway-log/reset", gatewayLogController.Reset)
 
 	// 关系数据库网关监控API - 监控概览数据
-	// 注意：这里需要后续实现相应的方法
-	// protectedGroup.POST("/gateway-log/monitoring/overview", gatewayLogController.GetMonitoringOverview)
+	protectedGroup.POST("/gateway-log/monitoring/overview", gatewayLogController.GetMonitoringOverview)
 
 	// 关系数据库网关监控API - 监控图表数据
-	// 注意：这里需要后续实现相应的方法
-	// protectedGroup.POST("/gateway-log/monitoring/chart-data", gatewayLogController.GetMonitoringChartData)
+	protectedGroup.POST("/gateway-log/monitoring/chart-data", gatewayLogController.GetMonitoringChartData)
 }
 
 // RegisterRoutesFunc 返回路由注册函数

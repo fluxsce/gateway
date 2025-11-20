@@ -560,7 +560,7 @@ func (c *GatewayInstanceController) DeleteGatewayInstance(ctx *gin.Context) {
 
 // GetGatewayInstance 获取单个网关实例详情
 // @Summary 获取网关实例详情
-// @Description 根据ID获取网关实例详细信息
+// @Description 根据ID获取网关实例详细信息（包含完整数据，用于编辑）
 // @Tags 网关实例管理
 // @Produce json
 // @Param gatewayInstanceId query string true "网关实例ID"
@@ -595,10 +595,10 @@ func (c *GatewayInstanceController) GetGatewayInstance(ctx *gin.Context) {
 		return
 	}
 
-	// 转换为响应格式，排除敏感字段
-	instanceInfo := gatewayInstanceToMap(instance)
+	// 返回完整信息（包括证书内容等），用于编辑场景
+	instanceInfo := gatewayInstanceToMapFull(instance)
 
-	// 如果有关联的日志配置，查询并返回
+	// 如果有关联的日志配置，查询并返回完整信息
 	if instance.LogConfigId != "" {
 		logConfig, err := c.logConfigDAO.GetLogConfigById(ctx, instance.LogConfigId, tenantId)
 		if err != nil {
@@ -987,7 +987,7 @@ func logConfigToMap(logConfig *models.LogConfig) map[string]interface{} {
 	}
 }
 
-// gatewayInstanceToMap 将网关实例对象转换为Map，过滤敏感字段
+// gatewayInstanceToMap 将网关实例对象转换为Map，过滤敏感字段（用于列表查询）
 func gatewayInstanceToMap(instance *models.GatewayInstance) map[string]interface{} {
 	return map[string]interface{}{
 		"tenantId":          instance.TenantId,
@@ -1002,6 +1002,58 @@ func gatewayInstanceToMap(instance *models.GatewayInstance) map[string]interface
 		"certFilePath":      instance.CertFilePath,
 		"keyFilePath":       instance.KeyFilePath,
 		// 证书内容、私钥内容、证书密码等敏感信息不返回给前端
+		"maxConnections":               instance.MaxConnections,
+		"readTimeoutMs":                instance.ReadTimeoutMs,
+		"writeTimeoutMs":               instance.WriteTimeoutMs,
+		"idleTimeoutMs":                instance.IdleTimeoutMs,
+		"maxHeaderBytes":               instance.MaxHeaderBytes,
+		"maxWorkers":                   instance.MaxWorkers,
+		"keepAliveEnabled":             instance.KeepAliveEnabled,
+		"tcpKeepAliveEnabled":          instance.TcpKeepAliveEnabled,
+		"gracefulShutdownTimeoutMs":    instance.GracefulShutdownTimeoutMs,
+		"enableHttp2":                  instance.EnableHttp2,
+		"tlsVersion":                   instance.TlsVersion,
+		"tlsCipherSuites":              instance.TlsCipherSuites,
+		"disableGeneralOptionsHandler": instance.DisableGeneralOptionsHandler,
+		"logConfigId":                  instance.LogConfigId,
+		"healthStatus":                 instance.HealthStatus,
+		"lastHeartbeatTime":            instance.LastHeartbeatTime,
+		"instanceMetadata":             instance.InstanceMetadata,
+		"reserved1":                    instance.Reserved1,
+		"reserved2":                    instance.Reserved2,
+		"reserved3":                    instance.Reserved3,
+		"reserved4":                    instance.Reserved4,
+		"reserved5":                    instance.Reserved5,
+		"extProperty":                  instance.ExtProperty,
+		"addTime":                      instance.AddTime,
+		"addWho":                       instance.AddWho,
+		"editTime":                     instance.EditTime,
+		"editWho":                      instance.EditWho,
+		"oprSeqFlag":                   instance.OprSeqFlag,
+		"currentVersion":               instance.CurrentVersion,
+		"activeFlag":                   instance.ActiveFlag,
+		"noteText":                     instance.NoteText,
+	}
+}
+
+// gatewayInstanceToMapFull 将网关实例对象转换为Map，包含完整信息（用于详情查询和编辑）
+func gatewayInstanceToMapFull(instance *models.GatewayInstance) map[string]interface{} {
+	return map[string]interface{}{
+		"tenantId":                     instance.TenantId,
+		"gatewayInstanceId":            instance.GatewayInstanceId,
+		"instanceName":                 instance.InstanceName,
+		"instanceDesc":                 instance.InstanceDesc,
+		"bindAddress":                  instance.BindAddress,
+		"httpPort":                     instance.HttpPort,
+		"httpsPort":                    instance.HttpsPort,
+		"tlsEnabled":                   instance.TlsEnabled,
+		"certStorageType":              instance.CertStorageType,
+		"certFilePath":                 instance.CertFilePath,
+		"keyFilePath":                  instance.KeyFilePath,
+		"certContent":                  instance.CertContent,      // 完整信息：包含证书内容
+		"keyContent":                   instance.KeyContent,       // 完整信息：包含私钥内容
+		"certChainContent":             instance.CertChainContent, // 完整信息：包含证书链内容
+		"certPassword":                 instance.CertPassword,     // 完整信息：包含证书密码
 		"maxConnections":               instance.MaxConnections,
 		"readTimeoutMs":                instance.ReadTimeoutMs,
 		"writeTimeoutMs":               instance.WriteTimeoutMs,

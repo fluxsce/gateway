@@ -173,8 +173,14 @@ func (s *controlServer) Stop(ctx context.Context) error {
 //   - 启动消息处理循环
 //   - 处理连接断开清理
 func (s *controlServer) HandleConnection(ctx context.Context, conn net.Conn) error {
-	// 首先尝试读取第一条消息来判断连接类型
-	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+	// 关键修复：对于数据连接，不设置读取超时或设置很长的超时时间
+	// 原因：
+	// 1. 客户端建立连接后需要立即发送握手，但可能因为网络延迟等原因有短暂延迟
+	// 2. 如果设置超时过短，连接可能在客户端发送握手前被关闭，导致 broken pipe
+	// 3. 数据连接建立后应该保持打开，直到收到握手消息或连接关闭
+	// 4. 使用120秒超时，给客户端足够的时间（包括网络延迟、连接池获取等）
+	// 5. 如果120秒内没有收到任何数据，说明连接有问题，可以安全关闭
+	conn.SetReadDeadline(time.Now().Add(120 * time.Second))
 
 	// 读取消息长度
 	lengthBuf := make([]byte, 4)
@@ -217,8 +223,16 @@ func (s *controlServer) handleDataConnection(ctx context.Context, conn net.Conn,
 		return fmt.Errorf("missing connectionId in data connection handshake")
 	}
 
+	// 提取并验证 clientID（必须存在且不能为空）
+	clientID, ok := handshake["clientId"].(string)
+	if !ok || clientID == "" {
+		conn.Close()
+		return fmt.Errorf("missing or empty clientId in data connection handshake")
+	}
+
 	logger.Info("Data connection received", map[string]interface{}{
 		"connectionId": connectionID,
+		"clientId":     clientID,
 	})
 
 	// 将数据连接转发给代理服务器处理
@@ -227,7 +241,7 @@ func (s *controlServer) handleDataConnection(ctx context.Context, conn net.Conn,
 		return fmt.Errorf("proxy server not configured")
 	}
 
-	return s.proxyServer.HandleClientDataConnection(ctx, conn, connectionID)
+	return s.proxyServer.HandleClientDataConnection(ctx, conn, connectionID, clientID)
 }
 
 // handleControlConnection 处理控制连接
@@ -240,7 +254,8 @@ func (s *controlServer) handleControlConnection(ctx context.Context, conn net.Co
 
 	defer func() {
 		conn.Close()
-		s.removeConnection(controlConn)
+		//不应该清楚连接由客户端注册控制
+		//s.removeConnection(controlConn)
 	}()
 
 	// 处理第一条消息（已经读取的）
@@ -296,15 +311,26 @@ func (s *controlServer) SendMessageToClient(clientID string, message *types.Cont
 	// 快速查找连接（短时间持有读锁）
 	s.connMutex.RLock()
 	conn, exists := s.activeConns[clientID]
-	authenticated := exists && conn.authenticated
+	authenticated := exists && conn != nil && conn.authenticated
 	s.connMutex.RUnlock()
 
-	if !exists {
+	if !exists || conn == nil {
 		return fmt.Errorf("client %s not found or not connected", clientID)
 	}
 
 	if !authenticated {
 		return fmt.Errorf("client %s not authenticated", clientID)
+	}
+
+	// 关键修复：在发送前再次验证连接是否仍然有效
+	// 防止在获取连接后、发送消息前连接被关闭（竞态条件）
+	s.connMutex.RLock()
+	conn2, stillExists := s.activeConns[clientID]
+	stillAuthenticated := stillExists && conn2 != nil && conn2.authenticated && conn2 == conn
+	s.connMutex.RUnlock()
+
+	if !stillExists || conn2 == nil || !stillAuthenticated {
+		return fmt.Errorf("client %s connection closed or invalidated before sending message", clientID)
 	}
 
 	// 在不持有锁的情况下发送消息
@@ -677,6 +703,17 @@ func (s *controlServer) handleUnregisterService(conn *controlConnection, msg *ty
 
 // sendResponse 发送响应消息
 func (s *controlServer) sendResponse(conn *controlConnection, originalMsg *types.ControlMessage, success bool, message string) error {
+	// 关键修复：在发送前检查连接是否有效
+	if conn.conn == nil {
+		return fmt.Errorf("connection is nil")
+	}
+
+	// 检查连接是否已关闭
+	localAddr := conn.conn.LocalAddr()
+	if localAddr == nil {
+		return fmt.Errorf("connection is closed (localAddr is nil)")
+	}
+
 	response := types.ControlMessage{
 		Type:      types.MessageTypeResponse,
 		SessionID: originalMsg.SessionID,
@@ -701,13 +738,18 @@ func (s *controlServer) sendResponse(conn *controlConnection, originalMsg *types
 		byte(length),
 	}
 
+	// 关键修复：设置写超时，避免在连接已关闭时长时间阻塞
+	conn.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	defer conn.conn.SetWriteDeadline(time.Time{}) // 清除超时
+
+	// 发送长度
 	if _, err := conn.conn.Write(lengthBuf); err != nil {
-		return err
+		return fmt.Errorf("failed to write message length: %w", err)
 	}
 
 	// 发送消息内容
 	if _, err := conn.conn.Write(data); err != nil {
-		return err
+		return fmt.Errorf("failed to write message data: %w", err)
 	}
 
 	return nil
@@ -782,6 +824,19 @@ func generateID(prefix string) string {
 
 // sendControlMessage 发送控制消息
 func (s *controlServer) sendControlMessage(conn *controlConnection, msg *types.ControlMessage) error {
+	// 关键修复：在发送前检查连接是否有效
+	// 防止在连接关闭过程中写入数据，导致客户端读取到不完整消息或 \x00 字节
+	if conn.conn == nil {
+		return fmt.Errorf("connection is nil")
+	}
+
+	// 检查连接是否已关闭（通过尝试获取本地地址）
+	// 如果连接已关闭，LocalAddr() 可能返回 nil 或 panic
+	localAddr := conn.conn.LocalAddr()
+	if localAddr == nil {
+		return fmt.Errorf("connection is closed (localAddr is nil)")
+	}
+
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal control message: %w", err)
@@ -796,13 +851,20 @@ func (s *controlServer) sendControlMessage(conn *controlConnection, msg *types.C
 		byte(length),
 	}
 
+	// 关键修复：设置写超时，避免在连接已关闭时长时间阻塞
+	conn.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	defer conn.conn.SetWriteDeadline(time.Time{}) // 清除超时
+
+	// 发送长度
 	if _, err := conn.conn.Write(lengthBuf); err != nil {
-		return err
+		return fmt.Errorf("failed to write message length: %w", err)
 	}
 
 	// 发送消息内容
+	// 关键修复：使用单次 Write 发送完整消息，避免部分写入
+	// 如果连接在写入过程中关闭，Write 会返回错误，客户端不会读取到不完整数据
 	if _, err := conn.conn.Write(data); err != nil {
-		return err
+		return fmt.Errorf("failed to write message data: %w", err)
 	}
 
 	return nil

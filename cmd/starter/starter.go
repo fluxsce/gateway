@@ -14,7 +14,6 @@ import (
 	_ "gateway/pkg/database/alldriver" // 导入数据库驱动以确保注册
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/huberrors"
-	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -62,7 +61,8 @@ func Starter() {
 	appContext, appCancel = context.WithCancel(context.Background())
 	defer appCancel()
 
-	// 检查是否为服务模式
+	// 检查是否为服务模式（非Windows/Linux系统服务，但使用--service参数）
+	// 注意：Windows和Linux系统服务模式已经在上面处理并return，这里只处理其他情况
 	if utils.IsServiceMode() {
 		setupServiceLogging()
 		log.Println("Gateway 服务模式启动...")
@@ -237,34 +237,57 @@ func initTunnelManager() error {
 // 使用lumberjack实现日志轮转，避免日志文件无限增长
 // 注意：只重定向标准log包的输出，不影响logger包（zap）的输出
 func setupServiceLogging() {
+	// 确定日志目录：优先使用配置目录，否则使用可执行文件目录
+	configDir := utils.GetConfigDir()
+	var logDir string
+	if configDir != "" && configDir != "./configs" {
+		// 使用配置目录的父目录下的logs目录
+		logDir = filepath.Join(filepath.Dir(configDir), "logs")
+		logDir = filepath.Clean(logDir)
+	} else {
+		// 使用可执行文件目录下的logs目录
+		logDir = filepath.Join(filepath.Dir(os.Args[0]), "logs")
+	}
+
 	// 创建日志目录
-	logDir := filepath.Join(filepath.Dir(os.Args[0]), "logs")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		log.Printf("创建日志目录失败: %v", err)
 		return
 	}
 
 	// 使用lumberjack实现日志轮转
+	// 注意：lumberjack会在文件大小达到MaxSize时自动轮转
 	logFile := filepath.Join(logDir, "service.log")
+
+	// 确保使用绝对路径，避免路径问题
+	logFile, err := filepath.Abs(logFile)
+	if err != nil {
+		log.Printf("获取日志文件绝对路径失败: %v", err)
+		logFile = filepath.Join(logDir, "service.log")
+	}
+
 	lumberjackLogger := &lumberjack.Logger{
 		Filename:   logFile,
-		MaxSize:    100,  // 单个文件最大100MB
+		MaxSize:    100,  // 单个文件最大100MB（单位：MB）
 		MaxBackups: 10,   // 保留最多10个旧文件
 		MaxAge:     30,   // 保留最多30天
 		Compress:   true, // 压缩旧文件
-		LocalTime:  true, // 使用本地时间
+		LocalTime:  true, // 使用本地时间命名轮转文件
 	}
 
-	// 创建MultiWriter，同时输出到文件和控制台（如果需要）
-	// 服务模式下不输出到控制台，只输出到文件
-	multiWriter := io.MultiWriter(lumberjackLogger)
+	// 测试写入，确保文件可写且lumberjack正常工作
+	if _, err := lumberjackLogger.Write([]byte("")); err != nil {
+		log.Printf("测试写入日志文件失败: %v", err)
+		return
+	}
 
 	// 只设置标准log包的输出，不重定向os.Stdout和os.Stderr
-	// 这样logger包（zap）可以独立控制其输出目标
-	log.SetOutput(multiWriter)
+	// 这样logger包（zap）可以独立控制其输出目标，不会输出到service.log
+	log.SetOutput(lumberjackLogger)
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	log.Printf("服务日志已设置（支持轮转）: %s (MaxSize: 100MB, MaxBackups: 10, MaxAge: 30天)", logFile)
+	log.Printf("服务日志已设置（支持轮转）: %s", logFile)
+	log.Printf("日志轮转配置: MaxSize=100MB, MaxBackups=10, MaxAge=30天, Compress=true")
 }
 
 // setupGracefulShutdown 设置优雅退出

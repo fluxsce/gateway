@@ -118,13 +118,26 @@ func (sr *serviceRegistry) RegisterService(ctx context.Context, clientID string,
 		return fmt.Errorf("service configuration validation failed: %w", err)
 	}
 
-	// 检查服务ID是否已存在
+	// 关键修复：允许重复注册服务
+	// 如果服务已存在，先注销旧服务，然后注册新服务
 	sr.serviceMutex.RLock()
 	_, exists := sr.services[service.TunnelServiceId]
 	sr.serviceMutex.RUnlock()
 
 	if exists {
-		return fmt.Errorf("service %s already registered", service.TunnelServiceId)
+		logger.Info("Service already exists, unregistering old service before re-registering", map[string]interface{}{
+			"serviceId": service.TunnelServiceId,
+			"clientId":  clientID,
+		})
+
+		// 注销旧服务（这会停止代理服务器、释放端口等）
+		if err := sr.UnregisterService(ctx, service.TunnelServiceId); err != nil {
+			logger.Warn("Failed to unregister existing service, continuing with registration", map[string]interface{}{
+				"serviceId": service.TunnelServiceId,
+				"error":     err.Error(),
+			})
+			// 继续注册，即使注销失败（可能是服务状态不一致）
+		}
 	}
 
 	// 确保 clientID 一致

@@ -492,7 +492,7 @@ func (c *Context) Reset() {
 	c.serviceID = ""
 	c.matchedPath = ""
 	c.Errors = c.Errors[:0] // 清空错误切片但保留底层数组
-	
+
 	// 重置时间字段
 	c.responseTime = time.Time{}
 	c.forwardStartTime = time.Time{}
