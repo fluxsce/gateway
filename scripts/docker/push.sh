@@ -21,7 +21,7 @@ NC='\033[0m' # No Color
 
 # 配置
 DEFAULT_IMAGE_NAME="datahub-images/gateway"
-VERSION="2.0.3"
+VERSION="2.0.4"
 
 # 镜像仓库配置
 DOCKERHUB_REGISTRY="docker.io"

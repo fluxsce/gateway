@@ -15,18 +15,14 @@ CREATE TABLE `HUB_AUTH_ROLE` (
   
   -- 角色基本信息
   `roleName` VARCHAR(100) NOT NULL COMMENT '角色名称',
-  `roleCode` VARCHAR(100) NOT NULL COMMENT '角色编码，用于程序判断',
   `roleDescription` VARCHAR(500) DEFAULT NULL COMMENT '角色描述',
-  `roleType` VARCHAR(20) NOT NULL DEFAULT 'CUSTOM' COMMENT '角色类型(SYSTEM:系统角色,CUSTOM:自定义角色)',
-  `roleLevel` INT NOT NULL DEFAULT 1 COMMENT '角色级别，数字越小权限越高',
   
   -- 角色状态
   `roleStatus` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '角色状态(Y:启用,N:禁用)',
   `builtInFlag` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '内置角色标记(Y:内置,N:自定义)',
   
   -- 数据权限范围
-  `dataScope` VARCHAR(20) NOT NULL DEFAULT 'SELF' COMMENT '数据权限范围(ALL:全部,TENANT:租户,DEPT:部门,SELF:个人)',
-  `dataScopeDeptIds` TEXT DEFAULT NULL COMMENT '数据权限部门ID列表，JSON格式',
+  `dataScope` TEXT DEFAULT NULL COMMENT '数据权限范围，TEXT类型，支持存储复杂的权限配置(JSON格式)',
   
   -- 通用字段
   `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -51,11 +47,8 @@ CREATE TABLE `HUB_AUTH_ROLE` (
   
   -- 主键和索引
   PRIMARY KEY (`tenantId`, `roleId`),
-  UNIQUE KEY `IDX_AUTH_ROLE_CODE` (`tenantId`, `roleCode`),
   KEY `IDX_AUTH_ROLE_NAME` (`tenantId`, `roleName`),
-  KEY `IDX_AUTH_ROLE_TYPE` (`roleType`),
-  KEY `IDX_AUTH_ROLE_STATUS` (`roleStatus`),
-  KEY `IDX_AUTH_ROLE_LEVEL` (`roleLevel`)
+  KEY `IDX_AUTH_ROLE_STATUS` (`roleStatus`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色表 - 存储系统角色信息和数据权限范围';
 
 -- =====================================================
@@ -78,10 +71,6 @@ CREATE TABLE `HUB_AUTH_RESOURCE` (
   `resourceLevel` INT NOT NULL DEFAULT 1 COMMENT '资源层级',
   `sortOrder` INT NOT NULL DEFAULT 0 COMMENT '排序顺序',
   
-  -- 模块信息
-  `moduleCode` VARCHAR(50) DEFAULT NULL COMMENT '所属模块编码(hub0001,hub0002等)',
-  `moduleName` VARCHAR(100) DEFAULT NULL COMMENT '所属模块名称',
-  
   -- 显示信息
   `displayName` VARCHAR(100) DEFAULT NULL COMMENT '显示名称',
   `iconClass` VARCHAR(100) DEFAULT NULL COMMENT '图标样式类',
@@ -89,7 +78,6 @@ CREATE TABLE `HUB_AUTH_RESOURCE` (
   
   -- 状态信息
   `resourceStatus` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '资源状态(Y:启用,N:禁用)',
-  `visibleFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '是否可见(Y:可见,N:隐藏)',
   `builtInFlag` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '内置资源标记(Y:内置,N:自定义)',
   
   -- 通用字段
@@ -118,7 +106,6 @@ CREATE TABLE `HUB_AUTH_RESOURCE` (
   UNIQUE KEY `IDX_AUTH_RES_CODE` (`tenantId`, `resourceCode`),
   KEY `IDX_AUTH_RES_TYPE` (`resourceType`),
   KEY `IDX_AUTH_RES_PARENT` (`parentResourceId`),
-  KEY `IDX_AUTH_RES_MODULE` (`moduleCode`),
   KEY `IDX_AUTH_RES_PATH` (`resourcePath`),
   KEY `IDX_AUTH_RES_STATUS` (`resourceStatus`),
   KEY `IDX_AUTH_RES_LEVEL` (`resourceLevel`),
@@ -130,7 +117,7 @@ CREATE TABLE `HUB_AUTH_RESOURCE` (
 -- =====================================================
 CREATE TABLE `HUB_AUTH_ROLE_RESOURCE` (
   -- 主键和租户信息
-  `roleResourceId` VARCHAR(32) NOT NULL COMMENT '角色资源关联ID，主键',
+  `roleResourceId` VARCHAR(100) NOT NULL COMMENT '角色资源关联ID，主键',
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID，用于多租户数据隔离',
   
   -- 关联信息
@@ -178,7 +165,7 @@ CREATE TABLE `HUB_AUTH_ROLE_RESOURCE` (
 -- =====================================================
 CREATE TABLE `HUB_AUTH_USER_ROLE` (
   -- 主键和租户信息
-  `userRoleId` VARCHAR(32) NOT NULL COMMENT '用户角色关联ID，主键',
+  `userRoleId` VARCHAR(100) NOT NULL COMMENT '用户角色关联ID，主键',
   `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID，用于多租户数据隔离',
   
   -- 关联信息
@@ -236,7 +223,6 @@ CREATE TABLE `HUB_AUTH_DATA_PERMISSION` (
   -- 数据权限信息
   `resourceType` VARCHAR(50) NOT NULL COMMENT '资源类型(TABLE:数据表,API:接口,MODULE:模块)',
   `resourceCode` VARCHAR(100) NOT NULL COMMENT '资源编码',
-  `permissionScope` VARCHAR(20) NOT NULL COMMENT '权限范围(ALL:全部,TENANT:租户,DEPT:部门,SELF:个人,CUSTOM:自定义)',
   `scopeValue` TEXT DEFAULT NULL COMMENT '权限范围值，JSON格式',
   
   -- 权限条件
@@ -274,7 +260,6 @@ CREATE TABLE `HUB_AUTH_DATA_PERMISSION` (
   KEY `IDX_AUTH_DATA_PERM_USER` (`tenantId`, `userId`),
   KEY `IDX_AUTH_DATA_PERM_ROLE` (`tenantId`, `roleId`),
   KEY `IDX_AUTH_DATA_PERM_RESOURCE` (`resourceType`, `resourceCode`),
-  KEY `IDX_AUTH_DATA_PERM_SCOPE` (`permissionScope`),
   KEY `IDX_AUTH_DATA_PERM_EXPIRE` (`expireTime`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据权限表 - 存储用户和角色的数据访问权限';
 
@@ -343,20 +328,20 @@ CREATE TABLE `HUB_AUTH_OPERATION_LOG` (
 -- =====================================================
 
 -- 超级管理员角色
-INSERT INTO HUB_AUTH_ROLE (roleId, tenantId, roleName, roleCode, roleDescription, roleType, roleLevel, dataScope, builtInFlag, addWho, editWho, oprSeqFlag) 
-VALUES ('ROLE_SUPER_ADMIN', 'default', '超级管理员', 'SUPER_ADMIN', '拥有系统所有权限的超级管理员', 'SYSTEM', 0, 'ALL', 'Y', 'system', 'system', 'INIT_001');
+INSERT INTO HUB_AUTH_ROLE (roleId, tenantId, roleName, roleDescription, dataScope, builtInFlag, addWho, editWho, oprSeqFlag) 
+VALUES ('ROLE_SUPER_ADMIN', 'default', '超级管理员', '拥有系统所有权限的超级管理员', '{"type":"ALL"}', 'Y', 'system', 'system', 'INIT_001');
 
 -- 租户管理员角色
-INSERT INTO HUB_AUTH_ROLE (roleId, tenantId, roleName, roleCode, roleDescription, roleType, roleLevel, dataScope, builtInFlag, addWho, editWho, oprSeqFlag) 
-VALUES ('ROLE_TENANT_ADMIN', 'default', '租户管理员', 'TENANT_ADMIN', '租户内所有权限的管理员', 'SYSTEM', 1, 'TENANT', 'Y', 'system', 'system', 'INIT_002');
+INSERT INTO HUB_AUTH_ROLE (roleId, tenantId, roleName, roleDescription, dataScope, builtInFlag, addWho, editWho, oprSeqFlag) 
+VALUES ('ROLE_TENANT_ADMIN', 'default', '租户管理员', '租户内所有权限的管理员', '{"type":"TENANT"}', 'Y', 'system', 'system', 'INIT_002');
 
 -- 部门管理员角色
-INSERT INTO HUB_AUTH_ROLE (roleId, tenantId, roleName, roleCode, roleDescription, roleType, roleLevel, dataScope, builtInFlag, addWho, editWho, oprSeqFlag) 
-VALUES ('ROLE_DEPT_ADMIN', 'default', '部门管理员', 'DEPT_ADMIN', '部门内权限的管理员', 'SYSTEM', 2, 'DEPT', 'Y', 'system', 'system', 'INIT_003');
+INSERT INTO HUB_AUTH_ROLE (roleId, tenantId, roleName, roleDescription, dataScope, builtInFlag, addWho, editWho, oprSeqFlag) 
+VALUES ('ROLE_DEPT_ADMIN', 'default', '部门管理员', '部门内权限的管理员', '{"type":"DEPT"}', 'Y', 'system', 'system', 'INIT_003');
 
 -- 普通用户角色
-INSERT INTO HUB_AUTH_ROLE (roleId, tenantId, roleName, roleCode, roleDescription, roleType, roleLevel, dataScope, builtInFlag, addWho, editWho, oprSeqFlag) 
-VALUES ('ROLE_USER', 'default', '普通用户', 'USER', '普通用户权限', 'SYSTEM', 3, 'SELF', 'Y', 'system', 'system', 'INIT_004');
+INSERT INTO HUB_AUTH_ROLE (roleId, tenantId, roleName, roleDescription, dataScope, builtInFlag, addWho, editWho, oprSeqFlag) 
+VALUES ('ROLE_USER', 'default', '普通用户', '普通用户权限', '{"type":"SELF"}', 'Y', 'system', 'system', 'INIT_004');
 
 -- =====================================================
 -- 初始数据插入 - 模块权限资源
@@ -364,12 +349,12 @@ VALUES ('ROLE_USER', 'default', '普通用户', 'USER', '普通用户权限', 'S
 -- =====================================================
 
 -- 认证模块 (hub0001)
-INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, moduleCode, moduleName, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
-VALUES ('RES_AUTH_MODULE', 'default', '认证模块', 'hub0001', 'MODULE', 'hub0001', '认证模块', '认证管理', 'Y', 'system', 'system', 'INIT_001');
+INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
+VALUES ('RES_AUTH_MODULE', 'default', '认证模块', 'hub0001', 'MODULE', '认证管理', 'Y', 'system', 'system', 'INIT_001');
 
 -- 用户管理模块 (hub0002)
-INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, moduleCode, moduleName, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
-VALUES ('RES_USER_MODULE', 'default', '用户管理模块', 'hub0002', 'MODULE', 'hub0002', '用户管理', '用户管理', 'Y', 'system', 'system', 'INIT_002');
+INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
+VALUES ('RES_USER_MODULE', 'default', '用户管理模块', 'hub0002', 'MODULE', '用户管理', 'Y', 'system', 'system', 'INIT_002');
 
 -- 用户管理菜单
 INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, parentResourceId, resourcePath, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
@@ -382,29 +367,29 @@ INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode,
 VALUES ('RES_USER_CREATE', 'default', '创建用户', 'hub0002:user:create', 'BUTTON', 'RES_USER_MENU', '/api/hub0002/users', 'POST', '创建用户', 'Y', 'system', 'system', 'INIT_005');
 
 -- 定时任务模块 (hub0003)
-INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, moduleCode, moduleName, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
-VALUES ('RES_TIMER_MODULE', 'default', '定时任务模块', 'hub0003', 'MODULE', 'hub0003', '定时任务', '定时任务', 'Y', 'system', 'system', 'INIT_006');
+INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
+VALUES ('RES_TIMER_MODULE', 'default', '定时任务模块', 'hub0003', 'MODULE', '定时任务', 'Y', 'system', 'system', 'INIT_006');
 
 -- 网关实例模块 (hub0020)
-INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, moduleCode, moduleName, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
-VALUES ('RES_GW_INSTANCE_MODULE', 'default', '网关实例模块', 'hub0020', 'MODULE', 'hub0020', '网关实例', '网关实例', 'Y', 'system', 'system', 'INIT_007');
+INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
+VALUES ('RES_GW_INSTANCE_MODULE', 'default', '网关实例模块', 'hub0020', 'MODULE', '网关实例', 'Y', 'system', 'system', 'INIT_007');
 
 -- 网关配置模块 (hub0021)
-INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, moduleCode, moduleName, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
-VALUES ('RES_GW_CONFIG_MODULE', 'default', '网关配置模块', 'hub0021', 'MODULE', 'hub0021', '网关配置', '网关配置', 'Y', 'system', 'system', 'INIT_008');
+INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
+VALUES ('RES_GW_CONFIG_MODULE', 'default', '网关配置模块', 'hub0021', 'MODULE', '网关配置', 'Y', 'system', 'system', 'INIT_008');
 
 -- 代理配置模块 (hub0022)
-INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, moduleCode, moduleName, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
-VALUES ('RES_PROXY_CONFIG_MODULE', 'default', '代理配置模块', 'hub0022', 'MODULE', 'hub0022', '代理配置', '代理配置', 'Y', 'system', 'system', 'INIT_009');
+INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
+VALUES ('RES_PROXY_CONFIG_MODULE', 'default', '代理配置模块', 'hub0022', 'MODULE', '代理配置', 'Y', 'system', 'system', 'INIT_009');
 
 -- 网关日志模块 (hub0023)
-INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, moduleCode, moduleName, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
-VALUES ('RES_GW_LOG_MODULE', 'default', '网关日志模块', 'hub0023', 'MODULE', 'hub0023', '网关日志', '网关日志', 'Y', 'system', 'system', 'INIT_010');
+INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
+VALUES ('RES_GW_LOG_MODULE', 'default', '网关日志模块', 'hub0023', 'MODULE', '网关日志', 'Y', 'system', 'system', 'INIT_010');
 
 -- 服务分组模块 (hub0040)
-INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, moduleCode, moduleName, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
-VALUES ('RES_SERVICE_GROUP_MODULE', 'default', '服务分组模块', 'hub0040', 'MODULE', 'hub0040', '服务分组', '服务分组', 'Y', 'system', 'system', 'INIT_011');
+INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
+VALUES ('RES_SERVICE_GROUP_MODULE', 'default', '服务分组模块', 'hub0040', 'MODULE', '服务分组', 'Y', 'system', 'system', 'INIT_011');
 
 -- 服务注册模块 (hub0041)
-INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, moduleCode, moduleName, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
-VALUES ('RES_SERVICE_REGISTRY_MODULE', 'default', '服务注册模块', 'hub0041', 'MODULE', 'hub0041', '服务注册', '服务注册', 'Y', 'system', 'system', 'INIT_012');
+INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, displayName, builtInFlag, addWho, editWho, oprSeqFlag) 
+VALUES ('RES_SERVICE_REGISTRY_MODULE', 'default', '服务注册模块', 'hub0041', 'MODULE', '服务注册', 'Y', 'system', 'system', 'INIT_012');

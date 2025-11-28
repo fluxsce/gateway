@@ -42,7 +42,7 @@ COPY . .
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
     go build -a \
     -tags=no_oracle \
-    -ldflags="-w -s -X main.Version=2.0.3 -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    -ldflags="-w -s -X main.Version=2.0.4 -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -o gateway \
     cmd/app/main.go
 
@@ -53,7 +53,7 @@ FROM alpine:3.19
 
 # 设置标签
 LABEL maintainer="fluxopensource@flux.com.cn" \
-      version="2.0.3" \
+      version="2.0.4" \
       description="FLUX Gateway - High Performance API Gateway & Network Penetration Platform"
 
 # 安装运行时依赖和常用工具
