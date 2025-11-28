@@ -93,32 +93,10 @@ go run cmd/app/main.go
 
 ## 🏗️ 架构概览
 
-```mermaid
-graph TB
-    Client[客户端] --> Gateway[API网关]
-    Gateway --> PreProcess[前置处理]
-    PreProcess --> Security[全局安全控制]
-    Security --> CORS[全局CORS处理]
-    CORS --> Auth[全局认证鉴权]
-    Auth --> RateLimit[全局限流控制]
-    RateLimit --> Router[路由匹配]
-    Router --> RouteHandlers[路由级处理器链]
-    RouteHandlers --> Discovery[服务发现]
-    Discovery --> LoadBalance[负载均衡]
-    LoadBalance --> CircuitBreaker[熔断检查]
-    CircuitBreaker --> ProxyForward[请求转发]
-    
-    ProxyForward --> Services[后端服务集群]
-    Services --> PostProcess[响应处理]
-    PostProcess --> Gateway
-    Gateway --> Client
-    
-    Gateway --> Log[日志系统]
-    Gateway --> Monitor[监控系统]
-    Gateway --> Config[配置中心]
-    Gateway --> Cache[缓存]
-    Gateway --> DB[数据库]
-```
+<p align="left">
+  <img src="docs/images/gateway_flow.svg" alt="Web 路由配置 Demo" width="80%">
+  <img src="docs/images/gateway_model.png" alt="Web 日志管理 Demo" width="80%">
+</p>
 
 ## 📚 文档导航
 
@@ -170,7 +148,7 @@ graph TB
 - 💬 **GitHub Discussion**: [提交讨论](https://github.com/orgs/fluxsce/discussions)
 - 📱 **微信群**: 扫描下方二维码加入交流群
 
-<table align="left" style="border: none; border-collapse: collapse;"> <tr> <td style="text-align: center; padding: 200px; border: none;"> <img src="docs/images/QW.png" alt="企业微信二维码" style="width: 250px; height: 380px; object-fit: contain;"> </td> <td style="text-align: center; padding: 200px; border: none;"> <img src="docs/images/WX.jpg" alt="微信二维码" style="width: 250px; height: 380px; object-fit: contain;"> </td> </tr> </table>
+<table align="left" style="border: none; border-collapse: collapse;"> <tr> <td style="text-align: center; padding: 200px; border: none;"> <img src="docs/images/QW.png" alt="企业微信二维码" style="width: 250px; height: 380px; object-fit: contain;"> </td> <td style="text-align: center; padding: 200px; border: none;"> <img src="docs/images/WX.png" alt="微信二维码" style="width: 250px; height: 380px; object-fit: contain;"> </td> </tr> </table>
 <br></br>
 <br></br>
 <br></br>
