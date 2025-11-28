@@ -76,7 +76,13 @@ func (loader *LimiterServiceLoader) LoadRateLimitConfig(ctx context.Context, ins
 		Enabled: true,
 	}
 
-	// 解析限流类型
+	// 解析限流算法类型
+	// 支持的算法：
+	// - TOKEN_BUCKET: 令牌桶算法（平滑突发流量）
+	// - LEAKY_BUCKET: 漏桶算法（固定速率处理）
+	// - SLIDING_WINDOW: 滑动窗口算法（更精确的时间窗口）
+	// - FIXED_WINDOW: 固定窗口算法（简单高效）
+	// - NONE: 无限制（不进行限流）
 	switch record.Algorithm {
 	case "TOKEN_BUCKET":
 		rateLimitConf.Algorithm = limiter.AlgorithmTokenBucket
@@ -84,13 +90,20 @@ func (loader *LimiterServiceLoader) LoadRateLimitConfig(ctx context.Context, ins
 		rateLimitConf.Algorithm = limiter.AlgorithmLeakyBucket
 	case "SLIDING_WINDOW":
 		rateLimitConf.Algorithm = limiter.AlgorithmSlidingWindow
+	case "FIXED_WINDOW":
+		rateLimitConf.Algorithm = limiter.AlgorithmFixedWindow
+	case "NONE":
+		rateLimitConf.Algorithm = limiter.AlgorithmNone
 	default:
+		// 默认使用令牌桶算法
 		rateLimitConf.Algorithm = limiter.AlgorithmTokenBucket
 	}
 
 	// 设置限流参数
 	rateLimitConf.Rate = record.LimitRate
 	rateLimitConf.Burst = record.BurstCapacity
+	rateLimitConf.WindowSize = record.TimeWindowSeconds
+	rateLimitConf.KeyStrategy = record.KeyStrategy
 	rateLimitConf.ErrorStatusCode = record.RejectionStatusCode
 	rateLimitConf.ErrorMessage = record.RejectionMessage
 
@@ -153,7 +166,13 @@ func (loader *LimiterServiceLoader) LoadRouteRateLimitConfig(ctx context.Context
 		Enabled: true,
 	}
 
-	// 解析限流类型
+	// 解析限流算法类型（小写格式，用于路由级配置）
+	// 支持的算法：
+	// - token-bucket: 令牌桶算法（平滑突发流量）
+	// - leaky-bucket: 漏桶算法（固定速率处理）
+	// - sliding-window: 滑动窗口算法（更精确的时间窗口）
+	// - fixed-window: 固定窗口算法（简单高效）
+	// - none: 无限制（不进行限流）
 	switch record.Algorithm {
 	case "token-bucket":
 		rateLimitConf.Algorithm = limiter.AlgorithmTokenBucket
@@ -161,13 +180,20 @@ func (loader *LimiterServiceLoader) LoadRouteRateLimitConfig(ctx context.Context
 		rateLimitConf.Algorithm = limiter.AlgorithmLeakyBucket
 	case "sliding-window":
 		rateLimitConf.Algorithm = limiter.AlgorithmSlidingWindow
+	case "fixed-window":
+		rateLimitConf.Algorithm = limiter.AlgorithmFixedWindow
+	case "none":
+		rateLimitConf.Algorithm = limiter.AlgorithmNone
 	default:
+		// 默认使用令牌桶算法
 		rateLimitConf.Algorithm = limiter.AlgorithmTokenBucket
 	}
 
 	// 设置限流参数
 	rateLimitConf.Rate = record.LimitRate
 	rateLimitConf.Burst = record.BurstCapacity
+	rateLimitConf.WindowSize = record.TimeWindowSeconds
+	rateLimitConf.KeyStrategy = record.KeyStrategy
 	rateLimitConf.ErrorStatusCode = record.RejectionStatusCode
 	rateLimitConf.ErrorMessage = record.RejectionMessage
 

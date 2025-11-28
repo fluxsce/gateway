@@ -22,6 +22,8 @@ import (
 	_ "gateway/web/views/hub0002/routes"
 	// 导入定时任务管理模块
 	_ "gateway/web/views/hub0003/routes"
+	// 导入角色管理模块
+	_ "gateway/web/views/hub0005/routes"
 	// 导入网关管理模块
 	_ "gateway/web/views/hub0020/routes"
 	// 导入路由管理模块

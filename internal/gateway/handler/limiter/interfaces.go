@@ -1,6 +1,9 @@
 package limiter
 
 import (
+	"net"
+	"strings"
+
 	"gateway/internal/gateway/core"
 )
 
@@ -139,15 +142,43 @@ func GetKeyExtractor(strategy string) KeyExtractorFunc {
 }
 
 // ExtractIPKey 提取IP键
+// 正确提取客户端IP地址，去除端口号
+// 优先级：X-Forwarded-For > X-Real-IP > RemoteAddr
 func ExtractIPKey(ctx *core.Context) string {
-	ip := ctx.Request.Header.Get("X-Forwarded-For")
-	if ip == "" {
-		ip = ctx.Request.Header.Get("X-Real-IP")
+	// 1. 检查 X-Forwarded-For 头部
+	forwarded := ctx.Request.Header.Get("X-Forwarded-For")
+	if forwarded != "" {
+		// X-Forwarded-For 可能包含多个IP，取第一个
+		ips := strings.Split(forwarded, ",")
+		if len(ips) > 0 {
+			ip := strings.TrimSpace(ips[0])
+			if ip != "" {
+				return "ip:" + ip
+			}
+		}
 	}
-	if ip == "" {
-		ip = ctx.Request.RemoteAddr
+
+	// 2. 检查 X-Real-IP 头部
+	realIP := ctx.Request.Header.Get("X-Real-IP")
+	if realIP != "" {
+		ip := strings.TrimSpace(realIP)
+		if ip != "" {
+			return "ip:" + ip
+		}
 	}
-	return "ip:" + ip
+
+	// 3. 使用 RemoteAddr（需要去除端口号）
+	if ctx.Request.RemoteAddr != "" {
+		host, _, err := net.SplitHostPort(ctx.Request.RemoteAddr)
+		if err != nil {
+			// 如果没有端口号，直接使用
+			return "ip:" + ctx.Request.RemoteAddr
+		}
+		return "ip:" + host
+	}
+
+	// 4. 如果都没有，返回默认值
+	return "ip:unknown"
 }
 
 // ExtractUserKey 提取用户键

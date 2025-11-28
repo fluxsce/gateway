@@ -188,6 +188,46 @@ func (dao *ServerInfoDAO) GetServerInfoByHostname(ctx context.Context, tenantId,
 	return &serverInfo, nil
 }
 
+// GetServerInfoByHostnameAndNetwork 根据主机名、IP和MAC地址获取服务器信息
+// 通过主机名、IP地址和MAC地址的组合来唯一确定一台服务器
+func (dao *ServerInfoDAO) GetServerInfoByHostnameAndNetwork(ctx context.Context, tenantId, hostname, ipAddress, macAddress string) (*types.ServerInfo, error) {
+	if tenantId == "" {
+		return nil, fmt.Errorf("租户ID不能为空")
+	}
+	if hostname == "" {
+		return nil, fmt.Errorf("主机名不能为空")
+	}
+
+	tableName := (&types.ServerInfo{}).TableName()
+
+	// 构建查询条件
+	sql := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND hostname = ? AND activeFlag = ?", tableName)
+	params := []interface{}{tenantId, hostname, types.ActiveFlagYes}
+
+	// 如果提供了IP地址，添加IP条件
+	if ipAddress != "" {
+		sql += " AND ipAddress = ?"
+		params = append(params, ipAddress)
+	}
+
+	// 如果提供了MAC地址，添加MAC条件
+	if macAddress != "" {
+		sql += " AND macAddress = ?"
+		params = append(params, macAddress)
+	}
+
+	var serverInfo types.ServerInfo
+	err := dao.db.QueryOne(ctx, &serverInfo, sql, params, true)
+	if err != nil {
+		if err == database.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("查询服务器信息失败: %w", err)
+	}
+
+	return &serverInfo, nil
+}
+
 // UpdateServerInfo 更新服务器信息
 func (dao *ServerInfoDAO) UpdateServerInfo(ctx context.Context, serverInfo *types.ServerInfo) error {
 	if serverInfo.TenantId == "" {

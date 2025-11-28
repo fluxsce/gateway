@@ -19,8 +19,6 @@ go.work
 
 # Build artifacts
 bin/
-dist/
-build/
 
 # IDE files
 .idea/

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gateway/internal/gateway/constants"
+	"gateway/internal/gateway/helper"
 	"gateway/pkg/utils/random"
 )
 
@@ -111,8 +112,8 @@ func (e *Engine) HandleWithContext(gatewayCtx *Context, w http.ResponseWriter, r
 	//    - 这会导致后续请求的"耗时"包含连接空闲时间，统计结果错误
 	// 2. 业务语义准确性：我们要统计的是HTTP请求处理性能，不是连接性能
 	//    - 第1个请求：耗时 = 响应时间 - realStartTime (包含连接建立等待)
-	//    - 第2个请求：耗时 = 响应时间 - realStartTime (包含5秒空闲时间!) ❌错误
-	//    - 正确计算：耗时 = 响应时间 - requestStartTime (纯HTTP处理时间) ✅正确
+	//    - 第2个请求：耗时 = 响应时间 - realStartTime (包含5秒空闲时间!)
+	//    - 正确计算：耗时 = 响应时间 - requestStartTime (纯HTTP处理时间)
 	// 3. 监控和SLA统计的实用性：
 	//    - API响应时间监控需要的是单个请求的处理时间
 	//    - 性能瓶颈分析需要准确的请求级别统计
@@ -139,12 +140,15 @@ func (e *Engine) HandleWithContext(gatewayCtx *Context, w http.ResponseWriter, r
 	// 如果经过完整的处理器链后请求仍未被响应，说明没有匹配的路由
 	// 此时返回标准的404错误，确保客户端能收到明确的响应
 	if !ctx.IsResponded() {
-		ctx.JSON(http.StatusNotFound, map[string]interface{}{
-			"error":    "Not found",
-			"trace_id": traceID, // 在错误响应中也包含trace_id，便于问题追踪
-			"path":     r.URL.Path,
-			"method":   r.Method,
-		})
+		response := helper.BuildGatewayResponse(
+			constants.ErrorCodeRouteNotFound,
+			constants.StatusMessageNotFound,
+			"",
+			r.URL.Path,
+			traceID,
+		)
+
+		ctx.JSON(http.StatusNotFound, response)
 		// 设置网关状态码
 		ctx.Set(constants.GatewayStatusCode, http.StatusNotFound)
 	}

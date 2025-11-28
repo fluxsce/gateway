@@ -1,8 +1,14 @@
 package limiter
 
 import (
+	"crypto/tls"
+	"fmt"
+	"io"
+	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -364,4 +370,174 @@ func BenchmarkKeyExtractor(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		extractor(ctx)
 	}
+}
+
+// TestConcurrentRateLimitRequest 测试并发限流请求
+// 10个线程同时请求指定URL，并打印返回结果
+func TestConcurrentRateLimitRequest(t *testing.T) {
+	url := "https://localhost:8443/a00webres/assets/cssmin/matrix-login.cssgz"
+	concurrency := 10
+
+	// 创建HTTP客户端，跳过TLS证书验证（用于本地测试）
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true, // 跳过证书验证，仅用于测试
+			},
+		},
+		Timeout: 30 * time.Second,
+	}
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	results := make([]RequestResult, 0, concurrency)
+
+	// 并发请求
+	startTime := time.Now()
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+
+			result := RequestResult{
+				ThreadID:   id,
+				StartTime:  time.Now(),
+				StatusCode: 0,
+				Error:      nil,
+			}
+
+			// 发送HTTP请求
+			req, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				result.Error = err
+				result.EndTime = time.Now()
+				mu.Lock()
+				results = append(results, result)
+				mu.Unlock()
+				t.Logf("[线程 %d] 创建请求失败: %v", id, err)
+				return
+			}
+
+			resp, err := client.Do(req)
+			result.EndTime = time.Now()
+			result.Duration = result.EndTime.Sub(result.StartTime)
+
+			if err != nil {
+				result.Error = err
+				mu.Lock()
+				results = append(results, result)
+				mu.Unlock()
+				t.Logf("[线程 %d] 请求失败: %v (耗时: %v)", id, err, result.Duration)
+				return
+			}
+			defer resp.Body.Close()
+
+			result.StatusCode = resp.StatusCode
+
+			// 读取响应体
+			bodyBytes, err := io.ReadAll(resp.Body)
+			if err != nil {
+				result.Error = err
+			} else {
+				result.ResponseBody = string(bodyBytes)
+				result.BodyLength = len(bodyBytes)
+			}
+
+			// 打印结果
+			mu.Lock()
+			results = append(results, result)
+			mu.Unlock()
+
+			// 打印详细信息
+			if result.Error != nil {
+				t.Logf("[线程 %d] ❌ 失败 - 状态码: %d, 错误: %v, 耗时: %v",
+					id, result.StatusCode, result.Error, result.Duration)
+			} else {
+				t.Logf("[线程 %d] ✅ 成功 - 状态码: %d, 响应长度: %d 字节, 耗时: %v",
+					id, result.StatusCode, result.BodyLength, result.Duration)
+				if result.BodyLength < 500 { // 只打印较短的响应体
+					t.Logf("[线程 %d] 响应内容: %s", id, result.ResponseBody)
+				} else {
+					t.Logf("[线程 %d] 响应内容前100字符: %s...", id, result.ResponseBody[:100])
+				}
+			}
+		}(i)
+	}
+
+	// 等待所有请求完成
+	wg.Wait()
+	totalDuration := time.Since(startTime)
+
+	// 打印汇总信息
+	t.Logf("\n========== 并发请求测试汇总 ==========")
+	t.Logf("请求URL: %s", url)
+	t.Logf("并发数: %d", concurrency)
+	t.Logf("总耗时: %v", totalDuration)
+	t.Logf("完成请求数: %d", len(results))
+
+	// 统计结果
+	successCount := 0
+	failureCount := 0
+	statusCodeCount := make(map[int]int)
+	totalDurationSum := time.Duration(0)
+	minDuration := time.Hour
+	maxDuration := time.Duration(0)
+
+	for _, result := range results {
+		if result.Error == nil {
+			successCount++
+			statusCodeCount[result.StatusCode]++
+		} else {
+			failureCount++
+		}
+		if result.Duration > 0 {
+			totalDurationSum += result.Duration
+			if result.Duration < minDuration {
+				minDuration = result.Duration
+			}
+			if result.Duration > maxDuration {
+				maxDuration = result.Duration
+			}
+		}
+	}
+
+	t.Logf("成功请求: %d", successCount)
+	t.Logf("失败请求: %d", failureCount)
+	t.Logf("状态码分布:")
+	for statusCode, count := range statusCodeCount {
+		t.Logf("  %d: %d 次", statusCode, count)
+	}
+	if len(results) > 0 {
+		avgDuration := totalDurationSum / time.Duration(len(results))
+		t.Logf("平均请求耗时: %v", avgDuration)
+		t.Logf("最短请求耗时: %v", minDuration)
+		t.Logf("最长请求耗时: %v", maxDuration)
+	}
+	t.Logf("=====================================\n")
+
+	// 验证至少有一个请求成功
+	if successCount == 0 {
+		t.Errorf("所有请求都失败了，可能服务器未启动或URL不正确")
+	}
+}
+
+// RequestResult 请求结果结构
+type RequestResult struct {
+	ThreadID     int
+	StartTime    time.Time
+	EndTime      time.Time
+	Duration     time.Duration
+	StatusCode   int
+	ResponseBody string
+	BodyLength   int
+	Error        error
+}
+
+// String 实现Stringer接口，用于打印结果
+func (r RequestResult) String() string {
+	if r.Error != nil {
+		return fmt.Sprintf("线程[%d] 失败: %v (耗时: %v)", r.ThreadID, r.Error, r.Duration)
+	}
+	return fmt.Sprintf("线程[%d] 成功: 状态码=%d, 响应长度=%d字节 (耗时: %v)",
+		r.ThreadID, r.StatusCode, r.BodyLength, r.Duration)
 }

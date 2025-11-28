@@ -227,16 +227,16 @@ uninstall_gateway() {
     # 删除 Ingress
     if kubectl get ingress -n "$NAMESPACE" &> /dev/null; then
         print_info "删除 Ingress..."
-        kubectl delete -f "$SCRIPT_DIR/ingress.yaml" --ignore-not-found=true
+        kubectl delete -f "$SCRIPT_DIR/ingress.yaml" -n "$NAMESPACE" --ignore-not-found=true
     fi
     
     # 删除 Service
     print_info "删除服务..."
-    kubectl delete -f "$SCRIPT_DIR/service.yaml" --ignore-not-found=true
+    kubectl delete -f "$SCRIPT_DIR/service.yaml" -n "$NAMESPACE" --ignore-not-found=true
     
     # 删除 Deployment
     print_info "删除应用..."
-    kubectl delete -f "$SCRIPT_DIR/deployment.yaml" --ignore-not-found=true
+    kubectl delete -f "$SCRIPT_DIR/deployment.yaml" -n "$NAMESPACE" --ignore-not-found=true
     
     # 删除 ConfigMap
     print_info "删除配置..."
@@ -274,16 +274,16 @@ upgrade_gateway() {
     
     # 滚动更新 Deployment
     print_info "滚动更新应用..."
-    kubectl apply -f "$SCRIPT_DIR/deployment.yaml"
+    kubectl apply -f "$SCRIPT_DIR/deployment.yaml" -n "$NAMESPACE"
     
     # 更新 Service
     print_info "更新服务..."
-    kubectl apply -f "$SCRIPT_DIR/service.yaml"
+    kubectl apply -f "$SCRIPT_DIR/service.yaml" -n "$NAMESPACE"
     
     # 更新 Ingress
     if [[ -f "$SCRIPT_DIR/ingress.yaml" ]]; then
         print_info "更新 Ingress..."
-        kubectl apply -f "$SCRIPT_DIR/ingress.yaml"
+        kubectl apply -f "$SCRIPT_DIR/ingress.yaml" -n "$NAMESPACE"
     fi
     
     # 等待更新完成

@@ -5,8 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
+
+	"gateway/internal/gateway/constants"
+	"gateway/internal/gateway/helper"
 )
 
 // Context 是网关请求上下文，贯穿整个请求生命周期
@@ -456,8 +460,57 @@ func (c *Context) String(statusCode int, format string, values ...interface{}) {
 // 立即终止请求处理并返回响应
 // 调用此方法后会取消上下文，阻止后续处理
 func (c *Context) Abort(statusCode int, obj interface{}) {
-	c.JSON(statusCode, obj)
+	//设置终止状态码防止有些链路处理器没有设置
+	c.Set(constants.GatewayStatusCode, statusCode)
+	response := c.normalizeAbortPayload(statusCode, obj)
+	c.JSON(statusCode, response)
 	c.Cancel() // 取消上下文，可能触发资源清理
+}
+
+// normalizeAbortPayload 将Abort响应统一为GatewayResponse结构
+func (c *Context) normalizeAbortPayload(statusCode int, obj interface{}) interface{} {
+	switch payload := obj.(type) {
+	case helper.GatewayResponse:
+		return payload
+	case *helper.GatewayResponse:
+		if payload == nil {
+			break
+		}
+		return *payload
+	case map[string]string:
+		return c.gatewayResponseFromMap(statusCode, payload)
+	default:
+		return obj
+	}
+	return obj
+}
+
+func (c *Context) gatewayResponseFromMap(statusCode int, data map[string]string) helper.GatewayResponse {
+	code := data["code"]
+	// 如果 code 为空，使用 statusCode 作为默认值
+	if code == "" {
+		code = strconv.Itoa(statusCode)
+	}
+
+	errMsg := data["error"]
+	if errMsg == "" {
+		errMsg = http.StatusText(statusCode)
+	}
+
+	domain := data["domain"]
+	path := data["path"]
+	if path == "" && c.Request != nil && c.Request.URL != nil {
+		path = c.Request.URL.Path
+	}
+
+	traceID := data["trace_id"]
+	if traceID == "" {
+		if tid, ok := c.GetString(constants.ContextKeyTraceID); ok {
+			traceID = tid
+		}
+	}
+
+	return helper.BuildGatewayResponse(code, errMsg, domain, path, traceID)
 }
 
 // IsResponded 检查是否已响应

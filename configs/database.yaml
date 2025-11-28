@@ -33,13 +33,13 @@ database:
     # MySQL 主连接
     mysql:
       driver: mysql
-      enabled: true # 禁用MySQL连接
+      enabled: false # 禁用MySQL连接
       dsn: "" # 如果提供DSN，将忽略下面的结构化配置
       connection:
-        host: 192.168.0.120
-        port: 63306
-        username: root
-        password: "Datahub@Flux2024"
+        host: xxx.xxx.x.xxx
+        port: 3306
+        username: xxxx
+        password: "xxxx"
         database: gateway_dev
         charset: utf8mb4
         parse_time: true

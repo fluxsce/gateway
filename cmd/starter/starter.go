@@ -152,11 +152,6 @@ func initializeAndStartApplication() error {
 		return huberrors.WrapError(err, "启动网关服务失败")
 	}
 
-	// 启动Web应用
-	if err := initWebApp(); err != nil {
-		return huberrors.WrapError(err, "启动Web应用失败")
-	}
-
 	// 初始化pprof服务
 	if err := initPprofService(); err != nil {
 		return huberrors.WrapError(err, "初始化pprof服务失败")
@@ -169,6 +164,11 @@ func initializeAndStartApplication() error {
 
 	// 初始化隧道管理器（失败不影响应用启动）
 	initTunnelManager()
+
+	// 启动Web应用（放在最后启动）
+	if err := initWebApp(); err != nil {
+		return huberrors.WrapError(err, "启动Web应用失败")
+	}
 
 	return nil
 }
