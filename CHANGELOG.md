@@ -28,6 +28,11 @@
   - 正确处理 X-Forwarded-For 头部包含多个IP的情况（取第一个）
   - 使用 net.SplitHostPort 正确分离IP和端口号
 
+- 🐛 **修复语句执行历史记录ID生成可能重复的问题**
+  - 修复 generateStatementId 和 generateExecutionId 函数使用时间戳可能生成重复ID的问题
+  - 改用 random.Generate32BitRandomString() 生成唯一ID，确保分布式环境下也不重复
+  - 使用时间戳+进程标识+原子计数器+强随机数组合，避免唯一约束冲突
+
 ## [2.0.3] - 2025-11-20
 
 ### 修复

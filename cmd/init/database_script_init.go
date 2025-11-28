@@ -15,6 +15,7 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/database/dbtypes"
 	"gateway/pkg/logger"
+	"gateway/pkg/utils/random"
 )
 
 // ScriptExecutionResult 脚本执行结果
@@ -1198,21 +1199,19 @@ func recordStatementExecution(ctx context.Context, conn database.Database, drive
 }
 
 // generateStatementId 生成语句执行记录ID
-// 生成唯一的语句执行记录标识符，基于当前时间戳和纳秒数
+// 生成唯一的语句执行记录标识符，使用 random 包生成32位唯一字符串
 // 返回:
-//   - string: 格式为 "STMT_时间戳_纳秒" 的唯一标识符
+//   - string: 32位唯一标识符，符合数据库VARCHAR(32)字段要求
 func generateStatementId() string {
-	now := time.Now()
-	return fmt.Sprintf("STMT_%d_%d", now.Unix(), now.Nanosecond()%1000000)
+	return random.Generate32BitRandomString()
 }
 
 // generateExecutionId 生成执行记录ID
-// 生成唯一的执行记录标识符，基于当前时间戳和纳秒数
+// 生成唯一的执行记录标识符，使用 random 包生成32位唯一字符串
 // 返回:
-//   - string: 格式为 "EXEC_时间戳_纳秒" 的唯一标识符
+//   - string: 32位唯一标识符，符合数据库VARCHAR(32)字段要求
 func generateExecutionId() string {
-	now := time.Now()
-	return fmt.Sprintf("EXEC_%d_%d", now.Unix(), now.Nanosecond()%1000000)
+	return random.Generate32BitRandomString()
 }
 
 // GetScriptExecutionHistory 获取脚本执行历史
