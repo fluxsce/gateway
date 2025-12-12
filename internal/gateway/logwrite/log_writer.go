@@ -28,7 +28,7 @@ import (
 //    - ctx.Writer (http.ResponseWriter) - 生命周期与 HTTP 请求绑定，ServeHTTP 返回后可能失效
 // 解决方案：
 //    在 ServeHTTP 返回前调用 snapshotHTTPData()，将 Request 和 Writer 中的必要数据缓存到 ctx.data
-//    异步日志写入时从快照中读取（以 "_snapshot_" 前缀标识），而不是直接访问 Request 和 Writer
+//    异步日志写入时从快照中读取（使用 ContextKeySnapshot* 常量），而不是直接访问 Request 和 Writer
 
 // LogWriter 定义日志写入器接口
 type LogWriter interface {
@@ -555,9 +555,9 @@ func buildAccessLogWithConfig(instanceID string, gatewayCtx *core.Context, confi
 func getClientIP(gatewayCtx *core.Context) string {
 	var clientIP string
 
-	// 从快照的请求头中读取
-	if snapshotHeaders, exists := gatewayCtx.Get("_snapshot_request_headers"); exists {
-		if headers, ok := snapshotHeaders.(map[string][]string); ok {
+	// 从原始请求头中读取（SnapshotHTTPData 已确保保存）
+	if originalHeaders, exists := gatewayCtx.Get(constants.ContextKeyOriginalHeaders); exists {
+		if headers, ok := originalHeaders.(map[string][]string); ok {
 			clientIP = getFirstHeader(headers, "X-Forwarded-For")
 			if clientIP == "" {
 				clientIP = getFirstHeader(headers, "X-Real-IP")
@@ -570,7 +570,7 @@ func getClientIP(gatewayCtx *core.Context) string {
 
 	// 从快照的 RemoteAddr 中读取
 	if clientIP == "" {
-		if remoteAddr, ok := gatewayCtx.GetString("_snapshot_request_remote_addr"); ok {
+		if remoteAddr, ok := gatewayCtx.GetString(constants.ContextKeySnapshotRequestRemoteAddr); ok {
 			clientIP = remoteAddr
 		}
 	}
@@ -661,7 +661,7 @@ func getRequestSizeFromContext(gatewayCtx *core.Context) int {
 	}
 
 	// 2. 从快照中获取 Content-Length
-	if size, ok := gatewayCtx.GetInt("_snapshot_request_size"); ok {
+	if size, ok := gatewayCtx.GetInt(constants.ContextKeySnapshotRequestSize); ok {
 		return size
 	}
 
@@ -684,7 +684,7 @@ func getResponseSize(gatewayCtx *core.Context) int {
 // getResponseHeaders 从快照获取响应头（安全用于异步场景）
 func getResponseHeaders(gatewayCtx *core.Context) string {
 	// 从快照读取响应头
-	if snapshotHeaders, exists := gatewayCtx.Get("_snapshot_response_headers"); exists {
+	if snapshotHeaders, exists := gatewayCtx.Get(constants.ContextKeySnapshotResponseHeaders); exists {
 		if headers, ok := snapshotHeaders.(map[string][]string); ok {
 			logger.Debug("Reading response headers from snapshot")
 			return serializeHeadersFromMap(headers)
@@ -700,7 +700,7 @@ func getClientPort(gatewayCtx *core.Context) *int {
 	var remoteAddr string
 
 	// 从快照读取 RemoteAddr
-	if addr, ok := gatewayCtx.GetString("_snapshot_request_remote_addr"); ok {
+	if addr, ok := gatewayCtx.GetString(constants.ContextKeySnapshotRequestRemoteAddr); ok {
 		remoteAddr = addr
 	}
 
@@ -727,9 +727,9 @@ func getClientPortValue(gatewayCtx *core.Context) int {
 
 // getUserAgent 从快照获取User-Agent（安全用于异步场景）
 func getUserAgent(gatewayCtx *core.Context) string {
-	// 从快照的请求头中读取
-	if snapshotHeaders, exists := gatewayCtx.Get("_snapshot_request_headers"); exists {
-		if headers, ok := snapshotHeaders.(map[string][]string); ok {
+	// 从原始请求头中读取（SnapshotHTTPData 已确保保存）
+	if originalHeaders, exists := gatewayCtx.Get(constants.ContextKeyOriginalHeaders); exists {
+		if headers, ok := originalHeaders.(map[string][]string); ok {
 			return getFirstHeader(headers, "User-Agent")
 		}
 	}
@@ -738,9 +738,9 @@ func getUserAgent(gatewayCtx *core.Context) string {
 
 // getReferer 从快照获取Referer（安全用于异步场景）
 func getReferer(gatewayCtx *core.Context) string {
-	// 从快照的请求头中读取
-	if snapshotHeaders, exists := gatewayCtx.Get("_snapshot_request_headers"); exists {
-		if headers, ok := snapshotHeaders.(map[string][]string); ok {
+	// 从原始请求头中读取（SnapshotHTTPData 已确保保存）
+	if originalHeaders, exists := gatewayCtx.Get(constants.ContextKeyOriginalHeaders); exists {
+		if headers, ok := originalHeaders.(map[string][]string); ok {
 			return getFirstHeader(headers, "Referer")
 		}
 	}
@@ -914,30 +914,20 @@ func getLoadBalancerDecision(gatewayCtx *core.Context) string {
 	return ""
 }
 
-// getOriginalOrCurrentMethod 获取原始请求方法或当前请求方法（从快照读取，安全用于异步场景）
+// getOriginalOrCurrentMethod 获取原始请求方法或当前请求方法（安全用于异步场景）
 func getOriginalOrCurrentMethod(gatewayCtx *core.Context) string {
-	// 1. 优先使用上下文中的原始方法（如果被修改过）
+	// 从上下文中的原始方法获取（SnapshotHTTPData 已确保保存）
 	if originalMethod, ok := gatewayCtx.GetString(constants.ContextKeyOriginalMethod); ok {
 		return originalMethod
-	}
-	// 2. 从快照读取
-	if snapshotMethod, ok := gatewayCtx.GetString("_snapshot_request_method"); ok {
-		return snapshotMethod
 	}
 	return ""
 }
 
-// getOriginalOrCurrentPath 获取原始请求路径或当前请求路径（从快照读取，安全用于异步场景）
+// getOriginalOrCurrentPath 获取原始请求路径或当前请求路径（安全用于异步场景）
 func getOriginalOrCurrentPath(gatewayCtx *core.Context) string {
-	// 1. 优先使用上下文中的原始路径（如果被修改过）
+	// 从上下文中的原始路径获取（SnapshotHTTPData 已确保保存）
 	if originalPath, ok := gatewayCtx.GetString(constants.ContextKeyOriginalURLPath); ok {
 		return originalPath
-	}
-	// 2. 从快照读取
-	if snapshotURL, ok := gatewayCtx.GetString("_snapshot_request_url"); ok {
-		// 从完整 URL 中提取路径（需要解析）
-		// 简单起见，这里直接返回 URL，如果需要路径可以进一步解析
-		return snapshotURL
 	}
 	return ""
 }
@@ -960,16 +950,9 @@ func getOriginalOrCurrentHeaders(gatewayCtx *core.Context, config *types.LogConf
 		return ""
 	}
 
-	// 1. 优先使用上下文中的原始请求头（如果被修改过）
+	// 从上下文中的原始请求头获取（SnapshotHTTPData 已确保保存）
 	if originalHeaders, exists := gatewayCtx.Get(constants.ContextKeyOriginalHeaders); exists {
 		if headers, ok := originalHeaders.(map[string][]string); ok {
-			return serializeHeadersFromMap(headers)
-		}
-	}
-
-	// 2. 从快照读取请求头
-	if snapshotHeaders, exists := gatewayCtx.Get("_snapshot_request_headers"); exists {
-		if headers, ok := snapshotHeaders.(map[string][]string); ok {
 			return serializeHeadersFromMap(headers)
 		}
 	}

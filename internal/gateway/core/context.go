@@ -412,6 +412,7 @@ func (c *Context) GetPostForwardDuration() time.Duration {
 // - obj: 要序列化为JSON的对象
 // 向客户端返回JSON格式的响应
 // 如果已经响应过，则忽略此次调用
+// 注意：如果连接已被 hijack（如 WebSocket 升级），不能再使用此方法
 func (c *Context) JSON(statusCode int, obj interface{}) {
 	if c.responded {
 		return
@@ -425,6 +426,7 @@ func (c *Context) JSON(statusCode int, obj interface{}) {
 	// 序列化对象为JSON并写入响应
 	if err := json.NewEncoder(c.Writer).Encode(obj); err != nil {
 		// 如果序列化失败，记录错误
+		// 注意：如果连接已被 hijack，这里可能会失败，但错误会被记录
 		c.AddError(fmt.Errorf("JSON序列化失败: %v", err))
 	}
 }
@@ -459,7 +461,13 @@ func (c *Context) String(statusCode int, format string, values ...interface{}) {
 // - obj: 要返回的响应对象
 // 立即终止请求处理并返回响应
 // 调用此方法后会取消上下文，阻止后续处理
+// 注意：如果连接已被 hijack（如 WebSocket 升级），此方法不会尝试写入响应
 func (c *Context) Abort(statusCode int, obj interface{}) {
+	// 如果已经响应过（例如连接已被 hijack），直接返回，避免在已 hijack 的连接上写入响应
+	if c.responded {
+		c.Cancel() // 仍然取消上下文
+		return
+	}
 	//设置终止状态码防止有些链路处理器没有设置
 	c.Set(constants.GatewayStatusCode, statusCode)
 	response := c.normalizeAbortPayload(statusCode, obj)

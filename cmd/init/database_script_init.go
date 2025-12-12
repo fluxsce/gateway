@@ -1066,32 +1066,93 @@ func getStatementExecutionStatus(ctx context.Context, conn database.Database, dr
 func recordScriptExecution(ctx context.Context, conn database.Database, driver, scriptName, scriptPath, scriptVersion, status string, duration time.Duration, statementsExecuted int, errorMessage string) {
 	tenantId := config.GetString("database.tenant_id", "default")
 	executionId := generateExecutionId()
-
-	insertSQL := `INSERT INTO HUB_SCRIPT_EXECUTION_HISTORY 
-				  (executionId, tenantId, scriptName, scriptPath, scriptVersion, databaseDriver, 
-				   executionStatus, executionTime, executionDuration, statementsExecuted, errorMessage, createdAt)
-				  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-
 	now := time.Now()
 	durationMs := duration.Milliseconds()
 
-	_, err := conn.Exec(ctx, insertSQL, []interface{}{
-		executionId, tenantId, scriptName, scriptPath, scriptVersion, driver,
-		status, now, durationMs, statementsExecuted, errorMessage, now,
-	}, false)
+	// 统一先查询校验，存在更新不存在插入
+	// 唯一键：UK_SCRIPT_VERSION (tenantId, scriptName, scriptVersion, databaseDriver)
+	checkQuery := `SELECT executionId FROM HUB_SCRIPT_EXECUTION_HISTORY 
+				   WHERE tenantId = ? AND scriptName = ? AND scriptVersion = ? AND databaseDriver = ?`
 
-	if err != nil {
-		logger.Error("记录脚本执行历史失败",
+	type ExistingRecord struct {
+		ExecutionId string `db:"executionId"`
+	}
+
+	var existing ExistingRecord
+	err := conn.QueryOne(ctx, &existing, checkQuery, []interface{}{tenantId, scriptName, scriptVersion, driver}, true)
+
+	// 判断是否是真正的错误（排除"记录不存在"的情况）
+	isRecordNotFound := err != nil && (strings.Contains(err.Error(), "no rows") ||
+		strings.Contains(err.Error(), "record not found") ||
+		strings.Contains(err.Error(), "not found"))
+	isTableNotExist := err != nil && (strings.Contains(err.Error(), "no such table") ||
+		strings.Contains(err.Error(), "doesn't exist") ||
+		(strings.Contains(err.Error(), "table") && strings.Contains(err.Error(), "not exist")))
+
+	// 只有在非预期错误时才记录错误日志并返回
+	if err != nil && !isRecordNotFound && !isTableNotExist {
+		logger.Error("检查脚本执行历史记录失败",
 			"error", err,
 			"script", scriptName,
-			"version", scriptVersion,
-			"status", status)
+			"version", scriptVersion)
+		return
+	}
+
+	if existing.ExecutionId != "" {
+		// 记录存在，执行更新
+		updateSQL := `UPDATE HUB_SCRIPT_EXECUTION_HISTORY 
+					  SET executionId = ?, scriptPath = ?, executionStatus = ?, 
+					      executionTime = ?, executionDuration = ?, statementsExecuted = ?, 
+					      errorMessage = ?
+					  WHERE tenantId = ? AND scriptName = ? AND scriptVersion = ? AND databaseDriver = ?`
+
+		_, err = conn.Exec(ctx, updateSQL, []interface{}{
+			executionId, scriptPath, status, now, durationMs, statementsExecuted, errorMessage,
+			tenantId, scriptName, scriptVersion, driver,
+		}, false)
+
+		if err != nil {
+			logger.Error("更新脚本执行历史失败",
+				"error", err,
+				"script", scriptName,
+				"version", scriptVersion,
+				"execution_id", existing.ExecutionId,
+				"status", status)
+		} else {
+			logger.Debug("脚本执行历史更新成功",
+				"script", scriptName,
+				"version", scriptVersion,
+				"execution_id", existing.ExecutionId,
+				"status", status,
+				"duration_ms", durationMs)
+		}
 	} else {
-		logger.Debug("脚本执行历史记录成功",
-			"script", scriptName,
-			"version", scriptVersion,
-			"status", status,
-			"duration_ms", durationMs)
+		// 记录不存在，执行插入
+		insertSQL := `INSERT INTO HUB_SCRIPT_EXECUTION_HISTORY 
+					  (executionId, tenantId, scriptName, scriptPath, scriptVersion, databaseDriver, 
+					   executionStatus, executionTime, executionDuration, statementsExecuted, errorMessage, createdAt)
+					  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+		_, err = conn.Exec(ctx, insertSQL, []interface{}{
+			executionId, tenantId, scriptName, scriptPath, scriptVersion, driver,
+			status, now, durationMs, statementsExecuted, errorMessage, now,
+		}, false)
+
+		if err != nil {
+			logger.Error("插入脚本执行历史失败",
+				"error", err,
+				"script", scriptName,
+				"version", scriptVersion,
+				"execution_id", executionId,
+				"status", status)
+		} else {
+			logger.Debug("脚本执行历史插入成功",
+				"script", scriptName,
+				"version", scriptVersion,
+				"execution_id", executionId,
+				"status", status,
+				"duration_ms", durationMs)
+		}
 	}
 }
 

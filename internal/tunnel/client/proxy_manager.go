@@ -15,7 +15,7 @@
 // ### 核心原则
 //
 // 1. **客户端不维护连接池**：连接由服务端主动创建和管理
-// 2. **连接生命周期由服务端控制**：客户端保持连接打开，直到服务端关闭
+// 2. **连接生命周期由客户端控制**：客户端主动关闭连接，数据传输阶段无超时限制
 // 3. **serverConn 和 localConn 绑定**：两个连接的生命周期一致
 //
 // ### 工作流程
@@ -29,9 +29,9 @@
 // ### 连接特点
 //
 //   - 不使用连接池，每次请求建立新连接
-//   - 支持长连接（如 SSE），连接保持打开直到服务端关闭
+//   - 支持长连接（如 SSE），数据传输阶段无超时限制
 //   - 自动配置 TCP 选项（KeepAlive、NoDelay）
-//   - 连接状态由服务端维护，客户端被动响应
+//   - 连接由客户端主动关闭，支持长时间数据传输
 //
 // ## 连接生命周期
 //
@@ -57,6 +57,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -132,7 +133,7 @@ func (pm *proxyManager) StartProxy(ctx context.Context, service *types.TunnelSer
 		"serviceName": service.ServiceName,
 		"remotePort":  remotePort,
 		"localPort":   service.LocalPort,
-		"note":        "connections are managed by server, client keeps connections open until server closes them",
+		"note":        "no timeout for data transmission, client will close connections",
 	})
 
 	return nil
@@ -197,11 +198,11 @@ func (pm *proxyManager) GetActiveProxies() []*ProxyInfo {
 // HandleProxyConnection 处理代理连接
 //
 // 处理单个代理连接，负责在内网服务和外网请求之间建立数据通道。
-// 连接由服务端控制生命周期，客户端保持连接打开直到服务端关闭。
+// 连接由客户端主动关闭，数据传输阶段无超时限制，支持长时间数据传输。
 //
 // 参数:
 //   - ctx: 上下文，用于取消操作
-//   - serverConn: 服务器数据连接（来自服务器，由服务端控制生命周期）
+//   - serverConn: 服务器数据连接（来自服务器）
 //   - serviceID: 服务唯一标识符
 //
 // 返回:
@@ -209,14 +210,14 @@ func (pm *proxyManager) GetActiveProxies() []*ProxyInfo {
 //
 // 工作流程:
 //  1. 查找对应的代理实例
-//  2. 建立新的本地服务连接
+//  2. 建立新的本地服务连接（连接建立阶段有超时，避免无限等待）
 //  3. 启动双向数据转发（服务器↔本地服务，阻塞直到任一连接关闭）
-//  4. 当 relayData 返回时，连接已经关闭，直接清理
+//  4. 当 relayData 返回时，客户端主动关闭两个连接
 //
 // 连接管理:
-//   - 客户端不主动关闭连接，连接由服务端控制
+//   - 客户端主动关闭连接，数据传输阶段无超时限制
 //   - serverConn 和 localConn 绑定，生命周期一致
-//   - 当 relayData 返回时，说明连接已关闭，直接清理即可
+//   - 当 relayData 返回时，客户端主动关闭两个连接
 //
 // 注意：serverConn 是从服务器来的数据连接，已经建立好了
 func (pm *proxyManager) HandleProxyConnection(ctx context.Context, serverConn net.Conn, serviceID string) error {
@@ -243,8 +244,10 @@ func (pm *proxyManager) HandleProxyConnection(ctx context.Context, serverConn ne
 	}()
 
 	// 建立本地服务连接
+	// 注意：连接建立阶段有超时限制（避免本地服务不可用时无限等待）
+	// 但数据传输阶段无超时限制，支持长时间数据传输
 	localAddr := net.JoinHostPort(proxy.service.LocalAddress, fmt.Sprintf("%d", proxy.service.LocalPort))
-	localConn, err := net.DialTimeout("tcp", localAddr, 10*time.Second)
+	localConn, err := net.DialTimeout("tcp", localAddr, 30*time.Second)
 	if err != nil {
 		// 连接本地服务失败时，优雅关闭服务器连接
 		logger.Error("Failed to connect to local service", map[string]interface{}{
@@ -272,6 +275,7 @@ func (pm *proxyManager) HandleProxyConnection(ctx context.Context, serverConn ne
 	})
 
 	// 设置 TCP 选项，支持长连接
+	// 注意：不设置读取/写入超时，数据传输阶段无超时限制（Go 默认无超时）
 	if tcpConn, ok := localConn.(*net.TCPConn); ok {
 		tcpConn.SetKeepAlive(true)
 		tcpConn.SetKeepAlivePeriod(30 * time.Second)
@@ -284,18 +288,20 @@ func (pm *proxyManager) HandleProxyConnection(ctx context.Context, serverConn ne
 	}
 
 	// 启动双向数据转发
-	// 注意：relayData 会阻塞直到任一连接关闭
-	// 当 relayData 返回时，连接已经关闭，不需要再手动关闭
+	// 注意：relayData 会阻塞直到任一连接关闭或上下文取消
+	// 数据传输阶段无超时限制，支持长时间数据传输
 	logger.Debug("Starting data relay", map[string]interface{}{
 		"serviceId":     serviceID,
 		"hasLocalConn":  localConn != nil,
 		"hasServerConn": serverConn != nil,
+		"note":          "no timeout for data transmission, client will close connections",
 	})
 
 	err = pm.relayData(ctx, serverConn, localConn, proxy)
 
-	// relayData 返回时，连接已经关闭（可能是 serverConn 关闭，也可能是 localConn 关闭）
-	// 确保两个连接都已关闭
+	// relayData 返回时，客户端主动关闭两个连接
+	// 注意：copyData 的 defer 已经关闭了写入方向，这里只需要完全关闭连接
+	// 这确保了连接由客户端控制生命周期
 	if localConn != nil {
 		localConn.Close()
 	}
@@ -318,6 +324,19 @@ func (pm *proxyManager) HandleProxyConnection(ctx context.Context, serverConn ne
 }
 
 // relayData 双向数据转发
+//
+// 在服务器连接和本地服务连接之间进行双向数据转发。
+// 数据传输阶段无超时限制，支持长时间数据传输（如大文件传输、长连接等）。
+// 当任一连接关闭或上下文取消时，转发结束。
+//
+// 参数:
+//   - ctx: 上下文，用于取消操作
+//   - remoteConn: 服务器连接
+//   - localConn: 本地服务连接
+//   - proxy: 代理实例
+//
+// 返回:
+//   - error: 转发过程中的错误（如果有）
 func (pm *proxyManager) relayData(ctx context.Context, remoteConn, localConn net.Conn, proxy *proxyInstance) error {
 	var wg sync.WaitGroup
 	var totalBytes int64
@@ -352,7 +371,16 @@ func (pm *proxyManager) relayData(ctx context.Context, remoteConn, localConn net
 
 	select {
 	case <-done:
+		// 数据转发完成（任一方向连接关闭）
 	case <-ctx.Done():
+		// 控制连接断开，应该关闭数据连接
+		// 优雅关闭：关闭写入方向，通知对方
+		if tcpConn, ok := remoteConn.(*net.TCPConn); ok {
+			tcpConn.CloseWrite()
+		}
+		if tcpConn, ok := localConn.(*net.TCPConn); ok {
+			tcpConn.CloseWrite()
+		}
 		return ctx.Err()
 	}
 
@@ -365,14 +393,45 @@ func (pm *proxyManager) relayData(ctx context.Context, remoteConn, localConn net
 }
 
 // copyData 复制数据
+//
+// 从源连接复制数据到目标连接。
+// 不设置超时限制，支持长时间数据传输。
+// 当源连接关闭时，优雅关闭目标连接的写入方向。
+//
+// 参数:
+//   - dst: 目标连接
+//   - src: 源连接
+//
+// 返回:
+//   - int64: 复制的字节数
+//   - error: 复制过程中的错误
 func (pm *proxyManager) copyData(dst, src net.Conn) (int64, error) {
-	defer func() {
+	bytes, err := io.Copy(dst, src)
+
+	// 关键修复：只有在正常结束（io.EOF）时才关闭写入方向
+	// 如果是其他错误（如 broken pipe、connection reset），说明目标连接可能已经关闭
+	// 此时不应该再调用 CloseWrite，避免在 HTTP chunked encoding 传输过程中提前关闭
+	// HTTP chunked encoding 需要发送结束标记（0\r\n\r\n），如果写入方向被提前关闭，会导致 ERR_INCOMPLETE_CHUNKED_ENCODING
+	if err == nil || err == io.EOF {
+		// 正常结束，优雅关闭写入方向
 		if tcpConn, ok := dst.(*net.TCPConn); ok {
 			tcpConn.CloseWrite()
 		}
-	}()
+	} else {
+		// 检查是否是目标连接关闭导致的错误
+		errMsg := err.Error()
+		if !strings.Contains(errMsg, "broken pipe") &&
+			!strings.Contains(errMsg, "connection reset") &&
+			!strings.Contains(errMsg, "use of closed network connection") {
+			// 不是目标连接关闭的错误，可能是源连接的问题，仍然关闭写入方向
+			if tcpConn, ok := dst.(*net.TCPConn); ok {
+				tcpConn.CloseWrite()
+			}
+		}
+		// 如果是目标连接关闭的错误，不调用 CloseWrite，避免重复关闭
+	}
 
-	return io.Copy(dst, src)
+	return bytes, err
 }
 
 // GetProxyStats 获取代理统计信息

@@ -17,6 +17,7 @@ import (
 	"gateway/internal/gateway/handler/proxy"
 	"gateway/internal/gateway/handler/router"
 	"gateway/internal/gateway/handler/security"
+	"gateway/internal/gateway/helper/reqhand"
 	"gateway/internal/gateway/loader/dbloader"
 	"gateway/internal/gateway/logwrite"
 	"gateway/pkg/logger"
@@ -284,48 +285,8 @@ func (g *Gateway) snapshotHTTPData(ctx *core.Context) {
 		}
 	}()
 
-	// 从 Request 中提取并缓存关键信息
-	if ctx.Request != nil {
-		// 缓存请求基本信息
-		ctx.Set("_snapshot_request_method", ctx.Request.Method)
-		ctx.Set("_snapshot_request_url", ctx.Request.URL.String())
-		ctx.Set("_snapshot_request_proto", ctx.Request.Proto)
-		ctx.Set("_snapshot_request_host", ctx.Request.Host)
-		ctx.Set("_snapshot_request_remote_addr", ctx.Request.RemoteAddr)
-		ctx.Set("_snapshot_request_uri", ctx.Request.RequestURI)
-
-		// 缓存请求大小（从 Content-Length 获取）
-		if ctx.Request.ContentLength >= 0 {
-			ctx.Set("_snapshot_request_size", int(ctx.Request.ContentLength))
-		} else {
-			ctx.Set("_snapshot_request_size", -1) // 未知大小
-		}
-
-		// 深拷贝请求头（保持原始键名，不修改）
-		if ctx.Request.Header != nil {
-			requestHeaders := make(map[string][]string, len(ctx.Request.Header))
-			for key, values := range ctx.Request.Header {
-				valuesCopy := make([]string, len(values))
-				copy(valuesCopy, values)
-				requestHeaders[key] = valuesCopy
-			}
-			ctx.Set("_snapshot_request_headers", requestHeaders)
-		}
-	}
-
-	// 从 Writer 中提取并缓存响应头（保持原始键名，不修改）
-	if ctx.Writer != nil {
-		respHeaders := ctx.Writer.Header()
-		if respHeaders != nil {
-			responseHeaders := make(map[string][]string, len(respHeaders))
-			for key, values := range respHeaders {
-				valuesCopy := make([]string, len(values))
-				copy(valuesCopy, values)
-				responseHeaders[key] = valuesCopy
-			}
-			ctx.Set("_snapshot_response_headers", responseHeaders)
-		}
-	}
+	// 使用 reqhand 包的通用快照方法
+	reqhand.SnapshotHTTPData(ctx)
 
 	logger.Debug("HTTP data snapshot created for async logging", "instanceID", g.gatewayConfig.InstanceID)
 }

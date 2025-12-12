@@ -18,86 +18,86 @@ import (
 // 5. 完整的链路追踪支持，便于分布式系统调试
 type AccessLog struct {
 	// 基础标识信息
-	TenantID                 string     `json:"tenantId" db:"tenantId" bson:"tenantId"`                               // 租户ID，多租户环境标识
-	TraceID                  string     `json:"traceId" db:"traceId" bson:"traceId"`                                 // 链路追踪ID，全局唯一
-	GatewayInstanceID        string     `json:"gatewayInstanceId" db:"gatewayInstanceId" bson:"gatewayInstanceId"`             // 网关实例ID
-	GatewayNodeIP            string     `json:"gatewayNodeIp" db:"gatewayNodeIp" bson:"gatewayNodeIp"`                     // 网关节点IP地址
-	RouteConfigID            string     `json:"routeConfigId" db:"routeConfigId" bson:"routeConfigId"`                     // 路由配置ID
-	ServiceDefinitionID      string     `json:"serviceDefinitionId" db:"serviceDefinitionId" bson:"serviceDefinitionId"`         // 服务定义ID
-	LogConfigID              string     `json:"logConfigId" db:"logConfigId" bson:"logConfigId"`                         // 日志配置ID
-	
+	TenantID            string `json:"tenantId" db:"tenantId" bson:"tenantId"`                                  // 租户ID，多租户环境标识
+	TraceID             string `json:"traceId" db:"traceId" bson:"traceId"`                                     // 链路追踪ID，全局唯一
+	GatewayInstanceID   string `json:"gatewayInstanceId" db:"gatewayInstanceId" bson:"gatewayInstanceId"`       // 网关实例ID
+	GatewayNodeIP       string `json:"gatewayNodeIp" db:"gatewayNodeIp" bson:"gatewayNodeIp"`                   // 网关节点IP地址
+	RouteConfigID       string `json:"routeConfigId" db:"routeConfigId" bson:"routeConfigId"`                   // 路由配置ID
+	ServiceDefinitionID string `json:"serviceDefinitionId" db:"serviceDefinitionId" bson:"serviceDefinitionId"` // 服务定义ID
+	LogConfigID         string `json:"logConfigId" db:"logConfigId" bson:"logConfigId"`                         // 日志配置ID
+
 	// 冗余字段 - 提升查询性能，避免多表JOIN
-	GatewayInstanceName      string     `json:"gatewayInstanceName" db:"gatewayInstanceName" bson:"gatewayInstanceName"`         // 网关实例名称（冗余字段）
-	RouteName                string     `json:"routeName" db:"routeName" bson:"routeName"`                             // 路由名称（冗余字段）
-	ServiceName              string     `json:"serviceName" db:"serviceName" bson:"serviceName"`                         // 服务名称（冗余字段）
-	ProxyType                string     `json:"proxyType" db:"proxyType" bson:"proxyType"`                             // 代理类型（http,websocket,tcp,udp）
-	
+	GatewayInstanceName string `json:"gatewayInstanceName" db:"gatewayInstanceName" bson:"gatewayInstanceName"` // 网关实例名称（冗余字段）
+	RouteName           string `json:"routeName" db:"routeName" bson:"routeName"`                               // 路由名称（冗余字段）
+	ServiceName         string `json:"serviceName" db:"serviceName" bson:"serviceName"`                         // 服务名称（冗余字段）
+	ProxyType           string `json:"proxyType" db:"proxyType" bson:"proxyType"`                               // 代理类型（http,websocket,tcp,udp）
+
 	// 请求基本信息 - 记录客户端发起的请求详情
-	RequestMethod            string     `json:"requestMethod" db:"requestMethod" bson:"requestMethod"`                     // HTTP请求方法(GET,POST,PUT,DELETE等)
-	RequestPath              string     `json:"requestPath" db:"requestPath" bson:"requestPath"`                         // 请求路径(/api/v1/users)
-	RequestQuery             string     `json:"requestQuery" db:"requestQuery" bson:"requestQuery"`                       // 查询参数(?id=123&name=test)
-	RequestSize              int        `json:"requestSize" db:"requestSize" bson:"requestSize"`                         // 请求大小(字节)
-	RequestHeaders           string     `json:"requestHeaders" db:"requestHeaders" bson:"requestHeaders"`                   // 请求头信息(JSON格式)
-	RequestBody              string     `json:"requestBody" db:"requestBody" bson:"requestBody"`                         // 请求体内容(可选记录)
-	
+	RequestMethod  string `json:"requestMethod" db:"requestMethod" bson:"requestMethod"`    // HTTP请求方法(GET,POST,PUT,DELETE等)
+	RequestPath    string `json:"requestPath" db:"requestPath" bson:"requestPath"`          // 请求路径(/api/v1/users)
+	RequestQuery   string `json:"requestQuery" db:"requestQuery" bson:"requestQuery"`       // 查询参数(?id=123&name=test)
+	RequestSize    int    `json:"requestSize" db:"requestSize" bson:"requestSize"`          // 请求大小(字节)
+	RequestHeaders string `json:"requestHeaders" db:"requestHeaders" bson:"requestHeaders"` // 请求头信息(JSON格式)
+	RequestBody    string `json:"requestBody" db:"requestBody" bson:"requestBody"`          // 请求体内容(可选记录)
+
 	// 客户端信息 - 记录请求来源的详细信息
-	ClientIPAddress          string     `json:"clientIpAddress" db:"clientIpAddress" bson:"clientIpAddress"`                 // 客户端真实IP地址(支持X-Forwarded-For解析)
-	ClientPort               int        `json:"clientPort" db:"clientPort" bson:"clientPort"`                               // 客户端端口号（0表示未设置）
-	UserAgent                string     `json:"userAgent" db:"userAgent" bson:"userAgent"`                             // 用户代理字符串
-	Referer                  string     `json:"referer" db:"referer" bson:"referer"`                                 // 来源页面URL
-	UserIdentifier           string     `json:"userIdentifier" db:"userIdentifier" bson:"userIdentifier"`                   // 用户标识(如有认证)
-	
+	ClientIPAddress string `json:"clientIpAddress" db:"clientIpAddress" bson:"clientIpAddress"` // 客户端真实IP地址(支持X-Forwarded-For解析)
+	ClientPort      int    `json:"clientPort" db:"clientPort" bson:"clientPort"`                // 客户端端口号（0表示未设置）
+	UserAgent       string `json:"userAgent" db:"userAgent" bson:"userAgent"`                   // 用户代理字符串
+	Referer         string `json:"referer" db:"referer" bson:"referer"`                         // 来源页面URL
+	UserIdentifier  string `json:"userIdentifier" db:"userIdentifier" bson:"userIdentifier"`    // 用户标识(如有认证)
+
 	// 关键时间点 - 精确到毫秒的时间戳，支持性能分析（使用零时间表示未设置）
-	GatewayStartProcessingTime time.Time `json:"gatewayStartProcessingTime" db:"gatewayStartProcessingTime" bson:"gatewayStartProcessingTime"` // 网关开始处理的时间（必填）
-	BackendRequestStartTime  time.Time  `json:"backendRequestStartTime" db:"backendRequestStartTime" bson:"backendRequestStartTime"`         // 向后端发起请求的时间（零时间表示未设置）
-	BackendResponseReceivedTime time.Time `json:"backendResponseReceivedTime" db:"backendResponseReceivedTime" bson:"backendResponseReceivedTime"` // 接收到后端响应的时间（零时间表示未设置）
+	GatewayStartProcessingTime    time.Time `json:"gatewayStartProcessingTime" db:"gatewayStartProcessingTime" bson:"gatewayStartProcessingTime"`          // 网关开始处理的时间（必填）
+	BackendRequestStartTime       time.Time `json:"backendRequestStartTime" db:"backendRequestStartTime" bson:"backendRequestStartTime"`                   // 向后端发起请求的时间（零时间表示未设置）
+	BackendResponseReceivedTime   time.Time `json:"backendResponseReceivedTime" db:"backendResponseReceivedTime" bson:"backendResponseReceivedTime"`       // 接收到后端响应的时间（零时间表示未设置）
 	GatewayFinishedProcessingTime time.Time `json:"gatewayFinishedProcessingTime" db:"gatewayFinishedProcessingTime" bson:"gatewayFinishedProcessingTime"` // 网关处理完成的时间（零时间表示未设置）
-	
+
 	// 计算的时间指标 - 基于时间点计算的性能指标(毫秒)
-	TotalProcessingTimeMs    int        `json:"totalProcessingTimeMs" db:"totalProcessingTimeMs" bson:"totalProcessingTimeMs"`     // 总处理时间(从开始处理到处理完成)
-	GatewayProcessingTimeMs  int        `json:"gatewayProcessingTimeMs" db:"gatewayProcessingTimeMs" bson:"gatewayProcessingTimeMs"` // 网关自身处理时间
-	BackendResponseTimeMs    int        `json:"backendResponseTimeMs" db:"backendResponseTimeMs" bson:"backendResponseTimeMs"`     // 后端服务响应时间（0表示未设置）
-	
+	TotalProcessingTimeMs   int `json:"totalProcessingTimeMs" db:"totalProcessingTimeMs" bson:"totalProcessingTimeMs"`       // 总处理时间(从开始处理到处理完成)
+	GatewayProcessingTimeMs int `json:"gatewayProcessingTimeMs" db:"gatewayProcessingTimeMs" bson:"gatewayProcessingTimeMs"` // 网关自身处理时间
+	BackendResponseTimeMs   int `json:"backendResponseTimeMs" db:"backendResponseTimeMs" bson:"backendResponseTimeMs"`       // 后端服务响应时间（0表示未设置）
+
 	// 响应信息 - 记录网关和后端服务的响应详情
-	GatewayStatusCode        int        `json:"gatewayStatusCode" db:"gatewayStatusCode" bson:"gatewayStatusCode"`             // 网关返回的HTTP状态码
-	BackendStatusCode        int        `json:"backendStatusCode" db:"backendStatusCode" bson:"backendStatusCode"`             // 后端服务返回的状态码（0表示未设置）
-	ResponseSize             int        `json:"responseSize" db:"responseSize" bson:"responseSize"`                       // 响应大小(字节)
-	ResponseHeaders          string     `json:"responseHeaders" db:"responseHeaders" bson:"responseHeaders"`                 // 响应头信息(JSON格式)
-	ResponseBody             string     `json:"responseBody" db:"responseBody" bson:"responseBody"`                       // 响应体内容(可选记录)
-	
+	GatewayStatusCode int    `json:"gatewayStatusCode" db:"gatewayStatusCode" bson:"gatewayStatusCode"` // 网关返回的HTTP状态码
+	BackendStatusCode int    `json:"backendStatusCode" db:"backendStatusCode" bson:"backendStatusCode"` // 后端服务返回的状态码（0表示未设置）
+	ResponseSize      int    `json:"responseSize" db:"responseSize" bson:"responseSize"`                // 响应大小(字节)
+	ResponseHeaders   string `json:"responseHeaders" db:"responseHeaders" bson:"responseHeaders"`       // 响应头信息(JSON格式)
+	ResponseBody      string `json:"responseBody" db:"responseBody" bson:"responseBody"`                // 响应体内容(可选记录)
+
 	// 转发基本信息 - 记录请求转发和负载均衡的详情
-	MatchedRoute             string     `json:"matchedRoute" db:"matchedRoute" bson:"matchedRoute"`                       // 匹配的路由规则
-	ForwardAddress           string     `json:"forwardAddress" db:"forwardAddress" bson:"forwardAddress"`                   // 实际转发的目标地址
-	ForwardMethod            string     `json:"forwardMethod" db:"forwardMethod" bson:"forwardMethod"`                     // 转发的HTTP方法
-	ForwardParams            string     `json:"forwardParams" db:"forwardParams" bson:"forwardParams"`                     // 转发的参数(JSON格式)
-	ForwardHeaders           string     `json:"forwardHeaders" db:"forwardHeaders" bson:"forwardHeaders"`                   // 转发的请求头(JSON格式)
-	ForwardBody              string     `json:"forwardBody" db:"forwardBody" bson:"forwardBody"`                         // 转发的请求体
-	LoadBalancerDecision     string     `json:"loadBalancerDecision" db:"loadBalancerDecision" bson:"loadBalancerDecision"`       // 负载均衡器的选择决策信息
-	
+	MatchedRoute         string `json:"matchedRoute" db:"matchedRoute" bson:"matchedRoute"`                         // 匹配的路由规则
+	ForwardAddress       string `json:"forwardAddress" db:"forwardAddress" bson:"forwardAddress"`                   // 实际转发的目标地址
+	ForwardMethod        string `json:"forwardMethod" db:"forwardMethod" bson:"forwardMethod"`                      // 转发的HTTP方法
+	ForwardParams        string `json:"forwardParams" db:"forwardParams" bson:"forwardParams"`                      // 转发的参数(JSON格式)
+	ForwardHeaders       string `json:"forwardHeaders" db:"forwardHeaders" bson:"forwardHeaders"`                   // 转发的请求头(JSON格式)
+	ForwardBody          string `json:"forwardBody" db:"forwardBody" bson:"forwardBody"`                            // 转发的请求体
+	LoadBalancerDecision string `json:"loadBalancerDecision" db:"loadBalancerDecision" bson:"loadBalancerDecision"` // 负载均衡器的选择决策信息
+
 	// 错误信息 - 记录请求处理过程中的异常情况
-	ErrorMessage             string     `json:"errorMessage" db:"errorMessage" bson:"errorMessage"`                       // 详细错误信息
-	ErrorCode                string     `json:"errorCode" db:"errorCode" bson:"errorCode"`                             // 标准化错误代码
-	
+	ErrorMessage string `json:"errorMessage" db:"errorMessage" bson:"errorMessage"` // 详细错误信息
+	ErrorCode    string `json:"errorCode" db:"errorCode" bson:"errorCode"`          // 标准化错误代码
+
 	// 追踪信息 - 支持分布式链路追踪
-	ParentTraceID            string     `json:"parentTraceId" db:"parentTraceId" bson:"parentTraceId"`                     // 父级链路追踪ID
-	
+	ParentTraceID string `json:"parentTraceId" db:"parentTraceId" bson:"parentTraceId"` // 父级链路追踪ID
+
 	// 日志重置标记和次数 - 支持重试和熔断场景
-	ResetFlag                string     `json:"resetFlag" db:"resetFlag" bson:"resetFlag"`                             // 重置标记(N否,Y是)
-	RetryCount               int        `json:"retryCount" db:"retryCount" bson:"retryCount"`                           // 重试次数
-	ResetCount               int        `json:"resetCount" db:"resetCount" bson:"resetCount"`                           // 重置次数
-	
+	ResetFlag  string `json:"resetFlag" db:"resetFlag" bson:"resetFlag"`    // 重置标记(N否,Y是)
+	RetryCount int    `json:"retryCount" db:"retryCount" bson:"retryCount"` // 重试次数
+	ResetCount int    `json:"resetCount" db:"resetCount" bson:"resetCount"` // 重置次数
+
 	// 标准数据库字段 - 符合统一的数据库设计规范
-	LogLevel                 string     `json:"logLevel" db:"logLevel" bson:"logLevel"`                               // 日志级别(DEBUG,INFO,WARN,ERROR)
-	LogType                  string     `json:"logType" db:"logType" bson:"logType"`                                 // 日志类型标识
-	ExtProperty              string     `json:"extProperty" db:"extProperty" bson:"extProperty"`                         // 扩展属性(JSON格式)
-	AddTime                  time.Time  `json:"addTime" db:"addTime" bson:"addTime"`                                 // 记录创建时间
-	AddWho                   string     `json:"addWho" db:"addWho" bson:"addWho"`                                   // 记录创建者
-	EditTime                 time.Time  `json:"editTime" db:"editTime" bson:"editTime"`                               // 记录修改时间
-	EditWho                  string     `json:"editWho" db:"editWho" bson:"editWho"`                                 // 记录修改者
-	OprSeqFlag               string     `json:"oprSeqFlag" db:"oprSeqFlag" bson:"oprSeqFlag"`                           // 操作序列标识
-	CurrentVersion           int        `json:"currentVersion" db:"currentVersion" bson:"currentVersion"`                   // 当前版本号
-	ActiveFlag               string     `json:"activeFlag" db:"activeFlag" bson:"activeFlag"`                           // 活动状态标记
-	NoteText                 string     `json:"noteText" db:"noteText" bson:"noteText"`                               // 备注信息
+	LogLevel       string    `json:"logLevel" db:"logLevel" bson:"logLevel"`                   // 日志级别(DEBUG,INFO,WARN,ERROR)
+	LogType        string    `json:"logType" db:"logType" bson:"logType"`                      // 日志类型标识
+	ExtProperty    string    `json:"extProperty" db:"extProperty" bson:"extProperty"`          // 扩展属性(JSON格式)
+	AddTime        time.Time `json:"addTime" db:"addTime" bson:"addTime"`                      // 记录创建时间
+	AddWho         string    `json:"addWho" db:"addWho" bson:"addWho"`                         // 记录创建者
+	EditTime       time.Time `json:"editTime" db:"editTime" bson:"editTime"`                   // 记录修改时间
+	EditWho        string    `json:"editWho" db:"editWho" bson:"editWho"`                      // 记录修改者
+	OprSeqFlag     string    `json:"oprSeqFlag" db:"oprSeqFlag" bson:"oprSeqFlag"`             // 操作序列标识
+	CurrentVersion int       `json:"currentVersion" db:"currentVersion" bson:"currentVersion"` // 当前版本号
+	ActiveFlag     string    `json:"activeFlag" db:"activeFlag" bson:"activeFlag"`             // 活动状态标记
+	NoteText       string    `json:"noteText" db:"noteText" bson:"noteText"`                   // 备注信息
 }
 
 // 常量定义
@@ -106,10 +106,10 @@ const (
 	LogTypeAccess = "ACCESS"
 	LogTypeError  = "ERROR"
 	LogTypeAudit  = "AUDIT"
-	
+
 	// 默认值常量
-	DefaultAddWho   = "SYSTEM"
-	DefaultEditWho  = "SYSTEM"
+	DefaultAddWho     = "SYSTEM"
+	DefaultEditWho    = "SYSTEM"
 	DefaultActiveFlag = "Y"
 	DefaultResetFlag  = "N"
 	DefaultVersion    = 1
@@ -123,7 +123,7 @@ var (
 		"key", "apikey", "api_key", "access_token", "refresh_token", "session",
 		"credential", "credit_card", "ssn", "phone", "email", "id_card",
 	}
-	
+
 	// 敏感数据正则表达式
 	sensitivePatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)"(password|passwd|pwd|secret|token|auth|authorization|key|apikey|api_key|access_token|refresh_token|session|credential)"\s*:\s*"[^"]*"`),
@@ -139,39 +139,39 @@ func (a *AccessLog) TableName() string {
 }
 
 // NewAccessLog 创建新的访问日志实例
-// 
+//
 // 参数：
 //   - tenantID: 租户ID
 //   - gatewayInstanceID: 网关实例ID
 //   - gatewayNodeIP: 网关节点IP
-// 
+//
 // 返回：
 //   - *AccessLog: 初始化的访问日志实例
 func NewAccessLog(tenantID, gatewayInstanceID, gatewayNodeIP string) *AccessLog {
 	now := time.Now()
 	return &AccessLog{
-		TenantID:                 tenantID,
-		TraceID:                  generateTraceID(),
-		GatewayInstanceID:        gatewayInstanceID,
-		GatewayNodeIP:            gatewayNodeIP,
+		TenantID:                   tenantID,
+		TraceID:                    generateTraceID(),
+		GatewayInstanceID:          gatewayInstanceID,
+		GatewayNodeIP:              gatewayNodeIP,
 		GatewayStartProcessingTime: now,
-		ResetFlag:                DefaultResetFlag,
-		RetryCount:               0,
-		ResetCount:               0,
-		LogLevel:                 string(LogLevelInfo),
-		LogType:                  LogTypeAccess,
-		AddTime:                  now,
-		EditTime:                 now,
-		AddWho:                   DefaultAddWho,
-		EditWho:                  DefaultEditWho,
-		OprSeqFlag:               generateOprSeqFlag(),
-		CurrentVersion:           DefaultVersion,
-		ActiveFlag:               DefaultActiveFlag,
+		ResetFlag:                  DefaultResetFlag,
+		RetryCount:                 0,
+		ResetCount:                 0,
+		LogLevel:                   string(LogLevelInfo),
+		LogType:                    LogTypeAccess,
+		AddTime:                    now,
+		EditTime:                   now,
+		AddWho:                     DefaultAddWho,
+		EditWho:                    DefaultEditWho,
+		OprSeqFlag:                 generateOprSeqFlag(),
+		CurrentVersion:             DefaultVersion,
+		ActiveFlag:                 DefaultActiveFlag,
 	}
 }
 
 // SetRequestInfo 设置请求信息
-// 
+//
 // 参数：
 //   - method: HTTP方法
 //   - path: 请求路径
@@ -181,15 +181,36 @@ func NewAccessLog(tenantID, gatewayInstanceID, gatewayNodeIP string) *AccessLog 
 //   - size: 请求大小
 func (a *AccessLog) SetRequestInfo(method, path string, query, headers, body string, size int) {
 	a.RequestMethod = method
-	a.RequestPath = path
+	// 限制 requestPath 长度为 1000 字符（数据库字段限制）
+	a.RequestPath = truncateString(path, 1000)
 	a.RequestQuery = query
 	a.RequestHeaders = headers
 	a.RequestBody = body
 	a.RequestSize = size
 }
 
+// truncateString 截断字符串到指定最大长度（UTF-8安全）
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	// 转换为字节数组进行UTF-8安全截断
+	bytes := []byte(s)
+	if len(bytes) <= maxLen {
+		return s
+	}
+	// 从maxLen位置向前查找完整的UTF-8字符边界
+	for i := maxLen; i > 0; i-- {
+		if i < len(bytes) && (bytes[i]&0xC0) != 0x80 {
+			// 找到UTF-8字符边界
+			return string(bytes[:i])
+		}
+	}
+	return string(bytes[:maxLen])
+}
+
 // SetClientInfo 设置客户端信息
-// 
+//
 // 参数：
 //   - clientIP: 客户端IP地址
 //   - clientPort: 客户端端口（0表示未设置）
@@ -205,9 +226,9 @@ func (a *AccessLog) SetClientInfo(clientIP string, clientPort int, userAgent, re
 }
 
 // SetResponseInfo 设置响应信息
-// 
+//
 // 注意：此方法不会自动设置完成时间，时间管理由调用方控制
-// 
+//
 // 参数：
 //   - statusCode: HTTP状态码
 //   - responseSize: 响应大小
@@ -218,16 +239,16 @@ func (a *AccessLog) SetResponseInfo(statusCode int, responseSize int, responseHe
 	a.ResponseSize = responseSize
 	a.ResponseHeaders = responseHeaders
 	a.ResponseBody = responseBody
-	
+
 	// 根据状态码设置日志级别
 	a.updateLogLevelByStatusCode(statusCode)
-	
+
 	// 不自动设置完成时间，由调用方控制
 	// 如果需要计算处理时间，调用方应在设置完成时间后调用 CalculateProcessingTime()
 }
 
 // SetBackendInfo 设置后端服务信息
-// 
+//
 // 参数：
 //   - backendStatusCode: 后端状态码（0表示未设置）
 //   - backendStartTime: 后端请求开始时间（零时间表示未设置）
@@ -236,7 +257,7 @@ func (a *AccessLog) SetBackendInfo(backendStatusCode int, backendStartTime, back
 	a.BackendStatusCode = backendStatusCode
 	a.BackendRequestStartTime = backendStartTime
 	a.BackendResponseReceivedTime = backendEndTime
-	
+
 	// 计算后端响应时间
 	if !backendStartTime.IsZero() && !backendEndTime.IsZero() {
 		responseTimeMs := int(backendEndTime.Sub(backendStartTime).Milliseconds())
@@ -245,7 +266,7 @@ func (a *AccessLog) SetBackendInfo(backendStatusCode int, backendStartTime, back
 }
 
 // SetForwardInfo 设置转发信息
-// 
+//
 // 参数：
 //   - matchedRoute: 匹配的路由
 //   - forwardAddress: 转发地址
@@ -265,7 +286,7 @@ func (a *AccessLog) SetForwardInfo(matchedRoute, forwardAddress, forwardMethod, 
 }
 
 // SetBasicForwardInfo 设置基础转发信息（向后兼容方法）
-// 
+//
 // 参数：
 //   - matchedRoute: 匹配的路由
 //   - forwardAddress: 转发地址
@@ -276,7 +297,7 @@ func (a *AccessLog) SetBasicForwardInfo(matchedRoute, forwardAddress, forwardMet
 }
 
 // SetErrorInfo 设置错误信息
-// 
+//
 // 参数：
 //   - errorCode: 错误代码
 //   - errorMessage: 错误信息
@@ -291,7 +312,7 @@ func (a *AccessLog) SetErrorInfo(errorCode, errorMessage string) {
 }
 
 // SetRedundantFields 设置冗余字段
-// 
+//
 // 参数：
 //   - gatewayInstanceName: 网关实例名称
 //   - routeName: 路由名称
@@ -304,12 +325,11 @@ func (a *AccessLog) SetRedundantFields(gatewayInstanceName, routeName, serviceNa
 	a.ProxyType = proxyType
 }
 
-
 // GetProcessingDuration 获取已处理时长（毫秒）
-// 
+//
 // 对于未完成的请求，返回从开始处理到当前时间的时长
 // 对于已完成的请求，返回总处理时间
-// 
+//
 // 返回：
 //   - int: 处理时长（毫秒）
 func (a *AccessLog) GetProcessingDuration() int {
@@ -329,10 +349,10 @@ func (a *AccessLog) CalculateProcessingTime() {
 		a.GatewayProcessingTimeMs = 0
 		return
 	}
-	
+
 	// 计算总处理时间(从开始处理到处理完成)
 	a.TotalProcessingTimeMs = int(a.GatewayFinishedProcessingTime.Sub(a.GatewayStartProcessingTime).Milliseconds())
-	
+
 	// 计算网关自身处理时间
 	if a.BackendResponseTimeMs != 0 {
 		// 网关处理时间 = 总时间 - 后端响应时间
@@ -360,57 +380,57 @@ func (a *AccessLog) updateLogLevelByStatusCode(statusCode int) {
 }
 
 // MaskSensitiveData 脱敏处理敏感数据
-// 
+//
 // 参数：
 //   - config: 日志配置，包含脱敏规则
-// 
+//
 // 返回：
 //   - *AccessLog: 脱敏后的日志副本
 func (a *AccessLog) MaskSensitiveData(config *LogConfig) *AccessLog {
 	if config == nil || !config.IsSensitiveDataMasking() {
 		return a
 	}
-	
+
 	// 创建副本以避免修改原始数据
 	masked := *a
 	maskPattern := config.MaskingPattern
 	if maskPattern == "" {
 		maskPattern = "***"
 	}
-	
+
 	// 脱敏请求头
 	if masked.RequestHeaders != "" {
 		masked.RequestHeaders = maskSensitiveInJSON(masked.RequestHeaders, maskPattern)
 	}
-	
+
 	// 脱敏请求体
 	if masked.RequestBody != "" {
 		masked.RequestBody = maskSensitiveInText(masked.RequestBody, maskPattern)
 	}
-	
+
 	// 脱敏响应头
 	if masked.ResponseHeaders != "" {
 		masked.ResponseHeaders = maskSensitiveInJSON(masked.ResponseHeaders, maskPattern)
 	}
-	
+
 	// 脱敏响应体
 	if masked.ResponseBody != "" {
 		masked.ResponseBody = maskSensitiveInText(masked.ResponseBody, maskPattern)
 	}
-	
+
 	// 脱敏查询参数
 	if masked.RequestQuery != "" {
 		masked.RequestQuery = maskSensitiveInQuery(masked.RequestQuery, maskPattern)
 	}
-	
+
 	return &masked
 }
 
 // ToJSON 转换为JSON格式
-// 
+//
 // 参数：
 //   - config: 日志配置，控制是否包含敏感数据
-// 
+//
 // 返回：
 //   - string: JSON字符串
 //   - error: 序列化错误
@@ -419,7 +439,7 @@ func (a *AccessLog) ToJSON(config *LogConfig) (string, error) {
 	if config != nil && config.IsSensitiveDataMasking() {
 		log = a.MaskSensitiveData(config)
 	}
-	
+
 	data, err := json.Marshal(log)
 	if err != nil {
 		return "", fmt.Errorf("序列化访问日志失败: %w", err)
@@ -428,10 +448,10 @@ func (a *AccessLog) ToJSON(config *LogConfig) (string, error) {
 }
 
 // ToFormattedJSON 转换为格式化的JSON
-// 
+//
 // 参数：
 //   - config: 日志配置
-// 
+//
 // 返回：
 //   - string: 格式化的JSON字符串
 //   - error: 序列化错误
@@ -440,7 +460,7 @@ func (a *AccessLog) ToFormattedJSON(config *LogConfig) (string, error) {
 	if config != nil && config.IsSensitiveDataMasking() {
 		log = a.MaskSensitiveData(config)
 	}
-	
+
 	data, err := json.MarshalIndent(log, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("序列化访问日志失败: %w", err)
@@ -449,10 +469,10 @@ func (a *AccessLog) ToFormattedJSON(config *LogConfig) (string, error) {
 }
 
 // ToText 转换为文本格式(类似于Nginx访问日志格式)
-// 
+//
 // 参数：
 //   - config: 日志配置
-// 
+//
 // 返回：
 //   - string: 文本格式的日志
 func (a *AccessLog) ToText(config *LogConfig) string {
@@ -472,10 +492,10 @@ func (a *AccessLog) ToText(config *LogConfig) string {
 }
 
 // ToCSV 转换为CSV格式
-// 
+//
 // 参数：
 //   - config: 日志配置
-// 
+//
 // 返回：
 //   - string: CSV格式的日志行
 func (a *AccessLog) ToCSV(config *LogConfig) string {
@@ -497,46 +517,46 @@ func (a *AccessLog) GetCSVHeaders() string {
 }
 
 // Validate 验证日志数据的完整性
-// 
+//
 // 返回：
 //   - error: 验证错误信息
 func (a *AccessLog) Validate() error {
 	if a.TenantID == "" {
 		return fmt.Errorf("租户ID不能为空")
 	}
-	
+
 	if a.TraceID == "" {
 		return fmt.Errorf("追踪ID不能为空")
 	}
-	
+
 	if a.GatewayInstanceID == "" {
 		return fmt.Errorf("网关实例ID不能为空")
 	}
-	
+
 	if a.RequestMethod == "" {
 		return fmt.Errorf("请求方法不能为空")
 	}
-	
+
 	if a.RequestPath == "" {
 		return fmt.Errorf("请求路径不能为空")
 	}
-	
+
 	if a.ClientIPAddress == "" {
 		return fmt.Errorf("客户端IP地址不能为空")
 	}
-	
+
 	// 验证时间序列的合理性（只有在处理完成时才验证）
 	if !a.GatewayFinishedProcessingTime.IsZero() && a.GatewayFinishedProcessingTime.Before(a.GatewayStartProcessingTime) {
 		return fmt.Errorf("处理完成时间不能早于处理开始时间")
 	}
-	
+
 	// 验证后端时间的合理性
 	if !a.BackendRequestStartTime.IsZero() && !a.BackendResponseReceivedTime.IsZero() {
 		if a.BackendResponseReceivedTime.Before(a.BackendRequestStartTime) {
 			return fmt.Errorf("后端响应时间不能早于后端请求时间")
 		}
 	}
-	
+
 	return nil
 }
 
@@ -556,7 +576,7 @@ func (a *AccessLog) IsServerError() bool {
 }
 
 // IsSlowRequest 判断是否为慢请求
-// 
+//
 // 参数：
 //   - thresholdMs: 慢请求阈值(毫秒)
 func (a *AccessLog) IsSlowRequest(thresholdMs int) bool {
@@ -564,7 +584,7 @@ func (a *AccessLog) IsSlowRequest(thresholdMs int) bool {
 }
 
 // GetPerformanceLevel 获取性能等级
-// 
+//
 // 返回：
 //   - string: 性能等级(FAST/NORMAL/SLOW/VERY_SLOW)
 func (a *AccessLog) GetPerformanceLevel() string {
@@ -605,7 +625,7 @@ func generateRandomString(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	result := make([]byte, length)
 	nanoTime := time.Now().UnixNano()
-	
+
 	for i := range result {
 		// 使用纳秒时间和位置做种子，增加随机性
 		result[i] = charset[(nanoTime+int64(i))%int64(len(charset))]
@@ -666,4 +686,4 @@ func escapeCsvField(field string) string {
 		return "\"" + field + "\""
 	}
 	return field
-} 
+}

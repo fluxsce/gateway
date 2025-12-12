@@ -3,6 +3,7 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -39,6 +40,10 @@ type controlConnection struct {
 	authenticated bool
 	services      map[string]*types.TunnelService
 	serviceMutex  sync.RWMutex
+
+	// 关键修复：使用 bufio.Writer 确保消息发送的原子性，避免TCP粘包/拆包问题
+	writer      *bufio.Writer
+	writerMutex sync.Mutex // 保护 writer 的写入操作
 }
 
 // NewControlServerImpl 创建新的控制服务器实例
@@ -173,25 +178,73 @@ func (s *controlServer) Stop(ctx context.Context) error {
 //   - 启动消息处理循环
 //   - 处理连接断开清理
 func (s *controlServer) HandleConnection(ctx context.Context, conn net.Conn) error {
-	// 关键修复：对于数据连接，不设置读取超时或设置很长的超时时间
+	// 关键优化：使用较短的初始读取超时（10秒），快速检测无效连接
 	// 原因：
-	// 1. 客户端建立连接后需要立即发送握手，但可能因为网络延迟等原因有短暂延迟
-	// 2. 如果设置超时过短，连接可能在客户端发送握手前被关闭，导致 broken pipe
-	// 3. 数据连接建立后应该保持打开，直到收到握手消息或连接关闭
-	// 4. 使用120秒超时，给客户端足够的时间（包括网络延迟、连接池获取等）
-	// 5. 如果120秒内没有收到任何数据，说明连接有问题，可以安全关闭
-	conn.SetReadDeadline(time.Now().Add(120 * time.Second))
+	// 1. 客户端建立连接后应该立即发送握手，正常情况下应该在几毫秒内完成
+	// 2. 如果10秒内没有收到任何数据，可能是无效连接或网络问题，可以快速关闭释放资源
+	// 3. 这样可以避免大量无效连接占用资源（文件描述符、goroutine、内存），导致 Accept 队列满
+	// 4. 对于有效的连接，读取到消息长度后会延长超时时间用于读取消息内容
+	// 5. 系统参数 somaxconn=2048 已经很大，但关键是处理速度，不是队列大小
+	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 
 	// 读取消息长度
 	lengthBuf := make([]byte, 4)
 	if _, err := io.ReadFull(conn, lengthBuf); err != nil {
+		// 如果是超时错误，记录详细信息以便诊断
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			logger.Warn("Connection timeout reading handshake", map[string]interface{}{
+				"remoteAddr": conn.RemoteAddr().String(),
+				"localAddr":  conn.LocalAddr().String(),
+				"error":      err.Error(),
+				"note":       "client may have failed to send handshake in time, or connection is invalid",
+			})
+		}
 		return fmt.Errorf("failed to read message length: %w", err)
 	}
 
+	// 读取到消息长度后，延长超时时间用于读取消息内容
+	// 消息长度已经读取到，说明连接是有效的，可以给更多时间读取消息内容
+	conn.SetReadDeadline(time.Now().Add(120 * time.Second))
+
 	// 解析消息长度
 	msgLen := int(lengthBuf[0])<<24 | int(lengthBuf[1])<<16 | int(lengthBuf[2])<<8 | int(lengthBuf[3])
-	if msgLen <= 0 || msgLen > 1024*1024 {
-		return fmt.Errorf("invalid message length: %d", msgLen)
+
+	// 关键修复：增强消息长度验证，检测各种异常情况
+	// 1. 检查长度是否全为0（可能是连接关闭时的填充字节）
+	allZeros := lengthBuf[0] == 0 && lengthBuf[1] == 0 && lengthBuf[2] == 0 && lengthBuf[3] == 0
+	if allZeros {
+		logger.Warn("Message length is all zeros, possible connection closed or reset", map[string]interface{}{
+			"remoteAddr":  conn.RemoteAddr().String(),
+			"localAddr":   conn.LocalAddr().String(),
+			"lengthBytes": lengthBuf,
+		})
+		return fmt.Errorf("message length is all zeros (possible connection closed or reset)")
+	}
+
+	// 2. 检查长度是否太小（可能是读取错误或消息边界错位）
+	if msgLen < 10 {
+		logger.Error("Message length too small, possible read error or message boundary misalignment", map[string]interface{}{
+			"messageLength": msgLen,
+			"lengthBytes":   lengthBuf,
+			"remoteAddr":    conn.RemoteAddr().String(),
+			"localAddr":     conn.LocalAddr().String(),
+			"possibleCause": "read_error_or_message_boundary_misalignment",
+		})
+		return fmt.Errorf("message length too small: %d (possible read error or message boundary misalignment)", msgLen)
+	}
+
+	// 3. 检查长度是否过大（可能是读取位置错位，读取到了错误的数据）
+	if msgLen > 1024*1024 {
+		logger.Error("Invalid message length on control connection", map[string]interface{}{
+			"messageLength": msgLen,
+			"lengthBytes":   lengthBuf,
+			"lengthHex":     fmt.Sprintf("0x%02x%02x%02x%02x", lengthBuf[0], lengthBuf[1], lengthBuf[2], lengthBuf[3]),
+			"remoteAddr":    conn.RemoteAddr().String(),
+			"localAddr":     conn.LocalAddr().String(),
+			"possibleCause": "message_boundary_misalignment_or_connection_confusion",
+		})
+		return fmt.Errorf("invalid message length: %d (length bytes: [0x%02x, 0x%02x, 0x%02x, 0x%02x], possible message boundary misalignment or connection confusion)",
+			msgLen, lengthBuf[0], lengthBuf[1], lengthBuf[2], lengthBuf[3])
 	}
 
 	// 读取消息内容
@@ -235,6 +288,15 @@ func (s *controlServer) handleDataConnection(ctx context.Context, conn net.Conn,
 		"clientId":     clientID,
 	})
 
+	// 关键修复：清除读取超时设置，确保数据连接可以持续工作
+	// HandleConnection 中设置了 120 秒的读取超时用于读取握手消息
+	// 握手消息读取完成后，需要清除超时设置，否则数据连接在 120 秒后会触发 i/o timeout
+	// 这对于 SSE 等长连接非常重要
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		tcpConn.SetReadDeadline(time.Time{})  // 清除读取超时
+		tcpConn.SetWriteDeadline(time.Time{}) // 清除写入超时
+	}
+
 	// 将数据连接转发给代理服务器处理
 	if s.proxyServer == nil {
 		conn.Close()
@@ -250,9 +312,15 @@ func (s *controlServer) handleControlConnection(ctx context.Context, conn net.Co
 		conn:         conn,
 		lastActivity: time.Now(),
 		services:     make(map[string]*types.TunnelService),
+		// 关键修复：创建 bufio.Writer 确保消息发送的原子性
+		writer: bufio.NewWriter(conn),
 	}
 
 	defer func() {
+		// 关键修复：清理 writer，避免资源泄露
+		controlConn.writerMutex.Lock()
+		controlConn.writer = nil
+		controlConn.writerMutex.Unlock()
 		conn.Close()
 		//不应该清楚连接由客户端注册控制
 		//s.removeConnection(controlConn)
@@ -362,7 +430,11 @@ func (s *controlServer) acceptConnections() {
 	defer s.wg.Done()
 
 	for {
+		// Accept 连接
+		// 注意：Accept 会阻塞直到有新连接到来，这是正常的
+		// 如果连接队列满，Accept 会阻塞，但这是正常的，因为连接已经在队列中等待
 		conn, err := s.listener.Accept()
+
 		if err != nil {
 			select {
 			case <-s.ctx.Done():
@@ -375,11 +447,15 @@ func (s *controlServer) acceptConnections() {
 			}
 		}
 
-		// 为每个连接启动处理协程
+		// 关键优化：立即启动 goroutine 处理连接，避免阻塞 Accept 循环
+		// 这样可以快速处理连接，减少队列堆积
 		s.wg.Add(1)
 		go func(conn net.Conn) {
 			defer s.wg.Done()
-			if err := s.HandleConnection(s.ctx, conn); err != nil {
+			// 使用独立的上下文，避免单个连接处理阻塞影响其他连接
+			connCtx, cancel := context.WithCancel(s.ctx)
+			defer cancel()
+			if err := s.HandleConnection(connCtx, conn); err != nil {
 				logger.Error("Connection handling failed", map[string]interface{}{
 					"error": err.Error(),
 				})
@@ -437,8 +513,40 @@ func (s *controlServer) handleMessage(conn *controlConnection) error {
 
 	// 解析消息长度
 	msgLen := int(lengthBuf[0])<<24 | int(lengthBuf[1])<<16 | int(lengthBuf[2])<<8 | int(lengthBuf[3])
-	if msgLen <= 0 || msgLen > 1024*1024 { // 限制消息大小为1MB
-		return fmt.Errorf("invalid message length: %d", msgLen)
+
+	// 关键修复：增强消息长度验证，检测各种异常情况
+	// 1. 检查长度是否全为0（可能是连接关闭时的填充字节）
+	allZeros := lengthBuf[0] == 0 && lengthBuf[1] == 0 && lengthBuf[2] == 0 && lengthBuf[3] == 0
+	if allZeros {
+		logger.Warn("Message length is all zeros in handleMessage, possible connection closed", map[string]interface{}{
+			"clientId":    conn.clientID,
+			"lengthBytes": lengthBuf,
+		})
+		return fmt.Errorf("message length is all zeros (possible connection closed)")
+	}
+
+	// 2. 检查长度是否太小（可能是读取错误或消息边界错位）
+	if msgLen < 10 {
+		logger.Error("Message length too small in handleMessage, possible read error", map[string]interface{}{
+			"messageLength": msgLen,
+			"lengthBytes":   lengthBuf,
+			"clientId":      conn.clientID,
+			"possibleCause": "read_error_or_message_boundary_misalignment",
+		})
+		return fmt.Errorf("message length too small: %d (possible read error or message boundary misalignment)", msgLen)
+	}
+
+	// 3. 检查长度是否过大（可能是读取位置错位，读取到了错误的数据）
+	if msgLen > 1024*1024 { // 限制消息大小为1MB
+		logger.Error("Invalid message length in handleMessage", map[string]interface{}{
+			"messageLength": msgLen,
+			"lengthBytes":   lengthBuf,
+			"lengthHex":     fmt.Sprintf("0x%02x%02x%02x%02x", lengthBuf[0], lengthBuf[1], lengthBuf[2], lengthBuf[3]),
+			"clientId":      conn.clientID,
+			"possibleCause": "message_boundary_misalignment_or_connection_confusion",
+		})
+		return fmt.Errorf("invalid message length: %d (length bytes: [0x%02x, 0x%02x, 0x%02x, 0x%02x], possible message boundary misalignment or connection confusion)",
+			msgLen, lengthBuf[0], lengthBuf[1], lengthBuf[2], lengthBuf[3])
 	}
 
 	// 读取消息内容
@@ -742,14 +850,27 @@ func (s *controlServer) sendResponse(conn *controlConnection, originalMsg *types
 	conn.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	defer conn.conn.SetWriteDeadline(time.Time{}) // 清除超时
 
-	// 发送长度
-	if _, err := conn.conn.Write(lengthBuf); err != nil {
+	// 关键修复：使用 bufio.Writer 确保原子写入
+	conn.writerMutex.Lock()
+	defer conn.writerMutex.Unlock()
+
+	if conn.writer == nil {
+		return fmt.Errorf("writer is nil")
+	}
+
+	// 写入长度
+	if _, err := conn.writer.Write(lengthBuf); err != nil {
 		return fmt.Errorf("failed to write message length: %w", err)
 	}
 
-	// 发送消息内容
-	if _, err := conn.conn.Write(data); err != nil {
+	// 写入消息内容
+	if _, err := conn.writer.Write(data); err != nil {
 		return fmt.Errorf("failed to write message data: %w", err)
+	}
+
+	// 关键修复：Flush 确保数据立即发送，避免缓冲导致的消息边界问题
+	if err := conn.writer.Flush(); err != nil {
+		return fmt.Errorf("failed to flush message: %w", err)
 	}
 
 	return nil
@@ -855,16 +976,27 @@ func (s *controlServer) sendControlMessage(conn *controlConnection, msg *types.C
 	conn.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	defer conn.conn.SetWriteDeadline(time.Time{}) // 清除超时
 
-	// 发送长度
-	if _, err := conn.conn.Write(lengthBuf); err != nil {
+	// 关键修复：使用 bufio.Writer 确保原子写入
+	conn.writerMutex.Lock()
+	defer conn.writerMutex.Unlock()
+
+	if conn.writer == nil {
+		return fmt.Errorf("writer is nil")
+	}
+
+	// 写入长度
+	if _, err := conn.writer.Write(lengthBuf); err != nil {
 		return fmt.Errorf("failed to write message length: %w", err)
 	}
 
-	// 发送消息内容
-	// 关键修复：使用单次 Write 发送完整消息，避免部分写入
-	// 如果连接在写入过程中关闭，Write 会返回错误，客户端不会读取到不完整数据
-	if _, err := conn.conn.Write(data); err != nil {
+	// 写入消息内容
+	if _, err := conn.writer.Write(data); err != nil {
 		return fmt.Errorf("failed to write message data: %w", err)
+	}
+
+	// 关键修复：Flush 确保数据立即发送，避免缓冲导致的消息边界问题
+	if err := conn.writer.Flush(); err != nil {
+		return fmt.Errorf("failed to flush message: %w", err)
 	}
 
 	return nil

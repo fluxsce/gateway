@@ -209,6 +209,7 @@
 package client
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -239,6 +240,10 @@ type controlConnection struct {
 	// 请求-响应追踪
 	pendingRequests map[string]chan *types.ControlMessage
 	requestMutex    sync.RWMutex
+
+	// 关键修复：使用 bufio 确保消息发送的原子性，避免TCP粘包/拆包问题
+	writer      *bufio.Writer
+	writerMutex sync.Mutex // 保护 writer 的写入操作
 
 	// 控制状态
 	ctx    context.Context
@@ -308,6 +313,9 @@ func (cc *controlConnection) Connect(ctx context.Context, serverAddress string, 
 	cc.conn = conn
 	cc.connInfo = connInfo
 	cc.connected = true
+	// 关键修复：创建 bufio.Writer 确保消息发送的原子性
+	// 这样可以避免TCP粘包/拆包问题，确保长度和数据作为一个整体发送
+	cc.writer = bufio.NewWriter(conn)
 	cc.connMutex.Unlock()
 
 	// 启动消息处理协程（不持有锁）
@@ -527,6 +535,27 @@ func (cc *controlConnection) receiveLoop() {
 					return // 正常关闭
 				}
 
+				// 关键修复：EOF 是正常的连接关闭，不应该记录为错误
+				// 当服务器关闭连接时，读取会返回 EOF，这是正常的行为
+				// 不应该触发连接错误处理，应该正常退出
+				if err == io.EOF {
+					logger.Debug("Control connection closed by server (EOF)", nil)
+					return // 正常关闭，不记录错误
+				}
+
+				// 关键修复：区分连接错误和消息解析错误
+				// 消息解析错误（JSON格式错误、消息边界错位）不应该触发重连
+				// 因为连接本身可能还是正常的，只是单条消息有问题
+				// 应该继续尝试接收下一条消息
+				if cc.isMessageParseError(err) {
+					logger.Warn("Message parse error, skipping this message and continuing", map[string]interface{}{
+						"error": err.Error(),
+					})
+					// 继续循环，尝试接收下一条消息
+					continue
+				}
+
+				// 真正的连接错误（网络错误、读取超时、连接重置等）
 				logger.Error("Failed to receive message", map[string]interface{}{
 					"error": err.Error(),
 				})
@@ -554,12 +583,14 @@ func (cc *controlConnection) receiveLoop() {
 }
 
 // sendMessageDirect 直接发送消息
+// 关键修复：使用 bufio.Writer 确保消息发送的原子性，避免TCP粘包/拆包问题
 func (cc *controlConnection) sendMessageDirect(message *types.ControlMessage) error {
 	cc.connMutex.RLock()
 	conn := cc.conn
+	writer := cc.writer
 	cc.connMutex.RUnlock()
 
-	if conn == nil {
+	if conn == nil || writer == nil {
 		return fmt.Errorf("connection is nil")
 	}
 
@@ -581,14 +612,24 @@ func (cc *controlConnection) sendMessageDirect(message *types.ControlMessage) er
 	// 设置写超时
 	conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 
-	// 发送长度
-	if _, err := conn.Write(lengthBuf); err != nil {
+	// 关键修复：使用 bufio.Writer 确保原子写入
+	// 先写入长度，再写入数据，最后Flush，确保作为一个整体发送
+	cc.writerMutex.Lock()
+	defer cc.writerMutex.Unlock()
+
+	// 写入长度
+	if _, err := writer.Write(lengthBuf); err != nil {
 		return fmt.Errorf("failed to write message length: %w", err)
 	}
 
-	// 发送消息内容
-	if _, err := conn.Write(data); err != nil {
+	// 写入消息内容
+	if _, err := writer.Write(data); err != nil {
 		return fmt.Errorf("failed to write message data: %w", err)
+	}
+
+	// 关键修复：Flush 确保数据立即发送，避免缓冲导致的消息边界问题
+	if err := writer.Flush(); err != nil {
+		return fmt.Errorf("failed to flush message: %w", err)
 	}
 
 	// 更新连接统计
@@ -705,21 +746,49 @@ func (cc *controlConnection) receiveMessageDirect() (*types.ControlMessage, erro
 
 	// 检查是否找到了有效的JSON起始字符
 	if msgStart >= len(msgBuf) || (msgBuf[msgStart] != '{' && msgBuf[msgStart] != '[') {
-		// 消息不是有效的JSON格式，记录详细信息
-		previewLen := 50
-		if len(msgBuf) < previewLen {
-			previewLen = len(msgBuf)
+		// 关键修复：尝试在消息中查找JSON开始位置，可能是消息边界错位
+		// 这可以处理TCP粘包/拆包或消息边界错位导致的问题
+		// 例如：\u0000\u0000\u0000\ufffd{"type":"proxy_request"...}
+		jsonStart := -1
+		for i := msgStart; i < len(msgBuf); i++ {
+			if msgBuf[i] == '{' || msgBuf[i] == '[' {
+				jsonStart = i
+				break
+			}
 		}
-		logger.Error("Message does not start with valid JSON, possible connection confusion", map[string]interface{}{
-			"messageLength": msgLen,
-			"firstByte":     msgBuf[0],
-			"msgStart":      msgStart,
-			"previewBytes":  string(msgBuf[:previewLen]),
-			"remoteAddr":    conn.RemoteAddr().String(),
-			"localAddr":     conn.LocalAddr().String(),
-			"possibleCause": "data_connection_data_sent_to_control_connection_or_corrupted_data",
-		})
-		return nil, fmt.Errorf("message does not start with valid JSON (first byte: 0x%02x, msgStart: %d, possible connection confusion)", msgBuf[0], msgStart)
+
+		if jsonStart >= 0 && jsonStart < len(msgBuf) {
+			// 找到了JSON开始位置，尝试恢复
+			logger.Warn("Message boundary misalignment detected, attempting recovery", map[string]interface{}{
+				"messageLength":    msgLen,
+				"originalMsgStart": msgStart,
+				"jsonStart":        jsonStart,
+				"skippedBytes":     jsonStart,
+				"remoteAddr":       conn.RemoteAddr().String(),
+				"localAddr":        conn.LocalAddr().String(),
+				"possibleCause":    "message_boundary_misalignment_or_tcp_packet_issue",
+			})
+
+			// 使用从JSON开始位置的数据
+			msgBuf = msgBuf[jsonStart:]
+			msgStart = 0
+		} else {
+			// 无法找到JSON开始位置，记录错误并返回
+			previewLen := 50
+			if len(msgBuf) < previewLen {
+				previewLen = len(msgBuf)
+			}
+			logger.Error("Message does not start with valid JSON, possible connection confusion", map[string]interface{}{
+				"messageLength": msgLen,
+				"firstByte":     msgBuf[0],
+				"msgStart":      msgStart,
+				"previewBytes":  string(msgBuf[:previewLen]),
+				"remoteAddr":    conn.RemoteAddr().String(),
+				"localAddr":     conn.LocalAddr().String(),
+				"possibleCause": "data_connection_data_sent_to_control_connection_or_corrupted_data",
+			})
+			return nil, fmt.Errorf("message does not start with valid JSON (first byte: 0x%02x, msgStart: %d, possible connection confusion)", msgBuf[0], msgStart)
+		}
 	}
 
 	// 关键修复：如果跳过了null字节，使用从msgStart开始的数据进行解析
@@ -774,6 +843,13 @@ func (cc *controlConnection) receiveMessageDirect() (*types.ControlMessage, erro
 
 // disconnect 内部断开连接方法（调用者必须持有 connMutex 锁）
 func (cc *controlConnection) disconnect() {
+	// 关键修复：清理 writer
+	if cc.writer != nil {
+		cc.writerMutex.Lock()
+		cc.writer = nil
+		cc.writerMutex.Unlock()
+	}
+
 	if cc.conn != nil {
 		cc.conn.Close()
 		cc.conn = nil
@@ -804,6 +880,12 @@ func (cc *controlConnection) cleanupConnection() {
 
 	// 最后清理连接状态
 	cc.connMutex.Lock()
+	// 关键修复：清理 writer，避免资源泄露
+	if cc.writer != nil {
+		cc.writerMutex.Lock()
+		cc.writer = nil
+		cc.writerMutex.Unlock()
+	}
 	if cc.conn != nil {
 		cc.conn.Close()
 		cc.conn = nil
@@ -822,6 +904,13 @@ func (cc *controlConnection) handleConnectionError(err error) {
 	cc.connMutex.Lock()
 	wasConnected := cc.connected
 	cc.connected = false
+
+	// 关键修复：清理 writer，避免资源泄露
+	if cc.writer != nil {
+		cc.writerMutex.Lock()
+		cc.writer = nil
+		cc.writerMutex.Unlock()
+	}
 
 	// 关闭底层连接，避免资源泄漏
 	if cc.conn != nil {
@@ -858,6 +947,30 @@ func (cc *controlConnection) updateConnectionStats(bytesSent, bytesReceived int6
 		cc.connInfo.BytesReceived += bytesReceived
 		cc.connInfo.LastActivity = time.Now()
 	}
+}
+
+// isMessageParseError 判断是否是消息解析错误（不应该触发重连）
+//
+// 消息解析错误包括：
+//   - JSON格式错误
+//   - 消息边界错位
+//   - 无效消息长度（但连接可能还正常）
+//
+// 这些错误不应该触发重连，因为连接本身可能还是正常的，只是单条消息有问题
+func (cc *controlConnection) isMessageParseError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errMsg := err.Error()
+	// 检查是否是消息解析相关的错误
+	return strings.Contains(errMsg, "message does not start with valid JSON") ||
+		strings.Contains(errMsg, "failed to unmarshal message") ||
+		strings.Contains(errMsg, "message content is all null bytes") ||
+		strings.Contains(errMsg, "message length too small") ||
+		strings.Contains(errMsg, "invalid message length") ||
+		strings.Contains(errMsg, "connection confusion") ||
+		strings.Contains(errMsg, "corrupted data")
 }
 
 // generateRequestID 生成请求ID
@@ -1069,7 +1182,9 @@ func (cc *controlConnection) handleErrorMessage(msg *types.ControlMessage) error
 func (cc *controlConnection) establishDataConnection(serviceID, connectionID string) error {
 	// 创建带超时的上下文，使用控制连接的上下文作为父上下文
 	// 这样当控制连接关闭时，数据连接建立也会被取消
-	ctx, cancel := context.WithTimeout(cc.ctx, 30*time.Second)
+	// 优化：上下文超时时间设置为 (15秒超时 + 2次重试 * 最大延迟2秒) = 约19秒，留出足够余量
+	// 实际连接建立使用15秒超时 + 重试机制，总时间不会超过这个值
+	ctx, cancel := context.WithTimeout(cc.ctx, 25*time.Second)
 	defer cancel()
 
 	// 查找服务配置
@@ -1155,49 +1270,121 @@ func (cc *controlConnection) establishDataConnection(serviceID, connectionID str
 
 // createNewServerConnection 创建新的服务器数据连接
 // 专门用于响应服务器的 proxy_request 请求，必须建立新连接，不能从池中取
+// 优化方案：15秒超时 + 总共3次尝试，快速失败并提高成功率
 func (cc *controlConnection) createNewServerConnection(ctx context.Context, serviceID string) (net.Conn, error) {
 	// 建立新的服务器连接
 	serverAddr := net.JoinHostPort(cc.client.config.ServerAddress, fmt.Sprintf("%d", cc.client.config.ServerPort))
 
+	const (
+		maxRetries     = 2                      // 最大重试次数（总共3次尝试：初始1次 + 重试2次）
+		connectTimeout = 15 * time.Second       // 单次连接超时时间
+		retryDelay     = 500 * time.Millisecond // 重试间隔（指数退避）
+	)
+
 	logger.Info("Creating new server connection for proxy request", map[string]interface{}{
 		"serviceId":  serviceID,
 		"serverAddr": serverAddr,
-		"timeout":    "30s",
+		"timeout":    connectTimeout.String(),
+		"maxRetries": maxRetries,
+		"retryDelay": retryDelay.String(),
 		"timestamp":  time.Now(),
 	})
 
-	// 建立TCP连接
+	var lastErr error
+	var conn net.Conn
 	connectStartTime := time.Now()
-	conn, err := net.DialTimeout("tcp", serverAddr, 30*time.Second)
-	connectDuration := time.Since(connectStartTime)
 
-	if err != nil {
-		logger.Error("Failed to create new server connection", map[string]interface{}{
+	// 重试逻辑：最多重试2次（总共3次尝试）
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			// 重试前等待（指数退避：500ms, 1s, 2s）
+			delay := retryDelay * time.Duration(1<<uint(attempt-1))
+			if delay > 2*time.Second {
+				delay = 2 * time.Second // 最大延迟2秒
+			}
+			logger.Debug("Retrying connection", map[string]interface{}{
+				"serviceId":  serviceID,
+				"serverAddr": serverAddr,
+				"attempt":    attempt,
+				"delay":      delay.String(),
+			})
+			time.Sleep(delay)
+		}
+
+		// 建立TCP连接
+		// 高并发优化方案（支持上百上千并发）：
+		// 1. 使用 DialContext 支持上下文取消
+		// 2. 设置合理的超时时间（15秒），快速失败
+		// 3. 通过重试机制提高成功率
+		// 4. 系统层面优化建议：
+		//    - 增加端口范围：net.ipv4.ip_local_port_range = "10000 65535"
+		//    - 减少 TIME_WAIT 时间：net.ipv4.tcp_fin_timeout = 30
+		//    - 启用端口重用：net.ipv4.tcp_tw_reuse = 1
+		//    - 增加文件描述符限制：ulimit -n 65535
+		dialer := &net.Dialer{
+			Timeout: connectTimeout,
+			// LocalAddr 设为 nil，让系统自动分配可用端口
+			// 系统会根据 ip_local_port_range 分配端口
+			LocalAddr: nil,
+		}
+
+		attemptStartTime := time.Now()
+		var err error
+		conn, err = dialer.DialContext(ctx, "tcp", serverAddr)
+		attemptDuration := time.Since(attemptStartTime)
+
+		if err == nil {
+			// 连接成功
+			totalDuration := time.Since(connectStartTime)
+			logger.Info("Successfully created new server connection", map[string]interface{}{
+				"serviceId":       serviceID,
+				"serverAddr":      serverAddr,
+				"attempt":         attempt + 1,
+				"attemptDuration": attemptDuration,
+				"totalDuration":   totalDuration,
+				"localAddr":       conn.LocalAddr().String(),
+				"remoteAddr":      conn.RemoteAddr().String(),
+			})
+
+			// 设置 TCP 选项
+			if tcpConn, ok := conn.(*net.TCPConn); ok {
+				tcpConn.SetKeepAlive(true)
+				tcpConn.SetKeepAlivePeriod(30 * time.Second)
+				tcpConn.SetNoDelay(true)
+			}
+
+			return conn, nil
+		}
+
+		// 连接失败，记录错误
+		lastErr = err
+		logger.Warn("Failed to create server connection (attempt)", map[string]interface{}{
 			"serviceId":       serviceID,
 			"serverAddr":      serverAddr,
+			"attempt":         attempt + 1,
+			"maxRetries":      maxRetries,
 			"error":           err.Error(),
-			"connectDuration": connectDuration,
-			"timestamp":       time.Now(),
+			"attemptDuration": attemptDuration,
+			"willRetry":       attempt < maxRetries,
 		})
-		return nil, fmt.Errorf("failed to connect to server: %w", err)
+
+		// 检查上下文是否已取消
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("context cancelled: %w", ctx.Err())
+		}
 	}
 
-	// 设置 TCP 选项
-	if tcpConn, ok := conn.(*net.TCPConn); ok {
-		tcpConn.SetKeepAlive(true)
-		tcpConn.SetKeepAlivePeriod(30 * time.Second)
-		tcpConn.SetNoDelay(true)
-	}
-
-	logger.Info("Successfully created new server connection", map[string]interface{}{
-		"serviceId":       serviceID,
-		"serverAddr":      serverAddr,
-		"connectDuration": connectDuration,
-		"localAddr":       conn.LocalAddr().String(),
-		"remoteAddr":      conn.RemoteAddr().String(),
+	// 所有重试都失败
+	totalDuration := time.Since(connectStartTime)
+	logger.Error("Failed to create new server connection after all retries", map[string]interface{}{
+		"serviceId":     serviceID,
+		"serverAddr":    serverAddr,
+		"maxRetries":    maxRetries,
+		"totalDuration": totalDuration,
+		"error":         lastErr.Error(),
 	})
 
-	return conn, nil
+	return nil, fmt.Errorf("failed to connect to server after %d attempts: %w", maxRetries+1, lastErr)
 }
 
 // sendDataConnectionHandshake 发送数据连接握手消息

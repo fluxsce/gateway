@@ -239,6 +239,9 @@ func (h *WebSocketUpgradeHandler) proxyWebSocketUpgrade(ctx *core.Context, node 
 		atomic.AddInt64(&h.stats.FailedUpgrades, 1)
 		return fmt.Errorf("HTTP协议升级为WebSocket失败: %w", err)
 	}
+	// 重要：连接已被 hijack，立即标记为已响应，防止后续错误处理尝试写入 HTTP 响应
+	// 一旦连接被 hijack，就不能再使用标准的 HTTP 响应方法（WriteHeader、Write 等）
+	ctx.SetResponded()
 	// 确保客户端连接在异常情况下能正确关闭，防止资源泄露
 	defer func() {
 		if clientConn != nil {
@@ -288,8 +291,8 @@ func (h *WebSocketUpgradeHandler) proxyWebSocketUpgrade(ctx *core.Context, node 
 		ctx.Set(constants.GatewayStatusCode, resp.StatusCode)
 	}
 
-	// 标记响应已处理
-	ctx.SetResponded()
+	// 注意：响应已在第244行（升级成功后）标记为已处理
+	// 这里不需要再次设置，因为连接已被 hijack，不能再使用标准 HTTP 响应方法
 
 	// 第四步：创建连接管理对象，用于生命周期管理
 	connCtx, cancel := context.WithCancel(context.Background())

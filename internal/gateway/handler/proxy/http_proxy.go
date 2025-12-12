@@ -318,6 +318,14 @@ func (h *HTTPProxy) handleWebSocketUpgrade(ctx *core.Context) bool {
 	err := h.wsUpgradeHandler.HandleWebSocketUpgrade(ctx, h.GetName(), h.GetType())
 	if err != nil {
 		ctx.AddError(fmt.Errorf("代理WebSocket升级请求失败: %w", err))
+		// 如果连接已被 hijack（WebSocket 升级成功），不能再使用标准的 HTTP 响应方法
+		// 此时应该直接返回，连接会在 WebSocket 升级处理器中关闭
+		if ctx.IsResponded() {
+			// 连接已被 hijack，不能调用 Abort，直接返回
+			ctx.Set(constants.GatewayStatusCode, constants.GatewayStatusBadGateway)
+			return false
+		}
+		// 如果升级失败（连接未被 hijack），可以正常返回错误响应
 		ctx.Abort(http.StatusBadGateway, map[string]string{
 			"error": "代理WebSocket升级请求失败",
 		})
@@ -464,21 +472,64 @@ func (h *HTTPProxy) handleSSEResponse(ctx *core.Context, resp *http.Response) er
 	// 使用较小的缓冲区确保实时性（类似nginx proxy_buffering off）
 	buffer := make([]byte, 1024) // 1KB缓冲区
 
+	var clientClosed bool
+	var lastError error
+
 	for {
 		n, err := resp.Body.Read(buffer)
 		if n > 0 {
 			if _, writeErr := ctx.Writer.Write(buffer[:n]); writeErr != nil {
-				return fmt.Errorf("写入SSE数据失败: %w", writeErr)
+				// 关键修复：记录客户端关闭连接的错误，但不返回错误
+				// 返回错误会导致 chunked 编码不完整，浏览器会报 ERR_INCOMPLETE_CHUNKED_ENCODING
+				// 客户端关闭连接是正常行为（用户关闭页面等），应该优雅处理
+				// 记录错误用于监控和诊断，但不返回错误，让 Go 的 HTTP 服务器正确处理 chunked 编码的结束
+				errMsg := writeErr.Error()
+				if strings.Contains(errMsg, "broken pipe") ||
+					strings.Contains(errMsg, "connection reset") ||
+					strings.Contains(errMsg, "use of closed network connection") {
+					// 客户端关闭连接，记录错误但不返回
+					clientClosed = true
+					lastError = writeErr
+					ctx.AddError(fmt.Errorf("SSE client closed connection: %w", writeErr))
+					break
+				}
+				// 其他写入错误，也记录但不返回
+				lastError = writeErr
+				ctx.AddError(fmt.Errorf("SSE write error: %w", writeErr))
+				break
 			}
 			// 每次写入后立即刷新，确保数据实时到达客户端
 			flusher.Flush()
 		}
 		if err != nil {
 			if err == io.EOF {
-				break // 正常结束
+				// 服务器端正常结束
+				break
 			}
-			return fmt.Errorf("读取SSE数据失败: %w", err)
+			// 关键修复：记录读取错误，但不返回错误
+			// 返回错误会导致 chunked 编码不完整
+			errMsg := err.Error()
+			if strings.Contains(errMsg, "broken pipe") ||
+				strings.Contains(errMsg, "connection reset") ||
+				strings.Contains(errMsg, "use of closed network connection") {
+				// 客户端关闭连接，记录错误但不返回
+				clientClosed = true
+				lastError = err
+				ctx.AddError(fmt.Errorf("SSE client closed connection during read: %w", err))
+				break
+			}
+			// 其他读取错误，也记录但不返回
+			lastError = err
+			ctx.AddError(fmt.Errorf("SSE read error: %w", err))
+			break
 		}
+	}
+
+	// 如果客户端关闭连接，记录日志但不返回错误
+	// 这样可以确保 chunked 编码正确结束，避免 ERR_INCOMPLETE_CHUNKED_ENCODING 错误
+	if clientClosed && lastError != nil {
+		// 错误已通过 ctx.AddError 记录，这里不返回错误
+		// 让 Go 的 HTTP 服务器正确处理 chunked 编码的结束
 	}
 
 	// 只在成功处理完SSE流后设置响应时间
