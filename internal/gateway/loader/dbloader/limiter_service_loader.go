@@ -240,8 +240,56 @@ func (loader *LimiterServiceLoader) LoadProxyConfig(ctx context.Context, instanc
 		return nil, fmt.Errorf("查询代理配置失败: %w", err)
 	}
 
-	// 如果没有找到记录，返回nil
+	// 如果没有找到记录，尝试加载使用全局代理配置的服务（proxyConfigId = gatewayInstanceId）
+	// 兼容历史逻辑：即使没有代理配置记录，也可能存在使用全局代理配置的服务
 	if len(records) == 0 {
+		// 一次性查询所有使用全局代理配置的服务配置数据，避免重复查询
+		serviceQuery := `
+			SELECT tenantId, serviceDefinitionId, serviceName, serviceDesc, serviceType,
+			       loadBalanceStrategy, discoveryType, discoveryConfig, sessionAffinity,
+			       stickySession, maxRetries, retryTimeoutMs, enableCircuitBreaker,
+			       healthCheckEnabled, healthCheckPath, healthCheckMethod,
+			       healthCheckIntervalSeconds, healthCheckTimeoutMs, healthyThreshold,
+			       unhealthyThreshold, expectedStatusCodes, healthCheckHeaders,
+			       loadBalancerConfig, serviceMetadata, activeFlag
+			FROM HUB_GW_SERVICE_DEFINITION 
+			WHERE tenantId = ? AND activeFlag = 'Y' AND proxyConfigId = ?
+		`
+		var serviceRecords []ServiceConfigRecord
+		err = loader.db.Query(ctx, &serviceRecords, serviceQuery, []interface{}{loader.tenantId, instanceId}, true)
+		if err != nil && err != database.ErrRecordNotFound {
+			// 如果查询服务失败，记录警告但不阻止返回nil（使用默认配置）
+			// logger.Warn("查询全局代理配置服务失败", "error", err)
+		}
+
+		// 如果存在使用全局代理配置的服务，创建代理配置并返回
+		if len(serviceRecords) > 0 {
+			proxyConf := &proxy.ProxyConfig{
+				ID:      instanceId, // 使用 gatewayInstanceId 作为代理配置ID
+				Name:    "Default Proxy Config",
+				Enabled: true,
+				Type:    proxy.ProxyTypeHTTP, // 默认HTTP类型
+			}
+
+			// 构建服务配置
+			proxyConf.Service = make([]*service.ServiceConfig, 0, len(serviceRecords))
+			for _, serviceRecord := range serviceRecords {
+				serviceConfig := loader.buildServiceConfigFromRecord(serviceRecord)
+				if serviceConfig != nil {
+					// 加载服务节点
+					nodes, err := loader.LoadServiceNodes(ctx, serviceRecord.ServiceDefinitionId)
+					if err != nil {
+						return nil, fmt.Errorf("加载服务节点失败: %w", err)
+					}
+					serviceConfig.Nodes = nodes
+					proxyConf.Service = append(proxyConf.Service, serviceConfig)
+				}
+			}
+
+			return proxyConf, nil
+		}
+
+		// 如果既没有代理配置也没有服务，返回nil使用默认配置
 		return nil, nil
 	}
 
@@ -283,27 +331,38 @@ func (loader *LimiterServiceLoader) LoadProxyConfig(ctx context.Context, instanc
 	}
 
 	// 查询关联的服务配置 - 从服务定义表中查找关联到这个代理的服务
+	// 兼容性处理：同时查询 proxyConfigId = proxyConfigId 和 proxyConfigId = gatewayInstanceId 的服务
+	// 以支持全局代理配置（proxyConfigId 直接等于 gatewayInstanceId）和历史逻辑
+	// 优化：一次性查询所有服务配置数据，避免重复查询
 	serviceQuery := `
-		SELECT serviceDefinitionId 
+		SELECT DISTINCT tenantId, serviceDefinitionId, serviceName, serviceDesc, serviceType,
+		       loadBalanceStrategy, discoveryType, discoveryConfig, sessionAffinity,
+		       stickySession, maxRetries, retryTimeoutMs, enableCircuitBreaker,
+		       healthCheckEnabled, healthCheckPath, healthCheckMethod,
+		       healthCheckIntervalSeconds, healthCheckTimeoutMs, healthyThreshold,
+		       unhealthyThreshold, expectedStatusCodes, healthCheckHeaders,
+		       loadBalancerConfig, serviceMetadata, activeFlag
 		FROM HUB_GW_SERVICE_DEFINITION 
-		WHERE tenantId = ? AND proxyConfigId = ? AND activeFlag = 'Y'
+		WHERE tenantId = ? AND activeFlag = 'Y' 
+		AND (proxyConfigId = ? OR proxyConfigId = ?)
 	`
-	var serviceIds []struct {
-		ServiceDefinitionId string `db:"serviceDefinitionId"`
-	}
-	err = loader.db.Query(ctx, &serviceIds, serviceQuery, []interface{}{loader.tenantId, record.ProxyConfigId}, true)
+	var serviceRecords []ServiceConfigRecord
+	err = loader.db.Query(ctx, &serviceRecords, serviceQuery, []interface{}{loader.tenantId, record.ProxyConfigId, instanceId}, true)
 	if err != nil && err != database.ErrRecordNotFound {
 		return nil, fmt.Errorf("查询代理关联的服务失败: %w", err)
 	}
 
-	if len(serviceIds) > 0 {
-		proxyConf.Service = make([]*service.ServiceConfig, 0, len(serviceIds))
-		for _, record := range serviceIds {
-			serviceConfig, err := loader.LoadServiceConfig(ctx, record.ServiceDefinitionId)
-			if err != nil {
-				return nil, fmt.Errorf("加载服务配置失败: %w", err)
-			}
+	if len(serviceRecords) > 0 {
+		proxyConf.Service = make([]*service.ServiceConfig, 0, len(serviceRecords))
+		for _, serviceRecord := range serviceRecords {
+			serviceConfig := loader.buildServiceConfigFromRecord(serviceRecord)
 			if serviceConfig != nil {
+				// 加载服务节点
+				nodes, err := loader.LoadServiceNodes(ctx, serviceRecord.ServiceDefinitionId)
+				if err != nil {
+					return nil, fmt.Errorf("加载服务节点失败: %w", err)
+				}
+				serviceConfig.Nodes = nodes
 				proxyConf.Service = append(proxyConf.Service, serviceConfig)
 			}
 		}
@@ -312,29 +371,8 @@ func (loader *LimiterServiceLoader) LoadProxyConfig(ctx context.Context, instanc
 	return proxyConf, nil
 }
 
-// LoadServiceConfig 加载服务配置
-func (loader *LimiterServiceLoader) LoadServiceConfig(ctx context.Context, serviceId string) (*service.ServiceConfig, error) {
-	query := `
-		SELECT tenantId, serviceDefinitionId, serviceName, serviceDesc, serviceType,
-		       loadBalanceStrategy, discoveryType, discoveryConfig, sessionAffinity,
-		       stickySession, maxRetries, retryTimeoutMs, enableCircuitBreaker,
-		       healthCheckEnabled, healthCheckPath, healthCheckMethod,
-		       healthCheckIntervalSeconds, healthCheckTimeoutMs, healthyThreshold,
-		       unhealthyThreshold, expectedStatusCodes, healthCheckHeaders,
-		       loadBalancerConfig, serviceMetadata, activeFlag
-		FROM HUB_GW_SERVICE_DEFINITION 
-		WHERE tenantId = ? AND serviceDefinitionId = ? AND activeFlag = 'Y'
-	`
-
-	var record ServiceConfigRecord
-	err := loader.db.QueryOne(ctx, &record, query, []interface{}{loader.tenantId, serviceId}, true)
-	if err != nil {
-		if err == database.ErrRecordNotFound {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("查询服务配置失败: %w", err)
-	}
-
+// buildServiceConfigFromRecord 从数据库记录构建服务配置（内部辅助方法，不包含节点数据）
+func (loader *LimiterServiceLoader) buildServiceConfigFromRecord(record ServiceConfigRecord) *service.ServiceConfig {
 	// 构建服务配置
 	serviceConf := &service.ServiceConfig{
 		ID:   record.ServiceDefinitionId,
@@ -369,8 +407,9 @@ func (loader *LimiterServiceLoader) LoadServiceConfig(ctx context.Context, servi
 		RetryTimeout:    time.Duration(record.RetryTimeoutMs) * time.Millisecond,
 		CircuitBreaker:  record.EnableCircuitBreaker == "Y",
 	}
+	serviceConf.LoadBalancer = lbConfig
 
-	// 设置健康检查配置
+	// 设置健康检查配置（服务级别配置）
 	if record.HealthCheckEnabled == "Y" {
 		healthCheck := &service.HealthConfig{
 			ID:                  fmt.Sprintf("hc-%s", record.ServiceDefinitionId),
@@ -406,10 +445,8 @@ func (loader *LimiterServiceLoader) LoadServiceConfig(ctx context.Context, servi
 			}
 		}
 
-		lbConfig.HealthCheck = healthCheck
+		serviceConf.HealthCheck = healthCheck
 	}
-
-	serviceConf.LoadBalancer = lbConfig
 
 	// 解析服务元数据
 	if record.ServiceMetadata != nil && *record.ServiceMetadata != "" {
@@ -447,6 +484,36 @@ func (loader *LimiterServiceLoader) LoadServiceConfig(ctx context.Context, servi
 			serviceConf.ServiceMetadata["tenantId"] = record.TenantId
 		}
 	}
+
+	return serviceConf
+}
+
+// LoadServiceConfig 加载单个服务配置（通过服务ID）
+// 用于需要单独加载服务配置的场景
+func (loader *LimiterServiceLoader) LoadServiceConfig(ctx context.Context, serviceId string) (*service.ServiceConfig, error) {
+	query := `
+		SELECT tenantId, serviceDefinitionId, serviceName, serviceDesc, serviceType,
+		       loadBalanceStrategy, discoveryType, discoveryConfig, sessionAffinity,
+		       stickySession, maxRetries, retryTimeoutMs, enableCircuitBreaker,
+		       healthCheckEnabled, healthCheckPath, healthCheckMethod,
+		       healthCheckIntervalSeconds, healthCheckTimeoutMs, healthyThreshold,
+		       unhealthyThreshold, expectedStatusCodes, healthCheckHeaders,
+		       loadBalancerConfig, serviceMetadata, activeFlag
+		FROM HUB_GW_SERVICE_DEFINITION 
+		WHERE tenantId = ? AND serviceDefinitionId = ? AND activeFlag = 'Y'
+	`
+
+	var record ServiceConfigRecord
+	err := loader.db.QueryOne(ctx, &record, query, []interface{}{loader.tenantId, serviceId}, true)
+	if err != nil {
+		if err == database.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("查询服务配置失败: %w", err)
+	}
+
+	// 构建服务配置（使用辅助方法）
+	serviceConf := loader.buildServiceConfigFromRecord(record)
 
 	// 加载服务节点
 	nodes, err := loader.LoadServiceNodes(ctx, serviceId)

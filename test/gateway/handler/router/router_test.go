@@ -211,8 +211,9 @@ func TestRouterHandler(t *testing.T) {
 				assert.Equal(t, tt.expectedRoute, routeID, "路由ID应该匹配")
 
 				// 验证服务ID也被设置
-				serviceID := ctx.GetServiceID()
-				assert.NotEmpty(t, serviceID, "服务ID应该被设置")
+				serviceIDs := ctx.GetServiceIDs()
+				assert.NotEmpty(t, serviceIDs, "服务ID数组应该被设置")
+				assert.Greater(t, len(serviceIDs), 0, "服务ID数组应该至少包含1个元素")
 			} else {
 				assert.False(t, result, tt.description)
 			}
@@ -404,8 +405,9 @@ func TestRoutePriority(t *testing.T) {
 	routeID := ctx.GetRouteID()
 	assert.Equal(t, "high-priority-route", routeID, "应该匹配高优先级路由")
 
-	serviceID := ctx.GetServiceID()
-	assert.Equal(t, "service-high", serviceID, "应该设置高优先级路由的服务ID")
+	serviceIDs := ctx.GetServiceIDs()
+	assert.Len(t, serviceIDs, 1, "服务ID数组应该包含1个元素")
+	assert.Equal(t, "service-high", serviceIDs[0], "应该设置高优先级路由的服务ID")
 }
 
 func TestDisabledRoute(t *testing.T) {

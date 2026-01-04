@@ -71,8 +71,8 @@ func (dao *GatewayInstanceDAO) ListAllGatewayInstances(ctx context.Context, page
 
 // GetGatewayInstanceById 根据ID获取网关实例
 func (dao *GatewayInstanceDAO) GetGatewayInstanceById(ctx context.Context, gatewayInstanceId, tenantId string) (*models.GatewayInstance, error) {
-	if gatewayInstanceId == "" || tenantId == "" {
-		return nil, errors.New("gatewayInstanceId和tenantId不能为空")
+	if gatewayInstanceId == "" {
+		return nil, errors.New("gatewayInstanceId不能为空")
 	}
 
 	query := `
@@ -94,8 +94,8 @@ func (dao *GatewayInstanceDAO) GetGatewayInstanceById(ctx context.Context, gatew
 
 // DeleteGatewayInstance 物理删除网关实例
 func (dao *GatewayInstanceDAO) DeleteGatewayInstance(ctx context.Context, gatewayInstanceId, tenantId, operatorId string) error {
-	if gatewayInstanceId == "" || tenantId == "" {
-		return errors.New("gatewayInstanceId和tenantId不能为空")
+	if gatewayInstanceId == "" {
+		return errors.New("gatewayInstanceId不能为空")
 	}
 
 	// 检查网关实例是否存在
@@ -125,10 +125,6 @@ func (dao *GatewayInstanceDAO) DeleteGatewayInstance(ctx context.Context, gatewa
 
 // QueryGatewayInstances 获取租户下的网关实例列表（支持分页和筛选）
 func (dao *GatewayInstanceDAO) QueryGatewayInstances(ctx context.Context, tenantId string, page, pageSize int, filters map[string]interface{}) ([]*models.GatewayInstance, int, error) {
-	if tenantId == "" {
-		return nil, 0, errors.New("tenantId不能为空")
-	}
-
 	// 构建基础查询条件
 	whereClause := "WHERE tenantId = ?"
 	params := []interface{}{tenantId}

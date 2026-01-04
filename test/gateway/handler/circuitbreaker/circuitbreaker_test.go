@@ -453,10 +453,12 @@ func TestCircuitBreakerContextIntegration(t *testing.T) {
 	ctx := core.NewContext(writer, req)
 
 	// 设置服务ID用于键生成
-	ctx.SetServiceID("test-service")
+	ctx.SetServiceIDs([]string{"test-service"})
 
 	// 验证上下文设置
-	assert.Equal(t, "test-service", ctx.GetServiceID())
+	serviceIDs := ctx.GetServiceIDs()
+	assert.Len(t, serviceIDs, 1, "服务ID数组应该包含1个元素")
+	assert.Equal(t, "test-service", serviceIDs[0])
 }
 
 // 基准测试
@@ -495,12 +497,17 @@ func BenchmarkCircuitBreakerKeyGeneration(b *testing.B) {
 	req := httptest.NewRequest("GET", "/api/test", nil)
 	writer := httptest.NewRecorder()
 	ctx := core.NewContext(writer, req)
-	ctx.SetServiceID("test-service")
+	ctx.SetServiceIDs([]string{"test-service"})
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// 模拟键生成
-		key := "cb:" + config.KeyStrategy + ":" + ctx.GetServiceID()
+		serviceIDs := ctx.GetServiceIDs()
+		serviceID := ""
+		if len(serviceIDs) > 0 {
+			serviceID = serviceIDs[0]
+		}
+		key := "cb:" + config.KeyStrategy + ":" + serviceID
 		_ = key
 	}
 }

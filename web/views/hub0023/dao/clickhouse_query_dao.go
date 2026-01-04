@@ -319,3 +319,44 @@ func (dao *ClickHouseQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLo
 
 	return whereClause, params, nil
 }
+
+// GetBackendTracesByTraceID 根据租户ID和链路追踪ID获取后端追踪日志列表（ClickHouse版本）
+func (dao *ClickHouseQueryDAO) GetBackendTracesByTraceID(ctx context.Context, tenantID, traceID string) ([]models.BackendTraceLog, error) {
+	// 验证参数
+	if tenantID == "" {
+		return nil, huberrors.NewError("租户ID不能为空")
+	}
+	if traceID == "" {
+		return nil, huberrors.NewError("链路追踪ID不能为空")
+	}
+
+	// 构建ClickHouse查询SQL
+	sql := `
+		SELECT tenantId, traceId, backendTraceId, serviceDefinitionId, serviceName,
+			   forwardAddress, forwardMethod, forwardPath, forwardQuery, 
+			   forwardHeaders, forwardBody, requestSize,
+			   loadBalancerStrategy, loadBalancerDecision,
+			   requestStartTime, responseReceivedTime, requestDurationMs,
+			   statusCode, responseSize, responseHeaders, responseBody,
+			   errorCode, errorMessage, successFlag, traceStatus, retryCount,
+			   extProperty, addTime, addWho, editTime, editWho, 
+			   oprSeqFlag, currentVersion, activeFlag, noteText
+		FROM HUB_GW_BACKEND_TRACE_LOG
+		WHERE tenantId = ? AND traceId = ? AND activeFlag = 'Y'
+		ORDER BY requestStartTime ASC
+	`
+
+	var logs []models.BackendTraceLog
+	err := dao.db.Query(ctx, &logs, sql, []interface{}{tenantID, traceID}, true)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "ClickHouse后端追踪日志查询失败", "tenantId", tenantID, "traceId", traceID, "error", err)
+		return nil, huberrors.WrapError(err, "ClickHouse后端追踪日志查询失败")
+	}
+
+	// 即使没有记录也返回空列表，不返回错误
+	if logs == nil {
+		logs = []models.BackendTraceLog{}
+	}
+
+	return logs, nil
+}

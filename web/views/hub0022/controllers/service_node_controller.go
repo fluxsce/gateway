@@ -47,10 +47,6 @@ func (c *ServiceNodeController) QueryServiceNodes(ctx *gin.Context) {
 
 	// 从上下文获取租户ID
 	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
 
 	// 构建筛选条件
 	filters := make(map[string]interface{})
@@ -102,19 +98,9 @@ func (c *ServiceNodeController) AddServiceNode(ctx *gin.Context) {
 		return
 	}
 
-	// 获取操作人信息
+	// 获取操作人信息和租户信息
 	operatorId := request.GetOperatorID(ctx)
-	if operatorId == "" {
-		response.ErrorJSON(ctx, "无法获取操作人信息", constants.ED00007)
-		return
-	}
-
-	// 获取租户信息
 	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
 
 	// 设置租户ID
 	serviceNode.TenantId = tenantId
@@ -200,16 +186,6 @@ func (c *ServiceNodeController) EditServiceNode(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
 
-	// 验证上下文中的必要信息
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	if operatorId == "" {
-		response.ErrorJSON(ctx, "无法获取操作人信息", constants.ED00007)
-		return
-	}
-
 	// 获取现有服务节点信息
 	currentServiceNode, err := c.serviceNodeDAO.GetServiceNodeById(ctx, updateData.ServiceNodeId, tenantId)
 	if err != nil {
@@ -283,16 +259,6 @@ func (c *ServiceNodeController) DeleteServiceNode(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
 
-	// 验证上下文中的必要信息
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	if operatorId == "" {
-		response.ErrorJSON(ctx, "无法获取操作人信息", constants.ED00007)
-		return
-	}
-
 	// 先查询服务节点是否存在
 	existingServiceNode, err := c.serviceNodeDAO.GetServiceNodeById(ctx, req.ServiceNodeId, tenantId)
 	if err != nil {
@@ -352,10 +318,6 @@ func (c *ServiceNodeController) GetServiceNode(ctx *gin.Context) {
 
 	// 获取租户ID
 	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
 
 	// 调用DAO获取服务节点详情
 	serviceNode, err := c.serviceNodeDAO.GetServiceNodeById(ctx, req.ServiceNodeId, tenantId)
@@ -405,16 +367,6 @@ func (c *ServiceNodeController) UpdateNodeHealth(ctx *gin.Context) {
 	// 获取租户ID和操作人ID
 	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
-
-	// 验证上下文中的必要信息
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	if operatorId == "" {
-		response.ErrorJSON(ctx, "无法获取操作人信息", constants.ED00007)
-		return
-	}
 
 	// 调用DAO更新节点健康状态
 	err := c.serviceNodeDAO.UpdateNodeHealth(ctx, req.ServiceNodeId, tenantId, req.HealthStatus, req.HealthCheckResult, operatorId)

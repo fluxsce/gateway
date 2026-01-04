@@ -85,7 +85,7 @@ func (loader *DatabaseConfigLoader) LoadGatewayConfig(instanceId string) (*confi
 	}
 
 	// 5. 加载安全配置
-	securityConfig, err := loader.securityLoader.LoadSecurityConfig(ctx, instanceId)
+	securityConfig, err := loader.securityLoader.LoadSecurityConfigByInstanceId(ctx, instanceId)
 	if err != nil {
 		logger.Warn("加载安全配置失败，使用默认配置", "error", err)
 		gatewayConfig.Security = security.DefaultSecurityConfig

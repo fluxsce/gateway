@@ -1,0 +1,50 @@
+
+-- 4. Router配置表
+CREATE TABLE IF NOT EXISTS HUB_GW_ROUTER_CONFIG (
+    tenantId TEXT NOT NULL,
+    routerConfigId TEXT NOT NULL,
+    gatewayInstanceId TEXT NOT NULL,
+    routerName TEXT NOT NULL,
+    routerDesc TEXT,
+    defaultPriority INTEGER NOT NULL DEFAULT 100,
+    enableRouteCache TEXT NOT NULL DEFAULT 'Y',
+    routeCacheTtlSeconds INTEGER NOT NULL DEFAULT 300,
+    maxRoutes INTEGER DEFAULT 1000,
+    routeMatchTimeout INTEGER DEFAULT 100,
+    enableStrictMode TEXT NOT NULL DEFAULT 'N',
+    enableMetrics TEXT NOT NULL DEFAULT 'Y',
+    enableTracing TEXT NOT NULL DEFAULT 'N',
+    caseSensitive TEXT NOT NULL DEFAULT 'Y',
+    removeTrailingSlash TEXT NOT NULL DEFAULT 'Y',
+    enableGlobalFilters TEXT NOT NULL DEFAULT 'Y',
+    filterExecutionMode TEXT NOT NULL DEFAULT 'SEQUENTIAL',
+    maxFilterChainDepth INTEGER DEFAULT 50,
+    enableRoutePooling TEXT NOT NULL DEFAULT 'N',
+    routePoolSize INTEGER DEFAULT 100,
+    enableAsyncProcessing TEXT NOT NULL DEFAULT 'N',
+    enableFallback TEXT NOT NULL DEFAULT 'Y',
+    fallbackRoute TEXT,
+    notFoundStatusCode INTEGER NOT NULL DEFAULT 404,
+    notFoundMessage TEXT DEFAULT 'Route not found',
+    routerMetadata TEXT,
+    customConfig TEXT,
+    reserved1 TEXT,
+    reserved2 TEXT,
+    reserved3 INTEGER,
+    reserved4 INTEGER,
+    reserved5 DATETIME,
+    extProperty TEXT,
+    addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    addWho TEXT NOT NULL,
+    editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    editWho TEXT NOT NULL,
+    oprSeqFlag TEXT NOT NULL,
+    currentVersion INTEGER NOT NULL DEFAULT 1,
+    activeFlag TEXT NOT NULL DEFAULT 'Y',
+    noteText TEXT,
+    PRIMARY KEY (tenantId, routerConfigId)
+);
+CREATE INDEX IDX_GW_ROUTER_INST ON HUB_GW_ROUTER_CONFIG(gatewayInstanceId);
+CREATE INDEX IDX_GW_ROUTER_NAME ON HUB_GW_ROUTER_CONFIG(routerName);
+CREATE INDEX IDX_GW_ROUTER_ACTIVE ON HUB_GW_ROUTER_CONFIG(activeFlag);
+CREATE INDEX IDX_GW_ROUTER_CACHE ON HUB_GW_ROUTER_CONFIG(enableRouteCache);

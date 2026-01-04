@@ -226,29 +226,43 @@ import (
 
 // controlConnection 控制连接实现
 // 实现 ControlConnection 接口，管理与服务器的控制通道
+// 同时负责代理连接的处理（proxy handler）
 type controlConnection struct {
 	client    *tunnelClient
-	conn      net.Conn
-	connMutex sync.RWMutex
-	connected bool
-	connInfo  *ConnectionInfo
+	conn      net.Conn     // TCP连接对象，nil 表示未连接
+	connMutex sync.RWMutex // 保护 conn 和 writer
 
-	// 消息处理
-	sendChan    chan *types.ControlMessage
+	// 消息接收（异步）
 	receiveChan chan *types.ControlMessage
 
 	// 请求-响应追踪
 	pendingRequests map[string]chan *types.ControlMessage
 	requestMutex    sync.RWMutex
 
-	// 关键修复：使用 bufio 确保消息发送的原子性，避免TCP粘包/拆包问题
+	// 消息发送（同步，使用 bufio.Writer 确保原子性）
 	writer      *bufio.Writer
 	writerMutex sync.Mutex // 保护 writer 的写入操作
+
+	// 代理处理（proxy handler）
+	activeProxies map[string]*proxyInstance
+	proxyMutex    sync.RWMutex
 
 	// 控制状态
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+}
+
+// proxyInstance 代理实例
+type proxyInstance struct {
+	serviceID    string
+	service      *types.TunnelService
+	remotePort   int
+	startTime    time.Time
+	connections  int32
+	totalConns   int64
+	totalTraffic int64
+	mutex        sync.RWMutex
 }
 
 // NewControlConnection 创建控制连接实例
@@ -267,10 +281,10 @@ func NewControlConnection(client *tunnelClient) ControlConnection {
 
 	return &controlConnection{
 		client:          client,
-		connected:       false,
-		sendChan:        make(chan *types.ControlMessage, 100),
+		conn:            nil, // 初始未连接
 		receiveChan:     make(chan *types.ControlMessage, 100),
 		pendingRequests: make(map[string]chan *types.ControlMessage),
+		activeProxies:   make(map[string]*proxyInstance),
 		ctx:             ctx,
 		cancel:          cancel,
 	}
@@ -278,13 +292,18 @@ func NewControlConnection(client *tunnelClient) ControlConnection {
 
 // Connect 连接到服务器控制端口
 func (cc *controlConnection) Connect(ctx context.Context, serverAddress string, serverPort int) error {
-	// 先检查是否已连接（不持有锁的情况下）
+	// 先检查是否已连接
 	cc.connMutex.Lock()
-	if cc.connected {
+	if cc.conn != nil {
 		cc.connMutex.Unlock()
 		return fmt.Errorf("already connected")
 	}
 	cc.connMutex.Unlock()
+
+	// 关键修复：重新创建 context，避免使用已取消的 context
+	// 如果之前的连接尝试失败并调用了 cleanupConnection()，cc.ctx 会被取消
+	// 重新连接时需要创建新的 context
+	cc.ctx, cc.cancel = context.WithCancel(context.Background())
 
 	// 建立TCP连接（不持有锁）
 	addr := net.JoinHostPort(serverAddress, fmt.Sprintf("%d", serverPort))
@@ -293,65 +312,75 @@ func (cc *controlConnection) Connect(ctx context.Context, serverAddress string, 
 		return fmt.Errorf("failed to connect to %s: %w", addr, err)
 	}
 
-	// 记录连接信息
-	localAddr := conn.LocalAddr().(*net.TCPAddr)
-	remoteAddr := conn.RemoteAddr().(*net.TCPAddr)
-
-	connInfo := &ConnectionInfo{
-		LocalAddress:  localAddr.IP.String(),
-		LocalPort:     localAddr.Port,
-		RemoteAddress: remoteAddr.IP.String(),
-		RemotePort:    remoteAddr.Port,
-		ConnectedAt:   time.Now(),
-		LastActivity:  time.Now(),
-		BytesSent:     0,
-		BytesReceived: 0,
-	}
-
 	// 设置连接和状态（持有锁的时间最短）
 	cc.connMutex.Lock()
 	cc.conn = conn
-	cc.connInfo = connInfo
-	cc.connected = true
 	// 关键修复：创建 bufio.Writer 确保消息发送的原子性
 	// 这样可以避免TCP粘包/拆包问题，确保长度和数据作为一个整体发送
 	cc.writer = bufio.NewWriter(conn)
 	cc.connMutex.Unlock()
 
-	// 启动消息处理协程（不持有锁）
-	cc.wg.Add(2)
-	go cc.sendLoop()
+	// 启动消息接收协程（不持有锁）
+	cc.wg.Add(1)
 	go cc.receiveLoop()
+
+	// 关键修复：在发送认证消息之前启动消息处理循环
+	// 这样才能处理认证响应消息，避免等待超时
+	cc.wg.Add(1)
+	go cc.messageProcessLoop()
 
 	// 等待一小段时间确保协程启动
 	time.Sleep(10 * time.Millisecond)
 
-	// 发送认证消息（不持有锁）
-	authMsg := &types.ControlMessage{
-		Type:      types.MessageTypeAuth,
-		SessionID: cc.generateRequestID(),
-		Data: map[string]interface{}{
-			"clientId": cc.client.config.TunnelClientId,
-			"token":    cc.client.config.AuthToken,
-		},
-		Timestamp: time.Now(),
-	}
+	// 发送认证消息并等待响应（同步）
+	// 使用完整的 TunnelClient 对象进行认证
+	sessionID := random.GenerateUniqueStringWithPrefix("req_", 24)
+	authMsg := types.NewAuthRequestMessage(sessionID, cc.client.config)
 
-	if err := cc.SendMessage(ctx, authMsg); err != nil {
+	// 关键修复：等待认证响应，确保认证成功后才返回
+	// 参数：waitResponse=true, timeout=30s
+	authResponse, err := cc.SendMessage(ctx, authMsg, true, 30*time.Second)
+	if err != nil {
 		// 认证失败，清理连接
 		cc.cleanupConnection()
-		return fmt.Errorf("failed to send auth message: %w", err)
+		return fmt.Errorf("failed to authenticate: %w", err)
 	}
 
-	// 启动消息处理循环
-	cc.wg.Add(1)
-	go cc.messageProcessLoop()
+	// 检查认证响应
+	if authResponse == nil {
+		cc.cleanupConnection()
+		return fmt.Errorf("authentication response is nil")
+	}
+
+	// 验证响应类型
+	if authResponse.Type != types.MessageTypeResponse {
+		cc.cleanupConnection()
+		return fmt.Errorf("unexpected authentication response type: %s", authResponse.Type)
+	}
+
+	// 关键修复：检查响应中的 success 字段
+	// 服务端发送的错误响应格式：Type=response, Data.success=false
+	success, ok := authResponse.Data["success"].(bool)
+	if !ok {
+		cc.cleanupConnection()
+		return fmt.Errorf("authentication response missing success field")
+	}
+
+	if !success {
+		// 认证失败，提取错误消息
+		errorMsg, _ := authResponse.Data["message"].(string)
+		if errorMsg == "" {
+			errorMsg = "authentication failed (unknown reason)"
+		}
+		cc.cleanupConnection()
+		return fmt.Errorf("authentication failed: %s", errorMsg)
+	}
 
 	logger.Info("Control connection established", map[string]interface{}{
 		"serverAddress": serverAddress,
 		"serverPort":    serverPort,
-		"localAddress":  connInfo.LocalAddress,
-		"localPort":     connInfo.LocalPort,
+		"localAddress":  conn.LocalAddr().String(),
+		"remoteAddress": conn.RemoteAddr().String(),
 	})
 
 	return nil
@@ -361,7 +390,7 @@ func (cc *controlConnection) Connect(ctx context.Context, serverAddress string, 
 func (cc *controlConnection) Disconnect(ctx context.Context) error {
 	// 检查连接状态（短时间持有锁）
 	cc.connMutex.Lock()
-	if !cc.connected {
+	if cc.conn == nil {
 		cc.connMutex.Unlock()
 		return nil
 	}
@@ -387,66 +416,82 @@ func (cc *controlConnection) Disconnect(ctx context.Context) error {
 	}
 }
 
-// SendMessage 发送控制消息（不等待响应）
-func (cc *controlConnection) SendMessage(ctx context.Context, message *types.ControlMessage) error {
-	// 双重检查连接状态
+// SendMessage 发送控制消息
+// 同步发送，直接写入TCP连接
+//
+// 参数:
+//   - ctx: 上下文，用于取消操作
+//   - message: 要发送的控制消息
+//   - waitResponse: 是否等待响应（可选，默认 false）
+//   - timeout: 等待响应的超时时间（仅当 waitResponse 为 true 时有效）
+//
+// 返回:
+//   - *types.ControlMessage: 服务器响应消息（仅当 waitResponse 为 true 时返回）
+//   - error: 错误信息
+//
+// 使用示例:
+//
+//	// 不等待响应（心跳等）
+//	err := cc.SendMessage(ctx, heartbeatMsg)
+//
+//	// 等待响应（服务注册等）
+//	response, err := cc.SendMessage(ctx, registerMsg, true, 10*time.Second)
+func (cc *controlConnection) SendMessage(ctx context.Context, message *types.ControlMessage, options ...interface{}) (*types.ControlMessage, error) {
+	// 检查连接状态
 	if !cc.IsConnected() {
-		// 尝试触发自动重连
-		if cc.client.reconnectManager != nil && !cc.client.reconnectManager.IsReconnecting() {
-			logger.Warn("Connection lost during send, triggering reconnect", map[string]interface{}{
-				"messageType": message.Type,
-			})
-			go func() {
-				if err := cc.client.reconnectManager.TriggerReconnect(context.Background(), "send_message_not_connected"); err != nil {
-					logger.Error("Failed to trigger reconnect from SendMessage", map[string]interface{}{
-						"error": err.Error(),
-					})
-				}
-			}()
-		}
-		return fmt.Errorf("not connected")
-	}
-
-	select {
-	case cc.sendChan <- message:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(5 * time.Second):
-		return fmt.Errorf("send message timeout")
-	}
-}
-
-// SendMessageAndWaitResponse 发送控制消息并等待响应
-// 用于需要同步等待服务器响应的场景（如服务注册、注销）
-func (cc *controlConnection) SendMessageAndWaitResponse(ctx context.Context, message *types.ControlMessage, timeout time.Duration) (*types.ControlMessage, error) {
-	if !cc.IsConnected() {
+		logger.Warn("Connection lost during send", map[string]interface{}{
+			"messageType": message.Type,
+		})
 		return nil, fmt.Errorf("not connected")
 	}
 
-	// 创建响应通道
-	responseChan := make(chan *types.ControlMessage, 1)
-
-	// 注册等待响应
-	cc.requestMutex.Lock()
-	cc.pendingRequests[message.SessionID] = responseChan
-	cc.requestMutex.Unlock()
-
-	// 确保清理
-	defer func() {
-		cc.requestMutex.Lock()
-		delete(cc.pendingRequests, message.SessionID)
-		cc.requestMutex.Unlock()
-		close(responseChan)
-	}()
-
-	// 发送消息
-	select {
-	case cc.sendChan <- message:
-	case <-ctx.Done():
+	// 检查上下文是否已取消
+	if ctx.Err() != nil {
 		return nil, ctx.Err()
-	case <-time.After(5 * time.Second):
-		return nil, fmt.Errorf("send message timeout")
+	}
+
+	// 解析可选参数
+	waitResponse := false
+	timeout := 30 * time.Second // 默认超时30秒
+
+	if len(options) > 0 {
+		if wait, ok := options[0].(bool); ok {
+			waitResponse = wait
+		}
+	}
+	if len(options) > 1 {
+		if t, ok := options[1].(time.Duration); ok {
+			timeout = t
+		}
+	}
+
+	// 如果需要等待响应，注册响应通道
+	var responseChan chan *types.ControlMessage
+	if waitResponse {
+		responseChan = make(chan *types.ControlMessage, 1)
+
+		// 注册等待响应
+		cc.requestMutex.Lock()
+		cc.pendingRequests[message.SessionID] = responseChan
+		cc.requestMutex.Unlock()
+
+		// 确保清理
+		defer func() {
+			cc.requestMutex.Lock()
+			delete(cc.pendingRequests, message.SessionID)
+			cc.requestMutex.Unlock()
+			close(responseChan)
+		}()
+	}
+
+	// 同步发送消息
+	if err := cc.sendMessageDirect(message); err != nil {
+		return nil, fmt.Errorf("failed to send message: %w", err)
+	}
+
+	// 如果不需要等待响应，直接返回
+	if !waitResponse {
+		return nil, nil
 	}
 
 	// 等待响应
@@ -480,44 +525,7 @@ func (cc *controlConnection) ReceiveMessage(ctx context.Context) (*types.Control
 func (cc *controlConnection) IsConnected() bool {
 	cc.connMutex.RLock()
 	defer cc.connMutex.RUnlock()
-	return cc.connected
-}
-
-// GetConnectionInfo 获取连接信息
-func (cc *controlConnection) GetConnectionInfo() *ConnectionInfo {
-	cc.connMutex.RLock()
-	defer cc.connMutex.RUnlock()
-
-	if cc.connInfo == nil {
-		return nil
-	}
-
-	// 返回连接信息副本
-	info := *cc.connInfo
-	return &info
-}
-
-// sendLoop 发送消息循环
-func (cc *controlConnection) sendLoop() {
-	defer cc.wg.Done()
-
-	for {
-		select {
-		case <-cc.ctx.Done():
-			return
-		case msg := <-cc.sendChan:
-			if err := cc.sendMessageDirect(msg); err != nil {
-				logger.Error("Failed to send message", map[string]interface{}{
-					"messageType": msg.Type,
-					"error":       err.Error(),
-				})
-
-				// 发送失败，可能连接有问题
-				cc.handleConnectionError(err)
-				return
-			}
-		}
-	}
+	return cc.conn != nil
 }
 
 // receiveLoop 接收消息循环
@@ -539,7 +547,7 @@ func (cc *controlConnection) receiveLoop() {
 				// 当服务器关闭连接时，读取会返回 EOF，这是正常的行为
 				// 不应该触发连接错误处理，应该正常退出
 				if err == io.EOF {
-					logger.Debug("Control connection closed by server (EOF)", nil)
+					logger.Info("Control connection closed by server (EOF)", nil)
 					return // 正常关闭，不记录错误
 				}
 
@@ -572,6 +580,7 @@ func (cc *controlConnection) receiveLoop() {
 				return
 			default:
 				// 通道满了，丢弃旧消息
+				logger.Warn("receiveChan full, discarding old message", nil)
 				select {
 				case <-cc.receiveChan:
 				default:
@@ -631,9 +640,6 @@ func (cc *controlConnection) sendMessageDirect(message *types.ControlMessage) er
 	if err := writer.Flush(); err != nil {
 		return fmt.Errorf("failed to flush message: %w", err)
 	}
-
-	// 更新连接统计
-	cc.updateConnectionStats(int64(4+len(data)), 0)
 
 	return nil
 }
@@ -835,9 +841,6 @@ func (cc *controlConnection) receiveMessageDirect() (*types.ControlMessage, erro
 		return nil, fmt.Errorf("failed to unmarshal message: %w (possible connection confusion or corrupted data from server)", err)
 	}
 
-	// 更新连接统计
-	cc.updateConnectionStats(0, int64(4+msgLen))
-
 	return &message, nil
 }
 
@@ -855,7 +858,6 @@ func (cc *controlConnection) disconnect() {
 		cc.conn = nil
 	}
 
-	cc.connected = false
 	cc.cancel()
 }
 
@@ -890,7 +892,6 @@ func (cc *controlConnection) cleanupConnection() {
 		cc.conn.Close()
 		cc.conn = nil
 	}
-	cc.connected = false
 	cc.connMutex.Unlock()
 }
 
@@ -900,10 +901,9 @@ func (cc *controlConnection) handleConnectionError(err error) {
 		"error": err.Error(),
 	})
 
-	// 先标记为未连接（短时间持有锁）
+	// 清理连接资源（短时间持有锁）
 	cc.connMutex.Lock()
-	wasConnected := cc.connected
-	cc.connected = false
+	wasConnected := cc.conn != nil
 
 	// 关键修复：清理 writer，避免资源泄露
 	if cc.writer != nil {
@@ -919,33 +919,9 @@ func (cc *controlConnection) handleConnectionError(err error) {
 	}
 	cc.connMutex.Unlock()
 
-	// 只有之前是连接状态才触发重连（避免重复触发）
-	if wasConnected && cc.client.reconnectManager != nil {
-		// 检查是否已经在重连中
-		if !cc.client.reconnectManager.IsReconnecting() {
-			// 在不持有锁的情况下触发重连
-			go func() {
-				if err := cc.client.reconnectManager.TriggerReconnect(context.Background(), "connection_error"); err != nil {
-					logger.Warn("Failed to trigger reconnect", map[string]interface{}{
-						"error": err.Error(),
-					})
-				}
-			}()
-		} else {
-			logger.Debug("Reconnection already in progress, skipping trigger", nil)
-		}
-	}
-}
-
-// updateConnectionStats 更新连接统计
-func (cc *controlConnection) updateConnectionStats(bytesSent, bytesReceived int64) {
-	cc.connMutex.Lock()
-	defer cc.connMutex.Unlock()
-
-	if cc.connInfo != nil {
-		cc.connInfo.BytesSent += bytesSent
-		cc.connInfo.BytesReceived += bytesReceived
-		cc.connInfo.LastActivity = time.Now()
+	// 连接错误会由心跳管理器检测并触发重连
+	if wasConnected {
+		logger.Info("Connection closed, heartbeat will detect and trigger reconnect if needed", nil)
 	}
 }
 
@@ -973,17 +949,6 @@ func (cc *controlConnection) isMessageParseError(err error) bool {
 		strings.Contains(errMsg, "corrupted data")
 }
 
-// generateRequestID 生成请求ID
-//
-// 使用高强度随机字符串生成器，确保在高并发和分布式环境下的唯一性。
-// 生成的ID格式：req_<20位随机字符串>
-//
-// 返回:
-//   - string: 唯一的请求标识符
-func (cc *controlConnection) generateRequestID() string {
-	return fmt.Sprintf("req_%s", random.GenerateRandomString(20))
-}
-
 // Close 关闭控制连接
 func (cc *controlConnection) Close() error {
 	// 先取消上下文（不持有锁）
@@ -998,7 +963,6 @@ func (cc *controlConnection) Close() error {
 		cc.conn.Close()
 		cc.conn = nil
 	}
-	cc.connected = false
 	cc.connMutex.Unlock()
 
 	return nil
@@ -1027,13 +991,14 @@ func (cc *controlConnection) messageProcessLoop() {
 
 // handleMessage 处理控制消息
 func (cc *controlConnection) handleMessage(msg *types.ControlMessage) error {
+	logger.Debug("Handling message", map[string]interface{}{
+		"messageType": msg.Type,
+		"sessionId":   msg.SessionID,
+	})
+
 	switch msg.Type {
 	case types.MessageTypeResponse:
 		return cc.handleResponseMessage(msg)
-	case types.MessageTypeNewProxy:
-		return cc.handleNewProxyMessage(msg)
-	case types.MessageTypeCloseProxy:
-		return cc.handleCloseProxyMessage(msg)
 	case types.MessageTypeProxyRequest:
 		return cc.handleProxyRequestMessage(msg)
 	case types.MessageTypeNotification:
@@ -1060,11 +1025,8 @@ func (cc *controlConnection) handleResponseMessage(msg *types.ControlMessage) er
 		// 将响应发送给等待的协程
 		select {
 		case responseChan <- msg:
-			logger.Debug("Response delivered to waiting request", map[string]interface{}{
-				"sessionId": msg.SessionID,
-			})
 		case <-time.After(1 * time.Second):
-			logger.Warn("Failed to deliver response, channel full or closed", map[string]interface{}{
+			logger.Error("Failed to deliver response, channel full or closed", map[string]interface{}{
 				"sessionId": msg.SessionID,
 			})
 		}
@@ -1072,43 +1034,10 @@ func (cc *controlConnection) handleResponseMessage(msg *types.ControlMessage) er
 		// 没有等待此响应的请求，可能是异步消息或已超时
 		logger.Debug("Received response with no pending request", map[string]interface{}{
 			"sessionId": msg.SessionID,
-			"data":      msg.Data,
 		})
 	}
 
 	return nil
-}
-
-// handleNewProxyMessage 处理新代理消息
-func (cc *controlConnection) handleNewProxyMessage(msg *types.ControlMessage) error {
-	serviceID, ok := msg.Data["serviceId"].(string)
-	if !ok {
-		return fmt.Errorf("missing serviceId in new proxy message")
-	}
-
-	remotePort, ok := msg.Data["remotePort"].(float64)
-	if !ok {
-		return fmt.Errorf("missing remotePort in new proxy message")
-	}
-
-	// 查找服务
-	service := cc.client.getRegisteredService(serviceID)
-	if service == nil {
-		return fmt.Errorf("service %s not found for proxy", serviceID)
-	}
-
-	// 启动代理
-	return cc.client.proxyManager.StartProxy(cc.ctx, service, int(remotePort))
-}
-
-// handleCloseProxyMessage 处理关闭代理消息
-func (cc *controlConnection) handleCloseProxyMessage(msg *types.ControlMessage) error {
-	serviceID, ok := msg.Data["serviceId"].(string)
-	if !ok {
-		return fmt.Errorf("missing serviceId in close proxy message")
-	}
-
-	return cc.client.proxyManager.StopProxy(cc.ctx, serviceID)
 }
 
 // handleProxyRequestMessage 处理代理请求消息
@@ -1166,7 +1095,6 @@ func (cc *controlConnection) handleErrorMessage(msg *types.ControlMessage) error
 	errorMessage, _ := msg.Data["message"].(string)
 	errorDetails, _ := msg.Data["details"].(string)
 
-	cc.client.addError(fmt.Sprintf("Server error: %s - %s", errorCode, errorMessage))
 	logger.Error("Server error", map[string]interface{}{
 		"code":    errorCode,
 		"message": errorMessage,
@@ -1188,16 +1116,10 @@ func (cc *controlConnection) establishDataConnection(serviceID, connectionID str
 	defer cancel()
 
 	// 查找服务配置
-	_, err := cc.client.serviceManager.GetService(ctx, serviceID)
-	if err != nil {
+	service := cc.client.getRegisteredService(serviceID)
+	if service == nil {
 		return fmt.Errorf("service %s not found", serviceID)
 	}
-
-	logger.Info("Starting data connection establishment", map[string]interface{}{
-		"serviceId":    serviceID,
-		"connectionId": connectionID,
-		"step":         "create_new_connection",
-	})
 
 	// 关键修复：服务器请求新数据连接时，必须建立新连接，不能从池中取
 	// 原因：
@@ -1205,38 +1127,25 @@ func (cc *controlConnection) establishDataConnection(serviceID, connectionID str
 	// 2. 从池中取出的连接可能已经发送过握手，服务器端可能已经将其放入池中
 	// 3. 复用池中的连接会导致连接状态混乱，可能残留数据，导致服务器误判连接类型
 	// 4. 新连接建立后，使用完毕可以归还到池中供后续使用
-	connectionStartTime := time.Now()
 	dataConn, err := cc.createNewServerConnection(ctx, serviceID)
-	connectionDuration := time.Since(connectionStartTime)
 
 	// 如果创建连接失败或连接为 nil，立即返回，不要继续
 	if err != nil {
 		logger.Error("Failed to create new server connection", map[string]interface{}{
-			"serviceId":          serviceID,
-			"connectionId":       connectionID,
-			"error":              err.Error(),
-			"connectionDuration": connectionDuration,
-			"step":               "create_new_connection",
+			"serviceId":    serviceID,
+			"connectionId": connectionID,
+			"error":        err.Error(),
 		})
 		return fmt.Errorf("failed to create new server connection: %w", err)
 	}
 
 	if dataConn == nil {
 		logger.Error("Server connection is nil", map[string]interface{}{
-			"serviceId":          serviceID,
-			"connectionId":       connectionID,
-			"connectionDuration": connectionDuration,
-			"step":               "create_new_connection",
+			"serviceId":    serviceID,
+			"connectionId": connectionID,
 		})
 		return fmt.Errorf("server connection is nil")
 	}
-
-	logger.Info("Data connection ready", map[string]interface{}{
-		"serviceId":          serviceID,
-		"connectionId":       connectionID,
-		"connectionDuration": connectionDuration,
-		"step":               "connection_ready",
-	})
 
 	// 关键修复：立即发送握手消息，不要做复杂验证
 	// 原因：
@@ -1263,9 +1172,9 @@ func (cc *controlConnection) establishDataConnection(serviceID, connectionID str
 		return fmt.Errorf("failed to send data connection handshake: %w", err)
 	}
 
-	// 将数据连接交给代理管理器处理
-	// 注意：HandleProxyConnection 会在使用完毕后尝试将连接归还到池中
-	return cc.client.proxyManager.HandleProxyConnection(cc.ctx, dataConn, serviceID)
+	// 将数据连接交给代理处理器处理
+	// 注意：HandleProxyConnection 会在使用完毕后关闭连接
+	return cc.HandleProxyConnection(cc.ctx, dataConn, serviceID)
 }
 
 // createNewServerConnection 创建新的服务器数据连接
@@ -1280,15 +1189,6 @@ func (cc *controlConnection) createNewServerConnection(ctx context.Context, serv
 		connectTimeout = 15 * time.Second       // 单次连接超时时间
 		retryDelay     = 500 * time.Millisecond // 重试间隔（指数退避）
 	)
-
-	logger.Info("Creating new server connection for proxy request", map[string]interface{}{
-		"serviceId":  serviceID,
-		"serverAddr": serverAddr,
-		"timeout":    connectTimeout.String(),
-		"maxRetries": maxRetries,
-		"retryDelay": retryDelay.String(),
-		"timestamp":  time.Now(),
-	})
 
 	var lastErr error
 	var conn net.Conn
@@ -1335,16 +1235,6 @@ func (cc *controlConnection) createNewServerConnection(ctx context.Context, serv
 
 		if err == nil {
 			// 连接成功
-			totalDuration := time.Since(connectStartTime)
-			logger.Info("Successfully created new server connection", map[string]interface{}{
-				"serviceId":       serviceID,
-				"serverAddr":      serverAddr,
-				"attempt":         attempt + 1,
-				"attemptDuration": attemptDuration,
-				"totalDuration":   totalDuration,
-				"localAddr":       conn.LocalAddr().String(),
-				"remoteAddr":      conn.RemoteAddr().String(),
-			})
 
 			// 设置 TCP 选项
 			if tcpConn, ok := conn.(*net.TCPConn); ok {
@@ -1424,11 +1314,6 @@ func (cc *controlConnection) sendDataConnectionHandshake(conn net.Conn, connecti
 	if _, err := conn.Write(data); err != nil {
 		return fmt.Errorf("failed to write handshake data: %w", err)
 	}
-
-	logger.Debug("Data connection handshake sent", map[string]interface{}{
-		"connectionId": connectionID,
-		"messageLen":   msgLen,
-	})
 
 	return nil
 }

@@ -257,26 +257,67 @@ func (dao *SecurityConfigDAO) DeleteSecurityConfig(ctx context.Context, security
 	return nil
 }
 
-// ListSecurityConfigs 获取安全配置列表
-func (dao *SecurityConfigDAO) ListSecurityConfigs(ctx context.Context, tenantId string, page, pageSize int) ([]*models.SecurityConfig, int, error) {
+// ListSecurityConfigs 获取安全配置列表（支持条件查询）
+// 参考角色管理的查询风格，统一条件构造方式
+func (dao *SecurityConfigDAO) ListSecurityConfigs(ctx context.Context, tenantId string, query *models.SecurityConfigQuery, page, pageSize int) ([]*models.SecurityConfig, int, error) {
 	if tenantId == "" {
 		return nil, 0, errors.New("tenantId不能为空")
 	}
 
-	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_SECURITY_CONFIG WHERE tenantId = ? ORDER BY configPriority ASC, addTime DESC"
+	// 创建分页信息
+	pagination := sqlutils.NewPaginationInfo(page, pageSize)
 
-	// 构建统计查询
-	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
-	if err != nil {
-		return nil, 0, huberrors.WrapError(err, "构建统计查询失败")
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 构建查询条件
+	whereClause := "WHERE tenantId = ?"
+	var params []interface{}
+	params = append(params, tenantId)
+
+	// 默认只查询活动配置，如果前端显式传入 ActiveFlag 则按传入值过滤
+	if query != nil {
+		if query.ConfigName != "" {
+			whereClause += " AND configName LIKE ?"
+			params = append(params, "%"+query.ConfigName+"%")
+		}
+		if query.GatewayInstanceId != nil && *query.GatewayInstanceId != "" {
+			whereClause += " AND gatewayInstanceId = ?"
+			params = append(params, *query.GatewayInstanceId)
+		}
+		if query.RouteConfigId != nil && *query.RouteConfigId != "" {
+			whereClause += " AND routeConfigId = ?"
+			params = append(params, *query.RouteConfigId)
+		}
+		if query.ActiveFlag != "" {
+			whereClause += " AND activeFlag = ?"
+			params = append(params, query.ActiveFlag)
+		} else {
+			whereClause += " AND activeFlag = 'Y'"
+		}
+	} else {
+		// 未提供查询条件时，默认只查询活动配置
+		whereClause += " AND activeFlag = 'Y'"
 	}
 
-	// 执行统计查询
+	// 基础查询语句
+	baseQuery := `
+		SELECT * FROM HUB_GW_SECURITY_CONFIG
+	` + whereClause + `
+		ORDER BY configPriority ASC, addTime DESC
+	`
+
+	// 构建计数查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建计数查询失败")
+	}
+
+	// 执行计数查询
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err = dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId}, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询安全配置总数失败")
 	}
@@ -287,24 +328,19 @@ func (dao *SecurityConfigDAO) ListSecurityConfigs(ctx context.Context, tenantId 
 		return []*models.SecurityConfig{}, 0, nil
 	}
 
-	// 创建分页信息
-	pagination := sqlutils.NewPaginationInfo(page, pageSize)
-
-	// 获取数据库类型
-	dbType := sqlutils.GetDatabaseType(dao.db)
-
 	// 构建分页查询
 	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
 	}
 
-	// 合并查询参数
-	allArgs := append([]interface{}{tenantId}, paginationArgs...)
+	// 合并查询参数：基础查询参数 + 分页参数
+	queryArgs := params
+	queryArgs = append(queryArgs, paginationArgs...)
 
 	// 执行分页查询
 	var configs []*models.SecurityConfig
-	err = dao.db.Query(ctx, &configs, paginatedQuery, allArgs, true)
+	err = dao.db.Query(ctx, &configs, paginatedQuery, queryArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询安全配置列表失败")
 	}

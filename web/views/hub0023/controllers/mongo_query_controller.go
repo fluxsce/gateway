@@ -49,13 +49,8 @@ func (c *MongoQueryController) GetGatewayMonitoringOverview(ctx *gin.Context) {
 		return
 	}
 
-	// 强制从上下文获取租户ID，不使用前端传递的值
-	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	req.TenantId = tenantId
+	// 从上下文获取租户ID，不使用前端传递的值
+	req.TenantId = request.GetTenantID(ctx)
 
 	// 校验时间范围
 	if err := c.validateTimeRange(&req); err != nil {
@@ -94,13 +89,8 @@ func (c *MongoQueryController) GetGatewayMonitoringChartData(ctx *gin.Context) {
 		return
 	}
 
-	// 强制从上下文获取租户ID，不使用前端传递的值
-	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	req.TenantId = tenantId
+	// 从上下文获取租户ID，不使用前端传递的值
+	req.TenantId = request.GetTenantID(ctx)
 
 	// 校验时间范围
 	if err := c.validateTimeRange(&req); err != nil {
@@ -244,13 +234,8 @@ func (c *MongoQueryController) QueryGatewayLogs(ctx *gin.Context) {
 	req.PageIndex = page
 	req.PageSize = pageSize
 
-	// 强制从上下文获取租户ID，不使用前端传递的值
-	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	req.TenantId = tenantId
+	// 从上下文获取租户ID，不使用前端传递的值
+	req.TenantId = request.GetTenantID(ctx)
 
 	// 调用DAO查询
 	logs, total, err := c.mongoQueryDAO.QueryGatewayLogs(ctx, &req)
@@ -286,13 +271,8 @@ func (c *MongoQueryController) GetGatewayLog(ctx *gin.Context) {
 		return
 	}
 
-	// 强制从上下文获取租户ID，不使用前端传递的值
-	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	req.TenantId = tenantId
+	// 从上下文获取租户ID，不使用前端传递的值
+	req.TenantId = request.GetTenantID(ctx)
 
 	// 参数验证 - 需要链路追踪ID
 	if req.TraceId == "" {
@@ -307,6 +287,17 @@ func (c *MongoQueryController) GetGatewayLog(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "查询失败: "+err.Error(), constants.ED00008)
 		return
 	}
+
+	// 查询关联的后端追踪日志（从表）
+	backendTraces, err := c.mongoQueryDAO.GetBackendTracesByTraceID(ctx, req.TenantId, req.TraceId)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "查询MongoDB后端追踪日志失败", "error", err)
+		// 后端追踪日志查询失败不影响主表返回，记录错误后继续
+		backendTraces = []models.BackendTraceLog{}
+	}
+
+	// 填充后端追踪日志到主表对象
+	log.BackendTraces = backendTraces
 
 	response.SuccessJSON(ctx, log, constants.SD00002)
 }
@@ -330,13 +321,8 @@ func (c *MongoQueryController) CountGatewayLogs(ctx *gin.Context) {
 		return
 	}
 
-	// 强制从上下文获取租户ID，不使用前端传递的值
-	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	req.TenantId = tenantId
+	// 从上下文获取租户ID，不使用前端传递的值
+	req.TenantId = request.GetTenantID(ctx)
 
 	// 调用DAO统计
 	count, err := c.mongoQueryDAO.CountGatewayLogs(ctx, &req)

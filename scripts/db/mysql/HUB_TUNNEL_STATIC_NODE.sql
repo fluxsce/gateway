@@ -1,0 +1,66 @@
+CREATE TABLE `HUB_TUNNEL_STATIC_NODE` (
+  -- 主键和租户
+  `tunnelStaticNodeId` VARCHAR(32) NOT NULL COMMENT '静态隧道节点ID，主键',
+  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
+  `tunnelStaticServerId` VARCHAR(32) NOT NULL COMMENT '静态隧道服务器ID，关联HUB_TUNNEL_STATIC_SERVER',
+  
+  -- 业务字段
+  `nodeName` VARCHAR(100) NOT NULL COMMENT '节点名称',
+  `nodeDescription` VARCHAR(500) DEFAULT NULL COMMENT '节点描述',
+  `targetAddress` VARCHAR(50) NOT NULL COMMENT '目标地址（后端服务地址）',
+  `targetPort` INT NOT NULL COMMENT '目标端口（后端服务端口）',
+  `proxyType` VARCHAR(20) NOT NULL DEFAULT 'tcp' COMMENT '代理类型(tcp,udp,http,https)',
+  `maxConnections` INT DEFAULT 100 COMMENT '最大连接数',
+  `connectionTimeout` INT DEFAULT 30 COMMENT '连接超时时间(秒)',
+  `readTimeout` INT DEFAULT 30 COMMENT '读取超时时间(秒)',
+  `writeTimeout` INT DEFAULT 30 COMMENT '写入超时时间(秒)',
+  `retryCount` INT DEFAULT 3 COMMENT '重试次数',
+  `retryInterval` INT DEFAULT 5 COMMENT '重试间隔(秒)',
+  `compression` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '启用压缩(N禁用,Y启用)',
+  `encryption` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '启用加密(N禁用,Y启用)',
+  `secretKey` VARCHAR(100) DEFAULT NULL COMMENT '加密密钥',
+  `customHeaders` TEXT DEFAULT NULL COMMENT '自定义HTTP头，JSON格式',
+  `nodeStatus` VARCHAR(20) NOT NULL DEFAULT 'active' COMMENT '节点状态(active,inactive,error)',
+  `lastHealthCheck` DATETIME DEFAULT NULL COMMENT '最后健康检查时间',
+  `healthCheckStatus` VARCHAR(20) DEFAULT 'unknown' COMMENT '健康检查状态(healthy,unhealthy,unknown)',
+  `currentConnectionCount` INT DEFAULT 0 COMMENT '当前连接数',
+  `totalConnectionCount` BIGINT DEFAULT 0 COMMENT '总连接数',
+  `totalBytesReceived` BIGINT DEFAULT 0 COMMENT '总接收字节数',
+  `totalBytesSent` BIGINT DEFAULT 0 COMMENT '总发送字节数',
+  `failureCount` INT DEFAULT 0 COMMENT '失败次数',
+  `lastFailureTime` DATETIME DEFAULT NULL COMMENT '最后失败时间',
+  `nodeConfig` TEXT DEFAULT NULL COMMENT '节点配置，JSON格式',
+  
+  -- 通用字段
+  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
+  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
+  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
+  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性，JSON格式',
+  
+  -- 预留字段
+  `reserved1` VARCHAR(500) DEFAULT NULL COMMENT '预留字段1',
+  `reserved2` VARCHAR(500) DEFAULT NULL COMMENT '预留字段2',
+  `reserved3` VARCHAR(500) DEFAULT NULL COMMENT '预留字段3',
+  `reserved4` VARCHAR(500) DEFAULT NULL COMMENT '预留字段4',
+  `reserved5` VARCHAR(500) DEFAULT NULL COMMENT '预留字段5',
+  `reserved6` VARCHAR(500) DEFAULT NULL COMMENT '预留字段6',
+  `reserved7` VARCHAR(500) DEFAULT NULL COMMENT '预留字段7',
+  `reserved8` VARCHAR(500) DEFAULT NULL COMMENT '预留字段8',
+  `reserved9` VARCHAR(500) DEFAULT NULL COMMENT '预留字段9',
+  `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
+  
+  -- 主键和索引
+  CONSTRAINT `PK_TUNNEL_STATIC_NODE` PRIMARY KEY (`tunnelStaticNodeId`),
+  UNIQUE KEY `IDX_TUNNEL_STATIC_NODE_NAME` (`nodeName`),
+  UNIQUE KEY `IDX_TUNNEL_STATIC_NODE_TARGET` (`tunnelStaticServerId`, `targetAddress`, `targetPort`),
+  KEY `IDX_TUNNEL_STATIC_NODE_TENANT` (`tenantId`),
+  KEY `IDX_TUNNEL_STATIC_NODE_SERVER` (`tunnelStaticServerId`),
+  KEY `IDX_TUNNEL_STATIC_NODE_TYPE` (`proxyType`),
+  KEY `IDX_TUNNEL_STATIC_NODE_STATUS` (`nodeStatus`),
+  KEY `IDX_TUNNEL_STATIC_NODE_HEALTH` (`healthCheckStatus`, `lastHealthCheck`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='静态隧道节点表，管理静态隧道转发后端节点配置';

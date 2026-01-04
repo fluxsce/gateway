@@ -32,11 +32,17 @@ import (
 
 // LogWriter 定义日志写入器接口
 type LogWriter interface {
-	// Write 写入单条日志
+	// Write 写入单条访问日志（主表）
 	Write(ctx context.Context, log *types.AccessLog) error
 
-	// BatchWrite 批量写入日志
+	// BatchWrite 批量写入访问日志（主表）
 	BatchWrite(ctx context.Context, logs []*types.AccessLog) error
+
+	// WriteBackendTraceLog 写入单条后端追踪日志（从表）
+	WriteBackendTraceLog(ctx context.Context, log *types.BackendTraceLog) error
+
+	// BatchWriteBackendTraceLog 批量写入后端追踪日志（从表）
+	BatchWriteBackendTraceLog(ctx context.Context, logs []*types.BackendTraceLog) error
 
 	// Flush 刷新缓冲区
 	Flush(ctx context.Context) error
@@ -200,6 +206,7 @@ func GetInstanceIDs() []string {
 //	此方法可用于同步和异步日志写入
 //	异步调用时，HTTP 数据必须已通过 snapshotHTTPData() 缓存到 ctx.data
 //	方法内部会优先从快照读取数据，避免访问 Request 和 Writer
+//	如果是多服务转发，会同时写入主表（AccessLog）和从表（BackendTraceLog）
 func WriteLog(instanceID string, gatewayCtx *core.Context) error {
 	if instanceID == "" {
 		return fmt.Errorf("instanceID cannot be empty")
@@ -210,13 +217,19 @@ func WriteLog(instanceID string, gatewayCtx *core.Context) error {
 		return err
 	}
 
-	// 从网关上下文构建访问日志
+	// 从网关上下文构建访问日志（主表）
 	// 注意：buildAccessLogFromContext 会优先从快照中读取 HTTP 数据
 	accessLog := buildAccessLogFromContext(instanceID, gatewayCtx)
 
-	// 使用 gatewayCtx.Ctx 作为写入上下文
-	// 在异步调用时，这个 Ctx 已经被替换为独立的 logCtx
-	return writer.Write(gatewayCtx.Ctx, accessLog)
+	// 写入主表日志
+	if err := writer.Write(gatewayCtx.Ctx, accessLog); err != nil {
+		return fmt.Errorf("failed to write access log: %w", err)
+	}
+
+	// 注意：多服务转发的后端追踪日志由每个服务单独调用 WriteBackendTraceLogSync 写入
+	// 这里不再统一写入，避免重复和混淆
+
+	return nil
 }
 
 // FlushLogWriter 刷新指定实例写入器的缓冲区
@@ -398,7 +411,7 @@ func buildAccessLogWithConfig(instanceID string, gatewayCtx *core.Context, confi
 
 		// 从上下文获取关联ID (转换为字符串)
 		RouteConfigID:       gatewayCtx.GetRouteID(),
-		ServiceDefinitionID: gatewayCtx.GetServiceID(),
+		ServiceDefinitionID: getServiceDefinitionID(gatewayCtx),
 		LogConfigID:         getLogConfigID(gatewayCtx),
 
 		// 时间信息 - 使用上下文中的实际时间
@@ -439,15 +452,15 @@ func buildAccessLogWithConfig(instanceID string, gatewayCtx *core.Context, confi
 		getUserIdentifier(gatewayCtx), // 从上下文获取用户标识
 	)
 
-	// 设置转发信息
+	// 设置转发信息（主表仅保留匹配路由等网关级信息，具体后端转发信息由后端追踪日志记录）
 	accessLog.SetForwardInfo(
-		gatewayCtx.GetMatchedPath(),
-		gatewayCtx.GetTargetURL(),
-		getOriginalOrCurrentMethod(gatewayCtx), // 通常转发方法与请求方法相同
-		getForwardParamsWithConfig(gatewayCtx, config),
-		getForwardHeadersWithConfig(gatewayCtx, config),
-		getForwardBodyWithConfig(gatewayCtx, config),
-		getLoadBalancerDecision(gatewayCtx), // 负载均衡决策信息
+		gatewayCtx.GetMatchedPath(), // 匹配到的路由
+		"",                          // ForwardAddress 不再记录到主表
+		getOriginalOrCurrentMethod(gatewayCtx),
+		"", // ForwardParams 不再记录到主表
+		"", // ForwardHeaders 不再记录到主表
+		"", // ForwardBody 不再记录到主表
+		"", // LoadBalancerDecision 不再记录到主表
 	)
 
 	// 从上下文获取冗余字段 - 这些字段用于提升查询性能，避免多表JOIN
@@ -463,9 +476,19 @@ func buildAccessLogWithConfig(instanceID string, gatewayCtx *core.Context, confi
 		routeName = name
 	}
 
-	// 获取服务名称（由服务发现处理器设置）
-	if name, ok := gatewayCtx.GetString(constants.ContextKeyServiceDefinitionName); ok {
-		serviceName = name
+	// 从上下文获取服务名称（多服务场景下为逗号分隔的名称列表）
+	if namesVal, exists := gatewayCtx.Get(constants.ContextKeyServiceDefinitionName); exists {
+		switch names := namesVal.(type) {
+		case []string:
+			if len(names) == 1 {
+				serviceName = names[0]
+			} else if len(names) > 1 {
+				serviceName = strings.Join(names, ",")
+			}
+		case string:
+			// 兼容性处理：如果其他地方以字符串形式写入，直接使用
+			serviceName = names
+		}
 	}
 
 	// 获取代理类型（由代理处理器设置，如http/websocket/tcp/udp）
@@ -489,24 +512,15 @@ func buildAccessLogWithConfig(instanceID string, gatewayCtx *core.Context, confi
 		backendStatusCode = statusCode
 	}
 
-	// 设置后端信息（如果有转发时间信息）
-	if !gatewayCtx.GetForwardStartTime().IsZero() && !gatewayCtx.GetForwardResponseTime().IsZero() {
-		forwardStartTime := gatewayCtx.GetForwardStartTime()
-		forwardResponseTime := gatewayCtx.GetForwardResponseTime()
-		accessLog.SetBackendInfo(
-			backendStatusCode,
-			forwardStartTime,
-			forwardResponseTime,
-		)
-	} else if !gatewayCtx.GetForwardStartTime().IsZero() {
-		// 如果只有转发开始时间，说明后端请求可能还在处理中或出现异常
-		forwardStartTime := gatewayCtx.GetForwardStartTime()
-		accessLog.SetBackendInfo(
-			backendStatusCode,
-			forwardStartTime,
-			time.Time{}, // 后端响应时间为零时间
-		)
-	}
+	// 设置后端信息（后端时间信息由后端追踪日志记录，主表不记录）
+	// 多服务转发场景下，每个服务的转发时间不同，统一在主表记录不准确
+	// 单服务场景下，后端追踪日志也会记录详细信息
+	// 因此主表不设置后端时间信息，保持为零时间
+	accessLog.SetBackendInfo(
+		backendStatusCode,
+		time.Time{}, // 转发开始时间不记录在主表
+		time.Time{}, // 转发响应时间不记录在主表
+	)
 
 	// 如果 GetResponseTime() 为零值，则完成时间保持为零时间，表示处理中或异常中断
 
@@ -517,6 +531,12 @@ func buildAccessLogWithConfig(instanceID string, gatewayCtx *core.Context, confi
 		getResponseHeadersWithConfig(gatewayCtx, config), // 从上下文获取响应头
 		getResponseBodyWithConfig(gatewayCtx, config),    // 从上下文获取响应体
 	)
+
+	// 使用上下文中记录的后端最大耗时（毫秒）填充 BackendResponseTimeMs
+	// 后端明细由 BackendTraceLog 记录，这里只需要一个汇总的最大耗时即可用于计算网关自身处理时间
+	if backendDurationMs := gatewayCtx.GetMaxBackendDuration(); backendDurationMs > 0 {
+		accessLog.BackendResponseTimeMs = int(backendDurationMs)
+	}
 
 	// 重新设置正确的完成时间并计算时间指标
 	if !gatewayCtx.GetResponseTime().IsZero() {
@@ -641,6 +661,21 @@ func getLogConfigID(gatewayCtx *core.Context) string {
 	if logConfigID, ok := gatewayCtx.GetString(constants.ContextKeyLogConfigID); ok {
 		return logConfigID
 	}
+	return ""
+}
+
+// getServiceDefinitionID 从上下文获取服务定义ID
+func getServiceDefinitionID(gatewayCtx *core.Context) string {
+	// 使用服务ID数组
+	serviceIDs := gatewayCtx.GetServiceIDs()
+	if len(serviceIDs) > 0 {
+		if len(serviceIDs) == 1 {
+			return serviceIDs[0]
+		}
+		// 多个服务ID时，用逗号分隔
+		return strings.Join(serviceIDs, ",")
+	}
+
 	return ""
 }
 

@@ -1,0 +1,51 @@
+
+-- 33. 进程信息日志表
+CREATE TABLE IF NOT EXISTS HUB_METRIC_PROCESS_LOG (
+    metricProcessLogId TEXT NOT NULL,
+    tenantId TEXT NOT NULL,
+    metricServerId TEXT NOT NULL,
+    processId INTEGER NOT NULL,
+    parentProcessId INTEGER,
+    processName TEXT NOT NULL,
+    processStatus TEXT NOT NULL,
+    createTime DATETIME NOT NULL,
+    runTime INTEGER NOT NULL DEFAULT 0,
+    memoryUsage INTEGER NOT NULL DEFAULT 0,
+    memoryPercent REAL NOT NULL DEFAULT 0.00,
+    cpuPercent REAL NOT NULL DEFAULT 0.00,
+    threadCount INTEGER NOT NULL DEFAULT 0,
+    fileDescriptorCount INTEGER NOT NULL DEFAULT 0,
+    commandLine TEXT,
+    executablePath TEXT,
+    workingDirectory TEXT,
+    collectTime DATETIME NOT NULL,
+    addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    addWho TEXT NOT NULL,
+    editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    editWho TEXT NOT NULL,
+    oprSeqFlag TEXT NOT NULL,
+    currentVersion INTEGER NOT NULL DEFAULT 1,
+    activeFlag TEXT NOT NULL DEFAULT 'Y',
+    noteText TEXT,
+    extProperty TEXT,
+    reserved1 TEXT,
+    reserved2 TEXT,
+    reserved3 TEXT,
+    reserved4 TEXT,
+    reserved5 TEXT,
+    reserved6 TEXT,
+    reserved7 TEXT,
+    reserved8 TEXT,
+    reserved9 TEXT,
+    reserved10 TEXT,
+    PRIMARY KEY (tenantId, metricProcessLogId)
+);
+CREATE INDEX IDX_METRIC_PROCESS_SERVER ON HUB_METRIC_PROCESS_LOG(metricServerId);
+CREATE INDEX IDX_METRIC_PROCESS_TIME ON HUB_METRIC_PROCESS_LOG(collectTime);
+CREATE INDEX IDX_METRIC_PROCESS_PID ON HUB_METRIC_PROCESS_LOG(processId);
+CREATE INDEX IDX_METRIC_PROCESS_NAME ON HUB_METRIC_PROCESS_LOG(processName);
+CREATE INDEX IDX_METRIC_PROCESS_STATUS ON HUB_METRIC_PROCESS_LOG(processStatus);
+CREATE INDEX IDX_METRIC_PROCESS_ACTIVE ON HUB_METRIC_PROCESS_LOG(activeFlag);
+CREATE INDEX IDX_METRIC_PROCESS_SRV_TIME ON HUB_METRIC_PROCESS_LOG(metricServerId, collectTime);
+CREATE INDEX IDX_METRIC_PROCESS_SRV_PID ON HUB_METRIC_PROCESS_LOG(metricServerId, processId);
+CREATE INDEX IDX_METRIC_PROCESS_TNT_TIME ON HUB_METRIC_PROCESS_LOG(tenantId, collectTime);

@@ -198,11 +198,12 @@ func ExtractPathKey(ctx *core.Context) string {
 
 // ExtractServiceKey 提取服务键
 func ExtractServiceKey(ctx *core.Context) string {
-	serviceID := ctx.GetServiceID()
-	if serviceID == "" {
+	serviceIDs := ctx.GetServiceIDs()
+	if len(serviceIDs) == 0 {
 		return ExtractRouteKey(ctx)
 	}
-	return "service:" + serviceID
+	// 单服务场景使用第一个服务ID，多服务场景使用第一个服务ID作为键
+	return "service:" + serviceIDs[0]
 }
 
 // ExtractRouteKey 提取路由键

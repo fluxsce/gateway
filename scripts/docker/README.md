@@ -95,17 +95,14 @@ docker build \
 ### 使用构建脚本
 
 ```bash
-# 构建标准版镜像（MySQL/SQLite 支持）
+# 构建包含所有依赖的版本（默认，包含 MySQL/SQLite/Oracle 支持）
 ./scripts/docker/build.sh
 
-# 构建 Oracle 版镜像
-./scripts/docker/build.sh --type oracle
+# 构建标准版镜像（仅 MySQL/SQLite 支持）
+./scripts/docker/build.sh --type standard
 
 # 构建并标记为 latest
 ./scripts/docker/build.sh --latest
-
-# 构建特定版本
-./scripts/docker/build.sh --version 2.1.0
 ```
 
 ### 手动构建
@@ -114,11 +111,21 @@ docker build \
 # 进入项目根目录
 cd /path/to/gateway
 
-# 构建标准版
-docker build -f scripts/docker/Dockerfile -t datahub-images/gateway:2.0.4 .
+# 构建包含所有依赖的版本（默认，包含 MySQL/SQLite/Oracle）
+docker build \
+    -f scripts/docker/Dockerfile.oracle \
+    --build-arg VERSION=2.0.4 \
+    --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+    --build-arg GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown") \
+    -t datahub-images/gateway:2.0.4 .
 
-# 构建 Oracle 版
-docker build -f scripts/docker/Dockerfile.oracle -t datahub-images/gateway:2.0.4-oracle .
+# 构建标准版（仅 MySQL/SQLite）
+docker build \
+    -f scripts/docker/Dockerfile \
+    --build-arg VERSION=2.0.4 \
+    --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+    --build-arg GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown") \
+    -t datahub-images/gateway:2.0.4 .
 ```
 
 ---
@@ -128,11 +135,11 @@ docker build -f scripts/docker/Dockerfile.oracle -t datahub-images/gateway:2.0.4
 ### 使用推送脚本（推荐）
 
 ```bash
-# 推送标准版到阿里云（默认）
+# 推送包含所有依赖的版本到阿里云（默认）
 ./scripts/docker/push.sh
 
-# 推送 Oracle 版到阿里云
-./scripts/docker/push.sh --type oracle
+# 推送标准版到阿里云
+./scripts/docker/push.sh --type standard
 
 # 推送到 Docker Hub
 ./scripts/docker/push.sh --registry dockerhub
@@ -143,12 +150,9 @@ docker build -f scripts/docker/Dockerfile.oracle -t datahub-images/gateway:2.0.4
 # 推送并标记为 latest
 ./scripts/docker/push.sh --latest
 
-# 推送特定版本
-./scripts/docker/push.sh --version 2.1.0
-
 # 完整流程：构建 + 推送
-./scripts/docker/build.sh --type oracle --latest && \
-./scripts/docker/push.sh --type oracle --registry both --latest
+./scripts/docker/build.sh --latest && \
+./scripts/docker/push.sh --registry both --latest
 ```
 
 ### 手动推送
@@ -175,6 +179,17 @@ docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 
 ## 📦 镜像说明
 
+### 默认版本镜像 (Dockerfile.oracle) ⭐ 推荐
+
+- **基础镜像**: Debian Bookworm Slim
+- **支持系统**: Linux (amd64)
+- **支持数据库**: MySQL、SQLite、Oracle
+- **镜像大小**: 约 320MB
+- **部署目录**: `/opt/gateway`
+- **内置工具**: curl, bash, telnet, less, vim, net-tools, ping
+- **特点**: 包含 Oracle Instant Client，支持所有数据库
+- **构建方式**: `./scripts/docker/build.sh`（默认）
+
 ### 标准版镜像 (Dockerfile)
 
 - **基础镜像**: Alpine Linux 3.19
@@ -184,16 +199,7 @@ docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 - **部署目录**: `/opt/gateway`
 - **内置工具**: curl, bash, telnet, less, vim, net-tools
 - **特点**: 轻量级、无 CGO 依赖
-
-### Oracle 版镜像 (Dockerfile.oracle)
-
-- **基础镜像**: Debian Bookworm Slim
-- **支持系统**: Linux (amd64)
-- **支持数据库**: MySQL、SQLite、Oracle
-- **镜像大小**: 约 320MB
-- **部署目录**: `/opt/gateway`
-- **内置工具**: curl, bash, telnet, less, vim, net-tools, ping
-- **特点**: 包含 Oracle Instant Client
+- **构建方式**: `./scripts/docker/build.sh --type standard`
 
 ### 目录结构
 
@@ -227,31 +233,29 @@ docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 - **地址**: docker.io
 - **镜像名**: datahub-images/gateway
 - **标签**:
-  - `2.0.4` - 标准版
-  - `2.0.4-oracle` - Oracle 版
-  - `latest` - 最新标准版
-  - `latest-oracle` - 最新 Oracle 版
+  - `2.0.4` - 默认版本（包含所有依赖：MySQL/SQLite/Oracle）
+  - `latest` - 最新版本（包含所有依赖：MySQL/SQLite/Oracle）
+  - 注意：标准版（仅 MySQL/SQLite）需要使用 `--type standard` 构建，但标签相同
 
 #### 阿里云镜像仓库
 - **地址**: crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com
 - **命名空间**: datahub-images
 - **镜像名**: datahub-images/gateway
 - **标签**:
-  - `2.0.4` - 标准版
-  - `2.0.4-oracle` - Oracle 版
-  - `latest` - 最新标准版
-  - `latest-oracle` - 最新 Oracle 版
+  - `2.0.4` - 默认版本（包含所有依赖：MySQL/SQLite/Oracle）
+  - `latest` - 最新版本（包含所有依赖：MySQL/SQLite/Oracle）
+  - 注意：标准版（仅 MySQL/SQLite）需要使用 `--type standard` 构建，但标签相同
 
 ### 拉取镜像
 
 ```bash
-# 从 Docker Hub 拉取
+# 从 Docker Hub 拉取（默认版本，包含所有依赖）
 docker pull datahub-images/gateway:2.0.4
-docker pull datahub-images/gateway:2.0.4-oracle
+docker pull datahub-images/gateway:latest
 
-# 从阿里云拉取
+# 从阿里云拉取（默认版本，包含所有依赖）
 docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:2.0.4
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:2.0.4-oracle
+docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:latest
 ```
 
 ---

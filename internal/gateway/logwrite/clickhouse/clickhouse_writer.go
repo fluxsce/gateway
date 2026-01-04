@@ -33,6 +33,11 @@ type ClickHouseWriter struct {
 	// 互斥锁，保护批量缓冲区
 	mutex sync.Mutex
 
+	// 后端追踪日志异步处理相关（与主表保持一致的处理模式）
+	backendTraceLogQueue    chan *types.BackendTraceLog // 异步后端追踪日志队列
+	backendTraceBatchBuffer []*types.BackendTraceLog    // 后端追踪日志批量写入缓冲区
+	backendTraceMutex       sync.Mutex                  // 保护后端追踪日志批量缓冲区的互斥锁
+
 	// 状态标识
 	closed bool
 
@@ -55,16 +60,19 @@ func NewClickHouseWriter(config *types.LogConfig) (*ClickHouseWriter, error) {
 	}
 
 	writer := &ClickHouseWriter{
-		config:      config,
-		db:          db,
-		stopChan:    make(chan struct{}),
-		batchBuffer: make([]*types.AccessLog, 0, config.BatchSize),
+		config:                  config,
+		db:                      db,
+		stopChan:                make(chan struct{}),
+		batchBuffer:             make([]*types.AccessLog, 0, config.BatchSize),
+		backendTraceBatchBuffer: make([]*types.BackendTraceLog, 0, config.BatchSize),
 	}
 
 	// 如果启用异步日志，初始化异步处理
 	if config.IsAsyncLogging() {
 		writer.logQueue = make(chan *types.AccessLog, config.AsyncQueueSize)
+		writer.backendTraceLogQueue = make(chan *types.BackendTraceLog, config.AsyncQueueSize)
 		writer.startAsyncProcessor()
+		writer.startBackendTraceAsyncProcessor()
 	}
 
 	// 启动定时刷新
@@ -139,16 +147,19 @@ func (w *ClickHouseWriter) Flush(ctx context.Context) error {
 		return nil
 	}
 
+	// 保存计数用于日志
+	count := len(w.batchBuffer)
+
 	// 执行批量写入
 	err := w.batchWriteDirectly(ctx, w.batchBuffer)
 	if err != nil {
-		logger.Error("Failed to flush ClickHouse batch buffer", "error", err, "count", len(w.batchBuffer))
+		logger.Error("Failed to flush ClickHouse batch buffer", "error", err, "count", count)
 		return err
 	}
 
 	// 清空缓冲区
 	w.batchBuffer = w.batchBuffer[:0]
-	logger.Debug("Flushed ClickHouse batch buffer", "count", len(w.batchBuffer))
+	logger.Debug("Flushed ClickHouse batch buffer", "count", count)
 
 	return nil
 }
@@ -172,6 +183,9 @@ func (w *ClickHouseWriter) Close() error {
 	if err := w.Flush(ctx); err != nil {
 		logger.Error("Failed to flush ClickHouse buffer during close", "error", err)
 	}
+	if err := w.FlushBackendTrace(ctx); err != nil {
+		logger.Error("Failed to flush ClickHouse backend trace buffer during close", "error", err)
+	}
 
 	// 关闭定时器
 	if w.flushTicker != nil {
@@ -187,6 +201,123 @@ func (w *ClickHouseWriter) Close() error {
 // GetLogConfig 获取日志配置
 func (w *ClickHouseWriter) GetLogConfig() *types.LogConfig {
 	return w.config
+}
+
+// WriteBackendTraceLog 写入单条后端追踪日志（从表）
+// 根据配置决定是同步写入数据库还是放入异步队列
+//
+// 参数:
+//   - ctx: 上下文，用于控制超时和取消
+//   - log: 要写入的后端追踪日志
+//
+// 返回:
+//   - error: 写入失败时返回错误信息
+func (w *ClickHouseWriter) WriteBackendTraceLog(ctx context.Context, log *types.BackendTraceLog) error {
+	if w.closed {
+		return fmt.Errorf("writer is closed")
+	}
+
+	// 如果启用异步模式，将日志放入队列
+	if w.config.IsAsyncLogging() {
+		select {
+		case w.backendTraceLogQueue <- log:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			// 队列满时的处理策略
+			logger.Warn("ClickHouse backend trace log queue is full, dropping log entry", "traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
+			return fmt.Errorf("backend trace log queue is full")
+		}
+	}
+
+	// 同步模式：直接写入数据库或缓存批量写入
+	if w.config.IsBatchProcessing() {
+		return w.addBackendTraceToBatch(log)
+	}
+
+	// 直接写入数据库
+	return w.writeBackendTraceLogDirectly(ctx, log)
+}
+
+// BatchWriteBackendTraceLog 批量写入后端追踪日志（从表）
+//
+// 参数:
+//   - ctx: 上下文
+//   - logs: 要写入的日志数组
+//
+// 返回:
+//   - error: 写入失败时返回错误信息
+func (w *ClickHouseWriter) BatchWriteBackendTraceLog(ctx context.Context, logs []*types.BackendTraceLog) error {
+	if len(logs) == 0 {
+		return nil
+	}
+
+	if w.closed {
+		return fmt.Errorf("writer is closed")
+	}
+
+	// 如果启用异步模式，将所有日志放入队列
+	if w.config.IsAsyncLogging() {
+		for _, log := range logs {
+			select {
+			case w.backendTraceLogQueue <- log:
+				// 成功放入队列
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+				logger.Warn("ClickHouse backend trace log queue is full, dropping log entry", "traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
+			}
+		}
+		return nil
+	}
+
+	// 同步模式：直接批量写入数据库
+	return w.batchWriteBackendTraceLogDirectly(ctx, logs)
+}
+
+// writeBackendTraceLogDirectly 直接写入单条后端追踪日志到ClickHouse
+func (w *ClickHouseWriter) writeBackendTraceLogDirectly(ctx context.Context, log *types.BackendTraceLog) error {
+	_, err := w.db.Insert(ctx, log.TableName(), log, true)
+	if err != nil {
+		return fmt.Errorf("failed to write backend trace log: %w", err)
+	}
+
+	w.insertedCount++
+	return nil
+}
+
+// batchWriteBackendTraceLogDirectly 直接批量写入后端追踪日志到ClickHouse
+func (w *ClickHouseWriter) batchWriteBackendTraceLogDirectly(ctx context.Context, logs []*types.BackendTraceLog) error {
+	if len(logs) == 0 {
+		return nil
+	}
+
+	startTime := time.Now()
+
+	// 使用数据库的批量插入方法
+	tableName := logs[0].TableName()
+	_, err := w.db.BatchInsert(ctx, tableName, logs, true)
+	if err != nil {
+		return fmt.Errorf("failed to write backend trace log batch: %w", err)
+	}
+
+	// 更新计数器
+	w.insertedCount += uint64(len(logs))
+	w.batchCount++
+
+	// 记录性能指标
+	duration := time.Since(startTime)
+	recordsPerSecond := float64(len(logs)) / duration.Seconds()
+
+	logger.Debug("ClickHouse backend trace log batch write completed",
+		"count", len(logs),
+		"duration", duration,
+		"recordsPerSecond", recordsPerSecond,
+		"totalInserted", w.insertedCount,
+		"totalBatches", w.batchCount)
+
+	return nil
 }
 
 // startAsyncProcessor 启动异步日志处理goroutine
@@ -234,6 +365,9 @@ func (w *ClickHouseWriter) startFlushTimer() {
 				if err := w.Flush(ctx); err != nil {
 					logger.Error("Scheduled ClickHouse flush failed", "error", err)
 				}
+				if err := w.FlushBackendTrace(ctx); err != nil {
+					logger.Error("Scheduled ClickHouse backend trace flush failed", "error", err)
+				}
 
 			case <-w.stopChan:
 				return
@@ -265,6 +399,124 @@ func (w *ClickHouseWriter) drainQueue() {
 			return
 		}
 	}
+}
+
+// FlushBackendTrace 刷新后端追踪日志缓冲区，将缓存的日志写入ClickHouse
+//
+// 参数:
+//   - ctx: 上下文
+//
+// 返回:
+//   - error: 刷新失败时返回错误信息
+func (w *ClickHouseWriter) FlushBackendTrace(ctx context.Context) error {
+	if w.closed {
+		return nil
+	}
+
+	w.backendTraceMutex.Lock()
+	defer w.backendTraceMutex.Unlock()
+
+	if len(w.backendTraceBatchBuffer) == 0 {
+		return nil
+	}
+
+	// 保存计数用于日志
+	count := len(w.backendTraceBatchBuffer)
+
+	// 执行批量写入
+	err := w.batchWriteBackendTraceLogDirectly(ctx, w.backendTraceBatchBuffer)
+	if err != nil {
+		logger.Error("Failed to flush ClickHouse backend trace batch buffer", "error", err, "count", count)
+		return err
+	}
+
+	// 清空缓冲区
+	w.backendTraceBatchBuffer = w.backendTraceBatchBuffer[:0]
+	logger.Debug("Flushed ClickHouse backend trace batch buffer", "count", count)
+
+	return nil
+}
+
+// startBackendTraceAsyncProcessor 启动后端追踪日志异步处理goroutine
+func (w *ClickHouseWriter) startBackendTraceAsyncProcessor() {
+	w.wg.Add(1)
+	go func() {
+		defer w.wg.Done()
+		defer logger.Info("ClickHouse async backend trace log processor stopped")
+
+		logger.Info("ClickHouse async backend trace log processor started")
+
+		for {
+			select {
+			case log := <-w.backendTraceLogQueue:
+				if w.config.IsBatchProcessing() {
+					w.addBackendTraceToBatch(log)
+				} else {
+					ctx := context.Background()
+					if err := w.writeBackendTraceLogDirectly(ctx, log); err != nil {
+						logger.Error("Failed to write backend trace log in async mode", "error", err, "traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
+					}
+				}
+
+			case <-w.stopChan:
+				// 处理剩余的队列中的日志
+				w.drainBackendTraceQueue()
+				return
+			}
+		}
+	}()
+}
+
+// drainBackendTraceQueue 排空后端追踪日志队列中剩余的日志
+func (w *ClickHouseWriter) drainBackendTraceQueue() {
+	logger.Info("Draining ClickHouse backend trace log queue")
+	count := 0
+
+	for {
+		select {
+		case log := <-w.backendTraceLogQueue:
+			if w.config.IsBatchProcessing() {
+				w.addBackendTraceToBatch(log)
+			} else {
+				ctx := context.Background()
+				if err := w.writeBackendTraceLogDirectly(ctx, log); err != nil {
+					logger.Error("Failed to write backend trace log while draining queue", "error", err, "traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
+				}
+			}
+			count++
+
+		default:
+			// 队列为空，执行最终刷新确保缓冲区数据写入
+			if count > 0 {
+				ctx := context.Background()
+				if err := w.FlushBackendTrace(ctx); err != nil {
+					logger.Error("Failed to flush ClickHouse backend trace during queue drain", "error", err)
+				}
+			}
+			logger.Info("ClickHouse backend trace queue drained", "processedCount", count)
+			return
+		}
+	}
+}
+
+// addBackendTraceToBatch 将后端追踪日志添加到批量缓冲区
+func (w *ClickHouseWriter) addBackendTraceToBatch(log *types.BackendTraceLog) error {
+	w.backendTraceMutex.Lock()
+	defer w.backendTraceMutex.Unlock()
+
+	w.backendTraceBatchBuffer = append(w.backendTraceBatchBuffer, log)
+
+	// 如果缓冲区满了，立即刷新
+	if len(w.backendTraceBatchBuffer) >= w.config.BatchSize {
+		ctx := context.Background()
+		if err := w.batchWriteBackendTraceLogDirectly(ctx, w.backendTraceBatchBuffer); err != nil {
+			logger.Error("Failed to write ClickHouse full backend trace batch", "error", err, "count", len(w.backendTraceBatchBuffer))
+			return err
+		}
+		w.backendTraceBatchBuffer = w.backendTraceBatchBuffer[:0]
+	}
+
+	return nil
 }
 
 // addToBatch 将日志添加到批量缓冲区

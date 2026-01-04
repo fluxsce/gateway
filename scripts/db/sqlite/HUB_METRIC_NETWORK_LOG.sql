@@ -1,0 +1,51 @@
+
+-- 32. 网络接口日志表
+CREATE TABLE IF NOT EXISTS HUB_METRIC_NETWORK_LOG (
+    metricNetworkLogId TEXT NOT NULL,
+    tenantId TEXT NOT NULL,
+    metricServerId TEXT NOT NULL,
+    interfaceName TEXT NOT NULL,
+    hardwareAddr TEXT,
+    ipAddresses TEXT,
+    interfaceStatus TEXT NOT NULL,
+    interfaceType TEXT,
+    bytesReceived INTEGER NOT NULL DEFAULT 0,
+    bytesSent INTEGER NOT NULL DEFAULT 0,
+    packetsReceived INTEGER NOT NULL DEFAULT 0,
+    packetsSent INTEGER NOT NULL DEFAULT 0,
+    errorsReceived INTEGER NOT NULL DEFAULT 0,
+    errorsSent INTEGER NOT NULL DEFAULT 0,
+    droppedReceived INTEGER NOT NULL DEFAULT 0,
+    droppedSent INTEGER NOT NULL DEFAULT 0,
+    receiveRate REAL DEFAULT 0,
+    sendRate REAL DEFAULT 0,
+    collectTime DATETIME NOT NULL,
+    addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    addWho TEXT NOT NULL,
+    editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    editWho TEXT NOT NULL,
+    oprSeqFlag TEXT NOT NULL,
+    currentVersion INTEGER NOT NULL DEFAULT 1,
+    activeFlag TEXT NOT NULL DEFAULT 'Y',
+    noteText TEXT,
+    extProperty TEXT,
+    reserved1 TEXT,
+    reserved2 TEXT,
+    reserved3 TEXT,
+    reserved4 TEXT,
+    reserved5 TEXT,
+    reserved6 TEXT,
+    reserved7 TEXT,
+    reserved8 TEXT,
+    reserved9 TEXT,
+    reserved10 TEXT,
+    PRIMARY KEY (tenantId, metricNetworkLogId)
+);
+CREATE INDEX IDX_METRIC_NETWORK_SERVER ON HUB_METRIC_NETWORK_LOG(metricServerId);
+CREATE INDEX IDX_METRIC_NETWORK_TIME ON HUB_METRIC_NETWORK_LOG(collectTime);
+CREATE INDEX IDX_METRIC_NETWORK_INTERFACE ON HUB_METRIC_NETWORK_LOG(interfaceName);
+CREATE INDEX IDX_METRIC_NETWORK_STATUS ON HUB_METRIC_NETWORK_LOG(interfaceStatus);
+CREATE INDEX IDX_METRIC_NETWORK_ACTIVE ON HUB_METRIC_NETWORK_LOG(activeFlag);
+CREATE INDEX IDX_METRIC_NETWORK_SRV_TIME ON HUB_METRIC_NETWORK_LOG(metricServerId, collectTime);
+CREATE INDEX IDX_METRIC_NETWORK_SRV_INT ON HUB_METRIC_NETWORK_LOG(metricServerId, interfaceName);
+CREATE INDEX IDX_METRIC_NETWORK_TNT_TIME ON HUB_METRIC_NETWORK_LOG(tenantId, collectTime);

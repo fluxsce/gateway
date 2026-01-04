@@ -2,8 +2,8 @@ package dao
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	"fmt"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/huberrors"
@@ -15,68 +15,16 @@ import (
 
 // GatewayInstanceDAO 网关实例数据访问对象
 type GatewayInstanceDAO struct {
-	db database.Database
+	db           database.Database
+	logConfigDAO *LogConfigDAO
 }
 
 // NewGatewayInstanceDAO 创建网关实例DAO
 func NewGatewayInstanceDAO(db database.Database) *GatewayInstanceDAO {
 	return &GatewayInstanceDAO{
-		db: db,
+		db:           db,
+		logConfigDAO: NewLogConfigDAO(db),
 	}
-}
-
-// generateGatewayInstanceId 生成网关实例ID
-// 格式：GW + YYYYMMDD + HHMMSS + 4位随机数
-// 示例：GW20240615143022A1B2
-func (dao *GatewayInstanceDAO) generateGatewayInstanceId() string {
-	now := time.Now()
-	// 生成时间部分：YYYYMMDDHHMMSS
-	timeStr := now.Format("20060102150405")
-
-	// 生成4位随机字符（大写字母和数字）
-	randomStr := random.GenerateRandomString(4)
-
-	return fmt.Sprintf("GW%s%s", timeStr, randomStr)
-}
-
-// isGatewayInstanceIdExists 检查网关实例ID是否已存在
-func (dao *GatewayInstanceDAO) isGatewayInstanceIdExists(ctx context.Context, gatewayInstanceId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GW_INSTANCE WHERE gatewayInstanceId = ?`
-
-	var result struct {
-		Count int `db:"count"`
-	}
-
-	err := dao.db.QueryOne(ctx, &result, query, []interface{}{gatewayInstanceId}, true)
-	if err != nil {
-		return false, err
-	}
-
-	return result.Count > 0, nil
-}
-
-// generateUniqueGatewayInstanceId 生成唯一的网关实例ID
-// 如果生成的ID已存在，会重新生成直到找到唯一的ID（最多尝试10次）
-func (dao *GatewayInstanceDAO) generateUniqueGatewayInstanceId(ctx context.Context) (string, error) {
-	const maxAttempts = 10
-
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		gatewayInstanceId := dao.generateGatewayInstanceId()
-
-		exists, err := dao.isGatewayInstanceIdExists(ctx, gatewayInstanceId)
-		if err != nil {
-			return "", huberrors.WrapError(err, "检查网关实例ID是否存在失败")
-		}
-
-		if !exists {
-			return gatewayInstanceId, nil
-		}
-
-		// 如果ID已存在，等待1毫秒后重试（确保时间戳不同）
-		time.Sleep(time.Millisecond)
-	}
-
-	return "", errors.New("生成唯一网关实例ID失败，已达到最大尝试次数")
 }
 
 // AddGatewayInstance 添加网关实例
@@ -89,107 +37,204 @@ func (dao *GatewayInstanceDAO) generateUniqueGatewayInstanceId(ctx context.Conte
 //   - gatewayInstanceId: 新创建的网关实例ID
 //   - err: 可能的错误
 func (dao *GatewayInstanceDAO) AddGatewayInstance(ctx context.Context, instance *models.GatewayInstance, operatorId string) (string, error) {
-	// 验证租户ID
-	if instance.TenantId == "" {
-		return "", errors.New("租户ID不能为空")
-	}
+	// 使用事务确保实例和日志配置的创建是原子操作
+	var gatewayInstanceId string
+	err := dao.db.InTx(ctx, nil, func(txCtx context.Context) error {
+		// 自动生成网关实例ID（如果为空）
+		if instance.GatewayInstanceId == "" {
+			// 使用公共方法生成32位唯一字符串，前缀为"GW"
+			instance.GatewayInstanceId = random.GenerateUniqueStringWithPrefix("GW", 32)
+		}
+		gatewayInstanceId = instance.GatewayInstanceId
 
-	// 自动生成网关实例ID（如果为空）
-	if instance.GatewayInstanceId == "" {
-		generatedId, err := dao.generateUniqueGatewayInstanceId(ctx)
+		// 设置一些自动填充的字段
+		now := time.Now()
+		instance.AddTime = now
+		instance.AddWho = operatorId
+		instance.EditTime = now
+		instance.EditWho = operatorId
+		// 生成 OprSeqFlag，确保长度不超过32
+		instance.OprSeqFlag = random.GenerateUniqueStringWithPrefix("", 32)
+		instance.CurrentVersion = 1
+		instance.ActiveFlag = "Y"
+
+		// 设置默认值
+		if instance.BindAddress == "" {
+			instance.BindAddress = "0.0.0.0"
+		}
+		if instance.TlsEnabled == "" {
+			instance.TlsEnabled = "N"
+		}
+		if instance.CertStorageType == "" {
+			instance.CertStorageType = "FILE"
+		}
+		if instance.MaxConnections == 0 {
+			instance.MaxConnections = 10000
+		}
+		if instance.ReadTimeoutMs == 0 {
+			instance.ReadTimeoutMs = 30000
+		}
+		if instance.WriteTimeoutMs == 0 {
+			instance.WriteTimeoutMs = 30000
+		}
+		if instance.IdleTimeoutMs == 0 {
+			instance.IdleTimeoutMs = 60000
+		}
+		if instance.MaxHeaderBytes == 0 {
+			instance.MaxHeaderBytes = 1048576
+		}
+		if instance.MaxWorkers == 0 {
+			instance.MaxWorkers = 1000
+		}
+		if instance.KeepAliveEnabled == "" {
+			instance.KeepAliveEnabled = "Y"
+		}
+		if instance.TcpKeepAliveEnabled == "" {
+			instance.TcpKeepAliveEnabled = "Y"
+		}
+		if instance.GracefulShutdownTimeoutMs == 0 {
+			instance.GracefulShutdownTimeoutMs = 30000
+		}
+		if instance.EnableHttp2 == "" {
+			instance.EnableHttp2 = "Y"
+		}
+		if instance.TlsVersion == "" {
+			instance.TlsVersion = "1.2"
+		}
+		if instance.DisableGeneralOptionsHandler == "" {
+			instance.DisableGeneralOptionsHandler = "N"
+		}
+		if instance.HealthStatus == "" {
+			instance.HealthStatus = "N" // 新增时默认为停止状态
+		}
+
+		// 如果实例没有关联日志配置ID，自动创建默认日志配置
+		if instance.LogConfigId == "" {
+			// 创建默认日志配置（与前端默认值保持一致）
+			defaultLogConfig := dao.createDefaultLogConfig(instance.TenantId, operatorId)
+			logConfigId, err := dao.logConfigDAO.AddLogConfig(txCtx, defaultLogConfig, operatorId)
+			if err != nil {
+				return huberrors.WrapError(err, "创建默认日志配置失败")
+			}
+			instance.LogConfigId = logConfigId
+		}
+
+		// 使用数据库接口的Insert方法插入记录（在事务中，autoCommit设为false）
+		_, err := dao.db.Insert(txCtx, "HUB_GW_INSTANCE", instance, false)
 		if err != nil {
-			return "", huberrors.WrapError(err, "生成网关实例ID失败")
+			// 检查是否是实例名重复错误
+			if dao.isDuplicateInstanceNameError(err) {
+				return huberrors.WrapError(err, "实例名已存在")
+			}
+			return huberrors.WrapError(err, "添加网关实例失败")
 		}
-		instance.GatewayInstanceId = generatedId
-	} else {
-		// 如果提供了ID，检查是否已存在
-		exists, err := dao.isGatewayInstanceIdExists(ctx, instance.GatewayInstanceId)
-		if err != nil {
-			return "", huberrors.WrapError(err, "检查网关实例ID是否存在失败")
-		}
-		if exists {
-			return "", errors.New("网关实例ID已存在")
-		}
-	}
 
-	// 设置一些自动填充的字段
-	now := time.Now()
-	instance.AddTime = now
-	instance.AddWho = operatorId
-	instance.EditTime = now
-	instance.EditWho = operatorId
-	instance.OprSeqFlag = instance.GatewayInstanceId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
-	instance.CurrentVersion = 1
-	instance.ActiveFlag = "Y"
-
-	// 设置默认值
-	if instance.BindAddress == "" {
-		instance.BindAddress = "0.0.0.0"
-	}
-	if instance.TlsEnabled == "" {
-		instance.TlsEnabled = "N"
-	}
-	if instance.CertStorageType == "" {
-		instance.CertStorageType = "FILE"
-	}
-	if instance.MaxConnections == 0 {
-		instance.MaxConnections = 10000
-	}
-	if instance.ReadTimeoutMs == 0 {
-		instance.ReadTimeoutMs = 30000
-	}
-	if instance.WriteTimeoutMs == 0 {
-		instance.WriteTimeoutMs = 30000
-	}
-	if instance.IdleTimeoutMs == 0 {
-		instance.IdleTimeoutMs = 60000
-	}
-	if instance.MaxHeaderBytes == 0 {
-		instance.MaxHeaderBytes = 1048576
-	}
-	if instance.MaxWorkers == 0 {
-		instance.MaxWorkers = 1000
-	}
-	if instance.KeepAliveEnabled == "" {
-		instance.KeepAliveEnabled = "Y"
-	}
-	if instance.TcpKeepAliveEnabled == "" {
-		instance.TcpKeepAliveEnabled = "Y"
-	}
-	if instance.GracefulShutdownTimeoutMs == 0 {
-		instance.GracefulShutdownTimeoutMs = 30000
-	}
-	if instance.EnableHttp2 == "" {
-		instance.EnableHttp2 = "Y"
-	}
-	if instance.TlsVersion == "" {
-		instance.TlsVersion = "1.2"
-	}
-	if instance.DisableGeneralOptionsHandler == "" {
-		instance.DisableGeneralOptionsHandler = "N"
-	}
-	if instance.HealthStatus == "" {
-		instance.HealthStatus = "Y"
-	}
-
-	// 使用数据库接口的Insert方法插入记录
-	_, err := dao.db.Insert(ctx, "HUB_GW_INSTANCE", instance, true)
+		return nil
+	})
 
 	if err != nil {
-		// 检查是否是实例名重复错误
-		if dao.isDuplicateInstanceNameError(err) {
-			return "", huberrors.WrapError(err, "实例名已存在")
-		}
-		return "", huberrors.WrapError(err, "添加网关实例失败")
+		return "", err
 	}
 
-	return instance.GatewayInstanceId, nil
+	return gatewayInstanceId, nil
+}
+
+// createDefaultLogConfig 创建默认日志配置（与前端默认值保持一致）
+func (dao *GatewayInstanceDAO) createDefaultLogConfig(tenantId, operatorId string) *models.LogConfig {
+	// 将敏感字段数组转换为JSON字符串
+	sensitiveFieldsJSON, _ := json.Marshal([]string{"password", "token", "key", "secret"})
+
+	// 创建默认的文件配置对象并转换为JSON
+	fileConfig := map[string]interface{}{
+		"enabled":    false,
+		"filePath":   "./logs/gateway.log",
+		"maxSize":    "100MB",
+		"maxBackups": 7,
+		"maxAge":     30,
+	}
+	fileConfigJSON, _ := json.Marshal(fileConfig)
+
+	// 创建默认的数据库配置对象并转换为JSON
+	databaseConfig := map[string]interface{}{
+		"enabled":          false,
+		"connectionString": "",
+		"tableName":        "gateway_access_log",
+		"batchSize":        100,
+	}
+	databaseConfigJSON, _ := json.Marshal(databaseConfig)
+
+	// 创建默认的MongoDB配置对象并转换为JSON
+	mongoConfig := map[string]interface{}{
+		"enabled":          false,
+		"connectionString": "",
+		"database":         "gateway_logs",
+		"collection":       "access_log",
+		"batchSize":        100,
+	}
+	mongoConfigJSON, _ := json.Marshal(mongoConfig)
+
+	// 创建默认的Elasticsearch配置对象并转换为JSON
+	elasticsearchConfig := map[string]interface{}{
+		"enabled":   false,
+		"endpoints": []string{},
+		"indexName": "gateway-logs",
+		"batchSize": 100,
+	}
+	elasticsearchConfigJSON, _ := json.Marshal(elasticsearchConfig)
+
+	// 创建默认的ClickHouse配置对象并转换为JSON
+	clickhouseConfig := map[string]interface{}{
+		"enabled":   false,
+		"dsn":       "",
+		"tableName": "gateway_access_log",
+		"batchSize": 100,
+	}
+	clickhouseConfigJSON, _ := json.Marshal(clickhouseConfig)
+
+	maxFileSizeMB := 100
+	maxFileCount := 10
+
+	return &models.LogConfig{
+		TenantId:                   tenantId,
+		ConfigName:                 "网关日志",
+		ConfigDesc:                 "",
+		LogFormat:                  "JSON",
+		RecordRequestBody:          "N",
+		RecordResponseBody:         "N",
+		RecordHeaders:              "Y",
+		MaxBodySizeBytes:           1048576, // 1MB
+		OutputTargets:              "DATABASE",
+		FileConfig:                 string(fileConfigJSON),
+		DatabaseConfig:             string(databaseConfigJSON),
+		MongoConfig:                string(mongoConfigJSON),
+		ElasticsearchConfig:        string(elasticsearchConfigJSON),
+		ClickhouseConfig:           string(clickhouseConfigJSON),
+		EnableAsyncLogging:         "Y",
+		AsyncQueueSize:             1000,
+		AsyncFlushIntervalMs:       5000,
+		EnableBatchProcessing:      "Y",
+		BatchSize:                  100,
+		BatchTimeoutMs:             1000,
+		LogRetentionDays:           30,
+		EnableFileRotation:         "Y",
+		MaxFileSizeMB:              &maxFileSizeMB,
+		MaxFileCount:               &maxFileCount,
+		RotationPattern:            "DAILY",
+		EnableSensitiveDataMasking: "N",
+		SensitiveFields:            string(sensitiveFieldsJSON),
+		MaskingPattern:             "****",
+		BufferSize:                 65536, // 64KB
+		FlushThreshold:             1000,
+		ConfigPriority:             0,
+		ActiveFlag:                 "Y",
+		NoteText:                   "",
+	}
 }
 
 // GetGatewayInstanceById 根据网关实例ID获取网关实例信息
 func (dao *GatewayInstanceDAO) GetGatewayInstanceById(ctx context.Context, gatewayInstanceId, tenantId string) (*models.GatewayInstance, error) {
-	if gatewayInstanceId == "" || tenantId == "" {
-		return nil, errors.New("gatewayInstanceId和tenantId不能为空")
+	if gatewayInstanceId == "" {
+		return nil, errors.New("gatewayInstanceId不能为空")
 	}
 
 	query := `
@@ -212,8 +257,8 @@ func (dao *GatewayInstanceDAO) GetGatewayInstanceById(ctx context.Context, gatew
 
 // UpdateGatewayInstance 更新网关实例信息
 func (dao *GatewayInstanceDAO) UpdateGatewayInstance(ctx context.Context, instance *models.GatewayInstance, operatorId string) error {
-	if instance.GatewayInstanceId == "" || instance.TenantId == "" {
-		return errors.New("gatewayInstanceId和tenantId不能为空")
+	if instance.GatewayInstanceId == "" {
+		return errors.New("gatewayInstanceId不能为空")
 	}
 
 	// 首先获取网关实例当前版本
@@ -229,7 +274,8 @@ func (dao *GatewayInstanceDAO) UpdateGatewayInstance(ctx context.Context, instan
 	instance.CurrentVersion = currentInstance.CurrentVersion + 1
 	instance.EditTime = time.Now()
 	instance.EditWho = operatorId
-	instance.OprSeqFlag = instance.GatewayInstanceId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
+	// 生成 OprSeqFlag，确保长度不超过32
+	instance.OprSeqFlag = random.GenerateUniqueStringWithPrefix("", 32)
 
 	// 使用 Update 方法自动构建更新SQL（乐观锁：基于当前版本号）
 	where := "gatewayInstanceId = ? AND tenantId = ? AND currentVersion = ?"
@@ -250,8 +296,8 @@ func (dao *GatewayInstanceDAO) UpdateGatewayInstance(ctx context.Context, instan
 
 // DeleteGatewayInstance 物理删除网关实例
 func (dao *GatewayInstanceDAO) DeleteGatewayInstance(ctx context.Context, gatewayInstanceId, tenantId, operatorId string) error {
-	if gatewayInstanceId == "" || tenantId == "" {
-		return errors.New("gatewayInstanceId和tenantId不能为空")
+	if gatewayInstanceId == "" {
+		return errors.New("gatewayInstanceId不能为空")
 	}
 
 	// 首先获取网关实例当前信息
@@ -281,60 +327,97 @@ func (dao *GatewayInstanceDAO) DeleteGatewayInstance(ctx context.Context, gatewa
 	return nil
 }
 
-// ListGatewayInstances 获取网关实例列表
-func (dao *GatewayInstanceDAO) ListGatewayInstances(ctx context.Context, tenantId string, page, pageSize int) ([]*models.GatewayInstance, int, error) {
+// ListGatewayInstances 获取网关实例列表（支持条件查询）
+// 参考角色管理的查询风格，统一条件构造方式
+func (dao *GatewayInstanceDAO) ListGatewayInstances(ctx context.Context, tenantId string, query *models.GatewayInstanceQuery, page, pageSize int) ([]*models.GatewayInstance, int, error) {
 	if tenantId == "" {
 		return nil, 0, errors.New("tenantId不能为空")
 	}
 
-	// 构建基础查询
-	baseQuery := "SELECT * FROM HUB_GW_INSTANCE WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY addTime DESC"
-	args := []interface{}{tenantId}
+	// 创建分页信息
+	pagination := sqlutils.NewPaginationInfo(page, pageSize)
 
-	// 构建统计查询
-	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
-	if err != nil {
-		return nil, 0, huberrors.WrapError(err, "构建统计查询失败")
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 构建查询条件
+	whereClause := "WHERE tenantId = ?"
+	var params []interface{}
+	params = append(params, tenantId)
+
+	// 默认只查询活动实例，如果前端显式传入 ActiveFlag 则按传入值过滤
+	if query != nil {
+		if query.InstanceName != "" {
+			whereClause += " AND instanceName LIKE ?"
+			params = append(params, "%"+query.InstanceName+"%")
+		}
+		if query.HealthStatus != "" {
+			whereClause += " AND healthStatus = ?"
+			params = append(params, query.HealthStatus)
+		}
+		if query.ActiveFlag != "" {
+			whereClause += " AND activeFlag = ?"
+			params = append(params, query.ActiveFlag)
+		} else {
+			whereClause += " AND activeFlag = 'Y'"
+		}
+	} else {
+		// 未提供查询条件时，默认只查询活动实例
+		whereClause += " AND activeFlag = 'Y'"
 	}
 
-	// 执行统计查询
+	// 基础查询语句
+	baseQuery := `
+		SELECT * FROM HUB_GW_INSTANCE
+	` + whereClause + `
+		ORDER BY addTime DESC
+	`
+
+	// 构建计数查询
+	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
+	if err != nil {
+		return nil, 0, huberrors.WrapError(err, "构建计数查询失败")
+	}
+
+	// 执行计数查询
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err = dao.db.QueryOne(ctx, &result, countQuery, args, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询网关实例总数失败")
 	}
+	total := result.Count
 
-	if result.Count == 0 {
+	// 如果没有记录，直接返回空列表
+	if total == 0 {
 		return []*models.GatewayInstance{}, 0, nil
 	}
 
-	// 创建分页信息
-	paginationInfo := sqlutils.NewPaginationInfo(page, pageSize)
-	// 获取数据库类型
-	dbType := sqlutils.GetDatabaseType(dao.db)
 	// 构建分页查询
-	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, paginationInfo)
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "构建分页查询失败")
 	}
-	allArgs := append(args, paginationArgs...)
+
+	// 合并查询参数：基础查询参数 + 分页参数
+	queryArgs := params
+	queryArgs = append(queryArgs, paginationArgs...)
 
 	// 执行分页查询
 	var instances []*models.GatewayInstance
-	err = dao.db.Query(ctx, &instances, paginatedQuery, allArgs, true)
+	err = dao.db.Query(ctx, &instances, paginatedQuery, queryArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询网关实例列表失败")
 	}
 
-	return instances, result.Count, nil
+	return instances, total, nil
 }
 
 // FindGatewayInstanceByName 根据实例名查找网关实例
 func (dao *GatewayInstanceDAO) FindGatewayInstanceByName(ctx context.Context, instanceName, tenantId string) (*models.GatewayInstance, error) {
-	if instanceName == "" || tenantId == "" {
-		return nil, errors.New("instanceName和tenantId不能为空")
+	if instanceName == "" {
+		return nil, errors.New("instanceName不能为空")
 	}
 
 	query := `
@@ -357,8 +440,8 @@ func (dao *GatewayInstanceDAO) FindGatewayInstanceByName(ctx context.Context, in
 
 // UpdateHealthStatus 更新健康状态
 func (dao *GatewayInstanceDAO) UpdateHealthStatus(ctx context.Context, gatewayInstanceId, tenantId, healthStatus, operatorId string) error {
-	if gatewayInstanceId == "" || tenantId == "" {
-		return errors.New("gatewayInstanceId和tenantId不能为空")
+	if gatewayInstanceId == "" {
+		return errors.New("gatewayInstanceId不能为空")
 	}
 
 	now := time.Now()

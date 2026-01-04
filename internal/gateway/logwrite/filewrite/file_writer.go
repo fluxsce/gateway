@@ -198,6 +198,77 @@ func (w *FileWriter) GetLogConfig() *types.LogConfig {
 	return w.config
 }
 
+// WriteBackendTraceLog 写入单条后端追踪日志（从表）
+func (w *FileWriter) WriteBackendTraceLog(ctx context.Context, log *types.BackendTraceLog) error {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+
+	formatted := w.formatBackendTraceLog(log)
+	w.buffer = append(w.buffer, formatted)
+
+	// 检查是否需要立即刷新
+	if len(w.buffer) >= w.bufferSize {
+		return w.flushBuffer()
+	}
+
+	return nil
+}
+
+// BatchWriteBackendTraceLog 批量写入后端追踪日志（从表）
+func (w *FileWriter) BatchWriteBackendTraceLog(ctx context.Context, logs []*types.BackendTraceLog) error {
+	if len(logs) == 0 {
+		return nil
+	}
+
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+
+	formattedLogs := make([]string, len(logs))
+	for i, log := range logs {
+		formattedLogs[i] = w.formatBackendTraceLog(log)
+	}
+
+	// 检查是否需要轮转
+	var totalSize int
+	for _, formatted := range formattedLogs {
+		totalSize += len(formatted)
+	}
+	if w.needRotate(totalSize) {
+		if err := w.rotate(); err != nil {
+			logger.Error("Failed to rotate log file", "error", err)
+		}
+	}
+
+	// 添加到缓冲区
+	w.buffer = append(w.buffer, formattedLogs...)
+
+	// 立即刷新
+	return w.flushBuffer()
+}
+
+// formatBackendTraceLog 格式化后端追踪日志
+func (w *FileWriter) formatBackendTraceLog(log *types.BackendTraceLog) string {
+	switch types.LogFormat(w.config.LogFormat) {
+	case types.LogFormatJSON:
+		if jsonStr, err := log.ToJSON(); err == nil {
+			return jsonStr + "\n"
+		}
+		return fmt.Sprintf(`{"error": "failed to format backend trace log"}` + "\n")
+	case types.LogFormatCSV:
+		// CSV格式暂不支持后端追踪日志，使用JSON格式
+		if jsonStr, err := log.ToJSON(); err == nil {
+			return jsonStr + "\n"
+		}
+		return fmt.Sprintf(`{"error": "failed to format backend trace log"}` + "\n")
+	default:
+		// 文本格式暂不支持后端追踪日志，使用JSON格式
+		if jsonStr, err := log.ToJSON(); err == nil {
+			return jsonStr + "\n"
+		}
+		return fmt.Sprintf(`{"error": "failed to format backend trace log"}` + "\n")
+	}
+}
+
 // formatLog 格式化日志
 func (w *FileWriter) formatLog(log *types.AccessLog) string {
 	switch types.LogFormat(w.config.LogFormat) {

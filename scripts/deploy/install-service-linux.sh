@@ -186,7 +186,14 @@ find_exe_in_dir() {
     
     log_debug "在 $check_dir 中查找可执行文件..."
     
-    # 首先检查Oracle版本的文件（如果指定了oracle参数）
+    # 优先检查最新的统一文件名 gateway（适用于所有版本）
+    if [[ -f "$check_dir/gateway" && -x "$check_dir/gateway" ]]; then
+        EXECUTABLE_PATH="$check_dir/gateway"
+        log_info "找到可执行文件: $EXECUTABLE_PATH"
+        return 0
+    fi
+    
+    # 兼容旧版本文件名：首先检查Oracle版本的文件（如果指定了oracle参数）
     if [[ "$ORACLE_VERSION" == true ]]; then
         if [[ -f "$check_dir/gateway-oracle" && -x "$check_dir/gateway-oracle" ]]; then
             EXECUTABLE_PATH="$check_dir/gateway-oracle"
@@ -203,12 +210,8 @@ find_exe_in_dir() {
         fi
     fi
     
-    # 如果没有找到Oracle版本文件，检查标准版本文件
-    if [[ -f "$check_dir/gateway" && -x "$check_dir/gateway" ]]; then
-        EXECUTABLE_PATH="$check_dir/gateway"
-        log_info "找到标准版本可执行文件: $EXECUTABLE_PATH"
-        return 0
-    elif [[ -f "$check_dir/gateway-linux-amd64" && -x "$check_dir/gateway-linux-amd64" ]]; then
+    # 兼容旧版本文件名：检查标准版本文件
+    if [[ -f "$check_dir/gateway-linux-amd64" && -x "$check_dir/gateway-linux-amd64" ]]; then
         EXECUTABLE_PATH="$check_dir/gateway-linux-amd64"
         log_info "找到标准版本可执行文件: $EXECUTABLE_PATH"
         return 0
@@ -218,15 +221,15 @@ find_exe_in_dir() {
         return 0
     fi
     
-    # 如果还是没有找到，尝试自动检测Oracle版本
-    if [[ -f "$check_dir/gateway-linux-oracle-amd64" && -x "$check_dir/gateway-linux-oracle-amd64" ]]; then
-        EXECUTABLE_PATH="$check_dir/gateway-linux-oracle-amd64"
+    # 兼容旧版本文件名：尝试自动检测Oracle版本
+    if [[ -f "$check_dir/gateway-oracle" && -x "$check_dir/gateway-oracle" ]]; then
+        EXECUTABLE_PATH="$check_dir/gateway-oracle"
         ORACLE_VERSION=true
         SERVICE_NAME="gateway"
         log_info "自动检测到Oracle版本可执行文件"
         return 0
-    elif [[ -f "$check_dir/gateway-oracle" && -x "$check_dir/gateway-oracle" ]]; then
-        EXECUTABLE_PATH="$check_dir/gateway-oracle"
+    elif [[ -f "$check_dir/gateway-linux-oracle-amd64" && -x "$check_dir/gateway-linux-oracle-amd64" ]]; then
+        EXECUTABLE_PATH="$check_dir/gateway-linux-oracle-amd64"
         ORACLE_VERSION=true
         SERVICE_NAME="gateway"
         log_info "自动检测到Oracle版本可执行文件"

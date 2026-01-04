@@ -37,12 +37,17 @@ RUN go mod download
 # 复制源代码
 COPY . .
 
+# 构建参数
+ARG VERSION=2.0.4
+ARG BUILD_DATE
+ARG GIT_COMMIT=unknown
+
 # 编译应用（启用 CGO，支持 SQLite）
 # 使用 no_oracle tag 排除 Oracle 驱动
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
     go build -a \
     -tags=no_oracle \
-    -ldflags="-w -s -X main.Version=2.0.4 -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    -ldflags="-w -s -X main.Version=${VERSION} -X main.BuildTime=${BUILD_DATE} -X main.GitCommit=${GIT_COMMIT}" \
     -o gateway \
     cmd/app/main.go
 
@@ -51,9 +56,16 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
 # ============================================
 FROM alpine:3.19
 
+# 构建参数（在运行时阶段也需要）
+ARG VERSION=2.0.4
+ARG BUILD_DATE
+ARG GIT_COMMIT=unknown
+
 # 设置标签
 LABEL maintainer="fluxopensource@flux.com.cn" \
-      version="2.0.4" \
+      version="${VERSION}" \
+      build-date="${BUILD_DATE}" \
+      git-commit="${GIT_COMMIT}" \
       description="FLUX Gateway - High Performance API Gateway & Network Penetration Platform"
 
 # 安装运行时依赖和常用工具

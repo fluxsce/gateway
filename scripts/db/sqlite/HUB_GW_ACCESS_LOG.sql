@@ -1,0 +1,77 @@
+
+-- 21. 网关访问日志表
+CREATE TABLE IF NOT EXISTS HUB_GW_ACCESS_LOG (
+    tenantId TEXT NOT NULL,
+    traceId TEXT NOT NULL,
+    gatewayInstanceId TEXT NOT NULL,
+    gatewayInstanceName TEXT,
+    gatewayNodeIp TEXT NOT NULL,
+    routeConfigId TEXT,
+    routeName TEXT,
+    serviceDefinitionId TEXT,
+    serviceName TEXT,
+    proxyType TEXT,
+    logConfigId TEXT,
+    requestMethod TEXT NOT NULL,
+    requestPath TEXT NOT NULL,
+    requestQuery TEXT,
+    requestSize INTEGER DEFAULT 0,
+    requestHeaders TEXT,
+    requestBody TEXT,
+    clientIpAddress TEXT NOT NULL,
+    clientPort INTEGER,
+    userAgent TEXT,
+    referer TEXT,
+    userIdentifier TEXT,
+    gatewayStartProcessingTime DATETIME NOT NULL,
+    backendRequestStartTime DATETIME,
+    backendResponseReceivedTime DATETIME,
+    gatewayFinishedProcessingTime DATETIME,
+    totalProcessingTimeMs INTEGER,
+    gatewayProcessingTimeMs INTEGER,
+    backendResponseTimeMs INTEGER,
+    gatewayStatusCode INTEGER NOT NULL,
+    backendStatusCode INTEGER,
+    responseSize INTEGER DEFAULT 0,
+    responseHeaders TEXT,
+    responseBody TEXT,
+    matchedRoute TEXT,
+    forwardAddress TEXT,
+    forwardMethod TEXT,
+    forwardParams TEXT,
+    forwardHeaders TEXT,
+    forwardBody TEXT,
+    loadBalancerDecision TEXT,
+    errorMessage TEXT,
+    errorCode TEXT,
+    parentTraceId TEXT,
+    resetFlag TEXT NOT NULL DEFAULT 'N',
+    retryCount INTEGER NOT NULL DEFAULT 0,
+    resetCount INTEGER NOT NULL DEFAULT 0,
+    logLevel TEXT NOT NULL DEFAULT 'INFO',
+    logType TEXT NOT NULL DEFAULT 'ACCESS',
+    reserved1 TEXT,
+    reserved2 TEXT,
+    reserved3 INTEGER,
+    reserved4 INTEGER,
+    reserved5 DATETIME,
+    extProperty TEXT,
+    addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    addWho TEXT NOT NULL,
+    editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    editWho TEXT NOT NULL,
+    oprSeqFlag TEXT NOT NULL,
+    currentVersion INTEGER NOT NULL DEFAULT 1,
+    activeFlag TEXT NOT NULL DEFAULT 'Y',
+    noteText TEXT,
+    PRIMARY KEY (tenantId, traceId)
+);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_time_instance ON HUB_GW_ACCESS_LOG(gatewayStartProcessingTime, gatewayInstanceId);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_time_route ON HUB_GW_ACCESS_LOG(gatewayStartProcessingTime, routeConfigId);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_time_service ON HUB_GW_ACCESS_LOG(gatewayStartProcessingTime, serviceDefinitionId);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_instance_name ON HUB_GW_ACCESS_LOG(gatewayInstanceName, gatewayStartProcessingTime);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_route_name ON HUB_GW_ACCESS_LOG(routeName, gatewayStartProcessingTime);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_service_name ON HUB_GW_ACCESS_LOG(serviceName, gatewayStartProcessingTime);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_client_ip ON HUB_GW_ACCESS_LOG(clientIpAddress, gatewayStartProcessingTime);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_status_time ON HUB_GW_ACCESS_LOG(gatewayStatusCode, gatewayStartProcessingTime);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_proxy_type ON HUB_GW_ACCESS_LOG(proxyType, gatewayStartProcessingTime);

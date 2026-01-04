@@ -253,11 +253,3 @@ app:
       save_history: true
       history_retention_days: 7      # 保留7天历史数据
 ```
-
-## 贡献
-
-欢迎提交Issue和Pull Request来改进这个模块。
-
-## 许可证
-
-本项目采用MIT许可证。 

@@ -77,6 +77,7 @@ type HTTPProxyConfig struct {
 	TLSMinVersion         string `yaml:"tls_min_version,omitempty" json:"tls_min_version,omitempty" mapstructure:"tls_min_version,omitempty"` // 最小TLS版本 (1.0, 1.1, 1.2, 1.3)
 	TLSMaxVersion         string `yaml:"tls_max_version,omitempty" json:"tls_max_version,omitempty" mapstructure:"tls_max_version,omitempty"` // 最大TLS版本 (1.0, 1.1, 1.2, 1.3)
 	TLSServerName         string `yaml:"tls_server_name,omitempty" json:"tls_server_name,omitempty" mapstructure:"tls_server_name,omitempty"` // TLS服务器名称
+
 }
 
 // WebSocketConfig WebSocket配置
@@ -126,9 +127,6 @@ type ProxyHandler interface {
 
 	// GetConfig 获取配置
 	GetConfig() ProxyConfig
-
-	// ProxyRequest 代理请求到指定URL
-	ProxyRequest(ctx *core.Context, targetURL string) error
 
 	// Validate 验证配置
 	Validate() error
@@ -202,11 +200,6 @@ func (b *BaseProxyHandler) Handle(ctx *core.Context) bool {
 	return true
 }
 
-// ProxyRequest 代理请求到指定URL（基础实现）
-func (b *BaseProxyHandler) ProxyRequest(ctx *core.Context, targetURL string) error {
-	return nil
-}
-
 // Validate 验证配置（基础实现：总是通过验证）
 func (b *BaseProxyHandler) Validate() error {
 	return nil
@@ -232,37 +225,25 @@ var DefaultHTTPProxyConfig = HTTPProxyConfig{
 	SendTimeout:      60 * time.Second,
 	ReadTimeout:      60 * time.Second,
 	ConnectTimeout:   60 * time.Second,
-	FollowRedirects:  true,
+	FollowRedirects:  false,
 	KeepAlive:        true,
 	MaxIdleConns:     100,
 	IdleConnTimeout:  90 * time.Second,
-	CopyResponseBody: true,
+	CopyResponseBody: false,
 	BufferSize:       32 * 1024,
 	MaxBufferSize:    1024 * 1024, // 1MB
 	RetryCount:       3,
-	RetryTimeout:     5 * time.Second,
+	RetryTimeout:     10 * time.Second, // 与前端保持一致
 
-	// 头部配置默认值 - 类似nginx的最佳实践
-	SetHeaders: map[string]string{
-		// 可以通过配置文件覆盖这些默认值
-		"User-Agent": "Gateway-Gateway/1.0",
-	},
-	PassHeaders: []string{
-		// 默认允许传递的头部
-		"Authorization",
-		"Content-Type",
-		"Accept",
-	},
-	HideHeaders: []string{
-		// 默认隐藏的头部（从响应中）
-		"Server",
-		"X-Powered-By",
-	},
+	// 头部配置默认值 - 前端默认为空，后端也保持为空以保持一致
+	SetHeaders:         map[string]string{},
+	PassHeaders:        []string{},
+	HideHeaders:        []string{},
 	HTTPVersion:        "1.1",
 	PreserveHost:       false,
-	AddXForwardedFor:   false,
-	AddXRealIP:         false,
-	AddXForwardedProto: false,
+	AddXForwardedFor:   true, // 与前端保持一致
+	AddXRealIP:         true, // 与前端保持一致
+	AddXForwardedProto: true, // 与前端保持一致
 
 	// 新增nginx风格配置默认值
 	ProxyBuffering: true,
@@ -270,7 +251,7 @@ var DefaultHTTPProxyConfig = HTTPProxyConfig{
 	// TLS配置默认值
 	TLSInsecureSkipVerify: false, // 生产环境应该为false
 	TLSMinVersion:         "1.2", // 默认最小TLS版本
-	TLSMaxVersion:         "",    // 空表示使用系统默认
+	TLSMaxVersion:         "1.3", // 与前端保持一致
 	TLSServerName:         "",    // 空表示使用目标主机名
 }
 

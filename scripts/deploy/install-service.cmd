@@ -428,25 +428,29 @@ if "%CHECK_DIR:~-1%"=="\" set CHECK_DIR=%CHECK_DIR:~0,-1%
 :: 转换为绝对路径
 for %%i in ("%CHECK_DIR%") do set CHECK_DIR=%%~fi
 
-:: 首先检查Oracle版本的文件（如果指定了oracle参数）
+:: 优先检查最新的统一文件名 gateway.exe（适用于所有版本）
+if exist "%CHECK_DIR%\gateway.exe" (
+    set EXE_FILE=%CHECK_DIR%\gateway.exe
+    echo [INFO] 找到可执行文件: %EXE_FILE%
+    exit /b 0
+)
+
+:: 兼容旧版本文件名：首先检查Oracle版本的文件（如果指定了oracle参数）
 if "%ORACLE_VERSION%"=="true" (
-    if exist "%CHECK_DIR%\gateway-win10-oracle-amd64.exe" (
+    if exist "%CHECK_DIR%\gateway-oracle.exe" (
+        set EXE_FILE=%CHECK_DIR%\gateway-oracle.exe
+        exit /b 0
+    ) else if exist "%CHECK_DIR%\gateway-win10-oracle-amd64.exe" (
         set EXE_FILE=%CHECK_DIR%\gateway-win10-oracle-amd64.exe
         exit /b 0
     ) else if exist "%CHECK_DIR%\gateway-win2008-oracle-amd64.exe" (
         set EXE_FILE=%CHECK_DIR%\gateway-win2008-oracle-amd64.exe
         exit /b 0
-    ) else if exist "%CHECK_DIR%\gateway-oracle.exe" (
-        set EXE_FILE=%CHECK_DIR%\gateway-oracle.exe
-        exit /b 0
     )
 )
 
-:: 如果没有找到Oracle版本文件，检查标准版本文件
-if exist "%CHECK_DIR%\gateway.exe" (
-    set EXE_FILE=%CHECK_DIR%\gateway.exe
-    exit /b 0
-) else if exist "%CHECK_DIR%\gateway-win10-amd64.exe" (
+:: 兼容旧版本文件名：检查标准版本文件
+if exist "%CHECK_DIR%\gateway-win10-amd64.exe" (
     set EXE_FILE=%CHECK_DIR%\gateway-win10-amd64.exe
     exit /b 0
 ) else if exist "%CHECK_DIR%\gateway-win2008-amd64.exe" (
@@ -454,9 +458,9 @@ if exist "%CHECK_DIR%\gateway.exe" (
     exit /b 0
 )
 
-:: 如果还是没有找到，尝试自动检测Oracle版本
-if exist "%CHECK_DIR%\gateway-win2008-oracle-amd64.exe" (
-    set EXE_FILE=%CHECK_DIR%\gateway-win2008-oracle-amd64.exe
+:: 兼容旧版本文件名：尝试自动检测Oracle版本
+if exist "%CHECK_DIR%\gateway-oracle.exe" (
+    set EXE_FILE=%CHECK_DIR%\gateway-oracle.exe
     set ORACLE_VERSION=true
     set SERVICE_NAME=Gateway
     set SERVICE_DISPLAY_NAME=Gateway Application Service
@@ -469,8 +473,8 @@ if exist "%CHECK_DIR%\gateway-win2008-oracle-amd64.exe" (
     set SERVICE_DISPLAY_NAME=Gateway Application Service
     echo [INFO] 自动检测到Oracle版本可执行文件
     exit /b 0
-) else if exist "%CHECK_DIR%\gateway-oracle.exe" (
-    set EXE_FILE=%CHECK_DIR%\gateway-oracle.exe
+) else if exist "%CHECK_DIR%\gateway-win2008-oracle-amd64.exe" (
+    set EXE_FILE=%CHECK_DIR%\gateway-win2008-oracle-amd64.exe
     set ORACLE_VERSION=true
     set SERVICE_NAME=Gateway
     set SERVICE_DISPLAY_NAME=Gateway Application Service

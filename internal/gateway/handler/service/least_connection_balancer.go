@@ -26,6 +26,8 @@ func NewLeastConnBalancer(config *LoadBalancerConfig) LoadBalancer {
 }
 
 // Select 选择连接数最少的节点
+// 注意：此方法会增加选中节点的连接计数，需要在请求完成后调用 ReleaseConnection 释放
+// 如果忘记释放连接，会导致连接计数不准确，影响负载均衡效果
 func (l *LeastConnectionBalancer) Select(service *ServiceConfig, ctx *core.Context) *NodeConfig {
 	if len(service.Nodes) == 0 {
 		return nil
@@ -110,6 +112,9 @@ func (l *LeastConnectionBalancer) Reset() {
 }
 
 // ReleaseConnection 释放连接（在请求完成后调用）
+// 注意：此方法需要在请求处理完成后手动调用，否则连接数会一直增长
+// 建议在请求处理完成后通过回调或defer自动调用，避免连接数泄漏
+// 如果忘记调用此方法，虽然不会导致真正的内存泄漏，但会导致连接计数不准确
 func (l *LeastConnectionBalancer) ReleaseConnection(nodeID string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()

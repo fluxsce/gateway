@@ -8,6 +8,7 @@ import (
 	"gateway/web/utils/response"
 	"gateway/web/views/hub0002/dao"
 	"gateway/web/views/hub0002/models"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,15 +16,17 @@ import (
 
 // UserController 用户控制器
 type UserController struct {
-	db      database.Database
-	userDAO *dao.UserDAO
+	db          database.Database
+	userDAO     *dao.UserDAO
+	userRoleDAO *dao.UserRoleDAO
 }
 
 // NewUserController 创建用户控制器
 func NewUserController(db database.Database) *UserController {
 	return &UserController{
-		db:      db,
-		userDAO: dao.NewUserDAO(db),
+		db:          db,
+		userDAO:     dao.NewUserDAO(db),
+		userRoleDAO: dao.NewUserRoleDAO(db),
 	}
 }
 
@@ -42,8 +45,14 @@ func (c *UserController) QueryUsers(ctx *gin.Context) {
 	// 使用工具类获取租户ID
 	tenantId := request.GetTenantID(ctx)
 
+	// 绑定查询条件（支持 Query / JSON Body / Form 等多种来源）
+	var query models.UserQuery
+	if err := request.BindSafely(ctx, &query); err != nil {
+		logger.WarnWithTrace(ctx, "绑定用户查询条件失败，使用默认条件", "error", err.Error())
+	}
+
 	// 调用DAO获取用户列表
-	users, total, err := c.userDAO.ListUsers(ctx, tenantId, page, pageSize)
+	users, total, err := c.userDAO.ListUsers(ctx, tenantId, &query, page, pageSize)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取用户列表失败", err)
 		// 使用统一的错误响应
@@ -81,6 +90,28 @@ func (c *UserController) AddUser(ctx *gin.Context) {
 		return
 	}
 
+	// 使用工具类获取租户ID
+	tenantId := strings.TrimSpace(req.TenantId)
+	if tenantId == "" {
+		tenantId = request.GetTenantID(ctx)
+	}
+	// 回写到请求对象中，确保后续持久化时有正确的租户ID
+	req.TenantId = tenantId
+
+	// 新增前检查用户是否已存在（按用户ID + 租户维度），避免重复记录
+	if strings.TrimSpace(req.UserId) != "" {
+		existUser, err := c.userDAO.GetUserById(ctx, req.UserId, tenantId)
+		if err != nil {
+			logger.ErrorWithTrace(ctx, "检查用户是否存在失败", err)
+			response.ErrorJSON(ctx, "检查用户是否存在失败: "+err.Error(), constants.ED00003)
+			return
+		}
+		if existUser != nil {
+			response.ErrorJSON(ctx, "用户已存在", constants.ED00013)
+			return
+		}
+	}
+
 	// 使用工具类获取操作人ID和租户ID
 	operatorId := request.GetOperatorID(ctx)
 
@@ -93,11 +124,6 @@ func (c *UserController) AddUser(ctx *gin.Context) {
 	}
 
 	// 查询新添加的用户信息
-	tenantId := req.TenantId
-	if tenantId == "" {
-		tenantId = request.GetTenantID(ctx)
-	}
-
 	newUser, err := c.userDAO.GetUserById(ctx, userId, tenantId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取新创建的用户信息失败", err)
@@ -326,6 +352,107 @@ func (c *UserController) Delete(ctx *gin.Context) {
 	response.SuccessJSON(ctx, gin.H{
 		"userId": userId,
 	}, constants.SD00005)
+}
+
+// GetUserRoles 获取用户角色列表
+// @Summary 获取用户角色列表
+// @Description 根据用户ID获取所有角色列表，并标记哪些角色已被该用户分配（checked字段）
+// @Tags 用户管理
+// @Accept json
+// @Produce json
+// @Param request body object{userId=string} true "用户ID"
+// @Success 200 {object} response.JsonData{data=[]map[string]interface{}}
+// @Router /api/hub0002/getUserRoles [post]
+func (c *UserController) GetUserRoles(ctx *gin.Context) {
+	// 从请求体中获取用户ID
+	userId := request.GetParam(ctx, "userId")
+	if userId == "" {
+		response.ErrorJSON(ctx, "用户ID不能为空", constants.ED00006)
+		return
+	}
+
+	// 使用工具类获取租户ID
+	tenantId := request.GetTenantID(ctx)
+
+	// 调用DAO获取用户角色列表
+	userRoles, err := c.userRoleDAO.GetUserRoles(ctx, userId, tenantId)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "获取用户角色列表失败", err)
+		response.ErrorJSON(ctx, "获取用户角色列表失败: "+err.Error(), constants.ED00009)
+		return
+	}
+
+	response.SuccessJSON(ctx, userRoles, constants.SD00002)
+}
+
+// AssignUserRoles 为用户分配角色
+// @Summary 为用户分配角色
+// @Description 为用户批量分配角色
+// @Tags 用户管理
+// @Accept json
+// @Produce json
+// @Param request body models.UserRoleRequest true "用户角色分配请求"
+// @Success 200 {object} response.JsonData
+// @Router /api/hub0002/assignUserRoles [post]
+func (c *UserController) AssignUserRoles(ctx *gin.Context) {
+	var req models.UserRoleRequest
+	if err := request.BindSafely(ctx, &req); err != nil {
+		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
+		return
+	}
+
+	// 参数验证
+	if req.UserId == "" {
+		response.ErrorJSON(ctx, "用户ID不能为空", constants.ED00006)
+		return
+	}
+	if req.RoleIds == "" {
+		response.ErrorJSON(ctx, "角色ID列表不能为空", constants.ED00006)
+		return
+	}
+
+	// 解析角色ID列表（逗号分割）
+	roleIds := strings.Split(req.RoleIds, ",")
+	// 过滤空字符串并去除空格
+	var validRoleIds []string
+	for _, roleId := range roleIds {
+		trimmedRoleId := strings.TrimSpace(roleId)
+		if trimmedRoleId != "" {
+			validRoleIds = append(validRoleIds, trimmedRoleId)
+		}
+	}
+	if len(validRoleIds) == 0 {
+		response.ErrorJSON(ctx, "角色ID列表不能为空", constants.ED00006)
+		return
+	}
+
+	// 使用工具类获取操作人ID和租户ID
+	operatorId := request.GetOperatorID(ctx)
+	tenantId := request.GetTenantID(ctx)
+
+	// 解析过期时间（可选）
+	var expireTime *time.Time
+	if req.ExpireTime != nil && *req.ExpireTime != "" {
+		parsedTime, err := time.Parse("2006-01-02 15:04:05", *req.ExpireTime)
+		if err != nil {
+			response.ErrorJSON(ctx, "过期时间格式错误，请使用格式：2006-01-02 15:04:05", constants.ED00006)
+			return
+		}
+		expireTime = &parsedTime
+	}
+
+	// 调用DAO分配角色
+	err := c.userRoleDAO.AssignUserRoles(ctx, req.UserId, tenantId, validRoleIds, operatorId, expireTime)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "分配用户角色失败", err)
+		response.ErrorJSON(ctx, "分配用户角色失败: "+err.Error(), constants.ED00009)
+		return
+	}
+
+	response.SuccessJSON(ctx, gin.H{
+		"userId":  req.UserId,
+		"roleIds": validRoleIds,
+	}, constants.SD00003)
 }
 
 // userToMap 将User模型转换为响应map

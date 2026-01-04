@@ -254,8 +254,8 @@ func (f *GatewayConfigFactory) mergeDefaultConfig(cfg *config.GatewayConfig) {
 	if cfg.Base.IdleTimeout == 0 {
 		cfg.Base.IdleTimeout = defaultCfg.Base.IdleTimeout
 	}
-	if cfg.Base.MaxBodySize == 0 {
-		cfg.Base.MaxBodySize = defaultCfg.Base.MaxBodySize
+	if cfg.Base.MaxHeaderBytes == 0 {
+		cfg.Base.MaxHeaderBytes = defaultCfg.Base.MaxHeaderBytes
 	}
 	if cfg.Base.LogFormat == "" {
 		cfg.Base.LogFormat = defaultCfg.Base.LogFormat

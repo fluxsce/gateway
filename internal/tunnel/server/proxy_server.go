@@ -20,36 +20,21 @@ import (
 // proxyServer 反向代理服务器实现
 // 实现 ProxyServer 接口，处理隧道反向代理转发
 //
-// 每个 serviceID 对应一个反向代理实例，该实例：
-// 1. 在指定的公网端口上监听外网请求
-// 2. 将外网请求通过数据连接转发到内网服务
-type proxyServer struct {
-	tunnelServer  TunnelServer                     // 隧道服务器引用
-	controlServer ControlServer                    // 控制服务器引用，用于与客户端通信
-	activeProxies map[string]*reverseProxyInstance // serviceID -> 反向代理实例
-	proxyMutex    sync.RWMutex                     // 保护 activeProxies 的读写锁
-	pendingConns  map[string]*proxyConnection      // connectionID -> 等待中的代理连接
-	pendingMutex  sync.RWMutex                     // 保护 pendingConns 的读写锁
-	ctx           context.Context                  // 服务器上下文
-	cancel        context.CancelFunc               // 取消函数
-	wg            sync.WaitGroup                   // 等待组，用于优雅关闭
-}
-
-// reverseProxyInstance 反向代理实例
+// 职责：
+// 1. 为每个服务在公网端口上启动监听器
+// 2. 处理外网请求并通过数据连接转发到内网服务
+// 3. 管理等待中的代理连接
 //
-// 每个实例对应一个服务的反向代理配置，包括：
-// - 在指定公网端口监听外网请求
-// - 维护连接统计信息
-// - 管理代理状态
-type reverseProxyInstance struct {
-	service      *types.TunnelService // 关联的隧道服务配置
-	listener     net.Listener         // 公网端口监听器
-	status       string               // 代理状态: starting, running, stopping, stopped
-	startTime    time.Time            // 代理启动时间
-	activeConns  int32                // 当前活跃连接数（原子操作）
-	totalConns   int64                // 历史总连接数（原子操作）
-	totalTraffic int64                // 总流量统计（原子操作）
-	statsMutex   sync.RWMutex         // 保护统计信息的读写锁
+// 注意：服务信息由 TunnelServer 维护，proxyServer 只管理监听器和连接
+type proxyServer struct {
+	tunnelServer     *DefaultTunnelServer        // 隧道服务器引用
+	serviceListeners map[string]net.Listener     // serviceID -> 监听器
+	listenerMutex    sync.RWMutex                // 保护 serviceListeners 的读写锁
+	pendingConns     map[string]*proxyConnection // connectionID -> 等待中的代理连接
+	pendingMutex     sync.RWMutex                // 保护 pendingConns 的读写锁
+	ctx              context.Context             // 服务器上下文
+	cancel           context.CancelFunc          // 取消函数
+	wg               sync.WaitGroup              // 等待组，用于优雅关闭
 }
 
 // proxyConnection 代理连接
@@ -69,8 +54,7 @@ type proxyConnection struct {
 // NewProxyServerImpl 创建新的反向代理服务器实例
 //
 // 参数:
-//   - tunnelServer: 隧道服务器实例，用于获取配置和状态
-//   - controlServer: 控制服务器实例，用于与客户端通信
+//   - tunnelServer: 隧道服务器实例，用于获取配置和状态，同时提供控制连接功能
 //
 // 返回:
 //   - ProxyServer: 反向代理服务器接口实例
@@ -78,15 +62,14 @@ type proxyConnection struct {
 // 功能:
 //   - 初始化反向代理服务器
 //   - 创建代理实例映射表
-func NewProxyServerImpl(tunnelServer TunnelServer, controlServer ControlServer) ProxyServer {
+func NewProxyServerImpl(tunnelServer *DefaultTunnelServer) *proxyServer {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &proxyServer{
-		tunnelServer:  tunnelServer,
-		controlServer: controlServer,
-		activeProxies: make(map[string]*reverseProxyInstance),
-		pendingConns:  make(map[string]*proxyConnection),
-		ctx:           ctx,
-		cancel:        cancel,
+		tunnelServer:     tunnelServer,
+		serviceListeners: make(map[string]net.Listener),
+		pendingConns:     make(map[string]*proxyConnection),
+		ctx:              ctx,
+		cancel:           cancel,
 	}
 }
 
@@ -94,7 +77,7 @@ func NewProxyServerImpl(tunnelServer TunnelServer, controlServer ControlServer) 
 //
 // 参数:
 //   - ctx: 上下文，用于控制代理生命周期
-//   - config: 代理配置，包含服务信息
+//   - service: 隧道服务配置
 //
 // 返回:
 //   - error: 启动失败时返回错误
@@ -102,39 +85,28 @@ func NewProxyServerImpl(tunnelServer TunnelServer, controlServer ControlServer) 
 // 功能:
 //   - 为隧道服务启动反向代理监听器
 //   - 监听外网连接并转发到内网客户端
-//   - 管理统计信息
-func (s *proxyServer) StartProxy(ctx context.Context, config *ProxyConfig) error {
-	s.proxyMutex.Lock()
-	defer s.proxyMutex.Unlock()
+func (s *proxyServer) StartProxy(ctx context.Context, service *types.TunnelService) error {
+	s.listenerMutex.Lock()
+	defer s.listenerMutex.Unlock()
 
-	// 检查代理是否已存在
-	if _, exists := s.activeProxies[config.ProxyID]; exists {
-		return fmt.Errorf("reverse proxy %s already exists", config.ProxyID)
-	}
+	serviceID := service.TunnelServiceId
 
-	// 获取对应的隧道服务
-	service := s.findTunnelService(config.ProxyID)
-	if service == nil {
-		return fmt.Errorf("tunnel service %s not found", config.ProxyID)
-	}
-
-	// 创建反向代理实例
-	proxy := &reverseProxyInstance{
-		service:   service,
-		status:    "starting",
-		startTime: time.Now(),
+	// 检查监听器是否已存在
+	if _, exists := s.serviceListeners[serviceID]; exists {
+		return fmt.Errorf("reverse proxy listener for service %s already exists", serviceID)
 	}
 
 	// 启动监听器
-	if err := s.startReverseProxyListener(ctx, proxy); err != nil {
-		return fmt.Errorf("failed to start reverse proxy listener: %w", err)
+	listener, err := s.startServiceListener(ctx, service)
+	if err != nil {
+		return fmt.Errorf("failed to start service listener: %w", err)
 	}
 
-	proxy.status = "running"
-	s.activeProxies[config.ProxyID] = proxy
+	// 保存监听器
+	s.serviceListeners[serviceID] = listener
 
 	logger.Info("Reverse proxy started", map[string]interface{}{
-		"serviceId":   config.ProxyID,
+		"serviceId":   serviceID,
 		"serviceName": service.ServiceName,
 		"remotePort":  *service.RemotePort,
 		"localTarget": fmt.Sprintf("%s:%d", service.LocalAddress, service.LocalPort),
@@ -156,62 +128,27 @@ func (s *proxyServer) StartProxy(ctx context.Context, config *ProxyConfig) error
 //   - 关闭代理监听器
 //   - 等待现有连接处理完成
 func (s *proxyServer) StopProxy(ctx context.Context, proxyID string) error {
-	s.proxyMutex.Lock()
-	defer s.proxyMutex.Unlock()
+	s.listenerMutex.Lock()
+	defer s.listenerMutex.Unlock()
 
-	proxy, exists := s.activeProxies[proxyID]
+	listener, exists := s.serviceListeners[proxyID]
 	if !exists {
-		return fmt.Errorf("reverse proxy %s not found", proxyID)
+		return fmt.Errorf("reverse proxy listener for service %s not found", proxyID)
 	}
 
-	proxy.status = "stopping"
-
 	// 关闭监听器
-	if proxy.listener != nil {
-		proxy.listener.Close()
+	if listener != nil {
+		listener.Close()
 	}
 
 	// 从映射中移除
-	delete(s.activeProxies, proxyID)
+	delete(s.serviceListeners, proxyID)
 
 	logger.Info("Reverse proxy stopped", map[string]interface{}{
 		"serviceId": proxyID,
 	})
 
 	return nil
-}
-
-// GetActiveProxies 获取活跃的反向代理服务
-//
-// 返回:
-//   - []*ProxyInfo: 活跃代理服务的信息列表
-//
-// 功能:
-//   - 返回所有运行中的反向代理服务信息
-//   - 包含连接数、流量统计等信息
-func (s *proxyServer) GetActiveProxies() []*ProxyInfo {
-	s.proxyMutex.RLock()
-	defer s.proxyMutex.RUnlock()
-
-	var proxies []*ProxyInfo
-	for serviceID, proxy := range s.activeProxies {
-		proxy.statsMutex.RLock()
-		info := &ProxyInfo{
-			ProxyID:           serviceID,
-			ProxyType:         proxy.service.ServiceType,
-			ListenAddress:     "0.0.0.0", // 反向代理监听所有地址
-			ListenPort:        int(*proxy.service.RemotePort),
-			Status:            proxy.status,
-			StartTime:         proxy.startTime,
-			ActiveConnections: int(atomic.LoadInt32(&proxy.activeConns)),
-			TotalConnections:  atomic.LoadInt64(&proxy.totalConns),
-			TotalTraffic:      atomic.LoadInt64(&proxy.totalTraffic),
-		}
-		proxy.statsMutex.RUnlock()
-		proxies = append(proxies, info)
-	}
-
-	return proxies
 }
 
 // HandleProxyConnection 处理反向代理连接
@@ -228,28 +165,33 @@ func (s *proxyServer) GetActiveProxies() []*ProxyInfo {
 //   - 处理外网客户端连接
 //   - 通知内网客户端建立新连接
 func (s *proxyServer) HandleProxyConnection(ctx context.Context, conn net.Conn, proxyID string) error {
-	s.proxyMutex.RLock()
-	proxy, exists := s.activeProxies[proxyID]
-	s.proxyMutex.RUnlock()
-
-	if !exists {
+	// 从 TunnelServer 获取服务信息
+	service := s.findTunnelService(proxyID)
+	if service == nil {
 		conn.Close()
-		return fmt.Errorf("reverse proxy %s not found", proxyID)
+		return fmt.Errorf("tunnel service %s not found", proxyID)
 	}
 
 	defer conn.Close()
 
-	// 更新连接统计
-	atomic.AddInt32(&proxy.activeConns, 1)
-	atomic.AddInt64(&proxy.totalConns, 1)
-	defer atomic.AddInt32(&proxy.activeConns, -1)
+	// 更新连接统计（使用服务的统计字段）
+	// 注意：ConnectionCount 是 int 类型，需要同步保护
+	// TotalConnections 是 int64 类型，可以使用原子操作
+	service.ConnectionCount++
+	atomic.AddInt64(&service.TotalConnections, 1)
+	defer func() {
+		service.ConnectionCount--
+	}()
 
 	// 创建代理连接
+	// connectionID: 使用 "conn_" 前缀 + 20位唯一字符串（总长25）
+	// 格式: conn_XXXXXXXXXXXXXXXXXXXX
+	// 用于标识单个代理连接，确保外网连接与内网数据连接的匹配
 	proxyConn := &proxyConnection{
 		clientConn:   conn,
-		connectionID: generateConnectionID(),
+		connectionID: random.GenerateUniqueStringWithPrefix("conn_", 25),
 		serviceID:    proxyID,
-		clientID:     proxy.service.TunnelClientId,
+		clientID:     service.TunnelClientId,
 		createTime:   time.Now(),
 		ready:        make(chan struct{}),
 	}
@@ -288,7 +230,7 @@ func (s *proxyServer) HandleProxyConnection(ctx context.Context, conn net.Conn, 
 			"connectionId": proxyConn.connectionID,
 			"waitDuration": waitDuration,
 		})
-		return s.bridgeConnections(ctx, proxyConn, proxy)
+		return s.bridgeConnections(ctx, proxyConn, service)
 	case <-time.After(waitTimeout):
 		waitDuration := time.Since(waitStartTime)
 		// 检查是否还有等待中的连接（可能客户端已经建立连接但还没匹配）
@@ -398,20 +340,18 @@ func (s *proxyServer) HandleClientDataConnection(ctx context.Context, conn net.C
 	return nil
 }
 
-// startReverseProxyListener 启动反向代理监听器
-func (s *proxyServer) startReverseProxyListener(ctx context.Context, proxy *reverseProxyInstance) error {
-	if proxy.service.RemotePort == nil {
-		return fmt.Errorf("remote port not allocated for service %s", proxy.service.TunnelServiceId)
+// startServiceListener 为服务启动监听器
+func (s *proxyServer) startServiceListener(ctx context.Context, service *types.TunnelService) (net.Listener, error) {
+	if service.RemotePort == nil {
+		return nil, fmt.Errorf("remote port not allocated for service %s", service.TunnelServiceId)
 	}
 
 	// 启动监听器
-	listenAddr := fmt.Sprintf(":%d", *proxy.service.RemotePort)
+	listenAddr := fmt.Sprintf(":%d", *service.RemotePort)
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
-		return fmt.Errorf("failed to listen on port %d: %w", *proxy.service.RemotePort, err)
+		return nil, fmt.Errorf("failed to listen on port %d: %w", *service.RemotePort, err)
 	}
-
-	proxy.listener = listener
 
 	// 启动接受连接的协程
 	s.wg.Add(1)
@@ -419,10 +359,10 @@ func (s *proxyServer) startReverseProxyListener(ctx context.Context, proxy *reve
 		defer s.wg.Done()
 		defer listener.Close()
 
-		logger.Info("Reverse proxy listener started", map[string]interface{}{
-			"serviceId":   proxy.service.TunnelServiceId,
-			"serviceName": proxy.service.ServiceName,
-			"remotePort":  *proxy.service.RemotePort,
+		logger.Info("Service listener started", map[string]interface{}{
+			"serviceId":   service.TunnelServiceId,
+			"serviceName": service.ServiceName,
+			"remotePort":  *service.RemotePort,
 		})
 
 		for {
@@ -431,17 +371,16 @@ func (s *proxyServer) startReverseProxyListener(ctx context.Context, proxy *reve
 				// 检查上下文是否已取消
 				select {
 				case <-ctx.Done():
-					logger.Info("Reverse proxy listener stopped by context", map[string]interface{}{
-						"serviceId": proxy.service.TunnelServiceId,
+					logger.Info("Service listener stopped by context", map[string]interface{}{
+						"serviceId": service.TunnelServiceId,
 					})
 					return
 				default:
 					// 检查是否是监听器关闭导致的错误
-					// 使用字符串包含检查 "use of closed network connection" 错误
 					errMsg := err.Error()
 					if strings.Contains(errMsg, "use of closed network connection") {
-						logger.Info("Reverse proxy listener closed", map[string]interface{}{
-							"serviceId": proxy.service.TunnelServiceId,
+						logger.Info("Service listener closed", map[string]interface{}{
+							"serviceId": service.TunnelServiceId,
 						})
 						return
 					}
@@ -449,7 +388,7 @@ func (s *proxyServer) startReverseProxyListener(ctx context.Context, proxy *reve
 					// 其他错误，记录日志并继续
 					logger.Error("Failed to accept connection", map[string]interface{}{
 						"error":     err.Error(),
-						"serviceId": proxy.service.TunnelServiceId,
+						"serviceId": service.TunnelServiceId,
 					})
 					// 短暂延迟，避免错误循环过快
 					time.Sleep(100 * time.Millisecond)
@@ -469,17 +408,17 @@ func (s *proxyServer) startReverseProxyListener(ctx context.Context, proxy *reve
 			s.wg.Add(1)
 			go func(clientConn net.Conn) {
 				defer s.wg.Done()
-				if err := s.HandleProxyConnection(ctx, clientConn, proxy.service.TunnelServiceId); err != nil {
-					logger.Error("Reverse proxy connection handling failed", map[string]interface{}{
+				if err := s.HandleProxyConnection(ctx, clientConn, service.TunnelServiceId); err != nil {
+					logger.Error("Proxy connection handling failed", map[string]interface{}{
 						"error":     err.Error(),
-						"serviceId": proxy.service.TunnelServiceId,
+						"serviceId": service.TunnelServiceId,
 					})
 				}
 			}(clientConn)
 		}
 	}()
 
-	return nil
+	return listener, nil
 }
 
 // notifyClientConnection 通知客户端建立连接
@@ -488,9 +427,12 @@ func (s *proxyServer) notifyClientConnection(proxyConn *proxyConnection) error {
 	s.addPendingConnection(proxyConn)
 
 	// 创建代理请求消息
+	// sessionID: 使用 "session_" 前缀 + 20位唯一字符串（总长28）
+	// 格式: session_XXXXXXXXXXXXXXXXXXXX
+	// 用于关联请求-响应消息对，每次消息交互都有唯一的 sessionID
 	proxyReq := types.ControlMessage{
 		Type:      types.MessageTypeProxyRequest,
-		SessionID: generateSessionID(),
+		SessionID: random.GenerateUniqueStringWithPrefix("session_", 28),
 		Data: map[string]interface{}{
 			"serviceId":    proxyConn.serviceID,
 			"connectionId": proxyConn.connectionID,
@@ -531,7 +473,7 @@ func (s *proxyServer) notifyClientConnection(proxyConn *proxyConnection) error {
 }
 
 // bridgeConnections 桥接外网连接和内网数据连接
-func (s *proxyServer) bridgeConnections(ctx context.Context, proxyConn *proxyConnection, proxy *reverseProxyInstance) error {
+func (s *proxyServer) bridgeConnections(ctx context.Context, proxyConn *proxyConnection, service *types.TunnelService) error {
 	// 使用 sync.Once 确保连接只关闭一次，避免 "use of closed network connection" 错误
 	var clientConnOnce sync.Once
 	closeClientConn := func() {
@@ -673,7 +615,7 @@ func (s *proxyServer) bridgeConnections(ctx context.Context, proxyConn *proxyCon
 	}
 
 	// 更新流量统计
-	atomic.AddInt64(&proxy.totalTraffic, totalBytes)
+	atomic.AddInt64(&service.TotalTraffic, totalBytes)
 
 	// 检查是否有真正的错误（非正常关闭）
 	hasError := false
@@ -721,7 +663,7 @@ func (s *proxyServer) bridgeConnections(ctx context.Context, proxyConn *proxyCon
 
 		logger.Warn("Connection bridge completed with zero bytes transferred", map[string]interface{}{
 			"serviceId":    proxyConn.serviceID,
-			"serviceType":  proxy.service.ServiceType,
+			"serviceType":  service.ServiceType,
 			"connectionId": proxyConn.connectionID,
 			"hasError":     hasError,
 			"errorDetails": errorDetails,
@@ -733,7 +675,7 @@ func (s *proxyServer) bridgeConnections(ctx context.Context, proxyConn *proxyCon
 			"serviceId":    proxyConn.serviceID,
 			"connectionId": proxyConn.connectionID,
 			"totalBytes":   totalBytes,
-			"totalTraffic": atomic.LoadInt64(&proxy.totalTraffic),
+			"totalTraffic": atomic.LoadInt64(&service.TotalTraffic),
 		})
 	}
 
@@ -770,18 +712,23 @@ func (s *proxyServer) removePendingConnection(connectionID string) {
 
 // findTunnelService 查找隧道服务配置
 //
-// 根据服务ID从服务注册器中获取服务配置信息。
+// 根据服务ID从 TunnelServer 的已连接客户端中查找服务配置信息。
 // 用于获取服务的端口、地址等配置参数。
 func (s *proxyServer) findTunnelService(serviceID string) *types.TunnelService {
-	service, err := s.tunnelServer.GetServiceRegistry().GetService(context.Background(), serviceID)
-	if err != nil {
-		logger.Error("Failed to get service from registry", map[string]interface{}{
-			"error":     err.Error(),
-			"serviceId": serviceID,
-		})
-		return nil
+	// 遍历所有已连接的客户端，查找服务
+	clients := s.tunnelServer.GetConnectedClients()
+	for _, client := range clients {
+		if client.Services != nil {
+			if service, exists := client.Services[serviceID]; exists {
+				return service
+			}
+		}
 	}
-	return service
+
+	logger.Warn("Service not found in any connected client", map[string]interface{}{
+		"serviceId": serviceID,
+	})
+	return nil
 }
 
 // sendProxyRequestToClient 向客户端发送代理请求
@@ -794,29 +741,7 @@ func (s *proxyServer) sendProxyRequestToClient(clientID string, message *types.C
 		"connectionId": message.Data["connectionId"],
 	})
 
-	return s.controlServer.SendMessageToClient(clientID, message)
-}
-
-// generateConnectionID 生成连接唯一标识符
-//
-// 使用高强度随机字符串生成器，确保在高并发和分布式环境下的唯一性。
-// 生成的ID格式：conn_<20位随机字符串>
-//
-// 返回:
-//   - string: 唯一的连接标识符
-func generateConnectionID() string {
-	return fmt.Sprintf("conn_%s", random.GenerateRandomString(20))
-}
-
-// generateSessionID 生成会话唯一标识符
-//
-// 使用高强度随机字符串生成器，确保在高并发和分布式环境下的唯一性。
-// 生成的ID格式：session_<20位随机字符串>
-//
-// 返回:
-//   - string: 唯一的会话标识符
-func generateSessionID() string {
-	return fmt.Sprintf("session_%s", random.GenerateRandomString(20))
+	return s.tunnelServer.SendMessageToClient(clientID, message)
 }
 
 // isNetTimeout 检查是否是网络超时错误
@@ -840,27 +765,27 @@ func isNetTimeout(err error) bool {
 //   - 停止所有活跃的代理实例
 //   - 等待所有goroutine退出
 func (s *proxyServer) Stop(ctx context.Context) error {
-	logger.Info("Stopping reverse proxy server", nil)
+	logger.Info("Stopping proxy server", nil)
 
 	// 发送停止信号
 	if s.cancel != nil {
 		s.cancel()
 	}
 
-	// 停止所有活跃的代理
-	s.proxyMutex.Lock()
-	var proxyIDs []string
-	for proxyID := range s.activeProxies {
-		proxyIDs = append(proxyIDs, proxyID)
+	// 停止所有监听器
+	s.listenerMutex.Lock()
+	var serviceIDs []string
+	for serviceID := range s.serviceListeners {
+		serviceIDs = append(serviceIDs, serviceID)
 	}
-	s.proxyMutex.Unlock()
+	s.listenerMutex.Unlock()
 
-	// 逐个停止代理
-	for _, proxyID := range proxyIDs {
-		if err := s.StopProxy(ctx, proxyID); err != nil {
-			logger.Error("Failed to stop proxy during shutdown", map[string]interface{}{
-				"error":   err.Error(),
-				"proxyId": proxyID,
+	// 逐个停止监听器
+	for _, serviceID := range serviceIDs {
+		if err := s.StopProxy(ctx, serviceID); err != nil {
+			logger.Error("Failed to stop service listener during shutdown", map[string]interface{}{
+				"error":     err.Error(),
+				"serviceId": serviceID,
 			})
 		}
 	}
@@ -874,10 +799,10 @@ func (s *proxyServer) Stop(ctx context.Context) error {
 
 	select {
 	case <-done:
-		logger.Info("Reverse proxy server stopped successfully", nil)
+		logger.Info("Proxy server stopped successfully", nil)
 		return nil
 	case <-ctx.Done():
-		logger.Warn("Reverse proxy server stop timeout", nil)
+		logger.Warn("Proxy server stop timeout", nil)
 		return ctx.Err()
 	}
 }

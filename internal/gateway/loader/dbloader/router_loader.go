@@ -65,24 +65,34 @@ func (loader *RouterConfigLoader) LoadRouterConfig(ctx context.Context, instance
 		return nil, fmt.Errorf("查询Router配置失败: %w", err)
 	}
 
-	// 如果没有找到记录，返回nil
+	// 构建Router配置（如果不存在则使用默认配置）
+	var routerConfig *router.RouterConfig
 	if len(records) == 0 {
-		return nil, nil
+		// Router不存在，使用默认配置
+		defaultConfig := router.DefaultRouterConfig
+		routerConfig = &router.RouterConfig{
+			ID:               defaultConfig.ID,
+			Enabled:          defaultConfig.Enabled,
+			Name:             defaultConfig.Name,
+			DefaultPriority:  defaultConfig.DefaultPriority,
+			EnableRouteCache: defaultConfig.EnableRouteCache,
+			RouteCacheTTL:    defaultConfig.RouteCacheTTL,
+		}
+		logger.Info("Router配置不存在，使用默认配置", "instanceId", instanceId)
+	} else {
+		record := records[0]
+		// 构建Router配置
+		routerConfig = &router.RouterConfig{
+			ID:               record.RouterConfigId,
+			Enabled:          record.ActiveFlag == "Y",
+			Name:             record.RouterName,
+			DefaultPriority:  record.DefaultPriority,
+			EnableRouteCache: record.EnableRouteCache == "Y",
+			RouteCacheTTL:    record.RouteCacheTtlSeconds,
+		}
 	}
 
-	record := records[0]
-
-	// 构建Router配置
-	routerConfig := &router.RouterConfig{
-		ID:               record.RouterConfigId,
-		Enabled:          record.ActiveFlag == "Y",
-		Name:             record.RouterName,
-		DefaultPriority:  record.DefaultPriority,
-		EnableRouteCache: record.EnableRouteCache == "Y",
-		RouteCacheTTL:    record.RouteCacheTtlSeconds,
-	}
-
-	// 加载路由配置
+	// 加载路由配置（无论Router是否存在都加载）
 	routes, err := loader.LoadRoutes(ctx, instanceId)
 	if err != nil {
 		logger.Warn("加载路由配置失败", "error", err)
@@ -91,7 +101,7 @@ func (loader *RouterConfigLoader) LoadRouterConfig(ctx context.Context, instance
 		routerConfig.Routes = routes
 	}
 
-	// 加载全局过滤器配置
+	// 加载全局过滤器配置（无论Router是否存在都加载）
 	globalFilters, err := loader.LoadGlobalFilters(ctx, instanceId)
 	if err != nil {
 		logger.Warn("加载全局过滤器失败", "error", err)
@@ -132,9 +142,27 @@ func (loader *RouterConfigLoader) LoadRoutes(ctx context.Context, instanceId str
 			Enabled:   record.ActiveFlag == "Y",
 		}
 
-		// 设置服务ID
-		if record.ServiceDefinitionId != nil {
-			routeConfig.ServiceID = *record.ServiceDefinitionId
+		// 处理服务ID（支持单服务和多服务模式）
+		if record.ServiceDefinitionId != nil && *record.ServiceDefinitionId != "" {
+			serviceIdStr := strings.TrimSpace(*record.ServiceDefinitionId)
+			// 检查是否包含逗号（多服务模式）
+			if strings.Contains(serviceIdStr, ",") {
+				// 多服务模式：分割服务ID
+				serviceIds := strings.Split(serviceIdStr, ",")
+				var trimmedServiceIds []string
+				for _, id := range serviceIds {
+					trimmed := strings.TrimSpace(id)
+					if trimmed != "" {
+						trimmedServiceIds = append(trimmedServiceIds, trimmed)
+					}
+				}
+				if len(trimmedServiceIds) > 0 {
+					routeConfig.ServiceIDs = trimmedServiceIds
+				}
+			} else {
+				// 单服务模式（向后兼容）
+				routeConfig.ServiceID = serviceIdStr
+			}
 		}
 
 		// 解析允许的方法
@@ -147,24 +175,37 @@ func (loader *RouterConfigLoader) LoadRoutes(ctx context.Context, instanceId str
 
 		// 构建元数据
 		metadata := make(map[string]interface{})
-		metadata["strip_prefix"] = record.StripPathPrefix == "Y"
-		metadata["enable_websocket"] = record.EnableWebsocket == "Y"
-		metadata["timeout_ms"] = record.TimeoutMs
-		metadata["retry_count"] = record.RetryCount
-		metadata["retry_interval_ms"] = record.RetryIntervalMs
 
-		if record.AllowedHosts != nil {
-			metadata["allowed_hosts"] = parseStringArray(*record.AllowedHosts)
-		}
-		if record.RewritePath != nil {
-			metadata["rewrite_path"] = *record.RewritePath
-		}
 		if record.RouteMetadata != nil {
 			// 尝试解析JSON元数据
 			var routeMetadata map[string]interface{}
 			if err := json.Unmarshal([]byte(*record.RouteMetadata), &routeMetadata); err == nil {
 				for k, v := range routeMetadata {
 					metadata[k] = v
+				}
+
+				// 如果是多服务模式，从 routeMetadata 中提取多服务配置
+				if len(routeConfig.ServiceIDs) > 0 {
+					multiServiceConfig := &router.MultiServiceConfig{
+						ResponseMergeStrategy: "first", // 默认值
+						MaxConcurrentRequests: 0,       // 默认值：不限制
+						RequireAllSuccess:     false,   // 默认值
+					}
+
+					// 从 routeMetadata 中提取多服务配置字段
+					if responseMergeStrategy, ok := routeMetadata["responseMergeStrategy"].(string); ok {
+						multiServiceConfig.ResponseMergeStrategy = responseMergeStrategy
+					}
+					if maxConcurrentRequests, ok := routeMetadata["maxConcurrentRequests"].(float64); ok {
+						multiServiceConfig.MaxConcurrentRequests = int(maxConcurrentRequests)
+					} else if maxConcurrentRequestsInt, ok := routeMetadata["maxConcurrentRequests"].(int); ok {
+						multiServiceConfig.MaxConcurrentRequests = maxConcurrentRequestsInt
+					}
+					if requireAllSuccess, ok := routeMetadata["requireAllSuccess"].(bool); ok {
+						multiServiceConfig.RequireAllSuccess = requireAllSuccess
+					}
+
+					routeConfig.MultiServiceConfig = multiServiceConfig
 				}
 			}
 		}

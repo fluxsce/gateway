@@ -78,6 +78,10 @@ func initUserRoutes(router *gin.RouterGroup, db database.Database) {
 		userGroup.POST("/editUser", userController.EditUser)
 		userGroup.POST("/deleteUser", userController.Delete)
 		userGroup.POST("/changePassword", userController.ChangePassword)
+
+		// 用户角色授权相关路由
+		userGroup.POST("/getUserRoles", userController.GetUserRoles)
+		userGroup.POST("/assignUserRoles", userController.AssignUserRoles)
 	}
 }
 

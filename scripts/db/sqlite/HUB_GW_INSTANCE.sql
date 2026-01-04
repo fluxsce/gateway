@@ -1,0 +1,56 @@
+
+-- 3. 网关实例表
+CREATE TABLE IF NOT EXISTS HUB_GW_INSTANCE (
+    tenantId TEXT NOT NULL,
+    gatewayInstanceId TEXT NOT NULL,
+    instanceName TEXT NOT NULL,
+    instanceDesc TEXT,
+    bindAddress TEXT DEFAULT '0.0.0.0',
+    httpPort INTEGER,
+    httpsPort INTEGER,
+    tlsEnabled TEXT NOT NULL DEFAULT 'N',
+    certStorageType TEXT NOT NULL DEFAULT 'FILE',
+    certFilePath TEXT,
+    keyFilePath TEXT,
+    certContent TEXT,
+    keyContent TEXT,
+    certChainContent TEXT,
+    certPassword TEXT,
+    maxConnections INTEGER NOT NULL DEFAULT 10000,
+    readTimeoutMs INTEGER NOT NULL DEFAULT 30000,
+    writeTimeoutMs INTEGER NOT NULL DEFAULT 30000,
+    idleTimeoutMs INTEGER NOT NULL DEFAULT 60000,
+    maxHeaderBytes INTEGER NOT NULL DEFAULT 1048576,
+    maxWorkers INTEGER NOT NULL DEFAULT 1000,
+    keepAliveEnabled TEXT NOT NULL DEFAULT 'Y',
+    tcpKeepAliveEnabled TEXT NOT NULL DEFAULT 'Y',
+    gracefulShutdownTimeoutMs INTEGER NOT NULL DEFAULT 30000,
+    enableHttp2 TEXT NOT NULL DEFAULT 'Y',
+    tlsVersion TEXT DEFAULT '1.2',
+    tlsCipherSuites TEXT,
+    disableGeneralOptionsHandler TEXT NOT NULL DEFAULT 'N',
+    logConfigId TEXT,
+    healthStatus TEXT NOT NULL DEFAULT 'Y',
+    lastHeartbeatTime DATETIME,
+    instanceMetadata TEXT,
+    reserved1 TEXT,
+    reserved2 TEXT,
+    reserved3 INTEGER,
+    reserved4 INTEGER,
+    reserved5 DATETIME,
+    extProperty TEXT,
+    addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    addWho TEXT NOT NULL,
+    editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    editWho TEXT NOT NULL,
+    oprSeqFlag TEXT NOT NULL,
+    currentVersion INTEGER NOT NULL DEFAULT 1,
+    activeFlag TEXT NOT NULL DEFAULT 'Y',
+    noteText TEXT,
+    PRIMARY KEY (tenantId, gatewayInstanceId)
+);
+CREATE INDEX IDX_GW_INST_BIND_HTTP ON HUB_GW_INSTANCE(bindAddress, httpPort);
+CREATE INDEX IDX_GW_INST_BIND_HTTPS ON HUB_GW_INSTANCE(bindAddress, httpsPort);
+CREATE INDEX IDX_GW_INST_LOG ON HUB_GW_INSTANCE(logConfigId);
+CREATE INDEX IDX_GW_INST_HEALTH ON HUB_GW_INSTANCE(healthStatus);
+CREATE INDEX IDX_GW_INST_TLS ON HUB_GW_INSTANCE(tlsEnabled);

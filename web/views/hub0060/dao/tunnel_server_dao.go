@@ -3,6 +3,8 @@ package dao
 import (
 	"context"
 	"fmt"
+	"gateway/internal/tunnel/server"
+	"gateway/internal/tunnel/types"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/logger"
@@ -10,8 +12,6 @@ import (
 	"gateway/web/views/hub0060/models"
 	"strings"
 	"time"
-
-	"gateway/internal/tunnel"
 )
 
 // TunnelServerDAO 隧道服务器数据访问对象
@@ -25,8 +25,7 @@ func NewTunnelServerDAO(db database.Database) *TunnelServerDAO {
 }
 
 // QueryTunnelServers 查询隧道服务器列表
-func (dao *TunnelServerDAO) QueryTunnelServers(req *models.TunnelServerQueryRequest) ([]*models.TunnelServer, int, error) {
-	ctx := context.Background()
+func (dao *TunnelServerDAO) QueryTunnelServers(ctx context.Context, req *models.TunnelServerQueryRequest) ([]*types.TunnelServer, int, error) {
 
 	// 构建查询条件
 	whereClause := "WHERE 1=1"
@@ -88,7 +87,7 @@ func (dao *TunnelServerDAO) QueryTunnelServers(req *models.TunnelServerQueryRequ
 
 	// 如果没有记录，直接返回空列表
 	if countResult.Count == 0 {
-		return []*models.TunnelServer{}, 0, nil
+		return []*types.TunnelServer{}, 0, nil
 	}
 
 	// 创建分页信息
@@ -107,7 +106,7 @@ func (dao *TunnelServerDAO) QueryTunnelServers(req *models.TunnelServerQueryRequ
 	allArgs := append(params, paginationArgs...)
 
 	// 执行分页查询
-	var servers []*models.TunnelServer
+	var servers []*types.TunnelServer
 	err = dao.db.Query(ctx, &servers, paginatedQuery, allArgs, true)
 	if err != nil {
 		logger.Error("查询隧道服务器数据失败", "error", err)
@@ -118,8 +117,7 @@ func (dao *TunnelServerDAO) QueryTunnelServers(req *models.TunnelServerQueryRequ
 }
 
 // GetTunnelServer 获取隧道服务器详情
-func (dao *TunnelServerDAO) GetTunnelServer(tunnelServerId string) (*models.TunnelServer, error) {
-	ctx := context.Background()
+func (dao *TunnelServerDAO) GetTunnelServer(ctx context.Context, tunnelServerId string) (*types.TunnelServer, error) {
 
 	// 构建查询语句
 	query := `
@@ -133,7 +131,7 @@ func (dao *TunnelServerDAO) GetTunnelServer(tunnelServerId string) (*models.Tunn
 		WHERE tunnelServerId = ?
 	`
 
-	server := &models.TunnelServer{}
+	server := &types.TunnelServer{}
 	err := dao.db.QueryOne(ctx, server, query, []interface{}{tunnelServerId}, true)
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows") || strings.Contains(err.Error(), "not found") {
@@ -146,8 +144,7 @@ func (dao *TunnelServerDAO) GetTunnelServer(tunnelServerId string) (*models.Tunn
 }
 
 // CreateTunnelServer 创建隧道服务器
-func (dao *TunnelServerDAO) CreateTunnelServer(server *models.TunnelServer) (*models.TunnelServer, error) {
-	ctx := context.Background()
+func (dao *TunnelServerDAO) CreateTunnelServer(ctx context.Context, server *types.TunnelServer) (*types.TunnelServer, error) {
 
 	// 设置默认值
 	if server.ActiveFlag == "" {
@@ -176,7 +173,7 @@ func (dao *TunnelServerDAO) CreateTunnelServer(server *models.TunnelServer) (*mo
 	}
 
 	// 检查服务器名称是否重复
-	exists, err := dao.CheckServerNameExists(server.ServerName, "")
+	exists, err := dao.CheckServerNameExists(ctx, server.ServerName, "")
 	if err != nil {
 		return nil, huberrors.WrapError(err, "检查服务器名称存在性失败")
 	}
@@ -198,7 +195,7 @@ func (dao *TunnelServerDAO) CreateTunnelServer(server *models.TunnelServer) (*mo
 	logger.Info("创建隧道服务器成功", "tunnelServerId", server.TunnelServerId, "serverName", server.ServerName)
 
 	// 返回创建后的服务器信息
-	createdServer, err := dao.GetTunnelServer(server.TunnelServerId)
+	createdServer, err := dao.GetTunnelServer(ctx, server.TunnelServerId)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "获取创建后的服务器信息失败")
 	}
@@ -207,18 +204,17 @@ func (dao *TunnelServerDAO) CreateTunnelServer(server *models.TunnelServer) (*mo
 }
 
 // UpdateTunnelServer 更新隧道服务器
-func (dao *TunnelServerDAO) UpdateTunnelServer(server *models.TunnelServer) (*models.TunnelServer, error) {
-	ctx := context.Background()
+func (dao *TunnelServerDAO) UpdateTunnelServer(ctx context.Context, server *types.TunnelServer) (*types.TunnelServer, error) {
 
 	// 检查服务器是否存在
-	existingServer, err := dao.GetTunnelServer(server.TunnelServerId)
+	existingServer, err := dao.GetTunnelServer(ctx, server.TunnelServerId)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "获取隧道服务器信息失败")
 	}
 
 	// 检查服务器名称是否重复
 	if server.ServerName != existingServer.ServerName {
-		exists, err := dao.CheckServerNameExists(server.ServerName, server.TunnelServerId)
+		exists, err := dao.CheckServerNameExists(ctx, server.ServerName, server.TunnelServerId)
 		if err != nil {
 			return nil, huberrors.WrapError(err, "检查服务器名称存在性失败")
 		}
@@ -243,7 +239,7 @@ func (dao *TunnelServerDAO) UpdateTunnelServer(server *models.TunnelServer) (*mo
 	logger.Info("更新隧道服务器成功", "tunnelServerId", server.TunnelServerId, "serverName", server.ServerName)
 
 	// 返回更新后的服务器信息
-	updatedServer, err := dao.GetTunnelServer(server.TunnelServerId)
+	updatedServer, err := dao.GetTunnelServer(ctx, server.TunnelServerId)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "获取更新后的服务器信息失败")
 	}
@@ -252,11 +248,9 @@ func (dao *TunnelServerDAO) UpdateTunnelServer(server *models.TunnelServer) (*mo
 }
 
 // DeleteTunnelServer 删除隧道服务器（物理删除）
-func (dao *TunnelServerDAO) DeleteTunnelServer(tunnelServerId, editWho string) (*models.TunnelServer, error) {
-	ctx := context.Background()
-
+func (dao *TunnelServerDAO) DeleteTunnelServer(ctx context.Context, tunnelServerId, editWho string) (*types.TunnelServer, error) {
 	// 获取服务器信息
-	server, err := dao.GetTunnelServer(tunnelServerId)
+	server, err := dao.GetTunnelServer(ctx, tunnelServerId)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "获取隧道服务器信息失败")
 	}
@@ -278,11 +272,9 @@ func (dao *TunnelServerDAO) DeleteTunnelServer(tunnelServerId, editWho string) (
 }
 
 // UpdateTunnelServerStatus 更新隧道服务器状态
-func (dao *TunnelServerDAO) UpdateTunnelServerStatus(tunnelServerId, status string) (*models.TunnelServer, error) {
-	ctx := context.Background()
-
+func (dao *TunnelServerDAO) UpdateTunnelServerStatus(ctx context.Context, tunnelServerId, status string) (*types.TunnelServer, error) {
 	// 获取服务器信息
-	server, err := dao.GetTunnelServer(tunnelServerId)
+	server, err := dao.GetTunnelServer(ctx, tunnelServerId)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "获取隧道服务器信息失败")
 	}
@@ -310,7 +302,7 @@ func (dao *TunnelServerDAO) UpdateTunnelServerStatus(tunnelServerId, status stri
 	logger.Info("更新隧道服务器状态成功", "tunnelServerId", tunnelServerId, "status", status)
 
 	// 返回更新后的服务器信息
-	updatedServer, err := dao.GetTunnelServer(tunnelServerId)
+	updatedServer, err := dao.GetTunnelServer(ctx, tunnelServerId)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "获取更新后的服务器信息失败")
 	}
@@ -319,8 +311,7 @@ func (dao *TunnelServerDAO) UpdateTunnelServerStatus(tunnelServerId, status stri
 }
 
 // GetTunnelServerStats 获取隧道服务器统计信息
-func (dao *TunnelServerDAO) GetTunnelServerStats() (*models.TunnelServerStats, error) {
-	ctx := context.Background()
+func (dao *TunnelServerDAO) GetTunnelServerStats(ctx context.Context) (*models.TunnelServerStats, error) {
 
 	// 查询总服务器数量
 	totalQuery := `SELECT COUNT(*) FROM HUB_TUNNEL_SERVER WHERE activeFlag = 'Y'`
@@ -334,14 +325,32 @@ func (dao *TunnelServerDAO) GetTunnelServerStats() (*models.TunnelServerStats, e
 	}
 	totalServers := totalResult.Count
 
-	// 查询在线服务器数量
-	onlineQuery := `SELECT COUNT(*) FROM HUB_TUNNEL_SERVER WHERE activeFlag = 'Y' AND serverStatus = 'running'`
-	var onlineResult CountResult
-	err = dao.db.QueryOne(ctx, &onlineResult, onlineQuery, nil, true)
+	// 查询运行中服务器数量
+	runningQuery := `SELECT COUNT(*) FROM HUB_TUNNEL_SERVER WHERE activeFlag = 'Y' AND serverStatus = 'running'`
+	var runningResult CountResult
+	err = dao.db.QueryOne(ctx, &runningResult, runningQuery, nil, true)
 	if err != nil {
-		return nil, huberrors.WrapError(err, "查询在线服务器数量失败")
+		return nil, huberrors.WrapError(err, "查询运行中服务器数量失败")
 	}
-	onlineServers := onlineResult.Count
+	runningServers := runningResult.Count
+
+	// 查询已停止服务器数量
+	stoppedQuery := `SELECT COUNT(*) FROM HUB_TUNNEL_SERVER WHERE activeFlag = 'Y' AND serverStatus = 'stopped'`
+	var stoppedResult CountResult
+	err = dao.db.QueryOne(ctx, &stoppedResult, stoppedQuery, nil, true)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "查询已停止服务器数量失败")
+	}
+	stoppedServers := stoppedResult.Count
+
+	// 查询错误服务器数量
+	errorQuery := `SELECT COUNT(*) FROM HUB_TUNNEL_SERVER WHERE activeFlag = 'Y' AND serverStatus = 'error'`
+	var errorResult CountResult
+	err = dao.db.QueryOne(ctx, &errorResult, errorQuery, nil, true)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "查询错误服务器数量失败")
+	}
+	errorServers := errorResult.Count
 
 	// 查询客户端总数
 	clientQuery := `SELECT COUNT(*) FROM HUB_TUNNEL_CLIENT WHERE activeFlag = 'Y'`
@@ -353,22 +362,23 @@ func (dao *TunnelServerDAO) GetTunnelServerStats() (*models.TunnelServerStats, e
 	}
 	// 如果表不存在或查询失败，保持默认值0
 
-	// 查询服务总数
+	// 查询服务总数（作为连接数）
 	serviceQuery := `SELECT COUNT(*) FROM HUB_TUNNEL_SERVICE WHERE activeFlag = 'Y'`
 	var serviceResult CountResult
-	totalServices := 0
+	totalConnections := 0
 	err = dao.db.QueryOne(ctx, &serviceResult, serviceQuery, nil, true)
 	if err == nil {
-		totalServices = serviceResult.Count
+		totalConnections = serviceResult.Count
 	}
 	// 如果表不存在或查询失败，保持默认值0
 
 	return &models.TunnelServerStats{
-		TotalServers:   totalServers,
-		OnlineServers:  onlineServers,
-		OfflineServers: totalServers - onlineServers,
-		TotalClients:   totalClients,
-		TotalServices:  totalServices,
+		TotalServers:     totalServers,
+		RunningServers:   runningServers,
+		StoppedServers:   stoppedServers,
+		ErrorServers:     errorServers,
+		TotalClients:     totalClients,
+		TotalConnections: totalConnections,
 	}, nil
 }
 
@@ -383,8 +393,7 @@ func (dao *TunnelServerDAO) GetServerStatusOptions() []map[string]interface{} {
 }
 
 // CheckServerNameExists 检查服务器名称是否存在
-func (dao *TunnelServerDAO) CheckServerNameExists(serverName, excludeId string) (bool, error) {
-	ctx := context.Background()
+func (dao *TunnelServerDAO) CheckServerNameExists(ctx context.Context, serverName, excludeId string) (bool, error) {
 
 	// 构建查询条件
 	whereClause := "serverName = ? AND activeFlag = 'Y'"
@@ -413,7 +422,7 @@ func (dao *TunnelServerDAO) CheckServerNameExists(serverName, excludeId string) 
 }
 
 // GetTunnelServerList 获取隧道服务器列表（用于下拉选择）
-func (dao *TunnelServerDAO) GetTunnelServerList(ctx context.Context) ([]*models.TunnelServer, error) {
+func (dao *TunnelServerDAO) GetTunnelServerList(ctx context.Context) ([]*types.TunnelServer, error) {
 
 	// 只查询活跃的服务器，并只返回必要的字段
 	query := `
@@ -424,7 +433,7 @@ func (dao *TunnelServerDAO) GetTunnelServerList(ctx context.Context) ([]*models.
 	`
 
 	// 执行查询
-	var servers []*models.TunnelServer
+	var servers []*types.TunnelServer
 	err := dao.db.Query(ctx, &servers, query, nil, true)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "获取隧道服务器列表失败")
@@ -434,131 +443,110 @@ func (dao *TunnelServerDAO) GetTunnelServerList(ctx context.Context) ([]*models.
 }
 
 // StartTunnelServer 启动隧道服务器
-func (dao *TunnelServerDAO) StartTunnelServer(tunnelServerId string) error {
-	ctx := context.Background()
+func (dao *TunnelServerDAO) StartTunnelServer(ctx context.Context, tunnelServerId string) (*types.TunnelServer, error) {
 
-	// 获取隧道管理器
-	tunnelManager := getTunnelManager()
-	if tunnelManager == nil {
-		return huberrors.NewError("隧道管理器未初始化")
+	// 获取隧道服务端管理器
+	serverManager := getTunnelServerManager()
+	if serverManager == nil {
+		return nil, huberrors.NewError("隧道服务端管理器未初始化")
 	}
 
-	// 调用隧道管理器启动服务器
-	err := tunnelManager.StartServer(ctx, tunnelServerId)
+	// 调用隧道服务端管理器启动服务器
+	err := serverManager.Start(ctx, tunnelServerId)
 	if err != nil {
-		return huberrors.WrapError(err, "启动隧道服务器失败")
-	}
-
-	// 更新数据库中的服务器状态为运行中
-	updateQuery := `
-		UPDATE HUB_TUNNEL_SERVER
-		SET serverStatus = ?, startTime = ?, editTime = ?
-		WHERE tunnelServerId = ?
-	`
-	now := time.Now()
-	_, err = dao.db.Exec(ctx, updateQuery, []interface{}{"running", now, now, tunnelServerId}, false)
-	if err != nil {
-		logger.Error("更新服务器状态失败", "tunnelServerId", tunnelServerId, "error", err)
-		// 不返回错误，因为服务器已经启动成功
+		return nil, huberrors.WrapError(err, "启动隧道服务器失败")
 	}
 
 	logger.Info("启动隧道服务器成功", "tunnelServerId", tunnelServerId)
-	return nil
+
+	// 查询最新的服务器详情返回
+	server, err := dao.GetTunnelServer(ctx, tunnelServerId)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "获取服务器详情失败")
+	}
+
+	return server, nil
 }
 
 // StopTunnelServer 停止隧道服务器
-func (dao *TunnelServerDAO) StopTunnelServer(tunnelServerId string) error {
-	ctx := context.Background()
+func (dao *TunnelServerDAO) StopTunnelServer(ctx context.Context, tunnelServerId string) (*types.TunnelServer, error) {
 
-	// 获取隧道管理器
-	tunnelManager := getTunnelManager()
-	if tunnelManager == nil {
-		return huberrors.NewError("隧道管理器未初始化")
+	// 获取隧道服务端管理器
+	serverManager := getTunnelServerManager()
+	if serverManager == nil {
+		return nil, huberrors.NewError("隧道服务端管理器未初始化")
 	}
 
-	// 调用隧道管理器停止服务器
-	err := tunnelManager.StopServer(ctx, tunnelServerId)
+	// 调用隧道服务端管理器停止服务器
+	err := serverManager.Stop(ctx, tunnelServerId)
 	if err != nil {
-		return huberrors.WrapError(err, "停止隧道服务器失败")
-	}
-
-	// 更新数据库中的服务器状态为已停止
-	updateQuery := `
-		UPDATE HUB_TUNNEL_SERVER
-		SET serverStatus = ?, editTime = ?
-		WHERE tunnelServerId = ?
-	`
-	now := time.Now()
-	_, err = dao.db.Exec(ctx, updateQuery, []interface{}{"stopped", now, tunnelServerId}, false)
-	if err != nil {
-		logger.Error("更新服务器状态失败", "tunnelServerId", tunnelServerId, "error", err)
-		// 不返回错误，因为服务器已经停止成功
+		return nil, huberrors.WrapError(err, "停止隧道服务器失败")
 	}
 
 	logger.Info("停止隧道服务器成功", "tunnelServerId", tunnelServerId)
-	return nil
+
+	// 查询最新的服务器详情返回
+	server, err := dao.GetTunnelServer(ctx, tunnelServerId)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "获取服务器详情失败")
+	}
+
+	return server, nil
 }
 
 // RestartTunnelServer 重启隧道服务器
-func (dao *TunnelServerDAO) RestartTunnelServer(tunnelServerId string) error {
-	ctx := context.Background()
+func (dao *TunnelServerDAO) RestartTunnelServer(ctx context.Context, tunnelServerId string) (*types.TunnelServer, error) {
 
-	// 获取隧道管理器
-	tunnelManager := getTunnelManager()
-	if tunnelManager == nil {
-		return huberrors.NewError("隧道管理器未初始化")
+	// 获取隧道服务端管理器
+	serverManager := getTunnelServerManager()
+	if serverManager == nil {
+		return nil, huberrors.NewError("隧道服务端管理器未初始化")
 	}
 
 	logger.Info("开始重启隧道服务器", "tunnelServerId", tunnelServerId)
 
 	// 先停止服务器
-	err := tunnelManager.StopServer(ctx, tunnelServerId)
+	err := serverManager.Stop(ctx, tunnelServerId)
 	if err != nil {
 		logger.Warn("停止服务器失败，尝试继续启动", "tunnelServerId", tunnelServerId, "error", err)
 		// 不返回错误，继续尝试启动
 	}
 
 	// 再启动服务器（会自动从数据库加载最新配置）
-	err = tunnelManager.StartServer(ctx, tunnelServerId)
+	err = serverManager.Start(ctx, tunnelServerId)
 	if err != nil {
-		// 更新状态为错误
-		updateQuery := `
-			UPDATE HUB_TUNNEL_SERVER
-			SET serverStatus = ?, editTime = ?
-			WHERE tunnelServerId = ?
-		`
-		dao.db.Exec(ctx, updateQuery, []interface{}{"error", time.Now(), tunnelServerId}, false)
-		return huberrors.WrapError(err, "重启隧道服务器失败")
-	}
-
-	// 更新数据库中的服务器状态为运行中
-	updateQuery := `
-		UPDATE HUB_TUNNEL_SERVER
-		SET serverStatus = ?, startTime = ?, editTime = ?
-		WHERE tunnelServerId = ?
-	`
-	now := time.Now()
-	_, err = dao.db.Exec(ctx, updateQuery, []interface{}{"running", now, now, tunnelServerId}, false)
-	if err != nil {
-		logger.Error("更新服务器状态失败", "tunnelServerId", tunnelServerId, "error", err)
+		return nil, huberrors.WrapError(err, "重启隧道服务器失败")
 	}
 
 	logger.Info("重启隧道服务器成功", "tunnelServerId", tunnelServerId)
-	return nil
+
+	// 查询最新的服务器详情返回
+	server, err := dao.GetTunnelServer(ctx, tunnelServerId)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "获取服务器详情失败")
+	}
+
+	return server, nil
 }
 
 // ReloadTunnelServerConfig 重新加载隧道服务器配置
-func (dao *TunnelServerDAO) ReloadTunnelServerConfig(tunnelServerId string) error {
-	ctx := context.Background()
+func (dao *TunnelServerDAO) ReloadTunnelServerConfig(ctx context.Context, tunnelServerId string) error {
 
-	// 获取隧道管理器
-	tunnelManager := getTunnelManager()
-	if tunnelManager == nil {
-		return huberrors.NewError("隧道管理器未初始化")
+	// 获取隧道服务端管理器
+	serverManager := getTunnelServerManager()
+	if serverManager == nil {
+		return huberrors.NewError("隧道服务端管理器未初始化")
 	}
 
-	// 调用隧道管理器重新加载配置
-	err := tunnelManager.ReloadServerConfig(ctx, tunnelServerId)
+	// 获取服务器实例
+	server := serverManager.GetServer(tunnelServerId)
+	if server == nil {
+		return huberrors.NewError("服务器不存在或未加载: %s", tunnelServerId)
+	}
+
+	// 调用隧道服务端管理器重新加载配置
+	// Reload 方法会自动从数据库加载最新配置
+	err := serverManager.Reload(ctx, server.GetConfig())
 	if err != nil {
 		return huberrors.WrapError(err, "重新加载隧道服务器配置失败")
 	}
@@ -567,8 +555,7 @@ func (dao *TunnelServerDAO) ReloadTunnelServerConfig(tunnelServerId string) erro
 	return nil
 }
 
-// getTunnelManager 获取隧道管理器实例
-// 直接从 tunnel 包获取全局实例
-func getTunnelManager() *tunnel.TunnelManager {
-	return tunnel.GetGlobalManager()
+// getTunnelServerManager 获取隧道服务端管理器实例
+func getTunnelServerManager() *server.TunnelServerManager {
+	return server.GetTunnelServerManager()
 }

@@ -95,7 +95,7 @@ func initRouteConfigRoutes(router *gin.RouterGroup, db database.Database) {
 		configGroup.POST("/queryRouteConfigs", routeConfigController.QueryRouteConfigs)
 
 		// 路由配置详情查询
-		configGroup.POST("/routeConfig", routeConfigController.GetRouteConfig)
+		configGroup.POST("/getRouteConfig", routeConfigController.GetRouteConfig)
 
 		// 根据网关实例获取路由配置列表
 		configGroup.POST("/routeConfigs/byInstance", routeConfigController.GetRouteConfigsByInstance)
@@ -128,8 +128,9 @@ func initRouteAssertionRoutes(router *gin.RouterGroup, db database.Database) {
 		// 路由断言增删改查
 		assertionGroup.POST("/addRouteAssertion", routeAssertionController.AddRouteAssertion)
 		assertionGroup.POST("/editRouteAssertion", routeAssertionController.EditRouteAssertion)
-		assertionGroup.POST("/routeAssertions", routeAssertionController.GetRouteAssertionsByRouteId)
-		assertionGroup.POST("/deleteRouteAssertion", routeAssertionController.DeleteRouteAssertion)
+		assertionGroup.POST("/getRouteAssertionById", routeAssertionController.GetRouteAssertionById)
+		assertionGroup.POST("/queryRouteAssertions", routeAssertionController.QueryRouteAssertions)
+		assertionGroup.DELETE("/deleteRouteAssertion", routeAssertionController.DeleteRouteAssertion)
 	}
 }
 
@@ -226,26 +227,11 @@ func initFilterConfigRoutes(router *gin.RouterGroup, db database.Database) {
 
 	// 注册路由 - 所有过滤器配置管理相关的路由都需要认证
 	{
-		// 过滤器配置列表查询
+		// 过滤器配置列表查询（支持多参数）
 		filterGroup.POST("/queryFilterConfigs", filterConfigController.QueryFilterConfigs)
 
 		// 过滤器配置详情查询
-		filterGroup.POST("/filterConfig", filterConfigController.GetFilterConfig)
-
-		// 根据网关实例获取过滤器配置列表（实例级过滤器）
-		filterGroup.POST("/filterConfigs/byInstance", filterConfigController.GetFilterConfigsByInstance)
-
-		// 根据路由获取过滤器配置列表（路由级过滤器）
-		filterGroup.POST("/filterConfigs/byRoute", filterConfigController.GetFilterConfigsByRoute)
-
-		// 根据过滤器类型查询配置
-		filterGroup.POST("/filterConfigs/byType", filterConfigController.GetFilterConfigsByType)
-
-		// 根据执行时机查询配置
-		filterGroup.POST("/filterConfigs/byAction", filterConfigController.GetFilterConfigsByAction)
-
-		// 获取过滤器执行链（按order排序）
-		filterGroup.POST("/filterConfigs/executionChain", filterConfigController.GetFilterExecutionChain)
+		filterGroup.POST("/getFilterConfig", filterConfigController.GetFilterConfig)
 
 		// 过滤器配置增删改
 		filterGroup.POST("/addFilterConfig", filterConfigController.AddFilterConfig)
@@ -256,24 +242,13 @@ func initFilterConfigRoutes(router *gin.RouterGroup, db database.Database) {
 		filterGroup.POST("/batchUpdateFilterConfigs", filterConfigController.BatchUpdateFilterConfigs)
 		filterGroup.POST("/batchDeleteFilterConfigs", filterConfigController.BatchDeleteFilterConfigs)
 
-		// 过滤器配置状态管理
-		filterGroup.POST("/enableFilterConfig", filterConfigController.EnableFilterConfig)
-		filterGroup.POST("/disableFilterConfig", filterConfigController.DisableFilterConfig)
-
 		// 过滤器配置顺序调整
 		filterGroup.POST("/updateFilterOrder", filterConfigController.UpdateFilterOrder)
 		filterGroup.POST("/batchUpdateFilterOrder", filterConfigController.BatchUpdateFilterOrder)
 
-		// 过滤器配置验证
-		filterGroup.POST("/validateFilterConfig", filterConfigController.ValidateFilterConfig)
-
 		// 过滤器配置导入导出
 		filterGroup.POST("/exportFilterConfigs", filterConfigController.ExportFilterConfigs)
 		filterGroup.POST("/importFilterConfigs", filterConfigController.ImportFilterConfigs)
-
-		// 过滤器配置模板相关
-		filterGroup.POST("/filterConfigTemplates", filterConfigController.GetFilterConfigTemplates)
-		filterGroup.POST("/createFilterConfigFromTemplate", filterConfigController.CreateFilterConfigFromTemplate)
 
 		// 过滤器配置统计信息
 		filterGroup.POST("/filterConfigStats", filterConfigController.GetFilterConfigStats)
@@ -319,8 +294,11 @@ func initServiceDefinitionRoutes(router *gin.RouterGroup, db database.Database) 
 		// 服务定义列表查询（分页查询，支持筛选）
 		serviceGroup.POST("/queryServiceDefinitions", serviceDefinitionController.QueryServiceDefinitions)
 
+		// 查询所有服务定义（不依赖代理配置，用于日志查询等场景）
+		serviceGroup.POST("/queryAllServiceDefinitions", serviceDefinitionController.QueryAllServiceDefinitions)
+
 		// 服务定义详情查询
-		serviceGroup.POST("/serviceDefinition", serviceDefinitionController.GetServiceDefinitionById)
+		serviceGroup.POST("/getServiceDefinitionById", serviceDefinitionController.GetServiceDefinitionById)
 	}
 }
 

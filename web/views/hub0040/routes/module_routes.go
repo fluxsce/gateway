@@ -64,13 +64,4 @@ func RegisterHub0040Routes(router *gin.Engine, db database.Database) {
 		// 删除服务分组
 		protectedGroup.POST("/deleteServiceGroup", serviceGroupController.DeleteServiceGroup)
 	}
-
-	// 配置和元数据路由
-	{
-		// 获取服务分组类型列表
-		protectedGroup.POST("/getServiceGroupTypes", serviceGroupController.GetServiceGroupTypes)
-
-		// 获取默认配置
-		protectedGroup.POST("/getDefaultConfig", serviceGroupController.GetDefaultConfig)
-	}
 }

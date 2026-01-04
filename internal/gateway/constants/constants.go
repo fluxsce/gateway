@@ -3,24 +3,28 @@ package constants
 // Context Keys - 用于在请求上下文中存储和获取数据的键
 const (
 	// 连接相关
-	ContextKeyConnectionStartTime   = "connection_start_time"   // 连接建立时间
-	ContextKeyPermissions           = "permissions"             // 权限信息
-	ContextKeyTraceID               = "trace_id"                // 链路追踪ID
-	ContextKeyTenantID              = "tenant_id"               // 租户ID
-	ContextKeyGatewayInstanceID     = "gateway_instance_id"     // 网关实例ID
-	ContextKeyGatewayInstanceName   = "gateway_instance_name"   // 网关实例名称
-	ContextKeyGatewayNodeIP         = "gateway_node_ip"         // 网关节点IP
-	ContextKeyRouteConfigID         = "route_config_id"         // 路由配置ID
-	ContextKeyRouteConfigName       = "route_config_name"       // 路由配置名称
-	ContextKeyServiceDefinitionID   = "service_definition_id"   // 服务定义ID
-	ContextKeyServiceDefinitionName = "service_definition_name" // 服务定义名称
-	ContextKeyLogConfigID           = "log_config_id"           // 日志配置ID
-	ContextKeyLogConfigName         = "log_config_name"         // 日志配置名称
-	ContextKeyProxyType             = "proxy_type"              // 代理类型（http,websocket,tcp,udp）
-	ContextKeyForwardParams         = "forward_params"          // 转发参数
-	ContextKeyForwardHeaders        = "forward_headers"         // 转发请求头
-	ContextKeyForwardBody           = "forward_body"            // 转发请求体
-	ContextKeyLoadBalancerDecision  = "load_balancer_decision"  // 负载均衡决策
+	ContextKeyConnectionStartTime   = "connection_start_time"    // 连接建立时间
+	ContextKeyPermissions           = "permissions"              // 权限信息
+	ContextKeyTraceID               = "trace_id"                 // 链路追踪ID
+	ContextKeyTenantID              = "tenant_id"                // 租户ID
+	ContextKeyGatewayInstanceID     = "gateway_instance_id"      // 网关实例ID
+	ContextKeyGatewayInstanceName   = "gateway_instance_name"    // 网关实例名称
+	ContextKeyGatewayNodeIP         = "gateway_node_ip"          // 网关节点IP
+	ContextKeyRouteConfigID         = "route_config_id"          // 路由配置ID
+	ContextKeyRouteConfigName       = "route_config_name"        // 路由配置名称
+	ContextKeyServiceDefinitionID   = "service_definition_ids"   // 服务定义ID列表
+	ContextKeyServiceDefinitionName = "service_definition_names" // 服务定义名称列表
+	ContextKeyLogConfigID           = "log_config_id"            // 日志配置ID
+	ContextKeyLogConfigName         = "log_config_name"          // 日志配置名称
+	ContextKeyProxyType             = "proxy_type"               // 代理类型（http,websocket,tcp,udp）
+	ContextKeyForwardParams         = "forward_params"           // 转发参数
+	ContextKeyForwardHeaders        = "forward_headers"          // 转发请求头
+	ContextKeyForwardBody           = "forward_body"             // 转发请求体
+	ContextKeyLoadBalancerDecision  = "load_balancer_decision"   // 负载均衡决策
+
+	// 多服务转发相关
+	ContextKeyMultiServiceConfig    = "multi_service_config"    // 多服务配置
+	ContextKeyMultiServiceResponses = "multi_service_responses" // 多服务响应信息
 
 	// 原始请求信息保存相关常量
 	ContextKeyOriginalMethod      = "original_method"       // 原始HTTP方法

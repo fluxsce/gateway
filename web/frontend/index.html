@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="./src/assets/images/title-logo.png" id="web-icon-link" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- 性能优化 - 预加载关键资源 -->
+    <link rel="preload" href="./src/assets/images/logo.png" as="image" type="image/png" />
+
+    <!-- 字体优化 -->
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- DNS预取 -->
+    <link rel="dns-prefetch" href="//fonts.googleapis.com" />
+
+    <title>Hub App</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

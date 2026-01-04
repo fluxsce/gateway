@@ -21,6 +21,7 @@ import (
 type GatewayLogController struct {
 	gatewayLogDAO         *dao.GatewayLogDAO
 	databaseMonitoringDAO *dao.DatabaseMonitoringDAO
+	backendTraceLogDAO    *dao.BackendTraceLogDAO
 }
 
 // NewGatewayLogController 创建网关日志控制器
@@ -28,6 +29,7 @@ func NewGatewayLogController(db database.Database) *GatewayLogController {
 	return &GatewayLogController{
 		gatewayLogDAO:         dao.NewGatewayLogDAO(db),
 		databaseMonitoringDAO: dao.NewDatabaseMonitoringDAO(db),
+		backendTraceLogDAO:    dao.NewBackendTraceLogDAO(db),
 	}
 }
 
@@ -55,13 +57,8 @@ func (c *GatewayLogController) Query(ctx *gin.Context) {
 	req.PageIndex = page
 	req.PageSize = pageSize
 
-	// 强制从上下文获取租户ID，不使用前端传递的值
-	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	req.TenantId = tenantId
+	// 从上下文获取租户ID，不使用前端传递的值
+	req.TenantId = request.GetTenantID(ctx)
 
 	// 调用DAO查询
 	gatewayLogs, total, err := c.gatewayLogDAO.Query(ctx, &req)
@@ -104,13 +101,8 @@ func (c *GatewayLogController) Get(ctx *gin.Context) {
 		return
 	}
 
-	// 强制从上下文获取租户ID，不使用前端传递的值
-	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	req.TenantId = tenantId
+	// 从上下文获取租户ID，不使用前端传递的值
+	req.TenantId = request.GetTenantID(ctx)
 
 	// 参数验证 - 需要链路追踪ID
 	if req.TraceId == "" {
@@ -118,7 +110,7 @@ func (c *GatewayLogController) Get(ctx *gin.Context) {
 		return
 	}
 
-	// 根据组合主键查询
+	// 根据组合主键查询主表日志
 	log, err := c.gatewayLogDAO.GetByKey(ctx, req.TenantId, req.TraceId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "根据组合主键查询失败", "error", err)
@@ -126,10 +118,19 @@ func (c *GatewayLogController) Get(ctx *gin.Context) {
 		return
 	}
 
-	// 转换为响应格式
-	gatewayLogInfo := gatewayLogToMap(log)
+	// 查询关联的后端追踪日志（从表）
+	backendTraces, err := c.backendTraceLogDAO.GetByTraceID(ctx, req.TenantId, req.TraceId)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "查询后端追踪日志失败", "error", err)
+		// 后端追踪日志查询失败不影响主表返回，记录错误后继续
+		backendTraces = []models.BackendTraceLog{}
+	}
 
-	response.SuccessJSON(ctx, gatewayLogInfo, constants.SD00002)
+	// 填充后端追踪日志到主表对象
+	log.BackendTraces = backendTraces
+
+	// 直接返回完整对象
+	response.SuccessJSON(ctx, log, constants.SD00002)
 }
 
 // Reset 重置网关日志（支持批量重置）
@@ -157,19 +158,15 @@ func (c *GatewayLogController) Reset(ctx *gin.Context) {
 		return
 	}
 
-	// 强制从上下文获取租户ID，不使用前端传递的值
+	// 从上下文获取租户ID，不使用前端传递的值
 	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
 
 	// 为所有日志项设置租户ID，确保数据安全
 	for i := range req.LogItems {
 		req.LogItems[i].TenantId = tenantId
 	}
 
-	// 获取操作者ID
+	// 获取操作者ID，如果为空则使用默认值
 	operatorId := request.GetOperatorID(ctx)
 	if operatorId == "" {
 		operatorId = "SYSTEM"
@@ -208,13 +205,8 @@ func (c *GatewayLogController) GetMonitoringOverview(ctx *gin.Context) {
 		return
 	}
 
-	// 强制从上下文获取租户ID，不使用前端传递的值
-	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	req.TenantId = tenantId
+	// 从上下文获取租户ID，不使用前端传递的值
+	req.TenantId = request.GetTenantID(ctx)
 
 	// 校验时间范围
 	if err := c.validateTimeRange(&req); err != nil {
@@ -253,13 +245,8 @@ func (c *GatewayLogController) GetMonitoringChartData(ctx *gin.Context) {
 		return
 	}
 
-	// 强制从上下文获取租户ID，不使用前端传递的值
-	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	req.TenantId = tenantId
+	// 从上下文获取租户ID，不使用前端传递的值
+	req.TenantId = request.GetTenantID(ctx)
 
 	// 校验时间范围
 	if err := c.validateTimeRange(&req); err != nil {
@@ -389,75 +376,6 @@ func gatewayLogSummaryToMap(gatewayLog *models.GatewayAccessLogSummary) map[stri
 		"resetCount":                    gatewayLog.ResetCount,
 		"logLevel":                      gatewayLog.LogLevel,
 		"logType":                       gatewayLog.LogType,
-		"addTime":                       gatewayLog.AddTime,
-		"addWho":                        gatewayLog.AddWho,
-		"editTime":                      gatewayLog.EditTime,
-		"editWho":                       gatewayLog.EditWho,
-		"oprSeqFlag":                    gatewayLog.OprSeqFlag,
-		"currentVersion":                gatewayLog.CurrentVersion,
-		"activeFlag":                    gatewayLog.ActiveFlag,
-		"noteText":                      gatewayLog.NoteText,
-	}
-}
-
-// gatewayLogToMap 将网关日志转换为Map格式（用于详情查询，包含所有字段）
-func gatewayLogToMap(gatewayLog *models.GatewayAccessLog) map[string]interface{} {
-	return map[string]interface{}{
-		"tenantId":                      gatewayLog.TenantId,
-		"traceId":                       gatewayLog.TraceId,
-		"gatewayInstanceId":             gatewayLog.GatewayInstanceId,
-		"gatewayInstanceName":           gatewayLog.GatewayInstanceName,
-		"gatewayNodeIp":                 gatewayLog.GatewayNodeIp,
-		"routeConfigId":                 gatewayLog.RouteConfigId,
-		"routeName":                     gatewayLog.RouteName,
-		"serviceDefinitionId":           gatewayLog.ServiceDefinitionId,
-		"serviceName":                   gatewayLog.ServiceName,
-		"proxyType":                     gatewayLog.ProxyType,
-		"logConfigId":                   gatewayLog.LogConfigId,
-		"requestMethod":                 gatewayLog.RequestMethod,
-		"requestPath":                   gatewayLog.RequestPath,
-		"requestQuery":                  gatewayLog.RequestQuery,
-		"requestSize":                   gatewayLog.RequestSize,
-		"requestHeaders":                gatewayLog.RequestHeaders,
-		"requestBody":                   gatewayLog.RequestBody,
-		"clientIpAddress":               gatewayLog.ClientIpAddress,
-		"clientPort":                    gatewayLog.ClientPort,
-		"userAgent":                     gatewayLog.UserAgent,
-		"referer":                       gatewayLog.Referer,
-		"userIdentifier":                gatewayLog.UserIdentifier,
-		"gatewayStartProcessingTime":    gatewayLog.GatewayStartProcessingTime,
-		"backendRequestStartTime":       gatewayLog.BackendRequestStartTime,
-		"backendResponseReceivedTime":   gatewayLog.BackendResponseReceivedTime,
-		"gatewayFinishedProcessingTime": gatewayLog.GatewayFinishedProcessingTime,
-		"totalProcessingTimeMs":         gatewayLog.TotalProcessingTimeMs,
-		"gatewayProcessingTimeMs":       gatewayLog.GatewayProcessingTimeMs,
-		"backendResponseTimeMs":         gatewayLog.BackendResponseTimeMs,
-		"gatewayStatusCode":             gatewayLog.GatewayStatusCode,
-		"backendStatusCode":             gatewayLog.BackendStatusCode,
-		"responseSize":                  gatewayLog.ResponseSize,
-		"responseHeaders":               gatewayLog.ResponseHeaders,
-		"responseBody":                  gatewayLog.ResponseBody,
-		"matchedRoute":                  gatewayLog.MatchedRoute,
-		"forwardAddress":                gatewayLog.ForwardAddress,
-		"forwardMethod":                 gatewayLog.ForwardMethod,
-		"forwardParams":                 gatewayLog.ForwardParams,
-		"forwardHeaders":                gatewayLog.ForwardHeaders,
-		"forwardBody":                   gatewayLog.ForwardBody,
-		"loadBalancerDecision":          gatewayLog.LoadBalancerDecision,
-		"errorMessage":                  gatewayLog.ErrorMessage,
-		"errorCode":                     gatewayLog.ErrorCode,
-		"parentTraceId":                 gatewayLog.ParentTraceId,
-		"resetFlag":                     gatewayLog.ResetFlag,
-		"retryCount":                    gatewayLog.RetryCount,
-		"resetCount":                    gatewayLog.ResetCount,
-		"logLevel":                      gatewayLog.LogLevel,
-		"logType":                       gatewayLog.LogType,
-		"reserved1":                     gatewayLog.Reserved1,
-		"reserved2":                     gatewayLog.Reserved2,
-		"reserved3":                     gatewayLog.Reserved3,
-		"reserved4":                     gatewayLog.Reserved4,
-		"reserved5":                     gatewayLog.Reserved5,
-		"extProperty":                   gatewayLog.ExtProperty,
 		"addTime":                       gatewayLog.AddTime,
 		"addWho":                        gatewayLog.AddWho,
 		"editTime":                      gatewayLog.EditTime,

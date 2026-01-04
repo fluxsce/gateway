@@ -64,20 +64,11 @@ func RegisterHub0060Routes(router *gin.Engine, db database.Database) {
 		// 删除隧道服务器
 		protectedGroup.POST("/deleteTunnelServer", tunnelServerController.DeleteTunnelServer)
 
-		// 更新隧道服务器状态
-		protectedGroup.POST("/updateTunnelServerStatus", tunnelServerController.UpdateTunnelServerStatus)
-
 		// 获取隧道服务器统计信息
 		protectedGroup.POST("/getTunnelServerStats", tunnelServerController.GetTunnelServerStats)
 
-		// 获取隧道服务器列表（用于下拉选择）
-		protectedGroup.POST("/getTunnelServerList", tunnelServerController.GetTunnelServerList)
-
 		// 生成认证令牌
 		protectedGroup.POST("/generateAuthToken", tunnelServerController.GenerateAuthToken)
-
-		// 服务器状态选项
-		protectedGroup.POST("/getServerStatusOptions", tunnelServerController.GetServerStatusOptions)
 
 		// 启动隧道服务器
 		protectedGroup.POST("/startTunnelServer", tunnelServerController.StartTunnelServer)
@@ -90,6 +81,12 @@ func RegisterHub0060Routes(router *gin.Engine, db database.Database) {
 
 		// 重新加载隧道服务器配置
 		protectedGroup.POST("/reloadTunnelServerConfig", tunnelServerController.ReloadTunnelServerConfig)
+
+		// 获取已注册的客户端列表
+		protectedGroup.POST("/getRegisteredClients", tunnelServerController.GetRegisteredClients)
+
+		// 获取已注册的服务列表
+		protectedGroup.POST("/getRegisteredServices", tunnelServerController.GetRegisteredServices)
 	}
 
 	logger.Info("hub0060模块路由注册完成",

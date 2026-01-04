@@ -70,15 +70,68 @@ type GatewayInstance struct {
 	CurrentVersion int       `json:"currentVersion" form:"currentVersion" query:"currentVersion" db:"currentVersion"` // 当前版本号
 	ActiveFlag     string    `json:"activeFlag" form:"activeFlag" query:"activeFlag" db:"activeFlag"`                 // 活动状态标记(N非活动,Y活动)
 	NoteText       string    `json:"noteText" form:"noteText" query:"noteText" db:"noteText"`                         // 备注信息
-	
+
 	// 配置文件路径 - 新增字段，与数据库保持一致
-	ConfigFilePath string    `json:"configFilePath" form:"configFilePath" query:"configFilePath" db:"-"` // 配置文件路径
-	
-	// 关联的日志配置 - 前端传入，不存储在数据库中
-	LogConfig *LogConfig `json:"logConfig,omitempty" form:"logConfig" db:"-"` // 关联的日志配置
+	ConfigFilePath string `json:"configFilePath" form:"configFilePath" query:"configFilePath" db:"-"` // 配置文件路径
 }
 
 // TableName 返回表名
 func (GatewayInstance) TableName() string {
 	return "HUB_GW_INSTANCE"
+}
+
+// GatewayInstanceQuery 网关实例查询条件，对应前端搜索表单的查询参数
+type GatewayInstanceQuery struct {
+	InstanceName string `json:"instanceName" form:"instanceName" query:"instanceName"` // 实例名称（模糊查询）
+	HealthStatus string `json:"healthStatus" form:"healthStatus" query:"healthStatus"` // 健康状态：Y/N，空表示全部
+	ActiveFlag   string `json:"activeFlag" form:"activeFlag" query:"activeFlag"`       // 活动标记：Y-活动，N-非活动，空表示全部（默认查询活动状态）
+}
+
+// ToMap 将网关实例对象转换为Map，过滤敏感字段（用于列表查询）
+func (instance *GatewayInstance) ToMap() map[string]interface{} {
+	return map[string]interface{}{
+		"tenantId":          instance.TenantId,
+		"gatewayInstanceId": instance.GatewayInstanceId,
+		"instanceName":      instance.InstanceName,
+		"instanceDesc":      instance.InstanceDesc,
+		"bindAddress":       instance.BindAddress,
+		"httpPort":          instance.HttpPort,
+		"httpsPort":         instance.HttpsPort,
+		"tlsEnabled":        instance.TlsEnabled,
+		"certStorageType":   instance.CertStorageType,
+		"certFilePath":      instance.CertFilePath,
+		"keyFilePath":       instance.KeyFilePath,
+		// 证书内容、私钥内容、证书密码等敏感信息不返回给前端
+		"maxConnections":               instance.MaxConnections,
+		"readTimeoutMs":                instance.ReadTimeoutMs,
+		"writeTimeoutMs":               instance.WriteTimeoutMs,
+		"idleTimeoutMs":                instance.IdleTimeoutMs,
+		"maxHeaderBytes":               instance.MaxHeaderBytes,
+		"maxWorkers":                   instance.MaxWorkers,
+		"keepAliveEnabled":             instance.KeepAliveEnabled,
+		"tcpKeepAliveEnabled":          instance.TcpKeepAliveEnabled,
+		"gracefulShutdownTimeoutMs":    instance.GracefulShutdownTimeoutMs,
+		"enableHttp2":                  instance.EnableHttp2,
+		"tlsVersion":                   instance.TlsVersion,
+		"tlsCipherSuites":              instance.TlsCipherSuites,
+		"disableGeneralOptionsHandler": instance.DisableGeneralOptionsHandler,
+		"logConfigId":                  instance.LogConfigId,
+		"healthStatus":                 instance.HealthStatus,
+		"lastHeartbeatTime":            instance.LastHeartbeatTime,
+		"instanceMetadata":             instance.InstanceMetadata,
+		"reserved1":                    instance.Reserved1,
+		"reserved2":                    instance.Reserved2,
+		"reserved3":                    instance.Reserved3,
+		"reserved4":                    instance.Reserved4,
+		"reserved5":                    instance.Reserved5,
+		"extProperty":                  instance.ExtProperty,
+		"addTime":                      instance.AddTime,
+		"addWho":                       instance.AddWho,
+		"editTime":                     instance.EditTime,
+		"editWho":                      instance.EditWho,
+		"oprSeqFlag":                   instance.OprSeqFlag,
+		"currentVersion":               instance.CurrentVersion,
+		"activeFlag":                   instance.ActiveFlag,
+		"noteText":                     instance.NoteText,
+	}
 }

@@ -18,6 +18,7 @@ type ServiceDefinitionController struct {
 	db                   database.Database
 	serviceDefinitionDAO *dao.ServiceDefinitionDAO
 	serviceNodeDAO       *dao.ServiceNodeDAO
+	proxyConfigDAO       *dao.ProxyConfigDAO
 }
 
 // NewServiceDefinitionController 创建服务定义控制器
@@ -26,6 +27,7 @@ func NewServiceDefinitionController(db database.Database) *ServiceDefinitionCont
 		db:                   db,
 		serviceDefinitionDAO: dao.NewServiceDefinitionDAO(db),
 		serviceNodeDAO:       dao.NewServiceNodeDAO(db),
+		proxyConfigDAO:       dao.NewProxyConfigDAO(db),
 	}
 }
 
@@ -55,6 +57,30 @@ func (c *ServiceDefinitionController) QueryServiceDefinitions(ctx *gin.Context) 
 		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
 		return
 	}
+
+	// 兼容性处理：如果传入的proxyConfigId是网关实例ID，需要先查询代理配置获取真正的proxyConfigId
+	// 同时保留原始的proxyConfigId（可能是全局代理配置，proxyConfigId直接等于网关实例ID）
+	if filter.ProxyConfigId != "" {
+		originalProxyConfigId := filter.ProxyConfigId
+		// 尝试通过网关实例ID查询代理配置（返回单条数据）
+		proxyConfig, err := c.proxyConfigDAO.GetProxyConfigByGatewayInstance(ctx, filter.ProxyConfigId, tenantId)
+		if err != nil {
+			// 如果查询失败，可能是真正的proxyConfigId，继续使用原值
+			logger.WarnWithTrace(ctx, "通过网关实例ID查询代理配置失败，使用原proxyConfigId", "proxyConfigId", filter.ProxyConfigId, "error", err.Error())
+		} else if proxyConfig != nil {
+			// 如果找到了代理配置，说明传入的是网关实例ID，需要使用真正的proxyConfigId
+			proxyConfigIds := make([]string, 0, 2)
+			proxyConfigIds = append(proxyConfigIds, proxyConfig.ProxyConfigId)
+			// 添加原始的proxyConfigId（可能是全局代理配置，proxyConfigId直接等于网关实例ID）
+			proxyConfigIds = append(proxyConfigIds, originalProxyConfigId)
+			// 设置proxyConfigId列表（包含查询到的代理配置ID和原始的网关实例ID，以支持全局代理配置）
+			filter.ProxyConfigIds = proxyConfigIds
+			// 清空单个proxyConfigId，因为DAO会优先使用ProxyConfigIds列表进行IN查询
+			filter.ProxyConfigId = ""
+		}
+		// 如果没有找到代理配置，说明可能是真正的proxyConfigId，保持原值不变
+	}
+
 	// 调用DAO获取服务定义列表
 	serviceDefinitions, total, err := c.serviceDefinitionDAO.ListServiceDefinitions(ctx, tenantId, page, pageSize, filter)
 	if err != nil {
@@ -63,18 +89,12 @@ func (c *ServiceDefinitionController) QueryServiceDefinitions(ctx *gin.Context) 
 		return
 	}
 
-	// 转换为响应格式，过滤敏感字段
-	serviceDefinitionList := make([]map[string]interface{}, 0, len(serviceDefinitions))
-	for _, serviceDefinition := range serviceDefinitions {
-		serviceDefinitionList = append(serviceDefinitionList, serviceDefinitionToMap(serviceDefinition))
-	}
-
 	// 创建分页信息并返回
 	pageInfo := response.NewPageInfo(page, pageSize, int(total))
 	pageInfo.MainKey = "serviceDefinitionId"
 
 	// 使用统一的分页响应
-	response.PageJSON(ctx, serviceDefinitionList, pageInfo, constants.SD00002)
+	response.PageJSON(ctx, serviceDefinitions, pageInfo, constants.SD00002)
 }
 
 // AddServiceDefinition 创建服务定义
@@ -96,16 +116,6 @@ func (c *ServiceDefinitionController) CreateServiceDefinition(ctx *gin.Context) 
 	// 强制从上下文获取租户ID和操作人ID，不使用前端传递的值
 	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
-
-	// 验证上下文中的必要信息
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	if operatorId == "" {
-		response.ErrorJSON(ctx, "无法获取操作人信息", constants.ED00007)
-		return
-	}
 
 	// 设置从上下文获取的租户ID和操作人信息
 	req.TenantId = tenantId
@@ -148,16 +158,13 @@ func (c *ServiceDefinitionController) CreateServiceDefinition(ctx *gin.Context) 
 		return
 	}
 
-	// 返回完整的服务定义信息，排除敏感字段
-	serviceDefinitionInfo := serviceDefinitionToMap(newServiceDefinition)
-
 	logger.InfoWithTrace(ctx, "服务定义创建成功",
 		"serviceDefinitionId", serviceDefinitionId,
 		"tenantId", tenantId,
 		"operatorId", operatorId,
 		"serviceName", newServiceDefinition.ServiceName)
 
-	response.SuccessJSON(ctx, serviceDefinitionInfo, constants.SD00003)
+	response.SuccessJSON(ctx, newServiceDefinition, constants.SD00003)
 }
 
 // EditServiceDefinition 更新服务定义
@@ -185,16 +192,6 @@ func (c *ServiceDefinitionController) EditServiceDefinition(ctx *gin.Context) {
 	// 强制从上下文获取租户ID和操作人ID，不使用前端传递的值
 	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
-
-	// 验证上下文中的必要信息
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	if operatorId == "" {
-		response.ErrorJSON(ctx, "无法获取操作人信息", constants.ED00007)
-		return
-	}
 
 	// 获取现有服务定义信息
 	currentServiceDefinition, err := c.serviceDefinitionDAO.GetServiceDefinitionById(ctx, updateData.ServiceDefinitionId, tenantId)
@@ -231,15 +228,12 @@ func (c *ServiceDefinitionController) EditServiceDefinition(ctx *gin.Context) {
 		return
 	}
 
-	// 返回更新后的服务定义信息
-	serviceDefinitionInfo := serviceDefinitionToMap(updatedServiceDefinition)
-
 	logger.InfoWithTrace(ctx, "服务定义更新成功",
 		"serviceDefinitionId", updateData.ServiceDefinitionId,
 		"tenantId", tenantId,
 		"operatorId", operatorId)
 
-	response.SuccessJSON(ctx, serviceDefinitionInfo, constants.SD00004)
+	response.SuccessJSON(ctx, updatedServiceDefinition, constants.SD00004)
 }
 
 // DeleteServiceDefinition 删除服务定义
@@ -267,16 +261,6 @@ func (c *ServiceDefinitionController) DeleteServiceDefinition(ctx *gin.Context) 
 	// 强制从上下文获取租户ID和操作人ID
 	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
-
-	// 验证上下文中的必要信息
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	if operatorId == "" {
-		response.ErrorJSON(ctx, "无法获取操作人信息", constants.ED00007)
-		return
-	}
 
 	// 先查询服务定义是否存在
 	existingServiceDefinition, err := c.serviceDefinitionDAO.GetServiceDefinitionById(ctx, req.ServiceDefinitionId, tenantId)
@@ -348,10 +332,6 @@ func (c *ServiceDefinitionController) GetServiceDefinition(ctx *gin.Context) {
 
 	// 获取租户ID
 	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
 
 	// 调用DAO获取服务定义详情
 	serviceDefinition, err := c.serviceDefinitionDAO.GetServiceDefinitionById(ctx, req.ServiceDefinitionId, tenantId)
@@ -366,10 +346,7 @@ func (c *ServiceDefinitionController) GetServiceDefinition(ctx *gin.Context) {
 		return
 	}
 
-	// 转换为响应格式
-	serviceDefinitionInfo := serviceDefinitionToMap(serviceDefinition)
-
-	response.SuccessJSON(ctx, serviceDefinitionInfo, constants.SD00002)
+	response.SuccessJSON(ctx, serviceDefinition, constants.SD00002)
 }
 
 // 请求结构体定义
@@ -382,41 +359,4 @@ type DeleteServiceDefinitionRequest struct {
 // GetServiceDefinitionRequest 获取服务定义请求
 type GetServiceDefinitionRequest struct {
 	ServiceDefinitionId string `json:"serviceDefinitionId" form:"serviceDefinitionId" binding:"required"` // 服务定义ID
-}
-
-// serviceDefinitionToMap 将服务定义转换为Map格式，过滤敏感字段
-func serviceDefinitionToMap(serviceDefinition *models.ServiceDefinition) map[string]interface{} {
-	return map[string]interface{}{
-		"tenantId":                   serviceDefinition.TenantId,
-		"serviceDefinitionId":        serviceDefinition.ServiceDefinitionId,
-		"serviceName":                serviceDefinition.ServiceName,
-		"serviceDesc":                serviceDefinition.ServiceDesc,
-		"serviceType":                serviceDefinition.ServiceType,
-		"loadBalanceStrategy":        serviceDefinition.LoadBalanceStrategy,
-		"discoveryType":              serviceDefinition.DiscoveryType,
-		"discoveryConfig":            serviceDefinition.DiscoveryConfig,
-		"sessionAffinity":            serviceDefinition.SessionAffinity,
-		"stickySession":              serviceDefinition.StickySession,
-		"maxRetries":                 serviceDefinition.MaxRetries,
-		"retryTimeoutMs":             serviceDefinition.RetryTimeoutMs,
-		"enableCircuitBreaker":       serviceDefinition.EnableCircuitBreaker,
-		"healthCheckEnabled":         serviceDefinition.HealthCheckEnabled,
-		"healthCheckPath":            serviceDefinition.HealthCheckPath,
-		"healthCheckMethod":          serviceDefinition.HealthCheckMethod,
-		"healthCheckIntervalSeconds": serviceDefinition.HealthCheckIntervalSeconds,
-		"healthCheckTimeoutMs":       serviceDefinition.HealthCheckTimeoutMs,
-		"healthyThreshold":           serviceDefinition.HealthyThreshold,
-		"unhealthyThreshold":         serviceDefinition.UnhealthyThreshold,
-		"expectedStatusCodes":        serviceDefinition.ExpectedStatusCodes,
-		"healthCheckHeaders":         serviceDefinition.HealthCheckHeaders,
-		"loadBalancerConfig":         serviceDefinition.LoadBalancerConfig,
-		"serviceMetadata":            serviceDefinition.ServiceMetadata,
-		"activeFlag":                 serviceDefinition.ActiveFlag,
-		"addTime":                    serviceDefinition.AddTime,
-		"addWho":                     serviceDefinition.AddWho,
-		"editTime":                   serviceDefinition.EditTime,
-		"editWho":                    serviceDefinition.EditWho,
-		"currentVersion":             serviceDefinition.CurrentVersion,
-		"noteText":                   serviceDefinition.NoteText,
-	}
 }

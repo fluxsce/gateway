@@ -62,7 +62,10 @@ func (m *MockServiceManager) GetServiceStats(serviceID string) (map[string]inter
 }
 func (m *MockServiceManager) RecordServiceSuccess(serviceID string, responseTime time.Duration) {}
 func (m *MockServiceManager) RecordServiceFailure(serviceID string)                             {}
-func (m *MockServiceManager) Close() error                                                      { return nil }
+func (m *MockServiceManager) GetServices() map[string]*service.Service {
+	return make(map[string]*service.Service)
+}
+func (m *MockServiceManager) Close() error { return nil }
 
 // TestWebSocketUpgradeHandler_IsWebSocketUpgrade 测试WebSocket升级检测
 func TestWebSocketUpgradeHandler_IsWebSocketUpgrade(t *testing.T) {

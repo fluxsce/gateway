@@ -95,8 +95,16 @@ type RouteConfig struct {
 	// 路由名称 - 路由的可读名称，用于显示和识别
 	Name string `json:"name" yaml:"name" mapstructure:"name"`
 
-	// 服务ID - 匹配此路由的请求将被转发到的目标服务ID
-	ServiceID string `json:"service_id" yaml:"service_id" mapstructure:"service_id"`
+	// 服务ID - 匹配此路由的请求将被转发到的目标服务ID（单服务模式，向后兼容）
+	ServiceID string `json:"service_id,omitempty" yaml:"service_id,omitempty" mapstructure:"service_id,omitempty"`
+
+	// 服务ID列表 - 匹配此路由的请求将被转发到的多个目标服务ID（多服务模式）
+	// 如果配置了 ServiceIDs，将并行转发到这些服务
+	// 优先级：ServiceIDs > ServiceID（如果同时配置，使用 ServiceIDs）
+	ServiceIDs []string `json:"service_ids,omitempty" yaml:"service_ids,omitempty" mapstructure:"service_ids,omitempty"`
+
+	// 多服务转发配置
+	MultiServiceConfig *MultiServiceConfig `json:"multi_service_config,omitempty" yaml:"multi_service_config,omitempty" mapstructure:"multi_service_config,omitempty"`
 
 	// 路由路径 - 用于创建断言，根据需要生成不同类型的路径断言
 	Path string `json:"path" yaml:"path" mapstructure:"path"`
@@ -142,6 +150,24 @@ type RouteConfig struct {
 
 	// 安全配置
 	SecurityConfig *security.SecurityConfig `json:"security_config,omitempty" yaml:"security_config,omitempty" mapstructure:"security_config,omitempty"`
+}
+
+// MultiServiceConfig 多服务转发配置
+type MultiServiceConfig struct {
+	// 响应处理策略:
+	// - "first"       : 使用第一个成功的响应（默认）
+	// - "first_error" : 使用第一个失败的响应（如果没有失败，则退回第一个成功）
+	// - "all"         : 返回所有响应（用于调试或聚合场景）
+	// 默认: "first"
+	ResponseMergeStrategy string `json:"response_merge_strategy,omitempty" yaml:"response_merge_strategy,omitempty" mapstructure:"response_merge_strategy,omitempty"`
+
+	// 最大并发请求数，0表示不限制（使用所有服务）
+	// 默认: 0（不限制）
+	MaxConcurrentRequests int `json:"max_concurrent_requests,omitempty" yaml:"max_concurrent_requests,omitempty" mapstructure:"max_concurrent_requests,omitempty"`
+
+	// 是否要求所有服务都成功，如果为true，任何一个失败都会返回错误
+	// 默认: false（使用第一个成功的响应）
+	RequireAllSuccess bool `json:"require_all_success,omitempty" yaml:"require_all_success,omitempty" mapstructure:"require_all_success,omitempty"`
 }
 
 // DefaultRouteConfig 默认路由配置
@@ -300,8 +326,25 @@ func (r *Route) Handle(ctx *core.Context) bool {
 	ctx.SetRouteID(r.config.ID)
 	//设置路由名称
 	ctx.Set(constants.ContextKeyRouteConfigName, r.config.Name)
-	ctx.SetServiceID(r.config.ServiceID)
 	ctx.SetMatchedPath(r.config.Path)
+
+	// 处理多服务配置
+	if len(r.config.ServiceIDs) > 0 {
+		// 多服务模式：设置多个服务ID
+		ctx.SetServiceIDs(r.config.ServiceIDs)
+		ctx.Set("service_ids", r.config.ServiceIDs)
+		ctx.Set("multi_service_config", r.config.MultiServiceConfig)
+	} else if r.config.ServiceID != "" {
+		// 单服务模式（向后兼容）
+		ctx.SetServiceIDs([]string{r.config.ServiceID})
+	} else {
+		// 如果没有配置服务ID，返回错误
+		ctx.AddError(fmt.Errorf("路由 %s 未配置服务ID", r.config.ID))
+		ctx.Abort(500, map[string]string{
+			"error": "路由未配置服务ID",
+		})
+		return false
+	}
 
 	// 按预定义顺序执行所有处理器
 	// 执行顺序: Security → CORS → Auth → Limiter → FilterChain
@@ -552,8 +595,24 @@ func (config *RouteConfig) Validate() error {
 		return fmt.Errorf("route ID cannot be empty")
 	}
 
-	if config.ServiceID == "" {
-		return fmt.Errorf("service ID cannot be empty")
+	// 验证服务配置：必须配置 ServiceID 或 ServiceIDs 之一
+	if config.ServiceID == "" && len(config.ServiceIDs) == 0 {
+		return fmt.Errorf("service ID or service IDs must be configured")
+	}
+
+	// 如果同时配置了 ServiceID 和 ServiceIDs，ServiceIDs 优先
+	if config.ServiceID != "" && len(config.ServiceIDs) > 0 {
+		// 允许同时配置，但 ServiceIDs 优先使用
+		// 这里不报错，只是记录警告
+	}
+
+	// 验证 ServiceIDs 不为空
+	if len(config.ServiceIDs) > 0 {
+		for i, serviceID := range config.ServiceIDs {
+			if serviceID == "" {
+				return fmt.Errorf("service ID at index %d cannot be empty", i)
+			}
+		}
 	}
 
 	if config.Path == "" {

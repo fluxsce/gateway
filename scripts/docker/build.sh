@@ -48,24 +48,20 @@ FLUX Gateway Docker 镜像构建脚本
     $0 [选项]
 
 选项:
-    -t, --type TYPE       构建类型: standard (默认) 或 oracle
-    -v, --version VER     镜像版本 (默认: $VERSION)
+    -t, --type TYPE       构建类型: oracle (默认，包含所有依赖) 或 standard
     -n, --name NAME       镜像名称 (默认: $DEFAULT_IMAGE_NAME)
     -l, --latest          同时标记为 latest
     -h, --help            显示此帮助信息
 
 示例:
-    # 构建标准版本
+    # 构建包含所有依赖的版本（默认，Oracle版本）
     $0
 
-    # 构建 Oracle 版本
-    $0 --type oracle
+    # 只构建标准版本（不包含Oracle）
+    $0 --type standard
 
     # 构建并标记为 latest
     $0 --latest
-
-    # 构建特定版本
-    $0 --version 2.1.0
 
     # 构建后推送镜像
     $0 && ./push.sh
@@ -74,7 +70,7 @@ EOF
 }
 
 # 解析命令行参数
-BUILD_TYPE="standard"
+BUILD_TYPE="oracle"
 TAG_LATEST=false
 IMAGE_NAME="$DEFAULT_IMAGE_NAME"
 
@@ -82,10 +78,6 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         -t|--type)
             BUILD_TYPE="$2"
-            shift 2
-            ;;
-        -v|--version)
-            VERSION="$2"
             shift 2
             ;;
         -n|--name)
@@ -124,31 +116,6 @@ print_info "构建类型: $BUILD_TYPE"
 print_info "镜像版本: $VERSION"
 print_info "Git Commit: $GIT_COMMIT"
 
-# 选择 Dockerfile 和构建标签
-if [[ "$BUILD_TYPE" == "oracle" ]]; then
-    DOCKERFILE="scripts/docker/Dockerfile.oracle"
-    VERSION_SUFFIX="-oracle"
-else
-    DOCKERFILE="scripts/docker/Dockerfile"
-    VERSION_SUFFIX=""
-fi
-
-# 构建镜像标签
-IMAGE_TAG="${IMAGE_NAME}:${VERSION}${VERSION_SUFFIX}"
-LATEST_TAG="${IMAGE_NAME}:latest${VERSION_SUFFIX}"
-
-print_info "使用 Dockerfile: $DOCKERFILE"
-print_info "镜像标签: $IMAGE_TAG"
-if [[ "$TAG_LATEST" == true ]]; then
-    print_info "Latest 标签: $LATEST_TAG"
-fi
-
-# 检查 Dockerfile 是否存在
-if [[ ! -f "$DOCKERFILE" ]]; then
-    print_error "Dockerfile 不存在: $DOCKERFILE"
-    exit 1
-fi
-
 # 检查必要的文件
 print_info "检查必要文件..."
 REQUIRED_DIRS=("configs" "web" "cmd")
@@ -166,52 +133,120 @@ fi
 
 print_success "文件检查通过"
 
-# 构建镜像
-print_info "开始构建 Docker 镜像..."
+# 定义构建函数
+build_image() {
+    local build_type=$1
+    local dockerfile=""
+    local version_suffix=""
+    
+    if [[ "$build_type" == "oracle" ]]; then
+        dockerfile="scripts/docker/Dockerfile.oracle"
+        # 默认版本（包含所有依赖）不使用后缀
+        version_suffix=""
+    else
+        dockerfile="scripts/docker/Dockerfile"
+        version_suffix=""
+    fi
+    
+    # 检查 Dockerfile 是否存在
+    if [[ ! -f "$dockerfile" ]]; then
+        print_error "Dockerfile 不存在: $dockerfile"
+        return 1
+    fi
+    
+    # 构建镜像标签
+    local image_tag="${IMAGE_NAME}:${VERSION}${version_suffix}"
+    local latest_tag="${IMAGE_NAME}:latest${version_suffix}"
+    
+    print_info ""
+    print_info "=========================================="
+    print_info "构建 $build_type 版本"
+    print_info "=========================================="
+    print_info "使用 Dockerfile: $dockerfile"
+    print_info "镜像标签: $image_tag"
+    if [[ "$TAG_LATEST" == true ]]; then
+        print_info "Latest 标签: $latest_tag"
+    fi
+    
+    # 构建镜像
+    print_info "开始构建 Docker 镜像..."
+    
+    docker build \
+        -f "$dockerfile" \
+        -t "$image_tag" \
+        --build-arg VERSION="$VERSION" \
+        --build-arg BUILD_DATE="$BUILD_DATE" \
+        --build-arg GIT_COMMIT="$GIT_COMMIT" \
+        --progress=plain \
+        .
+    
+    if [[ $? -eq 0 ]]; then
+        print_success "镜像构建成功: $image_tag"
+        
+        # 标记为 latest
+        if [[ "$TAG_LATEST" == true ]]; then
+            print_info "标记为 latest: $latest_tag"
+            docker tag "$image_tag" "$latest_tag"
+            print_success "标记成功: $latest_tag"
+        fi
+        
+        return 0
+    else
+        print_error "镜像构建失败: $image_tag"
+        return 1
+    fi
+}
 
-docker build \
-    -f "$DOCKERFILE" \
-    -t "$IMAGE_TAG" \
-    --build-arg VERSION="$VERSION" \
-    --build-arg BUILD_DATE="$BUILD_DATE" \
-    --build-arg GIT_COMMIT="$GIT_COMMIT" \
-    --progress=plain \
-    .
+# 根据构建类型执行构建
+BUILD_FAILED=0
+BUILT_IMAGES=()
 
-if [[ $? -eq 0 ]]; then
-    print_success "镜像构建成功: $IMAGE_TAG"
+# 构建指定版本
+if build_image "$BUILD_TYPE"; then
+    BUILT_IMAGES+=("${IMAGE_NAME}:${VERSION}")
+    if [[ "$TAG_LATEST" == true ]]; then
+        BUILT_IMAGES+=("${IMAGE_NAME}:latest")
+    fi
 else
-    print_error "镜像构建失败"
-    exit 1
-fi
-
-# 标记为 latest
-if [[ "$TAG_LATEST" == true ]]; then
-    print_info "标记为 latest: $LATEST_TAG"
-    docker tag "$IMAGE_TAG" "$LATEST_TAG"
-    print_success "标记成功: $LATEST_TAG"
+    BUILD_FAILED=1
 fi
 
 # 显示镜像信息
+print_info ""
+print_info "=========================================="
+print_info "构建的镜像列表:"
+print_info "=========================================="
+for img in "${BUILT_IMAGES[@]}"; do
+    print_info "  - $img"
+done
+
+print_info ""
 print_info "镜像信息:"
-docker images | grep "$IMAGE_NAME" | grep "$VERSION"
+docker images | grep "$IMAGE_NAME" | grep -E "$VERSION|latest" || true
 
 # 完成
-print_success "=========================================="
-print_success "Docker 镜像构建完成！"
-print_success "=========================================="
-print_info "构建的镜像:"
-print_info "  - $IMAGE_TAG"
-if [[ "$TAG_LATEST" == true ]]; then
-    print_info "  - $LATEST_TAG"
-fi
 print_info ""
-print_info "运行镜像:"
-print_info "  docker run -d -p 8080:8080 -p 12003:12003 -p 7000:7000 $IMAGE_TAG"
+if [[ $BUILD_FAILED -eq 0 ]]; then
+    print_success "=========================================="
+    print_success "Docker 镜像构建完成！"
+    print_success "=========================================="
+else
+    print_warning "=========================================="
+    print_warning "部分镜像构建失败，请检查错误信息"
+    print_warning "=========================================="
+fi
+
+print_info ""
+print_info "运行镜像示例:"
+print_info "  docker run -d -p 8080:8080 -p 12003:12003 -p 7000:7000 ${IMAGE_NAME}:${VERSION}"
 print_info ""
 print_info "使用 Docker Compose:"
 print_info "  cd scripts/docker && docker-compose up -d"
 print_info ""
 print_info "推送镜像:"
 print_info "  ./scripts/docker/push.sh"
+
+if [[ $BUILD_FAILED -ne 0 ]]; then
+    exit 1
+fi
 

@@ -7,11 +7,10 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/huberrors"
+	"gateway/pkg/utils/random"
 	"gateway/web/views/hub0022/models"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // ServiceNodeDAO 服务节点数据访问对象
@@ -28,10 +27,6 @@ func NewServiceNodeDAO(db database.Database) *ServiceNodeDAO {
 
 // QueryServiceNodes 分页查询服务节点列表
 func (dao *ServiceNodeDAO) QueryServiceNodes(ctx context.Context, tenantId string, page, pageSize int, filters map[string]interface{}) ([]*models.ServiceNodeModel, int, error) {
-	if tenantId == "" {
-		return nil, 0, errors.New("tenantId不能为空")
-	}
-
 	// 构建查询条件
 	whereClause := "WHERE tenantId = ?"
 	params := []interface{}{tenantId}
@@ -106,8 +101,8 @@ func (dao *ServiceNodeDAO) QueryServiceNodes(ctx context.Context, tenantId strin
 
 // GetServiceNodeById 根据ID获取服务节点
 func (dao *ServiceNodeDAO) GetServiceNodeById(ctx context.Context, serviceNodeId, tenantId string) (*models.ServiceNodeModel, error) {
-	if serviceNodeId == "" || tenantId == "" {
-		return nil, errors.New("serviceNodeId和tenantId不能为空")
+	if serviceNodeId == "" {
+		return nil, errors.New("serviceNodeId不能为空")
 	}
 
 	query := `
@@ -129,8 +124,8 @@ func (dao *ServiceNodeDAO) GetServiceNodeById(ctx context.Context, serviceNodeId
 
 // GetServiceNodesByService 获取服务定义下的所有节点
 func (dao *ServiceNodeDAO) GetServiceNodesByService(ctx context.Context, serviceDefinitionId, tenantId string) ([]*models.ServiceNodeModel, error) {
-	if serviceDefinitionId == "" || tenantId == "" {
-		return nil, errors.New("serviceDefinitionId和tenantId不能为空")
+	if serviceDefinitionId == "" {
+		return nil, errors.New("serviceDefinitionId不能为空")
 	}
 
 	query := `
@@ -153,9 +148,6 @@ func (dao *ServiceNodeDAO) CreateServiceNode(ctx context.Context, node *models.S
 	if node == nil {
 		return "", errors.New("服务节点不能为空")
 	}
-	if node.TenantId == "" {
-		return "", errors.New("tenantId不能为空")
-	}
 	if node.ServiceDefinitionId == "" {
 		return "", errors.New("serviceDefinitionId不能为空")
 	}
@@ -166,14 +158,15 @@ func (dao *ServiceNodeDAO) CreateServiceNode(ctx context.Context, node *models.S
 		return "", errors.New("nodePort必须大于0")
 	}
 
-	// 生成服务节点ID - 确保只有32位
-	uuidStr := uuid.New().String()
-	serviceNodeId := strings.ReplaceAll(uuidStr, "-", "")[:32] // 移除连字符并截取前32位
-	node.ServiceNodeId = serviceNodeId
+	// 自动生成服务节点ID（如果为空）
+	if node.ServiceNodeId == "" {
+		// 使用公共方法生成32位唯一字符串，前缀为"SN"
+		node.ServiceNodeId = random.GenerateUniqueStringWithPrefix("SN", 32)
+	}
 
 	// 设置默认值
 	if node.NodeId == "" {
-		node.NodeId = fmt.Sprintf("node-%s", serviceNodeId[:8])
+		node.NodeId = fmt.Sprintf("node-%s", node.ServiceNodeId[:8])
 	}
 	if node.NodeProtocol == "" {
 		node.NodeProtocol = "HTTP"
@@ -199,9 +192,8 @@ func (dao *ServiceNodeDAO) CreateServiceNode(ctx context.Context, node *models.S
 	node.EditTime = &now
 	node.AddWho = operatorId
 	node.EditWho = operatorId
-	// 生成oprSeqFlag - 确保只有32位
-	oprSeqFlag := strings.ReplaceAll(uuid.New().String(), "-", "")[:32]
-	node.OprSeqFlag = oprSeqFlag
+	// 生成oprSeqFlag - 使用32位唯一字符串
+	node.OprSeqFlag = random.GenerateUniqueStringWithPrefix("", 32)
 	node.CurrentVersion = 1
 	node.ActiveFlag = "Y"
 
@@ -238,7 +230,7 @@ func (dao *ServiceNodeDAO) CreateServiceNode(ctx context.Context, node *models.S
 		return "", huberrors.WrapError(err, "创建服务节点失败")
 	}
 
-	return serviceNodeId, nil
+	return node.ServiceNodeId, nil
 }
 
 // UpdateServiceNode 更新服务节点
@@ -246,8 +238,8 @@ func (dao *ServiceNodeDAO) UpdateServiceNode(ctx context.Context, node *models.S
 	if node == nil {
 		return errors.New("服务节点不能为空")
 	}
-	if node.ServiceNodeId == "" || node.TenantId == "" {
-		return errors.New("serviceNodeId和tenantId不能为空")
+	if node.ServiceNodeId == "" {
+		return errors.New("serviceNodeId不能为空")
 	}
 
 	// 获取当前节点信息，以便保留不可修改的字段
@@ -270,9 +262,8 @@ func (dao *ServiceNodeDAO) UpdateServiceNode(ctx context.Context, node *models.S
 	now := time.Now()
 	node.EditTime = &now
 	node.EditWho = operatorId
-	// 生成oprSeqFlag - 确保只有32位
-	oprSeqFlag := strings.ReplaceAll(uuid.New().String(), "-", "")[:32]
-	node.OprSeqFlag = oprSeqFlag
+	// 生成oprSeqFlag - 使用32位唯一字符串
+	node.OprSeqFlag = random.GenerateUniqueStringWithPrefix("", 32)
 	node.CurrentVersion = currentNode.CurrentVersion + 1
 
 	// 如果URL为空，但主机和端口已提供，则重新生成URL
@@ -323,8 +314,8 @@ func (dao *ServiceNodeDAO) UpdateServiceNode(ctx context.Context, node *models.S
 
 // DeleteServiceNode 删除服务节点
 func (dao *ServiceNodeDAO) DeleteServiceNode(ctx context.Context, serviceNodeId, tenantId, operatorId string) error {
-	if serviceNodeId == "" || tenantId == "" {
-		return errors.New("serviceNodeId和tenantId不能为空")
+	if serviceNodeId == "" {
+		return errors.New("serviceNodeId不能为空")
 	}
 
 	// 检查服务节点是否存在
@@ -354,8 +345,8 @@ func (dao *ServiceNodeDAO) DeleteServiceNode(ctx context.Context, serviceNodeId,
 
 // UpdateNodeHealth 更新节点健康状态
 func (dao *ServiceNodeDAO) UpdateNodeHealth(ctx context.Context, serviceNodeId, tenantId, healthStatus, healthCheckResult, operatorId string) error {
-	if serviceNodeId == "" || tenantId == "" || healthStatus == "" {
-		return errors.New("serviceNodeId、tenantId和healthStatus不能为空")
+	if serviceNodeId == "" || healthStatus == "" {
+		return errors.New("serviceNodeId和healthStatus不能为空")
 	}
 
 	// 获取当前节点信息
@@ -370,8 +361,8 @@ func (dao *ServiceNodeDAO) UpdateNodeHealth(ctx context.Context, serviceNodeId, 
 	// 更新审计字段
 	now := time.Now()
 	newVersion := currentNode.CurrentVersion + 1
-	// 生成oprSeqFlag - 确保只有32位
-	oprSeqFlag := strings.ReplaceAll(uuid.New().String(), "-", "")[:32]
+	// 生成oprSeqFlag - 使用32位唯一字符串
+	oprSeqFlag := random.GenerateUniqueStringWithPrefix("", 32)
 
 	// 构建更新SQL
 	sql := `

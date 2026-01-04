@@ -20,7 +20,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"syscall"
-	"time"
 
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -102,13 +101,17 @@ func Starter() {
 
 // initializeAndStartApplication 初始化并启动应用
 func initializeAndStartApplication() error {
-	// 初始化配置
-	if err := initConfig(); err != nil {
+	// 初始化配置（加载配置文件并设置全局时区）
+	configDir := utils.GetConfigDir()
+	if err := config.InitializeConfig(configDir, config.LoadOptions{
+		ClearExisting: false,
+		AllowOverride: true,
+	}); err != nil {
 		return huberrors.WrapError(err, "初始化配置失败")
 	}
 
 	// 初始化日志
-	if err := initLogger(); err != nil {
+	if err := logger.Setup(); err != nil {
 		return huberrors.WrapError(err, "初始化日志失败")
 	}
 
@@ -117,13 +120,8 @@ func initializeAndStartApplication() error {
 		return huberrors.WrapError(err, "初始化数据库失败")
 	}
 
-	// 初始化数据库脚本
-	if err := initDatabaseScripts(); err != nil {
-		return huberrors.WrapError(err, "初始化数据库脚本失败")
-	}
-
 	// 初始化缓存
-	if err := initCache(); err != nil {
+	if _, err := cacheapp.InitCache(); err != nil {
 		return huberrors.WrapError(err, "初始化缓存失败")
 	}
 
@@ -132,13 +130,18 @@ func initializeAndStartApplication() error {
 		return huberrors.WrapError(err, "初始化MongoDB失败")
 	}
 
+	// 初始化数据库脚本
+	if err := timerinit.InitializeDatabaseScriptsWithConfig(appContext, db); err != nil {
+		return huberrors.WrapError(err, "初始化数据库脚本失败")
+	}
+
 	// 初始化定时任务
-	if err := initTimerTasks(); err != nil {
+	if err := timerinit.InitAllTimerTasks(appContext, db); err != nil {
 		return huberrors.WrapError(err, "初始化定时任务失败")
 	}
 
 	// 初始化注册中心（必须在Web应用之前初始化，因为Web层会使用注册中心）
-	if err := initRegistry(); err != nil {
+	if err := timerinit.InitRegistryWithConfig(appContext, db); err != nil {
 		return huberrors.WrapError(err, "初始化注册中心失败")
 	}
 
@@ -153,7 +156,7 @@ func initializeAndStartApplication() error {
 	}
 
 	// 初始化pprof服务
-	if err := initPprofService(); err != nil {
+	if err := timerinit.InitPprofService(appContext); err != nil {
 		return huberrors.WrapError(err, "初始化pprof服务失败")
 	}
 
@@ -163,73 +166,26 @@ func initializeAndStartApplication() error {
 	}
 
 	// 初始化隧道管理器（失败不影响应用启动）
-	initTunnelManager()
+	if err := timerinit.InitializeTunnelManager(appContext, db); err != nil {
+		logger.Error("初始化隧道管理器失败", map[string]interface{}{
+			"error": err.Error(),
+		})
+		// 不返回错误，允许应用继续启动
+	}
+
+	// 启动隧道管理器（失败不影响应用启动）
+	if err := timerinit.StartTunnelManager(appContext); err != nil {
+		logger.Error("启动隧道管理器失败", map[string]interface{}{
+			"error": err.Error(),
+		})
+		// 不返回错误，允许应用继续启动
+	}
 
 	// 启动Web应用（放在最后启动）
-	if err := initWebApp(); err != nil {
-		return huberrors.WrapError(err, "启动Web应用失败")
-	}
-
-	return nil
-}
-
-// initCache 初始化缓存
-func initCache() error {
-	_, err := cacheapp.InitCache()
-	if err != nil {
-		return huberrors.WrapError(err, "初始化缓存失败")
-	}
-	return nil
-}
-
-// initTimerTasks 初始化定时任务
-func initTimerTasks() error {
-	if err := timerinit.InitAllTimerTasks(appContext, db); err != nil {
-		return huberrors.WrapError(err, "初始化定时任务失败")
-	}
-	return nil
-}
-
-// initWebApp 初始化Web应用
-func initWebApp() error {
 	if err := webapp.StartWebApp(db); err != nil {
 		return huberrors.WrapError(err, "启动Web应用失败")
 	}
-	return nil
-}
 
-// initPprofService 初始化pprof服务
-func initPprofService() error {
-	if err := timerinit.InitPprofService(appContext); err != nil {
-		return huberrors.WrapError(err, "初始化pprof服务失败")
-	}
-	return nil
-}
-
-// initTunnelManager 初始化隧道管理器
-// 注意：隧道管理器启动失败不会影响整个应用启动，只记录错误日志
-func initTunnelManager() error {
-	// 初始化隧道管理器
-	tunnelManager, err := timerinit.InitializeTunnelManager(appContext, db)
-	if err != nil {
-		logger.Error("初始化隧道管理器失败", "error", err)
-		// 不返回错误，允许应用继续启动
-		return nil
-	}
-
-	// 如果隧道管理器未启用，直接返回
-	if tunnelManager == nil {
-		return nil
-	}
-
-	// 启动隧道管理器
-	if err := timerinit.StartTunnelManager(appContext); err != nil {
-		logger.Error("启动隧道管理器失败", "error", err)
-		// 不返回错误，允许应用继续启动
-		return nil
-	}
-
-	logger.Info("隧道管理器初始化并启动成功")
 	return nil
 }
 
@@ -364,44 +320,6 @@ func stopApplication() {
 	os.Exit(0)
 }
 
-// initConfig 初始化配置
-func initConfig() error {
-	// 加载配置文件，设置不清除现有配置，允许覆盖
-	options := config.LoadOptions{
-		ClearExisting: false,
-		AllowOverride: true,
-	}
-
-	configDir := utils.GetConfigDir()
-	err := config.LoadConfig(configDir, options)
-	if err != nil {
-		// 使用huberrors.WrapError包装错误，提供更多上下文
-		return huberrors.WrapError(err, "加载配置文件失败")
-	}
-
-	// 设置全局时区
-	timezone := config.GetString("app.local_timezone", "UTC")
-	if location, err := time.LoadLocation(timezone); err != nil {
-		log.Printf("加载时区 '%s' 失败: %v，使用默认时区", timezone, err)
-	} else {
-		time.Local = location
-		log.Printf("已设置全局时区为: %s", timezone)
-	}
-
-	return nil
-}
-
-// initLogger 初始化日志系统
-func initLogger() error {
-	// 设置日志系统
-	err := logger.Setup()
-	if err != nil {
-		// 使用huberrors.WrapError包装错误，提供更多上下文
-		return huberrors.WrapError(err, "设置日志系统失败")
-	}
-	return nil
-}
-
 // initDatabase 初始化数据库
 func initDatabase() error {
 	configPath := utils.GetConfigPath("database.yaml")
@@ -447,48 +365,6 @@ func initDatabase() error {
 	return nil
 }
 
-// initDatabaseScripts 初始化数据库脚本
-func initDatabaseScripts() error {
-	// 检查是否启用脚本初始化
-	enableScriptInit := config.GetBool("database.enable_script_initialization", true)
-	if !enableScriptInit {
-		logger.Info("数据库脚本初始化已禁用")
-		return nil
-	}
-
-	// 获取超时配置
-	timeoutMinutes := config.GetInt("database.script_initialization_timeout", 30)
-
-	// 创建脚本初始化上下文
-	initCtx, cancel := context.WithTimeout(appContext, time.Duration(timeoutMinutes)*time.Minute)
-	defer cancel()
-
-	// 直接调用database_script_init.go中的方法
-	summary, err := timerinit.InitializeDatabaseScripts(initCtx, db)
-	if err != nil {
-		return huberrors.WrapError(err, "数据库脚本初始化失败")
-	}
-
-	// 输出初始化结果
-	logger.Info("数据库脚本初始化完成",
-		"成功数据库", summary.SuccessfulDatabases,
-		"失败数据库", summary.FailedDatabases,
-		"执行时间", summary.TotalDuration,
-		"SQL语句数", getTotalExecutedStatements(summary))
-
-	return nil
-}
-
-// getTotalExecutedStatements 计算总执行语句数
-// 辅助函数，用于统计数据库初始化过程中执行的SQL语句总数
-func getTotalExecutedStatements(summary *timerinit.InitializationSummary) int {
-	total := 0
-	for _, result := range summary.Results {
-		total += result.StatementsExecuted
-	}
-	return total
-}
-
 // initGateway 初始化网关应用
 func initGateway(db database.Database) error {
 	// 创建网关应用实例
@@ -497,30 +373,6 @@ func initGateway(db database.Database) error {
 	// 初始化网关应用
 	if err := gatewayApp.Init(db); err != nil {
 		return huberrors.WrapError(err, "初始化网关应用失败")
-	}
-
-	return nil
-}
-
-// initRegistry 初始化注册中心
-// 初始化并启动服务注册与发现功能
-func initRegistry() error {
-	// 检查是否启用注册中心
-	if !config.GetBool("app.registry.enabled", true) {
-		logger.Info("注册中心未启用，跳过初始化")
-		return nil
-	}
-
-	// 获取默认租户ID
-	tenantId := config.GetString("app.registry.tenant_id", "default")
-
-	// 初始化注册中心 - 现在返回的是布尔值，表示是否成功初始化
-	success := timerinit.InitRegistry(appContext, db, tenantId)
-	if !success {
-		logger.Warn("注册中心未能成功初始化，系统将以不使用注册中心模式运行")
-		// 注意：这里不将其视为致命错误，而是允许系统继续运行
-	} else {
-		logger.Info("注册中心初始化并启动成功")
 	}
 
 	return nil

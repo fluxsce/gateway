@@ -33,6 +33,12 @@ func NewConsistentHashBalancer(config *LoadBalancerConfig) LoadBalancer {
 }
 
 // Select 使用一致性哈希选择节点
+// 一致性哈希算法说明：
+// 1. 将节点映射到哈希环上（每个节点根据权重创建多个虚拟节点）
+// 2. 将请求的key（通常是客户端IP）也映射到哈希环上
+// 3. 在环上顺时针查找第一个节点
+// 优点：节点变化时，只有少量请求会重新路由，适合缓存场景
+// 注意：如果节点列表变化，需要调用 Reset() 清除哈希环，下次选择时会重新构建
 func (c *ConsistentHashBalancer) Select(service *ServiceConfig, ctx *core.Context) *NodeConfig {
 	if len(service.Nodes) == 0 {
 		return nil
@@ -115,21 +121,28 @@ func (c *ConsistentHashBalancer) Reset() {
 }
 
 // buildRing 构建哈希环
+// 注意：此方法会检查环是否已构建，如果已构建则直接返回
+// 这可能导致节点变化时环不会更新，需要在节点变化时调用 Reset() 清除环
 func (c *ConsistentHashBalancer) buildRing(nodes []*NodeConfig) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// 如果环已构建且节点数量相同，则不需要重建
+	// 注意：这里只检查环是否为空，不检查节点是否变化
+	// 如果节点发生变化，需要先调用 Reset() 清除环
 	if len(c.ring) > 0 {
 		return // 已经构建过
 	}
 
+	// 构建哈希环
 	for _, node := range nodes {
 		weight := node.Weight
 		if weight <= 0 {
-			weight = 1
+			weight = 1 // 默认权重为1
 		}
 
 		// 根据权重创建虚拟节点
+		// 权重越大，虚拟节点越多，被选中的概率越高
 		virtualNodes := c.replicas * weight
 		for i := 0; i < virtualNodes; i++ {
 			virtualKey := fmt.Sprintf("%s-%d", node.ID, i)
@@ -138,7 +151,7 @@ func (c *ConsistentHashBalancer) buildRing(nodes []*NodeConfig) {
 		}
 	}
 
-	// 排序哈希键
+	// 排序哈希键，用于快速查找
 	c.sortedKeys = make([]uint32, 0, len(c.ring))
 	for k := range c.ring {
 		c.sortedKeys = append(c.sortedKeys, k)

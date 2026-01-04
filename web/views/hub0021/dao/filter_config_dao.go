@@ -26,60 +26,6 @@ func NewFilterConfigDAO(db database.Database) *FilterConfigDAO {
 	}
 }
 
-// generateFilterConfigId 生成过滤器配置ID
-// 格式：FC + YYYYMMDD + HHMMSS + 4位随机数
-// 示例：FC20240615143022A1B2
-func (dao *FilterConfigDAO) generateFilterConfigId() string {
-	now := time.Now()
-	// 生成时间部分：YYYYMMDDHHMMSS
-	timeStr := now.Format("20060102150405")
-
-	// 生成4位随机字符（大写字母和数字）
-	randomStr := random.GenerateRandomString(4)
-
-	return fmt.Sprintf("FC%s%s", timeStr, randomStr)
-}
-
-// isFilterConfigIdExists 检查过滤器配置ID是否已存在
-func (dao *FilterConfigDAO) isFilterConfigIdExists(ctx context.Context, filterConfigId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GW_FILTER_CONFIG WHERE filterConfigId = ?`
-
-	var result struct {
-		Count int `db:"count"`
-	}
-
-	err := dao.db.QueryOne(ctx, &result, query, []interface{}{filterConfigId}, true)
-	if err != nil {
-		return false, err
-	}
-
-	return result.Count > 0, nil
-}
-
-// generateUniqueFilterConfigId 生成唯一的过滤器配置ID
-// 如果生成的ID已存在，会重新生成直到找到唯一的ID（最多尝试10次）
-func (dao *FilterConfigDAO) generateUniqueFilterConfigId(ctx context.Context) (string, error) {
-	const maxAttempts = 10
-
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		filterConfigId := dao.generateFilterConfigId()
-
-		exists, err := dao.isFilterConfigIdExists(ctx, filterConfigId)
-		if err != nil {
-			return "", huberrors.WrapError(err, "检查过滤器配置ID是否存在失败")
-		}
-
-		if !exists {
-			return filterConfigId, nil
-		}
-
-		// 如果ID已存在，等待1毫秒后重试（确保时间戳不同）
-		time.Sleep(time.Millisecond)
-	}
-
-	return "", errors.New("生成唯一过滤器配置ID失败，已达到最大尝试次数")
-}
-
 // AddFilterConfig 添加过滤器配置
 // 参数:
 //   - ctx: 上下文对象
@@ -90,11 +36,6 @@ func (dao *FilterConfigDAO) generateUniqueFilterConfigId(ctx context.Context) (s
 //   - filterConfigId: 新创建的过滤器配置ID
 //   - err: 可能的错误
 func (dao *FilterConfigDAO) AddFilterConfig(ctx context.Context, filterConfig *models.FilterConfig, operatorId string) (string, error) {
-	// 验证租户ID
-	if filterConfig.TenantId == "" {
-		return "", errors.New("租户ID不能为空")
-	}
-
 	// 验证必填字段
 	if filterConfig.FilterName == "" {
 		return "", errors.New("过滤器名称不能为空")
@@ -124,20 +65,8 @@ func (dao *FilterConfigDAO) AddFilterConfig(ctx context.Context, filterConfig *m
 
 	// 自动生成过滤器配置ID（如果为空）
 	if filterConfig.FilterConfigId == "" {
-		generatedId, err := dao.generateUniqueFilterConfigId(ctx)
-		if err != nil {
-			return "", huberrors.WrapError(err, "生成过滤器配置ID失败")
-		}
-		filterConfig.FilterConfigId = generatedId
-	} else {
-		// 如果提供了ID，检查是否已存在
-		exists, err := dao.isFilterConfigIdExists(ctx, filterConfig.FilterConfigId)
-		if err != nil {
-			return "", huberrors.WrapError(err, "检查过滤器配置ID是否存在失败")
-		}
-		if exists {
-			return "", errors.New("过滤器配置ID已存在")
-		}
+		// 使用公共方法生成32位唯一字符串，前缀为"FC"
+		filterConfig.FilterConfigId = random.GenerateUniqueStringWithPrefix("FC", 32)
 	}
 
 	// 设置一些自动填充的字段
@@ -146,7 +75,9 @@ func (dao *FilterConfigDAO) AddFilterConfig(ctx context.Context, filterConfig *m
 	filterConfig.AddWho = operatorId
 	filterConfig.EditTime = now
 	filterConfig.EditWho = operatorId
-	filterConfig.OprSeqFlag = filterConfig.FilterConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
+	// 生成 OprSeqFlag，确保长度不超过32
+	// FilterConfigId 已经是32位，直接使用
+	filterConfig.OprSeqFlag = filterConfig.FilterConfigId
 	filterConfig.CurrentVersion = 1
 	filterConfig.ActiveFlag = "Y"
 
@@ -180,8 +111,8 @@ func (dao *FilterConfigDAO) AddFilterConfig(ctx context.Context, filterConfig *m
 
 // GetFilterConfigById 根据过滤器配置ID获取过滤器配置信息
 func (dao *FilterConfigDAO) GetFilterConfigById(ctx context.Context, filterConfigId, tenantId string) (*models.FilterConfig, error) {
-	if filterConfigId == "" || tenantId == "" {
-		return nil, errors.New("filterConfigId和tenantId不能为空")
+	if filterConfigId == "" {
+		return nil, errors.New("filterConfigId不能为空")
 	}
 
 	query := `
@@ -200,8 +131,8 @@ func (dao *FilterConfigDAO) GetFilterConfigById(ctx context.Context, filterConfi
 
 // UpdateFilterConfig 更新过滤器配置
 func (dao *FilterConfigDAO) UpdateFilterConfig(ctx context.Context, filterConfig *models.FilterConfig, operatorId string) error {
-	if filterConfig.FilterConfigId == "" || filterConfig.TenantId == "" {
-		return errors.New("filterConfigId和tenantId不能为空")
+	if filterConfig.FilterConfigId == "" {
+		return errors.New("filterConfigId不能为空")
 	}
 
 	// 验证必填字段
@@ -298,8 +229,8 @@ func (dao *FilterConfigDAO) UpdateFilterConfig(ctx context.Context, filterConfig
 
 // DeleteFilterConfig 删除过滤器配置
 func (dao *FilterConfigDAO) DeleteFilterConfig(ctx context.Context, filterConfigId, tenantId, operatorId string) error {
-	if filterConfigId == "" || tenantId == "" {
-		return errors.New("filterConfigId和tenantId不能为空")
+	if filterConfigId == "" {
+		return errors.New("filterConfigId不能为空")
 	}
 
 	// 先检查记录是否存在
@@ -327,30 +258,51 @@ func (dao *FilterConfigDAO) DeleteFilterConfig(ctx context.Context, filterConfig
 	return nil
 }
 
-// ListFilterConfigs 获取过滤器配置列表
-func (dao *FilterConfigDAO) ListFilterConfigs(ctx context.Context, tenantId string, gatewayInstanceId string, routeConfigId string, activeFlag string, page, pageSize int) ([]*models.FilterConfig, int, error) {
-	if tenantId == "" {
-		return nil, 0, errors.New("tenantId不能为空")
-	}
-
+// ListFilterConfigs 获取过滤器配置列表（支持多参数查询）
+// queryParams 支持以下参数：
+//   - gatewayInstanceId: 网关实例ID
+//   - routeConfigId: 路由配置ID
+//   - filterName: 过滤器名称（模糊匹配）
+//   - filterType: 过滤器类型
+//   - filterAction: 执行时机
+//   - activeFlag: 活动状态
+func (dao *FilterConfigDAO) ListFilterConfigs(ctx context.Context, tenantId string, queryParams map[string]string, page, pageSize int) ([]*models.FilterConfig, int, error) {
 	// 构建基础查询条件
 	whereConditions := []string{"tenantId = ?"}
 	args := []interface{}{tenantId}
 
 	// 添加网关实例ID条件
-	if gatewayInstanceId != "" {
+	if gatewayInstanceId, ok := queryParams["gatewayInstanceId"]; ok && gatewayInstanceId != "" {
 		whereConditions = append(whereConditions, "gatewayInstanceId = ?")
 		args = append(args, gatewayInstanceId)
 	}
 
 	// 添加路由配置ID条件
-	if routeConfigId != "" {
+	if routeConfigId, ok := queryParams["routeConfigId"]; ok && routeConfigId != "" {
 		whereConditions = append(whereConditions, "routeConfigId = ?")
 		args = append(args, routeConfigId)
 	}
 
-	// 添加activeFlag条件（如果指定了activeFlag参数）
-	if activeFlag != "" {
+	// 添加过滤器名称条件（模糊匹配）
+	if filterName, ok := queryParams["filterName"]; ok && filterName != "" {
+		whereConditions = append(whereConditions, "filterName LIKE ?")
+		args = append(args, "%"+filterName+"%")
+	}
+
+	// 添加过滤器类型条件
+	if filterType, ok := queryParams["filterType"]; ok && filterType != "" {
+		whereConditions = append(whereConditions, "filterType = ?")
+		args = append(args, filterType)
+	}
+
+	// 添加执行时机条件
+	if filterAction, ok := queryParams["filterAction"]; ok && filterAction != "" {
+		whereConditions = append(whereConditions, "filterAction = ?")
+		args = append(args, filterAction)
+	}
+
+	// 添加activeFlag条件
+	if activeFlag, ok := queryParams["activeFlag"]; ok && activeFlag != "" {
 		whereConditions = append(whereConditions, "activeFlag = ?")
 		args = append(args, activeFlag)
 	}
@@ -407,8 +359,8 @@ func (dao *FilterConfigDAO) ListFilterConfigs(ctx context.Context, tenantId stri
 
 // GetFilterConfigsByGatewayInstance 根据网关实例ID获取过滤器配置列表
 func (dao *FilterConfigDAO) GetFilterConfigsByGatewayInstance(ctx context.Context, gatewayInstanceId, tenantId string) ([]*models.FilterConfig, error) {
-	if gatewayInstanceId == "" || tenantId == "" {
-		return nil, errors.New("gatewayInstanceId和tenantId不能为空")
+	if gatewayInstanceId == "" {
+		return nil, errors.New("gatewayInstanceId不能为空")
 	}
 
 	query := `
@@ -428,8 +380,8 @@ func (dao *FilterConfigDAO) GetFilterConfigsByGatewayInstance(ctx context.Contex
 
 // GetFilterConfigsByRoute 根据路由配置ID获取过滤器配置列表
 func (dao *FilterConfigDAO) GetFilterConfigsByRoute(ctx context.Context, routeConfigId, tenantId string, activeFlag string) ([]*models.FilterConfig, error) {
-	if routeConfigId == "" || tenantId == "" {
-		return nil, errors.New("routeConfigId和tenantId不能为空")
+	if routeConfigId == "" {
+		return nil, errors.New("routeConfigId不能为空")
 	}
 
 	// 构建查询条件
@@ -461,8 +413,8 @@ func (dao *FilterConfigDAO) GetFilterConfigsByRoute(ctx context.Context, routeCo
 
 // GetFilterConfigsByType 根据过滤器类型获取过滤器配置列表
 func (dao *FilterConfigDAO) GetFilterConfigsByType(ctx context.Context, filterType, tenantId string, gatewayInstanceId, routeConfigId string, activeFlag string) ([]*models.FilterConfig, error) {
-	if filterType == "" || tenantId == "" {
-		return nil, errors.New("filterType和tenantId不能为空")
+	if filterType == "" {
+		return nil, errors.New("filterType不能为空")
 	}
 
 	// 验证过滤器类型的有效性
@@ -509,8 +461,8 @@ func (dao *FilterConfigDAO) GetFilterConfigsByType(ctx context.Context, filterTy
 
 // GetFilterConfigsByAction 根据执行时机获取过滤器配置列表
 func (dao *FilterConfigDAO) GetFilterConfigsByAction(ctx context.Context, filterAction, tenantId string, gatewayInstanceId, routeConfigId string, activeFlag string) ([]*models.FilterConfig, error) {
-	if filterAction == "" || tenantId == "" {
-		return nil, errors.New("filterAction和tenantId不能为空")
+	if filterAction == "" {
+		return nil, errors.New("filterAction不能为空")
 	}
 
 	// 验证过滤器执行时机的有效性
@@ -557,9 +509,6 @@ func (dao *FilterConfigDAO) GetFilterConfigsByAction(ctx context.Context, filter
 
 // GetFilterExecutionChain 获取过滤器执行链（按执行时机和顺序排序）
 func (dao *FilterConfigDAO) GetFilterExecutionChain(ctx context.Context, tenantId string, gatewayInstanceId, routeConfigId string, activeFlag string) ([]*models.FilterConfig, error) {
-	if tenantId == "" {
-		return nil, errors.New("tenantId不能为空")
-	}
 
 	// 构建查询条件
 	whereConditions := []string{"tenantId = ?"}
@@ -609,8 +558,8 @@ func (dao *FilterConfigDAO) GetFilterExecutionChain(ctx context.Context, tenantI
 
 // UpdateFilterOrder 更新过滤器执行顺序
 func (dao *FilterConfigDAO) UpdateFilterOrder(ctx context.Context, filterConfigId, tenantId string, newOrder int, operatorId string) error {
-	if filterConfigId == "" || tenantId == "" {
-		return errors.New("filterConfigId和tenantId不能为空")
+	if filterConfigId == "" {
+		return errors.New("filterConfigId不能为空")
 	}
 
 	// 更新过滤器执行顺序
@@ -643,8 +592,8 @@ func (dao *FilterConfigDAO) DisableFilterConfig(ctx context.Context, filterConfi
 
 // updateFilterConfigStatus 更新过滤器配置状态
 func (dao *FilterConfigDAO) updateFilterConfigStatus(ctx context.Context, filterConfigId, tenantId, status, operatorId string) error {
-	if filterConfigId == "" || tenantId == "" {
-		return errors.New("filterConfigId和tenantId不能为空")
+	if filterConfigId == "" {
+		return errors.New("filterConfigId不能为空")
 	}
 
 	// 更新过滤器配置状态
@@ -667,8 +616,8 @@ func (dao *FilterConfigDAO) updateFilterConfigStatus(ctx context.Context, filter
 
 // BatchUpdateFilterConfigs 批量更新过滤器配置
 func (dao *FilterConfigDAO) BatchUpdateFilterConfigs(ctx context.Context, filterConfigIds []string, tenantId string, updates map[string]interface{}, operatorId string) error {
-	if len(filterConfigIds) == 0 || tenantId == "" {
-		return errors.New("filterConfigIds和tenantId不能为空")
+	if len(filterConfigIds) == 0 {
+		return errors.New("filterConfigIds不能为空")
 	}
 
 	// 构建批量更新的SQL语句
@@ -711,8 +660,8 @@ func (dao *FilterConfigDAO) BatchUpdateFilterConfigs(ctx context.Context, filter
 
 // BatchDeleteFilterConfigs 批量删除过滤器配置
 func (dao *FilterConfigDAO) BatchDeleteFilterConfigs(ctx context.Context, filterConfigIds []string, tenantId, operatorId string) error {
-	if len(filterConfigIds) == 0 || tenantId == "" {
-		return errors.New("filterConfigIds和tenantId不能为空")
+	if len(filterConfigIds) == 0 {
+		return errors.New("filterConfigIds不能为空")
 	}
 
 	// 构建IN子句的占位符

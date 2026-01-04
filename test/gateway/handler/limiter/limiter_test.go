@@ -201,7 +201,7 @@ func TestKeyExtractors(t *testing.T) {
 			name:     "ServiceKey",
 			strategy: "service",
 			setupCtx: func(ctx *core.Context) {
-				ctx.SetServiceID("test-service")
+				ctx.SetServiceIDs([]string{"test-service"})
 			},
 			expectedKey: "service:test-service",
 			description: "基于服务的限流键",

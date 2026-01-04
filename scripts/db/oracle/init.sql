@@ -1,0 +1,73 @@
+-- =====================================================
+-- Oracle数据库初始化脚本
+-- =====================================================
+-- 此脚本将按顺序执行所有表的创建语句
+-- 使用方法：在SQL*Plus或SQL Developer中执行：@init.sql
+-- =====================================================
+
+@HUB_USER.sql
+@HUB_LOGIN_LOG.sql
+@HUB_GW_INSTANCE.sql
+@HUB_GW_ROUTER_CONFIG.sql
+@HUB_GW_ROUTE_CONFIG.sql
+@HUB_GW_ROUTE_ASSERTION.sql
+@HUB_GW_FILTER_CONFIG.sql
+@HUB_GW_RATE_LIMIT_CONFIG.sql
+@HUB_GW_CIRCUIT_BREAKER_CONFIG.sql
+@HUB_GW_AUTH_CONFIG.sql
+@HUB_GW_SERVICE_DEFINITION.sql
+@HUB_GW_SERVICE_NODE.sql
+@HUB_GW_PROXY_CONFIG.sql
+@HUB_TIMER_SCHEDULER.sql
+@HUB_TIMER_TASK.sql
+@HUB_TIMER_EXECUTION_LOG.sql
+@HUB_TOOL_CONFIG.sql
+@HUB_TOOL_CONFIG_GROUP.sql
+@HUB_GW_LOG_CONFIG.sql
+@HUB_GW_ACCESS_LOG.sql
+@HUB_GW_BACKEND_TRACE_LOG.sql
+@HUB_GW_CORS_CONFIG.sql
+@HUB_GW_SECURITY_CONFIG.sql
+@HUB_GW_IP_ACCESS_CONFIG.sql
+@HUB_GW_UA_ACCESS_CONFIG.sql
+@HUB_GW_API_ACCESS_CONFIG.sql
+@HUB_GW_DOMAIN_ACCESS_CONFIG.sql
+@HUB_METRIC_SERVER_INFO.sql
+@HUB_METRIC_CPU_LOG.sql
+@HUB_METRIC_MEMORY_LOG.sql
+@HUB_METRIC_DISK_PART_LOG.sql
+@HUB_METRIC_DISK_IO_LOG.sql
+@HUB_METRIC_NETWORK_LOG.sql
+@HUB_METRIC_PROCESS_LOG.sql
+@HUB_METRIC_PROCSTAT_LOG.sql
+@HUB_METRIC_TEMP_LOG.sql
+@HUB_REGISTRY_SERVICE_GROUP.sql
+@HUB_REGISTRY_SERVICE.sql
+@HUB_REGISTRY_SERVICE_INSTANCE.sql
+@HUB_REGISTRY_SERVICE_EVENT.sql
+@HUB_MONITOR_JVM_RESOURCE.sql
+@HUB_MONITOR_JVM_MEMORY.sql
+@HUB_MONITOR_JVM_MEM_POOL.sql
+@HUB_MONITOR_JVM_GC.sql
+@HUB_MONITOR_JVM_THREAD.sql
+@HUB_MONITOR_JVM_THR_STATE.sql
+@HUB_MONITOR_JVM_DEADLOCK.sql
+@HUB_MONITOR_JVM_CLASS.sql
+@HUB_MONITOR_APP_DATA.sql
+@HUB_TUNNEL_SERVER.sql
+@HUB_TUNNEL_SERVER_NODE.sql
+@HUB_TUNNEL_CLIENT.sql
+@HUB_TUNNEL_SERVICE.sql
+
+-- =====================================================
+-- 字段长度调整：支持多服务定义ID和服务名称（多服务场景）
+-- 注意：使用独立ALTER语句，避免直接修改历史建表语句，保证向后兼容
+-- 变更内容：
+--  1) HUB_GW_ACCESS_LOG.serviceDefinitionId 扩展为 1000 字符
+--  2) HUB_GW_ACCESS_LOG.serviceName 扩展为 1000 字符
+--  3) HUB_GW_ROUTE_CONFIG.serviceDefinitionId 扩展为 1000 字符
+-- =====================================================
+ALTER TABLE HUB_GW_ACCESS_LOG MODIFY serviceDefinitionId VARCHAR2(1000);
+ALTER TABLE HUB_GW_ACCESS_LOG MODIFY serviceName VARCHAR2(1000);
+ALTER TABLE HUB_GW_ROUTE_CONFIG MODIFY serviceDefinitionId VARCHAR2(1000);
+

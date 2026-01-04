@@ -26,65 +26,9 @@ func NewProxyConfigDAO(db database.Database) *ProxyConfigDAO {
 	}
 }
 
-// generateProxyConfigId 生成代理配置ID
-// 格式：PC + YYYYMMDD + HHMMSS + 4位随机数
-// 示例：PC20240615143022A1B2
-func (dao *ProxyConfigDAO) generateProxyConfigId() string {
-	now := time.Now()
-	// 生成时间部分：YYYYMMDDHHMMSS
-	timeStr := now.Format("20060102150405")
-
-	// 生成4位随机字符（大写字母和数字）
-	randomStr := random.GenerateRandomString(4)
-
-	return fmt.Sprintf("PC%s%s", timeStr, randomStr)
-}
-
-// isProxyConfigIdExists 检查代理配置ID是否已存在
-func (dao *ProxyConfigDAO) isProxyConfigIdExists(ctx context.Context, proxyConfigId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GW_PROXY_CONFIG WHERE proxyConfigId = ?`
-
-	var result struct {
-		Count int `db:"count"`
-	}
-
-	err := dao.db.QueryOne(ctx, &result, query, []interface{}{proxyConfigId}, true)
-	if err != nil {
-		return false, err
-	}
-
-	return result.Count > 0, nil
-}
-
-// generateUniqueProxyConfigId 生成唯一的代理配置ID
-func (dao *ProxyConfigDAO) generateUniqueProxyConfigId(ctx context.Context) (string, error) {
-	const maxAttempts = 10
-
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		proxyConfigId := dao.generateProxyConfigId()
-
-		exists, err := dao.isProxyConfigIdExists(ctx, proxyConfigId)
-		if err != nil {
-			return "", huberrors.WrapError(err, "检查代理配置ID是否存在失败")
-		}
-
-		if !exists {
-			return proxyConfigId, nil
-		}
-
-		// 如果ID已存在，等待1毫秒后重试（确保时间戳不同）
-		time.Sleep(time.Millisecond)
-	}
-
-	return "", errors.New("生成唯一代理配置ID失败，已达到最大尝试次数")
-}
-
 // CreateProxyConfig 创建代理配置
 func (dao *ProxyConfigDAO) CreateProxyConfig(ctx context.Context, proxyConfig *models.ProxyConfig, operatorId string) (string, error) {
 	// 验证必填字段
-	if proxyConfig.TenantId == "" {
-		return "", errors.New("租户ID不能为空")
-	}
 	if proxyConfig.GatewayInstanceId == "" {
 		return "", errors.New("网关实例ID不能为空")
 	}
@@ -97,20 +41,8 @@ func (dao *ProxyConfigDAO) CreateProxyConfig(ctx context.Context, proxyConfig *m
 
 	// 自动生成代理配置ID（如果为空）
 	if proxyConfig.ProxyConfigId == "" {
-		generatedId, err := dao.generateUniqueProxyConfigId(ctx)
-		if err != nil {
-			return "", huberrors.WrapError(err, "生成代理配置ID失败")
-		}
-		proxyConfig.ProxyConfigId = generatedId
-	} else {
-		// 如果提供了ID，检查是否已存在
-		exists, err := dao.isProxyConfigIdExists(ctx, proxyConfig.ProxyConfigId)
-		if err != nil {
-			return "", huberrors.WrapError(err, "检查代理配置ID是否存在失败")
-		}
-		if exists {
-			return "", errors.New("代理配置ID已存在")
-		}
+		// 使用公共方法生成32位唯一字符串，前缀为"PC"
+		proxyConfig.ProxyConfigId = random.GenerateUniqueStringWithPrefix("PC", 32)
 	}
 
 	// 设置自动填充的字段
@@ -139,8 +71,8 @@ func (dao *ProxyConfigDAO) CreateProxyConfig(ctx context.Context, proxyConfig *m
 
 // GetProxyConfigById 根据ID获取代理配置
 func (dao *ProxyConfigDAO) GetProxyConfigById(ctx context.Context, proxyConfigId, tenantId string) (*models.ProxyConfig, error) {
-	if proxyConfigId == "" || tenantId == "" {
-		return nil, errors.New("proxyConfigId和tenantId不能为空")
+	if proxyConfigId == "" {
+		return nil, errors.New("proxyConfigId不能为空")
 	}
 
 	query := `
@@ -151,6 +83,9 @@ func (dao *ProxyConfigDAO) GetProxyConfigById(ctx context.Context, proxyConfigId
 	var proxyConfig models.ProxyConfig
 	err := dao.db.QueryOne(ctx, &proxyConfig, query, []interface{}{proxyConfigId, tenantId}, true)
 	if err != nil {
+		if err == database.ErrRecordNotFound {
+			return nil, nil // 没有找到记录，返回nil而不是错误
+		}
 		return nil, huberrors.WrapError(err, "查询代理配置失败")
 	}
 
@@ -159,8 +94,8 @@ func (dao *ProxyConfigDAO) GetProxyConfigById(ctx context.Context, proxyConfigId
 
 // UpdateProxyConfig 更新代理配置
 func (dao *ProxyConfigDAO) UpdateProxyConfig(ctx context.Context, proxyConfig *models.ProxyConfig, operatorId string) error {
-	if proxyConfig.ProxyConfigId == "" || proxyConfig.TenantId == "" {
-		return errors.New("proxyConfigId和tenantId不能为空")
+	if proxyConfig.ProxyConfigId == "" {
+		return errors.New("proxyConfigId不能为空")
 	}
 
 	// 验证必填字段
@@ -214,8 +149,8 @@ func (dao *ProxyConfigDAO) UpdateProxyConfig(ctx context.Context, proxyConfig *m
 
 // DeleteProxyConfig 删除代理配置
 func (dao *ProxyConfigDAO) DeleteProxyConfig(ctx context.Context, proxyConfigId, tenantId, operatorId string) error {
-	if proxyConfigId == "" || tenantId == "" {
-		return errors.New("proxyConfigId和tenantId不能为空")
+	if proxyConfigId == "" {
+		return errors.New("proxyConfigId不能为空")
 	}
 
 	// 检查配置是否存在
@@ -245,10 +180,6 @@ func (dao *ProxyConfigDAO) DeleteProxyConfig(ctx context.Context, proxyConfigId,
 
 // ListProxyConfigs 分页查询代理配置列表
 func (dao *ProxyConfigDAO) ListProxyConfigs(ctx context.Context, tenantId, gatewayInstanceId string, page, pageSize int) ([]*models.ProxyConfig, int, error) {
-	if tenantId == "" {
-		return nil, 0, errors.New("tenantId不能为空")
-	}
-
 	// 构建查询条件
 	whereConditions := []string{"tenantId = ?", "activeFlag = 'Y'"}
 	args := []interface{}{tenantId}
@@ -308,23 +239,27 @@ func (dao *ProxyConfigDAO) ListProxyConfigs(ctx context.Context, tenantId, gatew
 	return proxyConfigs, countResult.Count, nil
 }
 
-// GetProxyConfigsByGatewayInstance 根据网关实例ID获取代理配置
-func (dao *ProxyConfigDAO) GetProxyConfigsByGatewayInstance(ctx context.Context, gatewayInstanceId, tenantId string) ([]*models.ProxyConfig, error) {
-	if gatewayInstanceId == "" || tenantId == "" {
-		return nil, errors.New("gatewayInstanceId和tenantId不能为空")
+// GetProxyConfigByGatewayInstance 根据网关实例ID获取代理配置（返回单条数据）
+func (dao *ProxyConfigDAO) GetProxyConfigByGatewayInstance(ctx context.Context, gatewayInstanceId, tenantId string) (*models.ProxyConfig, error) {
+	if gatewayInstanceId == "" {
+		return nil, errors.New("gatewayInstanceId不能为空")
 	}
 
 	query := `
 		SELECT * FROM HUB_GW_PROXY_CONFIG 
 		WHERE gatewayInstanceId = ? AND tenantId = ? AND activeFlag = 'Y'
 		ORDER BY addTime DESC
+		LIMIT 1
 	`
 
-	var proxyConfigs []*models.ProxyConfig
-	err := dao.db.Query(ctx, &proxyConfigs, query, []interface{}{gatewayInstanceId, tenantId}, true)
+	var proxyConfig models.ProxyConfig
+	err := dao.db.QueryOne(ctx, &proxyConfig, query, []interface{}{gatewayInstanceId, tenantId}, true)
 	if err != nil {
+		if err == database.ErrRecordNotFound {
+			return nil, nil // 没有找到记录，返回nil而不是错误
+		}
 		return nil, huberrors.WrapError(err, "查询代理配置失败")
 	}
 
-	return proxyConfigs, nil
+	return &proxyConfig, nil
 }

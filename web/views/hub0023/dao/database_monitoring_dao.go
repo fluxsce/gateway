@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/ctime"
 	"gateway/pkg/utils/huberrors"
@@ -101,6 +102,23 @@ func (dao *DatabaseMonitoringDAO) GetRequestMetricsTrend(ctx context.Context, re
 	timeFormat := dao.getTimeGroupFormat(req.TimeGranularity)
 	granularitySeconds := dao.getTimeGranularitySeconds(req.TimeGranularity)
 
+	// 获取数据库类型，SQLite 需要特殊处理时间戳
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 构建时间戳字段（SQLite 需要特殊处理）
+	var timestampField string
+	var orderByField string
+	if dbType == sqlutils.DatabaseSQLite {
+		// SQLite: 不查询时间戳，在应用层从 timeGroup 解析
+		// 使用 timeGroup 字符串排序（格式统一，可以正确排序）
+		timestampField = "NULL as minTimestamp"
+		orderByField = "timeGroup"
+	} else {
+		// 其他数据库：使用 MIN 函数
+		timestampField = "MIN(gatewayStartProcessingTime) as minTimestamp"
+		orderByField = "minTimestamp"
+	}
+
 	// 构建趋势查询SQL - 使用数据库的时间格式化函数
 	// 注意：这里使用兼容性较好的SQL语法
 	sql := fmt.Sprintf(`
@@ -109,12 +127,12 @@ func (dao *DatabaseMonitoringDAO) GetRequestMetricsTrend(ctx context.Context, re
 			COUNT(*) as totalRequests,
 			SUM(CASE WHEN gatewayStatusCode >= 200 AND gatewayStatusCode < 300 THEN 1 ELSE 0 END) as successRequests,
 			SUM(CASE WHEN gatewayStatusCode >= 400 OR gatewayStatusCode < 200 THEN 1 ELSE 0 END) as failedRequests,
-			MIN(gatewayStartProcessingTime) as minTimestamp
+			%s
 		FROM HUB_GW_ACCESS_LOG
 		%s
 		GROUP BY timeGroup
-		ORDER BY minTimestamp
-	`, timeFormat, whereClause)
+		ORDER BY %s
+	`, timeFormat, timestampField, whereClause, orderByField)
 
 	// 执行查询
 	var results []struct {
@@ -140,8 +158,24 @@ func (dao *DatabaseMonitoringDAO) GetRequestMetricsTrend(ctx context.Context, re
 	metrics := make([]models.RequestMetrics, 0, len(results))
 	for _, result := range results {
 		qps := float64(result.TotalRequests) / float64(granularitySeconds)
+
+		// 对于 SQLite，如果 MinTimestamp 为零值，从 timeGroup 字符串解析
+		var timestamp time.Time
+		if dbType == sqlutils.DatabaseSQLite && result.MinTimestamp.IsZero() {
+			// 从 timeGroup 字符串解析时间
+			parsedTime, err := dao.parseTimeGroupString(result.TimeGroup, req.TimeGranularity)
+			if err != nil {
+				logger.WarnWithTrace(ctx, "解析 timeGroup 字符串失败，使用当前时间", "timeGroup", result.TimeGroup, "error", err)
+				timestamp = time.Now()
+			} else {
+				timestamp = parsedTime
+			}
+		} else {
+			timestamp = result.MinTimestamp
+		}
+
 		metrics = append(metrics, models.RequestMetrics{
-			Timestamp:         result.MinTimestamp.UnixMilli(),
+			Timestamp:         timestamp.UnixMilli(),
 			TotalRequests:     result.TotalRequests,
 			SuccessRequests:   result.SuccessRequests,
 			FailedRequests:    result.FailedRequests,
@@ -164,6 +198,23 @@ func (dao *DatabaseMonitoringDAO) GetResponseTimeMetricsTrend(ctx context.Contex
 	// 获取时间分组格式
 	timeFormat := dao.getTimeGroupFormat(req.TimeGranularity)
 
+	// 获取数据库类型，SQLite 需要特殊处理时间戳
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 构建时间戳字段（SQLite 需要特殊处理）
+	var timestampField string
+	var orderByField string
+	if dbType == sqlutils.DatabaseSQLite {
+		// SQLite: 不查询时间戳，在应用层从 timeGroup 解析
+		// 使用 timeGroup 字符串排序（格式统一，可以正确排序）
+		timestampField = "NULL as minTimestamp"
+		orderByField = "timeGroup"
+	} else {
+		// 其他数据库：使用 MIN 函数
+		timestampField = "MIN(gatewayStartProcessingTime) as minTimestamp"
+		orderByField = "minTimestamp"
+	}
+
 	// 构建响应时间趋势查询SQL
 	// 注意：由于标准SQL不支持百分位数聚合函数，这里需要在应用层计算
 	sql := fmt.Sprintf(`
@@ -173,12 +224,12 @@ func (dao *DatabaseMonitoringDAO) GetResponseTimeMetricsTrend(ctx context.Contex
 			AVG(CASE WHEN totalProcessingTimeMs IS NOT NULL AND totalProcessingTimeMs > 0 THEN totalProcessingTimeMs ELSE NULL END) as avgResponseTime,
 			MIN(CASE WHEN totalProcessingTimeMs IS NOT NULL AND totalProcessingTimeMs > 0 THEN totalProcessingTimeMs ELSE NULL END) as minResponseTime,
 			MAX(CASE WHEN totalProcessingTimeMs IS NOT NULL AND totalProcessingTimeMs > 0 THEN totalProcessingTimeMs ELSE NULL END) as maxResponseTime,
-			MIN(gatewayStartProcessingTime) as minTimestamp
+			%s
 		FROM HUB_GW_ACCESS_LOG
 		%s AND totalProcessingTimeMs IS NOT NULL AND totalProcessingTimeMs > 0
 		GROUP BY timeGroup
-		ORDER BY minTimestamp
-	`, timeFormat, whereClause)
+		ORDER BY %s
+	`, timeFormat, timestampField, whereClause, orderByField)
 
 	// 执行查询
 	var results []struct {
@@ -241,8 +292,35 @@ func (dao *DatabaseMonitoringDAO) GetResponseTimeMetricsTrend(ctx context.Contex
 			p99 = calculatePercentile(responseTimes, 0.99)
 		}
 
+		// 对于 SQLite，从 timeGroup 字符串解析时间戳
+		var timestamp time.Time
+		if dbType == sqlutils.DatabaseSQLite {
+			// 从 timeGroup 字符串解析时间
+			parsedTime, err := dao.parseTimeGroupString(result.TimeGroup, req.TimeGranularity)
+			if err != nil {
+				logger.WarnWithTrace(ctx, "解析 timeGroup 字符串失败，使用当前时间", "timeGroup", result.TimeGroup, "error", err)
+				timestamp = time.Now()
+			} else {
+				timestamp = parsedTime
+			}
+		} else {
+			// 其他数据库：使用查询返回的时间戳
+			if result.MinTimestamp.IsZero() {
+				// 如果时间戳为零值，尝试从 timeGroup 解析
+				parsedTime, err := dao.parseTimeGroupString(result.TimeGroup, req.TimeGranularity)
+				if err != nil {
+					logger.WarnWithTrace(ctx, "时间戳为零值且解析 timeGroup 失败，使用当前时间", "timeGroup", result.TimeGroup, "error", err)
+					timestamp = time.Now()
+				} else {
+					timestamp = parsedTime
+				}
+			} else {
+				timestamp = result.MinTimestamp
+			}
+		}
+
 		metrics = append(metrics, models.ResponseTimeMetrics{
-			Timestamp:         result.MinTimestamp.UnixMilli(),
+			Timestamp:         timestamp.UnixMilli(),
 			RequestCount:      result.RequestCount,
 			AvgResponseTimeMs: roundToTwoDecimalPlaces(result.AvgResponseTime),
 			MinResponseTimeMs: int(result.MinResponseTime),
@@ -500,20 +578,100 @@ func (dao *DatabaseMonitoringDAO) parseTimeString(timeStr string) (time.Time, er
 	return parsedTime, nil
 }
 
-// getTimeGroupFormat 获取时间分组格式
-// 根据时间粒度返回相应的SQL日期格式字符串
-func (dao *DatabaseMonitoringDAO) getTimeGroupFormat(granularity models.TimeGranularity) string {
-	// 使用兼容性较好的DATE_FORMAT函数（MySQL/MariaDB）
-	// 注意：对于PostgreSQL，可能需要使用TO_CHAR函数
+// parseTimeGroupString 解析 timeGroup 字符串为 time.Time
+// timeGroup 格式根据时间粒度不同：
+// - MINUTE: "YYYY-MM-DD HH:MM"
+// - HOUR: "YYYY-MM-DD HH"
+// - DAY: "YYYY-MM-DD"
+func (dao *DatabaseMonitoringDAO) parseTimeGroupString(timeGroup string, granularity models.TimeGranularity) (time.Time, error) {
+	if timeGroup == "" {
+		return time.Time{}, fmt.Errorf("timeGroup 字符串为空")
+	}
+
+	var timeStr string
 	switch granularity {
 	case models.TimeGranularityMinute:
-		return "DATE_FORMAT(gatewayStartProcessingTime, '%Y-%m-%d %H:%i')" // 精确到分钟
+		// timeGroup 格式: "YYYY-MM-DD HH:MM"，补全秒数
+		timeStr = timeGroup + ":00"
 	case models.TimeGranularityHour:
-		return "DATE_FORMAT(gatewayStartProcessingTime, '%Y-%m-%d %H')" // 精确到小时
+		// timeGroup 格式: "YYYY-MM-DD HH"，补全分钟和秒数
+		timeStr = timeGroup + ":00:00"
 	case models.TimeGranularityDay:
-		return "DATE_FORMAT(gatewayStartProcessingTime, '%Y-%m-%d')" // 精确到天
+		// timeGroup 格式: "YYYY-MM-DD"，补全时间
+		timeStr = timeGroup + " 00:00:00"
 	default:
-		return "DATE_FORMAT(gatewayStartProcessingTime, '%Y-%m-%d %H:%i')" // 默认按分钟分组
+		timeStr = timeGroup + ":00"
+	}
+
+	// 使用标准时间格式解析
+	parsedTime, err := time.Parse("2006-01-02 15:04:05", timeStr)
+	if err != nil {
+		// 如果标准格式失败，尝试使用 ctime 包解析
+		parsedTime, err = ctime.ParseTimeString(timeStr)
+		if err != nil {
+			return time.Time{}, huberrors.WrapError(err, "解析 timeGroup 字符串失败: %s", timeGroup)
+		}
+	}
+
+	return parsedTime, nil
+}
+
+// getTimeGroupFormat 获取时间分组格式
+// 根据时间粒度和数据库类型返回相应的SQL日期格式字符串
+func (dao *DatabaseMonitoringDAO) getTimeGroupFormat(granularity models.TimeGranularity) string {
+	// 获取数据库类型
+	dbType := sqlutils.GetDatabaseType(dao.db)
+
+	// 根据数据库类型和时间粒度返回不同的SQL函数
+	switch dbType {
+	case sqlutils.DatabaseSQLite:
+		// SQLite 使用 strftime 函数
+		switch granularity {
+		case models.TimeGranularityMinute:
+			return "strftime('%Y-%m-%d %H:%M', gatewayStartProcessingTime)" // 精确到分钟
+		case models.TimeGranularityHour:
+			return "strftime('%Y-%m-%d %H', gatewayStartProcessingTime)" // 精确到小时
+		case models.TimeGranularityDay:
+			return "strftime('%Y-%m-%d', gatewayStartProcessingTime)" // 精确到天
+		default:
+			return "strftime('%Y-%m-%d %H:%M', gatewayStartProcessingTime)" // 默认按分钟分组
+		}
+	case sqlutils.DatabasePostgreSQL:
+		// PostgreSQL 使用 TO_CHAR 函数
+		switch granularity {
+		case models.TimeGranularityMinute:
+			return "TO_CHAR(gatewayStartProcessingTime, 'YYYY-MM-DD HH24:MI')" // 精确到分钟
+		case models.TimeGranularityHour:
+			return "TO_CHAR(gatewayStartProcessingTime, 'YYYY-MM-DD HH24')" // 精确到小时
+		case models.TimeGranularityDay:
+			return "TO_CHAR(gatewayStartProcessingTime, 'YYYY-MM-DD')" // 精确到天
+		default:
+			return "TO_CHAR(gatewayStartProcessingTime, 'YYYY-MM-DD HH24:MI')" // 默认按分钟分组
+		}
+	case sqlutils.DatabaseMySQL, sqlutils.DatabaseMariaDB, sqlutils.DatabaseTiDB:
+		// MySQL/MariaDB/TiDB 使用 DATE_FORMAT 函数
+		switch granularity {
+		case models.TimeGranularityMinute:
+			return "DATE_FORMAT(gatewayStartProcessingTime, '%Y-%m-%d %H:%i')" // 精确到分钟
+		case models.TimeGranularityHour:
+			return "DATE_FORMAT(gatewayStartProcessingTime, '%Y-%m-%d %H')" // 精确到小时
+		case models.TimeGranularityDay:
+			return "DATE_FORMAT(gatewayStartProcessingTime, '%Y-%m-%d')" // 精确到天
+		default:
+			return "DATE_FORMAT(gatewayStartProcessingTime, '%Y-%m-%d %H:%i')" // 默认按分钟分组
+		}
+	default:
+		// 默认使用 MySQL 语法（向后兼容）
+		switch granularity {
+		case models.TimeGranularityMinute:
+			return "DATE_FORMAT(gatewayStartProcessingTime, '%Y-%m-%d %H:%i')" // 精确到分钟
+		case models.TimeGranularityHour:
+			return "DATE_FORMAT(gatewayStartProcessingTime, '%Y-%m-%d %H')" // 精确到小时
+		case models.TimeGranularityDay:
+			return "DATE_FORMAT(gatewayStartProcessingTime, '%Y-%m-%d')" // 精确到天
+		default:
+			return "DATE_FORMAT(gatewayStartProcessingTime, '%Y-%m-%d %H:%i')" // 默认按分钟分组
+		}
 	}
 }
 

@@ -4,12 +4,12 @@ package storage
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"gateway/internal/tunnel/types"
 	"gateway/pkg/database"
 	"gateway/pkg/utils/huberrors"
+	"gateway/pkg/utils/random"
 )
 
 // TunnelServerRepositoryImpl 隧道服务器存储实现
@@ -24,49 +24,11 @@ type TunnelServerRepositoryImpl struct {
 //   - db: 数据库连接接口
 //
 // 返回:
-//   - TunnelServerRepository: 隧道服务器存储接口实例
-func NewTunnelServerRepository(db database.Database) TunnelServerRepository {
+//   - *TunnelServerRepositoryImpl: 隧道服务器存储实例
+func NewTunnelServerRepository(db database.Database) *TunnelServerRepositoryImpl {
 	return &TunnelServerRepositoryImpl{
 		db: db,
 	}
-}
-
-// Create 创建隧道服务器配置
-//
-// 参数:
-//   - ctx: 上下文对象
-//   - server: 隧道服务器配置信息
-//
-// 返回:
-//   - error: 创建失败时的错误信息
-func (r *TunnelServerRepositoryImpl) Create(ctx context.Context, server *types.TunnelServer) error {
-	if server.TunnelServerId == "" {
-		return errors.New("隧道服务器ID不能为空")
-	}
-
-	// 设置默认值
-	now := time.Now()
-	server.AddTime = now
-	server.EditTime = now
-	server.OprSeqFlag = server.TunnelServerId + "_" + strings.ReplaceAll(now.String(), ".", "")[:8]
-	server.CurrentVersion = 1
-	if server.ActiveFlag == "" {
-		server.ActiveFlag = "Y"
-	}
-	if server.ServerStatus == "" {
-		server.ServerStatus = types.ServerStatusStopped
-	}
-
-	// 使用数据库接口插入记录
-	_, err := r.db.Insert(ctx, "HUB_TUNNEL_SERVER", server, true)
-	if err != nil {
-		if r.isDuplicateKeyError(err) {
-			return huberrors.WrapError(err, "隧道服务器ID已存在")
-		}
-		return huberrors.WrapError(err, "创建隧道服务器失败")
-	}
-
-	return nil
 }
 
 // GetByID 根据ID获取隧道服务器配置
@@ -100,22 +62,25 @@ func (r *TunnelServerRepositoryImpl) GetByID(ctx context.Context, serverID strin
 	return &server, nil
 }
 
-// GetByTenantID 根据租户ID获取隧道服务器列表
-func (r *TunnelServerRepositoryImpl) GetByTenantID(ctx context.Context, tenantID string) ([]*types.TunnelServer, error) {
-	if tenantID == "" {
-		return nil, errors.New("租户ID不能为空")
-	}
-
+// GetAll 获取所有隧道服务器配置
+//
+// 参数:
+//   - ctx: 上下文对象
+//
+// 返回:
+//   - []*types.TunnelServer: 所有隧道服务器配置列表
+//   - error: 查询失败时的错误信息
+func (r *TunnelServerRepositoryImpl) GetAll(ctx context.Context) ([]*types.TunnelServer, error) {
 	query := `
 		SELECT * FROM HUB_TUNNEL_SERVER 
-		WHERE tenantId = ? AND activeFlag = 'Y'
+		WHERE activeFlag = 'Y'
 		ORDER BY addTime DESC
 	`
 
 	var servers []*types.TunnelServer
-	err := r.db.Query(ctx, &servers, query, []interface{}{tenantID}, true)
+	err := r.db.Query(ctx, &servers, query, nil, true)
 	if err != nil {
-		return nil, huberrors.WrapError(err, "查询隧道服务器列表失败")
+		return nil, huberrors.WrapError(err, "查询所有隧道服务器失败")
 	}
 
 	return servers, nil
@@ -139,7 +104,7 @@ func (r *TunnelServerRepositoryImpl) Update(ctx context.Context, server *types.T
 	// 更新版本和修改信息
 	server.CurrentVersion = current.CurrentVersion + 1
 	server.EditTime = time.Now()
-	server.OprSeqFlag = server.TunnelServerId + "_" + strings.ReplaceAll(server.EditTime.String(), ".", "")[:8]
+	server.OprSeqFlag = random.Generate32BitRandomString()
 
 	// 构建更新SQL
 	sql := `
@@ -176,7 +141,14 @@ func (r *TunnelServerRepositoryImpl) Update(ctx context.Context, server *types.T
 	return nil
 }
 
-// Delete 删除隧道服务器配置
+// Delete 删除隧道服务器配置（软删除）
+//
+// 参数:
+//   - ctx: 上下文对象
+//   - serverID: 隧道服务器唯一标识
+//
+// 返回:
+//   - error: 删除失败时的错误信息
 func (r *TunnelServerRepositoryImpl) Delete(ctx context.Context, serverID string) error {
 	if serverID == "" {
 		return errors.New("服务器ID不能为空")
@@ -204,43 +176,4 @@ func (r *TunnelServerRepositoryImpl) Delete(ctx context.Context, serverID string
 	}
 
 	return nil
-}
-
-// UpdateStatus 更新服务器状态
-func (r *TunnelServerRepositoryImpl) UpdateStatus(ctx context.Context, serverID string, status string, startTime *time.Time) error {
-	if serverID == "" {
-		return errors.New("服务器ID不能为空")
-	}
-
-	sql := `
-		UPDATE HUB_TUNNEL_SERVER SET
-			serverStatus = ?,
-			startTime = ?,
-			editTime = ?
-		WHERE tunnelServerId = ? AND activeFlag = 'Y'
-	`
-
-	result, err := r.db.Exec(ctx, sql, []interface{}{
-		status,
-		startTime,
-		time.Now(),
-		serverID,
-	}, true)
-
-	if err != nil {
-		return huberrors.WrapError(err, "更新服务器状态失败")
-	}
-
-	if result == 0 {
-		return errors.New("未找到要更新的隧道服务器")
-	}
-
-	return nil
-}
-
-// isDuplicateKeyError 检查是否是主键重复错误
-func (r *TunnelServerRepositoryImpl) isDuplicateKeyError(err error) bool {
-	return err == database.ErrDuplicateKey ||
-		strings.Contains(err.Error(), "Duplicate entry") ||
-		strings.Contains(err.Error(), "UNIQUE constraint")
 }

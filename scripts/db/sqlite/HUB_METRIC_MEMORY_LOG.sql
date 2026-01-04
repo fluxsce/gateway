@@ -1,0 +1,46 @@
+
+-- 29. 内存采集日志表
+CREATE TABLE IF NOT EXISTS HUB_METRIC_MEMORY_LOG (
+    metricMemoryLogId TEXT NOT NULL,
+    tenantId TEXT NOT NULL,
+    metricServerId TEXT NOT NULL,
+    totalMemory INTEGER NOT NULL DEFAULT 0,
+    availableMemory INTEGER NOT NULL DEFAULT 0,
+    usedMemory INTEGER NOT NULL DEFAULT 0,
+    usagePercent REAL NOT NULL DEFAULT 0.00,
+    freeMemory INTEGER NOT NULL DEFAULT 0,
+    cachedMemory INTEGER NOT NULL DEFAULT 0,
+    buffersMemory INTEGER NOT NULL DEFAULT 0,
+    sharedMemory INTEGER NOT NULL DEFAULT 0,
+    swapTotal INTEGER NOT NULL DEFAULT 0,
+    swapUsed INTEGER NOT NULL DEFAULT 0,
+    swapFree INTEGER NOT NULL DEFAULT 0,
+    swapUsagePercent REAL NOT NULL DEFAULT 0.00,
+    collectTime DATETIME NOT NULL,
+    addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    addWho TEXT NOT NULL,
+    editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    editWho TEXT NOT NULL,
+    oprSeqFlag TEXT NOT NULL,
+    currentVersion INTEGER NOT NULL DEFAULT 1,
+    activeFlag TEXT NOT NULL DEFAULT 'Y',
+    noteText TEXT,
+    extProperty TEXT,
+    reserved1 TEXT,
+    reserved2 TEXT,
+    reserved3 TEXT,
+    reserved4 TEXT,
+    reserved5 TEXT,
+    reserved6 TEXT,
+    reserved7 TEXT,
+    reserved8 TEXT,
+    reserved9 TEXT,
+    reserved10 TEXT,
+    PRIMARY KEY (tenantId, metricMemoryLogId)
+);
+CREATE INDEX IDX_METRIC_MEMORY_SERVER ON HUB_METRIC_MEMORY_LOG(metricServerId);
+CREATE INDEX IDX_METRIC_MEMORY_TIME ON HUB_METRIC_MEMORY_LOG(collectTime);
+CREATE INDEX IDX_METRIC_MEMORY_USAGE ON HUB_METRIC_MEMORY_LOG(usagePercent);
+CREATE INDEX IDX_METRIC_MEMORY_ACTIVE ON HUB_METRIC_MEMORY_LOG(activeFlag);
+CREATE INDEX IDX_METRIC_MEMORY_SRV_TIME ON HUB_METRIC_MEMORY_LOG(metricServerId, collectTime);
+CREATE INDEX IDX_METRIC_MEMORY_TNT_TIME ON HUB_METRIC_MEMORY_LOG(tenantId, collectTime);

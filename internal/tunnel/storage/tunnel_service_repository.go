@@ -4,12 +4,12 @@ package storage
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"gateway/internal/tunnel/types"
 	"gateway/pkg/database"
 	"gateway/pkg/utils/huberrors"
+	"gateway/pkg/utils/random"
 )
 
 // TunnelServiceRepositoryImpl 隧道服务存储实现
@@ -24,76 +24,11 @@ type TunnelServiceRepositoryImpl struct {
 //   - db: 数据库连接接口
 //
 // 返回:
-//   - TunnelServiceRepository: 隧道服务存储接口实例
-func NewTunnelServiceRepository(db database.Database) TunnelServiceRepository {
+//   - *TunnelServiceRepositoryImpl: 隧道服务存储实例
+func NewTunnelServiceRepository(db database.Database) *TunnelServiceRepositoryImpl {
 	return &TunnelServiceRepositoryImpl{
 		db: db,
 	}
-}
-
-// Create 创建服务注册
-//
-// 参数:
-//   - ctx: 上下文对象
-//   - service: 隧道服务配置信息
-//
-// 返回:
-//   - error: 创建失败时的错误信息
-func (r *TunnelServiceRepositoryImpl) Create(ctx context.Context, service *types.TunnelService) error {
-	if service.TunnelServiceId == "" {
-		return errors.New("隧道服务ID不能为空")
-	}
-
-	// 检查服务是否已存在
-	existing, err := r.GetByID(ctx, service.TunnelServiceId)
-	if err != nil {
-		return err
-	}
-
-	// 如果服务已存在，进行更新而不是创建
-	if existing != nil {
-		// 保留一些原有字段
-		service.AddTime = existing.AddTime
-		service.AddWho = existing.AddWho
-		service.CurrentVersion = existing.CurrentVersion
-
-		// 更新服务
-		return r.Update(ctx, service)
-	}
-
-	// 设置默认值
-	now := time.Now()
-	service.AddTime = now
-	service.EditTime = now
-	service.RegisteredTime = now
-	// 修复 oprSeqFlag 长度问题：使用时间戳（更短）
-	service.OprSeqFlag = service.TunnelServiceId[:min(len(service.TunnelServiceId), 16)] + "_" + now.Format("20060102150405")
-	service.CurrentVersion = 1
-	if service.ActiveFlag == "" {
-		service.ActiveFlag = "Y"
-	}
-	if service.ServiceStatus == "" {
-		service.ServiceStatus = types.ServiceStatusInactive
-	}
-
-	// 使用数据库接口插入记录
-	_, err = r.db.Insert(ctx, "HUB_TUNNEL_SERVICE", service, true)
-	if err != nil {
-		if r.isDuplicateKeyError(err) {
-			return huberrors.WrapError(err, "隧道服务ID已存在")
-		}
-		return huberrors.WrapError(err, "创建隧道服务失败")
-	}
-
-	return nil
-}
-
-// min 返回两个整数中的较小值
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // GetByID 根据ID获取服务
@@ -156,98 +91,6 @@ func (r *TunnelServiceRepositoryImpl) GetByClientID(ctx context.Context, clientI
 	return services, nil
 }
 
-// GetByName 根据服务名称获取服务
-//
-// 参数:
-//   - ctx: 上下文对象
-//   - serviceName: 服务名称
-//
-// 返回:
-//   - *types.TunnelService: 隧道服务配置信息，未找到时返回nil
-//   - error: 查询失败时的错误信息
-func (r *TunnelServiceRepositoryImpl) GetByName(ctx context.Context, serviceName string) (*types.TunnelService, error) {
-	if serviceName == "" {
-		return nil, errors.New("服务名称不能为空")
-	}
-
-	query := `
-		SELECT * FROM HUB_TUNNEL_SERVICE 
-		WHERE serviceName = ? AND activeFlag = 'Y'
-	`
-
-	var service types.TunnelService
-	err := r.db.QueryOne(ctx, &service, query, []interface{}{serviceName}, true)
-	if err != nil {
-		if err == database.ErrRecordNotFound {
-			return nil, nil
-		}
-		return nil, huberrors.WrapError(err, "查询隧道服务失败")
-	}
-
-	return &service, nil
-}
-
-// GetActiveServices 获取活跃的服务
-//
-// 参数:
-//   - ctx: 上下文对象
-//   - clientID: 隧道客户端唯一标识
-//
-// 返回:
-//   - []*types.TunnelService: 活跃的隧道服务列表
-//   - error: 查询失败时的错误信息
-func (r *TunnelServiceRepositoryImpl) GetActiveServices(ctx context.Context, clientID string) ([]*types.TunnelService, error) {
-	if clientID == "" {
-		return nil, errors.New("客户端ID不能为空")
-	}
-
-	query := `
-		SELECT * FROM HUB_TUNNEL_SERVICE 
-		WHERE tunnelClientId = ? AND activeFlag = 'Y' AND serviceStatus = ?
-		ORDER BY lastActiveTime DESC
-	`
-
-	var services []*types.TunnelService
-	err := r.db.Query(ctx, &services, query, []interface{}{clientID, types.ServiceStatusActive}, true)
-	if err != nil {
-		return nil, huberrors.WrapError(err, "查询活跃服务列表失败")
-	}
-
-	return services, nil
-}
-
-// GetByRemotePort 根据远程端口获取服务（检查端口冲突）
-//
-// 参数:
-//   - ctx: 上下文对象
-//   - remotePort: 远程端口号
-//
-// 返回:
-//   - *types.TunnelService: 使用该端口的服务，未找到时返回nil
-//   - error: 查询失败时的错误信息
-func (r *TunnelServiceRepositoryImpl) GetByRemotePort(ctx context.Context, remotePort int) (*types.TunnelService, error) {
-	if remotePort <= 0 {
-		return nil, errors.New("远程端口必须大于0")
-	}
-
-	query := `
-		SELECT * FROM HUB_TUNNEL_SERVICE 
-		WHERE remotePort = ? AND activeFlag = 'Y'
-		LIMIT 1
-	`
-
-	var service types.TunnelService
-	err := r.db.QueryOne(ctx, &service, query, []interface{}{remotePort}, true)
-	if err != nil {
-		if err == database.ErrRecordNotFound {
-			return nil, nil
-		}
-		return nil, huberrors.WrapError(err, "查询端口冲突失败")
-	}
-
-	return &service, nil
-}
-
 // Update 更新服务配置
 //
 // 使用数据库快捷方法按主键更新记录
@@ -275,8 +118,8 @@ func (r *TunnelServiceRepositoryImpl) Update(ctx context.Context, service *types
 	// 更新版本和修改信息
 	service.CurrentVersion = current.CurrentVersion + 1
 	service.EditTime = time.Now()
-	// 修复 oprSeqFlag 长度问题：使用时间戳（更短）
-	service.OprSeqFlag = service.TunnelServiceId[:min(len(service.TunnelServiceId), 16)] + "_" + service.EditTime.Format("20060102150405")
+	// 生成 oprSeqFlag
+	service.OprSeqFlag = random.Generate32BitRandomString()
 
 	// 使用数据库快捷方法按主键更新
 	// 只需要指定 WHERE 条件，数据库接口会自动提取结构体的所有字段
@@ -287,43 +130,6 @@ func (r *TunnelServiceRepositoryImpl) Update(ctx context.Context, service *types
 
 	if result == 0 {
 		return errors.New("服务数据已被其他用户修改，请刷新后重试")
-	}
-
-	return nil
-}
-
-// Delete 删除服务
-//
-// 参数:
-//   - ctx: 上下文对象
-//   - serviceID: 隧道服务唯一标识
-//
-// 返回:
-//   - error: 删除失败时的错误信息
-func (r *TunnelServiceRepositoryImpl) Delete(ctx context.Context, serviceID string) error {
-	if serviceID == "" {
-		return errors.New("服务ID不能为空")
-	}
-
-	// 软删除：设置 activeFlag = 'N'
-	sql := `
-		UPDATE HUB_TUNNEL_SERVICE SET
-			activeFlag = 'N',
-			editTime = ?
-		WHERE tunnelServiceId = ? AND activeFlag = 'Y'
-	`
-
-	result, err := r.db.Exec(ctx, sql, []interface{}{
-		time.Now(),
-		serviceID,
-	}, true)
-
-	if err != nil {
-		return huberrors.WrapError(err, "删除隧道服务失败")
-	}
-
-	if result == 0 {
-		return errors.New("未找到要删除的隧道服务")
 	}
 
 	return nil
@@ -453,11 +259,4 @@ func (r *TunnelServiceRepositoryImpl) AssignRemotePort(ctx context.Context, serv
 	}
 
 	return nil
-}
-
-// isDuplicateKeyError 检查是否是主键重复错误
-func (r *TunnelServiceRepositoryImpl) isDuplicateKeyError(err error) bool {
-	return err == database.ErrDuplicateKey ||
-		strings.Contains(err.Error(), "Duplicate entry") ||
-		strings.Contains(err.Error(), "UNIQUE constraint")
 }

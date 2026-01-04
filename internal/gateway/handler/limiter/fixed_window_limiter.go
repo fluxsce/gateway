@@ -17,6 +17,7 @@ import (
 //   - 实现简单，内存占用小
 //   - 时间窗口边界可能出现流量突刺（临界问题）
 //   - 适合对流量控制精度要求不高的场景
+//   - 自动清理长时间未使用的计数器，防止内存泄漏
 //
 // 示例：
 //
@@ -37,8 +38,9 @@ type FixedWindowLimiter struct {
 //
 // 记录单个限流键在当前时间窗口内的请求统计信息。
 type fixedWindowCounter struct {
-	count     int       // 当前窗口请求计数
-	startTime time.Time // 窗口开始时间
+	count      int       // 当前窗口请求计数
+	startTime  time.Time // 窗口开始时间
+	lastUpdate time.Time // 上次更新时间（用于清理长时间未使用的计数器）
 }
 
 // NewFixedWindowLimiter 创建固定窗口限流器
@@ -157,16 +159,46 @@ func (f *FixedWindowLimiter) checkFixedWindow(key string) bool {
 	// 情况1: 计数器不存在（首次请求）或窗口已过期
 	// 判断条件: counter 不存在 或 当前时间距离窗口开始时间 >= 窗口大小
 	if !exists || now.Sub(counter.startTime) >= windowSize {
+		// 如果计数器存在但窗口已过期，检查是否需要清理
+		if exists {
+			// 清理机制：如果窗口已过期且长时间未使用，删除该计数器以防止内存泄漏
+			// 清理时间阈值：max(60秒, 2 * WindowSize)
+			// 这样可以确保计数器在完全空闲后一段时间才被清理
+			elapsed := now.Sub(counter.lastUpdate).Seconds()
+			cleanupThreshold := 60.0 // 默认60秒
+			windowSizeSeconds := float64(config.WindowSize)
+			// 清理阈值 = 2 * 窗口大小，但至少60秒
+			if windowSizeSeconds*2 > cleanupThreshold {
+				cleanupThreshold = windowSizeSeconds * 2
+			}
+
+			// 如果距离上次更新时间超过清理阈值，删除该计数器
+			if elapsed > cleanupThreshold {
+				delete(f.counters, key)
+				// 重新创建计数器，当前请求计入新窗口的第一个请求
+				f.counters[key] = &fixedWindowCounter{
+					count:      1,   // 当前请求计入新窗口的第一个请求
+					startTime:  now, // 记录新窗口的开始时间
+					lastUpdate: now, // 记录最后更新时间
+				}
+				return true
+			}
+		}
+
 		// 创建新窗口，计数从1开始（因为当前请求算作第一个）
 		// 注意: 这里直接返回 true，表示当前请求被允许
 		f.counters[key] = &fixedWindowCounter{
-			count:     1,   // 当前请求计入新窗口的第一个请求
-			startTime: now, // 记录新窗口的开始时间
+			count:      1,   // 当前请求计入新窗口的第一个请求
+			startTime:  now, // 记录新窗口的开始时间
+			lastUpdate: now, // 记录最后更新时间
 		}
 		return true
 	}
 
 	// 情况2: 计数器存在且窗口未过期
+	// 更新最后更新时间
+	counter.lastUpdate = now
+
 	// 检查当前窗口内的请求数是否已达到限制
 	// 使用 >= 是因为 count 从1开始计数
 	// 例如: Rate=100 时，count 可以从 1 到 100，当 count=100 时，下一个请求会被拒绝

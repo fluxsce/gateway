@@ -99,6 +99,42 @@ func (w *ConsoleWriter) GetLogConfig() *types.LogConfig {
 	return w.config
 }
 
+// WriteBackendTraceLog 写入单条后端追踪日志（从表）
+func (w *ConsoleWriter) WriteBackendTraceLog(ctx context.Context, log *types.BackendTraceLog) error {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+
+	formatted := w.formatBackendTraceLog(log)
+	_, err := fmt.Fprintln(w.output, formatted)
+	return err
+}
+
+// BatchWriteBackendTraceLog 批量写入后端追踪日志（从表）
+func (w *ConsoleWriter) BatchWriteBackendTraceLog(ctx context.Context, logs []*types.BackendTraceLog) error {
+	if len(logs) == 0 {
+		return nil
+	}
+
+	// 控制台输出不需要复杂的批量优化，直接逐条写入
+	for _, log := range logs {
+		if err := w.WriteBackendTraceLog(ctx, log); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// formatBackendTraceLog 格式化后端追踪日志
+func (w *ConsoleWriter) formatBackendTraceLog(log *types.BackendTraceLog) string {
+	// 使用JSON格式输出后端追踪日志
+	jsonStr, err := log.ToJSON()
+	if err != nil {
+		return fmt.Sprintf(`{"error": "failed to format backend trace log: %s"}`, err.Error())
+	}
+	return jsonStr
+}
+
 // JSONFormatter JSON格式化器
 type JSONFormatter struct {
 	config *types.LogConfig

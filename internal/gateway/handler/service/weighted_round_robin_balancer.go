@@ -25,7 +25,13 @@ func NewWeightedRoundRobinBalancer(config *LoadBalancerConfig) LoadBalancer {
 	}
 }
 
-// Select 选择节点
+// Select 选择节点（加权轮询算法）
+// 算法说明：
+// 1. 每个节点维护一个当前权重（初始为0）
+// 2. 每次选择时，所有节点的当前权重 += 节点权重
+// 3. 选择当前权重最高的节点
+// 4. 选中节点的当前权重 -= 总权重
+// 这样可以保证权重高的节点被选中的频率更高，且分布均匀
 func (w *WeightedRoundRobinBalancer) Select(service *ServiceConfig, ctx *core.Context) *NodeConfig {
 	if len(service.Nodes) == 0 {
 		return nil

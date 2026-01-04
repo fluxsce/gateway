@@ -52,10 +52,10 @@ func (c *ProxyConfigController) QueryProxyConfigs(ctx *gin.Context) {
 		return
 	}
 
-	// 转换为响应格式，过滤敏感字段
-	proxyConfigList := make([]map[string]interface{}, 0, len(proxyConfigs))
+	// 直接返回代理配置列表
+	proxyConfigList := make([]*models.ProxyConfig, 0, len(proxyConfigs))
 	for _, proxyConfig := range proxyConfigs {
-		proxyConfigList = append(proxyConfigList, proxyConfigToMap(proxyConfig))
+		proxyConfigList = append(proxyConfigList, proxyConfig)
 	}
 
 	// 创建分页信息并返回
@@ -82,19 +82,9 @@ func (c *ProxyConfigController) CreateProxyConfig(ctx *gin.Context) {
 		return
 	}
 
-	// 获取操作人信息
+	// 获取操作人信息和租户信息
 	operatorId := request.GetOperatorID(ctx)
-	if operatorId == "" {
-		response.ErrorJSON(ctx, "无法获取操作人信息", constants.ED00007)
-		return
-	}
-
-	// 获取租户信息
 	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
 
 	proxyConfig.TenantId = tenantId
 
@@ -129,16 +119,14 @@ func (c *ProxyConfigController) CreateProxyConfig(ctx *gin.Context) {
 		return
 	}
 
-	// 返回完整的代理配置信息，排除敏感字段
-	proxyConfigInfo := proxyConfigToMap(newProxyConfig)
-
+	// 直接返回代理配置对象
 	logger.InfoWithTrace(ctx, "代理配置创建成功",
 		"proxyConfigId", proxyConfigId,
 		"tenantId", tenantId,
 		"operatorId", operatorId,
 		"proxyName", newProxyConfig.ProxyName)
 
-	response.SuccessJSON(ctx, proxyConfigInfo, constants.SD00003)
+	response.SuccessJSON(ctx, newProxyConfig, constants.SD00003)
 }
 
 // EditProxyConfig 更新代理配置
@@ -166,16 +154,6 @@ func (c *ProxyConfigController) EditProxyConfig(ctx *gin.Context) {
 	// 强制从上下文获取租户ID和操作人ID，不使用前端传递的值
 	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
-
-	// 验证上下文中的必要信息
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	if operatorId == "" {
-		response.ErrorJSON(ctx, "无法获取操作人信息", constants.ED00007)
-		return
-	}
 
 	// 获取现有代理配置信息
 	currentProxyConfig, err := c.proxyConfigDAO.GetProxyConfigById(ctx, updateData.ProxyConfigId, tenantId)
@@ -212,15 +190,13 @@ func (c *ProxyConfigController) EditProxyConfig(ctx *gin.Context) {
 		return
 	}
 
-	// 返回更新后的代理配置信息
-	proxyConfigInfo := proxyConfigToMap(updatedProxyConfig)
-
+	// 直接返回更新后的代理配置对象
 	logger.InfoWithTrace(ctx, "代理配置更新成功",
 		"proxyConfigId", updateData.ProxyConfigId,
 		"tenantId", tenantId,
 		"operatorId", operatorId)
 
-	response.SuccessJSON(ctx, proxyConfigInfo, constants.SD00004)
+	response.SuccessJSON(ctx, updatedProxyConfig, constants.SD00004)
 }
 
 // DeleteProxyConfig 删除代理配置
@@ -229,18 +205,13 @@ func (c *ProxyConfigController) EditProxyConfig(ctx *gin.Context) {
 // @Tags 代理配置管理
 // @Accept json
 // @Produce json
-// @Param request body DeleteProxyConfigRequest true "删除请求"
+// @Param proxyConfigId body string true "代理配置ID"
 // @Success 200 {object} response.JsonData
 // @Router /gateway/hub0022/deleteProxyConfig [post]
 func (c *ProxyConfigController) DeleteProxyConfig(ctx *gin.Context) {
-	var req DeleteProxyConfigRequest
-	if err := request.BindSafely(ctx, &req); err != nil {
-		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
-		return
-	}
-
-	// 验证必填字段
-	if req.ProxyConfigId == "" {
+	// 使用 request.GetParam 获取参数
+	proxyConfigId := request.GetParam(ctx, "proxyConfigId")
+	if proxyConfigId == "" {
 		response.ErrorJSON(ctx, "代理配置ID不能为空", constants.ED00007)
 		return
 	}
@@ -249,18 +220,8 @@ func (c *ProxyConfigController) DeleteProxyConfig(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
 
-	// 验证上下文中的必要信息
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	if operatorId == "" {
-		response.ErrorJSON(ctx, "无法获取操作人信息", constants.ED00007)
-		return
-	}
-
 	// 先查询代理配置是否存在
-	existingProxyConfig, err := c.proxyConfigDAO.GetProxyConfigById(ctx, req.ProxyConfigId, tenantId)
+	existingProxyConfig, err := c.proxyConfigDAO.GetProxyConfigById(ctx, proxyConfigId, tenantId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "查询代理配置失败", err)
 		response.ErrorJSON(ctx, "查询代理配置失败: "+err.Error(), constants.ED00009)
@@ -273,7 +234,7 @@ func (c *ProxyConfigController) DeleteProxyConfig(ctx *gin.Context) {
 	}
 
 	// 调用DAO删除代理配置
-	err = c.proxyConfigDAO.DeleteProxyConfig(ctx, req.ProxyConfigId, tenantId, operatorId)
+	err = c.proxyConfigDAO.DeleteProxyConfig(ctx, proxyConfigId, tenantId, operatorId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "删除代理配置失败", err)
 		response.ErrorJSON(ctx, "删除代理配置失败: "+err.Error(), constants.ED00009)
@@ -281,13 +242,13 @@ func (c *ProxyConfigController) DeleteProxyConfig(ctx *gin.Context) {
 	}
 
 	logger.InfoWithTrace(ctx, "代理配置删除成功",
-		"proxyConfigId", req.ProxyConfigId,
+		"proxyConfigId", proxyConfigId,
 		"tenantId", tenantId,
 		"operatorId", operatorId,
 		"proxyName", existingProxyConfig.ProxyName)
 
 	response.SuccessJSON(ctx, gin.H{
-		"proxyConfigId": req.ProxyConfigId,
+		"proxyConfigId": proxyConfigId,
 		"message":       "代理配置删除成功",
 	}, constants.SD00005)
 }
@@ -298,31 +259,22 @@ func (c *ProxyConfigController) DeleteProxyConfig(ctx *gin.Context) {
 // @Tags 代理配置管理
 // @Accept json
 // @Produce json
-// @Param request body GetProxyConfigRequest true "查询请求"
+// @Param proxyConfigId body string true "代理配置ID"
 // @Success 200 {object} response.JsonData
 // @Router /gateway/hub0022/getProxyConfig [post]
 func (c *ProxyConfigController) GetProxyConfig(ctx *gin.Context) {
-	var req GetProxyConfigRequest
-	if err := request.BindSafely(ctx, &req); err != nil {
-		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
-		return
-	}
-
-	// 验证必填字段
-	if req.ProxyConfigId == "" {
+	// 使用 request.GetParam 获取参数
+	proxyConfigId := request.GetParam(ctx, "proxyConfigId")
+	if proxyConfigId == "" {
 		response.ErrorJSON(ctx, "代理配置ID不能为空", constants.ED00007)
 		return
 	}
 
 	// 获取租户ID
 	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
 
 	// 调用DAO获取代理配置详情
-	proxyConfig, err := c.proxyConfigDAO.GetProxyConfigById(ctx, req.ProxyConfigId, tenantId)
+	proxyConfig, err := c.proxyConfigDAO.GetProxyConfigById(ctx, proxyConfigId, tenantId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取代理配置详情失败", err)
 		response.ErrorJSON(ctx, "获取代理配置详情失败: "+err.Error(), constants.ED00009)
@@ -334,94 +286,44 @@ func (c *ProxyConfigController) GetProxyConfig(ctx *gin.Context) {
 		return
 	}
 
-	// 转换为响应格式
-	proxyConfigInfo := proxyConfigToMap(proxyConfig)
-
-	response.SuccessJSON(ctx, proxyConfigInfo, constants.SD00002)
+	// 直接返回代理配置对象
+	response.SuccessJSON(ctx, proxyConfig, constants.SD00002)
 }
 
-// GetProxyConfigsByInstance 根据网关实例获取代理配置列表
-// @Summary 根据网关实例获取代理配置列表
-// @Description 根据网关实例ID获取代理配置列表
+// GetProxyConfigsByInstance 根据网关实例获取代理配置
+// @Summary 根据网关实例获取代理配置
+// @Description 根据网关实例ID获取代理配置（返回单条数据）
 // @Tags 代理配置管理
 // @Accept json
 // @Produce json
-// @Param request body GetProxyConfigsByInstanceRequest true "查询请求"
+// @Param gatewayInstanceId body string true "网关实例ID"
 // @Success 200 {object} response.JsonData
 // @Router /gateway/hub0022/getProxyConfigsByInstance [post]
 func (c *ProxyConfigController) GetProxyConfigsByInstance(ctx *gin.Context) {
-	var req GetProxyConfigsByInstanceRequest
-	if err := request.BindSafely(ctx, &req); err != nil {
-		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
-		return
-	}
-
-	// 验证必填字段
-	if req.GatewayInstanceId == "" {
+	// 使用 request.GetParam 获取参数
+	gatewayInstanceId := request.GetParam(ctx, "gatewayInstanceId")
+	if gatewayInstanceId == "" {
 		response.ErrorJSON(ctx, "网关实例ID不能为空", constants.ED00007)
 		return
 	}
 
 	// 获取租户ID
 	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
 
-	// 调用DAO获取代理配置列表
-	proxyConfigs, err := c.proxyConfigDAO.GetProxyConfigsByGatewayInstance(ctx, req.GatewayInstanceId, tenantId)
+	// 调用DAO获取代理配置（返回单条数据）
+	proxyConfig, err := c.proxyConfigDAO.GetProxyConfigByGatewayInstance(ctx, gatewayInstanceId, tenantId)
 	if err != nil {
-		logger.ErrorWithTrace(ctx, "获取网关实例代理配置列表失败", err)
-		response.ErrorJSON(ctx, "获取网关实例代理配置列表失败: "+err.Error(), constants.ED00009)
+		logger.ErrorWithTrace(ctx, "获取网关实例代理配置失败", err)
+		response.ErrorJSON(ctx, "获取网关实例代理配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
 
-	// 转换为响应格式
-	proxyConfigList := make([]map[string]interface{}, 0, len(proxyConfigs))
-	for _, proxyConfig := range proxyConfigs {
-		proxyConfigList = append(proxyConfigList, proxyConfigToMap(proxyConfig))
+	// 如果配置不存在，返回 null
+	if proxyConfig == nil {
+		response.SuccessJSON(ctx, nil, constants.SD00002)
+		return
 	}
 
-	// 使用统一的分页响应
-	response.SuccessJSON(ctx, proxyConfigList, constants.SD00002)
-}
-
-// 请求结构体定义
-
-// DeleteProxyConfigRequest 删除代理配置请求
-type DeleteProxyConfigRequest struct {
-	ProxyConfigId string `json:"proxyConfigId" form:"proxyConfigId" query:"proxyConfigId" binding:"required"` // 代理配置ID
-}
-
-// GetProxyConfigRequest 获取代理配置请求
-type GetProxyConfigRequest struct {
-	ProxyConfigId string `json:"proxyConfigId" form:"proxyConfigId" query:"proxyConfigId" binding:"required"` // 代理配置ID
-}
-
-// GetProxyConfigsByInstanceRequest 根据网关实例获取代理配置请求
-type GetProxyConfigsByInstanceRequest struct {
-	GatewayInstanceId string `json:"gatewayInstanceId" form:"gatewayInstanceId" query:"gatewayInstanceId" binding:"required"` // 网关实例ID
-}
-
-// proxyConfigToMap 将代理配置转换为Map格式，过滤敏感字段
-func proxyConfigToMap(proxyConfig *models.ProxyConfig) map[string]interface{} {
-	return map[string]interface{}{
-		"tenantId":          proxyConfig.TenantId,
-		"proxyConfigId":     proxyConfig.ProxyConfigId,
-		"gatewayInstanceId": proxyConfig.GatewayInstanceId,
-		"proxyName":         proxyConfig.ProxyName,
-		"proxyType":         proxyConfig.ProxyType,
-		"proxyId":           proxyConfig.ProxyId,
-		"configPriority":    proxyConfig.ConfigPriority,
-		"proxyConfig":       proxyConfig.ProxyConfig,
-		"customConfig":      proxyConfig.CustomConfig,
-		"activeFlag":        proxyConfig.ActiveFlag,
-		"addTime":           proxyConfig.AddTime,
-		"addWho":            proxyConfig.AddWho,
-		"editTime":          proxyConfig.EditTime,
-		"editWho":           proxyConfig.EditWho,
-		"currentVersion":    proxyConfig.CurrentVersion,
-		"noteText":          proxyConfig.NoteText,
-	}
+	// 直接返回 ProxyConfig 对象
+	response.SuccessJSON(ctx, proxyConfig, constants.SD00002)
 }

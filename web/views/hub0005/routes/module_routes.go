@@ -68,12 +68,14 @@ func initRoleRoutes(router *gin.RouterGroup, db database.Database) {
 		// 角色查询相关路由
 		roleGroup.POST("/queryRoles", roleController.QueryRoles)
 		roleGroup.POST("/getRole", roleController.GetRole)
+		roleGroup.POST("/getRoleResources", roleController.GetRoleResources)
 
 		// 角色管理相关路由
 		roleGroup.POST("/addRole", roleController.AddRole)
 		roleGroup.POST("/editRole", roleController.EditRole)
 		roleGroup.POST("/deleteRole", roleController.DeleteRole)
 		roleGroup.POST("/updateRoleStatus", roleController.UpdateRoleStatus)
+		roleGroup.POST("/saveRoleResources", roleController.SaveRoleResources)
 	}
 }
 

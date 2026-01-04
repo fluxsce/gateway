@@ -289,17 +289,17 @@ func TestYAMLConfigLoader_ExportConfigToYAML(t *testing.T) {
 	t.Run("导出有效配置到YAML", func(t *testing.T) {
 		cfg := &config.GatewayConfig{
 			Base: config.BaseConfig{
-				Name:         "Export Test Gateway",
-				Listen:       ":9090",
-				ReadTimeout:  45 * time.Second,
-				WriteTimeout: 45 * time.Second,
-				IdleTimeout:  180 * time.Second,
-				MaxBodySize:  20 * 1024 * 1024, // 20MB
-				EnableHTTPS:  true,
-				UseGin:       true,
-				LogFormat:    "json",
-				LogLevel:     "debug",
-				EnableGzip:   false,
+				Name:           "Export Test Gateway",
+				Listen:         ":9090",
+				ReadTimeout:    45 * time.Second,
+				WriteTimeout:   45 * time.Second,
+				IdleTimeout:    180 * time.Second,
+				MaxHeaderBytes: 20 * 1024 * 1024, // 20MB
+				EnableHTTPS:    true,
+				UseGin:         true,
+				LogFormat:      "json",
+				LogLevel:       "debug",
+				EnableGzip:     false,
 			},
 			Router: router.RouterConfig{
 				ID:      "export-router",
@@ -471,7 +471,7 @@ func TestYAMLConfigLoader_Integration(t *testing.T) {
 				ReadTimeout:     60 * time.Second,
 				WriteTimeout:    60 * time.Second,
 				IdleTimeout:     300 * time.Second,
-				MaxBodySize:     50 * 1024 * 1024, // 50MB
+				MaxHeaderBytes:  50 * 1024 * 1024, // 50MB
 				EnableHTTPS:     true,
 				UseGin:          true,
 				EnableAccessLog: true,
@@ -534,7 +534,7 @@ func TestYAMLConfigLoader_Integration(t *testing.T) {
 		assert.Equal(t, originalCfg.Base.Name, loadedCfg.Base.Name)
 		assert.Equal(t, originalCfg.Base.Listen, loadedCfg.Base.Listen)
 		assert.Equal(t, originalCfg.Base.ReadTimeout, loadedCfg.Base.ReadTimeout)
-		assert.Equal(t, originalCfg.Base.MaxBodySize, loadedCfg.Base.MaxBodySize)
+		assert.Equal(t, originalCfg.Base.MaxHeaderBytes, loadedCfg.Base.MaxHeaderBytes)
 		assert.Equal(t, originalCfg.Base.EnableHTTPS, loadedCfg.Base.EnableHTTPS)
 
 		// 6. 验证模块配置

@@ -53,13 +53,11 @@ type Context struct {
 	// 记录向客户端发送响应的时间点
 	responseTime time.Time
 
-	// 转发开始时间
-	// 记录开始向后端服务转发请求的时间点
-	forwardStartTime time.Time
-
-	// 转发响应时间
-	// 记录收到后端服务响应的时间点
-	forwardResponseTime time.Time
+	// 后端最大耗时（毫秒）
+	// 记录多服务转发场景下，所有后端服务中的最大耗时
+	// 单服务场景时，记录该服务的耗时
+	// 用于性能统计和监控
+	maxBackendDurationMs int64
 
 	// 目标URL
 	// 存储请求应该转发到的后端服务URL
@@ -69,9 +67,10 @@ type Context struct {
 	// 匹配的路由规则ID，用于标识请求命中了哪条路由
 	routeID string
 
-	// 服务ID
-	// 目标服务的ID，标识请求应该转发到哪个服务
-	serviceID string
+	// 服务ID数组
+	// 目标服务的ID数组，支持多服务转发场景
+	// 单服务场景时数组长度为1，多服务场景时包含多个服务ID
+	serviceIDs []string
 
 	// 匹配的路由路径
 	// 存储路由匹配的原始路径模式，如"/api/v1/users/:id"
@@ -241,20 +240,49 @@ func (c *Context) GetRouteID() string {
 	return c.routeID
 }
 
-// SetServiceID 设置服务ID
+// SetServiceIDs 设置服务ID数组
 // 参数:
-// - id: 服务的唯一标识符
-// 路由匹配后设置，表示请求应该转发到哪个服务
-func (c *Context) SetServiceID(id string) {
-	c.serviceID = id
+// - ids: 服务的唯一标识符数组
+// 路由匹配后设置，表示请求应该转发到哪些服务
+// 支持单服务和多服务转发场景
+func (c *Context) SetServiceIDs(ids []string) {
+	if ids == nil {
+		c.serviceIDs = []string{}
+	} else {
+		c.serviceIDs = make([]string, len(ids))
+		copy(c.serviceIDs, ids)
+	}
 }
 
-// GetServiceID 获取服务ID
+// GetServiceIDs 获取服务ID数组
 // 返回值:
-// - 服务的唯一标识符
+// - 服务的唯一标识符数组
 // 由代理处理器使用，确定目标服务实例
-func (c *Context) GetServiceID() string {
-	return c.serviceID
+func (c *Context) GetServiceIDs() []string {
+	if c.serviceIDs == nil {
+		return []string{}
+	}
+	return c.serviceIDs
+}
+
+// AddServiceID 添加服务ID到数组
+// 参数:
+// - id: 要添加的服务ID
+// 如果ID已存在则不会重复添加
+func (c *Context) AddServiceID(id string) {
+	if id == "" {
+		return
+	}
+	if c.serviceIDs == nil {
+		c.serviceIDs = []string{}
+	}
+	// 检查是否已存在
+	for _, existingID := range c.serviceIDs {
+		if existingID == id {
+			return
+		}
+	}
+	c.serviceIDs = append(c.serviceIDs, id)
 }
 
 // SetMatchedPath 设置匹配的路径
@@ -341,69 +369,25 @@ func (c *Context) GetStartTime() time.Time {
 	return c.startTime
 }
 
-// SetForwardStartTime 设置转发开始时间
+// SetMaxBackendDuration 设置后端最大耗时
 // 参数:
-// - t: 转发开始时间
-// 记录开始向后端服务转发请求的时间点
-func (c *Context) SetForwardStartTime(t time.Time) {
-	c.forwardStartTime = t
-}
-
-// GetForwardStartTime 获取转发开始时间
-// 返回值:
-// - 转发开始时间
-// 用于计算转发前的网关处理耗时
-func (c *Context) GetForwardStartTime() time.Time {
-	return c.forwardStartTime
-}
-
-// SetForwardResponseTime 设置转发响应时间
-// 参数:
-// - t: 转发响应时间
-// 记录收到后端服务响应的时间点
-func (c *Context) SetForwardResponseTime(t time.Time) {
-	c.forwardResponseTime = t
-}
-
-// GetForwardResponseTime 获取转发响应时间
-// 返回值:
-// - 转发响应时间
-// 用于计算后端服务的响应耗时
-func (c *Context) GetForwardResponseTime() time.Time {
-	return c.forwardResponseTime
-}
-
-// GetForwardDuration 获取转发耗时
-// 返回值:
-// - 转发耗时(从转发开始到收到响应的时间间隔)
-// 用于统计后端服务的响应时间
-func (c *Context) GetForwardDuration() time.Duration {
-	if c.forwardStartTime.IsZero() || c.forwardResponseTime.IsZero() {
-		return 0
+// - duration: 后端服务耗时（time.Duration类型）
+// 在多服务转发场景下，会自动更新为最大耗时
+// 单服务场景时，记录该服务的耗时
+// 内部转换为毫秒存储
+func (c *Context) SetMaxBackendDuration(duration time.Duration) {
+	durationMs := duration.Milliseconds()
+	if durationMs > c.maxBackendDurationMs {
+		c.maxBackendDurationMs = durationMs
 	}
-	return c.forwardResponseTime.Sub(c.forwardStartTime)
 }
 
-// GetPreForwardDuration 获取转发前耗时
+// GetMaxBackendDuration 获取后端最大耗时
 // 返回值:
-// - 转发前耗时(从请求开始到转发开始的时间间隔)
-// 用于统计网关自身的处理时间
-func (c *Context) GetPreForwardDuration() time.Duration {
-	if c.forwardStartTime.IsZero() {
-		return 0
-	}
-	return c.forwardStartTime.Sub(c.startTime)
-}
-
-// GetPostForwardDuration 获取转发后耗时
-// 返回值:
-// - 转发后耗时(从收到后端响应到客户端响应发送的时间间隔)
-// 用于统计网关响应处理时间
-func (c *Context) GetPostForwardDuration() time.Duration {
-	if c.forwardResponseTime.IsZero() || c.responseTime.IsZero() {
-		return 0
-	}
-	return c.responseTime.Sub(c.forwardResponseTime)
+// - 后端最大耗时（毫秒）
+// 用于性能统计和监控
+func (c *Context) GetMaxBackendDuration() int64 {
+	return c.maxBackendDurationMs
 }
 
 // JSON 返回JSON响应
@@ -532,9 +516,10 @@ func (c *Context) IsResponded() bool {
 // SetResponded 标记为已响应
 // 用于在直接操作Writer时标记上下文为已响应状态
 // 主要供代理处理器等需要直接写入响应的场景使用
+// 注意：不设置 responseTime，responseTime 由网关流程结束时统一设置
 func (c *Context) SetResponded() {
 	c.responded = true
-	c.responseTime = time.Now() // 记录响应时间
+	// responseTime 由网关流程结束时设置（gateway.go），不在代理处理中设置
 }
 
 // Reset 重置上下文
@@ -550,14 +535,13 @@ func (c *Context) Reset() {
 	c.responded = false
 	c.targetURL = ""
 	c.routeID = ""
-	c.serviceID = ""
+	c.serviceIDs = nil
 	c.matchedPath = ""
 	c.Errors = c.Errors[:0] // 清空错误切片但保留底层数组
 
 	// 重置时间字段
 	c.responseTime = time.Time{}
-	c.forwardStartTime = time.Time{}
-	c.forwardResponseTime = time.Time{}
+	c.maxBackendDurationMs = 0
 }
 
 // SetPathParams 设置路径参数

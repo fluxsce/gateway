@@ -51,14 +51,29 @@ func (f *GatewayFactory) CreateGateway(cfg *config.GatewayConfig, configFile str
 
 	// 初始化HTTP服务器，支持连接时间跟踪
 	gateway.server = &http.Server{
-		Addr:         cfg.Base.Listen,
-		Handler:      gateway,
-		ReadTimeout:  cfg.Base.ReadTimeout,
+		// 监听地址：服务器绑定的网络地址（如 ":8080"）
+		Addr: cfg.Base.Listen,
+		// 请求处理器：网关实例本身实现了 http.Handler 接口
+		Handler: gateway,
+		// 读取超时：从客户端读取请求头的最大时间，超时则关闭连接
+		ReadTimeout: cfg.Base.ReadTimeout,
+		// 写入超时：向客户端写入响应的最大时间，超时则关闭连接
 		WriteTimeout: cfg.Base.WriteTimeout,
-		IdleTimeout:  cfg.Base.IdleTimeout,
+		// 空闲超时：保持连接空闲的最大时间，超时则关闭连接（用于HTTP Keep-Alive）
+		// 只有在KeepAliveEnabled=true时，此值才生效
+		IdleTimeout: cfg.Base.IdleTimeout,
+		// 最大请求头字节数：限制单个请求头的最大字节数，防止恶意请求头过大
+		MaxHeaderBytes: cfg.Base.MaxHeaderBytes,
+		// DisableKeepAlives: !cfg.Base.KeepAliveEnabled,
 		// 连接上下文回调 - 为每个连接添加建立时间
 		ConnContext: f.createConnContext,
 	}
+
+	// HTTP Keep-Alive配置：根据KeepAliveEnabled参数直接控制
+	// 使用SetKeepAlivesEnabled方法明确启用或禁用HTTP Keep-Alive
+	// - KeepAliveEnabled=true: 启用HTTP Keep-Alive，使用配置的IdleTimeout值
+	// - KeepAliveEnabled=false: 禁用HTTP Keep-Alive，每个请求后立即关闭连接
+	gateway.server.SetKeepAlivesEnabled(cfg.Base.KeepAliveEnabled)
 
 	// 如果启用HTTPS，配置TLS
 	if cfg.Base.EnableHTTPS {
@@ -284,6 +299,9 @@ func (f *GatewayFactory) ReloadGateway(gateway *Gateway, newCfg *config.GatewayC
 	gateway.server.ReadTimeout = newCfg.Base.ReadTimeout
 	gateway.server.WriteTimeout = newCfg.Base.WriteTimeout
 	gateway.server.IdleTimeout = newCfg.Base.IdleTimeout
+	gateway.server.MaxHeaderBytes = newCfg.Base.MaxHeaderBytes
+	// 更新HTTP Keep-Alive配置
+	gateway.server.SetKeepAlivesEnabled(newCfg.Base.KeepAliveEnabled)
 
 	// 更新TLS配置（如果启用HTTPS）
 	// 注意：即使证书文件路径没变，证书内容也可能更新（如证书续期），所以每次都重新加载

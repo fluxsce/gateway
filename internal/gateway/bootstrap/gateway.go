@@ -227,15 +227,17 @@ func (g *Gateway) setupHandlers(engine *core.Engine) {
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 创建网关上下文，这个上下文将贯穿整个请求处理过程
 	ctx := core.NewContext(w, r)
-	// 使用Engine的HandleWithContext方法处理请求
-	// 这样可以确保日志记录使用的是同一个上下文
-	g.engine.HandleWithContext(ctx, w, r)
+	// 设置实例ID（需要在处理器链执行前设置，供后端追踪日志使用）
+	ctx.Set(constants.ContextKeyGatewayInstanceID, g.gatewayConfig.InstanceID)
 	// 设置实例名称
 	ctx.Set(constants.ContextKeyGatewayInstanceName, g.gatewayConfig.Base.Name)
 	//设置日志配置ID
 	ctx.Set(constants.ContextKeyLogConfigID, g.gatewayConfig.Log.LogConfigID)
 	//设置租户ID
 	ctx.Set(constants.ContextKeyTenantID, g.gatewayConfig.Log.TenantID)
+	// 使用Engine的HandleWithContext方法处理请求
+	// 这样可以确保日志记录使用的是同一个上下文
+	g.engine.HandleWithContext(ctx, w, r)
 
 	// 在 Handler 完成后、启动异步写入前，立即缓存 HTTP 对象（Request、Writer）中的必要信息
 	// 重要：不能在异步 goroutine 中直接访问 ctx.Request、ctx.Writer
@@ -463,6 +465,8 @@ func (g *Gateway) Stop() error {
 	g.wg.Wait()
 
 	g.running = false
+	// 停止时更新健康状态为N
+	g.updateHealthStatus("N", "")
 	logger.Info("网关服务已停止")
 
 	return nil

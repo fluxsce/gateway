@@ -8,6 +8,8 @@ import (
 	"gateway/web/utils/response"
 	"gateway/web/views/hub0005/dao"
 	"gateway/web/views/hub0005/models"
+	resourcemodels "gateway/web/views/hub0006/models"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -42,8 +44,14 @@ func (c *RoleController) QueryRoles(ctx *gin.Context) {
 	// 使用工具类获取租户ID
 	tenantId := request.GetTenantID(ctx)
 
+	// 绑定查询条件（支持 Query / JSON Body / Form 等多种来源）
+	var query models.RoleQuery
+	if err := request.BindSafely(ctx, &query); err != nil {
+		logger.WarnWithTrace(ctx, "绑定角色查询条件失败，使用默认条件", "error", err.Error())
+	}
+
 	// 调用DAO获取角色列表
-	roles, total, err := c.roleDAO.ListRoles(ctx, tenantId, page, pageSize)
+	roles, total, err := c.roleDAO.ListRoles(ctx, tenantId, &query, page, pageSize)
 
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取角色列表失败", err)
@@ -330,6 +338,293 @@ func (c *RoleController) UpdateRoleStatus(ctx *gin.Context) {
 		"roleId": roleId,
 		"status": status,
 	}, constants.SD00003)
+}
+
+// GetRoleResources 获取角色授权的资源列表（树形结构）
+// @Summary 获取角色授权的资源列表
+// @Description 根据角色ID获取所有资源列表（树形结构），并标记哪些资源已被该角色授权
+// @Tags 角色管理
+// @Accept json
+// @Produce json
+// @Param request body object{roleId=string} true "角色ID"
+// @Success 200 {object} response.JsonData
+// @Router /api/hub0005/getRoleResources [post]
+func (c *RoleController) GetRoleResources(ctx *gin.Context) {
+	// 从请求体中获取角色ID
+	roleId := request.GetParam(ctx, "roleId")
+	if roleId == "" {
+		response.ErrorJSON(ctx, "角色ID不能为空", constants.ED00006)
+		return
+	}
+
+	// 使用工具类获取租户ID
+	tenantId := request.GetTenantID(ctx)
+
+	// 调用DAO获取所有资源（不分页，用于构建树形结构）
+	allResources, err := c.roleDAO.GetAllResources(ctx, tenantId)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "获取所有资源失败", err)
+		response.ErrorJSON(ctx, "获取所有资源失败: "+err.Error(), constants.ED00009)
+		return
+	}
+
+	// 调用DAO获取角色关联的资源ID列表（已授权的资源）
+	authorizedResourceIds, err := c.roleDAO.GetRoleResourceIds(ctx, roleId, tenantId)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "获取角色资源ID列表失败", err)
+		response.ErrorJSON(ctx, "获取角色资源ID列表失败: "+err.Error(), constants.ED00009)
+		return
+	}
+
+	// 将已授权的资源ID转换为map，便于快速查找
+	authorizedMap := make(map[string]bool)
+	for _, resourceId := range authorizedResourceIds {
+		authorizedMap[resourceId] = true
+	}
+
+	// 创建资源ID到资源的映射，便于查找父节点
+	resourceIdMap := make(map[string]*resourcemodels.Resource)
+	for _, resource := range allResources {
+		resourceIdMap[resource.ResourceId] = resource
+	}
+
+	// 转换为响应格式，并标记授权状态
+	// 优化显示逻辑：只标记用户直接选中的资源为 checked=true
+	// 自动添加的父节点不标记为 checked，但会在数据库中保存（数据一致性）
+	resourceMapList := make([]map[string]interface{}, 0, len(allResources))
+	for _, resource := range allResources {
+		resourceMap := resourceToMapForRole(resource)
+
+		// 检查该资源是否在授权列表中
+		isInAuthorizedList := authorizedMap[resource.ResourceId]
+
+		// 判断是否为用户直接选中的资源（而不是自动添加的父节点）
+		// 规则：如果资源在授权列表中，且满足以下条件，则标记为 checked=true：
+		// 1. 叶子节点（没有子节点）：如果在授权列表中，则标记为选中
+		// 2. 有子节点的节点：只有当所有子节点都在授权列表中时，才标记为选中
+		//    这样可以避免只选中部分子节点时，父节点也显示为选中
+
+		isChecked := false
+		if isInAuthorizedList {
+			// 查找该资源的所有子节点
+			var children []*resourcemodels.Resource
+			for _, r := range allResources {
+				if r.ParentResourceId == resource.ResourceId {
+					children = append(children, r)
+				}
+			}
+
+			if len(children) == 0 {
+				// 叶子节点：如果在授权列表中，则标记为选中
+				isChecked = true
+			} else {
+				// 有子节点的节点：检查是否所有子节点都在授权列表中
+				allChildrenAuthorized := true
+				for _, child := range children {
+					if !authorizedMap[child.ResourceId] {
+						allChildrenAuthorized = false
+						break
+					}
+				}
+				// 只有当所有子节点都在授权列表中时，父节点才标记为选中
+				// 这样可以避免只选中部分子节点时，父节点也显示为选中
+				isChecked = allChildrenAuthorized
+			}
+		}
+
+		resourceMap["checked"] = isChecked
+		resourceMapList = append(resourceMapList, resourceMap)
+	}
+
+	// 构建树形结构
+	treeList := buildResourceTreeForRole(resourceMapList, "resourceId", "parentResourceId", "")
+
+	// 返回树形数据
+	response.SuccessJSON(ctx, treeList, constants.SD00002)
+}
+
+// SaveRoleResources 保存角色授权
+// @Summary 保存角色授权
+// @Description 保存角色的资源授权信息到 HUB_AUTH_ROLE_RESOURCE 表
+// @Tags 角色管理
+// @Accept json
+// @Produce json
+// @Param request body object{roleId=string,resourceIds=string,permissionType=string,expireTime=string} true "角色授权信息，resourceIds为逗号分割的字符串"
+// @Success 200 {object} response.JsonData
+// @Router /api/hub0005/saveRoleResources [post]
+func (c *RoleController) SaveRoleResources(ctx *gin.Context) {
+	// 从请求体中获取参数
+	var req struct {
+		RoleId         string     `json:"roleId" binding:"required"`
+		ResourceIds    string     `json:"resourceIds"`    // 逗号分割的资源ID字符串，如 "id1,id2,id3"
+		PermissionType string     `json:"permissionType"` // ALLOW 或 DENY，默认为 ALLOW
+		ExpireTime     *time.Time `json:"expireTime"`     // 过期时间，nil 表示永不过期
+	}
+
+	if err := request.BindSafely(ctx, &req); err != nil {
+		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
+		return
+	}
+
+	// 验证必填字段
+	if req.RoleId == "" {
+		response.ErrorJSON(ctx, "角色ID不能为空", constants.ED00006)
+		return
+	}
+
+	// 使用工具类获取操作人ID和租户ID
+	operatorId := request.GetOperatorID(ctx)
+	tenantId := request.GetTenantID(ctx)
+
+	// 解析逗号分割的资源ID字符串
+	var resourceIdsList []string
+	if req.ResourceIds != "" {
+		// 按逗号分割，并去除空白字符
+		parts := strings.Split(req.ResourceIds, ",")
+		for _, part := range parts {
+			trimmed := strings.TrimSpace(part)
+			if trimmed != "" {
+				resourceIdsList = append(resourceIdsList, trimmed)
+			}
+		}
+	}
+
+	// 获取所有资源，用于构建资源树结构
+	allResources, err := c.roleDAO.GetAllResources(ctx, tenantId)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "获取所有资源失败", err)
+		response.ErrorJSON(ctx, "获取所有资源失败: "+err.Error(), constants.ED00009)
+		return
+	}
+
+	// 创建资源ID到资源的映射，便于查找父节点
+	resourceIdMap := make(map[string]*resourcemodels.Resource)
+	for _, resource := range allResources {
+		resourceIdMap[resource.ResourceId] = resource
+	}
+
+	// 将选中的资源ID转换为map，便于快速查找和去重
+	// 这个map用于记录用户直接选中的资源（不包括自动添加的父节点）
+	userSelectedResourceIds := make(map[string]bool)
+	for _, resourceId := range resourceIdsList {
+		if resourceId != "" {
+			userSelectedResourceIds[resourceId] = true
+		}
+	}
+
+	// 确保所有父节点也被授权：如果选中了子节点，其所有父节点也应该被授权
+	// 这是为了数据一致性，确保如果子节点有授权，父节点也有授权
+	finalResourceIds := make(map[string]bool)
+	for resourceId := range userSelectedResourceIds {
+		finalResourceIds[resourceId] = true
+		// 递归向上查找所有父节点，确保父节点也在授权列表中
+		parentId := ""
+		if resource, exists := resourceIdMap[resourceId]; exists {
+			parentId = resource.ParentResourceId
+		}
+		for parentId != "" {
+			// 如果父节点不在用户选中的列表中，添加到最终列表中（自动添加的父节点）
+			if !userSelectedResourceIds[parentId] {
+				finalResourceIds[parentId] = true
+			}
+			// 继续查找父节点的父节点
+			if parent, exists := resourceIdMap[parentId]; exists {
+				parentId = parent.ParentResourceId
+			} else {
+				break
+			}
+		}
+	}
+
+	// 将map转换为slice
+	finalResourceIdsList := make([]string, 0, len(finalResourceIds))
+	for resourceId := range finalResourceIds {
+		finalResourceIdsList = append(finalResourceIdsList, resourceId)
+	}
+
+	// 调用DAO保存角色授权
+	err = c.roleDAO.SaveRoleResources(ctx, req.RoleId, tenantId, finalResourceIdsList, operatorId, req.PermissionType, req.ExpireTime)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "保存角色授权失败", err)
+		response.ErrorJSON(ctx, "保存角色授权失败: "+err.Error(), constants.ED00009)
+		return
+	}
+
+	response.SuccessJSON(ctx, gin.H{
+		"roleId":      req.RoleId,
+		"resourceIds": finalResourceIdsList,
+	}, constants.SD00003)
+}
+
+// resourceToMapForRole 将Resource模型转换为响应map
+func resourceToMapForRole(resource *resourcemodels.Resource) map[string]interface{} {
+	resourceMap := map[string]interface{}{
+		"resourceId":       resource.ResourceId,
+		"tenantId":         resource.TenantId,
+		"resourceName":     resource.ResourceName,
+		"resourceCode":     resource.ResourceCode,
+		"resourceType":     resource.ResourceType,
+		"resourcePath":     resource.ResourcePath,
+		"resourceMethod":   resource.ResourceMethod,
+		"parentResourceId": resource.ParentResourceId,
+		"resourceLevel":    resource.ResourceLevel,
+		"sortOrder":        resource.SortOrder,
+		"resourceStatus":   resource.ResourceStatus,
+		"builtInFlag":      resource.BuiltInFlag,
+		"icon":             resource.IconClass,
+		"description":      resource.Description,
+		"language":         resource.Language,
+		"addTime":          resource.AddTime,
+		"addWho":           resource.AddWho,
+		"editTime":         resource.EditTime,
+		"editWho":          resource.EditWho,
+		"oprSeqFlag":       resource.OprSeqFlag,
+		"currentVersion":   resource.CurrentVersion,
+		"activeFlag":       resource.ActiveFlag,
+		"noteText":         resource.NoteText,
+		"extProperty":      resource.ExtProperty,
+		"children":         []map[string]interface{}{}, // 初始化children字段
+	}
+	return resourceMap
+}
+
+// buildResourceTreeForRole 构建资源树形结构
+func buildResourceTreeForRole(items []map[string]interface{}, idField, parentField, rootParentValue string) []map[string]interface{} {
+	// 创建ID到资源的映射
+	itemMap := make(map[string]map[string]interface{})
+	for _, item := range items {
+		id, ok := item[idField].(string)
+		if !ok {
+			continue
+		}
+		itemMap[id] = item
+	}
+
+	// 构建树形结构
+	var rootNodes []map[string]interface{}
+	for _, item := range items {
+		parentId, _ := item[parentField].(string)
+
+		// 判断是否为根节点
+		if parentId == "" || parentId == rootParentValue {
+			rootNodes = append(rootNodes, item)
+		} else {
+			// 找到父节点并添加到其children中
+			if parent, exists := itemMap[parentId]; exists {
+				children, ok := parent["children"].([]map[string]interface{})
+				if !ok {
+					children = make([]map[string]interface{}, 0)
+					parent["children"] = children
+				}
+				parent["children"] = append(children, item)
+			} else {
+				// 如果找不到父节点，也作为根节点处理
+				rootNodes = append(rootNodes, item)
+			}
+		}
+	}
+
+	return rootNodes
 }
 
 // roleToMap 将Role模型转换为响应map

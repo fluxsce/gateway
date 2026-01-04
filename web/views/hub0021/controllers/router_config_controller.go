@@ -8,7 +8,6 @@ import (
 	"gateway/web/utils/response"
 	"gateway/web/views/hub0021/dao"
 	"gateway/web/views/hub0021/models"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -42,25 +41,21 @@ func (c *RouterConfigController) QueryRouterConfigs(ctx *gin.Context) {
 	page, pageSize := request.GetPaginationParams(ctx)
 	// 使用工具类获取租户ID
 	tenantId := request.GetTenantID(ctx)
-
-	// 获取可选的网关实例ID参数
+	// 获取网关实例ID参数
 	gatewayInstanceId := ctx.Query("gatewayInstanceId")
-	
-	// 获取activeFlag参数
-	activeFlag := request.GetParam(ctx, "activeFlag")
 
 	// 调用DAO获取Router配置列表
-	routerConfigs, total, err := c.routerConfigDAO.ListRouterConfigs(ctx, tenantId, gatewayInstanceId, activeFlag, page, pageSize)
+	routerConfigs, total, err := c.routerConfigDAO.ListRouterConfigs(ctx, tenantId, gatewayInstanceId, page, pageSize)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取Router配置列表失败", err)
 		response.ErrorJSON(ctx, "获取Router配置列表失败: "+err.Error(), constants.ED00009)
 		return
 	}
 
-	// 转换为响应格式
-	configList := make([]map[string]interface{}, 0, len(routerConfigs))
+	// 直接返回Router配置列表
+	configList := make([]*models.RouterConfig, 0, len(routerConfigs))
 	for _, config := range routerConfigs {
-		configList = append(configList, routerConfigToMap(config))
+		configList = append(configList, config)
 	}
 
 	// 创建分页信息并返回
@@ -87,29 +82,11 @@ func (c *RouterConfigController) AddRouterConfig(ctx *gin.Context) {
 		return
 	}
 
-	// 强制从上下文获取租户ID和操作人ID，不使用前端传递的值
-	tenantId := request.GetTenantID(ctx)
+	// 获取操作人信息和租户信息
 	operatorId := request.GetOperatorID(ctx)
+	tenantId := request.GetTenantID(ctx)
 
-	// 验证上下文中的必要信息
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	if operatorId == "" {
-		response.ErrorJSON(ctx, "无法获取操作人信息", constants.ED00007)
-		return
-	}
-
-	// 设置从上下文获取的租户ID和操作人信息
 	req.TenantId = tenantId
-	req.AddWho = operatorId
-	req.EditWho = operatorId
-	req.AddTime = time.Now()
-	req.EditTime = time.Now()
-
-	// 清空Router配置ID，让DAO自动生成
-	req.RouterConfigId = ""
 
 	// 调用DAO添加Router配置
 	routerConfigId, err := c.routerConfigDAO.AddRouterConfig(ctx, &req, operatorId)
@@ -142,16 +119,14 @@ func (c *RouterConfigController) AddRouterConfig(ctx *gin.Context) {
 		return
 	}
 
-	// 返回完整的Router配置信息
-	configInfo := routerConfigToMap(newConfig)
-
+	// 直接返回Router配置对象
 	logger.InfoWithTrace(ctx, "Router配置创建成功",
 		"routerConfigId", routerConfigId,
 		"tenantId", tenantId,
 		"operatorId", operatorId,
 		"routerName", newConfig.RouterName)
 
-	response.SuccessJSON(ctx, configInfo, constants.SD00003)
+	response.SuccessJSON(ctx, newConfig, constants.SD00003)
 }
 
 // EditRouterConfig 更新Router配置
@@ -180,16 +155,6 @@ func (c *RouterConfigController) EditRouterConfig(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
 
-	// 验证上下文中的必要信息
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-	if operatorId == "" {
-		response.ErrorJSON(ctx, "无法获取操作人信息", constants.ED00007)
-		return
-	}
-
 	// 获取现有Router配置信息
 	currentConfig, err := c.routerConfigDAO.GetRouterConfigById(ctx, updateData.RouterConfigId, tenantId)
 	if err != nil {
@@ -203,21 +168,8 @@ func (c *RouterConfigController) EditRouterConfig(ctx *gin.Context) {
 		return
 	}
 
-	// 保留不可修改的字段，确保关键字段不被前端覆盖
-	routerConfigId := currentConfig.RouterConfigId
-	tenantIdValue := currentConfig.TenantId
-	addTime := currentConfig.AddTime
-	addWho := currentConfig.AddWho
-
-	// 设置更新时间和操作人（从上下文获取）
-	updateData.EditTime = time.Now()
-	updateData.EditWho = operatorId
-
-	// 强制恢复不可修改的字段，防止前端恶意修改
-	updateData.RouterConfigId = routerConfigId
-	updateData.TenantId = tenantIdValue // 强制使用数据库中的租户ID
-	updateData.AddTime = addTime
-	updateData.AddWho = addWho
+	// 设置租户ID和操作人信息
+	updateData.TenantId = tenantId
 
 	// 调用DAO更新Router配置
 	err = c.routerConfigDAO.UpdateRouterConfig(ctx, &updateData, operatorId)
@@ -231,17 +183,20 @@ func (c *RouterConfigController) EditRouterConfig(ctx *gin.Context) {
 	updatedConfig, err := c.routerConfigDAO.GetRouterConfigById(ctx, updateData.RouterConfigId, tenantId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取更新后的Router配置信息失败", err)
-		// 即使查询失败，也返回成功但只带有简单消息
 		response.SuccessJSON(ctx, gin.H{
-			"message": "更新成功，但获取详细信息失败",
+			"routerConfigId": updateData.RouterConfigId,
+			"message":        "Router配置更新成功，但获取详细信息失败",
 		}, constants.SD00004)
 		return
 	}
 
-	// 返回完整的Router配置信息
-	configInfo := routerConfigToMap(updatedConfig)
+	// 直接返回更新后的Router配置对象
+	logger.InfoWithTrace(ctx, "Router配置更新成功",
+		"routerConfigId", updateData.RouterConfigId,
+		"tenantId", tenantId,
+		"operatorId", operatorId)
 
-	response.SuccessJSON(ctx, configInfo, constants.SD00004)
+	response.SuccessJSON(ctx, updatedConfig, constants.SD00004)
 }
 
 // DeleteRouterConfig 删除Router配置
@@ -250,18 +205,13 @@ func (c *RouterConfigController) EditRouterConfig(ctx *gin.Context) {
 // @Tags Router配置管理
 // @Accept json
 // @Produce json
-// @Param request body DeleteRouterConfigRequest true "删除请求"
+// @Param routerConfigId body string true "Router配置ID"
 // @Success 200 {object} response.JsonData
 // @Router /gateway/hub0021/deleteRouterConfig [post]
 func (c *RouterConfigController) DeleteRouterConfig(ctx *gin.Context) {
-	var req DeleteRouterConfigRequest
-	if err := request.BindSafely(ctx, &req); err != nil {
-		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
-		return
-	}
-
-	// 验证必填字段
-	if req.RouterConfigId == "" {
+	// 使用 request.GetParam 获取参数
+	routerConfigId := request.GetParam(ctx, "routerConfigId")
+	if routerConfigId == "" {
 		response.ErrorJSON(ctx, "Router配置ID不能为空", constants.ED00007)
 		return
 	}
@@ -270,26 +220,35 @@ func (c *RouterConfigController) DeleteRouterConfig(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
 
-	// 验证上下文中的必要信息
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
+	// 先查询Router配置是否存在
+	existingConfig, err := c.routerConfigDAO.GetRouterConfigById(ctx, routerConfigId, tenantId)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "查询Router配置失败", err)
+		response.ErrorJSON(ctx, "查询Router配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
-	if operatorId == "" {
-		response.ErrorJSON(ctx, "无法获取操作人信息", constants.ED00007)
+
+	if existingConfig == nil {
+		response.ErrorJSON(ctx, "Router配置不存在", constants.ED00008)
 		return
 	}
 
 	// 调用DAO删除Router配置
-	err := c.routerConfigDAO.DeleteRouterConfig(ctx, req.RouterConfigId, tenantId, operatorId)
+	err = c.routerConfigDAO.DeleteRouterConfig(ctx, routerConfigId, tenantId, operatorId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "删除Router配置失败", err)
 		response.ErrorJSON(ctx, "删除Router配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
 
+	logger.InfoWithTrace(ctx, "Router配置删除成功",
+		"routerConfigId", routerConfigId,
+		"tenantId", tenantId,
+		"operatorId", operatorId,
+		"routerName", existingConfig.RouterName)
+
 	response.SuccessJSON(ctx, gin.H{
-		"routerConfigId": req.RouterConfigId,
+		"routerConfigId": routerConfigId,
 		"message":        "Router配置删除成功",
 	}, constants.SD00005)
 }
@@ -298,36 +257,27 @@ func (c *RouterConfigController) DeleteRouterConfig(ctx *gin.Context) {
 // @Summary 获取Router配置详情
 // @Description 根据ID获取Router配置详细信息
 // @Tags Router配置管理
+// @Accept json
 // @Produce json
-// @Param routerConfigId query string true "Router配置ID"
+// @Param routerConfigId body string true "Router配置ID"
 // @Success 200 {object} response.JsonData
 // @Router /gateway/hub0021/routerConfig [post]
 func (c *RouterConfigController) GetRouterConfig(ctx *gin.Context) {
-	var req GetRouterConfigRequest
-	if err := request.BindSafely(ctx, &req); err != nil {
-		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
-		return
-	}
-
-	if req.RouterConfigId == "" {
+	// 使用 request.GetParam 获取参数
+	routerConfigId := request.GetParam(ctx, "routerConfigId")
+	if routerConfigId == "" {
 		response.ErrorJSON(ctx, "Router配置ID不能为空", constants.ED00007)
 		return
 	}
 
-	// 强制从上下文获取租户ID
+	// 获取租户ID
 	tenantId := request.GetTenantID(ctx)
 
-	// 验证上下文中的必要信息
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-
-	// 调用DAO获取Router配置信息
-	config, err := c.routerConfigDAO.GetRouterConfigById(ctx, req.RouterConfigId, tenantId)
+	// 调用DAO获取Router配置详情
+	config, err := c.routerConfigDAO.GetRouterConfigById(ctx, routerConfigId, tenantId)
 	if err != nil {
-		logger.ErrorWithTrace(ctx, "获取Router配置信息失败", err)
-		response.ErrorJSON(ctx, "获取Router配置信息失败: "+err.Error(), constants.ED00009)
+		logger.ErrorWithTrace(ctx, "获取Router配置详情失败", err)
+		response.ErrorJSON(ctx, "获取Router配置详情失败: "+err.Error(), constants.ED00009)
 		return
 	}
 
@@ -336,121 +286,44 @@ func (c *RouterConfigController) GetRouterConfig(ctx *gin.Context) {
 		return
 	}
 
-	// 转换为响应格式
-	configInfo := routerConfigToMap(config)
-
-	response.SuccessJSON(ctx, configInfo, constants.SD00001)
+	// 直接返回Router配置对象
+	response.SuccessJSON(ctx, config, constants.SD00002)
 }
 
-// GetRouterConfigsByInstance 根据网关实例获取Router配置列表
-// @Summary 根据网关实例获取Router配置列表
-// @Description 根据网关实例ID获取所有关联的Router配置
+// GetRouterConfigsByInstance 根据网关实例获取Router配置
+// @Summary 根据网关实例获取Router配置
+// @Description 根据网关实例ID获取Router配置（返回单条数据）
 // @Tags Router配置管理
+// @Accept json
 // @Produce json
-// @Param request body GetRouterConfigsByInstanceRequest true "查询请求"
+// @Param gatewayInstanceId body string true "网关实例ID"
 // @Success 200 {object} response.JsonData
 // @Router /gateway/hub0021/routerConfigs/byInstance [post]
 func (c *RouterConfigController) GetRouterConfigsByInstance(ctx *gin.Context) {
-	var req GetRouterConfigsByInstanceRequest
-	if err := request.BindSafely(ctx, &req); err != nil {
-		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
-		return
-	}
-
-	if req.GatewayInstanceId == "" {
+	// 使用 request.GetParam 获取参数
+	gatewayInstanceId := request.GetParam(ctx, "gatewayInstanceId")
+	if gatewayInstanceId == "" {
 		response.ErrorJSON(ctx, "网关实例ID不能为空", constants.ED00007)
 		return
 	}
 
-	// 强制从上下文获取租户ID
+	// 获取租户ID
 	tenantId := request.GetTenantID(ctx)
 
-	// 验证上下文中的必要信息
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
-
-	// 获取activeFlag参数
-	activeFlag := request.GetParam(ctx, "activeFlag")
-
-	// 调用DAO获取Router配置列表
-	configs, err := c.routerConfigDAO.GetRouterConfigsByGatewayInstance(ctx, req.GatewayInstanceId, tenantId, activeFlag)
+	// 调用DAO获取Router配置（返回单条数据）
+	routerConfig, err := c.routerConfigDAO.GetRouterConfigByGatewayInstance(ctx, gatewayInstanceId, tenantId)
 	if err != nil {
-		logger.ErrorWithTrace(ctx, "获取网关实例Router配置列表失败", err)
-		response.ErrorJSON(ctx, "获取Router配置列表失败: "+err.Error(), constants.ED00009)
+		logger.ErrorWithTrace(ctx, "获取网关实例Router配置失败", err)
+		response.ErrorJSON(ctx, "获取网关实例Router配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
 
-	// 转换为响应格式
-	configList := make([]map[string]interface{}, 0, len(configs))
-	for _, config := range configs {
-		configList = append(configList, routerConfigToMap(config))
+	// 如果配置不存在，返回 null
+	if routerConfig == nil {
+		response.SuccessJSON(ctx, nil, constants.SD00002)
+		return
 	}
 
-	response.SuccessJSON(ctx, gin.H{
-		"routerConfigs":     configList,
-		"gatewayInstanceId": req.GatewayInstanceId,
-		"total":             len(configList),
-	}, constants.SD00001)
-}
-
-// 请求结构体定义
-type DeleteRouterConfigRequest struct {
-	RouterConfigId string `json:"routerConfigId" form:"routerConfigId" binding:"required"` // Router配置ID
-}
-
-type GetRouterConfigRequest struct {
-	RouterConfigId string `json:"routerConfigId" form:"routerConfigId" binding:"required"` // Router配置ID
-}
-
-type GetRouterConfigsByInstanceRequest struct {
-	GatewayInstanceId string `json:"gatewayInstanceId" form:"gatewayInstanceId" binding:"required"` // 网关实例ID
-}
-
-// routerConfigToMap 将Router配置对象转换为Map
-func routerConfigToMap(config *models.RouterConfig) map[string]interface{} {
-	return map[string]interface{}{
-		"tenantId":              config.TenantId,
-		"routerConfigId":        config.RouterConfigId,
-		"gatewayInstanceId":     config.GatewayInstanceId,
-		"routerName":            config.RouterName,
-		"routerDesc":            config.RouterDesc,
-		"defaultPriority":       config.DefaultPriority,
-		"enableRouteCache":      config.EnableRouteCache,
-		"routeCacheTtlSeconds":  config.RouteCacheTtlSeconds,
-		"maxRoutes":             config.MaxRoutes,
-		"routeMatchTimeout":     config.RouteMatchTimeout,
-		"enableStrictMode":      config.EnableStrictMode,
-		"enableMetrics":         config.EnableMetrics,
-		"enableTracing":         config.EnableTracing,
-		"caseSensitive":         config.CaseSensitive,
-		"removeTrailingSlash":   config.RemoveTrailingSlash,
-		"enableGlobalFilters":   config.EnableGlobalFilters,
-		"filterExecutionMode":   config.FilterExecutionMode,
-		"maxFilterChainDepth":   config.MaxFilterChainDepth,
-		"enableRoutePooling":    config.EnableRoutePooling,
-		"routePoolSize":         config.RoutePoolSize,
-		"enableAsyncProcessing": config.EnableAsyncProcessing,
-		"enableFallback":        config.EnableFallback,
-		"fallbackRoute":         config.FallbackRoute,
-		"notFoundStatusCode":    config.NotFoundStatusCode,
-		"notFoundMessage":       config.NotFoundMessage,
-		"routerMetadata":        config.RouterMetadata,
-		"customConfig":          config.CustomConfig,
-		"reserved1":             config.Reserved1,
-		"reserved2":             config.Reserved2,
-		"reserved3":             config.Reserved3,
-		"reserved4":             config.Reserved4,
-		"reserved5":             config.Reserved5,
-		"extProperty":           config.ExtProperty,
-		"addTime":               config.AddTime,
-		"addWho":                config.AddWho,
-		"editTime":              config.EditTime,
-		"editWho":               config.EditWho,
-		"oprSeqFlag":            config.OprSeqFlag,
-		"currentVersion":        config.CurrentVersion,
-		"activeFlag":            config.ActiveFlag,
-		"noteText":              config.NoteText,
-	}
+	// 直接返回 RouterConfig 对象
+	response.SuccessJSON(ctx, routerConfig, constants.SD00002)
 }

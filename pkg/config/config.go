@@ -2,8 +2,10 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -113,6 +115,73 @@ func LoadConfig(configDir string, options ...LoadOptions) error {
 	}
 
 	return nil
+}
+
+// InitializeConfig 初始化配置（加载配置文件并设置全局时区）
+// 这是一个高级初始化函数，整合了配置加载和全局时区设置
+// 参数:
+//   - configDir: 配置文件目录
+//   - options: 加载选项，可选
+//
+// 返回:
+//   - error: 可能的错误
+func InitializeConfig(configDir string, options ...LoadOptions) error {
+	// 加载配置文件
+	if err := LoadConfig(configDir, options...); err != nil {
+		return fmt.Errorf("加载配置文件失败: %w", err)
+	}
+
+	// 设置全局时区
+	if err := setupGlobalTimezone(); err != nil {
+		// 时区设置失败不应该阻止应用启动，只记录警告
+		log.Printf("设置全局时区失败: %v，使用默认时区", err)
+	}
+
+	return nil
+}
+
+// setupGlobalTimezone 设置全局时区
+// 从配置中读取时区设置并应用到time.Local
+// 返回:
+//   - error: 可能的错误
+func setupGlobalTimezone() error {
+	// 获取时区配置
+	timezone := GetString("app.local_timezone", "UTC")
+
+	// 加载时区
+	location, err := time.LoadLocation(timezone)
+	if err != nil {
+		return fmt.Errorf("加载时区 '%s' 失败: %w", timezone, err)
+	}
+
+	// 设置全局时区
+	time.Local = location
+	log.Printf("已设置全局时区为: %s", timezone)
+
+	return nil
+}
+
+// GetGlobalTimezone 获取当前全局时区配置
+// 返回:
+//   - string: 时区名称
+func GetGlobalTimezone() string {
+	return GetString("app.local_timezone", "UTC")
+}
+
+// GetVersion 获取应用版本号
+// 从配置中读取 app.version
+// 返回:
+//   - string: 版本号，默认为 "unknown"
+func GetVersion() string {
+	return GetString("app.version", "2.0.5")
+}
+
+// GetAppName 获取应用名称
+// 从配置中读取 app.name
+// 返回:
+//   - string: 应用名称，默认为 "Gateway"
+func GetAppName() string {
+	return GetString("app.name", "Gateway")
 }
 
 // LoadConfigFile 加载指定的单个配置文件

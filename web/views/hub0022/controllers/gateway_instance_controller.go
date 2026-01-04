@@ -85,10 +85,6 @@ func (c *GatewayInstanceController) GetGatewayInstance(ctx *gin.Context) {
 
 	// 从上下文获取租户ID，确保安全性
 	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
 
 	// 验证租户ID是否匹配（安全检查）
 	if req.TenantId != tenantId {
@@ -143,10 +139,6 @@ func (c *GatewayInstanceController) QueryGatewayInstances(ctx *gin.Context) {
 
 	// 从上下文获取租户ID
 	tenantId := request.GetTenantID(ctx)
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "无法获取租户信息", constants.ED00007)
-		return
-	}
 
 	// 构建筛选条件
 	filters := make(map[string]interface{})

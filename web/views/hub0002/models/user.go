@@ -32,6 +32,16 @@ type User struct {
 	NoteText        string     `json:"noteText" form:"noteText" query:"noteText" db:"noteText"`                                                         // 备注信息
 }
 
+// UserQuery 用户查询条件，对应前端 /queryUsers 的查询参数
+type UserQuery struct {
+	UserName   string `json:"userName" form:"userName" query:"userName"`       // 用户名（模糊查询）
+	RealName   string `json:"realName" form:"realName" query:"realName"`       // 真实姓名（模糊查询）
+	Mobile     string `json:"mobile" form:"mobile" query:"mobile"`             // 手机号（模糊查询）
+	Email      string `json:"email" form:"email" query:"email"`                // 邮箱（模糊查询）
+	StatusFlag string `json:"statusFlag" form:"statusFlag" query:"statusFlag"` // 启用状态：Y/N，空表示全部
+	ActiveFlag string `json:"activeFlag" form:"activeFlag" query:"activeFlag"` // 活动标记：Y-活动，N-非活动，空表示全部
+}
+
 // TableName 返回表名
 func (User) TableName() string {
 	return "HUB_USER"

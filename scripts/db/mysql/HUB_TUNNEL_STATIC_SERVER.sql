@@ -1,0 +1,67 @@
+CREATE TABLE `HUB_TUNNEL_STATIC_SERVER` (
+  -- 主键和租户
+  `tunnelStaticServerId` VARCHAR(32) NOT NULL COMMENT '静态隧道服务器ID，主键',
+  `tenantId` VARCHAR(32) NOT NULL COMMENT '租户ID',
+  
+  -- 业务字段
+  `serverName` VARCHAR(100) NOT NULL COMMENT '服务器名称',
+  `serverDescription` VARCHAR(500) DEFAULT NULL COMMENT '服务器描述',
+  `listenAddress` VARCHAR(50) NOT NULL DEFAULT '0.0.0.0' COMMENT '监听地址',
+  `listenPort` INT NOT NULL COMMENT '监听端口（公网端口）',
+  `serverType` VARCHAR(20) NOT NULL DEFAULT 'tcp' COMMENT '服务器类型(tcp,udp,http,https)',
+  `maxConnections` INT NOT NULL DEFAULT 1000 COMMENT '最大连接数',
+  `connectionTimeout` INT NOT NULL DEFAULT 60 COMMENT '连接超时时间(秒)',
+  `readTimeout` INT NOT NULL DEFAULT 30 COMMENT '读取超时时间(秒)',
+  `writeTimeout` INT NOT NULL DEFAULT 30 COMMENT '写入超时时间(秒)',
+  `tlsEnable` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '启用TLS(N禁用,Y启用)',
+  `tlsCertFile` VARCHAR(255) DEFAULT NULL COMMENT 'TLS证书文件路径',
+  `tlsKeyFile` VARCHAR(255) DEFAULT NULL COMMENT 'TLS私钥文件路径',
+  `tlsCaFile` VARCHAR(255) DEFAULT NULL COMMENT 'TLS CA证书文件路径',
+  `logLevel` VARCHAR(10) NOT NULL DEFAULT 'info' COMMENT '日志级别(debug,info,warn,error)',
+  `logFile` VARCHAR(255) DEFAULT NULL COMMENT '日志文件路径',
+  `serverStatus` VARCHAR(20) NOT NULL DEFAULT 'stopped' COMMENT '服务器状态(running,stopped,error)',
+  `startTime` DATETIME DEFAULT NULL COMMENT '服务启动时间',
+  `stopTime` DATETIME DEFAULT NULL COMMENT '服务停止时间',
+  `currentConnectionCount` INT DEFAULT 0 COMMENT '当前连接数',
+  `totalConnectionCount` BIGINT DEFAULT 0 COMMENT '总连接数',
+  `totalBytesReceived` BIGINT DEFAULT 0 COMMENT '总接收字节数',
+  `totalBytesSent` BIGINT DEFAULT 0 COMMENT '总发送字节数',
+  `healthCheckType` VARCHAR(20) DEFAULT 'tcp' COMMENT '健康检查类型(tcp,http,https)',
+  `healthCheckUrl` VARCHAR(255) DEFAULT NULL COMMENT '健康检查URL',
+  `healthCheckInterval` INT DEFAULT 30 COMMENT '健康检查间隔(秒)',
+  `healthCheckTimeout` INT DEFAULT 5 COMMENT '健康检查超时(秒)',
+  `healthCheckMaxFailures` INT DEFAULT 3 COMMENT '健康检查最大失败次数',
+  `loadBalanceType` VARCHAR(20) DEFAULT 'roundrobin' COMMENT '负载均衡类型(roundrobin,leastconn,random)',
+  `serverConfig` TEXT DEFAULT NULL COMMENT '服务器配置，JSON格式',
+  
+  -- 通用字段
+  `addTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `addWho` VARCHAR(32) NOT NULL COMMENT '创建人ID',
+  `editTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
+  `editWho` VARCHAR(32) NOT NULL COMMENT '最后修改人ID',
+  `oprSeqFlag` VARCHAR(32) NOT NULL COMMENT '操作序列标识',
+  `currentVersion` INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+  `activeFlag` VARCHAR(1) NOT NULL DEFAULT 'Y' COMMENT '活动状态标记(N非活动,Y活动)',
+  `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
+  `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性，JSON格式',
+  
+  -- 预留字段
+  `reserved1` VARCHAR(500) DEFAULT NULL COMMENT '预留字段1',
+  `reserved2` VARCHAR(500) DEFAULT NULL COMMENT '预留字段2',
+  `reserved3` VARCHAR(500) DEFAULT NULL COMMENT '预留字段3',
+  `reserved4` VARCHAR(500) DEFAULT NULL COMMENT '预留字段4',
+  `reserved5` VARCHAR(500) DEFAULT NULL COMMENT '预留字段5',
+  `reserved6` VARCHAR(500) DEFAULT NULL COMMENT '预留字段6',
+  `reserved7` VARCHAR(500) DEFAULT NULL COMMENT '预留字段7',
+  `reserved8` VARCHAR(500) DEFAULT NULL COMMENT '预留字段8',
+  `reserved9` VARCHAR(500) DEFAULT NULL COMMENT '预留字段9',
+  `reserved10` VARCHAR(500) DEFAULT NULL COMMENT '预留字段10',
+  
+  -- 主键和索引
+  CONSTRAINT `PK_TUNNEL_STATIC_SVR` PRIMARY KEY (`tunnelStaticServerId`),
+  UNIQUE KEY `IDX_TUNNEL_STATIC_SVR_NAME` (`serverName`),
+  UNIQUE KEY `IDX_TUNNEL_STATIC_SVR_PORT` (`listenAddress`, `listenPort`, `serverType`),
+  KEY `IDX_TUNNEL_STATIC_SVR_TENANT` (`tenantId`),
+  KEY `IDX_TUNNEL_STATIC_SVR_STATUS` (`serverStatus`),
+  KEY `IDX_TUNNEL_STATIC_SVR_TYPE` (`serverType`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='静态隧道服务器表，管理静态端口转发服务配置';

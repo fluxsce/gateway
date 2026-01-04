@@ -2,8 +2,10 @@ package dao
 
 import (
 	"context"
+	"errors"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/views/hub0001/models"
 	"strings"
 	"time"
 
@@ -300,4 +302,102 @@ func (dao *AuthDAO) CleanupExpiredTokens(ctx context.Context) (int, error) {
 	}
 
 	return int(result), nil
+}
+
+// GetUserPermissions 获取用户拥有的模块权限和按钮权限
+// 通过用户角色关联表获取用户的所有角色，再通过角色资源关联表获取资源权限
+func (dao *AuthDAO) GetUserPermissions(ctx context.Context, userId, tenantId string) (*models.UserPermissionResponse, error) {
+	if userId == "" || tenantId == "" {
+		return nil, errors.New("userId和tenantId不能为空")
+	}
+
+	// 查询用户拥有的所有资源权限（包括模块和按钮）
+	// 通过用户角色关联 -> 角色资源关联 -> 资源表，获取用户的所有权限
+	query := `
+		SELECT DISTINCT
+			r.resourceId,
+			r.resourceCode,
+			r.resourceName,
+			r.displayName,
+			r.resourceType,
+			r.resourcePath,
+			r.resourceMethod,
+			r.iconClass,
+			r.description,
+			r.resourceLevel,
+			r.sortOrder,
+			r.parentResourceId
+		FROM HUB_AUTH_USER_ROLE ur
+		INNER JOIN HUB_AUTH_ROLE_RESOURCE rr ON ur.roleId = rr.roleId AND ur.tenantId = rr.tenantId
+		INNER JOIN HUB_AUTH_RESOURCE r ON rr.resourceId = r.resourceId AND rr.tenantId = r.tenantId
+		WHERE ur.userId = ? 
+			AND ur.tenantId = ?
+			AND ur.activeFlag = 'Y'
+			AND rr.activeFlag = 'Y'
+			AND rr.permissionType = 'ALLOW'
+			AND (rr.expireTime IS NULL OR rr.expireTime > ?)
+			AND r.activeFlag = 'Y'
+			AND r.resourceStatus = 'Y'
+			AND r.resourceType IN ('MODULE', 'BUTTON')
+		ORDER BY r.resourceType, r.sortOrder ASC, r.resourceLevel ASC
+	`
+
+	type ResourceResult struct {
+		ResourceId       string `db:"resourceId"`
+		ResourceCode     string `db:"resourceCode"`
+		ResourceName     string `db:"resourceName"`
+		DisplayName      string `db:"displayName"`
+		ResourceType     string `db:"resourceType"`
+		ResourcePath     string `db:"resourcePath"`
+		ResourceMethod   string `db:"resourceMethod"`
+		IconClass        string `db:"iconClass"`
+		Description      string `db:"description"`
+		ResourceLevel    int    `db:"resourceLevel"`
+		SortOrder        int    `db:"sortOrder"`
+		ParentResourceId string `db:"parentResourceId"`
+	}
+
+	var resources []ResourceResult
+	err := dao.db.Query(ctx, &resources, query, []interface{}{userId, tenantId, time.Now()}, true)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "获取用户权限失败", err, "userId", userId)
+		return nil, err
+	}
+
+	// 分离模块权限和按钮权限
+	modules := make([]models.ModulePermission, 0)
+	buttons := make([]models.ButtonPermission, 0)
+
+	for _, res := range resources {
+		if res.ResourceType == "MODULE" {
+			modules = append(modules, models.ModulePermission{
+				ResourceId:       res.ResourceId,
+				ResourceCode:     res.ResourceCode,
+				ResourceName:     res.ResourceName,
+				DisplayName:      res.DisplayName,
+				ResourcePath:     res.ResourcePath,
+				IconClass:        res.IconClass,
+				Description:      res.Description,
+				ResourceLevel:    res.ResourceLevel,
+				SortOrder:        res.SortOrder,
+				ParentResourceId: res.ParentResourceId,
+			})
+		} else if res.ResourceType == "BUTTON" {
+			buttons = append(buttons, models.ButtonPermission{
+				ResourceId:       res.ResourceId,
+				ResourceCode:     res.ResourceCode,
+				ResourceName:     res.ResourceName,
+				DisplayName:      res.DisplayName,
+				ResourcePath:     res.ResourcePath,
+				ResourceMethod:   res.ResourceMethod,
+				ParentResourceId: res.ParentResourceId,
+				Description:      res.Description,
+			})
+		}
+	}
+
+	return &models.UserPermissionResponse{
+		Modules: modules,
+		Buttons: buttons,
+	}, nil
 }

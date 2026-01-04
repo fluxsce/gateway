@@ -3,7 +3,6 @@ package dao
 import (
 	"context"
 	"errors"
-	"fmt"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/huberrors"
@@ -25,67 +24,18 @@ func NewApiAccessConfigDAO(db database.Database) *ApiAccessConfigDAO {
 	}
 }
 
-// generateApiAccessConfigId 生成API访问配置ID
-// 格式：API + YYYYMMDD + HHMMSS + 4位随机数
-// 示例：API20240615143022A1B2
-func (dao *ApiAccessConfigDAO) generateApiAccessConfigId() string {
-	now := time.Now()
-	timeStr := now.Format("20060102150405")
-	randomStr := random.GenerateRandomString(4)
-	return fmt.Sprintf("API%s%s", timeStr, randomStr)
-}
-
-// isApiAccessConfigIdExists 检查API访问配置ID是否已存在
-func (dao *ApiAccessConfigDAO) isApiAccessConfigIdExists(ctx context.Context, apiAccessConfigId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GW_API_ACCESS_CONFIG WHERE apiAccessConfigId = ?`
-
-	var result struct {
-		Count int `db:"count"`
-	}
-
-	err := dao.db.QueryOne(ctx, &result, query, []interface{}{apiAccessConfigId}, true)
-	if err != nil {
-		return false, err
-	}
-
-	return result.Count > 0, nil
-}
-
-// generateUniqueApiAccessConfigId 生成唯一的API访问配置ID
-func (dao *ApiAccessConfigDAO) generateUniqueApiAccessConfigId(ctx context.Context) (string, error) {
-	const maxAttempts = 10
-
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		apiAccessConfigId := dao.generateApiAccessConfigId()
-
-		exists, err := dao.isApiAccessConfigIdExists(ctx, apiAccessConfigId)
-		if err != nil {
-			return "", huberrors.WrapError(err, "检查API访问配置ID是否存在失败")
-		}
-
-		if !exists {
-			return apiAccessConfigId, nil
-		}
-
-		time.Sleep(time.Millisecond)
-	}
-
-	return "", errors.New("生成唯一API访问配置ID失败，已达到最大尝试次数")
-}
-
 // AddApiAccessConfig 添加API访问控制配置
 func (dao *ApiAccessConfigDAO) AddApiAccessConfig(ctx context.Context, config *models.ApiAccessConfig, operatorId string) error {
-	if config.TenantId == "" || config.SecurityConfigId == "" {
-		return errors.New("tenantId和securityConfigId不能为空")
+	// 校验安全配置ID
+	if config.SecurityConfigId == "" {
+		return errors.New("securityConfigId不能为空")
 	}
 
 	// 自动生成API访问配置ID
 	if config.ApiAccessConfigId == "" {
-		generatedId, err := dao.generateUniqueApiAccessConfigId(ctx)
-		if err != nil {
-			return huberrors.WrapError(err, "生成API访问配置ID失败")
-		}
-		config.ApiAccessConfigId = generatedId
+		// 使用公共方法生成唯一ID，支持集群环境
+		// 格式：API前缀 + 32位唯一字符串 = 35位总长度
+		config.ApiAccessConfigId = random.GenerateUniqueStringWithPrefix("API", 32)
 	}
 
 	// 设置自动填充字段
@@ -111,19 +61,19 @@ func (dao *ApiAccessConfigDAO) AddApiAccessConfig(ctx context.Context, config *m
 	return nil
 }
 
-// GetApiAccessConfigBySecurityConfigId 根据安全配置ID获取API访问控制配置
-func (dao *ApiAccessConfigDAO) GetApiAccessConfigBySecurityConfigId(ctx context.Context, securityConfigId, tenantId string) (*models.ApiAccessConfig, error) {
-	if securityConfigId == "" || tenantId == "" {
-		return nil, errors.New("securityConfigId和tenantId不能为空")
+// GetApiAccessConfigById 根据API访问配置ID获取配置
+func (dao *ApiAccessConfigDAO) GetApiAccessConfigById(ctx context.Context, apiAccessConfigId, tenantId string) (*models.ApiAccessConfig, error) {
+	if apiAccessConfigId == "" {
+		return nil, errors.New("apiAccessConfigId不能为空")
 	}
 
 	query := `
 		SELECT * FROM HUB_GW_API_ACCESS_CONFIG 
-		WHERE securityConfigId = ? AND tenantId = ?
+		WHERE apiAccessConfigId = ? AND tenantId = ?
 	`
 
 	var config models.ApiAccessConfig
-	err := dao.db.QueryOne(ctx, &config, query, []interface{}{securityConfigId, tenantId}, true)
+	err := dao.db.QueryOne(ctx, &config, query, []interface{}{apiAccessConfigId, tenantId}, true)
 
 	if err != nil {
 		if err == database.ErrRecordNotFound {
@@ -137,12 +87,13 @@ func (dao *ApiAccessConfigDAO) GetApiAccessConfigBySecurityConfigId(ctx context.
 
 // UpdateApiAccessConfig 更新API访问控制配置
 func (dao *ApiAccessConfigDAO) UpdateApiAccessConfig(ctx context.Context, config *models.ApiAccessConfig, operatorId string) error {
-	if config.SecurityConfigId == "" || config.TenantId == "" {
-		return errors.New("securityConfigId和tenantId不能为空")
+	// 校验主键
+	if config.ApiAccessConfigId == "" {
+		return errors.New("apiAccessConfigId不能为空")
 	}
 
-	// 首先获取当前配置
-	currentConfig, err := dao.GetApiAccessConfigBySecurityConfigId(ctx, config.SecurityConfigId, config.TenantId)
+	// 首先获取当前配置（使用主键）
+	currentConfig, err := dao.GetApiAccessConfigById(ctx, config.ApiAccessConfigId, config.TenantId)
 	if err != nil {
 		return err
 	}
@@ -192,18 +143,26 @@ func (dao *ApiAccessConfigDAO) UpdateApiAccessConfig(ctx context.Context, config
 	return nil
 }
 
-// DeleteApiAccessConfig 删除API访问控制配置
-func (dao *ApiAccessConfigDAO) DeleteApiAccessConfig(ctx context.Context, securityConfigId, tenantId, operatorId string) error {
-	if securityConfigId == "" || tenantId == "" {
-		return errors.New("securityConfigId和tenantId不能为空")
+// DeleteApiAccessConfig 物理删除API访问控制配置
+func (dao *ApiAccessConfigDAO) DeleteApiAccessConfig(ctx context.Context, apiAccessConfigId, tenantId string) error {
+	// 校验主键
+	if apiAccessConfigId == "" {
+		return errors.New("apiAccessConfigId不能为空")
 	}
 
-	sql := `
-		DELETE FROM HUB_GW_API_ACCESS_CONFIG
-		WHERE securityConfigId = ? AND tenantId = ?
-	`
+	// 首先检查配置是否存在（使用主键）
+	config, err := dao.GetApiAccessConfigById(ctx, apiAccessConfigId, tenantId)
+	if err != nil {
+		return err
+	}
+	if config == nil {
+		return errors.New("API访问控制配置不存在")
+	}
 
-	result, err := dao.db.Exec(ctx, sql, []interface{}{securityConfigId, tenantId}, true)
+	// 执行物理删除（使用主键）
+	sql := `DELETE FROM HUB_GW_API_ACCESS_CONFIG WHERE apiAccessConfigId = ? AND tenantId = ?`
+
+	result, err := dao.db.Exec(ctx, sql, []interface{}{apiAccessConfigId, tenantId}, true)
 	if err != nil {
 		return huberrors.WrapError(err, "删除API访问控制配置失败")
 	}
@@ -215,14 +174,31 @@ func (dao *ApiAccessConfigDAO) DeleteApiAccessConfig(ctx context.Context, securi
 	return nil
 }
 
-// ListApiAccessConfigs 获取API访问控制配置列表
-func (dao *ApiAccessConfigDAO) ListApiAccessConfigs(ctx context.Context, tenantId string, page, pageSize int) ([]*models.ApiAccessConfig, int, error) {
-	if tenantId == "" {
-		return nil, 0, errors.New("tenantId不能为空")
+// ListApiAccessConfigs 获取API访问控制配置列表（支持条件查询）
+func (dao *ApiAccessConfigDAO) ListApiAccessConfigs(ctx context.Context, tenantId string, query *models.ApiAccessConfigQuery, page, pageSize int) ([]*models.ApiAccessConfig, int, error) {
+	// 构建查询条件
+	whereClause := "WHERE tenantId = ?"
+	var params []interface{}
+	params = append(params, tenantId)
+
+	// 添加查询条件
+	if query != nil {
+		if query.SecurityConfigId != "" {
+			whereClause += " AND securityConfigId = ?"
+			params = append(params, query.SecurityConfigId)
+		}
+		if query.ConfigName != "" {
+			whereClause += " AND configName LIKE ?"
+			params = append(params, "%"+query.ConfigName+"%")
+		}
+		if query.ActiveFlag != "" {
+			whereClause += " AND activeFlag = ?"
+			params = append(params, query.ActiveFlag)
+		}
 	}
 
 	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_API_ACCESS_CONFIG WHERE tenantId = ? ORDER BY addTime DESC"
+	baseQuery := "SELECT * FROM HUB_GW_API_ACCESS_CONFIG " + whereClause + " ORDER BY addTime DESC"
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
@@ -234,7 +210,7 @@ func (dao *ApiAccessConfigDAO) ListApiAccessConfigs(ctx context.Context, tenantI
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err = dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId}, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询API访问控制配置总数失败")
 	}
@@ -258,7 +234,7 @@ func (dao *ApiAccessConfigDAO) ListApiAccessConfigs(ctx context.Context, tenantI
 	}
 
 	// 合并查询参数
-	allArgs := append([]interface{}{tenantId}, paginationArgs...)
+	allArgs := append(params, paginationArgs...)
 
 	// 执行分页查询
 	var configs []*models.ApiAccessConfig

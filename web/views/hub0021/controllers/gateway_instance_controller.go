@@ -28,22 +28,35 @@ func NewGatewayInstanceController(db database.Database) *GatewayInstanceControll
 
 // QueryAllGatewayInstances 获取所有网关实例列表
 // @Summary 获取所有网关实例列表
-// @Description 分页获取所有网关实例列表（跨租户查询，仅限管理员使用）
+// @Description 分页获取所有网关实例列表（跨租户查询，仅限管理员使用），支持按名称筛选
 // @Tags 网关实例管理
+// @Accept json
 // @Produce json
-// @Param page query int false "页码" default(1)
-// @Param pageSize query int false "每页数量" default(10)
+// @Param request body object true "查询参数"
 // @Success 200 {object} response.JsonData
 // @Router /gateway/hub0021/queryAllGatewayInstances [post]
 func (c *GatewayInstanceController) QueryAllGatewayInstances(ctx *gin.Context) {
-	// 使用工具类获取分页参数
+	// 绑定请求参数
+	var req struct {
+		InstanceName string `json:"instanceName" form:"instanceName"`
+	}
+
+	if err := request.BindSafely(ctx, &req); err != nil {
+		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
+		return
+	}
+
+	// 获取分页参数
 	page, pageSize := request.GetPaginationParams(ctx)
-	
-	// 获取activeFlag参数
-	activeFlag := request.GetParam(ctx, "activeFlag")
+
+	// 构建筛选条件
+	filters := make(map[string]interface{})
+	if req.InstanceName != "" {
+		filters["instanceName"] = req.InstanceName
+	}
 
 	// 调用DAO获取所有网关实例列表
-	instances, total, err := c.gatewayInstanceDAO.ListAllGatewayInstances(ctx, activeFlag, page, pageSize)
+	instances, total, err := c.gatewayInstanceDAO.ListAllGatewayInstances(ctx, page, pageSize, filters)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取所有网关实例列表失败", err)
 		// 使用统一的错误响应

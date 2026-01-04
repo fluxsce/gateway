@@ -12,7 +12,8 @@ app:
   #   - UTC (世界标准时间)
   #   - Local (系统本地时区)
   local_timezone: "Asia/Shanghai"
-  
+  #版本
+  version: "2.0.5"
   # 指标采集配置
   metrics:
     enabled: true                    # 是否启用指标采集

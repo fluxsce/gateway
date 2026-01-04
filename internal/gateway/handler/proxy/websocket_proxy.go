@@ -63,15 +63,16 @@ func (w *WebSocketProxy) Handle(ctx *core.Context) bool {
 		return false
 	}
 
-	// 获取服务ID
-	serviceID := ctx.GetServiceID()
-	if serviceID == "" {
+	// 获取服务ID（单服务场景，使用第一个服务ID）
+	serviceIDs := ctx.GetServiceIDs()
+	if len(serviceIDs) == 0 {
 		ctx.AddError(fmt.Errorf("服务ID不能为空"))
 		ctx.Abort(http.StatusBadRequest, map[string]string{
 			"error": "服务ID不能为空",
 		})
 		return false
 	}
+	serviceID := serviceIDs[0]
 
 	// 从负载均衡器获取目标节点
 	node, err := w.serviceManager.SelectNode(serviceID, ctx)
@@ -87,11 +88,8 @@ func (w *WebSocketProxy) Handle(ctx *core.Context) bool {
 	ctx.Set(constants.ContextKeyServiceDefinitionName, w.GetName())
 	ctx.Set(constants.ContextKeyProxyType, w.GetType())
 
-	// 设置转发开始时间
-	ctx.SetForwardStartTime(time.Now())
-
 	// 代理WebSocket请求
-	err = w.ProxyRequest(ctx, node.URL)
+	err = w.proxyRequest(ctx, node.URL)
 	if err != nil {
 		ctx.AddError(fmt.Errorf("代理WebSocket请求失败: %w", err))
 		ctx.Abort(http.StatusBadGateway, map[string]string{
@@ -104,8 +102,8 @@ func (w *WebSocketProxy) Handle(ctx *core.Context) bool {
 	return true
 }
 
-// ProxyRequest 代理WebSocket请求到指定URL
-func (w *WebSocketProxy) ProxyRequest(ctx *core.Context, targetURL string) error {
+// proxyRequest 代理WebSocket请求到指定URL（内部方法）
+func (w *WebSocketProxy) proxyRequest(ctx *core.Context, targetURL string) error {
 	// 解析目标URL
 	target, err := url.Parse(targetURL)
 	if err != nil {
@@ -131,7 +129,6 @@ func (w *WebSocketProxy) ProxyRequest(ctx *core.Context, targetURL string) error
 	// 升级客户端连接到WebSocket
 	clientConn, err := w.upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
 	if err != nil {
-		ctx.SetForwardResponseTime(time.Now())
 		return fmt.Errorf("升级客户端连接失败: %w", err)
 	}
 
@@ -139,7 +136,6 @@ func (w *WebSocketProxy) ProxyRequest(ctx *core.Context, targetURL string) error
 	targetConn, resp, err := w.connectToTarget(targetWSURL, ctx.Request)
 	if err != nil {
 		clientConn.Close()
-		ctx.SetForwardResponseTime(time.Now())
 		return fmt.Errorf("连接到目标服务失败: %w", err)
 	}
 
@@ -181,7 +177,6 @@ func (w *WebSocketProxy) ProxyRequest(ctx *core.Context, targetURL string) error
 
 	// 清理连接
 	w.closeConnection(wsConn)
-	ctx.SetForwardResponseTime(time.Now())
 
 	return nil
 }

@@ -25,6 +25,7 @@ func Init(router *gin.Engine, db database.Database) {
 
 func RegisterHub0062Routes(router *gin.Engine, db database.Database) {
 	clientController := controllers.NewTunnelClientController(db)
+	serviceController := controllers.NewTunnelServiceController(db)
 	logger.Info("控制器已创建", "module", ModuleName)
 
 	hub0062Group := router.Group(APIPrefix)
@@ -34,14 +35,14 @@ func RegisterHub0062Routes(router *gin.Engine, db database.Database) {
 	protectedGroup.Use(routes.PermissionRequired()...)
 
 	{
-		// 基础CRUD操作
+		// 客户端基础CRUD操作
 		protectedGroup.POST("/queryTunnelClients", clientController.QueryTunnelClients)
 		protectedGroup.POST("/getTunnelClient", clientController.GetTunnelClient)
 		protectedGroup.POST("/createTunnelClient", clientController.CreateTunnelClient)
 		protectedGroup.POST("/updateTunnelClient", clientController.UpdateTunnelClient)
 		protectedGroup.POST("/deleteTunnelClient", clientController.DeleteTunnelClient)
 
-		// 统计信息
+		// 客户端统计信息
 		protectedGroup.POST("/getClientStats", clientController.GetClientStats)
 
 		// 客户端管理操作
@@ -49,14 +50,23 @@ func RegisterHub0062Routes(router *gin.Engine, db database.Database) {
 		protectedGroup.POST("/stopClient", clientController.StopClient)
 		protectedGroup.POST("/restartClient", clientController.RestartClient)
 
-		// 批量操作
-		protectedGroup.POST("/batchEnableClients", clientController.BatchEnableClients)
-		protectedGroup.POST("/batchDisableClients", clientController.BatchDisableClients)
+		// 服务基础CRUD操作
+		protectedGroup.POST("/queryTunnelServices", serviceController.QueryTunnelServices)
+		protectedGroup.POST("/getTunnelService", serviceController.GetTunnelService)
+		protectedGroup.POST("/createTunnelService", serviceController.CreateTunnelService)
+		protectedGroup.POST("/updateTunnelService", serviceController.UpdateTunnelService)
+		protectedGroup.POST("/deleteTunnelService", serviceController.DeleteTunnelService)
+
+		// 服务统计信息
+		protectedGroup.POST("/getServiceStats", serviceController.GetServiceStats)
+
+		// 服务注册和注销
+		protectedGroup.POST("/registerService", serviceController.RegisterService)
+		protectedGroup.POST("/unregisterService", serviceController.UnregisterService)
 
 		// 关联数据查询
 		protectedGroup.POST("/getClientServices", clientController.GetClientServices)
-		protectedGroup.POST("/getClientSessions", clientController.GetClientSessions)
 	}
 
-	logger.Info("模块路由注册完成", "module", ModuleName, "prefix", APIPrefix, "routes", 11)
+	logger.Info("模块路由注册完成", "module", ModuleName, "prefix", APIPrefix, "routes", 18)
 }

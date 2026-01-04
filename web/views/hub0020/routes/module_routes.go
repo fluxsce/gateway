@@ -77,18 +77,23 @@ func initGatewayInstanceRoutes(router *gin.RouterGroup, db database.Database) {
 		instanceGroup.POST("/queryGatewayInstances", gatewayInstanceController.QueryGatewayInstances)
 
 		// 网关实例详情查询
-		instanceGroup.GET("/gatewayInstance", gatewayInstanceController.GetGatewayInstance)
+		instanceGroup.POST("/getGatewayInstance", gatewayInstanceController.GetGatewayInstance)
 
 		// 网关实例增删改
 		instanceGroup.POST("/addGatewayInstance", gatewayInstanceController.AddGatewayInstance)
 		instanceGroup.POST("/editGatewayInstance", gatewayInstanceController.EditGatewayInstance)
 		instanceGroup.POST("/deleteGatewayInstance", gatewayInstanceController.DeleteGatewayInstance)
 
-		// 网关实例健康状态更新
-		instanceGroup.POST("/updateHealthStatus", gatewayInstanceController.UpdateHealthStatus)
+		// 网关实例启动和停止
+		instanceGroup.POST("/startGatewayInstance", gatewayInstanceController.StartGatewayInstance)
+		instanceGroup.POST("/stopGatewayInstance", gatewayInstanceController.StopGatewayInstance)
 
 		// 网关实例配置重载
 		instanceGroup.POST("/reloadGatewayInstance", gatewayInstanceController.ReloadGatewayInstance)
+
+		// 日志配置管理
+		instanceGroup.POST("/getLogConfig", gatewayInstanceController.GetLogConfig)
+		instanceGroup.POST("/editLogConfig", gatewayInstanceController.EditLogConfig)
 	}
 }
 

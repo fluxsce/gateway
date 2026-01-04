@@ -6,6 +6,7 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/huberrors"
+	"gateway/pkg/utils/random"
 	"gateway/web/views/hub0002/models"
 	"strings"
 	"time"
@@ -46,18 +47,14 @@ func (dao *UserDAO) AddUser(ctx context.Context, user *models.User, operatorId s
 	user.AddWho = operatorId
 	user.EditTime = now
 	user.EditWho = operatorId
-	user.OprSeqFlag = user.UserId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
+	// 生成 OprSeqFlag，确保长度不超过32
+	user.OprSeqFlag = random.GenerateUniqueStringWithPrefix("", 32)
 	user.CurrentVersion = 1
 	user.ActiveFlag = "Y"
 
 	// 如果状态标志未设置，默认为启用
 	if user.StatusFlag == "" {
 		user.StatusFlag = "Y"
-	}
-
-	// 如果过期日期未设置，默认为10年后
-	if user.UserExpireDate.IsZero() {
-		user.UserExpireDate = now.AddDate(10, 0, 0)
 	}
 
 	// 使用数据库接口的Insert方法插入记录
@@ -141,26 +138,52 @@ func (dao *UserDAO) UpdateUser(ctx context.Context, user *models.User, operatorI
 	user.CurrentVersion = currentUser.CurrentVersion + 1
 	user.EditTime = time.Now()
 	user.EditWho = operatorId
-	user.OprSeqFlag = user.UserId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
+	// 生成 OprSeqFlag，确保长度不超过32
+	user.OprSeqFlag = random.GenerateUniqueStringWithPrefix("", 32)
 
 	// 构建更新SQL
-	sql := `
-		UPDATE HUB_USER SET
-			realName = ?, deptId = ?, email = ?, mobile = ?,
-			avatar = ?, gender = ?, statusFlag = ?, deptAdminFlag = ?,
-			tenantAdminFlag = ?, userExpireDate = ?, noteText = ?,
-			editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?
-		WHERE userId = ? AND tenantId = ? AND currentVersion = ?
-	`
+	// 注意：password 字段单独处理，如果为空则不更新密码
+	var sql string
+	var params []interface{}
+
+	if user.Password != "" {
+		// 如果提供了新密码，则更新密码字段
+		sql = `
+			UPDATE HUB_USER SET
+				userName = ?, password = ?, realName = ?, deptId = ?, email = ?, mobile = ?,
+				avatar = ?, gender = ?, statusFlag = ?, deptAdminFlag = ?,
+				tenantAdminFlag = ?, userExpireDate = ?, activeFlag = ?, noteText = ?,
+				editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?
+			WHERE userId = ? AND tenantId = ? AND currentVersion = ?
+		`
+		params = []interface{}{
+			user.UserName, user.Password, user.RealName, user.DeptId, user.Email, user.Mobile,
+			user.Avatar, user.Gender, user.StatusFlag, user.DeptAdminFlag,
+			user.TenantAdminFlag, user.UserExpireDate, user.ActiveFlag, user.NoteText,
+			user.EditTime, user.EditWho, user.OprSeqFlag, user.CurrentVersion,
+			user.UserId, user.TenantId, currentUser.CurrentVersion,
+		}
+	} else {
+		// 如果密码为空，则不更新密码字段
+		sql = `
+			UPDATE HUB_USER SET
+				userName = ?, realName = ?, deptId = ?, email = ?, mobile = ?,
+				avatar = ?, gender = ?, statusFlag = ?, deptAdminFlag = ?,
+				tenantAdminFlag = ?, userExpireDate = ?, activeFlag = ?, noteText = ?,
+				editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?
+			WHERE userId = ? AND tenantId = ? AND currentVersion = ?
+		`
+		params = []interface{}{
+			user.UserName, user.RealName, user.DeptId, user.Email, user.Mobile,
+			user.Avatar, user.Gender, user.StatusFlag, user.DeptAdminFlag,
+			user.TenantAdminFlag, user.UserExpireDate, user.ActiveFlag, user.NoteText,
+			user.EditTime, user.EditWho, user.OprSeqFlag, user.CurrentVersion,
+			user.UserId, user.TenantId, currentUser.CurrentVersion,
+		}
+	}
 
 	// 执行更新
-	result, err := dao.db.Exec(ctx, sql, []interface{}{
-		user.RealName, user.DeptId, user.Email, user.Mobile,
-		user.Avatar, user.Gender, user.StatusFlag, user.DeptAdminFlag,
-		user.TenantAdminFlag, user.UserExpireDate, user.NoteText,
-		user.EditTime, user.EditWho, user.OprSeqFlag, user.CurrentVersion,
-		user.UserId, user.TenantId, currentUser.CurrentVersion,
-	}, true)
+	result, err := dao.db.Exec(ctx, sql, params, true)
 
 	if err != nil {
 		return huberrors.WrapError(err, "更新用户失败")
@@ -207,22 +230,57 @@ func (dao *UserDAO) DeleteUser(ctx context.Context, userId, tenantId, operatorId
 	return nil
 }
 
-// ListUsers 获取用户列表
-func (dao *UserDAO) ListUsers(ctx context.Context, tenantId string, page, pageSize int) ([]*models.User, int, error) {
-	if tenantId == "" {
-		return nil, 0, errors.New("tenantId不能为空")
-	}
-
+// ListUsers 获取用户列表（支持条件查询）
+// 参考网关日志的查询风格，统一条件构造方式
+func (dao *UserDAO) ListUsers(ctx context.Context, tenantId string, query *models.UserQuery, page, pageSize int) ([]*models.User, int, error) {
 	// 创建分页信息
 	pagination := sqlutils.NewPaginationInfo(page, pageSize)
 
 	// 获取数据库类型
 	dbType := sqlutils.GetDatabaseType(dao.db)
 
+	// 构建查询条件
+	whereClause := "WHERE tenantId = ?"
+	var params []interface{}
+	params = append(params, tenantId)
+
+	// 默认只查询活动用户，如果前端显式传入 ActiveFlag 则按传入值过滤
+	if query != nil {
+		if query.UserName != "" {
+			whereClause += " AND userName LIKE ?"
+			params = append(params, "%"+query.UserName+"%")
+		}
+		if query.RealName != "" {
+			whereClause += " AND realName LIKE ?"
+			params = append(params, "%"+query.RealName+"%")
+		}
+		if query.Mobile != "" {
+			whereClause += " AND mobile LIKE ?"
+			params = append(params, "%"+query.Mobile+"%")
+		}
+		if query.Email != "" {
+			whereClause += " AND email LIKE ?"
+			params = append(params, "%"+query.Email+"%")
+		}
+		if query.StatusFlag != "" {
+			whereClause += " AND statusFlag = ?"
+			params = append(params, query.StatusFlag)
+		}
+		if query.ActiveFlag != "" {
+			whereClause += " AND activeFlag = ?"
+			params = append(params, query.ActiveFlag)
+		} else {
+			whereClause += " AND activeFlag = 'Y'"
+		}
+	} else {
+		// 未提供查询条件时，默认只查询活动用户
+		whereClause += " AND activeFlag = 'Y'"
+	}
+
 	// 基础查询语句
 	baseQuery := `
 		SELECT * FROM HUB_USER
-		WHERE tenantId = ?
+	` + whereClause + `
 		ORDER BY addTime DESC
 	`
 
@@ -236,7 +294,7 @@ func (dao *UserDAO) ListUsers(ctx context.Context, tenantId string, page, pageSi
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err = dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId}, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询用户总数失败")
 	}
@@ -254,8 +312,7 @@ func (dao *UserDAO) ListUsers(ctx context.Context, tenantId string, page, pageSi
 	}
 
 	// 合并查询参数：基础查询参数 + 分页参数
-	queryArgs := []interface{}{tenantId}
-	queryArgs = append(queryArgs, paginationArgs...)
+	queryArgs := append(params, paginationArgs...)
 
 	// 执行分页查询
 	var users []*models.User

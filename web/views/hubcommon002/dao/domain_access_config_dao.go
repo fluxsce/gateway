@@ -3,7 +3,6 @@ package dao
 import (
 	"context"
 	"errors"
-	"fmt"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/huberrors"
@@ -25,67 +24,18 @@ func NewDomainAccessConfigDAO(db database.Database) *DomainAccessConfigDAO {
 	}
 }
 
-// generateDomainAccessConfigId 生成域名访问配置ID
-// 格式：DOM + YYYYMMDD + HHMMSS + 4位随机数
-// 示例：DOM20240615143022A1B2
-func (dao *DomainAccessConfigDAO) generateDomainAccessConfigId() string {
-	now := time.Now()
-	timeStr := now.Format("20060102150405")
-	randomStr := random.GenerateRandomString(4)
-	return fmt.Sprintf("DOM%s%s", timeStr, randomStr)
-}
-
-// isDomainAccessConfigIdExists 检查域名访问配置ID是否已存在
-func (dao *DomainAccessConfigDAO) isDomainAccessConfigIdExists(ctx context.Context, domainAccessConfigId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GW_DOMAIN_ACCESS_CONFIG WHERE domainAccessConfigId = ?`
-
-	var result struct {
-		Count int `db:"count"`
-	}
-
-	err := dao.db.QueryOne(ctx, &result, query, []interface{}{domainAccessConfigId}, true)
-	if err != nil {
-		return false, err
-	}
-
-	return result.Count > 0, nil
-}
-
-// generateUniqueDomainAccessConfigId 生成唯一的域名访问配置ID
-func (dao *DomainAccessConfigDAO) generateUniqueDomainAccessConfigId(ctx context.Context) (string, error) {
-	const maxAttempts = 10
-
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		domainAccessConfigId := dao.generateDomainAccessConfigId()
-
-		exists, err := dao.isDomainAccessConfigIdExists(ctx, domainAccessConfigId)
-		if err != nil {
-			return "", huberrors.WrapError(err, "检查域名访问配置ID是否存在失败")
-		}
-
-		if !exists {
-			return domainAccessConfigId, nil
-		}
-
-		time.Sleep(time.Millisecond)
-	}
-
-	return "", errors.New("生成唯一域名访问配置ID失败，已达到最大尝试次数")
-}
-
 // AddDomainAccessConfig 添加域名访问控制配置
 func (dao *DomainAccessConfigDAO) AddDomainAccessConfig(ctx context.Context, config *models.DomainAccessConfig, operatorId string) error {
-	if config.TenantId == "" || config.SecurityConfigId == "" {
-		return errors.New("tenantId和securityConfigId不能为空")
+	// 校验安全配置ID
+	if config.SecurityConfigId == "" {
+		return errors.New("securityConfigId不能为空")
 	}
 
 	// 自动生成域名访问配置ID
 	if config.DomainAccessConfigId == "" {
-		generatedId, err := dao.generateUniqueDomainAccessConfigId(ctx)
-		if err != nil {
-			return huberrors.WrapError(err, "生成域名访问配置ID失败")
-		}
-		config.DomainAccessConfigId = generatedId
+		// 使用公共方法生成唯一ID，支持集群环境
+		// 格式：DOM前缀 + 32位唯一字符串 = 35位总长度
+		config.DomainAccessConfigId = random.GenerateUniqueStringWithPrefix("DOM", 32)
 	}
 
 	// 设置自动填充字段
@@ -114,19 +64,19 @@ func (dao *DomainAccessConfigDAO) AddDomainAccessConfig(ctx context.Context, con
 	return nil
 }
 
-// GetDomainAccessConfigBySecurityConfigId 根据安全配置ID获取域名访问控制配置
-func (dao *DomainAccessConfigDAO) GetDomainAccessConfigBySecurityConfigId(ctx context.Context, securityConfigId, tenantId string) (*models.DomainAccessConfig, error) {
-	if securityConfigId == "" || tenantId == "" {
-		return nil, errors.New("securityConfigId和tenantId不能为空")
+// GetDomainAccessConfigById 根据域名访问配置ID获取配置
+func (dao *DomainAccessConfigDAO) GetDomainAccessConfigById(ctx context.Context, domainAccessConfigId, tenantId string) (*models.DomainAccessConfig, error) {
+	if domainAccessConfigId == "" {
+		return nil, errors.New("domainAccessConfigId不能为空")
 	}
 
 	query := `
 		SELECT * FROM HUB_GW_DOMAIN_ACCESS_CONFIG 
-		WHERE securityConfigId = ? AND tenantId = ?
+		WHERE domainAccessConfigId = ? AND tenantId = ?
 	`
 
 	var config models.DomainAccessConfig
-	err := dao.db.QueryOne(ctx, &config, query, []interface{}{securityConfigId, tenantId}, true)
+	err := dao.db.QueryOne(ctx, &config, query, []interface{}{domainAccessConfigId, tenantId}, true)
 
 	if err != nil {
 		if err == database.ErrRecordNotFound {
@@ -140,12 +90,13 @@ func (dao *DomainAccessConfigDAO) GetDomainAccessConfigBySecurityConfigId(ctx co
 
 // UpdateDomainAccessConfig 更新域名访问控制配置
 func (dao *DomainAccessConfigDAO) UpdateDomainAccessConfig(ctx context.Context, config *models.DomainAccessConfig, operatorId string) error {
-	if config.SecurityConfigId == "" || config.TenantId == "" {
-		return errors.New("securityConfigId和tenantId不能为空")
+	// 校验主键
+	if config.DomainAccessConfigId == "" {
+		return errors.New("domainAccessConfigId不能为空")
 	}
 
-	// 首先获取当前配置
-	currentConfig, err := dao.GetDomainAccessConfigBySecurityConfigId(ctx, config.SecurityConfigId, config.TenantId)
+	// 首先获取当前配置（使用主键）
+	currentConfig, err := dao.GetDomainAccessConfigById(ctx, config.DomainAccessConfigId, config.TenantId)
 	if err != nil {
 		return err
 	}
@@ -196,13 +147,14 @@ func (dao *DomainAccessConfigDAO) UpdateDomainAccessConfig(ctx context.Context, 
 }
 
 // DeleteDomainAccessConfig 物理删除域名访问控制配置
-func (dao *DomainAccessConfigDAO) DeleteDomainAccessConfig(ctx context.Context, securityConfigId, tenantId, operatorId string) error {
-	if securityConfigId == "" || tenantId == "" {
-		return errors.New("securityConfigId和tenantId不能为空")
+func (dao *DomainAccessConfigDAO) DeleteDomainAccessConfig(ctx context.Context, domainAccessConfigId, tenantId string) error {
+	// 校验主键
+	if domainAccessConfigId == "" {
+		return errors.New("domainAccessConfigId不能为空")
 	}
 
-	// 首先检查配置是否存在
-	config, err := dao.GetDomainAccessConfigBySecurityConfigId(ctx, securityConfigId, tenantId)
+	// 首先检查配置是否存在（使用主键）
+	config, err := dao.GetDomainAccessConfigById(ctx, domainAccessConfigId, tenantId)
 	if err != nil {
 		return err
 	}
@@ -210,10 +162,10 @@ func (dao *DomainAccessConfigDAO) DeleteDomainAccessConfig(ctx context.Context, 
 		return errors.New("域名访问控制配置不存在")
 	}
 
-	// 执行物理删除
-	sql := `DELETE FROM HUB_GW_DOMAIN_ACCESS_CONFIG WHERE securityConfigId = ? AND tenantId = ?`
+	// 执行物理删除（使用主键）
+	sql := `DELETE FROM HUB_GW_DOMAIN_ACCESS_CONFIG WHERE domainAccessConfigId = ? AND tenantId = ?`
 
-	result, err := dao.db.Exec(ctx, sql, []interface{}{securityConfigId, tenantId}, true)
+	result, err := dao.db.Exec(ctx, sql, []interface{}{domainAccessConfigId, tenantId}, true)
 	if err != nil {
 		return huberrors.WrapError(err, "删除域名访问控制配置失败")
 	}
@@ -225,14 +177,31 @@ func (dao *DomainAccessConfigDAO) DeleteDomainAccessConfig(ctx context.Context, 
 	return nil
 }
 
-// ListDomainAccessConfigs 获取域名访问控制配置列表
-func (dao *DomainAccessConfigDAO) ListDomainAccessConfigs(ctx context.Context, tenantId string, page, pageSize int) ([]*models.DomainAccessConfig, int, error) {
-	if tenantId == "" {
-		return nil, 0, errors.New("tenantId不能为空")
+// ListDomainAccessConfigs 获取域名访问控制配置列表（支持条件查询）
+func (dao *DomainAccessConfigDAO) ListDomainAccessConfigs(ctx context.Context, tenantId string, query *models.DomainAccessConfigQuery, page, pageSize int) ([]*models.DomainAccessConfig, int, error) {
+	// 构建查询条件
+	whereClause := "WHERE tenantId = ?"
+	var params []interface{}
+	params = append(params, tenantId)
+
+	// 添加查询条件
+	if query != nil {
+		if query.SecurityConfigId != "" {
+			whereClause += " AND securityConfigId = ?"
+			params = append(params, query.SecurityConfigId)
+		}
+		if query.ConfigName != "" {
+			whereClause += " AND configName LIKE ?"
+			params = append(params, "%"+query.ConfigName+"%")
+		}
+		if query.ActiveFlag != "" {
+			whereClause += " AND activeFlag = ?"
+			params = append(params, query.ActiveFlag)
+		}
 	}
 
 	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_DOMAIN_ACCESS_CONFIG WHERE tenantId = ? ORDER BY addTime DESC"
+	baseQuery := "SELECT * FROM HUB_GW_DOMAIN_ACCESS_CONFIG " + whereClause + " ORDER BY addTime DESC"
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
@@ -244,7 +213,7 @@ func (dao *DomainAccessConfigDAO) ListDomainAccessConfigs(ctx context.Context, t
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err = dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId}, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询域名访问控制配置总数失败")
 	}
@@ -268,7 +237,7 @@ func (dao *DomainAccessConfigDAO) ListDomainAccessConfigs(ctx context.Context, t
 	}
 
 	// 合并查询参数
-	allArgs := append([]interface{}{tenantId}, paginationArgs...)
+	allArgs := append(params, paginationArgs...)
 
 	// 执行分页查询
 	var configs []*models.DomainAccessConfig

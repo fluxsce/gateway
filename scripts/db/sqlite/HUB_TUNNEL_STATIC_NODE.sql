@@ -1,0 +1,57 @@
+-- 静态隧道节点表 - 管理静态隧道转发后端节点配置
+CREATE TABLE HUB_TUNNEL_STATIC_NODE (
+  tunnelStaticNodeId TEXT NOT NULL PRIMARY KEY,
+  tenantId TEXT NOT NULL,
+  tunnelStaticServerId TEXT NOT NULL,
+  nodeName TEXT NOT NULL UNIQUE,
+  nodeDescription TEXT,
+  targetAddress TEXT NOT NULL,
+  targetPort INTEGER NOT NULL,
+  proxyType TEXT NOT NULL DEFAULT 'tcp',
+  maxConnections INTEGER DEFAULT 100,
+  connectionTimeout INTEGER DEFAULT 30,
+  readTimeout INTEGER DEFAULT 30,
+  writeTimeout INTEGER DEFAULT 30,
+  retryCount INTEGER DEFAULT 3,
+  retryInterval INTEGER DEFAULT 5,
+  compression TEXT NOT NULL DEFAULT 'N' CHECK(compression IN ('Y', 'N')),
+  encryption TEXT NOT NULL DEFAULT 'N' CHECK(encryption IN ('Y', 'N')),
+  secretKey TEXT,
+  customHeaders TEXT,
+  nodeStatus TEXT NOT NULL DEFAULT 'active',
+  lastHealthCheck TEXT,
+  healthCheckStatus TEXT DEFAULT 'unknown',
+  currentConnectionCount INTEGER DEFAULT 0,
+  totalConnectionCount INTEGER DEFAULT 0,
+  totalBytesReceived INTEGER DEFAULT 0,
+  totalBytesSent INTEGER DEFAULT 0,
+  failureCount INTEGER DEFAULT 0,
+  lastFailureTime TEXT,
+  nodeConfig TEXT,
+  addTime TEXT NOT NULL DEFAULT (datetime('now')),
+  addWho TEXT NOT NULL,
+  editTime TEXT NOT NULL DEFAULT (datetime('now')),
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y' CHECK(activeFlag IN ('Y', 'N')),
+  noteText TEXT,
+  extProperty TEXT,
+  reserved1 TEXT,
+  reserved2 TEXT,
+  reserved3 TEXT,
+  reserved4 TEXT,
+  reserved5 TEXT,
+  reserved6 TEXT,
+  reserved7 TEXT,
+  reserved8 TEXT,
+  reserved9 TEXT,
+  reserved10 TEXT,
+  UNIQUE(tunnelStaticServerId, targetAddress, targetPort)
+);
+CREATE INDEX IDX_TUNNEL_STATIC_NODE_TENANT ON HUB_TUNNEL_STATIC_NODE(tenantId);
+CREATE INDEX IDX_TUNNEL_STATIC_NODE_SERVER ON HUB_TUNNEL_STATIC_NODE(tunnelStaticServerId);
+CREATE INDEX IDX_TUNNEL_STATIC_NODE_TYPE ON HUB_TUNNEL_STATIC_NODE(proxyType);
+CREATE INDEX IDX_TUNNEL_STATIC_NODE_STATUS ON HUB_TUNNEL_STATIC_NODE(nodeStatus);
+CREATE INDEX IDX_TUNNEL_STATIC_NODE_HEALTH ON HUB_TUNNEL_STATIC_NODE(healthCheckStatus, lastHealthCheck);
+

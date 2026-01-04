@@ -100,7 +100,7 @@ func getOrGenerateTraceID(c *gin.Context) string {
 
 	// 如果没有跟踪ID，生成新的
 	if traceID == "" {
-		traceID = generateTraceID()
+		traceID = random.GenerateUniqueStringWithPrefix("TRACE-", 32)
 	}
 
 	return traceID
@@ -118,21 +118,6 @@ func setTraceIDToContext(c *gin.Context, traceID string) {
 	// 在响应头中返回跟踪ID
 	c.Header(TraceIDHeader, traceID)
 	c.Header(RequestIDHeader, traceID)
-}
-
-// generateTraceID 生成跟踪ID
-// 格式：TRACE-{YYYYMMDD}-{HHMMSS}-{8位随机字符}
-// 示例：TRACE-20240615-143022-A1B2C3D4
-func generateTraceID() string {
-	now := time.Now()
-	// 生成时间部分
-	datePart := now.Format("20060102")
-	timePart := now.Format("150405")
-
-	// 生成8位随机字符
-	randomPart := random.GenerateRandomString(8)
-
-	return fmt.Sprintf("TRACE-%s-%s-%s", datePart, timePart, randomPart)
 }
 
 // getLogLevel 根据HTTP状态码确定日志级别

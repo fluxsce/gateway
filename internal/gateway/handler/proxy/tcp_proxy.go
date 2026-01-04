@@ -29,8 +29,8 @@ func (t *TCPProxy) Handle(ctx *core.Context) bool {
 	return false
 }
 
-// ProxyRequest 代理TCP请求到指定URL
-func (t *TCPProxy) ProxyRequest(ctx *core.Context, targetURL string) error {
+// proxyRequest 代理TCP请求到指定URL（内部方法）
+func (t *TCPProxy) proxyRequest(ctx *core.Context, targetURL string) error {
 	// TODO: 实现TCP代理逻辑
 	// TCP代理需要在传输层进行，不是通过HTTP处理
 	return fmt.Errorf("TCP代理功能尚未实现")

@@ -34,6 +34,10 @@ type NodeConfig struct {
 	Metadata map[string]string `yaml:"metadata" json:"metadata" mapstructure:"metadata"` // 元数据
 	Health   bool              `yaml:"health" json:"health" mapstructure:"health"`       // 健康状态
 	Enabled  bool              `yaml:"enabled" json:"enabled" mapstructure:"enabled"`    // 是否启用
+	// 健康检查相关状态（由共享健康检查器使用，不需要序列化）
+	ConsecutiveSuccess int       `yaml:"-" json:"-"` // 连续成功次数
+	ConsecutiveFailure int       `yaml:"-" json:"-"` // 连续失败次数
+	LastHealthCheck    time.Time `yaml:"-" json:"-"` // 上次健康检查时间
 }
 
 // ServiceConfig 服务配置定义
@@ -45,6 +49,8 @@ type ServiceConfig struct {
 	CircuitBreaker *circuitbreaker.CircuitBreakerConfig `yaml:"circuit_breaker,omitempty" json:"circuit_breaker,omitempty" mapstructure:"circuit_breaker,omitempty"` // 该服务的熔断器配置
 	// 负载均衡配置
 	LoadBalancer *LoadBalancerConfig `yaml:"load_balancer,omitempty" json:"load_balancer,omitempty" mapstructure:"load_balancer,omitempty"` // 该服务的负载均衡配置
+	// 健康检查配置（服务级别配置）
+	HealthCheck *HealthConfig `yaml:"health_check,omitempty" json:"health_check,omitempty" mapstructure:"health_check,omitempty"` // 该服务的健康检查配置
 	// 服务元数据
 	ServiceMetadata map[string]string `yaml:"service_metadata,omitempty" json:"service_metadata,omitempty" mapstructure:"service_metadata,omitempty"` // 服务级别的元数据配置
 }
@@ -92,7 +98,6 @@ type HealthCheckCallback func(nodeID string, healthy bool)
 type LoadBalancerConfig struct {
 	ID              string        `yaml:"id" json:"id" mapstructure:"id"`                                           // 负载均衡器ID
 	Strategy        Strategy      `yaml:"strategy" json:"strategy" mapstructure:"strategy"`                         // 负载均衡策略
-	HealthCheck     *HealthConfig `yaml:"health_check" json:"health_check" mapstructure:"health_check"`             // 健康检查配置
 	SessionAffinity bool          `yaml:"session_affinity" json:"session_affinity" mapstructure:"session_affinity"` // 会话亲和性
 	StickySession   bool          `yaml:"sticky_session" json:"sticky_session" mapstructure:"sticky_session"`       // 粘性会话
 	MaxRetries      int           `yaml:"max_retries" json:"max_retries" mapstructure:"max_retries"`                // 最大重试次数
@@ -123,16 +128,6 @@ var DefaultConfig = LoadBalancerConfig{
 	MaxRetries:      3,
 	RetryTimeout:    5 * time.Second,
 	CircuitBreaker:  false,
-	HealthCheck: &HealthConfig{
-		Enabled:             false,
-		Path:                "/health",
-		Method:              "GET",
-		Interval:            30 * time.Second,
-		Timeout:             5 * time.Second,
-		HealthyThreshold:    2,
-		UnhealthyThreshold:  3,
-		ExpectedStatusCodes: []int{200},
-	},
 }
 
 // 错误定义

@@ -20,7 +20,7 @@ const (
 	ED00010 = "ED00010" // 权限拒绝
 	ED00011 = "ED00011" // 未认证
 	ED00012 = "ED00012" // 未授权
-	ED00013 = "ED00013" // 重复数据
+	ED00013 = "ED00013" // 记录已经存在
 	ED00014 = "ED00014" // 验证失败
 	ED00015 = "ED00015" // 业务约束错误
 )
@@ -76,15 +76,15 @@ const (
 // HUB Session和Cookie相关常量
 const (
 	// Cookie名称常量
-	HUB_SESSION_COOKIE = "HUB_LG"     // Session ID的Cookie名称
+	HUB_SESSION_COOKIE = "HUB_LG" // Session ID的Cookie名称
 
 	// Session配置常量
-	HUB_SESSION_DOMAIN   = ""           // Cookie域名，空表示当前域名
-	HUB_SESSION_PATH     = "/"          // Cookie路径
-	HUB_SESSION_SECURE   = false        // 是否仅HTTPS，生产环境应设为true
-	HUB_SESSION_HTTPONLY = true         // 是否仅HTTP访问，防止XSS
-	HUB_SESSION_SAMESITE = "Lax"        // SameSite策略
+	HUB_SESSION_DOMAIN   = ""    // Cookie域名，空表示当前域名
+	HUB_SESSION_PATH     = "/"   // Cookie路径
+	HUB_SESSION_SECURE   = false // 是否仅HTTPS，生产环境应设为true
+	HUB_SESSION_HTTPONLY = true  // 是否仅HTTP访问，防止XSS
+	HUB_SESSION_SAMESITE = "Lax" // SameSite策略
 
 	// Session超时时间配置（小时）
-	HUB_SESSION_EXPIRE_HOURS = 12       // Session默认过期时间：12小时
+	HUB_SESSION_EXPIRE_HOURS = 12 // Session默认过期时间：12小时
 )

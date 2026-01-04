@@ -16,7 +16,9 @@ import (
 	"gateway/internal/gateway/constants"
 	"gateway/internal/gateway/core"
 	proxyutils "gateway/internal/gateway/handler/proxy/proxy-utils"
+	"gateway/internal/gateway/handler/router"
 	"gateway/internal/gateway/handler/service"
+	"gateway/internal/gateway/logwrite"
 	registryManager "gateway/internal/registry/manager"
 )
 
@@ -40,9 +42,9 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 		return h.handleWebSocketUpgrade(ctx)
 	}
 
-	// 获取服务ID
-	serviceID := ctx.GetServiceID()
-	if serviceID == "" {
+	// 获取服务ID数组
+	serviceIDs := ctx.GetServiceIDs()
+	if len(serviceIDs) == 0 {
 		ctx.AddError(fmt.Errorf("服务ID不能为空"))
 		ctx.Abort(http.StatusBadRequest, map[string]string{
 			"error": "服务ID不能为空",
@@ -50,27 +52,47 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 		return false
 	}
 
-	// 尝试从服务管理器获取目标节点
-	node, err := h.selectTargetNode(ctx, serviceID)
+	// 判断是否为多服务转发：服务ID数量大于1，或存在多服务配置
+	isMultiService := len(serviceIDs) > 1
+	if !isMultiService {
+		if _, exists := ctx.Get(constants.ContextKeyMultiServiceConfig); exists {
+			isMultiService = true
+		}
+	}
+
+	// 如果是多服务转发，直接使用多服务代理处理器
+	if isMultiService {
+		var multiServiceConfig *router.MultiServiceConfig
+		if config, exists := ctx.Get(constants.ContextKeyMultiServiceConfig); exists {
+			if cfg, ok := config.(*router.MultiServiceConfig); ok {
+				multiServiceConfig = cfg
+			}
+		}
+		multiServiceProxy := NewHTTPMultiServiceProxy(h)
+		return multiServiceProxy.Handle(ctx, serviceIDs, multiServiceConfig)
+	}
+
+	// 单服务场景，使用原有的单服务处理逻辑
+	serviceID := serviceIDs[0]
+	serviceConfig, node, err := h.selectTargetNode(ctx, serviceID)
 	if err != nil {
 		ctx.AddError(fmt.Errorf("选择目标节点失败: %w", err))
 		ctx.Abort(http.StatusServiceUnavailable, map[string]string{
 			"error":   "服务不可用",
-			"details": err.Error(), // 添加具体错误信息
-			"service": serviceID,   // 添加服务ID信息
+			"details": err.Error(),
+			"service": serviceID,
 		})
 		return false
 	}
 
-	// 代理请求
-	err = h.ProxyRequest(ctx, node.URL)
+	err = h.proxyRequest(ctx, serviceConfig, node)
 	if err != nil {
 		ctx.AddError(fmt.Errorf("代理请求失败: %w", err))
 		ctx.Abort(http.StatusBadGateway, map[string]string{
 			"error":      "代理请求失败",
-			"details":    err.Error(), // 添加具体错误信息
-			"target_url": node.URL,    // 添加目标URL信息
-			"service":    serviceID,   // 添加服务ID信息
+			"details":    err.Error(),
+			"target_url": node.URL,
+			"service":    serviceID,
 		})
 		ctx.Set(constants.GatewayStatusCode, constants.GatewayStatusBadGateway)
 		return false
@@ -79,10 +101,10 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 	return true
 }
 
-// ProxyRequest 代理请求到指定URL
-func (h *HTTPProxy) ProxyRequest(ctx *core.Context, targetURL string) error {
+// proxyRequest 代理请求到指定节点（内部方法）
+func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.ServiceConfig, node *service.NodeConfig) error {
 	// 解析目标URL
-	target, err := url.Parse(targetURL)
+	target, err := url.Parse(node.URL)
 	if err != nil {
 		return fmt.Errorf("解析目标URL失败: %w", err)
 	}
@@ -144,15 +166,39 @@ func (h *HTTPProxy) ProxyRequest(ctx *core.Context, targetURL string) error {
 	// 设置必需的代理头部
 	h.setProxyHeaders(ctx.Request, proxyReq, target.Host)
 
-	//设置服务名称
-	ctx.Set(constants.ContextKeyServiceDefinitionName, h.GetName())
-	//设置代理类型
+	// 设置代理类型
 	ctx.Set(constants.ContextKeyProxyType, h.GetType())
 
-	// 设置转发开始时间
-	ctx.SetForwardStartTime(time.Now())
+	// 记录请求开始时间（用于日志记录）
+	requestStartTime := time.Now()
 
-	// 使用defer确保无论成功失败都能保存header参数和设置转发结束时间
+	// 记录请求相关信息（用于日志构建）
+	// 从 proxyReq 中获取实际的请求方法和URL
+	requestMethod := proxyReq.Method
+	requestURL := proxyReq.URL.String()
+	var requestSize int
+	if bodyData, exists := ctx.Get("request_body"); exists {
+		if bodyBytes, ok := bodyData.([]byte); ok {
+			requestSize = len(bodyBytes)
+		}
+	}
+
+	// 获取服务ID和服务名称（用于日志记录）
+	serviceID := ""
+	serviceName := ""
+	if serviceConfig != nil {
+		serviceID = serviceConfig.ID
+		serviceName = serviceConfig.Name
+	}
+
+	// 用于在 defer 中捕获响应信息的变量
+	var responseStatusCode int
+	var responseHeaders map[string][]string
+	var responseBody []byte
+	var responseErr error
+	var backendResponseTime time.Time // 后端请求结束时间（用于后端追踪日志）
+
+	// 使用defer确保无论成功失败都能保存header参数，并写入后端追踪日志
 	defer func() {
 		// 在响应处理完成后复制header，避免影响核心时间统计
 		headersCopy := make(http.Header)
@@ -161,20 +207,71 @@ func (h *HTTPProxy) ProxyRequest(ctx *core.Context, targetURL string) error {
 		}
 		ctx.Set(constants.ContextKeyForwardHeaders, headersCopy)
 
-		// 确保设置了转发结束时间（处理超时等异常情况）
-		if ctx.GetForwardResponseTime().IsZero() {
-			ctx.SetForwardResponseTime(time.Now())
+		// 后端请求结束时间（用于后端追踪日志，不等于网关响应时间）
+		// 如果 backendResponseTime 为零，说明请求失败，使用当前时间
+		if backendResponseTime.IsZero() {
+			backendResponseTime = time.Now()
 		}
+
+		// 同步构建后端追踪日志对象并异步写入（避免上下文取消带来的异常）
+		// 使用日志写入类的静态方法处理，响应信息和转发信息从局部变量获取（不从上下文获取，避免多服务转发混淆）
+		// 将转发请求头转换为 map[string][]string 格式
+		forwardHeadersMap := make(map[string][]string)
+		for k, v := range headersCopy {
+			forwardHeadersMap[k] = append([]string(nil), v...)
+		}
+
+		// 获取转发请求体
+		var forwardBodyBytes []byte
+		if bodyData, exists := ctx.Get("request_body"); exists {
+			if bodyBytes, ok := bodyData.([]byte); ok {
+				forwardBodyBytes = bodyBytes
+			}
+		}
+
+		_ = logwrite.WriteBackendTraceLogSync(
+			"", // instanceID 从上下文获取
+			ctx,
+			serviceID, // 服务ID手动传入
+			"",        // traceID 从上下文获取
+			requestMethod,
+			requestURL,
+			requestSize,
+			requestStartTime,
+			backendResponseTime, // 后端请求结束时间（用于后端追踪日志）
+			responseStatusCode,
+			responseHeaders,
+			responseBody,
+			forwardHeadersMap, // 转发请求头作为参数传入，避免并发覆盖
+			forwardBodyBytes,  // 转发请求体作为参数传入，避免并发覆盖
+			responseErr,
+			serviceName, // 服务名称，从 node 中获取
+		)
 	}()
 
 	// 发送代理请求
 	resp, err := h.client.Do(proxyReq)
 	if err != nil {
-		// 请求失败时设置响应时间，确保统计数据准确
-		ctx.SetForwardResponseTime(time.Now())
+		// 请求失败时记录错误和后端请求结束时间
+		responseErr = err
+		responseStatusCode = 0
+		backendResponseTime = time.Now()
+		// 记录后端耗时（请求失败时，耗时从请求开始到失败的时间）
+		ctx.SetMaxBackendDuration(time.Since(requestStartTime))
 		return fmt.Errorf("发送代理请求失败: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// 保存响应状态码和响应头（用于日志记录）
+	responseStatusCode = resp.StatusCode
+	responseHeaders = make(map[string][]string)
+	for name, values := range resp.Header {
+		responseHeaders[name] = append([]string(nil), values...)
+	}
+
+	// 设置响应状态码到上下文（供日志记录使用）
+	ctx.Set(constants.BackendStatusCode, resp.StatusCode)
+	ctx.Set(constants.GatewayStatusCode, resp.StatusCode)
 
 	// 检查是否为SSE响应，如果是则使用特殊处理逻辑
 	if h.isSSEResponse(resp) {
@@ -199,11 +296,40 @@ func (h *HTTPProxy) ProxyRequest(ctx *core.Context, targetURL string) error {
 		}
 
 		// 使用专门的SSE处理方法
-		return h.handleSSEResponse(ctx, resp)
+		// 注意：SSE响应处理完成后，响应信息会在 defer 中写入日志
+		// responseTime 由网关流程结束时设置（gateway.go），不在代理处理中设置
+		err = h.handleSSEResponse(ctx, resp)
+		if err != nil {
+			responseErr = err
+		}
+		// SSE 流式传输完成后，记录后端请求结束时间和耗时
+		// 注意：对于SSE，后端请求结束时间是在流式传输完成后
+		backendResponseTime = time.Now()
+		ctx.SetMaxBackendDuration(time.Since(requestStartTime))
+		return err
 	}
 
 	// 非SSE响应使用常规处理
-	return h.handleRegularResponse(ctx, resp)
+	// 注意：常规响应处理完成后，响应信息会在 defer 中写入日志
+	err = h.handleRegularResponse(ctx, resp)
+	if err != nil {
+		responseErr = err
+	}
+
+	// 如果配置了复制响应体，从上下文获取（已在 handleRegularResponse 中保存）
+	if bodyData, exists := ctx.Get("response_body"); exists {
+		if bodyBytes, ok := bodyData.([]byte); ok {
+			responseBody = bodyBytes
+		}
+	}
+
+	// 记录后端请求结束时间（响应体读取完成后，用于后端追踪日志）
+	backendResponseTime = time.Now()
+	// 记录后端耗时（从请求开始到响应体读取完成）
+	ctx.SetMaxBackendDuration(time.Since(requestStartTime))
+
+	// responseTime 由网关流程结束时设置（gateway.go），不在代理处理中设置
+	return err
 }
 
 // GetHTTPConfig 获取HTTP配置
@@ -447,6 +573,9 @@ func (h *HTTPProxy) isSSEResponse(resp *http.Response) bool {
 // handleSSEResponse 处理SSE响应的特殊逻辑
 // 类似nginx的proxy_buffering off和特殊头部处理
 func (h *HTTPProxy) handleSSEResponse(ctx *core.Context, resp *http.Response) error {
+	// 注意：响应头不再保存到上下文，因为多服务转发时每个服务的响应头不同
+	// 响应头已在 ProxyRequest 的 defer 中从 resp 对象获取
+
 	// 确保设置正确的SSE头部
 	ctx.Writer.Header().Set("Content-Type", "text/event-stream")
 	//sse禁用缓存头部
@@ -454,10 +583,8 @@ func (h *HTTPProxy) handleSSEResponse(ctx *core.Context, resp *http.Response) er
 	ctx.Writer.Header().Set("Connection", "keep-alive")
 	ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 
-	// 设置响应状态码
+	// 设置响应状态码（已在 ProxyRequest 中设置到上下文）
 	ctx.Writer.WriteHeader(resp.StatusCode)
-	ctx.Set(constants.BackendStatusCode, resp.StatusCode)
-	ctx.Set(constants.GatewayStatusCode, resp.StatusCode)
 	ctx.SetResponded()
 
 	// 获取Flusher接口用于实时刷新
@@ -532,32 +659,33 @@ func (h *HTTPProxy) handleSSEResponse(ctx *core.Context, resp *http.Response) er
 		// 让 Go 的 HTTP 服务器正确处理 chunked 编码的结束
 	}
 
-	// 只在成功处理完SSE流后设置响应时间
-	ctx.SetForwardResponseTime(time.Now())
+	// responseTime 由网关流程结束时设置（gateway.go），不在代理处理中设置
 	return nil
 }
 
 // handleRegularResponse 处理常规HTTP响应
 func (h *HTTPProxy) handleRegularResponse(ctx *core.Context, resp *http.Response) error {
 	// 复制响应头
+	// 注意：响应头不再保存到上下文，因为多服务转发时每个服务的响应头不同
+	// 响应头已在 ProxyRequest 的 defer 中从 resp 对象获取
 	for name, values := range resp.Header {
 		for _, value := range values {
 			ctx.Writer.Header().Add(name, value)
 		}
 	}
 
-	// 设置响应状态码
+	// 设置响应状态码（已在 ProxyRequest 中设置）
 	ctx.Writer.WriteHeader(resp.StatusCode)
-	ctx.Set(constants.BackendStatusCode, resp.StatusCode)
-	ctx.Set(constants.GatewayStatusCode, resp.StatusCode)
+	// 标记为已响应（responseTime 由网关流程结束时设置，不在代理处理中设置）
 	ctx.SetResponded()
+	// 重置 responseTime，由网关流程结束时统一设置
+	ctx.SetResponseTime(time.Time{})
 
 	// 复制响应体
 	config := h.GetHTTPConfig()
 	if config.CopyResponseBody {
 		// 如果需要复制响应体到上下文中
 		bodyBytes, err := io.ReadAll(resp.Body)
-		ctx.SetForwardResponseTime(time.Now())
 		if err != nil {
 			return fmt.Errorf("读取响应体失败: %w", err)
 		}
@@ -569,12 +697,12 @@ func (h *HTTPProxy) handleRegularResponse(ctx *core.Context, resp *http.Response
 	} else {
 		// 直接流式复制
 		_, err := io.Copy(ctx.Writer, resp.Body)
-		ctx.SetForwardResponseTime(time.Now())
 		if err != nil {
 			return fmt.Errorf("复制响应体失败: %w", err)
 		}
 	}
 
+	// responseTime 由网关流程结束时设置（gateway.go），不在代理处理中设置
 	return nil
 }
 
@@ -856,21 +984,30 @@ func (h *HTTPProxy) createHTTPClient(config HTTPProxyConfig) *http.Client {
 }
 
 // selectTargetNode 选择目标节点，支持服务注册中心发现
-func (h *HTTPProxy) selectTargetNode(ctx *core.Context, serviceID string) (*service.NodeConfig, error) {
+// 返回服务配置和节点配置
+func (h *HTTPProxy) selectTargetNode(ctx *core.Context, serviceID string) (*service.ServiceConfig, *service.NodeConfig, error) {
 	// 首先尝试从服务管理器获取服务配置
 	serviceConfig, exists := h.serviceManager.GetService(serviceID)
 	if !exists {
-		return nil, fmt.Errorf("服务 %s 不存在", serviceID)
+		return nil, nil, fmt.Errorf("服务 %s 不存在", serviceID)
 	}
 
 	// 检查是否为注册中心服务
 	if proxyutils.IsRegistryService(serviceConfig.ServiceMetadata) {
 		// 使用注册中心服务发现
-		return h.selectNodeFromRegistry(ctx, serviceConfig)
+		node, err := h.selectNodeFromRegistry(ctx, serviceConfig)
+		if err != nil {
+			return nil, nil, err
+		}
+		return serviceConfig, node, nil
 	}
 
 	// 使用传统的负载均衡选择节点
-	return h.serviceManager.SelectNode(serviceID, ctx)
+	node, err := h.serviceManager.SelectNode(serviceID, ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	return serviceConfig, node, nil
 }
 
 // selectNodeFromRegistry 从注册中心选择节点

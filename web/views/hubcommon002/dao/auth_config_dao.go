@@ -3,7 +3,6 @@ package dao
 import (
 	"context"
 	"errors"
-	"fmt"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/huberrors"
@@ -25,59 +24,6 @@ func NewAuthConfigDAO(db database.Database) *AuthConfigDAO {
 	}
 }
 
-// generateAuthConfigId 生成认证配置ID
-// 格式：AUTH + YYYYMMDD + HHMMSS + 4位随机数
-// 示例：AUTH20240615143022A1B2
-func (dao *AuthConfigDAO) generateAuthConfigId() string {
-	now := time.Now()
-	// 生成时间部分：YYYYMMDDHHMMSS
-	timeStr := now.Format("20060102150405")
-
-	// 生成4位随机字符（大写字母和数字）
-	randomStr := random.GenerateRandomString(4)
-
-	return fmt.Sprintf("AUTH%s%s", timeStr, randomStr)
-}
-
-// isAuthConfigIdExists 检查认证配置ID是否已存在
-func (dao *AuthConfigDAO) isAuthConfigIdExists(ctx context.Context, authConfigId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GW_AUTH_CONFIG WHERE authConfigId = ?`
-
-	var result struct {
-		Count int `db:"count"`
-	}
-
-	err := dao.db.QueryOne(ctx, &result, query, []interface{}{authConfigId}, true)
-	if err != nil {
-		return false, err
-	}
-
-	return result.Count > 0, nil
-}
-
-// generateUniqueAuthConfigId 生成唯一的认证配置ID
-func (dao *AuthConfigDAO) generateUniqueAuthConfigId(ctx context.Context) (string, error) {
-	const maxAttempts = 10
-
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		authConfigId := dao.generateAuthConfigId()
-
-		exists, err := dao.isAuthConfigIdExists(ctx, authConfigId)
-		if err != nil {
-			return "", huberrors.WrapError(err, "检查认证配置ID是否存在失败")
-		}
-
-		if !exists {
-			return authConfigId, nil
-		}
-
-		// 如果ID已存在，等待1毫秒后重试（确保时间戳不同）
-		time.Sleep(time.Millisecond)
-	}
-
-	return "", errors.New("生成唯一认证配置ID失败，已达到最大尝试次数")
-}
-
 // AddAuthConfig 添加认证配置
 func (dao *AuthConfigDAO) AddAuthConfig(ctx context.Context, config *models.AuthConfig, operatorId string) error {
 	if config.TenantId == "" || config.AuthName == "" {
@@ -86,11 +32,9 @@ func (dao *AuthConfigDAO) AddAuthConfig(ctx context.Context, config *models.Auth
 
 	// 自动生成认证配置ID
 	if config.AuthConfigId == "" {
-		generatedId, err := dao.generateUniqueAuthConfigId(ctx)
-		if err != nil {
-			return huberrors.WrapError(err, "生成认证配置ID失败")
-		}
-		config.AuthConfigId = generatedId
+		// 使用公共方法生成唯一ID，支持集群环境
+		// 格式：AUTH前缀 + 32位唯一字符串 = 35位总长度
+		config.AuthConfigId = random.GenerateUniqueStringWithPrefix("AUTH", 32)
 	}
 
 	// 设置自动填充字段
@@ -210,18 +154,10 @@ func (dao *AuthConfigDAO) UpdateAuthConfig(ctx context.Context, config *models.A
 }
 
 // DeleteAuthConfig 物理删除认证配置
-func (dao *AuthConfigDAO) DeleteAuthConfig(tenantId, authConfigId, operatorId string) error {
-	if authConfigId == "" || tenantId == "" {
-		return errors.New("authConfigId和tenantId不能为空")
-	}
-
-	// 首先检查配置是否存在
-	config, err := dao.GetAuthConfig(tenantId, authConfigId)
-	if err != nil {
-		return err
-	}
-	if config == nil {
-		return errors.New("认证配置不存在")
+func (dao *AuthConfigDAO) DeleteAuthConfig(tenantId, authConfigId string) error {
+	// 校验主键
+	if authConfigId == "" {
+		return errors.New("authConfigId不能为空")
 	}
 
 	// 执行物理删除
@@ -299,40 +235,26 @@ func (dao *AuthConfigDAO) GetAuthConfigByGatewayInstance(tenantId, gatewayInstan
 		return nil, errors.New("tenantId和gatewayInstanceId不能为空")
 	}
 
-	// 构建基础查询语句
-	baseQuery := `
+	// 构建查询语句（使用 LIMIT 1 只取第一条记录）
+	query := `
 		SELECT * FROM HUB_GW_AUTH_CONFIG 
 		WHERE tenantId = ? AND gatewayInstanceId = ?
 		ORDER BY configPriority ASC, addTime DESC
+		LIMIT 1
 	`
 
-	// 创建分页信息（只取第一条记录）
-	pagination := sqlutils.NewPaginationInfo(1, 1)
+	var config models.AuthConfig
+	err := dao.db.QueryOne(context.Background(), &config, query, []interface{}{tenantId, gatewayInstanceId}, true)
 
-	// 获取数据库类型
-	dbType := sqlutils.GetDatabaseType(dao.db)
-
-	// 构建分页查询
-	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {
-		return nil, huberrors.WrapError(err, "构建分页查询失败")
-	}
-
-	// 合并查询参数
-	allArgs := append([]interface{}{tenantId, gatewayInstanceId}, paginationArgs...)
-
-	// 执行查询
-	var configs []*models.AuthConfig
-	err = dao.db.Query(context.Background(), &configs, paginatedQuery, allArgs, true)
-	if err != nil {
+		if err == database.ErrRecordNotFound {
+			// 没有数据返回空，不报错
+			return nil, nil
+		}
 		return nil, huberrors.WrapError(err, "查询网关实例认证配置失败")
 	}
 
-	// 返回第一条记录或nil
-	if len(configs) > 0 {
-		return configs[0], nil
-	}
-	return nil, nil
+	return &config, nil
 }
 
 // GetAuthConfigByRouteConfig 根据路由配置ID查询单个认证配置
@@ -341,38 +263,24 @@ func (dao *AuthConfigDAO) GetAuthConfigByRouteConfig(tenantId, routeConfigId str
 		return nil, errors.New("tenantId和routeConfigId不能为空")
 	}
 
-	// 构建基础查询语句
-	baseQuery := `
+	// 构建查询语句（使用 LIMIT 1 只取第一条记录）
+	query := `
 		SELECT * FROM HUB_GW_AUTH_CONFIG 
 		WHERE tenantId = ? AND routeConfigId = ?
 		ORDER BY configPriority ASC, addTime DESC
+		LIMIT 1
 	`
 
-	// 创建分页信息（只取第一条记录）
-	pagination := sqlutils.NewPaginationInfo(1, 1)
+	var config models.AuthConfig
+	err := dao.db.QueryOne(context.Background(), &config, query, []interface{}{tenantId, routeConfigId}, true)
 
-	// 获取数据库类型
-	dbType := sqlutils.GetDatabaseType(dao.db)
-
-	// 构建分页查询
-	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {
-		return nil, huberrors.WrapError(err, "构建分页查询失败")
-	}
-
-	// 合并查询参数
-	allArgs := append([]interface{}{tenantId, routeConfigId}, paginationArgs...)
-
-	// 执行查询
-	var configs []*models.AuthConfig
-	err = dao.db.Query(context.Background(), &configs, paginatedQuery, allArgs, true)
-	if err != nil {
+		if err == database.ErrRecordNotFound {
+			// 没有数据返回空，不报错
+			return nil, nil
+		}
 		return nil, huberrors.WrapError(err, "查询路由配置认证配置失败")
 	}
 
-	// 返回第一条记录或nil
-	if len(configs) > 0 {
-		return configs[0], nil
-	}
-	return nil, nil
+	return &config, nil
 }

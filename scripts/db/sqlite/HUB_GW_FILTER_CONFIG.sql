@@ -1,0 +1,36 @@
+
+-- 7. 过滤器配置表
+CREATE TABLE IF NOT EXISTS HUB_GW_FILTER_CONFIG (
+    tenantId TEXT NOT NULL,
+    filterConfigId TEXT NOT NULL,
+    gatewayInstanceId TEXT,
+    routeConfigId TEXT,
+    filterName TEXT NOT NULL,
+    filterType TEXT NOT NULL,
+    filterAction TEXT NOT NULL,
+    filterOrder INTEGER NOT NULL DEFAULT 0,
+    filterConfig TEXT NOT NULL,
+    filterDesc TEXT,
+    configId TEXT,
+    reserved1 TEXT,
+    reserved2 TEXT,
+    reserved3 INTEGER,
+    reserved4 INTEGER,
+    reserved5 DATETIME,
+    extProperty TEXT,
+    addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    addWho TEXT NOT NULL,
+    editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    editWho TEXT NOT NULL,
+    oprSeqFlag TEXT NOT NULL,
+    currentVersion INTEGER NOT NULL DEFAULT 1,
+    activeFlag TEXT NOT NULL DEFAULT 'Y',
+    noteText TEXT,
+    PRIMARY KEY (tenantId, filterConfigId)
+);
+CREATE INDEX IDX_GW_FILTER_INST ON HUB_GW_FILTER_CONFIG(gatewayInstanceId);
+CREATE INDEX IDX_GW_FILTER_ROUTE ON HUB_GW_FILTER_CONFIG(routeConfigId);
+CREATE INDEX IDX_GW_FILTER_TYPE ON HUB_GW_FILTER_CONFIG(filterType);
+CREATE INDEX IDX_GW_FILTER_ACTION ON HUB_GW_FILTER_CONFIG(filterAction);
+CREATE INDEX IDX_GW_FILTER_ORDER ON HUB_GW_FILTER_CONFIG(filterOrder);
+CREATE INDEX IDX_GW_FILTER_ACTIVE ON HUB_GW_FILTER_CONFIG(activeFlag);

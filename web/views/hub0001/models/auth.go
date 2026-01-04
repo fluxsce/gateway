@@ -4,7 +4,7 @@ package models
 type LoginRequest struct {
 	UserId      string `json:"userId" form:"userId" query:"userId" binding:"required"`       // 用户ID
 	Password    string `json:"password" form:"password" query:"password" binding:"required"` // 密码
-	TenantId    string `json:"tenantId" form:"tenantId" query:"tenantId"`  // 租户ID
+	TenantId    string `json:"tenantId" form:"tenantId" query:"tenantId"`                    // 租户ID
 	CaptchaId   string `json:"captchaId" form:"captchaId" query:"captchaId"`                 // 验证码ID（可选）
 	CaptchaCode string `json:"captchaCode" form:"captchaCode" query:"captchaCode"`           // 验证码（可选）
 }
@@ -52,7 +52,7 @@ type RefreshTokenResponse struct {
 
 // CaptchaRequest 获取验证码请求
 type CaptchaRequest struct {
-	Type   string `json:"type" form:"type" query:"type"`     // 验证码类型：random(随机数)、sms(短信，扩展用)
+	Type   string `json:"type" form:"type" query:"type"`       // 验证码类型：random(随机数)、sms(短信，扩展用)
 	Mobile string `json:"mobile" form:"mobile" query:"mobile"` // 手机号（短信验证码时使用）
 }
 
@@ -67,4 +67,36 @@ type CaptchaResponse struct {
 type VerifyCaptchaRequest struct {
 	CaptchaId string `json:"captchaId" form:"captchaId" binding:"required"` // 验证码ID
 	Code      string `json:"code" form:"code" binding:"required"`           // 用户输入的验证码
+}
+
+// ModulePermission 模块权限信息
+type ModulePermission struct {
+	ResourceId       string `json:"resourceId"`       // 资源ID
+	ResourceCode     string `json:"resourceCode"`     // 资源编码
+	ResourceName     string `json:"resourceName"`     // 资源名称
+	DisplayName      string `json:"displayName"`      // 显示名称
+	ResourcePath     string `json:"resourcePath"`     // 资源路径
+	IconClass        string `json:"iconClass"`        // 图标样式类
+	Description      string `json:"description"`      // 资源描述
+	ResourceLevel    int    `json:"resourceLevel"`    // 资源层级
+	SortOrder        int    `json:"sortOrder"`        // 排序顺序
+	ParentResourceId string `json:"parentResourceId"` // 父资源ID
+}
+
+// ButtonPermission 按钮权限信息
+type ButtonPermission struct {
+	ResourceId       string `json:"resourceId"`       // 资源ID
+	ResourceCode     string `json:"resourceCode"`     // 资源编码
+	ResourceName     string `json:"resourceName"`     // 资源名称
+	DisplayName      string `json:"displayName"`      // 显示名称
+	ResourcePath     string `json:"resourcePath"`     // 资源路径
+	ResourceMethod   string `json:"resourceMethod"`   // 请求方法
+	ParentResourceId string `json:"parentResourceId"` // 父资源ID（所属模块）
+	Description      string `json:"description"`      // 资源描述
+}
+
+// UserPermissionResponse 用户权限响应
+type UserPermissionResponse struct {
+	Modules []ModulePermission `json:"modules"` // 模块权限列表
+	Buttons []ButtonPermission `json:"buttons"` // 按钮权限列表
 }

@@ -10,80 +10,129 @@ echo " Gateway CentOS 7 Build for Linux"
 echo "=========================================="
 echo ""
 
-# Auto-detect Go version
+# Show current Go version
 CURRENT_GO=$(go version | awk '{print $3}' | sed 's/go//')
-GO_MAJOR=$(echo "$CURRENT_GO" | cut -d. -f1)
-GO_MINOR=$(echo "$CURRENT_GO" | cut -d. -f2)
-CURRENT_GO_MAJOR="${GO_MAJOR}.${GO_MINOR}"
-
-# Go version selection
-GO_VERSION="$CURRENT_GO_MAJOR"
-echo "Auto-detected Go version: $CURRENT_GO (Using $GO_VERSION for build)"
-
-# Check if version parameter is provided to override auto-detection
-if [ ! -z "$1" ]; then
-    GO_VERSION="$1"
-    echo "Overriding with specified Go version: $GO_VERSION"
-fi
-
-# Validate Go version and set module file
-case "$GO_VERSION" in
-    1.19)
-        GO_MOD_FILE="go.mod.1.19"
-        ;;
-    1.20)
-        GO_MOD_FILE="go.mod.1.20"
-        ;;
-    1.21|1.22|1.23|1.24)
-        GO_MOD_FILE="go.mod"
-        ;;
-    *)
-        echo "[INFO] Using default configuration for Go $GO_VERSION"
-        GO_MOD_FILE="go.mod"
-        ;;
-esac
-
-echo "Using Go version: $GO_VERSION"
-echo "Module file: $GO_MOD_FILE"
+echo "Current Go version: $CURRENT_GO"
+echo "Using default go.mod file"
 echo ""
 
 # Build configuration for CentOS 7
-# Note: SQLite requires CGO (C compiler), pure Go build will exclude SQLite
-echo ""
-echo "========================================"
-echo "Choose build mode:"
-echo "========================================"
-echo "1) With SQLite support (CGO_ENABLED=1)"
-echo "   - Supports: MySQL, SQLite, ClickHouse"
-echo "   - Requires: GCC compiler on build machine"
-echo "   - Binary has external dependencies"
-echo ""
-echo "2) Pure Go build (CGO_ENABLED=0) [Recommended]"
-echo "   - Supports: MySQL, ClickHouse"
-echo "   - No SQLite support"
-echo "   - Fully static binary, no external dependencies"
-echo "   - Better for cross-platform deployment"
-echo "========================================"
-read -p "Enter your choice [1-2] (default: 2): " BUILD_MODE
-BUILD_MODE=${BUILD_MODE:-2}
+# Default: Build with all features (SQLite and Oracle support via CGO)
+# Note: Oracle support uses !no_oracle tag (default enabled, use -tags no_oracle to disable)
+BUILD_TAGS="netgo"
+export CGO_ENABLED=1
 
-if [ "$BUILD_MODE" = "1" ]; then
-    BUILD_TAGS="netgo,no_oracle"
-    export CGO_ENABLED=1
-    echo ""
-    echo "✓ Building with SQLite support (CGO_ENABLED=1)"
-    echo "  Build tags: $BUILD_TAGS"
-else
-    BUILD_TAGS="netgo,osusergo,no_oracle,no_sqlite"
-    export CGO_ENABLED=0
-    echo ""
-    echo "✓ Building pure Go version (CGO_ENABLED=0)"
-    echo "  Build tags: $BUILD_TAGS"
-    echo "  Note: SQLite is disabled in this build"
+# Oracle environment check
+ORACLE_SUPPORT_ENABLED=false
+ORACLE_CHECK_FAILED=false
+
+# Check if Oracle support is enabled (default enabled unless no_oracle tag is used)
+# Since we're not using no_oracle tag, Oracle support is enabled by default
+ORACLE_ENABLED=true
+if [[ "$BUILD_TAGS" == *"no_oracle"* ]]; then
+    ORACLE_ENABLED=false
 fi
 
-# Output configuration (fixed name for auto-registration)
-OUTPUT_SUFFIX="centos7"
+if [ "$ORACLE_ENABLED" = true ]; then
+    echo "[INFO] Oracle support is enabled in build tags"
+    
+    if [ -n "$ORACLE_HOME" ]; then
+        echo "[INFO] Oracle environment detected"
+        echo "  ORACLE_HOME: $ORACLE_HOME"
+        
+        # Check for Oracle library
+        ORACLE_LIB_FOUND=false
+        if [ -f "${ORACLE_HOME}/libclntsh.so" ]; then
+            ORACLE_LIB_FOUND=true
+            echo "  [OK] Found libclntsh.so"
+        elif [ -n "$(ls ${ORACLE_HOME}/libclntsh.so.* 2>/dev/null)" ]; then
+            ORACLE_LIB_FOUND=true
+            echo "  [OK] Found libclntsh.so.*"
+        else
+            echo "  [ERROR] Oracle library (libclntsh.so) not found in $ORACLE_HOME"
+            ORACLE_CHECK_FAILED=true
+        fi
+        
+        # Check for Oracle header
+        if [ -f "${ORACLE_HOME}/sdk/include/oci.h" ]; then
+            echo "  [OK] Found oci.h"
+        else
+            echo "  [ERROR] Oracle header (oci.h) not found in ${ORACLE_HOME}/sdk/include"
+            ORACLE_CHECK_FAILED=true
+        fi
+        
+        if [ "$ORACLE_CHECK_FAILED" = false ]; then
+            # Set Oracle CGO flags for Linux
+            export CGO_CFLAGS="-I${ORACLE_HOME}/sdk/include"
+            export CGO_LDFLAGS="-L${ORACLE_HOME} -lclntsh"
+            
+            # Add Oracle library path to LD_LIBRARY_PATH if not already present
+            if [[ ":$LD_LIBRARY_PATH:" != *":$ORACLE_HOME:"* ]]; then
+                export LD_LIBRARY_PATH="${ORACLE_HOME}:${LD_LIBRARY_PATH}"
+            fi
+            
+            echo "  CGO_CFLAGS: $CGO_CFLAGS"
+            echo "  CGO_LDFLAGS: $CGO_LDFLAGS"
+            ORACLE_SUPPORT_ENABLED=true
+            echo ""
+        else
+            echo ""
+            echo "=========================================="
+            echo " [ERROR] Oracle environment check failed!"
+            echo "=========================================="
+            echo ""
+            echo "Oracle support is enabled in build tags, but required files are missing:"
+            echo ""
+            echo "Required files:"
+            echo "  1. ${ORACLE_HOME}/libclntsh.so (or libclntsh.so.*)"
+            echo "  2. ${ORACLE_HOME}/sdk/include/oci.h"
+            echo ""
+            echo "Please install Oracle Instant Client:"
+            echo "  1. Download Oracle Instant Client from:"
+            echo "     https://www.oracle.com/database/technologies/instant-client/linux-x86-64-downloads.html"
+            echo "  2. Extract to a directory (e.g., /usr/lib/oracle/21/client64)"
+            echo "  3. Set ORACLE_HOME environment variable:"
+            echo "     export ORACLE_HOME=/usr/lib/oracle/21/client64"
+            echo ""
+            echo "Or build without Oracle support by adding 'no_oracle' to BUILD_TAGS"
+            echo ""
+            exit 1
+        fi
+    else
+        echo ""
+        echo "=========================================="
+        echo " [ERROR] Oracle environment not configured!"
+        echo "=========================================="
+        echo ""
+        echo "Oracle support is enabled in build tags, but ORACLE_HOME is not set."
+        echo ""
+        echo "To enable Oracle support:"
+        echo "  1. Install Oracle Instant Client"
+        echo "  2. Set ORACLE_HOME environment variable:"
+        echo "     export ORACLE_HOME=/usr/lib/oracle/21/client64"
+        echo ""
+        echo "Or build without Oracle support by adding 'no_oracle' to BUILD_TAGS"
+        echo ""
+        exit 1
+    fi
+else
+    echo "[INFO] Oracle support is disabled in build tags"
+    echo ""
+fi
+
+# Display build configuration
+if [ "$ORACLE_SUPPORT_ENABLED" = true ]; then
+    echo "[INFO] Building with all features (CGO_ENABLED=1)"
+    echo "  - Supports: MySQL, SQLite, ClickHouse, Oracle"
+    echo "  - Build tags: $BUILD_TAGS"
+else
+    echo "[INFO] Building without Oracle support (CGO_ENABLED=1)"
+    echo "  - Supports: MySQL, SQLite, ClickHouse"
+    echo "  - Build tags: $BUILD_TAGS"
+fi
+echo ""
+
+# Output configuration
 VERSION_SUFFIX="centos7"
 
 # Cross-compilation settings for CentOS 7
@@ -95,7 +144,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
-# Create output directory
+# Clean and create output directory
+echo "Cleaning dist directory..."
+if [ -d "dist" ]; then
+    rm -rf dist
+    echo "[OK] Dist directory cleaned"
+fi
 mkdir -p dist
 
 # Build info
@@ -106,8 +160,9 @@ BUILD_TIMESTAMP="${BUILD_DATE}T${BUILD_TIME}"
 # Get Git commit
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-# Output file
-OUTPUT_FILE="dist/gateway-${VERSION_SUFFIX}-amd64"
+# Output file - always use gateway
+OUTPUT_FILE="dist/gateway"
+PACKAGE_DIR="dist/gateway"
 VERSION_INFO="${VERSION_SUFFIX}-v3.1"
 
 # Build flags optimized for CentOS 7
@@ -120,23 +175,10 @@ echo "Build Tags: $BUILD_TAGS"
 echo "Cross-compilation: GOOS=$GOOS GOARCH=$GOARCH"
 echo ""
 
-# Use specified Go version compatible dependencies
-echo "Using Go $GO_VERSION compatible dependencies..."
-if [ -f "$GO_MOD_FILE" ] && [ "$GO_MOD_FILE" != "go.mod" ]; then
-    echo "Switching to $GO_MOD_FILE..."
-    cp go.mod go.mod.bak
-    [ -f go.sum ] && cp go.sum go.sum.bak
-    cp "$GO_MOD_FILE" go.mod
-    [ -f go.sum ] && rm go.sum
-    go clean -modcache
-    go mod download
-    go mod tidy -compat="$GO_VERSION"
-elif [ "$GO_MOD_FILE" = "go.mod" ]; then
-    echo "Using current go.mod (already compatible with Go $GO_VERSION)"
-    go mod download
-else
-    echo "[WARNING] $GO_MOD_FILE not found, using current go.mod"
-fi
+# Prepare dependencies
+echo "Preparing dependencies..."
+go mod download
+go mod tidy
 
 # Execute build with verbose output
 echo ""
@@ -156,32 +198,192 @@ if [ $BUILD_RESULT -eq 0 ]; then
             echo "Output: $OUTPUT_FILE"
             echo "Size: $FILE_SIZE"
             echo "Go version: $CURRENT_GO"
-            echo "Module file: $GO_MOD_FILE"
-            
-            echo ""
-            echo "Build artifacts location:"
-            ls -lh "$OUTPUT_FILE"
-            
-            # Restore original go.mod and go.sum if they were backed up
-            if [ -f go.mod.bak ]; then
-                echo ""
-                echo "Restoring original module files..."
-                mv go.mod.bak go.mod
-                [ -f go.sum.bak ] && mv go.sum.bak go.sum
-                echo "Module files restored."
+            if [ "$ORACLE_SUPPORT_ENABLED" = true ]; then
+                echo "Build type: With all features (MySQL, SQLite, ClickHouse, Oracle support)"
+            else
+                echo "Build type: With features (MySQL, SQLite, ClickHouse support, Oracle disabled)"
             fi
             
             echo ""
-            echo "[DEPLOYMENT INSTRUCTIONS]"
-            echo "1. Copy $OUTPUT_FILE to your CentOS 7 server"
-            echo "2. Make sure the binary has execute permissions:"
-            echo "   chmod +x $OUTPUT_FILE"
-            echo "3. Run the binary: ./$OUTPUT_FILE"
+            echo "=========================================="
+            echo " Packaging deployment structure..."
+            echo "=========================================="
+            
+            # Handle executable file if it exists (it's a file, not a directory)
+            TEMP_EXECUTABLE=""
+            if [ -f "$OUTPUT_FILE" ]; then
+                # Backup executable file temporarily
+                TEMP_EXECUTABLE="${OUTPUT_FILE}.tmp"
+                if mv "$OUTPUT_FILE" "$TEMP_EXECUTABLE" 2>/dev/null; then
+                    echo "[INFO] Executable file moved temporarily for directory creation"
+                else
+                    echo "[WARNING] Failed to move executable file, may cause directory creation issues"
+                fi
+            fi
+            
+            # Create package directory structure
+            echo "Creating directory structure..."
+            if [ -d "$PACKAGE_DIR" ]; then
+                # If directory already exists, remove it first
+                rm -rf "$PACKAGE_DIR"
+                echo "[INFO] Removed existing package directory"
+            fi
+            mkdir -p "$PACKAGE_DIR"
+            mkdir -p "$PACKAGE_DIR/configs"
+            mkdir -p "$PACKAGE_DIR/web"
+            mkdir -p "$PACKAGE_DIR/web/static"
+            mkdir -p "$PACKAGE_DIR/web/frontend"
+            mkdir -p "$PACKAGE_DIR/web/frontend/dist"
+            mkdir -p "$PACKAGE_DIR/logs"
+            mkdir -p "$PACKAGE_DIR/backup"
+            mkdir -p "$PACKAGE_DIR/scripts"
+            mkdir -p "$PACKAGE_DIR/scripts/db"
+            mkdir -p "$PACKAGE_DIR/scripts/data"
+            mkdir -p "$PACKAGE_DIR/scripts/deploy"
+            mkdir -p "$PACKAGE_DIR/pprof_analysis"
+            
+            # Copy executable file
+            echo "Copying executable file..."
+            if [ -n "$TEMP_EXECUTABLE" ] && [ -f "$TEMP_EXECUTABLE" ]; then
+                # Copy from temporary location
+                if cp "$TEMP_EXECUTABLE" "$PACKAGE_DIR/gateway"; then
+                    chmod +x "$PACKAGE_DIR/gateway"
+                    rm -f "$TEMP_EXECUTABLE"
+                    echo "[OK] Executable file copied"
+                else
+                    echo "[WARNING] Failed to copy executable file"
+                    # Restore original file if copy failed
+                    if [ -f "$TEMP_EXECUTABLE" ]; then
+                        mv "$TEMP_EXECUTABLE" "$OUTPUT_FILE"
+                    fi
+                fi
+            elif [ -f "$OUTPUT_FILE" ]; then
+                # Fallback: if temp move didn't work, try direct copy
+                if cp "$OUTPUT_FILE" "$PACKAGE_DIR/gateway"; then
+                    chmod +x "$PACKAGE_DIR/gateway"
+                    echo "[OK] Executable file copied"
+                else
+                    echo "[WARNING] Failed to copy executable file"
+                fi
+            else
+                echo "[WARNING] Executable file not found: $OUTPUT_FILE"
+            fi
+            
+            # Copy configuration files
+            echo "Copying configuration files..."
+            if [ -d "configs" ]; then
+                if cp -r configs/* "$PACKAGE_DIR/configs/" 2>/dev/null; then
+                    echo "[OK] Configuration files copied"
+                else
+                    echo "[WARNING] Failed to copy configuration files"
+                fi
+            else
+                echo "[WARNING] Configuration directory not found"
+            fi
+            
+            # Copy web static resources
+            echo "Copying web static resources..."
+            if [ -d "web/static" ]; then
+                if cp -r web/static/* "$PACKAGE_DIR/web/static/" 2>/dev/null; then
+                    echo "[OK] Web static resources copied"
+                else
+                    echo "[WARNING] Failed to copy web static resources"
+                fi
+            else
+                echo "[WARNING] Web static directory not found"
+            fi
+            
+            # Copy frontend dist resources
+            echo "Copying frontend dist resources..."
+            if [ -d "web/frontend/dist" ]; then
+                if cp -r web/frontend/dist/* "$PACKAGE_DIR/web/frontend/dist/" 2>/dev/null; then
+                    echo "[OK] Frontend dist resources copied"
+                else
+                    echo "[WARNING] Failed to copy frontend dist resources"
+                fi
+            else
+                echo "[WARNING] Frontend dist directory not found"
+                echo "[INFO] Please build frontend first: cd web/frontend && npm run build"
+            fi
+            
+            # Copy scripts directories
+            echo "Copying scripts directories..."
+            
+            # Copy db scripts
+            if [ -d "scripts/db" ]; then
+                if cp -r scripts/db/* "$PACKAGE_DIR/scripts/db/" 2>/dev/null; then
+                    echo "[OK] Database scripts copied"
+                else
+                    echo "[WARNING] Failed to copy db scripts"
+                fi
+            else
+                echo "[WARNING] Database scripts directory not found"
+            fi
+            
+            # Copy deploy scripts
+            if [ -d "scripts/deploy" ]; then
+                if cp -r scripts/deploy/* "$PACKAGE_DIR/scripts/deploy/" 2>/dev/null; then
+                    echo "[OK] Deploy scripts copied"
+                else
+                    echo "[WARNING] Failed to copy deploy scripts"
+                fi
+            else
+                echo "[WARNING] Deploy scripts directory not found"
+            fi
+            
+            # Copy docker scripts
+            if [ -d "scripts/docker" ]; then
+                if cp -r scripts/docker/* "$PACKAGE_DIR/scripts/docker/" 2>/dev/null; then
+                    echo "[OK] Docker scripts copied"
+                else
+                    echo "[WARNING] Failed to copy docker scripts"
+                fi
+            else
+                echo "[WARNING] Docker scripts directory not found"
+            fi
+            
+            # Copy k8s scripts
+            if [ -d "scripts/k8s" ]; then
+                if cp -r scripts/k8s/* "$PACKAGE_DIR/scripts/k8s/" 2>/dev/null; then
+                    echo "[OK] K8s scripts copied"
+                else
+                    echo "[WARNING] Failed to copy k8s scripts"
+                fi
+            else
+                echo "[WARNING] K8s scripts directory not found"
+            fi
+            
+            # Copy test scripts
+            if [ -d "scripts/test" ]; then
+                if cp -r scripts/test/* "$PACKAGE_DIR/scripts/test/" 2>/dev/null; then
+                    echo "[OK] Test scripts copied"
+                else
+                    echo "[WARNING] Failed to copy test scripts"
+                fi
+            else
+                echo "[WARNING] Test scripts directory not found"
+            fi
+            
+            # Note: scripts/data directory is created empty (not copied from source)
             
             echo ""
-            echo "[TIP] To use Go $GO_VERSION compatible dependencies permanently:"
-            echo "cp $GO_MOD_FILE go.mod"
-            echo "go mod tidy -compat=$GO_VERSION"
+            echo "=========================================="
+            echo " Package structure created successfully!"
+            echo "=========================================="
+            echo "Package directory: $PACKAGE_DIR"
+            echo ""
+            echo "Directory structure:"
+            ls -d "$PACKAGE_DIR"/*/ 2>/dev/null | sed 's|/$||' | xargs -n1 basename
+            echo ""
+            
+            echo "Build artifacts location:"
+            ls -lh "$OUTPUT_FILE"
+            echo ""
+            echo "[DEPLOYMENT INSTRUCTIONS]"
+            echo "1. Copy $PACKAGE_DIR directory to your CentOS 7 server"
+            echo "2. Make sure the binary has execute permissions:"
+            echo "   chmod +x $PACKAGE_DIR/gateway"
+            echo "3. Run the binary: $PACKAGE_DIR/gateway"
         else
             echo "[ERROR] Build output file exists but has zero size"
             exit 1
@@ -198,7 +400,6 @@ else
     echo "-----------------"
     echo "Go Information:"
     echo "Version: $CURRENT_GO"
-    echo "Module file: $GO_MOD_FILE"
     go version
     echo ""
     echo "Environment Variables:"
@@ -208,10 +409,18 @@ else
     
     echo ""
     echo "[TIP] Common issues and solutions:"
-    echo "1. Make sure you have the correct Go version ($GO_VERSION)"
-    echo "2. Try running 'go clean -cache' and rebuild"
-    echo "3. Check if your code is compatible with CentOS 7"
-    echo "4. Verify that all dependencies support linux/amd64"
+    echo "1. Make sure GCC compiler is installed (required for CGO)"
+    echo "2. For Oracle support, ensure ORACLE_HOME is set and Oracle Instant Client is installed"
+    echo "3. Try running 'go clean -cache' and rebuild"
+    echo "4. Check if your code is compatible with CentOS 7"
+    echo "5. Verify that all dependencies support linux/amd64"
+    if [ -n "$ORACLE_HOME" ]; then
+        echo ""
+        echo "Oracle environment:"
+        echo "  ORACLE_HOME: $ORACLE_HOME"
+        echo "  CGO_CFLAGS: $CGO_CFLAGS"
+        echo "  CGO_LDFLAGS: $CGO_LDFLAGS"
+    fi
     exit 1
 fi
 

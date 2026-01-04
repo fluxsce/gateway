@@ -1,0 +1,1 @@
+var N=(I=>(I[I.STATIC=0]="STATIC",I[I.DISCOVERY=1]="DISCOVERY",I))(N||{}),O=(I=>(I.ROUND_ROBIN="round-robin",I.RANDOM="random",I.IP_HASH="ip-hash",I.LEAST_CONN="least-conn",I.WEIGHTED_ROUND_ROBIN="weighted-round-robin",I.CONSISTENT_HASH="consistent-hash",I))(O||{});export{O as L,N as S};

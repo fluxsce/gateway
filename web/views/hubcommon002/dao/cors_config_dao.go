@@ -3,7 +3,6 @@ package dao
 import (
 	"context"
 	"errors"
-	"fmt"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/huberrors"
@@ -25,59 +24,6 @@ func NewCorsConfigDAO(db database.Database) *CorsConfigDAO {
 	}
 }
 
-// generateCorsConfigId 生成CORS配置ID
-// 格式：CORS + YYYYMMDD + HHMMSS + 4位随机数
-// 示例：CORS20240615143022A1B2
-func (dao *CorsConfigDAO) generateCorsConfigId() string {
-	now := time.Now()
-	// 生成时间部分：YYYYMMDDHHMMSS
-	timeStr := now.Format("20060102150405")
-
-	// 生成4位随机字符（大写字母和数字）
-	randomStr := random.GenerateRandomString(4)
-
-	return fmt.Sprintf("CORS%s%s", timeStr, randomStr)
-}
-
-// isCorsConfigIdExists 检查CORS配置ID是否已存在
-func (dao *CorsConfigDAO) isCorsConfigIdExists(ctx context.Context, corsConfigId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GW_CORS_CONFIG WHERE corsConfigId = ?`
-
-	var result struct {
-		Count int `db:"count"`
-	}
-
-	err := dao.db.QueryOne(ctx, &result, query, []interface{}{corsConfigId}, true)
-	if err != nil {
-		return false, err
-	}
-
-	return result.Count > 0, nil
-}
-
-// generateUniqueCorsConfigId 生成唯一的CORS配置ID
-func (dao *CorsConfigDAO) generateUniqueCorsConfigId(ctx context.Context) (string, error) {
-	const maxAttempts = 10
-
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		corsConfigId := dao.generateCorsConfigId()
-
-		exists, err := dao.isCorsConfigIdExists(ctx, corsConfigId)
-		if err != nil {
-			return "", huberrors.WrapError(err, "检查CORS配置ID是否存在失败")
-		}
-
-		if !exists {
-			return corsConfigId, nil
-		}
-
-		// 如果ID已存在，等待1毫秒后重试（确保时间戳不同）
-		time.Sleep(time.Millisecond)
-	}
-
-	return "", errors.New("生成唯一CORS配置ID失败，已达到最大尝试次数")
-}
-
 // AddCorsConfig 添加CORS配置
 func (dao *CorsConfigDAO) AddCorsConfig(ctx context.Context, config *models.CorsConfig, operatorId string) error {
 	if config.TenantId == "" || config.ConfigName == "" {
@@ -86,11 +32,9 @@ func (dao *CorsConfigDAO) AddCorsConfig(ctx context.Context, config *models.Cors
 
 	// 自动生成CORS配置ID
 	if config.CorsConfigId == "" {
-		generatedId, err := dao.generateUniqueCorsConfigId(ctx)
-		if err != nil {
-			return huberrors.WrapError(err, "生成CORS配置ID失败")
-		}
-		config.CorsConfigId = generatedId
+		// 使用公共方法生成唯一ID，支持集群环境
+		// 格式：CORS前缀 + 32位唯一字符串 = 36位总长度
+		config.CorsConfigId = random.GenerateUniqueStringWithPrefix("CORS", 32)
 	}
 
 	// 设置自动填充字段
@@ -205,18 +149,10 @@ func (dao *CorsConfigDAO) UpdateCorsConfig(ctx context.Context, config *models.C
 }
 
 // DeleteCorsConfig 物理删除CORS配置
-func (dao *CorsConfigDAO) DeleteCorsConfig(tenantId, corsConfigId, operatorId string) error {
-	if corsConfigId == "" || tenantId == "" {
-		return errors.New("corsConfigId和tenantId不能为空")
-	}
-
-	// 首先检查配置是否存在
-	config, err := dao.GetCorsConfig(tenantId, corsConfigId)
-	if err != nil {
-		return err
-	}
-	if config == nil {
-		return errors.New("CORS配置不存在")
+func (dao *CorsConfigDAO) DeleteCorsConfig(tenantId, corsConfigId string) error {
+	// 校验主键
+	if corsConfigId == "" {
+		return errors.New("corsConfigId不能为空")
 	}
 
 	// 执行物理删除
@@ -234,14 +170,31 @@ func (dao *CorsConfigDAO) DeleteCorsConfig(tenantId, corsConfigId, operatorId st
 	return nil
 }
 
-// ListCorsConfigs 查询CORS配置列表
-func (dao *CorsConfigDAO) ListCorsConfigs(ctx context.Context, tenantId string, page, pageSize int) ([]*models.CorsConfig, int, error) {
-	if tenantId == "" {
-		return nil, 0, errors.New("tenantId不能为空")
+// ListCorsConfigs 查询CORS配置列表（支持条件查询）
+func (dao *CorsConfigDAO) ListCorsConfigs(ctx context.Context, tenantId string, query *models.CorsConfigQuery, page, pageSize int) ([]*models.CorsConfig, int, error) {
+	// 构建查询条件
+	whereClause := "WHERE tenantId = ?"
+	var params []interface{}
+	params = append(params, tenantId)
+
+	// 添加查询条件
+	if query != nil {
+		if query.GatewayInstanceId != "" {
+			whereClause += " AND gatewayInstanceId = ?"
+			params = append(params, query.GatewayInstanceId)
+		}
+		if query.RouteConfigId != "" {
+			whereClause += " AND routeConfigId = ?"
+			params = append(params, query.RouteConfigId)
+		}
+		if query.ConfigName != "" {
+			whereClause += " AND configName LIKE ?"
+			params = append(params, "%"+query.ConfigName+"%")
+		}
 	}
 
 	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_CORS_CONFIG WHERE tenantId = ? ORDER BY configPriority ASC, addTime DESC"
+	baseQuery := "SELECT * FROM HUB_GW_CORS_CONFIG " + whereClause + " ORDER BY configPriority ASC, addTime DESC"
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
@@ -250,16 +203,17 @@ func (dao *CorsConfigDAO) ListCorsConfigs(ctx context.Context, tenantId string, 
 	}
 
 	// 执行统计查询
-	var totalResult struct {
-		Total int `db:"COUNT(*)"`
+	var result struct {
+		Count int `db:"COUNT(*)"`
 	}
-	err = dao.db.QueryOne(ctx, &totalResult, countQuery, []interface{}{tenantId}, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询CORS配置总数失败")
 	}
+	total := result.Count
 
 	// 如果没有记录，直接返回空列表
-	if totalResult.Total == 0 {
+	if total == 0 {
 		return []*models.CorsConfig{}, 0, nil
 	}
 
@@ -276,7 +230,7 @@ func (dao *CorsConfigDAO) ListCorsConfigs(ctx context.Context, tenantId string, 
 	}
 
 	// 合并查询参数
-	allArgs := append([]interface{}{tenantId}, paginationArgs...)
+	allArgs := append(params, paginationArgs...)
 
 	// 执行分页查询
 	var configs []*models.CorsConfig
@@ -285,7 +239,7 @@ func (dao *CorsConfigDAO) ListCorsConfigs(ctx context.Context, tenantId string, 
 		return nil, 0, huberrors.WrapError(err, "查询CORS配置列表失败")
 	}
 
-	return configs, totalResult.Total, nil
+	return configs, total, nil
 }
 
 // ListCorsConfigsByGatewayInstance 根据网关实例ID查询CORS配置列表
@@ -402,40 +356,26 @@ func (dao *CorsConfigDAO) GetCorsConfigByGatewayInstance(tenantId, gatewayInstan
 		return nil, errors.New("tenantId和gatewayInstanceId不能为空")
 	}
 
-	// 构建基础查询语句
-	baseQuery := `
+	// 构建查询语句（使用 LIMIT 1 只取第一条记录）
+	query := `
 		SELECT * FROM HUB_GW_CORS_CONFIG 
 		WHERE tenantId = ? AND gatewayInstanceId = ?
 		ORDER BY configPriority ASC, addTime DESC
+		LIMIT 1
 	`
 
-	// 创建分页信息（只取第一条记录）
-	pagination := sqlutils.NewPaginationInfo(1, 1)
+	var config models.CorsConfig
+	err := dao.db.QueryOne(context.Background(), &config, query, []interface{}{tenantId, gatewayInstanceId}, true)
 
-	// 获取数据库类型
-	dbType := sqlutils.GetDatabaseType(dao.db)
-
-	// 构建分页查询
-	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {
-		return nil, huberrors.WrapError(err, "构建分页查询失败")
-	}
-
-	// 合并查询参数
-	allArgs := append([]interface{}{tenantId, gatewayInstanceId}, paginationArgs...)
-
-	// 执行查询
-	var configs []*models.CorsConfig
-	err = dao.db.Query(context.Background(), &configs, paginatedQuery, allArgs, true)
-	if err != nil {
+		if err == database.ErrRecordNotFound {
+			// 没有数据返回空，不报错
+			return nil, nil
+		}
 		return nil, huberrors.WrapError(err, "查询网关实例CORS配置失败")
 	}
 
-	// 返回第一条记录或nil
-	if len(configs) > 0 {
-		return configs[0], nil
-	}
-	return nil, nil
+	return &config, nil
 }
 
 // GetCorsConfigByRouteConfig 根据路由配置ID查询单个CORS配置
@@ -444,38 +384,24 @@ func (dao *CorsConfigDAO) GetCorsConfigByRouteConfig(tenantId, routeConfigId str
 		return nil, errors.New("tenantId和routeConfigId不能为空")
 	}
 
-	// 构建基础查询语句
-	baseQuery := `
+	// 构建查询语句（使用 LIMIT 1 只取第一条记录）
+	query := `
 		SELECT * FROM HUB_GW_CORS_CONFIG 
 		WHERE tenantId = ? AND routeConfigId = ?
 		ORDER BY configPriority ASC, addTime DESC
+		LIMIT 1
 	`
 
-	// 创建分页信息（只取第一条记录）
-	pagination := sqlutils.NewPaginationInfo(1, 1)
+	var config models.CorsConfig
+	err := dao.db.QueryOne(context.Background(), &config, query, []interface{}{tenantId, routeConfigId}, true)
 
-	// 获取数据库类型
-	dbType := sqlutils.GetDatabaseType(dao.db)
-
-	// 构建分页查询
-	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {
-		return nil, huberrors.WrapError(err, "构建分页查询失败")
-	}
-
-	// 合并查询参数
-	allArgs := append([]interface{}{tenantId, routeConfigId}, paginationArgs...)
-
-	// 执行查询
-	var configs []*models.CorsConfig
-	err = dao.db.Query(context.Background(), &configs, paginatedQuery, allArgs, true)
-	if err != nil {
+		if err == database.ErrRecordNotFound {
+			// 没有数据返回空，不报错
+			return nil, nil
+		}
 		return nil, huberrors.WrapError(err, "查询路由配置CORS配置失败")
 	}
 
-	// 返回第一条记录或nil
-	if len(configs) > 0 {
-		return configs[0], nil
-	}
-	return nil, nil
+	return &config, nil
 }

@@ -199,7 +199,7 @@ func TestHTTPProxy(t *testing.T) {
 
 			writer := httptest.NewRecorder()
 			ctx := core.NewContext(writer, req)
-			ctx.SetServiceID("test-service") // 设置服务ID
+			ctx.SetServiceIDs([]string{"test-service"}) // 设置服务ID
 
 			// 执行代理
 			result := proxyHandler.Handle(ctx)
@@ -321,7 +321,7 @@ func TestProxyErrorHandling(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", nil)
 	writer := httptest.NewRecorder()
 	ctx := core.NewContext(writer, req)
-	ctx.SetServiceID("nonexistent-service") // 不存在的服务
+	ctx.SetServiceIDs([]string{"nonexistent-service"}) // 不存在的服务
 
 	result := proxyHandler.Handle(ctx)
 	assert.False(t, result, "连接不存在服务应该失败")
@@ -546,7 +546,7 @@ func BenchmarkHTTPProxy(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		writer := httptest.NewRecorder()
 		ctx := core.NewContext(writer, req)
-		ctx.SetServiceID("bench-service")
+		ctx.SetServiceIDs([]string{"bench-service"})
 		proxyHandler.Handle(ctx)
 	}
 }

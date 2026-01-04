@@ -134,8 +134,10 @@ func TestContextRouteAndService(t *testing.T) {
 
 	// 测试服务ID
 	serviceID := "user-service"
-	ctx.SetServiceID(serviceID)
-	assert.Equal(t, serviceID, ctx.GetServiceID(), "服务ID应该匹配")
+	ctx.SetServiceIDs([]string{serviceID})
+	serviceIDs := ctx.GetServiceIDs()
+	assert.Len(t, serviceIDs, 1, "服务ID数组应该包含1个元素")
+	assert.Equal(t, serviceID, serviceIDs[0], "服务ID应该匹配")
 
 	// 测试匹配路径
 	matchedPath := "/api/users/**"
@@ -266,7 +268,7 @@ func TestContextReset(t *testing.T) {
 	// 设置一些数据
 	ctx.Set("key", "value")
 	ctx.SetRouteID("test-route")
-	ctx.SetServiceID("test-service")
+	ctx.SetServiceIDs([]string{"test-service"})
 	ctx.AddError(assert.AnError)
 
 	// 验证数据已设置
@@ -281,7 +283,7 @@ func TestContextReset(t *testing.T) {
 	assert.False(t, ctx.HasErrors())
 	assert.Empty(t, ctx.GetErrors())
 	assert.Empty(t, ctx.GetRouteID())
-	assert.Empty(t, ctx.GetServiceID())
+	assert.Empty(t, ctx.GetServiceIDs())
 	assert.Empty(t, ctx.GetTargetURL())
 	assert.Empty(t, ctx.GetMatchedPath())
 	assert.False(t, ctx.IsResponded())

@@ -82,19 +82,39 @@ func (i *IPHashBalancer) Reset() {
 }
 
 // getClientIP 获取客户端IP
+// 注意：X-Forwarded-For 可能包含多个IP（用逗号分隔），这里只取第一个
+// 如果无法获取IP，返回空字符串，调用方会使用fallback策略
 func (i *IPHashBalancer) getClientIP(ctx *core.Context) string {
-	// 优先从X-Forwarded-For获取
+	// 优先从X-Forwarded-For获取（可能包含多个IP，用逗号分隔）
 	if xff := ctx.Request.Header.Get("X-Forwarded-For"); xff != "" {
+		// 取第一个IP（最原始的客户端IP）
+		// X-Forwarded-For格式：client, proxy1, proxy2
+		for idx := 0; idx < len(xff); idx++ {
+			if xff[idx] == ',' {
+				return xff[:idx]
+			}
+		}
 		return xff
 	}
 
-	// 从X-Real-IP获取
+	// 从X-Real-IP获取（通常只包含一个IP）
 	if xrip := ctx.Request.Header.Get("X-Real-IP"); xrip != "" {
 		return xrip
 	}
 
-	// 从RemoteAddr获取
-	return ctx.Request.RemoteAddr
+	// 从RemoteAddr获取（格式：IP:Port，需要提取IP部分）
+	remoteAddr := ctx.Request.RemoteAddr
+	if remoteAddr != "" {
+		// 提取IP部分（去除端口）
+		for i := 0; i < len(remoteAddr); i++ {
+			if remoteAddr[i] == ':' {
+				return remoteAddr[:i]
+			}
+		}
+		return remoteAddr
+	}
+
+	return ""
 }
 
 // hash 计算字符串哈希值

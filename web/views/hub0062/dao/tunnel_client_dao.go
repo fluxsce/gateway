@@ -5,7 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"gateway/internal/tunnel"
+	"gateway/internal/tunnel/client"
+	"gateway/internal/tunnel/types"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/logger"
@@ -25,7 +26,7 @@ func NewTunnelClientDAO(db database.Database) *TunnelClientDAO {
 }
 
 // QueryTunnelClients 查询客户端列表（分页）
-func (dao *TunnelClientDAO) QueryTunnelClients(ginCtx *gin.Context, req *models.TunnelClientQueryRequest) ([]*models.TunnelClient, int, error) {
+func (dao *TunnelClientDAO) QueryTunnelClients(ginCtx *gin.Context, req *models.TunnelClientQueryRequest) ([]*types.TunnelClient, int, error) {
 	ctx := ginCtx.Request.Context()
 
 	// 构建WHERE条件
@@ -96,7 +97,7 @@ func (dao *TunnelClientDAO) QueryTunnelClients(ginCtx *gin.Context, req *models.
 
 	total := countResult.Count
 	if total == 0 {
-		return []*models.TunnelClient{}, 0, nil
+		return []*types.TunnelClient{}, 0, nil
 	}
 
 	// 分页查询
@@ -109,7 +110,7 @@ func (dao *TunnelClientDAO) QueryTunnelClients(ginCtx *gin.Context, req *models.
 
 	allArgs := append(args, paginationArgs...)
 
-	clients := []*models.TunnelClient{}
+	clients := []*types.TunnelClient{}
 	err = dao.db.Query(ctx, &clients, paginatedQuery, allArgs, true)
 	if err != nil {
 		logger.Error("查询客户端列表失败", "error", err)
@@ -121,7 +122,7 @@ func (dao *TunnelClientDAO) QueryTunnelClients(ginCtx *gin.Context, req *models.
 }
 
 // GetTunnelClient 获取客户端详情
-func (dao *TunnelClientDAO) GetTunnelClient(ginCtx *gin.Context, tunnelClientId string) (*models.TunnelClient, error) {
+func (dao *TunnelClientDAO) GetTunnelClient(ginCtx *gin.Context, tunnelClientId string) (*types.TunnelClient, error) {
 	ctx := ginCtx.Request.Context()
 
 	querySQL := `
@@ -135,7 +136,7 @@ func (dao *TunnelClientDAO) GetTunnelClient(ginCtx *gin.Context, tunnelClientId 
 		WHERE tunnelClientId = ?
 	`
 
-	client := &models.TunnelClient{}
+	client := &types.TunnelClient{}
 	err := dao.db.QueryOne(ctx, client, querySQL, []interface{}{tunnelClientId}, true)
 	if err != nil {
 		logger.Error("查询客户端详情失败", "tunnelClientId", tunnelClientId, "error", err)
@@ -147,7 +148,7 @@ func (dao *TunnelClientDAO) GetTunnelClient(ginCtx *gin.Context, tunnelClientId 
 }
 
 // CreateTunnelClient 创建客户端
-func (dao *TunnelClientDAO) CreateTunnelClient(ginCtx *gin.Context, client *models.TunnelClient) (*models.TunnelClient, error) {
+func (dao *TunnelClientDAO) CreateTunnelClient(ginCtx *gin.Context, client *types.TunnelClient) (*types.TunnelClient, error) {
 	ctx := ginCtx.Request.Context()
 
 	// 生成客户端ID
@@ -216,7 +217,7 @@ func (dao *TunnelClientDAO) CreateTunnelClient(ginCtx *gin.Context, client *mode
 }
 
 // UpdateTunnelClient 更新客户端
-func (dao *TunnelClientDAO) UpdateTunnelClient(ginCtx *gin.Context, client *models.TunnelClient) (*models.TunnelClient, error) {
+func (dao *TunnelClientDAO) UpdateTunnelClient(ginCtx *gin.Context, client *types.TunnelClient) (*types.TunnelClient, error) {
 	ctx := ginCtx.Request.Context()
 
 	// 检查客户端是否存在
@@ -277,7 +278,7 @@ func (dao *TunnelClientDAO) UpdateTunnelClient(ginCtx *gin.Context, client *mode
 }
 
 // DeleteTunnelClient 删除客户端（物理删除）
-func (dao *TunnelClientDAO) DeleteTunnelClient(ginCtx *gin.Context, tunnelClientId, editWho string) (*models.TunnelClient, error) {
+func (dao *TunnelClientDAO) DeleteTunnelClient(ginCtx *gin.Context, tunnelClientId, editWho string) (*types.TunnelClient, error) {
 	ctx := ginCtx.Request.Context()
 
 	// 检查客户端是否存在
@@ -335,148 +336,109 @@ func (dao *TunnelClientDAO) GetClientStats(ginCtx *gin.Context) (*models.TunnelC
 }
 
 // StartClient 启动客户端（连接到服务器）
-func (dao *TunnelClientDAO) StartClient(ginCtx *gin.Context, tunnelClientId string) error {
+func (dao *TunnelClientDAO) StartClient(ginCtx *gin.Context, tunnelClientId string) (*types.TunnelClient, error) {
 	ctx := ginCtx.Request.Context()
 
 	// 检查客户端是否存在
 	_, err := dao.GetTunnelClient(ginCtx, tunnelClientId)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// 调用TunnelManager启动客户端
-	tunnelManager := getTunnelManager()
-	if tunnelManager == nil {
-		return huberrors.NewError("隧道管理器未初始化")
+	// 调用TunnelClientManager启动客户端
+	clientManager := getTunnelClientManager()
+	if clientManager == nil {
+		return nil, huberrors.NewError("隧道客户端管理器未初始化")
 	}
 
-	err = tunnelManager.StartClient(ctx, tunnelClientId)
+	err = clientManager.Start(ctx, tunnelClientId)
 	if err != nil {
 		logger.Error("启动客户端失败", "tunnelClientId", tunnelClientId, "error", err)
-		return huberrors.WrapError(err, "启动客户端失败")
+		return nil, huberrors.WrapError(err, "启动客户端失败")
 	}
 
 	logger.Info("启动客户端成功", "tunnelClientId", tunnelClientId)
-	return nil
+
+	// 查询最新的客户端详情返回
+	client, err := dao.GetTunnelClient(ginCtx, tunnelClientId)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "获取客户端详情失败")
+	}
+
+	return client, nil
 }
 
 // StopClient 停止客户端（断开连接）
-func (dao *TunnelClientDAO) StopClient(ginCtx *gin.Context, tunnelClientId string) error {
+func (dao *TunnelClientDAO) StopClient(ginCtx *gin.Context, tunnelClientId string) (*types.TunnelClient, error) {
 	ctx := ginCtx.Request.Context()
 
 	// 检查客户端是否存在
 	_, err := dao.GetTunnelClient(ginCtx, tunnelClientId)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// 调用TunnelManager停止客户端
-	tunnelManager := getTunnelManager()
-	if tunnelManager == nil {
-		return huberrors.NewError("隧道管理器未初始化")
+	// 调用TunnelClientManager停止客户端
+	clientManager := getTunnelClientManager()
+	if clientManager == nil {
+		return nil, huberrors.NewError("隧道客户端管理器未初始化")
 	}
 
-	err = tunnelManager.StopClient(ctx, tunnelClientId)
+	err = clientManager.Stop(ctx, tunnelClientId)
 	if err != nil {
 		logger.Error("停止客户端失败", "tunnelClientId", tunnelClientId, "error", err)
-		return huberrors.WrapError(err, "停止客户端失败")
+		return nil, huberrors.WrapError(err, "停止客户端失败")
 	}
 
 	logger.Info("停止客户端成功", "tunnelClientId", tunnelClientId)
-	return nil
+
+	// 查询最新的客户端详情返回
+	client, err := dao.GetTunnelClient(ginCtx, tunnelClientId)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "获取客户端详情失败")
+	}
+
+	return client, nil
 }
 
 // RestartClient 重启客户端（重新连接）
-func (dao *TunnelClientDAO) RestartClient(ginCtx *gin.Context, tunnelClientId string) error {
+func (dao *TunnelClientDAO) RestartClient(ginCtx *gin.Context, tunnelClientId string) (*types.TunnelClient, error) {
 	ctx := ginCtx.Request.Context()
 
 	// 检查客户端是否存在
 	_, err := dao.GetTunnelClient(ginCtx, tunnelClientId)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// 调用TunnelManager重启客户端（先停止再启动）
-	tunnelManager := getTunnelManager()
-	if tunnelManager == nil {
-		return huberrors.NewError("隧道管理器未初始化")
+	// 调用TunnelClientManager重启客户端（先停止再启动）
+	clientManager := getTunnelClientManager()
+	if clientManager == nil {
+		return nil, huberrors.NewError("隧道客户端管理器未初始化")
 	}
 
 	// 先停止
-	err = tunnelManager.StopClient(ctx, tunnelClientId)
+	err = clientManager.Stop(ctx, tunnelClientId)
 	if err != nil {
 		logger.Warn("停止客户端时出错（可能未运行）", "tunnelClientId", tunnelClientId, "error", err)
 	}
 
 	// 再启动
-	err = tunnelManager.StartClient(ctx, tunnelClientId)
+	err = clientManager.Start(ctx, tunnelClientId)
 	if err != nil {
 		logger.Error("重启客户端失败", "tunnelClientId", tunnelClientId, "error", err)
-		return huberrors.WrapError(err, "重启客户端失败")
+		return nil, huberrors.WrapError(err, "重启客户端失败")
 	}
 
 	logger.Info("重启客户端成功", "tunnelClientId", tunnelClientId)
-	return nil
-}
 
-// BatchEnableClients 批量启用客户端
-func (dao *TunnelClientDAO) BatchEnableClients(ginCtx *gin.Context, clientIds []string, editWho string) (*models.BatchOperationResponse, error) {
-	ctx := ginCtx.Request.Context()
-	response := &models.BatchOperationResponse{
-		SuccessCount: 0,
-		FailedCount:  0,
-		FailedIds:    []string{},
+	// 查询最新的客户端详情返回
+	client, err := dao.GetTunnelClient(ginCtx, tunnelClientId)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "获取客户端详情失败")
 	}
 
-	for _, clientId := range clientIds {
-		updateSQL := `
-			UPDATE HUB_TUNNEL_CLIENT
-			SET activeFlag = 'Y', editTime = ?, editWho = ?, currentVersion = currentVersion + 1
-			WHERE tunnelClientId = ?
-		`
-
-		_, err := dao.db.Exec(ctx, updateSQL, []interface{}{time.Now(), editWho, clientId}, false)
-		if err != nil {
-			logger.Error("启用客户端失败", "tunnelClientId", clientId, "error", err)
-			response.FailedCount++
-			response.FailedIds = append(response.FailedIds, clientId)
-		} else {
-			response.SuccessCount++
-		}
-	}
-
-	logger.Info("批量启用客户端完成", "successCount", response.SuccessCount, "failedCount", response.FailedCount)
-	return response, nil
-}
-
-// BatchDisableClients 批量禁用客户端
-func (dao *TunnelClientDAO) BatchDisableClients(ginCtx *gin.Context, clientIds []string, editWho string) (*models.BatchOperationResponse, error) {
-	ctx := ginCtx.Request.Context()
-	response := &models.BatchOperationResponse{
-		SuccessCount: 0,
-		FailedCount:  0,
-		FailedIds:    []string{},
-	}
-
-	for _, clientId := range clientIds {
-		updateSQL := `
-			UPDATE HUB_TUNNEL_CLIENT
-			SET activeFlag = 'N', editTime = ?, editWho = ?, currentVersion = currentVersion + 1
-			WHERE tunnelClientId = ?
-		`
-
-		_, err := dao.db.Exec(ctx, updateSQL, []interface{}{time.Now(), editWho, clientId}, false)
-		if err != nil {
-			logger.Error("禁用客户端失败", "tunnelClientId", clientId, "error", err)
-			response.FailedCount++
-			response.FailedIds = append(response.FailedIds, clientId)
-		} else {
-			response.SuccessCount++
-		}
-	}
-
-	logger.Info("批量禁用客户端完成", "successCount", response.SuccessCount, "failedCount", response.FailedCount)
-	return response, nil
+	return client, nil
 }
 
 // checkClientNameExists 检查客户端名称是否存在
@@ -508,7 +470,7 @@ func (dao *TunnelClientDAO) checkClientNameExists(ginCtx *gin.Context, clientNam
 	return countResult.Count > 0, nil
 }
 
-// getTunnelManager 获取全局隧道管理器实例
-func getTunnelManager() *tunnel.TunnelManager {
-	return tunnel.GetGlobalManager()
+// getTunnelClientManager 获取全局隧道客户端管理器实例
+func getTunnelClientManager() *client.TunnelClientManager {
+	return client.GetTunnelClientManager()
 }

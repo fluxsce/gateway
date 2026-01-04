@@ -1054,6 +1054,76 @@ CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_client_ip ON HUB_GW_ACCESS_LOG(
 CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_status_time ON HUB_GW_ACCESS_LOG(gatewayStatusCode, gatewayStartProcessingTime);
 CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_proxy_type ON HUB_GW_ACCESS_LOG(proxyType, gatewayStartProcessingTime);
 
+-- 21. 后端追踪日志表 - HUB_GW_BACKEND_TRACE_LOG
+-- 对应结构：internal/gateway/logwrite/types/backend_trace_log.go (BackendTraceLog)
+-- 说明：
+--   1. 作为 HUB_GW_ACCESS_LOG 的从表，记录每个后端服务转发的详细信息
+--   2. traceId + backendTraceId 作为联合主键
+CREATE TABLE IF NOT EXISTS HUB_GW_BACKEND_TRACE_LOG (
+    tenantId TEXT NOT NULL,                 -- 租户ID
+    traceId TEXT NOT NULL,                  -- 链路追踪ID，关联主表 HUB_GW_ACCESS_LOG.traceId
+    backendTraceId TEXT NOT NULL,           -- 后端服务追踪ID，同一traceId下唯一
+
+    -- 服务信息（单个后端服务一次转发一条记录）
+    serviceDefinitionId TEXT,               -- 服务定义ID
+    serviceName TEXT,                       -- 服务名称（冗余字段）
+
+    -- 转发信息
+    forwardAddress TEXT,                    -- 实际转发目标地址(完整URL)
+    forwardMethod TEXT,                     -- 转发HTTP方法
+    forwardPath TEXT,                       -- 转发路径
+    forwardQuery TEXT,                      -- 转发查询参数
+    forwardHeaders TEXT,                    -- 转发请求头(JSON格式)
+    forwardBody TEXT,                       -- 转发请求体
+    requestSize INTEGER DEFAULT 0,          -- 请求大小(字节)
+
+    -- 负载均衡信息
+    loadBalancerStrategy TEXT,             -- 负载均衡策略
+    loadBalancerDecision TEXT,             -- 负载均衡决策信息
+
+    -- 时间信息
+    requestStartTime DATETIME NOT NULL,    -- 向后端发起请求时间
+    responseReceivedTime DATETIME,         -- 接收到后端响应时间
+    requestDurationMs INTEGER,             -- 请求耗时(毫秒)
+
+    -- 响应信息
+    statusCode INTEGER,                    -- 后端HTTP状态码
+    responseSize INTEGER DEFAULT 0,        -- 响应大小(字节)
+    responseHeaders TEXT,                  -- 响应头信息(JSON格式)
+    responseBody TEXT,                     -- 响应体内容
+
+    -- 错误信息
+    errorCode TEXT,                        -- 错误代码
+    errorMessage TEXT,                     -- 详细错误信息
+
+    -- 状态信息
+    successFlag TEXT NOT NULL DEFAULT 'N', -- 是否成功(Y成功,N失败)
+    traceStatus TEXT NOT NULL DEFAULT 'pending',-- 后端调用状态(pending,success,failed,timeout)
+    retryCount INTEGER NOT NULL DEFAULT 0, -- 重试次数
+
+    -- 扩展信息
+    extProperty TEXT,                      -- 扩展属性(JSON格式)
+
+    -- 标准数据库字段
+    addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    addWho TEXT NOT NULL,
+    editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    editWho TEXT NOT NULL,
+    oprSeqFlag TEXT NOT NULL,
+    currentVersion INTEGER NOT NULL DEFAULT 1,
+    activeFlag TEXT NOT NULL DEFAULT 'Y',
+    noteText TEXT,
+
+    PRIMARY KEY (traceId, backendTraceId)
+);
+
+-- 索引设计：参考数据库规范，兼顾多租户与常用查询场景
+CREATE INDEX IF NOT EXISTS IDX_GW_BTRACE_TRACE ON HUB_GW_BACKEND_TRACE_LOG(tenantId, traceId);
+CREATE INDEX IF NOT EXISTS IDX_GW_BTRACE_SERVICE ON HUB_GW_BACKEND_TRACE_LOG(tenantId, serviceDefinitionId, requestStartTime);
+CREATE INDEX IF NOT EXISTS IDX_GW_BTRACE_TIME ON HUB_GW_BACKEND_TRACE_LOG(requestStartTime);
+CREATE INDEX IF NOT EXISTS IDX_GW_BTRACE_TSTATUS ON HUB_GW_BACKEND_TRACE_LOG(tenantId, traceStatus, requestStartTime);
+CREATE INDEX IF NOT EXISTS IDX_GW_BTRACE_ADDTIME ON HUB_GW_BACKEND_TRACE_LOG(tenantId, addTime);
+
 -- 22. 安全配置表
 CREATE TABLE IF NOT EXISTS HUB_GW_SECURITY_CONFIG (
     tenantId TEXT NOT NULL,
@@ -1118,7 +1188,7 @@ CREATE TABLE IF NOT EXISTS HUB_GW_IP_ACCESS_CONFIG (
 CREATE INDEX IF NOT EXISTS idx_HUB_GW_IP_ACCESS_CONFIG_security ON HUB_GW_IP_ACCESS_CONFIG(securityConfigId);
 
 -- 24. User-Agent访问控制配置表
-CREATE TABLE IF NOT EXISTS HUB_GW_USERAGENT_ACCESS_CONFIG (
+CREATE TABLE IF NOT EXISTS HUB_GW_UA_ACCESS_CONFIG (
     tenantId TEXT NOT NULL,
     useragentAccessConfigId TEXT NOT NULL,
     securityConfigId TEXT NOT NULL,
@@ -1144,7 +1214,7 @@ CREATE TABLE IF NOT EXISTS HUB_GW_USERAGENT_ACCESS_CONFIG (
     PRIMARY KEY (tenantId, useragentAccessConfigId)
 );
 
-CREATE INDEX IF NOT EXISTS idx_HUB_GW_USERAGENT_ACCESS_CONFIG_security ON HUB_GW_USERAGENT_ACCESS_CONFIG(securityConfigId);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_UA_ACCESS_CONFIG_security ON HUB_GW_UA_ACCESS_CONFIG(securityConfigId);
 
 -- 25. API访问控制配置表
 CREATE TABLE IF NOT EXISTS HUB_GW_API_ACCESS_CONFIG (
@@ -2648,6 +2718,1002 @@ CREATE INDEX IDX_TUNNEL_SVC_TYPE ON HUB_TUNNEL_SERVICE(serviceType);
 CREATE INDEX IDX_TUNNEL_SVC_STATUS ON HUB_TUNNEL_SERVICE(serviceStatus);
 CREATE INDEX IDX_TUNNEL_SVC_PORT ON HUB_TUNNEL_SERVICE(remotePort);
 CREATE INDEX IDX_TUNNEL_SVC_DOMAIN ON HUB_TUNNEL_SERVICE(subDomain);
+
+-- =====================================================
+-- 权限系统数据库表结构设计
+-- 遵循 docs/database/naming-convention.md 规范
+-- 基于 web/actions/permission-design.md 设计文档
+-- 创建时间: 2024-12-19
+-- =====================================================
+
+-- =====================================================
+-- 角色表 - 存储系统角色信息和数据权限范围
+-- =====================================================
+CREATE TABLE IF NOT EXISTS HUB_AUTH_ROLE (
+  -- 主键和租户信息
+  roleId TEXT NOT NULL,
+  tenantId TEXT NOT NULL,
+  
+  -- 角色基本信息
+  roleName TEXT NOT NULL,
+  roleDescription TEXT,
+  
+  -- 角色状态
+  roleStatus TEXT NOT NULL DEFAULT 'Y',
+  builtInFlag TEXT NOT NULL DEFAULT 'N',
+  
+  -- 数据权限范围
+  dataScope TEXT DEFAULT NULL,
+  
+  -- 通用字段
+  addTime TEXT NOT NULL DEFAULT (datetime('now')),
+  addWho TEXT NOT NULL,
+  editTime TEXT NOT NULL DEFAULT (datetime('now')),
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y',
+  noteText TEXT,
+  extProperty TEXT,
+  reserved1 TEXT,
+  reserved2 TEXT,
+  reserved3 TEXT,
+  reserved4 TEXT,
+  reserved5 TEXT,
+  reserved6 TEXT,
+  reserved7 TEXT,
+  reserved8 TEXT,
+  reserved9 TEXT,
+  reserved10 TEXT,
+  
+  PRIMARY KEY (tenantId, roleId)
+);
+
+CREATE INDEX IF NOT EXISTS IDX_AUTH_ROLE_NAME ON HUB_AUTH_ROLE(tenantId, roleName);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_ROLE_STATUS ON HUB_AUTH_ROLE(roleStatus);
+
+-- =====================================================
+-- 权限资源表 - 存储系统所有权限资源信息
+-- =====================================================
+CREATE TABLE IF NOT EXISTS HUB_AUTH_RESOURCE (
+  -- 主键和租户信息
+  resourceId TEXT NOT NULL,
+  tenantId TEXT NOT NULL,
+  
+  -- 资源基本信息
+  resourceName TEXT NOT NULL,
+  resourceCode TEXT NOT NULL,
+  resourceType TEXT NOT NULL,
+  resourcePath TEXT,
+  resourceMethod TEXT,
+  
+  -- 层级关系
+  parentResourceId TEXT,
+  resourceLevel INTEGER NOT NULL DEFAULT 1,
+  sortOrder INTEGER NOT NULL DEFAULT 0,
+  
+  -- 显示信息
+  displayName TEXT,
+  iconClass TEXT,
+  description TEXT,
+  language TEXT DEFAULT 'zh-CN', -- 语言标识（如：zh-CN, en-US），用于多语言支持，默认zh-CN
+  
+  -- 状态信息
+  resourceStatus TEXT NOT NULL DEFAULT 'Y',
+  builtInFlag TEXT NOT NULL DEFAULT 'N',
+  
+  -- 通用字段
+  addTime TEXT NOT NULL DEFAULT (datetime('now')),
+  addWho TEXT NOT NULL,
+  editTime TEXT NOT NULL DEFAULT (datetime('now')),
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y',
+  noteText TEXT,
+  extProperty TEXT,
+  reserved1 TEXT,
+  reserved2 TEXT,
+  reserved3 TEXT,
+  reserved4 TEXT,
+  reserved5 TEXT,
+  reserved6 TEXT,
+  reserved7 TEXT,
+  reserved8 TEXT,
+  reserved9 TEXT,
+  reserved10 TEXT,
+  
+  PRIMARY KEY (tenantId, resourceId)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS IDX_AUTH_RES_CODE ON HUB_AUTH_RESOURCE(tenantId, resourceCode);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_RES_TYPE ON HUB_AUTH_RESOURCE(resourceType);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_RES_PARENT ON HUB_AUTH_RESOURCE(parentResourceId);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_RES_PATH ON HUB_AUTH_RESOURCE(resourcePath);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_RES_STATUS ON HUB_AUTH_RESOURCE(resourceStatus);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_RES_LEVEL ON HUB_AUTH_RESOURCE(resourceLevel);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_RES_SORT ON HUB_AUTH_RESOURCE(sortOrder);
+
+-- =====================================================
+-- 角色权限关联表 - 存储角色与权限资源的关联关系
+-- =====================================================
+CREATE TABLE IF NOT EXISTS HUB_AUTH_ROLE_RESOURCE (
+  -- 主键和租户信息
+  roleResourceId TEXT NOT NULL,
+  tenantId TEXT NOT NULL,
+  
+  -- 关联信息
+  roleId TEXT NOT NULL,
+  resourceId TEXT NOT NULL,
+  
+  -- 权限控制
+  permissionType TEXT NOT NULL DEFAULT 'ALLOW',
+  grantedBy TEXT NOT NULL,
+  grantedTime TEXT NOT NULL DEFAULT (datetime('now')),
+  expireTime TEXT,
+  
+  -- 通用字段
+  addTime TEXT NOT NULL DEFAULT (datetime('now')),
+  addWho TEXT NOT NULL,
+  editTime TEXT NOT NULL DEFAULT (datetime('now')),
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y',
+  noteText TEXT,
+  extProperty TEXT,
+  reserved1 TEXT,
+  reserved2 TEXT,
+  reserved3 TEXT,
+  reserved4 TEXT,
+  reserved5 TEXT,
+  reserved6 TEXT,
+  reserved7 TEXT,
+  reserved8 TEXT,
+  reserved9 TEXT,
+  reserved10 TEXT,
+  
+  PRIMARY KEY (tenantId, roleResourceId)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS IDX_AUTH_ROLE_RES_UNIQUE ON HUB_AUTH_ROLE_RESOURCE(tenantId, roleId, resourceId);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_ROLE_RES_ROLE ON HUB_AUTH_ROLE_RESOURCE(tenantId, roleId);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_ROLE_RES_RESOURCE ON HUB_AUTH_ROLE_RESOURCE(tenantId, resourceId);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_ROLE_RES_TYPE ON HUB_AUTH_ROLE_RESOURCE(permissionType);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_ROLE_RES_EXPIRE ON HUB_AUTH_ROLE_RESOURCE(expireTime);
+
+-- =====================================================
+-- 用户角色关联表 - 存储用户与角色的关联关系
+-- =====================================================
+CREATE TABLE IF NOT EXISTS HUB_AUTH_USER_ROLE (
+  -- 主键和租户信息
+  userRoleId TEXT NOT NULL,
+  tenantId TEXT NOT NULL,
+  
+  -- 关联信息
+  userId TEXT NOT NULL,
+  roleId TEXT NOT NULL,
+  
+  -- 授权控制
+  grantedBy TEXT NOT NULL,
+  grantedTime TEXT NOT NULL DEFAULT (datetime('now')),
+  expireTime TEXT,
+  primaryRoleFlag TEXT NOT NULL DEFAULT 'N',
+  
+  -- 通用字段
+  addTime TEXT NOT NULL DEFAULT (datetime('now')),
+  addWho TEXT NOT NULL,
+  editTime TEXT NOT NULL DEFAULT (datetime('now')),
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y',
+  noteText TEXT,
+  extProperty TEXT,
+  reserved1 TEXT,
+  reserved2 TEXT,
+  reserved3 TEXT,
+  reserved4 TEXT,
+  reserved5 TEXT,
+  reserved6 TEXT,
+  reserved7 TEXT,
+  reserved8 TEXT,
+  reserved9 TEXT,
+  reserved10 TEXT,
+  
+  PRIMARY KEY (tenantId, userRoleId)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS IDX_AUTH_USER_ROLE_UNIQUE ON HUB_AUTH_USER_ROLE(tenantId, userId, roleId);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_USER_ROLE_USER ON HUB_AUTH_USER_ROLE(tenantId, userId);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_USER_ROLE_ROLE ON HUB_AUTH_USER_ROLE(tenantId, roleId);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_USER_ROLE_PRIMARY ON HUB_AUTH_USER_ROLE(primaryRoleFlag);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_USER_ROLE_EXPIRE ON HUB_AUTH_USER_ROLE(expireTime);
+
+-- =====================================================
+-- 数据权限表 - 存储用户和角色的数据访问权限
+-- =====================================================
+CREATE TABLE IF NOT EXISTS HUB_AUTH_DATA_PERMISSION (
+  -- 主键和租户信息
+  dataPermissionId TEXT NOT NULL,
+  tenantId TEXT NOT NULL,
+  
+  -- 关联信息
+  userId TEXT,
+  roleId TEXT,
+  
+  -- 数据权限信息
+  resourceType TEXT NOT NULL,
+  resourceCode TEXT NOT NULL,
+  scopeValue TEXT,
+  
+  -- 权限条件
+  filterCondition TEXT,
+  columnPermissions TEXT,
+  operationPermissions TEXT DEFAULT 'read',
+  
+  -- 生效时间
+  effectiveTime TEXT,
+  expireTime TEXT,
+  
+  -- 通用字段
+  addTime TEXT NOT NULL DEFAULT (datetime('now')),
+  addWho TEXT NOT NULL,
+  editTime TEXT NOT NULL DEFAULT (datetime('now')),
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y',
+  noteText TEXT,
+  extProperty TEXT,
+  reserved1 TEXT,
+  reserved2 TEXT,
+  reserved3 TEXT,
+  reserved4 TEXT,
+  reserved5 TEXT,
+  reserved6 TEXT,
+  reserved7 TEXT,
+  reserved8 TEXT,
+  reserved9 TEXT,
+  reserved10 TEXT,
+  
+  PRIMARY KEY (tenantId, dataPermissionId)
+);
+
+CREATE INDEX IF NOT EXISTS IDX_AUTH_DATA_PERM_USER ON HUB_AUTH_DATA_PERMISSION(tenantId, userId);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_DATA_PERM_ROLE ON HUB_AUTH_DATA_PERMISSION(tenantId, roleId);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_DATA_PERM_RESOURCE ON HUB_AUTH_DATA_PERMISSION(resourceType, resourceCode);
+CREATE INDEX IF NOT EXISTS IDX_AUTH_DATA_PERM_EXPIRE ON HUB_AUTH_DATA_PERMISSION(expireTime);
+
+-- =====================================================
+-- 权限系统初始化数据
+-- 基于 web/frontend/src/router/staticRoutes.ts 路由配置
+-- =====================================================
+
+-- =====================================================
+-- 初始化角色数据
+-- =====================================================
+
+-- 超级管理员角色
+INSERT INTO HUB_AUTH_ROLE (
+  roleId, tenantId, roleName, roleDescription, 
+  roleStatus, builtInFlag, dataScope,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_SUPER_ADMIN', 'default', '超级管理员', '拥有系统所有权限的超级管理员',
+  'Y', 'Y', '{"type":"ALL"}',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_001', 1, 'Y'
+);
+
+-- =====================================================
+-- 初始化模块资源数据
+-- 基于 staticRoutes.ts 中的路由配置
+-- =====================================================
+
+-- 系统监控模块 (hub0000) - 路径: /dashboard
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, resourceLevel, sortOrder, displayName, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0000', 'default', '系统监控模块', 'hub0000', 'MODULE',
+  '/dashboard', 1, 1, '系统监控', 'HomeOutline', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_001', 1, 'Y'
+);
+
+-- 用户登录模块 (hub0001) - 路径: /login - 不需要权限验证
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, resourceLevel, sortOrder, displayName, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0001', 'default', '用户登录模块', 'hub0001', 'MODULE',
+  '/login', 1, 2, '用户登录', 'LogInOutline', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_002', 1, 'Y'
+);
+
+-- 用户管理模块 (hub0002) - 路径: /system/userManagement
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, resourceLevel, sortOrder, displayName, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0002', 'default', '用户管理模块', 'hub0002', 'MODULE',
+  '/system/userManagement', 1, 3, '用户管理', 'PeopleOutline', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_003', 1, 'Y'
+);
+
+-- 用户管理模块 - 按钮资源
+-- 新增按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, displayName, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0002:add', 'default', '新增用户', 'hub0002:add', 'BUTTON',
+  'hub0002', 2, 1, '新增', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_003_001', 1, 'Y'
+);
+
+-- 编辑按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, displayName, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0002:edit', 'default', '编辑用户', 'hub0002:edit', 'BUTTON',
+  'hub0002', 2, 2, '编辑', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_003_002', 1, 'Y'
+);
+
+-- 删除按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, displayName, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0002:delete', 'default', '删除用户', 'hub0002:delete', 'BUTTON',
+  'hub0002', 2, 3, '删除', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_003_003', 1, 'Y'
+);
+
+-- 重置密码按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, displayName, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0002:resetPassword', 'default', '重置密码', 'hub0002:resetPassword', 'BUTTON',
+  'hub0002', 2, 4, '重置密码', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_003_004', 1, 'Y'
+);
+
+-- 查看详情按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, displayName, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0002:view', 'default', '查看详情', 'hub0002:view', 'BUTTON',
+  'hub0002', 2, 5, '查看详情', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_003_005', 1, 'Y'
+);
+
+-- 查询按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, displayName, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0002:search', 'default', '查询用户', 'hub0002:search', 'BUTTON',
+  'hub0002', 2, 6, '查询', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_003_006', 1, 'Y'
+);
+
+-- 重置按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, displayName, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0002:reset', 'default', '重置查询', 'hub0002:reset', 'BUTTON',
+  'hub0002', 2, 7, '重置', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_003_007', 1, 'Y'
+);
+
+-- 角色管理模块 (hub0005) - 路径: /system/roleManagement
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, resourceLevel, sortOrder, displayName, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0005', 'default', '角色管理模块', 'hub0005', 'MODULE',
+  '/system/roleManagement', 1, 4, '角色管理', 'PeopleCircleOutline', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_004', 1, 'Y'
+);
+
+-- 角色管理模块 - 按钮资源
+-- 新增按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, displayName, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0005:add', 'default', '新增角色', 'hub0005:add', 'BUTTON',
+  'hub0005', 2, 1, '新增', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_004_001', 1, 'Y'
+);
+
+-- 编辑按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, displayName, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0005:edit', 'default', '编辑角色', 'hub0005:edit', 'BUTTON',
+  'hub0005', 2, 2, '编辑', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_004_002', 1, 'Y'
+);
+
+-- 删除按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, displayName, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0005:delete', 'default', '删除角色', 'hub0005:delete', 'BUTTON',
+  'hub0005', 2, 3, '删除', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_004_003', 1, 'Y'
+);
+
+-- 查看详情按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, displayName, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0005:view', 'default', '查看详情', 'hub0005:view', 'BUTTON',
+  'hub0005', 2, 4, '查看详情', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_004_004', 1, 'Y'
+);
+
+-- 角色授权按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, displayName, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0005:roleAuth', 'default', '角色授权', 'hub0005:roleAuth', 'BUTTON',
+  'hub0005', 2, 5, '角色授权', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_004_005', 1, 'Y'
+);
+
+-- 查询按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, displayName, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0005:search', 'default', '查询角色', 'hub0005:search', 'BUTTON',
+  'hub0005', 2, 6, '查询', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_004_006', 1, 'Y'
+);
+
+-- 重置按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, displayName, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0005:reset', 'default', '重置查询', 'hub0005:reset', 'BUTTON',
+  'hub0005', 2, 7, '重置', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_004_007', 1, 'Y'
+);
+
+-- 权限资源管理模块 (hub0006) - 路径: /system/resourceManagement
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, resourceLevel, sortOrder, displayName, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0006', 'default', '权限资源管理模块', 'hub0006', 'MODULE',
+  '/system/resourceManagement', 1, 5, '权限资源管理', 'KeyOutline', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_005', 1, 'Y'
+);
+
+-- 权限资源管理模块 - 按钮资源
+-- 查看详情按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, displayName, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0006:view', 'default', '查看详情', 'hub0006:view', 'BUTTON',
+  'hub0006', 2, 1, '查看详情', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_005_001', 1, 'Y'
+);
+
+-- 查询按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, displayName, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0006:search', 'default', '查询资源', 'hub0006:search', 'BUTTON',
+  'hub0006', 2, 2, '查询', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_005_002', 1, 'Y'
+);
+
+-- 重置按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, displayName, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0006:reset', 'default', '重置查询', 'hub0006:reset', 'BUTTON',
+  'hub0006', 2, 3, '重置', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_005_003', 1, 'Y'
+);
+
+-- 网关实例管理模块 (hub0020) - 路径: /gateway/gatewayInstanceManager
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, resourceLevel, sortOrder, displayName, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020', 'default', '网关实例管理模块', 'hub0020', 'MODULE',
+  '/gateway/gatewayInstanceManager', 1, 10, '实例管理', 'ServerOutline', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_010', 1, 'Y'
+);
+
+-- 路由管理模块 (hub0021) - 路径: /gateway/routeManagement
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, resourceLevel, sortOrder, displayName, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021', 'default', '路由管理模块', 'hub0021', 'MODULE',
+  '/gateway/routeManagement', 1, 11, '路由管理', 'GitNetworkOutline', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_011', 1, 'Y'
+);
+
+-- 代理管理模块 (hub0022) - 路径: /gateway/proxyManagement
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, resourceLevel, sortOrder, displayName, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0022', 'default', '代理管理模块', 'hub0022', 'MODULE',
+  '/gateway/proxyManagement', 1, 12, '代理管理', 'FlashOutline', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_012', 1, 'Y'
+);
+
+-- 网关日志管理模块 (hub0023) - 路径: /gateway/gatewayLogManagement
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, resourceLevel, sortOrder, displayName, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0023', 'default', '网关日志管理模块', 'hub0023', 'MODULE',
+  '/gateway/gatewayLogManagement', 1, 13, '网关日志管理', 'DocumentTextOutline', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_013', 1, 'Y'
+);
+
+-- 命名空间管理模块 (hub0040) - 路径: /serviceGovernance/namespaceManagement
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, resourceLevel, sortOrder, displayName, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0040', 'default', '命名空间管理模块', 'hub0040', 'MODULE',
+  '/serviceGovernance/namespaceManagement', 1, 20, '命名空间管理', 'LayersOutline', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_020', 1, 'Y'
+);
+
+-- 服务注册管理模块 (hub0041) - 路径: /serviceGovernance/serviceRegistryManagement
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, resourceLevel, sortOrder, displayName, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0041', 'default', '服务注册管理模块', 'hub0041', 'MODULE',
+  '/serviceGovernance/serviceRegistryManagement', 1, 21, '服务注册管理', 'ListOutline', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_021', 1, 'Y'
+);
+
+-- 服务监控模块 (hub0042) - 路径: /serviceGovernance/serviceMonitoring
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, resourceLevel, sortOrder, displayName, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0042', 'default', '服务监控模块', 'hub0042', 'MODULE',
+  '/serviceGovernance/serviceMonitoring', 1, 22, '服务监控', 'BarChartOutline', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_022', 1, 'Y'
+);
+
+-- 隧道服务器模块 (hub0060) - 路径: /tunnel/tunnelServerManagement
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, resourceLevel, sortOrder, displayName, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0060', 'default', '隧道服务器模块', 'hub0060', 'MODULE',
+  '/tunnel/tunnelServerManagement', 1, 30, '隧道服务器', 'ServerOutline', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_030', 1, 'Y'
+);
+
+-- 静态映射模块 (hub0061) - 路径: /tunnel/staticMappingManagement
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, resourceLevel, sortOrder, displayName, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0061', 'default', '静态映射模块', 'hub0061', 'MODULE',
+  '/tunnel/staticMappingManagement', 1, 31, '静态映射', 'GitNetworkOutline', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_031', 1, 'Y'
+);
+
+-- 隧道客户端模块 (hub0062) - 路径: /tunnel/tunnelClientManagement
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, resourceLevel, sortOrder, displayName, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0062', 'default', '隧道客户端模块', 'hub0062', 'MODULE',
+  '/tunnel/tunnelClientManagement', 1, 32, '隧道客户端', 'DesktopOutline', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_032', 1, 'Y'
+);
+
+-- 动态服务管理模块 (hub0063) - 路径: /tunnel/tunnelServiceManagement
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, resourceLevel, sortOrder, displayName, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0063', 'default', '动态服务管理模块', 'hub0063', 'MODULE',
+  '/tunnel/tunnelServiceManagement', 1, 33, '动态服务管理', 'GridOutline', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_033', 1, 'Y'
+);
+
+-- =====================================================
+-- 初始化角色权限关联数据
+-- 为超级管理员角色分配所有模块权限
+-- =====================================================
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0000', 'default', 'ROLE_SUPER_ADMIN', 'hub0000', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_001', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0001', 'default', 'ROLE_SUPER_ADMIN', 'hub0001', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_002', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0002', 'default', 'ROLE_SUPER_ADMIN', 'hub0002', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_003', 1, 'Y'
+);
+
+-- 超级管理员 - 用户管理模块按钮权限
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0002_BTN_ADD', 'default', 'ROLE_SUPER_ADMIN', 'hub0002:add', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_003_001', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0002_BTN_EDIT', 'default', 'ROLE_SUPER_ADMIN', 'hub0002:edit', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_003_002', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0002_BTN_DELETE', 'default', 'ROLE_SUPER_ADMIN', 'hub0002:delete', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_003_003', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0002_BTN_RESET_PWD', 'default', 'ROLE_SUPER_ADMIN', 'hub0002:resetPassword', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_003_004', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0002_BTN_VIEW', 'default', 'ROLE_SUPER_ADMIN', 'hub0002:view', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_003_005', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0002_BTN_SEARCH', 'default', 'ROLE_SUPER_ADMIN', 'hub0002:search', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_003_006', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0002_BTN_RESET', 'default', 'ROLE_SUPER_ADMIN', 'hub0002:reset', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_003_007', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0005', 'default', 'ROLE_SUPER_ADMIN', 'hub0005', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_004', 1, 'Y'
+);
+
+-- 超级管理员 - 角色管理模块按钮权限
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0005_BTN_ADD', 'default', 'ROLE_SUPER_ADMIN', 'hub0005:add', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_004_001', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0005_BTN_EDIT', 'default', 'ROLE_SUPER_ADMIN', 'hub0005:edit', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_004_002', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0005_BTN_DELETE', 'default', 'ROLE_SUPER_ADMIN', 'hub0005:delete', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_004_003', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0005_BTN_VIEW', 'default', 'ROLE_SUPER_ADMIN', 'hub0005:view', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_004_004', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0005_BTN_ROLE_AUTH', 'default', 'ROLE_SUPER_ADMIN', 'hub0005:roleAuth', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_004_005', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0005_BTN_SEARCH', 'default', 'ROLE_SUPER_ADMIN', 'hub0005:search', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_004_006', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0005_BTN_RESET', 'default', 'ROLE_SUPER_ADMIN', 'hub0005:reset', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_004_007', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0006', 'default', 'ROLE_SUPER_ADMIN', 'hub0006', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_005', 1, 'Y'
+);
+
+-- 超级管理员 - 权限资源管理模块按钮权限
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0006_BTN_VIEW', 'default', 'ROLE_SUPER_ADMIN', 'hub0006:view', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_005_001', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0006_BTN_SEARCH', 'default', 'ROLE_SUPER_ADMIN', 'hub0006:search', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_005_002', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0006_BTN_RESET', 'default', 'ROLE_SUPER_ADMIN', 'hub0006:reset', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_005_003', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0020', 'default', 'ROLE_SUPER_ADMIN', 'hub0020', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_010', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0021', 'default', 'ROLE_SUPER_ADMIN', 'hub0021', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_011', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0022', 'default', 'ROLE_SUPER_ADMIN', 'hub0022', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_012', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0023', 'default', 'ROLE_SUPER_ADMIN', 'hub0023', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_013', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0040', 'default', 'ROLE_SUPER_ADMIN', 'hub0040', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_020', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0041', 'default', 'ROLE_SUPER_ADMIN', 'hub0041', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_021', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0042', 'default', 'ROLE_SUPER_ADMIN', 'hub0042', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_022', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0060', 'default', 'ROLE_SUPER_ADMIN', 'hub0060', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_030', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0061', 'default', 'ROLE_SUPER_ADMIN', 'hub0061', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_031', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0062', 'default', 'ROLE_SUPER_ADMIN', 'hub0062', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_032', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+  roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_RES_SUPER_ADMIN_HUB0063', 'default', 'ROLE_SUPER_ADMIN', 'hub0063', 'ALLOW', 'system', datetime('now'),
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_033', 1, 'Y'
+);
+
 -- ==========================================
 -- 索引说明
 -- ==========================================

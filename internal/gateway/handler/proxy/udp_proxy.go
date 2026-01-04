@@ -28,8 +28,8 @@ func (u *UDPProxy) Handle(ctx *core.Context) bool {
 	return false
 }
 
-// ProxyRequest 代理UDP请求到指定URL
-func (u *UDPProxy) ProxyRequest(ctx *core.Context, targetURL string) error {
+// proxyRequest 代理UDP请求到指定URL（内部方法）
+func (u *UDPProxy) proxyRequest(ctx *core.Context, targetURL string) error {
 	// TODO: 实现UDP代理逻辑
 	// UDP代理需要在传输层进行，不是通过HTTP处理
 	return fmt.Errorf("UDP代理功能尚未实现")

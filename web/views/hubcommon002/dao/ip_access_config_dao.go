@@ -25,72 +25,18 @@ func NewIpAccessConfigDAO(db database.Database) *IpAccessConfigDAO {
 	}
 }
 
-// generateIpAccessConfigId 生成IP访问配置ID
-// 格式：IP + YYYYMMDD + HHMMSS + 4位随机数
-// 示例：IP20240615143022A1B2
-func (dao *IpAccessConfigDAO) generateIpAccessConfigId() string {
-	now := time.Now()
-	// 生成时间部分：YYYYMMDDHHMMSS
-	timeStr := now.Format("20060102150405")
-
-	// 生成4位随机字符（大写字母和数字）
-	randomStr := random.GenerateRandomString(4)
-
-	return fmt.Sprintf("IP%s%s", timeStr, randomStr)
-}
-
-// isIpAccessConfigIdExists 检查IP访问配置ID是否已存在
-func (dao *IpAccessConfigDAO) isIpAccessConfigIdExists(ctx context.Context, ipAccessConfigId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GW_IP_ACCESS_CONFIG WHERE ipAccessConfigId = ?`
-
-	var result struct {
-		Count int `db:"count"`
-	}
-
-	err := dao.db.QueryOne(ctx, &result, query, []interface{}{ipAccessConfigId}, true)
-	if err != nil {
-		return false, err
-	}
-
-	return result.Count > 0, nil
-}
-
-// generateUniqueIpAccessConfigId 生成唯一的IP访问配置ID
-func (dao *IpAccessConfigDAO) generateUniqueIpAccessConfigId(ctx context.Context) (string, error) {
-	const maxAttempts = 10
-
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		ipAccessConfigId := dao.generateIpAccessConfigId()
-
-		exists, err := dao.isIpAccessConfigIdExists(ctx, ipAccessConfigId)
-		if err != nil {
-			return "", huberrors.WrapError(err, "检查IP访问配置ID是否存在失败")
-		}
-
-		if !exists {
-			return ipAccessConfigId, nil
-		}
-
-		// 如果ID已存在，等待1毫秒后重试（确保时间戳不同）
-		time.Sleep(time.Millisecond)
-	}
-
-	return "", errors.New("生成唯一IP访问配置ID失败，已达到最大尝试次数")
-}
-
 // AddIpAccessConfig 添加IP访问控制配置
 func (dao *IpAccessConfigDAO) AddIpAccessConfig(ctx context.Context, config *models.IpAccessConfig, operatorId string) error {
-	if config.TenantId == "" || config.SecurityConfigId == "" {
-		return errors.New("tenantId和securityConfigId不能为空")
+	// 校验安全配置ID
+	if config.SecurityConfigId == "" {
+		return errors.New("securityConfigId不能为空")
 	}
 
 	// 自动生成IP访问配置ID
 	if config.IpAccessConfigId == "" {
-		generatedId, err := dao.generateUniqueIpAccessConfigId(ctx)
-		if err != nil {
-			return huberrors.WrapError(err, "生成IP访问配置ID失败")
-		}
-		config.IpAccessConfigId = generatedId
+		// 使用公共方法生成18位随机字符串，加上"IP"前缀后总共20位
+		uniqueId := random.GenerateRandomString(18)
+		config.IpAccessConfigId = fmt.Sprintf("IP%s", uniqueId)
 	}
 
 	// 设置自动填充字段
@@ -122,34 +68,10 @@ func (dao *IpAccessConfigDAO) AddIpAccessConfig(ctx context.Context, config *mod
 	return nil
 }
 
-// GetIpAccessConfigBySecurityConfigId 根据安全配置ID获取IP访问控制配置
-func (dao *IpAccessConfigDAO) GetIpAccessConfigBySecurityConfigId(ctx context.Context, securityConfigId, tenantId string) (*models.IpAccessConfig, error) {
-	if securityConfigId == "" || tenantId == "" {
-		return nil, errors.New("securityConfigId和tenantId不能为空")
-	}
-
-	query := `
-		SELECT * FROM HUB_GW_IP_ACCESS_CONFIG 
-		WHERE securityConfigId = ? AND tenantId = ?
-	`
-
-	var config models.IpAccessConfig
-	err := dao.db.QueryOne(ctx, &config, query, []interface{}{securityConfigId, tenantId}, true)
-
-	if err != nil {
-		if err == database.ErrRecordNotFound {
-			return nil, nil
-		}
-		return nil, huberrors.WrapError(err, "查询IP访问控制配置失败")
-	}
-
-	return &config, nil
-}
-
 // GetIpAccessConfigById 根据IP访问配置ID获取配置
 func (dao *IpAccessConfigDAO) GetIpAccessConfigById(ctx context.Context, ipAccessConfigId, tenantId string) (*models.IpAccessConfig, error) {
-	if ipAccessConfigId == "" || tenantId == "" {
-		return nil, errors.New("ipAccessConfigId和tenantId不能为空")
+	if ipAccessConfigId == "" {
+		return nil, errors.New("ipAccessConfigId不能为空")
 	}
 
 	query := `
@@ -172,12 +94,13 @@ func (dao *IpAccessConfigDAO) GetIpAccessConfigById(ctx context.Context, ipAcces
 
 // UpdateIpAccessConfig 更新IP访问控制配置
 func (dao *IpAccessConfigDAO) UpdateIpAccessConfig(ctx context.Context, config *models.IpAccessConfig, operatorId string) error {
-	if config.SecurityConfigId == "" || config.TenantId == "" {
-		return errors.New("securityConfigId和tenantId不能为空")
+	// 校验主键
+	if config.IpAccessConfigId == "" {
+		return errors.New("ipAccessConfigId不能为空")
 	}
 
-	// 首先获取当前配置
-	currentConfig, err := dao.GetIpAccessConfigBySecurityConfigId(ctx, config.SecurityConfigId, config.TenantId)
+	// 首先获取当前配置（使用主键）
+	currentConfig, err := dao.GetIpAccessConfigById(ctx, config.IpAccessConfigId, config.TenantId)
 	if err != nil {
 		return err
 	}
@@ -230,13 +153,14 @@ func (dao *IpAccessConfigDAO) UpdateIpAccessConfig(ctx context.Context, config *
 }
 
 // DeleteIpAccessConfig 物理删除IP访问控制配置
-func (dao *IpAccessConfigDAO) DeleteIpAccessConfig(ctx context.Context, securityConfigId, tenantId, operatorId string) error {
-	if securityConfigId == "" || tenantId == "" {
-		return errors.New("securityConfigId和tenantId不能为空")
+func (dao *IpAccessConfigDAO) DeleteIpAccessConfig(ctx context.Context, ipAccessConfigId, tenantId string) error {
+	// 校验主键
+	if ipAccessConfigId == "" {
+		return errors.New("ipAccessConfigId不能为空")
 	}
 
-	// 首先检查配置是否存在
-	config, err := dao.GetIpAccessConfigBySecurityConfigId(ctx, securityConfigId, tenantId)
+	// 首先检查配置是否存在（使用主键）
+	config, err := dao.GetIpAccessConfigById(ctx, ipAccessConfigId, tenantId)
 	if err != nil {
 		return err
 	}
@@ -244,10 +168,10 @@ func (dao *IpAccessConfigDAO) DeleteIpAccessConfig(ctx context.Context, security
 		return errors.New("IP访问控制配置不存在")
 	}
 
-	// 执行物理删除
-	sql := `DELETE FROM HUB_GW_IP_ACCESS_CONFIG WHERE securityConfigId = ? AND tenantId = ?`
+	// 执行物理删除（使用主键）
+	sql := `DELETE FROM HUB_GW_IP_ACCESS_CONFIG WHERE ipAccessConfigId = ? AND tenantId = ?`
 
-	result, err := dao.db.Exec(ctx, sql, []interface{}{securityConfigId, tenantId}, true)
+	result, err := dao.db.Exec(ctx, sql, []interface{}{ipAccessConfigId, tenantId}, true)
 	if err != nil {
 		return huberrors.WrapError(err, "删除IP访问控制配置失败")
 	}
@@ -259,14 +183,31 @@ func (dao *IpAccessConfigDAO) DeleteIpAccessConfig(ctx context.Context, security
 	return nil
 }
 
-// ListIpAccessConfigs 获取IP访问控制配置列表
-func (dao *IpAccessConfigDAO) ListIpAccessConfigs(ctx context.Context, tenantId string, page, pageSize int) ([]*models.IpAccessConfig, int, error) {
-	if tenantId == "" {
-		return nil, 0, errors.New("tenantId不能为空")
+// ListIpAccessConfigs 获取IP访问控制配置列表（支持条件查询）
+func (dao *IpAccessConfigDAO) ListIpAccessConfigs(ctx context.Context, tenantId string, query *models.IpAccessConfigQuery, page, pageSize int) ([]*models.IpAccessConfig, int, error) {
+	// 构建查询条件
+	whereClause := "WHERE tenantId = ?"
+	var params []interface{}
+	params = append(params, tenantId)
+
+	if query != nil {
+		// securityConfigId 是必填条件（避免关联错误）
+		if query.SecurityConfigId != "" {
+			whereClause += " AND securityConfigId = ?"
+			params = append(params, query.SecurityConfigId)
+		}
+		if query.ConfigName != "" {
+			whereClause += " AND configName LIKE ?"
+			params = append(params, "%"+query.ConfigName+"%")
+		}
+		if query.ActiveFlag != "" {
+			whereClause += " AND activeFlag = ?"
+			params = append(params, query.ActiveFlag)
+		}
 	}
 
 	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_IP_ACCESS_CONFIG WHERE tenantId = ? ORDER BY addTime DESC"
+	baseQuery := "SELECT * FROM HUB_GW_IP_ACCESS_CONFIG " + whereClause + " ORDER BY addTime DESC"
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
@@ -278,7 +219,7 @@ func (dao *IpAccessConfigDAO) ListIpAccessConfigs(ctx context.Context, tenantId 
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err = dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId}, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询IP访问控制配置总数失败")
 	}
@@ -302,7 +243,7 @@ func (dao *IpAccessConfigDAO) ListIpAccessConfigs(ctx context.Context, tenantId 
 	}
 
 	// 合并查询参数
-	allArgs := append([]interface{}{tenantId}, paginationArgs...)
+	allArgs := append(params, paginationArgs...)
 
 	// 执行分页查询
 	var configs []*models.IpAccessConfig

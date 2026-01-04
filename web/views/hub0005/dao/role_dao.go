@@ -6,7 +6,9 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/huberrors"
+	"gateway/pkg/utils/random"
 	"gateway/web/views/hub0005/models"
+	resourcemodels "gateway/web/views/hub0006/models"
 	"strings"
 	"time"
 )
@@ -49,7 +51,8 @@ func (dao *RoleDAO) AddRole(ctx context.Context, role *models.Role, operatorId s
 	role.AddWho = operatorId
 	role.EditTime = now
 	role.EditWho = operatorId
-	role.OprSeqFlag = role.RoleId + "_" + strings.ReplaceAll(time.Now().Format("20060102150405.000"), ".", "")
+	// 生成 OprSeqFlag，确保长度不超过32
+	role.OprSeqFlag = random.GenerateUniqueStringWithPrefix("", 32)
 	role.CurrentVersion = 1
 	role.ActiveFlag = "Y"
 
@@ -119,7 +122,8 @@ func (dao *RoleDAO) UpdateRole(ctx context.Context, role *models.Role, operatorI
 	role.CurrentVersion = currentRole.CurrentVersion + 1
 	role.EditTime = time.Now()
 	role.EditWho = operatorId
-	role.OprSeqFlag = role.RoleId + "_" + strings.ReplaceAll(time.Now().Format("20060102150405.000"), ".", "")
+	// 生成 OprSeqFlag，确保长度不超过32
+	role.OprSeqFlag = random.GenerateUniqueStringWithPrefix("", 32)
 
 	// 构建更新SQL
 	sql := `
@@ -152,7 +156,7 @@ func (dao *RoleDAO) UpdateRole(ctx context.Context, role *models.Role, operatorI
 	return nil
 }
 
-// DeleteRole 逻辑删除角色（将activeFlag设置为N）
+// DeleteRole 物理删除角色
 func (dao *RoleDAO) DeleteRole(ctx context.Context, roleId, tenantId, operatorId string) error {
 	if roleId == "" || tenantId == "" {
 		return errors.New("roleId和tenantId不能为空")
@@ -172,16 +176,15 @@ func (dao *RoleDAO) DeleteRole(ctx context.Context, roleId, tenantId, operatorId
 		return errors.New("内置角色不允许删除")
 	}
 
-	// 构建逻辑删除SQL
+	// 构建物理删除SQL
 	sql := `
-		UPDATE HUB_AUTH_ROLE 
-		SET activeFlag = 'N', editTime = ?, editWho = ?
-		WHERE roleId = ? AND tenantId = ? AND activeFlag = 'Y'
+		DELETE FROM HUB_AUTH_ROLE 
+		WHERE roleId = ? AND tenantId = ?
 	`
 
 	// 执行删除
 	result, err := dao.db.Exec(ctx, sql, []interface{}{
-		time.Now(), operatorId, roleId, tenantId,
+		roleId, tenantId,
 	}, true)
 
 	if err != nil {
@@ -196,8 +199,9 @@ func (dao *RoleDAO) DeleteRole(ctx context.Context, roleId, tenantId, operatorId
 	return nil
 }
 
-// ListRoles 获取角色列表
-func (dao *RoleDAO) ListRoles(ctx context.Context, tenantId string, page, pageSize int) ([]*models.Role, int, error) {
+// ListRoles 获取角色列表（支持条件查询）
+// 参考网关日志的查询风格，统一条件构造方式
+func (dao *RoleDAO) ListRoles(ctx context.Context, tenantId string, query *models.RoleQuery, page, pageSize int) ([]*models.Role, int, error) {
 	if tenantId == "" {
 		return nil, 0, errors.New("tenantId不能为空")
 	}
@@ -208,10 +212,44 @@ func (dao *RoleDAO) ListRoles(ctx context.Context, tenantId string, page, pageSi
 	// 获取数据库类型
 	dbType := sqlutils.GetDatabaseType(dao.db)
 
+	// 构建查询条件
+	whereClause := "WHERE tenantId = ?"
+	var params []interface{}
+	params = append(params, tenantId)
+
+	// 默认只查询活动角色，如果前端显式传入 ActiveFlag 则按传入值过滤
+	if query != nil {
+		if query.RoleName != "" {
+			whereClause += " AND roleName LIKE ?"
+			params = append(params, "%"+query.RoleName+"%")
+		}
+		if query.RoleDescription != "" {
+			whereClause += " AND roleDescription LIKE ?"
+			params = append(params, "%"+query.RoleDescription+"%")
+		}
+		if query.RoleStatus != "" {
+			whereClause += " AND roleStatus = ?"
+			params = append(params, query.RoleStatus)
+		}
+		if query.BuiltInFlag != "" {
+			whereClause += " AND builtInFlag = ?"
+			params = append(params, query.BuiltInFlag)
+		}
+		if query.ActiveFlag != "" {
+			whereClause += " AND activeFlag = ?"
+			params = append(params, query.ActiveFlag)
+		} else {
+			whereClause += " AND activeFlag = 'Y'"
+		}
+	} else {
+		// 未提供查询条件时，默认只查询活动角色
+		whereClause += " AND activeFlag = 'Y'"
+	}
+
 	// 基础查询语句
 	baseQuery := `
 		SELECT * FROM HUB_AUTH_ROLE
-		WHERE tenantId = ? AND activeFlag = 'Y'
+	` + whereClause + `
 		ORDER BY addTime DESC
 	`
 
@@ -225,7 +263,7 @@ func (dao *RoleDAO) ListRoles(ctx context.Context, tenantId string, page, pageSi
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err = dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId}, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询角色总数失败")
 	}
@@ -243,7 +281,7 @@ func (dao *RoleDAO) ListRoles(ctx context.Context, tenantId string, page, pageSi
 	}
 
 	// 合并查询参数：基础查询参数 + 分页参数
-	queryArgs := []interface{}{tenantId}
+	queryArgs := params
 	queryArgs = append(queryArgs, paginationArgs...)
 
 	// 执行分页查询
@@ -297,4 +335,173 @@ func (dao *RoleDAO) UpdateRoleStatus(ctx context.Context, roleId, tenantId, stat
 	}
 
 	return nil
+}
+
+// GetRoleResourceIds 获取角色关联的资源ID列表
+func (dao *RoleDAO) GetRoleResourceIds(ctx context.Context, roleId, tenantId string) ([]string, error) {
+	if roleId == "" || tenantId == "" {
+		return nil, errors.New("roleId和tenantId不能为空")
+	}
+
+	query := `
+		SELECT resourceId 
+		FROM HUB_AUTH_ROLE_RESOURCE 
+		WHERE roleId = ? AND tenantId = ? AND activeFlag = 'Y'
+		AND (expireTime IS NULL OR expireTime > ?)
+	`
+
+	type ResourceIdResult struct {
+		ResourceId string `db:"resourceId"`
+	}
+
+	var results []ResourceIdResult
+	err := dao.db.Query(ctx, &results, query, []interface{}{roleId, tenantId, time.Now()}, true)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "查询角色资源ID列表失败")
+	}
+
+	resourceIds := make([]string, 0, len(results))
+	for _, result := range results {
+		resourceIds = append(resourceIds, result.ResourceId)
+	}
+
+	return resourceIds, nil
+}
+
+// SaveRoleResources 保存角色授权（批量保存到 HUB_AUTH_ROLE_RESOURCE 表）
+// 参数:
+//   - ctx: 上下文对象
+//   - roleId: 角色ID
+//   - tenantId: 租户ID
+//   - resourceIds: 资源ID列表
+//   - operatorId: 操作人ID
+//   - permissionType: 权限类型（ALLOW/DENY），默认为 ALLOW
+//   - expireTime: 过期时间，nil 表示永不过期
+//
+// 返回:
+//   - err: 可能的错误
+//
+// 说明:
+//
+//	此方法会先删除该角色的所有现有授权，然后插入新的授权记录
+func (dao *RoleDAO) SaveRoleResources(ctx context.Context, roleId, tenantId string, resourceIds []string, operatorId string, permissionType string, expireTime *time.Time) error {
+	if roleId == "" || tenantId == "" {
+		return errors.New("roleId和tenantId不能为空")
+	}
+
+	// 如果 permissionType 为空，默认为 ALLOW
+	if permissionType == "" {
+		permissionType = "ALLOW"
+	}
+
+	// 验证权限类型
+	if permissionType != "ALLOW" && permissionType != "DENY" {
+		return errors.New("权限类型无效，必须为 ALLOW 或 DENY")
+	}
+
+	// 开始事务
+	txCtx, err := dao.db.BeginTx(ctx, nil)
+	if err != nil {
+		return huberrors.WrapError(err, "开始事务失败")
+	}
+
+	// 先删除该角色的所有现有授权（物理删除）
+	deleteSQL := `
+		DELETE FROM HUB_AUTH_ROLE_RESOURCE 
+		WHERE roleId = ? AND tenantId = ?
+	`
+
+	_, err = dao.db.Exec(txCtx, deleteSQL, []interface{}{roleId, tenantId}, false)
+	if err != nil {
+		dao.db.Rollback(txCtx)
+		return huberrors.WrapError(err, "删除角色现有授权失败")
+	}
+
+	// 如果没有要保存的资源，直接提交事务
+	if len(resourceIds) == 0 {
+		err = dao.db.Commit(txCtx)
+		if err != nil {
+			return huberrors.WrapError(err, "提交事务失败")
+		}
+		return nil
+	}
+
+	// 批量插入新的授权记录
+	now := time.Now()
+	for _, resourceId := range resourceIds {
+		if resourceId == "" {
+			continue // 跳过空的资源ID
+		}
+
+		// 生成角色资源关联ID：roleId_resourceId_timestamp
+		roleResourceId := roleId + "_" + resourceId + "_" + strings.ReplaceAll(now.Format("20060102150405.000"), ".", "")
+
+		// 构建插入SQL
+		insertSQL := `
+			INSERT INTO HUB_AUTH_ROLE_RESOURCE (
+				roleResourceId, tenantId, roleId, resourceId,
+				permissionType, grantedBy, grantedTime, expireTime,
+				addTime, addWho, editTime, editWho,
+				oprSeqFlag, currentVersion, activeFlag
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`
+
+		// 生成 OprSeqFlag，确保长度不超过32
+		oprSeqFlag := random.GenerateUniqueStringWithPrefix("", 32)
+
+		_, err = dao.db.Exec(txCtx, insertSQL, []interface{}{
+			roleResourceId, tenantId, roleId, resourceId,
+			permissionType, operatorId, now, expireTime,
+			now, operatorId, now, operatorId,
+			oprSeqFlag, 1, "Y",
+		}, false)
+		if err != nil {
+			// 回滚事务
+			dao.db.Rollback(txCtx)
+			return huberrors.WrapError(err, "插入角色授权失败")
+		}
+	}
+
+	// 提交事务
+	err = dao.db.Commit(txCtx)
+	if err != nil {
+		return huberrors.WrapError(err, "提交事务失败")
+	}
+
+	return nil
+}
+
+// GetAllResources 获取所有资源（不分页，用于角色授权选择）
+// 参数:
+//   - ctx: 上下文对象
+//   - tenantId: 租户ID
+//
+// 返回:
+//   - resources: 资源列表
+//   - err: 可能的错误
+func (dao *RoleDAO) GetAllResources(ctx context.Context, tenantId string) ([]*resourcemodels.Resource, error) {
+	if tenantId == "" {
+		return nil, errors.New("tenantId不能为空")
+	}
+
+	query := `
+		SELECT 
+			resourceId, tenantId, resourceName, resourceCode, resourceType,
+			resourcePath, resourceMethod, parentResourceId, resourceLevel,
+			sortOrder, resourceStatus, builtInFlag, iconClass, description,
+			language, addTime, addWho, editTime, editWho,
+			oprSeqFlag, currentVersion, activeFlag, noteText, extProperty
+		FROM HUB_AUTH_RESOURCE 
+		WHERE tenantId = ? AND activeFlag = 'Y'
+		ORDER BY sortOrder ASC, resourceLevel ASC
+	`
+
+	// 使用通用查询方法获取结果
+	var resources []*resourcemodels.Resource
+	err := dao.db.Query(ctx, &resources, query, []interface{}{tenantId}, true)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "查询所有资源失败")
+	}
+
+	return resources, nil
 }

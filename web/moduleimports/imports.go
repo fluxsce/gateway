@@ -24,6 +24,8 @@ import (
 	_ "gateway/web/views/hub0003/routes"
 	// 导入角色管理模块
 	_ "gateway/web/views/hub0005/routes"
+	// 导入权限资源管理模块
+	_ "gateway/web/views/hub0006/routes"
 	// 导入网关管理模块
 	_ "gateway/web/views/hub0020/routes"
 	// 导入路由管理模块
@@ -42,10 +44,8 @@ import (
 	_ "gateway/web/views/hub0060/routes"
 	// 导入隧道映射管理模块
 	_ "gateway/web/views/hub0061/routes"
-	// 导入客户端管理模块
+	// 导入客户端和服务管理模块
 	_ "gateway/web/views/hub0062/routes"
-	// 导入动态服务管理模块
-	_ "gateway/web/views/hub0063/routes"
 	//导入插件管理模块
 	_ "gateway/web/views/hubplugin/routes"
 	// 导入SDK服务模块

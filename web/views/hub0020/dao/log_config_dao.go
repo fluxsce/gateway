@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"gateway/pkg/database"
-	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/random"
 	"gateway/web/views/hub0020/models"
@@ -26,7 +25,7 @@ func NewLogConfigDAO(db database.Database) *LogConfigDAO {
 func (dao *LogConfigDAO) AddLogConfig(ctx context.Context, logConfig *models.LogConfig, operatorId string) (string, error) {
 	// 生成配置ID
 	if logConfig.LogConfigId == "" {
-		logConfig.LogConfigId = "LOG_" + random.GenerateRandomString(24)
+		logConfig.LogConfigId = random.GenerateUniqueStringWithPrefix("LOG_", 32)
 	}
 
 	// 设置默认值
@@ -35,11 +34,15 @@ func (dao *LogConfigDAO) AddLogConfig(ctx context.Context, logConfig *models.Log
 	logConfig.EditTime = now
 	logConfig.AddWho = operatorId
 	logConfig.EditWho = operatorId
-	logConfig.OprSeqFlag = fmt.Sprintf("LOG_CONFIG_%d", now.UnixNano())
+	// 生成 OprSeqFlag，确保长度不超过32
+	logConfig.OprSeqFlag = random.GenerateUniqueStringWithPrefix("", 32)
 	logConfig.CurrentVersion = 1
 	logConfig.ActiveFlag = "Y"
 
-	// 设置默认配置值
+	// 设置默认配置值（与前端默认值保持一致）
+	if logConfig.ConfigName == "" {
+		logConfig.ConfigName = "网关日志"
+	}
 	if logConfig.LogFormat == "" {
 		logConfig.LogFormat = "JSON"
 	}
@@ -53,19 +56,19 @@ func (dao *LogConfigDAO) AddLogConfig(ctx context.Context, logConfig *models.Log
 		logConfig.RecordHeaders = "Y"
 	}
 	if logConfig.MaxBodySizeBytes == 0 {
-		logConfig.MaxBodySizeBytes = 4096
+		logConfig.MaxBodySizeBytes = 1048576 // 1MB，与前端保持一致
 	}
 	if logConfig.OutputTargets == "" {
-		logConfig.OutputTargets = "CONSOLE"
+		logConfig.OutputTargets = "DATABASE" // 与前端保持一致
 	}
 	if logConfig.EnableAsyncLogging == "" {
 		logConfig.EnableAsyncLogging = "Y"
 	}
 	if logConfig.AsyncQueueSize == 0 {
-		logConfig.AsyncQueueSize = 10000
+		logConfig.AsyncQueueSize = 1000 // 与前端保持一致
 	}
 	if logConfig.AsyncFlushIntervalMs == 0 {
-		logConfig.AsyncFlushIntervalMs = 1000
+		logConfig.AsyncFlushIntervalMs = 5000 // 与前端保持一致
 	}
 	if logConfig.EnableBatchProcessing == "" {
 		logConfig.EnableBatchProcessing = "Y"
@@ -74,7 +77,7 @@ func (dao *LogConfigDAO) AddLogConfig(ctx context.Context, logConfig *models.Log
 		logConfig.BatchSize = 100
 	}
 	if logConfig.BatchTimeoutMs == 0 {
-		logConfig.BatchTimeoutMs = 5000
+		logConfig.BatchTimeoutMs = 1000 // 与前端保持一致
 	}
 	if logConfig.LogRetentionDays == 0 {
 		logConfig.LogRetentionDays = 30
@@ -86,16 +89,19 @@ func (dao *LogConfigDAO) AddLogConfig(ctx context.Context, logConfig *models.Log
 		logConfig.RotationPattern = "DAILY"
 	}
 	if logConfig.EnableSensitiveDataMasking == "" {
-		logConfig.EnableSensitiveDataMasking = "Y"
+		logConfig.EnableSensitiveDataMasking = "N" // 与前端保持一致
 	}
 	if logConfig.MaskingPattern == "" {
-		logConfig.MaskingPattern = "***"
+		logConfig.MaskingPattern = "****" // 与前端保持一致
 	}
 	if logConfig.BufferSize == 0 {
-		logConfig.BufferSize = 8192
+		logConfig.BufferSize = 65536 // 64KB，与前端保持一致
 	}
 	if logConfig.FlushThreshold == 0 {
-		logConfig.FlushThreshold = 100
+		logConfig.FlushThreshold = 1000 // 与前端保持一致
+	}
+	if logConfig.ConfigPriority == 0 {
+		logConfig.ConfigPriority = 0
 	}
 
 	// 插入数据库
@@ -113,7 +119,8 @@ func (dao *LogConfigDAO) UpdateLogConfig(ctx context.Context, logConfig *models.
 	// 更新操作信息
 	logConfig.EditTime = time.Now()
 	logConfig.EditWho = operatorId
-	logConfig.OprSeqFlag = fmt.Sprintf("LOG_CONFIG_%d", time.Now().UnixNano())
+	// 生成 OprSeqFlag，确保长度不超过32
+	logConfig.OprSeqFlag = random.GenerateUniqueStringWithPrefix("", 32)
 
 	// 构建更新条件
 	whereClause := "tenantId = ? AND logConfigId = ?"
@@ -145,140 +152,4 @@ func (dao *LogConfigDAO) GetLogConfigById(ctx context.Context, logConfigId, tena
 	}
 
 	return logConfig, nil
-}
-
-// ListLogConfigs 获取日志配置列表
-func (dao *LogConfigDAO) ListLogConfigs(ctx context.Context, tenantId string, page, pageSize int) ([]*models.LogConfig, int64, error) {
-	tableName := (&models.LogConfig{}).TableName()
-
-	// 构建基础查询
-	baseQuery := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY configPriority ASC, addTime DESC", tableName)
-	args := []interface{}{tenantId}
-
-	// 构建统计查询
-	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
-	if err != nil {
-		logger.ErrorWithTrace(ctx, "构建统计查询失败", err)
-		return nil, 0, fmt.Errorf("构建统计查询失败: %w", err)
-	}
-
-	// 执行统计查询
-	var result struct {
-		Count int64 `db:"COUNT(*)"`
-	}
-	err = dao.db.QueryOne(ctx, &result, countQuery, args, true)
-	if err != nil {
-		logger.ErrorWithTrace(ctx, "统计日志配置总数失败", err)
-		return nil, 0, fmt.Errorf("统计日志配置总数失败: %w", err)
-	}
-
-	if result.Count == 0 {
-		return []*models.LogConfig{}, 0, nil
-	}
-
-	// 创建分页信息
-	paginationInfo := sqlutils.NewPaginationInfo(page, pageSize)
-	// 获取数据库类型
-	dbType := sqlutils.GetDatabaseType(dao.db)
-	// 构建分页查询
-	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, paginationInfo)
-	if err != nil {
-		logger.ErrorWithTrace(ctx, "构建分页查询失败", err)
-		return nil, 0, fmt.Errorf("构建分页查询失败: %w", err)
-	}
-	allArgs := append(args, paginationArgs...)
-
-	// 执行分页查询
-	var logConfigs []*models.LogConfig
-	err = dao.db.Query(ctx, &logConfigs, paginatedQuery, allArgs, true)
-	if err != nil {
-		logger.ErrorWithTrace(ctx, "查询日志配置列表失败", err)
-		return nil, 0, fmt.Errorf("查询日志配置列表失败: %w", err)
-	}
-
-	return logConfigs, result.Count, nil
-}
-
-// DeleteLogConfig 删除日志配置（逻辑删除）
-func (dao *LogConfigDAO) DeleteLogConfig(ctx context.Context, logConfigId, tenantId, operatorId string) error {
-	// 构建更新SQL
-	now := time.Now()
-	sql := fmt.Sprintf(`
-		UPDATE %s SET 
-			activeFlag = ?, editTime = ?, editWho = ?, oprSeqFlag = ?
-		WHERE tenantId = ? AND logConfigId = ?
-	`, (&models.LogConfig{}).TableName())
-
-	// 执行更新
-	result, err := dao.db.Exec(ctx, sql, []interface{}{
-		"N", now, operatorId, fmt.Sprintf("LOG_CONFIG_%d", now.UnixNano()),
-		tenantId, logConfigId,
-	}, true)
-	if err != nil {
-		logger.ErrorWithTrace(ctx, "删除日志配置失败", err)
-		return fmt.Errorf("删除日志配置失败: %w", err)
-	}
-
-	if result == 0 {
-		return fmt.Errorf("未找到要删除的日志配置")
-	}
-
-	return nil
-}
-
-// GetLogConfigsByTenant 根据租户获取所有激活的日志配置
-func (dao *LogConfigDAO) GetLogConfigsByTenant(ctx context.Context, tenantId string) ([]*models.LogConfig, error) {
-	var logConfigs []*models.LogConfig
-	tableName := (&models.LogConfig{}).TableName()
-
-	query := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY configPriority ASC, addTime DESC",
-		tableName)
-
-	err := dao.db.Query(ctx, &logConfigs, query, []interface{}{tenantId}, true)
-	if err != nil {
-		logger.ErrorWithTrace(ctx, "查询租户日志配置失败", err)
-		return nil, fmt.Errorf("查询租户日志配置失败: %w", err)
-	}
-
-	return logConfigs, nil
-}
-
-// CheckLogConfigExists 检查日志配置是否存在
-func (dao *LogConfigDAO) CheckLogConfigExists(ctx context.Context, logConfigId, tenantId string) (bool, error) {
-	tableName := (&models.LogConfig{}).TableName()
-	countQuery := fmt.Sprintf("SELECT COUNT(*) as count FROM %s WHERE tenantId = ? AND logConfigId = ? AND activeFlag = 'Y'",
-		tableName)
-
-	var result struct {
-		Count int `db:"count"`
-	}
-	err := dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId, logConfigId}, true)
-	if err != nil {
-		logger.ErrorWithTrace(ctx, "检查日志配置是否存在失败", err)
-		return false, fmt.Errorf("检查日志配置是否存在失败: %w", err)
-	}
-
-	return result.Count > 0, nil
-}
-
-// GetDefaultLogConfig 获取默认的日志配置
-func (dao *LogConfigDAO) GetDefaultLogConfig(ctx context.Context, tenantId string) (*models.LogConfig, error) {
-	var logConfigs []*models.LogConfig
-	tableName := (&models.LogConfig{}).TableName()
-
-	// 获取优先级最高的配置（数值越小优先级越高）
-	query := fmt.Sprintf("SELECT * FROM %s WHERE tenantId = ? AND activeFlag = 'Y' ORDER BY configPriority ASC, addTime DESC LIMIT 1",
-		tableName)
-
-	err := dao.db.Query(ctx, &logConfigs, query, []interface{}{tenantId}, true)
-	if err != nil {
-		logger.ErrorWithTrace(ctx, "查询默认日志配置失败", err)
-		return nil, fmt.Errorf("查询默认日志配置失败: %w", err)
-	}
-
-	if len(logConfigs) == 0 {
-		return nil, nil
-	}
-
-	return logConfigs[0], nil
 }

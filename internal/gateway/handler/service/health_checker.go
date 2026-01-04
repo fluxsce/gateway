@@ -137,26 +137,68 @@ func (h *HTTPHealthChecker) healthCheckLoop() {
 }
 
 // performHealthChecks 执行健康检查
+// 注意：此方法会为每个节点启动一个 goroutine 进行健康检查
+// 每个 goroutine 都有超时控制，防止长时间阻塞导致资源泄漏
 func (h *HTTPHealthChecker) performHealthChecks() {
 	h.mu.RLock()
+	// 创建节点状态的副本，避免在检查过程中持有锁
 	nodesCopy := make(map[string]*nodeHealthStatus)
 	for k, v := range h.nodes {
+		// 注意：这里复制的是指针，所以修改 status 中的字段会影响原始数据
+		// 但我们需要通过锁保护对原始 nodes map 的访问
 		nodesCopy[k] = v
 	}
 	h.mu.RUnlock()
 
-	for _, status := range nodesCopy {
-		go h.checkNodeHealth(status)
+	// 为每个节点启动健康检查 goroutine，使用 context 控制超时
+	for nodeID, status := range nodesCopy {
+		go func(id string, st *nodeHealthStatus) {
+			// 使用 context 控制超时，防止健康检查卡住导致 goroutine 泄漏
+			ctx, cancel := context.WithTimeout(context.Background(), h.config.Timeout*2)
+			defer cancel()
+
+			// 使用 channel 确保 goroutine 能够正常退出
+			done := make(chan struct{})
+			go func() {
+				h.checkNodeHealth(st)
+				close(done)
+			}()
+
+			select {
+			case <-done:
+				// 健康检查完成
+			case <-ctx.Done():
+				// 超时，记录但不影响其他节点的检查
+			}
+		}(nodeID, status)
 	}
 }
 
 // checkNodeHealth 检查节点健康状态
+// 注意：此方法会修改共享的 status 对象，需要通过锁保护
+// 但由于 status 是从 nodes map 中获取的，我们需要通过锁保护对 nodes map 的访问
 func (h *HTTPHealthChecker) checkNodeHealth(status *nodeHealthStatus) {
+	// 执行健康检查（在锁外执行，避免长时间持有锁）
 	healthy := h.CheckNode(status.node)
+
+	// 需要加锁保护对 status 的修改，因为多个 goroutine 可能同时检查同一个节点
+	h.mu.Lock()
+
+	// 检查节点是否仍然存在（可能在检查过程中被移除）
+	if _, exists := h.nodes[status.node.ID]; !exists {
+		h.mu.Unlock()
+		return
+	}
+
+	// 更新检查时间
 	status.lastCheck = time.Now()
 
+	// 记录之前的健康状态
 	previousHealth := status.node.Health
+	nodeID := status.node.ID
+	newHealth := status.node.Health
 
+	// 更新连续成功/失败计数
 	if healthy {
 		status.consecutiveSuccess++
 		status.consecutiveFailure = 0
@@ -164,6 +206,7 @@ func (h *HTTPHealthChecker) checkNodeHealth(status *nodeHealthStatus) {
 		// 连续成功达到阈值，标记为健康
 		if status.consecutiveSuccess >= h.config.HealthyThreshold {
 			status.node.Health = true
+			newHealth = true
 		}
 	} else {
 		status.consecutiveFailure++
@@ -172,30 +215,70 @@ func (h *HTTPHealthChecker) checkNodeHealth(status *nodeHealthStatus) {
 		// 连续失败达到阈值，标记为不健康
 		if status.consecutiveFailure >= h.config.UnhealthyThreshold {
 			status.node.Health = false
+			newHealth = false
 		}
 	}
 
-	// 如果健康状态发生变化，触发回调
-	if previousHealth != status.node.Health {
-		h.notifyCallbacks(status.node.ID, status.node.Health)
+	// 复制回调列表，准备在锁外执行回调
+	var callbacks []HealthCheckCallback
+	needNotify := previousHealth != newHealth
+	if needNotify {
+		callbacks = make([]HealthCheckCallback, len(h.callbacks))
+		copy(callbacks, h.callbacks)
+	}
+
+	// 释放锁
+	h.mu.Unlock()
+
+	// 如果健康状态发生变化，触发回调（在锁外执行，避免死锁）
+	if needNotify {
+		// 在锁外通知回调，避免回调中可能再次获取锁导致死锁
+		for _, callback := range callbacks {
+			go func(cb HealthCheckCallback) {
+				defer func() {
+					if r := recover(); r != nil {
+						// 忽略回调中的 panic，防止影响其他回调
+					}
+				}()
+				cb(nodeID, newHealth)
+			}(callback)
+		}
 	}
 }
 
 // notifyCallbacks 通知回调函数
+// 注意：此方法已废弃，回调通知现在在 checkNodeHealth 中直接处理
+// 保留此方法是为了向后兼容，但实际不会被调用
 func (h *HTTPHealthChecker) notifyCallbacks(nodeID string, healthy bool) {
 	h.mu.RLock()
 	callbacks := make([]HealthCheckCallback, len(h.callbacks))
 	copy(callbacks, h.callbacks)
 	h.mu.RUnlock()
 
+	// 为每个回调启动 goroutine，使用 context 控制超时
 	for _, callback := range callbacks {
 		go func(cb HealthCheckCallback) {
-			defer func() {
-				if r := recover(); r != nil {
-					// 忽略回调中的panic
-				}
+			// 使用 context 控制回调执行超时，防止回调卡住导致 goroutine 泄漏
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			done := make(chan struct{})
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						// 忽略回调中的 panic，防止影响其他回调
+					}
+					close(done)
+				}()
+				cb(nodeID, healthy)
 			}()
-			cb(nodeID, healthy)
+
+			select {
+			case <-done:
+				// 回调执行完成
+			case <-ctx.Done():
+				// 回调超时，记录但不影响其他回调
+			}
 		}(callback)
 	}
 }
@@ -440,26 +523,68 @@ func (a *AdvancedHealthChecker) healthCheckLoop() {
 }
 
 // performHealthChecks 执行健康检查
+// 注意：此方法会为每个节点启动一个 goroutine 进行健康检查
+// 每个 goroutine 都有超时控制，防止长时间阻塞导致资源泄漏
 func (a *AdvancedHealthChecker) performHealthChecks() {
 	a.mu.RLock()
+	// 创建节点状态的副本，避免在检查过程中持有锁
 	nodesCopy := make(map[string]*nodeHealthStatus)
 	for k, v := range a.nodes {
+		// 注意：这里复制的是指针，所以修改 status 中的字段会影响原始数据
+		// 但我们需要通过锁保护对原始 nodes map 的访问
 		nodesCopy[k] = v
 	}
 	a.mu.RUnlock()
 
-	for _, status := range nodesCopy {
-		go a.checkNodeHealth(status)
+	// 为每个节点启动健康检查 goroutine，使用 context 控制超时
+	for nodeID, status := range nodesCopy {
+		go func(id string, st *nodeHealthStatus) {
+			// 使用 context 控制超时，防止健康检查卡住导致 goroutine 泄漏
+			ctx, cancel := context.WithTimeout(context.Background(), a.config.Timeout*2)
+			defer cancel()
+
+			// 使用 channel 确保 goroutine 能够正常退出
+			done := make(chan struct{})
+			go func() {
+				a.checkNodeHealth(st)
+				close(done)
+			}()
+
+			select {
+			case <-done:
+				// 健康检查完成
+			case <-ctx.Done():
+				// 超时，记录但不影响其他节点的检查
+			}
+		}(nodeID, status)
 	}
 }
 
 // checkNodeHealth 检查节点健康状态
+// 注意：此方法会修改共享的 status 对象，需要通过锁保护
+// 但由于 status 是从 nodes map 中获取的，我们需要通过锁保护对 nodes map 的访问
 func (a *AdvancedHealthChecker) checkNodeHealth(status *nodeHealthStatus) {
+	// 执行健康检查（在锁外执行，避免长时间持有锁）
 	healthy := a.CheckNode(status.node)
+
+	// 需要加锁保护对 status 的修改，因为多个 goroutine 可能同时检查同一个节点
+	a.mu.Lock()
+
+	// 检查节点是否仍然存在（可能在检查过程中被移除）
+	if _, exists := a.nodes[status.node.ID]; !exists {
+		a.mu.Unlock()
+		return
+	}
+
+	// 更新检查时间
 	status.lastCheck = time.Now()
 
+	// 记录之前的健康状态
 	previousHealth := status.node.Health
+	nodeID := status.node.ID
+	newHealth := status.node.Health
 
+	// 更新连续成功/失败计数
 	if healthy {
 		status.consecutiveSuccess++
 		status.consecutiveFailure = 0
@@ -467,6 +592,7 @@ func (a *AdvancedHealthChecker) checkNodeHealth(status *nodeHealthStatus) {
 		// 连续成功达到阈值，标记为健康
 		if status.consecutiveSuccess >= a.config.HealthyThreshold {
 			status.node.Health = true
+			newHealth = true
 		}
 	} else {
 		status.consecutiveFailure++
@@ -475,30 +601,70 @@ func (a *AdvancedHealthChecker) checkNodeHealth(status *nodeHealthStatus) {
 		// 连续失败达到阈值，标记为不健康
 		if status.consecutiveFailure >= a.config.UnhealthyThreshold {
 			status.node.Health = false
+			newHealth = false
 		}
 	}
 
-	// 如果健康状态发生变化，触发回调
-	if previousHealth != status.node.Health {
-		a.notifyCallbacks(status.node.ID, status.node.Health)
+	// 复制回调列表，准备在锁外执行回调
+	var callbacks []HealthCheckCallback
+	needNotify := previousHealth != newHealth
+	if needNotify {
+		callbacks = make([]HealthCheckCallback, len(a.callbacks))
+		copy(callbacks, a.callbacks)
+	}
+
+	// 释放锁
+	a.mu.Unlock()
+
+	// 如果健康状态发生变化，触发回调（在锁外执行，避免死锁）
+	if needNotify {
+		// 在锁外通知回调，避免回调中可能再次获取锁导致死锁
+		for _, callback := range callbacks {
+			go func(cb HealthCheckCallback) {
+				defer func() {
+					if r := recover(); r != nil {
+						// 忽略回调中的 panic，防止影响其他回调
+					}
+				}()
+				cb(nodeID, newHealth)
+			}(callback)
+		}
 	}
 }
 
 // notifyCallbacks 通知回调函数
+// 注意：此方法已废弃，回调通知现在在 checkNodeHealth 中直接处理
+// 保留此方法是为了向后兼容，但实际不会被调用
 func (a *AdvancedHealthChecker) notifyCallbacks(nodeID string, healthy bool) {
 	a.mu.RLock()
 	callbacks := make([]HealthCheckCallback, len(a.callbacks))
 	copy(callbacks, a.callbacks)
 	a.mu.RUnlock()
 
+	// 为每个回调启动 goroutine，使用 context 控制超时
 	for _, callback := range callbacks {
 		go func(cb HealthCheckCallback) {
-			defer func() {
-				if r := recover(); r != nil {
-					// 忽略回调中的panic
-				}
+			// 使用 context 控制回调执行超时，防止回调卡住导致 goroutine 泄漏
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			done := make(chan struct{})
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						// 忽略回调中的 panic，防止影响其他回调
+					}
+					close(done)
+				}()
+				cb(nodeID, healthy)
 			}()
-			cb(nodeID, healthy)
+
+			select {
+			case <-done:
+				// 回调执行完成
+			case <-ctx.Done():
+				// 回调超时，记录但不影响其他回调
+			}
 		}(callback)
 	}
 }

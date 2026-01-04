@@ -66,18 +66,20 @@ func (loader *BaseConfigLoader) BuildBaseConfig(instance *GatewayInstanceRecord)
 	}
 
 	baseConfig := config.BaseConfig{
-		Listen:          listen,
-		Name:            instance.InstanceName,
-		ReadTimeout:     time.Duration(instance.ReadTimeoutMs) * time.Millisecond,
-		WriteTimeout:    time.Duration(instance.WriteTimeoutMs) * time.Millisecond,
-		IdleTimeout:     time.Duration(instance.IdleTimeoutMs) * time.Millisecond,
-		MaxBodySize:     int64(instance.MaxHeaderBytes),
-		EnableHTTPS:     instance.TLSEnabled == "Y",
-		UseGin:          instance.DisableGeneralOptionsHandler != "Y", // 如果禁用了通用OPTIONS处理器，则不使用Gin
-		EnableAccessLog: true,
-		LogFormat:       "json",
-		LogLevel:        "info",
-		EnableGzip:      true,
+		Listen:              listen,
+		Name:                instance.InstanceName,
+		ReadTimeout:         time.Duration(instance.ReadTimeoutMs) * time.Millisecond,
+		WriteTimeout:        time.Duration(instance.WriteTimeoutMs) * time.Millisecond,
+		IdleTimeout:         time.Duration(instance.IdleTimeoutMs) * time.Millisecond,
+		MaxHeaderBytes:      instance.MaxHeaderBytes,
+		EnableHTTPS:         instance.TLSEnabled == "Y",
+		UseGin:              instance.DisableGeneralOptionsHandler != "Y", // 如果禁用了通用OPTIONS处理器，则不使用Gin
+		EnableAccessLog:     true,
+		LogFormat:           "json",
+		LogLevel:            "info",
+		EnableGzip:          true,
+		KeepAliveEnabled:    instance.KeepAliveEnabled == "Y",
+		TCPKeepAliveEnabled: instance.TCPKeepAliveEnabled == "Y",
 	}
 
 	// 处理TLS相关配置

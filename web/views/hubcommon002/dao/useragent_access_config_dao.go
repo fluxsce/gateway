@@ -3,7 +3,6 @@ package dao
 import (
 	"context"
 	"errors"
-	"fmt"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/huberrors"
@@ -25,72 +24,18 @@ func NewUseragentAccessConfigDAO(db database.Database) *UseragentAccessConfigDAO
 	}
 }
 
-// generateUseragentAccessConfigId 生成User-Agent访问配置ID
-// 格式：UA + YYYYMMDD + HHMMSS + 4位随机数
-// 示例：UA20240615143022A1B2
-func (dao *UseragentAccessConfigDAO) generateUseragentAccessConfigId() string {
-	now := time.Now()
-	// 生成时间部分：YYYYMMDDHHMMSS
-	timeStr := now.Format("20060102150405")
-
-	// 生成4位随机字符（大写字母和数字）
-	randomStr := random.GenerateRandomString(4)
-
-	return fmt.Sprintf("UA%s%s", timeStr, randomStr)
-}
-
-// isUseragentAccessConfigIdExists 检查User-Agent访问配置ID是否已存在
-func (dao *UseragentAccessConfigDAO) isUseragentAccessConfigIdExists(ctx context.Context, useragentAccessConfigId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GW_UA_ACCESS_CONFIG WHERE useragentAccessConfigId = ?`
-
-	var result struct {
-		Count int `db:"count"`
-	}
-
-	err := dao.db.QueryOne(ctx, &result, query, []interface{}{useragentAccessConfigId}, true)
-	if err != nil {
-		return false, err
-	}
-
-	return result.Count > 0, nil
-}
-
-// generateUniqueUseragentAccessConfigId 生成唯一的User-Agent访问配置ID
-func (dao *UseragentAccessConfigDAO) generateUniqueUseragentAccessConfigId(ctx context.Context) (string, error) {
-	const maxAttempts = 10
-
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		useragentAccessConfigId := dao.generateUseragentAccessConfigId()
-
-		exists, err := dao.isUseragentAccessConfigIdExists(ctx, useragentAccessConfigId)
-		if err != nil {
-			return "", huberrors.WrapError(err, "检查User-Agent访问配置ID是否存在失败")
-		}
-
-		if !exists {
-			return useragentAccessConfigId, nil
-		}
-
-		// 如果ID已存在，等待1毫秒后重试（确保时间戳不同）
-		time.Sleep(time.Millisecond)
-	}
-
-	return "", errors.New("生成唯一User-Agent访问配置ID失败，已达到最大尝试次数")
-}
-
 // AddUseragentAccessConfig 添加User-Agent访问控制配置
 func (dao *UseragentAccessConfigDAO) AddUseragentAccessConfig(ctx context.Context, config *models.UseragentAccessConfig, operatorId string) error {
-	if config.TenantId == "" || config.SecurityConfigId == "" {
-		return errors.New("tenantId和securityConfigId不能为空")
+	// 校验安全配置ID
+	if config.SecurityConfigId == "" {
+		return errors.New("securityConfigId不能为空")
 	}
 
 	// 自动生成User-Agent访问配置ID
 	if config.UseragentAccessConfigId == "" {
-		generatedId, err := dao.generateUniqueUseragentAccessConfigId(ctx)
-		if err != nil {
-			return huberrors.WrapError(err, "生成User-Agent访问配置ID失败")
-		}
-		config.UseragentAccessConfigId = generatedId
+		// 使用公共方法生成唯一ID，支持集群环境
+		// 格式：UA前缀 + 32位唯一字符串 = 34位总长度
+		config.UseragentAccessConfigId = random.GenerateUniqueStringWithPrefix("UA", 32)
 	}
 
 	// 设置自动填充字段
@@ -119,34 +64,10 @@ func (dao *UseragentAccessConfigDAO) AddUseragentAccessConfig(ctx context.Contex
 	return nil
 }
 
-// GetUseragentAccessConfigBySecurityConfigId 根据安全配置ID获取User-Agent访问控制配置
-func (dao *UseragentAccessConfigDAO) GetUseragentAccessConfigBySecurityConfigId(ctx context.Context, securityConfigId, tenantId string) (*models.UseragentAccessConfig, error) {
-	if securityConfigId == "" || tenantId == "" {
-		return nil, errors.New("securityConfigId和tenantId不能为空")
-	}
-
-	query := `
-		SELECT * FROM HUB_GW_UA_ACCESS_CONFIG 
-		WHERE securityConfigId = ? AND tenantId = ?
-	`
-
-	var config models.UseragentAccessConfig
-	err := dao.db.QueryOne(ctx, &config, query, []interface{}{securityConfigId, tenantId}, true)
-
-	if err != nil {
-		if err == database.ErrRecordNotFound {
-			return nil, nil
-		}
-		return nil, huberrors.WrapError(err, "查询User-Agent访问控制配置失败")
-	}
-
-	return &config, nil
-}
-
 // GetUseragentAccessConfigById 根据User-Agent访问配置ID获取配置
 func (dao *UseragentAccessConfigDAO) GetUseragentAccessConfigById(ctx context.Context, useragentAccessConfigId, tenantId string) (*models.UseragentAccessConfig, error) {
-	if useragentAccessConfigId == "" || tenantId == "" {
-		return nil, errors.New("useragentAccessConfigId和tenantId不能为空")
+	if useragentAccessConfigId == "" {
+		return nil, errors.New("useragentAccessConfigId不能为空")
 	}
 
 	query := `
@@ -169,12 +90,13 @@ func (dao *UseragentAccessConfigDAO) GetUseragentAccessConfigById(ctx context.Co
 
 // UpdateUseragentAccessConfig 更新User-Agent访问控制配置
 func (dao *UseragentAccessConfigDAO) UpdateUseragentAccessConfig(ctx context.Context, config *models.UseragentAccessConfig, operatorId string) error {
-	if config.SecurityConfigId == "" || config.TenantId == "" {
-		return errors.New("securityConfigId和tenantId不能为空")
+	// 校验主键
+	if config.UseragentAccessConfigId == "" {
+		return errors.New("useragentAccessConfigId不能为空")
 	}
 
-	// 首先获取当前配置
-	currentConfig, err := dao.GetUseragentAccessConfigBySecurityConfigId(ctx, config.SecurityConfigId, config.TenantId)
+	// 首先获取当前配置（使用主键）
+	currentConfig, err := dao.GetUseragentAccessConfigById(ctx, config.UseragentAccessConfigId, config.TenantId)
 	if err != nil {
 		return err
 	}
@@ -189,7 +111,11 @@ func (dao *UseragentAccessConfigDAO) UpdateUseragentAccessConfig(ctx context.Con
 	config.CurrentVersion = currentConfig.CurrentVersion + 1
 	config.OprSeqFlag = config.UseragentAccessConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
 
-	// 保持活动标记不变，如果没有设置则使用当前值
+	// 保留不可修改的字段
+	config.AddTime = currentConfig.AddTime
+	config.AddWho = currentConfig.AddWho
+
+	// 如果没有设置活动标记，保持原有状态
 	if config.ActiveFlag == "" {
 		config.ActiveFlag = currentConfig.ActiveFlag
 	}
@@ -220,18 +146,26 @@ func (dao *UseragentAccessConfigDAO) UpdateUseragentAccessConfig(ctx context.Con
 	return nil
 }
 
-// DeleteUseragentAccessConfig 删除User-Agent访问控制配置
-func (dao *UseragentAccessConfigDAO) DeleteUseragentAccessConfig(ctx context.Context, securityConfigId, tenantId, operatorId string) error {
-	if securityConfigId == "" || tenantId == "" {
-		return errors.New("securityConfigId和tenantId不能为空")
+// DeleteUseragentAccessConfig 物理删除User-Agent访问控制配置
+func (dao *UseragentAccessConfigDAO) DeleteUseragentAccessConfig(ctx context.Context, useragentAccessConfigId, tenantId string) error {
+	// 校验主键
+	if useragentAccessConfigId == "" {
+		return errors.New("useragentAccessConfigId不能为空")
 	}
 
-	sql := `
-		DELETE FROM HUB_GW_UA_ACCESS_CONFIG 
-		WHERE securityConfigId = ? AND tenantId = ?
-	`
+	// 首先检查配置是否存在（使用主键）
+	config, err := dao.GetUseragentAccessConfigById(ctx, useragentAccessConfigId, tenantId)
+	if err != nil {
+		return err
+	}
+	if config == nil {
+		return errors.New("User-Agent访问控制配置不存在")
+	}
 
-	result, err := dao.db.Exec(ctx, sql, []interface{}{securityConfigId, tenantId}, true)
+	// 执行物理删除（使用主键）
+	sql := `DELETE FROM HUB_GW_UA_ACCESS_CONFIG WHERE useragentAccessConfigId = ? AND tenantId = ?`
+
+	result, err := dao.db.Exec(ctx, sql, []interface{}{useragentAccessConfigId, tenantId}, true)
 	if err != nil {
 		return huberrors.WrapError(err, "删除User-Agent访问控制配置失败")
 	}
@@ -243,14 +177,31 @@ func (dao *UseragentAccessConfigDAO) DeleteUseragentAccessConfig(ctx context.Con
 	return nil
 }
 
-// ListUseragentAccessConfigs 获取User-Agent访问控制配置列表
-func (dao *UseragentAccessConfigDAO) ListUseragentAccessConfigs(ctx context.Context, tenantId string, page, pageSize int) ([]*models.UseragentAccessConfig, int, error) {
-	if tenantId == "" {
-		return nil, 0, errors.New("tenantId不能为空")
+// ListUseragentAccessConfigs 获取User-Agent访问控制配置列表（支持条件查询）
+func (dao *UseragentAccessConfigDAO) ListUseragentAccessConfigs(ctx context.Context, tenantId string, query *models.UseragentAccessConfigQuery, page, pageSize int) ([]*models.UseragentAccessConfig, int, error) {
+	// 构建查询条件
+	whereClause := "WHERE tenantId = ?"
+	var params []interface{}
+	params = append(params, tenantId)
+
+	if query != nil {
+		// securityConfigId 是必填条件（避免关联错误）
+		if query.SecurityConfigId != "" {
+			whereClause += " AND securityConfigId = ?"
+			params = append(params, query.SecurityConfigId)
+		}
+		if query.ConfigName != "" {
+			whereClause += " AND configName LIKE ?"
+			params = append(params, "%"+query.ConfigName+"%")
+		}
+		if query.ActiveFlag != "" {
+			whereClause += " AND activeFlag = ?"
+			params = append(params, query.ActiveFlag)
+		}
 	}
 
 	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_UA_ACCESS_CONFIG WHERE tenantId = ? ORDER BY addTime DESC"
+	baseQuery := "SELECT * FROM HUB_GW_UA_ACCESS_CONFIG " + whereClause + " ORDER BY addTime DESC"
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
@@ -262,7 +213,7 @@ func (dao *UseragentAccessConfigDAO) ListUseragentAccessConfigs(ctx context.Cont
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err = dao.db.QueryOne(ctx, &result, countQuery, []interface{}{tenantId}, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询User-Agent访问控制配置总数失败")
 	}
@@ -286,7 +237,7 @@ func (dao *UseragentAccessConfigDAO) ListUseragentAccessConfigs(ctx context.Cont
 	}
 
 	// 合并查询参数
-	allArgs := append([]interface{}{tenantId}, paginationArgs...)
+	allArgs := append(params, paginationArgs...)
 
 	// 执行分页查询
 	var configs []*models.UseragentAccessConfig

@@ -254,6 +254,18 @@ func (c *SecurityConfigController) DeleteSecurityConfig(ctx *gin.Context) {
 }
 
 // QuerySecurityConfigs 分页查询安全配置列表
+// @Summary 获取安全配置列表
+// @Description 分页获取安全配置列表，支持条件查询
+// @Tags 安全配置管理
+// @Produce json
+// @Param page query int false "页码" default(1)
+// @Param pageSize query int false "每页数量" default(10)
+// @Param configName query string false "配置名称（模糊查询）"
+// @Param activeFlag query string false "活动状态（Y/N）"
+// @Param gatewayInstanceId query string false "网关实例ID"
+// @Param routeConfigId query string false "路由配置ID"
+// @Success 200 {object} response.JsonData
+// @Router /api/hubcommon002/querySecurityConfigs [post]
 func (c *SecurityConfigController) QuerySecurityConfigs(ctx *gin.Context) {
 	logger.InfoWithTrace(ctx, "开始查询安全配置列表", "controller", "SecurityConfigController", "action", "QuerySecurityConfigs")
 
@@ -267,8 +279,14 @@ func (c *SecurityConfigController) QuerySecurityConfigs(ctx *gin.Context) {
 		return
 	}
 
+	// 绑定查询条件（支持 Query / JSON Body / Form 等多种来源）
+	var query models.SecurityConfigQuery
+	if err := request.BindSafely(ctx, &query); err != nil {
+		logger.WarnWithTrace(ctx, "绑定安全配置查询条件失败，使用默认条件", "error", err.Error())
+	}
+
 	// 调用DAO层查询安全配置列表
-	configs, total, err := c.dao.ListSecurityConfigs(ctx, tenantId, page, pageSize)
+	configs, total, err := c.dao.ListSecurityConfigs(ctx, tenantId, &query, page, pageSize)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "查询安全配置列表失败", err, "tenantId", tenantId)
 		response.ErrorJSON(ctx, "查询安全配置列表失败: "+err.Error(), constants.ED00009)

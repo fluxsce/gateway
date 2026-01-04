@@ -16,11 +16,12 @@ import (
 
 // ServiceDefinitionQueryFilter 服务定义查询过滤条件
 type ServiceDefinitionQueryFilter struct {
-	ServiceName         string `json:"serviceName,omitempty" form:"serviceName" query:"serviceName"`                         // 服务名称（模糊查询）
-	ServiceType         string `json:"serviceType,omitempty" form:"serviceType" query:"serviceType"`                         // 服务类型（精确匹配）
-	LoadBalanceStrategy string `json:"loadBalanceStrategy,omitempty" form:"loadBalanceStrategy" query:"loadBalanceStrategy"` // 负载均衡策略（精确匹配）
-	ActiveFlag          string `json:"activeFlag,omitempty" form:"activeFlag" query:"activeFlag"`                            // 激活状态（精确匹配）
-	ProxyConfigId       string `json:"proxyConfigId,omitempty" form:"proxyConfigId" query:"proxyConfigId"`                   // 代理配置ID（精确匹配）
+	ServiceName         string   `json:"serviceName,omitempty" form:"serviceName" query:"serviceName"`                         // 服务名称（模糊查询）
+	ServiceType         string   `json:"serviceType,omitempty" form:"serviceType" query:"serviceType"`                         // 服务类型（精确匹配）
+	LoadBalanceStrategy string   `json:"loadBalanceStrategy,omitempty" form:"loadBalanceStrategy" query:"loadBalanceStrategy"` // 负载均衡策略（精确匹配）
+	ActiveFlag          string   `json:"activeFlag,omitempty" form:"activeFlag" query:"activeFlag"`                            // 激活状态（精确匹配）
+	ProxyConfigId       string   `json:"proxyConfigId,omitempty" form:"proxyConfigId" query:"proxyConfigId"`                   // 代理配置ID（精确匹配，单个）
+	ProxyConfigIds      []string `json:"proxyConfigIds,omitempty" form:"proxyConfigIds" query:"proxyConfigIds"`                // 代理配置ID列表（IN查询，用于兼容网关实例ID查询）
 }
 
 // ServiceDefinitionDAO 服务定义数据访问对象
@@ -35,63 +36,9 @@ func NewServiceDefinitionDAO(db database.Database) *ServiceDefinitionDAO {
 	}
 }
 
-// generateServiceDefinitionId 生成服务定义ID
-// 使用32位唯一字符串确保全局唯一性，避免时间戳冲突
-// 格式：SD + 30位唯一字符串
-func (dao *ServiceDefinitionDAO) generateServiceDefinitionId() string {
-	// 使用random包的32位唯一字符串生成方法
-	uniqueStr := random.Generate32BitRandomString()
-	// 取前30位，加上SD前缀，总长度为32位
-	return fmt.Sprintf("SD%s", uniqueStr[:30])
-}
-
-// isServiceDefinitionIdExists 检查服务定义ID是否已存在
-func (dao *ServiceDefinitionDAO) isServiceDefinitionIdExists(ctx context.Context, serviceDefinitionId string) (bool, error) {
-	query := `SELECT COUNT(*) as count FROM HUB_GW_SERVICE_DEFINITION WHERE serviceDefinitionId = ?`
-
-	var result struct {
-		Count int `db:"count"`
-	}
-
-	err := dao.db.QueryOne(ctx, &result, query, []interface{}{serviceDefinitionId}, true)
-	if err != nil {
-		return false, err
-	}
-
-	return result.Count > 0, nil
-}
-
-// generateUniqueServiceDefinitionId 生成唯一的服务定义ID
-// 由于使用了基于时间戳+进程标识+原子计数器+强随机数的算法，
-// 理论上已经保证了唯一性，但为了额外安全，仍保留数据库检查
-func (dao *ServiceDefinitionDAO) generateUniqueServiceDefinitionId(ctx context.Context) (string, error) {
-	const maxAttempts = 3 // 减少重试次数，因为冲突概率极低
-
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		serviceDefinitionId := dao.generateServiceDefinitionId()
-
-		// 检查ID是否已存在
-		exists, err := dao.isServiceDefinitionIdExists(ctx, serviceDefinitionId)
-		if err != nil {
-			return "", huberrors.WrapError(err, "检查服务定义ID是否存在失败")
-		}
-
-		if !exists {
-			return serviceDefinitionId, nil
-		}
-
-		// 理论上不应该到达这里，但如果真的冲突了，无需等待直接重新生成
-	}
-
-	return "", errors.New("生成唯一服务定义ID失败，已达到最大尝试次数")
-}
-
 // CreateServiceDefinition 创建服务定义
 func (dao *ServiceDefinitionDAO) CreateServiceDefinition(ctx context.Context, serviceDefinition *models.ServiceDefinition, operatorId string) (string, error) {
 	// 验证必填字段
-	if serviceDefinition.TenantId == "" {
-		return "", errors.New("租户ID不能为空")
-	}
 	if serviceDefinition.ServiceName == "" {
 		return "", errors.New("服务名称不能为空")
 	}
@@ -101,20 +48,8 @@ func (dao *ServiceDefinitionDAO) CreateServiceDefinition(ctx context.Context, se
 
 	// 自动生成服务定义ID（如果为空）
 	if serviceDefinition.ServiceDefinitionId == "" {
-		generatedId, err := dao.generateUniqueServiceDefinitionId(ctx)
-		if err != nil {
-			return "", huberrors.WrapError(err, "生成服务定义ID失败")
-		}
-		serviceDefinition.ServiceDefinitionId = generatedId
-	} else {
-		// 如果提供了ID，检查是否已存在
-		exists, err := dao.isServiceDefinitionIdExists(ctx, serviceDefinition.ServiceDefinitionId)
-		if err != nil {
-			return "", huberrors.WrapError(err, "检查服务定义ID是否存在失败")
-		}
-		if exists {
-			return "", errors.New("服务定义ID已存在")
-		}
+		// 使用公共方法生成32位唯一字符串，前缀为"SD"
+		serviceDefinition.ServiceDefinitionId = random.GenerateUniqueStringWithPrefix("SD", 32)
 	}
 
 	// 设置自动填充的字段
@@ -147,8 +82,8 @@ func (dao *ServiceDefinitionDAO) CreateServiceDefinition(ctx context.Context, se
 
 // GetServiceDefinitionById 根据ID获取服务定义
 func (dao *ServiceDefinitionDAO) GetServiceDefinitionById(ctx context.Context, serviceDefinitionId, tenantId string) (*models.ServiceDefinition, error) {
-	if serviceDefinitionId == "" || tenantId == "" {
-		return nil, errors.New("serviceDefinitionId和tenantId不能为空")
+	if serviceDefinitionId == "" {
+		return nil, errors.New("serviceDefinitionId不能为空")
 	}
 
 	query := `
@@ -167,8 +102,8 @@ func (dao *ServiceDefinitionDAO) GetServiceDefinitionById(ctx context.Context, s
 
 // UpdateServiceDefinition 更新服务定义
 func (dao *ServiceDefinitionDAO) UpdateServiceDefinition(ctx context.Context, serviceDefinition *models.ServiceDefinition, operatorId string) error {
-	if serviceDefinition.ServiceDefinitionId == "" || serviceDefinition.TenantId == "" {
-		return errors.New("serviceDefinitionId和tenantId不能为空")
+	if serviceDefinition.ServiceDefinitionId == "" {
+		return errors.New("serviceDefinitionId不能为空")
 	}
 
 	// 验证必填字段
@@ -218,8 +153,8 @@ func (dao *ServiceDefinitionDAO) UpdateServiceDefinition(ctx context.Context, se
 
 // DeleteServiceDefinition 删除服务定义
 func (dao *ServiceDefinitionDAO) DeleteServiceDefinition(ctx context.Context, serviceDefinitionId, tenantId, operatorId string) error {
-	if serviceDefinitionId == "" || tenantId == "" {
-		return errors.New("serviceDefinitionId和tenantId不能为空")
+	if serviceDefinitionId == "" {
+		return errors.New("serviceDefinitionId不能为空")
 	}
 
 	// 检查服务定义是否存在
@@ -249,10 +184,6 @@ func (dao *ServiceDefinitionDAO) DeleteServiceDefinition(ctx context.Context, se
 
 // ListServiceDefinitions 分页查询服务定义列表
 func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, tenantId string, page, pageSize int, filter *ServiceDefinitionQueryFilter) ([]*models.ServiceDefinition, int64, error) {
-	if tenantId == "" {
-		return nil, 0, errors.New("tenantId不能为空")
-	}
-
 	// 动态构建WHERE条件
 	var whereConditions []string
 	var queryArgs []interface{}
@@ -293,12 +224,23 @@ func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, ten
 		queryArgs = append(queryArgs, filter.LoadBalanceStrategy)
 	}
 
-	// 代理配置ID（精确匹配）
-	// 注意：根据实际表结构调整字段名
-	if filter.ProxyConfigId != "" {
-		// TODO: 根据实际表结构调整字段名
+	// 代理配置ID（优先使用列表IN查询，用于兼容网关实例ID查询；否则使用单个精确匹配）
+	// 验证：代理配置ID不能为空，必须至少提供一个
+	if len(filter.ProxyConfigIds) > 0 {
+		// 使用IN查询，构建占位符
+		placeholders := make([]string, len(filter.ProxyConfigIds))
+		for i := range filter.ProxyConfigIds {
+			placeholders[i] = "?"
+			queryArgs = append(queryArgs, filter.ProxyConfigIds[i])
+		}
+		whereConditions = append(whereConditions, fmt.Sprintf("proxyConfigId IN (%s)", strings.Join(placeholders, ",")))
+	} else if filter.ProxyConfigId != "" {
+		// 单个精确匹配
 		whereConditions = append(whereConditions, "proxyConfigId = ?")
 		queryArgs = append(queryArgs, filter.ProxyConfigId)
+	} else {
+		// 代理配置ID不能为空
+		return nil, 0, errors.New("代理配置ID不能为空，必须提供proxyConfigId或proxyConfigIds")
 	}
 
 	// 构建完整的WHERE子句

@@ -461,10 +461,13 @@ func (s *SQLite) getExecutor(ctx context.Context, autoCommit bool) interface {
 //	int64: 受影响的行数
 //	error: 执行失败时返回错误信息
 func (s *SQLite) Exec(ctx context.Context, query string, args []interface{}, autoCommit bool) (int64, error) {
+	// SQLite 需要将 time.Time 转换为字符串格式
+	convertedArgs := s.convertTimeArgs(args)
+
 	executor := s.getExecutor(ctx, autoCommit)
 
 	start := time.Now()
-	result, err := executor.ExecContext(ctx, query, args...)
+	result, err := executor.ExecContext(ctx, query, convertedArgs...)
 	duration := time.Since(start)
 
 	var rowsAffected int64
@@ -606,10 +609,14 @@ func (s *SQLite) Insert(ctx context.Context, table string, data interface{}, aut
 		return 0, err
 	}
 
+	// SQLite 需要将 time.Time 转换为字符串格式
+	// 因为 SQLite 将日期时间存储为 TEXT 类型
+	convertedArgs := s.convertTimeArgs(args)
+
 	executor := s.getExecutor(ctx, autoCommit)
 
 	start := time.Now()
-	result, err := executor.ExecContext(ctx, query, args...)
+	result, err := executor.ExecContext(ctx, query, convertedArgs...)
 	duration := time.Since(start)
 
 	var lastInsertId int64
@@ -619,7 +626,7 @@ func (s *SQLite) Insert(ctx context.Context, table string, data interface{}, aut
 		rowsAffected, _ = result.RowsAffected()
 	}
 
-	// 记录日志
+	// 记录日志（使用原始参数，便于调试）
 	extra := map[string]interface{}{
 		"rowsAffected": rowsAffected,
 		"lastInsertId": lastInsertId,
@@ -661,10 +668,13 @@ func (s *SQLite) Update(ctx context.Context, table string, data interface{}, whe
 		setArgs = append(setArgs, args...)
 	}
 
+	// SQLite 需要将 time.Time 转换为字符串格式
+	convertedArgs := s.convertTimeArgs(setArgs)
+
 	executor := s.getExecutor(ctx, autoCommit)
 
 	start := time.Now()
-	result, err := executor.ExecContext(ctx, query, setArgs...)
+	result, err := executor.ExecContext(ctx, query, convertedArgs...)
 	duration := time.Since(start)
 
 	var rowsAffected int64
@@ -1172,3 +1182,23 @@ func (s *SQLite) BatchDeleteByKeys(ctx context.Context, table string, keyField s
 // 3. 上下文绑定：事务信息绑定到上下文，支持多个 goroutine 独立管理事务
 // 4. 性能考虑：对于高并发写入场景，建议考虑使用MySQL等关系型数据库
 // 5. 适用场景：适合轻量级应用、开发测试、嵌入式系统等场景
+
+// convertTimeArgs 将参数中的 time.Time 转换为字符串格式
+// SQLite 将日期时间存储为 TEXT 类型，需要字符串格式
+// 支持的格式：2006-01-02 15:04:05（SQLite 标准日期时间格式）
+func (s *SQLite) convertTimeArgs(args []interface{}) []interface{} {
+	if args == nil {
+		return nil
+	}
+
+	converted := make([]interface{}, len(args))
+	for i, arg := range args {
+		if t, ok := arg.(time.Time); ok {
+			// 转换为 SQLite 标准日期时间格式
+			converted[i] = t.Format("2006-01-02 15:04:05")
+		} else {
+			converted[i] = arg
+		}
+	}
+	return converted
+}

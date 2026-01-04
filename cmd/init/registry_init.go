@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	registryinit "gateway/internal/registry/init" // 导入注册中心初始化包
+	"gateway/pkg/config"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 )
@@ -85,4 +86,34 @@ func StopRegistry(ctx context.Context) error {
 //	bool: true表示注册中心正常运行，false表示未初始化或已停止
 func GetRegistryStatus() bool {
 	return registryinit.IsRegistryReady()
+}
+
+// InitRegistryWithConfig 带配置检查的注册中心初始化
+// 整合了配置检查、参数读取和初始化流程
+// 参数:
+//   - ctx: 上下文对象
+//   - db: 数据库连接实例
+//
+// 返回:
+//   - error: 初始化失败时返回错误信息（注意：注册中心初始化失败不会返回error，而是记录警告）
+func InitRegistryWithConfig(ctx context.Context, db database.Database) error {
+	// 检查是否启用注册中心
+	if !config.GetBool("app.registry.enabled", true) {
+		logger.Info("注册中心未启用，跳过初始化")
+		return nil
+	}
+
+	// 获取默认租户ID
+	tenantId := config.GetString("app.registry.tenant_id", "default")
+
+	// 初始化注册中心 - 现在返回的是布尔值，表示是否成功初始化
+	success := InitRegistry(ctx, db, tenantId)
+	if !success {
+		logger.Warn("注册中心未能成功初始化，系统将以不使用注册中心模式运行")
+		// 注意：这里不将其视为致命错误，而是允许系统继续运行
+	} else {
+		logger.Info("注册中心初始化并启动成功")
+	}
+
+	return nil
 }

@@ -346,3 +346,63 @@ func (dao *MongoQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLogQuer
 
 	return filter, nil
 }
+
+// GetBackendTracesByTraceID 根据租户ID和链路追踪ID获取后端追踪日志列表（MongoDB版本）
+func (dao *MongoQueryDAO) GetBackendTracesByTraceID(ctx context.Context, tenantID, traceID string) ([]models.BackendTraceLog, error) {
+	// 构建查询条件
+	filter := types.Filter{
+		"tenantId": tenantID,
+		"traceId":  traceID,
+	}
+
+	// 获取后端追踪日志集合
+	db, _ := dao.mongoClient.DefaultDatabase()
+	collection := db.Collection(models.BackendTraceLog{}.TableName())
+
+	// 设置排序选项（按请求开始时间升序）
+	findOptions := &types.FindOptions{
+		Sort: map[string]interface{}{
+			"requestStartTime": 1,
+		},
+	}
+
+	// 执行查询
+	cursor, err := collection.Find(ctx, filter, findOptions)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "MongoDB后端追踪日志查询失败", "tenantId", tenantID, "traceId", traceID, "error", err)
+		return nil, huberrors.WrapError(err, "MongoDB后端追踪日志查询失败")
+	}
+	defer cursor.Close(ctx)
+
+	// 使用流式处理解析结果
+	var logs []models.BackendTraceLog
+	for cursor.Next(ctx) {
+		var document types.Document
+		if err := cursor.Decode(&document); err != nil {
+			logger.ErrorWithTrace(ctx, "MongoDB游标解码失败", "error", err)
+			return nil, huberrors.WrapError(err, "MongoDB游标解码失败")
+		}
+
+		// 使用转换工具转换单个文档
+		var log models.BackendTraceLog
+		if err := utils.ConvertDocument(document, &log); err != nil {
+			logger.ErrorWithTrace(ctx, "MongoDB文档转换失败", "error", err)
+			return nil, huberrors.WrapError(err, "MongoDB文档转换失败")
+		}
+
+		logs = append(logs, log)
+	}
+
+	// 检查游标错误
+	if err := cursor.Err(); err != nil {
+		logger.ErrorWithTrace(ctx, "MongoDB游标遍历错误", "error", err)
+		return nil, huberrors.WrapError(err, "MongoDB游标遍历错误")
+	}
+
+	// 如果没有记录，返回空列表
+	if logs == nil {
+		logs = []models.BackendTraceLog{}
+	}
+
+	return logs, nil
+}

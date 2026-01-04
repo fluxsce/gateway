@@ -156,11 +156,13 @@ func (h *WebSocketUpgradeHandler) IsWebSocketUpgrade(req *http.Request) bool {
 // 返回值：
 //   - error: 升级过程中的任何错误，nil表示成功
 func (h *WebSocketUpgradeHandler) HandleWebSocketUpgrade(ctx *core.Context, proxyName, proxyType string) error {
-	serviceID := ctx.GetServiceID()
-	if serviceID == "" {
+	// 获取服务ID（单服务场景，使用第一个服务ID）
+	serviceIDs := ctx.GetServiceIDs()
+	if len(serviceIDs) == 0 {
 		atomic.AddInt64(&h.stats.FailedUpgrades, 1)
 		return fmt.Errorf("服务ID不能为空")
 	}
+	serviceID := serviceIDs[0]
 
 	// 获取服务配置
 	serviceConfig, exists := h.serviceManager.GetService(serviceID)
@@ -182,7 +184,6 @@ func (h *WebSocketUpgradeHandler) HandleWebSocketUpgrade(ctx *core.Context, prox
 	// 设置上下文信息
 	ctx.Set(constants.ContextKeyServiceDefinitionName, proxyName)
 	ctx.Set(constants.ContextKeyProxyType, proxyType)
-	ctx.SetForwardStartTime(time.Now())
 
 	// 执行WebSocket升级
 	return h.proxyWebSocketUpgrade(ctx, node, wsConfig)
@@ -234,8 +235,7 @@ func (h *WebSocketUpgradeHandler) proxyWebSocketUpgrade(ctx *core.Context, node 
 	// 第一步：将HTTP连接升级为WebSocket连接（客户端侧）
 	clientConn, err := upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
 	if err != nil {
-		// HTTP协议升级失败，记录响应时间并返回错误
-		ctx.SetForwardResponseTime(time.Now())
+		// HTTP协议升级失败，返回错误
 		atomic.AddInt64(&h.stats.FailedUpgrades, 1)
 		return fmt.Errorf("HTTP协议升级为WebSocket失败: %w", err)
 	}
@@ -274,7 +274,6 @@ func (h *WebSocketUpgradeHandler) proxyWebSocketUpgrade(ctx *core.Context, node 
 	// 第三步：连接到目标WebSocket服务
 	targetConn, resp, err := h.connectToTarget(targetWSURL, ctx.Request, wsConfig)
 	if err != nil {
-		ctx.SetForwardResponseTime(time.Now())
 		atomic.AddInt64(&h.stats.FailedUpgrades, 1)
 		return fmt.Errorf("连接到目标WebSocket服务失败: %w", err)
 	}
@@ -296,9 +295,16 @@ func (h *WebSocketUpgradeHandler) proxyWebSocketUpgrade(ctx *core.Context, node 
 
 	// 第四步：创建连接管理对象，用于生命周期管理
 	connCtx, cancel := context.WithCancel(context.Background())
+	// 获取服务ID（单服务场景，使用第一个服务ID）
+	serviceIDs := ctx.GetServiceIDs()
+	serviceID := ""
+	if len(serviceIDs) > 0 {
+		serviceID = serviceIDs[0]
+	}
+
 	conn := &wsConnection{
 		id:           connID,
-		serviceID:    ctx.GetServiceID(),
+		serviceID:    serviceID,
 		clientConn:   clientConn,
 		targetConn:   targetConn,
 		ctx:          connCtx,
@@ -458,7 +464,6 @@ func (h *WebSocketUpgradeHandler) proxyMessages(conn *wsConnection, config *WebS
 	// 处理第一个返回的错误或正常结束
 	// 正常的连接关闭不视为错误，异常关闭才记录为错误
 	err := <-errChan
-	ctx.SetForwardResponseTime(time.Now())
 
 	if err != nil && !websocket.IsUnexpectedCloseError(err,
 		websocket.CloseGoingAway,

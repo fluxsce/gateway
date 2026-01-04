@@ -7,27 +7,27 @@ import (
 // SecurityConfig 安全配置模型，对应数据库HUB_GW_SECURITY_CONFIG表
 type SecurityConfig struct {
 	TenantId          string     `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                     // 租户ID，联合主键
-	SecurityConfigId  string     `json:"securityConfigId" form:"securityConfigId" query:"securityConfigId" db:"securityConfigId"`   // 安全配置ID，联合主键
+	SecurityConfigId  string     `json:"securityConfigId" form:"securityConfigId" query:"securityConfigId" db:"securityConfigId"`     // 安全配置ID，联合主键
 	GatewayInstanceId *string    `json:"gatewayInstanceId" form:"gatewayInstanceId" query:"gatewayInstanceId" db:"gatewayInstanceId"` // 网关实例ID(实例级安全配置)
 	RouteConfigId     *string    `json:"routeConfigId" form:"routeConfigId" query:"routeConfigId" db:"routeConfigId"`                 // 路由配置ID(路由级安全配置)
-	ConfigName        string     `json:"configName" form:"configName" query:"configName" db:"configName"`                           // 安全配置名称
-	ConfigDesc        *string    `json:"configDesc" form:"configDesc" query:"configDesc" db:"configDesc"`                           // 安全配置描述
-	ConfigPriority    int        `json:"configPriority" form:"configPriority" query:"configPriority" db:"configPriority"`           // 配置优先级，数值越小优先级越高
-	CustomConfigJson  *string    `json:"customConfigJson" form:"customConfigJson" query:"customConfigJson" db:"customConfigJson"`   // 自定义配置参数，JSON格式
-	Reserved1         *string    `json:"reserved1" form:"reserved1" query:"reserved1" db:"reserved1"`                               // 预留字段1
-	Reserved2         *string    `json:"reserved2" form:"reserved2" query:"reserved2" db:"reserved2"`                               // 预留字段2
-	Reserved3         *int       `json:"reserved3" form:"reserved3" query:"reserved3" db:"reserved3"`                               // 预留字段3
-	Reserved4         *int       `json:"reserved4" form:"reserved4" query:"reserved4" db:"reserved4"`                               // 预留字段4
-	Reserved5         *time.Time `json:"reserved5" form:"reserved5" query:"reserved5" db:"reserved5"`                               // 预留字段5
-	ExtProperty       *string    `json:"extProperty" form:"extProperty" query:"extProperty" db:"extProperty"`                       // 扩展属性，JSON格式
-	AddTime           time.Time  `json:"addTime" form:"addTime" query:"addTime" db:"addTime"`                                       // 创建时间
-	AddWho            string     `json:"addWho" form:"addWho" query:"addWho" db:"addWho"`                                           // 创建人ID
-	EditTime          time.Time  `json:"editTime" form:"editTime" query:"editTime" db:"editTime"`                                   // 最后修改时间
-	EditWho           string     `json:"editWho" form:"editWho" query:"editWho" db:"editWho"`                                       // 最后修改人ID
-	OprSeqFlag        string     `json:"oprSeqFlag" form:"oprSeqFlag" query:"oprSeqFlag" db:"oprSeqFlag"`                           // 操作序列标识
-	CurrentVersion    int        `json:"currentVersion" form:"currentVersion" query:"currentVersion" db:"currentVersion"`           // 当前版本号
-	ActiveFlag        string     `json:"activeFlag" form:"activeFlag" query:"activeFlag" db:"activeFlag"`                           // 活动状态标记(N非活动,Y活动)
-	NoteText          *string    `json:"noteText" form:"noteText" query:"noteText" db:"noteText"`                                   // 备注信息
+	ConfigName        string     `json:"configName" form:"configName" query:"configName" db:"configName"`                             // 安全配置名称
+	ConfigDesc        *string    `json:"configDesc" form:"configDesc" query:"configDesc" db:"configDesc"`                             // 安全配置描述
+	ConfigPriority    int        `json:"configPriority" form:"configPriority" query:"configPriority" db:"configPriority"`             // 配置优先级，数值越小优先级越高
+	CustomConfigJson  *string    `json:"customConfigJson" form:"customConfigJson" query:"customConfigJson" db:"customConfigJson"`     // 自定义配置参数，JSON格式
+	Reserved1         *string    `json:"reserved1" form:"reserved1" query:"reserved1" db:"reserved1"`                                 // 预留字段1
+	Reserved2         *string    `json:"reserved2" form:"reserved2" query:"reserved2" db:"reserved2"`                                 // 预留字段2
+	Reserved3         *int       `json:"reserved3" form:"reserved3" query:"reserved3" db:"reserved3"`                                 // 预留字段3
+	Reserved4         *int       `json:"reserved4" form:"reserved4" query:"reserved4" db:"reserved4"`                                 // 预留字段4
+	Reserved5         *time.Time `json:"reserved5" form:"reserved5" query:"reserved5" db:"reserved5"`                                 // 预留字段5
+	ExtProperty       *string    `json:"extProperty" form:"extProperty" query:"extProperty" db:"extProperty"`                         // 扩展属性，JSON格式
+	AddTime           time.Time  `json:"addTime" form:"addTime" query:"addTime" db:"addTime"`                                         // 创建时间
+	AddWho            string     `json:"addWho" form:"addWho" query:"addWho" db:"addWho"`                                             // 创建人ID
+	EditTime          time.Time  `json:"editTime" form:"editTime" query:"editTime" db:"editTime"`                                     // 最后修改时间
+	EditWho           string     `json:"editWho" form:"editWho" query:"editWho" db:"editWho"`                                         // 最后修改人ID
+	OprSeqFlag        string     `json:"oprSeqFlag" form:"oprSeqFlag" query:"oprSeqFlag" db:"oprSeqFlag"`                             // 操作序列标识
+	CurrentVersion    int        `json:"currentVersion" form:"currentVersion" query:"currentVersion" db:"currentVersion"`             // 当前版本号
+	ActiveFlag        string     `json:"activeFlag" form:"activeFlag" query:"activeFlag" db:"activeFlag"`                             // 活动状态标记(N非活动,Y活动)
+	NoteText          *string    `json:"noteText" form:"noteText" query:"noteText" db:"noteText"`                                     // 备注信息
 }
 
 // TableName 返回表名
@@ -35,9 +35,17 @@ func (SecurityConfig) TableName() string {
 	return "HUB_GW_SECURITY_CONFIG"
 }
 
+// SecurityConfigQuery 安全配置查询条件，对应前端搜索表单的查询参数
+type SecurityConfigQuery struct {
+	ConfigName        string  `json:"configName" form:"configName" query:"configName"`                      // 配置名称（模糊查询）
+	ActiveFlag        string  `json:"activeFlag" form:"activeFlag" query:"activeFlag"`                      // 活动标记：Y-活动，N-非活动，空表示全部（默认查询活动状态）
+	GatewayInstanceId *string `json:"gatewayInstanceId" form:"gatewayInstanceId" query:"gatewayInstanceId"` // 网关实例ID（可选）
+	RouteConfigId     *string `json:"routeConfigId" form:"routeConfigId" query:"routeConfigId"`             // 路由配置ID（可选）
+}
+
 // IpAccessConfig IP访问控制配置模型，对应数据库HUB_GW_IP_ACCESS_CONFIG表
 type IpAccessConfig struct {
-	TenantId           string     `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                           // 租户ID，联合主键
+	TenantId           string     `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                         // 租户ID，联合主键
 	IpAccessConfigId   string     `json:"ipAccessConfigId" form:"ipAccessConfigId" query:"ipAccessConfigId" db:"ipAccessConfigId"`         // IP访问配置ID，联合主键
 	SecurityConfigId   string     `json:"securityConfigId" form:"securityConfigId" query:"securityConfigId" db:"securityConfigId"`         // 关联的安全配置ID
 	ConfigName         string     `json:"configName" form:"configName" query:"configName" db:"configName"`                                 // IP访问配置名称
@@ -69,30 +77,58 @@ func (IpAccessConfig) TableName() string {
 	return "HUB_GW_IP_ACCESS_CONFIG"
 }
 
+// IpAccessConfigQuery IP访问控制配置查询条件，对应前端搜索表单的查询参数
+type IpAccessConfigQuery struct {
+	SecurityConfigId string `json:"securityConfigId" form:"securityConfigId" query:"securityConfigId"` // 安全配置ID（必填，避免关联错误）
+	ConfigName       string `json:"configName" form:"configName" query:"configName"`                   // 配置名称（模糊查询）
+	ActiveFlag       string `json:"activeFlag" form:"activeFlag" query:"activeFlag"`                   // 活动标记：Y-活动，N-非活动，空表示全部
+}
+
+// UseragentAccessConfigQuery User-Agent访问控制配置查询条件，对应前端搜索表单的查询参数
+type UseragentAccessConfigQuery struct {
+	SecurityConfigId string `json:"securityConfigId" form:"securityConfigId" query:"securityConfigId"` // 安全配置ID（必填，避免关联错误）
+	ConfigName       string `json:"configName" form:"configName" query:"configName"`                   // 配置名称（模糊查询）
+	ActiveFlag       string `json:"activeFlag" form:"activeFlag" query:"activeFlag"`                   // 活动标记：Y-活动，N-非活动，空表示全部
+}
+
+// ApiAccessConfigQuery API访问控制配置查询条件，对应前端搜索表单的查询参数
+type ApiAccessConfigQuery struct {
+	SecurityConfigId string `json:"securityConfigId" form:"securityConfigId" query:"securityConfigId"` // 安全配置ID（必填，避免关联错误）
+	ConfigName       string `json:"configName" form:"configName" query:"configName"`                   // 配置名称（模糊查询）
+	ActiveFlag       string `json:"activeFlag" form:"activeFlag" query:"activeFlag"`                   // 活动标记：Y-活动，N-非活动，空表示全部
+}
+
+// DomainAccessConfigQuery 域名访问控制配置查询条件，对应前端搜索表单的查询参数
+type DomainAccessConfigQuery struct {
+	SecurityConfigId string `json:"securityConfigId" form:"securityConfigId" query:"securityConfigId"` // 安全配置ID（必填，避免关联错误）
+	ConfigName       string `json:"configName" form:"configName" query:"configName"`                   // 配置名称（模糊查询）
+	ActiveFlag       string `json:"activeFlag" form:"activeFlag" query:"activeFlag"`                   // 活动标记：Y-活动，N-非活动，空表示全部
+}
+
 // UseragentAccessConfig User-Agent访问控制配置模型，对应数据库HUB_GW_UA_ACCESS_CONFIG表
 type UseragentAccessConfig struct {
-	TenantId                 string     `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                                                 // 租户ID，联合主键
-	UseragentAccessConfigId  string     `json:"useragentAccessConfigId" form:"useragentAccessConfigId" query:"useragentAccessConfigId" db:"useragentAccessConfigId"` // User-Agent访问配置ID，联合主键
-	SecurityConfigId         string     `json:"securityConfigId" form:"securityConfigId" query:"securityConfigId" db:"securityConfigId"`                             // 关联的安全配置ID
-	ConfigName               string     `json:"configName" form:"configName" query:"configName" db:"configName"`                                                     // User-Agent访问配置名称
-	DefaultPolicy            string     `json:"defaultPolicy" form:"defaultPolicy" query:"defaultPolicy" db:"defaultPolicy"`                                         // 默认策略(allow允许,deny拒绝)
-	WhitelistPatterns        *string    `json:"whitelistPatterns" form:"whitelistPatterns" query:"whitelistPatterns" db:"whitelistPatterns"`                       // User-Agent白名单模式，JSON数组格式，支持正则表达式
-	BlacklistPatterns        *string    `json:"blacklistPatterns" form:"blacklistPatterns" query:"blacklistPatterns" db:"blacklistPatterns"`                       // User-Agent黑名单模式，JSON数组格式，支持正则表达式
-	BlockEmptyUserAgent      string     `json:"blockEmptyUserAgent" form:"blockEmptyUserAgent" query:"blockEmptyUserAgent" db:"blockEmptyUserAgent"`               // 是否阻止空User-Agent(N否,Y是)
-	Reserved1                *string    `json:"reserved1" form:"reserved1" query:"reserved1" db:"reserved1"`                                                         // 预留字段1
-	Reserved2                *string    `json:"reserved2" form:"reserved2" query:"reserved2" db:"reserved2"`                                                         // 预留字段2
-	Reserved3                *int       `json:"reserved3" form:"reserved3" query:"reserved3" db:"reserved3"`                                                         // 预留字段3
-	Reserved4                *int       `json:"reserved4" form:"reserved4" query:"reserved4" db:"reserved4"`                                                         // 预留字段4
-	Reserved5                *time.Time `json:"reserved5" form:"reserved5" query:"reserved5" db:"reserved5"`                                                         // 预留字段5
-	ExtProperty              *string    `json:"extProperty" form:"extProperty" query:"extProperty" db:"extProperty"`                                                 // 扩展属性，JSON格式
-	AddTime                  time.Time  `json:"addTime" form:"addTime" query:"addTime" db:"addTime"`                                                                 // 创建时间
-	AddWho                   string     `json:"addWho" form:"addWho" query:"addWho" db:"addWho"`                                                                     // 创建人ID
-	EditTime                 time.Time  `json:"editTime" form:"editTime" query:"editTime" db:"editTime"`                                                             // 最后修改时间
-	EditWho                  string     `json:"editWho" form:"editWho" query:"editWho" db:"editWho"`                                                                 // 最后修改人ID
-	OprSeqFlag               string     `json:"oprSeqFlag" form:"oprSeqFlag" query:"oprSeqFlag" db:"oprSeqFlag"`                                                     // 操作序列标识
-	CurrentVersion           int        `json:"currentVersion" form:"currentVersion" query:"currentVersion" db:"currentVersion"`                                     // 当前版本号
-	ActiveFlag               string     `json:"activeFlag" form:"activeFlag" query:"activeFlag" db:"activeFlag"`                                                     // 活动状态标记(N非活动,Y活动)
-	NoteText                 *string    `json:"noteText" form:"noteText" query:"noteText" db:"noteText"`                                                             // 备注信息
+	TenantId                string     `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                                             // 租户ID，联合主键
+	UseragentAccessConfigId string     `json:"useragentAccessConfigId" form:"useragentAccessConfigId" query:"useragentAccessConfigId" db:"useragentAccessConfigId"` // User-Agent访问配置ID，联合主键
+	SecurityConfigId        string     `json:"securityConfigId" form:"securityConfigId" query:"securityConfigId" db:"securityConfigId"`                             // 关联的安全配置ID
+	ConfigName              string     `json:"configName" form:"configName" query:"configName" db:"configName"`                                                     // User-Agent访问配置名称
+	DefaultPolicy           string     `json:"defaultPolicy" form:"defaultPolicy" query:"defaultPolicy" db:"defaultPolicy"`                                         // 默认策略(allow允许,deny拒绝)
+	WhitelistPatterns       *string    `json:"whitelistPatterns" form:"whitelistPatterns" query:"whitelistPatterns" db:"whitelistPatterns"`                         // User-Agent白名单模式，JSON数组格式，支持正则表达式
+	BlacklistPatterns       *string    `json:"blacklistPatterns" form:"blacklistPatterns" query:"blacklistPatterns" db:"blacklistPatterns"`                         // User-Agent黑名单模式，JSON数组格式，支持正则表达式
+	BlockEmptyUserAgent     string     `json:"blockEmptyUserAgent" form:"blockEmptyUserAgent" query:"blockEmptyUserAgent" db:"blockEmptyUserAgent"`                 // 是否阻止空User-Agent(N否,Y是)
+	Reserved1               *string    `json:"reserved1" form:"reserved1" query:"reserved1" db:"reserved1"`                                                         // 预留字段1
+	Reserved2               *string    `json:"reserved2" form:"reserved2" query:"reserved2" db:"reserved2"`                                                         // 预留字段2
+	Reserved3               *int       `json:"reserved3" form:"reserved3" query:"reserved3" db:"reserved3"`                                                         // 预留字段3
+	Reserved4               *int       `json:"reserved4" form:"reserved4" query:"reserved4" db:"reserved4"`                                                         // 预留字段4
+	Reserved5               *time.Time `json:"reserved5" form:"reserved5" query:"reserved5" db:"reserved5"`                                                         // 预留字段5
+	ExtProperty             *string    `json:"extProperty" form:"extProperty" query:"extProperty" db:"extProperty"`                                                 // 扩展属性，JSON格式
+	AddTime                 time.Time  `json:"addTime" form:"addTime" query:"addTime" db:"addTime"`                                                                 // 创建时间
+	AddWho                  string     `json:"addWho" form:"addWho" query:"addWho" db:"addWho"`                                                                     // 创建人ID
+	EditTime                time.Time  `json:"editTime" form:"editTime" query:"editTime" db:"editTime"`                                                             // 最后修改时间
+	EditWho                 string     `json:"editWho" form:"editWho" query:"editWho" db:"editWho"`                                                                 // 最后修改人ID
+	OprSeqFlag              string     `json:"oprSeqFlag" form:"oprSeqFlag" query:"oprSeqFlag" db:"oprSeqFlag"`                                                     // 操作序列标识
+	CurrentVersion          int        `json:"currentVersion" form:"currentVersion" query:"currentVersion" db:"currentVersion"`                                     // 当前版本号
+	ActiveFlag              string     `json:"activeFlag" form:"activeFlag" query:"activeFlag" db:"activeFlag"`                                                     // 活动状态标记(N非活动,Y活动)
+	NoteText                *string    `json:"noteText" form:"noteText" query:"noteText" db:"noteText"`                                                             // 备注信息
 }
 
 // TableName 返回表名
@@ -102,29 +138,29 @@ func (UseragentAccessConfig) TableName() string {
 
 // ApiAccessConfig API访问控制配置模型，对应数据库HUB_GW_API_ACCESS_CONFIG表
 type ApiAccessConfig struct {
-	TenantId         string     `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                     // 租户ID，联合主键
-	ApiAccessConfigId string    `json:"apiAccessConfigId" form:"apiAccessConfigId" query:"apiAccessConfigId" db:"apiAccessConfigId"` // API访问配置ID，联合主键
-	SecurityConfigId string     `json:"securityConfigId" form:"securityConfigId" query:"securityConfigId" db:"securityConfigId"`   // 关联的安全配置ID
-	ConfigName       string     `json:"configName" form:"configName" query:"configName" db:"configName"`                           // API访问配置名称
-	DefaultPolicy    string     `json:"defaultPolicy" form:"defaultPolicy" query:"defaultPolicy" db:"defaultPolicy"`               // 默认策略(allow允许,deny拒绝)
-	WhitelistPaths   *string    `json:"whitelistPaths" form:"whitelistPaths" query:"whitelistPaths" db:"whitelistPaths"`           // API路径白名单，JSON数组格式，支持通配符
-	BlacklistPaths   *string    `json:"blacklistPaths" form:"blacklistPaths" query:"blacklistPaths" db:"blacklistPaths"`           // API路径黑名单，JSON数组格式，支持通配符
-	AllowedMethods   *string    `json:"allowedMethods" form:"allowedMethods" query:"allowedMethods" db:"allowedMethods"`           // 允许的HTTP方法，逗号分隔
-	BlockedMethods   *string    `json:"blockedMethods" form:"blockedMethods" query:"blockedMethods" db:"blockedMethods"`           // 禁止的HTTP方法，逗号分隔
-	Reserved1        *string    `json:"reserved1" form:"reserved1" query:"reserved1" db:"reserved1"`                               // 预留字段1
-	Reserved2        *string    `json:"reserved2" form:"reserved2" query:"reserved2" db:"reserved2"`                               // 预留字段2
-	Reserved3        *int       `json:"reserved3" form:"reserved3" query:"reserved3" db:"reserved3"`                               // 预留字段3
-	Reserved4        *int       `json:"reserved4" form:"reserved4" query:"reserved4" db:"reserved4"`                               // 预留字段4
-	Reserved5        *time.Time `json:"reserved5" form:"reserved5" query:"reserved5" db:"reserved5"`                               // 预留字段5
-	ExtProperty      *string    `json:"extProperty" form:"extProperty" query:"extProperty" db:"extProperty"`                       // 扩展属性，JSON格式
-	AddTime          time.Time  `json:"addTime" form:"addTime" query:"addTime" db:"addTime"`                                       // 创建时间
-	AddWho           string     `json:"addWho" form:"addWho" query:"addWho" db:"addWho"`                                           // 创建人ID
-	EditTime         time.Time  `json:"editTime" form:"editTime" query:"editTime" db:"editTime"`                                   // 最后修改时间
-	EditWho          string     `json:"editWho" form:"editWho" query:"editWho" db:"editWho"`                                       // 最后修改人ID
-	OprSeqFlag       string     `json:"oprSeqFlag" form:"oprSeqFlag" query:"oprSeqFlag" db:"oprSeqFlag"`                           // 操作序列标识
-	CurrentVersion   int        `json:"currentVersion" form:"currentVersion" query:"currentVersion" db:"currentVersion"`           // 当前版本号
-	ActiveFlag       string     `json:"activeFlag" form:"activeFlag" query:"activeFlag" db:"activeFlag"`                           // 活动状态标记(N非活动,Y活动)
-	NoteText         *string    `json:"noteText" form:"noteText" query:"noteText" db:"noteText"`                                   // 备注信息
+	TenantId          string     `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                     // 租户ID，联合主键
+	ApiAccessConfigId string     `json:"apiAccessConfigId" form:"apiAccessConfigId" query:"apiAccessConfigId" db:"apiAccessConfigId"` // API访问配置ID，联合主键
+	SecurityConfigId  string     `json:"securityConfigId" form:"securityConfigId" query:"securityConfigId" db:"securityConfigId"`     // 关联的安全配置ID
+	ConfigName        string     `json:"configName" form:"configName" query:"configName" db:"configName"`                             // API访问配置名称
+	DefaultPolicy     string     `json:"defaultPolicy" form:"defaultPolicy" query:"defaultPolicy" db:"defaultPolicy"`                 // 默认策略(allow允许,deny拒绝)
+	WhitelistPaths    *string    `json:"whitelistPaths" form:"whitelistPaths" query:"whitelistPaths" db:"whitelistPaths"`             // API路径白名单，JSON数组格式，支持通配符
+	BlacklistPaths    *string    `json:"blacklistPaths" form:"blacklistPaths" query:"blacklistPaths" db:"blacklistPaths"`             // API路径黑名单，JSON数组格式，支持通配符
+	AllowedMethods    *string    `json:"allowedMethods" form:"allowedMethods" query:"allowedMethods" db:"allowedMethods"`             // 允许的HTTP方法，逗号分隔
+	BlockedMethods    *string    `json:"blockedMethods" form:"blockedMethods" query:"blockedMethods" db:"blockedMethods"`             // 禁止的HTTP方法，逗号分隔
+	Reserved1         *string    `json:"reserved1" form:"reserved1" query:"reserved1" db:"reserved1"`                                 // 预留字段1
+	Reserved2         *string    `json:"reserved2" form:"reserved2" query:"reserved2" db:"reserved2"`                                 // 预留字段2
+	Reserved3         *int       `json:"reserved3" form:"reserved3" query:"reserved3" db:"reserved3"`                                 // 预留字段3
+	Reserved4         *int       `json:"reserved4" form:"reserved4" query:"reserved4" db:"reserved4"`                                 // 预留字段4
+	Reserved5         *time.Time `json:"reserved5" form:"reserved5" query:"reserved5" db:"reserved5"`                                 // 预留字段5
+	ExtProperty       *string    `json:"extProperty" form:"extProperty" query:"extProperty" db:"extProperty"`                         // 扩展属性，JSON格式
+	AddTime           time.Time  `json:"addTime" form:"addTime" query:"addTime" db:"addTime"`                                         // 创建时间
+	AddWho            string     `json:"addWho" form:"addWho" query:"addWho" db:"addWho"`                                             // 创建人ID
+	EditTime          time.Time  `json:"editTime" form:"editTime" query:"editTime" db:"editTime"`                                     // 最后修改时间
+	EditWho           string     `json:"editWho" form:"editWho" query:"editWho" db:"editWho"`                                         // 最后修改人ID
+	OprSeqFlag        string     `json:"oprSeqFlag" form:"oprSeqFlag" query:"oprSeqFlag" db:"oprSeqFlag"`                             // 操作序列标识
+	CurrentVersion    int        `json:"currentVersion" form:"currentVersion" query:"currentVersion" db:"currentVersion"`             // 当前版本号
+	ActiveFlag        string     `json:"activeFlag" form:"activeFlag" query:"activeFlag" db:"activeFlag"`                             // 活动状态标记(N非活动,Y活动)
+	NoteText          *string    `json:"noteText" form:"noteText" query:"noteText" db:"noteText"`                                     // 备注信息
 }
 
 // TableName 返回表名
@@ -134,7 +170,7 @@ func (ApiAccessConfig) TableName() string {
 
 // DomainAccessConfig 域名访问控制配置模型，对应数据库HUB_GW_DOMAIN_ACCESS_CONFIG表
 type DomainAccessConfig struct {
-	TenantId             string     `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                                     // 租户ID，联合主键
+	TenantId             string     `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                                 // 租户ID，联合主键
 	DomainAccessConfigId string     `json:"domainAccessConfigId" form:"domainAccessConfigId" query:"domainAccessConfigId" db:"domainAccessConfigId"` // 域名访问配置ID，联合主键
 	SecurityConfigId     string     `json:"securityConfigId" form:"securityConfigId" query:"securityConfigId" db:"securityConfigId"`                 // 关联的安全配置ID
 	ConfigName           string     `json:"configName" form:"configName" query:"configName" db:"configName"`                                         // 域名访问配置名称
@@ -161,4 +197,4 @@ type DomainAccessConfig struct {
 // TableName 返回表名
 func (DomainAccessConfig) TableName() string {
 	return "HUB_GW_DOMAIN_ACCESS_CONFIG"
-} 
+}

@@ -146,23 +146,37 @@ func (c *AuthController) Login(ctx *gin.Context) {
 	// 设置Session Cookie
 	c.setSessionCookie(ctx, sessionData.SessionId, *sessionData.ExpireAt)
 
+	// 获取用户权限信息
+	permissions, err := c.authDAO.GetUserPermissions(ctx, user.UserId, user.TenantId)
+	if err != nil {
+		logger.WarnWithTrace(ctx, "获取用户权限失败", "error", err, "userId", user.UserId)
+		// 权限获取失败不影响登录，返回空权限
+		permissions = &models.UserPermissionResponse{
+			Modules: []models.ModulePermission{},
+			Buttons: []models.ButtonPermission{},
+		}
+	}
+
 	// 登录成功响应
 	loginResp := gin.H{
-		"userId":    user.UserId,
-		"userName":  user.UserName,
-		"realName":  user.RealName,
-		"tenantId":  user.TenantId,
-		"deptId":    user.DeptId,
-		"email":     user.Email,
-		"mobile":    user.Mobile,
-		"avatar":    user.Avatar,
-		"sessionId": sessionData.SessionId,
-		"loginTime": sessionData.LoginTime,
-		"expireAt":  sessionData.ExpireAt.Unix(),
-		"clientIP":  clientIP,
-		"userAgent": userAgent,
+		"userId":          user.UserId,
+		"userName":        user.UserName,
+		"realName":        user.RealName,
+		"tenantId":        user.TenantId,
+		"deptId":          user.DeptId,
+		"email":           user.Email,
+		"mobile":          user.Mobile,
+		"avatar":          user.Avatar,
+		"tenantAdminFlag": user.TenantAdminFlag,
+		"sessionId":       sessionData.SessionId,
+		"loginTime":       sessionData.LoginTime,
+		"expireAt":        sessionData.ExpireAt.Unix(),
+		"clientIP":        clientIP,
+		"userAgent":       userAgent,
 		// 返回web.yaml中的read_timeout配置，单位为秒，转换为毫秒
 		"timeout": config.GetInt("web.read_timeout", 30) * 1000,
+		// 权限信息
+		"permissions": permissions,
 	}
 
 	response.SuccessJSON(ctx, loginResp, constants.SD00101)
@@ -525,6 +539,23 @@ func (c *AuthController) clearSessionCookie(ctx *gin.Context) {
 	)
 
 	logger.InfoWithTrace(ctx, "Session Cookie已清除")
+}
+
+// GetVersion 获取系统版本
+// @Summary 获取系统版本
+// @Description 获取系统版本号
+// @Tags 认证
+// @Produce json
+// @Success 200 {object} response.JsonData
+// @Router /api/auth/version [get]
+func (c *AuthController) GetVersion(ctx *gin.Context) {
+	version := config.GetVersion()
+	appName := config.GetAppName()
+
+	response.SuccessJSON(ctx, gin.H{
+		"version": version,
+		"name":    appName,
+	}, constants.SD00001)
 }
 
 // getSessionIdFromCookie 从Cookie中获取Session ID
