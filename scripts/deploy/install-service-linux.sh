@@ -381,9 +381,73 @@ copy_configs() {
     fi
 }
 
+# 函数：检查Oracle环境变量
+check_oracle_env() {
+    # 检查ORACLE_HOME环境变量
+    if [[ -n "$ORACLE_HOME" ]]; then
+        if [[ -d "$ORACLE_HOME/lib" ]] && [[ -f "$ORACLE_HOME/lib/libclntsh.so"* ]]; then
+            log_info "检测到ORACLE_HOME环境变量: $ORACLE_HOME"
+            echo "$ORACLE_HOME/lib"
+            return 0
+        fi
+    fi
+    
+    # 检查LD_LIBRARY_PATH环境变量中是否包含Oracle库
+    if [[ -n "$LD_LIBRARY_PATH" ]]; then
+        IFS=':' read -ra ADDR <<< "$LD_LIBRARY_PATH"
+        for path in "${ADDR[@]}"; do
+            if [[ -f "$path/libclntsh.so"* ]]; then
+                log_info "从LD_LIBRARY_PATH检测到Oracle库路径: $path"
+                echo "$path"
+                return 0
+            fi
+        done
+    fi
+    
+    return 1
+}
+
 # 函数：创建systemd服务文件
 create_systemd_service() {
     log_info "创建systemd服务文件..."
+    
+    # 如果是Oracle版本，检查Oracle环境变量
+    local oracle_lib_env=""
+    if [[ "$ORACLE_VERSION" == true ]]; then
+        local oracle_lib_path=$(check_oracle_env)
+        if [[ -n "$oracle_lib_path" ]]; then
+            oracle_lib_env="Environment=LD_LIBRARY_PATH=$oracle_lib_path"
+            log_info "将在systemd服务中设置LD_LIBRARY_PATH: $oracle_lib_path"
+        else
+            log_error "检测到Oracle版本，但未配置Oracle环境变量"
+            log_error ""
+            log_error "Oracle版本的程序需要安装Oracle Instant Client并配置环境变量"
+            log_error ""
+            log_error "配置步骤："
+            log_error "  1. 下载Oracle Instant Client（Linux x86-64）："
+            log_error "     https://www.oracle.com/database/technologies/instant-client/linux-x86-64-downloads.html"
+            log_error ""
+            log_error "  2. 解压安装包（例如解压到 /opt/oracle/instantclient_21_18）"
+            log_error ""
+            log_error "  3. 配置环境变量（选择一种方式）："
+            log_error "     方式A：设置ORACLE_HOME环境变量"
+            log_error "       export ORACLE_HOME=/opt/oracle/instantclient_21_18"
+            log_error "       export LD_LIBRARY_PATH=\$ORACLE_HOME/lib:\$LD_LIBRARY_PATH"
+            log_error ""
+            log_error "     方式B：仅设置LD_LIBRARY_PATH环境变量"
+            log_error "       export LD_LIBRARY_PATH=/opt/oracle/instantclient_21_18/lib:\$LD_LIBRARY_PATH"
+            log_error ""
+            log_error "  4. 将环境变量添加到 ~/.bashrc 或 ~/.bash_profile 以永久生效"
+            log_error ""
+            log_error "  5. 重新运行此安装脚本"
+            log_error ""
+            log_error "详细安装说明请参考："
+            log_error "  https://github.com/fluxsce/gateway/blob/main/docs/zh-CN/03-安装部署.md"
+            log_error ""
+            log_warn "服务文件将创建，但启动时可能会失败（缺少Oracle库）"
+            log_warn "请按照上述步骤配置Oracle环境后，手动编辑服务文件添加LD_LIBRARY_PATH环境变量"
+        fi
+    fi
     
     cat > "/etc/systemd/system/$SERVICE_NAME.service" << EOF
 [Unit]
@@ -407,6 +471,7 @@ StartLimitBurst=3
 # 环境变量
 Environment=GATEWAY_CONFIG_DIR=$CONFIG_DIR
 Environment=GATEWAY_LOG_DIR=$LOG_DIR
+$(if [[ -n "$oracle_lib_env" ]]; then echo "$oracle_lib_env"; fi)
 
 # 安全设置
 NoNewPrivileges=true
@@ -429,6 +494,10 @@ WantedBy=multi-user.target
 EOF
 
     log_info "systemd服务文件创建完成"
+    if [[ "$ORACLE_VERSION" == true ]] && [[ -z "$oracle_lib_env" ]]; then
+        log_warn "提示：检测到Oracle版本但未配置Oracle环境变量，服务启动时将失败"
+        log_warn "请参考上面的说明配置Oracle Instant Client环境变量"
+    fi
 }
 
 # 函数：启用并启动服务

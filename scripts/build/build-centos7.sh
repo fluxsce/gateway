@@ -17,24 +17,25 @@ echo "Using default go.mod file"
 echo ""
 
 # Build configuration for CentOS 7
-# Default: Build with all features (SQLite and Oracle support via CGO)
-# Note: Oracle support uses !no_oracle tag (default enabled, use -tags no_oracle to disable)
-BUILD_TAGS="netgo"
+# Default: Build with MySQL/SQLite only (no Oracle support)
+# Use --oracle or --all to enable Oracle support
+BUILD_TAGS="netgo,no_oracle"
 export CGO_ENABLED=1
+
+# Parse command line arguments
+ORACLE_ENABLED=false
+if [[ "$1" == "--oracle" ]] || [[ "$1" == "--all" ]]; then
+    ORACLE_ENABLED=true
+    # Remove no_oracle tag to enable Oracle support
+    BUILD_TAGS="netgo"
+fi
 
 # Oracle environment check
 ORACLE_SUPPORT_ENABLED=false
 ORACLE_CHECK_FAILED=false
 
-# Check if Oracle support is enabled (default enabled unless no_oracle tag is used)
-# Since we're not using no_oracle tag, Oracle support is enabled by default
-ORACLE_ENABLED=true
-if [[ "$BUILD_TAGS" == *"no_oracle"* ]]; then
-    ORACLE_ENABLED=false
-fi
-
 if [ "$ORACLE_ENABLED" = true ]; then
-    echo "[INFO] Oracle support is enabled in build tags"
+    echo "[INFO] Oracle support is enabled"
     
     if [ -n "$ORACLE_HOME" ]; then
         echo "[INFO] Oracle environment detected"

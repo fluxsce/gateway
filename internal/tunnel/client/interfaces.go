@@ -355,6 +355,43 @@ type ControlConnection interface {
 	//   - 状态可能在返回后立即发生变化
 	//   - 建议结合心跳机制使用
 	IsConnected() bool
+
+	// StartProxy 启动代理
+	//
+	// 参数:
+	//   - ctx: 上下文
+	//   - service: 服务配置
+	//   - remotePort: 远程端口
+	//
+	// 返回:
+	//   - error: 启动失败时返回错误
+	//
+	// 功能:
+	//   - 将服务添加到活跃代理列表
+	//   - 准备接收来自服务器的代理请求
+	//
+	// 注意事项:
+	//   - 服务注册成功后需要调用此方法
+	//   - 重复调用是安全的（已存在则忽略）
+	StartProxy(ctx context.Context, service *types.TunnelService, remotePort int) error
+
+	// StopProxy 停止代理
+	//
+	// 参数:
+	//   - ctx: 上下文
+	//   - serviceID: 服务ID
+	//
+	// 返回:
+	//   - error: 停止失败时返回错误
+	//
+	// 功能:
+	//   - 从活跃代理列表中移除服务
+	//   - 停止接收该服务的代理请求
+	//
+	// 注意事项:
+	//   - 服务注销时需要调用此方法
+	//   - 停止不存在的代理会返回错误
+	StopProxy(ctx context.Context, serviceID string) error
 }
 
 // HeartbeatManager 心跳管理器接口

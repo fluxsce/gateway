@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # 配置
 DEFAULT_IMAGE_NAME="datahub-images/gateway"
-VERSION="2.0.4"
+VERSION="3.0.1"
 BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 

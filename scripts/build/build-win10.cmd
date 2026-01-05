@@ -2,7 +2,7 @@
 setlocal EnableDelayedExpansion
 
 :: Gateway Build Script for Windows 10/11
-:: Supports optional Oracle build (default: includes Oracle)
+:: Supports optional Oracle build (default: MySQL only, use --oracle to enable Oracle)
 
 title Gateway Build - Windows 10/11
 
@@ -12,20 +12,20 @@ echo ==========================================
 echo.
 
 :: Parse command line arguments
-set INCLUDE_ORACLE=1
+set INCLUDE_ORACLE=0
 set ARG1=%1
 
+if /i "!ARG1!"=="--oracle" set INCLUDE_ORACLE=1
+if /i "!ARG1!"=="--all" set INCLUDE_ORACLE=1
 if /i "!ARG1!"=="--no-oracle" set INCLUDE_ORACLE=0
 if /i "!ARG1!"=="--mysql-only" set INCLUDE_ORACLE=0
-if /i "!ARG1!"=="--all" set INCLUDE_ORACLE=1
-if /i "!ARG1!"=="--oracle" set INCLUDE_ORACLE=1
 
 if !INCLUDE_ORACLE! EQU 1 (
-    echo [INFO] Building with Oracle support (default^)
-    echo Usage: %~nx0 [--no-oracle^|--mysql-only^|--all^|--oracle]
+    echo [INFO] Building with Oracle support
+    echo Usage: %~nx0 [--oracle^|--all^|--no-oracle^|--mysql-only]
 ) else (
-    echo [INFO] Building without Oracle support (MySQL only^)
-    echo Usage: %~nx0 [--no-oracle^|--mysql-only^|--all^|--oracle]
+    echo [INFO] Building without Oracle support (MySQL only, default^)
+    echo Usage: %~nx0 [--oracle^|--all^|--no-oracle^|--mysql-only]
 )
 
 :: Show current Go version
@@ -118,7 +118,7 @@ if !INCLUDE_ORACLE! EQU 1 (
 )
 
 :: Build configuration
-:: Note: Oracle support uses !no_oracle tag (default enabled, use -tags no_oracle to disable)
+:: Note: Oracle support uses !no_oracle tag (default disabled, use --oracle to enable)
 if !INCLUDE_ORACLE! EQU 1 (
     set BUILD_TAGS=netgo,osusergo,windows
     set VERSION_SUFFIX=win10-oracle
@@ -163,7 +163,8 @@ set PACKAGE_DIR=dist\gateway
 set VERSION_INFO=!VERSION_SUFFIX!-v3.1
 
 :: Build flags with optimizations for modern Windows
-set BUILD_FLAGS=-ldflags="-s -w -X main.Version=!VERSION_INFO! -X main.BuildTime=!BUILD_TIMESTAMP! -X main.GitCommit=!GIT_COMMIT!"
+:: Note: Use separate -X flags to avoid quote issues with spaces in BUILD_TIMESTAMP
+set LDFLAGS=-s -w -X main.Version=!VERSION_INFO! -X "main.BuildTime=!BUILD_TIMESTAMP!" -X main.GitCommit=!GIT_COMMIT!
 
 if !INCLUDE_ORACLE! EQU 1 (
     echo Building with Oracle support...
@@ -183,10 +184,17 @@ go mod tidy
 :: Execute build with verbose output
 echo.
 echo Running build with verbose output...
+:: Clear any existing LDFLAGS environment variable that might interfere
+if defined LDFLAGS set LDFLAGS=
+
 if !INCLUDE_ORACLE! EQU 1 (
-    go build -v -x -tags !BUILD_TAGS! !BUILD_FLAGS! -ldflags="-linkmode external" -o "!OUTPUT_FILE!" cmd\app\main.go
+    :: Oracle build requires external linking mode
+    :: Combine LDFLAGS with -linkmode external (space-separated, not =)
+    set ORACLE_LDFLAGS=!LDFLAGS! -linkmode external
+    go build -v -x -tags !BUILD_TAGS! -ldflags "!ORACLE_LDFLAGS!" -o "!OUTPUT_FILE!" cmd\app\main.go
 ) else (
-    go build -v -x -tags !BUILD_TAGS! !BUILD_FLAGS! -o "!OUTPUT_FILE!" cmd\app\main.go
+    :: MySQL-only build uses internal linking (default)
+    go build -v -x -tags !BUILD_TAGS! -ldflags "!LDFLAGS!" -o "!OUTPUT_FILE!" cmd\app\main.go
 )
 set BUILD_RESULT=%ERRORLEVEL%
 

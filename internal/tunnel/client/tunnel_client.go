@@ -341,8 +341,13 @@ func (c *tunnelClient) RegisterService(ctx context.Context, service *types.Tunne
 	}
 
 	// 如果服务端分配了远程端口，更新到服务配置
+	remotePort := 0
 	if resp.RemotePort != nil {
 		service.RemotePort = resp.RemotePort
+		remotePort = *resp.RemotePort
+	} else if service.RemotePort != nil {
+		// 如果响应中没有远程端口，使用服务配置中的端口
+		remotePort = *service.RemotePort
 	}
 
 	// 添加到本地服务列表（直接使用 config.Services）
@@ -350,6 +355,25 @@ func (c *tunnelClient) RegisterService(ctx context.Context, service *types.Tunne
 	c.config.Services[service.TunnelServiceId] = service
 	serviceCount := len(c.config.Services)
 	c.servicesMutex.Unlock()
+
+	// 关键修复：启动代理，将服务添加到 activeProxies 中
+	// 这样当服务端发送 proxy_request 时，HandleProxyConnection 才能找到对应的代理
+	if remotePort > 0 {
+		if err := c.controlConn.StartProxy(ctx, service, remotePort); err != nil {
+			logger.Error("Failed to start proxy after service registration", map[string]interface{}{
+				"serviceId":   service.TunnelServiceId,
+				"serviceName": service.ServiceName,
+				"remotePort":  remotePort,
+				"error":       err.Error(),
+			})
+			// 不中断流程，继续执行，但记录错误
+		}
+	} else {
+		logger.Warn("Remote port not available, skipping proxy start", map[string]interface{}{
+			"serviceId":   service.TunnelServiceId,
+			"serviceName": service.ServiceName,
+		})
+	}
 
 	// 更新数据库服务状态为 active
 	now := time.Now()
@@ -433,6 +457,16 @@ func (c *tunnelClient) UnregisterService(ctx context.Context, serviceID string) 
 				})
 			}
 		}
+	}
+
+	// 关键修复：停止代理，从 activeProxies 中移除服务
+	// 这样当服务注销后，不会再处理该服务的 proxy_request
+	if err := c.controlConn.StopProxy(ctx, serviceID); err != nil {
+		logger.Warn("Failed to stop proxy during service unregistration", map[string]interface{}{
+			"serviceId": serviceID,
+			"error":     err.Error(),
+		})
+		// 不中断流程，继续执行
 	}
 
 	// 从本地服务列表删除
