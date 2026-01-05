@@ -1,0 +1,469 @@
+/**
+ * Hub0041 服务注册管理模块 - 中文语言包
+ * 
+ * 包含服务注册管理相关的所有中文文案
+ * 
+ * @author 系统架构组
+ * @version 1.0.0
+ * @since 2024-01-01
+ */
+
+export default {
+  // 页面标题
+  title: '服务注册管理',
+  pageTitle: '服务注册中心',
+  subtitle: '管理第三方应用注册的服务和服务实例',
+
+  // 菜单和导航
+  menu: {
+    serviceRegistry: '服务注册管理',
+    serviceList: '服务列表',
+    instanceList: '实例列表',
+    eventList: '服务事件'
+  },
+
+  // 搜索和筛选
+  searchServiceName: '搜索服务名称',
+  selectProtocol: '选择协议',
+  selectStatus: '选择状态',
+
+  // 服务详情相关
+  basicInfo: '基本信息',
+  serviceDetail: '服务详情',
+  instanceList: '实例列表',
+  healthCheckConfig: '健康检查配置',
+  noServices: '暂无服务数据',
+  noDescription: '暂无描述',
+  serviceNotFound: '服务未找到',
+  
+  // 新增的表格字段
+  serviceName: '服务名称',
+  serviceDescription: '服务描述',
+  healthCheckUrl: '健康检查URL',
+  healthCheckInterval: '健康检查间隔',
+  healthCheckTimeout: '健康检查超时',
+  healthCheckType: '健康检查类型',
+  healthCheckMode: '健康检查模式',
+  selectHealthCheckType: '请选择健康检查类型',
+  selectHealthCheckMode: '请选择健康检查模式',
+  lastUpdateTime: '最后更新时间',
+  instanceId: '实例ID',
+  instanceCount: '实例数量',
+  healthyCount: '健康数量',
+  instances: '实例',
+  healthRate: '健康率',
+  totalInstances: '总实例',
+  healthyInstances: '健康实例',
+  serviceHealth: '服务健康度',
+  serviceGroup: '服务组',
+  namespace: '命名空间',
+  port: '端口',
+  weight: '权重',
+  lastHeartbeat: '最后心跳',
+  
+  // 负载均衡策略文本
+  roundRobin: '轮询',
+  weightedRoundRobin: '加权轮询',
+  leastConnections: '最少连接',
+  random: '随机',
+  ipHash: 'IP哈希',
+  
+  // 操作相关
+  viewDetail: '查看详情',
+  viewMetadata: '查看元数据',
+  refreshService: '刷新服务',
+  refreshInstances: '刷新实例',
+  
+  // 消息文本
+  fetchServicesFailed: '获取服务列表失败',
+  fetchDetailFailed: '获取服务详情失败',
+  fetchMetadataFailed: '获取元数据失败',
+  refreshServiceSuccess: '刷新服务成功',
+  refreshServiceFailed: '刷新服务失败',
+  refreshInstancesSuccess: '刷新实例成功',
+  refreshInstancesFailed: '刷新实例失败',
+  healthCheckSuccess: '健康检查完成',
+  healthCheckFailed: '健康检查失败',
+  bringUpSuccess: '实例上线成功',
+  bringUpFailed: '实例上线失败',
+  takeDownSuccess: '实例下线成功',
+  takeDownFailed: '实例下线失败',
+  
+  // 状态文本
+  healthy: '健康',
+  unhealthy: '不健康',
+  unknown: '未知',
+
+  // 服务表单对话框
+  addService: '新增服务',
+  editService: '编辑服务',
+  addInstance: '添加实例',
+  editInstance: '编辑实例',
+  instanceConfig: '服务实例配置',
+  networkConfig: '网络配置',
+  selectServiceGroup: '请选择服务分组',
+  selectLoadBalance: '请选择负载均衡策略',
+  serviceNamePlaceholder: '请输入服务名称',
+  serviceDescriptionPlaceholder: '请输入服务描述',
+  contextPathPlaceholder: '请输入上下文路径，如: /api',
+  healthCheckUrlPlaceholder: '请输入健康检查URL，如: /health',
+  healthCheckIntervalPlaceholder: '健康检查间隔',
+  healthCheckTimeoutPlaceholder: '健康检查超时',
+  seconds: '秒',
+  cancel: '取消',
+  reset: '重置',
+  submit: '提交',
+
+  // 表单验证
+  serviceNameRequired: '请输入服务名称',
+  serviceNameLength: '服务名称长度应在2-50个字符之间',
+  serviceGroupRequired: '请选择服务分组',
+  instanceHostRequired: '请输入实例主机地址',
+  instancePortRequired: '请输入实例端口号',
+  instanceStatusRequired: '请选择实例状态',
+  healthStatusRequired: '请选择健康状态',
+  weightRequired: '请输入权重值',
+  serviceDescriptionLength: '服务描述长度不能超过200个字符',
+  protocolTypeRequired: '请选择协议类型',
+  contextPathRequired: '请输入上下文路径',
+  loadBalanceStrategyRequired: '请选择负载均衡策略',
+  healthCheckUrlRequired: '请输入健康检查URL',
+  healthCheckIntervalRequired: '请输入健康检查间隔',
+  healthCheckTimeoutRequired: '请输入健康检查超时时间',
+  healthCheckTypeRequired: '请选择健康检查类型',
+  healthCheckModeRequired: '请选择健康检查模式',
+
+  // 操作结果
+  addServiceSuccess: '新增服务成功',
+  addServiceFailed: '新增服务失败',
+  updateServiceSuccess: '更新服务成功',
+  updateServiceFailed: '更新服务失败',
+  deleteServiceSuccess: '删除服务成功',
+  deleteServiceFailed: '删除服务失败',
+  saveServiceBeforeAddingInstance: '请先保存服务，然后再添加实例',
+  fetchServiceGroupsFailed: '获取服务分组列表失败',
+  loadInstancesSuccess: '加载实例列表成功',
+  loadInstancesFailed: '加载实例列表失败',
+  addInstanceSuccess: '添加实例成功',
+  addInstanceFailed: '添加实例失败',
+  updateInstanceSuccess: '更新实例成功',
+  updateInstanceFailed: '更新实例失败',
+  deleteInstanceSuccess: '删除实例成功',
+  deleteInstanceFailed: '删除实例失败',
+
+  // 页面相关
+  serviceManagement: '服务管理',
+  advancedConfig: '高级配置',
+  maxInstances: '最大实例数',
+  maxInstancesPlaceholder: '请输入最大实例数',
+  activeFlagRequired: '请选择服务状态',
+  maxInstancesRequired: '请输入最大实例数',
+
+  // 服务分组选择对话框
+  searchGroupName: '搜索分组名称',
+  selectGroupType: '选择分组类型',
+  noServiceGroups: '暂无服务分组数据',
+  selectedGroup: '已选择分组',
+  groupType: {
+    BUSINESS: '业务分组',
+    SYSTEM: '系统分组',
+    TEST: '测试分组'
+  },
+  
+  // 注册中心类型
+  registryTypes: {
+    INTERNAL: '内部管理',
+    NACOS: 'Nacos注册中心',
+    CONSUL: 'Consul注册中心',
+    EUREKA: 'Eureka注册中心',
+    ETCD: 'ETCD注册中心',
+    ZOOKEEPER: 'ZooKeeper注册中心'
+  },
+  selectRegistryType: '请选择注册中心类型',
+  registryTypeSelection: '注册中心选择',
+  serviceConfig: '服务配置',
+  registryTypeRequired: '请选择注册中心类型',
+  
+  // Nacos配置
+  nacosConfig: {
+    title: 'Nacos配置',
+    serverConfig: '服务器配置',
+    basicConfig: '基本配置',
+    authConfig: '认证配置',
+    advancedConfig: '高级配置',
+    serverTitle: '服务器 #{number}',
+    addServer: '添加服务器',
+    host: '主机地址',
+    port: '端口',
+    grpcPort: 'GRPC端口',
+    scheme: '协议',
+    namespace: '命名空间',
+    group: '默认分组',
+    timeout: '超时时间(秒)',
+    beatInterval: '心跳间隔(秒)',
+    username: '用户名',
+    password: '密码',
+    accessKey: '访问密钥',
+    secretKey: '密钥',
+    logLevel: '日志级别',
+    updateThreadNum: '更新线程数',
+    notLoadCacheAtStart: '启动时不加载缓存',
+    disableUseSnapShot: '禁用快照缓存',
+    enableTLS: '启用TLS',
+    trustAll: '信任所有证书',
+    expand: '展开',
+    collapse: '收起',
+    hostPlaceholder: '例如: 127.0.0.1 或 nacos.example.com',
+    portPlaceholder: '默认: 8848',
+    grpcPortPlaceholder: '默认: HTTP端口+1000',
+    schemePlaceholder: '默认: http',
+    namespacePlaceholder: '默认: public',
+    groupPlaceholder: '默认: DEFAULT_GROUP',
+    timeoutPlaceholder: '默认: 5秒',
+    beatIntervalPlaceholder: '默认: 5秒',
+    usernamePlaceholder: '可选: 认证时需要',
+    passwordPlaceholder: '可选: 认证时需要',
+    accessKeyPlaceholder: '可选: 阿里云MSE等云服务',
+    secretKeyPlaceholder: '可选: 阿里云MSE等云服务',
+    updateThreadNumPlaceholder: '默认: 20'
+  },
+
+  // 表格列标题
+  columns: {
+    // 服务表格
+    serviceName: '服务名称',
+    serviceGroupId: '分组ID', 
+    groupName: '分组名称',
+    protocolType: '协议类型',
+    loadBalanceStrategy: '负载均衡',
+    registryType: '注册中心类型',
+    instanceCount: '实例数量',
+    healthyInstanceCount: '健康实例',
+    activeFlag: '状态',
+    addTime: '创建时间',
+    editTime: '更新时间',
+    actions: '操作',
+
+    // 服务实例表格
+    serviceInstanceId: '实例ID',
+    hostAddress: '主机地址',
+    portNumber: '端口',
+    contextPath: '上下文路径',
+    instanceStatus: '实例状态',
+    healthStatus: '健康状态',
+    weightValue: '权重',
+    clientId: '客户端ID',
+    clientVersion: '客户端版本',
+    clientType: '客户端类型',
+    tempInstanceFlag: '临时实例标记',
+    registerTime: '注册时间',
+    lastHeartbeatTime: '心跳时间',
+    lastHealthCheckTime: '健康检查时间',
+    
+    // 服务事件表格
+    eventType: '事件类型',
+    eventSource: '事件来源',
+    eventMessage: '事件消息',
+    eventTime: '事件时间',
+    eventDataJson: '事件数据'
+  },
+
+  // 状态枚举
+  status: {
+    // 实例状态
+    UP: '运行中',
+    DOWN: '已停止',
+    STARTING: '启动中', 
+    OUT_OF_SERVICE: '停止服务',
+
+    // 健康状态
+    HEALTHY: '健康',
+    UNHEALTHY: '不健康',
+    CHECKING: '检查中',
+    UNKNOWN: '未知',
+
+    // 客户端类型
+    JAVA: 'Java',
+    DOTNET: '.NET',
+    NODEJS: 'Node.js',
+    PYTHON: 'Python',
+    GO: 'Go',
+    OTHER: '其他',
+
+    // 协议类型
+    HTTP: 'HTTP',
+    HTTPS: 'HTTPS',
+    TCP: 'TCP', 
+    UDP: 'UDP',
+    GRPC: 'gRPC',
+
+    // 负载均衡策略
+    ROUND_ROBIN: '轮询',
+    WEIGHTED_ROUND_ROBIN: '加权轮询',
+    LEAST_CONNECTIONS: '最少连接',
+    RANDOM: '随机',
+    HASH: '哈希',
+
+    // 通用状态
+    Y: '启用',
+    N: '禁用',
+    temporary: '临时实例',
+    permanent: '永久实例'
+  },
+
+  // 操作按钮
+  actions: {
+    view: '查看',
+    refresh: '刷新',
+    edit: '编辑',
+    delete: '删除',
+    healthCheck: '健康检查',
+    batchRefresh: '批量刷新',
+    batchHealthCheck: '批量健康检查',
+    export: '导出',
+    search: '搜索',
+    reset: '重置',
+    add: '新增服务',
+    addInstance: '添加实例',
+    back: '返回',
+    create: '创建',
+    update: '更新',
+    confirm: '确认',
+    cancel: '取消',
+    bringUp: '上线',
+    takeDown: '下线',
+    viewEvents: '查看事件'
+  },
+
+  // 搜索表单
+  search: {
+    placeholder: {
+      serviceName: '请输入服务名称',
+      groupName: '请输入分组名称',
+      hostAddress: '请输入主机地址',
+      clientId: '请输入客户端ID',
+      eventSource: '请输入事件来源',
+      timeRange: '选择时间范围'
+    }
+  },
+  selectEventType: '选择事件类型',
+
+  // 统计信息
+  statistics: {
+    totalServices: '总服务数',
+    activeServices: '活跃服务',
+    inactiveServices: '非活跃服务',
+    totalInstances: '总实例数',
+    healthyInstances: '健康实例',
+    unhealthyInstances: '不健康实例',
+    upInstances: '运行实例',
+    downInstances: '停止实例'
+  },
+
+  // 消息提示
+  messages: {
+    // 成功消息
+    refreshSuccess: '刷新成功',
+    healthCheckSuccess: '健康检查完成',
+    batchRefreshSuccess: '批量刷新成功',
+    batchHealthCheckSuccess: '批量健康检查完成',
+    exportSuccess: '导出成功',
+
+    // 错误消息
+    loadError: '加载数据失败',
+    refreshError: '刷新失败',
+    healthCheckError: '健康检查失败',
+    batchRefreshError: '批量刷新失败',
+    batchHealthCheckError: '批量健康检查失败',
+    exportError: '导出失败',
+    noSelection: '请先选择要操作的项目',
+
+      // 确认消息
+  confirmRefresh: '确认要刷新选中的服务吗？',
+  confirmHealthCheck: '确认要进行健康检查吗？',
+  confirmDeleteInstance: '确定要删除这个实例吗？',
+  confirmDeleteService: '确定要删除这个服务吗？此操作将同时删除该服务下的所有实例，且不可恢复。'
+  },
+
+  // 对话框
+  dialogs: {
+    serviceDetail: {
+      title: '服务详情',
+      tabs: {
+        basic: '基本信息',
+        instances: '实例列表',
+        metadata: '元数据',
+        audit: '审计信息'
+      }
+    },
+    serviceEvent: {
+      title: '服务事件详情'
+    }
+  },
+
+  // 表格相关
+  table: {
+    empty: '暂无数据',
+    loading: '加载中...',
+    selectAll: '全选',
+    selected: '已选择 {count} 项',
+    heartbeatTimeout: '心跳超时',
+    noInstances: '暂无实例',
+    noHealthCheck: '暂未检查'
+  },
+
+  // 时间相关
+  time: {
+    ago: '{time}前',
+    justNow: '刚刚',
+    seconds: '秒',
+    minutes: '分钟',
+    hours: '小时',
+    days: '天'
+  },
+
+  // 扩展配置相关
+  extensionConfig: '扩展配置',
+  metadataAndTags: '元数据和标签',
+  notesAndExtProperty: '备注和扩展属性',
+  reservedFields: '预留字段',
+  forFutureExpansion: '后期扩展',
+  groupName: '分组名称',
+  groupNamePlaceholder: '自动获取选择的分组名称',
+  metadataJson: '服务元数据',
+  metadataJsonPlaceholder: '请输入JSON格式的元数据信息，如：{"version":"1.0","env":"prod"}',
+  tagsJson: '服务标签',
+  tagsJsonPlaceholder: '请输入JSON格式的标签信息，如：["web","api","microservice"]',
+  noteText: '备注信息',
+  noteTextPlaceholder: '请输入服务备注信息',
+  noteTextLength: '备注信息长度不能超过500个字符',
+  extProperty: '扩展属性',
+  extPropertyPlaceholder: '请输入JSON格式的扩展属性，用于后期功能扩展',
+  reservedField: '预留字段{number}',
+  reservedFieldPlaceholder: '预留字段{number}，用于后期扩展功能',
+  invalidJsonFormat: '请输入有效的JSON格式',
+  expand: '展开',
+  collapse: '收起',
+  
+  // 健康状态文本
+  healthStatus: {
+    excellent: '优秀',
+    good: '良好', 
+    warning: '警告',
+    critical: '危险',
+    offline: '离线'
+  },
+  
+  // 健康检查模式文本
+  healthCheckModes: {
+    active: '主动探测',
+    passive: '被动上报'
+  },
+  
+  // 服务事件相关
+  serviceEventLog: '服务事件日志',
+  
+  // 事件相关消息
+  fetchServiceEventsFailed: '获取服务事件列表失败',
+  getServiceEventFailed: '获取服务事件详情失败'
+}

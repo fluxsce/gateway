@@ -1,0 +1,57 @@
+/**
+ * 基础样式
+ */
+
+/* ==================== 全局重置 ==================== */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: var(--g-font-family);
+  font-size: var(--g-font-size-base);
+  color: var(--g-text-primary);
+  background-color: var(--g-bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==================== 主题切换过渡 ==================== */
+* {
+  transition: 
+    background-color var(--g-transition-base) var(--g-transition-ease),
+    color var(--g-transition-base) var(--g-transition-ease),
+    border-color var(--g-transition-base) var(--g-transition-ease);
+}
+
+/* ==================== 滚动条样式 ==================== */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--g-border-secondary);
+  border-radius: var(--g-radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--g-text-tertiary);
+}
+
+/* ==================== naive-ui 样式 ==================== */
+/* n-split 分割条样式：移除全局强制高度，让 Naive UI 根据 direction 和 resize-trigger-size 自动处理 */

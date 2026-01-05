@@ -1,0 +1,48 @@
+/**
+ * 基础变量（所有主题共享）
+ * 命名规范：使用 --g- 前缀避免与第三方组件冲突
+ */
+
+:root {
+  /* ==================== 布局 ==================== */
+  --g-header-height: 48px;
+  --g-toolbar-height: 36px;
+  --g-footer-height: 36px;
+  
+  /* ==================== 字体 ==================== */
+  --g-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --g-font-size-sm: 13px;
+  --g-font-size-base: 14px;
+  --g-font-size-lg: 16px;
+  
+  /* ==================== 间距 ==================== */
+  --g-space-xs: 4px;
+  --g-space-sm: 8px;
+  --g-space-md: 16px;
+  --g-space-lg: 24px;
+  --g-space-xl: 32px;
+  
+  /* ==================== 模态框 ==================== */
+  --g-modal-header-height: 32px;
+  --g-modal-footer-height: 32px;
+  
+  /* ==================== 对话框 ==================== */
+  --g-dialog-header-height: 36px;
+  --g-dialog-footer-height: 36px;
+
+  /* ==================== 抽屉 ==================== */
+  --g-drawer-header-height: 36px;
+  --g-drawer-footer-height: 36px;
+  
+  /* ==================== 圆角 ==================== */
+  --g-radius-sm: 4px;
+  --g-radius-md: 6px;
+  --g-radius-lg: 8px;
+  --g-radius-xl: 12px;
+  --g-radius-2xl: 16px;
+  --g-radius-3xl: 20px;
+  
+  /* ==================== 过渡 ==================== */
+  --g-transition-base: 200ms;
+  --g-transition-ease: cubic-bezier(0.4, 0, 0.2, 1);
+}

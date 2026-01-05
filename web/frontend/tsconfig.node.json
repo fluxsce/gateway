@@ -1,0 +1,56 @@
+{
+  /**
+   * 继承Node.js 22.x环境的TypeScript配置
+   * 提供Node.js环境下的预设TypeScript配置
+   */
+  "extends": "@tsconfig/node22/tsconfig.json",
+
+  /**
+   * 包含的文件范围
+   * 这里仅包含构建工具和配置文件，用于构建过程而非应用代码
+   */
+  "include": [
+    "vite.config.*", // Vite构建工具配置
+    "vitest.config.*", // Vitest测试框架配置
+    "cypress.config.*", // Cypress端到端测试配置
+    "nightwatch.conf.*", // Nightwatch端到端测试配置
+    "playwright.config.*", // Playwright端到端测试配置
+    "eslint.config.*" // ESLint代码检查配置
+  ],
+
+  /**
+   * 编译器选项
+   * 针对Node.js环境的特定编译选项
+   */
+  "compilerOptions": {
+    /**
+     * 启用项目引用特性
+     * 允许将项目拆分为更小的部分，提高构建性能
+     */
+    "composite": true,
+
+    /**
+     * 增量编译信息文件位置
+     * 存储编译状态，加速后续编译
+     */
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+
+    /**
+     * 模块系统
+     * ESNext表示使用最新的ES模块语法
+     */
+    "module": "ESNext",
+
+    /**
+     * 模块解析策略
+     * Bundler适用于使用构建工具如Vite的项目
+     */
+    "moduleResolution": "Bundler",
+
+    /**
+     * 引入的类型声明
+     * 这里只包含Node.js类型，因为这个配置只用于构建脚本
+     */
+    "types": ["node"]
+  }
+}

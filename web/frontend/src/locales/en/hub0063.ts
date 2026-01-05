@@ -1,0 +1,94 @@
+export default {
+  title: 'Dynamic Service Management',
+  subtitle: 'Manage tunnel service configurations and status',
+  stats: {
+    total: 'Total Services',
+    active: 'Active Services',
+    inactive: 'Inactive Services',
+    error: 'Error Services',
+    connections: 'Total Connections',
+    traffic: 'Total Traffic'
+  },
+  table: {
+    serviceName: 'Service Name',
+    serviceType: 'Service Type',
+    serviceStatus: 'Service Status',
+    localAddress: 'Local Address',
+    localPort: 'Local Port',
+    remotePort: 'Remote Port',
+    connectionCount: 'Connections',
+    registeredTime: 'Registered Time'
+  },
+  filter: {
+    status: 'Service Status',
+    type: 'Service Type'
+  },
+  status: {
+    active: 'Active',
+    inactive: 'Inactive',
+    error: 'Error',
+    offline: 'Offline'
+  },
+  dialog: {
+    createTitle: 'Create Service',
+    editTitle: 'Edit Service',
+    tabs: {
+      basic: 'Basic Configuration',
+      advanced: 'Advanced Configuration',
+      note: 'Note'
+    }
+  },
+  form: {
+    serviceName: 'Service Name',
+    serviceNameRequired: 'Please enter service name',
+    serviceNamePlaceholder: 'Please enter service name',
+    serviceDescription: 'Service Description',
+    serviceDescriptionPlaceholder: 'Please enter service description (optional)',
+    tunnelClientId: 'Tunnel Client',
+    tunnelClientIdRequired: 'Please select tunnel client',
+    tunnelClientIdPlaceholder: 'Please select the tunnel client to use',
+    serviceType: 'Service Type',
+    serviceTypeRequired: 'Please select service type',
+    serviceTypePlaceholder: 'Please select service type',
+    localAddress: 'Local Address',
+    localAddressRequired: 'Please enter local address',
+    localAddressPlaceholder: 'Please enter local address (e.g., 127.0.0.1)',
+    localPort: 'Local Port',
+    localPortRequired: 'Please enter local port',
+    localPortPlaceholder: 'Please enter local port (1-65535)',
+    remotePort: 'Remote Port',
+    remotePortPlaceholder: 'Please enter remote port (optional, auto-assign if empty)',
+    subDomain: 'Subdomain',
+    subDomainPlaceholder: 'Please enter subdomain (for HTTP/HTTPS services)',
+    useEncryption: 'Enable Encryption',
+    useCompression: 'Enable Compression',
+    maxConnections: 'Max Connections',
+    maxConnectionsRequired: 'Please enter max connections',
+    maxConnectionsPlaceholder: 'Please enter max connections',
+    bandwidthLimit: 'Bandwidth Limit',
+    bandwidthLimitPlaceholder: 'Please enter bandwidth limit (optional)',
+    httpAuth: 'HTTP Basic Authentication',
+    httpUser: 'HTTP Username',
+    httpUserPlaceholder: 'Please enter HTTP authentication username (optional)',
+    httpPassword: 'HTTP Password',
+    httpPasswordPlaceholder: 'Please enter HTTP authentication password (optional)',
+    activeFlag: 'Active Flag',
+    noteText: 'Note',
+    noteTextPlaceholder: 'Please enter note (optional)'
+  },
+  actions: {
+    register: 'Register',
+    unregister: 'Unregister'
+  },
+  message: {
+    enableSuccess: 'Service enabled successfully',
+    enableFailed: 'Failed to enable service',
+    disableSuccess: 'Service disabled successfully',
+    disableFailed: 'Failed to disable service',
+    registerSuccess: 'Service registered successfully',
+    registerFailed: 'Failed to register service',
+    unregisterSuccess: 'Service unregistered successfully',
+    unregisterFailed: 'Failed to unregister service'
+  }
+}
+

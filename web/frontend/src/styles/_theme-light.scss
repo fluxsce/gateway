@@ -1,0 +1,97 @@
+/**
+ * 浅色主题
+ * 命名规范：使用 --g- 前缀避免与第三方组件冲突
+ */
+
+:root,
+[data-theme='light'] {
+  /* ==================== 主色 ==================== */
+  --g-primary: #7c3aed;
+  --g-primary-hover: #6d28d9;
+  --g-primary-active: #5b21b6;
+  --g-primary-light: #ede9fe;
+  --n-color-primary:var(--g-primary);
+  --n-color-primary-hover:var(--g-primary-hover);
+  --n-color-primary-active:var(--g-primary-active);
+  --n-color-primary-light:var(--g-primary-light);
+  
+  /* ==================== 语义色 ==================== */
+  --g-success: #10b981;
+  --g-warning: #f59e0b;
+  --g-error: #ef4444;
+  --g-info: #3b82f6;
+  
+  /* ==================== 文本色 ==================== */
+  --g-text-primary: #111827;
+  --g-text-secondary: #4b5563;
+  --g-text-tertiary: #6b7280;
+  --g-text-disabled: #9ca3af;
+  
+  /* ==================== 背景色 ==================== */
+  --g-bg-primary: #ffffff;
+  --g-bg-secondary: #f9fafb;
+  --g-bg-tertiary: #f3f4f6;
+  
+  /* ==================== 边框色 ==================== */
+  --g-border-primary: #e5e7eb;
+  --g-border-secondary: #d1d5db;
+  
+  /* ==================== 特殊效果 ==================== */
+  --g-hover-overlay: rgba(0, 0, 0, 0.099);
+  --g-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --g-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  
+  /* ==================== 对话框 ==================== */
+  --g-dialog-bg: var(--g-bg-primary);
+  --g-dialog-header-bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --g-dialog-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  
+  /* ==================== vxe-table 官方亮色主题变量 ==================== */
+  
+  /* 字体颜色 */
+  --vxe-ui-font-color: #606266;
+  --vxe-ui-font-tinge-color: #d4d5d7;
+  --vxe-ui-font-lighten-color: #797b80;
+  --vxe-ui-font-darken-color: #47494c;
+  --vxe-ui-font-disabled-color: #BFBFBF;
+  
+  /* 字体状态颜色 */
+  --vxe-ui-font-primary-color: #409eff;
+  
+  /* 基础 */
+  --vxe-ui-base-popup-border-color: #DADCE0;
+  --vxe-ui-base-popup-box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.16);
+  
+  /* 布局 */
+  --vxe-ui-layout-background-color: #ffffff;
+  
+  /* 输入组件 */
+  --vxe-ui-input-border-color: #dcdfe6;
+  --vxe-ui-input-placeholder-color: #C0C4CC;
+  --vxe-ui-input-disabled-background-color: #f3f3f3;
+  
+  /* 加载 */
+  --vxe-ui-loading-background-color: rgba(255, 255, 255, 0.5);
+  
+  /* 表格 */
+  --vxe-ui-table-header-background-color: #f8f8f9;
+  --vxe-ui-table-column-to-row-background-color: #f8f8f9;
+  --vxe-ui-table-column-hover-background-color: #d7effb;
+  --vxe-ui-table-column-current-background-color: #e6f7ff;
+  --vxe-ui-table-column-hover-current-background-color: #d7effb;
+  --vxe-ui-table-border-color: #e8eaec;
+  --vxe-ui-table-row-hover-background-color: #f5f7fa;
+  --vxe-ui-table-row-striped-background-color: #fafafa;
+  --vxe-ui-table-row-hover-striped-background-color: #f5f7fa;
+  --vxe-ui-table-row-radio-checked-background-color: #fff3e0;
+  --vxe-ui-table-row-hover-radio-checked-background-color: #ffebbc;
+  --vxe-ui-table-row-checkbox-checked-background-color: #fff3e0;
+  --vxe-ui-table-row-hover-checkbox-checked-background-color: #ffebbc;
+  --vxe-ui-table-row-current-background-color: #e6f7ff;
+  --vxe-ui-table-row-hover-current-background-color: #d7effb;
+  --vxe-ui-table-fixed-scrolling-box-shadow-color: rgba(0, 0, 0, 0.12);
+  --vxe-ui-table-drag-over-background-color: rgba(255, 255, 200, 0.3);
+
+  //navui-变量
+  --n-feedback-height:1px;  //form行间距
+}

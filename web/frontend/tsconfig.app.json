@@ -1,0 +1,45 @@
+{
+  /**
+   * 继承Vue官方提供的DOM环境TypeScript配置
+   * 包含了适用于浏览器环境的预设配置
+   */
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+
+  /**
+   * 包含的文件范围
+   * - env.d.ts: 环境变量和模块声明文件
+   * - src目录下所有TypeScript文件
+   * - src目录下所有Vue单文件组件
+   */
+  "include": ["env.d.ts", "src/**/*", "src/**/*.vue"],
+
+  /**
+   * 排除的文件范围
+   * 这里排除了测试目录下的文件，避免它们被编译到生产代码中
+   */
+  "exclude": ["src/**/__tests__/*"],
+
+  /**
+   * 编译器选项
+   * 定制TypeScript编译和类型检查行为
+   */
+  "compilerOptions": {
+    /**
+     * 增量编译信息文件位置
+     * 用于加速后续编译过程
+     */
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+
+    /**
+     * 路径映射配置
+     * 设置模块导入路径别名，简化导入语句
+     */
+    "paths": {
+      /**
+       * @别名指向src目录
+       * 允许使用 @/components/Button 代替 ../../components/Button 等相对路径
+       */
+      "@/*": ["./src/*"]
+    }
+  }
+}

@@ -1,0 +1,86 @@
+/**
+ * TypeScript配置文件
+ * 该文件定义了TypeScript编译器的行为和类型检查规则
+ */
+{
+  /**
+   * 继承Vue官方提供的DOM环境TypeScript配置
+   * 预设了适用于浏览器环境的配置选项
+   */
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+
+  /**
+   * 包含的文件范围
+   * env.d.ts: 环境变量和模块声明文件
+   * src目录下所有文件
+   * src目录下所有Vue单文件组件
+   */
+  "include": [
+    "env.d.ts", 
+    "src/**/*", 
+    "src/**/*.vue", 
+    "src/types/*.d.ts"
+  ],
+
+  /**
+   * 编译器选项
+   * 定制TypeScript编译和类型检查行为
+   */
+  "compilerOptions": {
+    /**
+     * 基础URL
+     * 用于解析非相对模块名的基础目录
+     */
+    "baseUrl": ".",
+
+    /**
+     * 路径映射
+     * 配置模块导入路径别名，简化导入语句
+     * @/*: 指向src目录，如 @/components 等同于 ./src/components
+     */
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
+    /**
+     * 允许JavaScript文件
+     * 允许编译JavaScript文件(js,jsx)
+     */
+    "allowJs": true,
+
+    /**
+     * 跳过JavaScript文件检查
+     * 不对JavaScript文件进行类型检查
+     */
+    "checkJs": false,
+
+    /**
+     * 启用所有严格的类型检查
+     */
+    "strict": true,
+
+    /**
+     * 允许从没有设置默认导出的模块中默认导入
+     */
+    "allowSyntheticDefaultImports": true,
+
+    /**
+     * 当TypeScript找不到类型声明时，允许从JavaScript模块进行默认导入
+     */
+    "esModuleInterop": true
+  },
+
+  /**
+   * 项目引用
+   * 引用其他TypeScript项目的配置
+   */
+  "references": [
+    {
+      /**
+       * Node环境配置
+       * 用于构建工具相关的TypeScript配置
+       */
+      "path": "./tsconfig.node.json"
+    }
+  ]
+}

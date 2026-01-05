@@ -1,0 +1,369 @@
+/**
+ * Hub0040 Service Governance - Namespace Management Module i18n Configuration - English
+ */
+
+export default {
+  namespaceManagement: {
+    title: 'Namespace Management',
+    description: 'Manage service groups and namespaces, providing logical isolation and access control for services',
+    subtitle: 'Service Governance - Namespace Management',
+  },
+
+  // Search and Filter
+  search: {
+    placeholder: 'Enter English namespace name',
+    groupName: 'Group Name',
+    groupType: 'Group Type',
+    owner: 'Owner',
+    status: 'Status',
+    searchButton: 'Search',
+    resetButton: 'Reset',
+    clearFilters: 'Clear Filters',
+  },
+
+  // Table Column Headers
+  table: {
+    groupName: 'Group Name',
+    groupDescription: 'Group Description',
+    groupType: 'Group Type',
+    ownerUser: 'Owner',
+    serviceCount: 'Service Count',
+    status: 'Status',
+    createTime: 'Create Time',
+    updateTime: 'Update Time',
+    actions: 'Actions',
+    noData: 'No Data',
+    loading: 'Loading...',
+  },
+
+  // Group Types
+  groupType: {
+    BUSINESS: 'Business Group',
+    SYSTEM: 'System Group',
+    TEST: 'Test Group',
+    all: 'All Types',
+  },
+
+  // Status
+  status: {
+    active: 'Active',
+    inactive: 'Inactive',
+    all: 'All Status',
+  },
+
+  // Buttons and Actions
+  buttons: {
+    create: 'Create Namespace',
+    edit: 'Edit',
+    delete: 'Delete',
+    enable: 'Enable',
+    disable: 'Disable',
+    permissions: 'Permissions',
+    view: 'View',
+    refresh: 'Refresh',
+    export: 'Export',
+    import: 'Import',
+    batchDelete: 'Batch Delete',
+    batchEnable: 'Batch Enable',
+    batchDisable: 'Batch Disable',
+    cancel: 'Cancel',
+    confirm: 'Confirm',
+    save: 'Save',
+    submit: 'Submit',
+    reset: 'Reset',
+    close: 'Close',
+    back: 'Back',
+    next: 'Next',
+    previous: 'Previous',
+    finish: 'Finish',
+  },
+
+  // Dialogs
+  dialog: {
+    create: {
+      title: 'Create Namespace',
+      subtitle: 'Create a new service group namespace',
+    },
+    edit: {
+      title: 'Edit Namespace',
+      subtitle: 'Modify service group information',
+    },
+    delete: {
+      title: 'Delete Confirmation',
+      content: 'Are you sure you want to delete namespace "{name}"? This action cannot be undone.',
+      batchContent: 'Are you sure you want to delete the selected {count} namespaces? This action cannot be undone.',
+    },
+    enable: {
+      title: 'Enable Confirmation',
+      content: 'Are you sure you want to enable namespace "{name}"?',
+      batchContent: 'Are you sure you want to enable the selected {count} namespaces?',
+    },
+    disable: {
+      title: 'Disable Confirmation',
+      content: 'Are you sure you want to disable namespace "{name}"? Services under this namespace will be inaccessible.',
+      batchContent: 'Are you sure you want to disable the selected {count} namespaces? Services under these namespaces will be inaccessible.',
+    },
+    permissions: {
+      title: 'Permission Settings',
+      subtitle: 'Set access permissions for the namespace',
+    },
+  },
+
+  // Form Fields
+  form: {
+    groupName: {
+      label: 'Group Name',
+      placeholder: 'Enter group name (English letters only)',
+      help: 'English letters only (case-sensitive), 2-50 characters',
+      required: 'Group name is required',
+      pattern: 'Namespace name can only contain English letters',
+      minLength: 'Group name must be at least 2 characters',
+      maxLength: 'Group name cannot exceed 50 characters',
+      duplicate: 'Group name already exists',
+    },
+    groupDescription: {
+      label: 'Group Description',
+      placeholder: 'Enter group description (optional)',
+      help: 'Description information, up to 500 characters',
+      maxLength: 'Group description cannot exceed 500 characters',
+    },
+    groupType: {
+      label: 'Group Type',
+      placeholder: 'Select group type',
+      required: 'Please select a group type',
+      help: 'Choose an appropriate group type for management',
+    },
+    ownerUser: {
+      label: 'Owner',
+      placeholder: 'Select owner',
+      required: 'Please select an owner',
+      help: 'Group owner with full management permissions',
+    },
+    adminUsers: {
+      label: 'Administrators',
+      placeholder: 'Select administrator users',
+      help: 'Administrator users can manage services within the group',
+    },
+    readUsers: {
+      label: 'Read-only Users',
+      placeholder: 'Select read-only users',
+      help: 'Read-only users can only view service information within the group',
+    },
+    accessControl: {
+      label: 'Enable Access Control',
+      help: 'When enabled, only authorized users can access this namespace',
+    },
+    defaultProtocol: {
+      label: 'Default Protocol Type',
+      placeholder: 'Select default protocol type',
+      help: 'Default protocol type for new services',
+    },
+    defaultLoadBalance: {
+      label: 'Default Load Balance Strategy',
+      placeholder: 'Select load balance strategy',
+      help: 'Default load balance strategy for new services',
+    },
+    defaultHealthCheck: {
+      label: 'Default Health Check URL',
+      placeholder: 'Enter health check URL',
+      help: 'Default health check address for new services',
+    },
+    healthCheckInterval: {
+      label: 'Health Check Interval',
+      placeholder: 'Enter check interval (seconds)',
+      help: 'Health check time interval in seconds',
+      min: 'Health check interval cannot be less than 5 seconds',
+      max: 'Health check interval cannot exceed 3600 seconds',
+    },
+    noteText: {
+      label: 'Notes',
+      placeholder: 'Enter notes (optional)',
+      help: 'Additional notes, up to 500 characters',
+      maxLength: 'Notes cannot exceed 500 characters',
+    },
+  },
+
+  // Protocol Type Options
+  protocolType: {
+    HTTP: 'HTTP',
+    HTTPS: 'HTTPS',
+    TCP: 'TCP',
+    UDP: 'UDP',
+    GRPC: 'gRPC',
+    WEBSOCKET: 'WebSocket',
+  },
+
+  // Load Balance Strategy Options
+  loadBalanceStrategy: {
+    ROUND_ROBIN: 'Round Robin',
+    WEIGHTED_ROUND_ROBIN: 'Weighted Round Robin',
+    LEAST_CONNECTIONS: 'Least Connections',
+    WEIGHTED_LEAST_CONNECTIONS: 'Weighted Least Connections',
+    RANDOM: 'Random',
+    WEIGHTED_RANDOM: 'Weighted Random',
+    IP_HASH: 'IP Hash',
+    CONSISTENT_HASH: 'Consistent Hash',
+  },
+
+  // Permission Settings
+  permissions: {
+    owner: 'Owner',
+    admin: 'Administrator',
+    read: 'Read-only',
+    none: 'No Permission',
+    selectUsers: 'Select Users',
+    searchUsers: 'Search Users',
+    noUsersFound: 'No users found',
+    addUser: 'Add User',
+    removeUser: 'Remove User',
+    userList: 'User List',
+    permissionLevel: 'Permission Level',
+  },
+
+  // Statistics
+  statistics: {
+    title: 'Statistics',
+    totalGroups: 'Total Groups',
+    activeGroups: 'Active Groups',
+    inactiveGroups: 'Inactive Groups',
+    totalServices: 'Total Services',
+    businessGroups: 'Business Groups',
+    systemGroups: 'System Groups',
+    testGroups: 'Test Groups',
+    myGroups: 'My Groups',
+    managedGroups: 'Managed Groups',
+    readableGroups: 'Readable Groups',
+  },
+
+  // Messages
+  messages: {
+    success: {
+      create: 'Namespace created successfully',
+      update: 'Namespace updated successfully',
+      delete: 'Namespace deleted successfully',
+      batchDelete: 'Batch delete successful',
+      enable: 'Namespace enabled successfully',
+      disable: 'Namespace disabled successfully',
+      batchEnable: 'Batch enable successful',
+      batchDisable: 'Batch disable successful',
+      permissionsUpdate: 'Permissions updated successfully',
+      refresh: 'Refresh successful',
+      export: 'Export successful',
+      import: 'Import successful',
+    },
+    error: {
+      create: 'Failed to create namespace',
+      update: 'Failed to update namespace',
+      delete: 'Failed to delete namespace',
+      batchDelete: 'Batch delete failed',
+      enable: 'Failed to enable namespace',
+      disable: 'Failed to disable namespace',
+      batchEnable: 'Batch enable failed',
+      batchDisable: 'Batch disable failed',
+      permissionsUpdate: 'Failed to update permissions',
+      refresh: 'Refresh failed',
+      export: 'Export failed',
+      import: 'Import failed',
+      loadData: 'Failed to load data',
+      loadUsers: 'Failed to load user list',
+      networkError: 'Network error, please try again later',
+      serverError: 'Server error, please contact administrator',
+      unauthorized: 'Insufficient permissions to perform this operation',
+      notFound: 'Namespace not found',
+      duplicateName: 'Namespace name already exists',
+      invalidData: 'Invalid data format',
+      validationFailed: 'Data validation failed',
+    },
+    warning: {
+      unsavedChanges: 'There are unsaved changes, are you sure you want to leave?',
+      deleteConfirm: 'Delete operation cannot be undone, please confirm',
+      disableWarning: 'Services under this namespace will be inaccessible after disabling',
+      noSelection: 'Please select items to operate on first',
+      loadingTimeout: 'Loading timeout, please refresh and try again',
+    },
+    info: {
+      loading: 'Loading...',
+      saving: 'Saving...',
+      deleting: 'Deleting...',
+      processing: 'Processing...',
+      noData: 'No data',
+      emptyResult: 'No matching results found',
+      selectAll: 'Select All',
+      deselectAll: 'Deselect All',
+      selectedCount: '{count} items selected',
+    },
+  },
+
+  // Pagination
+  pagination: {
+    total: 'Total {total} items',
+    pageSize: 'Items per page',
+    items: 'items',
+    page: 'Page',
+    of: 'of',
+    pages: 'pages',
+    goto: 'Go to',
+    previous: 'Previous',
+    next: 'Next',
+    first: 'First',
+    last: 'Last',
+  },
+
+  // Time Format
+  time: {
+    justNow: 'Just now',
+    minutesAgo: '{minutes} minutes ago',
+    hoursAgo: '{hours} hours ago',
+    daysAgo: '{days} days ago',
+    monthsAgo: '{months} months ago',
+    yearsAgo: '{years} years ago',
+    format: 'YYYY-MM-DD HH:mm:ss',
+    dateFormat: 'YYYY-MM-DD',
+    timeFormat: 'HH:mm:ss',
+  },
+
+  // Validation Messages
+  validation: {
+    required: 'This field is required',
+    minLength: 'Must be at least {min} characters',
+    maxLength: 'Cannot exceed {max} characters',
+    pattern: 'Invalid format',
+    email: 'Please enter a valid email address',
+    url: 'Please enter a valid URL',
+    number: 'Please enter a valid number',
+    integer: 'Please enter a valid integer',
+    min: 'Value cannot be less than {min}',
+    max: 'Value cannot be greater than {max}',
+    range: 'Value must be between {min} and {max}',
+    unique: 'This value already exists',
+    custom: 'Validation failed',
+  },
+
+  // Shortcuts
+  shortcuts: {
+    createNew: 'Create New',
+    quickSearch: 'Quick Search',
+    bulkActions: 'Bulk Actions',
+    exportData: 'Export Data',
+    importData: 'Import Data',
+    refreshData: 'Refresh Data',
+    viewDetails: 'View Details',
+    editItem: 'Edit Item',
+    deleteItem: 'Delete Item',
+    copyItem: 'Copy Item',
+    enableItem: 'Enable Item',
+    disableItem: 'Disable Item',
+  },
+
+  // Help Information
+  help: {
+    namespaceManagement: 'Namespace Management Help',
+    createNamespace: 'How to Create Namespace',
+    managePermissions: 'How to Manage Permissions',
+    configureServices: 'How to Configure Services',
+    troubleshooting: 'Troubleshooting',
+    documentation: 'View Documentation',
+    support: 'Contact Support',
+    feedback: 'Feedback',
+  },
+}

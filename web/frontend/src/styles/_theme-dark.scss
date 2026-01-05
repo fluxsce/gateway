@@ -1,0 +1,137 @@
+/**
+ * 深色主题
+ * 命名规范：使用 --g- 前缀避免与第三方组件冲突
+ */
+
+[data-theme='dark'] {
+  /* ==================== 主色 ==================== */
+  --g-primary: #818cf8;
+  --g-primary-hover: #a5b4fc;
+  --g-primary-active: #c7d2fe;
+  --g-primary-light: #3730a3;
+  --n-color-primary:var(--g-primary);
+  --n-color-primary-hover:var(--g-primary-hover);
+  --n-color-primary-active:var(--g-primary-active);
+  --n-color-primary-light:var(--g-primary-light);
+  
+  /* ==================== 语义色 ==================== */
+  --g-success: #34d399;
+  --g-warning: #fbbf24;
+  --g-error: #f87171;
+  --g-info: #60a5fa;
+  
+  /* ==================== 文本色 ==================== */
+  --g-text-primary: #fafafa;
+  --g-text-secondary: #d4d4d4;
+  --g-text-tertiary: #a3a3a3;
+  --g-text-disabled: #737373;
+  
+  /* ==================== 背景色 ==================== */
+  --g-bg-primary: #0a0a0a;
+  --g-bg-secondary: #1a1a1a;
+  --g-bg-tertiary: #262626;
+  
+  /* ==================== 边框色 ==================== */
+  --g-border-primary: #404040;
+  --g-border-secondary: #525252;
+  
+  /* ==================== 特殊效果 ==================== */
+  --g-hover-overlay: rgba(255, 255, 255, 0.08);
+  --g-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --g-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  
+  /* ==================== 对话框 ==================== */
+  --g-dialog-bg: var(--g-bg-secondary);
+  --g-dialog-header-bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --g-dialog-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+
+
+  /* font color */
+  --vxe-ui-font-color: #a0a3a7;
+  --vxe-ui-font-tinge-color: #33353b;
+  --vxe-ui-font-lighten-color: #797b80;
+  --vxe-ui-font-darken-color: #47494c;
+  --vxe-ui-font-disabled-color: #464646;
+
+  /* font status color */
+  --vxe-ui-font-primary-color: #409eff;
+
+  /* base */
+  --vxe-ui-base-popup-border-color: #424242;
+  --vxe-ui-base-popup-box-shadow: 0px 12px 30px 8px rgba(0, 0, 0, 0.5);
+
+  /* layout */
+  --vxe-ui-layout-background-color: #121212;
+
+  /* 保持兼容性的基础变量 */
+  --vxe-ui-background-color: #2d2d2d;
+  --vxe-ui-border-color: #424242;
+  --vxe-ui-border-radius: 4px;
+  --vxe-ui-disabled-color: #464646;
+  --vxe-ui-primary-color: #409eff;
+  --vxe-ui-success-color: #67c23a;
+  --vxe-ui-info-color: #909399;
+  --vxe-ui-warning-color: #e6a23c;
+  --vxe-ui-danger-color: #f56c6c;
+  
+  /* table - 官方暗色主题 */
+  --vxe-ui-table-header-background-color: #28282a;
+  --vxe-ui-table-column-to-row-background-color: #28282a;
+  --vxe-ui-table-column-hover-background-color: #242f3b;
+  --vxe-ui-table-column-current-background-color: #18222c;
+  --vxe-ui-table-column-hover-current-background-color: #242f3b;
+  --vxe-ui-table-border-color: #37373a;
+  --vxe-ui-table-row-hover-background-color: #262727;
+  --vxe-ui-table-row-striped-background-color: #1D1D1D;
+  --vxe-ui-table-row-hover-striped-background-color: #262727;
+  --vxe-ui-table-row-radio-checked-background-color: #604820;
+  --vxe-ui-table-row-hover-radio-checked-background-color: #6e5326;
+  --vxe-ui-table-row-checkbox-checked-background-color: #604820;
+  --vxe-ui-table-row-hover-checkbox-checked-background-color: #6e5326;
+  --vxe-ui-table-row-current-background-color: #18222c;
+  --vxe-ui-table-row-hover-current-background-color: #242f3b;
+  --vxe-ui-table-fixed-scrolling-box-shadow-color: rgba(0, 0, 0, 0.8);
+  --vxe-ui-table-drag-over-background-color: rgba(48, 48, 0, 0.3);
+  // 操作按钮右键
+  --vxe-ui-table-menu-background-color: #121212;
+  --vxe-ui-table-menu-item-width:160px;
+  /* 兼容性变量 */
+  --vxe-ui-table-background-color: #121212;
+  --vxe-ui-table-body-background-color: #121212;
+  --vxe-ui-table-font-color: #a0a3a7;
+  --vxe-ui-table-header-font-color: #a0a3a7;
+  --vxe-ui-table-footer-background-color: #28282a;
+  --vxe-ui-table-footer-font-color: #a0a3a7;
+  --vxe-ui-table-row-selected-background-color: #18222c;
+  --vxe-ui-table-sort-asc-color: #409eff;
+  --vxe-ui-table-sort-desc-color: #409eff;
+  --vxe-ui-table-filter-active-color: #409eff;
+  --vxe-ui-table-checkbox-checked-color: #409eff;
+  --vxe-ui-table-radio-checked-color: #409eff;
+  --vxe-ui-table-row-error-background-color: #2b1d1d;
+  --vxe-ui-table-row-warning-background-color: #2b251d;
+  --vxe-ui-table-validate-error-color: #f56c6c;
+  --vxe-ui-table-scroll-virtual-background-color: #121212;
+  --vxe-ui-table-scroll-corner-background-color: #28282a;
+  
+  /* input - 官方暗色主题 */
+  --vxe-ui-input-border-color: #424242;
+  --vxe-ui-input-placeholder-color: #8D9095;
+  --vxe-ui-input-disabled-background-color: #262727;
+  
+  /* 兼容性变量 */
+  --vxe-ui-input-background-color: #2d2d2d;
+  --vxe-ui-input-font-color: #a0a3a7;
+  --vxe-ui-input-disabled-font-color: #464646;
+  
+  /* 按钮组件变量 - 官方暗色主题 */
+  --vxe-ui-button-primary-background-color: #409eff;
+  --vxe-ui-button-primary-border-color: #409eff;
+  --vxe-ui-button-primary-font-color: #ffffff;
+  --vxe-ui-button-default-background-color: #2d2d2d;
+  --vxe-ui-button-default-border-color: #424242;
+  --vxe-ui-button-default-font-color: #a0a3a7;
+
+  /* loading - 官方暗色主题 */
+  --vxe-ui-loading-background-color: rgba(255, 255, 255, 0.1);
+}

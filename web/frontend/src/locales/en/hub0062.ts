@@ -1,0 +1,84 @@
+export default {
+  title: 'Client Management',
+  subtitle: 'Manage tunnel client connections and authentication',
+  stats: {
+    total: 'Total Clients',
+    connected: 'Connected',
+    disconnected: 'Disconnected',
+    connecting: 'Connecting',
+    error: 'Error',
+    services: 'Total Services'
+  },
+  service: {
+    title: 'Service Management',
+    subtitle: 'Manage tunnel service configuration',
+    stats: {
+      totalServices: 'Total Services',
+      activeServices: 'Active',
+      inactiveServices: 'Inactive',
+      errorServices: 'Error',
+      offlineServices: 'Offline',
+      totalConnections: 'Total Connections'
+    }
+  },
+  table: {
+    clientName: 'Client Name',
+    serverAddress: 'Server Address',
+    serverPort: 'Server Port',
+    connectionStatus: 'Connection Status',
+    serviceCount: 'Service Count',
+    lastHeartbeat: 'Last Heartbeat'
+  },
+  filter: {
+    status: 'Connection Status'
+  },
+  status: {
+    connected: 'Connected',
+    disconnected: 'Disconnected',
+    connecting: 'Connecting',
+    error: 'Error'
+  },
+  dialog: {
+    createTitle: 'Create Client',
+    editTitle: 'Edit Client',
+    tabs: {
+      basic: 'Basic',
+      advanced: 'Advanced',
+      note: 'Note'
+    }
+  },
+  form: {
+    clientName: 'Client Name',
+    clientNameRequired: 'Please enter client name',
+    clientNamePlaceholder: 'Please enter client name',
+    clientDescription: 'Client Description',
+    clientDescriptionPlaceholder: 'Please enter client description (optional)',
+    serverConnectionInfo: 'Server Connection Information',
+    serverAddress: 'Server Address',
+    serverAddressRequired: 'Please enter server address',
+    serverAddressPlaceholder: 'Please enter server address to connect (e.g., frps.example.com)',
+    serverPort: 'Server Port',
+    serverPortRequired: 'Please enter server port',
+    serverPortPlaceholder: 'Please enter server port (1-65535)',
+    authToken: 'Auth Token',
+    authTokenRequired: 'Please enter auth token',
+    authTokenPlaceholder: 'Please enter auth token provided by server',
+    tlsEnable: 'Enable TLS',
+    autoReconnect: 'Auto Reconnect',
+    maxRetries: 'Max Retries',
+    maxRetriesPlaceholder: 'Please enter max retries',
+    retryInterval: 'Retry Interval',
+    retryIntervalPlaceholder: 'Please enter retry interval (seconds)',
+    heartbeatInterval: 'Heartbeat Interval',
+    heartbeatIntervalPlaceholder: 'Please enter heartbeat interval (seconds)',
+    heartbeatTimeout: 'Heartbeat Timeout',
+    heartbeatTimeoutPlaceholder: 'Please enter heartbeat timeout (seconds)',
+    activeFlag: 'Active Flag',
+    noteText: 'Note',
+    noteTextPlaceholder: 'Please enter note (optional)'
+  },
+  message: {
+    tokenGenerated: 'Token generated successfully',
+    tokenGenerateFailed: 'Failed to generate token'
+  }
+}

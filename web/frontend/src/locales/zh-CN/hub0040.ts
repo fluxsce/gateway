@@ -1,0 +1,369 @@
+/**
+ * Hub0040 服务治理-命名空间管理模块国际化配置 - 中文
+ */
+
+export default {
+  namespaceManagement: {
+    title: '命名空间管理',
+    description: '管理服务分组和命名空间，提供服务的逻辑隔离和权限控制',
+    subtitle: '服务治理 - 命名空间管理',
+  },
+
+  // 搜索和筛选
+  search: {
+    placeholder: '请输入英文命名空间名称',
+    groupName: '分组名称',
+    groupType: '分组类型',
+    owner: '所有者',
+    status: '状态',
+    searchButton: '搜索',
+    resetButton: '重置',
+    clearFilters: '清空筛选',
+  },
+
+  // 表格列标题
+  table: {
+    groupName: '分组名称',
+    groupDescription: '分组描述',
+    groupType: '分组类型',
+    ownerUser: '所有者',
+    serviceCount: '服务数量',
+    status: '状态',
+    createTime: '创建时间',
+    updateTime: '更新时间',
+    actions: '操作',
+    noData: '暂无数据',
+    loading: '加载中...',
+  },
+
+  // 分组类型
+  groupType: {
+    BUSINESS: '业务分组',
+    SYSTEM: '系统分组',
+    TEST: '测试分组',
+    all: '全部类型',
+  },
+
+  // 状态
+  status: {
+    active: '启用',
+    inactive: '禁用',
+    all: '全部状态',
+  },
+
+  // 按钮和操作
+  buttons: {
+    create: '新建命名空间',
+    edit: '编辑',
+    delete: '删除',
+    enable: '启用',
+    disable: '禁用',
+    permissions: '权限设置',
+    view: '查看',
+    refresh: '刷新',
+    export: '导出',
+    import: '导入',
+    batchDelete: '批量删除',
+    batchEnable: '批量启用',
+    batchDisable: '批量禁用',
+    cancel: '取消',
+    confirm: '确认',
+    save: '保存',
+    submit: '提交',
+    reset: '重置',
+    close: '关闭',
+    back: '返回',
+    next: '下一步',
+    previous: '上一步',
+    finish: '完成',
+  },
+
+  // 对话框
+  dialog: {
+    create: {
+      title: '新建命名空间',
+      subtitle: '创建新的服务分组命名空间',
+    },
+    edit: {
+      title: '编辑命名空间',
+      subtitle: '修改服务分组信息',
+    },
+    delete: {
+      title: '删除确认',
+      content: '确定要删除命名空间 "{name}" 吗？此操作不可撤销。',
+      batchContent: '确定要删除选中的 {count} 个命名空间吗？此操作不可撤销。',
+    },
+    enable: {
+      title: '启用确认',
+      content: '确定要启用命名空间 "{name}" 吗？',
+      batchContent: '确定要启用选中的 {count} 个命名空间吗？',
+    },
+    disable: {
+      title: '禁用确认',
+      content: '确定要禁用命名空间 "{name}" 吗？禁用后该命名空间下的服务将无法访问。',
+      batchContent: '确定要禁用选中的 {count} 个命名空间吗？禁用后这些命名空间下的服务将无法访问。',
+    },
+    permissions: {
+      title: '权限设置',
+      subtitle: '设置命名空间的访问权限',
+    },
+  },
+
+  // 表单字段
+  form: {
+    groupName: {
+      label: '分组名称',
+      placeholder: '请输入分组名称（只能包含英文字母）',
+      help: '只能包含英文字母（大小写），长度2-50个字符',
+      required: '分组名称不能为空',
+      pattern: '命名空间名称只能包含英文字母（大小写）',
+      minLength: '分组名称长度不能少于2个字符',
+      maxLength: '分组名称长度不能超过50个字符',
+      duplicate: '分组名称已存在',
+    },
+    groupDescription: {
+      label: '分组描述',
+      placeholder: '请输入分组描述（可选）',
+      help: '描述信息，最多500个字符',
+      maxLength: '分组描述长度不能超过500个字符',
+    },
+    groupType: {
+      label: '分组类型',
+      placeholder: '请选择分组类型',
+      required: '请选择分组类型',
+      help: '选择适合的分组类型以便管理',
+    },
+    ownerUser: {
+      label: '所有者',
+      placeholder: '请选择所有者',
+      required: '请选择所有者',
+      help: '分组的所有者，拥有完全管理权限',
+    },
+    adminUsers: {
+      label: '管理员',
+      placeholder: '请选择管理员用户',
+      help: '管理员用户可以管理分组内的服务',
+    },
+    readUsers: {
+      label: '只读用户',
+      placeholder: '请选择只读用户',
+      help: '只读用户只能查看分组内的服务信息',
+    },
+    accessControl: {
+      label: '启用访问控制',
+      help: '启用后只有授权用户才能访问此命名空间',
+    },
+    defaultProtocol: {
+      label: '默认协议类型',
+      placeholder: '请选择默认协议类型',
+      help: '新服务的默认协议类型',
+    },
+    defaultLoadBalance: {
+      label: '默认负载均衡策略',
+      placeholder: '请选择负载均衡策略',
+      help: '新服务的默认负载均衡策略',
+    },
+    defaultHealthCheck: {
+      label: '默认健康检查URL',
+      placeholder: '请输入健康检查URL',
+      help: '新服务的默认健康检查地址',
+    },
+    healthCheckInterval: {
+      label: '健康检查间隔',
+      placeholder: '请输入检查间隔（秒）',
+      help: '健康检查的时间间隔，单位：秒',
+      min: '健康检查间隔不能小于5秒',
+      max: '健康检查间隔不能大于3600秒',
+    },
+    noteText: {
+      label: '备注信息',
+      placeholder: '请输入备注信息（可选）',
+      help: '额外的备注信息，最多500个字符',
+      maxLength: '备注信息长度不能超过500个字符',
+    },
+  },
+
+  // 协议类型选项
+  protocolType: {
+    HTTP: 'HTTP',
+    HTTPS: 'HTTPS',
+    TCP: 'TCP',
+    UDP: 'UDP',
+    GRPC: 'gRPC',
+    WEBSOCKET: 'WebSocket',
+  },
+
+  // 负载均衡策略选项
+  loadBalanceStrategy: {
+    ROUND_ROBIN: '轮询',
+    WEIGHTED_ROUND_ROBIN: '加权轮询',
+    LEAST_CONNECTIONS: '最少连接',
+    WEIGHTED_LEAST_CONNECTIONS: '加权最少连接',
+    RANDOM: '随机',
+    WEIGHTED_RANDOM: '加权随机',
+    IP_HASH: 'IP哈希',
+    CONSISTENT_HASH: '一致性哈希',
+  },
+
+  // 权限设置
+  permissions: {
+    owner: '所有者',
+    admin: '管理员',
+    read: '只读',
+    none: '无权限',
+    selectUsers: '选择用户',
+    searchUsers: '搜索用户',
+    noUsersFound: '未找到用户',
+    addUser: '添加用户',
+    removeUser: '移除用户',
+    userList: '用户列表',
+    permissionLevel: '权限级别',
+  },
+
+  // 统计信息
+  statistics: {
+    title: '统计信息',
+    totalGroups: '总分组数',
+    activeGroups: '活跃分组',
+    inactiveGroups: '非活跃分组',
+    totalServices: '总服务数',
+    businessGroups: '业务分组',
+    systemGroups: '系统分组',
+    testGroups: '测试分组',
+    myGroups: '我的分组',
+    managedGroups: '管理的分组',
+    readableGroups: '可读分组',
+  },
+
+  // 消息提示
+  messages: {
+    success: {
+      create: '命名空间创建成功',
+      update: '命名空间更新成功',
+      delete: '命名空间删除成功',
+      batchDelete: '批量删除成功',
+      enable: '命名空间启用成功',
+      disable: '命名空间禁用成功',
+      batchEnable: '批量启用成功',
+      batchDisable: '批量禁用成功',
+      permissionsUpdate: '权限设置成功',
+      refresh: '刷新成功',
+      export: '导出成功',
+      import: '导入成功',
+    },
+    error: {
+      create: '命名空间创建失败',
+      update: '命名空间更新失败',
+      delete: '命名空间删除失败',
+      batchDelete: '批量删除失败',
+      enable: '命名空间启用失败',
+      disable: '命名空间禁用失败',
+      batchEnable: '批量启用失败',
+      batchDisable: '批量禁用失败',
+      permissionsUpdate: '权限设置失败',
+      refresh: '刷新失败',
+      export: '导出失败',
+      import: '导入失败',
+      loadData: '数据加载失败',
+      loadUsers: '用户列表加载失败',
+      networkError: '网络错误，请稍后重试',
+      serverError: '服务器错误，请联系管理员',
+      unauthorized: '权限不足，无法执行此操作',
+      notFound: '命名空间不存在',
+      duplicateName: '命名空间名称已存在',
+      invalidData: '数据格式不正确',
+      validationFailed: '数据验证失败',
+    },
+    warning: {
+      unsavedChanges: '有未保存的更改，确定要离开吗？',
+      deleteConfirm: '删除操作不可撤销，请确认',
+      disableWarning: '禁用后该命名空间下的服务将无法访问',
+      noSelection: '请先选择要操作的项目',
+      loadingTimeout: '加载超时，请刷新页面重试',
+    },
+    info: {
+      loading: '正在加载...',
+      saving: '正在保存...',
+      deleting: '正在删除...',
+      processing: '正在处理...',
+      noData: '暂无数据',
+      emptyResult: '没有找到匹配的结果',
+      selectAll: '全选',
+      deselectAll: '取消全选',
+      selectedCount: '已选择 {count} 项',
+    },
+  },
+
+  // 分页
+  pagination: {
+    total: '共 {total} 条',
+    pageSize: '每页显示',
+    items: '条',
+    page: '第',
+    of: '页，共',
+    pages: '页',
+    goto: '跳转到',
+    previous: '上一页',
+    next: '下一页',
+    first: '首页',
+    last: '末页',
+  },
+
+  // 时间格式
+  time: {
+    justNow: '刚刚',
+    minutesAgo: '{minutes} 分钟前',
+    hoursAgo: '{hours} 小时前',
+    daysAgo: '{days} 天前',
+    monthsAgo: '{months} 个月前',
+    yearsAgo: '{years} 年前',
+    format: 'YYYY-MM-DD HH:mm:ss',
+    dateFormat: 'YYYY-MM-DD',
+    timeFormat: 'HH:mm:ss',
+  },
+
+  // 验证消息
+  validation: {
+    required: '此字段为必填项',
+    minLength: '长度不能少于 {min} 个字符',
+    maxLength: '长度不能超过 {max} 个字符',
+    pattern: '格式不正确',
+    email: '请输入有效的邮箱地址',
+    url: '请输入有效的URL地址',
+    number: '请输入有效的数字',
+    integer: '请输入有效的整数',
+    min: '值不能小于 {min}',
+    max: '值不能大于 {max}',
+    range: '值必须在 {min} 到 {max} 之间',
+    unique: '此值已存在',
+    custom: '验证失败',
+  },
+
+  // 快捷操作
+  shortcuts: {
+    createNew: '新建',
+    quickSearch: '快速搜索',
+    bulkActions: '批量操作',
+    exportData: '导出数据',
+    importData: '导入数据',
+    refreshData: '刷新数据',
+    viewDetails: '查看详情',
+    editItem: '编辑项目',
+    deleteItem: '删除项目',
+    copyItem: '复制项目',
+    enableItem: '启用项目',
+    disableItem: '禁用项目',
+  },
+
+  // 帮助信息
+  help: {
+    namespaceManagement: '命名空间管理帮助',
+    createNamespace: '如何创建命名空间',
+    managePermissions: '如何管理权限',
+    configureServices: '如何配置服务',
+    troubleshooting: '常见问题解决',
+    documentation: '查看文档',
+    support: '联系支持',
+    feedback: '意见反馈',
+  },
+}
