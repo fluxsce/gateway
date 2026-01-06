@@ -235,6 +235,8 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx.Set(constants.ContextKeyLogConfigID, g.gatewayConfig.Log.LogConfigID)
 	//设置租户ID
 	ctx.Set(constants.ContextKeyTenantID, g.gatewayConfig.Log.TenantID)
+	// 直接设置日志配置到上下文，避免重复获取
+	ctx.SetLogConfig(&g.gatewayConfig.Log)
 	// 使用Engine的HandleWithContext方法处理请求
 	// 这样可以确保日志记录使用的是同一个上下文
 	g.engine.HandleWithContext(ctx, w, r)

@@ -190,13 +190,16 @@ func WriteBackendTraceLogSync(
 		}
 	}
 
-	// 将转发请求体转换为字符串
+	// 将转发请求体转换为字符串（根据日志配置决定是否记录）
 	forwardBodyStr := ""
-	if len(forwardBody) > 0 {
-		forwardBodyStr = string(forwardBody)
-	} else {
-		// 如果没有提供转发请求体，尝试从上下文获取（兼容性处理，单服务转发场景）
-		forwardBodyStr = getForwardBodyWithConfig(gatewayCtx, config)
+	if config.IsRecordRequestBody() {
+		if len(forwardBody) > 0 {
+			// 根据最大长度截断请求体
+			forwardBodyStr = stringValue(truncateAndReturnString(forwardBody, config.MaxBodySizeBytes))
+		} else {
+			// 如果没有提供转发请求体，尝试从上下文获取（兼容性处理，单服务转发场景）
+			forwardBodyStr = getForwardBodyWithConfig(gatewayCtx, config)
+		}
 	}
 
 	backendLog.SetForwardInfo(forwardAddress, requestMethod, forwardPath, forwardQuery, forwardHeadersStr, forwardBodyStr, requestSize)
@@ -205,10 +208,13 @@ func WriteBackendTraceLogSync(
 	responseReceivedTime := requestStartTime.Add(requestDuration)
 	backendLog.SetTimeInfo(requestStartTime, responseReceivedTime)
 
-	// 设置响应信息
+	// 设置响应信息（根据日志配置决定是否记录响应体）
 	responseBodyStr := ""
-	if len(responseBody) > 0 {
-		responseBodyStr = string(responseBody)
+	if config.IsRecordResponseBody() {
+		if len(responseBody) > 0 {
+			// 根据最大长度截断响应体
+			responseBodyStr = stringValue(truncateAndReturnString(responseBody, config.MaxBodySizeBytes))
+		}
 	}
 	responseHeadersStr := ""
 	if len(responseHeaders) > 0 {

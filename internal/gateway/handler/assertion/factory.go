@@ -196,7 +196,7 @@ func (f *AssertionFactory) normalizeAssertionType(assertionType string) Assertio
 		return CookieAssertion
 	case "ip", "client-ip", "client_ip":
 		return IPAssertion
-	case "body", "body-content", "body_content":
+	case "body", "body_content":
 		return BodyContentAssertion
 	default:
 		return AssertionType(strings.ToLower(assertionType))
@@ -208,21 +208,21 @@ func (f *AssertionFactory) parseOperator(operator string) (ComparisonOperator, e
 	switch strings.ToLower(strings.TrimSpace(operator)) {
 	case "equal", "eq", "==":
 		return Equal, nil
-	case "not-equal", "not_equal", "ne", "!=":
+	case "not_equal", "ne", "!=":
 		return NotEqual, nil
 	case "contains", "contain":
 		return Contains, nil
-	case "not-contains", "not_contains", "not-contain", "not_contain":
+	case "not_contains", "not-contain", "not_contain":
 		return NotContains, nil
-	case "starts-with", "starts_with", "prefix":
+	case "starts_with", "prefix":
 		return StartsWith, nil
-	case "ends-with", "ends_with", "suffix":
+	case "ends_with", "suffix":
 		return EndsWith, nil
 	case "matches", "match", "regex":
 		return Matches, nil
 	case "exists", "exist":
 		return Exists, nil
-	case "not-exists", "not_exists", "not-exist", "not_exist":
+	case "not_exists", "not-exist", "not_exist":
 		return NotExists, nil
 	default:
 		return "", fmt.Errorf("未知的比较操作符: %s", operator)

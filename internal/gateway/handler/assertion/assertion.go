@@ -198,14 +198,17 @@ func (b *BaseAssertion) compare(actual string, expected string) bool {
 	case NotEqual:
 		return actual != expected
 	case Contains:
-		return strings.Contains(expected, actual)
+		// 检查 actual 是否包含 expected
+		return strings.Contains(actual, expected)
 	case NotContains:
-		return !strings.Contains(expected, actual)
+		// 检查 actual 是否不包含 expected
+		return !strings.Contains(actual, expected)
 	case StartsWith:
 		return strings.HasPrefix(actual, expected)
 	case EndsWith:
 		return strings.HasSuffix(actual, expected)
 	case Matches:
+		// expected 是正则表达式模式，actual 是要匹配的字符串
 		matched, _ := regexp.MatchString(expected, actual)
 		return matched
 	case Exists:

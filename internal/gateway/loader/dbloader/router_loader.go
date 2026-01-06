@@ -352,6 +352,14 @@ func (loader *RouterConfigLoader) LoadRouteAssertionGroup(ctx context.Context, r
 			if record.ExpectedValue != nil {
 				assertionConfig.Value = *record.ExpectedValue
 			}
+		case "BODY_CONTENT":
+			// 请求体内容断言不需要字段名称，只需要期望值或匹配模式
+			if record.ExpectedValue != nil {
+				assertionConfig.Value = *record.ExpectedValue
+			}
+			if record.PatternValue != nil {
+				assertionConfig.Pattern = *record.PatternValue
+			}
 		default:
 			if record.ExpectedValue != nil {
 				assertionConfig.Value = *record.ExpectedValue

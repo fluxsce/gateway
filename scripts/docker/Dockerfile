@@ -102,14 +102,12 @@ COPY --chown=gateway:gateway web/frontend/dist /opt/gateway/web/frontend/dist
 
 # 创建必要的目录
 RUN mkdir -p /opt/gateway/logs \
-    /opt/gateway/data \
     /opt/gateway/backup \
     /opt/gateway/scripts/db \
     /opt/gateway/scripts/data \
     /opt/gateway/scripts/deploy \
     /opt/gateway/pprof_analysis && \
     chown -R gateway:gateway /opt/gateway/logs \
-    /opt/gateway/data \
     /opt/gateway/backup \
     /opt/gateway/scripts \
     /opt/gateway/pprof_analysis

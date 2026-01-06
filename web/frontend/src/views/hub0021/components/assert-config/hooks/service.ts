@@ -151,7 +151,9 @@ export function useAssertConfigService(
         assertionOperator: assertData.assertionOperator,
         fieldName: assertData.fieldName || '',
         expectedValue: assertData.expectedValue || '',
-        patternValue: assertData.patternValue || '',
+        // patternValue 仅用于路径断言（PATH），对应后端的 Pattern 字段
+        // 用于选择路径匹配模式：exact（精确匹配）、prefix（前缀匹配）、regex（正则匹配）、param（参数匹配）
+        patternValue: assertData.assertionType === 'PATH' ? (assertData.patternValue || '') : '',
         caseSensitive: assertData.caseSensitive || 'Y',
         assertionOrder: assertData.assertionOrder || 100,
         isRequired: assertData.isRequired || 'Y',
@@ -221,7 +223,9 @@ export function useAssertConfigService(
         assertionOperator: assertData.assertionOperator,
         fieldName: assertData.fieldName || '',
         expectedValue: assertData.expectedValue || '',
-        patternValue: assertData.patternValue || '',
+        // patternValue 仅用于路径断言（PATH），对应后端的 Pattern 字段
+        // 用于选择路径匹配模式：exact（精确匹配）、prefix（前缀匹配）、regex（正则匹配）、param（参数匹配）
+        patternValue: assertData.assertionType === 'PATH' ? (assertData.patternValue || '') : '',
         caseSensitive: assertData.caseSensitive || 'Y',
         assertionOrder: assertData.assertionOrder || 100,
         isRequired: assertData.isRequired || 'Y',

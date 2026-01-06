@@ -13,6 +13,7 @@ export enum AssertionType {
   QUERY = 'QUERY',
   COOKIE = 'COOKIE',
   IP = 'IP',
+  BODY_CONTENT = 'BODY_CONTENT',
 }
 
 // 断言操作符枚举（根据后端 RouteAssertion.AssertionOperator 字段）
@@ -40,7 +41,7 @@ export interface RouteAssertion {
   routeAssertionId: string // 路由断言ID，联合主键
   routeConfigId: string // 关联的路由配置ID
   assertionName: string // 断言名称
-  assertionType: AssertionType | string // 断言类型(PATH,HEADER,QUERY,COOKIE,IP)
+  assertionType: AssertionType | string // 断言类型(PATH,HEADER,QUERY,COOKIE,IP,BODY_CONTENT)
   assertionOperator: AssertionOperator | string // 断言操作符(EQUAL,NOT_EQUAL,CONTAINS,MATCHES等)
   fieldName: string // 字段名称(HEADER/QUERY/COOKIE类型时使用，可能为空字符串)
   expectedValue: string // 期望值(EQUAL/NOT_EQUAL等操作符时使用，可能为空字符串)
@@ -81,6 +82,7 @@ export const ASSERTION_TYPE_OPTIONS = [
   { label: '查询参数', value: 'QUERY' as AssertionType, description: '查询参数断言，检查URL查询参数' },
   { label: 'Cookie', value: 'COOKIE' as AssertionType, description: 'Cookie断言，检查特定Cookie的值' },
   { label: 'IP地址', value: 'IP' as AssertionType, description: 'IP地址断言，基于客户端IP进行匹配' },
+  { label: '请求体内容', value: 'BODY_CONTENT' as AssertionType, description: '请求体内容断言，检查HTTP请求体的内容' },
 ]
 
 // 断言操作符选项

@@ -133,8 +133,10 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 		body = bytes.NewReader(bodyBytes)
 		// 重置原请求的Body
 		ctx.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-		// 缓存请求体到上下文中，供日志记录使用
-		ctx.Set("request_body", bodyBytes)
+		// 根据日志配置决定是否缓存请求体到上下文中，供日志记录使用
+		if h.shouldRecordRequestBody(ctx) {
+			ctx.Set("request_body", bodyBytes)
+		}
 	}
 
 	proxyReq, err := http.NewRequestWithContext(
@@ -165,6 +167,11 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 
 	// 设置必需的代理头部
 	h.setProxyHeaders(ctx.Request, proxyReq, target.Host)
+
+	// 移除 Accept-Encoding 头，让 Go 的 http.Client 自动处理压缩
+	// 如果手动设置 Accept-Encoding，Go 的 http.Client 不会自动解压响应
+	// 正确的做法是让 Go 标准库自动添加 Accept-Encoding 并自动解压响应
+	proxyReq.Header.Del("Accept-Encoding")
 
 	// 设置代理类型
 	ctx.Set(constants.ContextKeyProxyType, h.GetType())
@@ -683,13 +690,18 @@ func (h *HTTPProxy) handleRegularResponse(ctx *core.Context, resp *http.Response
 
 	// 复制响应体
 	config := h.GetHTTPConfig()
-	if config.CopyResponseBody {
-		// 如果需要复制响应体到上下文中
+	// 根据HTTP配置和日志配置决定是否需要复制响应体
+	shouldCopyBody := config.CopyResponseBody || h.shouldRecordResponseBody(ctx)
+	if shouldCopyBody {
+		// 如果需要复制响应体到上下文中（用于日志记录或HTTP配置要求）
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return fmt.Errorf("读取响应体失败: %w", err)
 		}
-		ctx.Set("response_body", bodyBytes)
+		// 只有在需要记录响应体时才保存到上下文
+		if h.shouldRecordResponseBody(ctx) {
+			ctx.Set("response_body", bodyBytes)
+		}
 		_, err = ctx.Writer.Write(bodyBytes)
 		if err != nil {
 			return fmt.Errorf("写入响应体失败: %w", err)
@@ -1035,4 +1047,24 @@ func (h *HTTPProxy) selectNodeFromRegistry(ctx *core.Context, serviceConfig *ser
 // GetRegistryManager 获取注册中心管理器
 func (h *HTTPProxy) GetRegistryManager() *registryManager.RegistryManager {
 	return registryManager.GetInstance()
+}
+
+// shouldRecordRequestBody 检查是否应该记录请求体（根据日志配置）
+func (h *HTTPProxy) shouldRecordRequestBody(ctx *core.Context) bool {
+	// 直接从上下文获取日志配置，避免重复获取
+	config := ctx.GetLogConfig()
+	if config == nil {
+		return false
+	}
+	return config.IsRecordRequestBody()
+}
+
+// shouldRecordResponseBody 检查是否应该记录响应体（根据日志配置）
+func (h *HTTPProxy) shouldRecordResponseBody(ctx *core.Context) bool {
+	// 直接从上下文获取日志配置，避免重复获取
+	config := ctx.GetLogConfig()
+	if config == nil {
+		return false
+	}
+	return config.IsRecordResponseBody()
 }

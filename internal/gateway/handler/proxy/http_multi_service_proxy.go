@@ -247,6 +247,11 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 	// 使用 HTTPProxy 的头部设置方法（复用）
 	m.httpProxy.setProxyHeaders(ctx.Request, proxyReq, target.Host)
 
+	// 移除 Accept-Encoding 头，让 Go 的 http.Client 自动处理压缩
+	// 如果手动设置 Accept-Encoding，Go 的 http.Client 不会自动解压响应
+	// 正确的做法是让 Go 标准库自动添加 Accept-Encoding 并自动解压响应
+	proxyReq.Header.Del("Accept-Encoding")
+
 	// 记录请求开始时间（用于日志记录）
 	requestStartTime := time.Now()
 

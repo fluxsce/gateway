@@ -414,7 +414,7 @@ export function useRouteConfigModel() {
         span: 12,
         tabKey: 'basic',
         required: true,
-        defaultValue: MatchType.EXACT,
+        defaultValue: MatchType.PREFIX,
         tips: '精确匹配：路径必须完全一致；前缀匹配：路径以指定前缀开头；正则匹配：使用正则表达式匹配路径',
         options: [
           { label: '精确匹配', value: MatchType.EXACT },

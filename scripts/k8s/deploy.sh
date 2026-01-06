@@ -13,10 +13,13 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # 配置
-NAMESPACE="gateway"
+NAMESPACE="${GATEWAY_NAMESPACE:-gateway}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# 配置文件目录（相对于脚本目录）
-CONFIG_DIR="$SCRIPT_DIR/../../configs"
+# 配置文件目录优先级: 命令行参数 > 环境变量 > 默认值
+# 默认值（相对于脚本目录）
+DEFAULT_CONFIG_DIR="$SCRIPT_DIR/../../configs"
+# 从环境变量获取，如果不存在则使用默认值
+CONFIG_DIR="${GATEWAY_CONFIG_DIR:-$DEFAULT_CONFIG_DIR}"
 
 # 打印带颜色的消息
 print_info() {
@@ -54,10 +57,17 @@ FLUX Gateway Kubernetes 部署脚本
     help            显示此帮助信息
 
 选项:
-    -n, --namespace NS    指定命名空间 (默认: gateway)
-    -c, --config-dir DIR  配置文件目录 (默认: ../../configs)
+    -n, --namespace NS    指定命名空间 (默认: gateway, 可通过 GATEWAY_NAMESPACE 环境变量设置)
+    -c, --config-dir DIR  配置文件目录 (默认: ../../configs, 可通过 GATEWAY_CONFIG_DIR 环境变量设置)
     -f, --force           强制执行操作
     -h, --help            显示此帮助信息
+
+环境变量:
+    GATEWAY_NAMESPACE     默认命名空间 (默认: gateway)
+    GATEWAY_CONFIG_DIR    默认配置文件目录 (默认: ../../configs)
+
+优先级:
+    命令行参数 > 环境变量 > 默认值
 
 示例:
     # 安装 Gateway（使用默认配置目录）
@@ -113,10 +123,15 @@ install_gateway() {
     
     # 创建 ConfigMap（从本地配置文件）
     print_info "创建 ConfigMap..."
+    print_info "使用配置目录: $CONFIG_DIR"
     if [[ -f "$SCRIPT_DIR/create-configmap.sh" ]]; then
         # 检查配置文件目录是否存在
         if [[ ! -d "$CONFIG_DIR" ]]; then
             print_error "配置文件目录不存在: $CONFIG_DIR"
+            print_error "请检查:"
+            print_error "  1. 目录路径是否正确"
+            print_error "  2. 是否设置了 GATEWAY_CONFIG_DIR 环境变量"
+            print_error "  3. 是否使用了 --config-dir 参数指定了正确的路径"
             exit 1
         fi
         bash "$SCRIPT_DIR/create-configmap.sh" --namespace "$NAMESPACE" --config-dir "$CONFIG_DIR"
@@ -207,11 +222,21 @@ install_gateway() {
     print_info "  用户名: admin"
     print_info "  密码:   123456"
     print_info ""
+    print_info "重要提示:"
+    print_info "  1. 数据库配置: 请确保 database.yaml 中的 SQLite 路径使用绝对路径"
+    print_info "     推荐路径: /opt/gateway/data/gateway.db (对应 Pod 中的数据目录挂载点)"
+    print_info "  2. 数据持久化: 当前使用 emptyDir，Pod 重启后数据会丢失"
+    print_info "     生产环境建议使用 PersistentVolume 进行数据持久化"
+    print_info "  3. 配置文件: 已从 $CONFIG_DIR 创建 ConfigMap"
+    print_info ""
     print_info "查看部署状态:"
     print_info "  $0 status"
     print_info ""
     print_info "查看日志:"
     print_info "  $0 logs"
+    print_info ""
+    print_info "诊断问题:"
+    print_info "  $0 debug"
 }
 
 # 卸载 Gateway
@@ -260,10 +285,15 @@ upgrade_gateway() {
     
     # 更新 ConfigMap
     print_info "更新配置..."
+    print_info "使用配置目录: $CONFIG_DIR"
     if [[ -f "$SCRIPT_DIR/create-configmap.sh" ]]; then
         # 检查配置文件目录是否存在
         if [[ ! -d "$CONFIG_DIR" ]]; then
             print_error "配置文件目录不存在: $CONFIG_DIR"
+            print_error "请检查:"
+            print_error "  1. 目录路径是否正确"
+            print_error "  2. 是否设置了 GATEWAY_CONFIG_DIR 环境变量"
+            print_error "  3. 是否使用了 --config-dir 参数指定了正确的路径"
             exit 1
         fi
         # 删除旧的 ConfigMap
@@ -410,6 +440,12 @@ debug_gateway() {
     }
     
     print_info ""
+    print_info "7. Pod 数据目录挂载："
+    kubectl describe pod "$POD_NAME" -n "$NAMESPACE" | grep -A 10 "Mounts:" || {
+        print_warning "无法获取挂载信息"
+    }
+    
+    print_info ""
     print_info "=========================================="
     print_info "常见问题排查："
     print_info "=========================================="
@@ -423,7 +459,14 @@ debug_gateway() {
     print_warning "   - 检查数据库连接配置"
     print_warning "   - 查看详细日志: kubectl logs $POD_NAME -n $NAMESPACE --tail=100"
     print_warning ""
-    print_warning "3. 健康检查失败："
+    print_warning "3. 数据库连接失败（SQLite unable to open database file）："
+    print_warning "   - 检查 database.yaml 中的 SQLite 路径是否为绝对路径"
+    print_warning "   - 推荐路径: /opt/gateway/data/gateway.db (对应 Pod 中的数据目录挂载点)"
+    print_warning "   - 确保路径对应的目录存在且有写权限"
+    print_warning "   - 检查 Pod 中的数据目录挂载: kubectl describe pod $POD_NAME -n $NAMESPACE | grep -A 10 'Mounts'"
+    print_warning "   - 当前使用 emptyDir，Pod 重启后数据会丢失，生产环境建议使用 PersistentVolume"
+    print_warning ""
+    print_warning "4. 健康检查失败："
     print_warning "   - 检查 /health 接口是否正常"
     print_warning "   - 检查资源限制是否合理"
     print_warning "   - 命令: kubectl get pod $POD_NAME -n $NAMESPACE -o yaml | grep -A 10 'conditions'"
@@ -455,6 +498,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         -c|--config-dir)
+            # 命令行参数优先级最高，直接覆盖环境变量和默认值
             CONFIG_DIR="$2"
             shift 2
             ;;

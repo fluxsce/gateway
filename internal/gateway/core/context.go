@@ -11,6 +11,7 @@ import (
 
 	"gateway/internal/gateway/constants"
 	"gateway/internal/gateway/helper"
+	"gateway/internal/gateway/logwrite/types"
 )
 
 // Context 是网关请求上下文，贯穿整个请求生命周期
@@ -79,6 +80,11 @@ type Context struct {
 	// 错误信息
 	// 存储请求处理过程中产生的所有错误，按时间顺序排列
 	Errors []error
+
+	// 日志配置
+	// 存储当前请求的日志配置，避免重复获取
+	// 在请求处理开始时设置，供日志记录使用
+	logConfig *types.LogConfig
 }
 
 // NewContext 创建新的请求上下文
@@ -542,6 +548,9 @@ func (c *Context) Reset() {
 	// 重置时间字段
 	c.responseTime = time.Time{}
 	c.maxBackendDurationMs = 0
+
+	// 重置日志配置
+	c.logConfig = nil
 }
 
 // SetPathParams 设置路径参数
@@ -564,4 +573,25 @@ func (c *Context) GetPathParams() map[string]string {
 		}
 	}
 	return make(map[string]string)
+}
+
+// SetLogConfig 设置日志配置
+// 参数:
+// - config: 日志配置对象
+// 在请求处理开始时设置，供日志记录使用
+// 避免在每次需要时重复获取日志配置
+func (c *Context) SetLogConfig(config *types.LogConfig) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.logConfig = config
+}
+
+// GetLogConfig 获取日志配置
+// 返回值:
+// - 日志配置对象，如果未设置则返回nil
+// 用于获取当前请求的日志配置，避免重复获取
+func (c *Context) GetLogConfig() *types.LogConfig {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.logConfig
 }

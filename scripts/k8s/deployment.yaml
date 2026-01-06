@@ -110,7 +110,7 @@ spec:
             
             # 数据目录（可写）
             - name: data
-              mountPath: /opt/gateway/data
+              mountPath: /opt/gateway/scripts/data
 
           # 资源限制和请求
           resources:

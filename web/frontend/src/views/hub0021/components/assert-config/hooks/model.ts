@@ -103,6 +103,7 @@ export function useAssertConfigModel() {
       'QUERY': 'success',
       'COOKIE': 'warning',
       'IP': 'error',
+      'BODY_CONTENT': 'success',
     }
     return typeColorMap[assertionType] || 'default'
   }
@@ -164,7 +165,8 @@ export function useAssertConfigModel() {
         showOverflow: 'tooltip',
         width: 200,
         formatter: ({ row }) => {
-          return row.expectedValue || row.patternValue || '-'
+          // 只显示期望值，patternValue 是路径断言的配置选项，不是显示值
+          return row.expectedValue || '-'
         },
       },
       {
@@ -487,17 +489,10 @@ export function useAssertConfigModel() {
           placeholder: '请输入期望值',
           span: 24,
           show: (formData: Record<string, any>) => {
-            const valueOperators = [
-              'EQUAL',
-              'NOT_EQUAL',
-              'CONTAINS',
-              'NOT_CONTAINS',
-              'STARTS_WITH',
-              'ENDS_WITH',
-              'IN',
-              'NOT_IN',
-            ]
-            return valueOperators.includes(formData.assertionOperator)
+            // 所有需要值的操作符都显示期望值字段
+            // 排除 EXISTS 和 NOT_EXISTS（不需要值）
+            const noValueOperators = ['EXISTS', 'NOT_EXISTS']
+            return !noValueOperators.includes(formData.assertionOperator)
           },
           props: {
             type: 'textarea',
@@ -509,18 +504,21 @@ export function useAssertConfigModel() {
         {
           field: 'patternValue',
           label: '匹配模式',
-          type: 'input' as const,
-          placeholder: '请输入正则表达式或匹配模式',
+          type: 'select' as const,
+          placeholder: '请选择路径匹配模式（仅路径断言使用）',
           span: 24,
           show: (formData: Record<string, any>) => {
-            return ['MATCHES', 'NOT_MATCHES'].includes(formData.assertionOperator)
+            // patternValue 仅用于路径断言（PATH），对应后端的 Pattern 字段
+            // 用于选择路径匹配模式：exact（精确匹配）、prefix（前缀匹配）、regex（正则匹配）、param（参数匹配）
+            return formData.assertionType === 'PATH'
           },
-          props: {
-            type: 'textarea',
-            rows: 3,
-            maxlength: 500,
-            showCount: true,
-          },
+          options: [
+            { label: '精确匹配（exact）', value: 'exact' },
+            { label: '前缀匹配（prefix）', value: 'prefix' },
+            { label: '正则匹配（regex）', value: 'regex' },
+            { label: '参数匹配（param）', value: 'param' },
+          ],
+          defaultValue: 'exact',
         },
         {
           field: 'caseSensitive',
