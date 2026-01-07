@@ -20,10 +20,10 @@ import type { UserAgentAccessConfig } from './types'
 
 /**
  * User-Agent访问控制配置列表 Model
+ * @param moduleId 模块ID（用于权限控制，由父级传入）
  */
-export function useUserAgentAccessConfigModel() {
+export function useUserAgentAccessConfigModel(moduleId: string) {
   // ============= 数据状态 =============
-  const moduleId = 'hubcommon002-useragent-access'
   /** 加载状态 */
   const loading = ref(false)
 

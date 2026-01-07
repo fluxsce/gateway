@@ -9,6 +9,7 @@ import (
 	"gateway/pkg/utils/huberrors"
 	"gateway/web/middleware"
 	"gateway/web/routes"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 	_ "gateway/web/moduleimports"
 
 	"github.com/gin-gonic/gin"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // WebApp 表示Web应用实例
@@ -115,6 +117,51 @@ func isOriginAllowed(origin, allowedOrigins string) bool {
 	return false
 }
 
+// setupGinLogger 配置GIN框架的日志输出到文件
+// 避免GIN的访问日志输出到stdout，被systemd重定向到/var/log/messages
+func setupGinLogger() {
+	// 获取日志配置
+	logPath := config.GetString("log.log_path", "./logs")
+	useAbsolutePath := config.GetBool("log.use_absolute_path", false)
+	maxSize := config.GetInt("log.max_size", 100)
+	maxBackups := config.GetInt("log.max_backups", 10)
+	maxAge := config.GetInt("log.max_age", 30)
+	compress := config.GetBool("log.compress", true)
+
+	// 确定GIN日志文件路径
+	ginLogFile := "web.log"
+	if !useAbsolutePath && logPath != "" && !filepath.IsAbs(ginLogFile) {
+		ginLogFile = filepath.Join(logPath, ginLogFile)
+	}
+	ginLogFile = utils.ResolvePath(ginLogFile)
+
+	// 确保日志目录存在
+	logDir := filepath.Dir(ginLogFile)
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		logger.Warn("创建GIN日志目录失败，将使用stdout", "error", err, "dir", logDir)
+		// 失败时使用stdout（虽然不理想，但至少不会崩溃）
+		return
+	}
+
+	// 使用lumberjack实现日志轮转
+	lumberjackLogger := &lumberjack.Logger{
+		Filename:   ginLogFile,
+		MaxSize:    maxSize,
+		MaxBackups: maxBackups,
+		MaxAge:     maxAge,
+		Compress:   compress,
+		LocalTime:  true,
+	}
+
+	// 设置GIN的默认写入器
+	// 使用MultiWriter同时写入文件和stdout（可选，如果需要同时看到控制台输出）
+	// 但为了完全避免输出到/var/log/messages，这里只写入文件
+	gin.DefaultWriter = io.Writer(lumberjackLogger)
+	gin.DefaultErrorWriter = io.Writer(lumberjackLogger)
+
+	logger.Info("GIN日志输出已配置", "file", ginLogFile)
+}
+
 // startWebApp 初始化并启动Web应用
 func StartWebApp(db database.Database) error {
 	// 创建Web应用实例
@@ -145,6 +192,9 @@ func NewWebApp(db database.Database) *WebApp {
 	} else {
 		gin.SetMode(gin.DebugMode)
 	}
+
+	// 配置GIN日志输出到文件，避免输出到stdout导致被systemd重定向到/var/log/messages
+	setupGinLogger()
 
 	port := config.GetInt("web.port", 8080)
 	router := gin.Default()

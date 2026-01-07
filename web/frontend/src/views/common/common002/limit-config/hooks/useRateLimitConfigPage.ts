@@ -12,16 +12,17 @@ import { useRateLimitConfigService } from './useRateLimitConfigService'
 
 /**
  * 限流配置页面级 Hook
- * @param props 组件 props（包含 gatewayInstanceId、routeConfigId 的响应式 ref）
+ * @param props 组件 props（包含 gatewayInstanceId、routeConfigId、moduleId 的响应式 ref）
  */
 export function useRateLimitConfigPage(props: {
   gatewayInstanceId?: Ref<string | undefined>
   routeConfigId?: Ref<string | undefined>
+  moduleId: Ref<string>
 }) {
   const message = useMessage()
 
-  // 业务服务（包含 model、增删改查等）
-  const service = useRateLimitConfigService()
+  // 业务服务（包含 model、增删改查等，传递 moduleId）
+  const service = useRateLimitConfigService(props.moduleId.value)
 
   // 表单对话框状态（新增/编辑/查看共用）
   const formDialogVisible = ref(false)

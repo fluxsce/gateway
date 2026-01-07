@@ -28,10 +28,10 @@ import {
 
 /**
  * 过滤器配置列表 Model
+ * @param moduleId 模块ID（用于权限控制，必填）
  */
-export function useFilterConfigModel() {
+export function useFilterConfigModel(moduleId: string) {
   // ============= 数据状态 =============
-  const moduleId = 'hub0021-filter-config'
   
   /** 加载状态 */
   const loading = ref(false)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/empty"
 	"gateway/pkg/utils/huberrors"
 	"gateway/pkg/utils/random"
 	"gateway/web/views/hub0002/models"
@@ -244,37 +245,33 @@ func (dao *UserDAO) ListUsers(ctx context.Context, tenantId string, query *model
 	var params []interface{}
 	params = append(params, tenantId)
 
-	// 默认只查询活动用户，如果前端显式传入 ActiveFlag 则按传入值过滤
+	// 构建查询条件，只有当字段不为空时才添加对应条件
 	if query != nil {
-		if query.UserName != "" {
+		if !empty.IsEmpty(query.UserName) {
 			whereClause += " AND userName LIKE ?"
 			params = append(params, "%"+query.UserName+"%")
 		}
-		if query.RealName != "" {
+		if !empty.IsEmpty(query.RealName) {
 			whereClause += " AND realName LIKE ?"
 			params = append(params, "%"+query.RealName+"%")
 		}
-		if query.Mobile != "" {
+		if !empty.IsEmpty(query.Mobile) {
 			whereClause += " AND mobile LIKE ?"
 			params = append(params, "%"+query.Mobile+"%")
 		}
-		if query.Email != "" {
+		if !empty.IsEmpty(query.Email) {
 			whereClause += " AND email LIKE ?"
 			params = append(params, "%"+query.Email+"%")
 		}
-		if query.StatusFlag != "" {
+		if !empty.IsEmpty(query.StatusFlag) {
 			whereClause += " AND statusFlag = ?"
 			params = append(params, query.StatusFlag)
 		}
-		if query.ActiveFlag != "" {
+		// 只有当 activeFlag 不为空时才添加查询条件，否则不处理
+		if !empty.IsEmpty(query.ActiveFlag) {
 			whereClause += " AND activeFlag = ?"
 			params = append(params, query.ActiveFlag)
-		} else {
-			whereClause += " AND activeFlag = 'Y'"
 		}
-	} else {
-		// 未提供查询条件时，默认只查询活动用户
-		whereClause += " AND activeFlag = 'Y'"
 	}
 
 	// 基础查询语句

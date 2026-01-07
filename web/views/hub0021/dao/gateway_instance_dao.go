@@ -4,6 +4,7 @@ import (
 	"context"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/empty"
 	"gateway/pkg/utils/huberrors"
 	"gateway/web/views/hub0021/models"
 )
@@ -23,14 +24,19 @@ func NewGatewayInstanceDAO(db database.Database) *GatewayInstanceDAO {
 // ListAllGatewayInstances 获取所有网关实例列表（跨租户查询，仅限管理员使用）
 func (dao *GatewayInstanceDAO) ListAllGatewayInstances(ctx context.Context, page, pageSize int, filters map[string]interface{}) ([]*models.GatewayInstance, int, error) {
 	// 构建基础查询条件
-	whereClause := "WHERE activeFlag = 'Y'"
+	whereClause := "WHERE 1=1"
 	params := []interface{}{}
 
 	// 添加筛选条件
 	if filters != nil {
-		if instanceName, ok := filters["instanceName"].(string); ok && instanceName != "" {
+		if instanceName, ok := filters["instanceName"].(string); ok && !empty.IsEmpty(instanceName) {
 			whereClause += " AND instanceName LIKE ?"
 			params = append(params, "%"+instanceName+"%")
+		}
+		// 添加activeFlag条件（只有当不为空时才添加）
+		if activeFlag, ok := filters["activeFlag"].(string); ok && !empty.IsEmpty(activeFlag) {
+			whereClause += " AND activeFlag = ?"
+			params = append(params, activeFlag)
 		}
 	}
 

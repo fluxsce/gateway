@@ -11,14 +11,13 @@ import { formatDate } from '@/utils/format'
 import { AddOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
 import { ref } from 'vue'
 import type { ServiceNode } from '../types'
-import { NodeStatus } from '../types'
 
 /**
  * 服务节点管理列表 Model
  */
 export function useServiceNodeModel() {
   // ============= 数据状态 =============
-  const moduleId = 'hub0022'
+  const moduleId = 'hub0022:manageNodes'
   
   /** 加载状态 */
   const loading = ref(false)
@@ -57,29 +56,15 @@ export function useServiceNodeModel() {
       },
       {
         field: 'activeFlag',
-        label: '启用状态',
+        label: '在线状态',
         type: 'select',
-        placeholder: '请选择启用状态',
+        placeholder: '请选择在线状态',
         span: 6,
         clearable: true,
         options: [
           { label: '全部', value: '' },
-          { label: '启用', value: 'Y' },
-          { label: '禁用', value: 'N' },
-        ],
-      },
-      {
-        field: 'nodeStatus',
-        label: '运行状态',
-        type: 'select',
-        placeholder: '请选择运行状态',
-        span: 6,
-        clearable: true,
-        options: [
-          { label: '全部', value: '' },
-          { label: '在线', value: NodeStatus.ONLINE },
-          { label: '下线', value: NodeStatus.OFFLINE },
-          { label: '维护', value: NodeStatus.MAINTENANCE },
+          { label: '在线', value: 'Y' },
+          { label: '离线', value: 'N' },
         ],
       },
     ],
@@ -116,7 +101,6 @@ export function useServiceNodeModel() {
   const nodeFormConfig = {
     tabs: [
       { key: 'basic', label: '基本信息' },
-      { key: 'status', label: '状态配置' },
       { key: 'metadata', label: '元数据配置' },
       { key: 'other', label: '其他配置' },
     ] as DataFormTab[],
@@ -294,31 +278,31 @@ export function useServiceNodeModel() {
           },
         ],
       },
-      {
-        field: 'nodeStatus',
-        label: '运行状态',
-        type: 'select' as const,
-        placeholder: '请选择运行状态',
-        span: 12,
-        tabKey: 'basic',
-        required: true,
-        defaultValue: NodeStatus.ONLINE,
-        options: [
-          { label: '在线', value: NodeStatus.ONLINE },
-          { label: '下线', value: NodeStatus.OFFLINE },
-          { label: '维护', value: NodeStatus.MAINTENANCE },
-        ],
-        rules: [
-          { required: true, type: 'number', message: '请选择运行状态', trigger: ['blur', 'change'] },
-        ],
-      },
-      // ============= 状态配置 Tab =============
+      // ============= nodeStatus 字段暂时未使用，已隐藏 =============
+      // {
+      //   field: 'nodeStatus',
+      //   label: '运行状态',
+      //   type: 'select' as const,
+      //   placeholder: '请选择运行状态',
+      //   span: 12,
+      //   tabKey: 'basic',
+      //   required: true,
+      //   defaultValue: NodeStatus.ONLINE,
+      //   options: [
+      //     { label: '在线', value: NodeStatus.ONLINE },
+      //     { label: '下线', value: NodeStatus.OFFLINE },
+      //     { label: '维护', value: NodeStatus.MAINTENANCE },
+      //   ],
+      //   rules: [
+      //     { required: true, type: 'number', message: '请选择运行状态', trigger: ['blur', 'change'] },
+      //   ],
+      // },
       {
         field: 'healthStatus',
         label: '健康状态',
         type: 'switch' as const,
         span: 12,
-        tabKey: 'status',
+        tabKey: 'basic',
         defaultValue: 'Y',
         props: {
           checkedValue: 'Y',
@@ -327,14 +311,25 @@ export function useServiceNodeModel() {
       },
       {
         field: 'activeFlag',
-        label: '启用状态',
+        label: '在线状态',
         type: 'switch' as const,
         span: 12,
-        tabKey: 'status',
+        tabKey: 'basic',
         defaultValue: 'Y',
         props: {
           checkedValue: 'Y',
           uncheckedValue: 'N',
+        },
+      },
+      {
+        field: 'noteText',
+        label: '备注信息',
+        type: 'textarea' as const,
+        placeholder: '请输入备注信息',
+        span: 24,
+        tabKey: 'basic',
+        props: {
+          rows: 4,
         },
       },
       // ============= 元数据配置 Tab =============
@@ -366,17 +361,6 @@ export function useServiceNodeModel() {
         ],
       },
       // ============= 其他配置 Tab =============
-      {
-        field: 'noteText',
-        label: '备注信息',
-        type: 'textarea' as const,
-        placeholder: '请输入备注信息',
-        span: 24,
-        tabKey: 'other',
-        props: {
-          rows: 4,
-        },
-      },
       {
         field: 'addTime',
         label: '创建时间',
@@ -485,16 +469,17 @@ export function useServiceNodeModel() {
         width: 100,
         slots: { default: 'healthStatus' },
       },
-      {
-        field: 'nodeStatus',
-        title: '运行状态',
-        align: 'center',
-        width: 100,
-        slots: { default: 'nodeStatus' },
-      },
+      // ============= nodeStatus 字段暂时未使用，已隐藏 =============
+      // {
+      //   field: 'nodeStatus',
+      //   title: '运行状态',
+      //   align: 'center',
+      //   width: 100,
+      //   slots: { default: 'nodeStatus' },
+      // },
       {
         field: 'activeFlag',
-        title: '启用状态',
+        title: '在线状态',
         align: 'center',
         width: 100,
         slots: { default: 'activeFlag' },

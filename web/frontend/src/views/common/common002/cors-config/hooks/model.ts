@@ -9,10 +9,10 @@ import { h, ref } from 'vue'
 
 /**
  * CORS配置 Model
+ * @param moduleId 模块ID（用于权限控制，必填，由父组件统一传入）
  */
-export function useCorsConfigModel() {
+export function useCorsConfigModel(moduleId: string) {
   // ============= 数据状态 =============
-  const moduleId = 'hubcommon002-cors'
   /** 加载状态 */
   const loading = ref(false)
 

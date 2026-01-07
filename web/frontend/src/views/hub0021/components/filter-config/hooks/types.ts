@@ -211,6 +211,8 @@ export const CONTENT_TYPES = [
 export interface FilterConfigListModalProps {
   /** 是否显示模态框 */
   visible: boolean
+  /** 模块ID（用于权限控制，必传） */
+  moduleId: string
   /** 模态框标题 */
   title?: string
   /** 模态框宽度 */

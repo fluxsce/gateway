@@ -970,7 +970,8 @@ export function useServiceDefinitionModel() {
       (item) => item.serviceDefinitionId === service.serviceDefinitionId
     )
     if (index >= 0) {
-      serviceList.value[index] = service
+      // 使用 Object.assign 更新对象属性，保持 Vue 响应式
+      Object.assign(serviceList.value[index], service)
     }
   }
 

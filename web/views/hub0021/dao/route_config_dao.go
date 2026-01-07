@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/empty"
 	"gateway/pkg/utils/huberrors"
 	"gateway/pkg/utils/random"
 	"gateway/web/views/hub0021/models"
@@ -177,7 +178,7 @@ func (dao *RouteConfigDAO) UpdateRouteConfig(ctx context.Context, routeConfig *m
 			enableWebsocket = ?, timeoutMs = ?, retryCount = ?, retryIntervalMs = ?,
 			serviceDefinitionId = ?, logConfigId = ?, routeMetadata = ?, reserved1 = ?, reserved2 = ?,
 			reserved3 = ?, reserved4 = ?, reserved5 = ?, extProperty = ?, noteText = ?,
-			editTime = ?, editWho = ?, currentVersion = ?
+			editTime = ?, editWho = ?, currentVersion = ?, activeFlag = ?
 		WHERE routeConfigId = ? AND tenantId = ? AND currentVersion = ?
 	`
 
@@ -190,7 +191,7 @@ func (dao *RouteConfigDAO) UpdateRouteConfig(ctx context.Context, routeConfig *m
 		routeConfig.ServiceDefinitionId, routeConfig.LogConfigId, routeConfig.RouteMetadata,
 		routeConfig.Reserved1, routeConfig.Reserved2, routeConfig.Reserved3, routeConfig.Reserved4, routeConfig.Reserved5,
 		routeConfig.ExtProperty, routeConfig.NoteText,
-		routeConfig.EditTime, routeConfig.EditWho, routeConfig.CurrentVersion,
+		routeConfig.EditTime, routeConfig.EditWho, routeConfig.CurrentVersion, routeConfig.ActiveFlag,
 		routeConfig.RouteConfigId, routeConfig.TenantId, existing.CurrentVersion,
 	}, true)
 
@@ -248,23 +249,21 @@ func (dao *RouteConfigDAO) ListRouteConfigs(ctx context.Context, params *RouteCo
 	whereClause := "WHERE rc.tenantId = ?"
 	args := []interface{}{params.TenantId}
 
-	// 激活状态过滤：如果指定了activeFlag参数则使用，否则默认只显示激活的记录
-	if params.ActiveFlag != "" {
+	// 添加activeFlag条件（只有当不为空时才添加）
+	if !empty.IsEmpty(params.ActiveFlag) {
 		whereClause += " AND rc.activeFlag = ?"
 		args = append(args, params.ActiveFlag)
-	} else {
-		whereClause += " AND rc.activeFlag = 'Y'"
 	}
 
-	if params.GatewayInstanceId != "" {
+	if !empty.IsEmpty(params.GatewayInstanceId) {
 		whereClause += " AND rc.gatewayInstanceId = ?"
 		args = append(args, params.GatewayInstanceId)
 	}
-	if params.RouteName != "" {
+	if !empty.IsEmpty(params.RouteName) {
 		whereClause += " AND rc.routeName LIKE ?"
 		args = append(args, "%"+params.RouteName+"%")
 	}
-	if params.RoutePath != "" {
+	if !empty.IsEmpty(params.RoutePath) {
 		whereClause += " AND rc.routePath LIKE ?"
 		args = append(args, "%"+params.RoutePath+"%")
 	}
@@ -398,8 +397,8 @@ func (dao *RouteConfigDAO) GetRouteConfigsByGatewayInstance(ctx context.Context,
 	whereConditions := []string{"rc.gatewayInstanceId = ?", "rc.tenantId = ?"}
 	args := []interface{}{gatewayInstanceId, tenantId}
 
-	// 添加activeFlag条件（如果指定了activeFlag参数）
-	if activeFlag != "" {
+	// 添加activeFlag条件（只有当不为空时才添加）
+	if !empty.IsEmpty(activeFlag) {
 		whereConditions = append(whereConditions, "rc.activeFlag = ?")
 		args = append(args, activeFlag)
 	}

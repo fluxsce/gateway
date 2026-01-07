@@ -16,17 +16,19 @@ import type { IpAccessConfig } from './types'
 
 /**
  * IP访问控制配置服务 Hook（纯业务逻辑）
+ * @param moduleId 模块ID（用于权限控制，必填）
  * @param securityConfigId 安全配置ID（可选，用于查询时过滤）
  */
 export function useIpAccessConfigService(
+  moduleId: string,
   securityConfigId?: Ref<string | undefined>,
   searchFormRef?: Ref<any> | any
 ) {
   const message = useMessage()
   const gDialog = useGDialog()
 
-  // 初始化 Model
-  const model = useIpAccessConfigModel()
+  // 初始化 Model（传递 moduleId）
+  const model = useIpAccessConfigModel(moduleId)
 
   const {
     loading,

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/empty"
 	"gateway/pkg/utils/huberrors"
 	"gateway/web/views/hub0022/models"
 )
@@ -24,7 +25,7 @@ func NewGatewayInstanceDAO(db database.Database) *GatewayInstanceDAO {
 // ListAllGatewayInstances 获取所有网关实例列表（跨租户查询，仅限管理员使用）
 func (dao *GatewayInstanceDAO) ListAllGatewayInstances(ctx context.Context, page, pageSize int) ([]*models.GatewayInstance, int, error) {
 	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_INSTANCE WHERE activeFlag = 'Y' ORDER BY addTime DESC"
+	baseQuery := "SELECT * FROM HUB_GW_INSTANCE ORDER BY addTime DESC"
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
@@ -131,17 +132,22 @@ func (dao *GatewayInstanceDAO) QueryGatewayInstances(ctx context.Context, tenant
 
 	// 添加筛选条件
 	if filters != nil {
-		if instanceName, ok := filters["instanceName"].(string); ok && instanceName != "" {
+		if instanceName, ok := filters["instanceName"].(string); ok && !empty.IsEmpty(instanceName) {
 			whereClause += " AND instanceName LIKE ?"
 			params = append(params, "%"+instanceName+"%")
 		}
-		if healthStatus, ok := filters["healthStatus"].(string); ok && healthStatus != "" {
+		if healthStatus, ok := filters["healthStatus"].(string); ok && !empty.IsEmpty(healthStatus) {
 			whereClause += " AND healthStatus = ?"
 			params = append(params, healthStatus)
 		}
-		if tlsEnabled, ok := filters["tlsEnabled"].(string); ok && tlsEnabled != "" {
+		if tlsEnabled, ok := filters["tlsEnabled"].(string); ok && !empty.IsEmpty(tlsEnabled) {
 			whereClause += " AND tlsEnabled = ?"
 			params = append(params, tlsEnabled)
+		}
+		// 添加activeFlag条件（只有当不为空时才添加）
+		if activeFlag, ok := filters["activeFlag"].(string); ok && !empty.IsEmpty(activeFlag) {
+			whereClause += " AND activeFlag = ?"
+			params = append(params, activeFlag)
 		}
 	}
 

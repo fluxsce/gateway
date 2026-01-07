@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/empty"
 	"gateway/pkg/utils/huberrors"
 	"gateway/web/views/hub0021/models"
 	"strings"
@@ -119,8 +120,8 @@ func (dao *ServiceDefinitionDAO) GetServiceDefinitionById(ctx context.Context, s
 		args = append(args, tenantId)
 	}
 
-	// 添加activeFlag条件（如果指定了activeFlag参数）
-	if activeFlag != "" {
+	// 添加activeFlag条件（只有当不为空时才添加）
+	if !empty.IsEmpty(activeFlag) {
 		whereConditions = append(whereConditions, "activeFlag = ?")
 		args = append(args, activeFlag)
 	}
@@ -227,13 +228,10 @@ func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, ten
 		params = append(params, tenantId)
 	}
 
-	// 添加activeFlag条件（如果指定了activeFlag参数）
-	if activeFlag != "" {
+	// 添加activeFlag条件（只有当不为空时才添加）
+	if !empty.IsEmpty(activeFlag) {
 		whereConditions = append(whereConditions, "activeFlag = ?")
 		params = append(params, activeFlag)
-	} else {
-		// 默认只查询激活的记录
-		whereConditions = append(whereConditions, "activeFlag = 'Y'")
 	}
 
 	// 使用 IN 查询代理配置ID
@@ -326,13 +324,10 @@ func (dao *ServiceDefinitionDAO) ListAllServiceDefinitions(ctx context.Context, 
 		params = append(params, tenantId)
 	}
 
-	// 添加activeFlag条件（如果指定了activeFlag参数）
-	if activeFlag != "" {
+	// 添加activeFlag条件（只有当不为空时才添加）
+	if !empty.IsEmpty(activeFlag) {
 		whereConditions = append(whereConditions, "activeFlag = ?")
 		params = append(params, activeFlag)
-	} else {
-		// 默认只查询激活的记录
-		whereConditions = append(whereConditions, "activeFlag = 'Y'")
 	}
 
 	// 添加其他筛选条件（排除 gatewayInstanceId 和 proxyConfigId，允许查询所有服务）
@@ -425,8 +420,8 @@ func (dao *ServiceDefinitionDAO) GetServiceDefinitionsByProxyConfig(ctx context.
 		args = append(args, tenantId)
 	}
 
-	// 添加activeFlag条件（如果指定了activeFlag参数）
-	if activeFlag != "" {
+	// 添加activeFlag条件（只有当不为空时才添加）
+	if !empty.IsEmpty(activeFlag) {
 		whereConditions = append(whereConditions, "activeFlag = ?")
 		args = append(args, activeFlag)
 	}
@@ -464,14 +459,14 @@ func (dao *ServiceDefinitionDAO) CountServiceDefinitionsByInstance(ctx context.C
 		args = append(args, tenantId)
 	}
 
-	// 添加服务定义activeFlag条件（如果指定了serviceActiveFlag参数）
-	if serviceActiveFlag != "" {
+	// 添加服务定义activeFlag条件（只有当不为空时才添加）
+	if !empty.IsEmpty(serviceActiveFlag) {
 		whereConditions = append(whereConditions, "sd.activeFlag = ?")
 		args = append(args, serviceActiveFlag)
 	}
 
-	// 添加代理配置activeFlag条件（如果指定了proxyActiveFlag参数）
-	if proxyActiveFlag != "" {
+	// 添加代理配置activeFlag条件（只有当不为空时才添加）
+	if !empty.IsEmpty(proxyActiveFlag) {
 		whereConditions = append(whereConditions, "pc.activeFlag = ?")
 		args = append(args, proxyActiveFlag)
 	}

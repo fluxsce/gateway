@@ -13,18 +13,20 @@ import { useUserAgentAccessConfigService } from './useUserAgentAccessConfigServi
 
 /**
  * User-Agent访问控制配置列表页面级 Hook
+ * @param moduleId 模块ID（用于权限控制，必填）
  * @param gridRef Grid 组件引用（可选）
  * @param securityConfigId 安全配置ID（可选，用于新增时自动填充）
  */
 export function useUserAgentAccessConfigPage(
+  moduleId: Ref<string>,
   gridRef?: Ref<any> | any,
   securityConfigId?: Ref<string | undefined>,
   searchFormRef?: Ref<any> | any
 ) {
   const message = useMessage()
 
-  // 业务服务（包含 model、增删改查等）
-  const service = useUserAgentAccessConfigService(securityConfigId, searchFormRef)
+  // 业务服务（包含 model、增删改查等，传入模块ID）
+  const service = useUserAgentAccessConfigService(moduleId.value, securityConfigId, searchFormRef)
 
   // 表单对话框状态（新增/编辑/查看共用）
   const formDialogVisible = ref(false)

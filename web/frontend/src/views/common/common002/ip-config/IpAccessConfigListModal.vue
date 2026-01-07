@@ -8,7 +8,7 @@
     @update:visible="handleUpdateVisible"
     @after-leave="handleAfterLeave"
   >
-    <div class="ip-access-config-list-modal" :id="service.model.moduleId">
+    <div class="ip-access-config-list-modal" id="ip-access-config-list-modal">
       <GPane direction="vertical" :no-resize="true">
         <!-- 上部：搜索表单 -->
         <template #1>
@@ -74,7 +74,7 @@
         v-model:visible="formDialogVisible"
         :mode="formDialogMode"
         :title="formDialogMode === 'create' ? '新增IP访问控制配置' : formDialogMode === 'edit' ? '编辑IP访问控制配置' : '查看IP访问控制配置详情'"
-        :to="`#${service.model.moduleId}`"
+        to="#ip-access-config-list-modal"
         :form-fields="service.model.formFields"
         :initial-data="currentEditConfig || undefined"
         :auto-close-on-confirm="false"
@@ -86,10 +86,10 @@
 </template>
 
 <script lang="ts" setup>
-import { GModal } from '@/components/gmodal'
-import { GPane } from '@/components/gpane'
 import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
 import SearchForm from '@/components/form/search/SearchForm.vue'
+import { GModal } from '@/components/gmodal'
+import { GPane } from '@/components/gpane'
 import { GGrid } from '@/components/grid'
 import { NTag } from 'naive-ui'
 import { ref, watch } from 'vue'
@@ -120,6 +120,10 @@ const emit = defineEmits<IpAccessConfigListModalEmits>()
 const searchFormRef = ref()
 const gridRef = ref()
 
+// ============= 模块ID =============
+
+const moduleIdRef = ref<string>(props.moduleId)
+
 // ============= 模态框可见性 =============
 
 const modalVisible = ref(props.visible)
@@ -127,6 +131,11 @@ const modalVisible = ref(props.visible)
 // 监听 props.visible 变化，同步到本地状态
 watch(() => props.visible, (newVal) => {
   modalVisible.value = newVal
+})
+
+// 监听 props.moduleId 变化
+watch(() => props.moduleId, (newVal) => {
+  moduleIdRef.value = newVal
 })
 
 // ============= 安全配置ID =============
@@ -149,7 +158,7 @@ const {
   handleToolbarClick,
   handleMenuClick,
   handleSearch,
-} = useIpAccessConfigPage(gridRef, securityConfigId, searchFormRef)
+} = useIpAccessConfigPage(moduleIdRef, gridRef, securityConfigId, searchFormRef)
 
 // ============= 事件处理 =============
 

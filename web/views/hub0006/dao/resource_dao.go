@@ -5,6 +5,7 @@ import (
 	"errors"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/empty"
 	"gateway/pkg/utils/huberrors"
 	"gateway/pkg/utils/random"
 	"gateway/web/views/hub0006/models"
@@ -294,41 +295,37 @@ func (dao *ResourceDAO) ListAllResources(ctx context.Context, tenantId string, q
 	var params []interface{}
 	params = append(params, tenantId)
 
-	// 默认只查询活动资源，如果前端显式传入 ActiveFlag 则按传入值过滤
+	// 构建查询条件，只有当字段不为空时才添加对应条件
 	if query != nil {
-		if query.ResourceName != "" {
+		if !empty.IsEmpty(query.ResourceName) {
 			whereClause += " AND resourceName LIKE ?"
 			params = append(params, "%"+query.ResourceName+"%")
 		}
-		if query.ResourceCode != "" {
+		if !empty.IsEmpty(query.ResourceCode) {
 			whereClause += " AND resourceCode LIKE ?"
 			params = append(params, "%"+query.ResourceCode+"%")
 		}
-		if query.ResourceType != "" {
+		if !empty.IsEmpty(query.ResourceType) {
 			whereClause += " AND resourceType = ?"
 			params = append(params, query.ResourceType)
 		}
-		if query.ResourceStatus != "" {
+		if !empty.IsEmpty(query.ResourceStatus) {
 			whereClause += " AND resourceStatus = ?"
 			params = append(params, query.ResourceStatus)
 		}
-		if query.BuiltInFlag != "" {
+		if !empty.IsEmpty(query.BuiltInFlag) {
 			whereClause += " AND builtInFlag = ?"
 			params = append(params, query.BuiltInFlag)
 		}
-		if query.ParentResourceId != "" {
+		if !empty.IsEmpty(query.ParentResourceId) {
 			whereClause += " AND parentResourceId = ?"
 			params = append(params, query.ParentResourceId)
 		}
-		if query.ActiveFlag != "" {
+		// 只有当 activeFlag 不为空时才添加查询条件，否则不处理
+		if !empty.IsEmpty(query.ActiveFlag) {
 			whereClause += " AND activeFlag = ?"
 			params = append(params, query.ActiveFlag)
-		} else {
-			whereClause += " AND activeFlag = 'Y'"
 		}
-	} else {
-		// 未提供查询条件时，默认只查询活动资源
-		whereClause += " AND activeFlag = 'Y'"
 	}
 
 	// 基础查询语句（不分页）
@@ -365,41 +362,37 @@ func (dao *ResourceDAO) ListResources(ctx context.Context, tenantId string, quer
 	var params []interface{}
 	params = append(params, tenantId)
 
-	// 默认只查询活动资源，如果前端显式传入 ActiveFlag 则按传入值过滤
+	// 构建查询条件，只有当字段不为空时才添加对应条件
 	if query != nil {
-		if query.ResourceName != "" {
+		if !empty.IsEmpty(query.ResourceName) {
 			whereClause += " AND resourceName LIKE ?"
 			params = append(params, "%"+query.ResourceName+"%")
 		}
-		if query.ResourceCode != "" {
+		if !empty.IsEmpty(query.ResourceCode) {
 			whereClause += " AND resourceCode LIKE ?"
 			params = append(params, "%"+query.ResourceCode+"%")
 		}
-		if query.ResourceType != "" {
+		if !empty.IsEmpty(query.ResourceType) {
 			whereClause += " AND resourceType = ?"
 			params = append(params, query.ResourceType)
 		}
-		if query.ResourceStatus != "" {
+		if !empty.IsEmpty(query.ResourceStatus) {
 			whereClause += " AND resourceStatus = ?"
 			params = append(params, query.ResourceStatus)
 		}
-		if query.BuiltInFlag != "" {
+		if !empty.IsEmpty(query.BuiltInFlag) {
 			whereClause += " AND builtInFlag = ?"
 			params = append(params, query.BuiltInFlag)
 		}
-		if query.ParentResourceId != "" {
+		if !empty.IsEmpty(query.ParentResourceId) {
 			whereClause += " AND parentResourceId = ?"
 			params = append(params, query.ParentResourceId)
 		}
-		if query.ActiveFlag != "" {
+		// 只有当 activeFlag 不为空时才添加查询条件，否则不处理
+		if !empty.IsEmpty(query.ActiveFlag) {
 			whereClause += " AND activeFlag = ?"
 			params = append(params, query.ActiveFlag)
-		} else {
-			whereClause += " AND activeFlag = 'Y'"
 		}
-	} else {
-		// 未提供查询条件时，默认只查询活动资源
-		whereClause += " AND activeFlag = 'Y'"
 	}
 
 	// 基础查询语句

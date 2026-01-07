@@ -8,7 +8,7 @@
     @update:visible="handleUpdateVisible"
     @after-leave="handleAfterLeave"
   >
-    <div class="assert-config-list-modal" :id="service.model.moduleId">
+    <div class="assert-config-list-modal" id="assert-config-list-modal">
       <GPane direction="vertical" :no-resize="true">
         <!-- 上部：搜索表单 -->
         <template #1>
@@ -75,7 +75,7 @@
         v-model:visible="formDialogVisible"
         :mode="formDialogMode"
         :title="formDialogMode === 'create' ? '新增断言配置' : formDialogMode === 'edit' ? '编辑断言配置' : '查看断言配置详情'"
-        :to="`#${service.model.moduleId}`"
+        to="#assert-config-list-modal"
         :form-fields="service.model.formFields"
         :form-tabs="service.model.formTabs"
         :initial-data="currentEditAssert || undefined"
@@ -88,10 +88,10 @@
 </template>
 
 <script lang="ts" setup>
-import { GModal } from '@/components/gmodal'
-import { GPane } from '@/components/gpane'
 import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
 import SearchForm from '@/components/form/search/SearchForm.vue'
+import { GModal } from '@/components/gmodal'
+import { GPane } from '@/components/gpane'
 import { GGrid } from '@/components/grid'
 import { NSwitch, NTag } from 'naive-ui'
 import { onBeforeUnmount, ref, watch } from 'vue'

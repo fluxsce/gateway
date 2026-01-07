@@ -5,6 +5,7 @@ import (
 	"errors"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/empty"
 	"gateway/pkg/utils/huberrors"
 	"gateway/pkg/utils/random"
 	"gateway/web/views/hub0021/models"
@@ -229,19 +230,20 @@ func (dao *RouteAssertionDAO) QueryRouteAssertions(ctx context.Context, page, pa
 
 	// 添加筛选条件
 	if filters != nil {
-		if routeConfigId, ok := filters["routeConfigId"].(string); ok && routeConfigId != "" {
+		if routeConfigId, ok := filters["routeConfigId"].(string); ok && !empty.IsEmpty(routeConfigId) {
 			whereClause += " AND routeConfigId = ?"
 			params = append(params, routeConfigId)
 		}
-		if assertionName, ok := filters["assertionName"].(string); ok && assertionName != "" {
+		if assertionName, ok := filters["assertionName"].(string); ok && !empty.IsEmpty(assertionName) {
 			whereClause += " AND assertionName LIKE ?"
 			params = append(params, "%"+assertionName+"%")
 		}
-		if assertionType, ok := filters["assertionType"].(string); ok && assertionType != "" {
+		if assertionType, ok := filters["assertionType"].(string); ok && !empty.IsEmpty(assertionType) {
 			whereClause += " AND assertionType = ?"
 			params = append(params, assertionType)
 		}
-		if activeFlag, ok := filters["activeFlag"].(string); ok && activeFlag != "" {
+		// 添加activeFlag条件（只有当不为空时才添加）
+		if activeFlag, ok := filters["activeFlag"].(string); ok && !empty.IsEmpty(activeFlag) {
 			whereClause += " AND activeFlag = ?"
 			params = append(params, activeFlag)
 		}

@@ -12,12 +12,13 @@ import type { RateLimitConfig } from './types'
 
 /**
  * 限流配置服务 Hook（纯业务逻辑）
+ * @param moduleId 模块ID（用于权限控制，必填）
  */
-export function useRateLimitConfigService() {
+export function useRateLimitConfigService(moduleId: string) {
   const message = useMessage()
 
-  // 初始化 Model
-  const model = useRateLimitConfigModel()
+  // 初始化 Model（传递 moduleId）
+  const model = useRateLimitConfigModel(moduleId)
 
   const { loading } = model
 

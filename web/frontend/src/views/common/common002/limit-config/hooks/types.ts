@@ -52,14 +52,14 @@ export interface RateLimitConfig {
 export interface RateLimitConfigFormModalProps {
   /** 是否显示模态框 */
   visible: boolean
+  /** 模块ID（用于权限控制，必填） */
+  moduleId: string
   /** 模态框标题 */
   title?: string
   /** 模态框宽度 */
   width?: number | string
   /** 挂载目标 */
   to?: string | HTMLElement | false
-  /** 模块ID（用于挂载） */
-  moduleId?: string
   /** 网关实例ID（实例级限流） */
   gatewayInstanceId?: string
   /** 路由配置ID（路由级限流） */

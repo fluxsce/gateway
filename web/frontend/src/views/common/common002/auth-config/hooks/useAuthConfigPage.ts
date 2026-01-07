@@ -12,16 +12,20 @@ import { useAuthConfigService } from './useAuthConfigService'
 
 /**
  * 认证配置页面级 Hook
+ * @param moduleId 模块ID（用于权限控制，必填）
  * @param props 组件 props（包含 gatewayInstanceId、routeConfigId 的响应式 ref）
  */
-export function useAuthConfigPage(props: {
-  gatewayInstanceId?: Ref<string | undefined>
-  routeConfigId?: Ref<string | undefined>
-}) {
+export function useAuthConfigPage(
+  moduleId: Ref<string>,
+  props: {
+    gatewayInstanceId?: Ref<string | undefined>
+    routeConfigId?: Ref<string | undefined>
+  }
+) {
   const message = useMessage()
 
-  // 业务服务（包含 model、增删改查等）
-  const service = useAuthConfigService()
+  // 业务服务（包含 model、增删改查等，传递 moduleId）
+  const service = useAuthConfigService(moduleId.value)
 
   // 表单对话框状态（新增/编辑/查看共用）
   const formDialogVisible = ref(false)

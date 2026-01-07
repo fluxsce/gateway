@@ -57,8 +57,8 @@ export interface AuthConfigFormModalProps {
   width?: number | string
   /** 挂载目标 */
   to?: string | HTMLElement | false
-  /** 模块ID（用于挂载） */
-  moduleId?: string
+  /** 模块ID（用于挂载，必填，用于权限控制） */
+  moduleId: string
   /** 网关实例ID（实例级认证） */
   gatewayInstanceId?: string
   /** 路由配置ID（路由级认证） */

@@ -267,6 +267,10 @@ export function useUserModel() {
       placeholder: '请选择过期时间',
       span: 8,
       tabKey: 'basic',
+      required: true,
+      rules: [
+        { required: true, message: '请选择用户过期时间', trigger: ['blur', 'change'] },
+      ],
     },
     {
       field: 'lastLoginTime',

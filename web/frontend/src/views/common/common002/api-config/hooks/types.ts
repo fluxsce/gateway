@@ -47,6 +47,8 @@ export interface ApiAccessConfig {
 export interface ApiAccessConfigListModalProps {
   /** 是否显示模态框 */
   visible: boolean
+  /** 模块ID（用于权限控制，必填） */
+  moduleId: string
   /** 模态框标题 */
   title?: string
   /** 模态框宽度 */

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/empty"
 	"gateway/pkg/utils/huberrors"
 	"gateway/pkg/utils/random"
 	"gateway/web/views/hub0021/models"
@@ -301,8 +302,8 @@ func (dao *FilterConfigDAO) ListFilterConfigs(ctx context.Context, tenantId stri
 		args = append(args, filterAction)
 	}
 
-	// 添加activeFlag条件
-	if activeFlag, ok := queryParams["activeFlag"]; ok && activeFlag != "" {
+	// 添加activeFlag条件（只有当不为空时才添加）
+	if activeFlag, ok := queryParams["activeFlag"]; ok && !empty.IsEmpty(activeFlag) {
 		whereConditions = append(whereConditions, "activeFlag = ?")
 		args = append(args, activeFlag)
 	}
@@ -388,8 +389,8 @@ func (dao *FilterConfigDAO) GetFilterConfigsByRoute(ctx context.Context, routeCo
 	whereConditions := []string{"routeConfigId = ?", "tenantId = ?"}
 	args := []interface{}{routeConfigId, tenantId}
 
-	// 添加activeFlag条件（如果指定了activeFlag参数）
-	if activeFlag != "" {
+	// 添加activeFlag条件（只有当不为空时才添加）
+	if !empty.IsEmpty(activeFlag) {
 		whereConditions = append(whereConditions, "activeFlag = ?")
 		args = append(args, activeFlag)
 	}
@@ -426,8 +427,8 @@ func (dao *FilterConfigDAO) GetFilterConfigsByType(ctx context.Context, filterTy
 	whereConditions := []string{"tenantId = ?", "filterType = ?"}
 	args := []interface{}{tenantId, filterType}
 
-	// 添加activeFlag条件（如果指定了activeFlag参数）
-	if activeFlag != "" {
+	// 添加activeFlag条件（只有当不为空时才添加）
+	if !empty.IsEmpty(activeFlag) {
 		whereConditions = append(whereConditions, "activeFlag = ?")
 		args = append(args, activeFlag)
 	}
@@ -474,8 +475,8 @@ func (dao *FilterConfigDAO) GetFilterConfigsByAction(ctx context.Context, filter
 	whereConditions := []string{"tenantId = ?", "filterAction = ?"}
 	args := []interface{}{tenantId, filterAction}
 
-	// 添加activeFlag条件（如果指定了activeFlag参数）
-	if activeFlag != "" {
+	// 添加activeFlag条件（只有当不为空时才添加）
+	if !empty.IsEmpty(activeFlag) {
 		whereConditions = append(whereConditions, "activeFlag = ?")
 		args = append(args, activeFlag)
 	}
@@ -514,8 +515,8 @@ func (dao *FilterConfigDAO) GetFilterExecutionChain(ctx context.Context, tenantI
 	whereConditions := []string{"tenantId = ?"}
 	args := []interface{}{tenantId}
 
-	// 添加activeFlag条件（如果指定了activeFlag参数）
-	if activeFlag != "" {
+	// 添加activeFlag条件（只有当不为空时才添加）
+	if !empty.IsEmpty(activeFlag) {
 		whereConditions = append(whereConditions, "activeFlag = ?")
 		args = append(args, activeFlag)
 	}

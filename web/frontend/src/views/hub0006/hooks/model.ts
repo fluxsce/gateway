@@ -333,6 +333,7 @@ export function useResourceModel() {
         field: 'resourceId',
         title: '资源ID',
         showOverflow: true,
+        width:200,
         treeNode: true, // 树形表格需要在列上设置 treeNode 属性
       },
       {
@@ -345,6 +346,7 @@ export function useResourceModel() {
         field: 'resourceCode',
         title: '资源编码',
         sortable: true,
+        width:200,
         showOverflow: true,
       },
       {

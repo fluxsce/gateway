@@ -57,7 +57,7 @@ export interface CorsConfigFormModalProps {
   /** 挂载目标 */
   to?: string | HTMLElement | false
   /** 模块ID（用于挂载） */
-  moduleId?: string
+  moduleId: string
   /** 网关实例ID（实例级CORS） */
   gatewayInstanceId?: string
   /** 路由配置ID（路由级CORS） */

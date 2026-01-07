@@ -9,6 +9,7 @@ import (
 
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/empty"
 	"gateway/pkg/utils/huberrors"
 	"gateway/pkg/utils/random"
 	"gateway/web/views/hub0022/models"
@@ -197,29 +198,26 @@ func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, ten
 		filter = &ServiceDefinitionQueryFilter{}
 	}
 
-	// 激活状态过滤
-	if filter.ActiveFlag != "" {
+	// 激活状态过滤（只有当不为空时才添加）
+	if !empty.IsEmpty(filter.ActiveFlag) {
 		whereConditions = append(whereConditions, "activeFlag = ?")
 		queryArgs = append(queryArgs, filter.ActiveFlag)
-	} else {
-		// 默认只查询激活的记录
-		whereConditions = append(whereConditions, "activeFlag = 'Y'")
 	}
 
-	// 服务名称（模糊查询）
-	if filter.ServiceName != "" {
+	// 服务名称（模糊查询，只有当不为空时才添加）
+	if !empty.IsEmpty(filter.ServiceName) {
 		whereConditions = append(whereConditions, "serviceName LIKE ?")
 		queryArgs = append(queryArgs, "%"+filter.ServiceName+"%")
 	}
 
-	// 服务类型（精确匹配）
-	if filter.ServiceType != "" {
+	// 服务类型（精确匹配，只有当不为空时才添加）
+	if !empty.IsEmpty(filter.ServiceType) {
 		whereConditions = append(whereConditions, "serviceType = ?")
 		queryArgs = append(queryArgs, filter.ServiceType)
 	}
 
-	// 负载均衡策略（精确匹配）
-	if filter.LoadBalanceStrategy != "" {
+	// 负载均衡策略（精确匹配，只有当不为空时才添加）
+	if !empty.IsEmpty(filter.LoadBalanceStrategy) {
 		whereConditions = append(whereConditions, "loadBalanceStrategy = ?")
 		queryArgs = append(queryArgs, filter.LoadBalanceStrategy)
 	}
@@ -234,7 +232,7 @@ func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, ten
 			queryArgs = append(queryArgs, filter.ProxyConfigIds[i])
 		}
 		whereConditions = append(whereConditions, fmt.Sprintf("proxyConfigId IN (%s)", strings.Join(placeholders, ",")))
-	} else if filter.ProxyConfigId != "" {
+	} else if !empty.IsEmpty(filter.ProxyConfigId) {
 		// 单个精确匹配
 		whereConditions = append(whereConditions, "proxyConfigId = ?")
 		queryArgs = append(queryArgs, filter.ProxyConfigId)

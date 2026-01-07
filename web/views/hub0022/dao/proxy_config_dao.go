@@ -9,6 +9,7 @@ import (
 
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/empty"
 	"gateway/pkg/utils/huberrors"
 	"gateway/pkg/utils/random"
 	"gateway/web/views/hub0022/models"
@@ -181,10 +182,10 @@ func (dao *ProxyConfigDAO) DeleteProxyConfig(ctx context.Context, proxyConfigId,
 // ListProxyConfigs 分页查询代理配置列表
 func (dao *ProxyConfigDAO) ListProxyConfigs(ctx context.Context, tenantId, gatewayInstanceId string, page, pageSize int) ([]*models.ProxyConfig, int, error) {
 	// 构建查询条件
-	whereConditions := []string{"tenantId = ?", "activeFlag = 'Y'"}
+	whereConditions := []string{"tenantId = ?"}
 	args := []interface{}{tenantId}
 
-	if gatewayInstanceId != "" {
+	if !empty.IsEmpty(gatewayInstanceId) {
 		whereConditions = append(whereConditions, "gatewayInstanceId = ?")
 		args = append(args, gatewayInstanceId)
 	}
@@ -247,7 +248,7 @@ func (dao *ProxyConfigDAO) GetProxyConfigByGatewayInstance(ctx context.Context, 
 
 	query := `
 		SELECT * FROM HUB_GW_PROXY_CONFIG 
-		WHERE gatewayInstanceId = ? AND tenantId = ? AND activeFlag = 'Y'
+		WHERE gatewayInstanceId = ? AND tenantId = ?
 		ORDER BY addTime DESC
 		LIMIT 1
 	`

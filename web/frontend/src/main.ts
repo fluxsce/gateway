@@ -74,6 +74,12 @@ async function initApp() {
     // 使用右键菜单插件
     VxeUI.use(VxeUIPluginMenu)
 
+    // 配置 vxe-table 全局 z-index，确保 tooltip 在模态框中正确显示
+    // 模态框的 z-index 通常是 2000-3000，设置更高的值确保 tooltip 显示在上层
+    VxeUI.setConfig({
+      zIndex: 4000, // 设置 vxe-table 的全局 z-index，包括 tooltip
+    })
+
     // 配置 vxe-table（必须在路由之前注册）
     app.use(VxeUIBase).use(VxeUITable)
 

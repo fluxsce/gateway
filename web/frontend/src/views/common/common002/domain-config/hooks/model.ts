@@ -19,10 +19,10 @@ import type { DomainAccessConfig } from './types'
 
 /**
  * 域名访问控制配置列表 Model
+ * @param moduleId 模块ID（用于权限控制，由父级传入）
  */
-export function useDomainAccessConfigModel() {
+export function useDomainAccessConfigModel(moduleId: string) {
   // ============= 数据状态 =============
-  const moduleId = 'hubcommon002-domain-access'
   /** 加载状态 */
   const loading = ref(false)
 

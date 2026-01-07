@@ -152,6 +152,7 @@ export function useRouteConfigModel() {
         align: 'center',
         showOverflow: 'tooltip',
         width: 180,
+        slots: { default: 'serviceName' },
       },
       // 隐藏字段（字段存在但不显示）
       {

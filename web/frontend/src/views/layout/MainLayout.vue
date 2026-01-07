@@ -70,7 +70,9 @@
         <!-- 用户信息 -->
         <n-dropdown :options="userMenuOptions" @select="handleUserAction" trigger="click">
           <div class="user-info">
-            <n-avatar round :src="store.user.avatar" />
+            <n-avatar round :src="store.user.avatar">
+              {{ (store.user.displayName || store.user.userName || '?').charAt(0).toUpperCase() }}
+            </n-avatar>
             <span class="user-name" v-if="!store.user.sidebarCollapsed">{{
               store.user.displayName
             }}</span>

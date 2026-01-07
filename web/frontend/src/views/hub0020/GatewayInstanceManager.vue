@@ -83,6 +83,7 @@
     <!-- IP访问控制配置对话框 -->
     <IpAccessConfigListModal
       v-model:visible="ipAccessControlDialogVisible"
+      module-id="hub0020:ipAccessControl"
       :security-config-id="ipAccessControlSecurityConfigId"
       :title="'IP访问控制配置'"
       :width="1200"
@@ -92,6 +93,7 @@
     <!-- User-Agent访问控制配置对话框 -->
     <UserAgentAccessConfigListModal
       v-model:visible="userAgentAccessControlDialogVisible"
+      module-id="hub0020:userAgentAccessControl"
       :security-config-id="userAgentAccessControlSecurityConfigId"
       :title="'User-Agent访问控制配置'"
       :width="1200"
@@ -101,6 +103,7 @@
     <!-- API访问控制配置对话框 -->
     <ApiAccessConfigListModal
       v-model:visible="apiAccessControlDialogVisible"
+      module-id="hub0020:apiAccessControl"
       :security-config-id="apiAccessControlSecurityConfigId"
       :title="'API访问控制配置'"
       :width="1200"
@@ -110,6 +113,7 @@
     <!-- 域名访问控制配置对话框 -->
     <DomainAccessConfigListModal
       v-model:visible="domainAccessControlDialogVisible"
+      module-id="hub0020:domainAccessControl"
       :security-config-id="domainAccessControlSecurityConfigId"
       :title="'域名访问控制配置'"
       :width="1200"
@@ -122,7 +126,7 @@
       :gateway-instance-id="corsConfigGatewayInstanceId"
       :width="800"
       :to="`#${service.model.moduleId}`"
-      :module-id="`${service.model.moduleId}`"
+      module-id="hub0020:corsConfig"
     />
 
     <!-- 认证配置对话框 -->
@@ -131,7 +135,7 @@
       :gateway-instance-id="authConfigGatewayInstanceId"
       :width="800"
       :to="`#${service.model.moduleId}`"
-      :module-id="`${service.model.moduleId}`"
+      module-id="hub0020:authConfig"
     />
 
     <!-- 限流配置对话框 -->
@@ -140,7 +144,7 @@
       :gateway-instance-id="rateLimitConfigGatewayInstanceId"
       :width="800"
       :to="`#${service.model.moduleId}`"
-      :module-id="`${service.model.moduleId}`"
+      module-id="hub0020:rateLimitConfig"
     />
   </div>
 </template>

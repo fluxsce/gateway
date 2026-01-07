@@ -9,10 +9,10 @@ import { h, ref } from 'vue'
 
 /**
  * 限流配置 Model
+ * @param moduleId 模块ID（用于权限控制，由父级传入）
  */
-export function useRateLimitConfigModel() {
+export function useRateLimitConfigModel(moduleId: string) {
   // ============= 数据状态 =============
-  const moduleId = 'hubcommon002-rate-limit'
   /** 加载状态 */
   const loading = ref(false)
 

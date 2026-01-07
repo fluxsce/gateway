@@ -5,6 +5,7 @@ import (
 	"errors"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/empty"
 	"gateway/pkg/utils/huberrors"
 	"gateway/pkg/utils/random"
 	"gateway/web/views/hub0005/models"
@@ -217,33 +218,29 @@ func (dao *RoleDAO) ListRoles(ctx context.Context, tenantId string, query *model
 	var params []interface{}
 	params = append(params, tenantId)
 
-	// 默认只查询活动角色，如果前端显式传入 ActiveFlag 则按传入值过滤
+	// 构建查询条件，只有当字段不为空时才添加对应条件
 	if query != nil {
-		if query.RoleName != "" {
+		if !empty.IsEmpty(query.RoleName) {
 			whereClause += " AND roleName LIKE ?"
 			params = append(params, "%"+query.RoleName+"%")
 		}
-		if query.RoleDescription != "" {
+		if !empty.IsEmpty(query.RoleDescription) {
 			whereClause += " AND roleDescription LIKE ?"
 			params = append(params, "%"+query.RoleDescription+"%")
 		}
-		if query.RoleStatus != "" {
+		if !empty.IsEmpty(query.RoleStatus) {
 			whereClause += " AND roleStatus = ?"
 			params = append(params, query.RoleStatus)
 		}
-		if query.BuiltInFlag != "" {
+		if !empty.IsEmpty(query.BuiltInFlag) {
 			whereClause += " AND builtInFlag = ?"
 			params = append(params, query.BuiltInFlag)
 		}
-		if query.ActiveFlag != "" {
+		// 只有当 activeFlag 不为空时才添加查询条件，否则不处理
+		if !empty.IsEmpty(query.ActiveFlag) {
 			whereClause += " AND activeFlag = ?"
 			params = append(params, query.ActiveFlag)
-		} else {
-			whereClause += " AND activeFlag = 'Y'"
 		}
-	} else {
-		// 未提供查询条件时，默认只查询活动角色
-		whereClause += " AND activeFlag = 'Y'"
 	}
 
 	// 基础查询语句

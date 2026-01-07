@@ -19,10 +19,10 @@ import type { ApiAccessConfig } from './types'
 
 /**
  * API访问控制配置列表 Model
+ * @param moduleId 模块ID（用于权限控制，由父级传入）
  */
-export function useApiAccessConfigModel() {
+export function useApiAccessConfigModel(moduleId: string) {
   // ============= 数据状态 =============
-  const moduleId = 'hubcommon002-api-access'
   /** 加载状态 */
   const loading = ref(false)
 

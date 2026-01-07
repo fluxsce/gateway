@@ -8,7 +8,7 @@
     @update:visible="handleUpdateVisible"
     @after-leave="handleAfterLeave"
   >
-    <div class="filter-config-list-modal" :id="service.model.moduleId">
+    <div class="filter-config-list-modal" id="filter-config-list-modal">
       <GPane direction="vertical" :no-resize="true">
         <!-- 上部：搜索表单 -->
         <template #1>
@@ -69,7 +69,7 @@
         v-model:visible="formDialogVisible"
         :mode="formDialogMode"
         :title="formDialogMode === 'create' ? '新增过滤器配置' : formDialogMode === 'edit' ? '编辑过滤器配置' : '查看过滤器配置详情'"
-        :to="`#${service.model.moduleId}`"
+        to="#filter-config-list-modal"
         :form-fields="service.model.formFields"
         :form-tabs="service.model.formTabs"
         :initial-data="currentEditFilter || undefined"
@@ -82,10 +82,10 @@
 </template>
 
 <script lang="ts" setup>
-import { GModal } from '@/components/gmodal'
-import { GPane } from '@/components/gpane'
 import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
 import SearchForm from '@/components/form/search/SearchForm.vue'
+import { GModal } from '@/components/gmodal'
+import { GPane } from '@/components/gpane'
 import { GGrid } from '@/components/grid'
 import { NSwitch, NTag } from 'naive-ui'
 import { onBeforeUnmount, ref, watch } from 'vue'
@@ -117,6 +117,7 @@ const emit = defineEmits<FilterConfigListModalEmits>()
 
 const searchFormRef = ref()
 const gridRef = ref()
+const moduleIdRef = ref<string>(props.moduleId)
 
 // ============= 模态框可见性 =============
 
@@ -163,7 +164,7 @@ const {
   handleSearch,
   handlePageChange,
   handleToggleStatus,
-} = useFilterConfigPage(gridRef, gatewayInstanceId, routeConfigId, searchFormRef)
+} = useFilterConfigPage(moduleIdRef, gridRef, gatewayInstanceId, routeConfigId, searchFormRef)
 
 // ============= 事件处理 =============
 

@@ -658,6 +658,19 @@ INSERT INTO HUB_AUTH_RESOURCE (
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_006', 1, 'Y'
 );
 
+-- 全局配置分组（右键菜单中的分组项）
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:globalConfig', 'default', '全局配置', 'hub0020:globalConfig', 'BUTTON',
+  'hub0020', 3, 7, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_007', 1, 'Y'
+);
+
 -- IP访问控制按钮
 INSERT INTO HUB_AUTH_RESOURCE (
   resourceId, tenantId, resourceName, resourceCode, resourceType,
@@ -666,9 +679,88 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0020:ipAccessControl', 'default', 'IP访问控制', 'hub0020:ipAccessControl', 'BUTTON',
-  'hub0020', 3, 7, 'zh-CN',
+  'hub0020:globalConfig', 4, 1, 'zh-CN',
   'Y', 'Y',
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_007', 1, 'Y'
+);
+
+-- IP访问控制子权限（来源于 common002/ip-config 模块的操作）
+-- 新建配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:ipAccessControl:add', 'default', '新建配置', 'hub0020:ipAccessControl:add', 'BUTTON',
+  'hub0020:ipAccessControl', 5, 1, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_007_001', 1, 'Y'
+);
+
+-- 编辑配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:ipAccessControl:edit', 'default', '编辑配置', 'hub0020:ipAccessControl:edit', 'BUTTON',
+  'hub0020:ipAccessControl', 5, 2, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_007_002', 1, 'Y'
+);
+
+-- 删除配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:ipAccessControl:delete', 'default', '删除配置', 'hub0020:ipAccessControl:delete', 'BUTTON',
+  'hub0020:ipAccessControl', 5, 3, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_007_003', 1, 'Y'
+);
+
+-- 查看详情
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:ipAccessControl:view', 'default', '查看详情', 'hub0020:ipAccessControl:view', 'BUTTON',
+  'hub0020:ipAccessControl', 5, 4, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_007_004', 1, 'Y'
+);
+
+-- 查询
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:ipAccessControl:search', 'default', '查询', 'hub0020:ipAccessControl:search', 'BUTTON',
+  'hub0020:ipAccessControl', 5, 5, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_007_005', 1, 'Y'
+);
+
+-- 重置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:ipAccessControl:reset', 'default', '重置', 'hub0020:ipAccessControl:reset', 'BUTTON',
+  'hub0020:ipAccessControl', 5, 6, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_007_006', 1, 'Y'
 );
 
 -- User-Agent访问控制按钮
@@ -679,9 +771,88 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0020:userAgentAccessControl', 'default', 'User-Agent访问控制', 'hub0020:userAgentAccessControl', 'BUTTON',
-  'hub0020', 3, 8, 'zh-CN',
+  'hub0020:globalConfig', 4, 2, 'zh-CN',
   'Y', 'Y',
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_008', 1, 'Y'
+);
+
+-- User-Agent访问控制子权限（来源于 common002/agent-config 模块的操作）
+-- 新建配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:userAgentAccessControl:add', 'default', '新建配置', 'hub0020:userAgentAccessControl:add', 'BUTTON',
+  'hub0020:userAgentAccessControl', 5, 1, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_008_001', 1, 'Y'
+);
+
+-- 编辑配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:userAgentAccessControl:edit', 'default', '编辑配置', 'hub0020:userAgentAccessControl:edit', 'BUTTON',
+  'hub0020:userAgentAccessControl', 5, 2, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_008_002', 1, 'Y'
+);
+
+-- 删除配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:userAgentAccessControl:delete', 'default', '删除配置', 'hub0020:userAgentAccessControl:delete', 'BUTTON',
+  'hub0020:userAgentAccessControl', 5, 3, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_008_003', 1, 'Y'
+);
+
+-- 查看详情
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:userAgentAccessControl:view', 'default', '查看详情', 'hub0020:userAgentAccessControl:view', 'BUTTON',
+  'hub0020:userAgentAccessControl', 5, 4, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_008_004', 1, 'Y'
+);
+
+-- 查询
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:userAgentAccessControl:search', 'default', '查询', 'hub0020:userAgentAccessControl:search', 'BUTTON',
+  'hub0020:userAgentAccessControl', 5, 5, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_008_005', 1, 'Y'
+);
+
+-- 重置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:userAgentAccessControl:reset', 'default', '重置', 'hub0020:userAgentAccessControl:reset', 'BUTTON',
+  'hub0020:userAgentAccessControl', 5, 6, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_008_006', 1, 'Y'
 );
 
 -- API访问控制按钮
@@ -692,9 +863,88 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0020:apiAccessControl', 'default', 'API访问控制', 'hub0020:apiAccessControl', 'BUTTON',
-  'hub0020', 3, 9, 'zh-CN',
+  'hub0020:globalConfig', 4, 3, 'zh-CN',
   'Y', 'Y',
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_009', 1, 'Y'
+);
+
+-- API访问控制子权限（来源于 common002/api-config 模块的操作）
+-- 新建配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:apiAccessControl:add', 'default', '新建配置', 'hub0020:apiAccessControl:add', 'BUTTON',
+  'hub0020:apiAccessControl', 5, 1, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_009_001', 1, 'Y'
+);
+
+-- 编辑配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:apiAccessControl:edit', 'default', '编辑配置', 'hub0020:apiAccessControl:edit', 'BUTTON',
+  'hub0020:apiAccessControl', 5, 2, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_009_002', 1, 'Y'
+);
+
+-- 删除配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:apiAccessControl:delete', 'default', '删除配置', 'hub0020:apiAccessControl:delete', 'BUTTON',
+  'hub0020:apiAccessControl', 5, 3, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_009_003', 1, 'Y'
+);
+
+-- 查看详情
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:apiAccessControl:view', 'default', '查看详情', 'hub0020:apiAccessControl:view', 'BUTTON',
+  'hub0020:apiAccessControl', 5, 4, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_009_004', 1, 'Y'
+);
+
+-- 查询
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:apiAccessControl:search', 'default', '查询', 'hub0020:apiAccessControl:search', 'BUTTON',
+  'hub0020:apiAccessControl', 5, 5, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_009_005', 1, 'Y'
+);
+
+-- 重置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:apiAccessControl:reset', 'default', '重置', 'hub0020:apiAccessControl:reset', 'BUTTON',
+  'hub0020:apiAccessControl', 5, 6, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_009_006', 1, 'Y'
 );
 
 -- 域名访问控制按钮
@@ -705,9 +955,88 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0020:domainAccessControl', 'default', '域名访问控制', 'hub0020:domainAccessControl', 'BUTTON',
-  'hub0020', 3, 10, 'zh-CN',
+  'hub0020:globalConfig', 4, 4, 'zh-CN',
   'Y', 'Y',
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_010', 1, 'Y'
+);
+
+-- 域名访问控制子权限（来源于 common002/domain-config 模块的操作）
+-- 新建配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:domainAccessControl:add', 'default', '新建配置', 'hub0020:domainAccessControl:add', 'BUTTON',
+  'hub0020:domainAccessControl', 5, 1, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_010_001', 1, 'Y'
+);
+
+-- 编辑配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:domainAccessControl:edit', 'default', '编辑配置', 'hub0020:domainAccessControl:edit', 'BUTTON',
+  'hub0020:domainAccessControl', 5, 2, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_010_002', 1, 'Y'
+);
+
+-- 删除配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:domainAccessControl:delete', 'default', '删除配置', 'hub0020:domainAccessControl:delete', 'BUTTON',
+  'hub0020:domainAccessControl', 5, 3, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_010_003', 1, 'Y'
+);
+
+-- 查看详情
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:domainAccessControl:view', 'default', '查看详情', 'hub0020:domainAccessControl:view', 'BUTTON',
+  'hub0020:domainAccessControl', 5, 4, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_010_004', 1, 'Y'
+);
+
+-- 查询
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:domainAccessControl:search', 'default', '查询', 'hub0020:domainAccessControl:search', 'BUTTON',
+  'hub0020:domainAccessControl', 5, 5, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_010_005', 1, 'Y'
+);
+
+-- 重置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:domainAccessControl:reset', 'default', '重置', 'hub0020:domainAccessControl:reset', 'BUTTON',
+  'hub0020:domainAccessControl', 5, 6, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_010_006', 1, 'Y'
 );
 
 -- 跨域配置按钮
@@ -718,7 +1047,7 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0020:corsConfig', 'default', '跨域配置', 'hub0020:corsConfig', 'BUTTON',
-  'hub0020', 3, 11, 'zh-CN',
+  'hub0020:globalConfig', 4, 5, 'zh-CN',
   'Y', 'Y',
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_011', 1, 'Y'
 );
@@ -731,7 +1060,7 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0020:authConfig', 'default', '认证配置', 'hub0020:authConfig', 'BUTTON',
-  'hub0020', 3, 12, 'zh-CN',
+  'hub0020:globalConfig', 4, 6, 'zh-CN',
   'Y', 'Y',
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_012', 1, 'Y'
 );
@@ -744,9 +1073,49 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0020:rateLimitConfig', 'default', '限流配置', 'hub0020:rateLimitConfig', 'BUTTON',
-  'hub0020', 3, 13, 'zh-CN',
+  'hub0020:globalConfig', 4, 7, 'zh-CN',
   'Y', 'Y',
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_013', 1, 'Y'
+);
+
+-- 限流配置子权限（来源于 common002/limit-config 模块的操作）
+-- 新增配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:rateLimitConfig:create', 'default', '新增配置', 'hub0020:rateLimitConfig:create', 'BUTTON',
+  'hub0020:rateLimitConfig', 5, 1, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_013_001', 1, 'Y'
+);
+
+-- 编辑配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:rateLimitConfig:edit', 'default', '编辑配置', 'hub0020:rateLimitConfig:edit', 'BUTTON',
+  'hub0020:rateLimitConfig', 5, 2, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_013_002', 1, 'Y'
+);
+
+-- 查看详情
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:rateLimitConfig:view', 'default', '查看详情', 'hub0020:rateLimitConfig:view', 'BUTTON',
+  'hub0020:rateLimitConfig', 5, 3, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_013_003', 1, 'Y'
 );
 
 -- 日志配置按钮
@@ -831,6 +1200,85 @@ INSERT INTO HUB_AUTH_RESOURCE (
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_002', 1, 'Y'
 );
 
+-- 全局过滤器配置子权限（来源于 hub0021/filter-config 模块的操作，filterScope = 'global'）
+-- 新增过滤器
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:globalFilterConfig:add', 'default', '新增过滤器', 'hub0021:globalFilterConfig:add', 'BUTTON',
+  'hub0021:globalFilterConfig', 4, 1, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_002_001', 1, 'Y'
+);
+
+-- 编辑过滤器
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:globalFilterConfig:edit', 'default', '编辑过滤器', 'hub0021:globalFilterConfig:edit', 'BUTTON',
+  'hub0021:globalFilterConfig', 4, 2, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_002_002', 1, 'Y'
+);
+
+-- 删除过滤器
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:globalFilterConfig:delete', 'default', '删除过滤器', 'hub0021:globalFilterConfig:delete', 'BUTTON',
+  'hub0021:globalFilterConfig', 4, 3, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_002_003', 1, 'Y'
+);
+
+-- 查看详情
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:globalFilterConfig:view', 'default', '查看详情', 'hub0021:globalFilterConfig:view', 'BUTTON',
+  'hub0021:globalFilterConfig', 4, 4, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_002_004', 1, 'Y'
+);
+
+-- 查询
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:globalFilterConfig:search', 'default', '查询', 'hub0021:globalFilterConfig:search', 'BUTTON',
+  'hub0021:globalFilterConfig', 4, 5, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_002_005', 1, 'Y'
+);
+
+-- 重置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:globalFilterConfig:reset', 'default', '重置', 'hub0021:globalFilterConfig:reset', 'BUTTON',
+  'hub0021:globalFilterConfig', 4, 6, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_002_006', 1, 'Y'
+);
+
 -- 新增路由按钮
 INSERT INTO HUB_AUTH_RESOURCE (
   resourceId, tenantId, resourceName, resourceCode, resourceType,
@@ -883,6 +1331,19 @@ INSERT INTO HUB_AUTH_RESOURCE (
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_006', 1, 'Y'
 );
 
+-- 路由配置分组（右键菜单中的分组项）
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:routeConfig', 'default', '路由配置', 'hub0021:routeConfig', 'BUTTON',
+  'hub0021', 3, 7, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_007', 1, 'Y'
+);
+
 -- 路由断言配置按钮
 INSERT INTO HUB_AUTH_RESOURCE (
   resourceId, tenantId, resourceName, resourceCode, resourceType,
@@ -891,9 +1352,88 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0021:assertConfig', 'default', '路由断言配置', 'hub0021:assertConfig', 'BUTTON',
-  'hub0021', 3, 7, 'zh-CN',
+  'hub0021:routeConfig', 4, 1, 'zh-CN',
   'Y', 'Y',
-  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_007', 1, 'Y'
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_008', 1, 'Y'
+);
+
+-- 路由断言配置子权限（来源于 hub0021/assert-config 模块的操作）
+-- 新增断言
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:assertConfig:add', 'default', '新增断言', 'hub0021:assertConfig:add', 'BUTTON',
+  'hub0021:assertConfig', 5, 1, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_008_001', 1, 'Y'
+);
+
+-- 编辑断言
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:assertConfig:edit', 'default', '编辑断言', 'hub0021:assertConfig:edit', 'BUTTON',
+  'hub0021:assertConfig', 5, 2, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_008_002', 1, 'Y'
+);
+
+-- 删除断言
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:assertConfig:delete', 'default', '删除断言', 'hub0021:assertConfig:delete', 'BUTTON',
+  'hub0021:assertConfig', 5, 3, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_008_003', 1, 'Y'
+);
+
+-- 查看详情
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:assertConfig:view', 'default', '查看详情', 'hub0021:assertConfig:view', 'BUTTON',
+  'hub0021:assertConfig', 5, 4, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_008_004', 1, 'Y'
+);
+
+-- 查询
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:assertConfig:search', 'default', '查询', 'hub0021:assertConfig:search', 'BUTTON',
+  'hub0021:assertConfig', 5, 5, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_008_005', 1, 'Y'
+);
+
+-- 重置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:assertConfig:reset', 'default', '重置', 'hub0021:assertConfig:reset', 'BUTTON',
+  'hub0021:assertConfig', 5, 6, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_008_006', 1, 'Y'
 );
 
 -- 路由IP访问控制按钮
@@ -904,9 +1444,88 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0021:ipAccessControl', 'default', 'IP访问控制', 'hub0021:ipAccessControl', 'BUTTON',
-  'hub0021', 3, 8, 'zh-CN',
+  'hub0021:routeConfig', 4, 2, 'zh-CN',
   'Y', 'Y',
-  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_008', 1, 'Y'
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_009', 1, 'Y'
+);
+
+-- 路由IP访问控制子权限（来源于 common002/ip-config 模块的操作）
+-- 新建配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:ipAccessControl:add', 'default', '新建配置', 'hub0021:ipAccessControl:add', 'BUTTON',
+  'hub0021:ipAccessControl', 5, 1, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_009_001', 1, 'Y'
+);
+
+-- 编辑配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:ipAccessControl:edit', 'default', '编辑配置', 'hub0021:ipAccessControl:edit', 'BUTTON',
+  'hub0021:ipAccessControl', 5, 2, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_009_002', 1, 'Y'
+);
+
+-- 删除配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:ipAccessControl:delete', 'default', '删除配置', 'hub0021:ipAccessControl:delete', 'BUTTON',
+  'hub0021:ipAccessControl', 5, 3, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_009_003', 1, 'Y'
+);
+
+-- 查看详情
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:ipAccessControl:view', 'default', '查看详情', 'hub0021:ipAccessControl:view', 'BUTTON',
+  'hub0021:ipAccessControl', 5, 4, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_009_004', 1, 'Y'
+);
+
+-- 查询
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:ipAccessControl:search', 'default', '查询', 'hub0021:ipAccessControl:search', 'BUTTON',
+  'hub0021:ipAccessControl', 5, 5, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_009_005', 1, 'Y'
+);
+
+-- 重置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:ipAccessControl:reset', 'default', '重置', 'hub0021:ipAccessControl:reset', 'BUTTON',
+  'hub0021:ipAccessControl', 5, 6, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_009_006', 1, 'Y'
 );
 
 -- 路由User-Agent访问控制按钮
@@ -917,9 +1536,88 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0021:userAgentAccessControl', 'default', 'User-Agent访问控制', 'hub0021:userAgentAccessControl', 'BUTTON',
-  'hub0021', 3, 9, 'zh-CN',
+  'hub0021:routeConfig', 4, 3, 'zh-CN',
   'Y', 'Y',
-  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_009', 1, 'Y'
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_010', 1, 'Y'
+);
+
+-- 路由User-Agent访问控制子权限（来源于 common002/agent-config 模块的操作）
+-- 新建配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:userAgentAccessControl:add', 'default', '新建配置', 'hub0021:userAgentAccessControl:add', 'BUTTON',
+  'hub0021:userAgentAccessControl', 5, 1, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_010_001', 1, 'Y'
+);
+
+-- 编辑配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:userAgentAccessControl:edit', 'default', '编辑配置', 'hub0021:userAgentAccessControl:edit', 'BUTTON',
+  'hub0021:userAgentAccessControl', 5, 2, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_010_002', 1, 'Y'
+);
+
+-- 删除配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:userAgentAccessControl:delete', 'default', '删除配置', 'hub0021:userAgentAccessControl:delete', 'BUTTON',
+  'hub0021:userAgentAccessControl', 5, 3, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_010_003', 1, 'Y'
+);
+
+-- 查看详情
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:userAgentAccessControl:view', 'default', '查看详情', 'hub0021:userAgentAccessControl:view', 'BUTTON',
+  'hub0021:userAgentAccessControl', 5, 4, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_010_004', 1, 'Y'
+);
+
+-- 查询
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:userAgentAccessControl:search', 'default', '查询', 'hub0021:userAgentAccessControl:search', 'BUTTON',
+  'hub0021:userAgentAccessControl', 5, 5, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_010_005', 1, 'Y'
+);
+
+-- 重置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:userAgentAccessControl:reset', 'default', '重置', 'hub0021:userAgentAccessControl:reset', 'BUTTON',
+  'hub0021:userAgentAccessControl', 5, 6, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_010_006', 1, 'Y'
 );
 
 -- 路由API访问控制按钮
@@ -930,9 +1628,88 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0021:apiAccessControl', 'default', 'API访问控制', 'hub0021:apiAccessControl', 'BUTTON',
-  'hub0021', 3, 10, 'zh-CN',
+  'hub0021:routeConfig', 4, 4, 'zh-CN',
   'Y', 'Y',
-  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_010', 1, 'Y'
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_011', 1, 'Y'
+);
+
+-- 路由API访问控制子权限（来源于 common002/api-config 模块的操作）
+-- 新建配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:apiAccessControl:add', 'default', '新建配置', 'hub0021:apiAccessControl:add', 'BUTTON',
+  'hub0021:apiAccessControl', 5, 1, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_011_001', 1, 'Y'
+);
+
+-- 编辑配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:apiAccessControl:edit', 'default', '编辑配置', 'hub0021:apiAccessControl:edit', 'BUTTON',
+  'hub0021:apiAccessControl', 5, 2, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_011_002', 1, 'Y'
+);
+
+-- 删除配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:apiAccessControl:delete', 'default', '删除配置', 'hub0021:apiAccessControl:delete', 'BUTTON',
+  'hub0021:apiAccessControl', 5, 3, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_011_003', 1, 'Y'
+);
+
+-- 查看详情
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:apiAccessControl:view', 'default', '查看详情', 'hub0021:apiAccessControl:view', 'BUTTON',
+  'hub0021:apiAccessControl', 5, 4, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_011_004', 1, 'Y'
+);
+
+-- 查询
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:apiAccessControl:search', 'default', '查询', 'hub0021:apiAccessControl:search', 'BUTTON',
+  'hub0021:apiAccessControl', 5, 5, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_011_005', 1, 'Y'
+);
+
+-- 重置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:apiAccessControl:reset', 'default', '重置', 'hub0021:apiAccessControl:reset', 'BUTTON',
+  'hub0021:apiAccessControl', 5, 6, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_011_006', 1, 'Y'
 );
 
 -- 路由域名访问控制按钮
@@ -943,9 +1720,88 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0021:domainAccessControl', 'default', '域名访问控制', 'hub0021:domainAccessControl', 'BUTTON',
-  'hub0021', 3, 11, 'zh-CN',
+  'hub0021:routeConfig', 4, 5, 'zh-CN',
   'Y', 'Y',
-  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_011', 1, 'Y'
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_012', 1, 'Y'
+);
+
+-- 路由域名访问控制子权限（来源于 common002/domain-config 模块的操作）
+-- 新建配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:domainAccessControl:add', 'default', '新建配置', 'hub0021:domainAccessControl:add', 'BUTTON',
+  'hub0021:domainAccessControl', 5, 1, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_012_001', 1, 'Y'
+);
+
+-- 编辑配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:domainAccessControl:edit', 'default', '编辑配置', 'hub0021:domainAccessControl:edit', 'BUTTON',
+  'hub0021:domainAccessControl', 5, 2, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_012_002', 1, 'Y'
+);
+
+-- 删除配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:domainAccessControl:delete', 'default', '删除配置', 'hub0021:domainAccessControl:delete', 'BUTTON',
+  'hub0021:domainAccessControl', 5, 3, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_012_003', 1, 'Y'
+);
+
+-- 查看详情
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:domainAccessControl:view', 'default', '查看详情', 'hub0021:domainAccessControl:view', 'BUTTON',
+  'hub0021:domainAccessControl', 5, 4, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_012_004', 1, 'Y'
+);
+
+-- 查询
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:domainAccessControl:search', 'default', '查询', 'hub0021:domainAccessControl:search', 'BUTTON',
+  'hub0021:domainAccessControl', 5, 5, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_012_005', 1, 'Y'
+);
+
+-- 重置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:domainAccessControl:reset', 'default', '重置', 'hub0021:domainAccessControl:reset', 'BUTTON',
+  'hub0021:domainAccessControl', 5, 6, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_012_006', 1, 'Y'
 );
 
 -- 路由跨域配置按钮
@@ -956,9 +1812,62 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0021:corsConfig', 'default', '跨域配置', 'hub0021:corsConfig', 'BUTTON',
-  'hub0021', 3, 12, 'zh-CN',
+  'hub0021:routeConfig', 4, 6, 'zh-CN',
   'Y', 'Y',
-  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_012', 1, 'Y'
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_013', 1, 'Y'
+);
+
+-- 路由跨域配置子权限（来源于 common002/cors-config 模块的操作）
+-- 新增配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:corsConfig:add', 'default', '新增配置', 'hub0021:corsConfig:add', 'BUTTON',
+  'hub0021:corsConfig', 5, 1, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_013_001', 1, 'Y'
+);
+
+-- 编辑配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:corsConfig:edit', 'default', '编辑配置', 'hub0021:corsConfig:edit', 'BUTTON',
+  'hub0021:corsConfig', 5, 2, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_013_002', 1, 'Y'
+);
+
+-- 查看详情
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:corsConfig:view', 'default', '查看详情', 'hub0021:corsConfig:view', 'BUTTON',
+  'hub0021:corsConfig', 5, 3, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_013_003', 1, 'Y'
+);
+
+-- 查询
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:corsConfig:search', 'default', '查询', 'hub0021:corsConfig:search', 'BUTTON',
+  'hub0021:corsConfig', 5, 4, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_013_004', 1, 'Y'
 );
 
 -- 路由认证配置按钮
@@ -969,9 +1878,62 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0021:authConfig', 'default', '认证配置', 'hub0021:authConfig', 'BUTTON',
-  'hub0021', 3, 13, 'zh-CN',
+  'hub0021:routeConfig', 4, 7, 'zh-CN',
   'Y', 'Y',
-  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_013', 1, 'Y'
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_014', 1, 'Y'
+);
+
+-- 路由认证配置子权限（来源于 common002/auth-config 模块的操作）
+-- 新增配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:authConfig:add', 'default', '新增配置', 'hub0021:authConfig:add', 'BUTTON',
+  'hub0021:authConfig', 5, 1, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_014_001', 1, 'Y'
+);
+
+-- 编辑配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:authConfig:edit', 'default', '编辑配置', 'hub0021:authConfig:edit', 'BUTTON',
+  'hub0021:authConfig', 5, 2, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_014_002', 1, 'Y'
+);
+
+-- 查看详情
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:authConfig:view', 'default', '查看详情', 'hub0021:authConfig:view', 'BUTTON',
+  'hub0021:authConfig', 5, 3, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_014_003', 1, 'Y'
+);
+
+-- 查询
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:authConfig:search', 'default', '查询', 'hub0021:authConfig:search', 'BUTTON',
+  'hub0021:authConfig', 5, 4, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_014_004', 1, 'Y'
 );
 
 -- 路由限流配置按钮
@@ -982,9 +1944,62 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0021:rateLimitConfig', 'default', '限流配置', 'hub0021:rateLimitConfig', 'BUTTON',
-  'hub0021', 3, 14, 'zh-CN',
+  'hub0021:routeConfig', 4, 8, 'zh-CN',
   'Y', 'Y',
-  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_014', 1, 'Y'
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_015', 1, 'Y'
+);
+
+-- 路由限流配置子权限（来源于 common002/limit-config 模块的操作）
+-- 新增配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:rateLimitConfig:add', 'default', '新增配置', 'hub0021:rateLimitConfig:add', 'BUTTON',
+  'hub0021:rateLimitConfig', 5, 1, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_015_001', 1, 'Y'
+);
+
+-- 编辑配置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:rateLimitConfig:edit', 'default', '编辑配置', 'hub0021:rateLimitConfig:edit', 'BUTTON',
+  'hub0021:rateLimitConfig', 5, 2, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_015_002', 1, 'Y'
+);
+
+-- 查看详情
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:rateLimitConfig:view', 'default', '查看详情', 'hub0021:rateLimitConfig:view', 'BUTTON',
+  'hub0021:rateLimitConfig', 5, 3, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_015_003', 1, 'Y'
+);
+
+-- 查询
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:rateLimitConfig:search', 'default', '查询', 'hub0021:rateLimitConfig:search', 'BUTTON',
+  'hub0021:rateLimitConfig', 5, 4, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_015_004', 1, 'Y'
 );
 
 -- 路由过滤器按钮
@@ -995,9 +2010,88 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0021:filters', 'default', '路由过滤器', 'hub0021:filters', 'BUTTON',
-  'hub0021', 3, 15, 'zh-CN',
+  'hub0021:routeConfig', 4, 9, 'zh-CN',
   'Y', 'Y',
-  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_015', 1, 'Y'
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_016', 1, 'Y'
+);
+
+-- 路由过滤器子权限（来源于 hub0021/filter-config 模块的操作）
+-- 新增过滤器
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:filters:add', 'default', '新增过滤器', 'hub0021:filters:add', 'BUTTON',
+  'hub0021:filters', 5, 1, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_016_001', 1, 'Y'
+);
+
+-- 编辑过滤器
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:filters:edit', 'default', '编辑过滤器', 'hub0021:filters:edit', 'BUTTON',
+  'hub0021:filters', 5, 2, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_016_002', 1, 'Y'
+);
+
+-- 删除过滤器
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:filters:delete', 'default', '删除过滤器', 'hub0021:filters:delete', 'BUTTON',
+  'hub0021:filters', 5, 3, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_016_003', 1, 'Y'
+);
+
+-- 查看详情
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:filters:view', 'default', '查看详情', 'hub0021:filters:view', 'BUTTON',
+  'hub0021:filters', 5, 4, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_016_004', 1, 'Y'
+);
+
+-- 查询
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:filters:search', 'default', '查询', 'hub0021:filters:search', 'BUTTON',
+  'hub0021:filters', 5, 5, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_016_005', 1, 'Y'
+);
+
+-- 重置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:filters:reset', 'default', '重置', 'hub0021:filters:reset', 'BUTTON',
+  'hub0021:filters', 5, 6, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_016_006', 1, 'Y'
 );
 
 -- 查询按钮
@@ -1008,9 +2102,9 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0021:search', 'default', '查询', 'hub0021:search', 'BUTTON',
-  'hub0021', 3, 16, 'zh-CN',
+  'hub0021', 3, 8, 'zh-CN',
   'Y', 'Y',
-  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_016', 1, 'Y'
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_017', 1, 'Y'
 );
 
 -- 重置按钮
@@ -1021,9 +2115,9 @@ INSERT INTO HUB_AUTH_RESOURCE (
   addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
 ) VALUES (
   'hub0021:reset', 'default', '重置', 'hub0021:reset', 'BUTTON',
-  'hub0021', 3, 17, 'zh-CN',
+  'hub0021', 3, 9, 'zh-CN',
   'Y', 'Y',
-  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_017', 1, 'Y'
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_011_018', 1, 'Y'
 );
 
 -- =====================================================
@@ -1080,6 +2174,85 @@ INSERT INTO HUB_AUTH_RESOURCE (
   'hub0022', 3, 4, 'zh-CN',
   'Y', 'Y',
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_012_004', 1, 'Y'
+);
+
+-- 节点管理子权限（来源于 hub0022 节点管理页面的操作）
+-- 新增节点
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0022:manageNodes:add', 'default', '新增节点', 'hub0022:manageNodes:add', 'BUTTON',
+  'hub0022:manageNodes', 4, 1, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_012_004_001', 1, 'Y'
+);
+
+-- 编辑节点
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0022:manageNodes:edit', 'default', '编辑节点', 'hub0022:manageNodes:edit', 'BUTTON',
+  'hub0022:manageNodes', 4, 2, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_012_004_002', 1, 'Y'
+);
+
+-- 删除节点
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0022:manageNodes:delete', 'default', '删除节点', 'hub0022:manageNodes:delete', 'BUTTON',
+  'hub0022:manageNodes', 4, 3, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_012_004_003', 1, 'Y'
+);
+
+-- 查看节点详情
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0022:manageNodes:view', 'default', '查看节点详情', 'hub0022:manageNodes:view', 'BUTTON',
+  'hub0022:manageNodes', 4, 4, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_012_004_004', 1, 'Y'
+);
+
+-- 查询节点
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0022:manageNodes:search', 'default', '查询', 'hub0022:manageNodes:search', 'BUTTON',
+  'hub0022:manageNodes', 4, 5, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_012_004_005', 1, 'Y'
+);
+
+-- 重置节点列表
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0022:manageNodes:reset', 'default', '重置', 'hub0022:manageNodes:reset', 'BUTTON',
+  'hub0022:manageNodes', 4, 6, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_012_004_006', 1, 'Y'
 );
 
 -- 编辑服务按钮

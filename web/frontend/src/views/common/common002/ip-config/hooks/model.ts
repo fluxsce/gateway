@@ -20,10 +20,10 @@ import type { IpAccessConfig } from './types'
 
 /**
  * IP访问控制配置列表 Model
+ * @param moduleId 模块ID（用于权限控制，由父级传入）
  */
-export function useIpAccessConfigModel() {
+export function useIpAccessConfigModel(moduleId: string) {
   // ============= 数据状态 =============
-  const moduleId = 'hubcommon002-ip-access'
   /** 加载状态 */
   const loading = ref(false)
 

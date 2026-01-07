@@ -12,12 +12,13 @@ import type { CorsConfig } from './types'
 
 /**
  * CORS配置服务 Hook（纯业务逻辑）
+ * @param moduleId 模块ID（用于权限控制，必填）
  */
-export function useCorsConfigService() {
+export function useCorsConfigService(moduleId: string) {
   const message = useMessage()
 
-  // 初始化 Model
-  const model = useCorsConfigModel()
+  // 初始化 Model（传递 moduleId）
+  const model = useCorsConfigModel(moduleId)
 
   const { loading } = model
 

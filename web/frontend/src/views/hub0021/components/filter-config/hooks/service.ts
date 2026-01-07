@@ -19,11 +19,13 @@ import type { FilterConfig } from './types'
 
 /**
  * 过滤器配置列表服务层 Hook
+ * @param moduleId 模块ID（用于权限控制，必填）
  * @param gatewayInstanceId 网关实例ID（可选，用于全局过滤器）
  * @param routeConfigId 路由配置ID（可选，用于路由过滤器）
  * @param searchFormRef 搜索表单引用（可选）
  */
 export function useFilterConfigService(
+  moduleId: string,
   gatewayInstanceId?: Ref<string | undefined> | string,
   routeConfigId?: Ref<string | undefined> | string,
   searchFormRef?: Ref<any> | any
@@ -39,8 +41,8 @@ export function useFilterConfigService(
     return typeof routeConfigId === 'string' ? routeConfigId : routeConfigId?.value
   }
 
-  // 使用 model
-  const model = useFilterConfigModel()
+  // 使用 model（传入模块ID）
+  const model = useFilterConfigModel(moduleId)
   
   // 解构 model 中的列表操作方法
   const {

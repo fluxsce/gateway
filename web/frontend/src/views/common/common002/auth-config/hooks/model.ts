@@ -9,10 +9,10 @@ import { h, ref } from 'vue'
 
 /**
  * 认证配置 Model
+ * @param moduleId 模块ID（用于权限控制，由父级传入）
  */
-export function useAuthConfigModel() {
+export function useAuthConfigModel(moduleId: string) {
   // ============= 数据状态 =============
-  const moduleId = 'hubcommon002-auth'
   /** 加载状态 */
   const loading = ref(false)
 

@@ -8,7 +8,7 @@
     @update:visible="handleUpdateVisible"
     @after-leave="handleAfterLeave"
   >
-    <div class="useragent-access-config-list-modal" :id="service.model.moduleId">
+    <div class="useragent-access-config-list-modal" id="useragent-access-config-list-modal">
       <GPane direction="vertical" :no-resize="true">
         <!-- 上部：搜索表单 -->
         <template #1>
@@ -64,7 +64,7 @@
         v-model:visible="formDialogVisible"
         :mode="formDialogMode"
         :title="formDialogMode === 'create' ? '新增User-Agent访问控制配置' : formDialogMode === 'edit' ? '编辑User-Agent访问控制配置' : '查看User-Agent访问控制配置详情'"
-        :to="`#${service.model.moduleId}`"
+        to="#useragent-access-config-list-modal"
         :form-fields="service.model.formFields"
         :initial-data="currentEditConfig || undefined"
         :auto-close-on-confirm="false"
@@ -76,10 +76,10 @@
 </template>
 
 <script lang="ts" setup>
-import { GModal } from '@/components/gmodal'
-import { GPane } from '@/components/gpane'
 import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
 import SearchForm from '@/components/form/search/SearchForm.vue'
+import { GModal } from '@/components/gmodal'
+import { GPane } from '@/components/gpane'
 import { GGrid } from '@/components/grid'
 import { NTag } from 'naive-ui'
 import { ref, watch } from 'vue'
@@ -109,6 +109,7 @@ const emit = defineEmits<UserAgentAccessConfigListModalEmits>()
 
 const searchFormRef = ref()
 const gridRef = ref()
+const moduleIdRef = ref<string>(props.moduleId)
 
 // ============= 模态框可见性 =============
 
@@ -139,7 +140,7 @@ const {
   handleToolbarClick,
   handleMenuClick,
   handleSearch,
-} = useUserAgentAccessConfigPage(gridRef, securityConfigId, searchFormRef)
+} = useUserAgentAccessConfigPage(moduleIdRef, gridRef, securityConfigId, searchFormRef)
 
 // ============= 事件处理 =============
 

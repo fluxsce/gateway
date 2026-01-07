@@ -1,12 +1,12 @@
 <template>
-  <div class="auth-config-form-modal" :id="moduleId">
+  <div class="auth-config-form-modal" id="auth-config-form-modal">
     <!-- 认证配置表单对话框（新增/编辑/查看共用） -->
     <GdataFormModal
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
       :title="computedTitle"
       :width="props.width || 800"
-      :to="props.to || (moduleId ? `#${moduleId}` : undefined)"
+      :to="props.to || '#auth-config-form-modal'"
       :form-fields="service.model.formFields"
       :form-tabs="service.model.formTabs"
       :initial-data="currentEditConfig || undefined"
@@ -35,7 +35,6 @@ const props = withDefaults(defineProps<AuthConfigFormModalProps>(), {
   visible: false,
   width: 800,
   to: undefined,
-  moduleId: 'auth-config-form-modal',
   gatewayInstanceId: undefined,
   routeConfigId: undefined,
 })
@@ -51,9 +50,10 @@ const emit = defineEmits<AuthConfigFormModalEmits>()
 // 创建响应式的 ref，用于传递给 Hook（不需要 watch，因为对话框打开时这些值已确定）
 const gatewayInstanceId = ref<string | undefined>(props.gatewayInstanceId)
 const routeConfigId = ref<string | undefined>(props.routeConfigId)
+const moduleIdRef = ref<string>(props.moduleId)
 
-// 使用页面级 Hook（传递响应式的 ref）
-const page = useAuthConfigPage({
+// 使用页面级 Hook（传递响应式的 ref，包括 moduleId）
+const page = useAuthConfigPage(moduleIdRef, {
   gatewayInstanceId,
   routeConfigId,
 })
@@ -61,9 +61,6 @@ const page = useAuthConfigPage({
 const { service, formDialogVisible, formDialogMode, currentEditConfig, openDialog, closeFormDialog, handleFormSubmit } = page
 
 // ============= 计算属性 =============
-
-// 使用传入的 moduleId
-const moduleId = computed(() => props.moduleId || 'auth-config-form-modal')
 
 // 计算标题（响应 formDialogMode 的变化）
 const computedTitle = computed(() => {

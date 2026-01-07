@@ -95,6 +95,7 @@
     <!-- 全局过滤器配置对话框 -->
     <FilterConfigListModal
       v-model:visible="page.globalFilterConfigDialogVisible.value"
+      module-id="hub0021:globalFilterConfig"
       :gateway-instance-id="page.currentGatewayInstanceId.value"
       :filter-scope="'global'"
       :to="`#${props.parentModuleId}`"

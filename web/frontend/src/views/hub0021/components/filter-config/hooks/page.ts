@@ -13,12 +13,14 @@ import type { FilterConfig } from './types'
 
 /**
  * 过滤器配置列表页面级 Hook
+ * @param moduleId 模块ID（用于权限控制，必填）
  * @param gridRef Grid 组件引用（可选）
  * @param gatewayInstanceId 网关实例ID（可选，用于全局过滤器）
  * @param routeConfigId 路由配置ID（可选，用于路由过滤器）
  * @param searchFormRef 搜索表单引用（可选）
  */
 export function useFilterConfigPage(
+  moduleId: Ref<string>,
   gridRef?: Ref<any> | any,
   gatewayInstanceId?: Ref<string | undefined> | string,
   routeConfigId?: Ref<string | undefined> | string,
@@ -27,8 +29,8 @@ export function useFilterConfigPage(
   const message = useMessage()
   const gDialog = useGDialog()
 
-  // 业务服务（包含 model、增删改查等）
-  const service = useFilterConfigService(gatewayInstanceId, routeConfigId, searchFormRef)
+  // 业务服务（包含 model、增删改查等，传递模块ID）
+  const service = useFilterConfigService(moduleId.value, gatewayInstanceId, routeConfigId, searchFormRef)
 
   // 表单对话框状态（新增/编辑/查看共用）
   const formDialogVisible = ref(false)

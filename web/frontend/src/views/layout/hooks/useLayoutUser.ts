@@ -2,6 +2,7 @@
  * 布局用户相关逻辑
  * 处理用户菜单、登出等操作
  */
+import { config } from '@/config/config'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { store } from '@/stores'
 import { LogOutOutline, SettingsOutline } from '@vicons/ionicons5'
@@ -41,7 +42,11 @@ export function useLayoutUser() {
         // 执行登出操作
         store.user.clearUserInfo()
         // 使用 location.href 确保完全重置页面状态和清除 cookie
-        window.location.href = '/'
+        // 使用配置中的 baseUrl，确保包含 VITE_BASE_URL
+        const baseUrl = config.baseUrl.endsWith('/') 
+          ? config.baseUrl.slice(0, -1) 
+          : config.baseUrl
+        window.location.href = baseUrl || '/'
         break
     }
   }

@@ -13,18 +13,20 @@ import { useDomainAccessConfigService } from './useDomainAccessConfigService'
 
 /**
  * 域名访问控制配置列表页面级 Hook
+ * @param moduleId 模块ID（用于权限控制，必填）
  * @param gridRef Grid 组件引用（可选）
  * @param securityConfigId 安全配置ID（可选，用于新增时自动填充）
  */
 export function useDomainAccessConfigPage(
+  moduleId: Ref<string>,
   gridRef?: Ref<any> | any,
   securityConfigId?: Ref<string | undefined>,
   searchFormRef?: Ref<any> | any
 ) {
   const message = useMessage()
 
-  // 业务服务（包含 model、增删改查等）
-  const service = useDomainAccessConfigService(securityConfigId, searchFormRef)
+  // 业务服务（包含 model、增删改查等，传递 moduleId）
+  const service = useDomainAccessConfigService(moduleId.value, securityConfigId, searchFormRef)
 
   // 表单对话框状态（新增/编辑/查看共用）
   const formDialogVisible = ref(false)

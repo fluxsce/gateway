@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/empty"
 	"gateway/pkg/utils/huberrors"
 	"gateway/pkg/utils/random"
 	"gateway/web/views/hub0022/models"
@@ -33,20 +34,27 @@ func (dao *ServiceNodeDAO) QueryServiceNodes(ctx context.Context, tenantId strin
 
 	// 添加筛选条件
 	for key, value := range filters {
-		if value != nil && value != "" {
-			// 跳过nodeEnabled字段，数据库不再维护
-			if key == "nodeEnabled" {
-				continue
-			}
+		// 跳过nodeEnabled字段，数据库不再维护
+		if key == "nodeEnabled" {
+			continue
+		}
 
-			// 对于字符串类型的值，支持模糊查询
-			if strValue, ok := value.(string); ok && key == "nodeHost" {
-				whereClause += fmt.Sprintf(" AND %s LIKE ?", key)
-				params = append(params, "%"+strValue+"%")
-			} else {
-				whereClause += fmt.Sprintf(" AND %s = ?", key)
-				params = append(params, value)
+		// 对于字符串类型的值，使用empty.IsNotEmpty判断
+		if strValue, ok := value.(string); ok {
+			if !empty.IsEmpty(strValue) {
+				if key == "nodeHost" {
+					// 支持模糊查询
+					whereClause += fmt.Sprintf(" AND %s LIKE ?", key)
+					params = append(params, "%"+strValue+"%")
+				} else {
+					whereClause += fmt.Sprintf(" AND %s = ?", key)
+					params = append(params, strValue)
+				}
 			}
+		} else if value != nil {
+			// 非字符串类型的值，只要不为nil就添加条件
+			whereClause += fmt.Sprintf(" AND %s = ?", key)
+			params = append(params, value)
 		}
 	}
 
@@ -130,7 +138,7 @@ func (dao *ServiceNodeDAO) GetServiceNodesByService(ctx context.Context, service
 
 	query := `
 		SELECT * FROM HUB_GW_SERVICE_NODE 
-		WHERE serviceDefinitionId = ? AND tenantId = ? AND activeFlag = 'Y'
+		WHERE serviceDefinitionId = ? AND tenantId = ?
 		ORDER BY nodeWeight DESC, addTime ASC
 	`
 

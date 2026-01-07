@@ -6,6 +6,7 @@ import (
 	"errors"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/utils/empty"
 	"gateway/pkg/utils/huberrors"
 	"gateway/pkg/utils/random"
 	"gateway/web/views/hub0020/models"
@@ -345,25 +346,21 @@ func (dao *GatewayInstanceDAO) ListGatewayInstances(ctx context.Context, tenantI
 	var params []interface{}
 	params = append(params, tenantId)
 
-	// 默认只查询活动实例，如果前端显式传入 ActiveFlag 则按传入值过滤
+	// 构建查询条件，只有当字段不为空时才添加对应条件
 	if query != nil {
-		if query.InstanceName != "" {
+		if !empty.IsEmpty(query.InstanceName) {
 			whereClause += " AND instanceName LIKE ?"
 			params = append(params, "%"+query.InstanceName+"%")
 		}
-		if query.HealthStatus != "" {
+		if !empty.IsEmpty(query.HealthStatus) {
 			whereClause += " AND healthStatus = ?"
 			params = append(params, query.HealthStatus)
 		}
-		if query.ActiveFlag != "" {
+		// 只有当 activeFlag 不为空时才添加查询条件，否则不处理
+		if !empty.IsEmpty(query.ActiveFlag) {
 			whereClause += " AND activeFlag = ?"
 			params = append(params, query.ActiveFlag)
-		} else {
-			whereClause += " AND activeFlag = 'Y'"
 		}
-	} else {
-		// 未提供查询条件时，默认只查询活动实例
-		whereClause += " AND activeFlag = 'Y'"
 	}
 
 	// 基础查询语句

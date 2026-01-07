@@ -1,12 +1,12 @@
 <template>
-  <div class="rate-limit-config-form-modal" :id="moduleId">
+  <div class="rate-limit-config-form-modal" id="rate-limit-config-form-modal">
     <!-- 限流配置表单对话框（新增/编辑/查看共用） -->
     <GdataFormModal
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
       :title="computedTitle"
       :width="props.width || 800"
-      :to="props.to || (moduleId ? `#${moduleId}` : undefined)"
+      :to="props.to || '#rate-limit-config-form-modal'"
       :form-fields="service.model.formFields"
       :form-tabs="service.model.formTabs"
       :initial-data="currentEditConfig || undefined"
@@ -35,7 +35,6 @@ const props = withDefaults(defineProps<RateLimitConfigFormModalProps>(), {
   visible: false,
   width: 800,
   to: undefined,
-  moduleId: 'rate-limit-config-form-modal',
   gatewayInstanceId: undefined,
   routeConfigId: undefined,
 })
@@ -51,19 +50,18 @@ const emit = defineEmits<RateLimitConfigFormModalEmits>()
 // 创建响应式的 ref，用于传递给 Hook（不需要 watch，因为对话框打开时这些值已确定）
 const gatewayInstanceId = ref<string | undefined>(props.gatewayInstanceId)
 const routeConfigId = ref<string | undefined>(props.routeConfigId)
+const moduleIdRef = ref<string>(props.moduleId)
 
-// 使用页面级 Hook（传递响应式的 ref）
+// 使用页面级 Hook（传递响应式的 ref，包括 moduleId）
 const page = useRateLimitConfigPage({
   gatewayInstanceId,
   routeConfigId,
+  moduleId: moduleIdRef,
 })
 
 const { service, formDialogVisible, formDialogMode, currentEditConfig, openDialog, closeFormDialog, handleFormSubmit } = page
 
 // ============= 计算属性 =============
-
-// 使用传入的 moduleId
-const moduleId = computed(() => props.moduleId || 'rate-limit-config-form-modal')
 
 // 计算标题（响应 formDialogMode 的变化）
 const computedTitle = computed(() => {
@@ -89,6 +87,7 @@ watch(
       // 打开模态框时，同步最新的 props 值到响应式 ref
       gatewayInstanceId.value = props.gatewayInstanceId
       routeConfigId.value = props.routeConfigId
+      moduleIdRef.value = props.moduleId
       
       // 如果表单对话框已经打开，先关闭再打开，确保状态重置
       if (formDialogVisible.value) {
@@ -96,7 +95,7 @@ watch(
         // 使用 nextTick 确保关闭后再打开
         await nextTick()
       }
-      // 打开对话框（Hook 内部会使用响应式的 gatewayInstanceId 和 routeConfigId）
+      // 打开对话框（Hook 内部会使用响应式的 gatewayInstanceId、routeConfigId 和 moduleId）
       await openDialog()
     } else {
       // 关闭模态框时，关闭表单对话框

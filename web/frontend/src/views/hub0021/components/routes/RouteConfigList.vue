@@ -62,6 +62,47 @@
             </n-tag>
           </template>
 
+          <!-- 关联服务自定义渲染 -->
+          <template #serviceName="{ row }">
+            <div class="service-name-container">
+              <template v-if="row.serviceName">
+                <!-- 后端返回了服务名称，使用 tag 显示 -->
+                <n-tag size="small" type="success">
+                  {{ row.serviceName }}
+                </n-tag>
+              </template>
+              <template v-else-if="row.serviceDefinitionId">
+                <!-- 后端未返回服务名称，根据 serviceDefinitionId 显示 -->
+                <template v-if="isMultipleServices(row.serviceDefinitionId)">
+                  <!-- 多个服务：显示服务ID列表 -->
+                  <n-tag
+                    v-for="(serviceId, index) in getServiceIds(row.serviceDefinitionId)"
+                    :key="serviceId"
+                    size="small"
+                    type="info"
+                    style="margin-right: 4px; margin-bottom: 2px;"
+                  >
+                    {{ serviceId }}
+                  </n-tag>
+                  <n-tag size="small" type="default" style="margin-left: 4px;">
+                    {{ getServiceIds(row.serviceDefinitionId).length }}个服务
+                  </n-tag>
+                </template>
+                <template v-else>
+                  <!-- 单个服务：使用 tag 显示服务ID -->
+                  <n-tag size="small" type="info">
+                    {{ row.serviceDefinitionId }}
+                  </n-tag>
+                </template>
+              </template>
+              <template v-else>
+                <n-tag size="small" type="default">
+                  未关联
+                </n-tag>
+              </template>
+            </div>
+          </template>
+
           <!-- 状态自定义渲染 -->
           <template #activeFlag="{ row }">
             <n-tag :type="row.activeFlag === 'Y' ? 'success' : 'error'" size="small">
@@ -97,6 +138,7 @@
     <!-- 路由级配置对话框 -->
     <IpAccessConfigListModal
       v-model:visible="ipAccessControlDialogVisible"
+      module-id="hub0021:ipAccessControl"
       :security-config-id="currentRouteConfigId"
       :title="'IP访问控制配置'"
       :width="1200"
@@ -105,6 +147,7 @@
 
     <UserAgentAccessConfigListModal
       v-model:visible="userAgentAccessControlDialogVisible"
+      module-id="hub0021:userAgentAccessControl"
       :security-config-id="currentRouteConfigId"
       :title="'User-Agent访问控制配置'"
       :width="1200"
@@ -113,6 +156,7 @@
 
     <ApiAccessConfigListModal
       v-model:visible="apiAccessControlDialogVisible"
+      module-id="hub0021:apiAccessControl"
       :security-config-id="currentRouteConfigId"
       :title="'API访问控制配置'"
       :width="1200"
@@ -121,6 +165,7 @@
 
     <DomainAccessConfigListModal
       v-model:visible="domainAccessControlDialogVisible"
+      module-id="hub0021:domainAccessControl"
       :security-config-id="currentRouteConfigId"
       :title="'域名访问控制配置'"
       :width="1200"
@@ -129,18 +174,21 @@
 
     <CorsConfigFormModal
       v-model:visible="corsConfigDialogVisible"
+      module-id="hub0021:corsConfig"
       :route-config-id="currentRouteConfigId"
       :to="'#hub0021-route-config-list'"
     />
 
     <AuthConfigFormModal
       v-model:visible="authConfigDialogVisible"
+      module-id="hub0021:authConfig"
       :route-config-id="currentRouteConfigId"
       :to="'#hub0021-route-config-list'"
     />
 
     <RateLimitConfigFormModal
       v-model:visible="rateLimitConfigDialogVisible"
+      module-id="hub0021:rateLimitConfig"
       :route-config-id="currentRouteConfigId"
       :to="'#hub0021-route-config-list'"
     />
@@ -148,6 +196,7 @@
     <!-- 路由过滤器配置对话框 -->
     <FilterConfigListModal
       v-model:visible="filterConfigDialogVisible"
+      module-id="hub0021:filters"
       :route-config-id="currentRouteConfigId"
       :to="'#hub0021-route-config-list'"
     />
@@ -339,6 +388,22 @@ function getMethodClass(method: string): string {
     OPTIONS: 'method-options',
   }
   return methodMap[method.toUpperCase()] || 'method-default'
+}
+
+/**
+ * 判断是否为多个服务（根据 serviceDefinitionId 是否包含逗号）
+ */
+function isMultipleServices(serviceDefinitionId?: string): boolean {
+  if (!serviceDefinitionId) return false
+  return serviceDefinitionId.includes(',')
+}
+
+/**
+ * 获取服务ID列表（从逗号分隔的字符串中解析）
+ */
+function getServiceIds(serviceDefinitionId?: string): string[] {
+  if (!serviceDefinitionId) return []
+  return serviceDefinitionId.split(',').map(id => id.trim()).filter(id => id)
 }
 
 // 暴露刷新方法供父组件调用
@@ -553,6 +618,15 @@ defineExpose({
   .http-method-empty {
     color: var(--g-text-tertiary, #a3a3a3);
   }
+}
+
+/* 关联服务显示样式 */
+.service-name-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  justify-content: center;
 }
 </style>
 

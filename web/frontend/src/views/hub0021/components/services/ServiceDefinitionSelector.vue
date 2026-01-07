@@ -136,7 +136,7 @@ import {
   ServerOutline
 } from '@vicons/ionicons5'
 import { NButton, NIcon, NTag, useMessage } from 'naive-ui'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { getServiceDefinitionById } from '../../api'
 import ServiceDefinitionListModal from './ServiceDefinitionListModal.vue'
 import type { ServiceDefinition } from './types'
@@ -392,21 +392,6 @@ const stopModelValueWatch = watch(() => props.modelValue, (newValue, oldValue) =
 onBeforeUnmount(() => {
   stopGatewayInstanceIdWatch()
   stopModelValueWatch()
-})
-
-// 组件挂载时，如果有 modelValue，加载服务信息
-onMounted(() => {
-  if (props.modelValue) {
-    const ids = typeof props.modelValue === 'string' && props.modelValue.includes(',')
-      ? props.modelValue.split(',').map(id => id.trim()).filter(id => id)
-      : [props.modelValue]
-    
-    if (ids.length === 1) {
-      loadServiceById(ids[0])
-    } else if (ids.length > 1) {
-      loadServicesByIds(ids)
-    }
-  }
 })
 </script>
 

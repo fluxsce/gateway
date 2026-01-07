@@ -18,7 +18,7 @@ import { ASSERTION_OPERATOR_OPTIONS, ASSERTION_TYPE_OPTIONS } from './types'
  */
 export function useAssertConfigModel() {
   // ============= 数据状态 =============
-  const moduleId = 'hub0021-assert-config'
+  const moduleId = 'hub0021:assertConfig'
   
   /** 加载状态 */
   const loading = ref(false)
