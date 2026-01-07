@@ -1,6 +1,6 @@
 <template>
   <div class="user-management" :id="service.model.moduleId">
-    <GPane direction="vertical" :default-size="0.1" :min="0.1" :max="0.5">
+    <GPane direction="vertical" default-size="80px">
       <!-- 上部：搜索表单 -->
       <template #1>
         <search-form
@@ -51,9 +51,9 @@
 </template>
 
 <script lang="ts" setup>
-import { GPane } from '@/components/gpane'
 import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
 import SearchForm from '@/components/form/search/SearchForm.vue'
+import { GPane } from '@/components/gpane'
 import { GGrid } from '@/components/grid'
 import { ref } from 'vue'
 import UserRoleAuthDialog from './compoents/UserRoleAuthDialog.vue'

@@ -1,6 +1,6 @@
 <template>
   <div class="tunnel-server-management" :id="service.model.moduleId">
-    <GPane direction="vertical" :default-size="0.1" :min="0.1" :max="0.5">
+    <GPane direction="vertical" default-size="80px">
       <!-- 上部：搜索表单 -->
       <template #1>
         <search-form
@@ -119,9 +119,9 @@ import { ShieldCheckmarkOutline } from '@vicons/ionicons5'
 import { NIcon, NTag } from 'naive-ui'
 import { onMounted, ref } from 'vue'
 import * as tunnelServerApi from '../../api'
-import { useTunnelServerPage } from './hooks'
 import type { TunnelServerStats as TunnelServerStatsType } from '../../types'
 import TunnelServerStats from '../stats/TunnelServerStats.vue'
+import { useTunnelServerPage } from './hooks'
 
 // 定义组件名称
 defineOptions({

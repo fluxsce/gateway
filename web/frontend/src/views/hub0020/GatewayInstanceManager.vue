@@ -1,6 +1,6 @@
 <template>
   <div class="gateway-instance-manager" :id="service.model.moduleId">
-    <GPane direction="vertical" :default-size="0.1" :min="0.1" :max="0.5">
+    <GPane direction="vertical" default-size="80px">
       <!-- 上部：搜索表单 -->
       <template #1>
         <search-form

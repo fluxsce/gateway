@@ -9,6 +9,16 @@ web:
   encryption_key: "your-strong-production-key"
   jwt_secret: "your-jwt-secret-key-here" # 生产环境请修改为强密钥
   
+  # HTTPS 配置
+  # 是否启用 HTTPS
+  enable_https: false
+  # SSL 证书文件路径 (当 enable_https 为 true 时必填)
+  cert_file: ""
+  # SSL 私钥文件路径 (当 enable_https 为 true 时必填)
+  key_file: ""
+  # 私钥密码（用于解密加密的私钥，如果私钥未加密则留空）
+  key_password: ""
+  
   # CORS配置
   cors:
     allowed_origins: "*" # 可设置为特定域名，以逗号分隔

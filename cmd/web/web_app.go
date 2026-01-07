@@ -6,6 +6,7 @@ import (
 	"gateway/pkg/config"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/pkg/utils/cert"
 	"gateway/pkg/utils/huberrors"
 	"gateway/web/middleware"
 	"gateway/web/routes"
@@ -358,6 +359,7 @@ func (app *WebApp) Start() error {
 	writeTimeout := config.GetInt("web.write_timeout", 60)
 	appName := config.GetString("web.name", "Gateway Web服务")
 	runMode := config.GetString("web.run_mode", "debug")
+	enableHTTPS := config.GetBool("web.enable_https", false)
 
 	// 设置服务器超时时间
 	server := &http.Server{
@@ -367,9 +369,56 @@ func (app *WebApp) Start() error {
 		WriteTimeout: time.Duration(writeTimeout) * time.Second,
 	}
 
-	logger.Info("Web服务器启动",
+	// 如果启用HTTPS，配置TLS
+	if enableHTTPS {
+		certFile := config.GetString("web.cert_file", "")
+		keyFile := config.GetString("web.key_file", "")
+		keyPassword := config.GetString("web.key_password", "")
+
+		if certFile == "" || keyFile == "" {
+			return fmt.Errorf("启用HTTPS时，cert_file 和 key_file 配置项不能为空")
+		}
+
+		// 创建证书加载器配置
+		certConfig := &cert.CertConfig{
+			CertFile:    certFile,
+			KeyFile:     keyFile,
+			KeyPassword: keyPassword,
+			// TLSVersions和CipherSuites留空，使用默认安全配置
+			TLSVersions:  []string{},
+			CipherSuites: []string{},
+		}
+
+		// 创建证书加载器
+		certLoader := cert.NewCertLoader(certConfig)
+
+		// 创建TLS配置
+		tlsConfig, err := certLoader.CreateTLSConfig()
+		if err != nil {
+			return fmt.Errorf("创建TLS配置失败: %w", err)
+		}
+
+		// 设置服务器的TLS配置
+		server.TLSConfig = tlsConfig
+
+		protocol := "https"
+		logger.Info("Web服务器启动（HTTPS）",
+			"port", app.port,
+			"address", fmt.Sprintf("%s://localhost:%d", protocol, app.port),
+			"mode", runMode,
+			"name", appName,
+			"certFile", certFile,
+			"keyFile", keyFile)
+
+		// 使用TLSConfig启动HTTPS服务器
+		// 传递空字符串，因为证书已经在TLSConfig中配置
+		return server.ListenAndServeTLS("", "")
+	}
+
+	protocol := "http"
+	logger.Info("Web服务器启动（HTTP）",
 		"port", app.port,
-		"address", fmt.Sprintf("http://localhost:%d", app.port),
+		"address", fmt.Sprintf("%s://localhost:%d", protocol, app.port),
 		"mode", runMode,
 		"name", appName)
 
