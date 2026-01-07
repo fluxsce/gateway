@@ -163,6 +163,8 @@ spec:
             capabilities:
               drop:
                 - ALL                         # 移除所有 Linux capabilities
+              add:
+                - NET_BIND_SERVICE            # 允许绑定特权端口（<1024），如443（HTTPS）
 
       # 卷定义
       volumes:

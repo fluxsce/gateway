@@ -140,9 +140,11 @@ RUN mkdir -p /opt/gateway/logs \
 COPY --chown=gateway:gateway scripts/db/ /opt/gateway/scripts/db/
 
 # 切换到非 root 用户
+# 注意：如果需要绑定特权端口（如443），需要在 docker-compose.yaml 中添加 cap_add: [NET_BIND_SERVICE]
 USER gateway
 
 # 暴露端口
+# 注意：如果需要在容器内绑定443端口，请确保 docker-compose.yaml 中已添加 NET_BIND_SERVICE capability
 EXPOSE 8080 12003 7000
 
 # 健康检查

@@ -53,6 +53,14 @@
   - 优化响应式布局，确保在不同屏幕分辨率下页面元素正确显示
   - 修复高分辨率或低分辨率显示器上的布局错乱问题
 
+- 🐛 **修复 1024 以下端口绑定权限问题**
+  - 修复 Linux systemd 服务无法绑定特权端口（如 443）的问题
+  - 在 systemd 服务文件中添加 `AmbientCapabilities=CAP_NET_BIND_SERVICE` 和 `CapabilityBoundingSet=CAP_NET_BIND_SERVICE`
+  - 在 Docker Compose 配置中添加 `cap_add: [NET_BIND_SERVICE]` 支持
+  - 在 Kubernetes Deployment 配置中添加 `NET_BIND_SERVICE` capability
+  - 改进网关启动代码的端口绑定错误检测，当绑定特权端口失败时提供明确的错误提示和解决方案
+  - 支持非 root 用户绑定特权端口，提升安全性
+
 ## [3.0.1] - 2026-01-05
 
 ### 新增

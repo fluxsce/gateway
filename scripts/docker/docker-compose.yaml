@@ -96,6 +96,10 @@ services:
       start_period: 40s
     networks:
       - gateway-network
+    # 允许绑定特权端口（<1024），如443（HTTPS）
+    # 如果容器内应用需要绑定443端口，需要添加此capability
+    cap_add:
+      - NET_BIND_SERVICE
     # 资源限制
     deploy:
       resources:

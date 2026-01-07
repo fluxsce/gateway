@@ -480,6 +480,11 @@ ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=$LOG_DIR $WORK_DIR $CONFIG_DIR
 
+# 允许绑定特权端口（<1024），如443（HTTPS）
+# 这允许非root用户绑定特权端口，解决443端口绑定失败的问题
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
 # 日志设置
 StandardOutput=journal
 StandardError=journal
@@ -498,6 +503,9 @@ EOF
         log_warn "提示：检测到Oracle版本但未配置Oracle环境变量，服务启动时将失败"
         log_warn "请参考上面的说明配置Oracle Instant Client环境变量"
     fi
+    log_info "已为systemd服务添加CAP_NET_BIND_SERVICE capability，允许绑定特权端口（如443）"
+    log_info "如果systemd版本较旧（<232）不支持AmbientCapabilities，可以使用以下命令设置文件capability："
+    log_info "  sudo setcap 'cap_net_bind_service=+ep' $INSTALLED_EXE"
 }
 
 # 函数：启用并启动服务
