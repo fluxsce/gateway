@@ -10,6 +10,30 @@ import { createLogger } from '@/utils/logger'
 const logger = createLogger('FormatUtils')
 
 /**
+ * 将 moduleId 转换为符合 HTML id 规范的格式
+ * 将冒号（:）替换为连字符（-），确保 id 符合 HTML 规范
+ * 注意：此函数仅用于生成 HTML id，权限校验仍应使用原始 moduleId
+ * 
+ * @param moduleId 模块ID（可能包含冒号，如 "hub0061:static-server"）
+ * @returns 符合 HTML id 规范的字符串（如 "hub0061-static-server"）
+ * 
+ * @example
+ * const moduleId = 'hub0061:static-server'
+ * const htmlId = toHtmlId(moduleId) // 'hub0061-static-server'
+ * // 在模板中使用：
+ * // <div :id="toHtmlId(service.model.moduleId)">
+ * // 权限校验仍使用原始 moduleId：
+ * // :module-id="service.model.moduleId"
+ */
+export const toHtmlId = (moduleId: string): string => {
+  if (!moduleId) {
+    return ''
+  }
+  // 将冒号替换为连字符，确保符合 HTML id 规范
+  return moduleId.replace(/:/g, '-')
+}
+
+/**
  * 解析API返回的JsonDataObj数据
  * @param jsonData API返回的JsonDataObj数据
  * @param defaultValue 解析失败时的默认值

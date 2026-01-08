@@ -1,5 +1,5 @@
 <template>
-  <div class="tunnel-service-management" :id="service.model.moduleId">
+  <div class="tunnel-service-management" :id="htmlId">
     <GPane direction="vertical" :default-size="0.12" :min="0.1" :max="0.5">
       <!-- 上部：搜索表单 -->
       <template #1>
@@ -62,7 +62,7 @@
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
       :title="formDialogMode === 'create' ? '新增隧道服务' : formDialogMode === 'edit' ? '编辑隧道服务' : '查看隧道服务详情'"
-      :to="`#${service.model.moduleId}`"
+      :to="`#${htmlId}`"
       :form-fields="service.model.formFields"
       :form-tabs="service.model.formTabs"
       :initial-data="currentEditService || undefined"
@@ -141,6 +141,12 @@ const {
   handleMenuClick,
   handleSearch
 } = useTunnelServicePage(gridRef, searchFormRef)
+
+// ============= HTML ID（用于 DOM，符合 HTML 规范） =============
+
+// 固定的 HTML id（符合 HTML 规范，无特殊字符）
+// 注意：权限校验仍使用原始 moduleId（service.model.moduleId）
+const htmlId = 'hub0062-service'
 
 // 包装搜索方法，搜索后刷新统计
 const handleSearchWithStats = async (searchParams?: Record<string, any>) => {

@@ -1,5 +1,5 @@
 <template>
-  <div class="tunnel-server-management" :id="service.model.moduleId">
+  <div class="tunnel-server-management" :id="htmlId">
     <GPane direction="vertical" default-size="80px">
       <!-- 上部：搜索表单 -->
       <template #1>
@@ -98,7 +98,7 @@
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
       :title="formDialogMode === 'create' ? '新增隧道服务器' : formDialogMode === 'edit' ? '编辑隧道服务器' : '查看隧道服务器详情'"
-      :to="`#${service.model.moduleId}`"
+      :to="`#${htmlId}`"
       :form-fields="service.model.formFields"
       :form-tabs="service.model.formTabs"
       :initial-data="currentEditServer || undefined"
@@ -176,6 +176,12 @@ const {
   handleMenuClick,
   handleSearch
 } = useTunnelServerPage(gridRef, searchFormRef)
+
+// ============= HTML ID（用于 DOM，符合 HTML 规范） =============
+
+// 固定的 HTML id（符合 HTML 规范，无特殊字符）
+// 注意：权限校验仍使用原始 moduleId（service.model.moduleId）
+const htmlId = 'hub0060'
 
 // 初始化
 onMounted(() => {

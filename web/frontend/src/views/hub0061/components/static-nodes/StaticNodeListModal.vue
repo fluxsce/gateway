@@ -8,7 +8,7 @@
     @update:visible="handleUpdateVisible"
     @after-leave="handleAfterLeave"
   >
-    <div class="static-node-list-modal" :id="service.model.moduleId">
+    <div class="static-node-list-modal" :id="htmlId">
       <GPane direction="vertical" :no-resize="true">
         <!-- 上部：搜索表单 -->
         <template #1>
@@ -70,7 +70,7 @@
         v-model:visible="formDialogVisible"
         :mode="formDialogMode"
         :title="formDialogMode === 'create' ? '新增静态节点' : formDialogMode === 'edit' ? '编辑静态节点' : '查看静态节点详情'"
-        :to="`#${service.model.moduleId}`"
+        :to="`#${htmlId}`"
         :form-fields="service.model.formFields"
         :form-tabs="service.model.formTabs"
         :initial-data="currentEditNode || undefined"
@@ -158,6 +158,12 @@ const {
   handlePageChange,
   handleToggleStatus,
 } = useStaticNodePage(gridRef, tunnelStaticServerId, searchFormRef)
+
+// ============= HTML ID（用于 DOM，符合 HTML 规范） =============
+
+// 固定的 HTML id（符合 HTML 规范，无特殊字符）
+// 注意：权限校验仍使用原始 moduleId（service.model.moduleId）
+const htmlId = 'hub0061-static-nodes'
 
 // ============= 事件处理 =============
 

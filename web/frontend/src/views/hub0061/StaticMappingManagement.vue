@@ -1,5 +1,5 @@
 <template>
-  <div class="static-server-management" :id="service.model.moduleId">
+  <div class="static-server-management" :id="htmlId">
     <GPane direction="vertical" :default-size="0.12" :min="0.1" :max="0.5">
       <!-- 上部：搜索表单 -->
       <template #1>
@@ -80,7 +80,7 @@
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
       :title="formDialogMode === 'create' ? '新增静态服务' : formDialogMode === 'edit' ? '编辑静态服务' : '查看静态服务详情'"
-      :to="`#${service.model.moduleId}`"
+      :to="`#${htmlId}`"
       :form-fields="service.model.formFields"
       :form-tabs="service.model.formTabs"
       :initial-data="currentEditServer || undefined"
@@ -94,7 +94,7 @@
       v-model:visible="nodeDialogVisible"
       :tunnel-static-server-id="currentNodeServer?.tunnelStaticServerId || ''"
       :server-name="currentNodeServer?.serverName || ''"
-      :to="`#${service.model.moduleId}`"
+      :to="`#${htmlId}`"
       @close="closeNodeDialog"
       @refresh="handleRefreshAfterNodeChange"
     />
@@ -170,6 +170,12 @@ const {
   openNodeDialog,
   closeNodeDialog,
 } = useStaticServerPage(gridRef, searchFormRef)
+
+// ============= HTML ID（用于 DOM，符合 HTML 规范） =============
+
+// 固定的 HTML id（符合 HTML 规范，无特殊字符）
+// 注意：权限校验仍使用原始 moduleId（service.model.moduleId）
+const htmlId = 'hub0061-static-server'
 
 // ============= 事件处理 =============
 

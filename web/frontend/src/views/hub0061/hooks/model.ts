@@ -9,19 +9,19 @@ import type { GridProps } from '@/components/grid'
 import type { PageInfoObj } from '@/types/api'
 import { formatBytes, formatDate } from '@/utils/format'
 import {
-  AddOutline,
-  PlayOutline,
-  RefreshOutline,
-  StopOutline,
-  TrashOutline
+    AddOutline,
+    PlayOutline,
+    RefreshOutline,
+    StopOutline,
+    TrashOutline
 } from '@vicons/ionicons5'
 import { ref } from 'vue'
 import type {
-  HealthCheckType,
-  LoadBalanceType,
-  ServerStatus,
-  ServerType,
-  TunnelStaticServer
+    HealthCheckType,
+    LoadBalanceType,
+    ServerStatus,
+    ServerType,
+    TunnelStaticServer
 } from '../types'
 
 // ============= 常量定义 =============
