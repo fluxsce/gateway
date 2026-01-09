@@ -243,6 +243,8 @@ export function useGrid(options: UseGridOptions) {
     }
 
     return {
+      // 将菜单渲染到 body，避免被父容器的 overflow 或 z-index 遮挡
+      transfer: true,
       body: {
         options: groups
       },
