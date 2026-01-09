@@ -6,13 +6,13 @@
 // - 错误代码常量定义
 // - 便捷的错误创建和检查函数
 //
-// 错误分类：
-// - 连接相关错误（1000-1999）
-// - 操作相关错误（2000-2999）
-// - 数据相关错误（3000-3999）
-// - 事务相关错误（4000-4999）
-// - 索引相关错误（5000-5999）
-// - 权限相关错误（6000-6999）
+// 错误代码范围：2001-3000
+// - 连接相关错误（2001-2100）
+// - 操作相关错误（2101-2200）
+// - 数据相关错误（2201-2300）
+// - 事务相关错误（2301-2400）
+// - 索引相关错误（2401-2500）
+// - 权限相关错误（2501-2600）
 package errors
 
 import (
@@ -116,12 +116,13 @@ func (e *MongoError) Is(target error) bool {
 }
 
 // NewMongoError 创建新的MongoDB错误
-// 
+//
 // 参数：
-//   operation: 操作名称
-//   code: 错误代码
-//   message: 错误消息
-//   cause: 原始错误（可为nil）
+//
+//	operation: 操作名称
+//	code: 错误代码
+//	message: 错误消息
+//	cause: 原始错误（可为nil）
 func NewMongoError(operation string, code int, message string, cause error) *MongoError {
 	return &MongoError{
 		Operation: operation,
@@ -131,89 +132,89 @@ func NewMongoError(operation string, code int, message string, cause error) *Mon
 	}
 }
 
-// === MongoDB错误代码常量 ===
+// === MongoDB错误代码常量（范围：2001-3000） ===
 
 const (
-	// === 连接相关错误 (1000-1999) ===
-	
+	// === 连接相关错误 (2001-2100) ===
+
 	// ErrCodeConnection 通用连接错误
-	ErrCodeConnection = 1001
-	
+	ErrCodeConnection = 2001
+
 	// ErrCodeAuthentication 认证失败错误
-	ErrCodeAuthentication = 1002
-	
+	ErrCodeAuthentication = 2002
+
 	// ErrCodeNetworkTimeout 网络超时错误
-	ErrCodeNetworkTimeout = 1003
-	
+	ErrCodeNetworkTimeout = 2003
+
 	// ErrCodeDNSResolution DNS解析错误
-	ErrCodeDNSResolution = 1004
+	ErrCodeDNSResolution = 2004
 
-	// === 操作相关错误 (2000-2999) ===
-	
+	// === 操作相关错误 (2101-2200) ===
+
 	// ErrCodeInvalidQuery 无效查询错误
-	ErrCodeInvalidQuery = 2001
-	
+	ErrCodeInvalidQuery = 2101
+
 	// ErrCodeInvalidUpdate 无效更新错误
-	ErrCodeInvalidUpdate = 2002
-	
+	ErrCodeInvalidUpdate = 2102
+
 	// ErrCodeInvalidInsert 无效插入错误
-	ErrCodeInvalidInsert = 2003
-	
+	ErrCodeInvalidInsert = 2103
+
 	// ErrCodeInvalidDelete 无效删除错误
-	ErrCodeInvalidDelete = 2004
-	
+	ErrCodeInvalidDelete = 2104
+
 	// ErrCodeInvalidAggregation 无效聚合错误
-	ErrCodeInvalidAggregation = 2005
+	ErrCodeInvalidAggregation = 2105
 
-	// === 数据相关错误 (3000-3999) ===
-	
+	// === 数据相关错误 (2201-2300) ===
+
 	// ErrCodeDocumentNotFound 文档未找到错误
-	ErrCodeDocumentNotFound = 3001
-	
+	ErrCodeDocumentNotFound = 2201
+
 	// ErrCodeDuplicateKey 重复键错误
-	ErrCodeDuplicateKey = 3002
-	
+	ErrCodeDuplicateKey = 2202
+
 	// ErrCodeInvalidObjectID 无效ObjectID错误
-	ErrCodeInvalidObjectID = 3003
-	
+	ErrCodeInvalidObjectID = 2203
+
 	// ErrCodeValidationFailed 验证失败错误
-	ErrCodeValidationFailed = 3004
-	
+	ErrCodeValidationFailed = 2204
+
 	// ErrCodeSchemaViolation 模式违反错误
-	ErrCodeSchemaViolation = 3005
+	ErrCodeSchemaViolation = 2205
 
-	// === 事务相关错误 (4000-4999) ===
-	
+	// === 事务相关错误 (2301-2400) ===
+
 	// ErrCodeTransactionAborted 事务中止错误
-	ErrCodeTransactionAborted = 4001
-	
+	ErrCodeTransactionAborted = 2301
+
 	// ErrCodeTransactionTimeout 事务超时错误
-	ErrCodeTransactionTimeout = 4002
-	
+	ErrCodeTransactionTimeout = 2302
+
 	// ErrCodeWriteConflict 写冲突错误
-	ErrCodeWriteConflict = 4003
+	ErrCodeWriteConflict = 2303
 
-	// === 索引相关错误 (5000-5999) ===
-	
+	// === 索引相关错误 (2401-2500) ===
+
 	// ErrCodeIndexNotFound 索引未找到错误
-	ErrCodeIndexNotFound = 5001
-	
-	// ErrCodeIndexCreationFailed 索引创建失败错误
-	ErrCodeIndexCreationFailed = 5002
-	
-	// ErrCodeIndexDropFailed 索引删除失败错误
-	ErrCodeIndexDropFailed = 5003
+	ErrCodeIndexNotFound = 2401
 
-	// === 权限相关错误 (6000-6999) ===
-	
+	// ErrCodeIndexCreationFailed 索引创建失败错误
+	ErrCodeIndexCreationFailed = 2402
+
+	// ErrCodeIndexDropFailed 索引删除失败错误
+	ErrCodeIndexDropFailed = 2403
+
+	// === 权限相关错误 (2501-2600) ===
+
 	// ErrCodeUnauthorized 未授权错误
-	ErrCodeUnauthorized = 6001
-	
+	ErrCodeUnauthorized = 2501
+
 	// ErrCodeAccessDenied 访问拒绝错误
-	ErrCodeAccessDenied = 6002
-	
+	ErrCodeAccessDenied = 2502
+
 	// ErrCodeInsufficientPrivileges 权限不足错误
-	ErrCodeInsufficientPrivileges = 6003
+	ErrCodeInsufficientPrivileges = 2503
 )
 
 // === 便捷的错误创建函数 ===
@@ -355,17 +356,17 @@ func IsValidationError(err error) bool {
 func GetErrorCategory(err error) string {
 	if mongoErr, ok := err.(*MongoError); ok {
 		switch {
-		case mongoErr.Code >= 1000 && mongoErr.Code < 2000:
+		case mongoErr.Code >= 2001 && mongoErr.Code <= 2100:
 			return "connection"
-		case mongoErr.Code >= 2000 && mongoErr.Code < 3000:
+		case mongoErr.Code >= 2101 && mongoErr.Code <= 2200:
 			return "operation"
-		case mongoErr.Code >= 3000 && mongoErr.Code < 4000:
+		case mongoErr.Code >= 2201 && mongoErr.Code <= 2300:
 			return "data"
-		case mongoErr.Code >= 4000 && mongoErr.Code < 5000:
+		case mongoErr.Code >= 2301 && mongoErr.Code <= 2400:
 			return "transaction"
-		case mongoErr.Code >= 5000 && mongoErr.Code < 6000:
+		case mongoErr.Code >= 2401 && mongoErr.Code <= 2500:
 			return "index"
-		case mongoErr.Code >= 6000 && mongoErr.Code < 7000:
+		case mongoErr.Code >= 2501 && mongoErr.Code <= 2600:
 			return "permission"
 		default:
 			return "unknown"
@@ -401,4 +402,4 @@ func IsFatalError(err error) bool {
 		}
 	}
 	return false
-} 
+}

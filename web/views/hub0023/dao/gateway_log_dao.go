@@ -126,8 +126,8 @@ func (dao *GatewayLogDAO) Query(ctx context.Context, req *models.GatewayAccessLo
 	}
 
 	if req.ClientIpAddress != "" {
-		whereClause += " AND clientIpAddress = ?"
-		params = append(params, req.ClientIpAddress)
+		whereClause += " AND clientIpAddress LIKE ?"
+		params = append(params, "%"+req.ClientIpAddress+"%")
 	}
 
 	if req.UserAgent != "" {

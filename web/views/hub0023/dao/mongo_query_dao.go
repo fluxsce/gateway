@@ -288,7 +288,9 @@ func (dao *MongoQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLogQuer
 		}
 	}
 	if req.ClientIpAddress != "" {
-		filter["clientIpAddress"] = req.ClientIpAddress
+		filter["clientIpAddress"] = map[string]interface{}{
+			"$regex": req.ClientIpAddress,
+		}
 	}
 	if req.UserAgent != "" {
 		filter["userAgent"] = map[string]interface{}{

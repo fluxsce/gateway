@@ -588,14 +588,20 @@ func getClientIP(gatewayCtx *core.Context) string {
 		}
 	}
 
-	// 从快照的 RemoteAddr 中读取
+	// 从快照的 RemoteAddr 中读取（格式为 IP:Port，需要分离）
 	if clientIP == "" {
 		if remoteAddr, ok := gatewayCtx.GetString(constants.ContextKeySnapshotRequestRemoteAddr); ok {
-			clientIP = remoteAddr
+			// 使用 net.SplitHostPort 分离 IP 和端口
+			if host, _, err := net.SplitHostPort(remoteAddr); err == nil {
+				clientIP = host
+			} else {
+				// 如果分离失败（可能没有端口），直接使用原值
+				clientIP = remoteAddr
+			}
 		}
 	}
 
-	// 如果是X-Forwarded-For，取第一个IP
+	// 如果是X-Forwarded-For，取第一个IP（可能包含多个IP，用逗号分隔）
 	if clientIP != "" {
 		if idx := strings.Index(clientIP, ","); idx > 0 {
 			clientIP = strings.TrimSpace(clientIP[:idx])

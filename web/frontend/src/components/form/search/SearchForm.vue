@@ -29,6 +29,7 @@
             <n-form-item
               :path="field.field"
               :rule="field.rules"
+              :required="field.required"
             >
               <template #label>
                 <g-ellipsis :text="field.label" />
@@ -147,6 +148,7 @@
             <n-form-item
               :path="field.field"
               :rule="field.rules"
+              :required="field.required"
             >
               <template #label>
                 <g-ellipsis :text="field.label" />

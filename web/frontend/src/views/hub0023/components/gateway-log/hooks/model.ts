@@ -82,6 +82,7 @@ export function useGatewayLogModel() {
         placeholder: '请选择时间范围',
         span: 8,
         clearable: true,
+        required: true,
         rules: [
           {
             validator: (_rule: any, value: any) => {

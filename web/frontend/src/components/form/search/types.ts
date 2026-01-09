@@ -53,6 +53,13 @@ export interface SearchField {
   show?: boolean
 
   /**
+   * 是否必填
+   * 仅用于配置层标记，具体校验请结合 rules 一起使用
+   * @default false
+   */
+  required?: boolean
+
+  /**
    * 是否禁用
    * @default false
    */

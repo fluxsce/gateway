@@ -91,6 +91,7 @@ export function useMonitoringModel() {
         placeholder: '请选择时间范围（必填，不超过24小时）',
         span: 8,
         clearable: true,
+        required: true,
         rules: [
           {
             validator: (_rule: any, value: any) => {
