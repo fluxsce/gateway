@@ -2,7 +2,6 @@ package webapp
 
 import (
 	"fmt"
-	"gateway/cmd/common/utils"
 	"gateway/pkg/config"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
@@ -134,7 +133,7 @@ func setupGinLogger() {
 	if !useAbsolutePath && logPath != "" && !filepath.IsAbs(ginLogFile) {
 		ginLogFile = filepath.Join(logPath, ginLogFile)
 	}
-	ginLogFile = utils.ResolvePath(ginLogFile)
+	ginLogFile = config.ResolvePath(ginLogFile)
 
 	// 确保日志目录存在
 	logDir := filepath.Dir(ginLogFile)
@@ -208,7 +207,7 @@ func NewWebApp(db database.Database) *WebApp {
 	staticPrefix := config.GetString("web.static.prefix", "/static")
 	if staticPath != "" {
 		// 使用ResolvePath解析静态文件路径，处理环境变量指定的配置目录情况
-		resolvedStaticPath := utils.ResolvePath(staticPath)
+		resolvedStaticPath := config.ResolvePath(staticPath)
 		router.Static(staticPrefix, resolvedStaticPath)
 		logger.Info("静态文件服务已配置",
 			"prefix", staticPrefix,
@@ -221,7 +220,7 @@ func NewWebApp(db database.Database) *WebApp {
 	frontendPrefix := config.GetString("web.frontend.prefix", "/")
 	if frontendPath != "" {
 		// 使用ResolvePath解析前端文件路径，处理环境变量指定的配置目录情况
-		resolvedFrontendPath := utils.ResolvePath(frontendPath)
+		resolvedFrontendPath := config.ResolvePath(frontendPath)
 
 		// 根据前缀配置静态资源路径
 		if frontendPrefix == "/" {

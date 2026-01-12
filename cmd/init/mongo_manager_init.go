@@ -3,7 +3,7 @@ package init
 import (
 	"fmt"
 
-	"gateway/cmd/common/utils"
+	"gateway/pkg/config"
 	"gateway/pkg/logger"
 	"gateway/pkg/mongo/client"
 	"gateway/pkg/mongo/factory"
@@ -19,7 +19,7 @@ func InitializeMongoDB() (map[string]*client.Client, error) {
 	logger.Info("开始初始化MongoDB连接管理器")
 
 	// 获取数据库配置文件路径
-	configPath := utils.GetConfigPath("database.yaml")
+	configPath := config.GetConfigPath("database.yaml")
 
 	// 使用工厂模式加载所有MongoDB连接
 	connections, err := factory.LoadAllMongoConnections(configPath)

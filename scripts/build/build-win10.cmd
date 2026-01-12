@@ -110,11 +110,27 @@ if !INCLUDE_ORACLE! EQU 1 (
         exit /b 1
     )
 ) else (
-    :: No Oracle - disable CGO
-    set CGO_ENABLED=0
-    echo [INFO] Oracle support disabled, building MySQL-only version
-    echo CGO_ENABLED=0
+    :: SQLite requires CGO, so we need to enable it
+    set CGO_ENABLED=1
+    echo [INFO] Oracle support disabled, building with SQLite support
+    echo CGO_ENABLED=1 (required for SQLite)
     echo.
+    
+    :: Check if GCC is available (required for CGO)
+    where gcc >nul 2>&1
+    if errorlevel 1 (
+        echo [WARNING] GCC not found. SQLite requires CGO which needs GCC.
+        echo [INFO] Please install MinGW-w64 or TDM-GCC:
+        echo        - TDM-GCC: https://jmeubank.github.io/tdm-gcc/
+        echo        - MinGW-w64: https://www.mingw-w64.org/
+        echo.
+    ) else (
+        echo [OK] GCC found
+        for /f "tokens=*" %%v in ('gcc --version 2^>nul ^| findstr /i "gcc"') do (
+            echo GCC version: %%v
+        )
+        echo.
+    )
 )
 
 :: Build configuration

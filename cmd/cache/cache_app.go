@@ -1,8 +1,8 @@
 package cacheapp
 
 import (
-	"gateway/cmd/common/utils"
 	"gateway/pkg/cache"
+	"gateway/pkg/config"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/huberrors"
 )
@@ -10,7 +10,7 @@ import (
 // initCache 初始化缓存
 func InitCache() (map[string]cache.Cache, error) {
 	// 使用统一的配置文件路径
-	configPath := utils.GetConfigPath("database.yaml")
+	configPath := config.GetConfigPath("database.yaml")
 
 	// 加载所有缓存连接
 	var err error

@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gateway/cmd/common/utils"
 	"gateway/internal/gateway/bootstrap"
 	gatewayconfig "gateway/internal/gateway/config"
 	"gateway/internal/gateway/loader"
@@ -128,12 +127,12 @@ func (app *GatewayApp) loadFromFile() error {
 	configFile := config.GetString("app.gateway.config_file", "")
 	if configFile == "" {
 		// 如果配置中没有指定文件路径，使用默认路径
-		configFile = utils.GetConfigPath("gateway.yaml")
+		configFile = config.GetConfigPath("gateway.yaml")
 	} else {
 		// 如果指定了相对路径，且不是绝对路径，则基于配置目录构建
 		if !filepath.IsAbs(configFile) && !strings.HasPrefix(configFile, "./") && !strings.HasPrefix(configFile, "../") {
 			// 如果是纯文件名，则基于配置目录构建
-			configFile = utils.GetConfigPath(configFile)
+			configFile = config.GetConfigPath(configFile)
 		}
 	}
 

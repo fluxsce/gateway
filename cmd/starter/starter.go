@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	cacheapp "gateway/cmd/cache"
-	"gateway/cmd/common/utils"
 	gatewayapp "gateway/cmd/gateway"
 	timerinit "gateway/cmd/init"
 	webapp "gateway/cmd/web"
@@ -39,7 +38,7 @@ var (
 
 func Starter() {
 	// 检查是否在Windows服务模式下运行
-	if runtime.GOOS == "windows" && utils.IsServiceMode() {
+	if runtime.GOOS == "windows" && config.IsServiceMode() {
 		log.Println("检测到Windows服务模式，启动Windows服务...")
 		if err := runWindowsService(); err != nil {
 			log.Fatal("Windows服务启动失败:", err)
@@ -48,7 +47,7 @@ func Starter() {
 	}
 
 	// 检查是否在Linux服务模式下运行
-	if runtime.GOOS == "linux" && utils.IsServiceMode() {
+	if runtime.GOOS == "linux" && config.IsServiceMode() {
 		log.Println("检测到Linux服务模式，启动Linux服务...")
 		if err := runLinuxService(); err != nil {
 			log.Fatal("Linux服务启动失败:", err)
@@ -62,14 +61,14 @@ func Starter() {
 
 	// 检查是否为服务模式（非Windows/Linux系统服务，但使用--service参数）
 	// 注意：Windows和Linux系统服务模式已经在上面处理并return，这里只处理其他情况
-	if utils.IsServiceMode() {
+	if config.IsServiceMode() {
 		setupServiceLogging()
 		log.Println("Gateway 服务模式启动...")
 	}
 
 	// 输出启动信息
 	fmt.Printf("Gateway 应用程序启动中...\n")
-	fmt.Printf("配置目录: %s\n", utils.GetConfigDir())
+	fmt.Printf("配置目录: %s\n", config.GetConfigDir())
 	fmt.Printf("支持的命令行参数:\n")
 	fmt.Printf("  --config <dir>  指定配置文件目录路径\n")
 	fmt.Printf("  --service       以服务模式运行\n")
@@ -79,7 +78,7 @@ func Starter() {
 
 	// 初始化并启动应用
 	if err := initializeAndStartApplication(); err != nil {
-		if utils.IsServiceMode() {
+		if config.IsServiceMode() {
 			log.Fatal("应用启动失败:", err)
 		} else {
 			fmt.Printf("应用启动失败: %v\n", err)
@@ -91,7 +90,7 @@ func Starter() {
 	setupGracefulShutdown()
 
 	// 服务模式下的特殊处理
-	if utils.IsServiceMode() {
+	if config.IsServiceMode() {
 		log.Println("Gateway 服务启动完成，等待信号...")
 	}
 
@@ -102,7 +101,7 @@ func Starter() {
 // initializeAndStartApplication 初始化并启动应用
 func initializeAndStartApplication() error {
 	// 初始化配置（加载配置文件并设置全局时区）
-	configDir := utils.GetConfigDir()
+	configDir := config.GetConfigDir()
 	if err := config.InitializeConfig(configDir, config.LoadOptions{
 		ClearExisting: false,
 		AllowOverride: true,
@@ -194,7 +193,7 @@ func initializeAndStartApplication() error {
 // 注意：只重定向标准log包的输出，不影响logger包（zap）的输出
 func setupServiceLogging() {
 	// 确定日志目录：优先使用配置目录，否则使用可执行文件目录
-	configDir := utils.GetConfigDir()
+	configDir := config.GetConfigDir()
 	var logDir string
 	if configDir != "" && configDir != "./configs" {
 		// 使用配置目录的父目录下的logs目录
@@ -251,7 +250,7 @@ func setupGracefulShutdown() {
 	c := make(chan os.Signal, 1)
 
 	// 监听不同的信号
-	if utils.IsServiceMode() {
+	if config.IsServiceMode() {
 		// 服务模式下监听更多信号
 		signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
 	} else {
@@ -262,7 +261,7 @@ func setupGracefulShutdown() {
 	go func() {
 		sig := <-c
 
-		if utils.IsServiceMode() {
+		if config.IsServiceMode() {
 			log.Printf("收到信号 %v，开始优雅退出...", sig)
 		} else {
 			fmt.Printf("收到信号 %v，开始优雅退出...\n", sig)
@@ -271,7 +270,7 @@ func setupGracefulShutdown() {
 		// 处理不同信号
 		switch sig {
 		case syscall.SIGHUP:
-			if utils.IsServiceMode() {
+			if config.IsServiceMode() {
 				log.Println("收到SIGHUP信号，重新加载配置...")
 				// 可以在这里添加重新加载配置的逻辑
 				return
@@ -284,7 +283,7 @@ func setupGracefulShutdown() {
 
 // stopApplication 停止应用
 func stopApplication() {
-	if utils.IsServiceMode() {
+	if config.IsServiceMode() {
 		log.Println("开始停止Gateway服务...")
 	} else {
 		fmt.Println("开始停止Gateway应用...")
@@ -311,7 +310,7 @@ func stopApplication() {
 	// 清理资源
 	cleanupResources()
 
-	if utils.IsServiceMode() {
+	if config.IsServiceMode() {
 		log.Println("Gateway服务已停止")
 	} else {
 		fmt.Println("Gateway应用已停止")
@@ -322,7 +321,7 @@ func stopApplication() {
 
 // initDatabase 初始化数据库
 func initDatabase() error {
-	configPath := utils.GetConfigPath("database.yaml")
+	configPath := config.GetConfigPath("database.yaml")
 
 	// 获取默认连接名称
 	defaultConn := config.GetString("database.default", "")
@@ -352,7 +351,7 @@ func initDatabase() error {
 		"default", defaultConn,
 		"total_connections", len(dbConnections),
 		"config_path", configPath,
-		"config_dir", utils.GetConfigDir())
+		"config_dir", config.GetConfigDir())
 
 	// 列出所有连接
 	for name, conn := range dbConnections {
@@ -400,7 +399,7 @@ func startGatewayServices() error {
 // cleanupResources 清理资源
 func cleanupResources() {
 	logMsg := func(msg string, args ...interface{}) {
-		if utils.IsServiceMode() {
+		if config.IsServiceMode() {
 			log.Printf(msg, args...)
 		} else {
 			fmt.Printf(msg+"\n", args...)

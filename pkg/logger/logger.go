@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"strings"
 
-	"gateway/cmd/common/utils"
 	"gateway/pkg/config"
 	huberrors "gateway/pkg/utils/huberrors"
 
@@ -291,7 +290,7 @@ func getWriteSyncer(output string, logPath string, logConfig *LoggerConfig) zapc
 	}
 
 	// 使用统一的路径解析
-	output = utils.ResolvePath(output)
+	output = config.ResolvePath(output)
 
 	// 确保日志目录存在
 	// 如果目录不存在则创建，创建失败时回退到标准输出

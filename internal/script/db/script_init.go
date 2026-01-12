@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"gateway/cmd/common/utils"
 	mongoscript "gateway/internal/script/mongo"
 	"gateway/pkg/config"
 	"gateway/pkg/database"
@@ -191,7 +190,7 @@ func InitializeDatabaseScripts(ctx context.Context, db database.Database) (*Init
 
 	// 获取脚本目录路径，考虑服务启动模式下的路径解析
 	scriptDirConfig := config.GetString("database.script_directory", "scripts/db")
-	scriptDir := utils.ResolvePath(scriptDirConfig)
+	scriptDir := config.ResolvePath(scriptDirConfig)
 
 	// 获取主数据库驱动类型
 	driver := db.GetDriver()
@@ -203,7 +202,7 @@ func InitializeDatabaseScripts(ctx context.Context, db database.Database) (*Init
 		"driver", driver,
 		"script_dir", scriptDirConfig,
 		"resolved_path", scriptDir,
-		"service_mode", utils.IsServiceMode())
+		"service_mode", config.IsServiceMode())
 
 	startTime := time.Now()
 
@@ -794,7 +793,7 @@ func ListAvailableScripts(scriptPath string) (map[string]string, error) {
 	if scriptPath == "" {
 		// 获取配置的脚本目录，并使用utils.ResolvePath处理路径
 		scriptDirConfig := config.GetString("database.script_directory", "scripts/db")
-		scriptPath = utils.ResolvePath(scriptDirConfig)
+		scriptPath = config.ResolvePath(scriptDirConfig)
 	}
 
 	scripts := make(map[string]string)

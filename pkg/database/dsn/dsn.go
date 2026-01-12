@@ -4,7 +4,7 @@ package dsn
 
 import (
 	"fmt"
-	"gateway/cmd/common/utils"
+	appconfig "gateway/pkg/config"
 	"gateway/pkg/database/dbtypes"
 	huberrors "gateway/pkg/utils/huberrors"
 	"net/url"
@@ -204,7 +204,7 @@ func GenerateSQLite(config *dbtypes.DbConfig) (string, error) {
 
 	// 使用 config.go 的路径处理来解析数据库文件路径
 	// 这确保了在不同运行环境下都能正确处理相对路径
-	dbPath = utils.ResolvePath(dbPath)
+	dbPath = appconfig.ResolvePath(dbPath)
 
 	// 构建SQLite参数
 	params := make([]string, 0)
