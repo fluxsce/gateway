@@ -105,6 +105,10 @@ const getButtonPermissionCode = computed(() => {
 
 // 检查按钮权限
 const hasButtonPermission = computed(() => {
+  // 如果 key 是 "more"（更多条件），不检查权限
+  if (props.button.key === 'more') {
+    return true
+  }
   const permissionCode = getButtonPermissionCode.value
   // 如果没有权限编码（没有 moduleId），默认允许
   if (!permissionCode) {
