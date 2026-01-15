@@ -89,6 +89,13 @@ export interface ToolbarButton {
    * 自定义渲染函数（高级用法，用于完全自定义按钮内容）
    */
   render?: () => VNode
+
+  /**
+   * 按钮是否放在尾部（右侧）
+   * 当设置为 true 时，按钮会渲染在工具栏的右侧区域
+   * @default false
+   */
+  atEnd?: boolean
 }
 
 /**

@@ -21,6 +21,12 @@
   --g-space-md: 16px;
   --g-space-lg: 24px;
   --g-space-xl: 32px;
+
+  /* ==================== 内边距 ==================== */
+  --g-padding-xs: var(--g-space-xs);
+  --g-padding-sm: var(--g-space-sm);
+  --g-padding-md: var(--g-space-md);
+  --g-padding-lg: var(--g-space-lg);
   
   /* ==================== 模态框 ==================== */
   --g-modal-header-height: 32px;

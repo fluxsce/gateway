@@ -105,4 +105,36 @@ export interface GPaneEmits {
   (event: 'drag-end', e: Event): void
 }
 
+/**
+ * GPane 组件暴露的方法
+ */
+export interface GPaneExpose {
+  /**
+   * 设置面板二（下/右）的可见性
+   * @param visible 是否可见
+   */
+  setPane2Visible: (visible: boolean) => void
+
+  /**
+   * 获取面板二（下/右）的可见性
+   */
+  getPane2Visible: () => boolean
+
+  /**
+   * 切换面板二（下/右）的可见性
+   */
+  togglePane2Visible: () => void
+
+  /**
+   * 设置面板尺寸
+   * @param size 尺寸值（0 ~ 1 的数字或像素/百分比字符串）
+   */
+  setSize: (size: number | string) => void
+
+  /**
+   * 获取当前面板尺寸
+   */
+  getSize: () => number | string | undefined
+}
+
 

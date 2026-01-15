@@ -1,14 +1,11 @@
 package init
 
 import (
-	"crypto/md5"
 	"fmt"
-	"os"
 	"time"
 
 	"gateway/pkg/config"
 	"gateway/pkg/logger"
-	"gateway/pkg/utils/random"
 )
 
 // MetricConfig 指标采集配置
@@ -164,10 +161,10 @@ func (v *ConfigValidator) validateBasicConfig(cfg *MetricConfig) error {
 		logger.Info("租户ID为空，使用默认值: default")
 	}
 
-	// 生成服务器ID（如果未配置）
+	// 生成服务器ID（如果未配置，使用全局节点ID）
 	if cfg.ServerId == "" {
-		cfg.ServerId = v.generateServerId()
-		logger.Info("服务器ID未配置，自动生成", "server_id", cfg.ServerId)
+		cfg.ServerId = config.GetNodeId()
+		logger.Info("服务器ID未配置，使用全局节点ID", "server_id", cfg.ServerId)
 	}
 
 	// 验证操作人
@@ -286,30 +283,6 @@ func (v *ConfigValidator) validateRetentionConfig(cfg *RetentionConfig) error {
 	return nil
 }
 
-// generateServerId 生成服务器ID
-// 使用主机名+IP地址生成稳定且唯一的服务器标识
-func (v *ConfigValidator) generateServerId() string {
-	hostname, _ := os.Hostname()
-	if hostname == "" {
-		hostname = "unknown"
-	}
-
-	// 使用random包提供的节点IP地址
-	localIP := random.GetNodeIP()
-	if localIP == "" || localIP == "127.0.0.1" {
-		// 如果获取IP地址失败或为环回地址，使用随机字符串作为后备方案
-		localIP = random.GenerateRandomString(12)
-		logger.Warn("无法获取有效的节点IP地址，使用随机字符串作为后备", "fallback", localIP)
-	} else {
-		logger.Debug("使用节点IP地址生成服务器ID", "hostname", hostname, "ip", localIP)
-	}
-
-	// 使用主机名+IP地址生成稳定的服务器ID
-	data := fmt.Sprintf("%s-%s", hostname, localIP)
-	hash := md5.Sum([]byte(data))
-	return fmt.Sprintf("server_%x", hash)[:16]
-}
-
 // GetEnabledCollectorNames 获取已启用的采集器名称列表
 // 返回当前配置中启用的采集器名称，用于日志记录和状态展示
 func (cfg *MetricConfig) GetEnabledCollectorNames() []string {
@@ -356,4 +329,3 @@ func (cfg *MetricConfig) String() string {
 	return fmt.Sprintf("MetricConfig{Enabled: %t, CollectInterval: %v, TenantId: %s, ServerId: %s, EnabledCollectors: %v}",
 		cfg.Enabled, cfg.CollectInterval, cfg.TenantId, cfg.ServerId, cfg.GetEnabledCollectorNames())
 }
-

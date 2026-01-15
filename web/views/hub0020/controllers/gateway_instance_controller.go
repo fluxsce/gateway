@@ -1,6 +1,9 @@
 package controllers
 
 import (
+	"gateway/internal/cluster/publish"
+	"gateway/internal/gateway/bootstrap"
+	"gateway/internal/gateway/loader"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/web/utils/constants"
@@ -8,9 +11,6 @@ import (
 	"gateway/web/utils/response"
 	"gateway/web/views/hub0020/dao"
 	"gateway/web/views/hub0020/models"
-
-	"gateway/internal/gateway/bootstrap"
-	"gateway/internal/gateway/loader"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,6 +20,7 @@ type GatewayInstanceController struct {
 	db                 database.Database
 	gatewayInstanceDAO *dao.GatewayInstanceDAO
 	logConfigDAO       *dao.LogConfigDAO
+	eventPublisher     *publish.GatewayEventPublisher
 }
 
 // NewGatewayInstanceController 创建网关实例控制器
@@ -28,6 +29,7 @@ func NewGatewayInstanceController(db database.Database) *GatewayInstanceControll
 		db:                 db,
 		gatewayInstanceDAO: dao.NewGatewayInstanceDAO(db),
 		logConfigDAO:       dao.NewLogConfigDAO(db),
+		eventPublisher:     publish.NewGatewayEventPublisher(),
 	}
 }
 
@@ -288,6 +290,21 @@ func (c *GatewayInstanceController) DeleteGatewayInstance(ctx *gin.Context) {
 		}
 	}
 
+	// 发布停止事件到集群（删除前通知所有节点停止）
+	if err := c.eventPublisher.PublishStopEvent(
+		ctx,
+		gatewayInstanceId,
+		tenantId,
+		instance.InstanceName,
+		operatorId,
+	); err != nil {
+		// 事件发布失败不影响删除流程，仅记录警告
+		logger.WarnWithTrace(ctx, "发布网关停止事件失败", "error", err)
+	} else {
+		logger.InfoWithTrace(ctx, "网关停止事件已发布到集群（删除前）",
+			"gatewayInstanceId", gatewayInstanceId)
+	}
+
 	// 调用DAO删除网关实例
 	err = c.gatewayInstanceDAO.DeleteGatewayInstance(ctx, gatewayInstanceId, tenantId, operatorId)
 	if err != nil {
@@ -519,6 +536,23 @@ func (c *GatewayInstanceController) StartGatewayInstance(ctx *gin.Context) {
 
 	// 健康状态由网关本身在启动时自动更新，不需要controller处理
 
+	// 发布启动事件到集群（所有节点会收到并处理）
+	operatorId := request.GetOperatorID(ctx)
+	if err := c.eventPublisher.PublishStartEvent(
+		ctx,
+		gatewayInstanceId,
+		tenantId,
+		instance.InstanceName,
+		instance.ConfigFilePath,
+		operatorId,
+	); err != nil {
+		// 事件发布失败不影响主流程，仅记录警告
+		logger.WarnWithTrace(ctx, "发布网关启动事件失败", "error", err)
+	} else {
+		logger.InfoWithTrace(ctx, "网关启动事件已发布到集群",
+			"gatewayInstanceId", gatewayInstanceId)
+	}
+
 	response.SuccessJSON(ctx, gin.H{
 		"gatewayInstanceId": gatewayInstanceId,
 		"message":           "网关实例已启动",
@@ -593,6 +627,22 @@ func (c *GatewayInstanceController) StopGatewayInstance(ctx *gin.Context) {
 	}
 
 	// 健康状态由网关本身在停止时自动更新，不需要controller处理
+
+	// 发布停止事件到集群（所有节点会收到并处理）
+	operatorId := request.GetOperatorID(ctx)
+	if err := c.eventPublisher.PublishStopEvent(
+		ctx,
+		gatewayInstanceId,
+		tenantId,
+		instance.InstanceName,
+		operatorId,
+	); err != nil {
+		// 事件发布失败不影响主流程，仅记录警告
+		logger.WarnWithTrace(ctx, "发布网关停止事件失败", "error", err)
+	} else {
+		logger.InfoWithTrace(ctx, "网关停止事件已发布到集群",
+			"gatewayInstanceId", gatewayInstanceId)
+	}
 
 	response.SuccessJSON(ctx, gin.H{
 		"gatewayInstanceId": gatewayInstanceId,
@@ -682,6 +732,22 @@ func (c *GatewayInstanceController) ReloadGatewayInstance(ctx *gin.Context) {
 		"gatewayInstanceId", gatewayInstanceId,
 		"tenantId", tenantId,
 		"instanceName", instance.InstanceName)
+
+	// 发布重载事件到集群（所有节点会收到并处理）
+	operatorId := request.GetOperatorID(ctx)
+	if err := c.eventPublisher.PublishReloadEvent(
+		ctx,
+		gatewayInstanceId,
+		tenantId,
+		instance.InstanceName,
+		operatorId,
+	); err != nil {
+		// 事件发布失败不影响主流程，仅记录警告
+		logger.WarnWithTrace(ctx, "发布网关重载事件失败", "error", err)
+	} else {
+		logger.InfoWithTrace(ctx, "网关重载事件已发布到集群",
+			"gatewayInstanceId", gatewayInstanceId)
+	}
 
 	response.SuccessJSON(ctx, gin.H{
 		"gatewayInstanceId": gatewayInstanceId,

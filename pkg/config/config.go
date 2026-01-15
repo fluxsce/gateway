@@ -1,11 +1,16 @@
 package config
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
+
+	"gateway/pkg/utils/net"
+	"gateway/pkg/utils/path"
 
 	"github.com/spf13/viper"
 )
@@ -15,6 +20,11 @@ var (
 	global *Config
 	// 确保global只初始化一次的标志
 	initialized bool
+
+	// cachedNodeId 缓存的节点ID
+	cachedNodeId string
+	// nodeIdOnce 确保节点ID只初始化一次
+	nodeIdOnce sync.Once
 )
 
 // Config 系统配置管理器
@@ -173,7 +183,7 @@ func GetGlobalTimezone() string {
 // 返回:
 //   - string: 版本号，默认为 "unknown"
 func GetVersion() string {
-	return GetString("app.version", "2.0.5")
+	return GetString("app.version", "3.0.4")
 }
 
 // GetAppName 获取应用名称
@@ -182,6 +192,71 @@ func GetVersion() string {
 //   - string: 应用名称，默认为 "Gateway"
 func GetAppName() string {
 	return GetString("app.name", "Gateway")
+}
+
+// GetNodeId 获取全局节点ID
+// 支持容器和跨平台运行，每次获取的结果都是一致的
+//
+// 优先级：
+//  1. 配置文件 app.node_id（如果非空）
+//  2. 环境变量 GATEWAY_NODE_ID 或 POD_NAME（K8s已有配置可直接使用）
+//  3. 持久化文件 .node_id（位于配置目录）
+//  4. 基于机器特征自动生成（hostname + MAC地址的SHA256哈希）
+//
+// 容器环境：
+//   - Docker: 设置环境变量 GATEWAY_NODE_ID=node-001
+//   - K8s: 已有 POD_NAME 环境变量时自动使用，无需额外配置
+//
+// 返回:
+//   - string: 节点ID
+func GetNodeId() string {
+	nodeIdOnce.Do(func() {
+		// 1. 优先从配置读取
+		if nodeId := GetString("app.node_id", ""); nodeId != "" {
+			cachedNodeId = nodeId
+			return
+		}
+
+		// 2. 从环境变量读取（容器环境推荐）
+		// 支持 GATEWAY_NODE_ID 或 POD_NAME（K8s常用）
+		for _, envKey := range []string{"GATEWAY_NODE_ID", "POD_NAME"} {
+			if nodeId := os.Getenv(envKey); nodeId != "" {
+				cachedNodeId = nodeId
+				return
+			}
+		}
+
+		// 3. 尝试从持久化文件读取
+		nodeIdFile := filepath.Join(GetConfigDir(), ".node_id")
+		if nodeId, err := path.ReadFileContent(nodeIdFile); err == nil && len(nodeId) >= 8 {
+			cachedNodeId = nodeId
+			return
+		}
+
+		// 4. 基于机器特征自动生成
+		hostname, _ := os.Hostname()
+		if hostname == "" {
+			hostname = "unknown"
+		}
+		macData := net.GetAllMACAddresses()
+		if macData == "" {
+			macData = net.GetFirstIPv4Address()
+		}
+		hash := sha256.Sum256([]byte(hostname + "|" + macData))
+		cachedNodeId = fmt.Sprintf("%x", hash)
+
+		// 5. 尝试持久化（失败不影响使用）
+		if err := path.WriteFileContent(nodeIdFile, cachedNodeId); err != nil {
+			log.Printf("警告: 无法持久化节点ID: %v", err)
+		}
+	})
+	return cachedNodeId
+}
+
+// ResetNodeId 重置节点ID缓存（仅用于测试）
+func ResetNodeId() {
+	nodeIdOnce = sync.Once{}
+	cachedNodeId = ""
 }
 
 // LoadConfigFile 加载指定的单个配置文件

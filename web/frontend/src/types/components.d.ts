@@ -8,6 +8,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    GCard: typeof import('./../components/gcard/GCard.vue')['default']
     GDataFormModal: typeof import('./../components/form/data/GDataFormModal.vue')['default']
     GDate: typeof import('./../components/date/GDate.vue')['default']
     GDialog: typeof import('./../components/gdialog/GDialog.vue')['default']
@@ -19,6 +20,7 @@ declare module 'vue' {
     GModal: typeof import('./../components/gmodal/GModal.vue')['default']
     GPagination: typeof import('./../components/gpage/GPagination.vue')['default']
     GPane: typeof import('./../components/gpane/GPane.vue')['default']
+    GTextShow: typeof import('./../components/gtext-show/GTextShow.vue')['default']
     GTips: typeof import('./../components/gtips/GTips.vue')['default']
     GToolbar: typeof import('./../components/toolbar/GToolbar.vue')['default']
     GTree: typeof import('./../components/gtree/GTree.vue')['default']

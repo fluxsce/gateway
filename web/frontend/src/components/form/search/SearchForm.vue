@@ -16,8 +16,9 @@
     <n-form
       ref="formRef"
       :model="formData"
-      :label-width="labelWidth"
+
       :label-placement="labelPlacement"
+      :label-align="labelAlign"
       :size="size"
       :inline="inline"
       class="search-form__form"
@@ -32,7 +33,7 @@
               :required="field.required"
             >
               <template #label>
-                <g-ellipsis :text="field.label" />
+                <component :is="renderLabel(field)" />
               </template>
               <!-- 输入框 -->
               <n-input
@@ -151,7 +152,7 @@
               :required="field.required"
             >
               <template #label>
-                <g-ellipsis :text="field.label" />
+                <component :is="renderLabel(field)" />
               </template>
               <!-- 输入框 -->
               <n-input
@@ -266,6 +267,7 @@
 </template>
 
 <script setup lang="ts">
+import { GTips } from '@/components'
 import GEllipsis from '@/components/gellipsis/GEllipsis.vue'
 import type { ToolbarButton } from '@/components/toolbar'
 import GToolbar from '@/components/toolbar/GToolbar.vue'
@@ -282,7 +284,7 @@ import {
   NSelect,
   NSwitch
 } from 'naive-ui'
-import { computed, onMounted, ref } from 'vue'
+import { computed, h, onMounted, ref } from 'vue'
 import type {
   SearchFormEmits,
   SearchFormExpose,
@@ -296,8 +298,9 @@ defineOptions({
 
 // Props
 const props = withDefaults(defineProps<SearchFormProps>(), {
-  labelWidth: 100,
+  labelWidth: 'auto',
   labelPlacement: 'left',
+  labelAlign: 'left',
   size: 'small',
   inline: false,
   cols: 24,
@@ -392,6 +395,39 @@ const hasMoreFields = computed(() => {
 const defaultFieldSpan = computed(() => {
   return Math.floor(props.cols / 4) // 默认一行4个字段
 })
+
+// 获取字段 label（支持函数类型）
+const getFieldLabel = (field: any): string => {
+  return typeof field.label === 'function' ? field.label(formData.value) : field.label
+}
+
+// 渲染带 tips 的 label
+const renderLabel = (field: any) => {
+  const labelText = getFieldLabel(field)
+
+  if (!field.tips) {
+    return () => h(GEllipsis, { text: labelText })
+  }
+
+  return () =>
+    h('span', { class: 'search-form-label-with-tips' }, [
+      h(GEllipsis, { text: labelText }),
+      h('span', { class: 'search-form-label-tips' }, [
+        (() => {
+          if (!field.tips) return null
+          let tipsValue: string | Component | VNode
+          if (typeof field.tips === 'function') {
+            tipsValue = (field.tips as (formData: Record<string, any>) => string | Component | VNode)(
+              formData.value
+            )
+          } else {
+            tipsValue = field.tips
+          }
+          return typeof tipsValue === 'string' ? h(GTips, { content: tipsValue }) : (tipsValue as any)
+        })()
+      ])
+    ])
+}
 
 // 计算工具栏按钮
 const toolbarButtonsComputed = computed<ToolbarButton[]>(() => {
@@ -520,7 +556,6 @@ defineExpose<SearchFormExpose>({
   display: flex;
   flex-direction: column;
   gap: var(--g-space-xs);
-
   &__toolbar {
     flex-shrink: 0;
   }
@@ -547,6 +582,22 @@ defineExpose<SearchFormExpose>({
       min-width: 0; // 允许收缩
       max-width: 100%;
     }
+  }
+  .search-form__grid {
+    padding: 0px 10px;
+  }
+
+  // 带 tips 的 label 样式
+  .search-form-label-with-tips {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .search-form-label-tips {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 4px;
   }
 }
 </style>

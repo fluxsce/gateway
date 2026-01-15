@@ -20,17 +20,17 @@ spec:
     - name: http
       port: 8080
       targetPort: 8080
-      nodePort: 24001
+      nodePort: 30001
       protocol: TCP
     - name: web
       port: 12003
       targetPort: 12003
-      nodePort: 24002
+      nodePort: 30002
       protocol: TCP
     - name: tunnel
       port: 7000
       targetPort: 7000
-      nodePort: 24003
+      nodePort: 30003
       protocol: TCP
   sessionAffinity: ClientIP
   sessionAffinityConfig:

@@ -3,9 +3,7 @@ package starter
 import (
 	"context"
 	"fmt"
-	cacheapp "gateway/cmd/cache"
-	gatewayapp "gateway/cmd/gateway"
-	timerinit "gateway/cmd/init"
+	appinit "gateway/cmd/init"
 	webapp "gateway/cmd/web"
 	"gateway/pkg/cache"
 	"gateway/pkg/config"
@@ -30,7 +28,7 @@ var (
 	// dbConnections 所有数据库连接的映射
 	dbConnections map[string]database.Database
 	// gatewayApp 网关应用实例
-	gatewayApp *gatewayapp.GatewayApp
+	gatewayApp *appinit.GatewayApp
 	// 应用上下文
 	appContext context.Context
 	appCancel  context.CancelFunc
@@ -120,27 +118,32 @@ func initializeAndStartApplication() error {
 	}
 
 	// 初始化缓存
-	if _, err := cacheapp.InitCache(); err != nil {
+	if _, err := appinit.InitCache(); err != nil {
 		return huberrors.WrapError(err, "初始化缓存失败")
 	}
 
 	// 初始化MongoDB
-	if _, err := timerinit.InitializeMongoDB(); err != nil {
+	if _, err := appinit.InitializeMongoDB(); err != nil {
 		return huberrors.WrapError(err, "初始化MongoDB失败")
 	}
 
 	// 初始化数据库脚本
-	if err := timerinit.InitializeDatabaseScriptsWithConfig(appContext, db); err != nil {
+	if err := appinit.InitializeDatabaseScriptsWithConfig(appContext, db); err != nil {
 		return huberrors.WrapError(err, "初始化数据库脚本失败")
 	}
 
+	// 初始化集群服务（在定时任务之前初始化）
+	if err := appinit.InitClusterWithConfig(appContext, db); err != nil {
+		return huberrors.WrapError(err, "初始化集群服务失败")
+	}
+
 	// 初始化定时任务
-	if err := timerinit.InitAllTimerTasks(appContext, db); err != nil {
+	if err := appinit.InitAllTimerTasks(appContext, db); err != nil {
 		return huberrors.WrapError(err, "初始化定时任务失败")
 	}
 
 	// 初始化注册中心（必须在Web应用之前初始化，因为Web层会使用注册中心）
-	if err := timerinit.InitRegistryWithConfig(appContext, db); err != nil {
+	if err := appinit.InitRegistryWithConfig(appContext, db); err != nil {
 		return huberrors.WrapError(err, "初始化注册中心失败")
 	}
 
@@ -155,17 +158,17 @@ func initializeAndStartApplication() error {
 	}
 
 	// 初始化pprof服务
-	if err := timerinit.InitPprofService(appContext); err != nil {
+	if err := appinit.InitPprofService(appContext); err != nil {
 		return huberrors.WrapError(err, "初始化pprof服务失败")
 	}
 
 	// 初始化指标收集器
-	if err := timerinit.InitializeMetricCollector(db); err != nil {
+	if err := appinit.InitializeMetricCollector(db); err != nil {
 		return huberrors.WrapError(err, "初始化指标收集器失败")
 	}
 
 	// 初始化隧道管理器（失败不影响应用启动）
-	if err := timerinit.InitializeTunnelManager(appContext, db); err != nil {
+	if err := appinit.InitializeTunnelManager(appContext, db); err != nil {
 		logger.Error("初始化隧道管理器失败", map[string]interface{}{
 			"error": err.Error(),
 		})
@@ -173,7 +176,7 @@ func initializeAndStartApplication() error {
 	}
 
 	// 启动隧道管理器（失败不影响应用启动）
-	if err := timerinit.StartTunnelManager(appContext); err != nil {
+	if err := appinit.StartTunnelManager(appContext); err != nil {
 		logger.Error("启动隧道管理器失败", map[string]interface{}{
 			"error": err.Error(),
 		})
@@ -293,18 +296,23 @@ func stopApplication() {
 	appCancel()
 
 	// 停止pprof服务
-	if err := timerinit.StopPprofService(); err != nil {
+	if err := appinit.StopPprofService(); err != nil {
 		logger.Error("停止pprof服务失败", "error", err)
 	}
 
 	// 停止指标收集器
-	if err := timerinit.StopMetricCollector(); err != nil {
+	if err := appinit.StopMetricCollector(); err != nil {
 		logger.Error("停止指标收集器失败", "error", err)
 	}
 
 	// 停止隧道管理器
-	if err := timerinit.StopTunnelManager(appContext); err != nil {
+	if err := appinit.StopTunnelManager(appContext); err != nil {
 		logger.Error("停止隧道管理器失败", "error", err)
+	}
+
+	// 停止集群服务
+	if err := appinit.StopCluster(appContext); err != nil {
+		logger.Error("停止集群服务失败", "error", err)
 	}
 
 	// 清理资源
@@ -367,7 +375,7 @@ func initDatabase() error {
 // initGateway 初始化网关应用
 func initGateway(db database.Database) error {
 	// 创建网关应用实例
-	gatewayApp = gatewayapp.NewGatewayApp()
+	gatewayApp = appinit.NewGatewayApp()
 
 	// 初始化网关应用
 	if err := gatewayApp.Init(db); err != nil {
@@ -409,7 +417,7 @@ func cleanupResources() {
 	logMsg("开始清理应用资源...")
 
 	// 停止所有定时任务
-	if err := timerinit.StopAllTimerTasks(); err != nil {
+	if err := appinit.StopAllTimerTasks(); err != nil {
 		logMsg("停止定时任务时发生错误: %v", err)
 	} else {
 		logMsg("定时任务已成功停止")
@@ -443,7 +451,7 @@ func cleanupResources() {
 
 	// 关闭所有MongoDB连接
 	logMsg("正在关闭MongoDB连接...")
-	if err := timerinit.StopMongoDB(); err != nil {
+	if err := appinit.StopMongoDB(); err != nil {
 		logMsg("关闭MongoDB连接时发生错误: %v", err)
 	} else {
 		logMsg("MongoDB连接已成功关闭")
@@ -451,7 +459,7 @@ func cleanupResources() {
 
 	// 停止注册中心服务
 	logMsg("正在停止注册中心服务...")
-	if err := timerinit.StopRegistry(appContext); err != nil {
+	if err := appinit.StopRegistry(appContext); err != nil {
 		logMsg("停止注册中心服务时发生错误: %v", err)
 	} else {
 		logMsg("注册中心服务已成功停止")

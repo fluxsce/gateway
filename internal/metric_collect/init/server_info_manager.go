@@ -58,9 +58,13 @@ func NewServerInfoManager(config *MetricConfig, db database.Database) *ServerInf
 //
 // 流程：
 // 1. 采集系统信息获取完整的系统信息（包括网络信息和服务器类型）
-// 2. 尝试从数据库按hostname、IP和MAC地址获取已存在的服务器信息（确保唯一性）
-// 3. 如果不存在，创建新记录；如果存在，更新信息（使用已存在的ServerId）
+// 2. 通过 ServerId（来自 config.GetNodeId()）查询数据库
+// 3. 如果不存在，创建新记录；如果存在，更新信息
 // 4. 将服务器信息缓存到内存中
+//
+// 说明：
+//   - ServerId 由 config.GetNodeId() 生成，在容器环境中为 POD_NAME
+//   - 不再通过 hostname/IP/MAC 回退查询，确保每个节点有独立的记录
 //
 // 返回：
 //   - error: 初始化过程中的错误
@@ -78,30 +82,13 @@ func (m *ServerInfoManager) InitializeServerInfo() error {
 	memoryMetrics, _ := metric.CollectMemory()
 	diskMetrics, _ := metric.CollectDisk()
 
-	// 获取网络信息
+	// 获取网络信息（用于日志）
 	primaryIP := m.getPrimaryIP(systemMetrics)
-	primaryMAC := m.getPrimaryMAC(systemMetrics)
 
-	var existingInfo *types.ServerInfo
-
-	// 首先根据唯一约束字段（tenantId, metricServerId）查询，确保不会违反唯一约束
-	existingInfo, err = m.serverInfoDAO.GetServerInfoById(ctx, m.config.TenantId, m.config.ServerId)
+	// 通过 ServerId 查询（ServerId 来自 config.GetNodeId()，在容器中为 POD_NAME）
+	existingInfo, err := m.serverInfoDAO.GetServerInfoById(ctx, m.config.TenantId, m.config.ServerId)
 	if err != nil {
-		logger.Error("根据ServerId查询服务器信息失败", "error", err, "server_id", m.config.ServerId)
-	}
-
-	// 如果通过ServerId没找到，再尝试通过hostname/IP/MAC查询（可能ServerId变化了）
-	if existingInfo == nil {
-		existingInfo, err = m.serverInfoDAO.GetServerInfoByHostnameAndNetwork(
-			ctx,
-			m.config.TenantId,
-			systemMetrics.Hostname,
-			primaryIP,
-			primaryMAC,
-		)
-		if err != nil {
-			logger.Error("根据hostname/IP/MAC查询服务器信息失败", "error", err)
-		}
+		logger.Debug("查询服务器信息失败", "error", err, "server_id", m.config.ServerId)
 	}
 
 	now := time.Now()
@@ -109,16 +96,6 @@ func (m *ServerInfoManager) InitializeServerInfo() error {
 	if existingInfo != nil {
 		// 更新已存在的服务器信息
 		m.serverInfo = existingInfo
-
-		// 重要：使用数据库中已存在的 MetricServerId，避免ID不一致
-		// 同时更新配置中的 ServerId 以保持一致性
-		if existingInfo.MetricServerId != "" && existingInfo.MetricServerId != m.config.ServerId {
-			logger.Warn("检测到ServerId不一致，使用数据库中的ServerId",
-				"config_server_id", m.config.ServerId,
-				"db_server_id", existingInfo.MetricServerId,
-				"hostname", systemMetrics.Hostname)
-			m.config.ServerId = existingInfo.MetricServerId
-		}
 
 		if err := m.updateExistingServerInfo(systemMetrics, cpuMetrics, memoryMetrics, diskMetrics, now); err != nil {
 			return fmt.Errorf("更新服务器信息失败: %w", err)
@@ -128,7 +105,6 @@ func (m *ServerInfoManager) InitializeServerInfo() error {
 			"server_id", m.serverInfo.MetricServerId,
 			"hostname", systemMetrics.Hostname,
 			"ip", primaryIP,
-			"mac", primaryMAC,
 			"server_type", systemMetrics.ServerType)
 	} else {
 		// 创建新的服务器信息记录
@@ -141,7 +117,6 @@ func (m *ServerInfoManager) InitializeServerInfo() error {
 			"hostname", systemMetrics.Hostname,
 			"os", systemMetrics.OS,
 			"ip", primaryIP,
-			"mac", primaryMAC,
 			"server_type", systemMetrics.ServerType)
 	}
 

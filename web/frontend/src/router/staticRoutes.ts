@@ -123,6 +123,28 @@ export class StaticRoutes {
               moduleName: 'hub0006', // 多语言模块名称
             },
           },
+          {
+            path: 'serverNodeManagement',
+            name: 'serverNodeManagement',
+            component: () => import('@/views/hub0007/ServerNodeManagement.vue'),
+            meta: {
+              title: '系统节点监控',
+              requiresAuth: true,
+              icon: 'HardwareChipOutline',
+              moduleName: 'hub0007', // 多语言模块名称
+            },
+          },
+          {
+            path: 'clusterEventManagement',
+            name: 'clusterEventManagement',
+            component: () => import('@/views/hub0008/ClusterEventManagement.vue'),
+            meta: {
+              title: '集群节点事件',
+              requiresAuth: true,
+              icon: 'RadioOutline',
+              moduleName: 'hub0008', // 多语言模块名称
+            },
+          },
           // {
           //   path: 'taskManagement',
           //   name: 'taskManagement',

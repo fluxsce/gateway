@@ -25,10 +25,10 @@
     <!-- 主内容区域 -->
     <div class="g-toolbar__content">
       <slot>
-        <!-- 渲染分组按钮 -->
+        <!-- 渲染分组按钮（非尾部） -->
         <template v-if="groups && groups.length > 0">
           <div
-            v-for="(group, groupIndex) in visibleGroups"
+            v-for="(group, groupIndex) in contentGroups"
             :key="group.key"
             class="g-toolbar__group"
             :class="{ 'g-toolbar__group--divider': group.divider && groupIndex > 0 }"
@@ -48,9 +48,9 @@
           </div>
         </template>
 
-        <!-- 渲染扁平按钮 -->
+        <!-- 渲染扁平按钮（非尾部） -->
         <template v-else-if="buttons && buttons.length > 0">
-          <template v-for="(button, index) in visibleButtons" :key="button.key">
+          <template v-for="(button, index) in contentButtons" :key="button.key">
             <toolbar-button-component
               :button="button"
               :module-id="props.moduleId"
@@ -68,8 +68,45 @@
       <slot name="center" />
     </div>
 
-    <!-- 右侧插槽 -->
-    <div v-if="slots.right" class="g-toolbar__right">
+    <!-- 右侧插槽（包含尾部按钮和自定义内容） -->
+    <div v-if="(endButtons.length > 0 || endGroups.length > 0) || slots.right" class="g-toolbar__right">
+      <!-- 渲染尾部分组按钮 -->
+      <template v-if="groups && groups.length > 0">
+        <div
+          v-for="(group, groupIndex) in endGroups"
+          :key="group.key"
+          class="g-toolbar__group"
+          :class="{ 'g-toolbar__group--divider': group.divider && groupIndex > 0 }"
+        >
+          <span v-if="group.title" class="g-toolbar__group-title">{{ group.title }}</span>
+          <div class="g-toolbar__group-buttons">
+            <template v-for="(button, index) in group.buttons" :key="button.key">
+              <toolbar-button-component
+                :button="button"
+                :module-id="props.moduleId"
+                :class="{ 'g-toolbar__button--divider': index > 0 }"
+                @click="handleButtonClick"
+                @dropdown-select="handleDropdownSelect"
+              />
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <!-- 渲染尾部扁平按钮 -->
+      <template v-else-if="buttons && buttons.length > 0">
+        <template v-for="(button, index) in endButtons" :key="button.key">
+          <toolbar-button-component
+            :button="button"
+            :module-id="props.moduleId"
+            :class="{ 'g-toolbar__button--divider': index > 0 }"
+            @click="handleButtonClick"
+            @dropdown-select="handleDropdownSelect"
+          />
+        </template>
+      </template>
+
+      <!-- 自定义右侧插槽内容 -->
       <slot name="right" />
     </div>
   </div>
@@ -117,6 +154,16 @@ const visibleButtons = computed(() => {
   }) || []
 })
 
+// 过滤尾部按钮（atEnd 为 true 的按钮）
+const endButtons = computed(() => {
+  return visibleButtons.value.filter(button => button.atEnd === true)
+})
+
+// 过滤非尾部按钮（atEnd 不为 true 的按钮）
+const contentButtons = computed(() => {
+  return visibleButtons.value.filter(button => button.atEnd !== true)
+})
+
 // 过滤可见分组（包含权限检查）
 const visibleGroups = computed(() => {
   return props.groups?.map(group => ({
@@ -129,6 +176,22 @@ const visibleGroups = computed(() => {
       return true
     })
   })).filter(group => group.buttons.length > 0) || []
+})
+
+// 过滤尾部分组（包含 atEnd 为 true 的按钮）
+const endGroups = computed(() => {
+  return visibleGroups.value.map(group => ({
+    ...group,
+    buttons: group.buttons.filter(button => button.atEnd === true)
+  })).filter(group => group.buttons.length > 0)
+})
+
+// 过滤非尾部分组（不包含 atEnd 为 true 的按钮）
+const contentGroups = computed(() => {
+  return visibleGroups.value.map(group => ({
+    ...group,
+    buttons: group.buttons.filter(button => button.atEnd !== true)
+  })).filter(group => group.buttons.length > 0)
 })
 
 // 处理按钮点击
@@ -182,6 +245,7 @@ defineExpose({
   box-sizing: border-box;
   transition: all var(--g-transition-base) var(--g-transition-ease);
   gap: var(--g-space-xs);
+  border-bottom: 1px solid var(--g-border-primary);
 
   // 对齐方式
   &--left {

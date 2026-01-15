@@ -26,9 +26,14 @@ export interface SearchField {
   field: string
 
   /**
-   * 字段标签
+   * 字段标签（支持函数动态生成）
    */
-  label: string
+  label: string | ((formData: Record<string, any>) => string)
+
+  /**
+   * 字段提示信息（支持字符串、组件或函数）
+   */
+  tips?: string | Component | VNode | ((formData: Record<string, any>) => string | Component | VNode)
 
   /**
    * 字段类型
@@ -128,6 +133,12 @@ export interface SearchFormProps extends Pick<ToolbarProps, 'moduleId'> {
    * @default 'left'
    */
   labelPlacement?: 'left' | 'top'
+
+  /**
+   * 标签对齐方式
+   * @default 'left'
+   */
+  labelAlign?: 'left' | 'right'
 
   /**
    * 表单尺寸

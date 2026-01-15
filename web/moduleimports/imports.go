@@ -26,6 +26,10 @@ import (
 	_ "gateway/web/views/hub0005/routes"
 	// 导入权限资源管理模块
 	_ "gateway/web/views/hub0006/routes"
+	// 导入系统节点管理模块
+	_ "gateway/web/views/hub0007/routes"
+	// 导入集群事件管理模块
+	_ "gateway/web/views/hub0008/routes"
 	// 导入网关管理模块
 	_ "gateway/web/views/hub0020/routes"
 	// 导入路由管理模块

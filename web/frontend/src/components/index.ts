@@ -10,6 +10,10 @@ export * from './gpage/types'
 export { GPane } from './gpane'
 export * from './gpane/types'
 
+// Card 卡片组件
+export { GCard } from './gcard'
+export * from './gcard/types'
+
 // Toolbar 组件
 export { default as GToolbar } from './toolbar/GToolbar.vue'
 export * from './toolbar/types'
@@ -56,6 +60,10 @@ export * from './gellipsis/types'
 
 // Context Menu 右键菜单
 export * from './gmenu'
+
+// Text 文本显示组件
+export { GTextShow } from './gtext-show'
+export * from './gtext-show/types'
 
 // 其他组件
 export { default as RequestInitializer } from './RequestInitializer.vue'

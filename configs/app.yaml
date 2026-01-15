@@ -13,14 +13,20 @@ app:
   #   - Local (系统本地时区)
   local_timezone: "Asia/Shanghai"
   #版本
-  version: "3.0.3"
+  version: "3.0.4"
+  
+  # 全局节点ID配置，为空时自动生成
+  # 用于标识当前应用实例，在集群模式和指标采集中共用
+  # 各模块优先使用此配置，也可在各模块内单独配置覆盖
+  node_id: ""
+  
   # 指标采集配置
   metrics:
     enabled: true                    # 是否启用指标采集
     collect_interval: 60s            # 采集间隔时间（支持：s秒、m分钟、h小时，如：30s、5m、1h）
     auto_start: true                 # 是否自动启动采集
     tenant_id: "default"             # 租户ID
-    server_id: ""                    # 服务器ID，为空时自动生成
+    server_id: ""                    # 服务器ID，为空时自动生成,优先使用app.node_id
     operator: "system"               # 操作人标识
     # 采集器启用配置
     collectors:
@@ -62,11 +68,28 @@ app:
     enabled: true                  # 是否启用隧道管理器
     auto_start: true                # 是否自动启动所有隧道
     tenant_id: "default"            # 租户ID
-  
   # 注册中心配置
   registry:
     enabled: true                   # 是否启用注册中心
     tenant_id: "default"            # 租户ID
+  
+  # 集群配置
+  # 集群模式用于多节点部署时的配置同步和事件通知
+  # 节点ID使用全局 app.node_id 配置，也可通过 cluster.node_id 单独覆盖
+  cluster:
+    enabled: true                   # 是否启用集群模式
+    # node_id: ""                   # 节点ID，优先使用 app.node_id，此处可覆盖
+    # 事件配置
+    event:
+      poll_interval: 3s             # 事件轮询间隔
+      batch_size: 100               # 每次拉取事件数
+      expire_hours: 24              # 事件过期时间(小时)
+    # 清理配置
+    cleanup:
+      enabled: true                 # 是否启用清理
+      interval: 1h                  # 清理间隔
+      event_retention_hours: 24     # 事件保留小时数
+      ack_retention_hours: 48       # 确认记录保留小时数
   
   # pprof性能分析配置
   pprof:
