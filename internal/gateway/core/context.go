@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gateway/internal/gateway/constants"
@@ -58,6 +59,7 @@ type Context struct {
 	// 记录多服务转发场景下，所有后端服务中的最大耗时
 	// 单服务场景时，记录该服务的耗时
 	// 用于性能统计和监控
+	// 使用原子操作保证线程安全，支持多服务并发转发场景
 	maxBackendDurationMs int64
 
 	// 目标URL
@@ -345,6 +347,15 @@ func (c *Context) GetLatestError() error {
 	return nil
 }
 
+// ClearErrors 清除所有错误
+// 用于在请求最终成功时清除重试过程中添加的错误信息
+// 避免成功响应中包含错误信息导致外层响应处理异常
+func (c *Context) ClearErrors() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.Errors = c.Errors[:0] // 清空切片但保留底层数组
+}
+
 // Elapsed 获取请求处理耗时
 // 返回值:
 // - 从请求开始到调用此方法的时间间隔
@@ -381,10 +392,22 @@ func (c *Context) GetStartTime() time.Time {
 // 在多服务转发场景下，会自动更新为最大耗时
 // 单服务场景时，记录该服务的耗时
 // 内部转换为毫秒存储
+// 线程安全：使用原子操作保证并发安全，支持多服务并发转发场景
 func (c *Context) SetMaxBackendDuration(duration time.Duration) {
 	durationMs := duration.Milliseconds()
-	if durationMs > c.maxBackendDurationMs {
-		c.maxBackendDurationMs = durationMs
+	// 使用原子操作循环更新，确保线程安全
+	for {
+		current := atomic.LoadInt64(&c.maxBackendDurationMs)
+		if durationMs <= current {
+			// 新值不大于当前值，无需更新
+			return
+		}
+		// 尝试原子性地更新为更大的值
+		if atomic.CompareAndSwapInt64(&c.maxBackendDurationMs, current, durationMs) {
+			// 更新成功
+			return
+		}
+		// 更新失败，说明有其他 goroutine 更新了值，重新读取并比较
 	}
 }
 
@@ -392,8 +415,9 @@ func (c *Context) SetMaxBackendDuration(duration time.Duration) {
 // 返回值:
 // - 后端最大耗时（毫秒）
 // 用于性能统计和监控
+// 线程安全：使用原子操作读取，保证并发安全
 func (c *Context) GetMaxBackendDuration() int64 {
-	return c.maxBackendDurationMs
+	return atomic.LoadInt64(&c.maxBackendDurationMs)
 }
 
 // JSON 返回JSON响应
@@ -547,7 +571,7 @@ func (c *Context) Reset() {
 
 	// 重置时间字段
 	c.responseTime = time.Time{}
-	c.maxBackendDurationMs = 0
+	atomic.StoreInt64(&c.maxBackendDurationMs, 0)
 
 	// 重置日志配置
 	c.logConfig = nil

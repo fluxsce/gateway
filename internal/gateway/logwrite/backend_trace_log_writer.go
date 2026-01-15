@@ -35,6 +35,7 @@ import (
 //   - forwardBody: 转发请求体（可选，如果与主请求不同则记录）
 //   - err: 错误信息（如果有）
 //   - serviceName: 服务名称（可选，用于日志记录）
+//   - retryCount: 重试次数（当前请求是第几次重试，0表示首次请求）
 //
 // 返回：
 //   - error: 构建失败时返回错误信息（注意：写入是异步的，错误可能不会立即返回）
@@ -55,6 +56,7 @@ func WriteBackendTraceLogSync(
 	forwardBody []byte,
 	err error,
 	serviceName string,
+	retryCount int,
 ) error {
 	// 使用 defer + recover 确保整个方法（包括构建和写入）的异常不会导致服务崩溃
 	defer func() {
@@ -224,6 +226,9 @@ func WriteBackendTraceLogSync(
 	}
 	responseSize := len(responseBodyStr)
 	backendLog.SetResponseInfo(statusCode, responseSize, responseHeadersStr, responseBodyStr)
+
+	// 设置重试次数
+	backendLog.SetRetryInfo(retryCount)
 
 	// 设置错误信息和成功状态
 	if err != nil {

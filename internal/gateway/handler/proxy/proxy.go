@@ -231,9 +231,9 @@ var DefaultHTTPProxyConfig = HTTPProxyConfig{
 	IdleConnTimeout:  90 * time.Second,
 	CopyResponseBody: false,
 	BufferSize:       32 * 1024,
-	MaxBufferSize:    1024 * 1024, // 1MB
-	RetryCount:       3,
-	RetryTimeout:     10 * time.Second, // 与前端保持一致
+	MaxBufferSize:    1024 * 1024,      // 1MB
+	RetryCount:       0,                // 默认不重试，只有网络异常时才重试
+	RetryTimeout:     30 * time.Second, // 重试超时时间
 
 	// 头部配置默认值 - 前端默认为空，后端也保持为空以保持一致
 	SetHeaders:         map[string]string{},

@@ -82,6 +82,10 @@ func (m *HTTPMultiServiceProxy) Handle(ctx *core.Context, serviceIDs []string, c
 		}
 		// 重置请求体，以便后续可能的使用
 		ctx.Request.Body = io.NopCloser(bytes.NewReader(requestBody))
+		// 根据日志配置决定是否缓存请求体到上下文中，供日志记录使用（与 http_proxy.go 保持一致）
+		if m.httpProxy.shouldRecordRequestBody(ctx) {
+			ctx.Set("request_body", requestBody)
+		}
 	}
 
 	// 控制并发数
@@ -123,34 +127,8 @@ func (m *HTTPMultiServiceProxy) proxyToMultipleServices(
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
-			// 选择目标节点（复用 http_proxy.go 的逻辑）
-			serviceConfig, node, err := m.httpProxy.selectTargetNode(ctx, sid)
-			if err != nil {
-				ctx.AddError(fmt.Errorf("选择服务 %s 的目标节点失败: %w", sid, err))
-				// 如果要求所有成功，直接返回错误
-				if config.RequireAllSuccess {
-					mu.Lock()
-					responses[index] = &ServiceResponse{
-						ServiceID: sid,
-						Error:     err,
-						Success:   false,
-					}
-					mu.Unlock()
-					return
-				}
-				// 否则继续处理其他服务
-				mu.Lock()
-				responses[index] = &ServiceResponse{
-					ServiceID: sid,
-					Error:     err,
-					Success:   false,
-				}
-				mu.Unlock()
-				return
-			}
-
-			// 执行代理请求（复用 http_proxy.go 的逻辑，但不写入响应）
-			response := m.proxyRequestToService(ctx, serviceConfig, node, requestBody)
+			// 执行带重试的代理请求（每次重试都重新选择节点）
+			response := m.proxyRequestToServiceWithRetry(ctx, sid, requestBody, config)
 
 			// 更新后端最大耗时（多服务场景下，记录所有服务中的最大耗时）
 			mu.Lock()
@@ -166,15 +144,109 @@ func (m *HTTPMultiServiceProxy) proxyToMultipleServices(
 	return responses
 }
 
+// proxyRequestToServiceWithRetry 向指定服务发送代理请求（带重试逻辑）
+// 每次重试都重新选择节点，避免集群中某一台异常时一直重试同一台
+// 每次后端调用都会记录日志（通过 proxyRequestToService 的 defer）
+func (m *HTTPMultiServiceProxy) proxyRequestToServiceWithRetry(
+	ctx *core.Context,
+	serviceID string,
+	requestBody []byte,
+	config *router.MultiServiceConfig,
+) *ServiceResponse {
+	httpConfig := m.httpProxy.GetHTTPConfig()
+	maxRetries := httpConfig.RetryCount
+	if maxRetries < 0 {
+		maxRetries = 0
+	}
+
+	retryTimeout := httpConfig.RetryTimeout
+	if retryTimeout <= 0 {
+		retryTimeout = 30 * time.Second // 默认30秒
+	}
+
+	var lastResponse *ServiceResponse
+	// 累加所有重试的耗时
+	var totalBackendDuration time.Duration
+
+	// 执行请求和重试
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		// 每次重试都重新选择节点（避免集群中某一台异常时一直重试同一台）
+		serviceConfig, node, err := m.httpProxy.selectTargetNode(ctx, serviceID)
+		if err != nil {
+			// 选择节点失败
+			lastResponse = &ServiceResponse{
+				ServiceID: serviceID,
+				Error:     fmt.Errorf("选择服务 %s 的目标节点失败: %w", serviceID, err),
+				Success:   false,
+			}
+
+			// 如果还有重试次数，继续重试
+			if attempt < maxRetries {
+				ctx.AddError(fmt.Errorf("选择节点失败，准备重试 (第%d次): %w", attempt+1, err))
+				select {
+				case <-ctx.Request.Context().Done():
+					return lastResponse
+				case <-time.After(retryTimeout):
+				}
+				continue
+			}
+
+			// 重试次数已用完，返回错误
+			if config.RequireAllSuccess {
+				return lastResponse
+			}
+			// 否则继续处理其他服务
+			return lastResponse
+		}
+
+		// 执行代理请求（每次调用都会记录后端追踪日志）
+		response, attemptDuration := m.proxyRequestToService(ctx, serviceConfig, node, requestBody, attempt)
+
+		// 累加本次请求的耗时
+		totalBackendDuration += attemptDuration
+
+		if response.Success {
+			// 请求成功，更新响应中的耗时为累加后的总耗时
+			// 注意：不在这里清除错误信息，由 mergeServiceResponses 根据策略决定是否清除
+			response.Duration = totalBackendDuration
+			return response
+		}
+
+		// 请求失败，记录错误信息
+		lastResponse = response
+		// 更新响应中的耗时为累加后的总耗时
+		lastResponse.Duration = totalBackendDuration
+
+		// 如果还有重试次数，继续重试
+		if attempt < maxRetries {
+			ctx.AddError(fmt.Errorf("请求失败，准备重试 (第%d次，节点: %s): %w", attempt+1, node.URL, response.Error))
+			select {
+			case <-ctx.Request.Context().Done():
+				return lastResponse
+			case <-time.After(retryTimeout):
+			}
+			continue
+		}
+	}
+
+	// 所有重试都失败
+	return lastResponse
+}
+
 // proxyRequestToService 向指定服务发送代理请求
 // 复用 http_proxy.go 的 ProxyRequest 逻辑，但不写入响应，只返回响应信息
 // 日志写入直接调用日志写入类，与 ProxyRequest 保持一致
+// retryCount: 当前请求是第几次重试（0表示首次请求）
+// 返回值:
+// - *ServiceResponse: 服务响应信息
+// - time.Duration: 本次请求的耗时，用于重试累加
 func (m *HTTPMultiServiceProxy) proxyRequestToService(
 	ctx *core.Context,
 	serviceConfig *service.ServiceConfig,
 	node *service.NodeConfig,
 	requestBody []byte,
-) *ServiceResponse {
+	retryCount int,
+) (*ServiceResponse, time.Duration) {
 	serviceID := ""
 	nodeID := ""
 	targetURL := ""
@@ -193,7 +265,7 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 			NodeID:    nodeID,
 			Error:     fmt.Errorf("解析目标URL失败: %w", err),
 			Success:   false,
-		}
+		}, 0
 	}
 
 	// 使用 HTTPProxy 的路径构建方法（复用）
@@ -226,7 +298,7 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 			URL:       proxyURL.String(),
 			Error:     fmt.Errorf("创建代理请求失败: %w", err),
 			Success:   false,
-		}
+		}, 0
 	}
 
 	// 复制请求头（复用 http_proxy.go 的逻辑）
@@ -313,28 +385,32 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 			requestBody,       // 转发请求体作为参数传入，避免并发覆盖
 			responseErr,
 			serviceName, // 服务名称，从 node 中获取
+			retryCount,  // 重试次数
 		)
 	}()
 
-	// 发送代理请求
+	// 发送代理请求（异常直接抛出）
 	resp, err := m.client.Do(proxyReq)
 	if err != nil {
 		// 请求失败时记录错误和后端请求结束时间
 		responseErr = err
 		responseStatusCode = 0
 		backendResponseTime = time.Now()
-		// 记录后端耗时（请求失败时，耗时从请求开始到失败的时间）
-		ctx.SetMaxBackendDuration(time.Since(requestStartTime))
+		// 计算本次请求的耗时（请求失败时，耗时从请求开始到失败的时间）
+		attemptDuration := time.Since(requestStartTime)
+		// 注意：不在这里设置 MaxBackendDuration，由重试循环累加后统一设置
 		return &ServiceResponse{
 			ServiceID: serviceID,
 			NodeID:    nodeID,
 			URL:       requestURL,
-			Error:     fmt.Errorf("发送代理请求失败: %w", err),
-			Duration:  time.Since(requestStartTime),
+			Error:     err, // 直接返回错误，不包装
+			Duration:  attemptDuration,
 			StartTime: requestStartTime,
 			Success:   false,
-		}
+		}, attemptDuration
 	}
+	// defer resp.Body.Close() 位置正确：只有在成功获取响应时才设置 defer
+	// 如果 err != nil，resp 为 nil，不会执行到这里，不需要关闭
 	defer resp.Body.Close()
 
 	// 保存响应状态码和响应头（用于日志记录）
@@ -345,11 +421,17 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 	}
 
 	// 读取响应体
+	// 注意：多服务场景下，响应体必须读取到内存（因为要保存到 ServiceResponse 中用于后续合并）
+	// 这与单服务场景不同，单服务场景可以通过 io.Copy 流式传输节省内存
+	// 但为了保持与 http_proxy.go 的逻辑一致性，这里仍然检查配置
+	// （虽然多服务场景下总是需要读取，但保留这个判断有助于代码可读性）
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		responseErr = fmt.Errorf("读取响应体失败: %w", err)
 		backendResponseTime = time.Now()
-		ctx.SetMaxBackendDuration(time.Since(requestStartTime))
+		// 计算本次请求的耗时（从请求开始到读取响应体失败）
+		attemptDuration := time.Since(requestStartTime)
+		// 注意：不在这里设置 MaxBackendDuration，由重试循环累加后统一设置
 		return &ServiceResponse{
 			ServiceID:  serviceID,
 			NodeID:     nodeID,
@@ -357,17 +439,18 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 			StatusCode: responseStatusCode,
 			Headers:    responseHeaders,
 			Error:      responseErr,
-			Duration:   time.Since(requestStartTime),
+			Duration:   attemptDuration,
 			StartTime:  requestStartTime,
 			Success:    false,
-		}
+		}, attemptDuration
 	}
 	responseBody = bodyBytes
 
 	// 记录后端请求结束时间（响应体读取完成后，用于后端追踪日志）
 	backendResponseTime = time.Now()
-	// 记录后端耗时（从请求开始到响应体读取完成）
-	ctx.SetMaxBackendDuration(time.Since(requestStartTime))
+	// 计算本次请求的耗时（从请求开始到响应体读取完成）
+	attemptDuration := time.Since(requestStartTime)
+	// 注意：不在这里设置 MaxBackendDuration，由重试循环累加后统一设置
 
 	return &ServiceResponse{
 		ServiceID:  serviceID,
@@ -376,10 +459,10 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 		StatusCode: responseStatusCode,
 		Headers:    responseHeaders,
 		Body:       responseBody,
-		Duration:   time.Since(requestStartTime),
+		Duration:   attemptDuration,
 		StartTime:  requestStartTime,
 		Success:    true,
-	}
+	}, attemptDuration
 }
 
 // mergeServiceResponses 合并多个服务响应
@@ -409,6 +492,7 @@ func (m *HTTPMultiServiceProxy) mergeServiceResponses(
 	// 如果要求所有成功，检查是否有失败
 	if config.RequireAllSuccess && len(failed) > 0 {
 		// 直接返回一个失败的响应（第一个失败的），包括其状态码、header 和 body
+		// 注意：选择失败响应时不清除错误信息
 		return m.writeSingleResponse(ctx, failed[0])
 	}
 
@@ -417,6 +501,8 @@ func (m *HTTPMultiServiceProxy) mergeServiceResponses(
 	case "first":
 		// 使用第一个成功的响应
 		if len(successful) > 0 {
+			// 最终选择了成功的响应，清除重试过程中添加的错误信息
+			ctx.ClearErrors()
 			return m.writeSingleResponse(ctx, successful[0])
 		}
 		// 如果没有成功的，返回错误
@@ -436,10 +522,13 @@ func (m *HTTPMultiServiceProxy) mergeServiceResponses(
 	case "first_error":
 		// 使用第一个失败的响应
 		if len(failed) > 0 {
+			// 选择失败响应时不清除错误信息
 			return m.writeSingleResponse(ctx, failed[0])
 		}
 		// 如果没有失败的，但有成功的，退回到第一个成功的响应
 		if len(successful) > 0 {
+			// 最终选择了成功的响应，清除重试过程中添加的错误信息
+			ctx.ClearErrors()
 			return m.writeSingleResponse(ctx, successful[0])
 		}
 		ctx.Abort(http.StatusBadGateway, map[string]string{
@@ -449,11 +538,17 @@ func (m *HTTPMultiServiceProxy) mergeServiceResponses(
 
 	case "all":
 		// 返回所有响应
+		// 如果有成功的响应，清除错误信息；如果全部失败，保留错误信息
+		if len(successful) > 0 {
+			ctx.ClearErrors()
+		}
 		return m.writeAllResponses(ctx, responses)
 
 	default:
 		// 默认使用第一个成功的响应
 		if len(successful) > 0 {
+			// 最终选择了成功的响应，清除重试过程中添加的错误信息
+			ctx.ClearErrors()
 			return m.writeSingleResponse(ctx, successful[0])
 		}
 		ctx.Abort(http.StatusBadGateway, map[string]string{
@@ -493,6 +588,10 @@ func (m *HTTPMultiServiceProxy) writeSingleResponse(ctx *core.Context, response 
 	ctx.SetResponded()
 
 	// 写入响应体
+	// 根据日志配置决定是否缓存响应体到上下文（与 http_proxy.go 保持一致）
+	if m.httpProxy.shouldRecordResponseBody(ctx) {
+		ctx.Set("response_body", response.Body)
+	}
 	_, err := ctx.Writer.Write(response.Body)
 	if err != nil {
 		ctx.AddError(fmt.Errorf("写入响应体失败: %w", err))
@@ -547,7 +646,14 @@ func (m *HTTPMultiServiceProxy) writeAllResponses(ctx *core.Context, responses [
 		}
 	}
 
-	_, err := ctx.Writer.Write(mergedBody.Bytes())
+	mergedBodyBytes := mergedBody.Bytes()
+
+	// 根据日志配置决定是否缓存合并后的响应体到上下文（与 http_proxy.go 保持一致）
+	if m.httpProxy.shouldRecordResponseBody(ctx) {
+		ctx.Set("response_body", mergedBodyBytes)
+	}
+
+	_, err := ctx.Writer.Write(mergedBodyBytes)
 	if err != nil {
 		ctx.AddError(fmt.Errorf("写入响应体失败: %w", err))
 		return false

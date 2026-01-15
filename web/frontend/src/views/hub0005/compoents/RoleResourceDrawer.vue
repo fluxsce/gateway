@@ -22,19 +22,36 @@
           <template #description>加载资源列表...</template>
         </n-spin>
 
-        <!-- 资源树 -->
-        <GTree
-          v-else
-          :data="treeData"
-          :checkable="true"
-          :cascade="true"
-          :check-strategy="'all'"
-          :show-line="true"
-          :default-expanded-keys="defaultExpandedKeys"
-          :checked-keys="checkedKeys"
-          :virtual-scroll="true"
-          @update:checkedKeys="handleCheckedKeysChange"
-        />
+        <template v-else>
+          <!-- 搜索框 -->
+          <div class="search-container">
+            <n-input
+              v-model:value="searchKeyword"
+              placeholder="搜索资源名称"
+              clearable
+              size="small"
+            >
+              <template #prefix>
+                <n-icon><SearchOutline /></n-icon>
+              </template>
+            </n-input>
+          </div>
+
+          <!-- 资源树 -->
+          <GTree
+            :data="filteredTreeData"
+            :checkable="true"
+            :cascade="true"
+            :check-strategy="'all'"
+            :show-line="true"
+            :show-icon="true"
+            :default-expanded-keys="expandedKeys"
+            :checked-keys="checkedKeys"
+            :virtual-scroll="true"
+            :render-label="renderLabel"
+            @update:checkedKeys="handleCheckedKeysChange"
+          />
+        </template>
       </div>
     </template>
   </GDrawer>
@@ -45,9 +62,10 @@ import { GDrawer } from '@/components/gdrawer'
 import { GTree } from '@/components/gtree'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import type { Resource } from '@/views/hub0006/types'
+import { CheckmarkCircleOutline, FolderOutline, GridOutline, ListOutline, SearchOutline, ServerOutline } from '@vicons/ionicons5'
 import type { TreeOption } from 'naive-ui'
-import { NSpin, useMessage } from 'naive-ui'
-import { computed, ref, watch } from 'vue'
+import { NIcon, NInput, NSpin, useMessage } from 'naive-ui'
+import { computed, h, markRaw, ref, watch } from 'vue'
 import { getRoleResources, saveRoleResources } from '../api'
 
 defineOptions({
@@ -108,6 +126,51 @@ const checkedKeys = ref<string[]>([])
 // 当前选中的节点（用于保存）
 const currentCheckedKeys = ref<string[]>([])
 
+// 搜索关键词
+const searchKeyword = ref('')
+
+// 计算属性 - 过滤后的树形数据
+const filteredTreeData = computed(() => {
+  if (!searchKeyword.value) {
+    return treeData.value
+  }
+  const keyword = searchKeyword.value.toLowerCase()
+  return filterTreeData(treeData.value, keyword)
+})
+
+// 计算属性 - 展开的节点（有搜索关键词时，展开所有匹配的节点）
+const expandedKeys = computed(() => {
+  if (!searchKeyword.value) {
+    return defaultExpandedKeys.value
+  }
+  // 有搜索关键词时，展开所有过滤后的节点
+  return extractAllKeysFromTreeData(filteredTreeData.value)
+})
+
+// 方法 - 过滤树形数据
+function filterTreeData(data: TreeOption[], keyword: string): TreeOption[] {
+  const result: TreeOption[] = []
+  
+  for (const item of data) {
+    const label = (item.label as string) || ''
+    const matches = label.toLowerCase().includes(keyword)
+    
+    let children: TreeOption[] | undefined
+    if (item.children && item.children.length > 0) {
+      children = filterTreeData(item.children, keyword)
+    }
+    
+    if (matches || (children && children.length > 0)) {
+      result.push({
+        ...item,
+        children: children && children.length > 0 ? children : undefined
+      })
+    }
+  }
+  
+  return result
+}
+
 // 监听抽屉显示状态，只在抽屉打开时加载数据
 watch(
   () => props.show,
@@ -121,6 +184,7 @@ watch(
       checkedKeys.value = []
       currentCheckedKeys.value = []
       defaultExpandedKeys.value = []
+      searchKeyword.value = ''
     }
   }
 )
@@ -162,6 +226,26 @@ async function loadRoleResources() {
 }
 
 /**
+ * 根据资源类型获取对应的图标组件
+ */
+function getResourceTypeIcon(resourceType: string) {
+  switch (resourceType) {
+    case 'MODULE':
+      return markRaw(GridOutline) // 网格图标，表示模块
+    case 'GROUP':
+      return markRaw(FolderOutline) // 文件夹图标，表示分组
+    case 'MENU':
+      return markRaw(ListOutline) // 列表图标，表示菜单
+    case 'BUTTON':
+      return markRaw(CheckmarkCircleOutline) // 圆形勾选图标，表示按钮
+    case 'API':
+      return markRaw(ServerOutline) // 服务器图标，表示API接口
+    default:
+      return markRaw(FolderOutline)
+  }
+}
+
+/**
  * 将资源数据转换为树形数据格式
  */
 function convertToTreeData(resources: Resource[]): TreeOption[] {
@@ -171,10 +255,27 @@ function convertToTreeData(resources: Resource[]): TreeOption[] {
       label: resource.resourceName,
       children: resource.children && resource.children.length > 0
         ? convertToTreeData(resource.children)
-        : undefined
+        : undefined,
+      // 保存资源类型和图标组件，供 renderLabel 使用
+      resourceType: resource.resourceType,
+      iconComponent: getResourceTypeIcon(resource.resourceType)
     }
     return option
   })
+}
+
+/**
+ * 自定义标签渲染函数，添加图标前缀
+ */
+function renderLabel({ option }: { option: TreeOption & { resourceType?: string; iconComponent?: any } }) {
+  const IconComponent = option.iconComponent || markRaw(GridOutline)
+  
+  return h('span', { style: { display: 'flex', alignItems: 'center' } }, [
+    h(NIcon, { size: 16, style: { marginRight: '6px', flexShrink: 0 } }, {
+      default: () => h(IconComponent)
+    }),
+    h('span', option.label as string)
+  ])
 }
 
 /**
@@ -216,6 +317,25 @@ function extractAllKeys(resources: Resource[]): string[] {
   }
   
   traverse(resources)
+  return keys
+}
+
+/**
+ * 从树形数据中提取所有节点的 key（用于展开）
+ */
+function extractAllKeysFromTreeData(treeData: TreeOption[]): string[] {
+  const keys: string[] = []
+  
+  function traverse(items: TreeOption[]) {
+    for (const item of items) {
+      keys.push(item.key as string)
+      if (item.children && item.children.length > 0) {
+        traverse(item.children)
+      }
+    }
+  }
+  
+  traverse(treeData)
   return keys
 }
 
@@ -286,12 +406,24 @@ function handleClose() {
   width: 100%;
   height: 100%;
   min-height: 400px;
+  display: flex;
+  flex-direction: column;
+
+  .search-container {
+    margin-bottom: 12px;
+    flex-shrink: 0;
+  }
 
   :deep(.n-spin-container) {
     min-height: 400px;
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  :deep(.g-tree-wrapper) {
+    flex: 1;
+    overflow: auto;
   }
 }
 </style>

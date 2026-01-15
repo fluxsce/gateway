@@ -164,22 +164,22 @@
 
               <!-- 请求头信息 -->
               <n-card v-if="page.gatewayLogInfo.value.requestHeaders" title="请求头信息" size="small" class="detail-card">
-                <n-code :code="page.formatJsonData(page.gatewayLogInfo.value.requestHeaders)" language="json" />
+                <GTextShow :content="page.gatewayLogInfo.value.requestHeaders" format="auto" :auto-format="true" :max-height="300" />
               </n-card>
 
               <!-- 请求体 -->
               <n-card v-if="page.gatewayLogInfo.value.requestBody" title="请求体" size="small" class="detail-card">
-                <n-code :code="page.formatJsonData(page.gatewayLogInfo.value.requestBody)" language="json" />
+                <GTextShow :content="page.gatewayLogInfo.value.requestBody" format="auto" :auto-format="true" :max-height="300" />
               </n-card>
 
               <!-- 响应头 -->
               <n-card v-if="page.gatewayLogInfo.value.responseHeaders" title="响应头" size="small" class="detail-card">
-                <n-code :code="page.formatJsonData(page.gatewayLogInfo.value.responseHeaders)" language="json" />
+                <GTextShow :content="page.gatewayLogInfo.value.responseHeaders" format="auto" :auto-format="true" :max-height="300" />
               </n-card>
 
               <!-- 响应体 -->
               <n-card v-if="page.gatewayLogInfo.value.responseBody" title="响应体" size="small" class="detail-card">
-                <n-code :code="page.formatJsonData(page.gatewayLogInfo.value.responseBody)" language="json" />
+                <GTextShow :content="page.gatewayLogInfo.value.responseBody" format="auto" :auto-format="true" :max-height="300" />
               </n-card>
             </div>
           </n-tab-pane>
@@ -303,27 +303,27 @@
 
               <!-- 转发头信息 -->
               <n-card v-if="trace.forwardHeaders" title="转发头信息" size="small" class="detail-card">
-                <n-code :code="page.formatJsonData(trace.forwardHeaders)" language="json" />
+                <GTextShow :content="trace.forwardHeaders" format="auto" :auto-format="true" :max-height="300" />
               </n-card>
 
               <!-- 转发体 -->
               <n-card v-if="trace.forwardBody" title="转发体" size="small" class="detail-card">
-                <n-code :code="page.formatJsonData(trace.forwardBody)" language="json" />
+                <GTextShow :content="trace.forwardBody" format="auto" :auto-format="true" :max-height="300" />
               </n-card>
 
               <!-- 响应头 -->
               <n-card v-if="trace.responseHeaders" title="响应头" size="small" class="detail-card">
-                <n-code :code="page.formatJsonData(trace.responseHeaders)" language="json" />
+                <GTextShow :content="trace.responseHeaders" format="auto" :auto-format="true" :max-height="300" />
               </n-card>
 
               <!-- 响应体 -->
               <n-card v-if="trace.responseBody" title="响应体" size="small" class="detail-card">
-                <n-code :code="page.formatJsonData(trace.responseBody)" language="json" />
+                <GTextShow :content="trace.responseBody" format="auto" :auto-format="true" :max-height="300" />
               </n-card>
 
               <!-- 扩展信息 -->
               <n-card v-if="trace.extProperty" title="扩展信息" size="small" class="detail-card">
-                <n-code :code="page.formatJsonData(trace.extProperty)" language="json" />
+                <GTextShow :content="trace.extProperty" format="auto" :auto-format="true" :max-height="300" />
               </n-card>
             </div>
           </n-tab-pane>
@@ -337,7 +337,8 @@
 
 <script setup lang="ts">
 import GModal from '@/components/gmodal/GModal.vue'
-import { NCard, NCode, NDescriptions, NDescriptionsItem, NEllipsis, NEmpty, NSpin, NTabPane, NTabs, NTag } from 'naive-ui'
+import GTextShow from '@/components/gtext-show/GTextShow.vue'
+import { NCard, NDescriptions, NDescriptionsItem, NEllipsis, NEmpty, NSpin, NTabPane, NTabs, NTag } from 'naive-ui'
 import { useBackendLogsPage } from './page'
 
 interface Props {
@@ -391,11 +392,6 @@ const page = useBackendLogsPage(props, emit)
   word-break: break-word;
   color: var(--n-text-color-2);
   font-style: italic;
-}
-
-.trace-detail-container :deep(.n-code) {
-  max-height: 200px;
-  overflow-y: auto;
 }
 
 .trace-detail-container :deep(.n-descriptions-item-content) {

@@ -72,41 +72,115 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 		return multiServiceProxy.Handle(ctx, serviceIDs, multiServiceConfig)
 	}
 
-	// 单服务场景，使用原有的单服务处理逻辑
+	// 单服务场景，使用原有的单服务处理逻辑（带重试）
 	serviceID := serviceIDs[0]
-	serviceConfig, node, err := h.selectTargetNode(ctx, serviceID)
-	if err != nil {
-		ctx.AddError(fmt.Errorf("选择目标节点失败: %w", err))
-		ctx.Abort(http.StatusServiceUnavailable, map[string]string{
-			"error":   "服务不可用",
-			"details": err.Error(),
-			"service": serviceID,
-		})
-		return false
+	config := h.GetHTTPConfig()
+	maxRetries := config.RetryCount
+	if maxRetries < 0 {
+		maxRetries = 0
 	}
 
-	err = h.proxyRequest(ctx, serviceConfig, node)
-	if err != nil {
-		ctx.AddError(fmt.Errorf("代理请求失败: %w", err))
-		ctx.Abort(http.StatusBadGateway, map[string]string{
-			"error":      "代理请求失败",
-			"details":    err.Error(),
-			"target_url": node.URL,
-			"service":    serviceID,
-		})
-		ctx.Set(constants.GatewayStatusCode, constants.GatewayStatusBadGateway)
-		return false
+	retryTimeout := config.RetryTimeout
+	if retryTimeout <= 0 {
+		retryTimeout = 30 * time.Second // 默认30秒
 	}
 
-	return true
+	var lastErr error
+	var lastNode *service.NodeConfig
+	// 累加所有重试的耗时
+	var totalBackendDuration time.Duration
+
+	// 执行请求和重试
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		// 每次重试都重新选择节点（避免集群中某一台异常时一直重试同一台）
+		serviceConfig, node, err := h.selectTargetNode(ctx, serviceID)
+		if err != nil {
+			// 选择节点失败，如果是重试，继续尝试；否则直接返回错误
+			lastErr = fmt.Errorf("选择目标节点失败: %w", err)
+			if attempt < maxRetries {
+				ctx.AddError(fmt.Errorf("选择节点失败，准备重试 (第%d次): %w", attempt+1, err))
+				select {
+				case <-ctx.Request.Context().Done():
+					return false
+				case <-time.After(retryTimeout):
+				}
+				continue
+			}
+			ctx.AddError(lastErr)
+			ctx.Abort(http.StatusServiceUnavailable, map[string]string{
+				"error":   "服务不可用",
+				"details": lastErr.Error(),
+				"service": serviceID,
+			})
+			return false
+		}
+
+		// 执行代理请求（每次调用都会记录后端追踪日志）
+		err, attemptDuration := h.proxyRequest(ctx, serviceConfig, node, attempt)
+
+		// 累加本次请求的耗时
+		totalBackendDuration += attemptDuration
+
+		if err == nil {
+			// 请求成功，清除重试过程中添加的错误信息
+			// 避免成功响应中包含错误信息导致外层响应处理异常
+			ctx.ClearErrors()
+			// 设置累加后的总耗时
+			ctx.SetMaxBackendDuration(totalBackendDuration)
+			return true
+		}
+
+		// 请求失败，记录错误信息
+		lastErr = err
+		lastNode = node
+
+		// 检查是否为SSE响应，SSE响应不需要重试
+		if _, isSSE := ctx.Get(constants.ContextKeySSEResponse); isSSE {
+			// SSE响应已开始流式传输，不进行重试
+			return false
+		}
+
+		// 如果还有重试次数，继续重试
+		if attempt < maxRetries {
+			ctx.AddError(fmt.Errorf("请求失败，准备重试 (第%d次，节点: %s): %w", attempt+1, node.URL, err))
+			select {
+			case <-ctx.Request.Context().Done():
+				return false
+			case <-time.After(retryTimeout):
+			}
+			continue
+		}
+	}
+
+	// 所有重试都失败，设置累加后的总耗时
+	ctx.SetMaxBackendDuration(totalBackendDuration)
+
+	// 所有重试都失败
+	ctx.AddError(fmt.Errorf("代理请求失败（已重试%d次）: %w", maxRetries, lastErr))
+	targetURL := ""
+	if lastNode != nil {
+		targetURL = lastNode.URL
+	}
+	ctx.Abort(http.StatusBadGateway, map[string]string{
+		"error":      "代理请求失败",
+		"details":    lastErr.Error(),
+		"target_url": targetURL,
+		"service":    serviceID,
+	})
+	ctx.Set(constants.GatewayStatusCode, constants.GatewayStatusBadGateway)
+	return false
 }
 
 // proxyRequest 代理请求到指定节点（内部方法）
-func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.ServiceConfig, node *service.NodeConfig) error {
+// retryCount: 当前请求是第几次重试（0表示首次请求）
+// 返回值:
+// - error: 请求错误（如果有）
+// - time.Duration: 本次请求的耗时，用于重试累加
+func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.ServiceConfig, node *service.NodeConfig, retryCount int) (error, time.Duration) {
 	// 解析目标URL
 	target, err := url.Parse(node.URL)
 	if err != nil {
-		return fmt.Errorf("解析目标URL失败: %w", err)
+		return fmt.Errorf("解析目标URL失败: %w", err), 0
 	}
 
 	// 智能处理路径拼接
@@ -128,7 +202,7 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 	if ctx.Request.Body != nil {
 		bodyBytes, err := io.ReadAll(ctx.Request.Body)
 		if err != nil {
-			return fmt.Errorf("读取请求体失败: %w", err)
+			return fmt.Errorf("读取请求体失败: %w", err), 0
 		}
 		body = bytes.NewReader(bodyBytes)
 		// 重置原请求的Body
@@ -146,7 +220,7 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 		body,
 	)
 	if err != nil {
-		return fmt.Errorf("创建代理请求失败: %w", err)
+		return fmt.Errorf("创建代理请求失败: %w", err), 0
 	}
 
 	// 复制请求头
@@ -253,20 +327,24 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 			forwardBodyBytes,  // 转发请求体作为参数传入，避免并发覆盖
 			responseErr,
 			serviceName, // 服务名称，从 node 中获取
+			retryCount,  // 重试次数
 		)
 	}()
 
-	// 发送代理请求
+	// 发送代理请求（异常直接抛出）
 	resp, err := h.client.Do(proxyReq)
 	if err != nil {
 		// 请求失败时记录错误和后端请求结束时间
 		responseErr = err
 		responseStatusCode = 0
 		backendResponseTime = time.Now()
-		// 记录后端耗时（请求失败时，耗时从请求开始到失败的时间）
-		ctx.SetMaxBackendDuration(time.Since(requestStartTime))
-		return fmt.Errorf("发送代理请求失败: %w", err)
+		// 计算本次请求的耗时（请求失败时，耗时从请求开始到失败的时间）
+		attemptDuration := time.Since(requestStartTime)
+		// 注意：不在这里设置 MaxBackendDuration，由重试循环累加后统一设置
+		return err, attemptDuration // 直接返回错误和耗时，不包装
 	}
+	// defer resp.Body.Close() 位置正确：只有在成功获取响应时才设置 defer
+	// 如果 err != nil，resp 为 nil，不会执行到这里，不需要关闭
 	defer resp.Body.Close()
 
 	// 保存响应状态码和响应头（用于日志记录）
@@ -282,6 +360,8 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 
 	// 检查是否为SSE响应，如果是则使用特殊处理逻辑
 	if h.isSSEResponse(resp) {
+		// 设置SSE响应标志位，SSE响应不需要重试
+		ctx.Set(constants.ContextKeySSEResponse, true)
 		// 对于SSE响应，复制除了已处理头部外的其他头部
 		for name, values := range resp.Header {
 			lowerName := strings.ToLower(name)
@@ -309,11 +389,13 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 		if err != nil {
 			responseErr = err
 		}
-		// SSE 流式传输完成后，记录后端请求结束时间和耗时
+		// SSE 流式传输完成后，记录后端请求结束时间
 		// 注意：对于SSE，后端请求结束时间是在流式传输完成后
 		backendResponseTime = time.Now()
-		ctx.SetMaxBackendDuration(time.Since(requestStartTime))
-		return err
+		// 计算本次请求的耗时（从请求开始到流式传输完成）
+		attemptDuration := time.Since(requestStartTime)
+		// 注意：不在这里设置 MaxBackendDuration，由重试循环累加后统一设置
+		return err, attemptDuration
 	}
 
 	// 非SSE响应使用常规处理
@@ -332,11 +414,12 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 
 	// 记录后端请求结束时间（响应体读取完成后，用于后端追踪日志）
 	backendResponseTime = time.Now()
-	// 记录后端耗时（从请求开始到响应体读取完成）
-	ctx.SetMaxBackendDuration(time.Since(requestStartTime))
+	// 计算本次请求的耗时（从请求开始到响应体读取完成）
+	attemptDuration := time.Since(requestStartTime)
+	// 注意：不在这里设置 MaxBackendDuration，由重试循环累加后统一设置
 
 	// responseTime 由网关流程结束时设置（gateway.go），不在代理处理中设置
-	return err
+	return err, attemptDuration
 }
 
 // GetHTTPConfig 获取HTTP配置

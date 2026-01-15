@@ -26,6 +26,9 @@ const (
 	ContextKeyMultiServiceConfig    = "multi_service_config"    // 多服务配置
 	ContextKeyMultiServiceResponses = "multi_service_responses" // 多服务响应信息
 
+	// SSE相关
+	ContextKeySSEResponse = "sse_response" // SSE响应标志位（SSE响应不需要重试）
+
 	// 原始请求信息保存相关常量
 	ContextKeyOriginalMethod      = "original_method"       // 原始HTTP方法
 	ContextKeyOriginalURLPath     = "original_url_path"     // 原始URL路径
