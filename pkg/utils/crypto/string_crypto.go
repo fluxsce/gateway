@@ -10,18 +10,26 @@ import (
 	"strings"
 )
 
-// 默认加密实例
+// defaultStringCrypto 默认字符串加密实例
+// 用于EncryptString、DecryptString等字符串加密函数的全局实例
 var defaultStringCrypto *CryptoUtil
 
-// 加密前缀标识
+// EncryptedPrefix 加密字符串的前缀标识
+// 用于标识字符串是否已加密，格式为 "ENC:"
 const EncryptedPrefix = "ENC:"
 
 // InitStringCrypto 初始化字符串加密工具
+// 设置全局默认字符串加密工具实例的密钥
+// 参数:
+//   - secretKey: 加密密钥字符串
 func InitStringCrypto(secretKey string) {
 	defaultStringCrypto = NewCryptoUtil(secretKey)
 }
 
 // getDefaultStringCrypto 获取默认加密实例
+// 如果实例未初始化，则使用默认密钥创建新实例
+// 返回:
+//   - *CryptoUtil: 默认字符串加密工具实例
 func getDefaultStringCrypto() *CryptoUtil {
 	if defaultStringCrypto == nil {
 		defaultStringCrypto = NewCryptoUtil("gateway-string-crypto-default-key")
@@ -30,6 +38,14 @@ func getDefaultStringCrypto() *CryptoUtil {
 }
 
 // EncryptString 加密字符串
+// 使用默认加密工具对字符串进行加密，返回带前缀的加密字符串
+// 如果字符串已加密（带ENC:前缀），则直接返回原字符串
+// 参数:
+//   - plaintext: 待加密的明文字符串
+//
+// 返回:
+//   - string: 加密后的字符串，格式为 "ENC:{Base64Data}:{Base64IV}"
+//   - error: 加密过程中的错误
 func EncryptString(plaintext string) (string, error) {
 	if IsEncryptedString(plaintext) {
 		return plaintext, nil
@@ -45,6 +61,13 @@ func EncryptString(plaintext string) (string, error) {
 }
 
 // DecryptString 解密字符串
+// 如果字符串未加密（不带ENC:前缀），则直接返回原字符串
+// 参数:
+//   - encryptedString: 加密的字符串，格式为 "ENC:{Base64Data}:{Base64IV}"
+//
+// 返回:
+//   - string: 解密后的明文字符串
+//   - error: 解密过程中的错误，如格式错误、解密失败等
 func DecryptString(encryptedString string) (string, error) {
 	if !IsEncryptedString(encryptedString) {
 		return encryptedString, nil
@@ -73,11 +96,29 @@ func DecryptString(encryptedString string) (string, error) {
 }
 
 // IsEncryptedString 检查字符串是否已加密
+// 通过检查字符串是否以EncryptedPrefix开头来判断
+// 参数:
+//   - data: 待检查的字符串
+//
+// 返回:
+//   - bool: true表示已加密，false表示未加密
 func IsEncryptedString(data string) bool {
 	return strings.HasPrefix(data, EncryptedPrefix)
 }
 
 // MaskString 字符串脱敏
+// 对字符串进行脱敏处理，隐藏中间部分字符
+// 规则：
+//   - 长度<=2：全部替换为掩码字符
+//   - 长度<=6：保留首位和末位
+//   - 长度>6：保留前2位和后2位
+//
+// 参数:
+//   - data: 待脱敏的字符串
+//   - maskChar: 掩码字符，可选，默认为'*'
+//
+// 返回:
+//   - string: 脱敏后的字符串
 func MaskString(data string, maskChar ...rune) string {
 	if len(data) == 0 {
 		return data
@@ -103,6 +144,15 @@ func MaskString(data string, maskChar ...rune) string {
 }
 
 // HashString 计算字符串哈希值
+// 支持多种哈希算法：md5、sha1、sha256、sha512
+// 默认使用sha256算法
+// 参数:
+//   - data: 待计算哈希的字符串
+//   - algorithm: 哈希算法名称，可选，默认值为"sha256"
+//
+// 返回:
+//   - string: 哈希值的十六进制字符串表示
+//   - error: 如果算法不支持则返回错误
 func HashString(data string, algorithm ...string) (string, error) {
 	var algo string
 	if len(algorithm) > 0 {
@@ -133,6 +183,16 @@ func HashString(data string, algorithm ...string) (string, error) {
 }
 
 // ValidatePassword 验证密码强度
+// 检查密码是否符合安全要求：
+//   - 长度：8-128位
+//   - 必须包含：大写字母、小写字母、数字、特殊字符
+//
+// 参数:
+//   - password: 待验证的密码字符串
+//
+// 返回:
+//   - bool: true表示密码符合要求，false表示不符合
+//   - []string: 不符合要求的问题列表，如果密码符合要求则为空切片
 func ValidatePassword(password string) (bool, []string) {
 	var issues []string
 
@@ -179,6 +239,13 @@ func ValidatePassword(password string) (bool, []string) {
 }
 
 // IsSensitiveField 检查字段名是否为敏感字段
+// 通过检查字段名是否包含敏感关键词来判断
+// 敏感关键词包括：password、token、secret、key、credential、auth、cert、private
+// 参数:
+//   - fieldName: 待检查的字段名
+//
+// 返回:
+//   - bool: true表示是敏感字段，false表示不是
 func IsSensitiveField(fieldName string) bool {
 	sensitiveFields := []string{"password", "token", "secret", "key", "credential", "auth", "cert", "private"}
 	fieldLower := strings.ToLower(fieldName)
@@ -192,6 +259,14 @@ func IsSensitiveField(fieldName string) bool {
 }
 
 // EncryptSensitiveString 加密敏感字符串（如果字段名包含敏感词汇）
+// 自动判断字段名是否为敏感字段，如果是则加密，否则直接返回原值
+// 参数:
+//   - fieldName: 字段名，用于判断是否需要加密
+//   - value: 字段值，待加密的字符串
+//
+// 返回:
+//   - string: 如果字段为敏感字段则返回加密后的字符串，否则返回原值
+//   - error: 加密过程中的错误
 func EncryptSensitiveString(fieldName, value string) (string, error) {
 	if IsSensitiveField(fieldName) {
 		return EncryptString(value)
@@ -200,6 +275,14 @@ func EncryptSensitiveString(fieldName, value string) (string, error) {
 }
 
 // DecryptSensitiveString 解密敏感字符串
+// 自动判断字段名是否为敏感字段且值已加密，如果是则解密，否则直接返回原值
+// 参数:
+//   - fieldName: 字段名，用于判断是否需要解密
+//   - value: 字段值，可能是加密的字符串
+//
+// 返回:
+//   - string: 如果字段为敏感字段且已加密则返回解密后的字符串，否则返回原值
+//   - error: 解密过程中的错误
 func DecryptSensitiveString(fieldName, value string) (string, error) {
 	if IsSensitiveField(fieldName) && IsEncryptedString(value) {
 		return DecryptString(value)
@@ -208,6 +291,13 @@ func DecryptSensitiveString(fieldName, value string) (string, error) {
 }
 
 // BatchEncryptStrings 批量加密字符串
+// 遍历map中的所有字段，对敏感字段进行加密
+// 参数:
+//   - data: 字段名到字段值的映射，key为字段名，value为字段值
+//
+// 返回:
+//   - map[string]string: 加密后的字段映射
+//   - error: 如果任何字段加密失败则返回错误
 func BatchEncryptStrings(data map[string]string) (map[string]string, error) {
 	result := make(map[string]string)
 
@@ -228,6 +318,13 @@ func BatchEncryptStrings(data map[string]string) (map[string]string, error) {
 }
 
 // BatchDecryptStrings 批量解密字符串
+// 遍历map中的所有字段，对敏感字段进行解密
+// 参数:
+//   - data: 字段名到字段值的映射，key为字段名，value可能是加密的字段值
+//
+// 返回:
+//   - map[string]string: 解密后的字段映射
+//   - error: 如果任何字段解密失败则返回错误
 func BatchDecryptStrings(data map[string]string) (map[string]string, error) {
 	result := make(map[string]string)
 
@@ -248,6 +345,12 @@ func BatchDecryptStrings(data map[string]string) (map[string]string, error) {
 }
 
 // GenerateHash 生成不同算法的哈希值
+// 同时使用md5、sha1、sha256、sha512四种算法计算哈希值
+// 参数:
+//   - data: 待计算哈希的字符串
+//
+// 返回:
+//   - map[string]string: 算法名到哈希值的映射，key为算法名，value为哈希值的十六进制字符串
 func GenerateHash(data string) map[string]string {
 	hashes := make(map[string]string)
 

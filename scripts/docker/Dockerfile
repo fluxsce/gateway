@@ -38,7 +38,7 @@ RUN go mod download
 COPY . .
 
 # 构建参数
-ARG VERSION=3.0.4
+ARG VERSION=3.0.5
 ARG BUILD_DATE
 ARG GIT_COMMIT=unknown
 
@@ -51,13 +51,21 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
     -o gateway \
     cmd/app/main.go
 
+# 编译密码加密工具
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
+    go build -a \
+    -tags=no_oracle \
+    -ldflags="-w -s" \
+    -o password_plugin \
+    cmd/plugins/password_plugin/main.go
+
 # ============================================
 # Stage 2: Runtime (运行阶段)
 # ============================================
 FROM alpine:3.19
 
 # 构建参数（在运行时阶段也需要）
-ARG VERSION=3.0.4
+ARG VERSION=3.0.5
 ARG BUILD_DATE
 ARG GIT_COMMIT=unknown
 
@@ -92,6 +100,8 @@ WORKDIR /opt/gateway
 
 # 从构建阶段复制可执行文件
 COPY --from=builder /build/gateway /opt/gateway/gateway
+COPY --from=builder /build/password_plugin /opt/gateway/password_plugin
+RUN chmod +x /opt/gateway/password_plugin
 
 # 复制配置文件
 COPY --chown=gateway:gateway configs /opt/gateway/configs

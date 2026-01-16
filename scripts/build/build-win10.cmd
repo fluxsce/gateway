@@ -173,10 +173,15 @@ for /f %%i in ('git rev-parse --short HEAD 2^>nul') do set GIT_COMMIT=%%i
 set GOOS=windows
 set GOARCH=amd64
 
-:: Output file - always use gateway.exe
-set OUTPUT_FILE=dist\gateway.exe
+:: Package directory structure
 set PACKAGE_DIR=dist\gateway
 set VERSION_INFO=!VERSION_SUFFIX!-v3.1
+
+:: Create package directory first
+if not exist "!PACKAGE_DIR!" mkdir "!PACKAGE_DIR!"
+
+:: Output file - compile directly to package directory
+set OUTPUT_FILE=!PACKAGE_DIR!\gateway.exe
 
 :: Build flags with optimizations for modern Windows
 :: Note: Use separate -X flags to avoid quote issues with spaces in BUILD_TIMESTAMP
@@ -246,7 +251,6 @@ echo ==========================================
 
 :: Create package directory structure
 echo Creating directory structure...
-if not exist "!PACKAGE_DIR!" mkdir "!PACKAGE_DIR!"
 if not exist "!PACKAGE_DIR!\configs" mkdir "!PACKAGE_DIR!\configs"
 if not exist "!PACKAGE_DIR!\web" mkdir "!PACKAGE_DIR!\web"
 if not exist "!PACKAGE_DIR!\web\static" mkdir "!PACKAGE_DIR!\web\static"
@@ -260,13 +264,27 @@ if not exist "!PACKAGE_DIR!\scripts\data" mkdir "!PACKAGE_DIR!\scripts\data"
 if not exist "!PACKAGE_DIR!\scripts\deploy" mkdir "!PACKAGE_DIR!\scripts\deploy"
 if not exist "!PACKAGE_DIR!\pprof_analysis" mkdir "!PACKAGE_DIR!\pprof_analysis"
 
-:: Copy executable file
-echo Copying executable file...
-copy /Y "!OUTPUT_FILE!" "!PACKAGE_DIR!\gateway.exe" >nul
-if errorlevel 1 (
-    echo [WARNING] Failed to copy executable file
+:: Executable file already compiled to package directory
+echo [OK] Executable file: !OUTPUT_FILE!
+
+:: Build password_plugin directly to package directory
+echo.
+echo Building password_plugin...
+set PASSWORD_PLUGIN_OUTPUT=!PACKAGE_DIR!\password_plugin.exe
+if !INCLUDE_ORACLE! EQU 1 (
+    go build -v -x -tags !BUILD_TAGS! -ldflags "-s -w" -o "!PASSWORD_PLUGIN_OUTPUT!" cmd\plugins\password_plugin\main.go
 ) else (
-    echo [OK] Executable file copied
+    go build -v -x -tags !BUILD_TAGS! -ldflags "-s -w" -o "!PASSWORD_PLUGIN_OUTPUT!" cmd\plugins\password_plugin\main.go
+)
+
+if errorlevel 1 (
+    echo [WARNING] Failed to build password_plugin
+) else (
+    if exist "!PASSWORD_PLUGIN_OUTPUT!" (
+        echo [OK] password_plugin built successfully: !PASSWORD_PLUGIN_OUTPUT!
+    ) else (
+        echo [WARNING] password_plugin output file not found
+    )
 )
 
 :: Copy configuration files
