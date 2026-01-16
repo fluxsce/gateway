@@ -1,7 +1,7 @@
 package config
 
 import (
-	"crypto/sha256"
+	"crypto/md5"
 	"fmt"
 	"log"
 	"os"
@@ -242,7 +242,8 @@ func GetNodeId() string {
 		if macData == "" {
 			macData = net.GetFirstIPv4Address()
 		}
-		hash := sha256.Sum256([]byte(hostname + "|" + macData))
+		// 使用MD5生成32个字符的节点ID（128位），正好符合数据库字段长度要求
+		hash := md5.Sum([]byte(hostname + "|" + macData))
 		cachedNodeId = fmt.Sprintf("%x", hash)
 
 		// 5. 尝试持久化（失败不影响使用）
