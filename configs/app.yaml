@@ -93,8 +93,7 @@ app:
     cleanup:
       enabled: true                 # 是否启用清理
       interval: 1h                  # 清理间隔
-      event_retention_hours: 24     # 事件保留小时数
-      ack_retention_hours: 48       # 确认记录保留小时数
+      ack_retention_hours: 24       # 确认记录保留小时数
   
   # pprof性能分析配置
   pprof:

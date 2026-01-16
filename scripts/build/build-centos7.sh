@@ -270,19 +270,14 @@ if [ $BUILD_RESULT -eq 0 ]; then
                 echo "[WARNING] Executable file not found: $OUTPUT_FILE"
             fi
             
-            # Build password_plugin
+            # Build password_plugin directly to package directory
             echo ""
             echo "Building password_plugin..."
-            PASSWORD_PLUGIN_OUTPUT="dist/password_plugin"
+            PASSWORD_PLUGIN_OUTPUT="$PACKAGE_DIR/password_plugin"
             if go build -v -x -tags "$BUILD_TAGS" -ldflags "-s -w" -o "$PASSWORD_PLUGIN_OUTPUT" cmd/plugins/password_plugin/main.go; then
                 if [ -f "$PASSWORD_PLUGIN_OUTPUT" ]; then
-                    echo "[OK] password_plugin built successfully"
-                    if cp "$PASSWORD_PLUGIN_OUTPUT" "$PACKAGE_DIR/password_plugin"; then
-                        chmod +x "$PACKAGE_DIR/password_plugin"
-                        echo "[OK] password_plugin copied to package directory"
-                    else
-                        echo "[WARNING] Failed to copy password_plugin"
-                    fi
+                    chmod +x "$PASSWORD_PLUGIN_OUTPUT"
+                    echo "[OK] password_plugin built successfully: $PASSWORD_PLUGIN_OUTPUT"
                 else
                     echo "[WARNING] password_plugin output file not found"
                 fi
