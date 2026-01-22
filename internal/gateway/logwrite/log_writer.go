@@ -221,10 +221,19 @@ func WriteLog(instanceID string, gatewayCtx *core.Context) error {
 	// 注意：buildAccessLogFromContext 会优先从快照中读取 HTTP 数据
 	accessLog := buildAccessLogFromContext(instanceID, gatewayCtx)
 
+	// 获取日志配置
+	config := writer.GetLogConfig()
+
 	// 写入主表日志
-	if err := writer.Write(gatewayCtx.Ctx, accessLog); err != nil {
-		return fmt.Errorf("failed to write access log: %w", err)
+	writeErr := writer.Write(gatewayCtx.Ctx, accessLog)
+	if writeErr != nil {
+		// 日志写入失败告警
+		HandleGatewayLogWriteFailure(config, accessLog, writeErr)
+		return fmt.Errorf("failed to write access log: %w", writeErr)
 	}
+
+	// 根据日志配置和日志内容判断是否需要告警
+	HandleGatewayLogWrite(config, accessLog)
 
 	// 注意：多服务转发的后端追踪日志由每个服务单独调用 WriteBackendTraceLogSync 写入
 	// 这里不再统一写入，避免重复和混淆

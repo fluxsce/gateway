@@ -148,6 +148,14 @@ func createEmailChannel(name string, serverConfig, sendConfig map[string]interfa
 		srvCfg.Timeout = int(timeout)
 	}
 
+	// 可选：模板配置
+	if tpl, ok := serverConfig["TitleTemplate"].(string); ok {
+		srvCfg.TitleTemplate = tpl
+	}
+	if tpl, ok := serverConfig["ContentTemplate"].(string); ok {
+		srvCfg.ContentTemplate = tpl
+	}
+
 	// 解析发送配置
 	sendCfg := &EmailSendConfig{}
 
@@ -265,6 +273,14 @@ func createWeChatWorkChannel(name string, serverConfig, sendConfig map[string]in
 		srvCfg.Timeout = int(timeout)
 	}
 
+	// 可选：模板配置
+	if tpl, ok := serverConfig["TitleTemplate"].(string); ok {
+		srvCfg.TitleTemplate = tpl
+	}
+	if tpl, ok := serverConfig["ContentTemplate"].(string); ok {
+		srvCfg.ContentTemplate = tpl
+	}
+
 	// 解析发送配置
 	sendCfg := &WeChatWorkSendConfig{}
 
@@ -291,7 +307,7 @@ func createWeChatWorkChannel(name string, serverConfig, sendConfig map[string]in
 		}
 	}
 
-	return NewWeChatWorkChannel(name, srvCfg, sendCfg)
+	return NewWeChatWorkChannel(name, srvCfg, sendCfg, nil)
 }
 
 // CreateChannels 批量创建告警渠道

@@ -348,6 +348,12 @@ const initFormData = () => {
         case 'switch':
           data[field.field] = false
           break
+        case 'date':
+        case 'datetime':
+        case 'daterange':
+        case 'datetimerange':
+          data[field.field] = null
+          break
         default:
           data[field.field] = ''
       }
@@ -366,6 +372,12 @@ const initFormData = () => {
             break
           case 'switch':
             data[field.field] = false
+            break
+          case 'date':
+          case 'datetime':
+          case 'daterange':
+          case 'datetimerange':
+            data[field.field] = null
             break
           default:
             data[field.field] = ''

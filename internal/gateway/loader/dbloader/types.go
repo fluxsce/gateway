@@ -324,4 +324,5 @@ type LogConfigRecord struct {
 	FlushThreshold             int    `db:"flushThreshold"`
 	ConfigPriority             int    `db:"configPriority"`
 	ActiveFlag                 string `db:"activeFlag"`
+	ExtProperty                string `db:"extProperty"`
 }

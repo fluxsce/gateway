@@ -49,7 +49,7 @@
               <n-grid :cols="24" :x-gap="16" :y-gap="8">
                 <template v-for="field in getFieldsByTab(tab.key)" :key="field.field">
                   <!-- fieldset 类型：使用 GFieldset 包裹子字段 -->
-                  <template v-if="field.type === 'fieldset'">
+                  <template v-if="field.type === 'fieldset' && (typeof field.show === 'function' ? field.show(formModel) : (field.show !== false))">
                     <n-grid-item :span="24">
                       <GFieldset
                         :title="getFieldLabel(field)"
@@ -134,7 +134,7 @@
             <n-grid :cols="24" :x-gap="16" :y-gap="8">
               <template v-for="field in props.formFields" :key="field.field">
                 <!-- fieldset 类型：使用 GFieldset 包裹子字段 -->
-                <template v-if="field.type === 'fieldset'">
+                <template v-if="field.type === 'fieldset' && (typeof field.show === 'function' ? field.show(formModel) : (field.show !== false))">
                   <n-grid-item :span="24">
                       <GFieldset
                         :title="getFieldLabel(field)"

@@ -312,6 +312,13 @@ func (cc *controlConnection) Connect(ctx context.Context, serverAddress string, 
 		return fmt.Errorf("failed to connect to %s: %w", addr, err)
 	}
 
+	// 关键修复：设置TCP KeepAlive，防止长时间无数据时连接被中间设备关闭
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		tcpConn.SetKeepAlive(true)
+		tcpConn.SetKeepAlivePeriod(30 * time.Second)
+		tcpConn.SetNoDelay(true) // 禁用Nagle算法，降低延迟
+	}
+
 	// 设置连接和状态（持有锁的时间最短）
 	cc.connMutex.Lock()
 	cc.conn = conn
@@ -654,8 +661,10 @@ func (cc *controlConnection) receiveMessageDirect() (*types.ControlMessage, erro
 		return nil, fmt.Errorf("connection is nil")
 	}
 
-	// 设置读超时
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	// 关键修复：设置合理的读超时时间（30秒）
+	// 减少到30秒，避免长时间等待导致的重连延迟
+	// KeepAlive会定期检测连接状态，超时时间不需要太长
+	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 
 	// 读取消息长度
 	lengthBuf := make([]byte, 4)
@@ -919,9 +928,21 @@ func (cc *controlConnection) handleConnectionError(err error) {
 	}
 	cc.connMutex.Unlock()
 
-	// 连接错误会由心跳管理器检测并触发重连
+	// 关键修复：连接错误时立即触发重连，而不是等待心跳检测
+	// 这样可以减少重连延迟，提高连接恢复速度
 	if wasConnected {
-		logger.Info("Connection closed, heartbeat will detect and trigger reconnect if needed", nil)
+		logger.Info("Connection closed, triggering immediate reconnect", map[string]interface{}{
+			"error": err.Error(),
+		})
+		// 通过心跳管理器触发重连（异步，避免阻塞）
+		if cc.client.heartbeatManager != nil {
+			go func() {
+				// 使用心跳管理器的 triggerReconnect 方法
+				if hm, ok := cc.client.heartbeatManager.(*heartbeatManager); ok {
+					hm.triggerReconnect("connection_error")
+				}
+			}()
+		}
 	}
 }
 

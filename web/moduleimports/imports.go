@@ -50,6 +50,12 @@ import (
 	_ "gateway/web/views/hub0061/routes"
 	// 导入客户端和服务管理模块
 	_ "gateway/web/views/hub0062/routes"
+	// 导入预警(告警)配置模块
+	_ "gateway/web/views/hub0080/routes"
+	// 导入预警(告警)模板管理模块
+	_ "gateway/web/views/hub0081/routes"
+	// 导入预警(告警)日志管理模块
+	_ "gateway/web/views/hub0082/routes"
 	//导入插件管理模块
 	_ "gateway/web/views/hubplugin/routes"
 	// 导入SDK服务模块

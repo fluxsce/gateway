@@ -65,6 +65,14 @@ export * from './gmenu'
 export { GTextShow } from './gtext-show'
 export * from './gtext-show/types'
 
+// CodeMirror 代码编辑器组件
+export { GCodeMirror } from './gcodemirror'
+export * from './gcodemirror/types'
+
+// RichText 富文本编辑器组件
+export { GRichText } from './grichtext'
+export * from './grichtext/types'
+
 // 其他组件
 export { default as RequestInitializer } from './RequestInitializer.vue'
 

@@ -317,6 +317,7 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
       // 删除 keyFileList，不提交给后端
       delete processedData.keyFileList
 
+
       if (formDialogMode.value === 'create') {
         // 新增模式
         const success = await service.addInstance(processedData as GatewayInstance)
@@ -399,6 +400,63 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
   }
 
   /**
+   * 将 extProperty JSON 字符串展开为扁平字段（用于表单回填）
+   */
+  const flattenExtProperty = (data: Record<string, any>) => {
+    if (!data.extProperty || typeof data.extProperty !== 'string') {
+      return
+    }
+    try {
+      const extObj = JSON.parse(data.extProperty || '{}')
+      if (extObj && typeof extObj === 'object') {
+        // 将 extProperty 对象的属性展开为 extProperty.xxx 字段
+        Object.keys(extObj).forEach((key) => {
+          const value = extObj[key]
+          // alertStatusCodes 特殊处理：确保是字符串数组
+          if (key === 'alertStatusCodes') {
+            if (Array.isArray(value)) {
+              data[`extProperty.${key}`] = value.map((v: any) => String(v))
+            } else if (typeof value === 'string') {
+              data[`extProperty.${key}`] = value.split(',').map((s: string) => s.trim()).filter(Boolean)
+            }
+          } else {
+            data[`extProperty.${key}`] = value
+          }
+        })
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
+   * 将扁平字段打包回 extProperty JSON 字符串（用于提交）
+   */
+  const unflattenExtProperty = (data: Record<string, any>) => {
+    const extPropertyObj: Record<string, any> = {}
+    
+    // 收集所有 extProperty.xxx 字段
+    Object.keys(data).forEach((key) => {
+      if (key.startsWith('extProperty.')) {
+        const subKey = key.substring('extProperty.'.length)
+        extPropertyObj[subKey] = data[key]
+        delete data[key] // 删除扁平字段
+      }
+    })
+    
+    // 转换为 JSON 字符串
+    if (Object.keys(extPropertyObj).length === 0) {
+      data.extProperty = ''
+    } else {
+      try {
+        data.extProperty = JSON.stringify(extPropertyObj)
+      } catch {
+        data.extProperty = ''
+      }
+    }
+  }
+
+  /**
    * 打开日志配置对话框
    * 实例存在的情况下编辑日志配置，所以一定是编辑模式
    */
@@ -423,16 +481,17 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
         if (logConfig.sensitiveFields) {
           if (typeof logConfig.sensitiveFields === 'string') {
             try {
-              // 尝试解析 JSON 字符串
               logConfig.sensitiveFields = JSON.parse(logConfig.sensitiveFields)
             } catch {
-              // 如果不是 JSON，尝试按逗号分割
               logConfig.sensitiveFields = logConfig.sensitiveFields.split(',').map((s: string) => s.trim()).filter(Boolean)
             }
           }
         } else {
           logConfig.sensitiveFields = []
         }
+
+        // 展开 extProperty 为扁平字段
+        flattenExtProperty(logConfig)
         
         currentLogConfig.value = logConfig
         logConfigDialogVisible.value = true
@@ -478,6 +537,9 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
       if (processedData.sensitiveFields && Array.isArray(processedData.sensitiveFields)) {
         processedData.sensitiveFields = JSON.stringify(processedData.sensitiveFields)
       }
+
+      // 将扁平字段打包回 extProperty JSON 字符串
+      unflattenExtProperty(processedData)
 
       const response: any = await gatewayApi.editLogConfig(processedData)
       

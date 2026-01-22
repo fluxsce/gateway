@@ -73,6 +73,7 @@
       :mode="logConfigDialogMode"
       :title="logConfigDialogMode === 'edit' ? '编辑日志配置' : '查看日志配置'"
       :to="`#${service.model.moduleId}`"
+      :form-tabs="service.model.logConfigFormConfig.tabs"
       :form-fields="service.model.logConfigFormConfig.fields"
       :initial-data="currentLogConfig || undefined"
       :auto-close-on-confirm="false"

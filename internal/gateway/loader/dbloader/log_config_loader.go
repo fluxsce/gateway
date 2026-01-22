@@ -37,7 +37,7 @@ func (loader *LogConfigLoader) LoadLogConfig(ctx context.Context, logConfigId st
 		       batchSize, batchTimeoutMs, logRetentionDays, enableFileRotation,
 		       maxFileSizeMB, maxFileCount, rotationPattern, enableSensitiveDataMasking,
 		       sensitiveFields, maskingPattern, bufferSize, flushThreshold,
-		       configPriority, activeFlag
+		       configPriority, activeFlag, extProperty
 		FROM HUB_GW_LOG_CONFIG
 		WHERE tenantId = ? AND logConfigId = ? AND activeFlag = 'Y'
 	`
@@ -89,6 +89,7 @@ func (loader *LogConfigLoader) buildLogConfig(record *LogConfigRecord) *types.Lo
 		FlushThreshold:             record.FlushThreshold,
 		ConfigPriority:             record.ConfigPriority,
 		ActiveFlag:                 record.ActiveFlag,
+		ExtProperty:                record.ExtProperty,
 	}
 
 	// 处理可空字段
@@ -101,6 +102,10 @@ func (loader *LogConfigLoader) buildLogConfig(record *LogConfigRecord) *types.Lo
 
 	// 设置默认值
 	config.SetDefaults()
+
+	// 预解析 extProperty 中的告警配置（构建时解析一次，避免后续重复解析）
+	alertCfg := types.ParseAlertConfigFromExtProperty(config.ExtProperty)
+	config.SetAlertConfig(alertCfg)
 
 	return config
 }

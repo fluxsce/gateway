@@ -185,6 +185,8 @@ func (c *UserController) EditUser(ctx *gin.Context) {
 	tenantIdValue := currentUser.TenantId
 	addTime := currentUser.AddTime
 	addWho := currentUser.AddWho
+	// 保留原有密码，不通过更新接口修改密码（有专门的密码修改方法）
+	password := currentUser.Password
 
 	// 使用更新数据覆盖现有用户数据
 	updateData.EditTime = time.Now()
@@ -195,6 +197,8 @@ func (c *UserController) EditUser(ctx *gin.Context) {
 	updateData.TenantId = tenantIdValue
 	updateData.AddTime = addTime
 	updateData.AddWho = addWho
+	// 明确排除密码字段，保留原有密码
+	updateData.Password = password
 
 	// 调用DAO更新用户
 	err = c.userDAO.UpdateUser(ctx, &updateData, operatorId)

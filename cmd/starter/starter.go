@@ -132,6 +132,11 @@ func initializeAndStartApplication() error {
 		return huberrors.WrapError(err, "初始化数据库脚本失败")
 	}
 
+	// 初始化告警系统（在数据库、MongoDB、Redis等组件初始化之后）
+	if err := appinit.InitializeAlert(appContext, db, "default"); err != nil {
+		return huberrors.WrapError(err, "初始化告警系统失败")
+	}
+
 	// 初始化集群服务（在定时任务之前初始化）
 	if err := appinit.InitClusterWithConfig(appContext, db); err != nil {
 		return huberrors.WrapError(err, "初始化集群服务失败")
@@ -314,6 +319,9 @@ func stopApplication() {
 	if err := appinit.StopCluster(appContext); err != nil {
 		logger.Error("停止集群服务失败", "error", err)
 	}
+
+	// 关闭告警系统
+	appinit.ShutdownAlert(appContext)
 
 	// 清理资源
 	cleanupResources()

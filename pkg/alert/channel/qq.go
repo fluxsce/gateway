@@ -46,7 +46,9 @@ func (c *QQSendConfig) Validate() error {
 
 // QQChannel QQ告警渠道
 type QQChannel struct {
-	*alert.BaseChannel
+	name         string
+	channelType  alert.AlertType
+	enabled      bool
 	serverConfig *QQServerConfig
 	sendConfig   *QQSendConfig
 	httpClient   *http.Client
@@ -77,7 +79,9 @@ func NewQQChannel(name string, serverConfig *QQServerConfig, sendConfig *QQSendC
 	}
 
 	channel := &QQChannel{
-		BaseChannel:  alert.NewBaseChannel(name, alert.AlertTypeQQ),
+		name:         name,
+		channelType:  alert.AlertTypeQQ,
+		enabled:      true,
 		serverConfig: serverConfig,
 		sendConfig:   sendConfig,
 		httpClient: &http.Client{
@@ -135,7 +139,6 @@ func (q *QQChannel) Send(ctx context.Context, message *alert.Message, options *a
 	if !q.IsEnabled() {
 		result.Error = fmt.Errorf("QQ告警渠道未启用")
 		result.Duration = time.Since(startTime)
-		q.UpdateStats(result)
 		return result
 	}
 
@@ -165,7 +168,6 @@ func (q *QQChannel) Send(ctx context.Context, message *alert.Message, options *a
 		case <-sendCtx.Done():
 			result.Error = fmt.Errorf("发送超时或被取消: %w", sendCtx.Err())
 			result.Duration = time.Since(startTime)
-			q.UpdateStats(result)
 			return result
 		default:
 		}
@@ -175,7 +177,6 @@ func (q *QQChannel) Send(ctx context.Context, message *alert.Message, options *a
 		if err == nil {
 			result.Success = true
 			result.Duration = time.Since(startTime)
-			q.UpdateStats(result)
 			return result
 		}
 
@@ -187,7 +188,6 @@ func (q *QQChannel) Send(ctx context.Context, message *alert.Message, options *a
 			case <-sendCtx.Done():
 				result.Error = fmt.Errorf("重试等待期间被取消: %w", sendCtx.Err())
 				result.Duration = time.Since(startTime)
-				q.UpdateStats(result)
 				return result
 			case <-time.After(options.RetryInterval):
 				// 继续重试
@@ -197,7 +197,6 @@ func (q *QQChannel) Send(ctx context.Context, message *alert.Message, options *a
 
 	result.Error = fmt.Errorf("发送失败（重试%d次）: %w", maxRetries, lastErr)
 	result.Duration = time.Since(startTime)
-	q.UpdateStats(result)
 	return result
 }
 
@@ -307,6 +306,33 @@ func (q *QQChannel) buildMessageContent(message *alert.Message) string {
 	return content.String()
 }
 
+// Type 返回渠道类型
+func (q *QQChannel) Type() alert.AlertType {
+	return q.channelType
+}
+
+// Name 返回渠道名称
+func (q *QQChannel) Name() string {
+	return q.name
+}
+
+// IsEnabled 检查渠道是否启用
+func (q *QQChannel) IsEnabled() bool {
+	return q.enabled
+}
+
+// Enable 启用渠道
+func (q *QQChannel) Enable() error {
+	q.enabled = true
+	return nil
+}
+
+// Disable 禁用渠道
+func (q *QQChannel) Disable() error {
+	q.enabled = false
+	return nil
+}
+
 // Close 关闭渠道
 func (q *QQChannel) Close() error {
 	// 关闭HTTP客户端
@@ -317,7 +343,13 @@ func (q *QQChannel) Close() error {
 }
 
 // HealthCheck 健康检查
-func (q *QQChannel) HealthCheck(ctx context.Context) error {
+func (q *QQChannel) HealthCheck(ctx context.Context) *alert.HealthCheckResult {
+	startTime := time.Now()
+	result := &alert.HealthCheckResult{
+		Timestamp: startTime,
+		Extra:     make(map[string]interface{}),
+	}
+
 	// 发送测试消息
 	testMsg := &alert.Message{
 		Title:     "健康检查",
@@ -326,9 +358,16 @@ func (q *QQChannel) HealthCheck(ctx context.Context) error {
 	}
 
 	err := q.sendMessage(ctx, testMsg)
+	result.Duration = time.Since(startTime)
+
 	if err != nil {
-		return fmt.Errorf("健康检查失败: %w", err)
+		result.Success = false
+		result.Error = fmt.Errorf("健康检查失败: %w", err)
+		result.Message = fmt.Sprintf("QQ渠道健康检查失败: %s", err.Error())
+		return result
 	}
 
-	return nil
+	result.Success = true
+	result.Message = "QQ渠道健康检查通过"
+	return result
 }

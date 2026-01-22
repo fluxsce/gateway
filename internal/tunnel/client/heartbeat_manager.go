@@ -81,6 +81,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -399,6 +400,14 @@ func (hm *heartbeatManager) attemptReconnect() error {
 		return fmt.Errorf("connection established but not fully ready after %v", waited)
 	}
 
+	// 关键修复：等待服务器端完成客户端注册
+	// 认证成功后，服务器端需要时间完成客户端注册到 connectedClients
+	// 如果立即注册服务，可能会遇到 "client is not registered" 错误
+	logger.Info("Waiting for server to complete client registration", map[string]interface{}{
+		"clientId": hm.client.config.TunnelClientId,
+	})
+	time.Sleep(500 * time.Millisecond)
+
 	// 更新客户端状态到 config
 	connectTime := time.Now()
 	hm.client.config.ConnectionStatus = types.ConnectionStatusConnected
@@ -442,6 +451,8 @@ func (hm *heartbeatManager) attemptReconnect() error {
 			"clientId": hm.client.config.TunnelClientId,
 			"error":    err.Error(),
 		})
+		// 关键修复：服务注册失败不应该导致重连失败，返回nil让重连标记为成功
+		// 服务注册会继续重试，不会阻塞重连流程
 	}
 
 	return nil
@@ -483,8 +494,10 @@ func (hm *heartbeatManager) reregisterServices() error {
 			continue
 		}
 
-		maxRetries := 3
-		retryInterval := 2 * time.Second
+		// 关键修复：对于"client is not registered"错误，增加重试次数和间隔
+		// 这通常是因为服务器端还在处理客户端注册，需要等待更长时间
+		maxRetries := 5 // 从3次增加到5次
+		retryInterval := 1 * time.Second
 		registered := false
 
 		for attempt := 1; attempt <= maxRetries && !registered; attempt++ {
@@ -494,14 +507,33 @@ func (hm *heartbeatManager) reregisterServices() error {
 			registerCancel()
 
 			if err != nil {
+				// 检查是否是"client is not registered"错误
+				errMsg := err.Error()
+				isClientNotRegistered := strings.Contains(errMsg, "is not registered") ||
+					strings.Contains(errMsg, "not registered")
+
 				logger.Error("Failed to re-register service after reconnection", map[string]interface{}{
-					"serviceId":   service.TunnelServiceId,
-					"serviceName": service.ServiceName,
-					"attempt":     attempt,
-					"error":       err.Error(),
+					"serviceId":             service.TunnelServiceId,
+					"serviceName":           service.ServiceName,
+					"attempt":               attempt,
+					"maxRetries":            maxRetries,
+					"error":                 errMsg,
+					"isClientNotRegistered": isClientNotRegistered,
 				})
 
-				if attempt < maxRetries {
+				// 如果是"client is not registered"错误，等待更长时间
+				if isClientNotRegistered && attempt < maxRetries {
+					// 等待时间递增：1s, 2s, 3s, 4s
+					waitTime := time.Duration(attempt) * time.Second
+					logger.Info("Waiting for server to complete client registration before retry", map[string]interface{}{
+						"serviceId":   service.TunnelServiceId,
+						"serviceName": service.ServiceName,
+						"attempt":     attempt,
+						"waitTime":    waitTime.String(),
+					})
+					time.Sleep(waitTime)
+				} else if attempt < maxRetries {
+					// 其他错误，使用指数退避
 					time.Sleep(retryInterval)
 					retryInterval *= 2
 				} else {

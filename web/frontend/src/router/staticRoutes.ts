@@ -348,6 +348,51 @@ export class StaticRoutes {
           },
         ],
       },
+      {
+        path: 'alert',
+        name: 'alert',
+        component: () => import('@/views/layout/EmptyLayout.vue'),
+        meta: {
+          title: '预警管理',
+          requiresAuth: true,
+          icon: 'NotificationsOutline',
+        },
+        children: [
+          {
+            path: 'alertConfigManagement',
+            name: 'alertConfigManagement',
+            component: () => import('@/views/hub0080/AlertConfigManagement.vue'),
+            meta: {
+              title: '预警服务配置',
+              requiresAuth: true,
+              icon: 'MailOutline',
+              moduleName: 'hub0080', // 多语言模块名称
+            },
+          },
+          {
+            path: 'alertTemplateManagement',
+            name: 'alertTemplateManagement',
+            component: () => import('@/views/hub0081/AlertTemplateManagement.vue'),
+            meta: {
+              title: '预警模板管理',
+              requiresAuth: true,
+              icon: 'JournalOutline',
+              moduleName: 'hub0081',
+            },
+          },
+          {
+            path: 'alertLogManagement',
+            name: 'alertLogManagement',
+            component: () => import('@/views/hub0082/AlertLogManagement.vue'),
+            meta: {
+              title: '预警日志管理',
+              requiresAuth: true,
+              icon: 'DocumentTextOutline',
+              moduleName: 'hub0082',
+            },
+          },
+        ],
+      },
     ],
   }
 

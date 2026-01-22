@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 )
 
 // Manager 告警管理器
@@ -300,54 +301,27 @@ func (m *Manager) CloseAll() error {
 	return firstErr
 }
 
-// Stats 获取所有渠道的统计信息
-// 返回:
-//
-//	map[string]map[string]interface{}: 各渠道的统计信息
-func (m *Manager) Stats() map[string]map[string]interface{} {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-
-	stats := make(map[string]map[string]interface{})
-	for name, channel := range m.channels {
-		stats[name] = channel.Stats()
-	}
-	return stats
-}
-
-// HealthCheck 对所有渠道进行健康检查
+// HealthCheck 对指定渠道进行健康检查
 // 参数:
 //
 //	ctx: 上下文
+//	channelName: 渠道名称
 //
 // 返回:
 //
-//	map[string]error: 各渠道的健康检查结果
-func (m *Manager) HealthCheck(ctx context.Context) map[string]error {
-	m.mutex.RLock()
-	channels := make(map[string]Channel, len(m.channels))
-	for name, channel := range m.channels {
-		channels[name] = channel
+//	error: 健康检查结果，如果渠道不存在则返回错误
+func (m *Manager) HealthCheck(ctx context.Context, channelName string) *HealthCheckResult {
+	channel := m.GetChannel(channelName)
+	if channel == nil {
+		return &HealthCheckResult{
+			Success:   false,
+			Error:     fmt.Errorf("渠道 '%s' 不存在", channelName),
+			Message:   fmt.Sprintf("渠道 '%s' 不存在", channelName),
+			Timestamp: time.Now(),
+			Extra:     make(map[string]interface{}),
+		}
 	}
-	m.mutex.RUnlock()
-
-	results := make(map[string]error)
-	var wg sync.WaitGroup
-	var resultMutex sync.Mutex
-
-	for name, channel := range channels {
-		wg.Add(1)
-		go func(n string, ch Channel) {
-			defer wg.Done()
-			err := ch.HealthCheck(ctx)
-			resultMutex.Lock()
-			results[n] = err
-			resultMutex.Unlock()
-		}(name, channel)
-	}
-
-	wg.Wait()
-	return results
+	return channel.HealthCheck(ctx)
 }
 
 // HasChannel 检查渠道是否存在

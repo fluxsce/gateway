@@ -1,0 +1,86 @@
+CREATE TABLE HUB_ALERT_LOG (
+  -- 主键和租户
+  tenantId VARCHAR2(32) NOT NULL, -- 租户ID，主键
+  alertLogId VARCHAR2(32) NOT NULL, -- 告警日志ID，主键
+  
+  -- 告警基本信息
+  alertLevel VARCHAR2(20) DEFAULT 'INFO' NOT NULL, -- 告警级别：INFO/WARN/ERROR/CRITICAL
+  alertType VARCHAR2(100) DEFAULT NULL, -- 告警类型，业务自定义类型标识
+  alertTitle VARCHAR2(500) NOT NULL, -- 告警标题
+  alertContent CLOB DEFAULT NULL, -- 告警内容
+  alertTimestamp DATE NOT NULL, -- 告警时间戳
+  
+  -- 关联信息
+  channelName VARCHAR2(100) DEFAULT NULL, -- 使用的渠道名称
+  
+  -- 发送信息
+  sendStatus VARCHAR2(20) DEFAULT NULL, -- 发送状态：PENDING待发送/SENDING发送中/SUCCESS成功/FAILED失败
+  sendTime DATE DEFAULT NULL, -- 发送时间
+  sendResult CLOB DEFAULT NULL, -- 发送结果详情，JSON格式
+  sendErrorMessage CLOB DEFAULT NULL, -- 发送错误信息
+  
+  -- 标签和扩展信息
+  alertTags CLOB DEFAULT NULL, -- 告警标签，JSON格式
+  alertExtra CLOB DEFAULT NULL, -- 告警额外数据，JSON格式
+  tableData CLOB DEFAULT NULL, -- 表格数据，JSON格式
+  
+  -- 通用字段
+  addTime DATE DEFAULT SYSDATE NOT NULL, -- 创建时间
+  addWho VARCHAR2(32) NOT NULL, -- 创建人ID
+  editTime DATE DEFAULT SYSDATE NOT NULL, -- 最后修改时间
+  editWho VARCHAR2(32) NOT NULL, -- 最后修改人ID
+  oprSeqFlag VARCHAR2(32) NOT NULL, -- 操作序列标识
+  currentVersion NUMBER(10) DEFAULT 1 NOT NULL, -- 当前版本号
+  activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 活动状态标记：N非活动，Y活动
+  noteText VARCHAR2(500) DEFAULT NULL, -- 备注信息
+  extProperty CLOB DEFAULT NULL, -- 扩展属性，JSON格式
+  
+  -- 预留字段
+  reserved1 VARCHAR2(500) DEFAULT NULL, -- 预留字段1
+  reserved2 VARCHAR2(500) DEFAULT NULL, -- 预留字段2
+  reserved3 VARCHAR2(500) DEFAULT NULL, -- 预留字段3
+  reserved4 VARCHAR2(500) DEFAULT NULL, -- 预留字段4
+  reserved5 VARCHAR2(500) DEFAULT NULL, -- 预留字段5
+  reserved6 VARCHAR2(500) DEFAULT NULL, -- 预留字段6
+  reserved7 VARCHAR2(500) DEFAULT NULL, -- 预留字段7
+  reserved8 VARCHAR2(500) DEFAULT NULL, -- 预留字段8
+  reserved9 VARCHAR2(500) DEFAULT NULL, -- 预留字段9
+  reserved10 VARCHAR2(500) DEFAULT NULL, -- 预留字段10
+  
+  CONSTRAINT PK_ALERT_LOG PRIMARY KEY (tenantId, alertLogId)
+);
+
+COMMENT ON TABLE HUB_ALERT_LOG IS '告警日志表 - 记录业务写入的告警日志和发送状态';
+COMMENT ON COLUMN HUB_ALERT_LOG.tenantId IS '租户ID，主键';
+COMMENT ON COLUMN HUB_ALERT_LOG.alertLogId IS '告警日志ID，主键';
+COMMENT ON COLUMN HUB_ALERT_LOG.alertLevel IS '告警级别：INFO/WARN/ERROR/CRITICAL';
+COMMENT ON COLUMN HUB_ALERT_LOG.alertType IS '告警类型，业务自定义类型标识';
+COMMENT ON COLUMN HUB_ALERT_LOG.alertTitle IS '告警标题';
+COMMENT ON COLUMN HUB_ALERT_LOG.alertContent IS '告警内容';
+COMMENT ON COLUMN HUB_ALERT_LOG.alertTimestamp IS '告警时间戳';
+COMMENT ON COLUMN HUB_ALERT_LOG.channelName IS '使用的渠道名称';
+COMMENT ON COLUMN HUB_ALERT_LOG.sendStatus IS '发送状态：PENDING待发送/SENDING发送中/SUCCESS成功/FAILED失败';
+COMMENT ON COLUMN HUB_ALERT_LOG.sendTime IS '发送时间';
+COMMENT ON COLUMN HUB_ALERT_LOG.sendResult IS '发送结果详情，JSON格式';
+COMMENT ON COLUMN HUB_ALERT_LOG.sendErrorMessage IS '发送错误信息';
+COMMENT ON COLUMN HUB_ALERT_LOG.alertTags IS '告警标签，JSON格式';
+COMMENT ON COLUMN HUB_ALERT_LOG.alertExtra IS '告警额外数据，JSON格式';
+COMMENT ON COLUMN HUB_ALERT_LOG.tableData IS '表格数据，JSON格式';
+
+CREATE INDEX IDX_ALERT_LOG_TENANT ON HUB_ALERT_LOG (tenantId);
+CREATE INDEX IDX_ALERT_LOG_LEVEL ON HUB_ALERT_LOG (alertLevel);
+CREATE INDEX IDX_ALERT_LOG_TYPE ON HUB_ALERT_LOG (alertType);
+CREATE INDEX IDX_ALERT_LOG_TIMESTAMP ON HUB_ALERT_LOG (alertTimestamp);
+CREATE INDEX IDX_ALERT_LOG_CHANNEL ON HUB_ALERT_LOG (channelName);
+CREATE INDEX IDX_ALERT_LOG_SEND_STATUS ON HUB_ALERT_LOG (sendStatus);
+CREATE INDEX IDX_ALERT_LOG_TIME_STATUS ON HUB_ALERT_LOG (alertTimestamp, sendStatus);
+
+-- 创建触发器自动更新 editTime
+CREATE OR REPLACE TRIGGER TRG_ALERT_LOG_EDIT_TIME
+BEFORE UPDATE ON HUB_ALERT_LOG
+FOR EACH ROW
+BEGIN
+  :NEW.editTime := SYSDATE;
+END;
+/
+

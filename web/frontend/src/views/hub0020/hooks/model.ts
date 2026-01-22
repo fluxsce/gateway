@@ -18,6 +18,7 @@ import {
 } from '@vicons/ionicons5'
 import { NDynamicTags, NIcon } from 'naive-ui'
 import { h, ref } from 'vue'
+import { AlertChannelNameSelector } from '../../hub0080/components'
 import type { GatewayInstance } from '../types/index'
 
 /**
@@ -474,8 +475,13 @@ export function useGatewayInstanceModel() {
   ] as DataFormField[],
   }
 
-  // ============= 日志配置表单配置（单独对话框，无标签页） =============
+  // ============= 日志配置表单配置（多标签页管理） =============
   const logConfigFormConfig = {
+    tabs: [
+      { key: 'basic', label: '基础配置' },
+      { key: 'alert', label: '预警配置' },
+      { key: 'other', label: '其它' },
+    ],
     fields: [
       // ============= 主键字段（隐藏，但必须存在用于更新） =============
       {
@@ -492,13 +498,14 @@ export function useGatewayInstanceModel() {
         span: 12,
         show: false, // 隐藏字段，但必须存在用于更新
       },
-      // ============= 基础信息 =============
+      // ============= 基础配置 Tab =============
       {
         field: 'configName',
         label: '日志配置名称',
         type: 'input',
         placeholder: '请输入日志配置名称',
         span: 12,
+        tabKey: 'basic',
         required: true,
       },
       {
@@ -507,6 +514,7 @@ export function useGatewayInstanceModel() {
         type: 'select',
         placeholder: '选择日志格式',
         span: 12,
+        tabKey: 'basic',
         defaultValue: 'JSON',
         options: [
           { label: 'JSON格式', value: 'JSON' },
@@ -520,6 +528,7 @@ export function useGatewayInstanceModel() {
         type: 'textarea',
         placeholder: '请输入日志配置描述',
         span: 24,
+        tabKey: 'basic',
         props: {
           rows: 2,
         },
@@ -530,6 +539,7 @@ export function useGatewayInstanceModel() {
         field: 'content-control-group',
         label: '日志内容控制',
         type: 'fieldset',
+        tabKey: 'basic',
         props: {
           titleSize: 300,
         },
@@ -586,6 +596,7 @@ export function useGatewayInstanceModel() {
         field: 'output-target-group',
         label: '日志输出目标',
         type: 'fieldset',
+        tabKey: 'basic',
         props: {
           titleSize: 300,
         },
@@ -642,6 +653,7 @@ export function useGatewayInstanceModel() {
         field: 'async-processing-group',
         label: '异步和批量处理',
         type: 'fieldset',
+        tabKey: 'basic',
         props: {
           titleSize: 300,
         },
@@ -722,6 +734,7 @@ export function useGatewayInstanceModel() {
         field: 'sensitive-data-group',
         label: '敏感数据处理',
         type: 'fieldset',
+        tabKey: 'basic',
         props: {
           titleSize: 300,
         },
@@ -768,6 +781,124 @@ export function useGatewayInstanceModel() {
             },
           },
         ],
+      },
+
+      // ============= 预警配置 Tab =============
+      {
+        field: 'alert-config-group',
+        label: '告警配置',
+        type: 'fieldset',
+        tabKey: 'alert',
+        props: {
+          titleSize: 300,
+        },
+        children: [
+          {
+            field: 'extProperty.alertEnabled',
+            label: '开启告警',
+            type: 'switch',
+            span: 12,
+            defaultValue: 'N',
+            tips: '开启后才会对 404 / 超时 等事件触发告警',
+            props: {
+              checkedValue: 'Y',
+              uncheckedValue: 'N',
+            },
+          },
+          {
+            field: 'extProperty.channelName',
+            label: '告警渠道名称',
+            type: 'custom',
+            span: 12,
+            placeholder: '请输入告警渠道名称或点击选择',
+            tips: '不填写则使用默认告警渠道',
+            render: (formData: Record<string, any>) => {
+              return h(AlertChannelNameSelector, {
+                // 扁平字段（参考 common002/auth-config）：直接读写 formData['extProperty.xxx.yyy']
+                modelValue: formData['extProperty.channelName'] || '',
+                'onUpdate:modelValue': (value: string) => {
+                  formData['extProperty.channelName'] = value
+                },
+              })
+            },
+          },
+          {
+            field: 'extProperty.alertStatusCodes',
+            label: '状态码告警',
+            type: 'custom',
+            span: 24,
+            defaultValue: ['502'],
+            tips: '选择需要告警的HTTP状态码，多个状态码用逗号分隔',
+            render: (formData: Record<string, any>) => {
+              // 将数组转换为字符串数组（如果后端返回的是数字数组）
+              const value = formData['extProperty.alertStatusCodes'] || []
+              const strArray = Array.isArray(value) 
+                ? value.map(v => String(v))
+                : (typeof value === 'string' ? value.split(',').map(s => s.trim()).filter(Boolean) : [])
+              
+              return h(NDynamicTags, {
+                value: strArray,
+                'onUpdate:value': (value: string[]) => {
+                  formData['extProperty.alertStatusCodes'] = value
+                },
+                placeholder: '输入状态码，如: 502, 503, 504',
+              })
+            },
+          },
+          {
+            field: 'extProperty.alertOnTimeout',
+            label: '超时告警',
+            type: 'switch',
+            span: 8,
+            defaultValue: 'Y',
+            props: {
+              checkedValue: 'Y',
+              uncheckedValue: 'N',
+            },
+          },
+          {
+            field: 'extProperty.timeoutThresholdMs',
+            label: '超时阈值(ms)',
+            type: 'number',
+            span: 8,
+            defaultValue: 120000,
+            tips: '当总耗时 >= 阈值（毫秒）时触发超时告警',
+          },
+        ],
+      },
+
+      // ============= 其它 Tab =============
+      {
+        field: 'addTime',
+        label: '创建时间',
+        type: 'datetime',
+        span: 12,
+        tabKey: 'other',
+        disabled: true,
+      },
+      {
+        field: 'addWho',
+        label: '创建人',
+        type: 'input',
+        span: 12,
+        tabKey: 'other',
+        disabled: true,
+      },
+      {
+        field: 'editTime',
+        label: '修改时间',
+        type: 'datetime',
+        span: 12,
+        tabKey: 'other',
+        disabled: true,
+      },
+      {
+        field: 'editWho',
+        label: '修改人',
+        type: 'input',
+        span: 12,
+        tabKey: 'other',
+        disabled: true,
       },
     ] as DataFormField[],
   }

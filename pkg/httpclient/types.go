@@ -141,6 +141,43 @@ func (r *Response) GetHeader(key string) string {
 	return r.Headers.Get(key)
 }
 
+// BodyString 获取响应体的字符串形式
+//
+// 行为说明：
+//   - 如果 Body 不为空，直接返回 Body 的字符串形式
+//   - 如果 Body 为空但 BodyReader 不为空（流式响应），从 BodyReader 读取并关闭
+//   - 如果两者都为空，返回空字符串
+//
+// 注意：
+//   - 从 BodyReader 读取后会自动关闭流，后续无法再次读取
+//   - 如果需要多次读取流式响应，请直接使用 BodyReader 并手动管理
+func (r *Response) BodyString() string {
+	// 优先使用 Body 字段
+	if r.Body != nil && len(r.Body) > 0 {
+		return string(r.Body)
+	}
+
+	// 如果 Body 为空，尝试从 BodyReader 读取（流式响应）
+	if r.BodyReader != nil {
+		bodyBytes, err := io.ReadAll(r.BodyReader)
+		// 读取后立即关闭，避免资源泄漏
+		_ = r.BodyReader.Close()
+		r.BodyReader = nil // 标记为已关闭
+
+		if err != nil {
+			// 读取失败时返回错误信息（虽然方法签名是 string，但可以包含错误提示）
+			return ""
+		}
+
+		// 将读取的内容保存到 Body 字段，以便后续使用
+		r.Body = bodyBytes
+		return string(bodyBytes)
+	}
+
+	// 两者都为空
+	return ""
+}
+
 // Close 关闭响应体（流式响应时需要调用）
 func (r *Response) Close() error {
 	if r.BodyReader != nil {

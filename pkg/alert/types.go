@@ -25,6 +25,16 @@ const (
 	AlertTypeSMS AlertType = "sms"
 )
 
+// DisplayFormat 显示格式
+type DisplayFormat string
+
+const (
+	// DisplayFormatTable 表格格式（默认）
+	DisplayFormatTable DisplayFormat = "table"
+	// DisplayFormatText 文本格式
+	DisplayFormatText DisplayFormat = "text"
+)
+
 // Message 告警消息
 type Message struct {
 	// Title 消息标题
@@ -37,6 +47,160 @@ type Message struct {
 	Tags map[string]string
 	// Extra 额外数据，用于特定渠道的扩展信息
 	Extra map[string]interface{}
+	// DisplayFormat 显示格式：table（表格，默认）或 text（文本）
+	DisplayFormat DisplayFormat
+	// TableData 表格数据，当 DisplayFormat 为 table 时使用
+	// 是一个 map[string]interface{}，键为列名或行标识，值为对应的数据
+	TableData map[string]interface{}
+}
+
+// NewMessage 创建新的告警消息
+// 返回:
+//
+//	*Message: 新创建的告警消息实例
+func NewMessage() *Message {
+	return &Message{
+		Timestamp:     time.Now(),
+		Tags:          make(map[string]string),
+		Extra:         make(map[string]interface{}),
+		DisplayFormat: DisplayFormatTable, // 默认为表格格式
+		TableData:     make(map[string]interface{}),
+	}
+}
+
+// WithTitle 设置消息标题（链式调用）
+// 参数:
+//
+//	title: 消息标题
+//
+// 返回:
+//
+//	*Message: 消息实例，支持链式调用
+func (m *Message) WithTitle(title string) *Message {
+	m.Title = title
+	return m
+}
+
+// WithContent 设置消息内容（链式调用）
+// 参数:
+//
+//	content: 消息内容
+//
+// 返回:
+//
+//	*Message: 消息实例，支持链式调用
+func (m *Message) WithContent(content string) *Message {
+	m.Content = content
+	return m
+}
+
+// WithTag 添加标签（链式调用）
+// 参数:
+//
+//	key: 标签键
+//	value: 标签值
+//
+// 返回:
+//
+//	*Message: 消息实例，支持链式调用
+func (m *Message) WithTag(key, value string) *Message {
+	if m.Tags == nil {
+		m.Tags = make(map[string]string)
+	}
+	m.Tags[key] = value
+	return m
+}
+
+// WithTags 设置标签（链式调用）
+// 参数:
+//
+//	tags: 标签映射
+//
+// 返回:
+//
+//	*Message: 消息实例，支持链式调用
+func (m *Message) WithTags(tags map[string]string) *Message {
+	m.Tags = tags
+	return m
+}
+
+// WithExtra 添加额外数据（链式调用）
+// 参数:
+//
+//	key: 额外数据的键
+//	value: 额外数据的值
+//
+// 返回:
+//
+//	*Message: 消息实例，支持链式调用
+func (m *Message) WithExtra(key string, value interface{}) *Message {
+	if m.Extra == nil {
+		m.Extra = make(map[string]interface{})
+	}
+	m.Extra[key] = value
+	return m
+}
+
+// WithTimestamp 设置时间戳（链式调用）
+// 参数:
+//
+//	timestamp: 时间戳
+//
+// 返回:
+//
+//	*Message: 消息实例，支持链式调用
+func (m *Message) WithTimestamp(timestamp time.Time) *Message {
+	m.Timestamp = timestamp
+	return m
+}
+
+// WithDisplayFormat 设置显示格式（链式调用）
+// 参数:
+//
+//	format: 显示格式，table（表格）或 text（文本）
+//
+// 返回:
+//
+//	*Message: 消息实例，支持链式调用
+func (m *Message) WithDisplayFormat(format DisplayFormat) *Message {
+	m.DisplayFormat = format
+	return m
+}
+
+// WithTableData 设置表格数据（链式调用）
+// 参数:
+//
+//	tableData: 表格数据，是一个 map[string]interface{}
+//
+// 返回:
+//
+//	*Message: 消息实例，支持链式调用
+func (m *Message) WithTableData(tableData map[string]interface{}) *Message {
+	m.TableData = tableData
+	// 如果设置了表格数据，自动设置为表格格式
+	if len(tableData) > 0 {
+		m.DisplayFormat = DisplayFormatTable
+	}
+	return m
+}
+
+// AddTableField 添加表格字段（链式调用）
+// 参数:
+//
+//	key: 字段键
+//	value: 字段值
+//
+// 返回:
+//
+//	*Message: 消息实例，支持链式调用
+func (m *Message) AddTableField(key string, value interface{}) *Message {
+	if m.TableData == nil {
+		m.TableData = make(map[string]interface{})
+	}
+	m.TableData[key] = value
+	// 如果添加了表格数据，自动设置为表格格式
+	m.DisplayFormat = DisplayFormatTable
+	return m
 }
 
 // SendOptions 发送选项
@@ -77,6 +241,22 @@ type SendResult struct {
 	Extra map[string]interface{}
 }
 
+// HealthCheckResult 健康检查结果
+type HealthCheckResult struct {
+	// Success 是否健康
+	Success bool
+	// Error 错误信息（如果检查失败）
+	Error error
+	// Timestamp 检查时间
+	Timestamp time.Time
+	// Duration 检查耗时
+	Duration time.Duration
+	// Message 检查消息
+	Message string
+	// Extra 额外信息
+	Extra map[string]interface{}
+}
+
 // Channel 告警渠道接口
 // 所有告警渠道都需要实现此接口
 type Channel interface {
@@ -108,121 +288,9 @@ type Channel interface {
 	Close() error
 
 	// HealthCheck 健康检查
-	HealthCheck(ctx context.Context) error
-
-	// Stats 获取统计信息
-	Stats() map[string]interface{}
-}
-
-// Statistics 统计信息
-type Statistics struct {
-	// TotalSent 总发送数
-	TotalSent int64
-	// TotalSuccess 总成功数
-	TotalSuccess int64
-	// TotalFailed 总失败数
-	TotalFailed int64
-	// LastSendTime 最后发送时间
-	LastSendTime time.Time
-	// LastError 最后错误
-	LastError error
-	// AverageDuration 平均发送耗时
-	AverageDuration time.Duration
-}
-
-// BaseChannel 基础渠道实现
-// 提供通用功能，可被具体渠道嵌入
-type BaseChannel struct {
-	// name 渠道名称
-	name string
-	// channelType 渠道类型
-	channelType AlertType
-	// enabled 是否启用
-	enabled bool
-	// stats 统计信息
-	stats *Statistics
-}
-
-// NewBaseChannel 创建基础渠道
-func NewBaseChannel(name string, channelType AlertType) *BaseChannel {
-	return &BaseChannel{
-		name:        name,
-		channelType: channelType,
-		enabled:     true,
-		stats: &Statistics{
-			TotalSent:    0,
-			TotalSuccess: 0,
-			TotalFailed:  0,
-		},
-	}
-}
-
-// Type 返回渠道类型
-func (b *BaseChannel) Type() AlertType {
-	return b.channelType
-}
-
-// Name 返回渠道名称
-func (b *BaseChannel) Name() string {
-	return b.name
-}
-
-// IsEnabled 检查渠道是否启用
-func (b *BaseChannel) IsEnabled() bool {
-	return b.enabled
-}
-
-// Enable 启用渠道
-func (b *BaseChannel) Enable() error {
-	b.enabled = true
-	return nil
-}
-
-// Disable 禁用渠道
-func (b *BaseChannel) Disable() error {
-	b.enabled = false
-	return nil
-}
-
-// Stats 获取统计信息
-func (b *BaseChannel) Stats() map[string]interface{} {
-	return map[string]interface{}{
-		"name":             b.name,
-		"type":             b.channelType,
-		"enabled":          b.enabled,
-		"total_sent":       b.stats.TotalSent,
-		"total_success":    b.stats.TotalSuccess,
-		"total_failed":     b.stats.TotalFailed,
-		"last_send_time":   b.stats.LastSendTime,
-		"average_duration": b.stats.AverageDuration,
-	}
-}
-
-// UpdateStats 更新统计信息
-func (b *BaseChannel) UpdateStats(result *SendResult) {
-	b.stats.TotalSent++
-	b.stats.LastSendTime = result.Timestamp
-
-	if result.Success {
-		b.stats.TotalSuccess++
-	} else {
-		b.stats.TotalFailed++
-		b.stats.LastError = result.Error
-	}
-
-	// 更新平均耗时
-	if b.stats.TotalSent > 0 {
-		totalDuration := b.stats.AverageDuration*time.Duration(b.stats.TotalSent-1) + result.Duration
-		b.stats.AverageDuration = totalDuration / time.Duration(b.stats.TotalSent)
-	}
-}
-
-// Close 关闭渠道的默认实现
-func (b *BaseChannel) Close() error {
-	return nil
-}
-
-// HealthCheck 健康检查的默认实现
-func (b *BaseChannel) HealthCheck(ctx context.Context) error {
-	return nil
+	// 参数:
+	//   ctx: 上下文，用于超时控制和取消操作
+	// 返回:
+	//   *HealthCheckResult: 健康检查结果
+	HealthCheck(ctx context.Context) *HealthCheckResult
 }

@@ -5,17 +5,17 @@
  * Vite是一个面向现代浏览器的快速开发构建工具，利用浏览器原生ES模块导入特性
  */
 
-import { fileURLToPath, URL } from 'node:url'
-import path from 'path'
-import fs from 'fs'
+import fs from 'fs';
+import { fileURLToPath, URL } from 'node:url';
+import path from 'path';
 
-import { defineConfig, loadEnv } from 'vite'
-import vue from '@vitejs/plugin-vue' // Vue 3单文件组件支持
-import vueDevTools from 'vite-plugin-vue-devtools' // Vue开发者工具增强插件
-import { viteMockServe } from 'vite-plugin-mock' // Mock数据服务插件
-import Components from 'unplugin-vue-components/vite' // 组件自动导入
-import AutoImport from 'unplugin-auto-import/vite' // API自动导入
-import { NaiveUiResolver } from 'unplugin-vue-components/resolvers' // Naive UI组件解析器
+import vue from '@vitejs/plugin-vue'; // Vue 3单文件组件支持
+import AutoImport from 'unplugin-auto-import/vite'; // API自动导入
+import { NaiveUiResolver } from 'unplugin-vue-components/resolvers'; // Naive UI组件解析器
+import Components from 'unplugin-vue-components/vite'; // 组件自动导入
+import { defineConfig, loadEnv } from 'vite';
+import { viteMockServe } from 'vite-plugin-mock'; // Mock数据服务插件
+import vueDevTools from 'vite-plugin-vue-devtools'; // Vue开发者工具增强插件
 
 /**
  * 安全解析语言文件内容
@@ -221,6 +221,27 @@ export default defineConfig(({ command, mode }) => {
          */
         '@': fileURLToPath(new URL('./src', import.meta.url)),
       },
+      /**
+       * 确保 CodeMirror 相关包使用单一实例
+       * 解决动态导入时可能出现的多实例问题
+       */
+      dedupe: [
+        '@codemirror/state',
+        '@codemirror/view',
+        '@codemirror/language',
+        '@codemirror/lang-javascript',
+        '@codemirror/lang-json',
+        '@codemirror/lang-html',
+        '@codemirror/lang-css',
+        '@codemirror/lang-xml',
+        '@codemirror/lang-sql',
+        '@codemirror/lang-yaml',
+        '@codemirror/lang-markdown',
+        '@codemirror/lang-python',
+        '@codemirror/lang-java',
+        '@codemirror/lang-go',
+        '@codemirror/lang-rust',
+      ],
     },
 
     /**

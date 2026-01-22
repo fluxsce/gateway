@@ -154,7 +154,9 @@ export function useUserModel() {
       placeholder: '请输入密码',
       span: 8,
       tabKey: 'basic',
-      required: true,
+      // 仅在新增模式下显示密码字段，编辑模式下隐藏（有专门的密码修改功能）
+      show: (formData: Record<string, any>) => !formData.userId,
+      required: true, // 仅在新增时显示，所以始终是必填的
       props: {
         type: 'password',
         showPasswordOn: 'click',
