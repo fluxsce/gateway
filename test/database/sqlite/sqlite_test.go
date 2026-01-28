@@ -360,7 +360,7 @@ func TestSQLiteUpdate(t *testing.T) {
 		Name: "更新测试用户(已更新)",
 	}
 
-	affected, err := db.Update(ctx, user.TableName(), updatedUser, "id = ?", []interface{}{id}, true)
+	affected, err := db.Update(ctx, user.TableName(), updatedUser, "id = ?", []interface{}{id}, true, true)
 	if err != nil {
 		t.Fatalf("更新用户失败: %v", err)
 	}

@@ -1,71 +1,105 @@
-/**
- * Hub0040 服务治理模块 - API接口层
- * 
- * 所有API请求都统一在 /gateway/hub0040 路径下，不进行跨模块处理
- * 遵循RESTful API设计规范，使用标准HTTP方法：
- * 
- * 服务分组管理API：
- * - POST /queryServiceGroups - 查询服务分组列表（支持分页、搜索和过滤）
- * - POST /getServiceGroup - 获取服务分组详情
- * - POST /createServiceGroup - 创建服务分组
- * - POST /updateServiceGroup - 更新服务分组
- * - POST /deleteServiceGroup - 删除服务分组
- * 
- * 注意：租户ID由后端自动从session中获取，前端无需传入
- */
-
 import { createApi } from '@/api/request'
 import type { JsonDataObj } from '@/types/api'
-import type {
-  ServiceGroupCreateRequest,
-  ServiceGroupQueryRequest,
-  ServiceGroupUpdateRequest
-} from '../types'
+import type { ServiceCenterInstance } from '../types'
 
-// 创建API实例 - 所有请求都在hub0040路径下，不跨模块处理
-const namespaceManagementApi = createApi('/gateway/hub0040')
+const serviceCenterApi = createApi('/serviceCenter/hub0040')
 
 /**
- * 查询服务分组列表（支持分页、搜索和过滤）
+ * 分页查询服务中心实例列表
  * @param params 查询参数
- * @returns 服务分组列表
+ * @returns 服务中心实例列表和分页信息
  */
-export const queryServiceGroups = async (params: ServiceGroupQueryRequest): Promise<JsonDataObj> => {
-  return namespaceManagementApi.post('/queryServiceGroups', params)
+export async function queryServiceCenterInstances(params: any): Promise<JsonDataObj> {
+  return serviceCenterApi.post('/queryServiceCenterInstances', params)
 }
 
 /**
- * 获取服务分组详情
- * @param serviceGroupId 服务分组ID
- * @returns 服务分组详情
+ * 查询服务中心实例详情
+ * @param instanceName 实例名称
+ * @param environment 部署环境
+ * @returns 服务中心实例详情
  */
-export const getServiceGroupDetail = async (serviceGroupId: string): Promise<JsonDataObj> => {
-  return namespaceManagementApi.post('/getServiceGroup', { serviceGroupId })
+export async function getServiceCenterInstance(
+  instanceName: string,
+  environment: string,
+): Promise<JsonDataObj> {
+  return serviceCenterApi.post('/getServiceCenterInstance', { instanceName, environment })
 }
 
 /**
- * 创建服务分组
- * @param data 创建数据
- * @returns 创建结果
+ * 添加服务中心实例
+ * @param data 服务中心实例创建数据
+ * @returns 操作结果
  */
-export const createServiceGroup = async (data: ServiceGroupCreateRequest): Promise<JsonDataObj> => {
-  return namespaceManagementApi.post('/createServiceGroup', data)
+export async function addServiceCenterInstance(
+  data: ServiceCenterInstance,
+): Promise<JsonDataObj> {
+  return serviceCenterApi.post('/addServiceCenterInstance', data)
 }
 
 /**
- * 更新服务分组
- * @param data 更新数据
- * @returns 更新结果
+ * 编辑服务中心实例
+ * @param data 服务中心实例更新数据
+ * @returns 操作结果
  */
-export const updateServiceGroup = async (data: ServiceGroupUpdateRequest): Promise<JsonDataObj> => {
-  return namespaceManagementApi.post('/updateServiceGroup', data)
+export async function editServiceCenterInstance(
+  data: Partial<ServiceCenterInstance> & {
+    instanceName: string
+    environment: string
+  },
+): Promise<JsonDataObj> {
+  return serviceCenterApi.post('/editServiceCenterInstance', data)
 }
 
 /**
- * 删除服务分组
- * @param serviceGroupId 服务分组ID
- * @returns 删除结果
+ * 删除服务中心实例
+ * @param instanceName 实例名称
+ * @param environment 部署环境
+ * @returns 操作结果
  */
-export const deleteServiceGroup = async (serviceGroupId: string): Promise<JsonDataObj> => {
-  return namespaceManagementApi.post('/deleteServiceGroup', { serviceGroupId })
+export async function deleteServiceCenterInstance(
+  instanceName: string,
+  environment: string,
+): Promise<JsonDataObj> {
+  return serviceCenterApi.post('/deleteServiceCenterInstance', { instanceName, environment })
 }
+
+/**
+ * 启动服务中心实例
+ * @param instanceName 实例名称
+ * @param environment 部署环境
+ * @returns 操作结果
+ */
+export async function startServiceCenterInstance(
+  instanceName: string,
+  environment: string,
+): Promise<JsonDataObj> {
+  return serviceCenterApi.post('/startServiceCenterInstance', { instanceName, environment })
+}
+
+/**
+ * 停止服务中心实例
+ * @param instanceName 实例名称
+ * @param environment 部署环境
+ * @returns 操作结果
+ */
+export async function stopServiceCenterInstance(
+  instanceName: string,
+  environment: string,
+): Promise<JsonDataObj> {
+  return serviceCenterApi.post('/stopServiceCenterInstance', { instanceName, environment })
+}
+
+/**
+ * 重新加载服务中心实例配置
+ * @param instanceName 实例名称
+ * @param environment 部署环境
+ * @returns 操作结果
+ */
+export async function reloadServiceCenterInstance(
+  instanceName: string,
+  environment: string,
+): Promise<JsonDataObj> {
+  return serviceCenterApi.post('/reloadServiceCenterInstance', { instanceName, environment })
+}
+

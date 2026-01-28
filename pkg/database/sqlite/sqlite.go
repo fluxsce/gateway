@@ -656,8 +656,8 @@ func (s *SQLite) Insert(ctx context.Context, table string, data interface{}, aut
 //
 //	int64: 受影响的行数
 //	error: 更新失败时返回错误信息
-func (s *SQLite) Update(ctx context.Context, table string, data interface{}, where string, args []interface{}, autoCommit bool) (int64, error) {
-	setClause, setArgs, err := sqlutils.BuildUpdateQuery(table, data)
+func (s *SQLite) Update(ctx context.Context, table string, data interface{}, where string, args []interface{}, autoCommit bool, skipZero bool) (int64, error) {
+	setClause, setArgs, err := sqlutils.BuildUpdateQuery(table, data, skipZero)
 	if err != nil {
 		return 0, err
 	}

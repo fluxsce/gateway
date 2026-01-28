@@ -124,7 +124,7 @@ func (dao *AlertConfigDAO) UpdateAlertConfig(ctx context.Context, cfg *alerttype
 	}
 	where := "tenantId = ? AND channelName = ?"
 	args := []interface{}{cfg.TenantId, cfg.ChannelName}
-	_, err := dao.db.Update(ctx, "HUB_ALERT_CONFIG", cfg, where, args, true)
+	_, err := dao.db.Update(ctx, "HUB_ALERT_CONFIG", cfg, where, args, true, true)
 	if err != nil {
 		return huberrors.WrapError(err, "更新告警渠道配置失败")
 	}

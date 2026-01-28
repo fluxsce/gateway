@@ -635,8 +635,8 @@ func (c *ClickHouse) Insert(ctx context.Context, table string, data interface{},
 //
 //	int64: 受影响的行数
 //	error: 更新失败时返回错误信息
-func (c *ClickHouse) Update(ctx context.Context, table string, data interface{}, where string, args []interface{}, autoCommit bool) (int64, error) {
-	setClause, setArgs, err := sqlutils.BuildUpdateQuery(table, data)
+func (c *ClickHouse) Update(ctx context.Context, table string, data interface{}, where string, args []interface{}, autoCommit bool, skipZero bool) (int64, error) {
+	setClause, setArgs, err := sqlutils.BuildUpdateQuery(table, data, skipZero)
 	if err != nil {
 		return 0, err
 	}
@@ -1200,7 +1200,7 @@ func (c *ClickHouse) BatchUpdate(ctx context.Context, table string, dataSlice in
 
 	for i := 0; i < slice.Len(); i++ {
 		item := slice.Index(i).Interface()
-		rowsAffected, err := c.Update(ctx, table, item, "", nil, false) // 在循环中不自动提交
+		rowsAffected, err := c.Update(ctx, table, item, "", nil, false, true) // 在循环中不自动提交，默认跳过零值
 		if err != nil {
 			return totalRowsAffected, fmt.Errorf("failed to update item %d: %w", i, err)
 		}

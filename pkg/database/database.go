@@ -189,10 +189,11 @@ type Database interface {
 	//   where: WHERE条件语句，可包含占位符
 	//   args: WHERE条件中占位符对应的参数值
 	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	//   skipZero: true-跳过零值字段（默认行为）, false-包含零值字段（用于清空字段）
 	// 返回:
 	//   int64: 受影响的行数
 	//   error: 更新失败时返回错误信息
-	Update(ctx context.Context, table string, data interface{}, where string, args []interface{}, autoCommit bool) (int64, error)
+	Update(ctx context.Context, table string, data interface{}, where string, args []interface{}, autoCommit bool, skipZero bool) (int64, error)
 
 	// Delete 删除记录
 	// 根据WHERE条件构建DELETE语句并执行

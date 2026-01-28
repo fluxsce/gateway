@@ -279,7 +279,7 @@ func (dao *StaticServerDAO) UpdateStaticServer(ctx context.Context, server *type
 	whereClause := "tunnelStaticServerId = ?"
 	args := []interface{}{server.TunnelStaticServerId}
 
-	_, err = dao.db.Update(ctx, "HUB_TUNNEL_STATIC_SERVER", server, whereClause, args, true)
+	_, err = dao.db.Update(ctx, "HUB_TUNNEL_STATIC_SERVER", server, whereClause, args, true, true)
 	if err != nil {
 		return huberrors.WrapError(err, "更新服务器失败")
 	}

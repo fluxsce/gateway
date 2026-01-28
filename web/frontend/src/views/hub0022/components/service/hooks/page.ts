@@ -5,6 +5,7 @@
  */
 
 import { getApiMessage, isApiSuccess } from '@/utils/format'
+import type { ServiceSelectionMetadata } from '@/views/hub0042/components'
 import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { onMounted, ref } from 'vue'
@@ -22,9 +23,8 @@ export function useServiceDefinitionPage(
 ) {
   const message = useMessage()
 
-  // 服务发现选择相关状态（需要在 serviceResult 之前定义，以便传递给 model）
-  const selectedService = ref<any | null>(null) // 当前选择的服务
-  const serviceSelectionVisible = ref(false) // 服务选择器弹窗显示状态
+  // 服务发现选择相关状态
+  const selectedService = ref<ServiceSelectionMetadata | null>(null)
 
   // 业务服务（包含 model、增删改查等）
   // gatewayInstanceId 直接作为 proxyConfigId 使用
@@ -327,35 +327,47 @@ export function useServiceDefinitionPage(
   }
 
   /**
-   * 处理服务选择（从 ServiceRegistrySelector 回调）
+   * 处理服务选择变更（从 ServiceSelector 回调）
+   * 接收符合 registry_utils.go 格式的 ServiceSelectionMetadata
    */
-  const handleServiceSelect = (service: any) => {
-    selectedService.value = service
-    console.log('已选择服务:', service.serviceName)
+  const handleServiceChange = (metadata: ServiceSelectionMetadata | null) => {
+    selectedService.value = metadata
+    if (metadata) {
+      console.log('已选择服务:', metadata.serviceName)
+    } else {
+      console.log('已清除服务选择')
+    }
   }
 
   /**
    * 更新服务元数据到表单数据
+   * 格式与 registry_utils.go 中 ServiceCenterMetadata 保持一致
+   * 
+   * registry_utils.go 查找服务需要以下字段（驼峰命名）：
+   * - tenantId: 租户ID
+   * - namespaceId: 命名空间ID
+   * - groupName: 分组名称
+   * - serviceName: 服务名称
+   * - discoveryType: 服务发现类型（servicecenter）
+   * - protocolType: 协议类型（http/https）
    */
   const updateServiceMetadata = (formData?: Record<string, any>) => {
     if (selectedService.value) {
-      // 直接保存扁平的服务数据，不嵌套selectedService层
+      // 构建与 registry_utils.go 兼容的元数据格式
       const metadata = {
+        tenantId: selectedService.value.tenantId || 'default',
+        namespaceId: selectedService.value.namespaceId,
+        groupName: selectedService.value.groupName || 'DEFAULT_GROUP',
         serviceName: selectedService.value.serviceName,
-        serviceGroupId: selectedService.value.serviceGroupId,
-        groupName: selectedService.value.groupName,
-        protocolType: selectedService.value.protocolType,
-        contextPath: selectedService.value.contextPath,
-        loadBalanceStrategy: selectedService.value.loadBalanceStrategy,
-        healthCheckUrl: selectedService.value.healthCheckUrl,
-        instances: selectedService.value.instances || []
+        discoveryType: 'servicecenter',
+        protocolType: selectedService.value.protocolType || 'http'
       }
       // 转换为JSON字符串存储
       const metadataStr = JSON.stringify(metadata)
       if (formData) {
         formData.serviceMetadata = metadataStr
       }
-      console.log('已更新服务元数据:', metadata)
+      console.log('已更新服务元数据（registry_utils.go 兼容格式）:', metadata)
       return metadataStr
     } else {
       if (formData) {
@@ -365,29 +377,6 @@ export function useServiceDefinitionPage(
     }
   }
 
-  /**
-   * 打开服务选择弹窗
-   */
-  const openServiceSelection = () => {
-    serviceSelectionVisible.value = true
-    console.log('打开服务选择弹窗')
-  }
-
-  /**
-   * 获取负载均衡策略显示标签
-   */
-  const getLoadBalanceStrategyLabel = (strategy: string): string => {
-    const strategyMap: Record<string, string> = {
-      'ROUND_ROBIN': '轮询算法',
-      'RANDOM': '随机算法',
-      'IP_HASH': 'IP哈希算法',
-      'LEAST_CONN': '最少连接算法',
-      'LEAST_CONNECTIONS': '最少连接算法',
-      'WEIGHTED_ROUND_ROBIN': '加权轮询算法',
-      'CONSISTENT_HASH': '一致性哈希算法'
-    }
-    return strategyMap[strategy] || strategy
-  }
 
   /**
    * 处理删除
@@ -561,8 +550,8 @@ export function useServiceDefinitionPage(
         render: (formData: Record<string, any>) => {
           return originalRender(formData, {
             selectedService,
-            openServiceSelection,
-            getLoadBalanceStrategyLabel,
+            onServiceChange: handleServiceChange,
+            to: '#hub0022-service-definition-list',
           })
         },
       }
@@ -593,7 +582,6 @@ export function useServiceDefinitionPage(
 
     // 服务发现选择相关状态
     selectedService,
-    serviceSelectionVisible,
 
     // 方法
     openAddDialog,
@@ -609,10 +597,8 @@ export function useServiceDefinitionPage(
     handleMenuClick,
     refresh,
     loadServiceList,
-    handleServiceSelect,
+    handleServiceChange,
     updateServiceMetadata,
-    openServiceSelection,
-    getLoadBalanceStrategyLabel,
   }
 }
 

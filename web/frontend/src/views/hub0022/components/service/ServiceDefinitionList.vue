@@ -82,13 +82,6 @@
       @submit="handleFormSubmit"
     />
 
-    <!-- 服务注册选择器组件 -->
-    <ServiceRegistrySelector
-      v-model:show="serviceSelectionVisible"
-      :currentService="selectedService"
-      @select="handleServiceSelect"
-    />
-
     <!-- 服务节点管理对话框 -->
     <ServiceNodeListModal
       v-model:visible="showNodeDialog"
@@ -108,7 +101,6 @@ import { GGrid } from '@/components/grid'
 import { NTag } from 'naive-ui'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { ServiceNodeListModal } from '../service-nodes'
-import ServiceRegistrySelector from './ServiceRegistrySelector.vue'
 import { useServiceDefinitionPage } from './hooks/page'
 import { LoadBalanceStrategy } from './types'
 
@@ -142,12 +134,9 @@ const {
   currentEditService,
   showNodeDialog,
   currentServiceId,
-  selectedService,
-  serviceSelectionVisible,
   handleFormSubmit,
   handleToolbarClick,
   handleMenuClick,
-  handleServiceSelect,
   handleSearch: pageHandleSearch
 } = useServiceDefinitionPage(props.gatewayInstanceId, searchFormRef, gridRef)
 

@@ -309,7 +309,7 @@ func TestConfigUpdate(t *testing.T) {
 	user.Name = "更新后的用户"
 	user.Email = "updated@example.com"
 
-	affected, err := db.Update(ctx, user.TableName(), user, "id = ?", []interface{}{id}, true)
+	affected, err := db.Update(ctx, user.TableName(), user, "id = ?", []interface{}{id}, true, true)
 	if err != nil {
 		t.Fatalf("更新用户失败: %v", err)
 	}

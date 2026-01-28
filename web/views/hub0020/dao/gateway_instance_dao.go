@@ -282,7 +282,7 @@ func (dao *GatewayInstanceDAO) UpdateGatewayInstance(ctx context.Context, instan
 	where := "gatewayInstanceId = ? AND tenantId = ? AND currentVersion = ?"
 	args := []interface{}{instance.GatewayInstanceId, instance.TenantId, currentInstance.CurrentVersion}
 
-	result, err := dao.db.Update(ctx, "HUB_GW_INSTANCE", instance, where, args, true)
+	result, err := dao.db.Update(ctx, "HUB_GW_INSTANCE", instance, where, args, true, true)
 	if err != nil {
 		return huberrors.WrapError(err, "更新网关实例失败")
 	}

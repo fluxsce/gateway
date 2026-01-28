@@ -23,6 +23,7 @@ export type CodeMirrorLanguage =
   | 'go'
   | 'rust'
   | 'shell' // 注意：shell 使用 JavaScript 语言包作为替代
+  | 'properties' // Properties 文件格式，使用 legacy-modes
   | 'plaintext'
 
 /**

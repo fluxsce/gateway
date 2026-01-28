@@ -231,7 +231,7 @@ func (dao *TunnelServerDAO) UpdateTunnelServer(ctx context.Context, server *type
 	whereClause := "tunnelServerId = ?"
 	args := []interface{}{server.TunnelServerId}
 
-	_, err = dao.db.Update(ctx, "HUB_TUNNEL_SERVER", server, whereClause, args, true)
+	_, err = dao.db.Update(ctx, "HUB_TUNNEL_SERVER", server, whereClause, args, true, true)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "更新隧道服务器失败")
 	}
@@ -294,7 +294,7 @@ func (dao *TunnelServerDAO) UpdateTunnelServerStatus(ctx context.Context, tunnel
 	whereClause := "tunnelServerId = ?"
 	args := []interface{}{tunnelServerId}
 
-	_, err = dao.db.Update(ctx, "HUB_TUNNEL_SERVER", server, whereClause, args, true)
+	_, err = dao.db.Update(ctx, "HUB_TUNNEL_SERVER", server, whereClause, args, true, true)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "更新隧道服务器状态失败")
 	}

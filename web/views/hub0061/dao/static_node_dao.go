@@ -252,7 +252,7 @@ func (dao *StaticNodeDAO) UpdateStaticNode(ctx context.Context, node *types.Tunn
 	whereClause := "tunnelStaticNodeId = ?"
 	args := []interface{}{node.TunnelStaticNodeId}
 
-	_, err = dao.db.Update(ctx, "HUB_TUNNEL_STATIC_NODE", node, whereClause, args, true)
+	_, err = dao.db.Update(ctx, "HUB_TUNNEL_STATIC_NODE", node, whereClause, args, true, true)
 	if err != nil {
 		return huberrors.WrapError(err, "更新节点失败")
 	}

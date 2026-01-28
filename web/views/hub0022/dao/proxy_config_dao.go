@@ -136,7 +136,7 @@ func (dao *ProxyConfigDAO) UpdateProxyConfig(ctx context.Context, proxyConfig *m
 	args := []interface{}{proxyConfig.ProxyConfigId, proxyConfig.TenantId, existing.CurrentVersion}
 
 	// 执行更新
-	affectedRows, err := dao.db.Update(ctx, "HUB_GW_PROXY_CONFIG", proxyConfig, where, args, true)
+	affectedRows, err := dao.db.Update(ctx, "HUB_GW_PROXY_CONFIG", proxyConfig, where, args, true, true)
 	if err != nil {
 		return huberrors.WrapError(err, "更新代理配置失败")
 	}

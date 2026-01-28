@@ -291,7 +291,7 @@ func TestMySQLUpdate(t *testing.T) {
 		Name: "用户B(已更新)",
 	}
 
-	affected, err := db.Update(ctx, user.TableName(), updatedUser, "id = ?", []interface{}{id}, true)
+	affected, err := db.Update(ctx, user.TableName(), updatedUser, "id = ?", []interface{}{id}, true, true)
 	if err != nil {
 		t.Fatalf("更新用户失败: %v", err)
 	}

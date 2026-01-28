@@ -38,12 +38,14 @@ import (
 	_ "gateway/web/views/hub0022/routes"
 	// 导入网关日志管理模块
 	_ "gateway/web/views/hub0023/routes"
-	// 导入服务分组命名空间管理模块
+	// 导入服务中心实例管理模块
 	_ "gateway/web/views/hub0040/routes"
-	// 导入服务注册列表管理模块
+	// 导入服务中心命名空间管理模块
 	_ "gateway/web/views/hub0041/routes"
-	// 导入JVM监控查询模块
+	// 导入服务列表管理模块
 	_ "gateway/web/views/hub0042/routes"
+	// 导入服务中心配置管理模块
+	_ "gateway/web/views/hub0043/routes"
 	// 导入隧道服务器管理模块
 	_ "gateway/web/views/hub0060/routes"
 	// 导入隧道映射管理模块
@@ -58,10 +60,6 @@ import (
 	_ "gateway/web/views/hub0082/routes"
 	//导入插件管理模块
 	_ "gateway/web/views/hubplugin/routes"
-	// 导入SDK服务模块
-	_ "gateway/web/sdkservice/regist/routes"
-	//导入应用上报资源模块
-	_ "gateway/web/sdkservice/reporter/routes"
 )
 
 // 这个包没有导出任何函数或变量

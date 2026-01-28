@@ -145,7 +145,7 @@ func (dao *AlertLogDAO) UpdateAlertLog(ctx context.Context, log *alerttypes.Aler
 	}
 	where := "tenantId = ? AND alertLogId = ?"
 	args := []interface{}{log.TenantId, log.AlertLogId}
-	_, err := dao.db.Update(ctx, "HUB_ALERT_LOG", log, where, args, true)
+	_, err := dao.db.Update(ctx, "HUB_ALERT_LOG", log, where, args, true, true)
 	if err != nil {
 		return huberrors.WrapError(err, "更新预警日志失败")
 	}

@@ -8,8 +8,9 @@ import type { SearchFormProps } from '@/components/form/search/types'
 import type { GridProps } from '@/components/grid'
 import type { PageInfoObj } from '@/types/api'
 import { formatDate } from '@/utils/format'
-import { AddOutline, PencilOutline, SearchOutline, ServerOutline, SettingsOutline, TrashOutline } from '@vicons/ionicons5'
-import { NButton, NIcon, NTag, NText } from 'naive-ui'
+import type { ServiceSelectionMetadata } from '@/views/hub0042/components'
+import { ServiceSelector } from '@/views/hub0042/components'
+import { AddOutline, SettingsOutline, TrashOutline } from '@vicons/ionicons5'
 import { h, ref } from 'vue'
 import type { ServiceDefinition } from '../types'
 import { LoadBalanceStrategy, ServiceType } from '../types'
@@ -613,89 +614,24 @@ export function useServiceDefinitionModel() {
         show: (formData: Record<string, any>) => formData.serviceType === ServiceType.DISCOVERY,
         tips: '从服务注册中心选择一个可用的服务，选择后会自动填充服务元数据',
         render: (formData: Record<string, any>, context?: {
-          selectedService?: any
-          openServiceSelection?: () => void
-          getLoadBalanceStrategyLabel?: (strategy: string) => string
+          selectedService?: { value: ServiceSelectionMetadata | null }
+          onServiceChange?: (metadata: ServiceSelectionMetadata | null) => void
+          to?: string
         }) => {
           const selectedService = context?.selectedService?.value || null
-          const openServiceSelection = context?.openServiceSelection
-          const getLoadBalanceStrategyLabel = context?.getLoadBalanceStrategyLabel
+          const onServiceChange = context?.onServiceChange
+          const to = context?.to || 'body'
           
-          if (!selectedService) {
-            return h('div', { class: 'service-selection-empty' }, [
-              h(NButton, {
-                type: 'primary',
-                size: 'small',
-                onClick: () => openServiceSelection?.(),
-              }, {
-                default: () => [
-                  h(NIcon, { style: { marginRight: '8px' } }, { default: () => h(SearchOutline) }),
-                  '选择注册服务'
-                ]
-              })
-            ])
-          }
-
-          return h('div', { class: 'selected-service-card' }, [
-            h('div', { class: 'service-header' }, [
-              h('div', { class: 'service-title' }, [
-                h(NIcon, { size: 20, class: 'service-icon', style: { color: 'var(--n-color-primary)', marginRight: '8px' } }, { default: () => h(ServerOutline) }),
-                h('span', { class: 'service-name', style: { fontSize: '16px', fontWeight: 600, marginRight: '8px' } }, selectedService.serviceName),
-                h(NTag, { size: 'small', type: 'success' }, { default: () => '已选择' })
-              ]),
-              h(NButton, {
-                quaternary: true,
-                type: 'primary',
-                size: 'small',
-                onClick: () => openServiceSelection?.(),
-              }, {
-                default: () => [
-                  h(NIcon, { style: { marginRight: '4px' } }, { default: () => h(PencilOutline) }),
-                  '重新选择'
-                ]
-              })
-            ]),
-            h('div', { class: 'service-details' }, [
-              h('div', { class: 'detail-row' }, [
-                h('div', { class: 'detail-item' }, [
-                  h('span', { class: 'detail-label' }, '服务分组：'),
-                  h(NTag, { size: 'small', type: 'info' }, { default: () => selectedService.groupName })
-                ]),
-                h('div', { class: 'detail-item' }, [
-                  h('span', { class: 'detail-label' }, '通信协议：'),
-                  h(NTag, { 
-                    size: 'small', 
-                    type: selectedService.protocolType === 'HTTPS' ? 'success' : 'default' 
-                  }, { default: () => selectedService.protocolType })
-                ])
-              ]),
-              h('div', { class: 'detail-row' }, [
-                h('div', { class: 'detail-item' }, [
-                  h('span', { class: 'detail-label' }, '上下文路径：'),
-                  h(NText, { code: true }, { default: () => selectedService.contextPath || '/' })
-                ]),
-                h('div', { class: 'detail-item' }, [
-                  h('span', { class: 'detail-label' }, '负载均衡：'),
-                  h(NText, { depth: 2 }, { 
-                    default: () => getLoadBalanceStrategyLabel?.(selectedService.loadBalanceStrategy) || selectedService.loadBalanceStrategy 
-                  })
-                ])
-              ]),
-              selectedService.instances && selectedService.instances.length > 0 ? h('div', { class: 'detail-row' }, [
-                h('div', { class: 'detail-item' }, [
-                  h('span', { class: 'detail-label' }, '服务实例：'),
-                  h(NTag, { size: 'small', type: 'warning' }, { default: () => `${selectedService.instances.length} 个实例` })
-                ]),
-                h('div', { class: 'detail-item' }, [
-                  h('span', { class: 'detail-label' }, '服务状态：'),
-                  h(NTag, { 
-                    size: 'small', 
-                    type: selectedService.activeFlag === 'Y' ? 'success' : 'error' 
-                  }, { default: () => selectedService.activeFlag === 'Y' ? '运行中' : '已停用' })
-                ])
-              ]) : null
-            ])
-          ])
+          return h(ServiceSelector, {
+            modelValue: selectedService,
+            to: to,
+            'onUpdate:modelValue': (metadata: ServiceSelectionMetadata | null) => {
+              onServiceChange?.(metadata)
+            },
+            onChange: (metadata: ServiceSelectionMetadata | null) => {
+              onServiceChange?.(metadata)
+            }
+          })
         },
       },
       {

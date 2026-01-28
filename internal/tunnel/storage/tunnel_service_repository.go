@@ -123,7 +123,7 @@ func (r *TunnelServiceRepositoryImpl) Update(ctx context.Context, service *types
 
 	// 使用数据库快捷方法按主键更新
 	// 只需要指定 WHERE 条件，数据库接口会自动提取结构体的所有字段
-	result, err := r.db.Update(ctx, "HUB_TUNNEL_SERVICE", service, "tunnelServiceId = ?", []interface{}{service.TunnelServiceId}, true)
+	result, err := r.db.Update(ctx, "HUB_TUNNEL_SERVICE", service, "tunnelServiceId = ?", []interface{}{service.TunnelServiceId}, true, true)
 	if err != nil {
 		return huberrors.WrapError(err, "更新隧道服务失败")
 	}

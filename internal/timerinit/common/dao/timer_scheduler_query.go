@@ -434,7 +434,7 @@ func (dao *TimerSchedulerDAO) UpdateScheduler(ctx context.Context, scheduler *ti
 	where := "tenantId = ? AND schedulerId = ?"
 	args := []interface{}{scheduler.TenantId, scheduler.SchedulerId}
 
-	_, err := dao.db.Update(ctx, tableName, scheduler, where, args, true)
+	_, err := dao.db.Update(ctx, tableName, scheduler, where, args, true, true)
 	if err != nil {
 		return fmt.Errorf("更新调度器失败: %w", err)
 	}

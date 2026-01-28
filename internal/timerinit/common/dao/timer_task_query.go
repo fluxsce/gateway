@@ -455,7 +455,7 @@ func (dao *TimerTaskDAO) UpdateTask(ctx context.Context, task *timertypes.TimerT
 	where := "tenantId = ? AND taskId = ?"
 	args := []interface{}{task.TenantId, task.TaskId}
 
-	_, err := dao.db.Update(ctx, tableName, task, where, args, true)
+	_, err := dao.db.Update(ctx, tableName, task, where, args, true, true)
 	if err != nil {
 		return fmt.Errorf("更新任务失败: %w", err)
 	}

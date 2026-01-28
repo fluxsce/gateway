@@ -133,7 +133,7 @@ func TestSQLiteMemoryDatabase(t *testing.T) {
 		Name: "李四",
 		Age:  30,
 	}
-	affected, err := db.Update(ctx, "users", updateData, "id = ?", []interface{}{id}, true)
+	affected, err := db.Update(ctx, "users", updateData, "id = ?", []interface{}{id}, true, true)
 	if err != nil {
 		t.Fatalf("Failed to update user: %v", err)
 	}

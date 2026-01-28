@@ -111,7 +111,7 @@ func (d *EventDAO) SaveEventAck(ctx context.Context, ack *types.ClusterEventAck)
 func (d *EventDAO) UpdateEventAck(ctx context.Context, ack *types.ClusterEventAck) error {
 	whereClause := "tenantId = ? AND ackId = ?"
 	whereArgs := []interface{}{ack.TenantId, ack.AckId}
-	_, err := d.db.Update(ctx, "HUB_CLUSTER_EVENT_ACK", ack, whereClause, whereArgs, true)
+	_, err := d.db.Update(ctx, "HUB_CLUSTER_EVENT_ACK", ack, whereClause, whereArgs, true, true)
 	if err != nil {
 		return fmt.Errorf("更新事件确认失败: %w", err)
 	}

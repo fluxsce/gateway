@@ -1,8 +1,9 @@
 /**
- * Hub0042 JVM监控模块 - Hooks导出文件
+ * 服务监控相关 hooks
  */
 
-export { useJvmResourceManagement } from './useJvmResourceManagement'
-export { useGcMonitor } from './useGcMonitor'
-export { useThreadMonitor } from './useThreadMonitor'
+// 新架构 - Model + Service + Page
+export { useServiceModel, type ServiceModel } from './model'
+export { useServicePage, type ServicePage } from './useServicePage'
+export { useServiceService, type ServiceService } from './useServiceService'
 

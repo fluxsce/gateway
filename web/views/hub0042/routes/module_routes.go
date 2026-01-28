@@ -1,4 +1,4 @@
-package routes
+package hub0042routes
 
 import (
 	"gateway/pkg/database"
@@ -10,120 +10,77 @@ import (
 )
 
 // 模块配置
+// 这些变量定义了模块的基本信息，用于路由注册和API路径设置
 var (
-	// ModuleName 模块名称
+	// ModuleName 模块名称，必须与目录名称一致，用于模块识别和查找
 	ModuleName = "hub0042"
 
-	// APIPrefix API路径前缀
-	APIPrefix = "/gateway/hub0042"
+	// APIPrefix API路径前缀，所有该模块的API都将以此为基础路径
+	// 实际路由时将根据RouteDiscovery的设置可能会使用"/api/hub0042"
+	APIPrefix = "/serviceCenter/hub0042"
 )
 
-// init 包初始化函数，自动注册hub0042模块的路由
+// init 包初始化函数
+// 当包被导入时会自动执行
+// 在这里注册模块的路由初始化函数，这样就不需要手动注册了
 func init() {
-	// 注册hub0042模块的路由初始化函数到全局路由注册表
+	// 自动注册路由初始化函数
 	routes.RegisterModuleRoutes(ModuleName, Init)
 	logger.Info("模块路由自动注册", "module", ModuleName)
 }
 
-// Init 初始化hub0042模块的所有路由
-// 这是模块的主要路由注册函数，会被路由发现器自动调用
+// Init 初始化模块路由
+// 此函数会在路由发现过程中被自动发现和调用
+//
 // 参数:
-//   - router: Gin路由引擎
-//   - db: 数据库连接
+//   - router: Gin路由引擎实例
+//   - db: 数据库连接实例
 func Init(router *gin.Engine, db database.Database) {
-	RegisterHub0042Routes(router, db)
+	// 创建模块路由组
+	group := router.Group(APIPrefix, routes.PermissionRequired()...)
+
+	// 服务相关路由
+	initServiceRoutes(group, db)
 }
 
-// RegisterHub0042Routes 注册hub0042模块的所有路由
-func RegisterHub0042Routes(router *gin.Engine, db database.Database) {
-	// 创建控制器实例
-	jvmQueryController := controllers.NewJvmQueryController(db)
-	logger.Info("JVM监控查询控制器已创建", "module", ModuleName)
+// initServiceRoutes 初始化服务相关路由
+// 将服务相关的所有API路由注册到指定的路由组
+// 按RESTful风格组织API路径
+//
+// 参数:
+//   - router: Gin路由组
+//   - db: 数据库连接实例
+func initServiceRoutes(router *gin.RouterGroup, db database.Database) {
+	// 创建控制器
+	serviceController := controllers.NewServiceController(db)
 
-	// 创建模块路由组
-	hub0042Group := router.Group(APIPrefix)
+	// 服务路由组
+	serviceGroup := router
 
-	// 需要认证的路由
-	protectedGroup := hub0042Group.Group("")
-	protectedGroup.Use(routes.PermissionRequired()...) // 必须有有效session
-
-	// ===============================
-	// JVM资源监控查询路由
-	// ===============================
+	// 注册路由 - 所有服务监控相关的路由都需要认证
 	{
-		// 查询JVM资源列表（支持分页、搜索和过滤）
-		protectedGroup.POST("/queryJvmResources", jvmQueryController.QueryJvmResources)
+		// 服务列表查询
+		serviceGroup.POST("/queryServices", serviceController.QueryServices)
 
-		// 获取JVM资源详情
-		protectedGroup.POST("/getJvmResourceDetail", jvmQueryController.GetJvmResourceDetail)
+		// 服务详情查询
+		serviceGroup.POST("/getService", serviceController.GetService)
+
+		// 服务增删改
+		serviceGroup.POST("/addService", serviceController.AddService)
+		serviceGroup.POST("/editService", serviceController.EditService)
+		serviceGroup.POST("/deleteService", serviceController.DeleteService)
+
+		// 节点编辑和下线
+		serviceGroup.POST("/editNode", serviceController.EditNode)
+		serviceGroup.POST("/offlineNode", serviceController.OfflineNode)
 	}
+}
 
-	// ===============================
-	// GC快照查询路由
-	// ===============================
-	{
-		// 查询GC快照列表
-		protectedGroup.POST("/queryGCSnapshots", jvmQueryController.QueryGCSnapshots)
-
-		// 获取最新GC快照
-		protectedGroup.POST("/getLatestGCSnapshot", jvmQueryController.GetLatestGCSnapshot)
-	}
-
-	// ===============================
-	// 内存监控查询路由
-	// ===============================
-	{
-		// 查询内存记录
-		protectedGroup.POST("/queryMemory", jvmQueryController.QueryMemory)
-
-		// 查询内存池记录
-		protectedGroup.POST("/queryMemoryPools", jvmQueryController.QueryMemoryPools)
-	}
-
-	// ===============================
-	// 线程监控查询路由
-	// ===============================
-	{
-		// 查询线程记录
-		protectedGroup.POST("/queryThreads", jvmQueryController.QueryThreads)
-
-		// 查询线程状态记录
-		protectedGroup.POST("/queryThreadStates", jvmQueryController.QueryThreadStates)
-
-		// 查询死锁记录
-		protectedGroup.POST("/queryDeadlocks", jvmQueryController.QueryDeadlocks)
-	}
-
-	// ===============================
-	// 类加载监控查询路由
-	// ===============================
-	{
-		// 查询类加载记录
-		protectedGroup.POST("/queryClassLoading", jvmQueryController.QueryClassLoading)
-	}
-
-	// ===============================
-	// 应用监控数据查询路由
-	// ===============================
-	{
-		// 查询应用监控数据列表（支持分页、搜索和过滤）
-		protectedGroup.POST("/queryAppMonitorData", jvmQueryController.QueryAppMonitorData)
-
-		// 获取应用监控数据详情
-		protectedGroup.POST("/getAppMonitorDataDetail", jvmQueryController.GetAppMonitorDataDetail)
-	}
-
-	// ===============================
-	// 统计和概览路由
-	// ===============================
-	{
-		// 获取JVM监控概览
-		protectedGroup.POST("/getJvmOverview", jvmQueryController.GetJvmOverview)
-	}
-
-	logger.Info("hub0042模块路由注册完成",
-		"module", ModuleName,
-		"prefix", APIPrefix,
-		"services", "JVM监控查询",
-		"features", "资源监控、GC快照、内存监控、线程监控、线程状态、死锁检测、类加载监控、应用监控数据、统计概览")
+// RegisterRoutesFunc 返回路由注册函数
+// 此函数用于手动注册模块路由
+//
+// 返回:
+//   - func(router *gin.Engine, db database.Database): 返回Init函数引用
+func RegisterRoutesFunc() func(router *gin.Engine, db database.Database) {
+	return Init
 }

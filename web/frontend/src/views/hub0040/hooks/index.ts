@@ -1,9 +1,9 @@
 /**
- * 命名空间管理相关 hooks
+ * 服务中心实例管理相关 hooks
  */
 
 // 新架构 - Model + Service + Page
-export { useNamespaceModel, type NamespaceModel } from './model'
-export { useNamespacePage, type NamespacePage } from './page'
-export { useNamespaceService, type NamespaceService } from './service'
+export { useServiceCenterInstanceModel, type ServiceCenterInstanceModel } from './model'
+export { useServiceCenterInstancePage, type ServiceCenterInstancePage } from './useServiceCenterInstancePage'
+export { useServiceCenterInstanceService, type ServiceCenterInstanceService } from './useServiceCenterInstanceService'
 

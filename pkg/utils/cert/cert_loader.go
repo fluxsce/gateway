@@ -19,9 +19,19 @@ import (
 )
 
 // CertConfig 证书配置
+// 支持两种加载方式：
+//  1. 从文件加载：指定 CertFile 和 KeyFile
+//  2. 从内容加载：指定 CertContent 和 KeyContent
 type CertConfig struct {
-	CertFile     string   // 证书文件路径
-	KeyFile      string   // 私钥文件路径
+	// 文件路径方式
+	CertFile string // 证书文件路径
+	KeyFile  string // 私钥文件路径
+
+	// 内容方式（PEM 格式）
+	CertContent string // 证书内容（PEM 格式）
+	KeyContent  string // 私钥内容（PEM 格式）
+
+	// 通用配置
 	KeyPassword  string   // 私钥密码（用于解密加密的私钥）
 	TLSVersions  []string // TLS版本列表，支持多个版本，如: ["TLS1.2", "TLS1.3"]
 	CipherSuites []string // 加密套件列表
@@ -41,28 +51,46 @@ func NewCertLoader(config *CertConfig) *CertLoader {
 }
 
 // LoadCertificate 加载证书
+// 支持两种加载方式：
+//  1. 从文件加载（CertFile、KeyFile 不为空）
+//  2. 从内容加载（CertContent、KeyContent 不为空）
 func (loader *CertLoader) LoadCertificate() (*tls.Certificate, error) {
-	if loader.config.CertFile == "" || loader.config.KeyFile == "" {
-		return nil, fmt.Errorf("证书文件路径或私钥文件路径为空")
-	}
+	var certPEM, keyPEM []byte
+	var err error
+	var loadSource string
 
-	// 检查文件是否存在
-	if _, err := os.Stat(loader.config.CertFile); os.IsNotExist(err) {
-		return nil, fmt.Errorf("证书文件不存在: %s", loader.config.CertFile)
-	}
-	if _, err := os.Stat(loader.config.KeyFile); os.IsNotExist(err) {
-		return nil, fmt.Errorf("私钥文件不存在: %s", loader.config.KeyFile)
-	}
+	// 判断加载方式
+	if loader.config.CertContent != "" && loader.config.KeyContent != "" {
+		// 从内容加载
+		certPEM = []byte(loader.config.CertContent)
+		keyPEM = []byte(loader.config.KeyContent)
+		loadSource = "content"
+		logger.Debug("使用内容模式加载证书")
+	} else if loader.config.CertFile != "" && loader.config.KeyFile != "" {
+		// 从文件加载
+		// 检查文件是否存在
+		if _, err := os.Stat(loader.config.CertFile); os.IsNotExist(err) {
+			return nil, fmt.Errorf("证书文件不存在: %s", loader.config.CertFile)
+		}
+		if _, err := os.Stat(loader.config.KeyFile); os.IsNotExist(err) {
+			return nil, fmt.Errorf("私钥文件不存在: %s", loader.config.KeyFile)
+		}
 
-	// 读取证书和私钥文件
-	certPEM, err := os.ReadFile(loader.config.CertFile)
-	if err != nil {
-		return nil, fmt.Errorf("读取证书文件失败: %w", err)
-	}
+		// 读取证书和私钥文件
+		certPEM, err = os.ReadFile(loader.config.CertFile)
+		if err != nil {
+			return nil, fmt.Errorf("读取证书文件失败: %w", err)
+		}
 
-	keyPEM, err := os.ReadFile(loader.config.KeyFile)
-	if err != nil {
-		return nil, fmt.Errorf("读取私钥文件失败: %w", err)
+		keyPEM, err = os.ReadFile(loader.config.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("读取私钥文件失败: %w", err)
+		}
+
+		loadSource = "file"
+		logger.Debug("使用文件模式加载证书", "certFile", loader.config.CertFile)
+	} else {
+		return nil, fmt.Errorf("必须提供证书和私钥（文件路径或内容）")
 	}
 
 	// 检查私钥是否加密，如果加密则解密
@@ -83,7 +111,12 @@ func (loader *CertLoader) LoadCertificate() (*tls.Certificate, error) {
 	}
 
 	loader.cert = &cert
-	logger.Info("证书加载成功", "certFile", loader.config.CertFile, "keyFile", loader.config.KeyFile)
+
+	if loadSource == "file" {
+		logger.Info("证书加载成功", "source", "file", "certFile", loader.config.CertFile, "keyFile", loader.config.KeyFile)
+	} else {
+		logger.Info("证书加载成功", "source", "content")
+	}
 
 	return &cert, nil
 }

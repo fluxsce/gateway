@@ -63,7 +63,7 @@ services:
   # Gateway 应用
   # ============================================
   gateway:
-    image: datahub-images/gateway:3.0.5
+    image: datahub-images/gateway:3.0.6
     container_name: gateway-app
     restart: unless-stopped
     depends_on:

@@ -362,18 +362,25 @@ func AESEncryptToString(secretKey string, plaintext string) (string, error) {
 }
 
 // AESDecryptFromString 从字符串密文直接解密（便捷方法）
+// 如果字符串没有加密前缀，直接返回原始值（兼容明文数据）
 // 参数:
 //   - secretKey: 密钥字符串，会通过SHA256派生为32字节密钥
-//   - ciphertext: 加密后的字符串密文（可以带或不带 "ENCY_" 前缀）
+//   - ciphertext: 加密后的字符串密文（可以带或不带 "ENCY_" 前缀），或明文字符串
 //
 // 返回:
-//   - string: 解密后的明文字符串
+//   - string: 解密后的明文字符串，如果输入是明文则直接返回
 //   - error: 解密过程中的错误
 //
 // 示例:
 //
 //	plaintext, err := security.AESDecryptFromString("my-secret-key", "ENCY_AQAMkC8FzECY2BAC5IaYAAAAH...")
+//	plaintext, err := security.AESDecryptFromString("my-secret-key", "plain-text-value") // 返回 "plain-text-value"
 func AESDecryptFromString(secretKey string, ciphertext string) (string, error) {
+	// 如果没有加密前缀，说明是明文，直接返回原始值
+	if !IsEncryptedString(ciphertext) {
+		return ciphertext, nil
+	}
+
 	encryptedData, err := EncryptedDataFromString(ciphertext)
 	if err != nil {
 		return "", fmt.Errorf("解析加密数据失败: %w", err)
@@ -455,18 +462,25 @@ func DESEncryptToString(secretKey string, plaintext string) (string, error) {
 }
 
 // DESDecryptFromString 从字符串密文直接解密DES（便捷方法）
+// 如果字符串没有加密前缀，直接返回原始值（兼容明文数据）
 // 参数:
 //   - secretKey: 密钥字符串，会派生为8字节DES密钥
-//   - ciphertext: 加密后的字符串密文（可以带或不带 "ENCY_" 前缀）
+//   - ciphertext: 加密后的字符串密文（可以带或不带 "ENCY_" 前缀），或明文字符串
 //
 // 返回:
-//   - string: 解密后的明文字符串
+//   - string: 解密后的明文字符串，如果输入是明文则直接返回
 //   - error: 解密过程中的错误
 //
 // 示例:
 //
 //	plaintext, err := security.DESDecryptFromString("my-secret-key", "ENCY_AwAI...")
+//	plaintext, err := security.DESDecryptFromString("my-secret-key", "plain-text") // 返回 "plain-text"
 func DESDecryptFromString(secretKey string, ciphertext string) (string, error) {
+	// 如果没有加密前缀，说明是明文，直接返回原始值
+	if !IsEncryptedString(ciphertext) {
+		return ciphertext, nil
+	}
+
 	encryptedData, err := EncryptedDataFromString(ciphertext)
 	if err != nil {
 		return "", fmt.Errorf("解析加密数据失败: %w", err)
@@ -528,19 +542,26 @@ func EncryptWithDefaultKey(plaintext string) (string, error) {
 
 // DecryptWithDefaultKey 使用默认密钥解密字符串（便捷方法）
 // 使用配置中的默认密钥进行解密
+// 如果字符串没有加密前缀，直接返回原始值（兼容明文数据）
 //
 // 参数:
-//   - ciphertext: 加密后的字符串密文（可以带或不带 "ENCY_" 前缀）
+//   - ciphertext: 加密后的字符串密文（可以带或不带 "ENCY_" 前缀），或明文字符串
 //
 // 返回:
-//   - string: 解密后的明文字符串
+//   - string: 解密后的明文字符串，如果输入是明文则直接返回
 //   - error: 解密过程中的错误
 //
 // 示例:
 //
 //	plaintext, err := security.DecryptWithDefaultKey("ENCY_AQAMkC8FzECY2BAC5IaYAAAAH...")
 //	// 使用配置中的默认密钥
+//	plaintext, err := security.DecryptWithDefaultKey("plain-text-value") // 返回 "plain-text-value"
 func DecryptWithDefaultKey(ciphertext string) (string, error) {
+	// 如果没有加密前缀，说明是明文，直接返回原始值
+	if !IsEncryptedString(ciphertext) {
+		return ciphertext, nil
+	}
+
 	key := GetDefaultEncryptionKey()
 	return AESDecryptFromString(key, ciphertext)
 }
@@ -562,13 +583,19 @@ func EncryptBytesWithDefaultKey(plaintext []byte) (string, error) {
 }
 
 // DecryptBytesWithDefaultKey 使用默认密钥解密字节数组
+// 如果字符串没有加密前缀，将其作为明文转换为字节数组返回
 // 参数:
-//   - ciphertext: 加密后的字符串密文（可以带或不带 "ENCY_" 前缀）
+//   - ciphertext: 加密后的字符串密文（可以带或不带 "ENCY_" 前缀），或明文字符串
 //
 // 返回:
 //   - []byte: 解密后的明文字节数组
 //   - error: 解密过程中的错误
 func DecryptBytesWithDefaultKey(ciphertext string) ([]byte, error) {
+	// 如果没有加密前缀，说明是明文，直接返回字节数组
+	if !IsEncryptedString(ciphertext) {
+		return []byte(ciphertext), nil
+	}
+
 	key := GetDefaultEncryptionKey()
 	encryptedData, err := EncryptedDataFromString(ciphertext)
 	if err != nil {

@@ -61,7 +61,7 @@ func (d *LogDAO) GetLog(ctx context.Context, tenantId, alertLogId string) (*type
 func (d *LogDAO) UpdateLog(ctx context.Context, log *types.AlertLog) error {
 	whereClause := "tenantId = ? AND alertLogId = ?"
 	whereArgs := []interface{}{log.TenantId, log.AlertLogId}
-	_, err := d.db.Update(ctx, "HUB_ALERT_LOG", log, whereClause, whereArgs, true)
+	_, err := d.db.Update(ctx, "HUB_ALERT_LOG", log, whereClause, whereArgs, true, true)
 	if err != nil {
 		return fmt.Errorf("更新告警日志失败: %w", err)
 	}

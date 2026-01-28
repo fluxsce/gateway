@@ -147,9 +147,12 @@ func initializeAndStartApplication() error {
 		return huberrors.WrapError(err, "初始化定时任务失败")
 	}
 
-	// 初始化注册中心（必须在Web应用之前初始化，因为Web层会使用注册中心）
-	if err := appinit.InitRegistryWithConfig(appContext, db); err != nil {
-		return huberrors.WrapError(err, "初始化注册中心失败")
+	// 初始化服务中心（失败不影响应用启动）
+	if err := appinit.InitServiceCenterWithConfig(appContext, db); err != nil {
+		logger.Error("初始化服务中心失败", map[string]interface{}{
+			"error": err.Error(),
+		})
+		// 不返回错误，允许应用继续启动
 	}
 
 	// 初始化网关应用
@@ -465,12 +468,12 @@ func cleanupResources() {
 		logMsg("MongoDB连接已成功关闭")
 	}
 
-	// 停止注册中心服务
-	logMsg("正在停止注册中心服务...")
-	if err := appinit.StopRegistry(appContext); err != nil {
-		logMsg("停止注册中心服务时发生错误: %v", err)
+	// 停止服务中心服务
+	logMsg("正在停止服务中心服务...")
+	if err := appinit.StopServiceCenter(appContext); err != nil {
+		logMsg("停止服务中心服务时发生错误: %v", err)
 	} else {
-		logMsg("注册中心服务已成功停止")
+		logMsg("服务中心服务已成功停止")
 	}
 
 	// 关闭所有数据库连接

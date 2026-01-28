@@ -388,7 +388,7 @@ func (dao *ToolConfigGroupDAO) UpdateGroup(ctx context.Context, group *tooltypes
 	where := "tenantId = ? AND configGroupId = ?"
 	args := []interface{}{group.TenantId, group.ConfigGroupId}
 
-	_, err := dao.db.Update(ctx, tableName, group, where, args, true)
+	_, err := dao.db.Update(ctx, tableName, group, where, args, true, true)
 	if err != nil {
 		return fmt.Errorf("更新配置分组失败: %w", err)
 	}

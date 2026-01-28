@@ -15,7 +15,7 @@ metadata:
   namespace: gateway
   labels:
     app: gateway
-    version: v3.0.5
+    version: v3.0.6
     component: application
 spec:
   # 副本数量（建议生产环境至少 2 个）
@@ -38,7 +38,7 @@ spec:
     metadata:
       labels:
         app: gateway
-        version: v3.0.5
+        version: v3.0.6
       annotations:
         # Prometheus 监控配置
         prometheus.io/scrape: "true"
@@ -57,7 +57,7 @@ spec:
       containers:
         - name: gateway
           # 镜像地址（阿里云镜像仓库）
-          image: crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.0.5
+          image: crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.0.6
           # 镜像拉取策略（总是拉取最新镜像）
           imagePullPolicy: Always
           

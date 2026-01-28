@@ -119,7 +119,7 @@ func (dao *AlertTemplateDAO) UpdateAlertTemplate(ctx context.Context, tpl *alert
 	}
 	where := "tenantId = ? AND templateName = ?"
 	args := []interface{}{tpl.TenantId, tpl.TemplateName}
-	_, err := dao.db.Update(ctx, "HUB_ALERT_TEMPLATE", tpl, where, args, true)
+	_, err := dao.db.Update(ctx, "HUB_ALERT_TEMPLATE", tpl, where, args, true, true)
 	if err != nil {
 		return huberrors.WrapError(err, "更新预警模板失败")
 	}

@@ -314,36 +314,47 @@ export class StaticRoutes {
         },
         children: [
           {
-            path: 'namespaceManagement',
-            name: 'namespaceManagement',
-            component: () => import('@/views/hub0040/NamespaceManagement.vue'),
+            path: 'serviceCenterInstanceManager',
+            name: 'serviceCenterInstanceManager',
+            component: () => import('@/views/hub0040/ServiceCenterInstanceManager.vue'),
             meta: {
-              title: '命名空间管理',
+              title: '服务中心实例管理',
               requiresAuth: true,
-              icon: 'LayersOutline',
+              icon: 'ServerOutline',
               moduleName: 'hub0040', // 多语言模块名称
             },
           },
           {
-            path: 'serviceRegistryManagement',
-            name: 'serviceRegistryManagement',
-            component: () => import('@/views/hub0041/ServiceRegistryManagement.vue'),
+            path: 'namespaceManagement',
+            name: 'namespaceManagement',
+            component: () => import('@/views/hub0041/NamespaceManagement.vue'),
             meta: {
-              title: '服务注册管理',
+              title: '命名空间管理',
               requiresAuth: true,
-              icon: 'ListOutline',
+              icon: 'FolderOutline',
               moduleName: 'hub0041', // 多语言模块名称
             },
           },
           {
-            path: 'serviceMonitoring',
-            name: 'serviceMonitoring',
-            component: () => import('@/views/hub0042/ServiceMonitoring.vue'),
+            path: 'serviceList',
+            name: 'serviceList',
+            component: () => import('@/views/hub0042/ServiceList.vue'),
             meta: {
-              title: '服务监控',
+              title: '服务列表',
               requiresAuth: true,
               icon: 'BarChartOutline',
               moduleName: 'hub0042', // 多语言模块名称
+            },
+          },
+          {
+            path: 'configManagement',
+            name: 'configManagement',
+            component: () => import('@/views/hub0043/ConfigManagement.vue'),
+            meta: {
+              title: '配置中心',
+              requiresAuth: true,
+              icon: 'CodeOutline',
+              moduleName: 'hub0043', // 多语言模块名称
             },
           },
         ],

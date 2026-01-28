@@ -175,9 +175,19 @@ func BuildInsertQuery(table string, data interface{}) (string, []interface{}, er
 //	setClause, args, err := BuildUpdateQuery("users", User{Name: "John", Age: 31})
 //	// 返回: "name = ?, age = ?", ["John", 31], nil
 //	// 完整UPDATE语句: UPDATE users SET name = ?, age = ? WHERE id = ?
-func BuildUpdateQuery(table string, data interface{}) (string, []interface{}, error) {
-	// UPDATE操作使用跳过零值的版本，只更新有效字段
-	columns, values, err := ExtractColumnsAndValuesSkipZero(data)
+func BuildUpdateQuery(table string, data interface{}, skipZero bool) (string, []interface{}, error) {
+	var columns []string
+	var values []interface{}
+	var err error
+
+	if skipZero {
+		// UPDATE操作跳过零值，只更新非零值字段
+		columns, values, err = ExtractColumnsAndValuesSkipZero(data)
+	} else {
+		// UPDATE操作包含零值，更新所有字段（用于需要清空字段的场景）
+		columns, values, err = ExtractColumnsAndValues(data)
+	}
+
 	if err != nil {
 		return "", nil, err
 	}
@@ -259,7 +269,7 @@ func ExtractColumnsAndValues(data interface{}) ([]string, []interface{}, error) 
 		// }
 
 		columns = append(columns, dbTag)
-		
+
 		// 特殊处理时间类型的零值，转换为NULL
 		if field.Type() == reflect.TypeOf(time.Time{}) {
 			t := field.Interface().(time.Time)
@@ -340,7 +350,7 @@ func ExtractColumnsAndValuesSkipZero(data interface{}) ([]string, []interface{},
 		}
 
 		columns = append(columns, dbTag)
-		
+
 		// 特殊处理时间类型的零值，转换为NULL（虽然在SkipZero版本中零值已被跳过，但为了一致性保留此逻辑）
 		if field.Type() == reflect.TypeOf(time.Time{}) {
 			t := field.Interface().(time.Time)
@@ -723,9 +733,19 @@ func BuildInsertQueryForOracle(table string, data interface{}) (string, []interf
 //	string: SET子句，使用Oracle的:1, :2占位符格式
 //	[]interface{}: 参数值数组
 //	error: 构建失败时返回错误信息
-func BuildUpdateQueryForOracle(table string, data interface{}) (string, []interface{}, error) {
-	// UPDATE操作使用跳过零值的版本，只更新有效字段
-	columns, values, err := ExtractColumnsAndValuesSkipZero(data)
+func BuildUpdateQueryForOracle(table string, data interface{}, skipZero bool) (string, []interface{}, error) {
+	var columns []string
+	var values []interface{}
+	var err error
+
+	if skipZero {
+		// UPDATE操作跳过零值，只更新非零值字段
+		columns, values, err = ExtractColumnsAndValuesSkipZero(data)
+	} else {
+		// UPDATE操作包含零值，更新所有字段（用于需要清空字段的场景）
+		columns, values, err = ExtractColumnsAndValues(data)
+	}
+
 	if err != nil {
 		return "", nil, err
 	}

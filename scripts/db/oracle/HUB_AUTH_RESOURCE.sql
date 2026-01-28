@@ -110,19 +110,6 @@ INSERT INTO HUB_AUTH_RESOURCE (
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_GROUP_003', 1, 'Y'
 );
 
--- 服务治理分组 (group0040)
-INSERT INTO HUB_AUTH_RESOURCE (
-  resourceId, tenantId, resourceName, resourceCode, resourceType,
-  resourceLevel, sortOrder, iconClass, language,
-  resourceStatus, builtInFlag,
-  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
-) VALUES (
-  'group0040', 'default', '服务治理', 'group0040', 'GROUP',
-  1, 4, 'GitNetworkOutline', 'zh-CN',
-  'Y', 'Y',
-  SYSDATE, 'system', SYSDATE, 'system', 'INIT_GROUP_004', 1, 'Y'
-);
-
 -- 隧道管理分组 (group0060)
 INSERT INTO HUB_AUTH_RESOURCE (
   resourceId, tenantId, resourceName, resourceCode, resourceType,
@@ -281,45 +268,6 @@ INSERT INTO HUB_AUTH_RESOURCE (
   '/gateway/gatewayLogManagement', 'group0020', 2, 4, 'DocumentTextOutline', 'zh-CN',
   'Y', 'Y',
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_013', 1, 'Y'
-);
-
--- 命名空间管理模块 (hub0040) - 属于 group0040
-INSERT INTO HUB_AUTH_RESOURCE (
-  resourceId, tenantId, resourceName, resourceCode, resourceType,
-  resourcePath, parentResourceId, resourceLevel, sortOrder, iconClass, language,
-  resourceStatus, builtInFlag,
-  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
-) VALUES (
-  'hub0040', 'default', '命名空间管理', 'hub0040', 'MODULE',
-  '/serviceGovernance/namespaceManagement', 'group0040', 2, 1, 'LayersOutline', 'zh-CN',
-  'Y', 'Y',
-  SYSDATE, 'system', SYSDATE, 'system', 'INIT_020', 1, 'Y'
-);
-
--- 服务注册管理模块 (hub0041) - 属于 group0040
-INSERT INTO HUB_AUTH_RESOURCE (
-  resourceId, tenantId, resourceName, resourceCode, resourceType,
-  resourcePath, parentResourceId, resourceLevel, sortOrder, iconClass, language,
-  resourceStatus, builtInFlag,
-  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
-) VALUES (
-  'hub0041', 'default', '服务注册管理', 'hub0041', 'MODULE',
-  '/serviceGovernance/serviceRegistryManagement', 'group0040', 2, 2, 'ListOutline', 'zh-CN',
-  'Y', 'Y',
-  SYSDATE, 'system', SYSDATE, 'system', 'INIT_021', 1, 'Y'
-);
-
--- 服务监控模块 (hub0042) - 属于 group0040
-INSERT INTO HUB_AUTH_RESOURCE (
-  resourceId, tenantId, resourceName, resourceCode, resourceType,
-  resourcePath, parentResourceId, resourceLevel, sortOrder, iconClass, language,
-  resourceStatus, builtInFlag,
-  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
-) VALUES (
-  'hub0042', 'default', '服务监控', 'hub0042', 'MODULE',
-  '/serviceGovernance/serviceMonitoring', 'group0040', 2, 3, 'BarChartOutline', 'zh-CN',
-  'Y', 'Y',
-  SYSDATE, 'system', SYSDATE, 'system', 'INIT_022', 1, 'Y'
 );
 
 -- 隧道服务器模块 (hub0060) - 属于 group0060

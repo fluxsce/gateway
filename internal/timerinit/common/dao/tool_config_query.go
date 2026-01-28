@@ -429,7 +429,7 @@ func (dao *ToolConfigDAO) UpdateConfig(ctx context.Context, config *tooltypes.To
 	where := "tenantId = ? AND toolConfigId = ?"
 	args := []interface{}{config.TenantId, config.ToolConfigId}
 
-	_, err := dao.db.Update(ctx, tableName, config, where, args, true)
+	_, err := dao.db.Update(ctx, tableName, config, where, args, true, true)
 	if err != nil {
 		return fmt.Errorf("更新工具配置失败: %w", err)
 	}

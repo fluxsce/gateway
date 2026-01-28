@@ -5,252 +5,184 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"gateway/internal/gateway/core"
 	"gateway/internal/gateway/handler/service"
-	registryCore "gateway/internal/registry/core"
-	registryManager "gateway/internal/registry/manager"
+	"gateway/internal/servicecenter/cache"
+	"gateway/internal/servicecenter/types"
 	"gateway/pkg/logger"
 )
 
-// RegistryServiceMetadata 注册中心服务元数据
-type RegistryServiceMetadata struct {
-	TenantID        string `json:"tenantId"`        // 租户ID
-	ServiceGroupID  string `json:"serviceGroupId"`  // 服务组ID
-	GroupName       string `json:"groupName"`       // 服务组名称
-	ServiceName     string `json:"serviceName"`     // 服务名称
-	DiscoveryType   string `json:"discoveryType"`   // 服务发现类型
-	DiscoveryConfig string `json:"discoveryConfig"` // 服务发现配置
+// ServiceCenterMetadata 服务中心服务元数据
+type ServiceCenterMetadata struct {
+	TenantID      string `json:"tenantId"`      // 租户ID
+	NamespaceID   string `json:"namespaceId"`   // 命名空间ID
+	GroupName     string `json:"groupName"`     // 分组名称
+	ServiceName   string `json:"serviceName"`   // 服务名称
+	DiscoveryType string `json:"discoveryType"` // 服务发现类型（servicecenter）
 }
 
-// parseMetadataField 通用的元数据字段解析方法
-func parseMetadataField(metadata map[string]string, keys ...string) string {
-	for _, key := range keys {
-		if value, exists := metadata[key]; exists {
-			return value
-		}
-	}
-	return ""
-}
-
-// ParseServiceMetadata 解析服务元数据（静态方法）
-func ParseServiceMetadata(metadata map[string]string) (*RegistryServiceMetadata, error) {
-	if metadata == nil {
-		return nil, fmt.Errorf("服务元数据为空")
-	}
-
-	registryMeta := &RegistryServiceMetadata{
-		TenantID:        parseMetadataField(metadata, "tenantId", "tenant_id"),
-		ServiceGroupID:  parseMetadataField(metadata, "serviceGroupId", "service_group_id", "groupId"),
-		GroupName:       parseMetadataField(metadata, "groupName", "group_name"),
-		ServiceName:     parseMetadataField(metadata, "serviceName", "service_name"),
-		DiscoveryType:   parseMetadataField(metadata, "discoveryType", "discovery_type"),
-		DiscoveryConfig: parseMetadataField(metadata, "discoveryConfig", "discovery_config"),
-	}
-
-	// 验证必要字段
-	if registryMeta.ServiceName == "" {
-		return nil, fmt.Errorf("服务名称不能为空")
-	}
-
-	return registryMeta, nil
-}
-
-// IsRegistryService 判断是否为注册中心服务（静态方法）
-func IsRegistryService(metadata map[string]string) bool {
+// IsServiceCenterService 判断是否为服务中心服务
+func IsServiceCenterService(metadata map[string]string) bool {
 	if metadata == nil {
 		return false
 	}
 
-	// 检查是否包含注册中心相关的元数据字段
-	registryFields := []string{
-		"tenantId", "tenant_id",
-		"serviceGroupId", "service_group_id", "groupId",
-		"serviceName", "service_name",
-	}
-
-	hasRegistryFields := false
-	for _, field := range registryFields {
-		if _, exists := metadata[field]; exists {
-			hasRegistryFields = true
-			break
-		}
-	}
-
-	// 检查服务发现类型
-	discoveryType := parseMetadataField(metadata, "discoveryType", "discovery_type")
-	if discoveryType != "" {
-		return hasRegistryFields && strings.ToUpper(discoveryType) == "REGISTRY"
-	}
-
-	// 如果没有明确指定发现类型，但有注册中心字段，则认为是注册中心服务
-	return hasRegistryFields
+	// 检查服务发现类型（统一使用驼峰命名）
+	discoveryType := metadata["discoveryType"]
+	return discoveryType == "servicecenter" || discoveryType == "SERVICECENTER"
 }
 
-// ValidateRegistryMetadata 验证注册中心元数据（静态方法）
-func ValidateRegistryMetadata(metadata *RegistryServiceMetadata) error {
-	if metadata == nil {
-		return fmt.Errorf("注册中心服务元数据不能为空")
-	}
-
-	// 使用结构体字段验证，减少重复代码
-	requiredFields := map[string]string{
-		"服务名称":  metadata.ServiceName,
-		"租户ID":  metadata.TenantID,
-		"服务组ID": metadata.ServiceGroupID,
-	}
-
-	for fieldName, fieldValue := range requiredFields {
-		if fieldValue == "" {
-			return fmt.Errorf("%s不能为空", fieldName)
-		}
-	}
-
-	return nil
-}
-
-// DiscoverServiceInstance 从注册中心发现服务实例（静态方法）
-func DiscoverServiceInstance(ctx *core.Context, metadata *RegistryServiceMetadata) (*service.NodeConfig, error) {
-	if metadata == nil {
-		return nil, fmt.Errorf("服务元数据不能为空")
-	}
-
-	// 验证必要参数
-	if err := ValidateRegistryMetadata(metadata); err != nil {
-		return nil, fmt.Errorf("验证元数据失败: %w", err)
-	}
-
-	// 直接获取注册中心管理器实例
-	regManager := registryManager.GetInstance()
-	if regManager == nil {
-		return nil, fmt.Errorf("注册中心管理器未初始化")
-	}
-
-	// 从注册中心发现服务实例
-	instance, err := regManager.DiscoverInstance(
-		context.Background(),
-		metadata.TenantID,
-		metadata.ServiceGroupID,
-		metadata.ServiceName,
-	)
-	if err != nil {
-		logger.WarnWithTrace(ctx.Ctx, "从注册中心发现服务实例失败",
-			"tenantId", metadata.TenantID,
-			"serviceGroupId", metadata.ServiceGroupID,
-			"serviceName", metadata.ServiceName,
-			"error", err)
-		return nil, fmt.Errorf("从注册中心发现服务实例失败: %w", err)
-	}
-
-	if instance == nil {
-		return nil, fmt.Errorf("未找到可用的服务实例")
-	}
-
-	// 将注册中心的ServiceInstance转换为NodeConfig
-	nodeConfig := ConvertInstanceToNode(instance)
-
-	logger.InfoWithTrace(ctx.Ctx, "成功从注册中心发现服务实例",
-		"tenantId", metadata.TenantID,
-		"serviceGroupId", metadata.ServiceGroupID,
-		"serviceName", metadata.ServiceName,
-		"instanceId", instance.ServiceInstanceId,
-		"address", fmt.Sprintf("%s:%d", instance.HostAddress, instance.PortNumber),
-		"healthStatus", instance.HealthStatus)
-
-	return nodeConfig, nil
-}
-
-// ConvertInstanceToNode 将注册中心的ServiceInstance转换为NodeConfig（静态方法）
-func ConvertInstanceToNode(instance *registryCore.ServiceInstance) *service.NodeConfig {
-	if instance == nil {
-		return nil
-	}
-
-	// 构建节点URL
-	scheme := "http"
-	// 注意：ServiceInstance中没有ProtocolType字段，使用默认的http
-	// 可以从元数据中获取协议类型
-	var protocolType string
-	if instance.MetadataJson != "" {
-		var instanceMetadata map[string]interface{}
-		if err := json.Unmarshal([]byte(instance.MetadataJson), &instanceMetadata); err == nil {
-			if protocol, exists := instanceMetadata["protocolType"]; exists {
-				if protocolStr, ok := protocol.(string); ok {
-					protocolType = protocolStr
-				}
-			}
-		}
-	}
-
-	if strings.ToLower(protocolType) == "https" {
-		scheme = "https"
-	}
-
-	url := fmt.Sprintf("%s://%s:%d", scheme, instance.HostAddress, instance.PortNumber)
-	if instance.ContextPath != "" && instance.ContextPath != "/" {
-		url += instance.ContextPath
-	}
-
-	// 创建节点配置
-	node := &service.NodeConfig{
-		ID:      instance.ServiceInstanceId,
-		URL:     url,
-		Weight:  instance.WeightValue,
-		Health:  instance.HealthStatus == registryCore.HealthStatusHealthy,
-		Enabled: instance.InstanceStatus == registryCore.InstanceStatusUp,
-		Metadata: map[string]string{
-			"instanceId":     instance.ServiceInstanceId,
-			"serviceName":    instance.ServiceName,
-			"tenantId":       instance.TenantId,
-			"serviceGroupId": instance.ServiceGroupId,
-			"groupName":      instance.GroupName,
-			"hostAddress":    instance.HostAddress,
-			"portNumber":     strconv.Itoa(instance.PortNumber),
-			"contextPath":    instance.ContextPath,
-			"healthStatus":   instance.HealthStatus,
-			"instanceStatus": instance.InstanceStatus,
-			"clientType":     instance.ClientType,
-			"protocolType":   protocolType,
-		},
-	}
-
-	// 解析实例元数据
-	if instance.MetadataJson != "" {
-		var instanceMetadata map[string]interface{}
-		if err := json.Unmarshal([]byte(instance.MetadataJson), &instanceMetadata); err == nil {
-			for key, value := range instanceMetadata {
-				// 避免覆盖已设置的基础元数据
-				if _, exists := node.Metadata[key]; !exists {
-					if strValue, ok := value.(string); ok {
-						node.Metadata[key] = strValue
-					} else {
-						node.Metadata[key] = fmt.Sprintf("%v", value)
-					}
-				}
-			}
-		}
-	}
-
-	return node
-}
-
-// CreateNodeFromRegistry 从注册中心创建节点配置（静态方法）
-func CreateNodeFromRegistry(ctx *core.Context, serviceConfig *service.ServiceConfig) (*service.NodeConfig, error) {
+// CreateNodeFromServiceCenter 从服务中心创建节点配置
+// 这是唯一对外暴露的方法，内部完成所有逻辑
+func CreateNodeFromServiceCenter(ctx *core.Context, serviceConfig *service.ServiceConfig) (*service.NodeConfig, error) {
 	if serviceConfig == nil {
 		return nil, fmt.Errorf("服务配置不能为空")
 	}
 
-	// 检查是否为注册中心服务
-	if !IsRegistryService(serviceConfig.ServiceMetadata) {
-		return nil, fmt.Errorf("服务不是注册中心服务类型")
+	// 检查是否为服务中心服务
+	if !IsServiceCenterService(serviceConfig.ServiceMetadata) {
+		return nil, fmt.Errorf("服务不是服务中心服务类型")
 	}
 
-	// 解析并验证服务元数据，然后直接发现服务实例
-	metadata, err := ParseServiceMetadata(serviceConfig.ServiceMetadata)
-	if err != nil {
-		return nil, fmt.Errorf("解析服务元数据失败: %w", err)
+	// 解析服务元数据（统一使用驼峰命名）
+	metadata := &ServiceCenterMetadata{
+		TenantID:    serviceConfig.ServiceMetadata["tenantId"],
+		NamespaceID: serviceConfig.ServiceMetadata["namespaceId"],
+		GroupName:   serviceConfig.ServiceMetadata["groupName"],
+		ServiceName: serviceConfig.ServiceMetadata["serviceName"],
 	}
 
-	return DiscoverServiceInstance(ctx, metadata)
+	// 验证必要字段
+	if metadata.TenantID == "" || metadata.NamespaceID == "" ||
+		metadata.GroupName == "" || metadata.ServiceName == "" {
+		return nil, fmt.Errorf("服务元数据不完整：需要 tenantId、namespaceId、groupName 和 serviceName")
+	}
+
+	// 从缓存中获取服务
+	globalCache := cache.GetGlobalCache()
+	if globalCache == nil {
+		return nil, fmt.Errorf("服务中心缓存未初始化")
+	}
+
+	svc, found := globalCache.GetService(
+		context.Background(),
+		metadata.TenantID,
+		metadata.NamespaceID,
+		metadata.GroupName,
+		metadata.ServiceName,
+	)
+
+	if !found || svc == nil {
+		logger.WarnWithTrace(ctx.Ctx, "未找到服务",
+			"tenantId", metadata.TenantID,
+			"namespaceId", metadata.NamespaceID,
+			"groupName", metadata.GroupName,
+			"serviceName", metadata.ServiceName)
+		return nil, fmt.Errorf("服务不存在")
+	}
+
+	// 检查服务节点列表
+	if svc.Nodes == nil || len(svc.Nodes) == 0 {
+		return nil, fmt.Errorf("服务暂无可用节点")
+	}
+
+	// 选择一个健康的节点
+	var selectedNode *types.ServiceNode
+	for _, node := range svc.Nodes {
+		// 选择状态为UP且健康的节点
+		if node.InstanceStatus == types.NodeStatusUp && node.HealthyStatus == types.HealthyStatusHealthy {
+			selectedNode = node
+			break
+		}
+	}
+
+	if selectedNode == nil {
+		return nil, fmt.Errorf("未找到健康的服务节点")
+	}
+
+	// 从 serviceConfig 的元数据中获取协议类型（统一使用驼峰命名）
+	protocol := serviceConfig.ServiceMetadata["protocolType"]
+	if protocol == "" {
+		protocol = "http" // 默认使用 http
+	}
+
+	// 转换节点为 NodeConfig
+	nodeConfig := convertServiceNodeToNodeConfig(selectedNode, protocol)
+
+	logger.InfoWithTrace(ctx.Ctx, "成功从服务中心发现服务节点",
+		"tenantId", metadata.TenantID,
+		"namespaceId", metadata.NamespaceID,
+		"groupName", metadata.GroupName,
+		"serviceName", metadata.ServiceName,
+		"nodeId", selectedNode.NodeId,
+		"address", fmt.Sprintf("%s:%d", selectedNode.IpAddress, selectedNode.PortNumber),
+		"protocol", protocol)
+
+	return nodeConfig, nil
+}
+
+// convertServiceNodeToNodeConfig 将服务中心的ServiceNode转换为NodeConfig
+// protocol: 调用协议（http/https），从 serviceConfig 配置中传入
+func convertServiceNodeToNodeConfig(node *types.ServiceNode, protocol string) *service.NodeConfig {
+	if node == nil {
+		return nil
+	}
+
+	// 从节点元数据中提取 contextPath
+	var nodeMetadata map[string]interface{}
+	contextPath := ""
+	if node.MetadataJson != "" {
+		if err := json.Unmarshal([]byte(node.MetadataJson), &nodeMetadata); err == nil {
+			if cp, exists := nodeMetadata["contextPath"]; exists {
+				if cpStr, ok := cp.(string); ok {
+					contextPath = cpStr
+				}
+			}
+		}
+	}
+
+	// 构建节点URL
+	url := fmt.Sprintf("%s://%s:%d", protocol, node.IpAddress, node.PortNumber)
+	if contextPath != "" && contextPath != "/" {
+		url += contextPath
+	}
+
+	// 创建节点配置
+	nodeConfig := &service.NodeConfig{
+		ID:      node.NodeId,
+		URL:     url,
+		Weight:  int(node.Weight),
+		Health:  node.HealthyStatus == types.HealthyStatusHealthy,
+		Enabled: node.InstanceStatus == types.NodeStatusUp,
+		Metadata: map[string]string{
+			"nodeId":         node.NodeId,
+			"serviceName":    node.ServiceName,
+			"tenantId":       node.TenantId,
+			"namespaceId":    node.NamespaceId,
+			"groupName":      node.GroupName,
+			"ipAddress":      node.IpAddress,
+			"portNumber":     strconv.Itoa(node.PortNumber),
+			"contextPath":    contextPath,
+			"healthyStatus":  node.HealthyStatus,
+			"instanceStatus": node.InstanceStatus,
+			"protocol":       protocol,
+		},
+	}
+
+	// 解析节点元数据并合并到 Metadata 中
+	if nodeMetadata != nil {
+		for key, value := range nodeMetadata {
+			// 避免覆盖已设置的基础元数据
+			if _, exists := nodeConfig.Metadata[key]; !exists {
+				if strValue, ok := value.(string); ok {
+					nodeConfig.Metadata[key] = strValue
+				} else {
+					nodeConfig.Metadata[key] = fmt.Sprintf("%v", value)
+				}
+			}
+		}
+	}
+
+	return nodeConfig
 }

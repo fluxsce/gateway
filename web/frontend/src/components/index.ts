@@ -33,6 +33,8 @@ export * from './gdialog/types'
 
 // 数据编辑表单模态框
 export { default as GdataFormModal } from './form/data/GDataFormModal.vue'
+// 数据编辑表单（扁平非弹窗）
+export { default as GDataForm } from './form/data/GDataForm.vue'
 export * from './form/data/types'
 
 // Date 日期组件

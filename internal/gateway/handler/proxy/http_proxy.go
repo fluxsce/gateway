@@ -19,7 +19,6 @@ import (
 	"gateway/internal/gateway/handler/router"
 	"gateway/internal/gateway/handler/service"
 	"gateway/internal/gateway/logwrite"
-	registryManager "gateway/internal/registry/manager"
 )
 
 // HTTPProxy HTTP代理实现
@@ -1087,10 +1086,10 @@ func (h *HTTPProxy) selectTargetNode(ctx *core.Context, serviceID string) (*serv
 		return nil, nil, fmt.Errorf("服务 %s 不存在", serviceID)
 	}
 
-	// 检查是否为注册中心服务
-	if proxyutils.IsRegistryService(serviceConfig.ServiceMetadata) {
-		// 使用注册中心服务发现
-		node, err := h.selectNodeFromRegistry(ctx, serviceConfig)
+	// 检查是否为服务中心服务
+	if proxyutils.IsServiceCenterService(serviceConfig.ServiceMetadata) {
+		// 使用服务中心服务发现
+		node, err := h.selectNodeFromServiceCenter(ctx, serviceConfig)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1105,12 +1104,12 @@ func (h *HTTPProxy) selectTargetNode(ctx *core.Context, serviceID string) (*serv
 	return serviceConfig, node, nil
 }
 
-// selectNodeFromRegistry 从注册中心选择节点
-func (h *HTTPProxy) selectNodeFromRegistry(ctx *core.Context, serviceConfig *service.ServiceConfig) (*service.NodeConfig, error) {
-	// 使用静态方法从注册中心创建节点配置（内部会自动获取注册中心管理器实例）
-	node, err := proxyutils.CreateNodeFromRegistry(ctx, serviceConfig)
+// selectNodeFromServiceCenter 从服务中心选择节点
+func (h *HTTPProxy) selectNodeFromServiceCenter(ctx *core.Context, serviceConfig *service.ServiceConfig) (*service.NodeConfig, error) {
+	// 使用静态方法从服务中心创建节点配置（内部会自动从缓存获取服务节点）
+	node, err := proxyutils.CreateNodeFromServiceCenter(ctx, serviceConfig)
 	if err != nil {
-		return nil, fmt.Errorf("从注册中心创建节点配置失败: %w", err)
+		return nil, fmt.Errorf("从服务中心创建节点配置失败: %w", err)
 	}
 
 	// 记录服务发现结果到上下文
@@ -1125,11 +1124,6 @@ func (h *HTTPProxy) selectNodeFromRegistry(ctx *core.Context, serviceConfig *ser
 	})
 
 	return node, nil
-}
-
-// GetRegistryManager 获取注册中心管理器
-func (h *HTTPProxy) GetRegistryManager() *registryManager.RegistryManager {
-	return registryManager.GetInstance()
 }
 
 // shouldRecordRequestBody 检查是否应该记录请求体（根据日志配置）

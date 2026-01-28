@@ -1,0 +1,171 @@
+syntax = "proto3";
+
+package config;
+
+option go_package = "gateway/internal/servicecenter/server/proto;proto";
+
+// ConfigCenter 配置中心
+service ConfigCenter {
+  // 获取配置
+  rpc GetConfig(ConfigKey) returns (GetConfigResponse);
+  
+  // 保存配置（ConfigData 中包含所有必要信息）
+  rpc SaveConfig(ConfigData) returns (SaveConfigResponse);
+  
+  // 删除配置
+  rpc DeleteConfig(ConfigKey) returns (ConfigResponse);
+  
+  // 列出配置列表
+  rpc ListConfigs(ListConfigsRequest) returns (ListConfigsResponse);
+  
+  // 监听配置变更（统一接口，支持监听单个或多个配置）- Server-Side Streaming
+  // 单个配置监听：configDataIds 数组只包含一个配置标识
+  // 多个配置监听：configDataIds 数组包含多个配置标识，所有配置共用同一个 channel
+  // 用于数据库变动主动推送，只需要配置标识即可
+  rpc WatchConfig(WatchConfigRequest) returns (stream ConfigChangeEvent);
+  
+  // 获取配置历史
+  rpc GetConfigHistory(GetConfigHistoryRequest) returns (GetConfigHistoryResponse);
+  
+  // 回滚配置
+  rpc RollbackConfig(RollbackConfigRequest) returns (RollbackConfigResponse);
+}
+
+// ========== 通用响应 ==========
+
+message ConfigResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;              // 业务错误码（可选）
+}
+
+// ========== 配置相关消息 ==========
+
+message ConfigData {
+  string namespaceId = 1;
+  string groupName = 2;
+  string configDataId = 3;
+  string contentType = 4;        // JSON, YAML, PROPERTIES, XML, TEXT
+  string configContent = 5;      // 配置内容
+  string contentMd5 = 6;         // MD5校验（保存时可选，服务端自动计算；响应时返回）
+  string configDesc = 7;         // 配置描述
+  int64 configVersion = 8;       // 配置版本（保存时不传，服务端自动生成；响应时返回）
+  string changeType = 9;         // ADD, UPDATE, DELETE
+  string changeReason = 10;      // 变更原因
+  string changedBy = 11;         // 变更人
+}
+
+message ConfigHistory {
+  int64 configHistoryId = 1;
+  string namespaceId = 2;
+  string groupName = 3;
+  string configDataId = 4;
+  string contentType = 5;
+  string configContent = 6;
+  string contentMd5 = 7;
+  int64 configVersion = 8;
+  string changeType = 9;
+  string changeReason = 10;
+  string changedBy = 11;
+  string changeTime = 12;
+}
+
+// ========== 标识/键消息（用于查询和删除操作）==========
+
+// 配置标识（用于查询、删除、监听）
+message ConfigKey {
+  string namespaceId = 1;
+  string groupName = 2;
+  string configDataId = 3;
+}
+
+// ========== 响应消息 ==========
+
+// 获取配置响应
+message GetConfigResponse {
+  bool success = 1;
+  string message = 2;
+  ConfigData config = 3;
+}
+
+// 保存配置响应
+message SaveConfigResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;              // 业务错误码（可选）
+  int64 version = 4;            // 新版本号
+  string contentMd5 = 5;        // 服务端计算的 MD5
+}
+
+// 列出配置响应
+message ListConfigsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated ConfigData configs = 3;
+}
+
+// 获取配置历史响应
+message GetConfigHistoryResponse {
+  bool success = 1;
+  string message = 2;
+  repeated ConfigHistory history = 3;
+}
+
+// 回滚配置响应
+message RollbackConfigResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;              // 业务错误码（可选）
+  int64 newVersion = 4;         // 回滚后的新版本号
+  string contentMd5 = 5;        // 回滚后的 MD5
+}
+
+// ========== 请求消息 ==========
+
+// 列出配置请求
+message ListConfigsRequest {
+  string namespaceId = 1;
+  string groupName = 2;
+}
+
+// 监听配置请求（统一接口，支持监听单个或多个配置）
+// 用于数据库变动主动推送，只需要配置标识即可
+message WatchConfigRequest {
+  string namespaceId = 1;
+  string groupName = 2;
+  repeated string configDataIds = 3;  // 要监听的配置标识列表（支持单个或多个）
+}
+
+// 获取配置历史请求
+message GetConfigHistoryRequest {
+  string namespaceId = 1;
+  string groupName = 2;
+  string configDataId = 3;
+  int32 limit = 4;              // 限制返回数量
+}
+
+// 回滚配置请求
+message RollbackConfigRequest {
+  string namespaceId = 1;
+  string groupName = 2;
+  string configDataId = 3;
+  int64 targetVersion = 4;      // 目标版本
+  string changedBy = 5;         // 操作人
+  string changeReason = 6;      // 回滚原因
+}
+
+// ========== 配置变更事件（实时推送）==========
+
+// 配置变更事件（Server-Side Streaming）
+message ConfigChangeEvent {
+  string eventType = 1;         // CONFIG_UPDATED, CONFIG_DELETED
+  string timestamp = 2;         // 事件时间戳
+  
+  // 配置标识
+  string namespaceId = 3;
+  string groupName = 4;
+  string configDataId = 5;
+  
+  ConfigData config = 6;        // 配置数据（删除事件时为空）
+  string contentMd5 = 7;        // 新的MD5
+}

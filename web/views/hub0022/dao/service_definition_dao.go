@@ -140,7 +140,7 @@ func (dao *ServiceDefinitionDAO) UpdateServiceDefinition(ctx context.Context, se
 	args := []interface{}{serviceDefinition.ServiceDefinitionId, serviceDefinition.TenantId, existing.CurrentVersion}
 
 	// 执行更新
-	affectedRows, err := dao.db.Update(ctx, "HUB_GW_SERVICE_DEFINITION", serviceDefinition, where, args, true)
+	affectedRows, err := dao.db.Update(ctx, "HUB_GW_SERVICE_DEFINITION", serviceDefinition, where, args, true, true)
 	if err != nil {
 		return huberrors.WrapError(err, "更新服务定义失败")
 	}

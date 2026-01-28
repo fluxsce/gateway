@@ -127,7 +127,7 @@ func (dao *LogConfigDAO) UpdateLogConfig(ctx context.Context, logConfig *models.
 	whereArgs := []interface{}{logConfig.TenantId, logConfig.LogConfigId}
 
 	// 执行更新
-	_, err := dao.db.Update(ctx, logConfig.TableName(), logConfig, whereClause, whereArgs, true)
+	_, err := dao.db.Update(ctx, logConfig.TableName(), logConfig, whereClause, whereArgs, true, true)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "更新日志配置失败", err)
 		return fmt.Errorf("更新日志配置失败: %w", err)

@@ -86,7 +86,7 @@ func (d *ConfigDAO) GetDefaultConfig(ctx context.Context, tenantId string) (*typ
 func (d *ConfigDAO) UpdateConfig(ctx context.Context, config *types.AlertConfig) error {
 	whereClause := "tenantId = ? AND channelName = ?"
 	whereArgs := []interface{}{config.TenantId, config.ChannelName}
-	_, err := d.db.Update(ctx, "HUB_ALERT_CONFIG", config, whereClause, whereArgs, true)
+	_, err := d.db.Update(ctx, "HUB_ALERT_CONFIG", config, whereClause, whereArgs, true, true)
 	if err != nil {
 		return fmt.Errorf("更新告警配置失败: %w", err)
 	}

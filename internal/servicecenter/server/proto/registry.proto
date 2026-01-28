@@ -1,0 +1,178 @@
+syntax = "proto3";
+
+package registry;
+
+option go_package = "gateway/internal/servicecenter/server/proto;proto";
+
+// ServiceRegistry 服务注册发现
+service ServiceRegistry {
+  // 注册服务（Service 中可包含一个 node，同时注册服务和节点）
+  rpc RegisterService(Service) returns (RegisterServiceResponse);
+  
+  // 注销服务（只需标识信息）
+  rpc UnregisterService(ServiceKey) returns (RegistryResponse);
+  
+  // 获取服务信息（包含服务基本信息和节点列表）
+  rpc GetService(ServiceKey) returns (GetServiceResponse);
+  
+  // 注册服务节点（nodeId 由服务端自动生成）
+  rpc RegisterNode(Node) returns (RegisterNodeResponse);
+  
+  // 注销服务节点
+  rpc UnregisterNode(NodeKey) returns (RegistryResponse);
+  
+  // 发现服务节点（一次性查询）
+  rpc DiscoverNodes(DiscoverNodesRequest) returns (DiscoverNodesResponse);
+  
+  // 订阅服务节点变更（统一接口，支持订阅单个或多个服务）- Server-Side Streaming
+  // 单个服务订阅：serviceNames 数组只包含一个服务名
+  // 多个服务订阅：serviceNames 数组包含多个服务名，所有服务共用同一个 channel
+  rpc SubscribeServices(SubscribeServicesRequest) returns (stream ServiceChangeEvent);
+  
+  // 订阅整个命名空间/分组下的所有服务变更 - Server-Side Streaming
+  rpc SubscribeNamespace(SubscribeNamespaceRequest) returns (stream ServiceChangeEvent);
+  
+  // 心跳上报
+  rpc Heartbeat(HeartbeatRequest) returns (RegistryResponse);
+}
+
+// ========== 通用响应 ==========
+
+message RegistryResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;              // 业务错误码（可选）
+}
+
+// ========== 服务相关消息 ==========
+
+message Service {
+  string namespaceId = 1;
+  string groupName = 2;
+  string serviceName = 3;
+  string serviceType = 4;              // INTERNAL, NACOS, CONSUL等
+  string serviceVersion = 5;          // 服务版本号
+  string serviceDescription = 6;       // 服务描述
+  double protectThreshold = 7;         // 保护阈值（0.0-1.0）
+  map<string, string> metadata = 8;    // 元数据
+  map<string, string> tags = 9;        // 服务标签
+  Node node = 10;                      // 服务节点（注册时可选，同时注册一个节点）
+}
+
+message Node {
+  string nodeId = 1;                   // 节点ID（注册时不传，服务端自动生成；查询时返回）
+  string namespaceId = 2;
+  string groupName = 3;
+  string serviceName = 4;
+  string ipAddress = 5;
+  int32 portNumber = 6;
+  double weight = 7;                   // 权重值（0.01-10000.00）
+  string ephemeral = 8;                // Y/N（是否临时节点）
+  string instanceStatus = 9;           // UP, DOWN, STARTING, OUT_OF_SERVICE
+  string healthyStatus = 10;           // HEALTHY, UNHEALTHY, UNKNOWN
+  map<string, string> metadata = 11;   // 元数据
+}
+
+// ========== 标识/键消息（用于查询和删除操作）==========
+
+// 服务标识（用于查询、删除、订阅）
+message ServiceKey {
+  string namespaceId = 1;
+  string groupName = 2;
+  string serviceName = 3;
+  string nodeId = 4;                  // 可选的节点ID（UnregisterService时：如果指定则只删除该节点，否则删除整个服务）
+}
+
+// 节点标识（用于删除、心跳）
+message NodeKey {
+  string nodeId = 1;
+}
+
+// ========== 响应消息 ==========
+
+// 注册服务响应（返回服务端生成的 nodeId，如果注册时携带了节点）
+message RegisterServiceResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;                     // 业务错误码（可选）
+  string nodeId = 4;                   // 服务端生成的节点ID（如果注册时携带了 node，则返回生成的 nodeId；否则为空）
+}
+
+// 获取服务响应（包含服务信息和节点列表）
+message GetServiceResponse {
+  bool success = 1;
+  string message = 2;
+  Service service = 3;             // 服务基本信息（service.node 字段在响应中不使用）
+  repeated Node nodes = 4;         // 该服务已注册的所有节点列表
+}
+
+// 注册节点响应（返回服务端生成的 nodeId）
+message RegisterNodeResponse {
+  bool success = 1;
+  string message = 2;
+  string nodeId = 3;               // 服务端生成的节点ID
+}
+
+// 发现节点响应
+message DiscoverNodesResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Node nodes = 3;
+}
+
+// ========== 服务发现 ==========
+
+message DiscoverNodesRequest {
+  string namespaceId = 1;
+  string groupName = 2;
+  string serviceName = 3;
+  bool healthyOnly = 4;            // 是否只返回健康节点
+}
+
+// ========== 服务订阅（实时推送）==========
+
+// 订阅服务（统一接口，支持订阅单个或多个服务）
+// serviceNames 是数组：
+//   - 单个服务订阅：serviceNames = ["user-service"]
+//   - 多个服务订阅：serviceNames = ["order-service", "user-service", "pay-service"]
+// 所有订阅的服务共用同一个 channel，减少 Stream 连接数
+message SubscribeServicesRequest {
+  string namespaceId = 1;
+  string groupName = 2;
+  repeated string serviceNames = 3; // repeated = 数组/列表，支持订阅单个或多个服务
+}
+
+// 订阅整个命名空间/分组（订阅所有服务）
+message SubscribeNamespaceRequest {
+  string namespaceId = 1;
+  string groupName = 2;            // 可选：如果为空则订阅整个命名空间
+}
+
+// 服务变更事件（Server-Side Streaming）
+message ServiceChangeEvent {
+  string eventType = 1;           // NODE_ADDED, NODE_UPDATED, NODE_REMOVED, SERVICE_UPDATED
+  string timestamp = 2;           // 事件时间戳
+  
+  // 服务标识（用于批量订阅时区分是哪个服务的变更）
+  string namespaceId = 3;
+  string groupName = 4;
+  string serviceName = 5;
+  
+  Service service = 6;            // 服务信息
+  repeated Node nodes = 7;        // 当前所有节点列表
+  Node changedNode = 8;           // 变更的节点（用于增量更新）
+}
+
+// ========== 心跳 ==========
+
+message HeartbeatRequest {
+  string nodeId = 1;                    // 节点ID（必需）
+  Service service = 2;                  // 完整的服务信息（可选，但强烈建议传入）
+                                        // 用途：
+                                        //   - 网络重连后可以完整恢复服务和节点信息
+                                        //   - 验证服务信息是否一致
+                                        //   - 更新服务信息（如服务版本、描述、元数据等可能变化）
+                                        //   - 更新节点信息（如 IP、端口、权重、元数据等可能变化）
+                                        //   - 连接跟踪器可以基于完整信息建立连接映射
+                                        // 注意：service.node 字段包含完整的节点信息
+}

@@ -10,7 +10,7 @@
 import { useUserStore } from '@/stores/user'
 import { closeBrackets } from '@codemirror/autocomplete'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
-import { bracketMatching, foldGutter } from '@codemirror/language'
+import { bracketMatching, defaultHighlightStyle, foldGutter, syntaxHighlighting } from '@codemirror/language'
 import { highlightSelectionMatches, searchKeymap } from '@codemirror/search'
 import { Compartment, EditorState, type Extension } from '@codemirror/state'
 import { oneDark } from '@codemirror/theme-one-dark'
@@ -83,6 +83,13 @@ const loadLanguageExtension = async (lang: CodeMirrorLanguage): Promise<Extensio
       case 'shell':
         // Shell 脚本使用 JavaScript 语言包作为替代（CodeMirror 6 没有专门的 shell 语言包）
         extension = (await import('@codemirror/lang-javascript')).javascript()
+        break
+      case 'properties':
+        // Properties 文件格式，使用 legacy-modes 插件
+        // 根据官网文档：https://codemirror.net/docs/legacy-modes/
+        const { properties } = await import('@codemirror/legacy-modes/mode/properties')
+        const { StreamLanguage } = await import('@codemirror/language')
+        extension = StreamLanguage.define(properties)
         break
       default:
         extension = []
@@ -218,6 +225,21 @@ const buildExtensions = async (): Promise<Extension[]> => {
   // 语言支持（异步加载，确保使用正确的实例）
   const languageExtension = await loadLanguageExtension(props.language)
   extensions.push(languageCompartment.of(languageExtension))
+
+  // 语法高亮（确保语法高亮功能被启用）
+  // 注意：
+  // 1. plaintext 模式不支持语法高亮（纯文本没有语法结构）
+  // 2. 其他语言包已经包含了语法高亮，但我们需要确保默认高亮样式被应用
+  // 3. 如果使用暗色主题，oneDark 主题会提供自己的高亮样式
+  if (props.language !== 'plaintext') {
+    const shouldUseDark = props.theme === 'dark' || (props.theme === 'auto' && isDark.value)
+    if (!shouldUseDark) {
+      // 浅色主题使用默认高亮样式
+      // 注意：语言包已经包含了语法高亮功能，这里只是确保默认样式被应用
+      extensions.push(syntaxHighlighting(defaultHighlightStyle))
+    }
+    // 暗色主题的语法高亮由 oneDark 主题自动提供，无需额外添加
+  }
 
   // 主题
   extensions.push(themeCompartment.of(getThemeExtension(props.theme)))
