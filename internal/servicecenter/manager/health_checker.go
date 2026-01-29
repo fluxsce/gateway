@@ -192,14 +192,17 @@ func (hc *HealthChecker) syncCacheToDB(ctx context.Context) error {
 			return
 		}
 
-		// 如果服务没有节点，标记为需要删除
+		// 如果服务没有节点，且是 INTERNAL 类型（动态注册的服务），标记为需要删除
+		// 手动创建的服务（非 INTERNAL 类型）即使没有节点也不删除
 		if len(service.Nodes) == 0 {
-			servicesToDelete = append(servicesToDelete, serviceToDelete{
-				tenantId:    service.TenantId,
-				namespaceId: service.NamespaceId,
-				groupName:   service.GroupName,
-				serviceName: service.ServiceName,
-			})
+			if service.ServiceType == types.ServiceTypeInternal {
+				servicesToDelete = append(servicesToDelete, serviceToDelete{
+					tenantId:    service.TenantId,
+					namespaceId: service.NamespaceId,
+					groupName:   service.GroupName,
+					serviceName: service.ServiceName,
+				})
+			}
 			return
 		}
 
@@ -239,7 +242,7 @@ func (hc *HealthChecker) syncCacheToDB(ctx context.Context) error {
 		// 删除缓存中的服务
 		globalCache.DeleteService(ctx, svc.tenantId, svc.namespaceId, svc.groupName, svc.serviceName)
 		deletedServiceCount++
-		logger.Debug("删除没有节点的服务（缓存和数据库）",
+		logger.Debug("删除没有节点的 INTERNAL 类型服务（缓存和数据库）",
 			"instanceName", hc.instanceName,
 			"namespaceId", svc.namespaceId,
 			"groupName", svc.groupName,

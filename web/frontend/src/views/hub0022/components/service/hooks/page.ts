@@ -78,14 +78,30 @@ export function useServiceDefinitionPage(
       }
     })
 
-    // serviceMetadata 保持为 JSON 字符串格式，如果不存在则设置为 undefined
+    // serviceMetadata 保持为 JSON 字符串格式，同时提取 protocolType 到表单字段
     if (formData.serviceMetadata && typeof formData.serviceMetadata === 'string') {
-      // 保持为字符串，不展开
+      // 保持为字符串，但提取 protocolType 到表单字段
+      try {
+        const metadata = JSON.parse(formData.serviceMetadata)
+        if (metadata.protocolType) {
+          formData.protocolType = metadata.protocolType
+        }
+      } catch {
+        // 解析失败，忽略
+      }
     } else if (formData.serviceMetadata && typeof formData.serviceMetadata === 'object') {
-      // 如果是对象，转换为 JSON 字符串
+      // 如果是对象，提取 protocolType 后转换为 JSON 字符串
+      if ((formData.serviceMetadata as any).protocolType) {
+        formData.protocolType = (formData.serviceMetadata as any).protocolType
+      }
       formData.serviceMetadata = JSON.stringify(formData.serviceMetadata)
     } else {
       formData.serviceMetadata = undefined
+    }
+
+    // 确保 protocolType 有默认值
+    if (!formData.protocolType) {
+      formData.protocolType = 'http'
     }
 
     return formData
@@ -202,6 +218,27 @@ export function useServiceDefinitionPage(
         // 使用 convertToFormData 将 JSON 字段展开为点号分隔字段
         const formData = convertToFormData(detailService)
         
+        // 如果是服务发现类型，从 serviceMetadata 初始化 selectedService
+        if (formData.serviceType === 1 && formData.serviceMetadata) {
+          try {
+            const metadata = typeof formData.serviceMetadata === 'string' 
+              ? JSON.parse(formData.serviceMetadata) 
+              : formData.serviceMetadata
+            selectedService.value = {
+              tenantId: metadata.tenantId || 'default',
+              namespaceId: metadata.namespaceId,
+              groupName: metadata.groupName || 'DEFAULT_GROUP',
+              serviceName: metadata.serviceName,
+              discoveryType: 'servicecenter',
+              protocolType: metadata.protocolType || 'http'
+            }
+          } catch {
+            selectedService.value = null
+          }
+        } else {
+          selectedService.value = null
+        }
+        
         formDialogMode.value = 'edit'
         currentEditService.value = formData
         formDialogVisible.value = true
@@ -236,6 +273,27 @@ export function useServiceDefinitionPage(
           serviceDefinitionId: undefined, // 清除ID，作为新记录
           serviceName: `${detailService.serviceName}_copy`,
           activeFlag: 'Y', // 新记录默认启用
+        }
+        
+        // 如果是服务发现类型，从 serviceMetadata 初始化 selectedService
+        if (copiedService.serviceType === 1 && copiedService.serviceMetadata) {
+          try {
+            const metadata = typeof copiedService.serviceMetadata === 'string' 
+              ? JSON.parse(copiedService.serviceMetadata) 
+              : copiedService.serviceMetadata
+            selectedService.value = {
+              tenantId: metadata.tenantId || 'default',
+              namespaceId: metadata.namespaceId,
+              groupName: metadata.groupName || 'DEFAULT_GROUP',
+              serviceName: metadata.serviceName,
+              discoveryType: 'servicecenter',
+              protocolType: metadata.protocolType || 'http'
+            }
+          } catch {
+            selectedService.value = null
+          }
+        } else {
+          selectedService.value = null
         }
         
         formDialogMode.value = 'create' // 复制操作视为新增
@@ -349,18 +407,19 @@ export function useServiceDefinitionPage(
    * - groupName: 分组名称
    * - serviceName: 服务名称
    * - discoveryType: 服务发现类型（servicecenter）
-   * - protocolType: 协议类型（http/https）
+   * - protocolType: 协议类型（http/https）- 从表单字段获取
    */
   const updateServiceMetadata = (formData?: Record<string, any>) => {
     if (selectedService.value) {
       // 构建与 registry_utils.go 兼容的元数据格式
+      // protocolType 从表单字段获取（用户在当前页面选择），而不是从服务注册中心
       const metadata = {
         tenantId: selectedService.value.tenantId || 'default',
         namespaceId: selectedService.value.namespaceId,
         groupName: selectedService.value.groupName || 'DEFAULT_GROUP',
         serviceName: selectedService.value.serviceName,
         discoveryType: 'servicecenter',
-        protocolType: selectedService.value.protocolType || 'http'
+        protocolType: formData?.protocolType || 'http'
       }
       // 转换为JSON字符串存储
       const metadataStr = JSON.stringify(metadata)

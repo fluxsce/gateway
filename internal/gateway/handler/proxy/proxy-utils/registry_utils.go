@@ -20,6 +20,7 @@ type ServiceCenterMetadata struct {
 	GroupName     string `json:"groupName"`     // 分组名称
 	ServiceName   string `json:"serviceName"`   // 服务名称
 	DiscoveryType string `json:"discoveryType"` // 服务发现类型（servicecenter）
+	ProtocolType  string `json:"protocolType"`  // 协议类型（http/https）
 }
 
 // IsServiceCenterService 判断是否为服务中心服务

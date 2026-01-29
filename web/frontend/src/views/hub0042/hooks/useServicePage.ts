@@ -29,10 +29,19 @@ export function useServicePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any
 
   /**
    * 打开新增服务对话框
+   * @param namespace 选中的命名空间（可选），用于预填充 namespaceId
    */
-  const openAddDialog = () => {
+  const openAddDialog = (namespace?: { namespaceId: string } | null) => {
     formDialogMode.value = 'create'
-    currentEditService.value = null
+    // 如果有选中的命名空间，预填充 namespaceId
+    if (namespace?.namespaceId) {
+      currentEditService.value = {
+        namespaceId: namespace.namespaceId,
+        groupName: 'DEFAULT_GROUP',
+      } as Service
+    } else {
+      currentEditService.value = null
+    }
     formDialogVisible.value = true
   }
 
@@ -120,15 +129,30 @@ export function useServicePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any
   }
 
   /**
-   * 处理工具栏按钮点击
+   * 获取选中的行（优先复选框选中，其次当前选中行）
    */
-  const handleToolbarClick = (key: string) => {
+  const getSelectedRows = (): Service[] => {
+    const checkboxRows = gridRef?.value?.getCheckboxRecords() || []
+    if (checkboxRows.length > 0) {
+      return checkboxRows
+    }
+    // 如果没有复选框选中，尝试获取当前选中行
+    const currentRow = gridRef?.value?.getCurrentRecord()
+    return currentRow ? [currentRow] : []
+  }
+
+  /**
+   * 处理工具栏按钮点击
+   * @param key 按钮key
+   * @param namespace 选中的命名空间（可选），用于新增服务时预填充
+   */
+  const handleToolbarClick = (key: string, namespace?: { namespaceId: string } | null) => {
     switch (key) {
       case 'add':
-        openAddDialog()
+        openAddDialog(namespace)
         break
       case 'edit':
-        const selectedRows = gridRef?.value?.getCheckboxRecords() || []
+        const selectedRows = getSelectedRows()
         if (selectedRows.length === 0) {
           message.warning('请先选择要编辑的服务')
           return
@@ -140,7 +164,7 @@ export function useServicePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any
         openEditDialog(selectedRows[0])
         break
       case 'delete':
-        const deleteRows = gridRef?.value?.getCheckboxRecords() || []
+        const deleteRows = getSelectedRows()
         if (deleteRows.length === 0) {
           message.warning('请先选择要删除的服务')
           return

@@ -593,6 +593,35 @@ export function useServiceDefinitionModel() {
         ],
       },
       {
+        field: 'protocolType',
+        label: '服务协议',
+        type: 'select',
+        placeholder: '请选择服务协议',
+        span: 12,
+        tabKey: 'discovery',
+        show: (formData: Record<string, any>) => formData.serviceType === ServiceType.DISCOVERY,
+        required: true,
+        defaultValue: 'http',
+        tips: '访问后端服务使用的协议类型',
+        options: [
+          { label: 'HTTP', value: 'http' },
+          { label: 'HTTPS', value: 'https' },
+        ],
+        rules: [
+          {
+            required: true,
+            message: '请选择服务协议',
+            trigger: ['blur', 'change'],
+            validator: (_rule: any, value: any, formData: Record<string, any>) => {
+              if (formData.serviceType === ServiceType.DISCOVERY && (!value || value === '')) {
+                return new Error('请选择服务协议')
+              }
+              return true
+            },
+          },
+        ],
+      },
+      {
         field: 'serviceMetadata',
         label: '服务元数据',
         type: 'textarea',

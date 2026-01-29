@@ -9,9 +9,9 @@ import type { GridProps } from '@/components/grid'
 import type { PageInfoObj } from '@/types/api'
 import { formatDate } from '@/utils/format'
 import {
-    AddOutline,
-    CreateOutline,
-    TrashOutline
+  AddOutline,
+  CreateOutline,
+  TrashOutline
 } from '@vicons/ionicons5'
 import { ref } from 'vue'
 import type { Service } from '../types/index'
@@ -122,12 +122,12 @@ export function useServiceModel() {
         field: 'namespaceId',
         label: '命名空间ID',
         type: 'input',
-        placeholder: '请输入命名空间ID',
+        placeholder: '命名空间ID（自动填充）',
         span: 12,
         tabKey: 'basic',
         required: true,
-        primary: true,
-        tips: '命名空间ID（主键），编辑模式下不允许修改',
+        disabled: true, // 始终禁用，从选中的命名空间自动填充
+        tips: '命名空间ID（主键），从上方命名空间列表自动获取',
       },
       {
         field: 'groupName',

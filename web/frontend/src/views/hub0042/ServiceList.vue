@@ -180,7 +180,8 @@ const handleServiceToolbarClick = (key: string) => {
     message.warning('请先在上方命名空间列表中选择一个命名空间')
     return
   }
-  handleServiceToolbarClickBase(key)
+  // 传递选中的命名空间，用于新增时预填充 namespaceId
+  handleServiceToolbarClickBase(key, selectedNamespace.value)
 }
 
 /**
