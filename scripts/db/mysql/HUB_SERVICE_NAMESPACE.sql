@@ -32,8 +32,6 @@ CREATE TABLE `HUB_SERVICE_NAMESPACE` (
   KEY `IDX_SVC_NS_NAME` (`tenantId`, `namespaceName`),
   KEY `IDX_SVC_NS_INSTANCE` (`tenantId`, `instanceName`, `environment`),
   KEY `IDX_SVC_NS_ENV` (`environment`),
-  KEY `IDX_SVC_NS_ACTIVE` (`activeFlag`),
-  CONSTRAINT `FK_NS_INSTANCE_CONFIG` FOREIGN KEY (`tenantId`, `instanceName`, `environment`) 
-    REFERENCES `HUB_SERVICE_CENTER_CONFIG` (`tenantId`, `instanceName`, `environment`) ON DELETE RESTRICT ON UPDATE CASCADE
+  KEY `IDX_SVC_NS_ACTIVE` (`activeFlag`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='命名空间表 - 存储服务和配置的命名空间信息，用于多租户和多环境隔离';
 

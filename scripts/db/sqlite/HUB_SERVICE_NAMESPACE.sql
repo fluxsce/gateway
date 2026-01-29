@@ -27,11 +27,7 @@ CREATE TABLE IF NOT EXISTS HUB_SERVICE_NAMESPACE (
   noteText TEXT,
   extProperty TEXT,
   
-  PRIMARY KEY (tenantId, namespaceId),
-  
-  FOREIGN KEY (tenantId, instanceName, environment)
-    REFERENCES HUB_SERVICE_CENTER_CONFIG(tenantId, instanceName, environment)
-    ON DELETE RESTRICT
+  PRIMARY KEY (tenantId, namespaceId)
 );
 
 CREATE INDEX IDX_SVC_NS_NAME ON HUB_SERVICE_NAMESPACE(tenantId, namespaceName);
