@@ -331,6 +331,7 @@ export function useServiceModel() {
         sortable: true,
         align: 'center',
         showOverflow: true,
+        slots: { default: 'groupName' },
       },
       {
         field: 'serviceName',
@@ -338,6 +339,7 @@ export function useServiceModel() {
         sortable: true,
         align: 'center',
         showOverflow: true,
+        slots: { default: 'serviceName' },
       },
       {
         field: 'serviceType',

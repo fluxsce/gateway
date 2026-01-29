@@ -2,7 +2,7 @@ import { createApi } from '@/api/request'
 import type { JsonDataObj } from '@/types/api'
 import type { Service, ServiceNode } from '../types'
 
-const serviceApi = createApi('/serviceCenter/hub0042')
+const serviceApi = createApi('/gateway/hub0042')
 
 /**
  * 分页查询服务列表

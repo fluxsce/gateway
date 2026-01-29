@@ -43,6 +43,23 @@
                   @page-change="handleServicePageChange"
                   @menu-click="handleServiceMenuClick"
                 >
+                  <!-- 分组名称多彩显示 -->
+                  <template #groupName="{ row }">
+                    <n-tag :type="getGroupTagType(row.groupName)" size="small" :bordered="false">
+                      {{ row.groupName }}
+                    </n-tag>
+                  </template>
+
+                  <!-- 服务名称多彩显示 -->
+                  <template #serviceName="{ row }">
+                    <n-tag :type="getServiceTagType(row.serviceName)" size="small" round>
+                      <template #icon>
+                        <n-icon :component="ServerOutline" />
+                      </template>
+                      {{ row.serviceName }}
+                    </n-tag>
+                  </template>
+
                   <!-- 活动状态自定义渲染 -->
                   <template #activeFlag="{ row }">
                     <n-tag :type="row.activeFlag === 'Y' ? 'success' : 'default'" size="small">
@@ -91,7 +108,8 @@ import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
 import { GCard } from '@/components/gcard'
 import { GPane } from '@/components/gpane'
 import { GGrid } from '@/components/grid'
-import { NTag, useMessage } from 'naive-ui'
+import { ServerOutline } from '@vicons/ionicons5'
+import { NIcon, NTag, useMessage } from 'naive-ui'
 import { ref } from 'vue'
 import { NamespaceList } from '../hub0041/components'
 import type { Namespace } from '../hub0041/types'
@@ -120,6 +138,51 @@ const detailLoading = ref(false)
 
 // 消息提示
 const message = useMessage()
+
+// ============= 多颜色标签配置 =============
+
+// 分组名称颜色映射（基于名称哈希生成稳定颜色）
+const groupColorTypes: ('default' | 'primary' | 'info' | 'success' | 'warning' | 'error')[] = [
+  'primary', 'info', 'success', 'warning', 'error'
+]
+
+// 服务名称颜色映射
+const serviceColorTypes: ('default' | 'primary' | 'info' | 'success' | 'warning' | 'error')[] = [
+  'success', 'info', 'primary', 'warning', 'error'
+]
+
+/**
+ * 根据字符串生成稳定的哈希值
+ */
+const hashString = (str: string): number => {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash // Convert to 32bit integer
+  }
+  return Math.abs(hash)
+}
+
+/**
+ * 获取分组名称的标签类型（多颜色）
+ */
+const getGroupTagType = (groupName: string): 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error' => {
+  if (!groupName) return 'default'
+  // DEFAULT_GROUP 使用默认颜色
+  if (groupName === 'DEFAULT_GROUP') return 'default'
+  const hash = hashString(groupName)
+  return groupColorTypes[hash % groupColorTypes.length]
+}
+
+/**
+ * 获取服务名称的标签类型（多颜色）
+ */
+const getServiceTagType = (serviceName: string): 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error' => {
+  if (!serviceName) return 'default'
+  const hash = hashString(serviceName)
+  return serviceColorTypes[hash % serviceColorTypes.length]
+}
 
 // ============= 服务相关 =============
 

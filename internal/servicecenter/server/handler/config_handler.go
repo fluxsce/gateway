@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"gateway/internal/servicecenter/cache"
 	"gateway/internal/servicecenter/dao"
 	pb "gateway/internal/servicecenter/server/proto"
 	"gateway/internal/servicecenter/server/subscriber"
@@ -90,6 +91,28 @@ func NewConfigHandler(deps *ConfigHandlerDeps) *ConfigHandler {
 	}
 }
 
+// validateNamespace 验证命名空间是否存在且有效（纯缓存操作）
+// 如果命名空间不存在或已被禁用，返回权限错误
+// 注意：命名空间应该在服务启动时已加载到缓存，这里只从缓存校验
+func (h *ConfigHandler) validateNamespace(ctx context.Context, tenantId, namespaceId string) error {
+	if namespaceId == "" {
+		return status.Errorf(codes.InvalidArgument, "namespaceId is required")
+	}
+
+	// 从缓存获取命名空间
+	namespace, found := cache.GetGlobalCache().GetNamespace(ctx, tenantId, namespaceId)
+	if !found || namespace == nil {
+		return status.Errorf(codes.PermissionDenied, "namespace not found: %s", namespaceId)
+	}
+
+	// 检查命名空间是否已禁用
+	if namespace.ActiveFlag != "Y" {
+		return status.Errorf(codes.PermissionDenied, "namespace is disabled: %s", namespaceId)
+	}
+
+	return nil
+}
+
 // GetConfigWatcher 获取配置监听器（供外部手动触发事件使用）
 func (h *ConfigHandler) GetConfigWatcher() *subscriber.ConfigWatcher {
 	return h.configWatcher
@@ -109,6 +132,14 @@ func (h *ConfigHandler) GetConfigWatcher() *subscriber.ConfigWatcher {
 //   - 不使用缓存，每次都是最新数据
 func (h *ConfigHandler) GetConfig(ctx context.Context, req *pb.ConfigKey) (*pb.GetConfigResponse, error) {
 	tenantID := "default" // TODO: 从 context 获取
+
+	// 验证命名空间是否存在
+	if err := h.validateNamespace(ctx, tenantID, req.NamespaceId); err != nil {
+		return &pb.GetConfigResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
 
 	// 从数据库获取
 	config, err := h.deps.ConfigDAO.GetConfig(ctx, tenantID, req.NamespaceId, req.GroupName, req.ConfigDataId)
@@ -155,6 +186,14 @@ func (h *ConfigHandler) SaveConfig(ctx context.Context, req *pb.ConfigData) (*pb
 	}
 
 	tenantID := "default" // TODO: 从 context 获取
+
+	// 验证命名空间是否存在
+	if err := h.validateNamespace(ctx, tenantID, req.NamespaceId); err != nil {
+		return &pb.SaveConfigResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
 
 	// 计算 MD5（服务端自动计算）
 	contentMD5 := calculateMD5(req.ConfigContent)
@@ -266,6 +305,14 @@ func (h *ConfigHandler) SaveConfig(ctx context.Context, req *pb.ConfigData) (*pb
 func (h *ConfigHandler) DeleteConfig(ctx context.Context, req *pb.ConfigKey) (*pb.ConfigResponse, error) {
 	tenantID := "default" // TODO: 从 context 获取
 
+	// 验证命名空间是否存在
+	if err := h.validateNamespace(ctx, tenantID, req.NamespaceId); err != nil {
+		return &pb.ConfigResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+
 	// 获取配置（用于通知）
 	config, err := h.deps.ConfigDAO.GetConfig(ctx, tenantID, req.NamespaceId, req.GroupName, req.ConfigDataId)
 	if err != nil {
@@ -304,6 +351,14 @@ func (h *ConfigHandler) DeleteConfig(ctx context.Context, req *pb.ConfigKey) (*p
 //   - 不使用缓存，每次都是最新数据
 func (h *ConfigHandler) ListConfigs(ctx context.Context, req *pb.ListConfigsRequest) (*pb.ListConfigsResponse, error) {
 	tenantID := "default" // TODO: 从 context 获取
+
+	// 验证命名空间是否存在
+	if err := h.validateNamespace(ctx, tenantID, req.NamespaceId); err != nil {
+		return &pb.ListConfigsResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
 
 	// 从数据库查询
 	configs, err := h.deps.ConfigDAO.ListConfigs(ctx, tenantID, req.NamespaceId, req.GroupName)
@@ -369,6 +424,11 @@ func (h *ConfigHandler) WatchConfig(req *pb.WatchConfigRequest, stream pb.Config
 		if configDataId == "" {
 			return status.Errorf(codes.InvalidArgument, "configDataId cannot be empty in configDataIds")
 		}
+	}
+
+	// 验证命名空间是否存在
+	if err := h.validateNamespace(stream.Context(), tenantID, req.NamespaceId); err != nil {
+		return err
 	}
 
 	// 打印监听开始日志
@@ -493,6 +553,14 @@ func (h *ConfigHandler) WatchConfig(req *pb.WatchConfigRequest, stream pb.Config
 func (h *ConfigHandler) GetConfigHistory(ctx context.Context, req *pb.GetConfigHistoryRequest) (*pb.GetConfigHistoryResponse, error) {
 	tenantID := "default" // TODO: 从 context 获取
 
+	// 验证命名空间是否存在
+	if err := h.validateNamespace(ctx, tenantID, req.NamespaceId); err != nil {
+		return &pb.GetConfigHistoryResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+
 	// 从数据库查询
 	histories, err := h.deps.HistoryDAO.GetConfigHistory(ctx, tenantID, req.NamespaceId, req.GroupName, req.ConfigDataId, int(req.Limit))
 	if err != nil {
@@ -533,6 +601,14 @@ func (h *ConfigHandler) GetConfigHistory(ctx context.Context, req *pb.GetConfigH
 //   - 回滚后的配置会立即通知所有监听者（实时推送）
 func (h *ConfigHandler) RollbackConfig(ctx context.Context, req *pb.RollbackConfigRequest) (*pb.RollbackConfigResponse, error) {
 	tenantID := "default" // TODO: 从 context 获取
+
+	// 验证命名空间是否存在
+	if err := h.validateNamespace(ctx, tenantID, req.NamespaceId); err != nil {
+		return &pb.RollbackConfigResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
 
 	// 获取目标版本的历史记录
 	history, err := h.deps.HistoryDAO.GetHistoryByVersion(ctx, tenantID, req.NamespaceId, req.GroupName, req.ConfigDataId, req.TargetVersion)

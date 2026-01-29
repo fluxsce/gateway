@@ -50,6 +50,28 @@ func NewRegistryHandler() *RegistryHandler {
 	}
 }
 
+// validateNamespace 验证命名空间是否存在且有效（纯缓存操作）
+// 如果命名空间不存在或已被禁用，返回权限错误
+// 注意：命名空间应该在服务启动时已加载到缓存，这里只从缓存校验
+func (h *RegistryHandler) validateNamespace(ctx context.Context, tenantId, namespaceId string) error {
+	if namespaceId == "" {
+		return status.Errorf(codes.InvalidArgument, "namespaceId is required")
+	}
+
+	// 从缓存获取命名空间
+	namespace, found := cache.GetGlobalCache().GetNamespace(ctx, tenantId, namespaceId)
+	if !found || namespace == nil {
+		return status.Errorf(codes.PermissionDenied, "namespace not found: %s", namespaceId)
+	}
+
+	// 检查命名空间是否已禁用
+	if namespace.ActiveFlag != "Y" {
+		return status.Errorf(codes.PermissionDenied, "namespace is disabled: %s", namespaceId)
+	}
+
+	return nil
+}
+
 // GetServiceSubscriber 获取服务订阅管理器（供外部手动触发事件使用）
 func (h *RegistryHandler) GetServiceSubscriber() *subscriber.ServiceSubscriber {
 	return h.serviceSubMgr
@@ -78,6 +100,15 @@ func (h *RegistryHandler) RegisterService(ctx context.Context, req *pb.Service) 
 		return &pb.RegisterServiceResponse{
 			Success: false,
 			Message: "serviceName is required",
+		}, nil
+	}
+
+	// 验证命名空间是否存在
+	tenantID := "default" // TODO: 从 context 获取
+	if err := h.validateNamespace(ctx, tenantID, req.NamespaceId); err != nil {
+		return &pb.RegisterServiceResponse{
+			Success: false,
+			Message: err.Error(),
 		}, nil
 	}
 
@@ -281,6 +312,14 @@ func (h *RegistryHandler) RegisterService(ctx context.Context, req *pb.Service) 
 func (h *RegistryHandler) UnregisterService(ctx context.Context, req *pb.ServiceKey) (*pb.RegistryResponse, error) {
 	tenantID := "default" // TODO: 从 context 获取
 
+	// 验证命名空间是否存在
+	if err := h.validateNamespace(ctx, tenantID, req.NamespaceId); err != nil {
+		return &pb.RegistryResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+
 	// 如果指定了 nodeId，只删除该节点
 	if req.NodeId != "" {
 		// 先通过 nodeId 获取节点信息（用于构建事件）
@@ -350,6 +389,14 @@ func (h *RegistryHandler) UnregisterService(ctx context.Context, req *pb.Service
 // GetService 获取服务信息（包含节点列表）
 func (h *RegistryHandler) GetService(ctx context.Context, req *pb.ServiceKey) (*pb.GetServiceResponse, error) {
 	tenantID := "default" // TODO: 从 context 获取
+
+	// 验证命名空间是否存在
+	if err := h.validateNamespace(ctx, tenantID, req.NamespaceId); err != nil {
+		return &pb.GetServiceResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
 
 	// 从缓存获取（使用全局单例）
 	service, found := cache.GetGlobalCache().GetService(ctx, tenantID, req.NamespaceId, req.GroupName, req.ServiceName)
@@ -425,6 +472,14 @@ func (h *RegistryHandler) RegisterNode(ctx context.Context, req *pb.Node) (*pb.R
 	}
 
 	tenantID := "default" // TODO: 从 context 获取
+
+	// 验证命名空间是否存在
+	if err := h.validateNamespace(ctx, tenantID, req.NamespaceId); err != nil {
+		return &pb.RegisterNodeResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
 
 	// 判断是否为重连注册（客户端传入了 nodeId）
 	var nodeID string
@@ -692,6 +747,15 @@ func (h *RegistryHandler) UnregisterNode(ctx context.Context, req *pb.NodeKey) (
 func (h *RegistryHandler) DiscoverNodes(ctx context.Context, req *pb.DiscoverNodesRequest) (*pb.DiscoverNodesResponse, error) {
 	tenantID := "default" // TODO: 从 context 获取
 
+	// 验证命名空间是否存在
+	if err := h.validateNamespace(ctx, tenantID, req.NamespaceId); err != nil {
+		return &pb.DiscoverNodesResponse{
+			Success: false,
+			Message: err.Error(),
+			Nodes:   []*pb.Node{},
+		}, nil
+	}
+
 	// 从缓存获取（使用全局单例）
 	service, found := cache.GetGlobalCache().GetService(ctx, tenantID, req.NamespaceId, req.GroupName, req.ServiceName)
 	if !found || service == nil {
@@ -799,6 +863,11 @@ func (h *RegistryHandler) SubscribeServices(req *pb.SubscribeServicesRequest, st
 	}
 	if len(req.ServiceNames) == 0 {
 		return status.Errorf(codes.InvalidArgument, "serviceNames is required and cannot be empty")
+	}
+
+	// 验证命名空间是否存在
+	if err := h.validateNamespace(stream.Context(), tenantID, req.NamespaceId); err != nil {
+		return err
 	}
 
 	// 设置默认值
@@ -931,6 +1000,11 @@ func (h *RegistryHandler) SubscribeNamespace(req *pb.SubscribeNamespaceRequest, 
 	// 验证请求参数
 	if req.NamespaceId == "" {
 		return status.Errorf(codes.InvalidArgument, "namespaceId is required")
+	}
+
+	// 验证命名空间是否存在
+	if err := h.validateNamespace(stream.Context(), tenantID, req.NamespaceId); err != nil {
+		return err
 	}
 
 	// 设置默认值

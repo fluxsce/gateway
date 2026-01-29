@@ -2,7 +2,7 @@ import { createApi } from '@/api/request'
 import type { JsonDataObj } from '@/types/api'
 import type { Namespace } from '../types'
 
-const namespaceApi = createApi('/serviceCenter/hub0041')
+const namespaceApi = createApi('/gateway/hub0041')
 
 /**
  * 分页查询命名空间列表

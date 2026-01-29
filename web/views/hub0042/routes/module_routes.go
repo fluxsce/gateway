@@ -16,8 +16,7 @@ var (
 	ModuleName = "hub0042"
 
 	// APIPrefix API路径前缀，所有该模块的API都将以此为基础路径
-	// 实际路由时将根据RouteDiscovery的设置可能会使用"/api/hub0042"
-	APIPrefix = "/serviceCenter/hub0042"
+	APIPrefix = "/gateway/hub0042"
 )
 
 // init 包初始化函数
