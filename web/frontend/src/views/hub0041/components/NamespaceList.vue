@@ -1,5 +1,5 @@
 <template>
-  <div class="namespace-list" :id="effectiveModuleId">
+  <div class="namespace-list" id="namespace-list">
     <GPane direction="vertical" default-size="80px">
       <!-- 上部：搜索表单 -->
       <template #1>
@@ -41,7 +41,7 @@
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
       :title="formDialogMode === 'create' ? '新增命名空间' : formDialogMode === 'edit' ? '编辑命名空间' : '查看命名空间详情'"
-      :to="`#${effectiveModuleId}`"
+      :to="`#namespace-list`"
       :form-fields="namespaceService.model.namespaceFormConfig.fields"
       :form-tabs="namespaceService.model.namespaceFormConfig.tabs"
       :initial-data="currentEditNamespace || undefined"
@@ -115,7 +115,7 @@ const {
   handleFormSubmit,
   handleMenuClick: handleMenuClickBase,
   handleSearch,
-} = useNamespacePage(gridRef, searchFormRef)
+} = useNamespacePage(gridRef, searchFormRef, effectiveModuleId.value)
 
 // ============= 只读表格配置（移除编辑和删除菜单，只保留查看） =============
 

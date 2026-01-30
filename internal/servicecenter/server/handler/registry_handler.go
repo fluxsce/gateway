@@ -161,8 +161,8 @@ func (h *RegistryHandler) RegisterService(ctx context.Context, req *pb.Service) 
 		AddTime:            now,
 		AddWho:             "", // TODO: 从 context 获取
 		EditTime:           now,
-		EditWho:            "", // TODO: 从 context 获取
-		OprSeqFlag:         "",
+		EditWho:            "",                                 // TODO: 从 context 获取
+		OprSeqFlag:         random.Generate32BitRandomString(), // 生成32位随机操作序列标识
 		CurrentVersion:     1,
 		ActiveFlag:         "Y", // 默认激活
 		NoteText:           "",
@@ -247,8 +247,8 @@ func (h *RegistryHandler) RegisterService(ctx context.Context, req *pb.Service) 
 			AddTime:        nodeNow,
 			AddWho:         "", // TODO: 从 context 获取
 			EditTime:       nodeNow,
-			EditWho:        "", // TODO: 从 context 获取
-			OprSeqFlag:     "",
+			EditWho:        "",                                 // TODO: 从 context 获取
+			OprSeqFlag:     random.Generate32BitRandomString(), // 生成32位随机操作序列标识
 			CurrentVersion: 1,
 			ActiveFlag:     "Y", // 默认激活
 			NoteText:       "",
@@ -592,8 +592,8 @@ func (h *RegistryHandler) RegisterNode(ctx context.Context, req *pb.Node) (*pb.R
 			AddTime:        nodeNow,
 			AddWho:         "", // TODO: 从 context 获取
 			EditTime:       nodeNow,
-			EditWho:        "", // TODO: 从 context 获取
-			OprSeqFlag:     "",
+			EditWho:        "",                                 // TODO: 从 context 获取
+			OprSeqFlag:     random.Generate32BitRandomString(), // 生成32位随机操作序列标识
 			CurrentVersion: 1,
 			ActiveFlag:     "Y", // 默认激活
 			NoteText:       "",
@@ -1324,7 +1324,7 @@ func (h *RegistryHandler) recoverServiceAndNodeFromHeartbeat(ctx context.Context
 		AddWho:             "",
 		EditTime:           now,
 		EditWho:            "",
-		OprSeqFlag:         "",
+		OprSeqFlag:         random.Generate32BitRandomString(), // 生成32位随机操作序列标识
 		CurrentVersion:     1,
 		ActiveFlag:         "Y",
 		NoteText:           "",
@@ -1389,7 +1389,7 @@ func (h *RegistryHandler) recoverServiceAndNodeFromHeartbeat(ctx context.Context
 		AddWho:         "",
 		EditTime:       now,
 		EditWho:        "",
-		OprSeqFlag:     "",
+		OprSeqFlag:     random.Generate32BitRandomString(), // 生成32位随机操作序列标识
 		CurrentVersion: 1,
 		ActiveFlag:     "Y",
 		NoteText:       "",

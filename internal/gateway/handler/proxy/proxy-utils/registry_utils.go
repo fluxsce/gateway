@@ -19,19 +19,20 @@ type ServiceCenterMetadata struct {
 	NamespaceID   string `json:"namespaceId"`   // 命名空间ID
 	GroupName     string `json:"groupName"`     // 分组名称
 	ServiceName   string `json:"serviceName"`   // 服务名称
-	DiscoveryType string `json:"discoveryType"` // 服务发现类型（servicecenter）
+	DiscoveryType string `json:"discoveryType"` // 服务发现类型（INTERNAL）
 	ProtocolType  string `json:"protocolType"`  // 协议类型（http/https）
 }
 
 // IsServiceCenterService 判断是否为服务中心服务
+// 服务发现类型必须为 "INTERNAL"（表示从本服务中心注册和发现的内部服务）
 func IsServiceCenterService(metadata map[string]string) bool {
 	if metadata == nil {
 		return false
 	}
 
-	// 检查服务发现类型（统一使用驼峰命名）
+	// 检查服务发现类型（统一使用驼峰命名，值为大写 INTERNAL）
 	discoveryType := metadata["discoveryType"]
-	return discoveryType == "servicecenter" || discoveryType == "SERVICECENTER"
+	return discoveryType == "INTERNAL"
 }
 
 // CreateNodeFromServiceCenter 从服务中心创建节点配置
@@ -111,7 +112,8 @@ func CreateNodeFromServiceCenter(ctx *core.Context, serviceConfig *service.Servi
 	// 转换节点为 NodeConfig
 	nodeConfig := convertServiceNodeToNodeConfig(selectedNode, protocol)
 
-	logger.InfoWithTrace(ctx.Ctx, "成功从服务中心发现服务节点",
+	// 使用 Debug 级别日志，避免在高并发场景下影响性能
+	logger.DebugWithTrace(ctx.Ctx, "成功从服务中心发现服务节点",
 		"tenantId", metadata.TenantID,
 		"namespaceId", metadata.NamespaceID,
 		"groupName", metadata.GroupName,

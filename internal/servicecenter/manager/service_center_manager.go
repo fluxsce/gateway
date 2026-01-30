@@ -86,55 +86,6 @@ func (m *ServiceCenterManager) ForEachInstance(fn func(string, *server.Server) e
 	return nil
 }
 
-// LoadInstancesFromDB 从数据库加载实例配置并创建 Server
-func (m *ServiceCenterManager) LoadInstancesFromDB(ctx context.Context, tenantId, environment string) error {
-	// 查询指定租户和环境的所有实例配置
-	configs, err := m.instanceDAO.ListInstances(ctx, tenantId, environment)
-	if err != nil {
-		return fmt.Errorf("加载实例配置失败: %w", err)
-	}
-
-	if len(configs) == 0 {
-		logger.Warn("未找到任何服务中心实例配置",
-			"tenantId", tenantId,
-			"environment", environment)
-		return nil
-	}
-
-	// 逐个创建 Server 并添加到实例池
-	var errors []string
-	for _, config := range configs {
-		m.mu.Lock()
-		// 检查实例是否已存在
-		if _, exists := m.instances[config.InstanceName]; exists {
-			m.mu.Unlock()
-			errors = append(errors, fmt.Sprintf("%s: 已存在", config.InstanceName))
-			logger.Warn("服务中心实例已存在", "instanceName", config.InstanceName)
-			continue
-		}
-
-		// 创建 Server 并添加到实例池
-		srv := server.NewServer(m.db, config)
-		m.instances[config.InstanceName] = srv
-		m.mu.Unlock()
-
-		// 为每个实例创建健康检查器
-		m.createHealthChecker(config.InstanceName, config.TenantID)
-
-		logger.Info("服务中心实例已创建",
-			"instanceName", config.InstanceName,
-			"listenAddr", config.ListenAddress,
-			"listenPort", config.ListenPort)
-	}
-
-	if len(errors) > 0 {
-		return fmt.Errorf("部分实例创建失败: %v", errors)
-	}
-
-	logger.Info("所有服务中心实例加载完成", "count", len(configs))
-	return nil
-}
-
 // LoadAllInstancesFromDB 从数据库加载指定租户的所有实例配置并创建 Server（所有环境）
 // 同时从数据库恢复命名空间和服务到缓存
 func (m *ServiceCenterManager) LoadAllInstancesFromDB(ctx context.Context, tenantId string) error {

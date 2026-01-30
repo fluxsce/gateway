@@ -13,13 +13,16 @@ import { useNamespaceService } from './useNamespaceService'
 
 /**
  * 命名空间管理页面级 Hook
+ * @param gridRef 表格引用
+ * @param searchFormRef 搜索表单引用
+ * @param moduleId 自定义模块ID，用于支持同一页面多个实例（默认 'hub0041'）
  */
-export function useNamespacePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any) {
+export function useNamespacePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any, moduleId?: string) {
   const message = useMessage()
   const gDialog = useGDialog()
 
   // 业务服务（包含 model、增删改查等）
-  const service = useNamespaceService(searchFormRef)
+  const service = useNamespaceService(searchFormRef, moduleId)
 
   // 表单对话框状态（新增/编辑/查看共用）
   const formDialogVisible = ref(false)

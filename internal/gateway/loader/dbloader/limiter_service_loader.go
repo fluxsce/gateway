@@ -470,17 +470,24 @@ func (loader *LimiterServiceLoader) buildServiceConfigFromRecord(record ServiceC
 		}
 
 		// 添加服务发现相关的元数据（从数据库其他字段获取）
+		// 注意：只在 serviceMetadata 中没有对应字段时才补充，避免覆盖已有值
 		if serviceConf.ServiceMetadata != nil {
-			if record.DiscoveryType != nil && *record.DiscoveryType != "" {
-				serviceConf.ServiceMetadata["discoveryType"] = *record.DiscoveryType
-				serviceConf.ServiceMetadata["discovery_type"] = *record.DiscoveryType // 兼容下划线格式
+			// 只在 serviceMetadata 中没有 discoveryType 时才从数据库字段补充
+			if _, exists := serviceConf.ServiceMetadata["discoveryType"]; !exists {
+				if record.DiscoveryType != nil && *record.DiscoveryType != "" {
+					serviceConf.ServiceMetadata["discoveryType"] = *record.DiscoveryType
+				}
 			}
 
-			if record.DiscoveryConfig != nil && *record.DiscoveryConfig != "" {
-				serviceConf.ServiceMetadata["discoveryConfig"] = *record.DiscoveryConfig
-				serviceConf.ServiceMetadata["discovery_config"] = *record.DiscoveryConfig // 兼容下划线格式
+			// 只在 serviceMetadata 中没有 discoveryConfig 时才从数据库字段补充
+			if _, exists := serviceConf.ServiceMetadata["discoveryConfig"]; !exists {
+				if record.DiscoveryConfig != nil && *record.DiscoveryConfig != "" {
+					serviceConf.ServiceMetadata["discoveryConfig"] = *record.DiscoveryConfig
+				}
 			}
-			//租户id默认传入避免后续使用没有对应字段
+
+			// 租户id默认传入避免后续使用没有对应字段
+			// 注意：tenantId 总是使用数据库的值，因为这是必需且权威的
 			serviceConf.ServiceMetadata["tenantId"] = record.TenantId
 		}
 	}

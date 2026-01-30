@@ -17,12 +17,12 @@ import { useNamespaceModel } from './model'
 /**
  * 命名空间服务 Hook（纯业务逻辑）
  */
-export function useNamespaceService(searchFormRef?: Ref<any> | any) {
+export function useNamespaceService(searchFormRef?: Ref<any> | any, moduleId?: string) {
   const message = useMessage()
   const gDialog = useGDialog()
 
   // 初始化 Model
-  const model = useNamespaceModel()
+  const model = useNamespaceModel(moduleId)
 
   const {
     loading,

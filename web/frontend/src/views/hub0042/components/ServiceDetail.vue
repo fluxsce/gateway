@@ -69,7 +69,6 @@
       <ServiceNodeList
         :nodes="service.nodes || []"
         :loading="loading"
-        :module-id="`service-detail-${service.serviceName}`"
         @refresh="handleRefresh"
       />
     </GCard>

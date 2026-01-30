@@ -1,5 +1,5 @@
 <template>
-  <div class="service-node-list" id="service-node-list">
+  <div class="service-node-list" id="hub0042-node">
     <!-- 节点表格 -->
     <g-grid
       :module-id="moduleId"
@@ -72,7 +72,7 @@
       v-model:visible="editDialogVisible"
       mode="edit"
       title="编辑节点"
-      to="#service-node-list"
+      to="#hub0042-node"
       :form-fields="nodeFormFields"
       :initial-data="currentEditNode || undefined"
       :auto-close-on-confirm="false"
@@ -106,7 +106,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   nodes: () => [],
   loading: false,
-  moduleId: 'service-node-list',
+  moduleId: 'hub0042:node',
 })
 
 interface Emits {

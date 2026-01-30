@@ -1,0 +1,1 @@
+const e={title:"网关日志管理",description:"查看和管理网关日志",search:"搜索",reset:"重置",export:"导出",refresh:"刷新",view:"查看详情",logTime:"日志时间",logLevel:"日志级别",module:"模块",message:"日志内容",traceId:"追踪ID",debug:"调试",info:"信息",warn:"警告",error:"错误",exportSuccess:"导出成功",loadFailed:"加载日志失败"};export{e as default};

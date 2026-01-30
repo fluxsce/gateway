@@ -229,7 +229,7 @@ export function useServiceDefinitionPage(
               namespaceId: metadata.namespaceId,
               groupName: metadata.groupName || 'DEFAULT_GROUP',
               serviceName: metadata.serviceName,
-              discoveryType: 'servicecenter',
+              discoveryType: 'INTERNAL',
               protocolType: metadata.protocolType || 'http'
             }
           } catch {
@@ -240,6 +240,55 @@ export function useServiceDefinitionPage(
         }
         
         formDialogMode.value = 'edit'
+        currentEditService.value = formData
+        formDialogVisible.value = true
+      } else {
+        message.error(getApiMessage(response, '获取服务定义详情失败'))
+      }
+    } catch (error) {
+      message.error('获取服务定义详情失败')
+    }
+  }
+
+  /**
+   * 打开查看对话框
+   */
+  const openViewDialog = async (service: ServiceDefinition) => {
+    if (!validateInstanceSelected()) {
+      return
+    }
+    try {
+      // 获取完整详情
+      const response = await getServiceDefinition(service.serviceDefinitionId, 'default')
+      
+      if (isApiSuccess(response)) {
+        const detailService = JSON.parse(response.bizData) as ServiceDefinition
+        
+        // 使用 convertToFormData 将 JSON 字段展开为点号分隔字段
+        const formData = convertToFormData(detailService)
+        
+        // 如果是服务发现类型，从 serviceMetadata 初始化 selectedService
+        if (formData.serviceType === 1 && formData.serviceMetadata) {
+          try {
+            const metadata = typeof formData.serviceMetadata === 'string' 
+              ? JSON.parse(formData.serviceMetadata) 
+              : formData.serviceMetadata
+            selectedService.value = {
+              tenantId: metadata.tenantId || 'default',
+              namespaceId: metadata.namespaceId,
+              groupName: metadata.groupName || 'DEFAULT_GROUP',
+              serviceName: metadata.serviceName,
+              discoveryType: 'INTERNAL',
+              protocolType: metadata.protocolType || 'http'
+            }
+          } catch {
+            selectedService.value = null
+          }
+        } else {
+          selectedService.value = null
+        }
+        
+        formDialogMode.value = 'view'
         currentEditService.value = formData
         formDialogVisible.value = true
       } else {
@@ -286,7 +335,7 @@ export function useServiceDefinitionPage(
               namespaceId: metadata.namespaceId,
               groupName: metadata.groupName || 'DEFAULT_GROUP',
               serviceName: metadata.serviceName,
-              discoveryType: 'servicecenter',
+              discoveryType: 'INTERNAL',
               protocolType: metadata.protocolType || 'http'
             }
           } catch {
@@ -406,7 +455,7 @@ export function useServiceDefinitionPage(
    * - namespaceId: 命名空间ID
    * - groupName: 分组名称
    * - serviceName: 服务名称
-   * - discoveryType: 服务发现类型（servicecenter）
+   * - discoveryType: 服务发现类型（internal - 内部服务）
    * - protocolType: 协议类型（http/https）- 从表单字段获取
    */
   const updateServiceMetadata = (formData?: Record<string, any>) => {
@@ -418,7 +467,7 @@ export function useServiceDefinitionPage(
         namespaceId: selectedService.value.namespaceId,
         groupName: selectedService.value.groupName || 'DEFAULT_GROUP',
         serviceName: selectedService.value.serviceName,
-        discoveryType: 'servicecenter',
+        discoveryType: 'INTERNAL',
         protocolType: formData?.protocolType || 'http'
       }
       // 转换为JSON字符串存储
@@ -515,6 +564,32 @@ export function useServiceDefinitionPage(
         break
       }
 
+      case 'view': {
+        // 查看详情：需要选中单个服务定义
+        if (!gridRef?.value) {
+          message.warning('Grid 引用未设置')
+          return
+        }
+        // 优先使用当前高亮的行
+        const currentRow = gridRef.value.getCurrentRecord?.()
+        if (currentRow) {
+          openViewDialog(currentRow as ServiceDefinition)
+          return
+        }
+        // 如果没有当前行，尝试获取选中的记录
+        const selectedRecords = gridRef.value.getCheckboxRecords?.() || gridRef.value.getSelectRecords?.() || []
+        if (selectedRecords.length === 0) {
+          message.warning('请先点击选择要查看的服务定义')
+          return
+        }
+        if (selectedRecords.length > 1) {
+          message.warning('请选择单个服务定义进行查看')
+          return
+        }
+        openViewDialog(selectedRecords[0] as ServiceDefinition)
+        break
+      }
+
       case 'manageNodes': {
         // 节点管理：需要选中单个服务定义
         if (!gridRef?.value) {
@@ -557,6 +632,9 @@ export function useServiceDefinitionPage(
     if (!row) return
 
     switch (code) {
+      case 'view':
+        openViewDialog(row)
+        break
       case 'edit':
         openEditDialog(row)
         break
@@ -645,6 +723,7 @@ export function useServiceDefinitionPage(
     // 方法
     openAddDialog,
     openEditDialog,
+    openViewDialog,
     openCopyDialog,
     openNodeDialog,
     closeFormDialog,

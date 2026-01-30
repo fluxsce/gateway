@@ -17,7 +17,7 @@ import type { ConfigHistory } from '../../../types'
  */
 export function useConfigHistoryModel() {
   // ============= 数据状态 =============
-  const moduleId = 'hub0043-history'
+  const moduleId = 'hub0043:history'
   /** 加载状态 */
   const loading = ref(false)
 

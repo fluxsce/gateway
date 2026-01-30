@@ -42,7 +42,7 @@
             :data="filteredTreeData"
             :checkable="true"
             :cascade="true"
-            :check-strategy="'all'"
+            :check-strategy="'child'"
             :show-line="true"
             :show-icon="true"
             :default-expanded-keys="expandedKeys"
@@ -213,8 +213,8 @@ async function loadRoleResources() {
       checkedKeys.value = authorizedIds
       currentCheckedKeys.value = [...authorizedIds]
       
-      // 默认展开所有节点
-      defaultExpandedKeys.value = extractAllKeys(resources)
+      // 默认不展开节点（需要时用户可手动展开）
+      defaultExpandedKeys.value = []
     } else {
       message.error(getApiMessage(response) || '加载资源列表失败')
     }

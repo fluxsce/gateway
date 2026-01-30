@@ -26,11 +26,16 @@
           <div class="detail-row">
             <div class="detail-item">
               <span class="detail-label">服务类型</span>
-              <span class="detail-value">{{ currentService.serviceType || 'internal' }}</span>
+              <span class="detail-value">{{ currentService.serviceType || 'INTERNAL' }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">节点数</span>
-              <span class="detail-value">{{ currentService.nodes ? currentService.nodes.length : '0' }}</span>
+              <span class="detail-value">
+                {{ currentService.nodeCount ?? 0 }}
+                <template v-if="currentService.healthyNodeCount !== undefined || currentService.unhealthyNodeCount !== undefined">
+                  (健康: {{ currentService.healthyNodeCount ?? 0 }}, 不健康: {{ currentService.unhealthyNodeCount ?? 0 }})
+                </template>
+              </span>
             </div>
             <div class="detail-item">
               <span class="detail-label">协议</span>
@@ -101,8 +106,8 @@ export interface ServiceSelectionMetadata {
   groupName: string
   /** 服务名称 */
   serviceName: string
-  /** 服务发现类型（固定为 servicecenter） */
-  discoveryType: 'servicecenter'
+  /** 服务发现类型（固定为 INTERNAL，表示从本服务中心注册和发现的内部服务） */
+  discoveryType: 'INTERNAL'
   /** 协议类型（http/https） */
   protocolType: string
 }
@@ -251,12 +256,13 @@ const handleServiceSelect = (service: Service) => {
   currentServiceInfo.value = service
   
   // 构建符合 registry_utils.go 格式的元数据
+  // discoveryType 使用 'INTERNAL' 表示从本服务中心注册和发现的内部服务
   const metadata: ServiceSelectionMetadata = {
     tenantId: service.tenantId || 'default',
     namespaceId: service.namespaceId,
     groupName: service.groupName || 'DEFAULT_GROUP',
     serviceName: service.serviceName,
-    discoveryType: 'servicecenter',
+    discoveryType: 'INTERNAL',
     protocolType: 'http'
   }
   

@@ -8,7 +8,7 @@
           <GCard>
             <NamespaceList
               ref="namespaceListRef"
-              moduleId="hub0042-namespace"
+              moduleId="hub0042:namespace"
               :show-dialog="true"
               :auto-load="true"
               @row-click="handleNamespaceRowClick"

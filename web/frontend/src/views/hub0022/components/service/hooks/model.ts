@@ -94,6 +94,13 @@ export function useServiceDefinitionModel() {
         tooltip: '新增服务定义',
       },
       {
+        key: 'view',
+        label: '查看详情',
+        icon: SettingsOutline,
+        type: 'info',
+        tooltip: '查看选中服务的详细信息',
+      },
+      {
         key: 'delete',
         label: '删除',
         icon: TrashOutline,
@@ -871,6 +878,11 @@ export function useServiceDefinitionModel() {
       showCopyRow: true,
       showCopyCell: true,
       customMenus: [
+        {
+          code: 'view',
+          name: '查看详情',
+          prefixIcon: 'vxe-icon-eye-fill',
+        },
         {
           code: 'edit',
           name: '编辑',

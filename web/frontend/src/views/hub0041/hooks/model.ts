@@ -20,10 +20,11 @@ import type { Namespace } from '../types/index'
 
 /**
  * 命名空间管理 Model
+ * @param customModuleId 自定义模块ID，用于支持同一页面多个实例（默认 'hub0041'）
  */
-export function useNamespaceModel() {
+export function useNamespaceModel(customModuleId?: string) {
   // ============= 数据状态 =============
-  const moduleId = 'hub0041'
+  const moduleId = customModuleId || 'hub0041'
   /** 加载状态 */
   const loading = ref(false)
 

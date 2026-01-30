@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gateway/internal/servicecenter/types"
+	"gateway/pkg/utils/random"
 )
 
 // ServiceCache 服务缓存 - 挂载存储
@@ -139,14 +140,30 @@ func (c *ServiceCache) SetNodes(ctx context.Context, tenantId, namespaceId, grou
 		service.EditTime = time.Now()
 		c.services.Store(key, service)
 	} else {
-		// 服务不存在，创建空服务
+		// 服务不存在，创建服务并设置节点列表（设置完整的默认值）
+		now := time.Now()
 		service := &types.Service{
-			TenantId:    tenantId,
-			NamespaceId: namespaceId,
-			GroupName:   groupName,
-			ServiceName: serviceName,
-			Nodes:       nodes,
-			EditTime:    time.Now(),
+			TenantId:           tenantId,
+			NamespaceId:        namespaceId,
+			GroupName:          groupName,
+			ServiceName:        serviceName,
+			ServiceType:        types.ServiceTypeInternal, // 默认为内部服务类型
+			ServiceVersion:     "",
+			ServiceDescription: "",
+			MetadataJson:       "",
+			TagsJson:           "",
+			ProtectThreshold:   0.0, // 默认不保护
+			SelectorJson:       "",
+			AddTime:            now,
+			AddWho:             "",
+			EditTime:           now,
+			EditWho:            "",
+			OprSeqFlag:         random.Generate32BitRandomString(), // 生成32位随机操作序列标识
+			CurrentVersion:     1,
+			ActiveFlag:         "Y", // 默认激活
+			NoteText:           "",
+			ExtProperty:        "",
+			Nodes:              nodes,
 		}
 		c.services.Store(key, service)
 	}
@@ -175,14 +192,30 @@ func (c *ServiceCache) AddNode(ctx context.Context, node *types.ServiceNode) {
 
 	value, ok := c.services.Load(key)
 	if !ok {
-		// 服务不存在，创建服务并添加节点
+		// 服务不存在，创建服务并添加节点（设置完整的默认值）
+		now := time.Now()
 		service := &types.Service{
-			TenantId:    node.TenantId,
-			NamespaceId: node.NamespaceId,
-			GroupName:   node.GroupName,
-			ServiceName: node.ServiceName,
-			Nodes:       []*types.ServiceNode{node},
-			EditTime:    time.Now(),
+			TenantId:           node.TenantId,
+			NamespaceId:        node.NamespaceId,
+			GroupName:          node.GroupName,
+			ServiceName:        node.ServiceName,
+			ServiceType:        types.ServiceTypeInternal, // 默认为内部服务类型
+			ServiceVersion:     "",
+			ServiceDescription: "",
+			MetadataJson:       "",
+			TagsJson:           "",
+			ProtectThreshold:   0.0, // 默认不保护
+			SelectorJson:       "",
+			AddTime:            now,
+			AddWho:             "",
+			EditTime:           now,
+			EditWho:            "",
+			OprSeqFlag:         random.Generate32BitRandomString(), // 生成32位随机操作序列标识
+			CurrentVersion:     1,
+			ActiveFlag:         "Y", // 默认激活
+			NoteText:           "",
+			ExtProperty:        "",
+			Nodes:              []*types.ServiceNode{node},
 		}
 		c.services.Store(key, service)
 		// 更新节点索引

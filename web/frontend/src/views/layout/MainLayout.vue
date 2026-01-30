@@ -119,7 +119,11 @@
 
       <!-- 主内容区域 -->
       <n-layout-content class="main-content">
-        <router-view />
+        <router-view v-slot="{ Component, route }">
+          <transition name="fade-slide" mode="out-in" appear>
+            <component :is="Component" :key="route.path" />
+          </transition>
+        </router-view>
       </n-layout-content>
     </n-layout>
 
@@ -145,13 +149,35 @@ import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { store } from '@/stores'
 import { AppsOutline, ListSharp, NotificationsOutline, SearchOutline } from '@vicons/ionicons5'
-import { NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NModal } from 'naive-ui'
-import { ref } from 'vue'
+import { NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NModal, useLoadingBar } from 'naive-ui'
+import { onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import ToolMarketplace from './compoents/ToolMarketplace.vue'
 import { useLayoutMenu, useLayoutUser } from './hooks'
 
 // 国际化
 const { t: tCommon } = useModuleI18n('common')
+
+// 路由加载进度条
+const loadingBar = useLoadingBar()
+const route = useRoute()
+
+// 监听路由变化，显示加载进度条
+watch(
+  () => route.path,
+  () => {
+    loadingBar.start()
+    // 模拟加载完成
+    setTimeout(() => {
+      loadingBar.finish()
+    }, 300)
+  }
+)
+
+// 组件挂载时完成初始加载
+onMounted(() => {
+  loadingBar.finish()
+})
 
 // 工具市场面板状态
 const showToolMarketplace = ref(false)
@@ -369,36 +395,30 @@ const openToolMarketplace = () => {
   border: 0.5px solid var(--g-border-primary);
   border-radius: var(--g-radius-2xl);
   box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
 }
 
-/* 响应式布局 */
-@media (max-width: 768px) {
-  .header {
-    .header-left {
-      .logo-text {
-        display: none;
-      }
-    }
-
-    .header-center {
-      display: none;
-    }
-
-    .header-right {
-      .search-box {
-        width: 160px;
-
-        &:focus-within {
-          width: 180px;
-        }
-      }
-    }
-  }
-
-  :deep(.n-layout-sider) {
-    &:not(.n-layout-sider--collapsed) {
-      box-shadow: var(--g-shadow-md);
-    }
-  }
+/* 路由切换动画 */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.fade-slide-enter-to,
+.fade-slide-leave-from {
+  opacity: 1;
+  transform: translateX(0);
+}
+
 </style>

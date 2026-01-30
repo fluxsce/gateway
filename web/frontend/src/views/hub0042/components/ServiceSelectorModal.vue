@@ -155,6 +155,7 @@ const selectorGridConfig = {
       title: '服务名称',
       minWidth: 180,
       sortable: true,
+      fixed: 'left',
     },
     {
       field: 'namespaceId',
@@ -168,13 +169,41 @@ const selectorGridConfig = {
     },
     {
       field: 'serviceType',
-      title: '类型',
+      title: '服务类型',
       minWidth: 100,
+    },
+    {
+      field: 'nodeCount',
+      title: '节点数',
+      minWidth: 80,
+      align: 'center',
+      formatter: ({ cellValue }: { cellValue: number }) => cellValue ?? 0,
+    },
+    {
+      field: 'healthyNodeCount',
+      title: '健康节点',
+      minWidth: 90,
+      align: 'center',
+      formatter: ({ cellValue }: { cellValue: number }) => cellValue ?? 0,
+    },
+    {
+      field: 'unhealthyNodeCount',
+      title: '不健康节点',
+      minWidth: 100,
+      align: 'center',
+      formatter: ({ cellValue }: { cellValue: number }) => cellValue ?? 0,
+    },
+    {
+      field: 'serviceDescription',
+      title: '服务描述',
+      minWidth: 180,
+      showOverflow: 'tooltip',
     },
     {
       field: 'activeFlag',
       title: '状态',
       minWidth: 80,
+      align: 'center',
       slots: { default: 'activeFlag' },
     },
     {

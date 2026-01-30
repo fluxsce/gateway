@@ -110,6 +110,19 @@ INSERT INTO `HUB_AUTH_RESOURCE` (
   NOW(), 'system', NOW(), 'system', 'INIT_GROUP_003', 1, 'Y'
 );
 
+-- 服务治理分组 (group0040)
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `resourceLevel`, `sortOrder`, `iconClass`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'group0040', 'default', '服务治理', 'group0040', 'GROUP',
+  1, 4, 'GitNetworkOutline', 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_GROUP_004', 1, 'Y'
+);
+
 -- 隧道管理分组 (group0060)
 INSERT INTO `HUB_AUTH_RESOURCE` (
   `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
@@ -268,6 +281,58 @@ INSERT INTO `HUB_AUTH_RESOURCE` (
   '/gateway/gatewayLogManagement', 'group0020', 2, 4, 'DocumentTextOutline', 'zh-CN',
   'Y', 'Y',
   NOW(), 'system', NOW(), 'system', 'INIT_013', 1, 'Y'
+);
+
+-- 服务中心实例管理模块 (hub0040) - 属于 group0040
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `resourcePath`, `parentResourceId`, `resourceLevel`, `sortOrder`, `iconClass`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0040', 'default', '服务中心实例管理', 'hub0040', 'MODULE',
+  '/serviceGovernance/serviceCenterInstanceManager', 'group0040', 2, 1, 'ServerOutline', 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_020', 1, 'Y'
+);
+
+-- 命名空间管理模块 (hub0041) - 属于 group0040
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `resourcePath`, `parentResourceId`, `resourceLevel`, `sortOrder`, `iconClass`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0041', 'default', '命名空间管理', 'hub0041', 'MODULE',
+  '/serviceGovernance/namespaceManagement', 'group0040', 2, 2, 'FolderOutline', 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_021', 1, 'Y'
+);
+
+-- 服务列表模块 (hub0042) - 属于 group0040
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `resourcePath`, `parentResourceId`, `resourceLevel`, `sortOrder`, `iconClass`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0042', 'default', '服务列表', 'hub0042', 'MODULE',
+  '/serviceGovernance/serviceList', 'group0040', 2, 3, 'BarChartOutline', 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_022', 1, 'Y'
+);
+
+-- 配置中心模块 (hub0043) - 属于 group0040
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `resourcePath`, `parentResourceId`, `resourceLevel`, `sortOrder`, `iconClass`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0043', 'default', '配置中心', 'hub0043', 'MODULE',
+  '/serviceGovernance/configManagement', 'group0040', 2, 4, 'CodeOutline', 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_023', 1, 'Y'
 );
 
 -- 隧道服务器模块 (hub0060) - 属于 group0060
@@ -2432,6 +2497,19 @@ INSERT INTO `HUB_AUTH_RESOURCE` (
   NOW(), 'system', NOW(), 'system', 'INIT_012_007', 1, 'Y'
 );
 
+-- 查看详情按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0022:view', 'default', '查看详情', 'hub0022:view', 'BUTTON',
+  'hub0022', 3, 8, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_012_008', 1, 'Y'
+);
+
 -- =====================================================
 -- 网关日志管理模块 - 按钮资源 (hub0023)
 -- =====================================================
@@ -2512,6 +2590,575 @@ INSERT INTO `HUB_AUTH_RESOURCE` (
   'hub0023', 3, 6, 'zh-CN',
   'Y', 'Y',
   NOW(), 'system', NOW(), 'system', 'INIT_013_006', 1, 'Y'
+);
+
+-- =====================================================
+-- 服务中心实例管理模块 - 按钮资源 (hub0040)
+-- =====================================================
+
+-- 新建实例按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0040:add', 'default', '新建实例', 'hub0040:add', 'BUTTON',
+  'hub0040', 3, 1, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_020_001', 1, 'Y'
+);
+
+-- 查看详情按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0040:view', 'default', '查看详情', 'hub0040:view', 'BUTTON',
+  'hub0040', 3, 2, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_020_002', 1, 'Y'
+);
+
+-- 编辑按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0040:edit', 'default', '编辑', 'hub0040:edit', 'BUTTON',
+  'hub0040', 3, 3, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_020_003', 1, 'Y'
+);
+
+-- 删除按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0040:delete', 'default', '删除', 'hub0040:delete', 'BUTTON',
+  'hub0040', 3, 4, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_020_004', 1, 'Y'
+);
+
+-- 启动实例按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0040:start', 'default', '启动实例', 'hub0040:start', 'BUTTON',
+  'hub0040', 3, 5, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_020_005', 1, 'Y'
+);
+
+-- 停止实例按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0040:stop', 'default', '停止实例', 'hub0040:stop', 'BUTTON',
+  'hub0040', 3, 6, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_020_006', 1, 'Y'
+);
+
+-- 重载配置按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0040:reload', 'default', '重载配置', 'hub0040:reload', 'BUTTON',
+  'hub0040', 3, 7, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_020_007', 1, 'Y'
+);
+
+-- 查询按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0040:search', 'default', '查询', 'hub0040:search', 'BUTTON',
+  'hub0040', 3, 8, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_020_008', 1, 'Y'
+);
+
+-- 重置按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0040:reset', 'default', '重置', 'hub0040:reset', 'BUTTON',
+  'hub0040', 3, 9, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_020_009', 1, 'Y'
+);
+
+-- =====================================================
+-- 命名空间管理模块 - 按钮资源 (hub0041)
+-- =====================================================
+
+-- 新建命名空间按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0041:add', 'default', '新建命名空间', 'hub0041:add', 'BUTTON',
+  'hub0041', 3, 1, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_021_001', 1, 'Y'
+);
+
+-- 查看详情按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0041:view', 'default', '查看详情', 'hub0041:view', 'BUTTON',
+  'hub0041', 3, 2, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_021_002', 1, 'Y'
+);
+
+-- 编辑按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0041:edit', 'default', '编辑', 'hub0041:edit', 'BUTTON',
+  'hub0041', 3, 3, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_021_003', 1, 'Y'
+);
+
+-- 删除按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0041:delete', 'default', '删除', 'hub0041:delete', 'BUTTON',
+  'hub0041', 3, 4, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_021_004', 1, 'Y'
+);
+
+-- 查询按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0041:search', 'default', '查询', 'hub0041:search', 'BUTTON',
+  'hub0041', 3, 5, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_021_005', 1, 'Y'
+);
+
+-- 重置按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0041:reset', 'default', '重置', 'hub0041:reset', 'BUTTON',
+  'hub0041', 3, 6, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_021_006', 1, 'Y'
+);
+
+-- =====================================================
+-- 服务列表模块 - 按钮资源 (hub0042)
+-- =====================================================
+
+-- 命名空间列表区域权限 (hub0042-namespace)
+-- 查询按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0042:namespace:search', 'default', '命名空间查询', 'hub0042:namespace:search', 'BUTTON',
+  'hub0042', 3, 1, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_022_001', 1, 'Y'
+);
+
+-- 重置按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0042:namespace:reset', 'default', '命名空间重置', 'hub0042:namespace:reset', 'BUTTON',
+  'hub0042', 3, 2, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_022_002', 1, 'Y'
+);
+
+-- 查看详情按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0042:namespace:view', 'default', '命名空间查看详情', 'hub0042:namespace:view', 'BUTTON',
+  'hub0042', 3, 3, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_022_003', 1, 'Y'
+);
+
+-- 服务列表区域权限 (hub0042)
+-- 新建服务按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0042:add', 'default', '新建服务', 'hub0042:add', 'BUTTON',
+  'hub0042', 3, 4, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_022_004', 1, 'Y'
+);
+
+-- 查看详情按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0042:view', 'default', '查看详情', 'hub0042:view', 'BUTTON',
+  'hub0042', 3, 5, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_022_005', 1, 'Y'
+);
+
+-- 编辑按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0042:edit', 'default', '编辑', 'hub0042:edit', 'BUTTON',
+  'hub0042', 3, 6, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_022_006', 1, 'Y'
+);
+
+-- 删除按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0042:delete', 'default', '删除', 'hub0042:delete', 'BUTTON',
+  'hub0042', 3, 7, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_022_007', 1, 'Y'
+);
+
+-- 查询按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0042:search', 'default', '查询', 'hub0042:search', 'BUTTON',
+  'hub0042', 3, 8, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_022_008', 1, 'Y'
+);
+
+-- 重置按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0042:reset', 'default', '重置', 'hub0042:reset', 'BUTTON',
+  'hub0042', 3, 9, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_022_009', 1, 'Y'
+);
+
+-- 服务节点操作分组 (hub0042:nodeManagement)
+-- 节点操作功能组
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0042:nodeManagement', 'default', '节点操作', 'hub0042:nodeManagement', 'MENU',
+  'hub0042', 3, 10, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_022_010', 1, 'Y'
+);
+
+-- 节点操作子权限
+-- 编辑节点按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0042:node:edit', 'default', '编辑节点', 'hub0042:node:edit', 'BUTTON',
+  'hub0042:nodeManagement', 4, 1, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_022_010_001', 1, 'Y'
+);
+
+-- 上线节点按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0042:node:online', 'default', '上线节点', 'hub0042:node:online', 'BUTTON',
+  'hub0042:nodeManagement', 4, 2, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_022_010_002', 1, 'Y'
+);
+
+-- 下线节点按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0042:node:offline', 'default', '下线节点', 'hub0042:node:offline', 'BUTTON',
+  'hub0042:nodeManagement', 4, 3, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_022_010_003', 1, 'Y'
+);
+
+-- 刷新节点列表按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0042:node:refresh', 'default', '刷新节点列表', 'hub0042:node:refresh', 'BUTTON',
+  'hub0042:nodeManagement', 4, 4, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_022_010_004', 1, 'Y'
+);
+
+-- =====================================================
+-- 配置中心模块 - 按钮资源 (hub0043)
+-- =====================================================
+
+-- 配置管理区域权限
+-- 新建配置按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0043:add', 'default', '新建配置', 'hub0043:add', 'BUTTON',
+  'hub0043', 3, 1, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_023_001', 1, 'Y'
+);
+
+-- 查看详情按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0043:view', 'default', '查看详情', 'hub0043:view', 'BUTTON',
+  'hub0043', 3, 2, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_023_002', 1, 'Y'
+);
+
+-- 编辑按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0043:edit', 'default', '编辑', 'hub0043:edit', 'BUTTON',
+  'hub0043', 3, 3, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_023_003', 1, 'Y'
+);
+
+-- 删除按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0043:delete', 'default', '删除', 'hub0043:delete', 'BUTTON',
+  'hub0043', 3, 4, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_023_004', 1, 'Y'
+);
+
+-- 历史版本按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0043:history', 'default', '历史版本', 'hub0043:history', 'BUTTON',
+  'hub0043', 3, 5, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_023_005', 1, 'Y'
+);
+
+-- 查询按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0043:search', 'default', '查询', 'hub0043:search', 'BUTTON',
+  'hub0043', 3, 6, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_023_006', 1, 'Y'
+);
+
+-- 重置按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0043:reset', 'default', '重置', 'hub0043:reset', 'BUTTON',
+  'hub0043', 3, 7, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_023_007', 1, 'Y'
+);
+
+-- 配置历史管理分组 (hub0043:historyManagement)
+-- 历史管理功能组
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0043:historyManagement', 'default', '历史管理', 'hub0043:historyManagement', 'MENU',
+  'hub0043', 3, 8, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_023_008', 1, 'Y'
+);
+
+-- 历史管理子权限
+-- 查看历史详情按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0043:history:view', 'default', '查看历史详情', 'hub0043:history:view', 'BUTTON',
+  'hub0043:historyManagement', 4, 1, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_023_008_001', 1, 'Y'
+);
+
+-- 回滚按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0043:history:rollback', 'default', '回滚', 'hub0043:history:rollback', 'BUTTON',
+  'hub0043:historyManagement', 4, 2, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_023_008_002', 1, 'Y'
+);
+
+-- 历史查询按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0043:history:search', 'default', '历史查询', 'hub0043:history:search', 'BUTTON',
+  'hub0043:historyManagement', 4, 3, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_023_008_003', 1, 'Y'
+);
+
+-- 历史重置按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0043:history:reset', 'default', '历史重置', 'hub0043:history:reset', 'BUTTON',
+  'hub0043:historyManagement', 4, 4, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_023_008_004', 1, 'Y'
+);
+
+-- 返回配置列表按钮
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0043:history:back', 'default', '返回配置列表', 'hub0043:history:back', 'BUTTON',
+  'hub0043:historyManagement', 4, 5, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_023_008_005', 1, 'Y'
 );
 
 -- =====================================================
