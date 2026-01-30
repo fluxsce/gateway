@@ -241,6 +241,9 @@ if [ $BUILD_RESULT -eq 0 ]; then
             mkdir -p "$PACKAGE_DIR/scripts/db"
             mkdir -p "$PACKAGE_DIR/scripts/data"
             mkdir -p "$PACKAGE_DIR/scripts/deploy"
+            mkdir -p "$PACKAGE_DIR/scripts/docker"
+            mkdir -p "$PACKAGE_DIR/scripts/k8s"
+            mkdir -p "$PACKAGE_DIR/scripts/test"
             mkdir -p "$PACKAGE_DIR/pprof_analysis"
             
             # Copy executable file
