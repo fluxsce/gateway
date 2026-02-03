@@ -86,7 +86,7 @@ func NewClusterService(db database.Database) *ClusterServiceImpl {
 		ackRetentionHours: ackRetentionHours,
 		dao:               dao.NewEventDAO(db),
 		handlers:          make(map[string]types.EventHandler),
-		lastEventTime:     time.Now().Add(-1 * time.Hour), // 从1小时前开始查询
+		lastEventTime:     time.Now(), // 从当前时间开始，只处理启动后的新事件
 	}
 }
 

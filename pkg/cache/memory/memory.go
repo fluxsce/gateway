@@ -1,76 +1,201 @@
+// Package memory 提供内存缓存的完整实现。
+//
+// 该包实现了一个线程安全的内存缓存，支持多种数据类型和淘汰策略。
+//
+// 主要特性：
+//   - 线程安全：所有操作都支持并发调用
+//   - TTL 过期机制：支持键值自动过期
+//   - 多种淘汰策略：TTL（已实现）、LRU/Random/FIFO（预留）
+//   - 懒惰清理：访问时自动清理过期键
+//   - 定时清理：后台协程定期清理过期键
+//   - 统计指标：命中率、淘汰次数等
+//   - 多种数据类型：String、Hash、List、Set、ZSet
+//
+// 基本使用示例：
+//
+//	// 创建配置
+//	cfg := &memory.MemoryConfig{
+//	    MaxSize:           10000,
+//	    DefaultExpiration: 5 * time.Minute,
+//	    CleanupInterval:   1 * time.Minute,
+//	}
+//
+//	// 创建内存缓存实例
+//	cache, err := memory.NewMemoryCache(cfg)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer cache.Close()
+//
+//	// 设置值
+//	err = cache.Set(ctx, "key", []byte("value"), 10*time.Minute)
+//
+//	// 获取值
+//	value, err := cache.Get(ctx, "key")
+//
+// 高级使用示例：
+//
+//	// Hash 操作
+//	err = cache.HSet(ctx, "user:1", "name", "Alice")
+//	name, err := cache.HGet(ctx, "user:1", "name")
+//
+//	// List 操作
+//	length, err := cache.LPush(ctx, "queue", "task1", "task2")
+//	task, err := cache.RPop(ctx, "queue")
+//
+//	// Set 操作
+//	added, err := cache.SAdd(ctx, "tags", "go", "redis", "cache")
+//	isMember, err := cache.SIsMember(ctx, "tags", "go")
+//
+//	// ZSet 操作
+//	added, err := cache.ZAdd(ctx, "leaderboard", 100.0, "player1")
+//	members, err := cache.ZRange(ctx, "leaderboard", 0, 9)
+//
+// 线程安全示例：
+//
+//	// 多个 goroutine 可以安全并发使用同一个 MemoryCache 实例
+//	go cache.Get(ctx, "key1")
+//	go cache.Set(ctx, "key2", value, 0)
+//	go cache.Delete(ctx, "key3")
 package memory
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
+
+	"gateway/pkg/config"
+	"gateway/pkg/logger"
 )
 
 // MemoryCache 内存缓存实现
-// 简化的内存缓存实现，支持基本的键值操作和TTL过期机制
-// 特性:
+//
+// 简化的内存缓存实现，支持基本的键值操作和TTL过期机制。
+// MemoryCache 是线程安全的，可以在多个 goroutine 中并发使用。
+//
+// 特性：
 //   - 支持TTL过期机制（已实现）
 //   - 支持过期时间淘汰策略（默认且已实现）
 //   - 懒惰清理和定时清理
 //   - 基础的统计指标
 //   - 线程安全的并发访问
 //   - 其他淘汰策略（LRU、Random、FIFO）为预留功能，暂未实现
+//
+// 并发安全性：
+//   - 所有公开方法都是线程安全的
+//   - 内部使用 sync.RWMutex 保护共享状态
+//   - Close() 方法可以安全地在任何时候调用，且支持重复调用
+//
+// 错误处理：
+//   - 所有方法在遇到错误时返回 error，不会 panic
+//   - 如果 MemoryCache 已关闭，所有操作返回 "cache is closed" 错误
+//   - 键不存在时，Get 方法返回 nil 而不是错误
+//
+// 注意事项：
+//   - 使用完毕后必须调用 Close() 释放资源
+//   - 关闭后的实例不能继续使用
+//   - 键前缀会自动添加到所有操作的键名上
 type MemoryCache struct {
-	config        *MemoryConfig  // 缓存配置
-	items         map[string]*cacheItem // 缓存项映射表
-	lruList       *lruList       // LRU双向链表，预留给LRU淘汰策略使用
-	mu            sync.RWMutex   // 读写锁，保证并发安全
-	keyPrefix     string         // 键前缀，用于区分不同应用
-	closed        bool           // 缓存是否已关闭
-	closeMu       sync.RWMutex   // 关闭状态的读写锁
-	cleanupTicker *time.Ticker   // 定时清理器
-	cleanupDone   chan struct{}  // 清理协程停止信号
-	metrics       *cacheMetrics  // 缓存统计指标
-	lastCleanup   time.Time      // 上次清理时间
+	// config 缓存配置
+	config *MemoryConfig
+
+	// items 缓存项映射表
+	items map[string]*cacheItem
+
+	// lruList LRU双向链表，预留给LRU淘汰策略使用
+	lruList *lruList
+
+	// mu 读写锁，保证并发安全
+	mu sync.RWMutex
+
+	// keyPrefix 键前缀，用于区分不同应用
+	keyPrefix string
+
+	// closed 缓存是否已关闭
+	closed bool
+
+	// closeMu 关闭状态的读写锁
+	closeMu sync.RWMutex
+
+	// cleanupTicker 定时清理器
+	cleanupTicker *time.Ticker
+
+	// cleanupDone 清理协程停止信号
+	cleanupDone chan struct{}
+
+	// metrics 缓存统计指标
+	metrics *cacheMetrics
+
+	// lastCleanup 上次清理时间
+	lastCleanup time.Time
 }
 
 // cacheItem 缓存条目
-// 存储缓存的值和相关元数据，包括过期时间、访问统计等
+//
+// 存储缓存的值和相关元数据，包括过期时间、访问统计等。
 type cacheItem struct {
-	value       interface{} // 缓存值，支持任意类型
-	expiration  int64       // 过期时间戳(纳秒)，0表示永不过期，用于TTL策略（已实现）
-	accessTime  int64       // 最后访问时间戳(纳秒)，预留给LRU策略使用
-	accessCount int64       // 访问次数，预留给LFU策略使用
-	createTime  int64       // 创建时间戳(纳秒)，预留给FIFO策略使用
-	lruNode     *lruNode    // LRU链表节点指针，预留给LRU策略使用
+	// value 缓存值，支持任意类型
+	value interface{}
+
+	// expiration 过期时间戳(纳秒)，0表示永不过期，用于TTL策略（已实现）
+	expiration int64
+
+	// accessTime 最后访问时间戳(纳秒)，预留给LRU策略使用
+	accessTime int64
+
+	// accessCount 访问次数，预留给LFU策略使用
+	accessCount int64
+
+	// createTime 创建时间戳(纳秒)，预留给FIFO策略使用
+	createTime int64
+
+	// lruNode LRU链表节点指针，预留给LRU策略使用
+	lruNode *lruNode
 }
 
 // lruList LRU双向链表
-// 实现最近最少使用(LRU)淘汰策略的核心数据结构
-// 使用哨兵节点简化链表操作
+//
+// 实现最近最少使用(LRU)淘汰策略的核心数据结构。
+// 使用哨兵节点简化链表操作。
 type lruList struct {
-	head *lruNode // 头部哨兵节点
-	tail *lruNode // 尾部哨兵节点
-	size int      // 链表长度
+	// head 头部哨兵节点
+	head *lruNode
+
+	// tail 尾部哨兵节点
+	tail *lruNode
+
+	// size 链表长度
+	size int
 }
 
 // lruNode LRU链表节点
-// 双向链表节点，存储键名和前后指针
+//
+// 双向链表节点，存储键名和前后指针。
 type lruNode struct {
-	key  string   // 缓存键名
-	prev *lruNode // 前驱节点
-	next *lruNode // 后继节点
+	// key 缓存键名
+	key string
+
+	// prev 前驱节点
+	prev *lruNode
+
+	// next 后继节点
+	next *lruNode
 }
 
 // cacheMetrics 缓存指标
-// 收集和统计缓存的性能指标，用于监控和调优
+//
+// 收集和统计缓存的性能指标，用于监控和调优。
 type cacheMetrics struct {
-	mu           sync.RWMutex // 指标读写锁
-	hits         int64        // 命中次数
-	misses       int64        // 未命中次数
-	evictions    int64        // 淘汰次数
-	expirations  int64        // 过期清理次数
-	totalOps     int64        // 总操作次数
-	totalSize    int64        // 总缓存大小
-	totalMemory  int64        // 总内存使用量(估算)
-	lastUpdated  time.Time    // 最后更新时间
+	mu          sync.RWMutex // 指标读写锁
+	hits        int64        // 命中次数
+	misses      int64        // 未命中次数
+	evictions   int64        // 淘汰次数
+	expirations int64        // 过期清理次数
+	totalOps    int64        // 总操作次数
+	totalSize   int64        // 总缓存大小
+	totalMemory int64        // 总内存使用量(估算)
+	lastUpdated time.Time    // 最后更新时间
 }
 
 // 数据类型别名定义
@@ -91,21 +216,39 @@ type setValue map[string]struct{}
 // zsetValue 有序集合值类型，对应Redis的ZSET数据结构
 type zsetValue map[string]float64
 
-// NewMemoryCache 创建新的内存缓存实例
-// 根据配置创建并初始化一个新的内存缓存实例
-// 
-// 参数:
-//   cfg: 内存缓存配置，如果为nil则使用默认配置
-// 
-// 返回:
-//   *MemoryCache: 创建的内存缓存实例
-//   error: 创建失败时返回错误信息
+// =============================================================================
+// 构造函数和工厂方法
+// =============================================================================
+
+// NewMemoryCache 创建新的内存缓存实例。
 //
-// 特性:
+// 根据配置创建并初始化一个新的内存缓存实例。
+//
+// 参数：
+//   - cfg: 内存缓存配置，如果为nil则使用默认配置
+//
+// 返回值：
+//   - *MemoryCache: 创建的内存缓存实例
+//   - error: 创建失败时返回错误信息
+//
+// 特性：
 //   - 自动设置配置默认值
 //   - 验证配置有效性
 //   - 初始化单实例存储
 //   - 启动后台清理协程
+//
+// 使用示例：
+//
+//	cfg := &MemoryConfig{
+//	    MaxSize:           10000,
+//	    DefaultExpiration: 5 * time.Minute,
+//	    CleanupInterval:   1 * time.Minute,
+//	}
+//	cache, err := NewMemoryCache(cfg)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer cache.Close()
 func NewMemoryCache(cfg *MemoryConfig) (*MemoryCache, error) {
 	if cfg == nil {
 		cfg = &MemoryConfig{}
@@ -136,19 +279,65 @@ func NewMemoryCache(cfg *MemoryConfig) (*MemoryCache, error) {
 	return cache, nil
 }
 
-// LoadMemoryConfigFromFile 从配置文件加载内存缓存配置
-// 加载配置文件并返回内存缓存配置实例
-// 
-// 返回:
-//   *MemoryConfig: 加载的配置实例
-//   error: 加载失败时返回错误信息
+// CreateFromConfigPath 从配置路径创建内存缓存实例。
 //
-// 注意: 当前实现返回默认配置，实际项目中应从文件加载
-func LoadMemoryConfigFromFile() (*MemoryConfig, error) {
-	cfg := &MemoryConfig{}
-	cfg.SetDefaults()
-	return cfg, nil
+// 该函数是内存缓存模块对外提供的工厂方法，使用 config.GetSection 自动映射配置。
+//
+// 参数：
+//   - name: 连接名称
+//   - configPath: 配置路径（如 "cache.connections.memory_cache.config"）
+//
+// 返回值：
+//   - *MemoryCache: 内存缓存实例，如果未启用则返回 nil
+//   - error: 创建失败时返回错误信息
+//
+// 使用示例：
+//
+//	cache, err := memory.CreateFromConfigPath("main", "cache.connections.memory_cache.config")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer cache.Close()
+func CreateFromConfigPath(name string, configPath string) (*MemoryCache, error) {
+	// 创建内存缓存配置实例
+	memoryConfig := &MemoryConfig{}
+
+	// 使用 config.GetSection 自动映射配置（就像 MetricConfig 那样）
+	if err := config.GetSection(configPath, memoryConfig); err != nil {
+		return nil, fmt.Errorf("从配置路径 '%s' 加载内存缓存配置失败: %w", configPath, err)
+	}
+
+	// 检查是否启用，如果未启用则跳过
+	if !memoryConfig.Enabled {
+		logger.Debug("跳过未启用的内存缓存连接", "name", name)
+		return nil, nil // 返回nil表示跳过此连接
+	}
+
+	// 设置默认值
+	memoryConfig.SetDefaults()
+
+	// 验证配置
+	if err := memoryConfig.Validate(); err != nil {
+		return nil, fmt.Errorf("验证内存缓存配置失败: %w", err)
+	}
+
+	// 记录连接创建信息
+	logger.Debug("创建内存缓存连接",
+		"name", name,
+		"config", memoryConfig.String())
+
+	// 创建内存缓存实例
+	memoryCache, err := NewMemoryCache(memoryConfig)
+	if err != nil {
+		return nil, fmt.Errorf("创建内存缓存实例失败: %w", err)
+	}
+
+	return memoryCache, nil
 }
+
+// =============================================================================
+// 内部辅助方法
+// =============================================================================
 
 // newLRUList 创建新的LRU链表
 func newLRUList() *lruList {
@@ -156,7 +345,7 @@ func newLRUList() *lruList {
 	tail := &lruNode{}
 	head.next = tail
 	tail.prev = head
-	
+
 	return &lruList{
 		head: head,
 		tail: tail,
@@ -217,7 +406,8 @@ func (m *MemoryCache) parseKey(key string) string {
 }
 
 // resolveExpiration 解析过期时间
-// 处理过期时间逻辑：0表示使用默认过期时间，负数表示永不过期
+//
+// 处理过期时间逻辑：0表示使用默认过期时间，负数表示永不过期。
 func (m *MemoryCache) resolveExpiration(expiration time.Duration) int64 {
 	if expiration == 0 {
 		// 0表示使用配置的默认过期时间
@@ -226,11 +416,11 @@ func (m *MemoryCache) resolveExpiration(expiration time.Duration) int64 {
 		// 负数表示永不过期
 		return 0
 	}
-	
+
 	if expiration <= 0 {
 		return 0
 	}
-	
+
 	return time.Now().Add(expiration).UnixNano()
 }
 
@@ -247,10 +437,10 @@ func (m *MemoryCache) updateMetrics(hit bool, eviction bool, expiration bool) {
 	if !m.config.IsMetricsEnabled() {
 		return
 	}
-	
+
 	m.metrics.mu.Lock()
 	defer m.metrics.mu.Unlock()
-	
+
 	m.metrics.totalOps++
 	if hit {
 		m.metrics.hits++
@@ -289,7 +479,7 @@ func (m *MemoryCache) cleanup() {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	now := time.Now()
 	for key, item := range m.items {
 		if m.isExpired(item) {
@@ -320,11 +510,12 @@ func (m *MemoryCache) evictIfNeeded() {
 }
 
 // evictItems 淘汰指定数量的条目
-// 目前只实现了TTL过期策略，当达到容量限制时会尝试清理过期项
-// 其他策略（LRU、Random、FIFO）为预留功能，暂未实现
+//
+// 目前只实现了TTL过期策略，当达到容量限制时会尝试清理过期项。
+// 其他策略（LRU、Random、FIFO）为预留功能，暂未实现。
 func (m *MemoryCache) evictItems(count int) {
 	evicted := 0
-	
+
 	// 检查配置的淘汰策略
 	switch m.config.EvictionPolicy {
 	case EvictionTTL:
@@ -337,7 +528,7 @@ func (m *MemoryCache) evictItems(count int) {
 		// 默认使用TTL策略
 		evicted = m.evictExpired(count)
 	}
-	
+
 	if evicted > 0 {
 		m.updateMetrics(false, true, false)
 	}
@@ -347,7 +538,7 @@ func (m *MemoryCache) evictItems(count int) {
 func (m *MemoryCache) evictExpired(count int) int {
 	evicted := 0
 	keysToDelete := make([]string, 0)
-	
+
 	// 遍历所有项，查找过期的条目
 	for key, item := range m.items {
 		if m.isExpired(item) {
@@ -357,7 +548,7 @@ func (m *MemoryCache) evictExpired(count int) int {
 			}
 		}
 	}
-	
+
 	// 删除过期的条目
 	for _, key := range keysToDelete {
 		if item, exists := m.items[key]; exists {
@@ -368,12 +559,13 @@ func (m *MemoryCache) evictExpired(count int) int {
 			evicted++
 		}
 	}
-	
+
 	return evicted
 }
 
 // evictLRU_Reserved LRU淘汰（预留功能，未实现）
-// 当实现LRU策略时，将使用此方法
+//
+// 当实现LRU策略时，将使用此方法。
 func (m *MemoryCache) evictLRU_Reserved(count int) int {
 	// TODO: 实现LRU淘汰策略
 	// 当前降级为过期清理
@@ -381,452 +573,10 @@ func (m *MemoryCache) evictLRU_Reserved(count int) int {
 }
 
 // evictRandom_Reserved 随机淘汰（预留功能，未实现）
-// 当实现Random策略时，将使用此方法
+//
+// 当实现Random策略时，将使用此方法。
 func (m *MemoryCache) evictRandom_Reserved(count int) int {
 	// TODO: 实现随机淘汰策略
 	// 当前降级为过期清理
 	return m.evictExpired(count)
 }
-
-// Get 获取缓存值（字节数组）
-func (m *MemoryCache) Get(ctx context.Context, key string) ([]byte, error) {
-	m.closeMu.RLock()
-	if m.closed {
-		m.closeMu.RUnlock()
-		return nil, fmt.Errorf("cache is closed")
-	}
-	m.closeMu.RUnlock()
-
-	fullKey := m.buildKey(key)
-	
-	m.mu.RLock()
-	item, exists := m.items[fullKey]
-	m.mu.RUnlock()
-	
-	if !exists {
-		m.updateMetrics(false, false, false)
-		return nil, nil
-	}
-	
-	if m.isExpired(item) {
-		if m.config.EnableLazyCleanup {
-			m.mu.Lock()
-			delete(m.items, fullKey)
-			if item.lruNode != nil {
-				m.lruList.removeNode(item.lruNode)
-			}
-			m.mu.Unlock()
-			m.updateMetrics(false, false, true)
-		}
-		return nil, nil
-	}
-	
-	now := time.Now().UnixNano()
-	m.mu.Lock()
-	item.accessTime = now
-	item.accessCount++
-	if item.lruNode != nil {
-		m.lruList.moveToHead(item.lruNode)
-	}
-	m.mu.Unlock()
-	
-	m.updateMetrics(true, false, false)
-	
-	switch v := item.value.(type) {
-	case []byte:
-		return v, nil
-	case string:
-		return []byte(v), nil
-	default:
-		return []byte(fmt.Sprintf("%v", v)), nil
-	}
-}
-
-// GetString 获取缓存值（字符串）
-func (m *MemoryCache) GetString(ctx context.Context, key string) (string, error) {
-	data, err := m.Get(ctx, key)
-	if err != nil || data == nil {
-		return "", err
-	}
-	return string(data), nil
-}
-
-// Set 设置缓存值（字节数组）
-func (m *MemoryCache) Set(ctx context.Context, key string, value []byte, expiration time.Duration) error {
-	m.closeMu.RLock()
-	if m.closed {
-		m.closeMu.RUnlock()
-		return fmt.Errorf("cache is closed")
-	}
-	m.closeMu.RUnlock()
-
-	fullKey := m.buildKey(key)
-	
-	now := time.Now().UnixNano()
-	item := &cacheItem{
-		value:       value,
-		expiration:  m.resolveExpiration(expiration),
-		accessTime:  now,
-		accessCount: 1,
-		createTime:  now,
-	}
-	
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	
-	m.evictIfNeeded()
-	
-	// 移除旧项的LRU节点（为预留的LRU策略保留）
-	if oldItem, exists := m.items[fullKey]; exists && oldItem.lruNode != nil {
-		m.lruList.removeNode(oldItem.lruNode)
-	}
-	
-	// LRU相关逻辑为预留功能，当前只在配置为LRU时保留结构
-	if m.config.EvictionPolicy == EvictionLRU {
-		// 为预留的LRU策略保留节点结构
-		item.lruNode = &lruNode{key: fullKey}
-		m.lruList.addToHead(item.lruNode)
-	}
-	
-	m.items[fullKey] = item
-	
-	return nil
-}
-
-// SetString 设置缓存值（字符串）
-func (m *MemoryCache) SetString(ctx context.Context, key string, value string, expiration time.Duration) error {
-	return m.Set(ctx, key, []byte(value), expiration)
-}
-
-// Delete 删除缓存值
-func (m *MemoryCache) Delete(ctx context.Context, key string) error {
-	m.closeMu.RLock()
-	if m.closed {
-		m.closeMu.RUnlock()
-		return fmt.Errorf("cache is closed")
-	}
-	m.closeMu.RUnlock()
-
-	fullKey := m.buildKey(key)
-	
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	
-	if item, exists := m.items[fullKey]; exists {
-		delete(m.items, fullKey)
-		if item.lruNode != nil {
-			m.lruList.removeNode(item.lruNode)
-		}
-	}
-	
-	return nil
-}
-
-// Exists 检查键是否存在
-func (m *MemoryCache) Exists(ctx context.Context, key string) (bool, error) {
-	m.closeMu.RLock()
-	if m.closed {
-		m.closeMu.RUnlock()
-		return false, fmt.Errorf("cache is closed")
-	}
-	m.closeMu.RUnlock()
-
-	fullKey := m.buildKey(key)
-	
-	m.mu.RLock()
-	item, exists := m.items[fullKey]
-	m.mu.RUnlock()
-	
-	if !exists {
-		return false, nil
-	}
-	
-	if m.isExpired(item) {
-		if m.config.EnableLazyCleanup {
-			m.mu.Lock()
-			delete(m.items, fullKey)
-			if item.lruNode != nil {
-				m.lruList.removeNode(item.lruNode)
-			}
-			m.mu.Unlock()
-		}
-		return false, nil
-	}
-	
-	return true, nil
-}
-
-// MGet 批量获取缓存值（字节数组）
-func (m *MemoryCache) MGet(ctx context.Context, keys []string) (map[string][]byte, error) {
-	result := make(map[string][]byte)
-	
-	for _, key := range keys {
-		if value, err := m.Get(ctx, key); err == nil && value != nil {
-			result[key] = value
-		}
-	}
-	
-	return result, nil
-}
-
-// MGetString 批量获取缓存值（字符串）
-func (m *MemoryCache) MGetString(ctx context.Context, keys []string) (map[string]string, error) {
-	result := make(map[string]string)
-	
-	for _, key := range keys {
-		if value, err := m.GetString(ctx, key); err == nil && value != "" {
-			result[key] = value
-		}
-	}
-	
-	return result, nil
-}
-
-// MSet 批量设置缓存值（字节数组）
-func (m *MemoryCache) MSet(ctx context.Context, kvPairs map[string][]byte, expiration time.Duration) error {
-	for key, value := range kvPairs {
-		if err := m.Set(ctx, key, value, expiration); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// MSetString 批量设置缓存值（字符串）
-func (m *MemoryCache) MSetString(ctx context.Context, kvPairs map[string]string, expiration time.Duration) error {
-	for key, value := range kvPairs {
-		if err := m.SetString(ctx, key, value, expiration); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// MDelete 批量删除缓存值
-func (m *MemoryCache) MDelete(ctx context.Context, keys []string) error {
-	for _, key := range keys {
-		if err := m.Delete(ctx, key); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Increment 原子递增
-func (m *MemoryCache) Increment(ctx context.Context, key string, delta int64) (int64, error) {
-	return 0, fmt.Errorf("Increment not implemented for basic memory cache")
-}
-
-// Decrement 原子递减
-func (m *MemoryCache) Decrement(ctx context.Context, key string, delta int64) (int64, error) {
-	return 0, fmt.Errorf("Decrement not implemented for basic memory cache")
-}
-
-// SetNX 仅当键不存在时设置值
-func (m *MemoryCache) SetNX(ctx context.Context, key string, value []byte, expiration time.Duration) (bool, error) {
-	fullKey := m.buildKey(key)
-	
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	
-	if item, exists := m.items[fullKey]; exists && !m.isExpired(item) {
-		return false, nil
-	}
-	
-	now := time.Now().UnixNano()
-	item := &cacheItem{
-		value:       value,
-		expiration:  m.resolveExpiration(expiration),
-		accessTime:  now,
-		accessCount: 1,
-		createTime:  now,
-	}
-	
-	if m.config.EvictionPolicy == EvictionLRU {
-		item.lruNode = &lruNode{key: fullKey}
-		m.lruList.addToHead(item.lruNode)
-	}
-	
-	m.items[fullKey] = item
-	return true, nil
-}
-
-// SetNXString 仅当键不存在时设置字符串值
-func (m *MemoryCache) SetNXString(ctx context.Context, key string, value string, expiration time.Duration) (bool, error) {
-	return m.SetNX(ctx, key, []byte(value), expiration)
-}
-
-// TTL 获取键的剩余生存时间
-func (m *MemoryCache) TTL(ctx context.Context, key string) (time.Duration, error) {
-	fullKey := m.buildKey(key)
-	
-	m.mu.RLock()
-	item, exists := m.items[fullKey]
-	m.mu.RUnlock()
-	
-	if !exists {
-		return -2, nil
-	}
-	
-	if item.expiration == 0 {
-		return -1, nil
-	}
-	
-	remaining := time.Duration(item.expiration - time.Now().UnixNano())
-	if remaining <= 0 {
-		return -2, nil
-	}
-	
-	return remaining, nil
-}
-
-// Expire 设置键的过期时间
-func (m *MemoryCache) Expire(ctx context.Context, key string, expiration time.Duration) (bool, error) {
-	fullKey := m.buildKey(key)
-	
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	
-	item, exists := m.items[fullKey]
-	if !exists || m.isExpired(item) {
-		return false, nil
-	}
-	
-	item.expiration = m.resolveExpiration(expiration)
-	return true, nil
-}
-
-// Ping 测试连接
-func (m *MemoryCache) Ping(ctx context.Context) error {
-	if m.closed {
-		return fmt.Errorf("cache is closed")
-	}
-	return nil
-}
-
-// Close 关闭缓存连接
-func (m *MemoryCache) Close() error {
-	m.closeMu.Lock()
-	defer m.closeMu.Unlock()
-	
-	if m.closed {
-		return nil
-	}
-	
-	m.closed = true
-	
-	if m.cleanupTicker != nil {
-		m.cleanupTicker.Stop()
-		close(m.cleanupDone)
-	}
-	
-	m.mu.Lock()
-	m.items = make(map[string]*cacheItem)
-	m.lruList = newLRUList()
-	m.mu.Unlock()
-	
-	return nil
-}
-
-// Stats 获取缓存统计信息
-func (m *MemoryCache) Stats() map[string]interface{} {
-	m.metrics.mu.RLock()
-	defer m.metrics.mu.RUnlock()
-	
-	m.mu.RLock()
-	totalItems := int64(len(m.items))
-	m.mu.RUnlock()
-	
-	hitRate := float64(0)
-	if m.metrics.totalOps > 0 {
-		hitRate = float64(m.metrics.hits) / float64(m.metrics.totalOps)
-	}
-	
-	return map[string]interface{}{
-		"type":         "memory",
-		"total_ops":    m.metrics.totalOps,
-		"hits":         m.metrics.hits,
-		"misses":       m.metrics.misses,
-		"hit_rate":     hitRate,
-		"evictions":    m.metrics.evictions,
-		"expirations":  m.metrics.expirations,
-		"total_items":  totalItems,
-		"max_size":     m.config.MaxSize,
-		"last_updated": m.metrics.lastUpdated,
-	}
-}
-
-// FlushAll 清空所有缓存
-func (m *MemoryCache) FlushAll(ctx context.Context) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	
-	m.items = make(map[string]*cacheItem)
-	m.lruList = newLRUList()
-	return nil
-}
-
-// SelectDB 选择数据库（内存缓存不支持）
-func (m *MemoryCache) SelectDB(ctx context.Context, db int) error {
-	return fmt.Errorf("memory cache does not support database selection")
-}
-
-// Keys 获取匹配模式的所有键
-func (m *MemoryCache) Keys(ctx context.Context, pattern string) ([]string, error) {
-	var keys []string
-	
-	m.mu.RLock()
-	for key, item := range m.items {
-		if !m.isExpired(item) {
-			originalKey := m.parseKey(key)
-			if matchPattern(originalKey, pattern) {
-				keys = append(keys, originalKey)
-			}
-		}
-	}
-	m.mu.RUnlock()
-	
-	return keys, nil
-}
-
-// matchPattern 简单的模式匹配
-func matchPattern(key, pattern string) bool {
-	if pattern == "*" {
-		return true
-	}
-	
-	// 简单实现，只支持*结尾的模式
-	if strings.HasSuffix(pattern, "*") {
-		prefix := pattern[:len(pattern)-1]
-		return strings.HasPrefix(key, prefix)
-	}
-	
-	return key == pattern
-}
-
-// Size 获取缓存中键的数量
-func (m *MemoryCache) Size(ctx context.Context) (int64, error) {
-	m.mu.RLock()
-	total := int64(len(m.items))
-	m.mu.RUnlock()
-	return total, nil
-}
-
-// GetSet 设置新值并返回旧值
-func (m *MemoryCache) GetSet(ctx context.Context, key string, value []byte) ([]byte, error) {
-	oldValue, _ := m.Get(ctx, key)
-	err := m.Set(ctx, key, value, m.config.DefaultExpiration)
-	return oldValue, err
-}
-
-// GetSetString 设置新字符串值并返回旧字符串值
-func (m *MemoryCache) GetSetString(ctx context.Context, key string, value string) (string, error) {
-	oldValue, _ := m.GetString(ctx, key)
-	err := m.SetString(ctx, key, value, m.config.DefaultExpiration)
-	return oldValue, err
-}
-
-// Append 向字符串值追加内容
-func (m *MemoryCache) Append(ctx context.Context, key string, value string) (int, error) {
-	return 0, fmt.Errorf("Append not implemented for basic memory cache")
-} 

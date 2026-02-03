@@ -10,11 +10,11 @@ import (
 	"gateway/pkg/utils/random"
 )
 
-// ServiceCache 服务缓存 - 挂载存储
+// ServiceCache 服务缓存 - 挂载存储（本地实现）
 // 服务和节点作为整体存储，符合业务模型
 //
 // 设计说明：
-// - 全局单例，无需初始化，直接使用
+// - 纯本地缓存实现，使用 sync.Map 存储
 // - 服务直接包含节点列表（Service.Nodes），实现挂载存储
 // - 直接使用类型自带的 EditTime 字段，无需额外包装结构
 // - 支持增量更新（AddNode/RemoveNode/UpdateNode）
@@ -38,12 +38,24 @@ type ServiceCache struct {
 	nodeIndex sync.Map
 }
 
-// 全局服务缓存实例
-var globalCache = &ServiceCache{}
+// 本地缓存实例（仅作为内部实现）
+var localCache = &ServiceCache{}
 
-// GetGlobalCache 获取全局服务缓存实例
-func GetGlobalCache() *ServiceCache {
-	return globalCache
+// GetGlobalCache 获取全局服务缓存实例（智能选择）
+// 自动根据 default 缓存配置选择最佳实现：
+// - 如果 default 缓存是 Redis → 返回 RedisServiceCache
+// - 否则 → 返回 ServiceCache（本地缓存）
+//
+// 注意：此方法返回 IServiceCache 接口，兼容所有实现
+func GetGlobalCache() IServiceCache {
+	return GetGlobalSmartCache()
+}
+
+// GetLocalCache 获取纯本地缓存实例
+// 直接返回本地缓存实现，不进行智能选择
+// 适用于需要明确使用本地缓存的场景
+func GetLocalCache() *ServiceCache {
+	return localCache
 }
 
 // GetService 获取服务信息（包含节点）

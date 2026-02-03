@@ -6,6 +6,30 @@
 
 ## [Unreleased]（未发布）
 
+### 新增
+- 🚀 **服务注册发现集群支持（基于 Redis）**
+  - 新增 `RedisServiceCache` 实现，支持服务注册中心集群部署
+
+- 🔒 **Redis 配置支持加密密码**
+  - Redis 配置的密码字段支持使用 `password_plugin` 加密
+
+- 🔒 **数据库配置支持加密密码**
+  - 数据库连接配置的密码字段支持使用 `password_plugin` 加密
+
+### 修复
+- 🐛 **[严重] 修复 Redis 缓存潜在的 Panic 和并发安全问题**
+  - 修复 `getUniversalClient()` 返回 nil 导致所有 Redis 操作 panic 的问题
+  - 修复 `Close()` 后继续使用导致 panic 的问题
+  - 完整实现 TLS CA 证书加载功能
+  - 将 `redis.go`（1338行）拆分为 8 个模块化文件，提高可维护性
+
+- 🐛 **修复 Docker 容器中文乱码和日志识别问题**
+  - 在 Alpine 镜像（Dockerfile）中添加 `musl-locales` 和 `musl-locales-lang` 包支持
+  - 在 Debian 镜像（Dockerfile.oracle）中添加 `locales` 包并生成 `zh_CN.UTF-8` locale
+
+- 🐛 **修复集群服务重启后回溯处理历史事件问题**
+  - 修复集群服务重启时 `lastEventTime` 初始化为1小时前导致的问题
+
 ## [3.0.6] - 2026-01-30
 
 ### 新增

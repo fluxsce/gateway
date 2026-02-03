@@ -13,7 +13,7 @@ app:
   #   - Local (系统本地时区)
   local_timezone: "Asia/Shanghai"
   #版本
-  version: "3.0.6"
+  version: "3.0.7"
   
   # 默认加密密钥（用于系统内部加密解密）
   # 建议在生产环境中修改为自定义密钥，长度建议至少32个字符

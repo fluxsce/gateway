@@ -38,7 +38,7 @@ RUN go mod download
 COPY . .
 
 # 构建参数
-ARG VERSION=3.0.6
+ARG VERSION=3.0.7
 ARG BUILD_DATE
 ARG GIT_COMMIT=unknown
 
@@ -65,7 +65,7 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
 FROM alpine:3.19
 
 # 构建参数（在运行时阶段也需要）
-ARG VERSION=3.0.6
+ARG VERSION=3.0.7
 ARG BUILD_DATE
 ARG GIT_COMMIT=unknown
 
@@ -85,10 +85,15 @@ RUN apk add --no-cache \
     busybox-extras \
     less \
     vim \
-    net-tools
+    net-tools \
+    musl-locales \
+    musl-locales-lang
 
-# 设置时区
-ENV TZ=Asia/Shanghai
+# 设置时区和字符编码
+ENV TZ=Asia/Shanghai \
+    LANG=zh_CN.UTF-8 \
+    LC_ALL=zh_CN.UTF-8 \
+    LANGUAGE=zh_CN:zh
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # 创建非 root 用户

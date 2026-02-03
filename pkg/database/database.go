@@ -7,6 +7,7 @@ import (
 	"gateway/pkg/config"
 	"gateway/pkg/database/dbtypes"
 	"gateway/pkg/database/dsn"
+	"gateway/pkg/security"
 	"sync"
 )
 
@@ -394,6 +395,13 @@ func Open(config *DbConfig) (Database, error) {
 		return nil, fmt.Errorf("unsupported database driver: %s", config.Driver)
 	}
 
+	// 解密密码（如果需要）
+	decryptedPassword, err := security.DecryptWithDefaultKey(config.Connection.Password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt database password: %w", err)
+	}
+	config.Connection.Password = decryptedPassword
+
 	// 生成DSN
 	if config.DSN == "" {
 		dsnStr, err := dsn.Generate(config)
@@ -448,6 +456,13 @@ func openWithoutLock(config *DbConfig) (Database, error) {
 	if !exists {
 		return nil, fmt.Errorf("unsupported database driver: %s", config.Driver)
 	}
+
+	// 解密密码（如果需要）
+	decryptedPassword, err := security.DecryptWithDefaultKey(config.Connection.Password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt database password: %w", err)
+	}
+	config.Connection.Password = decryptedPassword
 
 	// 生成DSN
 	if config.DSN == "" {

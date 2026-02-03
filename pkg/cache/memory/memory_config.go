@@ -15,8 +15,8 @@ type MemoryConfig struct {
 	MaxSize int64 `yaml:"max_size" json:"max_size" mapstructure:"max_size"` // 最大存储条目数，0表示无限制，默认: 10000
 
 	// === 过期配置 ===
-	DefaultExpiration time.Duration `yaml:"default_expiration" json:"default_expiration" mapstructure:"default_expiration"` // 默认过期时间，0表示永不过期，默认: 1小时
-	CleanupInterval   time.Duration `yaml:"cleanup_interval" json:"cleanup_interval" mapstructure:"cleanup_interval"`       // 清理过期数据的间隔，默认: 10分钟
+	DefaultExpiration time.Duration `yaml:"default_expiration" json:"default_expiration" mapstructure:"default_expiration"`    // 默认过期时间，0表示永不过期，默认: 1小时
+	CleanupInterval   time.Duration `yaml:"cleanup_interval" json:"cleanup_interval" mapstructure:"cleanup_interval"`          // 清理过期数据的间隔，默认: 10分钟
 	EnableLazyCleanup bool          `yaml:"enable_lazy_cleanup" json:"enable_lazy_cleanup" mapstructure:"enable_lazy_cleanup"` // 是否启用懒惰清理（访问时清理），默认: true
 
 	// === 淘汰策略 ===
@@ -26,7 +26,7 @@ type MemoryConfig struct {
 	KeyPrefix string `yaml:"key_prefix" json:"key_prefix" mapstructure:"key_prefix"` // 缓存键前缀，用于区分不同应用或环境
 
 	// === 监控配置 ===
-	EnableMetrics    bool   `yaml:"enable_metrics" json:"enable_metrics" mapstructure:"enable_metrics"`       // 是否启用基础指标收集，默认: false
+	EnableMetrics    bool   `yaml:"enable_metrics" json:"enable_metrics" mapstructure:"enable_metrics"`          // 是否启用基础指标收集，默认: false
 	MetricsNamespace string `yaml:"metrics_namespace" json:"metrics_namespace" mapstructure:"metrics_namespace"` // 指标命名空间，默认: memory_cache
 }
 
@@ -44,7 +44,7 @@ const (
 	EvictionFIFO EvictionPolicy = "fifo"
 )
 
-// GetType 实现CacheConfig接口，返回缓存类型
+// GetType 返回缓存类型标识
 func (m *MemoryConfig) GetType() string {
 	return "memory"
 }
@@ -156,4 +156,22 @@ func (m *MemoryConfig) IsMetricsEnabled() bool {
 func (m *MemoryConfig) String() string {
 	return fmt.Sprintf("MemoryConfig{Enabled: %v, MaxSize: %d, DefaultExpiration: %v, EvictionPolicy: %s, EnableMetrics: %v}",
 		m.Enabled, m.MaxSize, m.DefaultExpiration, m.EvictionPolicy, m.EnableMetrics)
-} 
+}
+
+// GetDefaultConfig 获取默认的内存缓存配置。
+//
+// 返回值：
+//   - map[string]interface{}: 默认配置映射，用于生成配置模板
+func GetDefaultConfig() map[string]interface{} {
+	return map[string]interface{}{
+		"enabled":             true,
+		"max_size":            10000,
+		"key_prefix":          "",
+		"eviction_policy":     string(EvictionTTL),
+		"default_expiration":  "1h",
+		"cleanup_interval":    "10m",
+		"enable_lazy_cleanup": true,
+		"enable_metrics":      false,
+		"metrics_namespace":   "memory_cache",
+	}
+}

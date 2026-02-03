@@ -22,22 +22,37 @@ type CacheRootConfig struct {
 	Connections map[string]*CacheConnectionConfig `mapstructure:"connections"` // 连接配置映射
 }
 
-// LoadAllCacheConnections 从配置文件加载所有缓存连接
-// 解析配置文件中的所有缓存连接配置，支持Redis和内存缓存
-// 只有enabled为true的连接才会被创建
-// 参数:
+// LoadAllCacheConnections 从配置文件加载所有缓存连接。
 //
-//	configPath: 数据库配置文件路径（包含缓存配置）
+// 解析配置文件中的所有缓存连接配置，支持 Redis 和内存缓存。
+// 只有 enabled 为 true 的连接才会被创建。
 //
-// 返回:
+// 参数：
+//   - configPath: 数据库配置文件路径（包含缓存配置）
 //
-//	map[string]Cache: 连接名称到缓存实例的映射
-//	error: 加载失败时返回错误信息
+// 返回值：
+//   - map[string]Cache: 连接名称到缓存实例的映射
+//   - error: 加载失败时返回错误信息
+//
+// 配置示例：
+//
+//	cache:
+//	  default: "redis_main"
+//	  connections:
+//	    redis_main:
+//	      type: "redis"
+//	      config:
+//	        enabled: true
+//	        mode: "single"
+//	        host: "localhost"
+//	        port: 6379
+//	    memory_cache:
+//	      type: "memory"
+//	      config:
+//	        enabled: true
+//	        max_size: 10000
 func LoadAllCacheConnections(configPath string) (map[string]Cache, error) {
-	// 首先加载配置文件
-	if err := config.LoadConfigFile(configPath); err != nil {
-		return nil, fmt.Errorf("加载配置文件失败: %w", err)
-	}
+	// 注意：配置文件已在应用启动时加载，这里不需要重复加载
 
 	// 解析缓存配置
 	var cacheConfig CacheRootConfig
@@ -48,7 +63,8 @@ func LoadAllCacheConnections(configPath string) (map[string]Cache, error) {
 
 	// 验证配置
 	if len(cacheConfig.Connections) == 0 {
-		return nil, fmt.Errorf("未找到缓存连接配置")
+		logger.Warn("未找到缓存连接配置，返回空连接映射")
+		return make(map[string]Cache), nil // 返回空数组，不报错
 	}
 
 	// 获取全局缓存管理器
@@ -57,8 +73,11 @@ func LoadAllCacheConnections(configPath string) (map[string]Cache, error) {
 
 	// 遍历所有配置，创建启用的连接
 	for name, connConfig := range cacheConfig.Connections {
+		// 构建配置路径
+		configPath := fmt.Sprintf("cache.connections.%s.config", name)
+
 		// 使用工厂方法创建缓存实例
-		cache, err := createCacheFromConfig(name, connConfig)
+		cache, err := createCacheFromConfigPath(name, connConfig.Type, configPath)
 		if err != nil {
 			return nil, fmt.Errorf("创建缓存连接 '%s' 失败: %w", name, err)
 		}
@@ -123,27 +142,34 @@ func LoadAllCacheConnections(configPath string) (map[string]Cache, error) {
 	return connections, nil
 }
 
-// createCacheFromConfig 根据配置类型创建缓存实例
-// 这是统一的入口点，负责分发到各个模块的工厂方法
+// createCacheFromConfigPath 根据配置路径和类型创建缓存实例。
 //
-// 注意：此函数解决了Go语言中类型化nil的问题
-// 当工厂方法返回(*ConcreteType)(nil)时，赋值给接口变量后 != nil，但调用方法会空指针异常
-// 通过在此处统一检查并转换为真正的nil，避免了接口中包含类型化nil的问题
-func createCacheFromConfig(name string, connConfig *CacheConnectionConfig) (Cache, error) {
+// 该函数是统一的入口点，负责根据类型分发到各个模块的工厂方法。
+// 使用 config.GetSection 直接将配置映射到对应的配置结构体，完全自动化，无需手动映射。
+//
+// 参数：
+//   - name: 连接名称
+//   - cacheType: 缓存类型（"redis" 或 "memory"）
+//   - configPath: 配置路径（如 "cache.connections.redis_main.config"）
+//
+// 返回值：
+//   - Cache: 缓存实例，如果连接未启用则返回 nil
+//   - error: 创建失败时返回错误
+//
+// 注意：此函数解决了Go语言中类型化nil的问题。
+// 当工厂方法返回 (*ConcreteType)(nil) 时，赋值给接口变量后 != nil，但调用方法会空指针异常。
+// 通过在此处统一检查并转换为真正的 nil，避免了接口中包含类型化 nil 的问题。
+func createCacheFromConfigPath(name string, cacheType string, configPath string) (Cache, error) {
 	// 验证配置类型
-	if connConfig.Type == "" {
+	if cacheType == "" {
 		return nil, fmt.Errorf("缓存类型不能为空")
 	}
 
-	if connConfig.Config == nil {
-		return nil, fmt.Errorf("缓存配置不能为空")
-	}
-
 	// 根据类型调用对应的工厂方法
-	switch connConfig.Type {
+	switch cacheType {
 	case "redis":
-		// 使用Redis模块的工厂方法
-		redisCache, err := redis.CreateFromConfig(name, connConfig.Config)
+		// 使用Redis模块的工厂方法（传入配置路径）
+		redisCache, err := redis.CreateFromConfigPath(name, configPath)
 		if err != nil {
 			return nil, fmt.Errorf("Redis工厂方法创建失败: %w", err)
 		}
@@ -154,8 +180,8 @@ func createCacheFromConfig(name string, connConfig *CacheConnectionConfig) (Cach
 		return redisCache, nil
 
 	case "memory":
-		// 使用内存缓存模块的工厂方法
-		memoryCache, err := memory.CreateFromConfig(name, connConfig.Config)
+		// 使用内存缓存模块的工厂方法（传入配置路径）
+		memoryCache, err := memory.CreateFromConfigPath(name, configPath)
 		if err != nil {
 			return nil, fmt.Errorf("内存缓存工厂方法创建失败: %w", err)
 		}
@@ -166,7 +192,7 @@ func createCacheFromConfig(name string, connConfig *CacheConnectionConfig) (Cach
 		return memoryCache, nil
 
 	default:
-		return nil, fmt.Errorf("不支持的缓存类型 '%s'", connConfig.Type)
+		return nil, fmt.Errorf("不支持的缓存类型 '%s'", cacheType)
 	}
 }
 
@@ -194,13 +220,10 @@ func ValidateConnectionConfig(name string, connConfig *CacheConnectionConfig) er
 
 	// 根据类型进行特定验证
 	switch connConfig.Type {
-	case "redis":
-		// 使用Redis模块的验证方法
-		return redis.ValidateConfig(connConfig.Config)
-
-	case "memory":
-		// 使用内存缓存模块的验证方法
-		return memory.ValidateConfig(connConfig.Config)
+	case "redis", "memory":
+		// Redis 和 Memory 缓存都有各自的 Validate 方法在配置结构体中
+		// 这里只做基本验证，具体验证在创建时进行
+		return nil
 
 	default:
 		return fmt.Errorf("连接 '%s' 使用了不支持的缓存类型 '%s'", name, connConfig.Type)
@@ -249,8 +272,11 @@ func ReloadConnection(name string, connConfig *CacheConnectionConfig) error {
 		return fmt.Errorf("新配置验证失败: %w", err)
 	}
 
+	// 构建配置路径
+	configPath := fmt.Sprintf("cache.connections.%s.config", name)
+
 	// 创建新连接
-	newCache, err := createCacheFromConfig(name, connConfig)
+	newCache, err := createCacheFromConfigPath(name, connConfig.Type, configPath)
 	if err != nil {
 		return fmt.Errorf("创建新连接失败: %w", err)
 	}
@@ -284,8 +310,16 @@ func GetSupportedCacheTypes() []string {
 	return []string{"redis", "memory"}
 }
 
-// GetDefaultConfigs 获取所有缓存类型的默认配置
-// 用于生成配置模板
+// GetDefaultConfigs 获取所有缓存类型的默认配置。
+//
+// 返回值：
+//   - map[string]interface{}: 所有缓存类型的默认配置映射
+//
+// 使用示例：
+//
+//	defaults := cache.GetDefaultConfigs()
+//	redisDefaults := defaults["redis"]
+//	memoryDefaults := defaults["memory"]
 func GetDefaultConfigs() map[string]interface{} {
 	return map[string]interface{}{
 		"redis":  redis.GetDefaultConfig(),

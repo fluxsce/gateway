@@ -425,12 +425,9 @@ type Cache interface {
 	//   - []string: 成员列表
 	//   - error: 可能的错误
 	ZRange(ctx context.Context, key string, start, stop int64) ([]string, error)
-}
 
-// CacheConfig 缓存配置基础接口
-type CacheConfig interface {
-	// GetType 获取缓存类型
-	GetType() string
-	// Validate 验证配置
-	Validate() error
+	// GetCacheType 获取缓存类型
+	// 返回:
+	//   - string: 缓存类型标识，如 "redis", "memory"
+	GetCacheType() string
 }
