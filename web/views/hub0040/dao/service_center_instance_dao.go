@@ -178,6 +178,12 @@ func (dao *ServiceCenterInstanceDAO) UpdateServiceCenterInstance(ctx context.Con
 	instance.AddTime = currentInstance.AddTime
 	instance.AddWho = currentInstance.AddWho
 
+	// 保留运行状态相关字段（不允许通过编辑接口修改）
+	instance.InstanceStatus = currentInstance.InstanceStatus
+	instance.StatusMessage = currentInstance.StatusMessage
+	instance.LastStatusTime = currentInstance.LastStatusTime
+	instance.LastHealthCheckTime = currentInstance.LastHealthCheckTime
+
 	// 使用 Update 方法自动构建更新SQL（乐观锁：基于当前版本号）
 	// 注意：WHERE 条件的参数全部使用 currentInstance 的值，确保使用数据库中的实际值进行匹配
 	where := "tenantId = ? AND instanceName = ? AND environment = ? AND currentVersion = ?"

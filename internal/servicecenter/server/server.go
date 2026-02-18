@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"gateway/internal/servicecenter/centerlog"
 	"gateway/internal/servicecenter/dao"
 	"gateway/internal/servicecenter/server/handler"
 	"gateway/internal/servicecenter/server/interceptor"
@@ -365,6 +366,8 @@ func (s *Server) Start(ctx context.Context) error {
 			if updateErr := s.updateInstanceStatus(ctx, types.InstanceStatusError, errMsg); updateErr != nil {
 				logger.Warn("更新错误状态失败", "error", updateErr)
 			}
+			// 发送启动失败告警
+			centerlog.HandleServerStartFailure(config, err)
 			logger.Error("构建 TLS 配置失败，服务器启动被阻止", err,
 				"instanceName", config.InstanceName)
 			return fmt.Errorf("构建 TLS 配置失败: %w", err)
@@ -386,13 +389,14 @@ func (s *Server) Start(ctx context.Context) error {
 	historyDAO := dao.NewHistoryDAO(s.db)
 
 	// 构建 Handler 依赖
-	// RegistryHandler 不需要任何 DAO（直接操作缓存）
-	registryHandler := handler.NewRegistryHandler()
+	// RegistryHandler 需要 ConfigProvider（用于告警等功能）
+	registryHandler := handler.NewRegistryHandler(s)
 
-	// ConfigHandler 需要 DAO（配置需要持久化到数据库）
+	// ConfigHandler 需要 DAO（配置需要持久化到数据库）和 ConfigProvider
 	configDeps := &handler.ConfigHandlerDeps{
-		ConfigDAO:  configDAO,
-		HistoryDAO: historyDAO,
+		ConfigDAO:      configDAO,
+		HistoryDAO:     historyDAO,
+		ConfigProvider: s, // Server 实现了 ConfigProvider 接口
 	}
 
 	// 创建配置中心处理器
@@ -404,6 +408,7 @@ func (s *Server) Start(ctx context.Context) error {
 	streamDeps := &handler.StreamHandlerDeps{
 		RegistryHandler: registryHandler,
 		ConfigHandler:   configHandler,
+		ConfigProvider:  s, // Server 实现了 ConfigProvider 接口
 	}
 	streamHandler := handler.NewStreamHandler(streamDeps)
 
@@ -441,6 +446,8 @@ func (s *Server) Start(ctx context.Context) error {
 		if updateErr := s.updateInstanceStatus(ctx, types.InstanceStatusError, errMsg); updateErr != nil {
 			logger.Warn("更新错误状态失败", "error", updateErr)
 		}
+		// 发送启动失败告警
+		centerlog.HandleServerStartFailure(config, err)
 		return fmt.Errorf("端口 %s 已被占用或无法绑定: %w", listenAddr, err)
 	}
 	// 立即保存监听器，持有端口（不关闭，直到服务器停止）
@@ -505,6 +512,8 @@ func (s *Server) Start(ctx context.Context) error {
 			if updateErr := s.updateInstanceStatus(ctx, types.InstanceStatusError, statusMsg); updateErr != nil {
 				logger.Warn("更新错误状态失败", "error", updateErr)
 			}
+			// 发送异常停止告警
+			centerlog.HandleServerStopAbnormal(s.config, statusMsg)
 		} else {
 			// 正常停止
 			if updateErr := s.updateInstanceStatus(ctx, types.InstanceStatusStopped, "服务器已停止"); updateErr != nil {

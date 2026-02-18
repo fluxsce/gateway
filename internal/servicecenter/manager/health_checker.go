@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gateway/internal/servicecenter/cache"
+	"gateway/internal/servicecenter/centerlog"
 	pb "gateway/internal/servicecenter/server/proto"
 	"gateway/internal/servicecenter/types"
 	"gateway/pkg/logger"
@@ -155,6 +156,15 @@ func (hc *HealthChecker) performHealthCheck() {
 		logger.Warn("缓存同步失败",
 			"instanceName", hc.instanceName,
 			"error", err)
+
+		// 获取实例配置并发送告警
+		srv := hc.manager.GetInstance(hc.instanceName)
+		if srv != nil {
+			config := srv.GetConfig()
+			if config != nil {
+				centerlog.HandleSyncFailure(config, err)
+			}
+		}
 	} else {
 		logger.Debug("缓存同步成功", "instanceName", hc.instanceName)
 	}
@@ -456,6 +466,27 @@ func (hc *HealthChecker) checkAndEvictTimeoutNodes(ctx context.Context) int {
 			"serviceName", item.node.ServiceName,
 			"namespaceId", item.node.NamespaceId,
 			"groupName", item.node.GroupName)
+	}
+
+	// 发送节点驱逐告警（在循环外，一次性发送总数）
+	if evictedCount > 0 {
+		srv := hc.manager.GetInstance(hc.instanceName)
+		if srv != nil {
+			config := srv.GetConfig()
+			if config != nil {
+				// 构建驱逐节点信息列表
+				evictedNodeInfos := make([]centerlog.NodeEvictionInfo, 0, len(evictItems))
+				for _, item := range evictItems {
+					evictedNodeInfos = append(evictedNodeInfos, centerlog.NodeEvictionInfo{
+						NodeId:      item.node.NodeId,
+						ServiceName: item.node.ServiceName,
+						IpAddress:   item.node.IpAddress,
+						Port:        int(item.node.PortNumber),
+					})
+				}
+				centerlog.HandleNodeEviction(config, evictedCount, evictedNodeInfos)
+			}
+		}
 	}
 
 	return evictedCount

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gateway/internal/servicecenter/cache"
+	"gateway/internal/servicecenter/centerlog"
 	"gateway/internal/servicecenter/dao"
 	pb "gateway/internal/servicecenter/server/proto"
 	"gateway/internal/servicecenter/server/subscriber"
@@ -72,8 +73,9 @@ import (
 
 // ConfigHandlerDeps Config Handler 依赖注入
 type ConfigHandlerDeps struct {
-	ConfigDAO  *dao.ConfigDAO
-	HistoryDAO *dao.HistoryDAO
+	ConfigDAO      *dao.ConfigDAO
+	HistoryDAO     *dao.HistoryDAO
+	ConfigProvider ConfigProvider // 配置提供者（用于告警等功能）
 }
 
 // ConfigHandler gRPC 配置中心处理器
@@ -282,6 +284,22 @@ func (h *ConfigHandler) SaveConfig(ctx context.Context, req *pb.ConfigData) (*pb
 	// 通知监听者
 	h.configWatcher.NotifyConfigUpdate(config)
 
+	// 发送配置变更告警
+	if h.deps.ConfigProvider != nil {
+		instanceConfig := h.deps.ConfigProvider.GetConfig()
+		if instanceConfig != nil {
+			configInfo := centerlog.ConfigChangeAlertInfo{
+				ChangeType:   changeType,
+				NamespaceId:  config.NamespaceId,
+				GroupName:    config.GroupName,
+				ConfigDataId: config.ConfigDataId,
+				Version:      config.Version,
+				ChangedBy:    config.EditWho,
+			}
+			centerlog.HandleConfigChange(instanceConfig, configInfo)
+		}
+	}
+
 	return &pb.SaveConfigResponse{
 		Success:    true,
 		Message:    "config saved successfully",
@@ -332,6 +350,22 @@ func (h *ConfigHandler) DeleteConfig(ctx context.Context, req *pb.ConfigKey) (*p
 
 	// 通知监听者
 	h.configWatcher.NotifyConfigDelete(tenantID, config.NamespaceId, config.GroupName, config.ConfigDataId)
+
+	// 发送配置删除告警
+	if h.deps.ConfigProvider != nil {
+		instanceConfig := h.deps.ConfigProvider.GetConfig()
+		if instanceConfig != nil {
+			configInfo := centerlog.ConfigChangeAlertInfo{
+				ChangeType:   "DELETE",
+				NamespaceId:  config.NamespaceId,
+				GroupName:    config.GroupName,
+				ConfigDataId: config.ConfigDataId,
+				Version:      config.Version,
+				ChangedBy:    "system", // DeleteConfig 没有 ChangedBy 字段，使用默认值
+			}
+			centerlog.HandleConfigChange(instanceConfig, configInfo)
+		}
+	}
 
 	return &pb.ConfigResponse{
 		Success: true,
@@ -702,6 +736,22 @@ func (h *ConfigHandler) RollbackConfig(ctx context.Context, req *pb.RollbackConf
 
 	// 通知监听者
 	h.configWatcher.NotifyConfigUpdate(config)
+
+	// 发送配置回滚告警
+	if h.deps.ConfigProvider != nil {
+		instanceConfig := h.deps.ConfigProvider.GetConfig()
+		if instanceConfig != nil {
+			configInfo := centerlog.ConfigChangeAlertInfo{
+				ChangeType:   "ROLLBACK",
+				NamespaceId:  config.NamespaceId,
+				GroupName:    config.GroupName,
+				ConfigDataId: config.ConfigDataId,
+				Version:      config.Version,
+				ChangedBy:    config.EditWho,
+			}
+			centerlog.HandleConfigChange(instanceConfig, configInfo)
+		}
+	}
 
 	return &pb.RollbackConfigResponse{
 		Success:    true,

@@ -5,7 +5,7 @@
  */
 
 import { useGDialog } from '@/components/gdialog'
-import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
+import { flattenExtProperty, getApiMessage, isApiSuccess, parseJsonData, unflattenExtProperty } from '@/utils/format'
 import { PlayCircleOutline, RefreshOutline, StopCircleOutline } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
@@ -397,63 +397,6 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
   const openConfigDialog = (instance: GatewayInstance) => {
     currentConfigInstanceId.value = instance.gatewayInstanceId
     configDialogVisible.value = true
-  }
-
-  /**
-   * 将 extProperty JSON 字符串展开为扁平字段（用于表单回填）
-   */
-  const flattenExtProperty = (data: Record<string, any>) => {
-    if (!data.extProperty || typeof data.extProperty !== 'string') {
-      return
-    }
-    try {
-      const extObj = JSON.parse(data.extProperty || '{}')
-      if (extObj && typeof extObj === 'object') {
-        // 将 extProperty 对象的属性展开为 extProperty.xxx 字段
-        Object.keys(extObj).forEach((key) => {
-          const value = extObj[key]
-          // alertStatusCodes 特殊处理：确保是字符串数组
-          if (key === 'alertStatusCodes') {
-            if (Array.isArray(value)) {
-              data[`extProperty.${key}`] = value.map((v: any) => String(v))
-            } else if (typeof value === 'string') {
-              data[`extProperty.${key}`] = value.split(',').map((s: string) => s.trim()).filter(Boolean)
-            }
-          } else {
-            data[`extProperty.${key}`] = value
-          }
-        })
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  /**
-   * 将扁平字段打包回 extProperty JSON 字符串（用于提交）
-   */
-  const unflattenExtProperty = (data: Record<string, any>) => {
-    const extPropertyObj: Record<string, any> = {}
-    
-    // 收集所有 extProperty.xxx 字段
-    Object.keys(data).forEach((key) => {
-      if (key.startsWith('extProperty.')) {
-        const subKey = key.substring('extProperty.'.length)
-        extPropertyObj[subKey] = data[key]
-        delete data[key] // 删除扁平字段
-      }
-    })
-    
-    // 转换为 JSON 字符串
-    if (Object.keys(extPropertyObj).length === 0) {
-      data.extProperty = ''
-    } else {
-      try {
-        data.extProperty = JSON.stringify(extPropertyObj)
-      } catch {
-        data.extProperty = ''
-      }
-    }
   }
 
   /**

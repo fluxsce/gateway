@@ -17,6 +17,8 @@ import (
 	"os"
 	"time"
 
+	"gateway/pkg/security"
+
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
@@ -26,53 +28,53 @@ import (
 // 包含连接MongoDB所需的所有配置参数
 type MongoConfig struct {
 	// === 基本标识信息 ===
-	ID      string `yaml:"id" json:"id" mapstructure:"id"`           // 配置ID，用于标识和引用
+	ID      string `yaml:"id" json:"id" mapstructure:"id"`                // 配置ID，用于标识和引用
 	Enabled bool   `yaml:"enabled" json:"enabled" mapstructure:"enabled"` // 是否启用该配置
-	
+
 	// === 基本连接信息 ===
-	Host     string `yaml:"host" json:"host" mapstructure:"host"`         // MongoDB主机地址，如 "localhost"
-	Port     int    `yaml:"port" json:"port" mapstructure:"port"`         // MongoDB端口号，默认 27017
+	Host     string `yaml:"host" json:"host" mapstructure:"host"`             // MongoDB主机地址，如 "localhost"
+	Port     int    `yaml:"port" json:"port" mapstructure:"port"`             // MongoDB端口号，默认 27017
 	Database string `yaml:"database" json:"database" mapstructure:"database"` // 要连接的数据库名称
-	
+
 	// === 认证信息 ===
 	Username string `yaml:"username" json:"username" mapstructure:"username"` // 用户名，用于身份验证
 	Password string `yaml:"password" json:"password" mapstructure:"password"` // 密码，用于身份验证
 	AuthDB   string `yaml:"authdb" json:"authdb" mapstructure:"authdb"`       // 认证数据库名称，通常为 "admin"
-	
+
 	// === 连接池配置 ===
-	MaxPoolSize      int           `yaml:"maxPoolSize" json:"maxPoolSize" mapstructure:"maxPoolSize"`           // 最大连接池大小，默认 100
-	MinPoolSize      int           `yaml:"minPoolSize" json:"minPoolSize" mapstructure:"minPoolSize"`           // 最小连接池大小，默认 5
-	MaxIdleTimeMS    time.Duration `yaml:"maxIdleTimeMS" json:"maxIdleTimeMS" mapstructure:"maxIdleTimeMS"`     // 连接最大空闲时间，默认 30分钟
+	MaxPoolSize      int           `yaml:"maxPoolSize" json:"maxPoolSize" mapstructure:"maxPoolSize"`                // 最大连接池大小，默认 100
+	MinPoolSize      int           `yaml:"minPoolSize" json:"minPoolSize" mapstructure:"minPoolSize"`                // 最小连接池大小，默认 5
+	MaxIdleTimeMS    time.Duration `yaml:"maxIdleTimeMS" json:"maxIdleTimeMS" mapstructure:"maxIdleTimeMS"`          // 连接最大空闲时间，默认 30分钟
 	ConnectTimeoutMS time.Duration `yaml:"connectTimeoutMS" json:"connectTimeoutMS" mapstructure:"connectTimeoutMS"` // 连接超时时间，默认 10秒
-	
+
 	// === 副本集配置 ===
 	ReplicaSet string   `yaml:"replicaSet" json:"replicaSet" mapstructure:"replicaSet"` // 副本集名称
-	Hosts      []string `yaml:"hosts" json:"hosts" mapstructure:"hosts"`               // 副本集中的主机地址列表
-	
+	Hosts      []string `yaml:"hosts" json:"hosts" mapstructure:"hosts"`                // 副本集中的主机地址列表
+
 	// === SSL/TLS 配置 ===
-	EnableTLS     bool   `yaml:"enableTLS" json:"enableTLS" mapstructure:"enableTLS"`         // 是否启用TLS加密连接
-	TLSCertFile   string `yaml:"tlsCertFile" json:"tlsCertFile" mapstructure:"tlsCertFile"`     // TLS客户端证书文件路径
-	TLSKeyFile    string `yaml:"tlsKeyFile" json:"tlsKeyFile" mapstructure:"tlsKeyFile"`       // TLS客户端私钥文件路径
-	TLSCAFile     string `yaml:"tlsCAFile" json:"tlsCAFile" mapstructure:"tlsCAFile"`         // TLS CA证书文件路径
+	EnableTLS     bool   `yaml:"enableTLS" json:"enableTLS" mapstructure:"enableTLS"`             // 是否启用TLS加密连接
+	TLSCertFile   string `yaml:"tlsCertFile" json:"tlsCertFile" mapstructure:"tlsCertFile"`       // TLS客户端证书文件路径
+	TLSKeyFile    string `yaml:"tlsKeyFile" json:"tlsKeyFile" mapstructure:"tlsKeyFile"`          // TLS客户端私钥文件路径
+	TLSCAFile     string `yaml:"tlsCAFile" json:"tlsCAFile" mapstructure:"tlsCAFile"`             // TLS CA证书文件路径
 	TLSSkipVerify bool   `yaml:"tlsSkipVerify" json:"tlsSkipVerify" mapstructure:"tlsSkipVerify"` // 是否跳过TLS证书验证（仅用于测试）
-	
+
 	// === 读写偏好配置 ===
-	ReadPreference      string        `yaml:"readPreference" json:"readPreference" mapstructure:"readPreference"`           // 读偏好：primary, secondary, nearest等
-	ReadConcern         string        `yaml:"readConcern" json:"readConcern" mapstructure:"readConcern"`                   // 读关注级别：local, majority, linearizable
-	WriteConcern        string        `yaml:"writeConcern" json:"writeConcern" mapstructure:"writeConcern"`                 // 写关注级别：majority, 1, 0等
+	ReadPreference      string        `yaml:"readPreference" json:"readPreference" mapstructure:"readPreference"`                // 读偏好：primary, secondary, nearest等
+	ReadConcern         string        `yaml:"readConcern" json:"readConcern" mapstructure:"readConcern"`                         // 读关注级别：local, majority, linearizable
+	WriteConcern        string        `yaml:"writeConcern" json:"writeConcern" mapstructure:"writeConcern"`                      // 写关注级别：majority, 1, 0等
 	WriteConcernTimeout time.Duration `yaml:"writeConcernTimeout" json:"writeConcernTimeout" mapstructure:"writeConcernTimeout"` // 写关注超时时间
-	
+
 	// === 其他高级配置 ===
-	AppName                  string        `yaml:"appName" json:"appName" mapstructure:"appName"`                                     // 应用程序名称，用于日志记录
-	RetryWrites              bool          `yaml:"retryWrites" json:"retryWrites" mapstructure:"retryWrites"`                         // 是否自动重试写操作
-	RetryReads               bool          `yaml:"retryReads" json:"retryReads" mapstructure:"retryReads"`                           // 是否自动重试读操作
+	AppName                  string        `yaml:"appName" json:"appName" mapstructure:"appName"`                                                    // 应用程序名称，用于日志记录
+	RetryWrites              bool          `yaml:"retryWrites" json:"retryWrites" mapstructure:"retryWrites"`                                        // 是否自动重试写操作
+	RetryReads               bool          `yaml:"retryReads" json:"retryReads" mapstructure:"retryReads"`                                           // 是否自动重试读操作
 	ServerSelectionTimeoutMS time.Duration `yaml:"serverSelectionTimeoutMS" json:"serverSelectionTimeoutMS" mapstructure:"serverSelectionTimeoutMS"` // 服务器选择超时时间
-	SocketTimeoutMS          time.Duration `yaml:"socketTimeoutMS" json:"socketTimeoutMS" mapstructure:"socketTimeoutMS"`           // Socket操作超时时间
-	HeartbeatIntervalMS      time.Duration `yaml:"heartbeatIntervalMS" json:"heartbeatIntervalMS" mapstructure:"heartbeatIntervalMS"` // 心跳检查间隔时间
-	
+	SocketTimeoutMS          time.Duration `yaml:"socketTimeoutMS" json:"socketTimeoutMS" mapstructure:"socketTimeoutMS"`                            // Socket操作超时时间
+	HeartbeatIntervalMS      time.Duration `yaml:"heartbeatIntervalMS" json:"heartbeatIntervalMS" mapstructure:"heartbeatIntervalMS"`                // 心跳检查间隔时间
+
 	// === 日志配置 ===
 	EnableLogging bool   `yaml:"enableLogging" json:"enableLogging" mapstructure:"enableLogging"` // 是否启用MongoDB驱动日志
-	LogLevel      string `yaml:"logLevel" json:"logLevel" mapstructure:"logLevel"`                 // 日志级别：debug, info, warn, error
+	LogLevel      string `yaml:"logLevel" json:"logLevel" mapstructure:"logLevel"`                // 日志级别：debug, info, warn, error
 }
 
 // NewDefaultConfig 创建默认的MongoDB配置
@@ -82,33 +84,33 @@ func NewDefaultConfig() *MongoConfig {
 		// 基本标识信息默认值
 		ID:      "default",
 		Enabled: true,
-		
+
 		// 基本连接信息默认值
 		Host:     "localhost",
 		Port:     27017,
 		Database: "test",
-		
+
 		// 连接池默认配置
-		MaxPoolSize:      100,                // 最大连接数
-		MinPoolSize:      5,                  // 最小连接数
-		MaxIdleTimeMS:    30 * time.Minute,   // 连接最大空闲时间
-		ConnectTimeoutMS: 10 * time.Second,   // 连接超时时间
-		
+		MaxPoolSize:      100,              // 最大连接数
+		MinPoolSize:      5,                // 最小连接数
+		MaxIdleTimeMS:    30 * time.Minute, // 连接最大空闲时间
+		ConnectTimeoutMS: 10 * time.Second, // 连接超时时间
+
 		// 读写偏好默认配置
 		ReadPreference:      "primary",       // 优先读取主节点
 		ReadConcern:         "local",         // 本地读关注级别
 		WriteConcern:        "majority",      // 大多数写关注级别
 		WriteConcernTimeout: 5 * time.Second, // 写关注超时时间
-		
+
 		// 其他默认配置
-		RetryWrites:              true,                // 启用写重试
-		RetryReads:               true,                // 启用读重试
-		ServerSelectionTimeoutMS: 30 * time.Second,   // 服务器选择超时
-		SocketTimeoutMS:          0,                   // Socket超时（0表示无限制）
-		HeartbeatIntervalMS:      10 * time.Second,   // 心跳间隔
-		
+		RetryWrites:              true,             // 启用写重试
+		RetryReads:               true,             // 启用读重试
+		ServerSelectionTimeoutMS: 30 * time.Second, // 服务器选择超时
+		SocketTimeoutMS:          0,                // Socket超时（0表示无限制）
+		HeartbeatIntervalMS:      10 * time.Second, // 心跳间隔
+
 		// 日志默认配置
-		EnableLogging: true,  // 启用日志
+		EnableLogging: true,   // 启用日志
 		LogLevel:      "info", // 默认日志级别
 	}
 }
@@ -129,27 +131,27 @@ func (c *MongoConfig) Validate() error {
 	if c.ID == "" {
 		return fmt.Errorf("MongoDB配置错误：必须指定配置ID")
 	}
-	
+
 	// 如果配置未启用，跳过其他验证
 	if !c.Enabled {
 		return nil
 	}
-	
+
 	// 检查主机配置
 	if c.Host == "" && len(c.Hosts) == 0 {
 		return fmt.Errorf("MongoDB配置错误：必须指定主机地址(host)或主机列表(hosts)")
 	}
-	
+
 	// 检查端口配置
 	if c.Port <= 0 && c.Host != "" {
 		return fmt.Errorf("MongoDB配置错误：端口号必须大于0，当前值: %d", c.Port)
 	}
-	
+
 	// 检查数据库名称
 	if c.Database == "" {
 		return fmt.Errorf("MongoDB配置错误：必须指定数据库名称")
 	}
-	
+
 	// 检查连接池配置
 	if c.MaxPoolSize <= 0 {
 		c.MaxPoolSize = 100 // 设置默认值
@@ -160,7 +162,7 @@ func (c *MongoConfig) Validate() error {
 	if c.MaxPoolSize < c.MinPoolSize {
 		return fmt.Errorf("MongoDB配置错误：最大连接数(%d)必须大于等于最小连接数(%d)", c.MaxPoolSize, c.MinPoolSize)
 	}
-	
+
 	// 检查超时配置
 	if c.ConnectTimeoutMS < 0 {
 		return fmt.Errorf("MongoDB配置错误：连接超时时间不能为负数")
@@ -168,7 +170,7 @@ func (c *MongoConfig) Validate() error {
 	if c.ServerSelectionTimeoutMS < 0 {
 		return fmt.Errorf("MongoDB配置错误：服务器选择超时时间不能为负数")
 	}
-	
+
 	// 检查读写偏好
 	validReadPreferences := []string{"primary", "primaryPreferred", "secondary", "secondaryPreferred", "nearest"}
 	if c.ReadPreference != "" {
@@ -183,7 +185,7 @@ func (c *MongoConfig) Validate() error {
 			return fmt.Errorf("MongoDB配置错误：无效的读偏好设置 '%s'，有效值为: %v", c.ReadPreference, validReadPreferences)
 		}
 	}
-	
+
 	// 检查读关注级别
 	validReadConcerns := []string{"local", "available", "majority", "linearizable", "snapshot"}
 	if c.ReadConcern != "" {
@@ -198,7 +200,7 @@ func (c *MongoConfig) Validate() error {
 			return fmt.Errorf("MongoDB配置错误：无效的读关注级别 '%s'，有效值为: %v", c.ReadConcern, validReadConcerns)
 		}
 	}
-	
+
 	// 检查日志级别
 	validLogLevels := []string{"debug", "info", "warn", "error"}
 	if c.LogLevel != "" {
@@ -213,7 +215,7 @@ func (c *MongoConfig) Validate() error {
 			return fmt.Errorf("MongoDB配置错误：无效的日志级别 '%s'，有效值为: %v", c.LogLevel, validLogLevels)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -237,7 +239,7 @@ func (c *MongoConfig) String() string {
 	if c.Password != "" {
 		maskedPassword = "***"
 	}
-	
+
 	return fmt.Sprintf("MongoConfig{ID: %s, Enabled: %t, Host: %s, Port: %d, Database: %s, Username: %s, Password: %s, MaxPoolSize: %d, MinPoolSize: %d}",
 		c.ID, c.Enabled, c.Host, c.Port, c.Database, c.Username, maskedPassword, c.MaxPoolSize, c.MinPoolSize)
 }
@@ -262,7 +264,7 @@ func (c *MongoConfig) HasAuthentication() bool {
 func (c *MongoConfig) ToClientOptions() (*options.ClientOptions, error) {
 	// 创建客户端选项
 	clientOptions := options.Client()
-	
+
 	// 设置主机信息
 	if len(c.Hosts) > 0 {
 		// 副本集模式
@@ -278,19 +280,24 @@ func (c *MongoConfig) ToClientOptions() (*options.ClientOptions, error) {
 		}
 		clientOptions.SetHosts([]string{host})
 	}
-	
+
 	// 设置认证信息
 	if c.Username != "" && c.Password != "" {
+		// 解密密码（如果是加密状态）
+		decryptedPassword, err := security.DecryptWithDefaultKey(c.Password)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt MongoDB password: %w", err)
+		}
 		credential := options.Credential{
 			Username: c.Username,
-			Password: c.Password,
+			Password: decryptedPassword,
 		}
 		if c.AuthDB != "" {
 			credential.AuthSource = c.AuthDB
 		}
 		clientOptions.SetAuth(credential)
 	}
-	
+
 	// 应用连接池配置
 	if c.MaxPoolSize > 0 {
 		clientOptions.SetMaxPoolSize(uint64(c.MaxPoolSize))
@@ -301,7 +308,7 @@ func (c *MongoConfig) ToClientOptions() (*options.ClientOptions, error) {
 	if c.MaxIdleTimeMS > 0 {
 		clientOptions.SetMaxConnIdleTime(c.MaxIdleTimeMS)
 	}
-	
+
 	// 应用超时配置
 	if c.ConnectTimeoutMS > 0 {
 		clientOptions.SetConnectTimeout(c.ConnectTimeoutMS)
@@ -315,7 +322,7 @@ func (c *MongoConfig) ToClientOptions() (*options.ClientOptions, error) {
 	if c.HeartbeatIntervalMS > 0 {
 		clientOptions.SetHeartbeatInterval(c.HeartbeatIntervalMS)
 	}
-	
+
 	// 应用读写偏好配置
 	if c.ReadPreference != "" {
 		if readPref, err := parseReadPreference(c.ReadPreference); err == nil {
@@ -327,16 +334,16 @@ func (c *MongoConfig) ToClientOptions() (*options.ClientOptions, error) {
 			clientOptions.SetWriteConcern(writeConcern)
 		}
 	}
-	
+
 	// 应用其他配置
 	if c.AppName != "" {
 		clientOptions.SetAppName(c.AppName)
 	}
-	
+
 	// 应用重试配置
 	clientOptions.SetRetryWrites(c.RetryWrites)
 	clientOptions.SetRetryReads(c.RetryReads)
-	
+
 	// 应用TLS配置
 	if c.EnableTLS {
 		tlsConfig := &tls.Config{
@@ -360,7 +367,7 @@ func (c *MongoConfig) ToClientOptions() (*options.ClientOptions, error) {
 		}
 		clientOptions.SetTLSConfig(tlsConfig)
 	}
-	
+
 	return clientOptions, nil
 }
 
@@ -385,7 +392,7 @@ func parseReadPreference(pref string) (*readpref.ReadPref, error) {
 // parseWriteConcern 解析写关注字符串
 func parseWriteConcern(concern string, timeout time.Duration) (*writeconcern.WriteConcern, error) {
 	var opts []writeconcern.Option
-	
+
 	switch concern {
 	case "majority":
 		opts = append(opts, writeconcern.WMajority())
@@ -396,10 +403,10 @@ func parseWriteConcern(concern string, timeout time.Duration) (*writeconcern.Wri
 	default:
 		return nil, fmt.Errorf("invalid write concern: %s", concern)
 	}
-	
+
 	if timeout > 0 {
 		opts = append(opts, writeconcern.WTimeout(timeout))
 	}
-	
+
 	return writeconcern.New(opts...), nil
-} 
+}

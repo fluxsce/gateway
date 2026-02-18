@@ -5,6 +5,7 @@
  */
 
 import { useGDialog } from '@/components/gdialog'
+import { flattenExtProperty, unflattenExtProperty } from '@/utils/format'
 import { PlayCircleOutline, RefreshOutline, StopCircleOutline } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
@@ -96,6 +97,9 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
         }
       }
 
+      // 展开 extProperty 为扁平字段
+      flattenExtProperty(formData)
+
       formDialogMode.value = 'edit'
       currentEditInstance.value = formData
       formDialogVisible.value = true
@@ -171,6 +175,9 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
           formData.ipBlacklist = []
         }
       }
+
+      // 展开 extProperty 为扁平字段
+      flattenExtProperty(formData)
 
       formDialogMode.value = 'view'
       currentEditInstance.value = formData
@@ -256,6 +263,9 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
           ? JSON.stringify(processedData.ipBlacklist)
           : ''
       }
+
+      // 将扁平字段打包回 extProperty JSON 字符串
+      unflattenExtProperty(processedData)
 
       if (formDialogMode.value === 'create') {
         // 新增模式

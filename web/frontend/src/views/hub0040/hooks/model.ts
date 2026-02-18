@@ -17,6 +17,7 @@ import {
 } from '@vicons/ionicons5'
 import { NDynamicTags } from 'naive-ui'
 import { h, ref } from 'vue'
+import { AlertChannelNameSelector } from '../../hub0080/components'
 import type { ServiceCenterInstance } from '../types/index'
 
 /**
@@ -125,6 +126,7 @@ export function useServiceCenterInstanceModel() {
       { key: 'performance', label: '性能配置' },
       { key: 'health', label: '健康检查' },
       { key: 'access', label: '访问控制' },
+      { key: 'alert', label: '告警配置' },
       { key: 'other', label: '其它' },
     ],
     fields: [
@@ -630,6 +632,201 @@ export function useServiceCenterInstanceModel() {
               },
               placeholder: '添加IP地址或CIDR网段，如: 192.168.1.100',
             })
+          },
+        },
+      ],
+    },
+
+    // ============= 告警配置 Tab =============
+    {
+      field: 'alert-basic-group',
+      label: '告警基础配置',
+      type: 'fieldset',
+      tabKey: 'alert',
+      children: [
+        {
+          field: 'extProperty.alertEnabled',
+          label: '启用告警',
+          type: 'switch',
+          span: 12,
+          defaultValue: 'N',
+          tips: '启用后，服务中心将根据以下配置发送告警通知',
+          props: {
+            checkedValue: 'Y',
+            uncheckedValue: 'N',
+          },
+        },
+        {
+          field: 'extProperty.channelName',
+          label: '告警渠道名称',
+          type: 'custom',
+          span: 12,
+          placeholder: '请输入告警渠道名称或点击选择',
+          tips: '不填写则使用默认告警渠道',
+          render: (formData: Record<string, any>) => {
+            return h(AlertChannelNameSelector, {
+              modelValue: formData['extProperty.channelName'] || '',
+              'onUpdate:modelValue': (value: string) => {
+                formData['extProperty.channelName'] = value
+              },
+            })
+          },
+        },
+      ],
+    },
+    {
+      field: 'alert-critical-group',
+      label: '关键告警配置（默认启用）',
+      type: 'fieldset',
+      tabKey: 'alert',
+      children: [
+        {
+          field: 'extProperty.alertOnStartFailure',
+          label: '服务启动失败告警',
+          type: 'switch',
+          span: 12,
+          defaultValue: 'Y',
+          tips: '当服务中心启动失败时发送告警',
+          props: {
+            checkedValue: 'Y',
+            uncheckedValue: 'N',
+          },
+        },
+        {
+          field: 'extProperty.alertOnStopAbnormal',
+          label: '服务异常停止告警',
+          type: 'switch',
+          span: 12,
+          defaultValue: 'Y',
+          tips: '当服务中心异常停止时发送告警',
+          props: {
+            checkedValue: 'Y',
+            uncheckedValue: 'N',
+          },
+        },
+        {
+          field: 'extProperty.alertOnHealthCheckFail',
+          label: '健康检查失败告警',
+          type: 'switch',
+          span: 12,
+          defaultValue: 'Y',
+          tips: '当服务健康检查失败时发送告警',
+          props: {
+            checkedValue: 'Y',
+            uncheckedValue: 'N',
+          },
+        },
+        {
+          field: 'extProperty.alertOnSyncFailure',
+          label: '缓存同步失败告警',
+          type: 'switch',
+          span: 12,
+          defaultValue: 'Y',
+          tips: '当缓存同步失败时发送告警',
+          props: {
+            checkedValue: 'Y',
+            uncheckedValue: 'N',
+          },
+        },
+        {
+          field: 'extProperty.alertOnConfigChange',
+          label: '配置变更告警',
+          type: 'switch',
+          span: 12,
+          defaultValue: 'Y',
+          tips: '当配置发生变更（新增/修改/删除/回滚）时发送告警',
+          props: {
+            checkedValue: 'Y',
+            uncheckedValue: 'N',
+          },
+        },
+      ],
+    },
+    {
+      field: 'alert-node-group',
+      label: '节点告警配置',
+      type: 'fieldset',
+      tabKey: 'alert',
+      children: [
+        {
+          field: 'extProperty.alertOnNodeEviction',
+          label: '节点驱逐告警',
+          type: 'switch',
+          span: 12,
+          defaultValue: 'Y',
+          tips: '当单次驱逐节点数量超过阈值时发送告警',
+          props: {
+            checkedValue: 'Y',
+            uncheckedValue: 'N',
+          },
+        },
+        {
+          field: 'extProperty.nodeEvictionThreshold',
+          label: '节点驱逐阈值',
+          type: 'number',
+          placeholder: '5',
+          span: 12,
+          defaultValue: 5,
+          tips: '单次健康检查驱逐节点数量达到此阈值时触发告警',
+          props: {
+            min: 1,
+            max: 1000,
+          },
+        },
+      ],
+    },
+    {
+      field: 'alert-operation-group',
+      label: '运维操作告警配置（默认关闭，高频操作）',
+      type: 'fieldset',
+      tabKey: 'alert',
+      children: [
+        {
+          field: 'extProperty.alertOnNodeRegister',
+          label: '节点注册告警',
+          type: 'switch',
+          span: 12,
+          defaultValue: 'N',
+          tips: '当节点注册时发送告警（高频操作，慎重开启）',
+          props: {
+            checkedValue: 'Y',
+            uncheckedValue: 'N',
+          },
+        },
+        {
+          field: 'extProperty.alertOnNodeUnregister',
+          label: '节点注销告警',
+          type: 'switch',
+          span: 12,
+          defaultValue: 'N',
+          tips: '当节点注销时发送告警（高频操作，慎重开启）',
+          props: {
+            checkedValue: 'Y',
+            uncheckedValue: 'N',
+          },
+        },
+        {
+          field: 'extProperty.alertOnSubscribeNotify',
+          label: '订阅通知告警',
+          type: 'switch',
+          span: 12,
+          defaultValue: 'N',
+          tips: '当服务订阅变更时发送告警（高频操作，慎重开启）',
+          props: {
+            checkedValue: 'Y',
+            uncheckedValue: 'N',
+          },
+        },
+        {
+          field: 'extProperty.alertOnConnectionLost',
+          label: '连接断开告警',
+          type: 'switch',
+          span: 12,
+          defaultValue: 'N',
+          tips: '当客户端连接断开时发送告警（高频操作，慎重开启）',
+          props: {
+            checkedValue: 'Y',
+            uncheckedValue: 'N',
           },
         },
       ],

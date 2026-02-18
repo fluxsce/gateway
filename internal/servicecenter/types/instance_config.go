@@ -1,6 +1,11 @@
 package types
 
-import "time"
+import (
+	"encoding/json"
+	"strconv"
+	"strings"
+	"time"
+)
 
 // 实例状态常量
 const (
@@ -83,4 +88,161 @@ type InstanceConfig struct {
 	EnableAuth  string `db:"enableAuth" json:"enableAuth" form:"enableAuth" query:"enableAuth"`               // Y/N
 	IpWhitelist string `db:"ipWhitelist" json:"ipWhitelist,omitempty" form:"ipWhitelist" query:"ipWhitelist"` // IP 白名单（JSON 数组格式）
 	IpBlacklist string `db:"ipBlacklist" json:"ipBlacklist,omitempty" form:"ipBlacklist" query:"ipBlacklist"` // IP 黑名单（JSON 数组格式）
+
+	// 解析后的告警配置（构建时预解析，避免重复解析JSON）
+	alertConfig *CenterAlertConfig // 私有字段，通过 GetAlertConfig() 访问
+}
+
+// CenterAlertConfig 服务中心告警配置（从 ExtProperty 解析）
+type CenterAlertConfig struct {
+	AlertEnabled           bool   // 是否启用告警
+	ChannelName            string // 告警渠道名称
+	AlertOnStartFailure    bool   // 服务启动失败时告警
+	AlertOnStopAbnormal    bool   // 服务异常停止时告警
+	AlertOnHealthCheckFail bool   // 健康检查失败时告警
+	AlertOnNodeEviction    bool   // 节点驱逐时告警
+	NodeEvictionThreshold  int    // 节点驱逐数量阈值（单次检查超过此数量触发告警）
+	AlertOnSyncFailure     bool   // 缓存同步失败时告警
+	AlertOnNodeRegister    bool   // 节点注册时告警
+	AlertOnNodeUnregister  bool   // 节点注销时告警
+	AlertOnSubscribeNotify bool   // 服务订阅变更通知时告警（订阅/取消订阅）
+	AlertOnConfigChange    bool   // 配置变更时告警（新增/修改/删除/回滚）
+	AlertOnConnectionLost  bool   // 客户端连接断开时告警
+}
+
+// SetAlertConfig 设置告警配置（供构建时使用）
+func (c *InstanceConfig) SetAlertConfig(cfg *CenterAlertConfig) {
+	c.alertConfig = cfg
+}
+
+// GetAlertConfig 获取告警配置（如果未解析则解析，已解析则直接返回）
+func (c *InstanceConfig) GetAlertConfig() *CenterAlertConfig {
+	if c.alertConfig != nil {
+		return c.alertConfig
+	}
+	// 如果未解析，则解析一次（延迟解析）
+	c.alertConfig = ParseCenterAlertConfigFromExtProperty(c.ExtProperty)
+	return c.alertConfig
+}
+
+// ParseCenterAlertConfigFromExtProperty 从 extProperty JSON 字符串解析服务中心告警配置
+// 按照前端实际保存的格式解析：
+//   - alertEnabled: 'Y'/'N' 字符串
+//   - channelName: string
+//   - alertOnStartFailure: 'Y'/'N' 字符串
+//   - alertOnStopAbnormal: 'Y'/'N' 字符串
+//   - alertOnHealthCheckFail: 'Y'/'N' 字符串
+//   - alertOnNodeEviction: 'Y'/'N' 字符串
+//   - nodeEvictionThreshold: number 或 string
+//   - alertOnSyncFailure: 'Y'/'N' 字符串
+//   - alertOnNodeRegister: 'Y'/'N' 字符串
+//   - alertOnNodeUnregister: 'Y'/'N' 字符串
+//   - alertOnSubscribeNotify: 'Y'/'N' 字符串
+//   - alertOnConfigChange: 'Y'/'N' 字符串
+//   - alertOnConnectionLost: 'Y'/'N' 字符串
+func ParseCenterAlertConfigFromExtProperty(extProperty string) *CenterAlertConfig {
+	cfg := &CenterAlertConfig{
+		AlertEnabled:           false,
+		ChannelName:            "",
+		AlertOnStartFailure:    true,  // 默认开启
+		AlertOnStopAbnormal:    true,  // 默认开启
+		AlertOnHealthCheckFail: true,  // 默认开启
+		AlertOnNodeEviction:    true,  // 默认开启
+		NodeEvictionThreshold:  5,     // 默认单次驱逐5个以上告警
+		AlertOnSyncFailure:     true,  // 默认开启
+		AlertOnNodeRegister:    false, // 默认关闭（高频操作）
+		AlertOnNodeUnregister:  false, // 默认关闭（高频操作）
+		AlertOnSubscribeNotify: false, // 默认关闭（高频操作）
+		AlertOnConfigChange:    true,  // 默认开启
+		AlertOnConnectionLost:  false, // 默认关闭（高频操作）
+	}
+
+	if strings.TrimSpace(extProperty) == "" {
+		return cfg
+	}
+
+	var m map[string]interface{}
+	if err := json.Unmarshal([]byte(extProperty), &m); err != nil {
+		return cfg
+	}
+
+	// alertEnabled: 'Y'/'N' 字符串
+	if v, ok := m["alertEnabled"].(string); ok {
+		cfg.AlertEnabled = strings.TrimSpace(strings.ToUpper(v)) == "Y"
+	}
+
+	// channelName: string
+	if v, ok := m["channelName"].(string); ok {
+		cfg.ChannelName = v
+	}
+
+	// alertOnStartFailure: 'Y'/'N' 字符串
+	if v, ok := m["alertOnStartFailure"].(string); ok {
+		cfg.AlertOnStartFailure = strings.TrimSpace(strings.ToUpper(v)) == "Y"
+	}
+
+	// alertOnStopAbnormal: 'Y'/'N' 字符串
+	if v, ok := m["alertOnStopAbnormal"].(string); ok {
+		cfg.AlertOnStopAbnormal = strings.TrimSpace(strings.ToUpper(v)) == "Y"
+	}
+
+	// alertOnHealthCheckFail: 'Y'/'N' 字符串
+	if v, ok := m["alertOnHealthCheckFail"].(string); ok {
+		cfg.AlertOnHealthCheckFail = strings.TrimSpace(strings.ToUpper(v)) == "Y"
+	}
+
+	// alertOnNodeEviction: 'Y'/'N' 字符串
+	if v, ok := m["alertOnNodeEviction"].(string); ok {
+		cfg.AlertOnNodeEviction = strings.TrimSpace(strings.ToUpper(v)) == "Y"
+	}
+
+	// nodeEvictionThreshold: number 或 string
+	if v, ok := m["nodeEvictionThreshold"]; ok {
+		switch t := v.(type) {
+		case float64:
+			if int(t) > 0 {
+				cfg.NodeEvictionThreshold = int(t)
+			}
+		case int:
+			if t > 0 {
+				cfg.NodeEvictionThreshold = t
+			}
+		case string:
+			if n, err := strconv.Atoi(strings.TrimSpace(t)); err == nil && n > 0 {
+				cfg.NodeEvictionThreshold = n
+			}
+		}
+	}
+
+	// alertOnSyncFailure: 'Y'/'N' 字符串
+	if v, ok := m["alertOnSyncFailure"].(string); ok {
+		cfg.AlertOnSyncFailure = strings.TrimSpace(strings.ToUpper(v)) == "Y"
+	}
+
+	// alertOnNodeRegister: 'Y'/'N' 字符串
+	if v, ok := m["alertOnNodeRegister"].(string); ok {
+		cfg.AlertOnNodeRegister = strings.TrimSpace(strings.ToUpper(v)) == "Y"
+	}
+
+	// alertOnNodeUnregister: 'Y'/'N' 字符串
+	if v, ok := m["alertOnNodeUnregister"].(string); ok {
+		cfg.AlertOnNodeUnregister = strings.TrimSpace(strings.ToUpper(v)) == "Y"
+	}
+
+	// alertOnSubscribeNotify: 'Y'/'N' 字符串
+	if v, ok := m["alertOnSubscribeNotify"].(string); ok {
+		cfg.AlertOnSubscribeNotify = strings.TrimSpace(strings.ToUpper(v)) == "Y"
+	}
+
+	// alertOnConfigChange: 'Y'/'N' 字符串
+	if v, ok := m["alertOnConfigChange"].(string); ok {
+		cfg.AlertOnConfigChange = strings.TrimSpace(strings.ToUpper(v)) == "Y"
+	}
+
+	// alertOnConnectionLost: 'Y'/'N' 字符串
+	if v, ok := m["alertOnConnectionLost"].(string); ok {
+		cfg.AlertOnConnectionLost = strings.TrimSpace(strings.ToUpper(v)) == "Y"
+	}
+
+	return cfg
 }

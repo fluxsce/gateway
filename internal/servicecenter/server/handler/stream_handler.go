@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gateway/internal/servicecenter/cache"
+	"gateway/internal/servicecenter/centerlog"
 	"gateway/internal/servicecenter/server/connection"
 	pb "gateway/internal/servicecenter/server/proto"
 	"gateway/pkg/logger"
@@ -26,12 +27,16 @@ type StreamHandler struct {
 	// 业务处理器
 	registryHandler *RegistryHandler
 	configHandler   *ConfigHandler
+
+	// 配置提供者（用于告警等功能）
+	configProvider ConfigProvider
 }
 
 // StreamHandlerDeps 统一双向流处理器依赖
 type StreamHandlerDeps struct {
 	RegistryHandler *RegistryHandler // 服务注册发现处理器（共享实例）
 	ConfigHandler   *ConfigHandler   // 配置中心处理器（共享实例）
+	ConfigProvider  ConfigProvider   // 配置提供者（用于告警等功能）
 }
 
 // NewStreamHandler 创建统一双向流处理器
@@ -48,6 +53,7 @@ func NewStreamHandler(deps *StreamHandlerDeps) *StreamHandler {
 		connectionManager: connection.NewConnectionManager(),
 		registryHandler:   deps.RegistryHandler,
 		configHandler:     deps.ConfigHandler,
+		configProvider:    deps.ConfigProvider,
 	}
 }
 
@@ -86,6 +92,20 @@ func (h *StreamHandler) Connect(stream pb.ServiceCenterStream_ConnectServer) err
 				"connectionId", conn.ConnectionID,
 				"clientId", conn.ClientID)
 			h.connectionManager.RemoveConnection(conn.ConnectionID)
+
+			// 发送连接断开告警
+			if h.configProvider != nil {
+				config := h.configProvider.GetConfig()
+				if config != nil {
+					connInfo := centerlog.ConnectionAlertInfo{
+						ConnectionId: conn.ConnectionID,
+						ClientId:     conn.ClientID,
+						ClientIP:     conn.ClientIP,
+					}
+					centerlog.HandleConnectionLost(config, connInfo)
+				}
+			}
+
 			return err
 		}
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gateway/internal/servicecenter/cache"
+	"gateway/internal/servicecenter/centerlog"
 	pb "gateway/internal/servicecenter/server/proto"
 	"gateway/internal/servicecenter/server/subscriber"
 	"gateway/internal/servicecenter/types"
@@ -37,16 +38,23 @@ import (
 //   - 服务重启时从数据库加载数据到缓存
 //   - 缓存丢失时可以从数据库恢复
 
+// ConfigProvider 配置提供者接口（用于访问实例配置）
+type ConfigProvider interface {
+	GetConfig() *types.InstanceConfig
+}
+
 // RegistryHandler gRPC 服务注册发现处理器
 type RegistryHandler struct {
 	pb.UnimplementedServiceRegistryServer
-	serviceSubMgr *subscriber.ServiceSubscriber
+	serviceSubMgr  *subscriber.ServiceSubscriber
+	configProvider ConfigProvider // 配置提供者（用于告警等功能）
 }
 
 // NewRegistryHandler 创建服务注册发现处理器
-func NewRegistryHandler() *RegistryHandler {
+func NewRegistryHandler(configProvider ConfigProvider) *RegistryHandler {
 	return &RegistryHandler{
-		serviceSubMgr: subscriber.NewServiceSubscriber(),
+		serviceSubMgr:  subscriber.NewServiceSubscriber(),
+		configProvider: configProvider,
 	}
 }
 
@@ -668,6 +676,23 @@ func (h *RegistryHandler) RegisterNode(ctx context.Context, req *pb.Node) (*pb.R
 		event,
 	)
 
+	// 发送节点注册告警
+	if h.configProvider != nil {
+		config := h.configProvider.GetConfig()
+		if config != nil {
+			nodeInfo := centerlog.NodeAlertInfo{
+				NodeId:      node.NodeId,
+				ServiceName: node.ServiceName,
+				NamespaceId: node.NamespaceId,
+				GroupName:   node.GroupName,
+				IpAddress:   node.IpAddress,
+				Port:        int(node.PortNumber),
+				IsReconnect: isReconnect,
+			}
+			centerlog.HandleNodeRegister(config, nodeInfo)
+		}
+	}
+
 	return &pb.RegisterNodeResponse{
 		Success: true,
 		Message: "node registered successfully",
@@ -734,6 +759,22 @@ func (h *RegistryHandler) UnregisterNode(ctx context.Context, req *pb.NodeKey) (
 		node.ServiceName,
 		event,
 	)
+
+	// 发送节点注销告警
+	if h.configProvider != nil {
+		config := h.configProvider.GetConfig()
+		if config != nil {
+			nodeInfo := centerlog.NodeAlertInfo{
+				NodeId:      savedNode.NodeId,
+				ServiceName: savedNode.ServiceName,
+				NamespaceId: savedNode.NamespaceId,
+				GroupName:   savedNode.GroupName,
+				IpAddress:   savedNode.IpAddress,
+				Port:        int(savedNode.PortNumber),
+			}
+			centerlog.HandleNodeUnregister(config, nodeInfo)
+		}
+	}
 
 	return &pb.RegistryResponse{
 		Success: true,
@@ -884,6 +925,21 @@ func (h *RegistryHandler) SubscribeServices(req *pb.SubscribeServicesRequest, st
 		"groupName", groupName,
 		"serviceNames", req.ServiceNames,
 		"serviceCount", len(req.ServiceNames))
+
+	// 发送订阅通知告警
+	if h.configProvider != nil {
+		config := h.configProvider.GetConfig()
+		if config != nil {
+			subInfo := centerlog.SubscribeAlertInfo{
+				Action:       "SUBSCRIBE",
+				SubscriberId: subscriberID,
+				NamespaceId:  req.NamespaceId,
+				GroupName:    groupName,
+				ServiceNames: req.ServiceNames,
+			}
+			centerlog.HandleSubscribeNotify(config, subInfo)
+		}
+	}
 
 	// 批量订阅多个服务（使用同一个 channel）
 	ch := h.serviceSubMgr.SubscribeMultipleServices(
