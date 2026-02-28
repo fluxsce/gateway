@@ -479,6 +479,7 @@ export function useGatewayInstanceModel() {
   const logConfigFormConfig = {
     tabs: [
       { key: 'basic', label: '基础配置' },
+      { key: 'cleanup', label: '清理配置' },
       { key: 'alert', label: '预警配置' },
       { key: 'other', label: '其它' },
     ],
@@ -778,6 +779,85 @@ export function useGatewayInstanceModel() {
                 },
                 placeholder: '添加敏感字段',
               })
+            },
+          },
+        ],
+      },
+
+      // ============= 清理配置 Tab =============
+      {
+        field: 'cleanup-config-group',
+        label: '日志清理配置',
+        type: 'fieldset',
+        tabKey: 'cleanup',
+        props: {
+          titleSize: 300,
+        },
+        children: [
+          {
+            field: 'extProperty.cleanupEnabled',
+            label: '开启自动清理',
+            type: 'switch',
+            span: 12,
+            defaultValue: 'N',
+            tips: '开启后会定期清理过期的访问日志和后端追踪日志',
+            props: {
+              checkedValue: 'Y',
+              uncheckedValue: 'N',
+            },
+          },
+          {
+            field: 'extProperty.retentionDays',
+            label: '日志保留天数',
+            type: 'number',
+            span: 12,
+            defaultValue: 30,
+            placeholder: '请输入日志保留天数',
+            tips: '超过此天数的日志将被清理，范围：1-3650天',
+            props: {
+              min: 1,
+              max: 3650,
+              precision: 0,
+            },
+          },
+          {
+            field: 'extProperty.cleanupIntervalHour',
+            label: '清理间隔（小时）',
+            type: 'number',
+            span: 12,
+            defaultValue: 24,
+            placeholder: '请输入清理间隔',
+            tips: '每隔多少小时执行一次清理任务，最小值为1小时',
+            props: {
+              min: 1,
+              max: 168,
+              precision: 0,
+            },
+          },
+          {
+            field: 'extProperty.scheduledTime',
+            label: '首次执行时间',
+            type: 'input',
+            span: 12,
+            defaultValue: '02:00',
+            placeholder: '请输入执行时间（HH:MM）',
+            tips: '首次执行清理的时间，格式：HH:MM（如 02:00 表示凌晨2点）',
+            props: {
+              maxlength: 5,
+            },
+          },
+          {
+            field: 'extProperty.batchDeleteSize',
+            label: '批量删除大小',
+            type: 'number',
+            span: 12,
+            defaultValue: 1000,
+            placeholder: '请输入批量删除大小',
+            tips: '每批删除的记录数，避免长事务，范围：100-10000',
+            props: {
+              min: 100,
+              max: 10000,
+              precision: 0,
             },
           },
         ],

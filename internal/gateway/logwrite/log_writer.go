@@ -12,18 +12,19 @@ import (
 
 	"gateway/internal/gateway/constants"
 	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/logwrite/cleanup"
 	"gateway/internal/gateway/logwrite/types"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/random"
 )
 
 // 异步日志写入安全规则说明：
-// ✅ 可以安全使用 Context 的字段：
+//  可以安全使用 Context 的字段：
 //    - ctx.data (上下文数据映射，通过 Get/Set 访问)
 //    - ctx.startTime, ctx.responseTime 等时间字段
 //    - ctx.routeID, ctx.serviceID 等ID字段
 //    - ctx.Ctx (已在异步 goroutine 中被替换为独立的 context)
-// ❌ 不能直接访问的字段：
+//  不能直接访问的字段：
 //    - ctx.Request (*http.Request) - 生命周期与 HTTP 请求绑定，ServeHTTP 返回后可能失效
 //    - ctx.Writer (http.ResponseWriter) - 生命周期与 HTTP 请求绑定，ServeHTTP 返回后可能失效
 // 解决方案：
@@ -61,6 +62,10 @@ var (
 	cacheMutex sync.RWMutex
 	// 本机IP缓存 - 程序启动时获取一次，后续直接使用
 	localIPCache string
+	// 全局清理器管理器缓存 - 按实例ID缓存清理器
+	cleanerCache = make(map[string]*cleanup.CleanerManager)
+	// 保护清理器缓存的互斥锁
+	cleanerMutex sync.RWMutex
 )
 
 // init 包初始化函数，获取本机真实IP
@@ -118,6 +123,17 @@ func UnregisterLogWriter(instanceID string) error {
 	// 从缓存中删除写入器
 	delete(writerCache, instanceID)
 
+	// 关闭并删除对应的清理器
+	cleanerMutex.Lock()
+	if cleaner, exists := cleanerCache[instanceID]; exists {
+		if err := cleaner.Close(); err != nil {
+			logger.Error("Failed to close cleaner", "instanceID", instanceID, "error", err)
+		}
+		delete(cleanerCache, instanceID)
+		logger.Info("Cleaner unregistered", "instanceID", instanceID)
+	}
+	cleanerMutex.Unlock()
+
 	logger.Info("Writer unregistered", "instanceID", instanceID)
 	return nil
 }
@@ -141,6 +157,25 @@ func InitLogManager(instanceID string, config *types.LogConfig) error {
 	// 注册写入器
 	if err := RegisterLogWriter(instanceID, writer); err != nil {
 		return err
+	}
+
+	// 创建并注册日志清理器（如果在ExtProperty中启用）
+	cleanerManager, err := cleanup.NewCleanerManager(instanceID, config)
+	if err != nil {
+		logger.Debug("Log cleaner manager not created", "instanceID", instanceID, "reason", err.Error())
+	} else {
+		// 注册清理器
+		cleanerMutex.Lock()
+		// 如果已存在清理器，先关闭它
+		if existingCleaner, exists := cleanerCache[instanceID]; exists {
+			if err := existingCleaner.Close(); err != nil {
+				logger.Error("Failed to close existing cleaner", "instanceID", instanceID, "error", err)
+			}
+		}
+		cleanerCache[instanceID] = cleanerManager
+		cleanerMutex.Unlock()
+
+		logger.Info("Log cleaner manager initialized", "instanceID", instanceID)
 	}
 
 	logger.Info("Log manager initialized",
@@ -307,6 +342,12 @@ func UpdateLogWriter(instanceID string, newConfig *types.LogConfig) error {
 		return fmt.Errorf("failed to create new writer: %w", err)
 	}
 
+	// 创建新的清理器管理器（如果在ExtProperty中启用）
+	newCleanerManager, err := cleanup.NewCleanerManager(instanceID, newConfig)
+	if err != nil {
+		logger.Debug("Log cleaner manager not created during update", "instanceID", instanceID, "reason", err.Error())
+	}
+
 	// 获取锁，进行原子性替换
 	cacheMutex.Lock()
 
@@ -318,6 +359,17 @@ func UpdateLogWriter(instanceID string, newConfig *types.LogConfig) error {
 
 	// 立即释放锁，避免影响其他并发操作
 	cacheMutex.Unlock()
+
+	// 更新清理器
+	cleanerMutex.Lock()
+	oldCleaner, cleanerExists := cleanerCache[instanceID]
+	if newCleanerManager != nil {
+		cleanerCache[instanceID] = newCleanerManager
+	} else {
+		// 如果新配置禁用了清理功能，移除清理器
+		delete(cleanerCache, instanceID)
+	}
+	cleanerMutex.Unlock()
 
 	// 如果存在旧写入器，异步进行优雅关闭
 	if exists {
@@ -341,10 +393,28 @@ func UpdateLogWriter(instanceID string, newConfig *types.LogConfig) error {
 		}(oldWriter, instanceID)
 	}
 
+	// 如果存在旧清理器，异步进行优雅关闭
+	if cleanerExists {
+		go func(cleaner *cleanup.CleanerManager, id string) {
+			// 给旧清理器一些时间完成正在进行的操作
+			time.Sleep(100 * time.Millisecond)
+
+			// 关闭旧清理器
+			if err := cleaner.Close(); err != nil {
+				logger.Warn("Failed to close old cleaner during update",
+					"instanceID", id, "error", err)
+			}
+
+			logger.Debug("Old cleaner closed successfully", "instanceID", id)
+		}(oldCleaner, instanceID)
+	}
+
 	logger.Info("Log writer updated successfully",
 		"instanceID", instanceID,
 		"targets", newConfig.GetOutputTargets(),
-		"hadOldWriter", exists)
+		"hadOldWriter", exists,
+		"hadOldCleaner", cleanerExists,
+		"hasNewCleaner", newCleanerManager != nil)
 
 	return nil
 }
@@ -1008,4 +1078,21 @@ func getOriginalOrCurrentHeaders(gatewayCtx *core.Context, config *types.LogConf
 	}
 
 	return ""
+}
+
+// TriggerCleanupNow 手动触发指定实例的日志清理
+func TriggerCleanupNow(instanceID string) (map[string]int64, error) {
+	if instanceID == "" {
+		return nil, fmt.Errorf("instanceID cannot be empty")
+	}
+
+	cleanerMutex.RLock()
+	cleaner, exists := cleanerCache[instanceID]
+	cleanerMutex.RUnlock()
+
+	if !exists {
+		return nil, fmt.Errorf("cleaner not found for instance: %s", instanceID)
+	}
+
+	return cleaner.CleanupNow()
 }

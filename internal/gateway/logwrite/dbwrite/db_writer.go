@@ -114,15 +114,32 @@ func (w *DBWriter) FlushBackendTrace(ctx context.Context) error {
 
 	// 执行批量写入
 	err := w.batchWriteBackendTraceDirectly(ctx, w.backendTraceBatchBuffer)
+
 	if err != nil {
-		logger.Error("Failed to flush backend trace batch buffer", "error", err, "count", count)
+		// 打印失败批次的关键信息，便于排查问题
+		logger.Error("Failed to flush backend trace batch buffer, dumping failed batch data", "error", err, "count", count)
+		for i, log := range w.backendTraceBatchBuffer {
+			logger.Warn("Failed backend trace batch item",
+				"index", i,
+				"traceId", log.TraceID,
+				"backendTraceId", log.BackendTraceID,
+				"forwardMethod", log.ForwardMethod,
+				"forwardMethodLen", len(log.ForwardMethod),
+				"forwardPath", log.ForwardPath,
+				"forwardPathLen", len(log.ForwardPath),
+				"serviceId", log.ServiceDefinitionID,
+				"serviceName", log.ServiceName)
+		}
+	}
+
+	// 无论成功或失败都清空缓冲区，避免失败数据重复写入导致死循环
+	w.backendTraceBatchBuffer = w.backendTraceBatchBuffer[:0]
+
+	if err != nil {
 		return err
 	}
 
-	// 清空缓冲区
-	w.backendTraceBatchBuffer = w.backendTraceBatchBuffer[:0]
 	logger.Debug("Flushed backend trace batch buffer", "count", count)
-
 	return nil
 }
 
@@ -218,17 +235,37 @@ func (w *DBWriter) Flush(ctx context.Context) error {
 		return nil
 	}
 
+	// 保存计数用于日志
+	count := len(w.batchBuffer)
+
 	// 执行批量写入
 	err := w.batchWriteDirectly(ctx, w.batchBuffer)
+
 	if err != nil {
-		logger.Error("Failed to flush batch buffer", "error", err, "count", len(w.batchBuffer))
+		// 打印失败批次的关键信息，便于排查问题
+		logger.Error("Failed to flush batch buffer, dumping failed batch data", "error", err, "count", count)
+		for i, log := range w.batchBuffer {
+			logger.Warn("Failed batch item",
+				"index", i,
+				"traceId", log.TraceID,
+				"requestMethod", log.RequestMethod,
+				"requestMethodLen", len(log.RequestMethod),
+				"requestPath", log.RequestPath,
+				"requestPathLen", len(log.RequestPath),
+				"forwardMethod", log.ForwardMethod,
+				"forwardMethodLen", len(log.ForwardMethod),
+				"clientIp", log.ClientIPAddress)
+		}
+	}
+
+	// 无论成功或失败都清空缓冲区，避免失败数据重复写入导致死循环
+	w.batchBuffer = w.batchBuffer[:0]
+
+	if err != nil {
 		return err
 	}
 
-	// 清空缓冲区
-	w.batchBuffer = w.batchBuffer[:0]
-	logger.Debug("Flushed batch buffer", "count", len(w.batchBuffer))
-
+	logger.Debug("Flushed batch buffer", "count", count)
 	return nil
 }
 

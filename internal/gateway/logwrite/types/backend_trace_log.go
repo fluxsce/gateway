@@ -119,8 +119,14 @@ func NewBackendTraceLog(tenantID, traceID, backendTraceID string) *BackendTraceL
 // SetForwardInfo 设置转发信息（如果与主请求不同则设置）
 func (b *BackendTraceLog) SetForwardInfo(address, method, path, query, headers, body string, requestSize int) {
 	b.ForwardAddress = address
-	b.ForwardMethod = method
-	b.ForwardPath = path
+	// 限制 forwardMethod 长度为 10 字符（数据库字段限制）
+	if len(method) > 10 {
+		b.ForwardMethod = truncateString(method, 10)
+	} else {
+		b.ForwardMethod = method
+	}
+	// 限制 forwardPath 长度为 1000 字符（数据库字段限制）
+	b.ForwardPath = truncateString(path, 1000)
 	b.ForwardQuery = query
 	b.ForwardHeaders = headers
 	b.ForwardBody = body

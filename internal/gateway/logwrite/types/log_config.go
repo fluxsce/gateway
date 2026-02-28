@@ -125,15 +125,23 @@ type LogConfig struct {
 	ActiveFlag     string `json:"activeFlag" db:"activeFlag"`         // 活动状态标记(N非活动,Y活动)
 
 	// 扩展属性（JSON字符串）
-	ExtProperty string `json:"extProperty" db:"extProperty"` // 扩展属性,JSON格式（用于告警等扩展配置）
+	ExtProperty string `json:"extProperty" db:"extProperty"` // 扩展属性,JSON格式（用于告警、清理等扩展配置）
 
 	// 解析后的告警配置（构建时预解析，避免重复解析JSON）
 	alertConfig *AlertConfig // 私有字段，通过 GetAlertConfig() 访问
+
+	// 解析后的清理配置（构建时预解析，避免重复解析JSON）
+	cleanupConfig *CleanupConfig // 私有字段，通过 GetCleanupConfig() 访问
 }
 
 // SetAlertConfig 设置告警配置（供构建时使用）
 func (c *LogConfig) SetAlertConfig(cfg *AlertConfig) {
 	c.alertConfig = cfg
+}
+
+// SetCleanupConfig 设置清理配置（供构建时使用）
+func (c *LogConfig) SetCleanupConfig(cfg *CleanupConfig) {
+	c.cleanupConfig = cfg
 }
 
 // AlertConfig 告警配置（从 extProperty 解析）
@@ -145,6 +153,15 @@ type AlertConfig struct {
 	TimeoutThresholdMs int
 }
 
+// CleanupConfig 清理配置（从 extProperty 解析）
+type CleanupConfig struct {
+	CleanupEnabled      bool   // 是否启用自动清理
+	RetentionDays       int    // 日志保留天数，默认30天
+	CleanupIntervalHour int    // 清理间隔（小时），默认24小时
+	BatchDeleteSize     int    // 批量删除大小，默认1000
+	ScheduledTime       string // 清理执行时间（格式：HH:MM，如 "02:00"）
+}
+
 // GetAlertConfig 获取告警配置（如果未解析则解析，已解析则直接返回）
 func (c *LogConfig) GetAlertConfig() *AlertConfig {
 	if c.alertConfig != nil {
@@ -153,6 +170,16 @@ func (c *LogConfig) GetAlertConfig() *AlertConfig {
 	// 如果未解析，则解析一次（延迟解析，兼容旧代码）
 	c.alertConfig = ParseAlertConfigFromExtProperty(c.ExtProperty)
 	return c.alertConfig
+}
+
+// GetCleanupConfig 获取清理配置（如果未解析则解析，已解析则直接返回）
+func (c *LogConfig) GetCleanupConfig() *CleanupConfig {
+	if c.cleanupConfig != nil {
+		return c.cleanupConfig
+	}
+	// 如果未解析，则解析一次（延迟解析，兼容旧代码）
+	c.cleanupConfig = ParseCleanupConfigFromExtProperty(c.ExtProperty)
+	return c.cleanupConfig
 }
 
 // ParseAlertConfigFromExtProperty 从 extProperty JSON 字符串解析告警配置（导出函数，供其他包使用）
@@ -227,6 +254,74 @@ func ParseAlertConfigFromExtProperty(extProperty string) *AlertConfig {
 		case int:
 			cfg.TimeoutThresholdMs = t
 		}
+	}
+
+	return cfg
+}
+
+// ParseCleanupConfigFromExtProperty 从 extProperty JSON 字符串解析清理配置
+// 按照前端实际保存的格式解析：
+// - cleanupEnabled: 'Y'/'N' 字符串
+// - retentionDays: number（保留天数）
+// - cleanupIntervalHour: number（小时）
+// - batchDeleteSize: number
+// - scheduledTime: string（格式：HH:MM）
+func ParseCleanupConfigFromExtProperty(extProperty string) *CleanupConfig {
+	cfg := &CleanupConfig{
+		CleanupEnabled:      false,
+		RetentionDays:       30,
+		CleanupIntervalHour: 24,
+		BatchDeleteSize:     1000,
+		ScheduledTime:       "02:00",
+	}
+
+	if strings.TrimSpace(extProperty) == "" {
+		return cfg
+	}
+
+	var m map[string]interface{}
+	if err := json.Unmarshal([]byte(extProperty), &m); err != nil {
+		return cfg
+	}
+
+	// cleanupEnabled: 'Y'/'N' 字符串
+	if v, ok := m["cleanupEnabled"].(string); ok {
+		cfg.CleanupEnabled = strings.TrimSpace(strings.ToUpper(v)) == "Y"
+	}
+
+	// retentionDays: number
+	if v, ok := m["retentionDays"]; ok {
+		switch t := v.(type) {
+		case float64:
+			cfg.RetentionDays = int(t)
+		case int:
+			cfg.RetentionDays = t
+		}
+	}
+
+	// cleanupIntervalHour: number
+	if v, ok := m["cleanupIntervalHour"]; ok {
+		switch t := v.(type) {
+		case float64:
+			cfg.CleanupIntervalHour = int(t)
+		case int:
+			cfg.CleanupIntervalHour = t
+		}
+	}
+
+	// batchDeleteSize: number
+	if v, ok := m["batchDeleteSize"]; ok {
+		switch t := v.(type) {
+		case float64:
+			cfg.BatchDeleteSize = int(t)
+		case int:
+			cfg.BatchDeleteSize = t
+		}
+	}
+
+	// scheduledTime: string
+	if v, ok := m["scheduledTime"].(string); ok {
+		cfg.ScheduledTime = strings.TrimSpace(v)
 	}
 
 	return cfg

@@ -38,7 +38,7 @@ RUN go mod download
 COPY . .
 
 # 构建参数
-ARG VERSION=3.0.7
+ARG VERSION=3.0.8
 ARG BUILD_DATE
 ARG GIT_COMMIT=unknown
 
@@ -65,7 +65,7 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
 FROM alpine:3.19
 
 # 构建参数（在运行时阶段也需要）
-ARG VERSION=3.0.7
+ARG VERSION=3.0.8
 ARG BUILD_DATE
 ARG GIT_COMMIT=unknown
 

@@ -180,7 +180,12 @@ func NewAccessLog(tenantID, gatewayInstanceID, gatewayNodeIP string) *AccessLog 
 //   - body: 请求体
 //   - size: 请求大小
 func (a *AccessLog) SetRequestInfo(method, path string, query, headers, body string, size int) {
-	a.RequestMethod = method
+	// 限制 requestMethod 长度为 10 字符（数据库字段限制）
+	if len(method) > 10 {
+		a.RequestMethod = truncateString(method, 10)
+	} else {
+		a.RequestMethod = method
+	}
 	// 限制 requestPath 长度为 1000 字符（数据库字段限制）
 	a.RequestPath = truncateString(path, 1000)
 	a.RequestQuery = query
@@ -278,7 +283,12 @@ func (a *AccessLog) SetBackendInfo(backendStatusCode int, backendStartTime, back
 func (a *AccessLog) SetForwardInfo(matchedRoute, forwardAddress, forwardMethod, forwardParams, forwardHeaders, forwardBody, loadBalancerDecision string) {
 	a.MatchedRoute = matchedRoute
 	a.ForwardAddress = forwardAddress
-	a.ForwardMethod = forwardMethod
+	// 限制 forwardMethod 长度为 10 字符（数据库字段限制）
+	if len(forwardMethod) > 10 {
+		a.ForwardMethod = truncateString(forwardMethod, 10)
+	} else {
+		a.ForwardMethod = forwardMethod
+	}
 	a.ForwardParams = forwardParams
 	a.ForwardHeaders = forwardHeaders
 	a.ForwardBody = forwardBody

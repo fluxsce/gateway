@@ -107,6 +107,10 @@ func (loader *LogConfigLoader) buildLogConfig(record *LogConfigRecord) *types.Lo
 	alertCfg := types.ParseAlertConfigFromExtProperty(config.ExtProperty)
 	config.SetAlertConfig(alertCfg)
 
+	// 预解析 extProperty 中的清理配置（构建时解析一次，避免后续重复解析）
+	cleanupCfg := types.ParseCleanupConfigFromExtProperty(config.ExtProperty)
+	config.SetCleanupConfig(cleanupCfg)
+
 	return config
 }
 
