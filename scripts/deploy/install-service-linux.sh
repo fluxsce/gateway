@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Gateway Linux服务安装脚本
-# 版本: 2.3
+# 版本: 2.4
 # 功能: 智能检测可执行文件并安装为systemd服务
 # 更新: 使用检测到的应用目录作为安装位置，配置和日志使用相对路径
 
@@ -46,7 +46,7 @@ log_debug() {
 
 # 函数：显示帮助
 show_help() {
-    echo "Gateway Linux 服务安装脚本 v2.3"
+    echo "Gateway Linux 服务安装脚本 v2.4"
     echo
     echo "用法: $0 [oracle] [OPTIONS]"
     echo
@@ -61,11 +61,12 @@ show_help() {
     echo
     echo "示例:"
     echo "  $0                   # 安装标准版本服务，使用检测到的目录"
-    echo "  $0 oracle            # 安装Oracle版本服务"
+    echo "  $0 oracle            # 安装 Oracle 版本（或运行后按提示选择）"
     echo "  $0 -d /opt/gateway     # 指定安装目录"
     echo "  $0 -s                # 使用系统标准目录结构"
     echo
     echo "注意:"
+    echo "  - Oracle 版本由安装时选项决定，不根据可执行文件名自动检测"
     echo "  - 默认将安装到检测到的应用目录中"
     echo "  - 使用 -s 选项可以安装到标准系统目录"
     echo "  - 配置文件和日志将存放在应用目录下相应子目录中"
@@ -221,27 +222,6 @@ find_exe_in_dir() {
         return 0
     fi
     
-    # 兼容旧版本文件名：尝试自动检测Oracle版本
-    if [[ -f "$check_dir/gateway-oracle" && -x "$check_dir/gateway-oracle" ]]; then
-        EXECUTABLE_PATH="$check_dir/gateway-oracle"
-        ORACLE_VERSION=true
-        SERVICE_NAME="gateway"
-        log_info "自动检测到Oracle版本可执行文件"
-        return 0
-    elif [[ -f "$check_dir/gateway-linux-oracle-amd64" && -x "$check_dir/gateway-linux-oracle-amd64" ]]; then
-        EXECUTABLE_PATH="$check_dir/gateway-linux-oracle-amd64"
-        ORACLE_VERSION=true
-        SERVICE_NAME="gateway"
-        log_info "自动检测到Oracle版本可执行文件"
-        return 0
-    elif [[ -f "$check_dir/gateway-centos7-oracle-amd64" && -x "$check_dir/gateway-centos7-oracle-amd64" ]]; then
-        EXECUTABLE_PATH="$check_dir/gateway-centos7-oracle-amd64"
-        ORACLE_VERSION=true
-        SERVICE_NAME="gateway"
-        log_info "自动检测到Oracle版本可执行文件"
-        return 0
-    fi
-    
     # 搜索模式：如果上面没有找到，则使用原来的模式继续搜索
     local patterns=(
         "gateway"
@@ -268,6 +248,11 @@ find_exe_in_dir() {
                     if [[ -f "$file" && -x "$file" ]]; then
                         # 排除脚本文件
                         if [[ "$file" != *.sh && "$file" != *.bat && "$file" != *.cmd ]]; then
+                            # 非 Oracle 版本安装时，跳过 oracle 命名的可执行文件
+                            if [[ "$ORACLE_VERSION" != true ]] && [[ "$(basename "$file")" == *oracle* ]]; then
+                                log_debug "跳过 Oracle 版本文件（未选择 Oracle 安装）: $file"
+                                continue
+                            fi
                             EXECUTABLE_PATH="$file"
                             log_info "检测到可执行文件: $EXECUTABLE_PATH"
                             return 0
@@ -382,28 +367,45 @@ copy_configs() {
 }
 
 # 函数：检查Oracle环境变量
+# 会尝试加载 /etc/profile.d/oracle.sh（若存在），以便读取系统级 Oracle 配置
 check_oracle_env() {
+    # 尝试加载系统级 Oracle 配置（systemd 不继承 shell 环境，安装时需从此处或当前 env 获取）
+    if [[ -f /etc/profile.d/oracle.sh ]]; then
+        source /etc/profile.d/oracle.sh 2>/dev/null || true
+    fi
     # 检查ORACLE_HOME环境变量
-    if [[ -n "$ORACLE_HOME" ]]; then
-        if [[ -d "$ORACLE_HOME/lib" ]] && [[ -f "$ORACLE_HOME/lib/libclntsh.so"* ]]; then
-            log_info "检测到ORACLE_HOME环境变量: $ORACLE_HOME"
+    # 解压时可能带 lib 子目录，也可能 lib 文件直接在 ORACLE_HOME 下
+    if [[ -n "$ORACLE_HOME" ]] && [[ -d "$ORACLE_HOME" ]]; then
+        # 优先：精确检测 libclntsh.so 文件存在
+        if [[ -d "$ORACLE_HOME/lib" ]] && ls "$ORACLE_HOME/lib"/libclntsh.so* 1>/dev/null 2>&1; then
+            log_info "检测到ORACLE_HOME: $ORACLE_HOME (lib子目录)" >&2
             echo "$ORACLE_HOME/lib"
             return 0
         fi
+        if ls "$ORACLE_HOME"/libclntsh.so* 1>/dev/null 2>&1; then
+            log_info "检测到ORACLE_HOME: $ORACLE_HOME (库文件在根目录)" >&2
+            echo "$ORACLE_HOME"
+            return 0
+        fi
+        # 回退：ORACLE_HOME 存在但 glob 检测失败时，直接使用（兼容非常规目录结构）
+        log_info "检测到ORACLE_HOME: $ORACLE_HOME (直接使用，未验证库文件)" >&2
+        echo "$ORACLE_HOME"
+        return 0
     fi
-    
+
     # 检查LD_LIBRARY_PATH环境变量中是否包含Oracle库
     if [[ -n "$LD_LIBRARY_PATH" ]]; then
         IFS=':' read -ra ADDR <<< "$LD_LIBRARY_PATH"
         for path in "${ADDR[@]}"; do
-            if [[ -f "$path/libclntsh.so"* ]]; then
-                log_info "从LD_LIBRARY_PATH检测到Oracle库路径: $path"
+            [[ -z "$path" ]] && continue
+            if ls "$path"/libclntsh.so* 1>/dev/null 2>&1; then
+                log_info "从LD_LIBRARY_PATH检测到Oracle库路径: $path" >&2
                 echo "$path"
                 return 0
             fi
         done
     fi
-    
+
     return 1
 }
 
@@ -419,33 +421,24 @@ create_systemd_service() {
             oracle_lib_env="Environment=LD_LIBRARY_PATH=$oracle_lib_path"
             log_info "将在systemd服务中设置LD_LIBRARY_PATH: $oracle_lib_path"
         else
-            log_error "检测到Oracle版本，但未配置Oracle环境变量"
+            log_error "检测到 Oracle 版本，但未找到 Oracle 环境变量（ORACLE_HOME/LD_LIBRARY_PATH）"
             log_error ""
-            log_error "Oracle版本的程序需要安装Oracle Instant Client并配置环境变量"
+            log_error "请任选一种方式配置后重新运行安装："
+            log_error "  1. 使用 sudo -E 继承当前 shell 的环境变量："
+            log_error "     export ORACLE_HOME=/opt/oracle/instantclient_21_18"
+            log_error "     export LD_LIBRARY_PATH=\$ORACLE_HOME/lib:\$LD_LIBRARY_PATH"
+            log_error "     sudo -E $0 oracle"
             log_error ""
-            log_error "配置步骤："
-            log_error "  1. 下载Oracle Instant Client（Linux x86-64）："
-            log_error "     https://www.oracle.com/database/technologies/instant-client/linux-x86-64-downloads.html"
+            log_error "  2. 创建 /etc/profile.d/oracle.sh（系统级配置，安装脚本会自动读取）："
+            log_error "     export ORACLE_HOME=/opt/oracle/instantclient_21_18"
+            log_error "     export LD_LIBRARY_PATH=\$ORACLE_HOME/lib:\$LD_LIBRARY_PATH"
             log_error ""
-            log_error "  2. 解压安装包（例如解压到 /opt/oracle/instantclient_21_18）"
+            log_error "  3. 安装完成后手动编辑 systemd 服务文件，添加 Environment=LD_LIBRARY_PATH=..."
             log_error ""
-            log_error "  3. 配置环境变量（选择一种方式）："
-            log_error "     方式A：设置ORACLE_HOME环境变量"
-            log_error "       export ORACLE_HOME=/opt/oracle/instantclient_21_18"
-            log_error "       export LD_LIBRARY_PATH=\$ORACLE_HOME/lib:\$LD_LIBRARY_PATH"
+            log_error "Oracle Instant Client 下载："
+            log_error "  https://www.oracle.com/database/technologies/instant-client/linux-x86-64-downloads.html"
             log_error ""
-            log_error "     方式B：仅设置LD_LIBRARY_PATH环境变量"
-            log_error "       export LD_LIBRARY_PATH=/opt/oracle/instantclient_21_18/lib:\$LD_LIBRARY_PATH"
-            log_error ""
-            log_error "  4. 将环境变量添加到 ~/.bashrc 或 ~/.bash_profile 以永久生效"
-            log_error ""
-            log_error "  5. 重新运行此安装脚本"
-            log_error ""
-            log_error "详细安装说明请参考："
-            log_error "  https://github.com/fluxsce/gateway/blob/main/docs/zh-CN/03-安装部署.md"
-            log_error ""
-            log_warn "服务文件将创建，但启动时可能会失败（缺少Oracle库）"
-            log_warn "请按照上述步骤配置Oracle环境后，手动编辑服务文件添加LD_LIBRARY_PATH环境变量"
+            log_warn "服务文件将创建，但启动时可能会失败（缺少 Oracle 库）"
         fi
     fi
     
@@ -580,7 +573,7 @@ cleanup_old_installation() {
 
 # 主函数
 main() {
-    echo "Gateway Linux服务安装脚本 v2.3"
+    echo "Gateway Linux服务安装脚本 v2.4"
     echo "================================="
     echo ""
     
@@ -629,6 +622,15 @@ main() {
     
     # 检查systemd
     check_systemd
+    
+    # 若未通过命令行指定 oracle，则询问是否安装 Oracle 版本
+    if [[ "$ORACLE_VERSION" != true ]]; then
+        read -p "是否安装 Oracle 版本？(y/N): " ORACLE_CHOICE
+        if [[ "$ORACLE_CHOICE" == "y" || "$ORACLE_CHOICE" == "Y" ]]; then
+            ORACLE_VERSION=true
+            log_info "已选择安装 Oracle 版本"
+        fi
+    fi
     
     # 检测可执行文件
     detect_executable

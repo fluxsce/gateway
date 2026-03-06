@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -26,10 +27,8 @@ import (
 func getStatementExecutionStatus(ctx context.Context, conn database.Database, driver, scriptName, statementHash string) (string, error) {
 	tenantId := config.GetString("database.tenant_id", "default")
 
-	query := `SELECT executionStatus FROM HUB_STATEMENT_EXECUTION_HISTORY 
-			  WHERE tenantId = ? AND scriptName = ? AND statementHash = ? 
-			  AND databaseDriver = ? 
-			  ORDER BY executionTime DESC LIMIT 1`
+	query := fmt.Sprintf("SELECT executionStatus FROM %s WHERE tenantId = ? AND scriptName = ? AND statementHash = ? AND databaseDriver = ? ORDER BY executionTime DESC LIMIT 1",
+		TableNameStatementHistory(driver))
 
 	// 定义结果结构体
 	type StatusResult struct {
@@ -50,7 +49,7 @@ func getStatementExecutionStatus(ctx context.Context, conn database.Database, dr
 		// 如果是预期的情况，认为语句未执行过
 		if isRecordNotFound || isTableNotExist {
 			logger.Debug("语句未执行过或历史表不存在",
-				"table", "HUB_STATEMENT_EXECUTION_HISTORY",
+				"table", TableNameStatementHistory(driver),
 				"script", scriptName,
 				"statement_hash", statementHash)
 			return "", nil
@@ -89,8 +88,8 @@ func recordScriptExecution(ctx context.Context, conn database.Database, driver, 
 
 	// 统一先查询校验，存在更新不存在插入
 	// 唯一键：UK_SCRIPT_VERSION (tenantId, scriptName, scriptVersion, databaseDriver)
-	checkQuery := `SELECT executionId FROM HUB_SCRIPT_EXECUTION_HISTORY 
-				   WHERE tenantId = ? AND scriptName = ? AND scriptVersion = ? AND databaseDriver = ?`
+	checkQuery := fmt.Sprintf("SELECT executionId FROM %s WHERE tenantId = ? AND scriptName = ? AND scriptVersion = ? AND databaseDriver = ?",
+		TableNameScriptHistory(driver))
 
 	type ExistingRecord struct {
 		ExecutionId string `db:"executionId"`
@@ -118,11 +117,8 @@ func recordScriptExecution(ctx context.Context, conn database.Database, driver, 
 
 	if existing.ExecutionId != "" {
 		// 记录存在，执行更新
-		updateSQL := `UPDATE HUB_SCRIPT_EXECUTION_HISTORY 
-					  SET executionId = ?, scriptPath = ?, executionStatus = ?, 
-					      executionTime = ?, executionDuration = ?, statementsExecuted = ?, 
-					      errorMessage = ?
-					  WHERE tenantId = ? AND scriptName = ? AND scriptVersion = ? AND databaseDriver = ?`
+		updateSQL := fmt.Sprintf("UPDATE %s SET executionId = ?, scriptPath = ?, executionStatus = ?, executionTime = ?, executionDuration = ?, statementsExecuted = ?, errorMessage = ? WHERE tenantId = ? AND scriptName = ? AND scriptVersion = ? AND databaseDriver = ?",
+			TableNameScriptHistory(driver))
 
 		_, err = conn.Exec(ctx, updateSQL, []interface{}{
 			executionId, scriptPath, status, now, durationMs, statementsExecuted, errorMessage,
@@ -146,10 +142,8 @@ func recordScriptExecution(ctx context.Context, conn database.Database, driver, 
 		}
 	} else {
 		// 记录不存在，执行插入
-		insertSQL := `INSERT INTO HUB_SCRIPT_EXECUTION_HISTORY 
-					  (executionId, tenantId, scriptName, scriptPath, scriptVersion, databaseDriver, 
-					   executionStatus, executionTime, executionDuration, statementsExecuted, errorMessage, createdAt)
-					  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		insertSQL := fmt.Sprintf("INSERT INTO %s (executionId, tenantId, scriptName, scriptPath, scriptVersion, databaseDriver, executionStatus, executionTime, executionDuration, statementsExecuted, errorMessage, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			TableNameScriptHistory(driver))
 
 		_, err = conn.Exec(ctx, insertSQL, []interface{}{
 			executionId, tenantId, scriptName, scriptPath, scriptVersion, driver,
@@ -193,8 +187,8 @@ func recordStatementExecution(ctx context.Context, conn database.Database, drive
 	durationMs := duration.Milliseconds()
 
 	// 首先检查记录是否存在
-	checkQuery := `SELECT statementId FROM HUB_STATEMENT_EXECUTION_HISTORY 
-				   WHERE tenantId = ? AND scriptName = ? AND statementHash = ? AND databaseDriver = ?`
+	checkQuery := fmt.Sprintf("SELECT statementId FROM %s WHERE tenantId = ? AND scriptName = ? AND statementHash = ? AND databaseDriver = ?",
+		TableNameStatementHistory(driver))
 
 	type ExistingRecord struct {
 		StatementId string `db:"statementId"`
@@ -222,10 +216,8 @@ func recordStatementExecution(ctx context.Context, conn database.Database, drive
 
 	if existing.StatementId != "" {
 		// 记录存在，执行更新
-		updateSQL := `UPDATE HUB_STATEMENT_EXECUTION_HISTORY 
-					  SET executionStatus = ?, executionTime = ?, executionDuration = ?, 
-					      errorMessage = ?, createdAt = ?
-					  WHERE statementId = ?`
+		updateSQL := fmt.Sprintf("UPDATE %s SET executionStatus = ?, executionTime = ?, executionDuration = ?, errorMessage = ?, createdAt = ? WHERE statementId = ?",
+			TableNameStatementHistory(driver))
 
 		_, err = conn.Exec(ctx, updateSQL, []interface{}{
 			status, now, durationMs, errorMessage, now, existing.StatementId,
@@ -249,10 +241,8 @@ func recordStatementExecution(ctx context.Context, conn database.Database, drive
 	} else {
 		// 记录不存在，执行插入
 		statementId := generateStatementId()
-		insertSQL := `INSERT INTO HUB_STATEMENT_EXECUTION_HISTORY 
-					  (statementId, tenantId, scriptName, statementHash, statementType, statementContent, 
-					   databaseDriver, executionStatus, executionTime, executionDuration, errorMessage, createdAt)
-					  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		insertSQL := fmt.Sprintf("INSERT INTO %s (statementId, tenantId, scriptName, statementHash, statementType, statementContent, databaseDriver, executionStatus, executionTime, executionDuration, errorMessage, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			TableNameStatementHistory(driver))
 
 		_, err = conn.Exec(ctx, insertSQL, []interface{}{
 			statementId, tenantId, scriptName, statementHash, statementType, statementContent,

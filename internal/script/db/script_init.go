@@ -889,23 +889,17 @@ func calculateStatementHash(statement string) string {
 //   - error: 查询失败时返回错误信息
 func GetScriptExecutionHistory(ctx context.Context, conn database.Database, scriptName string, limit int) ([]ScriptExecutionHistory, error) {
 	tenantId := config.GetString("database.tenant_id", "default")
+	driver := conn.GetDriver()
+	tableName := TableNameScriptHistory(driver)
 
 	var query string
 	var args []interface{}
 
 	if scriptName != "" {
-		query = `SELECT executionId, tenantId, scriptName, scriptPath, scriptVersion, databaseDriver,
-				  executionStatus, executionTime, executionDuration, statementsExecuted, errorMessage, createdAt
-				  FROM HUB_SCRIPT_EXECUTION_HISTORY 
-				  WHERE tenantId = ? AND scriptName = ?
-				  ORDER BY executionTime DESC`
+		query = fmt.Sprintf("SELECT executionId, tenantId, scriptName, scriptPath, scriptVersion, databaseDriver, executionStatus, executionTime, executionDuration, statementsExecuted, errorMessage, createdAt FROM %s WHERE tenantId = ? AND scriptName = ? ORDER BY executionTime DESC", tableName)
 		args = []interface{}{tenantId, scriptName}
 	} else {
-		query = `SELECT executionId, tenantId, scriptName, scriptPath, scriptVersion, databaseDriver,
-				  executionStatus, executionTime, executionDuration, statementsExecuted, errorMessage, createdAt
-				  FROM HUB_SCRIPT_EXECUTION_HISTORY 
-				  WHERE tenantId = ?
-				  ORDER BY executionTime DESC`
+		query = fmt.Sprintf("SELECT executionId, tenantId, scriptName, scriptPath, scriptVersion, databaseDriver, executionStatus, executionTime, executionDuration, statementsExecuted, errorMessage, createdAt FROM %s WHERE tenantId = ? ORDER BY executionTime DESC", tableName)
 		args = []interface{}{tenantId}
 	}
 

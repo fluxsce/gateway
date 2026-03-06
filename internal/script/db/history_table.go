@@ -9,6 +9,24 @@ import (
 	"gateway/pkg/logger"
 )
 
+// TableNameScriptHistory 返回脚本执行历史表名
+// Oracle 标识符限制30字符，使用短名称 HUB_SCRIPT_EXEC_HIST (24)
+func TableNameScriptHistory(driver string) string {
+	if driver == dbtypes.DriverOracle {
+		return "HUB_SCRIPT_EXEC_HIST"
+	}
+	return "HUB_SCRIPT_EXECUTION_HISTORY"
+}
+
+// TableNameStatementHistory 返回语句执行历史表名
+// Oracle 标识符限制30字符，使用短名称 HUB_STMT_EXECUTION_HIST (29)
+func TableNameStatementHistory(driver string) string {
+	if driver == dbtypes.DriverOracle {
+		return "HUB_STMT_EXECUTION_HIST"
+	}
+	return "HUB_STATEMENT_EXECUTION_HISTORY"
+}
+
 // ensureScriptHistoryTable 确保脚本执行历史表存在
 // 创建用于跟踪脚本执行历史的表（包括文件级别和语句级别），支持多种数据库类型
 // 该表用于记录每次脚本执行的详细信息，包括版本、状态、耗时等
@@ -88,9 +106,9 @@ CREATE INDEX IF NOT EXISTS IDX_SCRIPT_HIST_TIME ON HUB_SCRIPT_EXECUTION_HISTORY(
 CREATE UNIQUE INDEX IF NOT EXISTS UK_SCRIPT_VERSION ON HUB_SCRIPT_EXECUTION_HISTORY(tenantId, scriptName, scriptVersion, databaseDriver);`
 
 	case dbtypes.DriverOracle:
-		createTableSQL = `
+		createTableSQL = fmt.Sprintf(`
 BEGIN
-    EXECUTE IMMEDIATE 'CREATE TABLE HUB_SCRIPT_EXECUTION_HISTORY (
+    EXECUTE IMMEDIATE 'CREATE TABLE %s (
         executionId VARCHAR2(32) NOT NULL PRIMARY KEY,
         tenantId VARCHAR2(32) DEFAULT ''default'' NOT NULL,
         scriptName VARCHAR2(255) NOT NULL,
@@ -109,7 +127,7 @@ EXCEPTION
         IF SQLCODE != -955 THEN
             RAISE;
         END IF;
-END;`
+END;`, TableNameScriptHistory(driver))
 
 	case dbtypes.DriverClickHouse:
 		createTableSQL = `
@@ -199,9 +217,9 @@ CREATE INDEX IF NOT EXISTS IDX_STMT_HIST_TIME ON HUB_STATEMENT_EXECUTION_HISTORY
 CREATE UNIQUE INDEX IF NOT EXISTS UK_STMT_HASH ON HUB_STATEMENT_EXECUTION_HISTORY(tenantId, scriptName, statementHash, databaseDriver);`
 
 	case dbtypes.DriverOracle:
-		createTableSQL = `
+		createTableSQL = fmt.Sprintf(`
 BEGIN
-    EXECUTE IMMEDIATE 'CREATE TABLE HUB_STATEMENT_EXECUTION_HISTORY (
+    EXECUTE IMMEDIATE 'CREATE TABLE %s (
         statementId VARCHAR2(32) NOT NULL PRIMARY KEY,
         tenantId VARCHAR2(32) DEFAULT ''default'' NOT NULL,
         scriptName VARCHAR2(255) NOT NULL,
@@ -220,7 +238,7 @@ EXCEPTION
         IF SQLCODE != -955 THEN
             RAISE;
         END IF;
-END;`
+END;`, TableNameStatementHistory(driver))
 
 	case dbtypes.DriverClickHouse:
 		createTableSQL = `

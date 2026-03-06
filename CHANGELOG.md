@@ -6,6 +6,19 @@
 
 ## [Unreleased]（未发布）
 
+### 新增
+- 🗄️ **Oracle 数据库支持完善**
+  - Linux 安装脚本（`install-service-linux.sh`）增强 Oracle 环境变量检查
+  - 安装时自动加载 `/etc/profile`、`~/.bash_profile`、`~/.profile` 以继承 `ORACLE_HOME`、`LD_LIBRARY_PATH`
+  - 支持 `ORACLE_HOME` 下库文件在根目录或 `lib` 子目录两种解压结构
+  - 当环境变量存在但 glob 检测失败时，直接使用 `ORACLE_HOME` 作为回退
+
+### 修复
+- 🐛 **修复 Oracle 表名超出 30 字符限制导致 ORA-00972 错误**
+  - `HUB_STATEMENT_EXECUTION_HISTORY` 改为 `HUB_STMT_EXECUTION_HIST`（Oracle）
+  - `HUB_SCRIPT_EXECUTION_HISTORY` 改为 `HUB_SCRIPT_EXEC_HIST`（Oracle）
+  - MySQL、SQLite、ClickHouse 保持原表名不变
+
 ## [3.0.8] - 2026-02-28
 
 ### 新增

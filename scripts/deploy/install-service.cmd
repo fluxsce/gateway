@@ -103,12 +103,12 @@ echo   -h, --help             显示帮助信息
 echo.
 echo 示例:
 echo   %~nx0                           # 安装标准版本服务
-echo   %~nx0 oracle                    # 安装Oracle版本服务
+echo   %~nx0 oracle                    # 安装 Oracle 版本（或运行后按提示选择）
 echo   %~nx0 -d "C:\Program Files\Gateway"  # 指定安装目录
 echo.
 echo 注意:
-echo   - 脚本会自动检测Oracle版本可执行文件
-echo   - 所有版本都使用统一的服务名称Gateway
+echo   - Oracle 版本由安装时选项决定，不根据可执行文件名自动检测
+echo   - 所有版本都使用统一的服务名称 Gateway
 echo.
 if "%~1"=="-h" (
     pause
@@ -122,6 +122,14 @@ echo [DEBUG] 参数错误，但继续执行调试...
 echo.
 
 :: 智能检测应用程序目录和可执行文件
+:: 若未通过命令行指定 oracle，则询问是否安装 Oracle 版本
+if "%ORACLE_VERSION%"=="false" (
+    set /p ORACLE_CHOICE="是否安装 Oracle 版本？(y/N): "
+    if /i "!ORACLE_CHOICE!"=="y" (
+        set ORACLE_VERSION=true
+        echo [INFO] 已选择安装 Oracle 版本
+    )
+)
 echo [INFO] 开始检测应用程序目录和可执行文件...
 call :detect_app_and_exe
 if errorlevel 1 (
@@ -458,29 +466,8 @@ if exist "%CHECK_DIR%\gateway-win10-amd64.exe" (
     exit /b 0
 )
 
-:: 兼容旧版本文件名：尝试自动检测Oracle版本
-if exist "%CHECK_DIR%\gateway-oracle.exe" (
-    set EXE_FILE=%CHECK_DIR%\gateway-oracle.exe
-    set ORACLE_VERSION=true
-    set SERVICE_NAME=Gateway
-    set SERVICE_DISPLAY_NAME=Gateway Application Service
-    echo [INFO] 自动检测到Oracle版本可执行文件
-    exit /b 0
-) else if exist "%CHECK_DIR%\gateway-win10-oracle-amd64.exe" (
-    set EXE_FILE=%CHECK_DIR%\gateway-win10-oracle-amd64.exe
-    set ORACLE_VERSION=true
-    set SERVICE_NAME=Gateway
-    set SERVICE_DISPLAY_NAME=Gateway Application Service
-    echo [INFO] 自动检测到Oracle版本可执行文件
-    exit /b 0
-) else if exist "%CHECK_DIR%\gateway-win2008-oracle-amd64.exe" (
-    set EXE_FILE=%CHECK_DIR%\gateway-win2008-oracle-amd64.exe
-    set ORACLE_VERSION=true
-    set SERVICE_NAME=Gateway
-    set SERVICE_DISPLAY_NAME=Gateway Application Service
-    echo [INFO] 自动检测到Oracle版本可执行文件
-    exit /b 0
-)
+:: Oracle 版本由安装时选项决定，不根据可执行文件名自动检测
+:: 当 ORACLE_VERSION 为 true 时，上面已检查过 oracle 文件；此处不再自动设置
 
 :: 没找到相关文件
 exit /b 1 
