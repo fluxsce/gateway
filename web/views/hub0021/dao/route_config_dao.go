@@ -170,6 +170,14 @@ func (dao *RouteConfigDAO) UpdateRouteConfig(ctx context.Context, routeConfig *m
 	routeConfig.EditTime = time.Now()
 	routeConfig.EditWho = operatorId
 
+	// Oracle 将空字符串视为 NULL，NOT NULL 列需设置默认值
+	if routeConfig.StripPathPrefix == "" {
+		routeConfig.StripPathPrefix = "N"
+	}
+	if routeConfig.EnableWebsocket == "" {
+		routeConfig.EnableWebsocket = "N"
+	}
+
 	// 构建更新SQL
 	sql := `
 		UPDATE HUB_GW_ROUTE_CONFIG SET

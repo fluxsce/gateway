@@ -15,6 +15,7 @@ import (
 	"gateway/pkg/config"
 	"gateway/pkg/database"
 	"gateway/pkg/database/dbtypes"
+	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/logger"
 	mongofactory "gateway/pkg/mongo/factory"
 )
@@ -556,9 +557,15 @@ func executeSQLScriptByStatements(ctx context.Context, historyConn database.Data
 			"statement_hash", stmtHash,
 			"statement_preview", truncateString(stmt, 200))
 
-		// 执行SQL语句（在目标数据库上执行）
+		// Oracle OCI/ODPI 执行时末尾分号会导致 ORA-00933/ORA-02158，防御性清理
+		stmtToExec := strings.TrimSpace(strings.TrimSuffix(stmt, ";"))
+		// Oracle 会将字符串内的 : 解析为绑定变量，需转义为 CHR(58)
+		if driver == dbtypes.DriverOracle || driver == dbtypes.DriverOracle11g {
+			stmtToExec = escapeColonsInStringLiteralsForOracle(stmtToExec)
+		}
+
 		startTime := time.Now()
-		_, err = targetConn.Exec(ctx, stmt, nil, false)
+		_, err = targetConn.Exec(ctx, stmtToExec, nil, false)
 		duration := time.Since(startTime)
 
 		if err != nil {
@@ -611,6 +618,43 @@ func executeSQLScriptByStatements(ctx context.Context, historyConn database.Data
 	return executedCount, failedCount, skippedCount, nil
 }
 
+// escapeColonsInStringLiteralsForOracle 将单引号字符串字面量内的冒号替换为 CHR(58) 连接
+// Oracle OCI/ODPI 会将 : 解析为绑定变量，导致 'hub0021:globalFilterConfig:search' 中的 :search 等被误识别
+func escapeColonsInStringLiteralsForOracle(sql string) string {
+	var result strings.Builder
+	result.Grow(len(sql) * 2) // 预分配，替换后可能变长
+	inString := false
+	i := 0
+	for i < len(sql) {
+		c := sql[i]
+		if !inString {
+			result.WriteByte(c)
+			if c == '\'' {
+				inString = true
+			}
+			i++
+			continue
+		}
+		if c == '\'' {
+			if i+1 < len(sql) && sql[i+1] == '\'' {
+				result.WriteString("''")
+				i += 2
+			} else {
+				result.WriteByte(c)
+				inString = false
+				i++
+			}
+		} else if c == ':' {
+			result.WriteString("'||CHR(58)||'")
+			i++
+		} else {
+			result.WriteByte(c)
+			i++
+		}
+	}
+	return result.String()
+}
+
 // splitSQLStatements 分割SQL脚本为独立的语句
 // 按分号分割SQL语句，处理多行语句和注释，确保正确的执行顺序
 func splitSQLStatements(scriptContent string) []string {
@@ -649,7 +693,7 @@ func splitSQLStatements(scriptContent string) []string {
 
 			// 如果遇到分号且不在字符串内，则结束当前语句
 			if char == ';' && !inString {
-				stmt := strings.TrimSpace(currentStatement.String())
+				stmt := strings.TrimSpace(strings.TrimSuffix(currentStatement.String(), ";"))
 				if stmt != "" && stmt != ";" {
 					statements = append(statements, stmt)
 				}
@@ -892,23 +936,31 @@ func GetScriptExecutionHistory(ctx context.Context, conn database.Database, scri
 	driver := conn.GetDriver()
 	tableName := TableNameScriptHistory(driver)
 
-	var query string
+	var baseQuery string
 	var args []interface{}
 
 	if scriptName != "" {
-		query = fmt.Sprintf("SELECT executionId, tenantId, scriptName, scriptPath, scriptVersion, databaseDriver, executionStatus, executionTime, executionDuration, statementsExecuted, errorMessage, createdAt FROM %s WHERE tenantId = ? AND scriptName = ? ORDER BY executionTime DESC", tableName)
+		baseQuery = fmt.Sprintf("SELECT executionId, tenantId, scriptName, scriptPath, scriptVersion, databaseDriver, executionStatus, executionTime, executionDuration, statementsExecuted, errorMessage, createdAt FROM %s WHERE tenantId = ? AND scriptName = ? ORDER BY executionTime DESC", tableName)
 		args = []interface{}{tenantId, scriptName}
 	} else {
-		query = fmt.Sprintf("SELECT executionId, tenantId, scriptName, scriptPath, scriptVersion, databaseDriver, executionStatus, executionTime, executionDuration, statementsExecuted, errorMessage, createdAt FROM %s WHERE tenantId = ? ORDER BY executionTime DESC", tableName)
+		baseQuery = fmt.Sprintf("SELECT executionId, tenantId, scriptName, scriptPath, scriptVersion, databaseDriver, executionStatus, executionTime, executionDuration, statementsExecuted, errorMessage, createdAt FROM %s WHERE tenantId = ? ORDER BY executionTime DESC", tableName)
 		args = []interface{}{tenantId}
 	}
 
 	if limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", limit)
+		// 使用 sqlutils 构建分页语句，兼容 Oracle（不支持 LIMIT）
+		dbType := sqlutils.DatabaseType(driver)
+		pagination := sqlutils.NewPaginationInfo(1, limit)
+		paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+		if err != nil {
+			return nil, fmt.Errorf("构建分页查询失败: %w", err)
+		}
+		baseQuery = paginatedQuery
+		args = append(args, paginationArgs...)
 	}
 
 	var histories []ScriptExecutionHistory
-	err := conn.Query(ctx, &histories, query, args, true)
+	err := conn.Query(ctx, &histories, baseQuery, args, true)
 	if err != nil {
 		return nil, fmt.Errorf("查询脚本执行历史失败: %w", err)
 	}

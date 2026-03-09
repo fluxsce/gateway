@@ -6,6 +6,10 @@
 
 ## [Unreleased]（未发布）
 
+（暂无）
+
+## [3.0.9] - 2026-03-09
+
 ### 新增
 - 🗄️ **Oracle 数据库支持完善**
   - Linux 安装脚本（`install-service-linux.sh`）增强 Oracle 环境变量检查

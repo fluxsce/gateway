@@ -8,6 +8,7 @@ import (
 
 	"gateway/pkg/config"
 	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/random"
 )
@@ -27,8 +28,18 @@ import (
 func getStatementExecutionStatus(ctx context.Context, conn database.Database, driver, scriptName, statementHash string) (string, error) {
 	tenantId := config.GetString("database.tenant_id", "default")
 
-	query := fmt.Sprintf("SELECT executionStatus FROM %s WHERE tenantId = ? AND scriptName = ? AND statementHash = ? AND databaseDriver = ? ORDER BY executionTime DESC LIMIT 1",
+	baseQuery := fmt.Sprintf("SELECT executionStatus FROM %s WHERE tenantId = ? AND scriptName = ? AND statementHash = ? AND databaseDriver = ? ORDER BY executionTime DESC",
 		TableNameStatementHistory(driver))
+
+	// 使用 sqlutils 构建分页语句，兼容 Oracle（不支持 LIMIT，需用 OFFSET FETCH）
+	dbType := sqlutils.DatabaseType(driver)
+	pagination := sqlutils.NewPaginationInfo(1, 1)
+	query, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return "", err
+	}
+
+	args := append([]interface{}{tenantId, scriptName, statementHash, driver}, paginationArgs...)
 
 	// 定义结果结构体
 	type StatusResult struct {
@@ -36,7 +47,7 @@ func getStatementExecutionStatus(ctx context.Context, conn database.Database, dr
 	}
 
 	var result StatusResult
-	err := conn.QueryOne(ctx, &result, query, []interface{}{tenantId, scriptName, statementHash, driver}, true)
+	err = conn.QueryOne(ctx, &result, query, args, true)
 	if err != nil {
 		// 判断是否是预期的"记录不存在"或"表不存在"错误
 		isRecordNotFound := strings.Contains(err.Error(), "no rows") ||

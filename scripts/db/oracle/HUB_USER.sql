@@ -47,4 +47,48 @@ CREATE INDEX IDX_USER_EMAIL ON HUB_USER(email);
 CREATE INDEX IDX_USER_MOBILE ON HUB_USER(mobile);
 COMMENT ON TABLE HUB_USER IS '用户信息表';
 
+-- 初始化系统管理员账号
+INSERT INTO HUB_USER (
+    userId,
+    tenantId,
+    userName,
+    password,
+    realName,
+    deptId,
+    email,
+    mobile,
+    avatar,
+    gender,
+    statusFlag,
+    deptAdminFlag,
+    tenantAdminFlag,
+    userExpireDate,
+    oprSeqFlag,
+    currentVersion,
+    activeFlag,
+    addWho,
+    editWho,
+    noteText
+) VALUES (
+    'admin',                            -- userId
+    'default',                          -- tenantId
+    'admin',                            -- userName
+    '123456',                           -- password
+    '系统管理员',                        -- realName
+    'D00000001',                        -- deptId
+    'admin@example.com',                -- email
+    '13800000000',                      -- mobile
+    'https://example.com/avatar.png',   -- avatar
+    1,                                  -- gender (1:男)
+    'Y',                                -- statusFlag
+    'N',                                -- deptAdminFlag
+    'Y',                                -- tenantAdminFlag
+    SYSDATE + INTERVAL '5' YEAR,        -- userExpireDate（5年后过期）
+    'SEQFLAG_001',                      -- oprSeqFlag
+    1,                                  -- currentVersion
+    'Y',                                -- activeFlag
+    'system',                           -- addWho
+    'system',                           -- editWho
+    '系统初始化管理员账号'               -- noteText
+);
 

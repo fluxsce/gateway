@@ -7,6 +7,7 @@ import (
 
 	"gateway/internal/alert/types"
 	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
 )
 
 // LogDAO 告警日志数据访问对象
@@ -70,11 +71,17 @@ func (d *LogDAO) UpdateLog(ctx context.Context, log *types.AlertLog) error {
 
 // GetPendingLogs 获取待发送的告警日志
 func (d *LogDAO) GetPendingLogs(ctx context.Context, tenantId string, limit int) ([]*types.AlertLog, error) {
-	query := "SELECT * FROM HUB_ALERT_LOG WHERE tenantId = ? AND sendStatus = 'PENDING' AND activeFlag = 'Y' ORDER BY alertTimestamp ASC LIMIT ?"
-	args := []interface{}{tenantId, limit}
+	baseQuery := "SELECT * FROM HUB_ALERT_LOG WHERE tenantId = ? AND sendStatus = 'PENDING' AND activeFlag = 'Y' ORDER BY alertTimestamp ASC"
+	dbType := sqlutils.DatabaseType(d.db.GetDriver())
+	pagination := sqlutils.NewPaginationInfo(1, limit)
+	query, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, fmt.Errorf("构建分页查询失败: %w", err)
+	}
+	args := append([]interface{}{tenantId}, paginationArgs...)
 
 	var logs []*types.AlertLog
-	err := d.db.Query(ctx, &logs, query, args, true)
+	err = d.db.Query(ctx, &logs, query, args, true)
 	if err != nil {
 		return nil, fmt.Errorf("查询待发送告警日志失败: %w", err)
 	}
