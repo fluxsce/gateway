@@ -1,0 +1,5 @@
+export { default as MessageTest } from './MessageTest.vue'
+export { default as CustomRenderTest } from './CustomRenderTest.vue'
+export { default as CustomRenderDemoDialog } from './CustomRenderDemoDialog.vue'
+export { default as GTabsTest } from './GTabsTest.vue'
+export { default as GTextShowTest } from './GTextShowTest.vue'
