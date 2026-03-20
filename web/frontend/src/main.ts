@@ -1,4 +1,9 @@
+import gcustomRenderPlugin from '@/components/gcustom-render/plugin'
+import gdialogPlugin from '@/components/gdialog/plugin'
+import gmessagePlugin from '@/components/gmessage/plugin'
+import naive from 'naive-ui'
 import { createPinia } from 'pinia'
+import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 import { createApp } from 'vue'
 import App from './App.vue'
 import { setupI18n } from './locales'
@@ -49,6 +54,7 @@ async function initApp() {
 
     // 初始化Pinia状态管理
     const pinia = createPinia()
+    pinia.use(piniaPluginPersistedstate)
     app.use(pinia)
 
     // 初始化i18n，使用简化的方法
@@ -56,14 +62,20 @@ async function initApp() {
     app.use(i18n)
 
     // 重要：先初始化stores，再添加路由
-    // 初始化所有stores（不再负责多语言）
+    // 初始化所有stores（含主题同步 data-theme，与 XiRang 一致由 store 维护）
     await initializeStores()
 
     // 设置store辅助函数（模板中可通过$user、$app等访问）
     setupStoreHelpers(app)
 
+    // 全局注册 naive-ui
+    app.use(naive)
+
     // 注册所有自定义插件（包括API工具）
     setupPlugins(app)
+
+    // GDialog 程序化调用（挂到 $gDialog / window.$gDialog）
+    app.use(gdialogPlugin, { global: true, globalName: '$gDialog' })
 
     // 主题在App.vue组件中初始化，避免重复初始化
     // initTheme()
@@ -82,6 +94,10 @@ async function initApp() {
 
     // 配置 vxe-table（必须在路由之前注册）
     app.use(VxeUIBase).use(VxeUITable)
+
+    // 全局 API 插件（在 vxe 之后挂载，TS/模板内直接调用 $gMessage、$gRender）
+    app.use(gmessagePlugin, { global: true, globalName: '$gMessage' })
+    app.use(gcustomRenderPlugin, { global: true, globalName: '$gRender' })
 
     // 使用路由
     app.use(router)

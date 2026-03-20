@@ -8,7 +8,6 @@ import (
 	"gateway/pkg/utils/huberrors"
 	"gateway/pkg/utils/random"
 	"gateway/web/views/hubcommon002/models"
-	"strings"
 	"time"
 )
 
@@ -44,7 +43,7 @@ func (dao *ApiAccessConfigDAO) AddApiAccessConfig(ctx context.Context, config *m
 	config.AddWho = operatorId
 	config.EditTime = now
 	config.EditWho = operatorId
-	config.OprSeqFlag = config.ApiAccessConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
+	config.OprSeqFlag = random.Generate32BitRandomString()
 	config.CurrentVersion = 1
 	config.ActiveFlag = "Y"
 
@@ -106,7 +105,7 @@ func (dao *ApiAccessConfigDAO) UpdateApiAccessConfig(ctx context.Context, config
 	config.EditTime = time.Now()
 	config.EditWho = operatorId
 	config.CurrentVersion = currentConfig.CurrentVersion + 1
-	config.OprSeqFlag = config.ApiAccessConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
+	config.OprSeqFlag = random.Generate32BitRandomString()
 
 	// 保留不可修改的字段
 	config.AddTime = currentConfig.AddTime

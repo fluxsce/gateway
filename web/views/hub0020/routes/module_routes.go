@@ -94,6 +94,10 @@ func initGatewayInstanceRoutes(router *gin.RouterGroup, db database.Database) {
 		// 日志配置管理
 		instanceGroup.POST("/getLogConfig", gatewayInstanceController.GetLogConfig)
 		instanceGroup.POST("/editLogConfig", gatewayInstanceController.EditLogConfig)
+
+		// 网关实例导出
+		instanceGroup.POST("/exportGatewayInstance", gatewayInstanceController.ExportGatewayInstance)
+		instanceGroup.POST("/importGatewayInstance", gatewayInstanceController.ImportGatewayInstance)
 	}
 }
 

@@ -19,11 +19,9 @@
         :loading="button.loading"
         quaternary
       >
-      <template v-if="button.icon" #icon>
-            <n-icon>
-              <component :is="iconComponent" />
-            </n-icon>
-          </template>
+        <template v-if="button.icon" #icon>
+          <GIcon :icon="button.icon" size="small" />
+        </template>
         {{ button.label }}
       </n-button>
     </n-dropdown>
@@ -40,9 +38,7 @@
           @click="handleClick"
         >
           <template v-if="button.icon" #icon>
-            <n-icon>
-              <component :is="iconComponent" />
-            </n-icon>
+            <GIcon :icon="button.icon" size="small" />
           </template>
           {{ button.label }}
         </n-button>
@@ -55,12 +51,12 @@
 </template>
 
 <script setup lang="ts">
+import { GIcon } from '@/components/gicon'
 import { store } from '@/stores'
-import { renderIcon, renderIconVNode } from '@/utils'
+import { renderIconVNode } from '@/utils'
 import type { DropdownOption } from 'naive-ui'
-import { NButton, NDropdown, NIcon, NTooltip } from 'naive-ui'
-import type { Component } from 'vue'
-import { computed, toValue } from 'vue'
+import { NButton, NDropdown, NTooltip } from 'naive-ui'
+import { computed } from 'vue'
 import type { ToolbarButton } from './types'
 
 interface Props {
@@ -80,19 +76,6 @@ defineSlots<{
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
-
-// 处理图标组件（如果 icon 是字符串，使用 renderIcon；否则直接使用组件）
-// 注意：renderIcon 返回的是 ref，使用 toValue 确保响应式更新
-const iconComponent = computed<Component | null>(() => {
-  if (!props.button.icon) return null
-  if (typeof props.button.icon === 'string') {
-    const iconRef = renderIcon(props.button.icon)
-    // 使用 toValue 确保响应式更新（当 ref 的值变化时，computed 会重新计算）
-    return toValue(iconRef)
-  }
-  // 如果已经是组件，直接返回
-  return props.button.icon as Component
-})
 
 // 获取按钮权限编码：使用 moduleId:key 作为权限编码
 const getButtonPermissionCode = computed(() => {
@@ -144,7 +127,7 @@ const dropdownMenuOptions = computed<DropdownOption[]>(() => {
     
     // 添加图标（使用 renderIconVNode）
     if (option.icon) {
-      menuOption.icon = renderIconVNode(option.icon, NIcon)
+      menuOption.icon = renderIconVNode(option.icon)
     }
     
     // 添加分割线

@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # 配置
 DEFAULT_IMAGE_NAME="datahub-images/gateway"
-VERSION="3.0.9"
+VERSION="3.1.0"
 BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
@@ -50,12 +50,19 @@ FLUX Gateway Docker 镜像构建脚本
 选项:
     -t, --type TYPE       构建类型: oracle (默认，包含所有依赖) 或 standard
     -n, --name NAME       镜像名称 (默认: $DEFAULT_IMAGE_NAME)
+    -m, --mirror HOST     Debian 镜像源主机（解决 apt 拉取超时），如 mirrors.aliyun.com
     -l, --latest          同时标记为 latest
     -h, --help            显示此帮助信息
+
+    也可通过环境变量 DEBIAN_MIRROR 指定镜像（与 -m 二选一）。
 
 示例:
     # 构建包含所有依赖的版本（默认，Oracle版本）
     $0
+
+    # 国内/内网环境 apt 超时时，使用镜像源构建
+    $0 --mirror mirrors.aliyun.com
+    DEBIAN_MIRROR=mirrors.tuna.tsinghua.edu.cn $0
 
     # 只构建标准版本（不包含Oracle）
     $0 --type standard
@@ -73,6 +80,8 @@ EOF
 BUILD_TYPE="oracle"
 TAG_LATEST=false
 IMAGE_NAME="$DEFAULT_IMAGE_NAME"
+# 从环境变量读取，命令行 -m 可覆盖
+DEBIAN_MIRROR="${DEBIAN_MIRROR:-}"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -82,6 +91,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -n|--name)
             IMAGE_NAME="$2"
+            shift 2
+            ;;
+        -m|--mirror)
+            DEBIAN_MIRROR="$2"
             shift 2
             ;;
         -l|--latest)
@@ -167,18 +180,27 @@ build_image() {
     if [[ "$TAG_LATEST" == true ]]; then
         print_info "Latest 标签: $latest_tag"
     fi
+    if [[ -n "$DEBIAN_MIRROR" ]]; then
+        print_info "使用 Debian 镜像源: $DEBIAN_MIRROR"
+    fi
+    
+    # 构建参数（oracle 类型可传 Debian 镜像以应对网络超时）
+    local build_args=(
+        -f "$dockerfile"
+        -t "$image_tag"
+        --build-arg "VERSION=$VERSION"
+        --build-arg "BUILD_DATE=$BUILD_DATE"
+        --build-arg "GIT_COMMIT=$GIT_COMMIT"
+        --progress=plain
+    )
+    if [[ -n "$DEBIAN_MIRROR" && "$build_type" == "oracle" ]]; then
+        build_args+=(--build-arg "DEBIAN_MIRROR=$DEBIAN_MIRROR")
+    fi
     
     # 构建镜像
     print_info "开始构建 Docker 镜像..."
     
-    docker build \
-        -f "$dockerfile" \
-        -t "$image_tag" \
-        --build-arg VERSION="$VERSION" \
-        --build-arg BUILD_DATE="$BUILD_DATE" \
-        --build-arg GIT_COMMIT="$GIT_COMMIT" \
-        --progress=plain \
-        .
+    docker build "${build_args[@]}" .
     
     if [[ $? -eq 0 ]]; then
         print_success "镜像构建成功: $image_tag"

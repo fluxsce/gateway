@@ -141,14 +141,14 @@ const nodeFormFields: DataFormField[] = [
   {
     field: 'portNumber',
     label: '端口号',
-    type: 'input' as const,
+    type: 'number' as const,
     disabled: true,
     required: true,
   },
   {
     field: 'weight',
     label: '权重',
-    type: 'input' as const,
+    type: 'number' as const,
     required: true,
     defaultValue: 1,
   },
@@ -324,7 +324,7 @@ const nodeGridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
     enabled: true,
     showCopyRow: false,
     showCopyCell: false,
-    customMenus: [
+    options: [
       { code: 'edit', name: '编辑' },
       { code: 'online', name: '上线' },
       { code: 'offline', name: '下线' },

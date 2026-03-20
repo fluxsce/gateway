@@ -1,5 +1,5 @@
 <template>
-    <n-card :title="t('hub0000.cpu.title')" :bordered="false" class="monitor-card">
+    <GCard show-title :title="t('hub0000.cpu.title')" :bordered="false" class="monitor-card">
         <template #header-extra>
             <div class="card-extra">
                 <n-date-picker v-model:value="dateTimeRange" type="datetimerange" :shortcuts="timeRangeShortcuts"
@@ -27,26 +27,27 @@
                 <n-empty :description="t('hub0000.common.noData')" />
             </div>
         </div>
-    </n-card>
+    </GCard>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
+import { GCard } from '@/components'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
-import { NCard, NButton, NIcon, NSpin, NEmpty, NDatePicker } from 'naive-ui'
+import { formatDate } from '@/utils/format'
 import { ReloadOutlined } from '@vicons/antd'
-import * as echarts from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import {
-    TitleComponent,
-    TooltipComponent,
     GridComponent,
     LegendComponent,
+    TitleComponent,
     ToolboxComponent,
+    TooltipComponent,
 } from 'echarts/components'
+import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
+import { NButton, NDatePicker, NEmpty, NIcon, NSpin } from 'naive-ui'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { CPUMetrics } from '../../types'
-import { formatDate } from '@/utils/format'
 
 // 注册必要的 ECharts 组件
 echarts.use([
@@ -139,11 +140,20 @@ const timeRangeShortcuts = computed(() => {
 // CPU表格数据
 
 // 初始化图表
+let resizeObserver: ResizeObserver | null = null
+
 const initChart = () => {
     if (!chartRef.value) return
 
     chart = echarts.init(chartRef.value)
     window.addEventListener('resize', handleResize)
+
+    // ResizeObserver 可响应浏览器缩放、窗口 resize、布局变化（window.resize 在缩放时不一定触发）
+    resizeObserver = new ResizeObserver(() => {
+        handleResize()
+    })
+    resizeObserver.observe(chartRef.value)
+
     updateChart()
 }
 
@@ -228,6 +238,12 @@ const updateChart = () => {
     const option = {
         tooltip: {
             trigger: 'axis',
+                // tooltip 依赖绝对定位；当前页面布局存在容器 `overflow: hidden` 的可能，
+                // 使用 appendToBody 避免被裁剪/层级遮挡
+                appendToBody: true,
+                confine: true,
+                // 提高浮层层级（部分场景下即使 appendToBody 也可能被更高 z-index 的元素压住）
+                extraCssText: 'z-index: 9999;',
             formatter: (params: any) => {
                 const detail = params[0].data.detail
 
@@ -327,6 +343,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+    resizeObserver?.disconnect()
+    resizeObserver = null
     if (chart) {
         chart.dispose()
         chart = null

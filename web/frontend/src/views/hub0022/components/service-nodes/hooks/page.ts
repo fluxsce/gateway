@@ -260,32 +260,32 @@ export function useServiceNodePage(
         break
 
       case 'edit': {
-        // 编辑当前高亮的行
+        // 编辑：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord?.()
-        if (!currentRow) {
-          message.warning('请先点击选择要编辑的服务节点')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord?.()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要编辑的服务节点')
           return
         }
-        await openEditDialog(currentRow as ServiceNode)
+        await openEditDialog(selectedRow as ServiceNode)
         break
       }
 
       case 'delete': {
-        // 删除当前高亮的行
+        // 删除：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord?.()
-        if (!currentRow) {
-          message.warning('请先点击选择要删除的服务节点')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord?.()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要删除的服务节点')
           return
         }
-        await service.deleteNode((currentRow as ServiceNode).serviceNodeId)
+        await service.deleteNode((selectedRow as ServiceNode).serviceNodeId)
         break
       }
 

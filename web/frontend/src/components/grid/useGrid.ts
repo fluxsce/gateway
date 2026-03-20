@@ -3,6 +3,7 @@
  * 统一管理 Grid 的配置、事件和方法
  */
 
+import type { GContextMenuItem } from '@/components/gcontext'
 import type { ToolbarButton } from '@/components/toolbar'
 import { store } from '@/stores'
 import { copyToClipboard } from '@/utils'
@@ -215,14 +216,15 @@ export function useGrid(options: UseGridOptions) {
       })
     }
 
-    // 处理自定义菜单，添加权限检查
-    const customMenus = (props.menuConfig.customMenus || []).map(menu => {
+    // 处理自定义菜单（options 可能为一维或二维），添加权限检查
+    const rawOptions = props.menuConfig.options || []
+    const flatOptions = Array.isArray(rawOptions[0]) ? (rawOptions as GContextMenuItem[][]).flat() : (rawOptions as GContextMenuItem[])
+    const customMenus = flatOptions.map((menu) => {
       const hasPermission = checkMenuPermission(menu.code)
       return {
         ...menu,
         disabled: menu.disabled || !hasPermission,
-        // 如果有子菜单，也需要检查权限
-        children: menu.children?.map(child => {
+        children: menu.children?.map((child) => {
           const childHasPermission = checkMenuPermission(child.code)
           return {
             ...child,
@@ -340,6 +342,17 @@ export function useGrid(options: UseGridOptions) {
     },
     getCurrentRecord: () => {
       return gridRef.value?.getCurrentRecord() || null
+    },
+    getSelectedOrCurrentRecord: () => {
+      const grid = gridRef.value
+      if (!grid) {
+        return null
+      }
+      const checked = grid.getCheckboxRecords?.() || []
+      if (checked.length > 0) {
+        return checked[0]
+      }
+      return grid.getCurrentRecord?.() || null
     },
     setCheckboxRow: (rows: any[], checked: boolean) => {
       if (gridRef.value) {

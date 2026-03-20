@@ -147,12 +147,32 @@
       :to="`#${service.model.moduleId}`"
       module-id="hub0020:rateLimitConfig"
     />
+
+    <!-- 导出：只传参数，visible=true 时自动开始导出 -->
+    <GExport
+      v-model:visible="exportVisible"
+      :module-id="service.model.moduleId"
+      url="/gateway/hub0020/exportGatewayInstance"
+      :params="exportParams"
+      :filename="exportFilename"
+      dialog-title="导出网关实例配置"
+    />
+
+    <!-- 导入 -->
+    <GImport
+      v-model:visible="importVisible"
+      :module-id="service.model.moduleId"
+      url="/gateway/hub0020/importGatewayInstance"
+      @success="handleImportSuccess"
+      @error="(e) => message.error(e.message)"
+    />
   </div>
 </template>
 
 <script lang="ts" setup>
 import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
 import SearchForm from '@/components/form/search/SearchForm.vue'
+import { GExport, GImport } from '@/components/gexport-import'
 import { GPane } from '@/components/gpane'
 import { GGrid } from '@/components/grid'
 import UserAgentAccessConfigListModal from '@/views/common/common002/agent-config/UserAgentAccessConfigListModal.vue'
@@ -163,8 +183,8 @@ import DomainAccessConfigListModal from '@/views/common/common002/domain-config/
 import IpAccessConfigListModal from '@/views/common/common002/ip-config/IpAccessConfigListModal.vue'
 import RateLimitConfigFormModal from '@/views/common/common002/limit-config/RateLimitConfigFormModal.vue'
 import { AlertCircleOutline, CheckmarkCircleOutline } from '@vicons/ionicons5'
-import { NIcon, NTag } from 'naive-ui'
-import { ref } from 'vue'
+import { NIcon, NTag, useMessage } from 'naive-ui'
+import { computed, ref } from 'vue'
 import { useGatewayInstancePage } from './hooks'
 
 // 定义组件名称
@@ -176,8 +196,9 @@ defineOptions({
 
 const searchFormRef = ref()
 const gridRef = ref()
+const message = useMessage()
 
-// ============= 页面级 Hook（包含服务与对话框、事件处理） =============
+// ============= 页面级 Hook =============
 
 const {
   service,
@@ -191,24 +212,37 @@ const {
   currentLogConfig,
   logConfigSubmitting,
   handleLogConfigSubmit,
-    ipAccessControlDialogVisible,
-    ipAccessControlSecurityConfigId,
-    userAgentAccessControlDialogVisible,
-    userAgentAccessControlSecurityConfigId,
-    apiAccessControlDialogVisible,
-    apiAccessControlSecurityConfigId,
-    domainAccessControlDialogVisible,
-    domainAccessControlSecurityConfigId,
-    corsConfigDialogVisible,
-    corsConfigGatewayInstanceId,
-    authConfigDialogVisible,
-    authConfigGatewayInstanceId,
-    rateLimitConfigDialogVisible,
-    rateLimitConfigGatewayInstanceId,
-    handleToolbarClick,
-    handleMenuClick,
-    handleSearch,
+  ipAccessControlDialogVisible,
+  ipAccessControlSecurityConfigId,
+  userAgentAccessControlDialogVisible,
+  userAgentAccessControlSecurityConfigId,
+  apiAccessControlDialogVisible,
+  apiAccessControlSecurityConfigId,
+  domainAccessControlDialogVisible,
+  domainAccessControlSecurityConfigId,
+  corsConfigDialogVisible,
+  corsConfigGatewayInstanceId,
+  authConfigDialogVisible,
+  authConfigGatewayInstanceId,
+  rateLimitConfigDialogVisible,
+  rateLimitConfigGatewayInstanceId,
+  exportVisible,
+  exportInstanceId,
+  importVisible,
+  handleToolbarClick,
+  handleMenuClick,
+  handleSearch,
 } = useGatewayInstancePage(gridRef, searchFormRef)
+
+// ============= 导出/导入 =============
+
+const exportParams = computed(() => ({ gatewayInstanceId: exportInstanceId.value }))
+const exportFilename = computed(() => `网关实例配置_${exportInstanceId.value}`)
+
+const handleImportSuccess = () => {
+  message.success('导入成功，数据已刷新')
+  handleSearch()
+}
 
 // 数据由搜索表单的"查询"按钮触发加载
 </script>
@@ -236,5 +270,6 @@ const {
     display: flex;
     flex-direction: column;
   }
+
 }
 </style>

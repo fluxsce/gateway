@@ -1,6 +1,6 @@
 -- ClickHouse 网关访问日志表
 -- 基于MySQL版本翻译，针对ClickHouse的列式存储特性进行优化
--- TTL设置为30天自动过期
+-- 数据清理由应用层 LogCleaner 等机制负责，此处不设 TTL
 -- 时间精度：DateTime64(3) 支持毫秒精度
 -- 字符串长度：String类型理论上无长度限制，实际受内存和配置限制
 
@@ -100,8 +100,6 @@ ENGINE = MergeTree()
 PARTITION BY toDate(gatewayStartProcessingTime)
 -- 主要排序字段：租户ID + 链路追踪ID + 时间，优化常见查询
 ORDER BY (gatewayStartProcessingTime, tenantId, traceId)
--- TTL设置：30天后自动删除数据
-TTL gatewayStartProcessingTime + INTERVAL 30 DAY
 -- 表级别设置
 SETTINGS 
     -- 启用索引颗粒度自适应
@@ -194,8 +192,6 @@ ENGINE = MergeTree()
 PARTITION BY toDate(requestStartTime)
 -- 主要排序字段：租户ID + 链路追踪ID + 后端追踪ID + 时间
 ORDER BY (requestStartTime, tenantId, traceId, backendTraceId)
--- TTL设置：30天后自动删除数据，与主表保持一致
-TTL requestStartTime + INTERVAL 30 DAY
 -- 表级别设置
 SETTINGS 
     -- 启用索引颗粒度自适应

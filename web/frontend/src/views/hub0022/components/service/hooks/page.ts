@@ -565,54 +565,32 @@ export function useServiceDefinitionPage(
       }
 
       case 'view': {
-        // 查看详情：需要选中单个服务定义
+        // 查看：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        // 优先使用当前高亮的行
-        const currentRow = gridRef.value.getCurrentRecord?.()
-        if (currentRow) {
-          openViewDialog(currentRow as ServiceDefinition)
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord?.()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要查看的服务定义')
           return
         }
-        // 如果没有当前行，尝试获取选中的记录
-        const selectedRecords = gridRef.value.getCheckboxRecords?.() || gridRef.value.getSelectRecords?.() || []
-        if (selectedRecords.length === 0) {
-          message.warning('请先点击选择要查看的服务定义')
-          return
-        }
-        if (selectedRecords.length > 1) {
-          message.warning('请选择单个服务定义进行查看')
-          return
-        }
-        openViewDialog(selectedRecords[0] as ServiceDefinition)
+        openViewDialog(selectedRow as ServiceDefinition)
         break
       }
 
       case 'manageNodes': {
-        // 节点管理：需要选中单个服务定义
+        // 节点管理：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        // 优先使用当前高亮的行
-        const currentRow = gridRef.value.getCurrentRecord?.()
-        if (currentRow) {
-          openNodeDialog(currentRow as ServiceDefinition)
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord?.()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要管理的服务定义')
           return
         }
-        // 如果没有当前行，尝试获取选中的记录
-        const selectedRecords = gridRef.value.getCheckboxRecords?.() || gridRef.value.getSelectRecords?.() || []
-        if (selectedRecords.length === 0) {
-          message.warning('请先点击选择要管理的服务定义')
-          return
-        }
-        if (selectedRecords.length > 1) {
-          message.warning('请选择单个服务定义进行节点管理')
-          return
-        }
-        openNodeDialog(selectedRecords[0] as ServiceDefinition)
+        openNodeDialog(selectedRow as ServiceDefinition)
         break
       }
 

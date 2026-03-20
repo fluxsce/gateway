@@ -146,9 +146,13 @@ interface Props {
   gatewayInstanceId?: string
 }
 
+/** 服务ID -> 服务名称 映射，用于列表展示（多服务时后端不返回 serviceName） */
+export type ServiceNameMap = Record<string, string>
+
 interface Emits {
   (e: 'update:modelValue', value: string | null): void
   (e: 'change', serviceDefinition: ServiceDefinition | ServiceDefinition[] | null): void
+  (e: 'update:serviceNameMap', map: ServiceNameMap): void
 }
 
 const props = defineProps<Props>()
@@ -308,6 +312,7 @@ const handleClear = () => {
   selectedServicesInfo.value = []
   emit('update:modelValue', null)
   emit('change', null)
+  emit('update:serviceNameMap', {})
   message.info('已清除服务定义选择')
 }
 
@@ -318,10 +323,18 @@ const handleServiceSelect = (services: ServiceDefinition[]) => {
     selectedServicesInfo.value = []
     emit('update:modelValue', null)
     emit('change', null)
+    emit('update:serviceNameMap', {})
     handleClose()
     return
   }
-  
+
+  // 构建 serviceId -> serviceName 映射，存入 routeMetadata 供列表展示
+  const serviceNameMap: ServiceNameMap = {}
+  services.forEach((s) => {
+    serviceNameMap[s.serviceDefinitionId] = s.serviceName || ''
+  })
+  emit('update:serviceNameMap', serviceNameMap)
+
   if (services.length === 1) {
     // 单服务模式
     const service = services[0]
@@ -339,7 +352,7 @@ const handleServiceSelect = (services: ServiceDefinition[]) => {
     emit('change', services)
     message.success(`已选择 ${services.length} 个服务`)
   }
-  
+
   handleClose()
 }
 

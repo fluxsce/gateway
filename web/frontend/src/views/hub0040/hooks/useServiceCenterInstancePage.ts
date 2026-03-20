@@ -303,32 +303,32 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
         break
 
       case 'edit': {
-        // 编辑当前高亮的行（点击选中的行）
+        // 编辑：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要编辑的实例')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要编辑的实例')
           return
         }
-        await openEditDialog(currentRow as ServiceCenterInstance)
+        await openEditDialog(selectedRow as ServiceCenterInstance)
         break
       }
 
       case 'delete': {
-        // 删除当前高亮的行
+        // 删除：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要删除的实例')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要删除的实例')
           return
         }
-        await service.deleteInstance(currentRow as ServiceCenterInstance)
+        await service.deleteInstance(selectedRow as ServiceCenterInstance)
         break
       }
 

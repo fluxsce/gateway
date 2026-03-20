@@ -1,26 +1,91 @@
 /**
- * 静态路由配置类
- * 管理应用的固定路由结构，包括登录页面、404页面和基础布局路由
+ * 静态路由入口
  *
- * 静态路由是在应用初始化时直接加载的路由，不依赖于用户权限或后端数据
- *
- * 路由meta配置说明：
- * - title: 页面标题
- * - requiresAuth: 是否需要身份验证
- * - icon: 菜单图标
- * - moduleName: 多语言模块名称，用于路由守卫中预加载对应的语言资源
+ * - 登录、404 等常量路由仍在此声明。
+ * - 主布局下的业务子路由由 `layoutRouteRegistry.buildMainLayoutChildRoutes()` 生成（注册表逻辑分组，路由表拍平为 MainLayout 子级）。
+ * - 侧边栏菜单由同注册表 `buildSidebarMenuFromRegistry()` 派生，勿再双写。
  */
+import { buildMainLayoutChildRoutes } from '@/router/layoutRouteRegistry'
 import MainLayout from '@/views/layout/MainLayout.vue'
 import type { RouteRecordRaw } from 'vue-router'
 
+/** 仅开发环境注册，生产打包不包含测试路由及对应 chunk */
+const testRoutes: RouteRecordRaw[] =
+  import.meta.env.DEV
+    ? [
+        {
+          path: 'test',
+          name: 'test',
+          redirect: '/test/index',
+          component: () => import('@/views/test/TestLayout.vue'),
+          meta: {
+            title: '组件测试',
+            requiresAuth: true,
+            icon: 'FlaskOutline',
+            menuHide: true,
+            keepAliveOutletName: 'TestLayout',
+          },
+          children: [
+            {
+              path: 'index',
+              name: 'testIndex',
+              component: () => import('@/views/test/TestIndex.vue'),
+              meta: { title: '组件测试中心', requiresAuth: true },
+            },
+            {
+              path: 'message',
+              name: 'testMessage',
+              component: () => import('@/views/test/components/MessageTest.vue'),
+              meta: { title: 'Message 测试', requiresAuth: true },
+            },
+            {
+              path: 'custom-render',
+              name: 'testCustomRender',
+              component: () => import('@/views/test/components/CustomRenderTest.vue'),
+              meta: { title: '自定义渲染测试', requiresAuth: true },
+            },
+            {
+              path: 'gtabs',
+              name: 'testGTabs',
+              component: () => import('@/views/test/components/GTabsTest.vue'),
+              meta: { title: 'GTabs 测试', requiresAuth: true },
+            },
+            {
+              path: 'gtext-show',
+              name: 'testGTextShow',
+              component: () => import('@/views/test/components/GTextShowTest.vue'),
+              meta: { title: 'GTextShow 测试', requiresAuth: true },
+            },
+            {
+              path: 'gdropdown',
+              name: 'testGDropdown',
+              component: () => import('@/views/test/components/GDropdownTest.vue'),
+              meta: { title: 'GDropdown 测试', requiresAuth: true },
+            },
+            {
+              path: 'gcard',
+              name: 'testGCard',
+              component: () => import('@/views/test/components/GCardTest.vue'),
+              meta: { title: 'GCard 测试', requiresAuth: true },
+            },
+            {
+              path: 'gselect',
+              name: 'testGSelect',
+              component: () => import('@/views/test/components/GSelectTest.vue'),
+              meta: { title: 'GSelect 测试', requiresAuth: true },
+            },
+            {
+              path: 'gdialog',
+              name: 'testGDialog',
+              component: () => import('@/views/test/components/GDialogTest.vue'),
+              meta: { title: 'GDialog 测试', requiresAuth: true },
+            },
+          ],
+        },
+      ]
+    : []
+
 export class StaticRoutes {
-  /**
-   * 常量路由配置
-   * 这些路由对所有用户可见，不受权限控制
-   * 包括:
-   * - 登录页面
-   * - 404页面
-   */
   static readonly constantRoutes: RouteRecordRaw[] = [
     {
       path: '/login',
@@ -28,392 +93,40 @@ export class StaticRoutes {
       component: () => import('@/views/hub0001/LoginView.vue'),
       meta: {
         title: '用户登录',
-        requiresAuth: false, // 不需要身份验证
-        moduleName: 'hub0001', // 多语言模块名称
+        requiresAuth: false,
+        moduleName: 'hub0001',
       },
     },
     {
-      path: '/:pathMatch(.*)*', // 通配符路径，匹配所有未定义的路由
+      path: '/:pathMatch(.*)*',
       name: 'not-found',
       component: () => import('@/views/layout/NotFound.vue'),
       meta: {
         title: '页面未找到',
-        requiresAuth: false, // 不需要身份验证
+        requiresAuth: false,
       },
     },
   ]
 
-  /**
-   * 主布局路由配置
-   * 作为应用的根路由，包含公共布局组件
-   * 所有动态路由将作为此布局的子路由添加
-   */
   static readonly layoutRoute: RouteRecordRaw = {
     path: '/',
     name: 'mainLayout',
-    component: MainLayout, // 应用主布局组件
-    redirect: '/dashboard', // 默认重定向到仪表盘
+    component: MainLayout,
     meta: {
-      requiresAuth: true, // 需要身份验证
+      requiresAuth: true,
     },
-    children: [
-      {
-        path: 'dashboard',
-        name: 'dashboard',
-        component: () => import('@/views/hub0000/SystemMonitoring.vue'),
-        meta: {
-          title: '系统监控',
-          requiresAuth: true, // 需要身份验证
-          icon: 'HomeOutline',
-          moduleName: 'hub0000', // 多语言模块名称
-        },
-      },
-      {
-        path: 'settings',
-        name: 'settings',
-        component: () => import('@/views/hub0002/UserSettings.vue'),
-        meta: {
-          title: '用户设置',
-          requiresAuth: true,
-          icon: 'SettingsOutline',
-          menuHide: true, //菜单隐藏
-          moduleName: 'hub0002', // 多语言模块名称
-        },
-      },
-      {
-        path: 'system',
-        name: 'system',
-        component: () => import('@/views/layout/EmptyLayout.vue'),
-        meta: {
-          title: '系统设置',
-          requiresAuth: true,
-          icon: 'SettingsOutline',
-        },
-        children: [
-          {
-            path: 'userManagement',
-            name: 'userManagement',
-            component: () => import('@/views/hub0002/UserManagement.vue'),
-            meta: {
-              title: '用户管理',
-              requiresAuth: true,
-              icon: 'PeopleOutline',
-              moduleName: 'hub0002', // 多语言模块名称
-            },
-          },
-          {
-            path: 'roleManagement',
-            name: 'roleManagement',
-            component: () => import('@/views/hub0005/RoleManagement.vue'),
-            meta: {
-              title: '角色管理',
-              requiresAuth: true,
-              icon: 'PeopleCircleOutline',
-              moduleName: 'hub0005', // 多语言模块名称
-            },
-          },
-          {
-            path: 'resourceManagement',
-            name: 'resourceManagement',
-            component: () => import('@/views/hub0006/ResourceManagement.vue'),
-            meta: {
-              title: '权限资源管理',
-              requiresAuth: true,
-              icon: 'KeyOutline',
-              moduleName: 'hub0006', // 多语言模块名称
-            },
-          },
-          {
-            path: 'serverNodeManagement',
-            name: 'serverNodeManagement',
-            component: () => import('@/views/hub0007/ServerNodeManagement.vue'),
-            meta: {
-              title: '系统节点监控',
-              requiresAuth: true,
-              icon: 'HardwareChipOutline',
-              moduleName: 'hub0007', // 多语言模块名称
-            },
-          },
-          {
-            path: 'clusterEventManagement',
-            name: 'clusterEventManagement',
-            component: () => import('@/views/hub0008/ClusterEventManagement.vue'),
-            meta: {
-              title: '集群节点事件',
-              requiresAuth: true,
-              icon: 'RadioOutline',
-              moduleName: 'hub0008', // 多语言模块名称
-            },
-          },
-          // {
-          //   path: 'taskManagement',
-          //   name: 'taskManagement',
-          //   component: () => import('@/views/hub0003/TaskManagement.vue'),
-          //   meta: {
-          //     title: '定时任务管理',
-          //     requiresAuth: true,
-          //     icon: 'TimerOutline',
-          //     moduleName: 'hub0003', // 多语言模块名称
-          //   },
-          // },
-          // {
-          //   path: 'toolManagement',
-          //   name: 'toolManagement',
-          //   component: () => import('@/views/hub0004/ToolManagement.vue'),
-          //   meta: {
-          //     title: '工具插件管理',
-          //     requiresAuth: true,
-          //     icon: 'ExtensionPuzzleOutline',
-          //     moduleName: 'hub0004', // 多语言模块名称
-          //   },
-          // },
-          // {
-          //   path: 'userRoleAssignment',
-          //   name: 'userRoleAssignment',
-          //   component: () => import('@/views/hub0005/UserRoleAssignment.vue'),
-          //   meta: {
-          //     title: '用户角色分配',
-          //     requiresAuth: true,
-          //     icon: 'PersonAddOutline',
-          //     moduleName: 'hub0005', // 多语言模块名称
-          //   },
-          // },
-          // {
-          //   path: 'dataPermissionManagement',
-          //   name: 'dataPermissionManagement',
-          //   component: () => import('@/views/hub0005/DataPermissionManagement.vue'),
-          //   meta: {
-          //     title: '数据权限管理',
-          //     requiresAuth: true,
-          //     icon: 'LockClosedOutline',
-          //     moduleName: 'hub0005', // 多语言模块名称
-          //   },
-          // },
-          // {
-          //   path: 'operationLogManagement',
-          //   name: 'operationLogManagement',
-          //   component: () => import('@/views/hub0005/OperationLogManagement.vue'),
-          //   meta: {
-          //     title: '操作日志管理',
-          //     requiresAuth: true,
-          //     icon: 'DocumentTextOutline',
-          //     moduleName: 'hub0005', // 多语言模块名称
-          //   },
-          // },
-        ],
-      },
-      {
-        path: 'gateway',
-        name: 'gateway',
-        component: () => import('@/views/layout/EmptyLayout.vue'),
-        meta: {
-          title: '网关管理',
-          requiresAuth: true,
-          icon: 'CloudOutline',
-        },
-        children: [
-          {
-            path: 'gatewayInstanceManager',
-            name: 'gatewayInstanceManager',
-            component: () => import('@/views/hub0020/GatewayInstanceManager.vue'),
-            meta: {
-              title: '实例管理',
-              requiresAuth: true,
-              icon: 'ServerOutline',
-              moduleName: 'hub0020', // 多语言模块名称
-            },
-          },
-          {
-            path: 'proxyManagement',
-            name: 'proxyManagement',
-            component: () => import('@/views/hub0022/ProxyManagement.vue'),
-            meta: {
-              title: '代理管理',
-              requiresAuth: true,
-              icon: 'FlashOutline',
-              moduleName: 'hub0022', // 多语言模块名称
-            },
-          },
-          {
-            path: 'routeManagement',
-            name: 'routeManagement',
-            component: () => import('@/views/hub0021/RouteManagement.vue'),
-            meta: {
-              title: '路由管理',
-              requiresAuth: true,
-              icon: 'GitNetworkOutline',
-              moduleName: 'hub0021', // 多语言模块名称
-            },
-          },
-          {
-            path: 'gatewayLogManagement',
-            name: 'gatewayLogManagement',
-            component: () => import('@/views/hub0023/GatewayLogManagement.vue'),
-            meta: {
-              title: '网关日志管理',
-              requiresAuth: true,
-              icon: 'DocumentTextOutline',
-              moduleName: 'hub0023', // 多语言模块名称
-            },
-          },
-        ],
-      },
-      {
-        path: 'tunnel',
-        name: 'tunnel',
-        component: () => import('@/views/layout/EmptyLayout.vue'),
-        meta: {
-          title: '隧道管理',
-          requiresAuth: true,
-          icon: 'SwapHorizontalOutline',
-        },
-        children: [
-          {
-            path: 'tunnelServerManagement',
-            name: 'tunnelServerManagement',
-            component: () => import('@/views/hub0060/TunnelServerManagement.vue'),
-            meta: {
-              title: '隧道服务器',
-              requiresAuth: true,
-              icon: 'ServerOutline',
-              moduleName: 'hub0060', // 多语言模块名称
-            },
-          },
-          {
-            path: 'staticMappingManagement',
-            name: 'staticMappingManagement',
-            component: () => import('@/views/hub0061/StaticMappingManagement.vue'),
-            meta: {
-              title: '静态映射',
-              requiresAuth: true,
-              icon: 'GitNetworkOutline',
-              moduleName: 'hub0061', // 多语言模块名称
-            },
-          },
-          {
-            path: 'tunnelClientManagement',
-            name: 'tunnelClientManagement',
-            component: () => import('@/views/hub0062/TunnelClientManagement.vue'),
-            meta: {
-              title: '隧道客户端',
-              requiresAuth: true,
-              icon: 'DesktopOutline',
-              moduleName: 'hub0062', // 多语言模块名称
-            },
-          },
-        ],
-      },
-      {
-        path: 'serviceGovernance',
-        name: 'serviceGovernance',
-        component: () => import('@/views/layout/EmptyLayout.vue'),
-        meta: {
-          title: '服务治理',
-          requiresAuth: true,
-          icon: 'GitNetworkOutline',
-        },
-        children: [
-          {
-            path: 'serviceCenterInstanceManager',
-            name: 'serviceCenterInstanceManager',
-            component: () => import('@/views/hub0040/ServiceCenterInstanceManager.vue'),
-            meta: {
-              title: '服务中心实例管理',
-              requiresAuth: true,
-              icon: 'ServerOutline',
-              moduleName: 'hub0040', // 多语言模块名称
-            },
-          },
-          {
-            path: 'namespaceManagement',
-            name: 'namespaceManagement',
-            component: () => import('@/views/hub0041/NamespaceManagement.vue'),
-            meta: {
-              title: '命名空间管理',
-              requiresAuth: true,
-              icon: 'FolderOutline',
-              moduleName: 'hub0041', // 多语言模块名称
-            },
-          },
-          {
-            path: 'serviceList',
-            name: 'serviceList',
-            component: () => import('@/views/hub0042/ServiceList.vue'),
-            meta: {
-              title: '服务列表',
-              requiresAuth: true,
-              icon: 'BarChartOutline',
-              moduleName: 'hub0042', // 多语言模块名称
-            },
-          },
-          {
-            path: 'configManagement',
-            name: 'configManagement',
-            component: () => import('@/views/hub0043/ConfigManagement.vue'),
-            meta: {
-              title: '配置中心',
-              requiresAuth: true,
-              icon: 'CodeOutline',
-              moduleName: 'hub0043', // 多语言模块名称
-            },
-          },
-        ],
-      },
-      {
-        path: 'alert',
-        name: 'alert',
-        component: () => import('@/views/layout/EmptyLayout.vue'),
-        meta: {
-          title: '预警管理',
-          requiresAuth: true,
-          icon: 'NotificationsOutline',
-        },
-        children: [
-          {
-            path: 'alertConfigManagement',
-            name: 'alertConfigManagement',
-            component: () => import('@/views/hub0080/AlertConfigManagement.vue'),
-            meta: {
-              title: '预警服务配置',
-              requiresAuth: true,
-              icon: 'MailOutline',
-              moduleName: 'hub0080', // 多语言模块名称
-            },
-          },
-          {
-            path: 'alertTemplateManagement',
-            name: 'alertTemplateManagement',
-            component: () => import('@/views/hub0081/AlertTemplateManagement.vue'),
-            meta: {
-              title: '预警模板管理',
-              requiresAuth: true,
-              icon: 'JournalOutline',
-              moduleName: 'hub0081',
-            },
-          },
-          {
-            path: 'alertLogManagement',
-            name: 'alertLogManagement',
-            component: () => import('@/views/hub0082/AlertLogManagement.vue'),
-            meta: {
-              title: '预警日志管理',
-              requiresAuth: true,
-              icon: 'DocumentTextOutline',
-              moduleName: 'hub0082',
-            },
-          },
-        ],
-      },
-    ],
+    children: buildMainLayoutChildRoutes(),
   }
 
-  /**
-   * 获取所有静态路由配置
-   * 用于初始化路由实例
-   * @returns 所有静态路由的数组
-   */
+  static getLayoutRoute(): RouteRecordRaw {
+    return {
+      ...this.layoutRoute,
+      children: [...(this.layoutRoute.children as RouteRecordRaw[]), ...testRoutes],
+    }
+  }
+
   static getRoutes(): RouteRecordRaw[] {
-    return [this.layoutRoute, ...this.constantRoutes]
+    return [this.getLayoutRoute(), ...this.constantRoutes]
   }
 }
 

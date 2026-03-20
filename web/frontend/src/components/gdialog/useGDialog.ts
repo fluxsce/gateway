@@ -1,51 +1,25 @@
 /**
- * GDialog 程序化调用 Hook
- * 允许在 TypeScript 中直接调用对话框
+ * GDialog 程序化调用
+ *
+ * 与 GMessage 一致：由 GDialogProvider 在应用树内渲染，自动继承 NConfigProvider 主题与语言，随系统切换。
+ * 安装：app.use(gdialogPlugin) 时插件会挂载 GDialogProvider。
  */
 
-import { darkThemeOverrides, lightThemeOverrides } from '@/config/theme'
-import { getCurrentLocale } from '@/locales'
-import { useUserStore } from '@/stores/user'
-import hljs from '@/utils/highlight'
-import { darkTheme, dateEnUS, dateZhCN, enUS, NConfigProvider, zhCN } from 'naive-ui'
-import type { Hljs } from 'naive-ui/es/_mixins'
-import { h, render, type Component, type VNode } from 'vue'
-import GDialog from './GDialog.vue'
+import type { Component, VNode } from 'vue'
 
-/**
- * 获取当前主题配置
- */
-function getThemeConfig() {
-  const userStore = useUserStore()
-  
-  // 是否为深色模式（获取当前值，不使用 computed）
-  const theme = userStore.theme
-  const isDark = theme === 'system' 
-    ? window.matchMedia('(prefers-color-scheme: dark)').matches
-    : theme === 'dark'
-  
-  // Naive UI 主题对象
-  const naiveTheme = isDark ? darkTheme : null
-  
-  // 多语言配置
-  const currentLang = getCurrentLocale()
-  const naiveLocale = currentLang === 'en' ? enUS : zhCN
-  const naiveDateLocale = currentLang === 'en' ? dateEnUS : dateZhCN
-  
-  // 将 hljs 实例转换为 naive-ui 期望的类型
-  const hljsInstance: Hljs = {
-    highlight: hljs.highlight.bind(hljs),
-    getLanguage: hljs.getLanguage.bind(hljs)
-  }
-  
-  return {
-    isDark,
-    naiveTheme,
-    naiveLocale,
-    naiveDateLocale,
-    themeOverrides: isDark ? darkThemeOverrides : lightThemeOverrides,
-    hljsInstance
-  }
+/** Provider 挂载时注册的 API，供 createDialog 委托 */
+export interface GDialogProviderApi {
+  createDialog: (options: GDialogOptions) => Promise<boolean>
+}
+
+let dialogProvider: GDialogProviderApi | null = null
+
+export function setDialogProvider(api: GDialogProviderApi | null) {
+  dialogProvider = api
+}
+
+export function getDialogApi(): GDialogProviderApi | null {
+  return dialogProvider
 }
 
 /**
@@ -82,7 +56,7 @@ export interface GDialogOptions {
   confirmLoading?: boolean
   /** 副标题显示位置：'header' 显示在头部 | 'footer' 显示在底部 */
   subtitlePosition?: 'header' | 'footer'
-  /** 底部操作按钮对齐方式：'start' 左对齐 | 'end' 右对齐 | 'center' 居中 | 'space-between' 两端对齐 | 'space-around' 环绕分布 */
+  /** 底部操作按钮对齐方式 */
   footerButtonAlign?: 'start' | 'end' | 'center' | 'space-between' | 'space-around'
 }
 
@@ -90,245 +64,62 @@ export interface GDialogOptions {
  * 对话框实例
  */
 export interface GDialogReactive {
-  /** 关闭对话框 */
   destroy: () => void
-  /** 更新确认按钮加载状态 */
   setConfirmLoading: (loading: boolean) => void
 }
 
 /**
- * 创建对话框
+ * 创建对话框（程序化调用 GDialog）
+ *
+ * 委托给 GDialogProvider，在应用树内渲染，自动跟随系统主题与语言。
+ *
+ * @param options - GDialog 选项
+ * @returns Promise<boolean> - true 确认，false 取消/关闭；未挂载 Provider 时返回 false
  */
-function createDialog(options: GDialogOptions): Promise<boolean> {
-  return new Promise((resolve) => {
-    let container: HTMLElement | null = document.createElement('div')
-    let isDestroyed = false
+export function createDialog(options: GDialogOptions): Promise<boolean> {
+  if (!dialogProvider) return Promise.resolve(false)
+  return dialogProvider.createDialog(options)
+}
 
-    // 获取主题配置
-    const themeConfig = getThemeConfig()
+/** 程序化对话框 API 类型（useGDialog 返回值 / window.$gDialog） */
+export interface GDialogApi {
+  warning: (options: GDialogOptions | string) => Promise<boolean>
+  info: (options: GDialogOptions | string) => Promise<boolean>
+  success: (options: GDialogOptions | string) => Promise<boolean>
+  error: (options: GDialogOptions | string) => Promise<boolean>
+  confirm: (options: GDialogOptions | string) => Promise<boolean>
+  create: (options: GDialogOptions) => Promise<boolean>
+}
 
-    // 处理内容：字符串转换为 VNode
-    const contentNode = (() => {
-      if (!options.content) {
-        return null
-      }
-      
-      if (typeof options.content === 'string') {
-        // 将换行符转换为 <br> 标签
-        return h('div', {
-          style: {
-            whiteSpace: 'pre-line',
-            lineHeight: '1.6'
-          }
-        }, options.content)
-      }
-      
-      if (typeof options.content === 'object' && 'render' in options.content) {
-        return h(options.content as Component)
-      }
-      
-      return options.content
-    })()
-
-    // 创建对话框 VNode
-    const dialogVNode = h(GDialog, {
-      show: true,
-      title: options.title,
-      subtitle: options.subtitle,
-      subtitlePosition: options.subtitlePosition || 'footer',
-      icon: options.icon,
-      iconSize: options.iconSize,
-      headerStyle: options.headerStyle || 'default',
-      width: options.width || 500,
-      maskClosable: options.maskClosable !== false,
-      closeOnEsc: options.closeOnEsc !== false,
-      showCancel: options.showCancel !== false,
-      showConfirm: options.showConfirm !== false,
-      cancelText: options.negativeText || '取消',
-      confirmText: options.positiveText || '确定',
-      confirmLoading: options.confirmLoading || false,
-      footerButtonAlign: options.footerButtonAlign || 'end',
-      autoCloseOnConfirm: false,
-      onUpdateShow: (show: boolean) => {
-        if (!show && !isDestroyed) {
-          destroy()
-        }
-      },
-      onConfirm: () => {
-        if (!isDestroyed) {
-          destroy()
-          resolve(true)
-        }
-      },
-      onCancel: () => {
-        if (!isDestroyed) {
-          destroy()
-          resolve(false)
-        }
-      },
-      onClose: () => {
-        if (!isDestroyed) {
-          destroy()
-          resolve(false)
-        }
-      }
-    }, {
-      default: () => contentNode
-    })
-
-    // 用 NConfigProvider 包裹对话框，注入主题配置
-    const configProviderVNode = h(NConfigProvider, {
-      theme: themeConfig.naiveTheme,
-      themeOverrides: themeConfig.themeOverrides,
-      locale: themeConfig.naiveLocale,
-      dateLocale: themeConfig.naiveDateLocale,
-      hljs: themeConfig.hljsInstance
-    }, {
-      default: () => dialogVNode
-    })
-
-    // 渲染对话框
-    if (container) {
-      render(configProviderVNode, container)
-      document.body.appendChild(container)
-    }
-
-    // 销毁对话框
-    function destroy() {
-      if (isDestroyed || !container) {
-        return
-      }
-      
-      isDestroyed = true
-      
-      if (container.parentNode) {
-        render(null, container)
-        container.parentNode.removeChild(container)
-        container = null
-      }
-    }
-  })
+const $gDialog: GDialogApi = {
+  warning: (options) =>
+    typeof options === 'string'
+      ? createDialog({ title: '警告', content: options, headerStyle: 'gradient', width: 500 })
+      : createDialog({ title: '警告', headerStyle: 'gradient', width: 500, ...options }),
+  info: (options) =>
+    typeof options === 'string'
+      ? createDialog({ title: '提示', content: options, width: 500 })
+      : createDialog({ title: '提示', width: 500, ...options }),
+  success: (options) =>
+    typeof options === 'string'
+      ? createDialog({ title: '成功', content: options, headerStyle: 'gradient', width: 500, showCancel: false })
+      : createDialog({ title: '成功', headerStyle: 'gradient', width: 500, showCancel: false, ...options }),
+  error: (options) =>
+    typeof options === 'string'
+      ? createDialog({ title: '错误', content: options, headerStyle: 'gradient', width: 500, showCancel: false })
+      : createDialog({ title: '错误', headerStyle: 'gradient', width: 500, showCancel: false, ...options }),
+  confirm: (options) =>
+    typeof options === 'string'
+      ? createDialog({ title: '确认', content: options, width: 500 })
+      : createDialog({ title: '确认', width: 500, ...options }),
+  create: createDialog,
 }
 
 /**
  * 使用 GDialog Hook
- * 提供程序化调用对话框的方法
  */
-export function useGDialog() {
-  /**
-   * 显示警告对话框
-   */
-  const warning = (options: GDialogOptions | string): Promise<boolean> => {
-    if (typeof options === 'string') {
-      return createDialog({
-        title: '警告',
-        content: options,
-        headerStyle: 'gradient',
-        width: 500
-      })
-    }
-    return createDialog({
-      title: '警告',
-      headerStyle: 'gradient',
-      width: 500,
-      ...options
-    })
-  }
-
-  /**
-   * 显示信息对话框
-   */
-  const info = (options: GDialogOptions | string): Promise<boolean> => {
-    if (typeof options === 'string') {
-      return createDialog({
-        title: '提示',
-        content: options,
-        width: 500
-      })
-    }
-    return createDialog({
-      title: '提示',
-      width: 500,
-      ...options
-    })
-  }
-
-  /**
-   * 显示成功对话框
-   */
-  const success = (options: GDialogOptions | string): Promise<boolean> => {
-    if (typeof options === 'string') {
-      return createDialog({
-        title: '成功',
-        content: options,
-        headerStyle: 'gradient',
-        width: 500,
-        showCancel: false
-      })
-    }
-    return createDialog({
-      title: '成功',
-      headerStyle: 'gradient',
-      width: 500,
-      showCancel: false,
-      ...options
-    })
-  }
-
-  /**
-   * 显示错误对话框
-   */
-  const error = (options: GDialogOptions | string): Promise<boolean> => {
-    if (typeof options === 'string') {
-      return createDialog({
-        title: '错误',
-        content: options,
-        headerStyle: 'gradient',
-        width: 500,
-        showCancel: false
-      })
-    }
-    return createDialog({
-      title: '错误',
-      headerStyle: 'gradient',
-      width: 500,
-      showCancel: false,
-      ...options
-    })
-  }
-
-  /**
-   * 显示确认对话框
-   */
-  const confirm = (options: GDialogOptions | string): Promise<boolean> => {
-    if (typeof options === 'string') {
-      return createDialog({
-        title: '确认',
-        content: options,
-        width: 500
-      })
-    }
-    return createDialog({
-      title: '确认',
-      width: 500,
-      ...options
-    })
-  }
-
-  /**
-   * 显示自定义对话框
-   */
-  const create = (options: GDialogOptions): Promise<boolean> => {
-    return createDialog(options)
-  }
-
-  return {
-    warning,
-    info,
-    success,
-    error,
-    confirm,
-    create
-  }
+export function useGDialog(): GDialogApi {
+  return $gDialog
 }
 
+export { $gDialog }

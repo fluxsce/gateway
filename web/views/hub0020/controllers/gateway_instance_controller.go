@@ -11,25 +11,60 @@ import (
 	"gateway/web/utils/response"
 	"gateway/web/views/hub0020/dao"
 	"gateway/web/views/hub0020/models"
+	hub0021dao "gateway/web/views/hub0021/dao"
+	hub0022dao "gateway/web/views/hub0022/dao"
+	hubcommon002dao "gateway/web/views/hubcommon002/dao"
 
 	"github.com/gin-gonic/gin"
 )
 
 // GatewayInstanceController 网关实例控制器
 type GatewayInstanceController struct {
-	db                 database.Database
-	gatewayInstanceDAO *dao.GatewayInstanceDAO
-	logConfigDAO       *dao.LogConfigDAO
-	eventPublisher     *publish.GatewayEventPublisher
+	db                    database.Database
+	gatewayInstanceDAO    *dao.GatewayInstanceDAO
+	logConfigDAO          *dao.LogConfigDAO
+	eventPublisher        *publish.GatewayEventPublisher
+	routeConfigDAO        *hub0021dao.RouteConfigDAO
+	routeAssertionDAO     *hub0021dao.RouteAssertionDAO
+	filterConfigDAO       *hub0021dao.FilterConfigDAO
+	routerConfigDAO       *hub0021dao.RouterConfigDAO
+	serviceDefinitionDAO  *hub0021dao.ServiceDefinitionDAO
+	svcDefDAO             *hub0022dao.ServiceDefinitionDAO
+	proxyConfigDAO        *hub0022dao.ProxyConfigDAO
+	serviceNodeDAO        *hub0022dao.ServiceNodeDAO
+	securityConfigDAO     *hubcommon002dao.SecurityConfigDAO
+	ipAccessConfigDAO     *hubcommon002dao.IpAccessConfigDAO
+	uaAccessConfigDAO     *hubcommon002dao.UseragentAccessConfigDAO
+	domainAccessConfigDAO *hubcommon002dao.DomainAccessConfigDAO
+	apiAccessConfigDAO    *hubcommon002dao.ApiAccessConfigDAO
+	corsConfigDAO         *hubcommon002dao.CorsConfigDAO
+	authConfigDAO         *hubcommon002dao.AuthConfigDAO
+	rateLimitConfigDAO    *hubcommon002dao.RateLimitConfigDAO
 }
 
 // NewGatewayInstanceController 创建网关实例控制器
 func NewGatewayInstanceController(db database.Database) *GatewayInstanceController {
 	return &GatewayInstanceController{
-		db:                 db,
-		gatewayInstanceDAO: dao.NewGatewayInstanceDAO(db),
-		logConfigDAO:       dao.NewLogConfigDAO(db),
-		eventPublisher:     publish.NewGatewayEventPublisher(),
+		db:                    db,
+		gatewayInstanceDAO:    dao.NewGatewayInstanceDAO(db),
+		logConfigDAO:          dao.NewLogConfigDAO(db),
+		eventPublisher:        publish.NewGatewayEventPublisher(),
+		routeConfigDAO:        hub0021dao.NewRouteConfigDAO(db),
+		routeAssertionDAO:     hub0021dao.NewRouteAssertionDAO(db),
+		filterConfigDAO:       hub0021dao.NewFilterConfigDAO(db),
+		routerConfigDAO:       hub0021dao.NewRouterConfigDAO(db),
+		serviceDefinitionDAO:  hub0021dao.NewServiceDefinitionDAO(db),
+		svcDefDAO:             hub0022dao.NewServiceDefinitionDAO(db),
+		proxyConfigDAO:        hub0022dao.NewProxyConfigDAO(db),
+		serviceNodeDAO:        hub0022dao.NewServiceNodeDAO(db),
+		securityConfigDAO:     hubcommon002dao.NewSecurityConfigDAO(db),
+		ipAccessConfigDAO:     hubcommon002dao.NewIpAccessConfigDAO(db),
+		uaAccessConfigDAO:     hubcommon002dao.NewUseragentAccessConfigDAO(db),
+		domainAccessConfigDAO: hubcommon002dao.NewDomainAccessConfigDAO(db),
+		apiAccessConfigDAO:    hubcommon002dao.NewApiAccessConfigDAO(db),
+		corsConfigDAO:         hubcommon002dao.NewCorsConfigDAO(db),
+		authConfigDAO:         hubcommon002dao.NewAuthConfigDAO(db),
+		rateLimitConfigDAO:    hubcommon002dao.NewRateLimitConfigDAO(db),
 	}
 }
 

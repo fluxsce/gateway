@@ -253,7 +253,7 @@ export function useStaticNodeModel() {
     menuConfig: {
       enabled: true,
       showCopyRow: true,
-      customMenus: [
+      options: [
         {
           code: 'view',
           name: '查看详情',

@@ -4,10 +4,9 @@
  */
 
 import type { DataFormField, DataFormTab } from '@/components/form/data/types'
-import type { ContextMenuConfig } from '@/components/gmenu'
+import type { GContextProps } from '@/components/gcontext'
 import { FunnelOutline, SettingsOutline } from '@vicons/ionicons5'
-import { NIcon } from 'naive-ui'
-import { computed, h, ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { GatewayInstance, InstanceTreeOption } from '../types'
 import { FilterExecutionMode } from '../types'
 
@@ -122,20 +121,13 @@ export function useGatewayInstanceTreeModel() {
   /**
    * 树节点右键菜单配置
    */
-  const treeMenuConfig: ContextMenuConfig = {
+  const treeMenuConfig: Partial<GContextProps> = {
     enabled: true,
     showCopyNode: true,
-    customMenus: [
-      {
-        code: 'routerConfig',
-        name: 'Router配置',
-        prefixIcon: () => h(NIcon, { size: 14 }, { default: () => h(SettingsOutline) }),
-      },
-      {
-        code: 'globalFilterConfig',
-        name: '全局过滤器配置',
-        prefixIcon: () => h(NIcon, { size: 14 }, { default: () => h(FunnelOutline) }),
-      },
+    moduleId,
+    options: [
+      { code: 'routerConfig', name: 'Router配置', prefixIcon: SettingsOutline },
+      { code: 'globalFilterConfig', name: '全局过滤器配置', prefixIcon: FunnelOutline },
     ],
   }
 

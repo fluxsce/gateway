@@ -60,9 +60,6 @@ export * from './gtips/types'
 export { GEllipsis } from './gellipsis'
 export * from './gellipsis/types'
 
-// Context Menu 右键菜单
-export * from './gmenu'
-
 // Text 文本显示组件
 export { GTextShow } from './gtext-show'
 export * from './gtext-show/types'
@@ -74,6 +71,42 @@ export * from './gcodemirror/types'
 // RichText 富文本编辑器组件
 export { GRichText } from './grichtext'
 export * from './grichtext/types'
+
+// Context 右键菜单组件
+export { GContext } from './gcontext'
+export * from './gcontext/types'
+
+// CustomRender 自定义渲染
+export * from './gcustom-render/types'
+
+// Dropdown 下拉菜单
+export { GDropdown } from './gdropdown'
+export * from './gdropdown/types'
+
+// Select 选择器
+export { GSelect } from './gselect'
+export * from './gselect/types'
+
+// Message 消息提示
+export { $gMessage, setMessageProvider, getMessageApi, gmessagePlugin } from './gmessage'
+export type { GMessageApi, GMessageOptions, GMessageDialogOptions } from './gmessage'
+
+// Tabs 标签页
+export { GTabs } from './gtabs'
+export * from './gtabs/types'
+
+// Icon 图标组件
+export { GIcon, renderIconVNode } from './gicon'
+export type { GIconProps, GIconInstance, GIconSize, GIconColor } from './gicon'
+export { G_ICON_SIZE_MAP } from './gicon'
+
+// Export 导出组件
+export { GExport } from './gexport-import'
+export type { GExportEmits, GExportProps } from './gexport-import'
+
+// Import 导入组件
+export { GImport } from './gexport-import'
+export type { GExportImportSize, GImportEmits, GImportProps } from './gexport-import'
 
 // 其他组件
 export { default as RequestInitializer } from './RequestInitializer.vue'

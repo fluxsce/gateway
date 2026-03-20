@@ -1,7 +1,7 @@
 <template>
-    <div class="language-switcher">
+    <div class="language-switcher" :class="{ 'language-switcher--dark-surface': variant === 'dark-surface' }">
         <!-- 语言切换下拉框 -->
-        <NDropdown trigger="click" :options="languageOptions" @select="handleLanguageSelect">
+        <GDropdown trigger="click" :options="languageOptions" @select="handleLanguageSelect">
             <div class="language-selector" :class="{ 'is-loading': isLoading }">
                 <!-- 加载状态指示器 -->
                 <NIcon v-if="isLoading" size="16" class="loading-icon">
@@ -13,16 +13,25 @@
                     <i class="fas fa-chevron-down"></i>
                 </NIcon>
             </div>
-        </NDropdown>
+        </GDropdown>
     </div>
 </template>
 
 <script setup lang="ts">
+import { GDropdown } from '@/components/gdropdown'
 import { availableLocales, setLocale, type LocaleType } from '@/locales'
 import { useUserStore } from '@/stores/user'
 import type { DropdownOption } from 'naive-ui'
-import { NDropdown, NIcon } from 'naive-ui'
+import { NIcon } from 'naive-ui'
 import { computed, ref } from 'vue'
+
+withDefaults(
+    defineProps<{
+        /** 深色背景上的触发器样式（登录页等），不受全局亮/暗主题文字色影响 */
+        variant?: 'default' | 'dark-surface'
+    }>(),
+    { variant: 'default' }
+)
 
 const userStore = useUserStore()
 const isLoading = ref(false)
@@ -50,17 +59,18 @@ const languageOptions: DropdownOption[] = availableLocales.map(locale => ({
 /**
  * 处理语言选择
  */
-async function handleLanguageSelect(key: string) {
+async function handleLanguageSelect(key: string | number) {
     // 如果与当前语言相同，则不处理
-    if (key === userLanguage.value) return
+    const localeKey = String(key)
+    if (localeKey === userLanguage.value) return
 
     isLoading.value = true
     try {
         // 更新用户设置
-        userStore.updateSettings({ language: key })
+        userStore.updateSettings({ language: localeKey })
 
         // 更新i18n设置 (使用LocaleType格式)
-        await setLocale(key as LocaleType)
+        await setLocale(localeKey as LocaleType)
     } finally {
         isLoading.value = false
     }
@@ -98,5 +108,30 @@ async function handleLanguageSelect(key: string) {
 
 .current-language {
     font-size: 14px;
+}
+
+/* 登录页等深色渐变底：强制浅色字，避免 [data-theme=light] 时仍是深灰字看不清 */
+.language-switcher--dark-surface {
+    .language-selector {
+        color: rgba(255, 255, 255, 0.94);
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+
+        &:hover {
+            background-color: rgba(255, 255, 255, 0.14);
+        }
+    }
+
+    .current-language {
+        color: inherit;
+        font-weight: 500;
+    }
+
+    .loading-icon {
+        color: #c7d2fe;
+    }
+
+    :deep(.n-icon) {
+        color: rgba(255, 255, 255, 0.88);
+    }
 }
 </style>

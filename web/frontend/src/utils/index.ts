@@ -19,6 +19,8 @@ export * from './logger'
 
 // 导出图标相关工具函数
 export * from './icon'
+// 渲染图标 VNode 已迁移至 GIcon，此处兼容旧导入
+export { renderIconVNode } from '@/components/gicon'
 
 // 导出剪贴板相关工具函数
 export * from './clipboard'

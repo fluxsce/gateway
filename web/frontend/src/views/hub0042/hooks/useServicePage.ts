@@ -136,9 +136,9 @@ export function useServicePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any
     if (checkboxRows.length > 0) {
       return checkboxRows
     }
-    // 如果没有复选框选中，尝试获取当前选中行
-    const currentRow = gridRef?.value?.getCurrentRecord()
-    return currentRow ? [currentRow] : []
+    // 如果没有复选框选中，尝试获取当前选中行（优先勾选，无勾选时取高亮行）
+    const selectedRow = gridRef?.value?.getSelectedOrCurrentRecord()
+    return selectedRow ? [selectedRow] : []
   }
 
   /**

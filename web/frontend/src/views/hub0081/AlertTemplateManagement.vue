@@ -64,14 +64,20 @@ import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
 import SearchForm from '@/components/form/search/SearchForm.vue'
 import { GPane } from '@/components/gpane'
 import { GGrid } from '@/components/grid'
-import { NSwitch, NTag, useMessage } from 'naive-ui'
-import { ref } from 'vue'
+import { NSwitch, NTag } from 'naive-ui'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useAlertTemplatePage } from './hooks'
 import type { AlertTemplate } from './types'
 
 defineOptions({ name: 'AlertTemplateManagement' })
 
-const message = useMessage()
+onMounted(() => {
+  console.log('[AlertTemplateManagement] mounted')
+})
+onUnmounted(() => {
+  console.log('[AlertTemplateManagement] unmounted')
+})
+
 const searchFormRef = ref()
 const gridRef = ref()
 

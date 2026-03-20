@@ -20,6 +20,12 @@ ENV GOTOOLCHAIN=auto \
     GOSUMDB=sum.golang.google.cn \
     GO111MODULE=on
 
+# 默认使用国内 Alpine 镜像源加速（可构建时 --build-arg ALPINE_MIRROR= 恢复官方源）
+ARG ALPINE_MIRROR=mirrors.aliyun.com
+RUN if [ -n "$ALPINE_MIRROR" ]; then \
+    sed -i "s|https://dl-cdn.alpinelinux.org|https://$ALPINE_MIRROR|g" /etc/apk/repositories; \
+    fi
+
 # 安装构建依赖
 RUN apk add --no-cache \
     git \
@@ -38,7 +44,7 @@ RUN go mod download
 COPY . .
 
 # 构建参数
-ARG VERSION=3.0.9
+ARG VERSION=3.1.0
 ARG BUILD_DATE
 ARG GIT_COMMIT=unknown
 
@@ -65,7 +71,7 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
 FROM alpine:3.19
 
 # 构建参数（在运行时阶段也需要）
-ARG VERSION=3.0.9
+ARG VERSION=3.1.0
 ARG BUILD_DATE
 ARG GIT_COMMIT=unknown
 
@@ -75,6 +81,12 @@ LABEL maintainer="fluxopensource@flux.com.cn" \
       build-date="${BUILD_DATE}" \
       git-commit="${GIT_COMMIT}" \
       description="FLUX Gateway - High Performance API Gateway & Network Penetration Platform"
+
+# 默认使用国内 Alpine 镜像源加速（可构建时 --build-arg ALPINE_MIRROR= 恢复官方源）
+ARG ALPINE_MIRROR=mirrors.aliyun.com
+RUN if [ -n "$ALPINE_MIRROR" ]; then \
+    sed -i "s|https://dl-cdn.alpinelinux.org|https://$ALPINE_MIRROR|g" /etc/apk/repositories; \
+    fi
 
 # 安装运行时依赖和常用工具
 RUN apk add --no-cache \
@@ -100,35 +112,32 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN addgroup -g 1000 gateway && \
     adduser -D -u 1000 -G gateway gateway
 
-# 创建标准部署目录结构（参考 docs/zh-CN/03-安装部署.md）
-WORKDIR /opt/gateway
+# 应用目录使用 /home/gateway（与运行用户主目录一致），减少宿主机挂载 /opt 时的权限与策略限制问题
+WORKDIR /home/gateway
 
 # 从构建阶段复制可执行文件
-COPY --from=builder /build/gateway /opt/gateway/gateway
-COPY --from=builder /build/password_plugin /opt/gateway/password_plugin
-RUN chmod +x /opt/gateway/password_plugin
+COPY --from=builder /build/gateway /home/gateway/gateway
+COPY --from=builder /build/password_plugin /home/gateway/password_plugin
+RUN chmod +x /home/gateway/password_plugin
 
 # 复制配置文件
-COPY --chown=gateway:gateway configs /opt/gateway/configs
+COPY --chown=gateway:gateway configs /home/gateway/configs
 
 # 复制 Web 静态资源和前端资源
-COPY --chown=gateway:gateway web/static /opt/gateway/web/static
-COPY --chown=gateway:gateway web/frontend/dist /opt/gateway/web/frontend/dist
+COPY --chown=gateway:gateway web/static /home/gateway/web/static
+COPY --chown=gateway:gateway web/frontend/dist /home/gateway/web/frontend/dist
 
 # 创建必要的目录
-RUN mkdir -p /opt/gateway/logs \
-    /opt/gateway/backup \
-    /opt/gateway/scripts/db \
-    /opt/gateway/scripts/data \
-    /opt/gateway/scripts/deploy \
-    /opt/gateway/pprof_analysis && \
-    chown -R gateway:gateway /opt/gateway/logs \
-    /opt/gateway/backup \
-    /opt/gateway/scripts \
-    /opt/gateway/pprof_analysis
+RUN mkdir -p /home/gateway/logs \
+    /home/gateway/backup \
+    /home/gateway/scripts/db \
+    /home/gateway/scripts/data \
+    /home/gateway/scripts/deploy \
+    /home/gateway/pprof_analysis && \
+    chown -R gateway:gateway /home/gateway
 
 # 复制数据库脚本（可选，用于容器内初始化）
-COPY --chown=gateway:gateway scripts/db/ /opt/gateway/scripts/db/
+COPY --chown=gateway:gateway scripts/db/ /home/gateway/scripts/db/
 
 # 切换到非 root 用户
 # 注意：如果需要绑定特权端口（如443），需要在 docker-compose.yaml 中添加 cap_add: [NET_BIND_SERVICE]
@@ -143,6 +152,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:12003/health || exit 1
 
 # 启动命令
-ENTRYPOINT ["/opt/gateway/gateway"]
-CMD ["--config", "/opt/gateway/configs"]
+ENTRYPOINT ["/home/gateway/gateway"]
+CMD ["--config", "/home/gateway/configs"]
 

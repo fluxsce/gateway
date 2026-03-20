@@ -209,7 +209,7 @@ export function useAlertTemplateModel() {
     menuConfig: {
       enabled: true,
       showCopyRow: true,
-      customMenus: [
+      options: [
         { code: 'view', name: '查看详情', prefixIcon: 'vxe-icon-eye-fill' },
         { code: 'edit', name: '编辑', prefixIcon: 'vxe-icon-edit' },
         { code: 'delete', name: '删除', prefixIcon: 'vxe-icon-delete' },

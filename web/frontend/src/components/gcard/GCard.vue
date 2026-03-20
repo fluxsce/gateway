@@ -94,6 +94,11 @@ const computedContentStyle = computed(() => {
   &:not(.g-card--no-title) {
     :deep(.n-card-header) {
       display: flex !important;
+      gap: var(--g-space-sm, 12px);
+    }
+    // 防止标题区域被 header-extra 挤压导致文字逐字换行（Naive 默认 min-width: 0）
+    :deep(.n-card-header__main) {
+      min-width: fit-content;
     }
   }
 

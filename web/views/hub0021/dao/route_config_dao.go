@@ -126,6 +126,10 @@ func (dao *RouteConfigDAO) GetRouteConfigById(ctx context.Context, routeConfigId
 	var routeConfig models.RouteConfig
 	err := dao.db.QueryOne(ctx, &routeConfig, query, []interface{}{routeConfigId, tenantId}, true)
 	if err != nil {
+		// 与 GetGatewayInstanceById 一致：不存在时返回 (nil, nil)，便于导入 Upsert 走 Add 分支
+		if errors.Is(err, database.ErrRecordNotFound) {
+			return nil, nil
+		}
 		return nil, huberrors.WrapError(err, "查询路由配置失败")
 	}
 

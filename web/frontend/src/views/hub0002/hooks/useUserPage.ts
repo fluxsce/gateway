@@ -98,47 +98,47 @@ export function useUserPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> |
         break
 
       case 'edit': {
-        // 编辑当前高亮的行（点击选中的行）
+        // 编辑：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要编辑的用户')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要编辑的用户')
           return
         }
-        openEditDialog(currentRow as User)
+        openEditDialog(selectedRow as User)
         break
       }
 
       case 'delete': {
-        // 删除当前高亮的行
+        // 删除：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要删除的用户')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要删除的用户')
           return
         }
-        await service.deleteUser(currentRow as User)
+        await service.deleteUser(selectedRow as User)
         break
       }
 
       case 'resetPassword': {
-        // 重置当前高亮行的密码
+        // 重置密码：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要重置密码的用户')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要重置密码的用户')
           return
         }
-        await service.resetPassword(currentRow as User)
+        await service.resetPassword(selectedRow as User)
         break
       }
 

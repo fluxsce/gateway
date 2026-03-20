@@ -19,59 +19,64 @@
       </div>
     </div>
 
-    <!-- 服务基本信息 -->
-    <GCard class="service-detail-card">
-      <n-descriptions :column="2" bordered size="small">
-        <n-descriptions-item label="服务名">
-          {{ service.serviceName }}
-        </n-descriptions-item>
-        <n-descriptions-item label="分组">
-          {{ service.groupName }}
-        </n-descriptions-item>
-        <n-descriptions-item label="保护阈值">
-          {{ service.protectThreshold ?? 0 }}
-        </n-descriptions-item>
-        <n-descriptions-item label="服务类型">
-          {{ getServiceTypeLabel(service.serviceType) }}
-        </n-descriptions-item>
-        <n-descriptions-item label="服务版本">
-          {{ service.serviceVersion || '-' }}
-        </n-descriptions-item>
-        <n-descriptions-item label="服务路由类型">
-          {{ getSelectorType(service.selectorJson) }}
-        </n-descriptions-item>
-        <n-descriptions-item label="服务描述" :span="2">
-          {{ service.serviceDescription || '-' }}
-        </n-descriptions-item>
-        <n-descriptions-item label="元数据" :span="2">
-          <GTextShow 
-            :content="service.metadataJson || '{}'" 
-            format="json" 
-            :auto-format="true" 
-            :max-height="200"
-            :show-copy-button="true"
+    <!-- 基本信息约 40% + 节点列表约 60%（flex 比例固定，无分割条） -->
+    <div class="service-detail-body">
+      <div class="service-detail-pane service-detail-pane--basic">
+        <GCard class="service-detail-card service-detail-card--basic">
+          <n-descriptions :column="2" bordered size="small">
+            <n-descriptions-item label="服务名">
+              {{ service.serviceName }}
+            </n-descriptions-item>
+            <n-descriptions-item label="分组">
+              {{ service.groupName }}
+            </n-descriptions-item>
+            <n-descriptions-item label="保护阈值">
+              {{ service.protectThreshold ?? 0 }}
+            </n-descriptions-item>
+            <n-descriptions-item label="服务类型">
+              {{ getServiceTypeLabel(service.serviceType) }}
+            </n-descriptions-item>
+            <n-descriptions-item label="服务版本">
+              {{ service.serviceVersion || '-' }}
+            </n-descriptions-item>
+            <n-descriptions-item label="服务路由类型">
+              {{ getSelectorType(service.selectorJson) }}
+            </n-descriptions-item>
+            <n-descriptions-item label="服务描述" :span="2">
+              {{ service.serviceDescription || '-' }}
+            </n-descriptions-item>
+            <n-descriptions-item label="元数据" :span="2">
+              <GTextShow
+                :content="service.metadataJson || '{}'"
+                format="json"
+                :auto-format="true"
+                :max-height="200"
+                :show-copy-button="true"
+              />
+            </n-descriptions-item>
+          </n-descriptions>
+        </GCard>
+      </div>
+
+      <div class="service-detail-pane service-detail-pane--nodes">
+        <GCard class="service-detail-card service-instance-list-card">
+          <template #header>
+            <div class="instance-list-header">
+              <span>服务实例列表</span>
+              <n-tag type="info" size="small">
+                共 {{ service.nodes?.length || 0 }} 个实例
+              </n-tag>
+            </div>
+          </template>
+
+          <ServiceNodeList
+            :nodes="service.nodes || []"
+            :loading="loading"
+            @refresh="handleRefresh"
           />
-        </n-descriptions-item>
-      </n-descriptions>
-    </GCard>
-
-    <!-- 服务实例列表 -->
-    <GCard class="service-detail-card service-instance-list-card">
-      <template #header>
-        <div class="instance-list-header">
-          <span>服务实例列表</span>
-          <n-tag type="info" size="small">
-            共 {{ service.nodes?.length || 0 }} 个实例
-          </n-tag>
-        </div>
-      </template>
-
-      <ServiceNodeList
-        :nodes="service.nodes || []"
-        :loading="loading"
-        @refresh="handleRefresh"
-      />
-    </GCard>
+        </GCard>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -150,8 +155,9 @@ const handleRefresh = () => {
   display: flex;
   flex-direction: column;
   padding: var(--g-space-sm);
-  overflow-y: auto;
+  overflow: hidden;
   gap: var(--g-space-sm);
+  min-height: 0;
 
   .service-detail-header {
     display: flex;
@@ -174,6 +180,64 @@ const handleRefresh = () => {
     }
   }
 
+  .service-detail-body {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--g-space-sm);
+  }
+
+  .service-detail-pane {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+  }
+
+  /* 4 : 6 ≈ 40% : 60% 分配主体剩余高度 */
+  .service-detail-pane--basic {
+    flex: 4 1 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .service-detail-pane--nodes {
+    flex: 6 1 0;
+    overflow: hidden;
+  }
+
+  /* 基本信息：卡片随内容增高，滚动条在面板内（缩放/小屏时不裁切） */
+  .service-detail-pane--basic :deep(.g-card.service-detail-card--basic) {
+    flex: 0 0 auto;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .service-detail-pane--basic :deep(.g-card.service-detail-card--basic .n-card__content) {
+    overflow: visible;
+    flex: none;
+  }
+
+  .service-detail-pane--nodes .service-detail-card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* 节点表格区域在 flex 链路上需要 min-height:0，避免撑不开剩余高度 */
+  .service-instance-list-card {
+    :deep(.n-card__content) {
+      min-height: 0;
+    }
+  }
 }
 </style>
 

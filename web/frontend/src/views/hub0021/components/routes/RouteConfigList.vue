@@ -72,26 +72,26 @@
                 </n-tag>
               </template>
               <template v-else-if="row.serviceDefinitionId">
-                <!-- 后端未返回服务名称，根据 serviceDefinitionId 显示 -->
+                <!-- 后端未返回服务名称：优先从 routeMetadata.serviceNameMap 取，否则显示 ID -->
                 <template v-if="isMultipleServices(row.serviceDefinitionId)">
-                  <!-- 多个服务：显示服务ID列表 -->
+                  <!-- 多个服务：显示服务名称或 ID -->
                   <n-tag
-                    v-for="(serviceId, index) in getServiceIds(row.serviceDefinitionId)"
+                    v-for="serviceId in getServiceIds(row.serviceDefinitionId)"
                     :key="serviceId"
                     size="small"
                     type="info"
                     style="margin-right: 4px; margin-bottom: 2px;"
                   >
-                    {{ serviceId }}
+                    {{ getServiceDisplayName(row, serviceId) }}
                   </n-tag>
                   <n-tag size="small" type="default" style="margin-left: 4px;">
                     {{ getServiceIds(row.serviceDefinitionId).length }}个服务
                   </n-tag>
                 </template>
                 <template v-else>
-                  <!-- 单个服务：使用 tag 显示服务ID -->
+                  <!-- 单个服务：显示服务名称或 ID -->
                   <n-tag size="small" type="info">
-                    {{ row.serviceDefinitionId }}
+                    {{ getServiceDisplayName(row, row.serviceDefinitionId) }}
                   </n-tag>
                 </template>
               </template>
@@ -404,6 +404,17 @@ function isMultipleServices(serviceDefinitionId?: string): boolean {
 function getServiceIds(serviceDefinitionId?: string): string[] {
   if (!serviceDefinitionId) return []
   return serviceDefinitionId.split(',').map(id => id.trim()).filter(id => id)
+}
+
+/**
+ * 获取服务显示名称：优先从 routeMetadata.serviceNameMap 取，否则返回 serviceId
+ */
+function getServiceDisplayName(row: Record<string, any>, serviceId: string): string {
+  const metadata = row.routeMetadata
+  if (!metadata) return serviceId
+  const obj = typeof metadata === 'string' ? (() => { try { return JSON.parse(metadata) } catch { return {} } })() : metadata
+  const map = obj?.serviceNameMap
+  return (map && typeof map === 'object' && map[serviceId]) ? map[serviceId] : serviceId
 }
 
 // 暴露刷新方法供父组件调用

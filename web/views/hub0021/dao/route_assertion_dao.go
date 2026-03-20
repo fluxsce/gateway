@@ -110,6 +110,10 @@ func (dao *RouteAssertionDAO) GetRouteAssertionById(ctx context.Context, routeAs
 	var assertion models.RouteAssertion
 	err := dao.db.QueryOne(ctx, &assertion, query, []interface{}{routeAssertionId, tenantId}, true)
 	if err != nil {
+		// 不存在时返回 (nil, nil)，与 GetGatewayInstanceById / GetRouteConfigById 一致，便于导入 Upsert 走 Add
+		if errors.Is(err, database.ErrRecordNotFound) {
+			return nil, nil
+		}
 		return nil, huberrors.WrapError(err, "查询路由断言失败")
 	}
 

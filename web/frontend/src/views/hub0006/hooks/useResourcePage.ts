@@ -92,17 +92,17 @@ export function useResourcePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<an
   const handleToolbarClick = async (key: string, formData?: Record<string, any>) => {
     switch (key) {
       case 'view': {
-        // 查看当前高亮的行（点击选中的行）
+        // 查看：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要查看的资源')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要查看的资源')
           return
         }
-        openViewDialog(currentRow as Resource)
+        openViewDialog(selectedRow as Resource)
         break
       }
 
@@ -112,32 +112,32 @@ export function useResourcePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<an
         break
 
       case 'edit': {
-        // 编辑当前高亮的行（点击选中的行）
+        // 编辑：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要编辑的资源')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要编辑的资源')
           return
         }
-        openEditDialog(currentRow as Resource)
+        openEditDialog(selectedRow as Resource)
         break
       }
 
       case 'delete': {
-        // 删除当前高亮的行
+        // 删除：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要删除的资源')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要删除的资源')
           return
         }
-        await service.deleteResource(currentRow as Resource)
+        await service.deleteResource(selectedRow as Resource)
         break
       }
 

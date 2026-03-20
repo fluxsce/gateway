@@ -102,32 +102,32 @@ export function useRolePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> |
         break
 
       case 'edit': {
-        // 编辑当前高亮的行（点击选中的行）
+        // 编辑：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要编辑的角色')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要编辑的角色')
           return
         }
-        openEditDialog(currentRow as Role)
+        openEditDialog(selectedRow as Role)
         break
       }
 
       case 'delete': {
-        // 删除当前高亮的行
+        // 删除：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要删除的角色')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要删除的角色')
           return
         }
-        await service.deleteRole(currentRow as Role)
+        await service.deleteRole(selectedRow as Role)
         break
       }
 

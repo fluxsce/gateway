@@ -61,62 +61,62 @@ export function useTunnelClientPage(
         break
 
       case 'edit': {
-        // 编辑当前高亮的行（点击选中的行）
+        // 编辑：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要编辑的客户端')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要编辑的客户端')
           return
         }
-        await openEditDialog(currentRow as TunnelClient)
+        await openEditDialog(selectedRow as TunnelClient)
         break
       }
 
       case 'connect': {
-        // 连接当前高亮的行
+        // 连接：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要连接的客户端')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要连接的客户端')
           return
         }
-        await handleConnect(currentRow as TunnelClient)
+        await handleConnect(selectedRow as TunnelClient)
         break
       }
 
       case 'disconnect': {
-        // 断开当前高亮的行
+        // 断开：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要断开的客户端')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要断开的客户端')
           return
         }
-        await handleDisconnect(currentRow as TunnelClient)
+        await handleDisconnect(selectedRow as TunnelClient)
         break
       }
 
       case 'delete': {
-        // 删除当前高亮的行
+        // 删除：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要删除的客户端')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要删除的客户端')
           return
         }
-        await handleDelete(currentRow as TunnelClient)
+        await handleDelete(selectedRow as TunnelClient)
         break
       }
 

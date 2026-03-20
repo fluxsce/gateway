@@ -545,7 +545,7 @@ export function useServiceNodeModel() {
       enabled: true,
       showCopyRow: true,
       showCopyCell: true,
-      customMenus: [
+      options: [
         {
           code: 'edit',
           name: '编辑',

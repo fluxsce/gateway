@@ -118,7 +118,7 @@ func (dao *SecurityConfigDAO) AddSecurityConfig(ctx context.Context, config *mod
 	config.AddWho = operatorId
 	config.EditTime = now
 	config.EditWho = operatorId
-	config.OprSeqFlag = config.SecurityConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
+	config.OprSeqFlag = random.Generate32BitRandomString()
 	config.CurrentVersion = 1
 	config.ActiveFlag = "Y"
 
@@ -184,7 +184,7 @@ func (dao *SecurityConfigDAO) UpdateSecurityConfig(ctx context.Context, config *
 	config.CurrentVersion = currentConfig.CurrentVersion + 1
 	config.EditTime = time.Now()
 	config.EditWho = operatorId
-	config.OprSeqFlag = config.SecurityConfigId + "_" + strings.ReplaceAll(time.Now().String(), ".", "")[:8]
+	config.OprSeqFlag = random.Generate32BitRandomString()
 
 	// 保留不可修改的字段
 	config.AddTime = currentConfig.AddTime

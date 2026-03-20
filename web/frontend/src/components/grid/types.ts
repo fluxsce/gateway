@@ -1,4 +1,4 @@
-import type { ContextMenuConfig } from '@/components/gmenu'
+import type { GContextProps } from '@/components/gcontext'
 import type { PaginationProps } from '@/components/gpage'
 import type { ToolbarProps } from '@/components/toolbar'
 import type { VxeColumnProps, VxeGridProps, VxeTablePropTypes } from 'vxe-table'
@@ -81,7 +81,7 @@ export interface GridColumn extends Partial<VxeColumnProps> {
 /**
  * Grid 右键菜单配置
  * 
- * 基于公共的 ContextMenuConfig，专门为 Grid 组件优化
+ * 基于 GContextProps，专门为 Grid 组件优化（不含 showCopyNode）
  * Grid 组件使用 vxe-table，图标需要使用 vxe-table 的内置图标类名（如 vxe-icon-copy、vxe-icon-edit 等）
  * 
  * 注意：Grid 不支持 showCopyNode（Tree 专用），此属性已被移除
@@ -92,25 +92,15 @@ export interface GridColumn extends Partial<VxeColumnProps> {
  *   enabled: true,
  *   showCopyRow: true,
  *   showCopyCell: true,
- *   customMenus: [
- *     {
- *       code: 'edit',
- *       name: '编辑',
- *       prefixIcon: 'vxe-icon-edit' // vxe-table 图标
- *     },
- *     {
- *       code: 'delete',
- *       name: '删除',
- *       prefixIcon: 'vxe-icon-delete'
- *     }
+ *   options: [
+ *     { code: 'edit', name: '编辑', prefixIcon: 'vxe-icon-edit' },
+ *     { code: 'delete', name: '删除', prefixIcon: 'vxe-icon-delete' }
  *   ],
- *   onMenuClick: ({ code, row }) => {
- *     console.log('菜单点击', code, row)
- *   }
+ *   onMenuClick: ({ code, row }) => { console.log('菜单点击', code, row) }
  * }
  * ```
  */
-export type GridMenuConfig = Omit<ContextMenuConfig, 'showCopyNode'>
+export type GridMenuConfig = Omit<Partial<GContextProps>, 'showCopyNode'>
 
 /**
  * Grid 分页配置
@@ -403,6 +393,12 @@ export interface GridExpose {
    * 获取当前高亮的行（点击选中的行）
    */
   getCurrentRecord: () => any
+
+  /**
+   * 获取「操作目标」单行：存在复选框勾选时返回勾选的第一条；否则返回当前高亮行（与 getCurrentRecord 一致）。
+   * 多选时仅返回第一条，便于工具栏等「针对一行」的操作与右键菜单行为对齐。
+   */
+  getSelectedOrCurrentRecord: () => any | null
 
   /**
    * 设置选中行

@@ -59,8 +59,4 @@ setTimeout(async () => {
   }
 }, 0)
 
-// 导出静态路由，用于向后兼容
-export const constantRoutes = StaticRoutes.constantRoutes
-export const layoutRoute = StaticRoutes.layoutRoute
-
 export default router

@@ -10,8 +10,10 @@ import type { PageInfoObj } from '@/types/api'
 import { formatDate } from '@/utils/format'
 import {
   AddOutline,
+  CloudUploadOutline,
   CreateOutline,
   DocumentOutline,
+  DownloadOutline,
   GlobeOutline,
   KeyOutline,
   TrashOutline
@@ -96,7 +98,19 @@ export function useGatewayInstanceModel() {
         icon: TrashOutline,
         type: 'error',
         tooltip: '删除选中的实例',
-      }
+      },
+      {
+        key: 'export',
+        label: '导出配置',
+        icon: DownloadOutline,
+        tooltip: '导出当前选中实例的配置（Excel）',
+      },
+      {
+        key: 'import',
+        label: '导入配置',
+        icon: CloudUploadOutline,
+        tooltip: '从 Excel 导入实例及关联配置',
+      },
     ],
     showSearchButton: true,
     showResetButton: true,
@@ -1127,7 +1141,7 @@ export function useGatewayInstanceModel() {
       enabled: true,
       showCopyRow: true,
       showCopyCell: true,
-      customMenus: [
+      options: [
         {
           code: 'view',
           name: '查看详情',
@@ -1218,6 +1232,23 @@ export function useGatewayInstanceModel() {
           code: 'reload',
           name: '网关重载',
           prefixIcon: 'vxe-icon-refresh',
+        },
+        {
+          code: 'tools',
+          name: '工具',
+          prefixIcon: 'vxe-icon-setting',
+          children: [
+            {
+              code: 'export',
+              name: '导出实例配置',
+              prefixIcon: 'vxe-icon-download',
+            },
+            {
+              code: 'import',
+              name: '导入实例配置',
+              prefixIcon: 'vxe-icon-upload',
+            },
+          ],
         },
       ],
     },

@@ -22,22 +22,13 @@ import { MoonOutline, SunnyOutline } from '@vicons/ionicons5'
 import { NButton, NIcon } from 'naive-ui'
 import { computed } from 'vue'
 
-// 用户 store
+// 用户 store（与  AppHeader 一致：isDark + toggle 只改 light/dark）
 const userStore = useUserStore()
 
-// 是否为深色模式
-const isDark = computed(() => {
-  const theme = userStore.theme
-  if (theme === 'system') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches
-  }
-  return theme === 'dark'
-})
+const isDark = computed(() => userStore.isDark)
 
-// 切换主题
 const toggleTheme = () => {
-  const currentTheme = userStore.theme
-  const nextTheme = currentTheme === 'light' ? 'dark' : 'light'
+  const nextTheme = userStore.isDark ? 'light' : 'dark'
   userStore.update({ theme: nextTheme }, { persistUserData: false })
 }
 

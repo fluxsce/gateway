@@ -1,4 +1,17 @@
+import type { ButtonProps } from 'naive-ui'
 import type { Component, StyleValue } from 'vue'
+
+/**
+ * Footer toolbar 按钮定义
+ */
+export interface GModalToolbarButton {
+  /** 按钮唯一标识，用于 click 事件回调区分 */
+  key: string
+  /** 显示文本 */
+  label: string
+  /** Naive UI ButtonProps 透传（type / size / loading / disabled 等） */
+  buttonProps?: Partial<ButtonProps>
+}
 
 export type GModalPreset = 'dialog' | 'card'
 
@@ -45,6 +58,13 @@ export interface GModalProps {
 
   /** 确认按钮加载状态 */
   confirmLoading?: boolean
+
+  /**
+   * Footer 自定义 toolbar 按钮列表。
+   * 设置后将在内置取消/确认按钮左侧渲染自定义按钮组，
+   * 点击时触发 toolbar-click 事件并携带对应 key。
+   */
+  footerToolbar?: GModalToolbarButton[]
 
   /** 是否自动聚焦到弹窗内部 */
   autoFocus?: boolean
@@ -98,6 +118,9 @@ export interface GModalEmits {
 
   /** 点击确认按钮时触发 */
   (event: 'confirm'): void
+
+  /** 点击 footerToolbar 中的自定义按钮时触发，携带该按钮的 key */
+  (event: 'toolbar-click', key: string): void
 
   /** 弹窗被关闭时触发（包括遮罩关闭、关闭按钮等） */
   (event: 'close'): void

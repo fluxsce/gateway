@@ -33,8 +33,8 @@ export function useLayoutUser() {
   ])
 
   // 处理用户菜单操作
-  const handleUserAction = (key: string) => {
-    switch (key) {
+  const handleUserAction = (key: string | number) => {
+    switch (String(key)) {
       case 'settings':
         router.push('/settings')
         break

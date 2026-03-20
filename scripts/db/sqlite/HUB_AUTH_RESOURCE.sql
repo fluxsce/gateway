@@ -1371,6 +1371,43 @@ INSERT INTO HUB_AUTH_RESOURCE (
   datetime('now'), 'system', datetime('now'), 'system', 'INIT_010_017', 1, 'Y'
 );
 
+-- 工具子菜单（实例树右键：导出/导入 Excel 配置）
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:tools', 'default', '工具', 'hub0020:tools', 'BUTTON',
+  'hub0020', 3, 18, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_010_018', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:export', 'default', '导出实例配置', 'hub0020:export', 'BUTTON',
+  'hub0020:tools', 4, 1, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_010_018_001', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:import', 'default', '导入实例配置', 'hub0020:import', 'BUTTON',
+  'hub0020:tools', 4, 2, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_010_018_002', 1, 'Y'
+);
+
 -- =====================================================
 -- 路由管理模块 - 按钮资源 (hub0021)
 -- =====================================================

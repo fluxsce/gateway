@@ -192,6 +192,27 @@ export const useUserStore = defineStore('user', {
         return a.sortOrder - b.sortOrder
       })
     },
+
+    /**
+     * 解析后的主题（'light' | 'dark'），与  一致供 NConfigProvider / 样式使用
+     * theme 为 'system' 时按系统 prefers-color-scheme 解析
+     */
+    resolvedTheme: (state): 'light' | 'dark' => {
+      const theme = state.theme
+      if (theme === 'system') {
+        return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+      }
+      return theme === 'dark' ? 'dark' : 'light'
+    },
+
+    /** 是否为深色模式（与  store.isDark 一致，便于 Header 简单判断） */
+    isDark: (state): boolean => {
+      const theme = state.theme
+      if (theme === 'system') {
+        return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
+      }
+      return theme === 'dark'
+    },
   },
 
   actions: {
@@ -402,6 +423,19 @@ export const useUserStore = defineStore('user', {
           language: this.language,
           sidebarCollapsed: this.sidebarCollapsed,
         }, true)
+      }
+      if (data.theme !== undefined) {
+        this.syncThemeToDom()
+      }
+    },
+
+    /**
+     * 同步主题到 HTML 根元素（与  一致，store 内一处维护 data-theme）
+     */
+    syncThemeToDom() {
+      const resolved = this.resolvedTheme
+      if (typeof document !== 'undefined') {
+        document.documentElement.setAttribute('data-theme', resolved)
       }
     },
 

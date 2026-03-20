@@ -397,7 +397,9 @@ cache:
           - "127.0.0.1:26380" 
           - "127.0.0.1:26381"
         master_name: "mymaster"   # 主节点名称
-        password: "your_password" # Redis认证密码
+        password: "your_password" # Redis 主/从节点认证密码
+        sentinel_password: ""    # 哨兵节点认证密码（哨兵开启 requirepass 时必填，否则会报 NOAUTH）
+        sentinel_username: ""    # 哨兵认证用户名（可选，Redis 6+ ACL 时使用）
         database: 0
         
         # === 连接池配置 ===

@@ -129,6 +129,9 @@ export async function initializeStores() {
   // 初始化用户状态
   userStore.initialize()
 
+  // 主题同步到 HTML（由 user store 统一维护 data-theme）
+  userStore.syncThemeToDom()
+
   // 返回初始化后的store实例，以便进一步操作
   return {
     userStore,

@@ -207,7 +207,7 @@ export function useRouteConfigModel() {
     menuConfig: {
       enabled: true,
       showCopyRow: true,
-      customMenus: [
+      options: [
         {
           code: 'view',
           name: '查看详情',
@@ -593,11 +593,14 @@ export function useRouteConfigModel() {
         tips: '选择要关联的后端服务定义，多个服务使用逗号分割，如果没有可用选项，请先在服务管理中创建服务定义',
         render: (formData: Record<string, any>, context?: { gatewayInstanceId?: string }) => {
           const gatewayInstanceId = context?.gatewayInstanceId || ''
-          
+
           return h(ServiceDefinitionSelector, {
             modelValue: formData.serviceDefinitionId,
             'onUpdate:modelValue': (value: string | null) => {
               formData.serviceDefinitionId = value || ''
+            },
+            'onUpdate:serviceNameMap': (map: Record<string, string>) => {
+              formData['routeMetadata.serviceNameMap'] = map
             },
             gatewayInstanceId,
           })

@@ -154,9 +154,9 @@ export function useUserModel() {
       placeholder: '请输入密码',
       span: 8,
       tabKey: 'basic',
-      // 仅在新增模式下显示密码字段，编辑模式下隐藏（有专门的密码修改功能）
-      show: (formData: Record<string, any>) => !formData.userId,
-      required: true, // 仅在新增时显示，所以始终是必填的
+      // 仅新增模式显示密码；编辑用“重置密码”，避免用 formData.userId 判断（新增时一填 userId 会误判为编辑导致密码框消失）
+      show: (formData: Record<string, any>) => formData._mode === 'create',
+      required: true,
       props: {
         type: 'password',
         showPasswordOn: 'click',
@@ -522,7 +522,7 @@ export function useUserModel() {
       enabled: true,
       showCopyRow: true,
       showCopyCell: true,
-      customMenus: [
+      options: [
         {
           code: 'view',
           name: '查看详情',

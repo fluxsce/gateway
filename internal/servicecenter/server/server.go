@@ -509,14 +509,18 @@ func (s *Server) Start(ctx context.Context) error {
 		if err != nil && err != context.Canceled {
 			// 异常停止
 			statusMsg := fmt.Sprintf("服务器异常停止: %v", err)
-			if updateErr := s.updateInstanceStatus(ctx, types.InstanceStatusError, statusMsg); updateErr != nil {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if updateErr := s.updateInstanceStatus(shutdownCtx, types.InstanceStatusError, statusMsg); updateErr != nil {
 				logger.Warn("更新错误状态失败", "error", updateErr)
 			}
 			// 发送异常停止告警
 			centerlog.HandleServerStopAbnormal(s.config, statusMsg)
 		} else {
 			// 正常停止
-			if updateErr := s.updateInstanceStatus(ctx, types.InstanceStatusStopped, "服务器已停止"); updateErr != nil {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if updateErr := s.updateInstanceStatus(shutdownCtx, types.InstanceStatusStopped, "服务器已停止"); updateErr != nil {
 				logger.Warn("更新停止状态失败", "error", updateErr)
 			}
 		}
@@ -583,8 +587,10 @@ func (s *Server) Stop(ctx context.Context) {
 	}
 	s.mu.Unlock()
 
-	// 更新状态为 STOPPING
-	if err := s.updateInstanceStatus(ctx, types.InstanceStatusStopping, "正在停止 gRPC 服务器"); err != nil {
+	// 更新状态为 STOPPING：使用独立 context，避免优雅关闭时调用方 ctx 已取消导致写库失败
+	stoppingCtx, stoppingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer stoppingCancel()
+	if err := s.updateInstanceStatus(stoppingCtx, types.InstanceStatusStopping, "正在停止 gRPC 服务器"); err != nil {
 		logger.Warn("更新停止中状态失败", "error", err)
 	}
 
@@ -616,8 +622,10 @@ func (s *Server) Stop(ctx context.Context) {
 	// 标记为非运行状态（Start() 中的 Serve() 返回后也会设置，这里是双保险）
 	s.running.Store(false)
 
-	// 更新状态为 STOPPED
-	if err := s.updateInstanceStatus(ctx, types.InstanceStatusStopped, "gRPC 服务器已停止"); err != nil {
+	// 更新状态为 STOPPED，使用独立 context 避免因调用方 ctx 已取消而失败
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer stopCancel()
+	if err := s.updateInstanceStatus(stopCtx, types.InstanceStatusStopped, "gRPC 服务器已停止"); err != nil {
 		logger.Warn("更新已停止状态失败", "error", err)
 	}
 

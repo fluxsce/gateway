@@ -127,7 +127,7 @@ const readonlyGridConfig = computed<Omit<GridProps, 'moduleId' | 'data' | 'loadi
       enabled: true,
       showCopyRow: baseConfig.menuConfig?.showCopyRow || false,
       showCopyCell: baseConfig.menuConfig?.showCopyCell || false,
-      customMenus: [
+      options: [
         {
           code: 'view',
           name: '查看详情',

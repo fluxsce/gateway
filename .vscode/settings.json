@@ -33,5 +33,6 @@
   },
   "editor.codeActionsOnSave": {
     "source.organizeImports": "explicit"
-  }
+  },
+  "git.ignoreLimitWarning": true
 } 

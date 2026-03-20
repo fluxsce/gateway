@@ -93,7 +93,7 @@ const props = withDefaults(defineProps<GridProps>(), {
   loading: false,
   border: true,
   stripe: true,
-  autoResize: false,
+  autoResize: true,
   rowId: 'id',
   showCheckbox: false,
   showSeq: true,

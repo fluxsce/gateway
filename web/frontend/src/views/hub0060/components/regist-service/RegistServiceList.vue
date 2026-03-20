@@ -164,7 +164,7 @@ const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
     enabled: true,
     showCopyRow: true,
     showCopyCell: true,
-    customMenus: [
+    options: [
       {
         code: 'refresh',
         name: '刷新',

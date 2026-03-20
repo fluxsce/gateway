@@ -221,6 +221,11 @@ service.interceptors.response.use(
       hideLoading()
     }
 
+    // blob 类型响应（文件下载）直接返回完整 response，保留 headers（如 Content-Disposition）
+    if (response.config.responseType === 'blob') {
+      return response
+    }
+
     const res = response.data
 
     // 根据自定义错误码判断请求是否成功

@@ -1,102 +1,83 @@
 <template>
-  <NConfigProvider 
-    :theme="naiveTheme" 
-    :theme-overrides="isDark ? darkThemeOverrides : lightThemeOverrides"
+  <n-config-provider
+    :theme="naiveTheme"
+    :theme-overrides="themeOverrides"
     :locale="naiveLocale"
     :date-locale="naiveDateLocale"
     :hljs="hljsInstance"
   >
-    <div 
-      class="app-container" 
-      :class="{ 'dark-theme': isDark, 'light-theme': !isDark }" 
-      :data-theme="isDark ? 'dark' : 'light'"
-    >
-      <NLoadingBarProvider>
-        <NMessageProvider>
-          <NDialogProvider>
+    <div class="app-container" id="app-container">
+      <n-loading-bar-provider>
+        <n-message-provider>
+          <n-dialog-provider>
             <RequestInitializer />
-            <RouterView />
-          </NDialogProvider>
-        </NMessageProvider>
-      </NLoadingBarProvider>
+            <router-view />
+          </n-dialog-provider>
+        </n-message-provider>
+      </n-loading-bar-provider>
     </div>
-  </NConfigProvider>
+  </n-config-provider>
 </template>
 
 <script setup lang="ts">
 import RequestInitializer from '@/components/RequestInitializer.vue'
 import { darkThemeOverrides, lightThemeOverrides } from '@/config/theme'
+import type { LocaleType } from '@/locales'
 import { getCurrentLocale } from '@/locales'
 import { useUserStore } from '@/stores/user'
 import hljs from '@/utils/highlight'
 import {
-  darkTheme,
-  dateEnUS,
-  dateZhCN,
-  enUS,
-  NConfigProvider,
-  NDialogProvider,
-  NLoadingBarProvider,
-  NMessageProvider,
-  zhCN
+    darkTheme,
+    dateEnUS,
+    dateZhCN,
+    enUS,
+    zhCN,
+    type GlobalThemeOverrides,
+    type NDateLocale,
+    type NLocale,
 } from 'naive-ui'
 import type { Hljs } from 'naive-ui/es/_mixins'
-import { computed, watchEffect } from 'vue'
+import { computed } from 'vue'
 
-// 用户 store
+type Theme = 'light' | 'dark'
+
 const userStore = useUserStore()
 
-// 是否为深色模式
-const isDark = computed(() => {
-  const theme = userStore.theme
-  if (theme === 'system') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches
-  }
-  return theme === 'dark'
-})
-
-// Naive UI 主题对象
-const naiveTheme = computed(() => {
-  return isDark.value ? darkTheme : null
-})
-
-// 将 hljs 实例转换为 naive-ui 期望的类型
-const hljsInstance: Hljs = {
-  highlight: hljs.highlight.bind(hljs),
-  getLanguage: hljs.getLanguage.bind(hljs)
+// 主题映射配置（与  一致：store.resolvedTheme / store.isDark，一处维护）
+const naiveThemeMap: Record<Theme, typeof darkTheme | null> = {
+  light: null,
+  dark: darkTheme,
 }
 
-// 多语言配置
-const naiveLocale = computed(() => {
-  const currentLang = getCurrentLocale()
-  return currentLang === 'en' ? enUS : zhCN
-})
+const themeOverridesMap: Record<Theme, GlobalThemeOverrides> = {
+  light: lightThemeOverrides,
+  dark: darkThemeOverrides,
+}
 
-const naiveDateLocale = computed(() => {
-  const currentLang = getCurrentLocale()
-  return currentLang === 'en' ? dateEnUS : dateZhCN
-})
+const naiveTheme = computed(() => naiveThemeMap[userStore.resolvedTheme])
+const themeOverrides = computed(() => themeOverridesMap[userStore.resolvedTheme])
 
-// 同步主题到HTML根元素
-watchEffect(() => {
-  const html = document.documentElement
-  const theme = isDark.value ? 'dark' : 'light'
-  
-  // 设置 data-theme 属性
-  html.setAttribute('data-theme', theme)
-  
-  // 设置 class
-  if (isDark.value) {
-    html.classList.add('dark-theme')
-    html.classList.remove('light-theme')
-  } else {
-    html.classList.add('light-theme')
-    html.classList.remove('dark-theme')
-  }
-})
+// 语言映射配置（参考 ）
+const naiveLocaleMap: Record<LocaleType, NLocale> = {
+  en: enUS,
+  'zh-CN': zhCN,
+}
+
+const naiveDateLocaleMap: Record<LocaleType, NDateLocale> = {
+  en: dateEnUS,
+  'zh-CN': dateZhCN,
+}
+
+const naiveLocale = computed(() => naiveLocaleMap[getCurrentLocale()])
+const naiveDateLocale = computed(() => naiveDateLocaleMap[getCurrentLocale()])
+
+const hljsInstance: Hljs = {
+  highlight: hljs.highlight.bind(hljs),
+  getLanguage: hljs.getLanguage.bind(hljs),
+}
 </script>
 
-<style>
+<style scoped>
 .app-container {
   height: 100%;
   width: 100%;

@@ -5,10 +5,10 @@
 
 import { describe, expect, it } from 'vitest'
 import {
-    CommonIcons,
-    getIcon,
-    getIcons,
-    IconLibrary
+  CommonIcons,
+  getIcon,
+  getIconSync,
+  IconLibrary
 } from '../icon'
 
 describe('Icon Utils', () => {
@@ -35,31 +35,14 @@ describe('Icon Utils', () => {
     })
   })
 
-  describe('getIcons', () => {
-    it('should get multiple icons', async () => {
-      const icons = await getIcons([
-        'AddOutline',
-        'RefreshOutline',
-        'TrashOutline'
-      ])
-      
-      expect(icons).toHaveLength(3)
-      expect(icons[0]).toBeTruthy()
-      expect(icons[1]).toBeTruthy()
-      expect(icons[2]).toBeTruthy()
+  describe('getIconSync', () => {
+    it('should return null before icon is loaded', () => {
+      expect(getIconSync('UnloadedIcon')).toBeNull()
     })
 
-    it('should handle mix of valid and invalid icons', async () => {
-      const icons = await getIcons([
-        'AddOutline',
-        'NonExistentIcon',
-        'RefreshOutline'
-      ])
-      
-      expect(icons).toHaveLength(3)
-      expect(icons[0]).toBeTruthy()
-      expect(icons[1]).toBeNull()
-      expect(icons[2]).toBeTruthy()
+    it('should return cached icon after getIcon has loaded it', async () => {
+      await getIcon('RefreshOutline')
+      expect(getIconSync('RefreshOutline')).toBeTruthy()
     })
   })
 

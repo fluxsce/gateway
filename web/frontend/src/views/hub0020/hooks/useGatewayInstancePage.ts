@@ -124,6 +124,11 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
   const rateLimitConfigDialogVisible = ref(false)
   const rateLimitConfigGatewayInstanceId = ref<string>('')
 
+  // 导出/导入
+  const exportVisible = ref(false)
+  const exportInstanceId = ref<string>('')
+  const importVisible = ref(false)
+
   /**
    * 打开限流配置对话框
    */
@@ -353,14 +358,14 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
         break
 
       case 'edit': {
-        // 编辑当前高亮的行（点击选中的行）
+        // 优先复选框勾选行，否则当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
+        const currentRow = gridRef.value.getSelectedOrCurrentRecord()
         if (!currentRow) {
-          message.warning('请先点击选择要编辑的实例')
+          message.warning('请先勾选或点击选择要编辑的实例')
           return
         }
         await openEditDialog(currentRow as GatewayInstance)
@@ -368,19 +373,37 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
       }
 
       case 'delete': {
-        // 删除当前高亮的行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
+        const currentRow = gridRef.value.getSelectedOrCurrentRecord()
         if (!currentRow) {
-          message.warning('请先点击选择要删除的实例')
+          message.warning('请先勾选或点击选择要删除的实例')
           return
         }
         await service.deleteInstance(currentRow as GatewayInstance)
         break
       }
+
+      case 'export': {
+        if (!gridRef?.value) {
+          message.warning('Grid 引用未设置')
+          return
+        }
+        const exportRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!exportRow) {
+          message.warning('请先勾选或点击选择要导出配置的实例')
+          return
+        }
+        exportInstanceId.value = (exportRow as GatewayInstance).gatewayInstanceId
+        exportVisible.value = true
+        break
+      }
+
+      case 'import':
+        importVisible.value = true
+        break
 
       case 'search': {
         // 如果传递了表单数据，直接使用它进行查询
@@ -574,6 +597,12 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
    * 右键菜单点击处理
    */
   const handleMenuClick = async ({ code, row }: { code: string; row?: GatewayInstance }) => {
+    // 导入不依赖行数据，空白区域右键也可触发
+    if (code === 'import') {
+      importVisible.value = true
+      return
+    }
+
     if (!row) return
 
     switch (code) {
@@ -632,6 +661,12 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
       case 'reload':
         handleReloadInstance(row)
         break
+
+      case 'export':
+        exportInstanceId.value = row.gatewayInstanceId
+        exportVisible.value = true
+        break
+
     }
   }
 
@@ -698,6 +733,11 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
     rateLimitConfigDialogVisible,
     rateLimitConfigGatewayInstanceId,
     openRateLimitConfigDialog,
+
+    // 导出/导入
+    exportVisible,
+    exportInstanceId,
+    importVisible,
 
     // 事件处理器
     handleToolbarClick,

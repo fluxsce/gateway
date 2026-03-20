@@ -63,7 +63,7 @@ services:
   # Gateway 应用
   # ============================================
   gateway:
-    image: datahub-images/gateway:3.0.9
+    image: datahub-images/gateway:3.1.0
     container_name: gateway-app
     restart: unless-stopped
     depends_on:
@@ -81,13 +81,13 @@ services:
       - "12222:2222"   # 隧道映射端口示例（使用 12222 避免冲突）
     volumes:
       # 配置文件
-      - ../../configs:/opt/gateway/configs:ro
+      - ../../configs:/home/gateway/configs:ro
       # 日志目录
-      - ../../logs:/opt/gateway/logs
+      - ../../logs:/home/gateway/logs
       # Web 静态资源（如果需要自定义）
-      - ../../web/static:/opt/gateway/web/static:ro
+      - ../../web/static:/home/gateway/web/static:ro
       # Web 前端资源（如果需要自定义）
-      - ../../web/frontend/dist:/opt/gateway/web/frontend/dist:ro
+      - ../../web/frontend/dist:/home/gateway/web/frontend/dist:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:12003/health"]
       interval: 30s

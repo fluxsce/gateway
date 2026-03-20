@@ -223,7 +223,7 @@ export function useAlertConfigModel() {
     menuConfig: {
       enabled: true,
       showCopyRow: true,
-      customMenus: [
+      options: [
         {
           code: 'view',
           name: '查看详情',

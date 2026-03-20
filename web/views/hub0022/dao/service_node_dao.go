@@ -121,8 +121,9 @@ func (dao *ServiceNodeDAO) GetServiceNodeById(ctx context.Context, serviceNodeId
 	var node models.ServiceNodeModel
 	err := dao.db.QueryOne(ctx, &node, query, []interface{}{serviceNodeId, tenantId}, true)
 	if err != nil {
-		if strings.Contains(err.Error(), "no rows") {
-			return nil, nil // 没有找到记录，返回nil
+		// 统一用数据库层 ErrRecordNotFound（SQLite 等为 record not found，不仅是 sql.ErrNoRows 文案）
+		if errors.Is(err, database.ErrRecordNotFound) {
+			return nil, nil
 		}
 		return nil, huberrors.WrapError(err, "获取服务节点失败")
 	}

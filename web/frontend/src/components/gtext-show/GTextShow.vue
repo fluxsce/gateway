@@ -60,9 +60,10 @@
 <script setup lang="ts">
 import hljs from '@/utils/highlight'
 import { CodeOutline, CopyOutline } from '@vicons/ionicons5'
-import { NButton, NCode, NIcon, NTag, useMessage } from 'naive-ui'
+import { NButton, NCode, NIcon, NTag } from 'naive-ui'
 import type { Hljs } from 'naive-ui/es/_mixins'
 import { computed, ref, watch } from 'vue'
+import { copyToClipboardAsync } from '@/utils/clipboard'
 import type { GTextShowEmits, GTextShowProps, TextFormat } from './types'
 
 // 定义组件名称
@@ -82,8 +83,7 @@ const props = withDefaults(defineProps<GTextShowProps>(), {
 // Emits
 const emit = defineEmits<GTextShowEmits>()
 
-// Message
-const message = useMessage()
+// 复制提示由 utils/clipboard 统一处理（优先走全局 $gMessage）
 
 // 性能优化配置
 const LARGE_CONTENT_THRESHOLD = 500 * 1024 // 500KB，超过此大小视为超大内容
@@ -401,11 +401,20 @@ const contentStyle = computed(() => {
 const handleCopy = async () => {
   try {
     const text = formattedContent.value || props.content
-    await navigator.clipboard.writeText(text)
-    message.success('复制成功')
+    const result = await copyToClipboardAsync(text, {
+      successMessage: '复制成功',
+      errorMessage: '复制失败',
+      showMessage: false,
+    })
+    if (!result.success) {
+      ;(window as any)?.$gMessage?.error?.('复制失败')
+      console.error('复制失败:', result.error)
+      return
+    }
+    ;(window as any)?.$gMessage?.success?.('复制成功')
     emit('copy', text)
   } catch (error) {
-    message.error('复制失败')
+    ;(window as any)?.$gMessage?.error?.('复制失败')
     console.error('复制失败:', error)
   }
 }
@@ -418,7 +427,7 @@ const handleFormat = () => {
   
   // 检查是否支持格式化
   if (format !== 'json' && format !== 'xml' && format !== 'soap') {
-    message.warning('当前格式不支持格式化')
+    ;(window as any)?.$gMessage?.warning?.('当前格式不支持格式化')
     return
   }
   
@@ -431,9 +440,9 @@ const handleFormat = () => {
   isManuallyFormatted.value = !currentFormatted
   
   if (isManuallyFormatted.value) {
-    message.success('已格式化')
+    ;(window as any)?.$gMessage?.success?.('已格式化')
   } else {
-    message.info('已取消格式化')
+    ;(window as any)?.$gMessage?.info?.('已取消格式化')
   }
 }
 </script>

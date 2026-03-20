@@ -67,62 +67,62 @@ export function useStaticServerPage(
         break
 
       case 'start': {
-        // 启动当前高亮的行（点击选中的行）
+        // 启动：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要启动的服务')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要启动的服务')
           return
         }
-        await handleStart(currentRow as TunnelStaticServer)
+        await handleStart(selectedRow as TunnelStaticServer)
         break
       }
 
       case 'stop': {
-        // 停止当前高亮的行
+        // 停止：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要停止的服务')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要停止的服务')
           return
         }
-        await handleStop(currentRow as TunnelStaticServer)
+        await handleStop(selectedRow as TunnelStaticServer)
         break
       }
 
       case 'reload': {
-        // 重载当前高亮的行
+        // 重载：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要重载的服务')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要重载的服务')
           return
         }
-        await handleReload(currentRow as TunnelStaticServer)
+        await handleReload(selectedRow as TunnelStaticServer)
         break
       }
 
       case 'delete': {
-        // 删除当前高亮的行
+        // 删除：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要删除的服务')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要删除的服务')
           return
         }
-        await handleDelete(currentRow as TunnelStaticServer)
+        await handleDelete(selectedRow as TunnelStaticServer)
         break
       }
 

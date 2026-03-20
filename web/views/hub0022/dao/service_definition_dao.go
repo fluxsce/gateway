@@ -95,6 +95,10 @@ func (dao *ServiceDefinitionDAO) GetServiceDefinitionById(ctx context.Context, s
 	var serviceDefinition models.ServiceDefinition
 	err := dao.db.QueryOne(ctx, &serviceDefinition, query, []interface{}{serviceDefinitionId, tenantId}, true)
 	if err != nil {
+		// 不存在时返回 (nil, nil)，便于导入 Upsert 走 Create 分支
+		if errors.Is(err, database.ErrRecordNotFound) {
+			return nil, nil
+		}
 		return nil, huberrors.WrapError(err, "查询服务定义失败")
 	}
 

@@ -1,85 +1,6 @@
 <template>
   <n-layout class="main-layout">
-    <!-- 顶部导航栏 -->
-    <n-layout-header bordered class="header">
-      <div class="header-left">
-        <div class="logo">
-          <img src="@/assets/images/logo.png" alt="Logo" class="logo-img" />
-          <span class="logo-text" v-if="!store.user.sidebarCollapsed">{{
-            tCommon('common.appName')
-          }}</span>
-        </div>
-      </div>
-
-      <div class="header-center">
-        <n-breadcrumb>
-          <n-breadcrumb-item v-for="item in breadcrumbs" :key="item.path">
-            {{ item.title }}
-          </n-breadcrumb-item>
-        </n-breadcrumb>
-      </div>
-
-      <div class="header-right">
-        <!-- 全局搜索 -->
-        <div class="search-box">
-          <n-input
-            v-model:value="searchQuery"
-            :placeholder="tCommon('searchGlobal')"
-            clearable
-            round
-            size="small"
-          >
-            <template #prefix>
-              <n-icon>
-                <SearchOutline />
-              </n-icon>
-            </template>
-          </n-input>
-        </div>
-
-        <!-- 工具市场快捷入口 -->
-        <n-tooltip trigger="hover">
-          <template #trigger>
-            <n-button quaternary circle @click="openToolMarketplace">
-              <template #icon>
-                <n-icon size="18">
-                  <AppsOutline />
-                </n-icon>
-              </template>
-            </n-button>
-          </template>
-          {{ tCommon('toolMarket') }}
-        </n-tooltip>
-
-        <!-- 通知图标 -->
-        <div class="notification-btn">
-          <n-badge :value="0" :show="false">
-            <n-button quaternary circle>
-              <n-icon size="18">
-                <NotificationsOutline />
-              </n-icon>
-            </n-button>
-          </n-badge>
-        </div>
-
-        <!-- 主题切换 -->
-        <div class="theme-switch">
-          <ThemeSwitcher />
-        </div>
-
-        <!-- 用户信息 -->
-        <n-dropdown :options="userMenuOptions" @select="handleUserAction" trigger="click">
-          <div class="user-info">
-            <n-avatar round :src="store.user.avatar">
-              {{ (store.user.displayName || store.user.userName || '?').charAt(0).toUpperCase() }}
-            </n-avatar>
-            <span class="user-name" v-if="!store.user.sidebarCollapsed">{{
-              store.user.displayName
-            }}</span>
-          </div>
-        </n-dropdown>
-      </div>
-    </n-layout-header>
+    <MainLayoutHeader @open-tool-marketplace="openToolMarketplace" />
 
     <n-layout has-sider position="absolute" :style="{ top: 'var(--g-header-height)', bottom: 0 }">
       <!-- 侧边菜单 -->
@@ -103,7 +24,6 @@
           style="flex: 1; overflow-y: auto; overflow-x: hidden"
         />
 
-        <!-- 折叠按钮 -->
         <div class="sidebar-footer">
           <div class="collapse-btn" @click="store.user.toggleSidebar">
             <n-icon size="18">
@@ -117,17 +37,9 @@
         </div>
       </n-layout-sider>
 
-      <!-- 主内容区域 -->
-      <n-layout-content class="main-content">
-        <router-view v-slot="{ Component, route }">
-          <transition name="fade-slide" mode="out-in" appear>
-            <component :is="Component" :key="route.path" />
-          </transition>
-        </router-view>
-      </n-layout-content>
+      <MainLayoutContent />
     </n-layout>
 
-    <!-- 工具市场模态框 -->
     <n-modal
       v-model:show="showToolMarketplace"
       preset="card"
@@ -145,52 +57,39 @@
 </template>
 
 <script setup lang="ts">
-import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { store } from '@/stores'
-import { AppsOutline, ListSharp, NotificationsOutline, SearchOutline } from '@vicons/ionicons5'
-import { NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NModal, useLoadingBar } from 'naive-ui'
+import { ListSharp } from '@vicons/ionicons5'
+import { NLayout, NLayoutSider, NModal, useLoadingBar } from 'naive-ui'
 import { onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import MainLayoutContent from './MainLayoutContent.vue'
+import MainLayoutHeader from './MainLayoutHeader.vue'
 import ToolMarketplace from './compoents/ToolMarketplace.vue'
-import { useLayoutMenu, useLayoutUser } from './hooks'
+import { useLayoutMenu } from './hooks'
 
-// 国际化
 const { t: tCommon } = useModuleI18n('common')
 
-// 路由加载进度条
 const loadingBar = useLoadingBar()
 const route = useRoute()
 
-// 监听路由变化，显示加载进度条
 watch(
   () => route.path,
   () => {
     loadingBar.start()
-    // 模拟加载完成
     setTimeout(() => {
       loadingBar.finish()
     }, 300)
-  }
+  },
 )
 
-// 组件挂载时完成初始加载
 onMounted(() => {
   loadingBar.finish()
 })
 
-// 工具市场面板状态
 const showToolMarketplace = ref(false)
+const { menuOptions, handleMenuSelect } = useLayoutMenu()
 
-// 全局搜索
-const searchQuery = ref('')
-
-// 使用提取出的hooks
-const { menuOptions, handleMenuSelect, breadcrumbs } = useLayoutMenu()
-
-const { userMenuOptions, handleUserAction } = useLayoutUser()
-
-// 打开工具市场
 const openToolMarketplace = () => {
   showToolMarketplace.value = true
 }
@@ -200,86 +99,6 @@ const openToolMarketplace = () => {
 .main-layout {
   height: 100vh;
   background-color: var(--g-bg-secondary);
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: var(--g-header-height);
-  padding: 0 var(--g-space-md);
-  background-color: var(--g-bg-primary);
-  box-shadow: var(--g-shadow-sm);
-  z-index: 10;
-
-  .header-left {
-    display: flex;
-    align-items: center;
-
-    .logo {
-      display: flex;
-      align-items: center;
-      margin-right: var(--g-space-md);
-
-      .logo-img {
-        width: 24px;
-        height: 24px;
-      }
-
-      .logo-text {
-        font-size: var(--g-font-size-lg);
-        font-weight: 600;
-        margin-left: var(--g-space-sm);
-        color: var(--g-primary);
-      }
-    }
-  }
-
-  .header-center {
-    flex: 1;
-    padding: 0 var(--g-space-md);
-  }
-
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: var(--g-space-sm);
-
-    .search-box {
-      width: 200px;
-      transition: width var(--g-transition-base) var(--g-transition-ease);
-
-      &:focus-within {
-        width: 240px;
-      }
-    }
-
-    .notification-btn,
-    .theme-switch {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .user-info {
-      display: flex;
-      align-items: center;
-      padding: var(--g-space-xs) var(--g-space-sm);
-      cursor: pointer;
-      border-radius: var(--g-radius-md);
-      transition: all var(--g-transition-base) var(--g-transition-ease);
-
-      &:hover {
-        background-color: var(--g-hover-overlay);
-      }
-
-      .user-name {
-        margin-left: var(--g-space-sm);
-        font-size: var(--g-font-size-base);
-        color: var(--g-text-primary);
-      }
-    }
-  }
 }
 
 .sidebar {
@@ -305,7 +124,6 @@ const openToolMarketplace = () => {
       overflow: hidden;
     }
 
-    // 菜单项样式
     .n-menu-item-content {
       padding-left: var(--g-space-md) !important;
       padding-right: var(--g-space-md) !important;
@@ -317,7 +135,6 @@ const openToolMarketplace = () => {
         background-color: var(--g-hover-overlay);
       }
 
-      // 选中状态
       &.n-menu-item-content--selected {
         background-color: var(--g-primary-light);
         color: var(--g-primary);
@@ -338,7 +155,6 @@ const openToolMarketplace = () => {
       }
     }
 
-    // 子菜单缩进
     .n-submenu-children {
       .n-menu-item-content {
         padding-left: calc(var(--g-space-md) + var(--g-space-lg)) !important;
@@ -346,27 +162,20 @@ const openToolMarketplace = () => {
     }
   }
 
-  // 侧边栏底部
   .sidebar-footer {
     border-top: 1px solid var(--g-border-primary);
     height: var(--g-footer-height);
     min-height: var(--g-footer-height);
-    /* padding: 0 var(--g-space-sm); */
     display: flex;
-    /* align-items: center; */
     box-sizing: unset;
 
     .collapse-btn {
       display: flex;
       align-items: center;
       justify-content: flex-start;
-      /* padding: var(--g-space-sm) 0; */
       height: 100%;
       width: 100%;
-      /* border-radius: var(--g-radius-md); */
       cursor: pointer;
-      /* transition: all var(--g-transition-base) var(--g-transition-ease); */
-      /* color: var(--g-text-secondary); */
       box-sizing: border-box;
 
       &:hover {
@@ -381,7 +190,6 @@ const openToolMarketplace = () => {
     }
   }
 
-  // 折叠状态
   &.n-layout-sider--collapsed {
     .sidebar-footer .collapse-btn {
       justify-content: center;
@@ -389,36 +197,4 @@ const openToolMarketplace = () => {
     }
   }
 }
-
-.main-content {
-  height: calc(100vh - var(--g-header-height));
-  border: 0.5px solid var(--g-border-primary);
-  border-radius: var(--g-radius-2xl);
-  box-sizing: border-box;
-  position: relative;
-  overflow: hidden;
-}
-
-/* 路由切换动画 */
-.fade-slide-enter-active,
-.fade-slide-leave-active {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.fade-slide-enter-from {
-  opacity: 0;
-  transform: translateX(20px);
-}
-
-.fade-slide-leave-to {
-  opacity: 0;
-  transform: translateX(-20px);
-}
-
-.fade-slide-enter-to,
-.fade-slide-leave-from {
-  opacity: 1;
-  transform: translateX(0);
-}
-
 </style>

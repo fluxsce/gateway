@@ -39,14 +39,14 @@ docker-compose down
 
 **Docker Hub:**
 ```bash
-docker pull datahub-images/gateway:3.0.9
-docker pull datahub-images/gateway:3.0.9-oracle
+docker pull datahub-images/gateway:3.1.0
+docker pull datahub-images/gateway:3.1.0-oracle
 ```
 
 **Alibaba Cloud Registry:**
 ```bash
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.0.9
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.0.9-oracle
+docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.1.0
+docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.1.0-oracle
 ```
 
 ### Build Custom Image
@@ -110,7 +110,7 @@ metadata:
 spec:
   containers:
     - name: gateway
-      image: crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.0.9
+      image: crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.1.0
       imagePullPolicy: Always
 ```
 

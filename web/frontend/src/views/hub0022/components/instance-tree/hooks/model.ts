@@ -4,10 +4,9 @@
  */
 
 import type { DataFormField, DataFormTab } from '@/components/form/data/types'
-import type { ContextMenuConfig } from '@/components/gmenu'
+import type { GContextProps } from '@/components/gcontext'
 import { AddOutline } from '@vicons/ionicons5'
-import { NIcon } from 'naive-ui'
-import { computed, h, ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { GatewayInstance, InstanceTreeOption } from '../types'
 import { ProxyType as ProxyTypeEnum } from '../types'
 /**
@@ -121,14 +120,15 @@ export function useGatewayInstanceTreeModel() {
   /**
    * 树节点右键菜单配置
    */
-  const treeMenuConfig: ContextMenuConfig = {
+  const treeMenuConfig: Partial<GContextProps> = {
     enabled: true,
     showCopyNode: true,
-    customMenus: [
+    moduleId,
+    options: [
       {
         code: 'addProxy',
         name: '代理配置',
-        prefixIcon: () => h(NIcon, { size: 14 }, { default: () => h(AddOutline) }),
+        prefixIcon: AddOutline,
       },
     ],
   }

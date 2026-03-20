@@ -6,7 +6,7 @@
  */
 
 import { nextTick } from 'vue'
-import { createI18n, type I18n, type Composer } from 'vue-i18n'
+import { createI18n, type Composer, type I18n } from 'vue-i18n'
 
 export type LocaleType = 'en' | 'zh-CN'
 

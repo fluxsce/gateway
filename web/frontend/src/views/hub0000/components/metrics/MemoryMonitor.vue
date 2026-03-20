@@ -1,5 +1,5 @@
 <template>
-    <n-card :title="displayTitle" :bordered="false" class="monitor-card">
+    <GCard show-title :title="displayTitle" :bordered="false" class="monitor-card">
         <template #header-extra>
             <div class="card-extra">
                 <n-date-picker v-model:value="dateTimeRange" type="datetimerange" :shortcuts="timeRangeShortcuts"
@@ -26,13 +26,14 @@
                 <n-empty :description="t('common.noData')" />
             </div>
         </div>
-    </n-card>
+    </GCard>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
-import { NCard, NButton, NIcon, NSpin, NEmpty, NDatePicker } from 'naive-ui'
+import { GCard } from '@/components'
+import { NButton, NIcon, NSpin, NEmpty, NDatePicker } from 'naive-ui'
 import { ReloadOutlined } from '@vicons/antd'
 import * as echarts from 'echarts/core'
 import { LineChart } from 'echarts/charts'
@@ -232,6 +233,9 @@ const updateChart = () => {
         },
         tooltip: {
             trigger: 'axis',
+            appendToBody: true,
+            confine: true,
+            extraCssText: 'z-index: 9999;',
             formatter: function (params: any) {
                 const dataPoint = params[0]
                 const detail = dataPoint.data.detail

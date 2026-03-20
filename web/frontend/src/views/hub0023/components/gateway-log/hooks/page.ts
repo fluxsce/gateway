@@ -51,17 +51,17 @@ export function useGatewayLogPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<
   const handleToolbarClick = async (key: string, formData?: Record<string, any>) => {
     switch (key) {
       case 'view': {
-        // 查看当前高亮的行（点击选中的行）
+        // 查看：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
-        if (!currentRow) {
-          message.warning('请先点击选择要查看的日志')
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要查看的日志')
           return
         }
-        openViewDialog(currentRow as GatewayLogListItem)
+        openViewDialog(selectedRow as GatewayLogListItem)
         break
       }
 

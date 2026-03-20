@@ -1,5 +1,5 @@
 <template>
-    <n-card :title="t('hub0000.diskIO.title')" :bordered="false" class="monitor-card">
+    <GCard show-title :title="t('hub0000.diskIO.title')" :bordered="false" class="monitor-card">
         <template #header-extra>
             <div class="card-extra">
                 <n-date-picker v-model:value="dateTimeRange" type="datetimerange" :shortcuts="timeRangeShortcuts"
@@ -32,13 +32,14 @@
             <n-data-table :columns="diskIOColumns" :data="diskIOTableData" :pagination="tablePagination"
                 :bordered="false" size="small" />
         </div>
-    </n-card>
+    </GCard>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
-import { NCard, NButton, NIcon, NSpin, NEmpty, NDivider, NDataTable, NDatePicker } from 'naive-ui'
+import { GCard } from '@/components'
+import { NButton, NIcon, NSpin, NEmpty, NDivider, NDataTable, NDatePicker } from 'naive-ui'
 import { ReloadOutlined } from '@vicons/antd'
 import * as echarts from 'echarts/core'
 import { LineChart } from 'echarts/charts'
@@ -275,6 +276,9 @@ const updateChart = () => {
         },
         tooltip: {
             trigger: 'axis',
+            appendToBody: true,
+            confine: true,
+            extraCssText: 'z-index: 9999;',
             formatter: (params: any) => {
                 const firstParam = Array.isArray(params) ? params[0] : params
                 const time = times[firstParam.dataIndex]

@@ -453,7 +453,7 @@ export function useResourceModel() {
       enabled: true,
       showCopyRow: true,
       showCopyCell: true,
-      customMenus: [
+      options: [
         {
           code: 'view',
           name: '查看详情',

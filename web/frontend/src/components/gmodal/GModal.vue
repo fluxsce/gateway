@@ -5,7 +5,7 @@
     :preset="props.preset"
     :style="modalStyle"
     :draggable="props.draggable"
-    :unstable-show-mask="props.mask"
+    :show-mask="props.mask"
     :mask-closable="props.maskClosable"
     :closable="props.closable"
     :auto-focus="props.autoFocus"
@@ -78,6 +78,15 @@
           class="g-modal__footer"
         >
           <n-space justify="end" :size="8">
+            <n-button
+              v-for="btn in props.footerToolbar"
+              :key="btn.key"
+              size="small"
+              v-bind="btn.buttonProps"
+              @click="handleToolbarClick(btn.key)"
+            >
+              {{ btn.label }}
+            </n-button>
             <n-button v-if="props.showCancel" size="small" @click="handleCancel">
               {{ props.cancelText }}
             </n-button>
@@ -103,6 +112,15 @@
           class="g-modal__footer"
         >
           <n-space justify="end" :size="8">
+            <n-button
+              v-for="btn in props.footerToolbar"
+              :key="btn.key"
+              size="small"
+              v-bind="btn.buttonProps"
+              @click="handleToolbarClick(btn.key)"
+            >
+              {{ btn.label }}
+            </n-button>
             <n-button v-if="props.showCancel" size="small" @click="handleCancel">
               {{ props.cancelText }}
             </n-button>
@@ -227,6 +245,10 @@ const handleCancel = () => {
 
 const handleConfirm = () => {
   emit('confirm')
+}
+
+const handleToolbarClick = (key: string) => {
+  emit('toolbar-click', key)
 }
 </script>
 

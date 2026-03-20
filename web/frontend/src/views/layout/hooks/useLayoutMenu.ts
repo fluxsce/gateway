@@ -1,110 +1,92 @@
-import { useModuleI18n } from '@/hooks/useModuleI18n'
-import { CommonIcons, IconLibrary, renderIconVNode } from '@/utils/icon'
+/**
+ * 主布局侧栏菜单：从 `layoutRouteRegistry` 单一数据源生成 Naive UI `MenuOption`，
+ * 点击仅通过 `globalStore.upsertLayoutTab` 维护页签；路由由 `MainLayoutContent` 监听 `layoutActiveTabId` 同步。
+ *
+ * @module views/layout/hooks/useLayoutMenu
+ */
+import { buildSidebarMenuFromRegistry, isLayoutMenuGroup } from '@/router/layoutRouteRegistry'
+import { useGlobalStore } from '@/stores/global'
+import { CommonIcons, IconLibrary, renderIconVNode } from '@/utils'
 import type { MenuOption } from 'naive-ui'
 import { computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
 
+/**
+ * 侧栏树节点类型，与 {@link buildSidebarMenuFromRegistry} 返回数组元素一致。
+ */
+type LayoutMenuNode = ReturnType<typeof buildSidebarMenuFromRegistry>[number]
+
+/**
+ * 将注册表节点映射为 Naive `MenuOption`。
+ *
+ * - 分组：仅 `label` / `key` / `icon` / `children`，子项为叶子映射结果。
+ * - 叶子：在官方字段之外挂载 **`routePath`**（与注册表 path 一致、用于 `upsertLayoutTab` 的 tabId/path）；
+ *   展示用图标仅使用 Naive 约定的 **`icon`**（`renderIconVNode`），不向页签重复传图标名字段。
+ *
+ * @param node - `buildSidebarMenuFromRegistry()` 的节点
+ * @param createIconRender - 将 Ionicons 类名字符串转为菜单用 VNode
+ * @returns 可直接作为 `n-menu` 的 `options` 项（叶子含扩展字段 `routePath`）
+ */
+function mapNodeToMenuOption(
+  node: LayoutMenuNode,
+  createIconRender: (iconName: string) => ReturnType<typeof renderIconVNode>,
+): MenuOption {
+  if (isLayoutMenuGroup(node)) {
+    return {
+      label: node.label,
+      key: node.key,
+      icon: createIconRender(node.icon),
+      children: node.children.map((child) => ({
+        label: child.label,
+        key: child.key,
+        icon: createIconRender(child.icon),
+        routePath: child.path,
+      })),
+    }
+  }
+  return {
+    label: node.label,
+    key: node.key,
+    icon: createIconRender(node.icon),
+    routePath: node.path,
+  }
+}
+
+/**
+ * 主布局侧栏菜单：选项列表 + 菜单选中回调。
+ *
+ * - **数据源**：`GATEWAY_LAYOUT_ROUTE_TREE` → {@link buildSidebarMenuFromRegistry}
+ * - **选中**：仅 `upsertLayoutTab(path, title)`；重复/激活由 store 判断；`router.push` 由 `MainLayoutContent` 监听激活 tab 处理
+ *
+ * @returns
+ * - `menuOptions`：侧栏 `n-menu` 的 `options`
+ * - `handleMenuSelect`：绑定 `on-update:value`，入参为 Naive 传入的 key 与项（叶子项需带 `routePath`）
+ */
 export function useLayoutMenu() {
-  const { t: tCommon } = useModuleI18n('common')
-  const router = useRouter()
-  const route = useRoute()
+  const globalStore = useGlobalStore()
 
-  // 创建图标渲染函数，直接使用图标工具类（默认使用 NIcon 包裹）
   const createIconRender = (iconName: string) => {
-    return renderIconVNode(iconName, undefined, IconLibrary.IONICONS5)
+    return renderIconVNode(iconName || CommonIcons.MENU, IconLibrary.IONICONS5)
   }
 
-  // 直接从router实例获取路由表生成菜单
-  const menuOptions = computed(() => {
-    // 获取所有路由
-    const routes = router.getRoutes()
+  const menuOptions = computed<MenuOption[]>(() =>
+    buildSidebarMenuFromRegistry().map((node) => mapNodeToMenuOption(node, createIconRender)),
+  )
 
-    // 获取主布局路由
-    const mainLayoutRoute = routes.find((r) => r.path === '/' && r.name === 'mainLayout')
-
-    if (!mainLayoutRoute || !mainLayoutRoute.children) {
-      return []
-    }
-
-    // 过滤掉不需要在菜单中显示的路由
-    return mainLayoutRoute.children
-      .filter((route) => !route.meta?.hideInMenu && !route.meta?.menuHide)
-      .map((route) => {
-        // 获取图标名称
-        const iconName = (route.meta?.icon as string) || CommonIcons.MENU
-
-        // 基本菜单项结构
-        const menuItem: MenuOption = {
-          label: route.meta?.title || String(route.name),
-          key: route.name as string, // 使用route.name作为key
-          routePath: `/${route.path}`, // 添加一个routePath字段存储实际路径
-          icon: createIconRender(iconName),
-        }
-
-        // 如果有子路由，也添加为子菜单项
-        if (route.children && route.children.length > 0) {
-          // 先创建子菜单项
-          const childItems = route.children
-            .filter((childRoute) => !childRoute.meta?.hideInMenu && !childRoute.meta?.menuHide)
-            .map((childRoute) => {
-              // 获取子路由图标
-              const childIconName = (childRoute.meta?.icon as string) || CommonIcons.MENU
-
-              return {
-                label: childRoute.meta?.title || String(childRoute.name),
-                key: childRoute.name as string, // 使用childRoute.name作为key
-                routePath: `/${route.path === '/' ? '' : route.path}/${childRoute.path}`, // 存储完整路径
-                icon: createIconRender(childIconName),
-              }
-            })
-
-          // 然后通过赋值添加到菜单项
-          menuItem.children = childItems
-        }
-
-        return menuItem
-      })
-  })
-
-  // 处理菜单选择
-  const handleMenuSelect = (key: string, item: MenuOption) => {
-    // 如果点击的是当前路由名称，不进行跳转，防止重复导航
-    if (key === route.name) {
-      return
-    }
-
-    // 直接使用传入的item对象中的routePath
-    if (item && (item as any).routePath) {
-      const routePath = (item as any).routePath
-
-      // 使用routePath字段进行导航
-      router.push(routePath).catch((err) => {
-        // 忽略重定向导致的导航取消错误
-        if (err.name !== 'NavigationDuplicated') {
-          console.error('导航错误:', err)
-        }
-      })
-    }
+  /**
+   * 侧栏选中叶子菜单时：按项上的 `routePath` 写入/激活页签（不在这里做路由跳转）。
+   *
+   * @param _key - `n-menu` 传入的 value（与项 `key` 一致；标题回退时可参与展示）
+   * @param item - 选中项；叶子由 {@link mapNodeToMenuOption} 带有 `routePath`
+   */
+  const handleMenuSelect = (_key: string, item: MenuOption) => {
+    const routePath = (item as MenuOption & { routePath?: string }).routePath
+    if (!routePath) return
+    const title = typeof item.label === 'string' ? item.label : String(item.key ?? _key)
+    globalStore.upsertLayoutTab(routePath, title)
   }
-
-  // 面包屑导航
-  const breadcrumbs = computed(() => {
-    // 根据当前路由生成面包屑
-    const result = [{ title: tCommon('app.first'), path: '/dashboard' }]
-
-    if (route.meta && route.meta.title) {
-      result.push({
-        title: route.meta.title as string,
-        path: route.path,
-      })
-    }
-
-    return result
-  })
 
   return {
     menuOptions,
     handleMenuSelect,
-    breadcrumbs,
   }
 }

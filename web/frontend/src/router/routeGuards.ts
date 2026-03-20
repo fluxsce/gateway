@@ -1,6 +1,6 @@
 /**
  * 路由导航守卫模块
- * 处理路由导航过程中的权限检查、页面标题设置、面包屑生成和多语言资源预加载
+ * 处理路由导航过程中的权限检查、页面标题设置和多语言资源预加载
  */
 import { getCurrentLocale, loadModuleMessages } from '@/locales'
 import { useGlobalStore } from '@/stores/global'
@@ -46,39 +46,7 @@ export function setupRouteGuards(router: Router): void {
     const appTitle = import.meta.env.VITE_APP_TITLE || 'Web Hub Here'
     document.title = `${to.meta.title || '页面'} - ${appTitle}`
 
-    /**
-     * 设置导航面包屑
-     * 根据当前路由路径构建面包屑导航数据
-     */
     if (to.meta.title) {
-      // 构建面包屑数据
-      const breadcrumbs = []
-
-      // 添加首页
-      breadcrumbs.push({ title: '首页', path: '/' })
-
-      // 如果不是首页，添加当前页面
-      if (to.path !== '/dashboard') {
-        // 如果有父级路由，添加父级
-        if (to.matched.length > 2) {
-          const parent = to.matched[1]
-          if (parent.meta.title) {
-            breadcrumbs.push({
-              title: parent.meta.title as string,
-              path: parent.path,
-            })
-          }
-        }
-
-        // 添加当前页面
-        breadcrumbs.push({
-          title: to.meta.title as string,
-          path: to.path,
-        })
-      }
-
-      // 设置面包屑和页面标题
-      globalStore.setBreadcrumbs(breadcrumbs)
       globalStore.setPageTitle(to.meta.title as string)
     }
 

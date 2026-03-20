@@ -455,6 +455,9 @@ const initFormModel = () => {
     processFieldDefaultValue(field, model, initialData)
   })
   
+  // 注入当前弹窗模式，供字段 show 等函数区分新增/编辑/查看（不随用户输入变化）
+  model._mode = props.mode
+  
   formModel.value = model
   formRef.value?.restoreValidation()
 }
@@ -708,7 +711,9 @@ const handleConfirm = async () => {
   // 确保获取最新的表单数据
   // 使用 toRaw 确保获取的是当前最新的值，避免响应式代理导致的旧值问题
   const formData = { ...formModel.value }
-  
+  // 提交时移除内部注入的 _mode，避免传给后端
+  delete formData._mode
+
   // GDate 组件已经自动处理了时间戳到 ISO 字符串的转换，直接提交即可
   emit('submit', formData)
   emit('confirm')

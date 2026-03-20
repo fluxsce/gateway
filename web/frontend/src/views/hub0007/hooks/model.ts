@@ -195,7 +195,7 @@ export function useServerNodeModel() {
     ],
     menuConfig: {
       enabled: true,
-      customMenus: [
+      options: [
         {
           code: 'view',
           name: '查看详情',

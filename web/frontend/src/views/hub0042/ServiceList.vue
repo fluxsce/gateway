@@ -379,56 +379,6 @@ const handleEditNode = (node: ServiceNode) => {
   height: 100%;
   overflow: hidden;
 
-  :deep(.n-split) {
-    height: 100%;
-  }
-
-  /* 上半区：命名空间列表 */
-  :deep(.n-split-pane:first-child) {
-    overflow: hidden;
-    padding: var(--g-space-sm);
-
-    .g-card {
-      height: 100%;
-      overflow: hidden;
-
-      :deep(.n-card__content) {
-        height: 100%;
-        overflow: hidden;
-      }
-    }
-  }
-
-  /* 下半区：服务列表 */
-  :deep(.n-split-pane:last-child) {
-    overflow: hidden;
-    padding: var(--g-space-sm);
-
-    .g-card {
-      height: 100%;
-      overflow: hidden;
-
-      :deep(.n-card__content) {
-        height: 100%;
-        overflow: hidden;
-      }
-    }
-  }
-
-  /* 搜索表单区域 */
-  :deep(.n-split-pane .n-split-pane:first-child) {
-    overflow: auto;
-    padding: var(--g-space-sm);
-  }
-
-  /* 表格区域 */
-  :deep(.n-split-pane .n-split-pane:last-child) {
-    overflow: hidden;
-    padding: var(--g-space-sm);
-    display: flex;
-    flex-direction: column;
-  }
-
   .service-list-view {
     width: 100%;
     height: 100%;
