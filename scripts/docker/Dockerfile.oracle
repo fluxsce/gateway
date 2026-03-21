@@ -22,11 +22,22 @@ ENV GOTOOLCHAIN=auto \
 
 # 默认使用国内 Debian 镜像源加速（海外构建可 --build-arg DEBIAN_MIRROR= 恢复官方源）
 ARG DEBIAN_MIRROR=mirrors.aliyun.com
-RUN if [ -n "$$DEBIAN_MIRROR" ]; then \
-    for f in /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources; do \
-        [ -f "$$f" ] && sed -i "s|http://deb.debian.org|http://$$DEBIAN_MIRROR|g" "$$f" && sed -i "s|http://security.debian.org|http://$$DEBIAN_MIRROR|g" "$$f"; \
-    done; \
-    fi; true
+RUN if [ -n "$DEBIAN_MIRROR" ]; then \
+    # Debian Bookworm 使用 DEB822 格式 (/etc/apt/sources.list.d/debian.sources)
+    if [ -f "/etc/apt/sources.list.d/debian.sources" ]; then \
+        sed -i "s|URIs: https\?://deb.debian.org|URIs: http://$DEBIAN_MIRROR|g" /etc/apt/sources.list.d/debian.sources; \
+        sed -i "s|URIs: https\?://security.debian.org|URIs: http://$DEBIAN_MIRROR|g" /etc/apt/sources.list.d/debian.sources; \
+        echo "=== Debian sources (DEB822 format) ==="; \
+        cat /etc/apt/sources.list.d/debian.sources; \
+    fi; \
+    # 旧版 Debian 使用传统格式 (/etc/apt/sources.list)
+    if [ -f "/etc/apt/sources.list" ]; then \
+        sed -i "s|https\?://deb.debian.org|http://$DEBIAN_MIRROR|g" /etc/apt/sources.list; \
+        sed -i "s|https\?://security.debian.org|http://$DEBIAN_MIRROR|g" /etc/apt/sources.list; \
+        echo "=== Debian sources (traditional format) ==="; \
+        cat /etc/apt/sources.list; \
+    fi; \
+    fi
 
 # 安装构建依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -37,14 +48,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# 下载并安装 Oracle Instant Client
-RUN mkdir -p /opt/oracle && \
-    cd /opt/oracle && \
-    wget https://download.oracle.com/otn_software/linux/instantclient/2118000/instantclient-basic-linux.x64-21.18.0.0.0dbru.zip && \
-    wget https://download.oracle.com/otn_software/linux/instantclient/2118000/instantclient-sdk-linux.x64-21.18.0.0.0dbru.zip && \
+# 下载并安装 Oracle Instant Client（仅从官网下载）
+# 注意：由于 Oracle 许可限制，国内镜像站无法提供，只能从官网下载
+# 如果网络不佳，建议预先下载文件并使用 COPY 命令
+RUN mkdir -p /opt/oracle && cd /opt/oracle && \
+    echo "Downloading Oracle Instant Client from Oracle official site..." && \
+    echo "This may take some time depending on your network connection..." && \
+    wget --timeout=120 --tries=5 --waitretry=10 --retry-connrefused \
+        https://download.oracle.com/otn_software/linux/instantclient/2118000/instantclient-basic-linux.x64-21.18.0.0.0dbru.zip && \
+    wget --timeout=120 --tries=5 --waitretry=10 --retry-connrefused \
+        https://download.oracle.com/otn_software/linux/instantclient/2118000/instantclient-sdk-linux.x64-21.18.0.0.0dbru.zip && \
+    echo "Download completed, extracting files..." && \
     unzip -qo instantclient-basic-linux.x64-21.18.0.0.0dbru.zip && \
     unzip -qo instantclient-sdk-linux.x64-21.18.0.0.0dbru.zip && \
-    rm -f *.zip
+    rm -f *.zip && \
+    echo "Oracle Instant Client installation completed"
 
 # 设置 Oracle 环境变量
 ENV ORACLE_HOME=/opt/oracle/instantclient_21_18
@@ -100,14 +118,25 @@ LABEL maintainer="fluxopensource@flux.com.cn" \
 
 # 默认使用国内 Debian 镜像源加速（海外构建可 --build-arg DEBIAN_MIRROR= 恢复官方源）
 ARG DEBIAN_MIRROR=mirrors.aliyun.com
-RUN if [ -n "$$DEBIAN_MIRROR" ]; then \
-    for f in /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources; do \
-        [ -f "$$f" ] && sed -i "s|http://deb.debian.org|http://$$DEBIAN_MIRROR|g" "$$f" && sed -i "s|http://security.debian.org|http://$$DEBIAN_MIRROR|g" "$$f"; \
-    done; \
-    fi; true
+RUN if [ -n "$DEBIAN_MIRROR" ]; then \
+    # Debian Bookworm 使用 DEB822 格式 (/etc/apt/sources.list.d/debian.sources)
+    if [ -f "/etc/apt/sources.list.d/debian.sources" ]; then \
+        sed -i "s|URIs: https\?://deb.debian.org|URIs: http://$DEBIAN_MIRROR|g" /etc/apt/sources.list.d/debian.sources; \
+        sed -i "s|URIs: https\?://security.debian.org|URIs: http://$DEBIAN_MIRROR|g" /etc/apt/sources.list.d/debian.sources; \
+        echo "=== Debian sources (DEB822 format) ==="; \
+        cat /etc/apt/sources.list.d/debian.sources; \
+    fi; \
+    # 旧版 Debian 使用传统格式 (/etc/apt/sources.list)
+    if [ -f "/etc/apt/sources.list" ]; then \
+        sed -i "s|https\?://deb.debian.org|http://$DEBIAN_MIRROR|g" /etc/apt/sources.list; \
+        sed -i "s|https\?://security.debian.org|http://$DEBIAN_MIRROR|g" /etc/apt/sources.list; \
+        echo "=== Debian sources (traditional format) ==="; \
+        cat /etc/apt/sources.list; \
+    fi; \
+    fi
 
-# 安装运行时依赖和常用工具（使用 --fix-missing 在部分包拉取失败时仍可继续）
-RUN apt-get update && apt-get install -y --no-install-recommends --fix-missing \
+# 安装运行时依赖和常用工具
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     tzdata \
     curl \

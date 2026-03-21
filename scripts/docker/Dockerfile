@@ -23,11 +23,12 @@ ENV GOTOOLCHAIN=auto \
 # 默认使用国内 Alpine 镜像源加速（可构建时 --build-arg ALPINE_MIRROR= 恢复官方源）
 ARG ALPINE_MIRROR=mirrors.aliyun.com
 RUN if [ -n "$ALPINE_MIRROR" ]; then \
-    sed -i "s|https://dl-cdn.alpinelinux.org|https://$ALPINE_MIRROR|g" /etc/apk/repositories; \
+    sed -i "s|https\?://dl-cdn.alpinelinux.org|https://$ALPINE_MIRROR|g" /etc/apk/repositories; \
+    cat /etc/apk/repositories; \
     fi
 
-# 安装构建依赖
-RUN apk add --no-cache \
+# 安装构建依赖（添加重试和超时设置）
+RUN apk add --no-cache --timeout 30 --tries 3 \
     git \
     gcc \
     g++ \
@@ -85,11 +86,12 @@ LABEL maintainer="fluxopensource@flux.com.cn" \
 # 默认使用国内 Alpine 镜像源加速（可构建时 --build-arg ALPINE_MIRROR= 恢复官方源）
 ARG ALPINE_MIRROR=mirrors.aliyun.com
 RUN if [ -n "$ALPINE_MIRROR" ]; then \
-    sed -i "s|https://dl-cdn.alpinelinux.org|https://$ALPINE_MIRROR|g" /etc/apk/repositories; \
+    sed -i "s|https\?://dl-cdn.alpinelinux.org|https://$ALPINE_MIRROR|g" /etc/apk/repositories; \
+    cat /etc/apk/repositories; \
     fi
 
-# 安装运行时依赖和常用工具
-RUN apk add --no-cache \
+# 安装运行时依赖和常用工具（添加重试和超时设置）
+RUN apk add --no-cache --timeout 30 --tries 3 \
     ca-certificates \
     tzdata \
     curl \
