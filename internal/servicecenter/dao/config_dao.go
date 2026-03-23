@@ -8,6 +8,7 @@ import (
 
 	"gateway/internal/servicecenter/types"
 	"gateway/pkg/database"
+	"gateway/pkg/utils/random"
 )
 
 // ConfigDAO 配置数据访问对象
@@ -72,8 +73,21 @@ func (d *ConfigDAO) SaveConfig(ctx context.Context, config *types.ConfigData) er
 		if config.EditTime.IsZero() {
 			config.EditTime = now
 		}
+		if config.AddWho == "" {
+			config.AddWho = "system"
+		}
+		if config.EditWho == "" {
+			config.EditWho = config.AddWho
+		}
+		config.OprSeqFlag = random.Generate32BitRandomString()
+		if config.ActiveFlag == "" {
+			config.ActiveFlag = "Y"
+		}
 		if config.Version == 0 {
 			config.Version = 1
+		}
+		if config.CurrentVersion == 0 {
+			config.CurrentVersion = 1
 		}
 		_, err := d.db.Insert(ctx, "HUB_SERVICE_CONFIG_DATA", config, true)
 		if err != nil {
@@ -83,11 +97,16 @@ func (d *ConfigDAO) SaveConfig(ctx context.Context, config *types.ConfigData) er
 		// 配置存在，执行更新
 		// 版本号递增
 		config.Version = existingConfig.Version + 1
+		config.CurrentVersion = existingConfig.CurrentVersion + 1
 		// 保持原创建时间和创建人
 		config.AddTime = existingConfig.AddTime
 		config.AddWho = existingConfig.AddWho
 		// 更新时，EditTime 应该设置为当前时间
 		config.EditTime = now
+		if config.EditWho == "" {
+			config.EditWho = "system"
+		}
+		config.OprSeqFlag = random.Generate32BitRandomString()
 		where := "tenantId = ? AND namespaceId = ? AND groupName = ? AND configDataId = ?"
 		args := []interface{}{config.TenantId, config.NamespaceId, config.GroupName, config.ConfigDataId}
 		_, err := d.db.Update(ctx, "HUB_SERVICE_CONFIG_DATA", config, where, args, true, true)

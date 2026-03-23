@@ -7,6 +7,7 @@ import (
 
 	"gateway/internal/servicecenter/types"
 	"gateway/pkg/database"
+	"gateway/pkg/utils/random"
 )
 
 // ServiceDAO 服务数据访问对象
@@ -21,13 +22,21 @@ func NewServiceDAO(db database.Database) *ServiceDAO {
 
 // CreateService 创建服务（自动设置默认值）
 func (d *ServiceDAO) CreateService(ctx context.Context, service *types.Service) error {
-	// 设置默认值
 	now := time.Now()
 	if service.AddTime.IsZero() {
 		service.AddTime = now
 	}
 	if service.EditTime.IsZero() {
 		service.EditTime = service.AddTime
+	}
+	if service.AddWho == "" {
+		service.AddWho = "system"
+	}
+	if service.EditWho == "" {
+		service.EditWho = service.AddWho
+	}
+	if service.OprSeqFlag == "" {
+		service.OprSeqFlag = random.Generate32BitRandomString()
 	}
 	if service.ActiveFlag == "" {
 		service.ActiveFlag = "Y"
@@ -62,6 +71,13 @@ func (d *ServiceDAO) GetService(ctx context.Context, tenantId, namespaceId, grou
 
 // UpdateService 更新服务
 func (d *ServiceDAO) UpdateService(ctx context.Context, service *types.Service) error {
+	if service.EditTime.IsZero() {
+		service.EditTime = time.Now()
+	}
+	if service.EditWho == "" {
+		service.EditWho = "system"
+	}
+	service.OprSeqFlag = random.Generate32BitRandomString()
 	where := "tenantId = ? AND namespaceId = ? AND groupName = ? AND serviceName = ?"
 	args := []interface{}{service.TenantId, service.NamespaceId, service.GroupName, service.ServiceName}
 	_, err := d.db.Update(ctx, "HUB_SERVICE", service, where, args, true, true)

@@ -6,6 +6,11 @@
 
 ## [Unreleased]（未发布）
 
+## [3.1.1] - 2026-03-24
+
+### 修复
+- **Oracle 部分模块 SQL 语法兼容问题**：修复多处使用 MySQL 专有 `LIMIT` 语法的查询，在 Oracle 环境下报 `SQL command not properly ended` 的错误
+
 ## [3.1.0] - 2026-03-21
 
 ### 新增

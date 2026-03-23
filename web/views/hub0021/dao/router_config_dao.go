@@ -310,15 +310,19 @@ func (dao *RouterConfigDAO) GetRouterConfigByGatewayInstance(ctx context.Context
 		return nil, errors.New("gatewayInstanceId不能为空")
 	}
 
-	query := `
-		SELECT * FROM HUB_GW_ROUTER_CONFIG 
-		WHERE gatewayInstanceId = ? AND tenantId = ? AND activeFlag = 'Y'
-		ORDER BY addTime DESC
-		LIMIT 1
-	`
+	baseQuery := `SELECT * FROM HUB_GW_ROUTER_CONFIG WHERE gatewayInstanceId = ? AND tenantId = ? AND activeFlag = 'Y' ORDER BY addTime DESC`
+	args := []interface{}{gatewayInstanceId, tenantId}
+
+	dbType := sqlutils.GetDatabaseType(dao.db)
+	pagination := sqlutils.NewPaginationInfo(1, 1)
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "构建分页查询失败")
+	}
+	allArgs := append(args, paginationArgs...)
 
 	var routerConfig models.RouterConfig
-	err := dao.db.QueryOne(ctx, &routerConfig, query, []interface{}{gatewayInstanceId, tenantId}, true)
+	err = dao.db.QueryOne(ctx, &routerConfig, paginatedQuery, allArgs, true)
 	if err != nil {
 		if err == database.ErrRecordNotFound {
 			return nil, nil // 没有找到记录，返回nil而不是错误

@@ -234,20 +234,21 @@ func (dao *AuthConfigDAO) GetAuthConfigByGatewayInstance(tenantId, gatewayInstan
 		return nil, errors.New("tenantId和gatewayInstanceId不能为空")
 	}
 
-	// 构建查询语句（使用 LIMIT 1 只取第一条记录）
-	query := `
-		SELECT * FROM HUB_GW_AUTH_CONFIG 
-		WHERE tenantId = ? AND gatewayInstanceId = ?
-		ORDER BY configPriority ASC, addTime DESC
-		LIMIT 1
-	`
+	baseQuery := `SELECT * FROM HUB_GW_AUTH_CONFIG WHERE tenantId = ? AND gatewayInstanceId = ? ORDER BY configPriority ASC, addTime DESC`
+	args := []interface{}{tenantId, gatewayInstanceId}
+
+	dbType := sqlutils.GetDatabaseType(dao.db)
+	pagination := sqlutils.NewPaginationInfo(1, 1)
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "构建分页查询失败")
+	}
+	allArgs := append(args, paginationArgs...)
 
 	var config models.AuthConfig
-	err := dao.db.QueryOne(context.Background(), &config, query, []interface{}{tenantId, gatewayInstanceId}, true)
-
+	err = dao.db.QueryOne(context.Background(), &config, paginatedQuery, allArgs, true)
 	if err != nil {
 		if err == database.ErrRecordNotFound {
-			// 没有数据返回空，不报错
 			return nil, nil
 		}
 		return nil, huberrors.WrapError(err, "查询网关实例认证配置失败")
@@ -262,20 +263,21 @@ func (dao *AuthConfigDAO) GetAuthConfigByRouteConfig(tenantId, routeConfigId str
 		return nil, errors.New("tenantId和routeConfigId不能为空")
 	}
 
-	// 构建查询语句（使用 LIMIT 1 只取第一条记录）
-	query := `
-		SELECT * FROM HUB_GW_AUTH_CONFIG 
-		WHERE tenantId = ? AND routeConfigId = ?
-		ORDER BY configPriority ASC, addTime DESC
-		LIMIT 1
-	`
+	baseQuery := `SELECT * FROM HUB_GW_AUTH_CONFIG WHERE tenantId = ? AND routeConfigId = ? ORDER BY configPriority ASC, addTime DESC`
+	args := []interface{}{tenantId, routeConfigId}
+
+	dbType := sqlutils.GetDatabaseType(dao.db)
+	pagination := sqlutils.NewPaginationInfo(1, 1)
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "构建分页查询失败")
+	}
+	allArgs := append(args, paginationArgs...)
 
 	var config models.AuthConfig
-	err := dao.db.QueryOne(context.Background(), &config, query, []interface{}{tenantId, routeConfigId}, true)
-
+	err = dao.db.QueryOne(context.Background(), &config, paginatedQuery, allArgs, true)
 	if err != nil {
 		if err == database.ErrRecordNotFound {
-			// 没有数据返回空，不报错
 			return nil, nil
 		}
 		return nil, huberrors.WrapError(err, "查询路由配置认证配置失败")

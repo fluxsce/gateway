@@ -5,6 +5,7 @@ import (
 	"errors"
 	"gateway/internal/servicecenter/types"
 	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/huberrors"
 	"gateway/web/views/hub0043/models"
 )
@@ -50,39 +51,19 @@ func (dao *HistoryDAO) GetConfigHistory(ctx context.Context, tenantId string, re
 
 	// 列表查询不包含大字段 newContent 和 oldContent，减少内存开销
 	// 详情查询时再获取完整信息
-	query := `
-		SELECT 
-			h.configHistoryId,
-			h.tenantId,
-			h.configDataId,
-			h.namespaceId,
-			h.groupName,
-			h.changeType,
-			h.oldVersion,
-			h.newVersion,
-			h.oldMd5Value,
-			h.newMd5Value,
-			h.changeReason,
-			h.changedBy,
-			h.changedAt,
-			h.addTime,
-			h.addWho,
-			h.editTime,
-			h.editWho,
-			h.oprSeqFlag,
-			h.currentVersion,
-			h.activeFlag,
-			h.noteText,
-			h.extProperty
-		FROM HUB_SERVICE_CONFIG_HISTORY h
-		WHERE h.tenantId = ? AND h.namespaceId = ? AND h.groupName = ? AND h.configDataId = ? 
-		ORDER BY h.changedAt DESC 
-		LIMIT ?
-	`
-	args := []interface{}{tenantId, req.NamespaceId, req.GroupName, req.ConfigDataId, limit}
+	baseQuery := `SELECT h.configHistoryId, h.tenantId, h.configDataId, h.namespaceId, h.groupName, h.changeType, h.oldVersion, h.newVersion, h.oldMd5Value, h.newMd5Value, h.changeReason, h.changedBy, h.changedAt, h.addTime, h.addWho, h.editTime, h.editWho, h.oprSeqFlag, h.currentVersion, h.activeFlag, h.noteText, h.extProperty FROM HUB_SERVICE_CONFIG_HISTORY h WHERE h.tenantId = ? AND h.namespaceId = ? AND h.groupName = ? AND h.configDataId = ? ORDER BY h.changedAt DESC`
+	args := []interface{}{tenantId, req.NamespaceId, req.GroupName, req.ConfigDataId}
+
+	dbType := sqlutils.GetDatabaseType(dao.db)
+	pagination := sqlutils.NewPaginationInfo(1, limit)
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "构建分页查询失败")
+	}
+	allArgs := append(args, paginationArgs...)
 
 	var histories []*types.ConfigHistory
-	err := dao.db.Query(ctx, &histories, query, args, true)
+	err = dao.db.Query(ctx, &histories, paginatedQuery, allArgs, true)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "查询配置历史失败")
 	}

@@ -7,6 +7,7 @@ import (
 
 	"gateway/internal/alert/types"
 	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
 )
 
 // ConfigDAO 告警配置数据访问对象
@@ -67,11 +68,19 @@ func (d *ConfigDAO) ListConfigs(ctx context.Context, tenantId string, activeOnly
 
 // GetDefaultConfig 获取默认渠道配置
 func (d *ConfigDAO) GetDefaultConfig(ctx context.Context, tenantId string) (*types.AlertConfig, error) {
-	query := "SELECT * FROM HUB_ALERT_CONFIG WHERE tenantId = ? AND defaultFlag = 'Y' AND activeFlag = 'Y' ORDER BY priorityLevel ASC LIMIT 1"
+	baseQuery := "SELECT * FROM HUB_ALERT_CONFIG WHERE tenantId = ? AND defaultFlag = 'Y' AND activeFlag = 'Y' ORDER BY priorityLevel ASC"
 	args := []interface{}{tenantId}
 
+	dbType := sqlutils.GetDatabaseType(d.db)
+	pagination := sqlutils.NewPaginationInfo(1, 1)
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, fmt.Errorf("构建分页查询失败: %w", err)
+	}
+	allArgs := append(args, paginationArgs...)
+
 	var config types.AlertConfig
-	err := d.db.QueryOne(ctx, &config, query, args, true)
+	err = d.db.QueryOne(ctx, &config, paginatedQuery, allArgs, true)
 	if err != nil {
 		if err == database.ErrRecordNotFound {
 			return nil, nil

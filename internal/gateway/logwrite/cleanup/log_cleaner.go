@@ -9,6 +9,7 @@ import (
 
 	"gateway/internal/gateway/logwrite/types"
 	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/logger"
 )
 
@@ -222,24 +223,22 @@ func (c *LogCleaner) queryExpiredTraceIDBatch(ctx context.Context, batchSize int
 	cleanupConfig := c.config.GetCleanupConfig()
 	cutoffTime := time.Now().AddDate(0, 0, -cleanupConfig.RetentionDays)
 
-	// 查询一批过期的 traceId（只返回 traceId 字段）
-	sql := `
-		SELECT traceId 
-		FROM HUB_GW_ACCESS_LOG 
-		WHERE gatewayInstanceId = ? 
-		  AND gatewayStartProcessingTime < ?
-		LIMIT ?
-	`
+	baseSQL := `SELECT traceId FROM HUB_GW_ACCESS_LOG WHERE gatewayInstanceId = ? AND gatewayStartProcessingTime < ? ORDER BY gatewayStartProcessingTime ASC`
+	args := []interface{}{c.instanceID, cutoffTime}
+
+	dbType := sqlutils.GetDatabaseType(c.db)
+	pagination := sqlutils.NewPaginationInfo(1, batchSize)
+	paginatedSQL, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseSQL, pagination)
+	if err != nil {
+		return nil, fmt.Errorf("build pagination query failed: %w", err)
+	}
+	allArgs := append(args, paginationArgs...)
 
 	var results []struct {
 		TraceID string `db:"traceId"`
 	}
 
-	err := c.db.Query(ctx, &results, sql, []interface{}{
-		c.instanceID,
-		cutoffTime,
-		batchSize,
-	}, true)
+	err = c.db.Query(ctx, &results, paginatedSQL, allArgs, true)
 	if err != nil {
 		return nil, fmt.Errorf("query expired trace IDs failed: %w", err)
 	}

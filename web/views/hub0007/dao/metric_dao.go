@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gateway/internal/metric_collect/types"
 	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/ctime"
 	"gateway/pkg/utils/huberrors"
 	"strings"
@@ -60,15 +61,18 @@ func (dao *MetricDAO) QueryCPUMetrics(ctx context.Context, tenantId, metricServe
 		params = append(params, timeParams...)
 	}
 
-	query := fmt.Sprintf(`
-		SELECT * FROM %s
-		%s
-		ORDER BY collectTime DESC
-		LIMIT 1000
-	`, (&types.CpuLog{}).TableName(), whereClause)
+	baseQuery := fmt.Sprintf("SELECT * FROM %s %s ORDER BY collectTime DESC", (&types.CpuLog{}).TableName(), whereClause)
+
+	dbType := sqlutils.GetDatabaseType(dao.db)
+	pagination := sqlutils.NewPaginationInfo(1, 1000)
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "构建分页查询失败")
+	}
+	allParams := append(params, paginationArgs...)
 
 	var results []*types.CpuLog
-	err := dao.db.Query(ctx, &results, query, params, true)
+	err = dao.db.Query(ctx, &results, paginatedQuery, allParams, true)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "查询CPU监控数据失败")
 	}
@@ -88,15 +92,18 @@ func (dao *MetricDAO) QueryMemoryMetrics(ctx context.Context, tenantId, metricSe
 		params = append(params, timeParams...)
 	}
 
-	query := fmt.Sprintf(`
-		SELECT * FROM %s
-		%s
-		ORDER BY collectTime DESC
-		LIMIT 1000
-	`, (&types.MemoryLog{}).TableName(), whereClause)
+	baseQuery := fmt.Sprintf("SELECT * FROM %s %s ORDER BY collectTime DESC", (&types.MemoryLog{}).TableName(), whereClause)
+
+	dbType := sqlutils.GetDatabaseType(dao.db)
+	pagination := sqlutils.NewPaginationInfo(1, 1000)
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "构建分页查询失败")
+	}
+	allParams := append(params, paginationArgs...)
 
 	var results []*types.MemoryLog
-	err := dao.db.Query(ctx, &results, query, params, true)
+	err = dao.db.Query(ctx, &results, paginatedQuery, allParams, true)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "查询内存监控数据失败")
 	}
@@ -116,15 +123,18 @@ func (dao *MetricDAO) QueryDiskMetrics(ctx context.Context, tenantId, metricServ
 		params = append(params, timeParams...)
 	}
 
-	query := fmt.Sprintf(`
-		SELECT * FROM %s
-		%s
-		ORDER BY collectTime DESC, deviceName ASC
-		LIMIT 1000
-	`, (&types.DiskPartitionLog{}).TableName(), whereClause)
+	baseQuery := fmt.Sprintf("SELECT * FROM %s %s ORDER BY collectTime DESC, deviceName ASC", (&types.DiskPartitionLog{}).TableName(), whereClause)
+
+	dbType := sqlutils.GetDatabaseType(dao.db)
+	pagination := sqlutils.NewPaginationInfo(1, 1000)
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "构建分页查询失败")
+	}
+	allParams := append(params, paginationArgs...)
 
 	var results []*types.DiskPartitionLog
-	err := dao.db.Query(ctx, &results, query, params, true)
+	err = dao.db.Query(ctx, &results, paginatedQuery, allParams, true)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "查询磁盘监控数据失败")
 	}
@@ -144,15 +154,18 @@ func (dao *MetricDAO) QueryDiskIOMetrics(ctx context.Context, tenantId, metricSe
 		params = append(params, timeParams...)
 	}
 
-	query := fmt.Sprintf(`
-		SELECT * FROM %s
-		%s
-		ORDER BY collectTime DESC, deviceName ASC
-		LIMIT 1000
-	`, (&types.DiskIoLog{}).TableName(), whereClause)
+	baseQuery := fmt.Sprintf("SELECT * FROM %s %s ORDER BY collectTime DESC, deviceName ASC", (&types.DiskIoLog{}).TableName(), whereClause)
+
+	dbType := sqlutils.GetDatabaseType(dao.db)
+	pagination := sqlutils.NewPaginationInfo(1, 1000)
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "构建分页查询失败")
+	}
+	allParams := append(params, paginationArgs...)
 
 	var results []*types.DiskIoLog
-	err := dao.db.Query(ctx, &results, query, params, true)
+	err = dao.db.Query(ctx, &results, paginatedQuery, allParams, true)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "查询磁盘IO监控数据失败")
 	}
@@ -172,15 +185,18 @@ func (dao *MetricDAO) QueryNetworkMetrics(ctx context.Context, tenantId, metricS
 		params = append(params, timeParams...)
 	}
 
-	query := fmt.Sprintf(`
-		SELECT * FROM %s
-		%s
-		ORDER BY collectTime DESC, interfaceName ASC
-		LIMIT 1000
-	`, (&types.NetworkLog{}).TableName(), whereClause)
+	baseQuery := fmt.Sprintf("SELECT * FROM %s %s ORDER BY collectTime DESC, interfaceName ASC", (&types.NetworkLog{}).TableName(), whereClause)
+
+	dbType := sqlutils.GetDatabaseType(dao.db)
+	pagination := sqlutils.NewPaginationInfo(1, 1000)
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "构建分页查询失败")
+	}
+	allParams := append(params, paginationArgs...)
 
 	var results []*types.NetworkLog
-	err := dao.db.Query(ctx, &results, query, params, true)
+	err = dao.db.Query(ctx, &results, paginatedQuery, allParams, true)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "查询网络监控数据失败")
 	}
@@ -200,15 +216,18 @@ func (dao *MetricDAO) QueryProcessMetrics(ctx context.Context, tenantId, metricS
 		params = append(params, timeParams...)
 	}
 
-	query := fmt.Sprintf(`
-		SELECT * FROM %s
-		%s
-		ORDER BY collectTime DESC
-		LIMIT 1000
-	`, (&types.ProcessStatsLog{}).TableName(), whereClause)
+	baseQuery := fmt.Sprintf("SELECT * FROM %s %s ORDER BY collectTime DESC", (&types.ProcessStatsLog{}).TableName(), whereClause)
+
+	dbType := sqlutils.GetDatabaseType(dao.db)
+	pagination := sqlutils.NewPaginationInfo(1, 1000)
+	paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "构建分页查询失败")
+	}
+	allParams := append(params, paginationArgs...)
 
 	var results []*types.ProcessStatsLog
-	err := dao.db.Query(ctx, &results, query, params, true)
+	err = dao.db.Query(ctx, &results, paginatedQuery, allParams, true)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "查询进程监控数据失败")
 	}

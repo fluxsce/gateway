@@ -7,6 +7,7 @@ import (
 
 	"gateway/internal/servicecenter/types"
 	"gateway/pkg/database"
+	"gateway/pkg/utils/random"
 )
 
 // NodeDAO 服务节点数据访问对象
@@ -22,7 +23,6 @@ func NewNodeDAO(db database.Database) *NodeDAO {
 
 // CreateNode 创建服务节点（自动设置默认值）
 func (d *NodeDAO) CreateNode(ctx context.Context, node *types.ServiceNode) error {
-	// 设置默认值
 	now := time.Now()
 	if node.AddTime.IsZero() {
 		node.AddTime = now
@@ -33,6 +33,13 @@ func (d *NodeDAO) CreateNode(ctx context.Context, node *types.ServiceNode) error
 	if node.RegisterTime.IsZero() {
 		node.RegisterTime = node.AddTime
 	}
+	if node.AddWho == "" {
+		node.AddWho = "system"
+	}
+	if node.EditWho == "" {
+		node.EditWho = node.AddWho
+	}
+	node.OprSeqFlag = random.Generate32BitRandomString()
 	if node.ActiveFlag == "" {
 		node.ActiveFlag = "Y"
 	}
@@ -89,6 +96,13 @@ func (d *NodeDAO) DiscoverNodes(ctx context.Context, tenantId, namespaceId, grou
 
 // UpdateNode 更新服务节点
 func (d *NodeDAO) UpdateNode(ctx context.Context, node *types.ServiceNode) error {
+	if node.EditTime.IsZero() {
+		node.EditTime = time.Now()
+	}
+	if node.EditWho == "" {
+		node.EditWho = "system"
+	}
+	node.OprSeqFlag = random.Generate32BitRandomString()
 	where := "tenantId = ? AND nodeId = ?"
 	args := []interface{}{node.TenantId, node.NodeId}
 	_, err := d.db.Update(ctx, "HUB_SERVICE_NODE", node, where, args, true, true)

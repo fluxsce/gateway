@@ -462,7 +462,7 @@ export function useLoginAuth() {
         store.global.setPageTitle('首页')
 
         // 记录登录成功，转到主界面
-        router.push({ path: '/dashboard' })
+        router.push({ path: '/' })
         return true
       } else {
         // 登录失败 - 数据解析异常
