@@ -180,6 +180,40 @@ func (s *Service) SelectNode(ctx *core.Context) (*NodeConfig, error) {
 	return selectedNode, nil
 }
 
+// SelectNodeFromDiscoveredNodes 使用本服务已初始化的负载均衡器，在注册中心发现的节点列表中选择目标节点。
+//
+// Service 是否每次重建：
+//   - *Service 由 ServiceManager 在加载/更新服务定义时创建并长期持有，不会在每次 HTTP 请求时重建。
+//   - 每次请求仅重新构建「本次转发用的实例列表」discoveredNodes（见 proxyutils.CollectHealthyNodesFromServiceCenter），
+//     再拷贝一份临时的 ServiceConfig（ephemeral），仅替换其 Nodes 指针，不修改 s.config.Nodes。
+//
+// 后端实例下线：
+//   - 若注册中心已将实例标为非 UP 或非 Healthy，则该实例不会进入 discoveredNodes，不会被选中。
+//   - 若缓存滞后仍包含已死实例，可能被选中导致转发失败；依赖网关重试、熔断及缓存更新，与静态节点标记健康但实际宕机类似。
+//
+// discoveredNodes 应由调用方预先按注册中心状态过滤为 UP 且健康；均衡器仍会按 Health、Enabled 再过滤。
+// 复用 s.loadBalancer 实例，使轮询、加权轮询、最少连接等策略的状态在静态与发现路径间一致。
+func (s *Service) SelectNodeFromDiscoveredNodes(ctx *core.Context, discoveredNodes []*NodeConfig) (*NodeConfig, error) {
+	if len(discoveredNodes) == 0 {
+		return nil, ErrNoAvailableNode
+	}
+
+	// 浅拷贝配置，只替换 Nodes，避免把注册中心快照写回持久化的服务定义
+	ephemeral := *s.config
+	ephemeral.Nodes = discoveredNodes
+
+	selectedNode := s.loadBalancer.Select(&ephemeral, ctx)
+
+	isSuccess := selectedNode != nil
+	s.updateStats(isSuccess, !isSuccess)
+
+	if selectedNode == nil {
+		return nil, ErrNoAvailableNode
+	}
+
+	return selectedNode, nil
+}
+
 // updateStats 更新服务统计信息（内部辅助方法）
 // 注意：此方法需要写锁，调用前必须确保读锁已释放，使用 defer 确保锁一定会被释放
 func (s *Service) updateStats(isSuccess, isFailure bool) {

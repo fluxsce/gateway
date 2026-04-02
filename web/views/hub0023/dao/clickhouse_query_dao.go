@@ -186,8 +186,8 @@ func (dao *ClickHouseQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLo
 	}
 
 	if req.GatewayInstanceName != "" {
-		whereClause += " AND gatewayInstanceName LIKE ?"
-		params = append(params, "%"+req.GatewayInstanceName+"%")
+		whereClause += " AND gatewayInstanceName = ?"
+		params = append(params, req.GatewayInstanceName)
 	}
 
 	if req.RouteConfigId != "" {
@@ -308,6 +308,10 @@ func (dao *ClickHouseQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLo
 	if req.ResetFlag != "" {
 		whereClause += " AND resetFlag = ?"
 		params = append(params, req.ResetFlag)
+	}
+
+	if req.ErrorOnly {
+		whereClause += " AND gatewayStatusCode != 200"
 	}
 
 	// 关键词搜索

@@ -156,7 +156,7 @@ import SearchForm from '@/components/form/search/SearchForm.vue'
 import { GPane } from '@/components/gpane'
 import { GGrid } from '@/components/grid'
 import { NTag } from 'naive-ui'
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import BackendLogsDialog from '../backed-logs/BackendLogsDialog.vue'
 import { useGatewayLogPage } from './hooks'
 
@@ -181,11 +181,15 @@ const {
   handleSearch,
 } = useGatewayLogPage(gridRef, searchFormRef)
 
+onMounted(() => {
+  void service.model.bootstrapDefaultGatewayInstance(searchFormRef)
+})
+
 // 暴露 refs 给父组件（如果需要）
 defineExpose({
   searchFormRef,
   gridRef,
-  service
+  service,
 })
 </script>
 

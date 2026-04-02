@@ -268,23 +268,20 @@ function handlePageChange(params: { currentPage: number; pageSize: number }) {
 // 行点击处理（选择服务）
 function handleRowClick({ row }: { row: Service }) {
   selectedService.value = row
-  // 设置表格单选选中状态
   if (gridRef.value?.setRadioRow) {
     gridRef.value.setRadioRow(row)
   }
 }
 
-// 确认选择
 function confirmSelection() {
-  // 优先从表格获取选中的行
-  const radioRecord = gridRef.value?.getRadioRecord?.()
-  const finalSelection = radioRecord || selectedService.value
-  
+  const fromGrid = gridRef.value?.getSelectedOrCurrentRecord?.() as Service | null | undefined
+  const finalSelection = fromGrid ?? selectedService.value
+
   if (!finalSelection) {
     message.warning('请选择一个服务')
     return
   }
-  
+
   emit('select', finalSelection)
   handleClose()
 }

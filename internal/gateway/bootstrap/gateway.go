@@ -20,6 +20,7 @@ import (
 	"gateway/internal/gateway/helper/reqhand"
 	"gateway/internal/gateway/loader/dbloader"
 	"gateway/internal/gateway/logwrite"
+	appconfig "gateway/pkg/config"
 	"gateway/pkg/logger"
 )
 
@@ -467,8 +468,14 @@ func (g *Gateway) Stop() error {
 	g.wg.Wait()
 
 	g.running = false
-	// 停止时更新健康状态为N
-	g.updateHealthStatus("N", "")
+	// 实例随进程退出而停止时，starter 已先置 IsInstanceStopping；此时不再把库中健康状态改为 N，
+	// 避免与其它节点或注册中心对实例存活判断不一致（由集群/下线流程统一收敛状态）。
+	if !appconfig.IsInstanceStopping() {
+		g.updateHealthStatus("N", "")
+	} else {
+		logger.Info("进程停止流程中关闭网关，跳过实例健康状态落库",
+			"instanceId", g.gatewayConfig.InstanceID)
+	}
 	logger.Info("网关服务已停止")
 
 	return nil

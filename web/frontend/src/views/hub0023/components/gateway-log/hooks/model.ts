@@ -5,10 +5,13 @@
 
 import type { SearchFormProps } from '@/components/form/search/types'
 import type { GridProps } from '@/components/grid'
+import { createBackendPaginationParams } from '@/components/gpage'
 import type { PageInfoObj } from '@/types/api'
+import { queryGatewayInstances } from '@/views/hub0020/api'
 import { formatDate, formatFileSize } from '@/utils/format'
 import { DownloadOutline, EyeOutline, RefreshOutline } from '@vicons/ionicons5'
-import { h, ref } from 'vue'
+import type { Ref } from 'vue'
+import { h, nextTick, ref } from 'vue'
 import type { GatewayLogListItem } from '../../../types'
 import { GatewayInstanceNameSelector } from '../../instance-grid'
 import { RouteNameSelector } from '../../route-grid'
@@ -76,6 +79,13 @@ export function useGatewayLogModel() {
   const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
     fields: [
       {
+        field: 'gatewayInstanceId',
+        label: '',
+        type: 'input',
+        show: false,
+        defaultValue: '',
+      },
+      {
         field: 'timeRange',
         label: '时间范围',
         type: 'datetimerange',
@@ -105,11 +115,27 @@ export function useGatewayLogModel() {
         label: '实例名称',
         type: 'custom',
         span: 8,
+        required: true,
+        rules: [
+          {
+            validator: (_rule: any, value: any) => {
+              if (value === undefined || value === null || String(value).trim() === '') {
+                return new Error('请选择或输入网关实例名称')
+              }
+              return true
+            },
+            trigger: ['change', 'blur', 'input'],
+          },
+        ],
         render: (formData: Record<string, any>) => {
           return h(GatewayInstanceNameSelector, {
             modelValue: formData.gatewayInstanceName || '',
+            gatewayInstanceId: formData.gatewayInstanceId || '',
             'onUpdate:modelValue': (value: string) => {
               formData.gatewayInstanceName = value
+            },
+            'onUpdate:gatewayInstanceId': (value: string) => {
+              formData.gatewayInstanceId = value
             },
           })
         },
@@ -125,7 +151,7 @@ export function useGatewayLogModel() {
             'onUpdate:modelValue': (value: string) => {
               formData.routeName = value
             },
-            gatewayInstanceId: formData.gatewayInstanceName ? undefined : undefined, // 可以根据需要传递实例ID
+            gatewayInstanceId: formData.gatewayInstanceId || undefined,
           })
         },
       },
@@ -140,7 +166,7 @@ export function useGatewayLogModel() {
             'onUpdate:modelValue': (value: string) => {
               formData.serviceName = value
             },
-            gatewayInstanceId: formData.gatewayInstanceName ? undefined : undefined, // 可以根据需要传递实例ID
+            gatewayInstanceId: formData.gatewayInstanceId || undefined,
           })
         },
       },
@@ -261,7 +287,7 @@ export function useGatewayLogModel() {
       },
       {
         field: 'errorOnly',
-        label: '只显示错误',
+        label: '仅非200状态',
         type: 'switch',
         span: 8,
         defaultValue: false,
@@ -622,6 +648,32 @@ export function useGatewayLogModel() {
     return levelColors[logLevel || ''] || 'default'
   }
 
+  /**
+   * 拉取网关实例列表第一条并写入搜索表单，随后触发一次查询（与后端列表默认排序一致：pageIndex=1）。
+   */
+  const bootstrapDefaultGatewayInstance = async (searchFormRef: Ref<any>) => {
+    try {
+      const res = await queryGatewayInstances({
+        ...createBackendPaginationParams(1, 1),
+      })
+      if (!res?.oK || !res.bizData) return
+      const list = JSON.parse(res.bizData) as Array<{ instanceName?: string; gatewayInstanceId?: string }>
+      const first = Array.isArray(list) ? list[0] : undefined
+      if (!first) return
+      const instanceName = (first.instanceName || first.gatewayInstanceId || '').trim()
+      const gatewayInstanceId = (first.gatewayInstanceId || '').trim()
+      if (!instanceName && !gatewayInstanceId) return
+      searchFormRef.value?.setFormData({
+        gatewayInstanceName: instanceName || gatewayInstanceId,
+        gatewayInstanceId,
+      })
+      await nextTick()
+      await searchFormRef.value?.submit?.()
+    } catch (e) {
+      console.warn('[hub0023] 默认网关实例初始化失败', e)
+    }
+  }
+
   return {
     // 基本信息
     moduleId,
@@ -649,6 +701,8 @@ export function useGatewayLogModel() {
     getProcessingStatusText,
     getProxyTypeTagType,
     getLogLevelTagType,
+
+    bootstrapDefaultGatewayInstance,
   }
 }
 

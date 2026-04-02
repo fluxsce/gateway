@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gateway/pkg/utils/net"
@@ -25,6 +26,9 @@ var (
 	cachedNodeId string
 	// nodeIdOnce 确保节点ID只初始化一次
 	nodeIdOnce sync.Once
+
+	// instanceStopping 网关进程是否已进入停止流程（收到退出指令后尽早置为 true）
+	instanceStopping atomic.Bool
 )
 
 // Config 系统配置管理器
@@ -168,7 +172,21 @@ func setupGlobalTimezone() error {
 	time.Local = location
 	log.Printf("已设置全局时区为: %s", timezone)
 
+	// 新进程启动时明确未处于停止流程
+	SetInstanceStopping(false)
+
 	return nil
+}
+
+// SetInstanceStopping 设置网关实例是否处于停止流程中。
+// 应在收到退出信号、开始释放资源之前尽早调用为 true，便于健康检查、负载均衡摘除等逻辑识别。
+func SetInstanceStopping(stopping bool) {
+	instanceStopping.Store(stopping)
+}
+
+// IsInstanceStopping 返回当前进程是否已标记为正在停止。
+func IsInstanceStopping() bool {
+	return instanceStopping.Load()
 }
 
 // GetGlobalTimezone 获取当前全局时区配置
@@ -183,7 +201,7 @@ func GetGlobalTimezone() string {
 // 返回:
 //   - string: 版本号，默认为 "unknown"
 func GetVersion() string {
-	return "3.1.1"
+	return "3.1.2"
 }
 
 // GetAppName 获取应用名称

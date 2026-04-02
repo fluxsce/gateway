@@ -205,7 +205,7 @@ type GatewayAccessLogQueryRequest struct {
 	TenantId            string `json:"tenantId" form:"tenantId"`                       // 租户ID
 	TraceId             string `json:"traceId" form:"traceId"`                         // 链路追踪ID
 	GatewayInstanceId   string `json:"gatewayInstanceId" form:"gatewayInstanceId"`     // 网关实例ID
-	GatewayInstanceName string `json:"gatewayInstanceName" form:"gatewayInstanceName"` // 网关实例名称
+	GatewayInstanceName string `json:"gatewayInstanceName" form:"gatewayInstanceName"` // 网关实例名称（精确匹配）
 	RouteConfigId       string `json:"routeConfigId" form:"routeConfigId"`             // 路由配置ID
 	RouteName           string `json:"routeName" form:"routeName"`                     // 路由名称
 	ServiceDefinitionId string `json:"serviceDefinitionId" form:"serviceDefinitionId"` // 服务定义ID
@@ -244,12 +244,16 @@ type GatewayAccessLogQueryRequest struct {
 
 	// 搜索关键词
 	Keyword string `json:"keyword" form:"keyword"` // 关键词搜索
+
+	// ErrorOnly 为 true 时仅返回网关状态码不等于 200 的记录
+	ErrorOnly bool `json:"errorOnly" form:"errorOnly"`
 }
 
 // GatewayAccessLogGetRequest 获取网关访问日志详情请求
 type GatewayAccessLogGetRequest struct {
-	TenantId string `json:"tenantId" form:"tenantId" query:"tenantId"` // 租户ID（主键）
-	TraceId  string `json:"traceId" form:"traceId" binding:"required"` // 链路追踪ID（主键）
+	TenantId          string `json:"tenantId" form:"tenantId" query:"tenantId"`                            // 租户ID（主键）
+	TraceId           string `json:"traceId" form:"traceId" binding:"required"`                            // 链路追踪ID（主键）
+	GatewayInstanceId string `json:"gatewayInstanceId" form:"gatewayInstanceId" query:"gatewayInstanceId"` // 可选，用于解析日志存储查询方式
 }
 
 // GatewayAccessLogResetRequest 重置网关访问日志请求（支持批量）

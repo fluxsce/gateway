@@ -9,6 +9,8 @@ import (
 	"log"
 	"time"
 
+	"gateway/pkg/config"
+
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
@@ -211,6 +213,7 @@ func startGatewayApplication() error {
 
 // stopGatewayApplication 停止Gateway应用程序
 func stopGatewayApplication() {
+	config.SetInstanceStopping(true)
 	log.Printf("[INFO] 开始停止Gateway应用...")
 
 	if appCancel != nil {

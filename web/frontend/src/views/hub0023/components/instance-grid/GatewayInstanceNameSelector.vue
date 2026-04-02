@@ -20,6 +20,7 @@
     v-model:model-value="localValue"
     title="选择网关实例"
     :width="1200"
+    @select="onModalInstanceSelect"
   />
 </template>
 
@@ -39,16 +40,20 @@ defineOptions({
 interface Props {
   /** 实例名称值 */
   modelValue?: string
+  /** 网关实例 ID（与弹窗选择同步；手动输入时不保证有值） */
+  gatewayInstanceId?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
+  gatewayInstanceId: '',
 })
 
 // ============= Emits =============
 
 interface Emits {
   (e: 'update:modelValue', value: string): void
+  (e: 'update:gatewayInstanceId', value: string): void
 }
 
 const emit = defineEmits<Emits>()
@@ -70,11 +75,18 @@ watch(localValue, (newVal) => {
 
 // ============= 事件处理 =============
 
+/** 弹窗表格选中行时同步实例 ID */
+function onModalInstanceSelect(row: Record<string, unknown>) {
+  const id = (row?.gatewayInstanceId as string) || ''
+  emit('update:gatewayInstanceId', id)
+}
+
 /**
  * 处理输入框值变化
  */
 const handleInputChange = (value: string) => {
   localValue.value = value
+  emit('update:gatewayInstanceId', '')
 }
 
 /**

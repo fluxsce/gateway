@@ -275,7 +275,8 @@ func (m *MetricCollectorManager) Start() error {
 // 流程：
 // 1. 发送停止信号给所有协程
 // 2. 执行最后一次数据刷新
-// 3. 更新运行状态
+// 3. 物理删除本机 server_info 记录，避免容器反复重启导致表中记录无限增长
+// 4. 更新运行状态
 func (m *MetricCollectorManager) Stop() error {
 	if m == nil {
 		return nil
@@ -293,6 +294,19 @@ func (m *MetricCollectorManager) Stop() error {
 
 	// 最后一次刷新数据
 	m.flushData()
+
+	// 停止时删除当前实例在库中的服务器信息，下次启动会重新初始化
+	if m.serverInfoManager != nil {
+		si := m.serverInfoManager.GetServerInfo()
+		if si != nil && si.TenantId != "" && si.MetricServerId != "" {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			if err := m.serverInfoDAO.DeleteServerInfoByMetricServerId(ctx, si.TenantId, si.MetricServerId); err != nil {
+				logger.Warn("停止时删除服务器信息失败", "error", err,
+					"tenantId", si.TenantId, "metricServerId", si.MetricServerId)
+			}
+		}
+	}
 
 	logger.Info("指标采集停止成功")
 	return nil

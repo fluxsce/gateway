@@ -11,6 +11,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"gateway/pkg/config"
 )
 
 // runWindowsService 在非Windows系统上的占位实现
@@ -108,6 +110,7 @@ func setupLinuxServiceSignals(serviceCancel context.CancelFunc) {
 			switch sig {
 			case syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT:
 				log.Printf("收到终止信号 %v，开始优雅关闭...", sig)
+				config.SetInstanceStopping(true)
 				serviceCancel()
 				return
 

@@ -70,9 +70,6 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
           pageInfo.value?.pageIndex,
           pageInfo.value?.pageSize
         ),
-        // 排序参数
-        sortField: 'gatewayStartProcessingTime',
-        sortOrder: 'DESC',
       } as GatewayLogQueryParams
 
       // 调用 API（POST 请求，参数通过 body 传递）
@@ -215,8 +212,6 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
       const params: GatewayLogQueryParams = {
         ...processedParams,
         ...createBackendPaginationParams(1, 10000), // 导出时使用较大的分页
-        sortField: 'gatewayStartProcessingTime',
-        sortOrder: 'DESC',
       } as GatewayLogQueryParams
 
       const response = await gatewayLogApi.exportGatewayLogs(params)

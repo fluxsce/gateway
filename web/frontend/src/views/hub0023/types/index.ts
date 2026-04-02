@@ -315,16 +315,10 @@ export interface GatewayLogQueryParams {
   maxProcessingTime?: number
 
   // 错误筛选
-  /** 是否只查询错误日志 */
+  /** 为 true 时仅查询网关状态码非 200 的日志 */
   errorOnly?: boolean
   /** 错误代码 */
   errorCode?: string
-
-  // 排序参数
-  /** 排序字段 */
-  sortField?: string
-  /** 排序方向 */
-  sortOrder?: 'ASC' | 'DESC'
 }
 
 /**

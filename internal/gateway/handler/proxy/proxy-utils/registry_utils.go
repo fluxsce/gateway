@@ -1,3 +1,6 @@
+// Package proxyutils 提供 HTTP 代理侧的辅助逻辑（如注册中心元数据解析、实例列表构建）。
+// 与 handler/service 中的负载均衡器配合：本包只负责「从服务中心视图得到当前可用实例」，
+// 不负责挑选具体哪一个实例（由 Service.SelectNodeFromDiscoveredNodes 使用已配置的策略完成）。
 package proxyutils
 
 import (
@@ -13,7 +16,8 @@ import (
 	"gateway/pkg/logger"
 )
 
-// ServiceCenterMetadata 服务中心服务元数据
+// ServiceCenterMetadata 表示写入 serviceMetadata（扁平 map）时的服务中心定位信息。
+// 网关根据这些字段在全局服务中心缓存中查找服务及其实例列表；与控制台写入的 JSON 字段名保持一致（驼峰）。
 type ServiceCenterMetadata struct {
 	TenantID      string `json:"tenantId"`      // 租户ID
 	NamespaceID   string `json:"namespaceId"`   // 命名空间ID
@@ -23,8 +27,9 @@ type ServiceCenterMetadata struct {
 	ProtocolType  string `json:"protocolType"`  // 协议类型（http/https）
 }
 
-// IsServiceCenterService 判断是否为服务中心服务
-// 服务发现类型必须为 "INTERNAL"（表示从本服务中心注册和发现的内部服务）
+// IsServiceCenterService 判断该服务定义是否走「本机服务中心缓存」发现实例。
+// 约定：ServiceMetadata["discoveryType"] == "INTERNAL" 表示从本网关关联的服务中心拉取实例，
+// 与静态配置（数据库 nodes 表）路径区分；http 代理在 selectTargetNode 中据此分支。
 func IsServiceCenterService(metadata map[string]string) bool {
 	if metadata == nil {
 		return false
@@ -35,19 +40,31 @@ func IsServiceCenterService(metadata map[string]string) bool {
 	return discoveryType == "INTERNAL"
 }
 
-// CreateNodeFromServiceCenter 从服务中心创建节点配置
-// 这是唯一对外暴露的方法，内部完成所有逻辑
-func CreateNodeFromServiceCenter(ctx *core.Context, serviceConfig *service.ServiceConfig) (*service.NodeConfig, error) {
+// CollectHealthyNodesFromServiceCenter 在每次需要转发时调用，从服务中心全局缓存读取「当前快照」下的实例列表。
+//
+// 处理顺序与规则：
+//  1. 校验 serviceConfig 非空且为 INTERNAL 发现类型。
+//  2. 从 ServiceMetadata 解析 tenantId、namespaceId、groupName、serviceName；缺一则无法查缓存。
+//  3. 使用 cache.GetGlobalCache().GetService 取服务聚合对象；未找到则返回「服务不存在」。
+//  4. 遍历 svc.Nodes：仅保留 InstanceStatus==UP 且 HealthyStatus==Healthy 的实例，其余视为不可转发（含已下线、不健康）。
+//  5. 将每个合格实例转为 service.NodeConfig（URL、权重、元数据等），供负载均衡器按策略挑选其一。
+//
+// 实例下线与缓存：
+//   - 本函数不缓存结果；后端注销或置为不健康后，是否立刻从列表中消失取决于服务中心同步到 GetGlobalCache 的时效。
+//   - 若缓存仍短暂保留已死实例，可能仍被选入列表；实际转发失败由上游重试/熔断等机制处理，与静态节点场景类似。
+//
+// 上下文：
+//   - GetService 使用 context.Background()，避免把网关请求的取消传递到缓存读；缓存查询应快速返回。
+func CollectHealthyNodesFromServiceCenter(ctx *core.Context, serviceConfig *service.ServiceConfig) ([]*service.NodeConfig, error) {
 	if serviceConfig == nil {
 		return nil, fmt.Errorf("服务配置不能为空")
 	}
 
-	// 检查是否为服务中心服务
 	if !IsServiceCenterService(serviceConfig.ServiceMetadata) {
 		return nil, fmt.Errorf("服务不是服务中心服务类型")
 	}
 
-	// 解析服务元数据（统一使用驼峰命名）
+	// 与 CreateNodeFromServiceCenter 时期一致：定位键全部来自 ServiceMetadata 扁平字符串
 	metadata := &ServiceCenterMetadata{
 		TenantID:    serviceConfig.ServiceMetadata["tenantId"],
 		NamespaceID: serviceConfig.ServiceMetadata["namespaceId"],
@@ -55,13 +72,11 @@ func CreateNodeFromServiceCenter(ctx *core.Context, serviceConfig *service.Servi
 		ServiceName: serviceConfig.ServiceMetadata["serviceName"],
 	}
 
-	// 验证必要字段
 	if metadata.TenantID == "" || metadata.NamespaceID == "" ||
 		metadata.GroupName == "" || metadata.ServiceName == "" {
 		return nil, fmt.Errorf("服务元数据不完整：需要 tenantId、namespaceId、groupName 和 serviceName")
 	}
 
-	// 从缓存中获取服务
 	globalCache := cache.GetGlobalCache()
 	if globalCache == nil {
 		return nil, fmt.Errorf("服务中心缓存未初始化")
@@ -84,55 +99,49 @@ func CreateNodeFromServiceCenter(ctx *core.Context, serviceConfig *service.Servi
 		return nil, fmt.Errorf("服务不存在")
 	}
 
-	// 检查服务节点列表
 	if svc.Nodes == nil || len(svc.Nodes) == 0 {
 		return nil, fmt.Errorf("服务暂无可用节点")
 	}
 
-	// 选择一个健康的节点
-	var selectedNode *types.ServiceNode
-	for _, node := range svc.Nodes {
-		// 选择状态为UP且健康的节点
-		if node.InstanceStatus == types.NodeStatusUp && node.HealthyStatus == types.HealthyStatusHealthy {
-			selectedNode = node
-			break
-		}
+	// 访问后端使用的协议来自服务元数据；与控制台 protocolType 一致，默认 http
+	protocol := serviceConfig.ServiceMetadata["protocolType"]
+	if protocol == "" {
+		protocol = "http"
 	}
 
-	if selectedNode == nil {
+	var nodes []*service.NodeConfig
+	for _, node := range svc.Nodes {
+		// 与注册中心约定一致：仅 UP 且 Healthy 的实例参与均衡；下线或非健康实例跳过
+		if node.InstanceStatus != types.NodeStatusUp || node.HealthyStatus != types.HealthyStatusHealthy {
+			continue
+		}
+		nodes = append(nodes, convertServiceNodeToNodeConfig(node, protocol))
+	}
+
+	if len(nodes) == 0 {
+		// 服务存在但当前无合格实例：可能全部不健康或已全部下线
 		return nil, fmt.Errorf("未找到健康的服务节点")
 	}
 
-	// 从 serviceConfig 的元数据中获取协议类型（统一使用驼峰命名）
-	protocol := serviceConfig.ServiceMetadata["protocolType"]
-	if protocol == "" {
-		protocol = "http" // 默认使用 http
-	}
-
-	// 转换节点为 NodeConfig
-	nodeConfig := convertServiceNodeToNodeConfig(selectedNode, protocol)
-
-	// 使用 Debug 级别日志，避免在高并发场景下影响性能
-	logger.DebugWithTrace(ctx.Ctx, "成功从服务中心发现服务节点",
+	logger.DebugWithTrace(ctx.Ctx, "从服务中心收集健康实例",
 		"tenantId", metadata.TenantID,
 		"namespaceId", metadata.NamespaceID,
 		"groupName", metadata.GroupName,
 		"serviceName", metadata.ServiceName,
-		"nodeId", selectedNode.NodeId,
-		"address", fmt.Sprintf("%s:%d", selectedNode.IpAddress, selectedNode.PortNumber),
-		"protocol", protocol)
+		"healthyCount", len(nodes))
 
-	return nodeConfig, nil
+	return nodes, nil
 }
 
-// convertServiceNodeToNodeConfig 将服务中心的ServiceNode转换为NodeConfig
-// protocol: 调用协议（http/https），从 serviceConfig 配置中传入
+// convertServiceNodeToNodeConfig 将服务中心的 ServiceNode 转为网关统一的 NodeConfig。
+// protocol 为访问该实例的 scheme（http/https），与 NodeConfig.URL 前缀一致。
+// Health/Enabled 与注册中心状态对齐，供负载均衡器内与其它路径相同的过滤逻辑使用。
 func convertServiceNodeToNodeConfig(node *types.ServiceNode, protocol string) *service.NodeConfig {
 	if node == nil {
 		return nil
 	}
 
-	// 从节点元数据中提取 contextPath
+	// 可选：实例 MetadataJson 中的 contextPath 拼入 URL，便于带上下文路径的后端
 	var nodeMetadata map[string]interface{}
 	contextPath := ""
 	if node.MetadataJson != "" {
@@ -145,13 +154,13 @@ func convertServiceNodeToNodeConfig(node *types.ServiceNode, protocol string) *s
 		}
 	}
 
-	// 构建节点URL
+	// URL = 协议 + IP + 端口；若存在 contextPath 则追加（不以单独 Header 区分，而是路径前缀）
 	url := fmt.Sprintf("%s://%s:%d", protocol, node.IpAddress, node.PortNumber)
 	if contextPath != "" && contextPath != "/" {
 		url += contextPath
 	}
 
-	// 创建节点配置
+	// NodeConfig.Metadata 保留注册中心关键字段，便于日志与上下文透传
 	nodeConfig := &service.NodeConfig{
 		ID:      node.NodeId,
 		URL:     url,

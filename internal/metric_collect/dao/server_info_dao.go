@@ -124,18 +124,21 @@ func (dao *ServerInfoDAO) DeleteServerInfo(ctx context.Context, tenantId, metric
 	return nil
 }
 
-// DeleteServerInfoByTime 根据时间范围删除服务器信息（物理删除）
-func (dao *ServerInfoDAO) DeleteServerInfoByTime(ctx context.Context, tenantId string, beforeTime time.Time) error {
+// DeleteServerInfoByMetricServerId 根据租户与 metricServerId 物理删除服务器信息表记录
+func (dao *ServerInfoDAO) DeleteServerInfoByMetricServerId(ctx context.Context, tenantId, metricServerId string) error {
 	if tenantId == "" {
 		return fmt.Errorf("租户ID不能为空")
 	}
+	if metricServerId == "" {
+		return fmt.Errorf("服务器ID不能为空")
+	}
 
 	tableName := (&types.ServerInfo{}).TableName()
-	sql := fmt.Sprintf("DELETE FROM %s WHERE tenantId = ? AND addTime < ?", tableName)
+	sql := fmt.Sprintf("DELETE FROM %s WHERE tenantId = ? AND metricServerId = ?", tableName)
 
-	_, err := dao.db.Exec(ctx, sql, []interface{}{tenantId, beforeTime}, true)
+	_, err := dao.db.Exec(ctx, sql, []interface{}{tenantId, metricServerId}, true)
 	if err != nil {
-		return fmt.Errorf("根据时间删除服务器信息失败: %w", err)
+		return fmt.Errorf("根据服务器ID删除服务器信息失败: %w", err)
 	}
 	return nil
 }

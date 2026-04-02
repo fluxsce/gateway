@@ -302,7 +302,13 @@ func (dao *MongoQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLogQuer
 	}
 
 	// 响应信息查询条件
-	if req.GatewayStatusCode > 0 {
+	if req.ErrorOnly {
+		if req.GatewayStatusCode > 0 {
+			filter["gatewayStatusCode"] = req.GatewayStatusCode
+		} else {
+			filter["gatewayStatusCode"] = map[string]interface{}{"$ne": 200}
+		}
+	} else if req.GatewayStatusCode > 0 {
 		filter["gatewayStatusCode"] = req.GatewayStatusCode
 	}
 	if req.BackendStatusCode > 0 {
@@ -343,8 +349,6 @@ func (dao *MongoQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLogQuer
 	if req.ResetFlag != "" {
 		filter["resetFlag"] = req.ResetFlag
 	}
-
-	// 关键词搜索 - 删除OR条件，因为其他字段已经有like查询
 
 	return filter, nil
 }

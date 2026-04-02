@@ -352,6 +352,11 @@ export function useGrid(options: UseGridOptions) {
       if (checked.length > 0) {
         return checked[0]
       }
+      // 单选列（radio）：无复选勾选时优先取单选行，再退回当前高亮行
+      const radio = grid.getRadioRecord?.()
+      if (radio) {
+        return radio
+      }
       return grid.getCurrentRecord?.() || null
     },
     setCheckboxRow: (rows: any[], checked: boolean) => {

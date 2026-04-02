@@ -294,6 +294,9 @@ func setupGracefulShutdown() {
 
 // stopApplication 停止应用
 func stopApplication() {
+	// 优先置停止标识，再执行后续清理，便于外部探测与流量摘除
+	config.SetInstanceStopping(true)
+
 	if config.IsServiceMode() {
 		log.Println("开始停止Gateway服务...")
 	} else {

@@ -86,8 +86,8 @@ func (dao *GatewayLogDAO) Query(ctx context.Context, req *models.GatewayAccessLo
 	}
 
 	if req.GatewayInstanceName != "" {
-		whereClause += " AND gatewayInstanceName LIKE ?"
-		params = append(params, "%"+req.GatewayInstanceName+"%")
+		whereClause += " AND gatewayInstanceName = ?"
+		params = append(params, req.GatewayInstanceName)
 	}
 
 	if req.RouteConfigId != "" {
@@ -205,6 +205,10 @@ func (dao *GatewayLogDAO) Query(ctx context.Context, req *models.GatewayAccessLo
 	if req.ResetFlag != "" {
 		whereClause += " AND resetFlag = ?"
 		params = append(params, req.ResetFlag)
+	}
+
+	if req.ErrorOnly {
+		whereClause += " AND gatewayStatusCode <> 200"
 	}
 
 	if req.Keyword != "" {

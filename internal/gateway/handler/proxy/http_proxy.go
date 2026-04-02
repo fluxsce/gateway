@@ -1088,8 +1088,8 @@ func (h *HTTPProxy) selectTargetNode(ctx *core.Context, serviceID string) (*serv
 
 	// 检查是否为服务中心服务
 	if proxyutils.IsServiceCenterService(serviceConfig.ServiceMetadata) {
-		// 使用服务中心服务发现
-		node, err := h.selectNodeFromServiceCenter(ctx, serviceConfig)
+		// 使用服务中心服务发现，并与本服务配置的负载均衡策略一致地选择实例
+		node, err := h.selectNodeFromServiceCenter(ctx, serviceID, serviceConfig)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1104,12 +1104,25 @@ func (h *HTTPProxy) selectTargetNode(ctx *core.Context, serviceID string) (*serv
 	return serviceConfig, node, nil
 }
 
-// selectNodeFromServiceCenter 从服务中心选择节点
-func (h *HTTPProxy) selectNodeFromServiceCenter(ctx *core.Context, serviceConfig *service.ServiceConfig) (*service.NodeConfig, error) {
-	// 使用静态方法从服务中心创建节点配置（内部会自动从缓存获取服务节点）
-	node, err := proxyutils.CreateNodeFromServiceCenter(ctx, serviceConfig)
+// selectNodeFromServiceCenter 从服务中心拉取健康实例，并用 ServiceManager 中已注册的负载均衡器选择目标节点。
+func (h *HTTPProxy) selectNodeFromServiceCenter(ctx *core.Context, serviceID string, serviceConfig *service.ServiceConfig) (*service.NodeConfig, error) {
+	nodes, err := proxyutils.CollectHealthyNodesFromServiceCenter(ctx, serviceConfig)
 	if err != nil {
-		return nil, fmt.Errorf("从服务中心创建节点配置失败: %w", err)
+		return nil, fmt.Errorf("从服务中心收集节点失败: %w", err)
+	}
+
+	services := h.serviceManager.GetServices()
+	if services == nil {
+		return nil, fmt.Errorf("服务管理器未返回服务实例表")
+	}
+	svc, ok := services[serviceID]
+	if !ok || svc == nil {
+		return nil, fmt.Errorf("服务 %s 不存在", serviceID)
+	}
+
+	node, err := svc.SelectNodeFromDiscoveredNodes(ctx, nodes)
+	if err != nil {
+		return nil, fmt.Errorf("注册中心实例负载均衡选择失败: %w", err)
 	}
 
 	// 记录服务发现结果到上下文

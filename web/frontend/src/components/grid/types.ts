@@ -395,8 +395,8 @@ export interface GridExpose {
   getCurrentRecord: () => any
 
   /**
-   * 获取「操作目标」单行：存在复选框勾选时返回勾选的第一条；否则返回当前高亮行（与 getCurrentRecord 一致）。
-   * 多选时仅返回第一条，便于工具栏等「针对一行」的操作与右键菜单行为对齐。
+   * 获取「操作目标」单行：有复选框勾选时返回勾选的第一条；否则若有单选列选中则返回 getRadioRecord()；
+   * 再否则返回当前高亮行（getCurrentRecord）。多选时仅返回第一条。
    */
   getSelectedOrCurrentRecord: () => any | null
 
