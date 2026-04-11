@@ -5,7 +5,7 @@
  */
 
 import type { Ref } from 'vue'
-import { onBeforeUnmount, watch } from 'vue'
+import { nextTick, onBeforeUnmount, watch } from 'vue'
 import { useMonitoringCharts } from './charts'
 import { useMonitoringService } from './service'
 
@@ -50,14 +50,19 @@ export function useMonitoringPage(searchFormRef?: Ref<any> | any) {
    * 初始化页面数据
    */
   const initPageData = async () => {
-    // 初始化时间范围
     service.model.timeRange.value = service.model.initTimeRange()
 
-    // 等待图表 ref 绑定后再初始化图表
+    // 与搜索表单对齐，避免 loadMonitoringData 从 getFormData 读到与 model 不一致的时间
+    const fd = searchFormRef?.value?.getFormData?.() || {}
+    searchFormRef?.value?.setFormData?.({
+      ...fd,
+      timeRange: service.model.timeRange.value,
+      timeGranularity: service.model.timeGranularity.value,
+    })
+
     await nextTick()
     await charts.initCharts(service.model.overviewData, service.model.chartData)
 
-    // 加载监控数据
     await service.loadMonitoringData()
   }
 

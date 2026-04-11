@@ -1,6 +1,8 @@
 package gatewaylogroutes
 
 import (
+	"strings"
+
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/web/utils/constants"
@@ -69,7 +71,7 @@ func dispatchGatewayLogQuery(
 	dbCtl *controllers.GatewayLogController,
 ) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		gid := request.GetParam(c, "gatewayInstanceId")
+		gid := strings.TrimSpace(request.GetParam(c, "gatewayInstanceId"))
 		tenantID := request.GetTenantID(c)
 		resolved := dao.ResolveGatewayLogQueryType(c.Request.Context(), db, tenantID, gid)
 		switch pickEffectiveGatewayLogQueryType(resolved, mongoCtl, chCtl) {
@@ -91,7 +93,7 @@ func dispatchGatewayLogGet(
 	dbCtl *controllers.GatewayLogController,
 ) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		gid := request.GetParam(c, "gatewayInstanceId")
+		gid := strings.TrimSpace(request.GetParam(c, "gatewayInstanceId"))
 		tenantID := request.GetTenantID(c)
 		resolved := dao.ResolveGatewayLogQueryType(c.Request.Context(), db, tenantID, gid)
 		switch pickEffectiveGatewayLogQueryType(resolved, mongoCtl, chCtl) {
@@ -105,6 +107,28 @@ func dispatchGatewayLogGet(
 	}
 }
 
+// dispatchGatewayLogAccessDetail 按实例日志配置分发网关日志主表详情（不查询后端追踪日志）。
+func dispatchGatewayLogAccessDetail(
+	db database.Database,
+	mongoCtl *controllers.MongoQueryController,
+	chCtl *controllers.ClickHouseQueryController,
+	dbCtl *controllers.GatewayLogController,
+) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		gid := strings.TrimSpace(request.GetParam(c, "gatewayInstanceId"))
+		tenantID := request.GetTenantID(c)
+		resolved := dao.ResolveGatewayLogQueryType(c.Request.Context(), db, tenantID, gid)
+		switch pickEffectiveGatewayLogQueryType(resolved, mongoCtl, chCtl) {
+		case "mongo":
+			mongoCtl.GetGatewayLogAccessDetail(c)
+		case "clickhouse":
+			chCtl.GetGatewayLogAccessDetail(c)
+		default:
+			dbCtl.GetAccessDetail(c)
+		}
+	}
+}
+
 // dispatchGatewayLogCount 按实例日志配置分发网关日志统计。
 func dispatchGatewayLogCount(
 	db database.Database,
@@ -112,7 +136,7 @@ func dispatchGatewayLogCount(
 	chCtl *controllers.ClickHouseQueryController,
 ) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		gid := request.GetParam(c, "gatewayInstanceId")
+		gid := strings.TrimSpace(request.GetParam(c, "gatewayInstanceId"))
 		tenantID := request.GetTenantID(c)
 		resolved := dao.ResolveGatewayLogQueryType(c.Request.Context(), db, tenantID, gid)
 		switch pickEffectiveGatewayLogQueryType(resolved, mongoCtl, chCtl) {
@@ -134,7 +158,7 @@ func dispatchGatewayMonitoringOverview(
 	dbCtl *controllers.GatewayLogController,
 ) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		gid := request.GetParam(c, "gatewayInstanceId")
+		gid := strings.TrimSpace(request.GetParam(c, "gatewayInstanceId"))
 		tenantID := request.GetTenantID(c)
 		resolved := dao.ResolveGatewayLogQueryType(c.Request.Context(), db, tenantID, gid)
 		switch pickEffectiveGatewayLogQueryType(resolved, mongoCtl, chCtl) {
@@ -156,7 +180,7 @@ func dispatchGatewayMonitoringChartData(
 	dbCtl *controllers.GatewayLogController,
 ) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		gid := request.GetParam(c, "gatewayInstanceId")
+		gid := strings.TrimSpace(request.GetParam(c, "gatewayInstanceId"))
 		tenantID := request.GetTenantID(c)
 		resolved := dao.ResolveGatewayLogQueryType(c.Request.Context(), db, tenantID, gid)
 		switch pickEffectiveGatewayLogQueryType(resolved, mongoCtl, chCtl) {

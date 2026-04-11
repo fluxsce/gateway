@@ -73,10 +73,23 @@ export function useMonitoringService(searchFormRef?: Ref<any> | any) {
       return
     }
 
+    const gatewayInstanceId = String(finalSearchParams?.gatewayInstanceId ?? '').trim()
+    if (!gatewayInstanceId) {
+      message.error('请选择网关实例')
+      return
+    }
+
+    model.lastGatewayInstanceId.value = gatewayInstanceId
+    const gname = String(finalSearchParams?.gatewayInstanceName ?? '').trim()
+    if (gname) {
+      model.lastGatewayInstanceName.value = gname
+    }
+
     loading.value = true
     try {
       const [startTime, endTime] = timeRangeValue!
       const queryParams: GatewayMonitoringQueryParams = {
+        gatewayInstanceId,
         startTime: formatDate(startTime, 'YYYY-MM-DDTHH:mm:ss'),
         endTime: formatDate(endTime, 'YYYY-MM-DDTHH:mm:ss'),
         timeGranularity: (finalSearchParams?.timeGranularity || timeGranularity.value) as any,
@@ -133,6 +146,12 @@ export function useMonitoringService(searchFormRef?: Ref<any> | any) {
     if (formData?.timeGranularity) {
       timeGranularity.value = formData.timeGranularity
     }
+    if (formData?.gatewayInstanceId != null && String(formData.gatewayInstanceId).trim() !== '') {
+      model.lastGatewayInstanceId.value = String(formData.gatewayInstanceId).trim()
+    }
+    if (formData?.gatewayInstanceName != null && String(formData.gatewayInstanceName).trim() !== '') {
+      model.lastGatewayInstanceName.value = String(formData.gatewayInstanceName).trim()
+    }
 
     await loadMonitoringData(formData)
   }
@@ -147,11 +166,29 @@ export function useMonitoringService(searchFormRef?: Ref<any> | any) {
     resetOverviewData()
     resetChartData()
 
-    // 重新加载数据
+    const formSnapshot = searchFormRef?.value?.getFormData?.() || {}
+    const gid =
+      String(formSnapshot.gatewayInstanceId || model.lastGatewayInstanceId.value || '').trim()
+    const gname = String(
+      formSnapshot.gatewayInstanceName || model.lastGatewayInstanceName.value || '',
+    ).trim()
     await loadMonitoringData({
+      gatewayInstanceId: gid,
+      gatewayInstanceName: gname || gid,
       timeRange: timeRange.value,
       timeGranularity: timeGranularity.value,
+      routeName: formSnapshot.routeName,
+      requestPath: formSnapshot.requestPath,
     })
+    if (gid && searchFormRef?.value?.setFormData) {
+      searchFormRef.value.setFormData({
+        ...formSnapshot,
+        gatewayInstanceId: gid,
+        gatewayInstanceName: gname || gid,
+        timeRange: timeRange.value,
+        timeGranularity: timeGranularity.value,
+      })
+    }
   }
 
   /**

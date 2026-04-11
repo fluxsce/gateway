@@ -6,6 +6,8 @@ const (
 	ContextKeyConnectionStartTime   = "connection_start_time"    // 连接建立时间
 	ContextKeyPermissions           = "permissions"              // 权限信息
 	ContextKeyTraceID               = "trace_id"                 // 链路追踪ID
+	ContextKeyPresetTraceID         = "preset_trace_id"          // 由 X-Gateway-Replay-Trace-Id 等注入，引擎消费后清除
+	ContextKeyIsGatewayReplay       = "is_gateway_replay"        // 重发时为字符串 Y，与 X-Gateway-Replay: Y 约定一致
 	ContextKeyTenantID              = "tenant_id"                // 租户ID
 	ContextKeyGatewayInstanceID     = "gateway_instance_id"      // 网关实例ID
 	ContextKeyGatewayInstanceName   = "gateway_instance_name"    // 网关实例名称
@@ -53,6 +55,10 @@ const (
 	HeaderXForwardedFor = "X-Forwarded-For"
 	HeaderXRealIP       = "X-Real-IP"
 	HeaderXRequestID    = "X-Request-ID"
+
+	// 网关端口重发：客户端直连监听地址时携带，由 ServeHTTP 读入上下文并从请求头移除，避免透传上游
+	HeaderXGatewayReplay        = "X-Gateway-Replay"          // 约定取值仅为 Y（大小写不敏感）表示重发
+	HeaderXGatewayReplayTraceID = "X-Gateway-Replay-Trace-Id" // 原始链路 trace_id，经预设写入 ContextKeyTraceID
 
 	// CORS相关头部
 	HeaderAccessControlAllowOrigin      = "Access-Control-Allow-Origin"

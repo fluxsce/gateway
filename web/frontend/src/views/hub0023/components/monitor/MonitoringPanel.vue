@@ -297,6 +297,8 @@ onMounted(async () => {
     page.charts.hotRoutesChartRef.value = hotRoutesChartRef.value
   }
 
+  await page.service.model.bootstrapDefaultGatewayInstance(searchFormRef)
+
   // 初始化页面数据（包括图表初始化和数据加载）
   await page.initPageData()
 })
@@ -424,15 +426,11 @@ const handleToolbarClick = async (key: string) => {
   }
 }
 
-/* 确保 ECharts tooltip 显示在最上层，不被其他元素遮挡 */
-/* ECharts 5.x 的 tooltip 会附加到 body，但需要确保 z-index 足够高 */
-:global(div[id^="echarts-tooltip"]) {
-  z-index: 9999 !important;
-}
-
-/* 兼容不同版本的 ECharts tooltip 类名 */
+/* 图表 tooltip 在 charts.ts 中 appendTo: body，此处保证浮于布局/抽屉之上 */
+:global(.gateway-monitoring-echarts-tooltip),
+:global(div[id^="echarts-tooltip"]),
 :global(.echarts-tooltip),
 :global([class*="echarts-tooltip"]) {
-  z-index: 9999 !important;
+  z-index: 10000 !important;
 }
 </style>

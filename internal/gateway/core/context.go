@@ -121,6 +121,13 @@ func (c *Context) Set(key string, value interface{}) {
 	c.data[key] = value
 }
 
+// Delete 从上下文中移除指定键；键不存在时不做任何操作。
+func (c *Context) Delete(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.data, key)
+}
+
 // Get 从上下文中获取值
 // 参数:
 // - key: 键名

@@ -228,6 +228,8 @@ func (g *Gateway) setupHandlers(engine *core.Engine) {
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 创建网关上下文，这个上下文将贯穿整个请求处理过程
 	ctx := core.NewContext(w, r)
+	// 直连端口重发：从请求头注入原始 trace 与重发标记（读入后从头中删除，避免透传上游）
+	applyGatewayReplayHeaders(r, ctx)
 	// 设置实例ID（需要在处理器链执行前设置，供后端追踪日志使用）
 	ctx.Set(constants.ContextKeyGatewayInstanceID, g.gatewayConfig.InstanceID)
 	// 设置实例名称

@@ -99,6 +99,13 @@ func NewFileWriter(config *types.LogConfig) (*FileWriter, error) {
 	return writer, nil
 }
 
+// UpdateAccessLog 文件为只追加写入，无法按 trace 原地更新；返回 0 由上层回退为 Insert。
+func (w *FileWriter) UpdateAccessLog(ctx context.Context, log *types.AccessLog) (int64, error) {
+	_ = ctx
+	_ = log
+	return 0, nil
+}
+
 // Write 写入单条日志
 func (w *FileWriter) Write(ctx context.Context, log *types.AccessLog) error {
 	w.mutex.Lock()

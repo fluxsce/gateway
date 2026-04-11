@@ -406,6 +406,11 @@ func (c *DefaultClient) Options(ctx context.Context, requestURL string, opts ...
 	return c.doRequest(ctx, http.MethodOptions, requestURL, nil, opts...)
 }
 
+// Request 使用指定 HTTP 方法发送请求，行为与 doRequest 一致。
+func (c *DefaultClient) Request(ctx context.Context, method, requestURL string, body interface{}, opts ...RequestOption) (*Response, error) {
+	return c.doRequest(ctx, method, requestURL, body, opts...)
+}
+
 // Do 发送自定义HTTP请求
 //
 // 用于发送自定义构建的http.Request，适用于需要完全控制请求的场景。

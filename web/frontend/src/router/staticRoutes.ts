@@ -9,7 +9,11 @@ import { buildMainLayoutChildRoutes } from '@/router/layoutRouteRegistry'
 import MainLayout from '@/views/layout/MainLayout.vue'
 import type { RouteRecordRaw } from 'vue-router'
 
-/** 仅开发环境注册，生产打包不包含测试路由及对应 chunk */
+/**
+ * 仅开发环境注册，生产打包不包含测试路由及对应 chunk。
+ * 侧栏菜单由 {@link buildSidebarMenuFromRegistry} 生成，本段不在 GATEWAY_LAYOUT_ROUTE_TREE 中，
+ * 故在 layoutRouteRegistry 内对 DEV 单独追加「组件测试」入口；此处 `menuHide` 仅作 meta 说明（不参与侧栏合并）。
+ */
 const testRoutes: RouteRecordRaw[] =
   import.meta.env.DEV
     ? [
@@ -79,6 +83,18 @@ const testRoutes: RouteRecordRaw[] =
               name: 'testGDialog',
               component: () => import('@/views/test/components/GDialogTest.vue'),
               meta: { title: 'GDialog 测试', requiresAuth: true },
+            },
+            {
+              path: 'grestful-api',
+              name: 'testGRestfulApi',
+              component: () => import('@/views/test/components/GRestfulApiTest.vue'),
+              meta: { title: 'GRestfulApi 测试', requiresAuth: true },
+            },
+            {
+              path: 'gmodal',
+              name: 'testGModal',
+              component: () => import('@/views/test/components/GModalTest.vue'),
+              meta: { title: 'GModal 测试', requiresAuth: true },
             },
           ],
         },

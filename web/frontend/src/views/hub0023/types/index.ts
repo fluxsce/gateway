@@ -18,6 +18,8 @@ export interface GatewayLogInfo {
   gatewayInstanceName?: string
   /** 网关节点IP地址 */
   gatewayNodeIp: string
+  /** 按网关实例 HTTP/HTTPS 暴露端口与请求路径拼装的重放 URL，服务端填充不落库 */
+  resetUrl?: string
   /** 路由配置ID */
   routeConfigId?: string
   /** 路由名称(冗余字段,便于查询显示) */
@@ -327,6 +329,8 @@ export interface GatewayLogQueryParams {
 export interface GatewayLogGetParams {
   /** 链路追踪ID */
   traceId: string
+  /** 可选，与列表一致时用于解析日志存储及后端拼装 resetUrl 所依赖的实例 */
+  gatewayInstanceId?: string
 }
 
 /**

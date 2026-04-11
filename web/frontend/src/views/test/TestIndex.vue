@@ -110,6 +110,18 @@ const testPages: TestPage[] = [
     description: '测试 GDialog：标题/副标题/图标、渐变头部、宽度、滚动、拖拽、confirmLoading、自定义插槽',
     icon: 'ChatboxOutline',
   },
+  {
+    path: '/test/gmodal',
+    title: 'GModal 弹窗',
+    description: 'NModal 封装：仅内容区滚动、width/height、全屏、东/南/东南边框缩放',
+    icon: 'ExpandOutline',
+  },
+  {
+    path: '/test/grestful-api',
+    title: 'GRestfulApi REST 调试',
+    description: '类 Postman：方法、URL、参数、请求头、请求体、响应状态与正文（fetch，注意 CORS）',
+    icon: 'GlobeOutline',
+  },
 ]
 
 function goBack() {

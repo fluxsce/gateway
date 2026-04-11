@@ -486,5 +486,14 @@ export function buildSidebarMenuFromRegistry(): SidebarMenuNode[] {
       })
     }
   }
+  // 测试路由仅在 staticRoutes.getLayoutRoute() 中挂载，不在本注册表内；开发环境在侧栏提供入口
+  if (import.meta.env.DEV) {
+    menu.push({
+      key: 'testIndex',
+      label: '组件测试',
+      path: '/test/index',
+      icon: 'FlaskOutline',
+    })
+  }
   return menu
 }

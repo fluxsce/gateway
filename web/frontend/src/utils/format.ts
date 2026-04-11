@@ -188,21 +188,30 @@ export const formatAmount = (amount: number, decimals = 2, separator = ','): str
  * 文件大小格式化
  * 将字节数转换为更易读的格式(KB, MB, GB等)
  *
- * @param bytes 字节数
+ * @param bytes 字节数（可为字符串；null/undefined/空串/非有限数/负数时返回 '-'，避免表格出现 NaN undefined）
  * @returns 格式化后的文件大小，自动选择合适的单位
  *
  * @example
  * formatFileSize(1024) // '1.00 KB'
  * formatFileSize(1048576) // '1.00 MB'
  */
-export const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 B'
+export const formatFileSize = (bytes: number | string | null | undefined): string => {
+  if (bytes === null || bytes === undefined || bytes === '') {
+    return '-'
+  }
+  const n = typeof bytes === 'number' ? bytes : Number(String(bytes).trim())
+  if (!Number.isFinite(n) || n < 0) {
+    return '-'
+  }
+  if (n === 0) {
+    return '0 B'
+  }
 
   const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
   const k = 1024
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  const i = Math.min(Math.floor(Math.log(n) / Math.log(k)), units.length - 1)
 
-  return `${(bytes / Math.pow(k, i)).toFixed(2)} ${units[i]}`
+  return `${(n / Math.pow(k, i)).toFixed(2)} ${units[i]}`
 }
 
 /**

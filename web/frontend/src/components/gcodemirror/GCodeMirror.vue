@@ -133,6 +133,21 @@ const containerRef = ref<HTMLDivElement>()
 // 编辑器实例
 let editorView: EditorViewType | null = null
 
+/** 为 true 时不再 dispatch，避免异步 init / updateLanguage 与卸载竞态导致 watcher 抛错 */
+const isDisposed = ref(false)
+
+function safeEditorDispatch(run: (view: EditorViewType) => void): void {
+  const view = editorView
+  if (!view || isDisposed.value) {
+    return
+  }
+  try {
+    run(view)
+  } catch (e) {
+    console.warn('GCodeMirror: dispatch skipped', e)
+  }
+}
+
 // 语言配置
 const languageCompartment = new Compartment()
 
@@ -284,10 +299,15 @@ const buildExtensions = async (): Promise<Extension[]> => {
  * 初始化编辑器
  */
 const initEditor = async () => {
-  if (!containerRef.value) return
+  if (!containerRef.value || isDisposed.value) {
+    return
+  }
 
-  // 构建扩展（异步，确保语言包已加载）
   const extensions = await buildExtensions()
+
+  if (!containerRef.value || isDisposed.value) {
+    return
+  }
 
   // 创建编辑器状态
   const state = EditorState.create({
@@ -300,6 +320,12 @@ const initEditor = async () => {
     state,
     parent: containerRef.value
   })
+
+  if (isDisposed.value) {
+    editorView.destroy()
+    editorView = null
+    return
+  }
 
   // 监听焦点事件
   editorView.dom.addEventListener('focus', () => {
@@ -318,31 +344,38 @@ const initEditor = async () => {
  * 更新编辑器内容
  */
 const updateContent = (content: string) => {
-  if (!editorView) return
-
-  const currentContent = editorView.state.doc.toString()
-  if (currentContent !== content) {
-    editorView.dispatch({
-      changes: {
-        from: 0,
-        to: editorView.state.doc.length,
-        insert: content || ''
-      }
-    })
-  }
+  safeEditorDispatch((view) => {
+    const currentContent = view.state.doc.toString()
+    if (currentContent !== content) {
+      view.dispatch({
+        changes: {
+          from: 0,
+          to: view.state.doc.length,
+          insert: content || ''
+        }
+      })
+    }
+  })
 }
 
 /**
  * 更新语言（异步加载语言包）
  */
 const updateLanguage = async () => {
-  if (!editorView) return
+  if (!editorView || isDisposed.value) {
+    return
+  }
 
-  // 异步加载语言包
   const extension = await loadLanguageExtension(props.language)
-  
-  editorView.dispatch({
-    effects: languageCompartment.reconfigure(extension)
+
+  if (!editorView || isDisposed.value) {
+    return
+  }
+
+  safeEditorDispatch((view) => {
+    view.dispatch({
+      effects: languageCompartment.reconfigure(extension)
+    })
   })
 }
 
@@ -350,10 +383,10 @@ const updateLanguage = async () => {
  * 更新主题
  */
 const updateTheme = () => {
-  if (!editorView) return
-
-  editorView.dispatch({
-    effects: themeCompartment.reconfigure(getThemeExtension(props.theme))
+  safeEditorDispatch((view) => {
+    view.dispatch({
+      effects: themeCompartment.reconfigure(getThemeExtension(props.theme))
+    })
   })
 }
 
@@ -361,10 +394,10 @@ const updateTheme = () => {
  * 更新只读状态
  */
 const updateReadonly = () => {
-  if (!editorView) return
-
-  editorView.dispatch({
-    effects: readonlyCompartment.reconfigure(EditorState.readOnly.of(props.readonly))
+  safeEditorDispatch((view) => {
+    view.dispatch({
+      effects: readonlyCompartment.reconfigure(EditorState.readOnly.of(props.readonly))
+    })
   })
 }
 
@@ -403,8 +436,10 @@ const containerStyle = computed(() => {
 watch(
   () => props.modelValue,
   (newValue) => {
-    if (editorView) {
+    try {
       updateContent(newValue || '')
+    } catch (e) {
+      console.warn('GCodeMirror: modelValue watch', e)
     }
   }
 )
@@ -413,7 +448,11 @@ watch(
 watch(
   () => props.language,
   async () => {
-    await updateLanguage()
+    try {
+      await updateLanguage()
+    } catch (e) {
+      console.warn('GCodeMirror: language watch', e)
+    }
   }
 )
 
@@ -421,7 +460,11 @@ watch(
 watch(
   [() => props.theme, isDark],
   () => {
-    updateTheme()
+    try {
+      updateTheme()
+    } catch (e) {
+      console.warn('GCodeMirror: theme watch', e)
+    }
   }
 )
 
@@ -429,7 +472,11 @@ watch(
 watch(
   () => props.readonly,
   () => {
-    updateReadonly()
+    try {
+      updateReadonly()
+    } catch (e) {
+      console.warn('GCodeMirror: readonly watch', e)
+    }
   }
 )
 
@@ -440,6 +487,7 @@ onMounted(() => {
 
 // 组件卸载时销毁编辑器
 onBeforeUnmount(() => {
+  isDisposed.value = true
   if (editorView) {
     editorView.destroy()
     editorView = null

@@ -8,6 +8,7 @@ import (
 
 	"gateway/internal/gateway/logwrite/types"
 	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/logger"
 )
 
@@ -79,6 +80,42 @@ func NewClickHouseWriter(config *types.LogConfig) (*ClickHouseWriter, error) {
 	writer.startFlushTimer()
 
 	return writer, nil
+}
+
+// UpdateAccessLog 按租户与 trace 单次 ALTER UPDATE：仅刷新重放结果态列，resetCount +1，parentTraceId 置空（不重放自增 retryCount）。
+// 端口重放使用预设 trace，约定主表已有对应行；成功返回 1（不依赖 RowsAffected）。
+func (w *ClickHouseWriter) UpdateAccessLog(ctx context.Context, log *types.AccessLog) (int64, error) {
+	if w.closed {
+		return 0, fmt.Errorf("writer is closed")
+	}
+	if log.TenantID == "" || log.TraceID == "" {
+		return 0, fmt.Errorf("tenantId and traceId required for replay update")
+	}
+
+	where := "tenantId = ? AND traceId = ?"
+	whereArgs := []interface{}{log.TenantID, log.TraceID}
+
+	statePatch := types.NewAccessLogReplayStatePatch(log)
+	setClause, setArgs, err := sqlutils.BuildUpdateQuery("HUB_GW_ACCESS_LOG", &statePatch, true)
+	if err != nil {
+		return 0, fmt.Errorf("replay update build set: %w", err)
+	}
+	resetCountAndParent := "resetCount = coalesce(resetCount, 0) + 1, parentTraceId = ''"
+	var fullSet string
+	if setClause == "" {
+		fullSet = resetCountAndParent
+	} else {
+		fullSet = setClause + ", " + resetCountAndParent
+	}
+
+	query := "ALTER TABLE HUB_GW_ACCESS_LOG UPDATE " + fullSet + " WHERE " + where
+	execArgs := append(setArgs, whereArgs...)
+
+	if _, err := w.db.Exec(ctx, query, execArgs, true); err != nil {
+		return 0, fmt.Errorf("replay update: %w", err)
+	}
+	// 变更常为异步，驱动多返回 0 行；成功即视为已更新，避免误判走 Insert
+	return 1, nil
 }
 
 // Write 写入单条访问日志

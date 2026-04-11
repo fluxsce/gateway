@@ -4,6 +4,7 @@
 
 export { default as BackendLogsDialog } from './backed-logs/BackendLogsDialog.vue'
 export { default as GatewayLogQuery } from './gateway-log/GatewayLogQuery.vue'
+export { default as ResendRequestDialog } from './resend-request/ResendRequestDialog.vue'
 export { default as GatewayInstanceListModal } from './instance-grid/GatewayInstanceListModal.vue'
 export { default as MonitoringPanel } from './monitor/MonitoringPanel.vue'
 export { RouteListModal } from './route-grid'

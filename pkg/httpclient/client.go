@@ -86,6 +86,9 @@ type Client interface {
 	//   - error: 可能的错误
 	Options(ctx context.Context, url string, opts ...RequestOption) (*Response, error)
 
+	// Request 使用指定 HTTP 方法发送请求；body 为 nil 时不携带正文。可对 GET、HEAD 等传入正文（非典型但合法场景）。
+	Request(ctx context.Context, method, url string, body interface{}, opts ...RequestOption) (*Response, error)
+
 	// Do 发送自定义HTTP请求
 	// 参数:
 	//   - ctx: 上下文，用于控制请求超时和取消

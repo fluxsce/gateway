@@ -10,6 +10,7 @@ import (
 	"gateway/pkg/logger"
 	"gateway/pkg/mongo/client"
 	"gateway/pkg/mongo/factory"
+	mongotypes "gateway/pkg/mongo/types"
 	"gateway/pkg/mongo/utils"
 )
 
@@ -74,6 +75,43 @@ func NewMongoWriter(config *types.LogConfig) (*MongoWriter, error) {
 		"collection", accessLog.TableName())
 
 	return writer, nil
+}
+
+// UpdateAccessLog 按租户与 trace 更新主表文档，$inc resetCount，$set 仅重放结果态字段并清空 parentTraceId（不 $inc retryCount）。
+// 同步执行，不经过异步通道。无匹配文档时返回 (0, nil)。
+func (w *MongoWriter) UpdateAccessLog(ctx context.Context, log *types.AccessLog) (int64, error) {
+	if log.TenantID == "" || log.TraceID == "" {
+		return 0, fmt.Errorf("tenantId and traceId required for replay update")
+	}
+
+	statePatch := types.NewAccessLogReplayStatePatch(log)
+	setDoc, err := utils.ConvertToDocument(statePatch)
+	if err != nil {
+		return 0, fmt.Errorf("convert access log for replay update: %w", err)
+	}
+	setDoc["parentTraceId"] = ""
+
+	filter := mongotypes.Filter{
+		"tenantId": log.TenantID,
+		"traceId":  log.TraceID,
+	}
+	update := mongotypes.Update{
+		"$set": setDoc,
+		"$inc": mongotypes.Document{"resetCount": 1},
+	}
+
+	database, err := w.mongoClient.DefaultDatabase()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get default database: %w", err)
+	}
+	var accessLog types.AccessLog
+	collection := database.Collection(accessLog.TableName())
+
+	res, err := collection.UpdateOne(ctx, filter, update, nil)
+	if err != nil {
+		return 0, fmt.Errorf("mongo replay update: %w", err)
+	}
+	return res.MatchedCount, nil
 }
 
 // Write 写入单条日志

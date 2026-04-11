@@ -6,9 +6,12 @@
 
 import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import type { GatewayLogListItem } from '../../../types'
 import { useGatewayLogService } from './service'
+
+/** 单次批量重发前端条数上限（超出部分不进入弹窗，避免 DOM 与请求压力过大） */
+export const MAX_GATEWAY_LOG_RESEND_BATCH = 100
 
 /**
  * 网关日志管理页面级 Hook
@@ -23,6 +26,10 @@ export function useGatewayLogPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<
   const detailDialogVisible = ref(false)
   const selectedTraceId = ref('')
 
+  /** 请求重发弹窗：左侧 Trace 列表，右侧 GRestfulApi */
+  const resendDialogVisible = ref(false)
+  const resendLogs = ref<GatewayLogListItem[]>([])
+
   /** 打开查看详情对话框 */
   const openViewDialog = (log: GatewayLogListItem) => {
     selectedTraceId.value = log.traceId
@@ -34,6 +41,35 @@ export function useGatewayLogPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<
     detailDialogVisible.value = false
     selectedTraceId.value = ''
   }
+
+  /** 打开重发弹窗（传入列表行，至少含 traceId） */
+  const openResendDialog = (logs: GatewayLogListItem[]) => {
+    if (logs.length === 0) {
+      message.warning('请选择要重发的日志')
+      return
+    }
+    const total = logs.length
+    const capped =
+      total > MAX_GATEWAY_LOG_RESEND_BATCH ? logs.slice(0, MAX_GATEWAY_LOG_RESEND_BATCH) : [...logs]
+    if (total > MAX_GATEWAY_LOG_RESEND_BATCH) {
+      message.warning(
+        `单次最多重发 ${MAX_GATEWAY_LOG_RESEND_BATCH} 条，当前已选 ${total} 条，仅前 ${MAX_GATEWAY_LOG_RESEND_BATCH} 条会进入重发`
+      )
+    }
+    resendLogs.value = capped
+    resendDialogVisible.value = true
+  }
+
+  const closeResendDialog = () => {
+    resendDialogVisible.value = false
+    resendLogs.value = []
+  }
+
+  watch(resendDialogVisible, (v) => {
+    if (!v) {
+      resendLogs.value = []
+    }
+  })
 
 
   /**
@@ -66,17 +102,12 @@ export function useGatewayLogPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<
       }
 
       case 'batchReset': {
-        // 批量重置选中的行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
         const selectedRows = gridRef.value.getCheckboxRecords() as GatewayLogListItem[]
-        if (selectedRows.length === 0) {
-          message.warning('请选择要重置的日志')
-          return
-        }
-        await service.resetGatewayLogs(selectedRows, '批量重置', 'current_user')
+        openResendDialog(selectedRows)
         break
       }
 
@@ -105,7 +136,7 @@ export function useGatewayLogPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<
         break
 
       case 'reset':
-        await service.resetGatewayLogs([row], '手动重置', 'current_user')
+        openResendDialog([row])
         break
     }
   }
@@ -119,6 +150,12 @@ export function useGatewayLogPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<
     selectedTraceId,
     openViewDialog,
     closeDetailDialog,
+
+    // 重发弹窗
+    resendDialogVisible,
+    resendLogs,
+    openResendDialog,
+    closeResendDialog,
 
     // 事件处理器
     handleToolbarClick,

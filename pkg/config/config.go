@@ -12,6 +12,7 @@ import (
 
 	"gateway/pkg/utils/net"
 	"gateway/pkg/utils/path"
+	"gateway/pkg/utils/random"
 
 	"github.com/spf13/viper"
 )
@@ -201,7 +202,7 @@ func GetGlobalTimezone() string {
 // 返回:
 //   - string: 版本号，默认为 "unknown"
 func GetVersion() string {
-	return "3.1.2"
+	return "3.1.3"
 }
 
 // GetAppName 获取应用名称
@@ -270,6 +271,12 @@ func GetNodeId() string {
 		}
 	})
 	return cachedNodeId
+}
+
+// GetNodeIP 获取本进程所在节点的 IPv4 地址。
+// 与 gateway/pkg/utils/random 在 init 阶段探测并缓存的节点 IP 一致，供配置、日志、重放 URL 等统一引用。
+func GetNodeIP() string {
+	return random.GetNodeIP()
 }
 
 // ResetNodeId 重置节点ID缓存（仅用于测试）

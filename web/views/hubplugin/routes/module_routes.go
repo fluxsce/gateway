@@ -6,7 +6,7 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/web/routes"
-	commonroutes "gateway/web/views/hubplugin/common/routes"
+	httproutes "gateway/web/views/hubplugin/http/routes"
 
 	"github.com/gin-gonic/gin"
 )
@@ -47,7 +47,9 @@ func Init(router *gin.Engine, db database.Database) {
 	// 创建模块路由组
 	group := router.Group(APIPrefix, routes.PermissionRequired()...)
 	//sftp路由哦欸之初始化
-	commonroutes.Init(group, db)
+	//commonroutes.Init(group, db)
+	// 服务端代发 HTTP（供前端 REST 调试等调用）
+	httproutes.Init(group, db)
 }
 
 // RegisterRoutesFunc 返回路由注册函数

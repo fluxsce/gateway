@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"net"
+	"sort"
 	"sync/atomic"
 	"time"
 )
@@ -35,22 +36,85 @@ func init() {
 	atomic.StoreUint64(&atomicCounter, uint64(processStartTime%1000000))
 }
 
-// getNodeIP 获取当前节点的IPv4地址
+// getNodeIP 获取当前节点用于标识的 IPv4 地址。
+// 仅遍历 net.InterfaceAddrs 时顺序不稳定，可能先命中虚拟网卡上的 169.254.x.x（链路本地），与真实上网地址（如 192.168.x.x）不符；
+// 因此改为按网卡收集：仅已启用且非回环接口，排除回环与链路本地地址，优先私网地址（RFC1918 等），其次公网单播，最后回退 127.0.0.1。
 func getNodeIP() string {
-	addrs, err := net.InterfaceAddrs()
+	ifaces, err := net.Interfaces()
 	if err != nil {
 		return "127.0.0.1"
 	}
-
-	for _, addr := range addrs {
-		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				return ipnet.IP.String()
+	var private, global []string
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		if iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, aerr := iface.Addrs()
+		if aerr != nil {
+			continue
+		}
+		for _, a := range addrs {
+			var ip net.IP
+			switch v := a.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			default:
+				continue
+			}
+			ip4 := ip.To4()
+			if ip4 == nil {
+				continue
+			}
+			if ip4.IsLoopback() || ip4.IsLinkLocalUnicast() {
+				continue
+			}
+			s := ip4.String()
+			if ip4.IsPrivate() {
+				private = append(private, s)
+			} else if ip4.IsGlobalUnicast() {
+				global = append(global, s)
 			}
 		}
 	}
-
+	sort.SliceStable(private, func(i, j int) bool {
+		ai := net.ParseIP(private[i]).To4()
+		bj := net.ParseIP(private[j]).To4()
+		ra, rb := privatePreferenceRank(ai), privatePreferenceRank(bj)
+		if ra != rb {
+			return ra < rb
+		}
+		return private[i] < private[j]
+	})
+	sort.Strings(global)
+	if len(private) > 0 {
+		return private[0]
+	}
+	if len(global) > 0 {
+		return global[0]
+	}
 	return "127.0.0.1"
+}
+
+// privatePreferenceRank 越小越优先：常见局域网网段优先于 172.16/12（多被 Hyper-V、Docker、WSL 虚拟网卡占用）。
+func privatePreferenceRank(ip4 net.IP) int {
+	if ip4 == nil {
+		return 99
+	}
+	if ip4[0] == 192 && ip4[1] == 168 {
+		return 0
+	}
+	if ip4[0] == 10 {
+		return 1
+	}
+	if ip4[0] == 172 && ip4[1] >= 16 && ip4[1] <= 31 {
+		return 3
+	}
+	return 2
 }
 
 // GetNodeIP 获取当前节点IP地址（供外部调用）

@@ -4,11 +4,11 @@
  */
 
 import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
 import { createBackendPaginationParams } from '@/components/gpage'
+import type { GridProps } from '@/components/grid'
 import type { PageInfoObj } from '@/types/api'
-import { queryGatewayInstances } from '@/views/hub0020/api'
 import { formatDate, formatFileSize } from '@/utils/format'
+import { queryGatewayInstances } from '@/views/hub0020/api'
 import { DownloadOutline, EyeOutline, RefreshOutline } from '@vicons/ionicons5'
 import type { Ref } from 'vue'
 import { h, nextTick, ref } from 'vue'
@@ -451,13 +451,13 @@ export function useGatewayLogModel() {
         field: 'requestSize',
         title: '请求大小',
         width: 100,
-        formatter: ({ cellValue }: any) => cellValue != null ? formatFileSize(cellValue) : '-',
+        formatter: ({ cellValue }: any) => formatFileSize(cellValue),
       },
       {
         field: 'responseSize',
         title: '响应大小',
         width: 100,
-        formatter: ({ cellValue }: any) => cellValue != null ? formatFileSize(cellValue) : '-',
+        formatter: ({ cellValue }: any) => formatFileSize(cellValue),
       },
       {
         field: 'resetCount',
@@ -649,7 +649,8 @@ export function useGatewayLogModel() {
   }
 
   /**
-   * 拉取网关实例列表第一条并写入搜索表单，随后触发一次查询（与后端列表默认排序一致：pageIndex=1）。
+   * 拉取网关实例列表第一条并写入搜索表单（与后端列表默认排序一致：pageIndex=1）。
+   * 不触发网关日志查询；由用户点击「查询」或其它入口再拉取日志。
    */
   const bootstrapDefaultGatewayInstance = async (searchFormRef: Ref<any>) => {
     try {
@@ -668,7 +669,6 @@ export function useGatewayLogModel() {
         gatewayInstanceId,
       })
       await nextTick()
-      await searchFormRef.value?.submit?.()
     } catch (e) {
       console.warn('[hub0023] 默认网关实例初始化失败', e)
     }

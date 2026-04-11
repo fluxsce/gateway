@@ -1,5 +1,5 @@
 <template>
-  <div class="gateway-log-query">
+  <div :id="gatewayLogQueryRootId" class="gateway-log-query">
     <GPane direction="vertical" :no-resize="true">
       <!-- 上部：搜索表单 -->
       <template #1>
@@ -148,6 +148,12 @@
       v-model:visible="detailDialogVisible"
       :trace-id="selectedTraceId"
     />
+
+    <ResendRequestDialog
+      v-model:visible="resendDialogVisible"
+      :logs="resendLogs"
+      :mount-container-id="gatewayLogQueryRootId"
+    />
   </div>
 </template>
 
@@ -158,6 +164,8 @@ import { GGrid } from '@/components/grid'
 import { NTag } from 'naive-ui'
 import { onMounted, ref } from 'vue'
 import BackendLogsDialog from '../backed-logs/BackendLogsDialog.vue'
+import ResendRequestDialog from '../resend-request/ResendRequestDialog.vue'
+import { createDomId } from '@/utils/messageUtil'
 import { useGatewayLogPage } from './hooks'
 
 // 定义组件名称
@@ -170,12 +178,17 @@ defineOptions({
 const searchFormRef = ref()
 const gridRef = ref()
 
+/** 本页根节点 id（可作 # 选择器），供重发弹窗 teleport 挂载，避免挂 body 时在多页签下叠到其它标签 */
+const gatewayLogQueryRootId = createDomId('hub0023-gateway-log-query')
+
 // ============= 页面级 Hook（包含服务与对话框、事件处理） =============
 
 const {
   service,
   detailDialogVisible,
   selectedTraceId,
+  resendDialogVisible,
+  resendLogs,
   handleToolbarClick,
   handleMenuClick,
   handleSearch,
@@ -195,6 +208,7 @@ defineExpose({
 
 <style lang="scss" scoped>
 .gateway-log-query {
+  position: relative;
   width: 100%;
   height: 100%;
   overflow: hidden;

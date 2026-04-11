@@ -36,6 +36,11 @@ type LogWriter interface {
 	// Write 写入单条访问日志（主表）
 	Write(ctx context.Context, log *types.AccessLog) error
 
+	// UpdateAccessLog 按 tenantId+traceId 更新已存在的主表访问日志，用于端口重放等场景。
+	// 实现应自增 resetCount（数据库表达式或原子操作），并清空 parentTraceId；不重放自增 retryCount。
+	// 返回受影响逻辑行数：未找到记录时为 0（调用方可回退为 Insert）；非持久化写入器可固定返回 0。
+	UpdateAccessLog(ctx context.Context, log *types.AccessLog) (rowsAffected int64, err error)
+
 	// BatchWrite 批量写入访问日志（主表）
 	BatchWrite(ctx context.Context, logs []*types.AccessLog) error
 
@@ -259,8 +264,25 @@ func WriteLog(instanceID string, gatewayCtx *core.Context) error {
 	// 获取日志配置
 	config := writer.GetLogConfig()
 
-	// 写入主表日志
-	writeErr := writer.Write(gatewayCtx.Ctx, accessLog)
+	// 端口重放：沿用原 trace，更新主表同一行，避免重复主键与列表重复；未落库时回退 Insert。
+	isReplay := false
+	if v, ok := gatewayCtx.GetString(constants.ContextKeyIsGatewayReplay); ok && v == "Y" {
+		isReplay = true
+	}
+
+	var writeErr error
+	if isReplay {
+		n, updErr := writer.UpdateAccessLog(gatewayCtx.Ctx, accessLog)
+		if updErr != nil {
+			HandleGatewayLogWriteFailure(config, accessLog, updErr)
+			return fmt.Errorf("failed to update access log for gateway replay: %w", updErr)
+		}
+		if n == 0 {
+			writeErr = writer.Write(gatewayCtx.Ctx, accessLog)
+		}
+	} else {
+		writeErr = writer.Write(gatewayCtx.Ctx, accessLog)
+	}
 	if writeErr != nil {
 		// 日志写入失败告警
 		HandleGatewayLogWriteFailure(config, accessLog, writeErr)
@@ -628,6 +650,12 @@ func buildAccessLogWithConfig(instanceID string, gatewayCtx *core.Context, confi
 
 	// 计算处理时间指标
 	accessLog.CalculateProcessingTime()
+
+	// 端口重放只更新主表行，不写入 parentTraceId（与预设 trace 一致）；标记已重置
+	if v, ok := gatewayCtx.GetString(constants.ContextKeyIsGatewayReplay); ok && v == "Y" {
+		accessLog.ParentTraceID = ""
+		accessLog.ResetFlag = types.ResetFlagYes
+	}
 
 	// 如果有错误，设置错误信息并可能调整状态码
 	if gatewayCtx.HasErrors() {

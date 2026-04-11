@@ -32,6 +32,30 @@ export interface GModalProps {
   /** 宽度，支持数字或任意 CSS 宽度值 */
   width?: number | string
 
+  /**
+   * 高度，支持数字（px）或任意 CSS 高度值。
+   * 未设置时由 maxHeight（默认 80vh）限制外壳，内部用 flex 仅让内容区滚动。
+   */
+  height?: number | string
+
+  /**
+   * 是否允许通过边框（东、南、东南）拖拽改变宽高；全屏时关闭。
+   * 使用像素宽高覆盖当前 width/height 展示值。
+   */
+  resizable?: boolean
+
+  /** 可缩放时的最小宽度（px） */
+  resizeMinWidth?: number
+
+  /** 可缩放时的最小高度（px） */
+  resizeMinHeight?: number
+
+  /** 可缩放时的最大宽度，数字为 px，字符串可为任意 CSS（默认贴近视口） */
+  resizeMaxWidth?: number | string
+
+  /** 可缩放时的最大高度 */
+  resizeMaxHeight?: number | string
+
   /** 使用的 NModal 预设类型，默认为 dialog */
   preset?: GModalPreset
 
@@ -68,6 +92,13 @@ export interface GModalProps {
 
   /** 是否自动聚焦到弹窗内部 */
   autoFocus?: boolean
+
+  /**
+   * 是否将焦点限制在弹窗内（透传 NModal `trap-focus`，使用 vueuc VFocusTrap）。
+   * 为 true 时两侧占位 div 带 aria-hidden 且可获焦，部分 Chrome 在 Tab 时会报控制台警告。
+   * 需要严格键盘陷阱时设为 true；一般业务可设为 false 消除警告。
+   */
+  trapFocus?: boolean
 
   /**
    * 是否可拖拽
@@ -130,6 +161,9 @@ export interface GModalEmits {
 
   /** 动画离开完成 */
   (event: 'after-leave'): void
+
+  /** 边框缩放结束（mouseup），像素宽高 */
+  (event: 'resize', payload: { width: number; height: number }): void
 }
 
 

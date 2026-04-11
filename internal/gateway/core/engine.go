@@ -62,7 +62,7 @@ func (e *Engine) UseFunc(handlerFunc HandlerFunc) *Engine {
 // 7. 响应保障：确保每个请求都能得到响应，避免连接悬挂
 //
 // 处理流程：
-// 1. 生成唯一trace_id用于链路追踪
+// 1. 生成 trace_id（若已预设 ContextKeyPresetTraceID 则用之）
 // 2. 记录请求开始处理时间和连接建立时间
 // 3. 创建请求上下文并设置时间信息和trace_id
 // 4. 执行完整的处理器链（认证->限流->路由->代理等）
@@ -72,10 +72,12 @@ func (e *Engine) UseFunc(handlerFunc HandlerFunc) *Engine {
 // - w: HTTP响应写入器，用于向客户端发送响应
 // - r: HTTP请求对象，包含客户端请求的所有信息
 func (e *Engine) HandleWithContext(gatewayCtx *Context, w http.ResponseWriter, r *http.Request) {
-	// 生成32位唯一trace_id用于链路追踪和日志关联
-	// 使用并发安全的唯一ID生成器，确保在高并发环境下的唯一性
-	// 这个trace_id将贯穿整个请求处理过程，便于问题排查和性能分析
+	// trace_id：若 ServeHTTP 已注入 ContextKeyPresetTraceID（端口重发携带原始 trace），则使用该值并清除预设键
 	traceID := random.Generate32BitRandomString()
+	if tid, ok := gatewayCtx.GetString(constants.ContextKeyPresetTraceID); ok && tid != "" {
+		traceID = tid
+		gatewayCtx.Delete(constants.ContextKeyPresetTraceID)
+	}
 
 	// 记录请求开始处理时间
 	requestStartTime := time.Now()

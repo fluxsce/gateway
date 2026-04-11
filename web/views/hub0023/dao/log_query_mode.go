@@ -14,19 +14,21 @@ import (
 )
 
 // ResolveGatewayLogQueryType 根据租户与网关实例解析网关日志查询应使用的存储类型。
-// gatewayInstanceId 为空时，取该租户下按创建时间倒序的第一条实例（与实例列表默认排序一致），
+// gatewayInstanceId 非空时按 ID 查实例；为空时取该租户下按创建时间倒序的第一条实例（与实例列表默认排序一致），
 // 并读取其关联日志配置的输出目标。
 // 返回值与 app.gateway.log_query_type 一致：mongo、clickhouse、database。
 func ResolveGatewayLogQueryType(ctx context.Context, db database.Database, tenantID, gatewayInstanceID string) string {
 	fallback := normalizeLogQueryType(config.GetString("app.gateway.log_query_type", "database"))
-	if tenantID == "" {
+	tid := strings.TrimSpace(tenantID)
+	if tid == "" {
 		return fallback
 	}
-	logConfigID, ok := resolveLogConfigIDForGatewayLogQuery(ctx, db, tenantID, gatewayInstanceID)
+	gid := strings.TrimSpace(gatewayInstanceID)
+	logConfigID, ok := resolveLogConfigIDForGatewayLogQuery(ctx, db, tid, gid)
 	if !ok || logConfigID == "" {
 		return fallback
 	}
-	cfg := loadLogConfigViaLoader(ctx, db, tenantID, logConfigID)
+	cfg := loadLogConfigViaLoader(ctx, db, tid, logConfigID)
 	t := mapLogConfigToQueryType(ctx, cfg)
 	if t == "" {
 		return fallback

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"gateway/pkg/database"
@@ -19,6 +20,7 @@ import (
 
 // GatewayLogController 网关日志控制器
 type GatewayLogController struct {
+	mainDB                database.Database
 	gatewayLogDAO         *dao.GatewayLogDAO
 	databaseMonitoringDAO *dao.DatabaseMonitoringDAO
 	backendTraceLogDAO    *dao.BackendTraceLogDAO
@@ -27,6 +29,7 @@ type GatewayLogController struct {
 // NewGatewayLogController 创建网关日志控制器
 func NewGatewayLogController(db database.Database) *GatewayLogController {
 	return &GatewayLogController{
+		mainDB:                db,
 		gatewayLogDAO:         dao.NewGatewayLogDAO(db),
 		databaseMonitoringDAO: dao.NewDatabaseMonitoringDAO(db),
 		backendTraceLogDAO:    dao.NewBackendTraceLogDAO(db),
@@ -129,7 +132,47 @@ func (c *GatewayLogController) Get(ctx *gin.Context) {
 	// 填充后端追踪日志到主表对象
 	log.BackendTraces = backendTraces
 
+	dao.FillGatewayAccessLogResetURL(ctx.Request.Context(), c.mainDB, log)
+
 	// 直接返回完整对象
+	response.SuccessJSON(ctx, log, constants.SD00002)
+}
+
+// GetAccessDetail 获取网关访问日志主表详情（不含后端追踪日志）
+// 与 Get 相同的主表查询与返回结构，但不查询 backendTraceLog，避免重发/重置等场景拉取大体积后端日志。
+// @Summary 获取网关日志主表详情（不含后端追踪）
+// @Description 通过租户ID与链路追踪ID获取主表完整字段，不附带 backendTraces
+// @Tags 网关日志
+// @Accept json
+// @Accept x-www-form-urlencoded
+// @Produce json
+// @Param get body models.GatewayAccessLogGetRequest true "获取参数"
+// @Success 200 {object} response.JsonData
+// @Router /gateway/hub0023/gateway-log/access-detail [post]
+func (c *GatewayLogController) GetAccessDetail(ctx *gin.Context) {
+	var req models.GatewayAccessLogGetRequest
+	if err := request.Bind(ctx, &req); err != nil {
+		logger.ErrorWithTrace(ctx, "网关日志主表详情参数解析失败", "error", err)
+		response.ErrorJSON(ctx, "参数解析错误: "+err.Error(), constants.ED00006)
+		return
+	}
+
+	req.TenantId = request.GetTenantID(ctx)
+
+	if req.TraceId == "" {
+		response.ErrorJSON(ctx, "请提供链路追踪ID", constants.ED00007)
+		return
+	}
+
+	log, err := c.gatewayLogDAO.GetByKey(ctx, req.TenantId, req.TraceId)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "根据组合主键查询失败", "error", err)
+		response.ErrorJSON(ctx, "查询失败: "+err.Error(), constants.ED00008)
+		return
+	}
+
+	dao.FillGatewayAccessLogResetURL(ctx.Request.Context(), c.mainDB, log)
+
 	response.SuccessJSON(ctx, log, constants.SD00002)
 }
 
@@ -208,6 +251,12 @@ func (c *GatewayLogController) GetMonitoringOverview(ctx *gin.Context) {
 	// 从上下文获取租户ID，不使用前端传递的值
 	req.TenantId = request.GetTenantID(ctx)
 
+	if err := validateGatewayMonitoringInstanceRequired(&req); err != nil {
+		logger.ErrorWithTrace(ctx, "网关监控概览实例参数校验失败", "error", err)
+		response.ErrorJSON(ctx, err.Error(), constants.ED00007)
+		return
+	}
+
 	// 校验时间范围
 	if err := c.validateTimeRange(&req); err != nil {
 		logger.ErrorWithTrace(ctx, "网关监控概览查询时间范围校验失败", "error", err)
@@ -247,6 +296,12 @@ func (c *GatewayLogController) GetMonitoringChartData(ctx *gin.Context) {
 
 	// 从上下文获取租户ID，不使用前端传递的值
 	req.TenantId = request.GetTenantID(ctx)
+
+	if err := validateGatewayMonitoringInstanceRequired(&req); err != nil {
+		logger.ErrorWithTrace(ctx, "网关监控图表实例参数校验失败", "error", err)
+		response.ErrorJSON(ctx, err.Error(), constants.ED00007)
+		return
+	}
 
 	// 校验时间范围
 	if err := c.validateTimeRange(&req); err != nil {
@@ -385,4 +440,15 @@ func gatewayLogSummaryToMap(gatewayLog *models.GatewayAccessLogSummary) map[stri
 		"activeFlag":                    gatewayLog.ActiveFlag,
 		"noteText":                      gatewayLog.NoteText,
 	}
+}
+
+// validateGatewayMonitoringInstanceRequired 监控统计必须绑定到具体网关实例。
+func validateGatewayMonitoringInstanceRequired(req *models.GatewayMonitoringQueryRequest) error {
+	if req == nil {
+		return fmt.Errorf("请求参数无效")
+	}
+	if strings.TrimSpace(req.GatewayInstanceId) == "" {
+		return fmt.Errorf("请提供 gatewayInstanceId")
+	}
+	return nil
 }

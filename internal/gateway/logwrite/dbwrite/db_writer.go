@@ -8,6 +8,7 @@ import (
 
 	"gateway/internal/gateway/logwrite/types"
 	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/logger"
 )
 
@@ -141,6 +142,44 @@ func (w *DBWriter) FlushBackendTrace(ctx context.Context) error {
 
 	logger.Debug("Flushed backend trace batch buffer", "count", count)
 	return nil
+}
+
+// UpdateAccessLog 按租户与 trace 单次 UPDATE：仅刷新重放结果态列，resetCount 库侧 +1，parentTraceId 置空（不重放自增 retryCount）。
+// 不做存在性预查；重放路径始终同步执行，不进入异步队列。
+// 返回 SQL 受影响行数，0 时由调用方决定是否 Insert。
+func (w *DBWriter) UpdateAccessLog(ctx context.Context, log *types.AccessLog) (int64, error) {
+	if w.closed {
+		return 0, fmt.Errorf("writer is closed")
+	}
+	if log.TenantID == "" || log.TraceID == "" {
+		return 0, fmt.Errorf("tenantId and traceId required for replay update")
+	}
+
+	where := "tenantId = ? AND traceId = ?"
+	whereArgs := []interface{}{log.TenantID, log.TraceID}
+
+	statePatch := types.NewAccessLogReplayStatePatch(log)
+	setClause, setArgs, err := sqlutils.BuildUpdateQuery("HUB_GW_ACCESS_LOG", &statePatch, true)
+	if err != nil {
+		return 0, fmt.Errorf("replay update build set: %w", err)
+	}
+	resetCountAndParent := "resetCount = COALESCE(resetCount, 0) + 1, parentTraceId = ?"
+	var fullSet string
+	if setClause == "" {
+		fullSet = resetCountAndParent
+	} else {
+		fullSet = setClause + ", " + resetCountAndParent
+	}
+	setArgs = append(setArgs, "")
+
+	query := "UPDATE HUB_GW_ACCESS_LOG SET " + fullSet + " WHERE " + where
+	execArgs := append(setArgs, whereArgs...)
+
+	rows, err := w.db.Exec(ctx, query, execArgs, true)
+	if err != nil {
+		return 0, fmt.Errorf("replay update: %w", err)
+	}
+	return rows, nil
 }
 
 // Write 写入单条访问日志

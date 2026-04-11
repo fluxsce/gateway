@@ -98,6 +98,9 @@ type GatewayAccessLog struct {
 	ActiveFlag     string     `json:"activeFlag" form:"activeFlag" query:"activeFlag" db:"activeFlag"`                 // 活动状态标记(N非活动,Y活动)
 	NoteText       string     `json:"noteText" form:"noteText" query:"noteText" db:"noteText"`                         // 备注信息
 
+	// 关联字段 - 按网关实例暴露端口与日志请求路径拼装的重放/重置用完整 URL（查询详情时填充，不落库）
+	ResetUrl string `json:"resetUrl,omitempty" db:"-"`
+
 	// 关联字段 - 后端服务追踪日志列表（从表）
 	BackendTraces []BackendTraceLog `json:"backendTraces" db:"-"` // 后端服务追踪日志列表，一个网关请求可能转发到多个后端服务
 }

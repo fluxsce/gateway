@@ -44,7 +44,7 @@ func Init(router *gin.Engine, db database.Database) {
 		if mongoErr != nil {
 			logger.Warn("默认 MongoDB 连接未就绪，按实例解析为 Mongo 时将回退关系库查询", "error", mongoErr)
 		} else {
-			mongoController = controllers.NewMongoQueryController(mongoClient)
+			mongoController = controllers.NewMongoQueryController(mongoClient, db)
 		}
 
 		var clickhouseController *controllers.ClickHouseQueryController
@@ -52,12 +52,13 @@ func Init(router *gin.Engine, db database.Database) {
 		if clickhouseDB == nil {
 			logger.Warn("ClickHouse 连接 clickhouse_main 未就绪，按实例解析为 ClickHouse 时将回退关系库查询")
 		} else {
-			clickhouseController = controllers.NewClickHouseQueryController(clickhouseDB)
+			clickhouseController = controllers.NewClickHouseQueryController(clickhouseDB, db)
 		}
 
 		// 按请求中的网关实例（缺省时取租户下实例列表第一条）关联的日志配置 outputTargets 选择查询后端
 		protectedGroup.POST("/gateway-log/query", dispatchGatewayLogQuery(db, mongoController, clickhouseController, gatewayLogController))
 		protectedGroup.POST("/gateway-log/get", dispatchGatewayLogGet(db, mongoController, clickhouseController, gatewayLogController))
+		protectedGroup.POST("/gateway-log/access-detail", dispatchGatewayLogAccessDetail(db, mongoController, clickhouseController, gatewayLogController))
 		protectedGroup.POST("/gateway-log/count", dispatchGatewayLogCount(db, mongoController, clickhouseController))
 		protectedGroup.POST("/gateway-log/monitoring/overview", dispatchGatewayMonitoringOverview(db, mongoController, clickhouseController, gatewayLogController))
 		protectedGroup.POST("/gateway-log/monitoring/chart-data", dispatchGatewayMonitoringChartData(db, mongoController, clickhouseController, gatewayLogController))

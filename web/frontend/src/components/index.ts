@@ -108,6 +108,10 @@ export type { GExportEmits, GExportProps } from './gexport-import'
 export { GImport } from './gexport-import'
 export type { GExportImportSize, GImportEmits, GImportProps } from './gexport-import'
 
+// RESTful API 调试（类 Postman）
+export { GRestfulApi, sendRestRequest } from './grestful-api'
+export * from './grestful-api/types'
+
 // 其他组件
 export { default as RequestInitializer } from './RequestInitializer.vue'
 

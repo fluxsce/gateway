@@ -32,6 +32,15 @@ export const getGatewayLog = async (params: GatewayLogGetParams): Promise<JsonDa
 }
 
 /**
+ * 网关日志主表详情（不含后端追踪），与 get 相同请求体，避免拉取 backendTraces
+ */
+export const getGatewayLogAccessDetail = async (
+  params: GatewayLogGetParams,
+): Promise<JsonDataObj> => {
+  return gatewayLogApi.post('/gateway-log/access-detail', params)
+}
+
+/**
  * 网关日志重置API（支持批量）
  * @param params 重置参数
  * @returns 重置结果

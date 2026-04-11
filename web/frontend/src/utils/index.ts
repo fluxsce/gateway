@@ -25,3 +25,6 @@ export { renderIconVNode } from '@/components/gicon'
 // 导出剪贴板相关工具函数
 export * from './clipboard'
 
+// DOM 唯一 id 生成（如弹窗挂载容器）
+export { createDomId } from './messageUtil'
+

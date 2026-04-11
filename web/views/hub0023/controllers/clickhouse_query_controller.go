@@ -20,13 +20,17 @@ import (
 type ClickHouseQueryController struct {
 	clickhouseQueryDAO      *dao.ClickHouseQueryDAO
 	clickhouseMonitoringDAO *dao.ClickHouseMonitoringDAO
+	// instanceLookupDB 关系库，用于按 gatewayInstanceId 查 HUB_GW_INSTANCE（如拼装 resetUrl）
+	instanceLookupDB database.Database
 }
 
 // NewClickHouseQueryController 创建ClickHouse查询控制器
-func NewClickHouseQueryController(db database.Database) *ClickHouseQueryController {
+// clickhouseDB 为 ClickHouse 连接；instanceLookupDB 为关系库，可为 nil 则跳过依赖主库的关联填充。
+func NewClickHouseQueryController(clickhouseDB, instanceLookupDB database.Database) *ClickHouseQueryController {
 	return &ClickHouseQueryController{
-		clickhouseQueryDAO:      dao.NewClickHouseQueryDAO(db),
-		clickhouseMonitoringDAO: dao.NewClickHouseMonitoringDAO(db),
+		clickhouseQueryDAO:      dao.NewClickHouseQueryDAO(clickhouseDB),
+		clickhouseMonitoringDAO: dao.NewClickHouseMonitoringDAO(clickhouseDB),
+		instanceLookupDB:        instanceLookupDB,
 	}
 }
 
@@ -51,6 +55,12 @@ func (c *ClickHouseQueryController) GetGatewayMonitoringOverview(ctx *gin.Contex
 
 	// 从上下文获取租户ID，不使用前端传递的值
 	req.TenantId = request.GetTenantID(ctx)
+
+	if err := validateGatewayMonitoringInstanceRequired(&req); err != nil {
+		logger.ErrorWithTrace(ctx, "ClickHouse网关监控概览实例参数校验失败", "error", err)
+		response.ErrorJSON(ctx, err.Error(), constants.ED00007)
+		return
+	}
 
 	// 校验时间范围
 	if err := c.validateTimeRange(&req); err != nil {
@@ -91,6 +101,12 @@ func (c *ClickHouseQueryController) GetGatewayMonitoringChartData(ctx *gin.Conte
 
 	// 从上下文获取租户ID，不使用前端传递的值
 	req.TenantId = request.GetTenantID(ctx)
+
+	if err := validateGatewayMonitoringInstanceRequired(&req); err != nil {
+		logger.ErrorWithTrace(ctx, "ClickHouse网关监控图表实例参数校验失败", "error", err)
+		response.ErrorJSON(ctx, err.Error(), constants.ED00007)
+		return
+	}
 
 	// 校验时间范围
 	if err := c.validateTimeRange(&req); err != nil {
@@ -232,6 +248,45 @@ func (c *ClickHouseQueryController) GetGatewayLog(ctx *gin.Context) {
 
 	// 填充后端追踪日志到主表对象
 	log.BackendTraces = backendTraces
+
+	dao.FillGatewayAccessLogResetURL(ctx.Request.Context(), c.instanceLookupDB, log)
+
+	response.SuccessJSON(ctx, log, constants.SD00002)
+}
+
+// GetGatewayLogAccessDetail 获取网关日志主表详情（ClickHouse版本，不含后端追踪日志）
+// @Summary 获取ClickHouse网关日志主表详情（不含后端追踪）
+// @Description 通过租户ID与链路追踪ID获取主表完整字段，不附带 backendTraces
+// @Tags ClickHouse网关日志
+// @Accept json
+// @Accept x-www-form-urlencoded
+// @Produce json
+// @Param get body models.GatewayAccessLogGetRequest true "获取参数"
+// @Success 200 {object} response.JsonData
+// @Router /gateway/hub0023/clickhouse-gateway-log/access-detail [post]
+func (c *ClickHouseQueryController) GetGatewayLogAccessDetail(ctx *gin.Context) {
+	var req models.GatewayAccessLogGetRequest
+	if err := request.Bind(ctx, &req); err != nil {
+		logger.ErrorWithTrace(ctx, "ClickHouse网关日志主表详情参数解析失败", "error", err)
+		response.ErrorJSON(ctx, "参数解析错误: "+err.Error(), constants.ED00006)
+		return
+	}
+
+	req.TenantId = request.GetTenantID(ctx)
+
+	if req.TraceId == "" {
+		response.ErrorJSON(ctx, "请提供链路追踪ID", constants.ED00007)
+		return
+	}
+
+	log, err := c.clickhouseQueryDAO.GetGatewayLogByKey(ctx, req.TenantId, req.TraceId)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "ClickHouse网关日志获取失败", "error", err)
+		response.ErrorJSON(ctx, "查询失败: "+err.Error(), constants.ED00008)
+		return
+	}
+
+	dao.FillGatewayAccessLogResetURL(ctx.Request.Context(), c.instanceLookupDB, log)
 
 	response.SuccessJSON(ctx, log, constants.SD00002)
 }

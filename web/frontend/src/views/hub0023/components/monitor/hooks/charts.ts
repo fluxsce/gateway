@@ -12,6 +12,15 @@ import type {
 } from './types'
 
 /**
+ * 公共 tooltip 配置：挂到 body，避免被 GPane / 滚动容器的 overflow 裁剪。
+ */
+const chartTooltipBase = {
+  appendTo: 'body' as const,
+  confine: false,
+  className: 'gateway-monitoring-echarts-tooltip',
+}
+
+/**
  * 监控图表管理
  */
 export function useMonitoringCharts() {
@@ -136,7 +145,7 @@ export function useMonitoringCharts() {
     }
     if (requestTrendChart) {
       requestTrendChart.setOption({
-        tooltip: { trigger: 'axis' },
+        tooltip: { ...chartTooltipBase, trigger: 'axis' },
         xAxis: {
           type: 'time',
           axisLabel: {
@@ -173,6 +182,7 @@ export function useMonitoringCharts() {
     if (responseTimeChart) {
       responseTimeChart.setOption({
         tooltip: {
+          ...chartTooltipBase,
           trigger: 'axis',
           formatter: function (params: any) {
             let tooltip = `<div style="padding: 8px;"><strong>${formatDate(params[0].axisValue, 'MM-DD HH:mm')}</strong><br/>`
@@ -275,6 +285,7 @@ export function useMonitoringCharts() {
     if (requestMetricsChart) {
       requestMetricsChart.setOption({
         tooltip: {
+          ...chartTooltipBase,
           trigger: 'item',
           formatter: '{a} <br/>{b}: {c} ({d}%)',
         },
@@ -324,6 +335,7 @@ export function useMonitoringCharts() {
     if (statusCodeChart) {
       statusCodeChart.setOption({
         tooltip: {
+          ...chartTooltipBase,
           trigger: 'item',
           formatter: function (params: any) {
             const data = chartData.statusCodeDistribution.find(
@@ -388,9 +400,8 @@ export function useMonitoringCharts() {
     if (hotRoutesChart) {
       hotRoutesChart.setOption({
         tooltip: {
+          ...chartTooltipBase,
           trigger: 'axis',
-          confine: false, // 允许 tooltip 超出图表容器，避免被裁剪
-          // 注意：ECharts 5.x 中 tooltip 会自动附加到 body，但需要确保 z-index 足够高
           formatter: function (params: any) {
             const data = chartData.hotRoutes.find((item) => item.routePath === params[0].name)
             if (data) {

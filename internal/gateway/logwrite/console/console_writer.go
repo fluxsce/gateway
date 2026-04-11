@@ -56,6 +56,13 @@ func NewConsoleWriter(config *types.LogConfig) (*ConsoleWriter, error) {
 	return writer, nil
 }
 
+// UpdateAccessLog 控制台为只追加输出，无法按行更新；返回 0 表示未更新，由上层决定是否 Insert。
+func (w *ConsoleWriter) UpdateAccessLog(ctx context.Context, log *types.AccessLog) (int64, error) {
+	_ = ctx
+	_ = log
+	return 0, nil
+}
+
 // Write 写入单条日志
 func (w *ConsoleWriter) Write(ctx context.Context, log *types.AccessLog) error {
 	w.mutex.Lock()

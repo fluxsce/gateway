@@ -82,7 +82,7 @@ type AccessLog struct {
 	ParentTraceID string `json:"parentTraceId" db:"parentTraceId" bson:"parentTraceId"` // 父级链路追踪ID
 
 	// 日志重置标记和次数 - 支持重试和熔断场景
-	ResetFlag  string `json:"resetFlag" db:"resetFlag" bson:"resetFlag"`    // 重置标记(N否,Y是)
+	ResetFlag  string `json:"resetFlag" db:"resetFlag" bson:"resetFlag"`    // 重置标记(N否未重置,Y是已重置)
 	RetryCount int    `json:"retryCount" db:"retryCount" bson:"retryCount"` // 重试次数
 	ResetCount int    `json:"resetCount" db:"resetCount" bson:"resetCount"` // 重置次数
 
@@ -100,6 +100,44 @@ type AccessLog struct {
 	NoteText       string    `json:"noteText" db:"noteText" bson:"noteText"`                   // 备注信息
 }
 
+// AccessLogReplayStatePatch 端口重放更新主表时仅刷新的列，避免 request/response 大字段参与 UPDATE 带来的 I/O（含 ClickHouse mutation）。
+// 与 NewAccessLogReplayStatePatch 配合，从完整 AccessLog 抽取状态码、结束时间、耗时、日志级别、重置标记与审计时间等。
+type AccessLogReplayStatePatch struct {
+	GatewayStatusCode             int       `db:"gatewayStatusCode" bson:"gatewayStatusCode" json:"gatewayStatusCode"`
+	BackendStatusCode             int       `db:"backendStatusCode" bson:"backendStatusCode" json:"backendStatusCode"`
+	GatewayFinishedProcessingTime time.Time `db:"gatewayFinishedProcessingTime" bson:"gatewayFinishedProcessingTime" json:"gatewayFinishedProcessingTime"`
+	TotalProcessingTimeMs         int       `db:"totalProcessingTimeMs" bson:"totalProcessingTimeMs" json:"totalProcessingTimeMs"`
+	GatewayProcessingTimeMs       int       `db:"gatewayProcessingTimeMs" bson:"gatewayProcessingTimeMs" json:"gatewayProcessingTimeMs"`
+	BackendResponseTimeMs         int       `db:"backendResponseTimeMs" bson:"backendResponseTimeMs" json:"backendResponseTimeMs"`
+	ResponseSize                  int       `db:"responseSize" bson:"responseSize" json:"responseSize"`
+	LogLevel                      string    `db:"logLevel" bson:"logLevel" json:"logLevel"`
+	ResetFlag                     string    `db:"resetFlag" bson:"resetFlag" json:"resetFlag"`
+	// ResetCount 主表重置次数列；重放路径由 UpdateAccessLog 在库侧 +1，此处保持 0 不参与 SET，避免与表达式重复赋值。
+	ResetCount int       `db:"resetCount" bson:"resetCount,omitempty" json:"resetCount"`
+	EditTime   time.Time `db:"editTime" bson:"editTime" json:"editTime"`
+	EditWho    string    `db:"editWho" bson:"editWho" json:"editWho"`
+}
+
+// NewAccessLogReplayStatePatch 从重放完成后的访问日志构造主表增量更新载荷（仅状态相关列）。
+func NewAccessLogReplayStatePatch(src *AccessLog) AccessLogReplayStatePatch {
+	if src == nil {
+		return AccessLogReplayStatePatch{}
+	}
+	return AccessLogReplayStatePatch{
+		GatewayStatusCode:             src.GatewayStatusCode,
+		BackendStatusCode:             src.BackendStatusCode,
+		GatewayFinishedProcessingTime: src.GatewayFinishedProcessingTime,
+		TotalProcessingTimeMs:         src.TotalProcessingTimeMs,
+		GatewayProcessingTimeMs:       src.GatewayProcessingTimeMs,
+		BackendResponseTimeMs:         src.BackendResponseTimeMs,
+		ResponseSize:                  src.ResponseSize,
+		LogLevel:                      src.LogLevel,
+		ResetFlag:                     src.ResetFlag,
+		EditTime:                      src.EditTime,
+		EditWho:                       src.EditWho,
+	}
+}
+
 // 常量定义
 const (
 	// 日志类型常量
@@ -112,7 +150,9 @@ const (
 	DefaultEditWho    = "SYSTEM"
 	DefaultActiveFlag = "Y"
 	DefaultResetFlag  = "N"
-	DefaultVersion    = 1
+	// ResetFlagYes 主表已按同 trace 重放更新等场景标记为已重置
+	ResetFlagYes   = "Y"
+	DefaultVersion = 1
 )
 
 // 敏感数据脱敏相关常量
