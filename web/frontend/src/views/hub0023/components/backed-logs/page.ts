@@ -90,7 +90,7 @@ interface GatewayLogDetailWithBackendTraces extends GatewayLogInfo {
  * 后端日志对话框页面级 Hook
  */
 export function useBackendLogsPage(
-  props: { visible: boolean; traceId?: string },
+  props: { visible: boolean; traceId?: string; gatewayInstanceId?: string },
   emit: (event: 'update:visible', value: boolean) => void
 ) {
   const message = useMessage()
@@ -116,11 +116,11 @@ export function useBackendLogsPage(
     },
   })
 
-  // 监听visible变化
+  // 监听弹窗、追踪 ID、实例 ID 变化，保证详情请求始终携带 gatewayInstanceId
   watch(
-    () => props.visible,
-    (val) => {
-      if (val && props.traceId) {
+    () => [props.visible, props.traceId, props.gatewayInstanceId] as const,
+    ([visible]) => {
+      if (visible && props.traceId) {
         loadBackendLogs()
       }
     },
@@ -133,10 +133,19 @@ export function useBackendLogsPage(
       return
     }
 
+    const gatewayInstanceId = String(props.gatewayInstanceId ?? '').trim()
+    if (!gatewayInstanceId) {
+      message.error('缺少网关实例，请从日志列表重新打开详情')
+      gatewayLogInfo.value = null
+      backendTraces.value = []
+      return
+    }
+
     try {
       loading.value = true
       const response = await getGatewayLog({
         traceId: props.traceId,
+        gatewayInstanceId,
       })
 
       if (isApiSuccess(response)) {
@@ -155,7 +164,8 @@ export function useBackendLogsPage(
       }
     } catch (error) {
       console.error('获取后端日志失败:', error)
-      message.error('获取后端日志失败')
+      const msg = error instanceof Error ? error.message : '获取后端日志失败'
+      message.error(msg)
       backendTraces.value = []
     } finally {
       loading.value = false

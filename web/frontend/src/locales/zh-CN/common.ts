@@ -98,6 +98,15 @@ export default {
   // 搜索相关
   searchGlobal: '全局搜索...',
   toolMarket: '工具市场',
+  /** 主布局头部：打开 VitePress 帮助站点 */
+  helpManual: '帮助手册',
+  /** 帮助按钮悬停说明 */
+  helpManualTooltip: '打开产品帮助（侧栏预览，可新窗口全屏阅读）',
+  helpManualOpenNew: '新窗口打开',
+  /** 帮助抽屉内引导文案 */
+  helpManualDrawerIntro: '以下为站内帮助文档，与当前系统同源；可在侧栏内滚动浏览，需要更大视口时请点击下方按钮。',
+  helpManualDrawerHint: '含大图、宽表或长文时，建议使用「新窗口打开」以获得完整浏览器宽度；若加载较慢，请稍候片刻。',
+  helpManualClose: '关闭侧栏',
   // 用户相关
   user: {
     profile: '个人资料',

@@ -48,6 +48,29 @@ function safeParseI18nContent(content: string) {
   }
 }
 
+/**
+ * 开发环境下将「帮助手册」路径代理到独立运行的 VitePress（与 `getDocsSitePath()` 规则一致）。
+ * 另开终端执行 `npm run docs:dev`（默认 5174 端口），否则 iframe 会 404。
+ *
+ * 生产发版：`npm run build` 中的 `build-only` 在 `vite build` 之后执行 `vitepress build docs`，
+ * 文档输出到 `dist/docs/`（见 `docs/.vitepress/config.ts` 的 `outDir`），与主应用一并部署即可。
+ */
+function resolveDocsDevProxy(env: Record<string, string>) {
+  const target = (env.VITE_DOCS_DEV_TARGET || 'http://127.0.0.1:5174').replace(/\/+$/, '')
+  let base = (env.VITE_BASE_URL || '').trim()
+  if (base === '/' || base === '') {
+    return {
+      '^/docs': { target, changeOrigin: true, ws: true },
+    }
+  }
+  if (!base.startsWith('/')) base = `/${base}`
+  base = base.replace(/\/+$/, '')
+  const prefix = `${base}/docs`
+  return {
+    [`^${prefix}`]: { target, changeOrigin: true, ws: true },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
   // 根据当前工作目录中的 `mode` 加载 .env 文件
@@ -252,16 +275,10 @@ export default defineConfig(({ command, mode }) => {
       // port: 3000, // 自定义端口号
       // open: true, // 自动打开浏览器
       /**
-       * API代理配置示例（已注释）
-       * 用于开发环境下请求后端API避免跨域问题
+       * 开发：帮助手册（VitePress）由另一进程提供，经代理挂到与主应用相同的 `/gatewayweb/docs/` 下，
+       * 便于 MainLayoutHeader iframe 同源加载。见 `.env.development` 中 `VITE_DOCS_DEV_TARGET`。
        */
-      // proxy: {
-      //   '/api': {
-      //     target: 'http://localhost:8080',
-      //     changeOrigin: true,
-      //     rewrite: (path) => path.replace(/^\/api/, '')
-      //   }
-      // }
+      ...(command === 'serve' ? { proxy: resolveDocsDevProxy(env) } : {}),
     },
 
     /**

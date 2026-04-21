@@ -411,10 +411,19 @@ async function loadReplayForTrace(traceId: string): Promise<void> {
   detailLoading.value = true
   try {
     const row = props.logs.find((l) => l.traceId === traceId)
-    const gid = row?.gatewayInstanceId?.trim()
+    const gid = String(row?.gatewayInstanceId ?? '').trim()
+    if (!gid) {
+      replayBind.value = {
+        initialUrl: '',
+        initialMethod: 'GET',
+        initialResponseBody: '当前日志行缺少网关实例 ID，无法拉取详情',
+        initialResponseStatusText: '详情加载失败',
+      }
+      return
+    }
     const response = await getGatewayLogAccessDetail({
       traceId,
-      ...(gid ? { gatewayInstanceId: gid } : {}),
+      gatewayInstanceId: gid,
     })
     if (!isApiSuccess(response)) {
       const msg = getApiMessage(response, '获取日志详情失败')

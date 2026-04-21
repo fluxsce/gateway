@@ -1,0 +1,1 @@
+const s="/gatewayweb/docs/assets/hub0080-channel-list.Dt0K9hnL.png",a="/gatewayweb/docs/assets/hub0080-channel-menu.D-dG7LmP.png",t="/gatewayweb/docs/assets/hub0080-channel-edit-basic.Dzy9NT5b.png";export{s as _,a,t as b};

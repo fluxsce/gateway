@@ -72,8 +72,15 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
         ),
       } as GatewayLogQueryParams
 
+      const gid = String(params.gatewayInstanceId ?? '').trim()
+      if (!gid) {
+        message.error('请选择网关实例')
+        setLogList([])
+        return
+      }
+
       // 调用 API（POST 请求，参数通过 body 传递）
-      const response: JsonDataObj = await gatewayLogApi.queryGatewayLogs(params)
+      const response: JsonDataObj = await gatewayLogApi.queryGatewayLogs({ ...params, gatewayInstanceId: gid })
 
       if (isApiSuccess(response)) {
         // 解析业务数据
@@ -96,7 +103,8 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
       }
     } catch (error) {
       console.error('加载网关日志列表失败:', error)
-      message.error('加载网关日志列表失败')
+      const msg = error instanceof Error ? error.message : '加载网关日志列表失败'
+      message.error(msg)
       setLogList([])
     } finally {
       loading.value = false
@@ -214,7 +222,13 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
         ...createBackendPaginationParams(1, 10000), // 导出时使用较大的分页
       } as GatewayLogQueryParams
 
-      const response = await gatewayLogApi.exportGatewayLogs(params)
+      const gid = String(params.gatewayInstanceId ?? '').trim()
+      if (!gid) {
+        message.error('请选择网关实例')
+        return
+      }
+
+      const response = await gatewayLogApi.exportGatewayLogs({ ...params, gatewayInstanceId: gid })
 
       if (isApiSuccess(response)) {
         const downloadUrl = parseJsonData<string>(response)
@@ -232,7 +246,8 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
       }
     } catch (error) {
       console.error('导出网关日志失败:', error)
-      message.error('导出网关日志失败')
+      const msg = error instanceof Error ? error.message : '导出网关日志失败'
+      message.error(msg)
     }
   }
 

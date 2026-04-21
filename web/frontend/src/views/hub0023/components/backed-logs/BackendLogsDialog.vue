@@ -346,6 +346,8 @@ interface Props {
   visible: boolean
   /** 链路追踪ID */
   traceId?: string
+  /** 网关实例 ID，与列表行一致，详情查询必填 */
+  gatewayInstanceId?: string
 }
 
 interface Emits {
@@ -355,6 +357,7 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   visible: false,
   traceId: '',
+  gatewayInstanceId: '',
 })
 
 const emit = defineEmits<Emits>()

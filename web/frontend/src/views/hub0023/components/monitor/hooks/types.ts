@@ -133,8 +133,8 @@ export interface GatewayMonitoringChartData {
  * 网关监控数据查询参数接口
  */
 export interface GatewayMonitoringQueryParams {
-  /** 网关实例ID */
-  gatewayInstanceId?: string
+  /** 网关实例ID（监控类查询必填，与日志按实例统计一致） */
+  gatewayInstanceId: string
   /** 开始时间 */
   startTime: string
   /** 结束时间 */

@@ -127,4 +127,4 @@ docker-compose.override.yml
 *.pem
 *.key
 *.crt
-*.p12 
+*.p12

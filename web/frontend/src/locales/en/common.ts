@@ -91,6 +91,14 @@ export default {
   // Search related
   searchGlobal: 'Global search...',
   toolMarket: 'Tool Market',
+  helpManual: 'Help manual',
+  helpManualTooltip: 'Open product help (side preview; open in new tab for full width)',
+  helpManualOpenNew: 'Open in new window',
+  helpManualDrawerIntro:
+    'In-app help (same origin as this console). Scroll inside the panel, or use the button below for a full browser window.',
+  helpManualDrawerHint:
+    'For large diagrams or wide tables, prefer opening in a new window. If the page is slow to load, please wait a moment.',
+  helpManualClose: 'Close panel',
   // User related
   user: {
     profile: 'Profile',

@@ -25,6 +25,8 @@ export function useGatewayLogPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<
   // 详情对话框状态
   const detailDialogVisible = ref(false)
   const selectedTraceId = ref('')
+  /** 与详情查询一并传入后端的网关实例 ID（与列表行一致） */
+  const selectedGatewayInstanceId = ref('')
 
   /** 请求重发弹窗：左侧 Trace 列表，右侧 GRestfulApi */
   const resendDialogVisible = ref(false)
@@ -33,6 +35,7 @@ export function useGatewayLogPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<
   /** 打开查看详情对话框 */
   const openViewDialog = (log: GatewayLogListItem) => {
     selectedTraceId.value = log.traceId
+    selectedGatewayInstanceId.value = String(log.gatewayInstanceId ?? '').trim()
     detailDialogVisible.value = true
   }
 
@@ -40,6 +43,7 @@ export function useGatewayLogPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<
   const closeDetailDialog = () => {
     detailDialogVisible.value = false
     selectedTraceId.value = ''
+    selectedGatewayInstanceId.value = ''
   }
 
   /** 打开重发弹窗（传入列表行，至少含 traceId） */
@@ -148,6 +152,7 @@ export function useGatewayLogPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<
     // 详情对话框
     detailDialogVisible,
     selectedTraceId,
+    selectedGatewayInstanceId,
     openViewDialog,
     closeDetailDialog,
 

@@ -147,6 +147,7 @@
     <BackendLogsDialog
       v-model:visible="detailDialogVisible"
       :trace-id="selectedTraceId"
+      :gateway-instance-id="selectedGatewayInstanceId"
     />
 
     <ResendRequestDialog
@@ -187,6 +188,7 @@ const {
   service,
   detailDialogVisible,
   selectedTraceId,
+  selectedGatewayInstanceId,
   resendDialogVisible,
   resendLogs,
   handleToolbarClick,

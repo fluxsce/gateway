@@ -14,12 +14,34 @@ import type {
 const gatewayLogApi = createApi('/gateway/hub0023')
 
 /**
+ * 规范化网关实例 ID（去空白）。
+ */
+function normalizeGatewayInstanceId(value: unknown): string {
+  return String(value ?? '').trim()
+}
+
+/**
+ * 校验查询类接口必填的 gatewayInstanceId，与后端按实例维度查询、分片存储一致。
+ * @param raw 调用方传入的实例 ID
+ * @param operationLabel 操作说明，用于错误提示
+ * @returns 非空实例 ID
+ */
+function requireGatewayInstanceIdForQuery(raw: unknown, operationLabel: string): string {
+  const gatewayInstanceId = normalizeGatewayInstanceId(raw)
+  if (!gatewayInstanceId) {
+    throw new Error(`${operationLabel}：请先在查询条件中选择网关实例（gatewayInstanceId）`)
+  }
+  return gatewayInstanceId
+}
+
+/**
  * 网关日志查询API - 列表查询，不返回大字段以提高性能
  * @param params 查询参数
  * @returns 网关日志列表
  */
 export const queryGatewayLogs = async (params: GatewayLogQueryParams): Promise<JsonDataObj> => {
-  return gatewayLogApi.post('/gateway-log/query', params)
+  const gatewayInstanceId = requireGatewayInstanceIdForQuery(params.gatewayInstanceId, '网关日志列表查询')
+  return gatewayLogApi.post('/gateway-log/query', { ...params, gatewayInstanceId })
 }
 
 /**
@@ -28,7 +50,8 @@ export const queryGatewayLogs = async (params: GatewayLogQueryParams): Promise<J
  * @returns 网关日志详情
  */
 export const getGatewayLog = async (params: GatewayLogGetParams): Promise<JsonDataObj> => {
-  return gatewayLogApi.post('/gateway-log/get', params)
+  const gatewayInstanceId = requireGatewayInstanceIdForQuery(params.gatewayInstanceId, '网关日志详情查询')
+  return gatewayLogApi.post('/gateway-log/get', { ...params, gatewayInstanceId })
 }
 
 /**
@@ -37,7 +60,11 @@ export const getGatewayLog = async (params: GatewayLogGetParams): Promise<JsonDa
 export const getGatewayLogAccessDetail = async (
   params: GatewayLogGetParams,
 ): Promise<JsonDataObj> => {
-  return gatewayLogApi.post('/gateway-log/access-detail', params)
+  const gatewayInstanceId = requireGatewayInstanceIdForQuery(
+    params.gatewayInstanceId,
+    '网关日志主表详情查询',
+  )
+  return gatewayLogApi.post('/gateway-log/access-detail', { ...params, gatewayInstanceId })
 }
 
 /**
@@ -55,7 +82,8 @@ export const resetGatewayLogs = async (params: GatewayLogResetParams): Promise<J
  * @returns 导出结果
  */
 export const exportGatewayLogs = async (params: GatewayLogQueryParams): Promise<JsonDataObj> => {
-  return gatewayLogApi.post('/gateway-log/export', params)
+  const gatewayInstanceId = requireGatewayInstanceIdForQuery(params.gatewayInstanceId, '网关日志导出')
+  return gatewayLogApi.post('/gateway-log/export', { ...params, gatewayInstanceId })
 }
 
 /**
@@ -78,7 +106,11 @@ export const cleanupGatewayLogs = async (params: {
 export const getGatewayMonitoringOverview = async (
   params: GatewayMonitoringQueryParams,
 ): Promise<JsonDataObj> => {
-  return gatewayLogApi.post('/gateway-log/monitoring/overview', params)
+  const gatewayInstanceId = requireGatewayInstanceIdForQuery(
+    params.gatewayInstanceId,
+    '网关监控概览查询',
+  )
+  return gatewayLogApi.post('/gateway-log/monitoring/overview', { ...params, gatewayInstanceId })
 }
 
 /**
@@ -89,7 +121,11 @@ export const getGatewayMonitoringOverview = async (
 export const getGatewayMonitoringChartData = async (
   params: GatewayMonitoringQueryParams,
 ): Promise<JsonDataObj> => {
-  return gatewayLogApi.post('/gateway-log/monitoring/chart-data', params)
+  const gatewayInstanceId = requireGatewayInstanceIdForQuery(
+    params.gatewayInstanceId,
+    '网关监控图表数据查询',
+  )
+  return gatewayLogApi.post('/gateway-log/monitoring/chart-data', { ...params, gatewayInstanceId })
 }
 
 /**
@@ -100,5 +136,9 @@ export const getGatewayMonitoringChartData = async (
 export const getGatewayRealtimeMonitoringData = async (
   params: GatewayMonitoringQueryParams,
 ): Promise<JsonDataObj> => {
-  return gatewayLogApi.post('/gateway-log/monitoring/realtime', params)
+  const gatewayInstanceId = requireGatewayInstanceIdForQuery(
+    params.gatewayInstanceId,
+    '网关实时监控数据查询',
+  )
+  return gatewayLogApi.post('/gateway-log/monitoring/realtime', { ...params, gatewayInstanceId })
 }

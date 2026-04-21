@@ -359,6 +359,18 @@ export function useGrid(options: UseGridOptions) {
       }
       return grid.getCurrentRecord?.() || null
     },
+    getCheckboxRecordsOrCurrentRows: () => {
+      const grid = gridRef.value
+      if (!grid) {
+        return []
+      }
+      const checked = grid.getCheckboxRecords?.() || []
+      if (checked.length > 0) {
+        return checked
+      }
+      const current = grid.getCurrentRecord?.()
+      return current ? [current] : []
+    },
     setCheckboxRow: (rows: any[], checked: boolean) => {
       if (gridRef.value) {
         gridRef.value.setCheckboxRow(rows, checked)

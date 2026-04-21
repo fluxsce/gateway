@@ -401,6 +401,12 @@ export interface GridExpose {
   getSelectedOrCurrentRecord: () => any | null
 
   /**
+   * 获取批量操作目标行：有复选框勾选时返回全部勾选行；若无勾选则返回当前高亮行（getCurrentRecord）组成的 0～1 条数组。
+   * 适用于工具栏批量删除等「多选优先、否则单击行」场景。
+   */
+  getCheckboxRecordsOrCurrentRows: () => any[]
+
+  /**
    * 设置选中行
    */
   setCheckboxRow: (rows: any[], checked: boolean) => void

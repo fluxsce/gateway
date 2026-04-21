@@ -104,10 +104,9 @@ export function useAlertTemplatePage(gridRef?: Ref<any> | any, searchFormRef?: R
       return
     }
     if (key === 'delete') {
-      // 批量删除：依赖 gridRef 的选中行
-      const rows: AlertTemplate[] = gridRef?.value?.getSelectedRows?.() || []
+      const rows = (gridRef?.value?.getCheckboxRecordsOrCurrentRows?.() || []) as AlertTemplate[]
       if (!rows || rows.length === 0) {
-        message.warning('请先选择要删除的模板')
+        message.warning('请先勾选要删除的模板，或单击选中一行后再删除')
         return
       }
       const confirmed = await gDialog.warning({

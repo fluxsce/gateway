@@ -329,8 +329,8 @@ export interface GatewayLogQueryParams {
 export interface GatewayLogGetParams {
   /** 链路追踪ID */
   traceId: string
-  /** 可选，与列表一致时用于解析日志存储及后端拼装 resetUrl 所依赖的实例 */
-  gatewayInstanceId?: string
+  /** 与列表一致，用于按实例解析日志存储及后端拼装 resetUrl；详情与主表详情接口必填 */
+  gatewayInstanceId: string
 }
 
 /**
