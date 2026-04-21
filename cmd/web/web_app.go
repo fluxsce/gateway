@@ -30,6 +30,27 @@ type WebApp struct {
 	port   int
 }
 
+// registerFrontendDocsStatic 将 VitePress 构建产物（dist/docs）挂到与前端 base 一致的 /docs 子路径下，
+// 例如 frontendPrefix 为 /gatewayweb 时对应 URL /gatewayweb/docs/，避免请求落入 SPA NoRoute 后出现假 404。
+func registerFrontendDocsStatic(router *gin.Engine, frontendPrefix, resolvedFrontendPath string) {
+	docsDir := filepath.Join(resolvedFrontendPath, "docs")
+	st, err := os.Stat(docsDir)
+	if err != nil || !st.IsDir() {
+		logger.Info("帮助手册目录不存在，跳过挂载（发版请执行含 vitepress build 的前端打包）",
+			"path", docsDir,
+			"err", err)
+		return
+	}
+	docsURLPrefix := "/docs"
+	if frontendPrefix != "/" && frontendPrefix != "" {
+		docsURLPrefix = strings.TrimSuffix(frontendPrefix, "/") + "/docs"
+	}
+	router.Static(docsURLPrefix, docsDir)
+	logger.Info("帮助手册（VitePress）静态资源已配置",
+		"urlPrefix", docsURLPrefix,
+		"dir", docsDir)
+}
+
 // corsMiddleware CORS跨域中间件
 func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -246,6 +267,9 @@ func NewWebApp(db database.Database) *WebApp {
 				})
 			}
 		}
+
+		// 帮助手册：与 web/frontend 打包产物 dist/docs 对齐，须注册在 NoRoute 之前
+		registerFrontendDocsStatic(router, frontendPrefix, resolvedFrontendPath)
 
 		// 处理Vue3 SPA路由 - 所有未匹配的路由都返回index.html
 		router.NoRoute(func(c *gin.Context) {
