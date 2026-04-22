@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "run-p dev:vite dev:docs --",
+    "dev": "concurrently -k -s first -n VITE,DOCS -c cyan,magenta \"npm:dev:vite\" \"npm:dev:docs\"",
     "dev:vite": "vite",
     "dev:docs": "vitepress dev docs --port 5174",
     "build": "run-p type-check \"build-only {@}\" --",
@@ -87,6 +87,7 @@
     "@vicons/ionicons5": "^0.13.0",
     "@vitejs/plugin-vue": "^5.2.3",
     "@vue/tsconfig": "^0.7.0",
+    "concurrently": "^9.2.1",
     "mockjs": "^1.1.0",
     "npm-run-all2": "^7.0.2",
     "prettier": "3.5.3",

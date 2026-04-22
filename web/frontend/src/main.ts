@@ -4,7 +4,7 @@ import gmessagePlugin from '@/components/gmessage/plugin'
 import naive from 'naive-ui'
 import { createPinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
-import { createApp } from 'vue'
+import { createApp, nextTick } from 'vue'
 import App from './App.vue'
 import { setupI18n } from './locales'
 import { setupPlugins } from './plugins'
@@ -33,6 +33,13 @@ import '@vxe-ui/plugin-menu/dist/style.css'
 //全局样式
 import './styles/index.scss'
 
+/**
+ * removeBootSplash 移除 `index.html` 中的静态首屏 Loading。
+ */
+function removeBootSplash() {
+  document.getElementById('app-boot-splash')?.remove()
+}
+
 
 // 配置被动事件监听器以提高滚动性能（如无需要可注释掉）
 // import { setupPassiveEvents } from './utils/passive-events'
@@ -46,8 +53,10 @@ import './styles/index.scss'
 //   ]
 // })
 
-// 异步初始化应用
-async function initApp() {
+/**
+ * startApp 启动完整 Vue 应用（由 `boot.ts` 动态导入触发）。
+ */
+export async function startApp() {
   try {
     // 创建Vue应用实例
     const app = createApp(App)
@@ -82,14 +91,13 @@ async function initApp() {
 
     // 使用插件 - 结合 naive-ui 使用
     VxeUI.use(VxeUIPluginRenderNaive)
-    
+
     // 使用右键菜单插件
     VxeUI.use(VxeUIPluginMenu)
 
     // 配置 vxe-table 全局 z-index，确保 tooltip 在模态框中正确显示
-    // 模态框的 z-index 通常是 2000-3000，设置更高的值确保 tooltip 显示在上层
     VxeUI.setConfig({
-      zIndex: 4000, // 设置 vxe-table 的全局 z-index，包括 tooltip
+      zIndex: 4000,
     })
 
     // 配置 vxe-table（必须在路由之前注册）
@@ -102,31 +110,20 @@ async function initApp() {
     // 使用路由
     app.use(router)
 
+    // 等待路由完成初始导航（含异步路由组件 chunk），避免挂载后短暂空白
+    await router.isReady()
+
     // 安装所有插件后再挂载应用
     app.mount('#app')
+    await nextTick()
+    removeBootSplash()
 
     console.log('应用初始化完成')
 
     return app
   } catch (error) {
     console.error('应用初始化过程中发生错误:', error)
+    removeBootSplash()
     throw error
   }
 }
-
-// 启动应用
-initApp().catch((err) => {
-  console.error('应用初始化失败:', err)
-
-  // 显示友好的错误信息到页面
-  const rootEl = document.getElementById('app')
-  if (rootEl) {
-    rootEl.innerHTML = `
-      <div style="padding: 20px; text-align: center; color: #666;">
-        <h2>应用加载失败</h2>
-        <p>请刷新页面或联系管理员</p>
-        <p style="font-size: 12px; margin-top: 10px;">错误信息: ${err.message || '未知错误'}</p>
-      </div>
-    `
-  }
-})

@@ -71,6 +71,34 @@ function resolveDocsDevProxy(env: Record<string, string>) {
   }
 }
 
+/**
+ * 将 node_modules 按依赖族拆成独立 chunk，减轻首条入口 JS 体积并利于缓存。
+ * 顺序靠前的规则优先匹配。
+ */
+function resolveManualChunk(id: string): string | undefined {
+  if (!id.includes('node_modules')) return undefined
+  // Rollup 在 Windows 上 id 可能含反斜杠，统一后再匹配
+  const m = id.replace(/\\/g, '/')
+  if (m.includes('/naive-ui')) return 'naive-ui'
+  if (m.includes('/vxe-table') || m.includes('/vxe-pc-ui') || m.includes('/@vxe-ui')) return 'vxe'
+  if (m.includes('/echarts') || m.includes('/zrender')) return 'echarts'
+  if (m.includes('/@antv')) return 'antv'
+  if (m.includes('/@codemirror') || m.includes('/codemirror/')) return 'codemirror'
+  if (m.includes('/@tiptap') || m.includes('/prosemirror')) return 'tiptap'
+  if (m.includes('/highlight.js')) return 'highlight'
+  if (m.includes('/@intlify')) return 'vue-i18n'
+  if (m.includes('/vue-i18n')) return 'vue-i18n'
+  if (m.includes('/vue-router')) return 'vue-router'
+  if (m.includes('/pinia')) return 'pinia'
+  if (m.includes('/axios')) return 'axios'
+  if (m.includes('/@vicons')) return 'vicons'
+  if (m.includes('/cron-parser')) return 'cron-parser'
+  if (m.includes('/@css-render') || m.includes('/seemly')) return 'naive-ui-deps'
+  if (m.includes('/async-validator')) return 'async-validator'
+  if (m.includes('/node_modules/@vue/') || m.includes('/node_modules/vue/')) return 'vue'
+  return 'vendor'
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
   // 根据当前工作目录中的 `mode` 加载 .env 文件
@@ -90,7 +118,8 @@ export default defineConfig(({ command, mode }) => {
      */
     plugins: [
       vue(), // 提供Vue 3单文件组件支持
-      vueDevTools(), // 增强Vue开发者工具，提供更多调试功能
+      // 仅开发服务注入 DevTools，避免生产构建携带调试相关逻辑
+      ...(command === 'serve' ? [vueDevTools()] : []),
 
       /**
        * 组件自动导入配置
@@ -286,6 +315,8 @@ export default defineConfig(({ command, mode }) => {
      * 定制项目构建输出
      */
     build: {
+      /** naive / vxe / echarts / vicons 等 chunk 常超 500kB，提高阈值避免误报 */
+      chunkSizeWarningLimit: 1200,
       // outDir: 'dist', // 输出目录
       // assetsDir: 'assets', // 静态资源目录
       // minify: 'terser', // 使用terser进行代码压缩
@@ -296,17 +327,13 @@ export default defineConfig(({ command, mode }) => {
       //   }
       // },
       /**
-       * 分块策略（已注释）
-       * 配置代码拆分方式，优化加载性能
+       * 分块策略：按依赖族拆分 node_modules，缩小首屏入口 chunk、提升缓存命中率。
        */
-      // rollupOptions: {
-      //   output: {
-      //     manualChunks: {
-      //       vendor: ['vue', 'vue-router', 'pinia'],
-      //       ui: ['naive-ui']
-      //     }
-      //   }
-      // }
+      rollupOptions: {
+        output: {
+          manualChunks: resolveManualChunk,
+        },
+      },
     },
   }
 })

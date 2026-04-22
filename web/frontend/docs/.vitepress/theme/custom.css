@@ -1,0 +1,201 @@
+/**
+ * 企业级文档站视觉：克制配色、清晰层次、与 FLUX 品牌红呼应的强调色。
+ * 基于 VitePress 默认主题 CSS 变量，见 https://vitepress.dev/reference/default-theme
+ */
+
+:root {
+  --vp-c-brand-1: #b91c1c;
+  --vp-c-brand-2: #991b1b;
+  --vp-c-brand-3: #7f1d1d;
+  --vp-c-brand-soft: rgb(185 28 28 / 0.12);
+
+  --vp-c-bg: #f8fafc;
+  --vp-c-bg-alt: #f1f5f9;
+  --vp-c-bg-elv: #ffffff;
+  --vp-c-border: #e2e8f0;
+  --vp-c-divider: #e2e8f0;
+  --vp-c-text-1: #0f172a;
+  --vp-c-text-2: #334155;
+  --vp-c-text-3: #64748b;
+
+  --vp-layout-max-width: 1480px;
+  --vp-sidebar-width: 292px;
+  --vp-font-family-base: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    'Source Han Sans SC', system-ui, -apple-system, sans-serif;
+  --vp-font-family-mono: 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Consolas,
+    monospace;
+}
+
+.dark {
+  --vp-c-bg: #0b1220;
+  --vp-c-bg-alt: #111827;
+  --vp-c-bg-elv: #151f32;
+  --vp-c-border: #1e293b;
+  --vp-c-divider: #1e293b;
+  --vp-c-text-1: #f1f5f9;
+  --vp-c-text-2: #cbd5e1;
+  --vp-c-text-3: #94a3b8;
+  --vp-c-brand-soft: rgb(248 113 113 / 0.15);
+}
+
+/* 顶栏：固定、底部分割、轻微毛玻璃 */
+.VPNav {
+  border-bottom: 1px solid var(--vp-c-border);
+  background: color-mix(in srgb, var(--vp-c-bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+/* 首页 Hero */
+.VPHome .VPHero {
+  padding: clamp(3rem, 10vw, 5.5rem) 1.5rem 3rem;
+}
+
+.VPHome .VPHero .heading {
+  max-width: 52rem;
+}
+
+.VPHome .VPHero .name,
+.VPHome .VPHero .text {
+  letter-spacing: -0.02em;
+}
+
+.VPHome .VPHero .name {
+  font-weight: 700;
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  background: linear-gradient(105deg, #b91c1c 0%, #0f172a 55%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.VPHome .VPHero .text {
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+  font-size: clamp(1.25rem, 2.5vw, 1.5rem);
+}
+
+.VPHome .VPHero .tagline {
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: var(--vp-c-text-2);
+  max-width: 40rem;
+}
+
+.VPHome .VPHero .actions .VPButton.brand {
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 0 1.35rem;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
+}
+
+.VPHome .VPHero .actions .VPButton.alt {
+  font-weight: 600;
+  border-radius: 8px;
+  border-color: var(--vp-c-border);
+}
+
+.VPHome .VPHero .image-container .image-bg {
+  border-radius: 12px;
+  box-shadow: 0 20px 50px -12px rgb(15 23 42 / 0.18);
+}
+
+/* 首页特性卡片 */
+.VPHome .VPFeatures .container {
+  max-width: 72rem;
+}
+
+.VPHome .VPFeatures .VPFeature {
+  border: 1px solid var(--vp-c-border);
+  border-radius: 12px;
+  background: var(--vp-c-bg-elv);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.VPHome .VPFeatures .VPFeature:hover {
+  border-color: color-mix(in srgb, var(--vp-c-brand-1) 35%, var(--vp-c-border));
+  box-shadow: 0 12px 40px -16px rgb(15 23 42 / 0.12);
+  transform: translateY(-2px);
+}
+
+.VPHome .VPFeatures .VPFeature .title {
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.VPHome .VPFeatures .VPFeature .details {
+  line-height: 1.65;
+  color: var(--vp-c-text-2);
+}
+
+/* 首页 Markdown 区（产品概览等）：图片铺满内容容器宽度 */
+.VPHome .vp-doc img {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  box-sizing: border-box;
+}
+
+/* 正文文档：阅读宽度与标题层次 */
+.VPDoc .content-container {
+  max-width: 52rem;
+}
+
+.VPDoc .content h1 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  border-bottom: 1px solid var(--vp-c-divider);
+  padding-bottom: 0.75rem;
+}
+
+.VPDoc .content h2 {
+  font-weight: 650;
+  margin-top: 2.25rem;
+  border-top: none;
+}
+
+.VPDoc .content p,
+.VPDoc .content li {
+  line-height: 1.75;
+}
+
+.VPDoc .content img {
+  border-radius: 8px;
+  border: 1px solid var(--vp-c-border);
+  box-shadow: 0 4px 24px rgb(15 23 42 / 0.06);
+}
+
+/* 侧栏分组标题（level-0 分组名） */
+.VPSidebar #VPSidebarNav .VPSidebarItem.level-0 > .item > .text {
+  font-size: 0.8125rem;
+  letter-spacing: 0.03em;
+  color: var(--vp-c-text-3);
+}
+
+/* 分组内子链接：默认主题只对 level-1+ 的嵌套 .items 缩进，level-0 下首层子项无缩进，此处补齐 */
+.VPSidebar #VPSidebarNav .VPSidebarItem.level-0 > .items {
+  margin-top: 4px;
+  margin-left: 6px;
+  padding-left: 14px;
+  border-left: 1px solid var(--vp-c-divider);
+}
+
+/* 页脚 */
+.VPFooter {
+  border-top: 1px solid var(--vp-c-border);
+  background: var(--vp-c-bg-alt);
+  padding: 2rem 1.5rem 2.25rem;
+}
+
+.VPFooter .message,
+.VPFooter .copyright {
+  font-size: 0.875rem;
+  color: var(--vp-c-text-3);
+}
+
+/* 本地搜索框 */
+.VPNavBarSearch .DocSearch-Button {
+  border-radius: 8px;
+  border: 1px solid var(--vp-c-border);
+}

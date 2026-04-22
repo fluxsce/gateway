@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1000" height="900" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="clientGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#E8F5E9;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#C8E6C9;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="gatewayGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#E3F2FD;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#BBDEFB;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="processGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFF3E0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFE0B2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="serviceGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#F3E5F5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#E1BEE7;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="infraGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FCE4EC;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F8BBD0;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-color="rgba(0,0,0,0.2)"/>
+    </filter>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#1976D2"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#388E3C"/>
+    </marker>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1000" height="900" fill="#FAFAFA"/>
+  
+  <!-- Title -->
+  <text x="500" y="30" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#263238">API 网关请求处理流程</text>
+  <text x="500" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#78909C">Gateway Request Processing Flow</text>
+  
+  <!-- Client -->
+  <rect x="50" y="90" width="120" height="80" rx="8" fill="url(#clientGradient)" stroke="#388E3C" stroke-width="2" filter="url(#shadow)"/>
+  <text x="110" y="120" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#1B5E20">客户端</text>
+  <text x="110" y="140" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#2E7D32">Client</text>
+  
+  <!-- Gateway Core -->
+  <rect x="220" y="80" width="560" height="600" rx="10" fill="url(#gatewayGradient)" stroke="#1976D2" stroke-width="3" filter="url(#shadow)"/>
+  <text x="500" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#0D47A1">API 网关核心</text>
+  
+  <!-- Pre-Process -->
+  <rect x="240" y="130" width="520" height="60" rx="6" fill="url(#processGradient)" stroke="#F57C00" stroke-width="2"/>
+  <text x="500" y="155" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#E65100">前置处理 (Pre-Process)</text>
+  <text x="500" y="175" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#546E7A">请求解析 • 参数验证 • 协议转换</text>
+  
+  <!-- Security -->
+  <rect x="260" y="210" width="230" height="50" rx="5" fill="#FFFFFF" stroke="#F57C00" stroke-width="1.5"/>
+  <text x="375" y="232" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#263238">全局安全控制</text>
+  <text x="375" y="248" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">IP黑白名单 • User-Agent过滤</text>
+  
+  <!-- CORS -->
+  <rect x="510" y="210" width="230" height="50" rx="5" fill="#FFFFFF" stroke="#F57C00" stroke-width="1.5"/>
+  <text x="625" y="232" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#263238">全局CORS处理</text>
+  <text x="625" y="248" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">跨域配置 • 预检请求</text>
+  
+  <!-- Auth -->
+  <rect x="260" y="280" width="230" height="50" rx="5" fill="#FFFFFF" stroke="#F57C00" stroke-width="1.5"/>
+  <text x="375" y="302" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#263238">全局认证鉴权</text>
+  <text x="375" y="318" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">JWT • OAuth2.0 • API Key</text>
+  
+  <!-- Rate Limit -->
+  <rect x="510" y="280" width="230" height="50" rx="5" fill="#FFFFFF" stroke="#F57C00" stroke-width="1.5"/>
+  <text x="625" y="302" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#263238">全局限流控制</text>
+  <text x="625" y="318" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">令牌桶 • 漏桶 • 滑动窗口</text>
+  
+  <!-- Router -->
+  <rect x="260" y="350" width="480" height="50" rx="5" fill="#E1F5FE" stroke="#0288D1" stroke-width="2"/>
+  <text x="500" y="372" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#01579B">路由匹配 (Router)</text>
+  <text x="500" y="388" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">路径匹配 • 方法匹配 • 参数提取</text>
+  
+  <!-- Route Handlers -->
+  <rect x="260" y="420" width="480" height="50" rx="5" fill="#E1F5FE" stroke="#0288D1" stroke-width="2"/>
+  <text x="500" y="442" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#01579B">路由级处理器链</text>
+  <text x="500" y="458" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">路由级认证 • 路由级限流 • 自定义插件</text>
+  
+  <!-- Service Discovery -->
+  <rect x="260" y="490" width="150" height="45" rx="5" fill="#FFFFFF" stroke="#0288D1" stroke-width="1.5"/>
+  <text x="335" y="510" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#263238">服务发现</text>
+  <text x="335" y="524" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">Discovery</text>
+  
+  <!-- Load Balance -->
+  <rect x="425" y="490" width="150" height="45" rx="5" fill="#FFFFFF" stroke="#0288D1" stroke-width="1.5"/>
+  <text x="500" y="510" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#263238">负载均衡</text>
+  <text x="500" y="524" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">Load Balance</text>
+  
+  <!-- Circuit Breaker -->
+  <rect x="590" y="490" width="150" height="45" rx="5" fill="#FFFFFF" stroke="#0288D1" stroke-width="1.5"/>
+  <text x="665" y="510" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#263238">熔断检查</text>
+  <text x="665" y="524" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">Circuit Breaker</text>
+  
+  <!-- Proxy Forward -->
+  <rect x="260" y="555" width="480" height="50" rx="5" fill="#E1F5FE" stroke="#0288D1" stroke-width="2"/>
+  <text x="500" y="577" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#01579B">请求转发 (Proxy Forward)</text>
+  <text x="500" y="593" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">协议转换 • 请求重写 • Header处理</text>
+  
+  <!-- Post Process -->
+  <rect x="240" y="625" width="520" height="40" rx="6" fill="url(#processGradient)" stroke="#F57C00" stroke-width="2"/>
+  <text x="500" y="650" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#E65100">响应处理 (Post-Process)</text>
+  
+  <!-- Backend Services -->
+  <rect x="830" y="90" width="140" height="580" rx="8" fill="url(#serviceGradient)" stroke="#7B1FA2" stroke-width="2" filter="url(#shadow)"/>
+  <text x="900" y="120" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#4A148C">后端服务</text>
+  <text x="900" y="140" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#6A1B9A">Backend Services</text>
+  
+  <rect x="850" y="160" width="100" height="40" rx="4" fill="#FFFFFF" stroke="#7B1FA2" stroke-width="1"/>
+  <text x="900" y="185" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#263238">服务 A</text>
+  
+  <rect x="850" y="215" width="100" height="40" rx="4" fill="#FFFFFF" stroke="#7B1FA2" stroke-width="1"/>
+  <text x="900" y="240" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#263238">服务 B</text>
+  
+  <rect x="850" y="270" width="100" height="40" rx="4" fill="#FFFFFF" stroke="#7B1FA2" stroke-width="1"/>
+  <text x="900" y="295" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#263238">服务 C</text>
+  
+  <text x="900" y="335" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6A1B9A">...</text>
+  
+  <rect x="850" y="355" width="100" height="40" rx="4" fill="#FFFFFF" stroke="#7B1FA2" stroke-width="1"/>
+  <text x="900" y="380" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#263238">服务 N</text>
+  
+  <!-- Infrastructure -->
+  <rect x="50" y="720" width="920" height="150" rx="8" fill="url(#infraGradient)" stroke="#C2185B" stroke-width="2" filter="url(#shadow)"/>
+  <text x="510" y="745" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#880E4F">基础设施层</text>
+  
+  <rect x="100" y="765" width="140" height="80" rx="5" fill="#FFFFFF" stroke="#C2185B" stroke-width="1.5"/>
+  <text x="170" y="790" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#263238">日志系统</text>
+  <text x="170" y="808" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">访问日志</text>
+  <text x="170" y="822" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">错误日志</text>
+  <text x="170" y="836" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">审计日志</text>
+  
+  <rect x="260" y="765" width="140" height="80" rx="5" fill="#FFFFFF" stroke="#C2185B" stroke-width="1.5"/>
+  <text x="330" y="790" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#263238">监控系统</text>
+  <text x="330" y="808" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">性能指标</text>
+  <text x="330" y="822" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">健康检查</text>
+  <text x="330" y="836" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">告警通知</text>
+  
+  <rect x="420" y="765" width="140" height="80" rx="5" fill="#FFFFFF" stroke="#C2185B" stroke-width="1.5"/>
+  <text x="490" y="790" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#263238">配置中心</text>
+  <text x="490" y="808" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">动态配置</text>
+  <text x="490" y="822" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">热更新</text>
+  <text x="490" y="836" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">版本管理</text>
+  
+  <rect x="580" y="765" width="140" height="80" rx="5" fill="#FFFFFF" stroke="#C2185B" stroke-width="1.5"/>
+  <text x="650" y="790" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#263238">缓存</text>
+  <text x="650" y="808" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">Redis</text>
+  <text x="650" y="822" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">本地缓存</text>
+  <text x="650" y="836" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">分布式缓存</text>
+  
+  <rect x="740" y="765" width="140" height="80" rx="5" fill="#FFFFFF" stroke="#C2185B" stroke-width="1.5"/>
+  <text x="810" y="790" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#263238">数据库</text>
+  <text x="810" y="808" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">MySQL</text>
+  <text x="810" y="822" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">Oracle</text>
+  <text x="810" y="836" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#546E7A">SQLite</text>
+  
+  <!-- Arrows -->
+  <!-- Client to Gateway -->
+  <path d="M170 130 L220 130" stroke="#388E3C" stroke-width="3" marker-end="url(#arrowGreen)"/>
+  <text x="195" y="125" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#1B5E20" font-weight="bold">请求</text>
+  
+  <!-- Gateway to Services -->
+  <path d="M780 580 L830 300" stroke="#1976D2" stroke-width="3" marker-end="url(#arrowBlue)"/>
+  <text x="815" y="440" font-family="Arial, sans-serif" font-size="10" fill="#0D47A1" font-weight="bold" transform="rotate(-60 815 440)">转发</text>
+  
+  <!-- Services to Gateway -->
+  <path d="M830 350 L780 645" stroke="#7B1FA2" stroke-width="3" marker-end="url(#arrowhead)"/>
+  <text x="815" y="500" font-family="Arial, sans-serif" font-size="10" fill="#4A148C" font-weight="bold" transform="rotate(60 815 500)">响应</text>
+  
+  <!-- Gateway to Client -->
+  <path d="M220 645 L170 160" stroke="#388E3C" stroke-width="3" marker-end="url(#arrowGreen)"/>
+  <text x="185" y="400" font-family="Arial, sans-serif" font-size="10" fill="#1B5E20" font-weight="bold" transform="rotate(-80 185 400)">返回</text>
+  
+  <!-- Gateway to Infrastructure -->
+  <path d="M500 680 L500 720" stroke="#C2185B" stroke-width="2" stroke-dasharray="5,3"/>
+  
+  <!-- Flow indicators inside gateway -->
+  <path d="M500 190 L500 210" stroke="#546E7A" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <path d="M375 260 L375 280" stroke="#546E7A" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <path d="M625 260 L625 280" stroke="#546E7A" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <path d="M500 330 L500 350" stroke="#546E7A" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <path d="M500 400 L500 420" stroke="#546E7A" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <path d="M500 470 L500 490" stroke="#546E7A" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <path d="M500 535 L500 555" stroke="#546E7A" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <path d="M500 605 L500 625" stroke="#546E7A" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+    <polygon points="0 0, 8 3, 0 6" fill="#546E7A"/>
+  </marker>
+</svg>
+
