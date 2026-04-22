@@ -128,3 +128,6 @@ docker-compose.override.yml
 *.key
 *.crt
 *.p12
+/web/frontend/docs/.vitepress/cache/
+/web/frontend/node_modules/
+/web/frontend/package-lock.json
