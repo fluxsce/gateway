@@ -1,5 +1,6 @@
 <!--
   主内容区：与 XiRang AppContent 中 content-wrapper + router-view 职责类似（页签在 MainLayoutHeader）。
+  - 监听 `route.fullPath`：主布局内用 URL 对齐页签（刷新、书签、前进后退）；仅命中 mainLayout 壳（无子路由）时清空页签，回到欢迎占位，避免后退到 `/` 仍保留旧页签导致遮罩卡死。
   - 监听 `layoutActiveTabId`，解析对应 tab 的 `path` 做 `router.push`，与侧栏 upsert / 头部切换共用一套路由同步。
   - keep-alive `include` 来自当前 `layoutTabs`（与页签列表一致）。
   - 全页刷新（F5）：`onMounted` + `nextTick` 内用 Performance API 判断，随后 `router.replace('/')` 回到 SPA 根（地址栏即 `VITE_BASE_URL` 对应前缀 + `/`，与 `config.baseUrl` 一致）。
@@ -91,7 +92,8 @@ const { t: tLogin } = useModuleI18n('hub0001')
 
 const router = useRouter()
 const route = useRoute()
-const { layoutTabs, layoutActiveTabId, activeLayoutTab } = storeToRefs(useGlobalStore())
+const globalStore = useGlobalStore()
+const { layoutTabs, layoutActiveTabId, activeLayoutTab } = storeToRefs(globalStore)
 
 /** 主内容区期望与地址栏一致的路径（与页签 tabId/path 同源） */
 const expectedLayoutContentPath = computed(
@@ -153,6 +155,23 @@ onMounted(() => {
   run()
   void nextTick(run)
 })
+
+/**
+ * 主布局内：用当前 URL 对齐页签（刷新、书签、前进后退）；回到仅命中 mainLayout 的根路径时清空页签以显示欢迎页。
+ * 逻辑放在此组件而非全局 afterEach，避免与占位/遮罩条件割裂。
+ */
+watch(
+  () => route.fullPath,
+  () => {
+    if (!route.matched.some((r) => r.name === 'mainLayout')) return
+    if (globalStore.isMainLayoutShellOnly(route)) {
+      globalStore.clearLayoutTabsForWelcome()
+      return
+    }
+    globalStore.openOrActivateTabFromRoute(route)
+  },
+  { flush: 'post', immediate: true },
+)
 
 /** 激活页签变化时按对应 `path` 同步地址栏（侧栏 upsert / 头部切换 id 均走此逻辑） */
 watch(

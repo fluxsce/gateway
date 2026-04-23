@@ -5,14 +5,14 @@
 import { config } from '@/config/config'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { store } from '@/stores'
+import { useGlobalStore } from '@/stores/global'
 import { LogOutOutline, SettingsOutline } from '@vicons/ionicons5'
 import { NIcon } from 'naive-ui'
 import { computed, h } from 'vue'
-import { useRouter } from 'vue-router'
 
 export function useLayoutUser() {
   const { t: tCommon } = useModuleI18n('common')
-  const router = useRouter()
+  const globalStore = useGlobalStore()
 
   // 用户下拉菜单选项
   const userMenuOptions = computed(() => [
@@ -36,7 +36,8 @@ export function useLayoutUser() {
   const handleUserAction = (key: string | number) => {
     switch (String(key)) {
       case 'settings':
-        router.push('/settings')
+        // 与侧栏一致：先 upsert 页签，由 MainLayoutContent 监听 activeTabId 再 router.push，避免 URL 与页签脱节
+        globalStore.upsertLayoutTab('/settings', tCommon('user.settings'), 'SettingsOutline')
         break
       case 'logout':
         // 执行登出操作

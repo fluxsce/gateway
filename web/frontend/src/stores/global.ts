@@ -147,12 +147,29 @@ export const useGlobalStore = defineStore(
     }
 
     /**
-     * 路由变化时同步页签（编程式导航、地址栏直接修改等）。
+     * 判断是否仅命中主布局壳路由（无业务子路由），此时应展示欢迎占位而非页签内容。
+     */
+    function isMainLayoutShellOnly(route: RouteLocationNormalizedLoaded): boolean {
+      const leaf = route.matched[route.matched.length - 1]
+      return leaf?.name === 'mainLayout'
+    }
+
+    /**
+     * 清空主布局页签与激活 id，用于回到 SPA 根（欢迎页）等与「无打开模块」一致的状态。
+     */
+    function clearLayoutTabsForWelcome() {
+      layoutTabs.value = []
+      layoutActiveTabId.value = ''
+    }
+
+    /**
+     * 路由变化时同步页签（编程式导航、地址栏、前进后退等）。
+     * 仅命中主布局壳、无子页时不写入页签（由调用方配合 `clearLayoutTabsForWelcome`）。
      *
      * @param route - 当前路由对象
      */
     function openOrActivateTabFromRoute(route: RouteLocationNormalizedLoaded) {
-      if (route.name === 'mainLayout') return
+      if (isMainLayoutShellOnly(route)) return
       const title = (route.meta?.title as string) || String(route.name || route.path)
       const icon = route.meta?.icon as string | undefined
       upsertLayoutTab(route.fullPath, title, icon)
@@ -177,6 +194,8 @@ export const useGlobalStore = defineStore(
       setLayoutTabs,
       setLayoutActiveTabId,
       upsertLayoutTab,
+      isMainLayoutShellOnly,
+      clearLayoutTabsForWelcome,
       openOrActivateTabFromRoute,
     }
   },
