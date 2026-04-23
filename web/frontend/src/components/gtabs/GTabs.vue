@@ -235,17 +235,24 @@ function handleClose(tab: GTabsTabItem) {
   if (tab.fixed) return
   const index = props.tabs.findIndex((t) => t.tabId === tab.tabId)
   if (index === -1) return
+  const newTabs = [...props.tabs]
+  newTabs.splice(index, 1)
+
+  // 先同步 tabs，再切换 active，避免外部 watch 在「active 已变但 tabs 仍含旧项」的窗口期解析到错误 path
+  emit('update:tabs', newTabs)
+
   if (tab.tabId === internalActiveTabId.value) {
-    const nextTab = props.tabs[index + 1] || props.tabs[index - 1]
+    const nextTab = newTabs[index] || newTabs[index - 1] || newTabs[0]
     if (nextTab) {
       internalActiveTabId.value = nextTab.tabId
       emit('update:activeTabId', nextTab.tabId)
       emit('change', nextTab.tabId)
+    } else {
+      internalActiveTabId.value = ''
+      emit('update:activeTabId', '')
+      emit('change', '')
     }
   }
-  const newTabs = [...props.tabs]
-  newTabs.splice(index, 1)
-  emit('update:tabs', newTabs)
   emit('close', tab.tabId)
 }
 

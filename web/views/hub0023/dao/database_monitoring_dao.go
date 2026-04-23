@@ -226,7 +226,7 @@ func (dao *DatabaseMonitoringDAO) GetResponseTimeMetricsTrend(ctx context.Contex
 			MAX(CASE WHEN totalProcessingTimeMs IS NOT NULL AND totalProcessingTimeMs > 0 THEN totalProcessingTimeMs ELSE NULL END) as maxResponseTime,
 			%s
 		FROM HUB_GW_ACCESS_LOG
-		%s AND totalProcessingTimeMs IS NOT NULL AND totalProcessingTimeMs > 0
+		%s
 		GROUP BY timeGroup
 		ORDER BY %s
 	`, timeFormat, timestampField, whereClause, orderByField)

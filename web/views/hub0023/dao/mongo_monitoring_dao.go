@@ -300,12 +300,10 @@ func (dao *MongoMonitoringDAO) GetRequestMetricsTrend(ctx context.Context, req *
 // GetResponseTimeMetricsTrend 获取响应时间指标趋势数据
 // 按时间粒度分组统计响应时间数据
 //
-// 查询优化说明：
-// - 预先过滤响应时间为空的记录，减少无效数据处理
-// - 使用$push收集响应时间值用于百分位数计算，但限制在内存可处理范围内
-// - 百分位数计算在应用层进行，避免复杂的MongoDB聚合操作
-// - 时间分组减少数据点数量，适合前端图表展示
-// - 直接使用models.ResponseTimeMetrics结构体进行批量结果转换
+// 查询说明（单次聚合）：
+// - requestCount 与请求量趋势一致：每个时间桶内 $sum:1（全量）
+// - 均值/最值/分位样本仅统计 totalProcessingTimeMs 非空且大于 0 的记录；$avg/$min/$max 使用 $cond + $$REMOVE 排除无效样本
+// - 百分位数在应用层计算；$push 仅收集有效耗时且不超过 60s 的样本，避免异常值撑爆数组
 func (dao *MongoMonitoringDAO) GetResponseTimeMetricsTrend(ctx context.Context, req *models.GatewayMonitoringQueryRequest) ([]models.ResponseTimeMetrics, error) {
 	// 构建查询条件
 	filter, err := dao.buildMonitoringFilter(req)
@@ -313,11 +311,12 @@ func (dao *MongoMonitoringDAO) GetResponseTimeMetricsTrend(ctx context.Context, 
 		return nil, huberrors.WrapError(err, "构建查询条件失败")
 	}
 
-	// 添加响应时间非空条件，避免处理无效数据
-	filter["totalProcessingTimeMs"] = types.Document{
-		"$exists": true,
-		"$ne":     nil,
-		"$gt":     0, // 响应时间应该大于0
+	// totalProcessingTimeMs 有效：非空且大于 0（用于耗时统计；请求数仍统计全量）
+	latencySampleValid := types.Document{
+		"$and": []interface{}{
+			types.Document{"$ne": []interface{}{"$totalProcessingTimeMs", nil}},
+			types.Document{"$gt": []interface{}{"$totalProcessingTimeMs", 0}},
+		},
 	}
 
 	// 获取时间分组格式
@@ -342,17 +341,46 @@ func (dao *MongoMonitoringDAO) GetResponseTimeMetricsTrend(ctx context.Context, 
 					},
 				},
 				// 平均响应时间
-				"avgResponseTime": types.Document{"$avg": "$totalProcessingTimeMs"},
+				"avgResponseTime": types.Document{
+					"$avg": types.Document{
+						"$cond": types.Document{
+							"if":   latencySampleValid,
+							"then": "$totalProcessingTimeMs",
+							"else": "$$REMOVE",
+						},
+					},
+				},
 				// 最小响应时间
-				"minResponseTime": types.Document{"$min": "$totalProcessingTimeMs"},
+				"minResponseTime": types.Document{
+					"$min": types.Document{
+						"$cond": types.Document{
+							"if":   latencySampleValid,
+							"then": "$totalProcessingTimeMs",
+							"else": "$$REMOVE",
+						},
+					},
+				},
 				// 最大响应时间
-				"maxResponseTime": types.Document{"$max": "$totalProcessingTimeMs"},
+				"maxResponseTime": types.Document{
+					"$max": types.Document{
+						"$cond": types.Document{
+							"if":   latencySampleValid,
+							"then": "$totalProcessingTimeMs",
+							"else": "$$REMOVE",
+						},
+					},
+				},
 				// 收集响应时间值用于百分位数计算
 				// 注意：限制收集的数据量，避免内存溢出
 				"responseTimeValues": types.Document{
 					"$push": types.Document{
 						"$cond": types.Document{
-							"if":   types.Document{"$lte": []interface{}{"$$ROOT.totalProcessingTimeMs", 60000}}, // 限制最大值60秒
+							"if": types.Document{
+								"$and": []interface{}{
+									latencySampleValid,
+									types.Document{"$lte": []interface{}{"$totalProcessingTimeMs", 60000}}, // 限制最大值60秒
+								},
+							},
 							"then": "$totalProcessingTimeMs",
 							"else": "$$REMOVE",
 						},

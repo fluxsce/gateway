@@ -409,8 +409,8 @@ export function useMonitoringCharts() {
                                 <div style="padding: 8px;">
                                     <div><strong>${data.routePath}</strong></div>
                                     <div>请求数量: ${data.requestCount}</div>
-                                    <div>最大响应时间: ${data.maxResponseTimeMs || 'N/A'}ms</div>
-                                    <div>最小响应时间: ${data.minResponseTimeMs || 'N/A'}ms</div>
+                                    <div>最大响应时间: ${(data.maxResponseTimeMs ?? 'N/A')}ms</div>
+                                    <div>最小响应时间: ${(data.minResponseTimeMs ?? 'N/A')}ms</div>
                                     <div>错误率: ${data.errorRate}%</div>
                                     <div>QPS: ${data.qps}</div>
                                     <div>服务名称: ${data.serviceName || 'N/A'}</div>

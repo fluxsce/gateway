@@ -63,6 +63,12 @@ interface TestPage {
 
 const testPages: TestPage[] = [
   {
+    path: '/test/route-view-loading-mask',
+    title: '内容区加载遮罩',
+    description: '预览 RouteViewLoadingMask：覆盖内容区、透明度/模糊、滚动与动画效果',
+    icon: 'SparklesOutline',
+  },
+  {
     path: '/test/message',
     title: 'Message 消息组件',
     description: '测试 $gMessage 消息提示：info / success / error / warning / loading',

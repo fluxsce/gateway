@@ -1,7 +1,7 @@
 <template>
   <!-- 基于通用 GModal 的数据编辑弹窗封装 -->
   <GModal
-    v-bind="props"
+    v-bind="modalProps"
     @update:visible="handleUpdateVisible"
     @cancel="handleCancel"
     @confirm="handleConfirm"
@@ -291,6 +291,24 @@ const props = withDefaults(defineProps<DataModalProps>(), {
 })
 
 const emit = defineEmits<DataModalEmits>()
+
+/**
+ * 只向 GModal 透传其定义的 Props，避免将表单相关字段作为 attrs 传入触发控制台警告。
+ * DataModalProps 继承了 GModalProps，但同时扩展了表单字段（mode/formFields/...），需要在这里做一次拆分。
+ */
+const modalProps = computed(() => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const {
+    mode,
+    formFields,
+    formTabs,
+    autoCloseOnConfirm,
+    autoResetOnClose,
+    initialData,
+    ...rest
+  } = props
+  return rest
+})
 
 // 表单引用与数据模型
 const formRef = ref<FormInst | null>(null)

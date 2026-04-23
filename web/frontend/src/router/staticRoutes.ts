@@ -96,6 +96,12 @@ const testRoutes: RouteRecordRaw[] =
               component: () => import('@/views/test/components/GModalTest.vue'),
               meta: { title: 'GModal 测试', requiresAuth: true },
             },
+            {
+              path: 'route-view-loading-mask',
+              name: 'testRouteViewLoadingMask',
+              component: () => import('@/views/test/components/RouteViewLoadingMaskTest.vue'),
+              meta: { title: 'RouteViewLoadingMask', requiresAuth: true },
+            },
           ],
         },
       ]

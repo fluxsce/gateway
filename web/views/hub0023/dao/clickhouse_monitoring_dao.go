@@ -172,7 +172,7 @@ func (dao *ClickHouseMonitoringDAO) GetResponseTimeMetricsTrend(ctx context.Cont
 			quantileIf(0.99)(totalProcessingTimeMs, totalProcessingTimeMs IS NOT NULL AND totalProcessingTimeMs > 0) as p99ResponseTime,
 			toUnixTimestamp(%s(gatewayStartProcessingTime)) * 1000 as timestamp
 		FROM HUB_GW_ACCESS_LOG
-		%s AND totalProcessingTimeMs IS NOT NULL AND totalProcessingTimeMs > 0
+		%s
 		GROUP BY timeGroup, timestamp
 		ORDER BY timestamp
 	`, timeFormat, timeGroupFunc, whereClause)

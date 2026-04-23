@@ -80,6 +80,7 @@ declare module 'vue' {
     RequestInitializer: typeof import('./../components/RequestInitializer.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    RouteViewLoadingMask: typeof import('./../components/RouteViewLoadingMask.vue')['default']
     SearchForm: typeof import('./../components/form/search/SearchForm.vue')['default']
     ThemeSwitcher: typeof import('./../components/common/ThemeSwitcher.vue')['default']
     ToolbarButton: typeof import('./../components/toolbar/ToolbarButton.vue')['default']
