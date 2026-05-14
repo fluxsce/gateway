@@ -143,9 +143,18 @@ if !INCLUDE_ORACLE! EQU 1 (
     set VERSION_SUFFIX=win10
 )
 
-:: Get to project root
-cd /d "%~dp0..\.."
+:: Resolve project root from this script path (same idea as build-centos7.sh: SCRIPT_DIR then ../..)
+:: Using %%~f0 avoids relying on %%~dp0 when %%0 has no path (%%~dp0 would then follow the wrong cwd).
+for %%Z in ("%~f0") do set "SCRIPT_DIR=%%~dpZ"
+cd /d "!SCRIPT_DIR!..\.." 2>nul
+if not exist "go.mod" (
+    echo [ERROR] Project root not found ^(go.mod missing^). Script directory: !SCRIPT_DIR!
+    echo Run this script from the repository, or invoke it by full path: scripts\build\build-win10.cmd
+    pause
+    exit /b 1
+)
 set "PROJECT_ROOT=%CD%"
+echo [INFO] Project root: !PROJECT_ROOT!
 
 :: Clean and create output directory
 echo Cleaning dist directory...
@@ -262,6 +271,9 @@ if not exist "!PACKAGE_DIR!\scripts" mkdir "!PACKAGE_DIR!\scripts"
 if not exist "!PACKAGE_DIR!\scripts\db" mkdir "!PACKAGE_DIR!\scripts\db"
 if not exist "!PACKAGE_DIR!\scripts\data" mkdir "!PACKAGE_DIR!\scripts\data"
 if not exist "!PACKAGE_DIR!\scripts\deploy" mkdir "!PACKAGE_DIR!\scripts\deploy"
+if not exist "!PACKAGE_DIR!\scripts\docker" mkdir "!PACKAGE_DIR!\scripts\docker"
+if not exist "!PACKAGE_DIR!\scripts\k8s" mkdir "!PACKAGE_DIR!\scripts\k8s"
+if not exist "!PACKAGE_DIR!\scripts\test" mkdir "!PACKAGE_DIR!\scripts\test"
 if not exist "!PACKAGE_DIR!\pprof_analysis" mkdir "!PACKAGE_DIR!\pprof_analysis"
 
 :: Executable file already compiled to package directory
@@ -287,10 +299,17 @@ if errorlevel 1 (
     )
 )
 
+:: Prefer robocopy from System32 (works when PATH omits System32). If missing, :GatewayCopyTree falls back to xcopy.
+set "GATEWAY_ROBOCOPY=%SystemRoot%\System32\robocopy.exe"
+if not exist "%GATEWAY_ROBOCOPY%" (
+    echo [INFO] robocopy.exe not under System32, packaging copies will use xcopy instead
+    set "GATEWAY_ROBOCOPY="
+)
+
 :: Copy configuration files
 echo Copying configuration files...
 if exist "configs" (
-    xcopy /Y /E /I /Q "configs\*" "!PACKAGE_DIR!\configs\" >nul 2>&1
+    call :GatewayCopyTree "configs" "!PACKAGE_DIR!\configs"
     if errorlevel 1 (
         echo [WARNING] Failed to copy configuration files
     ) else (
@@ -303,7 +322,7 @@ if exist "configs" (
 :: Copy web static resources
 echo Copying web static resources...
 if exist "web\static" (
-    xcopy /Y /E /I /Q "web\static\*" "!PACKAGE_DIR!\web\static\" >nul 2>&1
+    call :GatewayCopyTree "web\static" "!PACKAGE_DIR!\web\static"
     if errorlevel 1 (
         echo [WARNING] Failed to copy web static resources
     ) else (
@@ -316,7 +335,7 @@ if exist "web\static" (
 :: Copy frontend dist resources
 echo Copying frontend dist resources...
 if exist "web\frontend\dist" (
-    xcopy /Y /E /I /Q "web\frontend\dist\*" "!PACKAGE_DIR!\web\frontend\dist\" >nul 2>&1
+    call :GatewayCopyTree "web\frontend\dist" "!PACKAGE_DIR!\web\frontend\dist"
     if errorlevel 1 (
         echo [WARNING] Failed to copy frontend dist resources
     ) else (
@@ -332,7 +351,7 @@ echo Copying scripts directories...
 
 :: Copy db scripts
 if exist "scripts\db" (
-    xcopy /Y /E /I /Q "scripts\db\*" "!PACKAGE_DIR!\scripts\db\" >nul 2>&1
+    call :GatewayCopyTree "scripts\db" "!PACKAGE_DIR!\scripts\db"
     if errorlevel 1 (
         echo [WARNING] Failed to copy db scripts
     ) else (
@@ -344,7 +363,7 @@ if exist "scripts\db" (
 
 :: Copy deploy scripts
 if exist "scripts\deploy" (
-    xcopy /Y /E /I /Q "scripts\deploy\*" "!PACKAGE_DIR!\scripts\deploy\" >nul 2>&1
+    call :GatewayCopyTree "scripts\deploy" "!PACKAGE_DIR!\scripts\deploy"
     if errorlevel 1 (
         echo [WARNING] Failed to copy deploy scripts
     ) else (
@@ -356,7 +375,7 @@ if exist "scripts\deploy" (
 
 :: Copy docker scripts
 if exist "scripts\docker" (
-    xcopy /Y /E /I /Q "scripts\docker\*" "!PACKAGE_DIR!\scripts\docker\" >nul 2>&1
+    call :GatewayCopyTree "scripts\docker" "!PACKAGE_DIR!\scripts\docker"
     if errorlevel 1 (
         echo [WARNING] Failed to copy docker scripts
     ) else (
@@ -368,7 +387,7 @@ if exist "scripts\docker" (
 
 :: Copy k8s scripts
 if exist "scripts\k8s" (
-    xcopy /Y /E /I /Q "scripts\k8s\*" "!PACKAGE_DIR!\scripts\k8s\" >nul 2>&1
+    call :GatewayCopyTree "scripts\k8s" "!PACKAGE_DIR!\scripts\k8s"
     if errorlevel 1 (
         echo [WARNING] Failed to copy k8s scripts
     ) else (
@@ -380,7 +399,7 @@ if exist "scripts\k8s" (
 
 :: Copy test scripts
 if exist "scripts\test" (
-    xcopy /Y /E /I /Q "scripts\test\*" "!PACKAGE_DIR!\scripts\test\" >nul 2>&1
+    call :GatewayCopyTree "scripts\test" "!PACKAGE_DIR!\scripts\test"
     if errorlevel 1 (
         echo [WARNING] Failed to copy test scripts
     ) else (
@@ -405,6 +424,19 @@ echo.
 echo Opening output directory...
 start "" "dist"
 goto build_success_end
+
+:: GatewayCopyTree copies a source directory tree into an existing destination directory.
+:: First argument: source path relative to project root. Second argument: destination directory path.
+:: Uses GATEWAY_ROBOCOPY when set to full path of robocopy.exe; otherwise xcopy. Returns 0 on success, 1 on failure.
+:GatewayCopyTree
+if defined GATEWAY_ROBOCOPY (
+    "%GATEWAY_ROBOCOPY%" "%~1" "%~2" /E /NFL /NDL /NJH /NJS /nc /ns /np >nul
+    if errorlevel 8 exit /b 1
+    exit /b 0
+)
+xcopy /Y /E /I /Q "%~1\*" "%~2\" >nul 2>&1
+if errorlevel 1 exit /b 1
+exit /b 0
 
 :build_failed_section
     echo.
