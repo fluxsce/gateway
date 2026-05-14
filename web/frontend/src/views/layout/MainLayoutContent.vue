@@ -2,7 +2,7 @@
   主内容区：与 XiRang AppContent 中 content-wrapper + router-view 职责类似（页签在 MainLayoutHeader）。
   - 监听 `route.fullPath`：主布局内用 URL 对齐页签（刷新、书签、前进后退）；仅命中 mainLayout 壳（无子路由）时清空页签，回到欢迎占位，避免后退到 `/` 仍保留旧页签导致遮罩卡死。
   - 监听 `layoutActiveTabId`，解析对应 tab 的 `path` 做 `router.push`，与侧栏 upsert / 头部切换共用一套路由同步。
-  - keep-alive `include` 来自当前 `layoutTabs`（与页签列表一致）。
+  - 未对齐时在内容区叠遮罩（与默认加载视觉一致，底层不透出上一页），路由到位后消失；不卸载 router-view。
   - 全页刷新（F5）：`onMounted` + `nextTick` 内用 Performance API 判断，随后 `router.replace('/')` 回到 SPA 根（地址栏即 `VITE_BASE_URL` 对应前缀 + `/`，与 `config.baseUrl` 一致）。
 -->
 <template>
@@ -25,54 +25,50 @@
       </div>
     </div>
     <!--
-      使用 router-view 的 slot 拿到实际渲染组件与子路由信息：
-      - Component：当前命中的子路由组件（可能是异步组件）
-      - childRoute：用于读取 meta / fullPath 等信息做缓存与 key 控制
+      有激活页签时始终挂载 router-view：页签 id 先于 `router.push` 生效会产生「未对齐」窗口。
+      若此时用 v-if 整段替换为遮罩，会卸载 KeepAlive，已打开页签的缓存状态全部丢失。
+      未对齐时仅在内容区上方叠一层遮罩，路由到位后自动消失。
     -->
-    <!--
-      必须与当前激活页签 path 一致后再挂 router-view：
-      否则在「关光页签后 URL 仍停在旧页」再点菜单开新页签时，会先按旧 URL 渲染一帧，
-      误挂载已关闭页的组件（如 SystemMonitoring 的 onMounted 发请求），随后 watch 才 push 到新路由。
-    -->
-    <RouteViewLoadingMask v-else-if="!isLayoutContentRouteSynced" />
-    <router-view v-else v-slot="{ Component, route: childRoute }">
-      <template v-if="Component">
-        <!--
-          Suspense 用于覆盖“组件异步加载 / async setup”期间的空白：
-          - default：组件 ready 后渲染真实页面
-          - fallback：仅覆盖主内容区的加载态，不影响侧边栏/头部等其它区域交互
-        -->
-        <Suspense>
-          <template #default>
-            <!--
-              keep-alive：按路由 meta 控制是否缓存页面
-              - include 使用当前页签路径集合，确保关闭页签后能释放对应缓存
-              - wrapWithCacheKey：为缓存包一层“稳定组件外壳”，避免同一组件被不同 fullPath 复用时串缓存
-              - :key 使用 fullPath，确保 query/hash 改变时能正确区分页面实例
-            -->
-            <keep-alive
-              v-if="shouldKeepAliveRoute(childRoute)"
-              :max="MAX_CACHED_VIEWS"
-              :include="cachedTabPaths"
-            >
-              <component
-                :is="wrapWithCacheKey(Component, childRoute.fullPath)"
-                :key="layoutViewCacheKey(childRoute)"
-              />
-            </keep-alive>
-            <!-- 不需要缓存的页面直接渲染，同样用 fullPath 做 key 保证切换一致性 -->
+    <div v-else class="main-layout-content__view-host">
+      <router-view v-slot="{ Component, route: childRoute }">
+        <template v-if="Component">
+          <!--
+            keep-alive 须在 Suspense 外侧（见 Vue 文档 Combining with other components）。
+            Suspense 在 wrapWithCacheKey 包装层内；不缓存路由保留外层 Suspense。
+          -->
+          <keep-alive
+            v-if="shouldKeepAliveRoute(childRoute)"
+            :max="MAX_CACHED_VIEWS"
+            :include="cachedTabPaths"
+          >
             <component
-              v-else
-              :is="Component"
+              :is="wrapWithCacheKey(Component, childRoute.fullPath)"
               :key="layoutViewCacheKey(childRoute)"
             />
-          </template>
-          <template #fallback>
-            <RouteViewLoadingMask />
-          </template>
-        </Suspense>
-      </template>
-    </router-view>
+          </keep-alive>
+          <Suspense v-else>
+            <template #default>
+              <component
+                :is="Component"
+                :key="layoutViewCacheKey(childRoute)"
+              />
+            </template>
+            <template #fallback>
+              <RouteViewLoadingMask />
+            </template>
+          </Suspense>
+        </template>
+      </router-view>
+      <div
+        v-if="!isLayoutContentRouteSynced"
+        class="main-layout-content__sync-mask-wrap"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <RouteViewLoadingMask backdrop="solid" />
+      </div>
+    </div>
   </n-layout-content>
 </template>
 
@@ -102,7 +98,7 @@ const expectedLayoutContentPath = computed(
 
 /**
  * 当前路由是否已与激活页签对齐。
- * 有激活页签但尚未对齐时仅展示内容区遮罩，由下方 watch 触发 `router.push`，避免误挂载旧 URL 对应页面。
+ * 未对齐时仅在内容区叠加载遮罩（见模板），**不卸载** router-view，以免 KeepAlive 缓存被清空。
  */
 const isLayoutContentRouteSynced = computed(() => {
   const expected = expectedLayoutContentPath.value
@@ -200,11 +196,11 @@ function layoutTabPathKeys(tabs: { tabId: string; path?: string }[]) {
 }
 
 watch(
-  layoutTabs,
-  (tabs) => {
-    cleanupWrappedCache(new Set(layoutTabPathKeys(tabs)))
+  () => layoutTabPathKeys(layoutTabs.value).slice().sort().join('\0'),
+  () => {
+    cleanupWrappedCache(new Set(layoutTabPathKeys(layoutTabs.value)))
   },
-  { immediate: true, deep: true },
+  { immediate: true },
 )
 
 /**
@@ -232,6 +228,32 @@ function layoutViewCacheKey(r: RouteLocationNormalizedLoaded) {
   box-sizing: border-box;
   position: relative;
   overflow: hidden;
+}
+
+/** 有页签时承载 router-view + 对齐遮罩，保持子树挂载以保留 KeepAlive */
+.main-layout-content__view-host {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/** 路由尚未推到激活页签 path 时盖住内容；与默认加载遮罩同视觉，底层不透出上一页 */
+.main-layout-content__sync-mask-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: auto;
+  animation: main-layout-sync-mask-in 0.14s ease-out;
+}
+
+@keyframes main-layout-sync-mask-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .main-layout-content__placeholder {

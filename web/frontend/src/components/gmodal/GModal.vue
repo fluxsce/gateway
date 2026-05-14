@@ -1,7 +1,7 @@
 <template>
   <n-modal
     :data-g-modal="modalInstanceId"
-    :class="modalRootClass"
+    :class="modalRootClassMerged"
     :show="props.visible"
     :preset="props.preset"
     :style="modalStyle"
@@ -172,12 +172,13 @@
 <script setup lang="ts">
 import { CloseOutline, ContractOutline, ExpandOutline } from '@vicons/ionicons5'
 import { NButton, NIcon, NModal, NSpace } from 'naive-ui'
-import { computed, ref, toRef, useSlots, watch } from 'vue'
+import { computed, ref, toRef, useAttrs, useSlots, watch } from 'vue'
 import type { GModalEmits, GModalProps } from './types'
 import { useGModalResize } from './useGModalResize'
 
 defineOptions({
   name: 'GModal',
+  inheritAttrs: false,
 })
 
 const props = withDefaults(defineProps<GModalProps>(), {
@@ -209,6 +210,7 @@ const props = withDefaults(defineProps<GModalProps>(), {
 
 const emit = defineEmits<GModalEmits>()
 const slots = useSlots()
+const attrs = useAttrs()
 
 /**
  * 每实例唯一 id，写入根节点 `data-g-modal`。
@@ -282,6 +284,15 @@ const modalRootClass = computed(() => ({
   /* 无内置底部且未提供 footer 插槽时隐藏 dialog 的 action 占位 */
   'g-modal--no-footer': !props.showFooter && !slots.footer,
 }))
+
+/** 根为 n-modal + Teleport 片段，需自行合并 class，避免 Vue 无法自动继承的告警 */
+const modalRootClassMerged = computed(() => {
+  const extra = attrs.class
+  if (!extra) {
+    return modalRootClass.value
+  }
+  return [modalRootClass.value, extra]
+})
 
 const modalStyle = computed(() => {
   if (isFullscreen.value) {

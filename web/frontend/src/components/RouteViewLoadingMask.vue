@@ -1,13 +1,42 @@
 <template>
-  <div class="route-view-loading-mask" aria-live="polite" aria-busy="true">
+  <div
+    class="route-view-loading-mask"
+    :class="{ 'route-view-loading-mask--solid': backdrop === 'solid' }"
+    aria-live="polite"
+    aria-busy="true"
+  >
     <div class="route-view-loading-card">
-      <div class="route-view-loading-title">加载中</div>
+      <div class="route-view-loading-title">{{ displayTitle }}</div>
+      <div v-if="hint" class="route-view-loading-hint">{{ hint }}</div>
       <div class="route-view-loading-bar" />
     </div>
   </div>
 </template>
 
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { computed } from 'vue'
+
+const props = withDefaults(
+  defineProps<{
+    /**
+     * translucent：与默认相同，叠在内容上（路由内异步、Suspense fallback）。
+     * solid：视觉与默认相同（同一套渐变与 blur），仅在底层加不透色，挡住下层上一页，避免页签切换时透出旧内容。
+     */
+    backdrop?: 'translucent' | 'solid'
+    /** 主标题，默认「加载中」 */
+    title?: string
+    /** 副文案，如目标页签名称 */
+    hint?: string
+  }>(),
+  {
+    backdrop: 'translucent',
+    title: '',
+    hint: '',
+  },
+)
+
+const displayTitle = computed(() => (props.title?.trim() ? props.title : '加载中'))
+</script>
 
 <style scoped>
 .route-view-loading-mask {
@@ -43,6 +72,29 @@
   backdrop-filter: blur(2px);
 }
 
+/* 与默认同一套叠层，最底层为不透色，上层渐变仍与原来一致，不露出上一页 */
+.route-view-loading-mask--solid {
+  background:
+    radial-gradient(
+      90% 70% at 85% 18%,
+      color-mix(in srgb, var(--g-primary) 26%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      85% 60% at 10% 88%,
+      color-mix(in srgb, var(--g-info) 16%, transparent),
+      transparent 56%
+    ),
+    linear-gradient(
+      152deg,
+      color-mix(in srgb, var(--g-bg-tertiary) 68%, transparent) 0%,
+      color-mix(in srgb, var(--g-bg-secondary) 58%, transparent) 55%,
+      color-mix(in srgb, var(--g-bg-tertiary) 64%, transparent) 100%
+    ),
+    var(--g-bg-secondary);
+  backdrop-filter: blur(2px);
+}
+
 .route-view-loading-mask::before {
   content: '';
   position: absolute;
@@ -70,6 +122,14 @@
   font-weight: 650;
   color: var(--g-text-primary);
   letter-spacing: 0.04em;
+}
+
+.route-view-loading-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--g-text-tertiary);
 }
 
 .route-view-loading-bar {

@@ -79,9 +79,9 @@ function isModuleLoaded(moduleName: string, locale: LocaleType): boolean {
  * @param force 是否强制重新加载，忽略缓存
  */
 export async function loadModuleMessages(
-  moduleName: string, 
+  moduleName: string,
   locale: LocaleType = defaultLocale,
-  force: boolean = false
+  force: boolean = false,
 ) {
   if (!i18n) return {}
 
