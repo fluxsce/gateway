@@ -185,12 +185,15 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 	// 智能处理路径拼接
 	finalPath := h.buildProxyPath(ctx, target.Path)
 
+	// 合并查询参数：节点地址(后台配置)中的参数覆盖前台请求携带的同名参数
+	finalQuery := h.buildProxyQuery(target.RawQuery, ctx.Request.URL.RawQuery)
+
 	// 构建代理请求URL
 	proxyURL := &url.URL{
 		Scheme:   target.Scheme,
 		Host:     target.Host,
 		Path:     finalPath,
-		RawQuery: ctx.Request.URL.RawQuery,
+		RawQuery: finalQuery,
 	}
 
 	// 设置目标URL
@@ -548,6 +551,56 @@ func (h *HTTPProxy) handleWebSocketUpgrade(ctx *core.Context) bool {
 		return false
 	}
 	return true
+}
+
+// buildProxyQuery 合并目标节点地址与客户端请求的查询参数。
+//
+// 处理规则：
+//  1. 节点地址(后台配置)未携带查询参数：原样使用客户端请求的查询参数。
+//  2. 客户端请求未携带查询参数：直接使用节点地址中的查询参数。
+//  3. 两者都存在：以节点地址参数为准覆盖客户端同名参数；客户端独有的参数追加保留；
+//     节点地址独有的参数也会保留（因为整体以节点地址查询串为基础）。
+//
+// 节点地址查询串原样保留（不重新排序或重新编码），避免破坏签名类参数
+// （如 sign、timestamp、apptoken）的原始顺序与编码。
+func (h *HTTPProxy) buildProxyQuery(targetRawQuery, requestRawQuery string) string {
+	if targetRawQuery == "" {
+		return requestRawQuery
+	}
+	if requestRawQuery == "" {
+		return targetRawQuery
+	}
+
+	// 收集节点地址中已配置的参数名，用于判断客户端同名参数是否需要被覆盖（丢弃）
+	targetKeys := make(map[string]struct{})
+	for _, pair := range strings.Split(targetRawQuery, "&") {
+		if pair == "" {
+			continue
+		}
+		key := pair
+		if idx := strings.IndexByte(pair, '='); idx >= 0 {
+			key = pair[:idx]
+		}
+		targetKeys[key] = struct{}{}
+	}
+
+	// 以节点地址查询串为基础（保持原始顺序与编码），再追加客户端中节点地址未配置的参数。
+	merged := targetRawQuery
+	for _, pair := range strings.Split(requestRawQuery, "&") {
+		if pair == "" {
+			continue
+		}
+		key := pair
+		if idx := strings.IndexByte(pair, '='); idx >= 0 {
+			key = pair[:idx]
+		}
+		// 同名参数由节点地址覆盖，跳过客户端携带的该参数
+		if _, exists := targetKeys[key]; exists {
+			continue
+		}
+		merged += "&" + pair
+	}
+	return merged
 }
 
 // buildProxyPath 构建代理请求路径 - 简化的nginx proxy_pass处理方式

@@ -50,13 +50,13 @@ function safeParseI18nContent(content: string) {
 
 /**
  * 开发环境下将「帮助手册」路径代理到独立运行的 VitePress（与 `getDocsSitePath()` 规则一致）。
- * 另开终端执行 `npm run docs:dev`（默认 5174 端口），否则 iframe 会 404。
+ * 另开终端执行 `npm run docs:dev`（默认 5274 端口，与 package.json 的 dev:docs 保持一致），否则 iframe 会 404。
  *
  * 生产发版：`npm run build` 中的 `build-only` 在 `vite build` 之后执行 `vitepress build docs`，
  * 文档输出到 `dist/docs/`（见 `docs/.vitepress/config.ts` 的 `outDir`），与主应用一并部署即可。
  */
 function resolveDocsDevProxy(env: Record<string, string>) {
-  const target = (env.VITE_DOCS_DEV_TARGET || 'http://127.0.0.1:5174').replace(/\/+$/, '')
+  const target = (env.VITE_DOCS_DEV_TARGET || 'http://127.0.0.1:5275').replace(/\/+$/, '')
   let base = (env.VITE_BASE_URL || '').trim()
   if (base === '/' || base === '') {
     return {

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently -k -s first -n VITE,DOCS -c cyan,magenta \"npm:dev:vite\" \"npm:dev:docs\"",
     "dev:vite": "vite",
-    "dev:docs": "vitepress dev docs --port 5174",
+    "dev:docs": "vitepress dev docs --port 5274",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "build-only": "vite build --mode production && vitepress build docs",

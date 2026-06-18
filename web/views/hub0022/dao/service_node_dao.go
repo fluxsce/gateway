@@ -275,8 +275,10 @@ func (dao *ServiceNodeDAO) UpdateServiceNode(ctx context.Context, node *models.S
 	node.OprSeqFlag = random.GenerateUniqueStringWithPrefix("", 32)
 	node.CurrentVersion = currentNode.CurrentVersion + 1
 
-	// 如果URL为空，但主机和端口已提供，则重新生成URL
-	if (node.NodeUrl == "" || node.NodeUrl != currentNode.NodeUrl) && node.NodeHost != "" && node.NodePort > 0 {
+	// 仅当未显式提供 URL 时，才依据主机和端口重新生成。
+	// 用户填写的完整 URL 可能携带路径与查询参数（如 ?method=putSKU&sign=...），
+	// 此时应原样保留，不能用 protocol://host:port 覆盖，否则会丢失参数。
+	if node.NodeUrl == "" && node.NodeHost != "" && node.NodePort > 0 {
 		protocol := strings.ToLower(node.NodeProtocol)
 		if protocol == "" {
 			protocol = strings.ToLower(currentNode.NodeProtocol)

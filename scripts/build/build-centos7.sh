@@ -23,11 +23,38 @@ BUILD_TAGS="netgo,no_oracle"
 export CGO_ENABLED=1
 
 # Parse command line arguments
+# 同时支持 "--version X" 与 "--version=X" 两种写法，与 Windows 脚本保持一致
 ORACLE_ENABLED=false
-if [[ "$1" == "--oracle" ]] || [[ "$1" == "--all" ]]; then
-    ORACLE_ENABLED=true
-    # Remove no_oracle tag to enable Oracle support
-    BUILD_TAGS="netgo"
+VERSION=""
+EXPECT_VERSION=false
+for arg in "$@"; do
+    if [ "$EXPECT_VERSION" = true ]; then
+        VERSION="$arg"
+        EXPECT_VERSION=false
+        continue
+    fi
+    case "$arg" in
+        --oracle|--all)
+            ORACLE_ENABLED=true
+            # Remove no_oracle tag to enable Oracle support
+            BUILD_TAGS="netgo"
+            ;;
+        --version)
+            EXPECT_VERSION=true
+            ;;
+        --version=*)
+            VERSION="${arg#*=}"
+            ;;
+    esac
+done
+
+# 版本号必须由用户提供：未通过 --version 指定时进入交互式输入，仍为空则终止
+if [ -z "$VERSION" ]; then
+    read -r -p "Please enter the release version (e.g. v3.1): " VERSION
+fi
+if [ -z "$VERSION" ]; then
+    echo "[ERROR] Version is required. Pass --version=<ver> or enter it when prompted."
+    exit 1
 fi
 
 # Oracle environment check
@@ -164,7 +191,7 @@ GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 # Output file - always use gateway
 OUTPUT_FILE="dist/gateway"
 PACKAGE_DIR="dist/gateway"
-VERSION_INFO="${VERSION_SUFFIX}-v3.1"
+VERSION_INFO="${VERSION_SUFFIX}-${VERSION}"
 
 # Build flags optimized for CentOS 7
 LDFLAGS="-s -w -X main.Version=${VERSION_INFO} -X main.BuildTime=${BUILD_TIMESTAMP} -X main.GitCommit=${GIT_COMMIT}"
@@ -394,15 +421,54 @@ if [ $BUILD_RESULT -eq 0 ]; then
             echo "Directory structure:"
             ls -d "$PACKAGE_DIR"/*/ 2>/dev/null | sed 's|/$||' | xargs -n1 basename
             echo ""
-            
+
+            # 注意：Oracle Instant Client 受 Oracle OTN 许可约束，不允许随产品再分发，
+            # 因此即便启用 Oracle 构建，也不会把 libclntsh.so 等客户端运行库打入压缩包。
+            # 目标机器需自行安装 Oracle Instant Client，并通过 LD_LIBRARY_PATH 暴露给网关。
+            if [ "$ORACLE_SUPPORT_ENABLED" = true ]; then
+                echo "[INFO] Oracle build: client libraries are NOT bundled (Oracle OTN license restricts redistribution)"
+                echo "[INFO] Install Oracle Instant Client on the target host before running."
+            fi
+
+            # 生成发布压缩包：在 dist 目录内以 gateway 作为顶层目录打包
+            echo ""
+            echo "=========================================="
+            echo " Creating release archive..."
+            echo "=========================================="
+            # Oracle 与非 Oracle 包内容不同，归档文件名加以区分，便于分发时辨识
+            if [ "$ORACLE_SUPPORT_ENABLED" = true ]; then
+                ARCHIVE_NAME="gateway-${VERSION_SUFFIX}-oracle-${VERSION}.tar.gz"
+            else
+                ARCHIVE_NAME="gateway-${VERSION_SUFFIX}-${VERSION}.tar.gz"
+            fi
+            ARCHIVE_PATH="dist/${ARCHIVE_NAME}"
+            rm -f "$ARCHIVE_PATH"
+            if tar -czf "$ARCHIVE_PATH" -C dist gateway; then
+                ARCHIVE_SIZE=$(du -h "$ARCHIVE_PATH" | cut -f1)
+                echo "[OK] Archive created: $ARCHIVE_PATH ($ARCHIVE_SIZE)"
+            else
+                echo "[ERROR] Failed to create release archive"
+                exit 1
+            fi
+            echo ""
+
             echo "Build artifacts location:"
             ls -lh "$OUTPUT_FILE"
+            ls -lh "$ARCHIVE_PATH"
             echo ""
             echo "[DEPLOYMENT INSTRUCTIONS]"
-            echo "1. Copy $PACKAGE_DIR directory to your CentOS 7 server"
+            echo "1. Copy $ARCHIVE_PATH to your CentOS 7 server and extract:"
+            echo "   tar -xzf $ARCHIVE_NAME"
             echo "2. Make sure the binary has execute permissions:"
-            echo "   chmod +x $PACKAGE_DIR/gateway"
-            echo "3. Run the binary: $PACKAGE_DIR/gateway"
+            echo "   chmod +x gateway/gateway"
+            if [ "$ORACLE_SUPPORT_ENABLED" = true ]; then
+                echo "3. Oracle build: install Oracle Instant Client on this host (NOT shipped in the package),"
+                echo "   then expose it before starting, e.g.:"
+                echo "   export LD_LIBRARY_PATH=/usr/lib/oracle/21/client64:\$LD_LIBRARY_PATH"
+                echo "4. Run the binary: gateway/gateway"
+            else
+                echo "3. Run the binary: gateway/gateway"
+            fi
         else
             echo "[ERROR] Build output file exists but has zero size"
             exit 1

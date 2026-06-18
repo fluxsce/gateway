@@ -20,6 +20,32 @@ if /i "!ARG1!"=="--all" set INCLUDE_ORACLE=1
 if /i "!ARG1!"=="--no-oracle" set INCLUDE_ORACLE=0
 if /i "!ARG1!"=="--mysql-only" set INCLUDE_ORACLE=0
 
+:: Version must be supplied by the user. Accept both "--version X" and "--version=X".
+:: Avoid findstr here: System32 may be missing from PATH, which would make findstr fail.
+set GATEWAY_VERSION=
+set NEXT_IS_VERSION=0
+for %%A in (%*) do (
+    if "!NEXT_IS_VERSION!"=="1" (
+        set "GATEWAY_VERSION=%%~A"
+        set NEXT_IS_VERSION=0
+    ) else (
+        set "ARG=%%~A"
+        if /i "!ARG!"=="--version" (
+            set NEXT_IS_VERSION=1
+        ) else (
+            if /i "!ARG:~0,10!"=="--version=" set "GATEWAY_VERSION=!ARG:~10!"
+        )
+    )
+)
+if "!GATEWAY_VERSION!"=="" (
+    set /p GATEWAY_VERSION=Please enter the release version ^(e.g. v3.1^): 
+)
+if "!GATEWAY_VERSION!"=="" (
+    echo [ERROR] Version is required. Pass --version=^<ver^> or enter it when prompted.
+    pause
+    exit /b 1
+)
+
 if !INCLUDE_ORACLE! EQU 1 (
     echo [INFO] Building with Oracle support
     echo Usage: %~nx0 [--oracle^|--all^|--no-oracle^|--mysql-only]
@@ -184,7 +210,7 @@ set GOARCH=amd64
 
 :: Package directory structure
 set PACKAGE_DIR=dist\gateway
-set VERSION_INFO=!VERSION_SUFFIX!-v3.1
+set VERSION_INFO=!VERSION_SUFFIX!-!GATEWAY_VERSION!
 
 :: Create package directory first
 if not exist "!PACKAGE_DIR!" mkdir "!PACKAGE_DIR!"
@@ -411,6 +437,16 @@ if exist "scripts\test" (
 
 :: Note: scripts/data directory is created empty (not copied from source)
 
+:: Oracle Instant Client is covered by the Oracle OTN license, which forbids redistributing
+:: it with your product. Even for an Oracle-enabled build we do NOT copy oci.dll or other
+:: client libraries into the package. The target host must install Oracle Instant Client
+:: itself and add it to PATH before running gateway.exe.
+if !INCLUDE_ORACLE! EQU 1 (
+    echo.
+    echo [INFO] Oracle build: client libraries are NOT bundled ^(Oracle OTN license restricts redistribution^)
+    echo [INFO] Install Oracle Instant Client on the target host and add it to PATH before running.
+)
+
 echo.
 echo ==========================================
 echo  Package structure created successfully!
@@ -419,6 +455,40 @@ echo Package directory: !PACKAGE_DIR!
 echo.
 echo Directory structure:
 dir /B /AD "!PACKAGE_DIR!" 2>nul
+echo.
+
+:: Create the release archive. VERSION_SUFFIX already distinguishes win10 from
+:: win10-oracle, so Oracle and non-Oracle archives get different file names.
+echo ==========================================
+echo  Creating release archive...
+echo ==========================================
+set ARCHIVE_NAME=gateway-!VERSION_SUFFIX!-!GATEWAY_VERSION!.zip
+set ARCHIVE_PATH=dist\!ARCHIVE_NAME!
+if exist "!ARCHIVE_PATH!" del /q "!ARCHIVE_PATH!"
+
+:: Prefer the built-in bsdtar (System32\tar.exe): it opens files with shared read/write,
+:: so it tolerates files temporarily locked by Defender, Explorer preview, or editors.
+:: Fall back to PowerShell Compress-Archive when tar.exe is unavailable.
+set "GATEWAY_TAR=%SystemRoot%\System32\tar.exe"
+if exist "%GATEWAY_TAR%" (
+    pushd dist
+    "%GATEWAY_TAR%" -a -c -f "!ARCHIVE_NAME!" gateway
+    set TAR_RESULT=!ERRORLEVEL!
+    popd
+    if not "!TAR_RESULT!"=="0" (
+        echo [WARNING] tar failed ^(code !TAR_RESULT!^), falling back to Compress-Archive
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Path 'dist\gateway' -DestinationPath '!ARCHIVE_PATH!' -Force"
+    )
+) else (
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Path 'dist\gateway' -DestinationPath '!ARCHIVE_PATH!' -Force"
+)
+
+if exist "!ARCHIVE_PATH!" (
+    for %%F in ("!ARCHIVE_PATH!") do set /a ARCHIVE_SIZE_MB=%%~zF/1048576
+    echo [OK] Archive created: !ARCHIVE_PATH! ^(!ARCHIVE_SIZE_MB! MB^)
+) else (
+    echo [WARNING] Failed to create release archive
+)
 echo.
 
 echo Opening output directory...

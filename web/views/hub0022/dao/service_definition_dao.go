@@ -153,6 +153,29 @@ func (dao *ServiceDefinitionDAO) UpdateServiceDefinition(ctx context.Context, se
 		return errors.New("更新失败，可能是并发修改导致版本冲突")
 	}
 
+	// serviceType 为 int 类型，静态配置取值为 0，属于零值，会被上面 skipZero=true 的更新跳过，
+	// 导致"服务发现(1)改为静态配置(0)"无法落库。此处在 serviceType 发生变化时显式补一次更新，
+	// 确保零值也能正确写入。
+	if serviceDefinition.ServiceType != existing.ServiceType {
+		if serviceDefinition.ServiceType == 0 {
+			// 改为静态配置时，服务发现相关字段(serviceMetadata/discoveryType/discoveryConfig)
+			// 均为字符串零值，同样会被 skipZero 跳过，需随 serviceType 一并显式清空，
+			// 避免旧的服务发现元数据残留导致网关仍按服务发现路由。
+			_, err = dao.db.Exec(ctx,
+				"UPDATE HUB_GW_SERVICE_DEFINITION SET serviceType = ?, serviceMetadata = ?, discoveryType = ?, discoveryConfig = ? WHERE serviceDefinitionId = ? AND tenantId = ?",
+				[]interface{}{serviceDefinition.ServiceType, "", "", "", serviceDefinition.ServiceDefinitionId, serviceDefinition.TenantId},
+				true)
+		} else {
+			_, err = dao.db.Exec(ctx,
+				"UPDATE HUB_GW_SERVICE_DEFINITION SET serviceType = ? WHERE serviceDefinitionId = ? AND tenantId = ?",
+				[]interface{}{serviceDefinition.ServiceType, serviceDefinition.ServiceDefinitionId, serviceDefinition.TenantId},
+				true)
+		}
+		if err != nil {
+			return huberrors.WrapError(err, "更新服务类型失败")
+		}
+	}
+
 	return nil
 }
 

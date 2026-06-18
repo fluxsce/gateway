@@ -131,3 +131,4 @@ docker-compose.override.yml
 /web/frontend/docs/.vitepress/cache/
 /web/frontend/node_modules/
 /web/frontend/package-lock.json
+/dist/

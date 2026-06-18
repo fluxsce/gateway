@@ -11,6 +11,7 @@ import type { Ref } from 'vue'
 import { onMounted, ref } from 'vue'
 import { getServiceDefinition } from '../../../api'
 import type { ServiceDefinition } from '../types'
+import { ServiceType } from '../types'
 import { useServiceDefinitionService } from './service'
 
 /**
@@ -154,7 +155,9 @@ export function useServiceDefinitionPage(
         apiData.serviceMetadata = '{}'
       }
     } else {
-      apiData.serviceMetadata = undefined
+      // 显式传空字符串而非 undefined：静态配置或清空元数据时，
+      // 让后端明确收到"无元数据"的意图，从而清除残留的服务发现元数据。
+      apiData.serviceMetadata = ''
     }
 
     // 排除点号分隔字段，保留其他字段
@@ -393,8 +396,10 @@ export function useServiceDefinitionPage(
       return false
     }
 
-    // 如果是服务发现类型，确保 serviceMetadata 已设置
-    if (formData.serviceType === 1) {
+    // 根据服务类型规整 serviceMetadata，确保传入后端的数据与类型一致：
+    // - 服务发现：必须携带选中的注册服务元数据（discoveryType=INTERNAL 等）
+    // - 静态配置：清空服务发现元数据，避免残留 INTERNAL 元数据导致网关仍按服务发现路由
+    if (formData.serviceType === ServiceType.DISCOVERY) {
       if (selectedService.value) {
         // 更新服务元数据
         updateServiceMetadata(formData)
@@ -402,6 +407,18 @@ export function useServiceDefinitionPage(
         message.warning('请选择注册服务')
         return false
       }
+    } else {
+      // 静态配置类型：清空服务发现相关字段，避免残留旧的服务发现元数据被提交。
+      formData.serviceMetadata = ''
+      formData.discoveryType = ''
+      formData.discoveryConfig = ''
+      // 移除已展开的 discoveryConfig.xxx 点号分隔字段，避免在 convertToApiData 时重新合并出旧配置
+      Object.keys(formData).forEach((key) => {
+        if (key.startsWith('discoveryConfig.')) {
+          delete formData[key]
+        }
+      })
+      selectedService.value = null
     }
 
     try {

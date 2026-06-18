@@ -271,12 +271,15 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 	// 使用 HTTPProxy 的路径构建方法（复用）
 	finalPath := m.httpProxy.buildProxyPath(ctx, target.Path)
 
+	// 合并查询参数：节点地址(后台配置)中的参数覆盖前台请求携带的同名参数（复用 http_proxy.go 的逻辑）
+	finalQuery := m.httpProxy.buildProxyQuery(target.RawQuery, ctx.Request.URL.RawQuery)
+
 	// 构建代理请求URL（复用 http_proxy.go 的逻辑）
 	proxyURL := &url.URL{
 		Scheme:   target.Scheme,
 		Host:     target.Host,
 		Path:     finalPath,
-		RawQuery: ctx.Request.URL.RawQuery,
+		RawQuery: finalQuery,
 	}
 
 	// 创建代理请求（使用预先读取的请求体）

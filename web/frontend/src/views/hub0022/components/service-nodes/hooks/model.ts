@@ -13,6 +13,34 @@ import { ref } from 'vue'
 import type { ServiceNode } from '../types'
 
 /**
+ * 在已有完整 URL 的基础上，按新的协议/主机/端口重建节点地址，
+ * 同时保留原 URL 中的路径、查询参数与 hash。
+ * 避免用户编辑协议、主机或端口时，把节点 URL 上携带的查询参数（如 ?method=putSKU&sign=...）丢失。
+ */
+function buildNodeUrl(
+  protocol: string,
+  host: string,
+  port: number | string,
+  existingUrl?: string
+): string {
+  const scheme = String(protocol || 'http').toLowerCase()
+  let suffix = ''
+  if (existingUrl) {
+    try {
+      const parsed = new URL(existingUrl)
+      suffix = `${parsed.pathname}${parsed.search}${parsed.hash}`
+      // 仅有根路径且无查询/hash 时不附加，避免产生多余的结尾斜杠
+      if (suffix === '/') {
+        suffix = ''
+      }
+    } catch {
+      // existingUrl 不是合法的完整 URL（例如尚未填写），忽略其路径与参数
+    }
+  }
+  return `${scheme}://${host}:${port}${suffix}`
+}
+
+/**
  * 服务节点管理列表 Model
  */
 export function useServiceNodeModel() {
@@ -151,10 +179,9 @@ export function useServiceNodeModel() {
         defaultValue: 'HTTP',
         props: {
           onUpdateValue: (value: string, formData?: Record<string, any>) => {
-            // 当协议变化时，自动更新 nodeUrl
+            // 当协议变化时，自动更新 nodeUrl（保留已有的路径与查询参数）
             if (formData && formData.nodeHost && formData.nodePort !== undefined && value) {
-              const protocol = value.toLowerCase()
-              formData.nodeUrl = `${protocol}://${formData.nodeHost}:${formData.nodePort}`
+              formData.nodeUrl = buildNodeUrl(value, formData.nodeHost, formData.nodePort, formData.nodeUrl)
             }
           },
         },
@@ -176,10 +203,9 @@ export function useServiceNodeModel() {
         required: true,
         props: {
           onUpdateValue: (value: string, formData?: Record<string, any>) => {
-            // 当主机地址变化时，自动更新 nodeUrl
+            // 当主机地址变化时，自动更新 nodeUrl（保留已有的路径与查询参数）
             if (formData && value && formData.nodePort !== undefined && formData.nodeProtocol) {
-              const protocol = formData.nodeProtocol.toLowerCase()
-              formData.nodeUrl = `${protocol}://${value}:${formData.nodePort}`
+              formData.nodeUrl = buildNodeUrl(formData.nodeProtocol, value, formData.nodePort, formData.nodeUrl)
             }
           },
         },
@@ -204,10 +230,9 @@ export function useServiceNodeModel() {
           min: 1,
           max: 65535,
           onUpdateValue: (value: number, formData?: Record<string, any>) => {
-            // 当端口变化时，自动更新 nodeUrl
+            // 当端口变化时，自动更新 nodeUrl（保留已有的路径与查询参数）
             if (formData && formData.nodeHost && value !== undefined && formData.nodeProtocol) {
-              const protocol = formData.nodeProtocol.toLowerCase()
-              formData.nodeUrl = `${protocol}://${formData.nodeHost}:${value}`
+              formData.nodeUrl = buildNodeUrl(formData.nodeProtocol, formData.nodeHost, value, formData.nodeUrl)
             }
           },
         },
