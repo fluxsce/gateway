@@ -15,7 +15,7 @@ export interface AuthConfig {
   gatewayInstanceId?: string // 网关实例ID(实例级认证)
   routeConfigId?: string // 路由配置ID(路由级认证)
   authName: string // 认证配置名称
-  authType: 'JWT' | 'API_KEY' | 'OAUTH2' | 'BASIC' // 认证类型
+  authType: 'JWT' | 'API_KEY' | 'OAUTH2' | 'BASIC' | 'BEARER_TOKEN' // 认证类型
   authStrategy: 'REQUIRED' | 'OPTIONAL' | 'DISABLED' // 认证策略
   authConfig: Record<string, any> // 认证参数配置,JSON格式
   exemptPaths?: string[] // 豁免路径列表,JSON数组格式

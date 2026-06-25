@@ -35,6 +35,8 @@ func (f *AuthenticatorFactory) CreateAuthenticator(config AuthConfig) (Authentic
 		return f.createBasicAuth(config)
 	case StrategyOAuth2:
 		return f.createOAuth2Auth(config)
+	case StrategyBearerToken:
+		return f.createBearerTokenAuth(config)
 	case StrategyJWTAndAPIKey:
 		return f.createCompositeAuth(config, []AuthStrategy{StrategyJWT, StrategyAPIKey}, true)
 	case StrategyJWTOrAPIKey:
@@ -105,6 +107,18 @@ func (f *AuthenticatorFactory) createOAuth2Auth(config AuthConfig) (Authenticato
 	return OAuth2AuthFromConfig(authConfig)
 }
 
+// createBearerTokenAuth 创建 Bearer Token 认证器
+func (f *AuthenticatorFactory) createBearerTokenAuth(config AuthConfig) (Authenticator, error) {
+	authConfig := AuthConfig{
+		ID:       config.ID,
+		Strategy: StrategyBearerToken,
+		Name:     config.Name,
+		Enabled:  config.Enabled,
+		Config:   config.Config,
+	}
+	return BearerTokenAuthFromConfig(authConfig)
+}
+
 // createCompositeAuth 创建复合认证器
 func (f *AuthenticatorFactory) createCompositeAuth(config AuthConfig, strategies []AuthStrategy, allRequired bool) (Authenticator, error) {
 	// 创建复合认证器的逻辑
@@ -145,8 +159,7 @@ func (f *AuthenticatorFactory) CreateAPIKeyAuthFromConfig(apiKeyConfig APIKeyCon
 	config := make(map[string]interface{})
 	config["param_name"] = apiKeyConfig.ParamName
 	config["in"] = string(apiKeyConfig.In)
-	config["keys"] = apiKeyConfig.Keys
-	config["is_prefix_match"] = apiKeyConfig.IsPrefixMatch
+	config["key"] = apiKeyConfig.Key
 
 	apiKeyAuthConfig := AuthConfig{
 		ID:       apiKeyConfig.ID,
@@ -171,6 +184,8 @@ func (f *AuthenticatorFactory) normalizeStrategy(strategy AuthStrategy) AuthStra
 		return StrategyBasic
 	case "oauth2", "oauth":
 		return StrategyOAuth2
+	case "bearer", "bearer-token", "bearer_token":
+		return StrategyBearerToken
 	case "jwt-and-api-key", "jwt_and_api_key", "jwt-and-apikey":
 		return StrategyJWTAndAPIKey
 	case "jwt-or-api-key", "jwt_or_api_key", "jwt-or-apikey":
@@ -220,6 +235,7 @@ func GetSupportedStrategies() []AuthStrategy {
 		StrategyAPIKey,
 		StrategyBasic,
 		StrategyOAuth2,
+		StrategyBearerToken,
 		StrategyJWTAndAPIKey,
 		StrategyJWTOrAPIKey,
 	}
@@ -233,6 +249,7 @@ func GetStrategyDescription(strategy AuthStrategy) string {
 		StrategyAPIKey:       "API密钥认证",
 		StrategyBasic:        "HTTP Basic认证",
 		StrategyOAuth2:       "OAuth 2.0认证",
+		StrategyBearerToken:  "Bearer Token认证",
 		StrategyJWTAndAPIKey: "JWT和API密钥同时认证",
 		StrategyJWTOrAPIKey:  "JWT或API密钥任一认证",
 	}

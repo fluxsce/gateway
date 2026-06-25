@@ -1,15 +1,417 @@
 package auth
 
 import (
+	"encoding/base64"
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"gateway/internal/gateway/core"
 	"gateway/internal/gateway/handler/auth"
 )
+
+func signTestJWT(secret, issuer string, exp time.Time) string {
+	claims := jwt.MapClaims{
+		"sub": "user123",
+		"exp": exp.Unix(),
+	}
+	if issuer != "" {
+		claims["iss"] = issuer
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(secret))
+	if err != nil {
+		panic(err)
+	}
+	return tokenString
+}
+
+func newJWTAuthenticator(t *testing.T, config map[string]interface{}) auth.Authenticator {
+	t.Helper()
+	authenticator, err := auth.JWTAuthFromConfig(auth.AuthConfig{
+		ID:       "test-jwt",
+		Enabled:  true,
+		Strategy: auth.StrategyJWT,
+		Name:     "JWT认证测试",
+		Config:   config,
+	})
+	require.NoError(t, err)
+	return authenticator
+}
+
+func TestJWTAuthHandle(t *testing.T) {
+	secret := "test-secret"
+	issuer := "gateway-test"
+
+	validToken := signTestJWT(secret, issuer, time.Now().Add(time.Hour))
+	expiredToken := signTestJWT(secret, issuer, time.Now().Add(-time.Hour))
+	wrongSecretToken := signTestJWT("wrong-secret", issuer, time.Now().Add(time.Hour))
+
+	baseConfig := map[string]interface{}{
+		"secret":            secret,
+		"algorithm":         "HS256",
+		"issuer":            issuer,
+		"verify_issuer":     true,
+		"verify_expiration": true,
+		"expiration":        3600,
+	}
+
+	tests := []struct {
+		name        string
+		token       string
+		expectAllow bool
+	}{
+		{
+			name:        "ValidToken",
+			token:       validToken,
+			expectAllow: true,
+		},
+		{
+			name:        "ExpiredToken",
+			token:       expiredToken,
+			expectAllow: false,
+		},
+		{
+			name:        "InvalidSignature",
+			token:       wrongSecretToken,
+			expectAllow: false,
+		},
+		{
+			name:        "MalformedToken",
+			token:       "not-a-jwt",
+			expectAllow: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			authenticator := newJWTAuthenticator(t, baseConfig)
+
+			req := httptest.NewRequest("GET", "/test", nil)
+			req.Header.Set("Authorization", "Bearer "+tt.token)
+			writer := httptest.NewRecorder()
+			ctx := core.NewContext(writer, req)
+
+			result := authenticator.Handle(ctx)
+			assert.Equal(t, tt.expectAllow, result)
+
+			if tt.expectAllow {
+				claims, ok := ctx.Get("jwt_claims")
+				assert.True(t, ok)
+				claimsMap, ok := claims.(map[string]interface{})
+				require.True(t, ok)
+				assert.Equal(t, "user123", claimsMap["sub"])
+			}
+		})
+	}
+}
+
+func TestJWTAuthMissingAuthorizationHeader(t *testing.T) {
+	authenticator := newJWTAuthenticator(t, map[string]interface{}{
+		"secret":     "test-secret",
+		"algorithm":  "HS256",
+		"expiration": 3600,
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	writer := httptest.NewRecorder()
+	ctx := core.NewContext(writer, req)
+
+	assert.False(t, authenticator.Handle(ctx))
+}
+
+func TestJWTAuthInvalidIssuer(t *testing.T) {
+	secret := "test-secret"
+	token := signTestJWT(secret, "other-issuer", time.Now().Add(time.Hour))
+
+	authenticator := newJWTAuthenticator(t, map[string]interface{}{
+		"secret":        secret,
+		"algorithm":     "HS256",
+		"issuer":        "gateway-test",
+		"verify_issuer": true,
+		"expiration":    3600,
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	writer := httptest.NewRecorder()
+	ctx := core.NewContext(writer, req)
+
+	assert.False(t, authenticator.Handle(ctx))
+}
+
+func TestOAuth2AuthNotImplemented(t *testing.T) {
+	authenticator, err := auth.OAuth2AuthFromConfig(auth.AuthConfig{
+		ID:       "test-oauth2",
+		Enabled:  true,
+		Strategy: auth.StrategyOAuth2,
+		Name:     "OAuth2测试",
+		Config: map[string]interface{}{
+			"clientID":      "test-client",
+			"clientSecret":  "test-secret",
+			"tokenEndpoint": "https://auth.example.com/oauth/token",
+		},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("Authorization", "Bearer some-token")
+	writer := httptest.NewRecorder()
+	ctx := core.NewContext(writer, req)
+
+	assert.False(t, authenticator.Handle(ctx))
+}
+
+func newBearerAuthenticator(t *testing.T, config map[string]interface{}) auth.Authenticator {
+	t.Helper()
+	authenticator, err := auth.BearerTokenAuthFromConfig(auth.AuthConfig{
+		ID:       "test-bearer",
+		Enabled:  true,
+		Strategy: auth.StrategyBearerToken,
+		Name:     "Bearer认证测试",
+		Config:   config,
+	})
+	require.NoError(t, err)
+	return authenticator
+}
+
+func TestBearerTokenAuthHandle(t *testing.T) {
+	authenticator := newBearerAuthenticator(t, map[string]interface{}{
+		"token": "demo-bearer-token",
+	})
+
+	tests := []struct {
+		name        string
+		authHeader  string
+		expectAllow bool
+	}{
+		{name: "ValidToken", authHeader: "Bearer demo-bearer-token", expectAllow: true},
+		{name: "InvalidToken", authHeader: "Bearer wrong-token", expectAllow: false},
+		{name: "LowerCaseBearer", authHeader: "bearer demo-bearer-token", expectAllow: true},
+		{name: "MissingHeader", authHeader: "", expectAllow: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/test", nil)
+			if tt.authHeader != "" {
+				req.Header.Set("Authorization", tt.authHeader)
+			}
+			writer := httptest.NewRecorder()
+			ctx := core.NewContext(writer, req)
+			assert.Equal(t, tt.expectAllow, authenticator.Handle(ctx))
+		})
+	}
+}
+
+func TestBearerTokenAuthFromConfigRequiresToken(t *testing.T) {
+	_, err := auth.BearerTokenAuthFromConfig(auth.AuthConfig{
+		ID:       "test-bearer",
+		Enabled:  true,
+		Strategy: auth.StrategyBearerToken,
+		Config: map[string]interface{}{
+			"token": "",
+		},
+	})
+	assert.Error(t, err)
+}
+
+func newAPIKeyAuthenticator(t *testing.T, config map[string]interface{}) auth.Authenticator {
+	t.Helper()
+	authenticator, err := auth.APIKeyAuthFromConfig(auth.AuthConfig{
+		ID:       "test-apikey",
+		Enabled:  true,
+		Strategy: auth.StrategyAPIKey,
+		Name:     "API Key认证测试",
+		Config:   config,
+	})
+	require.NoError(t, err)
+	return authenticator
+}
+
+func TestAPIKeyAuthFromConfigRequiresKey(t *testing.T) {
+	_, err := auth.APIKeyAuthFromConfig(auth.AuthConfig{
+		ID:       "test-apikey",
+		Enabled:  true,
+		Strategy: auth.StrategyAPIKey,
+		Name:     "API Key认证测试",
+		Config: map[string]interface{}{
+			"param_name": "X-API-Key",
+			"in":         "header",
+			"key":        "",
+		},
+	})
+	assert.Error(t, err)
+}
+
+func TestAPIKeyAuthHandle(t *testing.T) {
+	baseConfig := map[string]interface{}{
+		"param_name": "X-API-Key",
+		"in":         "header",
+		"key":        "secret-key",
+	}
+
+	tests := []struct {
+		name        string
+		headerKey   string
+		headerValue string
+		expectAllow bool
+	}{
+		{name: "ValidKey", headerKey: "X-API-Key", headerValue: "secret-key", expectAllow: true},
+		{name: "InvalidKey", headerKey: "X-API-Key", headerValue: "wrong-key", expectAllow: false},
+		{name: "MissingKey", headerKey: "", headerValue: "", expectAllow: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			authenticator := newAPIKeyAuthenticator(t, baseConfig)
+			req := httptest.NewRequest("GET", "/test", nil)
+			if tt.headerKey != "" {
+				req.Header.Set(tt.headerKey, tt.headerValue)
+			}
+			writer := httptest.NewRecorder()
+			ctx := core.NewContext(writer, req)
+
+			result := authenticator.Handle(ctx)
+			assert.Equal(t, tt.expectAllow, result)
+		})
+	}
+}
+
+func TestAPIKeyAuthQueryParam(t *testing.T) {
+	authenticator := newAPIKeyAuthenticator(t, map[string]interface{}{
+		"param_name": "api_key",
+		"in":         "query",
+		"key":        "query-secret",
+	})
+
+	req := httptest.NewRequest("GET", "/test?api_key=query-secret", nil)
+	writer := httptest.NewRecorder()
+	ctx := core.NewContext(writer, req)
+	assert.True(t, authenticator.Handle(ctx))
+}
+
+func TestAPIKeyAuthDisabledSkipsValidation(t *testing.T) {
+	authenticator, err := auth.APIKeyAuthFromConfig(auth.AuthConfig{
+		ID:       "test-apikey",
+		Enabled:  false,
+		Strategy: auth.StrategyAPIKey,
+		Name:     "API Key认证测试",
+		Config: map[string]interface{}{
+			"param_name": "X-API-Key",
+			"in":         "header",
+			"key":        "secret-key",
+		},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	writer := httptest.NewRecorder()
+	ctx := core.NewContext(writer, req)
+	assert.True(t, authenticator.Handle(ctx))
+}
+
+func basicAuthHeader(username, password string) string {
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
+}
+
+func newBasicAuthenticator(t *testing.T, username, password string) auth.Authenticator {
+	t.Helper()
+	authenticator, err := auth.BasicAuthFromConfig(auth.AuthConfig{
+		ID:       "test-basic",
+		Enabled:  true,
+		Strategy: auth.StrategyBasic,
+		Name:     "Basic认证测试",
+		Config: map[string]interface{}{
+			"username": username,
+			"password": password,
+		},
+	})
+	require.NoError(t, err)
+	return authenticator
+}
+
+func TestBasicAuthFromConfigRequiresCredentials(t *testing.T) {
+	_, err := auth.BasicAuthFromConfig(auth.AuthConfig{
+		Enabled:  true,
+		Strategy: auth.StrategyBasic,
+		Config: map[string]interface{}{
+			"username": "admin",
+			"password": "",
+		},
+	})
+	assert.Error(t, err)
+}
+
+func TestBasicAuthHandle(t *testing.T) {
+	authenticator := newBasicAuthenticator(t, "admin", "secret")
+
+	tests := []struct {
+		name        string
+		setupReq    func(*http.Request)
+		expectAllow bool
+	}{
+		{
+			name: "ValidCredentials",
+			setupReq: func(req *http.Request) {
+				req.Header.Set("Authorization", basicAuthHeader("admin", "secret"))
+			},
+			expectAllow: true,
+		},
+		{
+			name: "InvalidPassword",
+			setupReq: func(req *http.Request) {
+				req.Header.Set("Authorization", basicAuthHeader("admin", "wrong"))
+			},
+			expectAllow: false,
+		},
+		{
+			name:        "MissingHeader",
+			setupReq:    func(req *http.Request) {},
+			expectAllow: false,
+		},
+		{
+			name: "CaseInsensitiveScheme",
+			setupReq: func(req *http.Request) {
+				req.Header.Set("Authorization", "basic "+strings.TrimPrefix(basicAuthHeader("admin", "secret"), "Basic "))
+			},
+			expectAllow: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/test", nil)
+			tt.setupReq(req)
+			writer := httptest.NewRecorder()
+			ctx := core.NewContext(writer, req)
+			assert.Equal(t, tt.expectAllow, authenticator.Handle(ctx))
+		})
+	}
+}
+
+func TestBasicAuthDisabledSkipsValidation(t *testing.T) {
+	authenticator, err := auth.BasicAuthFromConfig(auth.AuthConfig{
+		Enabled:  false,
+		Strategy: auth.StrategyBasic,
+		Config: map[string]interface{}{
+			"username": "admin",
+			"password": "secret",
+		},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	writer := httptest.NewRecorder()
+	ctx := core.NewContext(writer, req)
+	assert.True(t, authenticator.Handle(ctx))
+}
 
 func TestAuthConfig(t *testing.T) {
 	tests := []struct {
@@ -54,10 +456,25 @@ func TestAuthConfig(t *testing.T) {
 				Config: map[string]interface{}{
 					"param_name": "X-API-Key",
 					"in":         "header",
+					"key":        "test-key",
 				},
 			},
 			expectError: false,
 			description: "有效的API Key认证配置",
+		},
+		{
+			name: "ValidBearerTokenConfig",
+			config: &auth.AuthConfig{
+				ID:       "test-bearer",
+				Enabled:  true,
+				Strategy: auth.StrategyBearerToken,
+				Name:     "Bearer认证测试",
+				Config: map[string]interface{}{
+					"token": "demo-bearer-token",
+				},
+			},
+			expectError: false,
+			description: "有效的Bearer Token认证配置",
 		},
 		{
 			name: "InvalidStrategy",
@@ -135,6 +552,7 @@ func TestAuthStrategy(t *testing.T) {
 		auth.StrategyAPIKey,
 		auth.StrategyBasic,
 		auth.StrategyOAuth2,
+		auth.StrategyBearerToken,
 		auth.StrategyJWTAndAPIKey,
 		auth.StrategyJWTOrAPIKey,
 	}
@@ -187,20 +605,6 @@ func TestKeyLocation(t *testing.T) {
 			assert.NotEmpty(t, string(location), "位置常量不应该为空")
 		})
 	}
-}
-
-func TestAPIKeyItem(t *testing.T) {
-	// 创建API Key项目
-	item := auth.APIKeyItem{
-		Name:  "test-key",
-		Value: "secret-value",
-		Roles: []string{"admin", "user"},
-	}
-
-	// 验证字段
-	assert.Equal(t, "test-key", item.Name)
-	assert.Equal(t, "secret-value", item.Value)
-	assert.Equal(t, []string{"admin", "user"}, item.Roles)
 }
 
 func TestBaseAuthenticator(t *testing.T) {

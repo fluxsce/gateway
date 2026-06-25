@@ -1,11 +1,16 @@
 package auth
 
 import (
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"gateway/internal/gateway/core"
+
+	"github.com/golang-jwt/jwt/v4"
 )
 
 // JWTAuth JWT认证处理器
@@ -42,6 +47,7 @@ func NewJWTAuth(jwtConfig JWTConfig, enabled bool, name string) *JWTAuth {
 				"issuer":               jwtConfig.Issuer,
 				"expiration":           jwtConfig.Expiration,
 				"algorithm":            jwtConfig.Algorithm,
+				"public_key":           jwtConfig.PublicKey,
 				"verify_expiration":    jwtConfig.VerifyExpiration,
 				"verify_issuer":        jwtConfig.VerifyIssuer,
 				"refresh_window":       jwtConfig.RefreshWindow,
@@ -83,6 +89,10 @@ func (j *JWTAuth) SetEnabled(enabled bool) {
 
 // Handle 实现core.Handler接口
 func (j *JWTAuth) Handle(ctx *core.Context) bool {
+	if !j.enabled {
+		return true
+	}
+
 	// 提取JWT token
 	token, err := j.extractToken(ctx)
 	if err != nil {
@@ -112,40 +122,142 @@ func (j *JWTAuth) extractToken(ctx *core.Context) (string, error) {
 
 	// 支持Bearer token格式
 	if strings.HasPrefix(authHeader, "Bearer ") {
-		return strings.TrimPrefix(authHeader, "Bearer "), nil
-	}
-
-	// 直接使用Authorization头的值
-	if authHeader != "" {
-		return authHeader, nil
+		token := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+		if token == "" {
+			return "", fmt.Errorf("empty bearer token")
+		}
+		return token, nil
 	}
 
 	return "", fmt.Errorf("invalid authorization header format")
 }
 
-// validateToken 验证JWT token
-// 注意：这是一个简化的实现，生产环境中应该使用专业的JWT库
-func (j *JWTAuth) validateToken(token string) (map[string]interface{}, error) {
-	if token == "" {
+// validateToken 验证JWT token：校验签名、过期时间与签发者
+func (j *JWTAuth) validateToken(tokenString string) (map[string]interface{}, error) {
+	if tokenString == "" {
 		return nil, fmt.Errorf("empty token")
 	}
 
-	// TODO: 这里应该实现真正的JWT验证逻辑
-	// 1. 解析JWT token
-	// 2. 验证签名
-	// 3. 验证过期时间
-	// 4. 验证签发者
-	// 5. 提取claims
-
-	// 简化实现：只检查token不为空
-	claims := map[string]interface{}{
-		"sub":   "user123",
-		"iss":   j.jwtConfig.Issuer,
-		"exp":   0, // 这里应该是实际的过期时间
-		"valid": true,
+	expectedMethod, err := j.resolveSigningMethod()
+	if err != nil {
+		return nil, err
 	}
 
-	return claims, nil
+	claims := jwt.MapClaims{}
+	parserOpts := []jwt.ParserOption{
+		jwt.WithValidMethods([]string{expectedMethod.Alg()}),
+	}
+	if !j.jwtConfig.VerifyExpiration {
+		parserOpts = append(parserOpts, jwt.WithoutClaimsValidation())
+	}
+
+	parser := jwt.NewParser(parserOpts...)
+	token, err := parser.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		return j.verificationKey(token)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("invalid token: %w", err)
+	}
+	if !token.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+
+	if j.jwtConfig.VerifyIssuer {
+		if err := j.verifyIssuer(claims); err != nil {
+			return nil, err
+		}
+	}
+
+	return mapClaimsToMap(claims), nil
+}
+
+// resolveSigningMethod 根据配置解析签名算法
+func (j *JWTAuth) resolveSigningMethod() (jwt.SigningMethod, error) {
+	switch strings.ToUpper(j.jwtConfig.Algorithm) {
+	case "HS256":
+		return jwt.SigningMethodHS256, nil
+	case "HS384":
+		return jwt.SigningMethodHS384, nil
+	case "HS512":
+		return jwt.SigningMethodHS512, nil
+	case "RS256":
+		return jwt.SigningMethodRS256, nil
+	case "RS384":
+		return jwt.SigningMethodRS384, nil
+	case "RS512":
+		return jwt.SigningMethodRS512, nil
+	default:
+		return nil, fmt.Errorf("unsupported JWT algorithm: %s", j.jwtConfig.Algorithm)
+	}
+}
+
+// verificationKey 返回验签所需的密钥
+func (j *JWTAuth) verificationKey(token *jwt.Token) (interface{}, error) {
+	switch strings.ToUpper(j.jwtConfig.Algorithm) {
+	case "HS256", "HS384", "HS512":
+		if j.jwtConfig.Secret == "" {
+			return nil, fmt.Errorf("JWT secret is not configured")
+		}
+		return []byte(j.jwtConfig.Secret), nil
+	case "RS256", "RS384", "RS512":
+		if j.jwtConfig.PublicKey == "" {
+			return nil, fmt.Errorf("JWT public key is not configured for %s", j.jwtConfig.Algorithm)
+		}
+		return parseRSAPublicKey(j.jwtConfig.PublicKey)
+	default:
+		return nil, fmt.Errorf("unsupported JWT algorithm: %s", j.jwtConfig.Algorithm)
+	}
+}
+
+// verifyIssuer 校验 token 签发者
+func (j *JWTAuth) verifyIssuer(claims jwt.MapClaims) error {
+	if j.jwtConfig.Issuer == "" {
+		return fmt.Errorf("issuer verification enabled but issuer is not configured")
+	}
+
+	iss, _ := claims["iss"].(string)
+	if iss != j.jwtConfig.Issuer {
+		return fmt.Errorf("invalid issuer")
+	}
+	return nil
+}
+
+// parseRSAPublicKey 解析 PEM 格式的 RSA 公钥
+func parseRSAPublicKey(pemData string) (*rsa.PublicKey, error) {
+	block, _ := pem.Decode([]byte(pemData))
+	if block == nil {
+		return nil, fmt.Errorf("failed to parse PEM public key")
+	}
+
+	switch block.Type {
+	case "RSA PUBLIC KEY":
+		pub, err := x509.ParsePKCS1PublicKey(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse RSA public key: %w", err)
+		}
+		return pub, nil
+	case "PUBLIC KEY":
+		key, err := x509.ParsePKIXPublicKey(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse PKIX public key: %w", err)
+		}
+		pub, ok := key.(*rsa.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("public key is not RSA")
+		}
+		return pub, nil
+	default:
+		return nil, fmt.Errorf("unsupported public key type: %s", block.Type)
+	}
+}
+
+// mapClaimsToMap 将 jwt.MapClaims 转为通用 map
+func mapClaimsToMap(claims jwt.MapClaims) map[string]interface{} {
+	result := make(map[string]interface{}, len(claims))
+	for k, v := range claims {
+		result[k] = v
+	}
+	return result
 }
 
 // storeAuthInfo 存储认证信息到上下文
@@ -193,24 +305,21 @@ func ValidateJWTConfig(config *JWTConfig) error {
 		return fmt.Errorf("JWT config cannot be nil")
 	}
 
-	if config.Secret == "" {
-		return fmt.Errorf("JWT secret cannot be empty")
-	}
-
 	if config.Algorithm == "" {
 		return fmt.Errorf("JWT algorithm cannot be empty")
 	}
 
-	// 验证支持的算法
-	supportedAlgorithms := []string{"HS256", "HS384", "HS512", "RS256"}
-	algorithmValid := false
-	for _, alg := range supportedAlgorithms {
-		if config.Algorithm == alg {
-			algorithmValid = true
-			break
+	algorithm := strings.ToUpper(config.Algorithm)
+	switch algorithm {
+	case "HS256", "HS384", "HS512":
+		if config.Secret == "" {
+			return fmt.Errorf("JWT secret cannot be empty")
 		}
-	}
-	if !algorithmValid {
+	case "RS256", "RS384", "RS512":
+		if config.PublicKey == "" {
+			return fmt.Errorf("JWT public key cannot be empty for %s", config.Algorithm)
+		}
+	default:
 		return fmt.Errorf("unsupported JWT algorithm: %s", config.Algorithm)
 	}
 
@@ -250,27 +359,43 @@ func parseJWTConfigFromMap(configMap map[string]interface{}) (*JWTConfig, error)
 
 	jwtConfig := &JWTConfig{}
 
-	if secret, ok := configMap["secret"].(string); ok {
-		jwtConfig.Secret = secret
-	}
-	if issuer, ok := configMap["issuer"].(string); ok {
-		jwtConfig.Issuer = issuer
-	}
-	if algorithm, ok := configMap["algorithm"].(string); ok {
-		jwtConfig.Algorithm = algorithm
-	}
-	if expiration, ok := configMap["expiration"].(int); ok {
+	jwtConfig.Secret = configString(configMap, "secret")
+	jwtConfig.Issuer = configString(configMap, "issuer")
+	jwtConfig.Algorithm = configString(configMap, "algorithm")
+	jwtConfig.PublicKey = configString(configMap, "public_key", "publicKey")
+	if expiration, ok := configInt(configMap, "expiration"); ok {
 		jwtConfig.Expiration = expiration
 	}
-	if expiration, ok := configMap["expiration"].(float64); ok {
-		jwtConfig.Expiration = int(expiration)
-	}
-	if verifyExpiration, ok := configMap["verify_expiration"].(bool); ok {
+	if verifyExpiration, ok := configBool(configMap, "verify_expiration", "verifyExpiration"); ok {
 		jwtConfig.VerifyExpiration = verifyExpiration
 	}
-	if verifyIssuer, ok := configMap["verify_issuer"].(bool); ok {
+	if verifyIssuer, ok := configBool(configMap, "verify_issuer", "verifyIssuer"); ok {
 		jwtConfig.VerifyIssuer = verifyIssuer
 	}
+	if refreshWindow, ok := configInt(configMap, "refresh_window", "refreshWindow"); ok {
+		jwtConfig.RefreshWindow = refreshWindow
+	}
+
+	applyJWTConfigDefaults(jwtConfig, configMap)
 
 	return jwtConfig, nil
+}
+
+// applyJWTConfigDefaults 为未显式配置的字段填充默认值
+func applyJWTConfigDefaults(jwtConfig *JWTConfig, configMap map[string]interface{}) {
+	if jwtConfig.Algorithm == "" {
+		jwtConfig.Algorithm = DefaultJWTConfig.Algorithm
+	}
+	if jwtConfig.Expiration <= 0 {
+		jwtConfig.Expiration = DefaultJWTConfig.Expiration
+	}
+	if _, ok := configBool(configMap, "verify_expiration", "verifyExpiration"); !ok {
+		jwtConfig.VerifyExpiration = DefaultJWTConfig.VerifyExpiration
+	}
+	if _, ok := configBool(configMap, "verify_issuer", "verifyIssuer"); !ok {
+		jwtConfig.VerifyIssuer = DefaultJWTConfig.VerifyIssuer
+	}
+	if jwtConfig.RefreshWindow <= 0 {
+		jwtConfig.RefreshWindow = DefaultJWTConfig.RefreshWindow
+	}
 }

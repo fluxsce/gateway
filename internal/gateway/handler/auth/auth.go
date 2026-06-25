@@ -19,6 +19,8 @@ const (
 	StrategyBasic AuthStrategy = "basic"
 	// StrategyOAuth2 使用OAuth2认证
 	StrategyOAuth2 AuthStrategy = "oauth2"
+	// StrategyBearerToken 使用 Bearer Token 认证
+	StrategyBearerToken AuthStrategy = "bearer-token"
 	// StrategyJWTAndAPIKey 同时需要JWT和API Key认证（都需要通过）
 	StrategyJWTAndAPIKey AuthStrategy = "jwt-and-api-key"
 	// StrategyJWTOrAPIKey 使用JWT或API Key认证（任一通过即可）
@@ -89,29 +91,27 @@ const (
 	InCookie KeyLocation = "cookie"
 )
 
-// APIKeyItem API Key项目
-type APIKeyItem struct {
-	// API Key名称/标识
-	Name string `yaml:"name" json:"name" mapstructure:"name"`
-	// API Key值
-	Value string `yaml:"value" json:"value" mapstructure:"value"`
-	// 用户角色列表
-	Roles []string `yaml:"roles" json:"roles" mapstructure:"roles"`
-}
-
-// APIKeyConfig API Key认证配置
+// APIKeyConfig API Key 认证配置（param_name + in + key）
 type APIKeyConfig struct {
 	// API Key配置ID
 	ID string `yaml:"id" json:"id" mapstructure:"id"`
-	// API Key参数名称
+	// API Key 参数名（Header 名 / Query 名 / Cookie 名）
 	ParamName string `yaml:"param_name" json:"param_name" mapstructure:"param_name"`
-	// API Key位置：header, query, cookie
+	// API Key 位置：header, query, cookie
 	In KeyLocation `yaml:"in" json:"in" mapstructure:"in"`
-	// 预定义的有效API Key列表
-	Keys []APIKeyItem `yaml:"keys" json:"keys" mapstructure:"keys"`
-	// 是否前缀匹配
-	IsPrefixMatch bool `yaml:"is_prefix_match,omitempty" json:"is_prefix_match,omitempty" mapstructure:"is_prefix_match,omitempty"`
-	// 错误状态码
+	// 期望的 API Key 值
+	Key string `yaml:"key" json:"key" mapstructure:"key"`
+	// 认证失败 HTTP 状态码
+	ErrorStatusCode int `yaml:"error_status_code,omitempty" json:"error_status_code,omitempty" mapstructure:"error_status_code,omitempty"`
+}
+
+// BearerTokenConfig Bearer Token 认证配置（Authorization: Bearer <token>）。
+type BearerTokenConfig struct {
+	// 认证配置ID
+	ID string `yaml:"id" json:"id" mapstructure:"id"`
+	// 期望的 Bearer Token 值
+	Token string `yaml:"token" json:"token" mapstructure:"token"`
+	// 认证失败 HTTP 状态码
 	ErrorStatusCode int `yaml:"error_status_code,omitempty" json:"error_status_code,omitempty" mapstructure:"error_status_code,omitempty"`
 }
 
@@ -119,14 +119,16 @@ type APIKeyConfig struct {
 type JWTConfig struct {
 	// JWT配置ID
 	ID string `yaml:"id" json:"id" mapstructure:"id"`
-	// JWT密钥
+	// JWT 对称密钥（HMAC 算法使用，任意非空字符串）
 	Secret string `yaml:"secret" json:"secret" mapstructure:"secret"`
 	// 签发者
 	Issuer string `yaml:"issuer" json:"issuer" mapstructure:"issuer"`
 	// 过期时间（秒）
 	Expiration int `yaml:"expiration" json:"expiration" mapstructure:"expiration"`
-	// 签名算法：HS256, HS384, HS512, RS256
+	// 签名算法：HS256/HS384/HS512 使用 secret；RS256/RS384/RS512 使用 publicKey
 	Algorithm string `yaml:"algorithm" json:"algorithm" mapstructure:"algorithm"`
+	// RSA 等非对称算法使用的公钥（PEM 格式）
+	PublicKey string `yaml:"public_key" json:"public_key" mapstructure:"public_key"`
 	// 是否验证过期时间
 	VerifyExpiration bool `yaml:"verify_expiration" json:"verify_expiration" mapstructure:"verify_expiration"`
 	// 是否验证签发者
@@ -144,8 +146,14 @@ var DefaultAPIKeyConfig = APIKeyConfig{
 	ID:              "default-apikey",
 	ParamName:       "api-key",
 	In:              InHeader,
-	Keys:            []APIKeyItem{},
-	IsPrefixMatch:   false,
+	Key:             "",
+	ErrorStatusCode: 401,
+}
+
+// DefaultBearerTokenConfig 默认 Bearer Token 配置
+var DefaultBearerTokenConfig = BearerTokenConfig{
+	ID:              "default-bearer-token",
+	Token:           "",
 	ErrorStatusCode: 401,
 }
 
@@ -170,7 +178,7 @@ func ValidateAuthConfig(config *AuthConfig) error {
 	// 验证策略是否有效
 	validStrategies := []AuthStrategy{
 		StrategyNoAuth, StrategyJWT, StrategyAPIKey, StrategyBasic,
-		StrategyOAuth2, StrategyJWTAndAPIKey, StrategyJWTOrAPIKey,
+		StrategyOAuth2, StrategyBearerToken, StrategyJWTAndAPIKey, StrategyJWTOrAPIKey,
 	}
 
 	strategyValid := false

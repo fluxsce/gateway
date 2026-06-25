@@ -7,7 +7,8 @@ import (
 )
 
 // OAuth2Auth OAuth2认证器
-// 实现OAuth2 Bearer Token认证
+// 认证服务提供方在网关注册中心之外，配置由控制台界面写入数据库，不在 config.yaml 中维护。
+// 远端 Token 内省校验尚未实现，启用后将明确拒绝请求而非放行。
 type OAuth2Auth struct {
 	*BaseAuthenticator
 	tokenEndpoint      string
@@ -15,29 +16,39 @@ type OAuth2Auth struct {
 	clientSecret       string
 	scope              string
 	introspectEndpoint string
+	originalConfig     AuthConfig
+}
+
+// oauth2RuntimeConfig OAuth2 运行时配置
+type oauth2RuntimeConfig struct {
+	TokenEndpoint      string
+	ClientID           string
+	ClientSecret       string
+	Scope              string
+	IntrospectEndpoint string
 }
 
 // OAuth2AuthFromConfig 从配置创建OAuth2认证器
 func OAuth2AuthFromConfig(config AuthConfig) (Authenticator, error) {
-	// 解析OAuth2配置
 	oauth2Config, err := parseOAuth2Config(config.Config)
 	if err != nil {
 		return nil, fmt.Errorf("解析OAuth2配置失败: %w", err)
 	}
 
-	// 创建OAuth2认证器
-	auth := NewBaseAuthenticator(StrategyOAuth2, config.Enabled, config.Name)
+	base := NewBaseAuthenticator(StrategyOAuth2, config.Enabled, config.Name)
 	if config.Name != "" {
-		auth.SetName(config.Name)
+		base.SetName(config.Name)
 	}
 
-	// 验证OAuth2配置
-	if oauth2Config == nil {
-		return nil, fmt.Errorf("OAuth2配置不能为空")
-	}
-
-	// 这里可以添加具体的OAuth2认证逻辑
-	return auth, nil
+	return &OAuth2Auth{
+		BaseAuthenticator:  base,
+		tokenEndpoint:      oauth2Config.TokenEndpoint,
+		clientID:           oauth2Config.ClientID,
+		clientSecret:       oauth2Config.ClientSecret,
+		scope:              oauth2Config.Scope,
+		introspectEndpoint: oauth2Config.IntrospectEndpoint,
+		originalConfig:     config,
+	}, nil
 }
 
 // Handle 处理OAuth2认证
@@ -46,38 +57,39 @@ func (o *OAuth2Auth) Handle(ctx *core.Context) bool {
 		return true
 	}
 
-	// 获取Authorization头中的Bearer token
 	authHeader := ctx.Request.Header.Get("Authorization")
 	if authHeader == "" {
 		o.handleError(ctx, "Missing Authorization header")
 		return false
 	}
 
-	// 检查Bearer token格式
 	if !strings.HasPrefix(authHeader, "Bearer ") {
 		o.handleError(ctx, "Invalid Authorization header format")
 		return false
 	}
 
-	token := strings.TrimPrefix(authHeader, "Bearer ")
+	token := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 	if token == "" {
 		o.handleError(ctx, "Empty bearer token")
 		return false
 	}
 
-	// 验证token（通过introspection endpoint）
 	tokenInfo, err := o.introspectToken(token)
 	if err != nil {
 		o.handleError(ctx, err.Error())
 		return false
 	}
 
-	// 存储认证信息到上下文
 	o.storeAuthInfo(ctx, token, tokenInfo)
 	return true
 }
 
-// Validate 验证OAuth2配置
+// GetConfig 获取OAuth2认证器配置
+func (o *OAuth2Auth) GetConfig() AuthConfig {
+	return o.originalConfig
+}
+
+// Validate 验证OAuth2配置（仅校验可存储字段，不要求远端内省端点可用）
 func (o *OAuth2Auth) Validate() error {
 	if o.clientID == "" {
 		return fmt.Errorf("OAuth2 client ID不能为空")
@@ -85,27 +97,15 @@ func (o *OAuth2Auth) Validate() error {
 	if o.clientSecret == "" {
 		return fmt.Errorf("OAuth2 client secret不能为空")
 	}
-	if o.introspectEndpoint == "" {
-		return fmt.Errorf("OAuth2 introspect endpoint不能为空")
-	}
 	return nil
 }
 
-// introspectToken 验证OAuth2 token
+// introspectToken 远端 Token 校验（暂未实现）
 func (o *OAuth2Auth) introspectToken(token string) (map[string]interface{}, error) {
-	// TODO: 实现真正的token introspection
-	// 这里应该调用OAuth2服务器的introspection endpoint
-	// 简化实现：检查token不为空
 	if token == "" {
 		return nil, fmt.Errorf("invalid token")
 	}
-
-	return map[string]interface{}{
-		"active":    true,
-		"client_id": o.clientID,
-		"scope":     o.scope,
-		"sub":       "oauth2_user",
-	}, nil
+	return nil, fmt.Errorf("OAuth2 remote token validation is not implemented yet")
 }
 
 // handleError 处理OAuth2认证错误
@@ -133,43 +133,32 @@ func (o *OAuth2Auth) storeAuthInfo(ctx *core.Context, token string, tokenInfo ma
 	}
 }
 
-// parseOAuth2Config 解析OAuth2配置
-func parseOAuth2Config(configMap map[string]interface{}) (map[string]interface{}, error) {
+// parseOAuth2Config 解析OAuth2配置，兼容前端 camelCase 与 snake_case 字段名
+func parseOAuth2Config(configMap map[string]interface{}) (*oauth2RuntimeConfig, error) {
 	if configMap == nil {
 		return nil, fmt.Errorf("OAuth2配置不能为空")
 	}
 
-	config := make(map[string]interface{})
-
-	if clientID, ok := configMap["client_id"].(string); ok {
-		config["client_id"] = clientID
-	} else {
+	clientID := configString(configMap, "clientID", "client_id")
+	if clientID == "" {
 		return nil, fmt.Errorf("OAuth2 client_id不能为空")
 	}
 
-	if clientSecret, ok := configMap["client_secret"].(string); ok {
-		config["client_secret"] = clientSecret
-	} else {
+	clientSecret := configString(configMap, "clientSecret", "client_secret")
+	if clientSecret == "" {
 		return nil, fmt.Errorf("OAuth2 client_secret不能为空")
 	}
 
-	if tokenEndpoint, ok := configMap["token_endpoint"].(string); ok {
-		config["token_endpoint"] = tokenEndpoint
-	} else {
-		config["token_endpoint"] = "" // 设置默认值
+	scope := configString(configMap, "scope")
+	if scope == "" {
+		scope = "read"
 	}
 
-	if introspectEndpoint, ok := configMap["introspect_endpoint"].(string); ok {
-		config["introspect_endpoint"] = introspectEndpoint
-	} else {
-		return nil, fmt.Errorf("OAuth2 introspect_endpoint不能为空")
-	}
-
-	if scope, ok := configMap["scope"].(string); ok {
-		config["scope"] = scope
-	} else {
-		config["scope"] = "read" // 设置默认scope
-	}
-
-	return config, nil
+	return &oauth2RuntimeConfig{
+		TokenEndpoint:      configString(configMap, "tokenEndpoint", "token_endpoint"),
+		ClientID:           clientID,
+		ClientSecret:       clientSecret,
+		Scope:              scope,
+		IntrospectEndpoint: configString(configMap, "introspectEndpoint", "introspect_endpoint"),
+	}, nil
 }

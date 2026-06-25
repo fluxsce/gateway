@@ -6,6 +6,21 @@
 
 ## [Unreleased]（未发布）
 
+## [3.1.8] - 2026-06-25
+
+### 新增
+- **Bearer Token 认证**：网关新增 `bearer-token` 策略，校验 `Authorization: Bearer <token>` 与配置值是否一致；认证配置页支持选择「Bearer Token认证」并填写 `token`。
+
+### 优化
+- **API Key 认证配置精简**：对齐 `APIKeyConfig` 定义，仅保留 `param_name`、`in`、`key` 三个字段；移除 `APIKeyItem`、多 Key 列表与前缀匹配；前端改为参数名 + 单个密钥值配置。
+- **认证配置页**：按认证类型维护字段白名单，切换类型时清理无关参数；JWT 按算法显示 `secret`/`publicKey`；API Key / Bearer Token / Basic 独立配置区与提交校验。
+
+### 修复
+- **JWT 认证未真正验签**：接入 `golang-jwt` 实现签名、过期与可选 issuer 校验（HS/RS 系列算法）。
+- **Basic 认证未生效**：修复 `BasicAuthFromConfig` 误返回 `BaseAuthenticator` 导致认证被绕过的问题；凭据改为恒定时间比较。
+- **OAuth2 认证误放行**：修复工厂返回基础认证器导致静默通过；远端 Token 内省暂未实现时明确拒绝请求。
+- **API Key 空密钥绕过**：未配置有效 Key 时不再放行；仅填参数名无法通过认证。
+
 ## [3.1.7] - 2026-06-18
 
 ### 新增

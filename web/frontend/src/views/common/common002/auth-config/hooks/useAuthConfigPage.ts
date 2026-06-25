@@ -8,6 +8,7 @@ import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { ref, watch } from 'vue'
 import type { AuthConfig } from './types'
+import { buildAuthConfigForType, isOAuth2ActiveRequired, normalizeApiKeyFormFields, validateApiKeyFormData, validateBearerTokenFormData } from './authConfigUtils'
 import { useAuthConfigService } from './useAuthConfigService'
 
 /**
@@ -81,6 +82,10 @@ export function useAuthConfigPage(
       Object.keys(authConfigObj).forEach((key) => {
         formData[`authConfig.${key}`] = authConfigObj[key]
       })
+      // API Key：将历史 camelCase 字段规范为 param_name/in/keys
+      if (config.authType === 'API_KEY') {
+        normalizeApiKeyFormFields(formData, authConfigObj)
+      }
     }
 
     return formData
@@ -90,21 +95,12 @@ export function useAuthConfigPage(
    * 将表单数据转换为API数据格式（保存时：将 authConfig.xxx 字段合并为一个 authConfig JSON 字符串）
    */
   const convertToApiData = (formData: Record<string, any>): any => {
-    // 从点号分隔字段重新构建 authConfig 对象
-    const authConfigObj: Record<string, any> = {}
-    
-    // 遍历所有以 authConfig. 开头的字段
-    Object.keys(formData).forEach((key) => {
-      if (key.startsWith('authConfig.')) {
-        const subKey = key.replace('authConfig.', '')
-        authConfigObj[subKey] = formData[key]
-      }
-    })
+    // 仅保留当前认证类型对应的 authConfig 字段，避免切换类型后旧参数被一并提交
+    const authConfigObj = buildAuthConfigForType(formData)
 
     // 构建 API 数据对象，排除点号分隔字段
     const apiData: Record<string, any> = {}
     Object.keys(formData).forEach((key) => {
-      // 排除以 authConfig. 开头的点号分隔字段（这些字段已经合并到 authConfig 对象中）
       if (!key.startsWith('authConfig.')) {
         apiData[key] = formData[key]
       }
@@ -112,7 +108,6 @@ export function useAuthConfigPage(
 
     return {
       ...apiData,
-      // authConfig 前端是点号分隔字段，后端需要 JSON 字符串
       authConfig: Object.keys(authConfigObj).length > 0
         ? JSON.stringify(authConfigObj)
         : '{}',
@@ -174,6 +169,26 @@ export function useAuthConfigPage(
     // 查看模式下不执行提交
     if (formDialogMode.value === 'view') {
       return
+    }
+
+    // OAuth2 远端校验尚未实现：启用且强制认证时提示，配置仍可保存
+    if (isOAuth2ActiveRequired(formData)) {
+      message.warning(
+        'OAuth2 远端 Token 校验尚未实现，启用后网关将拒绝认证请求。可先保存配置，待后续版本接入远端校验。'
+      )
+    }
+
+    // API Key：必须配置有效 Key 值，不能只填参数名称
+    const apiKeyError = validateApiKeyFormData(formData)
+    if (apiKeyError) {
+      message.warning(apiKeyError)
+      return false
+    }
+
+    const bearerTokenError = validateBearerTokenFormData(formData)
+    if (bearerTokenError) {
+      message.warning(bearerTokenError)
+      return false
     }
 
     // 将表单数据转换为API数据格式（合并点号分隔字段，转换为 JSON 字符串）

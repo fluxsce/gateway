@@ -11,7 +11,7 @@ type AuthConfig struct {
 	GatewayInstanceId *string    `json:"gatewayInstanceId" form:"gatewayInstanceId" query:"gatewayInstanceId" db:"gatewayInstanceId"`                           // 网关实例ID(实例级认证)
 	RouteConfigId     *string    `json:"routeConfigId" form:"routeConfigId" query:"routeConfigId" db:"routeConfigId"`                                           // 路由配置ID(路由级认证)
 	AuthName          string     `json:"authName" form:"authName" query:"authName" db:"authName"`                                                               // 认证配置名称
-	AuthType          string     `json:"authType" form:"authType" query:"authType" db:"authType" binding:"oneof=JWT API_KEY OAUTH2 BASIC"`                      // 认证类型(JWT,API_KEY,OAUTH2,BASIC)
+	AuthType          string     `json:"authType" form:"authType" query:"authType" db:"authType" binding:"oneof=JWT API_KEY OAUTH2 BASIC BEARER_TOKEN"`         // 认证类型(JWT,API_KEY,OAUTH2,BASIC,BEARER_TOKEN)
 	AuthStrategy      string     `json:"authStrategy" form:"authStrategy" query:"authStrategy" db:"authStrategy" binding:"oneof=REQUIRED OPTIONAL DISABLED"`    // 认证策略(REQUIRED,OPTIONAL,DISABLED)
 	AuthConfig        string     `json:"authConfig" form:"authConfig" query:"authConfig" db:"authConfig"`                                                       // 认证参数配置,JSON格式
 	ExemptPaths       *string    `json:"exemptPaths" form:"exemptPaths" query:"exemptPaths" db:"exemptPaths"`                                                   // 豁免路径列表,JSON数组格式

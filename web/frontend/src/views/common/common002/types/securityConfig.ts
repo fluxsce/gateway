@@ -292,7 +292,7 @@ export interface AuthConfig {
   gatewayInstanceId?: string // 网关实例ID(实例级认证)
   routeConfigId?: string // 路由配置ID(路由级认证)
   authName: string // 认证配置名称
-  authType: 'JWT' | 'API_KEY' | 'OAUTH2' | 'BASIC' // 认证类型
+  authType: 'JWT' | 'API_KEY' | 'OAUTH2' | 'BASIC' | 'BEARER_TOKEN' // 认证类型
   authStrategy: 'REQUIRED' | 'OPTIONAL' | 'DISABLED' // 认证策略
   authConfig: Record<string, any> // 认证参数配置,JSON格式
   exemptPaths?: string[] // 豁免路径列表,JSON数组格式
@@ -324,7 +324,7 @@ export interface AuthConfig {
 export interface AuthConfigForm {
   activeFlag: 'Y' | 'N' // 活动状态标记
   authName: string // 认证配置名称
-  authType: 'JWT' | 'API_KEY' | 'OAUTH2' | 'BASIC' // 认证类型
+  authType: 'JWT' | 'API_KEY' | 'OAUTH2' | 'BASIC' | 'BEARER_TOKEN' // 认证类型
   authStrategy: 'REQUIRED' | 'OPTIONAL' | 'DISABLED' // 认证策略
   authConfig: Record<string, any> // 认证参数配置，支持动态字段
   exemptPaths: string[] // 豁免路径列表
@@ -345,13 +345,14 @@ export interface JWTAuthConfig {
   refreshWindow: number // 强制刷新时间窗口（秒）
   includeInResponse: boolean // 是否在响应中包含token信息
   responseHeaderName: string // token在响应中的头部名称
+  publicKey?: string // RS 系列算法公钥（PEM）
 }
 
 // API Key认证配置
 export interface APIKeyAuthConfig {
-  keyLocation: 'header' | 'query' // API Key位置
-  keyName: string // 参数名称
-  validKeys: string[] // 有效的API Keys
+  param_name: string // 参数名称（Header/Query/Cookie 名）
+  in: 'header' | 'query' | 'cookie' // API Key 位置
+  key: string // 期望的 API Key 值
 }
 
 // OAuth2认证配置
@@ -360,13 +361,18 @@ export interface OAuth2AuthConfig {
   clientID: string // 客户端ID
   clientSecret: string // 客户端密钥
   scope: string // 授权范围
-  introspectEndpoint: string // 内省端点
+  introspectEndpoint?: string // 内省端点（远端校验暂未实现，可选预留）
 }
 
 // Basic认证配置
 export interface BasicAuthConfig {
   username: string // 用户名
   password: string // 密码
+}
+
+// Bearer Token 认证配置
+export interface BearerTokenAuthConfig {
+  token: string // 期望的 Bearer Token 值
 }
 
 // 限流配置类型 - 严格按照HUB_GATEWAY_RATE_LIMIT_CONFIG表结构定义

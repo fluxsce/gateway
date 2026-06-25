@@ -86,6 +86,8 @@ func (loader *AuthCORSConfigLoader) LoadAuthConfig(ctx context.Context, instance
 			authConf.Strategy = auth.StrategyOAuth2
 		case "BASIC":
 			authConf.Strategy = auth.StrategyBasic
+		case "BEARER_TOKEN":
+			authConf.Strategy = auth.StrategyBearerToken
 		default:
 			authConf.Strategy = auth.StrategyJWT
 		}
@@ -177,6 +179,8 @@ func (loader *AuthCORSConfigLoader) LoadRouteAuthConfig(ctx context.Context, rou
 			authConf.Strategy = auth.StrategyOAuth2
 		case "BASIC":
 			authConf.Strategy = auth.StrategyBasic
+		case "BEARER_TOKEN":
+			authConf.Strategy = auth.StrategyBearerToken
 		default:
 			authConf.Strategy = auth.StrategyJWT
 		}

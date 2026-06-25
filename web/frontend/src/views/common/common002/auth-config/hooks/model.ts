@@ -4,8 +4,9 @@
  */
 
 import type { DataFormField } from '@/components/form/data/types'
-import { NDynamicTags, NInput, NInputNumber, NSelect, NSwitch } from 'naive-ui'
+import { NAlert, NDynamicTags, NInput, NInputNumber, NSelect, NSwitch } from 'naive-ui'
 import { h, ref } from 'vue'
+import { clearIrrelevantAuthConfigFields, clearJwtKeysOnAlgorithmChange, isJwtHmacAlgorithm, isJwtRsaAlgorithm } from './authConfigUtils'
 
 /**
  * 认证配置 Model
@@ -39,8 +40,9 @@ export function useAuthConfigModel(moduleId: string) {
   const authTypeOptions = [
     { label: 'JWT认证', value: 'JWT' },
     { label: 'API Key认证', value: 'API_KEY' },
-    { label: 'OAuth2认证', value: 'OAUTH2' },
+    { label: 'OAuth2认证（远端校验暂未实现）', value: 'OAUTH2' },
     { label: 'Basic认证', value: 'BASIC' },
+    { label: 'Bearer Token认证', value: 'BEARER_TOKEN' },
   ]
 
   // 认证策略选项
@@ -64,13 +66,12 @@ export function useAuthConfigModel(moduleId: string) {
   const apiKeyLocationOptions = [
     { label: 'Header', value: 'header' },
     { label: 'Query参数', value: 'query' },
+    { label: 'Cookie', value: 'cookie' },
   ]
 
   // 创建嵌套字段的 render 函数（用于访问 authConfig 对象的嵌套属性）
-  // 使用点号分隔的字段名（如 authConfig.secret），更符合对象属性访问方式
-  const createNestedFieldRender = (subField: string, fieldType: 'input' | 'select' | 'number' | 'switch' | 'tags', options?: any) => {
+  const createNestedFieldRender = (subField: string, fieldType: 'input' | 'textarea' | 'select' | 'number' | 'switch' | 'tags', options?: any) => {
     return (formData: Record<string, any>) => {
-      // 从点号分隔字段读取值（如 authConfig.secret）
       const dotKey = `authConfig.${subField}`
       const value = formData[dotKey]
 
@@ -79,6 +80,17 @@ export function useAuthConfigModel(moduleId: string) {
           value: value || '',
           type: options?.type || 'text',
           placeholder: options?.placeholder || '',
+          showPasswordOn: options?.showPasswordOn,
+          'onUpdate:value': (val: string) => {
+            formData[dotKey] = val
+          },
+        })
+      } else if (fieldType === 'textarea') {
+        return h(NInput, {
+          value: value || '',
+          type: 'textarea',
+          placeholder: options?.placeholder || '',
+          rows: options?.rows || 4,
           'onUpdate:value': (val: string) => {
             formData[dotKey] = val
           },
@@ -90,6 +102,7 @@ export function useAuthConfigModel(moduleId: string) {
           placeholder: options?.placeholder || '',
           'onUpdate:value': (val: string) => {
             formData[dotKey] = val
+            options?.onUpdateValue?.(val, formData)
           },
         })
       } else if (fieldType === 'number') {
@@ -122,10 +135,128 @@ export function useAuthConfigModel(moduleId: string) {
         })
       }
 
-      // 默认返回一个空的 div（不应该到达这里）
       return h('div')
     }
   }
+
+  // API Key 配置字段（独立分组，选择 API Key 认证时展示）
+  const apiKeyConfigFields: DataFormField[] = [
+    {
+      field: 'authConfig.in',
+      label: 'API Key位置',
+      type: 'custom',
+      span: 12,
+      tabKey: 'basic',
+      required: true,
+      tips: 'API Key 的获取位置：请求头、Query 参数或 Cookie',
+      render: createNestedFieldRender('in', 'select', {
+        options: apiKeyLocationOptions,
+        defaultValue: 'header',
+        placeholder: 'API Key获取位置',
+      }),
+      rules: [
+        {
+          validator: (rule: any, _value: any) => {
+            const formData = (rule as any).source || {}
+            if (formData.authType === 'API_KEY') {
+              const location = formData['authConfig.in']
+              if (!location || (typeof location === 'string' && location.trim() === '')) {
+                return new Error('API Key位置不能为空')
+              }
+            }
+            return true
+          },
+          trigger: ['blur', 'change'],
+        },
+      ],
+    },
+    {
+      field: 'authConfig.param_name',
+      label: '参数名称',
+      type: 'custom',
+      span: 12,
+      tabKey: 'basic',
+      required: true,
+          tips: '请求中携带该名称的 Header/Query/Cookie，网关会读取其值并与配置的密钥比对',
+      render: createNestedFieldRender('param_name', 'input', { placeholder: 'X-API-Key', defaultValue: 'X-API-Key' }),
+      rules: [
+        {
+          validator: (rule: any, _value: any) => {
+            const formData = (rule as any).source || {}
+            if (formData.authType === 'API_KEY') {
+              const paramName = formData['authConfig.param_name']
+              if (!paramName || (typeof paramName === 'string' && paramName.trim() === '')) {
+                return new Error('参数名称不能为空')
+              }
+            }
+            return true
+          },
+          trigger: ['blur', 'change'],
+        },
+      ],
+    },
+    {
+      field: 'authConfig.key',
+      label: 'API Key 值',
+      type: 'custom',
+      span: 12,
+      tabKey: 'basic',
+      required: true,
+      tips: '期望的密钥值，请求中携带的参数值必须与此完全一致',
+      render: createNestedFieldRender('key', 'input', {
+        type: 'password',
+        placeholder: '请输入 API Key 密钥值',
+        showPasswordOn: 'click',
+      }),
+      rules: [
+        {
+          validator: (rule: any, _value: any) => {
+            const formData = (rule as any).source || {}
+            if (formData.authType === 'API_KEY') {
+              const key = formData['authConfig.key']
+              if (!key || (typeof key === 'string' && key.trim() === '')) {
+                return new Error('API Key 值不能为空')
+              }
+            }
+            return true
+          },
+          trigger: ['blur', 'change'],
+        },
+      ],
+    },
+  ]
+
+  const bearerTokenConfigFields: DataFormField[] = [
+    {
+      field: 'authConfig.token',
+      label: 'Bearer Token',
+      type: 'custom',
+      span: 24,
+      tabKey: 'basic',
+      required: true,
+      tips: '期望的 Bearer Token 值，请求需携带 Authorization: Bearer <token>',
+      render: createNestedFieldRender('token', 'input', {
+        type: 'password',
+        placeholder: '请输入 Bearer Token',
+        showPasswordOn: 'click',
+      }),
+      rules: [
+        {
+          validator: (rule: any, _value: any) => {
+            const formData = (rule as any).source || {}
+            if (formData.authType === 'BEARER_TOKEN') {
+              const token = formData['authConfig.token']
+              if (!token || (typeof token === 'string' && token.trim() === '')) {
+                return new Error('Bearer Token 不能为空')
+              }
+            }
+            return true
+          },
+          trigger: ['blur', 'change'],
+        },
+      ],
+    },
+  ]
 
   // ============= 表单页签配置 =============
   const formTabs = [
@@ -197,8 +328,14 @@ export function useAuthConfigModel(moduleId: string) {
           props: {
             options: authTypeOptions,
             placeholder: '选择认证类型',
+            onUpdateValue: (value: string, formData?: Record<string, any>) => {
+              // 切换认证类型时清除不属于新类型的 authConfig 参数，避免残留提交
+              if (formData && value) {
+                clearIrrelevantAuthConfigFields(formData, value)
+              }
+            },
           },
-          tips: '支持JWT、API Key、OAuth2、Basic认证',
+          tips: 'JWT、API Key、Basic 可在网关侧校验；OAuth2 配置可先行保存，远端校验暂未实现',
         },
         {
           field: 'authStrategy',
@@ -255,6 +392,27 @@ export function useAuthConfigModel(moduleId: string) {
         },
       ],
     },
+    // ============= API Key 认证配置（独立分组，便于填写有效 Key 列表） =============
+    {
+      field: 'api-key-fieldset',
+      label: 'API Key 配置',
+      type: 'fieldset',
+      span: 24,
+      tabKey: 'basic',
+      show: (formData: Record<string, any>) => formData.authType === 'API_KEY',
+      props: { borderStyle: 'solid' },
+      children: apiKeyConfigFields,
+    },
+    {
+      field: 'bearer-token-fieldset',
+      label: 'Bearer Token 配置',
+      type: 'fieldset',
+      span: 24,
+      tabKey: 'basic',
+      show: (formData: Record<string, any>) => formData.authType === 'BEARER_TOKEN',
+      props: { borderStyle: 'solid' },
+      children: bearerTokenConfigFields,
+    },
     // ============= 认证参数配置分组 =============
     {
       field: 'authConfigDetails',
@@ -270,19 +428,22 @@ export function useAuthConfigModel(moduleId: string) {
           type: 'custom',
           span: 12,
           tabKey: 'basic',
-          show: (formData: Record<string, any>) => formData.authType === 'JWT',
+          show: (formData: Record<string, any>) => {
+            return formData.authType === 'JWT' && isJwtHmacAlgorithm(formData['authConfig.algorithm'])
+          },
           required: true,
-          tips: 'JWT签名密钥，用于验证和生成Token',
+          tips: 'HMAC 算法（HS256/HS384/HS512）使用的对称密钥，任意非空字符串均可',
           render: createNestedFieldRender('secret', 'input', { type: 'password', placeholder: 'JWT签名密钥' }),
           rules: [
             {
-              validator: (rule: any, value: any) => {
+              validator: (rule: any, _value: any) => {
                 const formData = (rule as any).source || {}
-                if (formData.authType === 'JWT') {
-                  const secret = formData['authConfig.secret']
-                  if (!secret || (typeof secret === 'string' && secret.trim() === '')) {
-                    return new Error('JWT密钥不能为空')
-                  }
+                if (formData.authType !== 'JWT' || !isJwtHmacAlgorithm(formData['authConfig.algorithm'])) {
+                  return true
+                }
+                const secret = formData['authConfig.secret']
+                if (!secret || (typeof secret === 'string' && secret.trim() === '')) {
+                  return new Error('JWT密钥不能为空')
                 }
                 return true
               },
@@ -298,8 +459,17 @@ export function useAuthConfigModel(moduleId: string) {
           tabKey: 'basic',
           show: (formData: Record<string, any>) => formData.authType === 'JWT',
           required: true,
-          tips: 'JWT签名算法，如HS256、RS256等',
-          render: createNestedFieldRender('algorithm', 'select', { options: jwtAlgorithmOptions, defaultValue: 'HS256', placeholder: '选择签名算法' }),
+          tips: 'HMAC 使用对称密钥 secret；RSA 使用 PEM 公钥验签，无需填写 secret',
+          render: createNestedFieldRender('algorithm', 'select', {
+            options: jwtAlgorithmOptions,
+            defaultValue: 'HS256',
+            placeholder: '选择签名算法',
+            onUpdateValue: (value: string, formData?: Record<string, any>) => {
+              if (formData && value) {
+                clearJwtKeysOnAlgorithmChange(formData, value)
+              }
+            },
+          }),
           rules: [
             {
               validator: (rule: any, value: any) => {
@@ -309,6 +479,38 @@ export function useAuthConfigModel(moduleId: string) {
                   if (!algorithm || (typeof algorithm === 'string' && algorithm.trim() === '')) {
                     return new Error('签名算法不能为空')
                   }
+                }
+                return true
+              },
+              trigger: ['blur', 'change']
+            }
+          ],
+        },
+        {
+          field: 'authConfig.publicKey',
+          label: 'RSA公钥',
+          type: 'custom',
+          span: 24,
+          tabKey: 'basic',
+          show: (formData: Record<string, any>) => {
+            return formData.authType === 'JWT' && isJwtRsaAlgorithm(formData['authConfig.algorithm'])
+          },
+          required: true,
+          tips: 'RS 系列算法使用的 PEM 格式公钥，用于验证 Token 签名',
+          render: createNestedFieldRender('publicKey', 'textarea', {
+            placeholder: '-----BEGIN PUBLIC KEY-----',
+            rows: 6,
+          }),
+          rules: [
+            {
+              validator: (rule: any, _value: any) => {
+                const formData = (rule as any).source || {}
+                if (formData.authType !== 'JWT' || !isJwtRsaAlgorithm(formData['authConfig.algorithm'])) {
+                  return true
+                }
+                const publicKey = formData['authConfig.publicKey']
+                  if (!publicKey || (typeof publicKey === 'string' && publicKey.trim() === '')) {
+                  return new Error('RSA公钥不能为空')
                 }
                 return true
               },
@@ -389,86 +591,24 @@ export function useAuthConfigModel(moduleId: string) {
           tips: '响应头中Token的字段名',
           render: createNestedFieldRender('responseHeaderName', 'input', { placeholder: 'X-Auth-Token', defaultValue: 'X-Auth-Token' }),
         },
-        // ============= API Key 认证配置字段 =============
+        // ============= OAuth2 认证配置字段 =============
         {
-          field: 'authConfig.keyLocation',
-          label: 'API Key位置',
-          type: 'custom',
-          span: 12,
-          tabKey: 'basic',
-          show: (formData: Record<string, any>) => formData.authType === 'API_KEY',
-          required: true,
-          tips: 'API Key的获取位置，Header或Query参数',
-          render: createNestedFieldRender('keyLocation', 'select', { options: apiKeyLocationOptions, defaultValue: 'header', placeholder: 'API Key获取位置' }),
-          rules: [
-            {
-              validator: (rule: any, value: any) => {
-                const formData = (rule as any).source || {}
-                if (formData.authType === 'API_KEY') {
-                  const keyLocation = formData['authConfig.keyLocation']
-                  if (!keyLocation || (typeof keyLocation === 'string' && keyLocation.trim() === '')) {
-                    return new Error('API Key位置不能为空')
-                  }
-                }
-                return true
-              },
-              trigger: ['blur', 'change']
-            }
-          ],
-        },
-        {
-          field: 'authConfig.keyName',
-          label: '参数名称',
-          type: 'custom',
-          span: 12,
-          tabKey: 'basic',
-          show: (formData: Record<string, any>) => formData.authType === 'API_KEY',
-          required: true,
-          tips: 'API Key的参数名称，如X-API-Key',
-          render: createNestedFieldRender('keyName', 'input', { placeholder: 'api_key', defaultValue: 'X-API-Key' }),
-          rules: [
-            {
-              validator: (rule: any, value: any) => {
-                const formData = (rule as any).source || {}
-                if (formData.authType === 'API_KEY') {
-                  const keyName = formData['authConfig.keyName']
-                  if (!keyName || (typeof keyName === 'string' && keyName.trim() === '')) {
-                    return new Error('参数名称不能为空')
-                  }
-                }
-                return true
-              },
-              trigger: ['blur', 'change']
-            }
-          ],
-        },
-        {
-          field: 'authConfig.validKeys',
-          label: '有效API Keys',
+          field: 'oauth2-notice',
+          label: '',
           type: 'custom',
           span: 24,
           tabKey: 'basic',
-          show: (formData: Record<string, any>) => formData.authType === 'API_KEY',
-          required: true,
-          tips: '允许访问的API Key列表，至少配置一个',
-          render: createNestedFieldRender('validKeys', 'tags', { placeholder: '输入API Key' }),
-          rules: [
-            {
-              validator: (rule: any, value: any) => {
-                const formData = (rule as any).source || {}
-                if (formData.authType === 'API_KEY') {
-                  const validKeys = formData['authConfig.validKeys']
-                  if (!validKeys || !Array.isArray(validKeys) || validKeys.length === 0) {
-                    return new Error('至少需要配置一个有效API Key')
-                  }
-                }
-                return true
-              },
-              trigger: ['blur', 'change']
-            }
-          ],
+          show: (formData: Record<string, any>) => formData.authType === 'OAUTH2',
+          render: () =>
+            h(NAlert, {
+              type: 'warning',
+              title: 'OAuth2 远端校验暂未实现',
+              style: 'margin-bottom: 8px;',
+            }, {
+              default: () =>
+                '认证服务提供方在网关之外，此处可先行保存 Client ID、端点等配置。网关侧远端 Token 内省校验尚未接入，启用强制认证后请求将被拒绝。',
+            }),
         },
-        // ============= OAuth2 认证配置字段 =============
         {
           field: 'authConfig.tokenEndpoint',
           label: 'Token端点URL',
@@ -477,7 +617,7 @@ export function useAuthConfigModel(moduleId: string) {
           tabKey: 'basic',
           show: (formData: Record<string, any>) => formData.authType === 'OAUTH2',
           required: true,
-          tips: 'OAuth2 Token获取端点URL',
+          tips: 'OAuth2 Token获取端点URL（配置先行保存，网关远端校验暂未实现）',
           render: createNestedFieldRender('tokenEndpoint', 'input', { placeholder: 'https://auth.example.com/oauth/token' }),
           rules: [
             {
@@ -502,7 +642,7 @@ export function useAuthConfigModel(moduleId: string) {
           span: 12,
           tabKey: 'basic',
           show: (formData: Record<string, any>) => formData.authType === 'OAUTH2',
-          tips: 'OAuth2 Token内省端点URL，可选',
+          tips: 'OAuth2 Token内省端点URL，可选（远端校验暂未实现，仅作配置预留）',
           render: createNestedFieldRender('introspectEndpoint', 'input', { placeholder: 'https://auth.example.com/oauth/introspect' }),
         },
         {
