@@ -6,6 +6,7 @@
  */
 
 import type { CodeMirrorLanguage } from '@/components/gcodemirror/types'
+import { randomUUID } from '@/utils/uuid'
 import type { RestBodyProcessType, RestHttpMethod, RestKeyValueRow } from './types'
 import { createKeyValueRow } from './types'
 
@@ -369,7 +370,7 @@ export function computeDesiredHeaderRows(
   const existingAuto = current.find((r) => r.autoFromBody)
   const autoRow: RestKeyValueRow = {
     ...createKeyValueRow(),
-    id: existingAuto?.id ?? crypto.randomUUID(),
+    id: existingAuto?.id ?? randomUUID(),
     key: 'Content-Type',
     value: derived,
     enabled: true,

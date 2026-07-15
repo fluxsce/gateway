@@ -6,6 +6,8 @@
  * 类型与 `sendRestRequest`、`GRestfulApi.vue` 及网关 `hubplugin/http` 接口对齐。
  */
 
+import { randomUUID } from '@/utils/uuid'
+
 /**
  * 支持的 HTTP 方法（与 fetch 及常见 REST 用法一致）。
  */
@@ -57,11 +59,11 @@ export interface RestKeyValueRow {
 /**
  * 创建一条空的键值行，用于表格初始化或底部自动追加的空行。
  *
- * @returns 新的 {@link RestKeyValueRow}，`id` 由 `crypto.randomUUID()` 生成。
+ * @returns 新的 {@link RestKeyValueRow}，`id` 由 {@link randomUUID} 生成（兼容 HTTP）。
  */
 export function createKeyValueRow(): RestKeyValueRow {
   return {
-    id: crypto.randomUUID(),
+    id: randomUUID(),
     enabled: true,
     key: '',
     value: '',

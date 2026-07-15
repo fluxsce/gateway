@@ -173,6 +173,7 @@
 import { CloseOutline, ContractOutline, ExpandOutline } from '@vicons/ionicons5'
 import { NButton, NIcon, NModal, NSpace } from 'naive-ui'
 import { computed, ref, toRef, useAttrs, useSlots, watch } from 'vue'
+import { randomUUID } from '@/utils/uuid'
 import type { GModalEmits, GModalProps } from './types'
 import { useGModalResize } from './useGModalResize'
 
@@ -217,10 +218,7 @@ const attrs = useAttrs()
  * - useGModalResize 用 `document.querySelector('[data-g-modal="…"]')` 定位当前弹层；多实例并存时避免命中其它对话框。
  * - 样式中 `[data-g-modal]` 只表示「带标记的 GModal」，不依赖属性值。
  */
-const modalInstanceId =
-  typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID()
-    : `g-modal-${Math.random().toString(36).slice(2)}`
+const modalInstanceId = randomUUID()
 
 const isFullscreen = ref(false)
 

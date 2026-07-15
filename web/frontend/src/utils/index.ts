@@ -28,3 +28,6 @@ export * from './clipboard'
 // DOM 唯一 id 生成（如弹窗挂载容器）
 export { createDomId } from './messageUtil'
 
+// UUID（兼容 HTTP 非安全上下文）
+export { randomUUID } from './uuid'
+
