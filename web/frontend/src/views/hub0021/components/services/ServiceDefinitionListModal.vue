@@ -73,13 +73,13 @@
 </template>
 
 <script lang="ts" setup>
+import SearchForm from '@/components/form/search/SearchForm.vue'
 import { GModal } from '@/components/gmodal'
 import { GPane } from '@/components/gpane'
-import SearchForm from '@/components/form/search/SearchForm.vue'
 import { GGrid } from '@/components/grid'
 import { CubeOutline } from '@vicons/ionicons5'
 import { NTag, useMessage } from 'naive-ui'
-import { ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useServiceDefinitionSelectorModel } from './hooks/model'
 import { useServiceDefinitionListPage } from './hooks/page'
 import type { ServiceDefinitionListModalEmits, ServiceDefinitionListModalProps } from './hooks/types'
@@ -98,6 +98,8 @@ const props = withDefaults(defineProps<ServiceDefinitionListModalProps>(), {
   width: 1200,
   to: undefined,
   gatewayInstanceId: undefined,
+  selectedIds: () => [],
+  selectedServices: () => [],
 })
 
 // ============= Emits =============
@@ -116,6 +118,8 @@ const gridRef = ref()
 // ============= 当前选中的服务定义 =============
 
 const selectedServices = ref<ServiceDefinition[]>([])
+/** 回填勾选过程中忽略 checkbox-change，避免 clearCheckboxRow 把已选清空 */
+const isRestoringSelection = ref(false)
 
 // ============= Model =============
 
@@ -144,12 +148,81 @@ const {
 
 const modalVisible = ref(props.visible)
 
-// 监听 props.visible 变化，同步到本地状态
+/**
+ * 根据已选服务回填表格勾选状态
+ * 先清空当前页勾选，再按 selectedServices 中的 ID 勾选当前页匹配行
+ */
+function restoreCheckboxSelection() {
+  if (!gridRef.value) return
+
+  isRestoringSelection.value = true
+  try {
+    const allRows = model.serviceList.value || []
+    if (allRows.length > 0) {
+      if (gridRef.value.clearCheckboxRow) {
+        gridRef.value.clearCheckboxRow()
+      } else if (gridRef.value.setCheckboxRow) {
+        gridRef.value.setCheckboxRow(allRows, false)
+      }
+    }
+
+    const ids = new Set(selectedServices.value.map(s => s.serviceDefinitionId).filter(Boolean))
+    if (ids.size === 0) return
+
+    const matchedRows = allRows.filter(row => ids.has(row.serviceDefinitionId))
+    if (matchedRows.length === 0 || !gridRef.value.setCheckboxRow) return
+
+    gridRef.value.setCheckboxRow(matchedRows, true)
+
+    // 用列表中的完整行数据覆盖可能只有 ID 的占位项
+    const serviceMap = new Map(selectedServices.value.map(s => [s.serviceDefinitionId, s]))
+    matchedRows.forEach(row => serviceMap.set(row.serviceDefinitionId, row))
+    selectedServices.value = Array.from(serviceMap.values())
+  } finally {
+    nextTick(() => {
+      isRestoringSelection.value = false
+    })
+  }
+}
+
+/**
+ * 打开弹窗时，用父组件传入的已选服务初始化选中状态
+ */
+function initSelectedFromProps() {
+  if (props.selectedServices && props.selectedServices.length > 0) {
+    selectedServices.value = [...props.selectedServices]
+    return
+  }
+  if (props.selectedIds && props.selectedIds.length > 0) {
+    selectedServices.value = props.selectedIds.map(id => ({
+      serviceDefinitionId: id,
+    } as ServiceDefinition))
+    return
+  }
+  selectedServices.value = []
+}
+
+// 监听 props.visible 变化，同步到本地状态并回填勾选
 const stopVisibleWatch = watch(() => props.visible, (newVal) => {
   modalVisible.value = newVal
-  // 移除自动加载逻辑，数据加载应该由用户主动搜索触发
-  // 这样避免在对话框打开时立即触发不必要的 API 请求
+  if (newVal) {
+    initSelectedFromProps()
+    nextTick(() => {
+      restoreCheckboxSelection()
+    })
+  }
 })
+
+// 列表数据变化（搜索/分页）后，按当前已选 ID 重新勾选本页匹配行
+const stopServiceListWatch = watch(
+  () => model.serviceList.value,
+  () => {
+    if (!modalVisible.value) return
+    nextTick(() => {
+      restoreCheckboxSelection()
+    })
+  }
+)
 
 // ============= 资源清理 =============
 
@@ -157,6 +230,7 @@ const stopVisibleWatch = watch(() => props.visible, (newVal) => {
 onBeforeUnmount(() => {
   stopGatewayInstanceIdWatch()
   stopVisibleWatch()
+  stopServiceListWatch()
 })
 
 // ============= 工具函数 =============
@@ -183,9 +257,17 @@ const getLoadBalanceText = (algorithm: string): string => {
 
 /**
  * 处理复选框变化（始终支持多选）
+ * 合并保留不在当前页的已选项，避免翻页/搜索后丢失跨页选中
  */
 const handleCheckboxChange = (selection: ServiceDefinition[]) => {
-  selectedServices.value = selection
+  if (isRestoringSelection.value) return
+  const currentPageIds = new Set(
+    (model.serviceList.value || []).map(row => row.serviceDefinitionId)
+  )
+  const keptOffPage = selectedServices.value.filter(
+    s => s.serviceDefinitionId && !currentPageIds.has(s.serviceDefinitionId)
+  )
+  selectedServices.value = [...keptOffPage, ...selection]
 }
 
 /**
@@ -201,9 +283,12 @@ const handleUpdateVisible = (value: boolean) => {
     selectedServices.value = []
     emit('close')
   } else {
-    // 模态框打开时触发刷新事件
+    // 打开时回填已选服务并触发刷新事件
+    initSelectedFromProps()
+    nextTick(() => {
+      restoreCheckboxSelection()
+    })
     emit('refresh')
-    // 数据加载由 watch(() => props.visible) 处理，避免重复调用
   }
 }
 

@@ -182,6 +182,22 @@ export function useGatewayLogModel() {
           style: { width: '100%' }
         }
       },
+      {
+        field: 'requestQueryKeyword',
+        label: '参数关键字',
+        type: 'input',
+        placeholder: '子串匹配请求参数，如 userId=1001',
+        span: 8,
+        clearable: true,
+      },
+      {
+        field: 'requestBodyKeyword',
+        label: '报文体关键字',
+        type: 'input',
+        placeholder: '子串匹配报文体，需已开启记录请求体',
+        span: 8,
+        clearable: true,
+      },
     ],
     moreFields: [
       {

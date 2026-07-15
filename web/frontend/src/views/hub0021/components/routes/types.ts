@@ -38,17 +38,23 @@ export interface RouteConfig {
   matchType: MatchType
   /** 路由优先级(数值越小优先级越高) */
   routePriority: number
-  /** 是否剥离路径前缀 */
+  /** 是否剥离已匹配路由路径前缀后再转发 */
   stripPathPrefix: 'Y' | 'N'
-  /** 重写路径 */
+  /** 重写路径；非空时整段替换，空则使用原有路径拼接 */
   rewritePath?: string
-  /** 是否支持WebSocket */
+  /**
+   * WebSocket 路由标记。
+   * N 仍允许 Upgrade（兼容历史默认）；Y 表示明确标识 WebSocket 用途。
+   */
   enableWebsocket: 'Y' | 'N'
-  /** 超时时间(毫秒) */
+  /**
+   * 路由请求总超时（毫秒）。
+   * 仅当 routeMetadata.overrideProxyTimeout=Y 且值大于0时覆盖代理总超时。
+   */
   timeoutMs: number
-  /** 重试次数 */
+  /** 路由级重试次数；须开启覆盖且与 retryIntervalMs 同时大于0才覆盖代理 */
   retryCount: number
-  /** 重试间隔(毫秒) */
+  /** 路由级重试间隔（毫秒）；须开启覆盖且与 retryCount 同时大于0才覆盖代理 */
   retryIntervalMs: number
 
   // 关联配置
@@ -68,7 +74,7 @@ export interface RouteConfig {
   reserved4?: number
   reserved5?: string
   extProperty?: Record<string, any>
-  
+
   // 标准字段
   /** 创建时间 */
   addTime: string

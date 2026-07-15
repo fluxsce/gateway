@@ -675,7 +675,62 @@ func buildAccessLogWithConfig(instanceID string, gatewayCtx *core.Context, confi
 		}
 	}
 
+	// SSE/WebSocket 诊断信息不抬升日志级别，便于按断开原因检索。
+	appendStreamingDiagnostics(accessLog, gatewayCtx)
+
 	return accessLog
+}
+
+// appendStreamingDiagnostics 将SSE/WebSocket断开原因与流量摘要写入 ErrorMessage。
+// 正常结束也会记录，避免只能靠 responseSize=-1 推断长连接行为；不调用 SetErrorInfo以免改 LogLevel。
+func appendStreamingDiagnostics(accessLog *types.AccessLog, gatewayCtx *core.Context) {
+	parts := make([]string, 0, 4)
+	if disconnect, ok := gatewayCtx.GetString(constants.ContextKeySSEDisconnectType); ok && disconnect != "" {
+		parts = append(parts, "sse_disconnect="+disconnect)
+	}
+	if bytesVal, exists := gatewayCtx.Get(constants.ContextKeySSEBytesStreamed); exists {
+		if n, ok := asInt64(bytesVal); ok {
+			parts = append(parts, fmt.Sprintf("sse_bytes=%d", n))
+		}
+	}
+	if closeReason, ok := gatewayCtx.GetString(constants.ContextKeyWebSocketCloseReason); ok && closeReason != "" {
+		parts = append(parts, "ws_close="+closeReason)
+	}
+	if bytesVal, exists := gatewayCtx.Get(constants.ContextKeyWebSocketBytesReceived); exists {
+		if n, ok := asInt64(bytesVal); ok {
+			parts = append(parts, fmt.Sprintf("ws_bytes_rx=%d", n))
+		}
+	}
+	if bytesVal, exists := gatewayCtx.Get(constants.ContextKeyWebSocketBytesSent); exists {
+		if n, ok := asInt64(bytesVal); ok {
+			parts = append(parts, fmt.Sprintf("ws_bytes_tx=%d", n))
+		}
+	}
+	if len(parts) == 0 {
+		return
+	}
+	note := strings.Join(parts, "; ")
+	if accessLog.ErrorMessage == "" {
+		accessLog.ErrorMessage = note
+		return
+	}
+	if !strings.Contains(accessLog.ErrorMessage, note) {
+		accessLog.ErrorMessage = accessLog.ErrorMessage + "; " + note
+	}
+}
+
+// asInt64 兼容 int/int64 两类上下文数值。
+func asInt64(value interface{}) (int64, bool) {
+	switch n := value.(type) {
+	case int64:
+		return n, true
+	case int:
+		return int64(n), true
+	case int32:
+		return int64(n), true
+	default:
+		return 0, false
+	}
 }
 
 // getClientIP 获取客户端真实IP（仅从快照读取，安全用于异步场景）
@@ -817,16 +872,39 @@ func getRequestSizeFromContext(gatewayCtx *core.Context) int {
 	return -1
 }
 
-// getResponseSize 从上下文获取响应大小
+// getResponseSize 从上下文获取响应大小。
+// 优先读取显式写入的 response_size（含 SSE/WS），其次兼容旧键名，再回退到流式字节统计。
 func getResponseSize(gatewayCtx *core.Context) int {
-	// 尝试从上下文中获取响应大小
-	// 注意：需要在网关处理器中使用包装的ResponseWriter来记录写入的字节数
+	if size, ok := gatewayCtx.GetInt(constants.ContextKeyResponseSize); ok {
+		return size
+	}
+	// 兼容历史写入键
 	if size, ok := gatewayCtx.GetInt("response_size"); ok {
 		return size
 	}
-
-	// 如果没有记录响应大小，返回 -1（表示未知）
+	if bytesVal, exists := gatewayCtx.Get(constants.ContextKeySSEBytesStreamed); exists {
+		if n, ok := asInt64(bytesVal); ok {
+			return clampInt64ToLogSize(n)
+		}
+	}
+	if bytesVal, exists := gatewayCtx.Get(constants.ContextKeyWebSocketBytesSent); exists {
+		if n, ok := asInt64(bytesVal); ok {
+			return clampInt64ToLogSize(n)
+		}
+	}
 	return -1
+}
+
+// clampInt64ToLogSize 将 int64 流量收敛为访问日志 int 字段可表示范围。
+func clampInt64ToLogSize(v int64) int {
+	if v < 0 {
+		return 0
+	}
+	const maxInt = int(^uint(0) >> 1)
+	if v > int64(maxInt) {
+		return maxInt
+	}
+	return int(v)
 }
 
 // getResponseHeaders 从快照获取响应头（安全用于异步场景）

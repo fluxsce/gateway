@@ -224,7 +224,8 @@ func WriteBackendTraceLogSync(
 			responseHeadersStr = string(headerBytes)
 		}
 	}
-	responseSize := len(responseBodyStr)
+	// 流式场景优先使用上下文中的累计转发字节（SSE/WS），采样体长度不足以表达真实流量。
+	responseSize := resolveBackendResponseSize(gatewayCtx, responseBody, responseBodyStr)
 	backendLog.SetResponseInfo(statusCode, responseSize, responseHeadersStr, responseBodyStr)
 
 	// 设置重试次数
@@ -239,7 +240,8 @@ func WriteBackendTraceLogSync(
 			errorCode = "HTTP_SERVER_ERROR"
 		}
 		backendLog.SetErrorInfo(errorCode, err.Error())
-	} else if statusCode >= 200 && statusCode < 300 {
+	} else if (statusCode >= 200 && statusCode < 300) || statusCode == 101 {
+		// 101 Switching Protocols 视为 WebSocket 握手成功。
 		backendLog.SetSuccess()
 	} else if statusCode >= 400 {
 		errorCode := "HTTP_ERROR"
@@ -263,4 +265,27 @@ func WriteBackendTraceLogSync(
 	}
 
 	return nil
+}
+
+// resolveBackendResponseSize 解析后端追踪响应大小：优先流式累计字节，其次原始响应体，最后采样字符串长度。
+func resolveBackendResponseSize(gatewayCtx *core.Context, responseBody []byte, responseBodyStr string) int {
+	if gatewayCtx != nil {
+		if size, ok := gatewayCtx.GetInt(constants.ContextKeyResponseSize); ok && size >= 0 {
+			return size
+		}
+		if bytesVal, exists := gatewayCtx.Get(constants.ContextKeySSEBytesStreamed); exists {
+			if n, ok := asInt64(bytesVal); ok {
+				return clampInt64ToLogSize(n)
+			}
+		}
+		if bytesVal, exists := gatewayCtx.Get(constants.ContextKeyWebSocketBytesSent); exists {
+			if n, ok := asInt64(bytesVal); ok {
+				return clampInt64ToLogSize(n)
+			}
+		}
+	}
+	if len(responseBody) > 0 {
+		return len(responseBody)
+	}
+	return len(responseBodyStr)
 }

@@ -45,6 +45,12 @@ type BaseConfig struct {
 	WriteTimeout time.Duration `json:"write_timeout" yaml:"write_timeout" mapstructure:"write_timeout"`
 	// 空闲超时
 	IdleTimeout time.Duration `json:"idle_timeout" yaml:"idle_timeout" mapstructure:"idle_timeout"`
+	// 优雅关闭及旧代际排空超时
+	GracefulShutdownTimeout time.Duration `json:"graceful_shutdown_timeout" yaml:"graceful_shutdown_timeout" mapstructure:"graceful_shutdown_timeout"`
+	// 最大并发TCP连接数，超过后拒绝新连接。
+	MaxConnections int `json:"max_connections" yaml:"max_connections" mapstructure:"max_connections"`
+	// 最大在途HTTP请求数，超过后返回统一的过载响应。
+	MaxWorkers int `json:"max_workers" yaml:"max_workers" mapstructure:"max_workers"`
 	// 最大请求头字节数（对应 http.Server.MaxHeaderBytes，限制请求头的最大字节数）
 	MaxHeaderBytes int `json:"max_header_bytes" yaml:"max_header_bytes" mapstructure:"max_header_bytes"`
 	// 是否使用HTTPS
@@ -74,20 +80,23 @@ type BaseConfig struct {
 // DefaultGatewayConfig 默认网关配置
 var DefaultGatewayConfig = GatewayConfig{
 	Base: BaseConfig{
-		Listen:              ":8080",
-		Name:                "Gateway Gateway",
-		ReadTimeout:         30 * time.Second,
-		WriteTimeout:        30 * time.Second,
-		IdleTimeout:         120 * time.Second,
-		MaxHeaderBytes:      10 * 1024 * 1024, // 10MB
-		EnableHTTPS:         false,
-		UseGin:              true,
-		EnableAccessLog:     true,
-		LogFormat:           "json",
-		LogLevel:            "info",
-		EnableGzip:          true,
-		KeepAliveEnabled:    true, // 默认启用HTTP Keep-Alive
-		TCPKeepAliveEnabled: true, // 默认启用TCP Keep-Alive
+		Listen:                  ":8080",
+		Name:                    "Gateway Gateway",
+		ReadTimeout:             30 * time.Second,
+		WriteTimeout:            30 * time.Second,
+		IdleTimeout:             120 * time.Second,
+		GracefulShutdownTimeout: 30 * time.Second,
+		MaxConnections:          10000,
+		MaxWorkers:              1000,
+		MaxHeaderBytes:          10 * 1024 * 1024, // 10MB
+		EnableHTTPS:             false,
+		UseGin:                  true,
+		EnableAccessLog:         true,
+		LogFormat:               "json",
+		LogLevel:                "info",
+		EnableGzip:              true,
+		KeepAliveEnabled:        true, // 默认启用HTTP Keep-Alive
+		TCPKeepAliveEnabled:     true, // 默认启用TCP Keep-Alive
 	},
 	Router: router.DefaultRouterConfig,
 	// 直接使用proxy模块的默认配置

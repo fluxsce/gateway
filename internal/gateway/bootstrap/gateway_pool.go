@@ -63,16 +63,15 @@ func (p *gatewayPool) Remove(instanceID string) error {
 		return huberrors.NewError("实例ID不能为空")
 	}
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	// 检查实例是否存在
+	p.mu.RLock()
 	gateway, exists := p.gateways[instanceID]
+	p.mu.RUnlock()
 	if !exists {
 		return huberrors.NewError("网关实例ID '%s' 不存在", instanceID)
 	}
 
-	// 如果网关正在运行，先停止它
+	// 池锁内禁止调用Gateway方法，避免与Reload形成Gateway.mu -> pool.mu的反向锁序。
 	if gateway.IsRunning() {
 		if err := gateway.Stop(); err != nil {
 			logger.Error("停止网关实例失败", err, "instanceId", instanceID)
@@ -80,10 +79,33 @@ func (p *gatewayPool) Remove(instanceID string) error {
 		}
 	}
 
-	// 从连接池中删除
-	delete(p.gateways, instanceID)
+	p.mu.Lock()
+	if current, stillExists := p.gateways[instanceID]; stillExists && current == gateway {
+		delete(p.gateways, instanceID)
+	}
+	p.mu.Unlock()
 
 	logger.Info("网关实例已从连接池中移除", "instanceId", instanceID)
+	return nil
+}
+
+// rekey 在不停止网关的情况下原子更新实例ID索引，供配置热重载使用。
+func (p *gatewayPool) rekey(oldID, newID string, gateway *Gateway) error {
+	if newID == "" {
+		return huberrors.NewError("新实例ID不能为空")
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if existing, exists := p.gateways[newID]; exists && existing != gateway {
+		return huberrors.NewError("网关实例ID '%s' 已存在", newID)
+	}
+	if oldID != "" {
+		if existing, exists := p.gateways[oldID]; exists && existing == gateway {
+			delete(p.gateways, oldID)
+		}
+	}
+	p.gateways[newID] = gateway
 	return nil
 }
 
@@ -137,11 +159,9 @@ func (p *gatewayPool) Count() int {
 
 // GetRunningGateways 获取所有正在运行的网关实例
 func (p *gatewayPool) GetRunningGateways() map[string]*Gateway {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
+	gateways := p.GetAll()
 	result := make(map[string]*Gateway)
-	for id, gateway := range p.gateways {
+	for id, gateway := range gateways {
 		if gateway.IsRunning() {
 			result[id] = gateway
 		}

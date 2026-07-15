@@ -6,6 +6,8 @@
     :style="{ maxWidth: `${maxWidth}px` }"
     :delay="delay"
     :duration="duration"
+    :z-index="zIndex"
+    :to="to"
   >
     <template #trigger>
       <n-icon
@@ -29,6 +31,7 @@
 <script setup lang="ts">
 import { InformationCircleOutline } from '@vicons/ionicons5';
 import { NIcon, NTooltip } from 'naive-ui';
+import { Z_INDEX } from '@/constants/zIndex';
 import type { GTipsProps } from './types';
 
 defineOptions({
@@ -43,6 +46,8 @@ const props = withDefaults(defineProps<GTipsProps>(), {
   maxWidth: 320,
   delay: 0,
   duration: 100,
+  zIndex: Z_INDEX.TOOLTIP,
+  to: 'body',
   iconSize: 16,
   iconStyle: () => ({})
 })

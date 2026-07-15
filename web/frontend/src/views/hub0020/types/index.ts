@@ -29,7 +29,7 @@ export interface GatewayInstance {
   maxHeaderBytes: number // 最大请求头字节数(默认1MB)，默认1048576
 
   // 性能和并发配置
-  maxWorkers: number // 最大工作协程数，默认1000
+  maxWorkers: number // 最大在途HTTP请求数，默认1000
   keepAliveEnabled: 'Y' | 'N' // 是否启用Keep-Alive(N否,Y是)
   tcpKeepAliveEnabled: 'Y' | 'N' // 是否启用TCP Keep-Alive(N否,Y是)
   gracefulShutdownTimeoutMs: number // 优雅关闭超时时间(毫秒)，默认30000

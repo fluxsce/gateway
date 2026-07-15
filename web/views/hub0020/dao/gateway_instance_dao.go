@@ -14,6 +14,32 @@ import (
 	"time"
 )
 
+const (
+	defaultGracefulShutdownTimeoutMs = 30000
+	defaultMaxConnections            = 10000
+	defaultMaxWorkers                = 1000
+)
+
+func resolveGracefulShutdownTimeoutMs(value, currentValue int) int {
+	if value > 0 {
+		return value
+	}
+	if currentValue > 0 {
+		return currentValue
+	}
+	return defaultGracefulShutdownTimeoutMs
+}
+
+func resolveCapacityLimit(value, currentValue, defaultValue int) int {
+	if value > 0 {
+		return value
+	}
+	if currentValue > 0 {
+		return currentValue
+	}
+	return defaultValue
+}
+
 // GatewayInstanceDAO 网关实例数据访问对象
 type GatewayInstanceDAO struct {
 	db           database.Database
@@ -69,9 +95,8 @@ func (dao *GatewayInstanceDAO) AddGatewayInstance(ctx context.Context, instance 
 		if instance.CertStorageType == "" {
 			instance.CertStorageType = "FILE"
 		}
-		if instance.MaxConnections == 0 {
-			instance.MaxConnections = 10000
-		}
+		instance.MaxConnections = resolveCapacityLimit(
+			instance.MaxConnections, 0, defaultMaxConnections)
 		if instance.ReadTimeoutMs == 0 {
 			instance.ReadTimeoutMs = 30000
 		}
@@ -84,18 +109,16 @@ func (dao *GatewayInstanceDAO) AddGatewayInstance(ctx context.Context, instance 
 		if instance.MaxHeaderBytes == 0 {
 			instance.MaxHeaderBytes = 1048576
 		}
-		if instance.MaxWorkers == 0 {
-			instance.MaxWorkers = 1000
-		}
+		instance.MaxWorkers = resolveCapacityLimit(
+			instance.MaxWorkers, 0, defaultMaxWorkers)
 		if instance.KeepAliveEnabled == "" {
 			instance.KeepAliveEnabled = "Y"
 		}
 		if instance.TcpKeepAliveEnabled == "" {
 			instance.TcpKeepAliveEnabled = "Y"
 		}
-		if instance.GracefulShutdownTimeoutMs == 0 {
-			instance.GracefulShutdownTimeoutMs = 30000
-		}
+		instance.GracefulShutdownTimeoutMs = resolveGracefulShutdownTimeoutMs(
+			instance.GracefulShutdownTimeoutMs, 0)
 		if instance.EnableHttp2 == "" {
 			instance.EnableHttp2 = "Y"
 		}
@@ -270,6 +293,12 @@ func (dao *GatewayInstanceDAO) UpdateGatewayInstance(ctx context.Context, instan
 	if currentInstance == nil {
 		return errors.New("网关实例不存在")
 	}
+	instance.GracefulShutdownTimeoutMs = resolveGracefulShutdownTimeoutMs(
+		instance.GracefulShutdownTimeoutMs, currentInstance.GracefulShutdownTimeoutMs)
+	instance.MaxConnections = resolveCapacityLimit(
+		instance.MaxConnections, currentInstance.MaxConnections, defaultMaxConnections)
+	instance.MaxWorkers = resolveCapacityLimit(
+		instance.MaxWorkers, currentInstance.MaxWorkers, defaultMaxWorkers)
 
 	// 更新版本和修改信息
 	instance.CurrentVersion = currentInstance.CurrentVersion + 1

@@ -23,7 +23,7 @@ func (u *UDPProxy) Handle(ctx *core.Context) bool {
 	// UDP代理通常不通过HTTP处理，这里返回错误
 	ctx.AddError(fmt.Errorf("UDP代理不支持HTTP请求"))
 	ctx.Abort(http.StatusBadRequest, map[string]string{
-		"error": "UDP代理不支持HTTP请求",
+		"error": "udp proxy does not support http requests",
 	})
 	return false
 }

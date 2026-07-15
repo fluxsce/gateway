@@ -20,6 +20,10 @@ export interface ServiceDefinitionListModalProps {
   to?: string | HTMLElement | false
   /** 网关实例ID（用于查询服务定义） */
   gatewayInstanceId?: string
+  /** 已选中的服务定义ID列表（重新选择时用于自动勾选） */
+  selectedIds?: string[]
+  /** 已选中的服务定义完整信息（重新选择时用于回填确认列表） */
+  selectedServices?: ServiceDefinition[]
 }
 
 /**

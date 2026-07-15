@@ -226,6 +226,16 @@ func (dao *ClickHouseQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLo
 		params = append(params, "%"+req.RequestPath+"%")
 	}
 
+	if req.RequestQueryKeyword != "" {
+		whereClause += " AND requestQuery LIKE ?"
+		params = append(params, "%"+req.RequestQueryKeyword+"%")
+	}
+
+	if req.RequestBodyKeyword != "" {
+		whereClause += " AND requestBody LIKE ?"
+		params = append(params, "%"+req.RequestBodyKeyword+"%")
+	}
+
 	if req.ClientIpAddress != "" {
 		whereClause += " AND clientIpAddress LIKE ?"
 		params = append(params, "%"+req.ClientIpAddress+"%")

@@ -14,6 +14,12 @@ const (
 	ContextKeyGatewayNodeIP         = "gateway_node_ip"          // 网关节点IP
 	ContextKeyRouteConfigID         = "route_config_id"          // 路由配置ID
 	ContextKeyRouteConfigName       = "route_config_name"        // 路由配置名称
+	ContextKeyRouteStripPathPrefix  = "route_strip_path_prefix"  // 是否移除已匹配的路由前缀
+	ContextKeyRouteRewritePath      = "route_rewrite_path"       // 路由重写路径
+	ContextKeyRouteEnableWebSocket  = "route_enable_websocket"   // 路由 WebSocket 标记（N 仍兼容允许升级）
+	ContextKeyRouteTimeout          = "route_timeout"            // 路由请求总超时(>0才覆盖代理)
+	ContextKeyRouteRetryCount       = "route_retry_count"        // 路由重试次数
+	ContextKeyRouteRetryInterval    = "route_retry_interval"     // 路由重试间隔
 	ContextKeyServiceDefinitionID   = "service_definition_ids"   // 服务定义ID列表
 	ContextKeyServiceDefinitionName = "service_definition_names" // 服务定义名称列表
 	ContextKeyLogConfigID           = "log_config_id"            // 日志配置ID
@@ -28,8 +34,14 @@ const (
 	ContextKeyMultiServiceConfig    = "multi_service_config"    // 多服务配置
 	ContextKeyMultiServiceResponses = "multi_service_responses" // 多服务响应信息
 
-	// SSE相关
-	ContextKeySSEResponse = "sse_response" // SSE响应标志位（SSE响应不需要重试）
+	// SSE/WebSocket长连接日志相关
+	ContextKeySSEResponse            = "sse_response"             // SSE响应标志位（SSE响应不需要重试）
+	ContextKeySSEBytesStreamed       = "sse_bytes_streamed"       // SSE已转发字节数
+	ContextKeySSEDisconnectType      = "sse_disconnect_type"      // SSE断开原因
+	ContextKeyWebSocketCloseReason   = "websocket_close_reason"   // WebSocket会话关闭原因
+	ContextKeyWebSocketBytesReceived = "websocket_bytes_received" // 客户端发往上游的字节数
+	ContextKeyWebSocketBytesSent     = "websocket_bytes_sent"     // 上游发往客户端的字节数
+	ContextKeyResponseSize           = "response_size"            // 访问日志响应大小（SSE/WS等显式写入）
 
 	// 原始请求信息保存相关常量
 	ContextKeyOriginalMethod      = "original_method"       // 原始HTTP方法
@@ -119,6 +131,7 @@ const (
 	ErrorCodeAuthenticationFail = "AUTHENTICATION_FAILED"
 	ErrorCodeAuthorizationFail  = "AUTHORIZATION_FAILED"
 	ErrorCodeRateLimitExceeded  = "RATE_LIMIT_EXCEEDED"
+	ErrorCodeGatewayOverloaded  = "GATEWAY_OVERLOADED"
 	ErrorCodeCircuitBreakerOpen = "CIRCUIT_BREAKER_OPEN"
 	ErrorCodeInvalidRequest     = "INVALID_REQUEST"
 	ErrorCodeUpstreamError      = "UPSTREAM_ERROR"

@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 
 	"gateway/internal/gateway/constants"
 	"gateway/internal/gateway/core"
@@ -125,6 +126,25 @@ type RouteConfig struct {
 
 	// 路由元数据 - 存储与路由相关的额外信息，可用于自定义处理逻辑
 	Metadata map[string]interface{} `json:"metadata,omitempty" yaml:"metadata,omitempty" mapstructure:"metadata,omitempty"`
+
+	// StripPathPrefix 指示转发前是否移除已匹配的路由路径前缀。
+	StripPathPrefix bool `json:"strip_path_prefix,omitempty" yaml:"strip_path_prefix,omitempty" mapstructure:"strip_path_prefix,omitempty"`
+	// RewritePath 指定转发时使用的重写路径；为空表示不重写。
+	RewritePath string `json:"rewrite_path,omitempty" yaml:"rewrite_path,omitempty" mapstructure:"rewrite_path,omitempty"`
+	// EnableWebSocket 为路由级 WebSocket 标记（来自 enableWebsocket）。
+	// 为兼容历史行为，N 不阻止 Upgrade；真正会话准入仍由代理类型和握手请求决定。
+	EnableWebSocket bool `json:"enable_websocket,omitempty" yaml:"enable_websocket,omitempty" mapstructure:"enable_websocket,omitempty"`
+	// Timeout 是路由请求总超时；仅当 OverrideProxyTimeout 且值大于0时覆盖代理。
+	Timeout time.Duration `json:"timeout,omitempty" yaml:"timeout,omitempty" mapstructure:"timeout,omitempty"`
+	// RetryCount 是路由级重试次数；须开启 OverrideProxyTimeout，且与 RetryInterval 同时大于0才覆盖代理。
+	RetryCount int `json:"retry_count,omitempty" yaml:"retry_count,omitempty" mapstructure:"retry_count,omitempty"`
+	// RetryInterval 是路由级重试间隔；须开启 OverrideProxyTimeout，且与 RetryCount 同时大于0才覆盖代理。
+	RetryInterval time.Duration `json:"retry_interval,omitempty" yaml:"retry_interval,omitempty" mapstructure:"retry_interval,omitempty"`
+	// OverrideProxyTimeout 为true时，timeoutMs/重试才可覆盖代理；默认 false 兼容历史。
+	// 仅当 routeMetadata.overrideProxyTimeout 精确为 "Y" 时开启。
+	OverrideProxyTimeout bool `json:"override_proxy_timeout,omitempty" yaml:"override_proxy_timeout,omitempty" mapstructure:"override_proxy_timeout,omitempty"`
+	// WebSocketPolicyConfigured 标记数据库路由已显式提供WebSocket开关。
+	WebSocketPolicyConfigured bool `json:"-" yaml:"-" mapstructure:"-"`
 
 	// ========== 断言配置 ==========
 
@@ -327,6 +347,7 @@ func (r *Route) Handle(ctx *core.Context) bool {
 	//设置路由名称
 	ctx.Set(constants.ContextKeyRouteConfigName, r.config.Name)
 	ctx.SetMatchedPath(r.config.Path)
+	r.applyRuntimePolicies(ctx)
 
 	// 处理多服务配置
 	if len(r.config.ServiceIDs) > 0 {
@@ -341,7 +362,7 @@ func (r *Route) Handle(ctx *core.Context) bool {
 		// 如果没有配置服务ID，返回错误
 		ctx.AddError(fmt.Errorf("路由 %s 未配置服务ID", r.config.ID))
 		ctx.Abort(500, map[string]string{
-			"error": "路由未配置服务ID",
+			"error": "route has no service id configured",
 		})
 		return false
 	}
@@ -393,6 +414,29 @@ func (r *Route) Handle(ctx *core.Context) bool {
 	ctx.Set("routed", true)
 
 	return true
+}
+
+// applyRuntimePolicies 将路由级代理策略放入请求上下文，供HTTP和WebSocket入口共用。
+// 超时与重试仅在 OverrideProxyTimeout 开启后才会写入；路径剥离/重写与 WebSocket 标记不受该开关影响。
+func (r *Route) applyRuntimePolicies(ctx *core.Context) {
+	ctx.Set(constants.ContextKeyRouteStripPathPrefix, r.config.StripPathPrefix)
+	ctx.Set(constants.ContextKeyRouteRewritePath, r.config.RewritePath)
+	// WebSocket 仅作路由标记；N 不拦截 Upgrade，仍写入便于日志展示。
+	if r.config.WebSocketPolicyConfigured || r.config.EnableWebSocket {
+		ctx.Set(constants.ContextKeyRouteEnableWebSocket, r.config.EnableWebSocket)
+	}
+	// 未开启覆盖时，超时与重试一律走代理，避免历史 timeoutMs/retry 默认值误覆盖。
+	if !r.config.OverrideProxyTimeout {
+		return
+	}
+	if r.config.Timeout > 0 {
+		ctx.Set(constants.ContextKeyRouteTimeout, r.config.Timeout)
+	}
+	// 重试次数与间隔需同时大于0才覆盖代理；缺一则整组沿用代理重试配置。
+	if r.config.RetryCount > 0 && r.config.RetryInterval > 0 {
+		ctx.Set(constants.ContextKeyRouteRetryCount, r.config.RetryCount)
+		ctx.Set(constants.ContextKeyRouteRetryInterval, r.config.RetryInterval)
+	}
 }
 
 // Match 检查是否匹配当前请求

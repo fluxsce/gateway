@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"gateway/internal/gateway/handler/assertion"
 	"gateway/internal/gateway/handler/filter"
@@ -133,14 +134,7 @@ func (loader *RouterConfigLoader) LoadRoutes(ctx context.Context, instanceId str
 	var routes []router.RouteConfig
 	for _, record := range records {
 		// 构建路由配置
-		routeConfig := router.RouteConfig{
-			ID:        record.RouteConfigId,
-			Name:      record.RouteName,
-			Path:      record.RoutePath,
-			MatchType: record.MatchType,
-			Priority:  record.RoutePriority,
-			Enabled:   record.ActiveFlag == "Y",
-		}
+		routeConfig := buildRouteConfig(record)
 
 		// 处理服务ID（支持单服务和多服务模式）
 		if record.ServiceDefinitionId != nil && *record.ServiceDefinitionId != "" {
@@ -183,6 +177,8 @@ func (loader *RouterConfigLoader) LoadRoutes(ctx context.Context, instanceId str
 				for k, v := range routeMetadata {
 					metadata[k] = v
 				}
+				routeConfig.OverrideProxyTimeout = metadataEnabledFlag(routeMetadata,
+					"overrideProxyTimeout", "override_proxy_timeout")
 
 				// 如果是多服务模式，从 routeMetadata 中提取多服务配置
 				if len(routeConfig.ServiceIDs) > 0 {
@@ -235,6 +231,44 @@ func (loader *RouterConfigLoader) LoadRoutes(ctx context.Context, instanceId str
 	}
 
 	return routes, nil
+}
+
+// buildRouteConfig 将数据库基础字段转换为路由运行时配置。
+func buildRouteConfig(record RouteConfigRecord) router.RouteConfig {
+	config := router.RouteConfig{
+		ID:                        record.RouteConfigId,
+		Name:                      record.RouteName,
+		Path:                      record.RoutePath,
+		MatchType:                 record.MatchType,
+		Priority:                  record.RoutePriority,
+		Enabled:                   record.ActiveFlag == "Y",
+		StripPathPrefix:           record.StripPathPrefix == "Y",
+		EnableWebSocket:           record.EnableWebsocket == "Y",
+		Timeout:                   time.Duration(record.TimeoutMs) * time.Millisecond,
+		RetryCount:                record.RetryCount,
+		RetryInterval:             time.Duration(record.RetryIntervalMs) * time.Millisecond,
+		WebSocketPolicyConfigured: true,
+	}
+	if record.RewritePath != nil {
+		config.RewritePath = *record.RewritePath
+	}
+	return config
+}
+
+// metadataEnabledFlag 解析路由元数据开关：仅字符串 "Y" 为开启，其余（含 N/true/1）均关闭。
+func metadataEnabledFlag(metadata map[string]interface{}, keys ...string) bool {
+	for _, key := range keys {
+		value, exists := metadata[key]
+		if !exists || value == nil {
+			continue
+		}
+		text, ok := value.(string)
+		if !ok {
+			return false
+		}
+		return strings.TrimSpace(text) == "Y"
+	}
+	return false
 }
 
 // LoadRouteAssertionGroup 加载路由断言组配置

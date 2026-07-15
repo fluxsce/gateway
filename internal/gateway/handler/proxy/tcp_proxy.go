@@ -24,7 +24,7 @@ func (t *TCPProxy) Handle(ctx *core.Context) bool {
 	// TCP代理通常不通过HTTP处理，这里返回错误
 	ctx.AddError(fmt.Errorf("TCP代理不支持HTTP请求"))
 	ctx.Abort(http.StatusBadRequest, map[string]string{
-		"error": "TCP代理不支持HTTP请求",
+		"error": "tcp proxy does not support http requests",
 	})
 	return false
 }

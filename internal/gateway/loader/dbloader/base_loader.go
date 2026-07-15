@@ -66,20 +66,32 @@ func (loader *BaseConfigLoader) BuildBaseConfig(instance *GatewayInstanceRecord)
 	}
 
 	baseConfig := config.BaseConfig{
-		Listen:              listen,
-		Name:                instance.InstanceName,
-		ReadTimeout:         time.Duration(instance.ReadTimeoutMs) * time.Millisecond,
-		WriteTimeout:        time.Duration(instance.WriteTimeoutMs) * time.Millisecond,
-		IdleTimeout:         time.Duration(instance.IdleTimeoutMs) * time.Millisecond,
-		MaxHeaderBytes:      instance.MaxHeaderBytes,
-		EnableHTTPS:         instance.TLSEnabled == "Y",
-		UseGin:              instance.DisableGeneralOptionsHandler != "Y", // 如果禁用了通用OPTIONS处理器，则不使用Gin
-		EnableAccessLog:     true,
-		LogFormat:           "json",
-		LogLevel:            "info",
-		EnableGzip:          true,
-		KeepAliveEnabled:    instance.KeepAliveEnabled == "Y",
-		TCPKeepAliveEnabled: instance.TCPKeepAliveEnabled == "Y",
+		Listen:                  listen,
+		Name:                    instance.InstanceName,
+		ReadTimeout:             time.Duration(instance.ReadTimeoutMs) * time.Millisecond,
+		WriteTimeout:            time.Duration(instance.WriteTimeoutMs) * time.Millisecond,
+		IdleTimeout:             time.Duration(instance.IdleTimeoutMs) * time.Millisecond,
+		GracefulShutdownTimeout: time.Duration(instance.GracefulShutdownTimeoutMs) * time.Millisecond,
+		MaxConnections:          instance.MaxConnections,
+		MaxWorkers:              instance.MaxWorkers,
+		MaxHeaderBytes:          instance.MaxHeaderBytes,
+		EnableHTTPS:             instance.TLSEnabled == "Y",
+		UseGin:                  instance.DisableGeneralOptionsHandler != "Y", // 如果禁用了通用OPTIONS处理器，则不使用Gin
+		EnableAccessLog:         true,
+		LogFormat:               "json",
+		LogLevel:                "info",
+		EnableGzip:              true,
+		KeepAliveEnabled:        instance.KeepAliveEnabled == "Y",
+		TCPKeepAliveEnabled:     instance.TCPKeepAliveEnabled == "Y",
+	}
+	if baseConfig.GracefulShutdownTimeout <= 0 {
+		baseConfig.GracefulShutdownTimeout = config.DefaultGatewayConfig.Base.GracefulShutdownTimeout
+	}
+	if baseConfig.MaxConnections <= 0 {
+		baseConfig.MaxConnections = config.DefaultGatewayConfig.Base.MaxConnections
+	}
+	if baseConfig.MaxWorkers <= 0 {
+		baseConfig.MaxWorkers = config.DefaultGatewayConfig.Base.MaxWorkers
 	}
 
 	// 处理TLS相关配置

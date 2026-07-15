@@ -287,6 +287,10 @@ export interface GatewayLogQueryParams {
   requestMethod?: string
   /** 请求路径(支持模糊匹配) */
   requestPath?: string
+  /** 请求参数关键字(子串匹配 requestQuery) */
+  requestQueryKeyword?: string
+  /** 报文体关键字(子串匹配 requestBody) */
+  requestBodyKeyword?: string
   /** 客户端IP地址 */
   clientIpAddress?: string
   /** 用户标识 */

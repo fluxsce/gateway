@@ -336,7 +336,7 @@ export function useGatewayInstanceModel() {
           placeholder: '10000',
           span: 12,
           defaultValue: 10000,
-          tips: '同时处理的最大并发连接数，超过此值的新连接将被拒绝',
+          tips: '网关允许同时保持的最大TCP连接数，超过上限的新连接将被直接关闭',
           props: {
             min: 100,
             max: 100000,
@@ -344,12 +344,12 @@ export function useGatewayInstanceModel() {
         },
         {
           field: 'maxWorkers',
-          label: '最大工作协程数',
+          label: '最大在途请求数',
           type: 'number',
           placeholder: '1000',
           span: 12,
           defaultValue: 1000,
-          tips: '用于处理请求的最大工作协程数，影响并发处理能力',
+          tips: '网关允许同时处理的最大在途HTTP请求数，超过上限时返回统一的503响应',
           props: {
             min: 100,
             max: 10000,
@@ -392,6 +392,19 @@ export function useGatewayInstanceModel() {
           props: {
             min: 1000,
             max: 600000,
+          },
+        },
+        {
+          field: 'gracefulShutdownTimeoutMs',
+          label: '优雅排空超时(ms)',
+          type: 'number',
+          placeholder: '30000',
+          span: 12,
+          defaultValue: 30000,
+          tips: '停止或热重载时等待在途请求和旧连接完成的最长时间，超时后将强制释放旧代际资源',
+          props: {
+            min: 1000,
+            max: 300000,
           },
         },
         {
@@ -1064,6 +1077,14 @@ export function useGatewayInstanceModel() {
         align: 'center',
         formatter: ({ cellValue }) => {
           return cellValue ? cellValue.toLocaleString() : '0'
+        },
+      },
+      {
+        field: 'gracefulShutdownTimeoutMs',
+        title: '优雅排空超时(ms)',
+        align: 'center',
+        formatter: ({ cellValue }) => {
+          return cellValue ?? 30000
         },
       },
       {

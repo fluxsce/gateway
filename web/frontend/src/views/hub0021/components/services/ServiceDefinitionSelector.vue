@@ -121,6 +121,8 @@
       :title="'选择服务定义'"
       :width="1200"
       :gateway-instance-id="gatewayInstanceId"
+      :selected-ids="serviceIds"
+      :selected-services="currentlySelectedServices"
       to="#hub0021-route-config-list"
       @select="handleServiceSelect"
       @close="handleClose"
@@ -202,6 +204,19 @@ const currentServices = computed(() => {
   }
   // 返回已加载的服务信息
   return selectedServicesInfo.value.filter(service => 
+    serviceIds.value.includes(service.serviceDefinitionId)
+  )
+})
+
+// 计算属性：当前已选服务完整列表（单服务/多服务统一），供重新选择弹窗回填勾选
+const currentlySelectedServices = computed((): ServiceDefinition[] => {
+  if (serviceIds.value.length === 0) {
+    return []
+  }
+  if (serviceIds.value.length === 1 && selectedServiceInfo.value) {
+    return [selectedServiceInfo.value]
+  }
+  return selectedServicesInfo.value.filter(service =>
     serviceIds.value.includes(service.serviceDefinitionId)
   )
 })

@@ -27,7 +27,7 @@ export function useGatewayInstanceTreeModel() {
   /** 分页状态 */
   const currentPage = ref(1)
   const pageSize = ref(20) // 默认每页20条
-  
+
   /** 数据总数（后端分页） */
   const totalCount = ref(0)
 
@@ -40,7 +40,7 @@ export function useGatewayInstanceTreeModel() {
    * 将实例列表转换为树形结构（后端分页，直接使用 instanceList）
    */
   const treeData = computed<InstanceTreeOption[]>(() => {
-    return instanceList.value.map(instance => ({
+    return instanceList.value.map((instance) => ({
       key: instance.gatewayInstanceId,
       label: getInstanceLabel(instance),
       instance: instance,
@@ -141,37 +141,37 @@ export function useGatewayInstanceTreeModel() {
    */
   const proxyFormConfig = {
     tabs: [
-      { 
-        key: 'basic', 
+      {
+        key: 'basic',
         label: '基本信息',
         // 基本信息标签页始终显示
       },
-      { 
-        key: 'http', 
+      {
+        key: 'http',
         label: 'HTTP配置',
         // 只在代理类型为 HTTP 时显示
         show: (formData: Record<string, any>) => formData.proxyType === ProxyTypeEnum.HTTP,
       },
-      { 
-        key: 'websocket', 
+      {
+        key: 'websocket',
         label: 'WebSocket配置',
         // 只在代理类型为 WebSocket 时显示
         show: (formData: Record<string, any>) => formData.proxyType === ProxyTypeEnum.WEBSOCKET,
       },
-      { 
-        key: 'tcp', 
+      {
+        key: 'tcp',
         label: 'TCP配置',
         // 只在代理类型为 TCP 时显示
         show: (formData: Record<string, any>) => formData.proxyType === ProxyTypeEnum.TCP,
       },
-      { 
-        key: 'udp', 
+      {
+        key: 'udp',
         label: 'UDP配置',
         // 只在代理类型为 UDP 时显示
         show: (formData: Record<string, any>) => formData.proxyType === ProxyTypeEnum.UDP,
       },
-      { 
-        key: 'custom', 
+      {
+        key: 'custom',
         label: '其它',
         // 其它标签页始终显示
       },
@@ -234,9 +234,7 @@ export function useGatewayInstanceTreeModel() {
           { label: 'TCP', value: ProxyTypeEnum.TCP },
           { label: 'UDP', value: ProxyTypeEnum.UDP },
         ],
-        rules: [
-          { required: true, message: '请选择代理类型', trigger: ['blur', 'change'] },
-        ],
+        rules: [{ required: true, message: '请选择代理类型', trigger: ['blur', 'change'] }],
       },
       {
         field: 'configPriority',
@@ -395,7 +393,7 @@ export function useGatewayInstanceTreeModel() {
         show: (formData: Record<string, any>) => formData.proxyType === ProxyTypeEnum.HTTP,
         required: true,
         defaultValue: 60,
-        tips: '请求的总超时时间（包括连接、发送、读取），超过此时间未完成则请求失败',
+        tips: '代理绝对总超时（秒）。路由默认不覆盖本值；仅当路由开启「覆盖代理超时/重试」且 timeoutMs>0 时以路由为准。SSE收到事件流响应头后会停止本层总计时',
         props: {
           min: 1,
           max: 3600,
@@ -424,7 +422,7 @@ export function useGatewayInstanceTreeModel() {
         tabKey: 'http',
         show: (formData: Record<string, any>) => formData.proxyType === ProxyTypeEnum.HTTP,
         defaultValue: 60,
-        tips: '发送请求数据的超时时间，超过此时间未发送完成则请求失败',
+        tips: 'SSE向客户端单次写入的滚动超时；每次成功写入后重新计算，不是长连接的绝对存活时间',
         props: {
           min: 1,
         },
@@ -438,7 +436,7 @@ export function useGatewayInstanceTreeModel() {
         tabKey: 'http',
         show: (formData: Record<string, any>) => formData.proxyType === ProxyTypeEnum.HTTP,
         defaultValue: 60,
-        tips: '读取响应数据的超时时间，超过此时间未读取完成则请求失败',
+        tips: '等待上游响应头的超时时间；SSE建立后不以此作为整个事件流的绝对时限',
         props: {
           min: 1,
         },
@@ -460,15 +458,15 @@ export function useGatewayInstanceTreeModel() {
       },
       {
         field: 'proxyConfig.retryTimeout',
-        label: '重试超时（秒）',
+        label: '重试间隔（秒）',
         type: 'number' as const,
-        placeholder: '请输入重试超时',
+        placeholder: '请输入重试间隔',
         span: 12,
         tabKey: 'http',
         show: (formData: Record<string, any>) => formData.proxyType === ProxyTypeEnum.HTTP,
         required: true,
         defaultValue: 30,
-        tips: '每次重试的超时时间，如果单次重试超过此时间则重试失败，继续下一次重试',
+        tips: '一次失败后到下一次尝试前的等待间隔；不是单次请求执行超时',
         props: {
           min: 1,
           max: 300,
@@ -476,13 +474,13 @@ export function useGatewayInstanceTreeModel() {
         rules: [
           {
             required: true,
-            message: '请输入重试超时时间',
+            message: '请输入重试间隔',
             trigger: ['blur', 'change'],
             type: 'number',
             validator: (_rule: any, value: any) => {
-              if (value === null || value === undefined) return new Error('请输入重试超时时间')
-              if (value < 1) return new Error('重试超时时间必须大于0秒')
-              if (value > 300) return new Error('重试超时时间不能超过300秒')
+              if (value === null || value === undefined) return new Error('请输入重试间隔')
+              if (value < 1) return new Error('重试间隔必须大于0秒')
+              if (value > 300) return new Error('重试间隔不能超过300秒')
               return true
             },
           },
@@ -497,7 +495,7 @@ export function useGatewayInstanceTreeModel() {
         tabKey: 'http',
         show: (formData: Record<string, any>) => formData.proxyType === ProxyTypeEnum.HTTP,
         defaultValue: true,
-        tips: '是否启用代理缓冲。启用后会在代理层缓冲请求和响应，可以优化传输性能',
+        tips: '普通HTTP启用后可提高吞吐；SSE应关闭缓冲并保持单服务转发，事件流在完整生命周期内会占用一个MaxWorkers名额',
       },
       {
         field: 'proxyConfig.bufferSize',
@@ -675,6 +673,34 @@ export function useGatewayInstanceTreeModel() {
         },
       },
       {
+        field: 'proxyConfig.readTimeout',
+        label: '读取超时（秒）',
+        type: 'number' as const,
+        placeholder: '请输入读取超时',
+        span: 12,
+        tabKey: 'websocket',
+        show: (formData: Record<string, any>) => formData.proxyType === ProxyTypeEnum.WEBSOCKET,
+        defaultValue: 60,
+        tips: 'WebSocket单次等待消息的滚动超时，收到消息或Pong后重新计算',
+        props: {
+          min: 0,
+        },
+      },
+      {
+        field: 'proxyConfig.writeTimeout',
+        label: '写入超时（秒）',
+        type: 'number' as const,
+        placeholder: '请输入写入超时',
+        span: 12,
+        tabKey: 'websocket',
+        show: (formData: Record<string, any>) => formData.proxyType === ProxyTypeEnum.WEBSOCKET,
+        defaultValue: 10,
+        tips: 'WebSocket单帧写入的滚动超时；连接、Ping和Close帧统一经过串行写队列',
+        props: {
+          min: 0,
+        },
+      },
+      {
         field: 'proxyConfig.maxMessageSize',
         label: '最大消息大小（字节）',
         type: 'number' as const,
@@ -683,7 +709,7 @@ export function useGatewayInstanceTreeModel() {
         tabKey: 'websocket',
         show: (formData: Record<string, any>) => formData.proxyType === ProxyTypeEnum.WEBSOCKET,
         defaultValue: 32768,
-        tips: 'WebSocket单条消息的最大大小限制，超过此大小的消息将被拒绝，防止内存溢出',
+        tips: 'WebSocket单条消息的最大大小限制；连接全程占用一个MaxWorkers名额，重载时会先发送GoingAway再按优雅关闭期限强制回收',
         props: {
           min: 0,
         },

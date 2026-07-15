@@ -34,7 +34,7 @@ type GatewayInstance struct {
 	MaxHeaderBytes int `json:"maxHeaderBytes" form:"maxHeaderBytes" query:"maxHeaderBytes" db:"maxHeaderBytes"` // 最大请求头字节数(默认1MB)
 
 	// 性能和并发配置
-	MaxWorkers                int    `json:"maxWorkers" form:"maxWorkers" query:"maxWorkers" db:"maxWorkers"`                                                             // 最大工作协程数
+	MaxWorkers                int    `json:"maxWorkers" form:"maxWorkers" query:"maxWorkers" db:"maxWorkers"`                                                             // 最大在途HTTP请求数
 	KeepAliveEnabled          string `json:"keepAliveEnabled" form:"keepAliveEnabled" query:"keepAliveEnabled" db:"keepAliveEnabled"`                                     // 是否启用Keep-Alive(N否,Y是)
 	TcpKeepAliveEnabled       string `json:"tcpKeepAliveEnabled" form:"tcpKeepAliveEnabled" query:"tcpKeepAliveEnabled" db:"tcpKeepAliveEnabled"`                         // 是否启用TCP Keep-Alive(N否,Y是)
 	GracefulShutdownTimeoutMs int    `json:"gracefulShutdownTimeoutMs" form:"gracefulShutdownTimeoutMs" query:"gracefulShutdownTimeoutMs" db:"gracefulShutdownTimeoutMs"` // 优雅关闭超时时间(毫秒)

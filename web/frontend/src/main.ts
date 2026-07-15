@@ -1,6 +1,7 @@
 import gcustomRenderPlugin from '@/components/gcustom-render/plugin'
 import gdialogPlugin from '@/components/gdialog/plugin'
 import gmessagePlugin from '@/components/gmessage/plugin'
+import { Z_INDEX } from '@/constants/zIndex'
 import naive from 'naive-ui'
 import { createPinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
@@ -97,7 +98,7 @@ export async function startApp() {
 
     // 配置 vxe-table 全局 z-index，确保 tooltip 在模态框中正确显示
     VxeUI.setConfig({
-      zIndex: 4000,
+      zIndex: Z_INDEX.VXE_TABLE,
     })
 
     // 配置 vxe-table（必须在路由之前注册）

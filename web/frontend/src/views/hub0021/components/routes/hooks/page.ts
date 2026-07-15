@@ -197,12 +197,20 @@ export function useRouteConfigPage(
 
     // 将 routeMetadata 中的多服务配置字段展开为点号分隔字段
     // 直接使用 routeMetadata.xxx 格式，后端会处理
-    const multiServiceConfigFields = ['responseMergeStrategy', 'maxConcurrentRequests', 'requireAllSuccess']
+    const multiServiceConfigFields = [
+      'responseMergeStrategy',
+      'maxConcurrentRequests',
+      'requireAllSuccess',
+      'overrideProxyTimeout',
+    ]
     multiServiceConfigFields.forEach((key) => {
       if (routeMetadataObj && typeof routeMetadataObj === 'object' && routeMetadataObj[key] !== undefined) {
         formData[`routeMetadata.${key}`] = routeMetadataObj[key]
       }
     })
+    // 历史路由未配置或非 Y 时默认关闭；仅 "Y" 开启覆盖
+    const overrideFlag = formData['routeMetadata.overrideProxyTimeout']
+    formData['routeMetadata.overrideProxyTimeout'] = overrideFlag === 'Y' ? 'Y' : 'N'
 
     return formData
   }

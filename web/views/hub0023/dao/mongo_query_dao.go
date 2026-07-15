@@ -287,6 +287,16 @@ func (dao *MongoQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLogQuer
 			"$regex": req.RequestPath,
 		}
 	}
+	if req.RequestQueryKeyword != "" {
+		filter["requestQuery"] = map[string]interface{}{
+			"$regex": req.RequestQueryKeyword,
+		}
+	}
+	if req.RequestBodyKeyword != "" {
+		filter["requestBody"] = map[string]interface{}{
+			"$regex": req.RequestBodyKeyword,
+		}
+	}
 	if req.ClientIpAddress != "" {
 		filter["clientIpAddress"] = map[string]interface{}{
 			"$regex": req.ClientIpAddress,

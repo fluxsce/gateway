@@ -88,14 +88,15 @@ func (dao *RouteConfigDAO) AddRouteConfig(ctx context.Context, routeConfig *mode
 	if routeConfig.EnableWebsocket == "" {
 		routeConfig.EnableWebsocket = "N"
 	}
-	if routeConfig.TimeoutMs == 0 {
-		routeConfig.TimeoutMs = 30000 // 默认30秒超时
+	// timeoutMs=0 表示不覆盖代理总超时，优先使用代理 Timeout；负值回退为0
+	if routeConfig.TimeoutMs < 0 {
+		routeConfig.TimeoutMs = 0
 	}
-	if routeConfig.RetryCount == 0 {
-		routeConfig.RetryCount = 0 // 默认不重试
+	if routeConfig.RetryCount < 0 {
+		routeConfig.RetryCount = 0
 	}
-	if routeConfig.RetryIntervalMs == 0 {
-		routeConfig.RetryIntervalMs = 1000 // 默认1秒重试间隔
+	if routeConfig.RetryIntervalMs < 0 {
+		routeConfig.RetryIntervalMs = 1000
 	}
 
 	// 使用数据库接口的Insert方法插入记录
@@ -180,6 +181,16 @@ func (dao *RouteConfigDAO) UpdateRouteConfig(ctx context.Context, routeConfig *m
 	}
 	if routeConfig.EnableWebsocket == "" {
 		routeConfig.EnableWebsocket = "N"
+	}
+	// 与新增一致：timeoutMs=0 表示沿用代理总超时；负值回退为0
+	if routeConfig.TimeoutMs < 0 {
+		routeConfig.TimeoutMs = 0
+	}
+	if routeConfig.RetryCount < 0 {
+		routeConfig.RetryCount = 0
+	}
+	if routeConfig.RetryIntervalMs < 0 {
+		routeConfig.RetryIntervalMs = 1000
 	}
 
 	// 构建更新SQL

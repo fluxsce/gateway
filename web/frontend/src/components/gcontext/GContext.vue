@@ -14,6 +14,7 @@
 
 <script setup lang="ts">
 import { renderIconVNode } from '@/components/gicon'
+import { Z_INDEX } from '@/constants/zIndex'
 import { store } from '@/stores'
 import { computed, ref, watch } from 'vue'
 import type { VxeContextMenuDefines, VxeContextMenuInstance } from 'vxe-pc-ui'
@@ -31,7 +32,7 @@ const props = withDefaults(defineProps<GContextProps>(), {
   y: 0,
   showIcon: true,
   showShortcut: true,
-  zIndex: 5000,
+  zIndex: Z_INDEX.CONTEXT_MENU,
   transfer: true,
 })
 

@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gateway/internal/gateway/config"
@@ -17,6 +18,7 @@ import (
 	"gateway/internal/gateway/handler/proxy"
 	"gateway/internal/gateway/handler/router"
 	"gateway/internal/gateway/handler/security"
+	"gateway/internal/gateway/helper"
 	"gateway/internal/gateway/helper/reqhand"
 	"gateway/internal/gateway/loader/dbloader"
 	"gateway/internal/gateway/logwrite"
@@ -49,7 +51,8 @@ type Gateway struct {
 	// 注意：熔断器不在全局级别处理，而是在路由级别或服务级别处理，由路由处理器或代理处理器负责
 
 	// 运行状态
-	running bool
+	running  bool
+	stopping bool
 
 	// 互斥锁
 	mu sync.RWMutex
@@ -72,10 +75,50 @@ type Gateway struct {
 	// 6. 防止zombie进程：确保所有子goroutine在主进程退出前正确结束
 	// 7. 信号处理配合：与系统信号（SIGTERM、SIGINT）配合实现平滑重启
 	wg sync.WaitGroup
+
+	// currentGeneration 指向新连接和直接调用ServeHTTP时使用的当前运行时代际。
+	currentGeneration atomic.Pointer[gatewayGeneration]
+	// dispatcher 持有唯一的底层监听端口，并把新连接分发给当前Server代际。
+	dispatcher *listenerDispatcher
+	// generationWG 等待后台排空的旧代际完成。
+	generationWG sync.WaitGroup
+	// requestLimiter 对所有运行时代际实施统一的在途请求上限。
+	requestLimiter requestAdmissionLimiter
+}
+
+// setCompatibilityHandlers 更新原有处理器字段，供现有管理接口和测试继续访问。
+func (g *Gateway) setCompatibilityHandlers(handlers gatewayHandlers) {
+	g.router = handlers.router
+	g.proxy = handlers.proxy
+	g.auth = handlers.auth
+	g.cors = handlers.cors
+	g.security = handlers.security
+	g.limiter = handlers.limiter
+}
+
+// installCompatibilityGeneration 更新原有配置、Server、Engine及处理器字段。
+func (g *Gateway) installCompatibilityGeneration(generation *gatewayGeneration) {
+	g.gatewayConfig = generation.config
+	g.server = generation.server
+	g.engine = generation.engine
+	g.setCompatibilityHandlers(generation.handlers)
+	g.requestLimiter.setLimit(generation.config.Base.MaxWorkers)
 }
 
 // setupHandlers 设置处理器链 - 网关处理的核心思想
 func (g *Gateway) setupHandlers(engine *core.Engine) {
+	g.setupHandlersFor(engine, g.gatewayConfig, gatewayHandlers{
+		router:   g.router,
+		proxy:    g.proxy,
+		auth:     g.auth,
+		cors:     g.cors,
+		security: g.security,
+		limiter:  g.limiter,
+	})
+}
+
+// setupHandlersFor 使用不可变配置和处理器集合构建指定代际的处理链。
+func (g *Gateway) setupHandlersFor(engine *core.Engine, cfg *config.GatewayConfig, handlers gatewayHandlers) {
 	// 处理器执行顺序说明：
 	// 详细处理流程说明：
 	// 1. 请求接收：HTTP服务器接收客户端请求
@@ -157,9 +200,9 @@ func (g *Gateway) setupHandlers(engine *core.Engine) {
 	// === 第一层：全局安全和基础控制 ===
 
 	// 添加全局安全处理器（仅当启用时）
-	if g.security != nil && g.gatewayConfig.Security.Enabled {
+	if handlers.security != nil && cfg.Security.Enabled {
 		engine.UseFunc(func(ctx *core.Context) bool {
-			if !g.security.Handle(ctx) {
+			if !handlers.security.Handle(ctx) {
 				logger.Warn("全局安全检查失败", "path", ctx.Request.URL.Path)
 				return false
 			}
@@ -168,9 +211,9 @@ func (g *Gateway) setupHandlers(engine *core.Engine) {
 	}
 
 	// 添加全局CORS处理器（仅当启用时）
-	if g.cors != nil && g.gatewayConfig.CORS.Enabled {
+	if handlers.cors != nil && cfg.CORS.Enabled {
 		engine.UseFunc(func(ctx *core.Context) bool {
-			if !g.cors.Handle(ctx) {
+			if !handlers.cors.Handle(ctx) {
 				logger.Debug("全局CORS检查失败", "path", ctx.Request.URL.Path)
 				return false
 			}
@@ -179,9 +222,9 @@ func (g *Gateway) setupHandlers(engine *core.Engine) {
 	}
 
 	// 添加全局认证处理器（仅当启用时）- 认证在限流前，避免无效请求消耗资源
-	if g.auth != nil && g.gatewayConfig.Auth.Enabled {
+	if handlers.auth != nil && cfg.Auth.Enabled {
 		engine.UseFunc(func(ctx *core.Context) bool {
-			if !g.auth.Handle(ctx) {
+			if !handlers.auth.Handle(ctx) {
 				logger.Warn("全局认证失败", "path", ctx.Request.URL.Path)
 				return false
 			}
@@ -190,9 +233,9 @@ func (g *Gateway) setupHandlers(engine *core.Engine) {
 	}
 
 	// 添加全局限流处理器（仅当启用且设置了速率时）
-	if g.limiter != nil && g.gatewayConfig.RateLimit.Enabled && g.gatewayConfig.RateLimit.Rate > 0 {
+	if handlers.limiter != nil && cfg.RateLimit.Enabled && cfg.RateLimit.Rate > 0 {
 		engine.UseFunc(func(ctx *core.Context) bool {
-			if !g.limiter.Handle(ctx) {
+			if !handlers.limiter.Handle(ctx) {
 				logger.Warn("全局限流触发", "path", ctx.Request.URL.Path)
 				return false
 			}
@@ -205,7 +248,7 @@ func (g *Gateway) setupHandlers(engine *core.Engine) {
 	// 添加路由处理器 - 路由匹配和路由级别的处理器链执行
 	// 路由处理器内部会执行路由级别的安全、CORS、限流、熔断、认证处理
 	engine.UseFunc(func(ctx *core.Context) bool {
-		if !g.router.Handle(ctx) {
+		if !handlers.router.Handle(ctx) {
 			logger.Debug("路由处理失败", "path", ctx.Request.URL.Path)
 			return false
 		}
@@ -216,7 +259,7 @@ func (g *Gateway) setupHandlers(engine *core.Engine) {
 
 	// 添加代理处理器
 	engine.UseFunc(func(ctx *core.Context) bool {
-		if !g.proxy.Handle(ctx) {
+		if !handlers.proxy.Handle(ctx) {
 			logger.Debug("代理转发失败", "path", ctx.Request.URL.Path)
 			return false
 		}
@@ -226,37 +269,102 @@ func (g *Gateway) setupHandlers(engine *core.Engine) {
 
 // ServeHTTP 实现http.Handler接口
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	generation := g.currentGeneration.Load()
+	if generation != nil {
+		g.serveHTTPGeneration(generation, w, r)
+		return
+	}
+	g.serveHTTPWithRuntime(g.gatewayConfig, g.engine, w, r)
+}
+
+// serveHTTPGeneration 使用连接绑定的固定代际处理请求。
+func (g *Gateway) serveHTTPGeneration(generation *gatewayGeneration, w http.ResponseWriter, r *http.Request) {
+	if !generation.acquire() {
+		ctx, traceID := g.prepareRequestContext(generation.config, w, r)
+		defer ctx.Cancel()
+		ctx.AddError(fmt.Errorf("网关运行时代际正在排空"))
+		if r.ProtoMajor == 1 {
+			w.Header().Set("Connection", "close")
+		}
+		ctx.Abort(http.StatusServiceUnavailable, helper.BuildGatewayResponse(
+			constants.ErrorCodeServiceUnavailable,
+			constants.StatusMessageServiceUnavailable,
+			"",
+			r.URL.Path,
+			traceID,
+		))
+		g.finishRequest(ctx, generation.config)
+		return
+	}
+	defer generation.release()
+	g.serveHTTPWithRuntime(generation.config, generation.engine, w, r)
+}
+
+// serveHTTPWithRuntime 执行原有请求处理流程，配置和引擎在请求期间保持不变。
+func (g *Gateway) serveHTTPWithRuntime(cfg *config.GatewayConfig, engine *core.Engine, w http.ResponseWriter, r *http.Request) {
+	ctx, traceID := g.prepareRequestContext(cfg, w, r)
+	defer ctx.Cancel()
+	if !g.requestLimiter.tryAcquire() {
+		err := fmt.Errorf("网关当前在途请求数已达到上限")
+		ctx.AddError(err)
+		w.Header().Set("Retry-After", "1")
+		ctx.Abort(http.StatusServiceUnavailable, helper.BuildGatewayResponse(
+			constants.ErrorCodeGatewayOverloaded,
+			constants.StatusMessageServiceUnavailable,
+			"",
+			r.URL.Path,
+			traceID,
+		))
+		g.finishRequest(ctx, cfg)
+		return
+	}
+	func() {
+		defer g.requestLimiter.release()
+		// 使用Engine的HandleWithContext方法处理请求
+		// 这样可以确保日志记录使用的是同一个上下文
+		engine.HandleWithContext(ctx, w, r)
+	}()
+	g.finishRequest(ctx, cfg)
+}
+
+// prepareRequestContext 创建请求上下文并注入日志、实例及trace信息。
+func (g *Gateway) prepareRequestContext(cfg *config.GatewayConfig, w http.ResponseWriter, r *http.Request) (*core.Context, string) {
 	// 创建网关上下文，这个上下文将贯穿整个请求处理过程
 	ctx := core.NewContext(w, r)
 	// 直连端口重发：从请求头注入原始 trace 与重发标记（读入后从头中删除，避免透传上游）
 	applyGatewayReplayHeaders(r, ctx)
 	// 设置实例ID（需要在处理器链执行前设置，供后端追踪日志使用）
-	ctx.Set(constants.ContextKeyGatewayInstanceID, g.gatewayConfig.InstanceID)
+	ctx.Set(constants.ContextKeyGatewayInstanceID, cfg.InstanceID)
 	// 设置实例名称
-	ctx.Set(constants.ContextKeyGatewayInstanceName, g.gatewayConfig.Base.Name)
+	ctx.Set(constants.ContextKeyGatewayInstanceName, cfg.Base.Name)
 	//设置日志配置ID
-	ctx.Set(constants.ContextKeyLogConfigID, g.gatewayConfig.Log.LogConfigID)
+	ctx.Set(constants.ContextKeyLogConfigID, cfg.Log.LogConfigID)
 	//设置租户ID
-	ctx.Set(constants.ContextKeyTenantID, g.gatewayConfig.Log.TenantID)
+	ctx.Set(constants.ContextKeyTenantID, cfg.Log.TenantID)
 	// 直接设置日志配置到上下文，避免重复获取
-	ctx.SetLogConfig(&g.gatewayConfig.Log)
-	// 使用Engine的HandleWithContext方法处理请求
-	// 这样可以确保日志记录使用的是同一个上下文
-	g.engine.HandleWithContext(ctx, w, r)
+	ctx.SetLogConfig(&cfg.Log)
+	traceID := core.InitializeRequestContext(ctx)
+	return ctx, traceID
+}
 
+// finishRequest 固化响应时间和HTTP快照，并异步写入访问日志。
+func (g *Gateway) finishRequest(ctx *core.Context, cfg *config.GatewayConfig) {
+	// 响应时间必须在快照和异步日志之前记录，避免日志准备耗时混入请求处理耗时。
+	ctx.SetResponseTime(time.Now())
+	if !cfg.Base.EnableAccessLog {
+		return
+	}
 	// 在 Handler 完成后、启动异步写入前，立即缓存 HTTP 对象（Request、Writer）中的必要信息
 	// 重要：不能在异步 goroutine 中直接访问 ctx.Request、ctx.Writer
 	// 因为这些对象的生命周期与 HTTP 请求绑定，ServeHTTP 返回后可能被回收
-	g.snapshotHTTPData(ctx)
-	// 设置响应时间
-	ctx.SetResponseTime(time.Now())
+	g.snapshotHTTPData(ctx, cfg.InstanceID)
 	// 异步写入访问日志
 	// Context 对象本身可以安全使用（data、时间字段等），只是不能访问 Request 和 Writer
 	go func() {
 		// 添加panic恢复机制，防止日志写入错误导致整个服务崩溃
 		defer func() {
 			if r := recover(); r != nil {
-				logger.Error("Panic in access log writer", "error", r, "instanceID", g.gatewayConfig.InstanceID)
+				logger.Error("Panic in access log writer", "error", r, "instanceID", cfg.InstanceID)
 			}
 		}()
 
@@ -274,17 +382,16 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// 写入访问日志
 		// 注意：logwrite.WriteLog 内部不能访问 ctx.Request 和 ctx.Writer
 		// 所有需要的数据都已经缓存在 ctx.data 中
-		if err := logwrite.WriteLog(g.gatewayConfig.InstanceID, ctx); err != nil {
+		if err := logwrite.WriteLog(cfg.InstanceID, ctx); err != nil {
 			logger.Error("Failed to write access log", "error", err)
 		}
 	}()
-
 }
 
 // snapshotHTTPData 在 Handler 完成后立即缓存 HTTP 对象中的必要数据到上下文
 // 重要：必须在 ServeHTTP 返回前调用，因为 HTTP 对象（Request、Writer）的生命周期与请求绑定
 // 缓存后，异步 goroutine 可以安全使用 Context 对象，但不能直接访问 Request 和 Writer
-func (g *Gateway) snapshotHTTPData(ctx *core.Context) {
+func (g *Gateway) snapshotHTTPData(ctx *core.Context, instanceID string) {
 	// 使用 defer recover 防止快照过程中的任何错误
 	defer func() {
 		if r := recover(); r != nil {
@@ -295,7 +402,107 @@ func (g *Gateway) snapshotHTTPData(ctx *core.Context) {
 	// 使用 reqhand 包的通用快照方法
 	reqhand.SnapshotHTTPData(ctx)
 
-	logger.Debug("HTTP data snapshot created for async logging", "instanceID", g.gatewayConfig.InstanceID)
+	logger.Debug("HTTP data snapshot created for async logging", "instanceID", instanceID)
+}
+
+// startGenerationServer 启动一个绑定虚拟listener的HTTP Server代际。
+func (g *Gateway) startGenerationServer(generation *gatewayGeneration) {
+	g.wg.Add(1)
+	go func() {
+		defer g.wg.Done()
+		defer close(generation.serveDone)
+
+		var err error
+		if generation.config.Base.EnableHTTPS {
+			// 使用TLSConfig启动HTTPS服务器，证书已加载到TLSConfig中。
+			err = generation.server.ServeTLS(generation.listener, "", "")
+		} else {
+			err = generation.server.Serve(generation.listener)
+		}
+		if err != nil && err != http.ErrServerClosed && err != net.ErrClosed {
+			logger.Error("HTTP服务器代际异常退出", "error", err)
+		}
+	}()
+}
+
+// waitGenerationReady 等待Server完成协议初始化并进入Accept状态。
+func (g *Gateway) waitGenerationReady(generation *gatewayGeneration) error {
+	select {
+	case <-generation.listener.readyCh:
+		return nil
+	case <-generation.serveDone:
+		return fmt.Errorf("HTTP服务器代际在就绪前退出")
+	case <-time.After(5 * time.Second):
+		return fmt.Errorf("等待HTTP服务器代际就绪超时")
+	}
+}
+
+// activateGeneration 发布新代际，并在后台排空旧代际。
+func (g *Gateway) activateGeneration(generation *gatewayGeneration) error {
+	if g.dispatcher == nil {
+		return fmt.Errorf("连接分发器未初始化")
+	}
+	generation.listener = g.dispatcher.newGenerationListener()
+	g.startGenerationServer(generation)
+	if err := g.waitGenerationReady(generation); err != nil {
+		_ = generation.server.Close()
+		<-generation.serveDone
+		return err
+	}
+	g.requestLimiter.setLimit(generation.config.Base.MaxWorkers)
+	g.dispatcher.setMaxConnections(generation.config.Base.MaxConnections)
+	g.dispatcher.switchTo(generation.listener)
+
+	old := g.currentGeneration.Swap(generation)
+	g.installCompatibilityGeneration(generation)
+	if old != nil {
+		g.generationWG.Add(1)
+		go func() {
+			defer g.generationWG.Done()
+			if err := g.drainGeneration(old); err != nil {
+				logger.Warn("旧网关代际排空失败", "error", err)
+			}
+		}()
+	}
+	return nil
+}
+
+// drainGeneration 停止旧代际接收请求，并在配置的时间内排空连接和处理器。
+func (g *Gateway) drainGeneration(generation *gatewayGeneration) error {
+	generation.beginDrain()
+	timeout := generation.gracefulTimeout()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// HTTP Server和被劫持的WebSocket会话使用同一个排空期限并行关闭。
+	proxyShutdownDone := make(chan error, 1)
+	if shutdowner, ok := generation.handlers.proxy.(interface{ Shutdown(context.Context) error }); ok {
+		go func() {
+			proxyShutdownDone <- shutdowner.Shutdown(ctx)
+		}()
+	} else {
+		proxyShutdownDone <- nil
+	}
+	shutdownErr := generation.server.Shutdown(ctx)
+	proxyShutdownErr := <-proxyShutdownDone
+	drained := generation.waitInflight(ctx)
+	if !drained {
+		// 超时后统一强制关闭HTTP连接和被劫持会话，再给退出协程一个有限回收窗口。
+		_ = generation.server.Close()
+		if closer, ok := generation.handlers.proxy.(interface{ ForceClose() }); ok {
+			closer.ForceClose()
+		}
+		forceCtx, forceCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = generation.waitInflight(forceCtx)
+		forceCancel()
+	}
+	generation.closeHandlers()
+	<-generation.serveDone
+	if shutdownErr == nil && proxyShutdownErr != nil &&
+		proxyShutdownErr != context.Canceled && proxyShutdownErr != context.DeadlineExceeded {
+		shutdownErr = proxyShutdownErr
+	}
+	return shutdownErr
 }
 
 // Start 启动网关
@@ -303,15 +510,25 @@ func (g *Gateway) Start() error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	if g.running {
+	if g.running || g.stopping {
 		return fmt.Errorf("网关已经在运行")
 	}
 
-	// 设置处理器链
-	g.setupHandlers(g.engine)
-
-	// 创建一个通道用于接收启动错误
-	errCh := make(chan error, 1)
+	generation := g.currentGeneration.Load()
+	if generation == nil {
+		// Stop会关闭Server和处理器；再次Start时必须创建全新代际，不能复用已关闭资源。
+		var err error
+		generation, err = NewGatewayFactory().buildGeneration(g, g.gatewayConfig)
+		if err != nil {
+			return fmt.Errorf("重新构建网关运行时代际失败: %w", err)
+		}
+		if err := logwrite.InitLogManager(generation.config.InstanceID, &generation.config.Log); err != nil {
+			generation.closeHandlers()
+			return fmt.Errorf("重新初始化日志处理器失败: %w", err)
+		}
+		g.installCompatibilityGeneration(generation)
+		g.currentGeneration.Store(generation)
+	}
 
 	// 在启动前检查端口是否已被占用
 	listener, err := net.Listen("tcp", g.server.Addr)
@@ -320,156 +537,90 @@ func (g *Gateway) Start() error {
 		g.updateHealthStatus("N", fmt.Sprintf("端口绑定失败: %v", err))
 		return fmt.Errorf("端口 %s 已被占用或无法绑定: %w", g.server.Addr, err)
 	}
-	// 关闭测试用的监听器
-	listener.Close()
 
 	logger.Info("启动网关服务", "listen", g.gatewayConfig.Base.Listen)
 	// 初始化日志处理器
 	logwrite.InitLogManager(g.gatewayConfig.InstanceID, &g.gatewayConfig.Log)
-	// 启动HTTP服务器
-	g.wg.Add(1)
-	go func() {
-		defer g.wg.Done()
 
-		var err error
-		if g.gatewayConfig.Base.EnableHTTPS {
-			// 使用TLSConfig启动HTTPS服务器
-			// 传递空字符串，因为证书已经在TLSConfig中配置
-			err = g.server.ListenAndServeTLS("", "")
-		} else {
-			err = g.server.ListenAndServe()
-		}
-
-		if err != nil && err != http.ErrServerClosed {
-			logger.Error("HTTP服务器启动失败", err)
-			// 发送错误到通道
-			select {
-			case errCh <- err:
-			default:
-			}
-
-			// 如果网关已标记为运行中，则停止它
-			g.mu.Lock()
-			if g.running {
-				g.mu.Unlock()
-				g.Stop()
-			} else {
-				g.mu.Unlock()
-			}
-		}
-	}()
-
-	// 等待短暂时间检查是否有立即出现的错误
-	select {
-	case err := <-errCh:
-		// 启动失败，更新数据库状态
-		g.updateHealthStatus("N", fmt.Sprintf("启动失败: %v", err))
-		return fmt.Errorf("启动HTTP服务器失败: %w", err)
-	case <-time.After(100 * time.Millisecond):
-		// 没有立即出现错误，认为启动成功
-		g.running = true
-		g.stopCh = make(chan struct{})
-		// 启动成功，更新数据库状态
-		g.updateHealthStatus("Y", "")
-		logger.Info("网关服务启动成功")
+	// 绑定成功后直接复用同一个底层listener，避免检查端口后再次监听的竞态窗口。
+	dispatcher := newListenerDispatcher(listener)
+	generation.listener = dispatcher.newGenerationListener()
+	g.startGenerationServer(generation)
+	if err := g.waitGenerationReady(generation); err != nil {
+		_ = generation.server.Close()
+		<-generation.serveDone
+		_ = listener.Close()
+		generation.closeHandlers()
+		return err
 	}
+	g.requestLimiter.setLimit(generation.config.Base.MaxWorkers)
+	dispatcher.setMaxConnections(generation.config.Base.MaxConnections)
+	dispatcher.switchTo(generation.listener)
+	g.dispatcher = dispatcher
+	dispatcher.start()
 
+	g.running = true
+	g.stopping = false
+	g.stopCh = make(chan struct{})
+	// 启动成功，更新数据库状态
+	g.updateHealthStatus("Y", "")
+	logger.Info("网关服务启动成功")
 	return nil
 }
 
 // Stop 停止网关
 func (g *Gateway) Stop() error {
 	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	if !g.running {
+	if !g.running || g.stopping {
+		g.mu.Unlock()
 		return nil
 	}
+	g.stopping = true
+	dispatcher := g.dispatcher
+	current := g.currentGeneration.Load()
+	g.mu.Unlock()
 
 	logger.Info("正在停止网关服务...")
 
 	// 发送停止信号
-	close(g.stopCh)
+	select {
+	case <-g.stopCh:
+	default:
+		close(g.stopCh)
+	}
 
-	// 清理处理器资源
-	// 注意：必须先关闭处理器资源，再关闭HTTP服务器
-	// 原因：
-	// 1. 处理器可能包含后台goroutine（如健康检查器），需要先停止它们
-	// 2. 避免处理器资源泄漏和zombie goroutine
-	// 3. 确保所有资源被正确释放，防止内存泄漏
-
-	// 优先关闭代理处理器，因为它通常包含健康检查器和服务发现组件
-	// 这些组件会启动后台goroutine，如果不正确关闭会导致资源泄漏
-	// 注意：这里使用类型断言(interface{ Close() error })而不是直接定义Close方法的接口
-	// 这种设计的优势：
-	// 1. 松耦合：处理器接口(RouterHandler, ProxyHandler等)不需要包含Close方法
-	// 2. 可选实现：只有需要清理资源的处理器才需要实现Close方法
-	// 3. 接口隔离：符合接口隔离原则，保持接口精简
-	// 4. 向后兼容：添加新处理器时不强制实现Close方法
-	// 5. 动态发现：运行时动态检测处理器是否需要清理资源
-	if g.proxy != nil {
-		if closer, ok := g.proxy.(interface{ Close() error }); ok {
-			if err := closer.Close(); err != nil {
-				logger.Warn("关闭代理处理器失败", "error", err)
-			} else {
-				logger.Debug("代理处理器已关闭")
-			}
+	// 先关闭唯一的底层listener，确保不再接收新连接。
+	if dispatcher != nil {
+		if err := dispatcher.Close(); err != nil && err != net.ErrClosed {
+			logger.Warn("关闭连接分发器失败", "error", err)
 		}
 	}
 
-	// 关闭其他处理器资源
-	// 使用类型断言检查处理器是否实现了Close方法
-	// 这种设计允许处理器自行决定是否需要清理资源
-	// 符合接口隔离原则，不强制所有处理器实现Close方法
-	if g.router != nil {
-		if closer, ok := g.router.(interface{ Close() error }); ok {
-			_ = closer.Close()
-		}
+	// 清理处理器资源。
+	// 处理器可能包含后台goroutine（如健康检查器、服务发现组件），必须通过可选Close接口释放；
+	// 代际先等待正在处理的请求，再按代理、路由、认证、CORS、安全、限流顺序关闭资源。
+	var stopErr error
+	if current != nil {
+		stopErr = g.drainGeneration(current)
 	}
+	// 等待Reload期间已经进入后台排空的旧代际结束。
+	g.generationWG.Wait()
 
-	if g.auth != nil {
-		if closer, ok := g.auth.(interface{ Close() error }); ok {
-			_ = closer.Close()
-		}
-	}
-
-	if g.cors != nil {
-		if closer, ok := g.cors.(interface{ Close() error }); ok {
-			_ = closer.Close()
-		}
-	}
-
-	if g.security != nil {
-		if closer, ok := g.security.(interface{ Close() error }); ok {
-			_ = closer.Close()
-		}
-	}
-
-	if g.limiter != nil {
-		if closer, ok := g.limiter.(interface{ Close() error }); ok {
-			_ = closer.Close()
-		}
-	}
 	// 关闭日志处理器
-	logwrite.CloseLogWriter(g.gatewayConfig.InstanceID)
-
-	// 关闭HTTP服务器
-	// 设置30秒超时确保正在处理的请求有足够时间完成
-	// 超时后会强制关闭，避免无限等待
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if err := g.server.Shutdown(ctx); err != nil {
-		logger.Error("关闭HTTP服务器失败", err)
-		return err
-	}
+	instanceID := g.gatewayConfig.InstanceID
+	logwrite.CloseLogWriter(instanceID)
 
 	// 等待所有goroutine结束
 	// 这确保了所有后台任务（包括请求处理）都已完成
 	// 防止主进程退出时留下zombie goroutine
 	g.wg.Wait()
 
+	g.mu.Lock()
 	g.running = false
+	g.stopping = false
+	g.dispatcher = nil
+	g.currentGeneration.CompareAndSwap(current, nil)
+	g.mu.Unlock()
 	// 实例随进程退出而停止时，starter 已先置 IsInstanceStopping；此时不再把库中健康状态改为 N，
 	// 避免与其它节点或注册中心对实例存活判断不一致（由集群/下线流程统一收敛状态）。
 	if !appconfig.IsInstanceStopping() {
@@ -480,7 +631,7 @@ func (g *Gateway) Stop() error {
 	}
 	logger.Info("网关服务已停止")
 
-	return nil
+	return stopErr
 }
 
 // IsRunning 检查网关是否在运行
@@ -492,6 +643,11 @@ func (g *Gateway) IsRunning() bool {
 
 // GetConfig 获取配置
 func (g *Gateway) GetConfig() *config.GatewayConfig {
+	if generation := g.currentGeneration.Load(); generation != nil {
+		return generation.config
+	}
+	g.mu.RLock()
+	defer g.mu.RUnlock()
 	return g.gatewayConfig
 }
 
@@ -516,20 +672,42 @@ func (g *Gateway) Reload(newCfg *config.GatewayConfig) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	if !g.running {
+	if !g.running || g.stopping {
 		return fmt.Errorf("网关未运行，无法重载配置")
+	}
+
+	oldCfg := g.gatewayConfig
+	oldInstanceID := oldCfg.InstanceID
+	newInstanceID := newCfg.InstanceID
+	if newInstanceID == "" {
+		newInstanceID = oldInstanceID
+	}
+	instanceIDChanged := newInstanceID != oldInstanceID
+
+	// 日志写入器先完成可回滚的预更新，避免代际发布后才发现日志配置不可用。
+	var logErr error
+	if instanceIDChanged {
+		logErr = logwrite.InitLogManager(newInstanceID, &newCfg.Log)
+	} else {
+		logErr = logwrite.UpdateLogWriter(oldInstanceID, &newCfg.Log)
+	}
+	if logErr != nil {
+		return fmt.Errorf("预更新日志处理器失败: %w", logErr)
 	}
 
 	// 使用工厂方法重载配置
 	// 注意：ReloadGateway方法内部已经处理了engine的重建和处理器链设置
 	factory := NewGatewayFactory()
 	if err := factory.ReloadGateway(g, newCfg); err != nil {
+		if instanceIDChanged {
+			_ = logwrite.CloseLogWriter(newInstanceID)
+		} else {
+			_ = logwrite.UpdateLogWriter(oldInstanceID, &oldCfg.Log)
+		}
 		return fmt.Errorf("重载网关配置失败: %w", err)
 	}
-	// 重新初始化日志处理器
-	err := logwrite.UpdateLogWriter(g.gatewayConfig.InstanceID, &g.gatewayConfig.Log)
-	if err != nil {
-		return fmt.Errorf("重载日志处理器失败: %w", err)
+	if instanceIDChanged {
+		_ = logwrite.CloseLogWriter(oldInstanceID)
 	}
 	logger.Info("网关配置重载成功",
 		"instanceId", g.gatewayConfig.InstanceID,

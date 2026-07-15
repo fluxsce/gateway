@@ -207,6 +207,9 @@ func setDefaultValues(v *viper.Viper) {
 	v.SetDefault("base.read_timeout", "30s")
 	v.SetDefault("base.write_timeout", "30s")
 	v.SetDefault("base.idle_timeout", "120s")
+	v.SetDefault("base.graceful_shutdown_timeout", "30s")
+	v.SetDefault("base.max_connections", 10000)
+	v.SetDefault("base.max_workers", 1000)
 	v.SetDefault("base.max_body_size", 10*1024*1024) // 10MB
 	v.SetDefault("base.enable_https", false)
 	v.SetDefault("base.use_gin", true)
@@ -253,6 +256,15 @@ func (f *GatewayConfigFactory) mergeDefaultConfig(cfg *config.GatewayConfig) {
 	}
 	if cfg.Base.IdleTimeout == 0 {
 		cfg.Base.IdleTimeout = defaultCfg.Base.IdleTimeout
+	}
+	if cfg.Base.GracefulShutdownTimeout == 0 {
+		cfg.Base.GracefulShutdownTimeout = defaultCfg.Base.GracefulShutdownTimeout
+	}
+	if cfg.Base.MaxConnections == 0 {
+		cfg.Base.MaxConnections = defaultCfg.Base.MaxConnections
+	}
+	if cfg.Base.MaxWorkers == 0 {
+		cfg.Base.MaxWorkers = defaultCfg.Base.MaxWorkers
 	}
 	if cfg.Base.MaxHeaderBytes == 0 {
 		cfg.Base.MaxHeaderBytes = defaultCfg.Base.MaxHeaderBytes

@@ -5,6 +5,7 @@
 
 import type { Ref } from 'vue'
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { Z_INDEX } from '@/constants/zIndex'
 
 export type GModalResizeEdge = 'e' | 's' | 'se'
 
@@ -61,7 +62,6 @@ export function useGModalResize(options: UseGModalResizeOptions): {
     }
     dialogRect.value = el.getBoundingClientRect()
     const r = dialogRect.value
-    const z = 200000
     const hit = 8
     handleStyles.value = {
       e: {
@@ -71,7 +71,7 @@ export function useGModalResize(options: UseGModalResizeOptions): {
         top: `${r.top}px`,
         width: `${hit}px`,
         height: `${r.height}px`,
-        zIndex: String(z),
+        zIndex: String(Z_INDEX.MODAL_RESIZE_HANDLE),
         cursor: 'ew-resize',
       },
       s: {
@@ -81,7 +81,7 @@ export function useGModalResize(options: UseGModalResizeOptions): {
         top: `${r.bottom - hit / 2}px`,
         width: `${r.width}px`,
         height: `${hit}px`,
-        zIndex: String(z),
+        zIndex: String(Z_INDEX.MODAL_RESIZE_HANDLE),
         cursor: 'ns-resize',
       },
       se: {
@@ -91,7 +91,7 @@ export function useGModalResize(options: UseGModalResizeOptions): {
         top: `${r.bottom - hit / 2}px`,
         width: `${hit}px`,
         height: `${hit}px`,
-        zIndex: String(z + 1),
+        zIndex: String(Z_INDEX.MODAL_RESIZE_CORNER),
         cursor: 'nwse-resize',
       },
     }

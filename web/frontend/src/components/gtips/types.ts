@@ -57,6 +57,18 @@ export interface GTipsProps {
   duration?: number
 
   /**
+   * 浮层层级，需要高于模态框及其缩放手柄
+   * @default Z_INDEX.TOOLTIP
+   */
+  zIndex?: number
+
+  /**
+   * 浮层挂载位置，默认挂载到 body，避免被对话框 overflow 裁剪
+   * @default 'body'
+   */
+  to?: HTMLElement | string | false
+
+  /**
    * 图标大小
    * @default 16
    */

@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +17,10 @@ import (
 	"gateway/internal/gateway/handler/service"
 	"gateway/internal/gateway/logwrite"
 )
+
+// errMultiServiceSSE 表示聚合路径收到无法安全缓冲或合并的SSE响应。
+// Error() 文案供访问端返回，保持英文；访问日志可通过 ctx.AddError 另行记录中文说明。
+var errMultiServiceSSE = errors.New("multi-service proxy does not support SSE streaming responses")
 
 // ServiceResponse 服务响应信息
 type ServiceResponse struct {
@@ -54,7 +59,7 @@ func (m *HTTPMultiServiceProxy) Handle(ctx *core.Context, serviceIDs []string, c
 	if len(serviceIDs) == 0 {
 		ctx.AddError(fmt.Errorf("服务ID列表不能为空"))
 		ctx.Abort(http.StatusBadRequest, map[string]string{
-			"error": "服务ID列表不能为空",
+			"error": "service id list is required",
 		})
 		return false
 	}
@@ -76,7 +81,7 @@ func (m *HTTPMultiServiceProxy) Handle(ctx *core.Context, serviceIDs []string, c
 		if err != nil {
 			ctx.AddError(fmt.Errorf("读取请求体失败: %w", err))
 			ctx.Abort(http.StatusBadRequest, map[string]string{
-				"error": "读取请求体失败",
+				"error": "failed to read request body",
 			})
 			return false
 		}
@@ -96,6 +101,15 @@ func (m *HTTPMultiServiceProxy) Handle(ctx *core.Context, serviceIDs []string, c
 
 	// 并行转发请求到多个服务
 	responses := m.proxyToMultipleServices(ctx, serviceIDs, requestBody, maxConcurrent, config)
+	for _, response := range responses {
+		if response != nil && errors.Is(response.Error, errMultiServiceSSE) {
+			ctx.AddError(fmt.Errorf("多服务代理不支持SSE流式响应"))
+			ctx.Abort(http.StatusBadRequest, map[string]string{
+				"error": errMultiServiceSSE.Error(),
+			})
+			return false
+		}
+	}
 
 	// 设置多服务配置到上下文（供日志记录使用）
 	ctx.Set(constants.ContextKeyMultiServiceConfig, config)
@@ -155,11 +169,19 @@ func (m *HTTPMultiServiceProxy) proxyRequestToServiceWithRetry(
 ) *ServiceResponse {
 	httpConfig := m.httpProxy.GetHTTPConfig()
 	maxRetries := httpConfig.RetryCount
+	if routeRetries, exists := ctx.GetInt(constants.ContextKeyRouteRetryCount); exists {
+		maxRetries = routeRetries
+	}
 	if maxRetries < 0 {
 		maxRetries = 0
 	}
 
 	retryTimeout := httpConfig.RetryTimeout
+	if value, exists := ctx.Get(constants.ContextKeyRouteRetryInterval); exists {
+		if routeInterval, ok := value.(time.Duration); ok && routeInterval > 0 {
+			retryTimeout = routeInterval
+		}
+	}
 	if retryTimeout <= 0 {
 		retryTimeout = 30 * time.Second // 默认30秒
 	}
@@ -288,8 +310,14 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 		body = bytes.NewReader(requestBody)
 	}
 
+	requestCtx := ctx.Request.Context()
+	if timeout := m.httpProxy.resolveRequestTimeout(ctx); timeout > 0 {
+		var cancel context.CancelFunc
+		requestCtx, cancel = context.WithTimeout(requestCtx, timeout)
+		defer cancel()
+	}
 	proxyReq, err := http.NewRequestWithContext(
-		context.Background(),
+		requestCtx,
 		ctx.Request.Method,
 		proxyURL.String(),
 		body,
@@ -422,6 +450,22 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 	for name, values := range resp.Header {
 		responseHeaders[name] = append([]string(nil), values...)
 	}
+	if m.httpProxy.isSSEResponse(resp) {
+		responseErr = errMultiServiceSSE
+		backendResponseTime = time.Now()
+		attemptDuration := time.Since(requestStartTime)
+		return &ServiceResponse{
+			ServiceID:  serviceID,
+			NodeID:     nodeID,
+			URL:        requestURL,
+			StatusCode: responseStatusCode,
+			Headers:    responseHeaders,
+			Error:      errMultiServiceSSE,
+			Duration:   attemptDuration,
+			StartTime:  requestStartTime,
+			Success:    false,
+		}, attemptDuration
+	}
 
 	// 读取响应体
 	// 注意：多服务场景下，响应体必须读取到内存（因为要保存到 ServiceResponse 中用于后续合并）
@@ -511,14 +555,13 @@ func (m *HTTPMultiServiceProxy) mergeServiceResponses(
 		// 如果没有成功的，返回错误
 		if len(failed) > 0 {
 			ctx.Abort(http.StatusBadGateway, map[string]string{
-				"error":   "所有服务转发失败",
-				"details": failed[0].Error.Error(),
+				"error": "all upstream services failed",
 			})
 			ctx.Set(constants.GatewayStatusCode, constants.GatewayStatusBadGateway)
 			return false
 		}
 		ctx.Abort(http.StatusBadGateway, map[string]string{
-			"error": "没有可用的响应",
+			"error": "no available upstream response",
 		})
 		return false
 
@@ -535,7 +578,7 @@ func (m *HTTPMultiServiceProxy) mergeServiceResponses(
 			return m.writeSingleResponse(ctx, successful[0])
 		}
 		ctx.Abort(http.StatusBadGateway, map[string]string{
-			"error": "没有可用的响应",
+			"error": "no available upstream response",
 		})
 		return false
 
@@ -555,7 +598,7 @@ func (m *HTTPMultiServiceProxy) mergeServiceResponses(
 			return m.writeSingleResponse(ctx, successful[0])
 		}
 		ctx.Abort(http.StatusBadGateway, map[string]string{
-			"error": "没有成功的响应",
+			"error": "no successful upstream response",
 		})
 		return false
 	}
@@ -566,12 +609,14 @@ func (m *HTTPMultiServiceProxy) writeSingleResponse(ctx *core.Context, response 
 	// 如果后端没有实际请求成功（例如选择节点失败、请求发送失败等），没有可用的后端响应
 	// 这种情况下，直接返回一个网关错误响应，而不是写入空的 header/body
 	if response == nil || !response.Success || response.StatusCode <= 0 {
-		errMsg := "后端服务请求失败"
+		// 访问端仅返回英文摘要；中文细节进入错误列表供访问日志使用。
 		if response != nil && response.Error != nil {
-			errMsg = response.Error.Error()
+			ctx.AddError(response.Error)
+		} else {
+			ctx.AddError(fmt.Errorf("后端服务请求失败"))
 		}
 		ctx.Abort(http.StatusBadGateway, map[string]string{
-			"error": errMsg,
+			"error": "upstream request failed",
 		})
 		ctx.Set(constants.GatewayStatusCode, constants.GatewayStatusBadGateway)
 		return false

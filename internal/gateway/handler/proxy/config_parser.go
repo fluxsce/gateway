@@ -65,6 +65,21 @@ func parseDurationFromNumber(value interface{}) time.Duration {
 	}
 }
 
+// parseConfiguredDuration 解析显式配置的非负时长，并区分合法零值与未提供值。
+func parseConfiguredDuration(value interface{}) (time.Duration, bool) {
+	if text, ok := value.(string); ok {
+		duration, err := time.ParseDuration(text)
+		return duration, err == nil && duration >= 0
+	}
+	switch value.(type) {
+	case int, int64, float64, float32:
+		duration := parseDurationFromNumber(value)
+		return duration, duration >= 0
+	default:
+		return 0, false
+	}
+}
+
 // HTTPConfigParser HTTP配置解析器
 type HTTPConfigParser struct{}
 
@@ -87,7 +102,7 @@ func (p *HTTPConfigParser) ParseConfig(configMap map[string]interface{}, httpCon
 			httpConfig.Timeout = duration
 		}
 	}
-	
+
 	// sendTimeout 字段解析
 	if sendTimeout := getConfigValue(configMap, "sendTimeout", "send_timeout"); sendTimeout != nil {
 		if timeoutStr, ok := sendTimeout.(string); ok {
@@ -100,7 +115,7 @@ func (p *HTTPConfigParser) ParseConfig(configMap map[string]interface{}, httpCon
 			httpConfig.SendTimeout = duration
 		}
 	}
-	
+
 	// readTimeout 字段解析
 	if readTimeout := getConfigValue(configMap, "readTimeout", "read_timeout"); readTimeout != nil {
 		if timeoutStr, ok := readTimeout.(string); ok {
@@ -113,7 +128,7 @@ func (p *HTTPConfigParser) ParseConfig(configMap map[string]interface{}, httpCon
 			httpConfig.ReadTimeout = duration
 		}
 	}
-	
+
 	// connectTimeout 字段解析
 	if connectTimeout := getConfigValue(configMap, "connectTimeout", "connect_timeout"); connectTimeout != nil {
 		if timeoutStr, ok := connectTimeout.(string); ok {
@@ -202,7 +217,7 @@ func (p *HTTPConfigParser) ParseConfig(configMap map[string]interface{}, httpCon
 			httpConfig.RetryTimeout = duration
 		}
 	}
-	
+
 	// 解析头部配置
 	if setHeaders := getConfigValue(configMap, "setHeaders", "set_headers"); setHeaders != nil {
 		if headers, ok := setHeaders.(map[string]interface{}); ok {
@@ -214,7 +229,7 @@ func (p *HTTPConfigParser) ParseConfig(configMap map[string]interface{}, httpCon
 			}
 		}
 	}
-	
+
 	if passHeaders := getConfigValue(configMap, "passHeaders", "pass_headers"); passHeaders != nil {
 		if headers, ok := passHeaders.([]interface{}); ok {
 			httpConfig.PassHeaders = make([]string, 0, len(headers))
@@ -225,7 +240,7 @@ func (p *HTTPConfigParser) ParseConfig(configMap map[string]interface{}, httpCon
 			}
 		}
 	}
-	
+
 	if hideHeaders := getConfigValue(configMap, "hideHeaders", "hide_headers"); hideHeaders != nil {
 		if headers, ok := hideHeaders.([]interface{}); ok {
 			httpConfig.HideHeaders = make([]string, 0, len(headers))
@@ -236,64 +251,64 @@ func (p *HTTPConfigParser) ParseConfig(configMap map[string]interface{}, httpCon
 			}
 		}
 	}
-	
+
 	// 解析高级选项
 	if httpVersion := getConfigValue(configMap, "httpVersion", "http_version"); httpVersion != nil {
 		if str, ok := httpVersion.(string); ok {
 			httpConfig.HTTPVersion = str
 		}
 	}
-	
+
 	if preserveHost := getConfigValue(configMap, "preserveHost", "preserve_host"); preserveHost != nil {
 		if b, ok := preserveHost.(bool); ok {
 			httpConfig.PreserveHost = b
 		}
 	}
-	
+
 	if addXForwardedFor := getConfigValue(configMap, "addXForwardedFor", "add_x_forwarded_for"); addXForwardedFor != nil {
 		if b, ok := addXForwardedFor.(bool); ok {
 			httpConfig.AddXForwardedFor = b
 		}
 	}
-	
+
 	if addXRealIP := getConfigValue(configMap, "addXRealIP", "add_x_real_ip"); addXRealIP != nil {
 		if b, ok := addXRealIP.(bool); ok {
 			httpConfig.AddXRealIP = b
 		}
 	}
-	
+
 	if addXForwardedProto := getConfigValue(configMap, "addXForwardedProto", "add_x_forwarded_proto"); addXForwardedProto != nil {
 		if b, ok := addXForwardedProto.(bool); ok {
 			httpConfig.AddXForwardedProto = b
 		}
 	}
-	
+
 	// 解析nginx风格配置
 	if proxyBuffering := getConfigValue(configMap, "proxyBuffering", "proxy_buffering"); proxyBuffering != nil {
 		if b, ok := proxyBuffering.(bool); ok {
 			httpConfig.ProxyBuffering = b
 		}
 	}
-	
+
 	// 解析TLS配置
 	if tlsInsecureSkipVerify := getConfigValue(configMap, "tlsInsecureSkipVerify", "tls_insecure_skip_verify"); tlsInsecureSkipVerify != nil {
 		if b, ok := tlsInsecureSkipVerify.(bool); ok {
 			httpConfig.TLSInsecureSkipVerify = b
 		}
 	}
-	
+
 	if tlsMinVersion := getConfigValue(configMap, "tlsMinVersion", "tls_min_version"); tlsMinVersion != nil {
 		if str, ok := tlsMinVersion.(string); ok {
 			httpConfig.TLSMinVersion = str
 		}
 	}
-	
+
 	if tlsMaxVersion := getConfigValue(configMap, "tlsMaxVersion", "tls_max_version"); tlsMaxVersion != nil {
 		if str, ok := tlsMaxVersion.(string); ok {
 			httpConfig.TLSMaxVersion = str
 		}
 	}
-	
+
 	if tlsServerName := getConfigValue(configMap, "tlsServerName", "tls_server_name"); tlsServerName != nil {
 		if str, ok := tlsServerName.(string); ok {
 			httpConfig.TLSServerName = str
@@ -320,52 +335,28 @@ func (p *WebSocketConfigParser) ParseConfig(configMap map[string]interface{}, ws
 
 	// pingInterval 字段解析
 	if pingInterval := getConfigValue(configMap, "pingInterval", "ping_interval"); pingInterval != nil {
-		if intervalStr, ok := pingInterval.(string); ok {
-			if d, err := time.ParseDuration(intervalStr); err == nil {
-				wsConfig.PingInterval = d
-			}
-		}
-		// 支持整型和浮点型按秒转换
-		if duration := parseDurationFromNumber(pingInterval); duration > 0 {
+		if duration, ok := parseConfiguredDuration(pingInterval); ok {
 			wsConfig.PingInterval = duration
 		}
 	}
 
 	// pongTimeout 字段解析
 	if pongTimeout := getConfigValue(configMap, "pongTimeout", "pong_timeout"); pongTimeout != nil {
-		if timeoutStr, ok := pongTimeout.(string); ok {
-			if d, err := time.ParseDuration(timeoutStr); err == nil {
-				wsConfig.PongTimeout = d
-			}
-		}
-		// 支持整型和浮点型按秒转换
-		if duration := parseDurationFromNumber(pongTimeout); duration > 0 {
+		if duration, ok := parseConfiguredDuration(pongTimeout); ok {
 			wsConfig.PongTimeout = duration
 		}
 	}
 
 	// writeTimeout 字段解析
 	if writeTimeout := getConfigValue(configMap, "writeTimeout", "write_timeout"); writeTimeout != nil {
-		if timeoutStr, ok := writeTimeout.(string); ok {
-			if d, err := time.ParseDuration(timeoutStr); err == nil {
-				wsConfig.WriteTimeout = d
-			}
-		}
-		// 支持整型和浮点型按秒转换
-		if duration := parseDurationFromNumber(writeTimeout); duration > 0 {
+		if duration, ok := parseConfiguredDuration(writeTimeout); ok {
 			wsConfig.WriteTimeout = duration
 		}
 	}
 
 	// readTimeout 字段解析
 	if readTimeout := getConfigValue(configMap, "readTimeout", "read_timeout"); readTimeout != nil {
-		if timeoutStr, ok := readTimeout.(string); ok {
-			if d, err := time.ParseDuration(timeoutStr); err == nil {
-				wsConfig.ReadTimeout = d
-			}
-		}
-		// 支持整型和浮点型按秒转换
-		if duration := parseDurationFromNumber(readTimeout); duration > 0 {
+		if duration, ok := parseConfiguredDuration(readTimeout); ok {
 			wsConfig.ReadTimeout = duration
 		}
 	}
@@ -409,4 +400,4 @@ func (p *WebSocketConfigParser) ParseConfig(configMap map[string]interface{}, ws
 			}
 		}
 	}
-} 
+}

@@ -50,6 +50,21 @@ func (e *Engine) UseFunc(handlerFunc HandlerFunc) *Engine {
 	return e.Use(handlerFunc)
 }
 
+// InitializeRequestContext 为请求上下文设置稳定的trace ID，并保持幂等。
+// 网关入口可在执行处理器链前调用，以便过载拒绝响应也使用统一的trace。
+func InitializeRequestContext(gatewayCtx *Context) string {
+	if traceID, ok := gatewayCtx.GetString(constants.ContextKeyTraceID); ok && traceID != "" {
+		return traceID
+	}
+	traceID := random.Generate32BitRandomString()
+	if preset, ok := gatewayCtx.GetString(constants.ContextKeyPresetTraceID); ok && preset != "" {
+		traceID = preset
+		gatewayCtx.Delete(constants.ContextKeyPresetTraceID)
+	}
+	gatewayCtx.Set(constants.ContextKeyTraceID, traceID)
+	return traceID
+}
+
 // Handle 是网关的核心处理引擎，负责处理所有HTTP请求的生命周期管理
 //
 // 核心职责：
@@ -72,15 +87,14 @@ func (e *Engine) UseFunc(handlerFunc HandlerFunc) *Engine {
 // - w: HTTP响应写入器，用于向客户端发送响应
 // - r: HTTP请求对象，包含客户端请求的所有信息
 func (e *Engine) HandleWithContext(gatewayCtx *Context, w http.ResponseWriter, r *http.Request) {
-	// trace_id：若 ServeHTTP 已注入 ContextKeyPresetTraceID（端口重发携带原始 trace），则使用该值并清除预设键
-	traceID := random.Generate32BitRandomString()
-	if tid, ok := gatewayCtx.GetString(constants.ContextKeyPresetTraceID); ok && tid != "" {
-		traceID = tid
-		gatewayCtx.Delete(constants.ContextKeyPresetTraceID)
-	}
+	// trace_id可能已由网关入口初始化；重复调用不会改变同一请求的trace。
+	traceID := InitializeRequestContext(gatewayCtx)
 
 	// 记录请求开始处理时间
-	requestStartTime := time.Now()
+	requestStartTime := gatewayCtx.GetStartTime()
+	if requestStartTime.IsZero() {
+		requestStartTime = time.Now()
+	}
 
 	// 尝试获取真实的连接建立时间
 	// 某些场景下（如负载均衡器、代理服务器）可能会在连接建立时设置此时间
@@ -101,9 +115,6 @@ func (e *Engine) HandleWithContext(gatewayCtx *Context, w http.ResponseWriter, r
 	// 创建请求上下文，这是整个请求处理过程中的核心数据结构
 	// 包含请求、响应、状态信息等，会在整个处理器链中传递
 	ctx := gatewayCtx
-
-	// 设置链路追踪ID到上下文，用于日志记录和问题排查
-	ctx.Set(constants.ContextKeyTraceID, traceID)
 
 	// 设置时间信息到上下文，用于性能统计和监控
 	// 重要设计决策：使用requestStartTime而不是realStartTime

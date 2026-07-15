@@ -47,7 +47,10 @@
                 >
                   {{ method }}
                 </span>
-                <span v-if="getRemainingMethodsCount(row.allowedMethods) > 0" class="http-method-more">
+                <span
+                  v-if="getRemainingMethodsCount(row.allowedMethods) > 0"
+                  class="http-method-more"
+                >
                   +{{ getRemainingMethodsCount(row.allowedMethods) }}
                 </span>
               </template>
@@ -55,10 +58,16 @@
             </div>
           </template>
 
-          <!-- WebSocket自定义渲染 -->
+          <!-- WebSocket自定义渲染：N仍兼容允许Upgrade，仅为路由标记 -->
           <template #enableWebsocket="{ row }">
             <n-tag :type="row.enableWebsocket === 'Y' ? 'success' : 'default'" size="small">
-              {{ row.enableWebsocket === 'Y' ? '支持' : '不支持' }}
+              {{ row.enableWebsocket === 'Y' ? '已标记' : '兼容' }}
+            </n-tag>
+          </template>
+
+          <template #stripPathPrefix="{ row }">
+            <n-tag :type="row.stripPathPrefix === 'Y' ? 'warning' : 'default'" size="small">
+              {{ row.stripPathPrefix === 'Y' ? '剥除' : '保留' }}
             </n-tag>
           </template>
 
@@ -80,11 +89,11 @@
                     :key="serviceId"
                     size="small"
                     type="info"
-                    style="margin-right: 4px; margin-bottom: 2px;"
+                    style="margin-right: 4px; margin-bottom: 2px"
                   >
                     {{ getServiceDisplayName(row, serviceId) }}
                   </n-tag>
-                  <n-tag size="small" type="default" style="margin-left: 4px;">
+                  <n-tag size="small" type="default" style="margin-left: 4px">
                     {{ getServiceIds(row.serviceDefinitionId).length }}个服务
                   </n-tag>
                 </template>
@@ -96,9 +105,7 @@
                 </template>
               </template>
               <template v-else>
-                <n-tag size="small" type="default">
-                  未关联
-                </n-tag>
+                <n-tag size="small" type="default"> 未关联 </n-tag>
               </template>
             </div>
           </template>
@@ -109,7 +116,6 @@
               {{ row.activeFlag === 'Y' ? '启用' : '禁用' }}
             </n-tag>
           </template>
-
         </g-grid>
       </template>
     </GPane>
@@ -118,7 +124,13 @@
     <GdataFormModal
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
-      :title="formDialogMode === 'create' ? '新增路由配置' : formDialogMode === 'edit' ? '编辑路由配置' : '查看路由配置详情'"
+      :title="
+        formDialogMode === 'create'
+          ? '新增路由配置'
+          : formDialogMode === 'edit'
+            ? '编辑路由配置'
+            : '查看路由配置详情'
+      "
       to="#hub0021-route-config-list"
       :form-fields="routeFormConfig.fields"
       :form-tabs="routeFormConfig.tabs"
@@ -224,7 +236,7 @@ import { MatchType } from './types'
 
 // 定义组件名称
 defineOptions({
-  name: 'RouteConfigList'
+  name: 'RouteConfigList',
 })
 
 // ============= Props =============
@@ -282,7 +294,7 @@ const stopGatewayInstanceIdWatch = watch(
       service.model.routeList.value = []
     }
   },
-  { immediate: false }
+  { immediate: false },
 )
 
 // 组件卸载时清理监听器
@@ -403,7 +415,10 @@ function isMultipleServices(serviceDefinitionId?: string): boolean {
  */
 function getServiceIds(serviceDefinitionId?: string): string[] {
   if (!serviceDefinitionId) return []
-  return serviceDefinitionId.split(',').map(id => id.trim()).filter(id => id)
+  return serviceDefinitionId
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => id)
 }
 
 /**
@@ -412,16 +427,25 @@ function getServiceIds(serviceDefinitionId?: string): string[] {
 function getServiceDisplayName(row: Record<string, any>, serviceId: string): string {
   const metadata = row.routeMetadata
   if (!metadata) return serviceId
-  const obj = typeof metadata === 'string' ? (() => { try { return JSON.parse(metadata) } catch { return {} } })() : metadata
+  const obj =
+    typeof metadata === 'string'
+      ? (() => {
+          try {
+            return JSON.parse(metadata)
+          } catch {
+            return {}
+          }
+        })()
+      : metadata
   const map = obj?.serviceNameMap
-  return (map && typeof map === 'object' && map[serviceId]) ? map[serviceId] : serviceId
+  return map && typeof map === 'object' && map[serviceId] ? map[serviceId] : serviceId
 }
 
 // 暴露刷新方法供父组件调用
 defineExpose({
   refresh: () => {
     service.loadRouteList()
-  }
+  },
 })
 </script>
 
@@ -455,7 +479,6 @@ defineExpose({
   color: var(--g-primary, #7c3aed);
 }
 
-
 /* HTTP方法显示样式 */
 .http-methods-container {
   display: inline-flex;
@@ -476,61 +499,61 @@ defineExpose({
   white-space: nowrap;
   flex-shrink: 0;
   transition: all var(--g-transition-base) var(--g-transition-ease);
-  
+
   /* 默认样式 */
   background-color: var(--g-bg-tertiary, #f5f5f5);
   color: var(--g-text-secondary, #666);
   border: 1px solid var(--g-border-primary, #e0e0e0);
-  
+
   /* GET方法 - 蓝色系 */
   &.method-get {
     background-color: rgba(96, 165, 250, 0.1);
     color: var(--g-info, #60a5fa);
     border-color: rgba(96, 165, 250, 0.3);
   }
-  
+
   /* POST方法 - 绿色系 */
   &.method-post {
     background-color: rgba(52, 211, 153, 0.1);
     color: var(--g-success, #34d399);
     border-color: rgba(52, 211, 153, 0.3);
   }
-  
+
   /* PUT方法 - 橙色系 */
   &.method-put {
     background-color: rgba(251, 191, 36, 0.1);
     color: var(--g-warning, #fbbf24);
     border-color: rgba(251, 191, 36, 0.3);
   }
-  
+
   /* DELETE方法 - 红色系 */
   &.method-delete {
     background-color: rgba(248, 113, 113, 0.1);
     color: var(--g-error, #f87171);
     border-color: rgba(248, 113, 113, 0.3);
   }
-  
+
   /* PATCH方法 - 紫色系 */
   &.method-patch {
     background-color: rgba(129, 140, 248, 0.1);
     color: var(--g-primary, #818cf8);
     border-color: rgba(129, 140, 248, 0.3);
   }
-  
+
   /* HEAD方法 - 灰色系 */
   &.method-head {
     background-color: var(--g-bg-tertiary, #f5f5f5);
     color: var(--g-text-tertiary, #999);
     border-color: var(--g-border-secondary, #d0d0d0);
   }
-  
+
   /* OPTIONS方法 - 灰色系 */
   &.method-options {
     background-color: var(--g-bg-tertiary, #f5f5f5);
     color: var(--g-text-tertiary, #999);
     border-color: var(--g-border-secondary, #d0d0d0);
   }
-  
+
   /* 默认方法 */
   &.method-default {
     background-color: var(--g-bg-tertiary, #f5f5f5);
@@ -575,35 +598,35 @@ defineExpose({
       color: var(--g-info, #60a5fa);
       border-color: rgba(96, 165, 250, 0.4);
     }
-    
+
     /* POST方法 */
     &.method-post {
       background-color: rgba(52, 211, 153, 0.15);
       color: var(--g-success, #34d399);
       border-color: rgba(52, 211, 153, 0.4);
     }
-    
+
     /* PUT方法 */
     &.method-put {
       background-color: rgba(251, 191, 36, 0.15);
       color: var(--g-warning, #fbbf24);
       border-color: rgba(251, 191, 36, 0.4);
     }
-    
+
     /* DELETE方法 */
     &.method-delete {
       background-color: rgba(248, 113, 113, 0.15);
       color: var(--g-error, #f87171);
       border-color: rgba(248, 113, 113, 0.4);
     }
-    
+
     /* PATCH方法 */
     &.method-patch {
       background-color: rgba(129, 140, 248, 0.15);
       color: var(--g-primary, #818cf8);
       border-color: rgba(129, 140, 248, 0.4);
     }
-    
+
     /* HEAD和OPTIONS方法 */
     &.method-head,
     &.method-options {
@@ -611,7 +634,7 @@ defineExpose({
       color: var(--g-text-tertiary, #a3a3a3);
       border-color: var(--g-border-secondary, #525252);
     }
-    
+
     /* 默认方法 */
     &.method-default {
       background-color: var(--g-bg-tertiary, #262626);
@@ -619,13 +642,13 @@ defineExpose({
       border-color: var(--g-border-primary, #404040);
     }
   }
-  
+
   .http-method-more {
     background-color: var(--g-bg-tertiary, #262626);
     color: var(--g-text-tertiary, #a3a3a3);
     border-color: var(--g-border-secondary, #525252);
   }
-  
+
   .http-method-empty {
     color: var(--g-text-tertiary, #a3a3a3);
   }
@@ -640,4 +663,3 @@ defineExpose({
   justify-content: center;
 }
 </style>
-

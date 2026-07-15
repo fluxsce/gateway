@@ -216,11 +216,13 @@ type GatewayAccessLogQueryRequest struct {
 	ProxyType           string `json:"proxyType" form:"proxyType"`                     // 代理类型
 
 	// 请求信息查询条件
-	RequestMethod   string `json:"requestMethod" form:"requestMethod"`     // 请求方法
-	RequestPath     string `json:"requestPath" form:"requestPath"`         // 请求路径
-	ClientIpAddress string `json:"clientIpAddress" form:"clientIpAddress"` // 客户端IP地址
-	UserAgent       string `json:"userAgent" form:"userAgent"`             // 用户代理
-	UserIdentifier  string `json:"userIdentifier" form:"userIdentifier"`   // 用户标识
+	RequestMethod       string `json:"requestMethod" form:"requestMethod"`             // 请求方法
+	RequestPath         string `json:"requestPath" form:"requestPath"`                 // 请求路径
+	RequestQueryKeyword string `json:"requestQueryKeyword" form:"requestQueryKeyword"` // 请求参数关键字（子串匹配 requestQuery）
+	RequestBodyKeyword  string `json:"requestBodyKeyword" form:"requestBodyKeyword"`   // 报文体关键字（子串匹配 requestBody）
+	ClientIpAddress     string `json:"clientIpAddress" form:"clientIpAddress"`         // 客户端IP地址
+	UserAgent           string `json:"userAgent" form:"userAgent"`                     // 用户代理
+	UserIdentifier      string `json:"userIdentifier" form:"userIdentifier"`           // 用户标识
 
 	// 响应信息查询条件
 	GatewayStatusCode int `json:"gatewayStatusCode" form:"gatewayStatusCode"` // 网关响应状态码

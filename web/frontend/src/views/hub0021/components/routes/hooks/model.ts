@@ -21,7 +21,7 @@ import { MatchType } from '../types'
 export function useRouteConfigModel() {
   // ============= 数据状态 =============
   const moduleId = 'hub0021'
-  
+
   /** 加载状态 */
   const loading = ref(false)
 
@@ -154,24 +154,29 @@ export function useRouteConfigModel() {
         width: 180,
         slots: { default: 'serviceName' },
       },
-      // 隐藏字段（字段存在但不显示）
       {
         field: 'timeoutMs',
-        title: '超时时间(ms)',
+        title: '总超时(ms)',
         align: 'center',
-        visible: false,
-        width: 0,
+        width: 110,
       },
       {
-        field: 'retryCount',
-        title: '重试次数',
+        field: 'stripPathPrefix',
+        title: '剥前缀',
         align: 'center',
-        visible: false,
-        width: 0,
+        width: 80,
+        slots: { default: 'stripPathPrefix' },
       },
       {
         field: 'enableWebsocket',
         title: 'WebSocket',
+        align: 'center',
+        width: 100,
+        slots: { default: 'enableWebsocket' },
+      },
+      {
+        field: 'retryCount',
+        title: '重试次数',
         align: 'center',
         visible: false,
         width: 0,
@@ -226,7 +231,8 @@ export function useRouteConfigModel() {
             {
               code: 'assertConfig',
               name: '路由断言配置',
-              prefixIcon: () => h(NIcon, { size: 12 }, { default: () => h(CheckmarkCircleOutline) }),
+              prefixIcon: () =>
+                h(NIcon, { size: 12 }, { default: () => h(CheckmarkCircleOutline) }),
             },
             {
               code: 'ipAccessControl',
@@ -355,6 +361,10 @@ export function useRouteConfigModel() {
       {
         key: 'basic',
         label: '基本信息',
+      },
+      {
+        key: 'forward',
+        label: '转发策略',
       },
       {
         key: 'metadata',
@@ -516,25 +526,36 @@ export function useRouteConfigModel() {
                     const parsed = JSON.parse(formData.allowedMethods)
                     return Array.isArray(parsed) ? parsed : []
                   } catch {
-                    return formData.allowedMethods.split(',').map((m: string) => m.trim()).filter(Boolean)
+                    return formData.allowedMethods
+                      .split(',')
+                      .map((m: string) => m.trim())
+                      .filter(Boolean)
                   }
                 })()
               : []
 
-          return h(NCheckboxGroup, {
-            value: currentValue,
-            'onUpdate:value': (value: (string | number)[]) => {
-              formData.allowedMethods = value.map(v => String(v))
+          return h(
+            NCheckboxGroup,
+            {
+              value: currentValue,
+              'onUpdate:value': (value: (string | number)[]) => {
+                formData.allowedMethods = value.map((v) => String(v))
+              },
             },
-          }, {
-            default: () =>
-              h(NSpace, {}, {
-                default: () =>
-                  methods.map((method) =>
-                    h(NCheckbox, { value: method, label: method }, { default: () => method })
-                  ),
-              }),
-          })
+            {
+              default: () =>
+                h(
+                  NSpace,
+                  {},
+                  {
+                    default: () =>
+                      methods.map((method) =>
+                        h(NCheckbox, { value: method, label: method }, { default: () => method }),
+                      ),
+                  },
+                ),
+            },
+          )
         },
       },
       {
@@ -681,6 +702,132 @@ export function useRouteConfigModel() {
           uncheckedValue: 'N',
         },
       },
+      // ============= 转发策略 Tab =============
+      {
+        field: 'routeMetadata.overrideProxyTimeout',
+        label: '覆盖代理超时/重试',
+        type: 'switch' as const,
+        span: 24,
+        tabKey: 'forward',
+        defaultValue: 'N',
+        tips: '仅允许 Y/N。默认 N：沿用代理超时与重试，兼容历史路由。仅当为 Y 时，才使用下方路由超时/重试覆盖代理',
+        props: {
+          checkedValue: 'Y',
+          uncheckedValue: 'N',
+        },
+      },
+      {
+        field: 'timeoutMs',
+        label: '请求总超时（毫秒）',
+        type: 'number' as const,
+        placeholder: '0表示仍沿用代理总超时',
+        span: 12,
+        tabKey: 'forward',
+        required: true,
+        defaultValue: 0,
+        show: (formData: Record<string, any>) => formData['routeMetadata.overrideProxyTimeout'] === 'Y',
+        tips: '仅在开启「覆盖代理超时/重试」后生效。大于0时覆盖代理总超时；0表示该项仍用代理。SSE收到事件流响应头后也会停止绝对总超时',
+        props: {
+          min: 0,
+          max: 3600000,
+          style: { width: '100%' },
+        },
+        rules: [
+          {
+            required: true,
+            message: '请输入请求总超时',
+            trigger: ['blur', 'change'],
+            type: 'number',
+            validator: (_rule: any, value: any) => {
+              if (value === null || value === undefined || value === '') {
+                return new Error('请输入请求总超时')
+              }
+              const num = Number(value)
+              if (Number.isNaN(num) || num < 0) {
+                return new Error('请求总超时不能为负数')
+              }
+              if (num > 3600000) {
+                return new Error('请求总超时不能超过3600000毫秒')
+              }
+              return true
+            },
+          },
+        ],
+      },
+      {
+        field: 'retryCount',
+        label: '重试次数',
+        type: 'number' as const,
+        placeholder: '请输入重试次数',
+        span: 12,
+        tabKey: 'forward',
+        defaultValue: 0,
+        show: (formData: Record<string, any>) => formData['routeMetadata.overrideProxyTimeout'] === 'Y',
+        tips: '仅在开启覆盖后生效。须与「重试间隔」同时大于0才覆盖代理重试；任一为0则重试仍用代理',
+        props: {
+          min: 0,
+          max: 20,
+          style: { width: '100%' },
+        },
+      },
+      {
+        field: 'retryIntervalMs',
+        label: '重试间隔（毫秒）',
+        type: 'number' as const,
+        placeholder: '0表示沿用代理重试间隔',
+        span: 12,
+        tabKey: 'forward',
+        defaultValue: 0,
+        show: (formData: Record<string, any>) => formData['routeMetadata.overrideProxyTimeout'] === 'Y',
+        tips: '仅在开启覆盖后生效。须与「重试次数」同时大于0才覆盖代理重试。表示失败后到下次尝试前的等待，不是单次执行超时',
+        props: {
+          min: 0,
+          max: 300000,
+          style: { width: '100%' },
+        },
+      },
+      {
+        field: 'stripPathPrefix',
+        label: '剥离路径前缀',
+        type: 'switch' as const,
+        span: 12,
+        tabKey: 'forward',
+        defaultValue: 'N',
+        tips: 'Y：去掉已匹配路由前缀后再拼接到节点路径；N：保持历史nginx拼接逻辑，不剥前缀。默认N以兼容存量配置',
+        props: {
+          checkedValue: 'Y',
+          uncheckedValue: 'N',
+        },
+      },
+      {
+        field: 'enableWebsocket',
+        label: 'WebSocket标记',
+        type: 'switch' as const,
+        span: 12,
+        tabKey: 'forward',
+        defaultValue: 'N',
+        tips: '路由级标记。N仍允许HTTP Upgrade/专项WebSocket（兼容历史默认N）；Y表示明确标识本路由面向WebSocket。真正准入看握手请求与代理类型',
+        props: {
+          checkedValue: 'Y',
+          uncheckedValue: 'N',
+        },
+      },
+      {
+        field: 'rewritePath',
+        label: '重写路径',
+        type: 'input' as const,
+        placeholder: '留空表示不重写，如 /stream/events',
+        span: 24,
+        tabKey: 'forward',
+        tips: '非空时整段替换为该路径，不再拼接客户端剩余路径；留空则继续使用原有目标路径拼接规则',
+        rules: [
+          {
+            max: 200,
+            message: '重写路径不能超过200个字符',
+            trigger: ['blur', 'input'],
+          },
+        ],
+      },
       // ============= 元数据配置 Tab =============
       {
         field: 'routeMetadata',
@@ -797,4 +944,3 @@ export function useRouteConfigModel() {
  * 路由配置列表 Model 类型
  */
 export type RouteConfigModel = ReturnType<typeof useRouteConfigModel>
-

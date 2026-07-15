@@ -19,6 +19,7 @@ import (
 	"gateway/internal/gateway/handler/router"
 	"gateway/internal/gateway/handler/service"
 	"gateway/internal/gateway/logwrite"
+	"gateway/internal/gateway/logwrite/types"
 )
 
 // HTTPProxy HTTP代理实现
@@ -36,7 +37,8 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 		return true
 	}
 
-	// 检查是否为WebSocket升级请求（类似nginx处理方式）
+	// 检查是否为WebSocket升级请求（类似nginx处理方式）。
+	// enableWebsocket=N 仍允许升级，与历史行为保持兼容；该字段仅作路由标记，不作为准入开关。
 	if h.wsUpgradeHandler != nil && h.wsUpgradeHandler.IsWebSocketUpgrade(ctx.Request) {
 		return h.handleWebSocketUpgrade(ctx)
 	}
@@ -46,18 +48,13 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 	if len(serviceIDs) == 0 {
 		ctx.AddError(fmt.Errorf("服务ID不能为空"))
 		ctx.Abort(http.StatusBadRequest, map[string]string{
-			"error": "服务ID不能为空",
+			"error": "service id is required",
 		})
 		return false
 	}
 
-	// 判断是否为多服务转发：服务ID数量大于1，或存在多服务配置
+	// 只有多个服务ID时才进入聚合路径；单服务即使携带聚合配置也保留流式能力。
 	isMultiService := len(serviceIDs) > 1
-	if !isMultiService {
-		if _, exists := ctx.Get(constants.ContextKeyMultiServiceConfig); exists {
-			isMultiService = true
-		}
-	}
 
 	// 如果是多服务转发，直接使用多服务代理处理器
 	if isMultiService {
@@ -75,11 +72,19 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 	serviceID := serviceIDs[0]
 	config := h.GetHTTPConfig()
 	maxRetries := config.RetryCount
+	if routeRetries, exists := ctx.GetInt(constants.ContextKeyRouteRetryCount); exists {
+		maxRetries = routeRetries
+	}
 	if maxRetries < 0 {
 		maxRetries = 0
 	}
 
 	retryTimeout := config.RetryTimeout
+	if value, exists := ctx.Get(constants.ContextKeyRouteRetryInterval); exists {
+		if routeInterval, ok := value.(time.Duration); ok {
+			retryTimeout = routeInterval
+		}
+	}
 	if retryTimeout <= 0 {
 		retryTimeout = 30 * time.Second // 默认30秒
 	}
@@ -107,7 +112,7 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 			}
 			ctx.AddError(lastErr)
 			ctx.Abort(http.StatusServiceUnavailable, map[string]string{
-				"error":   "服务不可用",
+				"error":   "service unavailable",
 				"details": lastErr.Error(),
 				"service": serviceID,
 			})
@@ -161,7 +166,7 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 		targetURL = lastNode.URL
 	}
 	ctx.Abort(http.StatusBadGateway, map[string]string{
-		"error":      "代理请求失败",
+		"error":      "proxy request failed",
 		"details":    lastErr.Error(),
 		"target_url": targetURL,
 		"service":    serviceID,
@@ -215,8 +220,16 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 		}
 	}
 
+	proxyCtx, cancelProxy := context.WithCancel(ctx.Request.Context())
+	defer cancelProxy()
+	var totalTimeoutTimer *time.Timer
+	if timeout := h.resolveRequestTimeout(ctx); timeout > 0 {
+		totalTimeoutTimer = time.AfterFunc(timeout, cancelProxy)
+		defer totalTimeoutTimer.Stop()
+	}
+
 	proxyReq, err := http.NewRequestWithContext(
-		context.Background(),
+		proxyCtx,
 		ctx.Request.Method,
 		proxyURL.String(),
 		body,
@@ -362,27 +375,12 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 
 	// 检查是否为SSE响应，如果是则使用特殊处理逻辑
 	if h.isSSEResponse(resp) {
+		// SSE只限制建立连接和接收响应头，不应用普通HTTP请求的绝对总超时。
+		if totalTimeoutTimer != nil {
+			totalTimeoutTimer.Stop()
+		}
 		// 设置SSE响应标志位，SSE响应不需要重试
 		ctx.Set(constants.ContextKeySSEResponse, true)
-		// 对于SSE响应，复制除了已处理头部外的其他头部
-		for name, values := range resp.Header {
-			lowerName := strings.ToLower(name)
-			// 跳过SSE特殊处理方法中已设置的头部
-			if lowerName == "content-type" || lowerName == "cache-control" ||
-				lowerName == "connection" || lowerName == "access-control-allow-origin" {
-				continue
-			}
-			// 保留Transfer-Encoding用于分块传输
-			if lowerName == "transfer-encoding" {
-				for _, value := range values {
-					ctx.Writer.Header().Add(name, value)
-				}
-				continue
-			}
-			for _, value := range values {
-				ctx.Writer.Header().Add(name, value)
-			}
-		}
 
 		// 使用专门的SSE处理方法
 		// 注意：SSE响应处理完成后，响应信息会在 defer 中写入日志
@@ -390,6 +388,12 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 		err = h.handleSSEResponse(ctx, resp)
 		if err != nil {
 			responseErr = err
+		}
+		// SSE 采样体写入上下文后，同步给后端追踪日志使用（非整流转储）。
+		if bodyData, exists := ctx.Get("response_body"); exists {
+			if bodyBytes, ok := bodyData.([]byte); ok {
+				responseBody = bodyBytes
+			}
 		}
 		// SSE 流式传输完成后，记录后端请求结束时间
 		// 注意：对于SSE，后端请求结束时间是在流式传输完成后
@@ -422,6 +426,17 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 
 	// responseTime 由网关流程结束时设置（gateway.go），不在代理处理中设置
 	return err, attemptDuration
+}
+
+// resolveRequestTimeout 返回本次请求应使用的绝对总超时。
+// 路由 timeoutMs>0 时覆盖代理配置；0 或未设置时优先使用代理 Timeout。
+func (h *HTTPProxy) resolveRequestTimeout(ctx *core.Context) time.Duration {
+	if value, exists := ctx.Get(constants.ContextKeyRouteTimeout); exists {
+		if timeout, ok := value.(time.Duration); ok && timeout > 0 {
+			return timeout
+		}
+	}
+	return h.GetHTTPConfig().Timeout
 }
 
 // GetHTTPConfig 获取HTTP配置
@@ -467,11 +482,9 @@ func (h *HTTPProxy) Validate() error {
 func (h *HTTPProxy) Close() error {
 	var lastErr error
 
-	// 优雅关闭WebSocket升级处理器
+	// Close是最终资源回收阶段，不再重新等待优雅排空。
 	if h.wsUpgradeHandler != nil {
-		if err := h.wsUpgradeHandler.Shutdown(30 * time.Second); err != nil {
-			lastErr = fmt.Errorf("关闭WebSocket升级处理器失败: %w", err)
-		}
+		h.wsUpgradeHandler.ForceClose()
 	}
 
 	// 关闭HTTP客户端连接
@@ -496,6 +509,21 @@ func (h *HTTPProxy) Close() error {
 	return lastErr
 }
 
+// Shutdown 在代际排空期限内优雅关闭WebSocket会话。
+func (h *HTTPProxy) Shutdown(ctx context.Context) error {
+	if h.wsUpgradeHandler == nil {
+		return nil
+	}
+	return h.wsUpgradeHandler.ShutdownContext(ctx)
+}
+
+// ForceClose 立即关闭全部WebSocket会话。
+func (h *HTTPProxy) ForceClose() {
+	if h.wsUpgradeHandler != nil {
+		h.wsUpgradeHandler.ForceClose()
+	}
+}
+
 // NewHTTPProxy 创建HTTP代理
 func NewHTTPProxy(config ProxyConfig, serviceManager service.ServiceManager) (*HTTPProxy, error) {
 	// 解析HTTP特定配置
@@ -506,7 +534,7 @@ func NewHTTPProxy(config ProxyConfig, serviceManager service.ServiceManager) (*H
 	}
 
 	// 创建WebSocket升级处理器（如果需要支持WebSocket升级）
-	wsUpgradeHandler := NewWebSocketUpgradeHandler(serviceManager, nil)
+	wsUpgradeHandler := newWebSocketUpgradeHandlerWithOverrides(serviceManager, config.Config)
 
 	// 从HTTP配置中继承参数
 	wsUpgradeHandler.InheritFromHTTPConfig(&httpConfig)
@@ -533,7 +561,7 @@ func NewHTTPProxyWithRegistry(config ProxyConfig, serviceManager service.Service
 
 // handleWebSocketUpgrade 处理WebSocket协议升级
 func (h *HTTPProxy) handleWebSocketUpgrade(ctx *core.Context) bool {
-	err := h.wsUpgradeHandler.HandleWebSocketUpgrade(ctx, h.GetName(), h.GetType())
+	err := h.wsUpgradeHandler.HandleWebSocketUpgrade(ctx, h.GetName(), string(ProxyTypeWebSocket))
 	if err != nil {
 		ctx.AddError(fmt.Errorf("代理WebSocket升级请求失败: %w", err))
 		// 如果连接已被 hijack（WebSocket 升级成功），不能再使用标准的 HTTP 响应方法
@@ -545,7 +573,7 @@ func (h *HTTPProxy) handleWebSocketUpgrade(ctx *core.Context) bool {
 		}
 		// 如果升级失败（连接未被 hijack），可以正常返回错误响应
 		ctx.Abort(http.StatusBadGateway, map[string]string{
-			"error": "代理WebSocket升级请求失败",
+			"error": "websocket upgrade proxy failed",
 		})
 		ctx.Set(constants.GatewayStatusCode, constants.GatewayStatusBadGateway)
 		return false
@@ -564,43 +592,7 @@ func (h *HTTPProxy) handleWebSocketUpgrade(ctx *core.Context) bool {
 // 节点地址查询串原样保留（不重新排序或重新编码），避免破坏签名类参数
 // （如 sign、timestamp、apptoken）的原始顺序与编码。
 func (h *HTTPProxy) buildProxyQuery(targetRawQuery, requestRawQuery string) string {
-	if targetRawQuery == "" {
-		return requestRawQuery
-	}
-	if requestRawQuery == "" {
-		return targetRawQuery
-	}
-
-	// 收集节点地址中已配置的参数名，用于判断客户端同名参数是否需要被覆盖（丢弃）
-	targetKeys := make(map[string]struct{})
-	for _, pair := range strings.Split(targetRawQuery, "&") {
-		if pair == "" {
-			continue
-		}
-		key := pair
-		if idx := strings.IndexByte(pair, '='); idx >= 0 {
-			key = pair[:idx]
-		}
-		targetKeys[key] = struct{}{}
-	}
-
-	// 以节点地址查询串为基础（保持原始顺序与编码），再追加客户端中节点地址未配置的参数。
-	merged := targetRawQuery
-	for _, pair := range strings.Split(requestRawQuery, "&") {
-		if pair == "" {
-			continue
-		}
-		key := pair
-		if idx := strings.IndexByte(pair, '='); idx >= 0 {
-			key = pair[:idx]
-		}
-		// 同名参数由节点地址覆盖，跳过客户端携带的该参数
-		if _, exists := targetKeys[key]; exists {
-			continue
-		}
-		merged += "&" + pair
-	}
-	return merged
+	return buildTargetQuery(targetRawQuery, requestRawQuery)
 }
 
 // buildProxyPath 构建代理请求路径 - 简化的nginx proxy_pass处理方式
@@ -610,59 +602,7 @@ func (h *HTTPProxy) buildProxyQuery(targetRawQuery, requestRawQuery string) stri
 // 2. 前缀不一样：直接使用目标地址
 // 3. 前缀一样：处理重复拼接问题
 func (h *HTTPProxy) buildProxyPath(ctx *core.Context, targetPath string) string {
-	requestPath := ctx.Request.URL.Path
-
-	// 记住原始路径的斜杠状态
-	originalTargetHasSlash := strings.HasSuffix(targetPath, "/")
-	originalRequestHasSlash := strings.HasSuffix(requestPath, "/")
-
-	// 清理路径
-	targetPath = h.cleanPath(targetPath)
-	requestPath = h.cleanPath(requestPath)
-
-	// 1. 目标路径为空或只有斜杠：使用请求地址，但要保留原始请求路径的斜杠状态
-	if targetPath == "" || targetPath == "/" {
-		// 如果原始请求路径以斜杠结尾且清理后不是根路径，需要恢复斜杠
-		if originalRequestHasSlash && requestPath != "/" {
-			return requestPath + "/"
-		}
-		return requestPath
-	}
-
-	// 2. 前缀不一样：直接使用目标地址
-	if !h.hasSamePrefix(targetPath, requestPath) {
-		// 如果原始目标路径有斜杠，保留它
-		if originalTargetHasSlash && !strings.HasSuffix(targetPath, "/") {
-			return targetPath + "/"
-		}
-		return targetPath
-	}
-
-	// 3. 前缀一样：处理重复拼接问题
-	// 特殊情况：如果路径完全相同，直接返回目标路径
-	if targetPath == requestPath {
-		if originalTargetHasSlash && !strings.HasSuffix(targetPath, "/") {
-			return targetPath + "/"
-		}
-		return targetPath
-	}
-
-	// 如果请求路径以目标路径为前缀，直接返回请求路径避免重复
-	if strings.HasPrefix(requestPath, targetPath) {
-		return requestPath
-	}
-
-	// 否则根据是否有斜杠决定拼接方式
-	if originalTargetHasSlash {
-		// 目标路径原本有斜杠，直接拼接
-		if requestPath == "/" {
-			return targetPath + "/"
-		}
-		return targetPath + requestPath
-	} else {
-		// 目标路径不以/结尾，直接拼接
-		return targetPath + requestPath
-	}
+	return buildTargetPath(ctx, targetPath)
 }
 
 // hasSamePrefix 检查目标路径和请求路径是否有相同前缀
@@ -713,96 +653,15 @@ func (h *HTTPProxy) isSSEResponse(resp *http.Response) bool {
 }
 
 // handleSSEResponse 处理SSE响应的特殊逻辑
-// 类似nginx的proxy_buffering off和特殊头部处理
+// 类似nginx的proxy_buffering off和特殊头部处理。
+// 开启记录响应体时只采样流前缀（受日志 MaxBodySizeBytes 限制），完整流仍实时转发。
 func (h *HTTPProxy) handleSSEResponse(ctx *core.Context, resp *http.Response) error {
-	// 注意：响应头不再保存到上下文，因为多服务转发时每个服务的响应头不同
-	// 响应头已在 ProxyRequest 的 defer 中从 resp 对象获取
-
-	// 确保设置正确的SSE头部
-	ctx.Writer.Header().Set("Content-Type", "text/event-stream")
-	//sse禁用缓存头部
-	ctx.Writer.Header().Set("Cache-Control", "no-store, no-cache")
-	ctx.Writer.Header().Set("Connection", "keep-alive")
-	ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-
-	// 设置响应状态码（已在 ProxyRequest 中设置到上下文）
-	ctx.Writer.WriteHeader(resp.StatusCode)
-	ctx.SetResponded()
-
-	// 获取Flusher接口用于实时刷新
-	flusher, ok := ctx.Writer.(http.Flusher)
-	if !ok {
-		return fmt.Errorf("响应写入器不支持刷新操作")
+	config := h.GetHTTPConfig()
+	bufferSize := config.BufferSize
+	if !config.ProxyBuffering || bufferSize <= 0 {
+		bufferSize = 1024
 	}
-
-	// 立即刷新响应头
-	flusher.Flush()
-
-	// 使用较小的缓冲区确保实时性（类似nginx proxy_buffering off）
-	buffer := make([]byte, 1024) // 1KB缓冲区
-
-	var clientClosed bool
-	var lastError error
-
-	for {
-		n, err := resp.Body.Read(buffer)
-		if n > 0 {
-			if _, writeErr := ctx.Writer.Write(buffer[:n]); writeErr != nil {
-				// 关键修复：记录客户端关闭连接的错误，但不返回错误
-				// 返回错误会导致 chunked 编码不完整，浏览器会报 ERR_INCOMPLETE_CHUNKED_ENCODING
-				// 客户端关闭连接是正常行为（用户关闭页面等），应该优雅处理
-				// 记录错误用于监控和诊断，但不返回错误，让 Go 的 HTTP 服务器正确处理 chunked 编码的结束
-				errMsg := writeErr.Error()
-				if strings.Contains(errMsg, "broken pipe") ||
-					strings.Contains(errMsg, "connection reset") ||
-					strings.Contains(errMsg, "use of closed network connection") {
-					// 客户端关闭连接，记录错误但不返回
-					clientClosed = true
-					lastError = writeErr
-					ctx.AddError(fmt.Errorf("SSE client closed connection: %w", writeErr))
-					break
-				}
-				// 其他写入错误，也记录但不返回
-				lastError = writeErr
-				ctx.AddError(fmt.Errorf("SSE write error: %w", writeErr))
-				break
-			}
-			// 每次写入后立即刷新，确保数据实时到达客户端
-			flusher.Flush()
-		}
-		if err != nil {
-			if err == io.EOF {
-				// 服务器端正常结束
-				break
-			}
-			// 关键修复：记录读取错误，但不返回错误
-			// 返回错误会导致 chunked 编码不完整
-			errMsg := err.Error()
-			if strings.Contains(errMsg, "broken pipe") ||
-				strings.Contains(errMsg, "connection reset") ||
-				strings.Contains(errMsg, "use of closed network connection") {
-				// 客户端关闭连接，记录错误但不返回
-				clientClosed = true
-				lastError = err
-				ctx.AddError(fmt.Errorf("SSE client closed connection during read: %w", err))
-				break
-			}
-			// 其他读取错误，也记录但不返回
-			lastError = err
-			ctx.AddError(fmt.Errorf("SSE read error: %w", err))
-			break
-		}
-	}
-
-	// 如果客户端关闭连接，记录日志但不返回错误
-	// 这样可以确保 chunked 编码正确结束，避免 ERR_INCOMPLETE_CHUNKED_ENCODING 错误
-	if clientClosed && lastError != nil {
-		// 错误已通过 ctx.AddError 记录，这里不返回错误
-		// 让 Go 的 HTTP 服务器正确处理 chunked 编码的结束
-	}
-
-	// responseTime 由网关流程结束时设置（gateway.go），不在代理处理中设置
-	return nil
+	return newSSEStreamer(bufferSize, config.SendTimeout, resolveBodySampleLimit(ctx, true)).Stream(ctx, resp)
 }
 
 // handleRegularResponse 处理常规HTTP响应
@@ -1114,7 +973,8 @@ func (h *HTTPProxy) createHTTPClient(config HTTPProxyConfig) *http.Client {
 	// 创建客户端
 	client := &http.Client{
 		Transport: transport,
-		Timeout:   config.Timeout, // 总超时时间
+		// 总超时由每个请求的可停止定时器控制，SSE收到响应头后可取消绝对总超时。
+		Timeout: 0,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if !config.FollowRedirects {
 				return http.ErrUseLastResponse
@@ -1210,4 +1070,24 @@ func (h *HTTPProxy) shouldRecordResponseBody(ctx *core.Context) bool {
 		return false
 	}
 	return config.IsRecordResponseBody()
+}
+
+// resolveBodySampleLimit 返回流式场景下应采样的报文上限。
+// forResponse 为 true 时检查响应体开关，否则检查请求体开关；未开启返回 0。
+func resolveBodySampleLimit(ctx *core.Context, forResponse bool) int {
+	config := ctx.GetLogConfig()
+	if config == nil {
+		return 0
+	}
+	if forResponse {
+		if !config.IsRecordResponseBody() {
+			return 0
+		}
+	} else if !config.IsRecordRequestBody() {
+		return 0
+	}
+	if config.MaxBodySizeBytes > 0 {
+		return config.MaxBodySizeBytes
+	}
+	return types.DefaultMaxBodySizeBytes
 }

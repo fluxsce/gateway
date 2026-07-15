@@ -46,15 +46,47 @@ func (f *GatewayFactory) CreateGateway(cfg *config.GatewayConfig, configFile str
 		stopCh:        make(chan struct{}),
 	}
 
-	// 初始化引擎
-	gateway.engine = core.NewEngine()
+	generation, err := f.buildGeneration(gateway, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("初始化网关运行时代际失败: %w", err)
+	}
+	gateway.installCompatibilityGeneration(generation)
+	gateway.currentGeneration.Store(generation)
 
+	return gateway, nil
+}
+
+// buildGeneration 完整构建尚未发布的运行时代际。
+func (f *GatewayFactory) buildGeneration(gateway *Gateway, cfg *config.GatewayConfig) (*gatewayGeneration, error) {
+	handlers, err := f.buildHandlers(cfg)
+	if err != nil {
+		return nil, err
+	}
+	engine := core.NewEngine()
+	gateway.setupHandlersFor(engine, cfg, handlers)
+	generation := &gatewayGeneration{
+		config:    cfg,
+		engine:    engine,
+		handlers:  handlers,
+		serveDone: make(chan struct{}),
+	}
+	server, err := f.createGenerationServer(gateway, generation, cfg)
+	if err != nil {
+		generation.closeHandlers()
+		return nil, err
+	}
+	generation.server = server
+	return generation, nil
+}
+
+// createGenerationServer 为单个代际创建不可变的HTTP Server配置。
+func (f *GatewayFactory) createGenerationServer(gateway *Gateway, generation *gatewayGeneration, cfg *config.GatewayConfig) (*http.Server, error) {
 	// 初始化HTTP服务器，支持连接时间跟踪
-	gateway.server = &http.Server{
+	server := &http.Server{
 		// 监听地址：服务器绑定的网络地址（如 ":8080"）
 		Addr: cfg.Base.Listen,
-		// 请求处理器：网关实例本身实现了 http.Handler 接口
-		Handler: gateway,
+		// 请求处理器：连接固定使用创建该Server时的运行时代际
+		Handler: &generationHTTPHandler{gateway: gateway, generation: generation},
 		// 读取超时：从客户端读取请求头的最大时间，超时则关闭连接
 		ReadTimeout: cfg.Base.ReadTimeout,
 		// 写入超时：向客户端写入响应的最大时间，超时则关闭连接
@@ -73,7 +105,7 @@ func (f *GatewayFactory) CreateGateway(cfg *config.GatewayConfig, configFile str
 	// 使用SetKeepAlivesEnabled方法明确启用或禁用HTTP Keep-Alive
 	// - KeepAliveEnabled=true: 启用HTTP Keep-Alive，使用配置的IdleTimeout值
 	// - KeepAliveEnabled=false: 禁用HTTP Keep-Alive，每个请求后立即关闭连接
-	gateway.server.SetKeepAlivesEnabled(cfg.Base.KeepAliveEnabled)
+	server.SetKeepAlivesEnabled(cfg.Base.KeepAliveEnabled)
 
 	// 如果启用HTTPS，配置TLS
 	if cfg.Base.EnableHTTPS {
@@ -81,16 +113,10 @@ func (f *GatewayFactory) CreateGateway(cfg *config.GatewayConfig, configFile str
 		if err != nil {
 			return nil, fmt.Errorf("创建TLS配置失败: %w", err)
 		}
-		gateway.server.TLSConfig = tlsConfig
+		server.TLSConfig = tlsConfig
 		logger.Info("TLS配置已加载", "certFile", cfg.Base.CertFile, "keyFile", cfg.Base.KeyFile)
 	}
-
-	// 初始化和设置所有处理器
-	if err := f.initializeAndSetHandlers(gateway, cfg); err != nil {
-		return nil, fmt.Errorf("初始化处理器失败: %w", err)
-	}
-
-	return gateway, nil
+	return server, nil
 }
 
 // CreateGatewayWithPool 创建网关实例并添加到连接池
@@ -152,14 +178,23 @@ func (f *GatewayFactory) createTLSConfig(cfg *config.GatewayConfig) (*tls.Config
 	return tlsConfig, nil
 }
 
-// initializeAndSetHandlers 初始化所有处理器并设置到网关
-func (f *GatewayFactory) initializeAndSetHandlers(gateway *Gateway, cfg *config.GatewayConfig) error {
+// buildHandlers 构建一个运行时代际独占的处理器集合。
+func (f *GatewayFactory) buildHandlers(cfg *config.GatewayConfig) (gatewayHandlers, error) {
+	built := gatewayHandlers{}
+	success := false
+	defer func() {
+		if !success {
+			built.close()
+		}
+	}()
+
 	// 1. 路由处理器 - 必需的处理器，总是创建
 	routerFactory := router.NewRouterHandlerFactory()
 	routerHandler, err := routerFactory.CreateRouter(cfg.Router)
 	if err != nil {
-		return fmt.Errorf("创建路由处理器失败: %w", err)
+		return gatewayHandlers{}, fmt.Errorf("创建路由处理器失败: %w", err)
 	}
+	built.router = routerHandler
 
 	// 2. 代理处理器 - 只在启用时创建
 	var proxyHandler proxy.ProxyHandler
@@ -172,7 +207,7 @@ func (f *GatewayFactory) initializeAndSetHandlers(gateway *Gateway, cfg *config.
 		if len(cfg.Proxy.Service) > 0 {
 			serviceManager, err = serviceFactory.CreateManagerWithServices(cfg.Proxy.Service)
 			if err != nil {
-				return fmt.Errorf("创建负载均衡器失败: %w", err)
+				return gatewayHandlers{}, fmt.Errorf("创建负载均衡器失败: %w", err)
 			}
 		} else {
 			serviceManager = serviceFactory.CreateServiceManager()
@@ -182,8 +217,10 @@ func (f *GatewayFactory) initializeAndSetHandlers(gateway *Gateway, cfg *config.
 		proxyFactory := proxy.NewProxyFactory(serviceManager)
 		proxyHandler, err = proxyFactory.CreateProxy(cfg.Proxy)
 		if err != nil {
-			return fmt.Errorf("创建代理处理器失败: %w", err)
+			closeGenerationHandler("service", serviceManager)
+			return gatewayHandlers{}, fmt.Errorf("创建代理处理器失败: %w", err)
 		}
+		built.proxy = proxyHandler
 	}
 	// 如果未启用代理，proxyHandler 保持为 nil
 
@@ -193,8 +230,9 @@ func (f *GatewayFactory) initializeAndSetHandlers(gateway *Gateway, cfg *config.
 		authFactory := auth.NewAuthenticatorFactory()
 		authHandler, err = authFactory.CreateAuthenticator(cfg.Auth)
 		if err != nil {
-			return fmt.Errorf("创建认证处理器失败: %w", err)
+			return gatewayHandlers{}, fmt.Errorf("创建认证处理器失败: %w", err)
 		}
+		built.auth = authHandler
 	}
 	// 如果未启用认证，authHandler 保持为 nil
 
@@ -204,8 +242,9 @@ func (f *GatewayFactory) initializeAndSetHandlers(gateway *Gateway, cfg *config.
 		corsFactory := cors.NewCORSHandlerFactory()
 		corsHandler, err = corsFactory.CreateCORSHandler(cfg.CORS)
 		if err != nil {
-			return fmt.Errorf("创建CORS处理器失败: %w", err)
+			return gatewayHandlers{}, fmt.Errorf("创建CORS处理器失败: %w", err)
 		}
+		built.cors = corsHandler
 	}
 	// 如果未启用CORS，corsHandler 保持为 nil
 
@@ -215,8 +254,9 @@ func (f *GatewayFactory) initializeAndSetHandlers(gateway *Gateway, cfg *config.
 		securityFactory := security.NewSecurityHandlerFactory()
 		securityHandler, err = securityFactory.CreateSecurityHandler(cfg.Security)
 		if err != nil {
-			return fmt.Errorf("创建安全处理器失败: %w", err)
+			return gatewayHandlers{}, fmt.Errorf("创建安全处理器失败: %w", err)
 		}
+		built.security = securityHandler
 	}
 	// 如果未启用安全检查，securityHandler 保持为 nil
 
@@ -226,19 +266,14 @@ func (f *GatewayFactory) initializeAndSetHandlers(gateway *Gateway, cfg *config.
 		limiterFactory := limiter.NewLimiterFactory()
 		limiterHandler, err = limiterFactory.CreateLimiter(&cfg.RateLimit)
 		if err != nil {
-			return fmt.Errorf("创建限流处理器失败: %w", err)
+			return gatewayHandlers{}, fmt.Errorf("创建限流处理器失败: %w", err)
 		}
+		built.limiter = limiterHandler
 	}
 	// 如果未启用限流，limiterHandler 保持为 nil
 
-	// 设置所有处理器到网关（包括 nil 值）
-	gateway.router = routerHandler
-	gateway.proxy = proxyHandler
-	gateway.auth = authHandler
-	gateway.cors = corsHandler
-	gateway.security = securityHandler
-	gateway.limiter = limiterHandler
-	return nil
+	success = true
+	return built, nil
 }
 
 // ReloadGateway 重新加载网关配置
@@ -253,145 +288,46 @@ func (f *GatewayFactory) ReloadGateway(gateway *Gateway, newCfg *config.GatewayC
 		return fmt.Errorf("新配置不能为空")
 	}
 
-	// 保存旧配置和旧处理器，以便在失败时回滚
+	// 保存旧配置，以便校验监听地址和更新连接池索引。
 	oldConfig := gateway.gatewayConfig
-	oldRouter := gateway.router
-	oldProxy := gateway.proxy
-	oldAuth := gateway.auth
-	oldCors := gateway.cors
-	oldSecurity := gateway.security
-	oldLimiter := gateway.limiter
 
 	// 如果监听地址发生变化，需要重启服务
 	if oldConfig.Base.Listen != newCfg.Base.Listen {
 		return fmt.Errorf("监听地址变更需要重启服务")
 	}
-
-	// 临时更新网关配置
-	gateway.gatewayConfig = newCfg
-
-	// 尝试初始化新的处理器
-	if err := f.initializeAndSetHandlers(gateway, newCfg); err != nil {
-		// 初始化失败，回滚配置和处理器
-		gateway.gatewayConfig = oldConfig
-		gateway.router = oldRouter
-		gateway.proxy = oldProxy
-		gateway.auth = oldAuth
-		gateway.cors = oldCors
-		gateway.security = oldSecurity
-		gateway.limiter = oldLimiter
-		return fmt.Errorf("重新初始化处理器失败: %w", err)
+	if oldConfig.Base.EnableHTTPS != newCfg.Base.EnableHTTPS {
+		return fmt.Errorf("HTTP/HTTPS协议切换需要重启服务")
 	}
 
-	// 新处理器初始化成功，重新创建engine并设置处理器链
-	// 先创建新的engine，设置完成后再一次性替换，确保原子性
-	newEngine := core.NewEngine()
-	gateway.setupHandlers(newEngine)
-
-	// 处理器链设置完成，现在可以安全替换engine
-	gateway.engine = newEngine
-
-	// engine设置完成后，现在可以安全关闭旧处理器
-	// 关闭旧的处理器资源，防止资源泄漏
-	f.closeOldHandlers(oldRouter, oldProxy, oldAuth, oldCors, oldSecurity, oldLimiter)
-
-	// 更新HTTP服务器配置
-	gateway.server.ReadTimeout = newCfg.Base.ReadTimeout
-	gateway.server.WriteTimeout = newCfg.Base.WriteTimeout
-	gateway.server.IdleTimeout = newCfg.Base.IdleTimeout
-	gateway.server.MaxHeaderBytes = newCfg.Base.MaxHeaderBytes
-	// 更新HTTP Keep-Alive配置
-	gateway.server.SetKeepAlivesEnabled(newCfg.Base.KeepAliveEnabled)
-
-	// 更新TLS配置（如果启用HTTPS）
-	// 注意：即使证书文件路径没变，证书内容也可能更新（如证书续期），所以每次都重新加载
-	if newCfg.Base.EnableHTTPS {
-		logger.Info("重新加载TLS配置")
-		tlsConfig, err := f.createTLSConfig(newCfg)
-		if err != nil {
-			logger.Warn("重新加载TLS配置失败，继续使用旧配置", "error", err)
-			// TLS配置加载失败不应该导致整个重载失败，继续使用旧配置
-		} else {
-			gateway.server.TLSConfig = tlsConfig
-			logger.Info("TLS配置已更新",
-				"certFile", newCfg.Base.CertFile,
-				"keyFile", newCfg.Base.KeyFile)
-		}
+	// 完整构建新代际；处理器、Engine、Server和TLS任一构建失败都不会修改当前代际。
+	generation, err := f.buildGeneration(gateway, newCfg)
+	if err != nil {
+		return fmt.Errorf("构建新网关代际失败: %w", err)
 	}
 
-	// 更新实例ID
-	if oldConfig.InstanceID != newCfg.InstanceID && newCfg.InstanceID != "" {
-		// 获取全局连接池
-		pool := GetGlobalPool()
-
-		// 从连接池中移除旧ID
-		if oldConfig.InstanceID != "" {
-			pool.Remove(oldConfig.InstanceID)
-		} else if oldConfig.Base.Listen != "" {
-			// 如果旧配置没有实例ID，尝试使用监听地址作为ID
-			pool.Remove(oldConfig.Base.Listen)
-		}
-
-		// 使用新ID添加到连接池
-		if err := pool.Add(newCfg.InstanceID, gateway); err != nil {
+	// 实例ID索引先原子换键；激活失败时再回滚，避免调用Remove导致运行中的网关被停止。
+	var pool *gatewayPool
+	oldPoolKey := oldConfig.InstanceID
+	if oldPoolKey == "" {
+		oldPoolKey = oldConfig.Base.Listen
+	}
+	instanceIDChanged := oldConfig.InstanceID != newCfg.InstanceID && newCfg.InstanceID != ""
+	if instanceIDChanged {
+		pool = GetGlobalPool().(*gatewayPool)
+		if err := pool.rekey(oldPoolKey, newCfg.InstanceID, gateway); err != nil {
+			generation.closeHandlers()
 			return fmt.Errorf("更新连接池中的网关实例失败: %w", err)
 		}
 	}
 
+	// 新Server先进入等待状态，再原子切换连接入口；旧代际随后在后台排空。
+	if err := gateway.activateGeneration(generation); err != nil {
+		generation.closeHandlers()
+		if instanceIDChanged {
+			_ = pool.rekey(newCfg.InstanceID, oldPoolKey, gateway)
+		}
+		return fmt.Errorf("激活新网关代际失败: %w", err)
+	}
+
 	return nil
-}
-
-// closeOldHandlers 关闭旧的处理器资源
-func (f *GatewayFactory) closeOldHandlers(oldRouter, oldProxy, oldAuth, oldCors, oldSecurity, oldLimiter interface{}) {
-	// 优先关闭代理处理器，因为它通常包含健康检查器等后台资源
-	if oldProxy != nil {
-		if closer, ok := oldProxy.(interface{ Close() error }); ok {
-			if err := closer.Close(); err != nil {
-				logger.Warn("重载配置时关闭旧代理处理器失败", "error", err)
-			} else {
-				logger.Debug("重载配置时旧代理处理器已关闭")
-			}
-		}
-	}
-
-	// 关闭其他处理器资源
-	if oldRouter != nil {
-		if closer, ok := oldRouter.(interface{ Close() error }); ok {
-			if err := closer.Close(); err != nil {
-				logger.Warn("重载配置时关闭旧路由处理器失败", "error", err)
-			}
-		}
-	}
-
-	if oldAuth != nil {
-		if closer, ok := oldAuth.(interface{ Close() error }); ok {
-			if err := closer.Close(); err != nil {
-				logger.Warn("重载配置时关闭旧认证处理器失败", "error", err)
-			}
-		}
-	}
-
-	if oldCors != nil {
-		if closer, ok := oldCors.(interface{ Close() error }); ok {
-			if err := closer.Close(); err != nil {
-				logger.Warn("重载配置时关闭旧CORS处理器失败", "error", err)
-			}
-		}
-	}
-
-	if oldSecurity != nil {
-		if closer, ok := oldSecurity.(interface{ Close() error }); ok {
-			if err := closer.Close(); err != nil {
-				logger.Warn("重载配置时关闭旧安全处理器失败", "error", err)
-			}
-		}
-	}
-
-	if oldLimiter != nil {
-		if closer, ok := oldLimiter.(interface{ Close() error }); ok {
-			if err := closer.Close(); err != nil {
-				logger.Warn("重载配置时关闭旧限流处理器失败", "error", err)
-			}
-		}
-	}
 }
