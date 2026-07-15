@@ -4,6 +4,7 @@ import (
 	"gateway/internal/cluster/publish"
 	"gateway/internal/gateway/bootstrap"
 	"gateway/internal/gateway/loader"
+	"gateway/internal/gateway/loader/dbloader"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/web/utils/constants"
@@ -759,9 +760,14 @@ func (c *GatewayInstanceController) ReloadGatewayInstance(ctx *gin.Context) {
 	err = gateway.Reload(newConfig)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "重载网关配置失败", err)
+		// 重载失败通常仍保持在线；仅记录状态说明与操作时间。
+		dbloader.TouchGatewayInstanceLifecycle(tenantId, gatewayInstanceId, "重载失败: "+err.Error())
 		response.ErrorJSON(ctx, "重载网关配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+
+	// 重载成功：刷新修改时间/心跳时间并清空 reserved1 异常说明。
+	dbloader.TouchGatewayInstanceLifecycle(tenantId, gatewayInstanceId, "")
 
 	logger.InfoWithTrace(ctx, "网关实例配置重载成功",
 		"gatewayInstanceId", gatewayInstanceId,

@@ -174,7 +174,7 @@ func (c *AuthController) Login(ctx *gin.Context) {
 		"clientIP":        clientIP,
 		"userAgent":       userAgent,
 		// 返回web.yaml中的read_timeout配置，单位为秒，转换为毫秒
-		"timeout": config.GetInt("web.read_timeout", 30) * 1000,
+		"timeout": config.GetInt("web.read_timeout", 120) * 1000,
 		// 权限信息
 		"permissions": permissions,
 	}

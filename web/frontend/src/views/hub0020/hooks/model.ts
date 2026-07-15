@@ -468,6 +468,19 @@ export function useGatewayInstanceModel() {
       },
     },
     {
+      field: 'reserved1',
+      label: '状态说明',
+      type: 'textarea',
+      placeholder: '最近一次启动/停止/重载异常说明',
+      tips: '由系统写入：启动失败、重载失败等原因；成功启动/重载后清空',
+      span: 24,
+      tabKey: 'other',
+      disabled: true,
+      props: {
+        rows: 2,
+      },
+    },
+    {
       field: 'addTime',
       label: '创建时间',
       type: 'datetime',
@@ -1105,6 +1118,13 @@ export function useGatewayInstanceModel() {
         //     content: row.healthStatus === 'Y' ? '健康' : '不健康',
         //   }),
         // },
+      },
+      {
+        field: 'reserved1',
+        title: '状态说明',
+        minWidth: 160,
+        showOverflow: true,
+        slots: { default: 'reserved1' },
       },
       {
         field: 'activeFlag',

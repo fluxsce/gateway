@@ -30,9 +30,23 @@
             </n-tag>
           </template>
 
-          <!-- 健康状态自定义渲染 -->
+          <!-- 健康状态自定义渲染；reserved1 展示最近启动/停止/重载异常说明 -->
           <template #healthStatus="{ row }">
-            <n-tag :type="row.healthStatus === 'Y' ? 'success' : 'error'" size="small">
+            <n-tooltip v-if="row.reserved1" trigger="hover">
+              <template #trigger>
+                <n-tag :type="row.healthStatus === 'Y' ? 'success' : 'error'" size="small">
+                  <template #icon>
+                    <n-icon>
+                      <CheckmarkCircleOutline v-if="row.healthStatus === 'Y'" />
+                      <AlertCircleOutline v-else />
+                    </n-icon>
+                  </template>
+                  {{ row.healthStatus === 'Y' ? '在线' : '离线' }}
+                </n-tag>
+              </template>
+              {{ row.reserved1 }}
+            </n-tooltip>
+            <n-tag v-else :type="row.healthStatus === 'Y' ? 'success' : 'error'" size="small">
               <template #icon>
                 <n-icon>
                   <CheckmarkCircleOutline v-if="row.healthStatus === 'Y'" />
@@ -41,6 +55,11 @@
               </template>
               {{ row.healthStatus === 'Y' ? '在线' : '离线' }}
             </n-tag>
+          </template>
+
+          <template #reserved1="{ row }">
+            <span v-if="row.reserved1" class="status-note" :title="row.reserved1">{{ row.reserved1 }}</span>
+            <span v-else class="status-note status-note--empty">-</span>
           </template>
 
           <!-- 活动状态自定义渲染 -->
@@ -183,7 +202,7 @@ import DomainAccessConfigListModal from '@/views/common/common002/domain-config/
 import IpAccessConfigListModal from '@/views/common/common002/ip-config/IpAccessConfigListModal.vue'
 import RateLimitConfigFormModal from '@/views/common/common002/limit-config/RateLimitConfigFormModal.vue'
 import { AlertCircleOutline, CheckmarkCircleOutline } from '@vicons/ionicons5'
-import { NIcon, NTag, useMessage } from 'naive-ui'
+import { NIcon, NTag, NTooltip, useMessage } from 'naive-ui'
 import { computed, ref } from 'vue'
 import { useGatewayInstancePage } from './hooks'
 
@@ -271,5 +290,13 @@ const handleImportSuccess = () => {
     flex-direction: column;
   }
 
+  .status-note {
+    color: var(--n-error-color, #d03050);
+    font-size: 12px;
+  }
+
+  .status-note--empty {
+    color: var(--n-text-color-disabled, #c2c2c2);
+  }
 }
 </style>

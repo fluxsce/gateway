@@ -59,7 +59,7 @@ export interface GatewayInstance {
   noteText?: string // 备注信息
 
   // 预留字段
-  reserved1?: string // 预留字段1
+  reserved1?: string // 最近状态说明（启动/停止/重载异常摘要，系统写入）
   reserved2?: string // 预留字段2
   reserved3?: number // 预留字段3
   reserved4?: number // 预留字段4
@@ -122,7 +122,7 @@ export interface LogConfig {
   configPriority: number // 配置优先级,数值越小优先级越高
 
   // 预留字段
-  reserved1?: string // 预留字段1
+  reserved1?: string // 最近状态说明（启动/停止/重载异常摘要，系统写入）
   reserved2?: string // 预留字段2
   reserved3?: number // 预留字段3
   reserved4?: number // 预留字段4

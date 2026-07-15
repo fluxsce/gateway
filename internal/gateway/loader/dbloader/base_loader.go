@@ -200,21 +200,21 @@ func UpdateGatewayHealthStatus(tenantId, instanceId, healthStatus, errorMsg stri
 	var query string
 	var args []interface{}
 
-	// 根据是否有错误信息构建不同的SQL
+	// 同步刷新 editTime，便于列表展示最近启动/停止等生命周期操作时间。
 	if errorMsg != "" {
 		query = `
 			UPDATE HUB_GW_INSTANCE 
-			SET healthStatus = ?, lastHeartbeatTime = ?, reserved1 = ?
+			SET healthStatus = ?, lastHeartbeatTime = ?, editTime = ?, reserved1 = ?
 			WHERE tenantId = ? AND gatewayInstanceId = ?
 		`
-		args = []interface{}{healthStatus, now, errorMsg, tenantId, instanceId}
+		args = []interface{}{healthStatus, now, now, errorMsg, tenantId, instanceId}
 	} else {
 		query = `
 			UPDATE HUB_GW_INSTANCE 
-			SET healthStatus = ?, lastHeartbeatTime = ?, reserved1 = NULL
+			SET healthStatus = ?, lastHeartbeatTime = ?, editTime = ?, reserved1 = NULL
 			WHERE tenantId = ? AND gatewayInstanceId = ?
 		`
-		args = []interface{}{healthStatus, now, tenantId, instanceId}
+		args = []interface{}{healthStatus, now, now, tenantId, instanceId}
 	}
 
 	// 执行更新
@@ -223,5 +223,44 @@ func UpdateGatewayHealthStatus(tenantId, instanceId, healthStatus, errorMsg stri
 		logger.Warn("更新网关实例健康状态失败", "error", err, "instanceId", instanceId, "healthStatus", healthStatus)
 	} else {
 		logger.Debug("网关实例健康状态已更新", "instanceId", instanceId, "healthStatus", healthStatus)
+	}
+}
+
+// TouchGatewayInstanceLifecycle 刷新实例生命周期时间（重载等不改变在线语义的操作）。
+// errorMsg 非空时写入 reserved1；空字符串则清空 reserved1。不修改 healthStatus。
+func TouchGatewayInstanceLifecycle(tenantId, instanceId, errorMsg string) {
+	if tenantId == "" || instanceId == "" {
+		return
+	}
+	db := database.GetDefaultConnection()
+	if db == nil {
+		logger.Warn("无法获取默认数据库连接，跳过生命周期时间更新", "instanceId", instanceId)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	now := time.Now()
+	if len(errorMsg) > 100 {
+		errorMsg = errorMsg[:97] + "..."
+	}
+	var query string
+	var args []interface{}
+	if errorMsg != "" {
+		query = `
+			UPDATE HUB_GW_INSTANCE
+			SET lastHeartbeatTime = ?, editTime = ?, reserved1 = ?
+			WHERE tenantId = ? AND gatewayInstanceId = ?
+		`
+		args = []interface{}{now, now, errorMsg, tenantId, instanceId}
+	} else {
+		query = `
+			UPDATE HUB_GW_INSTANCE
+			SET lastHeartbeatTime = ?, editTime = ?, reserved1 = NULL
+			WHERE tenantId = ? AND gatewayInstanceId = ?
+		`
+		args = []interface{}{now, now, tenantId, instanceId}
+	}
+	if _, err := db.Exec(ctx, query, args, true); err != nil {
+		logger.Warn("更新网关实例生命周期时间失败", "error", err, "instanceId", instanceId)
 	}
 }

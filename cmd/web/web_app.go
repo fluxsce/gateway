@@ -378,8 +378,8 @@ func (app *WebApp) Init() error {
 
 // Start 启动Web服务器
 func (app *WebApp) Start() error {
-	readTimeout := config.GetInt("web.read_timeout", 60)
-	writeTimeout := config.GetInt("web.write_timeout", 60)
+	readTimeout := config.GetInt("web.read_timeout", 120)
+	writeTimeout := config.GetInt("web.write_timeout", 120)
 	appName := config.GetString("web.name", "Gateway Web服务")
 	runMode := config.GetString("web.run_mode", "debug")
 	enableHTTPS := config.GetBool("web.enable_https", false)

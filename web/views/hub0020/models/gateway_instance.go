@@ -52,7 +52,7 @@ type GatewayInstance struct {
 	InstanceMetadata  string     `json:"instanceMetadata" form:"instanceMetadata" query:"instanceMetadata" db:"instanceMetadata"`     // 实例元数据,JSON格式
 
 	// 预留字段
-	Reserved1 string     `json:"reserved1" form:"reserved1" query:"reserved1" db:"reserved1"` // 预留字段1
+	Reserved1 string     `json:"reserved1" form:"reserved1" query:"reserved1" db:"reserved1"` // 最近状态说明（启动/停止/重载异常摘要）
 	Reserved2 string     `json:"reserved2" form:"reserved2" query:"reserved2" db:"reserved2"` // 预留字段2
 	Reserved3 *int       `json:"reserved3" form:"reserved3" query:"reserved3" db:"reserved3"` // 预留字段3
 	Reserved4 *int       `json:"reserved4" form:"reserved4" query:"reserved4" db:"reserved4"` // 预留字段4

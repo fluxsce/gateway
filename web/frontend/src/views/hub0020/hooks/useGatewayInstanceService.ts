@@ -298,12 +298,13 @@ export function useGatewayInstanceService(searchFormRef?: Ref<any> | any) {
       if (isApiSuccess(response)) {
         const successMsg = getApiMessage(response, '实例启动成功')
         message.success(successMsg)
-        // 更新本地状态
-        updateInstanceInList(instance.gatewayInstanceId, instance.tenantId, { healthStatus: 'Y' })
+        // 重新拉取，带回 reserved1、editTime、lastHeartbeatTime
+        await loadInstances()
         return true
       } else {
         const errorMsg = getApiMessage(response, '启动失败')
         message.error(errorMsg)
+        await loadInstances()
         return false
       }
     } catch (error) {
@@ -328,12 +329,12 @@ export function useGatewayInstanceService(searchFormRef?: Ref<any> | any) {
       if (isApiSuccess(response)) {
         const successMsg = getApiMessage(response, '实例停止成功')
         message.success(successMsg)
-        // 更新本地状态
-        updateInstanceInList(instance.gatewayInstanceId, instance.tenantId, { healthStatus: 'N' })
+        await loadInstances()
         return true
       } else {
         const errorMsg = getApiMessage(response, '停止失败')
         message.error(errorMsg)
+        await loadInstances()
         return false
       }
     } catch (error) {
@@ -364,6 +365,7 @@ export function useGatewayInstanceService(searchFormRef?: Ref<any> | any) {
       } else {
         const errorMsg = getApiMessage(response, '网关重载失败')
         message.error(errorMsg)
+        await loadInstances()
         return false
       }
     } catch (error) {
