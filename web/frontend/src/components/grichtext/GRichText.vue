@@ -7,73 +7,73 @@
     <div v-if="showToolbar" class="g-richtext__toolbar">
       <!-- 字体样式组 -->
       <div v-if="toolbarOptions.fontStyle" class="g-richtext__toolbar-group">
-        <n-tooltip trigger="hover">
+        <RsTooltip trigger="hover">
           <template #trigger>
-            <n-button
-              :type="editor?.isActive('bold') ? 'primary' : 'default'"
+            <RsButton
+              :variant="editor?.isActive('bold') ? 'primary' : 'default'"
               :disabled="!editor"
               quaternary
-              size="small"
+              size="sm"
               @click="editor?.chain().focus().toggleBold().run()"
             >
               <template #icon>
-                <n-icon><TextOutline /></n-icon>
+                <GIcon><TextOutline /></GIcon>
               </template>
-            </n-button>
+            </RsButton>
           </template>
           粗体 (Ctrl+B)
-        </n-tooltip>
+        </RsTooltip>
 
-        <n-tooltip trigger="hover">
+        <RsTooltip trigger="hover">
           <template #trigger>
-            <n-button
-              :type="editor?.isActive('italic') ? 'primary' : 'default'"
+            <RsButton
+              :variant="editor?.isActive('italic') ? 'primary' : 'default'"
               :disabled="!editor"
               quaternary
-              size="small"
+              size="sm"
               @click="editor?.chain().focus().toggleItalic().run()"
             >
               <template #icon>
-                <n-icon><TextOutline /></n-icon>
+                <GIcon><TextOutline /></GIcon>
               </template>
-            </n-button>
+            </RsButton>
           </template>
           斜体 (Ctrl+I)
-        </n-tooltip>
+        </RsTooltip>
 
-        <n-tooltip trigger="hover">
+        <RsTooltip trigger="hover">
           <template #trigger>
-            <n-button
-              :type="editor?.isActive('underline') ? 'primary' : 'default'"
+            <RsButton
+              :variant="editor?.isActive('underline') ? 'primary' : 'default'"
               :disabled="!editor"
               quaternary
-              size="small"
+              size="sm"
               @click="editor?.chain().focus().toggleUnderline().run()"
             >
               <template #icon>
-                <n-icon><TextOutline /></n-icon>
+                <GIcon><TextOutline /></GIcon>
               </template>
-            </n-button>
+            </RsButton>
           </template>
           下划线 (Ctrl+U)
-        </n-tooltip>
+        </RsTooltip>
 
-        <n-tooltip trigger="hover">
+        <RsTooltip trigger="hover">
           <template #trigger>
-            <n-button
-              :type="editor?.isActive('strike') ? 'primary' : 'default'"
+            <RsButton
+              :variant="editor?.isActive('strike') ? 'primary' : 'default'"
               :disabled="!editor"
               quaternary
-              size="small"
+              size="sm"
               @click="editor?.chain().focus().toggleStrike().run()"
             >
               <template #icon>
-                <n-icon><RemoveOutline /></n-icon>
+                <GIcon><RemoveOutline /></GIcon>
               </template>
-            </n-button>
+            </RsButton>
           </template>
           删除线
-        </n-tooltip>
+        </RsTooltip>
 
       </div>
 
@@ -81,14 +81,14 @@
 
       <!-- 字体族 -->
       <div v-if="toolbarOptions.fontFamily" class="g-richtext__toolbar-group">
-        <n-select
-          v-model:value="currentFontFamily"
+        <RsSelect
+          v-model="currentFontFamily"
           :options="fontFamilyOptions"
           :disabled="!editor"
-          size="small"
+          size="sm"
           style="width: 120px"
           placeholder="字体"
-          @update:value="handleFontFamilyChange"
+          @update:model-value="handleFontFamilyChange"
         />
       </div>
 
@@ -96,14 +96,14 @@
 
       <!-- 文本颜色 -->
       <div v-if="toolbarOptions.textColor" class="g-richtext__toolbar-group">
-        <n-color-picker
+        <input type="color"
           :value="currentTextColor"
           :show-alpha="false"
           :modes="['hex']"
           :actions="['confirm']"
           :disabled="!editor"
-          size="small"
-          @update:value="handleTextColorChange"
+          size="sm"
+          @update:model-value="handleTextColorChange"
         />
       </div>
 
@@ -111,240 +111,240 @@
 
       <!-- 对齐方式 -->
       <div v-if="toolbarOptions.textAlign" class="g-richtext__toolbar-group">
-        <n-tooltip trigger="hover">
+        <RsTooltip trigger="hover">
           <template #trigger>
-            <n-button
-              :type="editor?.isActive({ textAlign: 'left' }) ? 'primary' : 'default'"
+            <RsButton
+              :variant="editor?.isActive({ textAlign: 'left' }) ? 'primary' : 'default'"
               :disabled="!editor"
               quaternary
-              size="small"
+              size="sm"
               @click="editor?.chain().focus().setTextAlign('left').run()"
             >
               <template #icon>
-                <n-icon><OptionsOutline /></n-icon>
+                <GIcon><OptionsOutline /></GIcon>
               </template>
-            </n-button>
+            </RsButton>
           </template>
           左对齐
-        </n-tooltip>
+        </RsTooltip>
 
-        <n-tooltip trigger="hover">
+        <RsTooltip trigger="hover">
           <template #trigger>
-            <n-button
-              :type="editor?.isActive({ textAlign: 'center' }) ? 'primary' : 'default'"
+            <RsButton
+              :variant="editor?.isActive({ textAlign: 'center' }) ? 'primary' : 'default'"
               :disabled="!editor"
               quaternary
-              size="small"
+              size="sm"
               @click="editor?.chain().focus().setTextAlign('center').run()"
             >
               <template #icon>
-                <n-icon><OptionsOutline /></n-icon>
+                <GIcon><OptionsOutline /></GIcon>
               </template>
-            </n-button>
+            </RsButton>
           </template>
           居中
-        </n-tooltip>
+        </RsTooltip>
 
-        <n-tooltip trigger="hover">
+        <RsTooltip trigger="hover">
           <template #trigger>
-            <n-button
-              :type="editor?.isActive({ textAlign: 'right' }) ? 'primary' : 'default'"
+            <RsButton
+              :variant="editor?.isActive({ textAlign: 'right' }) ? 'primary' : 'default'"
               :disabled="!editor"
               quaternary
-              size="small"
+              size="sm"
               @click="editor?.chain().focus().setTextAlign('right').run()"
             >
               <template #icon>
-                <n-icon><OptionsOutline /></n-icon>
+                <GIcon><OptionsOutline /></GIcon>
               </template>
-            </n-button>
+            </RsButton>
           </template>
           右对齐
-        </n-tooltip>
+        </RsTooltip>
 
-        <n-tooltip trigger="hover">
+        <RsTooltip trigger="hover">
           <template #trigger>
-            <n-button
-              :type="editor?.isActive({ textAlign: 'justify' }) ? 'primary' : 'default'"
+            <RsButton
+              :variant="editor?.isActive({ textAlign: 'justify' }) ? 'primary' : 'default'"
               :disabled="!editor"
               quaternary
-              size="small"
+              size="sm"
               @click="editor?.chain().focus().setTextAlign('justify').run()"
             >
               <template #icon>
-                <n-icon><MenuOutline /></n-icon>
+                <GIcon><MenuOutline /></GIcon>
               </template>
-            </n-button>
+            </RsButton>
           </template>
           两端对齐
-        </n-tooltip>
+        </RsTooltip>
       </div>
 
       <div v-if="toolbarOptions.textAlign && toolbarOptions.list" class="g-richtext__divider" />
 
       <!-- 列表 -->
       <div v-if="toolbarOptions.list" class="g-richtext__toolbar-group">
-        <n-tooltip trigger="hover">
+        <RsTooltip trigger="hover">
           <template #trigger>
-            <n-button
-              :type="editor?.isActive('bulletList') ? 'primary' : 'default'"
+            <RsButton
+              :variant="editor?.isActive('bulletList') ? 'primary' : 'default'"
               :disabled="!editor"
               quaternary
-              size="small"
+              size="sm"
               @click="editor?.chain().focus().toggleBulletList().run()"
             >
               <template #icon>
-                <n-icon><ListOutline /></n-icon>
+                <GIcon><ListOutline /></GIcon>
               </template>
-            </n-button>
+            </RsButton>
           </template>
           无序列表
-        </n-tooltip>
+        </RsTooltip>
 
-        <n-tooltip trigger="hover">
+        <RsTooltip trigger="hover">
           <template #trigger>
-            <n-button
-              :type="editor?.isActive('orderedList') ? 'primary' : 'default'"
+            <RsButton
+              :variant="editor?.isActive('orderedList') ? 'primary' : 'default'"
               :disabled="!editor"
               quaternary
-              size="small"
+              size="sm"
               @click="editor?.chain().focus().toggleOrderedList().run()"
             >
               <template #icon>
-                <n-icon><ListOutline /></n-icon>
+                <GIcon><ListOutline /></GIcon>
               </template>
-            </n-button>
+            </RsButton>
           </template>
           有序列表
-        </n-tooltip>
+        </RsTooltip>
       </div>
 
       <div v-if="toolbarOptions.list && (toolbarOptions.heading || toolbarOptions.link || toolbarOptions.image || toolbarOptions.table)" class="g-richtext__divider" />
 
       <!-- 标题 -->
       <div v-if="toolbarOptions.heading" class="g-richtext__toolbar-group">
-        <n-select
-          v-model:value="currentHeading"
+        <RsSelect
+          v-model="currentHeading"
           :options="headingOptions"
           :disabled="!editor"
-          size="small"
+          size="sm"
           style="width: 100px"
           placeholder="标题"
-          @update:value="handleHeadingChange"
+          @update:model-value="handleHeadingChange"
         />
       </div>
 
       <!-- 链接 -->
       <div v-if="toolbarOptions.link" class="g-richtext__toolbar-group">
-        <n-popover trigger="click" :show="showLinkDialog" @update:show="showLinkDialog = $event">
+        <RsPopover trigger="click" :open="showLinkDialog" @update:open="showLinkDialog = $event">
           <template #trigger>
-            <n-tooltip trigger="hover">
+            <RsTooltip trigger="hover">
               <template #trigger>
-                <n-button
-                  :type="editor?.isActive('link') ? 'primary' : 'default'"
+                <RsButton
+                  :variant="editor?.isActive('link') ? 'primary' : 'default'"
                   :disabled="!editor"
                   quaternary
-                  size="small"
+                  size="sm"
                   @click="handleLinkClick"
                 >
                   <template #icon>
-                    <n-icon><LinkOutline /></n-icon>
+                    <GIcon><LinkOutline /></GIcon>
                   </template>
-                </n-button>
+                </RsButton>
               </template>
               插入链接
-            </n-tooltip>
+            </RsTooltip>
           </template>
           <div class="g-richtext__link-dialog">
-            <n-input
-              v-model:value="linkUrl"
+            <RsInput
+              v-model="linkUrl"
               placeholder="输入链接地址"
-              size="small"
+              size="sm"
               style="margin-bottom: 8px"
               @keyup.enter="handleLinkSubmit"
             />
-            <n-space justify="end">
-              <n-button size="small" @click="handleLinkRemove">移除链接</n-button>
-              <n-button type="primary" size="small" @click="handleLinkSubmit">确定</n-button>
-            </n-space>
+            <div  class="rs-space rs-space--end">
+              <RsButton size="sm" @click="handleLinkRemove">移除链接</RsButton>
+              <RsButton variant="primary" size="sm" @click="handleLinkSubmit">确定</RsButton>
+            </div>
           </div>
-        </n-popover>
+        </RsPopover>
       </div>
 
       <!-- 图片 -->
       <div v-if="toolbarOptions.image" class="g-richtext__toolbar-group">
-        <n-popover trigger="click" :show="showImageDialog" @update:show="showImageDialog = $event">
+        <RsPopover trigger="click" :open="showImageDialog" @update:open="showImageDialog = $event">
           <template #trigger>
-            <n-tooltip trigger="hover">
+            <RsTooltip trigger="hover">
               <template #trigger>
-                <n-button
+                <RsButton
                   :disabled="!editor"
                   quaternary
-                  size="small"
+                  size="sm"
                   @click="showImageDialog = !showImageDialog"
                 >
                   <template #icon>
-                    <n-icon><ImageOutline /></n-icon>
+                    <GIcon><ImageOutline /></GIcon>
                   </template>
-                </n-button>
+                </RsButton>
               </template>
               插入图片
-            </n-tooltip>
+            </RsTooltip>
           </template>
           <div class="g-richtext__image-dialog">
-            <n-tabs v-model:value="imageTab" size="small">
-              <n-tab-pane name="url" tab="图片地址">
-                <n-input
-                  v-model:value="imageUrl"
+            <RsTabs v-model="imageTab" size="sm">
+              <div class="rs-tab-pane" name="url" tab="图片地址">
+                <RsInput
+                  v-model="imageUrl"
                   placeholder="输入图片地址"
-                  size="small"
+                  size="sm"
                   style="margin-bottom: 8px"
                   @keyup.enter="handleImageSubmit"
                 />
-              </n-tab-pane>
-              <n-tab-pane name="upload" tab="本地上传">
-                <n-upload
+              </div>
+              <div class="rs-tab-pane" name="upload" tab="本地上传">
+                <RsUpload
                   :file-list="imageFileList"
                   :max="1"
                   accept="image/*"
                   :show-file-list="false"
                   @change="handleImageFileChange"
                 >
-                  <n-button size="small" style="width: 100%">选择图片</n-button>
-                </n-upload>
+                  <RsButton size="sm" style="width: 100%">选择图片</RsButton>
+                </RsUpload>
                 <div v-if="imagePreview" style="margin-top: 8px; text-align: center;">
                   <img :src="imagePreview" alt="预览" style="max-width: 100%; max-height: 150px; border-radius: 4px;" />
                 </div>
-              </n-tab-pane>
-            </n-tabs>
-            <n-space justify="end" style="margin-top: 12px">
-              <n-button size="small" @click="handleImageCancel">取消</n-button>
-              <n-button type="primary" size="small" @click="handleImageSubmit" :disabled="!imageUrl && !imagePreview">确定</n-button>
-            </n-space>
+              </div>
+            </RsTabs>
+            <div  class="rs-space rs-space--end" style="margin-top: 12px">
+              <RsButton size="sm" @click="handleImageCancel">取消</RsButton>
+              <RsButton variant="primary" size="sm" @click="handleImageSubmit" :disabled="!imageUrl && !imagePreview">确定</RsButton>
+            </div>
           </div>
-        </n-popover>
+        </RsPopover>
       </div>
 
       <!-- 表格 -->
       <div v-if="toolbarOptions.table" class="g-richtext__toolbar-group">
-        <n-popover trigger="click" placement="bottom" :show="showTableDialog" @update:show="showTableDialog = $event">
+        <RsPopover trigger="click" placement="bottom" :open="showTableDialog" @update:open="showTableDialog = $event">
           <template #trigger>
-            <n-tooltip trigger="hover">
+            <RsTooltip trigger="hover">
               <template #trigger>
-                <n-button
-                  :type="editor?.isActive('table') ? 'primary' : 'default'"
+                <RsButton
+                  :variant="editor?.isActive('table') ? 'primary' : 'default'"
                   :disabled="!editor"
                   quaternary
-                  size="small"
+                  size="sm"
                   @click="showTableDialog = !showTableDialog"
                 >
                   <template #icon>
-                    <n-icon><AppsOutline /></n-icon>
+                    <GIcon><AppsOutline /></GIcon>
                   </template>
-                </n-button>
+                </RsButton>
               </template>
               插入表格
-            </n-tooltip>
+            </RsTooltip>
           </template>
           <div class="g-richtext__table-dialog">
             <div style="margin-bottom: 8px; font-size: 12px; color: #666;">选择表格大小</div>
@@ -370,121 +370,121 @@
               {{ tableRows }} × {{ tableCols }}
             </div>
           </div>
-        </n-popover>
+        </RsPopover>
 
         <!-- 表格操作按钮（仅在表格内显示） -->
         <template v-if="editor?.isActive('table')">
-          <n-tooltip trigger="hover">
+          <RsTooltip trigger="hover">
             <template #trigger>
-              <n-button
+              <RsButton
                 :disabled="!editor"
                 quaternary
-                size="small"
+                size="sm"
                 @click="editor?.chain().focus().addRowBefore().run()"
               >
                 <template #icon>
-                  <n-icon><ArrowUndoOutline /></n-icon>
+                  <GIcon><ArrowUndoOutline /></GIcon>
                 </template>
-              </n-button>
+              </RsButton>
             </template>
             在上方插入行
-          </n-tooltip>
+          </RsTooltip>
 
-          <n-tooltip trigger="hover">
+          <RsTooltip trigger="hover">
             <template #trigger>
-              <n-button
+              <RsButton
                 :disabled="!editor"
                 quaternary
-                size="small"
+                size="sm"
                 @click="editor?.chain().focus().addRowAfter().run()"
               >
                 <template #icon>
-                  <n-icon><ArrowRedoOutline /></n-icon>
+                  <GIcon><ArrowRedoOutline /></GIcon>
                 </template>
-              </n-button>
+              </RsButton>
             </template>
             在下方插入行
-          </n-tooltip>
+          </RsTooltip>
 
-          <n-tooltip trigger="hover">
+          <RsTooltip trigger="hover">
             <template #trigger>
-              <n-button
+              <RsButton
                 :disabled="!editor"
                 quaternary
-                size="small"
+                size="sm"
                 @click="editor?.chain().focus().deleteRow().run()"
               >
                 <template #icon>
-                  <n-icon><RemoveOutline /></n-icon>
+                  <GIcon><RemoveOutline /></GIcon>
                 </template>
-              </n-button>
+              </RsButton>
             </template>
             删除行
-          </n-tooltip>
+          </RsTooltip>
 
-          <n-tooltip trigger="hover">
+          <RsTooltip trigger="hover">
             <template #trigger>
-              <n-button
+              <RsButton
                 :disabled="!editor"
                 quaternary
-                size="small"
+                size="sm"
                 @click="editor?.chain().focus().addColumnBefore().run()"
               >
                 <template #icon>
-                  <n-icon><OptionsOutline /></n-icon>
+                  <GIcon><OptionsOutline /></GIcon>
                 </template>
-              </n-button>
+              </RsButton>
             </template>
             在左侧插入列
-          </n-tooltip>
+          </RsTooltip>
 
-          <n-tooltip trigger="hover">
+          <RsTooltip trigger="hover">
             <template #trigger>
-              <n-button
+              <RsButton
                 :disabled="!editor"
                 quaternary
-                size="small"
+                size="sm"
                 @click="editor?.chain().focus().addColumnAfter().run()"
               >
                 <template #icon>
-                  <n-icon><OptionsOutline /></n-icon>
+                  <GIcon><OptionsOutline /></GIcon>
                 </template>
-              </n-button>
+              </RsButton>
             </template>
             在右侧插入列
-          </n-tooltip>
+          </RsTooltip>
 
-          <n-tooltip trigger="hover">
+          <RsTooltip trigger="hover">
             <template #trigger>
-              <n-button
+              <RsButton
                 :disabled="!editor"
                 quaternary
-                size="small"
+                size="sm"
                 @click="editor?.chain().focus().deleteColumn().run()"
               >
                 <template #icon>
-                  <n-icon><RemoveOutline /></n-icon>
+                  <GIcon><RemoveOutline /></GIcon>
                 </template>
-              </n-button>
+              </RsButton>
             </template>
             删除列
-          </n-tooltip>
+          </RsTooltip>
 
-          <n-tooltip trigger="hover">
+          <RsTooltip trigger="hover">
             <template #trigger>
-              <n-button
+              <RsButton
                 :disabled="!editor"
                 quaternary
-                size="small"
+                size="sm"
                 @click="editor?.chain().focus().deleteTable().run()"
               >
                 <template #icon>
-                  <n-icon><CodeOutline /></n-icon>
+                  <GIcon><CodeOutline /></GIcon>
                 </template>
-              </n-button>
+              </RsButton>
             </template>
             删除表格
-          </n-tooltip>
+          </RsTooltip>
         </template>
       </div>
 
@@ -495,69 +495,69 @@
         <div class="g-richtext__divider" />
 
         <div class="g-richtext__toolbar-group">
-          <n-tooltip trigger="hover">
+          <RsTooltip trigger="hover">
             <template #trigger>
-              <n-button
+              <RsButton
                 :disabled="!editor"
                 quaternary
-                size="small"
+                size="sm"
                 @click="editor?.chain().focus().setHorizontalRule().run()"
               >
               <template #icon>
-                <n-icon><RemoveOutline /></n-icon>
+                <GIcon><RemoveOutline /></GIcon>
               </template>
-            </n-button>
+            </RsButton>
           </template>
           插入水平线
-        </n-tooltip>
+        </RsTooltip>
 
-        <n-tooltip trigger="hover">
+        <RsTooltip trigger="hover">
           <template #trigger>
-            <n-button
+            <RsButton
               :disabled="!editor"
               quaternary
-              size="small"
+              size="sm"
               @click="editor?.chain().focus().clearNodes().unsetAllMarks().run()"
             >
               <template #icon>
-                <n-icon><CodeOutline /></n-icon>
+                <GIcon><CodeOutline /></GIcon>
               </template>
-            </n-button>
+            </RsButton>
           </template>
           清除格式
-        </n-tooltip>
+        </RsTooltip>
 
-        <n-tooltip trigger="hover">
+        <RsTooltip trigger="hover">
           <template #trigger>
-            <n-button
+            <RsButton
               :disabled="!editor"
               quaternary
-              size="small"
+              size="sm"
               @click="editor?.chain().focus().undo().run()"
             >
               <template #icon>
-                <n-icon><ArrowUndoOutline /></n-icon>
+                <GIcon><ArrowUndoOutline /></GIcon>
               </template>
-            </n-button>
+            </RsButton>
           </template>
           撤销 (Ctrl+Z)
-        </n-tooltip>
+        </RsTooltip>
 
-        <n-tooltip trigger="hover">
+        <RsTooltip trigger="hover">
           <template #trigger>
-            <n-button
+            <RsButton
               :disabled="!editor"
               quaternary
-              size="small"
+              size="sm"
               @click="editor?.chain().focus().redo().run()"
             >
               <template #icon>
-                <n-icon><ArrowRedoOutline /></n-icon>
+                <GIcon><ArrowRedoOutline /></GIcon>
               </template>
-              </n-button>
+              </RsButton>
             </template>
             重做 (Ctrl+Y)
-          </n-tooltip>
+          </RsTooltip>
         </div>
       </template>
     </div>
@@ -573,6 +573,9 @@
 </template>
 
 <script setup lang="ts">
+// @ts-nocheck
+import { RsButton, RsInput, RsSelect, RsTabs, RsTooltip, RsUpload } from '@/ui'
+import GIcon from '@/components/gicon/GIcon.vue'
 import Bold from '@tiptap/extension-bold'
 import Color from '@tiptap/extension-color'
 import FontFamily from '@tiptap/extension-font-family'
@@ -605,19 +608,7 @@ import {
   RemoveOutline,
   TextOutline
 } from '@vicons/ionicons5'
-import {
-  NButton,
-  NColorPicker,
-  NIcon,
-  NInput,
-  NPopover,
-  NSelect,
-  NSpace,
-  NTabPane,
-  NTabs,
-  NTooltip,
-  NUpload
-} from 'naive-ui'
+
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import type { GRichTextEmits, GRichTextExpose, GRichTextProps } from './types'
 

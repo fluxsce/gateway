@@ -3,16 +3,12 @@
         <div class="chart-header">
             <h3 class="chart-title">{{ title }}</h3>
             <div class="chart-controls">
-                <n-date-picker v-model:value="timeRange" type="datetimerange" :shortcuts="timeRangeShortcuts"
-                    @update:value="handleTimeRangeChange" placeholder="选择时间范围" size="small" style="width: 280px"
-                    clearable />
-                <n-button size="small" @click="handleRefresh" :loading="loading">
+                <MetricsDateTimeRange v-model="timeRange" @change="handleTimeRangeChange" />
+                <RsButton size="sm" :loading="loading" @click="handleRefresh">
                     <template #icon>
-                        <n-icon>
-                            <ReloadOutlined />
-                        </n-icon>
+                        <GIcon icon="ReloadOutline" />
                     </template>
-                </n-button>
+                </RsButton>
             </div>
         </div>
 
@@ -46,8 +42,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { NButton, NIcon, NDatePicker } from 'naive-ui'
-import { ReloadOutlined } from '@vicons/antd'
+import { GIcon } from '@/components/gicon'
+import { RsButton } from '@/ui'
+import MetricsDateTimeRange from '../metrics/MetricsDateTimeRange.vue'
 import BaseChart from './BaseChart.vue'
 import type { EChartsOption } from 'echarts'
 
@@ -85,43 +82,13 @@ const emit = defineEmits<{
     timeRangeChange: [timeRange: [number, number] | null]
 }>()
 
-// 时间范围状态
+// 时间范围状态（默认最近 1 小时，与 MetricsDateTimeRange 快捷项对齐）
 const timeRange = ref<[number, number] | null>(null)
 
-// 时间范围快捷选项（本地时区）
-const timeRangeShortcuts = {
-    '最近2小时': () => {
-        const now = new Date()
-        const start = now.getTime() - 2 * 60 * 60 * 1000
-        return [start, now.getTime()] as [number, number]
-    },
-    '最近6小时': () => {
-        const now = new Date()
-        const start = now.getTime() - 6 * 60 * 60 * 1000
-        return [start, now.getTime()] as [number, number]
-    },
-    '最近24小时': () => {
-        const now = new Date()
-        const start = now.getTime() - 24 * 60 * 60 * 1000
-        return [start, now.getTime()] as [number, number]
-    },
-    '最近7天': () => {
-        const now = new Date()
-        const start = now.getTime() - 7 * 24 * 60 * 60 * 1000
-        return [start, now.getTime()] as [number, number]
-    },
-    '最近30天': () => {
-        const now = new Date()
-        const start = now.getTime() - 30 * 24 * 60 * 60 * 1000
-        return [start, now.getTime()] as [number, number]
-    }
-}
-
-// 初始化时间范围（默认最近2小时，本地时区）
+// 初始化时间范围（默认最近 1 小时，本地时区）
 const initTimeRange = () => {
-    const now = new Date()
-    const start = now.getTime() - 2 * 60 * 60 * 1000
-    timeRange.value = [start, now.getTime()]
+    const now = Date.now()
+    timeRange.value = [now - 3600 * 1000, now]
 }
 
 // 计算流量总量

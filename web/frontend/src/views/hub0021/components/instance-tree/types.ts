@@ -2,7 +2,7 @@
  * 网关实例树组件类型定义
  */
 
-import type { TreeOption } from 'naive-ui'
+import type { TreeOption } from '@/types/legacy-ui'
 
 // ============= 枚举定义 =============
 
@@ -91,7 +91,7 @@ export interface GatewayInstance {
 
 /**
  * 实例树节点选项类型
- * 扩展了 naive-ui 的 TreeOption，添加了实例信息
+ * 扩展了 TreeOption，添加了实例信息
  */
 export interface InstanceTreeOption extends TreeOption {
   /** 关联的网关实例对象 */

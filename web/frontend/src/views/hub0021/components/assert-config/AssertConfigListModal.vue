@@ -39,31 +39,31 @@
 
             <!-- 断言类型自定义渲染 -->
             <template #assertionType="{ row }">
-              <n-tag :type="service.model.getAssertionTypeTagType(row.assertionType)" size="small">
+              <RsTag :variant="service.model.getAssertionTypeTagType(row.assertionType)" size="sm">
                 {{ service.model.getAssertionTypeLabel(row.assertionType) }}
-              </n-tag>
+              </RsTag>
             </template>
 
             <!-- 操作符自定义渲染 -->
             <template #assertionOperator="{ row }">
-              <n-tag type="info" size="small">
+              <RsTag variant="info" size="sm">
                 {{ service.model.getOperatorLabel(row.assertionOperator) }}
-              </n-tag>
+              </RsTag>
             </template>
 
             <!-- 必须匹配自定义渲染 -->
             <template #isRequired="{ row }">
-              <n-tag :type="row.isRequired === 'Y' ? 'error' : 'default'" size="small">
+              <RsTag :variant="row.isRequired === 'Y' ? 'danger' : 'default'" size="sm">
                 {{ row.isRequired === 'Y' ? '必须' : '可选' }}
-              </n-tag>
+              </RsTag>
             </template>
 
             <!-- 状态自定义渲染 -->
             <template #activeFlag="{ row }">
-              <n-switch
-                :value="row.activeFlag === 'Y'"
-                @update:value="() => handleToggleStatus(row)"
-                size="small"
+              <RsSwitch
+                :model-value="row.activeFlag === 'Y'"
+                size="sm"
+                @update:model-value="() => handleToggleStatus(row)"
               />
             </template>
           </g-grid>
@@ -93,7 +93,7 @@ import SearchForm from '@/components/form/search/SearchForm.vue'
 import { GModal } from '@/components/gmodal'
 import { GPane } from '@/components/gpane'
 import { GGrid } from '@/components/grid'
-import { NSwitch, NTag } from 'naive-ui'
+import { RsSwitch, RsTag } from '@/ui'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { useAssertConfigPage } from './hooks'
 import type { AssertConfigListModalEmits, AssertConfigListModalProps } from './hooks/types'

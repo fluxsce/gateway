@@ -31,3 +31,10 @@ export { createDomId } from './messageUtil'
 // UUID（兼容 HTTP 非安全上下文）
 export { randomUUID } from './uuid'
 
+// 分页参数与配置类型
+export * from './pagination'
+
+// 上传：文本内容 ↔ File[]（表单回填 / 提交读盘）
+export * from './uploadFile'
+
+

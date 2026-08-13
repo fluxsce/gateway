@@ -1,86 +1,94 @@
 <template>
-  <GModal
+  <RsDialog
     v-if="hasPermission"
-    :visible="props.visible ?? false"
+    :open="props.visible ?? false"
     :title="props.dialogTitle ?? '导出'"
+    layout="window"
     width="60%"
-    preset="card"
-    :mask="true"
-    :mask-closable="phase === 'idle'"
     :draggable="true"
-    :show-footer="true"
-    :show-cancel="false"
-    :show-confirm="false"
-    :show-fullscreen-toggle="false"
-    :block-scroll="false"
-    :footer-toolbar="footerButtons"
-    class="g-export__modal"
-    @toolbar-click="handleToolbarClick"
-    @update:visible="emit('update:visible', $event)"
+    :fullscreenable="false"
+    :modal="true"
+    :show-overlay="true"
+    :close-on-overlay-click="phase === 'idle'"
+    class="g-export__dialog"
+    @update:open="emit('update:visible', $event)"
   >
-    <div class="g-export__body">
-
-      <!-- idle：等待确认 -->
-      <div v-if="phase === 'idle'" class="g-export__status g-export__status--idle">
-        <div class="g-export__icon-wrap">
-          <n-icon size="32"><DownloadOutline /></n-icon>
+    <template #body>
+      <div class="g-export__body">
+        <div v-if="phase === 'idle'" class="g-export__status g-export__status--idle">
+          <div class="g-export__icon-wrap">
+            <GIcon size="32"><DownloadOutline /></GIcon>
+          </div>
+          <p class="g-export__status-title">准备导出</p>
+          <p class="g-export__status-desc">
+            点击「开始导出」生成并下载文件，大批量数据导出可能需要一些时间。
+          </p>
         </div>
-        <p class="g-export__status-title">准备导出</p>
-        <p class="g-export__status-desc">
-          点击「开始导出」生成并下载文件，大批量数据导出可能需要一些时间。
-        </p>
-      </div>
 
-      <!-- exporting / done / error：执行状态 -->
-      <div v-else class="g-export__status" :class="`g-export__status--${phase}`">
-        <div class="g-export__icon-wrap">
-          <n-spin v-if="phase === 'exporting'" size="large" />
-          <n-icon v-else-if="phase === 'done'" size="32"><CheckmarkCircleOutline /></n-icon>
-          <n-icon v-else-if="phase === 'error'" size="32"><CloseCircleOutline /></n-icon>
+        <div v-else class="g-export__status" :class="`g-export__status--${phase}`">
+          <div class="g-export__icon-wrap">
+            <RsLoading v-if="phase === 'exporting'" size="lg" />
+            <GIcon v-else-if="phase === 'done'" size="32"><CheckmarkCircleOutline /></GIcon>
+            <GIcon v-else-if="phase === 'error'" size="32"><CloseCircleOutline /></GIcon>
+          </div>
+          <p class="g-export__status-title">{{ statusTitle }}</p>
+          <p class="g-export__status-desc">{{ statusText }}</p>
         </div>
-        <p class="g-export__status-title">{{ statusTitle }}</p>
-        <p class="g-export__status-desc">{{ statusText }}</p>
-      </div>
 
-      <!-- 文件信息（完成后显示） -->
-      <div v-if="phase === 'done' && resolvedFilename" class="g-export__file-info">
-        <n-icon size="16" class="g-export__file-icon"><DocumentOutline /></n-icon>
-        <span class="g-export__file-name" :title="resolvedFilename">{{ resolvedFilename }}</span>
-        <span v-if="fileSize" class="g-export__file-size">{{ fileSize }}</span>
-      </div>
-
-      <!-- 进度区域（执行中或完成后显示） -->
-      <div v-if="phase === 'exporting' || phase === 'done'" class="g-export__progress-wrap">
-        <div class="g-export__progress-header">
-          <span class="g-export__progress-label">{{ progressLabel }}</span>
-          <span class="g-export__progress-pct">
-            {{ phase === 'done' ? '100%' : (!generating && progress > 0) ? `${progress}%` : '' }}
-          </span>
+        <div v-if="phase === 'done' && resolvedFilename" class="g-export__file-info">
+          <GIcon size="16" class="g-export__file-icon"><DocumentOutline /></GIcon>
+          <span class="g-export__file-name" :title="resolvedFilename">{{ resolvedFilename }}</span>
+          <span v-if="fileSize" class="g-export__file-size">{{ fileSize }}</span>
         </div>
-        <n-progress
-          type="line"
-          :percentage="phase === 'done' ? 100 : (!generating && progress > 0 ? progress : 0)"
-          :show-indicator="false"
-          :height="8"
-          :processing="phase === 'exporting'"
-          :status="phase === 'done' ? 'success' : 'default'"
-          :border-radius="4"
-          class="g-export__progress"
-        />
-      </div>
 
-    </div>
-  </GModal>
+        <div v-if="phase === 'exporting' || phase === 'done'" class="g-export__progress-wrap">
+          <div class="g-export__progress-header">
+            <span class="g-export__progress-label">{{ progressLabel }}</span>
+            <span class="g-export__progress-pct">
+              {{ phase === 'done' ? '100%' : (!generating && progress > 0) ? `${progress}%` : '' }}
+            </span>
+          </div>
+          <div class="g-export__progress" role="progressbar">
+            <div
+              class="g-export__progress-bar"
+              :class="{ 'is-processing': phase === 'exporting' }"
+              :style="{ width: (phase === 'done' ? 100 : (!generating && progress > 0 ? progress : 0)) + '%' }"
+            />
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <template #footer>
+      <div class="g-export__footer">
+        <template v-if="phase === 'idle'">
+          <RsButton size="sm" @click="emit('update:visible', false)">取消</RsButton>
+          <RsButton size="sm" variant="primary" @click="startExport">开始导出</RsButton>
+        </template>
+        <template v-else-if="phase === 'error'">
+          <RsButton size="sm" variant="primary" @click="startExport">重试</RsButton>
+          <RsButton size="sm" @click="emit('update:visible', false)">关闭</RsButton>
+        </template>
+        <RsButton
+          v-else
+          size="sm"
+          :disabled="phase === 'exporting'"
+          @click="emit('update:visible', false)"
+        >
+          关闭
+        </RsButton>
+      </div>
+    </template>
+  </RsDialog>
 </template>
 
 <script setup lang="ts">
 import service from '@/api/request'
-import { GModal } from '@/components/gmodal'
-import type { GModalToolbarButton } from '@/components/gmodal/types'
+import GIcon from '@/components/gicon/GIcon.vue'
 import { store } from '@/stores'
+import { RsButton, RsDialog, RsLoading } from '@/ui'
 import { CheckmarkCircleOutline, CloseCircleOutline, DocumentOutline, DownloadOutline } from '@vicons/ionicons5'
 import type { AxiosProgressEvent, AxiosResponse } from 'axios'
-import { NIcon, NProgress, NSpin } from 'naive-ui'
 import { computed, ref, watch } from 'vue'
 import type { GExportEmits, GExportProps } from './types'
 
@@ -104,7 +112,7 @@ const fileSize = ref('')
 
 const hasPermission = computed(() => {
   if (!props.moduleId) return true
-  return store.user.hasButton(`${props.moduleId}:export`)
+  return store.user.hasPermission(`${props.moduleId}:export`)
 })
 
 // ─── 弹窗打开时重置到 idle ─────────────────────────────────────────────────────
@@ -145,54 +153,6 @@ const progressLabel = computed(() => {
   if (phase.value === 'exporting') return generating.value ? '生成中' : `下载中`
   return ''
 })
-
-// ─── Footer toolbar ───────────────────────────────────────────────────────────
-
-const footerButtons = computed<GModalToolbarButton[]>(() => {
-  if (phase.value === 'idle') {
-    return [
-      {
-        key: 'cancel',
-        label: '取消',
-        buttonProps: {},
-      },
-      {
-        key: 'start',
-        label: '开始导出',
-        buttonProps: { type: 'primary' },
-      },
-    ]
-  }
-  if (phase.value === 'error') {
-    return [
-      {
-        key: 'retry',
-        label: '重试',
-        buttonProps: { type: 'primary' },
-      },
-      {
-        key: 'close',
-        label: '关闭',
-        buttonProps: {},
-      },
-    ]
-  }
-  return [
-    {
-      key: 'close',
-      label: '关闭',
-      buttonProps: { disabled: phase.value === 'exporting' },
-    },
-  ]
-})
-
-const handleToolbarClick = (key: string) => {
-  if (key === 'start' || key === 'retry') {
-    startExport()
-  } else if (key === 'cancel' || key === 'close') {
-    emit('update:visible', false)
-  }
-}
 
 // ─── 工具函数 ─────────────────────────────────────────────────────────────────
 
@@ -247,7 +207,7 @@ const startExport = async () => {
     if (!blob || blob.size === 0) throw new Error('服务端返回空文件')
 
     // 后端出错时可能返回 JSON 错误体（Content-Type: application/json），而非 xlsx
-    const contentType: string = response.headers?.['content-type'] ?? ''
+    const contentType = String(response.headers?.['content-type'] ?? '')
     if (contentType.includes('application/json')) {
       const text = await blob.text()
       let errMsg = '导出失败'
@@ -296,10 +256,11 @@ const startExport = async () => {
 </script>
 
 <style lang="scss" scoped>
-.g-export__modal :deep(.g-modal__body) {
-  height: auto;
-  min-height: unset;
-  overflow-y: visible;
+.g-export__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
 }
 
 .g-export__body {

@@ -1,181 +1,153 @@
 <template>
-  <n-card title="服务器信息" embedded class="server-info-card">
+  <RsCard :title="t('serverInfo.title')" variant="outlined" class="server-info-card">
     <div class="overview-grid">
-      <!-- 主机名 -->
       <div class="overview-item">
         <div class="overview-icon hostname">
-          <n-icon size="24">
+          <GIcon size="24">
             <DatabaseOutlined />
-          </n-icon>
+          </GIcon>
         </div>
         <div class="overview-content">
-          <div class="overview-label">主机名</div>
-          <n-tooltip :show-arrow="false">
-            <template #trigger>
-              <div class="overview-value text-truncate">{{ serverInfo.hostname }}</div>
-            </template>
-            {{ serverInfo.hostname }}
-          </n-tooltip>
+          <div class="overview-label">{{ t('serverInfo.hostname') }}</div>
+          <RsTooltip :content="serverInfo.hostname">
+            <div class="overview-value text-truncate">{{ serverInfo.hostname }}</div>
+          </RsTooltip>
         </div>
       </div>
 
-      <!-- 操作系统 -->
       <div class="overview-item">
         <div class="overview-icon os">
-          <n-icon size="24">
+          <GIcon size="24">
             <component :is="getOSIcon(serverInfo.osType)" />
-          </n-icon>
+          </GIcon>
         </div>
         <div class="overview-content">
-          <div class="overview-label">操作系统</div>
-          <n-tooltip :show-arrow="false">
-            <template #trigger>
-              <div class="overview-value text-truncate">{{ serverInfo.osType }}</div>
-            </template>
-            {{ serverInfo.osType }}
-          </n-tooltip>
+          <div class="overview-label">{{ t('serverInfo.osType') }}</div>
+          <RsTooltip :content="serverInfo.osType">
+            <div class="overview-value text-truncate">{{ serverInfo.osType }}</div>
+          </RsTooltip>
         </div>
       </div>
 
-      <!-- 系统版本 -->
       <div class="overview-item">
         <div class="overview-icon version">
-          <n-icon size="24">
+          <GIcon size="24">
             <AndroidOutlined />
-          </n-icon>
+          </GIcon>
         </div>
         <div class="overview-content">
-          <div class="overview-label">系统版本</div>
-          <n-tooltip :show-arrow="false">
-            <template #trigger>
-              <div class="overview-value text-truncate">{{ getShortVersion(serverInfo.osVersion) }}</div>
-            </template>
-            {{ serverInfo.osVersion }}
-          </n-tooltip>
+          <div class="overview-label">{{ t('serverInfo.osVersion') }}</div>
+          <RsTooltip :content="serverInfo.osVersion">
+            <div class="overview-value text-truncate">{{ getShortVersion(serverInfo.osVersion) }}</div>
+          </RsTooltip>
         </div>
       </div>
 
-      <!-- 系统架构 -->
       <div class="overview-item">
         <div class="overview-icon architecture">
-          <n-icon size="24">
+          <GIcon size="24">
             <DesktopOutlined />
-          </n-icon>
+          </GIcon>
         </div>
         <div class="overview-content">
-          <div class="overview-label">系统架构</div>
-          <n-tooltip :show-arrow="false">
-            <template #trigger>
-              <div class="overview-value text-truncate">{{ serverInfo.architecture }}</div>
-            </template>
-            {{ serverInfo.architecture }}
-          </n-tooltip>
+          <div class="overview-label">{{ t('serverInfo.architecture') }}</div>
+          <RsTooltip :content="serverInfo.architecture">
+            <div class="overview-value text-truncate">{{ serverInfo.architecture }}</div>
+          </RsTooltip>
         </div>
       </div>
 
-      <!-- 服务器类型 -->
       <div class="overview-item">
         <div class="overview-icon server-type">
-          <n-icon size="24">
+          <GIcon size="24">
             <CloudServerOutlined />
-          </n-icon>
+          </GIcon>
         </div>
         <div class="overview-content">
-          <div class="overview-label">服务器类型</div>
-          <n-tooltip :show-arrow="false">
-            <template #trigger>
-              <div class="overview-value text-truncate">{{ getServerTypeLabel(serverInfo.serverType) }}</div>
-            </template>
-            {{ getServerTypeLabel(serverInfo.serverType) }}
-          </n-tooltip>
+          <div class="overview-label">{{ t('serverInfo.serverType') }}</div>
+          <RsTooltip :content="getServerTypeLabel(serverInfo.serverType)">
+            <div class="overview-value text-truncate">{{ getServerTypeLabel(serverInfo.serverType) }}</div>
+          </RsTooltip>
         </div>
       </div>
 
-      <!-- IP地址 -->
       <div class="overview-item">
         <div class="overview-icon ip">
-          <n-icon size="24">
+          <GIcon size="24">
             <GlobalOutlined />
-          </n-icon>
+          </GIcon>
         </div>
         <div class="overview-content">
-          <div class="overview-label">IP地址</div>
-          <n-tooltip :show-arrow="false">
-            <template #trigger>
-              <div class="overview-value text-truncate">{{ serverInfo.ipAddress || 'N/A' }}</div>
-            </template>
-            {{ serverInfo.ipAddress || 'N/A' }}
-          </n-tooltip>
+          <div class="overview-label">{{ t('serverInfo.ipAddress') }}</div>
+          <RsTooltip :content="serverInfo.ipAddress || t('serverInfo.na')">
+            <div class="overview-value text-truncate">{{ serverInfo.ipAddress || t('serverInfo.na') }}</div>
+          </RsTooltip>
         </div>
       </div>
     </div>
-  </n-card>
+  </RsCard>
 </template>
 
 <script setup lang="ts">
+import { useModuleI18n } from '@/hooks/useModuleI18n'
 import {
-    AndroidOutlined,
-    AppleOutlined,
-    CloudServerOutlined,
-    DatabaseOutlined,
-    DesktopOutlined,
-    GlobalOutlined,
-    WindowsOutlined
+  AndroidOutlined,
+  AppleOutlined,
+  CloudServerOutlined,
+  DatabaseOutlined,
+  DesktopOutlined,
+  GlobalOutlined,
+  WindowsOutlined,
 } from '@vicons/antd'
-import { NCard, NIcon, NTooltip } from 'naive-ui'
+import { GIcon } from '../../../../components/gicon'
+import { RsCard, RsTooltip } from '../../../../ui'
 import type { ServerInfo } from '../../types'
 
 defineOptions({
-  name: 'ServerInfoCard'
+  name: 'ServerInfoCard',
 })
 
 interface Props {
   serverInfo: ServerInfo
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 
-/**
- * 服务器类型标签转换
- */
+const { t } = useModuleI18n('hub0007')
+
+/** 服务器类型标签转换 */
 const getServerTypeLabel = (serverType?: string): string => {
   const typeMap: Record<string, string> = {
-    physical: '物理机',
-    virtual: '虚拟机',
-    unknown: '未知'
+    physical: t('serverType.physicalShort'),
+    virtual: t('serverType.virtualShort'),
+    unknown: t('serverType.unknown'),
   }
-  return typeMap[serverType || 'unknown'] || '未知'
+  return typeMap[serverType || 'unknown'] || t('serverType.unknown')
 }
 
-/**
- * 根据操作系统类型获取图标
- */
+/** 根据操作系统类型获取图标 */
 const getOSIcon = (osType: string) => {
   const osLower = osType.toLowerCase()
   if (osLower.includes('windows')) {
     return WindowsOutlined
-  } else if (osLower.includes('linux')) {
-    return AndroidOutlined // 使用Android图标代表Linux
-  } else if (osLower.includes('mac') || osLower.includes('darwin')) {
-    return AppleOutlined
-  } else {
-    return DesktopOutlined
   }
+  if (osLower.includes('linux')) {
+    return AndroidOutlined
+  }
+  if (osLower.includes('mac') || osLower.includes('darwin')) {
+    return AppleOutlined
+  }
+  return DesktopOutlined
 }
 
-/**
- * 获取简化的系统版本信息
- */
+/** 获取简化的系统版本信息 */
 const getShortVersion = (version: string): string => {
-  if (!version) return 'N/A'
+  if (!version) return t('serverInfo.na')
 
-  // 针对Windows系统版本的特殊处理
   if (version.toLowerCase().includes('windows')) {
-    // 提取关键信息：Windows 版本号
     const match = version.match(/Windows (\d+(?:\.\d+)?)/i)
     if (match) {
       const windowsVersion = match[1]
-      // 如果有额外信息（如 Home, Pro等），也提取出来
       const editionMatch = version.match(/Windows \d+(?:\.\d+)?\s+(\w+)/i)
       if (editionMatch) {
         return `Windows ${windowsVersion} ${editionMatch[1]}`
@@ -184,7 +156,6 @@ const getShortVersion = (version: string): string => {
     }
   }
 
-  // 对于其他系统，如果版本信息太长，进行截断
   if (version.length > 20) {
     return version.substring(0, 17) + '...'
   }
@@ -268,4 +239,3 @@ const getShortVersion = (version: string): string => {
   }
 }
 </style>
-

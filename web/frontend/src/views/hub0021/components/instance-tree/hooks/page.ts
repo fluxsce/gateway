@@ -5,8 +5,10 @@
 
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import { ServerOutline } from '@vicons/ionicons5'
-import type { TreeOption } from 'naive-ui'
-import { NIcon, NTag, useMessage } from 'naive-ui'
+import { GIcon } from '@/components/gicon'
+import { useAppMessage } from '@/composables/useAppMessage'
+import type { TreeOption } from '@/types/legacy-ui'
+import { RsTag } from '@/ui'
 import { h, onBeforeUnmount, ref, watch } from 'vue'
 import { addRouterConfig, editRouterConfig, getRouterConfigsByInstance } from '../../../api'
 import type { GatewayInstance, InstanceTreeOption, RouterConfig } from '../types'
@@ -17,7 +19,7 @@ import { useGatewayInstanceTreeService } from './service'
  * 网关实例树 Page Hook
  */
 export function useGatewayInstanceTreePage() {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 初始化 Model
   const model = useGatewayInstanceTreeModel()
@@ -64,12 +66,11 @@ export function useGatewayInstanceTreePage() {
   function renderNodePrefix({ option }: { option: TreeOption }) {
     const instanceOption = option as InstanceTreeOption
     if (instanceOption.instance) {
-      return h(NIcon, {
+      return h(GIcon, {
+        icon: ServerOutline,
         size: 16,
         color: 'var(--g-primary)',
-        style: { marginRight: '6px', flexShrink: 0 }
-      }, {
-        default: () => h(ServerOutline)
+        style: { marginRight: '6px', flexShrink: 0 },
       })
     }
     return null
@@ -96,12 +97,12 @@ export function useGatewayInstanceTreePage() {
   function renderNodeSuffix({ option }: { option: TreeOption }) {
     const instanceOption = option as InstanceTreeOption
     if (instanceOption.instance) {
-      return h(NTag, {
-        type: instanceOption.instance.healthStatus === 'Y' ? 'success' : 'warning',
-        size: 'small',
-        style: { marginLeft: '8px', flexShrink: 0 }
+      return h(RsTag, {
+        variant: instanceOption.instance.healthStatus === 'Y' ? 'success' : 'warning',
+        size: 'sm',
+        style: { marginLeft: '8px', flexShrink: 0 },
       }, {
-        default: () => instanceOption.instance!.healthStatus === 'Y' ? '健康' : '异常'
+        default: () => instanceOption.instance!.healthStatus === 'Y' ? '健康' : '异常',
       })
     }
     return null

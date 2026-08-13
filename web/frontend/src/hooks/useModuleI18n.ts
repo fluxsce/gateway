@@ -2,9 +2,9 @@
  * 模块化国际化Hook
  * 提供一种简单的方式在Vue组件中使用模块化的多语言翻译
  */
-import { computed, watch, onMounted, ref } from 'vue'
+import { isModuleMessagesLoaded, loadModuleMessages, type LocaleType } from '@/locales'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { loadModuleMessages, isModuleMessagesLoaded, type LocaleType } from '@/locales'
 
 /**
  * 使用模块特定的国际化资源
@@ -58,14 +58,6 @@ export function useModuleI18n(
     // 检查是否已经加载过
     if (isModuleMessagesLoaded(moduleName, targetLocale)) {
       loaded.value = true
-      if (!silent) {
-        console.log(`[useModuleI18n] 模块 "${moduleName}" 的语言包已缓存: ${locale}`)
-      }
-      return
-    }
-
-    // 如果正在加载，则跳过
-    if (loading.value) {
       return
     }
 
@@ -73,12 +65,9 @@ export function useModuleI18n(
     error.value = null
 
     try {
+      // loadModuleMessages 内部有 Promise 去重，并发切换语言不会重复请求
       await loadModuleMessages(moduleName, targetLocale)
       loaded.value = true
-
-      if (!silent) {
-        console.log(`[useModuleI18n] 已加载模块 "${moduleName}" 的语言包: ${locale}`)
-      }
     } catch (err) {
       if (!silent) {
         console.error(`[useModuleI18n] 加载模块 "${moduleName}" 的语言包失败: ${locale}`, err)
@@ -102,23 +91,18 @@ export function useModuleI18n(
     return i18n.t(fullKey, params || {})
   }
 
-  // 监听语言变化，加载新语言的模块资源
+  // 监听语言变化，加载新语言的模块资源（始终触发，避免切换时被 loading 短路）
   watch(
     () => i18n.locale.value,
     (newLocale) => {
-      if (loaded.value) {
-        loadModule(newLocale)
-      }
+      void loadModule(newLocale)
     },
   )
 
-  // 初始化时检查当前语言是否已加载
+  // 初始化时检查当前语言是否已加载（已加载属常态，不打日志避免控制台刷屏）
   const currentLocale = i18n.locale.value as LocaleType
   if (isModuleMessagesLoaded(moduleName, currentLocale)) {
     loaded.value = true
-    if (!silent) {
-      console.log(`[useModuleI18n] 模块 "${moduleName}" 的语言包已存在: ${currentLocale}`)
-    }
   } else if (immediate) {
     // 使用Promise.resolve().then确保微任务队列执行，避免阻塞UI
     Promise.resolve().then(() => loadModule(currentLocale))

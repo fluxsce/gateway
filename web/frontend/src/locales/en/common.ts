@@ -30,6 +30,12 @@ export default {
   warning: 'Warning',
   info: 'Information',
   create: 'Create',
+  /** Default titles for data-form modal by mode */
+  formModal: {
+    create: 'Create',
+    edit: 'Edit',
+    view: 'View details',
+  },
   createSuccess: 'Created successfully',
   createFailed: 'Failed to create',
   update: 'Update',

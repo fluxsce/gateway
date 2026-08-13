@@ -3,9 +3,9 @@
  * 纯业务逻辑：数据获取、增删改查等操作
  */
 
-import { createBackendPaginationParams } from '@/components/gpage'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import {
   addFilterConfig,
@@ -30,7 +30,7 @@ export function useFilterConfigService(
   routeConfigId?: Ref<string | undefined> | string,
   searchFormRef?: Ref<any> | any
 ) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 获取 gatewayInstanceId 和 routeConfigId 的实际值
   const getGatewayInstanceId = () => {

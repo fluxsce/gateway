@@ -3,7 +3,7 @@
     <div class="page-header">
       <h1>GCard 卡片测试</h1>
       <p class="page-description">
-        基于 Naive NCard：标题、插槽（header/header-extra/action/cover/footer）、hoverable、bordered、size、embedded
+        RsCard 适配层：验证 showTitle / title、header / header-extra、footer / action、hoverable、bordered
       </p>
     </div>
 
@@ -46,44 +46,26 @@
         <div class="card-grid">
           <GCard show-title title="标题 + 右侧操作">
             <template #header-extra>
-              <NButton size="tiny" quaternary>更多</NButton>
+              <RsButton size="sm" variant="ghost">更多</RsButton>
             </template>
-            <div class="card-placeholder">header-extra 显示在标题右侧</div>
+            <div class="card-placeholder">header-extra → RsCard #actions（标题右侧）</div>
           </GCard>
         </div>
       </section>
 
       <section class="test-section">
-        <h2>Action 插槽</h2>
-        <div class="card-grid">
-          <GCard show-title title="带操作区">
-            <template #action>
-              <NButton size="tiny" type="primary">确认</NButton>
-            </template>
-            <div class="card-placeholder">action 插槽在头部右侧</div>
-          </GCard>
-        </div>
-      </section>
-
-      <section class="test-section">
-        <h2>Cover 插槽</h2>
-        <div class="card-grid">
-          <GCard show-title title="带封面">
-            <template #cover>
-              <div class="cover-placeholder">封面区域</div>
-            </template>
-            <div class="card-placeholder">cover 插槽在内容上方</div>
-          </GCard>
-        </div>
-      </section>
-
-      <section class="test-section">
-        <h2>Footer 插槽</h2>
-        <div class="card-grid">
+        <h2>Footer / Action 插槽</h2>
+        <div class="card-grid two-cols">
           <GCard show-title title="带底部">
             <div class="card-placeholder">内容区域</div>
             <template #footer>
               <div class="footer-placeholder">底部信息</div>
+            </template>
+          </GCard>
+          <GCard show-title title="带操作区">
+            <div class="card-placeholder">action 渲染在卡片底部（非头部）</div>
+            <template #action>
+              <RsButton size="sm" variant="primary">确认</RsButton>
             </template>
           </GCard>
         </div>
@@ -103,33 +85,12 @@
 
       <section class="test-section">
         <h2>Bordered</h2>
-        <div class="card-grid">
+        <div class="card-grid two-cols">
+          <GCard show-title title="无边框（默认）" :bordered="false">
+            <div class="card-placeholder">plain + borderless</div>
+          </GCard>
           <GCard show-title title="带边框" bordered>
-            <div class="card-placeholder">bordered 显示边框</div>
-          </GCard>
-        </div>
-      </section>
-
-      <section class="test-section">
-        <h2>Size</h2>
-        <div class="card-grid three-cols">
-          <GCard show-title title="small" size="small">
-            <div class="card-placeholder">size="small"</div>
-          </GCard>
-          <GCard show-title title="medium" size="medium">
-            <div class="card-placeholder">size="medium"（默认）</div>
-          </GCard>
-          <GCard show-title title="large" size="large">
-            <div class="card-placeholder">size="large"</div>
-          </GCard>
-        </div>
-      </section>
-
-      <section class="test-section">
-        <h2>Embedded</h2>
-        <div class="card-grid">
-          <GCard show-title title="嵌入模式" embedded>
-            <div class="card-placeholder">embedded 降低视觉层级</div>
+            <div class="card-placeholder">outlined</div>
           </GCard>
         </div>
       </section>
@@ -142,18 +103,38 @@
             title="完整示例"
             bordered
             hoverable="hover"
-            size="medium"
           >
             <template #header-extra>
-              <NButton size="tiny" quaternary>设置</NButton>
-            </template>
-            <template #cover>
-              <div class="cover-placeholder">封面</div>
+              <RsButton size="sm" variant="ghost">设置</RsButton>
             </template>
             <div class="card-placeholder">内容</div>
             <template #footer>
               <div class="footer-placeholder">底部</div>
             </template>
+            <template #action>
+              <RsButton size="sm" variant="primary">保存</RsButton>
+            </template>
+          </GCard>
+        </div>
+      </section>
+
+      <section class="test-section test-section--gap">
+        <h2>未透传能力（当前无效）</h2>
+        <p class="gap-note">
+          size / embedded / cover 在类型或旧测试中存在，但 GCard → RsCard 未实现；以下用例用于对照确认「无视觉差异」。
+        </p>
+        <div class="card-grid three-cols">
+          <GCard show-title title="size=small" size="small">
+            <div class="card-placeholder">size 未透传</div>
+          </GCard>
+          <GCard show-title title="embedded" embedded>
+            <div class="card-placeholder">embedded 未透传</div>
+          </GCard>
+          <GCard show-title title="cover 插槽">
+            <template #cover>
+              <div class="cover-placeholder">封面（不会渲染）</div>
+            </template>
+            <div class="card-placeholder">#cover 未转发</div>
           </GCard>
         </div>
       </section>
@@ -162,8 +143,9 @@
 </template>
 
 <script setup lang="ts">
-import { GCard, GIcon } from '@/components'
-import { NButton } from 'naive-ui'
+import { GCard } from '@/components/gcard'
+import { GIcon } from '@/components/gicon'
+import { RsButton } from '@/ui'
 
 defineOptions({ name: 'GCardTest' })
 </script>
@@ -212,6 +194,17 @@ defineOptions({ name: 'GCardTest' })
   }
 }
 
+.test-section--gap {
+  border-style: dashed;
+  opacity: 0.92;
+}
+
+.gap-note {
+  margin: calc(var(--g-space-md) * -0.5) 0 var(--g-space-md);
+  font-size: var(--g-font-size-sm);
+  color: var(--g-text-tertiary);
+}
+
 .card-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -252,5 +245,12 @@ defineOptions({ name: 'GCardTest' })
   display: inline-flex;
   align-items: center;
   gap: var(--g-space-xs);
+}
+
+@media (max-width: 768px) {
+  .card-grid.two-cols,
+  .card-grid.three-cols {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

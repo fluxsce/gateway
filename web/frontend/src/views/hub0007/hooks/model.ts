@@ -3,11 +3,12 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { SearchFormProps } from '@/components/form/search/types'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
 import type { GridProps } from '@/components/grid'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
 import type { PageInfoObj } from '@/types/api'
 import { formatDate } from '@/utils/format'
-import { ref } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import type { ServerInfo } from '../types'
 import { OsType, ServerType } from '../types'
 
@@ -15,216 +16,213 @@ import { OsType, ServerType } from '../types'
  * 系统节点 Model
  */
 export function useServerNodeModel() {
-  // ============= 数据状态 =============
+  const { t, locale } = useModuleI18n('hub0007')
+
   const moduleId = 'hub0007'
-  /** 加载状态 */
   const loading = ref(false)
-
-  /** 系统节点列表数据 */
   const serverList = ref<ServerInfo[]>([])
-
-  /** 后端分页信息对象 */
   const pageInfo = ref<PageInfoObj | undefined>()
 
-  // ============= 搜索表单配置 =============
+  const searchFormConfig = reactive<Omit<RsSearchFormProps, 'moduleId'>>({
+    fields: [],
+    moreFields: [],
+    toolbarButtons: [],
+  })
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
-    fields: [
+  const gridConfig = reactive<Omit<GridProps, 'moduleId' | 'data' | 'loading'>>({
+    columns: [],
+    menuConfig: {
+      enabled: true,
+      options: [],
+    },
+    paginationConfig: {
+      show: true,
+    },
+  })
+
+  /** 按当前语言刷新搜索表单 / 表格文案 */
+  function applyI18n() {
+    searchFormConfig.fields = [
       {
         field: 'hostname',
-        label: '主机名',
+        label: t('search.hostname'),
         type: 'input',
-        placeholder: '请输入主机名',
+        placeholder: t('search.hostnamePlaceholder'),
         span: 6,
-        clearable: true
+        clearable: true,
       },
       {
         field: 'ipAddress',
-        label: 'IP地址',
+        label: t('search.ipAddress'),
         type: 'input',
-        placeholder: '请输入IP地址',
+        placeholder: t('search.ipAddressPlaceholder'),
         span: 6,
-        clearable: true
+        clearable: true,
       },
       {
         field: 'osType',
-        label: '操作系统',
+        label: t('search.osType'),
         type: 'select',
-        placeholder: '请选择操作系统',
+        placeholder: t('search.osTypePlaceholder'),
         span: 6,
         clearable: true,
         options: [
-          { label: '全部', value: '' },
-          { label: 'Linux', value: OsType.LINUX },
-          { label: 'Windows', value: OsType.WINDOWS },
-          { label: 'MacOS', value: OsType.MACOS },
-          { label: 'Unix', value: OsType.UNIX },
-          { label: '其他', value: OsType.OTHER }
-        ]
+          { label: t('search.all'), value: '' },
+          { label: t('osType.linux'), value: OsType.LINUX },
+          { label: t('osType.windows'), value: OsType.WINDOWS },
+          { label: t('osType.macos'), value: OsType.MACOS },
+          { label: t('osType.unix'), value: OsType.UNIX },
+          { label: t('osType.other'), value: OsType.OTHER },
+        ],
       },
       {
         field: 'serverType',
-        label: '服务器类型',
+        label: t('search.serverType'),
         type: 'select',
-        placeholder: '请选择服务器类型',
+        placeholder: t('search.serverTypePlaceholder'),
         span: 6,
         clearable: true,
         options: [
-          { label: '全部', value: '' },
-          { label: '物理服务器', value: ServerType.PHYSICAL },
-          { label: '虚拟服务器', value: ServerType.VIRTUAL },
-          { label: '未知', value: ServerType.UNKNOWN }
-        ]
-      }
-    ],
-    moreFields: [
+          { label: t('search.all'), value: '' },
+          { label: t('serverType.physical'), value: ServerType.PHYSICAL },
+          { label: t('serverType.virtual'), value: ServerType.VIRTUAL },
+          { label: t('serverType.unknown'), value: ServerType.UNKNOWN },
+        ],
+      },
+    ]
+
+    searchFormConfig.moreFields = [
       {
         field: 'serverLocation',
-        label: '服务器位置',
+        label: t('search.serverLocation'),
         type: 'input',
-        placeholder: '请输入服务器位置',
+        placeholder: t('search.serverLocationPlaceholder'),
         span: 6,
-        clearable: true
-      }
-    ],
-    toolbarButtons: []
-  }
+        clearable: true,
+      },
+    ]
 
-  // ============= 表格配置 =============
-
-  /** 表格配置（符合 GridProps 结构） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
-    columns: [
+    gridConfig.columns = [
       {
         field: 'metricServerId',
-        title: '节点ID',
+        title: t('columns.metricServerId'),
         showOverflow: true,
-        width: 200
+        width: 200,
       },
       {
         field: 'hostname',
-        title: '主机名',
-        showOverflow: true
+        title: t('columns.hostname'),
+        showOverflow: true,
       },
       {
         field: 'ipAddress',
-        title: 'IP地址',
-        showOverflow: true
+        title: t('columns.ipAddress'),
+        showOverflow: true,
       },
       {
         field: 'osType',
-        title: '操作系统',
+        title: t('columns.osType'),
         showOverflow: true,
         cellRender: {
           name: 'VxeTag',
           props: ({ row }: any) => ({
             type: 'info',
-            content: row.osType
-          })
-        }
+            content: row.osType,
+          }),
+        },
       },
       {
         field: 'osVersion',
-        title: '系统版本',
-        showOverflow: true
+        title: t('columns.osVersion'),
+        showOverflow: true,
       },
       {
         field: 'architecture',
-        title: '架构',
-        showOverflow: true
+        title: t('columns.architecture'),
+        showOverflow: true,
       },
       {
         field: 'serverType',
-        title: '服务器类型',
+        title: t('columns.serverType'),
         cellRender: {
           name: 'VxeTag',
           props: ({ row }: any) => {
             const typeMap: Record<string, { type: string; text: string }> = {
-              [ServerType.PHYSICAL]: { type: 'success', text: '物理服务器' },
-              [ServerType.VIRTUAL]: { type: 'warning', text: '虚拟服务器' },
-              [ServerType.UNKNOWN]: { type: 'default', text: '未知' }
+              [ServerType.PHYSICAL]: { type: 'success', text: t('serverType.physical') },
+              [ServerType.VIRTUAL]: { type: 'warning', text: t('serverType.virtual') },
+              [ServerType.UNKNOWN]: { type: 'default', text: t('serverType.unknown') },
             }
             const config = typeMap[row.serverType as ServerType] || typeMap[ServerType.UNKNOWN]
             return {
               type: config.type,
-              content: config.text
+              content: config.text,
             }
-          }
-        }
+          },
+        },
       },
       {
         field: 'serverLocation',
-        title: '服务器位置',
-        showOverflow: true
+        title: t('columns.serverLocation'),
+        showOverflow: true,
       },
       {
         field: 'lastUpdateTime',
-        title: '最后更新',
+        title: t('columns.lastUpdateTime'),
         sortable: true,
         showOverflow: true,
         formatter: ({ cellValue }: any) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : ''
+          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
         field: 'addTime',
-        title: '创建时间',
+        title: t('columns.addTime'),
         sortable: true,
         showOverflow: true,
         formatter: ({ cellValue }: any) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : ''
+          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
         field: 'addWho',
-        title: '创建人',
-        showOverflow: true
+        title: t('columns.addWho'),
+        showOverflow: true,
       },
       {
         field: 'editTime',
-        title: '修改时间',
+        title: t('columns.editTime'),
         sortable: true,
         showOverflow: true,
         formatter: ({ cellValue }: any) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : ''
+          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
         field: 'editWho',
-        title: '修改人',
-        showOverflow: true
-      }
-    ],
-    menuConfig: {
+        title: t('columns.editWho'),
+        showOverflow: true,
+      },
+    ]
+
+    gridConfig.menuConfig = {
       enabled: true,
       options: [
         {
           code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill'
-        }
-      ]
-    },
-    paginationConfig: {
-      show: true
+          name: t('contextMenu.view'),
+          prefixIcon: 'vxe-icon-eye-fill',
+        },
+      ],
     }
   }
 
-  // ============= 数据操作方法 =============
+  applyI18n()
+  watch(locale, () => applyI18n())
 
-  /**
-   * 设置节点列表数据
-   */
   const setServerList = (list: ServerInfo[]) => {
     serverList.value = list
   }
 
-  /**
-   * 更新分页信息
-   */
   const updatePagination = (newPageInfo: PageInfoObj) => {
     pageInfo.value = newPageInfo
   }
-
-  // ============= 导出 =============
 
   return {
     moduleId,
@@ -234,7 +232,7 @@ export function useServerNodeModel() {
     searchFormConfig,
     gridConfig,
     setServerList,
-    updatePagination
+    updatePagination,
   }
 }
 
@@ -242,4 +240,3 @@ export function useServerNodeModel() {
  * ServerNodeModel 类型定义
  */
 export type ServerNodeModel = ReturnType<typeof useServerNodeModel>
-

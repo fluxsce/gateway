@@ -1,80 +1,54 @@
 <template>
-  <n-config-provider
-    :theme="naiveTheme"
-    :theme-overrides="themeOverrides"
-    :locale="naiveLocale"
-    :date-locale="naiveDateLocale"
-    :hljs="hljsInstance"
-  >
-    <div class="app-container" id="app-container">
-      <n-loading-bar-provider>
-        <n-message-provider>
-          <n-dialog-provider>
-            <RequestInitializer />
-            <router-view />
-          </n-dialog-provider>
-        </n-message-provider>
-      </n-loading-bar-provider>
-    </div>
-  </n-config-provider>
+  <RsConfigProvider :theme="rsTheme" :locale="rsLocale" control-size="md">
+    <RsTooltipProvider>
+      <RsToaster />
+      <RsLoadingBar ref="loadingBarRef">
+        <div class="app-container" id="app-container">
+          <router-view />
+        </div>
+      </RsLoadingBar>
+    </RsTooltipProvider>
+  </RsConfigProvider>
 </template>
 
 <script setup lang="ts">
-import RequestInitializer from '@/components/RequestInitializer.vue'
-import { darkThemeOverrides, lightThemeOverrides } from '@/config/theme'
+import { initRequestTools } from '@/api/request'
 import type { LocaleType } from '@/locales'
-import { getCurrentLocale } from '@/locales'
 import { useUserStore } from '@/stores/user'
-import hljs from '@/utils/highlight'
 import {
-    darkTheme,
-    dateEnUS,
-    dateZhCN,
-    enUS,
-    zhCN,
-    type GlobalThemeOverrides,
-    type NDateLocale,
-    type NLocale,
-} from 'naive-ui'
-import type { Hljs } from 'naive-ui/es/_mixins'
-import { computed } from 'vue'
-
-type Theme = 'light' | 'dark'
+  RsConfigProvider,
+  RsLoadingBar,
+  RsToaster,
+  RsTooltipProvider,
+  type RsLoadingBarApi,
+  type RsLocale,
+  type RsThemeMode,
+} from '@/ui'
+import { computed, onMounted, useTemplateRef } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const userStore = useUserStore()
+const { locale } = useI18n()
 
-// 主题映射配置（与  一致：store.resolvedTheme / store.isDark，一处维护）
-const naiveThemeMap: Record<Theme, typeof darkTheme | null> = {
-  light: null,
-  dark: darkTheme,
+const rsTheme = computed<RsThemeMode>(() => userStore.resolvedTheme)
+
+const localeMap: Record<LocaleType, RsLocale> = {
+  en: 'en-US',
+  'zh-CN': 'zh-CN',
 }
 
-const themeOverridesMap: Record<Theme, GlobalThemeOverrides> = {
-  light: lightThemeOverrides,
-  dark: darkThemeOverrides,
-}
+const rsLocale = computed<RsLocale>(() => localeMap[locale.value as LocaleType] ?? 'zh-CN')
 
-const naiveTheme = computed(() => naiveThemeMap[userStore.resolvedTheme])
-const themeOverrides = computed(() => themeOverridesMap[userStore.resolvedTheme])
+const loadingBarRef = useTemplateRef<RsLoadingBarApi>('loadingBarRef')
 
-// 语言映射配置（参考 ）
-const naiveLocaleMap: Record<LocaleType, NLocale> = {
-  en: enUS,
-  'zh-CN': zhCN,
-}
-
-const naiveDateLocaleMap: Record<LocaleType, NDateLocale> = {
-  en: dateEnUS,
-  'zh-CN': dateZhCN,
-}
-
-const naiveLocale = computed(() => naiveLocaleMap[getCurrentLocale()])
-const naiveDateLocale = computed(() => naiveDateLocaleMap[getCurrentLocale()])
-
-const hljsInstance: Hljs = {
-  highlight: hljs.highlight.bind(hljs),
-  getLanguage: hljs.getLanguage.bind(hljs),
-}
+onMounted(() => {
+  const loadingBar = loadingBarRef.value
+  if (!loadingBar) {
+    console.warn('loadingBar 不可用，请求工具初始化失败')
+    return
+  }
+  initRequestTools(loadingBar)
+})
 </script>
 
 <style scoped>

@@ -1,6 +1,6 @@
 /**
  * GTabs 标签页组件类型
- * 与 xirang-tabs 一致：仅导航栏，支持拖拽、关闭、右键菜单、溢出下拉
+ * 顶栏多页签：业务侧仍用 GTabsTabItem；导航 UI 由 RsTabs 承担。
  */
 
 export interface GTabsTabItem {
@@ -14,9 +14,9 @@ export interface GTabsTabItem {
   title: string
   /** 路由路径 */
   path?: string
-  /** 图标（GIcon 支持的字符串或组件） */
+  /** 图标：Lucide kebab-case（RsTabs）或历史 Ionicons / 组件 */
   icon?: string | import('vue').Component
-  /** 图标颜色 */
+  /** 图标颜色（仅历史 GIcon 路径使用） */
   iconColor?: string
   /** 是否可关闭 */
   closable?: boolean
@@ -27,19 +27,22 @@ export interface GTabsTabItem {
 }
 
 export type GTabsType = 'line' | 'card'
+export type GTabsSize = 'sm' | 'md'
 
 export interface GTabsProps {
   /** 标签页数据 */
   tabs?: GTabsTabItem[]
   /** 当前激活的标签页 tabId */
   activeTabId?: string
-  /** 标签页类型 */
+  /** 标签页类型（映射 RsTabs variant） */
   type?: GTabsType
-  /** 是否可拖拽排序 */
+  /** 尺寸（透传 RsTabs size，默认 md） */
+  size?: GTabsSize
+  /** 是否可拖拽排序（透传 RsTabs） */
   draggable?: boolean
-  /** 是否显示关闭按钮 */
+  /** 是否显示关闭按钮（透传 RsTabs） */
   closable?: boolean
-  /** 是否显示右键菜单 */
+  /** 是否显示右键菜单（透传 RsTabs） */
   contextMenu?: boolean
   /** 最大标签页数量 */
   maxTabs?: number

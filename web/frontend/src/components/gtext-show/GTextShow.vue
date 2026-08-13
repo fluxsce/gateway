@@ -1,52 +1,53 @@
 <template>
+  <!--
+    @deprecated 请直接使用 RsCodeBlock（@/ui）。本组件仅过渡兼容，后续将删除。
+  -->
   <div class="g-text-show" :class="props.class" :style="computedStyle">
     <!-- 工具栏 -->
     <div v-if="showToolbar" class="g-text-show__toolbar">
       <div class="g-text-show__toolbar-left">
-        <n-tag size="small" :type="formatTagType">
+        <RsTag size="sm" :type="formatTagType">
           {{ formatLabel }}
-        </n-tag>
-        <n-tag v-if="isLargeContent" size="small" type="warning">
+        </RsTag>
+        <RsTag v-if="isLargeContent" size="sm" variant="default">
           超大内容（{{ contentSizeLabel }}）
-        </n-tag>
+        </RsTag>
         <span v-if="isLargeContent && !enableHighlight" class="performance-tip">
           已禁用语法高亮以提升性能
         </span>
       </div>
       <div class="g-text-show__toolbar-right">
-        <n-button
+        <RsButton
           v-if="showCopyButton"
-          size="small"
+          size="sm"
           quaternary
           @click="handleCopy"
         >
           <template #icon>
-            <n-icon><CopyOutline /></n-icon>
+            <GIcon><CopyOutline /></GIcon>
           </template>
           复制
-        </n-button>
-        <n-button
+        </RsButton>
+        <RsButton
           v-if="canFormat"
-          size="small"
+          size="sm"
           quaternary
           @click="handleFormat"
         >
           <template #icon>
-            <n-icon><CodeOutline /></n-icon>
+            <GIcon><CodeOutline /></GIcon>
           </template>
           {{ (isManuallyFormatted !== null ? isManuallyFormatted : props.autoFormat) ? '取消格式化' : '格式化' }}
-        </n-button>
+        </RsButton>
       </div>
     </div>
 
     <!-- 文本内容区域 -->
     <div class="g-text-show__content" :style="contentStyle">
-      <n-code
+      <RsCodeBlock
         v-if="enableHighlight"
         :code="formattedContent"
-        :language="codeLanguage"
-        :show-line-numbers="showLineNumbers"
-        :hljs="hljsInstance"
+        :lang="codeLanguage"
         class="g-text-show__code"
       />
       <pre
@@ -58,17 +59,28 @@
 </template>
 
 <script setup lang="ts">
-import hljs from '@/utils/highlight'
+/**
+ * @deprecated 请直接使用 `@/ui` 的 `RsCodeBlock`。本组件仅作过渡兼容，后续将删除。
+ */
+// @ts-nocheck
+import { RsButton, RsCodeBlock, RsTag } from '@/ui'
+import GIcon from '@/components/gicon/GIcon.vue'
 import { CodeOutline, CopyOutline } from '@vicons/ionicons5'
-import { NButton, NCode, NIcon, NTag } from 'naive-ui'
-import type { Hljs } from 'naive-ui/es/_mixins'
-import { computed, ref, watch } from 'vue'
+
+import { computed, onMounted, ref, watch } from 'vue'
+import { useAppMessage } from '@/composables/useAppMessage'
 import { copyToClipboardAsync } from '@/utils/clipboard'
 import type { GTextShowEmits, GTextShowProps, TextFormat } from './types'
 
 // 定义组件名称
 defineOptions({
   name: 'GTextShow'
+})
+
+onMounted(() => {
+  if (import.meta.env.DEV) {
+    console.warn('[GTextShow] 已弃用：请改用 RsCodeBlock（@/ui）。')
+  }
 })
 
 // Props
@@ -83,7 +95,7 @@ const props = withDefaults(defineProps<GTextShowProps>(), {
 // Emits
 const emit = defineEmits<GTextShowEmits>()
 
-// 复制提示由 utils/clipboard 统一处理（优先走全局 $gMessage）
+const message = useAppMessage()
 
 // 性能优化配置
 const LARGE_CONTENT_THRESHOLD = 500 * 1024 // 500KB，超过此大小视为超大内容
@@ -94,12 +106,6 @@ const enableHighlight = ref(true)
 
 // 是否手动触发了格式化（null 表示未手动操作，使用 autoFormat；true/false 表示手动设置的状态）
 const isManuallyFormatted = ref<boolean | null>(null)
-
-// hljs 实例
-const hljsInstance: Hljs = {
-  highlight: hljs.highlight.bind(hljs),
-  getLanguage: hljs.getLanguage.bind(hljs)
-}
 
 /**
  * 内容大小（字节）
@@ -407,14 +413,14 @@ const handleCopy = async () => {
       showMessage: false,
     })
     if (!result.success) {
-      ;(window as any)?.$gMessage?.error?.('复制失败')
+      message.error('复制失败')
       console.error('复制失败:', result.error)
       return
     }
-    ;(window as any)?.$gMessage?.success?.('复制成功')
+    message.success('复制成功')
     emit('copy', text)
   } catch (error) {
-    ;(window as any)?.$gMessage?.error?.('复制失败')
+    message.error('复制失败')
     console.error('复制失败:', error)
   }
 }
@@ -427,7 +433,7 @@ const handleFormat = () => {
   
   // 检查是否支持格式化
   if (format !== 'json' && format !== 'xml' && format !== 'soap') {
-    ;(window as any)?.$gMessage?.warning?.('当前格式不支持格式化')
+    message.warning('当前格式不支持格式化')
     return
   }
   
@@ -440,9 +446,9 @@ const handleFormat = () => {
   isManuallyFormatted.value = !currentFormatted
   
   if (isManuallyFormatted.value) {
-    ;(window as any)?.$gMessage?.success?.('已格式化')
+    message.success('已格式化')
   } else {
-    ;(window as any)?.$gMessage?.info?.('已取消格式化')
+    message.info('已取消格式化')
   }
 }
 </script>
@@ -488,7 +494,7 @@ const handleFormat = () => {
     border: none;
     border-radius: 0;
 
-    :deep(.n-code) {
+    :deep(.g-text-show__code) {
       height: 100%;
       overflow: auto;
     }
@@ -501,10 +507,10 @@ const handleFormat = () => {
     padding: 12px;
     border: none;
     border-radius: 0;
-    background-color: var(--n-code-color);
-    color: var(--n-code-text-color);
-    font-family: var(--n-font-family-mono);
-    font-size: var(--n-font-size);
+    background-color: var(--rs-surface-hover, #f5f5f5);
+    color: var(--rs-text, inherit);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: var(--rs-font-size-sm, 0.875rem);
     line-height: 1.6;
     overflow: auto;
     white-space: pre-wrap;
@@ -520,7 +526,7 @@ const handleFormat = () => {
 
 .performance-tip {
   font-size: 12px;
-  color: var(--n-warning-color);
+  color: var(--rs-warning, #f0a020);
   margin-left: 8px;
 }
 </style>

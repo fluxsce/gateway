@@ -4,7 +4,7 @@
  * - 处理搜索、分页等页面交互
  */
 
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import type { ServiceDefinitionSelectorModel } from './model'
 import { useServiceDefinitionSelectorService } from './service'
@@ -22,7 +22,7 @@ export function useServiceDefinitionListPage(
   gridRef?: Ref<any> | any,
   searchFormRef?: Ref<any> | any
 ) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 获取 gatewayInstanceId 的值（可能是 Ref 或普通值）
   const getGatewayInstanceId = () => {

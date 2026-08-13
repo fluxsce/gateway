@@ -13,8 +13,8 @@
  *   // 用户有用户管理模块权限
  * }
  * 
- * // 检查按钮权限
- * if (store.user.hasButton('hub0002:add')) {
+ * // 检查按钮 / 资源权限（统一走 hasPermission）
+ * if (store.user.hasPermission('hub0002:add')) {
  *   // 用户有新增用户按钮权限
  * }
  * ```
@@ -150,19 +150,15 @@ export const useUserStore = defineStore('user', {
     },
 
     /**
-     * 检查是否有指定按钮权限
-     * 
-     * 如果是租户管理员，则全部放行
-     * 
-     * @param {string} resourceCode - 资源编码，通常是按钮编码（如：'hub0002:add'）
-     * @returns {boolean} 如果用户拥有该按钮权限则返回 true，否则返回 false
+     * @deprecated 请使用 hasPermission。保留仅为兼容旧调用，内部已转发到统一权限检查。
+     * @param resourceCode - 资源编码（如：'hub0002:add'）
      */
     hasButton: (state) => (resourceCode: string): boolean => {
-      // 如果是租户管理员，全部放行
+      // 与 hasPermission 对齐：租户管理员放行；同时认模块码与按钮码
       if (state.tenantAdminFlag === 'Y') {
         return true
       }
-      return state.buttonCodes.has(resourceCode)
+      return state.moduleCodes.has(resourceCode) || state.buttonCodes.has(resourceCode)
     },
 
     /**
@@ -307,12 +303,12 @@ export const useUserStore = defineStore('user', {
     },
 
     /**
-     * 检查是否有指定权限（模块或按钮）
-     * 
-     * 如果是租户管理员，则全部放行
-     * 
-     * @param {string} resourceCode - 资源编码，可以是模块编码（如：'hub0002'）或按钮编码（如：'hub0002:add'）
-     * @returns {boolean} 如果用户拥有该权限则返回 true，否则返回 false
+     * 检查是否有指定权限（模块或按钮）。业务侧权限判断统一走此方法。
+     *
+     * 如果是租户管理员，则全部放行。
+     *
+     * @param resourceCode - 资源编码，可以是模块编码（如：'hub0002'）或按钮编码（如：'hub0002:add'）
+     * @returns 如果用户拥有该权限则返回 true，否则返回 false
      */
     hasPermission(resourceCode: string): boolean {
       // 如果是租户管理员，全部放行
@@ -425,17 +421,34 @@ export const useUserStore = defineStore('user', {
         }, true)
       }
       if (data.theme !== undefined) {
-        this.syncThemeToDom()
+        // 用户主动改主题时启用短暂过渡，初始化同步不带动画
+        this.syncThemeToDom({ animate: true })
       }
     },
 
     /**
-     * 同步主题到 HTML 根元素（与  一致，store 内一处维护 data-theme）
+     * 同步主题到 HTML 根元素（store 内一处维护 data-theme）。
+     * animate=true 时临时挂上 theme-switching，供 _base.scss 做短时过渡后移除。
      */
-    syncThemeToDom() {
+    syncThemeToDom(options?: { animate?: boolean }) {
       const resolved = this.resolvedTheme
-      if (typeof document !== 'undefined') {
-        document.documentElement.setAttribute('data-theme', resolved)
+      if (typeof document === 'undefined') {
+        return
+      }
+
+      const root = document.documentElement
+      const animate = options?.animate === true
+
+      if (animate) {
+        root.classList.add('theme-switching')
+      }
+
+      root.dataset.theme = resolved
+
+      if (animate) {
+        window.setTimeout(() => {
+          root.classList.remove('theme-switching')
+        }, 200)
       }
     },
 
@@ -459,41 +472,51 @@ export const useUserStore = defineStore('user', {
     initialize() {
       const rememberMe = Storage.load(STORAGE_KEYS.REMEMBER_ME, false)
       const userData = Storage.load<any>(STORAGE_KEYS.USER_DATA, null)
-
-      if (userData && userData.userId) {
-        // 恢复用户基本信息
-        this.userId = userData.userId || ''
-        this.userName = userData.userName || ''
-        this.realName = userData.realName || ''
-        this.tenantId = userData.tenantId || ''
-        this.avatar = userData.avatar || ''
-        this.email = userData.email || ''
-        this.mobile = userData.mobile || ''
-        this.deptId = userData.deptId || ''
-        this.tenantAdminFlag = userData.tenantAdminFlag || 'N'
-        this.rememberMe = rememberMe
-        this.isAuthenticated = true
-
-        // 恢复权限数据（数组需要转换回 Set）
-        if (userData.modules && Array.isArray(userData.modules)) {
-          this.modules = userData.modules
-        }
-        if (userData.buttons && Array.isArray(userData.buttons)) {
-          this.buttons = userData.buttons
-        }
-        if (userData.moduleCodes && Array.isArray(userData.moduleCodes)) {
-          this.moduleCodes = new Set(userData.moduleCodes)
-        }
-        if (userData.buttonCodes && Array.isArray(userData.buttonCodes)) {
-          this.buttonCodes = new Set(userData.buttonCodes)
-        }
-        this.permissionsLoaded = userData.permissionsLoaded || false
-
-        // 恢复超时设置
-        if (userData.timeout && userData.timeout > 0) {
-          updateTimeout(userData.timeout)
-        }
+      if (!userData?.userId) {
+        return
       }
+
+      this._restoreProfile(userData, rememberMe)
+      this._restorePermissions(userData)
+      if (userData.timeout > 0) {
+        updateTimeout(userData.timeout)
+      }
+    },
+
+    /**
+     * 从存储数据恢复用户基本信息与登录态
+     */
+    _restoreProfile(userData: any, rememberMe: boolean) {
+      this.userId = userData.userId || ''
+      this.userName = userData.userName || ''
+      this.realName = userData.realName || ''
+      this.tenantId = userData.tenantId || ''
+      this.avatar = userData.avatar || ''
+      this.email = userData.email || ''
+      this.mobile = userData.mobile || ''
+      this.deptId = userData.deptId || ''
+      this.tenantAdminFlag = userData.tenantAdminFlag || 'N'
+      this.rememberMe = rememberMe
+      this.isAuthenticated = true
+    },
+
+    /**
+     * 从存储数据恢复权限列表与编码集合
+     */
+    _restorePermissions(userData: any) {
+      if (Array.isArray(userData.modules)) {
+        this.modules = userData.modules
+      }
+      if (Array.isArray(userData.buttons)) {
+        this.buttons = userData.buttons
+      }
+      if (Array.isArray(userData.moduleCodes)) {
+        this.moduleCodes = new Set(userData.moduleCodes)
+      }
+      if (Array.isArray(userData.buttonCodes)) {
+        this.buttonCodes = new Set(userData.buttonCodes)
+      }
+      this.permissionsLoaded = userData.permissionsLoaded || false
     },
 
     /**

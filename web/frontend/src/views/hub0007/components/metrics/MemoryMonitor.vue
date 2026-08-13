@@ -1,17 +1,14 @@
 <template>
-    <GCard :title="displayTitle" :show-title="true">
-        <template #header-extra>
+    <RsCard :title="displayTitle" variant="outlined" :padding="false" class="monitor-card">
+        <template #actions>
             <div class="card-extra">
-                <n-date-picker v-model:value="dateTimeRange" type="datetimerange" :shortcuts="timeRangeShortcuts"
-                    placeholder="选择时间范围" @update:value="handleTimeRangeChange" size="small" />
-                <n-button size="small" @click="refreshData" :loading="loading">
+                <MetricsDateTimeRange v-model="dateTimeRange" @change="handleTimeRangeChange" />
+                <RsButton size="sm" :loading="loading" @click="refreshData">
                     <template #icon>
-                        <n-icon>
-                            <ReloadOutlined />
-                        </n-icon>
+                        <GIcon icon="ReloadOutline" />
                     </template>
-                    刷新
-                </n-button>
+                    {{ t('common.refresh') }}
+                </RsButton>
             </div>
         </template>
 
@@ -19,20 +16,20 @@
             <div ref="chartRef" class="chart-element"></div>
 
             <div v-if="loading" class="chart-loading">
-                <n-spin size="large" />
+                <RsLoading size="lg" />
             </div>
 
             <div v-if="!loading && !chartData.length" class="chart-empty">
-                <n-empty description="暂无数据" />
+                <RsEmpty :description="t('common.noData')" />
             </div>
         </div>
-    </GCard>
+    </RsCard>
 </template>
 
 <script setup lang="ts">
-import { GCard } from '@/components/gcard'
+import { GIcon } from '@/components/gicon'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { formatDate } from '@/utils/format'
-import { ReloadOutlined } from '@vicons/antd'
 import { LineChart } from 'echarts/charts'
 import {
     GridComponent,
@@ -43,9 +40,18 @@ import {
 } from 'echarts/components'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { NButton, NDatePicker, NEmpty, NIcon, NSpin } from 'naive-ui'
+import { RsButton, RsCard, RsEmpty, RsLoading } from '@/ui'
+import { createAxisTooltipOptions } from '@/views/hub0000/components/metrics/echartsTooltip'
+import MetricsDateTimeRange from '@/views/hub0000/components/metrics/MetricsDateTimeRange.vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { MemoryMetrics } from '../../types'
+
+const { t } = useModuleI18n('hub0007')
+
+function formatFixed(value: unknown, digits = 2): string {
+    const n = Number(value)
+    return Number.isFinite(n) ? n.toFixed(digits) : '-'
+}
 
 // 注册必要的 ECharts 组件
 echarts.use([
@@ -62,7 +68,7 @@ echarts.use([
 const props = defineProps({
     title: {
         type: String,
-        default: '内存使用率'
+        default: ''
     },
     data: {
         type: Array as () => MemoryMetrics[],
@@ -87,7 +93,7 @@ const props = defineProps({
 })
 
 // 计算属性 - 标题
-const displayTitle = computed(() => props.title || '内存使用率')
+const displayTitle = computed(() => props.title || t('memory.title'))
 const warningThreshold = computed(() => props.warningThreshold)
 const dangerThreshold = computed(() => props.dangerThreshold)
 
@@ -105,35 +111,6 @@ let chart: echarts.ECharts | null = null
 const end = Date.now()
 const start = end - 3600 * 1000 // 最近1小时
 const dateTimeRange = ref<[number, number] | null>([start, end])
-
-// 时间范围快捷选项
-const timeRangeShortcuts: Record<string, () => [number, number]> = {
-    '最近1小时': (): [number, number] => {
-        const end = Date.now()
-        const start = end - 3600 * 1000
-        return [start, end]
-    },
-    '最近6小时': (): [number, number] => {
-        const end = Date.now()
-        const start = end - 6 * 3600 * 1000
-        return [start, end]
-    },
-    '最近12小时': (): [number, number] => {
-        const end = Date.now()
-        const start = end - 12 * 3600 * 1000
-        return [start, end]
-    },
-    '最近24小时': (): [number, number] => {
-        const end = Date.now()
-        const start = end - 24 * 3600 * 1000
-        return [start, end]
-    },
-    '最近7天': (): [number, number] => {
-        const end = Date.now()
-        const start = end - 7 * 24 * 3600 * 1000
-        return [start, end]
-    }
-}
 
 // 计算属性 - 图表数据
 const chartData = computed(() => {
@@ -226,10 +203,10 @@ const updateChart = () => {
         title: {
             show: false
         },
-        tooltip: {
-            trigger: 'axis',
-            confine: false,
+        tooltip: createAxisTooltipOptions({
             appendToBody: true,
+            confine: true,
+            extraCssText: 'z-index: 9999;',
             formatter: function (params: any) {
                 const dataPoint = params[0]
                 const detail = dataPoint.data.detail
@@ -237,23 +214,22 @@ const updateChart = () => {
                 if (!detail) return `${dataPoint.marker}${dataPoint.seriesName}: ${dataPoint.data.value}%`
 
                 let result = ``
-                result += `${dataPoint.marker}内存使用率: <b>${dataPoint.data.value}%</b><br/>`
-                result += `<br/>详细信息:<br/>`
-                result += `总内存: ${formatMemorySize(detail.totalMemory)}<br/>`
-                result += `已用内存: ${formatMemorySize(detail.usedMemory)}<br/>`
-                result += `可用内存: ${formatMemorySize(detail.availableMemory)}<br/>`
-                result += `空闲内存: ${formatMemorySize(detail.freeMemory)}<br/>`
-                result += `缓存内存: ${formatMemorySize(detail.cachedMemory)}<br/>`
-                result += `缓冲区内存: ${formatMemorySize(detail.buffersMemory)}<br/>`
-                result += `<br/>交换分区:<br/>`
-                result += `总交换空间: ${formatMemorySize(detail.swapTotal)}<br/>`
-                result += `已用交换空间: ${formatMemorySize(detail.swapUsed)}<br/>`
-                result += `空闲交换空间: ${formatMemorySize(detail.swapFree)}<br/>`
-                result += `交换使用率: ${detail.swapUsagePercent.toFixed(1)}%`
+                result += `${dataPoint.marker}${t('memory.usage')}: <b>${dataPoint.data.value}%</b><br/>`
+                result += `<br/>${t('memory.total')}: ${formatMemorySize(detail.totalMemory)}<br/>`
+                result += `${t('memory.used')}: ${formatMemorySize(detail.usedMemory)}<br/>`
+                result += `${t('memory.available')}: ${formatMemorySize(detail.availableMemory)}<br/>`
+                result += `${t('memory.free')}: ${formatMemorySize(detail.freeMemory)}<br/>`
+                result += `${t('memory.cached')}: ${formatMemorySize(detail.cachedMemory)}<br/>`
+                result += `${t('memory.buffers')}: ${formatMemorySize(detail.buffersMemory)}<br/>`
+                result += `<br/>${t('memory.swapTotal')}: ${formatMemorySize(detail.swapTotal)}<br/>`
+                result += `${t('memory.swapUsed')}: ${formatMemorySize(detail.swapUsed)}<br/>`
+                result += `${t('memory.swapFree')}: ${formatMemorySize(detail.swapFree)}<br/>`
+                result += `${t('memory.swapUsage')}: ${formatFixed(detail.swapUsagePercent, 1)}%`
+
 
                 return result
             }
-        },
+        }),
         grid: {
             left: '3%',
             right: '4%',
@@ -283,7 +259,7 @@ const updateChart = () => {
         },
         series: [
             {
-                name: '内存使用率',
+                name: t('memory.usage'),
                 type: 'line',
                 data: data.map(item => ({
                     value: item.value,
@@ -328,7 +304,7 @@ const updateChart = () => {
                         {
                             yAxis: warningThreshold.value,
                             label: {
-                                formatter: `警告 ${warningThreshold.value}%`,
+                                formatter: `${t('common.warning')} ${warningThreshold.value}%`,
                                 position: 'start'
                             }
                         },
@@ -338,7 +314,7 @@ const updateChart = () => {
                                 color: '#ff4d4f'
                             },
                             label: {
-                                formatter: `危险 ${dangerThreshold.value}%`,
+                                formatter: `${t('common.danger')} ${dangerThreshold.value}%`,
                                 position: 'start'
                             }
                         }

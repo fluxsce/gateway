@@ -1,66 +1,72 @@
 <template>
-  <n-layout class="main-layout">
+  <div class="main-layout">
     <MainLayoutHeader @open-tool-marketplace="openToolMarketplace" />
 
-    <n-layout has-sider position="absolute" :style="{ top: 'var(--g-header-height)', bottom: 0 }">
-      <!-- 侧边菜单 -->
-      <n-layout-sider
-        bordered
-        collapse-mode="width"
-        :collapsed-width="64"
-        :width="220"
-        :collapsed="store.user.sidebarCollapsed"
-        :show-trigger="false"
-        class="sidebar"
-        content-style="display: flex; flex-direction: column; height: 100%; overflow-x: hidden;"
+    <div class="main-layout__body">
+      <aside
+        class="layout-sidebar"
+        :class="{ 'layout-sidebar--collapsed': store.user.sidebarCollapsed }"
       >
-        <n-menu
-          :collapsed="store.user.sidebarCollapsed"
-          :collapsed-width="64"
-          :collapsed-icon-size="18"
-          :options="menuOptions"
-          :indent="20"
-          :on-update:value="handleMenuSelect"
-          style="flex: 1; overflow-y: auto; overflow-x: hidden"
-        />
-
-        <div class="sidebar-footer">
-          <div class="collapse-btn" @click="store.user.toggleSidebar">
-            <n-icon size="18">
-              <ListSharp v-if="store.user.sidebarCollapsed" />
-              <ListSharp v-else />
-            </n-icon>
-            <span class="collapse-text" v-if="!store.user.sidebarCollapsed">
-              {{ store.user.sidebarCollapsed ? tCommon('menu.expand') : tCommon('menu.collapse') }}
-            </span>
-          </div>
+        <div class="layout-sidebar__scroll">
+          <RsMenu
+            v-model="activeMenuKey"
+            v-model:open-keys="openMenuKeys"
+            :items="menuItems"
+            :collapsed="store.user.sidebarCollapsed"
+            highlight-parent
+            class="layout-sidebar__menu"
+            @select="handleMenuSelect"
+          />
         </div>
-      </n-layout-sider>
+
+        <div class="layout-sidebar__footer">
+          <RsButton
+            variant="text"
+            size="sm"
+            radius="sm"
+            class="layout-sidebar__collapse"
+            :icon="store.user.sidebarCollapsed ? 'chevron-right' : 'chevron-left'"
+            :icon-only="store.user.sidebarCollapsed"
+            :tooltip="
+              store.user.sidebarCollapsed ? tCommon('menu.expand') : tCommon('menu.collapse')
+            "
+            :aria-label="
+              store.user.sidebarCollapsed ? tCommon('menu.expand') : tCommon('menu.collapse')
+            "
+            @click="store.user.toggleSidebar"
+          >
+            <template v-if="!store.user.sidebarCollapsed">
+              {{ tCommon('menu.collapse') }}
+            </template>
+          </RsButton>
+        </div>
+      </aside>
 
       <MainLayoutContent />
-    </n-layout>
+    </div>
 
-    <n-modal
-      v-model:show="showToolMarketplace"
-      preset="card"
+    <RsDialog
+      v-model:open="showToolMarketplace"
       :title="tCommon('toolMarket')"
-      :style="{ width: '90vw', maxWidth: '1200px' }"
-      :segmented="{ content: true }"
-      size="huge"
-      :closable="true"
-      :mask-closable="true"
-      :auto-focus="false"
+      description="发现和安装工具，扩展工作台能力"
+      layout="window"
+      :width="1080"
+      :show-close="true"
+      :close-on-overlay-click="true"
+      :resizable="true"
+      :fullscreenable="true"
     >
-      <tool-marketplace />
-    </n-modal>
-  </n-layout>
+      <template #body>
+        <tool-marketplace class="main-layout__marketplace" />
+      </template>
+    </RsDialog>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { store } from '@/stores'
-import { ListSharp } from '@vicons/ionicons5'
-import { NLayout, NLayoutSider, NModal, useLoadingBar } from 'naive-ui'
+import { RsButton, RsDialog, RsMenu, useRsLoadingBar } from '@/ui'
 import { onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import MainLayoutContent from './MainLayoutContent.vue'
@@ -70,7 +76,7 @@ import { useLayoutMenu } from './hooks'
 
 const { t: tCommon } = useModuleI18n('common')
 
-const loadingBar = useLoadingBar()
+const loadingBar = useRsLoadingBar()
 const route = useRoute()
 
 watch(
@@ -88,7 +94,7 @@ onMounted(() => {
 })
 
 const showToolMarketplace = ref(false)
-const { menuOptions, handleMenuSelect } = useLayoutMenu()
+const { menuItems, activeMenuKey, openMenuKeys, handleMenuSelect } = useLayoutMenu()
 
 const openToolMarketplace = () => {
   showToolMarketplace.value = true
@@ -97,104 +103,83 @@ const openToolMarketplace = () => {
 
 <style lang="scss" scoped>
 .main-layout {
-  height: 100vh;
-  background-color: var(--g-bg-secondary);
-}
-
-.sidebar {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  overflow-x: hidden;
-  background-color: var(--g-bg-primary);
-  border-right: 1px solid var(--g-border-primary);
-  border-radius: var(--g-radius-2xl);
-  box-sizing: border-box;
-  transition: all var(--g-transition-base) var(--g-transition-ease);
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--rs-bg);
+}
 
-  :deep(.n-menu) {
+.main-layout__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.layout-sidebar {
+  --layout-sidebar-width: 14rem;
+  --layout-sidebar-collapsed-width: 3.5rem;
+  /* 与 toolbar text 按钮一致：选中项不加粗 */
+  --rs-menu-item-active-weight: 400;
+
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: var(--layout-sidebar-width);
+  min-height: 0;
+  overflow: hidden;
+  background: var(--rs-surface);
+  border-right: 1px solid var(--rs-border);
+  transition: width var(--rs-transition-normal);
+
+  &--collapsed {
+    width: var(--layout-sidebar-collapsed-width);
+  }
+
+  &__scroll {
+    flex: 1;
+    min-height: 0;
     overflow-x: hidden;
-    max-width: 100%;
-    border: none !important;
-
-    .n-menu-item-content,
-    .n-submenu-title {
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      overflow: hidden;
-    }
-
-    .n-menu-item-content {
-      padding-left: var(--g-space-md) !important;
-      padding-right: var(--g-space-md) !important;
-      border-radius: var(--g-radius-md);
-      margin: 2px var(--g-space-xs);
-      transition: all var(--g-transition-base) var(--g-transition-ease);
-
-      &:hover {
-        background-color: var(--g-hover-overlay);
-      }
-
-      &.n-menu-item-content--selected {
-        background-color: var(--g-primary-light);
-        color: var(--g-primary);
-        font-weight: 500;
-        position: relative;
-
-        &::before {
-          content: '';
-          position: absolute;
-          left: 0;
-          top: 50%;
-          transform: translateY(-50%);
-          width: 3px;
-          height: 60%;
-          background-color: var(--g-primary);
-          border-radius: 0 var(--g-radius-sm) var(--g-radius-sm) 0;
-        }
-      }
-    }
-
-    .n-submenu-children {
-      .n-menu-item-content {
-        padding-left: calc(var(--g-space-md) + var(--g-space-lg)) !important;
-      }
-    }
+    overflow-y: auto;
+    padding: var(--rs-space-sm);
   }
 
-  .sidebar-footer {
-    border-top: 1px solid var(--g-border-primary);
-    height: var(--g-footer-height);
-    min-height: var(--g-footer-height);
+  &__menu {
+    width: 100%;
+  }
+
+  &__footer {
+    flex-shrink: 0;
+    box-sizing: border-box;
     display: flex;
-    box-sizing: unset;
-
-    .collapse-btn {
-      display: flex;
-      align-items: center;
-      justify-content: flex-start;
-      height: 100%;
-      width: 100%;
-      cursor: pointer;
-      box-sizing: border-box;
-
-      &:hover {
-        background-color: var(--g-hover-overlay);
-        color: var(--g-text-primary);
-      }
-
-      .collapse-text {
-        margin-left: var(--g-space-sm);
-        font-size: var(--g-font-size-sm);
-      }
-    }
+    align-items: center;
+    height: var(--g-footer-height);
+    padding: 0 var(--rs-space-sm);
+    border-top: 1px solid var(--rs-border);
   }
 
-  &.n-layout-sider--collapsed {
-    .sidebar-footer .collapse-btn {
-      justify-content: center;
-      padding: var(--g-space-sm);
-    }
+  &__collapse {
+    width: 100%;
+    height: 100%;
+    justify-content: flex-start;
   }
+
+  &--collapsed &__footer {
+    padding: 0 var(--rs-space-xs);
+    justify-content: center;
+  }
+
+  &--collapsed &__collapse {
+    width: auto;
+    margin-inline: auto;
+    justify-content: center;
+  }
+}
+
+.main-layout__marketplace {
+  min-height: min(70vh, 40rem);
 }
 </style>

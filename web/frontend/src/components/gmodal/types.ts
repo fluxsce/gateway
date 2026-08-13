@@ -1,8 +1,9 @@
-import type { ButtonProps } from 'naive-ui'
+import type { ButtonProps } from '@/types/legacy-ui'
 import type { Component, StyleValue } from 'vue'
 
 /**
  * Footer toolbar 按钮定义
+ * @deprecated 随 GModal 淘汰；请用 RsDialog #footer + RsButton
  */
 export interface GModalToolbarButton {
   /** 按钮唯一标识，用于 click 事件回调区分 */
@@ -17,7 +18,7 @@ export type GModalPreset = 'dialog' | 'card'
 
 /**
  * GModal 组件 Props
- * 封装 Naive UI NModal，统一项目内弹窗用法
+ * @deprecated 请直接使用 RsDialog（@/ui）。GModal 仅为兼容壳，将逐步淘汰。
  */
 export interface GModalProps {
   /** 是否显示弹窗（v-model:visible） */
@@ -26,8 +27,8 @@ export interface GModalProps {
   /** 标题文本（也可以通过 header 插槽自定义） */
   title?: string
 
-  /** 头部图标组件（用于替换 dialog 的默认图标） */
-  headerIcon?: Component
+  /** 头部图标：组件或 Lucide 图标名；dialog 预设默认 info；传 null 关闭 */
+  headerIcon?: Component | string | null
 
   /** 宽度，支持数字或任意 CSS 宽度值 */
   width?: number | string
@@ -59,7 +60,10 @@ export interface GModalProps {
   /** 使用的 NModal 预设类型，默认为 dialog */
   preset?: GModalPreset
 
-  /** 是否点击遮罩关闭 */
+  /**
+   * 是否点击遮罩/外部关闭
+   * @default false（避免右键菜单打开弹窗时被同一轮 pointerdown 立刻关掉）
+   */
   maskClosable?: boolean
 
   /** 是否显示右上角关闭按钮 */

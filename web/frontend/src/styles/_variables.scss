@@ -8,6 +8,7 @@
   /* ==================== 布局 ==================== */
   --g-header-height: 48px;
   --g-toolbar-height: 36px;
+  /* 侧栏底部折叠条、表格分页栏等底栏统一高度 */
   --g-footer-height: 36px;
 
   /* ==================== 控件高度（与 theme.ts Dropdown/Button/Input 等一致） ==================== */
@@ -50,12 +51,12 @@
   --g-modal-footer-height: 32px;
 
   /* ==================== 对话框 ==================== */
-  --g-dialog-header-height: 36px;
-  --g-dialog-footer-height: 36px;
+  --g-dialog-header-height: 48px;
+  --g-dialog-footer-height: 52px;
 
   /* ==================== 抽屉 ==================== */
-  --g-drawer-header-height: 36px;
-  --g-drawer-footer-height: 36px;
+  --g-drawer-header-height: 48px;
+  --g-drawer-footer-height: 52px;
 
   /* ==================== 圆角 ==================== */
   --g-radius-sm: 4px;

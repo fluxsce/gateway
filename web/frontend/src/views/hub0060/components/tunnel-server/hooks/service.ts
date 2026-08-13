@@ -3,8 +3,8 @@
  * 处理所有与后端交互的业务逻辑
  */
 
-import { useGDialog } from '@/components/gdialog'
-import { createBackendPaginationParams } from '@/components/gpage'
+import { rsConfirm } from '@/ui'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { PlayCircleOutline, RefreshCircleOutline, StopCircleOutline, WarningOutline } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
@@ -18,9 +18,7 @@ import { useTunnelServerModel } from './model'
  */
 export function useTunnelServerService(searchFormRef?: Ref<any> | any) {
   const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 初始化 Model
+// 初始化 Model
   const model = useTunnelServerModel()
 
   const {
@@ -211,14 +209,13 @@ export function useTunnelServerService(searchFormRef?: Ref<any> | any) {
    * 删除隧道服务器
    */
   const deleteTunnelServer = async (server: TunnelServer): Promise<boolean> => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认删除',
       subtitle: '此操作不可恢复，请谨慎操作',
-      content: `确定要删除隧道服务器 "${server.serverName}" 吗？`,
+      description: `确定要删除隧道服务器 "${server.serverName}" 吗？`,
       icon: WarningOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定删除',
-      negativeText: '取消',
+      confirmText: '确定删除',
+      cancelText: '取消',
       width: 500
     })
 
@@ -258,14 +255,13 @@ export function useTunnelServerService(searchFormRef?: Ref<any> | any) {
    * 启动隧道服务器
    */
   const startTunnelServer = async (server: TunnelServer): Promise<boolean> => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认启动',
       subtitle: '启动后将开始监听客户端连接',
-      content: `确定要启动隧道服务器 "${server.serverName}" 吗？`,
+      description: `确定要启动隧道服务器 "${server.serverName}" 吗？`,
       icon: PlayCircleOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定启动',
-      negativeText: '取消',
+      confirmText: '确定启动',
+      cancelText: '取消',
       width: 500
     })
 
@@ -298,14 +294,13 @@ export function useTunnelServerService(searchFormRef?: Ref<any> | any) {
    * 停止隧道服务器
    */
   const stopTunnelServer = async (server: TunnelServer): Promise<boolean> => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认停止',
       subtitle: '停止后将断开所有客户端连接',
-      content: `确定要停止隧道服务器 "${server.serverName}" 吗？`,
+      description: `确定要停止隧道服务器 "${server.serverName}" 吗？`,
       icon: StopCircleOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定停止',
-      negativeText: '取消',
+      confirmText: '确定停止',
+      cancelText: '取消',
       width: 500
     })
 
@@ -338,14 +333,13 @@ export function useTunnelServerService(searchFormRef?: Ref<any> | any) {
    * 重启隧道服务器
    */
   const restartTunnelServer = async (server: TunnelServer): Promise<boolean> => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认重启',
       subtitle: '重启将先停止后启动服务器',
-      content: `确定要重启隧道服务器 "${server.serverName}" 吗？`,
+      description: `确定要重启隧道服务器 "${server.serverName}" 吗？`,
       icon: RefreshCircleOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定重启',
-      negativeText: '取消',
+      confirmText: '确定重启',
+      cancelText: '取消',
       width: 500
     })
 

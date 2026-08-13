@@ -2,7 +2,7 @@
  * 路由列表服务 Hook（纯业务逻辑）
  */
 
-import { createBackendPaginationParams } from '@/components/gpage'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
 import { useMessage } from 'naive-ui'

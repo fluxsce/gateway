@@ -1,36 +1,50 @@
 <template>
   <div class="role-management" :id="service.model.moduleId">
-    <GPane direction="vertical" default-size="80px">
-      <!-- 上部：搜索表单 -->
-      <template #1>
-        <search-form
-          ref="searchFormRef"
-          :module-id="service.model.moduleId"
-          v-bind="service.model.searchFormConfig"
-          @search="handleSearch"
-          @toolbar-click="handleToolbarClick"
-        />
+    <RsSplitPane
+      class="role-management__split"
+      orientation="vertical"
+      :panes="splitPanes"
+      disabled
+    >
+      <!-- 上部：搜索表单（auto 随内容） -->
+      <template #search>
+        <div class="role-management__search">
+          <RsSearchForm
+            ref="searchFormRef"
+            :module-id="service.model.moduleId"
+            v-bind="service.model.searchFormConfig"
+            @search="handleSearch"
+            @toolbar-click="handleToolbarClick"
+          />
+        </div>
       </template>
 
-      <!-- 下部：数据表格 -->
-      <template #2>
-        <g-grid
-          ref="gridRef"
-          :module-id="service.model.moduleId"
-          :data="service.model.roleList"
-          :loading="service.model.loading"
-          v-bind="service.model.gridConfig"
-          @page-change="service.handlePageChange"
-          @menu-click="handleMenuClick"
-        />
+      <!-- 下部：表格占满剩余高度 -->
+      <template #grid>
+        <div class="role-management__grid">
+          <RsGrid
+            ref="gridRef"
+            :module-id="service.model.moduleId"
+            :data="service.model.roleList"
+            :loading="service.model.loading"
+            :columns="service.model.gridConfig.columns"
+            :selectable="service.model.gridConfig.selectable"
+            :row-key="service.model.gridConfig.rowKey"
+            height="100%"
+            :pagination-config="service.model.gridConfig.paginationConfig"
+            :menu-config="service.model.gridConfig.menuConfig"
+            @page-change="service.handlePageChange"
+            @menu-click="handleMenuClick"
+          />
+        </div>
       </template>
-    </GPane>
+    </RsSplitPane>
 
     <!-- 角色对话框（新增/编辑/查看共用） -->
-    <GdataFormModal
+    <RsDataFormModal
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
-      :title="formDialogMode === 'create' ? '新增角色' : formDialogMode === 'edit' ? '编辑角色' : '查看角色详情'"
+      :title="formDialogTitle"
       :to="`#${service.model.moduleId}`"
       :form-fields="service.model.formFields"
       :form-tabs="service.model.formTabs"
@@ -51,30 +65,32 @@
 </template>
 
 <script lang="ts" setup>
-import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
-import SearchForm from '@/components/form/search/SearchForm.vue'
-import { GPane } from '@/components/gpane'
-import { GGrid } from '@/components/grid'
+import { RsDataFormModal } from '@/components/form/rs-data'
+import { RsSearchForm } from '@/components/form/rs-search'
+import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
+import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import { ref } from 'vue'
 import RoleResourceDrawer from './compoents/RoleResourceDrawer.vue'
 import { useRolePage } from './hooks'
 
-// 定义组件名称
 defineOptions({
-  name: 'RoleManagement'
+  name: 'RoleManagement',
 })
 
-// ============= Refs =============
+/** 上方面板内容自适应，下方吃满剩余空间；disabled 禁止拖拽 */
+const splitPanes: RsSplitPaneItem[] = [
+  { key: 'search', size: 'auto' },
+  { key: 'grid' },
+]
 
 const searchFormRef = ref()
-const gridRef = ref()
-
-// ============= 页面级 Hook（包含服务与对话框、事件处理） =============
+const gridRef = ref<RsGridExpose | null>(null)
 
 const {
   service,
   formDialogVisible,
   formDialogMode,
+  formDialogTitle,
   currentEditRole,
   handleFormSubmit,
   handleToolbarClick,
@@ -83,35 +99,40 @@ const {
   roleAuthDrawerVisible,
   roleAuthRoleId,
   roleAuthRoleName,
-  closeRoleAuthDrawer
+  closeRoleAuthDrawer,
 } = useRolePage(gridRef, searchFormRef)
-
-// 数据由搜索表单的"查询"按钮触发加载
 </script>
 
-<style lang="scss" scoped>
+<style scoped>
 .role-management {
+  box-sizing: border-box;
+  position: relative;
   width: 100%;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 
-  :deep(.n-split) {
-    height: 100%;
-  }
+.role-management__split {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
 
-  /* 上半区：搜索表单，内容较少，允许自身滚动 */
-  :deep(.n-split-pane:first-child) {
-    overflow: auto;
-    padding: var(--g-space-sm);
-  }
+.role-management__search {
+  width: 100%;
+}
 
-  /* 下半区：表格区域，高度由 GGrid 占满，滚动全部交给 vxe-grid */
-  :deep(.n-split-pane:last-child) {
-    overflow: hidden;
-    padding: var(--g-space-sm);
-    display: flex;
-    flex-direction: column;
-  }
+.role-management__grid {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 </style>
-

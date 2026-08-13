@@ -30,9 +30,9 @@
 
           <!-- 匹配类型自定义渲染 -->
           <template #matchType="{ row }">
-            <n-tag :type="getMatchTypeTagType(row.matchType)" size="small">
+            <RsTag :variant="getMatchTypeTagType(row.matchType)" size="sm">
               {{ getMatchTypeLabel(row.matchType) }}
-            </n-tag>
+            </RsTag>
           </template>
 
           <!-- HTTP方法自定义渲染 -->
@@ -58,63 +58,59 @@
             </div>
           </template>
 
-          <!-- WebSocket自定义渲染：N仍兼容允许Upgrade，仅为路由标记 -->
+          <!-- WebSocket自定义渲染：仍兼容允许 Upgrade，仅为路由标记 -->
           <template #enableWebsocket="{ row }">
-            <n-tag :type="row.enableWebsocket === 'Y' ? 'success' : 'default'" size="small">
+            <RsTag :variant="row.enableWebsocket === 'Y' ? 'success' : 'default'" size="sm">
               {{ row.enableWebsocket === 'Y' ? '已标记' : '兼容' }}
-            </n-tag>
+            </RsTag>
           </template>
 
           <template #stripPathPrefix="{ row }">
-            <n-tag :type="row.stripPathPrefix === 'Y' ? 'warning' : 'default'" size="small">
+            <RsTag :variant="row.stripPathPrefix === 'Y' ? 'warning' : 'default'" size="sm">
               {{ row.stripPathPrefix === 'Y' ? '剥除' : '保留' }}
-            </n-tag>
+            </RsTag>
           </template>
 
           <!-- 关联服务自定义渲染 -->
           <template #serviceName="{ row }">
             <div class="service-name-container">
               <template v-if="row.serviceName">
-                <!-- 后端返回了服务名称，使用 tag 显示 -->
-                <n-tag size="small" type="success">
+                <RsTag size="sm" variant="success">
                   {{ row.serviceName }}
-                </n-tag>
+                </RsTag>
               </template>
               <template v-else-if="row.serviceDefinitionId">
-                <!-- 后端未返回服务名称：优先从 routeMetadata.serviceNameMap 取，否则显示 ID -->
                 <template v-if="isMultipleServices(row.serviceDefinitionId)">
-                  <!-- 多个服务：显示服务名称或 ID -->
-                  <n-tag
+                  <RsTag
                     v-for="serviceId in getServiceIds(row.serviceDefinitionId)"
                     :key="serviceId"
-                    size="small"
-                    type="info"
+                    size="sm"
+                    variant="info"
                     style="margin-right: 4px; margin-bottom: 2px"
                   >
                     {{ getServiceDisplayName(row, serviceId) }}
-                  </n-tag>
-                  <n-tag size="small" type="default" style="margin-left: 4px">
+                  </RsTag>
+                  <RsTag size="sm" variant="default" style="margin-left: 4px">
                     {{ getServiceIds(row.serviceDefinitionId).length }}个服务
-                  </n-tag>
+                  </RsTag>
                 </template>
                 <template v-else>
-                  <!-- 单个服务：显示服务名称或 ID -->
-                  <n-tag size="small" type="info">
+                  <RsTag size="sm" variant="info">
                     {{ getServiceDisplayName(row, row.serviceDefinitionId) }}
-                  </n-tag>
+                  </RsTag>
                 </template>
               </template>
               <template v-else>
-                <n-tag size="small" type="default"> 未关联 </n-tag>
+                <RsTag size="sm" variant="default">未关联</RsTag>
               </template>
             </div>
           </template>
 
           <!-- 状态自定义渲染 -->
           <template #activeFlag="{ row }">
-            <n-tag :type="row.activeFlag === 'Y' ? 'success' : 'error'" size="small">
+            <RsTag :variant="row.activeFlag === 'Y' ? 'success' : 'danger'" size="sm">
               {{ row.activeFlag === 'Y' ? '启用' : '禁用' }}
-            </n-tag>
+            </RsTag>
           </template>
         </g-grid>
       </template>
@@ -227,7 +223,7 @@ import CorsConfigFormModal from '@/views/common/common002/cors-config/CorsConfig
 import DomainAccessConfigListModal from '@/views/common/common002/domain-config/DomainAccessConfigListModal.vue'
 import IpAccessConfigListModal from '@/views/common/common002/ip-config/IpAccessConfigListModal.vue'
 import RateLimitConfigFormModal from '@/views/common/common002/limit-config/RateLimitConfigFormModal.vue'
-import { NTag } from 'naive-ui'
+import { RsTag } from '@/ui'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { AssertConfigListModal } from '../assert-config'
 import { FilterConfigListModal } from '../filter-config'
@@ -455,18 +451,21 @@ defineExpose({
   height: 100%;
   overflow: hidden;
 
-  :deep(.n-split) {
+  :deep(.g-pane),
+  :deep(.g-pane__split) {
     height: 100%;
   }
 
   /* 上半区：搜索表单，内容较少，允许自身滚动 */
-  :deep(.n-split-pane:first-child) {
+  :deep(.g-pane__slot:first-child),
+  :deep(.g-pane__flex-pane--1) {
     overflow: auto;
     padding: var(--g-space-sm);
   }
 
-  /* 下半区：表格区域，高度由 GGrid 占满，滚动全部交给 vxe-grid */
-  :deep(.n-split-pane:last-child) {
+  /* 下半区：表格区域，高度由 GGrid 占满，滚动全部交给表格 */
+  :deep(.g-pane__slot:last-child),
+  :deep(.g-pane__flex-pane--2) {
     overflow: hidden;
     padding: var(--g-space-sm);
     display: flex;

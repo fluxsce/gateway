@@ -3,7 +3,7 @@
  * 统一管理数据状态和计算属性
  */
 
-import type { DataFormField, DataFormTab } from '@/components/form/data/types'
+import type { RsDataFormField, RsDataFormTab } from '@/components/form/rs-data'
 import type { GContextProps } from '@/components/gcontext'
 import { FunnelOutline, SettingsOutline } from '@vicons/ionicons5'
 import { computed, ref } from 'vue'
@@ -163,7 +163,7 @@ export function useGatewayInstanceTreeModel() {
         key: 'other', 
         label: '其他配置',
       },
-    ] as DataFormTab[],
+    ] as RsDataFormTab[],
     fields: [
       // ============= 主键字段（隐藏，但必须存在用于编辑） =============
       {
@@ -580,7 +580,7 @@ export function useGatewayInstanceTreeModel() {
         show: false, // 隐藏字段，通常不需要显示
         tips: 'Router配置的操作序列标识',
       },
-    ] as DataFormField[],
+    ] as RsDataFormField[],
   }
 
   return {

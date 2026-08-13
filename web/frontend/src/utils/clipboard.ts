@@ -1,8 +1,9 @@
 /**
  * 剪贴板工具函数
  *
- * 参考 XiRang 的实现：支持 Clipboard API + execCommand 降级，并支持使用全局 $gMessage 提示。
+ * 支持 Clipboard API + execCommand 降级，提示走 niuma-ui `useRsToast`。
  */
+import { useRsToast } from '@/ui'
 
 export interface CopyOptions {
   /** 成功提示消息 */
@@ -22,15 +23,13 @@ export interface CopyResult {
 }
 
 function notify(type: 'success' | 'error' | 'warning' | 'info', text: string) {
-  if (typeof window !== 'undefined') {
-    const w = window as any
-    if (w?.$gMessage?.[type]) {
-      w.$gMessage[type](text)
-      return
-    }
+  try {
+    const toast = useRsToast()
+    toast[type](text)
+  } catch {
+    if (type === 'error') console.error(text)
+    else console.log(text)
   }
-  if (type === 'error') console.error(text)
-  else console.log(text)
 }
 
 /**

@@ -4,7 +4,7 @@
  */
 
 import type { SearchFormProps } from '@/components/form/search/types'
-import { createBackendPaginationParams } from '@/components/gpage'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { GridProps } from '@/components/grid'
 import type { PageInfoObj } from '@/types/api'
 import { formatDate, formatFileSize } from '@/utils/format'

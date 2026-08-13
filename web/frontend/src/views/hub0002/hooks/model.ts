@@ -1,22 +1,29 @@
 /**
  * 用户管理模块 Model
- * 统一管理搜索表单、表格配置和数据状态
+ * 统一管理搜索表单、表格配置和数据状态（RsSearchForm / RsGrid / RsDataForm）
  */
 
-import type { DataFormField } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsDataFormField } from '@/components/form/rs-data'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
+import { RsTag } from '@/ui'
 import { formatDate } from '@/utils/format'
-import {
-  AddOutline,
-  CreateOutline,
-  LockClosedOutline,
-  TrashOutline
-} from '@vicons/ionicons5'
-import { ref } from 'vue'
+import { h, ref } from 'vue'
 import type { User } from '../types/index'
 import { FlagEnum, Gender, UserStatus } from '../types/index'
+
+/**
+ * 用户管理表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface UserGridConfig {
+  columns: RsGridColumn<User>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
 
 /**
  * 用户管理 Model
@@ -35,8 +42,8 @@ export function useUserModel() {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'userName',
@@ -90,44 +97,42 @@ export function useUserModel() {
       {
         key: 'add',
         label: '新增',
-        icon: AddOutline,
+        icon: 'AddOutline',
         type: 'primary',
         tooltip: '新增用户',
       },
       {
         key: 'edit',
         label: '编辑',
-        icon: CreateOutline,
+        icon: 'CreateOutline',
         tooltip: '编辑选中的用户',
       },
       {
         key: 'delete',
         label: '删除',
-        icon: TrashOutline,
+        icon: 'TrashOutline',
         type: 'error',
         tooltip: '删除选中的用户',
       },
       {
         key: 'resetPassword',
         label: '重置密码',
-        icon: LockClosedOutline,
+        icon: 'LockClosedOutline',
         tooltip: '重置选中用户的密码',
-      }
+      },
     ],
-    showSearchButton:true,
-    showResetButton:true,
+    showSearchButton: true,
+    showResetButton: true,
   }
 
-  // ============= 数据编辑表单字段配置（供 GdataFormModal 使用） =============
-  // 与 User 类型字段保持一致（租户ID tenantId 由系统处理，这里不做输入）
-  // 表单页签配置（主信息 / 自定义 / 其他）
+  // ============= 数据编辑表单字段配置（供 RsDataFormModal 使用） =============
   const formTabs = [
     { key: 'basic', label: '主信息' },
     { key: 'custom', label: '自定义' },
     { key: 'other', label: '其他' },
   ]
 
-  const formFields: DataFormField[] = [
+  const formFields: RsDataFormField[] = [
     {
       field: 'userId',
       label: '用户ID',
@@ -154,12 +159,11 @@ export function useUserModel() {
       placeholder: '请输入密码',
       span: 8,
       tabKey: 'basic',
-      // 仅新增模式显示密码；编辑用“重置密码”，避免用 formData.userId 判断（新增时一填 userId 会误判为编辑导致密码框消失）
+      // 仅新增模式显示密码；编辑用“重置密码”
       show: (formData: Record<string, any>) => formData._mode === 'create',
       required: true,
       props: {
         type: 'password',
-        showPasswordOn: 'click',
       },
     },
     {
@@ -362,47 +366,47 @@ export function useUserModel() {
 
   // ============= 表格配置 =============
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置（符合 RsGrid 结构） */
+  const gridConfig: UserGridConfig = {
     columns: [
       {
-        field: 'userId',
+        key: 'userId',
         title: '用户ID',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'userName',
+        key: 'userName',
         title: '用户名',
         sortable: true,
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'realName',
+        key: 'realName',
         title: '姓名',
         sortable: true,
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'deptId',
+        key: 'deptId',
         title: '部门ID',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'email',
+        key: 'email',
         title: '邮箱',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'mobile',
+        key: 'mobile',
         title: '手机号',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'gender',
+        key: 'gender',
         title: '性别',
         align: 'center',
-        formatter: ({ cellValue }) => {
-          switch (cellValue) {
+        formatter: (value) => {
+          switch (value) {
             case Gender.MALE:
               return '男'
             case Gender.FEMALE:
@@ -413,142 +417,120 @@ export function useUserModel() {
         },
       },
       {
-        field: 'statusFlag',
+        key: 'statusFlag',
         title: '状态',
         align: 'center',
-        cellRender: {
-          name: 'VxeTag',
-          props: ({ row }: any) => ({
-            type: row.statusFlag === UserStatus.ENABLED ? 'success' : 'danger',
-            content: row.statusFlag === UserStatus.ENABLED ? '启用' : '禁用',
-          }),
-        },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.statusFlag === UserStatus.ENABLED ? 'success' : 'danger',
+              size: 'sm',
+            },
+            () => (row.statusFlag === UserStatus.ENABLED ? '启用' : '禁用'),
+          ),
       },
       {
-        field: 'deptAdminFlag',
+        key: 'deptAdminFlag',
         title: '部门管理员',
         align: 'center',
-        formatter: ({ cellValue }) => (cellValue === 'Y' ? '是' : '否'),
+        formatter: (value) => (value === 'Y' ? '是' : '否'),
       },
       {
-        field: 'tenantAdminFlag',
+        key: 'tenantAdminFlag',
         title: '租户管理员',
         align: 'center',
-        formatter: ({ cellValue }) => (cellValue === 'Y' ? '是' : '否'),
+        formatter: (value) => (value === 'Y' ? '是' : '否'),
       },
       {
-        field: 'userExpireDate',
+        key: 'userExpireDate',
         title: '用户过期时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) => (value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : ''),
       },
       {
-        field: 'lastLoginTime',
+        key: 'lastLoginTime',
         title: '最后登录时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) => (value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : ''),
       },
       {
-        field: 'lastLoginIp',
+        key: 'lastLoginIp',
         title: '最后登录IP',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) => (value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : ''),
       },
       {
-        field: 'addWho',
+        key: 'addWho',
         title: '创建人',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'editTime',
+        key: 'editTime',
         title: '修改时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) => (value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : ''),
       },
       {
-        field: 'editWho',
+        key: 'editWho',
         title: '修改人',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'oprSeqFlag',
+        key: 'oprSeqFlag',
         title: '操作序列标识',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'currentVersion',
+        key: 'currentVersion',
         title: '当前版本号',
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'activeFlag',
+        key: 'activeFlag',
         title: '活动标记',
         align: 'center',
-        cellRender: {
-          name: 'VxeTag',
-          props: ({ row }: any) => ({
-            type: row.activeFlag === FlagEnum.YES ? 'success' : 'default',
-            content: row.activeFlag === FlagEnum.YES ? '活动' : '非活动',
-          }),
-        },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.activeFlag === FlagEnum.YES ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.activeFlag === FlagEnum.YES ? '活动' : '非活动'),
+          ),
       },
       {
-        field: 'noteText',
+        key: 'noteText',
         title: '备注',
-        showOverflow: 'tooltip',
+        ellipsis: true,
       },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: 'userId',
     paginationConfig: {
       show: true,
-      pageInfo: pageInfo as any, // GridPaginationConfig.pageInfo 接受 Ref<PageInfoObj | undefined>
+      pageInfo: pageInfo as any,
       align: 'right',
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      showCopyCell: true,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          // 使用 vxe-pc-ui 内置的图标类名
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-        {
-          code: 'edit',
-          name: '编辑',
-          prefixIcon: 'vxe-icon-edit',
-        },
-        {
-          code: 'delete',
-          name: '删除',
-          prefixIcon: 'vxe-icon-delete',
-        },
-        {
-          code: 'resetPassword',
-          name: '重置密码',
-          prefixIcon: 'vxe-icon-lock',
-        },
-        {
-          code: 'roleAuth',
-          name: '用户授权',
-          prefixIcon: 'vxe-icon-user',
-        },
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
+        { key: 'resetPassword', label: '重置密码', icon: 'lock' },
+        { key: 'roleAuth', label: '用户授权', icon: 'user' },
       ],
     },
     height: '100%',
@@ -601,7 +583,6 @@ export function useUserModel() {
   const updateUserInList = (userId: string, tenantId: string, updatedUser: Partial<User>) => {
     const index = userList.value.findIndex((u) => u.userId === userId && u.tenantId === tenantId)
     if (index !== -1) {
-      // 使用 Object.assign 更新对象属性，确保 Vue 响应式系统能够检测到变化
       Object.assign(userList.value[index], updatedUser)
     }
   }

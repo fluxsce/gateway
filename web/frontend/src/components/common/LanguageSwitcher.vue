@@ -1,137 +1,191 @@
 <template>
-    <div class="language-switcher" :class="{ 'language-switcher--dark-surface': variant === 'dark-surface' }">
-        <!-- 语言切换下拉框 -->
-        <GDropdown trigger="click" :options="languageOptions" @select="handleLanguageSelect">
-            <div class="language-selector" :class="{ 'is-loading': isLoading }">
-                <!-- 加载状态指示器 -->
-                <NIcon v-if="isLoading" size="16" class="loading-icon">
-                    <i class="fas fa-circle-notch fa-spin"></i>
-                </NIcon>
-                <!-- 当前语言显示 -->
-                <span class="current-language">{{ getCurrentLanguageName() }}</span>
-                <NIcon size="12">
-                    <i class="fas fa-chevron-down"></i>
-                </NIcon>
-            </div>
-        </GDropdown>
-    </div>
+  <div
+    class="language-switcher"
+    :class="{ 'language-switcher--dark-surface': variant === 'dark-surface' }"
+  >
+    <GDropdown trigger="click" :options="languageOptions" @select="handleLanguageSelect">
+      <button
+        type="button"
+        class="language-selector"
+        :class="{ 'is-loading': isLoading }"
+        :aria-label="currentLanguageName"
+      >
+        <GIcon size="16" class="globe-icon">
+          <LanguageOutline />
+        </GIcon>
+        <span class="current-language">{{ currentLanguageName }}</span>
+        <GIcon size="14" :class="isLoading ? 'chevron-icon is-loading' : 'chevron-icon'">
+          <ChevronDownOutline />
+        </GIcon>
+      </button>
+    </GDropdown>
+  </div>
 </template>
 
 <script setup lang="ts">
+import GIcon from '@/components/gicon/GIcon.vue'
 import { GDropdown } from '@/components/gdropdown'
 import { availableLocales, setLocale, type LocaleType } from '@/locales'
 import { useUserStore } from '@/stores/user'
-import type { DropdownOption } from 'naive-ui'
-import { NIcon } from 'naive-ui'
+import { ChevronDownOutline, LanguageOutline } from '@vicons/ionicons5'
 import { computed, ref } from 'vue'
 
 withDefaults(
-    defineProps<{
-        /** 深色背景上的触发器样式（登录页等），不受全局亮/暗主题文字色影响 */
-        variant?: 'default' | 'dark-surface'
-    }>(),
-    { variant: 'default' }
+  defineProps<{
+    /** 深色背景上的触发器样式（登录页等） */
+    variant?: 'default' | 'dark-surface'
+  }>(),
+  { variant: 'default' },
 )
 
 const userStore = useUserStore()
 const isLoading = ref(false)
 
-// 获取用户当前设置的语言
 const userLanguage = computed(() => userStore.language)
 
-/**
- * 获取当前语言名称
- */
-function getCurrentLanguageName(): string {
-    // 根据用户设置找到对应的语言显示名称
-    const locale = availableLocales.find(item => item.locale === userLanguage.value)
-    return locale ? locale.name : 'Unknown'
-}
+const currentLanguageName = computed(() => {
+  const locale = availableLocales.find((item) => item.locale === userLanguage.value)
+  return locale ? locale.name : 'Unknown'
+})
 
-/**
- * 语言选项列表 - 直接使用availableLocales数据
- */
-const languageOptions: DropdownOption[] = availableLocales.map(locale => ({
-    key: locale.locale,
-    label: locale.name
+const languageOptions = availableLocales.map((locale) => ({
+  key: locale.locale,
+  label: locale.name,
 }))
 
-/**
- * 处理语言选择
- */
 async function handleLanguageSelect(key: string | number) {
-    // 如果与当前语言相同，则不处理
-    const localeKey = String(key)
-    if (localeKey === userLanguage.value) return
+  const localeKey = String(key)
+  if (localeKey === userLanguage.value) return
 
-    isLoading.value = true
-    try {
-        // 更新用户设置
-        userStore.updateSettings({ language: localeKey })
-
-        // 更新i18n设置 (使用LocaleType格式)
-        await setLocale(localeKey as LocaleType)
-    } finally {
-        isLoading.value = false
-    }
+  isLoading.value = true
+  try {
+    userStore.updateSettings({ language: localeKey })
+    await setLocale(localeKey as LocaleType)
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>
 
 <style lang="scss" scoped>
 .language-switcher {
-    display: inline-block;
-    position: relative;
+  display: inline-flex;
+  position: relative;
 }
 
 .language-selector {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 8px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: rgba(255, 255, 255, 0.92);
+  color: #334155;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
 
-    &:hover {
-        background-color: rgba(0, 0, 0, 0.05);
-    }
+  &:hover {
+    background: #fff;
+    border-color: rgba(99, 102, 241, 0.28);
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  }
 
-    &.is-loading {
-        opacity: 0.8;
-        pointer-events: none;
-    }
+  &:focus-visible {
+    outline: none;
+    border-color: #818cf8;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.22);
+  }
+
+  &.is-loading {
+    opacity: 0.88;
+  }
 }
 
-.loading-icon {
-    color: #1890ff;
+.globe-icon {
+  color: #6366f1;
+  flex-shrink: 0;
 }
 
 .current-language {
-    font-size: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
 }
 
-/* 登录页等深色渐变底：强制浅色字，避免 [data-theme=light] 时仍是深灰字看不清 */
+.chevron-icon {
+  opacity: 0.65;
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+
+  &.is-loading {
+    animation: language-spin 0.7s linear infinite;
+  }
+}
+
+/* 登录页深色氛围：玻璃胶囊，与背景一体 */
 .language-switcher--dark-surface {
-    .language-selector {
-        color: rgba(255, 255, 255, 0.94);
-        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  .language-selector {
+    color: rgba(255, 255, 255, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
 
-        &:hover {
-            background-color: rgba(255, 255, 255, 0.14);
-        }
+    &:hover {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(199, 210, 254, 0.45);
+      box-shadow:
+        0 10px 28px rgba(0, 0, 0, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.16);
+      transform: translateY(-1px);
     }
 
-    .current-language {
-        color: inherit;
-        font-weight: 500;
+    &:focus-visible {
+      border-color: rgba(165, 180, 252, 0.85);
+      box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.28);
     }
+  }
 
-    .loading-icon {
-        color: #c7d2fe;
-    }
+  .globe-icon,
+  .chevron-icon {
+    color: #c7d2fe;
+  }
 
-    :deep(.n-icon) {
-        color: rgba(255, 255, 255, 0.88);
-    }
+  .current-language {
+    color: inherit;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  }
+}
+
+@keyframes language-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .language-selector,
+  .chevron-icon {
+    transition: none;
+  }
+
+  .chevron-icon.is-loading {
+    animation: none;
+  }
+
+  .language-switcher--dark-surface .language-selector:hover {
+    transform: none;
+  }
 }
 </style>

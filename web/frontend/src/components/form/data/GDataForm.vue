@@ -1,34 +1,27 @@
 <template>
   <!-- 扁平非弹窗的数据表单组件 -->
   <div class="g-data-form">
-    <n-form
-      ref="formRef"
-      :model="formModel"
-      :rules="formRules"
-      label-placement="left"
+    <RsForm
+      ref="formRef"
+      label-position="left"
       label-width="auto"
-      size="small"
+      size="sm"
     >
       <!-- 多页签布局：如果有超过 1 个页签，则显示 NTabs，否则保持单页 -->
-      <n-tabs
+      <RsTabs
         v-if="tabs.length > 1"
-        v-model:value="activeTab"
-        type="line"
-        size="small"
+        v-model="activeTab"
+        :items="rsTabItems"
+        variant="line"
+        size="sm"
         class="g-data-form__tabs"
       >
-        <n-tab-pane
-          v-for="tab in tabs"
-          :key="tab.key"
-          :name="tab.key"
-          :tab="tab.label"
-          style="padding: var(--n-pane-padding-top) var(--n-pane-padding-right) var(--n-pane-padding-bottom) var(--n-pane-padding-left) !important;"
-        >
-          <n-grid :cols="24" :x-gap="16" :y-gap="8">
+        <template v-for="tab in tabs" :key="tab.key" #[tab.key]>
+          <div class="g-data-form__grid">
             <template v-for="field in getFieldsByTab(tab.key)" :key="field.field">
               <!-- fieldset 类型：使用 GFieldset 包裹子字段 -->
               <template v-if="field.type === 'fieldset' && (typeof field.show === 'function' ? field.show(formModel) : (field.show !== false))">
-                <n-grid-item :span="24">
+                <div class="g-data-form__cell" style="grid-column: span 24">
                   <GFieldset
                     :title="getFieldLabel(field)"
                     :title-strong="field.props?.titleStrong ?? false"
@@ -37,13 +30,11 @@
                     :selected="field.props?.selected ?? false"
                     :disabled="field.disabled ?? false"
                   >
-                    <n-grid :cols="24" :x-gap="16" :y-gap="8">
+                    <div class="g-data-form__grid">
                       <template v-for="child in field.children" :key="child.field">
-                        <n-grid-item v-if="typeof child.show === 'function' ? child.show(formModel) : (child.show !== false)" :span="child.span ?? 12">
-                          <n-form-item :path="child.field" style="width: 100%;">
-                            <template #label>
-                              <component :is="renderLabel(child)" />
-                            </template>
+                        <div class="g-data-form__cell" v-if="typeof child.show === 'function' ? child.show(formModel) : (child.show !== false)" :style="{ gridColumn: `span ${child.span ?? 12}` }">
+                          <div class="g-data-form__field" :data-path="child.field">
+                            <div class="g-data-form__label"><component :is="renderLabel(child)" /></div>
                             <!-- 自定义渲染 -->
                             <component
                               v-if="child.type === 'custom' && child.render"
@@ -61,24 +52,22 @@
                               v-else
                               :is="getFieldComponent(child)"
                               v-bind="getFieldComponentProps(child)"
-                              v-model:value="formModel[child.field]"
-                              @update:value="(value: any) => handleFieldValueUpdate(child, value)"
+                              v-model="formModel[child.field]"
+                              @update:model-value="(value: any) => handleFieldValueUpdate(child, value)"
                             />
-                          </n-form-item>
-                        </n-grid-item>
+                          </div>
+                        </div>
                       </template>
-                    </n-grid>
+                    </div>
                   </GFieldset>
-                </n-grid-item>
+                </div>
               </template>
 
               <!-- 普通字段：直接渲染 -->
               <template v-else>
-                <n-grid-item v-if="typeof field.show === 'function' ? field.show(formModel) : (field.show !== false)" :span="field.span ?? 12">
-                  <n-form-item :path="field.field" style="width: 100%;">
-                    <template #label>
-                      <component :is="renderLabel(field)" />
-                    </template>
+                <div class="g-data-form__cell" v-if="typeof field.show === 'function' ? field.show(formModel) : (field.show !== false)" :style="{ gridColumn: `span ${field.span ?? 12}` }">
+                  <div class="g-data-form__field" :data-path="field.field">
+                    <div class="g-data-form__label"><component :is="renderLabel(field)" /></div>
                     <!-- 自定义渲染 -->
                     <component
                       v-if="field.type === 'custom' && field.render"
@@ -96,24 +85,24 @@
                       v-else
                       :is="getFieldComponent(field)"
                       v-bind="getFieldComponentProps(field)"
-                      v-model:value="formModel[field.field]"
-                      @update:value="(value: any) => handleFieldValueUpdate(field, value)"
+                      v-model="formModel[field.field]"
+                      @update:model-value="(value: any) => handleFieldValueUpdate(field, value)"
                     />
-                  </n-form-item>
-                </n-grid-item>
+                  </div>
+                </div>
               </template>
             </template>
-          </n-grid>
-        </n-tab-pane>
-      </n-tabs>
+          </div>
+        </template>
+      </RsTabs>
 
       <!-- 单页布局：保持原有行为，方便兼容旧代码 -->
       <template v-else>
-        <n-grid :cols="24" :x-gap="16" :y-gap="8">
+        <div class="g-data-form__grid">
           <template v-for="field in props.formFields" :key="field.field">
             <!-- fieldset 类型：使用 GFieldset 包裹子字段 -->
             <template v-if="field.type === 'fieldset' && (typeof field.show === 'function' ? field.show(formModel) : (field.show !== false))">
-              <n-grid-item :span="24">
+              <div class="g-data-form__cell" style="grid-column: span 24">
                 <GFieldset
                   :title="getFieldLabel(field)"
                   :title-strong="field.props?.titleStrong ?? false"
@@ -122,13 +111,11 @@
                   :selected="field.props?.selected ?? false"
                   :disabled="field.disabled ?? false"
                 >
-                  <n-grid :cols="24" :x-gap="16" :y-gap="8">
+                  <div class="g-data-form__grid">
                     <template v-for="child in field.children" :key="child.field">
-                      <n-grid-item v-if="typeof child.show === 'function' ? child.show(formModel) : (child.show !== false)" :span="child.span ?? 12">
-                        <n-form-item :path="child.field">
-                          <template #label>
-                            <component :is="renderLabel(child)" />
-                          </template>
+                      <div class="g-data-form__cell" v-if="typeof child.show === 'function' ? child.show(formModel) : (child.show !== false)" :style="{ gridColumn: `span ${child.span ?? 12}` }">
+                        <div class="g-data-form__field" :data-path="child.field">
+                          <div class="g-data-form__label"><component :is="renderLabel(child)" /></div>
                           <!-- 自定义渲染 -->
                           <component
                             v-if="child.type === 'custom' && child.render"
@@ -146,24 +133,22 @@
                             v-else
                             :is="getFieldComponent(child)"
                             v-bind="getFieldComponentProps(child)"
-                            v-model:value="formModel[child.field]"
-                            @update:value="(value: any) => handleFieldValueUpdate(child, value)"
+                            v-model="formModel[child.field]"
+                            @update:model-value="(value: any) => handleFieldValueUpdate(child, value)"
                           />
-                        </n-form-item>
-                      </n-grid-item>
+                        </div>
+                      </div>
                     </template>
-                  </n-grid>
+                  </div>
                 </GFieldset>
-              </n-grid-item>
+              </div>
             </template>
 
             <!-- 普通字段：直接渲染 -->
             <template v-else>
-              <n-grid-item v-if="typeof field.show === 'function' ? field.show(formModel) : (field.show !== false)" :span="field.span ?? 12">
-                <n-form-item :path="field.field">
-                  <template #label>
-                    <component :is="renderLabel(field)" />
-                  </template>
+              <div class="g-data-form__cell" v-if="typeof field.show === 'function' ? field.show(formModel) : (field.show !== false)" :style="{ gridColumn: `span ${field.span ?? 12}` }">
+                <div class="g-data-form__field" :data-path="field.field">
+                          <div class="g-data-form__label"><component :is="renderLabel(field)" /></div>
                   <!-- 自定义渲染 -->
                   <component
                     v-if="field.type === 'custom' && field.render"
@@ -181,53 +166,39 @@
                     v-else
                     :is="getFieldComponent(field)"
                     v-bind="getFieldComponentProps(field)"
-                    v-model:value="formModel[field.field]"
-                    @update:value="(value: any) => handleFieldValueUpdate(field, value)"
+                    v-model="formModel[field.field]"
+                    @update:model-value="(value: any) => handleFieldValueUpdate(field, value)"
                   />
-                </n-form-item>
-              </n-grid-item>
+                </div>
+              </div>
             </template>
           </template>
-        </n-grid>
+        </div>
       </template>
-    </n-form>
+    </RsForm>
 
     <!-- 底部操作区：可选显示提交按钮 -->
     <div v-if="showFooter" class="g-data-form__footer">
       <slot name="footer" :form-data="formModel" :form-ref="formRef" :on-submit="handleSubmit">
-        <n-space justify="end" :size="8">
-          <n-button
+        <div class="g-data-form__footer-actions">
+          <RsButton
             v-if="showSubmit"
-            type="primary"
-            size="small"
+            variant="primary"
+            size="sm"
             :loading="submitLoading"
             @click="handleSubmit"
           >
             {{ submitText }}
-          </n-button>
-        </n-space>
+          </RsButton>
+        </div>
       </slot>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { RsButton, RsForm, RsInput, RsInputNumber, RsSelect, RsSwitch, RsTabs, RsDatePicker } from '@/ui'
 import { GDate, GFieldset, GFileUpload, GTips } from '@/components'
-import type { FormInst, FormRules } from 'naive-ui'
-import {
-    NButton,
-    NForm,
-    NFormItem,
-    NGrid,
-    NGridItem,
-    NInput,
-    NInputNumber,
-    NSelect,
-    NSpace,
-    NSwitch,
-    NTabPane,
-    NTabs
-} from 'naive-ui'
 import type { Component, VNode } from 'vue'
 import { computed, h, ref, watch } from 'vue'
 import type { DataFormField, DataFormTab } from './types'
@@ -325,7 +296,7 @@ const emit = defineEmits<Emits>()
 
 // ============= 表单引用与数据模型 =============
 
-const formRef = ref<FormInst | null>(null)
+const formRef = ref<any | null>(null)
 const formModel = ref<Record<string, any>>({})
 
 // ============= 页签相关 =============
@@ -368,6 +339,10 @@ const tabs = computed<DataFormTab[]>(() => {
 
 // 当前激活的页签（内部状态）
 const activeTab = ref<string>(tabs.value[0]?.key || 'default')
+
+const rsTabItems = computed(() =>
+  tabs.value.map((tab) => ({ value: tab.key, label: tab.label })),
+)
 
 // 当 tabs 变化时，如果当前 activeTab 不在可见页签列表中，则切换到第一个可见页签
 watch(
@@ -440,7 +415,7 @@ const processFieldDefaultValue = (field: DataFormField, model: Record<string, an
       case 'datetime':
       case 'daterange':
       case 'datetimerange':
-        // Naive UI NDatePicker 的 value 类型为 number | null | number[]
+        // Naive UI RsDatePicker 的 value 类型为 number | null | number[]
         model[key] = null
         break
       case 'number':
@@ -484,7 +459,7 @@ const initFormModel = () => {
 // ============= 表单验证 =============
 
 // 递归处理字段验证规则（包括 fieldset 的 children）
-const processFieldRules = (field: DataFormField, rules: FormRules) => {
+const processFieldRules = (field: DataFormField, rules: Record<string, any>) => {
   // 跳过 fieldset 类型本身（它只是容器，不存储数据）
   if (field.type === 'fieldset') {
     // 递归处理 children
@@ -544,8 +519,8 @@ const processFieldRules = (field: DataFormField, rules: FormRules) => {
 }
 
 // 根据字段配置生成表单校验规则
-const formRules = computed<FormRules>(() => {
-  const rules: FormRules = {}
+const formRules = computed<Record<string, any>>(() => {
+  const rules: Record<string, any> = {}
   props.formFields.forEach((field) => {
     processFieldRules(field, rules)
   })
@@ -592,11 +567,11 @@ const renderLabel = (field: DataFormField) => {
 const getFieldComponent = (field: DataFormField) => {
   switch (field.type) {
     case 'select':
-      return NSelect
+      return RsSelect
     case 'number':
-      return NInputNumber
+      return RsInputNumber
     case 'switch':
-      return NSwitch
+      return RsSwitch
     case 'date':
     case 'datetime':
     case 'daterange':
@@ -606,10 +581,10 @@ const getFieldComponent = (field: DataFormField) => {
     case 'file':
       return GFileUpload
     case 'textarea':
-      return NInput
+      return RsInput
     case 'input':
     default:
-      return NInput
+      return RsInput
   }
 }
 
@@ -770,6 +745,33 @@ defineExpose({
 </script>
 
 <style scoped lang="scss">
+
+.g-data-form__grid {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  column-gap: 16px;
+  row-gap: 8px;
+}
+.g-data-form__cell {
+  min-width: 0;
+}
+.g-data-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+}
+.g-data-form__label {
+  font-size: var(--rs-font-size-sm, 13px);
+  color: var(--g-text-secondary, var(--rs-muted));
+  line-height: 1.4;
+}
+.g-data-form__footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .g-data-form {
   width: 100%;
 }

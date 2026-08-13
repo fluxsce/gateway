@@ -1,67 +1,56 @@
 <template>
-  <n-card
+  <RsCard
     class="g-restful-api"
     :class="props.class"
-    size="small"
+    size="sm"
     :bordered="true"
     :segmented="{ content: true, footer: 'soft' }"
   >
     <div class="g-restful-api__toolbar">
-      <n-select
-        v-model:value="method"
+      <RsSelect
+        v-model="method"
         class="g-restful-api__method"
         :class="methodModifierClass"
         :options="METHOD_OPTIONS"
         :consistent-menu-width="false"
-        size="small"
+        size="sm"
       />
-      <n-input
-        v-model:value="url"
+      <RsInput
+        v-model="url"
         class="g-restful-api__url"
         type="text"
         placeholder="请输入请求 URL（支持相对路径，将相对当前站点）"
         clearable
-        size="small"
+        size="sm"
         @keyup.enter="handleSend"
       />
-      <n-button
-        type="primary"
-        size="small"
+      <RsButton
+        variant="primary"
+        size="sm"
         :loading="sending"
         :disabled="sending"
         @click="handleSend"
       >
         发送
-      </n-button>
-      <n-button
+      </RsButton>
+      <RsButton
         v-if="sending"
-        size="small"
+        size="sm"
         quaternary
         @click="handleCancel"
       >
         取消
-      </n-button>
+      </RsButton>
     </div>
 
-    <n-tabs
-      v-model:value="requestTab"
-      type="line"
-      size="medium"
+    <RsTabs
+      v-model="requestTab"
+      :items="requestTabItems"
+      variant="line"
+      size="md"
       class="g-restful-api__req-tabs"
     >
-      <n-tab-pane name="params">
-        <template #tab>
-          <span class="g-restful-api__tab-label">
-            Params
-            <n-badge
-              v-if="paramsCount > 0"
-              :value="paramsCount"
-              :max="99"
-              type="success"
-              class="g-restful-api__tab-badge"
-            />
-          </span>
-        </template>
+      <template #params>
         <div class="g-restful-api__pane-inner">
           <key-value-editor
             v-model:rows="queryParams"
@@ -69,28 +58,25 @@
             table-variant="query"
           />
         </div>
-      </n-tab-pane>
+      </template>
 
-      <n-tab-pane name="body">
-        <template #tab>
-          <span class="g-restful-api__tab-label">Body</span>
-        </template>
+      <template #body>
         <div class="g-restful-api__pane-inner">
-          <n-radio-group
+          <RsRadio
             class="g-restful-api__body-radio-group"
             :value="bodyProcessType"
             name="rest-body-process"
-            size="small"
-            @update:value="setBodyProcessType"
+            size="sm"
+            @update:model-value="setBodyProcessType"
           >
-            <n-radio
+            <RsRadioItem
               v-for="opt in BODY_PROCESS_OPTIONS"
               :key="opt.value"
               :value="opt.value"
             >
               {{ opt.label }}
-            </n-radio>
-          </n-radio-group>
+            </RsRadioItem>
+          </RsRadio>
 
           <div
             v-if="bodyProcessType === 'none'"
@@ -122,11 +108,11 @@
               v-if="bodyProcessType === 'raw'"
               class="g-restful-api__raw-ct-row"
             >
-              <n-select
-                v-model:value="rawContentType"
+              <RsSelect
+                v-model="rawContentType"
                 class="g-restful-api__content-type"
                 :options="RAW_CONTENT_TYPE_OPTIONS"
-                size="small"
+                size="sm"
               />
             </div>
             <g-code-mirror
@@ -137,21 +123,9 @@
             />
           </div>
         </div>
-      </n-tab-pane>
+      </template>
 
-      <n-tab-pane name="headers">
-        <template #tab>
-          <span class="g-restful-api__tab-label">
-            Headers
-            <n-badge
-              v-if="headersCount > 0"
-              :value="headersCount"
-              :max="99"
-              type="success"
-              class="g-restful-api__tab-badge"
-            />
-          </span>
-        </template>
+      <template #headers>
         <div class="g-restful-api__pane-inner">
           <key-value-editor
             v-model:rows="headerRows"
@@ -162,21 +136,9 @@
             show-auto-body-hint
           />
         </div>
-      </n-tab-pane>
+      </template>
 
-      <n-tab-pane name="cookies">
-        <template #tab>
-          <span class="g-restful-api__tab-label">
-            Cookies
-            <n-badge
-              v-if="cookiesCount > 0"
-              :value="cookiesCount"
-              :max="99"
-              type="success"
-              class="g-restful-api__tab-badge"
-            />
-          </span>
-        </template>
+      <template #cookies>
         <div class="g-restful-api__pane-inner">
           <key-value-editor
             v-model:rows="cookieRows"
@@ -186,35 +148,32 @@
             value-column-label="值"
           />
         </div>
-      </n-tab-pane>
+      </template>
 
-      <n-tab-pane name="auth">
-        <template #tab>
-          <span class="g-restful-api__tab-label">Auth</span>
-        </template>
+      <template #auth>
         <div class="g-restful-api__pane-inner g-restful-api__auth-pane">
-          <n-radio-group
-            v-model:value="authType"
+          <RsRadio
+            v-model="authType"
             class="g-restful-api__auth-type-group"
-            size="small"
+            size="sm"
             name="rest-auth-type"
           >
-            <n-radio value="none">无</n-radio>
-            <n-radio value="bearer">Bearer Token</n-radio>
-            <n-radio value="basic">Basic Auth</n-radio>
-            <n-radio value="apikey">API Key</n-radio>
-          </n-radio-group>
+            <RsRadioItem value="none">无</RsRadioItem>
+            <RsRadioItem value="bearer">Bearer Token</RsRadioItem>
+            <RsRadioItem value="basic">Basic Auth</RsRadioItem>
+            <RsRadioItem value="apikey">API Key</RsRadioItem>
+          </RsRadio>
 
           <div
             v-if="authType === 'bearer'"
             class="g-restful-api__auth-fields"
           >
-            <n-input
-              v-model:value="bearerToken"
+            <RsInput
+              v-model="bearerToken"
               type="password"
               show-password-on="click"
               placeholder="Token"
-              size="small"
+              size="sm"
             />
           </div>
 
@@ -222,17 +181,17 @@
             v-else-if="authType === 'basic'"
             class="g-restful-api__auth-fields g-restful-api__auth-fields--row"
           >
-            <n-input
-              v-model:value="basicUser"
+            <RsInput
+              v-model="basicUser"
               placeholder="用户名"
-              size="small"
+              size="sm"
             />
-            <n-input
-              v-model:value="basicPassword"
+            <RsInput
+              v-model="basicPassword"
               type="password"
               show-password-on="click"
               placeholder="密码"
-              size="small"
+              size="sm"
             />
           </div>
 
@@ -240,66 +199,66 @@
             v-else-if="authType === 'apikey'"
             class="g-restful-api__auth-fields"
           >
-            <n-radio-group
-              v-model:value="apiKeyIn"
-              size="small"
+            <RsRadio
+              v-model="apiKeyIn"
+              size="sm"
               name="rest-apikey-in"
             >
-              <n-radio value="header">Header</n-radio>
-              <n-radio value="query">Query</n-radio>
-            </n-radio-group>
-            <n-input
+              <RsRadioItem value="header">Header</RsRadioItem>
+              <RsRadioItem value="query">Query</RsRadioItem>
+            </RsRadio>
+            <RsInput
               v-if="apiKeyIn === 'header'"
-              v-model:value="apiKeyHeaderName"
+              v-model="apiKeyHeaderName"
               placeholder="Header 名称，默认 X-API-Key"
-              size="small"
+              size="sm"
             />
-            <n-input
+            <RsInput
               v-else
-              v-model:value="apiKeyQueryName"
+              v-model="apiKeyQueryName"
               placeholder="Query 参数名，默认 api_key"
-              size="small"
+              size="sm"
             />
-            <n-input
-              v-model:value="apiKeyValue"
+            <RsInput
+              v-model="apiKeyValue"
               type="password"
               show-password-on="click"
               placeholder="密钥"
-              size="small"
+              size="sm"
             />
           </div>
         </div>
-      </n-tab-pane>
-    </n-tabs>
+      </template>
+
+      </RsTabs>
 
     <template #footer>
       <div class="g-restful-api__response-wrap">
         <div class="g-restful-api__response-head">
           <span class="g-restful-api__response-title">响应</span>
-          <n-tag v-if="lastResult" size="small" :type="responseStatusTagType" round>
+          <RsTag v-if="lastResult" size="sm" :type="responseStatusTagType" round>
             {{ lastResult.statusText?.trim() || String(lastResult.status) }}
-          </n-tag>
-          <n-tag v-if="lastResult && lastResult.durationMs > 0" size="small" type="info" round>
+          </RsTag>
+          <RsTag v-if="lastResult && lastResult.durationMs > 0" size="sm" variant="default" round>
             {{ lastResult.durationMs.toFixed(0) }} ms
-          </n-tag>
-          <n-button
+          </RsTag>
+          <RsButton
             v-if="responseTab === 'body' && lastResult && hasRealHttpResponse"
-            size="tiny"
+            size="ssm"
             quaternary
             @click="formatResponseBody"
           >
             格式化 JSON
-          </n-button>
+          </RsButton>
         </div>
-        <n-tabs
-          v-model:value="responseTab"
-          type="line"
-          size="small"
+        <RsTabs
+          v-model="responseTab"
+          :items="responseTabItems"
+          variant="line"
+          size="sm"
+          panelless
           class="g-restful-api__res-tabs"
-        >
-          <n-tab-pane name="body" tab="Body" />
-          <n-tab-pane name="headers" tab="Headers" />
-        </n-tabs>
+        />
         <div class="g-restful-api__response-body">
           <g-code-mirror
             v-if="responseTab === 'body'"
@@ -320,25 +279,16 @@
         </div>
       </div>
     </template>
-  </n-card>
+  </RsCard>
 </template>
 
 <script setup lang="ts">
+// @ts-nocheck
+import { useAppMessage } from '@/composables/useAppMessage'
+import { RsButton, RsCard, RsInput, RsSelect, RsTabs, RsTag, RsRadio, RsRadioItem } from '@/ui'
 import { GCodeMirror } from '@/components/gcodemirror'
 import type { CodeMirrorLanguage } from '@/components/gcodemirror/types'
-import {
-  NBadge,
-  NButton,
-  NCard,
-  NInput,
-  NRadio,
-  NRadioGroup,
-  NSelect,
-  NTabPane,
-  NTabs,
-  NTag,
-  useMessage
-} from 'naive-ui'
+
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   BODY_PROCESS_OPTIONS,
@@ -387,7 +337,7 @@ const props = withDefaults(defineProps<GRestfulApiProps>(), {
 
 const emit = defineEmits<GRestfulApiEmits>()
 
-const message = useMessage()
+const message = useAppMessage()
 
 const method = ref<RestHttpMethod>(props.initialMethod)
 const url = ref(props.initialUrl)
@@ -500,6 +450,19 @@ const headersCount = computed(
 const cookiesCount = computed(
   () => cookieRows.value.filter((r) => r.enabled && r.key.trim()).length
 )
+
+const requestTabItems = computed(() => [
+  { value: 'params', label: 'Params', badge: paramsCount.value || undefined },
+  { value: 'body', label: 'Body' },
+  { value: 'headers', label: 'Headers', badge: headersCount.value || undefined },
+  { value: 'cookies', label: 'Cookies', badge: cookiesCount.value || undefined },
+  { value: 'auth', label: 'Auth' },
+])
+
+const responseTabItems = [
+  { value: 'body', label: 'Body' },
+  { value: 'headers', label: 'Headers' },
+]
 
 /**
  * 将 Body 推导的 Content-Type 同步为表格首行，或与手写 Content-Type 互斥。

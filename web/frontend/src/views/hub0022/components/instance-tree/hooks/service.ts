@@ -3,8 +3,8 @@
  * 处理数据加载和API调用
  */
 
+import { useAppMessage } from '@/composables/useAppMessage'
 import { isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
-import { useMessage } from 'naive-ui'
 import { queryAllGatewayInstances } from '../../../api'
 import type { GatewayInstance } from '../types'
 import type { GatewayInstanceTreeModel } from './model'
@@ -13,7 +13,7 @@ import type { GatewayInstanceTreeModel } from './model'
  * 网关实例树 Service
  */
 export function useGatewayInstanceTreeService(model: GatewayInstanceTreeModel) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   const {
     loading,

@@ -191,7 +191,7 @@ export function useGrid(options: UseGridOptions) {
         return true // 没有 moduleId 时默认允许
       }
       const permissionCode = `${props.moduleId}:${menuCode}`
-      return store.user.hasButton(permissionCode)
+      return store.user.hasPermission(permissionCode)
     }
 
     const defaultMenus: any[] = []

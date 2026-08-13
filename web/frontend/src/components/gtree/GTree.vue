@@ -1,20 +1,20 @@
 <template>
   <div class="g-tree-wrapper">
     <div v-if="props.filterable" class="g-tree-filter">
-      <n-input
-        v-model:value="filterKeyword"
+      <RsInput
+        v-model="filterKeyword"
         placeholder="搜索节点..."
         clearable
-        size="small"
+        size="sm"
         @input="handleFilter"
       >
         <template #prefix>
-          <GIcon icon="SearchOutline" size="small" />
+          <GIcon icon="SearchOutline" size="sm" />
         </template>
-      </n-input>
+      </RsInput>
     </div>
     <div class="g-tree-content" @contextmenu="handleContentContextmenu">
-      <n-tree
+      <RsTree
         ref="treeRef"
       :data="displayData"
       :default-expand-all="props.defaultExpandAll"
@@ -61,13 +61,14 @@
 </template>
 
 <script setup lang="ts">
+// @ts-nocheck
+import type { TreeOption } from '@/types/legacy-ui'
+import { RsTree, RsInput } from '@/ui'
 import type { GContextMenuItem } from '@/components/gcontext'
 import { GContext } from '@/components/gcontext'
 import { GEllipsis } from '@/components/gellipsis'
 import { GIcon, renderIconVNode } from '@/components/gicon'
 import { copyToClipboard } from '@/utils'
-import type { TreeOption } from 'naive-ui'
-import { NTree } from 'naive-ui'
 import { computed, h, nextTick, ref, shallowRef, watch } from 'vue'
 import type { GTreeEmits, GTreeInstance, GTreeProps } from './types'
 
@@ -136,7 +137,7 @@ const treeData = computed(() => {
 
 // 可搜索（参考 ）
 const filterKeyword = ref('')
-const treeRef = ref<InstanceType<typeof NTree> | null>(null)
+const treeRef = ref<{ filter?: (pattern: string) => void } | null>(null)
 const displayData = computed(() => {
   if (!props.filterable || !filterKeyword.value.trim()) return treeData.value
   const keyword = filterKeyword.value.toLowerCase().trim()

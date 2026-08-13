@@ -1,34 +1,46 @@
 /**
  * Vite配置文件
  *
- * 本文件定义了Vite构建工具的配置，包括插件、构建选项、开发服务器设置等
- * Vite是一个面向现代浏览器的快速开发构建工具，利用浏览器原生ES模块导入特性
+ * 本文件定义了Vite构建工具的配置，包括插件、构建选项、开发服务器设置�?
+ * Vite是一个面向现代浏览器的快速开发构建工具，利用浏览器原生ES模块导入特�?
  */
 
-import fs from 'fs';
-import { fileURLToPath, URL } from 'node:url';
-import path from 'path';
+import fs from 'fs'
+import { createRequire } from 'node:module'
+import { dirname } from 'node:path'
+import { fileURLToPath, URL } from 'node:url'
+import path from 'path'
 
-import vue from '@vitejs/plugin-vue'; // Vue 3单文件组件支持
-import AutoImport from 'unplugin-auto-import/vite'; // API自动导入
-import { NaiveUiResolver } from 'unplugin-vue-components/resolvers'; // Naive UI组件解析器
-import Components from 'unplugin-vue-components/vite'; // 组件自动导入
-import { defineConfig, loadEnv } from 'vite';
-import { viteMockServe } from 'vite-plugin-mock'; // Mock数据服务插件
-import vueDevTools from 'vite-plugin-vue-devtools'; // Vue开发者工具增强插件
+import vue from '@vitejs/plugin-vue' // Vue 3单文件组件支持
+import AutoImport from 'unplugin-auto-import/vite' // API自动导入
+import Components from 'unplugin-vue-components/vite' // 组件自动导入
+import { defineConfig, loadEnv } from 'vite'
+import { viteMockServe } from 'vite-plugin-mock' // Mock数据服务插件
+import vueDevTools from 'vite-plugin-vue-devtools' // Vue开发者工具增强插件
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const require = createRequire(import.meta.url)
+
+/** link / file 安装的 niuma-ui 根目录，供 Vite server.fs.allow 与 HMR */
+let niumaUiRoot = path.resolve(__dirname, '../../../../shangijan/niuma-ui')
+try {
+  niumaUiRoot = dirname(require.resolve('niuma-ui/package.json'))
+} catch {
+  // 保持上面的相对路径回退
+}
 
 /**
  * 安全解析语言文件内容
- * 使用正则替换注释和格式化为有效的JSON字符串
+ * 使用正则替换注释和格式化为有效的JSON字符�?
  *
  * 这个函数用于将语言文件的TypeScript对象转换为正确的JSON对象
- * 主要进行以下处理：
- * 1. 移除JS注释（包括单行和多行注释）
+ * 主要进行以下处理�?
+ * 1. 移除JS注释（包括单行和多行注释�?
  * 2. 删除尾随逗号，使其符合JSON语法
- * 3. 为属性名添加双引号
+ * 3. 为属性名添加双引�?
  * 4. 将单引号替换为双引号
  *
- * @param content 语言文件内容字符串
+ * @param content 语言文件内容字符�?
  * @returns 解析后的对象
  */
 function safeParseI18nContent(content: string) {
@@ -38,7 +50,7 @@ function safeParseI18nContent(content: string) {
     // 移除可能的尾随逗号以使其成为有效的JSON
     const validJson = noComments
       .replace(/,(\s*[}\]])/g, '$1') // 移除对象或数组结束前的逗号
-      .replace(/(\w+):/g, '"$1":') // 将属性名转换为带引号的格式
+      .replace(/(\w+):/g, '"$1":') // 将属性名转换为带引号的格�?
       .replace(/'/g, '"') // 将单引号替换为双引号
 
     return JSON.parse(validJson)
@@ -49,11 +61,11 @@ function safeParseI18nContent(content: string) {
 }
 
 /**
- * 开发环境下将「帮助手册」路径代理到独立运行的 VitePress（与 `getDocsSitePath()` 规则一致）。
- * 另开终端执行 `npm run docs:dev`（默认 5274 端口，与 package.json 的 dev:docs 保持一致），否则 iframe 会 404。
+ * 开发环境下将「帮助手册」路径代理到独立运行�?VitePress（与 `getDocsSitePath()` 规则一致）�?
+ * 另开终端执行 `npm run docs:dev`（默�?5274 端口，与 package.json �?dev:docs 保持一致），否�?iframe �?404�?
  *
- * 生产发版：`npm run build` 中的 `build-only` 在 `vite build` 之后执行 `vitepress build docs`，
- * 文档输出到 `dist/docs/`（见 `docs/.vitepress/config.ts` 的 `outDir`），与主应用一并部署即可。
+ * 生产发版：`npm run build` 中的 `build-only` �?`vite build` 之后执行 `vitepress build docs`�?
+ * 文档输出�?`dist/docs/`（见 `docs/.vitepress/config.ts` �?`outDir`），与主应用一并部署即可�?
  */
 function resolveDocsDevProxy(env: Record<string, string>) {
   const target = (env.VITE_DOCS_DEV_TARGET || 'http://127.0.0.1:5275').replace(/\/+$/, '')
@@ -72,14 +84,15 @@ function resolveDocsDevProxy(env: Record<string, string>) {
 }
 
 /**
- * 将 node_modules 按依赖族拆成独立 chunk，减轻首条入口 JS 体积并利于缓存。
- * 顺序靠前的规则优先匹配。
+ * �?node_modules 按依赖族拆成独立 chunk，减轻首条入�?JS 体积并利于缓存�?
+ * 顺序靠前的规则优先匹配�?
  */
 function resolveManualChunk(id: string): string | undefined {
   if (!id.includes('node_modules')) return undefined
-  // Rollup 在 Windows 上 id 可能含反斜杠，统一后再匹配
+  // Rollup �?Windows �?id 可能含反斜杠，统一后再匹配
   const m = id.replace(/\\/g, '/')
-  if (m.includes('/naive-ui')) return 'naive-ui'
+  if (m.includes('/niuma-ui') || m.includes('/reka-ui') || m.includes('/@lucide/') || m.includes('/vue-sonner'))
+    return 'niuma-ui'
   if (m.includes('/vxe-table') || m.includes('/vxe-pc-ui') || m.includes('/@vxe-ui')) return 'vxe'
   if (m.includes('/echarts') || m.includes('/zrender')) return 'echarts'
   if (m.includes('/@antv')) return 'antv'
@@ -93,7 +106,6 @@ function resolveManualChunk(id: string): string | undefined {
   if (m.includes('/axios')) return 'axios'
   if (m.includes('/@vicons')) return 'vicons'
   if (m.includes('/cron-parser')) return 'cron-parser'
-  if (m.includes('/@css-render') || m.includes('/seemly')) return 'naive-ui-deps'
   if (m.includes('/async-validator')) return 'async-validator'
   if (m.includes('/node_modules/@vue/') || m.includes('/node_modules/vue/')) return 'vue'
   return 'vendor'
@@ -114,21 +126,18 @@ export default defineConfig(({ command, mode }) => {
 
     /**
      * 插件配置
-     * 扩展Vite的功能和集成第三方工具
+     * 扩展Vite的功能和集成第三方工�?
      */
     plugins: [
-      vue(), // 提供Vue 3单文件组件支持
-      // 仅开发服务注入 DevTools，避免生产构建携带调试相关逻辑
+      vue(), // 提供Vue 3单文件组件支�?
+      // 仅开发服务注�?DevTools，避免生产构建携带调试相关逻辑
       ...(command === 'serve' ? [vueDevTools()] : []),
 
       /**
-       * 组件自动导入配置
-       * 使用此插件后，不需要手动import组件，直接在模板中使用即可
-       * 例如：<NButton>按钮</NButton> 无需 import { NButton } from 'naive-ui'
+       * 组件自动导入配置（本�?G* 等；UI 基座请从 `@/ui` / `niuma-ui` 显式导入�?
        */
       Components({
-        resolvers: [NaiveUiResolver()], // 支持Naive UI组件自动导入
-        dts: 'src/types/components.d.ts', // 生成类型声明文件，用于TypeScript支持
+        dts: 'src/types/components.d.ts',
       }),
 
       /**
@@ -138,13 +147,12 @@ export default defineConfig(({ command, mode }) => {
        */
       AutoImport({
         imports: [
-          'vue', // 自动导入Vue Composition API (ref, reactive, computed, watch等)
-          'vue-router', // 自动导入Vue Router API (useRouter, useRoute等)
-          'pinia', // 自动导入Pinia API (defineStore, storeToRefs等)
-          'vue-i18n', // 自动导入Vue I18n API (useI18n等)
+          'vue', // 自动导入Vue Composition API (ref, reactive, computed, watch�?
+          'vue-router', // 自动导入Vue Router API (useRouter, useRoute�?
+          'pinia', // 自动导入Pinia API (defineStore, storeToRefs�?
+          'vue-i18n', // 自动导入Vue I18n API (useI18n�?
           {
-            // 自动导入Naive UI组合式API
-            'naive-ui': ['useDialog', 'useMessage', 'useNotification', 'useLoadingBar'],
+            '@/composables/useAppMessage': ['useAppMessage'],
           },
           {
             // 自动导入本地store
@@ -163,19 +171,19 @@ export default defineConfig(({ command, mode }) => {
           },
         ],
         eslintrc: {
-          enabled: true, // 生成ESLint配置，避免未导入的变量报错
+          enabled: true, // 生成ESLint配置，避免未导入的变量报�?
         },
         dts: 'src/types/auto-imports.d.ts', // 生成类型声明文件，提供TypeScript支持
       }),
 
       /**
-       * i18n资源路由映射 - 仅在开发环境使用
+       * i18n资源路由映射 - 仅在开发环境使�?
        *
        * 这部分创建一个虚拟路由，可用于动态访问和预览语言资源文件
-       * 使开发者能够在不重启服务的情况下检查翻译内容
+       * 使开发者能够在不重启服务的情况下检查翻译内�?
        *
-       * 访问方式：/@i18n/[locale]/[moduleName]
-       * 例如：/@i18n/zh-CN/common 将返回中文下common模块的翻译
+       * 访问方式�?@i18n/[locale]/[moduleName]
+       * 例如�?@i18n/zh-CN/common 将返回中文下common模块的翻�?
        */
       process.env.NODE_ENV === 'development'
         ? {
@@ -201,7 +209,7 @@ export default defineConfig(({ command, mode }) => {
 
                       if (fs.existsSync(filePath)) {
                         const fileContent = fs.readFileSync(filePath, 'utf-8')
-                        // 简单解析导出内容 - 生产环境应该使用更健壮的方法
+                        // 简单解析导出内�?- 生产环境应该使用更健壮的方法
                         const match = fileContent.match(/export\s+default\s+(\{[\s\S]*\})/m)
                         if (match && match[1]) {
                           try {
@@ -213,7 +221,7 @@ export default defineConfig(({ command, mode }) => {
                         }
                       }
                     }
-                    // 获取整个语言包
+                    // 获取整个语言�?
                     else {
                       const filePath = path.resolve(__dirname, `./src/locales/${locale}.ts`)
 
@@ -255,21 +263,21 @@ export default defineConfig(({ command, mode }) => {
         enable: env.VITE_USE_MOCK === 'true',
         // mock文件存放目录
         mockPath: 'src/mock/modules',
-        // 开发环境配置
+        // 开发环境配�?
         logger: true, // 在控制台输出请求日志
       }),
     ],
 
     /**
      * 路径解析配置
-     * 设置路径别名，简化导入语句
+     * 设置路径别名，简化导入语�?
      */
     resolve: {
       alias: {
         /**
          * @别名指向src目录
          * 使用示例: import Component from '@/components/Component.vue'
-         * 而不是: import Component from '../../components/Component.vue'
+         * 而不�? import Component from '../../components/Component.vue'
          */
         '@': fileURLToPath(new URL('./src', import.meta.url)),
       },
@@ -302,10 +310,13 @@ export default defineConfig(({ command, mode }) => {
      */
     server: {
       // port: 3000, // 自定义端口号
-      // open: true, // 自动打开浏览器
+      // open: true, // 自动打开浏览�?
+      fs: {
+        allow: ['.', ...(niumaUiRoot ? [niumaUiRoot] : [])],
+      },
       /**
-       * 开发：帮助手册（VitePress）由另一进程提供，经代理挂到与主应用相同的 `/gatewayweb/docs/` 下，
-       * 便于 MainLayoutHeader iframe 同源加载。见 `.env.development` 中 `VITE_DOCS_DEV_TARGET`。
+       * 开发：帮助手册（VitePress）由另一进程提供，经代理挂到与主应用相同�?`/gatewayweb/docs/` 下，
+       * 便于 MainLayoutHeader iframe 同源加载。见 `.env.development` �?`VITE_DOCS_DEV_TARGET`�?
        */
       ...(command === 'serve' ? { proxy: resolveDocsDevProxy(env) } : {}),
     },
@@ -315,10 +326,10 @@ export default defineConfig(({ command, mode }) => {
      * 定制项目构建输出
      */
     build: {
-      /** naive / vxe / echarts / vicons 等 chunk 常超 500kB，提高阈值避免误报 */
+      /** niuma-ui / vxe / echarts / vicons �?chunk 常超 500kB，提高阈值避免误�?*/
       chunkSizeWarningLimit: 1200,
       // outDir: 'dist', // 输出目录
-      // assetsDir: 'assets', // 静态资源目录
+      // assetsDir: 'assets', // 静态资源目�?
       // minify: 'terser', // 使用terser进行代码压缩
       // terserOptions: { // terser压缩选项
       //   compress: {
@@ -327,7 +338,7 @@ export default defineConfig(({ command, mode }) => {
       //   }
       // },
       /**
-       * 分块策略：按依赖族拆分 node_modules，缩小首屏入口 chunk、提升缓存命中率。
+       * 分块策略：按依赖族拆�?node_modules，缩小首屏入�?chunk、提升缓存命中率�?
        */
       rollupOptions: {
         output: {

@@ -1,8 +1,6 @@
 import gcustomRenderPlugin from '@/components/gcustom-render/plugin'
 import gdialogPlugin from '@/components/gdialog/plugin'
-import gmessagePlugin from '@/components/gmessage/plugin'
 import { Z_INDEX } from '@/constants/zIndex'
-import naive from 'naive-ui'
 import { createPinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 import { createApp, nextTick } from 'vue'
@@ -11,8 +9,6 @@ import { setupI18n } from './locales'
 import { setupPlugins } from './plugins'
 import router from './router'
 import { initializeStores, setupStoreHelpers } from './stores'
-// 由于在App.vue中已经初始化了主题，这里不需要再次导入和初始化
-// import { initTheme } from './utils/theme'
 
 // 配置 highlight.js 样式
 import 'highlight.js/styles/atom-one-light.css'
@@ -23,16 +19,14 @@ import 'vxe-pc-ui/lib/style.css'
 import VxeUITable from 'vxe-table'
 import 'vxe-table/lib/style.css'
 
-// 配置 vxe-table 插件 - 使用 naive-ui 渲染插件
-import VxeUIPluginRenderNaive from '@vxe-ui/plugin-render-naive'
-import '@vxe-ui/plugin-render-naive/dist/style.css'
-
 // 配置 vxe-table 右键菜单插件
 import VxeUIPluginMenu from '@vxe-ui/plugin-menu'
 import '@vxe-ui/plugin-menu/dist/style.css'
 
-//全局样式
+// niuma-ui 基座样式 → 业务主题 → 品牌覆盖
+import 'niuma-ui/styles.css'
 import './styles/index.scss'
+import './styles/rs-brand.css'
 
 /**
  * removeBootSplash 移除 `index.html` 中的静态首屏 Loading。
@@ -78,20 +72,11 @@ export async function startApp() {
     // 设置store辅助函数（模板中可通过$user、$app等访问）
     setupStoreHelpers(app)
 
-    // 全局注册 naive-ui
-    app.use(naive)
-
     // 注册所有自定义插件（包括API工具）
     setupPlugins(app)
 
-    // GDialog 程序化调用（挂到 $gDialog / window.$gDialog）
+    // 兼容：$gDialog → rsConfirm（新代码请直接 import { rsConfirm } from '@/ui'）
     app.use(gdialogPlugin, { global: true, globalName: '$gDialog' })
-
-    // 主题在App.vue组件中初始化，避免重复初始化
-    // initTheme()
-
-    // 使用插件 - 结合 naive-ui 使用
-    VxeUI.use(VxeUIPluginRenderNaive)
 
     // 使用右键菜单插件
     VxeUI.use(VxeUIPluginMenu)
@@ -104,8 +89,7 @@ export async function startApp() {
     // 配置 vxe-table（必须在路由之前注册）
     app.use(VxeUIBase).use(VxeUITable)
 
-    // 全局 API 插件（在 vxe 之后挂载，TS/模板内直接调用 $gMessage、$gRender）
-    app.use(gmessagePlugin, { global: true, globalName: '$gMessage' })
+    // 全局 API 插件（在 vxe 之后挂载，TS/模板内直接调用 $gRender）
     app.use(gcustomRenderPlugin, { global: true, globalName: '$gRender' })
 
     // 使用路由

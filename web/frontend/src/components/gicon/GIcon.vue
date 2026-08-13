@@ -1,26 +1,31 @@
 <template>
-  <n-icon
-    ref="iconRef"
-    :size="computedSize"
-    :color="computedColor"
-    :class="['g-icon', { 'g-icon--disabled': disabled, 'g-icon--spin': spin }, props.class]"
+  <div
+    :class="[
+      'g-icon',
+      { 'g-icon--disabled': disabled, 'g-icon--spin': spin },
+      props.class,
+    ]"
     :style="computedStyle"
-    :component="iconComponent || undefined"
+    role="img"
     @click="handleClick"
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
   >
-    <slot />
-  </n-icon>
+    <component
+      :is="iconComponent"
+      v-if="iconComponent"
+      :width="computedSize"
+      :height="computedSize"
+      :style="{ color: computedColor, width: `${computedSize}px`, height: `${computedSize}px` }"
+    />
+    <slot v-else />
+  </div>
 </template>
 
 <script setup lang="ts">
-import type { Component } from 'vue'
-import type { CSSProperties } from 'vue'
-import { NIcon } from 'naive-ui'
+import type { Component, CSSProperties } from 'vue'
 import { computed, markRaw, ref } from 'vue'
-import { getIcon, getIconSync } from '@/utils/icon'
-import { IconLibrary } from '@/utils/icon'
+import { getIcon, getIconSync, IconLibrary } from '@/utils/icon'
 import type { GIconColor, GIconEmits, GIconProps } from './types'
 import { G_ICON_SIZE_MAP } from './types'
 
@@ -38,7 +43,7 @@ const props = withDefaults(defineProps<GIconProps>(), {
 
 const emit = defineEmits<GIconEmits>()
 
-const iconRef = ref<InstanceType<typeof NIcon>>()
+const rootEl = ref<HTMLElement | null>(null)
 const iconLoadTrigger = ref(0)
 
 const resolvedLibrary = computed(() => {
@@ -54,9 +59,11 @@ const iconComponent = computed<Component | undefined>(() => {
   if (typeof icon === 'string') {
     const cached = getIconSync(icon, resolvedLibrary.value)
     if (cached) return markRaw(cached)
-    getIcon(icon, resolvedLibrary.value).then((component) => {
-      if (component) iconLoadTrigger.value++
-    }).catch(() => {})
+    getIcon(icon, resolvedLibrary.value)
+      .then((component) => {
+        if (component) iconLoadTrigger.value++
+      })
+      .catch(() => {})
     return undefined
   }
 
@@ -65,7 +72,8 @@ const iconComponent = computed<Component | undefined>(() => {
 
 const computedSize = computed(() => {
   if (typeof props.size === 'number') return props.size
-  return G_ICON_SIZE_MAP[props.size]
+  if (typeof props.size === 'string' && /^\d+$/.test(props.size)) return Number(props.size)
+  return G_ICON_SIZE_MAP[props.size] ?? G_ICON_SIZE_MAP.medium
 })
 
 const computedColor = computed(() => {
@@ -81,7 +89,11 @@ const computedColor = computed(() => {
 })
 
 const computedStyle = computed((): CSSProperties => {
-  const style: CSSProperties = {}
+  const style: CSSProperties = {
+    width: `${computedSize.value}px`,
+    height: `${computedSize.value}px`,
+    color: computedColor.value,
+  }
   if (props.style) {
     if (typeof props.style === 'string') return props.style as unknown as CSSProperties
     Object.assign(style, props.style)
@@ -110,7 +122,7 @@ function handleMouseLeave(e: MouseEvent) {
 
 defineExpose<{ $el: HTMLElement | null }>({
   get $el() {
-    return iconRef.value?.$el ?? null
+    return rootEl.value
   },
 })
 </script>
@@ -122,6 +134,12 @@ defineExpose<{ $el: HTMLElement | null }>({
   justify-content: center;
   transition: opacity 0.2s ease;
 
+  :deep(svg) {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
   &--disabled {
     pointer-events: none;
   }
@@ -132,7 +150,11 @@ defineExpose<{ $el: HTMLElement | null }>({
 }
 
 @keyframes g-icon-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

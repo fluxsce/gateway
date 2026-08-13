@@ -4,7 +4,7 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
-import { useGDialog } from '@/components/gdialog'
+import { rsConfirm } from '@/ui'
 import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
@@ -19,9 +19,7 @@ import { useNamespaceService } from './useNamespaceService'
  */
 export function useNamespacePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any, moduleId?: string) {
   const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 业务服务（包含 model、增删改查等）
+// 业务服务（包含 model、增删改查等）
   const service = useNamespaceService(searchFormRef, moduleId)
 
   // 表单对话框状态（新增/编辑/查看共用）
@@ -147,12 +145,12 @@ export function useNamespacePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<a
    * 批量删除命名空间
    */
   const handleBatchDelete = async (namespaces: Namespace[]) => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认批量删除',
       subtitle: `将删除 ${namespaces.length} 个命名空间`,
-      content: '此操作不可恢复，请谨慎操作',
-      positiveText: '确定删除',
-      negativeText: '取消',
+      description: '此操作不可恢复，请谨慎操作',
+      confirmText: '确定删除',
+      cancelText: '取消',
       width: 500
     })
 

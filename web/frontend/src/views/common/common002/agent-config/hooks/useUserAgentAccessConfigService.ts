@@ -3,12 +3,12 @@
  * 处理所有与后端交互的业务逻辑
  */
 
-import { useGDialog } from '@/components/gdialog'
-import { createBackendPaginationParams } from '@/components/gpage'
+import { rsConfirm } from '@/ui'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
 import { WarningOutline } from '@vicons/ionicons5'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import * as securityApi from '../../api/securityConfig'
 import { useUserAgentAccessConfigModel } from './model'
@@ -24,10 +24,8 @@ export function useUserAgentAccessConfigService(
   securityConfigId?: Ref<string | undefined>,
   searchFormRef?: Ref<any> | any
 ) {
-  const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 初始化 Model（传入模块ID）
+  const message = useAppMessage()
+// 初始化 Model（传入模块ID）
   const model = useUserAgentAccessConfigModel(moduleId)
 
   const {
@@ -216,14 +214,13 @@ export function useUserAgentAccessConfigService(
    * 删除User-Agent配置
    */
   const deleteConfig = async (config: UserAgentAccessConfig): Promise<boolean> => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认删除',
       subtitle: '此操作不可恢复，请谨慎操作',
-      content: `确定要删除User-Agent访问控制配置 "${config.configName}" 吗？`,
+      description: `确定要删除User-Agent访问控制配置 "${config.configName}" 吗？`,
       icon: WarningOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定删除',
-      negativeText: '取消',
+      confirmText: '确定删除',
+      cancelText: '取消',
       width: 500
     })
 

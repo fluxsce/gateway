@@ -105,16 +105,12 @@ export default {
     changeSuccess: 'Password changed successfully, please login again',
     changeFailed: 'Failed to change password',
     validationFailed: 'Form validation failed, please check your input',
-    tips: `
-      <div>Password Requirements:</div>
-      <ul style="margin: 8px 0; padding-left: 20px;">
-        <li>Between 8-20 characters</li>
-        <li>Must contain uppercase letters</li>
-        <li>Must contain lowercase letters</li>
-        <li>Must contain numbers</li>
-        <li>Must contain special characters (@$!%*?&)</li>
-      </ul>
-    `,
+    tipsTitle: 'Password requirements',
+    tipLength: 'Between 8-20 characters',
+    tipUppercase: 'Must contain uppercase letters',
+    tipLowercase: 'Must contain lowercase letters',
+    tipNumber: 'Must contain numbers',
+    tipSpecial: "Must contain special characters ({'@$!%*?&'})",
   },
   // System Settings
   settings: {

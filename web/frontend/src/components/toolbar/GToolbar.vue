@@ -244,7 +244,9 @@ defineExpose({
   width: 100%;
   box-sizing: border-box;
   transition: all var(--g-transition-base) var(--g-transition-ease);
-  gap: var(--g-space-xs);
+  // 按钮间距略大，给竖向分隔线留出呼吸感（对齐旧 quaternary 工具栏）
+  gap: 0;
+  min-height: var(--g-toolbar-height, 36px);
   border-bottom: 1px solid var(--g-border-primary);
 
   // 对齐方式
@@ -274,20 +276,24 @@ defineExpose({
     box-shadow: var(--g-shadow-sm);
   }
 
-  // 按钮竖线分隔符
+  // 按钮竖线分隔符（落在相邻按钮之间）
   &__button--divider {
     position: relative;
+    margin-left: 2px;
 
     &::before {
       content: '';
       position: absolute;
-      left: calc(var(--g-space-xs) * -1);
+      left: 0;
       top: 50%;
       transform: translateY(-50%);
       width: 1px;
-      height: 60%;
-      background-color: var(--g-border-primary);
+      height: 14px;
+      background-color: var(--g-border-primary, #e0e0e6);
     }
+
+    // 分隔线占位，避免压住按钮内容
+    padding-left: 2px;
   }
 
   // 标题
@@ -308,7 +314,7 @@ defineExpose({
   &__content {
     display: flex;
     align-items: center;
-    gap: var(--g-space-xs);
+    gap: 0;
     flex: 1;
     min-width: 0;
   }
@@ -319,7 +325,7 @@ defineExpose({
   &__right {
     display: flex;
     align-items: center;
-    gap: var(--g-space-xs);
+    gap: 0;
   }
 
   &__left {
@@ -338,11 +344,12 @@ defineExpose({
   &__group {
     display: flex;
     align-items: center;
-    gap: var(--g-space-xs);
+    gap: 0;
 
     &--divider {
       position: relative;
-      padding-left: var(--g-space-xs);
+      padding-left: 10px;
+      margin-left: 2px;
 
       &::before {
         content: '';
@@ -351,8 +358,8 @@ defineExpose({
         top: 50%;
         transform: translateY(-50%);
         width: 1px;
-        height: 60%;
-        background-color: var(--g-border-primary);
+        height: 14px;
+        background-color: var(--g-border-primary, #e0e0e6);
       }
     }
 
@@ -366,7 +373,7 @@ defineExpose({
     &-buttons {
       display: flex;
       align-items: center;
-      gap: var(--g-space-xs);
+      gap: 0;
     }
   }
 }

@@ -49,9 +49,9 @@
         >
           <!-- 活动状态自定义渲染 -->
           <template #activeFlag="{ row }">
-            <n-tag :type="row.activeFlag === 'Y' ? 'success' : 'default'" size="small">
+            <RsTag :variant="row.activeFlag === 'Y' ? 'success' : 'default'" size="sm">
               {{ row.activeFlag === 'Y' ? '启用' : '禁用' }}
-            </n-tag>
+            </RsTag>
           </template>
         </g-grid>
       </div>
@@ -65,7 +65,8 @@ import { GModal } from '@/components/gmodal'
 import { GGrid } from '@/components/grid'
 import { formatDate } from '@/utils/format'
 import { SearchOutline } from '@vicons/ionicons5'
-import { NTag, useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { RsTag } from '@/ui'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useServiceService } from '../hooks'
 import type { Service } from '../types'
@@ -91,7 +92,7 @@ const emit = defineEmits<{
 const moduleId = 'hub0042-selector'
 
 // 响应式状态
-const message = useMessage()
+const message = useAppMessage()
 const searchFormRef = ref()
 const gridRef = ref()
 const selectedService = ref<Service | null>(null)

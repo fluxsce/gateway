@@ -1,105 +1,132 @@
 <template>
-    <n-drawer :show="show" @update:show="(val: boolean) => $emit('update:show', val)" :width="600" placement="right">
-        <n-drawer-content title="工具预览" closable>
-            <div v-if="tool" class="tool-preview">
-                <div class="preview-header">
-                    <div class="tool-icon">
-                        <n-icon size="48" :name="tool.icon || 'apps-outline'" />
-                    </div>
-                    <div class="tool-info">
-                        <h2>{{ tool.displayName || tool.name }}</h2>
-                        <p>{{ tool.description }}</p>
-                    </div>
-                </div>
+  <RsDrawer
+    :open="show"
+    title="工具预览"
+    side="right"
+    size="lg"
+    @update:open="(val: boolean) => $emit('update:show', val)"
+  >
+    <div v-if="tool" class="tool-preview">
+      <div class="preview-header">
+        <div class="tool-icon">
+          <GIcon size="48" :icon="tool.icon || 'apps-outline'" />
+        </div>
+        <div class="tool-info">
+          <h2>{{ tool.displayName || tool.name }}</h2>
+          <p>{{ tool.description }}</p>
+        </div>
+      </div>
 
-                <n-divider />
+      <RsDivider />
 
-                <div class="preview-content">
-                    <n-space vertical>
-                        <n-card title="基本信息">
-                            <n-descriptions :column="2">
-                                <n-descriptions-item label="版本">{{ tool.version }}</n-descriptions-item>
-                                <n-descriptions-item label="作者">{{ tool.author }}</n-descriptions-item>
-                                <n-descriptions-item label="大小">{{ tool.size }}KB</n-descriptions-item>
-                                <n-descriptions-item label="状态">{{ tool.status }}</n-descriptions-item>
-                            </n-descriptions>
-                        </n-card>
+      <div class="preview-content">
+        <RsCard title="基本信息">
+          <RsDescriptions :columns="2" :items="basicInfoItems" />
+        </RsCard>
 
-                        <n-card title="标签">
-                            <n-space>
-                                <n-tag v-for="tag in tool.tags" :key="tag" type="primary">
-                                    {{ tag }}
-                                </n-tag>
-                            </n-space>
-                        </n-card>
-                    </n-space>
-                </div>
+        <RsCard title="标签" class="tags-card">
+          <div class="tag-list">
+            <RsTag v-for="tag in tool.tags" :key="tag" variant="primary" size="sm">
+              {{ tag }}
+            </RsTag>
+          </div>
+        </RsCard>
+      </div>
 
-                <!-- 操作按钮 -->
-                <div class="preview-actions">
-                    <n-space>
-                        <n-button type="primary" @click="$emit('install', tool)">
-                            安装
-                        </n-button>
-                        <n-button @click="$emit('configure', tool)">
-                            配置
-                        </n-button>
-                    </n-space>
-                </div>
-            </div>
-        </n-drawer-content>
-    </n-drawer>
+      <div class="preview-actions">
+        <RsButton variant="primary" @click="$emit('install', tool)">
+          安装
+        </RsButton>
+        <RsButton variant="default" @click="$emit('configure', tool)">
+          配置
+        </RsButton>
+      </div>
+    </div>
+  </RsDrawer>
 </template>
 
 <script setup lang="ts">
+import GIcon from '@/components/gicon/GIcon.vue'
+import {
+  RsButton,
+  RsCard,
+  RsDescriptions,
+  RsDivider,
+  RsDrawer,
+  RsTag,
+  type RsDescriptionsItemData,
+} from '@/ui'
+import { computed } from 'vue'
 import type { Tool } from '../../types/toolMarketplace'
 
 interface Props {
-    show: boolean
-    tool?: Tool | null
+  show: boolean
+  tool?: Tool | null
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 defineEmits<{
-    'update:show': [value: boolean]
-    install: [tool: Tool]
-    configure: [tool: Tool]
+  'update:show': [value: boolean]
+  install: [tool: Tool]
+  configure: [tool: Tool]
 }>()
+
+const basicInfoItems = computed<RsDescriptionsItemData[]>(() => {
+  const tool = props.tool
+  if (!tool) return []
+  return [
+    { label: '版本', value: tool.version },
+    { label: '作者', value: tool.author },
+    { label: '大小', value: `${tool.size ?? 0}KB` },
+    { label: '状态', value: tool.status },
+  ]
+})
 </script>
 
 <style lang="scss" scoped>
 .tool-preview {
-    .preview-header {
-        display: flex;
-        gap: 16px;
-        align-items: center;
+  .preview-header {
+    display: flex;
+    gap: 16px;
+    align-items: center;
 
-        .tool-icon {
-            color: var(--primary-color);
-        }
-
-        .tool-info {
-            h2 {
-                margin: 0 0 8px 0;
-                color: var(--text-color-primary);
-            }
-
-            p {
-                margin: 0;
-                color: var(--text-color-secondary);
-            }
-        }
+    .tool-icon {
+      color: var(--primary-color);
     }
 
-    .preview-content {
-        margin: 16px 0;
-    }
+    .tool-info {
+      h2 {
+        margin: 0 0 8px 0;
+        color: var(--text-color-primary);
+      }
 
-    .preview-actions {
-        margin-top: 24px;
-        padding-top: 16px;
-        border-top: 1px solid var(--border-color);
+      p {
+        margin: 0;
+        color: var(--text-color-secondary);
+      }
     }
+  }
+
+  .preview-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 16px 0;
+  }
+
+  .tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .preview-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+  }
 }
 </style>

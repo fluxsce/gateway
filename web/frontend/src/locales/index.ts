@@ -215,16 +215,20 @@ export async function setLocale(locale: LocaleType) {
   // 如果语言没有变化，则不执行操作
   if (previousLocale === locale) return
 
-  // 更改语言设置
+  // 先切换 locale，已缓存文案可立刻刷新 UI
   globalComposer.locale.value = locale
 
   // 设置HTML lang属性和本地存储
   document.querySelector('html')?.setAttribute('lang', locale)
   localStorage.setItem('locale', locale)
 
-  // 重新加载已加载的模块
-  // 这里先仅加载common模块确保基础翻译可用
-  await preloadModules(['common'], [locale])
+  // 补齐当前会话已用过的模块语言包（不仅 common），避免登录页等出现短暂缺 key
+  const modules = new Set<string>(['common'])
+  for (const key of loadedModules) {
+    const name = key.split(':')[0]
+    if (name) modules.add(name)
+  }
+  await preloadModules([...modules], [locale])
 
   return nextTick()
 }

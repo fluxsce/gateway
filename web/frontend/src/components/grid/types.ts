@@ -1,5 +1,5 @@
 import type { GContextProps } from '@/components/gcontext'
-import type { PaginationProps } from '@/components/gpage'
+import type { PaginationProps } from '@/utils/pagination'
 import type { ToolbarProps } from '@/components/toolbar'
 import type { VxeColumnProps, VxeGridProps, VxeTablePropTypes } from 'vxe-table'
 

@@ -3,8 +3,8 @@
  * 处理所有与后端交互的业务逻辑
  */
 
-import { useGDialog } from '@/components/gdialog'
-import { createBackendPaginationParams } from '@/components/gpage'
+import { rsConfirm } from '@/ui'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess } from '@/utils/format'
 import { WarningOutline } from '@vicons/ionicons5'
@@ -19,9 +19,7 @@ import { useNamespaceModel } from './model'
  */
 export function useNamespaceService(searchFormRef?: Ref<any> | any, moduleId?: string) {
   const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 初始化 Model
+// 初始化 Model
   const model = useNamespaceModel(moduleId)
 
   const {
@@ -180,14 +178,13 @@ export function useNamespaceService(searchFormRef?: Ref<any> | any, moduleId?: s
   }
 
   const deleteNamespace = async (namespace: Namespace): Promise<boolean> => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认删除',
       subtitle: '此操作不可恢复，请谨慎操作',
-      content: `确定要删除命名空间 "${namespace.namespaceName}" (${namespace.namespaceId}) 吗？`,
+      description: `确定要删除命名空间 "${namespace.namespaceName}" (${namespace.namespaceId}) 吗？`,
       icon: WarningOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定删除',
-      negativeText: '取消',
+      confirmText: '确定删除',
+      cancelText: '取消',
       width: 500
     })
 

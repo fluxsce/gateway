@@ -3,20 +3,27 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { DataFormField } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsDataFormField } from '@/components/form/rs-data'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
 import { formatDate } from '@/utils/format'
 import { validateRegexList } from '@/utils/validate'
-import {
-  AddOutline,
-  CreateOutline,
-  TrashOutline
-} from '@vicons/ionicons5'
-import { NDynamicTags, NSelect, NTooltip } from 'naive-ui'
+import { RsDynamicTags, RsTag } from '@/ui'
 import { h, ref } from 'vue'
 import type { UserAgentAccessConfig } from './types'
+
+/**
+ * User-Agent访问控制配置表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface UserAgentAccessConfigGridConfig {
+  columns: RsGridColumn<UserAgentAccessConfig>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
 
 /**
  * User-Agent访问控制配置列表 Model
@@ -35,8 +42,8 @@ export function useUserAgentAccessConfigModel(moduleId: string) {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'configName',
@@ -64,23 +71,23 @@ export function useUserAgentAccessConfigModel(moduleId: string) {
       {
         key: 'add',
         label: '新建配置',
-        icon: AddOutline,
+        icon: 'AddOutline',
         type: 'primary',
         tooltip: '新建User-Agent访问控制配置',
       },
       {
         key: 'edit',
         label: '编辑',
-        icon: CreateOutline,
+        icon: 'CreateOutline',
         tooltip: '编辑选中的配置',
       },
       {
         key: 'delete',
         label: '删除',
-        icon: TrashOutline,
+        icon: 'TrashOutline',
         type: 'error',
         tooltip: '删除选中的配置',
-      }
+      },
     ],
     showSearchButton: true,
     showResetButton: true,
@@ -93,20 +100,18 @@ export function useUserAgentAccessConfigModel(moduleId: string) {
     return (formData: Record<string, any>) => {
       const value = formData[field] || []
 
-      return h(NDynamicTags, {
-        value,
-        'onUpdate:value': (newValue: string[]) => {
+      return h(RsDynamicTags, {
+        modelValue: value,
+        'onUpdate:modelValue': (newValue: string[]) => {
           formData[field] = newValue
         },
-        inputProps: {
-          placeholder,
-        },
+        placeholder,
       })
     }
   }
 
   /** 表单字段配置 */
-  const formFields: DataFormField[] = [
+  const formFields: RsDataFormField[] = [
     // ============= 主键字段（隐藏，但必须存在用于更新） =============
     {
       field: 'useragentAccessConfigId',
@@ -147,46 +152,14 @@ export function useUserAgentAccessConfigModel(moduleId: string) {
         {
           field: 'defaultPolicy',
           label: '默认策略',
-          type: 'custom',
+          type: 'select',
           span: 12,
           defaultValue: 'allow',
-          render: (formData: Record<string, any>) => {
-            return h(NTooltip, {
-              trigger: 'hover',
-              placement: 'top',
-            }, {
-              trigger: () => h('div', { style: 'width: 100%;' }, [
-                h(NSelect, {
-                  value: formData.defaultPolicy,
-                  'onUpdate:value': (value: string) => {
-                    formData.defaultPolicy = value
-                  },
-                  placeholder: '请选择默认策略',
-                  options: [
-                    { label: '允许（白名单模式）', value: 'allow' },
-                    { label: '拒绝（黑名单模式）', value: 'deny' },
-                  ],
-                }),
-              ]),
-              default: () => h('div', { style: 'max-width: 320px; line-height: 1.5;' }, [
-                h('p', { style: 'margin: 0 0 8px 0;' }, [
-                  h('strong', '默认策略说明：'),
-                ]),
-                h('p', { style: 'margin: 0 0 8px 0;' }, [
-                  h('strong', '• allow（允许）:'),
-                  ' 默认允许访问，只有在黑名单中的User-Agent会被拒绝',
-                ]),
-                h('p', { style: 'margin: 0 0 8px 0;' }, [
-                  h('strong', '• deny（拒绝）:'),
-                  ' 默认拒绝访问，只有在白名单中的User-Agent才被允许',
-                ]),
-                h('p', { style: 'margin: 0; color: #f0a020;' }, [
-                  h('strong', '⚠️ 重要：'),
-                  '黑名单优先级高于白名单，无论默认策略如何，黑名单中的User-Agent都会被拒绝',
-                ]),
-              ]),
-            })
-          },
+          tips: 'allow（允许）: 默认允许，黑名单中的User-Agent会被拒绝。deny（拒绝）: 默认拒绝，仅白名单允许。黑名单优先级高于白名单。',
+          options: [
+            { label: '允许（白名单模式）', value: 'allow' },
+            { label: '拒绝（黑名单模式）', value: 'deny' },
+          ],
         },
         {
           field: 'blockEmptyUserAgent',
@@ -280,96 +253,119 @@ export function useUserAgentAccessConfigModel(moduleId: string) {
 
   // ============= 表格配置 =============
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置（符合 RsGrid 结构） */
+  const gridConfig: UserAgentAccessConfigGridConfig = {
     columns: [
-      // ============= 主键字段（隐藏，但必须存在用于数据操作） =============
       {
-        field: 'useragentAccessConfigId',
+        key: 'useragentAccessConfigId',
         title: 'User-Agent访问配置ID',
         visible: false,
       },
       {
-        field: 'tenantId',
+        key: 'tenantId',
         title: '租户ID',
         visible: false,
       },
       {
-        field: 'securityConfigId',
+        key: 'securityConfigId',
         title: '安全配置ID',
         visible: false,
       },
-      // ============= 业务字段 =============
       {
-        field: 'configName',
+        key: 'configName',
         title: '配置名称',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'defaultPolicy',
+        key: 'defaultPolicy',
         title: '默认策略',
         align: 'center',
         width: 120,
-        slots: { default: 'defaultPolicy' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.defaultPolicy === 'allow' ? 'success' : 'danger',
+              size: 'sm',
+            },
+            () => (row.defaultPolicy === 'allow' ? '允许' : '拒绝'),
+          ),
       },
       {
-        field: 'activeFlag',
+        key: 'activeFlag',
         title: '状态',
         align: 'center',
         width: 100,
-        slots: { default: 'activeFlag' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.activeFlag === 'Y' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.activeFlag === 'Y' ? '活动' : '非活动'),
+          ),
       },
       {
-        field: 'whitelistPatterns',
+        key: 'whitelistPatterns',
         title: 'User-Agent白名单',
         align: 'left',
         width: 300,
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'blacklistPatterns',
+        key: 'blacklistPatterns',
         title: 'User-Agent黑名单',
         align: 'left',
         width: 300,
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'blockEmptyUserAgent',
+        key: 'blockEmptyUserAgent',
         title: '阻止空User-Agent',
         align: 'center',
         width: 150,
-        slots: { default: 'blockEmptyUserAgent' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.blockEmptyUserAgent === 'Y' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.blockEmptyUserAgent === 'Y' ? '是' : '否'),
+          ),
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
-        field: 'addWho',
+        key: 'addWho',
         title: '创建人',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'editTime',
+        key: 'editTime',
         title: '修改时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
-        field: 'editWho',
+        key: 'editWho',
         title: '修改人',
-        showOverflow: true,
+        ellipsis: true,
       },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: 'useragentAccessConfigId',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -377,24 +373,10 @@ export function useUserAgentAccessConfigModel(moduleId: string) {
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      showCopyCell: true,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-        {
-          code: 'edit',
-          name: '编辑',
-          prefixIcon: 'vxe-icon-edit',
-        },
-        {
-          code: 'delete',
-          name: '删除',
-          prefixIcon: 'vxe-icon-delete',
-        },
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
       ],
     },
     height: '100%',
@@ -474,4 +456,3 @@ export function useUserAgentAccessConfigModel(moduleId: string) {
     removeConfigFromList,
   }
 }
-

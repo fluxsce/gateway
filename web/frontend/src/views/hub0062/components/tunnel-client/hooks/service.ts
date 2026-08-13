@@ -3,8 +3,8 @@
  * 处理业务逻辑和API调用
  */
 
-import { useGDialog } from '@/components/gdialog'
-import { createBackendPaginationParams } from '@/components/gpage'
+import { rsConfirm } from '@/ui'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { PlayCircleOutline, StopCircleOutline, WarningOutline } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
@@ -18,8 +18,7 @@ import { useTunnelClientModel } from './model'
  */
 export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
   const message = useMessage()
-  const gDialog = useGDialog()
-  const model = useTunnelClientModel()
+const model = useTunnelClientModel()
 
   const {
     loading,
@@ -173,14 +172,13 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
    * 删除客户端
    */
   async function deleteClient(client: TunnelClient): Promise<boolean> {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认删除',
       subtitle: '此操作不可恢复，请谨慎操作',
-      content: `确定要删除客户端 "${client.clientName}" 吗？`,
+      description: `确定要删除客户端 "${client.clientName}" 吗？`,
       icon: WarningOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定删除',
-      negativeText: '取消',
+      confirmText: '确定删除',
+      cancelText: '取消',
       width: 500
     })
 
@@ -244,14 +242,13 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
    * 连接客户端
    */
   async function connectClient(client: TunnelClient): Promise<boolean> {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认连接',
       subtitle: '连接后将开始与服务器建立连接',
-      content: `确定要连接客户端 "${client.clientName}" 吗？`,
+      description: `确定要连接客户端 "${client.clientName}" 吗？`,
       icon: PlayCircleOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定连接',
-      negativeText: '取消',
+      confirmText: '确定连接',
+      cancelText: '取消',
       width: 500
     })
 
@@ -284,14 +281,13 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
    * 断开客户端连接
    */
   async function disconnectClient(client: TunnelClient): Promise<boolean> {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认断开',
       subtitle: '断开后将停止与服务器的连接',
-      content: `确定要断开客户端 "${client.clientName}" 的连接吗？`,
+      description: `确定要断开客户端 "${client.clientName}" 的连接吗？`,
       icon: StopCircleOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定断开',
-      negativeText: '取消',
+      confirmText: '确定断开',
+      cancelText: '取消',
       width: 500
     })
 

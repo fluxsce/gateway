@@ -1,27 +1,28 @@
 /**
  * 网关实例管理模块 Model
- * 统一管理搜索表单、表格配置和数据状态
+ * 统一管理搜索表单、表格配置和数据状态（RsSearchForm / RsGrid / RsDataForm）
  */
 
-import type { DataFormField } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsDataFormField } from '@/components/form/rs-data'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
+import { RsDynamicTags, RsInput, RsTag, RsTooltip } from '@/ui'
 import { formatDate } from '@/utils/format'
-import {
-  AddOutline,
-  CloudUploadOutline,
-  CreateOutline,
-  DocumentOutline,
-  DownloadOutline,
-  GlobeOutline,
-  KeyOutline,
-  TrashOutline
-} from '@vicons/ionicons5'
-import { NDynamicTags, NIcon } from 'naive-ui'
 import { h, ref } from 'vue'
-import { AlertChannelNameSelector } from '../../hub0080/components'
 import type { GatewayInstance } from '../types/index'
+
+/**
+ * 网关实例管理表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface GatewayInstanceGridConfig {
+  columns: RsGridColumn<GatewayInstance>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
 
 /**
  * 网关实例管理 Model
@@ -40,8 +41,8 @@ export function useGatewayInstanceModel() {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'instanceName',
@@ -82,33 +83,33 @@ export function useGatewayInstanceModel() {
       {
         key: 'add',
         label: '新建实例',
-        icon: AddOutline,
+        icon: 'AddOutline',
         type: 'primary',
         tooltip: '新建网关实例',
       },
       {
         key: 'edit',
         label: '编辑',
-        icon: CreateOutline,
+        icon: 'CreateOutline',
         tooltip: '编辑选中的实例',
       },
       {
         key: 'delete',
         label: '删除',
-        icon: TrashOutline,
+        icon: 'TrashOutline',
         type: 'error',
         tooltip: '删除选中的实例',
       },
       {
         key: 'export',
         label: '导出配置',
-        icon: DownloadOutline,
+        icon: 'DownloadOutline',
         tooltip: '导出当前选中实例的配置（Excel）',
       },
       {
         key: 'import',
         label: '导入配置',
-        icon: CloudUploadOutline,
+        icon: 'CloudUploadOutline',
         tooltip: '从 Excel 导入实例及关联配置',
       },
     ],
@@ -285,15 +286,11 @@ export function useGatewayInstanceModel() {
           type: 'file',
           span: 12,
           props: {
-            title: '证书文件',
-            titleIcon: DocumentOutline,
-            titleIconColor: '#18a058',
             showDownload: true,
             config: {
               accept: '.crt,.pem,.cer',
               max: 1,
               maxSize: 10 * 1024 * 1024, // 10MB
-              mode: 'text',
               uploadText: '点击或拖拽上传证书',
               uploadDescription: '支持 .crt, .pem, .cer',
             },
@@ -305,15 +302,11 @@ export function useGatewayInstanceModel() {
           type: 'file',
           span: 12,
           props: {
-            title: '私钥文件',
-            titleIcon: KeyOutline,
-            titleIconColor: '#f0a020',
             showDownload: true,
             config: {
               accept: '.key,.pem',
               max: 1,
               maxSize: 10 * 1024 * 1024, // 10MB
-              mode: 'text',
               uploadText: '点击或拖拽上传私钥',
               uploadDescription: '支持 .key, .pem',
             },
@@ -512,7 +505,7 @@ export function useGatewayInstanceModel() {
       tabKey: 'other',
       disabled: true,
     },
-  ] as DataFormField[],
+    ] as RsDataFormField[],
   }
 
   // ============= 日志配置表单配置（多标签页管理） =============
@@ -812,9 +805,9 @@ export function useGatewayInstanceModel() {
             span: 24,
             defaultValue: [],
             render: (formData: Record<string, any>) => {
-              return h(NDynamicTags, {
-                value: formData.sensitiveFields || [],
-                'onUpdate:value': (value: string[]) => {
+              return h(RsDynamicTags, {
+                modelValue: formData.sensitiveFields || [],
+                'onUpdate:modelValue': (value: string[]) => {
                   formData.sensitiveFields = value
                 },
                 placeholder: '添加敏感字段',
@@ -933,12 +926,14 @@ export function useGatewayInstanceModel() {
             placeholder: '请输入告警渠道名称或点击选择',
             tips: '不填写则使用默认告警渠道',
             render: (formData: Record<string, any>) => {
-              return h(AlertChannelNameSelector, {
-                // 扁平字段（参考 common002/auth-config）：直接读写 formData['extProperty.xxx.yyy']
+              // 使用 RsInput，避免拉取仍依赖 naive-ui 的 hub0080 渠道选择器
+              return h(RsInput, {
                 modelValue: formData['extProperty.channelName'] || '',
                 'onUpdate:modelValue': (value: string) => {
                   formData['extProperty.channelName'] = value
                 },
+                placeholder: '请输入告警渠道名称',
+                clearable: true,
               })
             },
           },
@@ -956,9 +951,9 @@ export function useGatewayInstanceModel() {
                 ? value.map(v => String(v))
                 : (typeof value === 'string' ? value.split(',').map(s => s.trim()).filter(Boolean) : [])
               
-              return h(NDynamicTags, {
-                value: strArray,
-                'onUpdate:value': (value: string[]) => {
+              return h(RsDynamicTags, {
+                modelValue: strArray,
+                'onUpdate:modelValue': (value: string[]) => {
                   formData['extProperty.alertStatusCodes'] = value
                 },
                 placeholder: '输入状态码，如: 502, 503, 504',
@@ -1020,159 +1015,146 @@ export function useGatewayInstanceModel() {
         tabKey: 'other',
         disabled: true,
       },
-    ] as DataFormField[],
+    ] as RsDataFormField[],
   }
 
   // ============= 表格配置 =============
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置（符合 RsGrid 结构） */
+  const gridConfig: GatewayInstanceGridConfig = {
     columns: [
       {
-        field: 'gatewayInstanceId',
+        key: 'gatewayInstanceId',
         title: '实例ID',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'instanceName',
+        key: 'instanceName',
         title: '实例名称',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'instanceDesc',
+        key: 'instanceDesc',
         title: '实例描述',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
       },
       {
-        field: 'bindAddress',
+        key: 'bindAddress',
         title: '绑定地址',
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'httpPort',
+        key: 'httpPort',
         title: 'HTTP端口',
         align: 'center',
       },
       {
-        field: 'httpsPort',
+        key: 'httpsPort',
         title: 'HTTPS端口',
         align: 'center',
       },
       {
-        field: 'tlsEnabled',
+        key: 'tlsEnabled',
         title: 'TLS',
         align: 'center',
-        // 使用插槽方式支持自定义渲染（包括样式、标签等）
-        // 在 GatewayInstanceManager.vue 中使用 <template #tlsEnabled="{ row }"> 来定义渲染内容
-        slots: { default: 'tlsEnabled' },
-        // 备选方案1：使用 formatter（简单文本格式化）
-        // formatter: ({ cellValue }) => {
-        //   return cellValue === 'Y' ? '启用' : '禁用'
-        // },
-        // 备选方案2：使用 cellRender（vxe-table 内置渲染器）
-        // cellRender: {
-        //   name: 'VxeTag',
-        //   props: ({ row }: any) => ({
-        //     type: row.tlsEnabled === 'Y' ? 'success' : 'default',
-        //     content: row.tlsEnabled === 'Y' ? '启用' : '禁用',
-        //   }),
-        // },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.tlsEnabled === 'Y' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.tlsEnabled === 'Y' ? '启用' : '禁用'),
+          ),
       },
       {
-        field: 'maxConnections',
+        key: 'maxConnections',
         title: '最大连接数',
         align: 'center',
-        formatter: ({ cellValue }) => {
-          return cellValue ? cellValue.toLocaleString() : '0'
-        },
+        formatter: (value) => (value ? Number(value).toLocaleString() : '0'),
       },
       {
-        field: 'gracefulShutdownTimeoutMs',
+        key: 'gracefulShutdownTimeoutMs',
         title: '优雅排空超时(ms)',
         align: 'center',
-        formatter: ({ cellValue }) => {
-          return cellValue ?? 30000
+        formatter: (value) => String(value ?? 30000),
+      },
+      {
+        key: 'healthStatus',
+        title: '健康状态',
+        align: 'center',
+        render: (row) => {
+          const tag = h(
+            RsTag,
+            {
+              variant: row.healthStatus === 'Y' ? 'success' : 'danger',
+              size: 'sm',
+            },
+            () => (row.healthStatus === 'Y' ? '在线' : '离线'),
+          )
+          // reserved1 展示最近启动/停止/重载异常说明
+          if (row.reserved1) {
+            return h(RsTooltip, { content: String(row.reserved1) }, () => tag)
+          }
+          return tag
         },
       },
       {
-        field: 'healthStatus',
-        title: '健康状态',
-        align: 'center',
-        // 使用插槽方式支持自定义渲染（包括样式、标签等）
-        slots: { default: 'healthStatus' },
-        // 备选方案1：使用 formatter（简单文本格式化）
-        // formatter: ({ cellValue }) => {
-        //   return cellValue === 'Y' ? '健康' : '不健康'
-        // },
-        // 备选方案2：使用 cellRender（vxe-table 内置渲染器）
-        // cellRender: {
-        //   name: 'VxeTag',
-        //   props: ({ row }: any) => ({
-        //     type: row.healthStatus === 'Y' ? 'success' : 'error',
-        //     content: row.healthStatus === 'Y' ? '健康' : '不健康',
-        //   }),
-        // },
-      },
-      {
-        field: 'reserved1',
+        key: 'reserved1',
         title: '状态说明',
         minWidth: 160,
-        showOverflow: true,
-        slots: { default: 'reserved1' },
+        ellipsis: true,
+        formatter: (value) => (value ? String(value) : '-'),
       },
       {
-        field: 'activeFlag',
+        key: 'activeFlag',
         title: '活动状态',
         align: 'center',
-        // 使用插槽方式支持自定义渲染（包括样式、标签等）
-        slots: { default: 'activeFlag' },
-        // 备选方案1：使用 formatter（简单文本格式化）
-        // formatter: ({ cellValue }) => {
-        //   return cellValue === 'Y' ? '活动' : '非活动'
-        // },
-        // 备选方案2：使用 cellRender（vxe-table 内置渲染器）
-        // cellRender: {
-        //   name: 'VxeTag',
-        //   props: ({ row }: any) => ({
-        //     type: row.activeFlag === 'Y' ? 'success' : 'default',
-        //     content: row.activeFlag === 'Y' ? '活动' : '非活动',
-        //   }),
-        // },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.activeFlag === 'Y' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.activeFlag === 'Y' ? '活动' : '非活动'),
+          ),
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
-        field: 'addWho',
+        key: 'addWho',
         title: '创建人',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'editTime',
+        key: 'editTime',
         title: '修改时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
-        field: 'editWho',
+        key: 'editWho',
         title: '修改人',
-        showOverflow: true,
+        ellipsis: true,
       },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: 'gatewayInstanceId',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -1180,115 +1162,36 @@ export function useGatewayInstanceModel() {
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      showCopyCell: true,
-      options: [
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
+        { key: 'start', label: '启动', icon: 'play' },
+        { key: 'stop', label: '停止', icon: 'square' },
+        { key: 'sep-after-stop', label: '', separator: true },
         {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-        {
-          code: 'edit',
-          name: '编辑',
-          prefixIcon: 'vxe-icon-edit',
-        },
-        {
-          code: 'delete',
-          name: '删除',
-          prefixIcon: 'vxe-icon-delete',
-        },
-        {
-          code: 'start',
-          name: '启动',
-          // 注意：vxe-table 可能不支持 play/pause 相关图标
-          // 如果图标不显示，可以尝试以下方案：
-          // 1. 移除 prefixIcon 属性，只显示文字
-          // 2. 使用其他可用的 vxe-icon 图标（如 vxe-icon-caret-right）
-          // 3. 后续可以通过插槽方式使用自定义图标组件
-          prefixIcon: 'vxe-icon-caret-right', // 右箭头图标，表示启动
-        },
-        {
-          code: 'stop',
-          name: '停止',
-          // 注意：vxe-table 可能不支持 play/pause 相关图标
-          // 如果图标不显示，可以尝试以下方案：
-          // 1. 移除 prefixIcon 属性，只显示文字
-          // 2. 使用其他可用的 vxe-icon 图标（如 vxe-icon-square）
-          // 3. 后续可以通过插槽方式使用自定义图标组件
-          prefixIcon: 'vxe-icon-square', // 方块图标，表示停止
-        },
-        {
-          code: 'globalConfig',
-          name: '全局配置',
-          prefixIcon: 'vxe-icon-setting',
+          key: 'globalConfig',
+          label: '全局配置',
+          icon: 'settings',
           children: [
-            {
-              code: 'ipAccessControl',
-              name: 'IP访问控制',
-              prefixIcon: 'vxe-icon-lock',
-            },
-            {
-              code: 'userAgentAccessControl',
-              name: 'User-Agent访问控制',
-              prefixIcon: 'vxe-icon-user',
-            },
-            {
-              code: 'apiAccessControl',
-              name: 'API访问控制',
-              // vxe-table 菜单只支持内置图标类名，不支持自定义扩展
-              // 可选的内置图标：vxe-icon-code（代码）、vxe-icon-link（链接）、vxe-icon-setting（设置）等
-              // 如果不需要图标，可以移除 prefixIcon 属性
-              prefixIcon: 'vxe-icon-link', // 使用代码图标表示 API 接口
-            },
-            {
-              code: 'domainAccessControl',
-              name: '域名访问控制',
-              // prefixIcon 支持 VNode 类型，可以使用函数返回自定义图标
-              prefixIcon: () => h(NIcon, { size: 12 }, { default: () => h(GlobeOutline) }),
-            },
-            {
-              code: 'corsConfig',
-              name: '跨域配置',
-              prefixIcon: 'vxe-icon-link',
-            },
-            {
-              code: 'authConfig',
-              name: '认证配置',
-              prefixIcon: 'vxe-icon-setting',
-            },
-            {
-              code: 'rateLimitConfig',
-              name: '限流配置',
-              prefixIcon: 'vxe-icon-setting',
-            },
+            { key: 'ipAccessControl', label: 'IP访问控制', icon: 'lock' },
+            { key: 'userAgentAccessControl', label: 'User-Agent访问控制', icon: 'user' },
+            { key: 'apiAccessControl', label: 'API访问控制', icon: 'link' },
+            { key: 'domainAccessControl', label: '域名访问控制', icon: 'globe' },
+            { key: 'corsConfig', label: '跨域配置', icon: 'link' },
+            { key: 'authConfig', label: '认证配置', icon: 'settings' },
+            { key: 'rateLimitConfig', label: '限流配置', icon: 'settings' },
           ],
         },
+        { key: 'logConfig', label: '日志配置', icon: 'settings' },
+        { key: 'reload', label: '网关重载', icon: 'refresh-cw' },
         {
-          code: 'logConfig',
-          name: '日志配置',
-          prefixIcon: 'vxe-icon-setting',
-        },
-        {
-          code: 'reload',
-          name: '网关重载',
-          prefixIcon: 'vxe-icon-refresh',
-        },
-        {
-          code: 'tools',
-          name: '工具',
-          prefixIcon: 'vxe-icon-setting',
+          key: 'tools',
+          label: '工具',
+          icon: 'wrench',
           children: [
-            {
-              code: 'export',
-              name: '导出实例配置',
-              prefixIcon: 'vxe-icon-download',
-            },
-            {
-              code: 'import',
-              name: '导入实例配置',
-              prefixIcon: 'vxe-icon-upload',
-            },
+            { key: 'export', label: '导出实例配置', icon: 'download' },
+            { key: 'import', label: '导入实例配置', icon: 'upload' },
           ],
         },
       ],

@@ -2,17 +2,22 @@
  * 登录认证相关的业务逻辑Hook
  * 封装登录、验证码等功能，与视图层分离
  */
+import { useAppMessage } from '@/composables/useAppMessage'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { store, type UserPermissionResponse } from '@/stores'
+import type { RsFormRules, RsFormValidationResult } from '@/ui'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import { logger } from '@/utils/logger'
 import type { User } from '@/views/hub0002/types'
-import type { FormInst, FormRules } from 'naive-ui'
-import { useMessage } from 'naive-ui'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { hub0001Api } from '../api'
 import type { LoginFormData, PhoneLoginFormData } from '../types'
+
+/** 登录表单实例（RsForm expose） */
+interface LoginFormExpose {
+  validate: () => Promise<RsFormValidationResult>
+}
 
 /** 登录接口返回的用户信息（扩展自 User 接口） */
 interface LoginUserInfo extends Pick<User, 'userId' | 'userName' | 'realName' | 'tenantId' | 'avatar' | 'email' | 'mobile' | 'deptId' | 'tenantAdminFlag'> {
@@ -30,15 +35,15 @@ interface LoginUserInfo extends Pick<User, 'userId' | 'userName' | 'realName' | 
  */
 export function useLoginAuth() {
   const router = useRouter()
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 获取模块化i18n实例
   const { t } = useModuleI18n('hub0001')
   const { t: tCommon } = useModuleI18n('common')
 
   // 表单引用
-  const formRef = ref<FormInst | null>(null)
-  const phoneFormRef = ref<FormInst | null>(null)
+  const formRef = ref<LoginFormExpose | null>(null)
+  const phoneFormRef = ref<LoginFormExpose | null>(null)
 
   // 登录状态
   const loading = ref(false)
@@ -72,37 +77,33 @@ export function useLoginAuth() {
     rememberMe: false,
   })
 
-  // 表单校验规则 - 使用计算属性确保i18n加载后再构建规则
-  const rules = computed<FormRules>(() => {
-    return {
-      userId: [
-        { required: true, message: t('validation.userIdRequired'), trigger: 'blur' },
-        { min: 3, max: 20, message: t('validation.userIdLength'), trigger: 'blur' },
-      ],
-      password: [
-        { required: true, message: t('validation.passwordRequired'), trigger: 'blur' },
-        { min: 6, max: 32, message: t('validation.passwordLength'), trigger: 'blur' },
-      ],
-      captchaCode: [
-        { required: true, message: t('validation.captchaRequired'), trigger: 'blur' },
-        { len: 6, message: t('validation.captchaLength'), trigger: 'blur' },
-      ],
-    }
-  })
+  /** 账号密码登录：RsForm 集中 rules（按字段 name 匹配） */
+  const accountRules = computed<RsFormRules>(() => ({
+    userId: [
+      { required: true, message: t('validation.userIdRequired'), trigger: 'blur' },
+      { min: 3, max: 20, message: t('validation.userIdLength'), trigger: 'blur' },
+    ],
+    password: [
+      { required: true, message: t('validation.passwordRequired'), trigger: 'blur' },
+      { min: 6, max: 32, message: t('validation.passwordLength'), trigger: 'blur' },
+    ],
+  }))
 
-  // 手机登录表单校验规则
-  const phoneRules = computed<FormRules>(() => {
-    return {
-      phone: [
-        { required: true, message: t('validation.phoneRequired'), trigger: 'blur' },
-        { pattern: /^1[3-9]\d{9}$/, message: t('validation.phoneFormat'), trigger: 'blur' },
-      ],
-      code: [
-        { required: true, message: t('validation.codeRequired'), trigger: 'blur' },
-        { len: 6, message: t('validation.codeLength'), trigger: 'blur' },
-      ],
-    }
-  })
+  /** 手机验证码登录 rules */
+  const phoneRules = computed<RsFormRules>(() => ({
+    phone: [
+      { required: true, message: t('validation.phoneRequired'), trigger: 'blur' },
+      {
+        pattern: /^1[3-9]\d{9}$/,
+        message: t('validation.phoneFormat'),
+        trigger: 'blur',
+      },
+    ],
+    code: [
+      { required: true, message: t('validation.codeRequired'), trigger: 'blur' },
+      { len: 6, message: t('validation.codeLength'), trigger: 'blur' },
+    ],
+  }))
 
   /**
    * 复杂验证码Canvas生成器 - 异步处理避免阻塞
@@ -372,15 +373,17 @@ export function useLoginAuth() {
 
     try {
       logger.info('开始表单验证')
-      // 验证表单
-      await formRef.value.validate()
+      // RsForm.validate 返回 { valid }，不抛错
+      const result = await formRef.value.validate()
+      if (!result?.valid) {
+        logger.warn('表单验证失败')
+        return
+      }
       logger.info('表单验证通过')
 
-      // 调用登录方法
       await login(formData)
     } catch (errors) {
-      logger.warn('表单验证失败:', errors)
-      // 表单验证错误，不处理，由表单自动显示错误信息
+      logger.warn('表单验证异常:', errors)
     }
   }
 
@@ -536,14 +539,15 @@ export function useLoginAuth() {
 
     try {
       logger.info('开始手机登录表单验证')
-      // 验证表单
-      await phoneFormRef.value.validate()
+      const result = await phoneFormRef.value.validate()
+      if (!result?.valid) {
+        logger.warn('手机登录表单验证失败')
+        return
+      }
 
-      // 调用手机登录方法
       await phoneLogin()
     } catch (errors) {
-      logger.warn('手机登录表单验证失败:', errors)
-      // 表单验证错误，不处理，由表单自动显示错误信息
+      logger.warn('手机登录表单验证异常:', errors)
     }
   }
 
@@ -647,7 +651,7 @@ export function useLoginAuth() {
     phoneFormRef,
     formData,
     phoneFormData,
-    rules,
+    accountRules,
     phoneRules,
     loading,
     phoneLoading,

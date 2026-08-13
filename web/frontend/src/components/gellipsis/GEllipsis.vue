@@ -1,32 +1,21 @@
 <template>
-  <n-ellipsis v-bind="ellipsisProps">
-    <slot>
-      {{ text }}
-    </slot>
-  </n-ellipsis>
+  <span class="g-ellipsis" :title="text">
+    <slot>{{ text }}</slot>
+  </span>
 </template>
 
 <script setup lang="ts">
-import { NEllipsis } from 'naive-ui';
-import { computed } from 'vue';
-import type { GEllipsisProps } from './types';
-
-defineOptions({
-  name: 'GEllipsis'
-})
-
-const props = withDefaults(defineProps<GEllipsisProps>(), {
-  text: ''
-})
-
-// 提取 ellipsis 相关的 props，排除 text
-const ellipsisProps = computed(() => {
-  const { text, ...rest } = props
-  return rest
-})
+defineOptions({ name: 'GEllipsis' })
+withDefaults(defineProps<{ text?: string }>(), { text: '' })
 </script>
 
-<style scoped lang="scss">
-// 可以在这里添加自定义样式
+<style scoped>
+.g-ellipsis {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
 </style>
-

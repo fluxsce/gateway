@@ -6,13 +6,13 @@
   - 全页刷新（F5）：`onMounted` + `nextTick` 内用 Performance API 判断，随后 `router.replace('/')` 回到 SPA 根（地址栏即 `VITE_BASE_URL` 对应前缀 + `/`，与 `config.baseUrl` 一致）。
 -->
 <template>
-  <n-layout-content class="main-layout-content">
+  <main class="main-layout-content">
     <div v-if="!activeLayoutTab" class="main-layout-content__placeholder">
-      <div class="main-layout-content__placeholder-inner" role="status" aria-live="polite">
+      <output class="main-layout-content__placeholder-inner">
         <div class="main-layout-content__placeholder-glow" aria-hidden="true" />
         <div class="main-layout-content__placeholder-card">
           <div class="main-layout-content__placeholder-lockup" aria-hidden="true">
-            <n-icon :size="34" :component="LayersOutline" />
+            <RsIcon name="layers" :size="34" />
           </div>
 
           <h2 class="main-layout-content__placeholder-title">
@@ -22,7 +22,7 @@
             {{ tLogin('login.welcomeSubtitle') }}
           </p>
         </div>
-      </div>
+      </output>
     </div>
     <!--
       有激活页签时始终挂载 router-view：页签 id 先于 `router.push` 生效会产生「未对齐」窗口。
@@ -59,17 +59,15 @@
           </Suspense>
         </template>
       </router-view>
-      <div
+      <output
         v-if="!isLayoutContentRouteSynced"
         class="main-layout-content__sync-mask-wrap"
-        role="status"
-        aria-live="polite"
         aria-busy="true"
       >
         <RouteViewLoadingMask backdrop="solid" />
-      </div>
+      </output>
     </div>
-  </n-layout-content>
+  </main>
 </template>
 
 <script setup lang="ts">
@@ -78,8 +76,7 @@ import { config } from '@/config/config'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { cleanupWrappedCache, wrapWithCacheKey } from '@/router/wrapWithCacheKey'
 import { useGlobalStore } from '@/stores/global'
-import { LayersOutline } from '@vicons/ionicons5'
-import { NIcon, NLayoutContent } from 'naive-ui'
+import { RsIcon } from '@/ui'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, onMounted, watch } from 'vue'
 import { useRoute, useRouter, type RouteLocationNormalizedLoaded } from 'vue-router'
@@ -196,11 +193,11 @@ function layoutTabPathKeys(tabs: { tabId: string; path?: string }[]) {
 }
 
 watch(
-  () => layoutTabPathKeys(layoutTabs.value).slice().sort().join('\0'),
-  () => {
-    cleanupWrappedCache(new Set(layoutTabPathKeys(layoutTabs.value)))
+  layoutTabs,
+  (tabs) => {
+    cleanupWrappedCache(new Set(layoutTabPathKeys(tabs)))
   },
-  { immediate: true },
+  { immediate: true, deep: true },
 )
 
 /**
@@ -222,38 +219,36 @@ function layoutViewCacheKey(r: RouteLocationNormalizedLoaded) {
 
 <style lang="scss" scoped>
 .main-layout-content {
-  height: calc(100vh - var(--g-header-height));
-  border: 0.5px solid var(--g-border-primary);
-  border-radius: var(--g-radius-2xl);
-  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
   position: relative;
   overflow: hidden;
+  background-color: var(--g-bg-primary);
 }
 
-/** 有页签时承载 router-view + 对齐遮罩，保持子树挂载以保留 KeepAlive */
 .main-layout-content__view-host {
   position: relative;
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+
+  /* KeepAlive / 页面根节点占满内容区，由页面内部自行滚动 */
+  > * {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 0;
+    min-width: 0;
+  }
 }
 
-/** 路由尚未推到激活页签 path 时盖住内容；与默认加载遮罩同视觉，底层不透出上一页 */
 .main-layout-content__sync-mask-wrap {
   position: absolute;
   inset: 0;
   z-index: 50;
-  pointer-events: auto;
-  animation: main-layout-sync-mask-in 0.14s ease-out;
-}
-
-@keyframes main-layout-sync-mask-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
 }
 
 .main-layout-content__placeholder {
@@ -264,9 +259,7 @@ function layoutViewCacheKey(r: RouteLocationNormalizedLoaded) {
   height: 100%;
   min-height: 200px;
   padding: var(--g-space-lg);
-  box-sizing: border-box;
   overflow: auto;
-  /* 与侧栏/顶栏区分的次级底，随 light/dark 的 --g-bg-secondary 变化 */
   background-color: var(--g-bg-secondary);
 }
 
@@ -299,14 +292,9 @@ function layoutViewCacheKey(r: RouteLocationNormalizedLoaded) {
   width: 100%;
   padding: var(--g-space-xl) var(--g-space-lg);
   text-align: center;
-  border-radius: var(--g-radius-2xl);
-  /* 融入背景：不再以独立白卡/投影凸显块级区域 */
-  border: 1px solid transparent;
-  background-color: transparent;
-  box-shadow: none;
 }
 
-.main-layout-content__placeholder-icon {
+.main-layout-content__placeholder-lockup {
   margin: 0 auto var(--g-space-md);
   width: 72px;
   height: 72px;
@@ -335,7 +323,7 @@ function layoutViewCacheKey(r: RouteLocationNormalizedLoaded) {
 }
 
 .main-layout-content__placeholder-subtitle {
-  margin: 0 0 var(--g-space-md);
+  margin: 0;
   font-size: var(--g-font-size-sm);
   line-height: 1.7;
   color: var(--g-text-tertiary);

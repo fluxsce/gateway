@@ -1,49 +1,84 @@
 <template>
-    <n-modal :show="show" @update:show="(val: boolean) => emit('update:show', val)" preset="dialog" title="工具配置">
-        <div v-if="tool" class="config-dialog">
-            <n-form>
-                <n-form-item label="工具名称">
-                    <n-input :value="tool.displayName || tool.name" readonly />
-                </n-form-item>
-
-                <n-form-item label="版本">
-                    <n-input :value="tool.version" readonly />
-                </n-form-item>
-
-                <n-form-item label="状态">
-                    <n-tag :type="tool.status === 'installed' ? 'success' : 'default'">
-                        {{ tool.status }}
-                    </n-tag>
-                </n-form-item>
-            </n-form>
+  <RsDialog
+    :open="show"
+    title="工具配置"
+    layout="confirm"
+    width="md"
+    @update:open="(val: boolean) => emit('update:show', val)"
+  >
+    <template #body>
+      <div v-if="tool" class="config-dialog">
+        <div class="config-field">
+          <label class="config-label">工具名称</label>
+          <RsInput :model-value="tool.displayName || tool.name" readonly />
         </div>
 
-        <template #action>
-            <n-space>
-                <n-button @click="emit('update:show', false)">取消</n-button>
-                <n-button type="primary" @click="handleSave">保存</n-button>
-            </n-space>
-        </template>
-    </n-modal>
+        <div class="config-field">
+          <label class="config-label">版本</label>
+          <RsInput :model-value="tool.version" readonly />
+        </div>
+
+        <div class="config-field">
+          <label class="config-label">状态</label>
+          <RsTag :variant="tool.status === ToolStatus.INSTALLED ? 'success' : 'default'" size="sm">
+            {{ tool.status }}
+          </RsTag>
+        </div>
+      </div>
+    </template>
+
+    <template #footer>
+      <div class="config-footer">
+        <RsButton variant="ghost" @click="emit('update:show', false)">取消</RsButton>
+        <RsButton variant="primary" @click="handleSave">保存</RsButton>
+      </div>
+    </template>
+  </RsDialog>
 </template>
 
 <script setup lang="ts">
-import type { Tool } from '../../types/toolMarketplace'
+import { RsButton, RsDialog, RsInput, RsTag } from '@/ui'
+import { ToolStatus, type Tool } from '../../types/toolMarketplace'
 
 interface Props {
-    show: boolean
-    tool?: Tool | null
+  show: boolean
+  tool?: Tool | null
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 
 const emit = defineEmits<{
-    'update:show': [value: boolean]
-    save: [config: Record<string, any>]
+  'update:show': [value: boolean]
+  save: [config: Record<string, any>]
 }>()
 
 const handleSave = () => {
-    emit('save', {})
-    emit('update:show', false)
+  emit('save', {})
+  emit('update:show', false)
 }
 </script>
+
+<style lang="scss" scoped>
+.config-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.config-label {
+  font-size: var(--rs-font-size-sm, 13px);
+  color: var(--text-color-secondary);
+}
+
+.config-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+</style>

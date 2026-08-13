@@ -2,7 +2,7 @@
  * 网关实例树组件类型定义
  */
 
-import type { TreeOption } from 'naive-ui'
+import type { RsTreeNode } from '@/ui'
 
 /**
  * 网关实例类型
@@ -164,11 +164,14 @@ export interface ProxyConfig {
 }
 
 /**
- * 实例树节点选项类型
- * 扩展了 naive-ui 的 TreeOption，添加了实例信息
+ * 实例树节点类型
+ * 扩展 RsTreeNode，附加网关实例信息
  */
-export interface InstanceTreeOption extends TreeOption {
+export interface InstanceTreeNode extends RsTreeNode {
   /** 关联的网关实例对象 */
   instance?: GatewayInstance
 }
+
+/** @deprecated 使用 InstanceTreeNode */
+export type InstanceTreeOption = InstanceTreeNode
 

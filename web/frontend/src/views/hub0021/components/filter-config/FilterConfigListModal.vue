@@ -39,24 +39,24 @@
 
             <!-- 过滤器类型自定义渲染 -->
             <template #filterType="{ row }">
-              <n-tag :type="service.model.getFilterTypeTagType(row.filterType)" size="small">
+              <RsTag :variant="service.model.getFilterTypeTagType(row.filterType)" size="sm">
                 {{ service.model.getFilterTypeLabel(row.filterType) }}
-              </n-tag>
+              </RsTag>
             </template>
 
             <!-- 执行时机自定义渲染 -->
             <template #filterAction="{ row }">
-              <n-tag :type="service.model.getFilterActionTagType(row.filterAction)" size="small">
+              <RsTag :variant="service.model.getFilterActionTagType(row.filterAction)" size="sm">
                 {{ service.model.getFilterActionLabel(row.filterAction) }}
-              </n-tag>
+              </RsTag>
             </template>
 
             <!-- 状态自定义渲染 -->
             <template #activeFlag="{ row }">
-              <n-switch
-                :value="row.activeFlag === 'Y'"
-                @update:value="() => handleToggleStatus(row)"
-                size="small"
+              <RsSwitch
+                :model-value="row.activeFlag === 'Y'"
+                size="sm"
+                @update:model-value="() => handleToggleStatus(row)"
               />
             </template>
           </g-grid>
@@ -87,7 +87,7 @@ import SearchForm from '@/components/form/search/SearchForm.vue'
 import { GModal } from '@/components/gmodal'
 import { GPane } from '@/components/gpane'
 import { GGrid } from '@/components/grid'
-import { NSwitch, NTag } from 'naive-ui'
+import { RsSwitch, RsTag } from '@/ui'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { useFilterConfigPage } from './hooks'
 import type { FilterConfigListModalEmits, FilterConfigListModalProps } from './hooks/types'

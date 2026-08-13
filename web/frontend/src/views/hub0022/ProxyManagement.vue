@@ -1,9 +1,14 @@
 <template>
   <div class="proxy-management" :id="moduleId">
-    <GPane direction="horizontal" :default-size="0.25"  :max="0.4">
+    <RsSplitPane
+      class="proxy-management__split"
+      orientation="horizontal"
+      :panes="splitPanes"
+      with-handle
+    >
       <!-- 左侧：网关实例选择区域 -->
-      <template #1>
-        <div class="left-panel">
+      <template #tree>
+        <div class="proxy-management__tree">
           <GatewayInstanceTree
             :parent-module-id="moduleId"
             @select="handleInstanceSelect"
@@ -12,61 +17,71 @@
       </template>
 
       <!-- 右侧：服务定义管理 -->
-      <template #2>
-        <ServiceDefinitionList 
-          :gateway-instance-id="gatewayInstanceId" 
-          :key="`service-${gatewayInstanceId}`"
-        />
+      <template #services>
+        <div class="proxy-management__services">
+          <ServiceDefinitionList
+            :gateway-instance-id="gatewayInstanceId"
+            :key="`service-${gatewayInstanceId}`"
+          />
+        </div>
       </template>
-    </GPane>
+    </RsSplitPane>
   </div>
 </template>
 
 <script setup lang="ts">
-import { GPane } from '@/components/gpane'
+import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import { computed, ref } from 'vue'
 import type { GatewayInstance } from './components/instance-tree'
-
-// 组件导入
 import { GatewayInstanceTree } from './components/instance-tree'
 import ServiceDefinitionList from './components/service/ServiceDefinitionList.vue'
 
-// 定义组件名称
 defineOptions({
   name: 'ProxyManagement'
 })
 
-// 模块ID
 const moduleId = 'proxy-management'
 
-// 状态管理
+/** 左侧约 25%，最大 40%；右侧占满剩余空间 */
+const splitPanes: RsSplitPaneItem[] = [
+  { key: 'tree', size: 25, min: 15, max: 40 },
+  { key: 'services', min: 40 },
+]
+
 const selectedInstanceId = ref<string>('')
 const gatewayInstanceId = computed(() => selectedInstanceId.value || '')
 
-// 处理实例选择
-function handleInstanceSelect(instanceId: string, instance: GatewayInstance) {
+function handleInstanceSelect(instanceId: string, _instance: GatewayInstance) {
   selectedInstanceId.value = instanceId
 }
-
-
 </script>
 
 <style lang="scss" scoped>
 .proxy-management {
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
-
-  :deep(.n-split) {
-    width: 100%;
-    height: 100%;
-  }
-}
-
-.left-panel {
   display: flex;
   flex-direction: column;
-  height: 100%;
 }
 
+.proxy-management__split {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.proxy-management__tree,
+.proxy-management__services {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 </style>

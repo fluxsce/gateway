@@ -105,16 +105,12 @@ export default {
     changeSuccess: '密码修改成功，请重新登录',
     changeFailed: '密码修改失败',
     validationFailed: '表单验证失败，请检查输入',
-    tips: `
-      <div>密码要求：</div>
-      <ul style="margin: 8px 0; padding-left: 20px;">
-        <li>长度在8-20个字符之间</li>
-        <li>必须包含大写字母</li>
-        <li>必须包含小写字母</li>
-        <li>必须包含数字</li>
-        <li>必须包含特殊字符（@$!%*?&）</li>
-      </ul>
-    `,
+    tipsTitle: '密码要求',
+    tipLength: '长度在8-20个字符之间',
+    tipUppercase: '必须包含大写字母',
+    tipLowercase: '必须包含小写字母',
+    tipNumber: '必须包含数字',
+    tipSpecial: "必须包含特殊字符（{'@$!%*?&'}）",
   },
   // 系统设置
   settings: {

@@ -4,7 +4,7 @@
  * - 处理详情对话框、回滚对话框等页面交互
  */
 
-import { useGDialog } from '@/components/gdialog'
+import { rsConfirm } from '@/ui'
 import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { nextTick, ref, watch } from 'vue'
@@ -17,9 +17,7 @@ import { useConfigHistoryService } from './service'
  */
 export function useConfigHistoryPage(searchFormRef?: Ref<any> | any) {
   const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 业务服务（包含 model、查询等）
+// 业务服务（包含 model、查询等）
   const service = useConfigHistoryService(searchFormRef)
 
   // 视图状态（'list' | 'detail'）
@@ -101,12 +99,12 @@ export function useConfigHistoryPage(searchFormRef?: Ref<any> | any) {
       return
     }
 
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认回滚',
       subtitle: `确定要将配置回滚到版本 ${currentRollbackHistory.value.newVersion || currentRollbackHistory.value.configVersion} 吗？`,
-      content: '此操作会创建新的配置版本',
-      positiveText: '确定',
-      negativeText: '取消',
+      description: '此操作会创建新的配置版本',
+      confirmText: '确定',
+      cancelText: '取消',
       width: 500,
     })
 

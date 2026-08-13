@@ -1,18 +1,14 @@
 <template>
-    <GCard title="CPU使用率" :show-title="true">
-        <template #header-extra>
+    <RsCard :title="t('cpu.title')" variant="outlined" :padding="false" class="monitor-card">
+        <template #actions>
             <div class="card-extra">
-                <n-date-picker v-model:value="dateTimeRange" type="datetimerange" :shortcuts="timeRangeShortcuts"
-                    placeholder="选择时间范围" @update:value="handleTimeRangeChange"
-                    size="small" />
-                <n-button size="small" @click="refreshData" :loading="loading">
+                <MetricsDateTimeRange v-model="dateTimeRange" @change="handleTimeRangeChange" />
+                <RsButton size="sm" :loading="loading" @click="refreshData">
                     <template #icon>
-                        <n-icon>
-                            <ReloadOutlined />
-                        </n-icon>
+                        <GIcon icon="ReloadOutline" />
                     </template>
-                    刷新
-                </n-button>
+                    {{ t('common.refresh') }}
+                </RsButton>
             </div>
         </template>
 
@@ -20,20 +16,20 @@
             <div ref="chartRef" class="chart-element"></div>
 
             <div v-if="loading" class="chart-loading">
-                <n-spin size="large" />
+                <RsLoading size="lg" />
             </div>
 
             <div v-if="!loading && (!data || !Array.isArray(data) || data.length === 0)" class="chart-empty">
-                <n-empty description="暂无数据" />
+                <RsEmpty :description="t('common.noData')" />
             </div>
         </div>
-    </GCard>
+    </RsCard>
 </template>
 
 <script setup lang="ts">
-import { GCard } from '@/components/gcard'
+import { GIcon } from '@/components/gicon'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { formatDate } from '@/utils/format'
-import { ReloadOutlined } from '@vicons/antd'
 import { LineChart } from 'echarts/charts'
 import {
     GridComponent,
@@ -44,9 +40,18 @@ import {
 } from 'echarts/components'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { NButton, NDatePicker, NEmpty, NIcon, NSpin } from 'naive-ui'
+import { RsButton, RsCard, RsEmpty, RsLoading } from '@/ui'
+import { createAxisTooltipOptions } from '@/views/hub0000/components/metrics/echartsTooltip'
+import MetricsDateTimeRange from '@/views/hub0000/components/metrics/MetricsDateTimeRange.vue'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import type { CPUMetrics } from '../../types'
+
+const { t } = useModuleI18n('hub0007')
+
+function formatFixed(value: unknown, digits = 2): string {
+    const n = Number(value)
+    return Number.isFinite(n) ? n.toFixed(digits) : '-'
+}
 
 // 注册必要的 ECharts 组件
 echarts.use([
@@ -99,35 +104,6 @@ const end = Date.now()
 const start = end - 3600 * 1000 // 最近1小时
 const dateTimeRange = ref<[number, number] | null>([start, end])
 
-// 时间范围快捷选项
-const timeRangeShortcuts: Record<string, () => [number, number]> = {
-    '最近1小时': (): [number, number] => {
-        const end = Date.now()
-        const start = end - 3600 * 1000
-        return [start, end]
-    },
-    '最近6小时': (): [number, number] => {
-        const end = Date.now()
-        const start = end - 6 * 3600 * 1000
-        return [start, end]
-    },
-    '最近12小时': (): [number, number] => {
-        const end = Date.now()
-        const start = end - 12 * 3600 * 1000
-        return [start, end]
-    },
-    '最近24小时': (): [number, number] => {
-        const end = Date.now()
-        const start = end - 24 * 3600 * 1000
-        return [start, end]
-    },
-    '最近7天': (): [number, number] => {
-        const end = Date.now()
-        const start = end - 7 * 24 * 3600 * 1000
-        return [start, end]
-    }
-}
-
 // 初始化图表
 const initChart = () => {
     if (!chartRef.value) return
@@ -157,7 +133,7 @@ const updateChart = () => {
     // 准备数据系列
     const series = [
         {
-            name: 'CPU使用率',
+            name: t('cpu.usage'),
             type: 'line',
             data: times.map(time => {
                 const data = timeDataMap.get(time)
@@ -176,7 +152,7 @@ const updateChart = () => {
             }
         },
         {
-            name: '用户态使用率',
+            name: t('cpu.userUsage'),
             type: 'line',
             data: times.map(time => {
                 const data = timeDataMap.get(time)
@@ -195,7 +171,7 @@ const updateChart = () => {
             }
         },
         {
-            name: '系统态使用率',
+            name: t('cpu.systemUsage'),
             type: 'line',
             data: times.map(time => {
                 const data = timeDataMap.get(time)
@@ -216,32 +192,32 @@ const updateChart = () => {
     ]
 
     const option = {
-        tooltip: {
-            trigger: 'axis',
-            confine: false,
+        tooltip: createAxisTooltipOptions({
             appendToBody: true,
+            confine: true,
+            extraCssText: 'z-index: 9999;',
             formatter: (params: any) => {
                 const detail = params[0].data.detail
 
                 let result = ``
 
                 if (detail) {
-                    result += `CPU详细信息:<br/>`
-                    result += `物理核心数: ${detail.coreCount}<br/>`
-                    result += `逻辑核心数: ${detail.logicalCount}<br/>`
-                    result += `1分钟负载: ${detail.loadAvg1.toFixed(2)}<br/>`
-                    result += `5分钟负载: ${detail.loadAvg5.toFixed(2)}<br/>`
-                    result += `15分钟负载: ${detail.loadAvg15.toFixed(2)}<br/>`
-                    result += `IO等待率: ${detail.ioWaitPercent.toFixed(2)}%<br/>`
-                    result += `硬中断率: ${detail.irqPercent.toFixed(2)}%<br/>`
-                    result += `软中断率: ${detail.softIrqPercent.toFixed(2)}%<br/>`
+                    result += `${t('cpu.detailTitle')}:<br/>`
+                    result += `${t('cpu.coreCount')}: ${detail.coreCount}<br/>`
+                    result += `${t('cpu.logicalCount')}: ${detail.logicalCount}<br/>`
+                    result += `${t('cpu.loadAvg1')}: ${formatFixed(detail.loadAvg1)}<br/>`
+                    result += `${t('cpu.loadAvg5')}: ${formatFixed(detail.loadAvg5)}<br/>`
+                    result += `${t('cpu.loadAvg15')}: ${formatFixed(detail.loadAvg15)}<br/>`
+                    result += `${t('cpu.ioWait')}: ${formatFixed(detail.ioWaitPercent)}%<br/>`
+                    result += `${t('cpu.irq')}: ${formatFixed(detail.irqPercent)}%<br/>`
+                    result += `${t('cpu.softIrq')}: ${formatFixed(detail.softIrqPercent)}%<br/>`
                     result += '<br/>'
                 }
 
                 params.forEach((item: any) => {
                     const marker = item.marker
                     const seriesName = item.seriesName
-                    const value = `${item.value.toFixed(2)}%`
+                    const value = `${formatFixed(item.value)}%`
                     result += `${marker} ${seriesName}: ${value}<br/>`
                 })
 
@@ -253,12 +229,12 @@ const updateChart = () => {
                     backgroundColor: '#6a7985'
                 }
             }
-        },
+        }),
         legend: {
             data: [
-                'CPU使用率',
-                '用户态使用率',
-                '系统态使用率'
+                t('cpu.usage'),
+                t('cpu.userUsage'),
+                t('cpu.systemUsage')
             ],
             type: 'scroll',
             bottom: 0

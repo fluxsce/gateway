@@ -14,7 +14,7 @@ import type { RouteMeta, RouteRecordRaw } from 'vue-router'
  * | 字段 | 说明 |
  * |------|------|
  * | `title` | 页标题、页签与菜单文案 |
- * | `icon` | 菜单/页签图标名（如 Ionicons5 组件名） |
+ * | `icon` | 菜单/页签图标名（Lucide kebab-case，供 RsMenu / RsIcon） |
  * | `requiresAuth` | 是否需要登录；主布局下一般为 `true` |
  * | `moduleName` | 业务模块标识（如 hub0002） |
  * | `keepAliveIncludeName` | 可选；主布局已用「页签 fullPath + wrapWithCacheKey」对齐缓存时一般不必填 |
@@ -63,7 +63,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
     meta: {
       title: '系统监控',
       requiresAuth: true,
-      icon: 'HomeOutline',
+      icon: 'layout-dashboard',
       moduleName: 'hub0000',
       keepAliveIncludeName: 'SystemMonitoring',
     },
@@ -76,7 +76,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
     meta: {
       title: '用户设置',
       requiresAuth: true,
-      icon: 'SettingsOutline',
+      icon: 'settings',
       menuHide: true,
       moduleName: 'hub0002',
       keepAliveIncludeName: 'UserSettings',
@@ -89,7 +89,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
     meta: {
       title: '系统设置',
       requiresAuth: true,
-      icon: 'SettingsOutline',
+      icon: 'settings',
     },
     children: [
       {
@@ -100,7 +100,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '用户管理',
           requiresAuth: true,
-          icon: 'PeopleOutline',
+          icon: 'users',
           moduleName: 'hub0002',
         },
       },
@@ -112,7 +112,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '角色管理',
           requiresAuth: true,
-          icon: 'PeopleCircleOutline',
+          icon: 'users-round',
           moduleName: 'hub0005',
         },
       },
@@ -124,7 +124,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '权限资源管理',
           requiresAuth: true,
-          icon: 'KeyOutline',
+          icon: 'key-round',
           moduleName: 'hub0006',
         },
       },
@@ -136,7 +136,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '系统节点监控',
           requiresAuth: true,
-          icon: 'HardwareChipOutline',
+          icon: 'cpu',
           moduleName: 'hub0007',
         },
       },
@@ -148,7 +148,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '集群节点事件',
           requiresAuth: true,
-          icon: 'RadioOutline',
+          icon: 'radio',
           moduleName: 'hub0008',
         },
       },
@@ -161,7 +161,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
     meta: {
       title: '网关管理',
       requiresAuth: true,
-      icon: 'CloudOutline',
+      icon: 'cloud',
     },
     children: [
       {
@@ -172,7 +172,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '实例管理',
           requiresAuth: true,
-          icon: 'ServerOutline',
+          icon: 'server',
           moduleName: 'hub0020',
         },
       },
@@ -184,7 +184,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '代理管理',
           requiresAuth: true,
-          icon: 'FlashOutline',
+          icon: 'zap',
           moduleName: 'hub0022',
         },
       },
@@ -196,7 +196,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '路由管理',
           requiresAuth: true,
-          icon: 'GitNetworkOutline',
+          icon: 'network',
           moduleName: 'hub0021',
         },
       },
@@ -208,7 +208,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '网关日志管理',
           requiresAuth: true,
-          icon: 'DocumentTextOutline',
+          icon: 'file-text',
           moduleName: 'hub0023',
         },
       },
@@ -221,7 +221,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
     meta: {
       title: '隧道管理',
       requiresAuth: true,
-      icon: 'SwapHorizontalOutline',
+      icon: 'arrow-left-right',
     },
     children: [
       {
@@ -232,7 +232,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '隧道服务器',
           requiresAuth: true,
-          icon: 'ServerOutline',
+          icon: 'server',
           moduleName: 'hub0060',
         },
       },
@@ -244,7 +244,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '静态映射',
           requiresAuth: true,
-          icon: 'GitNetworkOutline',
+          icon: 'network',
           moduleName: 'hub0061',
         },
       },
@@ -256,7 +256,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '隧道客户端',
           requiresAuth: true,
-          icon: 'DesktopOutline',
+          icon: 'monitor',
           moduleName: 'hub0062',
         },
       },
@@ -269,7 +269,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
     meta: {
       title: '服务治理',
       requiresAuth: true,
-      icon: 'GitNetworkOutline',
+      icon: 'git-branch',
     },
     children: [
       {
@@ -280,7 +280,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '服务中心实例管理',
           requiresAuth: true,
-          icon: 'ServerOutline',
+          icon: 'server',
           moduleName: 'hub0040',
         },
       },
@@ -292,7 +292,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '命名空间管理',
           requiresAuth: true,
-          icon: 'FolderOutline',
+          icon: 'folder',
           moduleName: 'hub0041',
         },
       },
@@ -304,7 +304,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '服务列表',
           requiresAuth: true,
-          icon: 'BarChartOutline',
+          icon: 'chart-column',
           moduleName: 'hub0042',
         },
       },
@@ -316,7 +316,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '配置中心',
           requiresAuth: true,
-          icon: 'CodeOutline',
+          icon: 'code-xml',
           moduleName: 'hub0043',
         },
       },
@@ -329,7 +329,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
     meta: {
       title: '预警管理',
       requiresAuth: true,
-      icon: 'NotificationsOutline',
+      icon: 'bell',
     },
     children: [
       {
@@ -340,7 +340,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '预警服务配置',
           requiresAuth: true,
-          icon: 'MailOutline',
+          icon: 'mail',
           moduleName: 'hub0080',
         },
       },
@@ -352,7 +352,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '预警模板管理',
           requiresAuth: true,
-          icon: 'JournalOutline',
+          icon: 'notebook-text',
           moduleName: 'hub0081',
         },
       },
@@ -364,7 +364,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
         meta: {
           title: '预警日志管理',
           requiresAuth: true,
-          icon: 'DocumentTextOutline',
+          icon: 'file-text',
           moduleName: 'hub0082',
         },
       },
@@ -457,7 +457,7 @@ export function buildSidebarMenuFromRegistry(): SidebarMenuNode[] {
         key: def.name,
         label: topMeta?.title ?? String(def.name),
         path: `/${def.path}`,
-        icon: topMeta?.icon ?? 'Menu',
+        icon: topMeta?.icon ?? 'menu',
       })
     } else {
       if (topMeta?.menuHide) continue
@@ -474,14 +474,14 @@ export function buildSidebarMenuFromRegistry(): SidebarMenuNode[] {
             key: c.name,
             label: m?.title ?? String(c.name),
             path: `/${def.path}/${c.path}`,
-            icon: m?.icon ?? 'Menu',
+            icon: m?.icon ?? 'circle',
           }
         })
       if (children.length === 0) continue
       menu.push({
         key: def.name,
         label: topMeta?.title ?? String(def.name),
-        icon: topMeta?.icon ?? 'Menu',
+        icon: topMeta?.icon ?? 'menu',
         children,
       })
     }
@@ -492,7 +492,7 @@ export function buildSidebarMenuFromRegistry(): SidebarMenuNode[] {
       key: 'testIndex',
       label: '组件测试',
       path: '/test/index',
-      icon: 'FlaskOutline',
+      icon: 'flask-conical',
     })
   }
   return menu

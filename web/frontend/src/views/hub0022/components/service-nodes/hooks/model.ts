@@ -4,13 +4,25 @@
  */
 
 import type { DataFormField, DataFormTab } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
+import { RsTag } from '@/ui'
 import { formatDate } from '@/utils/format'
-import { AddOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
-import { ref } from 'vue'
+import { h, ref } from 'vue'
 import type { ServiceNode } from '../types'
+
+/**
+ * 服务节点表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface ServiceNodeGridConfig {
+  columns: RsGridColumn<ServiceNode>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
 
 /**
  * 在已有完整 URL 的基础上，按新的协议/主机/端口重建节点地址，
@@ -58,8 +70,8 @@ export function useServiceNodeModel() {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'nodeHost',
@@ -100,21 +112,21 @@ export function useServiceNodeModel() {
       {
         key: 'add',
         label: '新建节点',
-        icon: AddOutline,
+        icon: 'AddOutline',
         type: 'primary',
         tooltip: '新建服务节点',
       },
       {
         key: 'edit',
         label: '编辑',
-        icon: CreateOutline,
+        icon: 'CreateOutline',
         type: 'default',
         tooltip: '编辑选中的服务节点',
       },
       {
         key: 'delete',
         label: '删除',
-        icon: TrashOutline,
+        icon: 'TrashOutline',
         type: 'error',
         tooltip: '批量删除选中的服务节点',
       },
@@ -423,144 +435,159 @@ export function useServiceNodeModel() {
 
   // ============= 表格配置 =============
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置（符合 RsGrid 结构） */
+  const gridConfig: ServiceNodeGridConfig = {
     columns: [
-      // ============= 主键字段（隐藏，但必须存在用于数据操作） =============
       {
-        field: 'serviceNodeId',
+        key: 'serviceNodeId',
         title: '服务节点ID',
         visible: false,
       },
       {
-        field: 'tenantId',
+        key: 'tenantId',
         title: '租户ID',
         visible: false,
       },
       {
-        field: 'serviceDefinitionId',
+        key: 'serviceDefinitionId',
         title: '服务定义ID',
         visible: false,
       },
-      // ============= 业务字段 =============
       {
-        field: 'nodeId',
+        key: 'nodeId',
         title: '节点ID',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 150,
       },
       {
-        field: 'nodeUrl',
+        key: 'nodeUrl',
         title: '节点地址',
         sortable: true,
         align: 'left',
-        showOverflow: true,
+        ellipsis: true,
         width: 250,
       },
       {
-        field: 'nodeHost',
+        key: 'nodeHost',
         title: '节点主机',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 150,
       },
       {
-        field: 'nodePort',
+        key: 'nodePort',
         title: '节点端口',
         sortable: true,
         align: 'center',
         width: 100,
       },
       {
-        field: 'nodeProtocol',
+        key: 'nodeProtocol',
         title: '协议',
         align: 'center',
         width: 80,
-        slots: { default: 'nodeProtocol' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.nodeProtocol === 'HTTPS' ? 'success' : 'info',
+              size: 'sm',
+            },
+            () => row.nodeProtocol,
+          ),
       },
       {
-        field: 'nodeWeight',
+        key: 'nodeWeight',
         title: '权重',
         align: 'center',
         width: 80,
       },
       {
-        field: 'healthStatus',
+        key: 'healthStatus',
         title: '健康状态',
         align: 'center',
         width: 100,
-        slots: { default: 'healthStatus' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.healthStatus === 'Y' ? 'success' : 'danger',
+              size: 'sm',
+            },
+            () => (row.healthStatus === 'Y' ? '健康' : '不健康'),
+          ),
       },
-      // ============= nodeStatus 字段暂时未使用，已隐藏 =============
-      // {
-      //   field: 'nodeStatus',
-      //   title: '运行状态',
-      //   align: 'center',
-      //   width: 100,
-      //   slots: { default: 'nodeStatus' },
-      // },
       {
-        field: 'activeFlag',
+        key: 'activeFlag',
         title: '在线状态',
         align: 'center',
         width: 100,
-        slots: { default: 'activeFlag' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.activeFlag === 'Y' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.activeFlag === 'Y' ? '启用' : '禁用'),
+          ),
       },
       {
-        field: 'lastHealthCheckTime',
+        key: 'lastHealthCheckTime',
         title: '最后检查时间',
         align: 'center',
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '-',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '-',
         width: 180,
       },
       {
-        field: 'noteText',
+        key: 'noteText',
         title: '备注',
         align: 'left',
-        showOverflow: true,
+        ellipsis: true,
         width: 150,
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
         sortable: true,
         align: 'center',
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
         width: 180,
       },
       {
-        field: 'addWho',
+        key: 'addWho',
         title: '创建人',
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 120,
       },
       {
-        field: 'editTime',
+        key: 'editTime',
         title: '修改时间',
         sortable: true,
         align: 'center',
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
         width: 180,
       },
       {
-        field: 'editWho',
+        key: 'editWho',
         title: '修改人',
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 120,
       },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: 'serviceNodeId',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -568,23 +595,12 @@ export function useServiceNodeModel() {
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      showCopyCell: true,
-      options: [
-        {
-          code: 'edit',
-          name: '编辑',
-          prefixIcon: 'vxe-icon-edit',
-        },
-        {
-          code: 'delete',
-          name: '删除',
-          prefixIcon: 'vxe-icon-delete',
-        },
+      items: [
+        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
       ],
     },
     height: '100%',
-    rowId: 'serviceNodeId',
   }
 
   // ============= 辅助方法 =============

@@ -1,63 +1,78 @@
 <template>
+  <!--
+    @deprecated 请直接使用 @/ui 的 RsSplitPane。本组件仅过渡兼容，后续将删除。
+  -->
   <div class="g-pane" :class="`g-pane--${direction}`">
-    <!-- noResize 模式：使用 flex 布局，面板根据内容自适应 -->
-    <div v-if="noResize" class="g-pane__flex-container" :class="`g-pane__flex-container--${direction}`">
-      <div class="g-pane__flex-pane g-pane__flex-pane--1" :class="pane1Class" :style="computedPane1Style">
+    <!-- noResize：flex 布局，上/左面板随内容自适应，下/右占满剩余 -->
+    <div
+      v-if="noResize"
+      class="g-pane__flex-container"
+      :class="`g-pane__flex-container--${direction}`"
+    >
+      <div
+        class="g-pane__flex-pane g-pane__flex-pane--1"
+        :class="pane1Class"
+        :style="computedPane1Style"
+      >
         <slot name="1">
           <slot name="pane1" />
         </slot>
       </div>
-      <div class="g-pane__flex-pane g-pane__flex-pane--2" :class="pane2Class" :style="computedPane2Style">
+      <div
+        v-show="pane2Visible"
+        class="g-pane__flex-pane g-pane__flex-pane--2"
+        :class="pane2Class"
+        :style="computedPane2Style"
+      >
         <slot name="2">
           <slot name="pane2" />
         </slot>
       </div>
     </div>
 
-    <!-- 正常模式：使用 n-split 进行可拖拽分割 -->
-    <n-split
+    <!-- 可拖拽：RsSplitPane -->
+    <RsSplitPane
       v-else
-      :direction="direction"
-      :default-size="defaultSize"
-      :size="currentSize"
-      :min="min"
-      :max="max"
-      :resize-trigger-size="resizeTriggerSize"
+      class="g-pane__split"
+      :orientation="direction"
+      :panes="splitPanes"
       :disabled="disabled"
-      :pane1-class="pane1Class"
-      :pane1-style="pane1Style"
-      :pane2-class="pane2Class"
-      :pane2-style="pane2Style"
-      @update:size="handleUpdateSize"
-      :on-drag-start="handleDragStart"
-      :on-drag-end="handleDragEnd"
+      with-handle
+      v-model:sizes="splitSizes"
+      @resize="handleResize"
+      @resize-end="handleResizeEnd"
     >
-      <!-- 上/左 面板：兼容 NSplit 的 #1 插槽，同时支持自定义 pane1 插槽 -->
-      <template #1>
-        <slot name="1">
-          <slot name="pane1" />
-        </slot>
+      <template #pane1>
+        <div class="g-pane__slot" :class="pane1Class" :style="pane1Style">
+          <slot name="1">
+            <slot name="pane1" />
+          </slot>
+        </div>
       </template>
-
-      <!-- 下/右 面板：兼容 NSplit 的 #2 插槽，同时支持自定义 pane2 插槽 -->
-      <template #2>
-        <slot name="2">
-          <slot name="pane2" />
-        </slot>
+      <template #pane2>
+        <div class="g-pane__slot" :class="pane2Class" :style="pane2Style">
+          <slot name="2">
+            <slot name="pane2" />
+          </slot>
+        </div>
       </template>
-    </n-split>
+    </RsSplitPane>
   </div>
 </template>
 
 <script setup lang="ts">
-import { NSplit } from 'naive-ui';
-import type { CSSProperties } from 'vue';
-import { computed, ref } from 'vue';
-import type { GPaneEmits, GPaneExpose, GPaneProps } from './types';
+import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
+import type { CSSProperties } from 'vue'
+import { computed, ref, watch } from 'vue'
+import type { GPaneEmits, GPaneExpose, GPaneProps } from './types'
 
 defineOptions({
-  name: 'GPane'
+  name: 'GPane',
 })
+
+/**
+ * @deprecated 请直接使用 `@/ui` 的 `RsSplitPane`。本组件仅作过渡兼容，后续将删除。
+ */
 
 const props = withDefaults(defineProps<GPaneProps>(), {
   direction: 'vertical',
@@ -65,149 +80,144 @@ const props = withDefaults(defineProps<GPaneProps>(), {
   max: 1,
   disabled: false,
   noResize: false,
-  resizeTriggerSize: 2
+  resizeTriggerSize: 2,
 })
 
 const emit = defineEmits<GPaneEmits>()
 
-// 内部状态：面板二的可见性
-const pane2Visible = ref<boolean>(true)
+/** 面板二可见性（兼容旧 API） */
+const pane2Visible = ref(true)
 
-// 内部状态：当前面板尺寸
-const currentSize = ref<number | string | undefined>(props.size)
+/** 受控 / 内部尺寸（0~1 分数，兼容旧 v-model:size） */
+const currentSize = ref<number | string | undefined>(props.size ?? props.defaultSize)
 
-const handleUpdateSize = (size: number | string) => {
-  // 只有在 pane2Visible 为 true 时才更新 currentSize
-  if (pane2Visible.value) {
-    currentSize.value = size
-    emit('update:size', size)
+watch(
+  () => props.size,
+  (value) => {
+    if (value !== undefined) currentSize.value = value
+  },
+)
+
+/**
+ * 将 GPane 尺寸（0~1 / 百分比 / px）转为 RsSplitPane 百分比。
+ * px 无法精确换算时回退到 fallback。
+ */
+function toPercent(value: number | string | undefined, fallback = 50): number {
+  if (value == null) return fallback
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return fallback
+    return Math.max(0, Math.min(100, value <= 1 ? value * 100 : value))
   }
+  const trimmed = value.trim()
+  if (trimmed.endsWith('%')) {
+    const percent = Number.parseFloat(trimmed)
+    return Number.isFinite(percent) ? Math.max(0, Math.min(100, percent)) : fallback
+  }
+  if (trimmed.endsWith('px')) {
+    return fallback
+  }
+  const num = Number.parseFloat(trimmed)
+  if (!Number.isFinite(num)) return fallback
+  return Math.max(0, Math.min(100, num <= 1 ? num * 100 : num))
 }
 
-const handleDragStart = (e: Event) => {
-  emit('drag-start', e)
-}
-
-const handleDragEnd = (e: Event) => {
-  emit('drag-end', e)
-}
-
-
-// 将 defaultSize 转换为百分比数值 (0-1)
-const normalizedSize = computed(() => {
-  // 如果 pane2 不可见，返回 1（左侧占满）
-  if (!pane2Visible.value) {
-    return 1
-  }
-  
-  const sizeToNormalize = props.defaultSize
-  if (typeof sizeToNormalize === 'number') {
-    return Math.max(0, Math.min(1, sizeToNormalize))
-  }
-  if (typeof sizeToNormalize === 'string') {
-    // 处理百分比字符串，如 "80%" -> 0.8
-    if (sizeToNormalize.endsWith('%')) {
-      const percent = parseFloat(sizeToNormalize) / 100
-      return Math.max(0, Math.min(1, percent))
-    }
-    // 如果是数字字符串，尝试解析
-    const num = parseFloat(sizeToNormalize)
-    if (!isNaN(num)) {
-      return Math.max(0, Math.min(1, num <= 1 ? num : num / 100))
-    }
-  }
-  return 0.5 // 默认 50%
+const pane1Percent = computed(() => {
+  if (!pane2Visible.value) return 100
+  return toPercent(currentSize.value ?? props.defaultSize, 30)
 })
 
-// 计算 pane1 和 pane2 的 flex 值
+const pane1MinPercent = computed(() => toPercent(props.min, 0))
+const pane1MaxPercent = computed(() => toPercent(props.max, 100))
+
+const splitPanes = computed<RsSplitPaneItem[]>(() => {
+  const size1 = pane1Percent.value
+  return [
+    {
+      key: 'pane1',
+      size: size1,
+      min: pane1MinPercent.value,
+      max: pane1MaxPercent.value,
+    },
+    {
+      key: 'pane2',
+      size: Math.max(0, 100 - size1),
+      collapsible: true,
+      collapsedSize: 0,
+    },
+  ]
+})
+
+const splitSizes = ref<number[]>([pane1Percent.value, Math.max(0, 100 - pane1Percent.value)])
+
+watch(pane1Percent, (size1) => {
+  splitSizes.value = [size1, Math.max(0, 100 - size1)]
+})
+
+watch(pane2Visible, (visible) => {
+  if (!visible) {
+    splitSizes.value = [100, 0]
+    currentSize.value = 1
+  } else if (props.size === undefined) {
+    currentSize.value = props.defaultSize
+  }
+})
+
+const handleResize = (sizes: number[]) => {
+  if (!pane2Visible.value) return
+  const fraction = (sizes[0] ?? 50) / 100
+  currentSize.value = fraction
+  emit('update:size', fraction)
+}
+
+const handleResizeEnd = (sizes: number[]) => {
+  handleResize(sizes)
+  emit('drag-end', new Event('resize-end'))
+}
+
+/** noResize + 指定 defaultSize 时按比例分配；未指定则 pane1 自适应内容 */
 const computedPane1Style = computed(() => {
+  const baseStyle: CSSProperties =
+    typeof props.pane1Style === 'string' ? {} : props.pane1Style || {}
   if (!props.noResize || props.defaultSize === undefined) {
     return props.pane1Style as CSSProperties | string || {}
   }
-  
-  const baseStyle: CSSProperties = typeof props.pane1Style === 'string' 
-    ? {} 
-    : (props.pane1Style || {})
-  
-  const size = normalizedSize.value
-  return {
-    ...baseStyle,
-    flex: `${size} ${size} 0`
-  } as CSSProperties
+  const size = pane1Percent.value / 100
+  return { ...baseStyle, flex: `${size} ${size} 0` }
 })
 
 const computedPane2Style = computed(() => {
+  const baseStyle: CSSProperties =
+    typeof props.pane2Style === 'string' ? {} : props.pane2Style || {}
   if (!props.noResize || props.defaultSize === undefined) {
     return props.pane2Style as CSSProperties | string || {}
   }
-  
-  const baseStyle: CSSProperties = typeof props.pane2Style === 'string' 
-    ? {} 
-    : (props.pane2Style || {})
-  
-  const size = normalizedSize.value
-  const remainingSize = 1 - size
-  return {
-    ...baseStyle,
-    flex: `${remainingSize} ${remainingSize} 0`
-  } as CSSProperties
+  const remaining = 1 - pane1Percent.value / 100
+  return { ...baseStyle, flex: `${remaining} ${remaining} 0` }
 })
 
-// ============= 暴露的方法 =============
-
-/**
- * 设置面板二（下/右）的可见性
- */
 const setPane2Visible = (visible: boolean) => {
   pane2Visible.value = visible
-  // 根据可见性设置 currentSize
-  if (visible) {
-    // 恢复显示，如果 props.size 不存在，设置为 undefined 以使用 defaultSize
-    if (props.size === undefined) {
-      currentSize.value = props.defaultSize
-    }
-  } else {
-    // 隐藏面板2，设置为 1（左侧占满）
-    currentSize.value = 1
-  }
 }
 
-/**
- * 获取面板二（下/右）的可见性
- */
-const getPane2Visible = () => {
-  return pane2Visible.value
-}
+const getPane2Visible = () => pane2Visible.value
 
-/**
- * 切换面板二（下/右）的可见性
- */
 const togglePane2Visible = () => {
   setPane2Visible(!pane2Visible.value)
 }
 
-/**
- * 设置面板尺寸
- */
 const setSize = (size: number | string) => {
   currentSize.value = size
   emit('update:size', size)
 }
 
-/**
- * 获取当前面板尺寸
- */
-const getSize = () => {
-  return currentSize.value ?? props.defaultSize
-}
+const getSize = () => currentSize.value ?? props.defaultSize
 
-// 暴露方法
 defineExpose<GPaneExpose>({
   setPane2Visible,
   getPane2Visible,
   togglePane2Visible,
   setSize,
-  getSize
+  getSize,
 })
 </script>
 
@@ -226,20 +236,25 @@ defineExpose<GPaneExpose>({
     flex-direction: row;
   }
 
-  :deep(.n-split) {
+  .g-pane__split {
     width: 100%;
     height: 100%;
   }
 
-  // 可以按需在这里通过 :deep(.n-split__resize-trigger-wrapper) 自定义分割条样式
+  .g-pane__slot {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
 
-  /* noResize 模式：使用 flex 布局，面板根据内容自适应 */
   .g-pane__flex-container {
     width: 100%;
     height: 100%;
     display: flex;
 
-    /* 垂直方向：上下分割 */
     &--vertical {
       flex-direction: column;
 
@@ -257,7 +272,6 @@ defineExpose<GPaneExpose>({
       }
     }
 
-    /* 水平方向：左右分割 */
     &--horizontal {
       flex-direction: row;
 
@@ -276,12 +290,9 @@ defineExpose<GPaneExpose>({
     }
   }
 
-  /* 面板通用样式 */
   .g-pane__flex-pane {
     display: flex;
     flex-direction: column;
   }
 }
 </style>
-
-

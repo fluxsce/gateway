@@ -3,13 +3,11 @@
         <div class="chart-header">
             <h3 class="chart-title">{{ title }}</h3>
             <div class="chart-controls">
-                <n-button size="small" @click="handleRefresh" :loading="loading">
+                <RsButton size="sm" :loading="loading" @click="handleRefresh">
                     <template #icon>
-                        <n-icon>
-                            <ReloadOutlined />
-                        </n-icon>
+                        <GIcon icon="ReloadOutline" />
                     </template>
-                </n-button>
+                </RsButton>
             </div>
         </div>
 
@@ -33,8 +31,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { NButton, NIcon } from 'naive-ui'
-import { ReloadOutlined } from '@vicons/antd'
+import { GIcon } from '@/components/gicon'
+import { RsButton } from '@/ui'
 import BaseChart from './BaseChart.vue'
 import type { EChartsOption } from 'echarts'
 

@@ -38,7 +38,7 @@
 
 <script setup lang="ts">
 import { GModal } from '@/components/gmodal'
-import { createBackendPaginationParams } from '@/components/gpage'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { GridProps } from '@/components/grid'
 import { GGrid } from '@/components/grid'
 import type { PageInfoObj } from '@/types/api'

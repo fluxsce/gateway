@@ -1,39 +1,45 @@
 /**
- * 用户设置管理hook
+ * 用户设置管理 hook
  * 处理用户个人资料、密码修改、系统设置等
  */
+import { useAppMessage } from '@/composables/useAppMessage'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { store } from '@/stores'
+import type { RsFormRules, RsFormValidationResult } from '@/ui'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
-import type { FormInst, FormRules } from 'naive-ui'
-import { useMessage } from 'naive-ui'
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { changePassword, editUser, getUserInfo } from '../api'
 import type { User } from '../types'
 
-// 前端扩展类型：在后端 User 结构体基础上增加 deptName（来自关联查询或缓存）
+/** RsForm 暴露的校验与重置方法 */
+interface RsFormExpose {
+  validate: () => Promise<RsFormValidationResult>
+  clearValidation: (names?: string | string[]) => void
+  resetFields: (names?: string | string[]) => void
+}
+
+/** 前端扩展类型：在后端 User 结构体基础上增加 deptName（来自关联查询或缓存） */
 type UserWithDeptName = User & { deptName?: string }
 
+/**
+ * 用户设置页业务逻辑：资料编辑、改密、主题/语言等本地偏好。
+ */
 export function useUserSettings() {
   const { t } = useModuleI18n('hub0002')
-  const { t: tCommon } = useModuleI18n('common')
-  const message = useMessage()
+  const message = useAppMessage()
   const i18n = useI18n()
 
-  // Form refs
-  const profileFormRef = ref<FormInst | null>(null)
-  const passwordFormRef = ref<FormInst | null>(null)
+  const profileFormRef = ref<RsFormExpose | null>(null)
+  const passwordFormRef = ref<RsFormExpose | null>(null)
 
-  // Loading states
   const loading = ref(false)
   const savingProfile = ref(false)
   const changingPassword = ref(false)
 
-  // User info - 直接查询而不是从 store 获取
+  // 用户信息：直接查询而不是从 store 获取
   const userInfo = ref<UserWithDeptName | null>(null)
 
-  // Profile form
   const profileForm = reactive<Partial<UserWithDeptName>>({
     userId: '',
     userName: '',
@@ -46,26 +52,25 @@ export function useUserSettings() {
     tenantId: '',
   })
 
-  // Fetch user info from API
+  /**
+   * 从接口拉取当前登录用户信息并回填资料表单。
+   */
   const fetchUserInfo = async () => {
     try {
       loading.value = true
-      
-      // 检查用户是否已登录
+
       if (!store.user.isAuthenticated) {
         message.error(t('profile.fetchFailed'))
         return
       }
 
       const result = await getUserInfo(store.user.userId, store.user.tenantId)
-      
+
       if (isApiSuccess(result)) {
-        // 使用 parseJsonData 从 bizData 中解析用户信息
         const userData = parseJsonData<UserWithDeptName>(result)
-        
+
         userInfo.value = userData
-        
-        // 初始化表单
+
         Object.assign(profileForm, {
           userId: userData.userId,
           userName: userData.userName,
@@ -80,15 +85,14 @@ export function useUserSettings() {
       } else {
         message.error(getApiMessage(result, t('profile.fetchFailed')))
       }
-    } catch (error) {
-      console.error('Fetch user info error:', error)
+    } catch {
       message.error(t('profile.fetchFailed'))
     } finally {
       loading.value = false
     }
   }
 
-  // Initialize profile form
+  /** 用已加载的 userInfo 重置资料表单字段 */
   const initProfileForm = () => {
     if (userInfo.value) {
       Object.assign(profileForm, {
@@ -105,124 +109,122 @@ export function useUserSettings() {
     }
   }
 
-  // Profile validation rules
-  const profileRules: FormRules = {
+  const profileRules = computed<RsFormRules>(() => ({
     realName: [
       {
         required: true,
-        message: () => t('profile.realNameRequired'),
-        trigger: ['blur', 'input'],
+        message: t('profile.realNameRequired'),
+        trigger: 'blur',
       },
       {
         min: 2,
         max: 50,
-        message: () => t('profile.realNameLength'),
-        trigger: ['blur', 'input'],
+        message: t('profile.realNameLength'),
+        trigger: 'blur',
       },
     ],
     email: [
       {
         type: 'email',
-        message: () => t('profile.emailInvalid'),
-        trigger: ['blur', 'input'],
+        message: t('profile.emailInvalid'),
+        trigger: 'blur',
       },
     ],
     mobile: [
       {
         pattern: /^1[3-9]\d{9}$/,
-        message: () => t('profile.mobileInvalid'),
-        trigger: ['blur', 'input'],
+        message: t('profile.mobileInvalid'),
+        trigger: 'blur',
       },
     ],
-  }
+  }))
 
-  // Password form
   const passwordForm = reactive({
     oldPassword: '',
     newPassword: '',
     confirmPassword: '',
   })
 
-  // Password validation rules
-  const passwordRules: FormRules = {
+  const passwordRules = computed<RsFormRules>(() => ({
     oldPassword: [
       {
         required: true,
-        message: () => t('password.oldPasswordRequired'),
-        trigger: ['blur', 'input'],
+        message: t('password.oldPasswordRequired'),
+        trigger: 'blur',
       },
     ],
     newPassword: [
       {
         required: true,
-        message: () => t('password.newPasswordRequired'),
-        trigger: ['blur', 'input'],
+        message: t('password.newPasswordRequired'),
+        trigger: 'blur',
       },
       {
         min: 8,
         max: 20,
-        message: () => t('password.passwordLength'),
-        trigger: ['blur', 'input'],
+        message: t('password.passwordLength'),
+        trigger: 'blur',
       },
       {
         pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
-        message: () => t('password.passwordPattern'),
-        trigger: ['blur', 'input'],
+        message: t('password.passwordPattern'),
+        trigger: 'blur',
       },
     ],
     confirmPassword: [
       {
         required: true,
-        message: () => t('password.confirmPasswordRequired'),
-        trigger: ['blur', 'input'],
+        message: t('password.confirmPasswordRequired'),
+        trigger: 'blur',
       },
       {
-        validator: (rule: any, value: string) => {
+        validator: (value) => {
           if (value !== passwordForm.newPassword) {
-            return new Error(t('password.passwordMismatch'))
+            return t('password.passwordMismatch')
           }
           return true
         },
-        trigger: ['blur', 'input'],
+        trigger: 'blur',
       },
     ],
-  }
+  }))
 
-  // Settings form
   const settingsForm = reactive({
     theme: store.user.theme,
     language: store.user.language,
-    showGuide: false, // 简化版 store 中没有此字段，使用默认值
-    notificationEnabled: true, // 简化版 store 中没有此字段，使用默认值
+    showGuide: false,
+    notificationEnabled: true,
   })
 
-  // Theme options
   const themeOptions = computed(() => [
     { label: t('settings.lightTheme'), value: 'light' },
     { label: t('settings.darkTheme'), value: 'dark' },
     { label: t('settings.autoTheme'), value: 'auto' },
   ])
 
-  // Language options
   const languageOptions = computed(() => [
     { label: '简体中文', value: 'zh-CN' },
     { label: 'English', value: 'en' },
   ])
 
-  // Handle save profile
+  /**
+   * 校验并保存个人资料；成功后刷新用户信息与 store。
+   */
   const handleSaveProfile = async () => {
     try {
-      await profileFormRef.value?.validate()
+      const validateResult = await profileFormRef.value?.validate()
+      if (validateResult && !validateResult.valid) {
+        message.error(t('profile.validationFailed'))
+        return
+      }
 
       savingProfile.value = true
 
-      // 使用 editUser API，需要传递完整的用户信息
       if (!userInfo.value) {
         message.error(t('profile.saveFailed'))
         return
       }
 
-      // 从 extObj 中获取完整的用户数据（如果有的话）
       const result = await editUser({
         userId: profileForm.userId!,
         tenantId: profileForm.tenantId!,
@@ -249,10 +251,8 @@ export function useUserSettings() {
       if (isApiSuccess(result)) {
         message.success(t('profile.saveSuccess'))
 
-        // 重新查询用户信息
         await fetchUserInfo()
 
-        // 同时更新 store 中的用户信息（保持同步）
         store.user.update({
           realName: profileForm.realName!,
           email: profileForm.email,
@@ -262,28 +262,29 @@ export function useUserSettings() {
       } else {
         message.error(getApiMessage(result, t('profile.saveFailed')))
       }
-    } catch (error: any) {
-      if (error?.errorFields) {
-        message.error(t('profile.validationFailed'))
-      } else {
-        console.error('Save profile error:', error)
-        message.error(t('profile.saveFailed'))
-      }
+    } catch {
+      message.error(t('profile.saveFailed'))
     } finally {
       savingProfile.value = false
     }
   }
 
-  // Handle reset profile
+  /** 重置资料表单并清除校验态 */
   const handleResetProfile = () => {
     initProfileForm()
-    profileFormRef.value?.restoreValidation()
+    profileFormRef.value?.clearValidation()
   }
 
-  // Handle change password
+  /**
+   * 校验并提交密码修改；成功后清空表单并引导重新登录。
+   */
   const handleChangePassword = async () => {
     try {
-      await passwordFormRef.value?.validate()
+      const validateResult = await passwordFormRef.value?.validate()
+      if (validateResult && !validateResult.valid) {
+        message.error(t('password.validationFailed'))
+        return
+      }
 
       changingPassword.value = true
 
@@ -298,7 +299,6 @@ export function useUserSettings() {
         message.success(t('password.changeSuccess'))
         handleResetPassword()
 
-        // Optionally redirect to login after password change
         setTimeout(() => {
           store.user.clearUserInfo()
           window.location.href = '/'
@@ -306,71 +306,72 @@ export function useUserSettings() {
       } else {
         message.error(getApiMessage(result, t('password.changeFailed')))
       }
-    } catch (error: any) {
-      if (error?.errorFields) {
-        message.error(t('password.validationFailed'))
-      } else {
-        console.error('Change password error:', error)
-        message.error(t('password.changeFailed'))
-      }
+    } catch {
+      message.error(t('password.changeFailed'))
     } finally {
       changingPassword.value = false
     }
   }
 
-  // Handle reset password form
+  /** 清空密码表单并清除校验态 */
   const handleResetPassword = () => {
     passwordForm.oldPassword = ''
     passwordForm.newPassword = ''
     passwordForm.confirmPassword = ''
-    passwordFormRef.value?.restoreValidation()
+    passwordFormRef.value?.clearValidation()
   }
 
-  // Handle theme change
-  const handleThemeChange = (value: string) => {
-    store.user.updateSettings({ theme: value })
+  /** 切换主题并持久化到用户设置 */
+  const handleThemeChange = (value: string | string[]) => {
+    const theme = Array.isArray(value) ? value[0] : value
+    if (!theme) return
+    settingsForm.theme = theme
+    store.user.updateSettings({ theme })
     message.success(t('settings.themeChanged'))
   }
 
-  // Handle language change
-  const handleLanguageChange = (value: string) => {
-    store.user.updateSettings({ language: value })
-    i18n.locale.value = value
+  /** 切换语言并同步 i18n locale */
+  const handleLanguageChange = (value: string | string[]) => {
+    const language = Array.isArray(value) ? value[0] : value
+    if (!language) return
+    settingsForm.language = language
+    store.user.updateSettings({ language })
+    i18n.locale.value = language
     message.success(t('settings.languageChanged'))
   }
 
-  // Handle notification change
+  /** 通知开关：当前仅更新本地状态并提示 */
   const handleNotificationChange = (value: boolean) => {
-    // 简化版 store 暂不支持 notificationEnabled，仅显示消息
     settingsForm.notificationEnabled = value
     message.success(
-      value ? t('settings.notificationEnabled') : t('settings.notificationDisabled')
+      value ? t('settings.notificationEnabled') : t('settings.notificationDisabled'),
     )
   }
 
-  // Handle guide change
+  /** 引导开关：当前仅更新本地状态 */
   const handleGuideChange = (value: boolean) => {
-    // 简化版 store 暂不支持 showGuide，仅更新本地状态
     settingsForm.showGuide = value
   }
 
-  // 将文件转换为 base64
+  /**
+   * 将本地文件读为 Data URL（base64）。
+   * @param file - 原始文件
+   * @returns Data URL 字符串
+   */
   const convertFileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
       reader.readAsDataURL(file)
       reader.onload = () => resolve(reader.result as string)
-      reader.onerror = (error) => reject(error)
+      reader.onerror = () => reject(new Error('Failed to read avatar file'))
     })
   }
 
   return {
-    // User info
     userInfo,
     loading,
     fetchUserInfo,
 
-    // Profile
     profileForm,
     profileFormRef,
     profileRules,
@@ -378,7 +379,6 @@ export function useUserSettings() {
     handleSaveProfile,
     handleResetProfile,
 
-    // Password
     passwordForm,
     passwordFormRef,
     passwordRules,
@@ -386,7 +386,6 @@ export function useUserSettings() {
     handleChangePassword,
     handleResetPassword,
 
-    // Settings
     settingsForm,
     themeOptions,
     languageOptions,
@@ -395,8 +394,6 @@ export function useUserSettings() {
     handleNotificationChange,
     handleGuideChange,
 
-    // Avatar
     convertFileToBase64,
   }
 }
-

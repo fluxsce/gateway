@@ -3,11 +3,11 @@
  * 处理所有与后端交互的业务逻辑
  */
 
-import { useGDialog } from '@/components/gdialog'
-import { createBackendPaginationParams } from '@/components/gpage'
+import { rsConfirm } from '@/ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { JsonDataObj } from '@/types/api'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import { WarningOutline } from '@vicons/ionicons5'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import * as userApi from '../api'
 import type { User } from '../types/index'
@@ -17,10 +17,8 @@ import { useUserModel } from './model'
  * 用户服务 Hook（纯业务逻辑，不再依赖外部 options）
  */
 export function useUserService(searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 初始化 Model
+  const message = useAppMessage()
+// 初始化 Model
   const model = useUserModel()
 
   const {
@@ -89,8 +87,7 @@ export function useUserService(searchFormRef?: Ref<any> | any) {
       } else {
         message.error(response.errMsg || '查询用户列表失败')
       }
-    } catch (error) {
-      console.error('加载用户列表失败:', error)
+    } catch {
       message.error('加载用户列表失败')
     } finally {
       loading.value = false
@@ -159,8 +156,7 @@ export function useUserService(searchFormRef?: Ref<any> | any) {
         message.error(response.errMsg || response.popMsg || '新增用户失败')
         return false
       }
-    } catch (error) {
-      console.error('新增用户失败:', error)
+    } catch {
       message.error('新增用户失败')
       return false
     } finally {
@@ -192,8 +188,7 @@ export function useUserService(searchFormRef?: Ref<any> | any) {
         message.error(response.errMsg || response.popMsg || '编辑用户失败')
         return false
       }
-    } catch (error) {
-      console.error('编辑用户失败:', error)
+    } catch {
       message.error('编辑用户失败')
       return false
     } finally {
@@ -205,14 +200,13 @@ export function useUserService(searchFormRef?: Ref<any> | any) {
    * 删除用户
    */
   const deleteUser = async (user: User): Promise<boolean> => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认删除',
       subtitle: '此操作不可恢复，请谨慎操作',
-      content: `确定要删除用户 "${user.realName || user.userName}" 吗？`,
+      description: `确定要删除用户 "${user.realName || user.userName}" 吗？`,
       icon: WarningOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定删除',
-      negativeText: '取消',
+      confirmText: '确定删除',
+      cancelText: '取消',
       width: 500
     })
 
@@ -239,8 +233,7 @@ export function useUserService(searchFormRef?: Ref<any> | any) {
         message.error(response.errMsg || response.popMsg || '删除用户失败')
         return false
       }
-    } catch (error) {
-      console.error('删除用户失败:', error)
+    } catch {
       message.error('删除用户失败')
       return false
     } finally {
@@ -252,14 +245,13 @@ export function useUserService(searchFormRef?: Ref<any> | any) {
    * 批量删除用户
    */
   const batchDeleteUsers = async (users: User[]): Promise<boolean> => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认批量删除',
       subtitle: '此操作不可恢复，请谨慎操作',
-      content: `确定要删除选中的 ${users.length} 个用户吗？`,
+      description: `确定要删除选中的 ${users.length} 个用户吗？`,
       icon: WarningOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定删除',
-      negativeText: '取消',
+      confirmText: '确定删除',
+      cancelText: '取消',
       width: 500
     })
 
@@ -298,8 +290,7 @@ export function useUserService(searchFormRef?: Ref<any> | any) {
         message.error(`删除失败，共 ${failCount} 个`)
         return false
       }
-    } catch (error) {
-      console.error('批量删除用户失败:', error)
+    } catch {
       message.error('批量删除用户失败')
       return false
     } finally {
@@ -311,14 +302,13 @@ export function useUserService(searchFormRef?: Ref<any> | any) {
    * 重置密码
    */
   const resetPassword = async (user: User): Promise<boolean> => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认重置密码',
       subtitle: '新密码将通过邮件发送给用户',
-      content: `确定要重置用户 "${user.realName || user.userName}" 的密码吗？`,
+      description: `确定要重置用户 "${user.realName || user.userName}" 的密码吗？`,
       icon: WarningOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定重置',
-      negativeText: '取消',
+      confirmText: '确定重置',
+      cancelText: '取消',
       width: 500
     })
 
@@ -334,8 +324,7 @@ export function useUserService(searchFormRef?: Ref<any> | any) {
       // 模拟成功
       message.success('密码重置成功，新密码已发送至用户邮箱')
       return true
-    } catch (error) {
-      console.error('重置密码失败:', error)
+    } catch {
       message.error('重置密码失败')
       return false
     } finally {
@@ -357,8 +346,7 @@ export function useUserService(searchFormRef?: Ref<any> | any) {
         message.error(response.errMsg || '获取用户详情失败')
         return null
       }
-    } catch (error) {
-      console.error('获取用户详情失败:', error)
+    } catch {
       message.error('获取用户详情失败')
       return null
     }

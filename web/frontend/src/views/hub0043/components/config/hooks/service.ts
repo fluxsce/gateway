@@ -3,8 +3,8 @@
  * 处理所有与后端交互的业务逻辑
  */
 
-import { useGDialog } from '@/components/gdialog'
-import { createBackendPaginationParams } from '@/components/gpage'
+import { rsConfirm } from '@/ui'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess } from '@/utils/format'
 import { WarningOutline } from '@vicons/ionicons5'
@@ -20,9 +20,7 @@ import { useConfigModel } from './model'
  */
 export function useConfigService(searchFormRef?: Ref<any> | any) {
   const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 初始化 Model
+// 初始化 Model
   const model = useConfigModel()
 
   const {
@@ -204,14 +202,13 @@ export function useConfigService(searchFormRef?: Ref<any> | any) {
   const deleteConfig = async (config: Config, skipConfirm = false): Promise<boolean> => {
     // 如果不需要确认，直接执行删除；否则显示确认对话框
     if (!skipConfirm) {
-      const confirmed = await gDialog.warning({
+      const confirmed = await rsConfirm.warning({
         title: '确认删除',
         subtitle: '此操作不可恢复，请谨慎操作',
-        content: `确定要删除配置吗？\n\n配置ID: ${config.configDataId}\n命名空间: ${config.namespaceId}\n分组: ${config.groupName || 'DEFAULT_GROUP'}`,
+        description: `确定要删除配置吗？\n\n配置ID: ${config.configDataId}\n命名空间: ${config.namespaceId}\n分组: ${config.groupName || 'DEFAULT_GROUP'}`,
         icon: WarningOutline,
-        headerStyle: 'gradient',
-        positiveText: '确定删除',
-        negativeText: '取消',
+        confirmText: '确定删除',
+        cancelText: '取消',
         width: 500
       })
 

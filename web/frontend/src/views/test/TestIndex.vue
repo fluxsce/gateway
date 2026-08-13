@@ -1,4 +1,4 @@
-<!-- 测试页面入口，提供所有测试页面的快速访问 -->
+<!-- 测试页面入口，提供组件测试页的快速访问 -->
 <template>
   <div class="test-index-page">
     <div class="page-header">
@@ -29,30 +29,27 @@
     <div class="quick-actions">
       <h2>快速操作</h2>
       <div class="action-buttons">
-        <NButton quaternary @click="goBack">
-          <GIcon icon="ArrowBackOutline" size="small" class="btn-icon" />
+        <RsButton variant="ghost" size="sm" icon="arrow-left" @click="goBack">
           返回首页
-        </NButton>
-        <NButton quaternary @click="openDocs">
-          <GIcon icon="BookOutline" size="small" class="btn-icon" />
+        </RsButton>
+        <RsButton variant="ghost" size="sm" icon="book-open" @click="openDocs">
           查看文档
-        </NButton>
+        </RsButton>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { NButton } from 'naive-ui'
 import { GIcon } from '@/components/gicon'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { RsButton } from '@/ui'
 import { useRouter } from 'vue-router'
-import { getCurrentInstance } from 'vue'
 
 defineOptions({ name: 'TestIndex' })
 
 const router = useRouter()
-const instance = getCurrentInstance()
-const $gMessage = instance?.appContext.config.globalProperties.$gMessage
+const message = useAppMessage()
 
 interface TestPage {
   path: string
@@ -63,70 +60,40 @@ interface TestPage {
 
 const testPages: TestPage[] = [
   {
-    path: '/test/route-view-loading-mask',
-    title: '内容区加载遮罩',
-    description: '预览 RouteViewLoadingMask：覆盖内容区、透明度/模糊、滚动与动画效果',
-    icon: 'SparklesOutline',
+    path: '/test/gtoolbar',
+    title: 'GToolbar 工具栏',
+    description: '测试 GToolbar / ToolbarButton：扁平按钮、分组、tooltip、dropdown、权限 key',
+    icon: 'ConstructOutline',
   },
   {
-    path: '/test/message',
-    title: 'Message 消息组件',
-    description: '测试 $gMessage 消息提示：info / success / error / warning / loading',
-    icon: 'ChatbubbleOutline',
+    path: '/test/rs-search-form',
+    title: 'RsSearchForm 查询表单',
+    description: '字段栅格、更多条件、内置查询/重置、校验、label 布局',
+    icon: 'SearchOutline',
   },
   {
-    path: '/test/custom-render',
-    title: '全局自定义渲染',
-    description: '测试 $gRender.show()：TS 内直接打开弹窗，无需在模板中引入组件',
-    icon: 'CodeOutline',
-  },
-  {
-    path: '/test/gtabs',
-    title: 'GTabs 标签页',
-    description: '多标签、拖拽排序、关闭、右键菜单、溢出下拉；line / card 类型',
-    icon: 'LayersOutline',
-  },
-  {
-    path: '/test/gtext-show',
-    title: 'GTextShow 文本展示',
-    description: '多格式文本展示：JSON / XML / 纯文本，复制、格式化、行号',
+    path: '/test/rs-data-form',
+    title: 'RsDataForm 数据表单',
+    description: '页签、fieldset、主键禁用、mode、校验；弹窗基于 RsDialog',
     icon: 'DocumentTextOutline',
   },
   {
-    path: '/test/gdropdown',
-    title: 'GDropdown 下拉菜单',
-    description: '测试 GDropdown：options、placement、click/hover 触发与 @select',
-    icon: 'EllipsisHorizontalOutline',
+    path: '/test/rs-grid',
+    title: 'RsGrid 表格',
+    description: '勾选 + 序号、工具栏、分页、排序筛选、右键菜单、暴露方法',
+    icon: 'GridOutline',
+  },
+  {
+    path: '/test/rs-button',
+    title: 'RsButton 按钮',
+    description: 'primary/secondary 主次、边框对比、尺寸、loading、图标、圆角',
+    icon: 'EllipseOutline',
   },
   {
     path: '/test/gcard',
     title: 'GCard 卡片',
-    description: '测试 GCard：标题、插槽、hoverable、bordered、size、embedded',
-    icon: 'CardOutline',
-  },
-  {
-    path: '/test/gselect',
-    title: 'GSelect 选择器',
-    description: '测试 GSelect：单选、多选、filterable、disabled、size、分组选项',
-    icon: 'ChevronDownOutline',
-  },
-  {
-    path: '/test/gdialog',
-    title: 'GDialog 对话框',
-    description: '测试 GDialog：标题/副标题/图标、渐变头部、宽度、滚动、拖拽、confirmLoading、自定义插槽',
-    icon: 'ChatboxOutline',
-  },
-  {
-    path: '/test/gmodal',
-    title: 'GModal 弹窗',
-    description: 'NModal 封装：仅内容区滚动、width/height、全屏、东/南/东南边框缩放',
-    icon: 'ExpandOutline',
-  },
-  {
-    path: '/test/grestful-api',
-    title: 'GRestfulApi REST 调试',
-    description: '类 Postman：方法、URL、参数、请求头、请求体、响应状态与正文（fetch，注意 CORS）',
-    icon: 'GlobeOutline',
+    description: 'RsCard 适配：标题、插槽、hoverable、bordered；对照未透传 size/cover',
+    icon: 'GridOutline',
   },
 ]
 
@@ -135,7 +102,7 @@ function goBack() {
 }
 
 function openDocs() {
-  $gMessage?.info('文档功能开发中...')
+  message.info('文档功能开发中...')
 }
 </script>
 
@@ -152,17 +119,13 @@ function openDocs() {
   text-align: center;
   margin-bottom: var(--g-space-xxl, 32px);
   padding-bottom: var(--g-space-xl, 24px);
-  border-bottom: 2px solid var(--g-border-primary);
+  border-bottom: 1px solid var(--g-border-primary);
 
   h1 {
     font-size: 28px;
     font-weight: 600;
     color: var(--g-text-primary);
     margin: 0 0 var(--g-space-md);
-    background: linear-gradient(135deg, var(--g-primary) 0%, #8b5cf6 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
   }
 
   p {
@@ -186,23 +149,20 @@ function openDocs() {
   padding: var(--g-padding-lg);
   background: var(--g-bg-secondary);
   border: 1px solid var(--g-border-primary);
-  border-radius: 12px;
+  border-radius: var(--g-radius-md, 8px);
   text-decoration: none;
-  transition: all var(--g-transition-base, 0.2s ease);
+  transition: border-color var(--g-transition-base, 0.2s ease);
   cursor: pointer;
 
   &:hover {
-    transform: translateY(-4px);
     border-color: var(--g-primary);
-    box-shadow: 0 8px 24px rgba(124, 58, 237, 0.15);
 
     .card-icon {
-      background: linear-gradient(135deg, var(--g-primary) 0%, #8b5cf6 100%);
+      background: var(--g-primary);
       color: white;
     }
 
     .card-arrow {
-      transform: translateX(4px);
       color: var(--g-primary);
     }
   }
@@ -214,10 +174,9 @@ function openDocs() {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 12px;
+    border-radius: var(--g-radius-md, 8px);
     background: var(--g-primary-light);
     color: var(--g-primary);
-    transition: all var(--g-transition-base);
   }
 
   .card-content {
@@ -242,14 +201,13 @@ function openDocs() {
   .card-arrow {
     flex-shrink: 0;
     color: var(--g-text-tertiary);
-    transition: all var(--g-transition-base);
   }
 }
 
 .quick-actions {
   padding: var(--g-padding-xl);
   background: var(--g-bg-secondary);
-  border-radius: 12px;
+  border-radius: var(--g-radius-md, 8px);
   border: 1px solid var(--g-border-primary);
 
   h2 {
@@ -263,11 +221,6 @@ function openDocs() {
     display: flex;
     gap: var(--g-space-sm);
     flex-wrap: wrap;
-
-    .btn-icon {
-      margin-right: var(--g-space-xs);
-      vertical-align: middle;
-    }
   }
 }
 

@@ -4,7 +4,7 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
-import { useGDialog } from '@/components/gdialog'
+import { rsConfirm } from '@/ui'
 import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { nextTick, ref, watch } from 'vue'
@@ -32,9 +32,7 @@ export function useConfigPage(
   }
 ) {
   const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 业务服务（包含 model、增删改查等）
+// 业务服务（包含 model、增删改查等）
   const service = useConfigService(searchFormRef)
 
   // 配置选项
@@ -310,12 +308,12 @@ export function useConfigPage(
   const handleBatchDelete = async (configs: Config[]) => {
     // 生成配置 key 列表
     const configKeys = configs.map(config => config.configDataId).join('\n')
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认批量删除',
       subtitle: `将删除 ${configs.length} 个配置`,
-      content: `此操作不可恢复，请谨慎操作\n\n配置ID列表:\n${configKeys}`,
-      positiveText: '确定删除',
-      negativeText: '取消',
+      description: `此操作不可恢复，请谨慎操作\n\n配置ID列表:\n${configKeys}`,
+      confirmText: '确定删除',
+      cancelText: '取消',
       width: 500
     })
 

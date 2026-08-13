@@ -4,7 +4,7 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
-import { useGDialog } from '@/components/gdialog'
+import { rsConfirm } from '@/ui'
 import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
@@ -21,9 +21,7 @@ export function useStaticServerPage(
   searchFormRef?: Ref<any> | any
 ) {
   const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 业务服务（包含 model、增删改查等）
+// 业务服务（包含 model、增删改查等）
   const service = useStaticServerService(searchFormRef)
 
   // 表单对话框状态（新增/编辑/查看共用）

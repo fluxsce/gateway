@@ -53,7 +53,8 @@ function handleInstanceSelect(instanceId: string, instance: GatewayInstance) {
   height: 100%;
   overflow: hidden;
 
-  :deep(.n-split) {
+  :deep(.g-pane),
+  :deep(.g-pane__split) {
     width: 100%;
     height: 100%;
   }

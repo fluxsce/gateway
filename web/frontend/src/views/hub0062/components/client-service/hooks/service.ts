@@ -3,8 +3,8 @@
  * 处理所有与后端交互的业务逻辑
  */
 
-import { useGDialog } from '@/components/gdialog'
-import { createBackendPaginationParams } from '@/components/gpage'
+import { rsConfirm } from '@/ui'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { PlayCircleOutline, StopCircleOutline, WarningOutline } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
@@ -18,9 +18,7 @@ import { useTunnelServiceModel } from './model'
  */
 export function useTunnelServiceService(searchFormRef?: Ref<any> | any) {
   const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 初始化 Model
+// 初始化 Model
   const model = useTunnelServiceModel()
 
   const {
@@ -208,14 +206,13 @@ export function useTunnelServiceService(searchFormRef?: Ref<any> | any) {
    * 删除服务
    */
   const deleteService = async (service: TunnelService): Promise<boolean> => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认删除',
       subtitle: '此操作不可恢复，请谨慎操作',
-      content: `确定要删除服务 "${service.serviceName}" 吗？`,
+      description: `确定要删除服务 "${service.serviceName}" 吗？`,
       icon: WarningOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定删除',
-      negativeText: '取消',
+      confirmText: '确定删除',
+      cancelText: '取消',
       width: 500
     })
 
@@ -255,14 +252,13 @@ export function useTunnelServiceService(searchFormRef?: Ref<any> | any) {
    * 注册服务
    */
   const registerService = async (service: TunnelService): Promise<boolean> => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认注册',
       subtitle: '注册后服务将可在隧道服务器上使用',
-      content: `确定要注册服务 "${service.serviceName}" 吗？`,
+      description: `确定要注册服务 "${service.serviceName}" 吗？`,
       icon: PlayCircleOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定注册',
-      negativeText: '取消',
+      confirmText: '确定注册',
+      cancelText: '取消',
       width: 500
     })
 
@@ -295,14 +291,13 @@ export function useTunnelServiceService(searchFormRef?: Ref<any> | any) {
    * 注销服务
    */
   const unregisterService = async (service: TunnelService): Promise<boolean> => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认注销',
       subtitle: '注销后服务将从隧道服务器上移除',
-      content: `确定要注销服务 "${service.serviceName}" 吗？`,
+      description: `确定要注销服务 "${service.serviceName}" 吗？`,
       icon: StopCircleOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定注销',
-      negativeText: '取消',
+      confirmText: '确定注销',
+      cancelText: '取消',
       width: 500
     })
 

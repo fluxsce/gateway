@@ -4,18 +4,14 @@
     <div class="service-detail-header">
       <h2 class="service-detail-title">服务详情</h2>
       <div class="service-detail-actions">
-        <n-button type="default" @click="handleEdit">
-          <template #icon>
-            <n-icon><CreateOutline /></n-icon>
-          </template>
+        <RsButton variant="secondary" @click="handleEdit">
+          <GIcon :icon="CreateOutline" size="sm" />
           编辑服务
-        </n-button>
-        <n-button type="primary" @click="handleBack">
-          <template #icon>
-            <n-icon><ArrowBackOutline /></n-icon>
-          </template>
+        </RsButton>
+        <RsButton variant="primary" @click="handleBack">
+          <GIcon :icon="ArrowBackOutline" size="sm" />
           返回
-        </n-button>
+        </RsButton>
       </div>
     </div>
 
@@ -23,29 +19,29 @@
     <div class="service-detail-body">
       <div class="service-detail-pane service-detail-pane--basic">
         <GCard class="service-detail-card service-detail-card--basic">
-          <n-descriptions :column="2" bordered size="small">
-            <n-descriptions-item label="服务名">
+          <RsDescriptions :columns="2" bordered size="sm" label-placement="left">
+            <RsDescriptionsItem label="服务名">
               {{ service.serviceName }}
-            </n-descriptions-item>
-            <n-descriptions-item label="分组">
+            </RsDescriptionsItem>
+            <RsDescriptionsItem label="分组">
               {{ service.groupName }}
-            </n-descriptions-item>
-            <n-descriptions-item label="保护阈值">
+            </RsDescriptionsItem>
+            <RsDescriptionsItem label="保护阈值">
               {{ service.protectThreshold ?? 0 }}
-            </n-descriptions-item>
-            <n-descriptions-item label="服务类型">
+            </RsDescriptionsItem>
+            <RsDescriptionsItem label="服务类型">
               {{ getServiceTypeLabel(service.serviceType) }}
-            </n-descriptions-item>
-            <n-descriptions-item label="服务版本">
+            </RsDescriptionsItem>
+            <RsDescriptionsItem label="服务版本">
               {{ service.serviceVersion || '-' }}
-            </n-descriptions-item>
-            <n-descriptions-item label="服务路由类型">
+            </RsDescriptionsItem>
+            <RsDescriptionsItem label="服务路由类型">
               {{ getSelectorType(service.selectorJson) }}
-            </n-descriptions-item>
-            <n-descriptions-item label="服务描述" :span="2">
+            </RsDescriptionsItem>
+            <RsDescriptionsItem label="服务描述" :span="2">
               {{ service.serviceDescription || '-' }}
-            </n-descriptions-item>
-            <n-descriptions-item label="元数据" :span="2">
+            </RsDescriptionsItem>
+            <RsDescriptionsItem label="元数据" :span="2">
               <GTextShow
                 :content="service.metadataJson || '{}'"
                 format="json"
@@ -53,8 +49,8 @@
                 :max-height="200"
                 :show-copy-button="true"
               />
-            </n-descriptions-item>
-          </n-descriptions>
+            </RsDescriptionsItem>
+          </RsDescriptions>
         </GCard>
       </div>
 
@@ -63,9 +59,9 @@
           <template #header>
             <div class="instance-list-header">
               <span>服务实例列表</span>
-              <n-tag type="info" size="small">
+              <RsTag variant="info" size="sm">
                 共 {{ service.nodes?.length || 0 }} 个实例
-              </n-tag>
+              </RsTag>
             </div>
           </template>
 
@@ -82,9 +78,10 @@
 
 <script lang="ts" setup>
 import { GCard } from '@/components/gcard'
+import { GIcon } from '@/components/gicon'
 import GTextShow from '@/components/gtext-show/GTextShow.vue'
+import { RsButton, RsDescriptions, RsDescriptionsItem, RsTag } from '@/ui'
 import { ArrowBackOutline, CreateOutline } from '@vicons/ionicons5'
-import { NButton, NDescriptions, NDescriptionsItem, NIcon, NTag } from 'naive-ui'
 import type { Service } from '../types'
 import ServiceNodeList from './ServiceNodeList.vue'
 
@@ -238,6 +235,11 @@ const handleRefresh = () => {
       min-height: 0;
     }
   }
+
+  .instance-list-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 }
 </style>
-

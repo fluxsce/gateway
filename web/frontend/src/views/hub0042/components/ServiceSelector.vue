@@ -12,14 +12,14 @@
           <div class="service-main-info">
             <div class="service-name">{{ currentService.serviceName }}</div>
             <div class="service-tags">
-              <n-tag type="info" size="small">{{ currentService.namespaceId }}</n-tag>
-              <n-tag type="primary" size="small">{{ currentService.groupName }}</n-tag>
+              <RsTag variant="info" size="sm">{{ currentService.namespaceId }}</RsTag>
+              <RsTag variant="primary" size="sm">{{ currentService.groupName }}</RsTag>
             </div>
           </div>
           <div class="service-status">
-            <n-tag :type="currentService.activeFlag === 'Y' ? 'success' : 'error'" size="small">
+            <RsTag :variant="currentService.activeFlag === 'Y' ? 'success' : 'danger'" size="sm">
               {{ currentService.activeFlag === 'Y' ? '启用' : '禁用' }}
-            </n-tag>
+            </RsTag>
           </div>
         </div>
         <div class="service-details">
@@ -39,35 +39,29 @@
             </div>
             <div class="detail-item">
               <span class="detail-label">协议</span>
-              <n-tag type="warning" size="small">{{ protocolType }}</n-tag>
+              <RsTag variant="warning" size="sm">{{ protocolType }}</RsTag>
             </div>
           </div>
         </div>
         <div class="service-actions">
-          <n-button @click="openSelector" size="small" secondary>
-            <template #icon>
-              <n-icon><RefreshOutline /></n-icon>
-            </template>
+          <RsButton variant="secondary" size="sm" @click="openSelector">
+            <GIcon :icon="RefreshOutline" size="sm" />
             重新选择
-          </n-button>
-          <n-button @click="handleClear" size="small" type="error" secondary>
-            <template #icon>
-              <n-icon><CloseOutline /></n-icon>
-            </template>
+          </RsButton>
+          <RsButton variant="secondary" tone="danger" size="sm" @click="handleClear">
+            <GIcon :icon="CloseOutline" size="sm" />
             清除
-          </n-button>
+          </RsButton>
         </div>
       </div>
     </div>
 
     <!-- 未选择时：显示选择按钮 -->
     <div v-else class="empty-selector">
-      <n-button @click="openSelector" dashed block size="large" class="select-btn">
-        <template #icon>
-          <n-icon><ServerOutline /></n-icon>
-        </template>
+      <RsButton variant="secondary" size="lg" class="select-btn" @click="openSelector">
+        <GIcon :icon="ServerOutline" size="md" />
         点击选择注册服务
-      </n-button>
+      </RsButton>
     </div>
 
     <!-- 服务选择弹窗 -->
@@ -81,13 +75,15 @@
 </template>
 
 <script setup lang="ts">
+import { GIcon } from '@/components/gicon'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { RsButton, RsTag } from '@/ui'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import {
   CloseOutline,
   RefreshOutline,
   ServerOutline
 } from '@vicons/ionicons5'
-import { NButton, NIcon, NTag, useMessage } from 'naive-ui'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { getService } from '../api'
 import type { Service } from '../types'
@@ -132,7 +128,7 @@ const emit = defineEmits<{
 }>()
 
 // 响应式状态
-const message = useMessage()
+const message = useAppMessage()
 const showSelector = ref(false)
 const loading = ref(false)
 const currentServiceInfo = ref<Service | null>(null)
@@ -279,14 +275,14 @@ const handleServiceSelect = (service: Service) => {
 }
 
 .selected-service-card {
-  background: var(--n-card-color);
-  border: 1px solid var(--n-border-color);
+  background: var(--g-bg-primary, var(--rs-surface));
+  border: 1px solid var(--g-border-primary, var(--rs-border));
   border-radius: 8px;
   padding: 16px;
   transition: all 0.2s ease;
 
   &:hover {
-    border-color: var(--n-color-primary);
+    border-color: var(--g-primary, var(--rs-primary));
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 
@@ -321,7 +317,7 @@ const handleServiceSelect = (service: Service) => {
         .service-name {
           font-size: 16px;
           font-weight: 600;
-          color: var(--n-text-color-1);
+          color: var(--g-text-primary, var(--rs-text));
           margin-bottom: 6px;
           line-height: 1.2;
         }
@@ -340,7 +336,7 @@ const handleServiceSelect = (service: Service) => {
     .service-details {
       margin-bottom: 16px;
       padding: 12px;
-      background: var(--n-color-hover);
+      background: var(--g-bg-secondary, var(--rs-surface-hover));
       border-radius: 6px;
 
       .detail-row {
@@ -355,13 +351,13 @@ const handleServiceSelect = (service: Service) => {
 
           .detail-label {
             font-size: 12px;
-            color: var(--n-text-color-3);
+            color: var(--g-text-tertiary, var(--rs-text-tertiary));
             font-weight: 500;
           }
 
           .detail-value {
             font-size: 13px;
-            color: var(--n-text-color-2);
+            color: var(--g-text-secondary, var(--rs-text-secondary));
             font-weight: 500;
           }
         }
@@ -373,7 +369,7 @@ const handleServiceSelect = (service: Service) => {
       gap: 8px;
       justify-content: flex-end;
       padding-top: 12px;
-      border-top: 1px solid var(--n-border-color);
+      border-top: 1px solid var(--g-border-primary, var(--rs-border));
     }
   }
 }
@@ -383,12 +379,13 @@ const handleServiceSelect = (service: Service) => {
 
   .select-btn {
     min-height: 80px;
-    border-color: var(--n-border-color);
+    width: 100%;
+    border-color: var(--g-border-primary, var(--rs-border));
     transition: all 0.2s ease;
 
     &:hover {
-      border-color: var(--n-color-primary);
-      background-color: var(--n-color-primary-suppl);
+      border-color: var(--g-primary, var(--rs-primary));
+      background-color: var(--g-bg-secondary, var(--rs-surface-hover));
     }
   }
 }

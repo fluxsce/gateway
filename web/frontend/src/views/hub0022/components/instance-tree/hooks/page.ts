@@ -1,15 +1,14 @@
 /**
  * 网关实例树组件 Page Hook
- * 处理页面交互、事件处理和渲染函数
+ * 处理页面交互、事件处理
  */
 
+import { useAppMessage } from '@/composables/useAppMessage'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
-import { ServerOutline } from '@vicons/ionicons5'
-import type { TreeOption } from 'naive-ui'
-import { NIcon, NTag, useMessage } from 'naive-ui'
-import { h, onBeforeUnmount, ref, watch } from 'vue'
+import type { RsTreeNode } from '@/ui'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { addProxyConfig, editProxyConfig, getProxyConfigByInstance } from '../../../api'
-import type { GatewayInstance, InstanceTreeOption, ProxyConfig } from '../types'
+import type { GatewayInstance, InstanceTreeNode, ProxyConfig } from '../types'
 import { useGatewayInstanceTreeModel } from './model'
 import { useGatewayInstanceTreeService } from './service'
 
@@ -17,7 +16,7 @@ import { useGatewayInstanceTreeService } from './service'
  * 网关实例树 Page Hook
  */
 export function useGatewayInstanceTreePage() {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 初始化 Model
   const model = useGatewayInstanceTreeModel()
@@ -37,6 +36,8 @@ export function useGatewayInstanceTreePage() {
   const proxySubmitting = ref(false)
   /** 当前选中的网关实例ID（用于新增代理配置时使用） */
   const currentGatewayInstanceId = ref<string>('')
+  /** 右键菜单关联的树节点 */
+  const contextNode = ref<InstanceTreeNode | null>(null)
 
   // ============= 监听器 =============
 
@@ -176,7 +177,7 @@ export function useGatewayInstanceTreePage() {
       if (isApiSuccess(response)) {
         // 后端现在返回单个 ProxyConfig 对象或 null
         const proxyConfig = parseJsonData<ProxyConfig | null>(response, null)
-        
+
         if (proxyConfig) {
           // 如果找到配置，进入编辑模式
           currentEditProxy.value = proxyConfig
@@ -191,7 +192,7 @@ export function useGatewayInstanceTreePage() {
         currentEditProxy.value = null
         proxyFormDialogMode.value = 'create'
       }
-    } catch (error) {
+    } catch {
       // 异常情况，默认进入新增模式
       currentEditProxy.value = null
       proxyFormDialogMode.value = 'create'
@@ -209,7 +210,6 @@ export function useGatewayInstanceTreePage() {
     // 数据加载完成后再打开对话框
     proxyFormDialogVisible.value = true
   }
-
 
   /**
    * 获取代理配置表单初始数据
@@ -282,7 +282,7 @@ export function useGatewayInstanceTreePage() {
         // 保持对话框打开，让用户继续编辑
       }
       return success
-    } catch (error) {
+    } catch {
       message.error('操作失败')
       return false
     } finally {
@@ -290,67 +290,26 @@ export function useGatewayInstanceTreePage() {
     }
   }
 
-  // ============= 渲染函数 =============
-
-  /**
-   * 渲染节点前缀图标
-   */
-  function renderNodePrefix({ option }: { option: TreeOption }) {
-    const instanceOption = option as InstanceTreeOption
-    if (instanceOption.instance) {
-      return h(NIcon, {
-        size: 16,
-        color: 'var(--g-primary)',
-        style: { marginRight: '6px', flexShrink: 0 }
-      }, {
-        default: () => h(ServerOutline)
-      })
-    }
-    return null
-  }
-
-  /**
-   * 渲染节点标签（省略显示）
-   */
-  function renderNodeLabel({ option }: { option: TreeOption }) {
-    return h('span', {
-      class: 'tree-node-label',
-      style: {
-        display: 'inline-block',
-        padding: '1px 4px',
-        borderRadius: '4px',
-        transition: 'background-color 0.2s'
-      }
-    }, option.label as string)
-  }
-
-  /**
-   * 渲染节点后缀（健康状态标签）
-   */
-  function renderNodeSuffix({ option }: { option: TreeOption }) {
-    const instanceOption = option as InstanceTreeOption
-    if (instanceOption.instance) {
-      return h(NTag, {
-        type: instanceOption.instance.healthStatus === 'Y' ? 'success' : 'warning',
-        size: 'small',
-        style: { marginLeft: '8px', flexShrink: 0 }
-      }, {
-        default: () => instanceOption.instance!.healthStatus === 'Y' ? '健康' : '异常'
-      })
-    }
-    return null
-  }
-
   // ============= 事件处理 =============
 
   /**
-   * 处理树节点选择
-   * @param emit 组件 emit 函数
+   * 记录右键菜单关联节点
    */
-  function handleTreeSelect(keys: string[], option: TreeOption, emit: (e: 'select', instanceId: string, instance: GatewayInstance) => void) {
-    const instanceOption = option as InstanceTreeOption
-    if (instanceOption.instance) {
-      emit('select', instanceOption.instance.gatewayInstanceId, instanceOption.instance)
+  function setContextNode(node: RsTreeNode) {
+    contextNode.value = node as InstanceTreeNode
+  }
+
+  /**
+   * 处理树节点点击选择
+   */
+  function handleNodeClick(
+    node: RsTreeNode,
+    key: string,
+    emit: (e: 'select', instanceId: string, instance: GatewayInstance) => void,
+  ) {
+    const instanceNode = node as InstanceTreeNode
+    if (instanceNode.instance) {
+      emit('select', key, instanceNode.instance)
     }
   }
 
@@ -374,15 +333,11 @@ export function useGatewayInstanceTreePage() {
   /**
    * 处理右键菜单点击
    */
-  async function handleMenuClick({ code, node }: { code: string; node?: TreeOption }) {
-    if (!node) return
+  async function handleContextMenuSelect(key: string) {
+    const instance = contextNode.value?.instance
+    if (!instance) return
 
-    const instanceOption = node as InstanceTreeOption
-    if (!instanceOption.instance) return
-
-    const instance = instanceOption.instance
-
-    switch (code) {
+    switch (key) {
       case 'addProxy':
         await openProxyDialog(instance)
         break
@@ -405,16 +360,12 @@ export function useGatewayInstanceTreePage() {
     proxySubmitting,
     getProxyFormInitialData,
 
-    // 渲染函数
-    renderNodePrefix,
-    renderNodeLabel,
-    renderNodeSuffix,
-
     // 事件处理
-    handleTreeSelect,
+    setContextNode,
+    handleNodeClick,
     handlePageChange,
     handleRefresh,
-    handleMenuClick,
+    handleContextMenuSelect,
     handleProxyFormSubmit,
   }
 }

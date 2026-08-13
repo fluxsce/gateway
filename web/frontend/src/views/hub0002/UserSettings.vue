@@ -1,281 +1,328 @@
 <template>
   <div class="user-settings-container">
-    <n-spin :show="loading">
-      <n-card :title="t('title')" :bordered="false">
-        <n-tabs v-model:value="activeTab" type="line" animated>
+    <RsLoading :loading="loading" overlay block size="lg" />
+    <RsCard :title="t('title')" variant="outlined">
+      <RsTabs
+        v-model="activeTab"
+        :items="tabItems"
+        variant="line"
+        size="md"
+        borderless
+        content-gap="lg"
+        class="settings-tabs"
+      >
         <!-- 个人资料 -->
-        <n-tab-pane name="profile" :tab="t('tabs.profile')">
-          <n-form
+        <template #profile>
+          <RsForm
             ref="profileFormRef"
-            :model="profileForm"
-            :rules="profileRules"
-            label-placement="left"
-            label-width="120"
-            size="medium"
             class="profile-form"
+            label-position="left"
+            label-width="7.5rem"
+            size="md"
+            gap="md"
+            :rules="profileRules"
           >
             <div class="avatar-section">
-              <n-form-item :label="t('profile.avatar')">
+              <div class="field-row">
+                <RsLabel class="field-row__label">{{ t('profile.avatar') }}</RsLabel>
                 <div class="avatar-upload">
-                  <n-avatar
-                    :size="80"
+                  <RsAvatar
+                    size="lg"
                     :src="avatarPreview || profileForm.avatar || defaultAvatar"
                     class="user-avatar"
                   />
-                  <n-upload
-                    :show-file-list="false"
-                    :custom-request="handleAvatarUpload"
-                    accept="image/*"
-                    @before-upload="beforeAvatarUpload"
-                  >
-                    <n-button size="small" class="upload-btn">
-                      {{ t('profile.changeAvatar') }}
-                    </n-button>
-                  </n-upload>
+                  <RsButton size="sm" class="upload-btn" @click="triggerAvatarPick">
+                    {{ t('profile.changeAvatar') }}
+                  </RsButton>
+                  <input
+                    id="user-settings-avatar-input"
+                    ref="avatarInputRef"
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif"
+                    class="avatar-input"
+                    :aria-label="t('profile.changeAvatar')"
+                    @change="onAvatarFileChange"
+                  />
                 </div>
-              </n-form-item>
+              </div>
             </div>
 
-            <n-form-item :label="t('profile.userId')" path="userId">
-              <n-input v-model:value="profileForm.userId" disabled />
-            </n-form-item>
+            <RsInput
+              v-model="profileForm.userId"
+              name="userId"
+              :label="t('profile.userId')"
+              disabled
+            />
+            <RsInput
+              v-model="profileForm.userName"
+              name="userName"
+              :label="t('profile.userName')"
+              disabled
+            />
+            <RsInput
+              v-model="profileForm.realName"
+              name="realName"
+              :label="t('profile.realName')"
+              :placeholder="t('profile.realNamePlaceholder')"
+            />
+            <RsInput
+              v-model="profileForm.email"
+              name="email"
+              :label="t('profile.email')"
+              :placeholder="t('profile.emailPlaceholder')"
+            />
+            <RsInput
+              v-model="profileForm.mobile"
+              name="mobile"
+              :label="t('profile.mobile')"
+              :placeholder="t('profile.mobilePlaceholder')"
+            />
 
-            <n-form-item :label="t('profile.userName')" path="userName">
-              <n-input v-model:value="profileForm.userName" disabled />
-            </n-form-item>
+            <div class="field-row">
+              <RsLabel class="field-row__label">{{ t('profile.gender') }}</RsLabel>
+              <RsRadio v-model="profileForm.gender" name="gender" size="md">
+                <RsRadioItem :value="1">{{ t('profile.male') }}</RsRadioItem>
+                <RsRadioItem :value="2">{{ t('profile.female') }}</RsRadioItem>
+                <RsRadioItem :value="0">{{ t('profile.unknown') }}</RsRadioItem>
+              </RsRadio>
+            </div>
 
-            <n-form-item :label="t('profile.realName')" path="realName">
-              <n-input
-                v-model:value="profileForm.realName"
-                :placeholder="t('profile.realNamePlaceholder')"
-              />
-            </n-form-item>
+            <RsInput
+              v-model="profileForm.deptName"
+              name="deptName"
+              :label="t('profile.deptName')"
+              disabled
+            />
 
-            <n-form-item :label="t('profile.email')" path="email">
-              <n-input
-                v-model:value="profileForm.email"
-                :placeholder="t('profile.emailPlaceholder')"
-              />
-            </n-form-item>
-
-            <n-form-item :label="t('profile.mobile')" path="mobile">
-              <n-input
-                v-model:value="profileForm.mobile"
-                :placeholder="t('profile.mobilePlaceholder')"
-              />
-            </n-form-item>
-
-            <n-form-item :label="t('profile.gender')" path="gender">
-              <n-radio-group v-model:value="profileForm.gender">
-                <n-space>
-                  <n-radio :value="1">{{ t('profile.male') }}</n-radio>
-                  <n-radio :value="2">{{ t('profile.female') }}</n-radio>
-                  <n-radio :value="0">{{ t('profile.unknown') }}</n-radio>
-                </n-space>
-              </n-radio-group>
-            </n-form-item>
-
-            <n-form-item :label="t('profile.deptName')">
-              <n-input v-model:value="profileForm.deptName" disabled />
-            </n-form-item>
-
-            <n-form-item>
-              <n-space>
-                <n-button
-                  type="primary"
-                  :loading="savingProfile"
-                  @click="handleSaveProfile"
-                >
-                  {{ t('common.save') }}
-                </n-button>
-                <n-button @click="handleResetProfile">
-                  {{ t('common.reset') }}
-                </n-button>
-              </n-space>
-            </n-form-item>
-          </n-form>
-        </n-tab-pane>
+            <div class="form-actions">
+              <RsButton
+                variant="primary"
+                :loading="savingProfile"
+                @click="handleSaveProfile"
+              >
+                {{ t('common.save') }}
+              </RsButton>
+              <RsButton variant="secondary" @click="handleResetProfile">
+                {{ t('common.reset') }}
+              </RsButton>
+            </div>
+          </RsForm>
+        </template>
 
         <!-- 修改密码 -->
-        <n-tab-pane name="password" :tab="t('tabs.password')">
-          <n-form
+        <template #password>
+          <RsForm
             ref="passwordFormRef"
-            :model="passwordForm"
-            :rules="passwordRules"
-            label-placement="left"
-            label-width="120"
-            size="medium"
             class="password-form"
+            label-position="left"
+            label-width="7.5rem"
+            size="md"
+            gap="md"
+            :rules="passwordRules"
           >
-            <n-form-item :label="t('password.oldPassword')" path="oldPassword">
-              <n-input
-                v-model:value="passwordForm.oldPassword"
-                type="password"
-                show-password-on="click"
-                :placeholder="t('password.oldPasswordPlaceholder')"
-              />
-            </n-form-item>
+            <RsInput
+              v-model="passwordForm.oldPassword"
+              name="oldPassword"
+              type="password"
+              autocomplete="current-password"
+              :label="t('password.oldPassword')"
+              :placeholder="t('password.oldPasswordPlaceholder')"
+            />
+            <RsInput
+              v-model="passwordForm.newPassword"
+              name="newPassword"
+              type="password"
+              autocomplete="new-password"
+              :label="t('password.newPassword')"
+              :placeholder="t('password.newPasswordPlaceholder')"
+            />
+            <RsInput
+              v-model="passwordForm.confirmPassword"
+              name="confirmPassword"
+              type="password"
+              autocomplete="new-password"
+              :label="t('password.confirmPassword')"
+              :placeholder="t('password.confirmPasswordPlaceholder')"
+            />
 
-            <n-form-item :label="t('password.newPassword')" path="newPassword">
-              <n-input
-                v-model:value="passwordForm.newPassword"
-                type="password"
-                show-password-on="click"
-                :placeholder="t('password.newPasswordPlaceholder')"
-              />
-            </n-form-item>
+            <RsAlert type="info" class="password-tips">
+              <div class="password-tips__title">{{ t('password.tipsTitle') }}</div>
+              <ul class="password-tips__list">
+                <li>{{ t('password.tipLength') }}</li>
+                <li>{{ t('password.tipUppercase') }}</li>
+                <li>{{ t('password.tipLowercase') }}</li>
+                <li>{{ t('password.tipNumber') }}</li>
+                <li>{{ t('password.tipSpecial') }}</li>
+              </ul>
+            </RsAlert>
 
-            <n-form-item :label="t('password.confirmPassword')" path="confirmPassword">
-              <n-input
-                v-model:value="passwordForm.confirmPassword"
-                type="password"
-                show-password-on="click"
-                :placeholder="t('password.confirmPasswordPlaceholder')"
-              />
-            </n-form-item>
-
-            <n-alert type="info" :show-icon="false" class="password-tips">
-              <div v-html="t('password.tips')"></div>
-            </n-alert>
-
-            <n-form-item>
-              <n-space>
-                <n-button
-                  type="primary"
-                  :loading="changingPassword"
-                  @click="handleChangePassword"
-                >
-                  {{ t('password.changeButton') }}
-                </n-button>
-                <n-button @click="handleResetPassword">
-                  {{ t('common.reset') }}
-                </n-button>
-              </n-space>
-            </n-form-item>
-          </n-form>
-        </n-tab-pane>
+            <div class="form-actions">
+              <RsButton
+                variant="primary"
+                :loading="changingPassword"
+                @click="handleChangePassword"
+              >
+                {{ t('password.changeButton') }}
+              </RsButton>
+              <RsButton variant="secondary" @click="handleResetPassword">
+                {{ t('common.reset') }}
+              </RsButton>
+            </div>
+          </RsForm>
+        </template>
 
         <!-- 系统设置 -->
-        <n-tab-pane name="settings" :tab="t('tabs.settings')">
-          <n-form
-            :model="settingsForm"
-            label-placement="left"
-            label-width="120"
-            size="medium"
+        <template #settings>
+          <RsForm
             class="settings-form"
+            label-position="left"
+            label-width="7.5rem"
+            size="md"
+            gap="md"
           >
-            <n-form-item :label="t('settings.theme')">
-              <n-select
-                v-model:value="settingsForm.theme"
+            <div class="field-row">
+              <RsLabel class="field-row__label">{{ t('settings.theme') }}</RsLabel>
+              <RsSelect
+                v-model="settingsForm.theme"
                 :options="themeOptions"
-                @update:value="handleThemeChange"
+                match-trigger-width
+                block
+                @update:model-value="handleThemeChange"
               />
-            </n-form-item>
+            </div>
 
-            <n-form-item :label="t('settings.language')">
-              <n-select
-                v-model:value="settingsForm.language"
+            <div class="field-row">
+              <RsLabel class="field-row__label">{{ t('settings.language') }}</RsLabel>
+              <RsSelect
+                v-model="settingsForm.language"
                 :options="languageOptions"
-                @update:value="handleLanguageChange"
+                match-trigger-width
+                block
+                @update:model-value="handleLanguageChange"
               />
-            </n-form-item>
+            </div>
 
-            <n-form-item :label="t('settings.notification')">
-              <n-switch
-                v-model:value="settingsForm.notificationEnabled"
-                @update:value="handleNotificationChange"
-              />
-              <span class="setting-desc">{{ t('settings.notificationDesc') }}</span>
-            </n-form-item>
+            <div class="field-row">
+              <RsLabel class="field-row__label">{{ t('settings.notification') }}</RsLabel>
+              <div class="switch-row">
+                <RsSwitch
+                  v-model="settingsForm.notificationEnabled"
+                  @update:model-value="handleNotificationChange"
+                />
+                <span class="setting-desc">{{ t('settings.notificationDesc') }}</span>
+              </div>
+            </div>
 
-            <n-form-item :label="t('settings.showGuide')">
-              <n-switch
-                v-model:value="settingsForm.showGuide"
-                @update:value="handleGuideChange"
-              />
-              <span class="setting-desc">{{ t('settings.showGuideDesc') }}</span>
-            </n-form-item>
-          </n-form>
-        </n-tab-pane>
+            <div class="field-row">
+              <RsLabel class="field-row__label">{{ t('settings.showGuide') }}</RsLabel>
+              <div class="switch-row">
+                <RsSwitch
+                  v-model="settingsForm.showGuide"
+                  @update:model-value="handleGuideChange"
+                />
+                <span class="setting-desc">{{ t('settings.showGuideDesc') }}</span>
+              </div>
+            </div>
+          </RsForm>
+        </template>
 
         <!-- 账号信息 -->
-        <n-tab-pane name="account" :tab="t('tabs.account')">
-          <n-descriptions
-            :column="1"
+        <template #account>
+          <RsDescriptions
+            :columns="1"
             label-placement="left"
-            label-style="width: 120px; font-weight: 500;"
             bordered
             class="account-info"
           >
-            <n-descriptions-item :label="t('account.userId')">
+            <RsDescriptionsItem :label="t('account.userId')">
               {{ userInfo?.userId }}
-            </n-descriptions-item>
-            <n-descriptions-item :label="t('account.tenantId')">
+            </RsDescriptionsItem>
+            <RsDescriptionsItem :label="t('account.tenantId')">
               {{ userInfo?.tenantId }}
-            </n-descriptions-item>
-            <n-descriptions-item :label="t('account.roles')">
-              <n-space>
-                <n-tag
-                  v-for="role in (userInfo?.roles || [])"
+            </RsDescriptionsItem>
+            <RsDescriptionsItem :label="t('account.roles')">
+              <div class="tag-list">
+                <RsTag
+                  v-for="role in userInfo?.roles || []"
                   :key="role"
-                  type="info"
-                  size="small"
+                  variant="info"
+                  size="sm"
                 >
                   {{ role }}
-                </n-tag>
-              </n-space>
-            </n-descriptions-item>
-            <n-descriptions-item :label="t('account.tenantAdmin')">
-              <n-tag :type="isTenantAdmin ? 'success' : 'default'" size="small">
+                </RsTag>
+              </div>
+            </RsDescriptionsItem>
+            <RsDescriptionsItem :label="t('account.tenantAdmin')">
+              <RsTag :variant="isTenantAdmin ? 'success' : 'default'" size="sm">
                 {{ isTenantAdmin ? t('common.yes') : t('common.no') }}
-              </n-tag>
-            </n-descriptions-item>
-            <n-descriptions-item :label="t('account.deptAdmin')">
-              <n-tag :type="isDeptAdmin ? 'success' : 'default'" size="small">
+              </RsTag>
+            </RsDescriptionsItem>
+            <RsDescriptionsItem :label="t('account.deptAdmin')">
+              <RsTag :variant="isDeptAdmin ? 'success' : 'default'" size="sm">
                 {{ isDeptAdmin ? t('common.yes') : t('common.no') }}
-              </n-tag>
-            </n-descriptions-item>
-            <n-descriptions-item :label="t('account.status')">
-              <n-tag :type="statusFlag === 'Y' ? 'success' : 'error'" size="small">
+              </RsTag>
+            </RsDescriptionsItem>
+            <RsDescriptionsItem :label="t('account.status')">
+              <RsTag :variant="statusFlag === 'Y' ? 'success' : 'danger'" size="sm">
                 {{ statusFlag === 'Y' ? t('account.enabled') : t('account.disabled') }}
-              </n-tag>
-            </n-descriptions-item>
-            <n-descriptions-item :label="t('account.lastLoginTime')">
+              </RsTag>
+            </RsDescriptionsItem>
+            <RsDescriptionsItem :label="t('account.lastLoginTime')">
               {{ userInfo?.lastLoginTime || t('common.notAvailable') }}
-            </n-descriptions-item>
-            <n-descriptions-item :label="t('account.lastLoginIp')">
+            </RsDescriptionsItem>
+            <RsDescriptionsItem :label="t('account.lastLoginIp')">
               {{ userInfo?.lastLoginIp || t('common.notAvailable') }}
-            </n-descriptions-item>
-            <n-descriptions-item :label="t('account.userExpireDate')">
+            </RsDescriptionsItem>
+            <RsDescriptionsItem :label="t('account.userExpireDate')">
               {{ userInfo?.userExpireDate || t('common.notAvailable') }}
-            </n-descriptions-item>
-          </n-descriptions>
-        </n-tab-pane>
-      </n-tabs>
-    </n-card>
-    </n-spin>
+            </RsDescriptionsItem>
+          </RsDescriptions>
+        </template>
+      </RsTabs>
+    </RsCard>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useMessage } from 'naive-ui'
-import { useModuleI18n } from '@/hooks/useModuleI18n'
-import { useUserSettings } from './hooks'
 import defaultAvatar from '@/assets/images/default-avatar.png'
-import type { UploadCustomRequestOptions, UploadFileInfo } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
+import {
+  RsAlert,
+  RsAvatar,
+  RsButton,
+  RsCard,
+  RsDescriptions,
+  RsDescriptionsItem,
+  RsForm,
+  RsInput,
+  RsLabel,
+  RsLoading,
+  RsRadio,
+  RsRadioItem,
+  RsSelect,
+  RsSwitch,
+  RsTabs,
+  RsTag,
+  type RsTabItem,
+} from '@/ui'
+import { computed, onMounted, ref } from 'vue'
+import { useUserSettings } from './hooks'
 
 const { t } = useModuleI18n('hub0002')
-const { t: tCommon } = useModuleI18n('common')
-const message = useMessage()
+const message = useAppMessage()
 
-// Active tab
 const activeTab = ref('profile')
+const avatarPreview = ref('')
+const avatarInputRef = ref<HTMLInputElement | null>(null)
 
-// Avatar preview
-const avatarPreview = ref<string>('')
+const tabItems = computed<RsTabItem[]>(() => [
+  { value: 'profile', label: t('tabs.profile') },
+  { value: 'password', label: t('tabs.password') },
+  { value: 'settings', label: t('tabs.settings') },
+  { value: 'account', label: t('tabs.account') },
+])
 
-// Use user settings hook
 const {
   userInfo,
   loading,
@@ -302,135 +349,149 @@ const {
   convertFileToBase64,
 } = useUserSettings()
 
-// Computed properties
 const isTenantAdmin = computed(() => userInfo.value?.tenantAdminFlag === 'Y')
 const isDeptAdmin = computed(() => userInfo.value?.deptAdminFlag === 'Y')
 const statusFlag = computed(() => userInfo.value?.statusFlag)
 
-// 头像上传前验证
-const beforeAvatarUpload = async (data: {
-  file: UploadFileInfo
-  fileList: UploadFileInfo[]
-}): Promise<boolean> => {
-  const file = data.file.file as File
-  
-  // 验证文件大小 (max 500KB for base64)
+/** 触发隐藏的头像文件选择 */
+const triggerAvatarPick = () => {
+  avatarInputRef.value?.click()
+}
+
+/** 头像文件选择后做校验并转成 base64 预览 */
+const onAvatarFileChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
   if (file.size > 500 * 1024) {
     message.error(t('profile.avatarSizeLimitBase64'))
-    return false
+    return
   }
 
-  // 验证文件类型
   const allowedTypes = ['image/jpeg', 'image/png', 'image/gif']
   if (!allowedTypes.includes(file.type)) {
     message.error(t('profile.avatarTypeInvalid'))
-    return false
+    return
   }
 
-  return true
-}
-
-// 处理头像上传（预览）
-const handleAvatarUpload = async ({ file }: UploadCustomRequestOptions) => {
   try {
-    if (!file.file) return
-
-    // 转换为 base64
-    const base64 = await convertFileToBase64(file.file as File)
-    
-    // 检查 base64 大小（约为原文件的 4/3，应小于 500KB）
+    const base64 = await convertFileToBase64(file)
     if (base64.length > 500 * 1024) {
       message.error(t('profile.avatarSizeLimitBase64'))
       return
     }
-
-    // 设置预览
     avatarPreview.value = base64
     profileForm.avatar = base64
-  } catch (error) {
-    console.error('Avatar upload error:', error)
+  } catch {
     message.error(t('profile.avatarUploadFailed'))
   }
 }
 
-// 保存个人资料（包含头像）
 const handleSaveProfile = async () => {
   await originalHandleSaveProfile()
-  // 保存成功后清除预览
   avatarPreview.value = ''
 }
 
-// 重置表单
 const handleResetProfile = () => {
   originalHandleResetProfile()
   avatarPreview.value = ''
 }
 
-// Initialize
 onMounted(async () => {
-  // 加载用户信息
   await fetchUserInfo()
 })
 </script>
 
 <style lang="scss" scoped>
 .user-settings-container {
+  position: relative;
   padding: 16px;
-  max-width: 900px;
+  max-width: 1100px;
   margin: 0 auto;
+}
 
-  :deep(.n-card) {
-    border-radius: 8px;
-  }
+.settings-tabs {
+  margin-top: 4px;
+}
 
-  .profile-form,
-  .password-form,
-  .settings-form {
-    max-width: 600px;
-    margin-top: 24px;
-  }
+.profile-form,
+.password-form,
+.settings-form {
+  max-width: 720px;
+  margin-top: 8px;
+}
 
-  .avatar-section {
-    margin-bottom: 24px;
+.avatar-section {
+  margin-bottom: 8px;
+}
 
-    .avatar-upload {
-      display: flex;
-      align-items: center;
-      gap: 16px;
+.field-row {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.75rem;
+}
 
-      .user-avatar {
-        border: 2px solid var(--n-border-color);
-        border-radius: 50%;
-      }
+.field-row__label {
+  justify-self: start;
+}
 
-      .upload-btn {
-        margin-left: 8px;
-      }
-    }
-  }
+.avatar-upload {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
 
-  .password-tips {
-    margin-bottom: 16px;
-    font-size: 13px;
 
-    :deep(.n-alert__content) {
-      line-height: 1.6;
-    }
-  }
 
-  .setting-desc {
-    margin-left: 12px;
-    font-size: 13px;
-    color: var(--n-text-color-3);
-  }
+.avatar-input {
+  display: none;
+}
 
-  .account-info {
-    margin-top: 24px;
-  }
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  padding-left: calc(7.5rem + 0.75rem);
+}
 
-  :deep(.n-form-item-label) {
-    font-weight: 500;
-  }
+.password-tips {
+  margin-bottom: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.password-tips__title {
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.password-tips__list {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.setting-desc {
+  font-size: 13px;
+  color: var(--rs-muted);
+}
+
+.account-info {
+  margin-top: 16px;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 </style>
-

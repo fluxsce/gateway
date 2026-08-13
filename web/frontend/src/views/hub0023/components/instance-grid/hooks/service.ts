@@ -3,7 +3,7 @@
  * 处理所有与后端交互的业务逻辑
  */
 
-import { createBackendPaginationParams } from '@/components/gpage'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import * as gatewayApi from '@/views/hub0020/api'
 import { useMessage } from 'naive-ui'

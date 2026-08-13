@@ -1,79 +1,47 @@
 <template>
   <div class="gateway-instance-manager" :id="service.model.moduleId">
-    <GPane direction="vertical" default-size="80px">
-      <!-- 上部：搜索表单 -->
-      <template #1>
-        <search-form
-          ref="searchFormRef"
-          :module-id="service.model.moduleId"
-          v-bind="service.model.searchFormConfig"
-          @search="handleSearch"
-          @toolbar-click="handleToolbarClick"
-        />
-            </template>
-
-      <!-- 下部：数据表格 -->
-      <template #2>
-        <g-grid
-          ref="gridRef"
-          :module-id="service.model.moduleId"
-          :data="service.model.instanceList"
-          :loading="service.model.loading"
-          v-bind="service.model.gridConfig"
-          @page-change="service.handlePageChange"
-          @menu-click="handleMenuClick"
-        >
-          <!-- TLS 状态自定义渲染 -->
-          <template #tlsEnabled="{ row }">
-            <n-tag :type="row.tlsEnabled === 'Y' ? 'success' : 'default'" size="small">
-              {{ row.tlsEnabled === 'Y' ? '启用' : '禁用' }}
-            </n-tag>
-          </template>
-
-          <!-- 健康状态自定义渲染；reserved1 展示最近启动/停止/重载异常说明 -->
-          <template #healthStatus="{ row }">
-            <n-tooltip v-if="row.reserved1" trigger="hover">
-              <template #trigger>
-                <n-tag :type="row.healthStatus === 'Y' ? 'success' : 'error'" size="small">
-                  <template #icon>
-                    <n-icon>
-                      <CheckmarkCircleOutline v-if="row.healthStatus === 'Y'" />
-                      <AlertCircleOutline v-else />
-                    </n-icon>
-                  </template>
-                  {{ row.healthStatus === 'Y' ? '在线' : '离线' }}
-                </n-tag>
-              </template>
-              {{ row.reserved1 }}
-            </n-tooltip>
-            <n-tag v-else :type="row.healthStatus === 'Y' ? 'success' : 'error'" size="small">
-              <template #icon>
-                <n-icon>
-                  <CheckmarkCircleOutline v-if="row.healthStatus === 'Y'" />
-                  <AlertCircleOutline v-else />
-                </n-icon>
-              </template>
-              {{ row.healthStatus === 'Y' ? '在线' : '离线' }}
-            </n-tag>
-          </template>
-
-          <template #reserved1="{ row }">
-            <span v-if="row.reserved1" class="status-note" :title="row.reserved1">{{ row.reserved1 }}</span>
-            <span v-else class="status-note status-note--empty">-</span>
-          </template>
-
-          <!-- 活动状态自定义渲染 -->
-          <template #activeFlag="{ row }">
-            <n-tag :type="row.activeFlag === 'Y' ? 'success' : 'default'" size="small">
-              {{ row.activeFlag === 'Y' ? '活动' : '非活动' }}
-            </n-tag>
-          </template>
-        </g-grid>
+    <RsSplitPane
+      class="gateway-instance-manager__split"
+      orientation="vertical"
+      :panes="splitPanes"
+      disabled
+    >
+      <!-- 上部：搜索表单（auto 随内容） -->
+      <template #search>
+        <div class="gateway-instance-manager__search">
+          <RsSearchForm
+            ref="searchFormRef"
+            :module-id="service.model.moduleId"
+            v-bind="service.model.searchFormConfig"
+            @search="handleSearch"
+            @toolbar-click="handleToolbarClick"
+          />
+        </div>
       </template>
-    </GPane>
+
+      <!-- 下部：表格占满剩余高度 -->
+      <template #grid>
+        <div class="gateway-instance-manager__grid">
+          <RsGrid
+            ref="gridRef"
+            :module-id="service.model.moduleId"
+            :data="service.model.instanceList"
+            :loading="service.model.loading"
+            :columns="service.model.gridConfig.columns"
+            :selectable="service.model.gridConfig.selectable"
+            :row-key="service.model.gridConfig.rowKey"
+            height="100%"
+            :pagination-config="service.model.gridConfig.paginationConfig"
+            :menu-config="service.model.gridConfig.menuConfig"
+            @page-change="service.handlePageChange"
+            @menu-click="handleMenuClick"
+          />
+        </div>
+      </template>
+    </RsSplitPane>
 
     <!-- 实例对话框（新增/编辑/查看共用） -->
-    <GdataFormModal
+    <RsDataFormModal
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
       :title="formDialogMode === 'create' ? '新增实例' : formDialogMode === 'edit' ? '编辑实例' : '查看实例详情'"
@@ -87,7 +55,7 @@
     />
 
     <!-- 日志配置对话框 -->
-    <GdataFormModal
+    <RsDataFormModal
       v-model:visible="logConfigDialogVisible"
       :mode="logConfigDialogMode"
       :title="logConfigDialogMode === 'edit' ? '编辑日志配置' : '查看日志配置'"
@@ -189,11 +157,12 @@
 </template>
 
 <script lang="ts" setup>
-import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
-import SearchForm from '@/components/form/search/SearchForm.vue'
+import { RsDataFormModal } from '@/components/form/rs-data'
+import { RsSearchForm } from '@/components/form/rs-search'
 import { GExport, GImport } from '@/components/gexport-import'
-import { GPane } from '@/components/gpane'
-import { GGrid } from '@/components/grid'
+import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import UserAgentAccessConfigListModal from '@/views/common/common002/agent-config/UserAgentAccessConfigListModal.vue'
 import ApiAccessConfigListModal from '@/views/common/common002/api-config/ApiAccessConfigListModal.vue'
 import AuthConfigFormModal from '@/views/common/common002/auth-config/AuthConfigFormModal.vue'
@@ -201,23 +170,22 @@ import CorsConfigFormModal from '@/views/common/common002/cors-config/CorsConfig
 import DomainAccessConfigListModal from '@/views/common/common002/domain-config/DomainAccessConfigListModal.vue'
 import IpAccessConfigListModal from '@/views/common/common002/ip-config/IpAccessConfigListModal.vue'
 import RateLimitConfigFormModal from '@/views/common/common002/limit-config/RateLimitConfigFormModal.vue'
-import { AlertCircleOutline, CheckmarkCircleOutline } from '@vicons/ionicons5'
-import { NIcon, NTag, NTooltip, useMessage } from 'naive-ui'
 import { computed, ref } from 'vue'
 import { useGatewayInstancePage } from './hooks'
 
-// 定义组件名称
 defineOptions({
-  name: 'GatewayInstanceManager'
+  name: 'GatewayInstanceManager',
 })
 
-// ============= Refs =============
+/** 上方面板内容自适应，下方吃满剩余空间；disabled 禁止拖拽 */
+const splitPanes: RsSplitPaneItem[] = [
+  { key: 'search', size: 'auto' },
+  { key: 'grid' },
+]
 
 const searchFormRef = ref()
-const gridRef = ref()
-const message = useMessage()
-
-// ============= 页面级 Hook =============
+const gridRef = ref<RsGridExpose | null>(null)
+const message = useAppMessage()
 
 const {
   service,
@@ -253,8 +221,6 @@ const {
   handleSearch,
 } = useGatewayInstancePage(gridRef, searchFormRef)
 
-// ============= 导出/导入 =============
-
 const exportParams = computed(() => ({ gatewayInstanceId: exportInstanceId.value }))
 const exportFilename = computed(() => `网关实例配置_${exportInstanceId.value}`)
 
@@ -262,41 +228,37 @@ const handleImportSuccess = () => {
   message.success('导入成功，数据已刷新')
   handleSearch()
 }
-
-// 数据由搜索表单的"查询"按钮触发加载
 </script>
 
-<style lang="scss" scoped>
+<style scoped>
 .gateway-instance-manager {
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 
-  :deep(.n-split) {
-    height: 100%;
-  }
+.gateway-instance-manager__split {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
 
-  /* 上半区：搜索表单，内容较少，允许自身滚动 */
-  :deep(.n-split-pane:first-child) {
-    overflow: auto;
-    padding: var(--g-space-sm);
-  }
+.gateway-instance-manager__search {
+  width: 100%;
+}
 
-  /* 下半区：表格区域，高度由 GGrid 占满，滚动全部交给 vxe-grid */
-  :deep(.n-split-pane:last-child) {
-    overflow: hidden;
-    padding: var(--g-space-sm);
-    display: flex;
-    flex-direction: column;
-  }
-
-  .status-note {
-    color: var(--n-error-color, #d03050);
-    font-size: 12px;
-  }
-
-  .status-note--empty {
-    color: var(--n-text-color-disabled, #c2c2c2);
-  }
+.gateway-instance-manager__grid {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 </style>

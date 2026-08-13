@@ -88,8 +88,112 @@ export default {
       batchDeleteSuccess: 'Batch delete successful',
       deleteConfirm: 'Are you sure to delete role "{name}"? This operation cannot be undone.',
       batchDeleteConfirm: 'Are you sure to delete selected {count} roles? This operation cannot be undone.',
-      permissionAssignSuccess: 'Permissions assigned successfully'
-    }
+      permissionAssignSuccess: 'Permissions assigned successfully',
+      loadFailed: 'Failed to load role list',
+      queryFailed: 'Failed to query role list',
+      createFailed: 'Failed to create role',
+      updateFailed: 'Failed to update role',
+      deleteFailed: 'Failed to delete role',
+      batchDeleteFailed: 'Failed to batch delete roles',
+      batchDeleteResult: 'Successfully deleted {success} roles',
+      batchDeleteResultWithFail: 'Successfully deleted {success} roles, failed {fail}',
+      batchDeleteAllFailed: 'Delete failed for {fail} roles',
+      selectToEdit: 'Please select or click a role to edit',
+      selectToDelete: 'Please select or click a role to delete',
+      deleteConfirmTitle: 'Confirm Delete',
+      batchDeleteConfirmTitle: 'Confirm Batch Delete',
+      deleteConfirmSubtitle: 'This operation cannot be undone. Please proceed with caution.',
+      deleteConfirmOk: 'Delete',
+      deleteConfirmCancel: 'Cancel',
+    },
+
+    // Dialog titles
+    dialog: {
+      createTitle: 'Add Role',
+      editTitle: 'Edit Role',
+      viewTitle: 'Role Details',
+      tabBasic: 'Basic Info',
+      tabOther: 'Other Info',
+    },
+
+    // Role authorization drawer
+    auth: {
+      title: 'Role Authorization',
+      titleWithName: 'Role Authorization - {name}',
+      searchPlaceholder: 'Search resource name',
+      empty: 'No resource data',
+      loadFailed: 'Failed to load resource list',
+      roleIdRequired: 'Role ID is required',
+      saveSuccess: 'Saved successfully',
+      saveFailed: 'Failed to save',
+    },
+
+    // Search area
+    search: {
+      roleName: 'Role Name',
+      roleNamePlaceholder: 'Please enter role name',
+      status: 'Status',
+      statusPlaceholder: 'Please select status',
+      type: 'Type',
+      typePlaceholder: 'Please select type',
+      all: 'All',
+    },
+
+    // Toolbar
+    toolbar: {
+      add: 'Add',
+      addTooltip: 'Add role',
+      edit: 'Edit',
+      editTooltip: 'Edit selected role',
+      delete: 'Delete',
+      deleteTooltip: 'Delete selected role',
+    },
+
+    // Table columns
+    columns: {
+      roleId: 'Role ID',
+      roleName: 'Role Name',
+      roleDescription: 'Description',
+      status: 'Status',
+      type: 'Type',
+      activeFlag: 'Active Flag',
+      addTime: 'Created At',
+      addWho: 'Created By',
+      editTime: 'Updated At',
+      editWho: 'Updated By',
+      noteText: 'Note',
+      builtin: 'Built-in',
+      custom: 'Custom',
+      active: 'Active',
+      inactive: 'Inactive',
+    },
+
+    // Context menu
+    contextMenu: {
+      view: 'View Details',
+      edit: 'Edit',
+      delete: 'Delete',
+      roleAuth: 'Authorize',
+    },
+
+    // Extra form fields
+    formExtra: {
+      roleId: 'Role ID',
+      roleIdPlaceholder: 'Please enter role ID',
+      builtInFlag: 'Built-in Flag',
+      dataScopePlaceholder: 'Enter data scope config (JSON)',
+      addTime: 'Created At',
+      addWho: 'Created By',
+      editTime: 'Updated At',
+      editWho: 'Updated By',
+      oprSeqFlag: 'Operation Sequence',
+      currentVersion: 'Current Version',
+      activeFlag: 'Active Flag',
+      noteText: 'Note',
+      noteTextPlaceholder: 'Please enter note',
+      statusPlaceholder: 'Please select status',
+      typePlaceholder: 'Please select type',
+    },
   },
 
   // Resource Management

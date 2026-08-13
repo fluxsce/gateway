@@ -1,153 +1,71 @@
 /**
  * 集群事件确认管理模块 Model
- * 统一管理搜索表单、表格配置和数据状态
+ * 统一管理搜索表单、表格配置和数据状态（RsSearchForm / RsGrid）
  */
 
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type {
+  RsGridColumn,
+  RsGridMenuConfig,
+  RsGridPaginationConfig,
+} from '@/components/rs-grid'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
 import type { PageInfoObj } from '@/types/api'
+import { RsTag, type RsTagVariant } from '@/ui'
 import { formatDate } from '@/utils/format'
-import { ref } from 'vue'
+import { h, reactive, ref, watch } from 'vue'
 import type { ClusterEventAck } from '../../../types'
+
+/**
+ * 集群事件确认表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface ClusterEventAckGridConfig {
+  columns: RsGridColumn<ClusterEventAck>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
+
+/** 确认状态 → RsTag variant */
+function getAckStatusVariant(status?: string): RsTagVariant {
+  switch (status) {
+    case 'SUCCESS':
+      return 'success'
+    case 'FAILED':
+      return 'danger'
+    case 'PENDING':
+      return 'warning'
+    default:
+      return 'default'
+  }
+}
 
 /**
  * 集群事件确认 Model
  */
 export function useClusterEventAckModel() {
-  // ============= 数据状态 =============
+  const { t, locale } = useModuleI18n('hub0008')
+
   const moduleId = 'hub0008:event-ack'
-  /** 加载状态 */
   const loading = ref(false)
-
-  /** 集群事件确认列表数据 */
   const ackList = ref<ClusterEventAck[]>([])
-
-  /** 后端分页信息对象 */
   const pageInfo = ref<PageInfoObj | undefined>()
 
-  // ============= 搜索表单配置 =============
-
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
-    fields: [
-      {
-        field: 'nodeId',
-        label: '处理节点ID',
-        type: 'input',
-        placeholder: '请输入处理节点ID',
-        span: 6,
-        clearable: true,
-      },
-      {
-        field: 'nodeIp',
-        label: '处理节点IP',
-        type: 'input',
-        placeholder: '请输入处理节点IP',
-        span: 6,
-        clearable: true,
-      },
-      {
-        field: 'ackStatus',
-        label: '确认状态',
-        type: 'select',
-        placeholder: '请选择确认状态',
-        span: 6,
-        clearable: true,
-        options: [
-          { label: '全部', value: '' },
-          { label: '待处理', value: 'PENDING' },
-          { label: '成功', value: 'SUCCESS' },
-          { label: '失败', value: 'FAILED' },
-          { label: '跳过', value: 'SKIPPED' },
-        ],
-      },
-      {
-        field: 'activeFlag',
-        label: '活动状态',
-        type: 'select',
-        placeholder: '请选择活动状态',
-        span: 6,
-        clearable: true,
-        options: [
-          { label: '全部', value: '' },
-          { label: '活动', value: 'Y' },
-          { label: '非活动', value: 'N' },
-        ],
-      },
-    ],
+  const searchFormConfig = reactive<Omit<RsSearchFormProps, 'moduleId'>>({
+    fields: [],
+    moreFields: [],
     toolbarButtons: [],
     showSearchButton: true,
     showResetButton: true,
-  }
+  })
 
-  // ============= 表格配置 =============
-
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
-    columns: [
-      {
-        field: 'ackId',
-        title: '确认ID',
-        showOverflow: true,
-        width: 200,
-      },
-      {
-        field: 'nodeId',
-        title: '处理节点ID',
-        showOverflow: true,
-        width: 180,
-        slots: { default: 'nodeId' },
-      },
-      {
-        field: 'nodeIp',
-        title: '处理节点IP',
-        showOverflow: true,
-        width: 140,
-        slots: { default: 'nodeIp' },
-      },
-      {
-        field: 'ackStatus',
-        title: '确认状态',
-        align: 'center',
-        width: 120,
-        slots: { default: 'ackStatus' },
-      },
-      {
-        field: 'processTime',
-        title: '处理时间',
-        sortable: true,
-        showOverflow: true,
-        width: 160,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '-',
-      },
-      {
-        field: 'retryCount',
-        title: '重试次数',
-        align: 'center',
-        width: 100,
-      },
-      {
-        field: 'resultMessage',
-        title: '结果信息',
-        showOverflow: 'tooltip',
-        minWidth: 200,
-      },
-      {
-        field: 'activeFlag',
-        title: '活动状态',
-        align: 'center',
-        width: 100,
-        cellRender: {
-          name: 'VxeTag',
-          props: ({ row }: any) => ({
-            type: row.activeFlag === 'Y' ? 'success' : 'error',
-            content: row.activeFlag === 'Y' ? '活动' : '非活动',
-          }),
-        },
-      },
-    ],
-    showCheckbox: false,
+  const gridConfig = reactive<ClusterEventAckGridConfig>({
+    columns: [],
+    selectable: false,
+    rowKey: 'ackId',
+    height: '100%',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -155,31 +73,169 @@ export function useClusterEventAckModel() {
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      showCopyCell: true,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-      ],
+      items: [],
     },
-    height: '100%',
+  })
+
+  /** 确认状态文案 */
+  function getAckStatusLabel(status?: string): string {
+    switch (status) {
+      case 'PENDING':
+        return t('ack.status.pending')
+      case 'SUCCESS':
+        return t('ack.status.success')
+      case 'FAILED':
+        return t('ack.status.failed')
+      case 'SKIPPED':
+        return t('ack.status.skipped')
+      default:
+        return status || '-'
+    }
   }
 
-  // ============= 辅助方法 =============
+  /** 按当前语言刷新表单 / 表格文案 */
+  function applyI18n() {
+    searchFormConfig.fields = [
+      {
+        field: 'nodeId',
+        label: t('ack.search.nodeId'),
+        type: 'input',
+        placeholder: t('ack.search.nodeIdPlaceholder'),
+        span: 12,
+        clearable: true,
+      },
+      {
+        field: 'nodeIp',
+        label: t('ack.search.nodeIp'),
+        type: 'input',
+        placeholder: t('ack.search.nodeIpPlaceholder'),
+        span: 12,
+        clearable: true,
+      },
+    ]
+    searchFormConfig.moreFields = [
+      {
+        field: 'ackStatus',
+        label: t('ack.search.ackStatus'),
+        type: 'select',
+        placeholder: t('ack.search.ackStatusPlaceholder'),
+        span: 12,
+        clearable: true,
+        options: [
+          { label: t('common.all'), value: '' },
+          { label: t('ack.status.pending'), value: 'PENDING' },
+          { label: t('ack.status.success'), value: 'SUCCESS' },
+          { label: t('ack.status.failed'), value: 'FAILED' },
+          { label: t('ack.status.skipped'), value: 'SKIPPED' },
+        ],
+      },
+      {
+        field: 'activeFlag',
+        label: t('ack.search.activeFlag'),
+        type: 'select',
+        placeholder: t('ack.search.activeFlagPlaceholder'),
+        span: 12,
+        clearable: true,
+        options: [
+          { label: t('common.all'), value: '' },
+          { label: t('common.active'), value: 'Y' },
+          { label: t('common.inactive'), value: 'N' },
+        ],
+      },
+    ]
 
-  /**
-   * 重置分页
-   */
+    gridConfig.columns = [
+      {
+        key: 'ackId',
+        title: t('ack.columns.ackId'),
+        width: 200,
+        ellipsis: true,
+      },
+      {
+        key: 'nodeId',
+        title: t('ack.columns.nodeId'),
+        width: 180,
+        ellipsis: true,
+        render: (row) =>
+          h(
+            'span',
+            { style: { color: 'var(--g-primary)', fontWeight: 500 } },
+            row.nodeId || '-',
+          ),
+      },
+      {
+        key: 'nodeIp',
+        title: t('ack.columns.nodeIp'),
+        width: 140,
+        ellipsis: true,
+        render: (row) =>
+          h(
+            'span',
+            { style: { color: 'var(--g-success)', fontWeight: 500 } },
+            row.nodeIp || '-',
+          ),
+      },
+      {
+        key: 'ackStatus',
+        title: t('ack.columns.ackStatus'),
+        align: 'center',
+        width: 120,
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: getAckStatusVariant(row.ackStatus), size: 'sm' },
+            () => getAckStatusLabel(row.ackStatus),
+          ),
+      },
+      {
+        key: 'processTime',
+        title: t('ack.columns.processTime'),
+        sortable: true,
+        width: 160,
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '-',
+      },
+      {
+        key: 'retryCount',
+        title: t('ack.columns.retryCount'),
+        align: 'center',
+        width: 100,
+      },
+      {
+        key: 'resultMessage',
+        title: t('ack.columns.resultMessage'),
+        minWidth: 200,
+        ellipsis: true,
+      },
+      {
+        key: 'activeFlag',
+        title: t('ack.columns.activeFlag'),
+        align: 'center',
+        width: 100,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.activeFlag === 'Y' ? 'success' : 'danger',
+              size: 'sm',
+            },
+            () => (row.activeFlag === 'Y' ? t('common.active') : t('common.inactive')),
+          ),
+      },
+    ]
+    gridConfig.menuConfig = {
+      enabled: true,
+      items: [{ key: 'view', label: t('common.viewDetail'), icon: 'EyeOutline' }],
+    }
+  }
+
+  watch(locale, applyI18n, { immediate: true })
+
   const resetPagination = () => {
     pageInfo.value = undefined
   }
 
-  /**
-   * 更新分页信息（接收后端 PageInfoObj）
-   */
   const updatePagination = (newPageInfo: Partial<PageInfoObj>) => {
     if (!pageInfo.value) {
       pageInfo.value = newPageInfo as PageInfoObj
@@ -188,34 +244,21 @@ export function useClusterEventAckModel() {
     }
   }
 
-  /**
-   * 设置确认列表
-   */
   const setAckList = (list: ClusterEventAck[]) => {
     ackList.value = list
   }
 
-  /**
-   * 清空确认列表
-   */
   const clearAckList = () => {
     ackList.value = []
   }
 
   return {
-    // 基本信息
     moduleId,
-
-    // 数据状态
     loading,
     ackList,
     pageInfo,
-
-    // 配置
     searchFormConfig,
     gridConfig,
-
-    // 方法
     resetPagination,
     updatePagination,
     setAckList,
@@ -223,8 +266,4 @@ export function useClusterEventAckModel() {
   }
 }
 
-/**
- * Model 返回类型
- */
 export type ClusterEventAckModel = ReturnType<typeof useClusterEventAckModel>
-

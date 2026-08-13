@@ -4,7 +4,7 @@
  * - 处理表单对话框等页面交互
  */
 
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import { ref, watch } from 'vue'
 import type { AuthConfig } from './types'
@@ -23,7 +23,7 @@ export function useAuthConfigPage(
     routeConfigId?: Ref<string | undefined>
   }
 ) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 业务服务（包含 model、增删改查等，传递 moduleId）
   const service = useAuthConfigService(moduleId.value)

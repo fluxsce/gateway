@@ -3,10 +3,11 @@
  * 处理所有与后端交互的业务逻辑
  */
 
-import { createBackendPaginationParams } from '@/components/gpage'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess } from '@/utils/format'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { getClusterEventAckDetail, queryClusterEventAcks } from '../../../api'
 import type { ClusterEventAck } from '../../../types'
@@ -19,7 +20,8 @@ export function useClusterEventAckService(
   eventId?: Ref<string | undefined>,
   searchFormRef?: Ref<any> | any
 ) {
-  const message = useMessage()
+  const message = useAppMessage()
+  const { t } = useModuleI18n('hub0008')
 
   // 初始化 Model
   const model = useClusterEventAckModel()
@@ -92,11 +94,11 @@ export function useClusterEventAckService(
           updatePagination(backendPageInfo)
         }
       } else {
-        message.error(response.errMsg || '查询事件处理节点列表失败')
+        message.error(response.errMsg || t('ack.message.queryFailed'))
       }
     } catch (error) {
       console.error('加载事件处理节点列表失败:', error)
-      message.error('加载事件处理节点列表失败')
+      message.error(t('ack.message.loadFailed'))
     } finally {
       loading.value = false
     }
@@ -145,7 +147,7 @@ export function useClusterEventAckService(
    */
   const getAckDetail = async (ackId: string): Promise<ClusterEventAck | null> => {
     if (!ackId) {
-      message.warning('确认ID不能为空')
+      message.warning(t('ack.message.ackIdRequired'))
       return null
     }
 
@@ -155,12 +157,12 @@ export function useClusterEventAckService(
         const ack = JSON.parse(response.bizData) as ClusterEventAck
         return ack
       } else {
-        message.error(getApiMessage(response, '获取事件确认详情失败'))
+        message.error(getApiMessage(response, t('ack.message.detailFailed')))
         return null
       }
     } catch (error) {
       console.error('获取事件确认详情失败:', error)
-      message.error('获取事件确认详情失败')
+      message.error(t('ack.message.detailFailed'))
       return null
     }
   }

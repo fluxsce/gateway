@@ -22,6 +22,36 @@ function cacheKey(name: string, library: IconLibrary): string {
 }
 
 /**
+ * 将 kebab-case / snake_case 图标名规范为 @vicons 导出的 PascalCase。
+ * 例：code-outline -> CodeOutline；color_palette_outline -> ColorPaletteOutline
+ */
+export function normalizeIconName(iconName: string): string {
+  const trimmed = iconName.trim()
+  if (!trimmed) return trimmed
+  if (!/[-_]/.test(trimmed) && /^[A-Z]/.test(trimmed)) return trimmed
+  return trimmed
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join('')
+}
+
+/**
+ * 按候选名在图标模块中解析组件（兼容原始名与规范化名）
+ */
+function resolveIconFromModule(
+  iconModule: Record<string, Component | undefined>,
+  iconName: string,
+): Component | null {
+  const candidates = Array.from(new Set([iconName, normalizeIconName(iconName)]))
+  for (const name of candidates) {
+    const component = iconModule[name]
+    if (component) return component
+  }
+  return null
+}
+
+/**
  * 图标组件缓存（与 getIcon / getIconSync 共用，registerIcon 写入后同步可用）
  */
 const iconCache = new Map<string, Component>()
@@ -59,24 +89,27 @@ export async function getIcon(
     return null
   }
 
-  const key = cacheKey(iconName, library)
-  if (iconCache.has(key)) {
-    return iconCache.get(key)!
+  const normalized = normalizeIconName(iconName)
+  const primaryKey = cacheKey(normalized, library)
+  const rawKey = cacheKey(iconName, library)
+  if (iconCache.has(primaryKey)) {
+    return iconCache.get(primaryKey)!
+  }
+  if (iconCache.has(rawKey)) {
+    return iconCache.get(rawKey)!
   }
 
   try {
-    // 动态导入图标库
     const iconModule = await iconLibraryModules[library]()
-    
-    // 获取图标组件
-    const iconComponent = iconModule[iconName]
-    
+    const iconComponent = resolveIconFromModule(iconModule, iconName)
+
     if (!iconComponent) {
       console.warn(`[Icon Utils] Icon "${iconName}" not found in ${library} library`)
       return null
     }
 
-    iconCache.set(key, iconComponent)
+    iconCache.set(primaryKey, iconComponent)
+    if (rawKey !== primaryKey) iconCache.set(rawKey, iconComponent)
     return iconComponent
   } catch (error) {
     console.error(`[Icon Utils] Failed to load icon "${iconName}" from ${library}:`, error)
@@ -96,7 +129,12 @@ export function getIconSync(
   library: IconLibrary = IconLibrary.IONICONS5
 ): Component | null {
   if (!iconName) return null
-  return iconCache.get(cacheKey(iconName, library)) ?? null
+  const normalized = normalizeIconName(iconName)
+  return (
+    iconCache.get(cacheKey(normalized, library)) ??
+    iconCache.get(cacheKey(iconName, library)) ??
+    null
+  )
 }
 
 /**

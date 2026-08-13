@@ -5,7 +5,7 @@
  */
 
 import { getApiMessage, isApiSuccess } from '@/utils/format'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import { onMounted, ref } from 'vue'
 import { getRouteConfig } from '../../../api'
@@ -21,7 +21,7 @@ export function useRouteConfigPage(
   searchFormRef?: Ref<any> | any,
   gridRef?: Ref<any> | any
 ) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 业务服务（包含 model、增删改查等）
   const serviceResult = useRouteConfigService(gatewayInstanceId, searchFormRef)
@@ -399,14 +399,14 @@ export function useRouteConfigPage(
   /**
    * 处理右键菜单点击
    */
-  const handleMenuClick = async (params: { code: string; row?: any; column?: any }) => {
-    const { code, row } = params
+  const handleMenuClick = async (params: { key: string; row?: any; column?: any }) => {
+    const { key, row } = params
     if (!row) {
       return
     }
     const route = row as RouteConfig
     
-    switch (code) {
+    switch (key) {
       case 'view':
         await openViewDialog(route)
         break

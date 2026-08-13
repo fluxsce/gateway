@@ -3,8 +3,8 @@
  * 纯业务逻辑：数据获取、增删改查等操作
  */
 
-import { useGDialog } from '@/components/gdialog'
-import { createBackendPaginationParams } from '@/components/gpage'
+import { rsConfirm } from '@/ui'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
 import { PlayCircleOutline, RefreshCircleOutline, StopCircleOutline, WarningOutline } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
@@ -28,9 +28,7 @@ import { useStaticServerModel } from './model'
  */
 export function useStaticServerService(searchFormRef?: Ref<any> | any) {
   const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 使用 model
+// 使用 model
   const model = useStaticServerModel()
   
   // 解构 model 中的列表操作方法
@@ -206,14 +204,13 @@ export function useStaticServerService(searchFormRef?: Ref<any> | any) {
    * 删除服务
    */
   const deleteServer = async (server: TunnelStaticServer): Promise<boolean> => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认删除',
       subtitle: '此操作不可恢复，请谨慎操作',
-      content: `确定要删除静态服务 "${server.serverName}" 吗？`,
+      description: `确定要删除静态服务 "${server.serverName}" 吗？`,
       icon: WarningOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定删除',
-      negativeText: '取消',
+      confirmText: '确定删除',
+      cancelText: '取消',
       width: 500
     })
 
@@ -303,14 +300,13 @@ export function useStaticServerService(searchFormRef?: Ref<any> | any) {
    * 启动服务
    */
   const startServer = async (server: TunnelStaticServer): Promise<boolean> => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认启动',
       subtitle: '启动后将开始监听客户端连接',
-      content: `确定要启动静态服务 "${server.serverName}" 吗？`,
+      description: `确定要启动静态服务 "${server.serverName}" 吗？`,
       icon: PlayCircleOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定启动',
-      negativeText: '取消',
+      confirmText: '确定启动',
+      cancelText: '取消',
       width: 500
     })
 
@@ -351,14 +347,13 @@ export function useStaticServerService(searchFormRef?: Ref<any> | any) {
    * 停止服务
    */
   const stopServer = async (server: TunnelStaticServer): Promise<boolean> => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认停止',
       subtitle: '停止后将断开所有客户端连接',
-      content: `确定要停止静态服务 "${server.serverName}" 吗？`,
+      description: `确定要停止静态服务 "${server.serverName}" 吗？`,
       icon: StopCircleOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定停止',
-      negativeText: '取消',
+      confirmText: '确定停止',
+      cancelText: '取消',
       width: 500
     })
 
@@ -399,14 +394,13 @@ export function useStaticServerService(searchFormRef?: Ref<any> | any) {
    * 重载服务配置
    */
   const reloadServer = async (server: TunnelStaticServer): Promise<boolean> => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认重载',
       subtitle: '重载配置将应用最新的服务配置',
-      content: `确定要重载静态服务 "${server.serverName}" 的配置吗？`,
+      description: `确定要重载静态服务 "${server.serverName}" 的配置吗？`,
       icon: RefreshCircleOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定重载',
-      negativeText: '取消',
+      confirmText: '确定重载',
+      cancelText: '取消',
       width: 500
     })
 

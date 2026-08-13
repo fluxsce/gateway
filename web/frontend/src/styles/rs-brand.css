@@ -1,0 +1,226 @@
+/**
+ * gateway ↔ niuma-ui token 桥接。
+ * 须在 `niuma-ui/styles.css` 与 gateway 主题（--g-*）之后加载。
+ *
+ * 原则：
+ * - 尺寸 / 色板在此全局映射一次，业务组件不要再抄一遍 --rs-* ← --g-*。
+ * - 仅当某块局部需要独立色板时，才在组件内覆盖。
+ *
+ * 根字号：gateway html/body 为 14px（--g-font-size-base）。
+ * niuma 默认按 16px rem 设计；控件高度用 px 锁定，字号桥到 --g-font-size-*，
+ * 避免 Rs 组件比改造前 Naive 体系偏大一档。
+ */
+
+:root {
+  /* 与 _variables.scss 一致：xs12 / sm13 / base14 / lg16 / xl18 */
+  --rs-font-size-xs: var(--g-font-size-xs);
+  --rs-font-size-sm: var(--g-font-size-sm);
+  --rs-font-size-base: var(--g-font-size-base);
+  --rs-font-size-lg: var(--g-font-size-lg);
+  --rs-font-size-xl: var(--g-font-size-xl);
+  --rs-font-size-2xl: 20px;
+  --rs-font-size-3xl: 24px;
+
+  --rs-font-sans: var(--g-font-family);
+  --rs-font-mono: var(--g-font-family-mono);
+  --rs-font-weight-regular: var(--g-font-weight-normal);
+  --rs-font-weight-medium: var(--g-font-weight-medium);
+  --rs-font-weight-semibold: var(--g-font-weight-bold);
+  /* gateway 最粗为 600；勿再抬到 700，否则 tip/标题会明显变重 */
+  --rs-font-weight-bold: var(--g-font-weight-bold);
+
+  /* 表单/搜索标签：沿用改造前 Naive 正文字重，避免 medium(500) 显得过粗 */
+  --rs-label-font-weight: var(--rs-font-weight-regular);
+
+  --rs-control-height-ssm: 22px;
+  --rs-control-height-sm: 28px;
+  --rs-control-height-md: 32px;
+  --rs-control-height-lg: 40px;
+
+  --rs-space-xs: 4px;
+  --rs-space-sm: 8px;
+  --rs-space-md: 12px;
+  --rs-space-lg: 16px;
+  --rs-space-xl: 24px;
+
+  --rs-radius-xs: 4px;
+  --rs-radius-sm: 8px;
+  --rs-radius: 12px;
+  --rs-radius-lg: 16px;
+
+  /* 语义色跟随 gateway 主题（data-theme 切换 --g-*） */
+  --rs-primary: var(--g-primary);
+  --rs-primary-hover: var(--g-primary-hover);
+  --rs-primary-foreground: #ffffff;
+  --rs-primary-container: var(--g-primary-light);
+  --rs-on-primary-container: var(--g-primary-active);
+
+  /*
+   * 分层（对齐 niuma）：
+   * --rs-bg = 页面/框架底 ← --g-bg-secondary（如 MainLayout）
+   * --rs-surface = 内容面 ← --g-bg-primary（表单面板、侧栏、表格壳）
+   */
+  --rs-bg: var(--g-bg-secondary);
+  --rs-surface: var(--g-bg-primary);
+  --rs-surface-elevated: var(--g-bg-primary);
+  /* 实色表面（对齐 niuma 的 surface-hover）；勿桥透明 hover-overlay */
+  --rs-surface-hover: var(--g-bg-tertiary);
+  --rs-item-hover: var(--g-hover-overlay);
+
+  --rs-muted: var(--g-text-secondary);
+  --rs-text: var(--g-text-primary);
+  /* 勿桥 --g-text-tertiary：三级正文偏深，占位符需更浅 */
+  --rs-placeholder: var(--g-input-placeholder, var(--g-text-disabled));
+  --rs-text-primary: var(--g-text-primary);
+  --rs-text-secondary: var(--g-text-secondary);
+  --rs-text-tertiary: var(--g-text-tertiary);
+  --rs-text-disabled: var(--g-text-disabled);
+  --rs-text-inverse: #ffffff;
+  --rs-text-link: var(--g-primary);
+  --rs-text-link-hover: var(--g-primary-hover);
+
+  --rs-border: var(--g-border-primary);
+  --rs-border-subtle: var(--g-border-secondary, var(--g-border-primary));
+
+  --rs-danger: var(--g-error);
+  --rs-danger-container: color-mix(in srgb, var(--g-error) 14%, var(--g-bg-primary));
+  --rs-on-danger-container: var(--g-error);
+  --rs-success: var(--g-success);
+  --rs-success-container: color-mix(in srgb, var(--g-success) 14%, var(--g-bg-primary));
+  --rs-on-success-container: var(--g-success);
+  --rs-warning: var(--g-warning);
+  --rs-warning-container: color-mix(in srgb, var(--g-warning) 14%, var(--g-bg-primary));
+  --rs-on-warning-container: var(--g-warning);
+  --rs-info: var(--g-info);
+  --rs-info-container: color-mix(in srgb, var(--g-info) 14%, var(--g-bg-primary));
+  --rs-on-info-container: var(--g-info);
+
+  --rs-shadow-sm: var(--g-shadow-sm);
+  --rs-shadow: var(--g-shadow-md);
+  --rs-shadow-lg: var(--g-shadow-md);
+
+  /* Table：跟随 gateway 背景 / 边框 / 文本 */
+  --rs-table-border: var(--g-border-primary);
+  --rs-table-cell-divider: var(--g-border-primary);
+  --rs-table-fg: var(--g-text-primary);
+  --rs-table-muted-fg: var(--g-text-secondary);
+  --rs-table-bg: var(--g-bg-primary);
+  --rs-table-bg-header: var(--g-bg-secondary);
+  --rs-table-body-bg: var(--g-bg-primary);
+  --rs-table-header-bg: var(--g-bg-secondary);
+  --rs-table-header-fg: var(--g-text-primary);
+  --rs-table-footer-bg: var(--g-bg-secondary);
+  --rs-table-group-bg: var(--g-bg-tertiary);
+  --rs-table-expand-bg: var(--g-bg-tertiary);
+  --rs-table-row-stripe: var(--g-bg-secondary);
+  --rs-table-row-hover: var(--g-bg-tertiary);
+  --rs-table-checkbox-bg: var(--g-bg-primary);
+
+  /* Input / Select：边框与焦点环跟随 gateway（对齐改造前 NSelect） */
+  --rs-input-bg: var(--g-bg-primary);
+  --rs-input-border: var(--g-border-primary);
+  --rs-input-border-hover: var(--g-border-secondary);
+  --rs-focus-border: var(--g-primary);
+  --rs-focus-ring: color-mix(in srgb, var(--g-primary) 16%, transparent);
+  --rs-focus-ring-width: 2px;
+
+  /* Card：header 与 body 同色，避免 macOS 灰底色带；深浅主题随 --g-* */
+  --rs-card-border: var(--g-border-primary);
+  --rs-card-separator: var(--g-border-secondary, var(--g-border-primary));
+  --rs-card-header-bg: var(--g-bg-primary);
+  --rs-card-body-bg: var(--g-bg-primary);
+  --rs-card-title-fg: var(--g-text-primary);
+  --rs-card-description-fg: var(--g-text-secondary);
+  --rs-card-filled-bg: var(--g-bg-secondary);
+
+  /* Dialog 跟随 gateway 色板；footer 与 body 同色，避免灰底色带 */
+  --rs-dialog-border: var(--g-border-primary);
+  --rs-dialog-separator: var(--g-border-secondary, var(--g-border-primary));
+  --rs-dialog-body-bg: var(--g-bg-primary);
+  --rs-dialog-header-bg: var(--g-bg-primary);
+  --rs-dialog-footer-bg: var(--g-bg-primary);
+  --rs-dialog-bg: var(--g-bg-primary);
+  --rs-dialog-title-fg: var(--g-text-primary);
+  --rs-dialog-description-fg: var(--g-text-secondary);
+  /* 栏高对齐大厂浮层：头栏有底线，底栏开放无顶线，留白更透气 */
+  --rs-dialog-header-height: auto;
+  --rs-dialog-footer-height: auto;
+  --rs-dialog-header-min-height: var(--g-dialog-header-height);
+  --rs-dialog-footer-min-height: var(--g-dialog-footer-height);
+  --rs-dialog-header-padding-y: 12px;
+  --rs-dialog-footer-padding-y: 12px;
+  --rs-dialog-header-padding-x: 20px;
+  --rs-dialog-footer-padding-x: 20px;
+  --rs-dialog-body-padding-y: 16px;
+  --rs-dialog-body-padding-x: 20px;
+  --rs-dialog-separator: color-mix(in srgb, var(--g-border-primary) 55%, transparent);
+  --rs-dialog-footer-border: transparent;
+
+  /* Drawer 跟随 gateway 色板与栏高；footer/header 与 body 同色 */
+  --rs-drawer-border: var(--g-border-primary);
+  --rs-drawer-separator: color-mix(in srgb, var(--g-border-primary) 55%, transparent);
+  --rs-drawer-body-bg: var(--g-bg-primary);
+  --rs-drawer-header-bg: var(--g-bg-primary);
+  --rs-drawer-footer-bg: var(--g-bg-primary);
+  --rs-drawer-title-fg: var(--g-text-primary);
+  --rs-drawer-description-fg: var(--g-text-secondary);
+  /* 与 Dialog 同节奏：头栏有底线，底栏开放 */
+  --rs-drawer-header-height: auto;
+  --rs-drawer-footer-height: auto;
+  --rs-drawer-header-min-height: var(--g-drawer-header-height);
+  --rs-drawer-footer-min-height: var(--g-drawer-footer-height);
+  --rs-drawer-header-padding-y: 12px;
+  --rs-drawer-footer-padding-y: 12px;
+  --rs-drawer-header-padding-x: 20px;
+  --rs-drawer-footer-padding-x: 20px;
+  --rs-drawer-body-padding-y: 16px;
+  --rs-drawer-body-padding-x: 20px;
+  --rs-drawer-footer-border: transparent;
+
+  /* Descriptions 标签列：实色背景，随深/浅主题切换 */
+  --rs-descriptions-border: var(--g-border-primary);
+  --rs-descriptions-label-bg: var(--g-bg-secondary);
+  --rs-descriptions-label-fg: var(--g-text-secondary);
+  --rs-descriptions-value-fg: var(--g-text-primary);
+
+  /*
+   * z-index：niuma 默认 toast=200，低于 gateway sticky(1020)，会被顶栏挡住。
+   * 对齐 gateway 浮层阶梯，且保持 toast > loading-bar > modal（与 niuma 相对关系一致）。
+   *
+   * dropdown / context-menu 经 Portal 挂到 body，必须高于 sticky，
+   * 否则顶栏 GTabs 右键菜单会被 header 遮挡（--g-z-index-dropdown 为 1000）。
+   */
+  --rs-z-dropdown: 1030;
+  --rs-z-modal: var(--g-z-index-modal);
+  --rs-z-tooltip: var(--g-z-index-tooltip);
+  --rs-z-loading-bar: 1080;
+  --rs-z-toast: 1100;
+}
+
+/*
+ * niuma styles.css 的 body 使用 --rs-font-size-base；桥接后仍强制与 gateway 根排版一致。
+ */
+body {
+  font-family: var(--g-font-family);
+  font-size: var(--g-font-size-base);
+  font-weight: var(--g-font-weight-normal);
+}
+
+/* Select：展开边框 + 选中项对齐改造前 NSelect（主色描边 / primary-light 底） */
+.rs-select__trigger[data-state='open'],
+.rs-select__trigger:focus-visible {
+  border-color: var(--rs-focus-border, var(--rs-primary));
+}
+
+.rs-select__item[data-state='checked'] {
+  color: var(--rs-primary);
+  background: var(--rs-primary-container);
+}
+
+.rs-select__item[data-highlighted] {
+  background: var(--rs-surface-hover);
+}
+
+.rs-select__item[data-highlighted][data-state='checked'] {
+  background: var(--rs-primary-container);
+}

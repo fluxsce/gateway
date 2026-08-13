@@ -11,8 +11,6 @@ import { formatDate } from '@/utils/format'
 import {
   AddOutline,
   CreateOutline,
-  DocumentOutline,
-  KeyOutline,
   TrashOutline
 } from '@vicons/ionicons5'
 import { NDynamicTags } from 'naive-ui'
@@ -441,15 +439,11 @@ export function useServiceCenterInstanceModel() {
           type: 'file',
           span: 24,
           props: {
-            title: '证书文件',
-            titleIcon: DocumentOutline,
-            titleIconColor: '#18a058',
             showDownload: true,
             config: {
               accept: '.crt,.pem,.cer',
               max: 1,
               maxSize: 10 * 1024 * 1024, // 10MB
-              mode: 'text',
               uploadText: '点击或拖拽上传证书',
               uploadDescription: '支持 .crt, .pem, .cer',
             },
@@ -461,15 +455,11 @@ export function useServiceCenterInstanceModel() {
           type: 'file',
           span: 24,
           props: {
-            title: '私钥文件',
-            titleIcon: KeyOutline,
-            titleIconColor: '#f0a020',
             showDownload: true,
             config: {
               accept: '.key,.pem',
               max: 1,
               maxSize: 10 * 1024 * 1024, // 10MB
-              mode: 'text',
               uploadText: '点击或拖拽上传私钥',
               uploadDescription: '支持 .key, .pem',
             },

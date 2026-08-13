@@ -3,11 +3,11 @@
  * 处理所有与后端交互的业务逻辑
  */
 
-import { useGDialog } from '@/components/gdialog'
-import { createBackendPaginationParams } from '@/components/gpage'
+import { rsConfirm } from '@/ui'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess } from '@/utils/format'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import * as serviceApi from '../api'
 import type { Service } from '../types'
@@ -17,9 +17,7 @@ import { useServiceModel } from './model'
  * 服务监控服务 Hook（纯业务逻辑）
  */
 export function useServiceService(searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
-  const gDialog = useGDialog()
-
+  const message = useAppMessage()
   // 初始化 Model
   const model = useServiceModel()
 

@@ -30,6 +30,12 @@ export default {
   warning: '警告',
   info: '信息',
   create: '创建',
+  /** 数据表单弹窗默认标题（按 mode） */
+  formModal: {
+    create: '新增',
+    edit: '编辑',
+    view: '查看详情',
+  },
   createSuccess: '创建成功',
   createFailed: '创建失败',
   update: '更新',

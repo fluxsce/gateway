@@ -3,9 +3,10 @@
  * 处理所有与后端交互的业务逻辑
  */
 
-import { createBackendPaginationParams } from '@/components/gpage'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { queryClusterEvents } from '../../../api'
 import { useClusterEventModel } from './model'
@@ -14,7 +15,8 @@ import { useClusterEventModel } from './model'
  * 集群事件服务 Hook
  */
 export function useClusterEventService(searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
+  const message = useAppMessage()
+  const { t } = useModuleI18n('hub0008')
 
   // 初始化 Model
   const model = useClusterEventModel()
@@ -79,11 +81,11 @@ export function useClusterEventService(searchFormRef?: Ref<any> | any) {
           updatePagination(backendPageInfo)
         }
       } else {
-        message.error(response.errMsg || '查询集群事件列表失败')
+        message.error(response.errMsg || t('event.message.queryFailed'))
       }
     } catch (error) {
       console.error('加载集群事件列表失败:', error)
-      message.error('加载集群事件列表失败')
+      message.error(t('event.message.loadFailed'))
     } finally {
       loading.value = false
     }

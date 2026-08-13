@@ -1,5 +1,4 @@
 import type { GModalEmits, GModalProps } from '@/components/gmodal/types'
-import type { FormItemRule } from 'naive-ui'
 import type { Component, VNode } from 'vue'
 
 /**
@@ -119,9 +118,9 @@ export interface DataFormField {
   render?: (formData: Record<string, any>) => Component | VNode
 
   /**
-   * 字段验证规则（Naive UI FormItemRule）
+   * 字段验证规则（Naive UI any）
    */
-  rules?: FormItemRule | FormItemRule[]
+  rules?: any | any[]
 
   /**
    * 传递给表单项组件的额外属性

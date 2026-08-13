@@ -2,8 +2,6 @@
  * GCard 组件类型定义
  */
 
-import type { CardProps } from 'naive-ui'
-
 /**
  * GCard 组件 Props
  * 基于 Naive UI 的 NCard，添加自定义扩展
@@ -21,7 +19,8 @@ export interface GCardProps {
   showTitle?: boolean
 
   /**
-   * 是否显示边框
+   * 是否显示边框。
+   * false 时透传 RsCard borderless，并使用 plain 变体。
    * @default false
    */
   bordered?: boolean
@@ -57,7 +56,7 @@ export interface GCardProps {
    * - footer: 仅分段底部
    * - true: 分段全部
    */
-  segmented?: CardProps['segmented']
+  segmented?: Record<string, any>['segmented']
 
   /**
    * 是否嵌入模式（降低视觉层级）

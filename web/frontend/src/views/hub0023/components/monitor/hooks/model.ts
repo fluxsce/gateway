@@ -4,7 +4,7 @@
  */
 
 import type { SearchFormProps } from '@/components/form/search/types'
-import { createBackendPaginationParams } from '@/components/gpage'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import { queryGatewayInstances } from '@/views/hub0020/api'
 import { RefreshOutline } from '@vicons/ionicons5'
 import type { Ref } from 'vue'

@@ -3,17 +3,259 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { DataFormField, DataFormTab } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsDataFormField, RsDataFormTab } from '@/components/form/rs-data'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
 import { formatDate } from '@/utils/format'
-import { AddOutline, CheckmarkCircleOutline, GlobeOutline, TrashOutline } from '@vicons/ionicons5'
-import { NCheckbox, NCheckboxGroup, NIcon, NSpace } from 'naive-ui'
+import { RsCheckbox, RsTag } from '@/ui'
 import { h, ref } from 'vue'
 import { ServiceDefinitionSelector } from '../../services'
 import type { RouteConfig } from '../types'
 import { MatchType } from '../types'
+
+/**
+ * 路由配置表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface RouteConfigGridConfig {
+  columns: RsGridColumn<RouteConfig>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
+
+const matchTypeLabelMap: Record<number, string> = {
+  [MatchType.EXACT]: '精确匹配',
+  [MatchType.PREFIX]: '前缀匹配',
+  [MatchType.REGEX]: '正则匹配',
+}
+
+const matchTypeVariantMap: Record<number, 'success' | 'info' | 'warning' | 'default'> = {
+  [MatchType.EXACT]: 'success',
+  [MatchType.PREFIX]: 'info',
+  [MatchType.REGEX]: 'warning',
+}
+
+const methodStyleMap: Record<string, Record<string, string>> = {
+  GET: {
+    backgroundColor: 'rgba(96, 165, 250, 0.1)',
+    color: '#60a5fa',
+    borderColor: 'rgba(96, 165, 250, 0.3)',
+  },
+  POST: {
+    backgroundColor: 'rgba(52, 211, 153, 0.1)',
+    color: '#34d399',
+    borderColor: 'rgba(52, 211, 153, 0.3)',
+  },
+  PUT: {
+    backgroundColor: 'rgba(251, 191, 36, 0.1)',
+    color: '#fbbf24',
+    borderColor: 'rgba(251, 191, 36, 0.3)',
+  },
+  DELETE: {
+    backgroundColor: 'rgba(248, 113, 113, 0.1)',
+    color: '#f87171',
+    borderColor: 'rgba(248, 113, 113, 0.3)',
+  },
+  PATCH: {
+    backgroundColor: 'rgba(129, 140, 248, 0.1)',
+    color: '#818cf8',
+    borderColor: 'rgba(129, 140, 248, 0.3)',
+  },
+  HEAD: {
+    backgroundColor: '#f5f5f5',
+    color: '#999',
+    borderColor: '#d0d0d0',
+  },
+  OPTIONS: {
+    backgroundColor: '#f5f5f5',
+    color: '#999',
+    borderColor: '#d0d0d0',
+  },
+}
+
+const methodTagBaseStyle: Record<string, string> = {
+  display: 'inline-block',
+  padding: '2px 6px',
+  borderRadius: '4px',
+  fontSize: '11px',
+  fontWeight: '500',
+  lineHeight: '1.4',
+  whiteSpace: 'nowrap',
+  flexShrink: '0',
+  border: '1px solid',
+}
+
+/** 解析允许的 HTTP 方法数组 */
+function getAllowedMethods(allowedMethods?: string[] | string): string[] {
+  if (!allowedMethods) return []
+  if (Array.isArray(allowedMethods)) return allowedMethods
+  if (typeof allowedMethods === 'string') {
+    try {
+      const parsed = JSON.parse(allowedMethods)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+/** 判断是否为多个服务（serviceDefinitionId 含逗号） */
+function isMultipleServices(serviceDefinitionId?: string): boolean {
+  if (!serviceDefinitionId) return false
+  return serviceDefinitionId.includes(',')
+}
+
+/** 从逗号分隔字符串解析服务 ID 列表 */
+function getServiceIds(serviceDefinitionId?: string): string[] {
+  if (!serviceDefinitionId) return []
+  return serviceDefinitionId
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => id)
+}
+
+/** 优先从 routeMetadata.serviceNameMap 取服务显示名 */
+function getServiceDisplayName(row: RouteConfig, serviceId: string): string {
+  const metadata = row.routeMetadata as any
+  if (!metadata) return serviceId
+  const obj =
+    typeof metadata === 'string'
+      ? (() => {
+          try {
+            return JSON.parse(metadata)
+          } catch {
+            return {}
+          }
+        })()
+      : metadata
+  const map = obj?.serviceNameMap
+  return map && typeof map === 'object' && map[serviceId] ? map[serviceId] : serviceId
+}
+
+/** 渲染 HTTP 方法芯片（最多展示 2 个，其余用 +N） */
+function renderAllowedMethods(row: RouteConfig) {
+  const methods = getAllowedMethods(row.allowedMethods)
+  if (methods.length === 0) {
+    return h(
+      'span',
+      {
+        style: {
+          ...methodTagBaseStyle,
+          color: '#999',
+          fontStyle: 'italic',
+          border: 'none',
+          backgroundColor: 'transparent',
+        },
+      },
+      '全部',
+    )
+  }
+
+  const display = methods.slice(0, 2)
+  const remaining = Math.max(0, methods.length - 2)
+
+  return h(
+    'div',
+    {
+      style: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        maxWidth: '100%',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+      },
+    },
+    [
+      ...display.map((method) => {
+        const colorStyle = methodStyleMap[method.toUpperCase()] || {
+          backgroundColor: '#f5f5f5',
+          color: '#666',
+          borderColor: '#e0e0e0',
+        }
+        return h(
+          'span',
+          {
+            style: {
+              ...methodTagBaseStyle,
+              backgroundColor: colorStyle.backgroundColor,
+              color: colorStyle.color,
+              borderColor: colorStyle.borderColor,
+            },
+          },
+          method,
+        )
+      }),
+      remaining > 0
+        ? h(
+            'span',
+            {
+              style: {
+                ...methodTagBaseStyle,
+                backgroundColor: '#f5f5f5',
+                color: '#666',
+                borderColor: '#e0e0e0',
+              },
+            },
+            `+${remaining}`,
+          )
+        : null,
+    ],
+  )
+}
+
+/** 渲染关联服务标签（单服务 / 多服务） */
+function renderServiceName(row: RouteConfig) {
+  if (row.serviceName) {
+    return h(RsTag, { size: 'sm', variant: 'success' }, () => row.serviceName)
+  }
+
+  if (row.serviceDefinitionId) {
+    const serviceDefinitionId = row.serviceDefinitionId
+    if (isMultipleServices(serviceDefinitionId)) {
+      const ids = getServiceIds(serviceDefinitionId)
+      return h(
+        'div',
+        {
+          style: {
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: '2px',
+          },
+        },
+        [
+          ...ids.map((serviceId) =>
+            h(
+              RsTag,
+              {
+                size: 'sm',
+                variant: 'info',
+                style: { marginRight: '4px', marginBottom: '2px' },
+              },
+              () => getServiceDisplayName(row, serviceId),
+            ),
+          ),
+          h(
+            RsTag,
+            { size: 'sm', variant: 'default', style: { marginLeft: '4px' } },
+            () => `${ids.length}个服务`,
+          ),
+        ],
+      )
+    }
+
+    return h(RsTag, { size: 'sm', variant: 'info' }, () =>
+      getServiceDisplayName(row, serviceDefinitionId),
+    )
+  }
+
+  return h(RsTag, { size: 'sm', variant: 'default' }, () => '未关联')
+}
 
 /**
  * 路由配置列表管理 Model
@@ -33,8 +275,8 @@ export function useRouteConfigModel() {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'routeName',
@@ -82,14 +324,14 @@ export function useRouteConfigModel() {
       {
         key: 'add',
         label: '新增路由',
-        icon: AddOutline,
+        icon: 'AddOutline',
         type: 'primary',
         tooltip: '新增路由配置',
       },
       {
         key: 'delete',
         label: '删除',
-        icon: TrashOutline,
+        icon: 'TrashOutline',
         type: 'error',
         tooltip: '批量删除选中的路由配置',
       },
@@ -100,110 +342,146 @@ export function useRouteConfigModel() {
 
   // ============= 表格配置 =============
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置（符合 RsGrid 结构） */
+  const gridConfig: RouteConfigGridConfig = {
     columns: [
       {
-        field: 'routeConfigId',
+        key: 'routeConfigId',
         title: '路由配置ID',
-        visible: false, // 隐藏主键字段，但保留在数据中以便编辑时使用
-        width: 0,
+        visible: false,
       },
       {
-        field: 'routeName',
+        key: 'routeName',
         title: '路由名称',
         sortable: true,
         align: 'center',
-        showOverflow: 'tooltip',
-        slots: { default: 'routeName' },
+        ellipsis: true,
         width: 200,
+        render: (row) =>
+          h(
+            'span',
+            { style: { color: 'var(--g-primary, #7c3aed)' } },
+            row.routeName,
+          ),
       },
       {
-        field: 'routePath',
+        key: 'routePath',
         title: '路由路径',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 250,
       },
       {
-        field: 'matchType',
+        key: 'matchType',
         title: '匹配类型',
         align: 'center',
-        slots: { default: 'matchType' },
         width: 120,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: matchTypeVariantMap[row.matchType] || 'default',
+              size: 'sm',
+            },
+            () => matchTypeLabelMap[row.matchType] || '未知',
+          ),
       },
       {
-        field: 'routePriority',
+        key: 'routePriority',
         title: '优先级',
         align: 'center',
         sortable: true,
         width: 100,
       },
       {
-        field: 'allowedMethods',
+        key: 'allowedMethods',
         title: 'HTTP方法',
         align: 'center',
-        slots: { default: 'allowedMethods' },
         width: 150,
+        render: (row) => renderAllowedMethods(row),
       },
       {
-        field: 'serviceName',
+        key: 'serviceName',
         title: '关联服务',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 180,
-        slots: { default: 'serviceName' },
+        render: (row) => renderServiceName(row),
       },
       {
-        field: 'timeoutMs',
+        key: 'timeoutMs',
         title: '总超时(ms)',
         align: 'center',
         width: 110,
       },
       {
-        field: 'stripPathPrefix',
+        key: 'stripPathPrefix',
         title: '剥前缀',
         align: 'center',
         width: 80,
-        slots: { default: 'stripPathPrefix' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.stripPathPrefix === 'Y' ? 'warning' : 'default',
+              size: 'sm',
+            },
+            () => (row.stripPathPrefix === 'Y' ? '剥除' : '保留'),
+          ),
       },
       {
-        field: 'enableWebsocket',
+        key: 'enableWebsocket',
         title: 'WebSocket',
         align: 'center',
         width: 100,
-        slots: { default: 'enableWebsocket' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.enableWebsocket === 'Y' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.enableWebsocket === 'Y' ? '已标记' : '兼容'),
+          ),
       },
       {
-        field: 'retryCount',
+        key: 'retryCount',
         title: '重试次数',
         align: 'center',
         visible: false,
-        width: 0,
       },
       {
-        field: 'routeMetadata',
+        key: 'routeMetadata',
         title: '路由元数据',
         align: 'center',
         visible: false,
-        width: 0,
       },
       {
-        field: 'activeFlag',
+        key: 'activeFlag',
         title: '状态',
         align: 'center',
-        slots: { default: 'activeFlag' },
         width: 100,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.activeFlag === 'Y' ? 'success' : 'danger',
+              size: 'sm',
+            },
+            () => (row.activeFlag === 'Y' ? '启用' : '禁用'),
+          ),
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
         align: 'center',
-        formatter: ({ row }) => formatDate(row.addTime),
         width: 180,
+        formatter: (_v, row) => formatDate(row.addTime),
       },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: 'routeConfigId',
+    height: '100%',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -211,76 +489,26 @@ export function useRouteConfigModel() {
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      options: [
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'edit', label: '编辑', icon: 'pencil' },
         {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-        {
-          code: 'edit',
-          name: '编辑',
-          prefixIcon: 'vxe-icon-edit',
-        },
-        {
-          code: 'routeConfig',
-          name: '路由配置',
-          prefixIcon: 'vxe-icon-setting',
+          key: 'routeConfig',
+          label: '路由配置',
+          icon: 'settings',
           children: [
-            {
-              code: 'assertConfig',
-              name: '路由断言配置',
-              prefixIcon: () =>
-                h(NIcon, { size: 12 }, { default: () => h(CheckmarkCircleOutline) }),
-            },
-            {
-              code: 'ipAccessControl',
-              name: 'IP访问控制',
-              prefixIcon: 'vxe-icon-lock',
-            },
-            {
-              code: 'userAgentAccessControl',
-              name: 'User-Agent访问控制',
-              prefixIcon: 'vxe-icon-user',
-            },
-            {
-              code: 'apiAccessControl',
-              name: 'API访问控制',
-              prefixIcon: 'vxe-icon-link',
-            },
-            {
-              code: 'domainAccessControl',
-              name: '域名访问控制',
-              prefixIcon: () => h(NIcon, { size: 12 }, { default: () => h(GlobeOutline) }),
-            },
-            {
-              code: 'corsConfig',
-              name: '跨域配置',
-              prefixIcon: 'vxe-icon-link',
-            },
-            {
-              code: 'authConfig',
-              name: '认证配置',
-              prefixIcon: 'vxe-icon-setting',
-            },
-            {
-              code: 'rateLimitConfig',
-              name: '限流配置',
-              prefixIcon: 'vxe-icon-setting',
-            },
-            {
-              code: 'filters',
-              name: '路由过滤器',
-              prefixIcon: 'vxe-icon-setting',
-            },
+            { key: 'assertConfig', label: '路由断言配置', icon: 'circle-check' },
+            { key: 'ipAccessControl', label: 'IP访问控制', icon: 'lock' },
+            { key: 'userAgentAccessControl', label: 'User-Agent访问控制', icon: 'user' },
+            { key: 'apiAccessControl', label: 'API访问控制', icon: 'link' },
+            { key: 'domainAccessControl', label: '域名访问控制', icon: 'globe' },
+            { key: 'corsConfig', label: '跨域配置', icon: 'link' },
+            { key: 'authConfig', label: '认证配置', icon: 'settings' },
+            { key: 'rateLimitConfig', label: '限流配置', icon: 'settings' },
+            { key: 'filters', label: '路由过滤器', icon: 'settings' },
           ],
         },
-        {
-          code: 'delete',
-          name: '删除',
-          prefixIcon: 'vxe-icon-delete',
-        },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
       ],
     },
   }
@@ -355,7 +583,7 @@ export function useRouteConfigModel() {
 
   // ============= 路由表单配置 =============
 
-  /** 路由表单配置（用于 GdataFormModal） */
+  /** 路由表单配置（用于 RsDataFormModal） */
   const routeFormConfig = {
     tabs: [
       {
@@ -374,7 +602,7 @@ export function useRouteConfigModel() {
         key: 'other',
         label: '其他',
       },
-    ] as DataFormTab[],
+    ] as RsDataFormTab[],
     fields: [
       // ============= 主键字段（隐藏，但必须存在用于编辑） =============
       {
@@ -441,7 +669,6 @@ export function useRouteConfigModel() {
               if (value === null || value === undefined || value === '') {
                 return new Error('请选择匹配类型')
               }
-              // 验证值是否为有效的匹配类型（0, 1, 2）
               const validValues = [MatchType.EXACT, MatchType.PREFIX, MatchType.REGEX]
               if (!validValues.includes(Number(value))) {
                 return new Error('请选择有效的匹配类型')
@@ -474,7 +701,6 @@ export function useRouteConfigModel() {
         },
         props: {
           onUpdateValue: (value: string, formData: Record<string, any>) => {
-            // 自动补全 / 前缀（参考 useRouteForm.ts 的 handlePathInput 逻辑）
             if (value && !value.startsWith('/')) {
               formData.routePath = '/' + value
             } else {
@@ -490,19 +716,13 @@ export function useRouteConfigModel() {
             trigger: ['blur', 'input'],
           },
           {
-            validator: (rule: any, value: any) => {
-              // 参考 useRouteForm.ts 的验证逻辑
+            validator: (_rule: any, value: any) => {
               if (!value) {
                 return true
               }
-              // 基本格式验证：必须以 / 开头
               if (!value.startsWith('/')) {
                 return new Error('路由路径必须以 / 开头')
               }
-              // 正则匹配时验证正则表达式有效性
-              // 注意：这里无法直接访问 formData，需要在提交时再次验证
-              // 或者可以通过 rule 的 context 获取，但 Naive UI 的 validator 不直接提供 formData
-              // 所以这里只做基本验证，正则表达式验证在提交时处理
               return true
             },
             trigger: ['blur', 'input'],
@@ -535,26 +755,23 @@ export function useRouteConfigModel() {
               : []
 
           return h(
-            NCheckboxGroup,
-            {
-              value: currentValue,
-              'onUpdate:value': (value: (string | number)[]) => {
-                formData.allowedMethods = value.map((v) => String(v))
-              },
-            },
-            {
-              default: () =>
-                h(
-                  NSpace,
-                  {},
-                  {
-                    default: () =>
-                      methods.map((method) =>
-                        h(NCheckbox, { value: method, label: method }, { default: () => method }),
-                      ),
+            'div',
+            { style: { display: 'flex', flexWrap: 'wrap', gap: '8px' } },
+            methods.map((method) =>
+              h(
+                RsCheckbox,
+                {
+                  modelValue: currentValue.includes(method),
+                  'onUpdate:modelValue': (checked: boolean) => {
+                    const next = new Set(currentValue.map((v: string) => String(v)))
+                    if (checked) next.add(method)
+                    else next.delete(method)
+                    formData.allowedMethods = Array.from(next)
                   },
-                ),
-            },
+                },
+                { default: () => method },
+              ),
+            ),
           )
         },
       },
@@ -591,7 +808,6 @@ export function useRouteConfigModel() {
               if (value === null || value === undefined || value === '') {
                 return new Error('请输入路由优先级')
               }
-              // 转换为数字
               const num = typeof value === 'number' ? value : Number(value)
               if (isNaN(num)) {
                 return new Error('路由优先级必须是数字')
@@ -606,7 +822,7 @@ export function useRouteConfigModel() {
       },
       {
         field: 'serviceDefinitionId',
-        label: '关联服务', // ServiceDefinitionSelector组件内部已有label，这里设为空避免重复
+        label: '关联服务',
         type: 'custom' as const,
         span: 24,
         tabKey: 'basic',
@@ -635,7 +851,6 @@ export function useRouteConfigModel() {
         span: 8,
         tabKey: 'basic',
         show: (formData: Record<string, any>) => {
-          // 只有当选择了多个服务时才显示
           return formData.serviceDefinitionId && formData.serviceDefinitionId.includes(',')
         },
         defaultValue: 'first',
@@ -653,7 +868,6 @@ export function useRouteConfigModel() {
         span: 8,
         tabKey: 'basic',
         show: (formData: Record<string, any>) => {
-          // 只有当选择了多个服务时才显示
           return formData.serviceDefinitionId && formData.serviceDefinitionId.includes(',')
         },
         defaultValue: 0,
@@ -670,7 +884,6 @@ export function useRouteConfigModel() {
         span: 8,
         tabKey: 'basic',
         show: (formData: Record<string, any>) => {
-          // 只有当选择了多个服务时才显示
           return formData.serviceDefinitionId && formData.serviceDefinitionId.includes(',')
         },
         defaultValue: false,
@@ -910,10 +1123,10 @@ export function useRouteConfigModel() {
         span: 12,
         tabKey: 'other',
         disabled: true,
-        show: false, // 隐藏字段，通常不需要显示
+        show: false,
         tips: '路由配置的操作序列标识',
       },
-    ] as DataFormField[],
+    ] as RsDataFormField[],
   }
 
   return {

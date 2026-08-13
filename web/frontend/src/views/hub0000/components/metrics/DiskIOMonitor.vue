@@ -2,16 +2,13 @@
     <GCard show-title :title="t('hub0000.diskIO.title')" :bordered="false" class="monitor-card">
         <template #header-extra>
             <div class="card-extra">
-                <n-date-picker v-model:value="dateTimeRange" type="datetimerange" :shortcuts="timeRangeShortcuts"
-                    :placeholder="t('common.selectTimeRange')" @update:value="handleTimeRangeChange" size="small" />
-                <n-button size="small" @click="refreshData" :loading="loading">
+                <MetricsDateTimeRange v-model="dateTimeRange" @change="handleTimeRangeChange" />
+                <RsButton size="sm" :loading="loading" @click="refreshData">
                     <template #icon>
-                        <n-icon>
-                            <ReloadOutlined />
-                        </n-icon>
+                        <GIcon icon="ReloadOutline" />
                     </template>
                     {{ t('common.refresh') }}
-                </n-button>
+                </RsButton>
             </div>
         </template>
 
@@ -19,28 +16,35 @@
             <div ref="chartRef" class="chart-element"></div>
 
             <div v-if="loading" class="chart-loading">
-                <n-spin size="large" />
+                <RsLoading size="lg" />
             </div>
 
             <div v-if="!loading && (!data || !Array.isArray(data) || data.length === 0)" class="chart-empty">
-                <n-empty :description="t('common.noData')" />
+                <RsEmpty :description="t('common.noData')" />
             </div>
         </div>
 
         <div v-if="diskIODetailData && diskIODetailData.length > 0" class="detail-section">
-            <n-divider>{{ t('hub0000.diskIO.detailTitle') }}</n-divider>
-            <n-data-table :columns="diskIOColumns" :data="diskIOTableData" :pagination="tablePagination"
-                :bordered="false" size="small" />
+            <RsDivider>{{ t('hub0000.diskIO.detailTitle') }}</RsDivider>
+            <RsTable
+                :columns="diskIOColumns"
+                :data="diskIOTableData"
+                row-key="deviceName"
+                size="sm"
+                :bordered="false"
+            />
         </div>
     </GCard>
 </template>
 
 <script setup lang="ts">
+import MetricsDateTimeRange from './MetricsDateTimeRange.vue'
+import { createAxisTooltipOptions } from './echartsTooltip'
+import { RsButton, RsDivider, RsEmpty, RsLoading, RsTable, type RsTableColumn } from '@/ui'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
-import { GCard } from '@/components'
-import { NButton, NIcon, NSpin, NEmpty, NDivider, NDataTable, NDatePicker } from 'naive-ui'
-import { ReloadOutlined } from '@vicons/antd'
+import { GCard } from '@/components/gcard'
+import { GIcon } from '@/components/gicon'
 import * as echarts from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import {
@@ -95,7 +99,6 @@ const end = Date.now()
 const start = end - 3600 * 1000 // 最近1小时
 const dateTimeRange = ref<[number, number] | null>([start, end])
 
-// 时间范围快捷选项
 const timeRangeShortcuts: Record<string, () => [number, number]> = {
     [t('hub0000.timeRangeShortcuts.lastHour')]: () => {
         const end = Date.now()
@@ -124,14 +127,8 @@ const timeRangeShortcuts: Record<string, () => [number, number]> = {
     }
 }
 
-// 表格分页
-const tablePagination = {
-    pageSize: 5,
-    page: 1
-}
-
 // 磁盘IO表格列定义
-const diskIOColumns = computed(() => [
+const diskIOColumns = computed<RsTableColumn<DiskIOStats>[]>(() => [
     {
         title: t('hub0000.diskIO.deviceName'),
         key: 'deviceName'
@@ -139,12 +136,12 @@ const diskIOColumns = computed(() => [
     {
         title: t('hub0000.diskIO.readBytesRate'),
         key: 'readRate',
-        render: (row: DiskIOStats) => formatBytes(row.readRate) + '/s'
+        render: (row) => formatBytes(row.readRate) + '/s'
     },
     {
         title: t('hub0000.diskIO.writeBytesRate'),
         key: 'writeRate',
-        render: (row: DiskIOStats) => formatBytes(row.writeRate) + '/s'
+        render: (row) => formatBytes(row.writeRate) + '/s'
     },
     {
         title: t('hub0000.diskIO.readCount'),
@@ -157,7 +154,7 @@ const diskIOColumns = computed(() => [
     {
         title: t('hub0000.diskIO.collectTime'),
         key: 'collectTime',
-        render: (row: DiskIOStats) => formatDate(row.collectTime)
+        render: (row) => formatDate(row.collectTime)
     }
 ])
 
@@ -274,8 +271,8 @@ const updateChart = () => {
         title: {
             show: false
         },
-        tooltip: {
-            trigger: 'axis',
+        tooltip: createAxisTooltipOptions({
+            // keep formatter below
             appendToBody: true,
             confine: true,
             extraCssText: 'z-index: 9999;',
@@ -312,7 +309,7 @@ const updateChart = () => {
 
                 return result
             }
-        },
+        }),
         legend: {
             type: 'scroll',
             bottom: 0,

@@ -107,7 +107,7 @@ function filterByPermission(items: GContextMenuItem[], moduleId: string): GConte
     .filter((m) => {
       if (!m.code) return true
       if (COPY_CODES.includes(m.code)) return true
-      return store.user.hasButton(`${moduleId}:${m.code}`)
+      return store.user.hasPermission(`${moduleId}:${m.code}`)
     })
     .map((m) => {
       if (!m.children?.length) return m

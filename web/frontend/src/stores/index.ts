@@ -172,9 +172,12 @@ export function setupStoreHelpers(app: any) {
       return store.hasModule(moduleCode)
     },
 
+    /**
+     * @deprecated 请使用 hasPermission
+     */
     hasButton(buttonCode: string) {
       const store = useUserStore()
-      return store.hasButton(buttonCode)
+      return store.hasPermission(buttonCode)
     },
   }
 

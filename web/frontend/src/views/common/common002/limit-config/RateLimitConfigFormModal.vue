@@ -1,7 +1,7 @@
 <template>
   <div class="rate-limit-config-form-modal" id="rate-limit-config-form-modal">
     <!-- 限流配置表单对话框（新增/编辑/查看共用） -->
-    <GdataFormModal
+    <RsDataFormModal
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
       :title="computedTitle"
@@ -19,7 +19,7 @@
 </template>
 
 <script lang="ts" setup>
-import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
+import { RsDataFormModal } from '@/components/form/rs-data'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRateLimitConfigPage } from './hooks'
 import type { RateLimitConfigFormModalEmits, RateLimitConfigFormModalProps } from './hooks/types'
@@ -116,10 +116,4 @@ const handleFormDialogVisibleChange = (value: boolean) => {
   }
 }
 </script>
-
-<style scoped lang="scss">
-.rate-limit-config-form-modal {
-  min-height: 200px;
-}
-</style>
 

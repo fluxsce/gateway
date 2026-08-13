@@ -3,12 +3,12 @@
  * 处理所有与后端交互的业务逻辑
  */
 
-import { useGDialog } from '@/components/gdialog'
-import { createBackendPaginationParams } from '@/components/gpage'
+import { rsConfirm } from '@/ui'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import { WarningOutline } from '@vicons/ionicons5'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import * as gatewayApi from '../api'
 import type { GatewayInstance } from '../types'
@@ -18,10 +18,8 @@ import { useGatewayInstanceModel } from './model'
  * 网关实例服务 Hook（纯业务逻辑）
  */
 export function useGatewayInstanceService(searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 初始化 Model
+  const message = useAppMessage()
+// 初始化 Model
   const model = useGatewayInstanceModel()
 
   const {
@@ -237,14 +235,13 @@ export function useGatewayInstanceService(searchFormRef?: Ref<any> | any) {
    * 删除实例
    */
   const deleteInstance = async (instance: GatewayInstance): Promise<boolean> => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认删除',
       subtitle: '此操作不可恢复，请谨慎操作',
-      content: `确定要删除实例 "${instance.instanceName}" 吗？`,
+      description: `确定要删除实例 "${instance.instanceName}" 吗？`,
       icon: WarningOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定删除',
-      negativeText: '取消',
+      confirmText: '确定删除',
+      cancelText: '取消',
       width: 500
     })
 

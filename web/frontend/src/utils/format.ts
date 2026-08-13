@@ -346,7 +346,7 @@ export const formatDuration = (duration: number): string => {
  * // 使用pageQueryData字符串
  * const pageData = formatNaivePagination(response.pageQueryData)
  * // 用于n-pagination组件
- * <n-pagination v-bind="pageData" />
+ * <RsPagination v-bind="pageData" />
  */
 export const formatNaivePagination = (data: JsonDataObj | string) => {
   try {

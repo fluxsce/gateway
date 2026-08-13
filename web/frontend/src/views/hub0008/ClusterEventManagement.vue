@@ -1,56 +1,74 @@
 <template>
   <div class="cluster-event-management" :id="moduleId">
-    <GPane ref="paneRef" direction="horizontal" :default-size="0.5">
+    <RsSplitPane
+      ref="splitRef"
+      class="cluster-event-management__split"
+      orientation="horizontal"
+      :panes="splitPanes"
+      with-handle
+      v-model:sizes="sizes"
+    >
       <!-- 左侧：集群事件列表 -->
-      <template #1>
-        <ClusterEventList
-          :selected-event-id="selectedEventId"
-          :show-ack-list="showAckList"
-          @select="handleEventSelect"
-          @toggle-ack-list="handleToggleAckList"
-        />
+      <template #events>
+        <div class="cluster-event-management__pane">
+          <ClusterEventList
+            :selected-event-id="selectedEventId"
+            :show-ack-list="showAckList"
+            @select="handleEventSelect"
+            @toggle-ack-list="handleToggleAckList"
+          />
+        </div>
       </template>
 
       <!-- 右侧：事件处理节点列表 -->
-      <template #2>
-        <ClusterEventAckList :event-id="selectedEventId" />
+      <template #acks="{ collapsed }">
+        <div v-show="!collapsed" class="cluster-event-management__pane">
+          <ClusterEventAckList :event-id="selectedEventId" />
+        </div>
       </template>
-    </GPane>
+    </RsSplitPane>
   </div>
 </template>
 
 <script setup lang="ts">
-import { GPane } from '@/components/gpane'
-import type { GPaneExpose } from '@/components/gpane/types'
+import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import { computed, ref } from 'vue'
 import ClusterEventAckList from './components/cluster-event-ack-list/ClusterEventAckList.vue'
 import ClusterEventList from './components/cluster-event-list/ClusterEventList.vue'
 
-// 定义组件名称
 defineOptions({
-  name: 'ClusterEventManagement'
+  name: 'ClusterEventManagement',
 })
 
-// 模块ID
 const moduleId = 'cluster-event-management'
 
-// 状态管理
-const selectedEventId = ref<string>('')
-const paneRef = ref<GPaneExpose>()
+/** 左右各半；右侧可折叠收起处理列表 */
+const splitPanes: RsSplitPaneItem[] = [
+  { key: 'events', size: 50, min: 20 },
+  { key: 'acks', size: 50, min: 20, collapsible: true, collapsedSize: 0 },
+]
 
-// 计算面板二的可见性（用于传递给子组件）
-const showAckList = computed(() => {
-  return paneRef.value?.getPane2Visible() ?? true
-})
+type SplitExpose = {
+  collapse: (key: string) => void
+  expand: (key: string) => void
+}
 
-// 处理事件选择
+const splitRef = ref<SplitExpose | null>(null)
+const selectedEventId = ref('')
+/** 百分比尺寸；右侧接近 0 视为已折叠 */
+const sizes = ref<number[]>([50, 50])
+const showAckList = computed(() => (sizes.value[1] ?? 0) > 0.01)
+
 function handleEventSelect(eventId: string) {
   selectedEventId.value = eventId
 }
 
-// 处理折叠/展开处理列表
 function handleToggleAckList() {
-  paneRef.value?.togglePane2Visible()
+  if (showAckList.value) {
+    splitRef.value?.collapse('acks')
+  } else {
+    splitRef.value?.expand('acks')
+  }
 }
 </script>
 
@@ -59,11 +77,22 @@ function handleToggleAckList() {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 
-  :deep(.n-split) {
+  &__split {
+    flex: 1 1 auto;
     width: 100%;
     height: 100%;
+    min-height: 0;
+  }
+
+  &__pane {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
   }
 }
 </style>
-

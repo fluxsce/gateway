@@ -1,17 +1,14 @@
 <template>
-    <GCard :title="title || defaultProps.title" :show-title="true">
-        <template #header-extra>
+    <RsCard :title="title || defaultProps.title" variant="outlined" :padding="false" class="monitor-card">
+        <template #actions>
             <div class="card-extra">
-                <n-date-picker v-model:value="dateTimeRange" type="datetimerange" :shortcuts="timeRangeShortcuts"
-                    placeholder="选择时间范围" @update:value="handleTimeRangeChange" size="small" />
-                <n-button size="small" @click="refreshData" :loading="loading">
+                <MetricsDateTimeRange v-model="dateTimeRange" @change="handleTimeRangeChange" />
+                <RsButton size="sm" :loading="loading" @click="refreshData">
                     <template #icon>
-                        <n-icon>
-                            <ReloadOutlined />
-                        </n-icon>
+                        <GIcon icon="ReloadOutline" />
                     </template>
-                    刷新
-                </n-button>
+                    {{ t('common.refresh') }}
+                </RsButton>
             </div>
         </template>
 
@@ -19,20 +16,20 @@
             <div ref="chartRef" class="chart-element"></div>
 
             <div v-if="loading" class="chart-loading">
-                <n-spin size="large" />
+                <RsLoading size="lg" />
             </div>
 
             <div v-if="!loading && !chartData.length" class="chart-empty">
-                <n-empty description="暂无数据" />
+                <RsEmpty :description="t('common.noData')" />
             </div>
         </div>
-    </GCard>
+    </RsCard>
 </template>
 
 <script setup lang="ts">
-import { GCard } from '@/components/gcard'
+import { GIcon } from '@/components/gicon'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { formatDate } from '@/utils/format'
-import { ReloadOutlined } from '@vicons/antd'
 import { LineChart } from 'echarts/charts'
 import {
     GridComponent,
@@ -43,9 +40,13 @@ import {
 } from 'echarts/components'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { NButton, NDatePicker, NEmpty, NIcon, NSpin } from 'naive-ui'
+import { RsButton, RsCard, RsEmpty, RsLoading } from '@/ui'
+import { createAxisTooltipOptions } from '@/views/hub0000/components/metrics/echartsTooltip'
+import MetricsDateTimeRange from '@/views/hub0000/components/metrics/MetricsDateTimeRange.vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { NetworkInterface } from '../../types'
+
+const { t } = useModuleI18n('hub0007')
 
 // 注册必要的 ECharts 组件
 echarts.use([
@@ -69,7 +70,7 @@ const props = defineProps<{
 
 // 默认属性值
 const defaultProps = {
-    title: '网络流量',
+    title: t('network.title'),
     uploadColor: '#ff4d4f',
     downloadColor: '#52c41a',
 }
@@ -88,35 +89,6 @@ let chart: echarts.ECharts | null = null
 const end = Date.now()
 const start = end - 3600 * 1000 // 最近1小时
 const dateTimeRange = ref<[number, number] | null>([start, end])
-
-// 时间范围快捷选项
-const timeRangeShortcuts: Record<string, () => [number, number]> = {
-    '最近1小时': () => {
-        const end = Date.now()
-        const start = end - 3600 * 1000
-        return [start, end]
-    },
-    '最近6小时': () => {
-        const end = Date.now()
-        const start = end - 6 * 3600 * 1000
-        return [start, end]
-    },
-    '最近12小时': () => {
-        const end = Date.now()
-        const start = end - 12 * 3600 * 1000
-        return [start, end]
-    },
-    '最近24小时': () => {
-        const end = Date.now()
-        const start = end - 24 * 3600 * 1000
-        return [start, end]
-    },
-    '最近7天': () => {
-        const end = Date.now()
-        const start = end - 7 * 24 * 3600 * 1000
-        return [start, end]
-    }
-}
 
 // 计算属性 - 图表数据
 const chartData = computed(() => {
@@ -265,7 +237,7 @@ const updateChart = () => {
         const lineWidth = ipv4Interfaces.includes(ifaceName) ? 2 : 1
 
         series.push({
-            name: `${ifaceName} 上传`,
+            name: `${ifaceName} ${t('network.upload')}`,
             type: 'line',
             data: sendData,
             smooth: true,
@@ -286,7 +258,7 @@ const updateChart = () => {
         })
 
         series.push({
-            name: `${ifaceName} 下载`,
+            name: `${ifaceName} ${t('network.download')}`,
             type: 'line',
             data: receiveData,
             smooth: true,
@@ -311,10 +283,10 @@ const updateChart = () => {
         title: {
             show: false
         },
-        tooltip: {
-            trigger: 'axis',
-            confine: false,
+        tooltip: createAxisTooltipOptions({
             appendToBody: true,
+            confine: true,
+            extraCssText: 'z-index: 9999;',
             axisPointer: {
                 type: 'cross',
                 label: {
@@ -356,7 +328,7 @@ const updateChart = () => {
                     })
 
                     // 显示接口总数
-                    result += `接口总数: ${detail.interfaceCount}<br/>`
+                    result += `${t('network.interfaceTotal')}: ${detail.interfaceCount}<br/>`
 
                     // 先显示IPv4接口，再显示其他接口
                     const ipv4Interfaces: string[] = []
@@ -401,7 +373,7 @@ const updateChart = () => {
                             result += `<span style="padding-left:5px;color:#52c41a;">↓${formatNetworkSpeed(iface.receiveRate)}</span>`
 
                             if (iface.errorsReceived > 0 || iface.errorsSent > 0) {
-                                result += ` <span style="color:#ff7875;">(错误: ${iface.errorsReceived + iface.errorsSent})</span>`
+                                result += ` <span style="color:#ff7875;">(${t('network.errors')}: ${iface.errorsReceived + iface.errorsSent})</span>`
                             }
 
                             // 显示IP地址信息
@@ -416,7 +388,7 @@ const updateChart = () => {
 
                 return result
             }
-        },
+        }),
         legend: {
             type: 'scroll',
             data: series.map(s => s.name),

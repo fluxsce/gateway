@@ -2,7 +2,7 @@
  * 服务列表服务 Hook（纯业务逻辑）
  */
 
-import { createBackendPaginationParams } from '@/components/gpage'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
 import { queryAllServiceDefinitions } from '@/views/hub0021/api'

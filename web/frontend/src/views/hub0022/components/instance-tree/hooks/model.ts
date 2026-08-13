@@ -4,10 +4,9 @@
  */
 
 import type { DataFormField, DataFormTab } from '@/components/form/data/types'
-import type { GContextProps } from '@/components/gcontext'
-import { AddOutline } from '@vicons/ionicons5'
+import type { RsContextMenuItem } from '@/ui'
 import { computed, ref } from 'vue'
-import type { GatewayInstance, InstanceTreeOption } from '../types'
+import type { GatewayInstance, InstanceTreeNode } from '../types'
 import { ProxyType as ProxyTypeEnum } from '../types'
 /**
  * 网关实例树 Model
@@ -39,11 +38,12 @@ export function useGatewayInstanceTreeModel() {
   /**
    * 将实例列表转换为树形结构（后端分页，直接使用 instanceList）
    */
-  const treeData = computed<InstanceTreeOption[]>(() => {
+  const treeData = computed<InstanceTreeNode[]>(() => {
     return instanceList.value.map((instance) => ({
       key: instance.gatewayInstanceId,
       label: getInstanceLabel(instance),
-      instance: instance,
+      icon: 'server',
+      instance,
     }))
   })
 
@@ -118,20 +118,11 @@ export function useGatewayInstanceTreeModel() {
   // ============= 右键菜单配置 =============
 
   /**
-   * 树节点右键菜单配置
+   * 树节点右键菜单项（RsContextMenu）
    */
-  const treeMenuConfig: Partial<GContextProps> = {
-    enabled: true,
-    showCopyNode: true,
-    moduleId,
-    options: [
-      {
-        code: 'addProxy',
-        name: '代理配置',
-        prefixIcon: AddOutline,
-      },
-    ],
-  }
+  const contextMenuItems: RsContextMenuItem[] = [
+    { key: 'addProxy', label: '代理配置', icon: 'settings' },
+  ]
 
   // ============= 代理配置表单配置 =============
 
@@ -826,7 +817,7 @@ export function useGatewayInstanceTreeModel() {
     treeData,
 
     // 配置
-    treeMenuConfig,
+    contextMenuItems,
     proxyFormConfig,
 
     // 方法

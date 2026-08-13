@@ -3,9 +3,9 @@
  * 处理数据加载和API调用
  */
 
-import { createBackendPaginationParams } from '@/components/gpage'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import { isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import { queryServiceDefinitions } from '../../../api'
 import type { ServiceDefinition } from '../types'
 import type { ServiceDefinitionSelectorModel } from './model'
@@ -18,7 +18,7 @@ export function useServiceDefinitionSelectorService(
   gatewayInstanceId?: string,
   searchFormRef?: any
 ) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   const {
     loading,

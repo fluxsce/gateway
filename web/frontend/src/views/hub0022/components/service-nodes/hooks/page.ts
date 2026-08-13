@@ -5,7 +5,7 @@
  */
 
 import { isApiSuccess, parseJsonData } from '@/utils/format'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import { getServiceNode } from '../../../api'
@@ -24,7 +24,7 @@ export function useServiceNodePage(
   serviceDefinitionId?: Ref<string | undefined>,
   searchFormRef?: Ref<any> | any
 ) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 业务服务（包含 model、增删改查等）
   const service = useServiceNodeService(serviceDefinitionId, searchFormRef)
@@ -260,12 +260,11 @@ export function useServiceNodePage(
         break
 
       case 'edit': {
-        // 编辑：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord?.()
+        const selectedRow = gridRef.value.getActiveRow?.()
         if (!selectedRow) {
           message.warning('请先选择或点击要编辑的服务节点')
           return
@@ -275,12 +274,11 @@ export function useServiceNodePage(
       }
 
       case 'delete': {
-        // 删除：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord?.()
+        const selectedRow = gridRef.value.getActiveRow?.()
         if (!selectedRow) {
           message.warning('请先选择或点击要删除的服务节点')
           return
@@ -290,7 +288,6 @@ export function useServiceNodePage(
       }
 
       case 'search': {
-        // 如果传递了表单数据，直接使用它进行查询
         await handleSearch(formData)
         break
       }
@@ -303,10 +300,10 @@ export function useServiceNodePage(
   /**
    * 处理右键菜单点击
    */
-  const handleMenuClick = async ({ code, row }: { code: string; row?: ServiceNode }) => {
+  const handleMenuClick = async ({ key, row }: { key: string; row?: ServiceNode }) => {
     if (!row) return
 
-    switch (code) {
+    switch (key) {
       case 'edit':
         await openEditDialog(row)
         break

@@ -2,7 +2,7 @@
  * 预警模板管理页面级 Hook
  */
 
-import { useGDialog } from '@/components/gdialog'
+import { rsConfirm } from '@/ui'
 import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
@@ -11,9 +11,7 @@ import { useAlertTemplateService } from './service'
 
 export function useAlertTemplatePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any) {
   const message = useMessage()
-  const gDialog = useGDialog()
-
-  const service = useAlertTemplateService(searchFormRef)
+const service = useAlertTemplateService(searchFormRef)
 
   const formDialogVisible = ref(false)
   const formDialogMode = ref<'create' | 'edit' | 'view'>('create')
@@ -88,11 +86,11 @@ export function useAlertTemplatePage(gridRef?: Ref<any> | any, searchFormRef?: R
   }
 
   const handleDelete = async (row: AlertTemplate) => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认删除',
-      content: `确定要删除模板"${row.templateName}"吗？此操作不可恢复。`,
-      positiveText: '删除',
-      negativeText: '取消',
+      description: `确定要删除模板"${row.templateName}"吗？此操作不可恢复。`,
+      confirmText: '删除',
+      cancelText: '取消',
     })
     if (!confirmed) return
     await service.removeTemplate(row.templateName)
@@ -109,11 +107,11 @@ export function useAlertTemplatePage(gridRef?: Ref<any> | any, searchFormRef?: R
         message.warning('请先勾选要删除的模板，或单击选中一行后再删除')
         return
       }
-      const confirmed = await gDialog.warning({
+      const confirmed = await rsConfirm.warning({
         title: '确认删除',
-        content: `确定要删除选中的 ${rows.length} 个模板吗？此操作不可恢复。`,
-        positiveText: '删除',
-        negativeText: '取消',
+        description: `确定要删除选中的 ${rows.length} 个模板吗？此操作不可恢复。`,
+        confirmText: '删除',
+        cancelText: '取消',
       })
       if (!confirmed) return
       for (const r of rows) {

@@ -21,6 +21,7 @@
  *    post('/api/users', { name: '张三' })
  */
 import { config } from '@/config/config'
+import { rsConfirm } from '@/ui'
 import type {
   AxiosError,
   AxiosRequestConfig,
@@ -64,10 +65,8 @@ const service = axios.create({
 
 // 全局loading计数器
 let loadingCount = 0
-// Naive UI的loadingBar实例
+// loadingBar 实例（由 initRequestTools 注入）
 let loadingBar: any = null
-// Naive UI的dialog实例
-let dialog: any = null
 // 401弹窗防重复标志
 let is401DialogShowing = false
 
@@ -93,30 +92,31 @@ export const getCurrentTimeout = (): number => {
 }
 
 /**
- * 设置Naive UI的loading bar和dialog
- * @param naiveUILoadingBar Naive UI的loading bar实例
- * @param naiveUIDialog Naive UI的dialog实例
+ * 设置 loading bar 实例
+ * @param loadingBarInstance loading bar 实例
  */
-export const setNaiveUILoading = (naiveUILoadingBar: any, naiveUIDialog?: any) => {
-  loadingBar = naiveUILoadingBar
-  if (naiveUIDialog) {
-    dialog = naiveUIDialog
-  }
+export const setNaiveUILoading = (loadingBarInstance: any) => {
+  loadingBar = loadingBarInstance
 }
 
 /**
- * 显示加载状态
+ * 显示加载状态（引用计数，支持并发请求）
  */
 const showLoading = () => {
   if (loadingCount === 0 && loadingBar) {
     loadingBar.start()
   }
+  loadingCount++
 }
 
 /**
- * 隐藏加载状态
+ * 隐藏加载状态（引用计数归零时才结束）
  */
 const hideLoading = () => {
+  if (loadingCount <= 0) {
+    return
+  }
+  loadingCount--
   if (loadingCount === 0 && loadingBar) {
     loadingBar.finish()
   }
@@ -135,46 +135,34 @@ const getLoginPath = (): string => {
 
 /**
  * 统一处理401认证失败
+ * 直接弹出确认框，用户点击确定后跳转登录页；返回永远 pending 的 Promise，阻止错误落到业务层。
  * @param message 错误消息
- * @returns Promise 永远不会resolve，阻止错误传播到业务层
  */
 const handle401Error = (message: string) => {
-  // 如果已经在显示401弹窗，则返回一个永远不会resolve的Promise
   if (is401DialogShowing) {
-    return new Promise(() => {}) // 返回永远pending的Promise，阻止业务层处理
+    return new Promise(() => {})
   }
 
   is401DialogShowing = true
 
-  // 清理用户状态
   const userStore = useUserStore()
   userStore.clearUserInfo()
 
   const loginPath = getLoginPath()
 
-  if (dialog) {
-    dialog.warning({
-      title: '认证失败',
-      content: message,
-      positiveText: '确定',
-      onPositiveClick: () => {
-        is401DialogShowing = false
-        // 用户点击确定后跳转到登录页
-        window.location.href = loginPath
-      },
-      onClose: () => {
-        is401DialogShowing = false
-      },
-    })
-  } else {
-    // 如果没有dialog实例，则使用原生alert
-    alert(message)
-    is401DialogShowing = false
-    window.location.href = loginPath
-  }
+  void rsConfirm.error({
+    title: '认证失败',
+    description: message,
+    confirmText: '确定',
+    onConfirm: () => {
+      is401DialogShowing = false
+      window.location.href = loginPath
+    },
+    onCancel: () => {
+      is401DialogShowing = false
+    },
+  })
 
-  // 返回永远不会resolve的Promise，这样业务层永远不会收到响应
-  // 避免业务层弹出错误提示
   return new Promise(() => {})
 }
 
@@ -520,18 +508,13 @@ export const options = <T = any>(
 
 /**
  * 初始化请求工具
- * 设置loading bar和dialog
+ * 注入 loading bar 实例
  *
- * @param loadingBarInstance Naive UI的loading bar实例
- * @param dialogInstance Naive UI的dialog实例
+ * @param loadingBarInstance loading bar 实例
  */
-export const initRequestTools = (loadingBarInstance: any, dialogInstance?: any) => {
+export const initRequestTools = (loadingBarInstance: any) => {
   loadingBar = loadingBarInstance
-  if (dialogInstance) {
-    dialog = dialogInstance
-  }
 
-  // 输出日志确认加载功能已初始化
   if (import.meta.env.DEV) {
     console.log('API请求工具已初始化，加载状态显示功能已启用')
   }

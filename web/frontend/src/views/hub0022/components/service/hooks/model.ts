@@ -4,16 +4,37 @@
  */
 
 import type { DataFormField, DataFormTab } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
+import { RsTag } from '@/ui'
 import { formatDate } from '@/utils/format'
 import type { ServiceSelectionMetadata } from '@/views/hub0042/components'
 import { ServiceSelector } from '@/views/hub0042/components'
-import { AddOutline, SettingsOutline, TrashOutline } from '@vicons/ionicons5'
 import { h, ref } from 'vue'
 import type { ServiceDefinition } from '../types'
 import { LoadBalanceStrategy, ServiceType } from '../types'
+
+/**
+ * 服务定义表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface ServiceDefinitionGridConfig {
+  columns: RsGridColumn<ServiceDefinition>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
+
+const loadBalanceStrategyLabelMap: Record<string, string> = {
+  [LoadBalanceStrategy.ROUND_ROBIN]: '轮询',
+  [LoadBalanceStrategy.RANDOM]: '随机',
+  [LoadBalanceStrategy.IP_HASH]: 'IP哈希',
+  [LoadBalanceStrategy.LEAST_CONN]: '最少连接',
+  [LoadBalanceStrategy.WEIGHTED_ROUND_ROBIN]: '加权轮询',
+  [LoadBalanceStrategy.CONSISTENT_HASH]: '一致性哈希',
+}
 
 /**
  * 服务定义列表管理 Model
@@ -33,8 +54,8 @@ export function useServiceDefinitionModel() {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'serviceName',
@@ -89,28 +110,28 @@ export function useServiceDefinitionModel() {
       {
         key: 'add',
         label: '新增服务',
-        icon: AddOutline,
+        icon: 'AddOutline',
         type: 'primary',
         tooltip: '新增服务定义',
       },
       {
         key: 'view',
         label: '查看详情',
-        icon: SettingsOutline,
+        icon: 'EyeOutline',
         type: 'info',
         tooltip: '查看选中服务的详细信息',
       },
       {
         key: 'delete',
         label: '删除',
-        icon: TrashOutline,
+        icon: 'TrashOutline',
         type: 'error',
         tooltip: '批量删除选中的服务定义',
       },
       {
         key: 'manageNodes',
         label: '节点管理',
-        icon: SettingsOutline,
+        icon: 'SettingsOutline',
         type: 'default',
         tooltip: '管理服务节点',
       },
@@ -745,128 +766,173 @@ export function useServiceDefinitionModel() {
 
   // ============= 表格配置 =============
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置（符合 RsGrid 结构） */
+  const gridConfig: ServiceDefinitionGridConfig = {
     columns: [
       {
-        field: 'serviceDefinitionId',
+        key: 'serviceDefinitionId',
         title: '服务定义ID',
-        visible: false, // 隐藏主键字段，但保留在数据中以便编辑时使用
-        width: 0,
+        visible: false,
       },
       {
-        field: 'serviceName',
+        key: 'serviceName',
         title: '服务名称',
         sortable: true,
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 200,
       },
       {
-        field: 'serviceDesc',
+        key: 'serviceDesc',
         title: '服务描述',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 200,
       },
       {
-        field: 'serviceType',
+        key: 'serviceType',
         title: '服务类型',
         align: 'center',
-        slots: { default: 'serviceType' },
         width: 120,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.serviceType === 0 ? 'info' : 'success',
+              size: 'sm',
+            },
+            () => (row.serviceType === 0 ? '静态配置' : '服务发现'),
+          ),
       },
       {
-        field: 'loadBalanceStrategy',
+        key: 'loadBalanceStrategy',
         title: '负载均衡策略',
         align: 'center',
-        slots: { default: 'loadBalanceStrategy' },
         width: 150,
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: 'default', size: 'sm' },
+            () => loadBalanceStrategyLabelMap[row.loadBalanceStrategy] || row.loadBalanceStrategy,
+          ),
       },
       {
-        field: 'nodeCount',
+        key: 'nodeCount',
         title: '服务节点',
         align: 'center',
-        formatter: () => '0', // 暂时返回0，后续接入真实API后修改
+        formatter: () => '0',
         width: 100,
       },
       {
-        field: 'sessionAffinity',
+        key: 'sessionAffinity',
         title: '会话亲和性',
         align: 'center',
-        slots: { default: 'sessionAffinity' },
         width: 120,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.sessionAffinity === 'Y' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.sessionAffinity === 'Y' ? '启用' : '未启用'),
+          ),
       },
       {
-        field: 'maxRetries',
+        key: 'maxRetries',
         title: '最大重试',
         align: 'center',
         width: 100,
       },
       {
-        field: 'enableCircuitBreaker',
+        key: 'enableCircuitBreaker',
         title: '熔断器',
         align: 'center',
-        slots: { default: 'enableCircuitBreaker' },
         width: 100,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.enableCircuitBreaker === 'Y' ? 'warning' : 'default',
+              size: 'sm',
+            },
+            () => (row.enableCircuitBreaker === 'Y' ? '启用' : '未启用'),
+          ),
       },
       {
-        field: 'healthCheckEnabled',
+        key: 'healthCheckEnabled',
         title: '健康检查',
         align: 'center',
-        slots: { default: 'healthCheckEnabled' },
         width: 120,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.healthCheckEnabled === 'Y' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.healthCheckEnabled === 'Y' ? '已启用' : '未启用'),
+          ),
       },
       {
-        field: 'healthCheckPath',
+        key: 'healthCheckPath',
         title: '检查路径',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 150,
       },
       {
-        field: 'activeFlag',
+        key: 'activeFlag',
         title: '状态',
         align: 'center',
-        slots: { default: 'activeFlag' },
         width: 100,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.activeFlag === 'Y' ? 'success' : 'danger',
+              size: 'sm',
+            },
+            () => (row.activeFlag === 'Y' ? '启用' : '禁用'),
+          ),
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
         sortable: true,
         align: 'center',
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
         width: 180,
       },
       {
-        field: 'addWho',
+        key: 'addWho',
         title: '创建人',
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 120,
       },
       {
-        field: 'editTime',
+        key: 'editTime',
         title: '修改时间',
         sortable: true,
         align: 'center',
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
         width: 180,
       },
       {
-        field: 'editWho',
+        key: 'editWho',
         title: '修改人',
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 120,
       },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: 'serviceDefinitionId',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -874,34 +940,14 @@ export function useServiceDefinitionModel() {
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      showCopyCell: true,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-        {
-          code: 'edit',
-          name: '编辑',
-          prefixIcon: 'vxe-icon-edit',
-        },
-        {
-          code: 'manageNodes',
-          name: '节点管理',
-          prefixIcon: 'vxe-icon-setting',
-        },
-        {
-          code: 'delete',
-          name: '删除',
-          prefixIcon: 'vxe-icon-delete',
-        },
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'manageNodes', label: '节点管理', icon: 'settings' },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
       ],
     },
     height: '100%',
-    // 设置行唯一键字段为主键字段
-    rowId: 'serviceDefinitionId',
   }
 
   // ============= 辅助方法 =============

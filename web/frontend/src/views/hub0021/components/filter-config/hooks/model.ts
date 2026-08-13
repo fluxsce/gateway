@@ -3,13 +3,12 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { DataFormField } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsDataFormField, RsDataFormTab } from '@/components/form/rs-data'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
 import { formatDate } from '@/utils/format'
-import { AddOutline, TrashOutline } from '@vicons/ionicons5'
-import { NSwitch } from 'naive-ui'
+import { RsSwitch, RsTag } from '@/ui'
 import { h, ref } from 'vue'
 import type { FilterConfig } from './types'
 import {
@@ -25,6 +24,18 @@ import {
   QUERY_PARAM_MODIFIER_OPTIONS,
   RESPONSE_OPERATION_OPTIONS,
 } from './types'
+
+/**
+ * 过滤器配置表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface FilterConfigGridConfig {
+  columns: RsGridColumn<FilterConfig>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
 
 /**
  * 过滤器配置列表 Model
@@ -44,8 +55,8 @@ export function useFilterConfigModel(moduleId: string) {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'filterName',
@@ -96,14 +107,14 @@ export function useFilterConfigModel(moduleId: string) {
       {
         key: 'add',
         label: '新增过滤器',
-        icon: AddOutline,
+        icon: 'AddOutline',
         type: 'primary',
         tooltip: '新增过滤器配置',
       },
       {
         key: 'delete',
         label: '删除',
-        icon: TrashOutline,
+        icon: 'TrashOutline',
         type: 'error',
         tooltip: '批量删除选中的过滤器配置',
       },
@@ -121,16 +132,16 @@ export function useFilterConfigModel(moduleId: string) {
   }
 
   /** 获取过滤器类型标签颜色 */
-  const getFilterTypeTagType = (filterType: string): "default" | "success" | "error" | "warning" | "primary" | "info" => {
-    const typeColorMap: Record<string, "default" | "success" | "error" | "warning" | "primary" | "info"> = {
-      'header': 'primary',
+  const getFilterTypeTagType = (filterType: string): 'default' | 'success' | 'danger' | 'warning' | 'primary' | 'info' => {
+    const typeColorMap: Record<string, 'default' | 'success' | 'danger' | 'warning' | 'primary' | 'info'> = {
+      header: 'primary',
       'query-param': 'info',
-      'body': 'warning',
-      'strip': 'success',
-      'rewrite': 'success',
-      'method': 'error',
-      'cookie': 'default',
-      'response': 'info'
+      body: 'warning',
+      strip: 'success',
+      rewrite: 'success',
+      method: 'danger',
+      cookie: 'default',
+      response: 'info',
     }
     return typeColorMap[filterType] || 'default'
   }
@@ -142,96 +153,126 @@ export function useFilterConfigModel(moduleId: string) {
   }
 
   /** 获取执行时机标签颜色 */
-  const getFilterActionTagType = (filterAction: string): "default" | "success" | "error" | "warning" | "primary" | "info" => {
-    const actionColorMap: Record<string, "default" | "success" | "error" | "warning" | "primary" | "info"> = {
+  const getFilterActionTagType = (filterAction: string): 'default' | 'success' | 'danger' | 'warning' | 'primary' | 'info' => {
+    const actionColorMap: Record<string, 'default' | 'success' | 'danger' | 'warning' | 'primary' | 'info'> = {
       'pre-routing': 'success',
       'post-routing': 'info',
-      'pre-response': 'warning'
+      'pre-response': 'warning',
     }
     return actionColorMap[filterAction] || 'default'
   }
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置（符合 RsGrid 结构） */
+  const gridConfig: FilterConfigGridConfig = {
     columns: [
       {
-        field: 'filterConfigId',
+        key: 'filterConfigId',
         title: '过滤器配置ID',
         visible: false,
-        width: 0,
       },
       {
-        field: 'filterOrder',
+        key: 'filterOrder',
         title: '执行顺序',
         align: 'center',
         width: 120,
-        slots: { default: 'filterOrder' },
+        render: (row) =>
+          h(
+            'span',
+            { style: { fontWeight: 'bold', color: '#0066cc' } },
+            String(row.filterOrder ?? ''),
+          ),
       },
       {
-        field: 'filterName',
+        key: 'filterName',
         title: '过滤器名称',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 200,
       },
       {
-        field: 'filterType',
+        key: 'filterType',
         title: '类型',
         align: 'center',
         width: 140,
-        slots: { default: 'filterType' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: getFilterTypeTagType(row.filterType),
+              size: 'sm',
+            },
+            () => getFilterTypeLabel(row.filterType),
+          ),
       },
       {
-        field: 'filterAction',
+        key: 'filterAction',
         title: '执行时机',
         align: 'center',
         width: 120,
-        slots: { default: 'filterAction' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: getFilterActionTagType(row.filterAction),
+              size: 'sm',
+            },
+            () => getFilterActionLabel(row.filterAction),
+          ),
       },
       {
-        field: 'activeFlag',
+        key: 'activeFlag',
         title: '状态',
         align: 'center',
         width: 100,
-        slots: { default: 'activeFlag' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.activeFlag === 'Y' ? 'success' : 'danger',
+              size: 'sm',
+            },
+            () => (row.activeFlag === 'Y' ? '启用' : '禁用'),
+          ),
       },
       {
-        field: 'filterDesc',
+        key: 'filterDesc',
         title: '描述',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 200,
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
         align: 'center',
-        formatter: ({ row }) => formatDate(row.addTime),
         width: 180,
+        formatter: (_v, row) => formatDate(row.addTime),
       },
       {
-        field: 'addWho',
+        key: 'addWho',
         title: '创建人',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 120,
       },
       {
-        field: 'editTime',
+        key: 'editTime',
         title: '修改时间',
         align: 'center',
-        formatter: ({ row }) => formatDate(row.editTime),
         width: 180,
+        formatter: (_v, row) => formatDate(row.editTime),
       },
       {
-        field: 'editWho',
+        key: 'editWho',
         title: '修改人',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 120,
       },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: 'filterConfigId',
+    height: '100%',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -239,28 +280,11 @@ export function useFilterConfigModel(moduleId: string) {
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-        {
-          code: 'edit',
-          name: '编辑',
-          prefixIcon: 'vxe-icon-edit',
-        },
-        {
-          code: 'toggle-status',
-          name: '切换状态',
-          prefixIcon: 'vxe-icon-check',
-        },
-        {
-          code: 'delete',
-          name: '删除',
-          prefixIcon: 'vxe-icon-delete',
-        },
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'toggle-status', label: '切换状态', icon: 'circle-check' },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
       ],
     },
   }
@@ -355,10 +379,10 @@ export function useFilterConfigModel(moduleId: string) {
       key: 'other',
       label: '其他信息',
     },
-  ]
+  ] as RsDataFormTab[]
 
-  /** 过滤器表单配置（用于 GdataFormModal） */
-  const formFields: DataFormField[] = [
+  /** 过滤器表单配置（用于 RsDataFormModal） */
+  const formFields: RsDataFormField[] = [
     // 主键字段（隐藏，但必须存在用于编辑）
     {
       field: 'filterConfigId',
@@ -514,16 +538,14 @@ export function useFilterConfigModel(moduleId: string) {
       show: (formData: Record<string, any>) => formData.filterType === 'header',
       defaultValue: true,
       render: (formData: Record<string, any>) => {
-        return h(NSwitch, {
-          value: formData['config.headerConfig.isRequestHeader'] ?? true,
-          checkedValue: true,
-          uncheckedValue: false,
-          'onUpdate:value': (value: boolean) => {
+        const isRequest = formData['config.headerConfig.isRequestHeader'] ?? true
+        return h(RsSwitch, {
+          modelValue: isRequest,
+          'onUpdate:modelValue': (value: boolean) => {
             formData['config.headerConfig.isRequestHeader'] = value
           },
         }, {
-          checked: () => '请求头',
-          unchecked: () => '响应头',
+          default: () => (isRequest ? '请求头' : '响应头'),
         })
       },
     },

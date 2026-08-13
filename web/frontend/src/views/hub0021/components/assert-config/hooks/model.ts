@@ -3,15 +3,27 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { DataFormField, DataFormTab } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsDataFormField, RsDataFormTab } from '@/components/form/rs-data'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
 import { formatDate } from '@/utils/format'
-import { AddOutline, TrashOutline } from '@vicons/ionicons5'
-import { ref } from 'vue'
+import { RsTag } from '@/ui'
+import { h, ref } from 'vue'
 import type { AssertConfig } from './types'
 import { ASSERTION_OPERATOR_OPTIONS, ASSERTION_TYPE_OPTIONS } from './types'
+
+/**
+ * 断言配置表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface AssertConfigGridConfig {
+  columns: RsGridColumn<AssertConfig>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
 
 /**
  * 断言配置列表 Model
@@ -19,7 +31,7 @@ import { ASSERTION_OPERATOR_OPTIONS, ASSERTION_TYPE_OPTIONS } from './types'
 export function useAssertConfigModel() {
   // ============= 数据状态 =============
   const moduleId = 'hub0021:assertConfig'
-  
+
   /** 加载状态 */
   const loading = ref(false)
 
@@ -31,8 +43,8 @@ export function useAssertConfigModel() {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'assertionName',
@@ -51,7 +63,7 @@ export function useAssertConfigModel() {
         clearable: true,
         options: [
           { label: '全部', value: '' },
-          ...ASSERTION_TYPE_OPTIONS.map(opt => ({ label: opt.label, value: opt.value })),
+          ...ASSERTION_TYPE_OPTIONS.map((opt) => ({ label: opt.label, value: opt.value })),
         ],
       },
       {
@@ -71,14 +83,14 @@ export function useAssertConfigModel() {
       {
         key: 'add',
         label: '新增断言',
-        icon: AddOutline,
+        icon: 'AddOutline',
         type: 'primary',
         tooltip: '新增断言配置',
       },
       {
         key: 'delete',
         label: '删除',
-        icon: TrashOutline,
+        icon: 'TrashOutline',
         type: 'error',
         tooltip: '批量删除选中的断言配置',
       },
@@ -91,135 +103,170 @@ export function useAssertConfigModel() {
 
   /** 获取断言类型显示标签 */
   const getAssertionTypeLabel = (assertionType: string) => {
-    const option = ASSERTION_TYPE_OPTIONS.find(opt => opt.value === assertionType)
+    const option = ASSERTION_TYPE_OPTIONS.find((opt) => opt.value === assertionType)
     return option?.label || assertionType
   }
 
   /** 获取断言类型标签颜色 */
-  const getAssertionTypeTagType = (assertionType: string): "default" | "success" | "error" | "warning" | "primary" | "info" => {
-    const typeColorMap: Record<string, "default" | "success" | "error" | "warning" | "primary" | "info"> = {
-      'PATH': 'primary',
-      'HEADER': 'info',
-      'QUERY': 'success',
-      'COOKIE': 'warning',
-      'IP': 'error',
-      'BODY_CONTENT': 'success',
+  const getAssertionTypeTagType = (
+    assertionType: string,
+  ): 'default' | 'success' | 'danger' | 'warning' | 'primary' | 'info' => {
+    const typeColorMap: Record<
+      string,
+      'default' | 'success' | 'danger' | 'warning' | 'primary' | 'info'
+    > = {
+      PATH: 'primary',
+      HEADER: 'info',
+      QUERY: 'success',
+      COOKIE: 'warning',
+      IP: 'danger',
+      BODY_CONTENT: 'success',
     }
     return typeColorMap[assertionType] || 'default'
   }
 
   /** 获取操作符标签 */
   const getOperatorLabel = (operator: string) => {
-    const option = ASSERTION_OPERATOR_OPTIONS.find(opt => opt.value === operator)
+    const option = ASSERTION_OPERATOR_OPTIONS.find((opt) => opt.value === operator)
     return option?.label || operator
   }
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置（符合 RsGrid 结构） */
+  const gridConfig: AssertConfigGridConfig = {
     columns: [
       {
-        field: 'routeAssertionId',
+        key: 'routeAssertionId',
         title: '断言ID',
         visible: false,
-        width: 0,
       },
       {
-        field: 'assertionOrder',
+        key: 'assertionOrder',
         title: '执行顺序',
         align: 'center',
         width: 120,
-        slots: { default: 'assertionOrder' },
+        render: (row) =>
+          h(
+            'span',
+            { style: { fontWeight: 'bold', color: '#0066cc' } },
+            String(row.assertionOrder ?? ''),
+          ),
       },
       {
-        field: 'assertionName',
+        key: 'assertionName',
         title: '断言名称',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 200,
       },
       {
-        field: 'assertionType',
+        key: 'assertionType',
         title: '断言类型',
         align: 'center',
         width: 120,
-        slots: { default: 'assertionType' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: getAssertionTypeTagType(row.assertionType),
+              size: 'sm',
+            },
+            () => getAssertionTypeLabel(row.assertionType),
+          ),
       },
       {
-        field: 'assertionOperator',
+        key: 'assertionOperator',
         title: '操作符',
         align: 'center',
         width: 120,
-        slots: { default: 'assertionOperator' },
+        render: (row) =>
+          h(RsTag, { variant: 'info', size: 'sm' }, () =>
+            getOperatorLabel(row.assertionOperator),
+          ),
       },
       {
-        field: 'fieldName',
+        key: 'fieldName',
         title: '字段名称',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 150,
       },
       {
-        field: 'expectedValue',
+        key: 'expectedValue',
         title: '期望值/模式',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 200,
-        formatter: ({ row }) => {
-          // 只显示期望值，patternValue 是路径断言的配置选项，不是显示值
-          return row.expectedValue || '-'
-        },
+        formatter: (_v, row) => row.expectedValue || '-',
       },
       {
-        field: 'isRequired',
+        key: 'isRequired',
         title: '必须匹配',
         align: 'center',
         width: 100,
-        slots: { default: 'isRequired' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.isRequired === 'Y' ? 'danger' : 'default',
+              size: 'sm',
+            },
+            () => (row.isRequired === 'Y' ? '必须' : '可选'),
+          ),
       },
       {
-        field: 'activeFlag',
+        key: 'activeFlag',
         title: '状态',
         align: 'center',
         width: 100,
-        slots: { default: 'activeFlag' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.activeFlag === 'Y' ? 'success' : 'danger',
+              size: 'sm',
+            },
+            () => (row.activeFlag === 'Y' ? '启用' : '禁用'),
+          ),
       },
       {
-        field: 'assertionDesc',
+        key: 'assertionDesc',
         title: '描述',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 200,
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
         align: 'center',
-        formatter: ({ row }) => formatDate(row.addTime),
         width: 180,
+        formatter: (_v, row) => formatDate(row.addTime),
       },
       {
-        field: 'addWho',
+        key: 'addWho',
         title: '创建人',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 120,
       },
       {
-        field: 'editTime',
+        key: 'editTime',
         title: '修改时间',
         align: 'center',
-        formatter: ({ row }) => formatDate(row.editTime),
         width: 180,
+        formatter: (_v, row) => formatDate(row.editTime),
       },
       {
-        field: 'editWho',
+        key: 'editWho',
         title: '修改人',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 120,
       },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: 'routeAssertionId',
+    height: '100%',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -227,28 +274,11 @@ export function useAssertConfigModel() {
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-        {
-          code: 'edit',
-          name: '编辑',
-          prefixIcon: 'vxe-icon-edit',
-        },
-        {
-          code: 'toggle-status',
-          name: '切换状态',
-          prefixIcon: 'vxe-icon-check',
-        },
-        {
-          code: 'delete',
-          name: '删除',
-          prefixIcon: 'vxe-icon-delete',
-        },
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'toggle-status', label: '切换状态', icon: 'circle-check' },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
       ],
     },
   }
@@ -292,20 +322,22 @@ export function useAssertConfigModel() {
    */
   function addAssertToList(assert: AssertConfig) {
     assertList.value.push(assert)
-    // 按 assertionOrder 排序
     assertList.value.sort((a, b) => (a.assertionOrder || 0) - (b.assertionOrder || 0))
   }
 
   /**
    * 更新列表中的断言
    */
-  function updateAssertInList(routeAssertionId: string, tenantId: string | undefined, updatedAssert: Partial<AssertConfig>) {
+  function updateAssertInList(
+    routeAssertionId: string,
+    tenantId: string | undefined,
+    updatedAssert: Partial<AssertConfig>,
+  ) {
     const index = assertList.value.findIndex(
-      (a) => a.routeAssertionId === routeAssertionId && (!tenantId || a.tenantId === tenantId)
+      (a) => a.routeAssertionId === routeAssertionId && (!tenantId || a.tenantId === tenantId),
     )
     if (index !== -1) {
       Object.assign(assertList.value[index], updatedAssert)
-      // 按 assertionOrder 排序
       assertList.value.sort((a, b) => (a.assertionOrder || 0) - (b.assertionOrder || 0))
     }
   }
@@ -324,7 +356,9 @@ export function useAssertConfigModel() {
    * 从列表中批量移除断言
    */
   function removeAssertsFromList(routeAssertionIds: string[]) {
-    assertList.value = assertList.value.filter((a) => !routeAssertionIds.includes(a.routeAssertionId))
+    assertList.value = assertList.value.filter(
+      (a) => !routeAssertionIds.includes(a.routeAssertionId),
+    )
   }
 
   // ============= 表单配置 =============
@@ -339,11 +373,10 @@ export function useAssertConfigModel() {
       key: 'other',
       label: '其他信息',
     },
-  ] as DataFormTab[]
+  ] as RsDataFormTab[]
 
-  /** 断言表单配置（用于 GdataFormModal） */
-  const formFields: DataFormField[] = [
-    // 主键字段（隐藏，但必须存在用于编辑）
+  /** 断言表单配置（用于 RsDataFormModal） */
+  const formFields: RsDataFormField[] = [
     {
       field: 'routeAssertionId',
       label: '断言ID',
@@ -359,7 +392,6 @@ export function useAssertConfigModel() {
       span: 12,
       show: false,
     },
-    // 基本信息
     {
       field: 'assertionName',
       label: '断言名称',
@@ -382,10 +414,8 @@ export function useAssertConfigModel() {
       tabKey: 'basic',
       required: true,
       defaultValue: 'HEADER',
-      options: ASSERTION_TYPE_OPTIONS.map(opt => ({ label: opt.label, value: opt.value })),
-      rules: [
-        { required: true, message: '请选择断言类型', trigger: ['blur', 'change'] },
-      ],
+      options: ASSERTION_TYPE_OPTIONS.map((opt) => ({ label: opt.label, value: opt.value })),
+      rules: [{ required: true, message: '请选择断言类型', trigger: ['blur', 'change'] }],
     },
     {
       field: 'assertionOperator',
@@ -396,10 +426,8 @@ export function useAssertConfigModel() {
       tabKey: 'basic',
       required: true,
       defaultValue: 'EQUAL',
-      options: ASSERTION_OPERATOR_OPTIONS.map(opt => ({ label: opt.label, value: opt.value })),
-      rules: [
-        { required: true, message: '请选择操作符', trigger: ['blur', 'change'] },
-      ],
+      options: ASSERTION_OPERATOR_OPTIONS.map((opt) => ({ label: opt.label, value: opt.value })),
+      rules: [{ required: true, message: '请选择操作符', trigger: ['blur', 'change'] }],
     },
     {
       field: 'assertionOrder',
@@ -416,10 +444,10 @@ export function useAssertConfigModel() {
         precision: 0,
       },
       rules: [
-        { 
-          required: true, 
+        {
+          required: true,
           type: 'number',
-          message: '请输入执行顺序', 
+          message: '请输入执行顺序',
           trigger: ['blur', 'change'],
         },
       ],
@@ -436,9 +464,7 @@ export function useAssertConfigModel() {
         { label: '必须匹配', value: 'Y' },
         { label: '可选匹配', value: 'N' },
       ],
-      rules: [
-        { required: true, message: '请选择是否必须匹配', trigger: ['change'] },
-      ],
+      rules: [{ required: true, message: '请选择是否必须匹配', trigger: ['change'] }],
     },
     {
       field: 'activeFlag',
@@ -452,7 +478,6 @@ export function useAssertConfigModel() {
         uncheckedValue: 'N',
       },
     },
-    // ============= 断言配置（使用 fieldset 包裹） =============
     {
       field: 'assertionConfigFieldset',
       label: '断言配置',
@@ -489,8 +514,6 @@ export function useAssertConfigModel() {
           placeholder: '请输入期望值',
           span: 24,
           show: (formData: Record<string, any>) => {
-            // 所有需要值的操作符都显示期望值字段
-            // 排除 EXISTS 和 NOT_EXISTS（不需要值）
             const noValueOperators = ['EXISTS', 'NOT_EXISTS']
             return !noValueOperators.includes(formData.assertionOperator)
           },
@@ -508,8 +531,6 @@ export function useAssertConfigModel() {
           placeholder: '请选择路径匹配模式（仅路径断言使用）',
           span: 24,
           show: (formData: Record<string, any>) => {
-            // patternValue 仅用于路径断言（PATH），对应后端的 Pattern 字段
-            // 用于选择路径匹配模式：exact（精确匹配）、prefix（前缀匹配）、regex（正则匹配）、param（参数匹配）
             return formData.assertionType === 'PATH'
           },
           options: [
@@ -549,7 +570,6 @@ export function useAssertConfigModel() {
         },
       ],
     },
-    // 其他信息
     {
       field: 'noteText',
       label: '备注信息',
@@ -632,4 +652,3 @@ export function useAssertConfigModel() {
  * 断言配置列表 Model 类型
  */
 export type AssertConfigModel = ReturnType<typeof useAssertConfigModel>
-

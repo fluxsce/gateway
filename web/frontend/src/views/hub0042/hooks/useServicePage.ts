@@ -4,8 +4,8 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
-import { useGDialog } from '@/components/gdialog'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { rsConfirm } from '@/ui'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import type { Service } from '../types'
@@ -15,9 +15,7 @@ import { useServiceService } from './useServiceService'
  * 服务监控页面级 Hook
  */
 export function useServicePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
-  const gDialog = useGDialog()
-
+  const message = useAppMessage()
   // 业务服务（包含 model、增删改查等）
   const service = useServiceService(searchFormRef)
 
@@ -178,12 +176,12 @@ export function useServicePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any
    * 批量删除服务
    */
   const handleBatchDelete = async (services: Service[]) => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认批量删除',
       subtitle: `将删除 ${services.length} 个服务`,
-      content: '此操作不可恢复，请谨慎操作',
-      positiveText: '确定删除',
-      negativeText: '取消',
+      description: '此操作不可恢复，请谨慎操作',
+      confirmText: '确定删除',
+      cancelText: '取消',
       width: 500
     })
 

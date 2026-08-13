@@ -4,8 +4,9 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
-import { useGDialog } from '@/components/gdialog'
+import { rsConfirm } from '@/ui'
 import { flattenExtProperty, unflattenExtProperty } from '@/utils/format'
+import { consumeTextFileField, filesFromTextContent } from '@/utils/uploadFile'
 import { PlayCircleOutline, RefreshOutline, StopCircleOutline } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
@@ -18,9 +19,7 @@ import { useServiceCenterInstanceService } from './useServiceCenterInstanceServi
  */
 export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any) {
   const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 业务服务（包含 model、增删改查等）
+// 业务服务（包含 model、增删改查等）
   const service = useServiceCenterInstanceService(searchFormRef)
 
   // 表单对话框状态（新增/编辑/查看共用）
@@ -54,32 +53,15 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
         return
       }
 
-      // 将证书和私钥内容转换为文件列表格式（用于回显）
       const formData: any = { ...detailInstance }
-      
-      // 如果有证书内容，转换为文件列表格式
-      if (detailInstance.certContent) {
-        formData.certFileList = [{
-          id: 'cert-file',
-          name: detailInstance.certFilePath || 'certificate.pem',
-          content: detailInstance.certContent,
-          status: 'finished',
-        }]
-      } else {
-        formData.certFileList = []
-      }
-
-      // 如果有私钥内容，转换为文件列表格式
-      if (detailInstance.keyContent) {
-        formData.keyFileList = [{
-          id: 'key-file',
-          name: detailInstance.keyFilePath || 'private-key.pem',
-          content: detailInstance.keyContent,
-          status: 'finished',
-        }]
-      } else {
-        formData.keyFileList = []
-      }
+      formData.certFileList = filesFromTextContent(
+        detailInstance.certFilePath || 'certificate.pem',
+        detailInstance.certContent || '',
+      )
+      formData.keyFileList = filesFromTextContent(
+        detailInstance.keyFilePath || 'private-key.pem',
+        detailInstance.keyContent || '',
+      )
 
       // 处理 IP 白名单和黑名单（JSON 字符串转数组）
       if (formData.ipWhitelist && typeof formData.ipWhitelist === 'string') {
@@ -133,32 +115,15 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
         return
       }
 
-      // 将证书和私钥内容转换为文件列表格式（用于回显）
       const formData: any = { ...detailInstance }
-      
-      // 如果有证书内容，转换为文件列表格式
-      if (detailInstance.certContent) {
-        formData.certFileList = [{
-          id: 'cert-file',
-          name: detailInstance.certFilePath || 'certificate.pem',
-          content: detailInstance.certContent,
-          status: 'finished',
-        }]
-      } else {
-        formData.certFileList = []
-      }
-
-      // 如果有私钥内容，转换为文件列表格式
-      if (detailInstance.keyContent) {
-        formData.keyFileList = [{
-          id: 'key-file',
-          name: detailInstance.keyFilePath || 'private-key.pem',
-          content: detailInstance.keyContent,
-          status: 'finished',
-        }]
-      } else {
-        formData.keyFileList = []
-      }
+      formData.certFileList = filesFromTextContent(
+        detailInstance.certFilePath || 'certificate.pem',
+        detailInstance.certContent || '',
+      )
+      formData.keyFileList = filesFromTextContent(
+        detailInstance.keyFilePath || 'private-key.pem',
+        detailInstance.keyContent || '',
+      )
 
       // 处理 IP 白名单和黑名单（JSON 字符串转数组）
       if (formData.ipWhitelist && typeof formData.ipWhitelist === 'string') {
@@ -207,50 +172,15 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
 
     submitting.value = true
     try {
-      // 处理文件内容：将文件列表中的 content 和 name 提取到对应的字段
       const processedData = { ...formData }
-      
-      // 处理证书文件：从 certFileList 中提取 content 和 name
-      if (processedData.certFileList && Array.isArray(processedData.certFileList) && processedData.certFileList.length > 0) {
-        const certFile = processedData.certFileList[0]
-        if (certFile) {
-          if (certFile.content) {
-            processedData.certContent = certFile.content
-          }
-          // 提取文件名到 certFilePath（如果用户上传了新文件，使用新文件名）
-          if (certFile.name) {
-            processedData.certFilePath = certFile.name
-          }
-        }
-      } else if (formDialogMode.value === 'edit' && currentEditInstance.value) {
-        // 编辑模式下，如果用户没有上传新文件，保留原有的文件名
-        if (currentEditInstance.value.certFilePath && !processedData.certFilePath) {
-          processedData.certFilePath = currentEditInstance.value.certFilePath
-        }
-      }
-      // 删除 certFileList，不提交给后端
-      delete processedData.certFileList
+      const editFallback = formDialogMode.value === 'edit' ? currentEditInstance.value : null
 
-      // 处理私钥文件：从 keyFileList 中提取 content 和 name
-      if (processedData.keyFileList && Array.isArray(processedData.keyFileList) && processedData.keyFileList.length > 0) {
-        const keyFile = processedData.keyFileList[0]
-        if (keyFile) {
-          if (keyFile.content) {
-            processedData.keyContent = keyFile.content
-          }
-          // 提取文件名到 keyFilePath（如果用户上传了新文件，使用新文件名）
-          if (keyFile.name) {
-            processedData.keyFilePath = keyFile.name
-          }
-        }
-      } else if (formDialogMode.value === 'edit' && currentEditInstance.value) {
-        // 编辑模式下，如果用户没有上传新文件，保留原有的文件名
-        if (currentEditInstance.value.keyFilePath && !processedData.keyFilePath) {
-          processedData.keyFilePath = currentEditInstance.value.keyFilePath
-        }
-      }
-      // 删除 keyFileList，不提交给后端
-      delete processedData.keyFileList
+      await consumeTextFileField(processedData, 'certFileList', 'certContent', 'certFilePath', {
+        fallbackPath: editFallback?.certFilePath,
+      })
+      await consumeTextFileField(processedData, 'keyFileList', 'keyContent', 'keyFilePath', {
+        fallbackPath: editFallback?.keyFilePath,
+      })
 
       // 处理 IP 白名单和黑名单（数组转 JSON 字符串）
       if (Array.isArray(processedData.ipWhitelist)) {
@@ -285,6 +215,9 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
           closeFormDialog()
         }
       }
+    } catch (error) {
+      console.error('提交实例失败:', error)
+      message.error('读取证书/私钥文件失败')
     } finally {
       submitting.value = false
     }
@@ -345,14 +278,13 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
    * 处理启动实例
    */
   const handleStartInstance = async (instance: ServiceCenterInstance) => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认启动',
       subtitle: '启动后将开始处理请求',
-      content: `确定要启动实例"${instance.instanceName}" (${instance.environment}) 吗？`,
+      description: `确定要启动实例"${instance.instanceName}" (${instance.environment}) 吗？`,
       icon: PlayCircleOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定启动',
-      negativeText: '取消',
+      confirmText: '确定启动',
+      cancelText: '取消',
       width: 500
     })
     
@@ -365,14 +297,13 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
    * 处理停止实例
    */
   const handleStopInstance = async (instance: ServiceCenterInstance) => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认停止',
       subtitle: '停止后将无法处理请求',
-      content: `确定要停止实例"${instance.instanceName}" (${instance.environment}) 吗？`,
+      description: `确定要停止实例"${instance.instanceName}" (${instance.environment}) 吗？`,
       icon: StopCircleOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定停止',
-      negativeText: '取消',
+      confirmText: '确定停止',
+      cancelText: '取消',
       width: 500
     })
     
@@ -385,14 +316,13 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
    * 处理配置重载
    */
   const handleReloadInstance = async (instance: ServiceCenterInstance) => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认重载配置',
       subtitle: '重载将重新加载配置',
-      content: `确定要对实例"${instance.instanceName}" (${instance.environment}) 执行配置重载操作吗？`,
+      description: `确定要对实例"${instance.instanceName}" (${instance.environment}) 执行配置重载操作吗？`,
       icon: RefreshOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定重载',
-      negativeText: '取消',
+      confirmText: '确定重载',
+      cancelText: '取消',
       width: 500
     })
     

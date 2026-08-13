@@ -10,10 +10,6 @@
   --g-primary-hover: #6d28d9;
   --g-primary-active: #5b21b6;
   --g-primary-light: #ede9fe;
-  --n-color-primary:var(--g-primary);
-  --n-color-primary-hover:var(--g-primary-hover);
-  --n-color-primary-active:var(--g-primary-active);
-  --n-color-primary-light:var(--g-primary-light);
   
   /* ==================== 语义色 ==================== */
   --g-success: #10b981;
@@ -26,6 +22,8 @@
   --g-text-secondary: #4b5563;
   --g-text-tertiary: #6b7280;
   --g-text-disabled: #9ca3af;
+  /* 表单占位符：明显浅于三级文字，对齐改造前 vxe placeholder */
+  --g-input-placeholder: #c0c4cc;
   
   /* ==================== 背景色 ==================== */
   --g-bg-primary: #ffffff;

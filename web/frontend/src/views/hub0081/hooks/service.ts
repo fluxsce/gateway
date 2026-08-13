@@ -2,7 +2,7 @@
  * 预警模板管理服务层 Hook
  */
 
-import { createBackendPaginationParams } from '@/components/gpage'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
 import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'

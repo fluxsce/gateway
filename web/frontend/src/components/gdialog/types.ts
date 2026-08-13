@@ -2,7 +2,7 @@ import type { Component, StyleValue } from 'vue'
 
 /**
  * GDialog 组件 Props
- * 封装 Naive UI NModal + NCard，提供统一的对话框样式和布局
+ * @deprecated 请直接使用 RsDialog（@/ui）。本类型仅作过渡，后续将删除。
  */
 export interface GDialogProps {
   /** 是否显示对话框（v-model:show） */
@@ -86,6 +86,7 @@ export interface GDialogProps {
 
 /**
  * GDialog 组件事件
+ * @deprecated
  */
 export interface GDialogEmits {
   /** v-model:show 更新 */

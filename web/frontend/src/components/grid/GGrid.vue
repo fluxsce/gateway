@@ -59,24 +59,31 @@
       </vxe-grid>
     </div>
 
-    <!-- 分页 -->
-    <g-pagination
+    <!-- 分页（RsPagination，替代已弃用的 GPagination） -->
+    <div
       v-if="showPagination"
       class="g-grid__pagination"
-      :current-page="paginationCurrentPage"
-      :page-size="paginationPageSize"
-      :total="paginationTotal"
-      :page-sizes="paginationConfig?.pageSizes"
-      :align="paginationConfig?.align"
-      :page-info="paginationConfig?.pageInfo"
-      @page-change="handlePaginationChange"
-    />
+      :class="`g-grid__pagination--${paginationConfig?.align || 'right'}`"
+    >
+      <RsPagination
+        :page="paginationCurrentPage"
+        :page-size="paginationPageSize"
+        :total="paginationTotal"
+        :page-size-options="paginationPageSizes"
+        show-page-size
+        show-quick-jumper
+        show-summary
+        size="sm"
+        @update:page="handlePageUpdate"
+        @update:page-size="handlePageSizeUpdate"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import GPagination from '@/components/gpage/GPagination.vue'
 import GToolbar from '@/components/toolbar/GToolbar.vue'
+import { RsPagination } from '@/ui'
 import { computed, ref, toValue } from 'vue'
 import type { VxeGridInstance } from 'vxe-table'
 import { VxeGrid } from 'vxe-table'
@@ -152,29 +159,36 @@ const {
 
 // ============= 分页逻辑 =============
 
-// 是否显示分页
-const showPagination = computed(() => {
-  return props.paginationConfig?.show === true
-})
+const showPagination = computed(() => props.paginationConfig?.show === true)
 
-// 分页当前页（只读，从 props.paginationConfig 中派生）
 const paginationCurrentPage = computed(() => {
+  const pageInfo = toValue(props.paginationConfig?.pageInfo)
+  if (pageInfo) return pageInfo.pageIndex || 1
   return props.paginationConfig?.currentPage || 1
 })
 
-// 分页每页大小（只读，从 props.paginationConfig 中派生）
 const paginationPageSize = computed(() => {
+  const pageInfo = toValue(props.paginationConfig?.pageInfo)
+  if (pageInfo) return pageInfo.pageSize || 20
   return props.paginationConfig?.pageSize || 20
 })
 
-// 分页总数
 const paginationTotal = computed(() => {
+  const pageInfo = toValue(props.paginationConfig?.pageInfo)
+  if (pageInfo) return pageInfo.totalCount || 0
   return props.paginationConfig?.total || 0
 })
 
-// 处理分页变化
-const handlePaginationChange = ({ currentPage, pageSize }: { currentPage: number; pageSize: number }) => {
-  emit('page-change', { currentPage, pageSize })
+const paginationPageSizes = computed(
+  () => props.paginationConfig?.pageSizes || [10, 20, 50, 100, 200]
+)
+
+const handlePageUpdate = (page: number) => {
+  emit('page-change', { currentPage: page, pageSize: paginationPageSize.value })
+}
+
+const handlePageSizeUpdate = (pageSize: number) => {
+  emit('page-change', { currentPage: 1, pageSize })
 }
 
 // 暴露方法
@@ -205,6 +219,27 @@ defineExpose<GridExpose>(gridMethods)
 
 .g-grid__pagination {
   flex: 0 0 auto;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  /* 与侧栏底部折叠条同壳：高度含 border-top（--g-footer-height） */
+  height: var(--g-footer-height);
+  min-height: var(--g-footer-height);
+  padding: 0 var(--rs-space-sm, 8px);
+  border-top: 1px solid var(--rs-border);
+
+  &--left {
+    justify-content: flex-start;
+  }
+
+  &--center {
+    justify-content: center;
+  }
+
+  &--right {
+    justify-content: flex-end;
+  }
 }
 </style>
 

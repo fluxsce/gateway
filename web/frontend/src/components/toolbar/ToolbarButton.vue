@@ -1,63 +1,58 @@
 <template>
   <div class="toolbar-button-wrapper">
     <slot name="prefix" />
-    
-    <!-- 自定义渲染 -->
-    <component v-if="button.render" :is="button.render()" />
 
-    <!-- 下拉菜单按钮 -->
-    <n-dropdown
+    <component
+      v-if="button.render"
+      :is="button.render()"
+    />
+
+    <RsDropdown
       v-else-if="button.dropdown && button.dropdownOptions"
-      :options="dropdownMenuOptions"
+      :items="dropdownItems"
+      :show-selected="false"
+      placeholder=" "
       @select="handleDropdownSelect"
-      trigger="click"
     >
-      <n-button
-        :type="button.type || 'default'"
-        :size="button.size || 'small'"
-        :disabled="isButtonDisabled"
-        :loading="button.loading"
-        quaternary
-      >
-        <template v-if="button.icon" #icon>
-          <GIcon :icon="button.icon" size="small" />
-        </template>
-        {{ button.label }}
-      </n-button>
-    </n-dropdown>
-
-    <!-- 普通按钮 -->
-    <n-tooltip v-else :disabled="!button.tooltip" trigger="hover">
       <template #trigger>
-        <n-button
-          :type="button.type || 'default'"
-          :size="button.size || 'small'"
+        <ToolbarBtnFace
+          :label="button.label"
+          :icon="button.icon"
+          :button-type="button.type"
           :disabled="isButtonDisabled"
           :loading="button.loading"
-          quaternary
-          @click="handleClick"
-        >
-          <template v-if="button.icon" #icon>
-            <GIcon :icon="button.icon" size="small" />
-          </template>
-          {{ button.label }}
-        </n-button>
+        />
       </template>
-      {{ button.tooltip }}
-    </n-tooltip>
+    </RsDropdown>
+
+    <RsTooltip
+      v-else
+      :content="button.tooltip"
+      :disabled="!button.tooltip"
+      side="top"
+    >
+      <ToolbarBtnFace
+        :label="button.label"
+        :icon="button.icon"
+        :button-type="button.type"
+        :disabled="isButtonDisabled"
+        :loading="button.loading"
+        @click="handleClick"
+      />
+    </RsTooltip>
 
     <slot name="suffix" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { GIcon } from '@/components/gicon'
 import { store } from '@/stores'
-import { renderIconVNode } from '@/utils'
-import type { DropdownOption } from 'naive-ui'
-import { NButton, NDropdown, NTooltip } from 'naive-ui'
+import { RsDropdown, RsTooltip, type RsDropdownItems } from '@/ui'
 import { computed } from 'vue'
+import ToolbarBtnFace from './ToolbarBtnFace.vue'
 import type { ToolbarButton } from './types'
+
+defineOptions({ name: 'ToolbarButton' })
 
 interface Props {
   button: ToolbarButton
@@ -70,93 +65,50 @@ interface Emits {
 }
 
 defineSlots<{
-  prefix?: () => any
-  suffix?: () => any
+  prefix?: () => unknown
+  suffix?: () => unknown
 }>()
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-// 获取按钮权限编码：使用 moduleId:key 作为权限编码
 const getButtonPermissionCode = computed(() => {
-  if (props.moduleId) {
-    return `${props.moduleId}:${props.button.key}`
-  }
-  // 如果没有 moduleId，返回空（表示不需要权限检查）
-  return ''
+  if (!props.moduleId) return props.button.key
+  return `${props.moduleId}:${props.button.key}`
 })
 
-// 检查按钮权限
-const hasButtonPermission = computed(() => {
-  // 如果 key 是 "more"（更多条件），不检查权限
-  if (props.button.key === 'more') {
-    return true
-  }
-  const permissionCode = getButtonPermissionCode.value
-  // 如果没有权限编码（没有 moduleId），默认允许
-  if (!permissionCode) {
-    return true
-  }
-  return store.user.hasButton(permissionCode)
-})
-
-// 按钮是否禁用（包含权限检查）
 const isButtonDisabled = computed(() => {
-  return props.button.disabled || !hasButtonPermission.value
+  if (props.button.disabled) return true
+  // 与旧 ToolbarButton 对齐：仅 more（更多条件）不走权限
+  if (props.button.key === 'more') return false
+  if (!props.moduleId) return false
+  const code = getButtonPermissionCode.value
+  if (!code) return false
+  return !store.user.hasPermission(code)
 })
 
-// 转换下拉菜单选项格式
-const dropdownMenuOptions = computed<DropdownOption[]>(() => {
-  if (!props.button.dropdownOptions) return []
-  
-  return props.button.dropdownOptions.map(option => {
-    // 检查选项权限：使用 moduleId:option.key 作为权限编码
-    let optionDisabled = option.disabled
-    if (props.moduleId) {
-      const optionPermissionCode = `${props.moduleId}:${option.key}`
-      if (!store.user.hasButton(optionPermissionCode)) {
-        optionDisabled = true
-      }
-    }
-    
-    const menuOption: DropdownOption = {
-      key: option.key,
-      label: option.label,
-      disabled: optionDisabled
-    }
-    
-    // 添加图标（使用 renderIconVNode）
-    if (option.icon) {
-      menuOption.icon = renderIconVNode(option.icon)
-    }
-    
-    // 添加分割线
-    if (option.divider) {
-      menuOption.type = 'divider'
-    }
-    
-    return menuOption
-  })
-})
+const dropdownItems = computed<RsDropdownItems>(() =>
+  (props.button.dropdownOptions || []).map((opt) => ({
+    label: String(opt.label ?? opt.key ?? ''),
+    value: String(opt.key ?? ''),
+    disabled: Boolean(opt.disabled),
+  })),
+)
 
-// 处理按钮点击
-const handleClick = () => {
-  if (!isButtonDisabled.value && !props.button.loading) {
-    emit('click', props.button.key)
-  }
+function handleClick() {
+  if (isButtonDisabled.value || props.button.loading) return
+  // onClick 由 GToolbar 统一执行，避免重复触发
+  emit('click', props.button.key)
 }
 
-// 处理下拉菜单选择
-const handleDropdownSelect = (key: string) => {
-  emit('dropdown-select', props.button.key, key)
+function handleDropdownSelect(optionKey: string) {
+  emit('dropdown-select', props.button.key, optionKey)
 }
 </script>
 
-<style lang="scss" scoped>
+<style scoped lang="scss">
 .toolbar-button-wrapper {
   display: inline-flex;
   align-items: center;
-  gap: var(--g-space-xs);
 }
 </style>
-

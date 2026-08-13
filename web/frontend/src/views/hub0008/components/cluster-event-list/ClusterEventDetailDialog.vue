@@ -1,105 +1,84 @@
 <template>
-  <GDialog
-    v-model:show="localShow"
-    :width="1200"
-    title="事件详情"
+  <RsDialog
+    :open="localShow"
+    :title="t('event.dialog.title')"
+    layout="window"
+    width="lg"
+    :show-overlay="true"
+    :close-on-overlay-click="true"
+    :close-on-esc="true"
     :show-footer="true"
     :show-cancel="false"
-    confirm-text="关闭"
-    :mask-closable="true"
-    :close-on-esc="true"
-    @close="handleClose"
-    @cancel="handleClose"
-    @confirm="handleClose"
+    :confirm-text="t('common.close')"
+    :auto-close-on-confirm="true"
+    @update:open="handleUpdateOpen"
   >
-    <div class="cluster-event-detail">
-      <!-- 基本信息 -->
-      <n-descriptions
-        :column="2"
-        bordered
-        label-placement="left"
-        label-style="width: 120px; font-weight: 500;"
-        class="cluster-event-detail__info"
-      >
-        <n-descriptions-item label="事件ID">
-          {{ event?.eventId || '-' }}
-        </n-descriptions-item>
-        <n-descriptions-item label="事件类型">
-          <n-tag type="primary" size="small">
-            {{ event?.eventType || '-' }}
-          </n-tag>
-        </n-descriptions-item>
-        <n-descriptions-item label="事件动作">
-          <n-tag
-            :type="
-              event?.eventAction === 'START'
-                ? 'success'
-                : event?.eventAction === 'STOP'
-                  ? 'error'
-                  : event?.eventAction === 'RELOAD'
-                    ? 'warning'
-                    : event?.eventAction === 'RESTART'
-                      ? 'info'
-                      : event?.eventAction === 'CREATE'
-                        ? 'success'
-                        : event?.eventAction === 'UPDATE'
-                          ? 'info'
-                          : event?.eventAction === 'DELETE'
-                            ? 'error'
-                            : event?.eventAction === 'REFRESH' || event?.eventAction === 'INVALIDATE'
-                              ? 'warning'
-                              : 'default'
-            "
-            size="small"
-          >
-            {{ event?.eventAction || '-' }}
-          </n-tag>
-        </n-descriptions-item>
-        <n-descriptions-item label="发布节点ID">
-          {{ event?.sourceNodeId || '-' }}
-        </n-descriptions-item>
-        <n-descriptions-item label="发布节点IP">
-          {{ event?.sourceNodeIp || '-' }}
-        </n-descriptions-item>
-        <n-descriptions-item label="事件时间">
-          {{ formatDateString(event?.eventTime) || '-' }}
-        </n-descriptions-item>
-        <n-descriptions-item label="过期时间">
-          {{ formatDateString(event?.expireTime) || '-' }}
-        </n-descriptions-item>
-        <n-descriptions-item label="活动状态">
-          <n-tag :type="event?.activeFlag === 'Y' ? 'success' : 'error'" size="small">
-            {{ event?.activeFlag === 'Y' ? '活动' : '非活动' }}
-          </n-tag>
-        </n-descriptions-item>
-      </n-descriptions>
+    <template #body>
+      <div class="cluster-event-detail">
+        <RsDescriptions
+          :columns="2"
+          bordered
+          label-placement="left"
+          size="sm"
+          class="cluster-event-detail__info"
+        >
+          <RsDescriptionsItem :label="t('event.columns.eventId')">
+            {{ event?.eventId || '-' }}
+          </RsDescriptionsItem>
+          <RsDescriptionsItem :label="t('event.columns.eventType')">
+            <RsTag variant="primary" size="sm">
+              {{ event?.eventType || '-' }}
+            </RsTag>
+          </RsDescriptionsItem>
+          <RsDescriptionsItem :label="t('event.columns.eventAction')">
+            <RsTag :variant="getEventActionVariant(event?.eventAction)" size="sm">
+              {{ event?.eventAction || '-' }}
+            </RsTag>
+          </RsDescriptionsItem>
+          <RsDescriptionsItem :label="t('event.search.sourceNodeId')">
+            {{ event?.sourceNodeId || '-' }}
+          </RsDescriptionsItem>
+          <RsDescriptionsItem :label="t('event.columns.sourceNodeIp')">
+            {{ event?.sourceNodeIp || '-' }}
+          </RsDescriptionsItem>
+          <RsDescriptionsItem :label="t('event.columns.eventTime')">
+            {{ formatDateString(event?.eventTime) || '-' }}
+          </RsDescriptionsItem>
+          <RsDescriptionsItem :label="t('event.columns.expireTime')">
+            {{ formatDateString(event?.expireTime) || '-' }}
+          </RsDescriptionsItem>
+          <RsDescriptionsItem :label="t('event.columns.activeFlag')">
+            <RsTag :variant="event?.activeFlag === 'Y' ? 'success' : 'danger'" size="sm">
+              {{ event?.activeFlag === 'Y' ? t('common.active') : t('common.inactive') }}
+            </RsTag>
+          </RsDescriptionsItem>
+        </RsDescriptions>
 
-      <!-- 事件负载 -->
-      <div class="cluster-event-detail__payload">
-        <div class="cluster-event-detail__payload-title">事件负载（JSON）</div>
-        <GTextShow
-          :content="event?.eventPayload || ''"
-          format="json"
-          :show-line-numbers="true"
-          :show-copy-button="true"
-          :auto-format="true"
-          :max-height="500"
-        />
+        <div class="cluster-event-detail__payload">
+          <div class="cluster-event-detail__payload-title">{{ t('event.dialog.payloadTitle') }}</div>
+          <RsCodeBlock :code="payloadCode" lang="json" />
+        </div>
       </div>
-    </div>
-  </GDialog>
+    </template>
+  </RsDialog>
 </template>
 
 <script setup lang="ts">
-import { GDialog } from '@/components/gdialog'
-import { GTextShow } from '@/components/gtext-show'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
+import {
+  RsCodeBlock,
+  RsDescriptions,
+  RsDescriptionsItem,
+  RsDialog,
+  RsTag,
+  type RsTagVariant,
+} from '@/ui'
 import { formatDate } from '@/utils/format'
-import { NDescriptions, NDescriptionsItem, NTag } from 'naive-ui'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { ClusterEvent } from '../../types'
 
 defineOptions({
-  name: 'ClusterEventDetailDialog'
+  name: 'ClusterEventDetailDialog',
 })
 
 interface Props {
@@ -109,7 +88,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   show: false,
-  event: null
+  event: null,
 })
 
 const emit = defineEmits<{
@@ -117,37 +96,61 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
+const { t } = useModuleI18n('hub0008')
 const localShow = ref(props.show)
 
-// 监听外部 show 变化
+/** 格式化后的事件载荷（尽量 pretty-print JSON） */
+const payloadCode = computed(() => {
+  const raw = props.event?.eventPayload || ''
+  if (!raw.trim()) return ''
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2)
+  } catch {
+    return raw
+  }
+})
+
 watch(
   () => props.show,
   (newVal) => {
     localShow.value = newVal
-  }
+  },
 )
 
-// 监听内部 localShow 变化，同步到外部
-watch(localShow, (newVal) => {
-  if (newVal !== props.show) {
-    emit('update:show', newVal)
+function handleUpdateOpen(value: boolean) {
+  localShow.value = value
+  if (value !== props.show) {
+    emit('update:show', value)
   }
-})
+  if (!value) {
+    emit('close')
+  }
+}
 
-/**
- * 格式化日期
- */
+/** 事件动作 → RsTag variant */
+function getEventActionVariant(action?: string | null): RsTagVariant {
+  switch (action) {
+    case 'START':
+    case 'CREATE':
+      return 'success'
+    case 'STOP':
+    case 'DELETE':
+      return 'danger'
+    case 'RELOAD':
+    case 'REFRESH':
+    case 'INVALIDATE':
+      return 'warning'
+    case 'RESTART':
+    case 'UPDATE':
+      return 'info'
+    default:
+      return 'default'
+  }
+}
+
 const formatDateString = (dateStr?: string | null): string => {
   if (!dateStr) return '-'
   return formatDate(dateStr, 'YYYY-MM-DD HH:mm:ss')
-}
-
-/**
- * 处理关闭
- */
-const handleClose = () => {
-  localShow.value = false
-  emit('close')
 }
 </script>
 
@@ -174,4 +177,3 @@ const handleClose = () => {
   }
 }
 </style>
-

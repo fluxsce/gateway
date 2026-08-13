@@ -1,6 +1,7 @@
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
 import type { Ref } from 'vue'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { Role } from '../types'
 import { useRoleService } from './useRoleService'
 
@@ -10,106 +11,84 @@ import { useRoleService } from './useRoleService'
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 export function useRolePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
+  const message = useAppMessage()
+  const { t } = useModuleI18n('hub0005')
 
-  // 业务服务（包含 model、增删改查等）
   const service = useRoleService(searchFormRef)
 
-  // 表单对话框状态（新增/编辑/查看共用）
   const formDialogVisible = ref(false)
   const formDialogMode = ref<'create' | 'edit' | 'view'>('create')
   const currentEditRole = ref<Role | null>(null)
 
-  // 角色授权抽屉状态
   const roleAuthDrawerVisible = ref(false)
   const roleAuthRoleId = ref<string>('')
   const roleAuthRoleName = ref<string>('')
 
-  /** 打开新增角色对话框 */
+  const formDialogTitle = computed(() => {
+    if (formDialogMode.value === 'create') return t('role.dialog.createTitle')
+    if (formDialogMode.value === 'edit') return t('role.dialog.editTitle')
+    return t('role.dialog.viewTitle')
+  })
+
   const openAddDialog = () => {
     formDialogMode.value = 'create'
     currentEditRole.value = null
     formDialogVisible.value = true
   }
 
-  /** 打开编辑角色对话框 */
   const openEditDialog = (role: Role) => {
     formDialogMode.value = 'edit'
     currentEditRole.value = role
     formDialogVisible.value = true
   }
 
-  /** 关闭表单对话框 */
   const closeFormDialog = () => {
     formDialogVisible.value = false
     currentEditRole.value = null
   }
-  
-  /** 打开查看详情对话框 */
+
   const openViewDialog = (role: Role) => {
     formDialogMode.value = 'view'
     currentEditRole.value = role
     formDialogVisible.value = true
   }
 
-  /**
-   * 处理搜索（接收 SearchForm 传递的表单数据）
-   */
   const handleSearch = async (formData?: Record<string, any>) => {
     await service.handleSearch(formData)
   }
 
-  /** 提交表单（新增/编辑共用，由 GdataFormModal 收集表单数据后回调） */
   const handleFormSubmit = async (formData?: Record<string, any>) => {
     if (!formData) return
+    if (formDialogMode.value === 'view') return
 
-    // 查看模式下不执行提交
-    if (formDialogMode.value === 'view') {
+    if (formDialogMode.value === 'create') {
+      const success = await service.addRole(formData as Role)
+      if (success) closeFormDialog()
       return
     }
 
-    if (formDialogMode.value === 'create') {
-      // 新增模式
-      const success = await service.addRole(formData as Role)
-      if (success) {
-        closeFormDialog()
-      }
-    } else if (formDialogMode.value === 'edit') {
-      // 编辑模式
+    if (formDialogMode.value === 'edit') {
       if (!currentEditRole.value) return
-      // 合并当前角色ID和租户ID，确保更新的是正确的记录
       const updatedRole = {
         ...currentEditRole.value,
-        ...formData
+        ...formData,
       } as Role
       const success = await service.editRole(updatedRole)
-      if (success) {
-        closeFormDialog()
-      }
+      if (success) closeFormDialog()
     }
   }
 
-  /**
-   * 工具栏按钮点击处理
-   * @param key 按钮 key
-   * @param formData 表单数据（可选，search 操作时会传递）
-   */
   const handleToolbarClick = async (key: string, formData?: Record<string, any>) => {
     switch (key) {
       case 'add':
-        // 直接打开新增对话框
         openAddDialog()
         break
 
       case 'edit': {
-        // 编辑：优先勾选行，无勾选时回退到当前高亮行
-        if (!gridRef?.value) {
-          message.warning('Grid 引用未设置')
-          return
-        }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!gridRef?.value) return
+        const selectedRow = gridRef.value.getActiveRow()
         if (!selectedRow) {
-          message.warning('请先选择或点击要编辑的角色')
+          message.warning(t('role.message.selectToEdit'))
           return
         }
         openEditDialog(selectedRow as Role)
@@ -117,66 +96,47 @@ export function useRolePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> |
       }
 
       case 'delete': {
-        // 删除：优先勾选行，无勾选时回退到当前高亮行
-        if (!gridRef?.value) {
-          message.warning('Grid 引用未设置')
-          return
-        }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!gridRef?.value) return
+        const selectedRow = gridRef.value.getActiveRow()
         if (!selectedRow) {
-          message.warning('请先选择或点击要删除的角色')
+          message.warning(t('role.message.selectToDelete'))
           return
         }
         await service.deleteRole(selectedRow as Role)
         break
       }
 
-      case 'search': {
-        // 如果传递了表单数据，直接使用它进行查询
-        // formData 参数在 SearchForm 的 handleToolbarClick 中传递
+      case 'search':
         await service.handleSearch(formData)
         break
-      }
     }
   }
 
-  /**
-   * 打开角色授权抽屉
-   */
   const openRoleAuthDrawer = (role: Role) => {
     roleAuthRoleId.value = role.roleId
     roleAuthRoleName.value = role.roleName
     roleAuthDrawerVisible.value = true
   }
 
-  /**
-   * 关闭角色授权抽屉
-   */
   const closeRoleAuthDrawer = () => {
     roleAuthDrawerVisible.value = false
     roleAuthRoleId.value = ''
     roleAuthRoleName.value = ''
   }
 
-  /**
-   * 右键菜单点击处理
-   */
-  const handleMenuClick = async ({ code, row }: { code: string; row?: Role }) => {
+  const handleMenuClick = async ({ key, row }: { key: string; row?: Role }) => {
     if (!row) return
 
-    switch (code) {
+    switch (key) {
       case 'view':
         openViewDialog(row)
         break
-
       case 'edit':
         openEditDialog(row)
         break
-
       case 'delete':
         await service.deleteRole(row)
         break
-
       case 'roleAuth':
         openRoleAuthDrawer(row)
         break
@@ -184,31 +144,24 @@ export function useRolePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> |
   }
 
   return {
-    // 业务服务（包含 model 与增删改查）
     service,
-
-    // 表单对话框（新增/编辑/查看共用）
     formDialogVisible,
     formDialogMode,
+    formDialogTitle,
     currentEditRole,
     openAddDialog,
     openEditDialog,
     openViewDialog,
     handleFormSubmit,
-
-    // 角色授权抽屉
     roleAuthDrawerVisible,
     roleAuthRoleId,
     roleAuthRoleName,
     openRoleAuthDrawer,
     closeRoleAuthDrawer,
-
-    // 事件处理器
     handleToolbarClick,
     handleMenuClick,
-    handleSearch
+    handleSearch,
   }
 }
 
 export type RolePage = ReturnType<typeof useRolePage>
-

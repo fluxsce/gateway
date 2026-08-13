@@ -1,18 +1,14 @@
 <template>
-    <GCard :title="displayTitle" :show-title="true">
-        <template #header-extra>
+    <RsCard :title="displayTitle" variant="outlined" :padding="false" class="monitor-card">
+        <template #actions>
             <div class="card-extra">
-                <n-date-picker v-model:value="dateTimeRange" type="datetimerange" :shortcuts="timeRangeShortcuts"
-                    placeholder="选择时间范围" @update:value="handleTimeRangeChange"
-                    size="small" />
-                <n-button size="small" @click="refreshData" :loading="loading">
+                <MetricsDateTimeRange v-model="dateTimeRange" @change="handleTimeRangeChange" />
+                <RsButton size="sm" :loading="loading" @click="refreshData">
                     <template #icon>
-                        <n-icon>
-                            <ReloadOutlined />
-                        </n-icon>
+                        <GIcon icon="ReloadOutline" />
                     </template>
-                    刷新
-                </n-button>
+                    {{ t('common.refresh') }}
+                </RsButton>
             </div>
         </template>
 
@@ -20,20 +16,20 @@
             <div ref="chartRef" class="chart-element"></div>
 
             <div v-if="loading" class="chart-loading">
-                <n-spin size="large" />
+                <RsLoading size="lg" />
             </div>
 
             <div v-if="!loading && !chartData.length" class="chart-empty">
-                <n-empty description="暂无数据" />
+                <RsEmpty :description="t('common.noData')" />
             </div>
         </div>
-    </GCard>
+    </RsCard>
 </template>
 
 <script setup lang="ts">
-import { GCard } from '@/components/gcard'
+import { GIcon } from '@/components/gicon'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { formatDate } from '@/utils/format'
-import { ReloadOutlined } from '@vicons/antd'
 import { LineChart } from 'echarts/charts'
 import {
     GridComponent,
@@ -44,9 +40,18 @@ import {
 } from 'echarts/components'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { NButton, NDatePicker, NEmpty, NIcon, NSpin } from 'naive-ui'
+import { RsButton, RsCard, RsEmpty, RsLoading } from '@/ui'
+import { createAxisTooltipOptions } from '@/views/hub0000/components/metrics/echartsTooltip'
+import MetricsDateTimeRange from '@/views/hub0000/components/metrics/MetricsDateTimeRange.vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { DiskPartition } from '../../types'
+
+const { t } = useModuleI18n('hub0007')
+
+function formatFixed(value: unknown, digits = 2): string {
+    const n = Number(value)
+    return Number.isFinite(n) ? n.toFixed(digits) : '-'
+}
 
 // 注册必要的 ECharts 组件
 echarts.use([
@@ -64,7 +69,7 @@ echarts.use([
 const props = defineProps({
     title: {
         type: String,
-        default: '磁盘使用率'
+        default: ''
     },
     data: {
         type: Array as () => DiskPartition[],
@@ -89,7 +94,7 @@ const props = defineProps({
 })
 
 // 计算属性 - 标题
-const displayTitle = computed(() => props.title || '磁盘使用率')
+const displayTitle = computed(() => props.title || t('disk.title'))
 
 // 事件定义
 const emit = defineEmits<{
@@ -105,35 +110,6 @@ let chart: echarts.ECharts | null = null
 const end = Date.now()
 const start = end - 3600 * 1000 // 最近1小时
 const dateTimeRange = ref<[number, number] | null>([start, end])
-
-// 时间范围快捷选项
-const timeRangeShortcuts: Record<string, () => [number, number]> = {
-    '最近1小时': (): [number, number] => {
-        const end = Date.now()
-        const start = end - 3600 * 1000
-        return [start, end]
-    },
-    '最近6小时': (): [number, number] => {
-        const end = Date.now()
-        const start = end - 6 * 3600 * 1000
-        return [start, end]
-    },
-    '最近12小时': (): [number, number] => {
-        const end = Date.now()
-        const start = end - 12 * 3600 * 1000
-        return [start, end]
-    },
-    '最近24小时': (): [number, number] => {
-        const end = Date.now()
-        const start = end - 24 * 3600 * 1000
-        return [start, end]
-    },
-    '最近7天': (): [number, number] => {
-        const end = Date.now()
-        const start = end - 7 * 24 * 3600 * 1000
-        return [start, end]
-    }
-}
 
 // 计算属性 - 图表数据
 const chartData = computed(() => {
@@ -219,30 +195,29 @@ const updateChart = () => {
         title: {
             show: false
         },
-        tooltip: {
-            trigger: 'axis',
-            confine: false,
+        tooltip: createAxisTooltipOptions({
             appendToBody: true,
+            confine: true,
+            extraCssText: 'z-index: 9999;',
             formatter: function (params: any) {
                 const dataPoint = params[0]
                 const detail = dataPoint.data.detail
 
                 let result = ``
-                result += `${dataPoint.marker}磁盘使用率: <b>${dataPoint.data.value}%</b><br/>`
-                result += `<br/>详细信息:<br/>`
-                result += `分区数量: ${detail.partitionCount}<br/>`
-                result += `总空间: ${formatDiskSize(detail.totalSpace)}<br/>`
-                result += `已用空间: ${formatDiskSize(detail.usedSpace)}<br/>`
-                result += `空闲空间: ${formatDiskSize(detail.freeSpace)}<br/>`
+                result += `${dataPoint.marker}${t('disk.usage')}: <b>${dataPoint.data.value}%</b><br/>`
+                result += `${t('disk.partitionCount')}: ${detail.partitionCount}<br/>`
+                result += `${t('disk.totalSpace')}: ${formatDiskSize(detail.totalSpace)}<br/>`
+                result += `${t('disk.usedSpace')}: ${formatDiskSize(detail.usedSpace)}<br/>`
+                result += `${t('disk.freeSpace')}: ${formatDiskSize(detail.freeSpace)}<br/>`
 
                 // 添加分区详情
                 if (detail.partitions.length > 0) {
-                    result += `<br/>分区详情:<br/>`
+                    result += `<br/>`
 
                     // 只显示前3个分区，避免tooltip过长
                     const displayPartitions = detail.partitions.slice(0, 3)
                     displayPartitions.forEach((partition: DiskPartition) => {
-                        result += `${partition.mountPoint}: ${partition.usagePercent.toFixed(1)}% (${formatDiskSize(partition.usedSpace)}/${formatDiskSize(partition.totalSpace)})<br/>`
+                        result += `${partition.mountPoint}: ${formatFixed(partition.usagePercent, 1)}% (${formatDiskSize(partition.usedSpace)}/${formatDiskSize(partition.totalSpace)})<br/>`
                     })
 
                     // 如果有更多分区，显示省略信息
@@ -251,9 +226,10 @@ const updateChart = () => {
                     }
                 }
 
+
                 return result
             }
-        },
+        }),
         grid: {
             left: '3%',
             right: '4%',
@@ -283,7 +259,7 @@ const updateChart = () => {
         },
         series: [
             {
-                name: '磁盘使用率',
+                name: t('disk.usage'),
                 type: 'line',
                 data: data.map(item => ({
                     value: item.value,
@@ -328,7 +304,7 @@ const updateChart = () => {
                         {
                             yAxis: warningThresholdValue.value,
                             label: {
-                                formatter: `警告 ${warningThresholdValue.value}%`,
+                                formatter: `${t('common.warning')} ${warningThresholdValue.value}%`,
                                 position: 'start'
                             }
                         },
@@ -338,7 +314,7 @@ const updateChart = () => {
                                 color: '#ff4d4f'
                             },
                             label: {
-                                formatter: `危险 ${dangerThresholdValue.value}%`,
+                                formatter: `${t('common.danger')} ${dangerThresholdValue.value}%`,
                                 position: 'start'
                             }
                         }

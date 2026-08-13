@@ -1,6 +1,5 @@
+import type { TreeOption } from '@/types/legacy-ui'
 import type { GContextMenuItem, GContextProps } from '@/components/gcontext'
-import type { TreeOption } from 'naive-ui'
-
 /** 右键菜单配置：对象形式（固定选项 + 可选复制）或函数形式（按节点/空白动态返回） */
 export type GTreeMenuConfig =
   | (Partial<GContextProps> & { options?: GContextMenuItem[] | GContextMenuItem[][] })

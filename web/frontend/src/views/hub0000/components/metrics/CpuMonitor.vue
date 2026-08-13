@@ -2,17 +2,13 @@
     <GCard show-title :title="t('hub0000.cpu.title')" :bordered="false" class="monitor-card">
         <template #header-extra>
             <div class="card-extra">
-                <n-date-picker v-model:value="dateTimeRange" type="datetimerange" :shortcuts="timeRangeShortcuts"
-                    :placeholder="t('hub0000.common.selectTimeRange')" @update:value="handleTimeRangeChange"
-                    size="small" />
-                <n-button size="small" @click="refreshData" :loading="loading">
+                <MetricsDateTimeRange v-model="dateTimeRange" @change="handleTimeRangeChange" />
+                <RsButton size="sm" :loading="loading" @click="refreshData">
                     <template #icon>
-                        <n-icon>
-                            <ReloadOutlined />
-                        </n-icon>
+                        <GIcon icon="ReloadOutline" />
                     </template>
                     {{ t('hub0000.common.refresh') }}
-                </n-button>
+                </RsButton>
             </div>
         </template>
 
@@ -20,21 +16,21 @@
             <div ref="chartRef" class="chart-element"></div>
 
             <div v-if="loading" class="chart-loading">
-                <n-spin size="large" />
+                <RsLoading size="lg" />
             </div>
 
             <div v-if="!loading && (!data || !Array.isArray(data) || data.length === 0)" class="chart-empty">
-                <n-empty :description="t('hub0000.common.noData')" />
+                <RsEmpty :description="t('hub0000.common.noData')" />
             </div>
         </div>
     </GCard>
 </template>
 
 <script setup lang="ts">
-import { GCard } from '@/components'
+import { GCard } from '@/components/gcard'
+import { GIcon } from '@/components/gicon'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { formatDate } from '@/utils/format'
-import { ReloadOutlined } from '@vicons/antd'
 import { LineChart } from 'echarts/charts'
 import {
     GridComponent,
@@ -45,7 +41,9 @@ import {
 } from 'echarts/components'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { NButton, NDatePicker, NEmpty, NIcon, NSpin } from 'naive-ui'
+import { RsButton, RsEmpty, RsLoading } from '@/ui'
+import MetricsDateTimeRange from './MetricsDateTimeRange.vue'
+import { createAxisTooltipOptions } from './echartsTooltip'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { CPUMetrics } from '../../types'
 
@@ -102,7 +100,6 @@ const end = Date.now()
 const start = end - 3600 * 1000 // 最近1小时
 const dateTimeRange = ref<[number, number] | null>([start, end])
 
-// 时间范围快捷选项 - 改为计算属性
 const timeRangeShortcuts = computed(() => {
     return {
         [t('hub0000.timeRangeShortcuts.lastHour')]: (): [number, number] => {
@@ -236,14 +233,13 @@ const updateChart = () => {
     ]
 
     const option = {
-        tooltip: {
-            trigger: 'axis',
-                // tooltip 依赖绝对定位；当前页面布局存在容器 `overflow: hidden` 的可能，
-                // 使用 appendToBody 避免被裁剪/层级遮挡
-                appendToBody: true,
-                confine: true,
-                // 提高浮层层级（部分场景下即使 appendToBody 也可能被更高 z-index 的元素压住）
-                extraCssText: 'z-index: 9999;',
+        tooltip: createAxisTooltipOptions({
+            // tooltip 依赖绝对定位；当前页面布局存在容器 overflow:hidden 的可能，
+            // 使用 appendToBody 避免被裁剪/层级遮挡
+            appendToBody: true,
+            confine: true,
+            // 提高浮层层级（部分场景下即使 appendToBody 也可能被更高 z-index 的元素压住）
+            extraCssText: 'z-index: 9999;',
             formatter: (params: any) => {
                 const detail = params[0].data.detail
 
@@ -278,7 +274,7 @@ const updateChart = () => {
                     backgroundColor: '#6a7985'
                 }
             }
-        },
+        }),
         legend: {
             data: [
                 t('hub0000.cpu.usage'),

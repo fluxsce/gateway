@@ -1,14 +1,13 @@
 /**
- * GDialog 插件：install 时挂载 GDialogProvider，并挂到 app.config.globalProperties 与 window，便于直接调用。
+ * GDialog 插件：将 $gDialog 挂到 app.config.globalProperties 与 window。
+ * 命令式确认已切到 niuma-ui rsConfirm / openRsDialog，不再挂载常驻 Provider。
  *
  * @example
  * app.use(gdialogPlugin, { global: true, globalName: '$gDialog' })
  */
 
 import type { App } from 'vue'
-import { h, render } from 'vue'
 import { $gDialog } from './useGDialog'
-import GDialogProvider from './GDialogProvider.vue'
 
 export interface GDialogPluginOptions {
   /** 是否挂到 window，便于控制台/TS 直接调用 */
@@ -26,17 +25,6 @@ const gdialogPlugin = {
     if (shouldMountToWindow && typeof window !== 'undefined') {
       ;(window as unknown as Record<string, unknown>)[globalName] = $gDialog
     }
-
-    const container = document.createElement('div')
-    container.id = 'g-dialog-provider'
-    document.body.appendChild(container)
-
-    const vnode = h(GDialogProvider)
-    const appContext = (app as unknown as { _context: App['_context'] })._context
-    if (appContext) {
-      (vnode as unknown as { appContext: typeof appContext }).appContext = appContext
-    }
-    render(vnode, container)
   },
 }
 

@@ -4,7 +4,7 @@
  * - 处理查看对话框、工具栏、右键菜单等页面交互
  */
 
-import { useGDialog } from '@/components/gdialog'
+import { rsConfirm } from '@/ui'
 import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
@@ -21,9 +21,7 @@ export function useAlertLogPage(
   searchFormRef?: Ref<any> | any
 ) {
   const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 业务服务（包含 model、增删改查等）
+// 业务服务（包含 model、增删改查等）
   const service = useAlertLogService(searchFormRef)
 
   // 查看对话框状态
@@ -130,11 +128,11 @@ export function useAlertLogPage(
       return
     }
 
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认删除',
-      content: `确定要删除日志"${log.alertLogId}"吗？`,
-      positiveText: '删除',
-      negativeText: '取消',
+      description: `确定要删除日志"${log.alertLogId}"吗？`,
+      confirmText: '删除',
+      cancelText: '取消',
     })
     if (!confirmed) return
 
@@ -150,11 +148,11 @@ export function useAlertLogPage(
       return
     }
 
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认批量删除',
-      content: `确定要删除选中的 ${alertLogIds.length} 条日志吗？`,
-      positiveText: '删除',
-      negativeText: '取消',
+      description: `确定要删除选中的 ${alertLogIds.length} 条日志吗？`,
+      confirmText: '删除',
+      cancelText: '取消',
     })
     if (!confirmed) return
 

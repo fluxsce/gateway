@@ -1,17 +1,14 @@
 <template>
-    <GCard title="磁盘IO监控" :show-title="true">
-        <template #header-extra>
+    <RsCard :title="t('diskIO.title')" variant="outlined" :padding="false" class="monitor-card">
+        <template #actions>
             <div class="card-extra">
-                <n-date-picker v-model:value="dateTimeRange" type="datetimerange" :shortcuts="timeRangeShortcuts"
-                    placeholder="选择时间范围" @update:value="handleTimeRangeChange" size="small" />
-                <n-button size="small" @click="refreshData" :loading="loading">
+                <MetricsDateTimeRange v-model="dateTimeRange" @change="handleTimeRangeChange" />
+                <RsButton size="sm" :loading="loading" @click="refreshData">
                     <template #icon>
-                        <n-icon>
-                            <ReloadOutlined />
-                        </n-icon>
+                        <GIcon icon="ReloadOutline" />
                     </template>
-                    刷新
-                </n-button>
+                    {{ t('common.refresh') }}
+                </RsButton>
             </div>
         </template>
 
@@ -19,26 +16,31 @@
             <div ref="chartRef" class="chart-element"></div>
 
             <div v-if="loading" class="chart-loading">
-                <n-spin size="large" />
+                <RsLoading size="lg" />
             </div>
 
             <div v-if="!loading && (!data || !Array.isArray(data) || data.length === 0)" class="chart-empty">
-                <n-empty description="暂无数据" />
+                <RsEmpty :description="t('common.noData')" />
             </div>
         </div>
 
         <div v-if="diskIODetailData && diskIODetailData.length > 0" class="detail-section">
-            <n-divider>磁盘IO详情</n-divider>
-            <n-data-table :columns="diskIOColumns" :data="diskIOTableData" :pagination="tablePagination"
-                :bordered="false" size="small" />
+            <RsDivider>{{ t('diskIO.detailTitle') }}</RsDivider>
+            <RsTable
+                :columns="diskIOColumns"
+                :data="diskIOTableData"
+                row-key="deviceName"
+                size="sm"
+                :bordered="false"
+            />
         </div>
-    </GCard>
+    </RsCard>
 </template>
 
 <script setup lang="ts">
-import { GCard } from '@/components/gcard'
+import { GIcon } from '@/components/gicon'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { formatBytes, formatDate } from '@/utils/format'
-import { ReloadOutlined } from '@vicons/antd'
 import { LineChart } from 'echarts/charts'
 import {
     GridComponent,
@@ -49,9 +51,13 @@ import {
 } from 'echarts/components'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { NButton, NDataTable, NDatePicker, NDivider, NEmpty, NIcon, NSpin } from 'naive-ui'
+import { RsButton, RsCard, RsDivider, RsEmpty, RsLoading, RsTable, type RsTableColumn } from '@/ui'
+import { createAxisTooltipOptions } from '@/views/hub0000/components/metrics/echartsTooltip'
+import MetricsDateTimeRange from '@/views/hub0000/components/metrics/MetricsDateTimeRange.vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { DiskIOStats } from '../../types'
+
+const { t } = useModuleI18n('hub0007')
 
 // 注册必要的 ECharts 组件
 echarts.use([
@@ -93,69 +99,34 @@ const end = Date.now()
 const start = end - 3600 * 1000 // 最近1小时
 const dateTimeRange = ref<[number, number] | null>([start, end])
 
-// 时间范围快捷选项
-const timeRangeShortcuts: Record<string, () => [number, number]> = {
-    '最近1小时': () => {
-        const end = Date.now()
-        const start = end - 3600 * 1000
-        return [start, end]
-    },
-    '最近6小时': () => {
-        const end = Date.now()
-        const start = end - 6 * 3600 * 1000
-        return [start, end]
-    },
-    '最近12小时': () => {
-        const end = Date.now()
-        const start = end - 12 * 3600 * 1000
-        return [start, end]
-    },
-    '最近24小时': () => {
-        const end = Date.now()
-        const start = end - 24 * 3600 * 1000
-        return [start, end]
-    },
-    '最近7天': () => {
-        const end = Date.now()
-        const start = end - 7 * 24 * 3600 * 1000
-        return [start, end]
-    }
-}
-
-// 表格分页
-const tablePagination = {
-    pageSize: 5,
-    page: 1
-}
-
 // 磁盘IO表格列定义
-const diskIOColumns = computed(() => [
+const diskIOColumns = computed<RsTableColumn<DiskIOStats>[]>(() => [
     {
-        title: '设备名称',
+        title: t('diskIO.deviceName'),
         key: 'deviceName'
     },
     {
-        title: '读取速率',
+        title: t('diskIO.readRate'),
         key: 'readRate',
-        render: (row: DiskIOStats) => formatBytes(row.readRate) + '/s'
+        render: (row) => formatBytes(row.readRate) + '/s'
     },
     {
-        title: '写入速率',
+        title: t('diskIO.writeRate'),
         key: 'writeRate',
-        render: (row: DiskIOStats) => formatBytes(row.writeRate) + '/s'
+        render: (row) => formatBytes(row.writeRate) + '/s'
     },
     {
-        title: '读取次数',
+        title: t('diskIO.readCount'),
         key: 'readCount'
     },
     {
-        title: '写入次数',
+        title: t('diskIO.writeCount'),
         key: 'writeCount'
     },
     {
-        title: '采集时间',
+        title: t('diskIO.collectTime'),
         key: 'collectTime',
-        render: (row: DiskIOStats) => formatDate(row.collectTime)
+        render: (row) => formatDate(row.collectTime)
     }
 ])
 
@@ -238,7 +209,7 @@ const updateChart = () => {
         })
 
         series.push({
-            name: `${device} 读取`,
+            name: `${device} ${t('diskIO.read')}`,
             type: 'line',
             data: readData,
             smooth: true,
@@ -253,7 +224,7 @@ const updateChart = () => {
         })
 
         series.push({
-            name: `${device} 写入`,
+            name: `${device} ${t('diskIO.write')}`,
             type: 'line',
             data: writeData,
             smooth: true,
@@ -272,10 +243,10 @@ const updateChart = () => {
         title: {
             show: false
         },
-        tooltip: {
-            trigger: 'axis',
-            confine: false,
+        tooltip: createAxisTooltipOptions({
             appendToBody: true,
+            confine: true,
+            extraCssText: 'z-index: 9999;',
             formatter: (params: any) => {
                 const firstParam = Array.isArray(params) ? params[0] : params
                 const time = times[firstParam.dataIndex]
@@ -300,8 +271,8 @@ const updateChart = () => {
 
                     params.forEach((param: any) => {
                         const color = param.color
-                        const isRead = param.seriesName.includes('读取')
-                        const type = isRead ? '读取' : '写入'
+                        const isRead = param.seriesName.includes(t('diskIO.read'))
+                        const type = isRead ? t('diskIO.read') : t('diskIO.write')
                         const marker = `<span style="display:inline-block;margin-right:4px;border-radius:10px;width:10px;height:10px;background-color:${color};border:1px solid ${color}"></span>`
                         result += `<div style="padding-left: 12px;line-height:18px">${marker}${type}: ${formatBytes(Number(param.value))}/s</div>`
                     })
@@ -309,7 +280,7 @@ const updateChart = () => {
 
                 return result
             }
-        },
+        }),
         legend: {
             type: 'scroll',
             bottom: 0,
@@ -321,7 +292,7 @@ const updateChart = () => {
             }, {}),
             formatter: (name: string) => {
                 const deviceName = name.split(' ')[0];
-                const type = name.includes('读取') ? '读取' : '写入';
+                const type = name.includes(t('diskIO.read')) ? t('diskIO.read') : t('diskIO.write');
                 return `${deviceName} ${type}`;
             }
         },

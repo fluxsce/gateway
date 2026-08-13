@@ -1,4 +1,4 @@
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import type { User } from '../types'
@@ -10,7 +10,7 @@ import { useUserService } from './useUserService'
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 export function useUserPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 业务服务（包含 model、增删改查等）
   const service = useUserService(searchFormRef)
@@ -48,13 +48,13 @@ export function useUserPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> |
   }
 
   /**
-   * 处理搜索（接收 SearchForm 传递的表单数据）
+   * 处理搜索（接收 RsSearchForm 传递的表单数据）
    */
   const handleSearch = async (formData?: Record<string, any>) => {
     await service.handleSearch(formData)
   }
 
-  /** 提交表单（新增/编辑共用，由 GdataFormModal 收集表单数据后回调） */
+  /** 提交表单（新增/编辑共用，由 RsDataFormModal 收集表单数据后回调） */
   const handleFormSubmit = async (formData?: Record<string, any>) => {
     if (!formData) return
 
@@ -103,7 +103,7 @@ export function useUserPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> |
           message.warning('Grid 引用未设置')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        const selectedRow = gridRef.value.getActiveRow()
         if (!selectedRow) {
           message.warning('请先选择或点击要编辑的用户')
           return
@@ -118,7 +118,7 @@ export function useUserPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> |
           message.warning('Grid 引用未设置')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        const selectedRow = gridRef.value.getActiveRow()
         if (!selectedRow) {
           message.warning('请先选择或点击要删除的用户')
           return
@@ -133,7 +133,7 @@ export function useUserPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> |
           message.warning('Grid 引用未设置')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        const selectedRow = gridRef.value.getActiveRow()
         if (!selectedRow) {
           message.warning('请先选择或点击要重置密码的用户')
           return
@@ -144,7 +144,7 @@ export function useUserPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> |
 
       case 'search': {
         // 如果传递了表单数据，直接使用它进行查询
-        // formData 参数在 SearchForm 的 handleToolbarClick 中传递
+        // formData 参数在 RsSearchForm 的 handleToolbarClick 中传递
         await service.handleSearch(formData)
         break
       }
@@ -171,10 +171,10 @@ export function useUserPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> |
    * 右键菜单点击处理
    * （基于原 useUserService.handleMenuClick 的逻辑）
    */
-  const handleMenuClick = async ({ code, row }: { code: string; row?: User }) => {
+  const handleMenuClick = async ({ key, row }: { key: string; row?: User }) => {
     if (!row) return
 
-    switch (code) {
+    switch (key) {
       case 'view':
         openViewDialog(row)
         break

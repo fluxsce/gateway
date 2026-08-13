@@ -1,16 +1,17 @@
 /**
- * 服务器信息表格列配置
+ * 服务器信息表格列配置（RsTable / RsGrid 列定义）。
  */
 
 import { h } from 'vue'
-import { NTag, NButton, NSpace, NTooltip, NIcon, NTime } from 'naive-ui'
-import { formatBytes } from '@/utils/format'
+import { formatBytes, formatDate } from '@/utils/format'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
-import type { DataTableColumns } from 'naive-ui'
+import { RsButton, RsTag, RsTooltip, type RsTableColumn } from '@/ui'
 import type { ServerInfo, ServerStatus } from '../types'
 import { ServerStatus as ServerStatusEnum } from '../types'
 
-// 操作处理函数接口
+/**
+ * 服务器行操作回调集合。
+ */
 export interface ServerActionHandlers {
   onView: (row: ServerInfo) => void
   onEdit: (row: ServerInfo) => void
@@ -20,96 +21,87 @@ export interface ServerActionHandlers {
 }
 
 /**
- * 获取服务器状态标签
+ * 将时间格式化为相对描述（如「3 分钟前」），用于最近更新列。
+ */
+function formatRelativeTime(input: Date | string | number): string {
+  const ms = Date.now() - new Date(input).getTime()
+  if (!Number.isFinite(ms)) return '-'
+  const sec = Math.max(0, Math.floor(ms / 1000))
+  if (sec < 60) return `${sec} 秒前`
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `${min} 分钟前`
+  const hour = Math.floor(min / 60)
+  if (hour < 24) return `${hour} 小时前`
+  const day = Math.floor(hour / 24)
+  return `${day} 天前`
+}
+
+/**
+ * 获取服务器状态标签。
  */
 const getServerStatusTag = (status: ServerStatus) => {
   const { t } = useModuleI18n('hub0000')
 
   switch (status) {
     case ServerStatusEnum.ONLINE:
-      return h(
-        NTag,
-        { type: 'success', size: 'small' },
-        { default: () => t('server.status.online') },
-      )
+      return h(RsTag, { variant: 'success', size: 'sm' }, () => t('server.status.online'))
     case ServerStatusEnum.OFFLINE:
-      return h(
-        NTag,
-        { type: 'error', size: 'small' },
-        { default: () => t('server.status.offline') },
-      )
+      return h(RsTag, { variant: 'danger', size: 'sm' }, () => t('server.status.offline'))
     case ServerStatusEnum.WARNING:
-      return h(
-        NTag,
-        { type: 'warning', size: 'small' },
-        { default: () => t('server.status.warning') },
-      )
+      return h(RsTag, { variant: 'warning', size: 'sm' }, () => t('server.status.warning'))
     case ServerStatusEnum.CRITICAL:
-      return h(
-        NTag,
-        { type: 'error', size: 'small' },
-        { default: () => t('server.status.critical') },
-      )
+      return h(RsTag, { variant: 'danger', size: 'sm' }, () => t('server.status.critical'))
     default:
-      return h(
-        NTag,
-        { type: 'default', size: 'small' },
-        { default: () => t('server.status.unknown') },
-      )
+      return h(RsTag, { variant: 'default', size: 'sm' }, () => t('server.status.unknown'))
   }
 }
 
 /**
- * 获取服务器类型标签
+ * 获取服务器类型标签。
  */
 const getServerTypeTag = (type?: string) => {
   const { t } = useModuleI18n('hub0000')
 
   switch (type) {
     case 'physical':
-      return h(
-        NTag,
-        { type: 'primary', size: 'small' },
-        { default: () => t('server.type.physical') },
-      )
+      return h(RsTag, { variant: 'primary', size: 'sm' }, () => t('server.type.physical'))
     case 'virtual':
-      return h(NTag, { type: 'info', size: 'small' }, { default: () => t('server.type.virtual') })
+      return h(RsTag, { variant: 'info', size: 'sm' }, () => t('server.type.virtual'))
     default:
-      return h(
-        NTag,
-        { type: 'default', size: 'small' },
-        { default: () => t('server.type.unknown') },
-      )
+      return h(RsTag, { variant: 'default', size: 'sm' }, () => t('server.type.unknown'))
   }
 }
 
 /**
- * 创建服务器表格列配置
+ * 按使用率选择 Tag 语义色。
+ */
+const usageVariant = (usage: number): 'danger' | 'warning' | 'success' => {
+  if (usage > 80) return 'danger'
+  if (usage > 60) return 'warning'
+  return 'success'
+}
+
+/**
+ * 创建服务器表格列配置。
+ * 行勾选请在 RsTable / RsGrid 上开启 selectable，不再使用独立 selection 列。
  */
 export const createServerTableColumns = (
   handlers: ServerActionHandlers,
-): DataTableColumns<ServerInfo> => {
+): RsTableColumn<ServerInfo>[] => {
   const { t } = useModuleI18n('hub0000')
 
   return [
-    {
-      type: 'selection',
-      disabled: (row: ServerInfo) => row.activeFlag !== 'Y',
-    },
     {
       title: t('server.hostname'),
       key: 'hostname',
       width: 150,
       fixed: 'left',
-      sorter: true,
+      sortable: true,
       render: (row) =>
         h(
-          NTooltip,
-          { trigger: 'hover' },
-          {
-            trigger: () => h('span', { class: 'font-medium' }, row.hostname),
-            default: () => `${row.hostname} (${row.ipAddress || '-'})`,
-          },
+          RsTooltip,
+          { content: `${row.hostname} (${row.ipAddress || '-'})` },
+          { default: () => h('span', { class: 'font-medium' }, row.hostname) },
         ),
     },
     {
@@ -140,12 +132,9 @@ export const createServerTableColumns = (
       width: 120,
       render: (row) =>
         h(
-          NTooltip,
-          { trigger: 'hover' },
-          {
-            trigger: () => h('span', {}, row.osType),
-            default: () => `${row.osType} ${row.osVersion}`,
-          },
+          RsTooltip,
+          { content: `${row.osType} ${row.osVersion}` },
+          { default: () => h('span', {}, row.osType) },
         ),
     },
     {
@@ -170,22 +159,20 @@ export const createServerTableColumns = (
       title: t('server.bootTime'),
       key: 'bootTime',
       width: 160,
-      render: (row) => h(NTime, { time: new Date(row.bootTime) }),
+      render: (row) => formatDate(row.bootTime),
     },
     {
       title: t('server.lastUpdateTime'),
       key: 'lastUpdateTime',
       width: 160,
-      sorter: true,
-      render: (row) => h(NTime, { time: new Date(row.lastUpdateTime), type: 'relative' }),
+      sortable: true,
+      render: (row) => formatRelativeTime(row.lastUpdateTime),
     },
     {
       title: t('server.location'),
       key: 'serverLocation',
       width: 150,
-      ellipsis: {
-        tooltip: true,
-      },
+      ellipsis: true,
       render: (row) => row.serverLocation || '-',
     },
     {
@@ -195,63 +182,61 @@ export const createServerTableColumns = (
       fixed: 'right',
       render: (row) =>
         h(
-          NSpace,
-          { size: 'small' },
-          {
-            default: () => [
-              h(
-                NButton,
-                {
-                  size: 'small',
-                  type: 'primary',
-                  ghost: true,
-                  onClick: () => handlers.onMonitor(row),
-                },
-                { default: () => t('server.actions.monitor') },
-              ),
-              h(
-                NButton,
-                {
-                  size: 'small',
-                  type: 'info',
-                  ghost: true,
-                  onClick: () => handlers.onView(row),
-                },
-                { default: () => t('common.view') },
-              ),
-              h(
-                NButton,
-                {
-                  size: 'small',
-                  type: 'warning',
-                  ghost: true,
-                  onClick: () => handlers.onEdit(row),
-                  disabled: row.activeFlag !== 'Y',
-                },
-                { default: () => t('common.edit') },
-              ),
-              h(
-                NButton,
-                {
-                  size: 'small',
-                  type: 'error',
-                  ghost: true,
-                  onClick: () => handlers.onDelete(row),
-                  disabled: row.activeFlag !== 'Y',
-                },
-                { default: () => t('common.delete') },
-              ),
-            ],
-          },
+          'div',
+          { style: { display: 'flex', gap: '4px', flexWrap: 'wrap' } },
+          [
+            h(
+              RsButton,
+              {
+                size: 'sm',
+                variant: 'ghost',
+                tone: 'primary',
+                onClick: () => handlers.onMonitor(row),
+              },
+              () => t('server.actions.monitor'),
+            ),
+            h(
+              RsButton,
+              {
+                size: 'sm',
+                variant: 'ghost',
+                tone: 'info',
+                onClick: () => handlers.onView(row),
+              },
+              () => t('common.view'),
+            ),
+            h(
+              RsButton,
+              {
+                size: 'sm',
+                variant: 'ghost',
+                tone: 'warning',
+                disabled: row.activeFlag !== 'Y',
+                onClick: () => handlers.onEdit(row),
+              },
+              () => t('common.edit'),
+            ),
+            h(
+              RsButton,
+              {
+                size: 'sm',
+                variant: 'ghost',
+                tone: 'danger',
+                disabled: row.activeFlag !== 'Y',
+                onClick: () => handlers.onDelete(row),
+              },
+              () => t('common.delete'),
+            ),
+          ],
         ),
     },
   ]
 }
 
 /**
- * 创建服务器监控概览表格列配置
+ * 创建服务器监控概览表格列配置。
  */
-export const createServerMonitorTableColumns = (): DataTableColumns<any> => {
+export const createServerMonitorTableColumns = (): RsTableColumn<Record<string, any>>[] => {
   const { t } = useModuleI18n('hub0000')
 
   return [
@@ -268,19 +253,15 @@ export const createServerMonitorTableColumns = (): DataTableColumns<any> => {
       width: 120,
       render: (row) =>
         h(
-          NTooltip,
-          { trigger: 'hover' },
+          RsTooltip,
+          { content: `负载: ${row.cpu.loadAvg.join(', ')}` },
           {
-            trigger: () =>
+            default: () =>
               h(
-                NTag,
-                {
-                  type: row.cpu.usage > 80 ? 'error' : row.cpu.usage > 60 ? 'warning' : 'success',
-                  size: 'small',
-                },
-                { default: () => `${row.cpu.usage.toFixed(1)}%` },
+                RsTag,
+                { variant: usageVariant(row.cpu.usage), size: 'sm' },
+                () => `${row.cpu.usage.toFixed(1)}%`,
               ),
-            default: () => `负载: ${row.cpu.loadAvg.join(', ')}`,
           },
         ),
     },
@@ -290,24 +271,17 @@ export const createServerMonitorTableColumns = (): DataTableColumns<any> => {
       width: 120,
       render: (row) =>
         h(
-          NTooltip,
-          { trigger: 'hover' },
+          RsTooltip,
           {
-            trigger: () =>
+            content: `${formatBytes(row.memory.usage)} / ${formatBytes(row.memory.total)}`,
+          },
+          {
+            default: () =>
               h(
-                NTag,
-                {
-                  type:
-                    row.memory.usagePercent > 80
-                      ? 'error'
-                      : row.memory.usagePercent > 60
-                        ? 'warning'
-                        : 'success',
-                  size: 'small',
-                },
-                { default: () => `${row.memory.usagePercent.toFixed(1)}%` },
+                RsTag,
+                { variant: usageVariant(row.memory.usagePercent), size: 'sm' },
+                () => `${row.memory.usagePercent.toFixed(1)}%`,
               ),
-            default: () => `${formatBytes(row.memory.usage)} / ${formatBytes(row.memory.total)}`,
           },
         ),
     },
@@ -317,20 +291,17 @@ export const createServerMonitorTableColumns = (): DataTableColumns<any> => {
       width: 120,
       render: (row) =>
         h(
-          NTooltip,
-          { trigger: 'hover' },
+          RsTooltip,
           {
-            trigger: () =>
-              h(
-                NTag,
-                {
-                  type: row.disk.usage > 80 ? 'error' : row.disk.usage > 60 ? 'warning' : 'success',
-                  size: 'small',
-                },
-                { default: () => `${row.disk.usage.toFixed(1)}%` },
-              ),
+            content: `${formatBytes(row.disk.totalSpace - row.disk.freeSpace)} / ${formatBytes(row.disk.totalSpace)}`,
+          },
+          {
             default: () =>
-              `${formatBytes(row.disk.totalSpace - row.disk.freeSpace)} / ${formatBytes(row.disk.totalSpace)}`,
+              h(
+                RsTag,
+                { variant: usageVariant(row.disk.usage), size: 'sm' },
+                () => `${row.disk.usage.toFixed(1)}%`,
+              ),
           },
         ),
     },
@@ -340,16 +311,15 @@ export const createServerMonitorTableColumns = (): DataTableColumns<any> => {
       width: 140,
       render: (row) =>
         h(
-          NTooltip,
-          { trigger: 'hover' },
+          RsTooltip,
+          { content: `总流量: ${formatBytes(row.network.totalBytes)}` },
           {
-            trigger: () =>
+            default: () =>
               h(
                 'span',
                 { class: 'font-mono text-sm' },
                 `↑${formatBytes(row.network.sendRate)}/s ↓${formatBytes(row.network.receiveRate)}/s`,
               ),
-            default: () => `总流量: ${formatBytes(row.network.totalBytes)}`,
           },
         ),
     },
@@ -359,13 +329,11 @@ export const createServerMonitorTableColumns = (): DataTableColumns<any> => {
       width: 100,
       render: (row) =>
         h(
-          NTooltip,
-          { trigger: 'hover' },
+          RsTooltip,
           {
-            trigger: () => h('span', {}, row.processes.total),
-            default: () =>
-              `运行: ${row.processes.running}, 睡眠: ${row.processes.sleeping}, 僵尸: ${row.processes.zombie}`,
+            content: `运行: ${row.processes.running}, 睡眠: ${row.processes.sleeping}, 僵尸: ${row.processes.zombie}`,
           },
+          { default: () => h('span', {}, row.processes.total) },
         ),
     },
     {
@@ -375,18 +343,17 @@ export const createServerMonitorTableColumns = (): DataTableColumns<any> => {
       render: (row) => {
         if (!row.temperature) return '-'
 
+        const variant =
+          row.temperature.status === 'critical'
+            ? 'danger'
+            : row.temperature.status === 'warning'
+              ? 'warning'
+              : 'success'
+
         return h(
-          NTag,
-          {
-            type:
-              row.temperature.status === 'critical'
-                ? 'error'
-                : row.temperature.status === 'warning'
-                  ? 'warning'
-                  : 'success',
-            size: 'small',
-          },
-          { default: () => `${row.temperature.value.toFixed(1)}°C` },
+          RsTag,
+          { variant, size: 'sm' },
+          () => `${row.temperature.value.toFixed(1)}°C`,
         )
       },
     },
@@ -394,7 +361,7 @@ export const createServerMonitorTableColumns = (): DataTableColumns<any> => {
       title: t('monitor.lastUpdate'),
       key: 'timestamp',
       width: 160,
-      render: (row) => h(NTime, { time: new Date(row.timestamp), type: 'relative' }),
+      render: (row) => formatRelativeTime(row.timestamp),
     },
   ]
 }

@@ -3,7 +3,7 @@
  * 用于模板选择器组件
  */
 
-import { createBackendPaginationParams } from '@/components/gpage'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
 import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'

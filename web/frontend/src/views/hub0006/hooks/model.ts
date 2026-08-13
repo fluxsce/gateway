@@ -1,499 +1,522 @@
 /**
  * 权限资源管理模块 Model
- * 统一管理搜索表单、表格配置和数据状态
+ * 统一管理搜索表单、表格配置和数据状态（RsSearchForm / RsGrid / RsDataForm）
  */
 
-import type { DataFormField } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsDataFormField } from '@/components/form/rs-data'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type {
+  RsGridColumn,
+  RsGridMenuConfig,
+  RsGridPaginationConfig,
+} from '@/components/rs-grid'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
 import type { PageInfoObj } from '@/types/api'
+import { RsTag, type RsTableTreeConfig } from '@/ui'
 import { formatDate } from '@/utils/format'
-import { EyeOutline } from '@vicons/ionicons5'
-import { ref } from 'vue'
+import { h, reactive, ref, watch } from 'vue'
 import type { Resource } from '../types/index'
 import { BuiltInFlag, FlagEnum, ResourceStatus, ResourceType } from '../types/index'
+
+/**
+ * 资源管理表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface ResourceGridConfig {
+  columns: RsGridColumn<Resource>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+  treeConfig: RsTableTreeConfig<Resource>
+}
 
 /**
  * 资源管理 Model
  */
 export function useResourceModel() {
-  // ============= 数据状态 =============
+  const { t, locale } = useModuleI18n('hub0006')
+
   const moduleId = 'hub0006'
-  /** 加载状态 */
   const loading = ref(false)
-
-  /** 资源列表数据 */
   const resourceList = ref<Resource[]>([])
-
-  /** 后端分页信息对象 */
   const pageInfo = ref<PageInfoObj | undefined>()
 
-  // ============= 搜索表单配置 =============
-
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
-    fields: [
-      {
-        field: 'resourceName',
-        label: '资源名称',
-        type: 'input',
-        placeholder: '请输入资源名称',
-        span: 6,
-        clearable: true,
-      },
-      {
-        field: 'resourceCode',
-        label: '资源编码',
-        type: 'input',
-        placeholder: '请输入资源编码',
-        span: 6,
-        clearable: true,
-      },
-      {
-        field: 'resourceType',
-        label: '资源类型',
-        type: 'select',
-        placeholder: '请选择资源类型',
-        span: 6,
-        clearable: true,
-        options: [
-          { label: '全部', value: '' },
-          { label: '模块', value: ResourceType.MODULE },
-          { label: '菜单', value: ResourceType.MENU },
-          { label: '按钮', value: ResourceType.BUTTON },
-          { label: '接口', value: ResourceType.API },
-        ],
-      },
-      {
-        field: 'resourceStatus',
-        label: '状态',
-        type: 'select',
-        placeholder: '请选择状态',
-        span: 6,
-        clearable: true,
-        options: [
-          { label: '全部', value: '' },
-          { label: '启用', value: ResourceStatus.ENABLED },
-          { label: '禁用', value: ResourceStatus.DISABLED },
-        ],
-      },
-      {
-        field: 'builtInFlag',
-        label: '类型',
-        type: 'select',
-        placeholder: '请选择类型',
-        span: 6,
-        clearable: true,
-        options: [
-          { label: '全部', value: '' },
-          { label: '内置', value: BuiltInFlag.BUILT_IN },
-          { label: '自定义', value: BuiltInFlag.CUSTOM },
-        ],
-      },
-    ],
-    toolbarButtons: [
-      {
-        key: 'view',
-        label: '查看详情',
-        icon: EyeOutline,
-        tooltip: '查看选中资源的详情',
-      },
-    ],
+  const searchFormConfig = reactive<Omit<RsSearchFormProps, 'moduleId'>>({
+    fields: [],
+    toolbarButtons: [],
     showSearchButton: true,
     showResetButton: true,
-  }
+  })
 
-  // ============= 数据编辑表单字段配置（供 GdataFormModal 使用） =============
-  const formTabs = [
-    { key: 'basic', label: '基本信息' },
-    { key: 'hierarchy', label: '层级关系' },
-    { key: 'other', label: '其他信息' },
-  ]
-
-  const formFields: DataFormField[] = [
-    {
-      field: 'resourceId',
-      label: '资源ID',
-      type: 'input',
-      placeholder: '请输入资源ID',
-      span: 8,
-      tabKey: 'basic',
-      required: true,
-      primary: true,
-    },
-    {
-      field: 'resourceName',
-      label: '资源名称',
-      type: 'input',
-      placeholder: '请输入资源名称',
-      span: 8,
-      tabKey: 'basic',
-      required: true,
-    },
-    {
-      field: 'resourceCode',
-      label: '资源编码',
-      type: 'input',
-      placeholder: '请输入资源编码',
-      span: 8,
-      tabKey: 'basic',
-      required: true,
-    },
-    {
-      field: 'resourceType',
-      label: '资源类型',
-      type: 'select',
-      placeholder: '请选择资源类型',
-      span: 8,
-      tabKey: 'basic',
-      required: true,
-      options: [
-        { label: '模块', value: ResourceType.MODULE },
-        { label: '菜单', value: ResourceType.MENU },
-        { label: '按钮', value: ResourceType.BUTTON },
-        { label: '接口', value: ResourceType.API },
-      ],
-    },
-    {
-      field: 'resourcePath',
-      label: '资源路径',
-      type: 'input',
-      placeholder: '请输入资源路径（菜单路径或API路径）',
-      span: 12,
-      tabKey: 'basic',
-    },
-    {
-      field: 'resourceMethod',
-      label: '请求方法',
-      type: 'select',
-      placeholder: '请选择请求方法',
-      span: 6,
-      tabKey: 'basic',
-      options: [
-        { label: 'GET', value: 'GET' },
-        { label: 'POST', value: 'POST' },
-        { label: 'PUT', value: 'PUT' },
-        { label: 'DELETE', value: 'DELETE' },
-        { label: 'PATCH', value: 'PATCH' },
-      ],
-    },
-    {
-      field: 'displayName',
-      label: '显示名称',
-      type: 'input',
-      placeholder: '请输入显示名称',
-      span: 8,
-      tabKey: 'basic',
-    },
-    {
-      field: 'iconClass',
-      label: '图标样式类',
-      type: 'input',
-      placeholder: '请输入图标样式类',
-      span: 8,
-      tabKey: 'basic',
-    },
-    {
-      field: 'description',
-      label: '资源描述',
-      type: 'textarea',
-      placeholder: '请输入资源描述',
-      span: 24,
-      tabKey: 'basic',
-    },
-    {
-      field: 'resourceStatus',
-      label: '资源状态',
-      type: 'select',
-      placeholder: '请选择状态',
-      span: 8,
-      tabKey: 'basic',
-      defaultValue: ResourceStatus.ENABLED,
-      options: [
-        { label: '启用', value: ResourceStatus.ENABLED },
-        { label: '禁用', value: ResourceStatus.DISABLED },
-      ],
-    },
-    {
-      field: 'builtInFlag',
-      label: '内置标记',
-      type: 'select',
-      placeholder: '请选择类型',
-      span: 8,
-      tabKey: 'basic',
-      defaultValue: BuiltInFlag.CUSTOM,
-      options: [
-        { label: '内置', value: BuiltInFlag.BUILT_IN },
-        { label: '自定义', value: BuiltInFlag.CUSTOM },
-      ],
-    },
-    {
-      field: 'parentResourceId',
-      label: '父资源ID',
-      type: 'input',
-      placeholder: '请输入父资源ID',
-      span: 8,
-      tabKey: 'hierarchy',
-    },
-    {
-      field: 'resourceLevel',
-      label: '资源层级',
-      type: 'number',
-      placeholder: '请输入资源层级',
-      span: 8,
-      tabKey: 'hierarchy',
-      defaultValue: 1,
-    },
-    {
-      field: 'sortOrder',
-      label: '排序顺序',
-      type: 'number',
-      placeholder: '请输入排序顺序',
-      span: 8,
-      tabKey: 'hierarchy',
-      defaultValue: 0,
-    },
-    {
-      field: 'addTime',
-      label: '创建时间',
-      type: 'datetime',
-      span: 8,
-      disabled: true,
-      tabKey: 'other',
-    },
-    {
-      field: 'addWho',
-      label: '创建人',
-      type: 'input',
-      span: 8,
-      disabled: true,
-      tabKey: 'other',
-    },
-    {
-      field: 'editTime',
-      label: '修改时间',
-      type: 'datetime',
-      span: 8,
-      disabled: true,
-      tabKey: 'other',
-    },
-    {
-      field: 'editWho',
-      label: '修改人',
-      type: 'input',
-      span: 8,
-      disabled: true,
-      tabKey: 'other',
-    },
-    {
-      field: 'oprSeqFlag',
-      label: '操作序列标识',
-      type: 'input',
-      span: 8,
-      disabled: true,
-      tabKey: 'other',
-    },
-    {
-      field: 'currentVersion',
-      label: '当前版本号',
-      type: 'number',
-      span: 8,
-      disabled: true,
-      tabKey: 'other',
-    },
-    {
-      field: 'activeFlag',
-      label: '活动标记',
-      type: 'select',
-      span: 8,
-      tabKey: 'basic',
-      defaultValue: FlagEnum.YES,
-      options: [
-        { label: '活动', value: FlagEnum.YES },
-        { label: '非活动', value: FlagEnum.NO },
-      ],
-    },
-    {
-      field: 'noteText',
-      label: '备注',
-      type: 'textarea',
-      placeholder: '请输入备注信息',
-      span: 24,
-      tabKey: 'basic',
-    },
-  ]
-
-  // ============= 表格配置 =============
-
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
-    rowId: 'resourceId', // 设置行唯一标识，用于树形结构
-    columns: [
-      {
-        field: 'resourceId',
-        title: '资源ID',
-        showOverflow: true,
-        width:200,
-        treeNode: true, // 树形表格需要在列上设置 treeNode 属性
-      },
-      {
-        field: 'resourceName',
-        title: '资源名称',
-        sortable: true,
-        showOverflow: true,
-      },
-      {
-        field: 'resourceCode',
-        title: '资源编码',
-        sortable: true,
-        width:200,
-        showOverflow: true,
-      },
-      {
-        field: 'resourceType',
-        title: '资源类型',
-        align: 'center',
-        cellRender: {
-          name: 'VxeTag',
-          props: ({ row }: any) => {
-            const typeMap: Record<string, { type: string; content: string }> = {
-              [ResourceType.MODULE]: { type: 'info', content: '模块' },
-              [ResourceType.MENU]: { type: 'success', content: '菜单' },
-              [ResourceType.BUTTON]: { type: 'warning', content: '按钮' },
-              [ResourceType.API]: { type: 'primary', content: '接口' },
-            }
-            return typeMap[row.resourceType] || { type: 'default', content: row.resourceType }
-          },
-        },
-      },
-      {
-        field: 'resourcePath',
-        title: '资源路径',
-        showOverflow: 'tooltip',
-      },
-      {
-        field: 'resourceMethod',
-        title: '请求方法',
-        align: 'center',
-        showOverflow: true,
-      },
-      {
-        field: 'resourceLevel',
-        title: '层级',
-        align: 'center',
-        sortable: true,
-      },
-      {
-        field: 'sortOrder',
-        title: '排序',
-        align: 'center',
-        sortable: true,
-      },
-      {
-        field: 'resourceStatus',
-        title: '状态',
-        align: 'center',
-        formatter: ({ cellValue }) => {
-          return cellValue === ResourceStatus.ENABLED ? '启用' : '禁用'
-        },
-      },
-      {
-        field: 'builtInFlag',
-        title: '类型',
-        align: 'center',
-        formatter: ({ cellValue }) => {
-          return cellValue === BuiltInFlag.BUILT_IN ? '内置' : '自定义'
-        },
-      },
-      {
-        field: 'activeFlag',
-        title: '活动标记',
-        align: 'center',
-        formatter: ({ cellValue }) => {
-          return cellValue === FlagEnum.YES ? '活动' : '非活动'
-        },
-      },
-      {
-        field: 'addTime',
-        title: '创建时间',
-        sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
-      },
-      {
-        field: 'addWho',
-        title: '创建人',
-        showOverflow: true,
-      },
-      {
-        field: 'editTime',
-        title: '修改时间',
-        sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
-      },
-      {
-        field: 'editWho',
-        title: '修改人',
-        showOverflow: true,
-      },
-      {
-        field: 'description',
-        title: '描述',
-        showOverflow: 'tooltip',
-      },
-    ],
-    showCheckbox: false, // 权限资源模块只允许查看，不需要复选框
+  const formTabs = reactive<{ key: string; label: string }[]>([])
+  const formFields = reactive<RsDataFormField[]>([])
+  const gridConfig = reactive<ResourceGridConfig>({
+    columns: [],
+    selectable: false,
+    rowKey: 'resourceId',
+    height: '100%',
     paginationConfig: {
-      show: false, // 树形结构不需要分页
+      show: false,
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      showCopyCell: true,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-        // 权限资源模块只允许查看，不允许编辑和删除
-      ],
+      items: [],
     },
-    // 树形配置：资源有层级关系，需要树形展示
-    // 后端已返回树形结构（包含children），所以不需要transform
-    // 注意：使用 type=expand 列时，不能使用 showLine
     treeConfig: {
-      transform: false, // 数据已经是树形结构，不需要转换
-      childrenField: 'children', // 子节点字段名
-      indent: 20, // 每一级的缩进距离
-      iconOpen: 'vxe-icon-arrow-down', // 展开图标
-      iconClose: 'vxe-icon-arrow-right', // 折叠图标
-      expandAll: false, // 默认不展开所有节点
-      accordion: false, // 是否每次只展开一个同级树节点
-      trigger: 'default', // 触发方式：default（点击箭头）、cell（点击单元格）、row（点击行）
+      childrenField: 'children',
+      expandColumnKey: 'resourceId',
+      defaultExpandAll: false,
+      indent: 16,
     },
-    // 展开配置：当使用 tree-config.transform=false 时，需要设置 expand-config.mode=fixed
-    expandConfig: {
-      mode: 'fixed', // 固定模式，避免与树形结构冲突
-    },
-    height: '100%',
-  }
-
-  // ============= 辅助方法 =============
+  })
 
   /**
-   * 重置分页
+   * 按当前语言刷新表单 / 表格文案。
    */
+  function applyI18n() {
+    searchFormConfig.fields = [
+      {
+        field: 'resourceName',
+        label: t('resource.search.resourceName'),
+        type: 'input',
+        placeholder: t('resource.search.resourceNamePlaceholder'),
+        span: 6,
+        clearable: true,
+      },
+      {
+        field: 'resourceCode',
+        label: t('resource.search.resourceCode'),
+        type: 'input',
+        placeholder: t('resource.search.resourceCodePlaceholder'),
+        span: 6,
+        clearable: true,
+      },
+      {
+        field: 'resourceType',
+        label: t('resource.search.resourceType'),
+        type: 'select',
+        placeholder: t('resource.search.resourceTypePlaceholder'),
+        span: 6,
+        clearable: true,
+        options: [
+          { label: t('resource.search.all'), value: '' },
+          { label: t('resource.type.module'), value: ResourceType.MODULE },
+          { label: t('resource.type.menu'), value: ResourceType.MENU },
+          { label: t('resource.type.button'), value: ResourceType.BUTTON },
+          { label: t('resource.type.api'), value: ResourceType.API },
+        ],
+      },
+      {
+        field: 'resourceStatus',
+        label: t('resource.search.status'),
+        type: 'select',
+        placeholder: t('resource.search.statusPlaceholder'),
+        span: 6,
+        clearable: true,
+        options: [
+          { label: t('resource.search.all'), value: '' },
+          { label: t('resource.status.enabled'), value: ResourceStatus.ENABLED },
+          { label: t('resource.status.disabled'), value: ResourceStatus.DISABLED },
+        ],
+      },
+      {
+        field: 'builtInFlag',
+        label: t('resource.search.type'),
+        type: 'select',
+        placeholder: t('resource.search.typePlaceholder'),
+        span: 6,
+        clearable: true,
+        options: [
+          { label: t('resource.search.all'), value: '' },
+          { label: t('resource.columns.builtin'), value: BuiltInFlag.BUILT_IN },
+          { label: t('resource.columns.custom'), value: BuiltInFlag.CUSTOM },
+        ],
+      },
+    ]
+    searchFormConfig.toolbarButtons = [
+      {
+        key: 'view',
+        label: t('resource.toolbar.view'),
+        icon: 'EyeOutline',
+        tooltip: t('resource.toolbar.viewTooltip'),
+      },
+    ]
+
+    formTabs.splice(
+      0,
+      formTabs.length,
+      { key: 'basic', label: t('resource.dialog.tabBasic') },
+      { key: 'hierarchy', label: t('resource.dialog.tabHierarchy') },
+      { key: 'other', label: t('resource.dialog.tabOther') },
+    )
+
+    formFields.splice(
+      0,
+      formFields.length,
+      {
+        field: 'resourceId',
+        label: t('resource.form.resourceId'),
+        type: 'input',
+        placeholder: t('resource.form.resourceIdPlaceholder'),
+        span: 8,
+        tabKey: 'basic',
+        required: true,
+        primary: true,
+      },
+      {
+        field: 'resourceName',
+        label: t('resource.form.resourceName'),
+        type: 'input',
+        placeholder: t('resource.form.resourceNamePlaceholder'),
+        span: 8,
+        tabKey: 'basic',
+        required: true,
+      },
+      {
+        field: 'resourceCode',
+        label: t('resource.form.resourceCode'),
+        type: 'input',
+        placeholder: t('resource.form.resourceCodePlaceholder'),
+        span: 8,
+        tabKey: 'basic',
+        required: true,
+      },
+      {
+        field: 'resourceType',
+        label: t('resource.form.resourceType'),
+        type: 'select',
+        placeholder: t('resource.form.resourceTypePlaceholder'),
+        span: 8,
+        tabKey: 'basic',
+        required: true,
+        options: [
+          { label: t('resource.type.module'), value: ResourceType.MODULE },
+          { label: t('resource.type.menu'), value: ResourceType.MENU },
+          { label: t('resource.type.button'), value: ResourceType.BUTTON },
+          { label: t('resource.type.api'), value: ResourceType.API },
+        ],
+      },
+      {
+        field: 'resourcePath',
+        label: t('resource.form.resourcePath'),
+        type: 'input',
+        placeholder: t('resource.form.resourcePathPlaceholder'),
+        span: 12,
+        tabKey: 'basic',
+      },
+      {
+        field: 'resourceMethod',
+        label: t('resource.form.resourceMethod'),
+        type: 'select',
+        placeholder: t('resource.form.resourceMethodPlaceholder'),
+        span: 6,
+        tabKey: 'basic',
+        options: [
+          { label: 'GET', value: 'GET' },
+          { label: 'POST', value: 'POST' },
+          { label: 'PUT', value: 'PUT' },
+          { label: 'DELETE', value: 'DELETE' },
+          { label: 'PATCH', value: 'PATCH' },
+        ],
+      },
+      {
+        field: 'displayName',
+        label: t('resource.form.displayName'),
+        type: 'input',
+        placeholder: t('resource.form.displayNamePlaceholder'),
+        span: 8,
+        tabKey: 'basic',
+      },
+      {
+        field: 'iconClass',
+        label: t('resource.form.iconClass'),
+        type: 'input',
+        placeholder: t('resource.form.iconClassPlaceholder'),
+        span: 8,
+        tabKey: 'basic',
+      },
+      {
+        field: 'description',
+        label: t('resource.form.description'),
+        type: 'textarea',
+        placeholder: t('resource.form.descriptionPlaceholder'),
+        span: 24,
+        tabKey: 'basic',
+      },
+      {
+        field: 'resourceStatus',
+        label: t('resource.form.resourceStatus'),
+        type: 'select',
+        placeholder: t('resource.form.resourceStatusPlaceholder'),
+        span: 8,
+        tabKey: 'basic',
+        defaultValue: ResourceStatus.ENABLED,
+        options: [
+          { label: t('resource.status.enabled'), value: ResourceStatus.ENABLED },
+          { label: t('resource.status.disabled'), value: ResourceStatus.DISABLED },
+        ],
+      },
+      {
+        field: 'builtInFlag',
+        label: t('resource.form.builtInFlag'),
+        type: 'select',
+        placeholder: t('resource.form.builtInFlagPlaceholder'),
+        span: 8,
+        tabKey: 'basic',
+        defaultValue: BuiltInFlag.CUSTOM,
+        options: [
+          { label: t('resource.columns.builtin'), value: BuiltInFlag.BUILT_IN },
+          { label: t('resource.columns.custom'), value: BuiltInFlag.CUSTOM },
+        ],
+      },
+      {
+        field: 'parentResourceId',
+        label: t('resource.form.parentResourceId'),
+        type: 'input',
+        placeholder: t('resource.form.parentResourceIdPlaceholder'),
+        span: 8,
+        tabKey: 'hierarchy',
+      },
+      {
+        field: 'resourceLevel',
+        label: t('resource.form.resourceLevel'),
+        type: 'number',
+        placeholder: t('resource.form.resourceLevelPlaceholder'),
+        span: 8,
+        tabKey: 'hierarchy',
+        defaultValue: 1,
+      },
+      {
+        field: 'sortOrder',
+        label: t('resource.form.sortOrder'),
+        type: 'number',
+        placeholder: t('resource.form.sortOrderPlaceholder'),
+        span: 8,
+        tabKey: 'hierarchy',
+        defaultValue: 0,
+      },
+      {
+        field: 'addTime',
+        label: t('resource.form.addTime'),
+        type: 'datetime',
+        span: 8,
+        disabled: true,
+        tabKey: 'other',
+      },
+      {
+        field: 'addWho',
+        label: t('resource.form.addWho'),
+        type: 'input',
+        span: 8,
+        disabled: true,
+        tabKey: 'other',
+      },
+      {
+        field: 'editTime',
+        label: t('resource.form.editTime'),
+        type: 'datetime',
+        span: 8,
+        disabled: true,
+        tabKey: 'other',
+      },
+      {
+        field: 'editWho',
+        label: t('resource.form.editWho'),
+        type: 'input',
+        span: 8,
+        disabled: true,
+        tabKey: 'other',
+      },
+      {
+        field: 'oprSeqFlag',
+        label: t('resource.form.oprSeqFlag'),
+        type: 'input',
+        span: 8,
+        disabled: true,
+        tabKey: 'other',
+      },
+      {
+        field: 'currentVersion',
+        label: t('resource.form.currentVersion'),
+        type: 'number',
+        span: 8,
+        disabled: true,
+        tabKey: 'other',
+      },
+      {
+        field: 'activeFlag',
+        label: t('resource.form.activeFlag'),
+        type: 'select',
+        span: 8,
+        tabKey: 'basic',
+        defaultValue: FlagEnum.YES,
+        options: [
+          { label: t('resource.columns.active'), value: FlagEnum.YES },
+          { label: t('resource.columns.inactive'), value: FlagEnum.NO },
+        ],
+      },
+      {
+        field: 'noteText',
+        label: t('resource.form.noteText'),
+        type: 'textarea',
+        placeholder: t('resource.form.noteTextPlaceholder'),
+        span: 24,
+        tabKey: 'basic',
+      },
+    )
+
+    gridConfig.columns = [
+      {
+        key: 'resourceId',
+        title: t('resource.columns.resourceId'),
+        width: 200,
+        ellipsis: true,
+      },
+      {
+        key: 'resourceName',
+        title: t('resource.columns.resourceName'),
+        sortable: true,
+        ellipsis: true,
+      },
+      {
+        key: 'resourceCode',
+        title: t('resource.columns.resourceCode'),
+        sortable: true,
+        width: 200,
+        ellipsis: true,
+      },
+      {
+        key: 'resourceType',
+        title: t('resource.columns.resourceType'),
+        align: 'center',
+        render: (row) => {
+          const typeMap: Record<
+            string,
+            { variant: 'info' | 'success' | 'warning' | 'primary' | 'default'; label: string }
+          > = {
+            [ResourceType.MODULE]: { variant: 'info', label: t('resource.type.module') },
+            [ResourceType.MENU]: { variant: 'success', label: t('resource.type.menu') },
+            [ResourceType.BUTTON]: { variant: 'warning', label: t('resource.type.button') },
+            [ResourceType.API]: { variant: 'primary', label: t('resource.type.api') },
+          }
+          const meta = typeMap[row.resourceType] || {
+            variant: 'default' as const,
+            label: row.resourceType,
+          }
+          return h(RsTag, { variant: meta.variant, size: 'sm' }, () => meta.label)
+        },
+      },
+      {
+        key: 'resourcePath',
+        title: t('resource.columns.resourcePath'),
+        ellipsis: true,
+      },
+      {
+        key: 'resourceMethod',
+        title: t('resource.columns.resourceMethod'),
+        align: 'center',
+        ellipsis: true,
+      },
+      {
+        key: 'resourceLevel',
+        title: t('resource.columns.resourceLevel'),
+        align: 'center',
+        sortable: true,
+      },
+      {
+        key: 'sortOrder',
+        title: t('resource.columns.sortOrder'),
+        align: 'center',
+        sortable: true,
+      },
+      {
+        key: 'resourceStatus',
+        title: t('resource.columns.status'),
+        align: 'center',
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.resourceStatus === ResourceStatus.ENABLED ? 'success' : 'danger',
+              size: 'sm',
+            },
+            () =>
+              row.resourceStatus === ResourceStatus.ENABLED
+                ? t('resource.status.enabled')
+                : t('resource.status.disabled'),
+          ),
+      },
+      {
+        key: 'builtInFlag',
+        title: t('resource.columns.type'),
+        align: 'center',
+        formatter: (value) =>
+          value === BuiltInFlag.BUILT_IN
+            ? t('resource.columns.builtin')
+            : t('resource.columns.custom'),
+      },
+      {
+        key: 'activeFlag',
+        title: t('resource.columns.activeFlag'),
+        align: 'center',
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.activeFlag === FlagEnum.YES ? 'success' : 'default',
+              size: 'sm',
+            },
+            () =>
+              row.activeFlag === FlagEnum.YES
+                ? t('resource.columns.active')
+                : t('resource.columns.inactive'),
+          ),
+      },
+      {
+        key: 'addTime',
+        title: t('resource.columns.addTime'),
+        sortable: true,
+        ellipsis: true,
+        formatter: (value) => (value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : ''),
+      },
+      {
+        key: 'addWho',
+        title: t('resource.columns.addWho'),
+        ellipsis: true,
+      },
+      {
+        key: 'editTime',
+        title: t('resource.columns.editTime'),
+        sortable: true,
+        ellipsis: true,
+        formatter: (value) => (value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : ''),
+      },
+      {
+        key: 'editWho',
+        title: t('resource.columns.editWho'),
+        ellipsis: true,
+      },
+      {
+        key: 'description',
+        title: t('resource.columns.description'),
+        ellipsis: true,
+      },
+    ]
+    gridConfig.menuConfig = {
+      enabled: true,
+      items: [
+        { key: 'view', label: t('resource.contextMenu.view'), icon: 'EyeOutline' },
+      ],
+    }
+  }
+
+  watch(locale, applyI18n, { immediate: true })
+
   const resetPagination = () => {
     pageInfo.value = undefined
   }
 
-  /**
-   * 更新分页信息（接收后端 PageInfoObj）
-   */
   const updatePagination = (newPageInfo: Partial<PageInfoObj>) => {
     if (!pageInfo.value) {
       pageInfo.value = newPageInfo as PageInfoObj
@@ -502,50 +525,40 @@ export function useResourceModel() {
     }
   }
 
-  /**
-   * 设置资源列表
-   */
   const setResourceList = (list: Resource[]) => {
     resourceList.value = list
   }
 
-  /**
-   * 清空资源列表
-   */
   const clearResourceList = () => {
     resourceList.value = []
   }
 
-  /**
-   * 添加资源到列表
-   */
   const addResourceToList = (resource: Resource) => {
     resourceList.value.unshift(resource)
   }
 
-  /**
-   * 更新列表中的资源
-   */
-  const updateResourceInList = (resourceId: string, tenantId: string, updatedResource: Partial<Resource>) => {
-    const index = resourceList.value.findIndex((r) => r.resourceId === resourceId && r.tenantId === tenantId)
+  const updateResourceInList = (
+    resourceId: string,
+    tenantId: string,
+    updatedResource: Partial<Resource>,
+  ) => {
+    const index = resourceList.value.findIndex(
+      (r) => r.resourceId === resourceId && r.tenantId === tenantId,
+    )
     if (index !== -1) {
       Object.assign(resourceList.value[index], updatedResource)
     }
   }
 
-  /**
-   * 从列表中删除资源
-   */
   const removeResourceFromList = (resourceId: string, tenantId: string) => {
-    const index = resourceList.value.findIndex((r) => r.resourceId === resourceId && r.tenantId === tenantId)
+    const index = resourceList.value.findIndex(
+      (r) => r.resourceId === resourceId && r.tenantId === tenantId,
+    )
     if (index !== -1) {
       resourceList.value.splice(index, 1)
     }
   }
 
-  /**
-   * 批量删除资源
-   */
   const removeResourcesFromList = (resources: Resource[]) => {
     resources.forEach((resource) => {
       removeResourceFromList(resource.resourceId, resource.tenantId)
@@ -553,21 +566,14 @@ export function useResourceModel() {
   }
 
   return {
-    // 基本信息
     moduleId,
-
-    // 数据状态
     loading,
     resourceList,
     pageInfo,
-
-    // 配置
     searchFormConfig,
     formTabs,
     formFields,
     gridConfig,
-
-    // 方法
     resetPagination,
     updatePagination,
     setResourceList,
@@ -583,4 +589,3 @@ export function useResourceModel() {
  * Model 返回类型
  */
 export type ResourceModel = ReturnType<typeof useResourceModel>
-

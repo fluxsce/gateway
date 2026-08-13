@@ -1,5 +1,5 @@
+import { useAppMessage } from '@/composables/useAppMessage'
 import { ref, computed, reactive, watch, onMounted } from 'vue'
-import { useMessage } from 'naive-ui'
 import {
   ToolCategory,
   ToolStatus,
@@ -10,14 +10,12 @@ import {
   type ToolMarketplaceConfig,
 } from '../types/toolMarketplace'
 
-// 简单的本地存储hook
-
 /**
  * 工具市场Hook
  * 管理工具市场的状态和交互逻辑
  */
 export function useToolMarketplace() {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 基础状态
   const loading = ref(false)

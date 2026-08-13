@@ -5,7 +5,7 @@
 
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import * as securityApi from '../../api/securityConfig'
 import { useRateLimitConfigModel } from './model'
 import type { RateLimitConfig } from './types'
@@ -15,7 +15,7 @@ import type { RateLimitConfig } from './types'
  * @param moduleId 模块ID（用于权限控制，必填）
  */
 export function useRateLimitConfigService(moduleId: string) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 初始化 Model（传递 moduleId）
   const model = useRateLimitConfigModel(moduleId)

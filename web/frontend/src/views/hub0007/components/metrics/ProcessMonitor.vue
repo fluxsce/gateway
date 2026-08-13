@@ -1,17 +1,14 @@
 <template>
-    <GCard title="进程监控" :show-title="true">
-        <template #header-extra>
+    <RsCard :title="t('process.title')" variant="outlined" :padding="false" class="monitor-card">
+        <template #actions>
             <div class="card-extra">
-                <n-date-picker v-model:value="dateTimeRange" type="datetimerange" :shortcuts="timeRangeShortcuts"
-                    placeholder="选择时间范围" @update:value="handleTimeRangeChange" size="small" />
-                <n-button size="small" @click="refreshData" :loading="loading">
+                <MetricsDateTimeRange v-model="dateTimeRange" @change="handleTimeRangeChange" />
+                <RsButton size="sm" :loading="loading" @click="refreshData">
                     <template #icon>
-                        <n-icon>
-                            <ReloadOutlined />
-                        </n-icon>
+                        <GIcon icon="ReloadOutline" />
                     </template>
-                    刷新
-                </n-button>
+                    {{ t('common.refresh') }}
+                </RsButton>
             </div>
         </template>
 
@@ -19,20 +16,20 @@
             <div ref="chartRef" class="chart-element"></div>
 
             <div v-if="loading" class="chart-loading">
-                <n-spin size="large" />
+                <RsLoading size="lg" />
             </div>
 
             <div v-if="!loading && !data?.length" class="chart-empty">
-                <n-empty description="暂无数据" />
+                <RsEmpty :description="t('common.noData')" />
             </div>
         </div>
-    </GCard>
+    </RsCard>
 </template>
 
 <script setup lang="ts">
-import { GCard } from '@/components/gcard'
+import { GIcon } from '@/components/gicon'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { formatDate } from '@/utils/format'
-import { ReloadOutlined } from '@vicons/antd'
 import { LineChart } from 'echarts/charts'
 import {
     GridComponent,
@@ -43,9 +40,18 @@ import {
 } from 'echarts/components'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { NButton, NDatePicker, NEmpty, NIcon, NSpin } from 'naive-ui'
+import { RsButton, RsCard, RsEmpty, RsLoading } from '@/ui'
+import { createAxisTooltipOptions } from '@/views/hub0000/components/metrics/echartsTooltip'
+import MetricsDateTimeRange from '@/views/hub0000/components/metrics/MetricsDateTimeRange.vue'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import type { ProcessInfo } from '../../types'
+
+const { t } = useModuleI18n('hub0007')
+
+function formatPercent(value: unknown, digits = 2): string {
+    const n = Number(value)
+    return Number.isFinite(n) ? n.toFixed(digits) : '-'
+}
 
 // 注册必要的 ECharts 组件
 echarts.use([
@@ -95,35 +101,6 @@ const end = Date.now()
 const start = end - 3600 * 1000 // 最近1小时
 const dateTimeRange = ref<[number, number] | null>([start, end])
 
-// 时间范围快捷选项
-const timeRangeShortcuts: Record<string, () => [number, number]> = {
-    '最近1小时': () => {
-        const end = Date.now()
-        const start = end - 3600 * 1000
-        return [start, end]
-    },
-    '最近6小时': () => {
-        const end = Date.now()
-        const start = end - 6 * 3600 * 1000
-        return [start, end]
-    },
-    '最近12小时': () => {
-        const end = Date.now()
-        const start = end - 12 * 3600 * 1000
-        return [start, end]
-    },
-    '最近24小时': () => {
-        const end = Date.now()
-        const start = end - 24 * 3600 * 1000
-        return [start, end]
-    },
-    '最近7天': () => {
-        const end = Date.now()
-        const start = end - 7 * 24 * 3600 * 1000
-        return [start, end]
-    }
-}
-
 // 初始化图表
 const initChart = () => {
     if (!chartRef.value) return
@@ -163,8 +140,8 @@ const updateChart = () => {
     times.forEach(time => {
         const processes = timeMap.get(time) || []
         if (processes.length > 0) {
-            const avgCpu = processes.reduce((sum, p) => sum + p.cpuPercent, 0) / processes.length
-            const avgMemory = processes.reduce((sum, p) => sum + p.memoryPercent, 0) / processes.length
+            const avgCpu = processes.reduce((sum, p) => sum + (Number(p.cpuPercent) || 0), 0) / processes.length
+            const avgMemory = processes.reduce((sum, p) => sum + (Number(p.memoryPercent) || 0), 0) / processes.length
             cpuData.push(Number(avgCpu.toFixed(2)))
             memoryData.push(Number(avgMemory.toFixed(2)))
         } else {
@@ -174,56 +151,49 @@ const updateChart = () => {
     })
 
     const option = {
-        tooltip: {
-            trigger: 'axis',
-            confine: false,
+        tooltip: createAxisTooltipOptions({
             appendToBody: true,
+            confine: true,
+            extraCssText: 'z-index: 9999;',
             formatter: (params: any) => {
                 const index = params[0].dataIndex
                 const processes = timeMap.get(times[index]) || []
 
                 let result = formatDate(times[index], 'YYYY-MM-DD HH:mm:ss') + '<br/>'
 
-                // 添加平均值信息
                 params.forEach((param: any) => {
                     const color = param.color
                     const marker = `<span style="display:inline-block;margin-right:4px;border-radius:10px;width:10px;height:10px;background-color:${color};"></span>`
-                    result += marker + param.seriesName + ': ' + param.value + '%<br/>'
+                    result += marker + param.seriesName + ': ' + formatPercent(param.value) + '%<br/>'
                 })
 
-                // 添加进程数量信息
                 if (processes.length > 0) {
-                    result += `<span style="color:#666;">进程数量: ${processes.length}</span><br/>`
-                }
+                    result += `<span style="color:#666;">${t('process.processCount')}: ${processes.length}</span><br/>`
+                    result += `<br/><b>${t('process.detailTitle')}</b><br/>`
 
-                // 添加前5个进程的CPU和内存使用率
-                if (processes.length > 0) {
-                    result += '<br/><b>进程详情</b><br/>'
-
-                    // 按CPU使用率排序
                     const topProcesses = [...processes]
-                        .sort((a, b) => b.cpuPercent - a.cpuPercent)
+                        .sort((a, b) => (Number(b.cpuPercent) || 0) - (Number(a.cpuPercent) || 0))
                         .slice(0, 5)
 
                     topProcesses.forEach((process, i) => {
                         result += `<div style="padding-left:10px;margin:2px 0;">`
-                        result += `<b>${i + 1}. ${process.processName}</b> <span style="color:#666;">(PID: ${process.processId})</span><br/>`
-                        result += `<span style="padding-left:15px;">CPU: ${process.cpuPercent.toFixed(2)}%, `
-                        result += `内存: ${process.memoryPercent.toFixed(2)}%, `
-                        result += `线程: ${process.threadCount}</span>`
+                        result += `<b>${i + 1}. ${process.processName ?? '-'}</b> <span style="color:#666;">(PID: ${process.processId ?? '-'})</span><br/>`
+                        result += `<span style="padding-left:15px;">CPU: ${formatPercent(process.cpuPercent)}%, `
+                        result += `${t('process.memory')}: ${formatPercent(process.memoryPercent)}%, `
+                        result += `${t('process.threads')}: ${process.threadCount ?? '-'}</span>`
                         result += `</div>`
                     })
 
                     if (processes.length > 5) {
-                        result += `<div style="padding-left:10px;color:#999;">... 以及 ${processes.length - 5} 个其他进程</div>`
+                        result += `<div style="padding-left:10px;color:#999;">${t('process.moreProcesses', { count: processes.length - 5 })}</div>`
                     }
                 }
 
                 return result
             }
-        },
+        }),
         legend: {
-            data: ['平均CPU使用率', '平均内存使用率'],
+            data: [t('process.avgCpu'), t('process.avgMemory')],
             bottom: 0,
             padding: [10, 20]
         },
@@ -253,7 +223,7 @@ const updateChart = () => {
         },
         series: [
             {
-                name: '平均CPU使用率',
+                name: t('process.avgCpu'),
                 type: 'line',
                 data: cpuData,
                 smooth: true,
@@ -267,7 +237,7 @@ const updateChart = () => {
                 }
             },
             {
-                name: '平均内存使用率',
+                name: t('process.avgMemory'),
                 type: 'line',
                 data: memoryData,
                 smooth: true,

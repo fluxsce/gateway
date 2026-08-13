@@ -3,20 +3,27 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { DataFormField } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsDataFormField } from '@/components/form/rs-data'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
 import { formatDate } from '@/utils/format'
 import { validateCIDRList, validateIPList } from '@/utils/validate'
-import {
-  AddOutline,
-  CreateOutline,
-  TrashOutline
-} from '@vicons/ionicons5'
-import { NDynamicTags, NSelect, NTooltip } from 'naive-ui'
+import { RsDynamicTags, RsTag } from '@/ui'
 import { h, ref } from 'vue'
 import type { IpAccessConfig } from './types'
+
+/**
+ * IP访问控制配置表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface IpAccessConfigGridConfig {
+  columns: RsGridColumn<IpAccessConfig>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
 
 /**
  * IP访问控制配置列表 Model
@@ -35,8 +42,8 @@ export function useIpAccessConfigModel(moduleId: string) {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'configName',
@@ -64,23 +71,23 @@ export function useIpAccessConfigModel(moduleId: string) {
       {
         key: 'add',
         label: '新建配置',
-        icon: AddOutline,
+        icon: 'AddOutline',
         type: 'primary',
         tooltip: '新建IP访问控制配置',
       },
       {
         key: 'edit',
         label: '编辑',
-        icon: CreateOutline,
+        icon: 'CreateOutline',
         tooltip: '编辑选中的配置',
       },
       {
         key: 'delete',
         label: '删除',
-        icon: TrashOutline,
+        icon: 'TrashOutline',
         type: 'error',
         tooltip: '删除选中的配置',
-      }
+      },
     ],
     showSearchButton: true,
     showResetButton: true,
@@ -88,42 +95,40 @@ export function useIpAccessConfigModel(moduleId: string) {
 
   // ============= 表单配置 =============
 
-  // 创建 IP 列表渲染函数（验证错误由表单验证系统统一显示）
+  // 创建 IP 列表渲染函数（name 对齐 RsForm.rules，校验错误由 RsDynamicTags 展示）
   const createIpListRender = (field: 'whitelistIps' | 'blacklistIps') => {
     return (formData: Record<string, any>) => {
       const value = formData[field] || []
 
-      return h(NDynamicTags, {
-        value,
-        'onUpdate:value': (newValue: string[]) => {
+      return h(RsDynamicTags, {
+        name: field,
+        modelValue: value,
+        'onUpdate:modelValue': (newValue: string[]) => {
           formData[field] = newValue
         },
-        inputProps: {
-          placeholder: '输入IP地址，如：192.168.1.100',
-        },
+        placeholder: '输入IP地址，如：192.168.1.100',
       })
     }
   }
 
-  // 创建 CIDR 列表渲染函数（验证错误由表单验证系统统一显示）
+  // 创建 CIDR 列表渲染函数（name 对齐 RsForm.rules，校验错误由 RsDynamicTags 展示）
   const createCidrListRender = (field: 'whitelistCidrs' | 'blacklistCidrs') => {
     return (formData: Record<string, any>) => {
       const value = formData[field] || []
 
-      return h(NDynamicTags, {
-        value,
-        'onUpdate:value': (newValue: string[]) => {
+      return h(RsDynamicTags, {
+        name: field,
+        modelValue: value,
+        'onUpdate:modelValue': (newValue: string[]) => {
           formData[field] = newValue
         },
-        inputProps: {
-          placeholder: '输入CIDR网段，如：192.168.1.0/24',
-        },
+        placeholder: '输入CIDR网段，如：192.168.1.0/24',
       })
     }
   }
 
   /** 表单字段配置 */
-  const formFields: DataFormField[] = [
+  const formFields: RsDataFormField[] = [
     // ============= 主键字段（隐藏，但必须存在用于更新） =============
     {
       field: 'ipAccessConfigId',
@@ -164,46 +169,14 @@ export function useIpAccessConfigModel(moduleId: string) {
         {
           field: 'defaultPolicy',
           label: '默认策略',
-          type: 'custom',
+          type: 'select',
           span: 12,
           defaultValue: 'allow',
-          render: (formData: Record<string, any>) => {
-            return h(NTooltip, {
-              trigger: 'hover',
-              placement: 'top',
-            }, {
-              trigger: () => h('div', { style: 'width: 100%;' }, [
-                h(NSelect, {
-                  value: formData.defaultPolicy,
-                  'onUpdate:value': (value: string) => {
-                    formData.defaultPolicy = value
-                  },
-                  placeholder: '请选择默认策略',
-                  options: [
-                    { label: '允许（白名单模式）', value: 'allow' },
-                    { label: '拒绝（黑名单模式）', value: 'deny' },
-                  ],
-                }),
-              ]),
-              default: () => h('div', { style: 'max-width: 320px; line-height: 1.5;' }, [
-                h('p', { style: 'margin: 0 0 8px 0;' }, [
-                  h('strong', '默认策略说明：'),
-                ]),
-                h('p', { style: 'margin: 0 0 8px 0;' }, [
-                  h('strong', '• allow（允许）:'),
-                  ' 默认允许访问，只有在黑名单中的IP会被拒绝',
-                ]),
-                h('p', { style: 'margin: 0 0 8px 0;' }, [
-                  h('strong', '• deny（拒绝）:'),
-                  ' 默认拒绝访问，只有在白名单中的IP才被允许',
-                ]),
-                h('p', { style: 'margin: 0; color: #f0a020;' }, [
-                  h('strong', '⚠️ 重要：'),
-                  '黑名单优先级高于白名单，无论默认策略如何，黑名单中的IP都会被拒绝',
-                ]),
-              ]),
-            })
-          },
+          tips: 'allow（允许）: 默认允许，黑名单中的IP会被拒绝。deny（拒绝）: 默认拒绝，仅白名单允许。黑名单优先级高于白名单。',
+          options: [
+            { label: '允许（白名单模式）', value: 'allow' },
+            { label: '拒绝（黑名单模式）', value: 'deny' },
+          ],
         },
         {
           field: 'trustXForwardedFor',
@@ -246,15 +219,15 @@ export function useIpAccessConfigModel(moduleId: string) {
           render: createIpListRender('whitelistIps'),
           rules: [
             {
-              validator: (_rule: any, value: string[]) => {
-                if (!value || value.length === 0) return true
-                const result = validateIPList(value)
+              validator: (value: unknown) => {
+                if (!Array.isArray(value) || value.length === 0) return true
+                const result = validateIPList(value as string[])
                 if (!result.valid) {
-                  return new Error(`无效的IP地址：${result.invalidIps.join(', ')}`)
+                  return `无效的IP地址：${result.invalidIps.join(', ')}`
                 }
                 return true
               },
-              trigger: ['blur', 'input'],
+              trigger: ['change', 'blur'],
             },
           ],
         },
@@ -268,15 +241,15 @@ export function useIpAccessConfigModel(moduleId: string) {
           render: createCidrListRender('whitelistCidrs'),
           rules: [
             {
-              validator: (_rule: any, value: string[]) => {
-                if (!value || value.length === 0) return true
-                const result = validateCIDRList(value)
+              validator: (value: unknown) => {
+                if (!Array.isArray(value) || value.length === 0) return true
+                const result = validateCIDRList(value as string[])
                 if (!result.valid) {
-                  return new Error(`无效的CIDR网段：${result.invalidCidrs.join(', ')}`)
+                  return `无效的CIDR网段：${result.invalidCidrs.join(', ')}`
                 }
                 return true
               },
-              trigger: ['blur', 'input'],
+              trigger: ['change', 'blur'],
             },
           ],
         },
@@ -299,15 +272,15 @@ export function useIpAccessConfigModel(moduleId: string) {
           render: createIpListRender('blacklistIps'),
           rules: [
             {
-              validator: (_rule: any, value: string[]) => {
-                if (!value || value.length === 0) return true
-                const result = validateIPList(value)
+              validator: (value: unknown) => {
+                if (!Array.isArray(value) || value.length === 0) return true
+                const result = validateIPList(value as string[])
                 if (!result.valid) {
-                  return new Error(`无效的IP地址：${result.invalidIps.join(', ')}`)
+                  return `无效的IP地址：${result.invalidIps.join(', ')}`
                 }
                 return true
               },
-              trigger: ['blur', 'input'],
+              trigger: ['change', 'blur'],
             },
           ],
         },
@@ -321,15 +294,15 @@ export function useIpAccessConfigModel(moduleId: string) {
           render: createCidrListRender('blacklistCidrs'),
           rules: [
             {
-              validator: (_rule: any, value: string[]) => {
-                if (!value || value.length === 0) return true
-                const result = validateCIDRList(value)
+              validator: (value: unknown) => {
+                if (!Array.isArray(value) || value.length === 0) return true
+                const result = validateCIDRList(value as string[])
                 if (!result.valid) {
-                  return new Error(`无效的CIDR网段：${result.invalidCidrs.join(', ')}`)
+                  return `无效的CIDR网段：${result.invalidCidrs.join(', ')}`
                 }
                 return true
               },
-              trigger: ['blur', 'input'],
+              trigger: ['change', 'blur'],
             },
           ],
         },
@@ -351,117 +324,148 @@ export function useIpAccessConfigModel(moduleId: string) {
 
   // ============= 表格配置 =============
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置（符合 RsGrid 结构） */
+  const gridConfig: IpAccessConfigGridConfig = {
     columns: [
-      // ============= 主键字段（隐藏，但必须存在用于数据操作） =============
       {
-        field: 'ipAccessConfigId',
+        key: 'ipAccessConfigId',
         title: 'IP访问配置ID',
         visible: false,
       },
       {
-        field: 'tenantId',
+        key: 'tenantId',
         title: '租户ID',
         visible: false,
       },
       {
-        field: 'securityConfigId',
+        key: 'securityConfigId',
         title: '安全配置ID',
         visible: false,
       },
-      // ============= 业务字段 =============
       {
-        field: 'configName',
+        key: 'configName',
         title: '配置名称',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'defaultPolicy',
+        key: 'defaultPolicy',
         title: '默认策略',
         align: 'center',
         width: 120,
-        slots: { default: 'defaultPolicy' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.defaultPolicy === 'allow' ? 'success' : 'danger',
+              size: 'sm',
+            },
+            () => (row.defaultPolicy === 'allow' ? '允许' : '拒绝'),
+          ),
       },
       {
-        field: 'activeFlag',
+        key: 'activeFlag',
         title: '状态',
         align: 'center',
         width: 100,
-        slots: { default: 'activeFlag' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.activeFlag === 'Y' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.activeFlag === 'Y' ? '活动' : '非活动'),
+          ),
       },
       {
-        field: 'whitelistIps',
+        key: 'whitelistIps',
         title: 'IP白名单',
         align: 'left',
         width: 200,
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'whitelistCidrs',
+        key: 'whitelistCidrs',
         title: 'CIDR白名单',
         align: 'left',
         width: 200,
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'blacklistIps',
+        key: 'blacklistIps',
         title: 'IP黑名单',
         align: 'left',
         width: 200,
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'blacklistCidrs',
+        key: 'blacklistCidrs',
         title: 'CIDR黑名单',
         align: 'left',
         width: 200,
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'trustXForwardedFor',
+        key: 'trustXForwardedFor',
         title: '信任X-Forwarded-For',
         align: 'center',
         width: 150,
-        slots: { default: 'trustXForwardedFor' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.trustXForwardedFor === 'Y' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.trustXForwardedFor === 'Y' ? '是' : '否'),
+          ),
       },
       {
-        field: 'trustXRealIp',
+        key: 'trustXRealIp',
         title: '信任X-Real-IP',
         align: 'center',
         width: 130,
-        slots: { default: 'trustXRealIp' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.trustXRealIp === 'Y' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.trustXRealIp === 'Y' ? '是' : '否'),
+          ),
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
-        field: 'addWho',
+        key: 'addWho',
         title: '创建人',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'editTime',
+        key: 'editTime',
         title: '修改时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
-        field: 'editWho',
+        key: 'editWho',
         title: '修改人',
-        showOverflow: true,
+        ellipsis: true,
       },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: 'ipAccessConfigId',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -469,24 +473,10 @@ export function useIpAccessConfigModel(moduleId: string) {
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      showCopyCell: true,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-        {
-          code: 'edit',
-          name: '编辑',
-          prefixIcon: 'vxe-icon-edit',
-        },
-        {
-          code: 'delete',
-          name: '删除',
-          prefixIcon: 'vxe-icon-delete',
-        },
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
       ],
     },
     height: '100%',
@@ -593,4 +583,3 @@ export function useIpAccessConfigModel(moduleId: string) {
 }
 
 // 类型定义已移至 types.ts
-

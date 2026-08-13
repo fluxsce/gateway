@@ -4,7 +4,7 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
-import { useGDialog } from '@/components/gdialog'
+import { rsConfirm } from '@/ui'
 import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
@@ -21,9 +21,7 @@ export function useAlertConfigPage(
   searchFormRef?: Ref<any> | any
 ) {
   const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 业务服务（包含 model、增删改查等）
+// 业务服务（包含 model、增删改查等）
   const service = useAlertConfigService(searchFormRef)
 
   // 表单对话框状态（新增/编辑/查看共用）
@@ -404,11 +402,11 @@ export function useAlertConfigPage(
    * 处理删除
    */
   const handleDelete = async (config: AlertConfig) => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认删除',
-      content: `确定要删除渠道配置"${config.channelName}"吗？此操作不可恢复。`,
-      positiveText: '删除',
-      negativeText: '取消',
+      description: `确定要删除渠道配置"${config.channelName}"吗？此操作不可恢复。`,
+      confirmText: '删除',
+      cancelText: '取消',
     })
 
     if (!confirmed) {
@@ -428,11 +426,11 @@ export function useAlertConfigPage(
       return
     }
 
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认设置',
-      content: `确定要将渠道"${config.channelName}"设置为默认渠道吗？`,
-      positiveText: '确定',
-      negativeText: '取消',
+      description: `确定要将渠道"${config.channelName}"设置为默认渠道吗？`,
+      confirmText: '确定',
+      cancelText: '取消',
     })
 
     if (!confirmed) {
@@ -481,11 +479,11 @@ export function useAlertConfigPage(
       return
     }
 
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认重载',
-      content: `确定要重载渠道"${config.channelName}"的配置吗？重载后将立即生效。`,
-      positiveText: '重载',
-      negativeText: '取消',
+      description: `确定要重载渠道"${config.channelName}"的配置吗？重载后将立即生效。`,
+      confirmText: '重载',
+      cancelText: '取消',
     })
     if (!confirmed) return
 

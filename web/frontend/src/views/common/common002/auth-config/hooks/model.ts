@@ -3,8 +3,8 @@
  * 统一管理表单配置和数据状态
  */
 
-import type { DataFormField } from '@/components/form/data/types'
-import { NAlert, NDynamicTags, NInput, NInputNumber, NSelect, NSwitch } from 'naive-ui'
+import type { RsDataFormField } from '@/components/form/rs-data'
+import { RsAlert, RsDynamicTags, RsInput, RsInputNumber, RsSelect, RsSwitch } from '@/ui'
 import { h, ref } from 'vue'
 import { clearIrrelevantAuthConfigFields, clearJwtKeysOnAlgorithmChange, isJwtHmacAlgorithm, isJwtRsaAlgorithm } from './authConfigUtils'
 
@@ -24,14 +24,12 @@ export function useAuthConfigModel(moduleId: string) {
     return (formData: Record<string, any>) => {
       const value = formData[field] || []
 
-      return h(NDynamicTags, {
-        value,
-        'onUpdate:value': (newValue: string[]) => {
+      return h(RsDynamicTags, {
+        modelValue: value,
+        'onUpdate:modelValue': (newValue: string[]) => {
           formData[field] = newValue
         },
-        inputProps: {
-          placeholder,
-        },
+        placeholder,
       })
     }
   }
@@ -76,62 +74,62 @@ export function useAuthConfigModel(moduleId: string) {
       const value = formData[dotKey]
 
       if (fieldType === 'input') {
-        return h(NInput, {
-          value: value || '',
-          type: options?.type || 'text',
+        return h(RsInput, {
+          modelValue: value || '',
+          type: options?.type === 'password' ? 'password' : 'text',
           placeholder: options?.placeholder || '',
-          showPasswordOn: options?.showPasswordOn,
-          'onUpdate:value': (val: string) => {
+          'onUpdate:modelValue': (val: string) => {
             formData[dotKey] = val
           },
         })
       } else if (fieldType === 'textarea') {
-        return h(NInput, {
+        return h('textarea', {
           value: value || '',
-          type: 'textarea',
           placeholder: options?.placeholder || '',
           rows: options?.rows || 4,
-          'onUpdate:value': (val: string) => {
-            formData[dotKey] = val
+          style: 'width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--rs-border-color, #d9d9d9);border-radius:4px;font:inherit;resize:vertical;',
+          class: 'rs-data-form__textarea',
+          onInput: (e: Event) => {
+            formData[dotKey] = (e.target as HTMLTextAreaElement).value
           },
         })
       } else if (fieldType === 'select') {
-        return h(NSelect, {
-          value: value || options?.defaultValue || '',
+        return h(RsSelect, {
+          modelValue: value || options?.defaultValue || '',
           options: options?.options || [],
           placeholder: options?.placeholder || '',
-          'onUpdate:value': (val: string) => {
-            formData[dotKey] = val
-            options?.onUpdateValue?.(val, formData)
+          block: true,
+          'onUpdate:modelValue': (val: string | string[]) => {
+            const v = Array.isArray(val) ? val[0] : val
+            formData[dotKey] = v
+            options?.onUpdateValue?.(v, formData)
           },
         })
       } else if (fieldType === 'number') {
-        return h(NInputNumber, {
-          value: value ?? options?.defaultValue ?? 0,
+        return h(RsInputNumber, {
+          modelValue: value ?? options?.defaultValue ?? 0,
           min: options?.min,
           max: options?.max,
           placeholder: options?.placeholder || '',
           style: 'width: 100%;',
-          'onUpdate:value': (val: number | null) => {
+          'onUpdate:modelValue': (val: number | null) => {
             formData[dotKey] = val ?? options?.defaultValue ?? 0
           },
         })
       } else if (fieldType === 'switch') {
-        return h(NSwitch, {
-          value: value ?? options?.defaultValue ?? false,
-          'onUpdate:value': (val: boolean) => {
+        return h(RsSwitch, {
+          modelValue: value ?? options?.defaultValue ?? false,
+          'onUpdate:modelValue': (val: boolean) => {
             formData[dotKey] = val
           },
         })
       } else if (fieldType === 'tags') {
-        return h(NDynamicTags, {
-          value: value || [],
-          'onUpdate:value': (val: string[]) => {
+        return h(RsDynamicTags, {
+          modelValue: value || [],
+          'onUpdate:modelValue': (val: string[]) => {
             formData[dotKey] = val
           },
-          inputProps: {
-            placeholder: options?.placeholder || '',
-          },
+          placeholder: options?.placeholder || '',
         })
       }
 
@@ -140,7 +138,7 @@ export function useAuthConfigModel(moduleId: string) {
   }
 
   // API Key 配置字段（独立分组，选择 API Key 认证时展示）
-  const apiKeyConfigFields: DataFormField[] = [
+  const apiKeyConfigFields: RsDataFormField[] = [
     {
       field: 'authConfig.in',
       label: 'API Key位置',
@@ -226,7 +224,7 @@ export function useAuthConfigModel(moduleId: string) {
     },
   ]
 
-  const bearerTokenConfigFields: DataFormField[] = [
+  const bearerTokenConfigFields: RsDataFormField[] = [
     {
       field: 'authConfig.token',
       label: 'Bearer Token',
@@ -265,7 +263,7 @@ export function useAuthConfigModel(moduleId: string) {
   ]
 
   /** 表单字段配置 */
-  const formFields: DataFormField[] = [
+  const formFields: RsDataFormField[] = [
     // ============= 主键字段（隐藏，但必须存在用于更新） =============
     {
       field: 'authConfigId',
@@ -600,7 +598,7 @@ export function useAuthConfigModel(moduleId: string) {
           tabKey: 'basic',
           show: (formData: Record<string, any>) => formData.authType === 'OAUTH2',
           render: () =>
-            h(NAlert, {
+            h(RsAlert, {
               type: 'warning',
               title: 'OAuth2 远端校验暂未实现',
               style: 'margin-bottom: 8px;',

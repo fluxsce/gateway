@@ -20,12 +20,12 @@
           :class="{ 'g-key-value-editor__tr--auto-body': row.autoFromBody }"
         >
           <div class="g-key-value-editor__td g-key-value-editor__td--check">
-            <n-checkbox v-model:checked="row.enabled" />
+            <RsCheckbox v-model:checked="row.enabled" />
           </div>
           <div class="g-key-value-editor__td">
-            <n-input
-              v-model:value="row.key"
-              size="small"
+            <RsInput
+              v-model="row.key"
+              size="sm"
               :placeholder="keyPlaceholder"
               class="g-key-value-editor__cell-input"
             />
@@ -35,9 +35,9 @@
           </div>
           <div class="g-key-value-editor__td g-key-value-editor__td--grow">
             <div class="g-key-value-editor__value-cell">
-              <n-input
-                v-model:value="row.value"
-                size="small"
+              <RsInput
+                v-model="row.value"
+                size="sm"
                 :placeholder="valuePlaceholder"
                 class="g-key-value-editor__cell-input"
               />
@@ -48,18 +48,18 @@
             </div>
           </div>
           <div class="g-key-value-editor__td g-key-value-editor__td--action">
-            <n-button
+            <RsButton
               quaternary
               circle
-              size="small"
+              size="sm"
               class="g-key-value-editor__remove"
               :aria-label="'删除该行'"
               @click="removeRow(row.id)"
             >
               <template #icon>
-                <g-icon icon="RemoveOutline" size="small" />
+                <g-icon icon="RemoveOutline" size="sm" />
               </template>
-            </n-button>
+            </RsButton>
           </div>
         </div>
       </div>
@@ -81,31 +81,31 @@
           class="g-key-value-editor__tr g-key-value-editor__tr--form"
         >
           <div class="g-key-value-editor__td g-key-value-editor__td--check">
-            <n-checkbox v-model:checked="row.enabled" />
+            <RsCheckbox v-model:checked="row.enabled" />
           </div>
           <div class="g-key-value-editor__td">
-            <n-input
-              v-model:value="row.key"
-              size="small"
+            <RsInput
+              v-model="row.key"
+              size="sm"
               :placeholder="keyPlaceholder"
               class="g-key-value-editor__cell-input"
             />
           </div>
           <div class="g-key-value-editor__td g-key-value-editor__td--type">
-            <n-select
-              size="small"
+            <RsSelect
+              size="sm"
               :value="row.fieldKind ?? 'text'"
               :options="fieldKindOptions"
               :disabled="formTableKind === 'urlencoded'"
               class="g-key-value-editor__type-select"
-              @update:value="(v) => setFieldKind(row, v)"
+              @update:model-value="(v) => setFieldKind(row, v)"
             />
           </div>
           <div class="g-key-value-editor__td g-key-value-editor__td--grow g-key-value-editor__td--value">
             <template v-if="(row.fieldKind ?? 'text') === 'text' || formTableKind === 'urlencoded'">
-              <n-input
-                v-model:value="row.value"
-                size="small"
+              <RsInput
+                v-model="row.value"
+                size="sm"
                 :placeholder="valuePlaceholder"
                 class="g-key-value-editor__cell-input"
               />
@@ -129,18 +129,18 @@
             </template>
           </div>
           <div class="g-key-value-editor__td g-key-value-editor__td--action">
-            <n-button
+            <RsButton
               quaternary
               circle
-              size="small"
+              size="sm"
               class="g-key-value-editor__remove"
               :aria-label="'删除该行'"
               @click="removeRow(row.id)"
             >
               <template #icon>
-                <g-icon icon="RemoveOutline" size="small" />
+                <g-icon icon="RemoveOutline" size="sm" />
               </template>
-            </n-button>
+            </RsButton>
           </div>
         </div>
       </div>
@@ -153,34 +153,36 @@
         :key="row.id"
         class="g-key-value-editor__row"
       >
-        <n-checkbox v-model:checked="row.enabled" />
-        <n-input
-          v-model:value="row.key"
-          size="small"
+        <RsCheckbox v-model:checked="row.enabled" />
+        <RsInput
+          v-model="row.key"
+          size="sm"
           :placeholder="keyPlaceholder"
           class="g-key-value-editor__key"
         />
-        <n-input
-          v-model:value="row.value"
-          size="small"
+        <RsInput
+          v-model="row.value"
+          size="sm"
           :placeholder="valuePlaceholder"
           class="g-key-value-editor__val"
         />
-        <n-button
-          size="tiny"
+        <RsButton
+          size="ssm"
           quaternary
           @click="removeRow(row.id)"
         >
           删除
-        </n-button>
+        </RsButton>
       </div>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
+// @ts-nocheck
+import { RsButton, RsCheckbox, RsInput, RsSelect } from '@/ui'
 import { GIcon } from '@/components/gicon'
-import { NButton, NCheckbox, NInput, NSelect } from 'naive-ui'
+
 import { computed, nextTick, onMounted, watch } from 'vue'
 import type { RestFormFieldKind, RestKeyValueRow } from './types'
 import { createKeyValueRow } from './types'

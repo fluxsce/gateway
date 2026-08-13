@@ -1,14 +1,16 @@
 /**
- * GTextShow 文本显示组件类型定义
+ * @deprecated 请改用 RsCodeBlock（@/ui）。本类型仅作过渡，后续将删除。
  */
 
 /**
  * 支持的文本格式类型
+ * @deprecated
  */
 export type TextFormat = 'json' | 'xml' | 'txt' | 'soap' | 'yaml' | 'sql' | 'javascript' | 'typescript' | 'css' | 'html' | 'auto'
 
 /**
  * GTextShow 组件 Props
+ * @deprecated 请直接使用 RsCodeBlock（@/ui）的 code / lang。
  */
 export interface GTextShowProps {
   /**
@@ -74,6 +76,7 @@ export interface GTextShowProps {
 
 /**
  * GTextShow 组件 Emits
+ * @deprecated
  */
 export interface GTextShowEmits {
   /**

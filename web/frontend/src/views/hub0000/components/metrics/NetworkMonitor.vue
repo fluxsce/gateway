@@ -2,16 +2,13 @@
     <GCard show-title :title="title || defaultProps.title" :bordered="false" class="monitor-card">
         <template #header-extra>
             <div class="card-extra">
-                <n-date-picker v-model:value="dateTimeRange" type="datetimerange" :shortcuts="timeRangeShortcuts"
-                    placeholder="选择时间范围" @update:value="handleTimeRangeChange" size="small" />
-                <n-button size="small" @click="refreshData" :loading="loading">
+                <MetricsDateTimeRange v-model="dateTimeRange" @change="handleTimeRangeChange" />
+                <RsButton size="sm" :loading="loading" @click="refreshData">
                     <template #icon>
-                        <n-icon>
-                            <ReloadOutlined />
-                        </n-icon>
+                        <GIcon icon="ReloadOutline" />
                     </template>
-                    刷新
-                </n-button>
+                    {{ t('hub0000.common.refresh') }}
+                </RsButton>
             </div>
         </template>
 
@@ -19,21 +16,24 @@
             <div ref="chartRef" class="chart-element"></div>
 
             <div v-if="loading" class="chart-loading">
-                <n-spin size="large" />
+                <RsLoading size="lg" />
             </div>
 
             <div v-if="!loading && !chartData.length" class="chart-empty">
-                <n-empty description="暂无数据" />
+                <RsEmpty :description="t('hub0000.common.noData')" />
             </div>
         </div>
     </GCard>
 </template>
 
 <script setup lang="ts">
+import MetricsDateTimeRange from './MetricsDateTimeRange.vue'
+import { createAxisTooltipOptions } from './echartsTooltip'
+import { RsButton, RsEmpty, RsLoading } from '@/ui'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { GCard } from '@/components'
-import { NButton, NIcon, NSpin, NEmpty, NDatePicker } from 'naive-ui'
-import { ReloadOutlined } from '@vicons/antd'
+import { GCard } from '@/components/gcard'
+import { GIcon } from '@/components/gicon'
 import * as echarts from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import {
@@ -57,6 +57,8 @@ echarts.use([
     ToolboxComponent,
     CanvasRenderer,
 ])
+
+const { t } = useModuleI18n('hub0000')
 
 // 组件属性定义
 const props = defineProps<{
@@ -89,7 +91,6 @@ const end = Date.now()
 const start = end - 3600 * 1000 // 最近1小时
 const dateTimeRange = ref<[number, number] | null>([start, end])
 
-// 时间范围快捷选项
 const timeRangeShortcuts: Record<string, () => [number, number]> = {
     '最近1小时': () => {
         const end = Date.now()
@@ -313,8 +314,8 @@ const updateChart = () => {
         title: {
             show: false
         },
-        tooltip: {
-            trigger: 'axis',
+        tooltip: createAxisTooltipOptions({
+            // keep formatter below
             appendToBody: true,
             confine: true,
             extraCssText: 'z-index: 9999;',
@@ -419,7 +420,7 @@ const updateChart = () => {
 
                 return result
             }
-        },
+        }),
         legend: {
             type: 'scroll',
             data: series.map(s => s.name),

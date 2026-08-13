@@ -3,12 +3,40 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
 import { formatDate } from '@/utils/format'
-import { ref } from 'vue'
+import { RsTag } from '@/ui'
+import { h, ref } from 'vue'
 import type { ServiceDefinition } from '../types'
+
+/**
+ * 服务定义选择器表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface ServiceDefinitionSelectorGridConfig {
+  columns: RsGridColumn<ServiceDefinition>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
+
+const loadBalanceLabelMap: Record<string, string> = {
+  'round-robin': '轮询',
+  random: '随机',
+  'ip-hash': 'IP哈希',
+  'least-conn': '最少连接',
+  'weighted-round-robin': '加权轮询',
+  'consistent-hash': '一致性哈希',
+  ROUND_ROBIN: '轮询',
+  RANDOM: '随机',
+  IP_HASH: 'IP哈希',
+  LEAST_CONN: '最少连接',
+  WEIGHTED_ROUND_ROBIN: '加权轮询',
+  CONSISTENT_HASH: '一致性哈希',
+}
 
 /**
  * 服务定义选择器 Model
@@ -16,7 +44,7 @@ import type { ServiceDefinition } from '../types'
 export function useServiceDefinitionSelectorModel() {
   // ============= 数据状态 =============
   const moduleId = 'hub0021-service-selector'
-  
+
   /** 加载状态 */
   const loading = ref(false)
 
@@ -28,8 +56,8 @@ export function useServiceDefinitionSelectorModel() {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'serviceName',
@@ -67,82 +95,115 @@ export function useServiceDefinitionSelectorModel() {
 
   // ============= 表格配置 =============
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
-    paginationConfig: {
-      show: true, // 显示分页
-      pageInfo: pageInfo, // 传递分页信息 ref
-    },
+  /** 表格配置（符合 RsGrid 结构） */
+  const gridConfig: ServiceDefinitionSelectorGridConfig = {
     columns: [
       {
-        field: 'serviceDefinitionId',
+        key: 'serviceDefinitionId',
         title: '服务ID',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 200,
       },
       {
-        field: 'serviceName',
+        key: 'serviceName',
         title: '服务名称',
         sortable: true,
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 200,
       },
       {
-        field: 'serviceDesc',
+        key: 'serviceDesc',
         title: '服务描述',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 250,
       },
       {
-        field: 'serviceType',
+        key: 'serviceType',
         title: '服务类型',
         align: 'center',
-        slots: { default: 'serviceType' },
         width: 120,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.serviceType === 1 ? 'success' : 'info',
+              size: 'sm',
+            },
+            () => (row.serviceType === 1 ? '服务发现' : '静态配置'),
+          ),
       },
       {
-        field: 'loadBalanceStrategy',
+        key: 'loadBalanceStrategy',
         title: '负载均衡',
         align: 'center',
-        slots: { default: 'loadBalanceStrategy' },
         width: 150,
+        render: (row) =>
+          h(RsTag, { variant: 'default', size: 'sm' }, () =>
+            loadBalanceLabelMap[row.loadBalanceStrategy] || row.loadBalanceStrategy,
+          ),
       },
       {
-        field: 'healthCheckEnabled',
+        key: 'healthCheckEnabled',
         title: '健康检查',
         align: 'center',
-        slots: { default: 'healthCheckEnabled' },
         width: 120,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.healthCheckEnabled === 'Y' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.healthCheckEnabled === 'Y' ? '已启用' : '未启用'),
+          ),
       },
       {
-        field: 'activeFlag',
+        key: 'activeFlag',
         title: '状态',
         align: 'center',
-        slots: { default: 'activeFlag' },
         width: 100,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.activeFlag === 'Y' ? 'success' : 'danger',
+              size: 'sm',
+            },
+            () => (row.activeFlag === 'Y' ? '启用' : '禁用'),
+          ),
       },
       {
-        field: 'editTime',
+        key: 'editTime',
         title: '修改时间',
         sortable: true,
         align: 'center',
-        showOverflow: 'tooltip',
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
         width: 180,
       },
       {
-        field: 'editWho',
+        key: 'editWho',
         title: '修改人',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 120,
       },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: 'serviceDefinitionId',
+    height: '100%',
+    paginationConfig: {
+      show: true,
+      pageInfo: pageInfo as any,
+    },
+    menuConfig: {
+      enabled: false,
+      items: [],
+    },
   }
 
   // ============= 状态更新方法 =============
@@ -202,4 +263,3 @@ export function useServiceDefinitionSelectorModel() {
  * 服务定义选择器 Model 类型
  */
 export type ServiceDefinitionSelectorModel = ReturnType<typeof useServiceDefinitionSelectorModel>
-

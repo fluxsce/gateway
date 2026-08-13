@@ -3,78 +3,87 @@
     <!-- 上部分：标题、刷新、过滤 -->
     <div class="instance-tree-header">
       <div class="instance-header">
-        <n-icon size="20" color="var(--g-primary)">
-          <ServerOutline />
-        </n-icon>
+        <GIcon :icon="ServerOutline" :size="20" color="var(--g-primary)" />
         <span>网关实例列表</span>
         <div class="flex-spacer"></div>
-        <n-button 
-          text 
-          size="small" 
-          @click="page.handleRefresh" 
+        <RsButton
+          variant="text"
+          size="sm"
+          icon-only
+          :bordered="false"
           :disabled="page.model.loading.value"
           :loading="page.model.loading.value"
+          @click="page.handleRefresh"
         >
-          <template #icon>
-            <n-icon :component="RefreshOutline" />
-          </template>
-        </n-button>
+          <GIcon :icon="RefreshOutline" size="sm" />
+        </RsButton>
       </div>
-      <!-- 搜索过滤框 -->
       <div class="instance-filter">
-        <n-input
-          v-model:value="page.model.filterKeyword.value"
+        <RsInput
+          v-model="page.model.filterKeyword.value"
           placeholder="搜索实例名称、地址或端口"
           clearable
-          size="small"
+          size="sm"
         >
           <template #prefix>
-            <n-icon :component="SearchOutline" />
+            <GIcon :icon="SearchOutline" size="sm" />
           </template>
-        </n-input>
+        </RsInput>
       </div>
     </div>
 
-    <!-- 中部：树区域（允许滚动） -->
-    <div class="instance-tree-container">
-      <n-spin :show="page.model.loading.value">
-        <GTree
+    <!-- 中部：树区域 -->
+    <RsContextMenu
+      :items="page.model.contextMenuItems"
+      @select="page.handleContextMenuSelect"
+    >
+      <div class="instance-tree-container">
+        <RsLoading :loading="page.model.loading.value" overlay block size="md" />
+        <RsTree
           v-if="page.model.treeData.value.length > 0"
-          :data="page.model.treeData.value"
-          :show-icon="true"
-          :block-line="true"
-          :node-height="32"
-          :show-line="true"
-          :ellipsis="true"
-          :ellipsis-line-clamp="1"
-          :ellipsis-tooltip="true"
-          :module-id="page.model.moduleId"
-          :menu-config="page.model.treeMenuConfig"
-          :render-prefix="page.renderNodePrefix"
-          :render-label="page.renderNodeLabel"
-          :render-suffix="page.renderNodeSuffix"
-          @select="(keys, option) => page.handleTreeSelect(keys, option, emit)"
-          @menu-click="page.handleMenuClick"
-        />
-        <n-empty v-else description="暂无可用的网关实例" style="padding: 40px 0;">
-          <template #icon>
-            <n-icon size="40" color="var(--g-primary)">
-              <ServerOutline />
-            </n-icon>
+          v-model="selectedKeys"
+          class="instance-tree"
+          :nodes="page.model.treeData.value"
+          block-node
+          show-line
+          selectable
+          height="100%"
+          @node-click="(node, key) => page.handleNodeClick(node, key, emit)"
+        >
+          <template #title="{ node, label }">
+            <span
+              class="tree-node-title"
+              @contextmenu="page.setContextNode(node)"
+            >
+              <span class="tree-node-label">{{ label }}</span>
+              <RsTag
+                v-if="asInstanceNode(node).instance"
+                :variant="asInstanceNode(node).instance!.healthStatus === 'Y' ? 'success' : 'warning'"
+                size="sm"
+                class="tree-node-tag"
+              >
+                {{ asInstanceNode(node).instance!.healthStatus === 'Y' ? '健康' : '异常' }}
+              </RsTag>
+            </span>
           </template>
-        </n-empty>
-      </n-spin>
-    </div>
+        </RsTree>
+        <RsEmpty v-else description="暂无可用的网关实例" style="padding: 40px 0;">
+          <template #icon>
+            <GIcon :icon="ServerOutline" :size="40" color="var(--g-primary)" />
+          </template>
+        </RsEmpty>
+      </div>
+    </RsContextMenu>
 
     <!-- 底部：分页 -->
     <div class="instance-pagination" v-if="page.model.totalCount.value > 0">
-      <GPagination
-        :current-page="page.model.currentPage.value"
+      <RsPagination
+        :page="page.model.currentPage.value"
         :page-size="page.model.pageSize.value"
         :total="page.model.totalCount.value"
-        :layouts="['PrevPage', 'NextPage']"
-        align="center"
-        @page-change="page.handlePageChange"
+        size="sm"
+        @update:page="(p) => page.handlePageChange({ currentPage: p, pageSize: page.model.pageSize.value })"
+        @update:page-size="(s) => page.handlePageChange({ currentPage: 1, pageSize: s })"
       />
     </div>
 
@@ -96,65 +105,60 @@
 
 <script setup lang="ts">
 import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
-import { GPagination } from '@/components/gpage'
-import { GTree } from '@/components/gtree'
+import { GIcon } from '@/components/gicon'
+import {
+  RsButton,
+  RsContextMenu,
+  RsEmpty,
+  RsInput,
+  RsLoading,
+  RsPagination,
+  RsTag,
+  RsTree,
+  type RsTreeNode,
+} from '@/ui'
 import {
   RefreshOutline,
   SearchOutline,
-  ServerOutline
+  ServerOutline,
 } from '@vicons/ionicons5'
-import {
-  NButton,
-  NEmpty,
-  NIcon,
-  NInput,
-  NSpin
-} from 'naive-ui'
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useGatewayInstanceTreePage } from './hooks/page'
-import type { GatewayInstance } from './types'
+import type { GatewayInstance, InstanceTreeNode } from './types'
 
-// 定义组件名称
 defineOptions({
-  name: 'GatewayInstanceTree'
+  name: 'GatewayInstanceTree',
 })
-
-// ============= Props =============
 
 const props = withDefaults(defineProps<{
   /** 父容器模块ID，用于 GdataFormModal 的 :to 属性 */
   parentModuleId?: string
 }>(), {
-  parentModuleId: 'proxy-management'
+  parentModuleId: 'proxy-management',
 })
 
-// ============= Emits =============
-
 const emit = defineEmits<{
-  /** 实例选择变化 */
   (e: 'select', instanceId: string, instance: GatewayInstance): void
 }>()
 
-// ============= 使用 Page Hook =============
-
 const page = useGatewayInstanceTreePage()
+const selectedKeys = ref<string | string[]>('')
 
-// ============= 生命周期 =============
+/**
+ * 将通用 RsTreeNode 收窄为带实例信息的节点。
+ */
+function asInstanceNode(node: RsTreeNode): InstanceTreeNode {
+  return node as InstanceTreeNode
+}
 
-// 组件挂载时加载数据
 onMounted(() => {
   page.service.loadGatewayInstances()
 })
 
-// ============= 暴露方法 =============
-
 defineExpose({
-  /** 刷新实例列表 */
   refresh: page.service.loadGatewayInstances,
-  /** 重置分页到第一页 */
   resetPage: page.model.resetPage,
-  /** 清空搜索关键词 */
-  clearFilter: page.model.clearFilter
+  clearFilter: page.model.clearFilter,
 })
 </script>
 
@@ -166,11 +170,10 @@ defineExpose({
   overflow: hidden;
 }
 
-/* 上部分：标题、刷新、过滤 */
 .instance-tree-header {
   flex-shrink: 0;
   padding: 12px;
-  border-bottom: 1px solid var(--n-border-color);
+  border-bottom: 1px solid var(--g-border-color, var(--rs-border, #e5e7eb));
 }
 
 .instance-header {
@@ -189,24 +192,49 @@ defineExpose({
   margin-top: 8px;
 }
 
-/* 中部：树区域（允许滚动） */
 .instance-tree-container {
+  position: relative;
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
   min-height: 0;
   padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
 }
 
-:deep(.tree-node-label) {
-  &:hover {
-    background-color: var(--n-color-hover);
-  }
+.instance-tree {
+  flex: 1;
+  min-height: 0;
 }
 
-/* 底部：分页 */
+.tree-node-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.tree-node-label {
+  display: inline-block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-node-tag {
+  flex-shrink: 0;
+}
+
 .instance-pagination {
   flex-shrink: 0;
-  border-top: 1px solid var(--n-border-color);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: var(--rs-control-height-md);
+  padding: 0 var(--rs-space-sm, 8px);
+  border-top: 1px solid var(--g-border-color, var(--rs-border, #e5e7eb));
+  box-sizing: border-box;
 }
 </style>
-

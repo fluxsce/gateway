@@ -108,9 +108,6 @@ declare module '@vue/runtime-core' {
      */
     $hljs: any
 
-    /** 全局消息提示，插件注册后可直接调用（自定义实现，非 Naive UI） */
-    $gMessage: import('@/components/gmessage/types').GMessageApi
-
     /** 全局自定义渲染，插件注册后可直接调用 $gRender.show(Component, props, options) */
     $gRender: import('@/components/gcustom-render/api').GlobalCustomRenderApi
   }
@@ -121,7 +118,6 @@ declare global {
   interface Window {
     $api: ApiInterface
     hljs: any // highlight.js 全局对象
-    $gMessage?: import('@/components/gmessage/types').GMessageApi
     $gRender?: import('@/components/gcustom-render/api').GlobalCustomRenderApi
   }
 }

@@ -40,30 +40,30 @@
           >
             <!-- 服务类型自定义渲染 -->
             <template #serviceType="{ row }">
-              <n-tag :type="row.serviceType === 1 ? 'success' : 'info'" size="small">
+              <RsTag :variant="row.serviceType === 1 ? 'success' : 'info'" size="sm">
                 {{ row.serviceType === 1 ? '服务发现' : '静态配置' }}
-              </n-tag>
+              </RsTag>
             </template>
 
             <!-- 负载均衡策略自定义渲染 -->
             <template #loadBalanceStrategy="{ row }">
-              <n-tag type="default" size="small">
+              <RsTag variant="default" size="sm">
                 {{ getLoadBalanceText(row.loadBalanceStrategy) }}
-              </n-tag>
+              </RsTag>
             </template>
 
             <!-- 健康检查自定义渲染 -->
             <template #healthCheckEnabled="{ row }">
-              <n-tag :type="row.healthCheckEnabled === 'Y' ? 'success' : 'default'" size="small">
+              <RsTag :variant="row.healthCheckEnabled === 'Y' ? 'success' : 'default'" size="sm">
                 {{ row.healthCheckEnabled === 'Y' ? '已启用' : '未启用' }}
-              </n-tag>
+              </RsTag>
             </template>
 
             <!-- 状态自定义渲染 -->
             <template #activeFlag="{ row }">
-              <n-tag :type="row.activeFlag === 'Y' ? 'success' : 'error'" size="small">
+              <RsTag :variant="row.activeFlag === 'Y' ? 'success' : 'danger'" size="sm">
                 {{ row.activeFlag === 'Y' ? '启用' : '禁用' }}
-              </n-tag>
+              </RsTag>
             </template>
           </g-grid>
         </template>
@@ -78,7 +78,8 @@ import { GModal } from '@/components/gmodal'
 import { GPane } from '@/components/gpane'
 import { GGrid } from '@/components/grid'
 import { CubeOutline } from '@vicons/ionicons5'
-import { NTag, useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { RsTag } from '@/ui'
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useServiceDefinitionSelectorModel } from './hooks/model'
 import { useServiceDefinitionListPage } from './hooks/page'
@@ -108,7 +109,7 @@ const emit = defineEmits<ServiceDefinitionListModalEmits>()
 
 // ============= Message =============
 
-const message = useMessage()
+const message = useAppMessage()
 
 // ============= Refs =============
 

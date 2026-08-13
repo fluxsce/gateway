@@ -6,7 +6,7 @@
 
 import { getApiMessage, isApiSuccess } from '@/utils/format'
 import type { ServiceSelectionMetadata } from '@/views/hub0042/components'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import { onMounted, ref } from 'vue'
 import { getServiceDefinition } from '../../../api'
@@ -22,7 +22,7 @@ export function useServiceDefinitionPage(
   searchFormRef?: Ref<any> | any,
   gridRef?: Ref<any> | any
 ) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 服务发现选择相关状态
   const selectedService = ref<ServiceSelectionMetadata | null>(null)
@@ -525,7 +525,7 @@ export function useServiceDefinitionPage(
       return
     }
     // 获取选中的记录
-    const selectedRecords = gridRef.value.getCheckboxRecords?.() || gridRef.value.getSelectRecords?.() || []
+    const selectedRecords = gridRef.value.getSelectedRows?.() || []
     if (selectedRecords.length === 0) {
       message.warning('请选择要删除的服务定义')
       return
@@ -570,8 +570,7 @@ export function useServiceDefinitionPage(
           message.warning('Grid 引用未设置')
           return
         }
-        // 获取选中的记录
-        const selectedRecords = gridRef.value.getCheckboxRecords?.() || gridRef.value.getSelectRecords?.() || []
+        const selectedRecords = gridRef.value.getSelectedRows?.() || []
         if (selectedRecords.length === 0) {
           message.warning('请选择要删除的服务定义')
           return
@@ -587,7 +586,7 @@ export function useServiceDefinitionPage(
           message.warning('Grid 引用未设置')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord?.()
+        const selectedRow = gridRef.value.getActiveRow?.()
         if (!selectedRow) {
           message.warning('请先选择或点击要查看的服务定义')
           return
@@ -602,7 +601,7 @@ export function useServiceDefinitionPage(
           message.warning('Grid 引用未设置')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord?.()
+        const selectedRow = gridRef.value.getActiveRow?.()
         if (!selectedRow) {
           message.warning('请先选择或点击要管理的服务定义')
           return
@@ -623,10 +622,10 @@ export function useServiceDefinitionPage(
   /**
    * 右键菜单点击处理
    */
-  const handleMenuClick = ({ code, row }: { code: string; row?: ServiceDefinition }) => {
+  const handleMenuClick = ({ key, row }: { key: string; row?: ServiceDefinition }) => {
     if (!row) return
 
-    switch (code) {
+    switch (key) {
       case 'view':
         openViewDialog(row)
         break

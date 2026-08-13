@@ -3,12 +3,12 @@
  * 处理所有与后端交互的业务逻辑
  */
 
-import { useGDialog } from '@/components/gdialog'
-import { createBackendPaginationParams } from '@/components/gpage'
+import { rsConfirm } from '@/ui'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess } from '@/utils/format'
 import { WarningOutline } from '@vicons/ionicons5'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import { addRouteConfig, deleteRouteConfig, editRouteConfig, queryRouteConfigs } from '../../../api'
 import type { RouteConfig } from '../types'
@@ -19,10 +19,8 @@ import { useRouteConfigModel } from './model'
  * @param gatewayInstanceId 网关实例ID
  */
 export function useRouteConfigService(gatewayInstanceId?: string, searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 初始化 Model
+  const message = useAppMessage()
+// 初始化 Model
   const model = useRouteConfigModel()
 
   const {
@@ -138,14 +136,13 @@ export function useRouteConfigService(gatewayInstanceId?: string, searchFormRef?
       return false
     }
 
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认删除',
       subtitle: '此操作不可恢复，请谨慎操作',
-      content: `确定要删除路由配置 "${routeToDelete.routeName || routeToDelete.routeConfigId}" 吗？`,
+      description: `确定要删除路由配置 "${routeToDelete.routeName || routeToDelete.routeConfigId}" 吗？`,
       icon: WarningOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定删除',
-      negativeText: '取消',
+      confirmText: '确定删除',
+      cancelText: '取消',
       width: 500,
     })
 
@@ -185,14 +182,13 @@ export function useRouteConfigService(gatewayInstanceId?: string, searchFormRef?
    * 批量删除路由配置
    */
   const batchDeleteRoutes = async (routeConfigIds: string[]) => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认批量删除',
       subtitle: '此操作不可恢复，请谨慎操作',
-      content: `确定要删除选中的 ${routeConfigIds.length} 个路由配置吗？`,
+      description: `确定要删除选中的 ${routeConfigIds.length} 个路由配置吗？`,
       icon: WarningOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定删除',
-      negativeText: '取消',
+      confirmText: '确定删除',
+      cancelText: '取消',
       width: 500
     })
 

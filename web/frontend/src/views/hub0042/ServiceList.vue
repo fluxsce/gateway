@@ -45,26 +45,24 @@
                 >
                   <!-- 分组名称多彩显示 -->
                   <template #groupName="{ row }">
-                    <n-tag :type="getGroupTagType(row.groupName)" size="small" :bordered="false">
+                    <RsTag :variant="getGroupTagType(row.groupName)" size="sm">
                       {{ row.groupName }}
-                    </n-tag>
+                    </RsTag>
                   </template>
 
                   <!-- 服务名称多彩显示 -->
                   <template #serviceName="{ row }">
-                    <n-tag :type="getServiceTagType(row.serviceName)" size="small" round>
-                      <template #icon>
-                        <n-icon :component="ServerOutline" />
-                      </template>
+                    <RsTag :variant="getServiceTagType(row.serviceName)" size="sm" round>
+                      <GIcon :icon="ServerOutline" size="sm" />
                       {{ row.serviceName }}
-                    </n-tag>
+                    </RsTag>
                   </template>
 
                   <!-- 活动状态自定义渲染 -->
                   <template #activeFlag="{ row }">
-                    <n-tag :type="row.activeFlag === 'Y' ? 'success' : 'default'" size="small">
+                    <RsTag :variant="row.activeFlag === 'Y' ? 'success' : 'default'" size="sm">
                       {{ row.activeFlag === 'Y' ? '活动' : '非活动' }}
-                    </n-tag>
+                    </RsTag>
                   </template>
                 </g-grid>
               </template>
@@ -106,10 +104,12 @@
 <script lang="ts" setup>
 import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
 import { GCard } from '@/components/gcard'
+import { GIcon } from '@/components/gicon'
 import { GPane } from '@/components/gpane'
 import { GGrid } from '@/components/grid'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { RsTag } from '@/ui'
 import { ServerOutline } from '@vicons/ionicons5'
-import { NIcon, NTag, useMessage } from 'naive-ui'
 import { ref } from 'vue'
 import { NamespaceList } from '../hub0041/components'
 import type { Namespace } from '../hub0041/types'
@@ -137,18 +137,18 @@ const currentDetailService = ref<Service | null>(null)
 const detailLoading = ref(false)
 
 // 消息提示
-const message = useMessage()
+const message = useAppMessage()
 
 // ============= 多颜色标签配置 =============
 
 // 分组名称颜色映射（基于名称哈希生成稳定颜色）
-const groupColorTypes: ('default' | 'primary' | 'info' | 'success' | 'warning' | 'error')[] = [
-  'primary', 'info', 'success', 'warning', 'error'
+const groupColorTypes: ('default' | 'primary' | 'info' | 'success' | 'warning' | 'danger')[] = [
+  'primary', 'info', 'success', 'warning', 'danger'
 ]
 
 // 服务名称颜色映射
-const serviceColorTypes: ('default' | 'primary' | 'info' | 'success' | 'warning' | 'error')[] = [
-  'success', 'info', 'primary', 'warning', 'error'
+const serviceColorTypes: ('default' | 'primary' | 'info' | 'success' | 'warning' | 'danger')[] = [
+  'success', 'info', 'primary', 'warning', 'danger'
 ]
 
 /**
@@ -167,7 +167,7 @@ const hashString = (str: string): number => {
 /**
  * 获取分组名称的标签类型（多颜色）
  */
-const getGroupTagType = (groupName: string): 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error' => {
+const getGroupTagType = (groupName: string): 'default' | 'primary' | 'info' | 'success' | 'warning' | 'danger' => {
   if (!groupName) return 'default'
   // DEFAULT_GROUP 使用默认颜色
   if (groupName === 'DEFAULT_GROUP') return 'default'
@@ -178,7 +178,7 @@ const getGroupTagType = (groupName: string): 'default' | 'primary' | 'info' | 's
 /**
  * 获取服务名称的标签类型（多颜色）
  */
-const getServiceTagType = (serviceName: string): 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error' => {
+const getServiceTagType = (serviceName: string): 'default' | 'primary' | 'info' | 'success' | 'warning' | 'danger' => {
   if (!serviceName) return 'default'
   const hash = hashString(serviceName)
   return serviceColorTypes[hash % serviceColorTypes.length]
@@ -391,4 +391,3 @@ const handleEditNode = (node: ServiceNode) => {
   }
 }
 </style>
-

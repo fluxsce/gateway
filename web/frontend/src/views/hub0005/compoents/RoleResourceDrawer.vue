@@ -1,75 +1,86 @@
 <template>
-  <GDrawer
-    v-model:show="drawerVisible"
+  <RsDrawer
+    v-model:open="drawerVisible"
     :title="drawerTitle"
-    :width="600"
-    :to="'#hub0005'"
-    :mask="false"
-    :show-footer="true"
-    :show-cancel="true"
-    :show-confirm="true"
-    :confirm-loading="loading"
-    cancel-text="取消"
-    confirm-text="保存"
-    @confirm="handleSave"
-    @cancel="handleCancel"
-    @close="handleClose"
+    side="right"
+    size="lg"
+    :teleport-to="'#hub0005'"
+    :show-overlay="false"
+    :close-on-overlay-click="false"
   >
-    <template #default>
-      <div class="role-resource-drawer">
-        <!-- 加载状态 -->
-        <n-spin v-if="loading && !treeData.length" :show="true">
-          <template #description>加载资源列表...</template>
-        </n-spin>
+    <div class="role-resource-drawer">
+      <RsLoading v-if="loading && !treeData.length" block size="lg" />
 
-        <template v-else>
-          <!-- 搜索框 -->
-          <div class="search-container">
-            <n-input
-              v-model:value="searchKeyword"
-              placeholder="搜索资源名称"
-              clearable
-              size="small"
-            >
-              <template #prefix>
-                <n-icon><SearchOutline /></n-icon>
-              </template>
-            </n-input>
-          </div>
+      <template v-else>
+        <div class="search-container">
+          <RsInput
+            v-model="searchKeyword"
+            :placeholder="t('role.auth.searchPlaceholder')"
+            clearable
+            size="sm"
+          >
+            <template #prefix>
+              <RsIcon name="search" size="sm" />
+            </template>
+          </RsInput>
+        </div>
 
-          <!-- 资源树 -->
-          <GTree
-            :data="filteredTreeData"
-            :checkable="true"
-            :cascade="true"
-            :check-strategy="'child'"
-            :show-line="true"
-            :show-icon="true"
-            :default-expanded-keys="expandedKeys"
-            :checked-keys="checkedKeys"
-            :virtual-scroll="true"
-            :render-label="renderLabel"
-            @update:checkedKeys="handleCheckedKeysChange"
+        <div class="tree-container">
+          <RsTree
+            v-if="treeData.length > 0"
+            :nodes="treeData"
+            v-model:checked-keys="checkedKeys"
+            v-model:expanded-keys="expandedKeys"
+            :filter="searchKeyword"
+            checkable
+            :selectable="false"
+            show-line
+            block-node
+            virtual
+            height="100%"
+            @check="handleCheck"
           />
-        </template>
-      </div>
+          <RsEmpty v-else :description="t('role.auth.empty')" />
+        </div>
+      </template>
+    </div>
+
+    <template #footer>
+      <RsButton variant="default" size="sm" @click="handleCancel">
+        {{ t('common.action.cancel') }}
+      </RsButton>
+      <RsButton
+        variant="primary"
+        size="sm"
+        :loading="loading"
+        @click="handleSave"
+      >
+        {{ t('common.action.save') }}
+      </RsButton>
     </template>
-  </GDrawer>
+  </RsDrawer>
 </template>
 
 <script setup lang="ts">
-import { GDrawer } from '@/components/gdrawer'
-import { GTree } from '@/components/gtree'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
+import {
+  RsButton,
+  RsDrawer,
+  RsEmpty,
+  RsIcon,
+  RsInput,
+  RsLoading,
+  RsTree,
+} from '@/ui'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import type { Resource } from '@/views/hub0006/types'
-import { CheckmarkCircleOutline, FolderOutline, GridOutline, ListOutline, SearchOutline, ServerOutline } from '@vicons/ionicons5'
-import type { TreeOption } from 'naive-ui'
-import { NIcon, NInput, NSpin, useMessage } from 'naive-ui'
-import { computed, h, markRaw, ref, watch } from 'vue'
+import type { RsTreeNode } from 'niuma-ui'
+import { computed, ref, watch } from 'vue'
 import { getRoleResources, saveRoleResources } from '../api'
 
 defineOptions({
-  name: 'RoleResourceDrawer'
+  name: 'RoleResourceDrawer',
 })
 
 interface Props {
@@ -84,7 +95,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   show: false,
   roleId: '',
-  roleName: ''
+  roleName: '',
 })
 
 interface Emits {
@@ -95,98 +106,41 @@ interface Emits {
 
 const emit = defineEmits<Emits>()
 
-const message = useMessage()
+const { t } = useModuleI18n('hub0005')
+const message = useAppMessage()
 
-// 抽屉显示状态
 const drawerVisible = computed({
   get: () => props.show,
-  set: (value) => emit('update:show', value)
+  set: (value) => emit('update:show', value),
 })
 
-// 抽屉标题
 const drawerTitle = computed(() => {
   if (props.roleName) {
-    return `角色授权 - ${props.roleName}`
+    return t('role.auth.titleWithName', { name: props.roleName })
   }
-  return '角色授权'
+  return t('role.auth.title')
 })
 
-// 加载状态
 const loading = ref(false)
-
-// 树形数据
-const treeData = ref<TreeOption[]>([])
-
-// 默认展开的节点
-const defaultExpandedKeys = ref<string[]>([])
-
-// 选中的节点（已授权的资源）
+const treeData = ref<RsTreeNode[]>([])
+const expandedKeys = ref<string[]>([])
 const checkedKeys = ref<string[]>([])
-
-// 当前选中的节点（用于保存）
 const currentCheckedKeys = ref<string[]>([])
-
-// 搜索关键词
 const searchKeyword = ref('')
 
-// 计算属性 - 过滤后的树形数据
-const filteredTreeData = computed(() => {
-  if (!searchKeyword.value) {
-    return treeData.value
-  }
-  const keyword = searchKeyword.value.toLowerCase()
-  return filterTreeData(treeData.value, keyword)
-})
-
-// 计算属性 - 展开的节点（有搜索关键词时，展开所有匹配的节点）
-const expandedKeys = computed(() => {
-  if (!searchKeyword.value) {
-    return defaultExpandedKeys.value
-  }
-  // 有搜索关键词时，展开所有过滤后的节点
-  return extractAllKeysFromTreeData(filteredTreeData.value)
-})
-
-// 方法 - 过滤树形数据
-function filterTreeData(data: TreeOption[], keyword: string): TreeOption[] {
-  const result: TreeOption[] = []
-  
-  for (const item of data) {
-    const label = (item.label as string) || ''
-    const matches = label.toLowerCase().includes(keyword)
-    
-    let children: TreeOption[] | undefined
-    if (item.children && item.children.length > 0) {
-      children = filterTreeData(item.children, keyword)
-    }
-    
-    if (matches || (children && children.length > 0)) {
-      result.push({
-        ...item,
-        children: children && children.length > 0 ? children : undefined
-      })
-    }
-  }
-  
-  return result
-}
-
-// 监听抽屉显示状态，只在抽屉打开时加载数据
 watch(
   () => props.show,
   (newShow) => {
     if (newShow && props.roleId) {
-      // 抽屉打开且有角色ID时，加载资源列表
       loadRoleResources()
     } else if (!newShow) {
-      // 关闭时重置数据
       treeData.value = []
       checkedKeys.value = []
       currentCheckedKeys.value = []
-      defaultExpandedKeys.value = []
+      expandedKeys.value = []
       searchKeyword.value = ''
     }
-  }
+  },
 )
 
 /**
@@ -202,150 +156,88 @@ async function loadRoleResources() {
     const response = await getRoleResources(props.roleId)
 
     if (isApiSuccess(response)) {
-      // parseJsonData 会从 response.bizData 中解析 JSON 字符串，直接返回 Resource[] 数组
       const resources = parseJsonData<Resource[]>(response, [])
-      
-      // 转换为树形数据
+
       treeData.value = convertToTreeData(resources)
-      
-      // 提取已授权的资源ID
+
       const authorizedIds = extractCheckedKeys(resources)
       checkedKeys.value = authorizedIds
       currentCheckedKeys.value = [...authorizedIds]
-      
-      // 默认不展开节点（需要时用户可手动展开）
-      defaultExpandedKeys.value = []
+      expandedKeys.value = []
     } else {
-      message.error(getApiMessage(response) || '加载资源列表失败')
+      message.error(getApiMessage(response) || t('role.auth.loadFailed'))
     }
-  } catch (error: any) {
-    message.error(error.message || '加载资源列表失败')
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : t('role.auth.loadFailed')
+    message.error(errMsg)
   } finally {
     loading.value = false
   }
 }
 
 /**
- * 根据资源类型获取对应的图标组件
+ * 根据资源类型映射 Lucide 图标名
  */
-function getResourceTypeIcon(resourceType: string) {
+function getResourceTypeIcon(resourceType: string): string {
   switch (resourceType) {
     case 'MODULE':
-      return markRaw(GridOutline) // 网格图标，表示模块
+      return 'layout-grid'
     case 'GROUP':
-      return markRaw(FolderOutline) // 文件夹图标，表示分组
+      return 'folder'
     case 'MENU':
-      return markRaw(ListOutline) // 列表图标，表示菜单
+      return 'list'
     case 'BUTTON':
-      return markRaw(CheckmarkCircleOutline) // 圆形勾选图标，表示按钮
+      return 'circle-check'
     case 'API':
-      return markRaw(ServerOutline) // 服务器图标，表示API接口
+      return 'server'
     default:
-      return markRaw(FolderOutline)
+      return 'folder'
   }
 }
 
 /**
- * 将资源数据转换为树形数据格式
+ * 将资源数据转换为 RsTree 节点
  */
-function convertToTreeData(resources: Resource[]): TreeOption[] {
+function convertToTreeData(resources: Resource[]): RsTreeNode[] {
   return resources.map((resource) => {
-    const option: TreeOption = {
+    const node: RsTreeNode = {
       key: resource.resourceId,
       label: resource.resourceName,
-      children: resource.children && resource.children.length > 0
-        ? convertToTreeData(resource.children)
-        : undefined,
-      // 保存资源类型和图标组件，供 renderLabel 使用
-      resourceType: resource.resourceType,
-      iconComponent: getResourceTypeIcon(resource.resourceType)
+      icon: getResourceTypeIcon(resource.resourceType),
+      children:
+        resource.children && resource.children.length > 0
+          ? convertToTreeData(resource.children)
+          : undefined,
     }
-    return option
+    return node
   })
 }
 
 /**
- * 自定义标签渲染函数，添加图标前缀
- */
-function renderLabel({ option }: { option: TreeOption & { resourceType?: string; iconComponent?: any } }) {
-  const IconComponent = option.iconComponent || markRaw(GridOutline)
-  
-  return h('span', { style: { display: 'flex', alignItems: 'center' } }, [
-    h(NIcon, { size: 16, style: { marginRight: '6px', flexShrink: 0 } }, {
-      default: () => h(IconComponent)
-    }),
-    h('span', option.label as string)
-  ])
-}
-
-/**
- * 提取已授权的资源ID（checked为true的资源）
+ * 提取已授权的资源ID（checked 为 true 的资源）
  */
 function extractCheckedKeys(resources: Resource[]): string[] {
   const keys: string[] = []
-  
+
   function traverse(items: Resource[]) {
     for (const item of items) {
-      // 如果资源已授权，添加到选中列表
-      if ((item as any).checked === true) {
+      if ((item as Resource & { checked?: boolean }).checked === true) {
         keys.push(item.resourceId)
       }
-      // 递归处理子资源
       if (item.children && item.children.length > 0) {
         traverse(item.children)
       }
     }
   }
-  
+
   traverse(resources)
   return keys
 }
 
 /**
- * 提取所有资源ID（用于默认展开）
+ * 勾选变化时同步待保存的资源 ID
  */
-function extractAllKeys(resources: Resource[]): string[] {
-  const keys: string[] = []
-  
-  function traverse(items: Resource[]) {
-    for (const item of items) {
-      keys.push(item.resourceId)
-      if (item.children && item.children.length > 0) {
-        traverse(item.children)
-      }
-    }
-  }
-  
-  traverse(resources)
-  return keys
-}
-
-/**
- * 从树形数据中提取所有节点的 key（用于展开）
- */
-function extractAllKeysFromTreeData(treeData: TreeOption[]): string[] {
-  const keys: string[] = []
-  
-  function traverse(items: TreeOption[]) {
-    for (const item of items) {
-      keys.push(item.key as string)
-      if (item.children && item.children.length > 0) {
-        traverse(item.children)
-      }
-    }
-  }
-  
-  traverse(treeData)
-  return keys
-}
-
-/**
- * 处理选中节点变化
- * Naive UI 的 cascade 和 check-strategy 属性已经自动处理级联选择
- * 父节点选中时，所有子节点自动选中；父节点取消时，所有子节点自动取消
- */
-function handleCheckedKeysChange(keys: string[]) {
-  // 直接更新选中状态，级联逻辑由 Naive UI 的 cascade 属性自动处理
+function handleCheck(keys: string[]) {
   checkedKeys.value = keys
   currentCheckedKeys.value = keys
 }
@@ -355,76 +247,75 @@ function handleCheckedKeysChange(keys: string[]) {
  */
 async function handleSave() {
   if (!props.roleId) {
-    message.warning('角色ID不能为空')
+    message.warning(t('role.auth.roleIdRequired'))
     return
   }
 
   loading.value = true
   try {
-    // 将资源ID数组转换为逗号分割的字符串
     const resourceIdsString = currentCheckedKeys.value.join(',')
-    
+
     const response = await saveRoleResources({
       roleId: props.roleId,
       resourceIds: resourceIdsString,
-      permissionType: 'ALLOW'
+      permissionType: 'ALLOW',
     })
-    
-    // 直接检查原始响应，而不是解析后的数据
+
     if (isApiSuccess(response)) {
-      message.success('保存成功')
+      message.success(t('role.auth.saveSuccess'))
       emit('success')
       handleClose()
     } else {
-      message.error(getApiMessage(response) || '保存失败')
+      message.error(getApiMessage(response) || t('role.auth.saveFailed'))
     }
-  } catch (error: any) {
-    message.error(error.message || '保存失败')
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : t('role.auth.saveFailed')
+    message.error(errMsg)
   } finally {
     loading.value = false
   }
 }
 
-/**
- * 取消操作
- */
 function handleCancel() {
   handleClose()
 }
 
-/**
- * 关闭抽屉
- */
 function handleClose() {
   emit('update:show', false)
   emit('close')
 }
 </script>
 
-<style scoped lang="scss">
+<style scoped>
 .role-resource-drawer {
+  box-sizing: border-box;
   width: 100%;
-  height: 100%;
-  min-height: 400px;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  gap: 12px;
+}
 
-  .search-container {
-    margin-bottom: 12px;
-    flex-shrink: 0;
-  }
+.search-container {
+  flex-shrink: 0;
+}
 
-  :deep(.n-spin-container) {
-    min-height: 400px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
+.tree-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--rs-border);
+  border-radius: var(--rs-radius-sm, 4px);
+  padding: 8px;
+  background-color: var(--rs-surface);
+}
 
-  :deep(.g-tree-wrapper) {
-    flex: 1;
-    overflow: auto;
-  }
+.tree-container :deep(.rs-tree) {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
 }
 </style>
-

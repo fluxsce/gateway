@@ -4,8 +4,8 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
-import { useGDialog } from '@/components/gdialog'
-import { useMessage } from 'naive-ui'
+import { rsConfirm } from '@/ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import { useFilterConfigService } from './service'
@@ -26,10 +26,8 @@ export function useFilterConfigPage(
   routeConfigId?: Ref<string | undefined> | string,
   searchFormRef?: Ref<any> | any
 ) {
-  const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 业务服务（包含 model、增删改查等，传递模块ID）
+  const message = useAppMessage()
+// 业务服务（包含 model、增删改查等，传递模块ID）
   const service = useFilterConfigService(moduleId.value, gatewayInstanceId, routeConfigId, searchFormRef)
 
   // 表单对话框状态（新增/编辑/查看共用）
@@ -446,8 +444,8 @@ export function useFilterConfigPage(
   /**
    * 处理右键菜单点击
    */
-  const handleMenuClick = async ({ menu, row }: { menu: any; row: FilterConfig }) => {
-    switch (menu.code) {
+  const handleMenuClick = async ({ key, row }: { key: string; row: FilterConfig }) => {
+    switch (key) {
       case 'view':
         await openViewDialog(row)
         break
@@ -461,7 +459,7 @@ export function useFilterConfigPage(
         await handleDelete(row)
         break
       default:
-        console.warn('未知的菜单项:', menu.code)
+        console.warn('未知的菜单项:', key)
     }
   }
 
@@ -471,11 +469,11 @@ export function useFilterConfigPage(
    * 处理删除
    */
   const handleDelete = async (filter: FilterConfig) => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认删除',
-      content: `确定要删除过滤器"${filter.filterName}"吗？此操作不可恢复。`,
-      positiveText: '删除',
-      negativeText: '取消',
+      description: `确定要删除过滤器"${filter.filterName}"吗？此操作不可恢复。`,
+      confirmText: '删除',
+      cancelText: '取消',
     })
 
     if (!confirmed) {
@@ -501,11 +499,11 @@ export function useFilterConfigPage(
       return
     }
 
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认批量删除',
-      content: `确定要删除选中的 ${selectedRows.length} 个过滤器吗？此操作不可恢复。`,
-      positiveText: '删除',
-      negativeText: '取消',
+      description: `确定要删除选中的 ${selectedRows.length} 个过滤器吗？此操作不可恢复。`,
+      confirmText: '删除',
+      cancelText: '取消',
     })
 
     if (!confirmed) {

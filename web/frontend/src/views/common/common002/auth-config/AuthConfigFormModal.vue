@@ -1,7 +1,7 @@
 <template>
   <div class="auth-config-form-modal" id="auth-config-form-modal">
     <!-- 认证配置表单对话框（新增/编辑/查看共用） -->
-    <GdataFormModal
+    <RsDataFormModal
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
       :title="computedTitle"
@@ -19,7 +19,7 @@
 </template>
 
 <script lang="ts" setup>
-import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
+import { RsDataFormModal } from '@/components/form/rs-data'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useAuthConfigPage } from './hooks'
 import type { AuthConfigFormModalEmits, AuthConfigFormModalProps } from './hooks/types'
@@ -115,10 +115,4 @@ const handleFormDialogVisibleChange = (value: boolean) => {
   }
 }
 </script>
-
-<style scoped lang="scss">
-.auth-config-form-modal {
-  min-height: 200px;
-}
-</style>
 

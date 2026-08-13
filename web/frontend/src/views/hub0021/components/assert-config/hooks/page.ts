@@ -3,9 +3,9 @@
  * 管理对话框、事件处理等页面级交互逻辑
  */
 
-import { useGDialog } from '@/components/gdialog'
+import { rsConfirm } from '@/ui'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import { getRouteAssertionById } from '../../../api'
@@ -23,8 +23,7 @@ export function useAssertConfigPage(
   gridRef?: Ref<any> | any,
   searchFormRef?: Ref<any> | any
 ) {
-  const gDialog = useGDialog()
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 使用服务层
   const service = useAssertConfigService(routeConfigId, searchFormRef)
@@ -181,15 +180,15 @@ export function useAssertConfigPage(
   /**
    * 处理右键菜单点击
    */
-  const handleMenuClick = async (params: { code: string; row?: any }) => {
-    const { code, row } = params
+  const handleMenuClick = async (params: { key: string; row?: any }) => {
+    const { key, row } = params
     if (!row) {
       return
     }
 
     const assert = row as AssertConfig
 
-    switch (code) {
+    switch (key) {
       case 'view':
         await openViewDialog(assert)
         break
@@ -213,9 +212,9 @@ export function useAssertConfigPage(
    * 处理删除
    */
   const handleDelete = async (assert: AssertConfig) => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认删除',
-      content: `确定要删除断言"${assert.assertionName}"吗？`,
+      description: `确定要删除断言"${assert.assertionName}"吗？`,
     })
 
     if (confirmed) {
@@ -233,16 +232,16 @@ export function useAssertConfigPage(
 
     const selectedRows = gridRef.value.getSelectedRows() as AssertConfig[]
     if (!selectedRows || selectedRows.length === 0) {
-      gDialog.warning({
+      void rsConfirm.info({
         title: '提示',
-        content: '请先选择要删除的断言',
+        description: '请先选择要删除的断言',
       })
       return
     }
 
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认批量删除',
-      content: `确定要删除选中的 ${selectedRows.length} 个断言吗？`,
+      description: `确定要删除选中的 ${selectedRows.length} 个断言吗？`,
     })
 
     if (confirmed) {

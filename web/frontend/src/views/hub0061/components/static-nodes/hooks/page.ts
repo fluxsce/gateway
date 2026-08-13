@@ -4,7 +4,7 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
-import { useGDialog } from '@/components/gdialog'
+import { rsConfirm } from '@/ui'
 import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
@@ -23,9 +23,7 @@ export function useStaticNodePage(
   searchFormRef?: Ref<any> | any
 ) {
   const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 业务服务（包含 model、增删改查等）
+// 业务服务（包含 model、增删改查等）
   const service = useStaticNodeService(tunnelStaticServerId || '', searchFormRef)
 
   // 表单对话框状态（新增/编辑/查看共用）
@@ -277,11 +275,11 @@ export function useStaticNodePage(
    * 处理删除
    */
   const handleDelete = async (node: TunnelStaticNode) => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认删除',
-      content: `确定要删除节点"${node.nodeName}"吗？此操作不可恢复。`,
-      positiveText: '删除',
-      negativeText: '取消',
+      description: `确定要删除节点"${node.nodeName}"吗？此操作不可恢复。`,
+      confirmText: '删除',
+      cancelText: '取消',
     })
 
     if (!confirmed) {

@@ -72,6 +72,9 @@ watch(
 <style scoped lang="scss">
 .g-fieldset {
   position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   margin: 0;
   padding: var(--g-space-sm, 8px);
   border: 1px dashed var(--g-border-primary, #e0e0e6);
@@ -102,27 +105,11 @@ watch(
     box-shadow: 0 0 0 2px rgba(32, 128, 240, 0.1);
   }
 
-  // 禁用状态样式
+  // 禁用：外壳降透明度 + 禁交互；原生 fieldset[disabled] 会禁用内部表单控件，无需 :deep
   &.g-fieldset--disabled {
     opacity: 0.6;
     pointer-events: none;
     background-color: var(--g-bg-color-disabled, #f5f5f5);
-
-    // 确保所有子表单控件都被禁用
-    :deep(input),
-    :deep(select),
-    :deep(textarea),
-    :deep(button),
-    :deep(.n-input),
-    :deep(.n-select),
-    :deep(.n-textarea),
-    :deep(.n-button),
-    :deep(.n-switch),
-    :deep(.n-checkbox),
-    :deep(.n-radio) {
-      cursor: not-allowed;
-      opacity: 0.6;
-    }
   }
 }
 
@@ -157,9 +144,9 @@ watch(
 }
 
 .g-fieldset__title {
-  font-size: 14px;
-  font-weight: normal; // 默认不加粗
-  color: var(--g-text-color, #333);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--g-text-tertiary, var(--rs-placeholder, #909090));
 
   // 小号标题
   &.g-fieldset__title--small {
@@ -193,5 +180,10 @@ watch(
   }
 }
 
+.g-fieldset__content {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
 </style>
 

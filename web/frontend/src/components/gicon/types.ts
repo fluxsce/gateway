@@ -1,18 +1,32 @@
 /**
  * GIcon 组件类型定义
- * 参考  Icon，统一封装 n-icon + @vicons 图标
  */
 
 import type { Component } from 'vue'
 
-export type GIconSize = 'tiny' | 'small' | 'medium' | 'large' | 'huge' | number
+export type GIconSize =
+  | 'tiny'
+  | 'small'
+  | 'medium'
+  | 'large'
+  | 'huge'
+  | 'ssm'
+  | 'sm'
+  | 'md'
+  | 'lg'
+  | number
+  | `${number}`
 
-export const G_ICON_SIZE_MAP: Record<Exclude<GIconSize, number>, number> = {
+export const G_ICON_SIZE_MAP: Record<string, number> = {
   tiny: 14,
   small: 16,
   medium: 20,
   large: 24,
   huge: 32,
+  ssm: 12,
+  sm: 16,
+  md: 20,
+  lg: 24,
 }
 
 export type GIconColor = 'primary' | 'success' | 'warning' | 'error' | 'info' | string

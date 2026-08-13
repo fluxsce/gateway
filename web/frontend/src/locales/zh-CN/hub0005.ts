@@ -88,8 +88,112 @@ export default {
       batchDeleteSuccess: '批量删除成功',
       deleteConfirm: '确定要删除角色"{name}"吗？此操作不可恢复。',
       batchDeleteConfirm: '确定要删除选中的 {count} 个角色吗？此操作不可恢复。',
-      permissionAssignSuccess: '权限分配成功'
-    }
+      permissionAssignSuccess: '权限分配成功',
+      loadFailed: '加载角色列表失败',
+      queryFailed: '查询角色列表失败',
+      createFailed: '新增角色失败',
+      updateFailed: '编辑角色失败',
+      deleteFailed: '删除角色失败',
+      batchDeleteFailed: '批量删除角色失败',
+      batchDeleteResult: '成功删除 {success} 个角色',
+      batchDeleteResultWithFail: '成功删除 {success} 个角色，失败 {fail} 个',
+      batchDeleteAllFailed: '删除失败，共 {fail} 个',
+      selectToEdit: '请先选择或点击要编辑的角色',
+      selectToDelete: '请先选择或点击要删除的角色',
+      deleteConfirmTitle: '确认删除',
+      batchDeleteConfirmTitle: '确认批量删除',
+      deleteConfirmSubtitle: '此操作不可恢复，请谨慎操作',
+      deleteConfirmOk: '确定删除',
+      deleteConfirmCancel: '取消',
+    },
+
+    // 对话框标题
+    dialog: {
+      createTitle: '新增角色',
+      editTitle: '编辑角色',
+      viewTitle: '查看角色详情',
+      tabBasic: '基本信息',
+      tabOther: '其他信息',
+    },
+
+    // 角色授权抽屉
+    auth: {
+      title: '角色授权',
+      titleWithName: '角色授权 - {name}',
+      searchPlaceholder: '搜索资源名称',
+      empty: '暂无资源数据',
+      loadFailed: '加载资源列表失败',
+      roleIdRequired: '角色ID不能为空',
+      saveSuccess: '保存成功',
+      saveFailed: '保存失败',
+    },
+
+    // 搜索区
+    search: {
+      roleName: '角色名称',
+      roleNamePlaceholder: '请输入角色名称',
+      status: '状态',
+      statusPlaceholder: '请选择状态',
+      type: '类型',
+      typePlaceholder: '请选择类型',
+      all: '全部',
+    },
+
+    // 工具栏
+    toolbar: {
+      add: '新增',
+      addTooltip: '新增角色',
+      edit: '编辑',
+      editTooltip: '编辑选中的角色',
+      delete: '删除',
+      deleteTooltip: '删除选中的角色',
+    },
+
+    // 表格列
+    columns: {
+      roleId: '角色ID',
+      roleName: '角色名称',
+      roleDescription: '角色描述',
+      status: '状态',
+      type: '类型',
+      activeFlag: '活动标记',
+      addTime: '创建时间',
+      addWho: '创建人',
+      editTime: '修改时间',
+      editWho: '修改人',
+      noteText: '备注',
+      builtin: '内置',
+      custom: '自定义',
+      active: '活动',
+      inactive: '非活动',
+    },
+
+    // 右键菜单
+    contextMenu: {
+      view: '查看详情',
+      edit: '编辑',
+      delete: '删除',
+      roleAuth: '角色授权',
+    },
+
+    // 表单补充字段
+    formExtra: {
+      roleId: '角色ID',
+      roleIdPlaceholder: '请输入角色ID',
+      builtInFlag: '内置标记',
+      dataScopePlaceholder: '请输入数据权限范围配置（JSON格式）',
+      addTime: '创建时间',
+      addWho: '创建人',
+      editTime: '修改时间',
+      editWho: '修改人',
+      oprSeqFlag: '操作序列标识',
+      currentVersion: '当前版本号',
+      activeFlag: '活动标记',
+      noteText: '备注',
+      noteTextPlaceholder: '请输入备注信息',
+      statusPlaceholder: '请选择状态',
+      typePlaceholder: '请选择类型',
+    },
   },
 
   // 权限资源管理

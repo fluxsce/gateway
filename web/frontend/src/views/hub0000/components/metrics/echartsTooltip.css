@@ -1,0 +1,18 @@
+/**
+ * 挂到 body 的 ECharts tooltip：
+ * - fixed：避免 absolute + transform 扩展 document/body 滚动高度（双滚动条）
+ * - 限高限宽：内容再多也不撑开布局，内部可横/纵滚动查看
+ * - 覆盖 echarts 默认 white-space:nowrap，避免长文本被裁切又无法横滚
+ */
+.hub-echarts-tooltip {
+  position: fixed !important;
+  max-height: min(40vh, 280px) !important;
+  max-width: min(360px, 50vw) !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+  word-break: normal;
+  z-index: 9999 !important;
+  pointer-events: auto !important;
+}

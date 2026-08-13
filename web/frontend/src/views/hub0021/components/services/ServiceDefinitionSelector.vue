@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="service-definition-selector">
     <!-- 选择器显示区域 -->
     <div v-if="modelValue && (currentServices.length > 0 || currentService)" class="selected-service-card">
@@ -18,18 +18,18 @@
                 <div class="service-id">{{ service.serviceDefinitionId }}</div>
               </div>
               <div class="service-status">
-                <n-tag :type="service.activeFlag === 'Y' ? 'success' : 'error'" size="small">
+                <RsTag :variant="service.activeFlag === 'Y' ? 'success' : 'danger'" size="sm">
                   {{ service.activeFlag === 'Y' ? '启用' : '禁用' }}
-                </n-tag>
+                </RsTag>
               </div>
             </div>
             <div class="service-details">
               <div class="detail-row">
                 <div class="detail-item">
                   <span class="detail-label">服务类型</span>
-                  <n-tag :type="service.serviceType === 1 ? 'success' : 'info'" size="small">
+                  <RsTag :variant="service.serviceType === 1 ? 'success' : 'info'" size="sm">
                     {{ service.serviceType === 1 ? '服务发现' : '静态配置' }}
-                  </n-tag>
+                  </RsTag>
                 </div>
                 <div class="detail-item">
                   <span class="detail-label">负载均衡</span>
@@ -39,9 +39,9 @@
               <div class="detail-row">
                 <div class="detail-item full-width">
                   <span class="detail-label">健康检查</span>
-                  <n-tag :type="service.healthCheckEnabled === 'Y' ? 'success' : 'default'" size="small">
+                  <RsTag :variant="service.healthCheckEnabled === 'Y' ? 'success' : 'default'" size="sm">
                     {{ service.healthCheckEnabled === 'Y' ? '已启用' : '已禁用' }}
-                  </n-tag>
+                  </RsTag>
                 </div>
               </div>
             </div>
@@ -60,18 +60,18 @@
               <div class="service-id">{{ currentService.serviceDefinitionId }}</div>
             </div>
             <div class="service-status">
-              <n-tag :type="currentService.activeFlag === 'Y' ? 'success' : 'error'" size="small">
+              <RsTag :variant="currentService.activeFlag === 'Y' ? 'success' : 'danger'" size="sm">
                 {{ currentService.activeFlag === 'Y' ? '启用' : '禁用' }}
-              </n-tag>
+              </RsTag>
             </div>
           </div>
           <div class="service-details">
             <div class="detail-row">
               <div class="detail-item">
                 <span class="detail-label">服务类型</span>
-                <n-tag :type="currentService.serviceType === 1 ? 'success' : 'info'" size="small">
+                <RsTag :variant="currentService.serviceType === 1 ? 'success' : 'info'" size="sm">
                   {{ currentService.serviceType === 1 ? '服务发现' : '静态配置' }}
-                </n-tag>
+                </RsTag>
               </div>
               <div class="detail-item">
                 <span class="detail-label">负载均衡</span>
@@ -81,38 +81,23 @@
             <div class="detail-row">
               <div class="detail-item full-width">
                 <span class="detail-label">健康检查</span>
-                <n-tag :type="currentService.healthCheckEnabled === 'Y' ? 'success' : 'default'" size="small">
+                <RsTag :variant="currentService.healthCheckEnabled === 'Y' ? 'success' : 'default'" size="sm">
                   {{ currentService.healthCheckEnabled === 'Y' ? '已启用' : '已禁用' }}
-                </n-tag>
+                </RsTag>
               </div>
             </div>
           </div>
         </div>
         <div class="service-actions">
-          <n-button @click="openSelector" size="small" secondary>
-            <template #icon>
-              <n-icon><RefreshOutline /></n-icon>
-            </template>
-            重新选择
-          </n-button>
-          <n-button @click="handleClear" size="small" type="error" secondary>
-            <template #icon>
-              <n-icon><CloseOutline /></n-icon>
-            </template>
-            清除
-          </n-button>
+          <RsButton variant="secondary" size="sm" @click="openSelector"><GIcon :icon="RefreshOutline" size="sm" />重新选择</RsButton>
+          <RsButton variant="secondary" tone="danger" size="sm" @click="handleClear"><GIcon :icon="CloseOutline" size="sm" />清除</RsButton>
         </div>
       </div>
     </div>
 
     <!-- 未选择时的选择按钮 -->
     <div v-else class="empty-selector">
-      <n-button @click="openSelector" dashed block size="large" class="select-btn">
-        <template #icon>
-          <n-icon><ServerOutline /></n-icon>
-        </template>
-        点击选择服务定义
-      </n-button>
+      <RsButton variant="secondary" size="lg" class="select-btn" @click="openSelector"><GIcon :icon="ServerOutline" size="md" />点击选择服务定义</RsButton>
     </div>
 
     <!-- 服务定义选择对话框 -->
@@ -137,7 +122,9 @@ import {
   RefreshOutline,
   ServerOutline
 } from '@vicons/ionicons5'
-import { NButton, NIcon, NTag, useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { RsButton, RsTag } from '@/ui'
+import { GIcon } from '@/components/gicon'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { getServiceDefinitionById } from '../../api'
 import ServiceDefinitionListModal from './ServiceDefinitionListModal.vue'
@@ -159,7 +146,7 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
-const message = useMessage()
+const message = useAppMessage()
 
 // 响应式状态
 const showSelector = ref(false)
@@ -429,14 +416,14 @@ onBeforeUnmount(() => {
 }
 
 .selected-service-card {
-  background: var(--n-card-color);
-  border: 1px solid var(--n-border-color);
+  background: var(--g-card-color, var(--rs-bg, #fff));
+  border: 1px solid var(--g-border-color, var(--rs-border, #e5e7eb));
   border-radius: 8px;
   padding: 16px;
   transition: all 0.2s ease;
 
   &:hover {
-    border-color: var(--n-color-primary);
+    border-color: var(--g-primary, var(--rs-primary));
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 
@@ -471,16 +458,16 @@ onBeforeUnmount(() => {
         .service-name {
           font-size: 16px;
           font-weight: 600;
-          color: var(--n-text-color-1);
+          color: var(--g-text-color-1, var(--rs-text));
           margin-bottom: 4px;
           line-height: 1.2;
         }
 
         .service-id {
           font-size: 12px;
-          color: var(--n-text-color-3);
+          color: var(--g-text-color-3, var(--rs-text-muted));
           font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-          background: var(--n-color-surface);
+          background: var(--g-color-surface, var(--rs-bg-muted));
           padding: 2px 6px;
           border-radius: 4px;
           display: inline-block;
@@ -517,7 +504,7 @@ onBeforeUnmount(() => {
 
           .detail-label {
             font-size: 12px;
-            color: var(--n-text-color-3);
+            color: var(--g-text-color-3, var(--rs-text-muted));
             font-weight: 500;
             min-width: 60px;
             flex-shrink: 0;
@@ -525,8 +512,8 @@ onBeforeUnmount(() => {
 
           .detail-value {
             font-size: 13px;
-            color: var(--n-text-color-2);
-            background: var(--n-color-surface);
+            color: var(--g-text-color-2, var(--rs-text-muted));
+            background: var(--g-color-surface, var(--rs-bg-muted));
             padding: 2px 8px;
             border-radius: 4px;
             font-weight: 500;
@@ -540,7 +527,7 @@ onBeforeUnmount(() => {
       gap: 8px;
       justify-content: flex-end;
       padding-top: 12px;
-      border-top: 1px solid var(--n-border-color);
+      border-top: 1px solid var(--g-border-color, var(--rs-border, #e5e7eb));
     }
 
     // 服务项样式（单服务和多服务共用）
@@ -557,7 +544,7 @@ onBeforeUnmount(() => {
 
       .service-item {
         padding-bottom: 16px;
-        border-bottom: 1px solid var(--n-border-color);
+        border-bottom: 1px solid var(--g-border-color, var(--rs-border, #e5e7eb));
 
         &:last-child {
           padding-bottom: 0;
@@ -572,16 +559,18 @@ onBeforeUnmount(() => {
   width: 100%;
 
   .select-btn {
+    width: 100%;
     min-height: 56px;
-    border-color: var(--n-border-color);
+    border-color: var(--g-border-color, var(--rs-border, #e5e7eb));
     transition: all 0.2s ease;
 
     &:hover {
-      border-color: var(--n-color-primary);
-      background-color: var(--n-color-primary-light);
+      border-color: var(--g-primary, var(--rs-primary));
+      background-color: var(--g-primary-light, rgba(124, 58, 237, 0.08));
     }
   }
 }
 
 </style>
+
 

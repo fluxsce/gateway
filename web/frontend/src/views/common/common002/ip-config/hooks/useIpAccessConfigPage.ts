@@ -5,7 +5,7 @@
  */
 
 import { parseArrayField } from '@/utils/format'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import type { IpAccessConfig } from './types'
@@ -23,7 +23,7 @@ export function useIpAccessConfigPage(
   securityConfigId?: Ref<string | undefined>,
   searchFormRef?: Ref<any> | any
 ) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 业务服务（包含 model、增删改查等，传递 moduleId）
   const service = useIpAccessConfigService(moduleId.value, securityConfigId, searchFormRef)
@@ -105,13 +105,13 @@ export function useIpAccessConfigPage(
   }
 
   /**
-   * 处理搜索（接收 SearchForm 传递的表单数据）
+   * 处理搜索（接收 RsSearchForm 传递的表单数据）
    */
   const handleSearch = async (formData?: Record<string, any>) => {
     await service.handleSearch(formData)
   }
 
-  /** 提交表单（新增/编辑共用，由 GDataFormModal 收集表单数据后回调） */
+  /** 提交表单（新增/编辑共用，由 RsDataFormModal 收集表单数据后回调） */
   const handleFormSubmit = async (formData?: Record<string, any>) => {
     if (!formData) return
 
@@ -180,7 +180,7 @@ export function useIpAccessConfigPage(
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
+        const currentRow = gridRef.value.getActiveRow()
         if (!currentRow) {
           message.warning('请先点击选择要编辑的配置')
           return
@@ -195,7 +195,7 @@ export function useIpAccessConfigPage(
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
+        const currentRow = gridRef.value.getActiveRow()
         if (!currentRow) {
           message.warning('请先点击选择要删除的配置')
           return
@@ -215,10 +215,10 @@ export function useIpAccessConfigPage(
   /**
    * 右键菜单点击处理
    */
-  const handleMenuClick = async ({ code, row }: { code: string; row?: IpAccessConfig }) => {
+  const handleMenuClick = async ({ key, row }: { key: string; row?: IpAccessConfig }) => {
     if (!row) return
 
-    switch (code) {
+    switch (key) {
       case 'view':
         openViewDialog(row)
         break

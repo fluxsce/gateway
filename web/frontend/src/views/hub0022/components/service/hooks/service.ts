@@ -3,12 +3,12 @@
  * 处理所有与后端交互的业务逻辑
  */
 
-import { useGDialog } from '@/components/gdialog'
-import { createBackendPaginationParams } from '@/components/gpage'
+import { rsConfirm } from '@/ui'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess } from '@/utils/format'
 import { WarningOutline } from '@vicons/ionicons5'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import { addServiceDefinition, deleteServiceDefinition, editServiceDefinition, queryServiceDefinitions } from '../../../api'
 import type { ServiceDefinition } from '../types'
@@ -19,10 +19,8 @@ import { useServiceDefinitionModel } from './model'
  * @param gatewayInstanceId 网关实例ID（作为proxyConfigId使用）
  */
 export function useServiceDefinitionService(gatewayInstanceId?: string, searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
-  const gDialog = useGDialog()
-
-  // 初始化 Model（暂时不传递 pageHook，在 page.ts 中动态更新）
+  const message = useAppMessage()
+// 初始化 Model（暂时不传递 pageHook，在 page.ts 中动态更新）
   const model = useServiceDefinitionModel()
 
   const {
@@ -137,14 +135,13 @@ export function useServiceDefinitionService(gatewayInstanceId?: string, searchFo
       return false
     }
 
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认删除',
       subtitle: '此操作不可恢复，请谨慎操作',
-      content: `确定要删除服务定义 "${serviceToDelete.serviceName || serviceToDelete.serviceDefinitionId}" 吗？`,
+      description: `确定要删除服务定义 "${serviceToDelete.serviceName || serviceToDelete.serviceDefinitionId}" 吗？`,
       icon: WarningOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定删除',
-      negativeText: '取消',
+      confirmText: '确定删除',
+      cancelText: '取消',
       width: 500,
     })
 
@@ -184,14 +181,13 @@ export function useServiceDefinitionService(gatewayInstanceId?: string, searchFo
    * 批量删除服务定义
    */
   const batchDeleteServices = async (serviceDefinitionIds: string[]) => {
-    const confirmed = await gDialog.warning({
+    const confirmed = await rsConfirm.warning({
       title: '确认批量删除',
       subtitle: '此操作不可恢复，请谨慎操作',
-      content: `确定要删除选中的 ${serviceDefinitionIds.length} 个服务定义吗？`,
+      description: `确定要删除选中的 ${serviceDefinitionIds.length} 个服务定义吗？`,
       icon: WarningOutline,
-      headerStyle: 'gradient',
-      positiveText: '确定删除',
-      negativeText: '取消',
+      confirmText: '确定删除',
+      cancelText: '取消',
       width: 500
     })
 

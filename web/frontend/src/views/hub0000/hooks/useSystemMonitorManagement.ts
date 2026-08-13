@@ -4,8 +4,7 @@
  */
 
 import { ref } from 'vue'
-import { useMessage } from 'naive-ui'
-import { createLogger } from '@/utils/logger'
+import { useAppMessage } from '@/composables/useAppMessage'
 import { parseJsonData, isApiSuccess, getApiMessage } from '@/utils/format'
 import type { useSystemMonitorModel } from './useSystemMonitorModel'
 import type {
@@ -32,9 +31,6 @@ import {
   exportMetricData,
 } from '../api'
 
-// 创建日志记录器
-const logger = createLogger('SystemMonitorManagement')
-
 /**
  * 系统监控业务逻辑管理
  */
@@ -43,7 +39,7 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
   // 基础依赖
   // ===================================================================
 
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 操作状态
   const operationLoading = ref(false)
@@ -62,8 +58,6 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
       // 合并查询参数
       const queryParams = { ...model.queryParams, ...params }
 
-      logger.info('开始加载服务器列表', queryParams)
-
       const response = await queryServerList(queryParams)
 
       if (isApiSuccess(response)) {
@@ -74,18 +68,13 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
         // TODO: 需要从response中解析分页信息并调用updatePagination
 
         message.success('服务器列表加载成功')
-        logger.info('服务器列表加载成功', { count: servers.length })
         return servers
       } else {
-        const errorMsg = getApiMessage(response, '加载服务器列表失败')
-        message.error(errorMsg)
-        logger.error('加载服务器列表失败', { error: errorMsg })
+        message.error(getApiMessage(response, '加载服务器列表失败'))
         return []
       }
-    } catch (error) {
-      const errorMsg = '加载服务器列表异常'
-      message.error(errorMsg)
-      logger.error(errorMsg, error)
+    } catch {
+      message.error('加载服务器列表异常')
       return []
     } finally {
       model.serverListLoading.value = false
@@ -99,24 +88,16 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
     try {
       operationLoading.value = true
 
-      logger.info('开始获取服务器详情', { serverId })
-
       const response = await getServerDetail({ metricServerId: serverId })
 
       if (isApiSuccess(response)) {
-        const server = parseJsonData<ServerInfo>(response)
-        logger.info('获取服务器详情成功', { serverId })
-        return server
+        return parseJsonData<ServerInfo>(response)
       } else {
-        const errorMsg = getApiMessage(response, '获取服务器详情失败')
-        message.error(errorMsg)
-        logger.error('获取服务器详情失败', { serverId, error: errorMsg })
+        message.error(getApiMessage(response, '获取服务器详情失败'))
         return null
       }
-    } catch (error) {
-      const errorMsg = '获取服务器详情异常'
-      message.error(errorMsg)
-      logger.error(errorMsg, { serverId, error })
+    } catch {
+      message.error('获取服务器详情异常')
       return null
     } finally {
       operationLoading.value = false
@@ -141,8 +122,6 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
     try {
       model.cpuLoading.value = true
 
-      logger.info('开始加载CPU监控数据', { serverId })
-
       const params: MetricQueryParams = {
         ...(serverId ? { metricServerId: serverId } : {}),
         ...model.queryParams,
@@ -153,15 +132,9 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
       if (isApiSuccess(response)) {
         const metrics = parseJsonData<CPUMetrics[]>(response, [])
         model.setCpuMetrics(metrics)
-
-        logger.info('CPU监控数据加载成功', { count: metrics.length })
-      } else {
-        const errorMsg = getApiMessage(response, '加载CPU监控数据失败')
-        logger.error('加载CPU监控数据失败', { error: errorMsg })
       }
-    } catch (error) {
-      const errorMsg = '加载CPU监控数据异常'
-      logger.error(errorMsg, error)
+    } catch {
+      // 静默失败，由页面层处理提示
     } finally {
       model.cpuLoading.value = false
     }
@@ -174,8 +147,6 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
     try {
       model.memoryLoading.value = true
 
-      logger.info('开始加载内存监控数据', { serverId })
-
       const params: MetricQueryParams = {
         ...(serverId ? { metricServerId: serverId } : {}),
         ...model.queryParams,
@@ -186,15 +157,9 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
       if (isApiSuccess(response)) {
         const metrics = parseJsonData<MemoryMetrics[]>(response, [])
         model.setMemoryMetrics(metrics)
-
-        logger.info('内存监控数据加载成功', { count: metrics.length })
-      } else {
-        const errorMsg = getApiMessage(response, '加载内存监控数据失败')
-        logger.error('加载内存监控数据失败', { error: errorMsg })
       }
-    } catch (error) {
-      const errorMsg = '加载内存监控数据异常'
-      logger.error(errorMsg, error)
+    } catch {
+      // 静默失败，由页面层处理提示
     } finally {
       model.memoryLoading.value = false
     }
@@ -207,8 +172,6 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
     try {
       model.diskLoading.value = true
 
-      logger.info('开始加载磁盘监控数据', { serverId })
-
       const params: MetricQueryParams = {
         ...(serverId ? { metricServerId: serverId } : {}),
         ...model.queryParams,
@@ -219,15 +182,9 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
       if (isApiSuccess(response)) {
         const metrics = parseJsonData<DiskPartition[]>(response, [])
         model.setDiskMetrics(metrics)
-
-        logger.info('磁盘监控数据加载成功', { count: metrics.length })
-      } else {
-        const errorMsg = getApiMessage(response, '加载磁盘监控数据失败')
-        logger.error('加载磁盘监控数据失败', { error: errorMsg })
       }
-    } catch (error) {
-      const errorMsg = '加载磁盘监控数据异常'
-      logger.error(errorMsg, error)
+    } catch {
+      // 静默失败，由页面层处理提示
     } finally {
       model.diskLoading.value = false
     }
@@ -240,8 +197,6 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
     try {
       model.networkLoading.value = true
 
-      logger.info('开始加载网络监控数据', { serverId })
-
       const params: MetricQueryParams = {
         ...(serverId ? { metricServerId: serverId } : {}),
         ...model.queryParams,
@@ -252,15 +207,9 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
       if (isApiSuccess(response)) {
         const metrics = parseJsonData<NetworkInterface[]>(response, [])
         model.setNetworkMetrics(metrics)
-
-        logger.info('网络监控数据加载成功', { count: metrics.length })
-      } else {
-        const errorMsg = getApiMessage(response, '加载网络监控数据失败')
-        logger.error('加载网络监控数据失败', { error: errorMsg })
       }
-    } catch (error) {
-      const errorMsg = '加载网络监控数据异常'
-      logger.error(errorMsg, error)
+    } catch {
+      // 静默失败，由页面层处理提示
     } finally {
       model.networkLoading.value = false
     }
@@ -273,8 +222,6 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
     try {
       model.processLoading.value = true
 
-      logger.info('开始加载进程监控数据', { serverId })
-
       const params: MetricQueryParams = {
         ...(serverId ? { metricServerId: serverId } : {}),
         ...model.queryParams,
@@ -285,15 +232,9 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
       if (isApiSuccess(response)) {
         const metrics = parseJsonData<ProcessInfo[]>(response, [])
         model.setProcessMetrics(metrics)
-
-        logger.info('进程监控数据加载成功', { count: metrics.length })
-      } else {
-        const errorMsg = getApiMessage(response, '加载进程监控数据失败')
-        logger.error('加载进程监控数据失败', { error: errorMsg })
       }
-    } catch (error) {
-      const errorMsg = '加载进程监控数据异常'
-      logger.error(errorMsg, error)
+    } catch {
+      // 静默失败，由页面层处理提示
     } finally {
       model.processLoading.value = false
     }
@@ -306,8 +247,6 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
     try {
       model.temperatureLoading.value = true
 
-      logger.info('开始加载温度监控数据', { serverId })
-
       const params: MetricQueryParams = {
         ...(serverId ? { metricServerId: serverId } : {}),
         ...model.queryParams,
@@ -318,15 +257,9 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
       if (isApiSuccess(response)) {
         const metrics = parseJsonData<TemperatureInfo[]>(response, [])
         model.setTemperatureMetrics(metrics)
-
-        logger.info('温度监控数据加载成功', { count: metrics.length })
-      } else {
-        const errorMsg = getApiMessage(response, '加载温度监控数据失败')
-        logger.error('加载温度监控数据失败', { error: errorMsg })
       }
-    } catch (error) {
-      const errorMsg = '加载温度监控数据异常'
-      logger.error(errorMsg, error)
+    } catch {
+      // 静默失败，由页面层处理提示
     } finally {
       model.temperatureLoading.value = false
     }
@@ -339,8 +272,6 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
     try {
       model.diskIOLoading.value = true
 
-      logger.info('开始加载磁盘IO监控数据', { serverId })
-
       const params: MetricQueryParams = {
         ...(serverId ? { metricServerId: serverId } : {}),
         ...model.queryParams,
@@ -351,15 +282,9 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
       if (isApiSuccess(response)) {
         const metrics = parseJsonData<DiskIOStats[]>(response, [])
         model.setDiskIOMetrics(metrics)
-
-        logger.info('磁盘IO监控数据加载成功', { count: metrics.length })
-      } else {
-        const errorMsg = getApiMessage(response, '加载磁盘IO监控数据失败')
-        logger.error('加载磁盘IO监控数据失败', { error: errorMsg })
       }
-    } catch (error) {
-      const errorMsg = '加载磁盘IO监控数据异常'
-      logger.error(errorMsg, error)
+    } catch {
+      // 静默失败，由页面层处理提示
     } finally {
       model.diskIOLoading.value = false
     }
@@ -370,13 +295,11 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
    */
   const loadAllMetrics = async (serverId: string) => {
     if (!serverId) {
-      logger.warn('未提供服务器ID，无法加载监控数据')
       return
     }
 
     try {
       operationLoading.value = true
-      logger.info('开始加载所有监控数据', { serverId })
 
       await Promise.all([
         loadCPUMetrics(serverId),
@@ -387,12 +310,9 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
         loadProcessMetrics(serverId),
         loadTemperatureMetrics(serverId),
       ])
-
-      logger.info('所有监控数据加载成功')
     } catch (error) {
-      const errorMsg = '加载所有监控数据异常'
-      logger.error(errorMsg, error)
-      throw error // 向上传播错误，让调用者处理
+      // 向上传播错误，让调用者处理
+      throw error
     } finally {
       operationLoading.value = false
     }
@@ -411,25 +331,18 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
     try {
       operationLoading.value = true
 
-      logger.info('开始导出监控数据', params)
-
       const response = await exportMetricData(params)
 
       if (isApiSuccess(response)) {
         const downloadUrl = parseJsonData<string>(response)
         message.success('数据导出成功')
-        logger.info('数据导出成功', { downloadUrl })
         return downloadUrl
       } else {
-        const errorMsg = getApiMessage(response, '导出监控数据失败')
-        message.error(errorMsg)
-        logger.error('导出监控数据失败', { error: errorMsg })
+        message.error(getApiMessage(response, '导出监控数据失败'))
         return null
       }
-    } catch (error) {
-      const errorMsg = '导出监控数据异常'
-      message.error(errorMsg)
-      logger.error(errorMsg, error)
+    } catch {
+      message.error('导出监控数据异常')
       return null
     } finally {
       operationLoading.value = false

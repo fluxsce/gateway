@@ -3,8 +3,8 @@
  * 统一管理表单配置和数据状态
  */
 
-import type { DataFormField } from '@/components/form/data/types'
-import { NAlert, NText } from 'naive-ui'
+import type { RsDataFormField } from '@/components/form/rs-data'
+import { RsAlert } from '@/ui'
 import { h, ref } from 'vue'
 
 /**
@@ -42,65 +42,55 @@ export function useRateLimitConfigModel(moduleId: string) {
       const algorithm = formData.algorithm
 
       if (algorithm === 'token-bucket') {
-        return h(NAlert, { type: 'info' }, {
-          default: () => h(NText, null, {
-            default: () => [
-              h('strong', null, '令牌桶算法：'),
-              '以固定速率向桶中放入令牌，请求需要消耗令牌才能通过。支持突发流量，桶满时多余令牌会被丢弃。',
-              h('br'),
-              '• 限流速率：每秒向桶中填充的令牌数（令牌/秒）',
-              h('br'),
-              '• 突发容量：桶的最大容量（最大令牌数），决定了最大突发请求数',
-            ],
-          }),
+        return h(RsAlert, { type: 'info' }, {
+          default: () => [
+            h('strong', null, '令牌桶算法：'),
+            '以固定速率向桶中放入令牌，请求需要消耗令牌才能通过。支持突发流量，桶满时多余令牌会被丢弃。',
+            h('br'),
+            '• 限流速率：每秒向桶中填充的令牌数（令牌/秒）',
+            h('br'),
+            '• 突发容量：桶的最大容量（最大令牌数），决定了最大突发请求数',
+          ],
         })
       } else if (algorithm === 'leaky-bucket') {
-        return h(NAlert, { type: 'info' }, {
-          default: () => h(NText, null, {
-            default: () => [
-              h('strong', null, '漏桶算法：'),
-              '请求先进入桶中，然后以固定速率从桶中流出。能够平滑突发流量，但不支持突发处理。',
-              h('br'),
-              '• 限流速率：每秒从桶中漏出的请求数（处理速率）',
-              h('br'),
-              '• 突发容量：桶的最大容量（最大可容纳的请求数），超出时请求会被拒绝',
-            ],
-          }),
+        return h(RsAlert, { type: 'info' }, {
+          default: () => [
+            h('strong', null, '漏桶算法：'),
+            '请求先进入桶中，然后以固定速率从桶中流出。能够平滑突发流量，但不支持突发处理。',
+            h('br'),
+            '• 限流速率：每秒从桶中漏出的请求数（处理速率）',
+            h('br'),
+            '• 突发容量：桶的最大容量（最大可容纳的请求数），超出时请求会被拒绝',
+          ],
         })
       } else if (algorithm === 'sliding-window') {
-        return h(NAlert, { type: 'info' }, {
-          default: () => h(NText, null, {
-            default: () => [
-              h('strong', null, '滑动窗口算法：'),
-              '在固定时间窗口内限制请求数量。窗口会随时间滑动，提供更精确的限流控制，避免边界突刺问题。',
-              h('br'),
-              '• 限流速率：时间窗口内允许的最大请求数',
-              h('br'),
-              '• 时间窗口：统计请求数量的时间范围（秒）',
-            ],
-          }),
+        return h(RsAlert, { type: 'info' }, {
+          default: () => [
+            h('strong', null, '滑动窗口算法：'),
+            '在固定时间窗口内限制请求数量。窗口会随时间滑动，提供更精确的限流控制，避免边界突刺问题。',
+            h('br'),
+            '• 限流速率：时间窗口内允许的最大请求数',
+            h('br'),
+            '• 时间窗口：统计请求数量的时间范围（秒）',
+          ],
         })
       } else if (algorithm === 'fixed-window') {
-        return h(NAlert, { type: 'info' }, {
-          default: () => h(NText, null, {
-            default: () => [
-              h('strong', null, '固定窗口算法：'),
-              '在固定时间窗口内限制请求数量。窗口到期后重置计数器，可能出现边界突发（临界问题）。',
-              h('br'),
-              '• 限流速率：时间窗口内允许的最大请求数',
-              h('br'),
-              '• 时间窗口：统计请求数量的时间范围（秒）',
-            ],
-          }),
+        return h(RsAlert, { type: 'info' }, {
+          default: () => [
+            h('strong', null, '固定窗口算法：'),
+            '在固定时间窗口内限制请求数量。窗口到期后重置计数器，可能出现边界突发（临界问题）。',
+            h('br'),
+            '• 限流速率：时间窗口内允许的最大请求数',
+            h('br'),
+            '• 时间窗口：统计请求数量的时间范围（秒）',
+          ],
         })
       } else if (algorithm === 'none') {
-        return h(NAlert, { type: 'warning' }, {
-          default: () => h(NText, null, {
-            default: () => [
-              h('strong', null, '无限流：'),
-              '不进行任何限流控制，所有请求都会通过。通常用于临时关闭限流或测试环境。',
-            ],
-          }),
+        return h(RsAlert, { type: 'warning' }, {
+          default: () => [
+            h('strong', null, '无限流：'),
+            '不进行任何限流控制，所有请求都会通过。通常用于临时关闭限流或测试环境。',
+          ],
         })
       }
 
@@ -115,7 +105,7 @@ export function useRateLimitConfigModel(moduleId: string) {
   ]
 
   /** 表单字段配置 */
-  const formFields: DataFormField[] = [
+  const formFields: RsDataFormField[] = [
     // ============= 主键字段（隐藏，但必须存在用于更新） =============
     {
       field: 'rateLimitConfigId',

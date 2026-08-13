@@ -4,12 +4,15 @@ import type { CSSProperties } from 'vue'
  * GPane 方向
  * - vertical: 上下分割
  * - horizontal: 左右分割
+ * @deprecated 请使用 `RsSplitOrientation`
  */
 export type GPaneDirection = 'vertical' | 'horizontal'
 
 /**
+ * @deprecated 请直接使用 `@/ui` 的 `RsSplitPane` / `RsSplitPaneItem`。本类型仅作过渡，后续将删除。
+ *
  * GPane 组件 Props
- * 对 Naive UI `NSplit` 做了一层语义化封装
+ * 对 niuma-ui `RsSplitPane` 做了一层语义化封装（两栏）
  */
 export interface GPaneProps {
   /**

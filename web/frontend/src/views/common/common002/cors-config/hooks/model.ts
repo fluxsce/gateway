@@ -3,8 +3,8 @@
  * 统一管理表单配置和数据状态
  */
 
-import type { DataFormField } from '@/components/form/data/types'
-import { NDynamicTags } from 'naive-ui'
+import type { RsDataFormField } from '@/components/form/rs-data'
+import { RsDynamicTags } from '@/ui'
 import { h, ref } from 'vue'
 
 /**
@@ -23,14 +23,12 @@ export function useCorsConfigModel(moduleId: string) {
     return (formData: Record<string, any>) => {
       const value = formData[field] || []
 
-      return h(NDynamicTags, {
-        value,
-        'onUpdate:value': (newValue: string[]) => {
+      return h(RsDynamicTags, {
+        modelValue: value,
+        'onUpdate:modelValue': (newValue: string[]) => {
           formData[field] = newValue
         },
-        inputProps: {
-          placeholder,
-        },
+        placeholder,
       })
     }
   }
@@ -42,7 +40,7 @@ export function useCorsConfigModel(moduleId: string) {
   ]
 
   /** 表单字段配置 */
-  const formFields: DataFormField[] = [
+  const formFields: RsDataFormField[] = [
     // ============= 主键字段（隐藏，但必须存在用于更新） =============
     {
       field: 'corsConfigId',
