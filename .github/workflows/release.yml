@@ -1,0 +1,246 @@
+name: Release packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without v prefix (e.g. 3.1.9)
+        required: true
+        type: string
+      push_images:
+        description: Push Docker images to GHCR
+        required: false
+        type: boolean
+        default: true
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  NIUMA_UI_VERSION: "1.1.0"
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      push_images: ${{ steps.meta.outputs.push_images }}
+      is_tag: ${{ steps.meta.outputs.is_tag }}
+      build_date: ${{ steps.meta.outputs.build_date }}
+    steps:
+      - id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+            PUSH_IMAGES="${{ github.event.inputs.push_images }}"
+            IS_TAG="false"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+            PUSH_IMAGES="true"
+            IS_TAG="true"
+          fi
+          if [[ -z "$VERSION" ]]; then
+            echo "version is empty" >&2
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "push_images=${PUSH_IMAGES}" >> "$GITHUB_OUTPUT"
+          echo "is_tag=${IS_TAG}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_OUTPUT"
+
+  frontend:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/frontend/pnpm-lock.yaml
+      - name: Install frontend deps
+        working-directory: web/frontend
+        run: |
+          pnpm pkg set "dependencies.niuma-ui=${NIUMA_UI_VERSION}"
+          pnpm install --no-frozen-lockfile
+      - name: Build frontend
+        working-directory: web/frontend
+        run: pnpm build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: web/frontend/dist
+          if-no-files-found: error
+          retention-days: 7
+
+  package-linux:
+    needs: [prepare, frontend]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: standard
+            oracle: "0"
+          - id: oracle
+            oracle: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: web/frontend/dist
+      - name: Install build deps
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential libaio-dev unzip
+      - uses: actions/cache@v4
+        if: matrix.oracle == '1'
+        with:
+          path: .oracle
+          key: oracle-instantclient-21.18-linux-amd64
+      - name: Download Oracle Instant Client
+        if: matrix.oracle == '1'
+        run: bash .github/scripts/download-oracle-linux.sh
+      - name: Package
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          ORACLE: ${{ matrix.oracle }}
+        run: bash .github/scripts/package-linux.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-linux-${{ matrix.id }}
+          path: dist/gateway-*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  package-windows:
+    needs: [prepare, frontend]
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: standard
+            oracle: "0"
+          - id: oracle
+            oracle: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: web/frontend/dist
+      - uses: egor-tensin/setup-mingw@v2
+        with:
+          platform: x64
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: matrix.oracle == '1'
+      - uses: actions/cache@v4
+        if: matrix.oracle == '1'
+        with:
+          path: .oracle
+          key: oracle-instantclient-21.18-windows-amd64
+      - name: Download Oracle Instant Client
+        if: matrix.oracle == '1'
+        shell: pwsh
+        run: .github/scripts/download-oracle-windows.ps1
+      - name: Package
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          ORACLE: ${{ matrix.oracle }}
+          CC: gcc
+        shell: pwsh
+        run: .github/scripts/package-windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-windows-${{ matrix.id }}
+          path: dist/gateway-*.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  docker:
+    needs: [prepare, frontend]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: standard
+            file: scripts/docker/Dockerfile
+            suffix: -standard
+            extra_suffix: ""
+            latest: "false"
+          - id: oracle
+            file: scripts/docker/Dockerfile.oracle
+            suffix: ""
+            extra_suffix: -oracle
+            latest: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: web/frontend/dist
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: needs.prepare.outputs.push_images == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=${{ needs.prepare.outputs.version }}${{ matrix.suffix }}
+            type=raw,value=${{ needs.prepare.outputs.version }}${{ matrix.extra_suffix }},enable=${{ matrix.id == 'oracle' }}
+            type=raw,value=latest,enable=${{ matrix.latest == 'true' && needs.prepare.outputs.is_tag == 'true' }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          push: ${{ needs.prepare.outputs.push_images == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
+            BUILD_DATE=${{ needs.prepare.outputs.build_date }}
+            GIT_COMMIT=${{ github.sha }}
+          cache-from: type=gha,scope=docker-${{ matrix.id }}
+          cache-to: type=gha,mode=min,scope=docker-${{ matrix.id }}
+
+  release:
+    needs: [prepare, package-linux, package-windows]
+    if: needs.prepare.outputs.is_tag == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          merge-multiple: true
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

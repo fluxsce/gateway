@@ -19,6 +19,7 @@ go.work
 
 # Build artifacts
 bin/
+.oracle/
 
 # IDE files
 .idea/
