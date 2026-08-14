@@ -56,7 +56,7 @@ function safeParseI18nContent(content: string) {
  * 文档输出到 `dist/docs/`（见 `docs/.vitepress/config.ts` 的 `outDir`），与主应用一并部署即可。
  */
 function resolveDocsDevProxy(env: Record<string, string>) {
-  const target = (env.VITE_DOCS_DEV_TARGET || 'http://127.0.0.1:5275').replace(/\/+$/, '')
+  const target = (env.VITE_DOCS_DEV_TARGET || 'http://127.0.0.1:5274').replace(/\/+$/, '')
   let base = (env.VITE_BASE_URL || '').trim()
   if (base === '/' || base === '') {
     return {

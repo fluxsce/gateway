@@ -104,6 +104,8 @@ export default {
     'In-app help (same origin as this console). Scroll inside the panel, or use the button below for a full browser window.',
   helpManualDrawerHint:
     'For large diagrams or wide tables, prefer opening in a new window. If the page is slow to load, please wait a moment.',
+  helpManualLoadFailed:
+    'Help docs failed to load. Locally run pnpm dev (VitePress on port 5274). Release packages must include web/frontend/dist/docs. Use “Open in new window” to debug.',
   helpManualClose: 'Close panel',
   // User related
   user: {

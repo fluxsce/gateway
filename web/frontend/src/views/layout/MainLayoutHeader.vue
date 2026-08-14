@@ -93,16 +93,19 @@
         </RsDropdown>
       </div>
     </div>
+  </header>
 
-    <RsDrawer
-      v-model:open="helpDrawerVisible"
-      :title="tCommon('helpManual')"
-      side="right"
-      size="lg"
-    >
+  <RsDrawer
+    v-model:open="helpDrawerVisible"
+    :title="tCommon('helpManual')"
+    side="right"
+    size="lg"
+    teleport-to="body"
+  >
       <div class="help-manual-panel">
         <p class="help-manual-intro">{{ tCommon('helpManualDrawerIntro') }}</p>
-        <RsAlert type="default">{{ tCommon('helpManualDrawerHint') }}</RsAlert>
+        <RsAlert v-if="helpDocsError" type="warning">{{ helpDocsError }}</RsAlert>
+        <RsAlert v-else type="default">{{ tCommon('helpManualDrawerHint') }}</RsAlert>
         <a :href="docsSiteHref" target="_blank" rel="noopener noreferrer" class="help-manual-open-link">
           <RsButton variant="primary" size="sm" icon="external-link">
             {{ tCommon('helpManualOpenNew') }}
@@ -115,7 +118,8 @@
             class="help-manual-iframe"
             :src="docsSiteHref"
             :title="tCommon('helpManual')"
-            @load="helpIframeLoading = false"
+            @load="onHelpIframeLoad"
+            @error="onHelpIframeError"
           />
         </div>
       </div>
@@ -124,8 +128,7 @@
           {{ tCommon('helpManualClose') }}
         </RsButton>
       </template>
-    </RsDrawer>
-  </header>
+  </RsDrawer>
 </template>
 
 <script setup lang="ts">
@@ -162,6 +165,7 @@ const { layoutTabs, layoutActiveTabId } = storeToRefs(globalStore)
 const searchQuery = ref('')
 const helpDrawerVisible = ref(false)
 const helpIframeLoading = ref(false)
+const helpDocsError = ref('')
 
 const docsSiteHref = computed(() => getDocsSiteHref())
 
@@ -201,9 +205,29 @@ function onReorderTabs(dragValue: string, dropValue: string) {
   globalStore.setLayoutTabs(tabs)
 }
 
-function openHelpDrawer() {
+function onHelpIframeLoad() {
+  helpIframeLoading.value = false
+}
+
+function onHelpIframeError() {
+  helpIframeLoading.value = false
+  helpDocsError.value = tCommon('helpManualLoadFailed')
+}
+
+async function openHelpDrawer() {
+  helpDocsError.value = ''
   helpIframeLoading.value = true
   helpDrawerVisible.value = true
+  try {
+    const res = await fetch(docsSiteHref.value, { method: 'GET', credentials: 'same-origin' })
+    if (!res.ok) {
+      helpDocsError.value = tCommon('helpManualLoadFailed')
+      helpIframeLoading.value = false
+    }
+  } catch {
+    helpDocsError.value = tCommon('helpManualLoadFailed')
+    helpIframeLoading.value = false
+  }
 }
 </script>
 
@@ -301,10 +325,12 @@ function openHelpDrawer() {
 
 .help-manual-panel {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: var(--g-space-sm);
   min-height: 0;
-  max-height: calc(100vh - 7.5rem);
+  height: 100%;
+  overflow: auto;
 }
 
 .help-manual-intro {

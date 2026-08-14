@@ -21,8 +21,9 @@ go.work
 bin/
 .oracle/
 
-# IDE files
+# IDE / editor files
 .idea/
+.cursor/
 .vscode/
 *.swp
 *.swo
