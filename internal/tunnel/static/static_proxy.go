@@ -61,6 +61,22 @@ func newStaticProxy(server *types.TunnelStaticServer, staticServerRepo *storage.
 	}
 }
 
+// applyServerConfig 在代理未运行时替换服务器配置（含节点列表和负载均衡算法）。
+// 用于启动前把数据库最新节点写回缓存实例，避免进程初始化后新增的节点丢失。
+func (p *staticProxy) applyServerConfig(server *types.TunnelStaticServer) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	if p.server.ServerStatus == "running" {
+		return
+	}
+	p.server = server
+	algorithm := "round_robin"
+	if server.LoadBalanceType != nil && *server.LoadBalanceType != "" {
+		algorithm = *server.LoadBalanceType
+	}
+	p.loadBalancer = createLoadBalancer(algorithm)
+}
+
 // Start 启动静态代理
 // 创建监听器并开始接受连接
 //
@@ -74,9 +90,9 @@ func (p *staticProxy) Start(ctx context.Context) error {
 		return fmt.Errorf("static proxy already running")
 	}
 
-	// 检查是否有可用节点
+	// 检查是否有可用节点（Start 调用方应已刷新节点；此处作为兜底）
 	if p.server.Nodes == nil || len(p.server.Nodes) == 0 {
-		return fmt.Errorf("no nodes available for static proxy")
+		return fmt.Errorf("该静态服务没有可用节点，请先添加节点后再启动")
 	}
 
 	// 重新创建内部 context（确保之前的 cancel 不会影响新启动）

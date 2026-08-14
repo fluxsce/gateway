@@ -212,36 +212,71 @@ func (m *TunnelServerManager) StartAll(ctx context.Context) error {
 }
 
 // Stop 停止指定隧道服务器
-// 停止指定 serverID 的隧道服务器实例并从缓存中移除
+// 停止指定 serverID 的隧道服务器实例并从缓存中移除。
+// 缓存中没有实例时视为本进程已停止（幂等），并校正数据库状态。
 //
 // 参数:
 //   - ctx: 上下文
 //   - serverID: 隧道服务器ID
 //
 // 返回:
-//   - error: 错误信息
+//   - error: 错误信息；仅当数据库中也不存在该服务器时返回 not found
 //
 // 重要说明:
 //   - 停止后会从缓存中移除，下次启动时会从数据库重新加载
+//   - 新建后未启动、或已停止过一次的服务器，再次停止不再报错
 func (m *TunnelServerManager) Stop(ctx context.Context, serverID string) error {
 	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
 	server, exists := m.servers[serverID]
+	m.mutex.Unlock()
+
 	if !exists {
-		return fmt.Errorf("tunnel server not found: %s", serverID)
+		return m.syncStoppedWhenMissing(ctx, serverID)
 	}
 
 	if err := server.Stop(ctx); err != nil {
 		return fmt.Errorf("failed to stop tunnel server %s: %w", serverID, err)
 	}
 
-	// 从缓存中移除已停止的服务器
+	m.mutex.Lock()
 	delete(m.servers, serverID)
+	m.mutex.Unlock()
 
 	logger.Info("Tunnel server stopped and removed from cache", map[string]interface{}{
 		"serverID": serverID,
 	})
+
+	return nil
+}
+
+// syncStoppedWhenMissing 缓存中无实例时按已停止处理。
+// 库中不存在则报错；库中仍为 running 则写回 stopped，避免界面与运行时不一致。
+func (m *TunnelServerManager) syncStoppedWhenMissing(ctx context.Context, serverID string) error {
+	config, err := m.repository.GetByID(ctx, serverID)
+	if err != nil {
+		return fmt.Errorf("failed to load tunnel server config: %w", err)
+	}
+	if config == nil {
+		return fmt.Errorf("tunnel server not found in database: %s", serverID)
+	}
+
+	logger.Info("Tunnel server not in cache, treating as already stopped", map[string]interface{}{
+		"serverID":     serverID,
+		"serverStatus": config.ServerStatus,
+	})
+
+	if config.ServerStatus == types.ServerStatusStopped {
+		return nil
+	}
+
+	config.ServerStatus = types.ServerStatusStopped
+	config.StartTime = nil
+	if err := m.repository.Update(ctx, config); err != nil {
+		logger.Error("Failed to sync stopped status to database", map[string]interface{}{
+			"serverID": serverID,
+			"error":    err.Error(),
+		})
+	}
 
 	return nil
 }

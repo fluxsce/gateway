@@ -1,0 +1,22 @@
+-- 服务中心 API Token（Bearer 不透明令牌）
+CREATE TABLE IF NOT EXISTS HUB_SERVICE_AUTH_TOKEN (
+    tokenId VARCHAR(64) NOT NULL COMMENT '令牌ID',
+    tenantId VARCHAR(64) NOT NULL COMMENT '租户ID',
+    tokenValue VARCHAR(256) NOT NULL COMMENT '令牌明文值（Bearer 原文）',
+    userId VARCHAR(64) NOT NULL COMMENT '关联用户ID',
+    tokenName VARCHAR(128) DEFAULT NULL COMMENT '令牌名称',
+    expireTime DATETIME DEFAULT NULL COMMENT '过期时间，空表示永不过期',
+    statusFlag CHAR(1) NOT NULL DEFAULT 'Y' COMMENT '状态 Y启用 N禁用',
+    addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    addWho VARCHAR(64) NOT NULL,
+    editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    editWho VARCHAR(64) NOT NULL,
+    oprSeqFlag VARCHAR(64) NOT NULL,
+    currentVersion INT NOT NULL DEFAULT 1,
+    activeFlag CHAR(1) NOT NULL DEFAULT 'Y',
+    noteText VARCHAR(512) DEFAULT NULL,
+    extProperty TEXT,
+    PRIMARY KEY (tenantId, tokenId),
+    UNIQUE KEY UK_SC_AUTH_TOKEN_VALUE (tokenValue),
+    KEY IDX_SC_AUTH_TOKEN_USER (userId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务中心API认证令牌';

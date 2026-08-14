@@ -3,11 +3,13 @@ package sqlutils
 import (
 	"database/sql"
 	"fmt"
-	"gateway/pkg/database"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"gateway/pkg/database"
+	"gateway/pkg/utils/ctime"
 )
 
 // FieldMapper 字段映射器，用于处理数据库列到结构体字段的映射
@@ -168,6 +170,30 @@ func (fm *FieldMapper) setFieldValue(fieldInfo *FieldInfo, value interface{}) er
 	}
 
 	return fm.convertAndSetValue(fieldInfo.field, value)
+}
+
+// setTimeFieldFromDBString 将数据库 TEXT 时间写入 time.Time / *time.Time。
+// SQLite 无原生时间类型，go-sqlite3 会把 time.Time 写成带偏移的墙钟字符串。
+func setTimeFieldFromDBString(field reflect.Value, fieldType reflect.Type, v string) error {
+	if v == "" {
+		if fieldType == reflect.TypeOf(time.Time{}) {
+			field.Set(reflect.ValueOf(time.Time{}))
+			return nil
+		}
+		field.Set(reflect.ValueOf((*time.Time)(nil)))
+		return nil
+	}
+
+	parsedTime, err := ctime.ParseTimeString(v)
+	if err != nil {
+		return fmt.Errorf("cannot parse time string %q: %w", v, err)
+	}
+	if fieldType == reflect.TypeOf(time.Time{}) {
+		field.Set(reflect.ValueOf(parsedTime))
+		return nil
+	}
+	field.Set(reflect.ValueOf(&parsedTime))
+	return nil
 }
 
 // convertAndSetValue 转换并设置值
@@ -353,59 +379,8 @@ func (fm *FieldMapper) convertValue(field reflect.Value, value interface{}) erro
 			field.Set(reflect.ValueOf(&v))
 			return nil
 		}
-		// 特殊处理：如果目标字段是 time.Time 类型，尝试将字符串解析为时间
-		// 这主要用于 SQLite 数据库，因为 SQLite 将日期时间存储为 TEXT，返回字符串
-		if fieldType == reflect.TypeOf(time.Time{}) {
-			if v != "" {
-				// 尝试多种时间格式解析
-				timeFormats := []string{
-					"2006-01-02 15:04:05",
-					"2006-01-02T15:04:05",
-					time.RFC3339,
-					time.RFC3339Nano,
-					"2006-01-02",
-				}
-				var parsedTime time.Time
-				var err error
-				for _, format := range timeFormats {
-					parsedTime, err = time.Parse(format, v)
-					if err == nil {
-						field.Set(reflect.ValueOf(parsedTime))
-						return nil
-					}
-				}
-				// 如果所有格式都解析失败，返回错误
-				return fmt.Errorf("cannot parse time string %q: %w", v, err)
-			}
-			// 空字符串设置为零值
-			field.Set(reflect.ValueOf(time.Time{}))
-			return nil
-		}
-		// 处理指针类型的时间字段
-		if fieldType == reflect.TypeOf(&time.Time{}) {
-			if v != "" {
-				timeFormats := []string{
-					"2006-01-02 15:04:05",
-					"2006-01-02T15:04:05",
-					time.RFC3339,
-					time.RFC3339Nano,
-					"2006-01-02",
-				}
-				var parsedTime time.Time
-				var err error
-				for _, format := range timeFormats {
-					parsedTime, err = time.Parse(format, v)
-					if err == nil {
-						field.Set(reflect.ValueOf(&parsedTime))
-						return nil
-					}
-				}
-				// 如果所有格式都解析失败，返回错误
-				return fmt.Errorf("cannot parse time string %q: %w", v, err)
-			}
-			// 空字符串设置为 nil
-			field.Set(reflect.ValueOf((*time.Time)(nil)))
-			return nil
+		if fieldType == reflect.TypeOf(time.Time{}) || fieldType == reflect.TypeOf(&time.Time{}) {
+			return setTimeFieldFromDBString(field, fieldType, v)
 		}
 	case time.Time:
 		if fieldType == reflect.TypeOf(time.Time{}) {
@@ -872,58 +847,17 @@ func ProcessScannedValues(scanTargets []interface{}, fields []reflect.Value) err
 		// 根据扫描目标类型处理值转换
 		switch v := scanTarget.(type) {
 		case *sql.NullString:
-			// 特殊处理：如果目标字段是 time.Time 类型，尝试将字符串解析为时间
-			// 这主要用于 SQLite 数据库，因为 SQLite 将日期时间存储为 TEXT
-			if field.Type() == reflect.TypeOf(time.Time{}) {
-				if v.Valid && v.String != "" {
-					// 尝试多种时间格式解析
-					timeFormats := []string{
-						"2006-01-02 15:04:05",
-						"2006-01-02T15:04:05",
-						time.RFC3339,
-						time.RFC3339Nano,
-						"2006-01-02",
-					}
-					var parsedTime time.Time
-					var err error
-					for _, format := range timeFormats {
-						parsedTime, err = time.Parse(format, v.String)
-						if err == nil {
-							field.Set(reflect.ValueOf(parsedTime))
-							break
-						}
-					}
-					if err != nil {
-						// 如果所有格式都解析失败，设置为零值
-						field.Set(reflect.ValueOf(time.Time{}))
-					}
-				} else {
-					field.Set(reflect.ValueOf(time.Time{}))
+			if field.Type() == reflect.TypeOf(time.Time{}) || field.Type() == reflect.TypeOf(&time.Time{}) {
+				raw := ""
+				if v.Valid {
+					raw = v.String
 				}
-			} else if field.Type() == reflect.TypeOf(&time.Time{}) {
-				// 处理指针类型的时间字段
-				if v.Valid && v.String != "" {
-					timeFormats := []string{
-						"2006-01-02 15:04:05",
-						"2006-01-02T15:04:05",
-						time.RFC3339,
-						time.RFC3339Nano,
-						"2006-01-02",
-					}
-					var parsedTime time.Time
-					var err error
-					for _, format := range timeFormats {
-						parsedTime, err = time.Parse(format, v.String)
-						if err == nil {
-							field.Set(reflect.ValueOf(&parsedTime))
-							break
-						}
-					}
-					if err != nil {
+				if err := setTimeFieldFromDBString(field, field.Type(), raw); err != nil {
+					if field.Type() == reflect.TypeOf(time.Time{}) {
+						field.Set(reflect.ValueOf(time.Time{}))
+					} else {
 						field.Set(reflect.ValueOf((*time.Time)(nil)))
 					}
-				} else {
-					field.Set(reflect.ValueOf((*time.Time)(nil)))
 				}
 			} else if field.Kind() == reflect.Ptr {
 				// 处理指针类型字段

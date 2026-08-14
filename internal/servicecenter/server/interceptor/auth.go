@@ -3,12 +3,16 @@ package interceptor
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"strings"
+	"time"
 
 	"gateway/internal/servicecenter/dao"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 
+	"github.com/golang-jwt/jwt/v4"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -16,10 +20,12 @@ import (
 )
 
 // AuthInterceptor 认证拦截器
-// 负责从 metadata 中提取认证信息并验证
+// 负责从 metadata 中提取认证信息并验证。
+// 支持 Basic（HUB_USER）与 Bearer（API Token 表 / JWT）。
 type AuthInterceptor struct {
 	configProvider ConfigProvider
-	userDAO        *dao.UserDAO // 用户数据访问对象，用于验证用户名密码（使用 servicecenter 内部的 dao）
+	userDAO        *dao.UserDAO
+	tokenDAO       *dao.AuthTokenDAO
 }
 
 // NewAuthInterceptor 创建认证拦截器
@@ -27,26 +33,21 @@ func NewAuthInterceptor(configProvider ConfigProvider, db database.Database) *Au
 	return &AuthInterceptor{
 		configProvider: configProvider,
 		userDAO:        dao.NewUserDAO(db),
+		tokenDAO:       dao.NewAuthTokenDAO(db),
 	}
 }
 
 // UnaryServerInterceptor 返回 Unary 认证拦截器
-// 从 metadata 中提取认证信息并验证
 func (a *AuthInterceptor) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		config := a.configProvider.GetConfig()
-
-		// 如果未启用认证，跳过认证检查
-		if config.EnableAuth != "Y" {
+		if config == nil || config.EnableAuth != "Y" {
 			return handler(ctx, req)
 		}
-
-		// 验证认证信息
 		authenticatedCtx, err := a.authenticate(ctx)
 		if err != nil {
 			return nil, err
 		}
-
 		return handler(authenticatedCtx, req)
 	}
 }
@@ -55,98 +56,74 @@ func (a *AuthInterceptor) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 func (a *AuthInterceptor) StreamServerInterceptor() grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		config := a.configProvider.GetConfig()
-
-		if config.EnableAuth != "Y" {
+		if config == nil || config.EnableAuth != "Y" {
 			return handler(srv, ss)
 		}
-
 		authenticatedCtx, err := a.authenticate(ss.Context())
 		if err != nil {
 			return err
 		}
-
-		// 创建包装的 ServerStream，将认证信息添加到 context 中
-		wrappedStream := &authenticatedServerStream{
+		return handler(srv, &authenticatedServerStream{
 			ServerStream: ss,
 			ctx:          authenticatedCtx,
-		}
-
-		return handler(srv, wrappedStream)
+		})
 	}
 }
 
 // authenticate 执行认证逻辑
-// 支持多种认证方式：
-// 1. Basic Auth: "Basic base64(username:password)"
-// 2. Bearer Token: "Bearer <token>"
+// 支持：
+// 1. Basic Auth: "Basic base64(userId:password)"
+// 2. Bearer Token: API Token（不透明）或 JWT（三段式）
 func (a *AuthInterceptor) authenticate(ctx context.Context) (context.Context, error) {
-	// 从 metadata 中提取认证信息
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return nil, status.Error(codes.Unauthenticated, "缺少认证信息")
 	}
 
-	// 获取 Authorization header
 	authHeaders := md.Get("authorization")
 	if len(authHeaders) == 0 {
 		return nil, status.Error(codes.Unauthenticated, "缺少认证令牌")
 	}
 
 	authHeader := authHeaders[0]
-
-	// 根据不同的认证类型执行不同的验证逻辑
-	if strings.HasPrefix(authHeader, "Basic ") {
-		// Basic 认证：用户名密码认证
+	switch {
+	case strings.HasPrefix(authHeader, "Basic "):
 		return a.authenticateBasic(ctx, authHeader)
-	} else if strings.HasPrefix(authHeader, "Bearer ") {
-		// Bearer Token 认证
+	case strings.HasPrefix(authHeader, "Bearer "):
 		return a.authenticateBearer(ctx, authHeader)
-	} else {
+	default:
 		return nil, status.Error(codes.Unauthenticated, "不支持的认证类型")
 	}
 }
 
-// authenticateBasic Basic 认证（用户ID+密码）
-// 格式: Basic base64(userId:password)
-// 注意: userId 是唯一标识，userName 不是唯一的
+// authenticateBasic Basic 认证（userId + password）
 func (a *AuthInterceptor) authenticateBasic(ctx context.Context, authHeader string) (context.Context, error) {
-	// 提取 Base64 编码的用户ID和密码
 	encodedCredentials := strings.TrimPrefix(authHeader, "Basic ")
 	if encodedCredentials == "" {
 		return nil, status.Error(codes.Unauthenticated, "认证信息为空")
 	}
 
-	// Base64 解码
 	decodedBytes, err := base64.StdEncoding.DecodeString(encodedCredentials)
 	if err != nil {
 		logger.Error("Base64解码失败", "error", err)
 		return nil, status.Error(codes.Unauthenticated, "无效的认证信息格式")
 	}
 
-	credentials := string(decodedBytes)
-
-	// 分割用户ID和密码（格式: userId:password）
-	parts := strings.SplitN(credentials, ":", 2)
+	parts := strings.SplitN(string(decodedBytes), ":", 2)
 	if len(parts) != 2 {
 		return nil, status.Error(codes.Unauthenticated, "无效的认证信息格式")
 	}
-
-	userId := parts[0]
-	password := parts[1]
-
-	// 验证用户ID和密码不能为空
+	userId, password := parts[0], parts[1]
 	if userId == "" || password == "" {
 		return nil, status.Error(codes.Unauthenticated, "用户ID或密码不能为空")
 	}
 
-	// 验证用户凭证（使用 servicecenter 内部的 UserDAO）
 	user, err := a.userDAO.ValidateUser(ctx, userId, password)
 	if err != nil {
 		logger.Warn("用户认证失败", "userId", userId, "error", err.Error())
 		return nil, status.Error(codes.Unauthenticated, "用户ID或密码错误")
 	}
 
-	// 验证成功，将用户信息添加到 context 中
 	ctx = context.WithValue(ctx, "authenticated", true)
 	ctx = context.WithValue(ctx, "auth_type", "basic")
 	ctx = context.WithValue(ctx, "user_id", user.UserId)
@@ -158,28 +135,93 @@ func (a *AuthInterceptor) authenticateBasic(ctx context.Context, authHeader stri
 		"userId", user.UserId,
 		"userName", user.UserName,
 		"tenantId", user.TenantId)
-
 	return ctx, nil
 }
 
-// authenticateBearer Bearer Token 认证
+// authenticateBearer Bearer 认证：JWT 优先（三段式），否则按 API Token 查库。
 func (a *AuthInterceptor) authenticateBearer(ctx context.Context, authHeader string) (context.Context, error) {
-	// 提取实际的 token（去除 "Bearer " 前缀）
-	token := strings.TrimPrefix(authHeader, "Bearer ")
+	token := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 	if token == "" {
 		return nil, status.Error(codes.Unauthenticated, "认证令牌为空")
 	}
 
-	// TODO: 实现实际的 token 验证逻辑
-	// 这里可以集成 JWT 验证、API Key 验证等
-	// 示例：简单的 token 验证（实际应该查询数据库或 Redis）
-	logger.Debug("Bearer Token 认证", "token", token)
+	if looksLikeJWT(token) {
+		return a.authenticateJWT(ctx, token)
+	}
+	return a.authenticateAPIKey(ctx, token)
+}
 
-	// 将认证信息添加到 context 中
+// authenticateAPIKey 校验 HUB_SERVICE_AUTH_TOKEN 中的不透明令牌。
+func (a *AuthInterceptor) authenticateAPIKey(ctx context.Context, apiKey string) (context.Context, error) {
+	authToken, err := a.tokenDAO.ValidateToken(ctx, apiKey)
+	if err != nil {
+		logger.Warn("API Token 认证失败", "error", err.Error())
+		return nil, status.Error(codes.Unauthenticated, "无效的认证令牌")
+	}
+
+	user, err := a.userDAO.GetUserByUserId(ctx, authToken.UserId)
+	if err != nil {
+		return nil, status.Error(codes.Unauthenticated, "令牌关联用户查询失败")
+	}
+	if user == nil || user.StatusFlag != "Y" {
+		return nil, status.Error(codes.Unauthenticated, "令牌关联用户无效")
+	}
+
 	ctx = context.WithValue(ctx, "authenticated", true)
-	ctx = context.WithValue(ctx, "auth_type", "bearer")
-	ctx = context.WithValue(ctx, "auth_token", token)
+	ctx = context.WithValue(ctx, "auth_type", "api_key")
+	ctx = context.WithValue(ctx, "auth_token", apiKey)
+	ctx = context.WithValue(ctx, "user_id", user.UserId)
+	ctx = context.WithValue(ctx, "username", user.UserName)
+	ctx = context.WithValue(ctx, "tenant_id", user.TenantId)
+	ctx = context.WithValue(ctx, "real_name", user.RealName)
+	ctx = context.WithValue(ctx, "token_id", authToken.TokenId)
 
+	logger.Info("API Token 认证成功",
+		"tokenId", authToken.TokenId,
+		"userId", user.UserId,
+		"tenantId", user.TenantId)
+	return ctx, nil
+}
+
+// authenticateJWT 使用实例 ExtProperty 中的 authJwtSecret / authJwtIssuer 校验 JWT。
+func (a *AuthInterceptor) authenticateJWT(ctx context.Context, tokenString string) (context.Context, error) {
+	config := a.configProvider.GetConfig()
+	if config == nil {
+		return nil, status.Error(codes.Unauthenticated, "实例配置不可用")
+	}
+	secret, issuer := parseAuthJWTSettings(config.ExtProperty)
+	if secret == "" {
+		return nil, status.Error(codes.Unauthenticated, "JWT 密钥未配置")
+	}
+
+	claims, err := ValidateJWT(tokenString, secret, issuer)
+	if err != nil {
+		logger.Warn("JWT 认证失败", "error", err.Error())
+		return nil, status.Error(codes.Unauthenticated, "无效的 JWT 令牌")
+	}
+
+	if claims.UserId != "" {
+		user, err := a.userDAO.GetUserByUserId(ctx, claims.UserId)
+		if err != nil {
+			return nil, status.Error(codes.Unauthenticated, "JWT 用户查询失败")
+		}
+		if user == nil || user.StatusFlag != "Y" {
+			return nil, status.Error(codes.Unauthenticated, "JWT 关联用户无效")
+		}
+		ctx = context.WithValue(ctx, "username", user.UserName)
+		ctx = context.WithValue(ctx, "real_name", user.RealName)
+		if claims.TenantId == "" {
+			claims.TenantId = user.TenantId
+		}
+	}
+
+	ctx = context.WithValue(ctx, "authenticated", true)
+	ctx = context.WithValue(ctx, "auth_type", "jwt")
+	ctx = context.WithValue(ctx, "auth_token", tokenString)
+	ctx = context.WithValue(ctx, "user_id", claims.UserId)
+	ctx = context.WithValue(ctx, "tenant_id", claims.TenantId)
+
+	logger.Info("JWT 认证成功", "userId", claims.UserId, "tenantId", claims.TenantId)
 	return ctx, nil
 }
 
@@ -193,39 +235,79 @@ func (s *authenticatedServerStream) Context() context.Context {
 	return s.ctx
 }
 
-// ================================================================================
-// TODO: 扩展认证方式
-// ================================================================================
-
-// JWTAuthenticator JWT 认证器（待实现）
-type JWTAuthenticator struct {
-	secretKey string
-	issuer    string
+// ServiceCenterJWTClaims 服务中心 JWT Claims。
+type ServiceCenterJWTClaims struct {
+	UserId   string `json:"userId"`
+	TenantId string `json:"tenantId"`
+	jwt.RegisteredClaims
 }
 
-// ValidateJWT 验证 JWT token（待实现）
-func (j *JWTAuthenticator) ValidateJWT(token string) (map[string]interface{}, error) {
-	// TODO: 实现 JWT 验证
-	// 1. 解析 JWT token
-	// 2. 验证签名
-	// 3. 验证过期时间
-	// 4. 验证 issuer
-	// 5. 返回 claims
-	logger.Debug("JWT 认证待实现", "token", token)
-	return nil, nil
+// ValidateJWT 校验 HS256 JWT：签名、过期时间、可选 issuer。
+func ValidateJWT(tokenString, secret, issuer string) (*ServiceCenterJWTClaims, error) {
+	if secret == "" {
+		return nil, fmt.Errorf("jwt secret is empty")
+	}
+
+	claims := &ServiceCenterJWTClaims{}
+	parsed, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		if token.Method != jwt.SigningMethodHS256 {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(secret), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !parsed.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+	if issuer != "" && claims.Issuer != "" && claims.Issuer != issuer {
+		return nil, fmt.Errorf("invalid issuer")
+	}
+	if claims.ExpiresAt != nil && claims.ExpiresAt.Time.Before(time.Now()) {
+		return nil, fmt.Errorf("token expired")
+	}
+	return claims, nil
 }
 
-// APIKeyAuthenticator API Key 认证器（待实现）
-type APIKeyAuthenticator struct {
-	validKeys map[string]bool
+// SignJWT 签发 HS256 JWT（供测试与运维工具使用）。
+func SignJWT(userId, tenantId, secret, issuer string, ttl time.Duration) (string, error) {
+	if secret == "" {
+		return "", fmt.Errorf("jwt secret is empty")
+	}
+	now := time.Now()
+	claims := ServiceCenterJWTClaims{
+		UserId:   userId,
+		TenantId: tenantId,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    issuer,
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(secret))
 }
 
-// ValidateAPIKey 验证 API Key（待实现）
-func (a *APIKeyAuthenticator) ValidateAPIKey(apiKey string) (bool, error) {
-	// TODO: 实现 API Key 验证
-	// 1. 从数据库或配置中查询 API Key
-	// 2. 验证 API Key 是否有效
-	// 3. 验证权限范围
-	logger.Debug("API Key 认证待实现", "apiKey", apiKey)
-	return false, nil
+func looksLikeJWT(token string) bool {
+	// header.payload.signature
+	return strings.Count(token, ".") == 2
+}
+
+func parseAuthJWTSettings(extProperty string) (secret, issuer string) {
+	issuer = "service-center"
+	if strings.TrimSpace(extProperty) == "" {
+		return "", issuer
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal([]byte(extProperty), &m); err != nil {
+		return "", issuer
+	}
+	if v, ok := m["authJwtSecret"].(string); ok {
+		secret = strings.TrimSpace(v)
+	}
+	if v, ok := m["authJwtIssuer"].(string); ok && strings.TrimSpace(v) != "" {
+		issuer = strings.TrimSpace(v)
+	}
+	return secret, issuer
 }

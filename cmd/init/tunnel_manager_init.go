@@ -45,32 +45,46 @@ func InitializeTunnelManager(ctx context.Context, db database.Database) error {
 		return fmt.Errorf("数据库连接不能为空")
 	}
 
-	// 1. 初始化隧道服务端管理器
+	var initErr error
+
+	// 1. 初始化隧道服务端管理器（失败不阻断静态代理 / 客户端）
 	if _, err := server.InitializeTunnelManager(ctx, db); err != nil {
 		logger.Error("隧道服务端管理器初始化失败", map[string]interface{}{
 			"error": err.Error(),
 		})
-		return fmt.Errorf("隧道服务端管理器初始化失败: %w", err)
+		initErr = fmt.Errorf("隧道服务端管理器初始化失败: %w", err)
+	} else {
+		logger.Info("隧道服务端管理器初始化成功")
 	}
-	logger.Info("隧道服务端管理器初始化成功")
 
 	// 2. 初始化静态代理管理器
 	if _, err := static.Initialize(ctx, db); err != nil {
 		logger.Error("静态代理管理器初始化失败", map[string]interface{}{
 			"error": err.Error(),
 		})
-		return fmt.Errorf("静态代理管理器初始化失败: %w", err)
+		if initErr == nil {
+			initErr = fmt.Errorf("静态代理管理器初始化失败: %w", err)
+		}
+	} else {
+		logger.Info("静态代理管理器初始化成功")
 	}
-	logger.Info("静态代理管理器初始化成功")
 
 	// 3. 初始化隧道客户端管理器
 	if _, err := client.InitializeClientManager(ctx, db); err != nil {
 		logger.Error("隧道客户端管理器初始化失败", map[string]interface{}{
 			"error": err.Error(),
 		})
-		return fmt.Errorf("隧道客户端管理器初始化失败: %w", err)
+		if initErr == nil {
+			initErr = fmt.Errorf("隧道客户端管理器初始化失败: %w", err)
+		}
+	} else {
+		logger.Info("隧道客户端管理器初始化成功")
 	}
-	logger.Info("隧道客户端管理器初始化成功")
+
+	if initErr != nil {
+		logger.Warn("隧道管理器部分组件初始化失败，已初始化的组件仍可使用")
+		return initErr
+	}
 
 	logger.Info("隧道管理器初始化成功")
 	return nil

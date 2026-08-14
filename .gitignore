@@ -50,6 +50,9 @@ pids
 # Coverage directory used by tools like istanbul
 coverage/
 
+# Service center E2E / concurrent test reports (generated locally)
+internal/servicecenter/e2e/testdata/reports/
+
 # Environment variables
 .env
 .env.local

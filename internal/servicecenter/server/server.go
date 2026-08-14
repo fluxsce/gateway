@@ -3,8 +3,11 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
+	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -267,6 +270,12 @@ func (s *Server) buildTLSConfig() (*tls.Config, error) {
 	// 配置双向 TLS（mTLS）
 	if config.EnableMTLS == "Y" {
 		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		// ClientCAs 来自 certChainContent（CA PEM 文本，或指向 CA 证书文件的路径）
+		clientCAs, caErr := loadClientCAPool(config.CertChainContent)
+		if caErr != nil {
+			return nil, fmt.Errorf("启用 mTLS 时加载客户端 CA 失败: %w", caErr)
+		}
+		tlsConfig.ClientCAs = clientCAs
 		logger.Info("已启用双向 TLS 认证（mTLS）",
 			"instanceName", config.InstanceName,
 			"storageType", config.CertStorageType)
@@ -683,6 +692,28 @@ func (s *Server) Reload(ctx context.Context, newConfig *types.InstanceConfig) er
 		"ipBlacklist", newConfig.IpBlacklist)
 
 	return nil
+}
+
+// loadClientCAPool 从 certChainContent 加载 mTLS 客户端 CA 池。
+// 支持：PEM 文本；或指向 PEM 文件的路径。
+func loadClientCAPool(certChainContent string) (*x509.CertPool, error) {
+	raw := strings.TrimSpace(certChainContent)
+	if raw == "" {
+		return nil, fmt.Errorf("enableMTLS=Y 时必须配置 certChainContent（CA PEM 或 CA 文件路径）")
+	}
+	pemBytes := []byte(raw)
+	if !strings.Contains(raw, "BEGIN CERTIFICATE") {
+		b, err := os.ReadFile(raw)
+		if err != nil {
+			return nil, fmt.Errorf("读取 CA 文件失败: %w", err)
+		}
+		pemBytes = b
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(pemBytes) {
+		return nil, fmt.Errorf("无法解析客户端 CA 证书")
+	}
+	return pool, nil
 }
 
 // Port 获取服务器监听端口

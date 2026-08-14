@@ -22,20 +22,26 @@ import (
 
 // 常用时间格式常量
 const (
-	FormatDateTime     = "2006-01-02 15:04:05"     // YYYY-MM-DD HH:mm:ss
-	FormatDate         = "2006-01-02"              // YYYY-MM-DD
-	FormatTimeOnly     = "15:04:05"                // HH:mm:ss
-	FormatDateTimeSlash = "2006/01/02 15:04:05"    // YYYY/MM/DD HH:mm:ss
-	FormatDateSlash    = "2006/01/02"              // YYYY/MM/DD
-	FormatISO8601      = "2006-01-02T15:04:05"     // YYYY-MM-DDTHH:mm:ss
-	FormatISO8601Z     = "2006-01-02T15:04:05Z"    // YYYY-MM-DDTHH:mm:ssZ
-	FormatISO8601Milli = "2006-01-02T15:04:05.000Z" // YYYY-MM-DDTHH:mm:ss.sssZ
+	FormatDateTime      = "2006-01-02 15:04:05"      // YYYY-MM-DD HH:mm:ss
+	FormatDate          = "2006-01-02"               // YYYY-MM-DD
+	FormatTimeOnly      = "15:04:05"                 // HH:mm:ss
+	FormatDateTimeSlash = "2006/01/02 15:04:05"      // YYYY/MM/DD HH:mm:ss
+	FormatDateSlash     = "2006/01/02"               // YYYY/MM/DD
+	FormatISO8601       = "2006-01-02T15:04:05"      // YYYY-MM-DDTHH:mm:ss
+	FormatISO8601Z      = "2006-01-02T15:04:05Z"     // YYYY-MM-DDTHH:mm:ssZ
+	FormatISO8601Milli  = "2006-01-02T15:04:05.000Z" // YYYY-MM-DDTHH:mm:ss.sssZ
+	FormatISO8601Nano   = "2006-01-02T15:04:05.999999999"
+	FormatDateTimeNano  = "2006-01-02 15:04:05.999999999"
+	// FormatSQLiteDateTimeNanoTZ 为 go-sqlite3 绑定 time.Time 的默认写出格式
+	FormatSQLiteDateTimeNanoTZ = "2006-01-02 15:04:05.999999999-07:00"
+	FormatSQLiteDateTimeTZ     = "2006-01-02 15:04:05-07:00"
+	FormatISO8601NanoTZ        = "2006-01-02T15:04:05.999999999-07:00"
 )
 
 // 默认时区常量
 const (
-	DefaultTimezone = "Local" // 默认使用本地时区
-	UTCTimezone     = "UTC"   // UTC时区
+	DefaultTimezone  = "Local"         // 默认使用本地时区
+	UTCTimezone      = "UTC"           // UTC时区
 	ShanghaiTimezone = "Asia/Shanghai" // 上海时区（中国标准时间）
 )
 
@@ -45,13 +51,13 @@ const (
 //
 // 支持的格式：
 // - YYYY-MM-DD HH:mm:ss
+// - YYYY-MM-DD HH:mm:ss.sssssss+08:00（go-sqlite3 写入 time.Time）
 // - YYYY-MM-DD
 // - YYYY/MM/DD HH:mm:ss
 // - YYYY/MM/DD
 // - YYYY-MM-DDTHH:mm:ss
 // - YYYY-MM-DDTHH:mm:ssZ
-// - YYYY-MM-DDTHH:mm:ss.sssZ
-// - RFC3339格式
+// - RFC3339 / RFC3339Nano
 //
 // 参数:
 //   timeStr: 要解析的时间字符串
@@ -65,8 +71,18 @@ const (
 //       log.Printf("时间解析失败: %v", err)
 //   }
 func ParseTimeString(timeStr string) (time.Time, error) {
-	// 使用本地时区作为默认时区
 	return ParseTimeStringInLocation(timeStr, time.Local)
+}
+
+// layoutHasTimezone 判断 layout 是否自带时区，决定用 Parse 还是 ParseInLocation。
+func layoutHasTimezone(format string) bool {
+	switch format {
+	case FormatISO8601Z, FormatISO8601Milli, FormatSQLiteDateTimeNanoTZ, FormatSQLiteDateTimeTZ,
+		FormatISO8601NanoTZ, time.RFC3339, time.RFC3339Nano, time.RFC822, time.RFC1123:
+		return true
+	default:
+		return false
+	}
 }
 
 // ParseTimeStringInLocation 在指定时区解析时间字符串
@@ -86,45 +102,45 @@ func ParseTimeStringInLocation(timeStr string, location *time.Location) (time.Ti
 	if timeStr == "" {
 		return time.Time{}, fmt.Errorf("时间字符串不能为空")
 	}
-	
+
 	if location == nil {
 		location = time.Local // 默认使用本地时区而不是UTC
 	}
 
-	// 定义支持的时间格式，按常用程度排序
+	// 带时区的格式必须先于日期前缀，否则 "YYYY-MM-DD HH:mm:ss+08:00" 无法匹配
 	timeFormats := []string{
-		FormatDateTime,     // 2006-01-02 15:04:05
-		FormatDate,         // 2006-01-02
-		FormatISO8601,      // 2006-01-02T15:04:05
-		FormatISO8601Z,     // 2006-01-02T15:04:05Z
-		FormatISO8601Milli, // 2006-01-02T15:04:05.000Z
-		FormatDateTimeSlash, // 2006/01/02 15:04:05
-		FormatDateSlash,    // 2006/01/02
-		time.RFC3339,       // 标准RFC3339格式
-		time.RFC3339Nano,   // RFC3339纳秒格式
-		time.RFC822,        // RFC822格式
-		time.RFC1123,       // RFC1123格式
+		time.RFC3339Nano,
+		FormatSQLiteDateTimeNanoTZ,
+		FormatISO8601NanoTZ,
+		time.RFC3339,
+		FormatSQLiteDateTimeTZ,
+		FormatISO8601Milli,
+		FormatISO8601Z,
+		FormatDateTimeNano,
+		FormatISO8601Nano,
+		FormatDateTime,
+		FormatISO8601,
+		FormatDate,
+		FormatDateTimeSlash,
+		FormatDateSlash,
+		time.RFC822,
+		time.RFC1123,
 	}
-	
-	// 尝试每种格式进行解析
+
 	for _, format := range timeFormats {
-		// 对于包含时区信息的格式，使用time.Parse
-		if format == FormatISO8601Z || format == FormatISO8601Milli || 
-		   format == time.RFC3339 || format == time.RFC3339Nano || 
-		   format == time.RFC822 || format == time.RFC1123 {
+		if layoutHasTimezone(format) {
 			if parsedTime, err := time.Parse(format, timeStr); err == nil {
 				return parsedTime, nil
 			}
-		} else {
-			// 对于不包含时区信息的格式，使用指定时区
-			if parsedTime, err := time.ParseInLocation(format, timeStr, location); err == nil {
-				return parsedTime, nil
-			}
+			continue
+		}
+		if parsedTime, err := time.ParseInLocation(format, timeStr, location); err == nil {
+			return parsedTime, nil
 		}
 	}
-	
+
 	// 如果所有格式都失败，返回详细错误信息
-	return time.Time{}, fmt.Errorf("无法解析时间字符串 '%s'，支持的格式包括: %s, %s, %s 等", 
+	return time.Time{}, fmt.Errorf("无法解析时间字符串 '%s'，支持的格式包括: %s, %s, %s 等",
 		timeStr, FormatDateTime, FormatDate, FormatISO8601)
 }
 
@@ -144,17 +160,17 @@ func ParseTimeStringInTimezone(timeStr string, timezone string) (time.Time, erro
 	if timezone == "" {
 		timezone = DefaultTimezone // 默认使用本地时区
 	}
-	
+
 	// 特殊处理本地时区
 	if timezone == "Local" || timezone == DefaultTimezone {
 		return ParseTimeStringInLocation(timeStr, time.Local)
 	}
-	
+
 	location, err := time.LoadLocation(timezone)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("无效的时区名称 '%s': %w", timezone, err)
 	}
-	
+
 	return ParseTimeStringInLocation(timeStr, location)
 }
 
@@ -191,7 +207,7 @@ func ConvertTimeToTimezone(t time.Time, timezone string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, fmt.Errorf("无效的时区名称 '%s': %w", timezone, err)
 	}
-	
+
 	return t.In(location), nil
 }
 
@@ -213,7 +229,7 @@ func GetTimezoneOffset(timezone string, t time.Time) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("无效的时区名称 '%s': %w", timezone, err)
 	}
-	
+
 	_, offset := t.In(location).Zone()
 	return offset, nil
 }
@@ -320,17 +336,17 @@ func GetCurrentTimeStringInTimezone(format string, timezone string) (string, err
 	if timezone == "" {
 		timezone = DefaultTimezone // 默认使用本地时区
 	}
-	
+
 	// 特殊处理本地时区
 	if timezone == "Local" || timezone == DefaultTimezone {
 		return time.Now().Format(format), nil
 	}
-	
+
 	location, err := time.LoadLocation(timezone)
 	if err != nil {
 		return "", fmt.Errorf("无效的时区名称 '%s': %w", timezone, err)
 	}
-	
+
 	return time.Now().In(location).Format(format), nil
 }
 
@@ -354,4 +370,4 @@ func BeginOfDay(t time.Time) time.Time {
 //   time.Time: 当天的结束时间
 func EndOfDay(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 999999999, t.Location())
-} 
+}

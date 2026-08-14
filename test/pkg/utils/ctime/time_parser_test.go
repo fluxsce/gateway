@@ -123,3 +123,28 @@ func TestTimeParser(t *testing.T) {
 	fmt.Printf("支持的时区常量: DefaultTimezone=%s, UTCTimezone=%s, ShanghaiTimezone=%s\n",
 		ctime.DefaultTimezone, ctime.UTCTimezone, ctime.ShanghaiTimezone)
 }
+
+func TestParseSQLiteDriverTimeString(t *testing.T) {
+	parsed, err := ctime.ParseTimeString("2026-08-14 14:55:56.5834866+08:00")
+	if err != nil {
+		t.Fatalf("parse sqlite driver time: %v", err)
+	}
+	if parsed.Year() != 2026 || parsed.Month() != 8 || parsed.Day() != 14 {
+		t.Fatalf("date mismatch: %v", parsed)
+	}
+	if parsed.Hour() != 14 || parsed.Minute() != 55 || parsed.Second() != 56 {
+		t.Fatalf("clock mismatch: %v", parsed)
+	}
+	_, offset := parsed.Zone()
+	if offset != 8*3600 {
+		t.Fatalf("offset mismatch: %d", offset)
+	}
+
+	rfc3339, err := ctime.ParseTimeString("2026-08-14T14:55:56+08:00")
+	if err != nil {
+		t.Fatalf("parse rfc3339: %v", err)
+	}
+	if rfc3339.Unix() != parsed.Unix() {
+		t.Fatalf("unix mismatch sqlite=%d rfc3339=%d", parsed.Unix(), rfc3339.Unix())
+	}
+}

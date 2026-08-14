@@ -7,8 +7,9 @@ import type { RsDataFormField, RsDataFormRenderContext } from '@/components/form
 import type { RsSearchFormProps } from '@/components/form/rs-search'
 import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
-import { RsDynamicTags, RsInput, RsTag, getByNamePath, setByNamePath, type RsTagVariant } from '@/ui'
+import { RsDynamicTags, RsTag, getByNamePath, setByNamePath, type RsTagVariant } from '@/ui'
 import { formatDate } from '@/utils/format'
+import { AlertChannelNameSelector } from '@/views/hub0080/components'
 import { h, ref } from 'vue'
 import type { ServiceCenterInstance } from '../types/index'
 
@@ -690,19 +691,16 @@ export function useServiceCenterInstanceModel() {
           placeholder: '请输入告警渠道名称或点击选择',
           tips: '不填写则使用默认告警渠道',
           render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
-            // 使用 RsInput，避免拉取仍依赖 naive-ui 的 hub0080 渠道选择器
             const raw = ctx ? ctx.value : getByNamePath(formData, 'extProperty.channelName')
             let channelName = ''
             if (typeof raw === 'string') channelName = raw
             else if (raw != null) channelName = String(raw)
-            return h(RsInput, {
+            return h(AlertChannelNameSelector, {
               modelValue: channelName,
               'onUpdate:modelValue': (value: string) => {
                 if (ctx?.onUpdate) ctx.onUpdate(value)
                 else setByNamePath(formData, 'extProperty.channelName', value)
               },
-              placeholder: '请输入告警渠道名称',
-              clearable: true,
             })
           },
         },

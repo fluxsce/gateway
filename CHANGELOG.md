@@ -7,9 +7,17 @@
 ## [Unreleased]（未发布）
 
 ### 修复
+- **服务中心双向流命名空间订阅无推送**：`StreamHandler.handleSubscribeNamespace` 此前只写入连接本地订阅列表，未注册到 `ServiceSubscriber`，客户端收不到变更。现与 `SubscribeServices` 对齐，接入 `SubscribeNamespace` 并转发 `SERVER_SERVICE_CHANGE`，断连时 `UnsubscribeNamespace` 清理。
 
+### 新增
+- **服务中心 SQLite E2E 测试环境**：`internal/servicecenter/testutil` 用临时 SQLite 建表/种子并启动 gRPC 实例；`internal/servicecenter/e2e` 覆盖注册发现、命名空间推送、配置 Watch、注销；`cmd/servicecenter-testd` 供 Java SDK 拉起真实服务端。
+- **服务中心 API 缺口 E2E**：`api_coverage_test.go` 覆盖 RegisterNode、UnregisterService（整服务/带 nodeId）、SubscribeServices、ListConfigs/GetConfigHistory/RollbackConfig/DeleteConfig；`stream_control_test.go` 覆盖 Stream `CLIENT_SUBSCRIBE_NAMESPACE` 与 `SERVER_ERROR`；`ConnectionManager.Close` 单元测试覆盖 `SERVER_CLOSE` 广播。
+- **服务中心认证落地与 E2E**：Bearer 占位改为真实校验——不透明 API Token（`HUB_SERVICE_AUTH_TOKEN`）与 HS256 JWT（密钥/issuer 来自实例 `extProperty`）；`testutil` 支持 `EnableAuth` 种子用户/令牌；`auth_scenario_test.go` 覆盖无凭证/错凭证拒绝与 Basic、API Token、JWT 成功路径及 Stream 认证；`servicecenter-testd` 支持 `SC_E2E_ENABLE_AUTH`。
+- **服务中心 TLS/mTLS E2E**：`testutil` 自动生成自签 CA/服务端/客户端证书（含 127.0.0.1 SAN）；`EnableTLS`/`EnableMTLS` 启动选项；修复 mTLS 下 `ClientCAs` 从 `certChainContent`（CA PEM 或路径）加载；`tls_scenario_test.go` 覆盖明文拒绝、TLS 成功、mTLS 无客户端证书拒绝与成功；`servicecenter-testd` 支持 `SC_E2E_ENABLE_TLS` / `SC_E2E_ENABLE_MTLS`。
 
 ### 优化
+- **表单日期绑定 RFC3339**：`RsDatePicker` 支持 `valueFormat=iso`（展示仍为墙钟）；数据表单 date/datetime 默认 `iso`，提交仍兜底转 Go `time.Time`。
+
 
 
 ## [3.1.9] - 2026-07-15

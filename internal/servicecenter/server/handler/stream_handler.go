@@ -626,13 +626,16 @@ func (h *StreamHandler) handleSubscribeServices(conn *connection.StreamConnectio
 }
 
 // handleSubscribeNamespace 处理订阅命名空间
+//
+// 变更说明（修复）：此前仅将订阅写入连接本地列表，未调用 ServiceSubscriber.SubscribeNamespace，
+// 导致双向流客户端订阅命名空间后收不到任何服务变更推送。现与 handleSubscribeServices 对齐：
+// 注册到统一订阅管理器，并启动转发 goroutine；连接断开时 UnsubscribeNamespace 清理。
 func (h *StreamHandler) handleSubscribeNamespace(conn *connection.StreamConnection, msg *pb.ClientMessage) error {
 	req := msg.GetSubscribeNamespace()
 	if req == nil {
 		return fmt.Errorf("订阅命名空间请求为空")
 	}
 
-	// 验证参数
 	namespaceId := req.GetNamespaceId()
 	groupName := req.GetGroupName()
 
@@ -640,18 +643,83 @@ func (h *StreamHandler) handleSubscribeNamespace(conn *connection.StreamConnecti
 		return fmt.Errorf("命名空间ID不能为空")
 	}
 
-	// 订阅整个命名空间或指定组
-	// 如果 groupName 为空，订阅整个命名空间下的所有服务
-	// 如果 groupName 不为空，订阅该组下的所有服务
-	conn.AddServiceSubscription(namespaceId, groupName, nil) // nil 表示订阅所有服务
+	// 与 Classic SubscribeNamespace 一致：未指定分组时订阅 DEFAULT_GROUP
+	if groupName == "" {
+		groupName = "DEFAULT_GROUP"
+	}
 
-	logger.Info("客户端订阅命名空间成功",
+	subscriberId := conn.ConnectionID + "_" + msg.GetRequestId()
+
+	// 记录到连接，便于查询；serviceNames 为 nil 表示命名空间/分组级订阅
+	conn.AddServiceSubscription(namespaceId, groupName, nil)
+
+	tenantId := conn.TenantID
+	if tenantId == "" {
+		tenantId = "default"
+	}
+
+	logger.Info("客户端订阅命名空间",
 		"connectionId", conn.ConnectionID,
 		"clientId", conn.ClientID,
+		"subscriberId", subscriberId,
+		"tenantId", tenantId,
 		"namespaceId", namespaceId,
 		"groupName", groupName)
 
-	// 注意：订阅是单向的，客户端不需要等待响应
+	ch := h.registryHandler.GetServiceSubscriber().SubscribeNamespace(
+		conn.Context,
+		tenantId,
+		namespaceId,
+		groupName,
+		subscriberId,
+	)
+
+	// 转发命名空间下服务变更事件到双向流；断开时取消订阅释放 channel
+	go func() {
+		defer func() {
+			h.registryHandler.GetServiceSubscriber().UnsubscribeNamespace(
+				tenantId, namespaceId, groupName, subscriberId)
+			logger.Info("取消命名空间订阅",
+				"connectionId", conn.ConnectionID,
+				"subscriberId", subscriberId,
+				"namespaceId", namespaceId,
+				"groupName", groupName)
+		}()
+
+		for {
+			select {
+			case event, ok := <-ch:
+				if !ok {
+					return
+				}
+
+				serverMsg := &pb.ServerMessage{
+					MessageType: pb.ServerMessageType_SERVER_SERVICE_CHANGE,
+					Message: &pb.ServerMessage_ServiceChange{
+						ServiceChange: event,
+					},
+				}
+
+				if err := conn.Send(serverMsg); err != nil {
+					logger.Error("推送命名空间服务变更事件失败", err,
+						"connectionId", conn.ConnectionID,
+						"subscriberId", subscriberId)
+					return
+				}
+
+				logger.Debug("推送命名空间服务变更事件",
+					"connectionId", conn.ConnectionID,
+					"subscriberId", subscriberId,
+					"eventType", event.EventType,
+					"serviceName", event.ServiceName)
+
+			case <-conn.Context.Done():
+				return
+			}
+		}
+	}()
+
+	// 订阅为单向注册，变更通过 SERVER_SERVICE_CHANGE 异步推送
 	return nil
 }
 
