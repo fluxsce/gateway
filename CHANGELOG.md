@@ -13,7 +13,7 @@
 - **阿里云 ACR 拒绝 OCI provenance**：`build-push-action` 默认附带 `application/vnd.oci.empty.v1+json` 证明，个人版 ACR 不识别；流水线关闭 provenance/SBOM 后再推送。
 - **本地 Docker 推送脚本去掉明文 ACR 口令**：`scripts/docker/push.sh` 改为读取 `ALIYUN_USERNAME` / `ALIYUN_PASSWORD`（及可选 `ALIYUN_REGISTRY` / `ALIYUN_NAMESPACE`），未设置则拒绝推送。
 - **前端生产构建缺少 Tailwind v4**：`niuma-ui/styles.css` 的 `@import "tailwindcss"` 在 npm 安装（无本地 link）时无法解析；宿主增加 `tailwindcss` / `@tailwindcss/vite` 并接入 Vite 插件。
-- **CI 打包后控制台图标全空**：钉到 `niuma-ui@1.1.2`（`RsIcon` 改为从 `@lucide/vue` 正常导入，不再扫 `node_modules` 路径）。
+- **CI 打包后控制台图标全空**：钉到 `niuma-ui@1.1.3`（含 1.1.2 的 `RsIcon` 导入修复，以及抽屉拖拽缩放与贴边定位）。
 - **服务中心双向流命名空间订阅无推送**：`StreamHandler.handleSubscribeNamespace` 此前只写入连接本地订阅列表，未注册到 `ServiceSubscriber`，客户端收不到变更。现与 `SubscribeServices` 对齐，接入 `SubscribeNamespace` 并转发 `SERVER_SERVICE_CHANGE`，断连时 `UnsubscribeNamespace` 清理。
 
 ### 变更
