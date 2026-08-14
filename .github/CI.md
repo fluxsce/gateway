@@ -2,6 +2,8 @@
 
 本目录下的 workflow 与脚本由流水线自行维护，**不调用**仓库里的 `scripts/build`、`scripts/docker/build.sh`、`scripts/docker/push.sh`。本地手动打包仍使用 `scripts/build`。
 
+仓库首页说明见根目录 [README.md](../README.md)。
+
 ## 触发
 
 - 推送 tag：`v*`（例如 `v3.1.9`），版本号去掉 `v`

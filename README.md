@@ -111,6 +111,7 @@ go run cmd/app/main.go
 | 06 | [调试指南](docs/zh-CN/06-调试指南.md) | 调试技巧、性能分析和问题排查 |
 | 07 | [错误处理](docs/zh-CN/07-错误处理.md) | 错误处理机制和最佳实践 |
 | 🛡️ | [安全指南](SECURITY.md) | 安全最佳实践与漏洞报告 |
+| 📦 | [发版流水线](.github/CI.md) | GitHub Actions 多平台打包与镜像 |
 
 ## 📜 行为准则
 
