@@ -9,6 +9,7 @@
 ### 修复
 - **Windows 发版流水线 MinGW 安装失败**：`setup-mingw@v2` 在 Chocolatey mingw 16 上删除已不存在的 `libpthread.dll.a` 导致任务退出；改为 `egor-tensin/setup-mingw@v3`。
 - **标准版 Docker 镜像 apk 参数无效**：`apk add` 不支持 `--timeout` / `--tries`（那是 apt 选项），GitHub Actions 构建直接失败；已去掉。CI 构建改用官方 Alpine/Debian 源，避免默认阿里云镜像在海外 runner 上不可达。
+- **本地 Docker 推送脚本去掉明文 ACR 口令**：`scripts/docker/push.sh` 改为读取 `ALIYUN_USERNAME` / `ALIYUN_PASSWORD`（及可选 `ALIYUN_REGISTRY` / `ALIYUN_NAMESPACE`），未设置则拒绝推送。
 - **前端生产构建缺少 Tailwind v4**：`niuma-ui/styles.css` 的 `@import "tailwindcss"` 在 npm 安装（无本地 link）时无法解析；宿主增加 `tailwindcss` / `@tailwindcss/vite` 并接入 Vite 插件。
 - **服务中心双向流命名空间订阅无推送**：`StreamHandler.handleSubscribeNamespace` 此前只写入连接本地订阅列表，未注册到 `ServiceSubscriber`，客户端收不到变更。现与 `SubscribeServices` 对齐，接入 `SubscribeNamespace` 并转发 `SERVER_SERVICE_CHANGE`，断连时 `UnsubscribeNamespace` 清理。
 

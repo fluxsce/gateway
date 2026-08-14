@@ -37,7 +37,7 @@ CI 将 `web/frontend` 中本机 `niuma-ui` link 替换为 npm 上的 `niuma-ui@1
 
 推送 GHCR 需要 Actions 对 Packages 有写权限（`GITHUB_TOKEN`）。组织仓库需允许 workflow 写 packages。
 
-推送阿里云 ACR 需配置 Secrets（流水线**不会**使用 `scripts/docker/push.sh` 里的账号）：
+推送阿里云 ACR 需配置 Secrets（与本地 `push.sh` 环境变量同名；流水线不读取该脚本）：
 
 | Secret | 说明 |
 |--------|------|

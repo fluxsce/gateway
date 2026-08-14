@@ -136,6 +136,10 @@ docker build \
 ### 使用推送脚本（推荐）
 
 ```bash
+# 阿里云凭证只放环境变量，不要写进脚本
+export ALIYUN_USERNAME='your-account'
+export ALIYUN_PASSWORD='your-registry-password'
+
 # 推送 Oracle 版到阿里云（默认），远程 :3.1.9-oracle
 ./scripts/docker/push.sh
 
@@ -156,6 +160,8 @@ docker build \
 ./scripts/docker/build.sh --latest && \
 ./scripts/docker/push.sh --registry both --latest
 ```
+
+`ALIYUN_USERNAME` / `ALIYUN_PASSWORD` 与 GitHub Actions Secrets 同名。可选覆盖仓库地址：`ALIYUN_REGISTRY`、`ALIYUN_NAMESPACE`。
 
 ### 手动推送
 
