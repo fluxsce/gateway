@@ -25,7 +25,7 @@ permissions:
   packages: write
 
 env:
-  NIUMA_UI_VERSION: "1.1.1"
+  NIUMA_UI_VERSION: "1.1.2"
   ALIYUN_REGISTRY: crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com
   ALIYUN_NAMESPACE: datahub-images
 
@@ -80,7 +80,6 @@ jobs:
           # niuma-ui styles.css 的 @import "tailwindcss" 依赖宿主安装 Tailwind v4
           pnpm add -D tailwindcss@^4.3.2 @tailwindcss/vite@^4.3.2
           pnpm install --no-frozen-lockfile
-          node ../../../.github/scripts/ensure-niuma-lucide.cjs
       - name: Build frontend
         working-directory: web/frontend
         run: pnpm build
