@@ -9,7 +9,7 @@
 # ============================================
 # Stage 1: Builder (构建阶段)
 # ============================================
-FROM golang:1.24 AS builder
+FROM golang:1.24-bookworm AS builder
 
 # 设置工作目录
 WORKDIR /build
@@ -66,7 +66,7 @@ RUN mkdir -p /opt/oracle && cd /opt/oracle && \
 
 # 设置 Oracle 环境变量
 ENV ORACLE_HOME=/opt/oracle/instantclient_21_18
-ENV LD_LIBRARY_PATH=$ORACLE_HOME:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=$ORACLE_HOME${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 ENV CGO_ENABLED=1
 
 # 复制 go.mod 和 go.sum
@@ -165,7 +165,7 @@ COPY --from=builder /opt/oracle/instantclient_21_18 /opt/oracle/instantclient_21
 
 # 设置 Oracle 环境变量
 ENV ORACLE_HOME=/opt/oracle/instantclient_21_18
-ENV LD_LIBRARY_PATH=$ORACLE_HOME:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=$ORACLE_HOME${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 
 # 创建非 root 用户
 RUN groupadd -g 1000 gateway && \
