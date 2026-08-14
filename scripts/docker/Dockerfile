@@ -27,8 +27,8 @@ RUN if [ -n "$ALPINE_MIRROR" ]; then \
     cat /etc/apk/repositories; \
     fi
 
-# 安装构建依赖（添加重试和超时设置）
-RUN apk add --no-cache --timeout 30 --tries 3 \
+# 安装构建依赖
+RUN apk add --no-cache \
     git \
     gcc \
     g++ \
@@ -90,8 +90,8 @@ RUN if [ -n "$ALPINE_MIRROR" ]; then \
     cat /etc/apk/repositories; \
     fi
 
-# 安装运行时依赖和常用工具（添加重试和超时设置）
-RUN apk add --no-cache --timeout 30 --tries 3 \
+# 安装运行时依赖和常用工具
+RUN apk add --no-cache \
     ca-certificates \
     tzdata \
     curl \
