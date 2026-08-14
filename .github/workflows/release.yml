@@ -259,6 +259,9 @@ jobs:
             DEBIAN_MIRROR=
           cache-from: type=gha,scope=docker-${{ matrix.id }}
           cache-to: type=gha,mode=min,scope=docker-${{ matrix.id }}
+          # 阿里云个人版 ACR 不识别 OCI 1.1 空描述符（provenance/SBOM 会带上）
+          provenance: false
+          sbom: false
 
   release:
     needs: [prepare, package-linux, package-windows]

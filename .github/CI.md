@@ -43,3 +43,5 @@ CI 将 `web/frontend` 中本机 `niuma-ui` link 替换为 npm 上的 `niuma-ui@1
 | `ALIYUN_PASSWORD` | 对应登录密码或固定密码 |
 
 未配置这两项时仍会推 GHCR，并在日志里给出 warning，跳过阿里云。
+
+个人版 ACR 不支持 Buildx 默认的 provenance / SBOM 证明（会报 `unknown manifest class for application/vnd.oci.empty.v1+json`），流水线已关闭这两项后再同时推 GHCR 与阿里云。
