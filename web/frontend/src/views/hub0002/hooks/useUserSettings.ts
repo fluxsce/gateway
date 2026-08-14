@@ -5,7 +5,12 @@
 import { useAppMessage } from '@/composables/useAppMessage'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { store } from '@/stores'
-import type { RsFormRules, RsFormValidationResult } from '@/ui'
+import type {
+  RsFormRules,
+  RsFormValidationResult,
+  RsSelectModelValue,
+  RsSwitchValue,
+} from '@/ui'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -321,9 +326,17 @@ export function useUserSettings() {
     passwordFormRef.value?.clearValidation()
   }
 
+  /** 从 RsSelect 取值中取出单个字符串 */
+  const pickSelectString = (value: RsSelectModelValue): string => {
+    const raw = Array.isArray(value) ? value[0] : value
+    if (raw == null || raw === '') return ''
+    if (typeof raw === 'object' && 'value' in raw) return String(raw.value)
+    return String(raw)
+  }
+
   /** 切换主题并持久化到用户设置 */
-  const handleThemeChange = (value: string | string[]) => {
-    const theme = Array.isArray(value) ? value[0] : value
+  const handleThemeChange = (value: RsSelectModelValue) => {
+    const theme = pickSelectString(value)
     if (!theme) return
     settingsForm.theme = theme
     store.user.updateSettings({ theme })
@@ -331,8 +344,8 @@ export function useUserSettings() {
   }
 
   /** 切换语言并同步 i18n locale */
-  const handleLanguageChange = (value: string | string[]) => {
-    const language = Array.isArray(value) ? value[0] : value
+  const handleLanguageChange = (value: RsSelectModelValue) => {
+    const language = pickSelectString(value)
     if (!language) return
     settingsForm.language = language
     store.user.updateSettings({ language })
@@ -341,16 +354,17 @@ export function useUserSettings() {
   }
 
   /** 通知开关：当前仅更新本地状态并提示 */
-  const handleNotificationChange = (value: boolean) => {
-    settingsForm.notificationEnabled = value
+  const handleNotificationChange = (value: RsSwitchValue) => {
+    const enabled = value === true || value === 'Y' || value === 1
+    settingsForm.notificationEnabled = enabled
     message.success(
-      value ? t('settings.notificationEnabled') : t('settings.notificationDisabled'),
+      enabled ? t('settings.notificationEnabled') : t('settings.notificationDisabled'),
     )
   }
 
   /** 引导开关：当前仅更新本地状态 */
-  const handleGuideChange = (value: boolean) => {
-    settingsForm.showGuide = value
+  const handleGuideChange = (value: RsSwitchValue) => {
+    settingsForm.showGuide = value === true || value === 'Y' || value === 1
   }
 
   /**

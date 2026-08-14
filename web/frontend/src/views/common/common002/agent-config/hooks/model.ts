@@ -200,7 +200,7 @@ export function useUserAgentAccessConfigModel(moduleId: string) {
                 }
                 return true
               },
-              trigger: ['blur', 'input'],
+              trigger: ['blur', 'change'],
             },
           ],
         },
@@ -231,7 +231,7 @@ export function useUserAgentAccessConfigModel(moduleId: string) {
                 }
                 return true
               },
-              trigger: ['blur', 'input'],
+              trigger: ['blur', 'change'],
             },
           ],
         },

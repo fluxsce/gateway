@@ -2,6 +2,28 @@ import { ref, reactive } from 'vue'
 import { useAppMessage } from '@/composables/useAppMessage'
 import * as routeApi from '../api'
 import type { RouterConfig, RouterConfigForm, RouterQueryParams } from '../types'
+import type { RouterConfig as ApiRouterConfig } from '../components/instance-tree/types'
+
+/**
+ * 将表单元数据对象转为接口所需的 JSON 字符串。
+ */
+function toJsonField(value: unknown): string {
+  if (typeof value === 'string') return value
+  return JSON.stringify(value ?? {})
+}
+
+/**
+ * 组装提交给 add/editRouterConfig 的载荷。
+ */
+function toRouterConfigPayload(
+  data: Partial<RouterConfigForm> & { tenantId: string; gatewayInstanceId: string },
+): Partial<ApiRouterConfig> & { gatewayInstanceId: string } {
+  return {
+    ...data,
+    routerMetadata: toJsonField(data.routerMetadata),
+    customConfig: toJsonField(data.customConfig),
+  }
+}
 
 export function useRouterConfigManager() {
   const message = useAppMessage()
@@ -58,7 +80,7 @@ export function useRouterConfigManager() {
   ) => {
     try {
       submitting.value = true
-      await routeApi.addRouterConfig(data)
+      await routeApi.addRouterConfig(toRouterConfigPayload(data))
       message.success('创建成功')
       return true
     } catch (error) {
@@ -80,7 +102,7 @@ export function useRouterConfigManager() {
     try {
       submitting.value = true
       await routeApi.editRouterConfig({
-        ...data,
+        ...toRouterConfigPayload(data),
         routerConfigId,
       })
       message.success('更新成功')

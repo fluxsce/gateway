@@ -1,8 +1,5 @@
 /**
- * Vite配置文件
- *
- * 本文件定义了Vite构建工具的配置，包括插件、构建选项、开发服务器设置�?
- * Vite是一个面向现代浏览器的快速开发构建工具，利用浏览器原生ES模块导入特�?
+ * Vite 配置：插件、路径别名、开发代理与生产分包。
  */
 
 import fs from 'fs'
@@ -11,12 +8,13 @@ import { dirname } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 import path from 'path'
 
-import vue from '@vitejs/plugin-vue' // Vue 3单文件组件支持
-import AutoImport from 'unplugin-auto-import/vite' // API自动导入
-import Components from 'unplugin-vue-components/vite' // 组件自动导入
+import tailwindcss from '@tailwindcss/vite'
+import vue from '@vitejs/plugin-vue'
+import AutoImport from 'unplugin-auto-import/vite'
+import Components from 'unplugin-vue-components/vite'
 import { defineConfig, loadEnv } from 'vite'
-import { viteMockServe } from 'vite-plugin-mock' // Mock数据服务插件
-import vueDevTools from 'vite-plugin-vue-devtools' // Vue开发者工具增强插件
+import { viteMockServe } from 'vite-plugin-mock'
+import vueDevTools from 'vite-plugin-vue-devtools'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
@@ -30,28 +28,18 @@ try {
 }
 
 /**
- * 安全解析语言文件内容
- * 使用正则替换注释和格式化为有效的JSON字符�?
- *
- * 这个函数用于将语言文件的TypeScript对象转换为正确的JSON对象
- * 主要进行以下处理�?
- * 1. 移除JS注释（包括单行和多行注释�?
- * 2. 删除尾随逗号，使其符合JSON语法
- * 3. 为属性名添加双引�?
- * 4. 将单引号替换为双引号
- *
- * @param content 语言文件内容字符�?
- * @returns 解析后的对象
+ * 将语言文件中的 TypeScript 对象字面量转成可 JSON.parse 的字符串。
+ * 处理步骤：去掉注释、去掉尾随逗号、给属性名加双引号、单引号改双引号。
+ * @param content 语言文件原文
+ * @returns 解析后的对象；失败时返回空对象
  */
 function safeParseI18nContent(content: string) {
   try {
-    // 移除注释
     const noComments = content.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '')
-    // 移除可能的尾随逗号以使其成为有效的JSON
     const validJson = noComments
-      .replace(/,(\s*[}\]])/g, '$1') // 移除对象或数组结束前的逗号
-      .replace(/(\w+):/g, '"$1":') // 将属性名转换为带引号的格�?
-      .replace(/'/g, '"') // 将单引号替换为双引号
+      .replace(/,(\s*[}\]])/g, '$1')
+      .replace(/(\w+):/g, '"$1":')
+      .replace(/'/g, '"')
 
     return JSON.parse(validJson)
   } catch (e) {
@@ -61,11 +49,11 @@ function safeParseI18nContent(content: string) {
 }
 
 /**
- * 开发环境下将「帮助手册」路径代理到独立运行�?VitePress（与 `getDocsSitePath()` 规则一致）�?
- * 另开终端执行 `npm run docs:dev`（默�?5274 端口，与 package.json �?dev:docs 保持一致），否�?iframe �?404�?
+ * 开发环境下将帮助手册路径代理到独立运行的 VitePress（与 getDocsSitePath() 规则一致）。
+ * 另开终端执行 `npm run docs:dev`（默认 5274 端口，与 package.json 的 dev:docs 保持一致），否则 iframe 会 404。
  *
- * 生产发版：`npm run build` 中的 `build-only` �?`vite build` 之后执行 `vitepress build docs`�?
- * 文档输出�?`dist/docs/`（见 `docs/.vitepress/config.ts` �?`outDir`），与主应用一并部署即可�?
+ * 生产发版：`npm run build` 中的 `build-only` 在 `vite build` 之后执行 `vitepress build docs`。
+ * 文档输出到 `dist/docs/`（见 `docs/.vitepress/config.ts` 的 `outDir`），与主应用一并部署即可。
  */
 function resolveDocsDevProxy(env: Record<string, string>) {
   const target = (env.VITE_DOCS_DEV_TARGET || 'http://127.0.0.1:5275').replace(/\/+$/, '')
@@ -84,16 +72,15 @@ function resolveDocsDevProxy(env: Record<string, string>) {
 }
 
 /**
- * �?node_modules 按依赖族拆成独立 chunk，减轻首条入�?JS 体积并利于缓存�?
- * 顺序靠前的规则优先匹配�?
+ * 将 node_modules 按依赖族拆成独立 chunk，减轻首包 JS 体积并利于缓存。
+ * 顺序靠前的规则优先匹配。
  */
 function resolveManualChunk(id: string): string | undefined {
   if (!id.includes('node_modules')) return undefined
-  // Rollup �?Windows �?id 可能含反斜杠，统一后再匹配
+  // Rollup 在 Windows 下 id 可能含反斜杠，统一后再匹配
   const m = id.replace(/\\/g, '/')
   if (m.includes('/niuma-ui') || m.includes('/reka-ui') || m.includes('/@lucide/') || m.includes('/vue-sonner'))
     return 'niuma-ui'
-  if (m.includes('/vxe-table') || m.includes('/vxe-pc-ui') || m.includes('/@vxe-ui')) return 'vxe'
   if (m.includes('/echarts') || m.includes('/zrender')) return 'echarts'
   if (m.includes('/@antv')) return 'antv'
   if (m.includes('/@codemirror') || m.includes('/codemirror/')) return 'codemirror'
@@ -111,95 +98,74 @@ function resolveManualChunk(id: string): string | undefined {
   return 'vendor'
 }
 
-// https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
-  // 根据当前工作目录中的 `mode` 加载 .env 文件
-  // 设置第三个参数为 '' 来加载所有环境变量，而不管是否有 `VITE_` 前缀
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
-    /**
-     * 基础路径配置
-     * 根据环境变量设置baseurl，生产环境为空，开发环境可以设置子路径
-     */
+    /** 根据环境变量设置 base，生产环境可为空，开发环境可设子路径 */
     base: env.VITE_BASE_URL || '/',
 
-    /**
-     * 插件配置
-     * 扩展Vite的功能和集成第三方工�?
-     */
     plugins: [
-      vue(), // 提供Vue 3单文件组件支�?
-      // 仅开发服务注�?DevTools，避免生产构建携带调试相关逻辑
+      vue(),
+      // niuma-ui/styles.css 使用 @import "tailwindcss"（v4），需 Vite 插件解析
+      tailwindcss(),
+      // 仅开发服务注册 DevTools，避免生产构建携带调试相关逻辑
       ...(command === 'serve' ? [vueDevTools()] : []),
 
       /**
-       * 组件自动导入配置（本�?G* 等；UI 基座请从 `@/ui` / `niuma-ui` 显式导入�?
+       * 组件自动导入（本地 G* 等；UI 基座请从 `@/ui` / `niuma-ui` 显式导入）。
        */
       Components({
         dts: 'src/types/components.d.ts',
       }),
 
       /**
-       * API自动导入配置
-       * 可以直接使用Vue、Vue Router、Pinia等API，无需手动导入
-       * 例如：可以直接使用ref, reactive, computed，无需import { ref } from 'vue'
+       * API 自动导入：可直接使用 Vue、Vue Router、Pinia 等 API，无需手动 import。
        */
       AutoImport({
         imports: [
-          'vue', // 自动导入Vue Composition API (ref, reactive, computed, watch�?
-          'vue-router', // 自动导入Vue Router API (useRouter, useRoute�?
-          'pinia', // 自动导入Pinia API (defineStore, storeToRefs�?
-          'vue-i18n', // 自动导入Vue I18n API (useI18n�?
+          'vue',
+          'vue-router',
+          'pinia',
+          'vue-i18n',
           {
             '@/composables/useAppMessage': ['useAppMessage'],
           },
           {
-            // 自动导入本地store
             '@/stores/auth': ['useAuthStore'],
             '@/stores/user': ['useUserStore'],
             '@/stores/global': ['useGlobalStore'],
             '@/stores/locale': ['useLocaleStore'],
           },
           {
-            // 自动导入自定义hooks
             '@/hooks/useModuleI18n': ['useModuleI18n'],
           },
           {
-            // 自动导入API请求
             '@/api/request': ['get', 'post', 'put', 'del'],
           },
         ],
         eslintrc: {
-          enabled: true, // 生成ESLint配置，避免未导入的变量报�?
+          enabled: true,
         },
-        dts: 'src/types/auto-imports.d.ts', // 生成类型声明文件，提供TypeScript支持
+        dts: 'src/types/auto-imports.d.ts',
       }),
 
       /**
-       * i18n资源路由映射 - 仅在开发环境使�?
-       *
-       * 这部分创建一个虚拟路由，可用于动态访问和预览语言资源文件
-       * 使开发者能够在不重启服务的情况下检查翻译内�?
-       *
-       * 访问方式�?@i18n/[locale]/[moduleName]
-       * 例如�?@i18n/zh-CN/common 将返回中文下common模块的翻�?
+       * 开发环境虚拟路由，用于预览语言资源，无需重启服务。
+       * 访问方式：/@i18n/[locale]/[moduleName]，例如 /@i18n/zh-CN/common。
        */
       process.env.NODE_ENV === 'development'
         ? {
             name: 'i18n-resource-routes',
             configureServer(server) {
-              // 添加虚拟路由，方便在开发阶段查看所有语言资源
               server.middlewares.use((req, res, next) => {
                 if (req.url?.startsWith('/@i18n/')) {
                   const locale = req.url.split('/')[2]
                   const moduleName = req.url.split('/')[3]?.split('.')[0]
 
                   try {
-                    // 构建I18n资源映射响应
                     let content = {}
 
-                    // 处理模块特定请求
                     if (moduleName) {
                       const localePath = locale === 'zh-CN' ? 'zh-Cn' : locale
                       const filePath = path.resolve(
@@ -209,20 +175,16 @@ export default defineConfig(({ command, mode }) => {
 
                       if (fs.existsSync(filePath)) {
                         const fileContent = fs.readFileSync(filePath, 'utf-8')
-                        // 简单解析导出内�?- 生产环境应该使用更健壮的方法
                         const match = fileContent.match(/export\s+default\s+(\{[\s\S]*\})/m)
                         if (match && match[1]) {
                           try {
-                            // 使用更安全的方法解析内容，避免eval
                             content = safeParseI18nContent(match[1])
                           } catch (e) {
                             console.error(`Error parsing i18n module: ${moduleName}`, e)
                           }
                         }
                       }
-                    }
-                    // 获取整个语言�?
-                    else {
+                    } else {
                       const filePath = path.resolve(__dirname, `./src/locales/${locale}.ts`)
 
                       if (fs.existsSync(filePath)) {
@@ -230,7 +192,6 @@ export default defineConfig(({ command, mode }) => {
                         const match = fileContent.match(/export\s+default\s+(\{[\s\S]*\})/m)
                         if (match && match[1]) {
                           try {
-                            // 使用更安全的方法解析内容，避免eval
                             content = safeParseI18nContent(match[1])
                           } catch (e) {
                             console.error(`Error parsing i18n locale: ${locale}`, e)
@@ -254,36 +215,22 @@ export default defineConfig(({ command, mode }) => {
         : null,
 
       /**
-       * Mock数据服务配置
-       * 用于模拟后端API，在前后端分离开发中非常有用
-       * 通过环境变量VITE_USE_MOCK控制是否启用
+       * Mock 数据服务，通过环境变量 VITE_USE_MOCK 控制是否启用。
        */
       viteMockServe({
-        // 是否启用
         enable: env.VITE_USE_MOCK === 'true',
-        // mock文件存放目录
         mockPath: 'src/mock/modules',
-        // 开发环境配�?
-        logger: true, // 在控制台输出请求日志
+        logger: true,
       }),
     ],
 
-    /**
-     * 路径解析配置
-     * 设置路径别名，简化导入语�?
-     */
     resolve: {
       alias: {
-        /**
-         * @别名指向src目录
-         * 使用示例: import Component from '@/components/Component.vue'
-         * 而不�? import Component from '../../components/Component.vue'
-         */
+        /** `@` 指向 src，例如 `import X from '@/components/X.vue'` */
         '@': fileURLToPath(new URL('./src', import.meta.url)),
       },
       /**
-       * 确保 CodeMirror 相关包使用单一实例
-       * 解决动态导入时可能出现的多实例问题
+       * 确保 CodeMirror 相关包使用单一实例，避免动态导入出现多实例。
        */
       dedupe: [
         '@codemirror/state',
@@ -304,41 +251,22 @@ export default defineConfig(({ command, mode }) => {
       ],
     },
 
-    /**
-     * 开发服务器配置
-     * 如需自定义端口、代理等，可在此配置
-     */
     server: {
-      // port: 3000, // 自定义端口号
-      // open: true, // 自动打开浏览�?
       fs: {
         allow: ['.', ...(niumaUiRoot ? [niumaUiRoot] : [])],
       },
       /**
-       * 开发：帮助手册（VitePress）由另一进程提供，经代理挂到与主应用相同�?`/gatewayweb/docs/` 下，
-       * 便于 MainLayoutHeader iframe 同源加载。见 `.env.development` �?`VITE_DOCS_DEV_TARGET`�?
+       * 开发：帮助手册（VitePress）由另一进程提供，经代理挂到与主应用相同的 `/gatewayweb/docs/` 下，
+       * 便于 MainLayoutHeader iframe 同源加载。见 `.env.development` 的 `VITE_DOCS_DEV_TARGET`。
        */
       ...(command === 'serve' ? { proxy: resolveDocsDevProxy(env) } : {}),
     },
 
-    /**
-     * 构建选项配置
-     * 定制项目构建输出
-     */
     build: {
-      /** niuma-ui / vxe / echarts / vicons �?chunk 常超 500kB，提高阈值避免误�?*/
+      /** niuma-ui / echarts / vicons 等 chunk 常超 500kB，提高阈值避免误报 */
       chunkSizeWarningLimit: 1200,
-      // outDir: 'dist', // 输出目录
-      // assetsDir: 'assets', // 静态资源目�?
-      // minify: 'terser', // 使用terser进行代码压缩
-      // terserOptions: { // terser压缩选项
-      //   compress: {
-      //     drop_console: true, // 移除console
-      //     drop_debugger: true // 移除debugger
-      //   }
-      // },
       /**
-       * 分块策略：按依赖族拆�?node_modules，缩小首屏入�?chunk、提升缓存命中率�?
+       * 按依赖族拆分 node_modules，缩小首屏入口 chunk、提升缓存命中率。
        */
       rollupOptions: {
         output: {

@@ -142,7 +142,7 @@ export function useRouteConfigDialog(options: UseRouteConfigDialogOptions = {}) 
 
     // 确保在下一个tick清除验证状态，让表单重新验证
     setTimeout(() => {
-      formRef.value?.restoreValidation()
+      formRef.value?.clearValidation()
     }, 100)
   }
 

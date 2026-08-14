@@ -81,6 +81,7 @@ export function useRouteAssertionList(options: UseRouteAssertionListOptions) {
       [AssertionType.QUERY]: 'success',
       [AssertionType.COOKIE]: 'warning',
       [AssertionType.IP]: 'error',
+      [AssertionType.BODY_CONTENT]: 'success',
     }
     return colorMap[type] || 'default'
   }
@@ -95,6 +96,7 @@ export function useRouteAssertionList(options: UseRouteAssertionListOptions) {
       [AssertionType.QUERY]: '查询参数',
       [AssertionType.COOKIE]: 'Cookie',
       [AssertionType.IP]: 'IP地址',
+      [AssertionType.BODY_CONTENT]: '请求体内容',
     }
     return labelMap[type] || type
   }
@@ -429,14 +431,14 @@ export function useRouteAssertionList(options: UseRouteAssertionListOptions) {
                 fieldName: assertionData.fieldName || '',
                 expectedValue: assertionData.expectedValue || '',
                 patternValue: assertionData.patternValue || '',
-                caseSensitive: assertionData.caseSensitive,
-                assertionOrder: assertionData.assertionOrder,
-                isRequired: assertionData.isRequired,
+                caseSensitive: assertionData.caseSensitive ?? 'N',
+                assertionOrder: assertionData.assertionOrder ?? 0,
+                isRequired: assertionData.isRequired ?? 'N',
                 assertionDesc: assertionData.assertionDesc || '',
                 reserved1: returnedData.reserved1 || '',
                 reserved2: returnedData.reserved2 || '',
                 extProperty: returnedData.extProperty || '',
-                activeFlag: assertionData.activeFlag,
+                activeFlag: assertionData.activeFlag ?? 'Y',
                 addTime: new Date().toISOString(),
                 addWho: 'admin',
                 editTime: new Date().toISOString(),

@@ -1,4 +1,3 @@
-import { Z_INDEX } from '@/constants/zIndex'
 import { createPinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 import { createApp, nextTick } from 'vue'
@@ -8,18 +7,7 @@ import { setupPlugins } from './plugins'
 import router from './router'
 import { initializeStores, setupStoreHelpers } from './stores'
 
-// 配置 highlight.js 样式
 import 'highlight.js/styles/atom-one-light.css'
-
-// 配置 vxe-table
-import VxeUIBase, { VxeUI } from 'vxe-pc-ui'
-import 'vxe-pc-ui/lib/style.css'
-import VxeUITable from 'vxe-table'
-import 'vxe-table/lib/style.css'
-
-// 配置 vxe-table 右键菜单插件
-import VxeUIPluginMenu from '@vxe-ui/plugin-menu'
-import '@vxe-ui/plugin-menu/dist/style.css'
 
 // niuma-ui 基座样式 → 业务主题 → 品牌覆盖
 import 'niuma-ui/styles.css'
@@ -70,21 +58,8 @@ export async function startApp() {
     // 设置store辅助函数（模板中可通过$user、$app等访问）
     setupStoreHelpers(app)
 
-    // 注册所有自定义插件（包括API工具）
     setupPlugins(app)
 
-    // 使用右键菜单插件
-    VxeUI.use(VxeUIPluginMenu)
-
-    // 配置 vxe-table 全局 z-index，确保 tooltip 在模态框中正确显示
-    VxeUI.setConfig({
-      zIndex: Z_INDEX.VXE_TABLE,
-    })
-
-    // 配置 vxe-table（必须在路由之前注册）
-    app.use(VxeUIBase).use(VxeUITable)
-
-    // 使用路由
     app.use(router)
 
     // 等待路由完成初始导航（含异步路由组件 chunk），避免挂载后短暂空白
