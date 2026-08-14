@@ -75,6 +75,7 @@ docker run --rm \
       yum install -y -q libaio-devel
     fi
     go version
-    ldd --version | head -1
+    # Do not pipe ldd into head: SIGPIPE + pipefail => exit 141.
+    ldd --version
     bash /src/.github/scripts/package-linux.sh
   '

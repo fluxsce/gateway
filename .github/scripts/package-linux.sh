@@ -103,7 +103,7 @@ chmod 755 "$PACKAGE_DIR/gateway" "$PACKAGE_DIR/password_plugin"
 find "$PACKAGE_DIR" -type f -name '*.sh' -exec chmod 755 {} +
 
 TAR_OWNER_OPTS=(--owner=0 --group=0 --numeric-owner)
-if tar --help 2>&1 | grep -q -- '--sort'; then
+if tar --help 2>&1 | grep -- '--sort' >/dev/null; then
   TAR_OWNER_OPTS+=(--sort=name)
 fi
 tar "${TAR_OWNER_OPTS[@]}" -czf "dist/${ARCHIVE_NAME}" -C dist gateway
