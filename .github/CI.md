@@ -20,10 +20,8 @@
 | `ghcr.io/<owner>/gateway:{version}` | MySQL / SQLite | Alpine 标准版 |
 | `ghcr.io/<owner>/gateway:{version}-oracle` | 上表 + Oracle | Debian |
 | `ghcr.io/<owner>/gateway:latest` | 同标准版 | 仅 tag 发布时打 |
-| `{aliyun}/{ns}/gateway:{version}` | 同标准版 | 与 GHCR 同一构建，推阿里云 ACR |
-| `{aliyun}/{ns}/gateway:{version}-oracle` | 同 Oracle 版 | 与 GHCR 同一构建 |
-
-默认阿里云仓库：`crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway`。
+| `crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:{version}` | 同标准版 | 与 GHCR 同一构建 |
+| `crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:{version}-oracle` | 同 Oracle 版 | 与 GHCR 同一构建 |
 
 包内目录为 `gateway/`：可执行文件、`configs/`、`web/`、`scripts/db` 等。Oracle 因 OTN 许可不随包分发客户端库，目标机需自行安装 Instant Client 并配置 `LD_LIBRARY_PATH`（Linux）或 `PATH`（Windows）。
 
