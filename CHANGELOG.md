@@ -14,6 +14,7 @@
 
 ### 变更
 - **Docker 镜像标签**：`{version}` / `latest` 为标准版（Alpine，MySQL/SQLite）；Oracle 版为 `{version}-oracle`。不再使用 `{version}-standard`。流水线与 `scripts/docker/build.sh`、`push.sh` 一致。
+- **发版流水线推送阿里云 ACR**：与 GHCR 同一构建打相同标签；凭据使用 Secrets `ALIYUN_USERNAME` / `ALIYUN_PASSWORD`，未配置则只推 GHCR。
 
 ### 新增
 - **GitHub Actions 多平台发布包**：tag `v*` 或手动触发时并行打 Linux/Windows 二进制（MySQL/SQLite 与 Oracle 两套）及 standard/oracle Docker 镜像；打包逻辑在 `.github/` 内维护，推 GHCR 并挂到 GitHub Release。

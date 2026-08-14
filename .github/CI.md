@@ -20,6 +20,10 @@
 | `ghcr.io/<owner>/gateway:{version}` | MySQL / SQLite | Alpine 标准版 |
 | `ghcr.io/<owner>/gateway:{version}-oracle` | 上表 + Oracle | Debian |
 | `ghcr.io/<owner>/gateway:latest` | 同标准版 | 仅 tag 发布时打 |
+| `{aliyun}/{ns}/gateway:{version}` | 同标准版 | 与 GHCR 同一构建，推阿里云 ACR |
+| `{aliyun}/{ns}/gateway:{version}-oracle` | 同 Oracle 版 | 与 GHCR 同一构建 |
+
+默认阿里云仓库：`crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway`。
 
 包内目录为 `gateway/`：可执行文件、`configs/`、`web/`、`scripts/db` 等。Oracle 因 OTN 许可不随包分发客户端库，目标机需自行安装 Instant Client 并配置 `LD_LIBRARY_PATH`（Linux）或 `PATH`（Windows）。
 
@@ -32,3 +36,12 @@ CI 将 `web/frontend` 中本机 `niuma-ui` link 替换为 npm 上的 `niuma-ui@1
 ## 仓库权限
 
 推送 GHCR 需要 Actions 对 Packages 有写权限（`GITHUB_TOKEN`）。组织仓库需允许 workflow 写 packages。
+
+推送阿里云 ACR 需配置 Secrets（流水线**不会**使用 `scripts/docker/push.sh` 里的账号）：
+
+| Secret | 说明 |
+|--------|------|
+| `ALIYUN_USERNAME` | 阿里云容器镜像服务登录用户名 |
+| `ALIYUN_PASSWORD` | 对应登录密码或固定密码 |
+
+未配置这两项时仍会推 GHCR，并在日志里给出 warning，跳过阿里云。
