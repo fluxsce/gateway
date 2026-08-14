@@ -6,6 +6,8 @@
 
 ## [Unreleased]（未发布）
 
+## [3.2.0] - 2026-08-14
+
 ### 修复
 - **Windows 发版流水线 MinGW 安装失败**：`setup-mingw@v2` 在 Chocolatey mingw 16 上删除已不存在的 `libpthread.dll.a` 导致任务退出；改为 `egor-tensin/setup-mingw@v3`。
 - **标准版 Docker 镜像 apk 参数无效**：`apk add` 不支持 `--timeout` / `--tries`（那是 apt 选项），GitHub Actions 构建直接失败；已去掉。CI 构建改用官方 Alpine/Debian 源，避免默认阿里云镜像在海外 runner 上不可达。
@@ -29,8 +31,6 @@
 
 ### 优化
 - **表单日期绑定 RFC3339**：`RsDatePicker` 支持 `valueFormat=iso`（展示仍为墙钟）；数据表单 date/datetime 默认 `iso`，提交仍兜底转 Go `time.Time`。
-
-
 
 ## [3.1.9] - 2026-07-15
 

@@ -67,6 +67,9 @@ configs/*.local.yaml
 configs/*.secret.yaml
 configs/*.private.yaml
 
+# Auto-generated local node ID (machine-specific)
+configs/.node_id
+
 # Database files
 *.db
 *.sqlite

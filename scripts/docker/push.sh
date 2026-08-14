@@ -21,7 +21,7 @@ NC='\033[0m' # No Color
 
 # 配置
 DEFAULT_IMAGE_NAME="datahub-images/gateway"
-VERSION="3.1.9"
+VERSION="3.2.0"
 
 # 阿里云仓库地址可覆盖；账号密码必须来自环境变量
 ALIYUN_REGISTRY="${ALIYUN_REGISTRY:-crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com}"
