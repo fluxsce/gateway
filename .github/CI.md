@@ -17,10 +17,9 @@
 | `gateway-linux-amd64-oracle-{version}.tar.gz` | 上表 + Oracle | 不含 Instant Client 运行库 |
 | `gateway-windows-amd64-{version}.zip` | MySQL / SQLite / ClickHouse | Windows amd64 |
 | `gateway-windows-amd64-oracle-{version}.zip` | 上表 + Oracle | 不含 Instant Client 运行库 |
-| `ghcr.io/<owner>/gateway:{version}` | 全功能（含 Oracle） | Debian 镜像 |
-| `ghcr.io/<owner>/gateway:{version}-standard` | MySQL / SQLite | Alpine 镜像 |
-| `ghcr.io/<owner>/gateway:{version}-oracle` | 同全功能 | 显式 oracle 标签 |
-| `ghcr.io/<owner>/gateway:latest` | 全功能 | 仅 tag 发布时打 |
+| `ghcr.io/<owner>/gateway:{version}` | MySQL / SQLite | Alpine 标准版 |
+| `ghcr.io/<owner>/gateway:{version}-oracle` | 上表 + Oracle | Debian |
+| `ghcr.io/<owner>/gateway:latest` | 同标准版 | 仅 tag 发布时打 |
 
 包内目录为 `gateway/`：可执行文件、`configs/`、`web/`、`scripts/db` 等。Oracle 因 OTN 许可不随包分发客户端库，目标机需自行安装 Instant Client 并配置 `LD_LIBRARY_PATH`（Linux）或 `PATH`（Windows）。
 

@@ -62,23 +62,23 @@ FLUX Gateway Docker 镜像推送脚本
     $0 [选项]
 
 选项:
-    -t, --type TYPE       镜像类型: oracle (默认，包含所有依赖) 或 standard
+    -t, --type TYPE       镜像类型: oracle (默认) 或 standard
     -r, --registry REG    目标仓库: aliyun (默认), dockerhub, both
     -n, --name NAME       本地镜像名称 (默认: $DEFAULT_IMAGE_NAME)
-    -l, --latest          同时推送 latest 标签
+    -l, --latest          同时推送 latest（标准版）或 latest-oracle（Oracle 版）
     -h, --help            显示此帮助信息
 
 说明:
     - 阿里云镜像仓库凭证已内置，自动登录
     - 阿里云仓库: $REGISTRY
     - 命名空间: $REGISTRY_NAMESPACE
-    - 默认推送包含所有依赖的版本（Oracle版本）
+    - 标签与 build.sh 一致: 标准版 :{version}，Oracle 版 :{version}-oracle
 
 示例:
-    # 推送包含所有依赖的版本到阿里云（默认）
+    # 推送 Oracle 版到阿里云（默认），远程标签 :${VERSION}-oracle
     $0
 
-    # 推送标准版本到阿里云
+    # 推送标准版到阿里云，远程标签 :${VERSION}
     $0 --type standard
 
     # 推送到 Docker Hub
@@ -87,8 +87,9 @@ FLUX Gateway Docker 镜像推送脚本
     # 推送到阿里云和 Docker Hub
     $0 --registry both
 
-    # 推送并标记为 latest
+    # 推送并标记 latest / latest-oracle
     $0 --latest
+    $0 --type standard --latest
 
 EOF
 }
@@ -141,12 +142,16 @@ if [[ "$REGISTRY" != "dockerhub" && "$REGISTRY" != "aliyun" && "$REGISTRY" != "b
     exit 1
 fi
 
-# 确定版本后缀（默认版本包含所有依赖，不使用后缀）
-VERSION_SUFFIX=""
+# 标准版 :{version}；Oracle 版 :{version}-oracle
+if [[ "$IMAGE_TYPE" == "oracle" ]]; then
+    VERSION_SUFFIX="-oracle"
+else
+    VERSION_SUFFIX=""
+fi
 
-# 本地镜像标签（与 build.sh 保持一致，默认版本不使用后缀）
-LOCAL_IMAGE="${IMAGE_NAME}:${VERSION}"
-LOCAL_LATEST="${IMAGE_NAME}:latest"
+# 本地镜像标签（与 build.sh 一致）
+LOCAL_IMAGE="${IMAGE_NAME}:${VERSION}${VERSION_SUFFIX}"
+LOCAL_LATEST="${IMAGE_NAME}:latest${VERSION_SUFFIX}"
 
 print_info "=========================================="
 print_info "Docker 镜像推送"

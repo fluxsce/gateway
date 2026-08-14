@@ -189,14 +189,12 @@ jobs:
         include:
           - id: standard
             file: scripts/docker/Dockerfile
-            suffix: -standard
-            extra_suffix: ""
-            latest: "false"
+            suffix: ""
+            latest: "true"
           - id: oracle
             file: scripts/docker/Dockerfile.oracle
-            suffix: ""
-            extra_suffix: -oracle
-            latest: "true"
+            suffix: "-oracle"
+            latest: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -216,7 +214,6 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=${{ needs.prepare.outputs.version }}${{ matrix.suffix }}
-            type=raw,value=${{ needs.prepare.outputs.version }}${{ matrix.extra_suffix }},enable=${{ matrix.id == 'oracle' }}
             type=raw,value=latest,enable=${{ matrix.latest == 'true' && needs.prepare.outputs.is_tag == 'true' }}
       - uses: docker/build-push-action@v6
         with:

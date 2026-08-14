@@ -11,6 +11,9 @@
 - **前端生产构建缺少 Tailwind v4**：`niuma-ui/styles.css` 的 `@import "tailwindcss"` 在 npm 安装（无本地 link）时无法解析；宿主增加 `tailwindcss` / `@tailwindcss/vite` 并接入 Vite 插件。
 - **服务中心双向流命名空间订阅无推送**：`StreamHandler.handleSubscribeNamespace` 此前只写入连接本地订阅列表，未注册到 `ServiceSubscriber`，客户端收不到变更。现与 `SubscribeServices` 对齐，接入 `SubscribeNamespace` 并转发 `SERVER_SERVICE_CHANGE`，断连时 `UnsubscribeNamespace` 清理。
 
+### 变更
+- **Docker 镜像标签**：`{version}` / `latest` 为标准版（Alpine，MySQL/SQLite）；Oracle 版为 `{version}-oracle`。不再使用 `{version}-standard`。流水线与 `scripts/docker/build.sh`、`push.sh` 一致。
+
 ### 新增
 - **GitHub Actions 多平台发布包**：tag `v*` 或手动触发时并行打 Linux/Windows 二进制（MySQL/SQLite 与 Oracle 两套）及 standard/oracle Docker 镜像；打包逻辑在 `.github/` 内维护，推 GHCR 并挂到 GitHub Release。
 - **服务中心 SQLite E2E 测试环境**：`internal/servicecenter/testutil` 用临时 SQLite 建表/种子并启动 gRPC 实例；`internal/servicecenter/e2e` 覆盖注册发现、命名空间推送、配置 Watch、注销；`cmd/servicecenter-testd` 供 Java SDK 拉起真实服务端。

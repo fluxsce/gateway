@@ -48,27 +48,32 @@ FLUX Gateway Docker 镜像构建脚本
     $0 [选项]
 
 选项:
-    -t, --type TYPE       构建类型: oracle (默认，包含所有依赖) 或 standard
+    -t, --type TYPE       构建类型: oracle (默认) 或 standard
     -n, --name NAME       镜像名称 (默认: $DEFAULT_IMAGE_NAME)
     -m, --mirror HOST     Debian 镜像源主机（解决 apt 拉取超时），如 mirrors.aliyun.com
-    -l, --latest          同时标记为 latest
+    -l, --latest          同时打 latest（标准版）或 latest-oracle（Oracle 版）
     -h, --help            显示此帮助信息
 
     也可通过环境变量 DEBIAN_MIRROR 指定镜像（与 -m 二选一）。
 
+标签:
+    standard  -> {name}:{version}           以及可选 :latest
+    oracle    -> {name}:{version}-oracle    以及可选 :latest-oracle
+
 示例:
-    # 构建包含所有依赖的版本（默认，Oracle版本）
+    # 构建 Oracle 版（默认），标签为 :${VERSION}-oracle
     $0
 
     # 国内/内网环境 apt 超时时，使用镜像源构建
     $0 --mirror mirrors.aliyun.com
     DEBIAN_MIRROR=mirrors.tuna.tsinghua.edu.cn $0
 
-    # 只构建标准版本（不包含Oracle）
+    # 构建标准版，标签为 :${VERSION}
     $0 --type standard
 
-    # 构建并标记为 latest
+    # 构建并标记 latest / latest-oracle
     $0 --latest
+    $0 --type standard --latest
 
     # 构建后推送镜像
     $0 && ./push.sh
@@ -146,6 +151,15 @@ fi
 
 print_success "文件检查通过"
 
+# 标准版 :{version}；Oracle 版 :{version}-oracle
+tag_suffix() {
+    if [[ "$1" == "oracle" ]]; then
+        echo "-oracle"
+    else
+        echo ""
+    fi
+}
+
 # 定义构建函数
 build_image() {
     local build_type=$1
@@ -154,11 +168,10 @@ build_image() {
     
     if [[ "$build_type" == "oracle" ]]; then
         dockerfile="scripts/docker/Dockerfile.oracle"
-        # 默认版本（包含所有依赖）不使用后缀
-        version_suffix=""
+        version_suffix="$(tag_suffix oracle)"
     else
         dockerfile="scripts/docker/Dockerfile"
-        version_suffix=""
+        version_suffix="$(tag_suffix standard)"
     fi
     
     # 检查 Dockerfile 是否存在
@@ -224,10 +237,12 @@ BUILD_FAILED=0
 BUILT_IMAGES=()
 
 # 构建指定版本
+IMAGE_TAG="${IMAGE_NAME}:${VERSION}$(tag_suffix "$BUILD_TYPE")"
+LATEST_TAG="${IMAGE_NAME}:latest$(tag_suffix "$BUILD_TYPE")"
 if build_image "$BUILD_TYPE"; then
-    BUILT_IMAGES+=("${IMAGE_NAME}:${VERSION}")
+    BUILT_IMAGES+=("$IMAGE_TAG")
     if [[ "$TAG_LATEST" == true ]]; then
-        BUILT_IMAGES+=("${IMAGE_NAME}:latest")
+        BUILT_IMAGES+=("$LATEST_TAG")
     fi
 else
     BUILD_FAILED=1
@@ -260,13 +275,13 @@ fi
 
 print_info ""
 print_info "运行镜像示例:"
-print_info "  docker run -d -p 8080:8080 -p 12003:12003 -p 7000:7000 ${IMAGE_NAME}:${VERSION}"
+print_info "  docker run -d -p 8080:8080 -p 12003:12003 -p 7000:7000 ${IMAGE_TAG}"
 print_info ""
 print_info "使用 Docker Compose:"
 print_info "  cd scripts/docker && docker-compose up -d"
 print_info ""
 print_info "推送镜像:"
-print_info "  ./scripts/docker/push.sh"
+print_info "  ./scripts/docker/push.sh --type ${BUILD_TYPE}"
 
 if [[ $BUILD_FAILED -ne 0 ]]; then
     exit 1

@@ -54,14 +54,14 @@ docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 ```bash
 cd scripts/docker
 
-# Build standard version (MySQL + SQLite)
-bash build.sh standard
+# Build standard version (MySQL + SQLite) -> :{version}
+bash build.sh --type standard
 
-# Build Oracle version
-bash build.sh oracle
+# Build Oracle version -> :{version}-oracle
+bash build.sh --type oracle
 
 # Push to registry
-bash push.sh standard
+bash push.sh --type standard
 ```
 
 ---
