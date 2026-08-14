@@ -31,6 +31,8 @@ Go 1.24 要求 Linux kernel >= 3.17，Linux 包面向现代 glibc 发行版，�
 
 CI 将 `web/frontend` 中本机 `niuma-ui` link 替换为 npm 上的 `niuma-ui@1.1.1` 再构建，并安装 Tailwind v4（`niuma-ui/styles.css` 的 `@import "tailwindcss"` 需要宿主提供）。本地开发仍用 package.json 里的 link。
 
+pnpm 安装 npm 版 niuma-ui 后，会执行 `.github/scripts/ensure-niuma-lucide.cjs`，把 `@lucide/vue` 链到 niuma-ui 包内，避免 `RsIcon` 打包后侧栏/欢迎页图标全空（1.1.1 的 glob 扫不到 pnpm 虚拟 store）。
+
 ## 仓库权限
 
 推送 GHCR 需要 Actions 对 Packages 有写权限（`GITHUB_TOKEN`）。组织仓库需允许 workflow 写 packages。
