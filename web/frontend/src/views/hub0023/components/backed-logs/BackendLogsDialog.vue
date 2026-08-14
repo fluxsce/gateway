@@ -1,344 +1,347 @@
 <template>
-  <GModal
-    v-model:visible="page.showModal.value"
+  <RsDialog
+    :open="page.showModal.value"
     :title="page.dialogTitle.value"
-    :width="'90%'"
-    :style="{ maxWidth: '1200px' }"
-    preset="dialog"
-    :mask-closable="false"
-    :closable="true"
+    layout="window"
+    width="90%"
+    class="hub0023-backend-logs-dialog"
     :draggable="true"
-    :showConfirm="false"
-    @after-leave="page.handleAfterLeave"
+    :fullscreenable="true"
+    :show-overlay="true"
+    :close-on-overlay-click="false"
+    :show-footer="false"
+    @update:open="(visible: boolean) => (page.showModal.value = visible)"
+    @after-close="page.handleAfterLeave"
   >
+    <template #body>
+    <div class="backend-logs-body">
+      <RsLoading :loading="page.loading.value" overlay block size="lg" />
 
-    <n-spin :show="page.loading.value">
       <div v-if="page.gatewayLogInfo.value" class="backend-logs-container">
-        <n-tabs v-model:value="page.activeTab.value"  size="small">
-          <!-- 基础信息 tab（外部请求信息） -->
-          <n-tab-pane name="basic" tab="基础信息">
+        <RsTabs
+          v-model="page.activeTab.value"
+          :items="tabItems"
+          variant="line"
+          size="sm"
+          borderless
+        >
+          <template #basic>
             <div class="trace-detail-container">
-              <!-- 基本信息 -->
-              <n-card title="基本信息" size="small" class="detail-card">
-                <n-descriptions :column="3" size="small" bordered>
-                  <n-descriptions-item label="链路追踪ID">
-                    <n-tag type="info" size="small">{{ page.gatewayLogInfo.value.traceId }}</n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="网关实例ID">
-                    <n-tag type="success" size="small">{{ page.gatewayLogInfo.value.gatewayInstanceId }}</n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="租户ID">
-                    <n-tag type="warning" size="small">{{ page.gatewayLogInfo.value.tenantId }}</n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="日志级别">
-                    <n-tag :type="page.getLogLevelType(page.gatewayLogInfo.value.logLevel) as any" size="small">
+              <RsCard title="基本信息" size="sm" variant="outlined" class="detail-card">
+                <RsDescriptions :columns="3" size="sm" bordered label-placement="left">
+                  <RsDescriptionsItem label="链路追踪ID">
+                    <RsTag variant="info" size="sm">{{ page.gatewayLogInfo.value.traceId }}</RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="网关实例ID">
+                    <RsTag variant="success" size="sm">{{ page.gatewayLogInfo.value.gatewayInstanceId }}</RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="租户ID">
+                    <RsTag variant="warning" size="sm">{{ page.gatewayLogInfo.value.tenantId }}</RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="日志级别">
+                    <RsTag :variant="page.getLogLevelType(page.gatewayLogInfo.value.logLevel)" size="sm">
                       {{ page.getLogLevelText(page.gatewayLogInfo.value.logLevel) }}
-                    </n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="日志类型">
-                    <n-tag :type="page.getLogTypeColor(page.gatewayLogInfo.value.logType) as any" size="small">
+                    </RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="日志类型">
+                    <RsTag :variant="page.getLogTypeColor(page.gatewayLogInfo.value.logType)" size="sm">
                       {{ page.getLogTypeText(page.gatewayLogInfo.value.logType) }}
-                    </n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="记录时间">
+                    </RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="记录时间">
                     <span>{{ page.formatDate(page.gatewayLogInfo.value.addTime) }}</span>
-                  </n-descriptions-item>
-                </n-descriptions>
-              </n-card>
+                  </RsDescriptionsItem>
+                </RsDescriptions>
+              </RsCard>
 
-              <!-- 请求信息 -->
-              <n-card title="请求信息" size="small" class="detail-card">
-                <n-descriptions :column="2" size="small" bordered>
-                  <n-descriptions-item label="请求方法">
-                    <n-tag :type="page.getMethodColor(page.gatewayLogInfo.value.requestMethod) as any" size="small">
+              <RsCard title="请求信息" size="sm" variant="outlined" class="detail-card">
+                <RsDescriptions :columns="2" size="sm" bordered label-placement="left">
+                  <RsDescriptionsItem label="请求方法">
+                    <RsTag :variant="page.getMethodColor(page.gatewayLogInfo.value.requestMethod)" size="sm">
                       {{ page.gatewayLogInfo.value.requestMethod }}
-                    </n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="请求路径">
-                    <n-ellipsis :line-clamp="2">{{ page.gatewayLogInfo.value.requestPath }}</n-ellipsis>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="请求查询参数">
-                    <n-ellipsis :line-clamp="2">{{ page.gatewayLogInfo.value.requestQuery || '无' }}</n-ellipsis>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="客户端IP">
-                    <n-tag type="info" size="small">{{ page.gatewayLogInfo.value.clientIpAddress }}</n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="请求大小">
-                    <n-tag type="info" size="small">
+                    </RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="请求路径">
+                    <span class="ellipsis-2">{{ page.gatewayLogInfo.value.requestPath }}</span>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="请求查询参数">
+                    <span class="ellipsis-2">{{ page.gatewayLogInfo.value.requestQuery || '无' }}</span>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="客户端IP">
+                    <RsTag variant="info" size="sm">{{ page.gatewayLogInfo.value.clientIpAddress }}</RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="请求大小">
+                    <RsTag variant="info" size="sm">
                       {{ page.formatFileSize(page.gatewayLogInfo.value.requestSize || 0) }}
-                    </n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="客户端端口">
+                    </RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="客户端端口">
                     <span>{{ page.gatewayLogInfo.value.clientPort || '无' }}</span>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="User-Agent">
-                    <n-ellipsis :line-clamp="2">{{ page.gatewayLogInfo.value.userAgent || '无' }}</n-ellipsis>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="Referer">
-                    <n-ellipsis :line-clamp="2">{{ page.gatewayLogInfo.value.referer || '无' }}</n-ellipsis>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="用户标识">
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="User-Agent">
+                    <span class="ellipsis-2">{{ page.gatewayLogInfo.value.userAgent || '无' }}</span>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="Referer">
+                    <span class="ellipsis-2">{{ page.gatewayLogInfo.value.referer || '无' }}</span>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="用户标识">
                     <span>{{ page.gatewayLogInfo.value.userIdentifier || '无' }}</span>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="父链路追踪ID">
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="父链路追踪ID">
                     <span>{{ page.gatewayLogInfo.value.parentTraceId || '无' }}</span>
-                  </n-descriptions-item>
-                </n-descriptions>
-              </n-card>
+                  </RsDescriptionsItem>
+                </RsDescriptions>
+              </RsCard>
 
-              <!-- 响应信息 -->
-              <n-card title="响应信息" size="small" class="detail-card">
-                <n-descriptions :column="3" size="small" bordered>
-                  <n-descriptions-item label="网关状态码">
-                    <n-tag :type="page.getStatusCodeType(page.gatewayLogInfo.value.gatewayStatusCode) as any" size="small">
+              <RsCard title="响应信息" size="sm" variant="outlined" class="detail-card">
+                <RsDescriptions :columns="3" size="sm" bordered label-placement="left">
+                  <RsDescriptionsItem label="网关状态码">
+                    <RsTag :variant="page.getStatusCodeType(page.gatewayLogInfo.value.gatewayStatusCode)" size="sm">
                       {{ page.gatewayLogInfo.value.gatewayStatusCode }}
-                    </n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="总处理时间">
-                    <n-tag :type="page.getResponseTimeType(page.gatewayLogInfo.value.totalProcessingTimeMs || 0) as any" size="small">
+                    </RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="总处理时间">
+                    <RsTag :variant="page.getResponseTimeType(page.gatewayLogInfo.value.totalProcessingTimeMs || 0)" size="sm">
                       {{ page.gatewayLogInfo.value.totalProcessingTimeMs || 0 }}ms
-                    </n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="网关处理时间">
-                    <n-tag :type="page.getResponseTimeType(page.gatewayLogInfo.value.gatewayProcessingTimeMs || 0) as any" size="small">
+                    </RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="网关处理时间">
+                    <RsTag :variant="page.getResponseTimeType(page.gatewayLogInfo.value.gatewayProcessingTimeMs || 0)" size="sm">
                       {{ page.gatewayLogInfo.value.gatewayProcessingTimeMs || 0 }}ms
-                    </n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="响应大小">
-                    <n-tag type="info" size="small">
+                    </RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="响应大小">
+                    <RsTag variant="info" size="sm">
                       {{ page.formatFileSize(page.gatewayLogInfo.value.responseSize || 0) }}
-                    </n-tag>
-                  </n-descriptions-item>
-                </n-descriptions>
-              </n-card>
+                    </RsTag>
+                  </RsDescriptionsItem>
+                </RsDescriptions>
+              </RsCard>
 
-              <!-- 时间跟踪 -->
-              <n-card title="时间跟踪" size="small" class="detail-card">
-                <n-descriptions :column="2" size="small" bordered>
-                  <n-descriptions-item label="网关开始处理">
+              <RsCard title="时间跟踪" size="sm" variant="outlined" class="detail-card">
+                <RsDescriptions :columns="2" size="sm" bordered label-placement="left">
+                  <RsDescriptionsItem label="网关开始处理">
                     <span>{{ page.formatDate(page.gatewayLogInfo.value.gatewayStartProcessingTime, 'YYYY-MM-DD HH:mm:ss.SSS') }}</span>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="网关完成处理">
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="网关完成处理">
                     <span>{{ page.gatewayLogInfo.value.gatewayFinishedProcessingTime ? page.formatDate(page.gatewayLogInfo.value.gatewayFinishedProcessingTime, 'YYYY-MM-DD HH:mm:ss.SSS') : '未完成' }}</span>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="重试次数">
-                    <n-tag type="warning" size="small">{{ page.gatewayLogInfo.value.retryCount || 0 }}</n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="重置次数">
-                    <n-tag type="error" size="small">{{ page.gatewayLogInfo.value.resetCount || 0 }}</n-tag>
-                  </n-descriptions-item>
-                </n-descriptions>
-              </n-card>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="重试次数">
+                    <RsTag variant="warning" size="sm">{{ page.gatewayLogInfo.value.retryCount || 0 }}</RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="重置次数">
+                    <RsTag variant="danger" size="sm">{{ page.gatewayLogInfo.value.resetCount || 0 }}</RsTag>
+                  </RsDescriptionsItem>
+                </RsDescriptions>
+              </RsCard>
 
-              <!-- 路由信息 -->
-              <n-card title="路由信息" size="small" class="detail-card">
-                <n-descriptions :column="2" size="small" bordered>
-                  <n-descriptions-item label="代理类型">
-                    <n-tag :type="page.getProxyTypeColor(page.gatewayLogInfo.value.proxyType) as any" size="small">
+              <RsCard title="路由信息" size="sm" variant="outlined" class="detail-card">
+                <RsDescriptions :columns="2" size="sm" bordered label-placement="left">
+                  <RsDescriptionsItem label="代理类型">
+                    <RsTag :variant="page.getProxyTypeColor(page.gatewayLogInfo.value.proxyType)" size="sm">
                       {{ page.getProxyTypeText(page.gatewayLogInfo.value.proxyType) }}
-                    </n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="匹配路由">
-                    <n-ellipsis :line-clamp="2">{{ page.gatewayLogInfo.value.matchedRoute || '无' }}</n-ellipsis>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="路由名称">
-                    <n-ellipsis :line-clamp="2">{{ page.gatewayLogInfo.value.routeName || '无' }}</n-ellipsis>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="网关节点IP">
-                    <n-tag type="info" size="small">{{ page.gatewayLogInfo.value.gatewayNodeIp || '无' }}</n-tag>
-                  </n-descriptions-item>
-                </n-descriptions>
-              </n-card>
+                    </RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="匹配路由">
+                    <span class="ellipsis-2">{{ page.gatewayLogInfo.value.matchedRoute || '无' }}</span>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="路由名称">
+                    <span class="ellipsis-2">{{ page.gatewayLogInfo.value.routeName || '无' }}</span>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="网关节点IP">
+                    <RsTag variant="info" size="sm">{{ page.gatewayLogInfo.value.gatewayNodeIp || '无' }}</RsTag>
+                  </RsDescriptionsItem>
+                </RsDescriptions>
+              </RsCard>
 
-              <!-- 错误信息 -->
-              <n-card v-if="page.gatewayLogInfo.value.errorCode || page.gatewayLogInfo.value.errorMessage" title="错误信息" size="small" class="detail-card">
-                <n-descriptions :column="1" size="small" bordered>
-                  <n-descriptions-item v-if="page.gatewayLogInfo.value.errorCode" label="错误码">
-                    <n-tag type="error" size="small">{{ page.gatewayLogInfo.value.errorCode }}</n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item v-if="page.gatewayLogInfo.value.errorMessage" label="错误消息">
+              <RsCard
+                v-if="page.gatewayLogInfo.value.errorCode || page.gatewayLogInfo.value.errorMessage"
+                title="错误信息"
+                size="sm"
+                variant="outlined"
+                class="detail-card"
+              >
+                <RsDescriptions :columns="1" size="sm" bordered label-placement="left">
+                  <RsDescriptionsItem v-if="page.gatewayLogInfo.value.errorCode" label="错误码">
+                    <RsTag variant="danger" size="sm">{{ page.gatewayLogInfo.value.errorCode }}</RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem v-if="page.gatewayLogInfo.value.errorMessage" label="错误消息">
                     <div class="error-message">{{ page.gatewayLogInfo.value.errorMessage }}</div>
-                  </n-descriptions-item>
-                </n-descriptions>
-              </n-card>
+                  </RsDescriptionsItem>
+                </RsDescriptions>
+              </RsCard>
 
-              <!-- 请求头信息 -->
-              <n-card v-if="page.gatewayLogInfo.value.requestHeaders" title="请求头信息" size="small" class="detail-card">
-                <GTextShow :content="page.gatewayLogInfo.value.requestHeaders" format="auto" :auto-format="true" :max-height="300" />
-              </n-card>
-
-              <!-- 请求体 -->
-              <n-card v-if="page.gatewayLogInfo.value.requestBody" title="请求体" size="small" class="detail-card">
-                <GTextShow :content="page.gatewayLogInfo.value.requestBody" format="auto" :auto-format="true" :max-height="300" />
-              </n-card>
-
-              <!-- 响应头 -->
-              <n-card v-if="page.gatewayLogInfo.value.responseHeaders" title="响应头" size="small" class="detail-card">
-                <GTextShow :content="page.gatewayLogInfo.value.responseHeaders" format="auto" :auto-format="true" :max-height="300" />
-              </n-card>
-
-              <!-- 响应体 -->
-              <n-card v-if="page.gatewayLogInfo.value.responseBody" title="响应体" size="small" class="detail-card">
-                <GTextShow :content="page.gatewayLogInfo.value.responseBody" format="auto" :auto-format="true" :max-height="300" />
-              </n-card>
+              <RsCard v-if="page.gatewayLogInfo.value.requestHeaders" title="请求头信息" size="sm" variant="outlined" class="detail-card">
+                <RsCodeBlock :code="page.formatJsonData(page.gatewayLogInfo.value.requestHeaders)" lang="json" />
+              </RsCard>
+              <RsCard v-if="page.gatewayLogInfo.value.requestBody" title="请求体" size="sm" variant="outlined" class="detail-card">
+                <RsCodeBlock :code="page.formatJsonData(page.gatewayLogInfo.value.requestBody)" lang="json" />
+              </RsCard>
+              <RsCard v-if="page.gatewayLogInfo.value.responseHeaders" title="响应头" size="sm" variant="outlined" class="detail-card">
+                <RsCodeBlock :code="page.formatJsonData(page.gatewayLogInfo.value.responseHeaders)" lang="json" />
+              </RsCard>
+              <RsCard v-if="page.gatewayLogInfo.value.responseBody" title="响应体" size="sm" variant="outlined" class="detail-card">
+                <RsCodeBlock :code="page.formatJsonData(page.gatewayLogInfo.value.responseBody)" lang="json" />
+              </RsCard>
             </div>
-          </n-tab-pane>
+          </template>
 
-          <!-- 后端服务追踪日志 tabs -->
-          <n-tab-pane
+          <template
             v-for="(trace, index) in page.backendTraces.value"
             :key="trace.backendTraceId || index"
-            :name="`service-${index}`"
-            :tab="page.getServiceTabName(trace, index)"
+            #[`service-${index}`]
           >
             <div class="trace-detail-container">
-              <!-- 基本信息 -->
-              <n-card title="基本信息" size="small" class="detail-card">
-                <n-descriptions :column="3" size="small" bordered>
-                  <n-descriptions-item label="后端追踪ID">
-                    <n-tag type="info" size="small">{{ trace.backendTraceId }}</n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="服务定义ID">
-                    <n-tag type="success" size="small">{{ trace.serviceDefinitionId || '无' }}</n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="服务名称">
-                    <n-tag type="warning" size="small">{{ trace.serviceName || '无' }}</n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="追踪状态">
-                    <n-tag :type="page.getTraceStatusType(trace.traceStatus) as any" size="small">
+              <RsCard title="基本信息" size="sm" variant="outlined" class="detail-card">
+                <RsDescriptions :columns="3" size="sm" bordered label-placement="left">
+                  <RsDescriptionsItem label="后端追踪ID">
+                    <RsTag variant="info" size="sm">{{ trace.backendTraceId }}</RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="服务定义ID">
+                    <RsTag variant="success" size="sm">{{ trace.serviceDefinitionId || '无' }}</RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="服务名称">
+                    <RsTag variant="warning" size="sm">{{ trace.serviceName || '无' }}</RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="追踪状态">
+                    <RsTag :variant="page.getTraceStatusType(trace.traceStatus)" size="sm">
                       {{ page.getTraceStatusText(trace.traceStatus) }}
-                    </n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="成功标记">
-                    <n-tag :type="trace.successFlag === 'Y' ? 'success' : 'error'" size="small">
+                    </RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="成功标记">
+                    <RsTag :variant="trace.successFlag === 'Y' ? 'success' : 'danger'" size="sm">
                       {{ trace.successFlag === 'Y' ? '成功' : '失败' }}
-                    </n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="重试次数">
-                    <n-tag type="warning" size="small">{{ trace.retryCount || 0 }}</n-tag>
-                  </n-descriptions-item>
-                </n-descriptions>
-              </n-card>
+                    </RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="重试次数">
+                    <RsTag variant="warning" size="sm">{{ trace.retryCount || 0 }}</RsTag>
+                  </RsDescriptionsItem>
+                </RsDescriptions>
+              </RsCard>
 
-              <!-- 转发信息 -->
-              <n-card title="转发信息" size="small" class="detail-card">
-                <n-descriptions :column="2" size="small" bordered>
-                  <n-descriptions-item label="转发地址">
-                    <n-ellipsis :line-clamp="2">{{ trace.forwardAddress || '无' }}</n-ellipsis>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="转发方法">
-                    <n-tag :type="page.getMethodColor(trace.forwardMethod) as any" size="small">
+              <RsCard title="转发信息" size="sm" variant="outlined" class="detail-card">
+                <RsDescriptions :columns="2" size="sm" bordered label-placement="left">
+                  <RsDescriptionsItem label="转发地址">
+                    <span class="ellipsis-2">{{ trace.forwardAddress || '无' }}</span>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="转发方法">
+                    <RsTag :variant="page.getMethodColor(trace.forwardMethod)" size="sm">
                       {{ trace.forwardMethod || '无' }}
-                    </n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="转发路径">
-                    <n-ellipsis :line-clamp="2">{{ trace.forwardPath || '无' }}</n-ellipsis>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="转发查询参数">
-                    <n-ellipsis :line-clamp="2">{{ trace.forwardQuery || '无' }}</n-ellipsis>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="请求大小">
-                    <n-tag type="info" size="small">
+                    </RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="转发路径">
+                    <span class="ellipsis-2">{{ trace.forwardPath || '无' }}</span>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="转发查询参数">
+                    <span class="ellipsis-2">{{ trace.forwardQuery || '无' }}</span>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="请求大小">
+                    <RsTag variant="info" size="sm">
                       {{ page.formatFileSize(trace.requestSize || 0) }}
-                    </n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="负载均衡策略">
+                    </RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="负载均衡策略">
                     <span>{{ trace.loadBalancerStrategy || '无' }}</span>
-                  </n-descriptions-item>
-                </n-descriptions>
-              </n-card>
+                  </RsDescriptionsItem>
+                </RsDescriptions>
+              </RsCard>
 
-              <!-- 时间信息 -->
-              <n-card title="时间信息" size="small" class="detail-card">
-                <n-descriptions :column="2" size="small" bordered>
-                  <n-descriptions-item label="请求开始时间">
+              <RsCard title="时间信息" size="sm" variant="outlined" class="detail-card">
+                <RsDescriptions :columns="2" size="sm" bordered label-placement="left">
+                  <RsDescriptionsItem label="请求开始时间">
                     <span>{{
                       trace.requestStartTime
                         ? page.formatDate(trace.requestStartTime, 'YYYY-MM-DD HH:mm:ss.SSS')
                         : '无'
                     }}</span>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="响应接收时间">
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="响应接收时间">
                     <span>{{
                       trace.responseReceivedTime
                         ? page.formatDate(trace.responseReceivedTime, 'YYYY-MM-DD HH:mm:ss.SSS')
                         : '无'
                     }}</span>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="请求耗时">
-                    <n-tag :type="page.getResponseTimeType(trace.requestDurationMs || 0) as any" size="small">
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="请求耗时">
+                    <RsTag :variant="page.getResponseTimeType(trace.requestDurationMs || 0)" size="sm">
                       {{ trace.requestDurationMs || 0 }}ms
-                    </n-tag>
-                  </n-descriptions-item>
-                </n-descriptions>
-              </n-card>
+                    </RsTag>
+                  </RsDescriptionsItem>
+                </RsDescriptions>
+              </RsCard>
 
-              <!-- 响应信息 -->
-              <n-card title="响应信息" size="small" class="detail-card">
-                <n-descriptions :column="3" size="small" bordered>
-                  <n-descriptions-item label="状态码">
-                    <n-tag :type="page.getStatusCodeType(trace.statusCode || 0) as any" size="small">
+              <RsCard title="响应信息" size="sm" variant="outlined" class="detail-card">
+                <RsDescriptions :columns="3" size="sm" bordered label-placement="left">
+                  <RsDescriptionsItem label="状态码">
+                    <RsTag :variant="page.getStatusCodeType(trace.statusCode || 0)" size="sm">
                       {{ trace.statusCode || '无' }}
-                    </n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item label="响应大小">
-                    <n-tag type="info" size="small">
+                    </RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem label="响应大小">
+                    <RsTag variant="info" size="sm">
                       {{ page.formatFileSize(trace.responseSize || 0) }}
-                    </n-tag>
-                  </n-descriptions-item>
-                </n-descriptions>
-              </n-card>
+                    </RsTag>
+                  </RsDescriptionsItem>
+                </RsDescriptions>
+              </RsCard>
 
-              <!-- 错误信息 -->
-              <n-card v-if="trace.errorCode || trace.errorMessage" title="错误信息" size="small" class="detail-card">
-                <n-descriptions :column="1" size="small" bordered>
-                  <n-descriptions-item v-if="trace.errorCode" label="错误码">
-                    <n-tag type="error" size="small">{{ trace.errorCode }}</n-tag>
-                  </n-descriptions-item>
-                  <n-descriptions-item v-if="trace.errorMessage" label="错误消息">
+              <RsCard
+                v-if="trace.errorCode || trace.errorMessage"
+                title="错误信息"
+                size="sm"
+                variant="outlined"
+                class="detail-card"
+              >
+                <RsDescriptions :columns="1" size="sm" bordered label-placement="left">
+                  <RsDescriptionsItem v-if="trace.errorCode" label="错误码">
+                    <RsTag variant="danger" size="sm">{{ trace.errorCode }}</RsTag>
+                  </RsDescriptionsItem>
+                  <RsDescriptionsItem v-if="trace.errorMessage" label="错误消息">
                     <div class="error-message">{{ trace.errorMessage }}</div>
-                  </n-descriptions-item>
-                </n-descriptions>
-              </n-card>
+                  </RsDescriptionsItem>
+                </RsDescriptions>
+              </RsCard>
 
-              <!-- 转发头信息 -->
-              <n-card v-if="trace.forwardHeaders" title="转发头信息" size="small" class="detail-card">
-                <GTextShow :content="trace.forwardHeaders" format="auto" :auto-format="true" :max-height="300" />
-              </n-card>
-
-              <!-- 转发体 -->
-              <n-card v-if="trace.forwardBody" title="转发体" size="small" class="detail-card">
-                <GTextShow :content="trace.forwardBody" format="auto" :auto-format="true" :max-height="300" />
-              </n-card>
-
-              <!-- 响应头 -->
-              <n-card v-if="trace.responseHeaders" title="响应头" size="small" class="detail-card">
-                <GTextShow :content="trace.responseHeaders" format="auto" :auto-format="true" :max-height="300" />
-              </n-card>
-
-              <!-- 响应体 -->
-              <n-card v-if="trace.responseBody" title="响应体" size="small" class="detail-card">
-                <GTextShow :content="trace.responseBody" format="auto" :auto-format="true" :max-height="300" />
-              </n-card>
-
-              <!-- 扩展信息 -->
-              <n-card v-if="trace.extProperty" title="扩展信息" size="small" class="detail-card">
-                <GTextShow :content="trace.extProperty" format="auto" :auto-format="true" :max-height="300" />
-              </n-card>
+              <RsCard v-if="trace.forwardHeaders" title="转发头信息" size="sm" variant="outlined" class="detail-card">
+                <RsCodeBlock :code="page.formatJsonData(trace.forwardHeaders)" lang="json" />
+              </RsCard>
+              <RsCard v-if="trace.forwardBody" title="转发体" size="sm" variant="outlined" class="detail-card">
+                <RsCodeBlock :code="page.formatJsonData(trace.forwardBody)" lang="json" />
+              </RsCard>
+              <RsCard v-if="trace.responseHeaders" title="响应头" size="sm" variant="outlined" class="detail-card">
+                <RsCodeBlock :code="page.formatJsonData(trace.responseHeaders)" lang="json" />
+              </RsCard>
+              <RsCard v-if="trace.responseBody" title="响应体" size="sm" variant="outlined" class="detail-card">
+                <RsCodeBlock :code="page.formatJsonData(trace.responseBody)" lang="json" />
+              </RsCard>
+              <RsCard v-if="trace.extProperty" title="扩展信息" size="sm" variant="outlined" class="detail-card">
+                <RsCodeBlock :code="page.formatJsonData(trace.extProperty)" lang="json" />
+              </RsCard>
             </div>
-          </n-tab-pane>
-        </n-tabs>
+          </template>
+        </RsTabs>
       </div>
 
-      <n-empty v-else description="暂无日志数据" />
-    </n-spin>
-  </GModal>
+      <RsEmpty v-else description="暂无日志数据" />
+    </div>
+    </template>
+  </RsDialog>
 </template>
 
 <script setup lang="ts">
-import GModal from '@/components/gmodal/GModal.vue'
-import GTextShow from '@/components/gtext-show/GTextShow.vue'
-import { NCard, NDescriptions, NDescriptionsItem, NEllipsis, NEmpty, NSpin, NTabPane, NTabs, NTag } from 'naive-ui'
+import {
+  RsCard,
+  RsCodeBlock,
+  RsDescriptions,
+  RsDescriptionsItem,
+  RsDialog,
+  RsEmpty,
+  RsLoading,
+  RsTabs,
+  RsTag,
+  type RsTabItem,
+} from '@/ui'
+import { computed } from 'vue'
 import { useBackendLogsPage } from './page'
 
 interface Props {
@@ -362,43 +365,58 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
-// 使用页面级 Hook
 const page = useBackendLogsPage(props, emit)
+
+/** 基础信息 + 各后端追踪日志 Tab */
+const tabItems = computed<RsTabItem[]>(() => {
+  const items: RsTabItem[] = [{ value: 'basic', label: '基础信息' }]
+  page.backendTraces.value.forEach((trace, index) => {
+    items.push({
+      value: `service-${index}`,
+      label: page.getServiceTabName(trace, index),
+    })
+  })
+  return items
+})
 </script>
 
 <style scoped>
-
+.backend-logs-body {
+  position: relative;
+  min-height: 200px;
+}
 
 .trace-detail-container {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  word-break: break-word;
 }
 
 .detail-card {
   margin-bottom: 0;
 }
 
-.detail-card :deep(.n-card__content) {
-  padding: 12px;
+.ellipsis-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
 }
 
 .error-message {
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--n-error-color);
-  font-family: var(--n-font-family-mono);
+  color: var(--rs-danger);
+  font-family: var(--rs-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
 }
 
 .note-text {
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--n-text-color-2);
+  color: var(--rs-muted);
   font-style: italic;
 }
 
-.trace-detail-container :deep(.n-descriptions-item-content) {
-  word-break: break-word;
-}
 </style>
-

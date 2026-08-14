@@ -1,44 +1,42 @@
 <template>
-  <GModal
-    v-model:visible="showModal"
+  <RsDialog
+    v-model:open="showModal"
     title="请求重发"
-    :width="'92%'"
-    :style="{ maxWidth: '1400px' }"
-    preset="dialog"
-    :mask-closable="false"
-    :closable="true"
+    layout="window"
+    width="92%"
+    class="hub0023-resend-dialog"
+    :teleport-to="dialogMountTo"
     :draggable="true"
-    :show-confirm="false"
-    :to="gModalMountTo"
-    @after-leave="handleAfterLeave"
+    :fullscreenable="true"
+    :show-overlay="true"
+    :close-on-overlay-click="false"
+    :show-footer="false"
+    @after-close="handleAfterLeave"
   >
+    <template #body>
     <div ref="dialogRootRef" class="resend-dialog">
       <aside class="resend-dialog__aside">
         <div class="resend-dialog__aside-head">
           <div class="resend-dialog__aside-title">重发列表（TraceId）</div>
           <div class="resend-dialog__aside-actions">
-            <n-button
+            <RsButton
               v-if="!autoSending"
-              size="small"
-              type="primary"
-              secondary
+              size="sm"
+              variant="ghost"
+              tone="primary"
               :disabled="!props.logs.length || detailLoading"
               @click="startAutoSend"
             >
               自动发送
-            </n-button>
-            <n-button v-else size="small" type="warning" secondary @click="stopAutoSend">
+            </RsButton>
+            <RsButton v-else size="sm" variant="ghost" tone="warning" @click="stopAutoSend">
               停止
-            </n-button>
+            </RsButton>
           </div>
         </div>
-        <n-scrollbar
-          ref="asideScrollbarRef"
-          class="resend-dialog__aside-scroll"
-          :content-style="asideListScrollbarContentStyle"
-        >
+        <RsScrollbar class="resend-dialog__aside-scroll" height="100%">
           <div class="resend-dialog__aside-list-shell">
-            <n-empty v-if="!props.logs.length" description="暂无条目" />
+            <RsEmpty v-if="!props.logs.length" description="暂无条目" />
             <ul v-else class="resend-dialog__trace-list">
               <ResendTraceListItem
                 v-for="item in props.logs"
@@ -49,36 +47,34 @@
               />
             </ul>
           </div>
-        </n-scrollbar>
+        </RsScrollbar>
       </aside>
       <main class="resend-dialog__main">
-        <n-spin :show="detailLoading">
-          <g-restful-api
-            v-if="selectedTraceId && restfulPanelReady"
-            ref="restfulRef"
-            class="resend-dialog__restful"
-            v-bind="replayBind"
-            :response-min-height="'200px'"
-            :request-body-min-height="'140px'"
-            @send-start="onReplaySendStart"
-            @send-end="onReplaySendEnd"
-            @success="onReplaySuccess"
-            @error="onReplayError"
-          />
-          <n-empty v-else description="请选择左侧 TraceId" />
-        </n-spin>
+        <RsLoading :loading="detailLoading" overlay block size="lg" />
+        <g-restful-api
+          v-if="selectedTraceId && restfulPanelReady"
+          ref="restfulRef"
+          class="resend-dialog__restful"
+          v-bind="replayBind"
+          :response-min-height="'200px'"
+          :request-body-min-height="'140px'"
+          @send-start="onReplaySendStart"
+          @send-end="onReplaySendEnd"
+          @success="onReplaySuccess"
+          @error="onReplayError"
+        />
+        <RsEmpty v-else description="请选择左侧 TraceId" />
       </main>
     </div>
-  </GModal>
+    </template>
+  </RsDialog>
 </template>
 
 <script setup lang="ts">
-import GModal from '@/components/gmodal/GModal.vue'
 import GRestfulApi from '@/components/grestful-api/GRestfulApi.vue'
 import type { GRestfulApiProps, RestRequestResult } from '@/components/grestful-api/types'
+import { RsButton, RsDialog, RsEmpty, RsLoading, RsScrollbar } from '@/ui'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
-import { NButton, NEmpty, NScrollbar, NSpin } from 'naive-ui'
-import type { ScrollbarInst } from 'naive-ui/es/scrollbar'
 import { computed, nextTick, provide, ref, watch } from 'vue'
 import { getGatewayLogAccessDetail } from '../../api'
 import type { GatewayLogInfo, GatewayLogListItem } from '../../types'
@@ -105,7 +101,7 @@ interface Props {
   logs: GatewayLogListItem[]
   /**
    * 弹层挂载容器的元素 id（不含 #），例如 GatewayLogQuery 根节点；
-   * 传入后 NModal teleport 到该节点内，避免默认挂 body 在多页签下盖住其它标签。
+   * 传入后弹层 teleport 到该节点内，避免默认挂 body 在多页签下盖住其它标签。
    */
   mountContainerId?: string
 }
@@ -127,8 +123,8 @@ const showModal = computed({
   set: (v: boolean) => emit('update:visible', v),
 })
 
-/** 透传 GModal/NModal `to`；无有效 id 时不传，保持默认挂载行为 */
-const gModalMountTo = computed(() => {
+/** 透传 RsDialog `teleport-to`；无有效 id 时不传，保持默认挂载行为 */
+const dialogMountTo = computed(() => {
   const id = props.mountContainerId?.trim()
   if (!id) {
     return undefined
@@ -145,17 +141,6 @@ const lastAppliedReplayTraceId = ref('')
 const replayBind = ref<GRestfulApiProps>({})
 const dialogRootRef = ref<HTMLElement | null>(null)
 const restfulRef = ref<GRestfulApiExposed | null>(null)
-const asideScrollbarRef = ref<ScrollbarInst | null>(null)
-
-const asideListScrollbarContentStyle = {
-  boxSizing: 'border-box' as const,
-  paddingBottom: '24px',
-}
-
-function syncAsideScrollbar(): void {
-  const raw = asideScrollbarRef.value as unknown as { sync?: () => void } | null
-  raw?.sync?.()
-}
 
 /** 本次弹窗内已通过「自动发送」执行过请求的 traceId */
 const autoSentTraceIds = ref<Set<string>>(new Set())
@@ -288,7 +273,7 @@ function selectTrace(traceId: string): void {
 
 /**
  * 将当前 Trace 行滚入左侧可视区。
- * Naive NScrollbar 的可滚层是 .n-scrollbar-container，对子节点直接 scrollIntoView 往往滚的是外层模态，自动发送时列表不跟随；改为相对容器修正 scrollTop。
+ * RsScrollbar 的可滚层是 .rs-scrollbar__viewport，对子节点直接 scrollIntoView 往往滚的是外层模态，自动发送时列表不跟随；改为相对容器修正 scrollTop。
  */
 function scrollTraceIntoView(traceId: string): void {
   const root = dialogRootRef.value
@@ -301,7 +286,7 @@ function scrollTraceIntoView(traceId: string): void {
   }
 
   const container = root.querySelector(
-    '.resend-dialog__aside-scroll .n-scrollbar-container'
+    '.resend-dialog__aside-scroll .rs-scrollbar__viewport'
   ) as HTMLElement | null
   if (!container) {
     el.scrollIntoView({ block: 'nearest', behavior: 'auto' })
@@ -316,10 +301,6 @@ function scrollTraceIntoView(traceId: string): void {
   } else if (r.bottom > c.bottom - margin) {
     container.scrollTop += r.bottom - c.bottom + margin
   }
-
-  void nextTick(() => {
-    syncAsideScrollbar()
-  })
 }
 
 /**
@@ -500,13 +481,18 @@ watch(
 <style scoped lang="scss">
 .resend-dialog {
   display: flex;
+  align-items: stretch;
   gap: 12px;
-  min-height: 520px;
-  max-height: min(78vh, 720px);
+  flex: 1;
+  min-width: 0;
+  min-height: 640px;
+  height: 100%;
+  max-height: min(88vh, 900px);
 }
 
 .resend-dialog__aside {
   flex: 0 0 300px;
+  align-self: stretch;
   min-width: 260px;
   min-height: 0;
   display: flex;
@@ -541,13 +527,18 @@ watch(
 }
 
 .resend-dialog__aside-scroll {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  max-height: min(72vh, 680px);
+  height: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
 }
 
 .resend-dialog__aside-list-shell {
-  min-height: 120px;
+  flex: 1 1 auto;
+  min-height: 100%;
+  height: 100%;
   padding: 6px 4px 10px;
   /* 列表区略深于卡片，便于卡片「浮起」 */
   background: linear-gradient(180deg, var(--g-bg-secondary) 0%, var(--g-bg-tertiary) 100%);
@@ -564,15 +555,23 @@ watch(
 }
 
 .resend-dialog__main {
+  position: relative;
   flex: 1;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--g-border-primary);
+  border-radius: var(--g-radius-md);
+  background: var(--g-dialog-bg);
 }
 
 .resend-dialog__restful {
   flex: 1;
+  min-width: 0;
   min-height: 0;
+  width: 100%;
+  height: 100%;
 }
 </style>

@@ -144,26 +144,26 @@ watch(
 }
 
 .g-fieldset__title {
-  font-size: 13px;
-  font-weight: 400;
+  font-size: 12px;
+  font-weight: 300;
   color: var(--g-text-tertiary, var(--rs-placeholder, #909090));
 
   // 小号标题
   &.g-fieldset__title--small {
-    font-size: 12px;
-    font-weight: normal;
+    font-size: 11px;
+    font-weight: 300;
   }
 
   // 正常大小标题（默认）
   &.g-fieldset__title--normal {
-    font-size: 14px;
-    font-weight: normal;
+    font-size: 12px;
+    font-weight: 300;
   }
 
   // 大号标题
   &.g-fieldset__title--large {
-    font-size: 16px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 500;
   }
 
   // 加粗样式（覆盖 titleSize 的 font-weight）

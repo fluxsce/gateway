@@ -2,16 +2,17 @@
  * 预警模板管理服务层 Hook
  */
 
+import type { RsSearchFormExpose } from '@/components/form/rs-search'
+import { useAppMessage } from '@/composables/useAppMessage'
 import { createBackendPaginationParams } from '@/utils/pagination'
 import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { createAlertTemplate, deleteAlertTemplate, getAlertTemplate, queryAlertTemplates, updateAlertTemplate } from '../api'
 import type { AlertTemplate } from '../types'
 import { useAlertTemplateModel } from './model'
 
-export function useAlertTemplateService(searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
+export function useAlertTemplateService(searchFormRef?: Ref<RsSearchFormExpose | null>) {
+  const message = useAppMessage()
   const model = useAlertTemplateModel()
 
   const loadTemplateList = async (searchParams?: Record<string, any>) => {

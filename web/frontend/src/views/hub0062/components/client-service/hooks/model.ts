@@ -3,18 +3,29 @@
  * 定义服务表格配置、表单配置、选项等
  */
 
-import type { DataFormField } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid/types'
+import type { RsDataFormField, RsDataFormRenderContext } from '@/components/form/rs-data'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
+import { RsTag, type RsTagVariant } from '@/ui'
 import { formatDate } from '@/utils/format'
-import { AddOutline, CloudUploadOutline, EyeOutline, StopOutline } from '@vicons/ionicons5'
-import { NIcon } from 'naive-ui'
 import { h, ref } from 'vue'
 import type { TunnelService } from '../../../types'
 import { TunnelClientSelector } from '../../tunnel-client-grid'
 
-// 服务类型选项
+/**
+ * 隧道服务表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface TunnelServiceGridConfig {
+  columns: RsGridColumn<TunnelService>[]
+  selectable: boolean
+  rowKey: string | ((row: TunnelService) => string)
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
+
+/** 服务类型选项 */
 export const SERVICE_TYPE_OPTIONS = [
   { label: 'TCP', value: 'tcp' },
   { label: 'UDP', value: 'udp' },
@@ -22,174 +33,127 @@ export const SERVICE_TYPE_OPTIONS = [
   { label: 'HTTPS', value: 'https' },
   { label: 'STCP', value: 'stcp' },
   { label: 'SUDP', value: 'sudp' },
-  { label: 'XTCP', value: 'xtcp' }
+  { label: 'XTCP', value: 'xtcp' },
 ]
 
-// 服务状态选项
+/** 服务状态选项 */
 export const SERVICE_STATUS_OPTIONS = [
   { label: '活动', value: 'active' },
   { label: '不活动', value: 'inactive' },
   { label: '错误', value: 'error' },
-  { label: '离线', value: 'offline' }
+  { label: '离线', value: 'offline' },
 ]
 
-// 激活标识选项
+/** 激活标识选项 */
 export const ACTIVE_FLAG_OPTIONS = [
   { label: '启用', value: 'Y' },
-  { label: '禁用', value: 'N' }
+  { label: '禁用', value: 'N' },
 ]
 
-// 是否选项
+/** 是否选项 */
 export const YES_NO_OPTIONS = [
   { label: '是', value: 'Y' },
-  { label: '否', value: 'N' }
+  { label: '否', value: 'N' },
 ]
 
+/**
+ * 获取服务类型标签变体
+ */
+function getServiceTypeVariant(type: string): RsTagVariant {
+  switch (type) {
+    case 'tcp':
+    case 'http':
+      return 'primary'
+    case 'udp':
+    case 'https':
+      return 'success'
+    case 'stcp':
+    case 'xtcp':
+      return 'info'
+    default:
+      return 'warning'
+  }
+}
+
+/**
+ * 获取服务状态标签变体
+ */
+function getServiceStatusVariant(status: string): RsTagVariant {
+  switch (status) {
+    case 'active':
+      return 'success'
+    case 'inactive':
+      return 'warning'
+    case 'error':
+      return 'danger'
+    case 'offline':
+      return 'default'
+    default:
+      return 'default'
+  }
+}
+
+/**
+ * 隧道服务管理 Model
+ */
 export function useTunnelServiceModel() {
-  // ============= 数据状态 =============
   const moduleId = 'hub0062:service'
-  /** 加载状态 */
   const loading = ref(false)
-
-  /** 服务列表数据 */
   const serviceList = ref<TunnelService[]>([])
-
-  /** 后端分页信息对象 */
   const pageInfo = ref<PageInfoObj | undefined>()
 
-  // 搜索表单配置
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'serviceName',
         label: '服务名称',
         type: 'input',
-        props: {
-          placeholder: '请输入服务名称'
-        }
+        placeholder: '请输入服务名称',
+        span: 6,
+        clearable: true,
       },
       {
         field: 'serviceType',
         label: '服务类型',
         type: 'select',
-        props: {
-          placeholder: '请选择服务类型',
-          options: SERVICE_TYPE_OPTIONS
-        }
+        placeholder: '请选择服务类型',
+        span: 6,
+        clearable: true,
+        options: SERVICE_TYPE_OPTIONS,
       },
       {
         field: 'serviceStatus',
         label: '服务状态',
         type: 'select',
-        props: {
-          placeholder: '请选择服务状态',
-          options: SERVICE_STATUS_OPTIONS
-        }
+        placeholder: '请选择服务状态',
+        span: 6,
+        clearable: true,
+        options: SERVICE_STATUS_OPTIONS,
       },
       {
         field: 'keyword',
         label: '关键词',
         type: 'input',
-        props: {
-          placeholder: '服务名称/本地地址/子域名'
-        }
-      }
+        placeholder: '服务名称/本地地址/子域名',
+        span: 6,
+        clearable: true,
+      },
     ],
     toolbarButtons: [
-      { key: 'create', label: '新增服务', type: 'primary', icon: AddOutline }
-    ]
-  }
-
-  // 表格配置
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
-    columns: [
-      { field: 'tunnelServiceId', title: '服务ID', width: 200, showOverflow: 'tooltip' },
-      { field: 'serviceName', title: '服务名称', width: 150, showOverflow: 'tooltip', sortable: true },
-      { field: 'tunnelClientId', title: '客户端ID', width: 200, showOverflow: 'tooltip' },
-      { field: 'serviceType', title: '服务类型', width: 100, slots: { default: 'serviceType' } },
-      { 
-        field: 'localAddress', 
-        title: '本地地址', 
-        width: 180,
-        showOverflow: 'tooltip',
-        formatter: ({ row }) => `${row.localAddress}:${row.localPort}`
-      },
-      { field: 'remotePort', title: '远程端口', width: 100 },
-      { field: 'subDomain', title: '子域名', width: 150, showOverflow: 'tooltip' },
-      { field: 'serviceStatus', title: '服务状态', width: 100, slots: { default: 'serviceStatus' } },
-      { 
-        field: 'connectionCount', 
-        title: '当前连接', 
-        width: 100,
-        align: 'right'
-      },
-      { 
-        field: 'totalConnections', 
-        title: '总连接数', 
-        width: 100,
-        align: 'right'
-      },
-      { 
-        field: 'registeredTime', 
-        title: '注册时间', 
-        width: 160,
-        sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) => formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss')
-      },
-      { 
-        field: 'lastActiveTime', 
-        title: '最后活动', 
-        width: 160,
-        sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) => formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss')
-      },
-      { field: 'activeFlag', title: '状态', width: 80, slots: { default: 'activeFlag' } }
+      { key: 'create', label: '新增服务', type: 'primary', icon: 'AddOutline', tooltip: '新增隧道服务' },
     ],
-    showCheckbox: true,
-    paginationConfig: {
-      show: true,
-      pageInfo: pageInfo as any,
-      align: 'right',
-    },
-    menuConfig: {
-      enabled: true,
-      showCopyRow: true,
-      showCopyCell: true,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: () => h(NIcon, { size: 14 }, { default: () => h(EyeOutline) })
-        },
-        {
-          code: 'register',
-          name: '注册服务',
-          prefixIcon: () => h(NIcon, { size: 14 }, { default: () => h(CloudUploadOutline) })
-        },
-        {
-          code: 'unregister',
-          name: '注销服务',
-          prefixIcon: () => h(NIcon, { size: 14 }, { default: () => h(StopOutline) })
-        },
-        {
-          code: 'edit',
-          name: '编辑',
-          prefixIcon: 'vxe-icon-edit'
-        },
-        {
-          code: 'delete',
-          name: '删除',
-          prefixIcon: 'vxe-icon-delete'
-        }
-      ]
-    }
+    showSearchButton: true,
+    showResetButton: true,
   }
 
-  // 表单字段配置
-  const formFields: DataFormField[] = [
-    // 基础信息
+  const formTabs = [
+    { key: 'basic', label: '基础信息' },
+    { key: 'address', label: '地址配置' },
+    { key: 'advanced', label: '高级配置' },
+  ]
+
+  const formFields: RsDataFormField[] = [
     {
       field: 'serviceName',
       label: '服务名称',
@@ -197,11 +161,9 @@ export function useTunnelServiceModel() {
       required: true,
       tabKey: 'basic',
       span: 12,
-      props: {
-        placeholder: '请输入服务名称',
-        maxlength: 100
-      },
-      tips: '服务的唯一标识名称'
+      placeholder: '请输入服务名称',
+      props: { maxlength: 100 },
+      tips: '服务的唯一标识名称',
     },
     {
       field: 'serviceDescription',
@@ -209,12 +171,9 @@ export function useTunnelServiceModel() {
       type: 'textarea',
       tabKey: 'basic',
       span: 24,
-      props: {
-        placeholder: '请输入服务描述',
-        rows: 3,
-        maxlength: 500
-      },
-      tips: '服务的详细说明'
+      placeholder: '请输入服务描述',
+      props: { rows: 3, maxlength: 500 },
+      tips: '服务的详细说明',
     },
     {
       field: 'tunnelClientId',
@@ -223,15 +182,15 @@ export function useTunnelServiceModel() {
       required: true,
       tabKey: 'basic',
       span: 12,
-      render: (formData: Record<string, any>) => {
+      render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
         return h(TunnelClientSelector, {
-          modelValue: formData.tunnelClientId || '',
+          modelValue: (ctx?.value as string) || formData.tunnelClientId || '',
           'onUpdate:modelValue': (value: string) => {
-            formData.tunnelClientId = value
-          }
+            ctx?.onUpdate(value)
+          },
         })
       },
-      tips: '服务所属的隧道客户端ID'
+      tips: '服务所属的隧道客户端ID',
     },
     {
       field: 'serviceType',
@@ -240,14 +199,10 @@ export function useTunnelServiceModel() {
       required: true,
       tabKey: 'basic',
       span: 12,
-      props: {
-        placeholder: '请选择服务类型',
-        options: SERVICE_TYPE_OPTIONS
-      },
-      tips: '服务的协议类型'
+      placeholder: '请选择服务类型',
+      options: SERVICE_TYPE_OPTIONS,
+      tips: '服务的协议类型',
     },
-    
-    // 地址配置
     {
       field: 'localAddress',
       label: '本地地址',
@@ -255,11 +210,9 @@ export function useTunnelServiceModel() {
       required: true,
       tabKey: 'address',
       span: 12,
-      props: {
-        placeholder: '例如: 127.0.0.1',
-        maxlength: 100
-      },
-      tips: '本地服务的IP地址'
+      placeholder: '例如: 127.0.0.1',
+      props: { maxlength: 100 },
+      tips: '本地服务的IP地址',
     },
     {
       field: 'localPort',
@@ -268,12 +221,9 @@ export function useTunnelServiceModel() {
       required: true,
       tabKey: 'address',
       span: 12,
-      props: {
-        placeholder: '请输入本地端口',
-        min: 1,
-        max: 65535
-      },
-      tips: '本地服务的端口号 (1-65535)'
+      placeholder: '请输入本地端口',
+      props: { min: 1, max: 65535 },
+      tips: '本地服务的端口号 (1-65535)',
     },
     {
       field: 'remotePort',
@@ -281,12 +231,9 @@ export function useTunnelServiceModel() {
       type: 'number',
       tabKey: 'address',
       span: 12,
-      props: {
-        placeholder: '服务器分配的远程端口',
-        min: 1,
-        max: 65535
-      },
-      tips: '服务器端暴露的端口号，留空则由服务器自动分配'
+      placeholder: '服务器分配的远程端口',
+      props: { min: 1, max: 65535 },
+      tips: '服务器端暴露的端口号，留空则由服务器自动分配',
     },
     {
       field: 'subDomain',
@@ -294,11 +241,9 @@ export function useTunnelServiceModel() {
       type: 'input',
       tabKey: 'address',
       span: 12,
-      props: {
-        placeholder: '例如: myapp',
-        maxlength: 100
-      },
-      tips: 'HTTP/HTTPS服务的子域名'
+      placeholder: '例如: myapp',
+      props: { maxlength: 100 },
+      tips: 'HTTP/HTTPS服务的子域名',
     },
     {
       field: 'customDomains',
@@ -306,24 +251,18 @@ export function useTunnelServiceModel() {
       type: 'textarea',
       tabKey: 'address',
       span: 24,
-      props: {
-        placeholder: '多个域名用逗号分隔',
-        rows: 2
-      },
-      tips: 'HTTP/HTTPS服务的自定义域名列表'
+      placeholder: '多个域名用逗号分隔',
+      props: { rows: 2 },
+      tips: 'HTTP/HTTPS服务的自定义域名列表',
     },
-    
-    // 高级配置
     {
       field: 'useEncryption',
       label: '启用加密',
       type: 'select',
       tabKey: 'advanced',
       span: 12,
-      props: {
-        options: YES_NO_OPTIONS
-      },
-      tips: '是否对传输数据进行加密'
+      options: YES_NO_OPTIONS,
+      tips: '是否对传输数据进行加密',
     },
     {
       field: 'useCompression',
@@ -331,10 +270,8 @@ export function useTunnelServiceModel() {
       type: 'select',
       tabKey: 'advanced',
       span: 12,
-      props: {
-        options: YES_NO_OPTIONS
-      },
-      tips: '是否对传输数据进行压缩'
+      options: YES_NO_OPTIONS,
+      tips: '是否对传输数据进行压缩',
     },
     {
       field: 'secretKey',
@@ -342,12 +279,9 @@ export function useTunnelServiceModel() {
       type: 'input',
       tabKey: 'advanced',
       span: 24,
-      props: {
-        placeholder: '请输入加密密钥',
-        type: 'password',
-        maxlength: 100
-      },
-      tips: '用于加密的密钥，启用加密时必填'
+      placeholder: '请输入加密密钥',
+      props: { type: 'password', maxlength: 100 },
+      tips: '用于加密的密钥，启用加密时必填',
     },
     {
       field: 'maxConnections',
@@ -355,11 +289,9 @@ export function useTunnelServiceModel() {
       type: 'number',
       tabKey: 'advanced',
       span: 12,
-      props: {
-        placeholder: '0表示不限制',
-        min: 0
-      },
-      tips: '服务允许的最大并发连接数'
+      placeholder: '0表示不限制',
+      props: { min: 0 },
+      tips: '服务允许的最大并发连接数',
     },
     {
       field: 'bandwidthLimit',
@@ -367,11 +299,9 @@ export function useTunnelServiceModel() {
       type: 'input',
       tabKey: 'advanced',
       span: 12,
-      props: {
-        placeholder: '例如: 1MB, 100KB',
-        maxlength: 50
-      },
-      tips: '服务的带宽限制，如: 1MB, 100KB'
+      placeholder: '例如: 1MB, 100KB',
+      props: { maxlength: 50 },
+      tips: '服务的带宽限制，如: 1MB, 100KB',
     },
     {
       field: 'httpUser',
@@ -379,11 +309,9 @@ export function useTunnelServiceModel() {
       type: 'input',
       tabKey: 'advanced',
       span: 12,
-      props: {
-        placeholder: 'HTTP基础认证用户名',
-        maxlength: 100
-      },
-      tips: 'HTTP/HTTPS服务的基础认证用户名'
+      placeholder: 'HTTP基础认证用户名',
+      props: { maxlength: 100 },
+      tips: 'HTTP/HTTPS服务的基础认证用户名',
     },
     {
       field: 'httpPassword',
@@ -391,12 +319,9 @@ export function useTunnelServiceModel() {
       type: 'input',
       tabKey: 'advanced',
       span: 12,
-      props: {
-        placeholder: 'HTTP基础认证密码',
-        type: 'password',
-        maxlength: 100
-      },
-      tips: 'HTTP/HTTPS服务的基础认证密码'
+      placeholder: 'HTTP基础认证密码',
+      props: { type: 'password', maxlength: 100 },
+      tips: 'HTTP/HTTPS服务的基础认证密码',
     },
     {
       field: 'hostHeaderRewrite',
@@ -404,11 +329,9 @@ export function useTunnelServiceModel() {
       type: 'input',
       tabKey: 'advanced',
       span: 12,
-      props: {
-        placeholder: '例如: example.com',
-        maxlength: 200
-      },
-      tips: 'HTTP/HTTPS服务的Host头重写'
+      placeholder: '例如: example.com',
+      props: { maxlength: 200 },
+      tips: 'HTTP/HTTPS服务的Host头重写',
     },
     {
       field: 'healthCheckType',
@@ -416,14 +339,12 @@ export function useTunnelServiceModel() {
       type: 'select',
       tabKey: 'advanced',
       span: 12,
-      props: {
-        placeholder: '请选择健康检查类型',
-        options: [
-          { label: 'TCP', value: 'tcp' },
-          { label: 'HTTP', value: 'http' }
-        ]
-      },
-      tips: '服务的健康检查方式'
+      placeholder: '请选择健康检查类型',
+      options: [
+        { label: 'TCP', value: 'tcp' },
+        { label: 'HTTP', value: 'http' },
+      ],
+      tips: '服务的健康检查方式',
     },
     {
       field: 'healthCheckUrl',
@@ -431,11 +352,9 @@ export function useTunnelServiceModel() {
       type: 'input',
       tabKey: 'advanced',
       span: 12,
-      props: {
-        placeholder: '例如: /health',
-        maxlength: 200
-      },
-      tips: 'HTTP健康检查的URL路径'
+      placeholder: '例如: /health',
+      props: { maxlength: 200 },
+      tips: 'HTTP健康检查的URL路径',
     },
     {
       field: 'activeFlag',
@@ -444,10 +363,8 @@ export function useTunnelServiceModel() {
       tabKey: 'basic',
       span: 12,
       defaultValue: 'Y',
-      props: {
-        options: ACTIVE_FLAG_OPTIONS
-      },
-      tips: '服务是否激活'
+      options: ACTIVE_FLAG_OPTIONS,
+      tips: '服务是否激活',
     },
     {
       field: 'noteText',
@@ -455,51 +372,124 @@ export function useTunnelServiceModel() {
       type: 'textarea',
       tabKey: 'basic',
       span: 24,
-      props: {
-        placeholder: '请输入备注信息',
-        rows: 3,
-        maxlength: 500
+      placeholder: '请输入备注信息',
+      props: { rows: 3, maxlength: 500 },
+      tips: '服务的备注说明',
+    },
+  ]
+
+  /** 表格配置（符合 RsGrid Props 结构，排除响应式数据） */
+  const gridConfig: TunnelServiceGridConfig = {
+    columns: [
+      { key: 'tunnelServiceId', title: '服务ID', width: 200, ellipsis: true },
+      { key: 'serviceName', title: '服务名称', width: 150, ellipsis: true, sortable: true },
+      { key: 'tunnelClientId', title: '客户端ID', width: 200, ellipsis: true },
+      {
+        key: 'serviceType',
+        title: '服务类型',
+        width: 100,
+        align: 'center',
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: getServiceTypeVariant(row.serviceType), size: 'sm' },
+            () => getServiceTypeLabel(row.serviceType),
+          ),
       },
-      tips: '服务的备注说明'
-    }
-  ]
+      {
+        key: 'localAddress',
+        title: '本地地址',
+        width: 180,
+        ellipsis: true,
+        formatter: (_value, row) => `${row.localAddress}:${row.localPort}`,
+      },
+      { key: 'remotePort', title: '远程端口', width: 100 },
+      { key: 'subDomain', title: '子域名', width: 150, ellipsis: true },
+      {
+        key: 'serviceStatus',
+        title: '服务状态',
+        width: 100,
+        align: 'center',
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: getServiceStatusVariant(row.serviceStatus), size: 'sm' },
+            () => getServiceStatusLabel(row.serviceStatus),
+          ),
+      },
+      { key: 'connectionCount', title: '当前连接', width: 100, align: 'right' },
+      { key: 'totalConnections', title: '总连接数', width: 100, align: 'right' },
+      {
+        key: 'registeredTime',
+        title: '注册时间',
+        width: 160,
+        sortable: true,
+        ellipsis: true,
+        formatter: (value) => (value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : ''),
+      },
+      {
+        key: 'lastActiveTime',
+        title: '最后活动',
+        width: 160,
+        sortable: true,
+        ellipsis: true,
+        formatter: (value) => (value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : ''),
+      },
+      {
+        key: 'activeFlag',
+        title: '状态',
+        width: 80,
+        align: 'center',
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.activeFlag === 'Y' ? 'success' : 'default', size: 'sm' },
+            () => (row.activeFlag === 'Y' ? '启用' : '禁用'),
+          ),
+      },
+    ],
+    selectable: true,
+    rowKey: (row) => `${row.tunnelServiceId}::${row.tenantId}`,
+    paginationConfig: {
+      show: true,
+      pageInfo: pageInfo as any,
+      align: 'right',
+    },
+    menuConfig: {
+      enabled: true,
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'register', label: '注册服务', icon: 'upload' },
+        { key: 'unregister', label: '注销服务', icon: 'circle-stop' },
+        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
+      ],
+    },
+    height: '100%',
+  }
 
-  // 表单标签页
-  const formTabs = [
-    { key: 'basic', label: '基础信息' },
-    { key: 'address', label: '地址配置' },
-    { key: 'advanced', label: '高级配置' }
-  ]
-
-  // 获取服务类型标签
+  /**
+   * 获取服务类型标签
+   */
   const getServiceTypeLabel = (type: string): string => {
-    const option = SERVICE_TYPE_OPTIONS.find(opt => opt.value === type)
+    const option = SERVICE_TYPE_OPTIONS.find((opt) => opt.value === type)
     return option?.label || type.toUpperCase()
   }
 
-  // 获取服务状态标签
+  /**
+   * 获取服务状态标签
+   */
   const getServiceStatusLabel = (status: string): string => {
-    const option = SERVICE_STATUS_OPTIONS.find(opt => opt.value === status)
+    const option = SERVICE_STATUS_OPTIONS.find((opt) => opt.value === status)
     return option?.label || status
   }
 
-  // 获取服务状态标签类型
-  const getServiceStatusTagType = (status: string): 'success' | 'warning' | 'error' | 'default' => {
-    switch (status) {
-      case 'active':
-        return 'success'
-      case 'inactive':
-        return 'warning'
-      case 'error':
-        return 'error'
-      case 'offline':
-        return 'default'
-      default:
-        return 'default'
-    }
+  /**
+   * 获取服务状态标签类型
+   */
+  const getServiceStatusTagType = (status: string): RsTagVariant => {
+    return getServiceStatusVariant(status)
   }
-
-  // ============= 辅助方法 =============
 
   /**
    * 重置分页
@@ -546,10 +536,10 @@ export function useTunnelServiceModel() {
   const updateServiceInList = (
     tunnelServiceId: string,
     tenantId: string,
-    updatedService: Partial<TunnelService>
+    updatedService: Partial<TunnelService>,
   ) => {
     const index = serviceList.value.findIndex(
-      (s) => s.tunnelServiceId === tunnelServiceId && s.tenantId === tenantId
+      (s) => s.tunnelServiceId === tunnelServiceId && s.tenantId === tenantId,
     )
     if (index !== -1) {
       Object.assign(serviceList.value[index], updatedService)
@@ -561,7 +551,7 @@ export function useTunnelServiceModel() {
    */
   const removeServiceFromList = (tunnelServiceId: string, tenantId: string) => {
     const index = serviceList.value.findIndex(
-      (s) => s.tunnelServiceId === tunnelServiceId && s.tenantId === tenantId
+      (s) => s.tunnelServiceId === tunnelServiceId && s.tenantId === tenantId,
     )
     if (index !== -1) {
       serviceList.value.splice(index, 1)
@@ -569,21 +559,14 @@ export function useTunnelServiceModel() {
   }
 
   return {
-    // 基本信息
     moduleId,
-
-    // 数据状态
     loading,
     serviceList,
     pageInfo,
-
-    // 配置
     searchFormConfig,
     formTabs,
     formFields,
     gridConfig,
-
-    // 方法
     resetPagination,
     updatePagination,
     setServiceList,
@@ -593,7 +576,7 @@ export function useTunnelServiceModel() {
     removeServiceFromList,
     getServiceTypeLabel,
     getServiceStatusLabel,
-    getServiceStatusTagType
+    getServiceStatusTagType,
   }
 }
 
@@ -601,4 +584,3 @@ export function useTunnelServiceModel() {
  * Model 返回类型
  */
 export type TunnelServiceModel = ReturnType<typeof useTunnelServiceModel>
-

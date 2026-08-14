@@ -2,6 +2,7 @@
   <div class="rs-data-form">
     <RsForm
       ref="formRef"
+      :model="formModel"
       :rules="formRules"
       :label-position="rsLabelPosition"
       :label-align="rsLabelAlign"
@@ -37,6 +38,7 @@
           <RsDataFormFields
             :fields="getFieldsByTab(tab.key)"
             :form-model="formModel"
+            :set-field-value="setFieldValue"
             :mode="mode"
             :label-width="labelWidth"
             :label-placement="labelPlacement"
@@ -54,6 +56,7 @@
         v-else
         :fields="formFields"
         :form-model="formModel"
+        :set-field-value="setFieldValue"
         :mode="mode"
         :label-width="labelWidth"
         :label-placement="labelPlacement"
@@ -92,11 +95,14 @@ import {
   RsButton,
   RsForm,
   RsTabs,
+  type RsFormNamePath,
   type RsFormRules,
   type RsFormValidationResult,
 } from '@/ui'
+import { formatDate } from '@/utils/format'
 import { computed, ref, watch } from 'vue'
 import RsDataFormFields from './RsDataFormFields.vue'
+import { getByNamePath, readInitialField, seedNamedObjects, setByNamePath, toRfc3339SubmitValue } from './form-model'
 import type {
   RsDataFormEmits,
   RsDataFormExpose,
@@ -223,27 +229,26 @@ const getFieldsByTab = (tabKey: string): RsDataFormField[] => {
 const getFieldLabel = (field: RsDataFormField): string =>
   typeof field.label === 'function' ? field.label(formModel.value) : field.label
 
-/** 将 ISO / 其它可解析日期规范为 RsDatePicker 的 string 格式 */
+/** 将 ISO / 其它可解析日期交给 DatePicker：RFC3339 原样保留（valueFormat=iso），墙钟字符串原样保留 */
 const normalizeDateInput = (value: unknown, withTime: boolean): string => {
   if (value == null || value === '') return ''
-  if (typeof value === 'number') {
-    const d = new Date(value)
-    if (Number.isNaN(d.getTime())) return ''
-    return formatLocalDate(d, withTime)
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) return trimmed
+    if (/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?$/.test(trimmed)) return trimmed
+    return formatDate(value, withTime ? 'YYYY-MM-DD HH:mm:ss' : 'YYYY-MM-DD')
   }
-  if (typeof value !== 'string') return ''
-  // 已是 YYYY-MM-DD[ HH:mm:ss] 则原样返回
-  if (/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?$/.test(value)) return value
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return value
-  return formatLocalDate(d, withTime)
+  if (typeof value === 'number') {
+    return formatDate(value, withTime ? 'YYYY-MM-DD HH:mm:ss' : 'YYYY-MM-DD')
+  }
+  return ''
 }
 
-const formatLocalDate = (d: Date, withTime: boolean) => {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-  if (!withTime) return date
-  return `${date} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+/** select 在表单模型中保持 options 原始类型；RsSelect 只在控件边界转 string */
+const coerceSelectModelValue = (field: RsDataFormField, value: unknown): unknown => {
+  if (value === '' || value == null) return value
+  const matched = field.options?.find((opt) => String(opt.value) === String(value))
+  return matched ? matched.value : value
 }
 
 const processFieldDefaultValue = (
@@ -257,11 +262,11 @@ const processFieldDefaultValue = (
   }
 
   const key = field.field
-  if (Object.prototype.hasOwnProperty.call(initialData, key) && initialData[key] !== undefined) {
-    let value = initialData[key]
-    // select 与 RsSelect 对齐：内部展示用 string，提交时再还原类型
-    if (field.type === 'select' && value !== null && value !== '') {
-      value = String(value)
+  const initial = readInitialField(initialData, key)
+  if (initial.found && initial.value !== undefined) {
+    let value: unknown = initial.value
+    if (field.type === 'select') {
+      value = coerceSelectModelValue(field, value)
     }
     if (field.type === 'date' || field.type === 'datetime') {
       value =
@@ -285,41 +290,44 @@ const processFieldDefaultValue = (
         }
       }
     }
-    model[key] = value
+    setByNamePath(model, key, value)
     return
   }
 
   if (Object.prototype.hasOwnProperty.call(field, 'defaultValue')) {
-    model[key] =
-      field.type === 'select' && field.defaultValue != null
-        ? String(field.defaultValue)
-        : field.defaultValue
+    setByNamePath(
+      model,
+      key,
+      field.type === 'select'
+        ? coerceSelectModelValue(field, field.defaultValue)
+        : field.defaultValue,
+    )
     return
   }
 
   switch (field.type) {
     case 'date':
     case 'datetime':
-      model[key] = ''
+      setByNamePath(model, key, '')
       break
     case 'daterange':
     case 'datetimerange':
-      model[key] = { start: '', end: '' }
+      setByNamePath(model, key, { start: '', end: '' })
       break
     case 'number':
-      model[key] = null
+      setByNamePath(model, key, null)
       break
     case 'switch':
-      model[key] = field.props?.uncheckedValue ?? false
+      setByNamePath(model, key, field.props?.uncheckedValue ?? false)
       break
     case 'file':
-      model[key] = []
+      setByNamePath(model, key, [])
       break
     case 'select':
-      model[key] = ''
+      setByNamePath(model, key, '')
       break
     default:
-      model[key] = ''
+      setByNamePath(model, key, '')
   }
 }
 
@@ -354,11 +362,13 @@ const initFormModel = () => {
     : {}
 
   collectFileFieldKeys(props.formFields).forEach((key) => {
-    if (Object.prototype.hasOwnProperty.call(rawInitial, key)) {
-      initialData[key] = rawInitial[key]
+    const fromRaw = readInitialField(rawInitial, key)
+    if (fromRaw.found) {
+      setByNamePath(initialData, key, fromRaw.value)
     }
   })
 
+  seedNamedObjects(model, initialData)
   props.formFields.forEach((field) => processFieldDefaultValue(field, model, initialData))
   if (props.injectMode) {
     model._mode = props.mode
@@ -405,6 +415,7 @@ const processFieldRules = (field: RsDataFormField, rules: RsFormRules) => {
     'daterange',
     'datetimerange',
     'switch',
+    'custom',
   ])
   const prefix = pickTypes.has(field.type || '') ? '请选择' : '请输入'
   rules[field.field] = {
@@ -419,7 +430,7 @@ const formRules = computed<RsFormRules>(() => {
   return rules
 })
 
-/** 提交前把 select 的 string 还原为 options 原始类型 */
+/** 提交前还原 select 类型，并把 date/datetime 转为 RFC3339（Go time.Time） */
 const normalizeSubmitData = (data: Record<string, any>) => {
   const result = { ...data }
   const walk = (fields: RsDataFormField[]) => {
@@ -429,22 +440,51 @@ const normalizeSubmitData = (data: Record<string, any>) => {
         return
       }
       if (field.type === 'select') {
-        const raw = result[field.field]
+        const raw = getByNamePath(result, field.field)
         if (raw === '' || raw == null) return
         const matched = field.options?.find((opt) => String(opt.value) === String(raw))
-        if (matched) result[field.field] = matched.value
+        if (matched) setByNamePath(result, field.field, matched.value)
+        return
+      }
+      if (field.type === 'date' || field.type === 'datetime') {
+        setByNamePath(
+          result,
+          field.field,
+          toRfc3339SubmitValue(getByNamePath(result, field.field), field.type === 'datetime'),
+        )
+        return
+      }
+      if (field.type === 'daterange' || field.type === 'datetimerange') {
+        const raw = getByNamePath(result, field.field) as { start?: unknown; end?: unknown } | unknown[]
+        const withTime = field.type === 'datetimerange'
+        if (Array.isArray(raw)) {
+          setByNamePath(result, field.field, {
+            start: toRfc3339SubmitValue(raw[0], withTime),
+            end: toRfc3339SubmitValue(raw[1], withTime),
+          })
+          return
+        }
+        if (raw && typeof raw === 'object') {
+          setByNamePath(result, field.field, {
+            start: toRfc3339SubmitValue((raw as { start?: unknown }).start, withTime),
+            end: toRfc3339SubmitValue((raw as { end?: unknown }).end, withTime),
+          })
+        }
       }
     })
   }
   walk(props.formFields)
-  delete result._mode
+  Object.keys(result).forEach((key) => {
+    if (key.startsWith('_')) delete result[key]
+  })
   return result
 }
 
 const handleFieldValueUpdate = (field: RsDataFormField, value: any) => {
-  formModel.value[field.field] = value
+  const next = field.type === 'select' ? coerceSelectModelValue(field, value) : value
+  setByNamePath(formModel.value, field.field, next)
   if (typeof field.props?.onUpdateValue === 'function') {
-    field.props.onUpdateValue(value, formModel.value)
+    field.props.onUpdateValue(next, formModel.value)
   }
   emit('update:modelValue', { ...formModel.value })
 }
@@ -455,12 +495,36 @@ const handleSubmit = async () => {
   emit('submit', normalizeSubmitData(formModel.value))
 }
 
+/**
+ * 仅在 mode 或 initialData「内容」变化时重置表单。
+ * 业务侧常见 :initial-data="getXxx()" / 每次渲染 new 对象，再叠加 confirmLoading
+ * 重渲染时，旧的 deep watch 会把用户正在编辑的值刷回旧 initialData（保存闪回）。
+ * File 无法稳定序列化，签名里忽略；文件字段仍由 initFormModel 从原始引用回填。
+ */
+const initialDataSignature = (data: Record<string, any> | undefined): string => {
+  try {
+    return JSON.stringify(data ?? {}, (_key, value) => {
+      if (value instanceof File) return undefined
+      if (Array.isArray(value) && value.some((item) => item instanceof File)) {
+        return value.map((item) => (item instanceof File ? { name: item.name, size: item.size } : item))
+      }
+      return value
+    })
+  } catch {
+    return ''
+  }
+}
+
+const lastInitSignature = ref('')
+
 watch(
-  () => [props.initialData, props.mode] as const,
-  () => {
+  () => `${props.mode}::${initialDataSignature(props.initialData)}`,
+  (signature) => {
+    if (signature === lastInitSignature.value) return
+    lastInitSignature.value = signature
     initFormModel()
   },
-  { deep: true, immediate: true },
+  { immediate: true },
 )
 
 const validate = async (): Promise<boolean> => {
@@ -483,11 +547,37 @@ const setFormData = (data: Record<string, any>) => {
   emit('update:modelValue', { ...formModel.value })
 }
 
+const getFieldValue = (name: RsFormNamePath): unknown => getByNamePath(formModel.value, name)
+
+const setFieldValue = (name: RsFormNamePath, value: unknown): void => {
+  setByNamePath(formModel.value, name, value)
+  emit('update:modelValue', { ...formModel.value })
+}
+
+const getFieldsValue = (): Record<string, any> => {
+  const result = { ...formModel.value }
+  Object.keys(result).forEach((key) => {
+    if (key.startsWith('_')) delete result[key]
+  })
+  return result
+}
+
+const setFieldsValue = (values: Record<string, unknown>): void => {
+  Object.entries(values).forEach(([name, value]) => {
+    setByNamePath(formModel.value, name, value)
+  })
+  emit('update:modelValue', { ...formModel.value })
+}
+
 defineExpose<RsDataFormExpose>({
   validate,
   reset,
   getFormData,
   setFormData,
+  getFieldValue,
+  setFieldValue,
+  getFieldsValue,
+  setFieldsValue,
   formRef,
 })
 </script>

@@ -4,8 +4,8 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
+import { useAppMessage } from '@/composables/useAppMessage'
 import { rsConfirm } from '@/ui'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import type { Namespace } from '../types'
@@ -18,8 +18,8 @@ import { useNamespaceService } from './useNamespaceService'
  * @param moduleId 自定义模块ID，用于支持同一页面多个实例（默认 'hub0041'）
  */
 export function useNamespacePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any, moduleId?: string) {
-  const message = useMessage()
-// 业务服务（包含 model、增删改查等）
+  const message = useAppMessage()
+  // 业务服务（包含 model、增删改查等）
   const service = useNamespaceService(searchFormRef, moduleId)
 
   // 表单对话框状态（新增/编辑/查看共用）
@@ -118,26 +118,36 @@ export function useNamespacePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<a
       case 'add':
         openAddDialog()
         break
-      case 'edit':
-        const selectedRows = gridRef?.value?.getCheckboxRecords() || []
+      case 'edit': {
+        if (!gridRef?.value) {
+          message.warning('Grid 引用未设置')
+          return
+        }
+        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        if (!selectedRow) {
+          message.warning('请先选择或点击要编辑的命名空间')
+          return
+        }
+        openEditDialog(selectedRow)
+        break
+      }
+      case 'delete': {
+        if (!gridRef?.value) {
+          message.warning('Grid 引用未设置')
+          return
+        }
+        const selectedRows = gridRef.value.getActiveRows?.() || []
         if (selectedRows.length === 0) {
-          message.warning('请先选择要编辑的命名空间')
+          message.warning('请先选择或点击要删除的命名空间')
           return
         }
-        if (selectedRows.length > 1) {
-          message.warning('只能编辑一个命名空间')
+        if (selectedRows.length === 1) {
+          service.deleteNamespace(selectedRows[0])
           return
         }
-        openEditDialog(selectedRows[0])
+        handleBatchDelete(selectedRows)
         break
-      case 'delete':
-        const deleteRows = gridRef?.value?.getCheckboxRecords() || []
-        if (deleteRows.length === 0) {
-          message.warning('请先选择要删除的命名空间')
-          return
-        }
-        handleBatchDelete(deleteRows)
-        break
+      }
     }
   }
 
@@ -160,7 +170,10 @@ export function useNamespacePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<a
 
     let successCount = 0
     for (const namespace of namespaces) {
-      const success = await service.deleteNamespace(namespace)
+      const success = await service.deleteNamespace(namespace, {
+        skipConfirm: true,
+        silentSuccess: true,
+      })
       if (success) {
         successCount++
       }
@@ -175,12 +188,12 @@ export function useNamespacePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<a
   /**
    * 处理表格右键菜单
    */
-  const handleMenuClick = async (params: { code: string; row?: any }) => {
+  const handleMenuClick = async (params: { key: string; row?: any }) => {
     if (!params.row) {
       return
     }
     const row = params.row as Namespace
-    switch (params.code) {
+    switch (params.key) {
       case 'view':
         await openViewDialog(row)
         break
@@ -195,14 +208,14 @@ export function useNamespacePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<a
   }
 
   /**
-   * 搜索处理
+   * 处理搜索（接收 RsSearchForm 传递的表单数据）
    */
-  const handleSearch = () => {
-    service.handleSearch()
+  const handleSearch = (formData?: Record<string, any>) => {
+    service.handleSearch(formData)
   }
 
   /**
-   * 表单提交处理（适配 GdataFormModal 的提交格式）
+   * 表单提交处理（适配 RsDataFormModal 的提交格式）
    */
   const handleFormSubmit = (formData?: Record<string, any>) => {
     if (formData) {

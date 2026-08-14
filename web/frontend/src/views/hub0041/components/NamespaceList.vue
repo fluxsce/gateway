@@ -1,42 +1,46 @@
 <template>
   <div class="namespace-list" id="namespace-list">
-    <GPane direction="vertical" default-size="80px">
-      <!-- 上部：搜索表单 -->
-      <template #1>
-        <search-form
-          ref="searchFormRef"
-          :module-id="effectiveModuleId"
-          :fields="namespaceService.model.searchFormConfig.fields"
-          :show-search-button="true"
-          :show-reset-button="true"
-          @search="handleSearch"
-        />
+    <RsSplitPane
+      class="namespace-list__split"
+      orientation="vertical"
+      :panes="splitPanes"
+      disabled
+    >
+      <template #search>
+        <div class="namespace-list__search">
+          <RsSearchForm
+            ref="searchFormRef"
+            :module-id="effectiveModuleId"
+            :fields="namespaceService.model.searchFormConfig.fields"
+            :show-search-button="true"
+            :show-reset-button="true"
+            @search="handleSearch"
+          />
+        </div>
       </template>
 
-      <!-- 下部：数据表格 -->
-      <template #2>
-        <g-grid
-          ref="gridRef"
-          :module-id="effectiveModuleId"
-          :data="namespaceService.model.namespaceList"
-          :loading="namespaceService.model.loading"
-          v-bind="readonlyGridConfig"
-          @page-change="namespaceService.handlePageChange"
-          @menu-click="handleMenuClick"
-          @row-click="handleRowClick"
-        >
-          <!-- 活动状态自定义渲染 -->
-          <template #activeFlag="{ row }">
-            <n-tag :type="row.activeFlag === 'Y' ? 'success' : 'default'" size="small">
-              {{ row.activeFlag === 'Y' ? '活动' : '非活动' }}
-            </n-tag>
-          </template>
-        </g-grid>
+      <template #grid>
+        <div class="namespace-list__grid">
+          <RsGrid
+            ref="gridRef"
+            :module-id="effectiveModuleId"
+            :data="namespaceService.model.namespaceList"
+            :loading="namespaceService.model.loading"
+            :columns="readonlyGridConfig.columns"
+            :selectable="readonlyGridConfig.selectable"
+            :row-key="readonlyGridConfig.rowKey"
+            height="100%"
+            :pagination-config="readonlyGridConfig.paginationConfig"
+            :menu-config="readonlyGridConfig.menuConfig"
+            @page-change="namespaceService.handlePageChange"
+            @menu-click="handleMenuClick"
+            @row-click="handleRowClick"
+          />
+        </div>
       </template>
-    </GPane>
+    </RsSplitPane>
 
-    <!-- 命名空间对话框（新增/编辑/查看共用） -->
-    <GdataFormModal
+    <RsDataFormModal
       v-if="showDialog"
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
@@ -53,22 +57,23 @@
 </template>
 
 <script lang="ts" setup>
-import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
-import SearchForm from '@/components/form/search/SearchForm.vue'
-import { GPane } from '@/components/gpane'
-import type { GridProps } from '@/components/grid'
-import { GGrid } from '@/components/grid'
-import { NTag } from 'naive-ui'
+import { RsDataFormModal } from '@/components/form/rs-data'
+import { RsSearchForm } from '@/components/form/rs-search'
+import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
+import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import { computed, onMounted, ref } from 'vue'
 import { useNamespacePage } from '../hooks'
+import type { NamespaceGridConfig } from '../hooks/model'
 import type { Namespace } from '../types'
 
-// 定义组件名称
 defineOptions({
-  name: 'NamespaceList'
+  name: 'NamespaceList',
 })
 
-// ============= Props =============
+const splitPanes: RsSplitPaneItem[] = [
+  { key: 'search', size: 'auto' },
+  { key: 'grid' },
+]
 
 interface Props {
   /** 是否显示对话框（默认 true） */
@@ -85,10 +90,7 @@ const props = withDefaults(defineProps<Props>(), {
   moduleId: 'hub0041',
 })
 
-// 计算有效的模块ID
 const effectiveModuleId = computed(() => props.moduleId)
-
-// ============= Emits =============
 
 interface Emits {
   /** 命名空间行点击事件 */
@@ -99,12 +101,8 @@ interface Emits {
 
 const emit = defineEmits<Emits>()
 
-// ============= Refs =============
-
 const searchFormRef = ref()
-const gridRef = ref()
-
-// ============= 页面级 Hook（包含服务与对话框、事件处理） =============
+const gridRef = ref<RsGridExpose | null>(null)
 
 const {
   service: namespaceService,
@@ -117,34 +115,23 @@ const {
   handleSearch,
 } = useNamespacePage(gridRef, searchFormRef, effectiveModuleId.value)
 
-// ============= 只读表格配置（移除编辑和删除菜单，只保留查看） =============
-
-const readonlyGridConfig = computed<Omit<GridProps, 'moduleId' | 'data' | 'loading'>>(() => {
+/** 只读表格：右键菜单仅保留查看 */
+const readonlyGridConfig = computed<NamespaceGridConfig>(() => {
   const baseConfig = namespaceService.model.gridConfig
   return {
     ...baseConfig,
     menuConfig: {
       enabled: true,
-      showCopyRow: baseConfig.menuConfig?.showCopyRow || false,
-      showCopyCell: baseConfig.menuConfig?.showCopyCell || false,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-      ],
+      items: [{ key: 'view', label: '查看详情', icon: 'eye' }],
     },
   }
 })
 
-// ============= 事件处理 =============
-
 /**
  * 菜单点击处理（只处理查看，编辑和删除已移除）
  */
-const handleMenuClick = (params: { code: string; row?: any }) => {
-  if (params.code === 'view' && params.row) {
+const handleMenuClick = (params: { key: string; row?: Namespace }) => {
+  if (params.key === 'view' && params.row) {
     handleMenuClickBase(params)
   }
 }
@@ -156,8 +143,6 @@ const handleRowClick = ({ row }: { row: Namespace }) => {
   emit('row-click', row)
   emit('namespace-select', row)
 }
-
-// ============= 暴露方法 =============
 
 /**
  * 刷新命名空间列表
@@ -177,7 +162,7 @@ const load = () => {
  * 获取选中的命名空间
  */
 const getSelectedNamespace = (): Namespace | null => {
-  const selectedRows = gridRef.value?.getCheckboxRecords() || []
+  const selectedRows = gridRef.value?.getSelectedRows() || []
   return selectedRows.length > 0 ? selectedRows[0] : null
 }
 
@@ -185,7 +170,7 @@ const getSelectedNamespace = (): Namespace | null => {
  * 获取当前行（点击的行）
  */
 const getCurrentNamespace = (): Namespace | null => {
-  return gridRef.value?.getCurrentRecord() || null
+  return gridRef.value?.getCurrentRow() || null
 }
 
 defineExpose({
@@ -196,20 +181,43 @@ defineExpose({
   namespaceService,
 })
 
-// ============= 生命周期 =============
-
 onMounted(() => {
   if (props.autoLoad) {
-    // 初始化加载数据
     namespaceService.loadNamespaces()
   }
 })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .namespace-list {
-  height: 100%;
+  box-sizing: border-box;
   width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.namespace-list__split {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.namespace-list__search {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.namespace-list__grid {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 </style>
-

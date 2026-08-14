@@ -3,12 +3,29 @@
  * 用于模板选择器组件
  */
 
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type {
+  RsGridColumn,
+  RsGridMenuConfig,
+  RsGridPaginationConfig,
+} from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
-import { ref } from 'vue'
+import { RsTag } from '@/ui'
+import { h, ref } from 'vue'
 import type { AlertTemplate, ChannelType, DisplayFormat } from '../../../types'
 import { ACTIVE_FLAG_OPTIONS, CHANNEL_TYPE_OPTIONS, DISPLAY_FORMAT_OPTIONS } from '../../../types'
+
+/**
+ * 模板选择表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface AlertTemplateListGridConfig {
+  columns: RsGridColumn<AlertTemplate>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
 
 export function useAlertTemplateListModel(channelType?: string) {
   const moduleId = `hub0081:alert-template-list${channelType ? `:${channelType}` : ''}`
@@ -17,10 +34,10 @@ export function useAlertTemplateListModel(channelType?: string) {
   const templateList = ref<AlertTemplate[]>([])
   const pageInfo = ref<PageInfoObj | undefined>()
 
-  const getChannelTypeLabel = (channelType?: ChannelType | string | null) => {
-    if (!channelType) return ''
-    const option = CHANNEL_TYPE_OPTIONS.find(opt => opt.value === channelType)
-    return option?.label || String(channelType)
+  const getChannelTypeLabel = (type?: ChannelType | string | null) => {
+    if (!type) return ''
+    const option = CHANNEL_TYPE_OPTIONS.find(opt => opt.value === type)
+    return option?.label || String(type)
   }
 
   const getDisplayFormatLabel = (format?: DisplayFormat | string | null) => {
@@ -29,8 +46,7 @@ export function useAlertTemplateListModel(channelType?: string) {
     return option?.label || String(format)
   }
 
-  // 搜索表单配置（简化版，只包含必要的搜索字段）
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'templateName',
@@ -58,26 +74,64 @@ export function useAlertTemplateListModel(channelType?: string) {
         span: 8,
         clearable: true,
         options: [{ label: '全部', value: '' }, ...ACTIVE_FLAG_OPTIONS.map(o => ({ label: o.label, value: o.value }))],
-        defaultValue: 'Y', // 默认只显示启用的模板
+        defaultValue: 'Y',
       },
     ],
     showSearchButton: true,
     showResetButton: true,
   }
 
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  const gridConfig: AlertTemplateListGridConfig = {
     columns: [
-      { field: 'templateName', title: '模板名称', align: 'center', showOverflow: 'tooltip', width: 180 },
-      { field: 'channelType', title: '渠道类型', align: 'center', width: 120, slots: { default: 'channelType' } },
-      { field: 'displayFormat', title: '显示格式', align: 'center', width: 120, slots: { default: 'displayFormat' } },
-      { field: 'activeFlag', title: '启用状态', align: 'center', width: 100, slots: { default: 'activeFlag' } },
-      { field: 'templateDesc', title: '模板描述', align: 'center', showOverflow: 'tooltip', width: 240 },
+      { key: 'templateName', title: '模板名称', align: 'center', ellipsis: true, width: 180 },
+      {
+        key: 'channelType',
+        title: '渠道类型',
+        align: 'center',
+        width: 120,
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: 'info', size: 'sm' },
+            () => getChannelTypeLabel(row.channelType) || '通用',
+          ),
+      },
+      {
+        key: 'displayFormat',
+        title: '显示格式',
+        align: 'center',
+        width: 120,
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.displayFormat === 'table' ? 'warning' : 'default', size: 'sm' },
+            () => getDisplayFormatLabel(row.displayFormat),
+          ),
+      },
+      {
+        key: 'activeFlag',
+        title: '启用状态',
+        align: 'center',
+        width: 100,
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.activeFlag === 'Y' ? 'success' : 'default', size: 'sm' },
+            () => (row.activeFlag === 'Y' ? '启用' : '禁用'),
+          ),
+      },
+      { key: 'templateDesc', title: '模板描述', align: 'center', ellipsis: true, width: 240 },
     ],
-    showCheckbox: false,
+    selectable: false,
+    rowKey: 'templateName',
+    height: '100%',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
       align: 'right',
+    },
+    menuConfig: {
+      enabled: false,
     },
   }
 
@@ -118,4 +172,3 @@ export function useAlertTemplateListModel(channelType?: string) {
 }
 
 export type AlertTemplateListModel = ReturnType<typeof useAlertTemplateListModel>
-

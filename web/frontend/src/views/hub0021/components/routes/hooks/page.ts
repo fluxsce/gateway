@@ -6,6 +6,8 @@
 
 import { getApiMessage, isApiSuccess } from '@/utils/format'
 import { useAppMessage } from '@/composables/useAppMessage'
+import { takeNamedObject, type RsDataFormRenderContext } from '@/components/form/rs-data'
+import { getByNamePath, setByNamePath } from '@/ui'
 import type { Ref } from 'vue'
 import { onMounted, ref } from 'vue'
 import { getRouteConfig } from '../../../api'
@@ -169,7 +171,7 @@ export function useRouteConfigPage(
       formData.allowedMethods = []
     }
 
-    // 处理 routeMetadata（参考 hub0022 的处理方式）
+    // 解析 routeMetadata 为嵌套对象（NamePath）
     // 安全解析 JSON 字符串
     const parseJson = (value: any): any => {
       if (typeof value === 'string' && value) {
@@ -182,41 +184,22 @@ export function useRouteConfigPage(
       return value
     }
 
-    // 解析 routeMetadata（JSON 字符串 -> 格式化的 JSON 字符串，用于 textarea 显示）
+    // 解析 routeMetadata 为嵌套对象，结构化字段走 NamePath；其它键随对象保留
     const routeMetadataObj = parseJson(route.routeMetadata)
-    if (routeMetadataObj && typeof routeMetadataObj === 'object') {
-      // textarea 需要字符串，所以格式化为 JSON 字符串（带缩进，方便编辑）
-      try {
-        formData.routeMetadata = JSON.stringify(routeMetadataObj, null, 2)
-      } catch {
-        formData.routeMetadata = '{}'
-      }
+    if (routeMetadataObj && typeof routeMetadataObj === 'object' && !Array.isArray(routeMetadataObj)) {
+      formData.routeMetadata = { ...routeMetadataObj }
     } else {
-      formData.routeMetadata = route.routeMetadata || '{}'
+      formData.routeMetadata = {}
     }
-
-    // 将 routeMetadata 中的多服务配置字段展开为点号分隔字段
-    // 直接使用 routeMetadata.xxx 格式，后端会处理
-    const multiServiceConfigFields = [
-      'responseMergeStrategy',
-      'maxConcurrentRequests',
-      'requireAllSuccess',
-      'overrideProxyTimeout',
-    ]
-    multiServiceConfigFields.forEach((key) => {
-      if (routeMetadataObj && typeof routeMetadataObj === 'object' && routeMetadataObj[key] !== undefined) {
-        formData[`routeMetadata.${key}`] = routeMetadataObj[key]
-      }
-    })
     // 历史路由未配置或非 Y 时默认关闭；仅 "Y" 开启覆盖
-    const overrideFlag = formData['routeMetadata.overrideProxyTimeout']
-    formData['routeMetadata.overrideProxyTimeout'] = overrideFlag === 'Y' ? 'Y' : 'N'
+    const overrideFlag = getByNamePath(formData, 'routeMetadata.overrideProxyTimeout')
+    setByNamePath(formData, 'routeMetadata.overrideProxyTimeout', overrideFlag === 'Y' ? 'Y' : 'N')
 
     return formData
   }
 
   /**
-   * 提交表单（新增/编辑共用，由 GdataFormModal 收集表单数据后回调）
+   * 提交表单（新增/编辑共用，由 RsDataFormModal 收集表单数据后回调）
    */
   const handleFormSubmit = async (formData?: Record<string, any>) => {
     if (!formData) return
@@ -257,34 +240,13 @@ export function useRouteConfigPage(
         gatewayInstanceId: gatewayInstanceId || formData.gatewayInstanceId,
       }
 
-      // 处理 routeMetadata：将点号分隔的 routeMetadata.xxx 字段合并到 routeMetadata 对象中
-      let routeMetadataObj: Record<string, any> = {}
-      if (processedData.routeMetadata) {
-        if (typeof processedData.routeMetadata === 'string') {
-          try {
-            routeMetadataObj = JSON.parse(processedData.routeMetadata)
-          } catch {
-            routeMetadataObj = {}
-          }
-        } else if (typeof processedData.routeMetadata === 'object') {
-          routeMetadataObj = { ...processedData.routeMetadata }
-        }
-      }
+      // 处理 routeMetadata：嵌套对象打包为 JSON 字符串
+      const routeMetadataObj = takeNamedObject(formData, 'routeMetadata')
 
-      // 收集所有以 routeMetadata. 开头的字段，合并到 routeMetadata 对象中
-      Object.keys(formData).forEach((key) => {
-        if (key.startsWith('routeMetadata.')) {
-          const subKey = key.replace('routeMetadata.', '')
-          routeMetadataObj[subKey] = formData[key]
-        }
-      })
-
-      // 准备提交数据
       const finalData: Partial<RouteConfig> = {
         ...processedData,
       }
 
-      // 删除所有以 routeMetadata. 开头的字段（不提交到后端，已合并到 routeMetadata 对象中）
       Object.keys(finalData).forEach((key) => {
         if (key.startsWith('routeMetadata.')) {
           delete finalData[key as keyof typeof finalData]
@@ -334,6 +296,7 @@ export function useRouteConfigPage(
 
   /**
    * 处理批量删除
+   * 使用 getActiveRows：优先勾选行，无勾选时回退当前高亮行
    */
   const handleBatchDelete = async () => {
     if (!validateInstanceSelected()) {
@@ -343,10 +306,9 @@ export function useRouteConfigPage(
       message.warning('Grid 引用未设置')
       return
     }
-    // 获取选中的记录
-    const selectedRecords = gridRef.value.getCheckboxRecords?.() || gridRef.value.getSelectRecords?.() || []
+    const selectedRecords = gridRef.value.getActiveRows?.() || []
     if (selectedRecords.length === 0) {
-      message.warning('请选择要删除的路由配置')
+      message.warning('请选择或点击要删除的路由配置')
       return
     }
     const routeConfigIds = selectedRecords.map((record: RouteConfig) => record.routeConfigId)
@@ -360,15 +322,11 @@ export function useRouteConfigPage(
     if (!validateInstanceSelected()) {
       return
     }
-    // 合并 gatewayInstanceId 到查询参数中
-    const searchParams = formData
-      ? {
-          ...formData,
-          ...(gatewayInstanceId ? { gatewayInstanceId } : {}),
-        }
-      : gatewayInstanceId
-        ? { gatewayInstanceId }
-        : undefined
+    // 合并 gatewayInstanceId 到查询参数中（validateInstanceSelected 已保证实例 ID 存在）
+    const searchParams = {
+      ...formData,
+      gatewayInstanceId,
+    }
     await serviceResult.handleSearch(searchParams)
   }
 
@@ -481,8 +439,9 @@ export function useRouteConfigPage(
       const originalRender = field.render
       return {
         ...field,
-        render: (formData: Record<string, any>) => {
+        render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
           return originalRender(formData, {
+            ...ctx,
             gatewayInstanceId: gatewayInstanceId || '',
           })
         },

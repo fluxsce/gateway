@@ -1,14 +1,27 @@
 /**
  * 网关实例列表查询 Model（仅查询功能）
- * 复用 hub0020 的 model，但移除工具栏按钮和右键菜单
+ * 复用 hub0020 的字段，但移除工具栏按钮和右键菜单
  */
 
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
+import { RsTag } from '@/ui'
 import { formatDate } from '@/utils/format'
 import type { GatewayInstance } from '@/views/hub0020/types'
-import { ref } from 'vue'
+import { h, ref } from 'vue'
+
+/**
+ * 网关实例列表表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface GatewayInstanceListGridConfig {
+  columns: RsGridColumn<GatewayInstance>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
 
 /**
  * 网关实例列表查询 Model（仅查询功能）
@@ -27,8 +40,8 @@ export function useGatewayInstanceListModel() {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构，移除工具栏按钮） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构，移除工具栏按钮） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'instanceName',
@@ -65,7 +78,6 @@ export function useGatewayInstanceListModel() {
         ],
       },
     ],
-    // 移除工具栏按钮，只保留查询和重置
     toolbarButtons: [],
     showSearchButton: true,
     showResetButton: true,
@@ -73,109 +85,131 @@ export function useGatewayInstanceListModel() {
 
   // ============= 表格配置 =============
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据，移除右键菜单） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置（符合 RsGrid 结构，排除响应式数据，移除右键菜单） */
+  const gridConfig: GatewayInstanceListGridConfig = {
     columns: [
       {
-        field: 'gatewayInstanceId',
+        key: 'gatewayInstanceId',
         title: '实例ID',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'instanceName',
+        key: 'instanceName',
         title: '实例名称',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'instanceDesc',
+        key: 'instanceDesc',
         title: '实例描述',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
       },
       {
-        field: 'bindAddress',
+        key: 'bindAddress',
         title: '绑定地址',
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'httpPort',
+        key: 'httpPort',
         title: 'HTTP端口',
         align: 'center',
       },
       {
-        field: 'httpsPort',
+        key: 'httpsPort',
         title: 'HTTPS端口',
         align: 'center',
       },
       {
-        field: 'tlsEnabled',
+        key: 'tlsEnabled',
         title: 'TLS',
         align: 'center',
-        slots: { default: 'tlsEnabled' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.tlsEnabled === 'Y' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.tlsEnabled === 'Y' ? '启用' : '禁用'),
+          ),
       },
       {
-        field: 'maxConnections',
+        key: 'maxConnections',
         title: '最大连接数',
         align: 'center',
-        formatter: ({ cellValue }) => {
-          return cellValue ? cellValue.toLocaleString() : '0'
-        },
+        formatter: (value) => (value ? Number(value).toLocaleString() : '0'),
       },
       {
-        field: 'healthStatus',
+        key: 'healthStatus',
         title: '健康状态',
         align: 'center',
-        slots: { default: 'healthStatus' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.healthStatus === 'Y' ? 'success' : 'danger',
+              size: 'sm',
+            },
+            () => (row.healthStatus === 'Y' ? '在线' : '离线'),
+          ),
       },
       {
-        field: 'activeFlag',
+        key: 'activeFlag',
         title: '活动状态',
         align: 'center',
-        slots: { default: 'activeFlag' },
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.activeFlag === 'Y' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.activeFlag === 'Y' ? '活动' : '非活动'),
+          ),
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
-        field: 'addWho',
+        key: 'addWho',
         title: '创建人',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'editTime',
+        key: 'editTime',
         title: '修改时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
-        field: 'editWho',
+        key: 'editWho',
         title: '修改人',
-        showOverflow: true,
+        ellipsis: true,
       },
     ],
-    showCheckbox: false, // 查询模式不需要复选框
+    selectable: false,
+    rowKey: 'gatewayInstanceId',
+    height: '100%',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
       align: 'right',
     },
-    // 移除右键菜单
     menuConfig: {
       enabled: false,
     },
-    height: '100%',
   }
 
   // ============= 辅助方法 =============
@@ -237,4 +271,3 @@ export function useGatewayInstanceListModel() {
  * Model 返回类型
  */
 export type GatewayInstanceListModel = ReturnType<typeof useGatewayInstanceListModel>
-

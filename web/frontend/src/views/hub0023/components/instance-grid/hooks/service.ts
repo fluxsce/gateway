@@ -6,7 +6,7 @@
 import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import * as gatewayApi from '@/views/hub0020/api'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import { useGatewayInstanceListModel } from './model'
 
@@ -14,7 +14,7 @@ import { useGatewayInstanceListModel } from './model'
  * 网关实例列表查询服务 Hook（纯业务逻辑，仅查询功能）
  */
 export function useGatewayInstanceListService(searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 初始化 Model
   const model = useGatewayInstanceListModel()

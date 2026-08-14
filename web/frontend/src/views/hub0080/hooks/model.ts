@@ -3,12 +3,16 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { DataFormField } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsDataFormField } from '@/components/form/rs-data'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type {
+  RsGridColumn,
+  RsGridMenuConfig,
+  RsGridPaginationConfig,
+} from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
+import { RsTag, type RsTagVariant } from '@/ui'
 import { formatDate } from '@/utils/format'
-import { AddOutline, TrashOutline } from '@vicons/ionicons5'
 import { h, ref } from 'vue'
 import { TemplateNameSelector } from '../../hub0081/components/template-grid'
 import type {
@@ -22,6 +26,35 @@ import {
   DEFAULT_FLAG_OPTIONS,
   MESSAGE_CONTENT_FORMAT_OPTIONS,
 } from '../types'
+
+/**
+ * 告警渠道表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface AlertConfigGridConfig {
+  columns: RsGridColumn<AlertConfig>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
+
+/**
+ * 将渠道类型颜色映射为 RsTag variant。
+ */
+function toTagVariant(type?: string): RsTagVariant {
+  if (type === 'error') return 'danger'
+  if (
+    type === 'success' ||
+    type === 'warning' ||
+    type === 'info' ||
+    type === 'primary' ||
+    type === 'default'
+  ) {
+    return type
+  }
+  return 'default'
+}
 
 /**
  * 告警渠道配置列表 Model
@@ -41,8 +74,8 @@ export function useAlertConfigModel() {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'channelName',
@@ -93,14 +126,14 @@ export function useAlertConfigModel() {
       {
         key: 'add',
         label: '新增渠道',
-        icon: AddOutline,
+        icon: 'AddOutline',
         type: 'primary',
         tooltip: '新增告警渠道配置',
       },
       {
         key: 'delete',
         label: '删除',
-        icon: TrashOutline,
+        icon: 'TrashOutline',
         type: 'error',
         tooltip: '批量删除选中的渠道',
       },
@@ -118,103 +151,120 @@ export function useAlertConfigModel() {
   }
 
   /** 获取渠道类型标签颜色 */
-  const getChannelTypeTagType = (channelType: ChannelType): "default" | "success" | "error" | "warning" | "primary" | "info" => {
-    const typeMap: Record<ChannelType, "default" | "success" | "error" | "warning" | "primary" | "info"> = {
+  const getChannelTypeTagType = (channelType: ChannelType): RsTagVariant => {
+    const typeMap: Record<ChannelType, RsTagVariant> = {
       email: 'primary',
       qq: 'info',
       wechat_work: 'success',
       dingtalk: 'warning',
       webhook: 'default',
-      sms: 'error',
+      sms: 'danger',
     }
-    return typeMap[channelType] || 'default'
+    return toTagVariant(typeMap[channelType])
   }
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置（符合 RsGrid Props 结构） */
+  const gridConfig: AlertConfigGridConfig = {
     columns: [
       {
-        field: 'channelName',
+        key: 'channelName',
         title: '渠道名称',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 160,
       },
       {
-        field: 'channelType',
+        key: 'channelType',
         title: '渠道类型',
         align: 'center',
         width: 120,
-        slots: { default: 'channelType' },
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: getChannelTypeTagType(row.channelType), size: 'sm' },
+            () => getChannelTypeLabel(row.channelType),
+          ),
       },
       {
-        field: 'channelDesc',
+        key: 'channelDesc',
         title: '渠道描述',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 200,
       },
       {
-        field: 'priorityLevel',
+        key: 'priorityLevel',
         title: '优先级',
         align: 'center',
         width: 100,
       },
       {
-        field: 'defaultFlag',
+        key: 'defaultFlag',
         title: '默认渠道',
         align: 'center',
         width: 100,
-        slots: { default: 'defaultFlag' },
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.defaultFlag === 'Y' ? 'success' : 'default', size: 'sm' },
+            () => (row.defaultFlag === 'Y' ? '是' : '否'),
+          ),
       },
       {
-        field: 'activeFlag',
+        key: 'activeFlag',
         title: '启用状态',
         align: 'center',
         width: 100,
-        slots: { default: 'activeFlag' },
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.activeFlag === 'Y' ? 'success' : 'default', size: 'sm' },
+            () => (row.activeFlag === 'Y' ? '启用' : '禁用'),
+          ),
       },
       {
-        field: 'totalSentCount',
+        key: 'totalSentCount',
         title: '总发送数',
         align: 'center',
         width: 100,
       },
       {
-        field: 'successCount',
+        key: 'successCount',
         title: '成功数',
         align: 'center',
         width: 100,
       },
       {
-        field: 'failureCount',
+        key: 'failureCount',
         title: '失败数',
         align: 'center',
         width: 100,
       },
       {
-        field: 'lastSendTime',
+        key: 'lastSendTime',
         title: '最后发送时间',
         align: 'center',
-        formatter: ({ row }) => formatDate(row.lastSendTime),
+        formatter: (value) => (value ? formatDate(value as string) : ''),
         width: 160,
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
         align: 'center',
-        formatter: ({ row }) => formatDate(row.addTime),
+        formatter: (value) => (value ? formatDate(value as string) : ''),
         width: 160,
       },
       {
-        field: 'editTime',
+        key: 'editTime',
         title: '修改时间',
         align: 'center',
-        formatter: ({ row }) => formatDate(row.editTime),
+        formatter: (value) => (value ? formatDate(value as string) : ''),
         width: 160,
       },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: 'channelName',
+    height: '100%',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -222,43 +272,14 @@ export function useAlertConfigModel() {
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-        {
-          code: 'edit',
-          name: '编辑',
-          prefixIcon: 'vxe-icon-edit',
-        },
-        {
-          code: 'copy',
-          name: '复制',
-          prefixIcon: 'vxe-icon-copy',
-        },
-        {
-          code: 'reload',
-          name: '重载配置',
-          prefixIcon: 'vxe-icon-refresh',
-        },
-        {
-          code: 'setDefault',
-          name: '设为默认',
-          prefixIcon: 'vxe-icon-star',
-        },
-        {
-          code: 'test',
-          name: '预警测试',
-          prefixIcon: 'vxe-icon-check',
-        },
-        {
-          code: 'delete',
-          name: '删除',
-          prefixIcon: 'vxe-icon-delete',
-        },
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'copy', label: '复制', icon: 'copy' },
+        { key: 'reload', label: '重载配置', icon: 'refresh-cw' },
+        { key: 'setDefault', label: '设为默认', icon: 'star' },
+        { key: 'test', label: '预警测试', icon: 'check' },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
       ],
     },
   }
@@ -298,10 +319,10 @@ export function useAlertConfigModel() {
   }
 
   /**
-   * 添加配置到列表
+   * 添加配置到列表（新记录插到开头，便于立即看到）
    */
   function addConfigToList(config: AlertConfig) {
-    configList.value.push(config)
+    configList.value.unshift(config)
   }
 
   /**
@@ -351,8 +372,8 @@ export function useAlertConfigModel() {
     },
   ]
 
-  /** 配置表单字段（用于 GdataFormModal） */
-  const formFields: DataFormField[] = [
+  /** 配置表单字段（用于 RsDataFormModal） */
+  const formFields: RsDataFormField[] = [
     // 主键字段（隐藏，但必须存在用于编辑）
     {
       field: 'channelName',
@@ -363,12 +384,12 @@ export function useAlertConfigModel() {
       tabKey: 'basic',
       required: true,
       rules: [
-        { required: true, message: '请输入渠道名称', trigger: ['blur', 'input'] },
-        { max: 32, message: '渠道名称不能超过32个字符', trigger: ['blur', 'input'] },
+        { required: true, message: '请输入渠道名称', trigger: ['blur', 'change'] },
+        { max: 32, message: '渠道名称不能超过32个字符', trigger: ['blur', 'change'] },
         {
           pattern: /^[a-zA-Z0-9_]+$/,
           message: '渠道名称只能包含英文字母、数字和下划线',
-          trigger: ['blur', 'input'],
+          trigger: ['blur', 'change'],
         },
       ],
     },
@@ -397,12 +418,11 @@ export function useAlertConfigModel() {
     {
       field: 'channelDesc',
       label: '渠道描述',
-      type: 'input' as const,
+      type: 'textarea' as const,
       placeholder: '请输入渠道描述',
       span: 12,
       tabKey: 'basic',
       props: {
-        type: 'textarea',
         rows: 2,
         maxlength: 500,
         showCount: true,
@@ -485,7 +505,7 @@ export function useAlertConfigModel() {
           required: true,
           tips: 'SMTP服务器地址，如 smtp.gmail.com',
           rules: [
-            { required: true, message: '请输入SMTP服务器地址', trigger: ['blur', 'input'] },
+            { required: true, message: '请输入SMTP服务器地址', trigger: ['blur', 'change'] },
           ],
         },
         {
@@ -515,7 +535,7 @@ export function useAlertConfigModel() {
           required: true,
           tips: 'SMTP认证用户名，通常是邮箱地址',
           rules: [
-            { required: true, message: '请输入用户名', trigger: ['blur', 'input'] },
+            { required: true, message: '请输入用户名', trigger: ['blur', 'change'] },
           ],
         },
         {
@@ -531,7 +551,7 @@ export function useAlertConfigModel() {
             showPasswordOn: 'click',
           },
           rules: [
-            { required: true, message: '请输入密码', trigger: ['blur', 'input'] },
+            { required: true, message: '请输入密码', trigger: ['blur', 'change'] },
           ],
         },
         {
@@ -543,8 +563,8 @@ export function useAlertConfigModel() {
           required: true,
           tips: '默认发件人邮箱地址',
           rules: [
-            { required: true, message: '请输入发件人地址', trigger: ['blur', 'input'] },
-            { type: 'email', message: '请输入有效的邮箱地址', trigger: ['blur', 'input'] },
+            { required: true, message: '请输入发件人地址', trigger: ['blur', 'change'] },
+            { type: 'email', message: '请输入有效的邮箱地址', trigger: ['blur', 'change'] },
           ],
         },
         {
@@ -612,8 +632,8 @@ export function useAlertConfigModel() {
           required: true,
           tips: 'QQ机器人Webhook地址，从QQ群机器人配置中获取',
           rules: [
-            { required: true, message: '请输入Webhook地址', trigger: ['blur', 'input'] },
-            { type: 'url', message: '请输入有效的URL地址', trigger: ['blur', 'input'] },
+            { required: true, message: '请输入Webhook地址', trigger: ['blur', 'change'] },
+            { type: 'url', message: '请输入有效的URL地址', trigger: ['blur', 'change'] },
           ],
         },
         {
@@ -661,8 +681,8 @@ export function useAlertConfigModel() {
           required: true,
           tips: '企业微信机器人Webhook地址，从企业微信群机器人配置中获取',
           rules: [
-            { required: true, message: '请输入Webhook地址', trigger: ['blur', 'input'] },
-            { type: 'url', message: '请输入有效的URL地址', trigger: ['blur', 'input'] },
+            { required: true, message: '请输入Webhook地址', trigger: ['blur', 'change'] },
+            { type: 'url', message: '请输入有效的URL地址', trigger: ['blur', 'change'] },
           ],
         },
         {
@@ -723,7 +743,7 @@ export function useAlertConfigModel() {
           required: true,
           tips: '收件人邮箱地址列表，多个用逗号分隔，如：user1@example.com,user2@example.com',
           rules: [
-            { required: true, message: '请输入收件人列表', trigger: ['blur', 'input'] },
+            { required: true, message: '请输入收件人列表', trigger: ['blur', 'change'] },
           ],
         },
         {
@@ -872,12 +892,11 @@ export function useAlertConfigModel() {
     {
       field: 'noteText',
       label: '备注信息',
-      type: 'input' as const,
+      type: 'textarea' as const,
       placeholder: '请输入备注信息',
       span: 24,
       tabKey: 'other',
       props: {
-        type: 'textarea',
         rows: 3,
         maxlength: 500,
         showCount: true,

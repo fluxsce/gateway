@@ -24,6 +24,7 @@
           <RsDataFormFields
             :fields="field.children || []"
             :form-model="formModel"
+            :set-field-value="setFieldValue"
             :mode="mode"
             :label-width="labelWidth"
             :label-placement="labelPlacement"
@@ -57,7 +58,10 @@
             :required="field.required"
           >
             <span class="rs-data-form__label-text">
-              <GEllipsis :text="getFieldLabel(field)" />
+              <span
+                class="rs-data-form__label-ellipsis"
+                :title="getFieldLabel(field)"
+              >{{ getFieldLabel(field) }}</span>
               <component
                 :is="renderFieldTips(field)"
                 v-if="resolveTips(field)"
@@ -66,15 +70,18 @@
           </RsLabel>
 
           <div class="rs-data-form__control">
+            <RsFormItem
+              :name="field.field"
+              :model-value="fieldValue(field)"
+              @update:model-value="(v: unknown) => emit('field-update', field, v)"
+            >
             <RsInput
               v-if="field.type === 'input' || !field.type"
               :id="controlId(field)"
-              :model-value="asStringValue(formModel[field.field])"
-              :name="field.field"
+              :model-value="asStringValue(fieldValue(field))"
               :placeholder="field.placeholder || `请输入${getFieldLabel(field)}`"
               :disabled="isFieldDisabled(field)"
               :clearable="field.clearable !== false"
-              :required="field.required"
               :size="rsSize"
               v-bind="getInputExtraProps(field)"
               @update:model-value="(v: string) => emit('field-update', field, v)"
@@ -83,11 +90,9 @@
             <RsInputNumber
               v-else-if="field.type === 'number'"
               :id="controlId(field)"
-              :model-value="formModel[field.field]"
-              :name="field.field"
+              :model-value="asNumberValue(fieldValue(field))"
               :placeholder="field.placeholder || `请输入${getFieldLabel(field)}`"
               :disabled="isFieldDisabled(field)"
-              :required="field.required"
               :size="rsSize"
               v-bind="omitControlProps(field.props)"
               @update:model-value="(v) => onNumberUpdate(field, v)"
@@ -96,14 +101,12 @@
             <RsDatePicker
               v-else-if="isDateField(field.type)"
               :id="controlId(field)"
-              :name="field.field"
-              :model-value="formModel[field.field]"
+              :model-value="asDateValue(fieldValue(field))"
               :placeholder="field.placeholder || `请选择${getFieldLabel(field)}`"
               :disabled="isFieldDisabled(field)"
-              :required="field.required"
               :range="isDateRangeField(field.type)"
               :size="rsSize"
-              value-format="string"
+              value-format="iso"
               v-bind="omitControlProps(field.props)"
               :with-time="isDateTimeField(field.type)"
               :with-seconds="isDateTimeField(field.type)"
@@ -114,8 +117,7 @@
               v-else-if="field.type === 'textarea'"
               :id="controlId(field)"
               class="rs-data-form__textarea"
-              :name="field.field"
-              :value="asStringValue(formModel[field.field])"
+              :value="asStringValue(fieldValue(field))"
               :placeholder="field.placeholder || `请输入${getFieldLabel(field)}`"
               :disabled="isFieldDisabled(field)"
               :rows="field.props?.rows ?? 3"
@@ -127,12 +129,10 @@
               v-else-if="field.type === 'select'"
               :id="controlId(field)"
               :model-value="normalizeSelectModel(field)"
-              :name="field.field"
               :placeholder="field.placeholder || `请选择${getFieldLabel(field)}`"
               :options="normalizeSelectOptions(field.options)"
               :disabled="isFieldDisabled(field)"
               :clearable="field.clearable !== false"
-              :required="field.required"
               :size="rsSize"
               block
               match-trigger-width
@@ -143,16 +143,18 @@
             <RsSwitch
               v-else-if="field.type === 'switch'"
               :id="controlId(field)"
-              :model-value="getSwitchBoolean(field)"
+              :model-value="asSwitchValue(field, fieldValue(field))"
+              :checked-value="field.props?.checkedValue ?? true"
+              :unchecked-value="field.props?.uncheckedValue ?? false"
               :disabled="isFieldDisabled(field)"
               :size="rsSize"
               v-bind="omitSwitchProps(field.props)"
-              @update:model-value="(v: boolean) => emit('field-update', field, fromSwitchBoolean(field, v))"
+              @update:model-value="(v) => emit('field-update', field, v)"
             />
 
             <RsUpload
               v-else-if="field.type === 'file'"
-              :model-value="(formModel[field.field] as File[]) ?? []"
+              :model-value="(fieldValue(field) as File[]) ?? []"
               :disabled="isFieldDisabled(field)"
               :accept="field.props?.config?.accept ?? field.props?.accept"
               :max-count="field.props?.config?.max ?? field.props?.maxCount ?? 1"
@@ -167,9 +169,10 @@
             />
 
             <component
-              :is="field.render?.(formModel)"
+              :is="renderCustomField(field)"
               v-else-if="field.type === 'custom' && field.render"
             />
+            </RsFormItem>
           </div>
         </div>
       </div>
@@ -178,11 +181,19 @@
 </template>
 
 <script setup lang="ts">
-import GEllipsis from '@/components/gellipsis/GEllipsis.vue'
 import { GFieldset } from '@/components/gfieldset'
 import { useAppMessage } from '@/composables/useAppMessage'
+import type {
+  RsDatePickerModelValue,
+  RsFormNamePath,
+  RsInputNumberValue,
+  RsSelectModelValue,
+  RsSelectOptions,
+  RsSwitchValue,
+} from '@/ui'
 import {
   RsDatePicker,
+  RsFormItem,
   RsInput,
   RsInputNumber,
   RsLabel,
@@ -190,14 +201,17 @@ import {
   RsSwitch,
   RsTooltip,
   RsUpload,
+  getByNamePath,
+  setByNamePath,
+  unwrapSelectEntry,
 } from '@/ui'
-import type { RsInputNumberValue, RsSelectOptions } from '@/ui'
-import { computed, h, type Component, type VNode } from 'vue'
+import { computed, h, useId, type Component, type VNode } from 'vue'
 import type {
   RsDataFormField,
   RsDataFormFieldsEmits,
   RsDataFormFieldsProps,
   RsDataFormFieldType,
+  RsDataFormRenderContext,
 } from './types'
 
 defineOptions({
@@ -217,6 +231,30 @@ const props = withDefaults(defineProps<RsDataFormFieldsProps>(), {
 
 const emit = defineEmits<RsDataFormFieldsEmits>()
 const message = useAppMessage()
+const formScopeId = useId()
+
+const setFieldValue = (name: RsFormNamePath, value: unknown): void => {
+  if (props.setFieldValue) {
+    props.setFieldValue(name, value)
+    return
+  }
+  setByNamePath(props.formModel, name, value)
+}
+
+/** 当前字段经 Form 写入；其它路径走 setFieldValue */
+const customRenderContext = (field: RsDataFormField): RsDataFormRenderContext => ({
+  value: fieldValue(field),
+  onUpdate: (value) => emit('field-update', field, value),
+  setFieldValue,
+})
+
+const renderCustomField = (field: RsDataFormField) =>
+  field.render?.(props.formModel, customRenderContext(field))
+
+/** NamePath 取值：`config.headerConfig.x` → formModel.config.headerConfig.x */
+function fieldValue(field: RsDataFormField): unknown {
+  return getByNamePath(props.formModel, field.field)
+}
 
 const onFileReject = (
   field: RsDataFormField,
@@ -267,7 +305,7 @@ const externalFieldStyle = computed(() => {
   return {}
 })
 
-const controlId = (field: RsDataFormField) => `rs-data-field-${field.field}`
+const controlId = (field: RsDataFormField) => `${formScopeId}-rs-data-field-${field.field}`
 
 const isDateField = (type?: RsDataFormFieldType) =>
   type === 'date' || type === 'daterange' || type === 'datetime' || type === 'datetimerange'
@@ -281,6 +319,47 @@ const isDateTimeField = (type?: RsDataFormFieldType) =>
 const asStringValue = (value: unknown): string => {
   if (value === null || value === undefined) return ''
   return String(value)
+}
+
+/** NamePath 存 unknown；数字控件边界只接受 number | string | null */
+const asNumberValue = (value: unknown): RsInputNumberValue => {
+  if (value === null || typeof value === 'number' || typeof value === 'string') return value
+  return null
+}
+
+/** NamePath 存 unknown；日期控件边界收成 RsDatePickerModelValue（iso 空值保持 null） */
+const asDateValue = (value: unknown): RsDatePickerModelValue => {
+  if (value === undefined) return ''
+  if (value === null) return null
+  if (typeof value === 'string' || typeof value === 'number') return value
+  if (
+    Array.isArray(value) &&
+    value.length === 2 &&
+    typeof value[0] === 'number' &&
+    typeof value[1] === 'number'
+  ) {
+    return [value[0], value[1]]
+  }
+  if (value && typeof value === 'object' && !Array.isArray(value) && ('start' in value || 'end' in value)) {
+    const range = value as { start?: unknown; end?: unknown }
+    return {
+      start: typeof range.start === 'string' ? range.start : undefined,
+      end: typeof range.end === 'string' ? range.end : undefined,
+    }
+  }
+  return ''
+}
+
+/** NamePath 存 unknown；开关控件边界收成 RsSwitchValue */
+const asSwitchValue = (field: RsDataFormField, value: unknown): RsSwitchValue => {
+  if (typeof value === 'boolean' || typeof value === 'string' || typeof value === 'number') {
+    return value
+  }
+  const unchecked = field.props?.uncheckedValue
+  if (typeof unchecked === 'boolean' || typeof unchecked === 'string' || typeof unchecked === 'number') {
+    return unchecked
+  }
+  return false
 }
 
 const getFieldLabel = (field: RsDataFormField): string =>
@@ -331,7 +410,7 @@ const renderFieldTips = (field: RsDataFormField) => {
 
 /**
  * 过滤不应直接透传给控件的业务属性
- * （switch 映射值、file 专用 props、fieldset 标题 props、旧 Naive 密码配置等）
+ * （file / fieldset 专用 props、旧 Naive 密码配置等；switch 的 checkedValue 由字段显式传入）
  */
 const omitControlProps = (raw?: Record<string, any>): Record<string, any> => {
   if (!raw) return {}
@@ -372,33 +451,34 @@ const getInputExtraProps = (field: RsDataFormField): Record<string, any> => {
 
 const omitSwitchProps = (raw?: Record<string, any>) => omitControlProps(raw)
 
-/** options.value 统一为 string，匹配 RsSelect */
+/** options.value 保持原始类型，RsSelect 在控件边界映射 Combobox token */
 const normalizeSelectOptions = (options?: RsDataFormField['options']): RsSelectOptions => {
   if (!options?.length) return []
   return options.map((opt) => ({
     label: opt.label,
-    value: String(opt.value),
+    value: opt.value,
     disabled: opt.disabled,
   }))
 }
 
-const normalizeSelectModel = (field: RsDataFormField): string => {
-  const value = props.formModel[field.field]
+const normalizeSelectModel = (field: RsDataFormField): string | number => {
+  const value = fieldValue(field)
   if (value === null || value === undefined) return ''
-  return String(value)
+  return value as string | number
 }
 
-/** 将 RsSelect 的 string 值还原为配置中的原始类型 */
-const coerceSelectValue = (field: RsDataFormField, value: string): string | number => {
+/** 将 RsSelect 的值还原为配置中的原始类型 */
+const coerceSelectValue = (field: RsDataFormField, value: string | number): string | number => {
   if (value === '' || value == null) return value
   const matched = field.options?.find((opt) => String(opt.value) === String(value))
   return matched ? matched.value : value
 }
 
-/** RsSelect 可能回传 string | string[]（多选场景），单选取首项 */
-const onSelectUpdate = (field: RsDataFormField, value: string | string[]) => {
-  const next = Array.isArray(value) ? (value[0] ?? '') : value
-  emit('field-update', field, coerceSelectValue(field, next))
+/** RsSelect 可能回传 string | number | 数组 | labelInValue 对象，单选取首项并还原为 options 原始类型 */
+const onSelectUpdate = (field: RsDataFormField, value: RsSelectModelValue) => {
+  const first = Array.isArray(value) ? value[0] : value
+  const unwrapped = unwrapSelectEntry(first)
+  emit('field-update', field, coerceSelectValue(field, unwrapped ?? ''))
 }
 
 const onTextareaInput = (field: RsDataFormField, event: Event) => {
@@ -408,18 +488,6 @@ const onTextareaInput = (field: RsDataFormField, event: Event) => {
 
 const onNumberUpdate = (field: RsDataFormField, value: RsInputNumberValue) => {
   emit('field-update', field, value)
-}
-
-/** switch 显示值：支持 props.checkedValue / uncheckedValue 映射 */
-const getSwitchBoolean = (field: RsDataFormField): boolean => {
-  const checked = field.props?.checkedValue ?? true
-  return props.formModel[field.field] === checked
-}
-
-const fromSwitchBoolean = (field: RsDataFormField, value: boolean) => {
-  const checked = field.props?.checkedValue ?? true
-  const unchecked = field.props?.uncheckedValue ?? false
-  return value ? checked : unchecked
 }
 </script>
 
@@ -475,6 +543,13 @@ const fromSwitchBoolean = (field: RsDataFormField, value: boolean) => {
   min-width: 0;
 }
 
+.rs-data-form__label-ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .rs-data-form__label-tips {
   display: inline-flex;
   align-items: center;
@@ -513,6 +588,10 @@ const fromSwitchBoolean = (field: RsDataFormField, value: boolean) => {
     border-color: var(--rs-focus-border, var(--rs-primary));
   }
 
+  &[aria-invalid='true'] {
+    border-color: var(--rs-danger, #dc2626);
+  }
+
   &:disabled {
     cursor: not-allowed;
     opacity: 0.55;
@@ -523,4 +602,5 @@ const fromSwitchBoolean = (field: RsDataFormField, value: boolean) => {
     color: var(--rs-placeholder, #c0c4cc);
   }
 }
+
 </style>

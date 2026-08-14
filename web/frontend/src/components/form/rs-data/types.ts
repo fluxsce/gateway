@@ -1,11 +1,22 @@
 import type { Component, VNode } from 'vue'
-import type { RsFormRuleItem } from '@/ui'
+import type { RsFormNamePath, RsFormRuleItem } from '@/ui'
+
+/**
+ * 自定义字段渲染上下文。
+ * value / onUpdate 绑定当前 field 的 NamePath，经 Form 写入；
+ * setFieldValue 用于改其它路径（如关联字段）。
+ */
+export interface RsDataFormRenderContext {
+  value: unknown
+  onUpdate: (value: unknown) => void
+  setFieldValue: (name: RsFormNamePath, value: unknown) => void
+}
 
 /**
  * RsDataForm 字段类型（基于 niuma-ui 控件）
  * - input / textarea / number：文本与数字录入
  * - select / switch：选择类
- * - date*：日期与时间（RsDatePicker）
+ * - date*：日期与时间（RsDatePicker，valueFormat=iso，展示墙钟、绑定 RFC3339）
  * - fieldset：分组容器（可嵌套 children）
  * - file：文件列表（RsUpload，表单值为 File[]；提交时由业务读内容）
  * - custom：业务自定义渲染
@@ -41,7 +52,7 @@ export interface RsDataFormSelectOption {
  * 描述单个表单项的展示、交互与校验。
  */
 export interface RsDataFormField {
-  /** 字段名称（对应表单数据的 key） */
+  /** 字段名（RsForm NamePath）。`config.headerConfig.x` 对应 model.config.headerConfig.x，不是根上的扁平 key */
   field: string
 
   /**
@@ -131,13 +142,16 @@ export interface RsDataFormField {
 
   /**
    * 自定义渲染（type 为 custom）
-   * 返回 Component 或 VNode
+   * 值变更走 ctx.onUpdate（经 field-update 写入 Form），不要直接改 formData。
    */
-  render?: (formData: Record<string, any>) => Component | VNode
+  render?: (
+    formData: Record<string, any>,
+    ctx?: RsDataFormRenderContext,
+  ) => Component | VNode
 
   /**
-   * RsForm 校验规则（单条或数组）
-   * 优先于 required 自动规则
+   * RsForm 校验规则（单条或数组），优先于 required 自动规则。
+   * validator 签名为 `(value, ctx)`，返回 `true` 或错误文案。
    */
   rules?: RsFormRuleItem | RsFormRuleItem[]
 
@@ -183,6 +197,8 @@ export interface RsDataFormFieldsProps {
    * 值变更请通过 field-update 事件回传，由父级写入
    */
   formModel: Record<string, any>
+  /** 按 NamePath 写入（自定义字段改其它路径时使用） */
+  setFieldValue?: (name: RsFormNamePath, value: unknown) => void
   /**
    * 业务模式，影响禁用与主键锁定
    * @default 'create'
@@ -334,6 +350,14 @@ export interface RsDataFormExpose {
   getFormData: () => Record<string, any>
   /** 直接覆盖表单数据 */
   setFormData: (data: Record<string, any>) => void
+  /** 按 NamePath 读取当前 store 中的值 */
+  getFieldValue: (name: RsFormNamePath) => unknown
+  /** 按 NamePath 写入当前 store，并同步 update:modelValue */
+  setFieldValue: (name: RsFormNamePath, value: unknown) => void
+  /** 当前 store 快照（不含 _ 前缀内部键） */
+  getFieldsValue: () => Record<string, any>
+  /** 按路径批量写入 */
+  setFieldsValue: (values: Record<string, unknown>) => void
   /** 底层 RsForm 实例引用 */
   formRef: any
 }
@@ -455,7 +479,7 @@ export interface RsDataFormModalProps {
    */
   size?: 'small' | 'medium' | 'large'
   /**
-   * 弹窗挂载点（对齐旧 GModal.to / RsDialog.teleportTo）
+   * 弹窗挂载点（对齐 RsDialog.teleportTo）
    * - string / HTMLElement：Teleport 到指定容器（如 `#hub0002`，避免挂到全局 body）
    * - false：禁用 Teleport，就地渲染在当前组件树内
    * - undefined：使用 Reka/ConfigProvider 默认（通常为 body）

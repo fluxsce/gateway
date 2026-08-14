@@ -1,5 +1,3 @@
-import gcustomRenderPlugin from '@/components/gcustom-render/plugin'
-import gdialogPlugin from '@/components/gdialog/plugin'
 import { Z_INDEX } from '@/constants/zIndex'
 import { createPinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
@@ -75,9 +73,6 @@ export async function startApp() {
     // 注册所有自定义插件（包括API工具）
     setupPlugins(app)
 
-    // 兼容：$gDialog → rsConfirm（新代码请直接 import { rsConfirm } from '@/ui'）
-    app.use(gdialogPlugin, { global: true, globalName: '$gDialog' })
-
     // 使用右键菜单插件
     VxeUI.use(VxeUIPluginMenu)
 
@@ -88,9 +83,6 @@ export async function startApp() {
 
     // 配置 vxe-table（必须在路由之前注册）
     app.use(VxeUIBase).use(VxeUITable)
-
-    // 全局 API 插件（在 vxe 之后挂载，TS/模板内直接调用 $gRender）
-    app.use(gcustomRenderPlugin, { global: true, globalName: '$gRender' })
 
     // 使用路由
     app.use(router)

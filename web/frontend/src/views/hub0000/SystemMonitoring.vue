@@ -602,6 +602,11 @@ const {
 
 <style lang="scss" scoped>
 .system-monitoring {
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 16px;
 
   .server-selector {

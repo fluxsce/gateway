@@ -1,4 +1,4 @@
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import type { TunnelService } from '../../../types'
@@ -10,7 +10,7 @@ import { useTunnelServiceService } from './service'
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 export function useTunnelServicePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 业务服务（包含 model、增删改查等）
   const service = useTunnelServiceService(searchFormRef)
@@ -21,7 +21,7 @@ export function useTunnelServicePage(gridRef?: Ref<any> | any, searchFormRef?: R
   const currentEditService = ref<TunnelService | null>(null)
 
   /**
-   * 处理搜索（接收 SearchForm 传递的表单数据）
+   * 处理搜索（接收 RsSearchForm 传递的表单数据）
    */
   const handleSearch = async (formData?: Record<string, any>) => {
     await service.handleSearch(formData)
@@ -76,7 +76,7 @@ export function useTunnelServicePage(gridRef?: Ref<any> | any, searchFormRef?: R
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
+        const currentRow = gridRef.value.getActiveRow?.()
         if (!currentRow) {
           message.warning('请先点击选择要编辑的服务')
           return
@@ -91,7 +91,7 @@ export function useTunnelServicePage(gridRef?: Ref<any> | any, searchFormRef?: R
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
+        const currentRow = gridRef.value.getActiveRow?.()
         if (!currentRow) {
           message.warning('请先点击选择要删除的服务')
           return
@@ -109,7 +109,7 @@ export function useTunnelServicePage(gridRef?: Ref<any> | any, searchFormRef?: R
   }
 
   /**
-   * 提交表单（新增/编辑共用，由 GdataFormModal 收集表单数据后回调）
+   * 提交表单（新增/编辑共用，由 RsDataFormModal 收集表单数据后回调）
    */
   const handleFormSubmit = async (formData?: Record<string, any>) => {
     if (!formData) return
@@ -143,10 +143,10 @@ export function useTunnelServicePage(gridRef?: Ref<any> | any, searchFormRef?: R
   /**
    * 右键菜单点击处理
    */
-  const handleMenuClick = async ({ code, row }: { code: string; row?: TunnelService }) => {
+  const handleMenuClick = async ({ key, row }: { key: string; row?: TunnelService }) => {
     if (!row) return
 
-    switch (code) {
+    switch (key) {
       case 'view':
         openViewDialog(row)
         break

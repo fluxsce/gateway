@@ -3,18 +3,30 @@
  * 处理所有与后端交互的业务逻辑
  */
 
+import type { RsSearchFormExpose } from '@/components/form/rs-search'
+import { useAppMessage } from '@/composables/useAppMessage'
 import { formatDate, getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { getGatewayMonitoringChartData, getGatewayMonitoringOverview } from '../../../api'
 import { useMonitoringModel } from './model'
 import type { GatewayMonitoringQueryParams } from './types'
 
+/** 从 RsDatePicker range（{ start, end }）解析毫秒起止 */
+function rangeToMs(value: unknown): [number, number] | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const { start, end } = value as { start?: string; end?: string }
+  if (!start || !end) return null
+  const startMs = new Date(start.replace(' ', 'T')).getTime()
+  const endMs = new Date(end.replace(' ', 'T')).getTime()
+  if (Number.isNaN(startMs) || Number.isNaN(endMs)) return null
+  return [startMs, endMs]
+}
+
 /**
  * 监控服务 Hook（纯业务逻辑）
  */
-export function useMonitoringService(searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
+export function useMonitoringService(searchFormRef?: Ref<RsSearchFormExpose | null>) {
+  const message = useAppMessage()
 
   // 初始化 Model
   const model = useMonitoringModel()
@@ -32,16 +44,15 @@ export function useMonitoringService(searchFormRef?: Ref<any> | any) {
   /**
    * 验证时间范围
    */
-  const validateTimeRange = (range: [number, number] | null): boolean => {
-    if (!range || range.length !== 2) {
+  const validateTimeRange = (range: unknown): boolean => {
+    const bounds = rangeToMs(range)
+    if (!bounds) {
       message.error('请选择时间范围')
       return false
     }
 
-    const startTime = range[0]
-    const endTime = range[1]
-    const duration = endTime - startTime
-    const maxDuration = 24 * 60 * 60 * 1000 // 24小时的毫秒数
+    const duration = bounds[1] - bounds[0]
+    const maxDuration = 24 * 60 * 60 * 1000
 
     if (duration > maxDuration) {
       message.error('时间范围不能超过24小时，请重新选择')
@@ -87,18 +98,18 @@ export function useMonitoringService(searchFormRef?: Ref<any> | any) {
 
     loading.value = true
     try {
-      const [startTime, endTime] = timeRangeValue!
+      const bounds = rangeToMs(timeRangeValue)!
+      const [startTime, endTime] = bounds
       const queryParams: GatewayMonitoringQueryParams = {
         gatewayInstanceId,
         startTime: formatDate(startTime, 'YYYY-MM-DDTHH:mm:ss'),
         endTime: formatDate(endTime, 'YYYY-MM-DDTHH:mm:ss'),
         timeGranularity: (finalSearchParams?.timeGranularity || timeGranularity.value) as any,
-        // 添加额外的查询条件
         ...(finalSearchParams?.routeName && { routeName: finalSearchParams.routeName }),
         ...(finalSearchParams?.requestPath && { requestPath: finalSearchParams.requestPath }),
       }
 
-      // 并行请求概览数据和图表数据
+      // 并行请求概览与图表
       const [overviewResult, chartResult] = await Promise.all([
         getGatewayMonitoringOverview(queryParams),
         getGatewayMonitoringChartData(queryParams),
@@ -139,9 +150,10 @@ export function useMonitoringService(searchFormRef?: Ref<any> | any) {
    * 处理搜索
    */
   const handleSearch = async (formData?: Record<string, any>) => {
-    // 更新时间范围和时间粒度
-    if (formData?.timeRange) {
-      timeRange.value = formData.timeRange
+    if (formData?.timeRange && typeof formData.timeRange === 'object' && !Array.isArray(formData.timeRange)) {
+      const range = formData.timeRange as { start?: string; end?: string }
+      timeRange.value =
+        range.start && range.end ? { start: range.start, end: range.end } : null
     }
     if (formData?.timeGranularity) {
       timeGranularity.value = formData.timeGranularity
@@ -160,7 +172,6 @@ export function useMonitoringService(searchFormRef?: Ref<any> | any) {
    * 处理重置
    */
   const handleReset = async () => {
-    // 重置为默认值
     timeRange.value = model.initTimeRange()
     timeGranularity.value = 'MINUTE' as any
     resetOverviewData()
@@ -199,10 +210,7 @@ export function useMonitoringService(searchFormRef?: Ref<any> | any) {
   }
 
   return {
-    // Model
     model,
-
-    // 方法
     validateTimeRange,
     loadMonitoringData,
     handleSearch,
@@ -211,8 +219,4 @@ export function useMonitoringService(searchFormRef?: Ref<any> | any) {
   }
 }
 
-/**
- * Service 返回类型
- */
 export type MonitoringService = ReturnType<typeof useMonitoringService>
-

@@ -5,7 +5,8 @@
 import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
+import type { RsSearchFormExpose } from '@/components/form/rs-search'
 import type { Ref } from 'vue'
 import { queryRouteConfigs } from '@/views/hub0021/api'
 import type { RouteConfig } from '@/views/hub0021/components/routes/types'
@@ -14,8 +15,11 @@ import { useRouteListModel } from './model'
 /**
  * 路由列表服务 Hook（纯业务逻辑）
  */
-export function useRouteListService(gatewayInstanceId?: string, searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
+export function useRouteListService(
+  gatewayInstanceId?: string,
+  searchFormRef?: Ref<RsSearchFormExpose | null>,
+) {
+  const message = useAppMessage()
 
   // 初始化 Model
   const model = useRouteListModel()

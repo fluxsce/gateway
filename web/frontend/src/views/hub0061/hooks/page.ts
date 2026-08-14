@@ -4,8 +4,9 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
-import { rsConfirm } from '@/ui'
-import { useMessage } from 'naive-ui'
+import type { RsSearchFormExpose } from '@/components/form/rs-search'
+import type { RsGridExpose } from '@/components/rs-grid'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import type { TunnelStaticServer } from '../types'
@@ -17,11 +18,10 @@ import { useStaticServerService } from './service'
  * @param searchFormRef 搜索表单引用（可选）
  */
 export function useStaticServerPage(
-  gridRef?: Ref<any> | any,
-  searchFormRef?: Ref<any> | any
+  gridRef?: Ref<RsGridExpose | null>,
+  searchFormRef?: Ref<RsSearchFormExpose | null>,
 ) {
-  const message = useMessage()
-// 业务服务（包含 model、增删改查等）
+  const message = useAppMessage()
   const service = useStaticServerService(searchFormRef)
 
   // 表单对话框状态（新增/编辑/查看共用）
@@ -70,7 +70,7 @@ export function useStaticServerPage(
           message.warning('Grid 引用未设置')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        const selectedRow = gridRef.value.getActiveRow()
         if (!selectedRow) {
           message.warning('请先选择或点击要启动的服务')
           return
@@ -85,7 +85,7 @@ export function useStaticServerPage(
           message.warning('Grid 引用未设置')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        const selectedRow = gridRef.value.getActiveRow()
         if (!selectedRow) {
           message.warning('请先选择或点击要停止的服务')
           return
@@ -100,7 +100,7 @@ export function useStaticServerPage(
           message.warning('Grid 引用未设置')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        const selectedRow = gridRef.value.getActiveRow()
         if (!selectedRow) {
           message.warning('请先选择或点击要重载的服务')
           return
@@ -115,7 +115,7 @@ export function useStaticServerPage(
           message.warning('Grid 引用未设置')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        const selectedRow = gridRef.value.getActiveRow()
         if (!selectedRow) {
           message.warning('请先选择或点击要删除的服务')
           return
@@ -293,9 +293,9 @@ export function useStaticServerPage(
   /**
    * 处理右键菜单点击
    */
-  const handleMenuClick = async ({ menu, row }: { menu: any; row: TunnelStaticServer }) => {
-    const code = menu?.code || menu
-    switch (code) {
+  const handleMenuClick = async ({ key, row }: { key: string; row?: TunnelStaticServer }) => {
+    if (!row) return
+    switch (key) {
       case 'view':
         await openViewDialog(row)
         break
@@ -321,7 +321,7 @@ export function useStaticServerPage(
         await handleDelete(row)
         break
       default:
-        console.warn('未知的菜单项:', code)
+        console.warn('未知的菜单项:', key)
     }
   }
 

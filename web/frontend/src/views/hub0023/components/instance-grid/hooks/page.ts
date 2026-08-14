@@ -4,13 +4,18 @@
  * - 处理查询等页面交互
  */
 
+import type { RsSearchFormExpose } from '@/components/form/rs-search'
+import type { RsGridExpose } from '@/components/rs-grid'
 import type { Ref } from 'vue'
 import { useGatewayInstanceListService } from './service'
 
 /**
  * 网关实例列表查询页面级 Hook（仅查询功能）
  */
-export function useGatewayInstanceListPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any) {
+export function useGatewayInstanceListPage(
+  _gridRef?: Ref<RsGridExpose | null>,
+  searchFormRef?: Ref<RsSearchFormExpose | null>,
+) {
   // 业务服务（包含 model、查询等）
   const service = useGatewayInstanceListService(searchFormRef)
 

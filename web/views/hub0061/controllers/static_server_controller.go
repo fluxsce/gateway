@@ -353,6 +353,21 @@ func (c *StaticServerController) CheckPortConflict(ctx *gin.Context) {
 	response.SuccessJSON(ctx, gin.H{"conflict": conflict}, constants.SD00002)
 }
 
+// requireProxyManager 获取静态代理管理器；尚未初始化时按需创建。
+func (c *StaticServerController) requireProxyManager(ctx *gin.Context) *static.StaticProxyManager {
+	manager, err := static.EnsureInitialized(ctx.Request.Context(), c.db)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "静态代理管理器初始化失败", err)
+		response.ErrorJSON(ctx, "静态代理管理器初始化失败: "+err.Error(), constants.ED00009)
+		return nil
+	}
+	if manager == nil {
+		response.ErrorJSON(ctx, "静态代理管理器未初始化", constants.ED00009)
+		return nil
+	}
+	return manager
+}
+
 // StartStaticServer 启动静态服务器
 // @Summary 启动静态服务器
 // @Description 启动指定的静态服务器
@@ -369,10 +384,8 @@ func (c *StaticServerController) StartStaticServer(ctx *gin.Context) {
 		return
 	}
 
-	// 获取静态代理管理器
-	manager := static.GetStaticProxyManager()
+	manager := c.requireProxyManager(ctx)
 	if manager == nil {
-		response.ErrorJSON(ctx, "静态代理管理器未初始化", constants.ED00009)
 		return
 	}
 
@@ -414,10 +427,8 @@ func (c *StaticServerController) StopStaticServer(ctx *gin.Context) {
 		return
 	}
 
-	// 获取静态代理管理器
-	manager := static.GetStaticProxyManager()
+	manager := c.requireProxyManager(ctx)
 	if manager == nil {
-		response.ErrorJSON(ctx, "静态代理管理器未初始化", constants.ED00009)
 		return
 	}
 
@@ -459,10 +470,8 @@ func (c *StaticServerController) ReloadStaticServer(ctx *gin.Context) {
 		return
 	}
 
-	// 获取静态代理管理器
-	manager := static.GetStaticProxyManager()
+	manager := c.requireProxyManager(ctx)
 	if manager == nil {
-		response.ErrorJSON(ctx, "静态代理管理器未初始化", constants.ED00009)
 		return
 	}
 

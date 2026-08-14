@@ -4,7 +4,7 @@
  * - 处理详情对话框、工具栏、右键菜单等页面交互
  */
 
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import { ref, watch } from 'vue'
 import type { GatewayLogListItem } from '../../../types'
@@ -17,7 +17,7 @@ export const MAX_GATEWAY_LOG_RESEND_BATCH = 100
  * 网关日志管理页面级 Hook
  */
 export function useGatewayLogPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 业务服务（包含 model、查询等）
   const service = useGatewayLogService(searchFormRef)
@@ -77,7 +77,7 @@ export function useGatewayLogPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<
 
 
   /**
-   * 处理搜索（接收 SearchForm 传递的表单数据）
+   * 处理搜索（接收 RsSearchForm 传递的表单数据）
    */
   const handleSearch = async (formData?: Record<string, any>) => {
     await service.handleSearch(formData)
@@ -110,7 +110,7 @@ export function useGatewayLogPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<
           message.warning('Grid 引用未设置')
           return
         }
-        const selectedRows = gridRef.value.getCheckboxRecords() as GatewayLogListItem[]
+        const selectedRows = gridRef.value.getSelectedRows() as GatewayLogListItem[]
         openResendDialog(selectedRows)
         break
       }
@@ -131,10 +131,10 @@ export function useGatewayLogPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<
   /**
    * 右键菜单点击处理
    */
-  const handleMenuClick = async ({ code, row }: { code: string; row?: GatewayLogListItem }) => {
+  const handleMenuClick = async ({ key, row }: { key: string; row?: GatewayLogListItem }) => {
     if (!row) return
 
-    switch (code) {
+    switch (key) {
       case 'view':
         openViewDialog(row)
         break

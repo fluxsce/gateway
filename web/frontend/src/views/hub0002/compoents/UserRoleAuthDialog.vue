@@ -1,21 +1,17 @@
 <template>
-  <GModal
-    v-model:visible="dialogVisible"
+  <RsDialog
+    :open="dialogVisible"
     title="用户角色授权"
-    preset="dialog"
+    layout="window"
     width="800px"
-    :mask-closable="false"
-    :closable="true"
-    :show-footer="true"
-    :show-cancel="true"
-    :show-confirm="true"
-    cancel-text="取消"
-    confirm-text="保存"
-    :confirm-loading="saving"
-    @close="handleClose"
-    @cancel="handleClose"
-    @confirm="handleSave"
+    :draggable="true"
+    :fullscreenable="true"
+    :show-overlay="true"
+    :show-close="true"
+    :close-on-overlay-click="false"
+    @update:open="handleUpdateOpen"
   >
+    <template #body>
     <div class="user-role-auth-wrap">
       <RsLoading :loading="loading" overlay block size="lg" />
       <div class="user-role-auth-content">
@@ -98,17 +94,32 @@
         </RsCard>
       </div>
     </div>
-  </GModal>
+    </template>
+    <template #footer>
+      <div class="user-role-auth-footer">
+        <RsButton size="sm" @click="handleClose">取消</RsButton>
+        <RsButton
+          variant="primary"
+          size="sm"
+          :loading="saving"
+          @click="handleSave"
+        >
+          保存
+        </RsButton>
+      </div>
+    </template>
+  </RsDialog>
 </template>
 
 <script lang="ts" setup>
 import { GIcon } from '@/components/gicon'
-import { GModal } from '@/components/gmodal'
 import { useAppMessage } from '@/composables/useAppMessage'
 import {
+  RsButton,
   RsCard,
   RsDescriptions,
   RsDescriptionsItem,
+  RsDialog,
   RsEmpty,
   RsInput,
   RsLoading,
@@ -178,6 +189,14 @@ const checkedKeys = ref<string[]>([])
 const handleClose = () => {
   emit('update:visible', false)
   emit('close')
+}
+
+const handleUpdateOpen = (open: boolean) => {
+  if (!open) {
+    handleClose()
+    return
+  }
+  emit('update:visible', true)
 }
 
 /**
@@ -368,5 +387,13 @@ onMounted(() => {
   background-color: var(--rs-surface);
   height: 400px;
   overflow: hidden;
+}
+
+.user-role-auth-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
 }
 </style>

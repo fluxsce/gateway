@@ -2,48 +2,55 @@
   <div class="config-history-page" :id="page.service.model.moduleId">
     <!-- 列表视图 -->
     <template v-if="currentView === 'list'">
-      <GPane direction="vertical" default-size="80px">
-        <!-- 上部：搜索表单 -->
-        <template #1>
-          <search-form
-            ref="searchFormRef"
-            :module-id="page.service.model.moduleId"
-            v-bind="page.service.model.searchFormConfig"
-            @search="page.handleSearch"
-            @toolbar-click="handleToolbarClick"
-          />
+      <RsSplitPane
+        class="config-history-page__split"
+        orientation="vertical"
+        :panes="splitPanes"
+        disabled
+      >
+        <template #search>
+          <div class="config-history-page__search">
+            <RsSearchForm
+              ref="searchFormRef"
+              :module-id="page.service.model.moduleId"
+              v-bind="page.service.model.searchFormConfig"
+              @search="page.handleSearch"
+              @toolbar-click="handleToolbarClick"
+            />
+          </div>
         </template>
 
-        <!-- 下部：数据表格 -->
-        <template #2>
-          <g-grid
-            ref="gridRef"
-            :module-id="page.service.model.moduleId"
-            :data="page.service.model.historyList"
-            :loading="page.service.model.loading"
-            v-bind="page.service.model.gridConfig"
-            @page-change="page.handlePageChange"
-            @menu-click="page.handleMenuClick"
-          />
+        <template #grid>
+          <div class="config-history-page__grid">
+            <RsGrid
+              ref="gridRef"
+              :module-id="page.service.model.moduleId"
+              :data="page.service.model.historyList"
+              :loading="page.service.model.loading"
+              :columns="page.service.model.gridConfig.columns"
+              :selectable="page.service.model.gridConfig.selectable"
+              :row-key="page.service.model.gridConfig.rowKey"
+              height="100%"
+              :pagination-config="page.service.model.gridConfig.paginationConfig"
+              :menu-config="page.service.model.gridConfig.menuConfig"
+              @page-change="page.handlePageChange"
+              @menu-click="page.handleMenuClick"
+            />
+          </div>
         </template>
-      </GPane>
+      </RsSplitPane>
     </template>
 
     <!-- 详情视图 -->
     <template v-else-if="currentView === 'detail'">
       <div class="config-history-detail-view">
-        <!-- 返回按钮 -->
         <div class="config-history-detail-header">
-          <n-button size="small" @click="page.handleBackToList">
-            <template #icon>
-              <n-icon><ArrowBackOutline /></n-icon>
-            </template>
+          <RsButton size="sm" icon="arrow-left" @click="page.handleBackToList">
             返回列表
-          </n-button>
+          </RsButton>
         </div>
 
-        <!-- 详情表单 -->
-        <GDataForm
+        <RsDataForm
           v-if="currentHistoryDetailPlain"
           ref="detailFormRef"
           mode="view"
@@ -66,22 +73,18 @@
 </template>
 
 <script lang="ts" setup>
-import { GDataForm } from '@/components'
-import SearchForm from '@/components/form/search/SearchForm.vue'
-import { GPane } from '@/components/gpane'
-import { GGrid } from '@/components/grid'
-import { ArrowBackOutline } from '@vicons/ionicons5'
-import { NButton, NIcon } from 'naive-ui'
+import { RsDataForm, type RsDataFormExpose } from '@/components/form/rs-data'
+import { RsSearchForm, type RsSearchFormExpose } from '@/components/form/rs-search'
+import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
+import { RsButton, RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import { computed, onMounted, ref, toRaw, watch } from 'vue'
 import { useConfigHistoryPage } from './hooks'
 import RollbackDialog from './RollbackDialog.vue'
 
-// 定义组件名称
 defineOptions({
-  name: 'ConfigHistoryPage'
+  name: 'ConfigHistoryPage',
 })
 
-// ============= Props & Emits =============
 interface Props {
   /** 初始查询条件 */
   initialQuery?: {
@@ -102,15 +105,21 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
-// ============= Refs =============
-const searchFormRef = ref()
-const gridRef = ref()
-const detailFormRef = ref()
+/** 上方搜索区随内容自适应，下方表格占满剩余高度 */
+const splitPanes: RsSplitPaneItem[] = [
+  { key: 'search', size: 'auto' },
+  { key: 'grid' },
+]
 
-// ============= 页面级 Hook（包含服务与对话框、事件处理） =============
+const searchFormRef = ref<RsSearchFormExpose | null>(null)
+const gridRef = ref<RsGridExpose | null>(null)
+const detailFormRef = ref<RsDataFormExpose | null>(null)
+
 const page = useConfigHistoryPage(searchFormRef)
 
-// ============= 工具栏点击处理 =============
+/**
+ * 工具栏点击：返回配置列表由父组件处理，其余交给 page hook。
+ */
 const handleToolbarClick = (key: string) => {
   if (key === 'back') {
     emit('back')
@@ -119,7 +128,6 @@ const handleToolbarClick = (key: string) => {
   }
 }
 
-// ============= 计算属性（用于模板绑定） =============
 const currentView = computed(() => page.currentView.value)
 
 const rollbackDialogVisible = computed({
@@ -136,7 +144,6 @@ const currentHistoryDetailPlain = computed(() => {
   return detail ? toRaw(detail) : null
 })
 
-// ============= 初始化查询条件 =============
 /**
  * 填充初始查询条件到搜索表单
  */
@@ -148,26 +155,22 @@ const fillInitialQuery = () => {
       configDataId: props.initialQuery.configDataId,
       limit: 50,
     })
-    // 自动执行搜索
     page.handleSearch()
   }
 }
 
-// 监听 initialQuery 变化
 watch(() => props.initialQuery, (newQuery) => {
   if (newQuery) {
     fillInitialQuery()
   }
 }, { immediate: true })
 
-// 组件挂载后填充查询条件
 onMounted(() => {
   if (props.initialQuery) {
     fillInitialQuery()
   }
 })
 
-// 暴露 refs 给父组件（如果需要）
 defineExpose({
   searchFormRef,
   gridRef,
@@ -175,10 +178,37 @@ defineExpose({
 })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .config-history-page {
-  height: 100%;
+  box-sizing: border-box;
   width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.config-history-page__split {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.config-history-page__search {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.config-history-page__grid {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .config-history-detail-view {
@@ -197,7 +227,7 @@ defineExpose({
   background-color: var(--g-bg-color);
 }
 
-.config-history-detail-view :deep(.g-data-form) {
+.config-history-detail-view :deep(.rs-data-form) {
   flex: 1;
   overflow: auto;
   padding: var(--g-space-md);

@@ -4,6 +4,7 @@
  */
 
 import { rsConfirm } from '@/ui'
+import { WarningOutline } from '@vicons/ionicons5'
 import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess } from '@/utils/format'
@@ -105,10 +106,11 @@ export function useServiceService(searchFormRef?: Ref<any> | any) {
   /**
    * 搜索服务
    * @param requiredNamespaceId 必须的命名空间ID（如果提供，将强制使用此值）
+   * @param searchParams 搜索表单数据（可选）
    */
-  const handleSearch = async (requiredNamespaceId?: string) => {
+  const handleSearch = async (requiredNamespaceId?: string, searchParams?: Record<string, any>) => {
     model.resetPagination()
-    await loadServices(undefined, requiredNamespaceId)
+    await loadServices(searchParams, requiredNamespaceId)
   }
 
   /**
@@ -149,10 +151,10 @@ export function useServiceService(searchFormRef?: Ref<any> | any) {
     try {
       const response: JsonDataObj = await serviceApi.addService(data)
       if (isApiSuccess(response)) {
-        message.success(getApiMessage(response))
+        message.success(getApiMessage(response, `服务「${data.serviceName}」创建成功`))
         return true
       } else {
-        message.error(getApiMessage(response))
+        message.error(getApiMessage(response, '新增服务失败'))
         return false
       }
     } catch (error: any) {
@@ -168,10 +170,10 @@ export function useServiceService(searchFormRef?: Ref<any> | any) {
     try {
       const response: JsonDataObj = await serviceApi.editService(data)
       if (isApiSuccess(response)) {
-        message.success(getApiMessage(response))
+        message.success(getApiMessage(response, `服务「${data.serviceName}」更新成功`))
         return true
       } else {
-        message.error(getApiMessage(response))
+        message.error(getApiMessage(response, '编辑服务失败'))
         return false
       }
     } catch (error: any) {
@@ -181,9 +183,29 @@ export function useServiceService(searchFormRef?: Ref<any> | any) {
   }
 
   /**
-   * 删除服务
+   * 删除服务。
+   * @param options.skipConfirm 已在调用方确认过时跳过二次弹窗
+   * @param options.silentSuccess 批量删除时由调用方统一提示成功
    */
-  const deleteService = async (service: Service): Promise<boolean> => {
+  const deleteService = async (
+    service: Service,
+    options?: { skipConfirm?: boolean; silentSuccess?: boolean },
+  ): Promise<boolean> => {
+    if (!options?.skipConfirm) {
+      const confirmed = await rsConfirm.warning({
+        title: '确认删除',
+        subtitle: '此操作不可恢复，请谨慎操作',
+        description: `确定要删除服务 "${service.serviceName}" (${service.groupName}) 吗？`,
+        icon: WarningOutline,
+        confirmText: '确定删除',
+        cancelText: '取消',
+        width: 500,
+      })
+      if (!confirmed) {
+        return false
+      }
+    }
+
     try {
       const response: JsonDataObj = await serviceApi.deleteService(
         service.namespaceId,
@@ -191,10 +213,12 @@ export function useServiceService(searchFormRef?: Ref<any> | any) {
         service.serviceName
       )
       if (isApiSuccess(response)) {
-        message.success(getApiMessage(response))
+        if (!options?.silentSuccess) {
+          message.success(getApiMessage(response, `服务「${service.serviceName}」删除成功`))
+        }
         return true
       } else {
-        message.error(getApiMessage(response))
+        message.error(getApiMessage(response, '删除服务失败'))
         return false
       }
     } catch (error: any) {

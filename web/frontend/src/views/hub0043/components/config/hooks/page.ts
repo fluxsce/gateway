@@ -4,8 +4,8 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
+import { useAppMessage } from '@/composables/useAppMessage'
 import { rsConfirm } from '@/ui'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { nextTick, ref, watch } from 'vue'
 import type { Config } from '../../../types'
@@ -31,8 +31,8 @@ export function useConfigPage(
     onHistoryClick?: (config: Config) => void
   }
 ) {
-  const message = useMessage()
-// 业务服务（包含 model、增删改查等）
+  const message = useAppMessage()
+  // 业务服务（包含 model、增删改查等）
   const service = useConfigService(searchFormRef)
 
   // 配置选项
@@ -70,7 +70,7 @@ export function useConfigPage(
       // 需要等待视图切换和组件渲染完成
       if (namespaceId) {
         nextTick(() => {
-          // 再次等待确保 GDataForm 组件完全渲染
+          // 再次等待确保 RsDataForm 组件完全渲染
           nextTick(() => {
             if (formRef?.value?.setFormData) {
               const currentFormData = formRef.value.getFormData() || {}
@@ -224,7 +224,7 @@ export function useConfigPage(
           // 等待视图切换和组件渲染完成
           nextTick(() => {
             if (searchFormRef?.value?.setFormData) {
-              // 再次等待确保 SearchForm 组件完全渲染
+              // 再次等待确保 RsSearchForm 组件完全渲染
               nextTick(() => {
                 searchFormRef.value.setFormData(savedSearchFormData.value!)
               })
@@ -263,13 +263,13 @@ export function useConfigPage(
         break
       case 'edit':
         // 优先使用当前行记录（通过点击行选中的记录）
-        const currentRecord = gridRef?.value?.getCurrentRecord?.()
+        const currentRecord = gridRef?.value?.getSelectedOrCurrentRecord?.()
         if (currentRecord) {
           openEditDialog(currentRecord)
           break
         }
         // 如果没有当前行记录，则使用复选框选中的记录
-        const selectedRows = gridRef?.value?.getCheckboxRecords() || []
+        const selectedRows = gridRef?.value?.getActiveRows?.() || []
         if (selectedRows.length === 0) {
           message.warning('请先选择要编辑的配置')
           return
@@ -282,15 +282,15 @@ export function useConfigPage(
         break
       case 'delete': {
         // 优先使用当前行记录（通过点击行选中的记录）
-        const currentDeleteRecord = gridRef?.value?.getCurrentRecord?.()
+        const currentDeleteRecord = gridRef?.value?.getSelectedOrCurrentRecord?.()
         if (currentDeleteRecord) {
           // 如果有当前行记录，直接删除当前行
           handleBatchDelete([currentDeleteRecord])
           break
         }
-        
+
         // 如果没有当前行记录，则使用复选框选中的记录
-        const checkboxRows = gridRef?.value?.getCheckboxRecords() || []
+        const checkboxRows = gridRef?.value?.getActiveRows?.() || []
         if (checkboxRows.length === 0) {
           message.warning('请先选择要删除的配置')
           return
@@ -348,18 +348,18 @@ export function useConfigPage(
   /**
    * 处理表格右键菜单
    */
-  const handleMenuClick = async (params: { code: string; row?: any }) => {
+  const handleMenuClick = async (params: { key: string; row?: any }) => {
     if (!params.row) {
       return
     }
-    
+
     // 所有操作都需要验证命名空间（除了 history，因为它只是触发事件）
-    if (params.code !== 'history' && !checkNamespace()) {
+    if (params.key !== 'history' && !checkNamespace()) {
       return
     }
-    
+
     const row = params.row as Config
-    switch (params.code) {
+    switch (params.key) {
       case 'view':
         await openViewDialog(row)
         break
@@ -378,14 +378,14 @@ export function useConfigPage(
   }
 
   /**
-   * 搜索处理
+   * 处理搜索（接收 RsSearchForm 传递的表单数据）
    */
-  const handleSearch = () => {
-    service.handleSearch()
+  const handleSearch = (formData?: Record<string, any>) => {
+    service.handleSearch(formData)
   }
 
   /**
-   * 表单提交处理（适配 GdataFormModal 的提交格式）
+   * 表单提交处理（适配 RsDataFormModal 的提交格式）
    */
   const handleFormSubmit = async (formData?: Record<string, any>) => {
     if (!formData) {

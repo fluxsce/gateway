@@ -3,26 +3,26 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { RsDataFormField, RsDataFormTab } from '@/components/form/rs-data'
+import type { RsDataFormField, RsDataFormTab, RsDataFormRenderContext } from '@/components/form/rs-data'
 import type { RsSearchFormProps } from '@/components/form/rs-search'
 import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
+import { RsSwitch, RsTag, setByNamePath, type RsSwitchValue } from '@/ui'
 import { formatDate } from '@/utils/format'
-import { RsSwitch, RsTag } from '@/ui'
 import { h, ref } from 'vue'
 import type { FilterConfig } from './types'
 import {
-  BODY_MODIFIER_OPTIONS,
-  CONTENT_TYPES,
-  COOKIE_OPERATION_OPTIONS,
-  FILTER_ACTION_OPTIONS,
-  FILTER_TYPE_OPTIONS,
-  HEADER_MODIFIER_OPTIONS,
-  HTTP_METHODS,
-  METHOD_FILTER_MODE_OPTIONS,
-  PATH_REWRITE_MODE_OPTIONS,
-  QUERY_PARAM_MODIFIER_OPTIONS,
-  RESPONSE_OPERATION_OPTIONS,
+    BODY_MODIFIER_OPTIONS,
+    CONTENT_TYPES,
+    COOKIE_OPERATION_OPTIONS,
+    FILTER_ACTION_OPTIONS,
+    FILTER_TYPE_OPTIONS,
+    HEADER_MODIFIER_OPTIONS,
+    HTTP_METHODS,
+    METHOD_FILTER_MODE_OPTIONS,
+    PATH_REWRITE_MODE_OPTIONS,
+    QUERY_PARAM_MODIFIER_OPTIONS,
+    RESPONSE_OPERATION_OPTIONS,
 } from './types'
 
 /**
@@ -36,6 +36,9 @@ export interface FilterConfigGridConfig {
   paginationConfig: RsGridPaginationConfig
   menuConfig: RsGridMenuConfig
 }
+
+/** 表格标签色 */
+type FilterTagVariant = 'default' | 'success' | 'danger' | 'warning' | 'primary' | 'info'
 
 /**
  * 过滤器配置列表 Model
@@ -132,8 +135,8 @@ export function useFilterConfigModel(moduleId: string) {
   }
 
   /** 获取过滤器类型标签颜色 */
-  const getFilterTypeTagType = (filterType: string): 'default' | 'success' | 'danger' | 'warning' | 'primary' | 'info' => {
-    const typeColorMap: Record<string, 'default' | 'success' | 'danger' | 'warning' | 'primary' | 'info'> = {
+  const getFilterTypeTagType = (filterType: string): FilterTagVariant => {
+    const typeColorMap: Record<string, FilterTagVariant> = {
       header: 'primary',
       'query-param': 'info',
       body: 'warning',
@@ -153,8 +156,8 @@ export function useFilterConfigModel(moduleId: string) {
   }
 
   /** 获取执行时机标签颜色 */
-  const getFilterActionTagType = (filterAction: string): 'default' | 'success' | 'danger' | 'warning' | 'primary' | 'info' => {
-    const actionColorMap: Record<string, 'default' | 'success' | 'danger' | 'warning' | 'primary' | 'info'> = {
+  const getFilterActionTagType = (filterAction: string): FilterTagVariant => {
+    const actionColorMap: Record<string, FilterTagVariant> = {
       'pre-routing': 'success',
       'post-routing': 'info',
       'pre-response': 'warning',
@@ -246,7 +249,7 @@ export function useFilterConfigModel(moduleId: string) {
         title: '创建时间',
         align: 'center',
         width: 180,
-        formatter: (_v, row) => formatDate(row.addTime),
+        formatter: (_v, row) => (row.addTime ? formatDate(row.addTime) : ''),
       },
       {
         key: 'addWho',
@@ -260,7 +263,7 @@ export function useFilterConfigModel(moduleId: string) {
         title: '修改时间',
         align: 'center',
         width: 180,
-        formatter: (_v, row) => formatDate(row.editTime),
+        formatter: (_v, row) => (row.editTime ? formatDate(row.editTime) : ''),
       },
       {
         key: 'editWho',
@@ -415,8 +418,8 @@ export function useFilterConfigModel(moduleId: string) {
       span: 12,
       required: true,
       rules: [
-        { required: true, message: '请输入过滤器名称', trigger: ['blur', 'input'] },
-        { max: 100, message: '过滤器名称不能超过100个字符', trigger: ['blur', 'input'] },
+        { required: true, message: '请输入过滤器名称', trigger: ['blur', 'change'] },
+        { max: 100, message: '过滤器名称不能超过100个字符', trigger: ['blur', 'change'] },
       ],
     },
     {
@@ -467,19 +470,19 @@ export function useFilterConfigModel(moduleId: string) {
           type: 'number',
           message: '请输入执行顺序', 
           trigger: ['blur', 'change'],
-          validator: (_rule: any, value: any) => {
+          validator: (value: unknown) => {
             if (value === null || value === undefined || value === '') {
-              return new Error('请输入执行顺序')
+              return '请输入执行顺序'
             }
             const num = typeof value === 'number' ? value : Number(value)
-            if (isNaN(num)) {
-              return new Error('执行顺序必须是数字')
+            if (Number.isNaN(num)) {
+              return '执行顺序必须是数字'
             }
             if (num < 1) {
-              return new Error('执行顺序必须大于等于1')
+              return '执行顺序必须大于等于1'
             }
             if (!Number.isInteger(num)) {
-              return new Error('执行顺序必须是整数')
+              return '执行顺序必须是整数'
             }
             return true
           }
@@ -537,12 +540,14 @@ export function useFilterConfigModel(moduleId: string) {
       span: 12,
       show: (formData: Record<string, any>) => formData.filterType === 'header',
       defaultValue: true,
-      render: (formData: Record<string, any>) => {
-        const isRequest = formData['config.headerConfig.isRequestHeader'] ?? true
+      render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
+        const isRequest = (ctx ? ctx.value : formData.config?.headerConfig?.isRequestHeader) ?? true
         return h(RsSwitch, {
           modelValue: isRequest,
-          'onUpdate:modelValue': (value: boolean) => {
-            formData['config.headerConfig.isRequestHeader'] = value
+          'onUpdate:modelValue': (value: RsSwitchValue) => {
+            const next = value === true
+            if (ctx?.onUpdate) ctx.onUpdate(next)
+            else setByNamePath(formData, 'config.headerConfig.isRequestHeader', next)
           },
         }, {
           default: () => (isRequest ? '请求头' : '响应头'),
@@ -565,7 +570,7 @@ export function useFilterConfigModel(moduleId: string) {
       span: 12,
       show: (formData: Record<string, any>) => 
         formData.filterType === 'header' && 
-        formData['config.headerConfig.modifierType'] !== 'remove',
+        formData.config?.headerConfig?.modifierType !== 'remove',
     },
     {
       field: 'config.headerConfig.targetHeaderName',
@@ -575,7 +580,7 @@ export function useFilterConfigModel(moduleId: string) {
       span: 12,
       show: (formData: Record<string, any>) => 
         formData.filterType === 'header' && 
-        formData['config.headerConfig.modifierType'] === 'rename',
+        formData.config?.headerConfig?.modifierType === 'rename',
     },
     
     // 查询参数过滤器配置
@@ -604,7 +609,7 @@ export function useFilterConfigModel(moduleId: string) {
       span: 12,
       show: (formData: Record<string, any>) => 
         formData.filterType === 'query-param' && 
-        formData['config.queryParamConfig.modifierType'] !== 'remove',
+        formData.config?.queryParamConfig?.modifierType !== 'remove',
     },
     {
       field: 'config.queryParamConfig.targetParamName',
@@ -614,7 +619,7 @@ export function useFilterConfigModel(moduleId: string) {
       span: 12,
       show: (formData: Record<string, any>) => 
         formData.filterType === 'query-param' && 
-        formData['config.queryParamConfig.modifierType'] === 'rename',
+        formData.config?.queryParamConfig?.modifierType === 'rename',
     },
     
     // 前缀剥离过滤器配置
@@ -672,7 +677,7 @@ export function useFilterConfigModel(moduleId: string) {
       span: 12,
       show: (formData: Record<string, any>) => 
         formData.filterType === 'method' && 
-        formData['config.methodConfig.mode'] === 'allow',
+        formData.config?.methodConfig?.mode === 'allow',
       props: {
         multiple: true,
       },
@@ -686,7 +691,7 @@ export function useFilterConfigModel(moduleId: string) {
       span: 12,
       show: (formData: Record<string, any>) => 
         formData.filterType === 'method' && 
-        formData['config.methodConfig.mode'] === 'deny',
+        formData.config?.methodConfig?.mode === 'deny',
       props: {
         multiple: true,
       },
@@ -819,7 +824,7 @@ export function useFilterConfigModel(moduleId: string) {
       span: 12,
       show: (formData: Record<string, any>) => 
         formData.filterType === 'cookie' && 
-        formData['config.cookieConfig.operation'] !== 'remove',
+        formData.config?.cookieConfig?.operation !== 'remove',
     },
     {
       field: 'config.cookieConfig.cookieAttributes.domain',
@@ -829,8 +834,8 @@ export function useFilterConfigModel(moduleId: string) {
       span: 12,
       show: (formData: Record<string, any>) => 
         formData.filterType === 'cookie' && 
-        (formData['config.cookieConfig.operation'] === 'add' || 
-         formData['config.cookieConfig.operation'] === 'modify'),
+        (formData.config?.cookieConfig?.operation === 'add' || 
+         formData.config?.cookieConfig?.operation === 'modify'),
     },
     {
       field: 'config.cookieConfig.cookieAttributes.path',
@@ -840,8 +845,8 @@ export function useFilterConfigModel(moduleId: string) {
       span: 12,
       show: (formData: Record<string, any>) => 
         formData.filterType === 'cookie' && 
-        (formData['config.cookieConfig.operation'] === 'add' || 
-         formData['config.cookieConfig.operation'] === 'modify'),
+        (formData.config?.cookieConfig?.operation === 'add' || 
+         formData.config?.cookieConfig?.operation === 'modify'),
     },
     {
       field: 'config.cookieConfig.cookieAttributes.maxAge',
@@ -851,8 +856,8 @@ export function useFilterConfigModel(moduleId: string) {
       span: 12,
       show: (formData: Record<string, any>) => 
         formData.filterType === 'cookie' && 
-        (formData['config.cookieConfig.operation'] === 'add' || 
-         formData['config.cookieConfig.operation'] === 'modify'),
+        (formData.config?.cookieConfig?.operation === 'add' || 
+         formData.config?.cookieConfig?.operation === 'modify'),
       props: {
         min: 0,
       },
@@ -864,8 +869,8 @@ export function useFilterConfigModel(moduleId: string) {
       span: 12,
       show: (formData: Record<string, any>) => 
         formData.filterType === 'cookie' && 
-        (formData['config.cookieConfig.operation'] === 'add' || 
-         formData['config.cookieConfig.operation'] === 'modify'),
+        (formData.config?.cookieConfig?.operation === 'add' || 
+         formData.config?.cookieConfig?.operation === 'modify'),
       defaultValue: false,
       props: {
         checkedValue: true,
@@ -879,8 +884,8 @@ export function useFilterConfigModel(moduleId: string) {
       span: 12,
       show: (formData: Record<string, any>) => 
         formData.filterType === 'cookie' && 
-        (formData['config.cookieConfig.operation'] === 'add' || 
-         formData['config.cookieConfig.operation'] === 'modify'),
+        (formData.config?.cookieConfig?.operation === 'add' || 
+         formData.config?.cookieConfig?.operation === 'modify'),
       defaultValue: false,
       props: {
         checkedValue: true,
@@ -895,8 +900,8 @@ export function useFilterConfigModel(moduleId: string) {
       span: 12,
       show: (formData: Record<string, any>) => 
         formData.filterType === 'cookie' && 
-        (formData['config.cookieConfig.operation'] === 'add' || 
-         formData['config.cookieConfig.operation'] === 'modify'),
+        (formData.config?.cookieConfig?.operation === 'add' || 
+         formData.config?.cookieConfig?.operation === 'modify'),
       options: [
         { label: 'Strict', value: 'Strict' },
         { label: 'Lax', value: 'Lax' },

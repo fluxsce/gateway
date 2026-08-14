@@ -4,8 +4,8 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
-import { isApiSuccess, parseJsonData } from '@/utils/format'
 import { useAppMessage } from '@/composables/useAppMessage'
+import { isApiSuccess, parseJsonData } from '@/utils/format'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import { getServiceNode } from '../../../api'
@@ -206,7 +206,7 @@ export function useServiceNodePage(
   }
 
   /**
-   * 提交表单（新增/编辑共用，由 GdataFormModal 收集表单数据后回调）
+   * 提交表单（新增/编辑共用，由 RsDataFormModal 收集表单数据后回调）
    */
   const handleFormSubmit = async (formData?: Record<string, any>) => {
     if (!formData) return false

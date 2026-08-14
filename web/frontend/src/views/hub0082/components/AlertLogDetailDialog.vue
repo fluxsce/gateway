@@ -1,113 +1,126 @@
 <template>
-  <GModal
-    v-model:visible="showModal"
+  <RsDialog
+    :open="showModal"
     :title="dialogTitle"
-    :width="'90%'"
-    :style="{ maxWidth: '1200px' }"
-    preset="dialog"
-    :mask-closable="false"
-    :closable="true"
+    layout="window"
+    width="90%"
+    :teleport-to="props.to"
     :draggable="true"
+    :fullscreenable="true"
+    :show-overlay="true"
+    :close-on-overlay-click="false"
     :show-footer="false"
-    @after-leave="handleAfterLeave"
+    @update:open="handleUpdateVisible"
+    @after-close="handleAfterLeave"
   >
-    <n-spin :show="loading">
-      <div v-if="alertLog" class="alert-log-detail-container">
-        <!-- 基本信息 -->
-        <n-card title="基本信息" size="small" class="detail-card">
-          <n-descriptions :column="3" size="small" bordered>
-            <n-descriptions-item label="日志ID">
-              <n-ellipsis :tooltip="false">{{ alertLog.alertLogId }}</n-ellipsis>
-            </n-descriptions-item>
-            <n-descriptions-item label="告警级别">
-              <n-tag :type="getAlertLevelTagType(alertLog.alertLevel)" size="small">
-                {{ getAlertLevelLabel(alertLog.alertLevel) }}
-              </n-tag>
-            </n-descriptions-item>
-            <n-descriptions-item label="告警类型">
-              {{ alertLog.alertType || '-' }}
-            </n-descriptions-item>
-            <n-descriptions-item label="渠道名称">
-              {{ alertLog.channelName || '-' }}
-            </n-descriptions-item>
-            <n-descriptions-item label="告警时间">
-              {{ formatDate(alertLog.alertTimestamp || '') }}
-            </n-descriptions-item>
-            <n-descriptions-item label="发送状态">
-              <n-tag :type="getSendStatusTagType(alertLog.sendStatus)" size="small">
-                {{ getSendStatusLabel(alertLog.sendStatus) }}
-              </n-tag>
-            </n-descriptions-item>
-            <n-descriptions-item label="发送时间">
-              {{ alertLog.sendTime ? formatDate(alertLog.sendTime) : '-' }}
-            </n-descriptions-item>
-            <n-descriptions-item label="创建时间">
-              {{ formatDate(alertLog.addTime) }}
-            </n-descriptions-item>
-            <n-descriptions-item label="创建人">
-              {{ alertLog.addWho }}
-            </n-descriptions-item>
-            <n-descriptions-item label="修改时间">
-              {{ formatDate(alertLog.editTime || '') }}
-            </n-descriptions-item>
-            <n-descriptions-item label="修改人">
-              {{ alertLog.editWho }}
-            </n-descriptions-item>
-            <n-descriptions-item label="错误信息" :span="3">
-              {{ alertLog.sendErrorMessage || '-' }}
-            </n-descriptions-item>
-          </n-descriptions>
-        </n-card>
+    <template #body>
+      <div class="alert-log-detail">
+        <RsLoading :loading="loading" overlay block size="lg" />
 
-        <!-- 告警标题 -->
-        <n-card v-if="alertLog.alertTitle" title="告警标题" size="small" class="detail-card">
-          <div class="content-text">{{ alertLog.alertTitle }}</div>
-        </n-card>
+        <div v-if="alertLog" class="alert-log-detail__container">
+          <RsCard :title="t('dialog.basicInfo')" size="sm" variant="outlined" class="alert-log-detail__card">
+            <RsDescriptions :columns="3" size="sm" bordered label-placement="left">
+              <RsDescriptionsItem :label="t('columns.alertLogId')">
+                {{ alertLog.alertLogId }}
+              </RsDescriptionsItem>
+              <RsDescriptionsItem :label="t('columns.alertLevel')">
+                <RsTag :variant="getAlertLevelTagType(alertLog.alertLevel)" size="sm">
+                  {{ getAlertLevelLabel(alertLog.alertLevel) }}
+                </RsTag>
+              </RsDescriptionsItem>
+              <RsDescriptionsItem :label="t('columns.alertType')">
+                {{ alertLog.alertType || '-' }}
+              </RsDescriptionsItem>
+              <RsDescriptionsItem :label="t('columns.channelName')">
+                {{ alertLog.channelName || '-' }}
+              </RsDescriptionsItem>
+              <RsDescriptionsItem :label="t('columns.alertTimestamp')">
+                {{ formatDate(alertLog.alertTimestamp || '') }}
+              </RsDescriptionsItem>
+              <RsDescriptionsItem :label="t('columns.sendStatus')">
+                <RsTag :variant="getSendStatusTagType(alertLog.sendStatus)" size="sm">
+                  {{ getSendStatusLabel(alertLog.sendStatus) }}
+                </RsTag>
+              </RsDescriptionsItem>
+              <RsDescriptionsItem :label="t('columns.sendTime')">
+                {{ alertLog.sendTime ? formatDate(alertLog.sendTime) : '-' }}
+              </RsDescriptionsItem>
+              <RsDescriptionsItem :label="t('columns.addTime')">
+                {{ formatDate(alertLog.addTime) }}
+              </RsDescriptionsItem>
+              <RsDescriptionsItem :label="t('columns.addWho')">
+                {{ alertLog.addWho }}
+              </RsDescriptionsItem>
+              <RsDescriptionsItem :label="t('columns.editTime')">
+                {{ formatDate(alertLog.editTime || '') }}
+              </RsDescriptionsItem>
+              <RsDescriptionsItem :label="t('columns.editWho')">
+                {{ alertLog.editWho }}
+              </RsDescriptionsItem>
+              <RsDescriptionsItem :label="t('columns.sendErrorMessage')" :span="3">
+                {{ alertLog.sendErrorMessage || '-' }}
+              </RsDescriptionsItem>
+            </RsDescriptions>
+          </RsCard>
 
-        <!-- 告警内容 -->
-        <n-card v-if="alertLog.alertContent" title="告警内容" size="small" class="detail-card">
-          <div class="content-text">{{ alertLog.alertContent }}</div>
-        </n-card>
+          <RsCard v-if="alertLog.alertTitle" :title="t('dialog.alertTitle')" size="sm" variant="outlined" class="alert-log-detail__card">
+            <div class="alert-log-detail__content">{{ alertLog.alertTitle }}</div>
+          </RsCard>
 
-        <!-- JSON 数据展示 -->
-        <n-card v-if="hasJsonData" title="扩展数据" size="small" class="detail-card">
-          <n-collapse>
-            <n-collapse-item v-if="alertLog.alertTags" title="告警标签 (JSON)" name="tags">
-              <GTextShow :content="formatJson(alertLog.alertTags)" format="json" :auto-format="true" :max-height="300" />
-            </n-collapse-item>
-            <n-collapse-item v-if="alertLog.alertExtra" title="额外数据 (JSON)" name="extra">
-              <GTextShow :content="formatJson(alertLog.alertExtra)" format="json" :auto-format="true" :max-height="300" />
-            </n-collapse-item>
-            <n-collapse-item v-if="alertLog.tableData" title="表格数据 (JSON)" name="table">
-              <GTextShow :content="formatJson(alertLog.tableData)" format="json" :auto-format="true" :max-height="300" />
-            </n-collapse-item>
-            <n-collapse-item v-if="alertLog.sendResult" title="发送结果 (JSON)" name="result">
-              <GTextShow :content="formatJson(alertLog.sendResult)" format="json" :auto-format="true" :max-height="300" />
-            </n-collapse-item>
-          </n-collapse>
-        </n-card>
+          <RsCard v-if="alertLog.alertContent" :title="t('dialog.alertContent')" size="sm" variant="outlined" class="alert-log-detail__card">
+            <div class="alert-log-detail__content">{{ alertLog.alertContent }}</div>
+          </RsCard>
+
+          <RsCard v-if="alertLog.alertTags" :title="t('dialog.alertTags')" size="sm" variant="outlined" class="alert-log-detail__card">
+            <RsCodeBlock :code="formatJson(alertLog.alertTags)" lang="json" />
+          </RsCard>
+          <RsCard v-if="alertLog.alertExtra" :title="t('dialog.alertExtra')" size="sm" variant="outlined" class="alert-log-detail__card">
+            <RsCodeBlock :code="formatJson(alertLog.alertExtra)" lang="json" />
+          </RsCard>
+          <RsCard v-if="alertLog.tableData" :title="t('dialog.tableData')" size="sm" variant="outlined" class="alert-log-detail__card">
+            <RsCodeBlock :code="formatJson(alertLog.tableData)" lang="json" />
+          </RsCard>
+          <RsCard v-if="alertLog.sendResult" :title="t('dialog.sendResult')" size="sm" variant="outlined" class="alert-log-detail__card">
+            <RsCodeBlock :code="formatJson(alertLog.sendResult)" lang="json" />
+          </RsCard>
+        </div>
+
+        <RsEmpty v-else-if="!loading" :description="t('dialog.empty')" />
       </div>
-
-      <n-empty v-else description="暂无日志数据" />
-    </n-spin>
-  </GModal>
+    </template>
+  </RsDialog>
 </template>
 
 <script setup lang="ts">
-import { GModal } from '@/components/gmodal'
-import { GTextShow } from '@/components/gtext-show'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
+import {
+  RsCard,
+  RsCodeBlock,
+  RsDescriptions,
+  RsDescriptionsItem,
+  RsDialog,
+  RsEmpty,
+  RsLoading,
+  RsTag,
+  type RsTagVariant,
+} from '@/ui'
 import { formatDate, getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
-import { NCard, NCollapse, NCollapseItem, NDescriptions, NDescriptionsItem, NEllipsis, NEmpty, NSpin, NTag, useMessage } from 'naive-ui'
 import { computed, ref, watch } from 'vue'
 import { getAlertLog } from '../api'
 import type { AlertLevel, AlertLog, SendStatus } from '../types'
-import { ALERT_LEVEL_OPTIONS, SEND_STATUS_OPTIONS } from '../types'
+
+defineOptions({
+  name: 'AlertLogDetailDialog',
+})
 
 interface Props {
   /** 是否显示弹窗 */
   visible: boolean
   /** 告警日志ID */
   alertLogId?: string
+  /** 挂载目标 */
+  to?: string | HTMLElement | false
 }
 
 interface Emits {
@@ -117,19 +130,21 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   visible: false,
   alertLogId: '',
+  to: undefined,
 })
 
 const emit = defineEmits<Emits>()
 
-const message = useMessage()
+const message = useAppMessage()
+const { t } = useModuleI18n('hub0082')
 
-// 状态管理
 const loading = ref(false)
 const alertLog = ref<AlertLog | null>(null)
 
-// 计算属性
 const dialogTitle = computed(() => {
-  return props.alertLogId ? `预警日志详情 - ${props.alertLogId}` : '预警日志详情'
+  return props.alertLogId
+    ? t('dialog.titleWithId', { id: props.alertLogId })
+    : t('dialog.title')
 })
 
 const showModal = computed({
@@ -141,35 +156,30 @@ const showModal = computed({
   },
 })
 
-const hasJsonData = computed(() => {
-  return !!(alertLog.value?.alertTags || alertLog.value?.alertExtra || alertLog.value?.tableData || alertLog.value?.sendResult)
-})
-
-// 监听 visible 变化，加载数据
 watch(
   () => props.visible,
   (val) => {
     if (val && props.alertLogId) {
-      loadAlertLog()
+      void loadAlertLog()
     } else if (!val) {
-      // 关闭时清空数据
       alertLog.value = null
     }
   },
-  { immediate: true }
+  { immediate: true },
 )
 
-// 监听 alertLogId 变化
 watch(
   () => props.alertLogId,
   (val) => {
     if (val && props.visible) {
-      loadAlertLog()
+      void loadAlertLog()
     }
-  }
+  },
 )
 
-// 加载预警日志详情
+/**
+ * 加载预警日志详情。
+ */
 const loadAlertLog = async () => {
   if (!props.alertLogId) {
     return
@@ -181,60 +191,95 @@ const loadAlertLog = async () => {
     if (isApiSuccess(response)) {
       alertLog.value = parseJsonData<AlertLog>(response)
     } else {
-      message.error(getApiMessage(response, '获取预警日志详情失败'))
+      message.error(getApiMessage(response, t('message.detailFailed')))
       alertLog.value = null
     }
   } catch (error: any) {
     console.error('加载预警日志详情失败:', error)
-    message.error(error.message || '加载预警日志详情失败')
+    message.error(error.message || t('message.loadDetailFailed'))
     alertLog.value = null
   } finally {
     loading.value = false
   }
 }
 
-// 对话框关闭后处理
+/**
+ * 处理弹窗可见性变化。
+ * @param value - 是否打开
+ */
+const handleUpdateVisible = (value: boolean) => {
+  showModal.value = value
+}
+
+/** 对话框关闭后清空详情数据 */
 const handleAfterLeave = () => {
   alertLog.value = null
 }
 
-// 工具函数
+/**
+ * 获取告警级别显示标签。
+ * @param level - 告警级别
+ */
 const getAlertLevelLabel = (level?: AlertLevel | string | null) => {
   if (!level) return ''
-  const option = ALERT_LEVEL_OPTIONS.find(opt => opt.value === level)
-  return option?.label || String(level)
+  const levelMap: Record<string, string> = {
+    INFO: t('level.info'),
+    WARN: t('level.warn'),
+    ERROR: t('level.error'),
+    CRITICAL: t('level.critical'),
+  }
+  return levelMap[level] || String(level)
 }
 
-const getAlertLevelTagType = (level?: AlertLevel | string | null): 'default' | 'success' | 'error' | 'warning' | 'primary' | 'info' => {
+/**
+ * 将告警级别映射为 RsTag variant。
+ * @param level - 告警级别
+ */
+const getAlertLevelTagType = (level?: AlertLevel | string | null): RsTagVariant => {
   if (!level) return 'default'
-  const levelMap: Record<string, 'default' | 'success' | 'error' | 'warning' | 'primary' | 'info'> = {
+  const levelMap: Record<string, RsTagVariant> = {
     INFO: 'info',
     WARN: 'warning',
-    ERROR: 'error',
-    CRITICAL: 'error',
+    ERROR: 'danger',
+    CRITICAL: 'danger',
   }
   return levelMap[level] || 'default'
 }
 
+/**
+ * 获取发送状态显示标签。
+ * @param status - 发送状态
+ */
 const getSendStatusLabel = (status?: SendStatus | string | null) => {
   if (!status) return ''
-  const option = SEND_STATUS_OPTIONS.find(opt => opt.value === status)
-  return option?.label || String(status)
+  const statusMap: Record<string, string> = {
+    PENDING: t('sendStatus.pending'),
+    SENDING: t('sendStatus.sending'),
+    SUCCESS: t('sendStatus.success'),
+    FAILED: t('sendStatus.failed'),
+  }
+  return statusMap[status] || String(status)
 }
 
-const getSendStatusTagType = (status?: SendStatus | string | null): 'default' | 'success' | 'error' | 'warning' | 'primary' | 'info' => {
+/**
+ * 将发送状态映射为 RsTag variant。
+ * @param status - 发送状态
+ */
+const getSendStatusTagType = (status?: SendStatus | string | null): RsTagVariant => {
   if (!status) return 'default'
-  const statusMap: Record<string, 'default' | 'success' | 'error' | 'warning' | 'primary' | 'info'> = {
+  const statusMap: Record<string, RsTagVariant> = {
     PENDING: 'default',
     SENDING: 'info',
     SUCCESS: 'success',
-    FAILED: 'error',
+    FAILED: 'danger',
   }
   return statusMap[status] || 'default'
 }
 
 /**
- * 格式化 JSON 字符串
+ * 格式化 JSON 字符串。
+ * @param jsonStr - 原始 JSON 文本
+ * @returns 美化后的 JSON；解析失败则原样返回
  */
 const formatJson = (jsonStr: string | null | undefined): string => {
   if (!jsonStr) return ''
@@ -247,21 +292,25 @@ const formatJson = (jsonStr: string | null | undefined): string => {
 }
 </script>
 
-<style scoped>
-.alert-log-detail-container {
+<style scoped lang="scss">
+.alert-log-detail {
+  position: relative;
+  min-height: 8rem;
+}
+
+.alert-log-detail__container {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.detail-card {
-  margin-bottom: 8px;
+.alert-log-detail__card {
+  margin-bottom: 0;
 }
 
-.content-text {
+.alert-log-detail__content {
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.6;
 }
 </style>
-

@@ -3,12 +3,12 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { RsDataFormField, RsDataFormTab } from '@/components/form/rs-data'
+import type { RsDataFormField, RsDataFormRenderContext, RsDataFormTab } from '@/components/form/rs-data'
 import type { RsSearchFormProps } from '@/components/form/rs-search'
 import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
 import { formatDate } from '@/utils/format'
-import { RsCheckbox, RsTag } from '@/ui'
+import { RsCheckbox, RsTag, setByNamePath } from '@/ui'
 import { h, ref } from 'vue'
 import { ServiceDefinitionSelector } from '../../services'
 import type { RouteConfig } from '../types'
@@ -88,19 +88,16 @@ const methodTagBaseStyle: Record<string, string> = {
   border: '1px solid',
 }
 
-/** 解析允许的 HTTP 方法数组 */
+/** 解析允许的 HTTP 方法数组（数组、JSON 字符串或逗号分隔） */
 function getAllowedMethods(allowedMethods?: string[] | string): string[] {
   if (!allowedMethods) return []
   if (Array.isArray(allowedMethods)) return allowedMethods
-  if (typeof allowedMethods === 'string') {
-    try {
-      const parsed = JSON.parse(allowedMethods)
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
+  try {
+    const parsed = JSON.parse(allowedMethods)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return allowedMethods.split(',').map((method) => method.trim()).filter(Boolean)
   }
-  return []
 }
 
 /** 判断是否为多个服务（serviceDefinitionId 含逗号） */
@@ -665,13 +662,13 @@ export function useRouteConfigModel() {
             required: true,
             message: '请选择匹配类型',
             trigger: ['blur', 'change'],
-            validator: (_rule: any, value: any) => {
+            validator: (value: unknown) => {
               if (value === null || value === undefined || value === '') {
-                return new Error('请选择匹配类型')
+                return '请选择匹配类型'
               }
               const validValues = [MatchType.EXACT, MatchType.PREFIX, MatchType.REGEX]
               if (!validValues.includes(Number(value))) {
-                return new Error('请选择有效的匹配类型')
+                return '请选择有效的匹配类型'
               }
               return true
             },
@@ -716,12 +713,12 @@ export function useRouteConfigModel() {
             trigger: ['blur', 'input'],
           },
           {
-            validator: (_rule: any, value: any) => {
-              if (!value) {
+            validator: (value: unknown) => {
+              if (typeof value !== 'string' || !value) {
                 return true
               }
               if (!value.startsWith('/')) {
-                return new Error('路由路径必须以 / 开头')
+                return '路由路径必须以 / 开头'
               }
               return true
             },
@@ -736,23 +733,9 @@ export function useRouteConfigModel() {
         span: 24,
         tabKey: 'basic',
         tips: '选择允许的HTTP请求方法，未选择表示允许所有方法',
-        render: (formData: Record<string, any>) => {
+        render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
           const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']
-          const currentValue = Array.isArray(formData.allowedMethods)
-            ? formData.allowedMethods
-            : typeof formData.allowedMethods === 'string' && formData.allowedMethods
-              ? (() => {
-                  try {
-                    const parsed = JSON.parse(formData.allowedMethods)
-                    return Array.isArray(parsed) ? parsed : []
-                  } catch {
-                    return formData.allowedMethods
-                      .split(',')
-                      .map((m: string) => m.trim())
-                      .filter(Boolean)
-                  }
-                })()
-              : []
+          const currentValue = getAllowedMethods(ctx ? ctx.value : formData.allowedMethods)
 
           return h(
             'div',
@@ -766,7 +749,9 @@ export function useRouteConfigModel() {
                     const next = new Set(currentValue.map((v: string) => String(v)))
                     if (checked) next.add(method)
                     else next.delete(method)
-                    formData.allowedMethods = Array.from(next)
+                    const list = Array.from(next)
+                    if (ctx?.onUpdate) ctx.onUpdate(list)
+                    else formData.allowedMethods = list
                   },
                 },
                 { default: () => method },
@@ -804,16 +789,16 @@ export function useRouteConfigModel() {
             required: true,
             message: '请输入路由优先级',
             trigger: ['blur', 'change', 'input'],
-            validator: (_rule: any, value: any) => {
+            validator: (value: unknown) => {
               if (value === null || value === undefined || value === '') {
-                return new Error('请输入路由优先级')
+                return '请输入路由优先级'
               }
               const num = typeof value === 'number' ? value : Number(value)
               if (isNaN(num)) {
-                return new Error('路由优先级必须是数字')
+                return '路由优先级必须是数字'
               }
               if (num < 1 || num > 999) {
-                return new Error('优先级必须在1-999之间')
+                return '优先级必须在1-999之间'
               }
               return true
             },
@@ -828,22 +813,41 @@ export function useRouteConfigModel() {
         tabKey: 'basic',
         required: true,
         tips: '选择要关联的后端服务定义，多个服务使用逗号分割，如果没有可用选项，请先在服务管理中创建服务定义',
-        render: (formData: Record<string, any>, context?: { gatewayInstanceId?: string }) => {
-          const gatewayInstanceId = context?.gatewayInstanceId || ''
+        rules: [
+          {
+            required: true,
+            message: '请选择关联服务',
+            trigger: ['blur', 'change'],
+            validator: (value: unknown) => {
+              if (typeof value !== 'string' || !value.trim()) {
+                return '请选择关联服务'
+              }
+              return true
+            },
+          },
+        ],
+        render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext & { gatewayInstanceId?: string }) => {
+          const gatewayInstanceId = ctx?.gatewayInstanceId || ''
+          const rawId = ctx ? ctx.value : formData.serviceDefinitionId
+          let currentId = ''
+          if (typeof rawId === 'string') currentId = rawId
+          else if (rawId != null) currentId = String(rawId)
 
           return h(ServiceDefinitionSelector, {
-            modelValue: formData.serviceDefinitionId,
+            modelValue: currentId,
             'onUpdate:modelValue': (value: string | null) => {
-              formData.serviceDefinitionId = value || ''
+              if (ctx?.onUpdate) ctx.onUpdate(value ?? '')
+              else formData.serviceDefinitionId = value ?? ''
             },
             'onUpdate:serviceNameMap': (map: Record<string, string>) => {
-              formData['routeMetadata.serviceNameMap'] = map
+              if (ctx?.setFieldValue) ctx.setFieldValue('routeMetadata.serviceNameMap', map)
+              else setByNamePath(formData, 'routeMetadata.serviceNameMap', map)
             },
             gatewayInstanceId,
           })
         },
       },
-      // ============= 多服务配置字段（使用点号分隔，直接存储在 routeMetadata 中） =============
+      // ============= 多服务配置字段（NamePath，写在 routeMetadata 对象上） =============
       {
         field: 'routeMetadata.responseMergeStrategy',
         label: '响应合并策略',
@@ -938,7 +942,7 @@ export function useRouteConfigModel() {
         tabKey: 'forward',
         required: true,
         defaultValue: 0,
-        show: (formData: Record<string, any>) => formData['routeMetadata.overrideProxyTimeout'] === 'Y',
+        show: (formData: Record<string, any>) => formData.routeMetadata?.overrideProxyTimeout === 'Y',
         tips: '仅在开启「覆盖代理超时/重试」后生效。大于0时覆盖代理总超时；0表示该项仍用代理。SSE收到事件流响应头后也会停止绝对总超时',
         props: {
           min: 0,
@@ -951,16 +955,16 @@ export function useRouteConfigModel() {
             message: '请输入请求总超时',
             trigger: ['blur', 'change'],
             type: 'number',
-            validator: (_rule: any, value: any) => {
+            validator: (value: unknown) => {
               if (value === null || value === undefined || value === '') {
-                return new Error('请输入请求总超时')
+                return '请输入请求总超时'
               }
               const num = Number(value)
               if (Number.isNaN(num) || num < 0) {
-                return new Error('请求总超时不能为负数')
+                return '请求总超时不能为负数'
               }
               if (num > 3600000) {
-                return new Error('请求总超时不能超过3600000毫秒')
+                return '请求总超时不能超过3600000毫秒'
               }
               return true
             },
@@ -975,7 +979,7 @@ export function useRouteConfigModel() {
         span: 12,
         tabKey: 'forward',
         defaultValue: 0,
-        show: (formData: Record<string, any>) => formData['routeMetadata.overrideProxyTimeout'] === 'Y',
+        show: (formData: Record<string, any>) => formData.routeMetadata?.overrideProxyTimeout === 'Y',
         tips: '仅在开启覆盖后生效。须与「重试间隔」同时大于0才覆盖代理重试；任一为0则重试仍用代理',
         props: {
           min: 0,
@@ -991,7 +995,7 @@ export function useRouteConfigModel() {
         span: 12,
         tabKey: 'forward',
         defaultValue: 0,
-        show: (formData: Record<string, any>) => formData['routeMetadata.overrideProxyTimeout'] === 'Y',
+        show: (formData: Record<string, any>) => formData.routeMetadata?.overrideProxyTimeout === 'Y',
         tips: '仅在开启覆盖后生效。须与「重试次数」同时大于0才覆盖代理重试。表示失败后到下次尝试前的等待，不是单次执行超时',
         props: {
           min: 0,
@@ -1043,16 +1047,26 @@ export function useRouteConfigModel() {
       },
       // ============= 元数据配置 Tab =============
       {
-        field: 'routeMetadata',
+        field: '_routeMetadataPreview',
         label: '路由元数据',
-        type: 'input' as const,
-        placeholder: '请输入JSON格式的元数据（可选）',
+        type: 'custom' as const,
         span: 24,
         tabKey: 'metadata',
-        tips: '用于存储路由的自定义元数据信息，格式为JSON字符串，如：{"key1":"value1","key2":"value2"}',
-        props: {
-          type: 'textarea',
-          rows: 4,
+        tips: '只读预览当前 routeMetadata 对象。结构化字段在其它页签编辑；接口中的其它键会随对象一并保存。',
+        render: (formData: Record<string, any>) => {
+          const meta = formData.routeMetadata
+          const text =
+            meta && typeof meta === 'object' && !Array.isArray(meta)
+              ? JSON.stringify(meta, null, 2)
+              : '{}'
+          return h('textarea', {
+            value: text,
+            readOnly: true,
+            rows: 8,
+            class: 'rs-data-form__textarea',
+            style:
+              'width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--rs-border-color, #d9d9d9);border-radius:4px;font:inherit;resize:vertical;background:var(--rs-fill-color, #fafafa);',
+          })
         },
       },
       {

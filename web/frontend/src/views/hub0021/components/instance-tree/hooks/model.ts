@@ -4,10 +4,9 @@
  */
 
 import type { RsDataFormField, RsDataFormTab } from '@/components/form/rs-data'
-import type { GContextProps } from '@/components/gcontext'
-import { FunnelOutline, SettingsOutline } from '@vicons/ionicons5'
+import type { RsContextMenuItem } from '@/ui'
 import { computed, ref } from 'vue'
-import type { GatewayInstance, InstanceTreeOption } from '../types'
+import type { GatewayInstance, InstanceTreeNode } from '../types'
 import { FilterExecutionMode } from '../types'
 
 /**
@@ -40,22 +39,21 @@ export function useGatewayInstanceTreeModel() {
   /**
    * 将实例列表转换为树形结构（后端分页，直接使用 instanceList）
    */
-  const treeData = computed<InstanceTreeOption[]>(() => {
-    return instanceList.value.map(instance => ({
+  const treeData = computed<InstanceTreeNode[]>(() => {
+    return instanceList.value.map((instance) => ({
       key: instance.gatewayInstanceId,
       label: getInstanceLabel(instance),
-      instance: instance,
+      instance,
     }))
   })
 
   // ============= 辅助方法 =============
 
   /**
-   * 获取实例标签
+   * 获取实例标签（树节点主标题；地址在节点模板第二行展示）
    */
   function getInstanceLabel(instance: GatewayInstance): string {
-    const port = instance.tlsEnabled === 'Y' ? instance.httpsPort : instance.httpPort
-    return `${instance.instanceName || '未命名'} (${instance.bindAddress || '-'}:${port || '-'})`
+    return instance.instanceName || '未命名'
   }
 
   // ============= 状态更新方法 =============
@@ -119,23 +117,18 @@ export function useGatewayInstanceTreeModel() {
   // ============= 右键菜单配置 =============
 
   /**
-   * 树节点右键菜单配置
+   * 树节点右键菜单项（RsContextMenu）
    */
-  const treeMenuConfig: Partial<GContextProps> = {
-    enabled: true,
-    showCopyNode: true,
-    moduleId,
-    options: [
-      { code: 'routerConfig', name: 'Router配置', prefixIcon: SettingsOutline },
-      { code: 'globalFilterConfig', name: '全局过滤器配置', prefixIcon: FunnelOutline },
-    ],
-  }
+  const contextMenuItems: RsContextMenuItem[] = [
+    { key: 'routerConfig', label: 'Router配置', icon: 'settings' },
+    { key: 'globalFilterConfig', label: '全局过滤器配置', icon: 'funnel' },
+  ]
 
   // ============= Router配置表单配置 =============
 
   /**
    * Router配置表单字段配置
-   * 用于 GdataFormModal 组件
+   * 用于 RsDataFormModal 组件
    */
   const routerFormConfig = {
     tabs: [
@@ -597,7 +590,7 @@ export function useGatewayInstanceTreeModel() {
     treeData,
 
     // 配置
-    treeMenuConfig,
+    contextMenuItems,
     routerFormConfig,
 
     // 方法

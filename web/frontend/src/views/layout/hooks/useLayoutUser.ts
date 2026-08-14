@@ -6,31 +6,28 @@ import { config } from '@/config/config'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { store } from '@/stores'
 import { useGlobalStore } from '@/stores/global'
+import type { RsDropdownItem } from '@/ui'
 import { computed } from 'vue'
 
 export function useLayoutUser() {
   const { t: tCommon } = useModuleI18n('common')
   const globalStore = useGlobalStore()
 
-  // 用户下拉菜单选项（GDropdown 当前不渲染 option.icon，仅保留 key/label）
-  const userMenuOptions = computed(() => [
+  const userMenuItems = computed<RsDropdownItem[]>(() => [
     {
-      key: 'settings',
+      value: 'settings',
       label: tCommon('user.settings'),
+      icon: 'settings',
     },
     {
-      type: 'divider',
-      key: 'd1',
-    },
-    {
-      key: 'logout',
+      value: 'logout',
       label: tCommon('user.logout'),
+      icon: 'log-out',
     },
   ])
 
-  // 处理用户菜单操作
-  const handleUserAction = (key: string | number) => {
-    switch (String(key)) {
+  const handleUserAction = (value: string) => {
+    switch (value) {
       case 'settings':
         // 与侧栏一致：先 upsert 页签，由 MainLayoutContent 监听 activeTabId 再 router.push
         globalStore.upsertLayoutTab('/settings', tCommon('user.settings'), 'settings')
@@ -46,7 +43,7 @@ export function useLayoutUser() {
   }
 
   return {
-    userMenuOptions,
+    userMenuItems,
     handleUserAction,
   }
 }

@@ -3,12 +3,12 @@
  * 处理所有与后端交互的业务逻辑
  */
 
+import { useAppMessage } from '@/composables/useAppMessage'
 import { rsConfirm } from '@/ui'
 import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import { WarningOutline } from '@vicons/ionicons5'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import * as serviceCenterApi from '../api'
 import type { ServiceCenterInstance } from '../types'
@@ -18,8 +18,8 @@ import { useServiceCenterInstanceModel } from './model'
  * 服务中心实例服务 Hook（纯业务逻辑）
  */
 export function useServiceCenterInstanceService(searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
-// 初始化 Model
+  const message = useAppMessage()
+  // 初始化 Model
   const model = useServiceCenterInstanceModel()
 
   const {

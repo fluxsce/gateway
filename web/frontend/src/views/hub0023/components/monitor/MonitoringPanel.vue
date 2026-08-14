@@ -1,286 +1,219 @@
 <template>
   <div class="monitoring-panel">
-    <GPane direction="vertical" :no-resize="true">
-      <!-- 上部：搜索表单 -->
-      <template #1>
-        <search-form
-          ref="searchFormRef"
-          :module-id="page.service.model.moduleId"
-          v-bind="page.service.model.searchFormConfig"
-          @search="handleSearch"
-          @reset="handleReset"
-          @toolbar-click="handleToolbarClick"
-        />
+    <RsSplitPane
+      class="monitoring-panel__split"
+      orientation="vertical"
+      :panes="splitPanes"
+      disabled
+    >
+      <template #search>
+        <div class="monitoring-panel__search">
+          <RsSearchForm
+            ref="searchFormRef"
+            :module-id="page.service.model.moduleId"
+            v-bind="page.service.model.searchFormConfig"
+            @search="handleSearch"
+            @reset="handleReset"
+            @toolbar-click="handleToolbarClick"
+          />
+        </div>
       </template>
 
-      <!-- 下部：监控内容 -->
-      <template #2>
-        <div class="monitoring-content">
-          <!-- 监控概览 -->
-          <n-card class="overview-card" size="small">
+      <template #content>
+        <div class="monitoring-panel__content">
+          <RsCard class="overview-card" size="sm" variant="outlined">
             <template #header>
               <div class="overview-header">
-                <n-icon size="18" color="#18a058">
-                  <StatsChartOutline />
-                </n-icon>
+                <RsIcon name="chart-column" :size="18" color="#18a058" />
                 <span>监控概览</span>
               </div>
             </template>
             <div class="overview-content">
-              <!-- 主要指标 -->
-              <n-grid :cols="3" :x-gap="24" :y-gap="16">
-                <n-gi>
-                  <n-statistic
-                    label="总请求数"
-                    :value="page.service.model.overviewData.totalRequests"
-                  >
-                    <template #prefix>
-                      <n-icon color="#18a058">
-                        <BarChartOutline />
-                      </n-icon>
-                    </template>
-                  </n-statistic>
-                </n-gi>
-                <n-gi>
-                  <n-statistic
-                    label="成功请求数"
-                    :value="page.service.model.overviewData.successRequests"
-                  >
-                    <template #prefix>
-                      <n-icon color="#18a058">
-                        <CheckmarkCircleOutline />
-                      </n-icon>
-                    </template>
-                  </n-statistic>
-                </n-gi>
-                <n-gi>
-                  <n-statistic
-                    label="失败请求数"
-                    :value="page.service.model.overviewData.failedRequests"
-                  >
-                    <template #prefix>
-                      <n-icon color="#d03050">
-                        <CloseCircleOutline />
-                      </n-icon>
-                    </template>
-                  </n-statistic>
-                </n-gi>
-              </n-grid>
+              <div class="overview-grid">
+                <RsStatCard
+                  label="总请求数"
+                  :value="page.service.model.overviewData.totalRequests"
+                  accent="success"
+                />
+                <RsStatCard
+                  label="成功请求数"
+                  :value="page.service.model.overviewData.successRequests"
+                  accent="success"
+                />
+                <RsStatCard
+                  label="失败请求数"
+                  :value="page.service.model.overviewData.failedRequests"
+                  accent="danger"
+                />
+              </div>
 
-              <!-- 响应时间指标 -->
-              <n-divider style="margin: 20px 0" />
-              <n-grid :cols="3" :x-gap="24">
-                <n-gi>
-                  <n-statistic
-                    label="平均响应时间"
-                    :value="page.service.model.overviewData.avgResponseTimeMs"
-                    suffix="ms"
-                  >
-                    <template #prefix>
-                      <n-icon color="#2080f0">
-                        <TimeOutline />
-                      </n-icon>
-                    </template>
-                  </n-statistic>
-                </n-gi>
-                <n-gi>
-                  <n-statistic
-                    label="最小响应时间"
-                    :value="page.service.model.overviewData.minResponseTimeMs"
-                    suffix="ms"
-                  >
-                    <template #prefix>
-                      <n-icon color="#52c41a">
-                        <TimeOutline />
-                      </n-icon>
-                    </template>
-                  </n-statistic>
-                </n-gi>
-                <n-gi>
-                  <n-statistic
-                    label="最大响应时间"
-                    :value="page.service.model.overviewData.maxResponseTimeMs"
-                    suffix="ms"
-                  >
-                    <template #prefix>
-                      <n-icon color="#ff4d4f">
-                        <TimeOutline />
-                      </n-icon>
-                    </template>
-                  </n-statistic>
-                </n-gi>
-              </n-grid>
+              <RsDivider />
+
+              <div class="overview-grid">
+                <RsStatCard
+                  label="平均响应时间"
+                  :value="`${page.service.model.overviewData.avgResponseTimeMs} ms`"
+                  accent="info"
+                />
+                <RsStatCard
+                  label="最小响应时间"
+                  :value="`${page.service.model.overviewData.minResponseTimeMs} ms`"
+                  accent="success"
+                />
+                <RsStatCard
+                  label="最大响应时间"
+                  :value="`${page.service.model.overviewData.maxResponseTimeMs} ms`"
+                  accent="danger"
+                />
+              </div>
             </div>
-          </n-card>
+          </RsCard>
 
-          <!-- 监控图表 -->
-          <n-grid :cols="2" :x-gap="20" :y-gap="20">
-            <!-- 1. 请求量趋势图 -->
-            <n-gi>
-              <n-card class="chart-card" size="small">
-                <template #header>
-                  <div class="chart-header">
-                    <n-icon size="18" color="#18a058">
-                      <TrendingUpOutline />
-                    </n-icon>
-                    <span>请求量趋势({{ page.service.model.getTimeGranularityLabel() }})</span>
-                  </div>
-                </template>
-                <div class="chart-container" ref="requestTrendChartRef">
-                  <div v-if="page.service.model.loading.value" class="chart-loading">
-                    <n-spin size="large" />
-                  </div>
-                  <div
-                    v-else-if="!page.service.model.chartData.requestTrend.length"
-                    class="chart-empty"
-                  >
-                    <n-empty description="暂无数据" />
-                  </div>
+          <div class="chart-grid">
+            <RsCard class="chart-card" size="sm" variant="outlined">
+              <template #header>
+                <div class="chart-header">
+                  <RsIcon name="trending-up" :size="18" color="#18a058" />
+                  <span>请求量趋势({{ page.service.model.getTimeGranularityLabel() }})</span>
                 </div>
-              </n-card>
-            </n-gi>
+              </template>
+              <div class="chart-container" ref="requestTrendChartRef">
+                <div v-if="page.service.model.loading.value" class="chart-loading">
+                  <RsLoading size="lg" />
+                </div>
+                <div
+                  v-else-if="!page.service.model.chartData.requestTrend.length"
+                  class="chart-empty"
+                >
+                  <RsEmpty description="暂无数据" />
+                </div>
+              </div>
+            </RsCard>
 
-            <!-- 2. 响应时间趋势图 -->
-            <n-gi>
-              <n-card class="chart-card" size="small">
-                <template #header>
-                  <div class="chart-header">
-                    <n-icon size="18" color="#2080f0">
-                      <TimeOutline />
-                    </n-icon>
-                    <span>响应时间趋势({{ page.service.model.getTimeGranularityLabel() }})</span>
-                  </div>
-                </template>
-                <div class="chart-container" ref="responseTimeChartRef">
-                  <div v-if="page.service.model.loading.value" class="chart-loading">
-                    <n-spin size="large" />
-                  </div>
-                  <div
-                    v-else-if="!page.service.model.chartData.responseTimeTrend.length"
-                    class="chart-empty"
-                  >
-                    <n-empty description="暂无数据" />
-                  </div>
+            <RsCard class="chart-card" size="sm" variant="outlined">
+              <template #header>
+                <div class="chart-header">
+                  <RsIcon name="clock" :size="18" color="#2080f0" />
+                  <span>响应时间趋势({{ page.service.model.getTimeGranularityLabel() }})</span>
                 </div>
-              </n-card>
-            </n-gi>
+              </template>
+              <div class="chart-container" ref="responseTimeChartRef">
+                <div v-if="page.service.model.loading.value" class="chart-loading">
+                  <RsLoading size="lg" />
+                </div>
+                <div
+                  v-else-if="!page.service.model.chartData.responseTimeTrend.length"
+                  class="chart-empty"
+                >
+                  <RsEmpty description="暂无数据" />
+                </div>
+              </div>
+            </RsCard>
 
-            <!-- 3. 请求指标饼图 -->
-            <n-gi>
-              <n-card class="chart-card" size="small">
-                <template #header>
-                  <div class="chart-header">
-                    <n-icon size="18" color="#f0a020">
-                      <PieChartOutline />
-                    </n-icon>
-                    <span>请求指标分布</span>
-                  </div>
-                </template>
-                <div class="chart-container" ref="requestMetricsChartRef">
-                  <div v-if="page.service.model.loading.value" class="chart-loading">
-                    <n-spin size="large" />
-                  </div>
-                  <div
-                    v-else-if="page.service.model.overviewData.totalRequests === 0"
-                    class="chart-empty"
-                  >
-                    <n-empty description="暂无数据" />
-                  </div>
+            <RsCard class="chart-card" size="sm" variant="outlined">
+              <template #header>
+                <div class="chart-header">
+                  <RsIcon name="chart-pie" :size="18" color="#f0a020" />
+                  <span>请求指标分布</span>
                 </div>
-              </n-card>
-            </n-gi>
+              </template>
+              <div class="chart-container" ref="requestMetricsChartRef">
+                <div v-if="page.service.model.loading.value" class="chart-loading">
+                  <RsLoading size="lg" />
+                </div>
+                <div
+                  v-else-if="page.service.model.overviewData.totalRequests === 0"
+                  class="chart-empty"
+                >
+                  <RsEmpty description="暂无数据" />
+                </div>
+              </div>
+            </RsCard>
 
-            <!-- 4. 状态码分布图 -->
-            <n-gi>
-              <n-card class="chart-card" size="small">
-                <template #header>
-                  <div class="chart-header">
-                    <n-icon size="18" color="#8a2be2">
-                      <BarChartOutline />
-                    </n-icon>
-                    <span>状态码分布</span>
-                  </div>
-                </template>
-                <div class="chart-container" ref="statusCodeChartRef">
-                  <div v-if="page.service.model.loading.value" class="chart-loading">
-                    <n-spin size="large" />
-                  </div>
-                  <div
-                    v-else-if="!page.service.model.chartData.statusCodeDistribution.length"
-                    class="chart-empty"
-                  >
-                    <n-empty description="暂无数据" />
-                  </div>
+            <RsCard class="chart-card" size="sm" variant="outlined">
+              <template #header>
+                <div class="chart-header">
+                  <RsIcon name="chart-bar" :size="18" color="#8a2be2" />
+                  <span>状态码分布</span>
                 </div>
-              </n-card>
-            </n-gi>
+              </template>
+              <div class="chart-container" ref="statusCodeChartRef">
+                <div v-if="page.service.model.loading.value" class="chart-loading">
+                  <RsLoading size="lg" />
+                </div>
+                <div
+                  v-else-if="!page.service.model.chartData.statusCodeDistribution.length"
+                  class="chart-empty"
+                >
+                  <RsEmpty description="暂无数据" />
+                </div>
+              </div>
+            </RsCard>
 
-            <!-- 5. 热点路由TOP10 -->
-            <n-gi>
-              <n-card class="chart-card" size="small">
-                <template #header>
-                  <div class="chart-header">
-                    <n-icon size="18" color="#d03050">
-                      <FlameOutline />
-                    </n-icon>
-                    <span>热点路由TOP10</span>
-                  </div>
-                </template>
-                <div class="chart-container" ref="hotRoutesChartRef">
-                  <div v-if="page.service.model.loading.value" class="chart-loading">
-                    <n-spin size="large" />
-                  </div>
-                  <div
-                    v-else-if="!page.service.model.chartData.hotRoutes.length"
-                    class="chart-empty"
-                  >
-                    <n-empty description="暂无数据" />
-                  </div>
+            <RsCard class="chart-card" size="sm" variant="outlined">
+              <template #header>
+                <div class="chart-header">
+                  <RsIcon name="flame" :size="18" color="#d03050" />
+                  <span>热点路由TOP10</span>
                 </div>
-              </n-card>
-            </n-gi>
-          </n-grid>
+              </template>
+              <div class="chart-container" ref="hotRoutesChartRef">
+                <div v-if="page.service.model.loading.value" class="chart-loading">
+                  <RsLoading size="lg" />
+                </div>
+                <div
+                  v-else-if="!page.service.model.chartData.hotRoutes.length"
+                  class="chart-empty"
+                >
+                  <RsEmpty description="暂无数据" />
+                </div>
+              </div>
+            </RsCard>
+          </div>
         </div>
       </template>
-    </GPane>
+    </RsSplitPane>
   </div>
 </template>
 
 <script setup lang="ts">
-import { GPane } from '@/components/gpane'
+import { RsSearchForm, type RsSearchFormExpose } from '@/components/form/rs-search'
 import {
-  BarChartOutline,
-  CheckmarkCircleOutline,
-  CloseCircleOutline,
-  FlameOutline,
-  PieChartOutline,
-  StatsChartOutline,
-  TimeOutline,
-  TrendingUpOutline,
-} from '@vicons/ionicons5'
+  RsCard,
+  RsDivider,
+  RsEmpty,
+  RsIcon,
+  RsLoading,
+  RsSplitPane,
+  RsStatCard,
+  type RsSplitPaneItem,
+} from '@/ui'
 import { nextTick, onMounted, ref } from 'vue'
 import { useMonitoringPage } from './hooks'
 
-// 搜索表单引用
-const searchFormRef = ref()
+defineOptions({
+  name: 'MonitoringPanel',
+})
 
-// 图表引用
+const splitPanes: RsSplitPaneItem[] = [
+  { key: 'search', size: 'auto' },
+  { key: 'content' },
+]
+
+const searchFormRef = ref<RsSearchFormExpose | null>(null)
+
 const requestTrendChartRef = ref<HTMLDivElement>()
 const responseTimeChartRef = ref<HTMLDivElement>()
 const requestMetricsChartRef = ref<HTMLDivElement>()
 const statusCodeChartRef = ref<HTMLDivElement>()
 const hotRoutesChartRef = ref<HTMLDivElement>()
 
-// 使用监控页面 Hook
 const page = useMonitoringPage(searchFormRef)
 
-// 将图表引用传递给 charts hook（需要在 DOM 渲染后）
 onMounted(async () => {
-  // 等待 DOM 渲染完成
   await nextTick()
-  await nextTick() // 多等待一次确保 GPane 内部 DOM 也渲染完成
+  await nextTick()
 
-  // 将图表 ref 传递给 charts hook
   if (requestTrendChartRef.value) {
     page.charts.requestTrendChartRef.value = requestTrendChartRef.value
   }
@@ -298,22 +231,17 @@ onMounted(async () => {
   }
 
   await page.service.model.bootstrapDefaultGatewayInstance(searchFormRef)
-
-  // 初始化页面数据（包括图表初始化和数据加载）
   await page.initPageData()
 })
 
-// 处理搜索
 const handleSearch = async (formData?: Record<string, any>) => {
   await page.handleSearch(formData)
 }
 
-// 处理重置
 const handleReset = async () => {
   await page.handleReset()
 }
 
-// 处理工具栏点击
 const handleToolbarClick = async (key: string) => {
   await page.handleToolbarClick(key)
 }
@@ -321,116 +249,103 @@ const handleToolbarClick = async (key: string) => {
 
 <style scoped lang="scss">
 .monitoring-panel {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
+}
 
-  /* noResize 模式下使用 flex 布局，需要针对 flex-pane 设置样式 */
-  :deep(.g-pane__flex-container--vertical) {
-    height: 100%;
-    min-height: 0;
-  }
+.monitoring-panel__split {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
 
-  /* 上半区：搜索表单，内容较少，允许自身滚动 */
-  :deep(.g-pane__flex-pane--1) {
-    overflow: auto;
-    padding: var(--g-space-sm);
-    min-height: 0;
-  }
+.monitoring-panel__search {
+  width: 100%;
+  box-sizing: border-box;
+}
 
-  /* 下半区：监控内容区域，允许滚动 */
-  :deep(.g-pane__flex-pane--2) {
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: var(--g-space-sm);
-    min-height: 0;
-    height: 100%;
-    /* 确保 tooltip 不会被裁剪 */
+.monitoring-panel__content {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+}
+
+.overview-card {
+  margin: 24px 0;
+}
+
+.overview-header,
+.chart-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.overview-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 8px 0 12px;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px 24px;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.chart-card {
+  margin-bottom: 0;
+
+  .chart-container {
+    height: 380px;
     position: relative;
-  }
-
-  /* 兼容 n-split 模式（如果 noResize 为 false） */
-  :deep(.n-split) {
-    height: 100%;
-  }
-
-  :deep(.n-split-pane:first-child) {
-    overflow: auto;
-    padding: var(--g-space-sm);
-  }
-
-  :deep(.n-split-pane:last-child) {
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: var(--g-space-sm);
-  }
-
-  .overview-card {
-    margin: 24px 0;
-  }
-
-  .chart-card {
-    margin-bottom: 0;
-  }
-
-  .overview-header,
-  .chart-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-  }
+    justify-content: center;
+    z-index: 1;
 
-  .overview-content {
-    padding: 20px 0;
-  }
-
-  .chart-card {
-    .chart-container {
-      height: 380px;
-      position: relative;
+    .chart-loading,
+    .chart-empty {
       display: flex;
-      align-items: center;
       justify-content: center;
-      /* 确保图表容器有足够的层级，tooltip 可以显示在上层 */
-      z-index: 1;
-
-      .chart-loading {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100%;
-        width: 100%;
-        position: absolute;
-        top: 0;
-        left: 0;
-        background-color: var(--n-color);
-        z-index: 10;
-      }
-
-      .chart-empty {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100%;
-        width: 100%;
-        position: absolute;
-        top: 0;
-        left: 0;
-        z-index: 5;
-        background-color: var(--n-color);
-      }
+      align-items: center;
+      height: 100%;
+      width: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      background-color: var(--rs-surface);
     }
-  }
-  .monitoring-content{
-    overflow: auto;
+
+    .chart-loading {
+      z-index: 10;
+    }
+
+    .chart-empty {
+      z-index: 5;
+    }
   }
 }
 
-/* 图表 tooltip 在 charts.ts 中 appendTo: body，此处保证浮于布局/抽屉之上 */
 :global(.gateway-monitoring-echarts-tooltip),
-:global(div[id^="echarts-tooltip"]),
+:global(div[id^='echarts-tooltip']),
 :global(.echarts-tooltip),
-:global([class*="echarts-tooltip"]) {
+:global([class*='echarts-tooltip']) {
   z-index: 10000 !important;
 }
 </style>

@@ -4,8 +4,11 @@
  * - 处理查看对话框、工具栏、右键菜单等页面交互
  */
 
+import type { RsSearchFormExpose } from '@/components/form/rs-search'
+import type { RsGridExpose } from '@/components/rs-grid'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { rsConfirm } from '@/ui'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import type { AlertLog } from '../types'
@@ -17,21 +20,19 @@ import { useAlertLogService } from './service'
  * @param searchFormRef 搜索表单引用（可选）
  */
 export function useAlertLogPage(
-  gridRef?: Ref<any> | any,
-  searchFormRef?: Ref<any> | any
+  gridRef?: Ref<RsGridExpose | null>,
+  searchFormRef?: Ref<RsSearchFormExpose | null>,
 ) {
-  const message = useMessage()
-// 业务服务（包含 model、增删改查等）
+  const message = useAppMessage()
+  const { t } = useModuleI18n('hub0082')
   const service = useAlertLogService(searchFormRef)
 
-  // 查看对话框状态
   const viewDialogVisible = ref(false)
   const selectedAlertLogId = ref<string>('')
 
-  // ============= 搜索和分页 =============
-
   /**
    * 处理搜索
+   * @param searchParams - 查询条件；不传则从表单读取
    */
   const handleSearch = async (searchParams?: Record<string, any>) => {
     service.model.resetPagination()
@@ -40,39 +41,37 @@ export function useAlertLogPage(
 
   /**
    * 处理分页变化
+   * @param currentPage - 当前页码
+   * @param pageSize - 每页条数
    */
   const handlePageChange = async ({ currentPage, pageSize }: { currentPage: number; pageSize: number }) => {
     service.model.updatePagination({ pageIndex: currentPage, pageSize })
     await service.loadLogList()
   }
 
-  // ============= 工具栏按钮处理 =============
-
   /**
    * 处理工具栏按钮点击
-   * @param key 按钮 key
-   * @param formData 表单数据（可选，search 操作时会传递）
+   * @param key - 按钮 key
+   * @param formData - 表单数据（search 操作时会传递）
    */
   const handleToolbarClick = async (key: string, formData?: Record<string, any>) => {
     switch (key) {
       case 'delete': {
-        // 批量删除选中的行
         if (!gridRef?.value) {
-          message.warning('Grid 引用未设置')
+          message.warning(t('message.gridRefMissing'))
           return
         }
-        const selectedRows = gridRef.value.getCheckboxRecords() || []
+        const selectedRows = (gridRef.value.getActiveRows?.() || []) as AlertLog[]
         if (selectedRows.length === 0) {
-          message.warning('请先选择要删除的日志')
+          message.warning(t('message.selectToDelete'))
           return
         }
-        const alertLogIds = selectedRows.map((row: AlertLog) => row.alertLogId)
+        const alertLogIds = selectedRows.map((row) => row.alertLogId)
         await handleBatchDelete(alertLogIds)
         break
       }
 
       case 'search': {
-        // 如果传递了表单数据，直接使用它进行查询
         await handleSearch(formData)
         break
       }
@@ -82,14 +81,13 @@ export function useAlertLogPage(
     }
   }
 
-  // ============= 对话框处理 =============
-
   /**
    * 打开查看对话框
+   * @param log - 当前行日志
    */
   const openViewDialog = async (log: AlertLog) => {
     if (!log.alertLogId) {
-      message.warning('日志ID不能为空')
+      message.warning(t('message.alertLogIdRequired'))
       return
     }
 
@@ -97,13 +95,14 @@ export function useAlertLogPage(
     viewDialogVisible.value = true
   }
 
-  // ============= 右键菜单处理 =============
-
   /**
    * 处理右键菜单点击
+   * @param key - 菜单项 key
+   * @param row - 当前行
    */
-  const handleMenuClick = async ({ menu, row }: { menu: any; row: AlertLog }) => {
-    switch (menu.code) {
+  const handleMenuClick = async ({ key, row }: { key: string; row?: AlertLog }) => {
+    if (!row) return
+    switch (key) {
       case 'view':
         await openViewDialog(row)
         break
@@ -113,26 +112,25 @@ export function useAlertLogPage(
         break
 
       default:
-        console.warn('未知的菜单项:', menu.code)
+        console.warn('未知的菜单项:', key)
     }
   }
 
-  // ============= 删除处理 =============
-
   /**
-   * 处理删除
+   * 处理单条删除
+   * @param log - 待删除日志
    */
   const handleDelete = async (log: AlertLog) => {
     if (!log.alertLogId) {
-      message.warning('日志ID不能为空')
+      message.warning(t('message.alertLogIdRequired'))
       return
     }
 
     const confirmed = await rsConfirm.warning({
-      title: '确认删除',
-      description: `确定要删除日志"${log.alertLogId}"吗？`,
-      confirmText: '删除',
-      cancelText: '取消',
+      title: t('confirm.deleteTitle'),
+      description: t('confirm.deleteContent', { id: log.alertLogId }),
+      confirmText: t('confirm.confirmText'),
+      cancelText: t('confirm.cancelText'),
     })
     if (!confirmed) return
 
@@ -141,18 +139,19 @@ export function useAlertLogPage(
 
   /**
    * 处理批量删除
+   * @param alertLogIds - 日志 ID 数组
    */
   const handleBatchDelete = async (alertLogIds: string[]) => {
     if (alertLogIds.length === 0) {
-      message.warning('请选择要删除的日志')
+      message.warning(t('message.selectToDelete'))
       return
     }
 
     const confirmed = await rsConfirm.warning({
-      title: '确认批量删除',
-      description: `确定要删除选中的 ${alertLogIds.length} 条日志吗？`,
-      confirmText: '删除',
-      cancelText: '取消',
+      title: t('confirm.batchDeleteTitle'),
+      description: t('confirm.batchDeleteContent', { count: alertLogIds.length }),
+      confirmText: t('confirm.confirmText'),
+      cancelText: t('confirm.cancelText'),
     })
     if (!confirmed) return
 
@@ -160,14 +159,9 @@ export function useAlertLogPage(
   }
 
   return {
-    // 服务
     service,
-
-    // 对话框状态
     viewDialogVisible,
     selectedAlertLogId,
-
-    // 方法
     handleSearch,
     handlePageChange,
     handleToolbarClick,
@@ -177,4 +171,3 @@ export function useAlertLogPage(
     handleBatchDelete,
   }
 }
-

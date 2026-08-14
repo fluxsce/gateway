@@ -15,6 +15,7 @@ export type { ButtonPermission, ModulePermission, UserPermissionResponse } from 
 
 // 导出全局信息缓存
 export { useGlobalStore } from './global'
+export type { LayoutTabItem } from './global'
 
 /**
  * 全局Store助手对象(使用代理对象)

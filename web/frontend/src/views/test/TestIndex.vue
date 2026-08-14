@@ -90,9 +90,9 @@ const testPages: TestPage[] = [
     icon: 'EllipseOutline',
   },
   {
-    path: '/test/gcard',
-    title: 'GCard 卡片',
-    description: 'RsCard 适配：标题、插槽、hoverable、bordered；对照未透传 size/cover',
+    path: '/test/rs-card',
+    title: 'RsCard 卡片',
+    description: '标题、插槽、variant、size、hoverable、elevated、borderless、padding',
     icon: 'GridOutline',
   },
 ]

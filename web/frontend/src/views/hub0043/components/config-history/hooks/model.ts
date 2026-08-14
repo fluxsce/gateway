@@ -3,14 +3,26 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { DataFormField } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsDataFormField } from '@/components/form/rs-data'
+import type { RsSearchFormProps, RsSearchFormRenderContext } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
+import { RsTag, type RsTagVariant } from '@/ui'
 import { formatDate } from '@/utils/format'
-import { ArrowBackOutline } from '@vicons/ionicons5'
 import { h, ref } from 'vue'
 import { NamespaceNameSelector } from '../../../../hub0041/components'
 import type { ConfigHistory } from '../../../types'
+
+/**
+ * 配置历史表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface ConfigHistoryGridConfig {
+  columns: RsGridColumn<ConfigHistory>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
 
 /**
  * 配置历史管理 Model
@@ -26,8 +38,8 @@ export function useConfigHistoryModel() {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'namespaceId',
@@ -35,16 +47,13 @@ export function useConfigHistoryModel() {
         type: 'custom',
         span: 6,
         required: true,
-        render: (formData: Record<string, any>) => {
+        render: (_formData: Record<string, any>, ctx: RsSearchFormRenderContext) => {
           return h(NamespaceNameSelector, {
-            modelValue: formData.namespaceId || '',
-            'onUpdate:modelValue': (value: string) => {
-              formData.namespaceId = value
-            },
-            onSelect: (namespace: any) => {
-              // 选择命名空间后，可以在这里处理额外逻辑
-              if (namespace) {
-                formData.namespaceId = namespace.namespaceId
+            modelValue: (ctx.value as string) || '',
+            'onUpdate:modelValue': (value: string) => ctx.onUpdate(value),
+            onSelect: (namespace: { namespaceId?: string } | null) => {
+              if (namespace?.namespaceId) {
+                ctx.onUpdate(namespace.namespaceId)
               }
             },
           })
@@ -81,7 +90,7 @@ export function useConfigHistoryModel() {
       {
         key: 'back',
         label: '返回配置列表',
-        icon: ArrowBackOutline,
+        icon: 'ArrowBackOutline',
         tooltip: '返回配置列表',
       },
     ],
@@ -91,147 +100,136 @@ export function useConfigHistoryModel() {
 
   // ============= 表格配置 =============
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置（符合 RsGrid Props 结构，排除响应式数据） */
+  const gridConfig: ConfigHistoryGridConfig = {
     columns: [
       {
-        field: 'configHistoryId',
+        key: 'configHistoryId',
         title: '历史ID',
         sortable: true,
         align: 'center',
+        ellipsis: true,
         width: 120,
       },
       {
-        field: 'namespaceId',
+        key: 'namespaceId',
         title: '命名空间',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 150,
       },
       {
-        field: 'groupName',
+        key: 'groupName',
         title: '分组名称',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 150,
       },
       {
-        field: 'configDataId',
+        key: 'configDataId',
         title: '配置ID',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 200,
       },
       {
-        field: 'changeType',
+        key: 'changeType',
         title: '变更类型',
         align: 'center',
         width: 100,
-        cellRender: {
-          name: 'VxeRender',
-          options: {
-            render: ({ row }: { row: ConfigHistory }) => {
-              const typeMap: Record<'CREATE' | 'UPDATE' | 'DELETE' | 'ROLLBACK', { label: string; type: 'success' | 'info' | 'error' | 'warning' }> = {
-                CREATE: { label: '创建', type: 'success' },
-                UPDATE: { label: '更新', type: 'info' },
-                DELETE: { label: '删除', type: 'error' },
-                ROLLBACK: { label: '回滚', type: 'warning' },
-              }
-              const changeType = row.changeType as keyof typeof typeMap
-              const typeInfo = typeMap[changeType] || { label: changeType || '-', type: 'default' as const }
-              return h('n-tag', { type: typeInfo.type, size: 'small' }, { default: () => typeInfo.label })
-            },
-          },
+        render: (row) => {
+          const typeMap: Record<
+            ConfigHistory['changeType'],
+            { label: string; variant: RsTagVariant }
+          > = {
+            CREATE: { label: '创建', variant: 'success' },
+            UPDATE: { label: '更新', variant: 'info' },
+            DELETE: { label: '删除', variant: 'danger' },
+            ROLLBACK: { label: '回滚', variant: 'warning' },
+          }
+          const typeInfo = typeMap[row.changeType] || {
+            label: row.changeType || '-',
+            variant: 'default' as const,
+          }
+          return h(RsTag, { variant: typeInfo.variant, size: 'sm' }, () => typeInfo.label)
         },
       },
       {
-        field: 'oldVersion',
+        key: 'oldVersion',
         title: '旧版本',
         align: 'center',
         width: 80,
       },
       {
-        field: 'newVersion',
+        key: 'newVersion',
         title: '新版本',
         align: 'center',
         width: 80,
-        formatter: ({ row }: any) => {
-          return row.newVersion || row.configVersion || '-'
-        },
+        formatter: (_value, row) => String(row.newVersion || row.configVersion || '-'),
       },
       {
-        field: 'oldMd5Value',
+        key: 'oldMd5Value',
         title: '旧MD5',
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 120,
       },
       {
-        field: 'newMd5Value',
+        key: 'newMd5Value',
         title: '新MD5',
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 120,
       },
       {
-        field: 'changeReason',
+        key: 'changeReason',
         title: '变更原因',
         align: 'left',
-        showOverflow: true,
+        ellipsis: true,
         width: 200,
       },
       {
-        field: 'changedBy',
+        key: 'changedBy',
         title: '变更人',
         align: 'center',
         width: 120,
       },
       {
-        field: 'changedAt',
+        key: 'changedAt',
         title: '变更时间',
         align: 'center',
         width: 180,
-        formatter: ({ cellValue }) => {
-          return cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : (cellValue || '-')
-        },
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '-',
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
         align: 'center',
         width: 180,
-        formatter: ({ cellValue }) => {
-          return cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : (cellValue || '-')
-        },
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '-',
       },
       {
-        field: 'addWho',
+        key: 'addWho',
         title: '创建人',
         align: 'center',
         width: 120,
       },
     ],
+    selectable: false,
+    rowKey: 'configHistoryId',
     paginationConfig: {
-      show: false, // 历史记录不使用分页
+      show: false,
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      showCopyCell: true,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-        {
-          code: 'rollback',
-          name: '回滚',
-          prefixIcon: 'vxe-icon-undo',
-        },
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'rollback', label: '回滚', icon: 'undo-2' },
       ],
     },
     height: '100%',
@@ -397,7 +395,7 @@ export function useConfigHistoryModel() {
           rows: 15,
         },
       },
-    ] as DataFormField[],
+    ] as RsDataFormField[],
   }
 
   // ============= 辅助方法 =============
@@ -439,4 +437,3 @@ export function useConfigHistoryModel() {
  * Model 返回类型
  */
 export type ConfigHistoryModel = ReturnType<typeof useConfigHistoryModel>
-

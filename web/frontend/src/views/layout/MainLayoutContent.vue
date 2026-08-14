@@ -192,25 +192,34 @@ function layoutTabPathKeys(tabs: { tabId: string; path?: string }[]) {
   return tabs.map((t) => t.tabId || t.path || '').filter(Boolean) as string[]
 }
 
+/**
+ * KeepAlive include / 包装器缓存的有效 key。
+ * 关页签时 `layoutTabs` 与 `layoutActiveTabId` 会先于 `router.push` 更新，
+ * 此时地址栏仍是旧页：必须把 `route.fullPath` 留在集合里，否则包装器被删、
+ * 当前页会重建并再次走 onMounted（例如 hub0023 默认实例查询）。
+ */
+function layoutCacheKeys(): Set<string> {
+  const keys = new Set(layoutTabPathKeys(layoutTabs.value))
+  const tab = activeLayoutTab.value
+  const p = tab?.tabId || tab?.path
+  if (p) keys.add(p)
+  if (route.fullPath) keys.add(route.fullPath)
+  return keys
+}
+
 watch(
-  layoutTabs,
-  (tabs) => {
-    cleanupWrappedCache(new Set(layoutTabPathKeys(tabs)))
+  [layoutTabs, () => route.fullPath],
+  () => {
+    cleanupWrappedCache(layoutCacheKeys())
   },
   { immediate: true, deep: true },
 )
 
 /**
- * 仍打开页签的路径集合；并并入当前激活页签（避免与列表短暂不同步时出现空 include）。
+ * 仍打开页签的路径集合；并并入当前激活页签与尚未离开的路由。
  * 不在此写死首页 path，首页由菜单/初始 store 写入 tab。
  */
-const cachedTabPaths = computed(() => {
-  const paths = new Set(layoutTabPathKeys(layoutTabs.value))
-  const tab = activeLayoutTab.value
-  const p = tab?.tabId || tab?.path
-  if (p) paths.add(p)
-  return [...paths]
-})
+const cachedTabPaths = computed(() => [...layoutCacheKeys()])
 
 function layoutViewCacheKey(r: RouteLocationNormalizedLoaded) {
   return r.fullPath

@@ -3,8 +3,8 @@
  * 处理业务逻辑和API调用
  */
 
+import { useAppMessage } from '@/composables/useAppMessage'
 import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import * as tunnelClientApi from '../api'
 import type { TunnelClient, TunnelClientQueryParams } from '../types'
@@ -14,7 +14,7 @@ import { useTunnelClientModel } from './model'
  * 隧道客户端管理服务
  */
 export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
+  const message = useAppMessage()
   const model = useTunnelClientModel()
 
   /**

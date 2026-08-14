@@ -4,8 +4,9 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
+import { takeNamedObject, type RsDataFormRenderContext } from '@/components/form/rs-data'
 import { getApiMessage, isApiSuccess } from '@/utils/format'
-import type { ServiceSelectionMetadata } from '@/views/hub0042/components'
+import type { ServiceSelectionMetadata } from '@/views/hub0042/components/ServiceSelector.vue'
 import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import { onMounted, ref } from 'vue'
@@ -42,7 +43,7 @@ export function useServiceDefinitionPage(
   // ============= JSON 字段转换方法 =============
 
   /**
-   * 将配置对象转换为表单数据格式（查询时：将 JSON 字符串字段解析为点号分隔字段）
+   * 将配置对象转换为表单数据格式（查询时：将 JSON 字符串列解析为嵌套对象）
    * 注意：serviceMetadata 保持为 JSON 字符串格式，不展开
    */
   const convertToFormData = (service: ServiceDefinition): any => {
@@ -63,19 +64,14 @@ export function useServiceDefinitionPage(
       ...service,
     }
 
-    // 将 JSON 字符串字段解析为对象，然后展开为点号分隔字段
+    // 将 JSON 字符串列解析为嵌套对象，供 NamePath 读写
     // serviceMetadata 保持为 JSON 字符串格式，不展开
     const jsonFieldsToExpand = ['discoveryConfig', 'healthCheckHeaders', 'loadBalancerConfig']
     
     jsonFieldsToExpand.forEach((fieldName) => {
       const jsonValue = parseJson((service as any)[fieldName])
       if (jsonValue && typeof jsonValue === 'object' && !Array.isArray(jsonValue)) {
-        // 将对象的属性展开为点号分隔字段（如 discoveryConfig.xxx）
-        Object.keys(jsonValue).forEach((key) => {
-          formData[`${fieldName}.${key}`] = jsonValue[key]
-        })
-        // 移除原始字段（已展开为点号分隔字段）
-        delete formData[fieldName]
+        formData[fieldName] = jsonValue
       }
     })
 
@@ -109,7 +105,7 @@ export function useServiceDefinitionPage(
   }
 
   /**
-   * 将表单数据转换为API数据格式（保存时：将点号分隔字段合并为 JSON 字符串）
+   * 将表单数据转换为API数据格式（保存时：将嵌套对象合并为 JSON 字符串）
    * 注意：serviceMetadata 保持为 JSON 字符串格式，直接使用
    */
   const convertToApiData = (formData: Record<string, any>): any => {
@@ -119,19 +115,9 @@ export function useServiceDefinitionPage(
     // 构建 API 数据对象
     const apiData: Record<string, any> = {}
 
-    // 将点号分隔字段合并为 JSON 字符串
+    // 将嵌套对象合并为 JSON 字符串
     jsonFieldsToExpand.forEach((fieldName) => {
-      const jsonObj: Record<string, any> = {}
-      
-      // 遍历所有以 fieldName. 开头的字段
-      Object.keys(formData).forEach((key) => {
-        if (key.startsWith(`${fieldName}.`)) {
-          const subKey = key.replace(`${fieldName}.`, '')
-          jsonObj[subKey] = formData[key]
-        }
-      })
-
-      // 如果有子字段，则转换为 JSON 字符串
+      const jsonObj = takeNamedObject(formData, fieldName)
       if (Object.keys(jsonObj).length > 0) {
         apiData[fieldName] = JSON.stringify(jsonObj)
       }
@@ -160,13 +146,20 @@ export function useServiceDefinitionPage(
       apiData.serviceMetadata = ''
     }
 
-    // 排除点号分隔字段，保留其他字段
+    // 排除已打包的 JSON 列，保留其他字段
+    // 审计字段由后端维护：表单 datetime 会把带 Z 的 UTC（如 2026-08-13T10:20:41Z）
+    // 转成本地时间字符串再回传，后端再按无时区解析会错位，故不提交。
+    const auditFields = new Set(['addTime', 'editTime', 'addWho', 'editWho'])
     Object.keys(formData).forEach((key) => {
-      // 排除以 JSON 字段名开头的点号分隔字段（这些字段已经合并到对应的 JSON 字段中）
-      // 排除 serviceMetadata（已单独处理）
-      if (!jsonFieldsToExpand.some((fieldName) => key.startsWith(`${fieldName}.`)) && key !== 'serviceMetadata') {
-        apiData[key] = formData[key]
+      if (
+        auditFields.has(key) ||
+        jsonFieldsToExpand.includes(key) ||
+        jsonFieldsToExpand.some((fieldName) => key.startsWith(`${fieldName}.`)) ||
+        key === 'serviceMetadata'
+      ) {
+        return
       }
+      apiData[key] = formData[key]
     })
 
     return apiData
@@ -218,7 +211,7 @@ export function useServiceDefinitionPage(
       if (isApiSuccess(response)) {
         const detailService = JSON.parse(response.bizData) as ServiceDefinition
         
-        // 使用 convertToFormData 将 JSON 字段展开为点号分隔字段
+        // 使用 convertToFormData 将 JSON 列解析为嵌套对象
         const formData = convertToFormData(detailService)
         
         // 如果是服务发现类型，从 serviceMetadata 初始化 selectedService
@@ -267,7 +260,7 @@ export function useServiceDefinitionPage(
       if (isApiSuccess(response)) {
         const detailService = JSON.parse(response.bizData) as ServiceDefinition
         
-        // 使用 convertToFormData 将 JSON 字段展开为点号分隔字段
+        // 使用 convertToFormData 将 JSON 列解析为嵌套对象
         const formData = convertToFormData(detailService)
         
         // 如果是服务发现类型，从 serviceMetadata 初始化 selectedService
@@ -316,7 +309,7 @@ export function useServiceDefinitionPage(
       if (isApiSuccess(response)) {
         const detailService = JSON.parse(response.bizData) as ServiceDefinition
         
-        // 使用 convertToFormData 将 JSON 字段展开为点号分隔字段
+        // 使用 convertToFormData 将 JSON 列解析为嵌套对象
         const formData = convertToFormData(detailService)
         
         // 复制数据，修改服务名称，清除ID
@@ -381,7 +374,7 @@ export function useServiceDefinitionPage(
   }
 
   /**
-   * 提交表单（新增/编辑共用，由 GdataFormModal 收集表单数据后回调）
+   * 提交表单（新增/编辑共用，由 RsDataFormModal 收集表单数据后回调）
    */
   const handleFormSubmit = async (formData?: Record<string, any>) => {
     if (!formData) return
@@ -411,18 +404,12 @@ export function useServiceDefinitionPage(
       // 静态配置类型：清空服务发现相关字段，避免残留旧的服务发现元数据被提交。
       formData.serviceMetadata = ''
       formData.discoveryType = ''
-      formData.discoveryConfig = ''
-      // 移除已展开的 discoveryConfig.xxx 点号分隔字段，避免在 convertToApiData 时重新合并出旧配置
-      Object.keys(formData).forEach((key) => {
-        if (key.startsWith('discoveryConfig.')) {
-          delete formData[key]
-        }
-      })
+      formData.discoveryConfig = {}
       selectedService.value = null
     }
 
     try {
-      // 使用 convertToApiData 将点号分隔字段合并为 JSON 字符串
+      // 使用 convertToApiData 将嵌套对象合并为 JSON 字符串
       const apiData = convertToApiData(formData)
       
       // 准备提交数据
@@ -524,8 +511,9 @@ export function useServiceDefinitionPage(
       message.warning('Grid 引用未设置')
       return
     }
-    // 获取选中的记录
-    const selectedRecords = gridRef.value.getSelectedRows?.() || []
+    // 优先勾选行，无勾选时回退到当前高亮行（与 getActiveRows 约定一致）
+    const selectedRecords =
+      gridRef.value.getActiveRows?.() || gridRef.value.getSelectedRows?.() || []
     if (selectedRecords.length === 0) {
       message.warning('请选择要删除的服务定义')
       return
@@ -565,14 +553,15 @@ export function useServiceDefinitionPage(
         break
 
       case 'delete': {
-        // 批量删除选中的行
+        // 批量删除：优先勾选行，无勾选时回退到当前高亮行
         if (!gridRef?.value) {
           message.warning('Grid 引用未设置')
           return
         }
-        const selectedRecords = gridRef.value.getSelectedRows?.() || []
+        const selectedRecords =
+          gridRef.value.getActiveRows?.() || gridRef.value.getSelectedRows?.() || []
         if (selectedRecords.length === 0) {
-          message.warning('请选择要删除的服务定义')
+          message.warning('请选择或点击要删除的服务定义')
           return
         }
         const serviceDefinitionIds = selectedRecords.map((record: ServiceDefinition) => record.serviceDefinitionId)
@@ -678,8 +667,9 @@ export function useServiceDefinitionPage(
       const originalRender = field.render
       return {
         ...field,
-        render: (formData: Record<string, any>) => {
+        render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
           return originalRender(formData, {
+            ...ctx,
             selectedService,
             onServiceChange: handleServiceChange,
             to: '#hub0022-service-definition-list',

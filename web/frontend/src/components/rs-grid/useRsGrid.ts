@@ -59,8 +59,16 @@ export function useRsGrid(options: UseRsGridOptions) {
 
   const rowKeyField = computed(() => props.rowKey || 'id')
 
+  /**
+   * 解析行唯一键：字段名取属性，函数由业务组合（不改写行数据）。
+   */
   const resolveRowKey = (row: any): string => {
-    const key = row?.[rowKeyField.value]
+    const accessor = rowKeyField.value
+    if (typeof accessor === 'function') {
+      const key = accessor(row)
+      return key == null ? '' : String(key)
+    }
+    const key = row?.[accessor]
     return key == null ? '' : String(key)
   }
 
@@ -198,9 +206,10 @@ export function useRsGrid(options: UseRsGridOptions) {
   /**
    * 构建业务右键菜单；内置复制由 RsTable 处理。
    * 支持 separator / children 嵌套分组。
+   * requireRow !== false 的项仅在命中数据行时展示；刷新等表级操作可在空表/空白区出现。
    */
   const buildContextMenuItems = (row: any | null): RsContextMenuItem[] => {
-    if (!props.menuConfig || props.menuConfig.enabled === false || !row) {
+    if (!props.menuConfig || props.menuConfig.enabled === false) {
       return []
     }
 
@@ -210,6 +219,10 @@ export function useRsGrid(options: UseRsGridOptions) {
     }
 
     const mapItem = (item: RsGridMenuItem): RsContextMenuItem | null => {
+      if (item.requireRow !== false && !row) {
+        return null
+      }
+
       if (item.separator) {
         return { key: `sep-${item.key}`, label: '', separator: true }
       }

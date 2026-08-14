@@ -4,7 +4,7 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import type { TunnelClient } from '../../../types'
@@ -19,7 +19,7 @@ export function useTunnelClientPage(
   gridRef?: Ref<any> | any,
   searchFormRef?: Ref<any> | any
 ) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 业务服务（包含 model、增删改查等）
   const service = useTunnelClientService(searchFormRef)
@@ -66,7 +66,7 @@ export function useTunnelClientPage(
           message.warning('Grid 引用未设置')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        const selectedRow = gridRef.value.getActiveRow?.()
         if (!selectedRow) {
           message.warning('请先选择或点击要编辑的客户端')
           return
@@ -81,7 +81,7 @@ export function useTunnelClientPage(
           message.warning('Grid 引用未设置')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        const selectedRow = gridRef.value.getActiveRow?.()
         if (!selectedRow) {
           message.warning('请先选择或点击要连接的客户端')
           return
@@ -96,7 +96,7 @@ export function useTunnelClientPage(
           message.warning('Grid 引用未设置')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        const selectedRow = gridRef.value.getActiveRow?.()
         if (!selectedRow) {
           message.warning('请先选择或点击要断开的客户端')
           return
@@ -111,7 +111,7 @@ export function useTunnelClientPage(
           message.warning('Grid 引用未设置')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
+        const selectedRow = gridRef.value.getActiveRow?.()
         if (!selectedRow) {
           message.warning('请先选择或点击要删除的客户端')
           return
@@ -264,9 +264,9 @@ export function useTunnelClientPage(
   /**
    * 处理右键菜单点击
    */
-  const handleMenuClick = async ({ menu, row }: { menu: any; row: TunnelClient }) => {
-    const code = menu?.code || menu
-    switch (code) {
+  const handleMenuClick = async ({ key, row }: { key: string; row?: TunnelClient }) => {
+    if (!row) return
+    switch (key) {
       case 'view':
         await openViewDialog(row)
         break
@@ -283,7 +283,7 @@ export function useTunnelClientPage(
         await handleDelete(row)
         break
       default:
-        console.warn('未知的菜单项:', code)
+        console.warn('未知的菜单项:', key)
     }
   }
 

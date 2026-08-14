@@ -4,6 +4,7 @@
  * - 处理工具栏、搜索等页面交互
  */
 
+import type { RsSearchFormExpose } from '@/components/form/rs-search'
 import type { Ref } from 'vue'
 import { nextTick, onBeforeUnmount, watch } from 'vue'
 import { useMonitoringCharts } from './charts'
@@ -12,7 +13,7 @@ import { useMonitoringService } from './service'
 /**
  * 监控页面级 Hook
  */
-export function useMonitoringPage(searchFormRef?: Ref<any> | any) {
+export function useMonitoringPage(searchFormRef?: Ref<RsSearchFormExpose | null>) {
   // 业务服务（包含 model、查询等）
   const service = useMonitoringService(searchFormRef)
 
@@ -20,7 +21,7 @@ export function useMonitoringPage(searchFormRef?: Ref<any> | any) {
   const charts = useMonitoringCharts()
 
   /**
-   * 处理搜索（接收 SearchForm 传递的表单数据）
+   * 处理搜索（接收 RsSearchForm 传递的表单数据）
    */
   const handleSearch = async (formData?: Record<string, any>) => {
     await service.handleSearch(formData)

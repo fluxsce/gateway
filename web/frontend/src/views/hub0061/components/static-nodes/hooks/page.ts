@@ -4,8 +4,10 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
+import type { RsSearchFormExpose } from '@/components/form/rs-search'
+import type { RsGridExpose } from '@/components/rs-grid'
+import { useAppMessage } from '@/composables/useAppMessage'
 import { rsConfirm } from '@/ui'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import { useStaticNodeService } from './service'
@@ -18,12 +20,11 @@ import type { TunnelStaticNode } from './types'
  * @param searchFormRef 搜索表单引用（可选）
  */
 export function useStaticNodePage(
-  gridRef?: Ref<any> | any,
+  gridRef?: Ref<RsGridExpose | null>,
   tunnelStaticServerId?: Ref<string> | string,
-  searchFormRef?: Ref<any> | any
+  searchFormRef?: Ref<RsSearchFormExpose | null>,
 ) {
-  const message = useMessage()
-// 业务服务（包含 model、增删改查等）
+  const message = useAppMessage()
   const service = useStaticNodeService(tunnelStaticServerId || '', searchFormRef)
 
   // 表单对话框状态（新增/编辑/查看共用）
@@ -85,9 +86,9 @@ export function useStaticNodePage(
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
+        const currentRow = gridRef.value.getActiveRow()
         if (!currentRow) {
-          message.warning('请先点击选择要删除的节点')
+          message.warning('请先选择或点击要删除的节点')
           return
         }
         await handleDelete(currentRow as TunnelStaticNode)
@@ -250,8 +251,9 @@ export function useStaticNodePage(
   /**
    * 处理右键菜单点击
    */
-  const handleMenuClick = async ({ menu, row }: { menu: any; row: TunnelStaticNode }) => {
-    switch (menu.code) {
+  const handleMenuClick = async ({ key, row }: { key: string; row?: TunnelStaticNode }) => {
+    if (!row) return
+    switch (key) {
       case 'view':
         await openViewDialog(row)
         break
@@ -265,7 +267,7 @@ export function useStaticNodePage(
         await handleDelete(row)
         break
       default:
-        console.warn('未知的菜单项:', menu.code)
+        console.warn('未知的菜单项:', key)
     }
   }
 

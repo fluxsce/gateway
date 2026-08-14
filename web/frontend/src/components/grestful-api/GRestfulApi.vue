@@ -1,293 +1,333 @@
 <template>
-  <RsCard
+  <section
     class="g-restful-api"
     :class="props.class"
-    size="sm"
-    :bordered="true"
-    :segmented="{ content: true, footer: 'soft' }"
   >
-    <div class="g-restful-api__toolbar">
-      <RsSelect
-        v-model="method"
-        class="g-restful-api__method"
-        :class="methodModifierClass"
-        :options="METHOD_OPTIONS"
-        :consistent-menu-width="false"
-        size="sm"
-      />
-      <RsInput
-        v-model="url"
-        class="g-restful-api__url"
-        type="text"
-        placeholder="请输入请求 URL（支持相对路径，将相对当前站点）"
-        clearable
-        size="sm"
-        @keyup.enter="handleSend"
-      />
-      <RsButton
-        variant="primary"
-        size="sm"
-        :loading="sending"
-        :disabled="sending"
-        @click="handleSend"
-      >
-        发送
-      </RsButton>
-      <RsButton
-        v-if="sending"
-        size="sm"
-        quaternary
-        @click="handleCancel"
-      >
-        取消
-      </RsButton>
+    <div class="g-restful-api__urlbar">
+      <div class="g-restful-api__url-group">
+        <RsSelect
+          v-model="method"
+          class="g-restful-api__method"
+          :class="methodModifierClass"
+          :options="METHOD_OPTIONS"
+          :consistent-menu-width="false"
+          size="sm"
+        />
+        <RsInput
+          v-model="url"
+          class="g-restful-api__url"
+          type="text"
+          placeholder="请输入请求 URL（支持相对路径，将相对当前站点）"
+          clearable
+          size="sm"
+          @keyup.enter="handleSend"
+        />
+      </div>
+      <div class="g-restful-api__send-group">
+        <RsButton
+          variant="primary"
+          size="sm"
+          :loading="sending"
+          :disabled="sending"
+          @click="handleSend"
+        >
+          发送
+        </RsButton>
+        <RsButton
+          v-if="sending"
+          size="sm"
+          variant="ghost"
+          @click="handleCancel"
+        >
+          取消
+        </RsButton>
+      </div>
     </div>
 
-    <RsTabs
-      v-model="requestTab"
-      :items="requestTabItems"
-      variant="line"
-      size="md"
-      class="g-restful-api__req-tabs"
+    <RsSplitPane
+      class="g-restful-api__split"
+      orientation="vertical"
+      with-handle
+      :panes="splitPanes"
     >
-      <template #params>
-        <div class="g-restful-api__pane-inner">
-          <key-value-editor
-            v-model:rows="queryParams"
-            variant="table"
-            table-variant="query"
-          />
-        </div>
-      </template>
-
-      <template #body>
-        <div class="g-restful-api__pane-inner">
-          <RsRadio
-            class="g-restful-api__body-radio-group"
-            :value="bodyProcessType"
-            name="rest-body-process"
+      <template #request>
+        <div
+          class="g-restful-api__request"
+          :class="{ 'g-restful-api__request--fill': requestPaneIsEditor }"
+        >
+          <RsTabs
+            v-model="requestTab"
+            :items="requestTabItems"
+            variant="line"
             size="sm"
-            @update:model-value="setBodyProcessType"
-          >
-            <RsRadioItem
-              v-for="opt in BODY_PROCESS_OPTIONS"
-              :key="opt.value"
-              :value="opt.value"
-            >
-              {{ opt.label }}
-            </RsRadioItem>
-          </RsRadio>
-
-          <div
-            v-if="bodyProcessType === 'none'"
-            class="g-restful-api__body-empty"
-          >
-            该请求没有 Body
-          </div>
-
-          <div
-            v-else-if="bodyProcessType === 'x-www-form-urlencoded' || bodyProcessType === 'form-data'"
-            class="g-restful-api__body-form"
-          >
-            <key-value-editor
-              v-model:rows="formFields"
-              variant="table"
-              table-variant="form"
-              :form-table-kind="bodyProcessType === 'form-data' ? 'multipart' : 'urlencoded'"
-              key-column-label="参数名"
-              type-column-label="类型"
-              value-column-label="参数值"
-            />
-          </div>
-
-          <div
-            v-else
-            class="g-restful-api__body-raw"
-          >
-            <div
-              v-if="bodyProcessType === 'raw'"
-              class="g-restful-api__raw-ct-row"
-            >
-              <RsSelect
-                v-model="rawContentType"
-                class="g-restful-api__content-type"
-                :options="RAW_CONTENT_TYPE_OPTIONS"
-                size="sm"
+            panelless
+            class="g-restful-api__tabs"
+          />
+          <div class="g-restful-api__pane" :class="{ 'g-restful-api__pane--editor': requestPaneIsEditor }">
+            <div v-if="requestTab === 'params'" class="g-restful-api__pane-inner">
+              <key-value-editor
+                v-model:rows="queryParams"
+                variant="table"
+                table-variant="query"
               />
             </div>
-            <g-code-mirror
-              v-model="rawBody"
-              :language="rawBodyLanguage"
-              :min-height="requestBodyMinHeightCss"
-              line-wrapping
-            />
+
+            <div v-else-if="requestTab === 'body'" class="g-restful-api__pane-inner g-restful-api__body-pane">
+              <RsRadio
+                class="g-restful-api__body-radio-group"
+                :value="bodyProcessType"
+                name="rest-body-process"
+                size="sm"
+                @update:model-value="setBodyProcessType"
+              >
+                <RsRadioItem
+                  v-for="opt in BODY_PROCESS_OPTIONS"
+                  :key="opt.value"
+                  :value="opt.value"
+                >
+                  {{ opt.label }}
+                </RsRadioItem>
+              </RsRadio>
+
+              <div
+                v-if="bodyProcessType === 'none'"
+                class="g-restful-api__empty"
+              >
+                该请求没有 Body
+              </div>
+
+              <div
+                v-else-if="bodyProcessType === 'x-www-form-urlencoded' || bodyProcessType === 'form-data'"
+                class="g-restful-api__body-form"
+              >
+                <key-value-editor
+                  v-model:rows="formFields"
+                  variant="table"
+                  table-variant="form"
+                  :form-table-kind="bodyProcessType === 'form-data' ? 'multipart' : 'urlencoded'"
+                  key-column-label="参数名"
+                  type-column-label="类型"
+                  value-column-label="参数值"
+                />
+              </div>
+
+              <div
+                v-else
+                class="g-restful-api__body-raw"
+              >
+                <div
+                  v-if="bodyProcessType === 'raw'"
+                  class="g-restful-api__raw-ct-row"
+                >
+                  <RsSelect
+                    v-model="rawContentType"
+                    class="g-restful-api__content-type"
+                    :options="RAW_CONTENT_TYPE_OPTIONS"
+                    size="sm"
+                  />
+                </div>
+                <RsCodeEditor
+                  v-model="rawBody"
+                  :language="rawBodyLanguage"
+                  height="100%"
+                  embedded
+                  :show-toolbar="false"
+                />
+              </div>
+            </div>
+
+            <div v-else-if="requestTab === 'headers'" class="g-restful-api__pane-inner">
+              <key-value-editor
+                v-model:rows="headerRows"
+                variant="table"
+                table-variant="query"
+                key-column-label="名称"
+                value-column-label="值"
+                show-auto-body-hint
+              />
+            </div>
+
+            <div v-else-if="requestTab === 'cookies'" class="g-restful-api__pane-inner">
+              <key-value-editor
+                v-model:rows="cookieRows"
+                variant="table"
+                table-variant="query"
+                key-column-label="名称"
+                value-column-label="值"
+              />
+            </div>
+
+            <div v-else class="g-restful-api__pane-inner g-restful-api__auth-pane">
+              <RsRadio
+                v-model="authType"
+                class="g-restful-api__auth-type-group"
+                size="sm"
+                name="rest-auth-type"
+              >
+                <RsRadioItem value="none">无</RsRadioItem>
+                <RsRadioItem value="bearer">Bearer Token</RsRadioItem>
+                <RsRadioItem value="basic">Basic Auth</RsRadioItem>
+                <RsRadioItem value="apikey">API Key</RsRadioItem>
+              </RsRadio>
+
+              <div
+                v-if="authType === 'bearer'"
+                class="g-restful-api__auth-fields"
+              >
+                <RsInput
+                  v-model="bearerToken"
+                  type="password"
+                  show-password-on="click"
+                  placeholder="Token"
+                  size="sm"
+                />
+              </div>
+
+              <div
+                v-else-if="authType === 'basic'"
+                class="g-restful-api__auth-fields g-restful-api__auth-fields--row"
+              >
+                <RsInput
+                  v-model="basicUser"
+                  placeholder="用户名"
+                  size="sm"
+                />
+                <RsInput
+                  v-model="basicPassword"
+                  type="password"
+                  show-password-on="click"
+                  placeholder="密码"
+                  size="sm"
+                />
+              </div>
+
+              <div
+                v-else-if="authType === 'apikey'"
+                class="g-restful-api__auth-fields"
+              >
+                <RsRadio
+                  v-model="apiKeyIn"
+                  size="sm"
+                  name="rest-apikey-in"
+                >
+                  <RsRadioItem value="header">Header</RsRadioItem>
+                  <RsRadioItem value="query">Query</RsRadioItem>
+                </RsRadio>
+                <RsInput
+                  v-if="apiKeyIn === 'header'"
+                  v-model="apiKeyHeaderName"
+                  placeholder="Header 名称，默认 X-API-Key"
+                  size="sm"
+                />
+                <RsInput
+                  v-else
+                  v-model="apiKeyQueryName"
+                  placeholder="Query 参数名，默认 api_key"
+                  size="sm"
+                />
+                <RsInput
+                  v-model="apiKeyValue"
+                  type="password"
+                  show-password-on="click"
+                  placeholder="密钥"
+                  size="sm"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </template>
 
-      <template #headers>
-        <div class="g-restful-api__pane-inner">
-          <key-value-editor
-            v-model:rows="headerRows"
-            variant="table"
-            table-variant="query"
-            key-column-label="名称"
-            value-column-label="值"
-            show-auto-body-hint
-          />
-        </div>
-      </template>
-
-      <template #cookies>
-        <div class="g-restful-api__pane-inner">
-          <key-value-editor
-            v-model:rows="cookieRows"
-            variant="table"
-            table-variant="query"
-            key-column-label="名称"
-            value-column-label="值"
-          />
-        </div>
-      </template>
-
-      <template #auth>
-        <div class="g-restful-api__pane-inner g-restful-api__auth-pane">
-          <RsRadio
-            v-model="authType"
-            class="g-restful-api__auth-type-group"
+      <template #response>
+        <div class="g-restful-api__response">
+          <RsTabs
+            v-model="responseTab"
+            :items="responseTabItems"
+            variant="line"
             size="sm"
-            name="rest-auth-type"
+            panelless
+            class="g-restful-api__tabs"
           >
-            <RsRadioItem value="none">无</RsRadioItem>
-            <RsRadioItem value="bearer">Bearer Token</RsRadioItem>
-            <RsRadioItem value="basic">Basic Auth</RsRadioItem>
-            <RsRadioItem value="apikey">API Key</RsRadioItem>
-          </RsRadio>
-
-          <div
-            v-if="authType === 'bearer'"
-            class="g-restful-api__auth-fields"
-          >
-            <RsInput
-              v-model="bearerToken"
-              type="password"
-              show-password-on="click"
-              placeholder="Token"
-              size="sm"
-            />
-          </div>
-
-          <div
-            v-else-if="authType === 'basic'"
-            class="g-restful-api__auth-fields g-restful-api__auth-fields--row"
-          >
-            <RsInput
-              v-model="basicUser"
-              placeholder="用户名"
-              size="sm"
-            />
-            <RsInput
-              v-model="basicPassword"
-              type="password"
-              show-password-on="click"
-              placeholder="密码"
-              size="sm"
-            />
-          </div>
-
-          <div
-            v-else-if="authType === 'apikey'"
-            class="g-restful-api__auth-fields"
-          >
-            <RsRadio
-              v-model="apiKeyIn"
-              size="sm"
-              name="rest-apikey-in"
+            <template #extra>
+              <div class="g-restful-api__meta">
+                <span
+                  v-if="lastResult"
+                  class="g-restful-api__status"
+                  :class="`g-restful-api__status--${responseStatusTagType}`"
+                >
+                  {{ lastResult.statusText?.trim() || String(lastResult.status) }}
+                </span>
+                <span
+                  v-if="lastResult && lastResult.durationMs > 0"
+                  class="g-restful-api__time"
+                >
+                  {{ lastResult.durationMs.toFixed(0) }} ms
+                </span>
+                <RsButton
+                  v-if="responseTab === 'body' && lastResult && hasRealHttpResponse"
+                  size="sm"
+                  variant="ghost"
+                  @click="formatResponseBody"
+                >
+                  格式化
+                </RsButton>
+              </div>
+            </template>
+          </RsTabs>
+          <div class="g-restful-api__pane g-restful-api__pane--editor">
+            <div
+              v-if="sending"
+              class="g-restful-api__empty"
             >
-              <RsRadioItem value="header">Header</RsRadioItem>
-              <RsRadioItem value="query">Query</RsRadioItem>
-            </RsRadio>
-            <RsInput
-              v-if="apiKeyIn === 'header'"
-              v-model="apiKeyHeaderName"
-              placeholder="Header 名称，默认 X-API-Key"
-              size="sm"
+              发送中…
+            </div>
+            <div
+              v-else-if="!lastResult"
+              class="g-restful-api__empty"
+            >
+              <RsEmpty description="点击「发送」查看响应" />
+            </div>
+            <RsCodeEditor
+              v-else-if="responseTab === 'body'"
+              v-model="responseBodyDisplay"
+              :language="responseBodyLanguage"
+              readonly
+              height="100%"
+              embedded
+              :show-toolbar="false"
             />
-            <RsInput
+            <RsCodeEditor
               v-else
-              v-model="apiKeyQueryName"
-              placeholder="Query 参数名，默认 api_key"
-              size="sm"
-            />
-            <RsInput
-              v-model="apiKeyValue"
-              type="password"
-              show-password-on="click"
-              placeholder="密钥"
-              size="sm"
+              v-model="responseHeadersText"
+              language="plaintext"
+              readonly
+              height="100%"
+              embedded
+              :show-toolbar="false"
             />
           </div>
         </div>
       </template>
-
-      </RsTabs>
-
-    <template #footer>
-      <div class="g-restful-api__response-wrap">
-        <div class="g-restful-api__response-head">
-          <span class="g-restful-api__response-title">响应</span>
-          <RsTag v-if="lastResult" size="sm" :type="responseStatusTagType" round>
-            {{ lastResult.statusText?.trim() || String(lastResult.status) }}
-          </RsTag>
-          <RsTag v-if="lastResult && lastResult.durationMs > 0" size="sm" variant="default" round>
-            {{ lastResult.durationMs.toFixed(0) }} ms
-          </RsTag>
-          <RsButton
-            v-if="responseTab === 'body' && lastResult && hasRealHttpResponse"
-            size="ssm"
-            quaternary
-            @click="formatResponseBody"
-          >
-            格式化 JSON
-          </RsButton>
-        </div>
-        <RsTabs
-          v-model="responseTab"
-          :items="responseTabItems"
-          variant="line"
-          size="sm"
-          panelless
-          class="g-restful-api__res-tabs"
-        />
-        <div class="g-restful-api__response-body">
-          <g-code-mirror
-            v-if="responseTab === 'body'"
-            v-model="responseBodyDisplay"
-            :language="responseBodyLanguage"
-            :readonly="true"
-            :min-height="responseMinHeightCss"
-            line-wrapping
-          />
-          <g-code-mirror
-            v-else
-            v-model="responseHeadersText"
-            :language="'plaintext'"
-            :readonly="true"
-            :min-height="responseMinHeightCss"
-            line-wrapping
-          />
-        </div>
-      </div>
-    </template>
-  </RsCard>
+    </RsSplitPane>
+  </section>
 </template>
 
 <script setup lang="ts">
 // @ts-nocheck
 import { useAppMessage } from '@/composables/useAppMessage'
-import { RsButton, RsCard, RsInput, RsSelect, RsTabs, RsTag, RsRadio, RsRadioItem } from '@/ui'
-import { GCodeMirror } from '@/components/gcodemirror'
-import type { CodeMirrorLanguage } from '@/components/gcodemirror/types'
+import {
+  RsButton,
+  RsCodeEditor,
+  RsEmpty,
+  RsInput,
+  RsRadio,
+  RsRadioItem,
+  RsSelect,
+  RsSplitPane,
+  RsTabs,
+  type RsCodeEditorLanguage,
+  type RsSplitPaneItem,
+} from '@/ui'
 
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
@@ -363,6 +403,30 @@ const rawContentType = ref('application/json')
 
 const requestTab = ref<'params' | 'body' | 'headers' | 'cookies' | 'auth'>('params')
 const responseTab = ref<'body' | 'headers'>('body')
+
+/** Body 原始编辑器需要占满分栏剩余高度 */
+const requestPaneIsEditor = computed(() => {
+  if (requestTab.value !== 'body') {
+    return false
+  }
+  return !['none', 'x-www-form-urlencoded', 'form-data'].includes(bodyProcessType.value)
+})
+
+/**
+ * Params / Headers 等表格按内容高度；Raw Body 时请求区改为百分比，给编辑器留空间。
+ */
+const splitPanes = computed<RsSplitPaneItem[]>(() => {
+  if (requestPaneIsEditor.value) {
+    return [
+      { key: 'request', size: 54, min: 28 },
+      { key: 'response', size: 46, min: 22 },
+    ]
+  }
+  return [
+    { key: 'request', size: 'auto', max: 72 },
+    { key: 'response', min: 28 },
+  ]
+})
 
 const sending = ref(false)
 const abortRef = ref<AbortController | null>(null)
@@ -545,15 +609,7 @@ function mergeQueryParamsForSend(): RestKeyValueRow[] {
   return merged
 }
 
-const responseMinHeightCss = computed(() =>
-  typeof props.responseMinHeight === 'number' ? `${props.responseMinHeight}px` : props.responseMinHeight
-)
-
-const requestBodyMinHeightCss = computed(() =>
-  typeof props.requestBodyMinHeight === 'number' ? `${props.requestBodyMinHeight}px` : props.requestBodyMinHeight
-)
-
-const rawBodyLanguage = computed((): CodeMirrorLanguage =>
+const rawBodyLanguage = computed((): RsCodeEditorLanguage =>
   inferRawEditorLanguage(bodyProcessType.value, rawContentType.value)
 )
 
@@ -579,7 +635,7 @@ const hasRealHttpResponse = computed(() => {
 /**
  * 根据 Content-Type 与正文前缀推断响应编辑器语言，便于高亮。
  */
-const responseBodyLanguage = computed((): CodeMirrorLanguage => {
+const responseBodyLanguage = computed((): RsCodeEditorLanguage => {
   if (!lastResult.value) {
     return 'plaintext'
   }
@@ -892,102 +948,141 @@ defineExpose({
 
 <style scoped lang="scss">
 .g-restful-api {
-  &__toolbar {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 480px;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: var(--rs-surface, var(--g-dialog-bg));
+
+  &__urlbar {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 8px;
-    margin-bottom: 12px;
+    flex-shrink: 0;
+    padding: 10px 12px 8px;
+  }
+
+  &__url-group {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    min-width: 0;
+    gap: 0;
   }
 
   &__method {
-    width: 112px;
+    width: 108px;
     flex-shrink: 0;
   }
 
-  &__method--get :deep(.n-base-selection) {
-    box-shadow: inset 3px 0 0 #61affe;
+  &__method--get {
+    color: #61affe;
   }
-  &__method--post :deep(.n-base-selection) {
-    box-shadow: inset 3px 0 0 #49cc90;
+  &__method--post {
+    color: #49cc90;
   }
-  &__method--put :deep(.n-base-selection) {
-    box-shadow: inset 3px 0 0 #fca130;
+  &__method--put {
+    color: #fca130;
   }
-  &__method--patch :deep(.n-base-selection) {
-    box-shadow: inset 3px 0 0 #50e3c2;
+  &__method--patch {
+    color: #50e3c2;
   }
-  &__method--delete :deep(.n-base-selection) {
-    box-shadow: inset 3px 0 0 #f93e3e;
+  &__method--delete {
+    color: #f93e3e;
   }
-  &__method--head :deep(.n-base-selection) {
-    box-shadow: inset 3px 0 0 #9012fe;
+  &__method--head {
+    color: #9012fe;
   }
-  &__method--options :deep(.n-base-selection) {
-    box-shadow: inset 3px 0 0 #0d47a1;
+  &__method--options {
+    color: #0d47a1;
   }
 
   &__url {
-    flex: 1 1 200px;
+    flex: 1 1 auto;
     min-width: 0;
   }
 
-  &__req-tabs {
-    margin-top: 4px;
-
-    :deep(.n-tabs-nav) {
-      padding: 0 2px;
-    }
-
-    :deep(.n-tabs-tab) {
-      font-weight: 500;
-      padding: 10px 14px 8px;
-    }
-
-    :deep(.n-tabs-tab--active) {
-      color: var(--n-primary-color);
-      font-weight: 600;
-    }
-
-    :deep(.n-tabs-bar) {
-      background-color: var(--n-primary-color);
-      height: 2px;
-      border-radius: 1px;
-    }
-  }
-
-  &__tab-label {
-    display: inline-flex;
+  &__send-group {
+    display: flex;
+    flex-shrink: 0;
     align-items: center;
     gap: 6px;
   }
 
-  &__tab-badge {
-    :deep(.n-badge-sup) {
-      font-size: 11px;
-      min-width: 18px;
-      height: 18px;
-      line-height: 18px;
-      padding: 0 5px;
+  &__split {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  &__request,
+  &__response {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  &__request {
+    height: auto;
+  }
+
+  &__request--fill,
+  &__response {
+    height: 100%;
+  }
+
+  &__tabs {
+    flex-shrink: 0;
+    width: 100%;
+    padding: 0 8px;
+  }
+
+  &__pane {
+    flex: 0 0 auto;
+    min-width: 0;
+    overflow: visible;
+    padding: 8px 12px 12px;
+
+    &--editor {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
   }
 
   &__pane-inner {
-    padding-top: 4px;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  &__body-pane {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    gap: 8px;
   }
 
   &__auth-pane {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    padding-top: 4px;
   }
 
   &__auth-type-group {
-    &.n-radio-group {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px 16px;
-    }
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
   }
 
   &__auth-fields {
@@ -1001,57 +1096,39 @@ defineExpose({
       flex-wrap: wrap;
       align-items: center;
       gap: 8px;
-
-      :deep(.n-input) {
-        flex: 1 1 160px;
-        min-width: 0;
-      }
     }
   }
 
   &__body-radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    flex-shrink: 0;
     width: 100%;
-    margin-bottom: 12px;
-
-    &.n-radio-group {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: flex-start;
-      gap: 8px 20px;
-      row-gap: 10px;
-    }
-
-    :deep(.n-radio) {
-      align-items: center;
-    }
-
-    :deep(.n-radio__label) {
-      font-size: 13px;
-    }
   }
 
   &__raw-ct-row {
-    margin-bottom: 10px;
+    flex-shrink: 0;
     max-width: 360px;
   }
 
-  &__body-empty {
+  &__empty {
     display: flex;
+    flex: 1;
     align-items: center;
     justify-content: center;
     min-height: 120px;
-    padding: 24px 16px;
     font-size: 13px;
-    color: var(--n-text-color-3);
-    border: 1px solid var(--n-border-color);
-    border-radius: var(--n-border-radius);
-    background: var(--n-color-modal);
+    color: var(--rs-muted, var(--g-text-secondary));
   }
 
   &__body-raw {
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
-    gap: 10px;
+    min-height: 0;
+    gap: 8px;
   }
 
   &__content-type {
@@ -1060,45 +1137,39 @@ defineExpose({
   }
 
   &__body-form {
-    margin-top: 4px;
+    min-width: 0;
   }
 
-  &__response-wrap {
-    padding-top: 4px;
-  }
-
-  &__response-head {
+  &__meta {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
+    gap: 10px;
+    padding-right: 4px;
   }
 
-  &__response-title {
+  &__status {
+    font-size: 13px;
     font-weight: 600;
-    font-size: 14px;
-    margin-right: 4px;
+    font-variant-numeric: tabular-nums;
+
+    &--success {
+      color: #49cc90;
+    }
+    &--warning {
+      color: #fca130;
+    }
+    &--error {
+      color: #f93e3e;
+    }
+    &--default {
+      color: var(--rs-muted, var(--g-text-secondary));
+    }
   }
 
-  &__res-tabs {
-    margin-bottom: 8px;
-
-    :deep(.n-tabs-tab--active) {
-      color: var(--n-primary-color);
-      font-weight: 600;
-    }
-
-    :deep(.n-tabs-bar) {
-      background-color: var(--n-primary-color);
-    }
-  }
-
-  &__response-body {
-    border: 1px solid var(--n-border-color);
-    border-radius: var(--n-border-radius);
-    overflow: hidden;
-    background: var(--n-color);
+  &__time {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--rs-muted, var(--g-text-secondary));
   }
 }
 </style>

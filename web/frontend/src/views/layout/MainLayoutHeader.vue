@@ -9,12 +9,28 @@
       </div>
 
       <div class="main-layout-header__tabs">
-        <GTabs
-          v-model:tabs="layoutTabs"
-          v-model:active-tab-id="layoutActiveTabId"
-          type="line"
+        <RsTabs
+          v-if="tabItems.length > 0"
+          v-model="layoutActiveTabId"
+          class="main-layout-header__tab-nav"
+          :items="tabItems"
+          variant="line"
           size="md"
-          :max-tabs="20"
+          panelless
+          borderless
+          closable
+          draggable
+          context-menu
+          overflow="dropdown"
+          :max-count="20"
+          @close="onCloseTab"
+          @close-batch="onCloseTabs"
+          @reorder="onReorderTabs"
+        />
+        <div
+          v-else
+          class="main-layout-header__tabs-empty"
+          aria-hidden="true"
         />
       </div>
 
@@ -61,18 +77,20 @@
         />
         <ThemeSwitcher icon-only />
 
-        <GDropdown :options="userMenuOptions" trigger="click" @select="handleUserAction">
-          <div class="main-layout-header__user">
-            <RsAvatar
-              size="md"
-              :src="store.user.avatar || undefined"
-              :name="store.user.displayName || store.user.userName || '?'"
-            />
-            <span v-if="!store.user.sidebarCollapsed" class="main-layout-header__user-name">
-              {{ store.user.displayName }}
-            </span>
-          </div>
-        </GDropdown>
+        <RsDropdown :items="userMenuItems" :show-selected="false" @select="handleUserAction">
+          <template #trigger>
+            <div class="main-layout-header__user">
+              <RsAvatar
+                size="md"
+                :src="store.user.avatar || undefined"
+                :name="store.user.displayName || store.user.userName || '?'"
+              />
+              <span v-if="!store.user.sidebarCollapsed" class="main-layout-header__user-name">
+                {{ store.user.displayName }}
+              </span>
+            </div>
+          </template>
+        </RsDropdown>
       </div>
     </div>
 
@@ -112,8 +130,6 @@
 
 <script setup lang="ts">
 import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
-import { GDropdown } from '@/components/gdropdown'
-import { GTabs } from '@/components/gtabs'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { store } from '@/stores'
 import { useGlobalStore } from '@/stores/global'
@@ -122,9 +138,12 @@ import {
   RsAvatar,
   RsButton,
   RsDrawer,
+  RsDropdown,
   RsIcon,
   RsInput,
   RsLoading,
+  RsTabs,
+  type RsTabItem,
 } from '@/ui'
 import { getDocsSiteHref } from '@/utils/docsHelpUrl'
 import { storeToRefs } from 'pinia'
@@ -136,7 +155,7 @@ const emit = defineEmits<{
 }>()
 
 const { t: tCommon } = useModuleI18n('common')
-const { userMenuOptions, handleUserAction } = useLayoutUser()
+const { userMenuItems, handleUserAction } = useLayoutUser()
 const globalStore = useGlobalStore()
 const { layoutTabs, layoutActiveTabId } = storeToRefs(globalStore)
 
@@ -145,6 +164,42 @@ const helpDrawerVisible = ref(false)
 const helpIframeLoading = ref(false)
 
 const docsSiteHref = computed(() => getDocsSiteHref())
+
+const tabItems = computed<RsTabItem[]>(() =>
+  layoutTabs.value.map((tab) => ({
+    value: tab.tabId,
+    label: tab.title,
+    icon: typeof tab.icon === 'string' && !/[A-Z]/.test(tab.icon) ? tab.icon : undefined,
+    closable: tab.closable,
+    fixed: tab.fixed,
+  })),
+)
+
+function removeTabIds(ids: string[]) {
+  if (!ids.length) return
+  const idSet = new Set(ids)
+  globalStore.setLayoutTabs(layoutTabs.value.filter((tab) => !idSet.has(tab.tabId) || tab.fixed))
+}
+
+function onCloseTab(value: string) {
+  removeTabIds([value])
+}
+
+function onCloseTabs(values: string[]) {
+  removeTabIds(values)
+}
+
+function onReorderTabs(dragValue: string, dropValue: string) {
+  const tabs = [...layoutTabs.value]
+  const from = tabs.findIndex((tab) => tab.tabId === dragValue)
+  const to = tabs.findIndex((tab) => tab.tabId === dropValue)
+  if (from < 0 || to < 0 || from === to) return
+  if (tabs[to]?.fixed) return
+  const [moved] = tabs.splice(from, 1)
+  if (!moved) return
+  tabs.splice(to, 0, moved)
+  globalStore.setLayoutTabs(tabs)
+}
 
 function openHelpDrawer() {
   helpIframeLoading.value = true
@@ -194,6 +249,16 @@ function openHelpDrawer() {
     flex: 1 1 0;
     min-width: 0;
     overflow: hidden;
+  }
+
+  &__tab-nav {
+    width: 100%;
+    min-width: 0;
+  }
+
+  &__tabs-empty {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   &__right {

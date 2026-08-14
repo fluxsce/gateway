@@ -1,17 +1,14 @@
 /**
  * 网关实例树组件 Page Hook
- * 处理页面交互、事件处理和渲染函数
+ * 处理页面交互、事件处理
  */
 
-import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
-import { ServerOutline } from '@vicons/ionicons5'
-import { GIcon } from '@/components/gicon'
 import { useAppMessage } from '@/composables/useAppMessage'
-import type { TreeOption } from '@/types/legacy-ui'
-import { RsTag } from '@/ui'
-import { h, onBeforeUnmount, ref, watch } from 'vue'
+import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
+import type { RsTreeNode } from '@/ui'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { addRouterConfig, editRouterConfig, getRouterConfigsByInstance } from '../../../api'
-import type { GatewayInstance, InstanceTreeOption, RouterConfig } from '../types'
+import type { GatewayInstance, InstanceTreeNode, RouterConfig } from '../types'
 import { useGatewayInstanceTreeModel } from './model'
 import { useGatewayInstanceTreeService } from './service'
 
@@ -39,6 +36,8 @@ export function useGatewayInstanceTreePage() {
   const routerSubmitting = ref(false)
   /** 当前选中的网关实例ID（用于Router配置和全局过滤器配置） */
   const currentGatewayInstanceId = ref<string>('')
+  /** 右键菜单关联的树节点 */
+  const contextNode = ref<InstanceTreeNode | null>(null)
 
   // ============= 全局过滤器配置对话框状态 =============
 
@@ -58,66 +57,26 @@ export function useGatewayInstanceTreePage() {
     stopFilterKeywordWatch()
   })
 
-  // ============= 渲染函数 =============
-
-  /**
-   * 渲染节点前缀图标
-   */
-  function renderNodePrefix({ option }: { option: TreeOption }) {
-    const instanceOption = option as InstanceTreeOption
-    if (instanceOption.instance) {
-      return h(GIcon, {
-        icon: ServerOutline,
-        size: 16,
-        color: 'var(--g-primary)',
-        style: { marginRight: '6px', flexShrink: 0 },
-      })
-    }
-    return null
-  }
-
-  /**
-   * 渲染节点标签（省略显示）
-   */
-  function renderNodeLabel({ option }: { option: TreeOption }) {
-    return h('span', {
-      class: 'tree-node-label',
-      style: {
-        display: 'inline-block',
-        padding: '1px 4px',
-        borderRadius: '4px',
-        transition: 'background-color 0.2s'
-      }
-    }, option.label as string)
-  }
-
-  /**
-   * 渲染节点后缀（健康状态标签）
-   */
-  function renderNodeSuffix({ option }: { option: TreeOption }) {
-    const instanceOption = option as InstanceTreeOption
-    if (instanceOption.instance) {
-      return h(RsTag, {
-        variant: instanceOption.instance.healthStatus === 'Y' ? 'success' : 'warning',
-        size: 'sm',
-        style: { marginLeft: '8px', flexShrink: 0 },
-      }, {
-        default: () => instanceOption.instance!.healthStatus === 'Y' ? '健康' : '异常',
-      })
-    }
-    return null
-  }
-
   // ============= 事件处理 =============
 
   /**
-   * 处理树节点选择
-   * @param emit 组件 emit 函数
+   * 记录右键菜单关联节点
    */
-  function handleTreeSelect(keys: string[], option: TreeOption, emit: (e: 'select', instanceId: string, instance: GatewayInstance) => void) {
-    const instanceOption = option as InstanceTreeOption
-    if (instanceOption.instance) {
-      emit('select', instanceOption.instance.gatewayInstanceId, instanceOption.instance)
+  function setContextNode(node: RsTreeNode) {
+    contextNode.value = node as InstanceTreeNode
+  }
+
+  /**
+   * 处理树节点点击选择
+   */
+  function handleNodeClick(
+    node: RsTreeNode,
+    key: string,
+    emit: (e: 'select', instanceId: string, instance: GatewayInstance) => void,
+  ) {
+    const instanceNode = node as InstanceTreeNode
+    if (instanceNode.instance) {
+      emit('select', key, instanceNode.instance)
     }
   }
 
@@ -345,15 +304,11 @@ export function useGatewayInstanceTreePage() {
   /**
    * 处理右键菜单点击
    */
-  async function handleMenuClick({ code, node }: { code: string; node?: TreeOption }) {
-    if (!node) return
+  async function handleContextMenuSelect(key: string) {
+    const instance = contextNode.value?.instance
+    if (!instance) return
 
-    const instanceOption = node as InstanceTreeOption
-    if (!instanceOption.instance) return
-
-    const instance = instanceOption.instance
-
-    switch (code) {
+    switch (key) {
       case 'routerConfig':
         await openRouterDialog(instance)
         break
@@ -383,16 +338,12 @@ export function useGatewayInstanceTreePage() {
     // 全局过滤器配置对话框状态
     globalFilterConfigDialogVisible,
 
-    // 渲染函数
-    renderNodePrefix,
-    renderNodeLabel,
-    renderNodeSuffix,
-
     // 事件处理
-    handleTreeSelect,
+    setContextNode,
+    handleNodeClick,
     handlePageChange,
     handleRefresh,
-    handleMenuClick,
+    handleContextMenuSelect,
     handleRouterFormSubmit,
   }
 }

@@ -1,74 +1,20 @@
 <template>
   <div class="service-node-list" id="hub0042-node">
-    <!-- 节点表格 -->
-    <g-grid
+    <RsGrid
       :module-id="moduleId"
       :data="nodes"
       :loading="loading"
-      v-bind="nodeGridConfig"
+      :columns="nodeGridConfig.columns"
+      :selectable="false"
+      :show-index="true"
+      row-key="nodeId"
+      height="100%"
+      :pagination-config="nodeGridConfig.paginationConfig"
+      :menu-config="nodeGridConfig.menuConfig"
       @menu-click="handleMenuClick"
-    >
-      <!-- 临时实例自定义渲染 -->
-      <template #ephemeral="{ row }">
-        <RsTag :variant="row.ephemeral === 'Y' ? 'warning' : 'default'" size="sm">
-          {{ row.ephemeral === 'Y' ? '是' : '否' }}
-        </RsTag>
-      </template>
+    />
 
-      <!-- 实例状态自定义渲染 -->
-      <template #instanceStatus="{ row }">
-        <RsTag :variant="getInstanceStatusType(row.instanceStatus)" size="sm">
-          {{ getInstanceStatusLabel(row.instanceStatus) }}
-        </RsTag>
-      </template>
-
-      <!-- 健康状态自定义渲染 -->
-      <template #healthyStatus="{ row }">
-        <RsTag :variant="getHealthStatusType(row.healthyStatus)" size="sm">
-          {{ getHealthStatusLabel(row.healthyStatus) }}
-        </RsTag>
-      </template>
-
-      <!-- 元数据自定义渲染 -->
-      <template #metadataJson="{ row }">
-        <GEllipsis :text="formatMetadata(row.metadataJson)" />
-      </template>
-
-      <!-- 心跳时间自定义渲染 -->
-      <template #lastBeatTime="{ row }">
-        {{ formatTime(row.lastBeatTime) }}
-      </template>
-
-      <!-- 操作列 -->
-      <template #action="{ row }">
-        <div class="node-actions">
-          <RsButton size="sm" variant="primary" @click="handleEditNode(row)">
-            编辑
-          </RsButton>
-          <RsButton
-            v-if="row.instanceStatus === 'UP'"
-            size="sm"
-            variant="ghost"
-            tone="warning"
-            @click="handleOfflineNode(row)"
-          >
-            下线
-          </RsButton>
-          <RsButton
-            v-if="row.instanceStatus === 'DOWN'"
-            size="sm"
-            variant="ghost"
-            tone="success"
-            @click="handleOnlineNode(row)"
-          >
-            上线
-          </RsButton>
-        </div>
-      </template>
-    </g-grid>
-
-    <!-- 编辑节点模态框 -->
-    <GdataFormModal
+    <RsDataFormModal
       v-model:visible="editDialogVisible"
       mode="edit"
       title="编辑节点"
@@ -83,20 +29,18 @@
 </template>
 
 <script lang="ts" setup>
-import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
-import type { DataFormField } from '@/components/form/data/types'
-import { GEllipsis } from '@/components/gellipsis'
-import type { GridProps } from '@/components/grid'
-import { GGrid } from '@/components/grid'
+import { RsDataFormModal, type RsDataFormField } from '@/components/form/rs-data'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
+import { RsGrid } from '@/components/rs-grid'
 import { useAppMessage } from '@/composables/useAppMessage'
 import { RsButton, RsTag, rsConfirm } from '@/ui'
 import { formatDate } from '@/utils/format'
-import { ref } from 'vue'
+import { h, ref } from 'vue'
 import { editNode, offlineNode, onlineNode } from '../api'
 import type { ServiceNode } from '../types'
 
 defineOptions({
-  name: 'ServiceNodeList'
+  name: 'ServiceNodeList',
 })
 
 interface Props {
@@ -117,46 +61,44 @@ interface Emits {
 
 const emit = defineEmits<Emits>()
 
-// 对话框和表单状态
 const message = useAppMessage()
 const editDialogVisible = ref(false)
 const currentEditNode = ref<ServiceNode | null>(null)
 const submitting = ref(false)
 
-// 节点表单配置
-const nodeFormFields: DataFormField[] = [
+const nodeFormFields: RsDataFormField[] = [
   {
     field: 'nodeId',
     label: '节点ID',
-    type: 'input' as const,
+    type: 'input',
     disabled: true,
     required: true,
   },
   {
     field: 'ipAddress',
     label: 'IP地址',
-    type: 'input' as const,
+    type: 'input',
     disabled: true,
     required: true,
   },
   {
     field: 'portNumber',
     label: '端口号',
-    type: 'number' as const,
+    type: 'number',
     disabled: true,
     required: true,
   },
   {
     field: 'weight',
     label: '权重',
-    type: 'number' as const,
+    type: 'number',
     required: true,
     defaultValue: 1,
   },
   {
     field: 'instanceStatus',
     label: '实例状态',
-    type: 'select' as const,
+    type: 'select',
     required: true,
     options: [
       { label: '运行中', value: 'UP' },
@@ -168,7 +110,7 @@ const nodeFormFields: DataFormField[] = [
   {
     field: 'healthyStatus',
     label: '健康状态',
-    type: 'select' as const,
+    type: 'select',
     required: true,
     options: [
       { label: '健康', value: 'HEALTHY' },
@@ -179,7 +121,7 @@ const nodeFormFields: DataFormField[] = [
   {
     field: 'ephemeral',
     label: '临时实例',
-    type: 'select' as const,
+    type: 'select',
     required: true,
     options: [
       { label: '是', value: 'Y' },
@@ -189,153 +131,14 @@ const nodeFormFields: DataFormField[] = [
   {
     field: 'metadataJson',
     label: '元数据',
-    type: 'textarea' as const,
+    type: 'textarea',
     placeholder: 'JSON 格式',
   },
 ]
 
-// 节点表格配置
-const nodeGridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
-  columns: [
-    {
-      field: 'nodeId',
-      title: '节点ID',
-      align: 'center',
-      width: 200,
-      showOverflow: true,
-      sortable: true,
-      filters: [
-        { data: '' }
-      ],
-      filterRender: { name: 'input' },
-    },
-    {
-      field: 'ipAddress',
-      title: 'IP',
-      align: 'center',
-      showOverflow: true,
-      sortable: true,
-      filters: [
-        { data: '' }
-      ],
-      filterRender: { name: 'input' },
-    },
-    {
-      field: 'portNumber',
-      title: '端口',
-      align: 'center',
-      width: 100,
-      sortable: true,
-      filters: [
-        { data: '' }
-      ],
-      filterRender: { name: 'input' },
-    },
-    {
-      field: 'ephemeral',
-      title: '临时实例',
-      align: 'center',
-      width: 100,
-      slots: { default: 'ephemeral' },
-      filterRender: { 
-        name: 'select', 
-        options: [
-          { label: '全部', value: '' },
-          { label: '是', value: 'Y' },
-          { label: '否', value: 'N' },
-        ]
-      },
-    },
-    {
-      field: 'weight',
-      title: '权重',
-      align: 'center',
-      width: 100,
-      sortable: true,
-      filters: [
-        { data: '' }
-      ],
-      filterRender: { name: 'input' },
-    },
-    {
-      field: 'instanceStatus',
-      title: '实例状态',
-      align: 'center',
-      width: 120,
-      slots: { default: 'instanceStatus' },
-      filterRender: { 
-        name: 'select', 
-        options: [
-          { label: '全部', value: '' },
-          { label: '运行中', value: 'UP' },
-          { label: '已下线', value: 'DOWN' },
-          { label: '启动中', value: 'STARTING' },
-          { label: '停止服务', value: 'OUT_OF_SERVICE' },
-        ]
-      },
-    },
-    {
-      field: 'healthyStatus',
-      title: '健康状态',
-      align: 'center',
-      width: 120,
-      slots: { default: 'healthyStatus' },
-      filterRender: { 
-        name: 'select', 
-        options: [
-          { label: '全部', value: '' },
-          { label: '健康', value: 'HEALTHY' },
-          { label: '不健康', value: 'UNHEALTHY' },
-          { label: '未知', value: 'UNKNOWN' },
-        ]
-      },
-    },
-    {
-      field: 'metadataJson',
-      title: '元数据',
-      align: 'left',
-      showOverflow: true,
-      slots: { default: 'metadataJson' },
-    },
-    {
-      field: 'lastBeatTime',
-      title: '心跳时间',
-      align: 'center',
-      width: 180,
-      sortable: true,
-      slots: { default: 'lastBeatTime' },
-    },
-    {
-      field: 'action',
-      title: '操作',
-      align: 'center',
-      width: 160,
-      slots: { default: 'action' },
-    },
-  ],
-  filterConfig: {
-    remote: false, // 本地过滤
-  },
-  showCheckbox: false,
-  showSeq: true,
-  paginationConfig: {
-    show: false, // 不分页
-  },
-  menuConfig: {
-    enabled: true,
-    showCopyRow: false,
-    showCopyCell: false,
-    options: [
-      { code: 'edit', name: '编辑' },
-      { code: 'online', name: '上线' },
-      { code: 'offline', name: '下线' },
-      { code: 'refresh', name: '刷新' },
-    ],
-  },
-  height: '100%',
-}
-
-// 工具方法
+/**
+ * 格式化节点元数据为可读文本。
+ */
 const formatMetadata = (metadataJson?: string) => {
   if (!metadataJson) return '-'
   try {
@@ -350,72 +153,201 @@ const formatMetadata = (metadataJson?: string) => {
 
 const getInstanceStatusType = (status: string) => {
   const statusMap: Record<string, 'success' | 'danger' | 'warning' | 'info' | 'default'> = {
-    'UP': 'success',
-    'DOWN': 'danger',
-    'STARTING': 'warning',
-    'OUT_OF_SERVICE': 'info',
+    UP: 'success',
+    DOWN: 'danger',
+    STARTING: 'warning',
+    OUT_OF_SERVICE: 'info',
   }
   return statusMap[status] || 'default'
 }
 
 const getInstanceStatusLabel = (status: string) => {
   const statusMap: Record<string, string> = {
-    'UP': '运行中',
-    'DOWN': '已下线',
-    'STARTING': '启动中',
-    'OUT_OF_SERVICE': '停止服务',
+    UP: '运行中',
+    DOWN: '已下线',
+    STARTING: '启动中',
+    OUT_OF_SERVICE: '停止服务',
   }
   return statusMap[status] || status
 }
 
 const getHealthStatusType = (status: string) => {
   const statusMap: Record<string, 'success' | 'danger' | 'warning' | 'default'> = {
-    'HEALTHY': 'success',
-    'UNHEALTHY': 'danger',
-    'UNKNOWN': 'warning',
+    HEALTHY: 'success',
+    UNHEALTHY: 'danger',
+    UNKNOWN: 'warning',
   }
   return statusMap[status] || 'default'
 }
 
 const getHealthStatusLabel = (status: string) => {
   const statusMap: Record<string, string> = {
-    'HEALTHY': '健康',
-    'UNHEALTHY': '不健康',
-    'UNKNOWN': '未知',
+    HEALTHY: '健康',
+    UNHEALTHY: '不健康',
+    UNKNOWN: '未知',
   }
   return statusMap[status] || status
 }
 
-// 格式化时间
 const formatTime = (timeStr?: string) => {
   if (!timeStr) return '-'
   return formatDate(timeStr, 'YYYY-MM-DD HH:mm:ss') || '-'
 }
 
-// 菜单点击事件处理
-const handleMenuClick = ({ code, row }: { code: string; row?: any }) => {
-  // 刷新操作不需要选中行
-  if (code === 'refresh') {
+const nodeGridConfig: {
+  columns: RsGridColumn<ServiceNode>[]
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+} = {
+  columns: [
+    {
+      key: 'nodeId',
+      title: '节点ID',
+      align: 'center',
+      width: 200,
+      ellipsis: true,
+      sortable: true,
+      filterable: true,
+    },
+    {
+      key: 'ipAddress',
+      title: 'IP',
+      align: 'center',
+      ellipsis: true,
+      sortable: true,
+      filterable: true,
+    },
+    {
+      key: 'portNumber',
+      title: '端口',
+      align: 'center',
+      width: 100,
+      sortable: true,
+      filterable: true,
+    },
+    {
+      key: 'ephemeral',
+      title: '临时实例',
+      align: 'center',
+      width: 100,
+      filterable: true,
+      render: (row) =>
+        h(
+          RsTag,
+          { variant: row.ephemeral === 'Y' ? 'warning' : 'default', size: 'sm' },
+          () => (row.ephemeral === 'Y' ? '是' : '否'),
+        ),
+    },
+    {
+      key: 'weight',
+      title: '权重',
+      align: 'center',
+      width: 100,
+      sortable: true,
+      filterable: true,
+    },
+    {
+      key: 'instanceStatus',
+      title: '实例状态',
+      align: 'center',
+      width: 120,
+      filterable: true,
+      render: (row) =>
+        h(
+          RsTag,
+          { variant: getInstanceStatusType(row.instanceStatus), size: 'sm' },
+          () => getInstanceStatusLabel(row.instanceStatus),
+        ),
+    },
+    {
+      key: 'healthyStatus',
+      title: '健康状态',
+      align: 'center',
+      width: 120,
+      filterable: true,
+      render: (row) =>
+        h(
+          RsTag,
+          { variant: getHealthStatusType(row.healthyStatus), size: 'sm' },
+          () => getHealthStatusLabel(row.healthyStatus),
+        ),
+    },
+    {
+      key: 'metadataJson',
+      title: '元数据',
+      align: 'left',
+      ellipsis: true,
+      formatter: (value) => formatMetadata(value as string | undefined),
+    },
+    {
+      key: 'lastBeatTime',
+      title: '心跳时间',
+      align: 'center',
+      width: 180,
+      sortable: true,
+      formatter: (value) => formatTime(value as string | undefined),
+    },
+    {
+      key: 'action',
+      title: '操作',
+      align: 'center',
+      width: 180,
+      render: (row) =>
+        h('div', { class: 'node-actions' }, [
+          h(RsButton, { size: 'sm', variant: 'primary', onClick: () => handleEditNode(row) }, () => '编辑'),
+          row.instanceStatus === 'UP'
+            ? h(
+                RsButton,
+                { size: 'sm', variant: 'ghost', tone: 'warning', onClick: () => handleOfflineNode(row) },
+                () => '下线',
+              )
+            : null,
+          row.instanceStatus === 'DOWN'
+            ? h(
+                RsButton,
+                { size: 'sm', variant: 'ghost', tone: 'success', onClick: () => handleOnlineNode(row) },
+                () => '上线',
+              )
+            : null,
+        ]),
+    },
+  ],
+  paginationConfig: {
+    show: false,
+  },
+  menuConfig: {
+    enabled: true,
+    items: [
+      { key: 'edit', label: '编辑', icon: 'pencil' },
+      { key: 'online', label: '上线', icon: 'play' },
+      { key: 'offline', label: '下线', icon: 'square' },
+      { key: 'refresh', label: '刷新', icon: 'refresh-cw' },
+    ],
+  },
+}
+
+/**
+ * 菜单点击事件处理
+ */
+const handleMenuClick = ({ key, row }: { key: string; row?: ServiceNode }) => {
+  if (key === 'refresh') {
     handleRefresh()
     return
   }
-  
   if (!row) return
-  const node = row as ServiceNode
-  switch (code) {
+  switch (key) {
     case 'edit':
-      handleEditNode(node)
+      handleEditNode(row)
       break
     case 'online':
-      handleOnlineNodeConfirm(node)
+      handleOnlineNodeConfirm(row)
       break
     case 'offline':
-      handleOfflineNodeConfirm(node)
+      handleOfflineNodeConfirm(row)
       break
   }
 }
 
-// 事件处理
 const handleRefresh = () => {
   message.info('正在刷新节点列表...')
   emit('refresh')
@@ -434,7 +366,6 @@ const handleOfflineNode = (node: ServiceNode) => {
   handleOfflineNodeConfirm(node)
 }
 
-// 编辑表单提交
 const handleFormSubmit = async (formData?: Record<string, any>) => {
   if (!formData || !formData.nodeId) {
     message.error('节点ID不能为空')
@@ -459,7 +390,6 @@ const handleFormSubmit = async (formData?: Record<string, any>) => {
   }
 }
 
-// 上线节点确认
 const handleOnlineNodeConfirm = async (node: ServiceNode) => {
   const confirmed = await rsConfirm.warning({
     title: '确认上线',
@@ -482,7 +412,6 @@ const handleOnlineNodeConfirm = async (node: ServiceNode) => {
   }
 }
 
-// 下线节点确认
 const handleOfflineNodeConfirm = async (node: ServiceNode) => {
   const confirmed = await rsConfirm.warning({
     title: '确认下线',
@@ -510,9 +439,10 @@ const handleOfflineNodeConfirm = async (node: ServiceNode) => {
 .service-node-list {
   width: 100%;
   height: 100%;
+  min-height: 0;
 }
 
-.node-actions {
+:deep(.node-actions) {
   display: flex;
   gap: 8px;
   justify-content: center;

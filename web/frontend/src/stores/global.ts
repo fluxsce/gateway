@@ -3,16 +3,25 @@
  *
  * 职责：
  * - 应用元信息（名称、版本）、页面标题与加载态
- * - 主布局多页签（与 `GTabs` 一致；页签由菜单等交互打开，不预置首页）
+ * - 主布局多页签（页签由菜单等交互打开，不预置首页）
  * - 侧边栏显示偏好（经 `pinia-plugin-persistedstate` 持久化，无需手写 storage）
  *
  * 写法对齐 XiRang `config-store`：Setup Store + 分区注释 + 具名 ref/函数，便于维护与扩展。
  */
 
-import type { GTabsTabItem } from '@/components/gtabs/types'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
+
+/** 主布局顶栏页签（`tabId` 使用路由 `fullPath`） */
+export interface LayoutTabItem {
+  tabId: string
+  title: string
+  path?: string
+  icon?: string
+  closable?: boolean
+  fixed?: boolean
+}
 
 // ---------------------------------------------------------------------------
 // 常量（持久化）
@@ -45,10 +54,10 @@ export const useGlobalStore = defineStore(
     const pageLoading = ref(false)
 
     /**
-     * 主布局页签列表（`tabId` 使用路由 `fullPath`，与 `GTabs` 一致）
+     * 主布局页签列表（`tabId` 使用路由 `fullPath`）
      * 初始为空，由侧栏菜单 `upsertLayoutTab` 等写入。
      */
-    const layoutTabs = ref<GTabsTabItem[]>([])
+    const layoutTabs = ref<LayoutTabItem[]>([])
 
     /** 当前激活页签 id，与 `layoutTabs[].tabId` 对应；无页签时为 `''` */
     const layoutActiveTabId = ref('')
@@ -109,7 +118,7 @@ export const useGlobalStore = defineStore(
      *
      * @param tabs - 新的页签数组
      */
-    function setLayoutTabs(tabs: GTabsTabItem[]) {
+    function setLayoutTabs(tabs: LayoutTabItem[]) {
       layoutTabs.value = tabs
     }
 

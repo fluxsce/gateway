@@ -3,12 +3,12 @@
  * 处理所有与后端交互的业务逻辑
  */
 
+import { useAppMessage } from '@/composables/useAppMessage'
 import { rsConfirm } from '@/ui'
 import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess } from '@/utils/format'
 import { WarningOutline } from '@vicons/ionicons5'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import * as configApi from '../../../api'
 import type { Config } from '../../../types'
@@ -19,8 +19,8 @@ import { useConfigModel } from './model'
  * @param searchFormRef 搜索表单引用
  */
 export function useConfigService(searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
-// 初始化 Model
+  const message = useAppMessage()
+  // 初始化 Model
   const model = useConfigModel()
 
   const {

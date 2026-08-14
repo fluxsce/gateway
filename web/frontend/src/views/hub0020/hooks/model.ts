@@ -3,11 +3,11 @@
  * 统一管理搜索表单、表格配置和数据状态（RsSearchForm / RsGrid / RsDataForm）
  */
 
-import type { RsDataFormField } from '@/components/form/rs-data'
+import type { RsDataFormField, RsDataFormRenderContext } from '@/components/form/rs-data'
 import type { RsSearchFormProps } from '@/components/form/rs-search'
 import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
-import { RsDynamicTags, RsInput, RsTag, RsTooltip } from '@/ui'
+import { RsDynamicTags, RsInput, RsTag, RsTooltip, getByNamePath, setByNamePath } from '@/ui'
 import { formatDate } from '@/utils/format'
 import { h, ref } from 'vue'
 import type { GatewayInstance } from '../types/index'
@@ -804,11 +804,14 @@ export function useGatewayInstanceModel() {
             type: 'custom',
             span: 24,
             defaultValue: [],
-            render: (formData: Record<string, any>) => {
+            render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
+              const raw = ctx ? ctx.value : formData.sensitiveFields
+              const tags = Array.isArray(raw) ? raw.map(String) : []
               return h(RsDynamicTags, {
-                modelValue: formData.sensitiveFields || [],
+                modelValue: tags,
                 'onUpdate:modelValue': (value: string[]) => {
-                  formData.sensitiveFields = value
+                  if (ctx?.onUpdate) ctx.onUpdate(value)
+                  else formData.sensitiveFields = value
                 },
                 placeholder: '添加敏感字段',
               })
@@ -925,12 +928,17 @@ export function useGatewayInstanceModel() {
             span: 12,
             placeholder: '请输入告警渠道名称或点击选择',
             tips: '不填写则使用默认告警渠道',
-            render: (formData: Record<string, any>) => {
+            render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
               // 使用 RsInput，避免拉取仍依赖 naive-ui 的 hub0080 渠道选择器
+              const raw = ctx ? ctx.value : getByNamePath(formData, 'extProperty.channelName')
+              let channelName = ''
+              if (typeof raw === 'string') channelName = raw
+              else if (raw != null) channelName = String(raw)
               return h(RsInput, {
-                modelValue: formData['extProperty.channelName'] || '',
+                modelValue: channelName,
                 'onUpdate:modelValue': (value: string) => {
-                  formData['extProperty.channelName'] = value
+                  if (ctx?.onUpdate) ctx.onUpdate(value)
+                  else setByNamePath(formData, 'extProperty.channelName', value)
                 },
                 placeholder: '请输入告警渠道名称',
                 clearable: true,
@@ -944,17 +952,19 @@ export function useGatewayInstanceModel() {
             span: 24,
             defaultValue: ['502'],
             tips: '选择需要告警的HTTP状态码，多个状态码用逗号分隔',
-            render: (formData: Record<string, any>) => {
-              // 将数组转换为字符串数组（如果后端返回的是数字数组）
-              const value = formData['extProperty.alertStatusCodes'] || []
-              const strArray = Array.isArray(value) 
-                ? value.map(v => String(v))
-                : (typeof value === 'string' ? value.split(',').map(s => s.trim()).filter(Boolean) : [])
-              
+            render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
+              const rawCodes = ctx ? ctx.value : getByNamePath(formData, 'extProperty.alertStatusCodes')
+              let strArray: string[] = []
+              if (Array.isArray(rawCodes)) strArray = rawCodes.map(String)
+              else if (typeof rawCodes === 'string') {
+                strArray = rawCodes.split(',').map((s) => s.trim()).filter(Boolean)
+              }
+
               return h(RsDynamicTags, {
                 modelValue: strArray,
                 'onUpdate:modelValue': (value: string[]) => {
-                  formData['extProperty.alertStatusCodes'] = value
+                  if (ctx?.onUpdate) ctx.onUpdate(value)
+                  else setByNamePath(formData, 'extProperty.alertStatusCodes', value)
                 },
                 placeholder: '输入状态码，如: 502, 503, 504',
               })

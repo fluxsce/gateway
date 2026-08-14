@@ -1,66 +1,78 @@
 <template>
-  <GModal
-    :visible="modalVisible"
+  <RsDialog
+    :open="modalVisible"
     :title="props.title || '选择命名空间'"
+    layout="window"
     :width="props.width || 1200"
-    :to="props.to"
-    :show-footer="false"
-    @update:visible="handleUpdateVisible"
-    @after-leave="handleAfterLeave"
+    :teleport-to="props.to"
+    :draggable="true"
+    :fullscreenable="true"
+    :modal="false"
+    :show-overlay="false"
+    :close-on-overlay-click="false"
+    class="hub0041-namespace-list-dialog"
+    @update:open="handleUpdateVisible"
+    @after-close="handleAfterLeave"
   >
-    <div class="namespace-list-modal" :id="service.model.moduleId">
-      <GPane direction="vertical" :no-resize="true">
-        <!-- 上部：搜索表单 -->
-        <template #1>
-          <search-form
-            ref="searchFormRef"
-            :module-id="service.model.moduleId"
-            v-bind="readonlySearchFormConfig"
-            @search="handleSearch"
-            @reset="handleReset"
-          />
-        </template>
+    <template #body>
+      <div class="namespace-list-modal" :id="service.model.moduleId">
+        <RsSplitPane
+          class="namespace-list-modal__split"
+          orientation="vertical"
+          :panes="splitPanes"
+          disabled
+        >
+          <template #search>
+            <div class="namespace-list-modal__search">
+              <RsSearchForm
+                ref="searchFormRef"
+                :module-id="service.model.moduleId"
+                v-bind="readonlySearchFormConfig"
+                @search="handleSearch"
+                @reset="handleReset"
+              />
+            </div>
+          </template>
 
-        <!-- 下部：数据表格 -->
-        <template #2>
-          <g-grid
-            ref="gridRef"
-            :module-id="service.model.moduleId"
-            :data="service.model.namespaceList"
-            :loading="service.model.loading"
-            v-bind="service.model.gridConfig"
-            @page-change="service.handlePageChange"
-            @row-click="handleRowClick"
-          >
-            <!-- 活动状态自定义渲染 -->
-            <template #activeFlag="{ row }">
-              <n-tag :type="row.activeFlag === 'Y' ? 'success' : 'default'" size="small">
-                {{ row.activeFlag === 'Y' ? '活动' : '非活动' }}
-              </n-tag>
-            </template>
-          </g-grid>
-        </template>
-      </GPane>
-    </div>
-  </GModal>
+          <template #grid>
+            <div class="namespace-list-modal__grid">
+              <RsGrid
+                ref="gridRef"
+                :module-id="service.model.moduleId"
+                :data="service.model.namespaceList"
+                :loading="service.model.loading"
+                :columns="service.model.gridConfig.columns"
+                :selectable="false"
+                :row-key="service.model.gridConfig.rowKey"
+                height="100%"
+                :pagination-config="service.model.gridConfig.paginationConfig"
+                @page-change="service.handlePageChange"
+                @row-click="handleRowClick"
+              />
+            </div>
+          </template>
+        </RsSplitPane>
+      </div>
+    </template>
+  </RsDialog>
 </template>
 
 <script lang="ts" setup>
-import SearchForm from '@/components/form/search/SearchForm.vue'
-import { GModal } from '@/components/gmodal'
-import { GPane } from '@/components/gpane'
-import { GGrid } from '@/components/grid'
-import { NTag } from 'naive-ui'
+import { RsSearchForm } from '@/components/form/rs-search'
+import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
+import { RsDialog, RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useNamespaceService } from '../hooks/useNamespaceService'
 import type { Namespace } from '../types'
 
-// 定义组件名称
 defineOptions({
-  name: 'NamespaceListModal'
+  name: 'NamespaceListModal',
 })
 
-// ============= Props =============
+const splitPanes: RsSplitPaneItem[] = [
+  { key: 'search', size: 'auto' },
+  { key: 'grid' },
+]
 
 interface Props {
   /** 是否显示弹窗 */
@@ -83,8 +95,6 @@ const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
 })
 
-// ============= Emits =============
-
 interface Emits {
   (e: 'update:visible', visible: boolean): void
   (e: 'after-leave'): void
@@ -94,41 +104,32 @@ interface Emits {
 
 const emit = defineEmits<Emits>()
 
-// ============= Refs =============
-
 const searchFormRef = ref()
-const gridRef = ref()
-
-// ============= 模态框可见性 =============
-
+const gridRef = ref<RsGridExpose | null>(null)
 const modalVisible = ref(props.visible)
-
-// ============= 服务（只包含查询功能） =============
 
 const service = useNamespaceService(searchFormRef)
 
-// ============= 只读搜索表单配置（移除工具栏按钮，只保留搜索和重置） =============
-
+/** 选择弹窗只保留搜索/重置，不展示增删改工具栏 */
 const readonlySearchFormConfig = computed(() => {
   const baseConfig = service.model.searchFormConfig
   return {
     ...baseConfig,
-    toolbarButtons: [], // 移除所有工具栏按钮
-    showSearchButton: true, // 保留搜索按钮
-    showResetButton: true, // 保留重置按钮
+    toolbarButtons: [],
+    showSearchButton: true,
+    showResetButton: true,
   }
 })
 
-// 监听 props.visible 变化，同步到本地状态
-const stopVisibleWatch = watch(() => props.visible, (newVal) => {
-  modalVisible.value = newVal
-  if (newVal) {
-    // 弹窗打开时，自动执行查询
-    handleSearch()
-  }
-})
-
-// ============= 事件处理 =============
+const stopVisibleWatch = watch(
+  () => props.visible,
+  (newVal) => {
+    modalVisible.value = newVal
+    if (newVal) {
+      handleSearch()
+    }
+  },
+)
 
 /**
  * 处理弹窗可见性更新
@@ -163,48 +164,43 @@ const handleReset = () => {
  * 处理行点击事件（选择命名空间）
  */
 const handleRowClick = ({ row }: { row: Namespace }) => {
-  if (row) {
-    // 更新 v-model 值
-    emit('update:modelValue', row.namespaceId)
-    
-    // 触发 select 事件
-    emit('select', row)
-    
-    // 选择后关闭弹窗
-    handleUpdateVisible(false)
-  }
+  if (!row) return
+  emit('update:modelValue', row.namespaceId)
+  emit('select', row)
+  handleUpdateVisible(false)
 }
-
-// ============= 生命周期 =============
 
 onBeforeUnmount(() => {
   stopVisibleWatch()
 })
 </script>
 
-<style lang="scss" scoped>
+<style scoped>
 .namespace-list-modal {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   width: 100%;
+  height: min(70vh, 720px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.namespace-list-modal__split {
+  flex: 1;
+  min-height: 0;
   height: 100%;
-  min-height: 500px;
+}
 
-  :deep(.n-split) {
-    height: 100%;
-  }
+.namespace-list-modal__search {
+  width: 100%;
+}
 
-  /* 上半区：搜索表单，内容较少，允许自身滚动 */
-  :deep(.n-split-pane:first-child) {
-    overflow: auto;
-    padding: var(--g-space-sm);
-  }
-
-  /* 下半区：表格区域，高度由 GGrid 占满，滚动全部交给 vxe-grid */
-  :deep(.n-split-pane:last-child) {
-    overflow: hidden;
-    padding: var(--g-space-sm);
-    display: flex;
-    flex-direction: column;
-  }
+.namespace-list-modal__grid {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 </style>
-

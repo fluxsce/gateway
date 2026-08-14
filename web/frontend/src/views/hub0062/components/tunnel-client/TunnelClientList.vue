@@ -1,57 +1,49 @@
 <template>
   <div class="tunnel-client-management" :id="htmlId">
-    <GPane direction="vertical" :default-size="0.12" :min="0.1" :max="0.5">
-      <!-- 上部：搜索表单 -->
-      <template #1>
-        <search-form
-          ref="searchFormRef"
-          :module-id="service.model.moduleId"
-          v-bind="service.model.searchFormConfig"
-          @search="handleSearch"
-          @toolbar-click="handleToolbarClick"
-        />
+    <RsSplitPane
+      class="tunnel-client-management__split"
+      orientation="vertical"
+      :panes="splitPanes"
+      disabled
+    >
+      <template #search>
+        <div class="tunnel-client-management__search">
+          <RsSearchForm
+            ref="searchFormRef"
+            :module-id="service.model.moduleId"
+            v-bind="service.model.searchFormConfig"
+            @search="handleSearch"
+            @toolbar-click="handleToolbarClick"
+          />
+        </div>
       </template>
 
-      <!-- 下部：统计面板 + 数据表格 -->
-      <template #2>
-        <div class="bottom-section">
-          <!-- 统计面板 -->
-          <div class="stats-section" v-if="showStats">
-            <tunnel-client-stats :statistics="statistics" />
+      <template #grid>
+        <div class="tunnel-client-management__body">
+          <div v-if="showStats" class="tunnel-client-management__stats">
+            <TunnelClientStats :statistics="statistics" />
           </div>
-
-          <!-- 数据表格 -->
-          <div class="grid-section">
-            <g-grid
+          <div class="tunnel-client-management__grid">
+            <RsGrid
               ref="gridRef"
               :module-id="service.model.moduleId"
               :data="service.model.clientList"
               :loading="service.model.loading"
-              v-bind="service.model.gridConfig"
+              :columns="service.model.gridConfig.columns"
+              :selectable="service.model.gridConfig.selectable"
+              :row-key="service.model.gridConfig.rowKey"
+              height="100%"
+              :pagination-config="service.model.gridConfig.paginationConfig"
+              :menu-config="service.model.gridConfig.menuConfig"
               @page-change="handlePageChange"
-              @menu-click="({ code, row }) => handleMenuClick({ menu: { code }, row })"
-            >
-              <!-- 连接状态自定义渲染 -->
-              <template #connectionStatus="{ row }">
-                <n-tag :type="service.model.getConnectionStatusTagType(row.connectionStatus)" size="small">
-                  {{ service.model.getConnectionStatusLabel(row.connectionStatus) }}
-                </n-tag>
-              </template>
-
-              <!-- 状态自定义渲染 -->
-              <template #activeFlag="{ row }">
-                <n-tag :type="row.activeFlag === 'Y' ? 'success' : 'default'" size="small">
-                  {{ row.activeFlag === 'Y' ? '启用' : '禁用' }}
-                </n-tag>
-              </template>
-            </g-grid>
+              @menu-click="handleMenuClick"
+            />
           </div>
         </div>
       </template>
-    </GPane>
+    </RsSplitPane>
 
-    <!-- 客户端对话框（新增/编辑/查看共用） -->
-    <GdataFormModal
+    <RsDataFormModal
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
       :title="formDialogMode === 'create' ? '新增隧道客户端' : formDialogMode === 'edit' ? '编辑隧道客户端' : '查看隧道客户端详情'"
@@ -67,29 +59,28 @@
 </template>
 
 <script lang="ts" setup>
-import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
-import SearchForm from '@/components/form/search/SearchForm.vue'
-import { GPane } from '@/components/gpane'
-import { GGrid } from '@/components/grid'
+import { RsDataFormModal } from '@/components/form/rs-data'
+import { RsSearchForm } from '@/components/form/rs-search'
+import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
+import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import { isApiSuccess, parseJsonData } from '@/utils/format'
-import { NTag } from 'naive-ui'
 import { onMounted, ref } from 'vue'
 import * as tunnelClientApi from '../../api'
 import type { TunnelClientStats as TunnelClientStatsType } from '../../types'
-import TunnelClientStats from './TunnelClientStats.vue'
 import { useTunnelClientPage } from './hooks'
+import TunnelClientStats from './TunnelClientStats.vue'
 
-// 定义组件名称
 defineOptions({
-  name: 'TunnelClientList'
+  name: 'TunnelClientList',
 })
 
-// ============= Refs =============
+const splitPanes: RsSplitPaneItem[] = [
+  { key: 'search', size: 'auto' },
+  { key: 'grid' },
+]
 
 const searchFormRef = ref()
-const gridRef = ref()
-
-// ============= 统计面板 =============
+const gridRef = ref<RsGridExpose | null>(null)
 
 const showStats = ref(true)
 const statistics = ref<TunnelClientStatsType>({
@@ -98,10 +89,12 @@ const statistics = ref<TunnelClientStatsType>({
   disconnectedClients: 0,
   connectingClients: 0,
   errorClients: 0,
-  totalServices: 0
+  totalServices: 0,
 })
 
-// 加载统计数据
+/**
+ * 加载统计数据
+ */
 const loadStatistics = async () => {
   try {
     const res = await tunnelClientApi.getClientStats()
@@ -116,8 +109,6 @@ const loadStatistics = async () => {
   }
 }
 
-// ============= 页面级 Hook（包含服务与对话框、事件处理） =============
-
 const {
   service,
   formDialogVisible,
@@ -127,76 +118,68 @@ const {
   handleToolbarClick,
   handleMenuClick,
   handleSearch: originalHandleSearch,
-  handlePageChange
+  handlePageChange,
 } = useTunnelClientPage(gridRef, searchFormRef)
 
-// ============= HTML ID（用于 DOM，符合 HTML 规范） =============
-
-// 固定的 HTML id（符合 HTML 规范，无特殊字符）
-// 注意：权限校验仍使用原始 moduleId（service.model.moduleId）
 const htmlId = 'hub0062-tunnel-client'
 
-// ============= 事件处理 =============
-
-// 包装搜索方法，搜索后刷新统计
+/**
+ * 包装搜索方法，搜索后刷新统计
+ */
 const handleSearch = async (searchParams?: Record<string, any>) => {
   await originalHandleSearch(searchParams)
   await loadStatistics()
 }
 
-// ============= 生命周期 =============
-
-// 组件挂载时加载数据
 onMounted(async () => {
-  await Promise.all([
-    service.loadClientList(),
-    loadStatistics()
-  ])
+  await Promise.all([service.loadClientList(), loadStatistics()])
 })
 </script>
 
 <style lang="scss" scoped>
 .tunnel-client-management {
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
-  background-color: var(--n-color-target);
-}
-
-:deep(.n-split) {
-  height: 100%;
-}
-
-/* 上半区：搜索表单，内容较少，允许自身滚动 */
-:deep(.n-split-pane:first-child) {
-  overflow: auto;
-  padding: var(--g-space-sm);
-}
-
-/* 下半区：统计面板 + 表格区域 */
-:deep(.n-split-pane:last-child) {
-  overflow: hidden;
-  padding: var(--g-space-sm);
   display: flex;
   flex-direction: column;
 }
 
-.bottom-section {
+.tunnel-client-management__split {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.tunnel-client-management__search {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.tunnel-client-management__body {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  width: 100%;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
 }
 
-.stats-section {
+.tunnel-client-management__stats {
   flex-shrink: 0;
 }
 
-.grid-section {
+.tunnel-client-management__grid {
+  box-sizing: border-box;
   flex: 1;
+  width: 100%;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 </style>
-

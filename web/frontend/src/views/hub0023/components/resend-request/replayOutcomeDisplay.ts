@@ -1,3 +1,4 @@
+import type { RsTagVariant } from '@/ui'
 import type { InjectionKey, Ref } from 'vue'
 
 /** 左侧列表每条 trace 的重发阶段 */
@@ -41,9 +42,7 @@ export function replayPhaseLabel(o: ReplayRowOutcome): string {
   return '未重发'
 }
 
-export function replayPhaseTagType(
-  o: ReplayRowOutcome
-): 'default' | 'info' | 'success' | 'error' | 'warning' {
+export function replayPhaseTagType(o: ReplayRowOutcome): RsTagVariant {
   if (o.phase === 'sending') {
     return 'warning'
   }
@@ -51,7 +50,7 @@ export function replayPhaseTagType(
     return 'success'
   }
   if (o.phase === 'failed') {
-    return 'error'
+    return 'danger'
   }
   return 'default'
 }
@@ -63,11 +62,9 @@ export function responseStateLabel(o: ReplayRowOutcome): string {
   return o.responseLine
 }
 
-export function httpStatusTagType(
-  o: ReplayRowOutcome
-): 'default' | 'info' | 'success' | 'error' | 'warning' {
+export function httpStatusTagType(o: ReplayRowOutcome): RsTagVariant {
   if (o.phase !== 'success' || o.httpStatus == null) {
-    return o.phase === 'failed' ? 'error' : 'default'
+    return o.phase === 'failed' ? 'danger' : 'default'
   }
   const s = o.httpStatus
   if (s >= 200 && s < 300) {
@@ -77,7 +74,7 @@ export function httpStatusTagType(
     return 'warning'
   }
   if (s >= 500 || s === 0) {
-    return 'error'
+    return 'danger'
   }
   return 'default'
 }

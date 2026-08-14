@@ -187,7 +187,7 @@
 <script setup lang="ts">
 import { GIcon } from '@/components/gicon'
 import { useAppMessage } from '@/composables/useAppMessage'
-import { getApiMessage, isApiSuccess } from '@/utils/format'
+import { isApiSuccess } from '@/utils/format'
 import {
   RsButton,
   RsDialog,
@@ -363,17 +363,15 @@ const loadServiceById = async (serviceDefinitionId: string) => {
 
   try {
     loading.value = true
-    const response = await getServiceDefinitionById(serviceDefinitionId, 'default')
+    const response = await getServiceDefinitionById(serviceDefinitionId)
 
     if (isApiSuccess(response)) {
       const service = JSON.parse(response.bizData) as ServiceDefinition
       selectedServiceInfo.value = service
     } else {
-      console.warn('获取服务定义失败:', getApiMessage(response, '获取服务定义失败'))
       selectedServiceInfo.value = null
     }
-  } catch (error) {
-    console.error('加载服务定义失败:', error)
+  } catch {
     selectedServiceInfo.value = null
   } finally {
     loading.value = false
@@ -410,10 +408,8 @@ const loadServiceDefinitions = async (): Promise<void> => {
       }
     } else {
       serviceDefinitions.value = []
-      console.warn('获取服务定义列表失败:', getApiMessage(response, '获取服务定义列表失败'))
     }
-  } catch (error) {
-    console.error('加载服务定义列表失败:', error)
+  } catch {
     serviceDefinitions.value = []
     message.error('加载服务定义列表失败')
   } finally {

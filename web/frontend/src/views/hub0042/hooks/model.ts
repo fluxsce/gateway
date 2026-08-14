@@ -3,18 +3,66 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { DataFormField } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsDataFormField } from '@/components/form/rs-data'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig, RsGridRowKey } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
+import { RsIcon, RsTag, type RsTagVariant } from '@/ui'
 import { formatDate } from '@/utils/format'
-import {
-  AddOutline,
-  CreateOutline,
-  TrashOutline
-} from '@vicons/ionicons5'
-import { ref } from 'vue'
+import { h, ref } from 'vue'
 import type { Service } from '../types/index'
+
+/**
+ * 服务表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface ServiceGridConfig {
+  columns: RsGridColumn<Service>[]
+  selectable: boolean
+  rowKey: RsGridRowKey<Service>
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
+
+const groupColorTypes: RsTagVariant[] = ['primary', 'info', 'success', 'warning', 'danger']
+const serviceColorTypes: RsTagVariant[] = ['success', 'info', 'primary', 'warning', 'danger']
+
+/**
+ * 根据字符串生成稳定哈希，用于标签配色。
+ */
+function hashString(str: string): number {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i)
+    hash = hash & hash
+  }
+  return Math.abs(hash)
+}
+
+/**
+ * 获取分组名称标签变体。
+ */
+function getGroupTagVariant(groupName: string): RsTagVariant {
+  if (!groupName || groupName === 'DEFAULT_GROUP') return 'default'
+  return groupColorTypes[hashString(groupName) % groupColorTypes.length]
+}
+
+/**
+ * 获取服务名称标签变体。
+ */
+function getServiceTagVariant(serviceName: string): RsTagVariant {
+  if (!serviceName) return 'default'
+  return serviceColorTypes[hashString(serviceName) % serviceColorTypes.length]
+}
+
+/**
+ * 服务联合主键（业务规则）。表格只消费函数结果，不改写行数据。
+ */
+export function buildServiceRowKey(
+  service: Pick<Service, 'tenantId' | 'namespaceId' | 'groupName' | 'serviceName'>,
+): string {
+  return [service.tenantId, service.namespaceId, service.groupName, service.serviceName].join('::')
+}
 
 /**
  * 服务监控 Model
@@ -33,8 +81,8 @@ export function useServiceModel() {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'serviceName',
@@ -87,23 +135,23 @@ export function useServiceModel() {
       {
         key: 'add',
         label: '新建服务',
-        icon: AddOutline,
+        icon: 'AddOutline',
         type: 'primary',
         tooltip: '新建服务',
       },
       {
         key: 'edit',
         label: '编辑',
-        icon: CreateOutline,
+        icon: 'CreateOutline',
         tooltip: '编辑选中的服务',
       },
       {
         key: 'delete',
         label: '删除',
-        icon: TrashOutline,
+        icon: 'TrashOutline',
         type: 'error',
         tooltip: '删除选中的服务',
-      }
+      },
     ],
     showSearchButton: true,
     showResetButton: true,
@@ -310,131 +358,134 @@ export function useServiceModel() {
         tabKey: 'other',
         disabled: true,
       },
-    ] as DataFormField[],
+    ] as RsDataFormField[],
   }
 
   // ============= 表格配置 =============
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置（符合 RsGrid Props 结构，排除响应式数据） */
+  const gridConfig: ServiceGridConfig = {
     columns: [
       {
-        field: 'namespaceId',
+        key: 'namespaceId',
         title: '命名空间ID',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'groupName',
+        key: 'groupName',
         title: '分组名称',
         sortable: true,
         align: 'center',
-        showOverflow: true,
-        slots: { default: 'groupName' },
+        ellipsis: true,
+        render: (row) =>
+          h(RsTag, { variant: getGroupTagVariant(row.groupName), size: 'sm' }, () => row.groupName),
       },
       {
-        field: 'serviceName',
+        key: 'serviceName',
         title: '服务名称',
         sortable: true,
         align: 'center',
-        showOverflow: true,
-        slots: { default: 'serviceName' },
+        ellipsis: true,
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: getServiceTagVariant(row.serviceName), size: 'sm' },
+            () => [h(RsIcon, { name: 'server', size: 12 }), ` ${row.serviceName}`],
+          ),
       },
       {
-        field: 'serviceType',
+        key: 'serviceType',
         title: '服务类型',
         align: 'center',
-        showOverflow: true,
-        formatter: ({ cellValue }) => {
+        ellipsis: true,
+        formatter: (value) => {
           const typeMap: Record<string, string> = {
-            'INTERNAL': '内部服务',
-            'NACOS': 'Nacos',
-            'CONSUL': 'Consul',
-            'EUREKA': 'Eureka',
-            'ETCD': 'ETCD',
-            'ZOOKEEPER': 'ZooKeeper',
+            INTERNAL: '内部服务',
+            NACOS: 'Nacos',
+            CONSUL: 'Consul',
+            EUREKA: 'Eureka',
+            ETCD: 'ETCD',
+            ZOOKEEPER: 'ZooKeeper',
           }
-          return typeMap[cellValue] || cellValue
+          return typeMap[String(value || '')] || String(value || '')
         },
       },
       {
-        field: 'serviceVersion',
+        key: 'serviceVersion',
         title: '服务版本',
         align: 'center',
-        showOverflow: true,
-        formatter: ({ cellValue }) => {
-          return cellValue || '-'
-        },
+        ellipsis: true,
+        formatter: (value) => (value ? String(value) : '-'),
       },
       {
-        field: 'serviceDescription',
+        key: 'serviceDescription',
         title: '服务描述',
         align: 'left',
-        showOverflow: true,
+        ellipsis: true,
         width: 200,
-        formatter: ({ cellValue }) => {
-          return cellValue || '-'
-        },
+        formatter: (value) => (value ? String(value) : '-'),
       },
       {
-        field: 'nodeCount',
+        key: 'nodeCount',
         title: '节点数量',
         align: 'center',
-        formatter: ({ cellValue }) => {
-          return cellValue || 0
-        },
+        formatter: (value) => String(value || 0),
       },
       {
-        field: 'healthyNodeCount',
+        key: 'healthyNodeCount',
         title: '健康节点',
         align: 'center',
-        formatter: ({ cellValue }) => {
-          return cellValue || 0
-        },
+        formatter: (value) => String(value || 0),
       },
       {
-        field: 'unhealthyNodeCount',
+        key: 'unhealthyNodeCount',
         title: '不健康节点',
         align: 'center',
-        formatter: ({ cellValue }) => {
-          return cellValue || 0
-        },
+        formatter: (value) => String(value || 0),
       },
       {
-        field: 'activeFlag',
+        key: 'activeFlag',
         title: '活动状态',
         align: 'center',
-        slots: { default: 'activeFlag' },
+        width: 100,
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.activeFlag === 'Y' ? 'success' : 'default', size: 'sm' },
+            () => (row.activeFlag === 'Y' ? '活动' : '非活动'),
+          ),
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
-        field: 'addWho',
+        key: 'addWho',
         title: '创建人',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'editTime',
+        key: 'editTime',
         title: '修改时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
-        field: 'editWho',
+        key: 'editWho',
         title: '修改人',
-        showOverflow: true,
+        ellipsis: true,
       },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: buildServiceRowKey,
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -442,24 +493,10 @@ export function useServiceModel() {
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      showCopyCell: true,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-        {
-          code: 'edit',
-          name: '编辑',
-          prefixIcon: 'vxe-icon-edit',
-        },
-        {
-          code: 'delete',
-          name: '删除',
-          prefixIcon: 'vxe-icon-delete',
-        },
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
       ],
     },
     height: '100%',

@@ -3,30 +3,33 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { DataFormField } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsDataFormField } from '@/components/form/rs-data'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
+import { RsTag, type RsTagVariant } from '@/ui'
 import { formatDate } from '@/utils/format'
-import {
-  AddOutline,
-  EyeOutline,
-  LinkOutline,
-  StopOutline,
-  TrashOutline
-} from '@vicons/ionicons5'
-import { NIcon } from 'naive-ui'
 import { h, ref } from 'vue'
 import type { ConnectionStatus, TunnelClient } from '../types'
 
-// ============= 常量定义 =============
+/**
+ * 隧道客户端表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface TunnelClientGridConfig {
+  columns: RsGridColumn<TunnelClient>[]
+  selectable: boolean
+  rowKey: string | ((row: TunnelClient) => string)
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
 
 /** 连接状态选项 */
 export const CONNECTION_STATUS_OPTIONS = [
-  { label: '已连接', value: 'connected' as ConnectionStatus, type: 'success' as const },
-  { label: '已断开', value: 'disconnected' as ConnectionStatus, type: 'warning' as const },
-  { label: '连接中', value: 'connecting' as ConnectionStatus, type: 'info' as const },
-  { label: '错误', value: 'error' as ConnectionStatus, type: 'error' as const },
+  { label: '已连接', value: 'connected' as ConnectionStatus, variant: 'success' as RsTagVariant },
+  { label: '已断开', value: 'disconnected' as ConnectionStatus, variant: 'warning' as RsTagVariant },
+  { label: '连接中', value: 'connecting' as ConnectionStatus, variant: 'info' as RsTagVariant },
+  { label: '错误', value: 'error' as ConnectionStatus, variant: 'danger' as RsTagVariant },
 ]
 
 /** 活动标记选项 */
@@ -48,25 +51,32 @@ export const AUTO_RECONNECT_OPTIONS = [
 ]
 
 /**
+ * 获取连接状态展示文案
+ */
+function getConnectionStatusText(status: ConnectionStatus): string {
+  const option = CONNECTION_STATUS_OPTIONS.find((opt) => opt.value === status)
+  return option?.label || status
+}
+
+/**
+ * 获取连接状态标签变体
+ */
+function getConnectionStatusVariant(status: ConnectionStatus): RsTagVariant {
+  const option = CONNECTION_STATUS_OPTIONS.find((opt) => opt.value === status)
+  return option?.variant || 'default'
+}
+
+/**
  * 隧道客户端管理 Model
  */
 export function useTunnelClientModel() {
-  // ============= 数据状态 =============
   const moduleId = 'hub0062:tunnel-client'
-  
-  /** 加载状态 */
   const loading = ref(false)
-
-  /** 客户端列表数据 */
   const clientList = ref<TunnelClient[]>([])
-
-  /** 后端分页信息对象 */
   const pageInfo = ref<PageInfoObj | undefined>()
 
-  // ============= 搜索表单配置 =============
-
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'clientName',
@@ -93,7 +103,7 @@ export function useTunnelClientModel() {
         clearable: true,
         options: [
           { label: '全部', value: '' },
-          ...CONNECTION_STATUS_OPTIONS.map(opt => ({ label: opt.label, value: opt.value })),
+          ...CONNECTION_STATUS_OPTIONS.map((opt) => ({ label: opt.label, value: opt.value })),
         ],
       },
       {
@@ -105,7 +115,7 @@ export function useTunnelClientModel() {
         clearable: true,
         options: [
           { label: '全部', value: '' },
-          ...ACTIVE_FLAG_OPTIONS.map(opt => ({ label: opt.label, value: opt.value })),
+          ...ACTIVE_FLAG_OPTIONS.map((opt) => ({ label: opt.label, value: opt.value })),
         ],
       },
     ],
@@ -113,161 +123,43 @@ export function useTunnelClientModel() {
       {
         key: 'add',
         label: '新增客户端',
-        icon: AddOutline,
+        icon: 'AddOutline',
         type: 'primary',
         tooltip: '新增隧道客户端',
       },
       {
         key: 'connect',
         label: '连接',
-        icon: LinkOutline,
+        icon: 'LinkOutline',
         type: 'success',
         tooltip: '连接选中的客户端',
       },
       {
         key: 'disconnect',
         label: '断开',
-        icon: StopOutline,
+        icon: 'StopOutline',
         type: 'warning',
         tooltip: '断开选中的客户端',
       },
       {
         key: 'delete',
         label: '删除',
-        icon: TrashOutline,
+        icon: 'TrashOutline',
         type: 'error',
         tooltip: '删除选中的客户端',
       },
     ],
+    showSearchButton: true,
+    showResetButton: true,
   }
 
-  // ============= 表格配置 =============
+  const formTabs = [
+    { key: 'basic', label: '基本信息' },
+    { key: 'connection', label: '连接配置' },
+    { key: 'advanced', label: '高级配置' },
+  ]
 
-  /** 表格配置（符合 GridProps 结构） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
-    columns: [
-      {
-        field: 'clientName',
-        title: '客户端名称',
-        width: 180,
-        showOverflow: 'tooltip',
-      },
-      {
-        field: 'serverAddress',
-        title: '服务器地址',
-        width: 200,
-        showOverflow: 'tooltip',
-        formatter: ({ row }) => `${row.serverAddress}:${row.serverPort}`,
-      },
-      {
-        field: 'connectionStatus',
-        title: '连接状态',
-        width: 100,
-        align: 'center',
-        slots: { default: 'connectionStatus' },
-      },
-      {
-        field: 'tlsEnable',
-        title: 'TLS',
-        width: 80,
-        align: 'center',
-        formatter: ({ row }) => row.tlsEnable === 'Y' ? '启用' : '禁用',
-      },
-      {
-        field: 'autoReconnect',
-        title: '自动重连',
-        width: 100,
-        align: 'center',
-        formatter: ({ row }) => row.autoReconnect === 'Y' ? '启用' : '禁用',
-      },
-      {
-        field: 'serviceCount',
-        title: '服务数量',
-        width: 100,
-        align: 'center',
-      },
-      {
-        field: 'reconnectCount',
-        title: '重连次数',
-        width: 100,
-        align: 'center',
-      },
-      {
-        field: 'lastConnectTime',
-        title: '最后连接时间',
-        width: 180,
-        sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) => cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '-',
-      },
-      {
-        field: 'lastHeartbeat',
-        title: '最后心跳',
-        width: 180,
-        sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) => cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '-',
-      },
-      {
-        field: 'activeFlag',
-        title: '状态',
-        width: 80,
-        align: 'center',
-        slots: { default: 'activeFlag' },
-      },
-      {
-        field: 'addTime',
-        title: '创建时间',
-        width: 180,
-        sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) => cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
-      },
-    ],
-    showCheckbox: true,
-    paginationConfig: {
-      show: true,
-      pageInfo: pageInfo as any,
-      align: 'right',
-    },
-    menuConfig: {
-      enabled: true,
-      showCopyRow: true,
-      showCopyCell: true,
-      customMenus: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: () => h(NIcon, { size: 14 }, { default: () => h(EyeOutline) }),
-        },
-        {
-          code: 'edit',
-          name: '编辑',
-          prefixIcon: 'vxe-icon-edit',
-        },
-        {
-          code: 'connect',
-          name: '连接',
-          prefixIcon: () => h(NIcon, { size: 14 }, { default: () => h(LinkOutline) }),
-        },
-        {
-          code: 'disconnect',
-          name: '断开连接',
-          prefixIcon: () => h(NIcon, { size: 14 }, { default: () => h(StopOutline) }),
-        },
-        {
-          code: 'delete',
-          name: '删除',
-          prefixIcon: 'vxe-icon-delete',
-        },
-      ],
-    },
-  }
-
-  // ============= 表单字段配置 =============
-
-  /** 表单字段配置（用于新增/编辑对话框） */
-  const formFields: DataFormField[] = [
+  const formFields: RsDataFormField[] = [
     {
       field: 'clientName',
       label: '客户端名称',
@@ -408,77 +300,158 @@ export function useTunnelClientModel() {
     },
   ]
 
-  /** 表单标签页配置 */
-  const formTabs = [
-    {
-      key: 'basic',
-      label: '基本信息',
+  /** 表格配置（符合 RsGrid Props 结构，排除响应式数据） */
+  const gridConfig: TunnelClientGridConfig = {
+    columns: [
+      {
+        key: 'clientName',
+        title: '客户端名称',
+        width: 180,
+        ellipsis: true,
+      },
+      {
+        key: 'serverAddress',
+        title: '服务器地址',
+        width: 200,
+        ellipsis: true,
+        formatter: (_value, row) => `${row.serverAddress}:${row.serverPort}`,
+      },
+      {
+        key: 'connectionStatus',
+        title: '连接状态',
+        width: 100,
+        align: 'center',
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: getConnectionStatusVariant(row.connectionStatus), size: 'sm' },
+            () => getConnectionStatusText(row.connectionStatus),
+          ),
+      },
+      {
+        key: 'tlsEnable',
+        title: 'TLS',
+        width: 80,
+        align: 'center',
+        formatter: (_value, row) => (row.tlsEnable === 'Y' ? '启用' : '禁用'),
+      },
+      {
+        key: 'autoReconnect',
+        title: '自动重连',
+        width: 100,
+        align: 'center',
+        formatter: (_value, row) => (row.autoReconnect === 'Y' ? '启用' : '禁用'),
+      },
+      {
+        key: 'serviceCount',
+        title: '服务数量',
+        width: 100,
+        align: 'center',
+      },
+      {
+        key: 'reconnectCount',
+        title: '重连次数',
+        width: 100,
+        align: 'center',
+      },
+      {
+        key: 'lastConnectTime',
+        title: '最后连接时间',
+        width: 180,
+        sortable: true,
+        ellipsis: true,
+        formatter: (value) => (value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '-'),
+      },
+      {
+        key: 'lastHeartbeat',
+        title: '最后心跳',
+        width: 180,
+        sortable: true,
+        ellipsis: true,
+        formatter: (value) => (value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '-'),
+      },
+      {
+        key: 'activeFlag',
+        title: '状态',
+        width: 80,
+        align: 'center',
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.activeFlag === 'Y' ? 'success' : 'default', size: 'sm' },
+            () => (row.activeFlag === 'Y' ? '启用' : '禁用'),
+          ),
+      },
+      {
+        key: 'addTime',
+        title: '创建时间',
+        width: 180,
+        sortable: true,
+        ellipsis: true,
+        formatter: (value) => (value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : ''),
+      },
+    ],
+    selectable: true,
+    rowKey: (row) => `${row.tunnelClientId}::${row.tenantId}`,
+    paginationConfig: {
+      show: true,
+      pageInfo: pageInfo as any,
+      align: 'right',
     },
-    {
-      key: 'connection',
-      label: '连接配置',
+    menuConfig: {
+      enabled: true,
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'connect', label: '连接', icon: 'link' },
+        { key: 'disconnect', label: '断开连接', icon: 'unplug' },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
+      ],
     },
-    {
-      key: 'advanced',
-      label: '高级配置',
-    },
-  ]
-
-  // ============= 辅助方法 =============
-
-  /**
-   * 获取连接状态标签
-   */
-  function getConnectionStatusLabel(status: ConnectionStatus): string {
-    const option = CONNECTION_STATUS_OPTIONS.find(opt => opt.value === status)
-    return option?.label || status
-  }
-
-  /**
-   * 获取连接状态标签类型
-   */
-  function getConnectionStatusTagType(status: ConnectionStatus): 'success' | 'warning' | 'info' | 'error' | 'default' {
-    const option = CONNECTION_STATUS_OPTIONS.find(opt => opt.value === status)
-    return option?.type || 'default'
+    height: '100%',
   }
 
   /**
    * 重置分页
    */
-  function resetPagination() {
-    if (pageInfo.value) {
-      pageInfo.value.pageIndex = 1
+  const resetPagination = () => {
+    pageInfo.value = undefined
+  }
+
+  /**
+   * 更新分页信息（接收后端 PageInfoObj）
+   */
+  const updatePagination = (newPageInfo: Partial<PageInfoObj>) => {
+    if (!pageInfo.value) {
+      pageInfo.value = newPageInfo as PageInfoObj
+    } else {
+      Object.assign(pageInfo.value, newPageInfo)
     }
   }
 
   /**
-   * 更新分页信息
+   * 获取连接状态标签
    */
-  function updatePagination(info: { pageIndex?: number; pageSize?: number }) {
-    if (pageInfo.value) {
-      if (info.pageIndex !== undefined) {
-        pageInfo.value.pageIndex = info.pageIndex
-      }
-      if (info.pageSize !== undefined) {
-        pageInfo.value.pageSize = info.pageSize
-      }
-    }
+  function getConnectionStatusLabel(status: ConnectionStatus): string {
+    return getConnectionStatusText(status)
+  }
+
+  /**
+   * 获取连接状态标签类型
+   */
+  function getConnectionStatusTagType(status: ConnectionStatus): RsTagVariant {
+    return getConnectionStatusVariant(status)
   }
 
   return {
-    // 数据状态
     moduleId,
     loading,
     clientList,
     pageInfo,
-
-    // 配置
     searchFormConfig,
     gridConfig,
     formFields,
     formTabs,
-
-    // 方法
     getConnectionStatusLabel,
     getConnectionStatusTagType,
     resetPagination,
@@ -490,4 +463,3 @@ export function useTunnelClientModel() {
  * 隧道客户端管理 Model 类型
  */
 export type TunnelClientModel = ReturnType<typeof useTunnelClientModel>
-

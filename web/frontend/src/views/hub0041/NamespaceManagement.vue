@@ -1,40 +1,44 @@
 <template>
   <div class="namespace-management" :id="service.model.moduleId">
-    <GPane direction="vertical" default-size="80px">
-      <!-- 上部：搜索表单 -->
-      <template #1>
-        <search-form
-          ref="searchFormRef"
-          :module-id="service.model.moduleId"
-          v-bind="service.model.searchFormConfig"
-          @search="handleSearch"
-          @toolbar-click="handleToolbarClick"
-        />
+    <RsSplitPane
+      class="namespace-management__split"
+      orientation="vertical"
+      :panes="splitPanes"
+      disabled
+    >
+      <template #search>
+        <div class="namespace-management__search">
+          <RsSearchForm
+            ref="searchFormRef"
+            :module-id="service.model.moduleId"
+            v-bind="service.model.searchFormConfig"
+            @search="handleSearch"
+            @toolbar-click="handleToolbarClick"
+          />
+        </div>
       </template>
 
-      <!-- 下部：数据表格 -->
-      <template #2>
-        <g-grid
-          ref="gridRef"
-          :module-id="service.model.moduleId"
-          :data="service.model.namespaceList"
-          :loading="service.model.loading"
-          v-bind="service.model.gridConfig"
-          @page-change="service.handlePageChange"
-          @menu-click="handleMenuClick"
-        >
-          <!-- 活动状态自定义渲染 -->
-          <template #activeFlag="{ row }">
-            <n-tag :type="row.activeFlag === 'Y' ? 'success' : 'default'" size="small">
-              {{ row.activeFlag === 'Y' ? '活动' : '非活动' }}
-            </n-tag>
-          </template>
-        </g-grid>
+      <template #grid>
+        <div class="namespace-management__grid">
+          <RsGrid
+            ref="gridRef"
+            :module-id="service.model.moduleId"
+            :data="service.model.namespaceList"
+            :loading="service.model.loading"
+            :columns="service.model.gridConfig.columns"
+            :selectable="service.model.gridConfig.selectable"
+            :row-key="service.model.gridConfig.rowKey"
+            height="100%"
+            :pagination-config="service.model.gridConfig.paginationConfig"
+            :menu-config="service.model.gridConfig.menuConfig"
+            @page-change="service.handlePageChange"
+            @menu-click="handleMenuClick"
+          />
+        </div>
       </template>
-    </GPane>
+    </RsSplitPane>
 
-    <!-- 命名空间对话框（新增/编辑/查看共用） -->
-    <GdataFormModal
+    <RsDataFormModal
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
       :title="formDialogMode === 'create' ? '新增命名空间' : formDialogMode === 'edit' ? '编辑命名空间' : '查看命名空间详情'"
@@ -50,25 +54,25 @@
 </template>
 
 <script lang="ts" setup>
-import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
-import SearchForm from '@/components/form/search/SearchForm.vue'
-import { GPane } from '@/components/gpane'
-import { GGrid } from '@/components/grid'
-import { NTag } from 'naive-ui'
+import { RsDataFormModal } from '@/components/form/rs-data'
+import { RsSearchForm } from '@/components/form/rs-search'
+import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
+import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import { ref } from 'vue'
 import { useNamespacePage } from './hooks'
 
-// 定义组件名称
 defineOptions({
-  name: 'NamespaceManagement'
+  name: 'NamespaceManagement',
 })
 
-// ============= Refs =============
+/** 上方搜索区随内容自适应，下方表格占满剩余高度 */
+const splitPanes: RsSplitPaneItem[] = [
+  { key: 'search', size: 'auto' },
+  { key: 'grid' },
+]
 
 const searchFormRef = ref()
-const gridRef = ref()
-
-// ============= 页面级 Hook（包含服务与对话框、事件处理） =============
+const gridRef = ref<RsGridExpose | null>(null)
 
 const {
   service,
@@ -83,10 +87,36 @@ const {
 } = useNamespacePage(gridRef, searchFormRef)
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .namespace-management {
-  height: 100%;
+  box-sizing: border-box;
   width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.namespace-management__split {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.namespace-management__search {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.namespace-management__grid {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 </style>
-

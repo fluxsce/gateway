@@ -3,10 +3,17 @@
  * 统一管理表单配置和数据状态
  */
 
-import type { RsDataFormField } from '@/components/form/rs-data'
-import { RsAlert, RsDynamicTags, RsInput, RsInputNumber, RsSelect, RsSwitch } from '@/ui'
+import type { RsDataFormField, RsDataFormRenderContext } from '@/components/form/rs-data'
+import { RsAlert, RsDynamicTags, RsInput, RsInputNumber, RsSelect, RsSwitch, getByNamePath, setByNamePath, type RsInputNumberValue, type RsSelectModelValue, type RsSwitchValue, unwrapSelectEntry } from '@/ui'
 import { h, ref } from 'vue'
-import { clearIrrelevantAuthConfigFields, clearJwtKeysOnAlgorithmChange, isJwtHmacAlgorithm, isJwtRsaAlgorithm } from './authConfigUtils'
+import {
+  API_KEY_AUTH_CONFIG_DEFAULTS,
+  JWT_AUTH_CONFIG_DEFAULTS,
+  clearJwtKeysOnAlgorithmChange,
+  isJwtHmacAlgorithm,
+  isJwtRsaAlgorithm,
+  switchAuthConfigType,
+} from './authConfigUtils'
 
 /**
  * 认证配置 Model
@@ -21,13 +28,15 @@ export function useAuthConfigModel(moduleId: string) {
 
   // 创建数组字段渲染函数
   const createArrayFieldRender = (field: string, placeholder: string) => {
-    return (formData: Record<string, any>) => {
-      const value = formData[field] || []
+    return (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
+      const raw = ctx ? ctx.value : formData[field]
+      const value = Array.isArray(raw) ? raw.map(String) : []
 
       return h(RsDynamicTags, {
         modelValue: value,
         'onUpdate:modelValue': (newValue: string[]) => {
-          formData[field] = newValue
+          if (ctx?.onUpdate) ctx.onUpdate(newValue)
+          else formData[field] = newValue
         },
         placeholder,
       })
@@ -69,65 +78,82 @@ export function useAuthConfigModel(moduleId: string) {
 
   // 创建嵌套字段的 render 函数（用于访问 authConfig 对象的嵌套属性）
   const createNestedFieldRender = (subField: string, fieldType: 'input' | 'textarea' | 'select' | 'number' | 'switch' | 'tags', options?: any) => {
-    return (formData: Record<string, any>) => {
-      const dotKey = `authConfig.${subField}`
-      const value = formData[dotKey]
+    return (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
+      const path = `authConfig.${subField}`
+      const value = ctx ? ctx.value : getByNamePath(formData, path)
+      const commit = (val: unknown) => {
+        if (ctx?.onUpdate) ctx.onUpdate(val)
+        else setByNamePath(formData, path, val)
+      }
+      const text = value == null ? '' : String(value)
 
       if (fieldType === 'input') {
         return h(RsInput, {
-          modelValue: value || '',
+          modelValue: text,
           type: options?.type === 'password' ? 'password' : 'text',
           placeholder: options?.placeholder || '',
           'onUpdate:modelValue': (val: string) => {
-            formData[dotKey] = val
+            commit(val)
           },
         })
       } else if (fieldType === 'textarea') {
         return h('textarea', {
-          value: value || '',
+          value: text,
           placeholder: options?.placeholder || '',
           rows: options?.rows || 4,
           style: 'width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--rs-border-color, #d9d9d9);border-radius:4px;font:inherit;resize:vertical;',
           class: 'rs-data-form__textarea',
           onInput: (e: Event) => {
-            formData[dotKey] = (e.target as HTMLTextAreaElement).value
+            commit((e.target as HTMLTextAreaElement).value)
           },
         })
       } else if (fieldType === 'select') {
+        const hasValue = value !== undefined && value !== null && value !== ''
+        const resolved = (hasValue ? value : options?.defaultValue || '') as RsSelectModelValue
         return h(RsSelect, {
-          modelValue: value || options?.defaultValue || '',
+          modelValue: resolved,
           options: options?.options || [],
           placeholder: options?.placeholder || '',
           block: true,
-          'onUpdate:modelValue': (val: string | string[]) => {
-            const v = Array.isArray(val) ? val[0] : val
-            formData[dotKey] = v
+          'onUpdate:modelValue': (val: RsSelectModelValue) => {
+            const first = Array.isArray(val) ? val[0] : val
+            const v = unwrapSelectEntry(first) ?? ''
+            commit(v)
             options?.onUpdateValue?.(v, formData)
           },
         })
       } else if (fieldType === 'number') {
+        const numValue: RsInputNumberValue =
+          typeof value === 'number' || typeof value === 'string' || value === null
+            ? value
+            : (options?.defaultValue ?? 0)
         return h(RsInputNumber, {
-          modelValue: value ?? options?.defaultValue ?? 0,
+          modelValue: numValue,
           min: options?.min,
           max: options?.max,
           placeholder: options?.placeholder || '',
           style: 'width: 100%;',
-          'onUpdate:modelValue': (val: number | null) => {
-            formData[dotKey] = val ?? options?.defaultValue ?? 0
+          'onUpdate:modelValue': (val: RsInputNumberValue) => {
+            commit(val ?? options?.defaultValue ?? 0)
           },
         })
       } else if (fieldType === 'switch') {
+        const switchValue: RsSwitchValue =
+          typeof value === 'boolean' || typeof value === 'string' || typeof value === 'number'
+            ? value
+            : (options?.defaultValue ?? false)
         return h(RsSwitch, {
-          modelValue: value ?? options?.defaultValue ?? false,
-          'onUpdate:modelValue': (val: boolean) => {
-            formData[dotKey] = val
+          modelValue: switchValue,
+          'onUpdate:modelValue': (val: RsSwitchValue) => {
+            commit(val)
           },
         })
       } else if (fieldType === 'tags') {
+        const tags = Array.isArray(value) ? value.map(String) : []
         return h(RsDynamicTags, {
-          modelValue: value || [],
+          modelValue: tags,
           'onUpdate:modelValue': (val: string[]) => {
-            formData[dotKey] = val
+            commit(val)
           },
           placeholder: options?.placeholder || '',
         })
@@ -147,19 +173,20 @@ export function useAuthConfigModel(moduleId: string) {
       tabKey: 'basic',
       required: true,
       tips: 'API Key 的获取位置：请求头、Query 参数或 Cookie',
+      defaultValue: API_KEY_AUTH_CONFIG_DEFAULTS.in,
       render: createNestedFieldRender('in', 'select', {
         options: apiKeyLocationOptions,
-        defaultValue: 'header',
+        defaultValue: API_KEY_AUTH_CONFIG_DEFAULTS.in,
         placeholder: 'API Key获取位置',
       }),
       rules: [
         {
-          validator: (rule: any, _value: any) => {
-            const formData = (rule as any).source || {}
+          validator: (_value: unknown, ctx) => {
+            const formData = ctx.getFieldsValue()
             if (formData.authType === 'API_KEY') {
-              const location = formData['authConfig.in']
+              const location = getByNamePath(formData, 'authConfig.in')
               if (!location || (typeof location === 'string' && location.trim() === '')) {
-                return new Error('API Key位置不能为空')
+                return 'API Key位置不能为空'
               }
             }
             return true
@@ -176,15 +203,16 @@ export function useAuthConfigModel(moduleId: string) {
       tabKey: 'basic',
       required: true,
           tips: '请求中携带该名称的 Header/Query/Cookie，网关会读取其值并与配置的密钥比对',
-      render: createNestedFieldRender('param_name', 'input', { placeholder: 'X-API-Key', defaultValue: 'X-API-Key' }),
+      defaultValue: API_KEY_AUTH_CONFIG_DEFAULTS.param_name,
+      render: createNestedFieldRender('param_name', 'input', { placeholder: 'X-API-Key', defaultValue: API_KEY_AUTH_CONFIG_DEFAULTS.param_name }),
       rules: [
         {
-          validator: (rule: any, _value: any) => {
-            const formData = (rule as any).source || {}
+          validator: (_value: unknown, ctx) => {
+            const formData = ctx.getFieldsValue()
             if (formData.authType === 'API_KEY') {
-              const paramName = formData['authConfig.param_name']
+              const paramName = getByNamePath(formData, 'authConfig.param_name')
               if (!paramName || (typeof paramName === 'string' && paramName.trim() === '')) {
-                return new Error('参数名称不能为空')
+                return '参数名称不能为空'
               }
             }
             return true
@@ -208,12 +236,12 @@ export function useAuthConfigModel(moduleId: string) {
       }),
       rules: [
         {
-          validator: (rule: any, _value: any) => {
-            const formData = (rule as any).source || {}
+          validator: (_value: unknown, ctx) => {
+            const formData = ctx.getFieldsValue()
             if (formData.authType === 'API_KEY') {
-              const key = formData['authConfig.key']
+              const key = getByNamePath(formData, 'authConfig.key')
               if (!key || (typeof key === 'string' && key.trim() === '')) {
-                return new Error('API Key 值不能为空')
+                return 'API Key 值不能为空'
               }
             }
             return true
@@ -240,12 +268,12 @@ export function useAuthConfigModel(moduleId: string) {
       }),
       rules: [
         {
-          validator: (rule: any, _value: any) => {
-            const formData = (rule as any).source || {}
+          validator: (_value: unknown, ctx) => {
+            const formData = ctx.getFieldsValue()
             if (formData.authType === 'BEARER_TOKEN') {
-              const token = formData['authConfig.token']
+              const token = getByNamePath(formData, 'authConfig.token')
               if (!token || (typeof token === 'string' && token.trim() === '')) {
-                return new Error('Bearer Token 不能为空')
+                return 'Bearer Token 不能为空'
               }
             }
             return true
@@ -327,9 +355,9 @@ export function useAuthConfigModel(moduleId: string) {
             options: authTypeOptions,
             placeholder: '选择认证类型',
             onUpdateValue: (value: string, formData?: Record<string, any>) => {
-              // 切换认证类型时清除不属于新类型的 authConfig 参数，避免残留提交
+              // 切换认证类型时清除不属于新类型的 authConfig 参数，并补齐空缺默认值（不覆盖已有值）
               if (formData && value) {
-                clearIrrelevantAuthConfigFields(formData, value)
+                switchAuthConfigType(formData, value)
               }
             },
           },
@@ -427,21 +455,21 @@ export function useAuthConfigModel(moduleId: string) {
           span: 12,
           tabKey: 'basic',
           show: (formData: Record<string, any>) => {
-            return formData.authType === 'JWT' && isJwtHmacAlgorithm(formData['authConfig.algorithm'])
+            return formData.authType === 'JWT' && isJwtHmacAlgorithm(getByNamePath(formData, 'authConfig.algorithm'))
           },
           required: true,
           tips: 'HMAC 算法（HS256/HS384/HS512）使用的对称密钥，任意非空字符串均可',
           render: createNestedFieldRender('secret', 'input', { type: 'password', placeholder: 'JWT签名密钥' }),
           rules: [
             {
-              validator: (rule: any, _value: any) => {
-                const formData = (rule as any).source || {}
-                if (formData.authType !== 'JWT' || !isJwtHmacAlgorithm(formData['authConfig.algorithm'])) {
+              validator: (_value: unknown, ctx) => {
+                const formData = ctx.getFieldsValue()
+                if (formData.authType !== 'JWT' || !isJwtHmacAlgorithm(getByNamePath(formData, 'authConfig.algorithm'))) {
                   return true
                 }
-                const secret = formData['authConfig.secret']
+                const secret = getByNamePath(formData, 'authConfig.secret')
                 if (!secret || (typeof secret === 'string' && secret.trim() === '')) {
-                  return new Error('JWT密钥不能为空')
+                  return 'JWT密钥不能为空'
                 }
                 return true
               },
@@ -457,10 +485,11 @@ export function useAuthConfigModel(moduleId: string) {
           tabKey: 'basic',
           show: (formData: Record<string, any>) => formData.authType === 'JWT',
           required: true,
+          defaultValue: JWT_AUTH_CONFIG_DEFAULTS.algorithm,
           tips: 'HMAC 使用对称密钥 secret；RSA 使用 PEM 公钥验签，无需填写 secret',
           render: createNestedFieldRender('algorithm', 'select', {
             options: jwtAlgorithmOptions,
-            defaultValue: 'HS256',
+            defaultValue: JWT_AUTH_CONFIG_DEFAULTS.algorithm,
             placeholder: '选择签名算法',
             onUpdateValue: (value: string, formData?: Record<string, any>) => {
               if (formData && value) {
@@ -470,12 +499,12 @@ export function useAuthConfigModel(moduleId: string) {
           }),
           rules: [
             {
-              validator: (rule: any, value: any) => {
-                const formData = (rule as any).source || {}
+              validator: (_value: unknown, ctx) => {
+                const formData = ctx.getFieldsValue()
                 if (formData.authType === 'JWT') {
-                  const algorithm = formData['authConfig.algorithm']
+                  const algorithm = getByNamePath(formData, 'authConfig.algorithm')
                   if (!algorithm || (typeof algorithm === 'string' && algorithm.trim() === '')) {
-                    return new Error('签名算法不能为空')
+                    return '签名算法不能为空'
                   }
                 }
                 return true
@@ -491,7 +520,7 @@ export function useAuthConfigModel(moduleId: string) {
           span: 24,
           tabKey: 'basic',
           show: (formData: Record<string, any>) => {
-            return formData.authType === 'JWT' && isJwtRsaAlgorithm(formData['authConfig.algorithm'])
+            return formData.authType === 'JWT' && isJwtRsaAlgorithm(getByNamePath(formData, 'authConfig.algorithm'))
           },
           required: true,
           tips: 'RS 系列算法使用的 PEM 格式公钥，用于验证 Token 签名',
@@ -501,14 +530,14 @@ export function useAuthConfigModel(moduleId: string) {
           }),
           rules: [
             {
-              validator: (rule: any, _value: any) => {
-                const formData = (rule as any).source || {}
-                if (formData.authType !== 'JWT' || !isJwtRsaAlgorithm(formData['authConfig.algorithm'])) {
+              validator: (_value: unknown, ctx) => {
+                const formData = ctx.getFieldsValue()
+                if (formData.authType !== 'JWT' || !isJwtRsaAlgorithm(getByNamePath(formData, 'authConfig.algorithm'))) {
                   return true
                 }
-                const publicKey = formData['authConfig.publicKey']
+                const publicKey = getByNamePath(formData, 'authConfig.publicKey')
                   if (!publicKey || (typeof publicKey === 'string' && publicKey.trim() === '')) {
-                  return new Error('RSA公钥不能为空')
+                  return 'RSA公钥不能为空'
                 }
                 return true
               },
@@ -533,9 +562,9 @@ export function useAuthConfigModel(moduleId: string) {
           span: 12,
           tabKey: 'basic',
           show: (formData: Record<string, any>) => formData.authType === 'JWT',
-          defaultValue: 3600,
+          defaultValue: JWT_AUTH_CONFIG_DEFAULTS.expiration,
           tips: 'Token过期时间，默认3600秒',
-          render: createNestedFieldRender('expiration', 'number', { min: 60, max: 86400, defaultValue: 3600, placeholder: 'Token过期时间' }),
+          render: createNestedFieldRender('expiration', 'number', { min: 60, max: 86400, defaultValue: JWT_AUTH_CONFIG_DEFAULTS.expiration, placeholder: 'Token过期时间' }),
         },
         {
           field: 'authConfig.verifyExpiration',
@@ -544,8 +573,9 @@ export function useAuthConfigModel(moduleId: string) {
           span: 12,
           tabKey: 'basic',
           show: (formData: Record<string, any>) => formData.authType === 'JWT',
+          defaultValue: JWT_AUTH_CONFIG_DEFAULTS.verifyExpiration,
           tips: '是否验证Token过期时间',
-          render: createNestedFieldRender('verifyExpiration', 'switch', { defaultValue: true }),
+          render: createNestedFieldRender('verifyExpiration', 'switch', { defaultValue: JWT_AUTH_CONFIG_DEFAULTS.verifyExpiration }),
         },
         {
           field: 'authConfig.verifyIssuer',
@@ -554,8 +584,9 @@ export function useAuthConfigModel(moduleId: string) {
           span: 12,
           tabKey: 'basic',
           show: (formData: Record<string, any>) => formData.authType === 'JWT',
+          defaultValue: JWT_AUTH_CONFIG_DEFAULTS.verifyIssuer,
           tips: '是否验证Token签发者',
-          render: createNestedFieldRender('verifyIssuer', 'switch', { defaultValue: false }),
+          render: createNestedFieldRender('verifyIssuer', 'switch', { defaultValue: JWT_AUTH_CONFIG_DEFAULTS.verifyIssuer }),
         },
         {
           field: 'authConfig.refreshWindow',
@@ -564,9 +595,9 @@ export function useAuthConfigModel(moduleId: string) {
           span: 12,
           tabKey: 'basic',
           show: (formData: Record<string, any>) => formData.authType === 'JWT',
-          defaultValue: 300,
+          defaultValue: JWT_AUTH_CONFIG_DEFAULTS.refreshWindow,
           tips: '过期前多少秒可以刷新Token',
-          render: createNestedFieldRender('refreshWindow', 'number', { min: 0, max: 3600, defaultValue: 300, placeholder: '过期前多少秒可刷新' }),
+          render: createNestedFieldRender('refreshWindow', 'number', { min: 0, max: 3600, defaultValue: JWT_AUTH_CONFIG_DEFAULTS.refreshWindow, placeholder: '过期前多少秒可刷新' }),
         },
         {
           field: 'authConfig.includeInResponse',
@@ -575,8 +606,9 @@ export function useAuthConfigModel(moduleId: string) {
           span: 12,
           tabKey: 'basic',
           show: (formData: Record<string, any>) => formData.authType === 'JWT',
+          defaultValue: JWT_AUTH_CONFIG_DEFAULTS.includeInResponse,
           tips: '是否在响应头中包含生成的Token',
-          render: createNestedFieldRender('includeInResponse', 'switch', { defaultValue: false }),
+          render: createNestedFieldRender('includeInResponse', 'switch', { defaultValue: JWT_AUTH_CONFIG_DEFAULTS.includeInResponse }),
         },
         {
           field: 'authConfig.responseHeaderName',
@@ -585,9 +617,9 @@ export function useAuthConfigModel(moduleId: string) {
           span: 12,
           tabKey: 'basic',
           show: (formData: Record<string, any>) => formData.authType === 'JWT',
-          defaultValue: 'X-Auth-Token',
+          defaultValue: JWT_AUTH_CONFIG_DEFAULTS.responseHeaderName,
           tips: '响应头中Token的字段名',
-          render: createNestedFieldRender('responseHeaderName', 'input', { placeholder: 'X-Auth-Token', defaultValue: 'X-Auth-Token' }),
+          render: createNestedFieldRender('responseHeaderName', 'input', { placeholder: 'X-Auth-Token', defaultValue: JWT_AUTH_CONFIG_DEFAULTS.responseHeaderName }),
         },
         // ============= OAuth2 认证配置字段 =============
         {
@@ -619,12 +651,12 @@ export function useAuthConfigModel(moduleId: string) {
           render: createNestedFieldRender('tokenEndpoint', 'input', { placeholder: 'https://auth.example.com/oauth/token' }),
           rules: [
             {
-              validator: (rule: any, value: any) => {
-                const formData = (rule as any).source || {}
+              validator: (_value: unknown, ctx) => {
+                const formData = ctx.getFieldsValue()
                 if (formData.authType === 'OAUTH2') {
-                  const tokenEndpoint = formData['authConfig.tokenEndpoint']
+                  const tokenEndpoint = getByNamePath(formData, 'authConfig.tokenEndpoint')
                   if (!tokenEndpoint || (typeof tokenEndpoint === 'string' && tokenEndpoint.trim() === '')) {
-                    return new Error('Token端点URL不能为空')
+                    return 'Token端点URL不能为空'
                   }
                 }
                 return true
@@ -655,12 +687,12 @@ export function useAuthConfigModel(moduleId: string) {
           render: createNestedFieldRender('clientID', 'input', { placeholder: '客户端ID' }),
           rules: [
             {
-              validator: (rule: any, value: any) => {
-                const formData = (rule as any).source || {}
+              validator: (_value: unknown, ctx) => {
+                const formData = ctx.getFieldsValue()
                 if (formData.authType === 'OAUTH2') {
-                  const clientID = formData['authConfig.clientID']
+                  const clientID = getByNamePath(formData, 'authConfig.clientID')
                   if (!clientID || (typeof clientID === 'string' && clientID.trim() === '')) {
-                    return new Error('Client ID不能为空')
+                    return 'Client ID不能为空'
                   }
                 }
                 return true
@@ -681,12 +713,12 @@ export function useAuthConfigModel(moduleId: string) {
           render: createNestedFieldRender('clientSecret', 'input', { type: 'password', placeholder: '客户端密钥' }),
           rules: [
             {
-              validator: (rule: any, value: any) => {
-                const formData = (rule as any).source || {}
+              validator: (_value: unknown, ctx) => {
+                const formData = ctx.getFieldsValue()
                 if (formData.authType === 'OAUTH2') {
-                  const clientSecret = formData['authConfig.clientSecret']
+                  const clientSecret = getByNamePath(formData, 'authConfig.clientSecret')
                   if (!clientSecret || (typeof clientSecret === 'string' && clientSecret.trim() === '')) {
-                    return new Error('Client Secret不能为空')
+                    return 'Client Secret不能为空'
                   }
                 }
                 return true
@@ -718,12 +750,12 @@ export function useAuthConfigModel(moduleId: string) {
           render: createNestedFieldRender('username', 'input', { placeholder: '认证用户名' }),
           rules: [
             {
-              validator: (rule: any, value: any) => {
-                const formData = (rule as any).source || {}
+              validator: (_value: unknown, ctx) => {
+                const formData = ctx.getFieldsValue()
                 if (formData.authType === 'BASIC') {
-                  const username = formData['authConfig.username']
+                  const username = getByNamePath(formData, 'authConfig.username')
                   if (!username || (typeof username === 'string' && username.trim() === '')) {
-                    return new Error('用户名不能为空')
+                    return '用户名不能为空'
                   }
                 }
                 return true
@@ -744,12 +776,12 @@ export function useAuthConfigModel(moduleId: string) {
           render: createNestedFieldRender('password', 'input', { type: 'password', placeholder: '认证密码' }),
           rules: [
             {
-              validator: (rule: any, value: any) => {
-                const formData = (rule as any).source || {}
+              validator: (_value: unknown, ctx) => {
+                const formData = ctx.getFieldsValue()
                 if (formData.authType === 'BASIC') {
-                  const password = formData['authConfig.password']
+                  const password = getByNamePath(formData, 'authConfig.password')
                   if (!password || (typeof password === 'string' && password.trim() === '')) {
-                    return new Error('密码不能为空')
+                    return '密码不能为空'
                   }
                 }
                 return true

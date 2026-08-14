@@ -1,5 +1,5 @@
 <template>
-  <GdataFormModal
+  <RsDataFormModal
     v-model:visible="visible"
     mode="create"
     title="配置回滚"
@@ -15,8 +15,7 @@
 </template>
 
 <script lang="ts" setup>
-import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
-import type { DataFormField } from '@/components/form/data/types'
+import { RsDataFormModal, type RsDataFormField } from '@/components/form/rs-data'
 import { computed } from 'vue'
 import type { ConfigHistory, RollbackRequest } from '../../types'
 
@@ -61,7 +60,7 @@ const visible = computed({
 const currentHistory = computed(() => props.history)
 
 // 表单字段配置
-const rollbackFormFields = computed<DataFormField[]>(() => [
+const rollbackFormFields = computed<RsDataFormField[]>(() => [
   {
     field: 'version',
     label: '目标版本',

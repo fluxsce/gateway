@@ -3,19 +3,103 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { SearchFormProps } from '@/components/form/search/types'
-import { createBackendPaginationParams } from '@/utils/pagination'
-import type { GridProps } from '@/components/grid'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type {
+  RsGridColumn,
+  RsGridMenuConfig,
+  RsGridPaginationConfig,
+} from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
+import { RsTag, type RsTagVariant } from '@/ui'
 import { formatDate, formatFileSize } from '@/utils/format'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import { queryGatewayInstances } from '@/views/hub0020/api'
-import { DownloadOutline, EyeOutline, RefreshOutline } from '@vicons/ionicons5'
 import type { Ref } from 'vue'
 import { h, nextTick, ref } from 'vue'
 import type { GatewayLogListItem } from '../../../types'
 import { GatewayInstanceNameSelector } from '../../instance-grid'
 import { RouteNameSelector } from '../../route-grid'
 import { ServiceNameSelector } from '../../service-grid'
+
+/** 网关日志表格配置（对齐 RsGrid Props 子集）。 */
+export interface GatewayLogGridConfig {
+  columns: RsGridColumn<GatewayLogListItem>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
+
+/** 获取请求方法的标签类型 */
+function getMethodTagType(method?: string): RsTagVariant {
+  const methodColors: Record<string, RsTagVariant> = {
+    GET: 'success',
+    POST: 'info',
+    PUT: 'warning',
+    DELETE: 'danger',
+    PATCH: 'default',
+    HEAD: 'default',
+    OPTIONS: 'default',
+  }
+  return methodColors[method || ''] || 'default'
+}
+
+/** 获取状态码的标签类型 */
+function getStatusCodeTagType(statusCode?: number): RsTagVariant {
+  if (!statusCode) return 'default'
+  if (statusCode >= 200 && statusCode < 300) return 'success'
+  if (statusCode >= 300 && statusCode < 400) return 'warning'
+  if (statusCode >= 400) return 'danger'
+  return 'default'
+}
+
+/** 获取耗时的标签类型 */
+function getTimeTagType(
+  time: number,
+  errorThreshold: number,
+  warningThreshold: number,
+): RsTagVariant {
+  if (time > errorThreshold) return 'danger'
+  if (time > warningThreshold) return 'warning'
+  return 'success'
+}
+
+/** 获取处理状态的标签类型 */
+function getProcessingStatusTagType(row: GatewayLogListItem): RsTagVariant {
+  if (row.errorMessage) return 'danger'
+  if (row.gatewayFinishedProcessingTime) return 'success'
+  return 'warning'
+}
+
+/** 获取处理状态文本 */
+function getProcessingStatusText(row: GatewayLogListItem): string {
+  if (row.errorMessage) return '异常'
+  if (row.gatewayFinishedProcessingTime) return '已完成'
+  return '处理中'
+}
+
+/** 获取代理类型的标签类型 */
+function getProxyTypeTagType(proxyType?: string): RsTagVariant {
+  const typeColors: Record<string, RsTagVariant> = {
+    http: 'info',
+    websocket: 'warning',
+    tcp: 'success',
+    udp: 'danger',
+  }
+  return typeColors[proxyType || ''] || 'default'
+}
+
+/** 获取日志级别的标签类型 */
+function getLogLevelTagType(logLevel?: string): RsTagVariant {
+  const levelColors: Record<string, RsTagVariant> = {
+    DEBUG: 'default',
+    INFO: 'info',
+    WARN: 'warning',
+    ERROR: 'danger',
+  }
+  return levelColors[logLevel || ''] || 'default'
+}
 
 /**
  * 网关日志管理 Model
@@ -34,49 +118,90 @@ export function useGatewayLogModel() {
 
   // ============= 搜索表单配置 =============
 
-  /** 初始化当天时间范围 */
-  const initTodayTimeRange = (): [number, number] => {
+  /** 初始化当天时间范围（RsDatePicker valueFormat=string 的 range 形态） */
+  const initTodayTimeRange = (): { start: string; end: string } => {
     const today = new Date()
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0)
     const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59)
-    return [startOfDay.getTime(), endOfDay.getTime()]
-  }
-
-  /** 时间范围快捷选项 */
-  const timeRangeShortcuts = {
-    '今天': () => {
-      const today = new Date()
-      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0)
-      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59)
-      return [startOfDay.getTime(), endOfDay.getTime()] as [number, number]
-    },
-    '昨天': () => {
-      const yesterday = new Date()
-      yesterday.setDate(yesterday.getDate() - 1)
-      const startOfDay = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 0, 0, 0)
-      const endOfDay = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59)
-      return [startOfDay.getTime(), endOfDay.getTime()] as [number, number]
-    },
-    '最近1小时': () => {
-      const now = Date.now()
-      return [now - 3600000, now] as [number, number]
-    },
-    '最近6小时': () => {
-      const now = Date.now()
-      return [now - 21600000, now] as [number, number]
-    },
-    '最近24小时': () => {
-      const now = Date.now()
-      return [now - 86400000, now] as [number, number]
-    },
-    '最近7天': () => {
-      const now = Date.now()
-      return [now - 604800000, now] as [number, number]
+    return {
+      start: formatDate(startOfDay.getTime(), 'YYYY-MM-DD HH:mm:ss'),
+      end: formatDate(endOfDay.getTime(), 'YYYY-MM-DD HH:mm:ss'),
     }
   }
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 时间范围快捷项（可返回时间戳；DatePicker 会规范为 { start, end }） */
+  const timeRangeShortcuts = [
+    {
+      label: '今天',
+      value: () => {
+        const today = new Date()
+        const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0)
+        const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59)
+        return {
+          start: formatDate(startOfDay.getTime(), 'YYYY-MM-DD HH:mm:ss'),
+          end: formatDate(endOfDay.getTime(), 'YYYY-MM-DD HH:mm:ss'),
+        }
+      },
+    },
+    {
+      label: '昨天',
+      value: () => {
+        const yesterday = new Date()
+        yesterday.setDate(yesterday.getDate() - 1)
+        const startOfDay = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 0, 0, 0)
+        const endOfDay = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59)
+        return {
+          start: formatDate(startOfDay.getTime(), 'YYYY-MM-DD HH:mm:ss'),
+          end: formatDate(endOfDay.getTime(), 'YYYY-MM-DD HH:mm:ss'),
+        }
+      },
+    },
+    {
+      label: '最近1小时',
+      value: () => {
+        const now = Date.now()
+        return {
+          start: formatDate(now - 3600000, 'YYYY-MM-DD HH:mm:ss'),
+          end: formatDate(now, 'YYYY-MM-DD HH:mm:ss'),
+        }
+      },
+    },
+    {
+      label: '最近6小时',
+      value: () => {
+        const now = Date.now()
+        return {
+          start: formatDate(now - 21600000, 'YYYY-MM-DD HH:mm:ss'),
+          end: formatDate(now, 'YYYY-MM-DD HH:mm:ss'),
+        }
+      },
+    },
+    {
+      label: '最近24小时',
+      value: () => {
+        const now = Date.now()
+        return {
+          start: formatDate(now - 86400000, 'YYYY-MM-DD HH:mm:ss'),
+          end: formatDate(now, 'YYYY-MM-DD HH:mm:ss'),
+        }
+      },
+    },
+    {
+      label: '最近7天',
+      value: () => {
+        const now = Date.now()
+        return {
+          start: formatDate(now - 604800000, 'YYYY-MM-DD HH:mm:ss'),
+          end: formatDate(now, 'YYYY-MM-DD HH:mm:ss'),
+        }
+      },
+    },
+  ]
+
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
+    // 覆盖最长标签（如「仅非200状态」「报文体关键字」），固定列宽保证查询列对齐
+    labelWidth: '8rem',
     fields: [
       {
         field: 'gatewayInstanceId',
@@ -95,11 +220,17 @@ export function useGatewayLogModel() {
         required: true,
         rules: [
           {
-            validator: (_rule: any, value: any) => {
-              if (!value || !Array.isArray(value) || value.length !== 2 || !value[0] || !value[1]) {
-                return new Error('请选择时间范围')
+            validator: (value: unknown) => {
+              if (
+                value &&
+                typeof value === 'object' &&
+                !Array.isArray(value) &&
+                (value as { start?: unknown; end?: unknown }).start &&
+                (value as { start?: unknown; end?: unknown }).end
+              ) {
+                return true
               }
-              return true
+              return '请选择时间范围'
             },
             trigger: ['change', 'blur']
           }
@@ -118,24 +249,22 @@ export function useGatewayLogModel() {
         required: true,
         rules: [
           {
-            validator: (_rule: any, value: any) => {
+            validator: (value: unknown) => {
               if (value === undefined || value === null || String(value).trim() === '') {
-                return new Error('请选择或输入网关实例名称')
+                return '请选择或输入网关实例名称'
               }
               return true
             },
-            trigger: ['change', 'blur', 'input'],
+            trigger: ['change', 'blur'],
           },
         ],
-        render: (formData: Record<string, any>) => {
+        render: (formData: Record<string, any>, ctx) => {
           return h(GatewayInstanceNameSelector, {
-            modelValue: formData.gatewayInstanceName || '',
+            modelValue: (ctx.value as string) || '',
             gatewayInstanceId: formData.gatewayInstanceId || '',
-            'onUpdate:modelValue': (value: string) => {
-              formData.gatewayInstanceName = value
-            },
+            'onUpdate:modelValue': (value: string) => ctx.onUpdate(value),
             'onUpdate:gatewayInstanceId': (value: string) => {
-              formData.gatewayInstanceId = value
+              ctx.setFieldValue('gatewayInstanceId', value)
             },
           })
         },
@@ -145,12 +274,10 @@ export function useGatewayLogModel() {
         label: '路由名称',
         type: 'custom',
         span: 8,
-        render: (formData: Record<string, any>) => {
+        render: (formData: Record<string, any>, ctx) => {
           return h(RouteNameSelector, {
-            modelValue: formData.routeName || '',
-            'onUpdate:modelValue': (value: string) => {
-              formData.routeName = value
-            },
+            modelValue: (ctx.value as string) || '',
+            'onUpdate:modelValue': (value: string) => ctx.onUpdate(value),
             gatewayInstanceId: formData.gatewayInstanceId || undefined,
           })
         },
@@ -160,12 +287,10 @@ export function useGatewayLogModel() {
         label: '服务名称',
         type: 'custom',
         span: 8,
-        render: (formData: Record<string, any>) => {
+        render: (formData: Record<string, any>, ctx) => {
           return h(ServiceNameSelector, {
-            modelValue: formData.serviceName || '',
-            'onUpdate:modelValue': (value: string) => {
-              formData.serviceName = value
-            },
+            modelValue: (ctx.value as string) || '',
+            'onUpdate:modelValue': (value: string) => ctx.onUpdate(value),
             gatewayInstanceId: formData.gatewayInstanceId || undefined,
           })
         },
@@ -313,7 +438,7 @@ export function useGatewayLogModel() {
       {
         key: 'view',
         label: '查看详情',
-        icon: EyeOutline,
+        icon: 'EyeOutline',
         type: 'primary',
         tooltip: '查看选中日志的详情',
       },
@@ -321,14 +446,14 @@ export function useGatewayLogModel() {
         key: 'batchReset',
         label: '批量重发',
         type: 'warning',
-        icon: RefreshOutline,
+        icon: 'RefreshOutline',
         tooltip: '批量重发选中的日志',
       },
       {
         key: 'export',
         label: '导出日志',
         type: 'info',
-        icon: DownloadOutline,
+        icon: 'DownloadOutline',
         tooltip: '导出日志数据',
       },
     ],
@@ -338,165 +463,233 @@ export function useGatewayLogModel() {
 
   // ============= 表格配置 =============
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
-    rowId: 'traceId',
+  /** 表格配置（符合 RsGrid 结构） */
+  const gridConfig: GatewayLogGridConfig = {
     columns: [
       {
-        field: 'traceId',
+        key: 'traceId',
         title: '链路追踪ID',
         width: 140,
-        showOverflow: 'tooltip',
+        ellipsis: true,
       },
       {
-        field: 'gatewayInstanceName',
+        key: 'gatewayInstanceName',
         title: '网关实例',
         width: 120,
-        showOverflow: 'tooltip',
-        formatter: ({ row }: any) => row.gatewayInstanceName || row.gatewayInstanceId || '-',
+        ellipsis: true,
+        formatter: (_v, row) => row.gatewayInstanceName || row.gatewayInstanceId || '-',
       },
       {
-        field: 'routeName',
+        key: 'routeName',
         title: '路由名称',
         width: 120,
-        showOverflow: 'tooltip',
-        slots: { default: 'routeName' },
+        ellipsis: true,
+        render: (row) =>
+          h('span', { class: 'route-name-text' }, row.routeName || '-'),
       },
       {
-        field: 'requestPath',
+        key: 'requestPath',
         title: '请求路径',
         width: 200,
-        showOverflow: 'tooltip',
+        ellipsis: true,
       },
       {
-        field: 'requestMethod',
+        key: 'requestMethod',
         title: '请求方法',
         width: 80,
         align: 'center',
-        slots: { default: 'requestMethod' },
+        render: (row) =>
+          h(RsTag, { variant: getMethodTagType(row.requestMethod), size: 'sm' }, () => row.requestMethod),
       },
       {
-        field: 'gatewayStatusCode',
+        key: 'gatewayStatusCode',
         title: '状态码',
         width: 80,
         align: 'center',
         sortable: true,
-        slots: { default: 'gatewayStatusCode' },
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: getStatusCodeTagType(row.gatewayStatusCode), size: 'sm' },
+            () => row.gatewayStatusCode,
+          ),
       },
       {
-        field: 'processingStatus',
+        key: 'processingStatus',
         title: '处理状态',
         width: 100,
         align: 'center',
-        slots: { default: 'processingStatus' },
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: getProcessingStatusTagType(row), size: 'sm' },
+            () => getProcessingStatusText(row),
+          ),
       },
       {
-        field: 'totalProcessingTimeMs',
+        key: 'totalProcessingTimeMs',
         title: '总处理时间',
         width: 110,
         align: 'center',
         sortable: true,
-        slots: { default: 'totalProcessingTimeMs' },
+        render: (row) =>
+          row.totalProcessingTimeMs != null
+            ? h(
+                RsTag,
+                {
+                  variant: getTimeTagType(row.totalProcessingTimeMs, 5000, 1000),
+                  size: 'sm',
+                },
+                () => `${row.totalProcessingTimeMs}ms`,
+              )
+            : '-',
       },
       {
-        field: 'gatewayStartProcessingTime',
+        key: 'gatewayStartProcessingTime',
         title: '开始时间',
         width: 200,
         sortable: true,
-        formatter: ({ cellValue }: any) => formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss.SSS'),
+        formatter: (v) => formatDate(v as string, 'YYYY-MM-DD HH:mm:ss.SSS'),
       },
       {
-        field: 'gatewayFinishedProcessingTime',
+        key: 'gatewayFinishedProcessingTime',
         title: '完成时间',
         width: 200,
         sortable: true,
-        formatter: ({ cellValue }: any) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss.SSS') : '-',
+        formatter: (v) => (v ? formatDate(v as string, 'YYYY-MM-DD HH:mm:ss.SSS') : '-'),
       },
       {
-        field: 'clientIpAddress',
+        key: 'clientIpAddress',
         title: '客户端IP',
         width: 160,
       },
       {
-        field: 'backendStatusCode',
+        key: 'backendStatusCode',
         title: '后端状态码',
         width: 100,
         align: 'center',
         sortable: true,
-        slots: { default: 'backendStatusCode' },
+        render: (row) =>
+          row.backendStatusCode != null
+            ? h(
+                RsTag,
+                { variant: getStatusCodeTagType(row.backendStatusCode), size: 'sm' },
+                () => row.backendStatusCode,
+              )
+            : '-',
       },
       {
-        field: 'gatewayProcessingTimeMs',
+        key: 'gatewayProcessingTimeMs',
         title: '网关耗时',
         width: 100,
         align: 'center',
         sortable: true,
-        slots: { default: 'gatewayProcessingTimeMs' },
+        render: (row) =>
+          row.gatewayProcessingTimeMs != null
+            ? h(
+                RsTag,
+                {
+                  variant: getTimeTagType(row.gatewayProcessingTimeMs, 2000, 500),
+                  size: 'sm',
+                },
+                () => `${row.gatewayProcessingTimeMs}ms`,
+              )
+            : '-',
       },
       {
-        field: 'backendResponseTimeMs',
+        key: 'backendResponseTimeMs',
         title: '后端耗时',
         width: 100,
         align: 'center',
         sortable: true,
-        slots: { default: 'backendResponseTimeMs' },
+        render: (row) =>
+          row.backendResponseTimeMs != null
+            ? h(
+                RsTag,
+                {
+                  variant: getTimeTagType(row.backendResponseTimeMs, 3000, 1000),
+                  size: 'sm',
+                },
+                () => `${row.backendResponseTimeMs}ms`,
+              )
+            : '-',
       },
       {
-        field: 'proxyType',
+        key: 'proxyType',
         title: '代理类型',
         width: 100,
         align: 'center',
-        slots: { default: 'proxyType' },
+        render: (row) =>
+          row.proxyType
+            ? h(
+                RsTag,
+                { variant: getProxyTypeTagType(row.proxyType), size: 'sm' },
+                () => row.proxyType!.toUpperCase(),
+              )
+            : '-',
       },
       {
-        field: 'resetFlag',
+        key: 'resetFlag',
         title: '重置状态',
         width: 100,
         align: 'center',
-        slots: { default: 'resetFlag' },
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.resetFlag === 'Y' ? 'warning' : 'default', size: 'sm' },
+            () => (row.resetFlag === 'Y' ? '已重置' : '未重置'),
+          ),
       },
       {
-        field: 'userIdentifier',
+        key: 'userIdentifier',
         title: '用户标识',
         width: 120,
-        showOverflow: 'tooltip',
-        formatter: ({ cellValue }: any) => cellValue || '-',
+        ellipsis: true,
+        formatter: (v) => (v as string) || '-',
       },
       {
-        field: 'requestSize',
+        key: 'requestSize',
         title: '请求大小',
         width: 100,
-        formatter: ({ cellValue }: any) => formatFileSize(cellValue),
+        formatter: (v) => formatFileSize(v as number),
       },
       {
-        field: 'responseSize',
+        key: 'responseSize',
         title: '响应大小',
         width: 100,
-        formatter: ({ cellValue }: any) => formatFileSize(cellValue),
+        formatter: (v) => formatFileSize(v as number),
       },
       {
-        field: 'resetCount',
+        key: 'resetCount',
         title: '重置次数',
         width: 100,
-        formatter: ({ cellValue }: any) => cellValue != null ? cellValue : '-',
+        formatter: (v) => (v != null ? String(v) : '-'),
       },
       {
-        field: 'errorMessage',
+        key: 'errorMessage',
         title: '错误信息',
         width: 150,
-        showOverflow: 'tooltip',
-        formatter: ({ cellValue }: any) => cellValue || '-',
+        ellipsis: true,
+        formatter: (v) => (v as string) || '-',
       },
       {
-        field: 'logLevel',
+        key: 'logLevel',
         title: '日志级别',
         width: 100,
         align: 'center',
-        slots: { default: 'logLevel' },
+        render: (row) =>
+          row.logLevel
+            ? h(
+                RsTag,
+                { variant: getLogLevelTagType(row.logLevel), size: 'sm' },
+                () => row.logLevel,
+              )
+            : '-',
       },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: 'traceId',
+    height: '100%',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -504,25 +697,14 @@ export function useGatewayLogModel() {
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      showCopyCell: true,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-        {
-          code: 'reset',
-          name: '重发',
-          prefixIcon: 'vxe-icon-refresh',
-        },
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'reset', label: '重发', icon: 'refresh-cw' },
       ],
     },
-    height: '100%',
   }
 
-  // ============= 辅助方法 =============
+  // ============= 状态更新方法 =============
 
   /**
    * 重置分页
@@ -556,119 +738,15 @@ export function useGatewayLogModel() {
     logList.value = []
   }
 
-  // ============= 表格渲染辅助方法 =============
-
-  /**
-   * 获取请求方法的标签类型
-   */
-  const getMethodTagType = (method?: string): 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary' => {
-    const methodColors: Record<string, 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary'> = {
-      GET: 'success',
-      POST: 'info',
-      PUT: 'warning',
-      DELETE: 'error',
-      PATCH: 'default',
-      HEAD: 'default',
-      OPTIONS: 'default',
-    }
-    return methodColors[method || ''] || 'default'
-  }
-
-  /**
-   * 获取状态码的标签类型
-   */
-  const getStatusCodeTagType = (statusCode?: number): 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary' => {
-    if (!statusCode) return 'default'
-    if (statusCode >= 200 && statusCode < 300) {
-      return 'success'
-    } else if (statusCode >= 300 && statusCode < 400) {
-      return 'warning'
-    } else if (statusCode >= 400) {
-      return 'error'
-    }
-    return 'default'
-  }
-
-  /**
-   * 获取耗时的标签类型
-   */
-  const getTimeTagType = (
-    time: number,
-    errorThreshold: number,
-    warningThreshold: number
-  ): 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary' => {
-    if (time > errorThreshold) {
-      return 'error'
-    } else if (time > warningThreshold) {
-      return 'warning'
-    } else {
-      return 'success'
-    }
-  }
-
-  /**
-   * 获取处理状态的标签类型
-   */
-  const getProcessingStatusTagType = (row: GatewayLogListItem): 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary' => {
-    const isFinished = !!row.gatewayFinishedProcessingTime
-    const hasError = !!row.errorMessage
-
-    if (hasError) {
-      return 'error'
-    } else if (isFinished) {
-      return 'success'
-    } else {
-      return 'warning'
-    }
-  }
-
-  /**
-   * 获取处理状态文本
-   */
-  const getProcessingStatusText = (row: GatewayLogListItem): string => {
-    const isFinished = !!row.gatewayFinishedProcessingTime
-    const hasError = !!row.errorMessage
-
-    if (hasError) {
-      return '异常'
-    } else if (isFinished) {
-      return '已完成'
-    } else {
-      return '处理中'
-    }
-  }
-
-  /**
-   * 获取代理类型的标签类型
-   */
-  const getProxyTypeTagType = (proxyType?: string): 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary' => {
-    const typeColors: Record<string, 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary'> = {
-      http: 'info',
-      websocket: 'warning',
-      tcp: 'success',
-      udp: 'error',
-    }
-    return typeColors[proxyType || ''] || 'default'
-  }
-
-  /**
-   * 获取日志级别的标签类型
-   */
-  const getLogLevelTagType = (logLevel?: string): 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary' => {
-    const levelColors: Record<string, 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary'> = {
-      DEBUG: 'default',
-      INFO: 'info',
-      WARN: 'warning',
-      ERROR: 'error',
-    }
-    return levelColors[logLevel || ''] || 'default'
-  }
-
   /**
    * 拉取网关实例列表第一条并写入搜索表单（与后端列表默认排序一致：pageIndex=1）。
    * 不触发网关日志查询；由用户点击「查询」或其它入口再拉取日志。
    */
   const bootstrapDefaultGatewayInstance = async (searchFormRef: Ref<any>) => {
+    const existing = searchFormRef.value?.getFormData?.() || {}
+    if (String(existing.gatewayInstanceId || existing.gatewayInstanceName || '').trim()) {
+      return
+    }
     try {
       const res = await queryGatewayInstances({
         ...createBackendPaginationParams(1, 1),
@@ -708,8 +786,9 @@ export function useGatewayLogModel() {
     updatePagination,
     setLogList,
     clearLogList,
+    bootstrapDefaultGatewayInstance,
 
-    // 表格渲染辅助方法
+    // 表格渲染辅助（兼容旧调用）
     getMethodTagType,
     getStatusCodeTagType,
     getTimeTagType,
@@ -717,13 +796,10 @@ export function useGatewayLogModel() {
     getProcessingStatusText,
     getProxyTypeTagType,
     getLogLevelTagType,
-
-    bootstrapDefaultGatewayInstance,
   }
 }
 
 /**
- * Model 返回类型
+ * 网关日志 Model 类型
  */
 export type GatewayLogModel = ReturnType<typeof useGatewayLogModel>
-

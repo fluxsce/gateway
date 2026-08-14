@@ -4,8 +4,8 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
-import { rsConfirm } from '@/ui'
 import { useAppMessage } from '@/composables/useAppMessage'
+import { rsConfirm } from '@/ui'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import { useFilterConfigService } from './service'
@@ -198,189 +198,120 @@ export function useFilterConfigPage(
   }
 
   /**
-   * 将动态字段组装成 JSON 格式的 filterConfig
+   * 提交时取 form.config 子树，只序列化当前 filterType 对应的一支。
    */
   const buildFilterConfig = (formData: Record<string, any>): string => {
-    const config: any = {}
+    const tree = formData.config ?? {}
     const filterType = formData.filterType
+    const config: Record<string, any> = {}
 
-    // 根据 filterType 组装配置
+    const parseJsonField = (raw: unknown) => {
+      if (raw && typeof raw === 'object') return raw
+      if (typeof raw === 'string' && raw.trim()) {
+        try {
+          return JSON.parse(raw)
+        } catch {
+          return {}
+        }
+      }
+      return {}
+    }
+
     switch (filterType) {
       case 'header':
         config.headerConfig = {
-          modifierType: formData['config.headerConfig.modifierType'],
-          headerName: formData['config.headerConfig.headerName'],
-          headerValue: formData['config.headerConfig.headerValue'],
-          targetHeaderName: formData['config.headerConfig.targetHeaderName'],
-          isRequestHeader: formData['config.headerConfig.isRequestHeader'] ?? true,
+          isRequestHeader: true,
+          ...tree.headerConfig,
         }
         break
       case 'query-param':
-        config.queryParamConfig = {
-          modifierType: formData['config.queryParamConfig.modifierType'],
-          paramName: formData['config.queryParamConfig.paramName'],
-          paramValue: formData['config.queryParamConfig.paramValue'],
-          targetParamName: formData['config.queryParamConfig.targetParamName'],
-        }
+        config.queryParamConfig = tree.queryParamConfig ?? {}
         break
       case 'strip':
-        config.stripConfig = {
-          prefix: formData['config.stripConfig.prefix'],
-        }
+        config.stripConfig = tree.stripConfig ?? {}
         break
       case 'rewrite':
-        config.rewriteConfig = {
-          mode: formData['config.rewriteConfig.mode'],
-          from: formData['config.rewriteConfig.from'],
-          to: formData['config.rewriteConfig.to'],
-        }
+        config.rewriteConfig = tree.rewriteConfig ?? {}
         break
       case 'method':
         config.methodConfig = {
-          mode: formData['config.methodConfig.mode'],
-          allowedMethods: formData['config.methodConfig.allowedMethods'],
-          deniedMethods: formData['config.methodConfig.deniedMethods'],
-          rejectStatusCode: formData['config.methodConfig.rejectStatusCode'] ?? 405,
-          rejectMessage: formData['config.methodConfig.rejectMessage'] ?? 'Method Not Allowed',
-          caseSensitive: formData['config.methodConfig.caseSensitive'] ?? false,
+          rejectStatusCode: 405,
+          rejectMessage: 'Method Not Allowed',
+          caseSensitive: false,
+          ...tree.methodConfig,
         }
         break
-      case 'body':
-        config.bodyConfig = {
-          modifierType: formData['config.bodyConfig.modifierType'],
-          operation: formData['config.bodyConfig.operation'],
-          allowedContentTypes: formData['config.bodyConfig.allowedContentTypes'],
-          maxBodySize: formData['config.bodyConfig.maxBodySize'],
-          filterConfig: formData['config.bodyConfig.filterConfigJson']
-            ? JSON.parse(formData['config.bodyConfig.filterConfigJson'])
-            : {},
-        }
+      case 'body': {
+        const body = { ...tree.bodyConfig }
+        body.filterConfig = parseJsonField(body.filterConfigJson ?? body.filterConfig)
+        delete body.filterConfigJson
+        config.bodyConfig = body
         break
+      }
       case 'cookie':
         config.cookieConfig = {
-          operation: formData['config.cookieConfig.operation'],
-          cookieName: formData['config.cookieConfig.cookieName'],
-          cookieValue: formData['config.cookieConfig.cookieValue'],
-          applyToResponse: formData['config.cookieConfig.applyToResponse'] ?? false,
+          applyToResponse: false,
+          ...tree.cookieConfig,
           cookieAttributes: {
-            domain: formData['config.cookieConfig.cookieAttributes.domain'],
-            path: formData['config.cookieConfig.cookieAttributes.path'],
-            maxAge: formData['config.cookieConfig.cookieAttributes.maxAge'],
-            secure: formData['config.cookieConfig.cookieAttributes.secure'] ?? false,
-            httpOnly: formData['config.cookieConfig.cookieAttributes.httpOnly'] ?? false,
-            sameSite: formData['config.cookieConfig.cookieAttributes.sameSite'],
+            secure: false,
+            httpOnly: false,
+            ...tree.cookieConfig?.cookieAttributes,
           },
         }
         break
-      case 'response':
+      case 'response': {
+        const response = { ...tree.responseConfig }
+        response.filterConfig = parseJsonField(response.filterConfigJson ?? response.filterConfig)
+        response.conditions = parseJsonField(response.conditionsJson ?? response.conditions)
+        delete response.filterConfigJson
+        delete response.conditionsJson
         config.responseConfig = {
-          operation: formData['config.responseConfig.operation'],
-          setInRequestPhase: formData['config.responseConfig.setInRequestPhase'] ?? false,
-          filterConfig: formData['config.responseConfig.filterConfigJson']
-            ? JSON.parse(formData['config.responseConfig.filterConfigJson'])
-            : {},
-          conditions: formData['config.responseConfig.conditionsJson']
-            ? JSON.parse(formData['config.responseConfig.conditionsJson'])
-            : {},
+          setInRequestPhase: false,
+          ...response,
         }
         break
+      }
     }
 
     return JSON.stringify(config)
   }
 
   /**
-   * 将 JSON 格式的 filterConfig 解析为动态字段
+   * 读接口：JSON 字符串 → form.config 对象树（不再摊成 config.xxx 扁平 key）。
+   * textarea 用的 filterConfigJson / conditionsJson 是树上的展示投影。
    */
-  const parseFilterConfig = (filterConfig: string | undefined, filterType: string): Record<string, any> => {
-    const result: Record<string, any> = {}
-    
-    if (!filterConfig) {
-      return result
-    }
+  const parseFilterConfig = (filterConfig: string | undefined, _filterType?: string): Record<string, any> => {
+    if (!filterConfig) return {}
 
     try {
       const config = JSON.parse(filterConfig)
-      
-      switch (filterType) {
-        case 'header':
-          if (config.headerConfig) {
-            result['config.headerConfig.modifierType'] = config.headerConfig.modifierType
-            result['config.headerConfig.headerName'] = config.headerConfig.headerName
-            result['config.headerConfig.headerValue'] = config.headerConfig.headerValue
-            result['config.headerConfig.targetHeaderName'] = config.headerConfig.targetHeaderName
-            result['config.headerConfig.isRequestHeader'] = config.headerConfig.isRequestHeader ?? true
-          }
-          break
-        case 'query-param':
-          if (config.queryParamConfig) {
-            result['config.queryParamConfig.modifierType'] = config.queryParamConfig.modifierType
-            result['config.queryParamConfig.paramName'] = config.queryParamConfig.paramName
-            result['config.queryParamConfig.paramValue'] = config.queryParamConfig.paramValue
-            result['config.queryParamConfig.targetParamName'] = config.queryParamConfig.targetParamName
-          }
-          break
-        case 'strip':
-          if (config.stripConfig) {
-            result['config.stripConfig.prefix'] = config.stripConfig.prefix
-          }
-          break
-        case 'rewrite':
-          if (config.rewriteConfig) {
-            result['config.rewriteConfig.mode'] = config.rewriteConfig.mode
-            result['config.rewriteConfig.from'] = config.rewriteConfig.from
-            result['config.rewriteConfig.to'] = config.rewriteConfig.to
-          }
-          break
-        case 'method':
-          if (config.methodConfig) {
-            result['config.methodConfig.mode'] = config.methodConfig.mode
-            result['config.methodConfig.allowedMethods'] = config.methodConfig.allowedMethods
-            result['config.methodConfig.deniedMethods'] = config.methodConfig.deniedMethods
-            result['config.methodConfig.rejectStatusCode'] = config.methodConfig.rejectStatusCode ?? 405
-            result['config.methodConfig.rejectMessage'] = config.methodConfig.rejectMessage ?? 'Method Not Allowed'
-            result['config.methodConfig.caseSensitive'] = config.methodConfig.caseSensitive ?? false
-          }
-          break
-        case 'body':
-          if (config.bodyConfig) {
-            result['config.bodyConfig.modifierType'] = config.bodyConfig.modifierType
-            result['config.bodyConfig.operation'] = config.bodyConfig.operation
-            result['config.bodyConfig.allowedContentTypes'] = config.bodyConfig.allowedContentTypes
-            result['config.bodyConfig.maxBodySize'] = config.bodyConfig.maxBodySize
-            result['config.bodyConfig.filterConfigJson'] = JSON.stringify(config.bodyConfig.filterConfig || {}, null, 2)
-          }
-          break
-        case 'cookie':
-          if (config.cookieConfig) {
-            result['config.cookieConfig.operation'] = config.cookieConfig.operation
-            result['config.cookieConfig.cookieName'] = config.cookieConfig.cookieName
-            result['config.cookieConfig.cookieValue'] = config.cookieConfig.cookieValue
-            result['config.cookieConfig.applyToResponse'] = config.cookieConfig.applyToResponse ?? false
-            if (config.cookieConfig.cookieAttributes) {
-              result['config.cookieConfig.cookieAttributes.domain'] = config.cookieConfig.cookieAttributes.domain
-              result['config.cookieConfig.cookieAttributes.path'] = config.cookieConfig.cookieAttributes.path
-              result['config.cookieConfig.cookieAttributes.maxAge'] = config.cookieConfig.cookieAttributes.maxAge
-              result['config.cookieConfig.cookieAttributes.secure'] = config.cookieConfig.cookieAttributes.secure ?? false
-              result['config.cookieConfig.cookieAttributes.httpOnly'] = config.cookieConfig.cookieAttributes.httpOnly ?? false
-              result['config.cookieConfig.cookieAttributes.sameSite'] = config.cookieConfig.cookieAttributes.sameSite
-            }
-          }
-          break
-        case 'response':
-          if (config.responseConfig) {
-            result['config.responseConfig.operation'] = config.responseConfig.operation
-            result['config.responseConfig.setInRequestPhase'] = config.responseConfig.setInRequestPhase ?? false
-            result['config.responseConfig.filterConfigJson'] = JSON.stringify(config.responseConfig.filterConfig || {}, null, 2)
-            result['config.responseConfig.conditionsJson'] = JSON.stringify(config.responseConfig.conditions || {}, null, 2)
-          }
-          break
+      if (!config || typeof config !== 'object' || Array.isArray(config)) return {}
+
+      if (config.bodyConfig?.filterConfig && typeof config.bodyConfig.filterConfig !== 'string') {
+        config.bodyConfig.filterConfigJson = JSON.stringify(config.bodyConfig.filterConfig, null, 2)
       }
+      if (config.responseConfig) {
+        if (config.responseConfig.filterConfig && typeof config.responseConfig.filterConfig !== 'string') {
+          config.responseConfig.filterConfigJson = JSON.stringify(
+            config.responseConfig.filterConfig,
+            null,
+            2,
+          )
+        }
+        if (config.responseConfig.conditions && typeof config.responseConfig.conditions !== 'string') {
+          config.responseConfig.conditionsJson = JSON.stringify(
+            config.responseConfig.conditions,
+            null,
+            2,
+          )
+        }
+      }
+
+      return { config }
     } catch (error) {
       console.error('解析过滤器配置失败:', error)
+      return {}
     }
-
-    return result
   }
 
   /**
@@ -444,7 +375,8 @@ export function useFilterConfigPage(
   /**
    * 处理右键菜单点击
    */
-  const handleMenuClick = async ({ key, row }: { key: string; row: FilterConfig }) => {
+  const handleMenuClick = async ({ key, row }: { key: string; row?: FilterConfig }) => {
+    if (!row) return
     switch (key) {
       case 'view':
         await openViewDialog(row)
@@ -486,22 +418,26 @@ export function useFilterConfigPage(
 
   /**
    * 处理批量删除
+   * 使用 getActiveRows：优先勾选行，无勾选时回退当前高亮行
    */
   const handleBatchDelete = async () => {
-    if (!gridRef?.value?.getCheckboxRecords) {
-      message.warning('无法获取选中的记录')
+    if (!gridRef?.value) {
+      message.warning('无法获取表格引用')
       return
     }
 
-    const selectedRows = gridRef.value.getCheckboxRecords() as FilterConfig[]
-    if (!selectedRows || selectedRows.length === 0) {
+    const selectedRows = (gridRef.value.getActiveRows?.() || []) as FilterConfig[]
+    if (selectedRows.length === 0) {
       message.warning('请先选择要删除的过滤器')
       return
     }
 
     const confirmed = await rsConfirm.warning({
-      title: '确认批量删除',
-      description: `确定要删除选中的 ${selectedRows.length} 个过滤器吗？此操作不可恢复。`,
+      title: selectedRows.length > 1 ? '确认批量删除' : '确认删除',
+      description:
+        selectedRows.length > 1
+          ? `确定要删除选中的 ${selectedRows.length} 个过滤器吗？此操作不可恢复。`
+          : `确定要删除过滤器"${selectedRows[0].filterName}"吗？此操作不可恢复。`,
       confirmText: '删除',
       cancelText: '取消',
     })
@@ -510,9 +446,23 @@ export function useFilterConfigPage(
       return
     }
 
-    const filterConfigIds = selectedRows.map((row) => row.filterConfigId)
-    // deleteFilters 内部已经会调用 loadFilterList，这里不需要重复调用
-    await service.deleteFilters(filterConfigIds)
+    const filterConfigIds = selectedRows
+      .map((row) => row.filterConfigId)
+      .filter((id): id is string => Boolean(id))
+
+    if (filterConfigIds.length === 0) {
+      message.warning('过滤器配置ID无效')
+      return
+    }
+
+    const success =
+      filterConfigIds.length === 1
+        ? await service.deleteFilter(filterConfigIds[0])
+        : await service.deleteFilters(filterConfigIds)
+
+    if (success) {
+      gridRef.value.clearSelection?.()
+    }
   }
 
   /**

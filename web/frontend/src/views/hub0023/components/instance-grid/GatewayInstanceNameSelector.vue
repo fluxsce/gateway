@@ -1,20 +1,18 @@
 <template>
-  <n-input-group>
-    <n-input
-      :value="modelValue"
-      placeholder="请输入实例名称或点击选择"
-      clearable
-      size="small"
-      @update:value="handleInputChange"
-    />
-    <n-button type="primary" size="small" @click="handleSelectClick">
-      <template #icon>
-        <n-icon><EllipsisHorizontalOutline /></n-icon>
-      </template>
-    </n-button>
-  </n-input-group>
+  <RsInput
+    v-bind="attrs"
+    :model-value="localValue"
+    placeholder="请输入实例名称或点击选择"
+    clearable
+    size="sm"
+    label-position="top"
+    class="instance-name-selector"
+    addon-after-icon="ellipsis"
+    addon-after-icon-label="选择实例"
+    @update:model-value="handleInputChange"
+    @addon-after-click="handleSelectClick"
+  />
 
-  <!-- 网关实例选择对话框 -->
   <GatewayInstanceListModal
     v-model:visible="instanceSelectDialogVisible"
     v-model:model-value="localValue"
@@ -25,17 +23,17 @@
 </template>
 
 <script lang="ts" setup>
-import { EllipsisHorizontalOutline } from '@vicons/ionicons5'
-import { NButton, NIcon, NInput, NInputGroup } from 'naive-ui'
-import { ref, watch } from 'vue'
+import { RsInput } from '@/ui'
+import type { GatewayInstance } from '@/views/hub0020/types'
+import { ref, useAttrs, watch } from 'vue'
 import GatewayInstanceListModal from './GatewayInstanceListModal.vue'
 
-// 定义组件名称
 defineOptions({
-  name: 'GatewayInstanceNameSelector'
+  name: 'GatewayInstanceNameSelector',
+  inheritAttrs: false,
 })
 
-// ============= Props =============
+const attrs = useAttrs()
 
 interface Props {
   /** 实例名称值 */
@@ -49,8 +47,6 @@ const props = withDefaults(defineProps<Props>(), {
   gatewayInstanceId: '',
 })
 
-// ============= Emits =============
-
 interface Emits {
   (e: 'update:modelValue', value: string): void
   (e: 'update:gatewayInstanceId', value: string): void
@@ -58,27 +54,23 @@ interface Emits {
 
 const emit = defineEmits<Emits>()
 
-// ============= 弹窗状态 =============
-
 const instanceSelectDialogVisible = ref(false)
 const localValue = ref(props.modelValue)
 
-// 监听 props.modelValue 变化，同步到本地状态
-watch(() => props.modelValue, (newVal) => {
-  localValue.value = newVal
-})
+watch(
+  () => props.modelValue,
+  (newVal) => {
+    localValue.value = newVal
+  },
+)
 
-// 监听本地值变化，同步到父组件
 watch(localValue, (newVal) => {
   emit('update:modelValue', newVal)
 })
 
-// ============= 事件处理 =============
-
 /** 弹窗表格选中行时同步实例 ID */
-function onModalInstanceSelect(row: Record<string, unknown>) {
-  const id = (row?.gatewayInstanceId as string) || ''
-  emit('update:gatewayInstanceId', id)
+function onModalInstanceSelect(instance: GatewayInstance) {
+  emit('update:gatewayInstanceId', instance.gatewayInstanceId || '')
 }
 
 /**
@@ -98,8 +90,7 @@ const handleSelectClick = () => {
 </script>
 
 <style lang="scss" scoped>
-.n-input-group {
+.instance-name-selector {
   width: 100%;
 }
 </style>
-

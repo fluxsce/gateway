@@ -4,8 +4,9 @@
  */
 
 import { useAppMessage } from '@/composables/useAppMessage'
-import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
+import { takeNamedObject } from '@/components/form/rs-data'
 import type { RsTreeNode } from '@/ui'
+import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { addProxyConfig, editProxyConfig, getProxyConfigByInstance } from '../../../api'
 import type { GatewayInstance, InstanceTreeNode, ProxyConfig } from '../types'
@@ -55,7 +56,7 @@ export function useGatewayInstanceTreePage() {
   // ============= JSON 字段转换方法 =============
 
   /**
-   * 将配置对象转换为表单数据格式（查询时：将 JSON 字符串字段解析为点号分隔字段）
+   * 将配置对象转换为表单数据格式（查询时：将 JSON 字符串列解析为嵌套对象）
    */
   const convertProxyToFormData = (proxy: ProxyConfig): any => {
     // 安全解析 JSON 字符串
@@ -75,15 +76,12 @@ export function useGatewayInstanceTreePage() {
       ...proxy,
     }
 
-    // 解析 proxyConfig（JSON 字符串 -> 对象 -> 点号分隔字段）
+    // 解析 proxyConfig（JSON 字符串 -> 嵌套对象）
     const proxyConfigObj = parseJson(proxy.proxyConfig)
     if (proxyConfigObj && typeof proxyConfigObj === 'object' && !Array.isArray(proxyConfigObj)) {
-      // 将对象的属性展开为点号分隔字段（如 proxyConfig.timeout）
-      Object.keys(proxyConfigObj).forEach((key) => {
-        formData[`proxyConfig.${key}`] = proxyConfigObj[key]
-      })
-      // 移除原始字段（已展开为点号分隔字段）
-      delete formData.proxyConfig
+      formData.proxyConfig = proxyConfigObj
+    } else {
+      formData.proxyConfig = {}
     }
 
     // 解析 customConfig（JSON 字符串 -> 格式化的 JSON 字符串，用于 textarea 显示）
@@ -103,7 +101,7 @@ export function useGatewayInstanceTreePage() {
   }
 
   /**
-   * 将表单数据转换为API数据格式（保存时：将点号分隔字段合并为 JSON 字符串）
+   * 将表单数据转换为API数据格式（保存时：将嵌套对象合并为 JSON 字符串）
    */
   const convertProxyToApiData = (formData: Record<string, any>): any => {
     // 构建 API 数据对象
@@ -111,26 +109,11 @@ export function useGatewayInstanceTreePage() {
 
     // 复制基本字段
     Object.keys(formData).forEach((key) => {
-      if (!key.startsWith('proxyConfig.')) {
-        apiData[key] = formData[key]
-      }
+      if (key === 'proxyConfig' || key.startsWith('proxyConfig.')) return
+      apiData[key] = formData[key]
     })
 
-    // 将点号分隔字段合并为 JSON 字符串
-    const proxyConfigObj: Record<string, any> = {}
-    Object.keys(formData).forEach((key) => {
-      if (key.startsWith('proxyConfig.')) {
-        const subKey = key.replace('proxyConfig.', '')
-        proxyConfigObj[subKey] = formData[key]
-      }
-    })
-
-    // 将 proxyConfig 对象转换为 JSON 字符串
-    if (Object.keys(proxyConfigObj).length > 0) {
-      apiData.proxyConfig = JSON.stringify(proxyConfigObj)
-    } else {
-      apiData.proxyConfig = '{}'
-    }
+    apiData.proxyConfig = JSON.stringify(takeNamedObject(formData, 'proxyConfig'))
 
     // 将 customConfig 转换为 JSON 字符串
     // formData.customConfig 可能是字符串（来自 textarea）或对象
@@ -244,7 +227,7 @@ export function useGatewayInstanceTreePage() {
     try {
       proxySubmitting.value = true
 
-      // 使用 convertProxyToApiData 将点号分隔字段合并为 JSON 字符串
+      // 使用 convertProxyToApiData 将嵌套对象合并为 JSON 字符串
       const apiData = convertProxyToApiData(formData)
 
       // 准备提交数据
@@ -337,12 +320,8 @@ export function useGatewayInstanceTreePage() {
     const instance = contextNode.value?.instance
     if (!instance) return
 
-    switch (key) {
-      case 'addProxy':
-        await openProxyDialog(instance)
-        break
-      default:
-        break
+    if (key === 'addProxy') {
+      await openProxyDialog(instance)
     }
   }
 

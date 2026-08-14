@@ -12,6 +12,7 @@
 
     <RsForm
       ref="formRef"
+      :model="formData"
       :rules="formRules"
       :label-position="rsLabelPosition"
       :label-align="rsLabelAlign"
@@ -31,113 +32,91 @@
           class="rs-search-form__cell"
           :style="{ gridColumn: `span ${field.span || defaultFieldSpan}` }"
         >
-          <!-- input / number / date：控件自带 label -->
-          <template v-if="usesBuiltInLabel(field.type)">
+          <RsFormItem
+            :name="field.field"
+            :label="getFieldLabel(field)"
+            :required="field.required"
+            :label-position="rsLabelPosition"
+            class="rs-search-form__item"
+          >
+            <template
+              v-if="resolveTips(field)"
+              #label
+            >
+              <span class="rs-search-form__label-text" :title="getFieldLabel(field)">
+                {{ getFieldLabel(field) }}
+                <component
+                  :is="renderFieldTips(field)"
+                />
+              </span>
+            </template>
+
             <RsInput
               v-if="field.type === 'input' || !field.type"
-              v-model="formData[field.field]"
-              :name="field.field"
-              :label="getFieldLabel(field)"
-              :hint="getStringHint(field)"
+              :model-value="asStringValue(formData[field.field])"
               :placeholder="field.placeholder || `请输入${getFieldLabel(field)}`"
               :disabled="field.disabled"
               :clearable="field.clearable !== false"
-              :required="field.required"
               :size="rsSize"
-              v-bind="field.props"
-              @update:model-value="handleFieldChange(field.field, $event)"
+              label-position="top"
+              v-bind="omitControlProps(field.props)"
+              @update:model-value="(v: string) => onFieldUpdate(field, v)"
             />
 
             <RsInputNumber
               v-else-if="field.type === 'number'"
-              v-model="formData[field.field]"
-              :name="field.field"
-              :label="getFieldLabel(field)"
-              :hint="getStringHint(field)"
+              :model-value="asNumberValue(formData[field.field])"
               :placeholder="field.placeholder || `请输入${getFieldLabel(field)}`"
               :disabled="field.disabled"
-              :required="field.required"
               :size="rsSize"
-              v-bind="field.props"
-              @update:model-value="handleFieldChange(field.field, $event)"
+              label-position="top"
+              v-bind="omitControlProps(field.props)"
+              @update:model-value="(v) => onFieldUpdate(field, v)"
             />
 
             <RsDatePicker
               v-else-if="isDateField(field.type)"
-              v-model="formData[field.field]"
-              :name="field.field"
-              :label="getFieldLabel(field)"
-              :hint="getStringHint(field)"
+              :model-value="formData[field.field]"
               :placeholder="field.placeholder || `请选择${getFieldLabel(field)}`"
               :disabled="field.disabled"
-              :required="field.required"
               :range="isDateRangeField(field.type)"
-              :label-position="rsLabelPosition"
+              label-position="top"
               :size="rsSize"
-              v-bind="field.props"
+              v-bind="omitControlProps(field.props)"
+              value-format="string"
               :with-time="isDateTimeField(field.type)"
               :with-seconds="isDateTimeField(field.type)"
-              @update:model-value="handleFieldChange(field.field, $event)"
+              @update:model-value="(v: unknown) => onFieldUpdate(field, v)"
             />
-          </template>
 
-          <!-- select / switch / custom：RsLabel + 控件 -->
-          <div
-            v-else
-            class="rs-search-form__field"
-            :class="`rs-search-form__field--${labelPlacement}`"
-            :style="externalFieldStyle"
-          >
-            <RsLabel
-              class="rs-search-form__label"
-              :required="field.required"
+            <RsSelect
+              v-else-if="field.type === 'select'"
+              :model-value="formData[field.field]"
+              :placeholder="field.placeholder || `请选择${getFieldLabel(field)}`"
+              :options="normalizeSelectOptions(field.options)"
               :disabled="field.disabled"
-              :nowrap="labelPlacement === 'left'"
-            >
-              <span class="rs-search-form__label-text" :title="getFieldLabel(field)">
-                <template v-if="labelPlacement === 'left'">
-                  {{ getFieldLabel(field) }}
-                </template>
-                <GEllipsis v-else :text="getFieldLabel(field)" />
-                <component
-                  :is="renderFieldTips(field)"
-                  v-if="resolveTips(field)"
-                />
-              </span>
-            </RsLabel>
+              :clearable="field.clearable !== false"
+              :size="rsSize"
+              match-trigger-width
+              v-bind="omitControlProps(field.props)"
+              block
+              @update:model-value="(v: unknown) => onFieldUpdate(field, v)"
+            />
 
-            <div class="rs-search-form__control">
-              <RsSelect
-                v-if="field.type === 'select'"
-                v-model="formData[field.field]"
-                :name="field.field"
-                :placeholder="field.placeholder || `请选择${getFieldLabel(field)}`"
-                :options="normalizeSelectOptions(field.options)"
-                :disabled="field.disabled"
-                :clearable="field.clearable !== false"
-                :required="field.required"
-                :size="rsSize"
-                match-trigger-width
-                v-bind="field.props"
-                block
-                @update:model-value="handleFieldChange(field.field, $event)"
-              />
+            <RsSwitch
+              v-else-if="field.type === 'switch'"
+              :model-value="formData[field.field]"
+              :disabled="field.disabled"
+              :size="rsSize"
+              v-bind="omitControlProps(field.props)"
+              @update:model-value="(v: unknown) => onFieldUpdate(field, v)"
+            />
 
-              <RsSwitch
-                v-else-if="field.type === 'switch'"
-                v-model="formData[field.field]"
-                :disabled="field.disabled"
-                :size="rsSize"
-                v-bind="field.props"
-                @update:model-value="handleFieldChange(field.field, $event)"
-              />
-
-              <component
-                :is="field.render?.(formData)"
-                v-else-if="field.type === 'custom' && field.render"
-              />
-            </div>
-          </div>
+            <component
+              :is="renderCustomField(field)"
+              v-else-if="field.type === 'custom' && field.render"
+            />
+          </RsFormItem>
         </div>
       </div>
     </RsForm>
@@ -145,18 +124,19 @@
 </template>
 
 <script setup lang="ts">
-import GEllipsis from '@/components/gellipsis/GEllipsis.vue'
 import type { ToolbarButton } from '@/components/toolbar'
 import GToolbar from '@/components/toolbar/GToolbar.vue'
 import {
   RsDatePicker,
   RsForm,
+  RsFormItem,
   RsInput,
   RsInputNumber,
-  RsLabel,
   RsSelect,
   RsSwitch,
   RsTooltip,
+  setByNamePath,
+  type RsFormNamePath,
   type RsFormRules,
   type RsFormValidationResult,
   type RsSelectOptions,
@@ -169,6 +149,7 @@ import type {
   RsSearchFormEmits,
   RsSearchFormExpose,
   RsSearchFormProps,
+  RsSearchFormRenderContext,
 } from './types'
 
 defineOptions({
@@ -176,8 +157,9 @@ defineOptions({
 })
 
 const props = withDefaults(defineProps<RsSearchFormProps>(), {
-  /* 与 RsForm 默认一致；过短会导致左侧中文标签挤压 */
-  labelWidth: '6rem',
+  fields: () => [],
+  /* 固定标签列宽；栅格内各列控件起点对齐。过短会省略，业务可按最长标签上调 */
+  labelWidth: '7rem',
   labelPlacement: 'left',
   labelAlign: 'right',
   size: 'small',
@@ -236,30 +218,9 @@ const gridStyle = computed(() => ({
   gridTemplateColumns: `repeat(${props.cols}, minmax(0, 1fr))`,
   columnGap: `${props.xGap}px`,
   rowGap: `${props.yGap}px`,
-  // 供自带 label 的控件（含 DatePicker）对齐标签宽度
   '--rs-field-label-width': rsLabelWidth.value,
   '--rs-search-control-height': `var(--rs-control-height-${rsSize.value})`,
 }))
-
-/** 外部 RsLabel 布局的标签宽度 / 对齐（与 niuma-ui .rs-field--label-left 同语义） */
-const externalFieldStyle = computed(() => {
-  if (props.labelPlacement === 'left') {
-    return {
-      gridTemplateColumns: `minmax(${rsLabelWidth.value}, max-content) minmax(0, 1fr)`,
-      '--rs-search-label-align': props.labelAlign === 'right' ? 'end' : 'start',
-    }
-  }
-  return {}
-})
-
-const usesBuiltInLabel = (type?: RsSearchFieldType) =>
-  !type ||
-  type === 'input' ||
-  type === 'number' ||
-  type === 'date' ||
-  type === 'daterange' ||
-  type === 'datetime' ||
-  type === 'datetimerange'
 
 const isDateField = (type?: RsSearchFieldType) =>
   type === 'date' || type === 'daterange' || type === 'datetime' || type === 'datetimerange'
@@ -270,8 +231,34 @@ const isDateRangeField = (type?: RsSearchFieldType) =>
 const isDateTimeField = (type?: RsSearchFieldType) =>
   type === 'datetime' || type === 'datetimerange'
 
+/** 控件不再画 label；业务 props 不得覆盖 Form.Item 契约 */
+const omitControlProps = (extra?: Record<string, unknown>) => {
+  if (!extra) return {}
+  const {
+    label: _label,
+    required: _required,
+    name: _name,
+    labelPosition: _labelPosition,
+    valueFormat: _valueFormat,
+    ...rest
+  } = extra
+  return rest
+}
+
+const asStringValue = (value: unknown): string => {
+  if (value == null) return ''
+  if (typeof value === 'string') return value
+  return String(value)
+}
+
+const asNumberValue = (value: unknown): number | null => {
+  if (value == null || value === '') return null
+  const num = typeof value === 'number' ? value : Number(value)
+  return Number.isNaN(num) ? null : num
+}
+
 /**
- * 将业务 options 规范化为 RsSelect 所需的 string value。
+ * 将业务 options 交给 RsSelect；value 保持 string | number。
  */
 const normalizeSelectOptions = (
   options?: RsSearchField['options'],
@@ -279,7 +266,7 @@ const normalizeSelectOptions = (
   if (!options?.length) return []
   return options.map((opt) => ({
     label: opt.label,
-    value: String(opt.value),
+    value: opt.value,
     disabled: opt.disabled,
   }))
 }
@@ -303,17 +290,15 @@ const formRules = computed<RsFormRules>(() => {
   return rules
 })
 
-/** 初始化表单数据（只使用字段的 defaultValue） */
+const emptyRange = (): { start: string; end: string } => ({ start: '', end: '' })
+
+/** 初始化表单数据（只使用字段的 defaultValue；range 只认 { start, end }） */
 const initFormData = () => {
   const data: Record<string, any> = {}
   const applyDefaults = (fields: RsSearchField[]) => {
     fields.forEach((field) => {
       if (field.defaultValue !== undefined) {
-        // select 的 value 统一为 string，与 RsSelect 对齐
-        data[field.field] =
-          field.type === 'select' && field.defaultValue !== null
-            ? String(field.defaultValue)
-            : field.defaultValue
+        data[field.field] = field.defaultValue
         return
       }
       switch (field.type) {
@@ -329,7 +314,7 @@ const initFormData = () => {
           break
         case 'daterange':
         case 'datetimerange':
-          data[field.field] = { start: '', end: '' }
+          data[field.field] = emptyRange()
           break
         case 'select':
           data[field.field] = ''
@@ -364,11 +349,6 @@ const getFieldLabel = (field: RsSearchField): string => {
   return typeof field.label === 'function' ? field.label(formData.value) : field.label
 }
 
-/**
- * 解析 tips（支持函数）。
- * tips 联合类型含 Vue Component 构造函数，`typeof === 'function'` 无法收窄为可调用工厂，
- * 因此对「按 formData 生成 tips」的分支显式断言后再调用。
- */
 const resolveTips = (
   field: RsSearchField,
 ): string | Component | VNode | null => {
@@ -382,24 +362,35 @@ const resolveTips = (
   return field.tips
 }
 
-/** 内置 label 控件的字符串 tip → hint */
-const getStringHint = (field: RsSearchField): string | undefined => {
-  const tips = resolveTips(field)
-  return typeof tips === 'string' ? tips : undefined
-}
-
-/** select/switch/custom：字符串 tips 用 RsTooltip icon，其它直接渲染 */
 const renderFieldTips = (field: RsSearchField) => {
   const tips = resolveTips(field)
   if (tips == null) return () => null
   if (typeof tips === 'string') {
     return () =>
       h('span', { class: 'rs-search-form__label-tips' }, [
-        h(RsTooltip, { content: tips, icon: true })
+        h(RsTooltip, { content: tips, icon: true }),
       ])
   }
-  return () => h('span', { class: 'rs-search-form__label-tips' }, [tips as any])
+  return () => h('span', { class: 'rs-search-form__label-tips' }, [tips as VNode])
 }
+
+const onFieldUpdate = (field: RsSearchField, value: unknown) => {
+  formData.value[field.field] = value
+  emit('field-change', field.field, value)
+}
+
+const setFieldValue = (name: RsFormNamePath, value: unknown) => {
+  setByNamePath(formData.value, name, value)
+}
+
+const customRenderContext = (field: RsSearchField): RsSearchFormRenderContext => ({
+  value: formData.value[field.field],
+  onUpdate: (value) => onFieldUpdate(field, value),
+  setFieldValue,
+})
+
+const renderCustomField = (field: RsSearchField) =>
+  field.render?.(formData.value, customRenderContext(field))
 
 const toolbarButtonsComputed = computed<ToolbarButton[]>(() => {
   const buttons: ToolbarButton[] = []
@@ -446,10 +437,6 @@ const toolbarButtonsComputed = computed<ToolbarButton[]>(() => {
   return buttons
 })
 
-const handleFieldChange = (field: string, value: any) => {
-  emit('field-change', field, value)
-}
-
 const handleSearch = async () => {
   try {
     const result = await formRef.value?.validate()
@@ -465,12 +452,13 @@ const handleSearch = async () => {
 const handleReset = () => {
   initFormData()
   formRef.value?.clearValidation()
+  emit('reset')
 }
 
 const handleToolbarClick = (key: string) => {
-  const button = toolbarButtonsComputed.value.find((btn) => btn.key === key)
+  const matched = toolbarButtonsComputed.value.find((btn) => btn.key === key)
   // 已有 onClick 的按钮（search/reset/more）不再重复触发 toolbar-click
-  if (button?.onClick) {
+  if (matched?.onClick) {
     return
   }
   emit('toolbar-click', key, { ...formData.value })
@@ -512,7 +500,6 @@ defineExpose<RsSearchFormExpose>({
 <style lang="scss" scoped>
 .rs-search-form {
   width: 100%;
-  /* 内容面：走已桥接的 --rs-surface（勿用 --rs-bg 页面底，否则与 MainLayout 糊成一片） */
   background-color: var(--rs-surface, var(--g-bg-primary));
   display: flex;
   flex-direction: column;
@@ -531,43 +518,18 @@ defineExpose<RsSearchFormExpose>({
   &__grid {
     width: 100%;
     display: grid;
-    /* 表单字段区上下边距一致（勿用根 gap，否则只垫在工具栏下方） */
     padding: var(--rs-space-sm, 8px) var(--rs-space-md, 12px);
     box-sizing: border-box;
+    align-items: start;
   }
 
   &__cell {
     min-width: 0;
   }
 
-  &__field {
+  &__item {
     width: 100%;
     min-width: 0;
-
-    &--left {
-      display: grid;
-      align-items: center;
-      column-gap: var(--rs-space-sm, 12px);
-
-      .rs-search-form__label {
-        margin: 0;
-        justify-self: var(--rs-search-label-align, end);
-        text-align: var(--rs-search-label-align, end);
-      }
-    }
-
-    &--top {
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      /* 与 .rs-field gap 一致；标签外观由全局 --rs-label-* token 统一 */
-      gap: var(--rs-space-xs, 4px);
-      width: 100%;
-
-      .rs-search-form__label {
-        margin: 0;
-      }
-    }
   }
 
   &__label-text {
@@ -582,19 +544,6 @@ defineExpose<RsSearchFormExpose>({
     display: inline-flex;
     align-items: center;
     flex-shrink: 0;
-  }
-
-  &__control {
-    width: 100%;
-    min-width: 0;
-    /*
-     * 用 grid 拉伸子项：flex 下 Select（inline-flex）会按内容收缩，
-     * 导致顶栏 label 时「类型」比同列 Input/DatePicker 窄、整行视觉不齐。
-     */
-    display: grid;
-    align-items: center;
-    justify-items: stretch;
-    min-height: var(--rs-search-control-height, var(--rs-control-height-sm));
   }
 }
 </style>

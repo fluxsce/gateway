@@ -3,10 +3,10 @@
  * 统一管理搜索表单配置和数据状态
  */
 
-import type { SearchFormProps } from '@/components/form/search/types'
+import type { RsSearchFormExpose, RsSearchFormProps } from '@/components/form/rs-search'
+import { formatDate } from '@/utils/format'
 import { createBackendPaginationParams } from '@/utils/pagination'
 import { queryGatewayInstances } from '@/views/hub0020/api'
-import { RefreshOutline } from '@vicons/ionicons5'
 import type { Ref } from 'vue'
 import { h, nextTick, reactive, ref } from 'vue'
 import { GatewayInstanceNameSelector } from '../../instance-grid'
@@ -20,11 +20,24 @@ import type {
 /** 监控查询允许的最大时间跨度（与表单校验一致：24 小时） */
 const MONITORING_MAX_RANGE_MS = 24 * 60 * 60 * 1000
 
+type DateTimeRangeValue = { start: string; end: string }
+
+/** 将 RsDatePicker range（{ start, end }）转为毫秒，供跨度校验 */
+function rangeToMs(value: unknown): [number, number] | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const { start, end } = value as { start?: string; end?: string }
+  if (!start || !end) return null
+  const startMs = new Date(start.replace(' ', 'T')).getTime()
+  const endMs = new Date(end.replace(' ', 'T')).getTime()
+  if (Number.isNaN(startMs) || Number.isNaN(endMs)) return null
+  return [startMs, endMs]
+}
+
 /**
  * 默认时间范围：开始为当前时刻往前 1 小时，结束为当日 23:59:00。
  * 若两者跨度超过 24 小时（例如凌晨附近），则将开始时间推迟为「结束时间往前 24 小时」，以满足校验。
  */
-function defaultMonitoringTimeRange(): [number, number] {
+function defaultMonitoringTimeRange(): DateTimeRangeValue {
   const now = Date.now()
   const startCandidate = now - 3600000
   const end = new Date()
@@ -34,7 +47,10 @@ function defaultMonitoringTimeRange(): [number, number] {
   if (endMs - startMs > MONITORING_MAX_RANGE_MS) {
     startMs = endMs - MONITORING_MAX_RANGE_MS
   }
-  return [startMs, endMs]
+  return {
+    start: formatDate(startMs, 'YYYY-MM-DD HH:mm:ss'),
+    end: formatDate(endMs, 'YYYY-MM-DD HH:mm:ss'),
+  }
 }
 
 /**
@@ -65,8 +81,8 @@ export function useMonitoringModel() {
     hotRoutes: [],
   })
 
-  /** 时间范围 */
-  const timeRange = ref<[number, number] | null>(null)
+  /** 时间范围（RsDatePicker valueFormat=string） */
+  const timeRange = ref<DateTimeRangeValue | null>(null)
 
   /** 时间粒度 */
   const timeGranularity = ref<TimeGranularity>('MINUTE' as TimeGranularity)
@@ -77,29 +93,56 @@ export function useMonitoringModel() {
 
   // ============= 搜索表单配置 =============
 
-  /** 默认时间范围（当前时刻前 1 小时 ～ 当日 23:59） */
-  const initTimeRange = (): [number, number] => defaultMonitoringTimeRange()
+  /** 默认时间范围 */
+  const initTimeRange = (): DateTimeRangeValue => defaultMonitoringTimeRange()
 
   /** 时间范围快捷选项（限制在24小时内） */
-  const timeRangeShortcuts = {
-    '前1小时至今日23:59': () => defaultMonitoringTimeRange(),
-    最近1小时: () => {
-      const now = Date.now()
-      return [now - 3600000, now] as [number, number]
+  const timeRangeShortcuts = [
+    {
+      label: '前1小时至今日23:59',
+      value: () => defaultMonitoringTimeRange(),
     },
-    最近6小时: () => {
-      const now = Date.now()
-      return [now - 21600000, now] as [number, number]
+    {
+      label: '最近1小时',
+      value: () => {
+        const now = Date.now()
+        return {
+          start: formatDate(now - 3600000, 'YYYY-MM-DD HH:mm:ss'),
+          end: formatDate(now, 'YYYY-MM-DD HH:mm:ss'),
+        }
+      },
     },
-    最近12小时: () => {
-      const now = Date.now()
-      return [now - 43200000, now] as [number, number]
+    {
+      label: '最近6小时',
+      value: () => {
+        const now = Date.now()
+        return {
+          start: formatDate(now - 21600000, 'YYYY-MM-DD HH:mm:ss'),
+          end: formatDate(now, 'YYYY-MM-DD HH:mm:ss'),
+        }
+      },
     },
-    最近24小时: () => {
-      const now = Date.now()
-      return [now - 86400000, now] as [number, number]
+    {
+      label: '最近12小时',
+      value: () => {
+        const now = Date.now()
+        return {
+          start: formatDate(now - 43200000, 'YYYY-MM-DD HH:mm:ss'),
+          end: formatDate(now, 'YYYY-MM-DD HH:mm:ss'),
+        }
+      },
     },
-  }
+    {
+      label: '最近24小时',
+      value: () => {
+        const now = Date.now()
+        return {
+          start: formatDate(now - 86400000, 'YYYY-MM-DD HH:mm:ss'),
+          end: formatDate(now, 'YYYY-MM-DD HH:mm:ss'),
+        }
+      },
+    },
+  ]
 
   /** 时间粒度选项 */
   const timeGranularityOptions = [
@@ -108,8 +151,9 @@ export function useMonitoringModel() {
     { label: '按天', value: 'DAY' as TimeGranularity },
   ]
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
+    labelWidth: '8rem',
     fields: [
       {
         field: 'gatewayInstanceId',
@@ -128,20 +172,12 @@ export function useMonitoringModel() {
         required: true,
         rules: [
           {
-            validator: (_rule: any, value: any) => {
-              if (!value || !Array.isArray(value) || value.length !== 2 || !value[0] || !value[1]) {
-                return new Error('请选择时间范围')
-              }
-              const startTime = value[0]
-              const endTime = value[1]
-              const duration = endTime - startTime
-              const maxDuration = 24 * 60 * 60 * 1000 // 24小时的毫秒数
-              if (duration > maxDuration) {
-                return new Error('时间范围不能超过24小时')
-              }
-              if (duration <= 0) {
-                return new Error('结束时间必须大于开始时间')
-              }
+            validator: (value: unknown) => {
+              const bounds = rangeToMs(value)
+              if (!bounds) return '请选择时间范围'
+              const duration = bounds[1] - bounds[0]
+              if (duration > MONITORING_MAX_RANGE_MS) return '时间范围不能超过24小时'
+              if (duration <= 0) return '结束时间必须大于开始时间'
               return true
             },
             trigger: ['change', 'blur'],
@@ -171,24 +207,22 @@ export function useMonitoringModel() {
         required: true,
         rules: [
           {
-            validator: (_rule: any, value: any) => {
+            validator: (value: unknown) => {
               if (value === undefined || value === null || String(value).trim() === '') {
-                return new Error('请选择或输入网关实例名称')
+                return '请选择或输入网关实例名称'
               }
               return true
             },
-            trigger: ['change', 'blur', 'input'],
+            trigger: ['change', 'blur'],
           },
         ],
-        render: (formData: Record<string, any>) => {
+        render: (formData: Record<string, any>, ctx) => {
           return h(GatewayInstanceNameSelector, {
-            modelValue: formData.gatewayInstanceName || '',
+            modelValue: (ctx.value as string) || '',
             gatewayInstanceId: formData.gatewayInstanceId || '',
-            'onUpdate:modelValue': (value: string) => {
-              formData.gatewayInstanceName = value
-            },
+            'onUpdate:modelValue': (value: string) => ctx.onUpdate(value),
             'onUpdate:gatewayInstanceId': (value: string) => {
-              formData.gatewayInstanceId = value
+              ctx.setFieldValue('gatewayInstanceId', value)
             },
           })
         },
@@ -198,12 +232,10 @@ export function useMonitoringModel() {
         label: '路由名称',
         type: 'custom',
         span: 8,
-        render: (formData: Record<string, any>) => {
+        render: (formData: Record<string, any>, ctx) => {
           return h(RouteNameSelector, {
-            modelValue: formData.routeName || '',
-            'onUpdate:modelValue': (value: string) => {
-              formData.routeName = value
-            },
+            modelValue: (ctx.value as string) || '',
+            'onUpdate:modelValue': (value: string) => ctx.onUpdate(value),
             gatewayInstanceId: formData.gatewayInstanceId || undefined,
           })
         },
@@ -221,7 +253,7 @@ export function useMonitoringModel() {
       {
         key: 'refresh',
         label: '刷新数据',
-        icon: RefreshOutline,
+        icon: 'RefreshOutline',
         type: 'primary',
         tooltip: '刷新监控数据',
       },
@@ -277,7 +309,11 @@ export function useMonitoringModel() {
    * 拉取网关实例列表第一条并写入搜索表单（与网关日志一致）。
    * 监控页由 initPageData 统一拉数，此处不触发 submit。
    */
-  const bootstrapDefaultGatewayInstance = async (searchFormRef: Ref<any>) => {
+  const bootstrapDefaultGatewayInstance = async (searchFormRef: Ref<RsSearchFormExpose | null>) => {
+    const existing = searchFormRef.value?.getFormData?.() || {}
+    if (String(existing.gatewayInstanceId || existing.gatewayInstanceName || '').trim()) {
+      return
+    }
     try {
       const res = await queryGatewayInstances({
         ...createBackendPaginationParams(1, 1),

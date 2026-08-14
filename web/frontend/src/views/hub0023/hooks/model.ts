@@ -3,8 +3,8 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsTagVariant } from '@/ui'
 import type { PageInfoObj } from '@/types/api'
 import { formatDate, formatFileSize } from '@/utils/format'
 import { DownloadOutline, EyeOutline, RefreshOutline } from '@vicons/ionicons5'
@@ -36,41 +36,61 @@ export function useGatewayLogModel() {
     return [startOfDay.getTime(), endOfDay.getTime()]
   }
 
-  /** 时间范围快捷选项 */
-  const timeRangeShortcuts = {
-    '今天': () => {
-      const today = new Date()
-      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0)
-      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59)
-      return [startOfDay.getTime(), endOfDay.getTime()] as [number, number]
+  /** 时间范围快捷选项（RsDatePicker shortcuts 数组格式） */
+  const timeRangeShortcuts = [
+    {
+      label: '今天',
+      value: () => {
+        const today = new Date()
+        const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0)
+        const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59)
+        return [startOfDay.getTime(), endOfDay.getTime()] as [number, number]
+      },
     },
-    '昨天': () => {
-      const yesterday = new Date()
-      yesterday.setDate(yesterday.getDate() - 1)
-      const startOfDay = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 0, 0, 0)
-      const endOfDay = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59)
-      return [startOfDay.getTime(), endOfDay.getTime()] as [number, number]
+    {
+      label: '昨天',
+      value: () => {
+        const yesterday = new Date()
+        yesterday.setDate(yesterday.getDate() - 1)
+        const startOfDay = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 0, 0, 0)
+        const endOfDay = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59)
+        return [startOfDay.getTime(), endOfDay.getTime()] as [number, number]
+      },
     },
-    '最近1小时': () => {
-      const now = Date.now()
-      return [now - 3600000, now] as [number, number]
+    {
+      label: '最近1小时',
+      value: () => {
+        const now = Date.now()
+        return [now - 3600000, now] as [number, number]
+      },
     },
-    '最近6小时': () => {
-      const now = Date.now()
-      return [now - 21600000, now] as [number, number]
+    {
+      label: '最近6小时',
+      value: () => {
+        const now = Date.now()
+        return [now - 21600000, now] as [number, number]
+      },
     },
-    '最近24小时': () => {
-      const now = Date.now()
-      return [now - 86400000, now] as [number, number]
+    {
+      label: '最近24小时',
+      value: () => {
+        const now = Date.now()
+        return [now - 86400000, now] as [number, number]
+      },
     },
-    '最近7天': () => {
-      const now = Date.now()
-      return [now - 604800000, now] as [number, number]
-    }
-  }
+    {
+      label: '最近7天',
+      value: () => {
+        const now = Date.now()
+        return [now - 604800000, now] as [number, number]
+      },
+    },
+  ]
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
+    // 覆盖最长标签（如「报文体关键字」），固定列宽保证查询列对齐
+    labelWidth: '8rem',
     fields: [
       {
         field: 'timeRange',
@@ -81,9 +101,9 @@ export function useGatewayLogModel() {
         clearable: true,
         rules: [
           {
-            validator: (_rule: any, value: any) => {
+            validator: (value: unknown) => {
               if (!value || !Array.isArray(value) || value.length !== 2 || !value[0] || !value[1]) {
-                return new Error('请选择时间范围')
+                return '请选择时间范围'
               }
               return true
             },
@@ -272,8 +292,8 @@ export function useGatewayLogModel() {
 
   // ============= 表格配置 =============
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置 */
+  const gridConfig = {
     rowId: 'traceId',
     columns: [
       {
@@ -440,7 +460,7 @@ export function useGatewayLogModel() {
       enabled: true,
       showCopyRow: true,
       showCopyCell: true,
-      customMenus: [
+      options: [
         {
           code: 'view',
           name: '查看详情',
@@ -495,12 +515,12 @@ export function useGatewayLogModel() {
   /**
    * 获取请求方法的标签类型
    */
-  const getMethodTagType = (method?: string): 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary' => {
-    const methodColors: Record<string, 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary'> = {
+  const getMethodTagType = (method?: string): RsTagVariant => {
+    const methodColors: Record<string, RsTagVariant> = {
       GET: 'success',
       POST: 'info',
       PUT: 'warning',
-      DELETE: 'error',
+      DELETE: 'danger',
       PATCH: 'default',
       HEAD: 'default',
       OPTIONS: 'default',
@@ -511,14 +531,14 @@ export function useGatewayLogModel() {
   /**
    * 获取状态码的标签类型
    */
-  const getStatusCodeTagType = (statusCode?: number): 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary' => {
+  const getStatusCodeTagType = (statusCode?: number): RsTagVariant => {
     if (!statusCode) return 'default'
     if (statusCode >= 200 && statusCode < 300) {
       return 'success'
     } else if (statusCode >= 300 && statusCode < 400) {
       return 'warning'
     } else if (statusCode >= 400) {
-      return 'error'
+      return 'danger'
     }
     return 'default'
   }
@@ -530,9 +550,9 @@ export function useGatewayLogModel() {
     time: number,
     errorThreshold: number,
     warningThreshold: number
-  ): 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary' => {
+  ): RsTagVariant => {
     if (time > errorThreshold) {
-      return 'error'
+      return 'danger'
     } else if (time > warningThreshold) {
       return 'warning'
     } else {
@@ -543,12 +563,12 @@ export function useGatewayLogModel() {
   /**
    * 获取处理状态的标签类型
    */
-  const getProcessingStatusTagType = (row: GatewayLogListItem): 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary' => {
+  const getProcessingStatusTagType = (row: GatewayLogListItem): RsTagVariant => {
     const isFinished = !!row.gatewayFinishedProcessingTime
     const hasError = !!row.errorMessage
 
     if (hasError) {
-      return 'error'
+      return 'danger'
     } else if (isFinished) {
       return 'success'
     } else {
@@ -575,12 +595,12 @@ export function useGatewayLogModel() {
   /**
    * 获取代理类型的标签类型
    */
-  const getProxyTypeTagType = (proxyType?: string): 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary' => {
-    const typeColors: Record<string, 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary'> = {
+  const getProxyTypeTagType = (proxyType?: string): RsTagVariant => {
+    const typeColors: Record<string, RsTagVariant> = {
       http: 'info',
       websocket: 'warning',
       tcp: 'success',
-      udp: 'error',
+      udp: 'danger',
     }
     return typeColors[proxyType || ''] || 'default'
   }
@@ -588,12 +608,12 @@ export function useGatewayLogModel() {
   /**
    * 获取日志级别的标签类型
    */
-  const getLogLevelTagType = (logLevel?: string): 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary' => {
-    const levelColors: Record<string, 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary'> = {
+  const getLogLevelTagType = (logLevel?: string): RsTagVariant => {
+    const levelColors: Record<string, RsTagVariant> = {
       DEBUG: 'default',
       INFO: 'info',
       WARN: 'warning',
-      ERROR: 'error',
+      ERROR: 'danger',
     }
     return levelColors[logLevel || ''] || 'default'
   }

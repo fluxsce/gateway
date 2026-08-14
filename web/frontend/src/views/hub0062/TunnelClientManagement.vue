@@ -1,32 +1,37 @@
 <template>
   <div class="tunnel-management" :id="moduleId">
-    <n-tabs type="line" placement="left" class="management-tabs">
-      <!-- 客户端管理标签页 -->
-      <n-tab-pane name="client" tab="客户端管理">
-        <TunnelClientList />
-      </n-tab-pane>
-
-      <!-- 服务管理标签页 -->
-      <n-tab-pane name="service" tab="服务管理">
-        <TunnelServiceManagement />
-      </n-tab-pane>
-    </n-tabs>
+    <RsTabs
+      v-model="activeTab"
+      :items="tabItems"
+      variant="line"
+      size="md"
+      borderless
+      panelless
+      class="management-tabs"
+    />
+    <div class="management-tabs__content">
+      <TunnelClientList v-show="activeTab === 'client'" />
+      <TunnelServiceManagement v-show="activeTab === 'service'" />
+    </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { NTabs } from 'naive-ui'
+import { RsTabs, type RsTabItem } from '@/ui'
+import { ref } from 'vue'
 import { TunnelServiceManagement } from './components/client-service'
 import { TunnelClientList } from './components/tunnel-client'
 
-// 定义组件名称
 defineOptions({
-  name: 'TunnelClientManagement'
+  name: 'TunnelClientManagement',
 })
 
-// ============= 获取模块ID（用于样式作用域） =============
-
 const moduleId = 'hub0062'
+const activeTab = ref('client')
+const tabItems: RsTabItem[] = [
+  { value: 'client', label: '客户端管理' },
+  { value: 'service', label: '服务管理' },
+]
 </script>
 
 <style lang="scss" scoped>
@@ -34,27 +39,17 @@ const moduleId = 'hub0062'
   width: 100%;
   height: 100%;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 
-  .management-tabs {
-    height: 100%;
-    :deep(.n-tabs-content) {
-      height: 100%;
-    }
+.management-tabs {
+  flex: 0 0 auto;
+}
 
-    :deep(.n-tab-pane) {
-      height: 100%;
-      width: 100%;
-      padding: 0px !important;
-      min-width: 0; /* 允许 flex 子元素收缩 */
-    }
-    
-    /* 确保 tabs 内容区域宽度正确（placement="left" 时） */
-    :deep(.n-tabs-pane-wrapper) {
-      width: 100%;
-      height: 100%;
-    }
-    
-  }
+.management-tabs__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 </style>
-

@@ -3,21 +3,27 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import { GCodeMirror } from '@/components'
-import type { DataFormField } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsDataFormField, RsDataFormRenderContext } from '@/components/form/rs-data'
+import type { RsSearchFormProps, RsSearchFormRenderContext } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
+import { RsCodeEditor, RsRadio, RsRadioItem, type RsCodeEditorLanguage, type RsRadioValue } from '@/ui'
 import { formatDate } from '@/utils/format'
-import {
-  AddOutline,
-  CreateOutline,
-  TrashOutline
-} from '@vicons/ionicons5'
-import { NRadio, NRadioGroup } from 'naive-ui'
 import { h, ref } from 'vue'
 import { NamespaceNameSelector } from '../../../../hub0041/components'
 import type { Config } from '../../../types/index'
+
+/**
+ * 配置表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface ConfigGridConfig {
+  columns: RsGridColumn<Config>[]
+  selectable: boolean
+  rowKey: string | ((row: Config) => string)
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
 
 /**
  * 配置管理 Model
@@ -36,8 +42,8 @@ export function useConfigModel() {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'namespaceId',
@@ -45,16 +51,13 @@ export function useConfigModel() {
         type: 'custom',
         span: 6,
         required: true,
-        render: (formData: Record<string, any>) => {
+        render: (_formData: Record<string, any>, ctx: RsSearchFormRenderContext) => {
           return h(NamespaceNameSelector, {
-            modelValue: formData.namespaceId || '',
-            'onUpdate:modelValue': (value: string) => {
-              formData.namespaceId = value
-            },
-            onSelect: (namespace: any) => {
-              // 选择命名空间后，可以在这里处理额外逻辑
-              if (namespace) {
-                formData.namespaceId = namespace.namespaceId
+            modelValue: (ctx.value as string) || '',
+            'onUpdate:modelValue': (value: string) => ctx.onUpdate(value),
+            onSelect: (namespace: { namespaceId?: string } | null) => {
+              if (namespace?.namespaceId) {
+                ctx.onUpdate(namespace.namespaceId)
               }
             },
           })
@@ -98,20 +101,20 @@ export function useConfigModel() {
       {
         key: 'add',
         label: '新建配置',
-        icon: AddOutline,
+        icon: 'AddOutline',
         type: 'primary',
         tooltip: '新建配置',
       },
       {
         key: 'edit',
         label: '编辑',
-        icon: CreateOutline,
+        icon: 'CreateOutline',
         tooltip: '编辑选中的配置',
       },
       {
         key: 'delete',
         label: '删除',
-        icon: TrashOutline,
+        icon: 'TrashOutline',
         type: 'error',
         tooltip: '删除选中的配置',
       },
@@ -131,20 +134,16 @@ export function useConfigModel() {
         span: 12,
         required: true,
         primary: true,
-        disabled: true,
-        render: (formData: Record<string, any>) => {
-          // 编辑模式下禁用命名空间ID（通过检查是否有configDataId判断是否为编辑模式）
-          const isEditMode = true
+        render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
+          // 编辑/查看时锁定命名空间，新增时可从搜索条件带入后仍允许改选
+          const locked = formData._mode === 'edit' || formData._mode === 'view'
           return h(NamespaceNameSelector, {
-            modelValue: formData.namespaceId || '',
-            disabled: isEditMode,
-            'onUpdate:modelValue': (value: string) => {
-              formData.namespaceId = value
-            },
-            onSelect: (namespace: any) => {
-              // 选择命名空间后，可以在这里处理额外逻辑
-              if (namespace) {
-                formData.namespaceId = namespace.namespaceId
+            modelValue: (ctx?.value as string) || formData.namespaceId || '',
+            disabled: locked,
+            'onUpdate:modelValue': (value: string) => ctx?.onUpdate(value),
+            onSelect: (namespace: { namespaceId?: string } | null) => {
+              if (namespace?.namespaceId) {
+                ctx?.onUpdate(namespace.namespaceId)
               }
             },
           })
@@ -204,148 +203,153 @@ export function useConfigModel() {
         span: 12,
         disabled: true,
       },
-      // ============= 内容类型（使用radio，放在配置内容上面） =============
+      // ============= 内容类型（使用 radio，放在配置内容上面） =============
       {
         field: 'contentType',
         label: '内容类型',
         type: 'custom',
         span: 24,
         defaultValue: 'text',
-        render: (formData: Record<string, any>) => {
-          return h(NRadioGroup, {
-            value: formData.contentType || 'text',
-            'onUpdate:value': (value: string) => {
-              formData.contentType = value
+        render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
+          return h(
+            RsRadio,
+            {
+              modelValue: (ctx?.value as string) || formData.contentType || 'text',
+              'onUpdate:modelValue': (value?: RsRadioValue) => {
+                if (typeof value === 'string') {
+                  ctx?.onUpdate(value)
+                }
+              },
+              size: 'sm',
             },
-          }, {
-            default: () => [
-              h(NRadio, { label: '文本', value: 'text' }),
-              h(NRadio, { label: 'JSON', value: 'json' }),
-              h(NRadio, { label: 'XML', value: 'xml' }),
-              h(NRadio, { label: 'YAML', value: 'yaml' }),
-              h(NRadio, { label: 'Properties', value: 'properties' }),
-            ]
-          })
+            {
+              default: () => [
+                h(RsRadioItem, { value: 'text' }, () => '文本'),
+                h(RsRadioItem, { value: 'json' }, () => 'JSON'),
+                h(RsRadioItem, { value: 'xml' }, () => 'XML'),
+                h(RsRadioItem, { value: 'yaml' }, () => 'YAML'),
+                h(RsRadioItem, { value: 'properties' }, () => 'Properties'),
+              ],
+            },
+          )
         },
       },
-      // ============= 配置内容（使用GCodeMirror） =============
+      // ============= 配置内容（使用 RsCodeEditor） =============
       {
         field: 'configContent',
         label: '配置内容',
         type: 'custom',
         span: 24,
         required: true,
-        render: (formData: Record<string, any>) => {
-          // 根据contentType动态设置language
-          const contentTypeToLanguage: Record<string, string> = {
-            'text': 'plaintext',
-            'json': 'json',
-            'xml': 'xml',
-            'yaml': 'yaml',
-            'properties': 'properties', // 使用 legacy-modes 的 properties 模式
+        render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
+          const contentTypeToLanguage: Record<string, RsCodeEditorLanguage> = {
+            text: 'plaintext',
+            json: 'json',
+            xml: 'xml',
+            yaml: 'yaml',
+            properties: 'plaintext',
           }
           const language = contentTypeToLanguage[formData.contentType || 'text'] || 'plaintext'
-          
-          return h(GCodeMirror, {
-            modelValue: formData.configContent || '',
-            language: language as any,
-            'onUpdate:modelValue': (value: string) => {
-              formData.configContent = value
-            },
+
+          return h(RsCodeEditor, {
+            modelValue: (ctx?.value as string) || formData.configContent || '',
+            language,
+            'onUpdate:modelValue': (value: string) => ctx?.onUpdate(value),
             height: '400px',
+            showToolbar: false,
             placeholder: '请输入配置内容',
           })
         },
       },
-    ] as DataFormField[],
+    ] as RsDataFormField[],
   }
 
   // ============= 表格配置 =============
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置（符合 RsGrid Props 结构，排除响应式数据） */
+  const gridConfig: ConfigGridConfig = {
     columns: [
       {
-        field: 'configDataId',
+        key: 'configDataId',
         title: '配置ID',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 200,
       },
       {
-        field: 'namespaceId',
+        key: 'namespaceId',
         title: '命名空间',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 150,
       },
       {
-        field: 'groupName',
+        key: 'groupName',
         title: '分组名称',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 150,
       },
       {
-        field: 'contentType',
+        key: 'contentType',
         title: '内容类型',
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 120,
-        formatter: ({ cellValue }) => {
+        formatter: (value) => {
           const typeMap: Record<string, string> = {
-            'text': '文本',
-            'json': 'JSON',
-            'xml': 'XML',
-            'yaml': 'YAML',
-            'properties': 'Properties',
+            text: '文本',
+            json: 'JSON',
+            xml: 'XML',
+            yaml: 'YAML',
+            properties: 'Properties',
           }
-          return typeMap[cellValue] || cellValue
+          const key = typeof value === 'string' ? value : ''
+          return typeMap[key] || key
         },
       },
       {
-        field: 'configDescription',
+        key: 'configDescription',
         title: '描述',
         align: 'left',
-        showOverflow: true,
+        ellipsis: true,
         width: 200,
       },
       {
-        field: 'version',
+        key: 'version',
         title: '版本',
         align: 'center',
         width: 80,
       },
       {
-        field: 'md5Value',
+        key: 'md5Value',
         title: 'MD5',
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 120,
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 160,
-        formatter: ({ cellValue }) => {
-          if (!cellValue) return ''
-          return formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss')
-        },
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
-        field: 'addWho',
+        key: 'addWho',
         title: '创建人',
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
         width: 120,
       },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: (row) => `${row.namespaceId}::${row.groupName}::${row.configDataId}`,
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -353,29 +357,11 @@ export function useConfigModel() {
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      showCopyCell: true,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-        {
-          code: 'edit',
-          name: '编辑',
-          prefixIcon: 'vxe-icon-edit',
-        },
-        {
-          code: 'history',
-          name: '历史版本',
-          prefixIcon: 'vxe-icon-time',
-        },
-        {
-          code: 'delete',
-          name: '删除',
-          prefixIcon: 'vxe-icon-delete',
-        },
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'history', label: '历史版本', icon: 'clock' },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
       ],
     },
     height: '100%',
@@ -500,4 +486,3 @@ export function useConfigModel() {
  * Model 返回类型
  */
 export type ConfigModel = ReturnType<typeof useConfigModel>
-

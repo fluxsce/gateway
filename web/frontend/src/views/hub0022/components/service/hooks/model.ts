@@ -3,14 +3,14 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { DataFormField, DataFormTab } from '@/components/form/data/types'
+import type { RsDataFormField, RsDataFormRenderContext, RsDataFormTab } from '@/components/form/rs-data'
 import type { RsSearchFormProps } from '@/components/form/rs-search'
 import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
 import { RsTag } from '@/ui'
 import { formatDate } from '@/utils/format'
-import type { ServiceSelectionMetadata } from '@/views/hub0042/components'
-import { ServiceSelector } from '@/views/hub0042/components'
+import type { ServiceSelectionMetadata } from '@/views/hub0042/components/ServiceSelector.vue'
+import ServiceSelector from '@/views/hub0042/components/ServiceSelector.vue'
 import { h, ref } from 'vue'
 import type { ServiceDefinition } from '../types'
 import { LoadBalanceStrategy, ServiceType } from '../types'
@@ -151,7 +151,7 @@ export function useServiceDefinitionModel() {
         key: 'other',
         label: '其它配置',
       },
-    ] as DataFormTab[],
+    ] as RsDataFormTab[],
     fields: [
       // ============= 主键字段（隐藏，但必须存在用于编辑） =============
       {
@@ -218,14 +218,14 @@ export function useServiceDefinitionModel() {
                 required: true,
                 message: '请选择服务类型',
                 trigger: ['blur', 'change'],
-                validator: (_rule: any, value: any) => {
+                validator: (value: unknown) => {
                   if (value === null || value === undefined || value === '') {
-                    return new Error('请选择服务类型')
+                    return '请选择服务类型'
                   }
                   if (typeof value === 'number' && (value === 0 || value === 1)) {
                     return true
                   }
-                  return new Error('请选择有效的服务类型')
+                  return '请选择有效的服务类型'
                 },
               },
             ],
@@ -273,9 +273,9 @@ export function useServiceDefinitionModel() {
                 required: true,
                 message: '请选择负载均衡策略',
                 trigger: ['blur', 'change'],
-                validator: (_rule: any, value: any, _formData: Record<string, any>) => {
+                validator: (value: unknown) => {
                   if (value === null || value === undefined || value === '') {
-                    return new Error('请选择负载均衡策略')
+                    return '请选择负载均衡策略'
                   }
                   return true
                 },
@@ -323,13 +323,13 @@ export function useServiceDefinitionModel() {
                 required: true,
                 message: '请输入最大重试次数',
                 trigger: ['blur', 'change'],
-                validator: (_rule: any, value: any) => {
+                validator: (value: unknown) => {
                   if (value === null || value === undefined || value === '') {
-                    return new Error('请输入最大重试次数')
+                    return '请输入最大重试次数'
                   }
                   const num = Number(value)
                   if (isNaN(num) || num < 0 || num > 10) {
-                    return new Error('重试次数必须在0-10之间')
+                    return '重试次数必须在0-10之间'
                   }
                   return true
                 },
@@ -353,13 +353,13 @@ export function useServiceDefinitionModel() {
                 required: true,
                 message: '请输入重试超时时间',
                 trigger: ['blur', 'change'],
-                validator: (_rule: any, value: any) => {
+                validator: (value: unknown) => {
                   if (value === null || value === undefined || value === '') {
-                    return new Error('请输入重试超时时间')
+                    return '请输入重试超时时间'
                   }
                   const num = Number(value)
                   if (isNaN(num) || num < 100 || num > 60000) {
-                    return new Error('超时时间必须在100-60000毫秒之间')
+                    return '超时时间必须在100-60000毫秒之间'
                   }
                   return true
                 },
@@ -415,9 +415,10 @@ export function useServiceDefinitionModel() {
                 required: true,
                 message: '请输入健康检查路径',
                 trigger: ['blur', 'input'],
-                validator: (_rule: any, value: any, formData: Record<string, any>) => {
-                  if (formData.healthCheckEnabled === 'Y' && (!value || value.trim() === '')) {
-                    return new Error('请输入健康检查路径')
+                validator: (value: unknown, ctx) => {
+                  const formData = ctx.getFieldsValue()
+                  if (formData.healthCheckEnabled === 'Y' && (typeof value !== 'string' || !value.trim())) {
+                    return '请输入健康检查路径'
                   }
                   return true
                 },
@@ -443,9 +444,10 @@ export function useServiceDefinitionModel() {
                 required: true,
                 message: '请选择健康检查方法',
                 trigger: ['blur', 'change'],
-                validator: (_rule: any, value: any, formData: Record<string, any>) => {
+                validator: (value: unknown, ctx) => {
+                  const formData = ctx.getFieldsValue()
                   if (formData.healthCheckEnabled === 'Y' && (!value || value === '')) {
-                    return new Error('请选择健康检查方法')
+                    return '请选择健康检查方法'
                   }
                   return true
                 },
@@ -470,9 +472,10 @@ export function useServiceDefinitionModel() {
                 required: true,
                 message: '请输入检查间隔',
                 trigger: ['blur', 'change'],
-                validator: (_rule: any, value: any, formData: Record<string, any>) => {
+                validator: (value: unknown, ctx) => {
+                  const formData = ctx.getFieldsValue()
                   if (formData.healthCheckEnabled === 'Y' && (value === null || value === undefined || value === '')) {
-                    return new Error('请输入检查间隔')
+                    return '请输入检查间隔'
                   }
                   return true
                 },
@@ -497,9 +500,10 @@ export function useServiceDefinitionModel() {
                 required: true,
                 message: '请输入检查超时',
                 trigger: ['blur', 'change'],
-                validator: (_rule: any, value: any, formData: Record<string, any>) => {
+                validator: (value: unknown, ctx) => {
+                  const formData = ctx.getFieldsValue()
                   if (formData.healthCheckEnabled === 'Y' && (value === null || value === undefined || value === '')) {
-                    return new Error('请输入检查超时')
+                    return '请输入检查超时'
                   }
                   return true
                 },
@@ -524,9 +528,10 @@ export function useServiceDefinitionModel() {
                 required: true,
                 message: '请输入健康阈值',
                 trigger: ['blur', 'change'],
-                validator: (_rule: any, value: any, formData: Record<string, any>) => {
+                validator: (value: unknown, ctx) => {
+                  const formData = ctx.getFieldsValue()
                   if (formData.healthCheckEnabled === 'Y' && (value === null || value === undefined || value === '')) {
-                    return new Error('请输入健康阈值')
+                    return '请输入健康阈值'
                   }
                   return true
                 },
@@ -551,9 +556,10 @@ export function useServiceDefinitionModel() {
                 required: true,
                 message: '请输入不健康阈值',
                 trigger: ['blur', 'change'],
-                validator: (_rule: any, value: any, formData: Record<string, any>) => {
+                validator: (value: unknown, ctx) => {
+                  const formData = ctx.getFieldsValue()
                   if (formData.healthCheckEnabled === 'Y' && (value === null || value === undefined || value === '')) {
-                    return new Error('请输入不健康阈值')
+                    return '请输入不健康阈值'
                   }
                   return true
                 },
@@ -574,9 +580,10 @@ export function useServiceDefinitionModel() {
                 required: true,
                 message: '请输入期望状态码',
                 trigger: ['blur', 'input'],
-                validator: (_rule: any, value: any, formData: Record<string, any>) => {
-                  if (formData.healthCheckEnabled === 'Y' && (!value || value.trim() === '')) {
-                    return new Error('请输入期望状态码')
+                validator: (value: unknown, ctx) => {
+                  const formData = ctx.getFieldsValue()
+                  if (formData.healthCheckEnabled === 'Y' && (typeof value !== 'string' || !value.trim())) {
+                    return '请输入期望状态码'
                   }
                   return true
                 },
@@ -625,9 +632,10 @@ export function useServiceDefinitionModel() {
                 required: true,
                 message: '请选择服务协议',
                 trigger: ['blur', 'change'],
-                validator: (_rule: any, value: any, formData: Record<string, any>) => {
+                validator: (value: unknown, ctx) => {
+                  const formData = ctx.getFieldsValue()
                   if (formData.serviceType === ServiceType.DISCOVERY && (!value || value === '')) {
-                    return new Error('请选择服务协议')
+                    return '请选择服务协议'
                   }
                   return true
                 },
@@ -657,7 +665,7 @@ export function useServiceDefinitionModel() {
         tabKey: 'basic',
         show: (formData: Record<string, any>) => formData.serviceType === ServiceType.DISCOVERY,
         tips: '从服务注册中心选择一个可用的服务，选择后会自动填充服务元数据',
-        render: (formData: Record<string, any>, context?: {
+        render: (formData: Record<string, any>, context?: RsDataFormRenderContext & {
           selectedService?: { value: ServiceSelectionMetadata | null }
           onServiceChange?: (metadata: ServiceSelectionMetadata | null) => void
           to?: string
@@ -678,20 +686,6 @@ export function useServiceDefinitionModel() {
           })
         },
       },
-      {
-        field: 'discoveryConfig',
-        label: '发现配置',
-        type: 'textarea',
-        placeholder: '{}',
-        span: 24,
-        tabKey: 'basic',
-        show: false,
-        props: {
-          rows: 5,
-        },
-      },
-
-      // ============= 其它配置 Tab（fieldset 分组）=============
       {
         field: 'other-status-fieldset',
         label: '状态与备注',
@@ -761,7 +755,7 @@ export function useServiceDefinitionModel() {
           },
         ],
       },
-    ] as DataFormField[],
+    ] as RsDataFormField[],
   }
 
   // ============= 表格配置 =============
@@ -981,7 +975,7 @@ export function useServiceDefinitionModel() {
    * 在列表中添加服务定义
    */
   const addServiceToList = (service: ServiceDefinition) => {
-    serviceList.value.push(service)
+    serviceList.value.unshift(service)
   }
 
   /**

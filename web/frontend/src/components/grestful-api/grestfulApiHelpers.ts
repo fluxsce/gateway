@@ -5,7 +5,7 @@
  * 与 `GRestfulApi.vue` 解耦；不含 Vue 响应式状态。
  */
 
-import type { CodeMirrorLanguage } from '@/components/gcodemirror/types'
+import type { RsCodeEditorLanguage } from '@/ui'
 import { randomUUID } from '@/utils/uuid'
 import type { RestBodyProcessType, RestHttpMethod, RestKeyValueRow } from './types'
 import { createKeyValueRow } from './types'
@@ -104,12 +104,12 @@ export function deriveBodyContentType(
  *
  * @param bodyProcessType - Body 处理类型
  * @param rawContentType - Raw 模式下的 Content-Type 字符串
- * @returns CodeMirror 语言标识
+ * @returns RsCodeEditor 语言标识
  */
 export function inferRawEditorLanguage(
   bodyProcessType: RestBodyProcessType,
   rawContentType: string
-): CodeMirrorLanguage {
+): RsCodeEditorLanguage {
   if (bodyProcessType === 'graphql') {
     return 'json'
   }

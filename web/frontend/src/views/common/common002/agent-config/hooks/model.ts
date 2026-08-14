@@ -192,11 +192,11 @@ export function useUserAgentAccessConfigModel(moduleId: string) {
           render: createPatternListRender('whitelistPatterns', '输入允许的User-Agent模式，如：Mozilla/.*Chrome.*'),
           rules: [
             {
-              validator: (_rule: any, value: string[]) => {
-                if (!value || value.length === 0) return true
-                const result = validateRegexList(value)
+              validator: (value: unknown) => {
+                if (!Array.isArray(value) || value.length === 0) return true
+                const result = validateRegexList(value.map(String))
                 if (!result.valid) {
-                  return new Error(`无效的正则表达式：${result.invalidPatterns.join(', ')}`)
+                  return `无效的正则表达式：${result.invalidPatterns.join(', ')}`
                 }
                 return true
               },
@@ -223,11 +223,11 @@ export function useUserAgentAccessConfigModel(moduleId: string) {
           render: createPatternListRender('blacklistPatterns', '输入禁止的User-Agent模式，如：.*Bot.*'),
           rules: [
             {
-              validator: (_rule: any, value: string[]) => {
-                if (!value || value.length === 0) return true
-                const result = validateRegexList(value)
+              validator: (value: unknown) => {
+                if (!Array.isArray(value) || value.length === 0) return true
+                const result = validateRegexList(value.map(String))
                 if (!result.valid) {
-                  return new Error(`无效的正则表达式：${result.invalidPatterns.join(', ')}`)
+                  return `无效的正则表达式：${result.invalidPatterns.join(', ')}`
                 }
                 return true
               },

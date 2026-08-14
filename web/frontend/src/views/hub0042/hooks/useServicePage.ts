@@ -127,15 +127,14 @@ export function useServicePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any
   }
 
   /**
-   * 获取选中的行（优先复选框选中，其次当前选中行）
+   * 获取选中的行（优先勾选，无勾选时取高亮行）
    */
   const getSelectedRows = (): Service[] => {
-    const checkboxRows = gridRef?.value?.getCheckboxRecords() || []
-    if (checkboxRows.length > 0) {
-      return checkboxRows
+    const activeRows = gridRef?.value?.getActiveRows?.() || []
+    if (activeRows.length > 0) {
+      return activeRows
     }
-    // 如果没有复选框选中，尝试获取当前选中行（优先勾选，无勾选时取高亮行）
-    const selectedRow = gridRef?.value?.getSelectedOrCurrentRecord()
+    const selectedRow = gridRef?.value?.getSelectedOrCurrentRecord?.()
     return selectedRow ? [selectedRow] : []
   }
 
@@ -144,7 +143,7 @@ export function useServicePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any
    * @param key 按钮key
    * @param namespace 选中的命名空间（可选），用于新增服务时预填充
    */
-  const handleToolbarClick = (key: string, namespace?: { namespaceId: string } | null) => {
+  const handleToolbarClick = async (key: string, namespace?: { namespaceId: string } | null) => {
     switch (key) {
       case 'add':
         openAddDialog(namespace)
@@ -159,16 +158,24 @@ export function useServicePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any
           message.warning('只能编辑一个服务')
           return
         }
-        openEditDialog(selectedRows[0])
+        await openEditDialog(selectedRows[0])
         break
-      case 'delete':
+      case 'delete': {
         const deleteRows = getSelectedRows()
         if (deleteRows.length === 0) {
           message.warning('请先选择要删除的服务')
           return
         }
-        handleBatchDelete(deleteRows)
+        if (deleteRows.length === 1) {
+          const success = await service.deleteService(deleteRows[0])
+          if (success) {
+            await service.handleRefresh()
+          }
+          return
+        }
+        await handleBatchDelete(deleteRows)
         break
+      }
     }
   }
 
@@ -191,7 +198,10 @@ export function useServicePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any
 
     let successCount = 0
     for (const serviceItem of services) {
-      const success = await service.deleteService(serviceItem)
+      const success = await service.deleteService(serviceItem, {
+        skipConfirm: true,
+        silentSuccess: true,
+      })
       if (success) {
         successCount++
       }
@@ -204,14 +214,14 @@ export function useServicePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any
   }
 
   /**
-   * 处理表格右键菜单（适配 GGrid 的事件格式）
+   * 处理表格右键菜单
    */
-  const handleMenuClick = async (params: { code: string; row?: any }) => {
+  const handleMenuClick = async (params: { key: string; row?: any }) => {
     if (!params.row) {
       return
     }
     const row = params.row as Service
-    switch (params.code) {
+    switch (params.key) {
       case 'view':
         // view 操作现在由父组件处理，通过 openServiceDetail
         // 这里可以触发一个事件或者直接调用父组件的方法
@@ -227,14 +237,14 @@ export function useServicePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any
   }
 
   /**
-   * 搜索处理
+   * 处理搜索（接收 RsSearchForm 传递的表单数据）
    */
-  const handleSearch = () => {
-    service.handleSearch()
+  const handleSearch = (formData?: Record<string, any>) => {
+    service.handleSearch(undefined, formData)
   }
 
   /**
-   * 表单提交处理（适配 GdataFormModal 的提交格式）
+   * 表单提交处理（适配 RsDataFormModal 的提交格式）
    */
   const handleFormSubmit = (formData?: Record<string, any>) => {
     if (formData) {

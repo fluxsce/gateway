@@ -6,18 +6,29 @@
 import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { formatDate, getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import * as gatewayLogApi from '../../../api'
 import type { GatewayLogListItem, GatewayLogQueryParams, GatewayLogResetParams } from '../../../types'
 import { useGatewayLogModel } from './model'
+
+/** 从 RsDatePicker range（valueFormat=string）取出起止时间并转为接口格式 */
+function resolveTimeRangeBounds(timeRange: unknown): { start?: string; end?: string } {
+  if (!timeRange || typeof timeRange !== 'object' || Array.isArray(timeRange)) return {}
+  const { start, end } = timeRange as { start?: string; end?: string }
+  if (!start || !end) return {}
+  return {
+    start: formatDate(start, 'YYYY-MM-DDTHH:mm:ss'),
+    end: formatDate(end, 'YYYY-MM-DDTHH:mm:ss'),
+  }
+}
 
 /**
  * 网关日志服务 Hook（纯业务逻辑）
  * @param searchFormRef 搜索表单引用
  */
 export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 初始化 Model
   const model = useGatewayLogModel()
@@ -50,10 +61,12 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
       const processedParams: Partial<GatewayLogQueryParams> = {}
       if (finalSearchParams) {
         Object.keys(finalSearchParams).forEach(key => {
-          if (key === 'timeRange' && Array.isArray(finalSearchParams[key]) && finalSearchParams[key].length === 2) {
-            // 转换时间范围
-            processedParams.startTime = formatDate(finalSearchParams[key][0], 'YYYY-MM-DDTHH:mm:ss')
-            processedParams.endTime = formatDate(finalSearchParams[key][1], 'YYYY-MM-DDTHH:mm:ss')
+          if (key === 'timeRange') {
+            const bounds = resolveTimeRangeBounds(finalSearchParams[key])
+            if (bounds.start && bounds.end) {
+              processedParams.startTime = bounds.start
+              processedParams.endTime = bounds.end
+            }
           } else if (finalSearchParams[key] !== '' && finalSearchParams[key] !== null && finalSearchParams[key] !== undefined) {
             // 过滤掉空字符串、null 和 undefined 的查询条件
             ;(processedParams as Record<string, any>)[key] = finalSearchParams[key]
@@ -208,9 +221,12 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
       const processedParams: Partial<GatewayLogQueryParams> = {}
       if (finalSearchParams) {
         Object.keys(finalSearchParams).forEach(key => {
-          if (key === 'timeRange' && Array.isArray(finalSearchParams[key]) && finalSearchParams[key].length === 2) {
-            processedParams.startTime = formatDate(finalSearchParams[key][0], 'YYYY-MM-DDTHH:mm:ss')
-            processedParams.endTime = formatDate(finalSearchParams[key][1], 'YYYY-MM-DDTHH:mm:ss')
+          if (key === 'timeRange') {
+            const bounds = resolveTimeRangeBounds(finalSearchParams[key])
+            if (bounds.start && bounds.end) {
+              processedParams.startTime = bounds.start
+              processedParams.endTime = bounds.end
+            }
           } else if (finalSearchParams[key] !== '' && finalSearchParams[key] !== null && finalSearchParams[key] !== undefined) {
             ;(processedParams as Record<string, any>)[key] = finalSearchParams[key]
           }

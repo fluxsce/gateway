@@ -38,7 +38,7 @@
       </template>
     </RsSplitPane>
 
-    <GdataFormModal
+    <RsDataFormModal
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
       :title="formDialogMode === 'create' ? '新增服务定义' : formDialogMode === 'edit' ? '编辑服务定义' : '查看服务定义详情'"
@@ -62,7 +62,7 @@
 </template>
 
 <script lang="ts" setup>
-import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
+import { RsDataFormModal } from '@/components/form/rs-data'
 import { RsSearchForm } from '@/components/form/rs-search'
 import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
 import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
@@ -74,6 +74,7 @@ defineOptions({
   name: 'ServiceDefinitionList'
 })
 
+/** 上方搜索区随内容自适应，下方表格占满剩余高度 */
 const splitPanes: RsSplitPaneItem[] = [
   { key: 'search', size: 'auto' },
   { key: 'grid' },
@@ -157,8 +158,6 @@ function handleSearch(formData?: Record<string, any>) {
 
 .service-definition-list__search {
   width: 100%;
-  padding: var(--g-space-sm);
-  box-sizing: border-box;
 }
 
 .service-definition-list__grid {
@@ -167,7 +166,6 @@ function handleSearch(formData?: Record<string, any>) {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  padding: var(--g-space-sm);
   display: flex;
   flex-direction: column;
 }

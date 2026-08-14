@@ -128,7 +128,7 @@ export function useCorsConfigPage(props: {
     currentEditConfig.value = null
   }
 
-  /** 提交表单（新增/编辑共用，由 GDataFormModal 收集表单数据后回调） */
+  /** 提交表单（新增/编辑共用，由 RsDataFormModal 收集表单数据后回调） */
   const handleFormSubmit = async (formData?: Record<string, any>) => {
     if (!formData) return
 

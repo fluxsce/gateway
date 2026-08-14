@@ -33,15 +33,15 @@ export function useServerNodePage(gridRef: Ref, searchFormRef: Ref) {
   /**
    * 处理表格菜单点击
    */
-  const handleMenuClick = async ({ code, row }: { code: string; row?: any }) => {
+  const handleMenuClick = async ({ key, row }: { key: string; row?: any }) => {
     if (!row) return
     
-    switch (code) {
+    switch (key) {
       case 'view':
         await handleViewDetail(row)
         break
       default:
-        console.log('Unknown menu key:', code)
+        console.log('Unknown menu key:', key)
     }
   }
 

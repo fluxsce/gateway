@@ -3,6 +3,14 @@ import type { ToolbarProps } from '@/components/toolbar'
 import type { VNodeChild } from 'vue'
 
 /**
+ * 行唯一键（对齐 Ant Design Table / Element Plus / niuma-ui RsTable）。
+ * - 字符串：取行上该字段
+ * - 函数：业务自行组合联合主键，组件不改写行数据
+ * 默认 T 为 any：RsGrid 非泛型，避免 `(row: Service) => string` 因参数逆变无法赋给 Record。
+ */
+export type RsGridRowKey<T = any> = string | ((row: T) => string)
+
+/**
  * RsGrid 列配置（对齐 RsTableColumn，不兼容 vxe / 旧 GGrid）。
  */
 export interface RsGridColumn<T = Record<string, any>> {
@@ -40,6 +48,11 @@ export interface RsGridMenuItem {
   danger?: boolean
   separator?: boolean
   shortcut?: string
+  /**
+   * 是否必须右键在数据行上才显示，默认 true。
+   * 刷新等表级操作设为 false，空表或空白区也能出现。
+   */
+  requireRow?: boolean
   /** 子菜单（分组）；有 children 时渲染为可展开分组 */
   children?: RsGridMenuItem[]
 }
@@ -50,7 +63,7 @@ export interface RsGridMenuItem {
 export interface RsGridMenuConfig {
   /** 是否启用右键菜单，默认 true */
   enabled?: boolean
-  /** 业务菜单项；无行时不展示 */
+  /** 业务菜单项；默认仅在有行时展示，单项可设 requireRow: false */
   items?: RsGridMenuItem[]
   /** 菜单点击回调 */
   onMenuClick?: (payload: { key: string; row?: any }) => void
@@ -106,8 +119,12 @@ export interface RsGridProps {
   maxHeight?: string | number
   /** 未设固定高度时是否 fill 父容器，默认 true */
   fill?: boolean
-  /** 行唯一键字段，默认 id */
-  rowKey?: string
+  /**
+   * 行唯一键，默认 `id`。
+   * 联合主键请传函数，例如 `(row) => [row.ns, row.name].join('::')`。
+   * 使用 `any` 行类型，与 columns / treeConfig 相同，避免业务行函数因参数逆变无法传入。
+   */
+  rowKey?: RsGridRowKey<any>
   /** 是否显示复选框，默认 false */
   selectable?: boolean
   /** 是否显示序号列，默认 true */

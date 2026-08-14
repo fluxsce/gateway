@@ -3,11 +3,11 @@
  * 纯业务逻辑：数据获取、增删改查等操作
  */
 
+import type { RsSearchFormExpose } from '@/components/form/rs-search'
+import { useAppMessage } from '@/composables/useAppMessage'
 import { rsConfirm } from '@/ui'
-import { createBackendPaginationParams } from '@/utils/pagination'
 import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
-import { PlayCircleOutline, RefreshCircleOutline, StopCircleOutline, WarningOutline } from '@vicons/ionicons5'
-import { useMessage } from 'naive-ui'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { Ref } from 'vue'
 import {
   createStaticServer,
@@ -26,9 +26,8 @@ import { useStaticServerModel } from './model'
  * 静态服务管理服务层 Hook
  * @param searchFormRef 搜索表单引用（可选）
  */
-export function useStaticServerService(searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
-// 使用 model
+export function useStaticServerService(searchFormRef?: Ref<RsSearchFormExpose | null>) {
+  const message = useAppMessage()
   const model = useStaticServerModel()
   
   // 解构 model 中的列表操作方法
@@ -208,7 +207,6 @@ export function useStaticServerService(searchFormRef?: Ref<any> | any) {
       title: '确认删除',
       subtitle: '此操作不可恢复，请谨慎操作',
       description: `确定要删除静态服务 "${server.serverName}" 吗？`,
-      icon: WarningOutline,
       confirmText: '确定删除',
       cancelText: '取消',
       width: 500
@@ -304,7 +302,6 @@ export function useStaticServerService(searchFormRef?: Ref<any> | any) {
       title: '确认启动',
       subtitle: '启动后将开始监听客户端连接',
       description: `确定要启动静态服务 "${server.serverName}" 吗？`,
-      icon: PlayCircleOutline,
       confirmText: '确定启动',
       cancelText: '取消',
       width: 500
@@ -351,7 +348,6 @@ export function useStaticServerService(searchFormRef?: Ref<any> | any) {
       title: '确认停止',
       subtitle: '停止后将断开所有客户端连接',
       description: `确定要停止静态服务 "${server.serverName}" 吗？`,
-      icon: StopCircleOutline,
       confirmText: '确定停止',
       cancelText: '取消',
       width: 500
@@ -398,7 +394,6 @@ export function useStaticServerService(searchFormRef?: Ref<any> | any) {
       title: '确认重载',
       subtitle: '重载配置将应用最新的服务配置',
       description: `确定要重载静态服务 "${server.serverName}" 的配置吗？`,
-      icon: RefreshCircleOutline,
       confirmText: '确定重载',
       cancelText: '取消',
       width: 500

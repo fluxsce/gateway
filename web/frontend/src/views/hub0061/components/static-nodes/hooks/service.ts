@@ -3,9 +3,10 @@
  * 纯业务逻辑：数据获取、增删改查等操作
  */
 
-import { createBackendPaginationParams } from '@/utils/pagination'
+import type { RsSearchFormExpose } from '@/components/form/rs-search'
+import { useAppMessage } from '@/composables/useAppMessage'
 import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
-import { useMessage } from 'naive-ui'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { Ref } from 'vue'
 import {
     createStaticNode,
@@ -24,9 +25,9 @@ import type { TunnelStaticNode } from './types'
  */
 export function useStaticNodeService(
   tunnelStaticServerId: Ref<string> | string,
-  searchFormRef?: Ref<any> | any
+  searchFormRef?: Ref<RsSearchFormExpose | null>,
 ) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 获取 tunnelStaticServerId 的实际值
   const getServerId = () => {

@@ -3,20 +3,54 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { DataFormField } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsDataFormField, RsDataFormRenderContext } from '@/components/form/rs-data'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
+import { RsDynamicTags, RsInput, RsTag, getByNamePath, setByNamePath, type RsTagVariant } from '@/ui'
 import { formatDate } from '@/utils/format'
-import {
-  AddOutline,
-  CreateOutline,
-  TrashOutline
-} from '@vicons/ionicons5'
-import { NDynamicTags } from 'naive-ui'
 import { h, ref } from 'vue'
-import { AlertChannelNameSelector } from '../../hub0080/components'
 import type { ServiceCenterInstance } from '../types/index'
+
+/**
+ * 服务中心实例表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface ServiceCenterInstanceGridConfig {
+  columns: RsGridColumn<ServiceCenterInstance>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
+
+/**
+ * 获取实例状态标签变体
+ */
+function getInstanceStatusVariant(status: string): RsTagVariant {
+  const statusMap: Record<string, RsTagVariant> = {
+    RUNNING: 'success',
+    STOPPED: 'default',
+    STARTING: 'info',
+    STOPPING: 'warning',
+    ERROR: 'danger',
+  }
+  return statusMap[status] || 'default'
+}
+
+/**
+ * 获取实例状态展示文案
+ */
+function getInstanceStatusText(status: string): string {
+  const statusMap: Record<string, string> = {
+    RUNNING: '运行中',
+    STOPPED: '停止',
+    STARTING: '启动中',
+    STOPPING: '停止中',
+    ERROR: '异常',
+  }
+  return statusMap[status] || status
+}
 
 /**
  * 服务中心实例管理 Model
@@ -35,8 +69,8 @@ export function useServiceCenterInstanceModel() {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'instanceName',
@@ -93,23 +127,23 @@ export function useServiceCenterInstanceModel() {
       {
         key: 'add',
         label: '新建实例',
-        icon: AddOutline,
+        icon: 'AddOutline',
         type: 'primary',
         tooltip: '新建服务中心实例',
       },
       {
         key: 'edit',
         label: '编辑',
-        icon: CreateOutline,
+        icon: 'CreateOutline',
         tooltip: '编辑选中的实例',
       },
       {
         key: 'delete',
         label: '删除',
-        icon: TrashOutline,
+        icon: 'TrashOutline',
         type: 'error',
         tooltip: '删除选中的实例',
-      }
+      },
     ],
     showSearchButton: true,
     showResetButton: true,
@@ -579,9 +613,8 @@ export function useServiceCenterInstanceModel() {
           span: 24,
           defaultValue: [],
           tips: '允许访问的IP地址或CIDR网段，留空表示不限制',
-          render: (formData: Record<string, any>) => {
-            // 处理字符串或数组格式
-            let value = formData.ipWhitelist || []
+          render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
+            let value = ctx ? ctx.value : formData.ipWhitelist || []
             if (typeof value === 'string') {
               try {
                 value = JSON.parse(value)
@@ -589,10 +622,12 @@ export function useServiceCenterInstanceModel() {
                 value = value.split(',').map((s: string) => s.trim()).filter(Boolean)
               }
             }
-            return h(NDynamicTags, {
-              value: Array.isArray(value) ? value : [],
-              'onUpdate:value': (newValue: string[]) => {
-                formData.ipWhitelist = newValue.length > 0 ? JSON.stringify(newValue) : ''
+            return h(RsDynamicTags, {
+              modelValue: Array.isArray(value) ? value : [],
+              'onUpdate:modelValue': (newValue: string[]) => {
+                const next = newValue.length > 0 ? JSON.stringify(newValue) : ''
+                if (ctx?.onUpdate) ctx.onUpdate(next)
+                else formData.ipWhitelist = next
               },
               placeholder: '添加IP地址或CIDR网段，如: 192.168.1.0/24',
             })
@@ -605,9 +640,8 @@ export function useServiceCenterInstanceModel() {
           span: 24,
           defaultValue: [],
           tips: '禁止访问的IP地址或CIDR网段',
-          render: (formData: Record<string, any>) => {
-            // 处理字符串或数组格式
-            let value = formData.ipBlacklist || []
+          render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
+            let value = ctx ? ctx.value : formData.ipBlacklist || []
             if (typeof value === 'string') {
               try {
                 value = JSON.parse(value)
@@ -615,10 +649,12 @@ export function useServiceCenterInstanceModel() {
                 value = value.split(',').map((s: string) => s.trim()).filter(Boolean)
               }
             }
-            return h(NDynamicTags, {
-              value: Array.isArray(value) ? value : [],
-              'onUpdate:value': (newValue: string[]) => {
-                formData.ipBlacklist = newValue.length > 0 ? JSON.stringify(newValue) : ''
+            return h(RsDynamicTags, {
+              modelValue: Array.isArray(value) ? value : [],
+              'onUpdate:modelValue': (newValue: string[]) => {
+                const next = newValue.length > 0 ? JSON.stringify(newValue) : ''
+                if (ctx?.onUpdate) ctx.onUpdate(next)
+                else formData.ipBlacklist = next
               },
               placeholder: '添加IP地址或CIDR网段，如: 192.168.1.100',
             })
@@ -653,12 +689,20 @@ export function useServiceCenterInstanceModel() {
           span: 12,
           placeholder: '请输入告警渠道名称或点击选择',
           tips: '不填写则使用默认告警渠道',
-          render: (formData: Record<string, any>) => {
-            return h(AlertChannelNameSelector, {
-              modelValue: formData['extProperty.channelName'] || '',
+          render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
+            // 使用 RsInput，避免拉取仍依赖 naive-ui 的 hub0080 渠道选择器
+            const raw = ctx ? ctx.value : getByNamePath(formData, 'extProperty.channelName')
+            let channelName = ''
+            if (typeof raw === 'string') channelName = raw
+            else if (raw != null) channelName = String(raw)
+            return h(RsInput, {
+              modelValue: channelName,
               'onUpdate:modelValue': (value: string) => {
-                formData['extProperty.channelName'] = value
+                if (ctx?.onUpdate) ctx.onUpdate(value)
+                else setByNamePath(formData, 'extProperty.channelName', value)
               },
+              placeholder: '请输入告警渠道名称',
+              clearable: true,
             })
           },
         },
@@ -855,145 +899,184 @@ export function useServiceCenterInstanceModel() {
       tabKey: 'other',
       disabled: true,
     },
-  ] as DataFormField[],
+  ] as RsDataFormField[],
   }
 
   // ============= 表格配置 =============
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置（符合 RsGrid Props 结构，排除响应式数据） */
+  const gridConfig: ServiceCenterInstanceGridConfig = {
     columns: [
       {
-        field: 'instanceName',
+        key: 'instanceName',
         title: '实例名称',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'environment',
+        key: 'environment',
         title: '部署环境',
         sortable: true,
         align: 'center',
-        showOverflow: true,
-        formatter: ({ cellValue }) => {
+        ellipsis: true,
+        formatter: (value) => {
           const envMap: Record<string, string> = {
-            'DEVELOPMENT': '开发环境',
-            'STAGING': '预发布环境',
-            'PRODUCTION': '生产环境',
+            DEVELOPMENT: '开发环境',
+            STAGING: '预发布环境',
+            PRODUCTION: '生产环境',
           }
-          return envMap[cellValue] || cellValue
+          return envMap[String(value || '')] || String(value || '')
         },
       },
       {
-        field: 'serverType',
+        key: 'serverType',
         title: '服务器类型',
         align: 'center',
-        showOverflow: true,
-        formatter: ({ cellValue }) => {
-          return cellValue === 'GRPC' ? 'gRPC' : cellValue
-        },
+        ellipsis: true,
+        formatter: (value) => (value === 'GRPC' ? 'gRPC' : String(value || '')),
       },
       {
-        field: 'listenAddress',
+        key: 'listenAddress',
         title: '监听地址',
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'listenPort',
+        key: 'listenPort',
         title: '监听端口',
         align: 'center',
       },
       {
-        field: 'instanceStatus',
+        key: 'instanceStatus',
         title: '实例状态',
         align: 'center',
-        slots: { default: 'instanceStatus' },
+        width: 110,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: getInstanceStatusVariant(row.instanceStatus),
+              size: 'sm',
+            },
+            () => getInstanceStatusText(row.instanceStatus),
+          ),
       },
       {
-        field: 'isRunning',
+        key: 'isRunning',
         title: '运行状态',
         align: 'center',
-        slots: { default: 'isRunning' },
-        formatter: ({ row }: any) => {
-          return row.instanceStatus === 'RUNNING' ? '运行中' : '已停止'
-        },
+        width: 100,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.instanceStatus === 'RUNNING' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.instanceStatus === 'RUNNING' ? '运行中' : '已停止'),
+          ),
       },
       {
-        field: 'enableTLS',
+        key: 'enableTLS',
         title: 'TLS',
         align: 'center',
-        slots: { default: 'enableTLS' },
+        width: 90,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.enableTLS === 'Y' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.enableTLS === 'Y' ? '启用' : '禁用'),
+          ),
       },
       {
-        field: 'enableAuth',
+        key: 'enableAuth',
         title: '认证',
         align: 'center',
-        slots: { default: 'enableAuth' },
+        width: 90,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.enableAuth === 'Y' ? 'warning' : 'default',
+              size: 'sm',
+            },
+            () => (row.enableAuth === 'Y' ? '启用' : '禁用'),
+          ),
       },
       {
-        field: 'activeFlag',
+        key: 'activeFlag',
         title: '活动状态',
         align: 'center',
-        slots: { default: 'activeFlag' },
+        width: 100,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.activeFlag === 'Y' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.activeFlag === 'Y' ? '活动' : '非活动'),
+          ),
       },
       {
-        field: 'statusMessage',
+        key: 'statusMessage',
         title: '状态消息',
         align: 'left',
-        showOverflow: true,
+        ellipsis: true,
         width: 200,
-        formatter: ({ cellValue }) => {
-          return cellValue || '-'
-        },
+        formatter: (value) => (value ? String(value) : '-'),
       },
       {
-        field: 'lastStatusTime',
+        key: 'lastStatusTime',
         title: '最后状态变更时间',
         sortable: true,
         align: 'center',
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '-',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '-',
       },
       {
-        field: 'lastHealthCheckTime',
+        key: 'lastHealthCheckTime',
         title: '最后健康检查时间',
         sortable: true,
         align: 'center',
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '-',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '-',
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
-        field: 'addWho',
+        key: 'addWho',
         title: '创建人',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'editTime',
+        key: 'editTime',
         title: '修改时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
-        field: 'editWho',
+        key: 'editWho',
         title: '修改人',
-        showOverflow: true,
+        ellipsis: true,
       },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: 'oprSeqFlag',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -1001,39 +1084,13 @@ export function useServiceCenterInstanceModel() {
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      showCopyCell: true,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-        {
-          code: 'edit',
-          name: '编辑',
-          prefixIcon: 'vxe-icon-edit',
-        },
-        {
-          code: 'delete',
-          name: '删除',
-          prefixIcon: 'vxe-icon-delete',
-        },
-        {
-          code: 'start',
-          name: '启动',
-          prefixIcon: 'vxe-icon-caret-right',
-        },
-        {
-          code: 'stop',
-          name: '停止',
-          prefixIcon: 'vxe-icon-square',
-        },
-        {
-          code: 'reload',
-          name: '重载配置',
-          prefixIcon: 'vxe-icon-refresh',
-        },
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'start', label: '启动', icon: 'play' },
+        { key: 'stop', label: '停止', icon: 'square' },
+        { key: 'reload', label: '重载配置', icon: 'refresh-cw' },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
       ],
     },
     height: '100%',

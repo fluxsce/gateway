@@ -127,6 +127,10 @@ export const getApiMessage = (jsonData: JsonDataObj, defaultMessage = ''): strin
  * 格式化日期时间
  * 将Date对象、时间戳或日期字符串转换为指定格式的日期字符串
  *
+ * 重要：后端常返回带 `Z` / 偏移的 ISO（如 `2026-08-13T10:20:41Z`）。
+ * 若用 `new Date` + `getHours()` 会按浏览器本地时区换算，表格展示与表单回传都会偏几个小时。
+ * 对可识别的 ISO 字面量，直接取字符串中的年月日时分秒（墙钟），不做时区换算。
+ *
  * @param date 日期对象、时间戳或日期字符串
  * @param format 格式化模板，例如: 'YYYY-MM-DD HH:mm:ss'
  *               - YYYY: 四位年份
@@ -141,13 +145,69 @@ export const getApiMessage = (jsonData: JsonDataObj, defaultMessage = ''): strin
  * @example
  * formatDate(new Date(), 'YYYY-MM-DD') // 2023-10-18
  * formatDate(1697609463000, 'HH:mm:ss') // 15:24:23
- * formatDate(new Date(), 'YYYY-MM-DD HH:mm:ss.SSS') // 2023-10-18 15:24:23.123
+ * formatDate('2026-08-13T10:20:41Z', 'YYYY-MM-DD HH:mm:ss') // 2026-08-13 10:20:41（不转本地）
  */
+/** ISO / 类 ISO 字符串的墙钟分量（忽略 Z、±偏移带来的时区换算） */
+export type DateWallClock = {
+  year: string
+  month: string
+  day: string
+  hour: string
+  minute: string
+  second: string
+  millisecond: string
+}
+
+const ISO_WALL_CLOCK_RE =
+  /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,9}))?)?(?:Z|[+-]\d{2}:?\d{2})?$/i
+
+/**
+ * 从 ISO 字符串解析墙钟分量；无法识别则返回 null。
+ */
+export function parseIsoWallClock(value: string): DateWallClock | null {
+  const matched = value.trim().match(ISO_WALL_CLOCK_RE)
+  if (!matched) return null
+  return {
+    year: matched[1]!,
+    month: matched[2]!,
+    day: matched[3]!,
+    hour: matched[4] ?? '00',
+    minute: matched[5] ?? '00',
+    second: (matched[6] ?? '00').padStart(2, '0'),
+    millisecond: ((matched[7] ?? '0') + '000').slice(0, 3),
+  }
+}
+
+/** 将墙钟分量套到 format 模板 */
+export function formatWallClock(
+  parts: DateWallClock,
+  format = 'YYYY-MM-DD HH:mm:ss',
+): string {
+  return format
+    .replace(/YYYY/g, parts.year)
+    .replace(/MM/g, parts.month)
+    .replace(/DD/g, parts.day)
+    .replace(/HH/g, parts.hour)
+    .replace(/mm/g, parts.minute)
+    .replace(/ss/g, parts.second)
+    .replace(/SSS/g, parts.millisecond)
+}
+
 export const formatDate = (
   date: Date | number | string,
   format = 'YYYY-MM-DD HH:mm:ss',
 ): string => {
+  if (typeof date === 'string') {
+    const wall = parseIsoWallClock(date)
+    if (wall) {
+      return formatWallClock(wall, format)
+    }
+  }
+
   const d = new Date(date)
+  if (Number.isNaN(d.getTime())) {
+    return typeof date === 'string' ? date : ''
+  }
 
   const year = d.getFullYear().toString()
   const month = (d.getMonth() + 1).toString().padStart(2, '0')
@@ -395,12 +455,69 @@ export const formatNaivePagination = (data: JsonDataObj | string) => {
 }
 
 /**
- * 将 extProperty JSON 字符串展开为扁平字段
- * 用于表单回填时将 extProperty 中的属性展开为 extProperty.xxx 格式
- * 
+ * 将 JSON 列解析为嵌套对象，供 NamePath 字段 `column.xxx` 读写。
+ * 兼容历史扁平 key `column.xxx`。
+ */
+export const parseJsonObjectColumn = (data: Record<string, any>, column: string): void => {
+  const raw = data[column]
+  let obj: Record<string, any> = {}
+  if (typeof raw === 'string' && raw) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        obj = parsed
+      }
+    } catch (error) {
+      logger.warn(`解析 ${column} 失败`, error)
+    }
+  } else if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    obj = { ...raw }
+  }
+
+  const head = `${column}.`
+  Object.keys(data).forEach((key) => {
+    if (key.startsWith(head)) {
+      obj[key.slice(head.length)] = data[key]
+      delete data[key]
+    }
+  })
+  data[column] = obj
+}
+
+/**
+ * 将嵌套对象（及历史扁平 key）打包回 JSON 字符串列。
+ */
+export const stringifyJsonObjectColumn = (data: Record<string, any>, column: string): void => {
+  const nested = data[column]
+  const obj: Record<string, any> =
+    nested && typeof nested === 'object' && !Array.isArray(nested) ? { ...nested } : {}
+  const head = `${column}.`
+  Object.keys(data).forEach((key) => {
+    if (key.startsWith(head)) {
+      obj[key.slice(head.length)] = data[key]
+      delete data[key]
+    }
+  })
+  delete data[column]
+  if (Object.keys(obj).length === 0) {
+    data[column] = ''
+    return
+  }
+  try {
+    data[column] = JSON.stringify(obj)
+  } catch (error) {
+    logger.error(`打包 ${column} 失败`, error)
+    data[column] = ''
+  }
+}
+
+/**
+ * 将 extProperty JSON 字符串解析为嵌套对象
+ * 用于表单回填，NamePath 字段读写 `extProperty.xxx`
+ *
  * @param data 包含 extProperty 字段的数据对象
  * @returns 修改后的数据对象（原地修改）
- * 
+ *
  * @example
  * const data = {
  *   id: '123',
@@ -408,76 +525,40 @@ export const formatNaivePagination = (data: JsonDataObj | string) => {
  *   extProperty: '{"alertEnabled":"Y","channelName":"default"}'
  * }
  * flattenExtProperty(data)
- * // 结果：data['extProperty.alertEnabled'] = 'Y'
- * //       data['extProperty.channelName'] = 'default'
+ * // 结果：data.extProperty = { alertEnabled: 'Y', channelName: 'default' }
  */
 export const flattenExtProperty = (data: Record<string, any>): void => {
-  if (!data.extProperty || typeof data.extProperty !== 'string') {
+  parseJsonObjectColumn(data, 'extProperty')
+  const extObj = data.extProperty
+  if (!extObj || typeof extObj !== 'object' || Array.isArray(extObj)) {
     return
   }
-  
-  try {
-    const extObj = JSON.parse(data.extProperty || '{}')
-    if (extObj && typeof extObj === 'object') {
-      // 将 extProperty 对象的属性展开为 extProperty.xxx 字段
-      Object.keys(extObj).forEach((key) => {
-        const value = extObj[key]
-        // alertStatusCodes 特殊处理：确保是字符串数组
-        if (key === 'alertStatusCodes') {
-          if (Array.isArray(value)) {
-            data[`extProperty.${key}`] = value.map((v: any) => String(v))
-          } else if (typeof value === 'string') {
-            data[`extProperty.${key}`] = value.split(',').map((s: string) => s.trim()).filter(Boolean)
-          }
-        } else {
-          data[`extProperty.${key}`] = value
-        }
-      })
-    }
-  } catch (error) {
-    logger.warn('展开 extProperty 失败', error)
+  if (extObj.alertStatusCodes === undefined) {
+    return
+  }
+  if (Array.isArray(extObj.alertStatusCodes)) {
+    extObj.alertStatusCodes = extObj.alertStatusCodes.map(String)
+  } else if (typeof extObj.alertStatusCodes === 'string') {
+    extObj.alertStatusCodes = extObj.alertStatusCodes.split(',').map((s: string) => s.trim()).filter(Boolean)
   }
 }
 
 /**
- * 将扁平字段打包回 extProperty JSON 字符串
- * 用于表单提交时将 extProperty.xxx 格式的字段打包为 extProperty JSON 字符串
- * 
- * @param data 包含 extProperty.xxx 字段的数据对象
+ * 将 extProperty 嵌套对象打包回 JSON 字符串
+ * 用于表单提交
+ *
+ * @param data 包含 extProperty 对象的数据对象
  * @returns 修改后的数据对象（原地修改）
- * 
+ *
  * @example
  * const data = {
  *   id: '123',
  *   name: 'test',
- *   'extProperty.alertEnabled': 'Y',
- *   'extProperty.channelName': 'default'
+ *   extProperty: { alertEnabled: 'Y', channelName: 'default' }
  * }
  * unflattenExtProperty(data)
  * // 结果：data.extProperty = '{"alertEnabled":"Y","channelName":"default"}'
- * //       删除了 data['extProperty.alertEnabled'] 和 data['extProperty.channelName']
  */
 export const unflattenExtProperty = (data: Record<string, any>): void => {
-  const extPropertyObj: Record<string, any> = {}
-  
-  // 收集所有 extProperty.xxx 字段
-  Object.keys(data).forEach((key) => {
-    if (key.startsWith('extProperty.')) {
-      const subKey = key.substring('extProperty.'.length)
-      extPropertyObj[subKey] = data[key]
-      delete data[key] // 删除扁平字段
-    }
-  })
-  
-  // 转换为 JSON 字符串
-  if (Object.keys(extPropertyObj).length === 0) {
-    data.extProperty = ''
-  } else {
-    try {
-      data.extProperty = JSON.stringify(extPropertyObj)
-    } catch (error) {
-      logger.error('打包 extProperty 失败', error)
-      data.extProperty = ''
-    }
-  }
+  stringifyJsonObjectColumn(data, 'extProperty')
 }

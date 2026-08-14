@@ -3,20 +3,28 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { DataFormField } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsDataFormField, RsDataFormRenderContext } from '@/components/form/rs-data'
+import type { RsSearchFormProps, RsSearchFormRenderContext } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
+import { RsTag } from '@/ui'
 import { formatDate } from '@/utils/format'
-import {
-  AddOutline,
-  CreateOutline,
-  TrashOutline
-} from '@vicons/ionicons5'
 import { h, ref } from 'vue'
 import { ServiceCenterInstanceNameSelector } from '../../hub0040/components'
 import type { ServiceCenterInstance } from '../../hub0040/types'
 import type { Namespace } from '../types/index'
+
+/**
+ * 命名空间表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface NamespaceGridConfig {
+  columns: RsGridColumn<Namespace>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
 
 /**
  * 命名空间管理 Model
@@ -36,8 +44,8 @@ export function useNamespaceModel(customModuleId?: string) {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'namespaceName',
@@ -52,12 +60,10 @@ export function useNamespaceModel(customModuleId?: string) {
         label: '服务中心实例',
         type: 'custom',
         span: 6,
-        render: (formData: Record<string, any>) => {
+        render: (_formData: Record<string, any>, ctx: RsSearchFormRenderContext) => {
           return h(ServiceCenterInstanceNameSelector, {
-            modelValue: formData.instanceName || '',
-            'onUpdate:modelValue': (value: string) => {
-              formData.instanceName = value
-            },
+            modelValue: (ctx.value as string) || '',
+            'onUpdate:modelValue': (value: string) => ctx.onUpdate(value),
           })
         },
       },
@@ -93,23 +99,23 @@ export function useNamespaceModel(customModuleId?: string) {
       {
         key: 'add',
         label: '新建命名空间',
-        icon: AddOutline,
+        icon: 'AddOutline',
         type: 'primary',
         tooltip: '新建命名空间',
       },
       {
         key: 'edit',
         label: '编辑',
-        icon: CreateOutline,
+        icon: 'CreateOutline',
         tooltip: '编辑选中的命名空间',
       },
       {
         key: 'delete',
         label: '删除',
-        icon: TrashOutline,
+        icon: 'TrashOutline',
         type: 'error',
         tooltip: '删除选中的命名空间',
-      }
+      },
     ],
     showSearchButton: true,
     showResetButton: true,
@@ -172,16 +178,16 @@ export function useNamespaceModel(customModuleId?: string) {
         tabKey: 'basic',
         required: true,
         tips: '关联的服务中心实例名称',
-        render: (formData: Record<string, any>) => {
+        render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
           return h(ServiceCenterInstanceNameSelector, {
-            modelValue: formData.instanceName || '',
+            modelValue: (ctx?.value as string) || formData.instanceName || '',
             'onUpdate:modelValue': (value: string) => {
-              formData.instanceName = value
+              ctx?.onUpdate(value)
             },
             onSelect: (instance: ServiceCenterInstance) => {
               // 选择实例后，自动填充环境
-              if (instance && instance.environment) {
-                formData.environment = instance.environment
+              if (instance?.environment) {
+                ctx?.setFieldValue('environment', instance.environment)
               }
             },
           })
@@ -297,107 +303,113 @@ export function useNamespaceModel(customModuleId?: string) {
         tabKey: 'other',
         disabled: true,
       },
-    ] as DataFormField[],
+    ] as RsDataFormField[],
   }
 
   // ============= 表格配置 =============
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置（符合 RsGrid Props 结构，排除响应式数据） */
+  const gridConfig: NamespaceGridConfig = {
     columns: [
       {
-        field: 'namespaceId',
+        key: 'namespaceId',
         title: '命名空间ID',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'namespaceName',
+        key: 'namespaceName',
         title: '命名空间名称',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'instanceName',
+        key: 'instanceName',
         title: '服务中心实例',
         sortable: true,
         align: 'center',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'environment',
+        key: 'environment',
         title: '部署环境',
         sortable: true,
         align: 'center',
-        showOverflow: true,
-        formatter: ({ cellValue }) => {
+        ellipsis: true,
+        formatter: (value) => {
           const envMap: Record<string, string> = {
-            'DEVELOPMENT': '开发环境',
-            'STAGING': '预发布环境',
-            'PRODUCTION': '生产环境',
+            DEVELOPMENT: '开发环境',
+            STAGING: '预发布环境',
+            PRODUCTION: '生产环境',
           }
-          return envMap[cellValue] || cellValue
+          return envMap[String(value || '')] || String(value || '')
         },
       },
       {
-        field: 'namespaceDescription',
+        key: 'namespaceDescription',
         title: '描述',
         align: 'left',
-        showOverflow: true,
+        ellipsis: true,
         width: 200,
       },
       {
-        field: 'serviceQuotaLimit',
+        key: 'serviceQuotaLimit',
         title: '服务配额',
         align: 'center',
-        formatter: ({ cellValue }) => {
-          return cellValue === 0 ? '无限制' : cellValue
-        },
+        formatter: (value) => (value === 0 ? '无限制' : String(value ?? '')),
       },
       {
-        field: 'configQuotaLimit',
+        key: 'configQuotaLimit',
         title: '配置配额',
         align: 'center',
-        formatter: ({ cellValue }) => {
-          return cellValue === 0 ? '无限制' : cellValue
-        },
+        formatter: (value) => (value === 0 ? '无限制' : String(value ?? '')),
       },
       {
-        field: 'activeFlag',
+        key: 'activeFlag',
         title: '活动状态',
         align: 'center',
-        slots: { default: 'activeFlag' },
+        width: 100,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.activeFlag === 'Y' ? 'success' : 'default',
+              size: 'sm',
+            },
+            () => (row.activeFlag === 'Y' ? '活动' : '非活动'),
+          ),
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
-        field: 'addWho',
+        key: 'addWho',
         title: '创建人',
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'editTime',
+        key: 'editTime',
         title: '修改时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
       },
       {
-        field: 'editWho',
+        key: 'editWho',
         title: '修改人',
-        showOverflow: true,
+        ellipsis: true,
       },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: 'namespaceId',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -405,24 +417,10 @@ export function useNamespaceModel(customModuleId?: string) {
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      showCopyCell: true,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-        {
-          code: 'edit',
-          name: '编辑',
-          prefixIcon: 'vxe-icon-edit',
-        },
-        {
-          code: 'delete',
-          name: '删除',
-          prefixIcon: 'vxe-icon-delete',
-        },
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
       ],
     },
     height: '100%',

@@ -1,51 +1,50 @@
 <template>
-  <GModal
-    :visible="modalVisible"
+  <RsDialog
+    :open="modalVisible"
     title="选择客户端"
+    layout="window"
     :width="900"
-    :to="to"
-    :show-footer="false"
-    @update:visible="handleUpdateVisible"
+    :teleport-to="props.to"
+    :draggable="true"
+    :fullscreenable="true"
+    :modal="false"
+    :show-overlay="false"
+    :close-on-overlay-click="false"
+    class="hub0062-tunnel-client-list-dialog"
+    @update:open="handleUpdateVisible"
   >
-    <g-grid
-      ref="gridRef"
-      module-id="tunnel-client-selector-grid"
-      :data="clientList"
-      :loading="loading"
-      v-bind="gridConfig"
-      @page-change="handlePageChange"
-      @row-click="handleRowClick"
-    >
-      <!-- 连接状态自定义渲染 -->
-      <template #connectionStatus="{ row }">
-        <n-tag
-          :type="getConnectionStatusTagType(row.connectionStatus)"
-          size="small"
-        >
-          {{ getConnectionStatusLabel(row.connectionStatus) }}
-        </n-tag>
-      </template>
-
-      <!-- 状态自定义渲染 -->
-      <template #activeFlag="{ row }">
-        <n-tag :type="row.activeFlag === 'Y' ? 'success' : 'default'" size="small">
-          {{ row.activeFlag === 'Y' ? '启用' : '禁用' }}
-        </n-tag>
-      </template>
-    </g-grid>
-  </GModal>
+    <template #body>
+      <div class="tunnel-client-list-modal">
+        <RsGrid
+          ref="gridRef"
+          module-id="tunnel-client-selector-grid"
+          :data="clientList"
+          :loading="loading"
+          :columns="gridColumns"
+          :selectable="false"
+          row-key="tunnelClientId"
+          height="100%"
+          :pagination-config="paginationConfig"
+          @page-change="handlePageChange"
+          @row-click="handleRowClick"
+        />
+      </div>
+    </template>
+  </RsDialog>
 </template>
 
 <script setup lang="ts">
-import { GModal } from '@/components/gmodal'
-import { createBackendPaginationParams } from '@/utils/pagination'
-import type { GridProps } from '@/components/grid'
-import { GGrid } from '@/components/grid'
+import { RsGrid, type RsGridColumn, type RsGridExpose, type RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
-import { NTag } from 'naive-ui'
-import { onMounted, ref, watch } from 'vue'
+import { RsDialog, RsTag, type RsTagVariant } from '@/ui'
+import { createBackendPaginationParams } from '@/utils/pagination'
+import { h, onMounted, ref, watch } from 'vue'
 import * as tunnelClientApi from '../../api'
 import type { ConnectionStatus, TunnelClient } from '../../types'
+
+defineOptions({
+  name: 'TunnelClientListModal',
+})
 
 interface Props {
   visible?: boolean
@@ -54,76 +53,113 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   visible: false,
-  to: 'body'
+  to: 'body',
 })
 
 const emit = defineEmits<{
   'update:visible': [value: boolean]
-  'select': [client: TunnelClient]
+  select: [client: TunnelClient]
 }>()
 
-const gridRef = ref()
+const gridRef = ref<RsGridExpose | null>(null)
 const loading = ref(false)
 const clientList = ref<TunnelClient[]>([])
 const pageInfo = ref<PageInfoObj | undefined>()
 const modalVisible = ref(props.visible)
 
-const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
-  columns: [
-    {
-      field: 'tunnelClientId',
-      title: '客户端ID',
-      width: 200,
-      showOverflow: 'tooltip'
-    },
-    {
-      field: 'clientName',
-      title: '客户端名称',
-      width: 180,
-      showOverflow: 'tooltip'
-    },
-    {
-      field: 'serverAddress',
-      title: '服务器地址',
-      width: 200,
-      showOverflow: 'tooltip',
-      formatter: ({ row }) => `${row.serverAddress}:${row.serverPort}`
-    },
-    {
-      field: 'connectionStatus',
-      title: '连接状态',
-      width: 100,
-      align: 'center',
-      slots: { default: 'connectionStatus' }
-    },
-    {
-      field: 'activeFlag',
-      title: '状态',
-      width: 80,
-      align: 'center',
-      slots: { default: 'activeFlag' }
-    }
-  ],
-  showCheckbox: false,
-  paginationConfig: {
-    show: true,
-    pageInfo: pageInfo as any,
-    align: 'right'
+/**
+ * 获取连接状态展示文案
+ */
+const getConnectionStatusLabel = (status?: ConnectionStatus): string => {
+  const statusMap: Record<string, string> = {
+    connected: '已连接',
+    disconnected: '已断开',
+    connecting: '连接中',
+    error: '错误',
   }
+  return statusMap[status || ''] || status || '-'
 }
 
+/**
+ * 获取连接状态标签变体
+ */
+const getConnectionStatusVariant = (status?: ConnectionStatus): RsTagVariant => {
+  const typeMap: Record<string, RsTagVariant> = {
+    connected: 'success',
+    disconnected: 'warning',
+    connecting: 'info',
+    error: 'danger',
+  }
+  return typeMap[status || ''] || 'default'
+}
+
+const gridColumns: RsGridColumn<TunnelClient>[] = [
+  {
+    key: 'tunnelClientId',
+    title: '客户端ID',
+    width: 200,
+    ellipsis: true,
+  },
+  {
+    key: 'clientName',
+    title: '客户端名称',
+    width: 180,
+    ellipsis: true,
+  },
+  {
+    key: 'serverAddress',
+    title: '服务器地址',
+    width: 200,
+    ellipsis: true,
+    formatter: (_value, row) => `${row.serverAddress}:${row.serverPort}`,
+  },
+  {
+    key: 'connectionStatus',
+    title: '连接状态',
+    width: 100,
+    align: 'center',
+    render: (row) =>
+      h(
+        RsTag,
+        { variant: getConnectionStatusVariant(row.connectionStatus), size: 'sm' },
+        () => getConnectionStatusLabel(row.connectionStatus),
+      ),
+  },
+  {
+    key: 'activeFlag',
+    title: '状态',
+    width: 80,
+    align: 'center',
+    render: (row) =>
+      h(
+        RsTag,
+        { variant: row.activeFlag === 'Y' ? 'success' : 'default', size: 'sm' },
+        () => (row.activeFlag === 'Y' ? '启用' : '禁用'),
+      ),
+  },
+]
+
+const paginationConfig: RsGridPaginationConfig = {
+  show: true,
+  pageInfo: pageInfo as any,
+  align: 'right',
+}
+
+/**
+ * 加载客户端列表
+ */
 const loadClientList = async () => {
   loading.value = true
   try {
     const paginationParams = createBackendPaginationParams(
       pageInfo.value?.pageIndex,
-      pageInfo.value?.pageSize
+      pageInfo.value?.pageSize,
     )
 
     const params = {
-      activeFlag: 'Y' as const, // 只查询激活的客户端
+      activeFlag: 'Y' as const,
       pageIndex: paginationParams.pageIndex,
-      pageSize: paginationParams.pageSize
+      pageSize: paginationParams.pageSize,
     }
 
     const response = await tunnelClientApi.queryTunnelClients(params)
@@ -150,6 +186,9 @@ const loadClientList = async () => {
   }
 }
 
+/**
+ * 处理分页变化
+ */
 const handlePageChange = (params: { currentPage: number; pageSize: number }) => {
   if (!pageInfo.value) {
     pageInfo.value = { pageIndex: 1, pageSize: 20 } as PageInfoObj
@@ -163,45 +202,32 @@ const handlePageChange = (params: { currentPage: number; pageSize: number }) => 
   loadClientList()
 }
 
+/**
+ * 处理行点击事件（选择客户端）
+ */
 const handleRowClick = ({ row }: { row: TunnelClient }) => {
-  if (row) {
-    emit('select', row)
-    // 选择后关闭弹窗
-    handleUpdateVisible(false)
-  }
+  if (!row) return
+  emit('select', row)
+  handleUpdateVisible(false)
 }
 
+/**
+ * 处理弹窗可见性更新
+ */
 const handleUpdateVisible = (value: boolean) => {
   modalVisible.value = value
   emit('update:visible', value)
 }
 
-const getConnectionStatusLabel = (status?: ConnectionStatus): string => {
-  const statusMap: Record<string, string> = {
-    connected: '已连接',
-    disconnected: '已断开',
-    connecting: '连接中',
-    error: '错误'
-  }
-  return statusMap[status || ''] || status || '-'
-}
-
-const getConnectionStatusTagType = (status?: ConnectionStatus): 'success' | 'warning' | 'info' | 'error' | 'default' => {
-  const typeMap: Record<string, 'success' | 'warning' | 'info' | 'error' | 'default'> = {
-    connected: 'success',
-    disconnected: 'warning',
-    connecting: 'info',
-    error: 'error'
-  }
-  return typeMap[status || ''] || 'default'
-}
-
-watch(() => props.visible, (newVal) => {
-  modalVisible.value = newVal
-  if (newVal) {
-    loadClientList()
-  }
-})
+watch(
+  () => props.visible,
+  (newVal) => {
+    modalVisible.value = newVal
+    if (newVal) {
+      loadClientList()
+    }
+  },
+)
 
 onMounted(() => {
   if (props.visible) {
@@ -209,3 +235,15 @@ onMounted(() => {
   }
 })
 </script>
+
+<style scoped>
+.tunnel-client-list-modal {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: min(70vh, 720px);
+  min-height: 0;
+  overflow: hidden;
+}
+</style>

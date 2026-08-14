@@ -4,7 +4,7 @@
  * - 处理详情对话框、工具栏、右键菜单等页面交互
  */
 
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import type { GatewayLogListItem } from '../types'
@@ -14,7 +14,7 @@ import { useGatewayLogService } from './service'
  * 网关日志管理页面级 Hook
  */
 export function useGatewayLogPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 业务服务（包含 model、查询等）
   const service = useGatewayLogService(searchFormRef)
@@ -36,7 +36,7 @@ export function useGatewayLogPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<
   }
 
   /**
-   * 处理搜索（接收 SearchForm 传递的表单数据）
+   * 处理搜索（接收 RsSearchForm 传递的表单数据）
    */
   const handleSearch = async (formData?: Record<string, any>) => {
     await service.handleSearch(formData)

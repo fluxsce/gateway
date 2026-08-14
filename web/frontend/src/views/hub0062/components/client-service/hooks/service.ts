@@ -3,11 +3,11 @@
  * 处理所有与后端交互的业务逻辑
  */
 
+import { useAppMessage } from '@/composables/useAppMessage'
+import type { JsonDataObj } from '@/types/api'
 import { rsConfirm } from '@/ui'
 import { createBackendPaginationParams } from '@/utils/pagination'
-import type { JsonDataObj } from '@/types/api'
 import { PlayCircleOutline, StopCircleOutline, WarningOutline } from '@vicons/ionicons5'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import * as tunnelServiceApi from '../../../api'
 import type { TunnelService } from '../../../types'
@@ -17,8 +17,8 @@ import { useTunnelServiceModel } from './model'
  * 隧道服务服务 Hook（纯业务逻辑）
  */
 export function useTunnelServiceService(searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
-// 初始化 Model
+  const message = useAppMessage()
+  // 初始化 Model
   const model = useTunnelServiceModel()
 
   const {

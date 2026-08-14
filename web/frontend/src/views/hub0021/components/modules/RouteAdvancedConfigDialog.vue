@@ -13,9 +13,9 @@
         <RsAlert type="info" title="配置说明" class="info-alert">
           <div class="meta-row">
             <span class="meta-text">路由ID：{{ routeConfigId }}</span>
-            <RsDivider vertical />
+            <RsDivider orientation="vertical" />
             <span class="meta-text">网关实例：{{ gatewayInstanceId }}</span>
-            <RsDivider vertical />
+            <RsDivider orientation="vertical" />
             <span class="meta-text">配置级别：路由级（优先级高于实例级配置）</span>
           </div>
         </RsAlert>
@@ -31,21 +31,18 @@
         >
           <template #predicates>
             <div class="config-section">
-              <!-- stub: ./RouteAssertionList.vue 缺失，保留占位 -->
               <RsEmpty description="断言配置组件暂不可用（RouteAssertionList 缺失）" />
             </div>
           </template>
 
           <template #cors>
             <div class="config-section">
-              <!-- stub: common002 CorsConfigForm 路径已失效 -->
               <RsEmpty description="CORS配置组件暂不可用" />
             </div>
           </template>
 
           <template #security>
             <div class="config-section">
-              <!-- stub: common002 SecurityConfigTable 路径已失效 -->
               <RsEmpty description="安全配置组件暂不可用" />
               <RsAlert type="info" title="路由安全配置说明" class="section-alert">
                 路由安全配置仅作用于当前路由，支持多种安全策略：
@@ -63,14 +60,12 @@
 
           <template #auth>
             <div class="config-section">
-              <!-- stub: common002 AuthConfigForm 路径已失效 -->
               <RsEmpty description="认证配置组件暂不可用" />
             </div>
           </template>
 
           <template #rateLimit>
             <div class="config-section">
-              <!-- stub: common002 RateLimitConfigForm 路径已失效 -->
               <RsEmpty description="限流配置组件暂不可用" />
             </div>
           </template>
@@ -96,7 +91,6 @@
                 </div>
               </div>
 
-              <!-- stub: ./RouteFilterList.vue 缺失，用简表展示 -->
               <RsTable
                 :columns="filterColumns"
                 :data="routeFilters"
@@ -128,9 +122,6 @@
       <div v-else>
         <RsEmpty description="请选择一个路由进行配置管理" />
       </div>
-
-      <!-- stub: ./FilterConfigDialog.vue 缺失 -->
-      <!-- FilterConfigDialog v-model:show / :filter-data / @save 待恢复 -->
     </template>
 
     <template #footer>
@@ -145,6 +136,7 @@
 import { GIcon } from '@/components/gicon'
 import { useAppMessage } from '@/composables/useAppMessage'
 import {
+  rsConfirm,
   RsAlert,
   RsButton,
   RsDialog,
@@ -155,30 +147,46 @@ import {
   type RsTabItem,
   type RsTableColumn,
 } from '@/ui'
+import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import { Add, Refresh } from '@vicons/ionicons5'
-import { computed, h, nextTick, ref, watch } from 'vue'
+import { computed, h, ref, watch } from 'vue'
 import {
   addFilterConfig,
   deleteFilterConfig,
   editFilterConfig,
   queryFilterConfigs,
 } from '../../api'
+import type { FilterAction, FilterConfig, FilterType } from '../filter-config/hooks/types'
 import type { RouteConfig } from '../../types'
-import type { FilterConfig, FilterFormData } from '../../types/filterConfig'
+
+/** 遗留编辑表单数据（FilterConfigDialog 恢复后使用） */
+interface FilterFormData {
+  filterConfigId?: string
+  filterName: string
+  filterType: FilterType
+  filterAction: FilterAction
+  filterOrder: number
+  filterDesc?: string
+  activeFlag: 'Y' | 'N'
+  config?: Record<string, unknown>
+}
+
+defineOptions({
+  name: 'RouteAdvancedConfigDialog',
+})
 
 interface Props {
   route?: RouteConfig | null
-}
-
-interface Emits {
-  (e: 'update:visible', visible: boolean): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   route: null,
 })
 
-const emit = defineEmits<Emits>()
+const emit = defineEmits<{
+  (e: 'update:visible', visible: boolean): void
+}>()
+
 const message = useAppMessage()
 
 const visible = ref(false)
@@ -192,6 +200,8 @@ const currentFilter = ref<FilterConfig | null>(null)
 const routeConfigId = computed(() => props.route?.routeConfigId || '')
 const routeName = computed(() => props.route?.routeName || '未知路由')
 const gatewayInstanceId = computed(() => props.route?.gatewayInstanceId || '')
+
+const ROUTE_FILTER_ACTIONS = new Set<FilterAction>(['post-routing', 'pre-response'])
 
 const tabItems: RsTabItem[] = [
   { value: 'predicates', label: '断言配置' },
@@ -253,9 +263,7 @@ const filterColumns: RsTableColumn<FilterConfig>[] = [
   },
 ]
 
-/**
- * 加载路由过滤器列表
- */
+/** 加载路由过滤器列表 */
 const loadRouteFilters = async () => {
   if (!routeConfigId.value) return
 
@@ -267,14 +275,20 @@ const loadRouteFilters = async () => {
       pageSize: 10000,
     })
 
-    if (response?.oK && response.bizData) {
-      const parseData = JSON.parse(response.bizData)
-      const filterList = Array.isArray(parseData) ? parseData : parseData?.list || parseData?.data || []
+    if (isApiSuccess(response)) {
+      const parseData = parseJsonData<FilterConfig[] | { list?: FilterConfig[]; data?: FilterConfig[] }>(
+        response,
+        [],
+      )
+      const filterList = Array.isArray(parseData)
+        ? parseData
+        : parseData?.list || parseData?.data || []
       routeFilters.value = filterList
-        .filter((filter: FilterConfig) => ['post-routing', 'pre-response'].includes(filter.filterAction))
-        .sort((a: FilterConfig, b: FilterConfig) => a.filterOrder - b.filterOrder)
+        .filter((filter) => ROUTE_FILTER_ACTIONS.has(filter.filterAction))
+        .sort((a, b) => (a.filterOrder || 0) - (b.filterOrder || 0))
     } else {
       routeFilters.value = []
+      message.error(getApiMessage(response, '加载路由过滤器失败'))
     }
   } catch (error) {
     console.error('加载路由过滤器失败:', error)
@@ -285,41 +299,39 @@ const loadRouteFilters = async () => {
   }
 }
 
-/**
- * 处理创建过滤器
- */
+/** 处理创建过滤器 */
 const handleCreateFilter = () => {
   currentFilter.value = null
   filterDialogVisible.value = true
-  // stub: FilterConfigDialog 缺失，暂无法打开编辑器
   message.warning('过滤器编辑对话框组件暂不可用')
-  nextTick(() => {
-    // 待 FilterConfigDialog 恢复后设置路由级默认值
-  })
 }
 
-/**
- * 处理编辑过滤器
- */
+/** 处理编辑过滤器 */
 const handleEditFilter = (filter: FilterConfig) => {
   currentFilter.value = filter
   filterDialogVisible.value = true
   message.warning('过滤器编辑对话框组件暂不可用')
 }
 
-/**
- * 处理删除过滤器
- */
+/** 处理删除过滤器 */
 const handleDeleteFilter = async (filter: FilterConfig) => {
+  const confirmed = await rsConfirm.warning({
+    title: '确认删除',
+    description: `确定要删除过滤器"${filter.filterName}"吗？此操作不可恢复。`,
+    confirmText: '删除',
+    cancelText: '取消',
+  })
+  if (!confirmed) return
+
   try {
     filtersLoading.value = true
     const response = await deleteFilterConfig(filter.filterConfigId)
 
-    if (response?.oK) {
-      message.success('删除过滤器成功')
+    if (isApiSuccess(response)) {
+      message.success(getApiMessage(response, '删除过滤器成功'))
       await loadRouteFilters()
     } else {
-      message.error(response?.errMsg || '删除过滤器失败')
+      message.error(getApiMessage(response, '删除过滤器失败'))
     }
   } catch (error) {
     console.error('删除过滤器失败:', error)
@@ -329,24 +341,20 @@ const handleDeleteFilter = async (filter: FilterConfig) => {
   }
 }
 
-/**
- * 处理过滤器状态切换
- */
+/** 处理过滤器状态切换 */
 const handleToggleFilterStatus = async (filter: FilterConfig) => {
   try {
     const newStatus = filter.activeFlag === 'Y' ? 'N' : 'Y'
-    const updateData = {
+    const response = await editFilterConfig({
       ...filter,
       activeFlag: newStatus,
-    }
+    })
 
-    const response = await editFilterConfig(updateData)
-
-    if (response?.oK) {
+    if (isApiSuccess(response)) {
       message.success(`过滤器已${newStatus === 'Y' ? '启用' : '禁用'}`)
       await loadRouteFilters()
     } else {
-      message.error(response?.errMsg || '更新过滤器状态失败')
+      message.error(getApiMessage(response, '更新过滤器状态失败'))
     }
   } catch (error) {
     console.error('更新过滤器状态失败:', error)
@@ -354,9 +362,7 @@ const handleToggleFilterStatus = async (filter: FilterConfig) => {
   }
 }
 
-/**
- * 处理向上移动过滤器
- */
+/** 处理向上移动过滤器 */
 const handleMoveFilterUp = async (filter: FilterConfig) => {
   const currentIndex = routeFilters.value.findIndex((f) => f.filterConfigId === filter.filterConfigId)
   if (currentIndex <= 0) return
@@ -365,34 +371,27 @@ const handleMoveFilterUp = async (filter: FilterConfig) => {
   await swapFilterOrder(filter, targetFilter)
 }
 
-/**
- * 处理向下移动过滤器
- */
+/** 处理向下移动过滤器 */
 const handleMoveFilterDown = async (filter: FilterConfig) => {
   const currentIndex = routeFilters.value.findIndex((f) => f.filterConfigId === filter.filterConfigId)
-  if (currentIndex >= routeFilters.value.length - 1) return
+  if (currentIndex < 0 || currentIndex >= routeFilters.value.length - 1) return
 
   const targetFilter = routeFilters.value[currentIndex + 1]
   await swapFilterOrder(filter, targetFilter)
 }
 
-/**
- * 交换过滤器顺序
- */
+/** 交换过滤器顺序 */
 const swapFilterOrder = async (filter1: FilterConfig, filter2: FilterConfig) => {
   try {
     filtersLoading.value = true
 
     const tempOrder = filter1.filterOrder
-    const updateFilter1 = { ...filter1, filterOrder: filter2.filterOrder }
-    const updateFilter2 = { ...filter2, filterOrder: tempOrder }
-
     const [response1, response2] = await Promise.all([
-      editFilterConfig(updateFilter1),
-      editFilterConfig(updateFilter2),
+      editFilterConfig({ ...filter1, filterOrder: filter2.filterOrder }),
+      editFilterConfig({ ...filter2, filterOrder: tempOrder }),
     ])
 
-    if (response1?.oK && response2?.oK) {
+    if (isApiSuccess(response1) && isApiSuccess(response2)) {
       message.success('调整执行顺序成功')
       await loadRouteFilters()
     } else {
@@ -406,17 +405,13 @@ const swapFilterOrder = async (filter1: FilterConfig, filter2: FilterConfig) => 
   }
 }
 
-/**
- * 处理刷新过滤器
- */
+/** 处理刷新过滤器 */
 const handleRefreshFilters = async () => {
   await loadRouteFilters()
   message.success('刷新完成')
 }
 
-/**
- * 处理保存过滤器（供 FilterConfigDialog 恢复后调用）
- */
+/** 处理保存过滤器（供 FilterConfigDialog 恢复后调用） */
 const handleSaveFilter = async (filterData: FilterFormData) => {
   try {
     const routeLevelFilterAction = filterData.filterConfigId
@@ -430,29 +425,30 @@ const handleSaveFilter = async (filterData: FilterFormData) => {
       filterType: filterData.filterType,
       filterAction: routeLevelFilterAction,
       filterOrder: filterData.filterOrder,
-      filterConfig: JSON.stringify(filterData.config),
+      filterConfig: JSON.stringify(filterData.config ?? {}),
       filterDesc: filterData.filterDesc,
       activeFlag: filterData.activeFlag,
       addWho: 'admin',
       editWho: 'admin',
     }
 
-    let response
-    if (filterData.filterConfigId) {
-      response = await editFilterConfig({
-        ...saveData,
-        filterConfigId: filterData.filterConfigId,
-      })
-    } else {
-      response = await addFilterConfig(saveData)
-    }
+    const response = filterData.filterConfigId
+      ? await editFilterConfig({
+          ...saveData,
+          filterConfigId: filterData.filterConfigId,
+        })
+      : await addFilterConfig(saveData)
 
-    if (response?.oK) {
-      message.success(`${filterData.filterConfigId ? '编辑' : '创建'}过滤器成功`)
+    if (isApiSuccess(response)) {
+      message.success(
+        getApiMessage(response, `${filterData.filterConfigId ? '编辑' : '创建'}过滤器成功`),
+      )
       filterDialogVisible.value = false
       await loadRouteFilters()
     } else {
-      message.error(response?.errMsg || `${filterData.filterConfigId ? '编辑' : '创建'}过滤器失败`)
+      message.error(
+        getApiMessage(response, `${filterData.filterConfigId ? '编辑' : '创建'}过滤器失败`),
+      )
     }
   } catch (error) {
     console.error('保存过滤器失败:', error)
@@ -460,21 +456,17 @@ const handleSaveFilter = async (filterData: FilterFormData) => {
   }
 }
 
-/**
- * 打开对话框
- */
+/** 打开对话框 */
 const openDialog = (route: RouteConfig) => {
   if (!route) {
     console.warn('无法打开路由配置管理：缺少路由信息')
     return
   }
   visible.value = true
-  loadRouteFilters()
+  void loadRouteFilters()
 }
 
-/**
- * 关闭对话框
- */
+/** 关闭对话框 */
 const closeDialog = () => {
   visible.value = false
   emit('update:visible', false)
@@ -491,9 +483,7 @@ const handleUpdateOpen = (open: boolean) => {
   }
 }
 
-/**
- * 处理配置变更
- */
+/** 处理配置变更 */
 const handleConfigChange = () => {
   console.log('配置已变更')
 }
@@ -509,7 +499,7 @@ watch(
   () => props.route,
   (newRoute) => {
     if (newRoute && visible.value) {
-      loadRouteFilters()
+      void loadRouteFilters()
     }
   },
 )

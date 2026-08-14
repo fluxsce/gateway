@@ -1,85 +1,77 @@
 <template>
-  <n-input-group>
-    <n-input
-      :value="localValue"
+  <div class="tunnel-client-selector">
+    <RsInput
+      v-bind="attrs"
+      v-model="localValue"
       placeholder="请输入客户端ID或点击选择"
+      :disabled="disabled"
       clearable
-      size="small"
-      @update:value="handleInputChange"
+      size="sm"
+      label-position="top"
+      class="tunnel-client-selector__input"
+      addon-after-icon="ellipsis"
+      addon-after-icon-label="选择客户端"
+      @addon-after-click="handleSelectClick"
     />
-    <n-button type="primary" size="small" @click="handleSelectClick">
-      <template #icon>
-        <n-icon><EllipsisHorizontalOutline /></n-icon>
-      </template>
-    </n-button>
-  </n-input-group>
 
-  <!-- 客户端选择对话框 -->
-  <TunnelClientListModal
-    v-model:visible="clientSelectDialogVisible"
-    @select="handleSelect"
-  />
+    <TunnelClientListModal
+      v-model:visible="clientSelectDialogVisible"
+      @select="handleSelect"
+    />
+  </div>
 </template>
 
 <script lang="ts" setup>
-import { EllipsisHorizontalOutline } from '@vicons/ionicons5'
-import { NButton, NIcon, NInput, NInputGroup } from 'naive-ui'
-import { ref, watch } from 'vue'
+import { RsInput } from '@/ui'
+import { ref, useAttrs, watch } from 'vue'
 import type { TunnelClient } from '../../types'
 import TunnelClientListModal from './TunnelClientListModal.vue'
 
-// 定义组件名称
 defineOptions({
-  name: 'TunnelClientSelector'
+  name: 'TunnelClientSelector',
+  inheritAttrs: false,
 })
 
-// ============= Props =============
+const attrs = useAttrs()
 
 interface Props {
   /** 客户端ID值 */
   modelValue?: string
+  /** 是否禁用 */
+  disabled?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  modelValue: ''
+  modelValue: '',
+  disabled: false,
 })
-
-// ============= Emits =============
 
 interface Emits {
   (e: 'update:modelValue', value: string): void
+  (e: 'select', client: TunnelClient): void
 }
 
 const emit = defineEmits<Emits>()
 
-// ============= 弹窗状态 =============
-
 const clientSelectDialogVisible = ref(false)
 const localValue = ref(props.modelValue)
 
-// 监听 props.modelValue 变化，同步到本地状态
-watch(() => props.modelValue, (newVal) => {
-  localValue.value = newVal
-})
+watch(
+  () => props.modelValue,
+  (newVal) => {
+    localValue.value = newVal
+  },
+)
 
-// 监听本地值变化，同步到父组件
 watch(localValue, (newVal) => {
   emit('update:modelValue', newVal)
 })
-
-// ============= 事件处理 =============
-
-/**
- * 处理输入框值变化
- */
-const handleInputChange = (value: string) => {
-  localValue.value = value
-}
 
 /**
  * 处理选择按钮点击
  */
 const handleSelectClick = () => {
+  if (props.disabled) return
   clientSelectDialogVisible.value = true
 }
 
@@ -87,14 +79,20 @@ const handleSelectClick = () => {
  * 处理选择客户端
  */
 const handleSelect = (client: TunnelClient) => {
+  if (!client) return
   localValue.value = client.tunnelClientId
-  clientSelectDialogVisible.value = false
+  emit('select', client)
 }
 </script>
 
 <style lang="scss" scoped>
-.n-input-group {
+.tunnel-client-selector {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.tunnel-client-selector__input {
   width: 100%;
 }
 </style>
-

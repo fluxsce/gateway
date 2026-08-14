@@ -1,0 +1,112 @@
+/**
+ * 预警日志管理模块中文语言包
+ * hub0082 - Alert Log Management
+ */
+export default {
+  moduleName: '预警日志管理',
+
+  common: {
+    all: '全部',
+    delete: '删除',
+    cancel: '取消',
+    viewDetail: '查看详情',
+  },
+
+  level: {
+    info: '信息',
+    warn: '警告',
+    error: '错误',
+    critical: '严重',
+  },
+
+  sendStatus: {
+    pending: '待发送',
+    sending: '发送中',
+    success: '成功',
+    failed: '失败',
+  },
+
+  shortcuts: {
+    today: '今天',
+    yesterday: '昨天',
+    lastHour: '最近1小时',
+    last6Hours: '最近6小时',
+    last24Hours: '最近24小时',
+    last7Days: '最近7天',
+  },
+
+  search: {
+    timeRange: '时间范围',
+    timeRangePlaceholder: '请选择时间范围',
+    timeRangeRequired: '请选择时间范围',
+    alertLogId: '日志ID',
+    alertLogIdPlaceholder: '请输入日志ID',
+    alertLevel: '告警级别',
+    alertLevelPlaceholder: '请选择告警级别',
+    alertType: '告警类型',
+    alertTypePlaceholder: '请输入告警类型',
+    alertTitle: '告警标题',
+    alertTitlePlaceholder: '请输入告警标题',
+    channelName: '渠道名称',
+    channelNamePlaceholder: '请输入渠道名称',
+    sendStatus: '发送状态',
+    sendStatusPlaceholder: '请选择发送状态',
+  },
+
+  toolbar: {
+    delete: '删除',
+    deleteTooltip: '批量删除选中的日志',
+  },
+
+  columns: {
+    alertLogId: '日志ID',
+    alertLevel: '告警级别',
+    alertType: '告警类型',
+    alertTitle: '告警标题',
+    alertContent: '告警内容',
+    channelName: '渠道名称',
+    sendStatus: '发送状态',
+    alertTimestamp: '告警时间',
+    sendTime: '发送时间',
+    sendErrorMessage: '错误信息',
+    addTime: '创建时间',
+    addWho: '创建人',
+    editTime: '修改时间',
+    editWho: '修改人',
+  },
+
+  dialog: {
+    title: '预警日志详情',
+    titleWithId: '预警日志详情 - {id}',
+    basicInfo: '基本信息',
+    alertTitle: '告警标题',
+    alertContent: '告警内容',
+    alertTags: '告警标签 (JSON)',
+    alertExtra: '额外数据 (JSON)',
+    tableData: '表格数据 (JSON)',
+    sendResult: '发送结果 (JSON)',
+    empty: '暂无日志数据',
+  },
+
+  confirm: {
+    deleteTitle: '确认删除',
+    deleteContent: '确定要删除日志"{id}"吗？',
+    batchDeleteTitle: '确认批量删除',
+    batchDeleteContent: '确定要删除选中的 {count} 条日志吗？',
+    confirmText: '删除',
+    cancelText: '取消',
+  },
+
+  message: {
+    gridRefMissing: 'Grid 引用未设置',
+    selectToDelete: '请先勾选要删除的日志，或单击选中一行后再删除',
+    alertLogIdRequired: '日志ID不能为空',
+    queryFailed: '查询预警日志失败',
+    detailFailed: '获取预警日志详情失败',
+    loadDetailFailed: '加载预警日志详情失败',
+    deleteSuccess: '删除预警日志成功',
+    deleteFailed: '删除预警日志失败',
+    batchDeleteSuccess: '成功删除 {count} 条预警日志',
+    batchDeleteFailed: '批量删除预警日志失败',
+  },
+}

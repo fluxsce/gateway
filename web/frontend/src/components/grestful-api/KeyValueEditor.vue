@@ -49,17 +49,16 @@
           </div>
           <div class="g-key-value-editor__td g-key-value-editor__td--action">
             <RsButton
-              quaternary
-              circle
+              variant="ghost"
+              tone="danger"
               size="sm"
+              icon-only
+              icon="trash-2"
               class="g-key-value-editor__remove"
-              :aria-label="'删除该行'"
+              tooltip="删除"
+              aria-label="删除该行"
               @click="removeRow(row.id)"
-            >
-              <template #icon>
-                <g-icon icon="RemoveOutline" size="sm" />
-              </template>
-            </RsButton>
+            />
           </div>
         </div>
       </div>
@@ -130,17 +129,16 @@
           </div>
           <div class="g-key-value-editor__td g-key-value-editor__td--action">
             <RsButton
-              quaternary
-              circle
+              variant="ghost"
+              tone="danger"
               size="sm"
+              icon-only
+              icon="trash-2"
               class="g-key-value-editor__remove"
-              :aria-label="'删除该行'"
+              tooltip="删除"
+              aria-label="删除该行"
               @click="removeRow(row.id)"
-            >
-              <template #icon>
-                <g-icon icon="RemoveOutline" size="sm" />
-              </template>
-            </RsButton>
+            />
           </div>
         </div>
       </div>
@@ -167,12 +165,15 @@
           class="g-key-value-editor__val"
         />
         <RsButton
-          size="ssm"
-          quaternary
+          variant="ghost"
+          tone="danger"
+          size="sm"
+          icon-only
+          icon="trash-2"
+          tooltip="删除"
+          aria-label="删除该行"
           @click="removeRow(row.id)"
-        >
-          删除
-        </RsButton>
+        />
       </div>
     </template>
   </div>
@@ -181,7 +182,6 @@
 <script setup lang="ts">
 // @ts-nocheck
 import { RsButton, RsCheckbox, RsInput, RsSelect } from '@/ui'
-import { GIcon } from '@/components/gicon'
 
 import { computed, nextTick, onMounted, watch } from 'vue'
 import type { RestFormFieldKind, RestKeyValueRow } from './types'
@@ -344,11 +344,17 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .g-key-value-editor {
+  --g-kv-border: var(--rs-border-subtle, var(--g-border-primary, #e5e7eb));
+  --g-kv-fg-muted: var(--rs-muted, var(--g-text-secondary, #6b7280));
+  --g-kv-surface: var(--rs-surface, var(--g-bg-color, #fff));
+  --g-kv-header-bg: var(--rs-surface-muted, var(--g-bg-secondary, #f8fafc));
+  --g-kv-radius: var(--rs-radius, var(--g-radius-md, 6px));
+
   &__table {
-    border: 1px solid var(--n-border-color);
-    border-radius: var(--n-border-radius);
+    border: 1px solid var(--g-kv-border);
+    border-radius: var(--g-kv-radius);
     overflow: hidden;
-    background: var(--n-color);
+    background: var(--g-kv-surface);
   }
 
   &__thead {
@@ -357,16 +363,17 @@ onMounted(() => {
     gap: 0;
     padding: 8px 10px;
     font-size: 12px;
-    color: var(--n-text-color-3);
-    background: var(--n-color-modal);
-    border-bottom: 1px solid var(--n-border-color);
+    font-weight: 500;
+    color: var(--g-kv-fg-muted);
+    background: var(--g-kv-header-bg);
+    border-bottom: 1px solid var(--g-kv-border);
 
     &--query {
-      grid-template-columns: 36px 1fr 28px 1.4fr 40px;
+      grid-template-columns: 36px 1fr 28px 1.4fr 44px;
     }
 
     &--form {
-      grid-template-columns: 36px minmax(72px, 1fr) 100px minmax(100px, 1.4fr) 40px;
+      grid-template-columns: 36px minmax(72px, 1fr) 100px minmax(100px, 1.4fr) 44px;
     }
   }
 
@@ -385,20 +392,24 @@ onMounted(() => {
   &__tr {
     display: grid;
     min-height: 40px;
-    border-bottom: 1px solid var(--n-border-color);
-    background: var(--n-color);
+    border-bottom: 1px solid var(--g-kv-border);
+    background: var(--g-kv-surface);
+
+    &:last-child {
+      border-bottom: none;
+    }
 
     &--query {
-      grid-template-columns: 36px 1fr 28px 1.4fr 40px;
+      grid-template-columns: 36px 1fr 28px 1.4fr 44px;
       align-items: center;
     }
 
     &--auto-body {
-      background: var(--n-color-embedded);
+      background: var(--g-kv-header-bg);
     }
 
     &--form {
-      grid-template-columns: 36px minmax(72px, 1fr) 100px minmax(100px, 1.4fr) 40px;
+      grid-template-columns: 36px minmax(72px, 1fr) 100px minmax(100px, 1.4fr) 44px;
       align-items: center;
     }
   }
@@ -437,7 +448,7 @@ onMounted(() => {
   }
 
   &__equals {
-    color: var(--n-text-color-3);
+    color: var(--g-kv-fg-muted);
     font-size: 14px;
     user-select: none;
   }
@@ -452,18 +463,13 @@ onMounted(() => {
 
   &__auto-hint {
     font-size: 12px;
-    color: var(--n-text-color-3);
+    color: var(--g-kv-fg-muted);
     flex-shrink: 0;
     white-space: nowrap;
   }
 
   &__cell-input {
     width: 100%;
-
-    :deep(.n-input__input-el) {
-      padding-left: 4px;
-      padding-right: 4px;
-    }
   }
 
   &__file-cell {
@@ -492,16 +498,16 @@ onMounted(() => {
     padding: 4px 10px;
     font-size: 12px;
     line-height: 1.25;
-    color: var(--n-primary-color);
-    border: 1px dashed var(--n-border-color);
-    border-radius: var(--n-border-radius);
-    background: var(--n-color-modal);
+    color: var(--rs-primary, var(--g-primary, #7c3aed));
+    border: 1px dashed var(--g-kv-border);
+    border-radius: var(--g-kv-radius);
+    background: var(--g-kv-header-bg);
   }
 
   &__file-name {
     font-size: 12px;
     line-height: 1.25;
-    color: var(--n-text-color);
+    color: var(--rs-text, var(--g-text-primary, #111827));
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -509,11 +515,7 @@ onMounted(() => {
   }
 
   &__remove {
-    color: var(--n-text-color-3);
-
-    &:hover {
-      color: var(--n-error-color);
-    }
+    color: var(--g-kv-fg-muted);
   }
 
   &__row {

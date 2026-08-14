@@ -224,29 +224,48 @@ export function useAssertConfigPage(
 
   /**
    * 处理批量删除
+   * 使用 getActiveRows：优先勾选行，无勾选时回退当前高亮行
    */
   const handleBatchDelete = async () => {
     if (!gridRef?.value) {
+      message.warning('无法获取表格引用')
       return
     }
 
-    const selectedRows = gridRef.value.getSelectedRows() as AssertConfig[]
-    if (!selectedRows || selectedRows.length === 0) {
-      void rsConfirm.info({
-        title: '提示',
-        description: '请先选择要删除的断言',
-      })
+    const selectedRows = (gridRef.value.getActiveRows?.() || []) as AssertConfig[]
+    if (selectedRows.length === 0) {
+      message.warning('请选择或点击要删除的断言')
       return
     }
 
     const confirmed = await rsConfirm.warning({
-      title: '确认批量删除',
-      description: `确定要删除选中的 ${selectedRows.length} 个断言吗？`,
+      title: selectedRows.length > 1 ? '确认批量删除' : '确认删除',
+      description:
+        selectedRows.length > 1
+          ? `确定要删除选中的 ${selectedRows.length} 个断言吗？`
+          : `确定要删除断言"${selectedRows[0].assertionName}"吗？`,
     })
 
-    if (confirmed) {
-      const routeAssertionIds = selectedRows.map((row) => row.routeAssertionId)
-      await service.deleteAsserts(routeAssertionIds)
+    if (!confirmed) {
+      return
+    }
+
+    const routeAssertionIds = selectedRows
+      .map((row) => row.routeAssertionId)
+      .filter((id): id is string => Boolean(id))
+
+    if (routeAssertionIds.length === 0) {
+      message.warning('断言配置ID无效')
+      return
+    }
+
+    const success =
+      routeAssertionIds.length === 1
+        ? await service.deleteAssert(routeAssertionIds[0])
+        : await service.deleteAsserts(routeAssertionIds)
+
+    if (success) {
+      gridRef.value.clearSelection?.()
     }
   }
 

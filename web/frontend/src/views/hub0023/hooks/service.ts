@@ -6,7 +6,7 @@
 import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { formatDate, getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import * as gatewayLogApi from '../api'
 import type { GatewayLogListItem, GatewayLogQueryParams, GatewayLogResetParams } from '../types'
@@ -16,7 +16,7 @@ import { useGatewayLogModel } from './model'
  * 网关日志服务 Hook（纯业务逻辑）
  */
 export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 初始化 Model
   const model = useGatewayLogModel()

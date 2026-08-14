@@ -6,7 +6,7 @@
 
 import { rsConfirm } from '@/ui'
 import { useAppMessage } from '@/composables/useAppMessage'
-import { flattenExtProperty, getApiMessage, isApiSuccess, parseJsonData, unflattenExtProperty } from '@/utils/format'
+import { flattenExtProperty, getApiMessage, isApiSuccess, parseJsonData, parseJsonObjectColumn, stringifyJsonObjectColumn, unflattenExtProperty } from '@/utils/format'
 import { consumeTextFileField, filesFromTextContent } from '@/utils/uploadFile'
 import { PlayCircleOutline, RefreshOutline, StopCircleOutline } from '@vicons/ionicons5'
 import type { Ref } from 'vue'
@@ -390,8 +390,9 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
           logConfig.sensitiveFields = []
         }
 
-        // 展开 extProperty 为扁平字段
+        // 解析 JSON 列为嵌套对象，供 NamePath 字段读写
         flattenExtProperty(logConfig)
+        parseJsonObjectColumn(logConfig, 'fileConfig')
         
         currentLogConfig.value = logConfig
         logConfigDialogVisible.value = true
@@ -438,8 +439,9 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
         processedData.sensitiveFields = JSON.stringify(processedData.sensitiveFields)
       }
 
-      // 将扁平字段打包回 extProperty JSON 字符串
+      // 将嵌套对象打包回 JSON 字符串列
       unflattenExtProperty(processedData)
+      stringifyJsonObjectColumn(processedData, 'fileConfig')
 
       const response: any = await gatewayApi.editLogConfig(processedData)
       

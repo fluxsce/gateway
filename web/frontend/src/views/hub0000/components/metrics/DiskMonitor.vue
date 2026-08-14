@@ -1,6 +1,6 @@
 <template>
-    <GCard show-title :title="displayTitle" :bordered="false" class="monitor-card">
-        <template #header-extra>
+    <RsCard :title="displayTitle" :padding="false" borderless variant="plain" class="monitor-card">
+        <template #actions>
             <div class="card-extra">
                 <MetricsDateTimeRange v-model="dateTimeRange" @change="handleTimeRangeChange" />
                 <RsButton size="sm" :loading="loading" @click="refreshData">
@@ -23,16 +23,15 @@
                 <RsEmpty :description="t('hub0000.common.noData')" />
             </div>
         </div>
-    </GCard>
+    </RsCard>
 </template>
 
 <script setup lang="ts">
 import MetricsDateTimeRange from './MetricsDateTimeRange.vue'
 import { createAxisTooltipOptions } from './echartsTooltip'
-import { RsButton, RsEmpty, RsLoading } from '@/ui'
+import { RsButton, RsCard, RsEmpty, RsLoading } from '@/ui'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
-import { GCard } from '@/components/gcard'
 import { GIcon } from '@/components/gicon'
 import * as echarts from 'echarts/core'
 import { LineChart } from 'echarts/charts'

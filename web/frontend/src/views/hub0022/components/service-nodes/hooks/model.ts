@@ -3,7 +3,7 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { DataFormField, DataFormTab } from '@/components/form/data/types'
+import type { RsDataFormField, RsDataFormTab } from '@/components/form/rs-data'
 import type { RsSearchFormProps } from '@/components/form/rs-search'
 import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
@@ -137,13 +137,13 @@ export function useServiceNodeModel() {
 
   // ============= 表单配置 =============
 
-  /** 服务节点表单配置 */
+  /** 服务节点表单配置（用于 RsDataFormModal） */
   const nodeFormConfig = {
     tabs: [
       { key: 'basic', label: '基本信息' },
       { key: 'metadata', label: '元数据配置' },
       { key: 'other', label: '其他配置' },
-    ] as DataFormTab[],
+    ] as RsDataFormTab[],
     fields: [
       // ============= 主键字段（隐藏，但必须存在用于编辑） =============
       {
@@ -300,13 +300,13 @@ export function useServiceNodeModel() {
         rules: [
           { required: true, message: '请输入节点URL', trigger: ['blur', 'input'] },
           {
-            validator: (_rule: any, value: any) => {
-              if (value && (value.startsWith('http://') || value.startsWith('https://'))) {
+            validator: (value: unknown) => {
+              if (typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'))) {
                 try {
                   new URL(value)
                   return true
                 } catch {
-                  return new Error('请输入有效的URL格式')
+                  return '请输入有效的URL格式'
                 }
               }
               return true
@@ -382,13 +382,13 @@ export function useServiceNodeModel() {
         },
         rules: [
           {
-            validator: (_rule: any, value: any) => {
+            validator: (value: unknown) => {
               if (value && typeof value === 'string' && value.trim()) {
                 try {
                   JSON.parse(value)
                   return true
                 } catch {
-                  return new Error('请输入有效的JSON格式')
+                  return '请输入有效的JSON格式'
                 }
               }
               return true
@@ -430,7 +430,7 @@ export function useServiceNodeModel() {
         tabKey: 'other',
         disabled: true,
       },
-    ] as DataFormField[],
+    ] as RsDataFormField[],
   }
 
   // ============= 表格配置 =============

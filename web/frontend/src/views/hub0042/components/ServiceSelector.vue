@@ -44,12 +44,10 @@
           </div>
         </div>
         <div class="service-actions">
-          <RsButton variant="secondary" size="sm" @click="openSelector">
-            <GIcon :icon="RefreshOutline" size="sm" />
+          <RsButton variant="secondary" size="sm" icon="refresh-cw" @click="openSelector">
             重新选择
           </RsButton>
-          <RsButton variant="secondary" tone="danger" size="sm" @click="handleClear">
-            <GIcon :icon="CloseOutline" size="sm" />
+          <RsButton variant="secondary" tone="danger" size="sm" icon="x" @click="handleClear">
             清除
           </RsButton>
         </div>
@@ -58,8 +56,7 @@
 
     <!-- 未选择时：显示选择按钮 -->
     <div v-else class="empty-selector">
-      <RsButton variant="secondary" size="lg" class="select-btn" @click="openSelector">
-        <GIcon :icon="ServerOutline" size="md" />
+      <RsButton variant="secondary" size="lg" class="select-btn" icon="server" @click="openSelector">
         点击选择注册服务
       </RsButton>
     </div>
@@ -75,15 +72,9 @@
 </template>
 
 <script setup lang="ts">
-import { GIcon } from '@/components/gicon'
 import { useAppMessage } from '@/composables/useAppMessage'
 import { RsButton, RsTag } from '@/ui'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
-import {
-  CloseOutline,
-  RefreshOutline,
-  ServerOutline
-} from '@vicons/ionicons5'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { getService } from '../api'
 import type { Service } from '../types'

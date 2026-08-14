@@ -401,8 +401,8 @@ export function useAssertConfigModel() {
       tabKey: 'basic',
       required: true,
       rules: [
-        { required: true, message: '请输入断言名称', trigger: ['blur', 'input'] },
-        { min: 2, max: 100, message: '断言名称长度应在2-100字符之间', trigger: ['blur', 'input'] },
+        { required: true, message: '请输入断言名称', trigger: ['blur', 'change'] },
+        { min: 2, max: 100, message: '断言名称长度应在2-100字符之间', trigger: ['blur', 'change'] },
       ],
     },
     {
@@ -494,16 +494,17 @@ export function useAssertConfigModel() {
           show: (formData: Record<string, any>) => {
             return ['HEADER', 'QUERY', 'COOKIE'].includes(formData.assertionType)
           },
+          required: true,
           rules: [
             {
-              validator: (_rule: any, value: any, formData: Record<string, any>) => {
-                const needsField = ['HEADER', 'QUERY', 'COOKIE'].includes(formData.assertionType)
-                if (needsField && (!value || !value.trim())) {
-                  return new Error('请输入字段名称')
+              // 字段仅在 HEADER/QUERY/COOKIE 时展示（v-if），隐藏时不会参与校验
+              validator: (value: unknown) => {
+                if (typeof value !== 'string' || !value.trim()) {
+                  return '请输入字段名称'
                 }
                 return true
               },
-              trigger: ['blur', 'input'],
+              trigger: ['blur', 'change'],
             },
           ],
         },

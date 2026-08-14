@@ -4,7 +4,8 @@
  */
 
 import { formatDate, formatFileSize, getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
-import { useMessage } from 'naive-ui'
+import { useAppMessage } from '@/composables/useAppMessage'
+import type { RsTagVariant } from '@/ui'
 import { computed, ref, watch } from 'vue'
 import { getGatewayLog } from '../../api'
 import type { GatewayLogInfo } from '../../types'
@@ -93,7 +94,7 @@ export function useBackendLogsPage(
   props: { visible: boolean; traceId?: string; gatewayInstanceId?: string },
   emit: (event: 'update:visible', value: boolean) => void
 ) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 状态管理
   const loading = ref(false)
@@ -193,12 +194,12 @@ export function useBackendLogsPage(
   }
 
   // 获取HTTP方法颜色
-  const getMethodColor = (method?: string): string => {
-    const colorMap: Record<string, string> = {
+  const getMethodColor = (method?: string): RsTagVariant => {
+    const colorMap: Record<string, RsTagVariant> = {
       GET: 'info',
       POST: 'success',
       PUT: 'warning',
-      DELETE: 'error',
+      DELETE: 'danger',
       PATCH: 'default',
       HEAD: 'default',
       OPTIONS: 'default',
@@ -207,29 +208,29 @@ export function useBackendLogsPage(
   }
 
   // 获取状态码类型
-  const getStatusCodeType = (statusCode: number): string => {
+  const getStatusCodeType = (statusCode: number): RsTagVariant => {
     if (!statusCode || statusCode === 0) return 'default'
     if (statusCode >= 200 && statusCode < 300) return 'success'
     if (statusCode >= 300 && statusCode < 400) return 'warning'
-    if (statusCode >= 400) return 'error'
+    if (statusCode >= 400) return 'danger'
     return 'default'
   }
 
   // 获取响应时间类型
-  const getResponseTimeType = (responseTime: number): string => {
+  const getResponseTimeType = (responseTime: number): RsTagVariant => {
     if (responseTime === 0) return 'default'
     if (responseTime < 100) return 'success'
     if (responseTime < 500) return 'warning'
-    return 'error'
+    return 'danger'
   }
 
   // 获取追踪状态类型
-  const getTraceStatusType = (status?: string): string => {
-    const statusMap: Record<string, string> = {
+  const getTraceStatusType = (status?: string): RsTagVariant => {
+    const statusMap: Record<string, RsTagVariant> = {
       pending: 'warning',
       success: 'success',
-      failed: 'error',
-      timeout: 'error',
+      failed: 'danger',
+      timeout: 'danger',
     }
     return statusMap[status || ''] || 'default'
   }
@@ -258,9 +259,9 @@ export function useBackendLogsPage(
   }
 
   // 获取日志级别类型
-  const getLogLevelType = (level: string): string => {
-    const typeMap: Record<string, string> = {
-      ERROR: 'error',
+  const getLogLevelType = (level: string): RsTagVariant => {
+    const typeMap: Record<string, RsTagVariant> = {
+      ERROR: 'danger',
       WARN: 'warning',
       INFO: 'info',
       DEBUG: 'success',
@@ -280,10 +281,10 @@ export function useBackendLogsPage(
   }
 
   // 获取日志类型颜色
-  const getLogTypeColor = (type: string): string => {
-    const colorMap: Record<string, string> = {
+  const getLogTypeColor = (type: string): RsTagVariant => {
+    const colorMap: Record<string, RsTagVariant> = {
       ACCESS: 'info',
-      ERROR: 'error',
+      ERROR: 'danger',
       SYSTEM: 'warning',
     }
     return colorMap[type] || 'default'
@@ -300,12 +301,12 @@ export function useBackendLogsPage(
   }
 
   // 获取代理类型颜色
-  const getProxyTypeColor = (type?: string): string => {
-    const colorMap: Record<string, string> = {
+  const getProxyTypeColor = (type?: string): RsTagVariant => {
+    const colorMap: Record<string, RsTagVariant> = {
       http: 'info',
       websocket: 'warning',
       tcp: 'success',
-      udp: 'error',
+      udp: 'danger',
     }
     return colorMap[type || ''] || 'default'
   }

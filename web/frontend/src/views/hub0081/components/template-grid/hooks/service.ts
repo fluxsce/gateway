@@ -3,16 +3,20 @@
  * 用于模板选择器组件
  */
 
+import type { RsSearchFormExpose } from '@/components/form/rs-search'
+import { useAppMessage } from '@/composables/useAppMessage'
 import { createBackendPaginationParams } from '@/utils/pagination'
 import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { queryAlertTemplates } from '../../../api'
 import type { AlertTemplate, AlertTemplateQueryParams } from '../../../types'
 import { useAlertTemplateListModel } from './model'
 
-export function useAlertTemplateListService(searchFormRef?: Ref<any> | any, channelType?: string) {
-  const message = useMessage()
+export function useAlertTemplateListService(
+  searchFormRef?: Ref<RsSearchFormExpose | null>,
+  channelType?: string,
+) {
+  const message = useAppMessage()
   const model = useAlertTemplateListModel(channelType)
 
   const loadTemplateList = async (searchParams?: Record<string, any>) => {

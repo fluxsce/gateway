@@ -3,30 +3,37 @@
     class="language-switcher"
     :class="{ 'language-switcher--dark-surface': variant === 'dark-surface' }"
   >
-    <GDropdown trigger="click" :options="languageOptions" @select="handleLanguageSelect">
-      <button
-        type="button"
-        class="language-selector"
-        :class="{ 'is-loading': isLoading }"
-        :aria-label="currentLanguageName"
-      >
-        <GIcon size="16" class="globe-icon">
-          <LanguageOutline />
-        </GIcon>
-        <span class="current-language">{{ currentLanguageName }}</span>
-        <GIcon size="14" :class="isLoading ? 'chevron-icon is-loading' : 'chevron-icon'">
-          <ChevronDownOutline />
-        </GIcon>
-      </button>
-    </GDropdown>
+    <RsDropdown
+      :model-value="userLanguage"
+      :items="languageItems"
+      :disabled="isLoading"
+      @select="handleLanguageSelect"
+    >
+      <template #trigger>
+        <button
+          type="button"
+          class="language-selector"
+          :class="{ 'is-loading': isLoading }"
+          :aria-label="currentLanguageName"
+        >
+          <GIcon size="16" class="globe-icon">
+            <LanguageOutline />
+          </GIcon>
+          <span class="current-language">{{ currentLanguageName }}</span>
+          <GIcon size="14" :class="isLoading ? 'chevron-icon is-loading' : 'chevron-icon'">
+            <ChevronDownOutline />
+          </GIcon>
+        </button>
+      </template>
+    </RsDropdown>
   </div>
 </template>
 
 <script setup lang="ts">
 import GIcon from '@/components/gicon/GIcon.vue'
-import { GDropdown } from '@/components/gdropdown'
 import { availableLocales, setLocale, type LocaleType } from '@/locales'
 import { useUserStore } from '@/stores/user'
+import { RsDropdown, type RsDropdownItem } from '@/ui'
 import { ChevronDownOutline, LanguageOutline } from '@vicons/ionicons5'
 import { computed, ref } from 'vue'
 
@@ -48,13 +55,12 @@ const currentLanguageName = computed(() => {
   return locale ? locale.name : 'Unknown'
 })
 
-const languageOptions = availableLocales.map((locale) => ({
-  key: locale.locale,
+const languageItems: RsDropdownItem[] = availableLocales.map((locale) => ({
+  value: locale.locale,
   label: locale.name,
 }))
 
-async function handleLanguageSelect(key: string | number) {
-  const localeKey = String(key)
+async function handleLanguageSelect(localeKey: string) {
   if (localeKey === userLanguage.value) return
 
   isLoading.value = true

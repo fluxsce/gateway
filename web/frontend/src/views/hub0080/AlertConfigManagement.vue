@@ -1,56 +1,44 @@
 <template>
   <div class="alert-config-management" :id="htmlId">
-    <GPane direction="vertical" :no-resize="true">
-      <!-- 上部：搜索表单 -->
-      <template #1>
-        <search-form
-          ref="searchFormRef"
-          :module-id="service.model.moduleId"
-          v-bind="service.model.searchFormConfig"
-          @search="handleSearch"
-          @toolbar-click="handleToolbarClick"
-        />
+    <RsSplitPane
+      class="alert-config-management__split"
+      orientation="vertical"
+      :panes="splitPanes"
+      disabled
+    >
+      <template #search>
+        <div class="alert-config-management__search">
+          <RsSearchForm
+            ref="searchFormRef"
+            :module-id="service.model.moduleId"
+            v-bind="service.model.searchFormConfig"
+            @search="handleSearch"
+            @toolbar-click="handleToolbarClick"
+          />
+        </div>
       </template>
 
-      <!-- 下部：数据表格 -->
-      <template #2>
-        <g-grid
-          ref="gridRef"
-          :module-id="service.model.moduleId"
-          :data="service.model.configList"
-          :loading="service.model.loading"
-          v-bind="service.model.gridConfig"
-          @page-change="handlePageChange"
-          @menu-click="({ code, row }) => handleMenuClick({ menu: { code }, row })"
-        >
-          <!-- 渠道类型自定义渲染 -->
-          <template #channelType="{ row }">
-            <n-tag :type="service.model.getChannelTypeTagType(row.channelType)" size="small">
-              {{ service.model.getChannelTypeLabel(row.channelType) }}
-            </n-tag>
-          </template>
-
-          <!-- 默认渠道自定义渲染 -->
-          <template #defaultFlag="{ row }">
-            <n-tag :type="row.defaultFlag === 'Y' ? 'success' : 'default'" size="small">
-              {{ row.defaultFlag === 'Y' ? '是' : '否' }}
-            </n-tag>
-          </template>
-
-          <!-- 状态自定义渲染 -->
-          <template #activeFlag="{ row }">
-            <n-switch
-              :value="row.activeFlag === 'Y'"
-              @update:value="() => handleToggleStatus(row)"
-              size="small"
-            />
-          </template>
-        </g-grid>
+      <template #grid>
+        <div class="alert-config-management__grid">
+          <RsGrid
+            ref="gridRef"
+            :module-id="service.model.moduleId"
+            :data="service.model.configList"
+            :loading="service.model.loading"
+            :columns="gridColumns"
+            :selectable="service.model.gridConfig.selectable"
+            :row-key="service.model.gridConfig.rowKey"
+            height="100%"
+            :pagination-config="service.model.gridConfig.paginationConfig"
+            :menu-config="service.model.gridConfig.menuConfig"
+            @page-change="handlePageChange"
+            @menu-click="handleMenuClick"
+          />
+        </div>
       </template>
-    </GPane>
+    </RsSplitPane>
 
-    <!-- 配置对话框（新增/编辑/查看共用） -->
-    <GdataFormModal
+    <RsDataFormModal
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
       :title="formDialogMode === 'create' ? '新增告警渠道配置' : formDialogMode === 'edit' ? '编辑告警渠道配置' : '查看告警渠道配置详情'"
@@ -63,7 +51,6 @@
       @submit="handleFormSubmit"
     />
 
-    <!-- 预警测试弹窗 -->
     <AlertTestModal
       v-model:visible="testModalVisible"
       :config="currentTestConfig"
@@ -74,26 +61,27 @@
 </template>
 
 <script lang="ts" setup>
-import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
-import SearchForm from '@/components/form/search/SearchForm.vue'
-import { GPane } from '@/components/gpane'
-import { GGrid } from '@/components/grid'
-import { NSwitch, NTag } from 'naive-ui'
-import { ref } from 'vue'
+import { RsDataFormModal } from '@/components/form/rs-data'
+import { RsSearchForm, type RsSearchFormExpose } from '@/components/form/rs-search'
+import { RsGrid, type RsGridColumn, type RsGridExpose } from '@/components/rs-grid'
+import { RsSplitPane, RsSwitch, type RsSplitPaneItem } from '@/ui'
+import { computed, h, ref } from 'vue'
 import { AlertTestModal } from './components'
 import { useAlertConfigPage } from './hooks'
+import type { AlertConfig } from './types'
 
-// 定义组件名称
 defineOptions({
-  name: 'AlertConfigManagement'
+  name: 'AlertConfigManagement',
 })
 
-// ============= Refs =============
+/** 上方搜索区随内容自适应，下方表格占满剩余高度 */
+const splitPanes: RsSplitPaneItem[] = [
+  { key: 'search', size: 'auto' },
+  { key: 'grid' },
+]
 
-const searchFormRef = ref()
-const gridRef = ref()
-
-// ============= 页面级 Hook（包含服务与对话框、事件处理） =============
+const searchFormRef = ref<RsSearchFormExpose | null>(null)
+const gridRef = ref<RsGridExpose | null>(null)
 
 const {
   service,
@@ -111,18 +99,60 @@ const {
   closeTestModal,
 } = useAlertConfigPage(gridRef, searchFormRef)
 
-// ============= HTML ID（用于 DOM，符合 HTML 规范） =============
-
-// 固定的 HTML id（符合 HTML 规范，无特殊字符）
-// 注意：权限校验仍使用原始 moduleId（service.model.moduleId）
+/** 固定 HTML id（moduleId 含冒号，不能直接用作 DOM id） */
 const htmlId = 'hub0080-alert-config'
+
+/** 启停开关需要页面级回调，在此覆盖 model 列渲染 */
+const gridColumns = computed<RsGridColumn<AlertConfig>[]>(() =>
+  service.model.gridConfig.columns.map((col) => {
+    if (col.key === 'activeFlag') {
+      return {
+        ...col,
+        render: (row: AlertConfig) =>
+          h(RsSwitch, {
+            modelValue: row.activeFlag === 'Y',
+            size: 'ssm',
+            'onUpdate:modelValue': () => {
+              void handleToggleStatus(row)
+            },
+          }),
+      }
+    }
+    return col
+  }),
+)
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .alert-config-management {
+  box-sizing: border-box;
+  width: 100%;
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.alert-config-management__split {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.alert-config-management__search {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.alert-config-management__grid {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 </style>
-

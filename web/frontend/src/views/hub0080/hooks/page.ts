@@ -4,8 +4,11 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
+import { takeNamedObject } from '@/components/form/rs-data'
+import type { RsSearchFormExpose } from '@/components/form/rs-search'
+import type { RsGridExpose } from '@/components/rs-grid'
+import { useAppMessage } from '@/composables/useAppMessage'
 import { rsConfirm } from '@/ui'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import type { AlertConfig } from '../types'
@@ -17,11 +20,11 @@ import { useAlertConfigService } from './service'
  * @param searchFormRef 搜索表单引用（可选）
  */
 export function useAlertConfigPage(
-  gridRef?: Ref<any> | any,
-  searchFormRef?: Ref<any> | any
+  gridRef?: Ref<RsGridExpose | null>,
+  searchFormRef?: Ref<RsSearchFormExpose | null>,
 ) {
-  const message = useMessage()
-// 业务服务（包含 model、增删改查等）
+  const message = useAppMessage()
+  // 业务服务（包含 model、增删改查等）
   const service = useAlertConfigService(searchFormRef)
 
   // 表单对话框状态（新增/编辑/查看共用）
@@ -66,9 +69,9 @@ export function useAlertConfigPage(
           message.warning('Grid 引用未设置')
           return
         }
-        const currentRow = gridRef.value.getCurrentRecord()
+        const currentRow = gridRef.value.getActiveRow()
         if (!currentRow) {
-          message.warning('请先点击选择要删除的配置')
+          message.warning('请先选择或点击要删除的配置')
           return
         }
         await handleDelete(currentRow as AlertConfig)
@@ -98,7 +101,7 @@ export function useAlertConfigPage(
   }
 
   /**
-   * 将API数据转换为表单数据格式（加载时：将 serverConfig 和 sendConfig JSON 字符串解析为点号分隔字段）
+   * 将API数据转换为表单数据格式（加载时：将 serverConfig 和 sendConfig JSON 字符串解析为嵌套对象）
    */
   const convertToFormData = (config: AlertConfig): any => {
     // 安全解析 JSON 字符串
@@ -121,24 +124,17 @@ export function useAlertConfigPage(
     // 构建表单数据对象
     const formData: any = {
       ...config,
+      serverConfig: serverConfigObj && typeof serverConfigObj === 'object' ? { ...serverConfigObj } : {},
+      sendConfig: {},
     }
 
-    // 将 serverConfig 对象的嵌套属性展开为点号分隔的字段
-    if (serverConfigObj && typeof serverConfigObj === 'object') {
-      Object.keys(serverConfigObj).forEach((key) => {
-        formData[`serverConfig.${key}`] = serverConfigObj[key]
-      })
-    }
-
-    // 将 sendConfig 对象的嵌套属性展开为点号分隔的字段
     if (sendConfigObj && typeof sendConfigObj === 'object') {
       Object.keys(sendConfigObj).forEach((key) => {
         const value = sendConfigObj[key]
-        // 处理数组字段（如 to, cc, bcc 等），转换为逗号分隔的字符串
         if (Array.isArray(value) && (key === 'to' || key === 'cc' || key === 'bcc' || key === 'at_users' || key === 'mentioned_list' || key === 'mentioned_mobile_list')) {
-          formData[`sendConfig.${key}`] = value.join(', ')
+          formData.sendConfig[key] = value.join(', ')
         } else {
-          formData[`sendConfig.${key}`] = value
+          formData.sendConfig[key] = value
         }
       })
     }
@@ -268,63 +264,47 @@ export function useAlertConfigPage(
   }
 
   /**
-   * 将表单数据转换为API数据格式（保存时：将 serverConfig.xxx 和 sendConfig.xxx 字段合并为 JSON 字符串）
+   * 将表单数据转换为API数据格式（保存时：将 serverConfig / sendConfig 嵌套对象合并为 JSON 字符串）
    */
   const convertToApiData = (formData: Record<string, any>): Partial<AlertConfig> => {
-    // 从点号分隔字段重新构建 serverConfig 对象
-    const serverConfigObj: Record<string, any> = {}
-    Object.keys(formData).forEach((key) => {
-      if (key.startsWith('serverConfig.')) {
-        const subKey = key.replace('serverConfig.', '')
-        const value = formData[key]
-        // 只添加非空值
-        if (value !== undefined && value !== null && value !== '') {
-          serverConfigObj[subKey] = value
-        }
+    // 从嵌套对象重新构建 serverConfig / sendConfig
+    const serverConfigObj = takeNamedObject(formData, 'serverConfig')
+    const sendConfigObj = takeNamedObject(formData, 'sendConfig')
+    const listKeys = new Set(['to', 'cc', 'bcc', 'at_users', 'mentioned_list', 'mentioned_mobile_list'])
+    Object.keys(serverConfigObj).forEach((key) => {
+      const value = serverConfigObj[key]
+      if (value === undefined || value === null || value === '') delete serverConfigObj[key]
+    })
+    Object.keys(sendConfigObj).forEach((key) => {
+      const value = sendConfigObj[key]
+      if (value === undefined || value === null || value === '') {
+        delete sendConfigObj[key]
+        return
+      }
+      if (typeof value === 'string' && listKeys.has(key)) {
+        const arr = value.split(',').map((s) => s.trim()).filter((s) => s)
+        if (arr.length > 0) sendConfigObj[key] = arr
+        else delete sendConfigObj[key]
       }
     })
 
-    // 从点号分隔字段重新构建 sendConfig 对象
-    const sendConfigObj: Record<string, any> = {}
-    Object.keys(formData).forEach((key) => {
-      if (key.startsWith('sendConfig.')) {
-        const subKey = key.replace('sendConfig.', '')
-        const value = formData[key]
-        // 只添加非空值
-        if (value !== undefined && value !== null && value !== '') {
-          // 处理字符串数组（如 to, cc, bcc 等用逗号分隔的字符串）
-          if (typeof value === 'string' && (subKey === 'to' || subKey === 'cc' || subKey === 'bcc' || subKey === 'at_users' || subKey === 'mentioned_list' || subKey === 'mentioned_mobile_list')) {
-            // 将逗号分隔的字符串转换为数组
-            const arr = value.split(',').map(s => s.trim()).filter(s => s)
-            if (arr.length > 0) {
-              sendConfigObj[subKey] = arr
-            }
-          } else {
-            sendConfigObj[subKey] = value
-          }
-        }
-      }
-    })
-
-    // 构建 API 数据对象，排除点号分隔字段
     const apiData: Record<string, any> = {}
     Object.keys(formData).forEach((key) => {
-      // 排除以 serverConfig. 和 sendConfig. 开头的点号分隔字段
-      if (!key.startsWith('serverConfig.') && !key.startsWith('sendConfig.')) {
-        apiData[key] = formData[key]
+      if (
+        key === 'serverConfig' ||
+        key === 'sendConfig' ||
+        key.startsWith('serverConfig.') ||
+        key.startsWith('sendConfig.')
+      ) {
+        return
       }
+      apiData[key] = formData[key]
     })
 
     return {
       ...apiData,
-      // serverConfig 前端是点号分隔字段，后端需要 JSON 字符串
-      serverConfig: Object.keys(serverConfigObj).length > 0
-        ? JSON.stringify(serverConfigObj)
-        : undefined,
-      // sendConfig 前端是点号分隔字段，后端需要 JSON 字符串
-      sendConfig: Object.keys(sendConfigObj).length > 0
-        ? JSON.stringify(sendConfigObj)
-        : undefined,
+      serverConfig: Object.keys(serverConfigObj).length > 0 ? JSON.stringify(serverConfigObj) : undefined,
+      sendConfig: Object.keys(sendConfigObj).length > 0 ? JSON.stringify(sendConfigObj) : undefined,
     } as Partial<AlertConfig>
   }
 
@@ -368,8 +348,9 @@ export function useAlertConfigPage(
   /**
    * 处理右键菜单点击
    */
-  const handleMenuClick = async ({ menu, row }: { menu: any; row: AlertConfig }) => {
-    switch (menu.code) {
+  const handleMenuClick = async ({ key, row }: { key: string; row?: AlertConfig }) => {
+    if (!row) return
+    switch (key) {
       case 'view':
         await openViewDialog(row)
         break
@@ -392,7 +373,7 @@ export function useAlertConfigPage(
         await handleDelete(row)
         break
       default:
-        console.warn('未知的菜单项:', menu.code)
+        console.warn('未知的菜单项:', key)
     }
   }
 

@@ -9,7 +9,7 @@
       {{ item.traceId }}
     </span>
     <div class="resend-dialog__trace-meta">
-      <n-tag size="tiny" :bordered="false">{{ item.requestMethod || '-' }}</n-tag>
+      <RsTag size="sm">{{ item.requestMethod || '-' }}</RsTag>
       <span class="resend-dialog__path resend-dialog__path--ellipsis" :title="item.requestPath || '-'">
         {{ item.requestPath || '-' }}
       </span>
@@ -17,15 +17,15 @@
     <div class="resend-dialog__trace-foot" role="status">
       <div class="resend-dialog__trace-foot-row">
         <span class="resend-dialog__trace-foot-label">重发状态</span>
-        <n-tag size="tiny" bordered :type="replayPhaseTagType(outcome)">
+        <RsTag class="resend-dialog__trace-foot-tag" size="sm" :variant="replayPhaseTagType(outcome)">
           {{ replayPhaseLabel(outcome) }}
-        </n-tag>
+        </RsTag>
       </div>
       <div class="resend-dialog__trace-foot-row">
         <span class="resend-dialog__trace-foot-label">响应状态</span>
-        <n-tag size="tiny" bordered :type="httpStatusTagType(outcome)">
+        <RsTag class="resend-dialog__trace-foot-tag" size="sm" :variant="httpStatusTagType(outcome)">
           {{ responseStateLabel(outcome) }}
-        </n-tag>
+        </RsTag>
       </div>
     </div>
   </li>
@@ -33,7 +33,7 @@
 
 <script setup lang="ts">
 import type { GatewayLogListItem } from '../../types'
-import { NTag } from 'naive-ui'
+import { RsTag } from '@/ui'
 import { computed, inject } from 'vue'
 import {
   defaultReplayOutcome,
@@ -174,7 +174,7 @@ const outcome = computed(() => {
   color: var(--g-text-tertiary);
 }
 
-.resend-dialog__trace-foot-row :deep(.n-tag) {
+.resend-dialog__trace-foot-tag {
   flex: 1;
   min-width: 0;
   justify-content: flex-start;

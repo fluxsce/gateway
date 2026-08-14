@@ -1,33 +1,47 @@
 <template>
   <div class="gateway-log-management" :id="service.model.moduleId">
-    <n-tabs type="line" placement="left" class="management-tabs">
-      <!-- 日志查询标签页 -->
-      <n-tab-pane name="logs" tab="日志查询">
-        <GatewayLogQuery />
-      </n-tab-pane>
-
-      <!-- 监控图表标签页 -->
-      <n-tab-pane name="monitor" tab="监控图表">
-        <MonitoringPanel />
-      </n-tab-pane>
-    </n-tabs>
+    <RsTabs
+      v-model="activeTab"
+      :items="tabItems"
+      variant="line"
+      size="md"
+      borderless
+      panelless
+      class="management-tabs"
+    />
+    <div class="management-tabs__content">
+      <GatewayLogQuery v-show="activeTab === 'logs'" />
+      <MonitoringPanel v-if="monitorVisited" v-show="activeTab === 'monitor'" />
+    </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { NTabs } from 'naive-ui'
+import { RsTabs, type RsTabItem } from '@/ui'
+import { ref, watch } from 'vue'
 import { GatewayLogQuery, MonitoringPanel } from './components'
 import { useGatewayLogModel } from './components/gateway-log/hooks/model'
 
-// 定义组件名称
 defineOptions({
-  name: 'GatewayLogManagement'
+  name: 'GatewayLogManagement',
 })
-
-// ============= 获取模块ID（用于样式作用域） =============
 
 const model = useGatewayLogModel()
 const service = { model }
+const activeTab = ref('logs')
+/** 监控页首次点开再挂载，避免隐藏态初始化 ECharts（宽高为 0） */
+const monitorVisited = ref(false)
+watch(
+  activeTab,
+  (tab) => {
+    if (tab === 'monitor') monitorVisited.value = true
+  },
+  { immediate: true },
+)
+const tabItems: RsTabItem[] = [
+  { value: 'logs', label: '日志查询' },
+  { value: 'monitor', label: '监控图表' },
+]
 </script>
 
 <style lang="scss" scoped>
@@ -35,24 +49,17 @@ const service = { model }
   width: 100%;
   height: 100%;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 
-  .management-tabs {
-    height: 100%;
-    :deep(.n-tabs-content) {
-      height: 100%;
-    }
+.management-tabs {
+  flex: 0 0 auto;
+}
 
-    :deep(.n-tab-pane) {
-      height: 100%;
-      width: 100%;
-      min-width: 0; /* 允许 flex 子元素收缩 */
-    }
-    
-    /* 确保 tabs 内容区域宽度正确（placement="left" 时） */
-    :deep(.n-tabs-pane-wrapper) {
-      width: 100%;
-      height: 100%;
-    }
-  }
+.management-tabs__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 </style>

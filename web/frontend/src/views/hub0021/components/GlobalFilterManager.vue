@@ -55,7 +55,19 @@ import {
   editFilterConfig,
   queryFilterConfigs,
 } from '../api'
-import type { FilterConfig, FilterFormData } from '../types/filterConfig'
+import type { FilterAction, FilterConfig, FilterType } from './filter-config/hooks/types'
+
+/** 过滤器编辑表单数据（含可选主键） */
+interface FilterFormData {
+  filterConfigId?: string
+  filterName: string
+  filterType: FilterType
+  filterAction: FilterAction
+  filterOrder: number
+  filterDesc?: string
+  activeFlag: 'Y' | 'N'
+  config?: Record<string, unknown>
+}
 
 interface Props {
   gatewayInstanceId: string

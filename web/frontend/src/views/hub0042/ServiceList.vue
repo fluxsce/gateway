@@ -1,11 +1,13 @@
 <template>
   <div class="service-list" :id="service.model.moduleId">
-    <!-- 列表视图 -->
     <div v-if="!showDetailView" class="service-list-view">
-      <GPane direction="vertical" default-size="300px">
-        <!-- 上部：命名空间列表 -->
-        <template #1>
-          <GCard>
+      <RsSplitPane
+        class="service-list__outer"
+        orientation="vertical"
+        :panes="outerPanes"
+      >
+        <template #namespace>
+          <div class="service-list__pane">
             <NamespaceList
               ref="namespaceListRef"
               moduleId="hub0042:namespace"
@@ -14,65 +16,53 @@
               @row-click="handleNamespaceRowClick"
               @namespace-select="handleNamespaceSelect"
             />
-          </GCard>
+          </div>
         </template>
 
-        <!-- 下部：服务列表 -->
-        <template #2>
-          <GCard>
-            <GPane direction="vertical" default-size="80px">
-              <!-- 服务搜索表单 -->
-              <template #1>
-                <search-form
-                  ref="serviceSearchFormRef"
-                  :module-id="service.model.moduleId"
-                  v-bind="service.model.searchFormConfig"
-                  @search="handleServiceSearch"
-                  @toolbar-click="handleServiceToolbarClick"
-                />
+        <template #services>
+          <div class="service-list__pane">
+            <RsSplitPane
+              class="service-list__inner"
+              orientation="vertical"
+              :panes="innerPanes"
+              disabled
+            >
+              <template #search>
+                <div class="service-list__search">
+                  <RsSearchForm
+                    ref="serviceSearchFormRef"
+                    :module-id="service.model.moduleId"
+                    v-bind="service.model.searchFormConfig"
+                    @search="handleServiceSearch"
+                    @toolbar-click="handleServiceToolbarClick"
+                  />
+                </div>
               </template>
 
-              <!-- 服务数据表格 -->
-              <template #2>
-                <g-grid
-                  ref="serviceGridRef"
-                  :module-id="service.model.moduleId"
-                  :data="service.model.serviceList"
-                  :loading="service.model.loading"
-                  v-bind="service.model.gridConfig"
-                  @page-change="handleServicePageChange"
-                  @menu-click="handleServiceMenuClick"
-                >
-                  <!-- 分组名称多彩显示 -->
-                  <template #groupName="{ row }">
-                    <RsTag :variant="getGroupTagType(row.groupName)" size="sm">
-                      {{ row.groupName }}
-                    </RsTag>
-                  </template>
-
-                  <!-- 服务名称多彩显示 -->
-                  <template #serviceName="{ row }">
-                    <RsTag :variant="getServiceTagType(row.serviceName)" size="sm" round>
-                      <GIcon :icon="ServerOutline" size="sm" />
-                      {{ row.serviceName }}
-                    </RsTag>
-                  </template>
-
-                  <!-- 活动状态自定义渲染 -->
-                  <template #activeFlag="{ row }">
-                    <RsTag :variant="row.activeFlag === 'Y' ? 'success' : 'default'" size="sm">
-                      {{ row.activeFlag === 'Y' ? '活动' : '非活动' }}
-                    </RsTag>
-                  </template>
-                </g-grid>
+              <template #grid>
+                <div class="service-list__grid">
+                  <RsGrid
+                    ref="serviceGridRef"
+                    :module-id="service.model.moduleId"
+                    :data="service.model.serviceList"
+                    :loading="service.model.loading"
+                    :columns="service.model.gridConfig.columns"
+                    :selectable="service.model.gridConfig.selectable"
+                    :row-key="service.model.gridConfig.rowKey"
+                    height="100%"
+                    :pagination-config="service.model.gridConfig.paginationConfig"
+                    :menu-config="service.model.gridConfig.menuConfig"
+                    @page-change="handleServicePageChange"
+                    @menu-click="handleServiceMenuClick"
+                  />
+                </div>
               </template>
-            </GPane>
-          </GCard>
+            </RsSplitPane>
+          </div>
         </template>
-      </GPane>
+      </RsSplitPane>
     </div>
 
-    <!-- 详情视图 -->
     <div v-else class="service-detail-view">
       <ServiceDetail
         :service="currentDetailService"
@@ -85,8 +75,7 @@
       />
     </div>
 
-    <!-- 服务对话框（新增/编辑共用） -->
-    <GdataFormModal
+    <RsDataFormModal
       v-model:visible="serviceFormDialogVisible"
       :mode="serviceFormDialogMode"
       :title="serviceFormDialogMode === 'create' ? '新增服务' : '编辑服务'"
@@ -102,14 +91,11 @@
 </template>
 
 <script lang="ts" setup>
-import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
-import { GCard } from '@/components/gcard'
-import { GIcon } from '@/components/gicon'
-import { GPane } from '@/components/gpane'
-import { GGrid } from '@/components/grid'
+import { RsDataFormModal } from '@/components/form/rs-data'
+import { RsSearchForm } from '@/components/form/rs-search'
+import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
 import { useAppMessage } from '@/composables/useAppMessage'
-import { RsTag } from '@/ui'
-import { ServerOutline } from '@vicons/ionicons5'
+import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import { ref } from 'vue'
 import { NamespaceList } from '../hub0041/components'
 import type { Namespace } from '../hub0041/types'
@@ -117,74 +103,29 @@ import ServiceDetail from './components/ServiceDetail.vue'
 import { useServicePage } from './hooks'
 import type { Service, ServiceNode } from './types'
 
-// 定义组件名称
 defineOptions({
-  name: 'ServiceList'
+  name: 'ServiceList',
 })
 
-// ============= Refs =============
+const outerPanes: RsSplitPaneItem[] = [
+  { key: 'namespace', size: 35, min: 20 },
+  { key: 'services' },
+]
+
+const innerPanes: RsSplitPaneItem[] = [
+  { key: 'search', size: 'auto' },
+  { key: 'grid' },
+]
 
 const namespaceListRef = ref()
 const serviceSearchFormRef = ref()
-const serviceGridRef = ref()
+const serviceGridRef = ref<RsGridExpose | null>(null)
 
-// 选中的命名空间
 const selectedNamespace = ref<Namespace | null>(null)
-
-// 详情视图状态
 const showDetailView = ref(false)
 const currentDetailService = ref<Service | null>(null)
 const detailLoading = ref(false)
-
-// 消息提示
 const message = useAppMessage()
-
-// ============= 多颜色标签配置 =============
-
-// 分组名称颜色映射（基于名称哈希生成稳定颜色）
-const groupColorTypes: ('default' | 'primary' | 'info' | 'success' | 'warning' | 'danger')[] = [
-  'primary', 'info', 'success', 'warning', 'danger'
-]
-
-// 服务名称颜色映射
-const serviceColorTypes: ('default' | 'primary' | 'info' | 'success' | 'warning' | 'danger')[] = [
-  'success', 'info', 'primary', 'warning', 'danger'
-]
-
-/**
- * 根据字符串生成稳定的哈希值
- */
-const hashString = (str: string): number => {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash // Convert to 32bit integer
-  }
-  return Math.abs(hash)
-}
-
-/**
- * 获取分组名称的标签类型（多颜色）
- */
-const getGroupTagType = (groupName: string): 'default' | 'primary' | 'info' | 'success' | 'warning' | 'danger' => {
-  if (!groupName) return 'default'
-  // DEFAULT_GROUP 使用默认颜色
-  if (groupName === 'DEFAULT_GROUP') return 'default'
-  const hash = hashString(groupName)
-  return groupColorTypes[hash % groupColorTypes.length]
-}
-
-/**
- * 获取服务名称的标签类型（多颜色）
- */
-const getServiceTagType = (serviceName: string): 'default' | 'primary' | 'info' | 'success' | 'warning' | 'danger' => {
-  if (!serviceName) return 'default'
-  const hash = hashString(serviceName)
-  return serviceColorTypes[hash % serviceColorTypes.length]
-}
-
-// ============= 服务相关 =============
 
 const {
   service,
@@ -195,20 +136,15 @@ const {
   handleServiceFormSubmit: handleServiceFormSubmitBase,
   handleToolbarClick: handleServiceToolbarClickBase,
   handleMenuClick: handleServiceMenuClickBase,
-  handleSearch: handleServiceSearchBase,
 } = useServicePage(serviceGridRef, serviceSearchFormRef)
-
-// ============= 事件处理 =============
 
 /**
  * 命名空间行点击 - 选择命名空间并加载服务列表
  */
 const handleNamespaceRowClick = async (row: Namespace) => {
-  if (row) {
-    selectedNamespace.value = row
-    // 加载该命名空间下的服务列表（强制使用选中的命名空间ID）
-    await service.loadServices({}, row.namespaceId)
-  }
+  if (!row) return
+  selectedNamespace.value = row
+  await service.loadServices({}, row.namespaceId)
 }
 
 /**
@@ -216,7 +152,6 @@ const handleNamespaceRowClick = async (row: Namespace) => {
  */
 const handleNamespaceSelect = (namespace: Namespace | null) => {
   selectedNamespace.value = namespace
-  // 如果取消选择命名空间，清空服务列表
   if (!namespace) {
     service.model.setServiceList([])
   }
@@ -230,7 +165,6 @@ const handleServiceSearch = () => {
     message.warning('请先在上方命名空间列表中选择一个命名空间')
     return
   }
-  // 直接调用 service.handleSearch，传入命名空间ID
   service.handleSearch(selectedNamespace.value.namespaceId)
 }
 
@@ -238,22 +172,18 @@ const handleServiceSearch = () => {
  * 服务工具栏点击（必须选择命名空间后才能操作）
  */
 const handleServiceToolbarClick = (key: string) => {
-  // 新增服务时，如果没有选择命名空间，提示用户
   if (key === 'add' && !selectedNamespace.value) {
     message.warning('请先在上方命名空间列表中选择一个命名空间')
     return
   }
-  // 传递选中的命名空间，用于新增时预填充 namespaceId
   handleServiceToolbarClickBase(key, selectedNamespace.value)
 }
 
 /**
- * 服务分页变化处理（必须选择命名空间后才能分页）
+ * 服务分页变化处理
  */
 const handleServicePageChange = (params: { currentPage: number; pageSize: number }) => {
-  if (!selectedNamespace.value) {
-    return
-  }
+  if (!selectedNamespace.value) return
   service.handlePageChange(params.currentPage, params.pageSize)
 }
 
@@ -265,21 +195,14 @@ const handleServiceFormSubmit = (formData?: Record<string, any>) => {
 }
 
 /**
- * 服务右键菜单点击处理（覆盖 hook 中的方法，添加查看详情功能）
+ * 服务右键菜单点击处理
  */
-const handleServiceMenuClick = async (params: { code: string; row?: any }) => {
-  if (!params.row) {
+const handleServiceMenuClick = async (params: { key: string; row?: Service }) => {
+  if (!params.row) return
+  if (params.key === 'view') {
+    await openServiceDetail(params.row)
     return
   }
-  const row = params.row as Service
-  
-  // 处理查看详情操作
-  if (params.code === 'view') {
-    await openServiceDetail(row)
-    return
-  }
-  
-  // 其他操作（编辑、删除等）使用 hook 中的默认处理
   await handleServiceMenuClickBase(params)
 }
 
@@ -292,7 +215,7 @@ const openServiceDetail = async (serviceItem: Service) => {
     const detailService = await service.getServiceDetail(
       serviceItem.namespaceId,
       serviceItem.groupName,
-      serviceItem.serviceName
+      serviceItem.serviceName,
     )
     if (detailService) {
       currentDetailService.value = detailService
@@ -319,30 +242,26 @@ const handleDetailBack = () => {
  * 从详情视图编辑服务
  */
 const handleDetailEdit = () => {
-  if (currentDetailService.value) {
-    showDetailView.value = false
-    // 打开编辑对话框
-    handleServiceMenuClick({
-      code: 'edit',
-      row: currentDetailService.value,
-    })
-  }
+  if (!currentDetailService.value) return
+  showDetailView.value = false
+  handleServiceMenuClick({
+    key: 'edit',
+    row: currentDetailService.value,
+  })
 }
 
 /**
  * 刷新服务详情
  */
 const handleDetailRefresh = async () => {
-  if (!currentDetailService.value) {
-    return
-  }
-  
+  if (!currentDetailService.value) return
+
   detailLoading.value = true
   try {
     const detailService = await service.getServiceDetail(
       currentDetailService.value.namespaceId,
       currentDetailService.value.groupName,
-      currentDetailService.value.serviceName
+      currentDetailService.value.serviceName,
     )
     if (detailService) {
       currentDetailService.value = detailService
@@ -367,27 +286,60 @@ const handleClusterConfig = () => {
 /**
  * 编辑节点
  */
-const handleEditNode = (node: ServiceNode) => {
+const handleEditNode = (_node: ServiceNode) => {
   message.info('节点编辑功能开发中')
 }
-
 </script>
 
 <style lang="scss" scoped>
 .service-list {
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 
-  .service-list-view {
-    width: 100%;
-    height: 100%;
-  }
+.service-list-view,
+.service-detail-view {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
 
-  .service-detail-view {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-  }
+.service-list__outer,
+.service-list__inner {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.service-list__pane {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.service-list__search {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.service-list__grid {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 </style>

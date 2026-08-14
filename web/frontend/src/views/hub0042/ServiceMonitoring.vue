@@ -1,13 +1,16 @@
 <template>
-  <div class="service-list" :id="service.model.moduleId">
-    <GPane direction="vertical" default-size="300px">
-      <!-- 上部：命名空间列表 -->
-      <template #1>
-        <GCard>
-          <div class="namespace-section">
-            <div class="section-header">
-              <h3>命名空间列表</h3>
-            </div>
+  <div class="service-monitoring" :id="service.model.moduleId">
+    <RsSplitPane
+      class="service-monitoring__outer"
+      orientation="vertical"
+      :panes="outerPanes"
+    >
+      <template #namespace>
+        <div class="service-monitoring__pane">
+          <div class="service-monitoring__header">
+            <h3>命名空间列表</h3>
+          </div>
+          <div class="service-monitoring__body">
             <NamespaceList
               ref="namespaceListRef"
               moduleId="hub0042-namespace"
@@ -17,59 +20,59 @@
               @namespace-select="handleNamespaceSelect"
             />
           </div>
-        </GCard>
+        </div>
       </template>
 
-      <!-- 下部：服务列表 -->
-      <template #2>
-        <GCard>
-          <div class="service-section">
-            <div class="section-header">
-              <h3>服务列表</h3>
-              <span v-if="selectedNamespace" class="selected-namespace">
-                当前命名空间: {{ selectedNamespace.namespaceName }} ({{ selectedNamespace.namespaceId }})
-              </span>
-            </div>
-            <GPane direction="vertical" default-size="80px">
-              <!-- 服务搜索表单 -->
-              <template #1>
-                <search-form
+      <template #services>
+        <div class="service-monitoring__pane">
+          <div class="service-monitoring__header">
+            <h3>服务列表</h3>
+            <span v-if="selectedNamespace" class="service-monitoring__ns">
+              当前命名空间: {{ selectedNamespace.namespaceName }} ({{ selectedNamespace.namespaceId }})
+            </span>
+          </div>
+          <RsSplitPane
+            class="service-monitoring__inner"
+            orientation="vertical"
+            :panes="innerPanes"
+            disabled
+          >
+            <template #search>
+              <div class="service-monitoring__search">
+                <RsSearchForm
                   ref="serviceSearchFormRef"
                   :module-id="service.model.moduleId"
                   v-bind="service.model.searchFormConfig"
                   @search="handleServiceSearch"
                   @toolbar-click="handleServiceToolbarClick"
                 />
-              </template>
+              </div>
+            </template>
 
-              <!-- 服务数据表格 -->
-              <template #2>
-                <g-grid
+            <template #grid>
+              <div class="service-monitoring__grid">
+                <RsGrid
                   ref="serviceGridRef"
                   :module-id="service.model.moduleId"
                   :data="service.model.serviceList"
                   :loading="service.model.loading"
-                  v-bind="service.model.gridConfig"
-                  @page-change="service.handlePageChange"
+                  :columns="service.model.gridConfig.columns"
+                  :selectable="service.model.gridConfig.selectable"
+                  :row-key="service.model.gridConfig.rowKey"
+                  height="100%"
+                  :pagination-config="service.model.gridConfig.paginationConfig"
+                  :menu-config="service.model.gridConfig.menuConfig"
+                  @page-change="handleServicePageChange"
                   @menu-click="handleServiceMenuClick"
-                >
-                  <!-- 活动状态自定义渲染 -->
-                  <template #activeFlag="{ row }">
-                    <RsTag :variant="row.activeFlag === 'Y' ? 'success' : 'default'" size="sm">
-                      {{ row.activeFlag === 'Y' ? '活动' : '非活动' }}
-                    </RsTag>
-                  </template>
-                </g-grid>
-              </template>
-            </GPane>
-          </div>
-        </GCard>
+                />
+              </div>
+            </template>
+          </RsSplitPane>
+        </div>
       </template>
-    </GPane>
+    </RsSplitPane>
 
-
-    <!-- 服务对话框（新增/编辑/查看共用） -->
-    <GdataFormModal
+    <RsDataFormModal
       v-model:visible="serviceFormDialogVisible"
       :mode="serviceFormDialogMode"
       :title="serviceFormDialogMode === 'create' ? '新增服务' : serviceFormDialogMode === 'edit' ? '编辑服务' : '查看服务详情'"
@@ -85,32 +88,33 @@
 </template>
 
 <script lang="ts" setup>
-import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
-import SearchForm from '@/components/form/search/SearchForm.vue'
-import { GCard } from '@/components/gcard'
-import { GPane } from '@/components/gpane'
-import { GGrid } from '@/components/grid'
-import { RsTag } from '@/ui'
-import { onMounted, ref } from 'vue'
+import { RsDataFormModal } from '@/components/form/rs-data'
+import { RsSearchForm } from '@/components/form/rs-search'
+import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
+import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
+import { ref } from 'vue'
 import { NamespaceList } from '../hub0041/components'
 import type { Namespace } from '../hub0041/types'
 import { useServicePage } from './hooks'
 
-// 定义组件名称
 defineOptions({
-  name: 'ServiceList'
+  name: 'ServiceMonitoring',
 })
 
-// ============= Refs =============
+const outerPanes: RsSplitPaneItem[] = [
+  { key: 'namespace', size: 35, min: 20 },
+  { key: 'services' },
+]
+
+const innerPanes: RsSplitPaneItem[] = [
+  { key: 'search', size: 'auto' },
+  { key: 'grid' },
+]
 
 const namespaceListRef = ref()
 const serviceSearchFormRef = ref()
-const serviceGridRef = ref()
-
-// 选中的命名空间
+const serviceGridRef = ref<RsGridExpose | null>(null)
 const selectedNamespace = ref<Namespace | null>(null)
-
-// ============= 服务相关 =============
 
 const {
   service,
@@ -119,26 +123,29 @@ const {
   currentEditService,
   submitting: serviceSubmitting,
   handleFormSubmit: handleServiceFormSubmitBase,
-  handleToolbarClick: handleServiceToolbarClick,
+  handleToolbarClick: handleServiceToolbarClickBase,
   handleMenuClick: handleServiceMenuClick,
   handleSearch: handleServiceSearch,
 } = useServicePage(serviceGridRef, serviceSearchFormRef)
 
-// ============= 事件处理 =============
+/**
+ * 工具栏点击：把当前选中的命名空间传给 page hook，避免与 RsSearchForm 的 formData 签名冲突。
+ */
+const handleServiceToolbarClick = (key: string) => {
+  handleServiceToolbarClickBase(key, selectedNamespace.value)
+}
 
 /**
  * 命名空间行点击 - 选择命名空间并加载服务列表
  */
 const handleNamespaceRowClick = async (row: Namespace) => {
-  if (row) {
-    selectedNamespace.value = row
-    // 自动设置服务搜索表单的命名空间ID
-    if (serviceSearchFormRef.value?.setFieldValue) {
-      serviceSearchFormRef.value.setFieldValue('namespaceId', row.namespaceId)
-    }
-    // 加载该命名空间下的服务列表
-    await service.loadServices({ namespaceId: row.namespaceId })
+  if (!row) return
+  selectedNamespace.value = row
+  if (serviceSearchFormRef.value?.setFormData) {
+    const current = serviceSearchFormRef.value.getFormData?.() || {}
+    serviceSearchFormRef.value.setFormData({ ...current, namespaceId: row.namespaceId })
   }
+  await service.loadServices({ namespaceId: row.namespaceId })
 }
 
 /**
@@ -149,106 +156,90 @@ const handleNamespaceSelect = (namespace: Namespace | null) => {
 }
 
 /**
+ * 服务分页变化处理
+ */
+const handleServicePageChange = (params: { currentPage: number; pageSize: number }) => {
+  service.handlePageChange(params.currentPage, params.pageSize)
+}
+
+/**
  * 服务表单提交（自动填充命名空间ID）
  */
 const handleServiceFormSubmit = (formData?: Record<string, any>) => {
-  if (formData) {
-    // 如果选中了命名空间，自动填充命名空间ID
-    if (selectedNamespace.value && !formData.namespaceId) {
-      formData.namespaceId = selectedNamespace.value.namespaceId
-    }
-    handleServiceFormSubmitBase(formData)
+  if (!formData) return
+  if (selectedNamespace.value && !formData.namespaceId) {
+    formData.namespaceId = selectedNamespace.value.namespaceId
   }
+  handleServiceFormSubmitBase(formData)
 }
-
-// ============= 生命周期 =============
-
-onMounted(() => {
-  // 命名空间列表组件会自动加载数据
-})
 </script>
 
 <style lang="scss" scoped>
-.service-list {
+.service-monitoring {
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 
-  :deep(.n-split) {
-    height: 100%;
-  }
+.service-monitoring__outer,
+.service-monitoring__inner {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
 
-  /* 上半区：命名空间列表 */
-  :deep(.n-split-pane:first-child) {
-    overflow: hidden;
-    padding: var(--g-space-sm);
+.service-monitoring__pane {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 
-    .g-card {
-      height: 100%;
-      overflow: hidden;
+.service-monitoring__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--g-space-sm);
+  border-bottom: 1px solid var(--g-border-color, var(--rs-border));
+  flex-shrink: 0;
 
-      :deep(.n-card__content) {
-        height: 100%;
-        overflow: hidden;
-      }
-    }
-  }
-
-  /* 下半区：服务列表 */
-  :deep(.n-split-pane:last-child) {
-    overflow: hidden;
-    padding: var(--g-space-sm);
-
-    .g-card {
-      height: 100%;
-      overflow: hidden;
-
-      :deep(.n-card__content) {
-        height: 100%;
-        overflow: hidden;
-      }
-    }
-  }
-
-  .namespace-section,
-  .service-section {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-
-    .section-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: var(--g-space-sm);
-      border-bottom: 1px solid var(--g-border-color);
-
-      h3 {
-        margin: 0;
-        font-size: 16px;
-        font-weight: 500;
-      }
-
-      .selected-namespace {
-        font-size: 14px;
-        color: var(--g-text-color-secondary);
-      }
-    }
-  }
-
-  /* 搜索表单区域 */
-  :deep(.n-split-pane .n-split-pane:first-child) {
-    overflow: auto;
-    padding: var(--g-space-sm);
-  }
-
-  /* 表格区域 */
-  :deep(.n-split-pane .n-split-pane:last-child) {
-    overflow: hidden;
-    padding: var(--g-space-sm);
-    display: flex;
-    flex-direction: column;
+  h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
   }
 }
-</style>
 
+.service-monitoring__ns {
+  font-size: 14px;
+  color: var(--g-text-color-secondary, var(--rs-text-secondary));
+}
+
+.service-monitoring__body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.service-monitoring__search {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.service-monitoring__grid {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+</style>

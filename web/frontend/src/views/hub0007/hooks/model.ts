@@ -4,13 +4,35 @@
  */
 
 import type { RsSearchFormProps } from '@/components/form/rs-search'
-import type { GridProps } from '@/components/grid'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import type { PageInfoObj } from '@/types/api'
+import { RsTag, type RsTagVariant } from '@/ui'
 import { formatDate } from '@/utils/format'
-import { reactive, ref, watch } from 'vue'
+import { h, reactive, ref, watch } from 'vue'
 import type { ServerInfo } from '../types'
 import { OsType, ServerType } from '../types'
+
+/**
+ * 系统节点表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface ServerNodeGridConfig {
+  columns: RsGridColumn<ServerInfo>[]
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
+
+function serverTypeTag(serverType: string, t: (key: string) => string): { variant: RsTagVariant; text: string } {
+  if (serverType === ServerType.PHYSICAL) {
+    return { variant: 'success', text: t('serverType.physical') }
+  }
+  if (serverType === ServerType.VIRTUAL) {
+    return { variant: 'warning', text: t('serverType.virtual') }
+  }
+  return { variant: 'default', text: t('serverType.unknown') }
+}
 
 /**
  * 系统节点 Model
@@ -29,14 +51,18 @@ export function useServerNodeModel() {
     toolbarButtons: [],
   })
 
-  const gridConfig = reactive<Omit<GridProps, 'moduleId' | 'data' | 'loading'>>({
+  const gridConfig = reactive<ServerNodeGridConfig>({
     columns: [],
-    menuConfig: {
-      enabled: true,
-      options: [],
-    },
+    rowKey: 'metricServerId',
+    height: '100%',
     paginationConfig: {
       show: true,
+      pageInfo: pageInfo as any,
+      align: 'right',
+    },
+    menuConfig: {
+      enabled: true,
+      items: [],
     },
   })
 
@@ -104,112 +130,86 @@ export function useServerNodeModel() {
 
     gridConfig.columns = [
       {
-        field: 'metricServerId',
+        key: 'metricServerId',
         title: t('columns.metricServerId'),
-        showOverflow: true,
+        ellipsis: true,
         width: 200,
       },
       {
-        field: 'hostname',
+        key: 'hostname',
         title: t('columns.hostname'),
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'ipAddress',
+        key: 'ipAddress',
         title: t('columns.ipAddress'),
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'osType',
+        key: 'osType',
         title: t('columns.osType'),
-        showOverflow: true,
-        cellRender: {
-          name: 'VxeTag',
-          props: ({ row }: any) => ({
-            type: 'info',
-            content: row.osType,
-          }),
-        },
+        render: (row) =>
+          h(RsTag, { variant: 'info', size: 'sm' }, () => row.osType || '-'),
       },
       {
-        field: 'osVersion',
+        key: 'osVersion',
         title: t('columns.osVersion'),
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'architecture',
+        key: 'architecture',
         title: t('columns.architecture'),
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'serverType',
+        key: 'serverType',
         title: t('columns.serverType'),
-        cellRender: {
-          name: 'VxeTag',
-          props: ({ row }: any) => {
-            const typeMap: Record<string, { type: string; text: string }> = {
-              [ServerType.PHYSICAL]: { type: 'success', text: t('serverType.physical') },
-              [ServerType.VIRTUAL]: { type: 'warning', text: t('serverType.virtual') },
-              [ServerType.UNKNOWN]: { type: 'default', text: t('serverType.unknown') },
-            }
-            const config = typeMap[row.serverType as ServerType] || typeMap[ServerType.UNKNOWN]
-            return {
-              type: config.type,
-              content: config.text,
-            }
-          },
+        render: (row) => {
+          const tag = serverTypeTag(row.serverType, t)
+          return h(RsTag, { variant: tag.variant, size: 'sm' }, () => tag.text)
         },
       },
       {
-        field: 'serverLocation',
+        key: 'serverLocation',
         title: t('columns.serverLocation'),
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'lastUpdateTime',
+        key: 'lastUpdateTime',
         title: t('columns.lastUpdateTime'),
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }: any) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) => (value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : ''),
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: t('columns.addTime'),
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }: any) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) => (value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : ''),
       },
       {
-        field: 'addWho',
+        key: 'addWho',
         title: t('columns.addWho'),
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'editTime',
+        key: 'editTime',
         title: t('columns.editTime'),
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }: any) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
+        formatter: (value) => (value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : ''),
       },
       {
-        field: 'editWho',
+        key: 'editWho',
         title: t('columns.editWho'),
-        showOverflow: true,
+        ellipsis: true,
       },
     ]
 
     gridConfig.menuConfig = {
       enabled: true,
-      options: [
-        {
-          code: 'view',
-          name: t('contextMenu.view'),
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-      ],
+      items: [{ key: 'view', label: t('contextMenu.view'), icon: 'eye' }],
     }
   }
 

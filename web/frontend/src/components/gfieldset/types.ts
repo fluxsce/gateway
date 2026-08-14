@@ -13,9 +13,9 @@ export interface GFieldsetProps {
   /**
    * 标题清晰度/大小
    * - 数字：直接设置字体粗细（font-weight），如 100, 200, 300, 400, 500, 600, 700, 800, 900
-   * - 'small': 小号（12px，normal）
-   * - 'normal': 正常（14px，normal）
-   * - 'large': 大号（16px，600）
+   * - 'small': 小号（11px，300）
+   * - 'normal': 正常（12px，300）
+   * - 'large': 大号（14px，500）
    * @default 'normal'
    */
   titleSize?: number | 'small' | 'normal' | 'large'

@@ -1,39 +1,35 @@
 <template>
   <div class="regist-client-list">
-    <g-grid
+    <RsGrid
       ref="gridRef"
       module-id="hub0060:regist-client-list"
       :data="clientList"
       :loading="loading"
-      v-bind="gridConfig"
+      :columns="gridConfig.columns"
+      :selectable="gridConfig.selectable"
+      :row-key="gridConfig.rowKey"
+      height="100%"
+      :menu-config="gridConfig.menuConfig"
       @menu-click="handleMenuClick"
-    >
-      <!-- 客户端名称自定义渲染 -->
-      <template #clientName="{ row }">
-        <span class="font-bold">{{ row.clientName || '-' }}</span>
-      </template>
-
-      <!-- 服务数量自定义渲染 -->
-      <template #serviceCount="{ row }">
-        <n-tag type="info" size="small">
-          {{ row.serviceCount || 0 }}
-        </n-tag>
-      </template>
-    </g-grid>
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import type { GridProps } from '@/components/grid'
-import { GGrid } from '@/components/grid'
+import { RsGrid, type RsGridColumn, type RsGridExpose, type RsGridMenuConfig } from '@/components/rs-grid'
 import type { JsonDataObj } from '@/types/api'
+import { RsTag } from '@/ui'
 import { formatDate } from '@/utils/format'
-import { ReloadOutline } from '@vicons/ionicons5'
-import { NIcon, NTag } from 'naive-ui'
 import { h, onMounted, ref, watch } from 'vue'
 import { getRegisteredClients } from '../../api'
 
-// 客户端信息类型（从服务器获取的运行时信息）
+defineOptions({
+  name: 'RegistClientList',
+})
+
+/**
+ * 客户端运行时信息（从服务器获取）。
+ */
 interface TunnelClient {
   tunnelClientId: string
   clientName: string
@@ -58,134 +54,125 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  tunnelServerId: ''
+  tunnelServerId: '',
 })
 
-const gridRef = ref()
+const gridRef = ref<RsGridExpose | null>(null)
 const loading = ref(false)
 const clientList = ref<TunnelClient[]>([])
 
-const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+const gridConfig: {
+  columns: RsGridColumn<TunnelClient>[]
+  selectable: boolean
+  rowKey: string
+  menuConfig: RsGridMenuConfig
+} = {
   columns: [
     {
-      field: 'tunnelServerId',
+      key: 'tunnelServerId',
       title: '服务器ID',
       width: 180,
-      showOverflow: 'tooltip',
-      filters: [{ data: '' }],
-      filterRender: { name: 'VxeInput' }
+      ellipsis: true,
+      filterable: true,
     },
     {
-      field: 'tunnelClientId',
+      key: 'tunnelClientId',
       title: '客户端ID',
       width: 200,
-      showOverflow: 'tooltip',
-      filters: [{ data: '' }],
-      filterRender: { name: 'VxeInput' }
+      ellipsis: true,
+      filterable: true,
     },
     {
-      field: 'clientName',
+      key: 'clientName',
       title: '客户端名称',
       width: 180,
-      showOverflow: 'tooltip',
-      slots: { default: 'clientName' },
-      filters: [{ data: '' }],
-      filterRender: { name: 'VxeInput' }
+      ellipsis: true,
+      filterable: true,
+      render: (row) => h('span', { class: 'font-bold' }, row.clientName || '-'),
     },
     {
-      field: 'serverAddress',
+      key: 'serverAddress',
       title: '服务器地址',
       width: 200,
-      showOverflow: 'tooltip',
-      formatter: ({ row }) => `${row.serverAddress}:${row.serverPort}`,
-      filters: [{ data: '' }],
-      filterRender: { name: 'VxeInput' }
+      ellipsis: true,
+      filterable: true,
+      formatter: (_value, row) => `${row.serverAddress}:${row.serverPort}`,
     },
     {
-      field: 'clientIpAddress',
+      key: 'clientIpAddress',
       title: '客户端IP',
       width: 150,
-      showOverflow: 'tooltip',
-      filters: [{ data: '' }],
-      filterRender: { name: 'VxeInput' }
+      ellipsis: true,
+      filterable: true,
     },
     {
-      field: 'clientMacAddress',
+      key: 'clientMacAddress',
       title: '客户端MAC',
       width: 150,
-      showOverflow: 'tooltip'
+      ellipsis: true,
     },
     {
-      field: 'clientVersion',
+      key: 'clientVersion',
       title: '客户端版本',
       width: 120,
-      showOverflow: 'tooltip'
+      ellipsis: true,
     },
     {
-      field: 'operatingSystem',
+      key: 'operatingSystem',
       title: '操作系统',
       width: 150,
-      showOverflow: 'tooltip'
+      ellipsis: true,
     },
     {
-      field: 'connectionStatus',
+      key: 'connectionStatus',
       title: '连接状态',
       width: 100,
       align: 'center',
-      formatter: ({ cellValue }) => {
-        if (!cellValue) return '-'
+      formatter: (value) => {
+        if (!value) return '-'
         const statusMap: Record<string, string> = {
           connected: '已连接',
           disconnected: '已断开',
           connecting: '连接中',
-          error: '错误'
+          error: '错误',
         }
-        return statusMap[cellValue] || cellValue
-      }
+        return statusMap[String(value)] || String(value)
+      },
     },
     {
-      field: 'serviceCount',
+      key: 'serviceCount',
       title: '服务数量',
       width: 100,
       align: 'center',
-      slots: { default: 'serviceCount' }
+      render: (row) =>
+        h(RsTag, { variant: 'info', size: 'sm' }, () => String(row.serviceCount || 0)),
     },
     {
-      field: 'authenticated',
+      key: 'authenticated',
       title: '认证状态',
       width: 100,
       align: 'center',
-      formatter: ({ cellValue }) => (cellValue ? '已认证' : '未认证')
+      formatter: (value) => (value ? '已认证' : '未认证'),
     },
     {
-      field: 'lastHeartbeat',
+      key: 'lastHeartbeat',
       title: '最后心跳',
       width: 160,
-      showOverflow: true,
-      formatter: ({ cellValue }) => (cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '-')
-    }
+      ellipsis: true,
+      formatter: (value) => (value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '-'),
+    },
   ],
-  showCheckbox: false,
+  selectable: false,
+  rowKey: 'tunnelClientId',
   menuConfig: {
     enabled: true,
-    showCopyRow: true,
-    showCopyCell: true,
-    options: [
-      {
-        code: 'refresh',
-        name: '刷新',
-        prefixIcon: () => h(NIcon, { size: 14 }, { default: () => h(ReloadOutline) })
-      }
-    ]
+    items: [{ key: 'refresh', label: '刷新', icon: 'refresh-cw', requireRow: false }],
   },
-  height: '100%'
 }
 
-// 加载客户端列表
 const loadClientList = async () => {
   loading.value = true
   try {
-    // 如果 tunnelServerId 为空，传递空字符串以获取所有服务器的客户端列表
     const serverId = props.tunnelServerId || ''
     const response: JsonDataObj = await getRegisteredClients(serverId)
     if (response.oK) {
@@ -206,9 +193,8 @@ const loadClientList = async () => {
   }
 }
 
-// 处理右键菜单点击
-const handleMenuClick = async ({ code }: { code: string }) => {
-  if (code === 'refresh') {
+const handleMenuClick = async ({ key }: { key: string }) => {
+  if (key === 'refresh') {
     await loadClientList()
   }
 }
@@ -217,17 +203,16 @@ onMounted(() => {
   loadClientList()
 })
 
-// 监听 tunnelServerId 变化
 watch(
   () => props.tunnelServerId,
   () => {
     loadClientList()
-  }
+  },
 )
 
 defineExpose({
   loadClientList,
-  refresh: loadClientList
+  refresh: loadClientList,
 })
 </script>
 
@@ -236,6 +221,5 @@ defineExpose({
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background-color: var(--n-color-target);
 }
 </style>

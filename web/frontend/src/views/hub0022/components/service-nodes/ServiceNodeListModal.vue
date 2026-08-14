@@ -54,7 +54,7 @@
           </template>
         </RsSplitPane>
 
-        <GdataFormModal
+        <RsDataFormModal
           v-model:visible="formDialogVisible"
           :mode="formDialogMode"
           :title="
@@ -78,7 +78,7 @@
 </template>
 
 <script lang="ts" setup>
-import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
+import { RsDataFormModal } from '@/components/form/rs-data'
 import { RsSearchForm } from '@/components/form/rs-search'
 import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
 import { RsDialog, RsSplitPane, type RsSplitPaneItem } from '@/ui'

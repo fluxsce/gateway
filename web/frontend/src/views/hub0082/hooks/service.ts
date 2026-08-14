@@ -3,9 +3,11 @@
  * 纯业务逻辑：数据获取、增删改查等操作
  */
 
-import { createBackendPaginationParams } from '@/utils/pagination'
+import type { RsSearchFormExpose } from '@/components/form/rs-search'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
-import { useMessage } from 'naive-ui'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import type { Ref } from 'vue'
 import {
   batchDeleteAlertLogs,
@@ -17,15 +19,32 @@ import type { AlertLog } from '../types'
 import { useAlertLogModel } from './model'
 
 /**
+ * 从 RsDatePicker range（valueFormat=string）取出起止时间并转为接口格式。
+ * @param timeRange - 表单 timeRange 字段
+ * @returns ISO 起止时间；无效时返回空对象
+ */
+function resolveTimeRangeBounds(timeRange: unknown): { start?: string; end?: string } {
+  if (!timeRange || typeof timeRange !== 'object' || Array.isArray(timeRange)) return {}
+  const { start, end } = timeRange as { start?: string; end?: string }
+  if (!start || !end) return {}
+  const startDate = new Date(start)
+  const endDate = new Date(end)
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return {}
+  return {
+    start: startDate.toISOString(),
+    end: endDate.toISOString(),
+  }
+}
+
+/**
  * 预警日志服务层 Hook
  * @param searchFormRef 搜索表单引用（可选）
  */
 export function useAlertLogService(
-  searchFormRef?: Ref<any> | any
+  searchFormRef?: Ref<RsSearchFormExpose | null>,
 ) {
-  const message = useMessage()
-
-  // 使用 model
+  const message = useAppMessage()
+  const { t } = useModuleI18n('hub0082')
   const model = useAlertLogModel()
 
   /**
@@ -36,57 +55,51 @@ export function useAlertLogService(
     try {
       model.setLoading(true)
 
-      // 如果没有传入查询参数，从搜索表单获取
       let finalSearchParams = searchParams
       if (!finalSearchParams && searchFormRef?.value?.getFormData) {
         finalSearchParams = searchFormRef.value.getFormData() || {}
       }
 
-      // 处理时间范围字段（从 datetimerange 转换为 startTime 和 endTime）
       const processedParams: Record<string, any> = {}
       if (finalSearchParams) {
-        Object.keys(finalSearchParams).forEach(key => {
-          if (key === 'timeRange' && Array.isArray(finalSearchParams[key]) && finalSearchParams[key].length === 2) {
-            // 转换时间范围：将时间戳数组转换为 ISO 格式字符串
-            processedParams.startTime = new Date(finalSearchParams[key][0]).toISOString()
-            processedParams.endTime = new Date(finalSearchParams[key][1]).toISOString()
+        Object.keys(finalSearchParams).forEach((key) => {
+          if (key === 'timeRange') {
+            const bounds = resolveTimeRangeBounds(finalSearchParams[key])
+            if (bounds.start && bounds.end) {
+              processedParams.startTime = bounds.start
+              processedParams.endTime = bounds.end
+            }
           } else if (finalSearchParams[key] !== '' && finalSearchParams[key] !== null && finalSearchParams[key] !== undefined) {
-            // 过滤掉空字符串、null 和 undefined 的查询条件
             processedParams[key] = finalSearchParams[key]
           }
         })
       }
 
-      // 构建请求参数：合并查询条件和分页参数
       const queryParams: any = {
-        // 查询条件
         ...processedParams,
-        // 分页参数
         ...createBackendPaginationParams(
           model.pageInfo.value?.pageIndex,
-          model.pageInfo.value?.pageSize
+          model.pageInfo.value?.pageSize,
         ),
       }
 
       const response = await queryAlertLogs(queryParams)
 
       if (isApiSuccess(response)) {
-        // 解析业务数据
         const logs = parseJsonData<AlertLog[]>(response, []) || []
         model.setLogList(logs)
 
-        // 解析分页信息
         const pageInfo = parsePageInfo(response)
         if (pageInfo) {
           model.updatePagination(pageInfo)
         }
       } else {
-        message.error(getApiMessage(response, '查询预警日志失败'))
+        message.error(getApiMessage(response, t('message.queryFailed')))
         model.setLogList([])
       }
     } catch (error: any) {
       console.error('查询预警日志失败:', error)
-      message.error(error.message || '查询预警日志失败')
+      message.error(error.message || t('message.queryFailed'))
       model.setLogList([])
     } finally {
       model.setLoading(false)
@@ -96,6 +109,7 @@ export function useAlertLogService(
   /**
    * 获取日志详情
    * @param alertLogId 日志ID
+   * @returns 日志详情，失败时返回 null
    */
   const getLogDetail = async (alertLogId: string): Promise<AlertLog | null> => {
     try {
@@ -104,12 +118,12 @@ export function useAlertLogService(
       if (isApiSuccess(response)) {
         return parseJsonData<AlertLog>(response)
       } else {
-        message.error(getApiMessage(response, '获取预警日志详情失败'))
+        message.error(getApiMessage(response, t('message.detailFailed')))
         return null
       }
     } catch (error: any) {
       console.error('获取预警日志详情失败:', error)
-      message.error(error.message || '获取预警日志详情失败')
+      message.error(error.message || t('message.detailFailed'))
       return null
     } finally {
       model.setLoading(false)
@@ -119,22 +133,23 @@ export function useAlertLogService(
   /**
    * 删除日志
    * @param alertLogId 日志ID
+   * @returns 是否删除成功
    */
   const deleteLog = async (alertLogId: string): Promise<boolean> => {
     try {
       model.setLoading(true)
       const response = await deleteAlertLog(alertLogId)
       if (isApiSuccess(response)) {
-        message.success('删除预警日志成功')
-        await loadLogList() // 刷新列表
+        message.success(t('message.deleteSuccess'))
+        await loadLogList()
         return true
       } else {
-        message.error(getApiMessage(response, '删除预警日志失败'))
+        message.error(getApiMessage(response, t('message.deleteFailed')))
         return false
       }
     } catch (error: any) {
       console.error('删除预警日志失败:', error)
-      message.error(error.message || '删除预警日志失败')
+      message.error(error.message || t('message.deleteFailed'))
       return false
     } finally {
       model.setLoading(false)
@@ -144,10 +159,11 @@ export function useAlertLogService(
   /**
    * 批量删除日志
    * @param alertLogIds 日志ID数组
+   * @returns 是否删除成功
    */
   const batchDeleteLogs = async (alertLogIds: string[]): Promise<boolean> => {
     if (alertLogIds.length === 0) {
-      message.warning('请选择要删除的日志')
+      message.warning(t('message.selectToDelete'))
       return false
     }
 
@@ -155,16 +171,16 @@ export function useAlertLogService(
       model.setLoading(true)
       const response = await batchDeleteAlertLogs(alertLogIds)
       if (isApiSuccess(response)) {
-        message.success(`成功删除 ${alertLogIds.length} 条预警日志`)
-        await loadLogList() // 刷新列表
+        message.success(t('message.batchDeleteSuccess', { count: alertLogIds.length }))
+        await loadLogList()
         return true
       } else {
-        message.error(getApiMessage(response, '批量删除预警日志失败'))
+        message.error(getApiMessage(response, t('message.batchDeleteFailed')))
         return false
       }
     } catch (error: any) {
       console.error('批量删除预警日志失败:', error)
-      message.error(error.message || '批量删除预警日志失败')
+      message.error(error.message || t('message.batchDeleteFailed'))
       return false
     } finally {
       model.setLoading(false)
@@ -179,4 +195,3 @@ export function useAlertLogService(
     batchDeleteLogs,
   }
 }
-

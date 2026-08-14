@@ -1,35 +1,63 @@
 /**
  * 路由列表查询 Model（仅查询功能）
- * 复用 hub0021 的 model，但移除工具栏按钮和右键菜单
+ * 复用 hub0021 的字段，但移除工具栏按钮和右键菜单
  */
 
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
 import { formatDate } from '@/utils/format'
-import { ref } from 'vue'
 import type { RouteConfig } from '@/views/hub0021/components/routes/types'
 import { MatchType } from '@/views/hub0021/components/routes/types'
+import { RsTag, type RsTagVariant } from '@/ui'
+import { h, ref } from 'vue'
+
+/**
+ * 路由列表表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface RouteListGridConfig {
+  columns: RsGridColumn<RouteConfig>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
+
+/**
+ * 获取匹配类型标签变体
+ */
+function getMatchTypeTagType(matchType: number): RsTagVariant {
+  const typeMap: Record<number, RsTagVariant> = {
+    [MatchType.EXACT]: 'success',
+    [MatchType.PREFIX]: 'info',
+    [MatchType.REGEX]: 'warning',
+  }
+  return typeMap[matchType] || 'default'
+}
+
+/**
+ * 获取匹配类型标签
+ */
+function getMatchTypeLabel(matchType: number): string {
+  const labelMap: Record<number, string> = {
+    [MatchType.EXACT]: '精确匹配',
+    [MatchType.PREFIX]: '前缀匹配',
+    [MatchType.REGEX]: '正则匹配',
+  }
+  return labelMap[matchType] || '未知'
+}
 
 /**
  * 路由列表查询 Model（仅查询功能）
  */
 export function useRouteListModel() {
-  // ============= 数据状态 =============
   const moduleId = 'hub0023-route-list'
-  /** 加载状态 */
   const loading = ref(false)
-
-  /** 路由列表数据 */
   const routeList = ref<RouteConfig[]>([])
-
-  /** 后端分页信息对象 */
   const pageInfo = ref<PageInfoObj | undefined>()
 
-  // ============= 搜索表单配置 =============
-
-  /** 搜索表单配置（符合 SearchFormProps 结构，移除工具栏按钮） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'routeName',
@@ -74,101 +102,99 @@ export function useRouteListModel() {
         ],
       },
     ],
-    // 移除工具栏按钮，只保留查询和重置
     toolbarButtons: [],
     showSearchButton: true,
     showResetButton: true,
   }
 
-  // ============= 表格配置 =============
-
-  /** 表格配置（符合 GridProps 结构，排除响应式数据，移除右键菜单） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  const gridConfig: RouteListGridConfig = {
     columns: [
       {
-        field: 'routeConfigId',
+        key: 'routeConfigId',
         title: '路由配置ID',
         visible: false,
         width: 0,
       },
       {
-        field: 'routeName',
+        key: 'routeName',
         title: '路由名称',
         sortable: true,
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 200,
       },
       {
-        field: 'routePath',
+        key: 'routePath',
         title: '路由路径',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 250,
       },
       {
-        field: 'matchType',
+        key: 'matchType',
         title: '匹配类型',
         align: 'center',
-        slots: { default: 'matchType' },
         width: 120,
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: getMatchTypeTagType(row.matchType), size: 'sm' },
+            () => getMatchTypeLabel(row.matchType),
+          ),
       },
       {
-        field: 'routePriority',
+        key: 'routePriority',
         title: '优先级',
         align: 'center',
         sortable: true,
         width: 100,
       },
       {
-        field: 'serviceName',
+        key: 'serviceName',
         title: '关联服务',
         align: 'center',
-        showOverflow: 'tooltip',
+        ellipsis: true,
         width: 180,
       },
       {
-        field: 'activeFlag',
+        key: 'activeFlag',
         title: '状态',
         align: 'center',
-        slots: { default: 'activeFlag' },
         width: 100,
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.activeFlag === 'Y' ? 'success' : 'danger', size: 'sm' },
+            () => (row.activeFlag === 'Y' ? '启用' : '禁用'),
+          ),
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm:ss') : '',
+        ellipsis: true,
         width: 180,
+        formatter: (value) =>
+          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
       },
     ],
-    showCheckbox: false, // 查询模式不需要复选框
+    selectable: false,
+    rowKey: 'routeConfigId',
+    height: '100%',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
       align: 'right',
     },
-    // 移除右键菜单
     menuConfig: {
       enabled: false,
     },
-    height: '100%',
   }
 
-  // ============= 辅助方法 =============
-
-  /**
-   * 重置分页
-   */
   const resetPagination = () => {
     pageInfo.value = undefined
   }
 
-  /**
-   * 更新分页信息（接收后端 PageInfoObj）
-   */
   const updatePagination = (newPageInfo: Partial<PageInfoObj>) => {
     if (!pageInfo.value) {
       pageInfo.value = newPageInfo as PageInfoObj
@@ -177,58 +203,21 @@ export function useRouteListModel() {
     }
   }
 
-  /**
-   * 设置路由列表
-   */
   const setRouteList = (list: RouteConfig[]) => {
     routeList.value = list
   }
 
-  /**
-   * 清空路由列表
-   */
   const clearRouteList = () => {
     routeList.value = []
   }
 
-  /**
-   * 获取匹配类型标签类型
-   */
-  const getMatchTypeTagType = (matchType: number): 'success' | 'info' | 'warning' | 'default' => {
-    const typeMap: Record<number, 'success' | 'info' | 'warning' | 'default'> = {
-      [MatchType.EXACT]: 'success',
-      [MatchType.PREFIX]: 'info',
-      [MatchType.REGEX]: 'warning',
-    }
-    return typeMap[matchType] || 'default'
-  }
-
-  /**
-   * 获取匹配类型标签
-   */
-  const getMatchTypeLabel = (matchType: number): string => {
-    const labelMap: Record<number, string> = {
-      [MatchType.EXACT]: '精确匹配',
-      [MatchType.PREFIX]: '前缀匹配',
-      [MatchType.REGEX]: '正则匹配',
-    }
-    return labelMap[matchType] || '未知'
-  }
-
   return {
-    // 基本信息
     moduleId,
-
-    // 数据状态
     loading,
     routeList,
     pageInfo,
-
-    // 配置
     searchFormConfig,
     gridConfig,
-
-    // 方法
     resetPagination,
     updatePagination,
     setRouteList,
@@ -238,8 +227,4 @@ export function useRouteListModel() {
   }
 }
 
-/**
- * Model 返回类型
- */
 export type RouteListModel = ReturnType<typeof useRouteListModel>
-

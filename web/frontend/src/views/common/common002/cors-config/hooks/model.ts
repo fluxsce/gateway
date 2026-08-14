@@ -167,9 +167,9 @@ export function useCorsConfigModel(moduleId: string) {
               required: true,
               message: '请至少配置一个允许的源',
               trigger: 'blur',
-              validator: (_rule: any, value: string[]) => {
-                if (!value || value.length === 0) {
-                  return new Error('请至少配置一个允许的源')
+              validator: (value: unknown) => {
+                if (!Array.isArray(value) || value.length === 0) {
+                  return '请至少配置一个允许的源'
                 }
                 return true
               },
@@ -201,9 +201,9 @@ export function useCorsConfigModel(moduleId: string) {
               required: true,
               message: '请至少配置一个允许的HTTP方法',
               trigger: 'blur',
-              validator: (_rule: any, value: string[]) => {
-                if (!value || value.length === 0) {
-                  return new Error('请至少配置一个允许的HTTP方法')
+              validator: (value: unknown) => {
+                if (!Array.isArray(value) || value.length === 0) {
+                  return '请至少配置一个允许的HTTP方法'
                 }
                 return true
               },

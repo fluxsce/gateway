@@ -3,17 +3,49 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import { GCodeMirror, GRichText } from '@/components'
-import type { DataFormField } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import { GRichText } from '@/components/grichtext'
+import type { RsDataFormField } from '@/components/form/rs-data'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type {
+  RsGridColumn,
+  RsGridMenuConfig,
+  RsGridPaginationConfig,
+} from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
+import { RsCodeEditor, RsTable, RsTag, type RsTableColumn, type RsTagVariant } from '@/ui'
 import { formatDate } from '@/utils/format'
-import { AddOutline, TrashOutline } from '@vicons/ionicons5'
-import { NTable, NTag } from 'naive-ui'
 import { h, ref } from 'vue'
 import type { AlertTemplate, ChannelType, DisplayFormat } from '../types'
 import { ACTIVE_FLAG_OPTIONS, CHANNEL_TYPE_OPTIONS, DISPLAY_FORMAT_OPTIONS } from '../types'
+
+/**
+ * 预警模板表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface AlertTemplateGridConfig {
+  columns: RsGridColumn<AlertTemplate>[]
+  selectable: boolean
+  rowKey: string
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
+
+/**
+ * 将渠道类型颜色映射为 RsTag variant。
+ */
+function toTagVariant(type?: string): RsTagVariant {
+  if (type === 'error') return 'danger'
+  if (
+    type === 'success' ||
+    type === 'warning' ||
+    type === 'info' ||
+    type === 'primary' ||
+    type === 'default'
+  ) {
+    return type
+  }
+  return 'default'
+}
 
 export function useAlertTemplateModel() {
   const moduleId = 'hub0081:alert-template'
@@ -130,7 +162,7 @@ export function useAlertTemplateModel() {
   }
 
   // 搜索表单
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'templateName',
@@ -169,8 +201,8 @@ export function useAlertTemplateModel() {
       },
     ],
     toolbarButtons: [
-      { key: 'add', label: '新增模板', icon: AddOutline, type: 'primary', tooltip: '新增预警模板' },
-      { key: 'delete', label: '删除', icon: TrashOutline, type: 'error', tooltip: '批量删除选中的模板' },
+      { key: 'add', label: '新增模板', icon: 'AddOutline', type: 'primary', tooltip: '新增预警模板' },
+      { key: 'delete', label: '删除', icon: 'TrashOutline', type: 'error', tooltip: '批量删除选中的模板' },
     ],
     showSearchButton: true,
     showResetButton: true,
@@ -188,19 +220,66 @@ export function useAlertTemplateModel() {
     return option?.label || String(format)
   }
 
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  const gridConfig: AlertTemplateGridConfig = {
     columns: [
-      { field: 'templateName', title: '模板名称', align: 'center', showOverflow: 'tooltip', width: 180 },
-      { field: 'channelType', title: '渠道类型', align: 'center', width: 120, slots: { default: 'channelType' } },
-      { field: 'displayFormat', title: '显示格式', align: 'center', width: 120, slots: { default: 'displayFormat' } },
-      { field: 'activeFlag', title: '启用状态', align: 'center', width: 100, slots: { default: 'activeFlag' } },
-      { field: 'templateDesc', title: '模板描述', align: 'center', showOverflow: 'tooltip', width: 240 },
-      { field: 'addTime', title: '创建时间', align: 'center', width: 160, formatter: ({ row }) => formatDate(row.addTime) },
-      { field: 'addWho', title: '创建人', align: 'center', width: 120, showOverflow: 'tooltip' },
-      { field: 'editTime', title: '修改时间', align: 'center', width: 160, formatter: ({ row }) => formatDate(row.editTime) },
-      { field: 'editWho', title: '修改人', align: 'center', width: 120, showOverflow: 'tooltip' },
+      { key: 'templateName', title: '模板名称', align: 'center', ellipsis: true, width: 180 },
+      {
+        key: 'channelType',
+        title: '渠道类型',
+        align: 'center',
+        width: 120,
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: toTagVariant('info'), size: 'sm' },
+            () => getChannelTypeLabel(row.channelType) || '通用',
+          ),
+      },
+      {
+        key: 'displayFormat',
+        title: '显示格式',
+        align: 'center',
+        width: 120,
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.displayFormat === 'table' ? 'warning' : 'default', size: 'sm' },
+            () => getDisplayFormatLabel(row.displayFormat),
+          ),
+      },
+      {
+        key: 'activeFlag',
+        title: '启用状态',
+        align: 'center',
+        width: 100,
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.activeFlag === 'Y' ? 'success' : 'default', size: 'sm' },
+            () => (row.activeFlag === 'Y' ? '启用' : '禁用'),
+          ),
+      },
+      { key: 'templateDesc', title: '模板描述', align: 'center', ellipsis: true, width: 240 },
+      {
+        key: 'addTime',
+        title: '创建时间',
+        align: 'center',
+        width: 160,
+        formatter: (value) => (value ? formatDate(value as string) : ''),
+      },
+      { key: 'addWho', title: '创建人', align: 'center', ellipsis: true, width: 120 },
+      {
+        key: 'editTime',
+        title: '修改时间',
+        align: 'center',
+        width: 160,
+        formatter: (value) => (value ? formatDate(value as string) : ''),
+      },
+      { key: 'editWho', title: '修改人', align: 'center', ellipsis: true, width: 120 },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: 'templateName',
+    height: '100%',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -208,11 +287,10 @@ export function useAlertTemplateModel() {
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      options: [
-        { code: 'view', name: '查看详情', prefixIcon: 'vxe-icon-eye-fill' },
-        { code: 'edit', name: '编辑', prefixIcon: 'vxe-icon-edit' },
-        { code: 'delete', name: '删除', prefixIcon: 'vxe-icon-delete' },
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
       ],
     },
   }
@@ -225,7 +303,7 @@ export function useAlertTemplateModel() {
   ]
 
   // 表单字段（CodeMirror 由页面 slots 渲染）
-  const formFields: DataFormField[] = [
+  const formFields: RsDataFormField[] = [
     {
       field: 'templateName',
       label: '模板名称',
@@ -235,9 +313,9 @@ export function useAlertTemplateModel() {
       tabKey: 'basic',
       required: true,
       rules: [
-        { required: true, message: '请输入模板名称', trigger: ['blur', 'input'] },
-        { max: 64, message: '模板名称不能超过64个字符', trigger: ['blur', 'input'] },
-        { pattern: /^[a-zA-Z0-9_]+$/, message: '模板名称只能包含英文字母、数字和下划线', trigger: ['blur', 'input'] },
+        { required: true, message: '请输入模板名称', trigger: ['blur', 'change'] },
+        { max: 64, message: '模板名称不能超过64个字符', trigger: ['blur', 'change'] },
+        { pattern: /^[a-zA-Z0-9_]+$/, message: '模板名称只能包含英文字母、数字和下划线', trigger: ['blur', 'change'] },
       ],
     },
     { field: 'tenantId', label: '租户ID', type: 'input' as const, span: 12, show: false },
@@ -289,7 +367,7 @@ export function useAlertTemplateModel() {
       tabKey: 'basic',
       props: { type: 'textarea', rows: 2, maxlength: 500, showCount: true },
     },
-    // 模板内容：使用 custom 渲染 CodeMirror（GDataFormModal 支持 custom）
+    // 模板内容：使用 custom 渲染 RsCodeEditor（RsDataFormModal 支持 custom）
     {
       field: 'titleTemplate',
       label: '标题模板',
@@ -299,13 +377,12 @@ export function useAlertTemplateModel() {
       defaultValue: getDefaultTitleTemplate('email'),
       tips: '支持变量占位符，例如：{{title}} / {{tag.severity}}',
       render: (formData) =>
-        h(GCodeMirror as any, {
+        h(RsCodeEditor, {
           modelValue: formData.titleTemplate || '',
           'onUpdate:modelValue': (v: string) => (formData.titleTemplate = v),
           language: 'plaintext',
           height: 120,
-          lineNumbers: true,
-          lineWrapping: true,
+          showToolbar: false,
           placeholder: '例如：告警通知 - {{title}}',
         }),
     },
@@ -330,13 +407,12 @@ export function useAlertTemplateModel() {
           })
         }
         // 其它渠道：继续使用 CodeMirror（markdown/text）
-        return h(GCodeMirror as any, {
+        return h(RsCodeEditor, {
           modelValue: formData.contentTemplate || '',
           'onUpdate:modelValue': (v: string) => (formData.contentTemplate = v),
           language: 'markdown',
           height: 260,
-          lineNumbers: true,
-          lineWrapping: true,
+          showToolbar: false,
           placeholder: '请输入内容模板（支持变量占位符）',
         })
       },
@@ -362,40 +438,27 @@ export function useAlertTemplateModel() {
           { key: 'table', desc: '所有表格字段（key: value | ...）', example: '{{table}}' },
           { key: 'table.<key>', desc: '指定表格字段（如 service_name）', example: '{{table.service_name}}' },
         ]
+        const helpColumns: RsTableColumn<object>[] = [
+          { key: 'key', title: '字段', width: 240 },
+          { key: 'desc', title: '说明' },
+          { key: 'example', title: '示例', width: 220 },
+        ]
         return h('div', { style: 'width: 100%;' }, [
           h(
             'div',
             { style: 'display:flex; gap:8px; align-items:center; margin-bottom:8px;' },
             [
-              h(NTag, { size: 'small', type: 'info' }, { default: () => '占位符格式：{{field}} / {{tag.key}} / {{extra.key}} / {{table.key}}' }),
-              h(NTag, { size: 'small', type: 'warning' }, { default: () => '未匹配到字段：原样保留' }),
+              h(RsTag, { size: 'sm', variant: 'info' }, () => '占位符格式：{{field}} / {{tag.key}} / {{extra.key}} / {{table.key}}'),
+              h(RsTag, { size: 'sm', variant: 'warning' }, () => '未匹配到字段：原样保留'),
             ]
           ),
-          h(
-            NTable,
-            { bordered: true, striped: true, size: 'small' } as any,
-            {
-              default: () => [
-                h('thead', [
-                  h('tr', [
-                    h('th', { style: 'width: 240px;' }, '字段'),
-                    h('th', '说明'),
-                    h('th', { style: 'width: 220px;' }, '示例'),
-                  ]),
-                ]),
-                h(
-                  'tbody',
-                  rows.map((r) =>
-                    h('tr', [
-                      h('td', { style: 'font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;' }, r.key),
-                      h('td', r.desc),
-                      h('td', { style: 'font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;' }, r.example || ''),
-                    ])
-                  )
-                ),
-              ],
-            }
-          ),
+          h(RsTable, {
+            columns: helpColumns,
+            data: rows,
+            rowKey: 'key',
+            size: 'sm',
+            bordered: true,
+          }),
         ])
       },
     },
@@ -407,13 +470,12 @@ export function useAlertTemplateModel() {
       tabKey: 'template',
       tips: '邮件附件等配置（可选，JSON）',
       render: (formData) =>
-        h(GCodeMirror as any, {
+        h(RsCodeEditor, {
           modelValue: formData.attachmentConfig || '',
           'onUpdate:modelValue': (v: string) => (formData.attachmentConfig = v),
           language: 'json',
           height: 160,
-          lineNumbers: true,
-          lineWrapping: true,
+          showToolbar: false,
           placeholder: '可选：附件配置 JSON',
         }),
     },

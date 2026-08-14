@@ -4,31 +4,32 @@
  * - 处理搜索等页面交互
  */
 
+import type { RsSearchFormExpose } from '@/components/form/rs-search'
+import type { RsGridExpose } from '@/components/rs-grid'
 import type { Ref } from 'vue'
 import { useRouteListService } from './service'
 
 /**
  * 路由列表查询页面级 Hook
  */
-export function useRouteListPage(gatewayInstanceId?: string, gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any) {
-  // 业务服务（包含 model、查询等）
+export function useRouteListPage(
+  gatewayInstanceId?: string,
+  _gridRef?: Ref<RsGridExpose | null>,
+  searchFormRef?: Ref<RsSearchFormExpose | null>,
+) {
   const service = useRouteListService(gatewayInstanceId, searchFormRef)
 
   /**
-   * 处理搜索（接收 SearchForm 传递的表单数据）
+   * 处理搜索（接收 RsSearchForm 传递的表单数据）
    */
   const handleSearch = async (formData?: Record<string, any>) => {
     await service.handleSearch(formData)
   }
 
   return {
-    // 业务服务（包含 model 与查询）
     service,
-
-    // 事件处理器
     handleSearch,
   }
 }
 
 export type RouteListPage = ReturnType<typeof useRouteListPage>
-

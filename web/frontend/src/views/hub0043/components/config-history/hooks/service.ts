@@ -3,9 +3,9 @@
  * 处理所有与后端交互的业务逻辑
  */
 
+import { useAppMessage } from '@/composables/useAppMessage'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess } from '@/utils/format'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { queryConfigHistory, getHistoryById, rollbackConfig } from '../../../api'
 import type { ConfigHistory, ConfigHistoryRequest, RollbackRequest } from '../../../types'
@@ -16,7 +16,7 @@ import { useConfigHistoryModel } from './model'
  * @param searchFormRef 搜索表单引用
  */
 export function useConfigHistoryService(searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
+  const message = useAppMessage()
 
   // 初始化 Model
   const model = useConfigHistoryModel()

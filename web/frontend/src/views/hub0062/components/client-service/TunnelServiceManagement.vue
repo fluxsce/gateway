@@ -1,64 +1,49 @@
 <template>
   <div class="tunnel-service-management" :id="htmlId">
-    <GPane direction="vertical" :default-size="0.12" :min="0.1" :max="0.5">
-      <!-- 上部：搜索表单 -->
-      <template #1>
-        <search-form
-          ref="searchFormRef"
-          :module-id="service.model.moduleId"
-          v-bind="service.model.searchFormConfig"
-          @search="handleSearchWithStats"
-          @toolbar-click="handleToolbarClick"
-        />
+    <RsSplitPane
+      class="tunnel-service-management__split"
+      orientation="vertical"
+      :panes="splitPanes"
+      disabled
+    >
+      <template #search>
+        <div class="tunnel-service-management__search">
+          <RsSearchForm
+            ref="searchFormRef"
+            :module-id="service.model.moduleId"
+            v-bind="service.model.searchFormConfig"
+            @search="handleSearchWithStats"
+            @toolbar-click="handleToolbarClick"
+          />
+        </div>
       </template>
 
-      <!-- 下部：统计面板 + 数据表格 -->
-      <template #2>
-        <div class="bottom-section">
-          <!-- 统计面板 -->
-          <div class="stats-section" v-if="showStats">
-            <tunnel-service-stats :statistics="statistics" />
+      <template #grid>
+        <div class="tunnel-service-management__body">
+          <div v-if="showStats" class="tunnel-service-management__stats">
+            <TunnelServiceStats :statistics="statistics" />
           </div>
-
-          <!-- 数据表格 -->
-          <div class="grid-section">
-            <g-grid
+          <div class="tunnel-service-management__grid">
+            <RsGrid
               ref="gridRef"
               :module-id="service.model.moduleId"
               :data="service.model.serviceList"
               :loading="service.model.loading"
-              v-bind="service.model.gridConfig"
+              :columns="service.model.gridConfig.columns"
+              :selectable="service.model.gridConfig.selectable"
+              :row-key="service.model.gridConfig.rowKey"
+              height="100%"
+              :pagination-config="service.model.gridConfig.paginationConfig"
+              :menu-config="service.model.gridConfig.menuConfig"
               @page-change="service.handlePageChange"
               @menu-click="handleMenuClick"
-            >
-              <!-- 服务类型自定义渲染 -->
-              <template #serviceType="{ row }">
-                <n-tag :type="getServiceTypeTagType(row.serviceType)" size="small">
-                  {{ service.model.getServiceTypeLabel(row.serviceType) }}
-                </n-tag>
-              </template>
-
-              <!-- 服务状态自定义渲染 -->
-              <template #serviceStatus="{ row }">
-                <n-tag :type="service.model.getServiceStatusTagType(row.serviceStatus)" size="small">
-                  {{ service.model.getServiceStatusLabel(row.serviceStatus) }}
-                </n-tag>
-              </template>
-
-              <!-- 状态自定义渲染 -->
-              <template #activeFlag="{ row }">
-                <n-tag :type="row.activeFlag === 'Y' ? 'success' : 'default'" size="small">
-                  {{ row.activeFlag === 'Y' ? '启用' : '禁用' }}
-                </n-tag>
-              </template>
-            </g-grid>
+            />
           </div>
         </div>
       </template>
-    </GPane>
+    </RsSplitPane>
 
-    <!-- 服务对话框（新增/编辑/查看共用） -->
-    <GdataFormModal
+    <RsDataFormModal
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
       :title="formDialogMode === 'create' ? '新增隧道服务' : formDialogMode === 'edit' ? '编辑隧道服务' : '查看隧道服务详情'"
@@ -74,30 +59,30 @@
 </template>
 
 <script lang="ts" setup>
-import GdataFormModal from '@/components/form/data/GDataFormModal.vue'
-import SearchForm from '@/components/form/search/SearchForm.vue'
-import { GPane } from '@/components/gpane'
-import { GGrid } from '@/components/grid'
+import { RsDataFormModal } from '@/components/form/rs-data'
+import { RsSearchForm } from '@/components/form/rs-search'
+import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
+import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import { isApiSuccess, parseJsonData } from '@/utils/format'
-import { NTag } from 'naive-ui'
 import { onMounted, ref } from 'vue'
 import * as tunnelServiceApi from '../../api'
 import type { TunnelServiceStats as TunnelServiceStatsType } from '../../types'
-import TunnelServiceStats from './TunnelServiceStats.vue'
 import { useTunnelServicePage } from './hooks'
+import TunnelServiceStats from './TunnelServiceStats.vue'
 
-// 定义组件名称
 defineOptions({
-  name: 'TunnelServiceManagement'
+  name: 'TunnelServiceManagement',
 })
 
-// ============= Refs =============
+const splitPanes: RsSplitPaneItem[] = [
+  { key: 'search', size: 'auto' },
+  { key: 'grid' },
+]
 
 const searchFormRef = ref()
-const gridRef = ref()
+const gridRef = ref<RsGridExpose | null>(null)
 
-// ============= 统计信息（可选） =============
-const showStats = ref(true) // 显示统计信息
+const showStats = ref(true)
 const statistics = ref<TunnelServiceStatsType>({
   totalServices: 0,
   activeServices: 0,
@@ -105,10 +90,12 @@ const statistics = ref<TunnelServiceStatsType>({
   errorServices: 0,
   offlineServices: 0,
   totalConnections: 0,
-  totalTraffic: 0
+  totalTraffic: 0,
 })
 
-// 获取统计信息
+/**
+ * 获取统计信息
+ */
 const getStatistics = async () => {
   try {
     const response = await tunnelServiceApi.getServiceStats()
@@ -120,7 +107,7 @@ const getStatistics = async () => {
         errorServices: 0,
         offlineServices: 0,
         totalConnections: 0,
-        totalTraffic: 0
+        totalTraffic: 0,
       })
       statistics.value = data
     }
@@ -128,8 +115,6 @@ const getStatistics = async () => {
     console.error('获取统计信息失败:', error)
   }
 }
-
-// ============= 页面级 Hook（包含服务与对话框、事件处理） =============
 
 const {
   service,
@@ -139,88 +124,70 @@ const {
   handleFormSubmit,
   handleToolbarClick,
   handleMenuClick,
-  handleSearch
+  handleSearch,
 } = useTunnelServicePage(gridRef, searchFormRef)
 
-// ============= HTML ID（用于 DOM，符合 HTML 规范） =============
-
-// 固定的 HTML id（符合 HTML 规范，无特殊字符）
-// 注意：权限校验仍使用原始 moduleId（service.model.moduleId）
 const htmlId = 'hub0062-service'
 
-// 包装搜索方法，搜索后刷新统计
+/**
+ * 包装搜索方法，搜索后刷新统计
+ */
 const handleSearchWithStats = async (searchParams?: Record<string, any>) => {
   await handleSearch(searchParams)
   await getStatistics()
 }
 
-const getServiceTypeTagType = (type: string): 'primary' | 'info' | 'success' | 'warning' => {
-  switch (type) {
-    case 'tcp':
-    case 'http':
-      return 'primary'
-    case 'udp':
-    case 'https':
-      return 'success'
-    case 'stcp':
-    case 'xtcp':
-      return 'info'
-    default:
-      return 'warning'
-  }
-}
-
-// 初始化
 onMounted(() => {
-  // 获取统计信息（如果需要）
   if (showStats.value) {
     getStatistics()
   }
-  // 数据由搜索表单的"查询"按钮触发加载
 })
 </script>
 
 <style lang="scss" scoped>
 .tunnel-service-management {
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
-  background-color: var(--n-color-target);
-}
-
-:deep(.n-split) {
-  height: 100%;
-}
-
-:deep(.n-split-pane:first-child) {
-  overflow: auto;
-  padding: var(--g-space-sm);
-}
-
-:deep(.n-split-pane:last-child) {
-  overflow: hidden;
-  padding: var(--g-space-sm);
   display: flex;
   flex-direction: column;
 }
 
-.bottom-section {
+.tunnel-service-management__split {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.tunnel-service-management__search {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.tunnel-service-management__body {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  width: 100%;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
 }
 
-.stats-section {
+.tunnel-service-management__stats {
   flex-shrink: 0;
 }
 
-.grid-section {
+.tunnel-service-management__grid {
+  box-sizing: border-box;
   flex: 1;
+  width: 100%;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
-
 </style>
-

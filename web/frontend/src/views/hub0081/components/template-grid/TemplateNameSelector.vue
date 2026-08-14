@@ -1,40 +1,40 @@
 <template>
-  <n-input-group>
-    <n-input
-      :value="modelValue"
+  <div class="template-name-selector">
+    <RsInput
+      v-bind="attrs"
+      :model-value="localValue"
       placeholder="请输入模板名称或点击选择"
       clearable
-      size="small"
-      @update:value="handleInputChange"
+      size="sm"
+      label-position="top"
+      class="template-name-selector__input"
+      addon-after-icon="ellipsis"
+      addon-after-icon-label="选择模板"
+      @update:model-value="handleInputChange"
+      @addon-after-click="handleSelectClick"
     />
-    <n-button type="primary" size="small" @click="handleSelectClick">
-      <template #icon>
-        <n-icon><EllipsisHorizontalOutline /></n-icon>
-      </template>
-    </n-button>
-  </n-input-group>
 
-  <!-- 模板选择对话框 -->
-  <TemplateListModal
-    v-model:visible="templateSelectDialogVisible"
-    v-model:model-value="localValue"
-    title="选择模板"
-    :width="1200"
-  />
+    <TemplateListModal
+      v-model:visible="templateSelectDialogVisible"
+      v-model:model-value="localValue"
+      title="选择模板"
+      :width="1200"
+      :channel-type="channelType"
+    />
+  </div>
 </template>
 
 <script lang="ts" setup>
-import { EllipsisHorizontalOutline } from '@vicons/ionicons5'
-import { NButton, NIcon, NInput, NInputGroup } from 'naive-ui'
-import { ref, watch } from 'vue'
+import { RsInput } from '@/ui'
+import { ref, useAttrs, watch } from 'vue'
 import TemplateListModal from './TemplateListModal.vue'
 
-// 定义组件名称
 defineOptions({
-  name: 'TemplateNameSelector'
+  name: 'TemplateNameSelector',
+  inheritAttrs: false,
 })
 
-// ============= Props =============
+const attrs = useAttrs()
 
 interface Props {
   /** 模板名称值 */
@@ -48,30 +48,25 @@ const props = withDefaults(defineProps<Props>(), {
   channelType: undefined,
 })
 
-// ============= Emits =============
-
 interface Emits {
   (e: 'update:modelValue', value: string): void
 }
 
 const emit = defineEmits<Emits>()
 
-// ============= 弹窗状态 =============
-
 const templateSelectDialogVisible = ref(false)
 const localValue = ref(props.modelValue)
 
-// 监听 props.modelValue 变化，同步到本地状态
-watch(() => props.modelValue, (newVal) => {
-  localValue.value = newVal
-})
+watch(
+  () => props.modelValue,
+  (newVal) => {
+    localValue.value = newVal
+  },
+)
 
-// 监听本地值变化，同步到父组件
 watch(localValue, (newVal) => {
   emit('update:modelValue', newVal)
 })
-
-// ============= 事件处理 =============
 
 /**
  * 处理输入框值变化
@@ -89,8 +84,13 @@ const handleSelectClick = () => {
 </script>
 
 <style lang="scss" scoped>
-.n-input-group {
+.template-name-selector {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.template-name-selector__input {
   width: 100%;
 }
 </style>
-

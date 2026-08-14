@@ -5,7 +5,6 @@
  */
 
 import { rsConfirm } from '@/ui'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { nextTick, ref, watch } from 'vue'
 import type { ConfigHistory, RollbackRequest } from '../../../types'
@@ -16,8 +15,7 @@ import { useConfigHistoryService } from './service'
  * @param searchFormRef 搜索表单引用
  */
 export function useConfigHistoryPage(searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
-// 业务服务（包含 model、查询等）
+  // 业务服务（包含 model、查询等）
   const service = useConfigHistoryService(searchFormRef)
 
   // 视图状态（'list' | 'detail'）
@@ -125,10 +123,10 @@ export function useConfigHistoryPage(searchFormRef?: Ref<any> | any) {
   }
 
   /**
-   * 搜索处理
+   * 处理搜索（接收 RsSearchForm 传递的表单数据）
    */
-  const handleSearch = () => {
-    service.loadHistory()
+  const handleSearch = (formData?: Record<string, any>) => {
+    service.loadHistory(formData)
   }
 
   /**
@@ -151,13 +149,13 @@ export function useConfigHistoryPage(searchFormRef?: Ref<any> | any) {
   /**
    * 表格右键菜单点击
    */
-  const handleMenuClick = async (params: { code: string; row?: any }) => {
+  const handleMenuClick = async (params: { key: string; row?: any }) => {
     if (!params.row) {
       return
     }
     const row = params.row as ConfigHistory
 
-    switch (params.code) {
+    switch (params.key) {
       case 'view':
         await openDetailView(row)
         break

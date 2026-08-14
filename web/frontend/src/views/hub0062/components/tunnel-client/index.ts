@@ -3,5 +3,6 @@
  */
 export * from './hooks'
 export { default as TunnelClientList } from './TunnelClientList.vue'
+export { default as TunnelClientManagement } from './TunnelClientManagement.vue'
 export { default as TunnelClientStats } from './TunnelClientStats.vue'
 

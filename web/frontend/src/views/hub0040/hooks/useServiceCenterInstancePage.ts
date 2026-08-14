@@ -4,11 +4,11 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
+import { useAppMessage } from '@/composables/useAppMessage'
 import { rsConfirm } from '@/ui'
 import { flattenExtProperty, unflattenExtProperty } from '@/utils/format'
 import { consumeTextFileField, filesFromTextContent } from '@/utils/uploadFile'
 import { PlayCircleOutline, RefreshOutline, StopCircleOutline } from '@vicons/ionicons5'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import type { ServiceCenterInstance } from '../types'
@@ -18,8 +18,8 @@ import { useServiceCenterInstanceService } from './useServiceCenterInstanceServi
  * 服务中心实例管理页面级 Hook
  */
 export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
-// 业务服务（包含 model、增删改查等）
+  const message = useAppMessage()
+  // 业务服务（包含 model、增删改查等）
   const service = useServiceCenterInstanceService(searchFormRef)
 
   // 表单对话框状态（新增/编辑/查看共用）
@@ -79,7 +79,7 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
         }
       }
 
-      // 展开 extProperty 为扁平字段
+      // 解析 extProperty JSON 为嵌套对象
       flattenExtProperty(formData)
 
       formDialogMode.value = 'edit'
@@ -141,7 +141,7 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
         }
       }
 
-      // 展开 extProperty 为扁平字段
+      // 解析 extProperty JSON 为嵌套对象
       flattenExtProperty(formData)
 
       formDialogMode.value = 'view'
@@ -153,14 +153,14 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
   }
 
   /**
-   * 处理搜索（接收 SearchForm 传递的表单数据）
+   * 处理搜索（接收 RsSearchForm 传递的表单数据）
    */
   const handleSearch = async (formData?: Record<string, any>) => {
     await service.handleSearch(formData)
   }
 
   /**
-   * 提交表单（新增/编辑共用，由 GdataFormModal 收集表单数据后回调）
+   * 提交表单（新增/编辑共用，由 RsDataFormModal 收集表单数据后回调）
    */
   const handleFormSubmit = async (formData?: Record<string, any>) => {
     if (!formData) return
@@ -194,7 +194,7 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
           : ''
       }
 
-      // 将扁平字段打包回 extProperty JSON 字符串
+      // 将 extProperty 嵌套对象打包回 JSON 字符串
       unflattenExtProperty(processedData)
 
       if (formDialogMode.value === 'create') {
@@ -267,7 +267,7 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
 
       case 'search': {
         // 如果传递了表单数据，直接使用它进行查询
-        // formData 参数在 SearchForm 的 handleToolbarClick 中传递
+        // formData 参数在 RsSearchForm 的 handleToolbarClick 中传递
         await service.handleSearch(formData)
         break
       }
@@ -334,10 +334,10 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
   /**
    * 右键菜单点击处理
    */
-  const handleMenuClick = async ({ code, row }: { code: string; row?: ServiceCenterInstance }) => {
+  const handleMenuClick = async ({ key, row }: { key: string; row?: ServiceCenterInstance }) => {
     if (!row) return
 
-    switch (code) {
+    switch (key) {
       case 'view':
         await openViewDialog(row)
         break

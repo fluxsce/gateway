@@ -3,12 +3,12 @@
  * 处理所有与后端交互的业务逻辑
  */
 
+import { useAppMessage } from '@/composables/useAppMessage'
 import { rsConfirm } from '@/ui'
 import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess } from '@/utils/format'
 import { WarningOutline } from '@vicons/ionicons5'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import * as namespaceApi from '../api'
 import type { Namespace } from '../types'
@@ -18,8 +18,8 @@ import { useNamespaceModel } from './model'
  * 命名空间服务 Hook（纯业务逻辑）
  */
 export function useNamespaceService(searchFormRef?: Ref<any> | any, moduleId?: string) {
-  const message = useMessage()
-// 初始化 Model
+  const message = useAppMessage()
+  // 初始化 Model
   const model = useNamespaceModel(moduleId)
 
   const {
@@ -177,19 +177,30 @@ export function useNamespaceService(searchFormRef?: Ref<any> | any, moduleId?: s
     }
   }
 
-  const deleteNamespace = async (namespace: Namespace): Promise<boolean> => {
-    const confirmed = await rsConfirm.warning({
-      title: '确认删除',
-      subtitle: '此操作不可恢复，请谨慎操作',
-      description: `确定要删除命名空间 "${namespace.namespaceName}" (${namespace.namespaceId}) 吗？`,
-      icon: WarningOutline,
-      confirmText: '确定删除',
-      cancelText: '取消',
-      width: 500
-    })
+  /**
+   * 删除命名空间。
+   * @param namespace 要删除的命名空间
+   * @param options.skipConfirm 已在调用方确认过时跳过二次弹窗
+   * @param options.silentSuccess 批量删除时由调用方统一提示成功
+   */
+  const deleteNamespace = async (
+    namespace: Namespace,
+    options?: { skipConfirm?: boolean; silentSuccess?: boolean },
+  ): Promise<boolean> => {
+    if (!options?.skipConfirm) {
+      const confirmed = await rsConfirm.warning({
+        title: '确认删除',
+        subtitle: '此操作不可恢复，请谨慎操作',
+        description: `确定要删除命名空间 "${namespace.namespaceName}" (${namespace.namespaceId}) 吗？`,
+        icon: WarningOutline,
+        confirmText: '确定删除',
+        cancelText: '取消',
+        width: 500,
+      })
 
-    if (!confirmed) {
-      return false
+      if (!confirmed) {
+        return false
+      }
     }
 
     loading.value = true
@@ -197,8 +208,9 @@ export function useNamespaceService(searchFormRef?: Ref<any> | any, moduleId?: s
       const response: JsonDataObj = await namespaceApi.deleteNamespace(namespace.namespaceId)
 
       if (isApiSuccess(response)) {
-        const successMsg = getApiMessage(response, '命名空间删除成功')
-        message.success(successMsg)
+        if (!options?.silentSuccess) {
+          message.success(getApiMessage(response, '命名空间删除成功'))
+        }
         removeNamespaceFromList(namespace.namespaceId, namespace.tenantId)
         return true
       } else {

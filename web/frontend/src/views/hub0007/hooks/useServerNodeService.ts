@@ -5,7 +5,7 @@
 
 import { useAppMessage } from '@/composables/useAppMessage'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
-import type { JsonDataObj } from '@/types/api'
+import type { JsonDataObj, PageInfoObj } from '@/types/api'
 import { createBackendPaginationParams } from '@/utils/pagination'
 import type { Ref } from 'vue'
 import * as serverNodeApi from '../api'
@@ -85,14 +85,12 @@ export function useServerNodeService(searchFormRef?: Ref<any> | any) {
   /**
    * 处理分页变化
    */
-  const handlePageChange = async (newPageInfo: { pageIndex?: number; pageSize?: number }) => {
+  const handlePageChange = async ({ currentPage, pageSize }: { currentPage: number; pageSize: number }) => {
     if (pageInfo.value) {
-      if (newPageInfo.pageIndex !== undefined) {
-        pageInfo.value.pageIndex = newPageInfo.pageIndex
-      }
-      if (newPageInfo.pageSize !== undefined) {
-        pageInfo.value.pageSize = newPageInfo.pageSize
-      }
+      pageInfo.value.pageIndex = currentPage
+      pageInfo.value.pageSize = pageSize
+    } else {
+      updatePagination({ pageIndex: currentPage, pageSize } as PageInfoObj)
     }
     await loadServerNodes()
   }

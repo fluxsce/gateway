@@ -3,7 +3,7 @@
  * 统一管理数据状态和计算属性
  */
 
-import type { DataFormField, DataFormTab } from '@/components/form/data/types'
+import type { RsDataFormField, RsDataFormTab } from '@/components/form/rs-data'
 import type { RsContextMenuItem } from '@/ui'
 import { computed, ref } from 'vue'
 import type { GatewayInstance, InstanceTreeNode } from '../types'
@@ -42,7 +42,6 @@ export function useGatewayInstanceTreeModel() {
     return instanceList.value.map((instance) => ({
       key: instance.gatewayInstanceId,
       label: getInstanceLabel(instance),
-      icon: 'server',
       instance,
     }))
   })
@@ -50,11 +49,10 @@ export function useGatewayInstanceTreeModel() {
   // ============= 辅助方法 =============
 
   /**
-   * 获取实例标签
+   * 获取实例标签（树节点主标题；地址在节点模板第二行展示）
    */
   function getInstanceLabel(instance: GatewayInstance): string {
-    const port = instance.tlsEnabled === 'Y' ? instance.httpsPort : instance.httpPort
-    return `${instance.instanceName || '未命名'} (${instance.bindAddress || '-'}:${port || '-'})`
+    return instance.instanceName || '未命名'
   }
 
   // ============= 状态更新方法 =============
@@ -128,7 +126,7 @@ export function useGatewayInstanceTreeModel() {
 
   /**
    * 代理配置表单字段配置
-   * 用于 GdataFormModal 组件
+   * 用于 RsDataFormModal 组件
    */
   const proxyFormConfig = {
     tabs: [
@@ -166,7 +164,7 @@ export function useGatewayInstanceTreeModel() {
         label: '其它',
         // 其它标签页始终显示
       },
-    ] as DataFormTab[],
+    ] as RsDataFormTab[],
     fields: [
       // ============= 主键字段（隐藏，但必须存在用于编辑） =============
       {
@@ -246,16 +244,16 @@ export function useGatewayInstanceTreeModel() {
             required: true,
             message: '请输入优先级',
             trigger: ['blur', 'change'],
-            validator: (_rule: any, value: any) => {
+            validator: (value: unknown) => {
               if (value === null || value === undefined || value === '') {
-                return new Error('请输入优先级')
+                return '请输入优先级'
               }
               const num = Number(value)
               if (isNaN(num)) {
-                return new Error('优先级必须是数字')
+                return '优先级必须是数字'
               }
               if (num < 0 || num > 999) {
-                return new Error('优先级必须是0-999之间的数字')
+                return '优先级必须是0-999之间的数字'
               }
               return true
             },
@@ -354,20 +352,16 @@ export function useGatewayInstanceTreeModel() {
         required: true,
         defaultValue: 90,
         tips: '连接池中空闲连接的最大保持时间，超过此时间的空闲连接会被关闭释放资源',
-        props: {
-          min: 1,
-          max: 7200,
-        },
         rules: [
           {
             required: true,
             message: '请输入空闲连接超时时间',
             trigger: ['blur', 'change'],
-            type: 'number',
-            validator: (_rule: any, value: any) => {
-              if (value === null || value === undefined) return new Error('请输入空闲连接超时时间')
-              if (value < 1) return new Error('空闲连接超时时间必须大于0秒')
-              if (value > 7200) return new Error('空闲连接超时时间不能超过7200秒')
+            validator: (value: unknown) => {
+              if (value === null || value === undefined || value === '') return '请输入空闲连接超时时间'
+              const num = Number(value)
+              if (!Number.isFinite(num) || num < 1) return '空闲连接超时时间必须大于0秒'
+              if (num > 7200) return '空闲连接超时时间不能超过7200秒'
               return true
             },
           },
@@ -395,10 +389,11 @@ export function useGatewayInstanceTreeModel() {
             message: '请输入超时时间',
             trigger: ['blur', 'change'],
             type: 'number',
-            validator: (_rule: any, value: any) => {
-              if (value === null || value === undefined) return new Error('请输入超时时间')
-              if (value < 1) return new Error('超时时间必须大于0秒')
-              if (value > 3600) return new Error('超时时间不能超过3600秒')
+            validator: (value: unknown) => {
+              if (value === null || value === undefined || value === '') return '请输入超时时间'
+              const num = Number(value)
+              if (!Number.isFinite(num) || num < 1) return '超时时间必须大于0秒'
+              if (num > 3600) return '超时时间不能超过3600秒'
               return true
             },
           },
@@ -468,10 +463,11 @@ export function useGatewayInstanceTreeModel() {
             message: '请输入重试间隔',
             trigger: ['blur', 'change'],
             type: 'number',
-            validator: (_rule: any, value: any) => {
-              if (value === null || value === undefined) return new Error('请输入重试间隔')
-              if (value < 1) return new Error('重试间隔必须大于0秒')
-              if (value > 300) return new Error('重试间隔不能超过300秒')
+            validator: (value: unknown) => {
+              if (value === null || value === undefined || value === '') return '请输入重试间隔'
+              const num = Number(value)
+              if (!Number.isFinite(num) || num < 1) return '重试间隔必须大于0秒'
+              if (num > 300) return '重试间隔不能超过300秒'
               return true
             },
           },
@@ -800,7 +796,7 @@ export function useGatewayInstanceTreeModel() {
         tabKey: 'custom',
         disabled: true,
       },
-    ] as DataFormField[],
+    ] as RsDataFormField[],
   }
 
   return {

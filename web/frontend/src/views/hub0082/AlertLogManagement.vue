@@ -1,73 +1,71 @@
 <template>
   <div class="alert-log-management" :id="htmlId">
-    <GPane direction="vertical" :no-resize="true">
-      <!-- 上部：搜索表单 -->
-      <template #1>
-        <search-form
-          ref="searchFormRef"
-          :module-id="service.model.moduleId"
-          v-bind="service.model.searchFormConfig"
-          @search="handleSearch"
-          @toolbar-click="handleToolbarClick"
-        />
+    <RsSplitPane
+      class="alert-log-management__split"
+      orientation="vertical"
+      :panes="splitPanes"
+      disabled
+    >
+      <template #search>
+        <div class="alert-log-management__search">
+          <RsSearchForm
+            ref="searchFormRef"
+            :module-id="service.model.moduleId"
+            v-bind="service.model.searchFormConfig"
+            @search="handleSearch"
+            @toolbar-click="handleToolbarClick"
+          />
+        </div>
       </template>
 
-      <!-- 下部：数据表格 -->
-      <template #2>
-        <g-grid
-          ref="gridRef"
-          :module-id="service.model.moduleId"
-          :data="service.model.logList"
-          :loading="service.model.loading"
-          v-bind="service.model.gridConfig"
-          @page-change="handlePageChange"
-          @menu-click="({ code, row }) => handleMenuClick({ menu: { code }, row })"
-        >
-          <!-- 告警级别自定义渲染 -->
-          <template #alertLevel="{ row }">
-            <n-tag :type="service.model.getAlertLevelTagType(row.alertLevel)" size="small">
-              {{ service.model.getAlertLevelLabel(row.alertLevel) }}
-            </n-tag>
-          </template>
-
-          <!-- 发送状态自定义渲染 -->
-          <template #sendStatus="{ row }">
-            <n-tag :type="service.model.getSendStatusTagType(row.sendStatus)" size="small">
-              {{ service.model.getSendStatusLabel(row.sendStatus) }}
-            </n-tag>
-          </template>
-        </g-grid>
+      <template #grid>
+        <div class="alert-log-management__grid">
+          <RsGrid
+            ref="gridRef"
+            :module-id="service.model.moduleId"
+            :data="service.model.logList"
+            :loading="service.model.loading"
+            :columns="service.model.gridConfig.columns"
+            :selectable="service.model.gridConfig.selectable"
+            :row-key="service.model.gridConfig.rowKey"
+            height="100%"
+            :pagination-config="service.model.gridConfig.paginationConfig"
+            :menu-config="service.model.gridConfig.menuConfig"
+            @page-change="handlePageChange"
+            @menu-click="handleMenuClick"
+          />
+        </div>
       </template>
-    </GPane>
+    </RsSplitPane>
 
-    <!-- 预警日志详情对话框 -->
     <AlertLogDetailDialog
       v-model:visible="viewDialogVisible"
       :alert-log-id="selectedAlertLogId"
+      :to="`#${htmlId}`"
     />
   </div>
 </template>
 
 <script lang="ts" setup>
-import SearchForm from '@/components/form/search/SearchForm.vue'
-import { GPane } from '@/components/gpane'
-import { GGrid } from '@/components/grid'
-import { NTag } from 'naive-ui'
+import { RsSearchForm, type RsSearchFormExpose } from '@/components/form/rs-search'
+import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
+import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import { ref } from 'vue'
 import { AlertLogDetailDialog } from './components'
 import { useAlertLogPage } from './hooks'
 
-// 定义组件名称
 defineOptions({
-  name: 'AlertLogManagement'
+  name: 'AlertLogManagement',
 })
 
-// ============= Refs =============
+/** 上方搜索区随内容自适应，下方表格占满剩余高度 */
+const splitPanes: RsSplitPaneItem[] = [
+  { key: 'search', size: 'auto' },
+  { key: 'grid' },
+]
 
-const searchFormRef = ref()
-const gridRef = ref()
-
-// ============= 页面级 Hook（包含服务与对话框、事件处理） =============
+const searchFormRef = ref<RsSearchFormExpose | null>(null)
+const gridRef = ref<RsGridExpose | null>(null)
 
 const {
   service,
@@ -79,18 +77,40 @@ const {
   handlePageChange,
 } = useAlertLogPage(gridRef, searchFormRef)
 
-// ============= HTML ID（用于 DOM，符合 HTML 规范） =============
-
-// 固定的 HTML id（符合 HTML 规范，无特殊字符）
+/** 固定 HTML id（moduleId 含冒号，不能直接用作 DOM id） */
 const htmlId = 'hub0082-alert-log'
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .alert-log-management {
+  box-sizing: border-box;
+  width: 100%;
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-</style>
+.alert-log-management__split {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
 
+.alert-log-management__search {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.alert-log-management__grid {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+</style>

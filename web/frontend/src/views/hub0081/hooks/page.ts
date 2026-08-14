@@ -2,16 +2,26 @@
  * 预警模板管理页面级 Hook
  */
 
+import type { RsSearchFormExpose } from '@/components/form/rs-search'
+import type { RsGridExpose } from '@/components/rs-grid'
+import { useAppMessage } from '@/composables/useAppMessage'
 import { rsConfirm } from '@/ui'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import type { AlertTemplate } from '../types'
 import { useAlertTemplateService } from './service'
 
-export function useAlertTemplatePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any) {
-  const message = useMessage()
-const service = useAlertTemplateService(searchFormRef)
+/**
+ * 预警模板管理页面级 Hook
+ * @param gridRef Grid 组件引用（可选）
+ * @param searchFormRef 搜索表单引用（可选）
+ */
+export function useAlertTemplatePage(
+  gridRef?: Ref<RsGridExpose | null>,
+  searchFormRef?: Ref<RsSearchFormExpose | null>,
+) {
+  const message = useAppMessage()
+  const service = useAlertTemplateService(searchFormRef)
 
   const formDialogVisible = ref(false)
   const formDialogMode = ref<'create' | 'edit' | 'view'>('create')
@@ -35,7 +45,6 @@ const service = useAlertTemplateService(searchFormRef)
 
   const openEditDialog = async (row: AlertTemplate) => {
     formDialogMode.value = 'edit'
-    // 尽量用后端详情，保证字段完整
     const detail = await service.getTemplateDetail(row.templateName)
     currentEditTemplate.value = detail || row
     formDialogVisible.value = true
@@ -102,7 +111,7 @@ const service = useAlertTemplateService(searchFormRef)
       return
     }
     if (key === 'delete') {
-      const rows = (gridRef?.value?.getCheckboxRecordsOrCurrentRows?.() || []) as AlertTemplate[]
+      const rows = (gridRef?.value?.getActiveRows?.() || []) as AlertTemplate[]
       if (!rows || rows.length === 0) {
         message.warning('请先勾选要删除的模板，或单击选中一行后再删除')
         return
@@ -116,18 +125,16 @@ const service = useAlertTemplateService(searchFormRef)
       if (!confirmed) return
       for (const r of rows) {
         // 串行删除即可，避免并发压测后端
-        // eslint-disable-next-line no-await-in-loop
         await service.removeTemplate(r.templateName)
       }
-      return
     }
   }
 
-  const handleMenuClick = async ({ menu, row }: { menu: { code: string }; row: AlertTemplate }) => {
-    const code = menu?.code
-    if (code === 'view') return openViewDialog(row)
-    if (code === 'edit') return openEditDialog(row)
-    if (code === 'delete') return handleDelete(row)
+  const handleMenuClick = async ({ key, row }: { key: string; row?: AlertTemplate }) => {
+    if (!row) return
+    if (key === 'view') return openViewDialog(row)
+    if (key === 'edit') return openEditDialog(row)
+    if (key === 'delete') return handleDelete(row)
   }
 
   return {
@@ -146,5 +153,3 @@ const service = useAlertTemplateService(searchFormRef)
     handleFormSubmit,
   }
 }
-
-

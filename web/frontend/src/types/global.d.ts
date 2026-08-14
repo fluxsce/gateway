@@ -107,9 +107,6 @@ declare module '@vue/runtime-core' {
      * 用于代码语法高亮
      */
     $hljs: any
-
-    /** 全局自定义渲染，插件注册后可直接调用 $gRender.show(Component, props, options) */
-    $gRender: import('@/components/gcustom-render/api').GlobalCustomRenderApi
   }
 }
 
@@ -118,6 +115,5 @@ declare global {
   interface Window {
     $api: ApiInterface
     hljs: any // highlight.js 全局对象
-    $gRender?: import('@/components/gcustom-render/api').GlobalCustomRenderApi
   }
 }

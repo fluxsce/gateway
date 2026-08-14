@@ -1,4 +1,5 @@
 import type { ToolbarProps } from '@/components/toolbar'
+import type { RsFormNamePath, RsFormRuleItem } from '@/ui'
 import type { Component, VNode } from 'vue'
 
 /**
@@ -15,6 +16,22 @@ export type RsSearchFieldType =
   | 'switch'
   | 'custom'
 
+/** DatePicker range（valueFormat=string）的标准形态 */
+export interface RsSearchDateRangeValue {
+  start: string
+  end: string
+}
+
+/**
+ * 自定义字段渲染上下文（对齐 RsDataForm / Ant Form.Item）。
+ * value / onUpdate 绑定当前 field；改其它路径用 setFieldValue。
+ */
+export interface RsSearchFormRenderContext {
+  value: unknown
+  onUpdate: (value: unknown) => void
+  setFieldValue: (name: RsFormNamePath, value: unknown) => void
+}
+
 /**
  * RsSearchForm 字段配置（基于 niuma-ui 表单控件）
  */
@@ -28,7 +45,7 @@ export interface RsSearchField {
   /** 字段类型，默认 input */
   type?: RsSearchFieldType
   placeholder?: string
-  defaultValue?: any
+  defaultValue?: unknown
   /** 是否显示，默认 true */
   show?: boolean
   required?: boolean
@@ -42,9 +59,16 @@ export interface RsSearchField {
   }>
   /** 栅格占位 1-24，默认 6 */
   span?: number
-  render?: (formData: Record<string, any>) => Component | VNode
-  rules?: any | any[]
-  props?: Record<string, any>
+  /**
+   * 自定义渲染。优先用 ctx.onUpdate / setFieldValue 回写，
+   * formData 仅作只读快照（兼容旧 render 直接改 formData）。
+   */
+  render?: (
+    formData: Record<string, any>,
+    ctx: RsSearchFormRenderContext,
+  ) => Component | VNode
+  rules?: RsFormRuleItem | RsFormRuleItem[]
+  props?: Record<string, unknown>
 }
 
 /**
@@ -76,7 +100,8 @@ export interface RsSearchFormProps extends Pick<ToolbarProps, 'moduleId'> {
  */
 export interface RsSearchFormEmits {
   (event: 'search', formData: Record<string, any>): void
-  (event: 'field-change', field: string, value: any): void
+  (event: 'reset'): void
+  (event: 'field-change', field: string, value: unknown): void
   (event: 'toolbar-click', key: string, formData?: Record<string, any>): void
 }
 
@@ -84,7 +109,7 @@ export interface RsSearchFormEmits {
  * RsSearchForm 暴露方法
  */
 export interface RsSearchFormExpose {
-  getFormRef: () => any | undefined
+  getFormRef: () => unknown
   getFormData: () => Record<string, any>
   setFormData: (data: Record<string, any>) => void
   resetForm: () => void

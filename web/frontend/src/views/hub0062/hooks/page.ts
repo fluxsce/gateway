@@ -4,8 +4,8 @@
  * - 处理新增对话框、工具栏、右键菜单等页面交互
  */
 
+import { useAppMessage } from '@/composables/useAppMessage'
 import { rsConfirm } from '@/ui'
-import { useMessage } from 'naive-ui'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 import type { TunnelClient } from '../types'
@@ -20,8 +20,8 @@ export function useTunnelClientPage(
   gridRef?: Ref<any> | any,
   searchFormRef?: Ref<any> | any
 ) {
-  const message = useMessage()
-// 业务服务（包含 model、增删改查等）
+  const message = useAppMessage()
+  // 业务服务（包含 model、增删改查等）
   const service = useTunnelClientService(searchFormRef)
 
   // 表单对话框状态（新增/编辑/查看共用）
@@ -204,9 +204,9 @@ export function useTunnelClientPage(
   /**
    * 处理右键菜单点击
    */
-  const handleMenuClick = async ({ menu, row }: { menu: any; row: TunnelClient }) => {
-    const code = menu?.code || menu
-    switch (code) {
+  const handleMenuClick = async ({ key, row }: { key: string; row?: TunnelClient }) => {
+    if (!row) return
+    switch (key) {
       case 'view':
         await openViewDialog(row)
         break
@@ -223,7 +223,7 @@ export function useTunnelClientPage(
         await handleDelete(row)
         break
       default:
-        console.warn('未知的菜单项:', code)
+        console.warn('未知的菜单项:', key)
     }
   }
 
@@ -289,10 +289,10 @@ export function useTunnelClientPage(
    * 获取选中的记录
    */
   const getSelectedRecords = (): TunnelClient[] => {
-    if (!gridRef?.value?.getCheckboxRecords) {
+    if (!gridRef?.value?.getActiveRows) {
       return []
     }
-    return gridRef.value.getCheckboxRecords() as TunnelClient[]
+    return (gridRef.value.getActiveRows() || []) as TunnelClient[]
   }
 
   /**

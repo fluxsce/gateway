@@ -1,106 +1,108 @@
 <template>
-  <g-modal
-    v-model:visible="visible"
+  <RsDialog
+    :open="visible"
     title="选择注册服务"
-    :header-icon="SearchOutline"
+    layout="window"
     :width="1200"
-    :mask-closable="false"
-    :show-fullscreen-toggle="false"
-    :to="to"
-    @close="handleClose"
-    @cancel="handleClose"
-    @confirm="confirmSelection"
-    :show-confirm="true"
-    :show-cancel="true"
-    confirm-text="确认选择"
-    cancel-text="取消"
+    :teleport-to="to"
+    :draggable="true"
+    :fullscreenable="true"
+    :modal="false"
+    :show-overlay="false"
+    :close-on-overlay-click="false"
+    class="hub0042-service-selector-dialog"
+    @update:open="handleUpdateVisible"
   >
-    <div class="service-selector-modal-content">
-      <!-- 搜索表单 -->
-      <div class="search-section">
-        <search-form
-          ref="searchFormRef"
-          :module-id="moduleId"
-          :fields="selectorSearchFormConfig.fields"
-          :show-search-button="true"
-          :show-reset-button="true"
-          @search="handleSearch"
-        />
-      </div>
-
-      <!-- 服务列表 -->
-      <div class="grid-section">
-        <g-grid
-          ref="gridRef"
-          :module-id="moduleId"
-          :data="service.model.serviceList"
-          :loading="service.model.loading"
-          :columns="selectorGridConfig.columns"
-          :height="400"
-          :show-overflow="true"
-          :stripe="true"
-          :border="true"
-          :row-config="selectorGridConfig.rowConfig"
-          :radio-config="selectorGridConfig.radioConfig"
-          :pager-config="selectorGridConfig.pagerConfig"
-          :page-info="service.model.pageInfo"
-          @page-change="handlePageChange"
-          @row-click="handleRowClick"
+    <template #body>
+      <div class="service-selector-modal" :id="moduleId">
+        <RsSplitPane
+          class="service-selector-modal__split"
+          orientation="vertical"
+          :panes="splitPanes"
+          disabled
         >
-          <!-- 活动状态自定义渲染 -->
-          <template #activeFlag="{ row }">
-            <RsTag :variant="row.activeFlag === 'Y' ? 'success' : 'default'" size="sm">
-              {{ row.activeFlag === 'Y' ? '启用' : '禁用' }}
-            </RsTag>
+          <template #search>
+            <div class="service-selector-modal__search">
+              <RsSearchForm
+                ref="searchFormRef"
+                :module-id="moduleId"
+                :fields="selectorSearchFormConfig.fields"
+                :show-search-button="true"
+                :show-reset-button="true"
+                @search="handleSearch"
+              />
+            </div>
           </template>
-        </g-grid>
+
+          <template #grid>
+            <div class="service-selector-modal__grid">
+              <RsGrid
+                ref="gridRef"
+                :module-id="moduleId"
+                :data="service.model.serviceList"
+                :loading="service.model.loading"
+                :columns="selectorGridColumns"
+                :selectable="false"
+                :row-key="service.model.gridConfig.rowKey"
+                height="100%"
+                :pagination-config="selectorPaginationConfig"
+                @page-change="handlePageChange"
+                @row-click="handleRowClick"
+              />
+            </div>
+          </template>
+        </RsSplitPane>
       </div>
-    </div>
-  </g-modal>
+    </template>
+    <template #footer>
+      <RsButton variant="secondary" @click="handleClose">取消</RsButton>
+      <RsButton variant="primary" @click="confirmSelection">确认选择</RsButton>
+    </template>
+  </RsDialog>
 </template>
 
 <script setup lang="ts">
-import SearchForm from '@/components/form/search/SearchForm.vue'
-import { GModal } from '@/components/gmodal'
-import { GGrid } from '@/components/grid'
-import { formatDate } from '@/utils/format'
-import { SearchOutline } from '@vicons/ionicons5'
+import { RsSearchForm } from '@/components/form/rs-search'
+import { RsGrid, type RsGridColumn, type RsGridExpose, type RsGridPaginationConfig } from '@/components/rs-grid'
 import { useAppMessage } from '@/composables/useAppMessage'
-import { RsTag } from '@/ui'
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { RsButton, RsDialog, RsSplitPane, RsTag, type RsSplitPaneItem } from '@/ui'
+import { formatDate } from '@/utils/format'
+import { computed, h, onBeforeUnmount, ref, watch } from 'vue'
 import { useServiceService } from '../hooks'
 import type { Service } from '../types'
 
-// Props
+defineOptions({
+  name: 'ServiceSelectorModal',
+})
+
+const splitPanes: RsSplitPaneItem[] = [
+  { key: 'search', size: 'auto' },
+  { key: 'grid' },
+]
+
 interface Props {
   visible: boolean
   to?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  to: 'body'
+  to: 'body',
 })
 
-// Emits
 const emit = defineEmits<{
   'update:visible': [value: boolean]
-  'select': [service: Service]
-  'close': []
+  select: [service: Service]
+  close: []
 }>()
 
-// 模块ID
 const moduleId = 'hub0042-selector'
-
-// 响应式状态
 const message = useAppMessage()
 const searchFormRef = ref()
-const gridRef = ref()
+const gridRef = ref<RsGridExpose | null>(null)
 const selectedService = ref<Service | null>(null)
 
-// 使用服务 Service Hook（复用公共业务逻辑）
 const service = useServiceService(searchFormRef)
 
-// 选择器专用的搜索表单配置（简化版，不需要工具栏按钮）
 const selectorSearchFormConfig = {
   fields: [
     {
@@ -143,135 +145,114 @@ const selectorSearchFormConfig = {
   ],
 }
 
-// 选择器专用的表格配置（支持单选）
-const selectorGridConfig = {
-  columns: [
-    {
-      type: 'radio',
-      width: 50,
-      fixed: 'left',
-    },
-    {
-      field: 'serviceName',
-      title: '服务名称',
-      minWidth: 180,
-      sortable: true,
-      fixed: 'left',
-    },
-    {
-      field: 'namespaceId',
-      title: '命名空间',
-      minWidth: 120,
-    },
-    {
-      field: 'groupName',
-      title: '分组',
-      minWidth: 120,
-    },
-    {
-      field: 'serviceType',
-      title: '服务类型',
-      minWidth: 100,
-    },
-    {
-      field: 'nodeCount',
-      title: '节点数',
-      minWidth: 80,
-      align: 'center',
-      formatter: ({ cellValue }: { cellValue: number }) => cellValue ?? 0,
-    },
-    {
-      field: 'healthyNodeCount',
-      title: '健康节点',
-      minWidth: 90,
-      align: 'center',
-      formatter: ({ cellValue }: { cellValue: number }) => cellValue ?? 0,
-    },
-    {
-      field: 'unhealthyNodeCount',
-      title: '不健康节点',
-      minWidth: 100,
-      align: 'center',
-      formatter: ({ cellValue }: { cellValue: number }) => cellValue ?? 0,
-    },
-    {
-      field: 'serviceDescription',
-      title: '服务描述',
-      minWidth: 180,
-      showOverflow: 'tooltip',
-    },
-    {
-      field: 'activeFlag',
-      title: '状态',
-      minWidth: 80,
-      align: 'center',
-      slots: { default: 'activeFlag' },
-    },
-    {
-      field: 'addTime',
-      title: '创建时间',
-      minWidth: 160,
-      formatter: ({ cellValue }: { cellValue: string }) => formatDate(cellValue),
-    },
-  ] as any[],
-  rowConfig: {
-    keyField: 'serviceName',
-    isHover: true,
-    isCurrent: true,
+const selectorGridColumns: RsGridColumn<Service>[] = [
+  {
+    key: 'serviceName',
+    title: '服务名称',
+    minWidth: 180,
+    sortable: true,
+    fixed: 'left',
   },
-  radioConfig: {
-    highlight: true,
-    trigger: 'row',
+  {
+    key: 'namespaceId',
+    title: '命名空间',
+    minWidth: 120,
   },
-  pagerConfig: {
-    enabled: true,
-    pageSize: 10,
-    pageSizes: [10, 20, 50],
+  {
+    key: 'groupName',
+    title: '分组',
+    minWidth: 120,
   },
+  {
+    key: 'serviceType',
+    title: '服务类型',
+    minWidth: 100,
+  },
+  {
+    key: 'nodeCount',
+    title: '节点数',
+    minWidth: 80,
+    align: 'center',
+    formatter: (value) => String(value ?? 0),
+  },
+  {
+    key: 'healthyNodeCount',
+    title: '健康节点',
+    minWidth: 90,
+    align: 'center',
+    formatter: (value) => String(value ?? 0),
+  },
+  {
+    key: 'unhealthyNodeCount',
+    title: '不健康节点',
+    minWidth: 100,
+    align: 'center',
+    formatter: (value) => String(value ?? 0),
+  },
+  {
+    key: 'serviceDescription',
+    title: '服务描述',
+    minWidth: 180,
+    ellipsis: true,
+  },
+  {
+    key: 'activeFlag',
+    title: '状态',
+    minWidth: 80,
+    align: 'center',
+    render: (row) =>
+      h(
+        RsTag,
+        { variant: row.activeFlag === 'Y' ? 'success' : 'default', size: 'sm' },
+        () => (row.activeFlag === 'Y' ? '启用' : '禁用'),
+      ),
+  },
+  {
+    key: 'addTime',
+    title: '创建时间',
+    minWidth: 160,
+    formatter: (value) => (value ? formatDate(value as string) : ''),
+  },
+]
+
+const selectorPaginationConfig: RsGridPaginationConfig = {
+  show: true,
+  pageInfo: service.model.pageInfo as any,
+  align: 'right',
 }
 
-// 计算属性
 const visible = computed({
   get: () => props.visible,
-  set: (value: boolean) => emit('update:visible', value)
+  set: (value: boolean) => emit('update:visible', value),
 })
 
-// 监听弹窗显示状态
-const stopVisibleWatch = watch(() => props.visible, (show) => {
-  if (show) {
-    selectedService.value = null
-    // 加载服务列表
-    service.loadServices({ tenantId: 'default' })
-  } else {
-    selectedService.value = null
-    // 重置搜索表单
-    if (searchFormRef.value?.resetForm) {
-      searchFormRef.value.resetForm()
+const stopVisibleWatch = watch(
+  () => props.visible,
+  (show) => {
+    if (show) {
+      selectedService.value = null
+      service.loadServices({ tenantId: 'default' })
+    } else {
+      selectedService.value = null
+      searchFormRef.value?.resetForm?.()
     }
-  }
-})
+  },
+)
 
-// 组件卸载时清理监听器
 onBeforeUnmount(() => {
   stopVisibleWatch()
 })
 
-// 搜索处理
 function handleSearch() {
   service.handleSearch()
 }
 
-// 分页处理
 function handlePageChange(params: { currentPage: number; pageSize: number }) {
   service.handlePageChange(params.currentPage, params.pageSize)
 }
 
-// 行点击处理（选择服务）
 function handleRowClick({ row }: { row: Service }) {
   selectedService.value = row
-  if (gridRef.value?.setRadioRow) {
-    gridRef.value.setRadioRow(row)
-  }
 }
 
 function confirmSelection() {
@@ -287,26 +268,45 @@ function confirmSelection() {
   handleClose()
 }
 
-// 关闭弹窗
+function handleUpdateVisible(open: boolean) {
+  visible.value = open
+  if (!open) {
+    emit('close')
+  }
+}
+
 function handleClose() {
   emit('update:visible', false)
   emit('close')
 }
 </script>
 
-<style scoped lang="scss">
-.service-selector-modal-content {
+<style scoped>
+.service-selector-modal {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  width: 100%;
+  height: min(70vh, 720px);
+  min-height: 0;
+  overflow: hidden;
+}
 
-  .search-section {
-    flex-shrink: 0;
-  }
+.service-selector-modal__split {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
 
-  .grid-section {
-    flex: 1;
-    min-height: 0;
-  }
+.service-selector-modal__search {
+  width: 100%;
+}
+
+.service-selector-modal__grid {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 </style>

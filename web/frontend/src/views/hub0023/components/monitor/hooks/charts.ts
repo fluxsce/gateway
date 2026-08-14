@@ -12,7 +12,7 @@ import type {
 } from './types'
 
 /**
- * 公共 tooltip 配置：挂到 body，避免被 GPane / 滚动容器的 overflow 裁剪。
+ * 公共 tooltip 配置：挂到 body，避免被 RsSplitPane / 滚动容器的 overflow 裁剪。
  */
 const chartTooltipBase = {
   appendTo: 'body' as const,

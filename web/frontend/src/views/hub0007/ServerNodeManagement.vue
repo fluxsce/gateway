@@ -29,12 +29,16 @@
 
             <template #grid>
               <div class="server-node-management__grid">
-                <GGrid
+                <RsGrid
                   ref="gridRef"
                   :module-id="model.moduleId"
                   :data="model.serverList"
                   :loading="model.loading"
-                  v-bind="model.gridConfig"
+                  :columns="model.gridConfig.columns"
+                  :row-key="model.gridConfig.rowKey"
+                  height="100%"
+                  :pagination-config="model.gridConfig.paginationConfig"
+                  :menu-config="model.gridConfig.menuConfig"
                   @page-change="service.handlePageChange"
                   @menu-click="handleMenuClick"
                   @row-click="handleRowClick"
@@ -134,7 +138,7 @@
 
 <script lang="ts" setup>
 import { RsSearchForm } from '@/components/form/rs-search'
-import { GGrid } from '@/components/grid'
+import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { RsEmpty, RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import '@/views/hub0000/components/metrics/echartsTooltip.css'
@@ -170,7 +174,7 @@ const listPanes: RsSplitPaneItem[] = [
 ]
 
 const searchFormRef = ref()
-const gridRef = ref()
+const gridRef = ref<RsGridExpose | null>(null)
 
 const { model, service, handleToolbarClick, handleMenuClick, handleSearch } = useServerNodePage(
   gridRef,

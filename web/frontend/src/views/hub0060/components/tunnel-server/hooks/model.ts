@@ -3,22 +3,50 @@
  * 统一管理搜索表单、表格配置和数据状态
  */
 
-import type { DataFormField } from '@/components/form/data/types'
-import type { SearchFormProps } from '@/components/form/search/types'
-import type { GridProps } from '@/components/grid'
+import type { RsDataFormField } from '@/components/form/rs-data'
+import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
+import { RsTag, type RsTagVariant } from '@/ui'
 import { formatDate } from '@/utils/format'
-import {
-  AddOutline,
-  CreateOutline,
-  PlayOutline,
-  ReloadOutline,
-  StopCircleOutline,
-  TrashOutline
-} from '@vicons/ionicons5'
-import { NIcon } from 'naive-ui'
 import { h, ref } from 'vue'
 import type { TunnelServer } from '../../../types'
+
+/**
+ * 隧道服务器表格配置（对齐 RsGrid Props 子集）。
+ */
+export interface TunnelServerGridConfig {
+  columns: RsGridColumn<TunnelServer>[]
+  selectable: boolean
+  rowKey: string | ((row: TunnelServer) => string)
+  height: string
+  paginationConfig: RsGridPaginationConfig
+  menuConfig: RsGridMenuConfig
+}
+
+/**
+ * 获取服务器状态标签变体
+ */
+function getServerStatusVariant(status: string): RsTagVariant {
+  const statusMap: Record<string, RsTagVariant> = {
+    running: 'success',
+    stopped: 'warning',
+    error: 'danger',
+  }
+  return statusMap[status] || 'default'
+}
+
+/**
+ * 获取服务器状态展示文案
+ */
+function getServerStatusText(status: string): string {
+  const statusMap: Record<string, string> = {
+    running: '运行中',
+    stopped: '已停止',
+    error: '错误',
+  }
+  return statusMap[status] || '未知'
+}
 
 /**
  * 隧道服务器管理 Model
@@ -37,8 +65,8 @@ export function useTunnelServerModel() {
 
   // ============= 搜索表单配置 =============
 
-  /** 搜索表单配置（符合 SearchFormProps 结构） */
-  const searchFormConfig: Omit<SearchFormProps, 'moduleId'> = {
+  /** 搜索表单配置（符合 RsSearchFormProps 结构） */
+  const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
         field: 'serverName',
@@ -88,20 +116,20 @@ export function useTunnelServerModel() {
       {
         key: 'add',
         label: '新增服务器',
-        icon: AddOutline,
+        icon: 'AddOutline',
         type: 'primary',
         tooltip: '新增隧道服务器',
       },
       {
         key: 'edit',
         label: '编辑',
-        icon: CreateOutline,
+        icon: 'CreateOutline',
         tooltip: '编辑选中的服务器',
       },
       {
         key: 'delete',
         label: '删除',
-        icon: TrashOutline,
+        icon: 'TrashOutline',
         type: 'error',
         tooltip: '删除选中的服务器',
       },
@@ -110,7 +138,7 @@ export function useTunnelServerModel() {
     showResetButton: true,
   }
 
-  // ============= 数据编辑表单字段配置（供 GdataFormModal 使用） =============
+  // ============= 数据编辑表单字段配置（供 RsDataFormModal 使用） =============
   const formTabs = [
     { key: 'basic', label: '基础配置' },
     { key: 'network', label: '网络配置' },
@@ -119,7 +147,7 @@ export function useTunnelServerModel() {
     { key: 'other', label: '其他信息' },
   ]
 
-  const formFields: DataFormField[] = [
+  const formFields: RsDataFormField[] = [
     // ============= 基础配置 Tab =============
     {
       field: 'serverName',
@@ -431,120 +459,144 @@ export function useTunnelServerModel() {
 
   // ============= 表格配置 =============
 
-  /** 表格配置（符合 GridProps 结构，排除响应式数据） */
-  const gridConfig: Omit<GridProps, 'moduleId' | 'data' | 'loading'> = {
+  /** 表格配置（符合 RsGrid Props 结构，排除响应式数据） */
+  const gridConfig: TunnelServerGridConfig = {
     columns: [
       {
-        field: 'serverName',
+        key: 'serverName',
         title: '服务器名称',
         width: 180,
         sortable: true,
-        showOverflow: true,
-        slots: { default: 'serverName' },
+        ellipsis: true,
+        render: (row) =>
+          h(
+            'span',
+            { class: row.serverStatus === 'running' ? 'text-success font-bold' : 'text-default' },
+            row.serverName,
+          ),
       },
       {
-        field: 'controlAddress',
+        key: 'controlAddress',
         title: '控制地址',
         width: 140,
-        showOverflow: true,
-        formatter: ({ row }: any) => `${row.controlAddress}:${row.controlPort}`,
+        ellipsis: true,
+        formatter: (_value, row) => `${row.controlAddress}:${row.controlPort}`,
       },
       {
-        field: 'dashboardPort',
+        key: 'dashboardPort',
         title: '管理端口',
         width: 90,
         align: 'center',
-        formatter: ({ cellValue }) => cellValue || '-',
+        formatter: (value) => (typeof value === 'number' ? String(value) : '-'),
       },
       {
-        field: 'serverStatus',
+        key: 'serverStatus',
         title: '状态',
         width: 90,
         align: 'center',
-        slots: { default: 'serverStatus' },
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: getServerStatusVariant(row.serverStatus), size: 'sm' },
+            () => getServerStatusText(row.serverStatus),
+          ),
       },
       {
-        field: 'vhostHttpPort',
+        key: 'vhostHttpPort',
         title: 'HTTP端口',
         width: 90,
         align: 'center',
-        formatter: ({ cellValue }) => cellValue || '-',
+        formatter: (value) => (typeof value === 'number' ? String(value) : '-'),
       },
       {
-        field: 'vhostHttpsPort',
+        key: 'vhostHttpsPort',
         title: 'HTTPS端口',
         width: 100,
         align: 'center',
-        formatter: ({ cellValue }) => cellValue || '-',
+        formatter: (value) => (typeof value === 'number' ? String(value) : '-'),
       },
       {
-        field: 'maxClients',
+        key: 'maxClients',
         title: '最大客户端',
         width: 100,
         align: 'center',
-        slots: { default: 'maxClients' },
+        render: (row) => h('span', { class: 'text-primary font-bold' }, row.maxClients || '-'),
       },
       {
-        field: 'tokenAuth',
+        key: 'tokenAuth',
         title: 'Token认证',
         width: 90,
         align: 'center',
-        slots: { default: 'tokenAuth' },
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.tokenAuth === 'Y' ? 'success' : 'default', size: 'sm' },
+            () => (row.tokenAuth === 'Y' ? '启用' : '禁用'),
+          ),
       },
       {
-        field: 'tlsEnable',
+        key: 'tlsEnable',
         title: 'TLS',
         width: 70,
         align: 'center',
-        slots: { default: 'tlsEnable' },
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.tlsEnable === 'Y' ? 'success' : 'default', size: 'sm' },
+            () => (row.tlsEnable === 'Y' ? '启用' : '禁用'),
+          ),
       },
       {
-        field: 'heartbeatInterval',
+        key: 'heartbeatInterval',
         title: '心跳间隔(秒)',
         width: 110,
         align: 'center',
-        formatter: ({ cellValue }) => cellValue ? `${cellValue}s` : '-',
+        formatter: (value) => (typeof value === 'number' ? `${value}s` : '-'),
       },
       {
-        field: 'heartbeatTimeout',
+        key: 'heartbeatTimeout',
         title: '心跳超时(秒)',
         width: 110,
         align: 'center',
-        formatter: ({ cellValue }) => cellValue ? `${cellValue}s` : '-',
+        formatter: (value) => (typeof value === 'number' ? `${value}s` : '-'),
       },
       {
-        field: 'startTime',
+        key: 'startTime',
         title: '启动时间',
-        width: 140,
+        width: 180,
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm') : '-',
+        ellipsis: true,
+        formatter: (value) => (value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '-'),
       },
       {
-        field: 'addTime',
+        key: 'addTime',
         title: '创建时间',
-        width: 140,
+        width: 180,
         sortable: true,
-        showOverflow: true,
-        formatter: ({ cellValue }) =>
-          cellValue ? formatDate(cellValue, 'YYYY-MM-DD HH:mm') : '',
+        ellipsis: true,
+        formatter: (value) => (value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '-'),
       },
       {
-        field: 'addWho',
+        key: 'addWho',
         title: '创建人',
         width: 100,
-        showOverflow: true,
+        ellipsis: true,
       },
       {
-        field: 'activeFlag',
+        key: 'activeFlag',
         title: '活动状态',
         width: 100,
         align: 'center',
-        formatter: ({ row }: any) => (row.activeFlag === 'Y' ? '活动' : '非活动'),
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.activeFlag === 'Y' ? 'success' : 'default', size: 'sm' },
+            () => (row.activeFlag === 'Y' ? '活动' : '非活动'),
+          ),
       },
     ],
-    showCheckbox: true,
+    selectable: true,
+    rowKey: (row) => `${row.tunnelServerId}::${row.tenantId}`,
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -552,39 +604,13 @@ export function useTunnelServerModel() {
     },
     menuConfig: {
       enabled: true,
-      showCopyRow: true,
-      showCopyCell: true,
-      options: [
-        {
-          code: 'view',
-          name: '查看详情',
-          prefixIcon: 'vxe-icon-eye-fill',
-        },
-        {
-          code: 'edit',
-          name: '编辑',
-          prefixIcon: 'vxe-icon-edit',
-        },
-        {
-          code: 'delete',
-          name: '删除',
-          prefixIcon: 'vxe-icon-delete',
-        },
-        {
-          code: 'start',
-          name: '启动服务器',
-          prefixIcon: () => h(NIcon, { size: 14 }, { default: () => h(PlayOutline) }),
-        },
-        {
-          code: 'stop',
-          name: '停止服务器',
-          prefixIcon: () => h(NIcon, { size: 14 }, { default: () => h(StopCircleOutline) }),
-        },
-        {
-          code: 'restart',
-          name: '重启服务器',
-          prefixIcon: () => h(NIcon, { size: 14 }, { default: () => h(ReloadOutline) }),
-        },
+      items: [
+        { key: 'view', label: '查看详情', icon: 'eye' },
+        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
+        { key: 'start', label: '启动服务器', icon: 'play' },
+        { key: 'stop', label: '停止服务器', icon: 'square' },
+        { key: 'restart', label: '重启服务器', icon: 'refresh-cw' },
       ],
     },
     height: '100%',
