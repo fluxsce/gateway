@@ -7,6 +7,8 @@
 ## [Unreleased]（未发布）
 
 ### 修复
+- **Windows 发版流水线 MinGW 安装失败**：`setup-mingw@v2` 在 Chocolatey mingw 16 上删除已不存在的 `libpthread.dll.a` 导致任务退出；改为 `egor-tensin/setup-mingw@v3`。
+- **前端生产构建缺少 Tailwind v4**：`niuma-ui/styles.css` 的 `@import "tailwindcss"` 在 npm 安装（无本地 link）时无法解析；宿主增加 `tailwindcss` / `@tailwindcss/vite` 并接入 Vite 插件。
 - **服务中心双向流命名空间订阅无推送**：`StreamHandler.handleSubscribeNamespace` 此前只写入连接本地订阅列表，未注册到 `ServiceSubscriber`，客户端收不到变更。现与 `SubscribeServices` 对齐，接入 `SubscribeNamespace` 并转发 `SERVER_SERVICE_CHANGE`，断连时 `UnsubscribeNamespace` 清理。
 
 ### 新增

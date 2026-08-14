@@ -152,7 +152,7 @@ jobs:
         with:
           name: frontend-dist
           path: web/frontend/dist
-      - uses: egor-tensin/setup-mingw@v2
+      - uses: egor-tensin/setup-mingw@v3
         with:
           platform: x64
       - uses: ilammy/msvc-dev-cmd@v1
