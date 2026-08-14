@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # CI-owned Linux amd64 packaging. Not used by local scripts/build.
+# Release CI invokes this via package-linux-ci.sh (manylinux2014 / glibc 2.17).
 # Env:
-#   VERSION   required, e.g. 3.2.0
+#   VERSION   required, e.g. 3.2.1
 #   ORACLE    0 (MySQL/SQLite/ClickHouse) or 1 (also Oracle)
 #   ORACLE_HOME required when ORACLE=1
 set -euo pipefail
@@ -50,7 +51,7 @@ export CGO_ENABLED=1
 export GOOS=linux
 export GOARCH=amd64
 
-GIT_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+GIT_COMMIT="${GIT_COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}"
 BUILD_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 LDFLAGS="-s -w -X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}"
 
@@ -94,6 +95,23 @@ if [[ "$ORACLE" == "1" ]]; then
   echo "[INFO] Oracle Instant Client is not bundled (OTN license). Install it on the target host."
 fi
 
-tar -czf "dist/${ARCHIVE_NAME}" -C dist gateway
+# Release archive convention (Reproducible Builds / GoReleaser):
+# root:root, dirs 0755, data 0644, binaries and shell scripts 0755.
+find "$PACKAGE_DIR" -type d -exec chmod 755 {} +
+find "$PACKAGE_DIR" -type f -exec chmod 644 {} +
+chmod 755 "$PACKAGE_DIR/gateway" "$PACKAGE_DIR/password_plugin"
+find "$PACKAGE_DIR" -type f -name '*.sh' -exec chmod 755 {} +
+
+TAR_OWNER_OPTS=(--owner=0 --group=0 --numeric-owner)
+if tar --help 2>&1 | grep -q -- '--sort'; then
+  TAR_OWNER_OPTS+=(--sort=name)
+fi
+tar "${TAR_OWNER_OPTS[@]}" -czf "dist/${ARCHIVE_NAME}" -C dist gateway
+
+if command -v objdump >/dev/null 2>&1; then
+  echo "[INFO] highest GLIBC symbols in gateway:"
+  objdump -T "$PACKAGE_DIR/gateway" 2>/dev/null | grep -oE 'GLIBC_[0-9.]+' | sort -uV | tail -5 || true
+fi
+
 echo "[OK] ${ARCHIVE_NAME} ($(du -h "dist/${ARCHIVE_NAME}" | cut -f1))"
 ls -lh "$PACKAGE_DIR/gateway" "dist/${ARCHIVE_NAME}"

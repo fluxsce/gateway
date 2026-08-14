@@ -6,6 +6,14 @@
 
 ## [Unreleased]（未发布）
 
+## [3.2.1] - 2026-08-15
+
+### 修复
+- **Linux 发布包 glibc 过新**：流水线不再在 Ubuntu 24.04 上直接 CGO 编译（会链到 `GLIBC_2.38` 等，CentOS 7 / RHEL 7 启动即失败）；改为在 `manylinux2014`（glibc 2.17）容器内打包。动态链接器报错发生在进程进入 `main` 之前，不会写入网关 `service.log`，只会出现在 systemd journal / `/var/log/messages`。
+
+### 变更
+- **Linux 发布包权限与属主**：归档固定 `root:root`（`--owner=0 --group=0 --numeric-owner`），目录 `0755`、普通文件 `0644`、二进制与 `*.sh` `0755`，与 Reproducible Builds / GoReleaser 惯例一致。
+
 ## [3.2.0] - 2026-08-14
 
 ### 修复

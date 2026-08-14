@@ -89,16 +89,16 @@ ENV GOSUMDB=sum.golang.google.cn
 docker build \
     --build-arg GOPROXY=https://your-proxy.com \
     -f scripts/docker/Dockerfile \
-    -t datahub-images/gateway:3.2.0 .
+    -t datahub-images/gateway:3.2.1 .
 ```
 
 ### 使用构建脚本
 
 ```bash
-# 构建 Oracle 版（默认），标签 :3.2.0-oracle
+# 构建 Oracle 版（默认），标签 :3.2.1-oracle
 ./scripts/docker/build.sh
 
-# 构建标准版，标签 :3.2.0
+# 构建标准版，标签 :3.2.1
 ./scripts/docker/build.sh --type standard
 
 # 构建并标记 latest-oracle 或 latest
@@ -115,18 +115,18 @@ cd /path/to/gateway
 # 构建 Oracle 版
 docker build \
     -f scripts/docker/Dockerfile.oracle \
-    --build-arg VERSION=3.2.0 \
+    --build-arg VERSION=3.2.1 \
     --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
     --build-arg GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown") \
-    -t datahub-images/gateway:3.2.0-oracle .
+    -t datahub-images/gateway:3.2.1-oracle .
 
 # 构建标准版（仅 MySQL/SQLite）
 docker build \
     -f scripts/docker/Dockerfile \
-    --build-arg VERSION=3.2.0 \
+    --build-arg VERSION=3.2.1 \
     --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
     --build-arg GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown") \
-    -t datahub-images/gateway:3.2.0 .
+    -t datahub-images/gateway:3.2.1 .
 ```
 
 ---
@@ -140,10 +140,10 @@ docker build \
 export ALIYUN_USERNAME='your-account'
 export ALIYUN_PASSWORD='your-registry-password'
 
-# 推送 Oracle 版到阿里云（默认），远程 :3.2.0-oracle
+# 推送 Oracle 版到阿里云（默认），远程 :3.2.1-oracle
 ./scripts/docker/push.sh
 
-# 推送标准版到阿里云，远程 :3.2.0
+# 推送标准版到阿里云，远程 :3.2.1
 ./scripts/docker/push.sh --type standard
 
 # 推送到 Docker Hub
@@ -170,22 +170,22 @@ export ALIYUN_PASSWORD='your-registry-password'
 docker login
 
 # 推送标准版
-docker push datahub-images/gateway:3.2.0
+docker push datahub-images/gateway:3.2.1
 
 # 推送 Oracle 版
-docker push datahub-images/gateway:3.2.0-oracle
+docker push datahub-images/gateway:3.2.1-oracle
 
 # 登录阿里云镜像仓库
 docker login crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com
 
 # 标记镜像
-docker tag datahub-images/gateway:3.2.0 \
-  crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.0
-docker tag datahub-images/gateway:3.2.0-oracle \
-  crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.0-oracle
+docker tag datahub-images/gateway:3.2.1 \
+  crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.1
+docker tag datahub-images/gateway:3.2.1-oracle \
+  crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.1-oracle
 
 # 推送到阿里云
-docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.0
+docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.1
 ```
 
 ---
@@ -201,7 +201,7 @@ docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 - **部署目录**: `/home/gateway`
 - **内置工具**: curl, bash, telnet, less, vim, net-tools, ping
 - **特点**: 包含 Oracle Instant Client（位于 `/opt/oracle`），支持所有数据库
-- **标签**: `{version}-oracle`（如 `3.2.0-oracle`）
+- **标签**: `{version}-oracle`（如 `3.2.1-oracle`）
 - **构建方式**: `./scripts/docker/build.sh`（默认类型）
 
 ### 标准版镜像 (Dockerfile)
@@ -213,7 +213,7 @@ docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 - **部署目录**: `/home/gateway`
 - **内置工具**: curl, bash, telnet, less, vim, net-tools
 - **特点**: 轻量级、无 CGO 依赖
-- **标签**: `{version}` / `latest`（如 `3.2.0`）
+- **标签**: `{version}` / `latest`（如 `3.2.1`）
 - **构建方式**: `./scripts/docker/build.sh --type standard`
 
 ### 目录结构
@@ -248,8 +248,8 @@ docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 - **地址**: docker.io
 - **镜像名**: datahub-images/gateway
 - **标签**:
-  - `3.2.0` - 标准版（MySQL/SQLite）
-  - `3.2.0-oracle` - Oracle 版（MySQL/SQLite/Oracle）
+  - `3.2.1` - 标准版（MySQL/SQLite）
+  - `3.2.1-oracle` - Oracle 版（MySQL/SQLite/Oracle）
   - `latest` - 同标准版最新
 
 #### 阿里云镜像仓库
@@ -257,23 +257,23 @@ docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 - **命名空间**: datahub-images
 - **镜像名**: datahub-images/gateway
 - **标签**:
-  - `3.2.0` - 标准版（MySQL/SQLite）
-  - `3.2.0-oracle` - Oracle 版（MySQL/SQLite/Oracle）
+  - `3.2.1` - 标准版（MySQL/SQLite）
+  - `3.2.1-oracle` - Oracle 版（MySQL/SQLite/Oracle）
   - `latest` - 同标准版最新
 
 ### 拉取镜像
 
 ```bash
 # 标准版
-docker pull datahub-images/gateway:3.2.0
+docker pull datahub-images/gateway:3.2.1
 docker pull datahub-images/gateway:latest
 
 # Oracle 版
-docker pull datahub-images/gateway:3.2.0-oracle
+docker pull datahub-images/gateway:3.2.1-oracle
 
 # 从阿里云拉取
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.0
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.0-oracle
+docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.1
+docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.1-oracle
 ```
 
 ---
@@ -296,7 +296,7 @@ docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 - **密码**: redis123
 
 #### Gateway 服务
-- **镜像**: datahub-images/gateway:3.2.0
+- **镜像**: datahub-images/gateway:3.2.1
 - **端口**:
   - 18280: API Gateway (容器内 8080)
   - 12203: Web 控制台 (容器内 12003)

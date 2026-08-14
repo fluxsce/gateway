@@ -6,8 +6,8 @@
 
 ## 触发
 
-- 推送 tag：`v*`（例如 `v3.2.0`），版本号去掉 `v`
-- 手动：Actions → **Release packages** → `version`（如 `3.2.0`），可选是否推镜像
+- 推送 tag：`v*`（例如 `v3.2.1`），版本号去掉 `v`
+- 手动：Actions → **Release packages** → `version`（如 `3.2.1`），可选是否推镜像
 
 ## 产物
 
@@ -25,7 +25,7 @@
 
 包内目录为 `gateway/`：可执行文件、`configs/`、`web/`、`scripts/db` 等。Oracle 因 OTN 许可不随包分发客户端库，目标机需自行安装 Instant Client 并配置 `LD_LIBRARY_PATH`（Linux）或 `PATH`（Windows）。
 
-Go 1.24 要求 Linux kernel >= 3.17，Linux 包面向现代 glibc 发行版，不保证 CentOS 7。
+Linux 包在 `manylinux2014`（glibc 2.17）容器里用 CGO 编译，避免在 Ubuntu 24.04 runner 上链接到 `GLIBC_2.3x` 导致 CentOS 7 / RHEL 7 无法启动。归档按业界惯例写成 `root:root`，二进制与 `*.sh` 为 `0755`。Go 1.24 官方要求 Linux kernel >= 3.17；CentOS 7 默认 3.10，若仅 glibc 通过后仍异常，需升级内核或改用 Docker 镜像。
 
 ## 前端
 
