@@ -6,7 +6,7 @@
 import type { RsSearchFormExpose } from '@/components/form/rs-search'
 import { useAppMessage } from '@/composables/useAppMessage'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
-import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
+import { formatDate, getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
 import { createBackendPaginationParams } from '@/utils/pagination'
 import type { Ref } from 'vue'
 import {
@@ -20,19 +20,18 @@ import { useAlertLogModel } from './model'
 
 /**
  * 从 RsDatePicker range（valueFormat=string）取出起止时间并转为接口格式。
+ * 使用本地墙钟时间，不转 UTC。告警时间按本地 DATETIME 落库，转成 ISO
+ * 后东八区当天 16:00 之后的记录会被当天查询滤掉。
  * @param timeRange - 表单 timeRange 字段
- * @returns ISO 起止时间；无效时返回空对象
+ * @returns 本地起止时间；无效时返回空对象
  */
 function resolveTimeRangeBounds(timeRange: unknown): { start?: string; end?: string } {
   if (!timeRange || typeof timeRange !== 'object' || Array.isArray(timeRange)) return {}
   const { start, end } = timeRange as { start?: string; end?: string }
   if (!start || !end) return {}
-  const startDate = new Date(start)
-  const endDate = new Date(end)
-  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return {}
   return {
-    start: startDate.toISOString(),
-    end: endDate.toISOString(),
+    start: formatDate(start, 'YYYY-MM-DDTHH:mm:ss'),
+    end: formatDate(end, 'YYYY-MM-DDTHH:mm:ss'),
   }
 }
 

@@ -102,7 +102,7 @@ type LoadBalancerConfig struct {
 	StickySession   bool          `yaml:"sticky_session" json:"sticky_session" mapstructure:"sticky_session"`       // 粘性会话
 	MaxRetries      int           `yaml:"max_retries" json:"max_retries" mapstructure:"max_retries"`                // 最大重试次数
 	RetryTimeout    time.Duration `yaml:"retry_timeout" json:"retry_timeout" mapstructure:"retry_timeout"`          // 重试超时
-	CircuitBreaker  bool          `yaml:"circuit_breaker" json:"circuit_breaker" mapstructure:"circuit_breaker"`    // 是否启用熔断器
+	CircuitBreaker  bool          `yaml:"circuit_breaker" json:"circuit_breaker" mapstructure:"circuit_breaker"`    // 是否启用熔断器（对应 enableCircuitBreaker=Y，状态写入 pkg/cache）
 }
 
 // HealthConfig 健康检查配置

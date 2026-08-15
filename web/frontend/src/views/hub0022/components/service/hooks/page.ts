@@ -39,6 +39,8 @@ export function useServiceDefinitionPage(
   
   const showNodeDialog = ref(false)
   const currentServiceId = ref<string>('')
+  const showCircuitBreakerDialog = ref(false)
+  const currentCircuitBreakerService = ref<ServiceDefinition | null>(null)
 
   // ============= JSON 字段转换方法 =============
 
@@ -365,6 +367,17 @@ export function useServiceDefinitionPage(
   }
 
   /**
+   * 打开独立熔断配置对话框。服务表单只负责开关。
+   */
+  const openCircuitBreakerDialog = (service: ServiceDefinition) => {
+    if (!validateInstanceSelected()) {
+      return
+    }
+    currentCircuitBreakerService.value = service
+    showCircuitBreakerDialog.value = true
+  }
+
+  /**
    * 关闭表单对话框
    */
   const closeFormDialog = () => {
@@ -624,6 +637,9 @@ export function useServiceDefinitionPage(
       case 'manageNodes':
         openNodeDialog(row)
         break
+      case 'circuitBreaker':
+        openCircuitBreakerDialog(row)
+        break
       case 'copy':
         openCopyDialog(row)
         break
@@ -700,6 +716,8 @@ export function useServiceDefinitionPage(
     currentEditService,
     showNodeDialog,
     currentServiceId,
+    showCircuitBreakerDialog,
+    currentCircuitBreakerService,
 
     // 服务发现选择相关状态
     selectedService,

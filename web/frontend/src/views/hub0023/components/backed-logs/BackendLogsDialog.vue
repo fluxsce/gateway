@@ -155,7 +155,7 @@
               </RsCard>
 
               <RsCard
-                v-if="page.gatewayLogInfo.value.errorCode || page.gatewayLogInfo.value.errorMessage"
+                v-if="page.hasGatewayLogError(page.gatewayLogInfo.value)"
                 title="错误信息"
                 size="sm"
                 variant="outlined"
@@ -167,6 +167,20 @@
                   </RsDescriptionsItem>
                   <RsDescriptionsItem v-if="page.gatewayLogInfo.value.errorMessage" label="错误消息">
                     <div class="error-message">{{ page.gatewayLogInfo.value.errorMessage }}</div>
+                  </RsDescriptionsItem>
+                </RsDescriptions>
+              </RsCard>
+
+              <RsCard
+                v-if="page.getGatewayLogNote(page.gatewayLogInfo.value)"
+                title="备注信息"
+                size="sm"
+                variant="outlined"
+                class="detail-card"
+              >
+                <RsDescriptions :columns="1" size="sm" bordered label-placement="left">
+                  <RsDescriptionsItem label="备注">
+                    {{ page.getGatewayLogNote(page.gatewayLogInfo.value) }}
                   </RsDescriptionsItem>
                 </RsDescriptions>
               </RsCard>

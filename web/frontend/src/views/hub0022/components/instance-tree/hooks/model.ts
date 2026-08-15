@@ -437,7 +437,7 @@ export function useGatewayInstanceTreeModel() {
         tabKey: 'http',
         show: (formData: Record<string, any>) => formData.proxyType === ProxyTypeEnum.HTTP,
         defaultValue: 0,
-        tips: '请求失败时的自动重试次数。设置为0表示不重试',
+        tips: '请求失败后换其他节点再试的次数，与服务熔断相互独立。路由覆盖优先。0 表示不重试',
         props: {
           min: 0,
         },

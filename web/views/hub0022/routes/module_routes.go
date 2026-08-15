@@ -57,6 +57,13 @@ func RegisterHub0022Routes(router *gin.Engine, db database.Database) {
 		apiGroup.POST("/getServiceDefinition", serviceDefinitionController.GetServiceDefinition)
 	}
 
+	// 服务级熔断配置
+	{
+		circuitBreakerController := controllers.NewCircuitBreakerConfigController(db)
+		apiGroup.POST("/getCircuitBreakerConfig", circuitBreakerController.GetCircuitBreakerConfig)
+		apiGroup.POST("/saveCircuitBreakerConfig", circuitBreakerController.SaveCircuitBreakerConfig)
+	}
+
 	// 网关实例管理路由
 	{
 		// 获取所有网关实例列表 (POST请求，支持分页)

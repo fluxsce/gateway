@@ -53,6 +53,9 @@ type ServiceManager interface {
 	// SelectNode 为服务选择节点
 	SelectNode(serviceID string, ctx *core.Context) (*NodeConfig, error)
 
+	// RecordNodeCircuitResult 回写节点级结果，供选节点时跳过已开闸实例。与失败重试独立。
+	RecordNodeCircuitResult(serviceID, nodeID string, success bool, responseTime time.Duration, err error)
+
 	// RecordServiceSuccess 记录服务调用成功
 	RecordServiceSuccess(serviceID string, responseTime time.Duration)
 
@@ -340,6 +343,19 @@ func (m *DefaultServiceManager) SelectNode(serviceID string, ctx *core.Context) 
 
 	// Service.SelectNode 内部已有锁保护，不需要持有 ServiceManager 的锁
 	return service.SelectNode(ctx)
+}
+
+// RecordNodeCircuitResult 把单次尝试结果写回节点熔断，供后续选节点跳过开闸实例。
+func (m *DefaultServiceManager) RecordNodeCircuitResult(serviceID, nodeID string, success bool, responseTime time.Duration, err error) {
+	if nodeID == "" {
+		return
+	}
+	m.mu.RLock()
+	svc, exists := m.services[serviceID]
+	m.mu.RUnlock()
+	if exists && svc != nil {
+		svc.RecordNodeCircuitResult(nodeID, success, responseTime, err)
+	}
 }
 
 // RecordServiceSuccess 记录服务调用成功

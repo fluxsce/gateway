@@ -17,6 +17,12 @@ import { queryGatewayInstances } from '@/views/hub0020/api'
 import type { Ref } from 'vue'
 import { h, nextTick, ref } from 'vue'
 import type { GatewayLogListItem } from '../../../types'
+import {
+  getGatewayLogErrorText,
+  getGatewayLogNote,
+  getProcessingStatusTagType,
+  getProcessingStatusText,
+} from '../../../utils/logStatus'
 import { GatewayInstanceNameSelector } from '../../instance-grid'
 import { RouteNameSelector } from '../../route-grid'
 import { ServiceNameSelector } from '../../service-grid'
@@ -63,20 +69,6 @@ function getTimeTagType(
   if (time > errorThreshold) return 'danger'
   if (time > warningThreshold) return 'warning'
   return 'success'
-}
-
-/** 获取处理状态的标签类型 */
-function getProcessingStatusTagType(row: GatewayLogListItem): RsTagVariant {
-  if (row.errorMessage) return 'danger'
-  if (row.gatewayFinishedProcessingTime) return 'success'
-  return 'warning'
-}
-
-/** 获取处理状态文本 */
-function getProcessingStatusText(row: GatewayLogListItem): string {
-  if (row.errorMessage) return '异常'
-  if (row.gatewayFinishedProcessingTime) return '已完成'
-  return '处理中'
 }
 
 /** 获取代理类型的标签类型 */
@@ -670,7 +662,14 @@ export function useGatewayLogModel() {
         title: '错误信息',
         width: 150,
         ellipsis: true,
-        formatter: (v) => (v as string) || '-',
+        formatter: (_v, row) => getGatewayLogErrorText(row) || '-',
+      },
+      {
+        key: 'noteText',
+        title: '备注',
+        width: 200,
+        ellipsis: true,
+        formatter: (_v, row) => getGatewayLogNote(row) || '-',
       },
       {
         key: 'logLevel',

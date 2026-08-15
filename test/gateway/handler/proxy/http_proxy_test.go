@@ -62,6 +62,8 @@ func (m *MockServiceManager) GetServiceStats(serviceID string) (map[string]inter
 }
 func (m *MockServiceManager) RecordServiceSuccess(serviceID string, responseTime time.Duration) {}
 func (m *MockServiceManager) RecordServiceFailure(serviceID string)                             {}
+func (m *MockServiceManager) RecordNodeCircuitResult(serviceID, nodeID string, success bool, responseTime time.Duration, err error) {
+}
 func (m *MockServiceManager) GetServices() map[string]*service.Service {
 	return make(map[string]*service.Service)
 }

@@ -58,6 +58,13 @@
       :width="1200"
       to="#hub0022-service-definition-list"
     />
+
+    <CircuitBreakerConfigFormModal
+      v-model:visible="showCircuitBreakerDialog"
+      :target-service-id="currentCircuitBreakerService?.serviceDefinitionId"
+      :service-name="currentCircuitBreakerService?.serviceName"
+      to="#hub0022-service-definition-list"
+    />
   </div>
 </template>
 
@@ -67,6 +74,7 @@ import { RsSearchForm } from '@/components/form/rs-search'
 import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
 import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import { onBeforeUnmount, ref, watch } from 'vue'
+import { CircuitBreakerConfigFormModal } from '../circuit-breaker'
 import { ServiceNodeListModal } from '../service-nodes'
 import { useServiceDefinitionPage } from './hooks/page'
 
@@ -98,6 +106,8 @@ const {
   currentEditService,
   showNodeDialog,
   currentServiceId,
+  showCircuitBreakerDialog,
+  currentCircuitBreakerService,
   handleFormSubmit,
   handleToolbarClick,
   handleMenuClick,

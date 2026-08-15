@@ -675,14 +675,17 @@ func buildAccessLogWithConfig(instanceID string, gatewayCtx *core.Context, confi
 		}
 	}
 
-	// SSE/WebSocket 诊断信息不抬升日志级别，便于按断开原因检索。
+	// SSE/WebSocket 诊断写入备注，不占用错误字段，避免正常结束被标成异常。
 	appendStreamingDiagnostics(accessLog, gatewayCtx)
 
 	return accessLog
 }
 
-// appendStreamingDiagnostics 将SSE/WebSocket断开原因与流量摘要写入 ErrorMessage。
-// 正常结束也会记录，避免只能靠 responseSize=-1 推断长连接行为；不调用 SetErrorInfo以免改 LogLevel。
+const maxAccessLogNoteTextLen = 500
+
+// appendStreamingDiagnostics 将SSE/WebSocket断开原因与流量摘要写入 NoteText。
+// 正常结束也会记录，避免只能靠 responseSize=-1 推断长连接行为；
+// 不写入 ErrorMessage，也不调用 SetErrorInfo，以免抬升日志级别或被控制台当成处理异常。
 func appendStreamingDiagnostics(accessLog *types.AccessLog, gatewayCtx *core.Context) {
 	parts := make([]string, 0, 4)
 	if disconnect, ok := gatewayCtx.GetString(constants.ContextKeySSEDisconnectType); ok && disconnect != "" {
@@ -709,14 +712,31 @@ func appendStreamingDiagnostics(accessLog *types.AccessLog, gatewayCtx *core.Con
 	if len(parts) == 0 {
 		return
 	}
-	note := strings.Join(parts, "; ")
-	if accessLog.ErrorMessage == "" {
-		accessLog.ErrorMessage = note
+	appendAccessLogNote(accessLog, strings.Join(parts, "; "))
+}
+
+// appendAccessLogNote 将诊断备注追加到 NoteText，并截断到库字段长度。
+func appendAccessLogNote(accessLog *types.AccessLog, note string) {
+	if note == "" {
 		return
 	}
-	if !strings.Contains(accessLog.ErrorMessage, note) {
-		accessLog.ErrorMessage = accessLog.ErrorMessage + "; " + note
+	if accessLog.NoteText == "" {
+		accessLog.NoteText = truncateAccessLogNote(note)
+		return
 	}
+	if strings.Contains(accessLog.NoteText, note) {
+		return
+	}
+	accessLog.NoteText = truncateAccessLogNote(accessLog.NoteText + "; " + note)
+}
+
+// truncateAccessLogNote 将备注截断到 HUB_GW_ACCESS_LOG.noteText 的 500 字符上限。
+func truncateAccessLogNote(note string) string {
+	runes := []rune(note)
+	if len(runes) <= maxAccessLogNoteTextLen {
+		return note
+	}
+	return string(runes[:maxAccessLogNoteTextLen])
 }
 
 // asInt64 兼容 int/int64 两类上下文数值。

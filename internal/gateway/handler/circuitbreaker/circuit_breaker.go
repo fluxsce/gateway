@@ -1,81 +1,64 @@
 package circuitbreaker
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
-	"net"
-	"strings"
 	"sync"
 	"time"
-
-	"gateway/internal/gateway/core"
 )
 
-// circuitBreakerImpl 熔断器实现
-// 注意：
-// 1. 当前实现中，storage 字段未被使用，状态直接存储在 circuits map 中
-// 2. RecordSuccess 和 RecordFailure 方法存在但未被调用，统计信息不会自动更新
-// 3. 未实现滑动窗口统计，当前是累积统计
-// 4. shouldTrip 仅检查失败率，未检查慢调用率
+// circuitBreakerImpl 熔断器实现。
+// 状态经 CircuitBreakerStorage（pkg/cache）持久化，进程内用 mu 串行读写，避免并发覆盖。
 type circuitBreakerImpl struct {
-	config       *CircuitBreakerConfig          // 熔断配置
-	circuits     map[string]*CircuitBreakerInfo // key -> 熔断器状态（当前使用此存储）
-	mu           sync.RWMutex                   // 读写锁，保护 circuits map 和 config
-	keyGenerator CircuitBreakerKeyGenerator     // Key生成器
-	storage      CircuitBreakerStorage          // 存储接口（当前未使用）
-	listeners    []CircuitBreakerListener       // 状态变更监听器列表
+	config    *CircuitBreakerConfig    // 当前熔断阈值与存储声明
+	mu        sync.Mutex               // 保护读改写状态，与 storage 配套使用
+	storage   CircuitBreakerStorage    // cache 存储，memory/redis 均可
+	listeners []CircuitBreakerListener // 状态变更与调用结果回调
+	now       func() time.Time         // 状态机时钟，测试可替换
 }
 
-// NewCircuitBreaker 创建熔断器
-// config: 熔断配置，不能为 nil
-// 返回: CircuitBreakerHandler 实例
+// NewCircuitBreaker 创建熔断器，状态写入 cache，便于后续用 redis 替换 memory。
 func NewCircuitBreaker(config *CircuitBreakerConfig) (CircuitBreakerHandler, error) {
 	if config == nil {
 		return nil, fmt.Errorf("配置不能为空")
 	}
-
-	breaker := &circuitBreakerImpl{
-		config:       config,
-		circuits:     make(map[string]*CircuitBreakerInfo),
-		keyGenerator: &defaultCircuitBreakerKeyGenerator{},
-		storage:      &memoryCircuitBreakerStorage{data: make(map[string]*CircuitBreakerInfo)},
-		listeners:    make([]CircuitBreakerListener, 0),
+	storage, err := newCacheCircuitBreakerStorage(config)
+	if err != nil {
+		return nil, err
 	}
-
-	return breaker, nil
+	return &circuitBreakerImpl{
+		config:    config,
+		storage:   storage,
+		listeners: make([]CircuitBreakerListener, 0),
+		now:       time.Now,
+	}, nil
 }
 
-// Handle 处理熔断逻辑
-// 在请求处理前调用，检查是否允许请求通过
-// 返回值：
-//   - true: 允许请求通过，需要在请求完成后调用 RecordSuccess 或 RecordFailure 记录结果
-//   - false: 拒绝请求，熔断器已打开，请求应直接返回错误
-//
-// 注意：当前实现中，RecordSuccess 和 RecordFailure 未被调用，统计信息不会更新
-func (cb *circuitBreakerImpl) Handle(ctx *core.Context) bool {
-	if !cb.IsEnabled() {
+// Check 判断指定节点键是否放行，不 Abort、不写 context。
+// 半开态在放行时占用探测名额，避免并发探测超过 HalfOpenMaxRequests。
+func (cb *circuitBreakerImpl) Check(key string) bool {
+	if !cb.IsEnabled() || key == "" {
 		return true
 	}
-
-	key := cb.keyGenerator.GenerateKey(ctx, cb.config.KeyStrategy)
-
-	// 检查熔断状态
-	if !cb.allowRequest(key) {
-		// 熔断开启，拒绝请求
-		ctx.AddError(fmt.Errorf("circuit breaker is open for key: %s", key))
-		ctx.Abort(cb.config.ErrorStatusCode, map[string]string{
-			"error": cb.config.ErrorMessage,
-		})
-
-		// 通知监听器（在锁外调用，避免死锁）
-		cb.notifyCallRejected(key, cb.GetState(key))
-		return false
+	allowed, state := cb.allowRequest(key)
+	if !allowed {
+		cb.notifyCallRejected(key, state)
 	}
+	return allowed
+}
 
-	// 记录请求开始时间和key，用于后续记录统计信息
-	ctx.Set("circuit_breaker_key", key)
-	ctx.Set("circuit_breaker_start_time", time.Now())
-
-	return true
+// RecordKey 按指定节点键回写一次结果，供摘除使用。
+func RecordKey(cb CircuitBreakerHandler, key string, success bool, responseTime time.Duration, err error) {
+	if cb == nil || !cb.IsEnabled() || key == "" {
+		return
+	}
+	ms := responseTime.Milliseconds()
+	if success {
+		cb.RecordSuccess(key, ms)
+		return
+	}
+	cb.RecordFailure(key, ms, err)
 }
 
 // GetConfig 获取熔断配置
@@ -97,55 +80,52 @@ func (cb *circuitBreakerImpl) UpdateConfig(config *CircuitBreakerConfig) error {
 	return nil
 }
 
-// GetInfo 获取熔断器信息和统计
-// 返回所有熔断器的汇总统计信息
-// 注意：此方法会汇总所有key的统计信息，而不是单个key的信息
+// GetInfo 汇总缓存中已有熔断键的统计。
 func (cb *circuitBreakerImpl) GetInfo() *CircuitBreakerInfo {
-	cb.mu.RLock()
-	defer cb.mu.RUnlock()
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
 
 	info := &CircuitBreakerInfo{
-		State:           StateClosed,
-		TotalRequests:   0,
-		SuccessRequests: 0,
-		FailureRequests: 0,
-		SlowRequests:    0,
-		OpenCount:       0,
-		HalfOpenCount:   0,
-		WindowStart:     time.Now().Unix(),
-		WindowEnd:       time.Now().Unix(),
+		State:       StateClosed,
+		WindowStart: time.Now().Unix(),
+		WindowEnd:   time.Now().Unix(),
 	}
-
-	// 汇总所有熔断器的统计
-	for _, circuit := range cb.circuits {
-		info.TotalRequests += circuit.TotalRequests
-		info.SuccessRequests += circuit.SuccessRequests
-		info.FailureRequests += circuit.FailureRequests
-		info.SlowRequests += circuit.SlowRequests
-		info.HalfOpenCount += circuit.HalfOpenCount
-
-		if circuit.State == StateOpen {
-			info.OpenCount++
+	// 仅 cache 实现能按前缀扫键；其他存储只返回空汇总
+	if cleaner, ok := cb.storage.(*cacheCircuitBreakerStorage); ok {
+		keys, err := cleaner.c.Keys(context.Background(), circuitBreakerCachePrefix+"*")
+		if err == nil {
+			for _, cacheKey := range keys {
+				raw, getErr := cleaner.c.Get(context.Background(), cacheKey)
+				if getErr != nil || len(raw) == 0 {
+					continue
+				}
+				circuit := &CircuitBreakerInfo{}
+				if unmarshalErr := json.Unmarshal(raw, circuit); unmarshalErr != nil {
+					continue
+				}
+				info.TotalRequests += circuit.TotalRequests
+				info.SuccessRequests += circuit.SuccessRequests
+				info.FailureRequests += circuit.FailureRequests
+				info.SlowRequests += circuit.SlowRequests
+				info.HalfOpenCount += circuit.HalfOpenCount
+				if circuit.State == StateOpen {
+					info.OpenCount++
+				}
+			}
 		}
 	}
-
-	// 计算率
 	if info.TotalRequests > 0 {
 		info.FailureRate = float64(info.FailureRequests) / float64(info.TotalRequests) * 100
 		info.SlowRate = float64(info.SlowRequests) / float64(info.TotalRequests) * 100
 	}
-
 	return info
 }
 
-// Reset 重置所有熔断器状态
-// 清除所有已创建的熔断器状态
+// Reset 清除缓存中的全部熔断状态。
 func (cb *circuitBreakerImpl) Reset() error {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-
-	cb.circuits = make(map[string]*CircuitBreakerInfo)
-	return nil
+	return cb.storage.Cleanup()
 }
 
 // IsEnabled 检查是否启用
@@ -157,27 +137,22 @@ func (cb *circuitBreakerImpl) IsEnabled() bool {
 // key: 熔断器key
 // 返回: 熔断器状态，如果key不存在则返回 StateClosed
 func (cb *circuitBreakerImpl) GetState(key string) CircuitBreakerState {
-	cb.mu.RLock()
-	defer cb.mu.RUnlock()
-
-	if circuit, exists := cb.circuits[key]; exists {
-		return circuit.State
-	}
-	return StateClosed
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	return cb.loadCircuit(key).State
 }
 
 // ForceOpen 强制打开熔断器（用于手动触发熔断）
 // key: 熔断器key
 func (cb *circuitBreakerImpl) ForceOpen(key string) error {
 	cb.mu.Lock()
-	defer cb.mu.Unlock()
-
-	circuit := cb.getOrCreateCircuit(key)
+	circuit := cb.loadCircuit(key)
 	oldState := circuit.State
 	circuit.State = StateOpen
-	circuit.OpenTime = time.Now().Unix()
-
-	cb.notifyStateChangeSafe(key, oldState, StateOpen, circuit)
+	circuit.OpenTime = cb.currentUnix()
+	_ = cb.storage.SetInfo(key, circuit)
+	cb.mu.Unlock()
+	cb.notifyStateChange(key, oldState, StateOpen, circuit)
 	return nil
 }
 
@@ -185,13 +160,12 @@ func (cb *circuitBreakerImpl) ForceOpen(key string) error {
 // key: 熔断器key
 func (cb *circuitBreakerImpl) ForceClose(key string) error {
 	cb.mu.Lock()
-	defer cb.mu.Unlock()
-
-	circuit := cb.getOrCreateCircuit(key)
+	circuit := cb.loadCircuit(key)
 	oldState := circuit.State
 	circuit.State = StateClosed
-
-	cb.notifyStateChangeSafe(key, oldState, StateClosed, circuit)
+	_ = cb.storage.SetInfo(key, circuit)
+	cb.mu.Unlock()
+	cb.notifyStateChange(key, oldState, StateClosed, circuit)
 	return nil
 }
 
@@ -206,140 +180,126 @@ func (cb *circuitBreakerImpl) ForceClose(key string) error {
 //  2. Open -> HalfOpen: 当 OpenTimeoutSeconds 时间后（在此方法中触发）
 //  3. HalfOpen -> Closed: 当半开状态下成功请求达到阈值时（在 RecordSuccess 中触发）
 //  4. HalfOpen -> Open: 当半开状态下失败时（在 RecordFailure 中触发）
-func (cb *circuitBreakerImpl) allowRequest(key string) bool {
+func (cb *circuitBreakerImpl) allowRequest(key string) (bool, CircuitBreakerState) {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
-	circuit := cb.getOrCreateCircuit(key)
-	now := time.Now()
+	circuit := cb.loadCircuit(key)
+	now := cb.currentUnix()
 
 	switch circuit.State {
 	case StateOpen:
-		// 检查是否可以转为半开状态（经过 OpenTimeoutSeconds 后）
-		if now.Unix()-circuit.OpenTime >= cb.config.OpenTimeoutSeconds {
+		// 开闸超时后转入半开，本请求占用第一个探测名额
+		if now-circuit.OpenTime >= cb.config.OpenTimeoutSeconds {
 			circuit.State = StateHalfOpen
-			circuit.HalfOpenCount = 0 // 重置半开状态计数
-			cb.notifyStateChangeSafe(key, StateOpen, StateHalfOpen, circuit)
-			return true
+			circuit.HalfOpenCount = 1
+			circuit.HalfOpenSuccess = 0
+			_ = cb.storage.SetInfo(key, circuit)
+			go cb.notifyStateChange(key, StateOpen, StateHalfOpen, circuit)
+			return true, StateHalfOpen
 		}
-		return false
+		return false, StateOpen
 	case StateHalfOpen:
-		// 半开状态下，只允许有限的请求（用于检测服务是否恢复）
-		return circuit.HalfOpenCount < int64(cb.config.HalfOpenMaxRequests)
+		if circuit.HalfOpenCount >= int64(cb.config.HalfOpenMaxRequests) {
+			return false, StateHalfOpen
+		}
+		circuit.HalfOpenCount++
+		_ = cb.storage.SetInfo(key, circuit)
+		return true, StateHalfOpen
 	default:
-		// Closed 状态，允许所有请求
-		return true
+		return true, StateClosed
 	}
 }
 
-// getOrCreateCircuit 获取或创建熔断器
-// key: 熔断器key
-// 注意：此方法必须在已持有写锁的情况下调用
-func (cb *circuitBreakerImpl) getOrCreateCircuit(key string) *CircuitBreakerInfo {
-	if circuit, exists := cb.circuits[key]; exists {
-		return circuit
+// loadCircuit 从缓存读取状态；不存在则返回关闭态。调用方须持有 cb.mu。
+func (cb *circuitBreakerImpl) loadCircuit(key string) *CircuitBreakerInfo {
+	info, err := cb.storage.GetInfo(key)
+	if err != nil || info == nil {
+		return newClosedCircuit()
 	}
-
-	circuit := &CircuitBreakerInfo{
-		State:       StateClosed,
-		WindowStart: time.Now().Unix(),
+	if info.State == "" {
+		info.State = StateClosed
 	}
-	cb.circuits[key] = circuit
-	return circuit
+	return info
 }
 
-// RecordSuccess 记录成功调用
-// key: 熔断器key
-// responseTime: 响应时间（毫秒）
-// 注意：此方法当前未被调用，需要在请求成功完成后手动调用
-// 状态转换：
-//   - 如果处于 HalfOpen 状态，增加 HalfOpenCount
-//   - 如果 HalfOpenCount 达到阈值，转为 Closed 状态并重置统计
+// RecordSuccess 记录成功调用并回写 cache。
+// 半开态下成功次数达到 HalfOpenMaxRequests 后转为关闭并清空窗口统计。
 func (cb *circuitBreakerImpl) RecordSuccess(key string, responseTime int64) {
 	cb.mu.Lock()
+	circuit := cb.loadCircuit(key)
+	now := cb.currentUnix()
+	circuit.LastRequestTime = now
+	slow := cb.config.SlowCallThreshold > 0 && responseTime > cb.config.SlowCallThreshold
+	cb.recordSample(circuit, now, false, slow)
 
-	circuit := cb.getOrCreateCircuit(key)
-	circuit.TotalRequests++
-	circuit.SuccessRequests++
-	circuit.LastRequestTime = time.Now().Unix()
-
-	// 检查是否为慢调用（响应时间超过阈值）
-	if responseTime > cb.config.SlowCallThreshold {
-		circuit.SlowRequests++
-	}
-
-	// 半开状态下的成功处理
+	var changedFrom CircuitBreakerState
+	changed := false
+	// 半开探测成功达到配额后关闸，并清空窗口以免旧失败率立刻再次开闸
 	if circuit.State == StateHalfOpen {
-		circuit.HalfOpenCount++
-		// 如果半开状态下的成功请求达到阈值，转为关闭状态
-		if circuit.HalfOpenCount >= int64(cb.config.HalfOpenMaxRequests) {
-			oldState := circuit.State
+		circuit.HalfOpenSuccess++
+		if circuit.HalfOpenSuccess >= int64(cb.config.HalfOpenMaxRequests) {
+			changedFrom = circuit.State
 			circuit.State = StateClosed
-			// 重置统计信息，重新开始统计
-			circuit.TotalRequests = 0
-			circuit.SuccessRequests = 0
-			circuit.FailureRequests = 0
-			circuit.SlowRequests = 0
-			cb.notifyStateChangeSafe(key, oldState, StateClosed, circuit)
+			resetWindow(circuit)
+			changed = true
 		}
+	} else if circuit.State == StateClosed && cb.shouldTrip(circuit) {
+		// 全是慢成功、没有传输失败时也要能开闸
+		changedFrom = circuit.State
+		circuit.State = StateOpen
+		circuit.OpenTime = now
+		circuit.OpenCount++
+		changed = true
 	}
-
-	// 复制监听器列表，在锁外通知
-	listeners := make([]CircuitBreakerListener, len(cb.listeners))
-	copy(listeners, cb.listeners)
+	_ = cb.storage.SetInfo(key, circuit)
+	listeners := append([]CircuitBreakerListener(nil), cb.listeners...)
 	cb.mu.Unlock()
 
-	// 在锁外通知监听器（异步执行，不阻塞）
+	if changed {
+		cb.notifyStateChange(key, changedFrom, circuit.State, circuit)
+	}
 	for _, listener := range listeners {
 		go listener.OnCallSuccess(key, responseTime)
 	}
 }
 
-// RecordFailure 记录失败调用
-// key: 熔断器key
-// responseTime: 响应时间（毫秒）
-// err: 错误信息
-// 注意：此方法当前未被调用，需要在请求失败后手动调用
-// 状态转换：
-//   - 如果处于 HalfOpen 状态，立即转为 Open 状态
-//   - 如果处于 Closed 状态，检查失败率，如果达到阈值则转为 Open 状态
+// RecordFailure 记录失败调用并回写 cache。
+// 半开失败立即开闸；关闭态在失败率或慢调用率达到阈值时开闸。
 func (cb *circuitBreakerImpl) RecordFailure(key string, responseTime int64, err error) {
 	cb.mu.Lock()
+	circuit := cb.loadCircuit(key)
+	now := cb.currentUnix()
+	circuit.LastFailureTime = now
+	circuit.LastRequestTime = now
+	slow := cb.config.SlowCallThreshold > 0 && responseTime > cb.config.SlowCallThreshold
+	cb.recordSample(circuit, now, true, slow)
 
-	circuit := cb.getOrCreateCircuit(key)
-	circuit.TotalRequests++
-	circuit.FailureRequests++
-	circuit.LastFailureTime = time.Now().Unix()
-	circuit.LastRequestTime = time.Now().Unix()
-
-	// 检查是否为慢调用（响应时间超过阈值）
-	if responseTime > cb.config.SlowCallThreshold {
-		circuit.SlowRequests++
-	}
-
-	// 半开状态下的失败：立即转为打开状态
+	var changedFrom CircuitBreakerState
+	changed := false
 	if circuit.State == StateHalfOpen {
-		oldState := circuit.State
+		// 半开探测失败立即重新开闸
+		changedFrom = circuit.State
 		circuit.State = StateOpen
-		circuit.OpenTime = time.Now().Unix()
+		circuit.OpenTime = now
 		circuit.HalfOpenCount = 0
-		cb.notifyStateChangeSafe(key, oldState, StateOpen, circuit)
-	} else if circuit.State == StateClosed {
-		// 关闭状态下的失败：检查是否需要开启熔断
-		if cb.shouldTrip(circuit) {
-			oldState := circuit.State
-			circuit.State = StateOpen
-			circuit.OpenTime = time.Now().Unix()
-			cb.notifyStateChangeSafe(key, oldState, StateOpen, circuit)
-		}
+		circuit.HalfOpenSuccess = 0
+		circuit.OpenCount++
+		changed = true
+	} else if circuit.State == StateClosed && cb.shouldTrip(circuit) {
+		changedFrom = circuit.State
+		circuit.State = StateOpen
+		circuit.OpenTime = now
+		circuit.OpenCount++
+		changed = true
 	}
-
-	// 复制监听器列表，在锁外通知
-	listeners := make([]CircuitBreakerListener, len(cb.listeners))
-	copy(listeners, cb.listeners)
+	_ = cb.storage.SetInfo(key, circuit)
+	listeners := append([]CircuitBreakerListener(nil), cb.listeners...)
 	cb.mu.Unlock()
 
-	// 在锁外通知监听器（异步执行，不阻塞）
+	if changed {
+		cb.notifyStateChange(key, changedFrom, StateOpen, circuit)
+	}
 	for _, listener := range listeners {
 		go listener.OnCallFailure(key, responseTime, err)
 	}
@@ -353,139 +313,46 @@ func (cb *circuitBreakerImpl) RecordFailure(key string, responseTime int64, err 
 //
 // 判断条件：
 //  1. 总请求数必须达到 MinimumRequests
-//  2. 失败率必须达到 ErrorRatePercent
-//
-// 注意：当前实现仅检查失败率，未检查慢调用率（SlowCallRatePercent）
+//  2. 失败率达到 ErrorRatePercent，或慢调用率达到 SlowCallRatePercent
 func (cb *circuitBreakerImpl) shouldTrip(circuit *CircuitBreakerInfo) bool {
-	// 检查最小请求数（避免在请求量较少时误触发熔断）
+	// 只看滑动窗口内的样本，冷启动未达最小请求数不开闸
 	if circuit.TotalRequests < int64(cb.config.MinimumRequests) {
 		return false
 	}
 
-	// 检查失败率
-	failureRate := float64(circuit.FailureRequests) / float64(circuit.TotalRequests) * 100
-	if failureRate >= float64(cb.config.ErrorRatePercent) {
+	if circuit.FailureRate >= float64(cb.config.ErrorRatePercent) {
 		return true
 	}
-
-	// TODO: 检查慢调用率
-	// slowRate := float64(circuit.SlowRequests) / float64(circuit.TotalRequests) * 100
-	// if slowRate >= float64(cb.config.SlowCallRatePercent) {
-	// 	return true
-	// }
-
+	if circuit.SlowRequests > 0 && cb.config.SlowCallRatePercent > 0 &&
+		circuit.SlowRate >= float64(cb.config.SlowCallRatePercent) {
+		return true
+	}
 	return false
 }
 
-// notifyStateChangeSafe 安全地通知状态变更（避免死锁）
-// 此方法复制 circuit 信息后，在锁外调用 notifyStateChange
-// 注意：此方法必须在已持有写锁的情况下调用
-func (cb *circuitBreakerImpl) notifyStateChangeSafe(key string, from, to CircuitBreakerState, circuit *CircuitBreakerInfo) {
-	// 复制 circuit 信息，避免在锁外访问
+// notifyStateChange 在锁外通知状态变更。
+func (cb *circuitBreakerImpl) notifyStateChange(key string, from, to CircuitBreakerState, circuit *CircuitBreakerInfo) {
 	infoCopy := *circuit
-	listeners := make([]CircuitBreakerListener, len(cb.listeners))
-	copy(listeners, cb.listeners)
-
-	// 在锁外通知监听器
+	cb.mu.Lock()
+	listeners := append([]CircuitBreakerListener(nil), cb.listeners...)
 	cb.mu.Unlock()
-	defer cb.mu.Lock()
-
 	for _, listener := range listeners {
 		go listener.OnStateChange(key, from, to, &infoCopy)
 	}
 }
 
-// notifyCallSuccess 通知调用成功
-func (cb *circuitBreakerImpl) notifyCallSuccess(key string, responseTime int64) {
-	listeners := make([]CircuitBreakerListener, len(cb.listeners))
-	copy(listeners, cb.listeners)
-	cb.mu.Unlock()
-	defer cb.mu.Lock()
-
-	for _, listener := range listeners {
-		go listener.OnCallSuccess(key, responseTime)
-	}
-}
-
-// notifyCallFailure 通知调用失败
-func (cb *circuitBreakerImpl) notifyCallFailure(key string, responseTime int64, err error) {
-	listeners := make([]CircuitBreakerListener, len(cb.listeners))
-	copy(listeners, cb.listeners)
-	cb.mu.Unlock()
-	defer cb.mu.Lock()
-
-	for _, listener := range listeners {
-		go listener.OnCallFailure(key, responseTime, err)
-	}
-}
-
-// notifyCallRejected 通知调用被拒绝
+// notifyCallRejected 通知调用被拒绝。
 func (cb *circuitBreakerImpl) notifyCallRejected(key string, state CircuitBreakerState) {
-	cb.mu.RLock()
-	listeners := make([]CircuitBreakerListener, len(cb.listeners))
-	copy(listeners, cb.listeners)
-	cb.mu.RUnlock()
-
+	cb.mu.Lock()
+	listeners := append([]CircuitBreakerListener(nil), cb.listeners...)
+	cb.mu.Unlock()
 	for _, listener := range listeners {
 		go listener.OnCallRejected(key, state)
 	}
 }
 
-// defaultCircuitBreakerKeyGenerator 默认Key生成器
-type defaultCircuitBreakerKeyGenerator struct{}
-
-// GenerateKey 生成熔断key
-// ctx: 请求上下文
-// strategy: 策略类型（ip, service, api等）
-// 返回值：生成的key字符串
-func (g *defaultCircuitBreakerKeyGenerator) GenerateKey(ctx *core.Context, strategy string) string {
-	switch strategy {
-	case "ip":
-		// 基于IP的熔断（按客户端IP分组）
-		if clientIP := ctx.Request.Header.Get("X-Forwarded-For"); clientIP != "" {
-			// 取第一个IP（如果有多层代理，X-Forwarded-For 可能包含多个IP）
-			if ips := parseIPList(clientIP); len(ips) > 0 {
-				return "cb_ip:" + ips[0]
-			}
-			return "cb_ip:" + clientIP
-		}
-		if clientIP := ctx.Request.Header.Get("X-Real-IP"); clientIP != "" {
-			return "cb_ip:" + clientIP
-		}
-		if host, _, err := net.SplitHostPort(ctx.Request.RemoteAddr); err == nil {
-			return "cb_ip:" + host
-		}
-		return "cb_ip:" + ctx.Request.RemoteAddr
-	case "service":
-		// 基于服务的熔断（按服务ID分组）
-		if serviceID, exists := ctx.GetString("service_id"); exists && serviceID != "" {
-			return "cb_service:" + serviceID
-		}
-		return "cb_service:default"
-	case "api":
-		// 基于API路径的熔断（按API路径分组）
-		return "cb_api:" + ctx.Request.URL.Path
-	default:
-		return "cb_default"
-	}
-}
-
-// parseIPList 解析IP列表（从 X-Forwarded-For 等header中）
-// X-Forwarded-For 格式：client, proxy1, proxy2（最左边的IP是原始客户端IP）
-func parseIPList(ipList string) []string {
-	ips := strings.Split(ipList, ",")
-	result := make([]string, 0, len(ips))
-	for _, ip := range ips {
-		ip = strings.TrimSpace(ip)
-		if ip != "" {
-			result = append(result, ip)
-		}
-	}
-	return result
-}
-
-// memoryCircuitBreakerStorage 内存存储实现
-// 注意：当前实现中，此存储接口未被使用，状态直接存储在 circuitBreakerImpl.circuits 中
+// memoryCircuitBreakerStorage 进程内 map 存储，仅保留兼容 CircuitBreakerStorage 接口。
+// 现行路径使用 cacheCircuitBreakerStorage，不再把状态放在 circuitBreakerImpl 内存 map。
 type memoryCircuitBreakerStorage struct {
 	data map[string]*CircuitBreakerInfo
 	mu   sync.RWMutex

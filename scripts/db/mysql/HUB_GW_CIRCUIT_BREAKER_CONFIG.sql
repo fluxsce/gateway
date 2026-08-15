@@ -6,18 +6,18 @@ CREATE TABLE `HUB_GW_CIRCUIT_BREAKER_CONFIG` (
   `breakerName` VARCHAR(100) NOT NULL COMMENT '熔断器名称',
   
   -- 根据CircuitBreakerConfig结构设计基础配置
-  `keyStrategy` VARCHAR(50) NOT NULL DEFAULT 'api' COMMENT '熔断Key策略(ip,service,api等)',
+  `keyStrategy` VARCHAR(50) NOT NULL DEFAULT 'node' COMMENT '固定按上游节点摘除，运行时不读此列做分支',
   
   -- 阈值配置
   `errorRatePercent` INT NOT NULL DEFAULT 50 COMMENT '错误率阈值(百分比)',
   `minimumRequests` INT NOT NULL DEFAULT 10 COMMENT '最小请求数阈值',
   `halfOpenMaxRequests` INT NOT NULL DEFAULT 3 COMMENT '半开状态最大请求数',
-  `slowCallThreshold` INT NOT NULL DEFAULT 1000 COMMENT '慢调用阈值(毫秒)',
+  `slowCallThreshold` INT NOT NULL DEFAULT 60000 COMMENT '单次转发超过该毫秒数计为慢调用',
   `slowCallRatePercent` INT NOT NULL DEFAULT 50 COMMENT '慢调用率阈值(百分比)',
   
   -- 时间配置
   `openTimeoutSeconds` INT NOT NULL DEFAULT 60 COMMENT '熔断器打开持续时间(秒)',
-  `windowSizeSeconds` INT NOT NULL DEFAULT 60 COMMENT '统计窗口大小(秒)',
+  `windowSizeSeconds` INT NOT NULL DEFAULT 60 COMMENT '滑动窗口长度(秒)',
   
   -- 错误处理配置
   `errorStatusCode` INT NOT NULL DEFAULT 503 COMMENT '熔断时返回的HTTP状态码',

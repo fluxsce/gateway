@@ -10,6 +10,12 @@ import { formatDate, formatFileSize } from '@/utils/format'
 import { DownloadOutline, EyeOutline, RefreshOutline } from '@vicons/ionicons5'
 import { ref } from 'vue'
 import type { GatewayLogListItem } from '../types'
+import {
+  getGatewayLogErrorText,
+  getGatewayLogNote,
+  getProcessingStatusTagType as resolveProcessingStatusTagType,
+  getProcessingStatusText as resolveProcessingStatusText,
+} from '../utils/logStatus'
 
 /**
  * 网关日志管理 Model
@@ -440,7 +446,14 @@ export function useGatewayLogModel() {
         title: '错误信息',
         width: 150,
         showOverflow: 'tooltip',
-        formatter: ({ cellValue }: any) => cellValue || '-',
+        formatter: ({ row }: { row: GatewayLogListItem }) => getGatewayLogErrorText(row) || '-',
+      },
+      {
+        field: 'noteText',
+        title: '备注',
+        width: 200,
+        showOverflow: 'tooltip',
+        formatter: ({ row }: { row: GatewayLogListItem }) => getGatewayLogNote(row) || '-',
       },
       {
         field: 'logLevel',
@@ -564,32 +577,14 @@ export function useGatewayLogModel() {
    * 获取处理状态的标签类型
    */
   const getProcessingStatusTagType = (row: GatewayLogListItem): RsTagVariant => {
-    const isFinished = !!row.gatewayFinishedProcessingTime
-    const hasError = !!row.errorMessage
-
-    if (hasError) {
-      return 'danger'
-    } else if (isFinished) {
-      return 'success'
-    } else {
-      return 'warning'
-    }
+    return resolveProcessingStatusTagType(row)
   }
 
   /**
    * 获取处理状态文本
    */
   const getProcessingStatusText = (row: GatewayLogListItem): string => {
-    const isFinished = !!row.gatewayFinishedProcessingTime
-    const hasError = !!row.errorMessage
-
-    if (hasError) {
-      return '异常'
-    } else if (isFinished) {
-      return '已完成'
-    } else {
-      return '处理中'
-    }
+    return resolveProcessingStatusText(row)
   }
 
   /**

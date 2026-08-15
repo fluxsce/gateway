@@ -6,8 +6,8 @@
 
 ## 触发
 
-- 推送 tag：`v*`（例如 `v3.2.1`），版本号去掉 `v`
-- 手动：Actions → **Release packages** → `version`（如 `3.2.1`），可选是否推镜像
+- 推送 tag：`v*`（例如 `v3.2.2`），版本号去掉 `v`
+- 手动：Actions → **Release packages** → `version`（如 `3.2.2`），可选是否推镜像
 
 ## 产物
 

@@ -12,7 +12,7 @@ import (
 // Service 服务结构体，包含所有服务相关的功能
 // 注意：此结构体管理服务的生命周期，包括：
 // - 负载均衡器：负责选择后端节点
-// - 熔断器：保护后端服务，防止雪崩
+// - 熔断器：按节点摘除连续失败的实例；全部开闸时回退健康列表，避免整服务被熔死
 // - 健康检查器：定期检查后端节点健康状态（可以是独立的或共享的）
 // - 节点管理：直接使用 config.Nodes 维护节点列表，通过节点状态字段区分健康/不健康节点
 // 所有对节点的操作都需要通过 mutex 保护，确保并发安全
@@ -91,23 +91,46 @@ func (s *Service) initLoadBalancer() error {
 	return nil
 }
 
-// initCircuitBreaker 初始化熔断器
-// 注意：当前熔断器逻辑尚未完全实现，暂时保留接口以便后续扩展
+// initCircuitBreaker 按服务配置或负载均衡开关创建熔断器。
+// 状态写入 pkg/cache；未启用时 circuitBreaker 保持 nil，后续请求直接放行。
 func (s *Service) initCircuitBreaker() error {
-	// TODO: 熔断器功能待实现
-	// 检查是否需要启用熔断器
-	// if s.config.CircuitBreaker == nil || !s.config.CircuitBreaker.Enabled {
-	// 	return nil
-	// }
-
-	// // 创建熔断器
-	// var err error
-	// s.circuitBreaker, err = circuitbreaker.NewCircuitBreaker(s.config.CircuitBreaker)
-	// if err != nil {
-	// 	return fmt.Errorf("create circuit breaker failed: %w", err)
-	// }
-
+	cfg := resolveServiceCircuitBreakerConfig(s.config)
+	if cfg == nil || !cfg.Enabled {
+		return nil
+	}
+	factory := circuitbreaker.NewCircuitBreakerFactory()
+	if err := factory.ValidateConfig(cfg); err != nil {
+		return fmt.Errorf("validate circuit breaker failed: %w", err)
+	}
+	handler, err := factory.CreateHandler(cfg)
+	if err != nil {
+		return fmt.Errorf("create circuit breaker failed: %w", err)
+	}
+	s.circuitBreaker = handler
 	return nil
+}
+
+// resolveServiceCircuitBreakerConfig 优先用完整熔断配置；否则 enableCircuitBreaker=Y 时用默认节点熔断。
+func resolveServiceCircuitBreakerConfig(cfg *ServiceConfig) *circuitbreaker.CircuitBreakerConfig {
+	if cfg == nil {
+		return nil
+	}
+	if cfg.CircuitBreaker != nil {
+		return cfg.CircuitBreaker
+	}
+	if cfg.LoadBalancer != nil && cfg.LoadBalancer.CircuitBreaker {
+		return circuitbreaker.DefaultCircuitBreakerConfig()
+	}
+	return nil
+}
+
+// RecordNodeCircuitResult 回写节点级结果，供负载均衡跳过已开闸实例。
+// 与失败重试独立：每次打到某节点都记该节点。
+func (s *Service) RecordNodeCircuitResult(nodeID string, success bool, responseTime time.Duration, err error) {
+	if s.circuitBreaker == nil || s.config == nil {
+		return
+	}
+	circuitbreaker.RecordKey(s.circuitBreaker, circuitbreaker.NodeCircuitKey(s.config.ID, nodeID), success, responseTime, err)
 }
 
 // initHealthChecker 初始化健康检查器
@@ -163,21 +186,10 @@ func (s *Service) initNodeStatus() {
 	// 保留此方法是为了保持接口一致性，以及未来可能的扩展
 }
 
-// SelectNode 选择节点
+// SelectNode 选择节点。
+// 先按健康检查过滤，再跳过节点熔断开闸的实例；与失败重试无关。
 func (s *Service) SelectNode(ctx *core.Context) (*NodeConfig, error) {
-
-	// 使用负载均衡器选择节点（负载均衡器内部会过滤健康且启用的节点）
-	selectedNode := s.loadBalancer.Select(s.config, ctx)
-
-	// 更新统计信息
-	isSuccess := selectedNode != nil
-	s.updateStats(isSuccess, !isSuccess)
-
-	if selectedNode == nil {
-		return nil, ErrNoAvailableNode
-	}
-
-	return selectedNode, nil
+	return s.selectFromNodes(ctx, s.config.Nodes)
 }
 
 // SelectNodeFromDiscoveredNodes 使用本服务已初始化的负载均衡器，在注册中心发现的节点列表中选择目标节点。
@@ -198,20 +210,56 @@ func (s *Service) SelectNodeFromDiscoveredNodes(ctx *core.Context, discoveredNod
 		return nil, ErrNoAvailableNode
 	}
 
-	// 浅拷贝配置，只替换 Nodes，避免把注册中心快照写回持久化的服务定义
-	ephemeral := *s.config
-	ephemeral.Nodes = discoveredNodes
+	return s.selectFromNodes(ctx, discoveredNodes)
+}
 
+// selectFromNodes 在候选节点中做负载均衡。
+// 节点熔断开闸的实例不进入候选；若健康节点全部被摘除则回退健康列表（panic），避免和“无节点可重试”混淆。
+func (s *Service) selectFromNodes(ctx *core.Context, nodes []*NodeConfig) (*NodeConfig, error) {
+	eligible := s.nodesEligibleForSelect(nodes)
+	if len(eligible) == 0 {
+		s.updateStats(false, true)
+		return nil, ErrNoAvailableNode
+	}
+
+	ephemeral := *s.config
+	ephemeral.Nodes = eligible
 	selectedNode := s.loadBalancer.Select(&ephemeral, ctx)
 
 	isSuccess := selectedNode != nil
 	s.updateStats(isSuccess, !isSuccess)
-
 	if selectedNode == nil {
 		return nil, ErrNoAvailableNode
 	}
-
 	return selectedNode, nil
+}
+
+// nodesEligibleForSelect 选出可参与负载均衡的节点。
+// 健康检查负责不健康节点；节点熔断负责连续失败摘除。二者都不是失败重试。
+func (s *Service) nodesEligibleForSelect(nodes []*NodeConfig) []*NodeConfig {
+	healthy := make([]*NodeConfig, 0, len(nodes))
+	closed := make([]*NodeConfig, 0, len(nodes))
+	for _, node := range nodes {
+		if node == nil || !node.Enabled || !node.Health {
+			continue
+		}
+		healthy = append(healthy, node)
+		if s.allowNodeCircuit(node.ID) {
+			closed = append(closed, node)
+		}
+	}
+	if len(closed) > 0 {
+		return closed
+	}
+	return healthy
+}
+
+// allowNodeCircuit 节点熔断开闸时返回 false，供选节点跳过该实例。
+func (s *Service) allowNodeCircuit(nodeID string) bool {
+	if s.circuitBreaker == nil || !s.circuitBreaker.IsEnabled() || s.config == nil {
+		return true
+	}
+	return s.circuitBreaker.Check(circuitbreaker.NodeCircuitKey(s.config.ID, nodeID))
 }
 
 // updateStats 更新服务统计信息（内部辅助方法）
@@ -523,10 +571,9 @@ func (s *Service) GetStats() map[string]interface{} {
 	stats["last_request_time"] = s.stats.LastRequestTime
 	stats["last_access_time"] = s.lastAccessTime
 
-	// TODO: 熔断器功能待实现
-	// if s.circuitBreaker != nil {
-	// 	stats["circuit_breaker_state"] = s.circuitBreaker.GetState("cb_service:" + s.config.ID)
-	// }
+	if s.circuitBreaker != nil {
+		stats["circuit_breaker_enabled"] = s.circuitBreaker.IsEnabled()
+	}
 
 	if s.loadBalancer != nil {
 		stats["load_balancer_stats"] = s.loadBalancer.GetStats()
@@ -556,15 +603,14 @@ func (s *Service) Close() error {
 		// 但健康检查goroutine已经停止，不会再有新的检查
 	}
 
-	// TODO: 熔断器功能待实现
-	// 清理熔断器资源（如果有需要的话）
-	// if s.circuitBreaker != nil {
-	// 	if cleaner, ok := s.circuitBreaker.(interface{ Close() error }); ok {
-	// 		if err := cleaner.Close(); err != nil && lastErr == nil {
-	// 			lastErr = err
-	// 		}
-	// 	}
-	// }
+	// 熔断存储挂的是共享 Cache，Close 不应关掉 Manager 中的 redis/memory
+	if s.circuitBreaker != nil {
+		if cleaner, ok := s.circuitBreaker.(interface{ Close() error }); ok {
+			if err := cleaner.Close(); err != nil && lastErr == nil {
+				lastErr = err
+			}
+		}
+	}
 
 	// 清理负载均衡器资源（重置内部状态）
 	if s.loadBalancer != nil {

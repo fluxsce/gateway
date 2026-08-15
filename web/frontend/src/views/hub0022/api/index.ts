@@ -1,7 +1,7 @@
 import { createApi } from '@/api/request'
 import type { JsonDataObj } from '@/types/api'
 import type { ProxyConfig } from '../components/instance-tree/types'
-import type { ServiceDefinition } from '../components/service/types'
+import type { CircuitBreakerConfig, ServiceDefinition } from '../components/service/types'
 const proxyApi = createApi('/gateway/hub0022')
 
 /**
@@ -286,6 +286,29 @@ export async function updateServiceNodeStatus(data: {
  */
 export async function batchDeleteServiceNodes(serviceNodeIds: string[]): Promise<JsonDataObj> {
   return proxyApi.post('/batchDeleteServiceNodes', { serviceNodeIds, tenantId: 'default' })
+}
+
+/**
+ * 查询注册服务列表
+ * @param params 查询参数
+ * @returns 注册服务列表
+ */
+/**
+ * 按服务 ID 获取熔断配置
+ */
+export async function getCircuitBreakerConfig(
+  targetServiceId: string,
+): Promise<JsonDataObj> {
+  return proxyApi.post('/getCircuitBreakerConfig', { targetServiceId })
+}
+
+/**
+ * 保存服务熔断配置（无行则新增）
+ */
+export async function saveCircuitBreakerConfig(
+  data: Partial<CircuitBreakerConfig> & { targetServiceId: string },
+): Promise<JsonDataObj> {
+  return proxyApi.post('/saveCircuitBreakerConfig', data)
 }
 
 /**

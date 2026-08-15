@@ -177,6 +177,8 @@ func (b *WebSocketBridge) Proxy(ctx *core.Context, proxyName, proxyType string) 
 		}
 		b.writeWebSocketBackendTrace(ctx, serviceID, serviceName, targetURLStr, requestStartTime,
 			responseStatusCode, responseHeaders, nil, 0, 0, responseErr)
+		elapsed := time.Since(requestStartTime)
+		b.serviceManager.RecordNodeCircuitResult(serviceID, node.ID, false, elapsed, responseErr)
 		return fmt.Errorf("连接WebSocket上游失败: %w", err)
 	}
 	if response != nil {
@@ -202,6 +204,9 @@ func (b *WebSocketBridge) Proxy(ctx *core.Context, proxyName, proxyType string) 
 		responseErr = err
 		b.writeWebSocketBackendTrace(ctx, serviceID, serviceName, targetURLStr, requestStartTime,
 			responseStatusCode, responseHeaders, nil, 0, 0, responseErr)
+		elapsed := time.Since(requestStartTime)
+		// 上游已握手成功，节点记成功。
+		b.serviceManager.RecordNodeCircuitResult(serviceID, node.ID, true, elapsed, nil)
 		return fmt.Errorf("升级客户端WebSocket连接失败: %w", err)
 	}
 
@@ -256,6 +261,8 @@ func (b *WebSocketBridge) Proxy(ctx *core.Context, proxyName, proxyType string) 
 	b.writeWebSocketBackendTrace(ctx, serviceID, serviceName, targetURLStr, requestStartTime,
 		responseStatusCode, responseHeaders, session.responseSampleSnapshot(),
 		clampInt64ToInt(bytesRx), clampInt64ToInt(bytesTx), responseErr)
+	elapsed := time.Since(requestStartTime)
+	b.serviceManager.RecordNodeCircuitResult(serviceID, node.ID, sessionErr == nil, elapsed, sessionErr)
 	return sessionErr
 }
 

@@ -253,6 +253,8 @@ export interface GatewayLogListItem {
   addTime: string
   /** 活动状态标记(N非活动,Y活动) */
   activeFlag: string
+  /** 备注信息（SSE/WebSocket 诊断等） */
+  noteText?: string
 }
 
 /**

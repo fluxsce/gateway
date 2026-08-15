@@ -15,19 +15,21 @@ import (
 
 // ServiceDefinitionController 服务定义控制器
 type ServiceDefinitionController struct {
-	db                   database.Database
-	serviceDefinitionDAO *dao.ServiceDefinitionDAO
-	serviceNodeDAO       *dao.ServiceNodeDAO
-	proxyConfigDAO       *dao.ProxyConfigDAO
+	db                      database.Database
+	serviceDefinitionDAO    *dao.ServiceDefinitionDAO
+	serviceNodeDAO          *dao.ServiceNodeDAO
+	proxyConfigDAO          *dao.ProxyConfigDAO
+	circuitBreakerConfigDAO *dao.CircuitBreakerConfigDAO
 }
 
 // NewServiceDefinitionController 创建服务定义控制器
 func NewServiceDefinitionController(db database.Database) *ServiceDefinitionController {
 	return &ServiceDefinitionController{
-		db:                   db,
-		serviceDefinitionDAO: dao.NewServiceDefinitionDAO(db),
-		serviceNodeDAO:       dao.NewServiceNodeDAO(db),
-		proxyConfigDAO:       dao.NewProxyConfigDAO(db),
+		db:                      db,
+		serviceDefinitionDAO:    dao.NewServiceDefinitionDAO(db),
+		serviceNodeDAO:          dao.NewServiceNodeDAO(db),
+		proxyConfigDAO:          dao.NewProxyConfigDAO(db),
+		circuitBreakerConfigDAO: dao.NewCircuitBreakerConfigDAO(db),
 	}
 }
 
@@ -228,6 +230,12 @@ func (c *ServiceDefinitionController) EditServiceDefinition(ctx *gin.Context) {
 		return
 	}
 
+	if updateData.EnableCircuitBreaker != "Y" {
+		if err := c.circuitBreakerConfigDAO.DeactivateByTargetServiceId(ctx, tenantId, updateData.ServiceDefinitionId, operatorId); err != nil {
+			logger.WarnWithTrace(ctx, "停用服务熔断配置失败", "error", err.Error())
+		}
+	}
+
 	logger.InfoWithTrace(ctx, "服务定义更新成功",
 		"serviceDefinitionId", updateData.ServiceDefinitionId,
 		"tenantId", tenantId,
@@ -285,6 +293,12 @@ func (c *ServiceDefinitionController) DeleteServiceDefinition(ctx *gin.Context) 
 
 	if len(serviceNodes) > 0 {
 		response.ErrorJSON(ctx, "存在关联的服务节点，请先删除服务节点", constants.ED00009)
+		return
+	}
+
+	if err := c.circuitBreakerConfigDAO.DeleteByTargetServiceId(ctx, tenantId, req.ServiceDefinitionId); err != nil {
+		logger.ErrorWithTrace(ctx, "删除服务熔断配置失败", err)
+		response.ErrorJSON(ctx, "删除服务熔断配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
 

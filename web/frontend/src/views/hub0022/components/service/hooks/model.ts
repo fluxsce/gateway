@@ -246,7 +246,7 @@ export function useServiceDefinitionModel() {
 
       {
         field: 'loadbalance-fieldset',
-        label: '负载均衡与熔断',
+        label: '负载均衡',
         type: 'fieldset' as const,
         tabKey: 'basic',
         props: { borderStyle: 'solid' },
@@ -306,6 +306,16 @@ export function useServiceDefinitionModel() {
               uncheckedValue: 'N',
             },
           },
+        ],
+      },
+
+      {
+        field: 'retry-fieldset',
+        label: '失败重试',
+        type: 'fieldset' as const,
+        tabKey: 'basic',
+        props: { borderStyle: 'solid' },
+        children: [
           {
             field: 'maxRetries',
             label: '最大重试次数',
@@ -313,7 +323,7 @@ export function useServiceDefinitionModel() {
             placeholder: '3',
             span: 12,
             defaultValue: 3,
-            tips: '当请求失败时，最多重试的次数。范围0-10，0表示不重试',
+            tips: '单次客户端请求失败后换其他节点再试的次数，不是熔断。熔断只看整次请求最终成功或失败。范围 0-10，0 表示不重试',
             props: {
               min: 0,
               max: 10,
@@ -338,12 +348,12 @@ export function useServiceDefinitionModel() {
           },
           {
             field: 'retryTimeoutMs',
-            label: '重试超时时间(ms)',
+            label: '重试间隔(ms)',
             type: 'number',
             placeholder: '5000',
             span: 12,
             defaultValue: 5000,
-            tips: '每次重试请求的超时时间（毫秒）。范围100-60000ms',
+            tips: '两次换节点尝试之间的等待时间，与熔断开闸时长无关。范围 100-60000ms',
             props: {
               min: 100,
               max: 60000,
@@ -351,28 +361,38 @@ export function useServiceDefinitionModel() {
             rules: [
               {
                 required: true,
-                message: '请输入重试超时时间',
+                message: '请输入重试间隔',
                 trigger: ['blur', 'change'],
                 validator: (value: unknown) => {
                   if (value === null || value === undefined || value === '') {
-                    return '请输入重试超时时间'
+                    return '请输入重试间隔'
                   }
                   const num = Number(value)
                   if (isNaN(num) || num < 100 || num > 60000) {
-                    return '超时时间必须在100-60000毫秒之间'
+                    return '重试间隔必须在100-60000毫秒之间'
                   }
                   return true
                 },
               },
             ],
           },
+        ],
+      },
+
+      {
+        field: 'circuit-breaker-fieldset',
+        label: '服务熔断',
+        type: 'fieldset' as const,
+        tabKey: 'basic',
+        props: { borderStyle: 'solid' },
+        children: [
           {
             field: 'enableCircuitBreaker',
             label: '启用熔断器',
             type: 'switch',
             span: 12,
             defaultValue: 'N',
-            tips: '启用后，当服务节点故障率过高时自动熔断，避免大量请求打到故障节点',
+            tips: '开启后按节点摘除连续失败的实例，不等于失败重试。全部节点开闸时仍会回退健康列表，不会把整服务熔死。阈值请在列表右键「熔断配置」中维护',
             props: {
               checkedValue: 'Y',
               uncheckedValue: 'N',
@@ -938,6 +958,7 @@ export function useServiceDefinitionModel() {
         { key: 'view', label: '查看详情', icon: 'eye' },
         { key: 'edit', label: '编辑', icon: 'pencil' },
         { key: 'manageNodes', label: '节点管理', icon: 'settings' },
+        { key: 'circuitBreaker', label: '熔断配置', icon: 'shield' },
         { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
       ],
     },

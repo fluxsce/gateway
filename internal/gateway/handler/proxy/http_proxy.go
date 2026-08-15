@@ -15,6 +15,7 @@ import (
 	"crypto/tls"
 	"gateway/internal/gateway/constants"
 	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/circuitbreaker"
 	proxyutils "gateway/internal/gateway/handler/proxy/proxy-utils"
 	"gateway/internal/gateway/handler/router"
 	"gateway/internal/gateway/handler/service"
@@ -121,6 +122,12 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 
 		// 执行代理请求（每次调用都会记录后端追踪日志）
 		err, attemptDuration := h.proxyRequest(ctx, serviceConfig, node, attempt)
+		// 按本次尝试回写节点熔断：连接失败与上游 5xx 摘除该实例，4xx 不摘除
+		if node != nil {
+			statusCode, _ := ctx.GetInt(constants.BackendStatusCode)
+			failed := circuitbreaker.AttemptFailed(err, statusCode)
+			h.serviceManager.RecordNodeCircuitResult(serviceID, node.ID, !failed, attemptDuration, circuitbreaker.AttemptError(err, statusCode))
+		}
 
 		// 累加本次请求的耗时
 		totalBackendDuration += attemptDuration

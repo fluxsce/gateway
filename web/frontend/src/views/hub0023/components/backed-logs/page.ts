@@ -9,6 +9,7 @@ import type { RsTagVariant } from '@/ui'
 import { computed, ref, watch } from 'vue'
 import { getGatewayLog } from '../../api'
 import type { GatewayLogInfo } from '../../types'
+import { getGatewayLogNote, hasGatewayLogError } from '../../utils/logStatus'
 
 /**
  * 后端服务追踪日志接口
@@ -347,6 +348,8 @@ export function useBackendLogsPage(
     getLogTypeText,
     getProxyTypeColor,
     getProxyTypeText,
+    hasGatewayLogError,
+    getGatewayLogNote,
     formatDate,
     formatFileSize,
 

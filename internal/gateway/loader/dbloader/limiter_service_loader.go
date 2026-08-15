@@ -276,6 +276,9 @@ func (loader *LimiterServiceLoader) LoadProxyConfig(ctx context.Context, instanc
 			for _, serviceRecord := range serviceRecords {
 				serviceConfig := loader.buildServiceConfigFromRecord(serviceRecord)
 				if serviceConfig != nil {
+					if err := loader.applyServiceCircuitBreaker(ctx, serviceConfig, serviceRecord); err != nil {
+						return nil, err
+					}
 					// 加载服务节点
 					nodes, err := loader.LoadServiceNodes(ctx, serviceRecord.ServiceDefinitionId)
 					if err != nil {
@@ -357,6 +360,9 @@ func (loader *LimiterServiceLoader) LoadProxyConfig(ctx context.Context, instanc
 		for _, serviceRecord := range serviceRecords {
 			serviceConfig := loader.buildServiceConfigFromRecord(serviceRecord)
 			if serviceConfig != nil {
+				if err := loader.applyServiceCircuitBreaker(ctx, serviceConfig, serviceRecord); err != nil {
+					return nil, err
+				}
 				// 加载服务节点
 				nodes, err := loader.LoadServiceNodes(ctx, serviceRecord.ServiceDefinitionId)
 				if err != nil {
@@ -495,6 +501,22 @@ func (loader *LimiterServiceLoader) buildServiceConfigFromRecord(record ServiceC
 	return serviceConf
 }
 
+// applyServiceCircuitBreaker 开关打开时从 HUB_GW_CIRCUIT_BREAKER_CONFIG 挂完整阈值。
+// 无行时保持 CircuitBreaker 为空，运行时仍用默认服务级策略。
+func (loader *LimiterServiceLoader) applyServiceCircuitBreaker(ctx context.Context, serviceConf *service.ServiceConfig, record ServiceConfigRecord) error {
+	if serviceConf == nil || record.EnableCircuitBreaker != "Y" {
+		return nil
+	}
+	cfg, err := loader.LoadServiceCircuitBreakerConfig(ctx, record.ServiceDefinitionId)
+	if err != nil {
+		return fmt.Errorf("加载服务熔断配置失败: %w", err)
+	}
+	if cfg != nil {
+		serviceConf.CircuitBreaker = cfg
+	}
+	return nil
+}
+
 // LoadServiceConfig 加载单个服务配置（通过服务ID）
 // 用于需要单独加载服务配置的场景
 func (loader *LimiterServiceLoader) LoadServiceConfig(ctx context.Context, serviceId string) (*service.ServiceConfig, error) {
@@ -521,6 +543,9 @@ func (loader *LimiterServiceLoader) LoadServiceConfig(ctx context.Context, servi
 
 	// 构建服务配置（使用辅助方法）
 	serviceConf := loader.buildServiceConfigFromRecord(record)
+	if err := loader.applyServiceCircuitBreaker(ctx, serviceConf, record); err != nil {
+		return nil, err
+	}
 
 	// 加载服务节点
 	nodes, err := loader.LoadServiceNodes(ctx, serviceId)

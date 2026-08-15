@@ -30,11 +30,11 @@ export interface ServiceDefinition {
   sessionAffinity: 'Y' | 'N'
   /** 是否启用粘性会话 */
   stickySession: 'Y' | 'N'
-  /** 最大重试次数 */
+  /** 失败后换其他节点再试的次数，与熔断相互独立 */
   maxRetries: number
-  /** 重试超时时间（毫秒） */
+  /** 两次换节点尝试之间的等待时间（毫秒），不是熔断开闸时长 */
   retryTimeoutMs: number
-  /** 是否启用熔断器 */
+  /** 是否启用服务熔断与节点摘除，阈值在右键「熔断配置」中维护 */
   enableCircuitBreaker: 'Y' | 'N'
   /** 是否启用健康检查 */
   healthCheckEnabled: 'Y' | 'N'
@@ -92,6 +92,35 @@ export interface ServiceQueryParams {
   pageIndex?: number
   /** 每页大小 */
   pageSize?: number
+}
+
+/**
+ * 节点熔断配置
+ * 对应数据库表：HUB_GW_CIRCUIT_BREAKER_CONFIG
+ * 通过 targetServiceId 挂到服务定义；开关仍用 enableCircuitBreaker
+ * 按上游实例摘除，不是整服务 503，也不是失败重试
+ */
+export interface CircuitBreakerConfig {
+  /** 熔断配置ID */
+  circuitBreakerConfigId?: string
+  /** 目标服务ID，对应服务定义 serviceDefinitionId */
+  targetServiceId?: string
+  /** 熔断器名称 */
+  breakerName?: string
+  /** 错误率阈值（百分比），达到最小请求数后超过此值开闸 */
+  errorRatePercent?: number
+  /** 最小请求数，未达到此数量不判断熔断 */
+  minimumRequests?: number
+  /** 半开探测次数，全部成功后关闸 */
+  halfOpenMaxRequests?: number
+  /** 慢调用阈值（毫秒），单次转发超过此值计入慢调用，默认 60000 */
+  slowCallThreshold?: number
+  /** 慢调用率阈值（百分比），达到此值也会开闸 */
+  slowCallRatePercent?: number
+  /** 开闸持续时间（秒），超时后进入半开探测 */
+  openTimeoutSeconds?: number
+  /** 滑动窗口（秒），只统计该时长内的失败与慢调用 */
+  windowSizeSeconds?: number
 }
 
 /**

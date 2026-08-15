@@ -262,6 +262,27 @@ type ServiceConfigRecord struct {
 	ActiveFlag                 string  `db:"activeFlag"`
 }
 
+// CircuitBreakerConfigRecord 熔断配置数据库记录，对应 HUB_GW_CIRCUIT_BREAKER_CONFIG。
+type CircuitBreakerConfigRecord struct {
+	TenantId               string  `db:"tenantId"`
+	CircuitBreakerConfigId string  `db:"circuitBreakerConfigId"`
+	RouteConfigId          *string `db:"routeConfigId"`
+	TargetServiceId        *string `db:"targetServiceId"`
+	BreakerName            string  `db:"breakerName"`
+	ErrorRatePercent       int     `db:"errorRatePercent"`
+	MinimumRequests        int     `db:"minimumRequests"`
+	HalfOpenMaxRequests    int     `db:"halfOpenMaxRequests"`
+	SlowCallThreshold      int64   `db:"slowCallThreshold"`
+	SlowCallRatePercent    int     `db:"slowCallRatePercent"`
+	OpenTimeoutSeconds     int64   `db:"openTimeoutSeconds"`
+	WindowSizeSeconds      int64   `db:"windowSizeSeconds"`
+	ErrorStatusCode        int     `db:"errorStatusCode"`
+	ErrorMessage           *string `db:"errorMessage"`
+	StorageType            string  `db:"storageType"`
+	StorageConfig          *string `db:"storageConfig"`
+	ConfigPriority         int     `db:"configPriority"`
+}
+
 // ServiceNodeRecord 服务节点数据库记录
 type ServiceNodeRecord struct {
 	TenantId            string  `db:"tenantId"`

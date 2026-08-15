@@ -13,6 +13,7 @@ import (
 
 	"gateway/internal/gateway/constants"
 	"gateway/internal/gateway/core"
+	"gateway/internal/gateway/handler/circuitbreaker"
 	"gateway/internal/gateway/handler/router"
 	"gateway/internal/gateway/handler/service"
 	"gateway/internal/gateway/logwrite"
@@ -187,22 +188,18 @@ func (m *HTTPMultiServiceProxy) proxyRequestToServiceWithRetry(
 	}
 
 	var lastResponse *ServiceResponse
-	// 累加所有重试的耗时
 	var totalBackendDuration time.Duration
 
-	// 执行请求和重试
+	// 只做节点熔断：失败重试换节点，开闸实例在选节点时跳过。
 	for attempt := 0; attempt <= maxRetries; attempt++ {
-		// 每次重试都重新选择节点（避免集群中某一台异常时一直重试同一台）
 		serviceConfig, node, err := m.httpProxy.selectTargetNode(ctx, serviceID)
 		if err != nil {
-			// 选择节点失败
 			lastResponse = &ServiceResponse{
 				ServiceID: serviceID,
 				Error:     fmt.Errorf("选择服务 %s 的目标节点失败: %w", serviceID, err),
 				Success:   false,
 			}
 
-			// 如果还有重试次数，继续重试
 			if attempt < maxRetries {
 				ctx.AddError(fmt.Errorf("选择节点失败，准备重试 (第%d次): %w", attempt+1, err))
 				select {
@@ -213,33 +210,32 @@ func (m *HTTPMultiServiceProxy) proxyRequestToServiceWithRetry(
 				continue
 			}
 
-			// 重试次数已用完，返回错误
-			if config.RequireAllSuccess {
-				return lastResponse
-			}
-			// 否则继续处理其他服务
 			return lastResponse
 		}
 
-		// 执行代理请求（每次调用都会记录后端追踪日志）
 		response, attemptDuration := m.proxyRequestToService(ctx, serviceConfig, node, requestBody, attempt)
-
-		// 累加本次请求的耗时
+		var circuitErr error
+		if response != nil {
+			circuitErr = response.Error
+		}
+		if node != nil {
+			statusCode := 0
+			if response != nil {
+				statusCode = response.StatusCode
+			}
+			failed := circuitbreaker.AttemptFailed(circuitErr, statusCode)
+			m.httpProxy.serviceManager.RecordNodeCircuitResult(serviceID, node.ID, !failed, attemptDuration, circuitbreaker.AttemptError(circuitErr, statusCode))
+		}
 		totalBackendDuration += attemptDuration
 
 		if response.Success {
-			// 请求成功，更新响应中的耗时为累加后的总耗时
-			// 注意：不在这里清除错误信息，由 mergeServiceResponses 根据策略决定是否清除
 			response.Duration = totalBackendDuration
 			return response
 		}
 
-		// 请求失败，记录错误信息
 		lastResponse = response
-		// 更新响应中的耗时为累加后的总耗时
 		lastResponse.Duration = totalBackendDuration
 
-		// 如果还有重试次数，继续重试
 		if attempt < maxRetries {
 			ctx.AddError(fmt.Errorf("请求失败，准备重试 (第%d次，节点: %s): %w", attempt+1, node.URL, response.Error))
 			select {
@@ -251,7 +247,6 @@ func (m *HTTPMultiServiceProxy) proxyRequestToServiceWithRetry(
 		}
 	}
 
-	// 所有重试都失败
 	return lastResponse
 }
 
