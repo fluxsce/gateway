@@ -113,6 +113,14 @@ export function useRouteForm() {
       {
         validator: (value: unknown) => {
           if (typeof value !== 'string' || !value) return true
+          if (formData.matchType === MatchType.REGEX || value.startsWith('^')) {
+            try {
+              new RegExp(value)
+            } catch {
+              return '请输入有效的正则表达式'
+            }
+            return true
+          }
           if (!value.startsWith('/')) return '路由路径必须以 / 开头'
           return true
         },
@@ -180,9 +188,13 @@ export function useRouteForm() {
   }
 
   /**
-   * 路径输入时补上前导斜杠。
+   * 路径输入：精确/前缀补前导斜杠；正则不自动加前缀。
    */
   const handlePathInput = (value: string) => {
+    if (formData.matchType === MatchType.REGEX) {
+      formData.routePath = value
+      return
+    }
     if (value && !value.startsWith('/')) {
       formData.routePath = `/${value}`
     } else {

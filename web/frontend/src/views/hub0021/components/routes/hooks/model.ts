@@ -12,7 +12,14 @@ import { RsCheckbox, RsTag, setByNamePath } from '@/ui'
 import { h, ref } from 'vue'
 import { ServiceDefinitionSelector } from '../../services'
 import type { RouteConfig } from '../types'
-import { BackendType, MatchType, normalizeRedirectStatus, resolveListBackend } from '../types'
+import {
+  BackendType,
+  MatchType,
+  normalizeRedirectStatus,
+  normalizeRoutePathInput,
+  resolveListBackend,
+  validateRoutePathInput,
+} from '../types'
 
 /**
  * 路由配置表格配置（对齐 RsGrid Props 子集）。
@@ -789,30 +796,17 @@ export function useRouteConfigModel() {
         },
         props: {
           onUpdateValue: (value: string, formData: Record<string, any>) => {
-            if (value && !value.startsWith('/')) {
-              formData.routePath = '/' + value
-            } else {
-              formData.routePath = value
-            }
+            formData.routePath = normalizeRoutePathInput(value, formData.matchType)
           },
         },
         rules: [
           { required: true, message: '请输入路由路径', trigger: ['blur', 'input'] },
           {
-            pattern: /^\/.*/,
-            message: '路由路径必须以 / 开头',
-            trigger: ['blur', 'input'],
-          },
-          {
-            validator: (value: unknown) => {
-              if (typeof value !== 'string' || !value) {
-                return true
-              }
-              if (!value.startsWith('/')) {
-                return '路由路径必须以 / 开头'
-              }
-              return true
-            },
+            validator: (value: unknown) =>
+              validateRoutePathInput(
+                value,
+                typeof value === 'string' && value.startsWith('^') ? MatchType.REGEX : MatchType.PREFIX,
+              ),
             trigger: ['blur', 'input'],
           },
         ],

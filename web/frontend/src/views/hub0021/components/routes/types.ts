@@ -14,6 +14,44 @@ export enum MatchType {
   REGEX = 2, // 正则匹配
 }
 
+/** 是否为正则匹配 */
+export function isRegexMatchType(matchType: unknown): boolean {
+  return Number(matchType) === MatchType.REGEX
+}
+
+/**
+ * 规范路由路径输入。精确/前缀补前导 /；正则不自动加前缀，原样保留。
+ */
+export function normalizeRoutePathInput(value: unknown, matchType: unknown): string {
+  const text = typeof value === 'string' ? value : ''
+  if (isRegexMatchType(matchType)) {
+    return text
+  }
+  if (text && !text.startsWith('/')) {
+    return `/${text}`
+  }
+  return text
+}
+
+/** 校验路由路径：精确/前缀必须以 / 开头；正则须能编译 */
+export function validateRoutePathInput(value: unknown, matchType: unknown): true | string {
+  if (typeof value !== 'string' || !value) {
+    return true
+  }
+  if (isRegexMatchType(matchType) || value.startsWith('^')) {
+    try {
+      new RegExp(value)
+    } catch {
+      return '请输入有效的正则表达式'
+    }
+    return true
+  }
+  if (!value.startsWith('/')) {
+    return '路由路径必须以 / 开头'
+  }
+  return true
+}
+
 /**
  * 路由后端：命中后从哪里出响应。
  * 不是路由匹配类型，默认服务代理。

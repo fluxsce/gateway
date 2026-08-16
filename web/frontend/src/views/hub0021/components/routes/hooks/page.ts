@@ -12,7 +12,15 @@ import type { Ref } from 'vue'
 import { onMounted, ref } from 'vue'
 import { getRouteConfig } from '../../../api'
 import type { RouteConfig } from '../types'
-import { BackendType, hasManagedService, MatchType, normalizeRedirectStatus, resolveListBackend } from '../types'
+  import {
+  BackendType,
+  hasManagedService,
+  MatchType,
+  normalizeRedirectStatus,
+  normalizeRoutePathInput,
+  resolveListBackend,
+  validateRoutePathInput,
+} from '../types'
 import { useRouteConfigService } from './service'
 
 /**
@@ -204,6 +212,7 @@ export function useRouteConfigPage(
       formData.backendType = BackendType.PROXY
     }
     formData.redirectStatus = normalizeRedirectStatus(formData.redirectStatus)
+    formData.routePath = normalizeRoutePathInput(formData.routePath, formData.matchType)
 
     return formData
   }
@@ -225,21 +234,12 @@ export function useRouteConfigPage(
       return false
     }
 
-    // 验证路由路径（参考 useRouteForm.ts 的验证逻辑）
+    formData.routePath = normalizeRoutePathInput(formData.routePath, formData.matchType)
     if (formData.routePath) {
-      // 基本格式验证：必须以 / 开头
-      if (!formData.routePath.startsWith('/')) {
-        message.warning('路由路径必须以 / 开头')
+      const pathError = validateRoutePathInput(formData.routePath, formData.matchType)
+      if (pathError !== true) {
+        message.warning(pathError)
         return false
-      }
-      // 正则匹配时验证正则表达式有效性
-      if (formData.matchType === MatchType.REGEX) {
-        try {
-          new RegExp(formData.routePath)
-        } catch {
-          message.warning('请输入有效的正则表达式')
-          return false
-        }
       }
     }
 
