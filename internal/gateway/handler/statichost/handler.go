@@ -48,6 +48,7 @@ func NewHandler() *Handler {
 }
 
 // Handle 处理本机目录托管。
+// 顺序：剥前缀得到路由相对路径 -> 锁定网站目录 -> 可选重写查找路径 -> 出文件。
 // 未配置静态源时继续后续代理；已处理时标记 ContextKeyStaticHandled 并终止链路。
 func (h *Handler) Handle(ctx *core.Context) bool {
 	if h == nil || !h.enabled {
@@ -57,7 +58,6 @@ func (h *Handler) Handle(ctx *core.Context) bool {
 	if !ok || !snap.IsActive() {
 		return true
 	}
-
 	method := ""
 	if ctx.Request != nil {
 		method = ctx.Request.Method
@@ -69,8 +69,19 @@ func (h *Handler) Handle(ctx *core.Context) bool {
 
 	requestPath := publicRequestPath(ctx)
 	matchedPath := ctx.GetMatchedPath()
-	// 文件映射只认静态开关：过滤器已改过的请求路径 -> 可选剥前缀 -> rewriteRules。
-	lookupPath := resolveLookupPath(requestPath, matchedPath, snap.StripRoutePrefix, snap.Rules)
+	// 先按路由路径得到相对路径，再据此锁定网站目录；规则最后才改查找，不能换根。
+	routePath := stripRouteLookupPath(requestPath, matchedPath, snap.StripRoutePrefix)
+	if hasHiddenPathComponent(requestPath) || hasHiddenPathComponent(routePath) {
+		h.abortStatic(ctx, snap, http.StatusForbidden, ResultForbidden, "static host forbids hidden path")
+		return false
+	}
+	bound, bindErr := snap.bindRoot(routePath)
+	if bindErr != nil {
+		h.abortStatic(ctx, snap, http.StatusForbidden, ResultForbidden, "static host path forbidden")
+		return false
+	}
+	snap = bound
+	lookupPath := applyCompiledRewriteRules(routePath, snap.Rules)
 	if hasHiddenPathComponent(lookupPath) {
 		h.abortStatic(ctx, snap, http.StatusForbidden, ResultForbidden, "static host forbids hidden path")
 		return false
@@ -106,7 +117,7 @@ func (h *Handler) Handle(ctx *core.Context) bool {
 		return false
 	}
 	if snap.SPAFallback && !hasFileExtension(lookupPath) {
-		if h.trySPAFallback(ctx, snap) {
+		if h.trySPAFallback(ctx, snap, lookupPath) {
 			return false
 		}
 	}
@@ -302,14 +313,10 @@ func (h *Handler) tryIndexFiles(ctx *core.Context, snap *Snapshot, lookupPath, f
 	return false
 }
 
-// trySPAFallback 将无扩展名的缺失路径回退到根目录下的第一个索引文件。
-func (h *Handler) trySPAFallback(ctx *core.Context, snap *Snapshot) bool {
-	for _, indexName := range snap.IndexFiles {
-		indexName = path.Base(indexName)
-		if indexName == "" || indexName == "." || indexName == ".." {
-			continue
-		}
-		indexLookup := "/" + indexName
+// trySPAFallback 将无扩展名的缺失路径回退到索引文件。
+// 根目录含允许名单占位符时，先回退到查找路径第一段下的索引，再回退根目录索引。
+func (h *Handler) trySPAFallback(ctx *core.Context, snap *Snapshot, lookupPath string) bool {
+	for _, indexLookup := range spaFallbackLookups(lookupPath, snap.IndexFiles, snap.RootHasPlaceholders) {
 		indexFull, err := snap.join(indexLookup)
 		if err != nil {
 			continue

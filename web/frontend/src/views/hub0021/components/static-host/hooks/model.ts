@@ -11,8 +11,8 @@ export type { StaticHostConfig } from './types'
 export function useStaticHostConfigModel() {
   const formFields: RsDataFormField[] = [
     {
-      field: 'basicFieldset',
-      label: '基本设置',
+      field: 'rootFieldset',
+      label: '1. 站点根目录',
       type: 'fieldset',
       span: 24,
       children: [
@@ -22,8 +22,8 @@ export function useStaticHostConfigModel() {
           type: 'input',
           span: 24,
           required: true,
-          placeholder: '例如 D:/www/shop/dist 或 /var/www/shop/dist',
-          tips: '填打包后的文件夹，也就是里面有 index.html 的那个目录。网关只从这里读文件，不会读到外面。',
+          placeholder: '例如 /var/www/app-{v1,v2}/dist',
+          tips: '文件系统访问边界。请求不得读出该目录。多个站点目录仅名称一段不同时，可写 .../app-{v1,v2}/dist：剥除路由前缀后的首段须匹配允许名单（最长优先），展开结果须落在花括号前的父目录内；名单外返回 403。后续重写不得变更已选定的根目录。',
           rules: [
             {
               required: true,
@@ -38,25 +38,21 @@ export function useStaticHostConfigModel() {
             },
           ],
         },
+      ],
+    },
+    {
+      field: 'lookupFieldset',
+      label: '2. 路径映射',
+      type: 'fieldset',
+      span: 24,
+      children: [
         {
           field: 'stripRoutePrefix',
           label: '按路由路径找文件',
           type: 'switch',
           span: 12,
           defaultValue: 'Y',
-          tips: '建议打开。路由是 /app 时，访问 /app/index.html 会去目录里找 index.html，而不是找 app/index.html。浏览器地址栏不会变。',
-          props: {
-            checkedValue: 'Y',
-            uncheckedValue: 'N',
-          },
-        },
-        {
-          field: 'spaFallback',
-          label: '单页应用刷新不报错',
-          type: 'switch',
-          span: 12,
-          defaultValue: 'N',
-          tips: 'Vue / React 这类前端自己管页面跳转时请打开。刷新 /user/12 这类没有文件后缀的地址时，会打开首页交给前端处理。找不到的 .js / .css 仍会提示文件不存在。',
+          tips: '将请求 URI 映射为根目录内的相对路径。开启后，路由 /app 的 /app/index.html 对应根目录下 index.html；正则路由剥字面前缀，例如 ^/datahub01webVue/(d10|d12) 的 /datahub01webVue/d10app 对应根目录下 d10app。关闭则保留完整 URI 再拼接。不修改浏览器地址。根目录含 {v1,v2} 时，以剥除前缀后的首段选择目录。',
           props: {
             checkedValue: 'Y',
             uncheckedValue: 'N',
@@ -66,25 +62,37 @@ export function useStaticHostConfigModel() {
           field: 'indexFiles',
           label: '打开目录时的默认文件',
           type: 'input',
-          span: 24,
+          span: 12,
           defaultValue: 'index.html',
           placeholder: 'index.html',
-          tips: '访问 / 或某个文件夹时，依次尝试这些文件名，多个用逗号分开。一般填 index.html 即可。',
+          tips: '请求指向目录时依次尝试的索引文件，逗号分隔。默认 index.html。',
+        },
+        {
+          field: 'spaFallback',
+          label: '单页应用刷新不报错',
+          type: 'switch',
+          span: 12,
+          defaultValue: 'N',
+          tips: '无扩展名且未命中文件时，回退至索引文件，供前端 History 路由。带 .js / .css 的缺失请求仍返回 404。',
+          props: {
+            checkedValue: 'Y',
+            uncheckedValue: 'N',
+          },
         },
       ],
     },
     {
-      field: 'optionalFieldset',
-      label: '可选：旧地址与错误页',
+      field: 'rewriteFieldset',
+      label: '3. 重写规则',
       type: 'fieldset',
       span: 24,
       children: [
         {
           field: 'rewriteRules',
-          label: '旧地址对应到新文件',
+          label: '查找路径重写',
           type: 'custom',
           span: 24,
-          tips: '文件改名或换目录后，把旧访问路径指到新文件。多数站点不用填。只改找哪个文件，不改浏览器地址。',
+          tips: '根目录确定后，调整目录内的查找路径。不变更根目录，也不修改浏览器地址。仅当请求 URI 与目录内相对路径不一致时配置。',
           render: (formData, ctx) =>
             h(RewriteRulesEditor, {
               modelValue: String(ctx?.value ?? formData.rewriteRules ?? ''),
@@ -97,13 +105,21 @@ export function useStaticHostConfigModel() {
               },
             }),
         },
+      ],
+    },
+    {
+      field: 'errorFieldset',
+      label: '4. 错误页面',
+      type: 'fieldset',
+      span: 24,
+      children: [
         {
           field: 'errorPage404',
           label: '找不到页面时显示',
           type: 'input',
           span: 12,
           placeholder: '例如 /404.html，可留空',
-          tips: '填网站目录里的页面，如 /404.html。留空则返回简短错误说明。',
+          tips: '未命中文件时返回的页面，路径相对于站点根目录。HTTP 状态码保持 404。留空则返回默认响应。',
         },
         {
           field: 'errorPage403',
@@ -111,7 +127,7 @@ export function useStaticHostConfigModel() {
           type: 'input',
           span: 12,
           placeholder: '例如 /403.html，可留空',
-          tips: '填网站目录里的页面，如 /403.html。留空则返回简短错误说明。',
+          tips: '路径被拒绝时返回的页面，路径相对于站点根目录。HTTP 状态码保持 403。留空则返回默认响应。',
         },
       ],
     },

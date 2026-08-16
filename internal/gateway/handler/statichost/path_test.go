@@ -6,6 +6,28 @@ import (
 	"testing"
 )
 
+func TestStripRouteLookupPath(t *testing.T) {
+	got := stripRouteLookupPath("/app/index.html", "/app", true)
+	if got != "/index.html" {
+		t.Fatalf("剥离前缀后应为 /index.html，实际 %s", got)
+	}
+	got = stripRouteLookupPath("/application/index.html", "/app", true)
+	if got != "/application/index.html" {
+		t.Fatalf("不同路径段不应剥离，实际 %s", got)
+	}
+}
+
+func TestRoutePathPrefixFromRegex(t *testing.T) {
+	got := routePathPrefix(`^/datahub01webVue/(d10|d12|d13)`)
+	if got != "/datahub01webVue" {
+		t.Fatalf("正则字面前缀应为 /datahub01webVue，实际 %s", got)
+	}
+	got = stripRouteLookupPath("/datahub01webVue/d10app/user/1", `^/datahub01webVue/(d10|d12)`, true)
+	if got != "/d10app/user/1" {
+		t.Fatalf("正则路由剥前缀后应为 /d10app/user/1，实际 %s", got)
+	}
+}
+
 func TestResolveLookupPathStripAndRewrite(t *testing.T) {
 	got := resolveLookupPath("/app/index.html", "/app", true, nil)
 	if got != "/index.html" {
@@ -77,6 +99,17 @@ func TestHasFileExtension(t *testing.T) {
 	}
 	if hasFileExtension("/user/profile") {
 		t.Fatal("SPA 路径不应视为带扩展名")
+	}
+}
+
+func TestSpaFallbackLookups(t *testing.T) {
+	got := spaFallbackLookups("/d10app/user/1", []string{"index.html"}, true)
+	if len(got) != 2 || got[0] != "/d10app/index.html" || got[1] != "/index.html" {
+		t.Fatalf("子应用 SPA 回退路径不正确: %+v", got)
+	}
+	got = spaFallbackLookups("/user/1", []string{"index.html"}, false)
+	if len(got) != 1 || got[0] != "/index.html" {
+		t.Fatalf("普通 SPA 只回退根索引: %+v", got)
 	}
 }
 

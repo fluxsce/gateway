@@ -6,17 +6,22 @@ import (
 	"strings"
 )
 
-// resolveLookupPath 把请求路径映射为相对根目录的查找路径（始终以 / 开头）。
+// stripRouteLookupPath 按静态开关剥离已匹配路由前缀，得到相对查找路径（始终以 / 开头）。
 // 不修改 Request.URL：过滤器负责改请求 URI，本函数只做文件映射。
-// 顺序：按静态开关剥离已匹配路由前缀，再套 rewriteRules。
-func resolveLookupPath(requestPath, matchedPath string, stripPrefix bool, rules []CompiledRewriteRule) string {
+// 占位符根目录用这一步的结果选目录，重写规则不能改选根。
+func stripRouteLookupPath(requestPath, matchedPath string, stripPrefix bool) string {
 	cleaned := cleanURLPath(requestPath)
 	if stripPrefix {
 		if stripped, ok := stripMatchedRoutePrefix(cleaned, matchedPath); ok {
 			cleaned = stripped
 		}
 	}
-	return applyCompiledRewriteRules(cleaned, rules)
+	return cleaned
+}
+
+// resolveLookupPath 剥前缀后再套 rewriteRules，得到最终相对查找路径。
+func resolveLookupPath(requestPath, matchedPath string, stripPrefix bool, rules []CompiledRewriteRule) string {
+	return applyCompiledRewriteRules(stripRouteLookupPath(requestPath, matchedPath, stripPrefix), rules)
 }
 
 // cleanURLPath 规范化 URL 路径，保留前导 /，去掉多余斜杠。
@@ -31,14 +36,71 @@ func cleanURLPath(raw string) string {
 	return cleaned
 }
 
+// routePathPrefix 取路由路径中可剥离的字面前缀。
+// 前缀/精确路由原样使用；正则取第一个元字符之前的路径，
+// 例如 ^/datahub01webVue/(d10|d12) 得到 /datahub01webVue。
+func routePathPrefix(matchedPath string) string {
+	raw := strings.TrimSpace(matchedPath)
+	if raw == "" {
+		return ""
+	}
+	if !looksLikeRegexRoutePath(raw) {
+		return cleanURLPath(raw)
+	}
+	pattern := strings.TrimPrefix(raw, "^")
+	for _, flag := range []string{"(?i)", "(?m)", "(?s)", "(?im)", "(?mi)"} {
+		pattern = strings.TrimPrefix(pattern, flag)
+	}
+	var b strings.Builder
+	escaped := false
+	for i := 0; i < len(pattern); i++ {
+		c := pattern[i]
+		if escaped {
+			b.WriteByte(c)
+			escaped = false
+			continue
+		}
+		if c == '\\' {
+			escaped = true
+			continue
+		}
+		if isRegexMetaByte(c) {
+			break
+		}
+		b.WriteByte(c)
+	}
+	prefix := strings.TrimRight(b.String(), "/")
+	if prefix == "" || prefix == "/" {
+		return ""
+	}
+	return cleanURLPath(prefix)
+}
+
+func looksLikeRegexRoutePath(routePath string) bool {
+	if strings.HasPrefix(strings.TrimSpace(routePath), "^") {
+		return true
+	}
+	return strings.ContainsAny(routePath, "()[]|+?$")
+}
+
+func isRegexMetaByte(c byte) bool {
+	switch c {
+	case '.', '*', '+', '?', '(', '[', '{', '|', '$':
+		return true
+	default:
+		return false
+	}
+}
+
 // stripMatchedRoutePrefix 按路径段边界去掉已匹配路由前缀。
 // 例如匹配 /app 时可剥 /app/index.html，但不会误剥 /application/index.html。
+// 正则路由剥字面前缀，使 /datahub01webVue/d10app 落到根目录内的 /d10app。
 func stripMatchedRoutePrefix(requestPath, matchedPath string) (string, bool) {
 	if matchedPath == "" {
 		return requestPath, false
 	}
-	matchedPath = cleanURLPath(matchedPath)
-	if matchedPath == "/" {
+	matchedPath = routePathPrefix(matchedPath)
+	if matchedPath == "" || matchedPath == "/" {
 		return requestPath, false
 	}
 	cleanedRequest := cleanURLPath(requestPath)
@@ -127,6 +189,47 @@ func hasHiddenPathComponent(urlPath string) bool {
 		}
 	}
 	return false
+}
+
+// spaFallbackLookups 生成 SPA 回退查找路径。
+// useFirstSegment 为 true 时先试第一段下的索引，再试根目录索引。
+func spaFallbackLookups(lookupPath string, indexFiles []string, useFirstSegment bool) []string {
+	names := make([]string, 0, len(indexFiles))
+	for _, indexName := range indexFiles {
+		indexName = path.Base(indexName)
+		if indexName == "" || indexName == "." || indexName == ".." {
+			continue
+		}
+		names = append(names, indexName)
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	lookups := make([]string, 0, len(names)*2)
+	if useFirstSegment {
+		if first := firstLookupSegment(lookupPath); first != "" {
+			for _, name := range names {
+				lookups = append(lookups, "/"+first+"/"+name)
+			}
+		}
+	}
+	for _, name := range names {
+		lookups = append(lookups, "/"+name)
+	}
+	return lookups
+}
+
+// firstLookupSegment 返回查找路径的第一段，用于子应用 SPA 回退。
+func firstLookupSegment(lookupPath string) string {
+	trimmed := strings.Trim(cleanURLPath(lookupPath), "/")
+	if trimmed == "" {
+		return ""
+	}
+	first, _, _ := strings.Cut(trimmed, "/")
+	if first == "" || first == "." || first == ".." || strings.Contains(first, "\\") {
+		return ""
+	}
+	return first
 }
 
 // hasFileExtension 判断 URL 路径最后一段是否带扩展名，用于区分 SPA 路由和静态资源。

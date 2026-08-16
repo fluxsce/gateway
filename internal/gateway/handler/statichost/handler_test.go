@@ -464,3 +464,79 @@ func TestHandlerStripsRoutePrefix(t *testing.T) {
 		t.Fatalf("剥离前缀后内容 %s", body)
 	}
 }
+
+func TestHandlerRewriteCannotSwitchRootToken(t *testing.T) {
+	parent := t.TempDir()
+	writeFile(t, filepath.Join(parent, "app-v1", "dist"), "v2ui/index.html", "from-v1")
+	writeFile(t, filepath.Join(parent, "app-v2", "dist"), "v2ui/index.html", "from-v2")
+	handler := NewHandler()
+
+	rec := httptest.NewRecorder()
+	ctx := newStaticContext(http.MethodGet, "/apps/v1ui/index.html", rec)
+	ctx.SetMatchedPath("/apps")
+	ctx.Set(constants.ContextKeyStaticHostConfig, &StaticHostConfig{
+		Enabled:          true,
+		RootDirectory:    filepath.ToSlash(parent) + "/app-{v1,v2}/dist",
+		StripRoutePrefix: true,
+		IndexFiles:       []string{"index.html"},
+		RewriteRules: []RewriteRule{
+			{Mode: RewriteModePrefix, From: "/v1ui", To: "/v2ui"},
+		},
+	})
+	if handler.Handle(ctx) {
+		t.Fatal("重写后应仍在已锁定的 v1 目录出文件")
+	}
+	body, _ := io.ReadAll(rec.Body)
+	if string(body) != "from-v1" {
+		t.Fatalf("规则不能换根，期望 from-v1，实际 %s", body)
+	}
+}
+
+func TestHandlerRegexRouteSelectsRootTokenWithoutRewrite(t *testing.T) {
+	parent := t.TempDir()
+	writeFile(t, filepath.Join(parent, "sce-vdatahub-d10-web", "umd"), "d10app/index.html", "d10-home")
+	handler := NewHandler()
+
+	rec := httptest.NewRecorder()
+	ctx := newStaticContext(http.MethodGet, "/datahub01webVue/d10app/user/1", rec)
+	ctx.SetMatchedPath(`^/datahub01webVue/(d10|d12|d13)`)
+	ctx.Set(constants.ContextKeyStaticHostConfig, &StaticHostConfig{
+		Enabled:          true,
+		RootDirectory:    filepath.ToSlash(parent) + "/sce-vdatahub-{d10,d12,d13}-web/umd",
+		StripRoutePrefix: true,
+		IndexFiles:       []string{"index.html"},
+		SPAFallback:      true,
+	})
+	if handler.Handle(ctx) {
+		t.Fatal("正则路由应按路径占位选目录并出文件")
+	}
+	body, _ := io.ReadAll(rec.Body)
+	if string(body) != "d10-home" {
+		t.Fatalf("内容 %s", body)
+	}
+}
+
+func TestHandlerExpandsRootTokenAfterStrip(t *testing.T) {
+	parent := t.TempDir()
+	writeFile(t, filepath.Join(parent, "app-v1", "dist"), "v1ui/index.html", "v1-home")
+
+	cfg := &StaticHostConfig{
+		Enabled:          true,
+		RootDirectory:    filepath.ToSlash(parent) + "/app-{v1,v2}/dist",
+		StripRoutePrefix: true,
+		IndexFiles:       []string{"index.html"},
+		SPAFallback:      true,
+	}
+	handler := NewHandler()
+	rec := httptest.NewRecorder()
+	ctx := newStaticContext(http.MethodGet, "/apps/v1ui/user/1", rec)
+	ctx.SetMatchedPath("/apps")
+	ctx.Set(constants.ContextKeyStaticHostConfig, cfg)
+	if handler.Handle(ctx) {
+		t.Fatal("占位符目录 SPA 应终止链路")
+	}
+	body, _ := io.ReadAll(rec.Body)
+	if string(body) != "v1-home" {
+		t.Fatalf("内容 %s", body)
+	}
+}

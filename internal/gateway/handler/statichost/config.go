@@ -21,6 +21,7 @@ type StaticHostConfig struct {
 	// Name 是配置名称，便于日志识别。
 	Name string `json:"name,omitempty" yaml:"name,omitempty" mapstructure:"name,omitempty"`
 	// RootDirectory 是本机目录的绝对或相对路径，所有查找都必须落在该目录内。
+	// 可用 {v1,v2} 声明允许的目录名：剥前缀后第一段路径命中名单则展开，展开结果不得跳出固定父目录。
 	RootDirectory string `json:"root_directory" yaml:"root_directory" mapstructure:"root_directory"`
 	// StripRoutePrefix 为 true 时，按路径段边界去掉已匹配的路由前缀再拼文件。
 	// 例如路由 /app 命中 /app/index.html 时，实际读取 RootDirectory/index.html。
@@ -35,8 +36,8 @@ type StaticHostConfig struct {
 	// 大于 0 时写入 public, max-age=N；HTML、索引和 SPA 回退始终 no-cache。
 	// 文件名带内容哈希的 js/css 使用 immutable 长缓存，不受本字段限制。
 	CacheControlMaxAge int `json:"cache_control_max_age" yaml:"cache_control_max_age" mapstructure:"cache_control_max_age"`
-	// RewriteRules 是剥离前缀之后的文件查找重写，按顺序匹配，命中第一条后停止。
-	// 只改查找路径，不改 Request.URL。改请求 URI 请用路由过滤器。
+	// RewriteRules 是锁定网站目录之后的文件查找重写，按顺序匹配，命中第一条后停止。
+	// 只改已锁定目录内的相对路径，不能换根，也不改 Request.URL。改请求 URI 请用路由过滤器。
 	RewriteRules []RewriteRule `json:"rewrite_rules,omitempty" yaml:"rewrite_rules,omitempty" mapstructure:"rewrite_rules,omitempty"`
 	// AllowedExtensions 是允许的文件扩展名（含点，小写）。空表示不额外限制，仍拒绝隐藏文件。
 	AllowedExtensions []string `json:"allowed_extensions,omitempty" yaml:"allowed_extensions,omitempty" mapstructure:"allowed_extensions,omitempty"`
@@ -55,12 +56,16 @@ type StaticHostConfig struct {
 // Snapshot 加载期编译的只读静态托管快照。
 // 热更新通过替换整份指针完成，请求路径不得修改该对象。
 type Snapshot struct {
-	ID                 string
-	Name               string
-	Enabled            bool
-	RootDirectory      string
-	RootAbs            string
-	RootReal           string
+	ID            string
+	Name          string
+	Enabled       bool
+	RootDirectory string
+	RootAbs       string
+	RootReal      string
+	// RootHasPlaceholders 为 true 时 RootDirectory 含 {v1,v2} 允许名单，请求里再展开。
+	RootHasPlaceholders bool
+	// RootBaseAbs 是占位符之前的固定父目录，展开后的根必须落在该目录内。
+	RootBaseAbs        string
 	StripRoutePrefix   bool
 	IndexFiles         []string
 	SPAFallback        bool
@@ -132,7 +137,15 @@ func Compile(cfg *StaticHostConfig) (*Snapshot, error) {
 	if copied.Enabled && root == "" {
 		return nil, errors.New("static host root directory is required")
 	}
-	rootAbs, rootReal, err := resolveRootDirectories(root)
+	templated := hasRootPlaceholders(root)
+	resolveRoot := root
+	if templated {
+		if err := validateRootTemplate(root); err != nil {
+			return nil, err
+		}
+		resolveRoot = rootTemplateBaseDir(root)
+	}
+	rootAbs, rootReal, err := resolveRootDirectories(resolveRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -143,23 +156,25 @@ func Compile(cfg *StaticHostConfig) (*Snapshot, error) {
 
 	indexFiles := append([]string(nil), copied.IndexFiles...)
 	return &Snapshot{
-		ID:                 copied.ID,
-		Name:               copied.Name,
-		Enabled:            copied.Enabled,
-		RootDirectory:      root,
-		RootAbs:            rootAbs,
-		RootReal:           rootReal,
-		StripRoutePrefix:   copied.StripRoutePrefix,
-		IndexFiles:         indexFiles,
-		SPAFallback:        copied.SPAFallback,
-		CacheControlMaxAge: copied.CacheControlMaxAge,
-		Rules:              rules,
-		AllowedExtensions:  extensionSet(copied.AllowedExtensions),
-		MaxFileSizeBytes:   copied.MaxFileSizeBytes,
-		FollowSymlinks:     copied.FollowSymlinks,
-		EnablePrecompress:  copied.EnablePrecompress,
-		ErrorPage404:       copied.ErrorPage404,
-		ErrorPage403:       copied.ErrorPage403,
+		ID:                  copied.ID,
+		Name:                copied.Name,
+		Enabled:             copied.Enabled,
+		RootDirectory:       root,
+		RootAbs:             rootAbs,
+		RootReal:            rootReal,
+		RootHasPlaceholders: templated,
+		RootBaseAbs:         rootAbs,
+		StripRoutePrefix:    copied.StripRoutePrefix,
+		IndexFiles:          indexFiles,
+		SPAFallback:         copied.SPAFallback,
+		CacheControlMaxAge:  copied.CacheControlMaxAge,
+		Rules:               rules,
+		AllowedExtensions:   extensionSet(copied.AllowedExtensions),
+		MaxFileSizeBytes:    copied.MaxFileSizeBytes,
+		FollowSymlinks:      copied.FollowSymlinks,
+		EnablePrecompress:   copied.EnablePrecompress,
+		ErrorPage404:        copied.ErrorPage404,
+		ErrorPage403:        copied.ErrorPage403,
 	}, nil
 }
 
@@ -172,6 +187,12 @@ func ValidateForSave(rootDirectory, indexFiles, rewriteRules string) error {
 	}
 	if strings.ContainsRune(root, 0) {
 		return errors.New("root directory is invalid")
+	}
+	if hasRootPlaceholders(root) {
+		if err := validateRootTemplate(root); err != nil {
+			return err
+		}
+		root = rootTemplateBaseDir(root)
 	}
 	if info, err := os.Stat(root); err == nil && !info.IsDir() {
 		return errors.New("root directory is not a directory")

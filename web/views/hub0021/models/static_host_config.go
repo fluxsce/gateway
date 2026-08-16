@@ -13,7 +13,7 @@ type StaticHostConfig struct {
 	StaticHostConfigId string `json:"staticHostConfigId" form:"staticHostConfigId" query:"staticHostConfigId" db:"staticHostConfigId"` // 静态托管配置ID，联合主键
 	RouteConfigId      string `json:"routeConfigId" form:"routeConfigId" query:"routeConfigId" db:"routeConfigId"`                     // 关联的路由配置ID，一条路由对应一条活动配置
 	ConfigName         string `json:"configName" form:"configName" query:"configName" db:"configName"`                                 // 配置名称，便于日志与管理端识别
-	RootDirectory      string `json:"rootDirectory" form:"rootDirectory" query:"rootDirectory" db:"rootDirectory"`                     // 本机根目录，绝对或相对路径；所有查找必须落在该目录内
+	RootDirectory      string `json:"rootDirectory" form:"rootDirectory" query:"rootDirectory" db:"rootDirectory"`                     // 本机根目录；可用 {v1,v2} 允许名单，从剥前缀后第一段展开
 	StripRoutePrefix   string `json:"stripRoutePrefix" form:"stripRoutePrefix" query:"stripRoutePrefix" db:"stripRoutePrefix"`         // 是否按路径段剥离已匹配路由前缀(N否,Y是)，默认Y
 	IndexFiles         string `json:"indexFiles" form:"indexFiles" query:"indexFiles" db:"indexFiles"`                                 // 目录索引文件，入库为JSON数组，如["index.html"]
 	RewriteRules       string `json:"rewriteRules" form:"rewriteRules" query:"rewriteRules" db:"rewriteRules"`                         // 路径重写规则，入库为JSON数组[{mode,from,to}]；mode=prefix|exact|regex，按顺序命中第一条
