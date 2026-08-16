@@ -2,7 +2,7 @@
 # CI-owned Linux amd64 packaging. Not used by local scripts/build.
 # Release CI invokes this via package-linux-ci.sh (manylinux2014 / glibc 2.17).
 # Env:
-#   VERSION   required, e.g. 3.2.2
+#   VERSION   required, e.g. 3.2.4
 #   ORACLE    0 (MySQL/SQLite/ClickHouse) or 1 (also Oracle)
 #   ORACLE_HOME required when ORACLE=1
 set -euo pipefail

@@ -59,6 +59,8 @@ ALTER TABLE `HUB_GW_ROUTE_CONFIG` MODIFY COLUMN `serviceDefinitionId` VARCHAR(10
 ALTER TABLE `HUB_GW_ROUTE_CONFIG` ADD INDEX `IDX_GW_ROUTE_SERVICE` (`serviceDefinitionId`(255));
 
 -- 历史库升级：建表已执行过的不会再跑 CREATE，只补列。空值视为服务代理。
-ALTER TABLE `HUB_GW_ROUTE_CONFIG` ADD COLUMN `backendType` VARCHAR(16) DEFAULT 'proxy' COMMENT '后端类型(proxy服务代理,static本机静态)';
+ALTER TABLE `HUB_GW_ROUTE_CONFIG` ADD COLUMN `backendType` VARCHAR(16) DEFAULT 'proxy' COMMENT '后端类型(proxy服务代理,static本机静态,redirect重定向)';
 UPDATE `HUB_GW_ROUTE_CONFIG` SET `backendType` = 'proxy' WHERE `backendType` IS NULL OR `backendType` = '';
+ALTER TABLE `HUB_GW_ROUTE_CONFIG` ADD COLUMN `redirectStatus` INT DEFAULT 0 COMMENT '重定向状态码(301/302/307/308)，backendType=redirect 时使用';
+ALTER TABLE `HUB_GW_ROUTE_CONFIG` ADD COLUMN `redirectLocation` VARCHAR(500) DEFAULT NULL COMMENT '重定向 Location，相对路径或 http(s) URL';
 

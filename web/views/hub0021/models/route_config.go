@@ -32,8 +32,12 @@ type RouteConfig struct {
 
 	// 服务关联字段，直接关联服务定义表
 	ServiceDefinitionId string `json:"serviceDefinitionId" form:"serviceDefinitionId" query:"serviceDefinitionId" db:"serviceDefinitionId"` // 关联的服务定义ID
-	// BackendType 命中后的响应源：proxy=服务代理，static=本机静态。
+	// BackendType 命中后的响应源：proxy=服务代理，static=本机静态，redirect=重定向。
 	BackendType string `json:"backendType" form:"backendType" query:"backendType" db:"backendType"`
+	// RedirectStatus 重定向状态码，仅 301、302、307、308。
+	RedirectStatus int `json:"redirectStatus" form:"redirectStatus" query:"redirectStatus" db:"redirectStatus"`
+	// RedirectLocation 是 Location 目标，如 /#/datahublogin。
+	RedirectLocation string `json:"redirectLocation" form:"redirectLocation" query:"redirectLocation" db:"redirectLocation"`
 
 	// StaticHostEnabled 为 Y 时该路由已配置生效的本机目录托管，仅详情/列表回显，不落路由表。
 	StaticHostEnabled string `json:"staticHostEnabled,omitempty" form:"-" query:"-" db:"-"`
@@ -279,6 +283,8 @@ type RouteConfigWithService struct {
 	RetryIntervalMs     int    `json:"retryIntervalMs" db:"retryIntervalMs"`
 	ServiceDefinitionId string `json:"serviceDefinitionId" db:"serviceDefinitionId"`
 	BackendType         string `json:"backendType" db:"backendType"`
+	RedirectStatus      int    `json:"redirectStatus" db:"redirectStatus"`
+	RedirectLocation    string `json:"redirectLocation" db:"redirectLocation"`
 	LogConfigId         string `json:"logConfigId" db:"logConfigId"`
 	RouteMetadata       string `json:"routeMetadata" db:"routeMetadata"`
 

@@ -6,6 +6,12 @@
 
 ## [Unreleased]（未发布）
 
+
+## [3.2.4] - 2026-08-16
+
+### 新增
+- **路由重定向后端**：路由后端可选「重定向」，同页填写 301/302/307/308 与 Location。命中后按 RFC 9110 写出跳转并终止链路：`Location`、非 HEAD 的短 HTML 链接正文；301/308 不强制禁缓存，302/307 带 `Cache-Control: no-store`。目标支持站点内绝对路径（`/#/datahublogin`）、http(s) 绝对地址，以及 `{scheme}`/`{host}`（scheme 优先 TLS，其次单一合法的 `X-Forwarded-Proto`；host 只认请求 Host）；拒绝协议相对地址、用户信息和换行。已有库需为 `HUB_GW_ROUTE_CONFIG` 增加 `redirectStatus`、`redirectLocation`。
+
 ## [3.2.3] - 2026-08-16
 
 ### 新增

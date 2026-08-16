@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"gateway/internal/gateway/handler/router"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/web/utils/constants"
@@ -179,9 +180,9 @@ func (c *RouteConfigController) EditRouteConfig(ctx *gin.Context) {
 		return
 	}
 
-	if updateData.BackendType == "proxy" {
+	if updateData.BackendType != "static" {
 		if deactivateErr := c.staticHostDAO.DeactivateByRouteConfigId(ctx, tenantId, updateData.RouteConfigId, operatorId); deactivateErr != nil {
-			logger.ErrorWithTrace(ctx, "切换为服务代理时停用静态托管失败", deactivateErr)
+			logger.ErrorWithTrace(ctx, "切换后端时停用静态托管失败", deactivateErr)
 			response.ErrorJSON(ctx, "更新路由配置失败: "+deactivateErr.Error(), constants.ED00009)
 			return
 		}
@@ -259,21 +260,33 @@ func (c *RouteConfigController) GetRouteConfig(ctx *gin.Context) {
 	response.SuccessJSON(ctx, routeConfig, constants.SD00002)
 }
 
-// applyRouteBackend 规范后端类型：服务代理必须带服务，本机静态清空服务关联。
+// applyRouteBackend 规范后端类型：服务代理必须带服务；静态与重定向清空服务关联。
 func (c *RouteConfigController) applyRouteBackend(routeConfig *models.RouteConfig) error {
 	if routeConfig == nil {
 		return nil
 	}
-	if strings.TrimSpace(routeConfig.BackendType) == "static" {
+	switch strings.TrimSpace(routeConfig.BackendType) {
+	case "static":
 		routeConfig.BackendType = "static"
 		routeConfig.ServiceDefinitionId = ""
 		return nil
+	case "redirect":
+		routeConfig.BackendType = "redirect"
+		routeConfig.ServiceDefinitionId = ""
+		status, location, err := router.NormalizeRedirect(routeConfig.RedirectStatus, routeConfig.RedirectLocation)
+		if err != nil {
+			return fmt.Errorf("重定向配置无效: %w", err)
+		}
+		routeConfig.RedirectStatus = status
+		routeConfig.RedirectLocation = location
+		return nil
+	default:
+		routeConfig.BackendType = "proxy"
+		if len(splitServiceDefinitionIDs(routeConfig.ServiceDefinitionId)) == 0 {
+			return fmt.Errorf("服务代理必须选择已启用的服务定义")
+		}
+		return nil
 	}
-	routeConfig.BackendType = "proxy"
-	if len(splitServiceDefinitionIDs(routeConfig.ServiceDefinitionId)) == 0 {
-		return fmt.Errorf("服务代理必须选择已启用的服务定义")
-	}
-	return nil
 }
 
 // validateManagedServices 校验关联服务均存在且启用。空值表示本机静态路由，不校验。

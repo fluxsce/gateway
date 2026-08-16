@@ -87,6 +87,8 @@ type RouteConfigRecord struct {
 	RetryIntervalMs     int     `db:"retryIntervalMs"`
 	ServiceDefinitionId *string `db:"serviceDefinitionId"`
 	BackendType         string  `db:"backendType"`
+	RedirectStatus      int     `db:"redirectStatus"`
+	RedirectLocation    *string `db:"redirectLocation"`
 	LogConfigId         *string `db:"logConfigId"`
 	RouteMetadata       *string `db:"routeMetadata"`
 	ActiveFlag          string  `db:"activeFlag"`

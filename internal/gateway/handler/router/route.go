@@ -34,6 +34,9 @@ const (
 
 	// BackendTypeStatic 本机静态，命中后从本机目录出文件。
 	BackendTypeStatic = "static"
+
+	// BackendTypeRedirect 路由重定向，命中后回 301/302/307/308 并结束链路。
+	BackendTypeRedirect = "redirect"
 )
 
 // GetMatchTypeName 获取匹配类型名称
@@ -120,8 +123,16 @@ type RouteConfig struct {
 	// 匹配类型 - 路径匹配方式: 0=精确匹配, 1=前缀匹配, 2=正则匹配
 	MatchType int `json:"match_type" yaml:"match_type" mapstructure:"match_type"`
 
-	// BackendType 命中后的响应源: proxy=服务代理, static=本机静态。空值按历史规则：有静态配置或有服务即可。
+	// BackendType 命中后的响应源: proxy=服务代理, static=本机静态, redirect=重定向。
+	// 空值按历史规则：有静态配置或有服务即可。
 	BackendType string `json:"backend_type,omitempty" yaml:"backend_type,omitempty" mapstructure:"backend_type,omitempty"`
+
+	// RedirectStatus 是重定向状态码，仅 301、302、307、308。
+	RedirectStatus int `json:"redirect_status,omitempty" yaml:"redirect_status,omitempty" mapstructure:"redirect_status,omitempty"`
+
+	// RedirectLocation 是 Location 目标：站点内绝对路径（/#/datahublogin）或 http(s) 绝对地址。
+	// 可含 {scheme}、{host}。scheme 优先 TLS，其次单一合法的 X-Forwarded-Proto；host 仅用请求 Host。
+	RedirectLocation string `json:"redirect_location,omitempty" yaml:"redirect_location,omitempty" mapstructure:"redirect_location,omitempty"`
 
 	// 允许的HTTP方法，为空表示允许所有方法
 	// 例如: ["GET", "POST"]、["*"]
@@ -389,11 +400,11 @@ func (r *Route) Handle(ctx *core.Context) bool {
 	} else if r.config.ServiceID != "" {
 		// 单服务模式（向后兼容）
 		ctx.SetServiceIDs([]string{r.config.ServiceID})
-	} else if !hasStaticHost {
-		// 既没有服务也没有静态源，无法产生响应
-		ctx.AddError(fmt.Errorf("路由 %s 未配置服务ID或静态托管", r.config.ID))
+	} else if !hasStaticHost && !r.isRedirectBackend() {
+		// 既没有服务、静态源，也不是重定向，无法产生响应
+		ctx.AddError(fmt.Errorf("路由 %s 未配置服务ID、静态托管或重定向", r.config.ID))
 		ctx.Abort(500, map[string]string{
-			"error": "route has no service id or static host configured",
+			"error": "route has no service id, static host, or redirect configured",
 		})
 		return false
 	}
@@ -439,6 +450,10 @@ func (r *Route) Handle(ctx *core.Context) bool {
 				return false
 			}
 		}
+	}
+
+	if r.isRedirectBackend() {
+		return r.writeRedirect(ctx)
 	}
 
 	// 标记请求为已路由
@@ -721,6 +736,10 @@ func (config *RouteConfig) validateBackend() error {
 	case BackendTypeStatic:
 		if !hasStatic {
 			return fmt.Errorf("static host config must be configured")
+		}
+	case BackendTypeRedirect:
+		if _, _, err := NormalizeRedirect(config.RedirectStatus, config.RedirectLocation); err != nil {
+			return err
 		}
 	case BackendTypeProxy:
 		if !hasService {

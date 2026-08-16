@@ -12,7 +12,7 @@ import { RsCheckbox, RsTag, setByNamePath } from '@/ui'
 import { h, ref } from 'vue'
 import { ServiceDefinitionSelector } from '../../services'
 import type { RouteConfig } from '../types'
-import { BackendType, MatchType, resolveListBackend } from '../types'
+import { BackendType, MatchType, normalizeRedirectStatus, resolveListBackend } from '../types'
 
 /**
  * 路由配置表格配置（对齐 RsGrid Props 子集）。
@@ -210,6 +210,9 @@ function renderBackendType(row: RouteConfig) {
   if (backend === BackendType.STATIC) {
     return h(RsTag, { size: 'sm', variant: 'warning' }, () => '静态资源')
   }
+  if (backend === BackendType.REDIRECT) {
+    return h(RsTag, { size: 'sm', variant: 'success' }, () => '重定向')
+  }
   if (backend === BackendType.PROXY) {
     return h(RsTag, { size: 'sm', variant: 'info' }, () => '服务代理')
   }
@@ -217,7 +220,15 @@ function renderBackendType(row: RouteConfig) {
 }
 
 function isProxyBackend(formData: Record<string, any>): boolean {
-  return formData.backendType !== BackendType.STATIC
+  return formData.backendType === BackendType.PROXY || !formData.backendType
+}
+
+function isStaticBackend(formData: Record<string, any>): boolean {
+  return formData.backendType === BackendType.STATIC
+}
+
+function isRedirectBackend(formData: Record<string, any>): boolean {
+  return formData.backendType === BackendType.REDIRECT
 }
 
 /** 渲染关联服务标签（单服务 / 多服务） */
@@ -225,6 +236,11 @@ function renderServiceName(row: RouteConfig) {
   if (resolveListBackend(row) === BackendType.STATIC) {
     const root = String(row.staticRootDirectory || '').trim()
     return h(RsTag, { size: 'sm', variant: 'warning' }, () => root || '本机目录')
+  }
+  if (resolveListBackend(row) === BackendType.REDIRECT) {
+    const status = normalizeRedirectStatus(row.redirectStatus)
+    const target = String(row.redirectLocation || '').trim() || '未填写目标'
+    return h(RsTag, { size: 'sm', variant: 'success' }, () => `${status} ${target}`)
   }
 
   if (row.serviceName) {
@@ -334,6 +350,7 @@ export function useRouteConfigModel() {
         options: [
           { label: '服务代理', value: BackendType.PROXY },
           { label: '静态资源', value: BackendType.STATIC },
+          { label: '重定向', value: BackendType.REDIRECT },
         ],
       },
       {
@@ -678,10 +695,11 @@ export function useRouteConfigModel() {
         tabKey: 'basic',
         required: true,
         defaultValue: BackendType.PROXY,
-        tips: '请求命中后从哪里出内容。服务代理：转到已选的后端服务，必须选择服务。静态资源：从本机文件夹提供网页和文件，保存后填写目录。',
+        tips: '请求命中后从哪里出内容。服务代理：转到已选的后端服务。静态资源：从本机目录出文件，保存后填写目录。重定向：回 301/302/307/308，同页填写目标地址。',
         options: [
           { label: '服务代理', value: BackendType.PROXY },
           { label: '静态资源', value: BackendType.STATIC },
+          { label: '重定向', value: BackendType.REDIRECT },
         ],
         rules: [
           {
@@ -689,7 +707,11 @@ export function useRouteConfigModel() {
             message: '请选择后端',
             trigger: ['blur', 'change'],
             validator: (value: unknown) => {
-              if (value !== BackendType.PROXY && value !== BackendType.STATIC) {
+              if (
+                value !== BackendType.PROXY &&
+                value !== BackendType.STATIC &&
+                value !== BackendType.REDIRECT
+              ) {
                 return '请选择后端'
               }
               return true
@@ -911,7 +933,7 @@ export function useRouteConfigModel() {
         type: 'custom' as const,
         span: 24,
         tabKey: 'basic',
-        show: (formData: Record<string, any>) => !isProxyBackend(formData),
+        show: (formData: Record<string, any>) => isStaticBackend(formData),
         tips: '保存后会打开静态资源配置，填写网站文件目录。登录、限流、跨域仍按本路由生效。',
         render: () =>
           h(
@@ -924,6 +946,70 @@ export function useRouteConfigModel() {
             },
             '不转到后端服务。保存后填写本机文件夹（如 Vue/React 的 dist），访问者看到的是该目录里的网页和文件。',
           ),
+      },
+      {
+        field: 'redirectStatus',
+        label: '重定向状态码',
+        type: 'select' as const,
+        span: 12,
+        tabKey: 'basic',
+        required: true,
+        defaultValue: 301,
+        show: (formData: Record<string, any>) => isRedirectBackend(formData),
+        tips: '301/308 永久跳转，可被缓存；302/307 临时跳转，不缓存。301/302 可能把 POST 改成 GET，要保留原方法用 307/308。旧登录入口一般用 301。',
+        options: [
+          { label: '301 永久重定向', value: 301 },
+          { label: '302 临时重定向', value: 302 },
+          { label: '307 临时重定向（保留方法）', value: 307 },
+          { label: '308 永久重定向（保留方法）', value: 308 },
+        ],
+        rules: [
+          {
+            required: true,
+            message: '请选择重定向状态码',
+            trigger: ['blur', 'change'],
+            validator: (value: unknown) => {
+              if (normalizeRedirectStatus(value) !== Number(value)) {
+                return '请选择 301、302、307 或 308'
+              }
+              return true
+            },
+          },
+        ],
+      },
+      {
+        field: 'redirectLocation',
+        label: '重定向目标',
+        type: 'input' as const,
+        span: 24,
+        tabKey: 'basic',
+        required: true,
+        placeholder: '例如 /#/datahublogin 或 https://www.example.com/#/datahublogin',
+        show: (formData: Record<string, any>) => isRedirectBackend(formData),
+        tips: '浏览器 Location。优先写站点内绝对路径 /#/datahublogin。绝对地址可用 https://... 或 {scheme}://{host}/...；scheme 只认 TLS 或单一合法的 X-Forwarded-Proto，host 只认请求 Host。不要写 //host。',
+        rules: [
+          {
+            required: true,
+            message: '请填写重定向目标',
+            trigger: ['blur', 'input'],
+            validator: (value: unknown) => {
+              const loc = typeof value === 'string' ? value.trim() : ''
+              if (!loc) {
+                return '请填写重定向目标'
+              }
+              if (loc.length > 500) {
+                return '重定向目标不能超过500个字符'
+              }
+              if (/[\r\n]/.test(loc)) {
+                return '重定向目标不能包含换行'
+              }
+              if (loc.startsWith('//')) {
+                return '不能使用协议相对地址'
+              }
+              return true
+            },
+          },
+        ],
       },
       // ============= 多服务配置字段（NamePath，写在 routeMetadata 对象上） =============
       {

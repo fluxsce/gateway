@@ -12,7 +12,7 @@ import type { Ref } from 'vue'
 import { onMounted, ref } from 'vue'
 import { getRouteConfig } from '../../../api'
 import type { RouteConfig } from '../types'
-import { BackendType, hasManagedService, MatchType } from '../types'
+import { BackendType, hasManagedService, MatchType, normalizeRedirectStatus, resolveListBackend } from '../types'
 import { useRouteConfigService } from './service'
 
 /**
@@ -196,10 +196,14 @@ export function useRouteConfigPage(
     const overrideFlag = getByNamePath(formData, 'routeMetadata.overrideProxyTimeout')
     setByNamePath(formData, 'routeMetadata.overrideProxyTimeout', overrideFlag === 'Y' ? 'Y' : 'N')
 
-    formData.backendType =
-      route.backendType === BackendType.STATIC || route.staticHostEnabled === 'Y'
-        ? BackendType.STATIC
-        : BackendType.PROXY
+    if (route.backendType === BackendType.REDIRECT) {
+      formData.backendType = BackendType.REDIRECT
+    } else if (route.backendType === BackendType.STATIC || route.staticHostEnabled === 'Y') {
+      formData.backendType = BackendType.STATIC
+    } else {
+      formData.backendType = BackendType.PROXY
+    }
+    formData.redirectStatus = normalizeRedirectStatus(formData.redirectStatus)
 
     return formData
   }
@@ -239,10 +243,26 @@ export function useRouteConfigPage(
       }
     }
 
-    const backendType = formData.backendType === BackendType.STATIC ? BackendType.STATIC : BackendType.PROXY
+    let backendType = BackendType.PROXY
+    if (formData.backendType === BackendType.STATIC) {
+      backendType = BackendType.STATIC
+    } else if (formData.backendType === BackendType.REDIRECT) {
+      backendType = BackendType.REDIRECT
+    }
     if (backendType === BackendType.PROXY && !hasManagedService(formData.serviceDefinitionId)) {
       message.warning('服务代理必须选择当前实例下已启用的服务定义')
       return false
+    }
+    if (backendType === BackendType.REDIRECT) {
+      const location = String(formData.redirectLocation || '').trim()
+      if (!location) {
+        message.warning('重定向必须填写目标地址')
+        return false
+      }
+      if (location.startsWith('//') || /[\r\n]/.test(location)) {
+        message.warning('重定向目标不合法')
+        return false
+      }
     }
 
     try {
@@ -273,8 +293,12 @@ export function useRouteConfigPage(
       // 将 routeMetadata 转换为 JSON 字符串（后端存储为 JSON 字符串）
       finalData.routeMetadata = JSON.stringify(routeMetadataObj) as any
       finalData.backendType = backendType
-      if (backendType === BackendType.STATIC) {
+      if (backendType === BackendType.STATIC || backendType === BackendType.REDIRECT) {
         finalData.serviceDefinitionId = ''
+      }
+      if (backendType === BackendType.REDIRECT) {
+        finalData.redirectStatus = normalizeRedirectStatus(formData.redirectStatus)
+        finalData.redirectLocation = String(formData.redirectLocation || '').trim()
       }
       delete (finalData as Record<string, unknown>)._staticBackendHint
       delete (finalData as Record<string, unknown>).staticHostEnabled
@@ -447,6 +471,10 @@ export function useRouteConfigPage(
         rateLimitConfigDialogVisible.value = true
         break
       case 'staticHostConfig':
+        if (resolveListBackend(route) !== BackendType.STATIC) {
+          message.warning('仅静态资源路由可配置本机目录')
+          break
+        }
         currentRouteConfigId.value = route.routeConfigId
         staticHostConfigDialogVisible.value = true
         break

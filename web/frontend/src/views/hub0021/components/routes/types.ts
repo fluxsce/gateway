@@ -21,6 +21,16 @@ export enum MatchType {
 export enum BackendType {
   PROXY = 'proxy',
   STATIC = 'static',
+  REDIRECT = 'redirect',
+}
+
+/** RFC 9110 允许的路由重定向状态码 */
+export const REDIRECT_STATUSES = [301, 302, 307, 308] as const
+
+/** 规范重定向状态码，非法值回落为 301 */
+export function normalizeRedirectStatus(value: unknown): number {
+  const status = Number(value)
+  return (REDIRECT_STATUSES as readonly number[]).includes(status) ? status : 301
 }
 
 /** 是否已选择至少一个已管理的服务定义 */
@@ -37,6 +47,9 @@ export function resolveListBackend(
 ): BackendType | 'none' {
   if (row.backendType === BackendType.STATIC) {
     return BackendType.STATIC
+  }
+  if (row.backendType === BackendType.REDIRECT) {
+    return BackendType.REDIRECT
   }
   if (row.backendType === BackendType.PROXY) {
     return hasManagedService(row.serviceDefinitionId) ? BackendType.PROXY : 'none'
@@ -104,8 +117,12 @@ export interface RouteConfig {
   staticHostEnabled?: 'Y' | 'N'
   /** 活动静态托管的根目录（列表/详情回显） */
   staticRootDirectory?: string
-  /** 后端类型，落库：proxy 服务代理 / static 静态资源 */
+  /** 后端类型，落库：proxy 服务代理 / static 静态资源 / redirect 重定向 */
   backendType?: BackendType | string
+  /** 重定向状态码，仅 301、302、307、308 */
+  redirectStatus?: number
+  /** 重定向 Location，如 /#/datahublogin */
+  redirectLocation?: string
 
   // 元数据和扩展
   /** 路由元数据 */
