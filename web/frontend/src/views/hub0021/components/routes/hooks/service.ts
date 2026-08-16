@@ -290,7 +290,7 @@ export function useRouteConfigService(gatewayInstanceId?: string, searchFormRef?
   /**
    * 添加路由配置
    */
-  const addRoute = async (routeData: Partial<RouteConfig>): Promise<boolean> => {
+  const addRoute = async (routeData: Partial<RouteConfig>): Promise<RouteConfig | null> => {
     loading.value = true
     try {
       const response: JsonDataObj = await addRouteConfig(routeData as any)
@@ -301,22 +301,20 @@ export function useRouteConfigService(gatewayInstanceId?: string, searchFormRef?
 
         // 如果返回了新增的路由数据，添加到列表
         if (response.bizData) {
-          const newRoute = JSON.parse(response.bizData)
+          const newRoute = JSON.parse(response.bizData) as RouteConfig
           addRouteToList(newRoute)
-        } else {
-          // 否则重新加载列表
-          await loadRouteList()
+          return newRoute
         }
-
-        return true
+        await loadRouteList()
+        return { routeConfigId: '' } as RouteConfig
       } else {
         const errorMsg = getApiMessage(response, '新增路由配置失败')
         message.error(errorMsg)
-        return false
+        return null
       }
     } catch (error) {
       message.error('新增路由配置失败')
-      return false
+      return null
     } finally {
       loading.value = false
     }

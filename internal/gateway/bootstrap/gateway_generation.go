@@ -14,17 +14,19 @@ import (
 	"gateway/internal/gateway/handler/proxy"
 	"gateway/internal/gateway/handler/router"
 	"gateway/internal/gateway/handler/security"
+	"gateway/internal/gateway/handler/statichost"
 	"gateway/pkg/logger"
 )
 
 // gatewayHandlers 保存一个运行时代际独占的处理器集合。
 type gatewayHandlers struct {
-	router   router.RouterHandler
-	proxy    proxy.ProxyHandler
-	auth     auth.Authenticator
-	cors     cors.CORSHandler
-	security security.SecurityHandler
-	limiter  limiter.LimiterHandler
+	router     router.RouterHandler
+	proxy      proxy.ProxyHandler
+	auth       auth.Authenticator
+	cors       cors.CORSHandler
+	security   security.SecurityHandler
+	limiter    limiter.LimiterHandler
+	staticHost statichost.StaticHostHandler
 }
 
 // close 按资源依赖顺序关闭已经构建的处理器集合。
@@ -35,6 +37,7 @@ func (h gatewayHandlers) close() {
 	closeGenerationHandler("cors", h.cors)
 	closeGenerationHandler("security", h.security)
 	closeGenerationHandler("limiter", h.limiter)
+	closeGenerationHandler("staticHost", h.staticHost)
 }
 
 // gatewayGeneration 表示一次不可变的网关运行时配置及其服务资源。

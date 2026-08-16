@@ -124,7 +124,8 @@ func (f *PathRewriteFilter) Apply(ctx *core.Context) error {
 	}
 
 	// 获取当前路径
-	path := ctx.Request.URL.Path
+	original := ctx.Request.URL.Path
+	path := original
 
 	// 根据不同模式执行路径重写
 	switch f.Mode {
@@ -144,7 +145,7 @@ func (f *PathRewriteFilter) Apply(ctx *core.Context) error {
 
 	// 记录重写操作到上下文（可选，用于调试和监控）
 	ctx.Set("path_rewritten", true)
-	ctx.Set("original_path", ctx.Request.URL.Path)
+	ctx.Set("original_path", original)
 	ctx.Set("rewrite_filter", f.Name)
 
 	return nil

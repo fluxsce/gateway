@@ -3,6 +3,7 @@ import type { JsonDataObj } from '@/types/api'
 import type { RouteAssertion } from '../components/assert-config/hooks/types'
 import type { GatewayInstance, RouterConfig } from '../components/instance-tree/types'
 import type { RouteConfig } from '../components/routes/types'
+import type { StaticHostConfig } from '../components/static-host/hooks/types'
 
 const routeApi = createApi('/gateway/hub0021')
 
@@ -30,6 +31,7 @@ export async function queryRouteConfigs(params: {
   routeName?: string
   routePath?: string
   matchType?: number
+  backendType?: string
   activeFlag?: string
   pageIndex?: number
   pageSize?: number
@@ -348,4 +350,22 @@ export async function deleteFilterConfig(
   return routeApi.post('/deleteFilterConfig', {
     filterConfigId,
   })
+}
+
+/**
+ * 按路由获取本机目录托管配置（无行时返回空对象）
+ */
+export async function getStaticHostConfig(
+  routeConfigId: string,
+): Promise<JsonDataObj> {
+  return routeApi.post('/getStaticHostConfig', { routeConfigId })
+}
+
+/**
+ * 保存路由本机目录托管配置（无行则新增）
+ */
+export async function saveStaticHostConfig(
+  data: Partial<StaticHostConfig> & { routeConfigId: string },
+): Promise<JsonDataObj> {
+  return routeApi.post('/saveStaticHostConfig', data)
 }

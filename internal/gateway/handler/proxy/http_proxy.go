@@ -38,6 +38,11 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 		return true
 	}
 
+	// 静态托管已写出响应时不再要求服务 ID，避免误报 400。
+	if handled, ok := ctx.GetBool(constants.ContextKeyStaticHandled); ok && handled {
+		return true
+	}
+
 	// 检查是否为WebSocket升级请求（类似nginx处理方式）。
 	// enableWebsocket=N 仍允许升级，与历史行为保持兼容；该字段仅作路由标记，不作为准入开关。
 	if h.wsUpgradeHandler != nil && h.wsUpgradeHandler.IsWebSocketUpgrade(ctx.Request) {

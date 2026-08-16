@@ -32,6 +32,13 @@ type RouteConfig struct {
 
 	// 服务关联字段，直接关联服务定义表
 	ServiceDefinitionId string `json:"serviceDefinitionId" form:"serviceDefinitionId" query:"serviceDefinitionId" db:"serviceDefinitionId"` // 关联的服务定义ID
+	// BackendType 命中后的响应源：proxy=服务代理，static=本机静态。
+	BackendType string `json:"backendType" form:"backendType" query:"backendType" db:"backendType"`
+
+	// StaticHostEnabled 为 Y 时该路由已配置生效的本机目录托管，仅详情/列表回显，不落路由表。
+	StaticHostEnabled string `json:"staticHostEnabled,omitempty" form:"-" query:"-" db:"-"`
+	// StaticRootDirectory 是已生效静态托管的根目录，仅回显。
+	StaticRootDirectory string `json:"staticRootDirectory,omitempty" form:"-" query:"-" db:"-"`
 
 	// 日志配置关联字段
 	LogConfigId string `json:"logConfigId" form:"logConfigId" query:"logConfigId" db:"logConfigId"` // 关联的日志配置ID(路由级日志配置)
@@ -271,6 +278,7 @@ type RouteConfigWithService struct {
 	RetryCount          int    `json:"retryCount" db:"retryCount"`
 	RetryIntervalMs     int    `json:"retryIntervalMs" db:"retryIntervalMs"`
 	ServiceDefinitionId string `json:"serviceDefinitionId" db:"serviceDefinitionId"`
+	BackendType         string `json:"backendType" db:"backendType"`
 	LogConfigId         string `json:"logConfigId" db:"logConfigId"`
 	RouteMetadata       string `json:"routeMetadata" db:"routeMetadata"`
 
@@ -279,6 +287,11 @@ type RouteConfigWithService struct {
 	ServiceDesc         *string `json:"serviceDesc" db:"serviceDesc"`
 	ServiceType         *int    `json:"serviceType" db:"serviceType"`
 	LoadBalanceStrategy *string `json:"loadBalanceStrategy" db:"loadBalanceStrategy"`
+
+	// StaticHostEnabled 为 Y 表示该路由有活动的本机目录托管配置。
+	StaticHostEnabled string `json:"staticHostEnabled" db:"staticHostEnabled"`
+	// StaticRootDirectory 是活动静态托管的根目录，未配置时为空。
+	StaticRootDirectory *string `json:"staticRootDirectory" db:"staticRootDirectory"`
 
 	// 预留字段
 	Reserved1 string     `json:"reserved1" db:"reserved1"`

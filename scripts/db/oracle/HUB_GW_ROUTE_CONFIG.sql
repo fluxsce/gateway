@@ -54,3 +54,6 @@ COMMENT ON TABLE HUB_GW_ROUTE_CONFIG IS '路由定义表 - 存储API路由配置
 
 -- 兼容已存在的数据库，修改字段长度
 ALTER TABLE HUB_GW_ROUTE_CONFIG MODIFY serviceDefinitionId VARCHAR2(1000);
+-- 历史库升级：建表已执行过的不会再跑 CREATE，只补列。Oracle 空串即 NULL，空值视为服务代理。
+ALTER TABLE HUB_GW_ROUTE_CONFIG ADD backendType VARCHAR2(16) DEFAULT 'proxy';
+UPDATE HUB_GW_ROUTE_CONFIG SET backendType = 'proxy' WHERE backendType IS NULL;

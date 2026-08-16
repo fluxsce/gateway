@@ -45,6 +45,20 @@ func TestAppendStreamingDiagnosticsKeepsExistingErrorMessage(t *testing.T) {
 	}
 }
 
+func TestAppendStaticHostDiagnosticsWritesNoteText(t *testing.T) {
+	ctx := newDiagnosticsContext()
+	ctx.Set(constants.ContextKeyStaticResult, "spa")
+
+	accessLog := types.NewAccessLog("t1", "gw1", "127.0.0.1")
+	appendStaticHostDiagnostics(accessLog, ctx)
+	if accessLog.NoteText != "static_result=spa" {
+		t.Fatalf("noteText = %q", accessLog.NoteText)
+	}
+	if accessLog.ErrorMessage != "" {
+		t.Fatalf("静态结果不应写入错误字段: %q", accessLog.ErrorMessage)
+	}
+}
+
 func TestAppendStreamingDiagnosticsIgnoresEmptyContext(t *testing.T) {
 	accessLog := types.NewAccessLog("t1", "gw1", "127.0.0.1")
 	appendStreamingDiagnostics(accessLog, newDiagnosticsContext())

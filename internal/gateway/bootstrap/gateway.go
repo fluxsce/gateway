@@ -18,6 +18,7 @@ import (
 	"gateway/internal/gateway/handler/proxy"
 	"gateway/internal/gateway/handler/router"
 	"gateway/internal/gateway/handler/security"
+	"gateway/internal/gateway/handler/statichost"
 	"gateway/internal/gateway/helper"
 	"gateway/internal/gateway/helper/reqhand"
 	"gateway/internal/gateway/loader/dbloader"
@@ -42,12 +43,13 @@ type Gateway struct {
 	engine *core.Engine
 
 	// 处理器实例 - 各功能模块的处理器（使用接口类型以支持多种实现，支持nil表示未启用）
-	router   router.RouterHandler     // 路由处理器接口：必需，负责路由匹配和路由级别的处理器链执行
-	proxy    proxy.ProxyHandler       // 代理处理器接口：可选，负责请求转发、负载均衡、服务发现等
-	auth     auth.Authenticator       // 认证处理器接口：可选，负责身份验证、权限检查、用户上下文设置
-	cors     cors.CORSHandler         // CORS处理器接口：可选，负责跨域资源共享的请求处理
-	security security.SecurityHandler // 安全处理器接口：可选，负责IP过滤、DDoS防护、恶意请求检测
-	limiter  limiter.LimiterHandler   // 限流处理器接口：可选，负责请求频率控制和流量管理
+	router     router.RouterHandler         // 路由处理器接口：必需，负责路由匹配和路由级别的处理器链执行
+	proxy      proxy.ProxyHandler           // 代理处理器接口：可选，负责请求转发、负载均衡、服务发现等
+	auth       auth.Authenticator           // 认证处理器接口：可选，负责身份验证、权限检查、用户上下文设置
+	cors       cors.CORSHandler             // CORS处理器接口：可选，负责跨域资源共享的请求处理
+	security   security.SecurityHandler     // 安全处理器接口：可选，负责IP过滤、DDoS防护、恶意请求检测
+	limiter    limiter.LimiterHandler       // 限流处理器接口：可选，负责请求频率控制和流量管理
+	staticHost statichost.StaticHostHandler // 静态托管处理器接口：可选，命中本机目录路由时出文件并跳过代理
 	// 注意：熔断器不在全局级别处理，而是在路由级别或服务级别处理，由路由处理器或代理处理器负责
 
 	// 运行状态
@@ -94,6 +96,7 @@ func (g *Gateway) setCompatibilityHandlers(handlers gatewayHandlers) {
 	g.cors = handlers.cors
 	g.security = handlers.security
 	g.limiter = handlers.limiter
+	g.staticHost = handlers.staticHost
 }
 
 // installCompatibilityGeneration 更新原有配置、Server、Engine及处理器字段。
@@ -108,12 +111,13 @@ func (g *Gateway) installCompatibilityGeneration(generation *gatewayGeneration) 
 // setupHandlers 设置处理器链 - 网关处理的核心思想
 func (g *Gateway) setupHandlers(engine *core.Engine) {
 	g.setupHandlersFor(engine, g.gatewayConfig, gatewayHandlers{
-		router:   g.router,
-		proxy:    g.proxy,
-		auth:     g.auth,
-		cors:     g.cors,
-		security: g.security,
-		limiter:  g.limiter,
+		router:     g.router,
+		proxy:      g.proxy,
+		auth:       g.auth,
+		cors:       g.cors,
+		security:   g.security,
+		limiter:    g.limiter,
+		staticHost: g.staticHost,
 	})
 }
 
@@ -167,7 +171,11 @@ func (g *Gateway) setupHandlersFor(engine *core.Engine, cfg *config.GatewayConfi
 	//      * 路由级限流控制：特定API的独立限流阈值
 	//      * 路由级熔断处理：特定路由或服务的熔断策略
 	//      * 前置过滤器：请求预处理和转换
-	// 8. 代理转发：将请求转发到目标服务
+	// 8. 本机目录托管：路由配置了静态源时从本地目录出文件并终止链路
+	//    - 按路由前缀剥离或 rewrite 映射到根目录内的文件
+	//    - 目录请求尝试索引文件；无扩展名缺失路径可 SPA 回退
+	//    - 拒绝跳出根目录、隐藏文件以及非 GET/HEAD
+	// 9. 代理转发：将请求转发到目标服务
 	//    - 服务发现：从注册中心查找可用的服务实例
 	//    - 健康检查：过滤掉不健康的服务实例
 	//    - 服务级熔断处理：特定服务的独立熔断策略
@@ -255,16 +263,29 @@ func (g *Gateway) setupHandlersFor(engine *core.Engine, cfg *config.GatewayConfi
 		return true
 	})
 
-	// === 第三层：代理转发 ===
+	// === 第三层：本机目录托管（有配置则出文件并终止，否则放行到代理） ===
+	if handlers.staticHost != nil {
+		engine.UseFunc(func(ctx *core.Context) bool {
+			if !handlers.staticHost.Handle(ctx) {
+				logger.Debug("静态托管已处理请求", "path", ctx.Request.URL.Path)
+				return false
+			}
+			return true
+		})
+	}
+
+	// === 第四层：代理转发 ===
 
 	// 添加代理处理器
-	engine.UseFunc(func(ctx *core.Context) bool {
-		if !handlers.proxy.Handle(ctx) {
-			logger.Debug("代理转发失败", "path", ctx.Request.URL.Path)
-			return false
-		}
-		return true
-	})
+	if handlers.proxy != nil {
+		engine.UseFunc(func(ctx *core.Context) bool {
+			if !handlers.proxy.Handle(ctx) {
+				logger.Debug("代理转发失败", "path", ctx.Request.URL.Path)
+				return false
+			}
+			return true
+		})
+	}
 }
 
 // ServeHTTP 实现http.Handler接口

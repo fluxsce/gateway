@@ -252,6 +252,11 @@ func WriteLog(instanceID string, gatewayCtx *core.Context) error {
 		return fmt.Errorf("instanceID cannot be empty")
 	}
 
+	// 静态成功命中不落访问日志，避免 js/css/图片把主表打满。
+	if shouldSkipStaticAccessLog(gatewayCtx) {
+		return nil
+	}
+
 	writer, err := GetLogWriter(instanceID)
 	if err != nil {
 		return err
@@ -677,6 +682,7 @@ func buildAccessLogWithConfig(instanceID string, gatewayCtx *core.Context, confi
 
 	// SSE/WebSocket 诊断写入备注，不占用错误字段，避免正常结束被标成异常。
 	appendStreamingDiagnostics(accessLog, gatewayCtx)
+	appendStaticHostDiagnostics(accessLog, gatewayCtx)
 
 	return accessLog
 }
@@ -713,6 +719,18 @@ func appendStreamingDiagnostics(accessLog *types.AccessLog, gatewayCtx *core.Con
 		return
 	}
 	appendAccessLogNote(accessLog, strings.Join(parts, "; "))
+}
+
+// appendStaticHostDiagnostics 将静态托管命中结果写入 NoteText，便于区分 file/index/spa/404。
+func appendStaticHostDiagnostics(accessLog *types.AccessLog, gatewayCtx *core.Context) {
+	if accessLog == nil || gatewayCtx == nil {
+		return
+	}
+	result, ok := gatewayCtx.GetString(constants.ContextKeyStaticResult)
+	if !ok || result == "" {
+		return
+	}
+	appendAccessLogNote(accessLog, "static_result="+result)
 }
 
 // appendAccessLogNote 将诊断备注追加到 NoteText，并截断到库字段长度。

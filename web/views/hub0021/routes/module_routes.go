@@ -63,6 +63,9 @@ func Init(router *gin.Engine, db database.Database) {
 	// 服务定义相关路由
 	initServiceDefinitionRoutes(group, db)
 
+	// 本机目录托管配置
+	initStaticHostConfigRoutes(group, db)
+
 	// 可以添加更多子路由组
 	// initRateLimitConfigRoutes(group, db)  // 限流配置
 	// initCorsConfigRoutes(group, db)       // CORS配置
@@ -299,6 +302,15 @@ func initServiceDefinitionRoutes(router *gin.RouterGroup, db database.Database) 
 
 		// 服务定义详情查询
 		serviceGroup.POST("/getServiceDefinitionById", serviceDefinitionController.GetServiceDefinitionById)
+	}
+}
+
+// initStaticHostConfigRoutes 注册路由级本机目录托管配置接口。
+func initStaticHostConfigRoutes(router *gin.RouterGroup, db database.Database) {
+	controller := controllers.NewStaticHostConfigController(db)
+	{
+		router.POST("/getStaticHostConfig", controller.GetStaticHostConfig)
+		router.POST("/saveStaticHostConfig", controller.SaveStaticHostConfig)
 	}
 }
 

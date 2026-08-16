@@ -28,6 +28,14 @@ func HandleGatewayLogWrite(config *types.LogConfig, accessLog *types.AccessLog) 
 		tenantId = "default"
 	}
 
+	// 静态托管：4xx 和超时不告警；仅 5xx 走状态码告警。
+	if isStaticAccessLog(accessLog) {
+		if shouldAlertStaticAccessLog(accessLog) {
+			checkStatusCodeAlert(tenantId, alertCfg, accessLog)
+		}
+		return
+	}
+
 	// 状态码告警：检查当前状态码是否在告警列表中
 	checkStatusCodeAlert(tenantId, alertCfg, accessLog)
 

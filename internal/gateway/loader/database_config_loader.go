@@ -3,6 +3,7 @@ package loader
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"gateway/internal/gateway/config"
 	"gateway/internal/gateway/handler/auth"
@@ -27,6 +28,7 @@ type DatabaseConfigLoader struct {
 	authCORSLoader       *dbloader.AuthCORSConfigLoader
 	limiterServiceLoader *dbloader.LimiterServiceLoader
 	logConfigLoader      *dbloader.LogConfigLoader
+	staticHostLoader     *dbloader.StaticHostConfigLoader
 }
 
 // NewDatabaseConfigLoader 创建数据库配置加载器
@@ -40,6 +42,7 @@ func NewDatabaseConfigLoader(db database.Database, tenantId string) *DatabaseCon
 		authCORSLoader:       dbloader.NewAuthCORSConfigLoader(db, tenantId),
 		limiterServiceLoader: dbloader.NewLimiterServiceLoader(db, tenantId),
 		logConfigLoader:      dbloader.NewLogConfigLoader(db, tenantId),
+		staticHostLoader:     dbloader.NewStaticHostConfigLoader(db, tenantId),
 	}
 }
 
@@ -217,6 +220,16 @@ func (loader *DatabaseConfigLoader) LoadGatewayConfig(instanceId string) (*confi
 				"error", err)
 		} else if routeFilters != nil {
 			route.FilterConfig = routeFilters
+		}
+
+		// 加载路由级别的本机目录托管配置
+		routeStaticHostConfig, err := loader.staticHostLoader.LoadRouteStaticHostConfig(ctx, route.ID)
+		if err != nil {
+			logger.Warn("加载路由静态托管配置失败",
+				"routeId", route.ID,
+				"error", err)
+		} else if routeStaticHostConfig != nil && strings.TrimSpace(route.BackendType) == "static" {
+			route.StaticHostConfig = routeStaticHostConfig
 		}
 
 		// 注意：路由级别的日志配置需要在路由配置结构中添加相应字段后才能启用

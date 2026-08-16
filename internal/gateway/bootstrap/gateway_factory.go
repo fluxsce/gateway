@@ -18,6 +18,7 @@ import (
 	"gateway/internal/gateway/handler/router"
 	"gateway/internal/gateway/handler/security"
 	"gateway/internal/gateway/handler/service"
+	"gateway/internal/gateway/handler/statichost"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/cert"
 )
@@ -271,6 +272,9 @@ func (f *GatewayFactory) buildHandlers(cfg *config.GatewayConfig) (gatewayHandle
 		built.limiter = limiterHandler
 	}
 	// 如果未启用限流，limiterHandler 保持为 nil
+
+	// 7. 静态托管处理器 - 按路由配置决定是否出文件，始终挂到 Router 之后
+	built.staticHost = statichost.NewHandler()
 
 	success = true
 	return built, nil

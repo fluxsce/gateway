@@ -112,6 +112,13 @@
       :to="'#hub0021-route-config-list'"
     />
 
+    <StaticHostConfigFormModal
+      v-model:visible="staticHostConfigDialogVisible"
+      :route-config-id="currentRouteConfigId"
+      :to="'#hub0021-route-config-list'"
+      @saved="service.loadRouteList()"
+    />
+
     <FilterConfigListModal
       v-model:visible="filterConfigDialogVisible"
       module-id="hub0021:filters"
@@ -136,6 +143,7 @@ import RateLimitConfigFormModal from '@/views/common/common002/limit-config/Rate
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { AssertConfigListModal } from '../assert-config'
 import { FilterConfigListModal } from '../filter-config'
+import { StaticHostConfigFormModal } from '../static-host'
 import { useRouteConfigPage } from './hooks/page'
 
 defineOptions({
@@ -178,6 +186,7 @@ const {
   corsConfigDialogVisible,
   authConfigDialogVisible,
   rateLimitConfigDialogVisible,
+  staticHostConfigDialogVisible,
   filterConfigDialogVisible,
 } = useRouteConfigPage(props.gatewayInstanceId, searchFormRef, gridRef)
 

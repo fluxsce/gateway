@@ -86,6 +86,7 @@ type RouteConfigRecord struct {
 	RetryCount          int     `db:"retryCount"`
 	RetryIntervalMs     int     `db:"retryIntervalMs"`
 	ServiceDefinitionId *string `db:"serviceDefinitionId"`
+	BackendType         string  `db:"backendType"`
 	LogConfigId         *string `db:"logConfigId"`
 	RouteMetadata       *string `db:"routeMetadata"`
 	ActiveFlag          string  `db:"activeFlag"`
@@ -346,4 +347,25 @@ type LogConfigRecord struct {
 	ConfigPriority             int    `db:"configPriority"`
 	ActiveFlag                 string `db:"activeFlag"`
 	ExtProperty                string `db:"extProperty"`
+}
+
+// StaticHostConfigRecord 本机目录托管配置数据库记录。
+type StaticHostConfigRecord struct {
+	TenantId           string  `db:"tenantId"`
+	StaticHostConfigId string  `db:"staticHostConfigId"`
+	RouteConfigId      string  `db:"routeConfigId"`
+	ConfigName         string  `db:"configName"`
+	RootDirectory      string  `db:"rootDirectory"`
+	StripRoutePrefix   string  `db:"stripRoutePrefix"`
+	IndexFiles         *string `db:"indexFiles"`
+	RewriteRules       *string `db:"rewriteRules"`
+	SpaFallback        string  `db:"spaFallback"`
+	CacheControlMaxAge int     `db:"cacheControlMaxAge"`
+	AllowedExtensions  *string `db:"allowedExtensions"`
+	MaxFileSizeBytes   int64   `db:"maxFileSizeBytes"`
+	FollowSymlinks     string  `db:"followSymlinks"`
+	EnablePrecompress  string  `db:"enablePrecompress"`
+	ErrorPage404       *string `db:"errorPage404"`
+	ErrorPage403       *string `db:"errorPage403"`
+	ConfigPriority     int     `db:"configPriority"`
 }

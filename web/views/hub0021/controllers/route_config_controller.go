@@ -1,6 +1,9 @@
 package controllers
 
 import (
+	"fmt"
+	"strings"
+
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/web/utils/constants"
@@ -14,17 +17,21 @@ import (
 
 // RouteConfigController 路由配置控制器
 type RouteConfigController struct {
-	db                database.Database
-	routeConfigDAO    *dao.RouteConfigDAO
-	routeAssertionDAO *dao.RouteAssertionDAO
+	db                   database.Database
+	routeConfigDAO       *dao.RouteConfigDAO
+	routeAssertionDAO    *dao.RouteAssertionDAO
+	serviceDefinitionDAO *dao.ServiceDefinitionDAO
+	staticHostDAO        *dao.StaticHostConfigDAO
 }
 
 // NewRouteConfigController 创建路由配置控制器
 func NewRouteConfigController(db database.Database) *RouteConfigController {
 	return &RouteConfigController{
-		db:                db,
-		routeConfigDAO:    dao.NewRouteConfigDAO(db),
-		routeAssertionDAO: dao.NewRouteAssertionDAO(db),
+		db:                   db,
+		routeConfigDAO:       dao.NewRouteConfigDAO(db),
+		routeAssertionDAO:    dao.NewRouteAssertionDAO(db),
+		serviceDefinitionDAO: dao.NewServiceDefinitionDAO(db),
+		staticHostDAO:        dao.NewStaticHostConfigDAO(db),
 	}
 }
 
@@ -55,6 +62,7 @@ func (c *RouteConfigController) QueryRouteConfigs(ctx *gin.Context) {
 		RouteName:         request.GetParam(ctx, "routeName"),
 		RoutePath:         request.GetParam(ctx, "routePath"),
 		MatchType:         request.GetParamInt(ctx, "matchType", 0),
+		BackendType:       request.GetParam(ctx, "backendType"),
 		ActiveFlag:        request.GetParam(ctx, "activeFlag"),
 		Page:              page,
 		PageSize:          pageSize,
@@ -100,6 +108,14 @@ func (c *RouteConfigController) AddRouteConfig(ctx *gin.Context) {
 	// 设置租户ID，清空路由配置ID让DAO自动生成
 	req.TenantId = tenantId
 	req.RouteConfigId = ""
+	if err := c.applyRouteBackend(&req); err != nil {
+		response.ErrorJSON(ctx, err.Error(), constants.ED00006)
+		return
+	}
+	if err := c.validateManagedServices(ctx, tenantId, req.ServiceDefinitionId); err != nil {
+		response.ErrorJSON(ctx, err.Error(), constants.ED00006)
+		return
+	}
 
 	// 调用DAO添加路由配置
 	routeConfigId, err := c.routeConfigDAO.AddRouteConfig(ctx, &req, operatorId)
@@ -119,6 +135,7 @@ func (c *RouteConfigController) AddRouteConfig(ctx *gin.Context) {
 		return
 	}
 
+	c.attachStaticHost(ctx, tenantId, newRouteConfig)
 	// 返回完整的路由配置信息
 	response.SuccessJSON(ctx, newRouteConfig, constants.SD00003)
 }
@@ -145,6 +162,14 @@ func (c *RouteConfigController) EditRouteConfig(ctx *gin.Context) {
 
 	// 设置租户ID
 	updateData.TenantId = tenantId
+	if err := c.applyRouteBackend(&updateData); err != nil {
+		response.ErrorJSON(ctx, err.Error(), constants.ED00006)
+		return
+	}
+	if err := c.validateManagedServices(ctx, tenantId, updateData.ServiceDefinitionId); err != nil {
+		response.ErrorJSON(ctx, err.Error(), constants.ED00006)
+		return
+	}
 
 	// 调用DAO更新路由配置
 	err := c.routeConfigDAO.UpdateRouteConfig(ctx, &updateData, operatorId)
@@ -152,6 +177,14 @@ func (c *RouteConfigController) EditRouteConfig(ctx *gin.Context) {
 		logger.ErrorWithTrace(ctx, "更新路由配置失败", err)
 		response.ErrorJSON(ctx, "更新路由配置失败: "+err.Error(), constants.ED00009)
 		return
+	}
+
+	if updateData.BackendType == "proxy" {
+		if deactivateErr := c.staticHostDAO.DeactivateByRouteConfigId(ctx, tenantId, updateData.RouteConfigId, operatorId); deactivateErr != nil {
+			logger.ErrorWithTrace(ctx, "切换为服务代理时停用静态托管失败", deactivateErr)
+			response.ErrorJSON(ctx, "更新路由配置失败: "+deactivateErr.Error(), constants.ED00009)
+			return
+		}
 	}
 
 	// 查询更新后的路由配置信息
@@ -164,6 +197,7 @@ func (c *RouteConfigController) EditRouteConfig(ctx *gin.Context) {
 		return
 	}
 
+	c.attachStaticHost(ctx, tenantId, updatedRouteConfig)
 	// 返回更新后的路由配置信息
 	response.SuccessJSON(ctx, updatedRouteConfig, constants.SD00004)
 }
@@ -220,8 +254,75 @@ func (c *RouteConfigController) GetRouteConfig(ctx *gin.Context) {
 		return
 	}
 
+	c.attachStaticHost(ctx, tenantId, routeConfig)
 	// 直接返回路由配置信息
 	response.SuccessJSON(ctx, routeConfig, constants.SD00002)
+}
+
+// applyRouteBackend 规范后端类型：服务代理必须带服务，本机静态清空服务关联。
+func (c *RouteConfigController) applyRouteBackend(routeConfig *models.RouteConfig) error {
+	if routeConfig == nil {
+		return nil
+	}
+	if strings.TrimSpace(routeConfig.BackendType) == "static" {
+		routeConfig.BackendType = "static"
+		routeConfig.ServiceDefinitionId = ""
+		return nil
+	}
+	routeConfig.BackendType = "proxy"
+	if len(splitServiceDefinitionIDs(routeConfig.ServiceDefinitionId)) == 0 {
+		return fmt.Errorf("服务代理必须选择已启用的服务定义")
+	}
+	return nil
+}
+
+// validateManagedServices 校验关联服务均存在且启用。空值表示本机静态路由，不校验。
+func (c *RouteConfigController) validateManagedServices(ctx *gin.Context, tenantId, serviceDefinitionId string) error {
+	ids := splitServiceDefinitionIDs(serviceDefinitionId)
+	if len(ids) == 0 {
+		return nil
+	}
+	for _, id := range ids {
+		service, err := c.serviceDefinitionDAO.GetServiceDefinitionById(ctx, id, tenantId, "Y")
+		if err != nil {
+			return fmt.Errorf("校验服务定义失败: %w", err)
+		}
+		if service == nil {
+			return fmt.Errorf("服务定义不存在或已停用: %s", id)
+		}
+	}
+	return nil
+}
+
+// attachStaticHost 把活动的本机目录托管标记写回路由详情，供管理端展示后端类型。
+func (c *RouteConfigController) attachStaticHost(ctx *gin.Context, tenantId string, routeConfig *models.RouteConfig) {
+	if routeConfig == nil {
+		return
+	}
+	config, err := c.staticHostDAO.GetByRouteConfigId(ctx, tenantId, routeConfig.RouteConfigId)
+	if err != nil || config == nil {
+		return
+	}
+	if config.ActiveFlag == "Y" && strings.TrimSpace(config.RootDirectory) != "" {
+		routeConfig.StaticHostEnabled = "Y"
+		routeConfig.StaticRootDirectory = config.RootDirectory
+	}
+}
+
+// splitServiceDefinitionIDs 解析单服务或多服务（逗号分隔）ID 列表。
+func splitServiceDefinitionIDs(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	ids := make([]string, 0, len(parts))
+	for _, part := range parts {
+		id := strings.TrimSpace(part)
+		if id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
 // GetRouteConfigsByInstance 根据网关实例获取路由配置列表

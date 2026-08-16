@@ -12,7 +12,7 @@ import type { Ref } from 'vue'
 import { onMounted, ref } from 'vue'
 import { getRouteConfig } from '../../../api'
 import type { RouteConfig } from '../types'
-import { MatchType } from '../types'
+import { BackendType, hasManagedService, MatchType } from '../types'
 import { useRouteConfigService } from './service'
 
 /**
@@ -47,6 +47,7 @@ export function useRouteConfigPage(
   const corsConfigDialogVisible = ref(false)
   const authConfigDialogVisible = ref(false)
   const rateLimitConfigDialogVisible = ref(false)
+  const staticHostConfigDialogVisible = ref(false)
   const filterConfigDialogVisible = ref(false)
 
   // ============= 统一校验 =============
@@ -195,6 +196,11 @@ export function useRouteConfigPage(
     const overrideFlag = getByNamePath(formData, 'routeMetadata.overrideProxyTimeout')
     setByNamePath(formData, 'routeMetadata.overrideProxyTimeout', overrideFlag === 'Y' ? 'Y' : 'N')
 
+    formData.backendType =
+      route.backendType === BackendType.STATIC || route.staticHostEnabled === 'Y'
+        ? BackendType.STATIC
+        : BackendType.PROXY
+
     return formData
   }
 
@@ -233,6 +239,12 @@ export function useRouteConfigPage(
       }
     }
 
+    const backendType = formData.backendType === BackendType.STATIC ? BackendType.STATIC : BackendType.PROXY
+    if (backendType === BackendType.PROXY && !hasManagedService(formData.serviceDefinitionId)) {
+      message.warning('服务代理必须选择当前实例下已启用的服务定义')
+      return false
+    }
+
     try {
       // 准备提交数据
       const processedData: Partial<RouteConfig> = {
@@ -260,21 +272,39 @@ export function useRouteConfigPage(
 
       // 将 routeMetadata 转换为 JSON 字符串（后端存储为 JSON 字符串）
       finalData.routeMetadata = JSON.stringify(routeMetadataObj) as any
+      finalData.backendType = backendType
+      if (backendType === BackendType.STATIC) {
+        finalData.serviceDefinitionId = ''
+      }
+      delete (finalData as Record<string, unknown>)._staticBackendHint
+      delete (finalData as Record<string, unknown>).staticHostEnabled
+      delete (finalData as Record<string, unknown>).staticRootDirectory
 
+      const openStaticAfterSave =
+        backendType === BackendType.STATIC &&
+        (formDialogMode.value === 'create' || currentEditRoute.value?.staticHostEnabled !== 'Y')
+
+      let savedRouteId = ''
       let success = false
       if (formDialogMode.value === 'create') {
-        success = await serviceResult.addRoute(finalData as any)
+        const created = await serviceResult.addRoute(finalData as any)
+        success = !!created
+        savedRouteId = created?.routeConfigId || ''
       } else if (formDialogMode.value === 'edit' && currentEditRoute.value) {
         success = await serviceResult.editRoute(
           currentEditRoute.value.routeConfigId,
           finalData as any
         )
+        savedRouteId = currentEditRoute.value.routeConfigId
       }
 
       if (success) {
         closeFormDialog()
-        // 刷新列表
         serviceResult.loadRouteList()
+        if (openStaticAfterSave && savedRouteId) {
+          currentRouteConfigId.value = savedRouteId
+          staticHostConfigDialogVisible.value = true
+        }
       }
 
       return success
@@ -416,6 +446,10 @@ export function useRouteConfigPage(
         currentRouteConfigId.value = route.routeConfigId
         rateLimitConfigDialogVisible.value = true
         break
+      case 'staticHostConfig':
+        currentRouteConfigId.value = route.routeConfigId
+        staticHostConfigDialogVisible.value = true
+        break
       case 'delete':
         await handleDelete(route)
         break
@@ -476,6 +510,7 @@ export function useRouteConfigPage(
     corsConfigDialogVisible,
     authConfigDialogVisible,
     rateLimitConfigDialogVisible,
+    staticHostConfigDialogVisible,
     filterConfigDialogVisible,
 
     // 表单配置（包含注入的 context）

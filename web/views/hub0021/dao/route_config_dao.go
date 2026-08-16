@@ -21,6 +21,7 @@ type RouteConfigQueryParams struct {
 	RouteName         string // 路由名称(支持模糊匹配)
 	RoutePath         string // 路由路径(支持模糊匹配)
 	MatchType         int    // 匹配类型(0:精确匹配,1:前缀匹配,2:正则匹配)
+	BackendType       string // 后端类型(proxy服务代理,static本机静态)
 	ActiveFlag        string // 激活状态(Y:激活,N:未激活)
 	Page              int    // 页码
 	PageSize          int    // 每页数量
@@ -88,6 +89,7 @@ func (dao *RouteConfigDAO) AddRouteConfig(ctx context.Context, routeConfig *mode
 	if routeConfig.EnableWebsocket == "" {
 		routeConfig.EnableWebsocket = "N"
 	}
+	routeConfig.BackendType = normalizeRouteBackendType(routeConfig.BackendType)
 	// timeoutMs=0 表示不覆盖代理总超时，优先使用代理 Timeout；负值回退为0
 	if routeConfig.TimeoutMs < 0 {
 		routeConfig.TimeoutMs = 0
@@ -182,6 +184,7 @@ func (dao *RouteConfigDAO) UpdateRouteConfig(ctx context.Context, routeConfig *m
 	if routeConfig.EnableWebsocket == "" {
 		routeConfig.EnableWebsocket = "N"
 	}
+	routeConfig.BackendType = normalizeRouteBackendType(routeConfig.BackendType)
 	// 与新增一致：timeoutMs=0 表示沿用代理总超时；负值回退为0
 	if routeConfig.TimeoutMs < 0 {
 		routeConfig.TimeoutMs = 0
@@ -199,7 +202,7 @@ func (dao *RouteConfigDAO) UpdateRouteConfig(ctx context.Context, routeConfig *m
 			gatewayInstanceId = ?, routeName = ?, routePath = ?, allowedMethods = ?, allowedHosts = ?,
 			matchType = ?, routePriority = ?, stripPathPrefix = ?, rewritePath = ?,
 			enableWebsocket = ?, timeoutMs = ?, retryCount = ?, retryIntervalMs = ?,
-			serviceDefinitionId = ?, logConfigId = ?, routeMetadata = ?, reserved1 = ?, reserved2 = ?,
+			serviceDefinitionId = ?, backendType = ?, logConfigId = ?, routeMetadata = ?, reserved1 = ?, reserved2 = ?,
 			reserved3 = ?, reserved4 = ?, reserved5 = ?, extProperty = ?, noteText = ?,
 			editTime = ?, editWho = ?, currentVersion = ?, activeFlag = ?
 		WHERE routeConfigId = ? AND tenantId = ? AND currentVersion = ?
@@ -211,7 +214,7 @@ func (dao *RouteConfigDAO) UpdateRouteConfig(ctx context.Context, routeConfig *m
 		routeConfig.AllowedMethods, routeConfig.AllowedHosts,
 		routeConfig.MatchType, routeConfig.RoutePriority, routeConfig.StripPathPrefix, routeConfig.RewritePath,
 		routeConfig.EnableWebsocket, routeConfig.TimeoutMs, routeConfig.RetryCount, routeConfig.RetryIntervalMs,
-		routeConfig.ServiceDefinitionId, routeConfig.LogConfigId, routeConfig.RouteMetadata,
+		routeConfig.ServiceDefinitionId, routeConfig.BackendType, routeConfig.LogConfigId, routeConfig.RouteMetadata,
 		routeConfig.Reserved1, routeConfig.Reserved2, routeConfig.Reserved3, routeConfig.Reserved4, routeConfig.Reserved5,
 		routeConfig.ExtProperty, routeConfig.NoteText,
 		routeConfig.EditTime, routeConfig.EditWho, routeConfig.CurrentVersion, routeConfig.ActiveFlag,
@@ -247,6 +250,12 @@ func (dao *RouteConfigDAO) DeleteRouteConfig(ctx context.Context, routeConfigId,
 	}
 	if existing == nil {
 		return errors.New("路由配置不存在")
+	}
+
+	// 同步删除路由级静态托管，避免留下无主配置。
+	staticHostDAO := NewStaticHostConfigDAO(dao.db)
+	if err := staticHostDAO.DeleteByRouteConfigId(ctx, tenantId, routeConfigId); err != nil {
+		return err
 	}
 
 	// 执行实际删除
@@ -294,8 +303,13 @@ func (dao *RouteConfigDAO) ListRouteConfigs(ctx context.Context, params *RouteCo
 		whereClause += " AND rc.matchType = ?"
 		args = append(args, params.MatchType)
 	}
+	switch strings.TrimSpace(params.BackendType) {
+	case "static", "proxy":
+		whereClause += " AND rc.backendType = ?"
+		args = append(args, strings.TrimSpace(params.BackendType))
+	}
 
-	// 构建基础查询语句（关联服务定义表）
+	// 构建基础查询语句（关联服务定义与静态托管，用于列表展示后端类型）
 	baseQuery := fmt.Sprintf(`
 		SELECT 
 			rc.tenantId,
@@ -314,6 +328,7 @@ func (dao *RouteConfigDAO) ListRouteConfigs(ctx context.Context, params *RouteCo
 			rc.retryCount,
 			rc.retryIntervalMs,
 			rc.serviceDefinitionId,
+			rc.backendType,
 			rc.logConfigId,
 			rc.routeMetadata,
 			rc.reserved1,
@@ -333,9 +348,12 @@ func (dao *RouteConfigDAO) ListRouteConfigs(ctx context.Context, params *RouteCo
 			sd.serviceName,
 			sd.serviceDesc,
 			sd.serviceType,
-			sd.loadBalanceStrategy
+			sd.loadBalanceStrategy,
+			CASE WHEN sh.staticHostConfigId IS NOT NULL THEN 'Y' ELSE 'N' END AS staticHostEnabled,
+			sh.rootDirectory AS staticRootDirectory
 		FROM HUB_GW_ROUTE_CONFIG rc
 		LEFT JOIN HUB_GW_SERVICE_DEFINITION sd ON rc.tenantId = sd.tenantId AND rc.serviceDefinitionId = sd.serviceDefinitionId AND sd.activeFlag = 'Y'
+		LEFT JOIN HUB_GW_STATIC_HOST_CONFIG sh ON rc.tenantId = sh.tenantId AND rc.routeConfigId = sh.routeConfigId AND sh.activeFlag = 'Y'
 		%s 
 		ORDER BY rc.routePriority ASC, rc.addTime DESC
 	`, whereClause)
@@ -446,6 +464,7 @@ func (dao *RouteConfigDAO) GetRouteConfigsByGatewayInstance(ctx context.Context,
 			rc.retryCount,
 			rc.retryIntervalMs,
 			rc.serviceDefinitionId,
+			rc.backendType,
 			rc.logConfigId,
 			rc.routeMetadata,
 			rc.reserved1,
@@ -465,9 +484,12 @@ func (dao *RouteConfigDAO) GetRouteConfigsByGatewayInstance(ctx context.Context,
 			sd.serviceName,
 			sd.serviceDesc,
 			sd.serviceType,
-			sd.loadBalanceStrategy
+			sd.loadBalanceStrategy,
+			CASE WHEN sh.staticHostConfigId IS NOT NULL THEN 'Y' ELSE 'N' END AS staticHostEnabled,
+			sh.rootDirectory AS staticRootDirectory
 		FROM HUB_GW_ROUTE_CONFIG rc
 		LEFT JOIN HUB_GW_SERVICE_DEFINITION sd ON rc.tenantId = sd.tenantId AND rc.serviceDefinitionId = sd.serviceDefinitionId AND sd.activeFlag = 'Y'
+		LEFT JOIN HUB_GW_STATIC_HOST_CONFIG sh ON rc.tenantId = sh.tenantId AND rc.routeConfigId = sh.routeConfigId AND sh.activeFlag = 'Y'
 		WHERE %s
 		ORDER BY rc.routePriority ASC, rc.addTime DESC
 	`, whereClause)
@@ -479,6 +501,14 @@ func (dao *RouteConfigDAO) GetRouteConfigsByGatewayInstance(ctx context.Context,
 	}
 
 	return routeConfigs, nil
+}
+
+// normalizeRouteBackendType 将后端类型规范为 proxy 或 static，空值视为服务代理。
+func normalizeRouteBackendType(raw string) string {
+	if strings.TrimSpace(raw) == "static" {
+		return "static"
+	}
+	return "proxy"
 }
 
 // isDuplicateRouteNameError 检查是否是路由名重复错误

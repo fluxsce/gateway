@@ -119,7 +119,7 @@ func (loader *RouterConfigLoader) LoadRoutes(ctx context.Context, instanceId str
 		SELECT tenantId, routeConfigId, gatewayInstanceId, routeName, routePath,
 		       allowedMethods, allowedHosts, matchType, routePriority, stripPathPrefix,
 		       rewritePath, enableWebsocket, timeoutMs, retryCount, retryIntervalMs,
-		       serviceDefinitionId, logConfigId, routeMetadata, activeFlag
+		       serviceDefinitionId, backendType, logConfigId, routeMetadata, activeFlag
 		FROM HUB_GW_ROUTE_CONFIG 
 		WHERE tenantId = ? AND gatewayInstanceId = ? AND activeFlag = 'Y'
 		ORDER BY routePriority ASC
@@ -240,6 +240,7 @@ func buildRouteConfig(record RouteConfigRecord) router.RouteConfig {
 		Name:                      record.RouteName,
 		Path:                      record.RoutePath,
 		MatchType:                 record.MatchType,
+		BackendType:               strings.TrimSpace(record.BackendType),
 		Priority:                  record.RoutePriority,
 		Enabled:                   record.ActiveFlag == "Y",
 		StripPathPrefix:           record.StripPathPrefix == "Y",

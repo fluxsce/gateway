@@ -15,6 +15,7 @@ import (
 	"gateway/internal/gateway/handler/filter"
 	"gateway/internal/gateway/handler/limiter"
 	"gateway/internal/gateway/handler/security"
+	"gateway/internal/gateway/handler/statichost"
 )
 
 // 路由匹配类型常量
@@ -27,6 +28,12 @@ const (
 
 	// MatchTypeRegex 正则匹配
 	MatchTypeRegex = 2
+
+	// BackendTypeProxy 服务代理，命中后转发到已管理的服务定义。
+	BackendTypeProxy = "proxy"
+
+	// BackendTypeStatic 本机静态，命中后从本机目录出文件。
+	BackendTypeStatic = "static"
 )
 
 // GetMatchTypeName 获取匹配类型名称
@@ -113,6 +120,9 @@ type RouteConfig struct {
 	// 匹配类型 - 路径匹配方式: 0=精确匹配, 1=前缀匹配, 2=正则匹配
 	MatchType int `json:"match_type" yaml:"match_type" mapstructure:"match_type"`
 
+	// BackendType 命中后的响应源: proxy=服务代理, static=本机静态。空值按历史规则：有静态配置或有服务即可。
+	BackendType string `json:"backend_type,omitempty" yaml:"backend_type,omitempty" mapstructure:"backend_type,omitempty"`
+
 	// 允许的HTTP方法，为空表示允许所有方法
 	// 例如: ["GET", "POST"]、["*"]
 	Methods []string `json:"methods,omitempty" yaml:"methods,omitempty" mapstructure:"methods,omitempty"`
@@ -170,6 +180,10 @@ type RouteConfig struct {
 
 	// 安全配置
 	SecurityConfig *security.SecurityConfig `json:"security_config,omitempty" yaml:"security_config,omitempty" mapstructure:"security_config,omitempty"`
+
+	// StaticHostConfig 本机目录托管配置。
+	// 配置生效时该路由不再要求关联服务，由静态处理器在代理之前出文件。
+	StaticHostConfig *statichost.StaticHostConfig `json:"static_host_config,omitempty" yaml:"static_host_config,omitempty" mapstructure:"static_host_config,omitempty"`
 }
 
 // MultiServiceConfig 多服务转发配置
@@ -225,6 +239,9 @@ type Route struct {
 	limiterHandler  limiter.LimiterHandler
 	authHandler     auth.Authenticator
 	securityHandler security.SecurityHandler
+
+	// staticHostSnapshot 加载期编译的静态托管只读快照。
+	staticHostSnapshot *statichost.Snapshot
 }
 
 // NewRoute 创建新的路由实例
@@ -284,6 +301,14 @@ func NewRoute(config RouteConfig) (*Route, error) {
 	// 初始化功能模块处理器
 	if err := route.initHandlers(); err != nil {
 		return nil, fmt.Errorf("init handlers failed: %w", err)
+	}
+
+	if config.StaticHostConfig.IsActive() {
+		snap, err := statichost.Compile(config.StaticHostConfig)
+		if err != nil {
+			return nil, fmt.Errorf("compile static host config failed: %w", err)
+		}
+		route.staticHostSnapshot = snap
 	}
 
 	return route, nil
@@ -349,6 +374,12 @@ func (r *Route) Handle(ctx *core.Context) bool {
 	ctx.SetMatchedPath(r.config.Path)
 	r.applyRuntimePolicies(ctx)
 
+	hasStaticHost := r.staticHostSnapshot.IsActive()
+	if hasStaticHost {
+		// 静态路由把只读快照交给后续静态处理器；若同时配了服务，静态源优先，代理不会执行。
+		ctx.Set(constants.ContextKeyStaticHostConfig, r.staticHostSnapshot)
+	}
+
 	// 处理多服务配置
 	if len(r.config.ServiceIDs) > 0 {
 		// 多服务模式：设置多个服务ID
@@ -358,11 +389,11 @@ func (r *Route) Handle(ctx *core.Context) bool {
 	} else if r.config.ServiceID != "" {
 		// 单服务模式（向后兼容）
 		ctx.SetServiceIDs([]string{r.config.ServiceID})
-	} else {
-		// 如果没有配置服务ID，返回错误
-		ctx.AddError(fmt.Errorf("路由 %s 未配置服务ID", r.config.ID))
+	} else if !hasStaticHost {
+		// 既没有服务也没有静态源，无法产生响应
+		ctx.AddError(fmt.Errorf("路由 %s 未配置服务ID或静态托管", r.config.ID))
 		ctx.Abort(500, map[string]string{
-			"error": "route has no service id configured",
+			"error": "route has no service id or static host configured",
 		})
 		return false
 	}
@@ -639,9 +670,8 @@ func (config *RouteConfig) Validate() error {
 		return fmt.Errorf("route ID cannot be empty")
 	}
 
-	// 验证服务配置：必须配置 ServiceID 或 ServiceIDs 之一
-	if config.ServiceID == "" && len(config.ServiceIDs) == 0 {
-		return fmt.Errorf("service ID or service IDs must be configured")
+	if err := config.validateBackend(); err != nil {
+		return err
 	}
 
 	// 如果同时配置了 ServiceID 和 ServiceIDs，ServiceIDs 优先
@@ -680,6 +710,27 @@ func (config *RouteConfig) Validate() error {
 		}
 	}
 
+	return nil
+}
+
+// validateBackend 按后端类型校验响应源。空 BackendType 兼容历史：服务或静态托管二选一。
+func (config *RouteConfig) validateBackend() error {
+	hasService := config.ServiceID != "" || len(config.ServiceIDs) > 0
+	hasStatic := config.StaticHostConfig.IsActive()
+	switch strings.TrimSpace(config.BackendType) {
+	case BackendTypeStatic:
+		if !hasStatic {
+			return fmt.Errorf("static host config must be configured")
+		}
+	case BackendTypeProxy:
+		if !hasService {
+			return fmt.Errorf("service ID or service IDs must be configured")
+		}
+	default:
+		if !hasService && !hasStatic {
+			return fmt.Errorf("service ID, service IDs, or static host config must be configured")
+		}
+	}
 	return nil
 }
 

@@ -1,0 +1,39 @@
+
+-- 路由级本机目录托管配置表
+CREATE TABLE IF NOT EXISTS HUB_GW_STATIC_HOST_CONFIG (
+    tenantId TEXT NOT NULL,
+    staticHostConfigId TEXT NOT NULL,
+    routeConfigId TEXT NOT NULL,
+    configName TEXT NOT NULL,
+    rootDirectory TEXT NOT NULL,
+    stripRoutePrefix TEXT NOT NULL DEFAULT 'Y',
+    indexFiles TEXT,
+    rewriteRules TEXT,
+    spaFallback TEXT NOT NULL DEFAULT 'N',
+    cacheControlMaxAge INTEGER NOT NULL DEFAULT 3600,
+    allowedExtensions TEXT,
+    maxFileSizeBytes INTEGER NOT NULL DEFAULT 0,
+    followSymlinks TEXT NOT NULL DEFAULT 'N',
+    enablePrecompress TEXT NOT NULL DEFAULT 'Y',
+    errorPage404 TEXT,
+    errorPage403 TEXT,
+    configPriority INTEGER NOT NULL DEFAULT 0,
+    reserved1 TEXT,
+    reserved2 TEXT,
+    reserved3 INTEGER,
+    reserved4 INTEGER,
+    reserved5 DATETIME,
+    extProperty TEXT,
+    addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    addWho TEXT NOT NULL,
+    editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    editWho TEXT NOT NULL,
+    oprSeqFlag TEXT NOT NULL,
+    currentVersion INTEGER NOT NULL DEFAULT 1,
+    activeFlag TEXT NOT NULL DEFAULT 'Y',
+    noteText TEXT,
+    PRIMARY KEY (tenantId, staticHostConfigId)
+);
+CREATE INDEX IF NOT EXISTS IDX_GW_STATIC_ROUTE ON HUB_GW_STATIC_HOST_CONFIG(routeConfigId);
+CREATE INDEX IF NOT EXISTS IDX_GW_STATIC_PRIORITY ON HUB_GW_STATIC_HOST_CONFIG(configPriority);
+CREATE INDEX IF NOT EXISTS IDX_GW_STATIC_ACTIVE ON HUB_GW_STATIC_HOST_CONFIG(activeFlag);

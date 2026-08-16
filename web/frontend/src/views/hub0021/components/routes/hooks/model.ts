@@ -12,7 +12,7 @@ import { RsCheckbox, RsTag, setByNamePath } from '@/ui'
 import { h, ref } from 'vue'
 import { ServiceDefinitionSelector } from '../../services'
 import type { RouteConfig } from '../types'
-import { MatchType } from '../types'
+import { BackendType, MatchType, resolveListBackend } from '../types'
 
 /**
  * 路由配置表格配置（对齐 RsGrid Props 子集）。
@@ -205,8 +205,28 @@ function renderAllowedMethods(row: RouteConfig) {
   )
 }
 
+function renderBackendType(row: RouteConfig) {
+  const backend = resolveListBackend(row)
+  if (backend === BackendType.STATIC) {
+    return h(RsTag, { size: 'sm', variant: 'warning' }, () => '静态资源')
+  }
+  if (backend === BackendType.PROXY) {
+    return h(RsTag, { size: 'sm', variant: 'info' }, () => '服务代理')
+  }
+  return h(RsTag, { size: 'sm', variant: 'danger' }, () => '未配置')
+}
+
+function isProxyBackend(formData: Record<string, any>): boolean {
+  return formData.backendType !== BackendType.STATIC
+}
+
 /** 渲染关联服务标签（单服务 / 多服务） */
 function renderServiceName(row: RouteConfig) {
+  if (resolveListBackend(row) === BackendType.STATIC) {
+    const root = String(row.staticRootDirectory || '').trim()
+    return h(RsTag, { size: 'sm', variant: 'warning' }, () => root || '本机目录')
+  }
+
   if (row.serviceName) {
     return h(RsTag, { size: 'sm', variant: 'success' }, () => row.serviceName)
   }
@@ -305,6 +325,18 @@ export function useRouteConfigModel() {
         ],
       },
       {
+        field: 'backendType',
+        label: '后端',
+        type: 'select',
+        placeholder: '请选择后端',
+        span: 6,
+        clearable: true,
+        options: [
+          { label: '服务代理', value: BackendType.PROXY },
+          { label: '静态资源', value: BackendType.STATIC },
+        ],
+      },
+      {
         field: 'activeFlag',
         label: '状态',
         type: 'select',
@@ -384,6 +416,13 @@ export function useRouteConfigModel() {
           ),
       },
       {
+        key: 'backendType',
+        title: '后端',
+        align: 'center',
+        width: 110,
+        render: (row) => renderBackendType(row),
+      },
+      {
         key: 'routePriority',
         title: '优先级',
         align: 'center',
@@ -399,10 +438,10 @@ export function useRouteConfigModel() {
       },
       {
         key: 'serviceName',
-        title: '关联服务',
+        title: '目标',
         align: 'center',
         ellipsis: true,
-        width: 180,
+        width: 200,
         render: (row) => renderServiceName(row),
       },
       {
@@ -505,6 +544,7 @@ export function useRouteConfigModel() {
             { key: 'filters', label: '路由过滤器', icon: 'settings' },
           ],
         },
+        { key: 'staticHostConfig', label: '静态资源', icon: 'folder' },
         { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
       ],
     },
@@ -590,6 +630,7 @@ export function useRouteConfigModel() {
       {
         key: 'forward',
         label: '转发策略',
+        show: (formData: Record<string, any>) => isProxyBackend(formData),
       },
       {
         key: 'metadata',
@@ -628,6 +669,34 @@ export function useRouteConfigModel() {
         show: false,
       },
       // ============= 基本信息 Tab =============
+      {
+        field: 'backendType',
+        label: '后端',
+        type: 'select' as const,
+        placeholder: '请选择后端',
+        span: 24,
+        tabKey: 'basic',
+        required: true,
+        defaultValue: BackendType.PROXY,
+        tips: '请求命中后从哪里出内容。服务代理：转到已选的后端服务，必须选择服务。静态资源：从本机文件夹提供网页和文件，保存后填写目录。',
+        options: [
+          { label: '服务代理', value: BackendType.PROXY },
+          { label: '静态资源', value: BackendType.STATIC },
+        ],
+        rules: [
+          {
+            required: true,
+            message: '请选择后端',
+            trigger: ['blur', 'change'],
+            validator: (value: unknown) => {
+              if (value !== BackendType.PROXY && value !== BackendType.STATIC) {
+                return '请选择后端'
+              }
+              return true
+            },
+          },
+        ],
+      },
       {
         field: 'routeName',
         label: '路由名称',
@@ -811,21 +880,10 @@ export function useRouteConfigModel() {
         type: 'custom' as const,
         span: 24,
         tabKey: 'basic',
-        required: true,
-        tips: '选择要关联的后端服务定义，多个服务使用逗号分割，如果没有可用选项，请先在服务管理中创建服务定义',
-        rules: [
-          {
-            required: true,
-            message: '请选择关联服务',
-            trigger: ['blur', 'change'],
-            validator: (value: unknown) => {
-              if (typeof value !== 'string' || !value.trim()) {
-                return '请选择关联服务'
-              }
-              return true
-            },
-          },
-        ],
+        required: false,
+        show: (formData: Record<string, any>) => isProxyBackend(formData),
+        tips: '服务代理必须选择当前网关实例下已启用的服务定义。可多选以并行转发。',
+        rules: [],
         render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext & { gatewayInstanceId?: string }) => {
           const gatewayInstanceId = ctx?.gatewayInstanceId || ''
           const rawId = ctx ? ctx.value : formData.serviceDefinitionId
@@ -847,6 +905,26 @@ export function useRouteConfigModel() {
           })
         },
       },
+      {
+        field: '_staticBackendHint',
+        label: '静态资源',
+        type: 'custom' as const,
+        span: 24,
+        tabKey: 'basic',
+        show: (formData: Record<string, any>) => !isProxyBackend(formData),
+        tips: '保存后会打开静态资源配置，填写网站文件目录。登录、限流、跨域仍按本路由生效。',
+        render: () =>
+          h(
+            'div',
+            {
+              style: {
+                lineHeight: '1.6',
+                color: 'var(--g-text-secondary, #64748b)',
+              },
+            },
+            '不转到后端服务。保存后填写本机文件夹（如 Vue/React 的 dist），访问者看到的是该目录里的网页和文件。',
+          ),
+      },
       // ============= 多服务配置字段（NamePath，写在 routeMetadata 对象上） =============
       {
         field: 'routeMetadata.responseMergeStrategy',
@@ -855,7 +933,7 @@ export function useRouteConfigModel() {
         span: 8,
         tabKey: 'basic',
         show: (formData: Record<string, any>) => {
-          return formData.serviceDefinitionId && formData.serviceDefinitionId.includes(',')
+          return isProxyBackend(formData) && formData.serviceDefinitionId && formData.serviceDefinitionId.includes(',')
         },
         defaultValue: 'first',
         tips: 'first: 使用第一个成功的响应（默认）\nfirst_error: 使用第一个失败的响应\nall: 返回所有响应',
@@ -872,7 +950,7 @@ export function useRouteConfigModel() {
         span: 8,
         tabKey: 'basic',
         show: (formData: Record<string, any>) => {
-          return formData.serviceDefinitionId && formData.serviceDefinitionId.includes(',')
+          return isProxyBackend(formData) && formData.serviceDefinitionId && formData.serviceDefinitionId.includes(',')
         },
         defaultValue: 0,
         tips: '0表示不限制（使用所有服务），大于0时限制并发数',
@@ -888,7 +966,7 @@ export function useRouteConfigModel() {
         span: 8,
         tabKey: 'basic',
         show: (formData: Record<string, any>) => {
-          return formData.serviceDefinitionId && formData.serviceDefinitionId.includes(',')
+          return isProxyBackend(formData) && formData.serviceDefinitionId && formData.serviceDefinitionId.includes(',')
         },
         defaultValue: false,
         tips: '如果为true，任何一个服务失败都会返回错误；如果为false，使用第一个成功的响应',
@@ -1010,7 +1088,8 @@ export function useRouteConfigModel() {
         span: 12,
         tabKey: 'forward',
         defaultValue: 'N',
-        tips: 'Y：去掉已匹配路由前缀后再拼接到节点路径；N：保持历史nginx拼接逻辑，不剥前缀。默认N以兼容存量配置',
+        show: (formData: Record<string, any>) => isProxyBackend(formData),
+        tips: '只影响反向代理拼上游路径。Y：去掉已匹配路由前缀后再拼到节点路径；N：保持历史 nginx 拼接。静态资源路由不显示本项。',
         props: {
           checkedValue: 'Y',
           uncheckedValue: 'N',
@@ -1036,7 +1115,8 @@ export function useRouteConfigModel() {
         placeholder: '留空表示不重写，如 /stream/events',
         span: 24,
         tabKey: 'forward',
-        tips: '非空时整段替换为该路径，不再拼接客户端剩余路径；留空则继续使用原有目标路径拼接规则',
+        show: (formData: Record<string, any>) => isProxyBackend(formData),
+        tips: '只影响反向代理。非空时整段替换为该路径，不再拼接客户端剩余路径。静态资源路由不显示本项。',
         rules: [
           {
             max: 200,
