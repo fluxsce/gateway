@@ -56,6 +56,7 @@
 
         <RsDataFormModal
           v-model:visible="formDialogVisible"
+          :module-id="service.model.moduleId"
           :mode="formDialogMode"
           :title="formDialogMode === 'create' ? '新增断言配置' : formDialogMode === 'edit' ? '编辑断言配置' : '查看断言配置详情'"
           to="#assert-config-list-modal"

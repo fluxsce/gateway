@@ -14,7 +14,7 @@
     @update:open="handleUpdateVisible"
   >
     <template #body>
-      <div class="service-selector-modal" :id="moduleId">
+      <div class="service-selector-modal" id="hub0042-service-selector">
         <RsSplitPane
           class="service-selector-modal__split"
           orientation="vertical"
@@ -95,7 +95,7 @@ const emit = defineEmits<{
   close: []
 }>()
 
-const moduleId = 'hub0042-selector'
+const moduleId = 'hub0042'
 const message = useAppMessage()
 const searchFormRef = ref()
 const gridRef = ref<RsGridExpose | null>(null)

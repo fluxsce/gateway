@@ -58,7 +58,7 @@ function defaultMonitoringTimeRange(): DateTimeRangeValue {
  */
 export function useMonitoringModel() {
   // ============= 数据状态 =============
-  const moduleId = 'hub0023-monitor'
+  const moduleId = 'hub0023'
   /** 加载状态 */
   const loading = ref(false)
 
@@ -256,10 +256,12 @@ export function useMonitoringModel() {
         icon: 'RefreshOutline',
         type: 'primary',
         tooltip: '刷新监控数据',
+        skipPermission: true,
       },
     ],
     showSearchButton: true,
     showResetButton: true,
+    resetButtonKey: 'resetQuery',
   }
 
   /**

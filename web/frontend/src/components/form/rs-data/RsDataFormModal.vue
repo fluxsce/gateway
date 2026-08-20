@@ -60,7 +60,7 @@
             {{ resolvedCancelText }}
           </RsButton>
           <RsButton
-            v-if="showConfirm && mode !== 'view'"
+            v-if="showConfirm && mode !== 'view' && canSubmit"
             variant="primary"
             size="sm"
             :loading="confirmLoading"
@@ -77,6 +77,7 @@
 <script setup lang="ts">
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { RsButton, RsDialog } from '@/ui'
+import { hasFormWritePermission } from '@/utils/permission'
 import { computed, ref } from 'vue'
 import RsDataForm from './RsDataForm.vue'
 import type {
@@ -141,6 +142,13 @@ const computedTitle = computed(() => {
   }
 })
 
+const canSubmit = computed(() => {
+  if (!props.moduleId) {
+    return true
+  }
+  return hasFormWritePermission(props.moduleId, props.mode, props.permissionAction)
+})
+
 const handleUpdateVisible = (open: boolean) => {
   emit('update:visible', open)
   if (!open) {
@@ -160,6 +168,9 @@ const handleCancel = () => {
 const handleConfirm = async () => {
   if (props.mode === 'view') {
     handleUpdateVisible(false)
+    return
+  }
+  if (!canSubmit.value) {
     return
   }
 

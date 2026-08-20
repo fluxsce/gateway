@@ -13,7 +13,7 @@
           <div class="service-monitoring__body">
             <NamespaceList
               ref="namespaceListRef"
-              moduleId="hub0042-namespace"
+              moduleId="hub0042:namespace"
               :show-dialog="true"
               :auto-load="true"
               @row-click="handleNamespaceRowClick"
@@ -74,6 +74,7 @@
 
     <RsDataFormModal
       v-model:visible="serviceFormDialogVisible"
+      :module-id="service.model.moduleId"
       :mode="serviceFormDialogMode"
       :title="serviceFormDialogMode === 'create' ? '新增服务' : serviceFormDialogMode === 'edit' ? '编辑服务' : '查看服务详情'"
       :to="`#${service.model.moduleId}`"

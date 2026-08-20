@@ -64,10 +64,9 @@ func initNamespaceRoutes(router *gin.RouterGroup, db database.Database) {
 		// 命名空间详情查询
 		namespaceGroup.POST("/getNamespace", namespaceController.GetNamespace)
 
-		// 命名空间增删改
-		namespaceGroup.POST("/addNamespace", namespaceController.AddNamespace)
-		namespaceGroup.POST("/editNamespace", namespaceController.EditNamespace)
-		namespaceGroup.POST("/deleteNamespace", namespaceController.DeleteNamespace)
+		namespaceGroup.POST("/addNamespace", routes.RequireButton("hub0041:add"), namespaceController.AddNamespace)
+		namespaceGroup.POST("/editNamespace", routes.RequireButton("hub0041:edit"), namespaceController.EditNamespace)
+		namespaceGroup.POST("/deleteNamespace", routes.RequireButton("hub0041:delete"), namespaceController.DeleteNamespace)
 	}
 }
 

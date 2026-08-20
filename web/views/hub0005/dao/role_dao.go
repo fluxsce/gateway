@@ -365,6 +365,35 @@ func (dao *RoleDAO) GetRoleResourceIds(ctx context.Context, roleId, tenantId str
 	return resourceIds, nil
 }
 
+// ListUserIdsByRole 查询拥有指定角色的用户ID，供授权变更后踢 session 使用。
+func (dao *RoleDAO) ListUserIdsByRole(ctx context.Context, roleId, tenantId string) ([]string, error) {
+	if roleId == "" || tenantId == "" {
+		return nil, errors.New("roleId和tenantId不能为空")
+	}
+
+	query := `
+		SELECT DISTINCT userId
+		FROM HUB_AUTH_USER_ROLE
+		WHERE roleId = ? AND tenantId = ? AND activeFlag = 'Y'
+	`
+
+	var rows []struct {
+		UserId string `db:"userId"`
+	}
+	err := dao.db.Query(ctx, &rows, query, []interface{}{roleId, tenantId}, true)
+	if err != nil {
+		return nil, huberrors.WrapError(err, "查询角色下用户失败")
+	}
+
+	userIds := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.UserId != "" {
+			userIds = append(userIds, row.UserId)
+		}
+	}
+	return userIds, nil
+}
+
 // SaveRoleResources 保存角色授权（批量保存到 HUB_AUTH_ROLE_RESOURCE 表）
 // 参数:
 //   - ctx: 上下文对象

@@ -3,12 +3,16 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware"
+	"gateway/web/middleware/permission"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
+	"gateway/web/utils/session"
 	"gateway/web/views/hub0005/dao"
 	"gateway/web/views/hub0005/models"
 	resourcemodels "gateway/web/views/hub0006/models"
+	"strconv"
 	"strings"
 	"time"
 
@@ -98,11 +102,8 @@ func (c *RoleController) AddRole(ctx *gin.Context) {
 	// 使用工具类获取操作人ID和租户ID
 	operatorId := request.GetOperatorID(ctx)
 	tenantId := request.GetTenantID(ctx)
-
-	// 设置租户ID
-	if req.TenantId == "" {
-		req.TenantId = tenantId
-	}
+	// 租户以 session 为准，忽略请求体中的 tenantId，防止跨租户建角色
+	req.TenantId = tenantId
 
 	// 调用DAO添加角色
 	roleId, err := c.roleDAO.AddRole(ctx, &req, operatorId)
@@ -111,6 +112,14 @@ func (c *RoleController) AddRole(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建角色失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionCreate,
+		ModuleCode:   "hub0005",
+		TargetType:   "ROLE",
+		TargetId:     roleId,
+		TargetName:   req.RoleName,
+		ResourceCode: "hub0005:add",
+	})
 
 	// 查询新添加的角色信息
 	newRole, err := c.roleDAO.GetRoleById(ctx, roleId, req.TenantId)
@@ -192,6 +201,18 @@ func (c *RoleController) EditRole(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新角色失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	targetName := updateData.RoleName
+	if targetName == "" && currentRole != nil {
+		targetName = currentRole.RoleName
+	}
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionUpdate,
+		ModuleCode:   "hub0005",
+		TargetType:   "ROLE",
+		TargetId:     updateData.RoleId,
+		TargetName:   targetName,
+		ResourceCode: "hub0005:edit",
+	})
 
 	// 查询更新后的角色信息
 	updatedRole, err := c.roleDAO.GetRoleById(ctx, updateData.RoleId, tenantId)
@@ -279,13 +300,33 @@ func (c *RoleController) DeleteRole(ctx *gin.Context) {
 	operatorId := request.GetOperatorID(ctx)
 	tenantId := request.GetTenantID(ctx)
 
-	// 调用DAO删除角色
+	// 删除前取出角色名与角色下用户，供审计和踢 session
+	targetName := ""
+	if role, getErr := c.roleDAO.GetRoleById(ctx, roleId, tenantId); getErr == nil && role != nil {
+		targetName = role.RoleName
+	}
+	affectedUserIds, listErr := c.roleDAO.ListUserIdsByRole(ctx, roleId, tenantId)
+	if listErr != nil {
+		logger.ErrorWithTrace(ctx, "查询角色用户失败", listErr)
+	}
+
 	err := c.roleDAO.DeleteRole(ctx, roleId, tenantId, operatorId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "删除角色失败", err)
 		response.ErrorJSON(ctx, "删除角色失败: "+err.Error(), constants.ED00009)
 		return
 	}
+
+	session.InvalidateUsersSessions(ctx, affectedUserIds, operatorId)
+	middleware.InvalidateUsersPermissionCache(ctx, affectedUserIds, tenantId)
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionDelete,
+		ModuleCode:   "hub0005",
+		TargetType:   "ROLE",
+		TargetId:     roleId,
+		TargetName:   targetName,
+		ResourceCode: "hub0005:delete",
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"roleId": roleId,
@@ -322,16 +363,45 @@ func (c *RoleController) UpdateRoleStatus(ctx *gin.Context) {
 		return
 	}
 
+	if roleId == models.RoleCodeSuperAdmin && status == models.RoleStatusDisabled {
+		response.ErrorJSON(ctx, "不允许禁用超级管理员角色", constants.ED00012)
+		return
+	}
+
 	// 使用工具类获取操作人ID和租户ID
 	operatorId := request.GetOperatorID(ctx)
 	tenantId := request.GetTenantID(ctx)
 
-	// 调用DAO层更新角色状态
+	targetName := ""
+	if role, getErr := c.roleDAO.GetRoleById(ctx, roleId, tenantId); getErr == nil && role != nil {
+		targetName = role.RoleName
+	}
+
 	err := c.roleDAO.UpdateRoleStatus(ctx, roleId, tenantId, status, operatorId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "更新角色状态失败", err)
 		response.ErrorJSON(ctx, err.Error(), constants.ED00009)
 		return
+	}
+
+	// 禁用角色后持有该角色的用户权限已失效，强制重新登录并清缓存
+	if status == models.RoleStatusDisabled {
+		affectedUserIds, listErr := c.roleDAO.ListUserIdsByRole(ctx, roleId, tenantId)
+		if listErr != nil {
+			logger.ErrorWithTrace(ctx, "查询角色用户失败", listErr)
+		} else {
+			middleware.InvalidateUsersPermissionCache(ctx, affectedUserIds, tenantId)
+			session.InvalidateUsersSessions(ctx, affectedUserIds, operatorId)
+		}
+		middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+			Action:       permission.AuditActionUpdate,
+			ModuleCode:   "hub0005",
+			TargetType:   "ROLE",
+			TargetId:     roleId,
+			TargetName:   targetName,
+			ResourceCode: "hub0005:edit",
+			Detail:       "disable",
+		})
 	}
 
 	response.SuccessJSON(ctx, gin.H{
@@ -570,14 +640,6 @@ func (c *RoleController) SaveRoleResources(ctx *gin.Context) {
 		return
 	}
 
-	// 创建资源ID到资源的映射，便于查找父节点
-	resourceIdMap := make(map[string]*resourcemodels.Resource)
-	for _, resource := range allResources {
-		resourceIdMap[resource.ResourceId] = resource
-	}
-
-	// 将选中的资源ID转换为map，便于快速查找和去重
-	// 这个map用于记录用户直接选中的资源（不包括自动添加的父节点）
 	userSelectedResourceIds := make(map[string]bool)
 	for _, resourceId := range resourceIdsList {
 		if resourceId != "" {
@@ -585,43 +647,49 @@ func (c *RoleController) SaveRoleResources(ctx *gin.Context) {
 		}
 	}
 
-	// 确保所有父节点也被授权：如果选中了子节点，其所有父节点也应该被授权
-	// 这是为了数据一致性，确保如果子节点有授权，父节点也有授权
-	finalResourceIds := make(map[string]bool)
-	for resourceId := range userSelectedResourceIds {
-		finalResourceIds[resourceId] = true
-		// 递归向上查找所有父节点，确保父节点也在授权列表中
-		parentId := ""
-		if resource, exists := resourceIdMap[resourceId]; exists {
-			parentId = resource.ParentResourceId
-		}
-		for parentId != "" {
-			// 如果父节点不在用户选中的列表中，添加到最终列表中（自动添加的父节点）
-			if !userSelectedResourceIds[parentId] {
-				finalResourceIds[parentId] = true
-			}
-			// 继续查找父节点的父节点
-			if parent, exists := resourceIdMap[parentId]; exists {
-				parentId = parent.ParentResourceId
-			} else {
-				break
+	// 超级管理员始终持有目录全部资源，防止通过授权界面卸权
+	if req.RoleId == models.RoleCodeSuperAdmin {
+		userSelectedResourceIds = make(map[string]bool, len(allResources))
+		for _, resource := range allResources {
+			if resource != nil && resource.ResourceId != "" {
+				userSelectedResourceIds[resource.ResourceId] = true
 			}
 		}
 	}
 
-	// 将map转换为slice
-	finalResourceIdsList := make([]string, 0, len(finalResourceIds))
-	for resourceId := range finalResourceIds {
-		finalResourceIdsList = append(finalResourceIdsList, resourceId)
-	}
+	// 勾模块补齐子孙按钮（能进就能操作）；勾按钮仍向上补父，保证登录下发 MODULE。
+	// 取消单个按钮时前端不会带上模块节点，因此不会把已取消的按钮再写回去。
+	finalResourceIdsList := expandSelectedResources(userSelectedResourceIds, allResources)
 
-	// 调用DAO保存角色授权
 	err = c.roleDAO.SaveRoleResources(ctx, req.RoleId, tenantId, finalResourceIdsList, operatorId, req.PermissionType, req.ExpireTime)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "保存角色授权失败", err)
 		response.ErrorJSON(ctx, "保存角色授权失败: "+err.Error(), constants.ED00009)
 		return
 	}
+
+	affectedUserIds, listErr := c.roleDAO.ListUserIdsByRole(ctx, req.RoleId, tenantId)
+	if listErr != nil {
+		logger.ErrorWithTrace(ctx, "查询角色用户失败", listErr)
+	} else {
+		// 操作者自己也清缓存，下次请求按新授权校验，但不踢当前登录
+		cacheUserIds := append([]string{operatorId}, affectedUserIds...)
+		middleware.InvalidateUsersPermissionCache(ctx, cacheUserIds, tenantId)
+		session.InvalidateUsersSessions(ctx, affectedUserIds, operatorId)
+	}
+	targetName := ""
+	if role, getErr := c.roleDAO.GetRoleById(ctx, req.RoleId, tenantId); getErr == nil && role != nil {
+		targetName = role.RoleName
+	}
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionGrant,
+		ModuleCode:   "hub0005",
+		TargetType:   "ROLE",
+		TargetId:     req.RoleId,
+		TargetName:   targetName,
+		ResourceCode: "hub0005:roleAuth",
+		Detail:       "resourceCount=" + strconv.Itoa(len(finalResourceIdsList)),
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"roleId":      req.RoleId,
@@ -659,6 +727,70 @@ func resourceToMapForRole(resource *resourcemodels.Resource) map[string]interfac
 		"children":         []map[string]interface{}{}, // 初始化children字段
 	}
 	return resourceMap
+}
+
+// expandSelectedResources 角色授权勾选联动。
+// 勾中父节点时补齐全部子孙（勾模块=该模块下全部按钮）；勾中子节点时向上补齐父节点（勾按钮=能进模块）。
+func expandSelectedResources(selected map[string]bool, resources []*resourcemodels.Resource) []string {
+	byId := make(map[string]*resourcemodels.Resource, len(resources))
+	children := make(map[string][]string, len(resources))
+	for _, resource := range resources {
+		if resource == nil || resource.ResourceId == "" {
+			continue
+		}
+		byId[resource.ResourceId] = resource
+		if resource.ParentResourceId != "" {
+			children[resource.ParentResourceId] = append(children[resource.ParentResourceId], resource.ResourceId)
+		}
+	}
+
+	final := make(map[string]bool, len(selected))
+	for id := range selected {
+		if id != "" {
+			final[id] = true
+		}
+	}
+
+	var addDescendants func(id string)
+	addDescendants = func(id string) {
+		for _, childId := range children[id] {
+			if final[childId] {
+				continue
+			}
+			final[childId] = true
+			addDescendants(childId)
+		}
+	}
+	for id := range selected {
+		addDescendants(id)
+	}
+
+	// 子资源勾选后向上补父，保证登录下发 MODULE 码。
+	// 先拷贝 key 再遍历，避免边走边改 map 漏掉新插入的父节点。
+	selectedIds := make([]string, 0, len(final))
+	for id := range final {
+		selectedIds = append(selectedIds, id)
+	}
+	for _, id := range selectedIds {
+		parentId := ""
+		if resource, ok := byId[id]; ok {
+			parentId = resource.ParentResourceId
+		}
+		for parentId != "" {
+			final[parentId] = true
+			if parent, ok := byId[parentId]; ok {
+				parentId = parent.ParentResourceId
+				continue
+			}
+			break
+		}
+	}
+
+	ids := make([]string, 0, len(final))
+	for id := range final {
+		ids = append(ids, id)
+	}
+	return ids
 }
 
 // buildResourceTreeForRole 构建资源树形结构

@@ -54,6 +54,9 @@ const (
 	RoleStatusDisabled = "N" // 禁用
 )
 
+// RoleCodeSuperAdmin 内置超级管理员角色编码，不允许自卸权或禁用。
+const RoleCodeSuperAdmin = "ROLE_SUPER_ADMIN"
+
 // RoleQuery 角色查询条件，对应前端 /queryRoles 的查询参数
 type RoleQuery struct {
 	RoleName        string `json:"roleName" form:"roleName" query:"roleName"`                      // 角色名称（模糊查询）

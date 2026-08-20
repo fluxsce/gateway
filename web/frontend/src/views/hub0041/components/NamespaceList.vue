@@ -42,6 +42,7 @@
 
     <RsDataFormModal
       v-if="showDialog"
+      :module-id="effectiveModuleId"
       v-model:visible="formDialogVisible"
       :mode="formDialogMode"
       :title="formDialogMode === 'create' ? '新增命名空间' : formDialogMode === 'edit' ? '编辑命名空间' : '查看命名空间详情'"

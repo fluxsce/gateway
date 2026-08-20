@@ -6,8 +6,8 @@
 
 ## 触发
 
-- 推送 tag：`v*`（例如 `v3.2.4`），版本号去掉 `v`
-- 手动：Actions → **Release packages** → `version`（如 `3.2.4`），可选是否推镜像
+- 推送 tag：`v*`（例如 `v3.2.5`），版本号去掉 `v`
+- 手动：Actions → **Release packages** → `version`（如 `3.2.5`），可选是否推镜像
 
 ## 产物
 
@@ -29,7 +29,7 @@ Linux 包在 `manylinux2014`（glibc 2.17）容器里用 CGO 编译，避免在 
 
 ## 前端
 
-CI 将 `web/frontend` 中本机 `niuma-ui` link 替换为 npm 上的 `niuma-ui@1.1.3` 再构建，并安装 Tailwind v4（`niuma-ui/styles.css` 的 `@import "tailwindcss"` 需要宿主提供）。本地开发仍用 package.json 里的 link。
+CI 将 `web/frontend` 中本机 `niuma-ui` link 替换为 npm 上的 `niuma-ui@1.1.5` 再构建，并安装 Tailwind v4（`niuma-ui/styles.css` 的 `@import "tailwindcss"` 需要宿主提供）。本地开发仍用 package.json 里的 link。
 
 ## 仓库权限
 

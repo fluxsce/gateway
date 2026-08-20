@@ -44,6 +44,7 @@
     <!-- 资源对话框（新增/编辑/查看共用） -->
     <RsDataFormModal
       v-model:visible="formDialogVisible"
+      :module-id="service.model.moduleId"
       :mode="formDialogMode"
       :title="formDialogTitle"
       :to="`#${service.model.moduleId}`"

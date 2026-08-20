@@ -315,7 +315,19 @@ export const useUserStore = defineStore('user', {
       if (this.tenantAdminFlag === 'Y') {
         return true
       }
-      return this.moduleCodes.has(resourceCode) || this.buttonCodes.has(resourceCode)
+      if (this.moduleCodes.has(resourceCode) || this.buttonCodes.has(resourceCode)) {
+        return true
+      }
+      // 只授了模块下按钮（如 hub0020:search）时，模块码也视为有权，与后端 HasModuleAccess 一致
+      if (!resourceCode.includes(':')) {
+        const prefix = `${resourceCode}:`
+        for (const code of this.buttonCodes) {
+          if (code.startsWith(prefix)) {
+            return true
+          }
+        }
+      }
+      return false
     },
 
     /**
@@ -339,11 +351,20 @@ export const useUserStore = defineStore('user', {
     },
 
     /**
-     * 登出 - 清除用户信息
+     * 只清本地持久化会话，不重置内存中的展示字段。
+     * 整页即将跳走时用这个，避免顶栏先闪成「游客」。
+     */
+    clearPersistedSession() {
+      Storage.clear()
+    },
+
+    /**
+     * 登出：清内存用户态和本地持久化。
+     * 仍停留在当前布局时不要调用，否则 displayName 会立刻变成「游客」。
      */
     clearUserInfo() {
+      this.clearPersistedSession()
       this.$reset()
-      Storage.clear()
     },
 
     /**

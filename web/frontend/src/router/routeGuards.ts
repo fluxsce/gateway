@@ -3,9 +3,30 @@
  * 处理路由导航过程中的权限检查、页面标题设置和多语言资源预加载
  */
 import { getCurrentLocale, loadModuleMessages } from '@/locales'
+import { GATEWAY_LAYOUT_ROUTE_TREE } from '@/router/layoutRouteRegistry'
 import { useGlobalStore } from '@/stores/global'
 import { useUserStore } from '@/stores/user'
 import type { Router } from 'vue-router'
+
+/** 第一个有模块权限的业务页，供无权限跳转兜底 */
+function findFirstAllowedPath(hasModule: (code: string) => boolean): string | null {
+  for (const def of GATEWAY_LAYOUT_ROUTE_TREE) {
+    if (def.kind === 'leaf') {
+      const code = def.meta?.moduleName
+      if (code && !def.meta?.menuHide && !def.meta?.permissionExempt && hasModule(code)) {
+        return `/${def.path}`
+      }
+      continue
+    }
+    for (const child of def.children ?? []) {
+      const code = child.meta?.moduleName
+      if (code && !child.meta?.menuHide && !child.meta?.permissionExempt && hasModule(code)) {
+        return `/${def.path}/${child.path}`
+      }
+    }
+  }
+  return null
+}
 
 /**
  * 设置路由导航守卫
@@ -66,20 +87,19 @@ export function setupRouteGuards(router: Router): void {
     }
 
     /**
-     * 权限检查
-     * 检查用户是否拥有访问路由所需的权限
+     * 模块权限检查
+     * 业务页用 meta.moduleName 对应资源目录 MODULE 码；个人设置等 permissionExempt 页跳过。
      */
-    if (
-      to.meta.permissions &&
-      Array.isArray(to.meta.permissions) &&
-      to.meta.permissions.length > 0
-    ) {
-      const requiredPermissions = to.meta.permissions as string[]
-      const hasPermission = requiredPermissions.some((perm) => userStore.hasPermission(perm))
-
-      // 如果既没有所需权限也不是管理员，则重定向到仪表盘
-      if (!hasPermission && userStore.tenantAdminFlag !== 'Y') {
-        return next({ name: 'dashboard' })
+    const moduleName = typeof to.meta.moduleName === 'string' ? to.meta.moduleName : ''
+    if (to.meta.requiresAuth && moduleName && !to.meta.permissionExempt) {
+      if (!userStore.hasPermission(moduleName)) {
+        const fallback = findFirstAllowedPath((code) => userStore.hasPermission(code))
+        if (fallback && fallback !== to.path) {
+          return next(fallback)
+        }
+        if (to.name !== 'settings') {
+          return next({ name: 'settings' })
+        }
       }
     }
 

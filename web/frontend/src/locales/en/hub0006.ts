@@ -23,6 +23,12 @@ export default {
     },
 
     toolbar: {
+      add: 'Add',
+      addTooltip: 'Add a permission resource',
+      edit: 'Edit',
+      editTooltip: 'Edit the selected resource',
+      delete: 'Delete',
+      deleteTooltip: 'Delete the selected resource',
       view: 'View Details',
       viewTooltip: 'View details of the selected resource',
     },

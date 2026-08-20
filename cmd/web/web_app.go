@@ -61,7 +61,7 @@ func corsMiddleware() gin.HandlerFunc {
 		// 获取CORS配置
 		allowedOrigins := config.GetString("web.cors.allowed_origins", "*")
 		allowedMethods := config.GetString("web.cors.allowed_methods", "GET,POST,PUT,DELETE,OPTIONS,PATCH")
-		allowedHeaders := config.GetString("web.cors.allowed_headers", "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-Token,X-User-Token")
+		allowedHeaders := config.GetString("web.cors.allowed_headers", "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-Token,X-User-Token,X-Trace-ID,X-Request-ID,traceparent")
 		allowCredentials := config.GetBool("web.cors.allow_credentials", false)
 		maxAge := config.GetInt("web.cors.max_age", 86400)
 

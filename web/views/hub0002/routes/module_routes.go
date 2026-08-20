@@ -70,18 +70,16 @@ func initUserRoutes(router *gin.RouterGroup, db database.Database) {
 	// 注册路由 - 所有用户管理相关的路由都需要认证
 	// 使用新的认证中间件
 	{
-		// 将所有路由放到受保护的路由组中
-		// 为每个用户路由加上AuthRequired中间件
-		userGroup.POST("/queryUsers", userController.QueryUsers)
-		userGroup.POST("/getUser", userController.GetUser)
-		userGroup.POST("/addUser", userController.AddUser)
-		userGroup.POST("/editUser", userController.EditUser)
-		userGroup.POST("/deleteUser", userController.Delete)
-		userGroup.POST("/changePassword", userController.ChangePassword)
-
-		// 用户角色授权相关路由
-		userGroup.POST("/getUserRoles", userController.GetUserRoles)
-		userGroup.POST("/assignUserRoles", userController.AssignUserRoles)
+		// 列表/详情按查询、查看按钮拦截；取消授权后 403，不因有模块而放行
+		userGroup.POST("/queryUsers", routes.RequireButton("hub0002:search"), userController.QueryUsers)
+		userGroup.POST("/getUser", routes.RequireButton("hub0002:view"), userController.GetUser)
+		// 传入按钮码才拦截；未授予时 403
+		userGroup.POST("/addUser", routes.RequireButton("hub0002:add"), userController.AddUser)
+		userGroup.POST("/editUser", routes.RequireButton("hub0002:edit"), userController.EditUser)
+		userGroup.POST("/deleteUser", routes.RequireButton("hub0002:delete"), userController.Delete)
+		userGroup.POST("/changePassword", routes.RequireButton("hub0002:resetPassword"), userController.ChangePassword)
+		userGroup.POST("/getUserRoles", routes.RequireButton("hub0002:roleAuth"), userController.GetUserRoles)
+		userGroup.POST("/assignUserRoles", routes.RequireButton("hub0002:roleAuth"), userController.AssignUserRoles)
 	}
 }
 

@@ -1,3 +1,4 @@
+import { removeBootSplash } from './bootSplash'
 import { createPinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 import { createApp, nextTick } from 'vue'
@@ -13,14 +14,6 @@ import 'highlight.js/styles/atom-one-light.css'
 import 'niuma-ui/styles.css'
 import './styles/index.scss'
 import './styles/rs-brand.css'
-
-/**
- * removeBootSplash 移除 `index.html` 中的静态首屏 Loading。
- */
-function removeBootSplash() {
-  document.getElementById('app-boot-splash')?.remove()
-}
-
 
 // 配置被动事件监听器以提高滚动性能（如无需要可注释掉）
 // import { setupPassiveEvents } from './utils/passive-events'

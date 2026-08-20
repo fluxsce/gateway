@@ -43,6 +43,7 @@
     <!-- 实例对话框（新增/编辑/查看共用） -->
     <RsDataFormModal
       v-model:visible="formDialogVisible"
+      :module-id="service.model.moduleId"
       :mode="formDialogMode"
       :title="formDialogMode === 'create' ? '新增实例' : formDialogMode === 'edit' ? '编辑实例' : '查看实例详情'"
       :to="`#${service.model.moduleId}`"
@@ -57,6 +58,7 @@
     <!-- 日志配置对话框 -->
     <RsDataFormModal
       v-model:visible="logConfigDialogVisible"
+      :module-id="service.model.moduleId"
       :mode="logConfigDialogMode"
       :title="logConfigDialogMode === 'edit' ? '编辑日志配置' : '查看日志配置'"
       :to="`#${service.model.moduleId}`"

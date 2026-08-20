@@ -52,7 +52,7 @@ function getMatchTypeLabel(matchType: number): string {
  * 路由列表查询 Model（仅查询功能）
  */
 export function useRouteListModel() {
-  const moduleId = 'hub0023-route-list'
+  const moduleId = 'hub0023'
   const loading = ref(false)
   const routeList = ref<RouteConfig[]>([])
   const pageInfo = ref<PageInfoObj | undefined>()
@@ -105,6 +105,7 @@ export function useRouteListModel() {
     toolbarButtons: [],
     showSearchButton: true,
     showResetButton: true,
+    resetButtonKey: 'resetQuery',
   }
 
   const gridConfig: RouteListGridConfig = {

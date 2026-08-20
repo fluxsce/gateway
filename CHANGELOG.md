@@ -6,6 +6,21 @@
 
 ## [Unreleased]（未发布）
 
+## [3.2.5] - 2026-08-20
+
+### 新增
+- **管理端按钮级鉴权**：路由组先校验登录与 MODULE；写接口在路由上声明 `RequireButton`（服务端写死按钮码，不信任客户端 `buttonCode`）。查询/详情未声明按钮时有模块即放行。租户管理员跳过校验。目录里没有该 BUTTON 时拒绝，避免拼错码被当成未配置而放行。`hubplugin` HTTP 代发映射到 `hub0023`，需 `hub0023:reset` 或 `hub0023:batchReset`。
+- **前端按资源码藏按钮**：侧栏 `hasModule`、路由守卫、工具栏/搜索 `{moduleId}:{key}`、表单写权限 `hasFormWritePermission`。子弹窗沿用入口码（如 `hub0021:corsConfig`），无子码时入口码即写权限。
+- **权限变更即时失效**：改角色授权或用户角色后踢掉相关会话。角色授权时勾选按钮会带上父级，勾选 MODULE/GROUP 会带上子孙。
+- **写操作审计**：`HUB_AUTH_AUDIT_LOG` 记录 CREATE/UPDATE/DELETE/ROLLBACK/GRANT。用户/角色/资源/安全配置/预警日志/HTTP 代发在成功后写目标 ID 与名称；其余声明了写按钮的接口由中间件兜底（含请求里的主键）。已有库需执行对应建表脚本。
+- **权限目录补齐写按钮**：`hub0006` 补 add/edit/delete；新增 `hub0003` 定时任务 MODULE 及调度器/任务写按钮；补 `hub0020/21/22:securityConfig`、`hub0082:edit`。sqlite / mysql / oracle 三份 `HUB_AUTH_RESOURCE.sql` 同步。已有库执行 `patch_auth_resource_20260820.sql`（并确认已有 `HUB_AUTH_AUDIT_LOG`）。超级管理员初始化仍全量授予目录资源。
+- **登录图形验证码防刷**：验证码改为 HMAC 签名票 + 服务端 PNG，答案不出网、不写缓存。登录强制校验验证码；凭据失败按账号渐进冷却（第 5 次 30 秒，第 6 次 1 分钟，之后 2 分钟），登录页显示剩余秒数。验证码填错不计入。
+
+### 变更
+- **登录权限不再自动展开**：角色只拿到直接授予的资源码，有 MODULE 不等于有该模块全部按钮。只读角色仍只授 GROUP/MODULE 与 view/search/reset 等查询类按钮。
+- **鉴权直接查库**：多实例下缓存失效不一致，权限服务暂不走进程内缓存。
+- **发版流水线 niuma-ui**：CI 从前端 link 替换为 npm `niuma-ui@1.1.5`（含 1.1.4 的 Select/Table/Terminal/Dialog 与 1.1.5 的命令式弹窗销毁修复）。本地开发仍用 package.json 的 link。
+
 ## [3.2.4] - 2026-08-16
 
 ### 新增

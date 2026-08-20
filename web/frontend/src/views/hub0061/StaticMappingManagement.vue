@@ -46,6 +46,7 @@
 
     <RsDataFormModal
       v-model:visible="formDialogVisible"
+      :module-id="service.model.moduleId"
       :mode="formDialogMode"
       :title="formDialogMode === 'create' ? '新增静态服务' : formDialogMode === 'edit' ? '编辑静态服务' : '查看静态服务详情'"
       :to="`#${htmlId}`"

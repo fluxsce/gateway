@@ -78,17 +78,14 @@ func initServiceCenterInstanceRoutes(router *gin.RouterGroup, db database.Databa
 		// 服务中心实例详情查询
 		instanceGroup.POST("/getServiceCenterInstance", serviceCenterInstanceController.GetServiceCenterInstance)
 
-		// 服务中心实例增删改
-		instanceGroup.POST("/addServiceCenterInstance", serviceCenterInstanceController.AddServiceCenterInstance)
-		instanceGroup.POST("/editServiceCenterInstance", serviceCenterInstanceController.EditServiceCenterInstance)
-		instanceGroup.POST("/deleteServiceCenterInstance", serviceCenterInstanceController.DeleteServiceCenterInstance)
+		instanceGroup.POST("/addServiceCenterInstance", routes.RequireButton("hub0040:add"), serviceCenterInstanceController.AddServiceCenterInstance)
+		instanceGroup.POST("/editServiceCenterInstance", routes.RequireButton("hub0040:edit"), serviceCenterInstanceController.EditServiceCenterInstance)
+		instanceGroup.POST("/deleteServiceCenterInstance", routes.RequireButton("hub0040:delete"), serviceCenterInstanceController.DeleteServiceCenterInstance)
 
-		// 服务中心实例启动和停止
-		instanceGroup.POST("/startServiceCenterInstance", serviceCenterInstanceController.StartServiceCenterInstance)
-		instanceGroup.POST("/stopServiceCenterInstance", serviceCenterInstanceController.StopServiceCenterInstance)
+		instanceGroup.POST("/startServiceCenterInstance", routes.RequireButton("hub0040:start"), serviceCenterInstanceController.StartServiceCenterInstance)
+		instanceGroup.POST("/stopServiceCenterInstance", routes.RequireButton("hub0040:stop"), serviceCenterInstanceController.StopServiceCenterInstance)
 
-		// 服务中心实例配置重载
-		instanceGroup.POST("/reloadServiceCenterInstance", serviceCenterInstanceController.ReloadServiceCenterInstance)
+		instanceGroup.POST("/reloadServiceCenterInstance", routes.RequireButton("hub0040:reload"), serviceCenterInstanceController.ReloadServiceCenterInstance)
 	}
 }
 

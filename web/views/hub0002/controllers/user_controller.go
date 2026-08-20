@@ -3,9 +3,12 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware"
+	"gateway/web/middleware/permission"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
+	"gateway/web/utils/session"
 	"gateway/web/views/hub0002/dao"
 	"gateway/web/views/hub0002/models"
 	"strings"
@@ -90,12 +93,8 @@ func (c *UserController) AddUser(ctx *gin.Context) {
 		return
 	}
 
-	// 使用工具类获取租户ID
-	tenantId := strings.TrimSpace(req.TenantId)
-	if tenantId == "" {
-		tenantId = request.GetTenantID(ctx)
-	}
-	// 回写到请求对象中，确保后续持久化时有正确的租户ID
+	// 使用工具类获取租户ID，忽略请求体 tenantId，防止跨租户创建用户
+	tenantId := request.GetTenantID(ctx)
 	req.TenantId = tenantId
 
 	// 新增前检查用户是否已存在（按用户ID + 租户维度），避免重复记录
@@ -122,6 +121,18 @@ func (c *UserController) AddUser(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建用户失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	targetName := req.RealName
+	if targetName == "" {
+		targetName = req.UserName
+	}
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionCreate,
+		ModuleCode:   "hub0002",
+		TargetType:   "USER",
+		TargetId:     userId,
+		TargetName:   targetName,
+		ResourceCode: "hub0002:add",
+	})
 
 	// 查询新添加的用户信息
 	newUser, err := c.userDAO.GetUserById(ctx, userId, tenantId)
@@ -206,6 +217,33 @@ func (c *UserController) EditUser(ctx *gin.Context) {
 		logger.ErrorWithTrace(ctx, "更新用户失败", err)
 		response.ErrorJSON(ctx, "更新用户失败: "+err.Error(), constants.ED00009)
 		return
+	}
+
+	targetName := updateData.RealName
+	if targetName == "" {
+		targetName = updateData.UserName
+	}
+	if targetName == "" && currentUser != nil {
+		targetName = currentUser.RealName
+		if targetName == "" {
+			targetName = currentUser.UserName
+		}
+	}
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionUpdate,
+		ModuleCode:   "hub0002",
+		TargetType:   "USER",
+		TargetId:     updateData.UserId,
+		TargetName:   targetName,
+		ResourceCode: "hub0002:edit",
+	})
+
+	// 租户管理员标记或启用状态变化后，旧 session 中的身份已过期
+	if currentUser.TenantAdminFlag != updateData.TenantAdminFlag ||
+		(updateData.StatusFlag == "N" && currentUser.StatusFlag != "N") ||
+		(updateData.ActiveFlag == "N" && currentUser.ActiveFlag != "N") {
+		middleware.InvalidateUserPermissionCache(ctx, updateData.UserId, tenantId)
+		session.InvalidateUserSessions(ctx, updateData.UserId)
 	}
 
 	// 查询更新后的用户信息
@@ -312,6 +350,16 @@ func (c *UserController) ChangePassword(ctx *gin.Context) {
 		return
 	}
 
+	session.InvalidateUserSessions(ctx, userId)
+	middleware.InvalidateUserPermissionCache(ctx, userId, tenantId)
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionUpdate,
+		ModuleCode:   "hub0002",
+		TargetType:   "USER",
+		TargetId:     userId,
+		ResourceCode: "hub0002:resetPassword",
+	})
+
 	response.SuccessJSON(ctx, nil, constants.SD00003)
 }
 
@@ -345,6 +393,15 @@ func (c *UserController) Delete(ctx *gin.Context) {
 	operatorId := request.GetOperatorID(ctx)
 	tenantId := request.GetTenantID(ctx)
 
+	// 删除前取出显示名，审计记录「删了谁」而不仅是 userId
+	targetName := ""
+	if user, getErr := c.userDAO.GetUserById(ctx, userId, tenantId); getErr == nil && user != nil {
+		targetName = user.RealName
+		if targetName == "" {
+			targetName = user.UserName
+		}
+	}
+
 	// 调用DAO删除用户
 	err := c.userDAO.DeleteUser(ctx, userId, tenantId, operatorId)
 	if err != nil {
@@ -352,6 +409,17 @@ func (c *UserController) Delete(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除用户失败: "+err.Error(), constants.ED00009)
 		return
 	}
+
+	session.InvalidateUserSessions(ctx, userId)
+	middleware.InvalidateUserPermissionCache(ctx, userId, tenantId)
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionDelete,
+		ModuleCode:   "hub0002",
+		TargetType:   "USER",
+		TargetId:     userId,
+		TargetName:   targetName,
+		ResourceCode: "hub0002:delete",
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"userId": userId,
@@ -434,6 +502,20 @@ func (c *UserController) AssignUserRoles(ctx *gin.Context) {
 	operatorId := request.GetOperatorID(ctx)
 	tenantId := request.GetTenantID(ctx)
 
+	// 超级管理员不能给自己卸掉 SUPER_ADMIN，避免系统失去管理入口
+	if operatorId == req.UserId {
+		currentRoleIds, roleErr := c.userRoleDAO.GetUserRoleIds(ctx, req.UserId, tenantId)
+		if roleErr != nil {
+			logger.ErrorWithTrace(ctx, "查询用户角色失败", roleErr)
+			response.ErrorJSON(ctx, "查询用户角色失败: "+roleErr.Error(), constants.ED00009)
+			return
+		}
+		if containsString(currentRoleIds, permission.RoleCodeSuperAdmin) && !containsString(validRoleIds, permission.RoleCodeSuperAdmin) {
+			response.ErrorJSON(ctx, "不能移除自己的超级管理员角色", constants.ED00012)
+			return
+		}
+	}
+
 	// 解析过期时间（可选）
 	var expireTime *time.Time
 	if req.ExpireTime != nil && *req.ExpireTime != "" {
@@ -452,6 +534,25 @@ func (c *UserController) AssignUserRoles(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "分配用户角色失败: "+err.Error(), constants.ED00009)
 		return
 	}
+
+	session.InvalidateUserSessions(ctx, req.UserId)
+	middleware.InvalidateUserPermissionCache(ctx, req.UserId, tenantId)
+	targetName := ""
+	if user, getErr := c.userDAO.GetUserById(ctx, req.UserId, tenantId); getErr == nil && user != nil {
+		targetName = user.RealName
+		if targetName == "" {
+			targetName = user.UserName
+		}
+	}
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionGrant,
+		ModuleCode:   "hub0002",
+		TargetType:   "USER",
+		TargetId:     req.UserId,
+		TargetName:   targetName,
+		ResourceCode: "hub0002:roleAuth",
+		Detail:       "roleIds=" + strings.Join(validRoleIds, ","),
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"userId":  req.UserId,
@@ -483,4 +584,13 @@ func userToMap(user *models.User) map[string]interface{} {
 		"editWho":         user.EditWho,
 		"activeFlag":      user.ActiveFlag,
 	}
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }

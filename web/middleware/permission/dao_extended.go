@@ -61,8 +61,8 @@ func (dao *PermissionDAOExtended) CheckModulePermission(ctx context.Context, use
 			AND rr.permissionType = 'ALLOW'
 			AND res.activeFlag = 'Y'
 			AND res.resourceStatus = 'Y'
-			AND (ur.expireTime IS NULL OR ur.expireTime > NOW())
-			AND (rr.expireTime IS NULL OR rr.expireTime > NOW())
+			AND (ur.expireTime IS NULL OR ur.expireTime > ?)
+			AND (rr.expireTime IS NULL OR rr.expireTime > ?)
 		GROUP BY res.moduleCode, res.moduleName, r.dataScope
 	`
 
@@ -73,7 +73,7 @@ func (dao *PermissionDAOExtended) CheckModulePermission(ctx context.Context, use
 		ExpireTime *time.Time `db:"expireTime"`
 	}
 
-	err := dao.db.Query(ctx, &result, query, []interface{}{userId, tenantId, moduleCode}, true)
+	err := dao.db.Query(ctx, &result, query, dao.withNow([]interface{}{userId, tenantId, moduleCode}, 2), true)
 	if err != nil {
 		logger.Error("检查用户模块权限失败", "error", err, "userId", userId, "tenantId", tenantId, "moduleCode", moduleCode)
 		return nil, fmt.Errorf("检查用户模块权限失败: %w", err)
@@ -147,8 +147,8 @@ func (dao *PermissionDAOExtended) CheckButtonPermission(ctx context.Context, use
 			AND rr.permissionType = 'ALLOW'
 			AND res.activeFlag = 'Y'
 			AND res.resourceStatus = 'Y'
-			AND (ur.expireTime IS NULL OR ur.expireTime > NOW())
-			AND (rr.expireTime IS NULL OR rr.expireTime > NOW())
+			AND (ur.expireTime IS NULL OR ur.expireTime > ?)
+			AND (rr.expireTime IS NULL OR rr.expireTime > ?)
 		GROUP BY res.resourceCode, res.resourceName, res.resourcePath, res.resourceMethod
 	`
 
@@ -160,7 +160,7 @@ func (dao *PermissionDAOExtended) CheckButtonPermission(ctx context.Context, use
 		ExpireTime   *time.Time `db:"expireTime"`
 	}
 
-	err := dao.db.Query(ctx, &result, query, []interface{}{userId, tenantId, buttonCode}, true)
+	err := dao.db.Query(ctx, &result, query, dao.withNow([]interface{}{userId, tenantId, buttonCode}, 2), true)
 	if err != nil {
 		logger.Error("检查用户按钮权限失败", "error", err, "userId", userId, "tenantId", tenantId, "buttonCode", buttonCode)
 		return nil, fmt.Errorf("检查用户按钮权限失败: %w", err)
@@ -215,8 +215,8 @@ func (dao *PermissionDAOExtended) GetUserModulePermissions(ctx context.Context, 
 			AND rr.permissionType = 'ALLOW'
 			AND res.activeFlag = 'Y'
 			AND res.resourceStatus = 'Y'
-			AND (ur.expireTime IS NULL OR ur.expireTime > NOW())
-			AND (rr.expireTime IS NULL OR rr.expireTime > NOW())
+			AND (ur.expireTime IS NULL OR ur.expireTime > ?)
+			AND (rr.expireTime IS NULL OR rr.expireTime > ?)
 		GROUP BY res.moduleCode, res.moduleName, r.dataScope
 		ORDER BY res.moduleCode
 	`
@@ -228,7 +228,7 @@ func (dao *PermissionDAOExtended) GetUserModulePermissions(ctx context.Context, 
 		ExpireTime *time.Time `db:"expireTime"`
 	}
 
-	err := dao.db.Query(ctx, &result, query, []interface{}{userId, tenantId}, true)
+	err := dao.db.Query(ctx, &result, query, dao.withNow([]interface{}{userId, tenantId}, 2), true)
 	if err != nil {
 		logger.Error("获取用户模块权限失败", "error", err, "userId", userId, "tenantId", tenantId)
 		return nil, fmt.Errorf("获取用户模块权限失败: %w", err)
@@ -297,8 +297,8 @@ func (dao *PermissionDAOExtended) GetModuleButtonPermissions(ctx context.Context
 			AND rr.permissionType = 'ALLOW'
 			AND res.activeFlag = 'Y'
 			AND res.resourceStatus = 'Y'
-			AND (ur.expireTime IS NULL OR ur.expireTime > NOW())
-			AND (rr.expireTime IS NULL OR rr.expireTime > NOW())
+			AND (ur.expireTime IS NULL OR ur.expireTime > ?)
+			AND (rr.expireTime IS NULL OR rr.expireTime > ?)
 		GROUP BY res.resourceCode, res.resourceName, res.resourcePath, res.resourceMethod
 		ORDER BY res.sortOrder, res.resourceCode
 	`
@@ -311,7 +311,7 @@ func (dao *PermissionDAOExtended) GetModuleButtonPermissions(ctx context.Context
 		ExpireTime   *time.Time `db:"expireTime"`
 	}
 
-	err := dao.db.Query(ctx, &result, query, []interface{}{userId, tenantId, moduleCode}, true)
+	err := dao.db.Query(ctx, &result, query, dao.withNow([]interface{}{userId, tenantId, moduleCode}, 2), true)
 	if err != nil {
 		logger.Error("获取模块按钮权限失败", "error", err, "userId", userId, "tenantId", tenantId, "moduleCode", moduleCode)
 		return nil, fmt.Errorf("获取模块按钮权限失败: %w", err)
@@ -486,15 +486,15 @@ func (dao *PermissionDAOExtended) BatchCheckPermissions(ctx context.Context, use
 			AND rr.permissionType = 'ALLOW'
 			AND res.activeFlag = 'Y'
 			AND res.resourceStatus = 'Y'
-			AND (ur.expireTime IS NULL OR ur.expireTime > NOW())
-			AND (rr.expireTime IS NULL OR rr.expireTime > NOW())
+			AND (ur.expireTime IS NULL OR ur.expireTime > ?)
+			AND (rr.expireTime IS NULL OR rr.expireTime > ?)
 	`, strings.Join(placeholders, ","))
 
 	var result []struct {
 		ResourceCode string `db:"resourceCode"`
 	}
 
-	err := dao.db.Query(ctx, &result, query, args, true)
+	err := dao.db.Query(ctx, &result, query, dao.withNow(args, 2), true)
 	if err != nil {
 		logger.Error("批量检查权限失败", "error", err, "userId", userId, "tenantId", tenantId, "resourceCodes", resourceCodes)
 		return nil, fmt.Errorf("批量检查权限失败: %w", err)

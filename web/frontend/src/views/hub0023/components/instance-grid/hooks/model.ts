@@ -28,7 +28,7 @@ export interface GatewayInstanceListGridConfig {
  */
 export function useGatewayInstanceListModel() {
   // ============= 数据状态 =============
-  const moduleId = 'hub0023-instance-list'
+  const moduleId = 'hub0023'
   /** 加载状态 */
   const loading = ref(false)
 
@@ -81,6 +81,7 @@ export function useGatewayInstanceListModel() {
     toolbarButtons: [],
     showSearchButton: true,
     showResetButton: true,
+    resetButtonKey: 'resetQuery',
   }
 
   // ============= 表格配置 =============

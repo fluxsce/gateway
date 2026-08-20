@@ -3,11 +3,11 @@
  * 处理所有与后端交互的业务逻辑
  */
 
-import { rsConfirm } from '@/ui'
 import { useAppMessage } from '@/composables/useAppMessage'
-import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
+import { rsConfirm } from '@/ui'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import { WarningOutline } from '@vicons/ionicons5'
 import type { Ref } from 'vue'
 import * as gatewayApi from '../api'
@@ -89,7 +89,8 @@ export function useGatewayInstanceService(searchFormRef?: Ref<any> | any) {
         message.error(response.errMsg || '查询实例列表失败')
       }
     } catch (error) {
-      message.error('加载实例列表失败')
+      const err = error as { message?: string }
+      message.error(err?.message || '加载实例列表失败')
     } finally {
       loading.value = false
     }

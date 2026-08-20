@@ -62,6 +62,7 @@
 @HUB_ALERT_CONFIG.sql
 @HUB_ALERT_TEMPLATE.sql
 @HUB_ALERT_LOG.sql
+@HUB_AUTH_AUDIT_LOG.sql
 
 -- =====================================================
 -- 字段长度调整：支持多服务定义ID和服务名称（多服务场景）

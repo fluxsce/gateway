@@ -16,7 +16,8 @@ import type { RouteMeta, RouteRecordRaw } from 'vue-router'
  * | `title` | 页标题、页签与菜单文案 |
  * | `icon` | 菜单/页签图标名（Lucide kebab-case，供 RsMenu / RsIcon） |
  * | `requiresAuth` | 是否需要登录；主布局下一般为 `true` |
- * | `moduleName` | 业务模块标识（如 hub0002） |
+ * | `moduleName` | 业务模块标识（如 hub0002），侧栏与路由守卫按此做模块权限判断 |
+ * | `permissionExempt` | 已登录即可访问，不按 moduleName 鉴权（如个人设置） |
  * | `keepAliveIncludeName` | 可选；主布局已用「页签 fullPath + wrapWithCacheKey」对齐缓存时一般不必填 |
  * | `keepAliveOutletName` | 主布局下仍有子层 router-view 时（如 dev `TestLayout`）外层 KeepAlive 的组件名 |
  * | `menuHide` | 整段路由不在侧栏显示（一级或分组下子项均可） |
@@ -29,10 +30,20 @@ export interface GatewayAppRouteMeta extends RouteMeta {
   icon?: string
   requiresAuth?: boolean
   moduleName?: string
+  /** 已登录即可访问，不检查模块权限 */
+  permissionExempt?: boolean
   keepAliveIncludeName?: string
   keepAliveOutletName?: string
   menuHide?: boolean
   hideInMenu?: boolean
+}
+
+declare module 'vue-router' {
+  interface RouteMeta {
+    permissionExempt?: boolean
+    moduleName?: string
+    requiresAuth?: boolean
+  }
 }
 
 /**
@@ -79,6 +90,7 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
       icon: 'settings',
       menuHide: true,
       moduleName: 'hub0002',
+      permissionExempt: true,
       keepAliveIncludeName: 'UserSettings',
     },
   },
@@ -437,6 +449,8 @@ type SidebarMenuNode = {
   label: string
   icon: string
   path?: string
+  /** 叶子项对应的模块码，用于侧栏权限过滤 */
+  moduleName?: string
   children?: SidebarMenuNode[]
 }
 
@@ -458,6 +472,7 @@ export function buildSidebarMenuFromRegistry(): SidebarMenuNode[] {
         label: topMeta?.title ?? String(def.name),
         path: `/${def.path}`,
         icon: topMeta?.icon ?? 'menu',
+        moduleName: topMeta?.moduleName,
       })
     } else {
       if (topMeta?.menuHide) continue
@@ -475,6 +490,7 @@ export function buildSidebarMenuFromRegistry(): SidebarMenuNode[] {
             label: m?.title ?? String(c.name),
             path: `/${def.path}/${c.path}`,
             icon: m?.icon ?? 'circle',
+            moduleName: m?.moduleName,
           }
         })
       if (children.length === 0) continue

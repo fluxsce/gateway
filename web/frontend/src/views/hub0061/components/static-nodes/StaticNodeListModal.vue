@@ -56,6 +56,7 @@
 
         <RsDataFormModal
           v-model:visible="formDialogVisible"
+          :module-id="service.model.moduleId"
           :mode="formDialogMode"
           :title="formDialogMode === 'create' ? '新增静态节点' : formDialogMode === 'edit' ? '编辑静态节点' : '查看静态节点详情'"
           :to="`#${htmlId}`"

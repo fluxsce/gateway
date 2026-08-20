@@ -56,6 +56,7 @@
 
         <RsDataFormModal
           v-model:visible="formDialogVisible"
+          :module-id="service.model.moduleId"
           :mode="formDialogMode"
           :title="formDialogMode === 'create' ? '新增API访问控制配置' : formDialogMode === 'edit' ? '编辑API访问控制配置' : '查看API访问控制配置详情'"
           to="#api-access-config-list-modal"

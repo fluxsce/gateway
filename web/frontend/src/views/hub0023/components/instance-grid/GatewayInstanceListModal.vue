@@ -15,7 +15,7 @@
     @after-close="handleAfterLeave"
   >
     <template #body>
-      <div class="gateway-instance-list-modal" :id="service.model.moduleId">
+      <div class="gateway-instance-list-modal" id="hub0023-instance-list">
         <RsSplitPane
           class="gateway-instance-list-modal__split"
           orientation="vertical"

@@ -1,7 +1,8 @@
 # ============================================
 # FLUX Gateway - Multi-stage Docker Build
 # 支持系统: Linux (Alpine 3.19)
-# 支持架构: amd64
+# 支持架构: amd64（默认，与原先写死 GOARCH=amd64 一致）
+#           传入 --platform linux/arm64 时可构建 arm64
 # 支持数据库: MySQL, SQLite (需要 CGO)
 # 注意: SQLite 需要 CGO_ENABLED=1
 # ============================================
@@ -45,13 +46,19 @@ RUN go mod download
 COPY . .
 
 # 构建参数
-ARG VERSION=3.2.4
+ARG VERSION=3.2.5
 ARG BUILD_DATE
 ARG GIT_COMMIT=unknown
 
+# ARG 默认 linux/amd64，与原先写死 GOARCH=amd64 一致
+# 传入 docker --platform 时 BuildKit 会覆盖这两个值（如 linux/arm64 -> arm64）
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
 # 编译应用（启用 CGO，支持 SQLite）
 # 使用 no_oracle tag 排除 Oracle 驱动
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
+# CGO 依赖本机 gcc，GOARCH 须与当前构建阶段架构一致
+RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -a \
     -tags=no_oracle \
     -ldflags="-w -s -X main.Version=${VERSION} -X main.BuildTime=${BUILD_DATE} -X main.GitCommit=${GIT_COMMIT}" \
@@ -59,7 +66,7 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
     cmd/app/main.go
 
 # 编译密码加密工具
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
+RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -a \
     -tags=no_oracle \
     -ldflags="-w -s" \
@@ -72,7 +79,7 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
 FROM alpine:3.19
 
 # 构建参数（在运行时阶段也需要）
-ARG VERSION=3.2.4
+ARG VERSION=3.2.5
 ARG BUILD_DATE
 ARG GIT_COMMIT=unknown
 

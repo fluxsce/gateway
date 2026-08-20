@@ -43,9 +43,8 @@ func initCommonRoutes(router *gin.RouterGroup, db database.Database) {
 	configGroupController := controllers.NewConfigGroupController(db)
 	toolExecuteController := controllers.NewToolExecuteController(db)
 
-	// SFTP工具配置管理路由 - 基础CRUD操作
+	// 本包当前未挂到 hubplugin 主路由。重新启用前，写接口必须 RequireButton 并编入权限目录。
 	{
-		// 添加SFTP配置
 		commonGroup.POST("/add", toolConfigController.AddToolConfig)
 
 		// 查询SFTP配置列表

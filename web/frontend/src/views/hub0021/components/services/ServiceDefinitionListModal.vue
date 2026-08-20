@@ -21,7 +21,7 @@
     @cancel="handleCancel"
   >
     <template #body>
-      <div class="service-definition-list-modal" :id="model.moduleId">
+      <div class="service-definition-list-modal" id="hub0021-service-selector">
         <RsSplitPane
           class="service-definition-list-modal__split"
           orientation="vertical"

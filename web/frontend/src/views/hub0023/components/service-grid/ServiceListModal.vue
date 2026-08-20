@@ -15,7 +15,7 @@
     @after-close="handleAfterLeave"
   >
     <template #body>
-      <div class="service-list-modal" :id="service.model.moduleId">
+      <div class="service-list-modal" id="hub0023-service-list">
         <RsSplitPane
           class="service-list-modal__split"
           orientation="vertical"

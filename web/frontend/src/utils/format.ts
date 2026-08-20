@@ -14,12 +14,12 @@ const logger = createLogger('FormatUtils')
  * 将冒号（:）替换为连字符（-），确保 id 符合 HTML 规范
  * 注意：此函数仅用于生成 HTML id，权限校验仍应使用原始 moduleId
  * 
- * @param moduleId 模块ID（可能包含冒号，如 "hub0061:static-server"）
- * @returns 符合 HTML id 规范的字符串（如 "hub0061-static-server"）
- * 
+ * @param moduleId 模块ID（可能包含冒号，如 "hub0061:static-nodes"）
+ * @returns 符合 HTML id 规范的字符串（如 "hub0061-static-nodes"）
+ *
  * @example
- * const moduleId = 'hub0061:static-server'
- * const htmlId = toHtmlId(moduleId) // 'hub0061-static-server'
+ * const moduleId = 'hub0061:static-nodes'
+ * const htmlId = toHtmlId(moduleId) // 'hub0061-static-nodes'
  * // 在模板中使用：
  * // <div :id="toHtmlId(service.model.moduleId)">
  * // 权限校验仍使用原始 moduleId：

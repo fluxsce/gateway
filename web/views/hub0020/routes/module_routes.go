@@ -80,24 +80,24 @@ func initGatewayInstanceRoutes(router *gin.RouterGroup, db database.Database) {
 		instanceGroup.POST("/getGatewayInstance", gatewayInstanceController.GetGatewayInstance)
 
 		// 网关实例增删改
-		instanceGroup.POST("/addGatewayInstance", gatewayInstanceController.AddGatewayInstance)
-		instanceGroup.POST("/editGatewayInstance", gatewayInstanceController.EditGatewayInstance)
-		instanceGroup.POST("/deleteGatewayInstance", gatewayInstanceController.DeleteGatewayInstance)
+		instanceGroup.POST("/addGatewayInstance", routes.RequireButton("hub0020:add"), gatewayInstanceController.AddGatewayInstance)
+		instanceGroup.POST("/editGatewayInstance", routes.RequireButton("hub0020:edit"), gatewayInstanceController.EditGatewayInstance)
+		instanceGroup.POST("/deleteGatewayInstance", routes.RequireButton("hub0020:delete"), gatewayInstanceController.DeleteGatewayInstance)
 
 		// 网关实例启动和停止
-		instanceGroup.POST("/startGatewayInstance", gatewayInstanceController.StartGatewayInstance)
-		instanceGroup.POST("/stopGatewayInstance", gatewayInstanceController.StopGatewayInstance)
+		instanceGroup.POST("/startGatewayInstance", routes.RequireButton("hub0020:start"), gatewayInstanceController.StartGatewayInstance)
+		instanceGroup.POST("/stopGatewayInstance", routes.RequireButton("hub0020:stop"), gatewayInstanceController.StopGatewayInstance)
 
 		// 网关实例配置重载
-		instanceGroup.POST("/reloadGatewayInstance", gatewayInstanceController.ReloadGatewayInstance)
+		instanceGroup.POST("/reloadGatewayInstance", routes.RequireButton("hub0020:reload"), gatewayInstanceController.ReloadGatewayInstance)
 
 		// 日志配置管理
 		instanceGroup.POST("/getLogConfig", gatewayInstanceController.GetLogConfig)
-		instanceGroup.POST("/editLogConfig", gatewayInstanceController.EditLogConfig)
+		instanceGroup.POST("/editLogConfig", routes.RequireButton("hub0020:logConfig"), gatewayInstanceController.EditLogConfig)
 
 		// 网关实例导出
-		instanceGroup.POST("/exportGatewayInstance", gatewayInstanceController.ExportGatewayInstance)
-		instanceGroup.POST("/importGatewayInstance", gatewayInstanceController.ImportGatewayInstance)
+		instanceGroup.POST("/exportGatewayInstance", routes.RequireButton("hub0020:export"), gatewayInstanceController.ExportGatewayInstance)
+		instanceGroup.POST("/importGatewayInstance", routes.RequireButton("hub0020:import"), gatewayInstanceController.ImportGatewayInstance)
 	}
 }
 

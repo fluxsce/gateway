@@ -91,6 +91,12 @@ export interface RsSearchFormProps extends Pick<ToolbarProps, 'moduleId'> {
   showResetButton?: boolean
   searchButtonText?: string
   resetButtonText?: string
+  /**
+   * 重置按钮权限 key，默认 reset。
+   * 拼码为 `{moduleId}:{resetButtonKey}`，需与资源表一致。
+   * hub0023 查询重置为 resetQuery，避免与右键「重发」的 reset 冲突。
+   */
+  resetButtonKey?: string
   toolbarAlign?: ToolbarProps['align']
   showToolbar?: boolean
 }

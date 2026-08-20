@@ -64,14 +64,12 @@ func initServiceRoutes(router *gin.RouterGroup, db database.Database) {
 		// 服务详情查询
 		serviceGroup.POST("/getService", serviceController.GetService)
 
-		// 服务增删改
-		serviceGroup.POST("/addService", serviceController.AddService)
-		serviceGroup.POST("/editService", serviceController.EditService)
-		serviceGroup.POST("/deleteService", serviceController.DeleteService)
+		serviceGroup.POST("/addService", routes.RequireButton("hub0042:add"), serviceController.AddService)
+		serviceGroup.POST("/editService", routes.RequireButton("hub0042:edit"), serviceController.EditService)
+		serviceGroup.POST("/deleteService", routes.RequireButton("hub0042:delete"), serviceController.DeleteService)
 
-		// 节点编辑和下线
-		serviceGroup.POST("/editNode", serviceController.EditNode)
-		serviceGroup.POST("/offlineNode", serviceController.OfflineNode)
+		serviceGroup.POST("/editNode", routes.RequireButton("hub0042:node:edit"), serviceController.EditNode)
+		serviceGroup.POST("/offlineNode", routes.RequireButton("hub0042:node:offline"), serviceController.OfflineNode)
 	}
 }
 

@@ -24,28 +24,21 @@ func AuthRequired() gin.HandlerFunc {
 	}
 }
 
-// PermissionRequired 验证用户权限的中间件组合
-// 返回认证和权限校验的中间件数组，第一个是认证，第二个是权限校验
-// 权限参数从请求中获取（header、query、form）
-//
-// 返回:
-//
-//	[]gin.HandlerFunc: 中间件数组，[0]认证中间件，[1]权限校验中间件
-//
-// 使用示例:
-//
-//	// 基本使用
-//	router.GET("/users", PermissionRequired()..., handler)
-//
-//	// 前端需要在请求中传递权限参数：
-//	// Header: X-Permission-moduleCode: hub0002
-//	// Header: X-Permission-buttonCode: hub0002:user:create
-//	// 或 Query: ?moduleCode=hub0002&buttonCode=hub0002:user:create
+// PermissionRequired 验证用户权限的中间件组合。
+// 先登录，再按路径校验 MODULE。路由未传 RequireButton 时有模块即放行，不拦截按钮。
+// 不信任客户端传入的 buttonCode / moduleCode。租户管理员跳过校验。
 func PermissionRequired() []gin.HandlerFunc {
 	return []gin.HandlerFunc{
-		AuthRequired(), // 认证中间件
-		//middleware.PermissionRequired(), // 权限校验中间件
+		AuthRequired(),
+		middleware.PermissionRequired(),
 	}
+}
+
+// RequireButton 在路由上声明该接口需要的按钮码（任意一个即可），服务端写死。
+// 用户未授予该按钮时返回 403，不放行。
+// 用法：group.POST("/deleteRole", routes.RequireButton("hub0005:delete"), handler)
+func RequireButton(buttonCodes ...string) gin.HandlerFunc {
+	return middleware.RequireButton(buttonCodes...)
 }
 
 // PublicAPI 标记公开API的中间件，不需要认证

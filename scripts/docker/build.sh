@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # 配置
 DEFAULT_IMAGE_NAME="datahub-images/gateway"
-VERSION="3.2.4"
+VERSION="3.2.5"
 BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
@@ -51,6 +51,7 @@ FLUX Gateway Docker 镜像构建脚本
     -t, --type TYPE       构建类型: oracle (默认) 或 standard
     -n, --name NAME       镜像名称 (默认: $DEFAULT_IMAGE_NAME)
     -m, --mirror HOST     Debian 镜像源主机（解决 apt 拉取超时），如 mirrors.aliyun.com
+    -p, --platform PLAT   目标平台，如 linux/amd64、linux/arm64（标准版）；默认 linux/amd64
     -l, --latest          同时打 latest（标准版）或 latest-oracle（Oracle 版）
     -h, --help            显示此帮助信息
 
@@ -71,6 +72,9 @@ FLUX Gateway Docker 镜像构建脚本
     # 构建标准版，标签为 :${VERSION}
     $0 --type standard
 
+    # 在 amd64 机器上构建 arm64 标准版（需 qemu / binfmt）
+    $0 --type standard --platform linux/arm64
+
     # 构建并标记 latest / latest-oracle
     $0 --latest
     $0 --type standard --latest
@@ -87,6 +91,8 @@ TAG_LATEST=false
 IMAGE_NAME="$DEFAULT_IMAGE_NAME"
 # 从环境变量读取，命令行 -m 可覆盖
 DEBIAN_MIRROR="${DEBIAN_MIRROR:-}"
+# 不传 -p 时与原先写死 GOARCH=amd64 一致
+PLATFORM="${DOCKER_PLATFORM:-linux/amd64}"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -100,6 +106,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -m|--mirror)
             DEBIAN_MIRROR="$2"
+            shift 2
+            ;;
+        -p|--platform)
+            PLATFORM="$2"
             shift 2
             ;;
         -l|--latest)
@@ -196,6 +206,13 @@ build_image() {
     if [[ -n "$DEBIAN_MIRROR" ]]; then
         print_info "使用 Debian 镜像源: $DEBIAN_MIRROR"
     fi
+    if [[ -n "$PLATFORM" ]]; then
+        print_info "目标平台: $PLATFORM"
+        if [[ "$build_type" == "oracle" && "$PLATFORM" != "linux/amd64" ]]; then
+            print_error "Oracle 版当前锁定 Instant Client 21.18（仅 linux x64），只支持 --platform linux/amd64"
+            return 1
+        fi
+    fi
     
     # 构建参数（oracle 类型可传 Debian 镜像以应对网络超时）
     local build_args=(
@@ -208,6 +225,9 @@ build_image() {
     )
     if [[ -n "$DEBIAN_MIRROR" && "$build_type" == "oracle" ]]; then
         build_args+=(--build-arg "DEBIAN_MIRROR=$DEBIAN_MIRROR")
+    fi
+    if [[ -n "$PLATFORM" ]]; then
+        build_args+=(--platform "$PLATFORM")
     fi
     
     # 构建镜像

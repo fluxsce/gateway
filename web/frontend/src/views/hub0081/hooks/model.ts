@@ -48,7 +48,7 @@ function toTagVariant(type?: string): RsTagVariant {
 }
 
 export function useAlertTemplateModel() {
-  const moduleId = 'hub0081:alert-template'
+  const moduleId = 'hub0081'
 
   const loading = ref(false)
   const templateList = ref<AlertTemplate[]>([])

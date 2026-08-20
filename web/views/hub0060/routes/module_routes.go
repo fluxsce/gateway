@@ -55,32 +55,20 @@ func RegisterHub0060Routes(router *gin.Engine, db database.Database) {
 		// 获取隧道服务器详情
 		protectedGroup.POST("/getTunnelServer", tunnelServerController.GetTunnelServer)
 
-		// 创建隧道服务器
-		protectedGroup.POST("/createTunnelServer", tunnelServerController.CreateTunnelServer)
-
-		// 更新隧道服务器信息
-		protectedGroup.POST("/updateTunnelServer", tunnelServerController.UpdateTunnelServer)
-
-		// 删除隧道服务器
-		protectedGroup.POST("/deleteTunnelServer", tunnelServerController.DeleteTunnelServer)
+		protectedGroup.POST("/createTunnelServer", routes.RequireButton("hub0060:add"), tunnelServerController.CreateTunnelServer)
+		protectedGroup.POST("/updateTunnelServer", routes.RequireButton("hub0060:edit"), tunnelServerController.UpdateTunnelServer)
+		protectedGroup.POST("/deleteTunnelServer", routes.RequireButton("hub0060:delete"), tunnelServerController.DeleteTunnelServer)
 
 		// 获取隧道服务器统计信息
 		protectedGroup.POST("/getTunnelServerStats", tunnelServerController.GetTunnelServerStats)
 
-		// 生成认证令牌
-		protectedGroup.POST("/generateAuthToken", tunnelServerController.GenerateAuthToken)
+		// 生成令牌、重载配置：目录无独立按钮，按编辑权限拦截
+		protectedGroup.POST("/generateAuthToken", routes.RequireButton("hub0060:edit"), tunnelServerController.GenerateAuthToken)
 
-		// 启动隧道服务器
-		protectedGroup.POST("/startTunnelServer", tunnelServerController.StartTunnelServer)
-
-		// 停止隧道服务器
-		protectedGroup.POST("/stopTunnelServer", tunnelServerController.StopTunnelServer)
-
-		// 重启隧道服务器
-		protectedGroup.POST("/restartTunnelServer", tunnelServerController.RestartTunnelServer)
-
-		// 重新加载隧道服务器配置
-		protectedGroup.POST("/reloadTunnelServerConfig", tunnelServerController.ReloadTunnelServerConfig)
+		protectedGroup.POST("/startTunnelServer", routes.RequireButton("hub0060:start"), tunnelServerController.StartTunnelServer)
+		protectedGroup.POST("/stopTunnelServer", routes.RequireButton("hub0060:stop"), tunnelServerController.StopTunnelServer)
+		protectedGroup.POST("/restartTunnelServer", routes.RequireButton("hub0060:restart"), tunnelServerController.RestartTunnelServer)
+		protectedGroup.POST("/reloadTunnelServerConfig", routes.RequireButton("hub0060:edit"), tunnelServerController.ReloadTunnelServerConfig)
 
 		// 获取已注册的客户端列表
 		protectedGroup.POST("/getRegisteredClients", tunnelServerController.GetRegisteredClients)

@@ -67,10 +67,9 @@ func initConfigRoutes(router *gin.RouterGroup, db database.Database) {
 		// 配置详情查询
 		configGroup.POST("/getConfig", configController.GetConfig)
 
-		// 配置增删改
-		configGroup.POST("/addConfig", configController.AddConfig)
-		configGroup.POST("/editConfig", configController.EditConfig)
-		configGroup.POST("/deleteConfig", configController.DeleteConfig)
+		configGroup.POST("/addConfig", routes.RequireButton("hub0043:add"), configController.AddConfig)
+		configGroup.POST("/editConfig", routes.RequireButton("hub0043:edit"), configController.EditConfig)
+		configGroup.POST("/deleteConfig", routes.RequireButton("hub0043:delete"), configController.DeleteConfig)
 	}
 }
 
@@ -92,12 +91,8 @@ func initConfigHistoryRoutes(router *gin.RouterGroup, db database.Database) {
 	{
 		// 配置历史查询
 		historyGroup.POST("/queryConfigHistory", historyController.GetConfigHistory)
-
-		// 根据历史配置ID获取详情
 		historyGroup.POST("/getHistoryById", historyController.GetHistoryById)
-
-		// 配置回滚
-		historyGroup.POST("/rollbackConfig", historyController.RollbackConfig)
+		historyGroup.POST("/rollbackConfig", routes.RequireButton("hub0043:history:rollback"), historyController.RollbackConfig)
 	}
 }
 

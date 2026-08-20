@@ -192,6 +192,14 @@ func ErrorJSON(c *gin.Context, errMsg string, messageId string, status ...int) {
 	c.JSON(httpStatus, Error(errMsg, messageId))
 }
 
+// ErrorJSONExt 返回带 extObj 的错误响应，供前端读取剩余秒数等结构化字段。
+func ErrorJSONExt(c *gin.Context, errMsg string, messageId string, ext interface{}) {
+	data := Error(errMsg, messageId)
+	data.PopMsg = errMsg
+	data.ExtObj = ext
+	c.JSON(http.StatusOK, data)
+}
+
 // 返回带分页的成功响应
 func PageJSON(c *gin.Context, data interface{}, pageInfo PageInfo, messageId string) {
 	c.JSON(http.StatusOK, Page(data, pageInfo, messageId))

@@ -23,6 +23,12 @@ export default {
     },
 
     toolbar: {
+      add: '新增',
+      addTooltip: '新增权限资源',
+      edit: '编辑',
+      editTooltip: '编辑选中的资源',
+      delete: '删除',
+      deleteTooltip: '删除选中的资源',
       view: '查看详情',
       viewTooltip: '查看选中资源的详情',
     },

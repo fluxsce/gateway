@@ -390,6 +390,15 @@ export interface RsDataFormModalProps {
   /** 初始数据 */
   initialData?: Record<string, any>
   /**
+   * 权限模块码。传入后按 create→add/create、edit→edit 控制保存按钮。
+   * 含子路径的入口码（如 hub0021:corsConfig）在没有子写码时回退到入口码本身。
+   */
+  moduleId?: string
+  /**
+   * 覆盖默认写操作码（如回滚用 rollback）。与 moduleId 拼接为 `{moduleId}:{permissionAction}`。
+   */
+  permissionAction?: string
+  /**
    * 确认成功后是否自动关闭
    * @default true
    */

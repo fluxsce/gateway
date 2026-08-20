@@ -171,6 +171,7 @@ const props = withDefaults(defineProps<RsSearchFormProps>(), {
   showResetButton: true,
   searchButtonText: '查询',
   resetButtonText: '重置',
+  resetButtonKey: 'reset',
   moreButtonText: '更多条件',
   toolbarAlign: 'right',
   showToolbar: true,
@@ -399,7 +400,7 @@ const toolbarButtonsComputed = computed<ToolbarButton[]>(() => {
     buttons.push(...props.toolbarButtons)
   }
 
-  // 查询/重置通过 onClick 绑定，保证权限拦截下仍可点击（ToolbarButton 对 search/reset/more 放行）
+  // 查询/重置走 Toolbar 权限：`{moduleId}:search` / `{moduleId}:{resetButtonKey}`
   if (props.showSearchButton) {
     const hasSearchButton = buttons.some((btn) => btn.key === 'search')
     if (!hasSearchButton) {
@@ -413,11 +414,12 @@ const toolbarButtonsComputed = computed<ToolbarButton[]>(() => {
     }
   }
 
+  const resetButtonKey = props.resetButtonKey || 'reset'
   if (props.showResetButton) {
-    const hasResetButton = buttons.some((btn) => btn.key === 'reset')
+    const hasResetButton = buttons.some((btn) => btn.key === resetButtonKey)
     if (!hasResetButton) {
       buttons.push({
-        key: 'reset',
+        key: resetButtonKey,
         label: props.resetButtonText,
         icon: RefreshOutline,
         onClick: handleReset,
@@ -455,9 +457,9 @@ const handleReset = () => {
   emit('reset')
 }
 
-const handleToolbarClick = (key: string) => {
+  const handleToolbarClick = (key: string) => {
   const matched = toolbarButtonsComputed.value.find((btn) => btn.key === key)
-  // 已有 onClick 的按钮（search/reset/more）不再重复触发 toolbar-click
+  // 已有 onClick 的按钮（search / 重置 / more）不再重复触发 toolbar-click
   if (matched?.onClick) {
     return
   }

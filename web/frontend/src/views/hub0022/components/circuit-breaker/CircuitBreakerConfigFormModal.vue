@@ -2,6 +2,7 @@
   <div class="circuit-breaker-config-form-modal" id="circuit-breaker-config-form-modal">
     <RsDataFormModal
       v-model:visible="formDialogVisible"
+      module-id="hub0022:circuitBreaker"
       :mode="formDialogMode"
       :title="dialogTitle"
       :width="800"

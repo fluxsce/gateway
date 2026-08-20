@@ -61,7 +61,7 @@ function toTagVariant(type?: string): RsTagVariant {
  */
 export function useAlertConfigModel() {
   // ============= 数据状态 =============
-  const moduleId = 'hub0080:alert-config'
+  const moduleId = 'hub0080'
   
   /** 加载状态 */
   const loading = ref(false)

@@ -38,33 +38,27 @@ func RegisterHub0062Routes(router *gin.Engine, db database.Database) {
 		// 客户端基础CRUD操作
 		protectedGroup.POST("/queryTunnelClients", clientController.QueryTunnelClients)
 		protectedGroup.POST("/getTunnelClient", clientController.GetTunnelClient)
-		protectedGroup.POST("/createTunnelClient", clientController.CreateTunnelClient)
-		protectedGroup.POST("/updateTunnelClient", clientController.UpdateTunnelClient)
-		protectedGroup.POST("/deleteTunnelClient", clientController.DeleteTunnelClient)
+		protectedGroup.POST("/createTunnelClient", routes.RequireButton("hub0062:tunnel-client:add"), clientController.CreateTunnelClient)
+		protectedGroup.POST("/updateTunnelClient", routes.RequireButton("hub0062:tunnel-client:edit"), clientController.UpdateTunnelClient)
+		protectedGroup.POST("/deleteTunnelClient", routes.RequireButton("hub0062:tunnel-client:delete"), clientController.DeleteTunnelClient)
 
-		// 客户端统计信息
 		protectedGroup.POST("/getClientStats", clientController.GetClientStats)
 
-		// 客户端管理操作
-		protectedGroup.POST("/startClient", clientController.StartClient)
-		protectedGroup.POST("/stopClient", clientController.StopClient)
-		protectedGroup.POST("/restartClient", clientController.RestartClient)
+		protectedGroup.POST("/startClient", routes.RequireButton("hub0062:tunnel-client:connect"), clientController.StartClient)
+		protectedGroup.POST("/stopClient", routes.RequireButton("hub0062:tunnel-client:disconnect"), clientController.StopClient)
+		protectedGroup.POST("/restartClient", routes.RequireButton("hub0062:tunnel-client:connect"), clientController.RestartClient)
 
-		// 服务基础CRUD操作
 		protectedGroup.POST("/queryTunnelServices", serviceController.QueryTunnelServices)
 		protectedGroup.POST("/getTunnelService", serviceController.GetTunnelService)
-		protectedGroup.POST("/createTunnelService", serviceController.CreateTunnelService)
-		protectedGroup.POST("/updateTunnelService", serviceController.UpdateTunnelService)
-		protectedGroup.POST("/deleteTunnelService", serviceController.DeleteTunnelService)
+		protectedGroup.POST("/createTunnelService", routes.RequireButton("hub0062:service:create", "hub0062:service:add"), serviceController.CreateTunnelService)
+		protectedGroup.POST("/updateTunnelService", routes.RequireButton("hub0062:service:edit"), serviceController.UpdateTunnelService)
+		protectedGroup.POST("/deleteTunnelService", routes.RequireButton("hub0062:service:delete"), serviceController.DeleteTunnelService)
 
-		// 服务统计信息
 		protectedGroup.POST("/getServiceStats", serviceController.GetServiceStats)
 
-		// 服务注册和注销
-		protectedGroup.POST("/registerService", serviceController.RegisterService)
-		protectedGroup.POST("/unregisterService", serviceController.UnregisterService)
+		protectedGroup.POST("/registerService", routes.RequireButton("hub0062:service:register"), serviceController.RegisterService)
+		protectedGroup.POST("/unregisterService", routes.RequireButton("hub0062:service:unregister"), serviceController.UnregisterService)
 
-		// 关联数据查询
 		protectedGroup.POST("/getClientServices", clientController.GetClientServices)
 	}
 

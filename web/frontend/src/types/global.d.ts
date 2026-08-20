@@ -3,17 +3,19 @@
  * 增强内置对象和提供全局类型
  */
 /// <reference types="./components.d.ts" />
+import type { RequestConfig } from '@/api/requestTypes'
 import { store } from '@/stores'
+import type { JsonDataObj } from '@/types/api'
 import * as storageUtils from '@/utils/storage'
 import * as formatUtils from '@/utils/format'
 import * as validateUtils from '@/utils/validate'
 
-// API接口类型
+/** 全局 $api：与 request.ts 的 get/post/put/del 一致，一律返回 JsonDataObj。 */
 interface ApiInterface {
-  get: <T = any>(url: string, params?: any, config?: any) => Promise<T>
-  post: <T = any>(url: string, data?: any, params?: any, config?: any) => Promise<T>
-  put: <T = any>(url: string, data?: any, config?: any) => Promise<T>
-  delete: <T = any>(url: string, params?: any, config?: any) => Promise<T>
+  get: (url: string, params?: unknown, config?: RequestConfig) => Promise<JsonDataObj>
+  post: (url: string, data?: unknown, params?: unknown, config?: RequestConfig) => Promise<JsonDataObj>
+  put: (url: string, data?: unknown, config?: RequestConfig) => Promise<JsonDataObj>
+  delete: (url: string, params?: unknown, config?: RequestConfig) => Promise<JsonDataObj>
   service: any
 }
 

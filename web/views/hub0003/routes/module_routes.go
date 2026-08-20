@@ -45,12 +45,12 @@ func initSchedulerRoutes(router *gin.RouterGroup, db database.Database) {
 	schedulerGroup := router.Group("/scheduler")
 	{
 		// 调度器增删改查
-		schedulerGroup.POST("/add", schedulerController.AddSchedulerConfig)
+		schedulerGroup.POST("/add", routes.RequireButton("hub0003:scheduler:add"), schedulerController.AddSchedulerConfig)
 		schedulerGroup.POST("/get", schedulerController.GetSchedulerConfig)
-		schedulerGroup.POST("/update", schedulerController.UpdateSchedulerConfig)
-		schedulerGroup.POST("/delete", schedulerController.DeleteSchedulerConfig)
+		schedulerGroup.POST("/update", routes.RequireButton("hub0003:scheduler:edit"), schedulerController.UpdateSchedulerConfig)
+		schedulerGroup.POST("/delete", routes.RequireButton("hub0003:scheduler:delete"), schedulerController.DeleteSchedulerConfig)
 		schedulerGroup.POST("/query", schedulerController.QuerySchedulerConfigs)
-		schedulerGroup.POST("/update-status", schedulerController.UpdateSchedulerStatus)
+		schedulerGroup.POST("/update-status", routes.RequireButton("hub0003:scheduler:edit"), schedulerController.UpdateSchedulerStatus)
 
 		// 调度器控制操作 - TODO: 需要在控制器中实现这些方法
 		// schedulerGroup.POST("/start", schedulerController.StartScheduler)
@@ -67,19 +67,16 @@ func initTaskRoutes(router *gin.RouterGroup, db database.Database) {
 	taskGroup := router.Group("/task")
 	{
 		// 任务增删改查
-		taskGroup.POST("/add", taskController.AddTaskConfig)
+		taskGroup.POST("/add", routes.RequireButton("hub0003:task:add"), taskController.AddTaskConfig)
 		taskGroup.POST("/get", taskController.GetTaskConfig)
-		taskGroup.POST("/update", taskController.UpdateTaskConfig)
-		taskGroup.POST("/delete", taskController.DeleteTaskConfig)
+		taskGroup.POST("/update", routes.RequireButton("hub0003:task:edit"), taskController.UpdateTaskConfig)
+		taskGroup.POST("/delete", routes.RequireButton("hub0003:task:delete"), taskController.DeleteTaskConfig)
 		taskGroup.POST("/query", taskController.QueryTaskConfigs)
-		taskGroup.POST("/update-status", taskController.UpdateTaskStatus)
+		taskGroup.POST("/update-status", routes.RequireButton("hub0003:task:edit"), taskController.UpdateTaskStatus)
 
-		// 任务控制操作
-		taskGroup.POST("/start", taskController.StartTask)
-		taskGroup.POST("/stop", taskController.StopTask)
-
-		// 任务执行操作
-		taskGroup.POST("/trigger", taskController.TriggerTask) // 立即执行任务
+		taskGroup.POST("/start", routes.RequireButton("hub0003:task:start"), taskController.StartTask)
+		taskGroup.POST("/stop", routes.RequireButton("hub0003:task:stop"), taskController.StopTask)
+		taskGroup.POST("/trigger", routes.RequireButton("hub0003:task:trigger"), taskController.TriggerTask)
 	}
 }
 

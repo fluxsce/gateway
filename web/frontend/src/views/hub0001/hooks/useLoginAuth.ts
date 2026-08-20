@@ -9,7 +9,7 @@ import type { RsFormRules, RsFormValidationResult } from '@/ui'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import { logger } from '@/utils/logger'
 import type { User } from '@/views/hub0002/types'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { hub0001Api } from '../api'
 import type { LoginFormData, PhoneLoginFormData } from '../types'
@@ -49,11 +49,13 @@ export function useLoginAuth() {
   const loading = ref(false)
   const phoneLoading = ref(false)
 
-  // 数字验证码相关
+  // 数字验证码相关：只保存签名票与服务端图片，答案不出前端变量
   const captchaId = ref('')
-  const captchaCode = ref('')
-  const captchaExpireAt = ref(0)
   const captchaUrl = ref('')
+
+  // 登录冷却剩余秒数，>0 时禁止提交
+  const lockRemainSeconds = ref(0)
+  let lockTimer: ReturnType<typeof setInterval> | null = null
 
   // 手机验证码相关
   const codeSending = ref(false)
@@ -87,6 +89,10 @@ export function useLoginAuth() {
       { required: true, message: t('validation.passwordRequired'), trigger: 'blur' },
       { min: 6, max: 32, message: t('validation.passwordLength'), trigger: 'blur' },
     ],
+    captchaCode: [
+      { required: true, message: t('validation.captchaRequired'), trigger: 'blur' },
+      { len: 6, message: t('validation.captchaLength'), trigger: 'blur' },
+    ],
   }))
 
   /** 手机验证码登录 rules */
@@ -105,252 +111,29 @@ export function useLoginAuth() {
     ],
   }))
 
-  /**
-   * 复杂验证码Canvas生成器 - 异步处理避免阻塞
-   * @param code 验证码字符串
-   * @returns Promise<string> 生成的 Data URL
-   */
-  const generateComplexCaptchaCanvas = async (code: string): Promise<string> => {
-    return new Promise((resolve) => {
-      // 使用requestAnimationFrame确保在下一帧执行，避免阻塞当前帧
-      requestAnimationFrame(() => {
-        try {
-          const canvas = document.createElement('canvas')
-          const ctx = canvas.getContext('2d')
-          if (!ctx) {
-            resolve('')
-            return
-          }
-
-          // 设置画布尺寸
-          canvas.width = 140
-          canvas.height = 50
-
-          // 创建复杂背景渐变
-          const bgGradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
-          bgGradient.addColorStop(0, '#f8f9fa')
-          bgGradient.addColorStop(0.3, '#e9ecef')
-          bgGradient.addColorStop(0.7, '#dee2e6')
-          bgGradient.addColorStop(1, '#ced4da')
-          ctx.fillStyle = bgGradient
-          ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-          // 优化纹理背景 - 减少数量提升性能
-          for (let i = 0; i < 100; i++) {
-            ctx.fillStyle = `rgba(${Math.random() * 50 + 200}, ${Math.random() * 50 + 200}, ${Math.random() * 50 + 200}, 0.1)`
-            ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 2, 2)
-          }
-
-          // 绘制复杂干扰线 - 贝塞尔曲线
-          ctx.strokeStyle = 'rgba(78, 67, 118, 0.4)'
-          ctx.lineWidth = 2
-          for (let i = 0; i < 5; i++) {
-            ctx.beginPath()
-            const startX = Math.random() * canvas.width
-            const startY = Math.random() * canvas.height
-            const cp1X = Math.random() * canvas.width
-            const cp1Y = Math.random() * canvas.height
-            const cp2X = Math.random() * canvas.width
-            const cp2Y = Math.random() * canvas.height
-            const endX = Math.random() * canvas.width
-            const endY = Math.random() * canvas.height
-
-            ctx.moveTo(startX, startY)
-            ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY)
-            ctx.stroke()
-          }
-
-          // 绘制波浪干扰线
-          ctx.strokeStyle = 'rgba(78, 67, 118, 0.3)'
-          ctx.lineWidth = 1.5
-          for (let i = 0; i < 3; i++) {
-            ctx.beginPath()
-            ctx.moveTo(0, canvas.height / 2 + Math.sin(i) * 10)
-            for (let x = 0; x <= canvas.width; x += 5) {
-              const y =
-                canvas.height / 2 + Math.sin((x + i * 50) * 0.02) * 15 + Math.random() * 10 - 5
-              ctx.lineTo(x, y)
-            }
-            ctx.stroke()
-          }
-
-          // 绘制多种形状干扰
-          const shapes = ['circle', 'rect', 'triangle', 'star']
-          for (let i = 0; i < 15; i++) {
-            const shape = shapes[Math.floor(Math.random() * shapes.length)]
-            const x = Math.random() * canvas.width
-            const y = Math.random() * canvas.height
-            const size = Math.random() * 8 + 2
-
-            ctx.fillStyle = `rgba(78, 67, 118, ${Math.random() * 0.3 + 0.1})`
-            ctx.beginPath()
-
-            switch (shape) {
-              case 'circle':
-                ctx.arc(x, y, size, 0, 2 * Math.PI)
-                break
-              case 'rect':
-                ctx.rect(x - size / 2, y - size / 2, size, size)
-                break
-              case 'triangle':
-                ctx.moveTo(x, y - size)
-                ctx.lineTo(x - size, y + size)
-                ctx.lineTo(x + size, y + size)
-                ctx.closePath()
-                break
-              case 'star':
-                // 简化的星形
-                ctx.moveTo(x, y - size)
-                ctx.lineTo(x + size / 3, y + size / 3)
-                ctx.lineTo(x - size, y)
-                ctx.lineTo(x + size, y)
-                ctx.lineTo(x - size / 3, y + size / 3)
-                ctx.closePath()
-                break
-            }
-            ctx.fill()
-          }
-
-          // 绘制验证码文字 - 复杂样式
-          const chars = code.split('')
-          const colors = ['#4e4376', '#5a4e8c', '#6b5b95', '#7b68a2', '#8b789f', '#9b88b2']
-          const fonts = [
-            'bold 24px Georgia',
-            'bold 22px "Times New Roman"',
-            'bold 26px Arial',
-            'bold 23px Verdana',
-          ]
-
-          chars.forEach((char, index) => {
-            const x = 15 + index * 20
-            const y = canvas.height / 2 + (Math.random() - 0.5) * 8
-
-            // 随机字体和颜色
-            ctx.font = fonts[Math.floor(Math.random() * fonts.length)]
-            ctx.textAlign = 'center'
-            ctx.textBaseline = 'middle'
-
-            // 随机旋转角度
-            const rotation = (Math.random() - 0.5) * 0.6
-
-            ctx.save()
-            ctx.translate(x, y)
-            ctx.rotate(rotation)
-
-            // 绘制文字阴影
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
-            ctx.fillText(char, 2, 2)
-
-            // 绘制文字描边
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'
-            ctx.lineWidth = 3
-            ctx.strokeText(char, 0, 0)
-
-            // 绘制主文字
-            ctx.fillStyle = colors[index % colors.length]
-            ctx.fillText(char, 0, 0)
-
-            // 添加发光效果
-            ctx.shadowColor = colors[index % colors.length]
-            ctx.shadowBlur = 3
-            ctx.fillText(char, 0, 0)
-
-            ctx.restore()
-          })
-
-          // 添加整体扭曲效果
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-          const data = imageData.data
-
-          // 简单的波浪扭曲
-          for (let y = 0; y < canvas.height; y++) {
-            for (let x = 0; x < canvas.width; x++) {
-              const offset = Math.sin(x * 0.1) * 2
-              const newY = Math.min(Math.max(y + offset, 0), canvas.height - 1)
-
-              if (newY !== y) {
-                const sourceIndex = (y * canvas.width + x) * 4
-                const targetIndex = (Math.floor(newY) * canvas.width + x) * 4
-
-                // 交换像素
-                if (targetIndex < data.length && sourceIndex < data.length) {
-                  for (let i = 0; i < 4; i++) {
-                    const temp = data[sourceIndex + i]
-                    data[sourceIndex + i] = data[targetIndex + i]
-                    data[targetIndex + i] = temp
-                  }
-                }
-              }
-            }
-          }
-          ctx.putImageData(imageData, 0, 0)
-
-          logger.debug('复杂验证码Canvas生成完成')
-          resolve(canvas.toDataURL('image/png'))
-        } catch (error) {
-          logger.error('Canvas验证码生成失败:', error)
-          resolve('')
-        }
-      })
-    })
-  }
-
   // 防抖计时器
   let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
   /**
-   * 刷新验证码 - 完全异步处理
+   * 刷新验证码：使用服务端返回的 PNG，不再在浏览器用答案绘图。
    */
   const refreshCaptcha = async () => {
-    // 防抖处理 - 300ms内只允许一次刷新
     if (refreshTimer) {
       clearTimeout(refreshTimer)
     }
 
     refreshTimer = setTimeout(async () => {
       try {
-        logger.info('开始刷新验证码')
-
-        // 异步获取验证码数据
         const response = await hub0001Api.getCaptcha()
-        logger.debug('验证码API响应:', response)
-
-        // 使用 format.ts 中的工具类处理响应
         if (isApiSuccess(response)) {
-          const captchaData = parseJsonData<any>(response, null)
-          if (captchaData) {
-            // 立即更新验证码数据，不等待Canvas生成
-            captchaCode.value = captchaData.code
+          const captchaData = parseJsonData<{ captchaId?: string; image?: string } | null>(
+            response,
+            null,
+          )
+          if (captchaData?.captchaId && captchaData.image) {
             captchaId.value = captchaData.captchaId
-            captchaExpireAt.value = captchaData.expireAt
-
-            logger.info('验证码数据更新成功', {
-              captchaId: captchaData.captchaId,
-              hasCode: !!captchaData.code,
-            })
-
-            // 异步生成Canvas - 完全不阻塞主线程
-            if (captchaData.code) {
-              // 使用Web Worker的思路，完全异步
-              const generateCanvas = async () => {
-                try {
-                  const canvasDataUrl = await generateComplexCaptchaCanvas(captchaData.code)
-                  captchaUrl.value = canvasDataUrl
-                  logger.debug('验证码Canvas生成并更新完成')
-                } catch (error) {
-                  logger.error('Canvas生成异常:', error)
-                  // 降级处理 - 使用简单的文本显示
-                  captchaUrl.value = ''
-                }
-              }
-
-              // 延迟Canvas生成，确保LCP优先完成
-              if ('requestIdleCallback' in window) {
-                requestIdleCallback(generateCanvas, { timeout: 3000 })
-              } else {
-                setTimeout(generateCanvas, 500) // 延迟500ms，确保页面LCP完成
-              }
-            }
+            captchaUrl.value = captchaData.image
+            formData.captchaCode = ''
           } else {
             logger.warn('验证码数据解析失败', response)
           }
@@ -365,10 +148,48 @@ export function useLoginAuth() {
     }, 300)
   }
 
+  const stopLockCountdown = () => {
+    if (lockTimer) {
+      clearInterval(lockTimer)
+      lockTimer = null
+    }
+  }
+
+  const startLockCountdown = (seconds: number) => {
+    stopLockCountdown()
+    lockRemainSeconds.value = Math.max(0, Math.ceil(seconds))
+    if (lockRemainSeconds.value <= 0) {
+      return
+    }
+    lockTimer = setInterval(() => {
+      if (lockRemainSeconds.value <= 1) {
+        lockRemainSeconds.value = 0
+        stopLockCountdown()
+        return
+      }
+      lockRemainSeconds.value -= 1
+    }, 1000)
+  }
+
+  const readRemainSeconds = (response: { extObj?: unknown }): number => {
+    const ext = response.extObj
+    if (ext && typeof ext === 'object' && 'remainSeconds' in ext) {
+      const value = Number((ext as { remainSeconds?: unknown }).remainSeconds)
+      if (Number.isFinite(value) && value > 0) {
+        return value
+      }
+    }
+    return 0
+  }
+
   /**
    * 验证表单并登录
    */
   const handleLogin = async () => {
+    if (lockRemainSeconds.value > 0) {
+      message.warning(t('login.cooldownHint', { seconds: lockRemainSeconds.value }))
+      return
+    }
     if (!formRef.value) return
 
     try {
@@ -407,14 +228,20 @@ export function useLoginAuth() {
 
       // 使用 format.ts 中的工具类处理响应
       if (!isApiSuccess(response)) {
-        // 登录失败
-        const errorMsg = getApiMessage(response, t('login.loginFailed'))
+        const remain = readRemainSeconds(response)
+        if (remain > 0) {
+          startLockCountdown(remain)
+        }
+        const errorMsg =
+          remain > 0
+            ? t('login.cooldownHint', { seconds: remain })
+            : getApiMessage(response, t('login.loginFailed'))
         message.error(errorMsg)
         logger.warn('登录失败', {
           errMsg: response.errMsg,
           popMsg: response.popMsg,
         })
-        refreshCaptcha() // 刷新验证码
+        refreshCaptcha()
         return false
       }
 
@@ -628,6 +455,10 @@ export function useLoginAuth() {
     }
   }
 
+  onUnmounted(() => {
+    stopLockCountdown()
+  })
+
   // 初始化验证码 - 延迟执行，优先保证LCP
   onMounted(() => {
     logger.info('LoginAuth组件挂载，开始初始化')
@@ -655,9 +486,8 @@ export function useLoginAuth() {
     phoneRules,
     loading,
     phoneLoading,
-    captchaCode,
+    lockRemainSeconds,
     captchaUrl,
-    captchaExpireAt,
     codeSending,
     countdown,
     appVersion,

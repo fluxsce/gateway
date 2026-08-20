@@ -3,6 +3,8 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware"
+	"gateway/web/middleware/permission"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -100,11 +102,7 @@ func (c *ResourceController) AddResource(ctx *gin.Context) {
 	// 使用工具类获取操作人ID和租户ID
 	operatorId := request.GetOperatorID(ctx)
 	tenantId := request.GetTenantID(ctx)
-
-	// 设置租户ID
-	if req.TenantId == "" {
-		req.TenantId = tenantId
-	}
+	req.TenantId = tenantId
 
 	// 如果未提供资源ID，生成一个
 	if req.ResourceId == "" {
@@ -118,6 +116,14 @@ func (c *ResourceController) AddResource(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建资源失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionCreate,
+		ModuleCode:   "hub0006",
+		TargetType:   "RESOURCE",
+		TargetId:     resourceId,
+		TargetName:   req.ResourceName,
+		ResourceCode: "hub0006:add",
+	})
 
 	// 查询新添加的资源信息
 	newResource, err := c.resourceDAO.GetResourceById(ctx, resourceId, req.TenantId)
@@ -199,6 +205,18 @@ func (c *ResourceController) EditResource(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新资源失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	targetName := updateData.ResourceName
+	if targetName == "" && currentResource != nil {
+		targetName = currentResource.ResourceName
+	}
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionUpdate,
+		ModuleCode:   "hub0006",
+		TargetType:   "RESOURCE",
+		TargetId:     updateData.ResourceId,
+		TargetName:   targetName,
+		ResourceCode: "hub0006:edit",
+	})
 
 	// 查询更新后的资源信息
 	updatedResource, err := c.resourceDAO.GetResourceById(ctx, updateData.ResourceId, tenantId)
@@ -286,6 +304,11 @@ func (c *ResourceController) DeleteResource(ctx *gin.Context) {
 	operatorId := request.GetOperatorID(ctx)
 	tenantId := request.GetTenantID(ctx)
 
+	targetName := ""
+	if resource, getErr := c.resourceDAO.GetResourceById(ctx, resourceId, tenantId); getErr == nil && resource != nil {
+		targetName = resource.ResourceName
+	}
+
 	// 调用DAO删除资源
 	err := c.resourceDAO.DeleteResource(ctx, resourceId, tenantId, operatorId)
 	if err != nil {
@@ -293,6 +316,14 @@ func (c *ResourceController) DeleteResource(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除资源失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionDelete,
+		ModuleCode:   "hub0006",
+		TargetType:   "RESOURCE",
+		TargetId:     resourceId,
+		TargetName:   targetName,
+		ResourceCode: "hub0006:delete",
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"resourceId": resourceId,

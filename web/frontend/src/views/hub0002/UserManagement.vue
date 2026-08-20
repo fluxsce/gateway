@@ -43,6 +43,7 @@
     <!-- 用户对话框（新增/编辑/查看共用） -->
     <RsDataFormModal
       v-model:visible="formDialogVisible"
+      :module-id="service.model.moduleId"
       :mode="formDialogMode"
       :title="formDialogMode === 'create' ? '新增用户' : formDialogMode === 'edit' ? '编辑用户' : '查看用户详情'"
       :to="`#${service.model.moduleId}`"

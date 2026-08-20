@@ -40,6 +40,7 @@
 
     <RsDataFormModal
       v-model:visible="formDialogVisible"
+      :module-id="service.model.moduleId"
       :mode="formDialogMode"
       :title="
         formDialogMode === 'create'

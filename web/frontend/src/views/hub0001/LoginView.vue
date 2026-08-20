@@ -107,9 +107,12 @@
                     <div class="captcha-area__field">
                       <RsInput
                         v-model="formData.captchaCode"
+                        name="captchaCode"
                         radius="sm"
                         size="lg"
-                        :placeholder="t('login.captcha')"
+                        :maxlength="6"
+                        autocomplete="off"
+                        :placeholder="t('login.captchaPlaceholder')"
                         @keyup.enter="handleLogin"
                       >
                         <template #prefix>
@@ -138,15 +141,24 @@
                     </RsButton>
                   </div>
 
+                  <p v-if="lockRemainSeconds > 0" class="login-cooldown">
+                    {{ t('login.cooldownHint', { seconds: lockRemainSeconds }) }}
+                  </p>
+
                   <RsButton
                     variant="primary"
                     size="lg"
                     radius="sm"
                     class="login-btn"
                     :loading="loading"
+                    :disabled="lockRemainSeconds > 0"
                     @click="handleLogin"
                   >
-                    {{ t('login.loginButton') }}
+                    {{
+                      lockRemainSeconds > 0
+                        ? t('login.cooldownButton', { seconds: lockRemainSeconds })
+                        : t('login.loginButton')
+                    }}
                   </RsButton>
                 </RsForm>
               </template>
@@ -278,6 +290,7 @@ const {
   phoneRules,
   loading,
   phoneLoading,
+  lockRemainSeconds,
   captchaUrl,
   codeSending,
   countdown,
@@ -645,6 +658,13 @@ const loginTabItems = computed(() => [
 .form-options {
   display: flex;
   justify-content: flex-end;
+}
+
+.login-cooldown {
+  margin: 0;
+  font-size: 13px;
+  color: var(--rs-muted);
+  text-align: center;
 }
 
 .login-btn {

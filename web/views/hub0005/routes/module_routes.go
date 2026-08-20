@@ -65,17 +65,17 @@ func initRoleRoutes(router *gin.RouterGroup, db database.Database) {
 
 	// 注册路由 - 所有角色管理相关的路由都需要认证
 	{
-		// 角色查询相关路由
+		// 未传 RequireButton：有模块即放行，不做按钮拦截
 		roleGroup.POST("/queryRoles", roleController.QueryRoles)
 		roleGroup.POST("/getRole", roleController.GetRole)
-		roleGroup.POST("/getRoleResources", roleController.GetRoleResources)
+		// 传入按钮码才拦截；未授予时 403
+		roleGroup.POST("/getRoleResources", routes.RequireButton("hub0005:roleAuth"), roleController.GetRoleResources)
 
-		// 角色管理相关路由
-		roleGroup.POST("/addRole", roleController.AddRole)
-		roleGroup.POST("/editRole", roleController.EditRole)
-		roleGroup.POST("/deleteRole", roleController.DeleteRole)
-		roleGroup.POST("/updateRoleStatus", roleController.UpdateRoleStatus)
-		roleGroup.POST("/saveRoleResources", roleController.SaveRoleResources)
+		roleGroup.POST("/addRole", routes.RequireButton("hub0005:add"), roleController.AddRole)
+		roleGroup.POST("/editRole", routes.RequireButton("hub0005:edit"), roleController.EditRole)
+		roleGroup.POST("/deleteRole", routes.RequireButton("hub0005:delete"), roleController.DeleteRole)
+		roleGroup.POST("/updateRoleStatus", routes.RequireButton("hub0005:edit"), roleController.UpdateRoleStatus)
+		roleGroup.POST("/saveRoleResources", routes.RequireButton("hub0005:roleAuth"), roleController.SaveRoleResources)
 	}
 }
 

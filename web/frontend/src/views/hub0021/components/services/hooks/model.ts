@@ -43,7 +43,7 @@ const loadBalanceLabelMap: Record<string, string> = {
  */
 export function useServiceDefinitionSelectorModel() {
   // ============= 数据状态 =============
-  const moduleId = 'hub0021-service-selector'
+  const moduleId = 'hub0021'
 
   /** 加载状态 */
   const loading = ref(false)

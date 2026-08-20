@@ -88,10 +88,10 @@ func initSecurityConfigRoutes(router *gin.RouterGroup, db database.Database) {
 		// 安全配置详情查询
 		securityGroup.POST("/getSecurityConfig", securityConfigController.GetSecurityConfig)
 
-		// 安全配置增删改
-		securityGroup.POST("/addSecurityConfig", securityConfigController.AddSecurityConfig)
-		securityGroup.POST("/editSecurityConfig", securityConfigController.EditSecurityConfig)
-		securityGroup.POST("/deleteSecurityConfig", securityConfigController.DeleteSecurityConfig)
+		// 安全配置增删改：与子项相同，实例/路由/代理任一模块的 securityConfig 写权限即可
+		securityGroup.POST("/addSecurityConfig", requireNested("securityConfig", "add"), securityConfigController.AddSecurityConfig)
+		securityGroup.POST("/editSecurityConfig", requireNested("securityConfig", "edit"), securityConfigController.EditSecurityConfig)
+		securityGroup.POST("/deleteSecurityConfig", requireNested("securityConfig", "delete"), securityConfigController.DeleteSecurityConfig)
 
 		// 根据网关实例查询安全配置
 		securityGroup.POST("/querySecurityConfigsByGatewayInstance", securityConfigController.QuerySecurityConfigsByGatewayInstance)
@@ -102,80 +102,86 @@ func initSecurityConfigRoutes(router *gin.RouterGroup, db database.Database) {
 		// ===== IP访问控制配置模块 =====
 		ipAccessGroup := securityGroup.Group("/ip-access")
 		{
-			// IP访问控制配置增删改查
-			ipAccessGroup.POST("/add", ipAccessConfigController.AddIpAccessConfig)
+			ipAccessGroup.POST("/add", requireNested("ipAccessControl", "add"), ipAccessConfigController.AddIpAccessConfig)
 			ipAccessGroup.POST("/get", ipAccessConfigController.GetIpAccessConfig)
-			ipAccessGroup.POST("/update", ipAccessConfigController.UpdateIpAccessConfig)
-			ipAccessGroup.POST("/delete", ipAccessConfigController.DeleteIpAccessConfig)
+			ipAccessGroup.POST("/update", requireNested("ipAccessControl", "edit"), ipAccessConfigController.UpdateIpAccessConfig)
+			ipAccessGroup.POST("/delete", requireNested("ipAccessControl", "delete"), ipAccessConfigController.DeleteIpAccessConfig)
 			ipAccessGroup.POST("/query", ipAccessConfigController.QueryIpAccessConfigs)
 		}
 
-		// ===== User-Agent访问控制配置模块 =====
 		useragentAccessGroup := securityGroup.Group("/useragent-access")
 		{
-			// User-Agent访问控制配置增删改查
-			useragentAccessGroup.POST("/add", useragentAccessConfigController.AddUseragentAccessConfig)
+			useragentAccessGroup.POST("/add", requireNested("userAgentAccessControl", "add"), useragentAccessConfigController.AddUseragentAccessConfig)
 			useragentAccessGroup.POST("/get", useragentAccessConfigController.GetUseragentAccessConfig)
-			useragentAccessGroup.POST("/update", useragentAccessConfigController.UpdateUseragentAccessConfig)
-			useragentAccessGroup.POST("/delete", useragentAccessConfigController.DeleteUseragentAccessConfig)
+			useragentAccessGroup.POST("/update", requireNested("userAgentAccessControl", "edit"), useragentAccessConfigController.UpdateUseragentAccessConfig)
+			useragentAccessGroup.POST("/delete", requireNested("userAgentAccessControl", "delete"), useragentAccessConfigController.DeleteUseragentAccessConfig)
 			useragentAccessGroup.POST("/query", useragentAccessConfigController.QueryUseragentAccessConfigs)
 		}
 
-		// ===== API访问控制配置模块 =====
 		apiAccessGroup := securityGroup.Group("/api-access")
 		{
-			// API访问控制配置增删改查
-			apiAccessGroup.POST("/add", apiAccessConfigController.AddApiAccessConfig)
+			apiAccessGroup.POST("/add", requireNested("apiAccessControl", "add"), apiAccessConfigController.AddApiAccessConfig)
 			apiAccessGroup.POST("/get", apiAccessConfigController.GetApiAccessConfig)
-			apiAccessGroup.POST("/update", apiAccessConfigController.UpdateApiAccessConfig)
-			apiAccessGroup.POST("/delete", apiAccessConfigController.DeleteApiAccessConfig)
+			apiAccessGroup.POST("/update", requireNested("apiAccessControl", "edit"), apiAccessConfigController.UpdateApiAccessConfig)
+			apiAccessGroup.POST("/delete", requireNested("apiAccessControl", "delete"), apiAccessConfigController.DeleteApiAccessConfig)
 			apiAccessGroup.POST("/query", apiAccessConfigController.QueryApiAccessConfigs)
 		}
 
-		// ===== 域名访问控制配置模块 =====
 		domainAccessGroup := securityGroup.Group("/domain-access")
 		{
-			// 域名访问控制配置增删改查
-			domainAccessGroup.POST("/add", domainAccessConfigController.AddDomainAccessConfig)
+			domainAccessGroup.POST("/add", requireNested("domainAccessControl", "add"), domainAccessConfigController.AddDomainAccessConfig)
 			domainAccessGroup.POST("/get", domainAccessConfigController.GetDomainAccessConfig)
-			domainAccessGroup.POST("/update", domainAccessConfigController.UpdateDomainAccessConfig)
-			domainAccessGroup.POST("/delete", domainAccessConfigController.DeleteDomainAccessConfig)
+			domainAccessGroup.POST("/update", requireNested("domainAccessControl", "edit"), domainAccessConfigController.UpdateDomainAccessConfig)
+			domainAccessGroup.POST("/delete", requireNested("domainAccessControl", "delete"), domainAccessConfigController.DeleteDomainAccessConfig)
 			domainAccessGroup.POST("/query", domainAccessConfigController.QueryDomainAccessConfigs)
 		}
 
-		// ===== CORS跨域配置模块 =====
 		corsConfigGroup := securityGroup.Group("/cors")
 		{
-			// CORS配置增删改查
-			corsConfigGroup.POST("/add", corsConfigController.AddCorsConfig)
+			corsConfigGroup.POST("/add", requireNested("corsConfig", "add"), corsConfigController.AddCorsConfig)
 			corsConfigGroup.POST("/get", corsConfigController.GetCorsConfig)
-			corsConfigGroup.POST("/update", corsConfigController.UpdateCorsConfig)
-			corsConfigGroup.POST("/delete", corsConfigController.DeleteCorsConfig)
+			corsConfigGroup.POST("/update", requireNested("corsConfig", "edit"), corsConfigController.UpdateCorsConfig)
+			corsConfigGroup.POST("/delete", requireNested("corsConfig", "delete"), corsConfigController.DeleteCorsConfig)
 			corsConfigGroup.POST("/query", corsConfigController.QueryCorsConfigs)
 		}
 
-		// ===== 认证配置模块 =====
 		authConfigGroup := securityGroup.Group("/auth")
 		{
-			// 认证配置增删改查
-			authConfigGroup.POST("/add", authConfigController.AddAuthConfig)
+			authConfigGroup.POST("/add", requireNested("authConfig", "add"), authConfigController.AddAuthConfig)
 			authConfigGroup.POST("/get", authConfigController.GetAuthConfig)
-			authConfigGroup.POST("/update", authConfigController.UpdateAuthConfig)
-			authConfigGroup.POST("/delete", authConfigController.DeleteAuthConfig)
+			authConfigGroup.POST("/update", requireNested("authConfig", "edit"), authConfigController.UpdateAuthConfig)
+			authConfigGroup.POST("/delete", requireNested("authConfig", "delete"), authConfigController.DeleteAuthConfig)
 			authConfigGroup.POST("/query", authConfigController.QueryAuthConfigs)
 		}
 
-		// ===== 限流配置模块 =====
 		rateLimitConfigGroup := securityGroup.Group("/rate-limit")
 		{
-			// 限流配置增删改查
-			rateLimitConfigGroup.POST("/add", rateLimitConfigController.AddRateLimitConfig)
+			rateLimitConfigGroup.POST("/add", requireNested("rateLimitConfig", "add"), rateLimitConfigController.AddRateLimitConfig)
 			rateLimitConfigGroup.POST("/get", rateLimitConfigController.GetRateLimitConfig)
-			rateLimitConfigGroup.POST("/update", rateLimitConfigController.UpdateRateLimitConfig)
-			rateLimitConfigGroup.POST("/delete", rateLimitConfigController.DeleteRateLimitConfig)
+			rateLimitConfigGroup.POST("/update", requireNested("rateLimitConfig", "edit"), rateLimitConfigController.UpdateRateLimitConfig)
+			rateLimitConfigGroup.POST("/delete", requireNested("rateLimitConfig", "delete"), rateLimitConfigController.DeleteRateLimitConfig)
 			rateLimitConfigGroup.POST("/query", rateLimitConfigController.QueryRateLimitConfigs)
 		}
 	}
+}
+
+// requireNested 公共安全配置写接口：实例/路由/代理任一模块的对应按钮即可。
+// 目录经常只有入口码（如 hub0020:corsConfig）而没有 :add/:edit/:delete，入口码视为写权限。
+// 三个码都未授予时拒绝，不会因为「目录没有按钮」而放行。
+func requireNested(nested, action string) gin.HandlerFunc {
+	codes := []string{
+		"hub0020:" + nested + ":" + action,
+		"hub0021:" + nested + ":" + action,
+		"hub0022:" + nested + ":" + action,
+		"hub0020:" + nested,
+		"hub0021:" + nested,
+		"hub0022:" + nested,
+	}
+	// hub0020 限流新增在目录里叫 create，不是 add
+	if nested == "rateLimitConfig" && action == "add" {
+		codes = append(codes, "hub0020:rateLimitConfig:create")
+	}
+	return routes.RequireButton(codes...)
 }
 
 // RegisterRoutesFunc 返回路由注册函数

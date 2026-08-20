@@ -6,6 +6,7 @@
  */
 import { buildSidebarMenuFromRegistry, isLayoutMenuGroup } from '@/router/layoutRouteRegistry'
 import { useGlobalStore } from '@/stores/global'
+import { useUserStore } from '@/stores/user'
 import type { RsMenuItem } from '@/ui'
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
@@ -44,6 +45,35 @@ function mapNodeToMenuItem(node: LayoutMenuNode): RsMenuItem {
   }
 }
 
+function canShowMenuNode(node: LayoutMenuNode, hasModule: (code: string) => boolean): boolean {
+  if (!node.moduleName) {
+    return true
+  }
+  return hasModule(node.moduleName)
+}
+
+function filterRegistryNodes(
+  nodes: LayoutMenuNode[],
+  hasModule: (code: string) => boolean,
+): LayoutMenuNode[] {
+  const result: LayoutMenuNode[] = []
+  for (const node of nodes) {
+    if (isLayoutMenuGroup(node)) {
+      const children = node.children.filter((child) => canShowMenuNode(child, hasModule))
+      if (children.length === 0) {
+        continue
+      }
+      result.push({ ...node, children })
+      continue
+    }
+    if (!canShowMenuNode(node, hasModule)) {
+      continue
+    }
+    result.push(node)
+  }
+  return result
+}
+
 function collectLeafMeta(nodes: LayoutMenuNode[]): LayoutMenuLeafMeta[] {
   const leaves: LayoutMenuLeafMeta[] = []
   for (const node of nodes) {
@@ -77,9 +107,12 @@ function collectLeafMeta(nodes: LayoutMenuNode[]): LayoutMenuLeafMeta[] {
  */
 export function useLayoutMenu() {
   const globalStore = useGlobalStore()
+  const userStore = useUserStore()
   const route = useRoute()
 
-  const registryNodes = computed(() => buildSidebarMenuFromRegistry())
+  const registryNodes = computed(() =>
+    filterRegistryNodes(buildSidebarMenuFromRegistry(), (code) => userStore.hasModule(code)),
+  )
   const menuItems = computed<RsMenuItem[]>(() =>
     registryNodes.value.map((node) => mapNodeToMenuItem(node)),
   )

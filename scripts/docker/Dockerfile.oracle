@@ -1,7 +1,7 @@
 # ============================================
 # FLUX Gateway - Full Features Docker Build (默认构建)
 # 支持系统: Linux (Debian Bookworm)
-# 支持架构: amd64
+# 支持架构: amd64（当前锁定 Instant Client 21.18，该版本只有 linux x64；ARM64 需改用 19c/23ai）
 # 支持数据库: MySQL, SQLite, Oracle (包含所有依赖)
 # 注意: 默认构建包含所有数据库支持，无需额外配置
 # ============================================
@@ -79,9 +79,16 @@ RUN go mod download
 COPY . .
 
 # 构建参数
-ARG VERSION=3.2.4
+ARG VERSION=3.2.5
 ARG BUILD_DATE
 ARG GIT_COMMIT=unknown
+
+# 21.18 只有 linux.x64；ARM64 官方 Instant Client 是 19c/23ai，本文件尚未接入
+ARG TARGETARCH
+RUN if [ -n "$TARGETARCH" ] && [ "$TARGETARCH" != "amd64" ]; then \
+    echo "Dockerfile.oracle currently pins Instant Client 21.18 (linux x64 only). ARM64 needs Instant Client 19c or 23ai, got: $TARGETARCH" >&2; \
+    exit 1; \
+    fi
 
 # 编译应用（启用 CGO，支持 Oracle 和 SQLite）
 # 注意: 不使用 no_oracle tag，因此包含 Oracle 支持
@@ -105,7 +112,7 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
 FROM debian:bookworm-slim
 
 # 构建参数（在运行时阶段也需要）
-ARG VERSION=3.2.4
+ARG VERSION=3.2.5
 ARG BUILD_DATE
 ARG GIT_COMMIT=unknown
 

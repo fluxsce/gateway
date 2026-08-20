@@ -112,8 +112,8 @@ export default [
     url: '/gateway/user/captcha',
     method: 'post',
     response: () => {
-      // 生成随机4位验证码
-      const captcha = Mock.Random.string('0123456789', 4)
+      // 生成随机6位验证码（仅 mock 服务端持有，不返回给前端）
+      const captcha = Mock.Random.string('0123456789', 6)
       // 生成验证码ID
       const captchaId = `captcha-${Date.now()}-${Mock.Random.string('abcdef0123456789', 8)}`
 
@@ -125,15 +125,15 @@ export default [
         captchaStore.delete(captchaId)
       }, 30000)
 
-      // 生成验证码图片URL (实际环境中会返回一个base64图片)
-      const imageUrl = `https://dummyimage.com/120x38/1890ff/ffffff&text=${captcha}`
+      // 1x1 PNG，不含答案文本
+      const image =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
       return createJsonDataResponse(
         {
           captchaId,
-          imageUrl,
-          expiresAt: new Date(Date.now() + 30000).toISOString(),
-          usedFlag: 'N',
+          image,
+          expireAt: Date.now() + 120000,
         },
         true,
         '获取验证码成功',
@@ -148,20 +148,20 @@ export default [
     response: ({ body }: Pick<RequestParams, 'body'>) => {
       const { userId, password, captchaCode, captchaId } = body
 
-      // 验证验证码
-      if (captchaId && captchaCode) {
-        const storedCaptcha = captchaStore.get(captchaId)
-        if (!storedCaptcha) {
-          return createJsonDataResponse(null, false, '验证码已过期')
-        }
-
-        if (storedCaptcha !== captchaCode) {
-          return createJsonDataResponse(null, false, '验证码错误')
-        }
-
-        // 使用后删除验证码，防止重复使用
-        captchaStore.delete(captchaId)
+      if (!captchaId || !captchaCode) {
+        return createJsonDataResponse(null, false, '验证码不能为空')
       }
+
+      const storedCaptcha = captchaStore.get(captchaId)
+      if (!storedCaptcha) {
+        return createJsonDataResponse(null, false, '验证码已过期')
+      }
+
+      if (storedCaptcha !== captchaCode) {
+        return createJsonDataResponse(null, false, '验证码错误')
+      }
+
+      captchaStore.delete(captchaId)
 
       // 支持通过userId或userName查找用户
       const user = users.find(

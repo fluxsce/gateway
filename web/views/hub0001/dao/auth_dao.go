@@ -5,6 +5,7 @@ import (
 	"errors"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/permission"
 	"gateway/web/views/hub0001/models"
 	"strings"
 	"time"
@@ -393,6 +394,50 @@ func (dao *AuthDAO) GetUserPermissions(ctx context.Context, userId, tenantId str
 				ParentResourceId: res.ParentResourceId,
 				Description:      res.Description,
 			})
+		}
+	}
+
+	// 只勾了模块、角色里没有按钮时，登录补齐该模块下全部按钮，与鉴权 ListUserResourceCodes 一致
+	grantedCodes := make([]string, 0, len(modules)+len(buttons))
+	for _, mod := range modules {
+		grantedCodes = append(grantedCodes, mod.ResourceCode)
+	}
+	for _, btn := range buttons {
+		grantedCodes = append(grantedCodes, btn.ResourceCode)
+	}
+	bare := permission.BareModuleCodes(grantedCodes)
+	if len(bare) > 0 {
+		catalogButtons, listErr := permission.NewPermissionDAO(dao.db).ListCatalogButtonsByParentCodes(ctx, tenantId, bare)
+		if listErr != nil {
+			logger.ErrorWithTrace(ctx, "补齐光杆模块按钮失败", listErr, "userId", userId)
+			return nil, listErr
+		}
+		existing := make(map[string]struct{}, len(buttons))
+		for _, btn := range buttons {
+			existing[btn.ResourceCode] = struct{}{}
+		}
+		for _, row := range catalogButtons {
+			if row.ResourceCode == "" {
+				continue
+			}
+			if _, ok := existing[row.ResourceCode]; ok {
+				continue
+			}
+			displayName := row.DisplayName
+			if displayName == "" {
+				displayName = row.ResourceName
+			}
+			buttons = append(buttons, models.ButtonPermission{
+				ResourceId:       row.ResourceId,
+				ResourceCode:     row.ResourceCode,
+				ResourceName:     row.ResourceName,
+				DisplayName:      displayName,
+				ResourcePath:     row.ResourcePath,
+				ResourceMethod:   row.ResourceMethod,
+				ParentResourceId: row.ParentResourceId,
+				Description:      row.Description,
+			})
+			existing[row.ResourceCode] = struct{}{}
 		}
 	}
 

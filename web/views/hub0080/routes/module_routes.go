@@ -61,20 +61,11 @@ func initAlertConfigRoutes(router *gin.RouterGroup, db database.Database) {
 		// 获取告警配置详情
 		router.POST("/getAlertConfig", ctrl.GetAlertConfig)
 
-		// 创建告警配置
-		router.POST("/createAlertConfig", ctrl.CreateAlertConfig)
-
-		// 更新告警配置（包含启用/禁用功能）
-		router.POST("/updateAlertConfig", ctrl.UpdateAlertConfig)
-
-		// 设置默认告警渠道
-		router.POST("/setDefaultChannel", ctrl.SetDefaultChannel)
-
-		// 测试告警渠道（健康检查）
-		router.POST("/testAlertChannel", ctrl.TestAlertChannel)
-
-		// 重载告警渠道配置（用于配置变更后即时生效）
-		router.POST("/reloadAlertChannel", ctrl.ReloadAlertChannel)
+		router.POST("/createAlertConfig", routes.RequireButton("hub0080:add"), ctrl.CreateAlertConfig)
+		router.POST("/updateAlertConfig", routes.RequireButton("hub0080:edit"), ctrl.UpdateAlertConfig)
+		router.POST("/setDefaultChannel", routes.RequireButton("hub0080:setDefault"), ctrl.SetDefaultChannel)
+		router.POST("/testAlertChannel", routes.RequireButton("hub0080:test"), ctrl.TestAlertChannel)
+		router.POST("/reloadAlertChannel", routes.RequireButton("hub0080:reload"), ctrl.ReloadAlertChannel)
 	}
 }
 

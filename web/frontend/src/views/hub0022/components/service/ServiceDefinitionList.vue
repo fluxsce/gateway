@@ -40,6 +40,7 @@
 
     <RsDataFormModal
       v-model:visible="formDialogVisible"
+      :module-id="service.model.moduleId"
       :mode="formDialogMode"
       :title="formDialogMode === 'create' ? '新增服务定义' : formDialogMode === 'edit' ? '编辑服务定义' : '查看服务定义详情'"
       to="#hub0022-service-definition-list"

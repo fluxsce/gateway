@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="">
+<html lang="" class="app-booting">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="/gatewayweb/assets/logo-CQ1xvCtI.png" id="web-icon-link" />
@@ -10,38 +10,69 @@
 
     <title>Hub App</title>
     <style>
-      /* 静态首屏 Loading：无第三方依赖；Vue 启动后在 `main.ts` 移除 `#app-boot-splash` */
+      /*
+       * 必须与后续 _base.scss / Tailwind preflight 同一套盒模型。
+       * 否则 niuma-ui CSS 注入时 * { box-sizing: border-box } 会把卡片
+       * 从 content-box 改成 border-box：width 把 padding+边框吃进去，看起来突然小一圈。
+       */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      :root {
+        --g-font-size-base: 14px;
+      }
+      html {
+        height: 100%;
+        font-size: 14px;
+        line-height: 1.5;
+        -webkit-text-size-adjust: 100%;
+      }
+      html.app-booting,
+      html.app-booting body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background-color: #0c1020 !important;
+        font-size: 14px !important;
+        line-height: 1.5;
+      }
       html,
       body {
         height: 100%;
       }
       body {
         margin: 0;
-        /* 与登录页 body 兜底色一致，避免 splash 消失瞬间闪色 */
-        background-color: #121638;
+        font-size: 14px;
+        line-height: 1.5;
+        background-color: #0c1020;
       }
       #app {
         height: 100%;
       }
+      html.app-booting #app-boot-splash.app-loading,
       .app-loading {
         position: fixed;
         inset: 0;
         z-index: 2147483647;
         min-height: 100vh;
         min-height: 100dvh;
-        display: flex;
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1;
         align-items: center;
         justify-content: center;
         overflow: hidden;
         overscroll-behavior: none;
         isolation: isolate;
         color-scheme: dark;
-        /* 与 LoginView `.login-view` 同款全屏底图，保证首屏与登录页视觉连续 */
+        /* 与 LoginView `.login-view` 同款底图/网格，避免摘 splash 时网格突然变大像缩放 */
         background:
-          radial-gradient(100% 70% at 85% 15%, rgba(120, 80, 255, 0.38) 0%, transparent 55%),
-          radial-gradient(80% 55% at 8% 88%, rgba(0, 200, 255, 0.18) 0%, transparent 52%),
-          linear-gradient(152deg, #0a0f1c 0%, #121638 38%, #1e1b4b 72%, #312e81 100%);
-        background-color: #121638;
+          radial-gradient(90% 60% at 82% 12%, rgba(129, 140, 248, 0.32) 0%, transparent 58%),
+          radial-gradient(70% 50% at 12% 86%, rgba(56, 189, 248, 0.14) 0%, transparent 55%),
+          linear-gradient(155deg, #070b16 0%, #10152b 42%, #1a1840 78%, #241f4f 100%);
+        background-color: #0c1020;
         color: rgba(255, 255, 255, 0.92);
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
           'Noto Sans', 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -51,37 +82,39 @@
         position: absolute;
         inset: 0;
         z-index: 0;
+        opacity: 0.45;
         background-image:
-          linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-          linear-gradient(105deg, rgba(15, 23, 42, 0.2) 0%, rgba(15, 23, 42, 0.45) 100%);
-        background-size: 28px 28px, 28px 28px, auto;
-        background-repeat: repeat, repeat, no-repeat;
-        background-position: 0 0, 0 0, center;
+          linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+        background-size: 40px 40px;
+        mask-image: radial-gradient(ellipse 80% 70% at 50% 45%, #000 20%, transparent 85%);
+        -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 45%, #000 20%, transparent 85%);
         pointer-events: none;
       }
       .app-loading::after {
         content: '';
         position: absolute;
-        inset: -45%;
+        inset: -40%;
         z-index: 0;
         background: conic-gradient(
-          from 200deg at 50% 50%,
+          from 210deg at 50% 50%,
           transparent 0deg,
-          rgba(99, 102, 241, 0.1) 100deg,
-          transparent 220deg
+          rgba(129, 140, 248, 0.08) 90deg,
+          transparent 200deg
         );
-        animation: app-login-glow 22s linear infinite;
+        animation: app-login-glow 28s linear infinite !important;
         pointer-events: none;
       }
       @keyframes app-login-glow {
         to {
-          transform: rotate(360deg);
+          rotate: 360deg;
         }
       }
       .app-loading__card {
-        width: min(520px, calc(100vw - 48px));
-        /* 接近登录表单卡片的浅色磨砂底 */
+        box-sizing: border-box;
+        /* 用 100% 而不是 100vw，避免滚动条出现时视口宽度跳变 */
+        width: min(520px, calc(100% - 48px));
+        max-width: 520px;
         background: rgba(255, 255, 255, 0.9);
         border: 1px solid rgba(148, 163, 184, 0.45);
         border-radius: 16px;
@@ -132,16 +165,21 @@
         width: 18px;
         height: 18px;
         border-radius: 50%;
-        border: 2px solid rgba(99, 102, 241, 0.25);
-        border-top-color: rgba(99, 102, 241, 0.95);
-        animation: appSpin 0.8s linear infinite;
+        box-sizing: border-box;
+        /* Tailwind preflight 会给 * 写 border:0，必须 !important 才能保住圆环 */
+        border-style: solid !important;
+        border-width: 2px !important;
+        border-color: rgba(99, 102, 241, 0.25) !important;
+        border-top-color: rgba(99, 102, 241, 0.95) !important;
+        animation: appSpin 0.8s linear infinite !important;
         flex: 0 0 auto;
         position: relative;
         z-index: 1;
       }
       @keyframes appSpin {
         to {
-          transform: rotate(360deg);
+          /* 用 rotate 独立属性，避开 Tailwind 在 * 上注册的 transform 变量 */
+          rotate: 360deg;
         }
       }
       .app-loading__title {
@@ -171,36 +209,31 @@
         position: relative;
         z-index: 1;
       }
-      .app-loading__bar::before {
-        content: '';
+      .app-loading__bar-fill {
         display: block;
         height: 100%;
         width: 40%;
         background: linear-gradient(90deg, #6366f1, #8b5cf6);
         border-radius: 999px;
-        animation: appIndeterminate 1.2s ease-in-out infinite;
+        animation: appIndeterminate 1.2s ease-in-out infinite !important;
       }
       @keyframes appIndeterminate {
         0% {
-          transform: translateX(-120%);
+          translate: -120% 0;
         }
         100% {
-          transform: translateX(260%);
+          translate: 260% 0;
         }
       }
       @media (prefers-reduced-motion: reduce) {
         .app-loading::after,
         .app-loading__spinner,
-        .app-loading__bar::before {
+        .app-loading__bar-fill {
           animation: none !important;
         }
       }
     </style>
-    <script type="module" crossorigin src="/gatewayweb/assets/index-C9LUAc-v.js"></script>
-    <link rel="modulepreload" crossorigin href="/gatewayweb/assets/vue-BdfKJKYW.js">
-    <link rel="modulepreload" crossorigin href="/gatewayweb/assets/vendor-D0PMUGwO.js">
-    <link rel="modulepreload" crossorigin href="/gatewayweb/assets/codemirror-1KlKETTF.js">
-    <link rel="modulepreload" crossorigin href="/gatewayweb/assets/niuma-ui-BVMtqzZL.js">
+    <script type="module" crossorigin src="/gatewayweb/assets/index-D6ovHgYc.js"></script>
     <link rel="stylesheet" crossorigin href="/gatewayweb/assets/niuma-ui-4_f5vvj9.css">
   </head>
   <body>
@@ -223,7 +256,9 @@
           <div class="app-loading__spinner" aria-hidden="true"></div>
         </div>
         <div class="app-loading__desc">首次打开可能需要更久一点，请稍候。</div>
-        <div class="app-loading__bar" aria-hidden="true"></div>
+        <div class="app-loading__bar" aria-hidden="true">
+          <span class="app-loading__bar-fill"></span>
+        </div>
       </div>
     </div>
     <div id="app"></div>

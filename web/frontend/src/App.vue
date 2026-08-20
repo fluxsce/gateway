@@ -12,7 +12,7 @@
 </template>
 
 <script setup lang="ts">
-import { initRequestTools } from '@/api/request'
+import { initRequestTools } from '@/api/requestLoading'
 import type { LocaleType } from '@/locales'
 import { useUserStore } from '@/stores/user'
 import {

@@ -2,284 +2,90 @@ package permission
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
+
+	"gateway/pkg/cache"
+	"gateway/pkg/logger"
 )
 
-// CacheInterface 缓存接口定义
-type CacheInterface interface {
-	Set(key string, value interface{}, expiration time.Duration) error
-	Get(key string, dest interface{}) error
-	Delete(key string) error
-	Exists(key string) (bool, error)
-}
-
-// PermissionCache 权限缓存管理器
+// PermissionCache 用户权限码缓存。
+// 以 tenantId+userId 为键存放资源编码列表，供接口鉴权避免每次打库。
 type PermissionCache struct {
-	cache      CacheInterface
+	store      cache.Cache
 	keyPrefix  string
 	defaultTTL time.Duration
 }
 
-// NewPermissionCache 创建权限缓存管理器
-// 参数:
-//
-//	cache: 实现了 CacheInterface 接口的缓存实例
-//
-// 返回:
-//
-//	*PermissionCache: 权限缓存管理器实例
-func NewPermissionCache(cache CacheInterface) *PermissionCache {
+// NewPermissionCache 使用全局缓存实例创建权限缓存。
+// store 为 nil 时所有读写变为空操作，鉴权回源数据库。
+func NewPermissionCache(store cache.Cache) *PermissionCache {
 	return &PermissionCache{
-		cache:      cache,
-		keyPrefix:  "permission:",
-		defaultTTL: 30 * time.Minute, // 默认30分钟过期
+		store:      store,
+		keyPrefix:  "permission:codes:",
+		defaultTTL: 30 * time.Minute,
 	}
 }
 
-// getUserRoleKey 生成用户角色缓存键
-// 参数:
-//
-//	userId: 用户ID
-//	tenantId: 租户ID
-//
-// 返回:
-//
-//	string: 缓存键字符串
-func (pc *PermissionCache) getUserRoleKey(userId, tenantId string) string {
-	return fmt.Sprintf("%suser_roles:%s:%s", pc.keyPrefix, tenantId, userId)
+// NewPermissionCacheFromGlobal 从默认缓存实例创建权限缓存。
+func NewPermissionCacheFromGlobal() *PermissionCache {
+	return NewPermissionCache(cache.GetDefaultCache())
 }
 
-// getUserPermissionKey 生成用户权限缓存键
-// 参数:
-//
-//	userId: 用户ID
-//	tenantId: 租户ID
-//
-// 返回:
-//
-//	string: 缓存键字符串
-func (pc *PermissionCache) getUserPermissionKey(userId, tenantId string) string {
-	return fmt.Sprintf("%suser_permissions:%s:%s", pc.keyPrefix, tenantId, userId)
+func (pc *PermissionCache) userCodesKey(tenantId, userId string) string {
+	return fmt.Sprintf("%s%s:%s", pc.keyPrefix, tenantId, userId)
 }
 
-// getModulePermissionKey 生成模块权限缓存键
-// 参数:
-//
-//	userId: 用户ID
-//	tenantId: 租户ID
-//	moduleCode: 模块编码
-//
-// 返回:
-//
-//	string: 缓存键字符串
-func (pc *PermissionCache) getModulePermissionKey(userId, tenantId, moduleCode string) string {
-	return fmt.Sprintf("%smodule_permission:%s:%s:%s", pc.keyPrefix, tenantId, userId, moduleCode)
+// GetUserCodes 读取用户已授权的资源编码。
+// 第二个返回值 false 表示未命中或缓存不可用，调用方应查库。
+func (pc *PermissionCache) GetUserCodes(ctx context.Context, tenantId, userId string) ([]string, bool) {
+	if pc == nil || pc.store == nil || tenantId == "" || userId == "" {
+		return nil, false
+	}
+	raw, err := pc.store.Get(ctx, pc.userCodesKey(tenantId, userId))
+	if err != nil || len(raw) == 0 {
+		return nil, false
+	}
+	var codes []string
+	if err := json.Unmarshal(raw, &codes); err != nil {
+		logger.Error("解析用户权限缓存失败", "error", err, "tenantId", tenantId, "userId", userId)
+		return nil, false
+	}
+	return codes, true
 }
 
-// getButtonPermissionKey 生成按钮权限缓存键
-// 参数:
-//
-//	userId: 用户ID
-//	tenantId: 租户ID
-//	buttonCode: 按钮编码
-//
-// 返回:
-//
-//	string: 缓存键字符串
-func (pc *PermissionCache) getButtonPermissionKey(userId, tenantId, buttonCode string) string {
-	return fmt.Sprintf("%sbutton_permission:%s:%s:%s", pc.keyPrefix, tenantId, userId, buttonCode)
+// SetUserCodes 写入用户权限编码列表。
+func (pc *PermissionCache) SetUserCodes(ctx context.Context, tenantId, userId string, codes []string) {
+	if pc == nil || pc.store == nil || tenantId == "" || userId == "" {
+		return
+	}
+	if codes == nil {
+		codes = []string{}
+	}
+	raw, err := json.Marshal(codes)
+	if err != nil {
+		logger.Error("序列化用户权限缓存失败", "error", err, "tenantId", tenantId, "userId", userId)
+		return
+	}
+	if err := pc.store.Set(ctx, pc.userCodesKey(tenantId, userId), raw, pc.defaultTTL); err != nil {
+		logger.Error("写入用户权限缓存失败", "error", err, "tenantId", tenantId, "userId", userId)
+	}
 }
 
-// getUserSummaryKey 生成用户权限汇总缓存键
-// 参数:
-//
-//	userId: 用户ID
-//	tenantId: 租户ID
-//
-// 返回:
-//
-//	string: 缓存键字符串
-func (pc *PermissionCache) getUserSummaryKey(userId, tenantId string) string {
-	return fmt.Sprintf("%suser_summary:%s:%s", pc.keyPrefix, tenantId, userId)
+// DeleteUserCodes 删除指定用户的权限缓存，下次鉴权回源数据库。
+func (pc *PermissionCache) DeleteUserCodes(ctx context.Context, tenantId, userId string) {
+	if pc == nil || pc.store == nil || tenantId == "" || userId == "" {
+		return
+	}
+	if err := pc.store.Delete(ctx, pc.userCodesKey(tenantId, userId)); err != nil {
+		logger.Error("删除用户权限缓存失败", "error", err, "tenantId", tenantId, "userId", userId)
+	}
 }
 
-// getDataPermissionKey 生成数据权限缓存键
-// 参数:
-//
-//	userId: 用户ID
-//	tenantId: 租户ID
-//
-// 返回:
-//
-//	string: 缓存键字符串
-func (pc *PermissionCache) getDataPermissionKey(userId, tenantId string) string {
-	return fmt.Sprintf("%sdata_permissions:%s:%s", pc.keyPrefix, tenantId, userId)
-}
-
-// CacheUserRoles 缓存用户角色信息到缓存中（当前实现为空，直接查询数据库）
-// 参数:
-//
-//	userId: 用户ID
-//	tenantId: 租户ID
-//	roles: 用户角色列表
-//
-// 返回:
-//
-//	error: 错误信息，成功时为nil
-func (pc *PermissionCache) CacheUserRoles(userId, tenantId string, roles []UserRole) error {
-	// 缓存逻辑置空，直接查询数据库
-	return nil
-}
-
-// GetCachedUserRoles 从缓存中获取用户角色信息（当前实现为空，直接查询数据库）
-// 参数:
-//
-//	userId: 用户ID
-//	tenantId: 租户ID
-//
-// 返回:
-//
-//	[]UserRole: 用户角色列表
-//	bool: 是否命中缓存，false表示未命中缓存
-func (pc *PermissionCache) GetCachedUserRoles(userId, tenantId string) ([]UserRole, bool) {
-	// 缓存逻辑置空，直接查询数据库
-	return nil, false
-}
-
-// CacheUserPermissions 将用户权限信息存储到缓存中（当前实现为空，直接查询数据库）
-// 参数:
-//
-//	userId: 用户ID
-//	tenantId: 租户ID
-//	permissions: 用户权限列表
-//
-// 返回:
-//
-//	error: 错误信息，成功时为nil
-func (pc *PermissionCache) CacheUserPermissions(userId, tenantId string, permissions []UserPermission) error {
-	// 缓存逻辑置空，直接查询数据库
-	return nil
-}
-
-// GetCachedUserPermissions 从缓存中获取用户权限信息（当前实现为空，直接查询数据库）
-// 参数:
-//
-//	userId: 用户ID
-//	tenantId: 租户ID
-//
-// 返回:
-//
-//	[]UserPermission: 用户权限列表
-//	bool: 是否命中缓存，false表示未命中缓存
-func (pc *PermissionCache) GetCachedUserPermissions(userId, tenantId string) ([]UserPermission, bool) {
-	// 缓存逻辑置空，直接查询数据库
-	return nil, false
-}
-
-// CacheModulePermission 将模块权限信息存储到缓存中（当前实现为空，直接查询数据库）
-// 参数:
-//
-//	userId: 用户ID
-//	tenantId: 租户ID
-//	moduleCode: 模块编码
-//	permission: 模块权限信息
-//
-// 返回:
-//
-//	error: 错误信息，成功时为nil
-func (pc *PermissionCache) CacheModulePermission(userId, tenantId, moduleCode string, permission *ModulePermission) error {
-	// 缓存逻辑置空，直接查询数据库
-	return nil
-}
-
-// GetCachedModulePermission 从缓存中获取模块权限信息（当前实现为空，直接查询数据库）
-func (pc *PermissionCache) GetCachedModulePermission(userId, tenantId, moduleCode string) (*ModulePermission, bool) {
-	// 缓存逻辑置空，直接查询数据库
-	return nil, false
-}
-
-// CacheButtonPermission 将按钮权限信息存储到缓存中（当前实现为空，直接查询数据库）
-func (pc *PermissionCache) CacheButtonPermission(userId, tenantId, buttonCode string, permission *ButtonPermission) error {
-	// 缓存逻辑置空，直接查询数据库
-	return nil
-}
-
-// GetCachedButtonPermission 从缓存中获取按钮权限信息（当前实现为空，直接查询数据库）
-func (pc *PermissionCache) GetCachedButtonPermission(userId, tenantId, buttonCode string) (*ButtonPermission, bool) {
-	// 缓存逻辑置空，直接查询数据库
-	return nil, false
-}
-
-// CacheUserSummary 将用户权限汇总信息存储到缓存中（当前实现为空，直接查询数据库）
-func (pc *PermissionCache) CacheUserSummary(userId, tenantId string, summary *UserPermissionSummary) error {
-	// 缓存逻辑置空，直接查询数据库
-	return nil
-}
-
-// GetCachedUserSummary 从缓存中获取用户权限汇总信息（当前实现为空，直接查询数据库）
-func (pc *PermissionCache) GetCachedUserSummary(userId, tenantId string) (*UserPermissionSummary, bool) {
-	// 缓存逻辑置空，直接查询数据库
-	return nil, false
-}
-
-// CacheDataPermissions 将数据权限信息存储到缓存中（当前实现为空，直接查询数据库）
-func (pc *PermissionCache) CacheDataPermissions(userId, tenantId string, permissions []DataPermission) error {
-	// 缓存逻辑置空，直接查询数据库
-	return nil
-}
-
-// GetCachedDataPermissions 从缓存中获取数据权限信息（当前实现为空，直接查询数据库）
-func (pc *PermissionCache) GetCachedDataPermissions(userId, tenantId string) ([]DataPermission, bool) {
-	// 缓存逻辑置空，直接查询数据库
-	return nil, false
-}
-
-// ClearUserCache 清除指定用户的所有权限缓存数据（当前实现为空，直接查询数据库）
-func (pc *PermissionCache) ClearUserCache(userId, tenantId string) error {
-	// 缓存逻辑置空，直接查询数据库
-	return nil
-}
-
-// ClearRoleCache 清除指定角色相关的权限缓存（当前实现为空，直接查询数据库）
-func (pc *PermissionCache) ClearRoleCache(roleId, tenantId string) error {
-	// 缓存逻辑置空，直接查询数据库
-	return nil
-}
-
-// RefreshUserCache 刷新指定用户的权限缓存数据（当前实现为空，直接查询数据库）
-func (pc *PermissionCache) RefreshUserCache(ctx context.Context, dao *PermissionDAOExtended, userId, tenantId string) error {
-	// 缓存逻辑置空，直接查询数据库
-	return nil
-}
-
-// SetTTL 设置默认缓存过期时间
-func (pc *PermissionCache) SetTTL(ttl time.Duration) {
-	pc.defaultTTL = ttl
-}
-
-// GetTTL 获取当前默认缓存过期时间
-func (pc *PermissionCache) GetTTL() time.Duration {
-	return pc.defaultTTL
-}
-
-// WarmupCache 预热指定用户的权限缓存数据（当前实现为空，直接查询数据库）
-func (pc *PermissionCache) WarmupCache(ctx context.Context, dao *PermissionDAOExtended, userId, tenantId string) error {
-	// 缓存逻辑置空，直接查询数据库
-	return nil
-}
-
-// BatchClearCache 批量清除多个用户的权限缓存数据（当前实现为空，直接查询数据库）
-func (pc *PermissionCache) BatchClearCache(userIds []string, tenantId string) error {
-	// 缓存逻辑置空，直接查询数据库
-	return nil
-}
-
-// GetCacheStats 获取指定用户的权限缓存统计信息（当前实现为空，直接查询数据库）
-func (pc *PermissionCache) GetCacheStats(userId, tenantId string) map[string]interface{} {
-	// 缓存逻辑置空，直接查询数据库
-	stats := make(map[string]interface{})
-	stats["cache_enabled"] = false
-	stats["message"] = "缓存已禁用，直接查询数据库"
-	return stats
+// DeleteUsersCodes 批量删除用户权限缓存。
+func (pc *PermissionCache) DeleteUsersCodes(ctx context.Context, tenantId string, userIds []string) {
+	for _, userId := range userIds {
+		pc.DeleteUserCodes(ctx, tenantId, userId)
+	}
 }

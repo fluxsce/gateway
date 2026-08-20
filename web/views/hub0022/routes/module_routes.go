@@ -23,14 +23,10 @@ func RegisterHub0022Routes(router *gin.Engine, db database.Database) {
 		// 获取代理配置列表 (GET请求，支持分页和筛选)
 		apiGroup.POST("/queryProxyConfigs", proxyConfigController.QueryProxyConfigs)
 
-		// 创建代理配置
-		apiGroup.POST("/addProxyConfig", proxyConfigController.CreateProxyConfig)
-
-		// 更新代理配置
-		apiGroup.POST("/editProxyConfig", proxyConfigController.EditProxyConfig)
-
-		// 删除代理配置
-		apiGroup.POST("/deleteProxyConfig", proxyConfigController.DeleteProxyConfig)
+		// 代理配置入口码即写权限（目录无 addProxy:add/edit/delete）
+		apiGroup.POST("/addProxyConfig", routes.RequireButton("hub0022:addProxy"), proxyConfigController.CreateProxyConfig)
+		apiGroup.POST("/editProxyConfig", routes.RequireButton("hub0022:addProxy"), proxyConfigController.EditProxyConfig)
+		apiGroup.POST("/deleteProxyConfig", routes.RequireButton("hub0022:addProxy"), proxyConfigController.DeleteProxyConfig)
 
 		// 获取代理配置详情 (POST请求，通过请求体传参)
 		apiGroup.POST("/getProxyConfig", proxyConfigController.GetProxyConfig)
@@ -44,14 +40,9 @@ func RegisterHub0022Routes(router *gin.Engine, db database.Database) {
 		// 获取服务定义列表 (GET请求，支持分页)
 		apiGroup.POST("/queryServiceDefinitions", serviceDefinitionController.QueryServiceDefinitions)
 
-		// 创建服务定义
-		apiGroup.POST("/addServiceDefinition", serviceDefinitionController.CreateServiceDefinition)
-
-		// 更新服务定义
-		apiGroup.POST("/editServiceDefinition", serviceDefinitionController.EditServiceDefinition)
-
-		// 删除服务定义
-		apiGroup.POST("/deleteServiceDefinition", serviceDefinitionController.DeleteServiceDefinition)
+		apiGroup.POST("/addServiceDefinition", routes.RequireButton("hub0022:add"), serviceDefinitionController.CreateServiceDefinition)
+		apiGroup.POST("/editServiceDefinition", routes.RequireButton("hub0022:edit"), serviceDefinitionController.EditServiceDefinition)
+		apiGroup.POST("/deleteServiceDefinition", routes.RequireButton("hub0022:delete"), serviceDefinitionController.DeleteServiceDefinition)
 
 		// 获取服务定义详情 (POST请求，通过请求体传参)
 		apiGroup.POST("/getServiceDefinition", serviceDefinitionController.GetServiceDefinition)
@@ -61,7 +52,7 @@ func RegisterHub0022Routes(router *gin.Engine, db database.Database) {
 	{
 		circuitBreakerController := controllers.NewCircuitBreakerConfigController(db)
 		apiGroup.POST("/getCircuitBreakerConfig", circuitBreakerController.GetCircuitBreakerConfig)
-		apiGroup.POST("/saveCircuitBreakerConfig", circuitBreakerController.SaveCircuitBreakerConfig)
+		apiGroup.POST("/saveCircuitBreakerConfig", routes.RequireButton("hub0022:circuitBreaker"), circuitBreakerController.SaveCircuitBreakerConfig)
 	}
 
 	// 网关实例管理路由
@@ -84,20 +75,14 @@ func RegisterHub0022Routes(router *gin.Engine, db database.Database) {
 		// 获取服务节点列表
 		apiGroup.POST("/queryServiceNodes", serviceNodeController.QueryServiceNodes)
 
-		// 创建服务节点
-		apiGroup.POST("/addServiceNode", serviceNodeController.AddServiceNode)
-
-		// 更新服务节点
-		apiGroup.POST("/editServiceNode", serviceNodeController.EditServiceNode)
-
-		// 删除服务节点
-		apiGroup.POST("/deleteServiceNode", serviceNodeController.DeleteServiceNode)
+		apiGroup.POST("/addServiceNode", routes.RequireButton("hub0022:manageNodes:add"), serviceNodeController.AddServiceNode)
+		apiGroup.POST("/editServiceNode", routes.RequireButton("hub0022:manageNodes:edit"), serviceNodeController.EditServiceNode)
+		apiGroup.POST("/deleteServiceNode", routes.RequireButton("hub0022:manageNodes:delete"), serviceNodeController.DeleteServiceNode)
 
 		// 获取服务节点详情
 		apiGroup.POST("/getServiceNode", serviceNodeController.GetServiceNode)
 
-		// 更新节点健康状态
-		apiGroup.POST("/updateNodeHealth", serviceNodeController.UpdateNodeHealth)
+		apiGroup.POST("/updateNodeHealth", routes.RequireButton("hub0022:manageNodes:edit"), serviceNodeController.UpdateNodeHealth)
 	}
 
 	// 服务注册路由（转发到hub0041模块）

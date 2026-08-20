@@ -3,6 +3,8 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware"
+	"gateway/web/middleware/permission"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -76,6 +78,14 @@ func (c *SecurityConfigController) AddSecurityConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "添加安全配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionCreate,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "SECURITY_CONFIG",
+		TargetId:     securityConfigId,
+		TargetName:   config.ConfigName,
+		ResourceCode: "hub0020:securityConfig",
+	})
 
 	// 查询最新的配置数据返回给前端
 	newConfig, err := c.dao.GetSecurityConfigById(reqCtx, securityConfigId, tenantId)
@@ -198,6 +208,14 @@ func (c *SecurityConfigController) EditSecurityConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "编辑安全配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionUpdate,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "SECURITY_CONFIG",
+		TargetId:     config.SecurityConfigId,
+		TargetName:   config.ConfigName,
+		ResourceCode: "hub0020:securityConfig",
+	})
 
 	// 查询最新的配置数据返回给前端
 	updatedConfig, err := c.dao.GetSecurityConfigById(ctx, config.SecurityConfigId, tenantId)
@@ -239,6 +257,11 @@ func (c *SecurityConfigController) DeleteSecurityConfig(ctx *gin.Context) {
 		return
 	}
 
+	targetName := ""
+	if current, getErr := c.dao.GetSecurityConfigById(ctx, securityConfigId, tenantId); getErr == nil && current != nil {
+		targetName = current.ConfigName
+	}
+
 	// 调用DAO层删除安全配置
 	err := c.dao.DeleteSecurityConfig(ctx, securityConfigId, tenantId, operatorId)
 	if err != nil {
@@ -247,6 +270,14 @@ func (c *SecurityConfigController) DeleteSecurityConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除安全配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionDelete,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "SECURITY_CONFIG",
+		TargetId:     securityConfigId,
+		TargetName:   targetName,
+		ResourceCode: "hub0020:securityConfig",
+	})
 
 	logger.InfoWithTrace(ctx, "安全配置删除成功", "securityConfigId", securityConfigId,
 		"tenantId", tenantId, "operatorId", operatorId)

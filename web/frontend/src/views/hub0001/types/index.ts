@@ -12,7 +12,7 @@ export interface LoginFormData {
   password: string
   /** 验证码 */
   captchaCode: string
-  /** 验证码ID */
+  /** 验证码ID（登录时由 hook 附带服务端签名票） */
   captchaId?: string
   /** 记住登录 */
   rememberMe: boolean

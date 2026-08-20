@@ -136,6 +136,26 @@ export function useResourceModel() {
     ]
     searchFormConfig.toolbarButtons = [
       {
+        key: 'add',
+        label: t('resource.toolbar.add'),
+        icon: 'AddOutline',
+        type: 'primary',
+        tooltip: t('resource.toolbar.addTooltip'),
+      },
+      {
+        key: 'edit',
+        label: t('resource.toolbar.edit'),
+        icon: 'CreateOutline',
+        tooltip: t('resource.toolbar.editTooltip'),
+      },
+      {
+        key: 'delete',
+        label: t('resource.toolbar.delete'),
+        icon: 'TrashOutline',
+        type: 'error',
+        tooltip: t('resource.toolbar.deleteTooltip'),
+      },
+      {
         key: 'view',
         label: t('resource.toolbar.view'),
         icon: 'EyeOutline',
@@ -507,6 +527,8 @@ export function useResourceModel() {
       enabled: true,
       items: [
         { key: 'view', label: t('resource.contextMenu.view'), icon: 'EyeOutline' },
+        { key: 'edit', label: t('resource.contextMenu.edit'), icon: 'CreateOutline' },
+        { key: 'delete', label: t('resource.contextMenu.delete'), icon: 'TrashOutline' },
       ],
     }
   }

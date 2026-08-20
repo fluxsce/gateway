@@ -60,5 +60,16 @@ INSERT INTO HUB_AUTH_ROLE (
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_001', 1, 'Y'
 );
 
+-- 只读角色（最小权限：可进入模块并查询/查看，不可写）
+INSERT INTO HUB_AUTH_ROLE (
+  roleId, tenantId, roleName, roleDescription, 
+  roleStatus, builtInFlag, dataScope,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'ROLE_VIEWER', 'default', '只读用户', '仅拥有查询、查看和重置筛选的只读权限',
+  'Y', 'Y', '{"type":"ALL"}',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_002', 1, 'Y'
+);
+
 COMMIT;
 

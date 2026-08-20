@@ -79,8 +79,8 @@ const getButtonPermissionCode = computed(() => {
 
 const isButtonDisabled = computed(() => {
   if (props.button.disabled) return true
-  // 与旧 ToolbarButton 对齐：仅 more（更多条件）不走权限
-  if (props.button.key === 'more') return false
+  // more 展开条件、以及 skipPermission 的纯 UI 动作不走权限码
+  if (props.button.key === 'more' || props.button.skipPermission) return false
   if (!props.moduleId) return false
   const code = getButtonPermissionCode.value
   if (!code) return false

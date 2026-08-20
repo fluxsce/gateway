@@ -33,7 +33,7 @@ export interface AlertLogGridConfig {
  */
 export function useAlertLogModel() {
   const { t, locale } = useModuleI18n('hub0082')
-  const moduleId = 'hub0082:alert-log'
+  const moduleId = 'hub0082'
 
   const loading = ref(false)
   const logList = ref<AlertLog[]>([])

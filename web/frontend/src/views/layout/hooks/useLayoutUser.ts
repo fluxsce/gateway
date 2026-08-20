@@ -32,13 +32,15 @@ export function useLayoutUser() {
         // 与侧栏一致：先 upsert 页签，由 MainLayoutContent 监听 activeTabId 再 router.push
         globalStore.upsertLayoutTab('/settings', tCommon('user.settings'), 'settings')
         break
-      case 'logout':
-        store.user.clearUserInfo()
+      case 'logout': {
+        // 只清持久化，不 $reset，避免跳转前顶栏闪成「游客」
+        store.user.clearPersistedSession()
         const baseUrl = config.baseUrl.endsWith('/')
           ? config.baseUrl.slice(0, -1)
           : config.baseUrl
         window.location.href = baseUrl || '/'
         break
+      }
     }
   }
 

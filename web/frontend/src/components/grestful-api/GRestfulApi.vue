@@ -28,7 +28,7 @@
           variant="primary"
           size="sm"
           :loading="sending"
-          :disabled="sending"
+          :disabled="sending || !canExecuteHttp"
           @click="handleSend"
         >
           发送
@@ -328,6 +328,7 @@ import {
   type RsCodeEditorLanguage,
   type RsSplitPaneItem,
 } from '@/ui'
+import { store } from '@/stores'
 
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
@@ -376,6 +377,10 @@ const props = withDefaults(defineProps<GRestfulApiProps>(), {
 })
 
 const emit = defineEmits<GRestfulApiEmits>()
+
+/** 与后端 hubplugin/http/execute 的 RequireButton 一致：日志重发或批量重发。 */
+const HTTP_EXECUTE_BUTTON_CODES = ['hub0023:reset', 'hub0023:batchReset']
+const canExecuteHttp = computed(() => store.user.hasAnyPermission(HTTP_EXECUTE_BUTTON_CODES))
 
 const message = useAppMessage()
 
@@ -882,6 +887,10 @@ function formatResponseBody(): void {
  * 发起请求：支持取消、错误提示与事件回调。
  */
 async function handleSend(): Promise<void> {
+  if (!canExecuteHttp.value) {
+    message.warning('没有执行此操作的权限')
+    return
+  }
   abortRef.value?.abort()
   const controller = new AbortController()
   abortRef.value = controller

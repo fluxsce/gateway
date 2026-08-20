@@ -42,14 +42,9 @@ func initAlertTemplateRoutes(router *gin.RouterGroup, db database.Database) {
 		// 获取预警模板详情
 		router.POST("/getAlertTemplate", ctrl.GetAlertTemplate)
 
-		// 创建预警模板
-		router.POST("/createAlertTemplate", ctrl.CreateAlertTemplate)
-
-		// 更新预警模板
-		router.POST("/updateAlertTemplate", ctrl.UpdateAlertTemplate)
-
-		// 删除预警模板
-		router.POST("/deleteAlertTemplate", ctrl.DeleteAlertTemplate)
+		router.POST("/createAlertTemplate", routes.RequireButton("hub0081:add"), ctrl.CreateAlertTemplate)
+		router.POST("/updateAlertTemplate", routes.RequireButton("hub0081:edit"), ctrl.UpdateAlertTemplate)
+		router.POST("/deleteAlertTemplate", routes.RequireButton("hub0081:delete"), ctrl.DeleteAlertTemplate)
 	}
 }
 

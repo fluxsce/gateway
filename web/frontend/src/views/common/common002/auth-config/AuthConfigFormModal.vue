@@ -3,6 +3,7 @@
     <!-- 认证配置表单对话框（新增/编辑/查看共用） -->
     <RsDataFormModal
       v-model:visible="formDialogVisible"
+      :module-id="props.moduleId"
       :mode="formDialogMode"
       :title="computedTitle"
       :width="props.width || 800"

@@ -56,6 +56,7 @@
 
         <RsDataFormModal
           v-model:visible="formDialogVisible"
+          :module-id="service.model.moduleId"
           :mode="formDialogMode"
           :title="formDialogMode === 'create' ? '新增域名访问控制配置' : formDialogMode === 'edit' ? '编辑域名访问控制配置' : '查看域名访问控制配置详情'"
           to="#domain-access-config-list-modal"

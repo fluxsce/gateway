@@ -104,9 +104,9 @@ func initRouteConfigRoutes(router *gin.RouterGroup, db database.Database) {
 		configGroup.POST("/routeConfigs/byInstance", routeConfigController.GetRouteConfigsByInstance)
 
 		// 路由配置增删改
-		configGroup.POST("/addRouteConfig", routeConfigController.AddRouteConfig)
-		configGroup.POST("/editRouteConfig", routeConfigController.EditRouteConfig)
-		configGroup.POST("/deleteRouteConfig", routeConfigController.DeleteRouteConfig)
+		configGroup.POST("/addRouteConfig", routes.RequireButton("hub0021:add"), routeConfigController.AddRouteConfig)
+		configGroup.POST("/editRouteConfig", routes.RequireButton("hub0021:edit"), routeConfigController.EditRouteConfig)
+		configGroup.POST("/deleteRouteConfig", routes.RequireButton("hub0021:delete"), routeConfigController.DeleteRouteConfig)
 
 		// 路由统计信息
 		configGroup.POST("/routeStatistics", routeConfigController.GetRouteStatistics)
@@ -129,11 +129,11 @@ func initRouteAssertionRoutes(router *gin.RouterGroup, db database.Database) {
 	// 注册路由 - 所有路由断言管理相关的路由都需要认证
 	{
 		// 路由断言增删改查
-		assertionGroup.POST("/addRouteAssertion", routeAssertionController.AddRouteAssertion)
-		assertionGroup.POST("/editRouteAssertion", routeAssertionController.EditRouteAssertion)
 		assertionGroup.POST("/getRouteAssertionById", routeAssertionController.GetRouteAssertionById)
 		assertionGroup.POST("/queryRouteAssertions", routeAssertionController.QueryRouteAssertions)
-		assertionGroup.DELETE("/deleteRouteAssertion", routeAssertionController.DeleteRouteAssertion)
+		assertionGroup.POST("/addRouteAssertion", routes.RequireButton("hub0021:assertConfig:add"), routeAssertionController.AddRouteAssertion)
+		assertionGroup.POST("/editRouteAssertion", routes.RequireButton("hub0021:assertConfig:edit"), routeAssertionController.EditRouteAssertion)
+		assertionGroup.DELETE("/deleteRouteAssertion", routes.RequireButton("hub0021:assertConfig:delete"), routeAssertionController.DeleteRouteAssertion)
 	}
 }
 
@@ -181,10 +181,10 @@ func initRouterConfigRoutes(router *gin.RouterGroup, db database.Database) {
 		// 根据网关实例获取Router配置列表
 		configGroup.POST("/routerConfigs/byInstance", routerConfigController.GetRouterConfigsByInstance)
 
-		// Router配置增删改
-		configGroup.POST("/addRouterConfig", routerConfigController.AddRouterConfig)
-		configGroup.POST("/editRouterConfig", routerConfigController.EditRouterConfig)
-		configGroup.POST("/deleteRouterConfig", routerConfigController.DeleteRouterConfig)
+		// Router 配置入口码即写权限（目录无 routerConfig:add/edit/delete）
+		configGroup.POST("/addRouterConfig", routes.RequireButton("hub0021:routerConfig"), routerConfigController.AddRouterConfig)
+		configGroup.POST("/editRouterConfig", routes.RequireButton("hub0021:routerConfig"), routerConfigController.EditRouterConfig)
+		configGroup.POST("/deleteRouterConfig", routes.RequireButton("hub0021:routerConfig"), routerConfigController.DeleteRouterConfig)
 	}
 }
 
@@ -232,28 +232,18 @@ func initFilterConfigRoutes(router *gin.RouterGroup, db database.Database) {
 	{
 		// 过滤器配置列表查询（支持多参数）
 		filterGroup.POST("/queryFilterConfigs", filterConfigController.QueryFilterConfigs)
-
-		// 过滤器配置详情查询
 		filterGroup.POST("/getFilterConfig", filterConfigController.GetFilterConfig)
 
-		// 过滤器配置增删改
-		filterGroup.POST("/addFilterConfig", filterConfigController.AddFilterConfig)
-		filterGroup.POST("/editFilterConfig", filterConfigController.EditFilterConfig)
-		filterGroup.POST("/deleteFilterConfig", filterConfigController.DeleteFilterConfig)
-
-		// 过滤器配置批量操作
-		filterGroup.POST("/batchUpdateFilterConfigs", filterConfigController.BatchUpdateFilterConfigs)
-		filterGroup.POST("/batchDeleteFilterConfigs", filterConfigController.BatchDeleteFilterConfigs)
-
-		// 过滤器配置顺序调整
-		filterGroup.POST("/updateFilterOrder", filterConfigController.UpdateFilterOrder)
-		filterGroup.POST("/batchUpdateFilterOrder", filterConfigController.BatchUpdateFilterOrder)
-
-		// 过滤器配置导入导出
+		filterGroup.POST("/addFilterConfig", routes.RequireButton("hub0021:filters:add", "hub0021:globalFilterConfig:add"), filterConfigController.AddFilterConfig)
+		filterGroup.POST("/editFilterConfig", routes.RequireButton("hub0021:filters:edit", "hub0021:globalFilterConfig:edit"), filterConfigController.EditFilterConfig)
+		filterGroup.POST("/deleteFilterConfig", routes.RequireButton("hub0021:filters:delete", "hub0021:globalFilterConfig:delete"), filterConfigController.DeleteFilterConfig)
+		filterGroup.POST("/batchUpdateFilterConfigs", routes.RequireButton("hub0021:filters:edit", "hub0021:globalFilterConfig:edit"), filterConfigController.BatchUpdateFilterConfigs)
+		filterGroup.POST("/batchDeleteFilterConfigs", routes.RequireButton("hub0021:filters:delete", "hub0021:globalFilterConfig:delete"), filterConfigController.BatchDeleteFilterConfigs)
+		filterGroup.POST("/updateFilterOrder", routes.RequireButton("hub0021:filters:edit", "hub0021:globalFilterConfig:edit"), filterConfigController.UpdateFilterOrder)
+		filterGroup.POST("/batchUpdateFilterOrder", routes.RequireButton("hub0021:filters:edit", "hub0021:globalFilterConfig:edit"), filterConfigController.BatchUpdateFilterOrder)
 		filterGroup.POST("/exportFilterConfigs", filterConfigController.ExportFilterConfigs)
-		filterGroup.POST("/importFilterConfigs", filterConfigController.ImportFilterConfigs)
+		filterGroup.POST("/importFilterConfigs", routes.RequireButton("hub0021:filters:add", "hub0021:globalFilterConfig:add"), filterConfigController.ImportFilterConfigs)
 
-		// 过滤器配置统计信息
 		filterGroup.POST("/filterConfigStats", filterConfigController.GetFilterConfigStats)
 		filterGroup.POST("/filterConfigUsage", filterConfigController.GetFilterConfigUsage)
 	}
@@ -310,7 +300,7 @@ func initStaticHostConfigRoutes(router *gin.RouterGroup, db database.Database) {
 	controller := controllers.NewStaticHostConfigController(db)
 	{
 		router.POST("/getStaticHostConfig", controller.GetStaticHostConfig)
-		router.POST("/saveStaticHostConfig", controller.SaveStaticHostConfig)
+		router.POST("/saveStaticHostConfig", routes.RequireButton("hub0021:staticHostConfig"), controller.SaveStaticHostConfig)
 	}
 }
 

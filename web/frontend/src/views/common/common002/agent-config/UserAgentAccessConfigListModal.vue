@@ -56,6 +56,7 @@
 
         <RsDataFormModal
           v-model:visible="formDialogVisible"
+          :module-id="service.model.moduleId"
           :mode="formDialogMode"
           :title="formDialogMode === 'create' ? '新增User-Agent访问控制配置' : formDialogMode === 'edit' ? '编辑User-Agent访问控制配置' : '查看User-Agent访问控制配置详情'"
           to="#useragent-access-config-list-modal"

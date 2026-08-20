@@ -12,7 +12,7 @@ import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, type ProxyOptions } from 'vite'
 import { viteMockServe } from 'vite-plugin-mock'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
@@ -55,7 +55,7 @@ function safeParseI18nContent(content: string) {
  * 生产发版：`npm run build` 中的 `build-only` 在 `vite build` 之后执行 `vitepress build docs`。
  * 文档输出到 `dist/docs/`（见 `docs/.vitepress/config.ts` 的 `outDir`），与主应用一并部署即可。
  */
-function resolveDocsDevProxy(env: Record<string, string>) {
+function resolveDocsDevProxy(env: Record<string, string>): Record<string, ProxyOptions> {
   const target = (env.VITE_DOCS_DEV_TARGET || 'http://127.0.0.1:5274').replace(/\/+$/, '')
   let base = (env.VITE_BASE_URL || '').trim()
   if (base === '/' || base === '') {
@@ -65,9 +65,21 @@ function resolveDocsDevProxy(env: Record<string, string>) {
   }
   if (!base.startsWith('/')) base = `/${base}`
   base = base.replace(/\/+$/, '')
-  const prefix = `${base}/docs`
   return {
-    [`^${prefix}`]: { target, changeOrigin: true, ws: true },
+    [`^${base}/docs`]: { target, changeOrigin: true, ws: true },
+  }
+}
+
+/**
+ * 开发环境把后端 API 代理到同源，局域网 IP 打开时登录 Cookie 才能带上。
+ * 必须写成 /gateway/（带尾斜杠）。只写 /gateway 会把前端基座 /gatewayweb 一起匹配，
+ * 页面会被转到 Go 托管的 dist 打包页，Sources 里就只剩 /assets/*-Hash.js。
+ */
+function resolveDevProxy(env: Record<string, string>): Record<string, ProxyOptions> {
+  const apiTarget = (env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:12003').replace(/\/+$/, '')
+  return {
+    ...resolveDocsDevProxy(env),
+    '^/gateway/': { target: apiTarget, changeOrigin: true },
   }
 }
 
@@ -76,9 +88,18 @@ function resolveDocsDevProxy(env: Record<string, string>) {
  * 顺序靠前的规则优先匹配。
  */
 function resolveManualChunk(id: string): string | undefined {
-  if (!id.includes('node_modules')) return undefined
-  // Rollup 在 Windows 下 id 可能含反斜杠，统一后再匹配
   const m = id.replace(/\\/g, '/')
+  // Vite 预加载运行时必须留在 boot 入口：若打进 niuma-ui/vendor，index.html 会静态依赖整包 CSS/JS，
+  // 首屏被挡住，index.html 里的 splash 来不及绘制就被摘掉。
+  if (
+    m.includes('vite/preload-helper') ||
+    m.includes('vite/modulepreload-polyfill') ||
+    m.includes('vite/dynamic-import-helper') ||
+    m.includes('\0vite/')
+  ) {
+    return undefined
+  }
+  if (!m.includes('node_modules')) return undefined
   if (m.includes('/niuma-ui') || m.includes('/reka-ui') || m.includes('/@lucide/') || m.includes('/vue-sonner'))
     return 'niuma-ui'
   if (m.includes('/echarts') || m.includes('/zrender')) return 'echarts'
@@ -252,19 +273,41 @@ export default defineConfig(({ command, mode }) => {
     },
 
     server: {
+      /** 监听 0.0.0.0，本机与局域网均可访问；启动后终端会打印 Network 地址 */
+      host: true,
+      /** Vite 6 默认校验 Host，局域网 IP / 主机名访问时放行 */
+      allowedHosts: true,
       fs: {
         allow: ['.', ...(niumaUiRoot ? [niumaUiRoot] : [])],
       },
       /**
-       * 开发：帮助手册（VitePress）由另一进程提供，经代理挂到与主应用相同的 `/gatewayweb/docs/` 下，
-       * 便于 MainLayoutHeader iframe 同源加载。见 `.env.development` 的 `VITE_DOCS_DEV_TARGET`。
+       * 开发：`/gateway/` 代理到后端（不要写成 /gateway，会误伤 /gatewayweb）；
+       * `/gatewayweb/docs` 代理到独立 VitePress。见 `.env.development`。
        */
-      ...(command === 'serve' ? { proxy: resolveDocsDevProxy(env) } : {}),
+      ...(command === 'serve' ? { proxy: resolveDevProxy(env) } : {}),
+    },
+
+    preview: {
+      host: true,
+      allowedHosts: true,
     },
 
     build: {
       /** niuma-ui / echarts / vicons 等 chunk 常超 500kB，提高阈值避免误报 */
       chunkSizeWarningLimit: 1200,
+      /**
+       * index.html 不要 modulepreload Vue/niuma-ui：那些是 boot 动态 import 的依赖，
+       * 预加载会变成阻塞首屏的大资源，splash 无法先画出来。
+       */
+      modulePreload: {
+        resolveDependencies(filename, deps) {
+          const f = filename.replace(/\\/g, '/')
+          if (f.endsWith('.html') || /(^|\/)index-[^/]+\.js$/.test(f) || f.includes('/boot')) {
+            return []
+          }
+          return deps
+        },
+      },
       /**
        * 按依赖族拆分 node_modules，缩小首屏入口 chunk、提升缓存命中率。
        */

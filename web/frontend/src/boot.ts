@@ -1,13 +1,11 @@
+import { removeBootSplash } from './bootSplash'
+
 /**
  * boot 为极小的首屏启动器：只负责尽快展示静态 HTML，再异步加载真正的应用入口 `main.ts`。
  *
  * 目的：`index.html` 首条 `<script type="module">` 不再直接指向 `main.ts`，避免浏览器在首屏就解析/下载
- * 巨型依赖图（Vue/Naive 等），从观感上减少“长时间空白等待”。
+ * 巨型依赖图（Vue/niuma-ui 等），从观感上减少“长时间空白等待”。
  */
-
-function removeBootSplash() {
-  document.getElementById('app-boot-splash')?.remove()
-}
 
 function showFatal(message: string) {
   removeBootSplash()

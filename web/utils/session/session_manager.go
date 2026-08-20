@@ -114,6 +114,7 @@ func NewSessionManager() *SessionManager {
 //   - avatar: 用户头像URL或路径
 //   - clientIP: 客户端IP地址，用于安全验证和审计
 //   - userAgent: 客户端用户代理字符串，包含浏览器和操作系统信息
+//   - tenantAdminFlag: 是否租户管理员（Y/N），用于接口鉴权放行
 //
 // 返回值:
 //   - *globalmodels.UserContext: 创建成功的用户上下文对象
@@ -128,7 +129,7 @@ func NewSessionManager() *SessionManager {
 //   - session过期时间从constants.HUB_SESSION_EXPIRE_HOURS获取
 //   - 生成的sessionId为64字符的十六进制字符串，具有高度的唯一性
 //   - 所有session信息都存储在UserContext中，简化了数据结构
-func (sm *SessionManager) CreateSession(ctx context.Context, userId, userName, realName, tenantId, deptId, email, mobile, avatar, clientIP, userAgent string) (*globalmodels.UserContext, error) {
+func (sm *SessionManager) CreateSession(ctx context.Context, userId, userName, realName, tenantId, deptId, email, mobile, avatar, clientIP, userAgent, tenantAdminFlag string) (*globalmodels.UserContext, error) {
 	// 生成session ID
 	sessionId, err := sm.generateSessionId()
 	if err != nil {
@@ -142,20 +143,21 @@ func (sm *SessionManager) CreateSession(ctx context.Context, userId, userName, r
 
 	// 创建用户上下文，包含所有session信息
 	userContext := &globalmodels.UserContext{
-		UserId:       userId,
-		TenantId:     tenantId,
-		UserName:     userName,
-		RealName:     realName,
-		DeptId:       deptId,
-		Email:        email,
-		Mobile:       mobile,
-		Avatar:       avatar,
-		SessionId:    sessionId,
-		LoginTime:    &now,
-		LastActivity: &now,
-		ExpireAt:     &expireAt,
-		ClientIP:     clientIP,
-		UserAgent:    userAgent,
+		UserId:          userId,
+		TenantId:        tenantId,
+		UserName:        userName,
+		RealName:        realName,
+		DeptId:          deptId,
+		Email:           email,
+		Mobile:          mobile,
+		Avatar:          avatar,
+		SessionId:       sessionId,
+		LoginTime:       &now,
+		LastActivity:    &now,
+		ExpireAt:        &expireAt,
+		ClientIP:        clientIP,
+		UserAgent:       userAgent,
+		TenantAdminFlag: tenantAdminFlag,
 	}
 
 	// 存储用户上下文

@@ -294,6 +294,7 @@ export function useGatewayLogModel() {
     ],
     showSearchButton: true,
     showResetButton: true,
+    resetButtonKey: 'resetQuery',
   }
 
   // ============= 表格配置 =============

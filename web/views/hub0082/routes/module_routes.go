@@ -43,13 +43,10 @@ func initAlertLogRoutes(router *gin.RouterGroup, db database.Database) {
 		router.POST("/getAlertLog", ctrl.GetAlertLog)
 
 		// 更新预警日志（主要用于更新发送状态和结果）
-		router.POST("/updateAlertLog", ctrl.UpdateAlertLog)
+		router.POST("/updateAlertLog", routes.RequireButton("hub0082:edit"), ctrl.UpdateAlertLog)
 
-		// 删除预警日志
-		router.POST("/deleteAlertLog", ctrl.DeleteAlertLog)
-
-		// 批量删除预警日志
-		router.POST("/batchDeleteAlertLogs", ctrl.BatchDeleteAlertLogs)
+		router.POST("/deleteAlertLog", routes.RequireButton("hub0082:delete"), ctrl.DeleteAlertLog)
+		router.POST("/batchDeleteAlertLogs", routes.RequireButton("hub0082:delete"), ctrl.BatchDeleteAlertLogs)
 
 		// 获取预警日志统计信息
 		router.POST("/getAlertLogStatistics", ctrl.GetAlertLogStatistics)

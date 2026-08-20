@@ -72,6 +72,12 @@ const testRoutes: RouteRecordRaw[] =
               component: () => import('@/views/test/components/RsCardTest.vue'),
               meta: { title: 'RsCard 测试', requiresAuth: true },
             },
+            {
+              path: 'http-probe',
+              name: 'testHttpProbe',
+              component: () => import('@/views/test/components/HttpProbeTest.vue'),
+              meta: { title: 'HTTP 探测', requiresAuth: true },
+            },
           ],
         },
       ]

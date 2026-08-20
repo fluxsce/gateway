@@ -40,7 +40,7 @@
 
     <div class="instance-tree-body">
       <RsContextMenu
-        :items="page.model.contextMenuItems"
+        :items="contextMenuItems"
         @select="page.handleContextMenuSelect"
       >
         <div class="instance-tree-container">
@@ -115,6 +115,7 @@
     <!-- Router配置对话框（新增/编辑/查看共用） -->
     <RsDataFormModal
       v-model:visible="page.routerFormDialogVisible.value"
+      :module-id="page.model.moduleId"
       :mode="page.routerFormDialogMode.value"
       :title="page.routerFormDialogMode.value === 'create' ? '新增Router配置' : page.routerFormDialogMode.value === 'edit' ? '编辑Router配置' : '查看Router配置详情'"
       :to="`#${props.parentModuleId}`"
@@ -150,11 +151,12 @@ import {
   RsTree,
   type RsTreeNode,
 } from '@/ui'
+import { store } from '@/stores'
 import {
   SearchOutline,
   ServerOutline,
 } from '@vicons/ionicons5'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import FilterConfigListModal from '../filter-config/FilterConfigListModal.vue'
 import { useGatewayInstanceTreePage } from './hooks/page'
 import type { GatewayInstance, InstanceTreeNode } from './types'
@@ -176,6 +178,15 @@ const emit = defineEmits<{
 
 const page = useGatewayInstanceTreePage()
 const selectedKeys = ref<string | string[]>('')
+
+const contextMenuItems = computed(() =>
+  page.model.contextMenuItems.map((item) => ({
+    ...item,
+    disabled: Boolean(
+      item.disabled || !store.user.hasPermission(`${page.model.moduleId}:${item.key}`),
+    ),
+  })),
+)
 
 /**
  * 将通用 RsTreeNode 收窄为带实例信息的节点。

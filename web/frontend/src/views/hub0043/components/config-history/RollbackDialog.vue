@@ -1,6 +1,8 @@
 <template>
   <RsDataFormModal
     v-model:visible="visible"
+    module-id="hub0043:history"
+    permission-action="rollback"
     mode="create"
     title="配置回滚"
     :width="500"

@@ -6,7 +6,6 @@
  */
 
 import { request } from '@/api/request'
-import type { JsonDataObj } from '@/types/api'
 import axios from 'axios'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import type {
@@ -301,7 +300,7 @@ export async function sendRestRequest(input: SendRestRequestInput): Promise<Send
   }
 
   try {
-    const res = await request<JsonDataObj>({
+    const res = await request({
       method: 'POST',
       url: GATEWAY_HTTP_EXECUTE_URL,
       data: payload,

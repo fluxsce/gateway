@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"errors"
+	"fmt"
 	"gateway/pkg/config"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
@@ -25,6 +27,7 @@ type AuthController struct {
 	authDAO        *authdao.AuthDAO
 	userDAO        *hubdao.UserDAO
 	captchaService *CaptchaService
+	loginLock      *LoginLockService
 	sessionManager *session.SessionManager
 }
 
@@ -39,6 +42,7 @@ func NewAuthController(db database.Database) *AuthController {
 		authDAO:        authDAO,
 		userDAO:        userDAO,
 		captchaService: NewCaptchaService(),
+		loginLock:      NewLoginLockService(),
 		sessionManager: session.GetGlobalSessionManager(),
 	}
 }
@@ -64,36 +68,35 @@ func (c *AuthController) Login(ctx *gin.Context) {
 
 	// 验证必填参数
 	if req.UserId == "" || req.Password == "" {
-		response.ErrorJSON(ctx, "用户ID、密码和能为空", constants.ED00007)
+		response.ErrorJSON(ctx, "用户ID、密码不能为空", constants.ED00007)
+		return
+	}
+	if req.CaptchaId == "" || req.CaptchaCode == "" {
+		response.ErrorJSON(ctx, ErrCaptchaRequired.Error(), constants.ED00007)
 		return
 	}
 
-	// 如果提供了验证码，则进行验证
-	if req.CaptchaId != "" || req.CaptchaCode != "" {
-		if req.CaptchaId == "" || req.CaptchaCode == "" {
-			response.ErrorJSON(ctx, "验证码ID和验证码必须同时提供", constants.ED00007)
-			return
+	if err := c.captchaService.VerifyCaptcha(ctx, req.CaptchaId, req.CaptchaCode); err != nil {
+		var messageId string
+		switch {
+		case errors.Is(err, ErrCaptchaExpired):
+			messageId = constants.ED00111
+		case errors.Is(err, ErrCaptchaInvalid):
+			messageId = constants.ED00112
+		case errors.Is(err, ErrCaptchaRequired):
+			messageId = constants.ED00007
+		default:
+			messageId = constants.ED00001
 		}
+		logger.ErrorWithTrace(ctx, "验证码验证失败", "messageId", messageId)
+		response.ErrorJSON(ctx, err.Error(), messageId)
+		return
+	}
 
-		// 验证验证码
-		err := c.captchaService.VerifyCaptcha(ctx, req.CaptchaId, req.CaptchaCode)
-		if err != nil {
-			logger.ErrorWithTrace(ctx, "验证码验证失败", "error", err, "captchaId", req.CaptchaId)
-
-			// 根据错误类型设置不同的消息ID
-			var messageId string
-			switch {
-			case err.Error() == "验证码不存在或已过期":
-				messageId = constants.ED00111
-			case err.Error() == "验证码错误":
-				messageId = constants.ED00112
-			default:
-				messageId = constants.ED00001
-			}
-
-			response.ErrorJSON(ctx, err.Error(), messageId)
-			return
-		}
+	if locked, remaining := c.loginLock.Check(ctx, req.UserId); locked {
+		logger.WarnWithTrace(ctx, "登录账号处于冷却", "userId", req.UserId)
+		c.respondLoginCooldown(ctx, remaining)
+		return
 	}
 
 	// 获取客户端IP和UserAgent
@@ -103,16 +106,22 @@ func (c *AuthController) Login(ctx *gin.Context) {
 	// 验证用户登录信息
 	user, err := c.authService.ValidateLogin(ctx, &req, clientIP)
 	if err != nil {
-		// 根据错误类型设置不同的消息ID
+		if errors.Is(err, ErrUserNotFound) || errors.Is(err, ErrInvalidCredentials) {
+			if remaining := c.loginLock.RecordFailure(ctx, req.UserId); remaining > 0 {
+				c.respondLoginCooldown(ctx, remaining)
+				return
+			}
+		}
+
 		var messageId string
 		switch {
-		case err.Error() == "用户不存在":
+		case errors.Is(err, ErrUserNotFound):
 			messageId = constants.ED00102
-		case err.Error() == "用户ID或密码不正确":
+		case errors.Is(err, ErrInvalidCredentials):
 			messageId = constants.ED00103
-		case err.Error() == "用户已被禁用":
+		case errors.Is(err, ErrUserDisabled):
 			messageId = constants.ED00104
-		case err.Error() == "用户账号已过期":
+		case errors.Is(err, ErrUserExpired):
 			messageId = constants.ED00105
 		default:
 			messageId = constants.ED00101
@@ -122,6 +131,8 @@ func (c *AuthController) Login(ctx *gin.Context) {
 		response.ErrorJSON(ctx, err.Error(), messageId)
 		return
 	}
+
+	c.loginLock.Clear(ctx, req.UserId)
 
 	// 登录成功，创建session
 	sessionData, err := c.sessionManager.CreateSession(
@@ -136,6 +147,7 @@ func (c *AuthController) Login(ctx *gin.Context) {
 		user.Avatar,
 		clientIP,
 		userAgent,
+		user.TenantAdminFlag,
 	)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "创建session失败", "error", err, "userId", user.UserId)
@@ -180,6 +192,13 @@ func (c *AuthController) Login(ctx *gin.Context) {
 	}
 
 	response.SuccessJSON(ctx, loginResp, constants.SD00101)
+}
+
+// respondLoginCooldown 返回带剩余秒数的登录冷却错误，供前端倒计时。
+func (c *AuthController) respondLoginCooldown(ctx *gin.Context, remaining time.Duration) {
+	sec := RemainSeconds(remaining)
+	msg := fmt.Sprintf("登录冷却中，请 %d 秒后再试", sec)
+	response.ErrorJSONExt(ctx, msg, constants.ED00116, gin.H{"remainSeconds": sec})
 }
 
 // UserInfo 获取当前登录用户信息
@@ -423,7 +442,7 @@ func (c *AuthController) ChangePassword(ctx *gin.Context) {
 
 // GetCaptcha 获取验证码
 // @Summary 获取验证码
-// @Description 获取验证码，支持随机数验证码和短信验证码（扩展）
+// @Description 获取图形验证码，返回签名票与 PNG 图，答案不出网
 // @Tags 认证
 // @Accept json
 // @Accept x-www-form-urlencoded
@@ -434,29 +453,19 @@ func (c *AuthController) ChangePassword(ctx *gin.Context) {
 func (c *AuthController) GetCaptcha(ctx *gin.Context) {
 	var req models.CaptchaRequest
 
-	// 解析请求参数，支持查询参数
 	if err := request.Bind(ctx, &req); err != nil {
 		logger.ErrorWithTrace(ctx, "获取验证码请求参数解析失败", "error", err)
 		response.ErrorJSON(ctx, "参数解析错误: "+err.Error(), constants.ED00005)
 		return
 	}
 
-	// 使用验证码服务生成验证码
 	captchaResp, err := c.captchaService.GenerateCaptcha(ctx, &req)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "生成验证码失败", "error", err)
-
-		// 根据错误类型设置不同的消息ID
-		var messageId string
-		switch {
-		case err.Error() == "手机号不能为空":
-			messageId = constants.ED00007
-		case err.Error() == "不支持的验证码类型":
+		messageId := constants.ED00001
+		if errors.Is(err, ErrCaptchaType) {
 			messageId = constants.ED00006
-		default:
-			messageId = constants.ED00001
 		}
-
 		response.ErrorJSON(ctx, err.Error(), messageId)
 		return
 	}

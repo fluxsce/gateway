@@ -88,7 +88,7 @@ function toTagVariant(type?: string): RsTagVariant {
  * 静态服务管理 Model
  */
 export function useStaticServerModel() {
-  const moduleId = 'hub0061:static-server'
+  const moduleId = 'hub0061'
 
   /** 加载状态 */
   const loading = ref(false)

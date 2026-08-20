@@ -56,6 +56,7 @@
 
         <RsDataFormModal
           v-model:visible="formDialogVisible"
+          :module-id="service.model.moduleId"
           :mode="formDialogMode"
           :title="formDialogMode === 'create' ? '新增过滤器配置' : formDialogMode === 'edit' ? '编辑过滤器配置' : '查看过滤器配置详情'"
           to="#filter-config-list-modal"

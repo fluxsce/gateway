@@ -1,7 +1,7 @@
 /**
  * hub0001模块API接口
  */
-import request from '@/api/request'
+import { request } from '@/api/request'
 import type { JsonDataObj } from '@/types/api'
 import type { LoginFormData } from '../types'
 
@@ -17,19 +17,19 @@ export const hub0001Api = {
   login(data: LoginFormData): Promise<JsonDataObj> {
     return request({
       url: '/gateway/user/login',
-      method: 'post',
+      method: 'POST',
       data,
     })
   },
 
   /**
    * 获取验证码
-   * @returns 返回验证码信息，包含验证码图片URL和ID
+   * @returns 返回签名票 captchaId 与 PNG Data URI image，不含答案
    */
   getCaptcha(): Promise<JsonDataObj> {
     return request({
       url: '/gateway/user/captcha',
-      method: 'post',
+      method: 'POST',
       params: {
         t: new Date().getTime(),
       },
@@ -43,7 +43,7 @@ export const hub0001Api = {
   getVersion(): Promise<JsonDataObj> {
     return request({
       url: '/gateway/user/version',
-      method: 'get',
+      method: 'GET',
     })
   },
 }

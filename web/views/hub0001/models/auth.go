@@ -5,8 +5,8 @@ type LoginRequest struct {
 	UserId      string `json:"userId" form:"userId" query:"userId" binding:"required"`       // 用户ID
 	Password    string `json:"password" form:"password" query:"password" binding:"required"` // 密码
 	TenantId    string `json:"tenantId" form:"tenantId" query:"tenantId"`                    // 租户ID
-	CaptchaId   string `json:"captchaId" form:"captchaId" query:"captchaId"`                 // 验证码ID（可选）
-	CaptchaCode string `json:"captchaCode" form:"captchaCode" query:"captchaCode"`           // 验证码（可选）
+	CaptchaId   string `json:"captchaId" form:"captchaId" query:"captchaId"`                 // 验证码票（必填）
+	CaptchaCode string `json:"captchaCode" form:"captchaCode" query:"captchaCode"`           // 用户输入的验证码（必填）
 }
 
 // LoginResponse 登录响应
@@ -56,10 +56,10 @@ type CaptchaRequest struct {
 	Mobile string `json:"mobile" form:"mobile" query:"mobile"` // 手机号（短信验证码时使用）
 }
 
-// CaptchaResponse 验证码响应
+// CaptchaResponse 验证码响应。答案不出网，仅返回签名票与图片。
 type CaptchaResponse struct {
-	CaptchaId string `json:"captchaId"` // 验证码ID，用于后续验证
-	Code      string `json:"code"`      // 验证码内容（随机数时返回，短信时不返回）
+	CaptchaId string `json:"captchaId"` // HMAC 签名票，登录时回传
+	Image     string `json:"image"`     // PNG Data URI
 	ExpireAt  int64  `json:"expireAt"`  // 过期时间戳
 }
 

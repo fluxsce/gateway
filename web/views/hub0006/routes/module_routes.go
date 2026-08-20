@@ -69,11 +69,10 @@ func initResourceRoutes(router *gin.RouterGroup, db database.Database) {
 		resourceGroup.POST("/queryResources", resourceController.QueryResources)
 		resourceGroup.POST("/getResource", resourceController.GetResource)
 
-		// 资源管理相关路由
-		resourceGroup.POST("/addResource", resourceController.AddResource)
-		resourceGroup.POST("/editResource", resourceController.EditResource)
-		resourceGroup.POST("/deleteResource", resourceController.DeleteResource)
-		resourceGroup.POST("/updateResourceStatus", resourceController.UpdateResourceStatus)
+		resourceGroup.POST("/addResource", routes.RequireButton("hub0006:add"), resourceController.AddResource)
+		resourceGroup.POST("/editResource", routes.RequireButton("hub0006:edit"), resourceController.EditResource)
+		resourceGroup.POST("/deleteResource", routes.RequireButton("hub0006:delete"), resourceController.DeleteResource)
+		resourceGroup.POST("/updateResourceStatus", routes.RequireButton("hub0006:edit"), resourceController.UpdateResourceStatus)
 	}
 }
 

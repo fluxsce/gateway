@@ -59,6 +59,12 @@ export interface ToolbarButton {
    * 是否显示
    */
   show?: boolean
+
+  /**
+   * 为 true 时不按 `{moduleId}:{key}` 做权限校验。
+   * 用于资源表没有对应码的纯 UI 动作（如监控刷新）。
+   */
+  skipPermission?: boolean
   
   /**
    * 是否加载中

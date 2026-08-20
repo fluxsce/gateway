@@ -7,6 +7,8 @@ import (
 	alerttypes "gateway/internal/alert/types"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware"
+	"gateway/web/middleware/permission"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -120,6 +122,14 @@ func (c *AlertLogController) UpdateAlertLog(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新预警日志失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionUpdate,
+		ModuleCode:   "hub0082",
+		TargetType:   "ALERT_LOG",
+		TargetId:     req.AlertLogId,
+		TargetName:   current.AlertTitle,
+		ResourceCode: "hub0082:edit",
+	})
 	response.SuccessJSON(ctx, req, constants.SD00004)
 }
 
@@ -132,11 +142,24 @@ func (c *AlertLogController) DeleteAlertLog(ctx *gin.Context) {
 		return
 	}
 
+	targetName := ""
+	if current, getErr := c.dao.GetAlertLog(ctx, tenantId, alertLogId); getErr == nil && current != nil {
+		targetName = current.AlertTitle
+	}
+
 	if err := c.dao.DeleteAlertLog(ctx, tenantId, alertLogId); err != nil {
 		logger.ErrorWithTrace(ctx, "删除预警日志失败", err)
 		response.ErrorJSON(ctx, "删除预警日志失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionDelete,
+		ModuleCode:   "hub0082",
+		TargetType:   "ALERT_LOG",
+		TargetId:     alertLogId,
+		TargetName:   targetName,
+		ResourceCode: "hub0082:delete",
+	})
 
 	response.SuccessJSON(ctx, gin.H{"alertLogId": alertLogId}, constants.SD00005)
 }
@@ -163,6 +186,14 @@ func (c *AlertLogController) BatchDeleteAlertLogs(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "批量删除预警日志失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionDelete,
+		ModuleCode:   "hub0082",
+		TargetType:   "ALERT_LOG",
+		TargetId:     strings.Join(req.AlertLogIds, ","),
+		ResourceCode: "hub0082:delete",
+		Detail:       "batch",
+	})
 
 	response.SuccessJSON(ctx, gin.H{"deletedCount": len(req.AlertLogIds)}, constants.SD00005)
 }

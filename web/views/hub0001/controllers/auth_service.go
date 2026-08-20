@@ -12,6 +12,19 @@ import (
 	"time"
 )
 
+var (
+	// ErrQueryUserFailed 查询用户时发生错误。
+	ErrQueryUserFailed = errors.New("查询用户失败")
+	// ErrUserNotFound 用户不存在。
+	ErrUserNotFound = errors.New("用户不存在")
+	// ErrInvalidCredentials 用户ID或密码不正确。
+	ErrInvalidCredentials = errors.New("用户ID或密码不正确")
+	// ErrUserDisabled 用户已被禁用。
+	ErrUserDisabled = errors.New("用户已被禁用")
+	// ErrUserExpired 用户账号已过期。
+	ErrUserExpired = errors.New("用户账号已过期")
+)
+
 // AuthService 认证服务
 type AuthService struct {
 	authDAO *authdao.AuthDAO
@@ -69,30 +82,30 @@ func (s *AuthService) ValidateLogin(ctx context.Context, req *models.LoginReques
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "查询用户失败", err, "userId", req.UserId)
 		s.authDAO.RecordLoginHistory("", "", clientIP, "", "N", "查询用户失败")
-		return nil, errors.New("查询用户失败")
+		return nil, ErrQueryUserFailed
 	}
 
 	if user == nil {
 		s.authDAO.RecordLoginHistory("", "", clientIP, "", "N", "用户不存在")
-		return nil, errors.New("用户不存在")
+		return nil, ErrUserNotFound
 	}
 
 	// 验证密码
 	if user.Password != req.Password {
 		s.authDAO.RecordLoginHistory(user.UserId, user.TenantId, clientIP, "", "N", "密码错误")
-		return nil, errors.New("用户ID或密码不正确")
+		return nil, ErrInvalidCredentials
 	}
 
 	// 验证用户状态
 	if user.StatusFlag != "Y" {
 		s.authDAO.RecordLoginHistory(user.UserId, user.TenantId, clientIP, "", "N", "用户已禁用")
-		return nil, errors.New("用户已被禁用")
+		return nil, ErrUserDisabled
 	}
 
 	// 检查用户是否过期
 	if user.UserExpireDate.Before(time.Now()) {
 		s.authDAO.RecordLoginHistory(user.UserId, user.TenantId, clientIP, "", "N", "账号已过期")
-		return nil, errors.New("用户账号已过期")
+		return nil, ErrUserExpired
 	}
 
 	// 异步更新最后登录信息和记录登录日志

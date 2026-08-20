@@ -63,7 +63,7 @@ func Init(router *gin.Engine, db database.Database) {
 		protectedGroup.POST("/gateway-log/monitoring/overview", dispatchGatewayMonitoringOverview(db, mongoController, clickhouseController, gatewayLogController))
 		protectedGroup.POST("/gateway-log/monitoring/chart-data", dispatchGatewayMonitoringChartData(db, mongoController, clickhouseController, gatewayLogController))
 
-		protectedGroup.POST("/gateway-log/reset", gatewayLogController.Reset)
+		protectedGroup.POST("/gateway-log/reset", routes.RequireButton("hub0023:reset"), gatewayLogController.Reset)
 
 		// 公开API (如果需要网关直接写入日志的话，可以考虑公开部分API)
 		// 但为了安全考虑，建议通过内部服务调用或消息队列来写入日志

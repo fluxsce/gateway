@@ -3,6 +3,7 @@ package httproutes
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/routes"
 	"gateway/web/views/hubplugin/http/controllers"
 
 	"github.com/gin-gonic/gin"
@@ -24,7 +25,8 @@ func Init(router *gin.RouterGroup, _ database.Database) {
 
 	g := router.Group(HTTPRoutePrefix)
 	{
-		// 统一 POST，避免过长 URL 与浏览器缓存差异；body 为 JSON
-		g.POST("/execute", ctrl.Execute)
+		// 统一 POST，避免过长 URL 与浏览器缓存差异；body 为 JSON。
+		// 模块映射到 hub0023，按钮与日志重发一致（右键重发 / 批量重发）。
+		g.POST("/execute", routes.RequireButton("hub0023:reset", "hub0023:batchReset"), ctrl.Execute)
 	}
 }

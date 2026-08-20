@@ -3,6 +3,7 @@
  * 处理页面交互、事件处理
  */
 
+import { store } from '@/stores'
 import { useAppMessage } from '@/composables/useAppMessage'
 import { takeNamedObject } from '@/components/form/rs-data'
 import type { RsTreeNode } from '@/ui'
@@ -317,6 +318,9 @@ export function useGatewayInstanceTreePage() {
    * 处理右键菜单点击
    */
   async function handleContextMenuSelect(key: string) {
+    if (!store.user.hasPermission(`${model.moduleId}:${key}`)) {
+      return
+    }
     const instance = contextNode.value?.instance
     if (!instance) return
 

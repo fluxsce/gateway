@@ -2,155 +2,129 @@ package controllers
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
-	"encoding/hex"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/binary"
+	"errors"
 	"fmt"
-	"gateway/pkg/cache"
+	"gateway/pkg/config"
 	"gateway/pkg/logger"
 	"gateway/web/views/hub0001/models"
-	mathRand "math/rand"
-	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
-// CaptchaService 验证码服务
+const (
+	captchaTicketVersion = 1
+	captchaNonceSize     = 16
+	captchaMACSize       = sha256.Size
+	captchaTicketSize    = 1 + 8 + captchaNonceSize + captchaMACSize
+	captchaCodeLength    = 6
+	captchaTTL           = 2 * time.Minute
+	captchaClockSkew     = 5 * time.Second
+)
+
+var (
+	// ErrCaptchaRequired 未提交验证码。
+	ErrCaptchaRequired = errors.New("验证码不能为空")
+	// ErrCaptchaExpired 票缺失、损坏或已过期。对外统一该文案，避免帮助探测。
+	ErrCaptchaExpired = errors.New("验证码不存在或已过期")
+	// ErrCaptchaInvalid 用户输入与票不匹配。
+	ErrCaptchaInvalid = errors.New("验证码错误")
+	// ErrCaptchaType 不支持的验证码类型。
+	ErrCaptchaType = errors.New("不支持的验证码类型")
+)
+
+var captchaSecretWarnOnce sync.Once
+
+// CaptchaService 图形验证码服务。
+// 使用 HMAC 签名票，服务端不存储明文或哈希；票内不含答案，仅含过期时间、nonce 与 MAC。
+// 集群节点共用 web.jwt_secret（或回退密钥）即可互相签发与校验。
 type CaptchaService struct {
-	cacheManager *cache.Manager
+	secret []byte
+	ttl    time.Duration
 }
 
-// NewCaptchaService 创建验证码服务
+// NewCaptchaService 创建验证码服务，密钥与全节点 JWT 密钥对齐。
 func NewCaptchaService() *CaptchaService {
 	return &CaptchaService{
-		cacheManager: cache.GetGlobalManager(),
+		secret: loadCaptchaSecret(),
+		ttl:    captchaTTL,
 	}
 }
 
-// GenerateCaptcha 生成验证码
+// GenerateCaptcha 生成图形验证码。
+// 只返回签名票、PNG 图和过期时间，答案不出网、不写缓存。
 func (s *CaptchaService) GenerateCaptcha(ctx context.Context, req *models.CaptchaRequest) (*models.CaptchaResponse, error) {
-	// 默认类型为随机验证码（数字+字母）
-	if req.Type == "" {
-		req.Type = "random"
+	if req == nil {
+		req = &models.CaptchaRequest{}
+	}
+	captchaType := req.Type
+	if captchaType == "" {
+		captchaType = "random"
+	}
+	if captchaType != "random" {
+		return nil, fmt.Errorf("%w: %s", ErrCaptchaType, captchaType)
 	}
 
-	// 生成验证码ID
-	captchaId, err := s.generateCaptchaId()
+	code, err := generateRandomDigits(captchaCodeLength)
 	if err != nil {
-		logger.ErrorWithTrace(ctx, "生成验证码ID失败", "error", err)
-		return nil, fmt.Errorf("生成验证码ID失败: %w", err)
+		logger.ErrorWithTrace(ctx, "生成验证码失败", "error", err)
+		return nil, fmt.Errorf("生成验证码失败: %w", err)
 	}
 
-	var code string
-	var captchaResp *models.CaptchaResponse
-	expireTime := time.Now().Add(1 * time.Minute) // 1分钟过期
-
-	switch req.Type {
-	case "random":
-		// 生成6位随机验证码（数字+字母）
-		code = s.generateRandomCode(6)
-		captchaResp = &models.CaptchaResponse{
-			CaptchaId: captchaId,
-			Code:      code,
-			ExpireAt:  expireTime.Unix(),
-		}
-	case "math":
-		// 生成数学验证码（加减乘除）
-		mathExpression, answer := s.generateMathExpression()
-		code = strconv.Itoa(answer) // 存储答案用于验证
-		captchaResp = &models.CaptchaResponse{
-			CaptchaId: captchaId,
-			Code:      mathExpression, // 返回数学表达式给前端显示
-			ExpireAt:  expireTime.Unix(),
-		}
-	case "sms":
-		// 短信验证码（扩展功能，当前只是预留）
-		if req.Mobile == "" {
-			return nil, fmt.Errorf("手机号不能为空")
-		}
-		// 生成6位随机验证码（数字+字母）
-		code = s.generateRandomCode(6)
-
-		// TODO: 在这里添加短信发送逻辑
-		// err := s.sendSMSCode(req.Mobile, code)
-		// if err != nil {
-		//     logger.ErrorWithTrace(ctx, "发送短信验证码失败", "error", err, "mobile", req.Mobile)
-		//     return nil, fmt.Errorf("短信发送失败: %w", err)
-		// }
-
-		captchaResp = &models.CaptchaResponse{
-			CaptchaId: captchaId,
-			Code:      "", // 短信验证码不返回code
-			ExpireAt:  expireTime.Unix(),
-		}
-
-		logger.Info("短信验证码发送", "mobile", req.Mobile, "captchaId", captchaId)
-	default:
-		return nil, fmt.Errorf("不支持的验证码类型: %s", req.Type)
-	}
-
-	// 将验证码存储到Redis缓存中
-	redisCache := s.cacheManager.GetCache("default")
-	if redisCache == nil {
-		logger.ErrorWithTrace(ctx, "Redis缓存未初始化")
-		return nil, fmt.Errorf("Redis缓存未初始化")
-	}
-
-	// 缓存key格式：captcha:验证码ID
-	cacheKey := fmt.Sprintf("captcha:%s", captchaId)
-	err = redisCache.SetString(ctx, cacheKey, code, 5*time.Minute)
+	expireAt := time.Now().Add(s.ttl)
+	ticket, err := s.signTicket(code, expireAt)
 	if err != nil {
-		logger.ErrorWithTrace(ctx, "验证码存储到缓存失败", "error", err, "captchaId", captchaId)
-		return nil, fmt.Errorf("验证码存储失败: %w", err)
+		logger.ErrorWithTrace(ctx, "签发验证码票失败", "error", err)
+		return nil, fmt.Errorf("签发验证码票失败: %w", err)
 	}
 
-	logger.Info("验证码生成成功", "type", req.Type, "captchaId", captchaId)
-	return captchaResp, nil
+	imageDataURI, err := renderCaptchaPNGDataURI(code)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "绘制验证码图片失败", "error", err)
+		return nil, fmt.Errorf("绘制验证码图片失败: %w", err)
+	}
+
+	logger.DebugWithTrace(ctx, "验证码生成成功", "expireAt", expireAt.Unix())
+	return &models.CaptchaResponse{
+		CaptchaId: ticket,
+		Image:     imageDataURI,
+		ExpireAt:  expireAt.Unix(),
+	}, nil
 }
 
-// VerifyCaptcha 验证验证码
+// VerifyCaptcha 校验用户输入。成功只说明票与输入匹配，不在服务端核销。
+// 短 TTL 内同一张票可重复使用，登录失败锁定用于限制撞库。
 func (s *CaptchaService) VerifyCaptcha(ctx context.Context, captchaId, code string) error {
-	if captchaId == "" || code == "" {
-		return fmt.Errorf("验证码ID和验证码不能为空")
+	if captchaId == "" || strings.TrimSpace(code) == "" {
+		return ErrCaptchaRequired
 	}
 
-	// 从Redis缓存中获取验证码
-	redisCache := s.cacheManager.GetCache("default")
-	if redisCache == nil {
-		logger.ErrorWithTrace(ctx, "Redis缓存未初始化")
-		return fmt.Errorf("Redis缓存未初始化")
+	raw, err := base64.RawURLEncoding.DecodeString(captchaId)
+	if err != nil || len(raw) != captchaTicketSize || raw[0] != captchaTicketVersion {
+		return ErrCaptchaExpired
 	}
 
-	cacheKey := fmt.Sprintf("captcha:%s", captchaId)
-	storedCode, err := redisCache.GetString(ctx, cacheKey)
-	if err != nil {
-		logger.ErrorWithTrace(ctx, "从缓存获取验证码失败", "error", err, "captchaId", captchaId)
-		return fmt.Errorf("获取验证码失败: %w", err)
+	expUnix := int64(binary.BigEndian.Uint64(raw[1:9]))
+	if time.Now().Add(-captchaClockSkew).Unix() > expUnix {
+		return ErrCaptchaExpired
 	}
 
-	// 验证码不存在或已过期
-	if storedCode == "" {
-		return fmt.Errorf("验证码不存在或已过期")
+	nonce := raw[9 : 9+captchaNonceSize]
+	expectedMAC := raw[9+captchaNonceSize:]
+	actualMAC := s.computeMAC(raw[0], expUnix, nonce, normalizeCaptchaCode(code))
+	if !hmac.Equal(expectedMAC, actualMAC) {
+		logger.InfoWithTrace(ctx, "验证码错误")
+		return ErrCaptchaInvalid
 	}
-
-	// 验证码错误（不区分大小写）
-	if !strings.EqualFold(code, storedCode) {
-		logger.Info("验证码错误", "captchaId", captchaId, "input", code, "stored", storedCode)
-		return fmt.Errorf("验证码错误")
-	}
-
-	// 验证成功，删除验证码（一次性使用）
-	err = redisCache.Delete(ctx, cacheKey)
-	if err != nil {
-		logger.ErrorWithTrace(ctx, "删除已使用的验证码失败", "error", err, "captchaId", captchaId)
-		// 继续执行，不影响验证结果
-	}
-
-	logger.Info("验证码验证成功", "captchaId", captchaId)
 	return nil
 }
 
-// ValidateCaptcha 验证验证码的公共方法
-// 这个方法可以被其他服务调用来验证验证码，返回bool值更直观
+// ValidateCaptcha 校验验证码并返回是否通过。
 func (s *CaptchaService) ValidateCaptcha(ctx context.Context, captchaId, code string) (bool, error) {
 	err := s.VerifyCaptcha(ctx, captchaId, code)
 	if err != nil {
@@ -159,73 +133,71 @@ func (s *CaptchaService) ValidateCaptcha(ctx context.Context, captchaId, code st
 	return true, nil
 }
 
-// generateCaptchaId 生成验证码ID
-func (s *CaptchaService) generateCaptchaId() (string, error) {
-	bytes := make([]byte, 16)
-	if _, err := rand.Read(bytes); err != nil {
+func (s *CaptchaService) signTicket(code string, expireAt time.Time) (string, error) {
+	nonce := make([]byte, captchaNonceSize)
+	if _, err := rand.Read(nonce); err != nil {
 		return "", err
 	}
-	return hex.EncodeToString(bytes), nil
+
+	expUnix := expireAt.Unix()
+	mac := s.computeMAC(captchaTicketVersion, expUnix, nonce, normalizeCaptchaCode(code))
+
+	buf := make([]byte, captchaTicketSize)
+	buf[0] = captchaTicketVersion
+	binary.BigEndian.PutUint64(buf[1:9], uint64(expUnix))
+	copy(buf[9:9+captchaNonceSize], nonce)
+	copy(buf[9+captchaNonceSize:], mac)
+	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
-// generateRandomCode 生成指定长度的随机验证码
-// 包含数字0-9和英文字母大小写，但排除容易混淆的字母O
-func (s *CaptchaService) generateRandomCode(length int) string {
-	// 字符集：数字 + 大写字母（排除O） + 小写字母（排除o）
-	const charset = "0123456789"
-	randSource := mathRand.New(mathRand.NewSource(time.Now().UnixNano()))
-	code := make([]byte, length)
-	for i := range code {
-		code[i] = charset[randSource.Intn(len(charset))]
+func (s *CaptchaService) computeMAC(version byte, expUnix int64, nonce []byte, code string) []byte {
+	mac := hmac.New(sha256.New, s.secret)
+	mac.Write([]byte{version})
+	var expBuf [8]byte
+	binary.BigEndian.PutUint64(expBuf[:], uint64(expUnix))
+	mac.Write(expBuf[:])
+	mac.Write(nonce)
+	mac.Write([]byte(code))
+	return mac.Sum(nil)
+}
+
+func normalizeCaptchaCode(code string) string {
+	return strings.ToUpper(strings.TrimSpace(code))
+}
+
+func generateRandomDigits(length int) (string, error) {
+	const digits = "0123456789"
+	out := make([]byte, length)
+	for i := 0; i < length; {
+		var b [1]byte
+		if _, err := rand.Read(b[:]); err != nil {
+			return "", err
+		}
+		if b[0] >= 250 {
+			continue
+		}
+		out[i] = digits[int(b[0])%10]
+		i++
 	}
-	return string(code)
+	return string(out), nil
 }
 
-// generateMathExpression 生成一个数学验证码表达式
-func (s *CaptchaService) generateMathExpression() (string, int) {
-	randSource := mathRand.New(mathRand.NewSource(time.Now().UnixNano()))
-	operators := []string{"+", "-", "*", "/"}
-	operator := operators[randSource.Intn(len(operators))]
-
-	var num1, num2, answer int
-	var expression string
-
-	switch operator {
-	case "+":
-		// 加法：1-50范围内的数字
-		num1 = randSource.Intn(50) + 1
-		num2 = randSource.Intn(50) + 1
-		answer = num1 + num2
-		expression = fmt.Sprintf("%d + %d", num1, num2)
-	case "-":
-		// 减法：确保结果为正数，num1 > num2
-		num1 = randSource.Intn(50) + 10    // 10-59
-		num2 = randSource.Intn(num1-1) + 1 // 1 到 num1-1，确保结果为正
-		answer = num1 - num2
-		expression = fmt.Sprintf("%d - %d", num1, num2)
-	case "*":
-		// 乘法：较小的数字避免结果过大
-		num1 = randSource.Intn(12) + 1 // 1-12
-		num2 = randSource.Intn(12) + 1 // 1-12
-		answer = num1 * num2
-		expression = fmt.Sprintf("%d × %d", num1, num2)
-	case "/":
-		// 除法：确保能够整除
-		// 先生成答案，再生成被除数
-		answer = randSource.Intn(20) + 1 // 答案1-20
-		num2 = randSource.Intn(10) + 2   // 除数2-11
-		num1 = answer * num2             // 被除数 = 答案 × 除数
-		expression = fmt.Sprintf("%d ÷ %d", num1, num2)
+func loadCaptchaSecret() []byte {
+	secret := strings.TrimSpace(config.GetString("web.jwt_secret", ""))
+	if secret == "" {
+		secret = strings.TrimSpace(config.GetString("app.jwt_secret", ""))
 	}
-
-	return expression, answer
+	if secret == "" {
+		secret = strings.TrimSpace(config.GetString("web.encryption_key", ""))
+	}
+	if secret == "" {
+		secret = strings.TrimSpace(config.GetString("app.encryption_key", ""))
+	}
+	if secret == "" {
+		captchaSecretWarnOnce.Do(func() {
+			logger.Warn("验证码 HMAC 未配置 jwt_secret，使用内置开发密钥，生产环境必须配置 web.jwt_secret")
+		})
+		secret = "gateway-captcha-dev-secret-change-me"
+	}
+	return []byte(secret)
 }
-
-// sendSMSCode 发送短信验证码（扩展功能，当前为预留接口）
-// func (s *CaptchaService) sendSMSCode(mobile, code string) error {
-//     // TODO: 实现短信发送逻辑
-//     // 1. 调用短信服务提供商API
-//     // 2. 发送验证码到指定手机号
-//     // 3. 处理发送结果
-//     return nil
-// }

@@ -2,6 +2,7 @@
   <div class="static-host-config-form-modal" id="static-host-config-form-modal">
     <RsDataFormModal
       v-model:visible="formDialogVisible"
+      module-id="hub0021:staticHostConfig"
       :mode="formDialogMode"
       :title="dialogTitle"
       :width="800"

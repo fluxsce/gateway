@@ -23,7 +23,7 @@ web:
   cors:
     allowed_origins: "*" # 可设置为特定域名，以逗号分隔
     allowed_methods: "GET,POST,PUT,DELETE,OPTIONS"
-    allowed_headers: "Origin,Content-Type,Accept,Authorization"
+    allowed_headers: "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-Token,X-User-Token,X-Trace-ID,X-Request-ID,traceparent"
     allow_credentials: true
     max_age: 86400 # 秒
   

@@ -16,6 +16,7 @@
 
     <RsDataFormModal
       v-model:visible="editDialogVisible"
+      module-id="hub0042:node"
       mode="edit"
       title="编辑节点"
       to="#hub0042-node"

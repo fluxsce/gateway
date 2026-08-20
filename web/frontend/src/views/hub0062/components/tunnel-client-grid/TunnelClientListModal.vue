@@ -17,7 +17,7 @@
       <div class="tunnel-client-list-modal">
         <RsGrid
           ref="gridRef"
-          module-id="tunnel-client-selector-grid"
+          module-id="hub0062:tunnel-client"
           :data="clientList"
           :loading="loading"
           :columns="gridColumns"

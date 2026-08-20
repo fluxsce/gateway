@@ -14,6 +14,8 @@ import (
 
 	"gateway/pkg/httpclient"
 	"gateway/pkg/logger"
+	"gateway/web/middleware"
+	"gateway/web/middleware/permission"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -178,6 +180,14 @@ func (ctl *HttpRequestController) Execute(ctx *gin.Context) {
 		BodyBase64: isB64,
 		DurationMs: durationMs,
 	}
+	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
+		Action:       permission.AuditActionUpdate,
+		ModuleCode:   "hub0023",
+		TargetType:   "HTTP",
+		TargetId:     requestURL,
+		TargetName:   method + " " + requestURL,
+		ResourceCode: "hub0023:reset",
+	})
 	response.SuccessJSON(ctx, out, constants.SD00002)
 }
 

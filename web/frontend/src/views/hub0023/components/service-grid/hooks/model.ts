@@ -43,7 +43,7 @@ function getLoadBalanceStrategyLabel(strategy: string): string {
  * 服务列表查询 Model（仅查询功能）
  */
 export function useServiceListModel() {
-  const moduleId = 'hub0023-service-list'
+  const moduleId = 'hub0023'
   const loading = ref(false)
   const serviceList = ref<ServiceDefinition[]>([])
   const pageInfo = ref<PageInfoObj | undefined>()
@@ -103,6 +103,7 @@ export function useServiceListModel() {
     toolbarButtons: [],
     showSearchButton: true,
     showResetButton: true,
+    resetButtonKey: 'resetQuery',
   }
 
   const gridConfig: ServiceListGridConfig = {

@@ -305,7 +305,7 @@ export function useUserSettings() {
         handleResetPassword()
 
         setTimeout(() => {
-          store.user.clearUserInfo()
+          store.user.clearPersistedSession()
           window.location.href = '/'
         }, 2000)
       } else {

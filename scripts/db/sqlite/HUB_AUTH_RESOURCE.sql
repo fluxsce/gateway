@@ -229,6 +229,19 @@ INSERT INTO HUB_AUTH_RESOURCE (
   datetime('now'), 'system', datetime('now'), 'system', 'INIT_007', 1, 'Y'
 );
 
+-- 定时任务模块 (hub0003) - 属于 group0001，后端写接口鉴权用，无独立前端页
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, parentResourceId, resourceLevel, sortOrder, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0003', 'default', '定时任务', 'hub0003', 'MODULE',
+  '/system/taskScheduler', 'group0001', 2, 6, 'TimerOutline', 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_008', 1, 'Y'
+);
+
 -- 网关实例管理模块 (hub0020) - 属于 group0020
 INSERT INTO HUB_AUTH_RESOURCE (
   resourceId, tenantId, resourceName, resourceCode, resourceType,
@@ -613,6 +626,45 @@ INSERT INTO HUB_AUTH_RESOURCE (
   datetime('now'), 'system', datetime('now'), 'system', 'INIT_005_003', 1, 'Y'
 );
 
+-- 新增按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0006:add', 'default', '新增', 'hub0006:add', 'BUTTON',
+  'hub0006', 3, 4, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_005_004', 1, 'Y'
+);
+
+-- 编辑按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0006:edit', 'default', '编辑', 'hub0006:edit', 'BUTTON',
+  'hub0006', 3, 5, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_005_005', 1, 'Y'
+);
+
+-- 删除按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0006:delete', 'default', '删除', 'hub0006:delete', 'BUTTON',
+  'hub0006', 3, 6, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_005_006', 1, 'Y'
+);
+
 -- =====================================================
 -- 系统节点监控模块 - 按钮资源 (hub0007)
 -- =====================================================
@@ -775,6 +827,192 @@ INSERT INTO HUB_AUTH_RESOURCE (
   'hub0008:event-ack', 4, 3, 'zh-CN',
   'Y', 'Y',
   datetime('now'), 'system', datetime('now'), 'system', 'INIT_007_002_003', 1, 'Y'
+);
+
+-- =====================================================
+-- 定时任务模块 - 按钮资源 (hub0003)
+-- =====================================================
+
+-- 调度器管理
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0003:scheduler', 'default', '调度器管理', 'hub0003:scheduler', 'BUTTON',
+  'hub0003', 3, 1, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_008_001', 1, 'Y'
+);
+
+-- 新增调度器
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0003:scheduler:add', 'default', '新增调度器', 'hub0003:scheduler:add', 'BUTTON',
+  'hub0003:scheduler', 4, 1, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_008_001_001', 1, 'Y'
+);
+
+-- 编辑调度器
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0003:scheduler:edit', 'default', '编辑调度器', 'hub0003:scheduler:edit', 'BUTTON',
+  'hub0003:scheduler', 4, 2, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_008_001_002', 1, 'Y'
+);
+
+-- 删除调度器
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0003:scheduler:delete', 'default', '删除调度器', 'hub0003:scheduler:delete', 'BUTTON',
+  'hub0003:scheduler', 4, 3, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_008_001_003', 1, 'Y'
+);
+
+-- 任务管理
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0003:task', 'default', '任务管理', 'hub0003:task', 'BUTTON',
+  'hub0003', 3, 2, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_008_002', 1, 'Y'
+);
+
+-- 新增任务
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0003:task:add', 'default', '新增任务', 'hub0003:task:add', 'BUTTON',
+  'hub0003:task', 4, 1, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_008_002_001', 1, 'Y'
+);
+
+-- 编辑任务
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0003:task:edit', 'default', '编辑任务', 'hub0003:task:edit', 'BUTTON',
+  'hub0003:task', 4, 2, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_008_002_002', 1, 'Y'
+);
+
+-- 删除任务
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0003:task:delete', 'default', '删除任务', 'hub0003:task:delete', 'BUTTON',
+  'hub0003:task', 4, 3, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_008_002_003', 1, 'Y'
+);
+
+-- 启动任务
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0003:task:start', 'default', '启动任务', 'hub0003:task:start', 'BUTTON',
+  'hub0003:task', 4, 4, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_008_002_004', 1, 'Y'
+);
+
+-- 停止任务
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0003:task:stop', 'default', '停止任务', 'hub0003:task:stop', 'BUTTON',
+  'hub0003:task', 4, 5, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_008_002_005', 1, 'Y'
+);
+
+-- 立即执行
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0003:task:trigger', 'default', '立即执行', 'hub0003:task:trigger', 'BUTTON',
+  'hub0003:task', 4, 6, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_008_002_006', 1, 'Y'
+);
+
+-- 查看详情
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0003:view', 'default', '查看详情', 'hub0003:view', 'BUTTON',
+  'hub0003', 3, 3, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_008_003', 1, 'Y'
+);
+
+-- 查询
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0003:search', 'default', '查询', 'hub0003:search', 'BUTTON',
+  'hub0003', 3, 4, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_008_004', 1, 'Y'
+);
+
+-- 重置
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0003:reset', 'default', '重置', 'hub0003:reset', 'BUTTON',
+  'hub0003', 3, 5, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_008_005', 1, 'Y'
 );
 
 -- =====================================================
@@ -1251,6 +1489,19 @@ INSERT INTO HUB_AUTH_RESOURCE (
   'hub0020:globalConfig', 4, 5, 'zh-CN',
   'Y', 'Y',
   datetime('now'), 'system', datetime('now'), 'system', 'INIT_010_011', 1, 'Y'
+);
+
+-- 安全配置总表写入口（hubcommon002 add/edit/deleteSecurityConfig）
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:securityConfig', 'default', '安全配置', 'hub0020:securityConfig', 'BUTTON',
+  'hub0020:globalConfig', 4, 8, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_010_011_SEC', 1, 'Y'
 );
 
 -- 认证配置按钮
@@ -2055,6 +2306,19 @@ INSERT INTO HUB_AUTH_RESOURCE (
   datetime('now'), 'system', datetime('now'), 'system', 'INIT_011_013', 1, 'Y'
 );
 
+-- 安全配置总表写入口（路由侧 hubcommon002）
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:securityConfig', 'default', '安全配置', 'hub0021:securityConfig', 'BUTTON',
+  'hub0021:routeConfig', 4, 20, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_011_013_SEC', 1, 'Y'
+);
+
 -- 路由跨域配置子权限（来源于 common002/cors-config 模块的操作）
 -- 新增配置
 INSERT INTO HUB_AUTH_RESOURCE (
@@ -2358,6 +2622,19 @@ INSERT INTO HUB_AUTH_RESOURCE (
   datetime('now'), 'system', datetime('now'), 'system', 'INIT_011_018', 1, 'Y'
 );
 
+-- 静态资源配置按钮（路由列表右键菜单）
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0021:staticHostConfig', 'default', '静态资源', 'hub0021:staticHostConfig', 'BUTTON',
+  'hub0021', 3, 10, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_011_019', 1, 'Y'
+);
+
 -- =====================================================
 -- 代理管理模块 - 按钮资源 (hub0022)
 -- =====================================================
@@ -2543,6 +2820,32 @@ INSERT INTO HUB_AUTH_RESOURCE (
   'hub0022', 3, 8, 'zh-CN',
   'Y', 'Y',
   datetime('now'), 'system', datetime('now'), 'system', 'INIT_012_008', 1, 'Y'
+);
+
+-- 熔断配置按钮（服务列表右键菜单）
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0022:circuitBreaker', 'default', '熔断配置', 'hub0022:circuitBreaker', 'BUTTON',
+  'hub0022', 3, 9, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_012_009', 1, 'Y'
+);
+
+-- 安全配置总表写入口（代理侧 hubcommon002）
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0022:securityConfig', 'default', '安全配置', 'hub0022:securityConfig', 'BUTTON',
+  'hub0022', 3, 10, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_012_010', 1, 'Y'
 );
 
 -- =====================================================
@@ -3317,6 +3620,32 @@ INSERT INTO HUB_AUTH_RESOURCE (
   datetime('now'), 'system', datetime('now'), 'system', 'INIT_030_009', 1, 'Y'
 );
 
+-- 查询按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0060:search', 'default', '查询', 'hub0060:search', 'BUTTON',
+  'hub0060', 3, 10, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_030_010', 1, 'Y'
+);
+
+-- 重置按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0060:reset', 'default', '重置', 'hub0060:reset', 'BUTTON',
+  'hub0060', 3, 11, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_030_011', 1, 'Y'
+);
+
 -- =====================================================
 -- 静态映射管理模块 - 按钮资源 (hub0061)
 -- =====================================================
@@ -3481,6 +3810,58 @@ INSERT INTO HUB_AUTH_RESOURCE (
   datetime('now'), 'system', datetime('now'), 'system', 'INIT_031_012', 1, 'Y'
 );
 
+-- 查询按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0061:search', 'default', '查询', 'hub0061:search', 'BUTTON',
+  'hub0061', 3, 13, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_031_013', 1, 'Y'
+);
+
+-- 重置按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0061:reset', 'default', '重置', 'hub0061:reset', 'BUTTON',
+  'hub0061', 3, 14, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_031_014', 1, 'Y'
+);
+
+-- 静态节点查询按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0061:static-nodes:search', 'default', '查询节点', 'hub0061:static-nodes:search', 'BUTTON',
+  'hub0061', 3, 15, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_031_015', 1, 'Y'
+);
+
+-- 静态节点重置按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0061:static-nodes:reset', 'default', '重置节点列表', 'hub0061:static-nodes:reset', 'BUTTON',
+  'hub0061', 3, 16, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_031_016', 1, 'Y'
+);
+
 -- =====================================================
 -- 隧道客户端管理模块 - 按钮资源 (hub0062:tunnel-client)
 -- =====================================================
@@ -3643,6 +4024,58 @@ INSERT INTO HUB_AUTH_RESOURCE (
   'hub0062', 3, 12, 'zh-CN',
   'Y', 'Y',
   datetime('now'), 'system', datetime('now'), 'system', 'INIT_032_012', 1, 'Y'
+);
+
+-- 隧道客户端查询按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0062:tunnel-client:search', 'default', '查询', 'hub0062:tunnel-client:search', 'BUTTON',
+  'hub0062', 3, 13, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_032_013', 1, 'Y'
+);
+
+-- 隧道客户端重置按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0062:tunnel-client:reset', 'default', '重置', 'hub0062:tunnel-client:reset', 'BUTTON',
+  'hub0062', 3, 14, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_032_014', 1, 'Y'
+);
+
+-- 隧道服务查询按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0062:service:search', 'default', '查询服务', 'hub0062:service:search', 'BUTTON',
+  'hub0062', 3, 15, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_032_015', 1, 'Y'
+);
+
+-- 隧道服务重置按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0062:service:reset', 'default', '重置服务列表', 'hub0062:service:reset', 'BUTTON',
+  'hub0062', 3, 16, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_032_016', 1, 'Y'
 );
 
 -- =====================================================
@@ -3936,6 +4369,19 @@ INSERT INTO HUB_AUTH_RESOURCE (
   'hub0082', 3, 1, 'zh-CN',
   'Y', 'Y',
   datetime('now'), 'system', datetime('now'), 'system', 'INIT_042_001', 1, 'Y'
+);
+
+-- 编辑按钮（更新发送状态/结果）
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0082:edit', 'default', '更新日志', 'hub0082:edit', 'BUTTON',
+  'hub0082', 3, 5, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_042_005', 1, 'Y'
 );
 
 -- 删除按钮

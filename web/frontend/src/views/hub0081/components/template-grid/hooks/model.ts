@@ -28,7 +28,7 @@ export interface AlertTemplateListGridConfig {
 }
 
 export function useAlertTemplateListModel(channelType?: string) {
-  const moduleId = `hub0081:alert-template-list${channelType ? `:${channelType}` : ''}`
+  const moduleId = 'hub0081'
 
   const loading = ref(false)
   const templateList = ref<AlertTemplate[]>([])

@@ -95,6 +95,12 @@ const testPages: TestPage[] = [
     description: '标题、插槽、variant、size、hoverable、elevated、borderless、padding',
     icon: 'GridOutline',
   },
+  {
+    path: '/test/http-probe',
+    title: 'HTTP 探测（监控列表）',
+    description: 'POST /gateway/hub0000/server/query：对比后端原文与 createApi 解包结果',
+    icon: 'CloudOutline',
+  },
 ]
 
 function goBack() {

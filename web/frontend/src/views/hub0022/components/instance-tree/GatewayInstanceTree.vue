@@ -40,7 +40,7 @@
 
     <div class="instance-tree-body">
       <RsContextMenu
-        :items="page.model.contextMenuItems"
+        :items="contextMenuItems"
         @select="page.handleContextMenuSelect"
       >
         <div class="instance-tree-container">
@@ -114,6 +114,7 @@
 
     <RsDataFormModal
       v-model:visible="page.proxyFormDialogVisible.value"
+      :module-id="page.model.moduleId"
       :mode="page.proxyFormDialogMode.value"
       :title="page.proxyFormDialogMode.value === 'create' ? '新增代理配置' : page.proxyFormDialogMode.value === 'edit' ? '编辑代理配置' : '查看代理配置详情'"
       :to="`#${props.parentModuleId}`"
@@ -140,11 +141,12 @@ import {
   RsTree,
   type RsTreeNode,
 } from '@/ui'
+import { store } from '@/stores'
 import {
   SearchOutline,
   ServerOutline,
 } from '@vicons/ionicons5'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useGatewayInstanceTreePage } from './hooks/page'
 import type { GatewayInstance, InstanceTreeNode } from './types'
 
@@ -165,6 +167,15 @@ const emit = defineEmits<{
 
 const page = useGatewayInstanceTreePage()
 const selectedKeys = ref<string | string[]>('')
+
+const contextMenuItems = computed(() =>
+  page.model.contextMenuItems.map((item) => ({
+    ...item,
+    disabled: Boolean(
+      item.disabled || !store.user.hasPermission(`${page.model.moduleId}:${item.key}`),
+    ),
+  })),
+)
 
 /**
  * 将通用 RsTreeNode 收窄为带实例信息的节点。

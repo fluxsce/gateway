@@ -58,14 +58,9 @@ func RegisterHub0061Routes(router *gin.Engine, db database.Database) {
 		// 获取服务器详情
 		protectedGroup.POST("/getStaticServer", staticServerController.GetStaticServer)
 
-		// 创建服务器
-		protectedGroup.POST("/createStaticServer", staticServerController.CreateStaticServer)
-
-		// 更新服务器
-		protectedGroup.POST("/updateStaticServer", staticServerController.UpdateStaticServer)
-
-		// 删除服务器
-		protectedGroup.POST("/deleteStaticServer", staticServerController.DeleteStaticServer)
+		protectedGroup.POST("/createStaticServer", routes.RequireButton("hub0061:add"), staticServerController.CreateStaticServer)
+		protectedGroup.POST("/updateStaticServer", routes.RequireButton("hub0061:edit"), staticServerController.UpdateStaticServer)
+		protectedGroup.POST("/deleteStaticServer", routes.RequireButton("hub0061:delete"), staticServerController.DeleteStaticServer)
 
 		// 获取服务器统计信息
 		protectedGroup.POST("/getStaticServerStats", staticServerController.GetStaticServerStats)
@@ -73,14 +68,9 @@ func RegisterHub0061Routes(router *gin.Engine, db database.Database) {
 		// 检查端口冲突
 		protectedGroup.POST("/checkServerPortConflict", staticServerController.CheckPortConflict)
 
-		// 启动服务器
-		protectedGroup.POST("/startStaticServer", staticServerController.StartStaticServer)
-
-		// 停止服务器
-		protectedGroup.POST("/stopStaticServer", staticServerController.StopStaticServer)
-
-		// 重载服务器配置
-		protectedGroup.POST("/reloadStaticServer", staticServerController.ReloadStaticServer)
+		protectedGroup.POST("/startStaticServer", routes.RequireButton("hub0061:start"), staticServerController.StartStaticServer)
+		protectedGroup.POST("/stopStaticServer", routes.RequireButton("hub0061:stop"), staticServerController.StopStaticServer)
+		protectedGroup.POST("/reloadStaticServer", routes.RequireButton("hub0061:reload"), staticServerController.ReloadStaticServer)
 	}
 
 	// ============================================================
@@ -89,20 +79,10 @@ func RegisterHub0061Routes(router *gin.Engine, db database.Database) {
 	{
 		// 查询节点列表（支持分页、搜索和过滤）
 		protectedGroup.POST("/queryStaticNodes", staticNodeController.QueryStaticNodes)
-
-		// 获取节点详情
 		protectedGroup.POST("/getStaticNode", staticNodeController.GetStaticNode)
-
-		// 创建节点
-		protectedGroup.POST("/createStaticNode", staticNodeController.CreateStaticNode)
-
-		// 更新节点
-		protectedGroup.POST("/updateStaticNode", staticNodeController.UpdateStaticNode)
-
-		// 删除节点
-		protectedGroup.POST("/deleteStaticNode", staticNodeController.DeleteStaticNode)
-
-		// 获取节点统计信息
+		protectedGroup.POST("/createStaticNode", routes.RequireButton("hub0061:static-nodes:add"), staticNodeController.CreateStaticNode)
+		protectedGroup.POST("/updateStaticNode", routes.RequireButton("hub0061:static-nodes:edit"), staticNodeController.UpdateStaticNode)
+		protectedGroup.POST("/deleteStaticNode", routes.RequireButton("hub0061:static-nodes:delete"), staticNodeController.DeleteStaticNode)
 		protectedGroup.POST("/getStaticNodeStats", staticNodeController.GetStaticNodeStats)
 	}
 
