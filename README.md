@@ -50,36 +50,12 @@
 
 ## 功能
 
-<table width="100%">
-  <colgroup>
-    <col width="28%">
-    <col width="72%">
-  </colgroup>
-  <thead>
-    <tr>
-      <th align="left">能力</th>
-      <th align="left">说明</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>流量治理</td>
-      <td>路由分发、多种负载均衡、限流、熔断</td>
-    </tr>
-    <tr>
-      <td>安全</td>
-      <td>JWT / OAuth2 / API Key，IP、域名与 User-Agent 访问控制</td>
-    </tr>
-    <tr>
-      <td>可观测</td>
-      <td>管理控制台、访问日志、运行指标</td>
-    </tr>
-    <tr>
-      <td>扩展与交付</td>
-      <td>插件；静态资源托管；二进制、Docker、Kubernetes</td>
-    </tr>
-  </tbody>
-</table>
+| 能力 | 说明 |
+|------|------|
+| 流量治理 | 路由分发、多种负载均衡、限流、熔断 |
+| 安全 | JWT / OAuth2 / API Key，IP、域名与 User-Agent 访问控制 |
+| 可观测 | 管理控制台、访问日志、运行指标 |
+| 扩展与交付 | 插件；静态资源托管；二进制、Docker、Kubernetes |
 
 完整能力说明见 [项目介绍](docs/zh-CN/01-项目介绍.md)。
 
@@ -105,36 +81,12 @@
 
 示例版本 **3.2.5**，安装包与镜像以 [GitHub Releases](https://github.com/fluxsce/gateway/releases) 最新版为准。
 
-<table width="100%">
-  <colgroup>
-    <col width="28%">
-    <col width="72%">
-  </colgroup>
-  <thead>
-    <tr>
-      <th align="left">项</th>
-      <th align="left">值</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>控制台</td>
-      <td><a href="http://localhost:12003/gatewayweb">http://localhost:12003/gatewayweb</a></td>
-    </tr>
-    <tr>
-      <td>默认账号</td>
-      <td><code>admin</code> / <code>123456</code>（登录后立即修改）</td>
-    </tr>
-    <tr>
-      <td>网关端口</td>
-      <td><code>8080</code></td>
-    </tr>
-    <tr>
-      <td>健康检查</td>
-      <td><a href="http://localhost:12003/health">http://localhost:12003/health</a></td>
-    </tr>
-  </tbody>
-</table>
+| 项 | 值 |
+|----|----|
+| 控制台 | http://localhost:12003/gatewayweb |
+| 默认账号 | `admin` / `123456`（登录后立即修改） |
+| 网关端口 | `8080` |
+| 健康检查 | http://localhost:12003/health |
 
 ### Docker
 
@@ -161,47 +113,13 @@ docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 
 从 [Releases](https://github.com/fluxsce/gateway/releases) 下载对应平台包。归档根目录为 `gateway/`。
 
-<table width="100%">
-  <colgroup>
-    <col width="46%">
-    <col width="22%">
-    <col width="32%">
-  </colgroup>
-  <thead>
-    <tr>
-      <th align="left">文件</th>
-      <th align="left">平台</th>
-      <th align="left">数据库</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>gateway-linux-amd64-3.2.5.tar.gz</code></td>
-      <td>Linux amd64</td>
-      <td>MySQL / SQLite / ClickHouse</td>
-    </tr>
-    <tr>
-      <td><code>gateway-linux-arm64-3.2.5.tar.gz</code></td>
-      <td>Linux arm64</td>
-      <td>同上</td>
-    </tr>
-    <tr>
-      <td><code>gateway-windows-amd64-3.2.5.zip</code></td>
-      <td>Windows amd64</td>
-      <td>同上</td>
-    </tr>
-    <tr>
-      <td><code>gateway-linux-amd64-oracle-3.2.5.tar.gz</code></td>
-      <td>Linux amd64</td>
-      <td>上表 + Oracle</td>
-    </tr>
-    <tr>
-      <td><code>gateway-windows-amd64-oracle-3.2.5.zip</code></td>
-      <td>Windows amd64</td>
-      <td>上表 + Oracle</td>
-    </tr>
-  </tbody>
-</table>
+| 文件 | 平台 | 数据库 |
+|------|------|--------|
+| `gateway-linux-amd64-3.2.5.tar.gz` | Linux amd64 | MySQL / SQLite / ClickHouse |
+| `gateway-linux-arm64-3.2.5.tar.gz` | Linux arm64 | 同上 |
+| `gateway-windows-amd64-3.2.5.zip` | Windows amd64 | 同上 |
+| `gateway-linux-amd64-oracle-3.2.5.tar.gz` | Linux amd64 | 上表 + Oracle |
+| `gateway-windows-amd64-oracle-3.2.5.zip` | Windows amd64 | 上表 + Oracle |
 
 ```bash
 tar -xzf gateway-linux-amd64-3.2.5.tar.gz
@@ -257,17 +175,19 @@ Windows 与 Docker 见 [安装部署](docs/zh-CN/03-安装部署.md)、[容器�
 
 完整目录：[中文](docs/zh-CN/README.md) · [English](docs/en/README.md)
 
-- [项目介绍](docs/zh-CN/01-项目介绍.md) — 能力、架构与适用场景
-- [静态资源托管](docs/zh-CN/08-静态资源托管.md) — 用网关发布本地静态站点
-- [FAQ](docs/faq.md) — 启动、端口、账号与常见错误
-- [安装部署](docs/zh-CN/03-安装部署.md) — 安装包、系统服务、升级
-- [容器化部署](docs/zh-CN/04-容器化部署.md) — Docker / Kubernetes
-- [发版流水线](.github/CI.md) — 产物与镜像 tag
-- [开发指南](docs/zh-CN/02-快速开始.md) — 源码编译与本地联调
-- [数据库规范](docs/zh-CN/05-数据库规范.md) — 表结构与命名
-- [调试指南](docs/zh-CN/06-调试指南.md) — 排查与性能
-- [错误处理](docs/zh-CN/07-错误处理.md) — 错误处理约定
-- [SECURITY.md](SECURITY.md) — 安全与漏洞报告
+| 文档 | 说明 |
+|------|------|
+| [项目介绍](docs/zh-CN/01-项目介绍.md) | 能力、架构与适用场景 |
+| [静态资源托管](docs/zh-CN/08-静态资源托管.md) | 用网关发布本地静态站点 |
+| [FAQ](docs/faq.md) | 启动、端口、账号与常见错误 |
+| [安装部署](docs/zh-CN/03-安装部署.md) | 安装包、系统服务、升级 |
+| [容器化部署](docs/zh-CN/04-容器化部署.md) | Docker / Kubernetes |
+| [发版流水线](.github/CI.md) | 产物与镜像 tag |
+| [开发指南](docs/zh-CN/02-快速开始.md) | 源码编译与本地联调 |
+| [数据库规范](docs/zh-CN/05-数据库规范.md) | 表结构与命名 |
+| [调试指南](docs/zh-CN/06-调试指南.md) | 排查与性能 |
+| [错误处理](docs/zh-CN/07-错误处理.md) | 错误处理约定 |
+| [SECURITY.md](SECURITY.md) | 安全与漏洞报告 |
 
 ---
 
