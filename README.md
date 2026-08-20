@@ -255,102 +255,19 @@ Windows 与 Docker 见 [安装部署](docs/zh-CN/03-安装部署.md)、[容器�
 
 ## 文档
 
-按任务打开对应文档。完整目录：[中文](docs/zh-CN/README.md) · [English](docs/en/README.md)
+完整目录：[中文](docs/zh-CN/README.md) · [English](docs/en/README.md)
 
-### 使用
-
-<table width="100%">
-  <colgroup>
-    <col width="40%">
-    <col width="60%">
-  </colgroup>
-  <thead>
-    <tr>
-      <th align="left">任务</th>
-      <th align="left">文档</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>能力、架构与适用场景</td>
-      <td><a href="docs/zh-CN/01-项目介绍.md">项目介绍</a></td>
-    </tr>
-    <tr>
-      <td>用网关发布本地静态站点</td>
-      <td><a href="docs/zh-CN/08-静态资源托管.md">静态资源托管</a></td>
-    </tr>
-    <tr>
-      <td>启动、端口、账号与常见错误</td>
-      <td><a href="docs/faq.md">FAQ</a></td>
-    </tr>
-  </tbody>
-</table>
-
-### 部署
-
-<table width="100%">
-  <colgroup>
-    <col width="40%">
-    <col width="60%">
-  </colgroup>
-  <thead>
-    <tr>
-      <th align="left">任务</th>
-      <th align="left">文档</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>安装包、系统服务、升级</td>
-      <td><a href="docs/zh-CN/03-安装部署.md">安装部署</a></td>
-    </tr>
-    <tr>
-      <td>Docker / Kubernetes</td>
-      <td><a href="docs/zh-CN/04-容器化部署.md">容器化部署</a></td>
-    </tr>
-    <tr>
-      <td>发版产物与镜像 tag</td>
-      <td><a href=".github/CI.md">发版流水线</a></td>
-    </tr>
-  </tbody>
-</table>
-
-### 开发
-
-<table width="100%">
-  <colgroup>
-    <col width="40%">
-    <col width="60%">
-  </colgroup>
-  <thead>
-    <tr>
-      <th align="left">任务</th>
-      <th align="left">文档</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>源码编译与本地联调</td>
-      <td><a href="docs/zh-CN/02-快速开始.md">开发指南</a></td>
-    </tr>
-    <tr>
-      <td>表结构与命名</td>
-      <td><a href="docs/zh-CN/05-数据库规范.md">数据库规范</a></td>
-    </tr>
-    <tr>
-      <td>排查与性能</td>
-      <td><a href="docs/zh-CN/06-调试指南.md">调试指南</a></td>
-    </tr>
-    <tr>
-      <td>错误处理约定</td>
-      <td><a href="docs/zh-CN/07-错误处理.md">错误处理</a></td>
-    </tr>
-    <tr>
-      <td>安全与漏洞报告</td>
-      <td><a href="SECURITY.md">SECURITY.md</a></td>
-    </tr>
-  </tbody>
-</table>
+- [项目介绍](docs/zh-CN/01-项目介绍.md) — 能力、架构与适用场景
+- [静态资源托管](docs/zh-CN/08-静态资源托管.md) — 用网关发布本地静态站点
+- [FAQ](docs/faq.md) — 启动、端口、账号与常见错误
+- [安装部署](docs/zh-CN/03-安装部署.md) — 安装包、系统服务、升级
+- [容器化部署](docs/zh-CN/04-容器化部署.md) — Docker / Kubernetes
+- [发版流水线](.github/CI.md) — 产物与镜像 tag
+- [开发指南](docs/zh-CN/02-快速开始.md) — 源码编译与本地联调
+- [数据库规范](docs/zh-CN/05-数据库规范.md) — 表结构与命名
+- [调试指南](docs/zh-CN/06-调试指南.md) — 排查与性能
+- [错误处理](docs/zh-CN/07-错误处理.md) — 错误处理约定
+- [SECURITY.md](SECURITY.md) — 安全与漏洞报告
 
 ---
 
