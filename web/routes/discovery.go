@@ -29,7 +29,7 @@ var registeredModules = make(map[string]*ModuleInfo)
 //   - initFunc: 路由注册函数
 func RegisterModuleRoutes(moduleName string, initFunc RouteInitFunc) {
 	// 根据模块名称推断API基础路径
-	basePath := "/gateway/" + moduleName
+	basePath := ModuleAPIPrefix(moduleName)
 
 	registeredModules[moduleName] = &ModuleInfo{
 		Name:     moduleName,

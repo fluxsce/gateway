@@ -37,6 +37,7 @@
  */
 
 import { createApi } from '@/api/request'
+import { moduleApiPrefix } from '@/api/requestPath'
 import type { JsonDataObj } from '@/types/api'
 import type {
   TunnelClient,
@@ -44,7 +45,7 @@ import type {
 } from '../types'
 
 // 创建API实例 - 所有请求都在hub0062路径下
-const tunnelClientApi = createApi('/gateway/hub0062')
+const tunnelClientApi = createApi(moduleApiPrefix('hub0062'))
 
 // ==================== 基础CRUD操作 ====================
 

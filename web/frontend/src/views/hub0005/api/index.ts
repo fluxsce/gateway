@@ -1,8 +1,9 @@
 import { createApi } from '@/api/request'
+import { moduleApiPrefix } from '@/api/requestPath'
 import type { JsonDataObj } from '@/types/api'
 import type { Role } from '../types'
 
-const roleApi = createApi('/gateway/hub0005')
+const roleApi = createApi(moduleApiPrefix('hub0005'))
 
 /**
  * 分页查询角色列表

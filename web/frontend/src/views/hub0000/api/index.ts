@@ -4,11 +4,12 @@
  */
 
 import { createApi } from '@/api/request'
+import { moduleApiPrefix } from '@/api/requestPath'
 import type { JsonDataObj } from '@/types/api'
 import type { MetricQueryParams } from '../types'
 
 // 创建API实例，使用正确的前缀
-const hub0000Api = createApi('/gateway/hub0000')
+const hub0000Api = createApi(moduleApiPrefix('hub0000'))
 
 // ===================================================================
 // 服务器信息管理

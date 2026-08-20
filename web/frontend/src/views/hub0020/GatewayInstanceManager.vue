@@ -141,7 +141,7 @@
     <GExport
       v-model:visible="exportVisible"
       :module-id="service.model.moduleId"
-      url="/gateway/hub0020/exportGatewayInstance"
+      :url="exportUrl"
       :params="exportParams"
       :filename="exportFilename"
       dialog-title="导出网关实例配置"
@@ -151,7 +151,7 @@
     <GImport
       v-model:visible="importVisible"
       :module-id="service.model.moduleId"
-      url="/gateway/hub0020/importGatewayInstance"
+      :url="importUrl"
       @success="handleImportSuccess"
       @error="(e) => message.error(e.message)"
     />
@@ -159,6 +159,7 @@
 </template>
 
 <script lang="ts" setup>
+import { moduleApiPrefix, requestPathHelper } from '@/api/requestPath'
 import { RsDataFormModal } from '@/components/form/rs-data'
 import { RsSearchForm } from '@/components/form/rs-search'
 import { GExport, GImport } from '@/components/gexport-import'
@@ -225,6 +226,8 @@ const {
 
 const exportParams = computed(() => ({ gatewayInstanceId: exportInstanceId.value }))
 const exportFilename = computed(() => `网关实例配置_${exportInstanceId.value}`)
+const exportUrl = requestPathHelper.join(moduleApiPrefix('hub0020'), 'exportGatewayInstance')
+const importUrl = requestPathHelper.join(moduleApiPrefix('hub0020'), 'importGatewayInstance')
 
 const handleImportSuccess = () => {
   message.success('导入成功，数据已刷新')

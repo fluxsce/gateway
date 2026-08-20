@@ -21,6 +21,7 @@
  */
 
 import { createApi } from '@/api/request'
+import { moduleApiPrefix } from '@/api/requestPath'
 import type { JsonDataObj } from '@/types/api'
 import type {
   TunnelServerForm,
@@ -28,7 +29,7 @@ import type {
 } from '../types'
 
 // 创建API实例 - 所有请求都在hub0060路径下
-const tunnelServerApi = createApi('/gateway/hub0060')
+const tunnelServerApi = createApi(moduleApiPrefix('hub0060'))
 
 // ==================== 隧道服务器管理API ====================
 

@@ -15,7 +15,7 @@ var (
 	ModuleName = "hub0001"
 
 	// APIPrefix API路径前缀
-	APIPrefix = "/gateway/user"
+	APIPrefix = routes.APIRoot + "/user"
 )
 
 // init 包初始化函数

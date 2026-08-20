@@ -14,6 +14,7 @@
  */
 
 import { createApi } from '@/api/request'
+import { moduleApiPrefix } from '@/api/requestPath'
 import type { JsonDataObj } from '@/types/api'
 import type {
     AlertConfig,
@@ -21,7 +22,7 @@ import type {
 } from '../types'
 
 // 创建API实例
-const alertConfigApi = createApi('/gateway/hub0080')
+const alertConfigApi = createApi(moduleApiPrefix('hub0080'))
 
 // ==================== 告警渠道配置管理API ====================
 

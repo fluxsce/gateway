@@ -2,7 +2,7 @@
  * 全局 HTTP 客户端入口。
  *
  * 契约（新模块只走这一条，不要再包一层）：
- * 1. 业务 JSON 用 createApi('/gateway/hubxxxx') 或 request()，得到 JsonDataObj。
+ * 1. 业务 JSON 用 createApi(moduleApiPrefix('hubxxxx')) 或 request()，得到 JsonDataObj。
  * 2. 页面用 isApiSuccess / getApiMessage / parseJsonData；不要按 HTTP 403 写 catch。
  * 3. 后端已给出 JsonData 的 HTTP 4xx/5xx 会 resolve 为 oK=false，不当异常抛。
  * 4. 仅网络中断、超时、取消才 reject（HttpTransportError / HttpCancelledError）。401 在拦截器弹窗。
@@ -199,11 +199,11 @@ export function patch(url: string, data?: unknown, config?: RequestConfig): Prom
 }
 
 /**
- * 模块级 API 前缀，例如 createApi('/gateway/hub0002')。
+ * 模块级 API 前缀，例如 createApi(moduleApiPrefix('hub0002'))。
  * 新模块只在 views/hubxxxx/api 里建这一个实例。
  * 模块编码优先用 defaultConfig.meta.module，否则取前缀 /gateway/ 后第一段路径。
  *
- * @param baseURL - 模块前缀，如 /gateway/hub0002
+ * @param baseURL - 模块前缀，如 moduleApiPrefix('hub0002')
  * @param defaultConfig - 该模块默认配置（超时、showLoading、meta、signal）
  * @returns 模块 API
  */

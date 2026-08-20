@@ -2,8 +2,11 @@
  * hub0001模块API接口
  */
 import { request } from '@/api/request'
+import { moduleApiPrefix, requestPathHelper } from '@/api/requestPath'
 import type { JsonDataObj } from '@/types/api'
 import type { LoginFormData } from '../types'
+
+const userApiPrefix = moduleApiPrefix('user')
 
 /**
  * hub0001模块API
@@ -16,7 +19,7 @@ export const hub0001Api = {
    */
   login(data: LoginFormData): Promise<JsonDataObj> {
     return request({
-      url: '/gateway/user/login',
+      url: requestPathHelper.join(userApiPrefix, 'login'),
       method: 'POST',
       data,
     })
@@ -28,7 +31,7 @@ export const hub0001Api = {
    */
   getCaptcha(): Promise<JsonDataObj> {
     return request({
-      url: '/gateway/user/captcha',
+      url: requestPathHelper.join(userApiPrefix, 'captcha'),
       method: 'POST',
       params: {
         t: new Date().getTime(),
@@ -42,7 +45,7 @@ export const hub0001Api = {
    */
   getVersion(): Promise<JsonDataObj> {
     return request({
-      url: '/gateway/user/version',
+      url: requestPathHelper.join(userApiPrefix, 'version'),
       method: 'GET',
     })
   },

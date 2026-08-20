@@ -7,7 +7,7 @@
     <div class="page-header">
       <h1>HTTP 探测：监控服务器列表</h1>
       <p>
-        与系统监控相同：<code>POST /gateway/hub0000/server/query</code>。需已登录。对比「后端原文」和「前端拦截器处理后」。
+        与系统监控相同：<code>POST {{ hub0000QueryPath }}</code>。需已登录。对比「后端原文」和「前端拦截器处理后」。
       </p>
     </div>
 
@@ -31,13 +31,15 @@
 <script setup lang="ts">
 import { getHttpErrorMessage, isHttpCancelledError, isHttpTransportError } from '@/api/requestError'
 import { createApi } from '@/api/request'
+import { moduleApiPrefix, requestPathHelper } from '@/api/requestPath'
 import { isApiSuccess, getApiMessage } from '@/utils/format'
 import { RsButton } from '@/ui'
 import { ref } from 'vue'
 
 defineOptions({ name: 'HttpProbeTest' })
 
-const hub0000Api = createApi('/gateway/hub0000')
+const hub0000QueryPath = requestPathHelper.join(moduleApiPrefix('hub0000'), 'server/query')
+const hub0000Api = createApi(moduleApiPrefix('hub0000'))
 const loading = ref(false)
 const rawDump = ref('点击「发送请求」')
 const apiDump = ref('点击「发送请求」')
@@ -64,7 +66,7 @@ async function probeRawFetch(): Promise<void> {
   params.set('pageNum', String(queryBody.pageNum))
   params.set('pageSize', String(queryBody.pageSize))
 
-  const response = await fetch('/gateway/hub0000/server/query', {
+  const response = await fetch(hub0000QueryPath, {
     method: 'POST',
     credentials: 'include',
     headers: {

@@ -5,6 +5,7 @@
  */
 /**
  * 管理端接口前缀，模块编码是其后第一段路径。
+ * 与后端 constants.APIRoot 对应（此处带尾斜杠便于切分），改根路径只改这一处。
  */
 export const GATEWAY_PREFIX = '/gateway/'
 
@@ -25,6 +26,16 @@ export class RequestPathHelper {
       return baseURL
     }
     return `${baseURL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`
+  }
+
+  /**
+   * 返回模块 API 前缀，与后端 ModuleAPIPrefix 一致，例如 /gateway/hub0007。
+   * 登录接口传 user，得到 /gateway/user。
+   * @param moduleName - 模块名
+   * @returns 模块前缀
+   */
+  modulePrefix(moduleName: string): string {
+    return this.join(GATEWAY_PREFIX, moduleName)
   }
 
   /**
@@ -69,3 +80,12 @@ export class RequestPathHelper {
 
 /** 全局单例，供 createApi 与请求拦截器共用。 */
 export const requestPathHelper = new RequestPathHelper()
+
+/**
+ * 返回模块 API 前缀，见 RequestPathHelper.modulePrefix。
+ * @param moduleName - 模块名，如 hub0002；登录为 user
+ * @returns 模块前缀，如 /gateway/hub0002
+ */
+export function moduleApiPrefix(moduleName: string): string {
+  return requestPathHelper.modulePrefix(moduleName)
+}

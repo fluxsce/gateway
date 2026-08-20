@@ -12,7 +12,7 @@ export type RequestMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 
 /**
  * 单次请求的业务元数据。不参与后端 BindSafely，只给拦截器、插件、排障用。
- * 新模块一般不必手写：createApi 会从 /gateway/hubxxxx 自动填 module。
+ * 新模块一般不必手写：createApi 会从 moduleApiPrefix 结果自动填 module。
  */
 export interface RequestMeta {
   /** 模块编码，如 hub0002、hubcommon002 */

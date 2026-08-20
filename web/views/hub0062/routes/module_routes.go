@@ -11,7 +11,7 @@ import (
 
 var (
 	ModuleName = "hub0062"
-	APIPrefix  = "/gateway/hub0062"
+	APIPrefix  = routes.ModuleAPIPrefix(ModuleName)
 )
 
 func init() {

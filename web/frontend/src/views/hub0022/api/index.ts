@@ -1,8 +1,9 @@
 import { createApi } from '@/api/request'
+import { moduleApiPrefix } from '@/api/requestPath'
 import type { JsonDataObj } from '@/types/api'
 import type { ProxyConfig } from '../components/instance-tree/types'
 import type { CircuitBreakerConfig, ServiceDefinition } from '../components/service/types'
-const proxyApi = createApi('/gateway/hub0022')
+const proxyApi = createApi(moduleApiPrefix('hub0022'))
 
 /**
  * 查询所有网关实例列表（hub0022模块）

@@ -942,7 +942,7 @@ async function handleSend(): Promise<void> {
 }
 
 /**
- * 中止进行中的代发请求（AbortController 会经 Axios 取消对 `/gateway/hubplugin/http/execute` 的调用）。
+ * 中止进行中的代发请求（AbortController 会经 Axios 取消对 GATEWAY_HTTP_EXECUTE_URL 的调用）。
  */
 function handleCancel(): void {
   abortRef.value?.abort()

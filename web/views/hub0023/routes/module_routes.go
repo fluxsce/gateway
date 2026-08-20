@@ -16,7 +16,7 @@ var (
 	ModuleName = "hub0023"
 
 	// APIPrefix API路径前缀
-	APIPrefix = "/gateway/hub0023"
+	APIPrefix = routes.ModuleAPIPrefix(ModuleName)
 )
 
 // init 包初始化函数

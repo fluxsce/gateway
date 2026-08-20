@@ -26,6 +26,7 @@
  */
 
 import { createApi } from '@/api/request'
+import { moduleApiPrefix } from '@/api/requestPath'
 import type { JsonDataObj } from '@/types/api'
 import type {
   PortConflictCheckParams,
@@ -36,7 +37,7 @@ import type {
 } from '../types'
 
 // 创建API实例
-const staticApi = createApi('/gateway/hub0061')
+const staticApi = createApi(moduleApiPrefix('hub0061'))
 
 // ==================== 静态服务器管理API ====================
 

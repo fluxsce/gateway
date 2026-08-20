@@ -18,7 +18,7 @@ var (
 	ModuleName = "hub0082"
 
 	// APIPrefix API路径前缀
-	APIPrefix = "/gateway/hub0082"
+	APIPrefix = routes.ModuleAPIPrefix(ModuleName)
 )
 
 func init() {

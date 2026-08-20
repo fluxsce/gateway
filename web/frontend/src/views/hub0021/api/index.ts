@@ -1,11 +1,12 @@
 import { createApi } from '@/api/request'
+import { moduleApiPrefix } from '@/api/requestPath'
 import type { JsonDataObj } from '@/types/api'
 import type { RouteAssertion } from '../components/assert-config/hooks/types'
 import type { GatewayInstance, RouterConfig } from '../components/instance-tree/types'
 import type { RouteConfig } from '../components/routes/types'
 import type { StaticHostConfig } from '../components/static-host/hooks/types'
 
-const routeApi = createApi('/gateway/hub0021')
+const routeApi = createApi(moduleApiPrefix('hub0021'))
 
 /**
  * 查询所有网关实例

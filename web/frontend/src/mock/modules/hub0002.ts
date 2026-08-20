@@ -4,6 +4,7 @@
  */
 import type { MockMethod } from 'vite-plugin-mock'
 import type { JsonDataObj, PageInfoObj } from '@/types/api'
+import { moduleApiPrefix, requestPathHelper } from '../../api/requestPath'
 import Mock from 'mockjs'
 import type { User } from '@/views/hub0002/types'
 
@@ -244,7 +245,7 @@ const deptList = [
 export default [
   // 获取用户列表
   {
-    url: '/gateway/hub0002/queryUsers',
+    url: requestPathHelper.join(moduleApiPrefix('hub0002'), 'queryUsers'),
     method: 'post',
     response: ({ query }: Pick<RequestParams, 'query'>) => {
       const { userName, realName, deptId, mobile, statusFlag, pageIndex = 1, pageSize = 10 } = query
@@ -314,7 +315,7 @@ export default [
   },
   // 获取部门树
   {
-    url: '/gateway/hub0002/queryDeptsTree',
+    url: requestPathHelper.join(moduleApiPrefix('hub0002'), 'queryDeptsTree'),
     method: 'POST',
     response: () => {
       // 构建部门树
@@ -346,7 +347,7 @@ export default [
   },
   // 编辑用户
   {
-    url: '/gateway/hub0002/editUser',
+    url: requestPathHelper.join(moduleApiPrefix('hub0002'), 'editUser'),
     method: 'POST',
     response: ({ body }: Pick<RequestParams, 'body'>) => {
       const { userId, tenantId, ...updateData } = body as User
@@ -385,7 +386,7 @@ export default [
   },
   // 删除用户
   {
-    url: '/gateway/hub0002/deleteUser',
+    url: requestPathHelper.join(moduleApiPrefix('hub0002'), 'deleteUser'),
     method: 'POST',
     response: ({ body }: Pick<RequestParams, 'body'>) => {
       const { userId, tenantId } = body
@@ -421,7 +422,7 @@ export default [
   },
   // 添加用户
   {
-    url: '/gateway/hub0002/addUser',
+    url: requestPathHelper.join(moduleApiPrefix('hub0002'), 'addUser'),
     method: 'POST',
     response: ({ body }: Pick<RequestParams, 'body'>) => {
       const userData = body as User

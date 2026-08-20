@@ -2,6 +2,8 @@ package permission
 
 import (
 	"testing"
+
+	"gateway/web/utils/constants"
 )
 
 func TestIsSensitiveButtonCode(t *testing.T) {
@@ -73,7 +75,7 @@ func TestModuleCodeFromResourceOrPath(t *testing.T) {
 	if got := ModuleCodeFromResourceOrPath("hub0005", ""); got != "hub0005" {
 		t.Fatalf("module resource: got %q", got)
 	}
-	if got := ModuleCodeFromResourceOrPath("", "/gateway/hub0002/deleteUser"); got != "hub0002" {
+	if got := ModuleCodeFromResourceOrPath("", constants.APIRoot+"/hub0002/deleteUser"); got != "hub0002" {
 		t.Fatalf("from path: got %q", got)
 	}
 }

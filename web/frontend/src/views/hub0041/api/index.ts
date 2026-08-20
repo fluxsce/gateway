@@ -1,8 +1,9 @@
 import { createApi } from '@/api/request'
+import { moduleApiPrefix } from '@/api/requestPath'
 import type { JsonDataObj } from '@/types/api'
 import type { Namespace } from '../types'
 
-const namespaceApi = createApi('/gateway/hub0041')
+const namespaceApi = createApi(moduleApiPrefix('hub0041'))
 
 /**
  * 分页查询命名空间列表

@@ -40,7 +40,7 @@ func GetPermissionService() *permission.PermissionService {
 
 // gatewayModulePattern 从受保护 API 路径解析模块码。
 // 例如 /gateway/hub0021/routes -> 捕获组为 hub0021。
-var gatewayModulePattern = regexp.MustCompile(`^/gateway/(hub[0-9a-z]+)`)
+var gatewayModulePattern = regexp.MustCompile("^" + regexp.QuoteMeta(constants.APIRoot) + `/(hub[0-9a-z]+)`)
 
 // sharedAPIModuleMap 将「无独立 MODULE 资源」的公共 API 前缀映射到业务模块。
 // hubcommon002 的跨域/认证/限流等接口同时被实例管理、路由管理、代理管理使用，

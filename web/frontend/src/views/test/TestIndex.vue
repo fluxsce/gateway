@@ -41,6 +41,7 @@
 </template>
 
 <script setup lang="ts">
+import { moduleApiPrefix, requestPathHelper } from '@/api/requestPath'
 import { GIcon } from '@/components/gicon'
 import { useAppMessage } from '@/composables/useAppMessage'
 import { RsButton } from '@/ui'
@@ -98,7 +99,7 @@ const testPages: TestPage[] = [
   {
     path: '/test/http-probe',
     title: 'HTTP 探测（监控列表）',
-    description: 'POST /gateway/hub0000/server/query：对比后端原文与 createApi 解包结果',
+    description: `POST ${requestPathHelper.join(moduleApiPrefix('hub0000'), 'server/query')}：对比后端原文与 createApi 解包结果`,
     icon: 'CloudOutline',
   },
 ]

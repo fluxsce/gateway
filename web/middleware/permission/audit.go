@@ -7,6 +7,7 @@ import (
 
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/random"
+	"gateway/web/utils/constants"
 )
 
 const (
@@ -104,7 +105,7 @@ func ModuleCodeFromResourceOrPath(resourceCode, path string) string {
 
 // moduleCodeFromGatewayPath 从 /gateway/{hubxxxx}/... 取出模块编码。
 func moduleCodeFromGatewayPath(path string) string {
-	const prefix = "/gateway/"
+	prefix := constants.APIRoot + "/"
 	if !strings.HasPrefix(path, prefix) {
 		return ""
 	}

@@ -6,6 +6,7 @@
  */
 
 import { request } from '@/api/request'
+import { moduleApiPrefix, requestPathHelper } from '@/api/requestPath'
 import axios from 'axios'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import type {
@@ -23,7 +24,10 @@ import type {
  * @remarks
  * 实际出站请求在服务端执行，见 Go 路由 `web/views/hubplugin/http`。
  */
-export const GATEWAY_HTTP_EXECUTE_URL = '/gateway/hubplugin/http/execute'
+export const GATEWAY_HTTP_EXECUTE_URL = requestPathHelper.join(
+  moduleApiPrefix('hubplugin'),
+  'http/execute',
+)
 
 /**
  * 尝试将用户输入解析为 `URL`，相对路径以当前页面的 `location.origin` 为基（与浏览器地址栏行为一致）。

@@ -4,6 +4,7 @@
  */
 import type { MockMethod } from 'vite-plugin-mock'
 import type { JsonDataObj, MenuItem, PermissionItem } from '@/types/api'
+import { moduleApiPrefix, requestPathHelper } from '../../api/requestPath'
 import Mock from 'mockjs'
 
 /**
@@ -474,7 +475,7 @@ attachPermissionsToMenus(menus, permissions)
 export default [
   // 获取菜单列表和权限
   {
-    url: '/gateway/system/getMenuList',
+    url: requestPathHelper.join(moduleApiPrefix('system'), 'getMenuList'),
     method: 'get',
     response: ({ query }: Pick<RequestParams, 'query'>) => {
       // 可选的筛选条件
@@ -500,7 +501,7 @@ export default [
 
   // 获取用户权限码列表
   {
-    url: '/gateway/system/getUserPermissions',
+    url: requestPathHelper.join(moduleApiPrefix('system'), 'getUserPermissions'),
     method: 'get',
     response: ({ query }: Pick<RequestParams, 'query'>) => {
       const { userId } = query

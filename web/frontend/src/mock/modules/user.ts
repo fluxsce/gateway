@@ -5,6 +5,7 @@
  */
 import type { MockMethod } from 'vite-plugin-mock'
 import type { JsonDataObj } from '@/types/api'
+import { moduleApiPrefix, requestPathHelper } from '../../api/requestPath'
 import Mock from 'mockjs'
 
 /**
@@ -109,7 +110,7 @@ function createJsonDataResponse<T>(data: T, success = true, message = ''): JsonD
 export default [
   // 验证码生成接口
   {
-    url: '/gateway/user/captcha',
+    url: requestPathHelper.join(moduleApiPrefix('user'), 'captcha'),
     method: 'post',
     response: () => {
       // 生成随机6位验证码（仅 mock 服务端持有，不返回给前端）
@@ -143,7 +144,7 @@ export default [
 
   // 用户登录
   {
-    url: '/gateway/user/login',
+    url: requestPathHelper.join(moduleApiPrefix('user'), 'login'),
     method: 'post',
     response: ({ body }: Pick<RequestParams, 'body'>) => {
       const { userId, password, captchaCode, captchaId } = body

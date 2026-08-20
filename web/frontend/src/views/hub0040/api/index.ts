@@ -1,8 +1,9 @@
 import { createApi } from '@/api/request'
+import { moduleApiPrefix } from '@/api/requestPath'
 import type { JsonDataObj } from '@/types/api'
 import type { ServiceCenterInstance } from '../types'
 
-const serviceCenterApi = createApi('/gateway/hub0040')
+const serviceCenterApi = createApi(moduleApiPrefix('hub0040'))
 
 /**
  * 分页查询服务中心实例列表

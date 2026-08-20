@@ -15,7 +15,7 @@ var (
 	ModuleName = "hub0060"
 
 	// APIPrefix API路径前缀
-	APIPrefix = "/gateway/hub0060"
+	APIPrefix = routes.ModuleAPIPrefix(ModuleName)
 )
 
 // init 包初始化函数，自动注册hub0060模块的路由

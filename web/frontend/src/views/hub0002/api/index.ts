@@ -1,8 +1,9 @@
 import { createApi } from '@/api/request'
+import { moduleApiPrefix } from '@/api/requestPath'
 import type { JsonDataObj } from '@/types/api'
 import type { User } from '../types'
 
-const userApi = createApi('/gateway/hub0002')
+const userApi = createApi(moduleApiPrefix('hub0002'))
 
 /**
  * 分页查询用户列表

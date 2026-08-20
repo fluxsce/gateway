@@ -3,6 +3,7 @@
  */
 
 import { createApi } from '@/api/request'
+import { moduleApiPrefix } from '@/api/requestPath'
 import type { JsonDataObj } from '@/types/api'
 import type { GatewayMonitoringQueryParams } from '../components/monitor/hooks/types'
 import type {
@@ -11,7 +12,7 @@ import type {
   GatewayLogResetParams,
 } from '../types'
 
-const gatewayLogApi = createApi('/gateway/hub0023')
+const gatewayLogApi = createApi(moduleApiPrefix('hub0023'))
 
 /**
  * 规范化网关实例 ID（去空白）。

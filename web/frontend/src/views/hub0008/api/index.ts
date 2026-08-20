@@ -1,7 +1,8 @@
 import { createApi } from '@/api/request'
+import { moduleApiPrefix } from '@/api/requestPath'
 import type { JsonDataObj } from '@/types/api'
 
-const clusterEventApi = createApi('/gateway/hub0008')
+const clusterEventApi = createApi(moduleApiPrefix('hub0008'))
 
 /**
  * 分页查询集群事件列表

@@ -11,10 +11,11 @@
  */
 
 import { createApi } from '@/api/request'
+import { moduleApiPrefix } from '@/api/requestPath'
 import type { JsonDataObj } from '@/types/api'
 import type { AlertTemplate, AlertTemplateQueryParams } from '../types'
 
-const alertTemplateApi = createApi('/gateway/hub0081')
+const alertTemplateApi = createApi(moduleApiPrefix('hub0081'))
 
 export const queryAlertTemplates = async (params: AlertTemplateQueryParams): Promise<JsonDataObj> => {
   return alertTemplateApi.post('/queryAlertTemplates', params)

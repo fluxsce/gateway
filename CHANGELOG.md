@@ -6,6 +6,9 @@
 
 ## [Unreleased]（未发布）
 
+### 变更
+- **管理端 API 根路径常量化**：`/gateway` 抽到 `constants.APIRoot`，各模块用 `routes.ModuleAPIPrefix` 拼接前缀。前端 `GATEWAY_PREFIX` / `moduleApiPrefix` 与后端对齐。权限正则与审计路径解析共用同一常量，换根路径前后端各改一处。`hub0001` 登录接口仍为 `/gateway/user`。
+
 ## [3.2.5] - 2026-08-20
 
 ### 新增

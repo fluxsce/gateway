@@ -16,7 +16,7 @@ func RegisterHub0022Routes(router *gin.Engine, db database.Database) {
 	gatewayInstanceController := controllers.NewGatewayInstanceController(db)
 
 	// 创建路由组
-	apiGroup := router.Group("/gateway/hub0022", routes.PermissionRequired()...)
+	apiGroup := router.Group(routes.ModuleAPIPrefix("hub0022"), routes.PermissionRequired()...)
 
 	// 代理配置管理路由
 	{
@@ -90,7 +90,7 @@ func RegisterHub0022Routes(router *gin.Engine, db database.Database) {
 		// 查询服务注册列表
 		apiGroup.POST("/registServiceQuery", func(c *gin.Context) {
 			// 转发请求到hub0041模块的queryServices接口
-			c.Request.URL.Path = "/gateway/hub0041/queryServices"
+			c.Request.URL.Path = routes.ModuleAPIPrefix("hub0041") + "/queryServices"
 			router.HandleContext(c)
 		})
 	}

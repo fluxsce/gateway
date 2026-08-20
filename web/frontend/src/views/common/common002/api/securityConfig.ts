@@ -1,8 +1,9 @@
 import type { JsonDataObj } from '@/types/api'
 import { createApi } from '@/api/request'
+import { moduleApiPrefix } from '@/api/requestPath'
 
 // 创建安全配置API实例，强制使用JSON格式
-const securityApi = createApi('/gateway/hubcommon002')
+const securityApi = createApi(moduleApiPrefix('hubcommon002'))
 
 /**
  * 分页查询安全配置列表

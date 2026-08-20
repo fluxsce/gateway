@@ -1,8 +1,9 @@
 import { createApi } from '@/api/request';
+import { moduleApiPrefix } from '@/api/requestPath';
 import type { JsonDataObj } from '@/types/api';
 import type { Config, ConfigQuery, RollbackRequest } from '../types';
 
-const configApi = createApi('/gateway/hub0043')
+const configApi = createApi(moduleApiPrefix('hub0043'))
 
 /**
  * 分页查询配置列表
