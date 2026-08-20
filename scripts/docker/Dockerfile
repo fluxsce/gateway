@@ -49,15 +49,27 @@ ARG VERSION=3.2.6
 ARG BUILD_DATE
 ARG GIT_COMMIT=unknown
 
-# ARG 默认 linux/amd64，与原先写死 GOARCH=amd64 一致
-# 传入 docker --platform 时 BuildKit 会覆盖这两个值（如 linux/arm64 -> arm64）
-ARG TARGETOS=linux
-ARG TARGETARCH=amd64
+# BuildKit 随 --platform 注入（linux/amd64 -> amd64，linux/arm64 -> arm64）。
+# 不要写默认值：ARG TARGETARCH=amd64 不会被 --platform linux/arm64 覆盖。
+ARG TARGETOS
+ARG TARGETARCH
+
+# CGO 只能用本阶段 gcc，GOARCH 必须等于 GOHOSTARCH。
+# 交叉编译会把 -m64 传给 ARM gcc，报 unrecognized command-line option。
+RUN host="$(go env GOHOSTARCH)"; \
+    echo "CGO build TARGET=${TARGETOS:-linux}/${TARGETARCH} GOHOSTARCH=${host}"; \
+    if [ -z "$TARGETARCH" ]; then \
+        echo "TARGETARCH is empty; pass docker --platform (e.g. linux/amd64 or linux/arm64)" >&2; \
+        exit 1; \
+    fi; \
+    if [ "$host" != "$TARGETARCH" ]; then \
+        echo "CGO cannot cross-compile: GOHOSTARCH=${host} TARGETARCH=${TARGETARCH}" >&2; \
+        exit 1; \
+    fi
 
 # 编译应用（启用 CGO，支持 SQLite）
 # 使用 no_oracle tag 排除 Oracle 驱动
-# CGO 依赖本机 gcc，GOARCH 须与当前构建阶段架构一致
-RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+RUN CGO_ENABLED=1 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
     go build -a \
     -tags=no_oracle \
     -ldflags="-w -s -X main.Version=${VERSION} -X main.BuildTime=${BUILD_DATE} -X main.GitCommit=${GIT_COMMIT}" \
@@ -65,7 +77,7 @@ RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     cmd/app/main.go
 
 # 编译密码加密工具
-RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+RUN CGO_ENABLED=1 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
     go build -a \
     -tags=no_oracle \
     -ldflags="-w -s" \

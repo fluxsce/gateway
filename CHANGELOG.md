@@ -11,6 +11,9 @@
 - **审计日志查看（hub0004）**：系统设置下查询 `HUB_AUTH_AUDIT_LOG`（操作人、动作、模块、目标、结果、时间范围），只读详情。已有库执行 `patch_auth_resource_20260820_hub0004.sql`（并确认已有审计表）。
 - **审计日志加固**：业务失败与无权限拒绝记 `result=N`；未声明后缀的写按钮默认入账；登录成功与踢会话写入审计；登录失败仅在账号进入冷却时记一笔（验证码/单次密码错误走 `HUB_LOGIN_LOG`，避免刷爆）。导出按当前筛选条件用数据库游标逐行写出 CSV，不限制条数。已有库另执行 `patch_auth_resource_20260820_hub0004_export.sql`。写入失败日志关键字 `AUDIT_WRITE_FAILED`。
 
+### 修复
+- **标准 Docker arm64 镜像 CGO 编译失败**：`ARG TARGETARCH=amd64` 不会被 `--platform linux/arm64` 覆盖，ARM runner 上 Go 把 `-m64` 传给本机 gcc。改为无默认值的 `TARGETARCH`，`go build` 显式传 `GOARCH`，并校验与 `GOHOSTARCH` 一致。
+
 ### 变更
 - **标准 Docker 运行时升级 Alpine 3.19 → 3.23**：构建阶段钉 `golang:1.24-alpine3.23`，与仍在支持期内的 Alpine 对齐。
 - **登录页首包减负**：Vite 不再把 Monaco / CodeMirror / xterm 打进登录图；boot 预加载运行时单独成块。`@/ui` 不再 re-export 代码编辑器（改从 `@/ui/code-editor` 引入）。主布局按需加载。CI 钉到 npm `niuma-ui@1.1.6`（`sideEffects` 便于摇掉未使用的编辑器）。本地开发仍用 package.json 的 link。
