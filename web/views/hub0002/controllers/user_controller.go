@@ -4,11 +4,11 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/web/middleware"
+	"gateway/web/middleware/audit"
 	"gateway/web/middleware/permission"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
-	"gateway/web/utils/session"
 	"gateway/web/views/hub0002/dao"
 	"gateway/web/views/hub0002/models"
 	"strings"
@@ -125,13 +125,14 @@ func (c *UserController) AddUser(ctx *gin.Context) {
 	if targetName == "" {
 		targetName = req.UserName
 	}
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionCreate,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
 		ModuleCode:   "hub0002",
 		TargetType:   "USER",
 		TargetId:     userId,
 		TargetName:   targetName,
 		ResourceCode: "hub0002:add",
+		Detail:       userAuditDetail(req.UserName, req.ActiveFlag, req.StatusFlag),
 	})
 
 	// 查询新添加的用户信息
@@ -229,13 +230,14 @@ func (c *UserController) EditUser(ctx *gin.Context) {
 			targetName = currentUser.UserName
 		}
 	}
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionUpdate,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
 		ModuleCode:   "hub0002",
 		TargetType:   "USER",
 		TargetId:     updateData.UserId,
 		TargetName:   targetName,
 		ResourceCode: "hub0002:edit",
+		Detail:       userAuditDetail(updateData.UserName, updateData.ActiveFlag, updateData.StatusFlag),
 	})
 
 	// 租户管理员标记或启用状态变化后，旧 session 中的身份已过期
@@ -243,7 +245,7 @@ func (c *UserController) EditUser(ctx *gin.Context) {
 		(updateData.StatusFlag == "N" && currentUser.StatusFlag != "N") ||
 		(updateData.ActiveFlag == "N" && currentUser.ActiveFlag != "N") {
 		middleware.InvalidateUserPermissionCache(ctx, updateData.UserId, tenantId)
-		session.InvalidateUserSessions(ctx, updateData.UserId)
+		audit.KickUserSessions(ctx, updateData.UserId)
 	}
 
 	// 查询更新后的用户信息
@@ -350,14 +352,15 @@ func (c *UserController) ChangePassword(ctx *gin.Context) {
 		return
 	}
 
-	session.InvalidateUserSessions(ctx, userId)
+	audit.KickUserSessions(ctx, userId)
 	middleware.InvalidateUserPermissionCache(ctx, userId, tenantId)
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionUpdate,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
 		ModuleCode:   "hub0002",
 		TargetType:   "USER",
 		TargetId:     userId,
 		ResourceCode: "hub0002:resetPassword",
+		Detail:       "resetPassword",
 	})
 
 	response.SuccessJSON(ctx, nil, constants.SD00003)
@@ -410,10 +413,10 @@ func (c *UserController) Delete(ctx *gin.Context) {
 		return
 	}
 
-	session.InvalidateUserSessions(ctx, userId)
+	audit.KickUserSessions(ctx, userId)
 	middleware.InvalidateUserPermissionCache(ctx, userId, tenantId)
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionDelete,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
 		ModuleCode:   "hub0002",
 		TargetType:   "USER",
 		TargetId:     userId,
@@ -535,7 +538,7 @@ func (c *UserController) AssignUserRoles(ctx *gin.Context) {
 		return
 	}
 
-	session.InvalidateUserSessions(ctx, req.UserId)
+	audit.KickUserSessions(ctx, req.UserId)
 	middleware.InvalidateUserPermissionCache(ctx, req.UserId, tenantId)
 	targetName := ""
 	if user, getErr := c.userDAO.GetUserById(ctx, req.UserId, tenantId); getErr == nil && user != nil {
@@ -544,8 +547,8 @@ func (c *UserController) AssignUserRoles(ctx *gin.Context) {
 			targetName = user.UserName
 		}
 	}
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionGrant,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionGrant,
 		ModuleCode:   "hub0002",
 		TargetType:   "USER",
 		TargetId:     req.UserId,
@@ -593,4 +596,18 @@ func containsString(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func userAuditDetail(userName, activeFlag, statusFlag string) string {
+	parts := make([]string, 0, 3)
+	if userName != "" {
+		parts = append(parts, "userName="+userName)
+	}
+	if activeFlag != "" {
+		parts = append(parts, "activeFlag="+activeFlag)
+	}
+	if statusFlag != "" {
+		parts = append(parts, "statusFlag="+statusFlag)
+	}
+	return strings.Join(parts, "; ")
 }

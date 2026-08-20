@@ -3,6 +3,7 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -67,6 +68,13 @@ func (c *CircuitBreakerConfigController) SaveCircuitBreakerConfig(ctx *gin.Conte
 		response.ErrorJSON(ctx, "保存熔断配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0022",
+		TargetType:   "CIRCUIT_BREAKER",
+		TargetId:     req.TargetServiceId,
+		ResourceCode: "hub0022:circuitBreaker",
+	})
 	saved, err := c.dao.GetByTargetServiceId(ctx, tenantId, req.TargetServiceId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取保存后的熔断配置失败", err)

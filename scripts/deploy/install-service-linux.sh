@@ -445,7 +445,7 @@ create_systemd_service() {
     cat > "/etc/systemd/system/$SERVICE_NAME.service" << EOF
 [Unit]
 Description=Gateway Gateway and Management Service
-Documentation=https://github.com/your-org/gateway
+Documentation=https://github.com/fluxsce/gateway
 After=network.target remote-fs.target nss-lookup.target
 Wants=network.target
 

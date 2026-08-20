@@ -8,6 +8,7 @@ import (
 	"gateway/internal/servicecenter/types"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -277,6 +278,15 @@ func (c *ServiceController) AddService(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建服务失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0042",
+		TargetType:   "SERVICE",
+		TargetId:     req.ServiceName,
+		TargetName:   req.ServiceName,
+		ResourceCode: "hub0042:add",
+		Detail:       "namespace=" + req.NamespaceId + " group=" + req.GroupName,
+	})
 
 	// 查询新添加的服务信息
 	newService, err := c.serviceDAO.GetServiceById(ctx, tenantId, req.NamespaceId, req.GroupName, req.ServiceName)
@@ -378,6 +388,15 @@ func (c *ServiceController) EditService(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新服务失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0042",
+		TargetType:   "SERVICE",
+		TargetId:     req.ServiceName,
+		TargetName:   req.ServiceName,
+		ResourceCode: "hub0042:edit",
+		Detail:       "namespace=" + req.NamespaceId + " group=" + req.GroupName,
+	})
 
 	// 查询更新后的服务信息
 	updatedService, err := c.serviceDAO.GetServiceById(ctx, tenantId, req.NamespaceId, req.GroupName, req.ServiceName)
@@ -439,6 +458,15 @@ func (c *ServiceController) DeleteService(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除服务失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0042",
+		TargetType:   "SERVICE",
+		TargetId:     serviceName,
+		TargetName:   serviceName,
+		ResourceCode: "hub0042:delete",
+		Detail:       "namespace=" + namespaceId + " group=" + groupName,
+	})
 
 	// 同步删除缓存
 	serviceCenterManager := servicecenter.GetManager()
@@ -553,6 +581,14 @@ func (c *ServiceController) EditNode(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新节点失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0042",
+		TargetType:   "SERVICE_NODE",
+		TargetId:     req.NodeId,
+		TargetName:   req.ServiceName,
+		ResourceCode: "hub0042:node:edit",
+	})
 
 	logger.InfoWithTrace(ctx, "节点编辑成功（仅更新缓存）",
 		"nodeId", req.NodeId,
@@ -598,6 +634,13 @@ func (c *ServiceController) OfflineNode(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "下线节点失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0042",
+		TargetType:   "SERVICE_NODE",
+		TargetId:     nodeId,
+		ResourceCode: "hub0042:node:offline",
+	})
 
 	// 获取更新后的节点信息用于返回
 	globalCache := cache.GetGlobalCache()

@@ -1,334 +1,125 @@
-# FLUX Gateway - Installation & Deployment
+# Installation & Deployment
 
-This document provides detailed installation and deployment instructions for FLUX Gateway.
+Run official packages on a host. Containers: [Containerized Deployment](./04-container-deployment.md). Source builds: [Development Guide](./02-quick-start.md).
 
----
-
-## 📋 Table of Contents
-
-- [Environment Requirements](#-environment-requirements)
-- [Obtain Installation Package](#-obtain-installation-package)
-- [Standard Directory Structure](#-standard-directory-structure)
-- [Deployment & Startup](#-deployment--startup)
-- [Verification](#-verification)
+Examples use **3.2.5** and `/opt/gateway`.
 
 ---
 
-## 🔧 Environment Requirements
+## Requirements
 
-### Hardware Requirements
+| Item | Minimum | Suggested |
+|------|---------|-----------|
+| OS | Linux / Windows / macOS | 64-bit |
+| CPU / RAM / disk | 1 core / 256MB / 10GB | 2+ / 512MB+ / 20GB+ |
+| Database | SQLite (default) | MySQL 5.7+/8.0 or Oracle 11g+ in production |
 
-| Resource | Minimum | Recommended |
-|----------|---------|-------------|
-| **CPU** | 2 cores | 4+ cores |
-| **Memory** | 2GB | 4GB+ |
-| **Disk** | 10GB | 20GB+ |
-| **Network** | 100Mbps | 1Gbps+ |
-
-### Software Requirements
-
-| Component | Version | Description |
-|-----------|---------|-------------|
-| **Operating System** | Linux/Windows | CentOS 7+, Ubuntu 18.04+, Windows Server 2008+ |
-| **Database** | MySQL 5.7+ / SQLite 3.x / Oracle 11g+ | Choose one |
-| **Cache** | Redis 5.0+ (optional) | Recommended for production |
+Standard packages already link SQLite/MySQL/ClickHouse — no gcc on the target. `*oracle*` packages need Instant Client installed by you. Go 1.24 needs Linux kernel ≥ 3.17 (CentOS 7 default 3.10 may fail; use Docker instead).
 
 ---
 
-## 📦 Obtain Installation Package
+## Download
 
-### Method 1: Download Pre-compiled Binaries
+Assets on [Releases](https://github.com/fluxsce/gateway/releases):
 
-Download from GitHub Releases:
-- https://github.com/fluxsce/gateway/releases
+| File | Notes |
+|------|-------|
+| `gateway-linux-amd64-{version}.tar.gz` | Linux amd64, no Oracle |
+| `gateway-linux-arm64-{version}.tar.gz` | Linux arm64, no Oracle |
+| `gateway-linux-amd64-oracle-{version}.tar.gz` | Linux amd64 + Oracle, no Instant Client inside |
+| `gateway-windows-amd64-{version}.zip` | Windows amd64, no Oracle |
+| `gateway-windows-amd64-oracle-{version}.zip` | Windows amd64 + Oracle |
 
-**Available Versions:**
-- `gateway-win10-oracle-amd64.exe` - Windows + Oracle
-- `gateway-centos7-amd64` - CentOS/RHEL + Oracle
-- `gateway-ubuntu-amd64` - Ubuntu/Debian + MySQL/SQLite
+No arm64 Oracle or Windows arm64 packages. Archive root is `gateway/`.
 
-### Method 2: Self-compile
-
-Use official build scripts:
-
-**Common Build Scripts:**
-- `scripts/build/build-win10-oracle.cmd` - Windows + Oracle
-- `scripts/build/build-centos7.sh` - CentOS + Oracle
-- `scripts/build/build-ubuntu.sh` - Ubuntu + MySQL/SQLite
-
-**Build Command:**
 ```bash
-# Linux
-bash scripts/build/build-centos7.sh
-
-# Windows
-scripts\build\build-win10-oracle.cmd
-```
-
-**Build Output:** `dist/` directory
-
----
-
-## 📁 Standard Directory Structure
-
-```
-/opt/gateway/                    # Standard deployment directory
-├── gateway                      # Executable file
-├── configs/                     # Configuration files
-│   ├── app.yaml                # Application config
-│   ├── database.yaml           # Database config
-│   ├── gateway.yaml            # Gateway config
-│   ├── logger.yaml             # Logger config
-│   └── web.yaml                # Web config
-├── web/                        # Web resources
-│   ├── static/                 # Static resources
-│   └── frontend/dist/          # Frontend resources
-├── logs/                       # Log directory
-├── data/                       # Data directory
-├── backup/                     # Backup directory
-├── scripts/                    # Scripts (development only)
-│   ├── build/                  # Build scripts
-│   ├── deploy/                 # Deployment scripts
-│   ├── db/                     # Database scripts
-│   └── data/                   # SQLite database files
-└── pprof_analysis/             # Performance analysis files
-```
-
----
-
-## 🚀 Deployment & Startup
-
-### Deployment Method Comparison
-
-| Method | Pros | Cons | Use Case |
-|--------|------|------|----------|
-| **Pre-compiled Package** | Simple, fast | Fixed configuration | Production (recommended) |
-| **Self-compiled** | Flexible, customizable | Requires build environment | Development, custom builds |
-
-### Startup Method Comparison
-
-| Method | Pros | Cons | Use Case |
-|--------|------|------|----------|
-| **System Service** | Auto-start, stable | Requires admin privileges | Production (recommended) |
-| **Direct Execution** | Simple, flexible | Manual management | Development, testing |
-
----
-
-### Option 1: Deploy Using Pre-compiled Package (Recommended)
-
-#### 1. Extract Installation Package
-
-**Linux:**
-```bash
-# Extract to standard directory
-sudo tar -xzf gateway-centos7-amd64.tar.gz -C /opt/
-
-# Or extract to custom directory
-tar -xzf gateway-centos7-amd64.tar.gz -C ~/gateway
-```
-
-**Windows:**
-```cmd
-REM Extract to C:\gateway
-unzip gateway-win10-oracle-amd64.zip -d C:\gateway
-```
-
-**Note:** Pre-compiled packages are complete upon extraction, no need to create directories manually.
-
-#### 2. Configure Database and Application
-
-Refer to [Development Guide - Configuration](./02-quick-start.md#-configuration)
-
-#### 3. Register as System Service Startup (Recommended)
-
-**Linux:**
-```bash
-# Navigate to deployment directory
+wget https://github.com/fluxsce/gateway/releases/download/v3.2.5/gateway-linux-amd64-3.2.5.tar.gz
+sudo tar -xzf gateway-linux-amd64-3.2.5.tar.gz -C /opt
 cd /opt/gateway
+```
 
-# Register service
+Do not use unversioned names like `gateway-linux-amd64.tar.gz` or old `v2.0.1` URLs.
+
+---
+
+## Layout
+
+```
+gateway/
+├── gateway                 # gateway.exe on Windows
+├── configs/                # app, database, gateway, logger, web
+├── web/static/
+├── web/frontend/dist/
+├── scripts/db/
+└── scripts/deploy/
+```
+
+SQLite file: `scripts/data/gateway.db`. Startup initializes schema when `enable_script_initialization` is true.
+
+---
+
+## Configure
+
+SQLite works out of the box. To change engines, edit `configs/database.yaml`: set `database.default`, enable the matching `connections.*` block. Do **not** use a top-level `type`/`host` schema — that is obsolete.
+
+Harden before production: `jwt_secret`, `encryption_key`, and the `admin` / `123456` login.
+
+---
+
+## Start
+
+```bash
+cd /opt/gateway
+./gateway --config ./configs
+```
+
+Linux service:
+
+```bash
 sudo scripts/deploy/install-service-linux.sh
-
-# Start service
 sudo systemctl start gateway
-
-# Enable auto-start
-sudo systemctl enable gateway
-
-# View status
-sudo systemctl status gateway
 ```
 
-**Windows:**
-```cmd
-REM Navigate to deployment directory
-cd C:\gateway
-
-REM Register service (MySQL/SQLite version)
-scripts\deploy\install-service.cmd
-
-REM Register service (Oracle version)
-scripts\deploy\install-service.cmd oracle
-
-REM Start service
-net start Gateway
-
-REM Set auto-start
-sc config Gateway start=auto
-```
-
-#### 4. Direct File Execution
-
-**Linux/macOS:**
-```bash
-# Navigate to deployment directory
-cd /opt/gateway
-
-# Execute
-./gateway --config ./configs
-```
-
-**Windows:**
-```cmd
-REM Navigate to deployment directory
-cd C:\gateway
-
-REM Execute
-gateway.exe --config .\configs
-```
+Windows: `scripts\deploy\install-service.cmd` then `sc start Gateway`.
 
 ---
 
-### Option 2: Self-compiled Deployment
-
-#### 1. Compile Application
+## Verify
 
 ```bash
-# Use official build scripts
-bash scripts/build/build-centos7.sh
-
-# Build output in dist/ directory
-```
-
-#### 2. Create Deployment Directory
-
-**Linux:**
-```bash
-sudo mkdir -p /opt/gateway
-cd /opt/gateway
-```
-
-#### 3. Copy Files
-
-```bash
-# Copy executable
-sudo cp dist/gateway-centos7-amd64 /opt/gateway/gateway
-
-# Copy configuration files
-sudo cp -r configs /opt/gateway/
-
-# Copy web resources
-sudo cp -r web/static /opt/gateway/web/
-sudo cp -r web/frontend/dist /opt/gateway/web/frontend/
-
-# Create necessary directories
-sudo mkdir -p /opt/gateway/{logs,data,backup}
-
-# Set permissions
-sudo chmod +x /opt/gateway/gateway
-```
-
-#### 4. Configure Database and Application
-
-Refer to [Development Guide - Configuration](./02-quick-start.md#-configuration)
-
-#### 5. Register as System Service Startup
-
-**Linux:**
-```bash
-# Use deployment scripts
-sudo bash scripts/deploy/install-service-linux.sh
-```
-
-**Windows:**
-```cmd
-REM Use deployment scripts
-scripts\deploy\install-service.cmd
-```
-
-#### 6. Direct File Execution
-
-```bash
-# Linux
-cd /opt/gateway
-./gateway --config ./configs
-```
-
----
-
-## ✅ Verification
-
-### 1. Check Service Status
-
-**Linux:**
-```bash
-# Systemd service
-sudo systemctl status gateway
-
-# Check process
-ps aux | grep gateway
-
-# Check ports
-netstat -tulpn | grep -E '8080|12003|7000'
-```
-
-**Windows:**
-```cmd
-REM Check service
-sc query Gateway
-
-REM Check process
-tasklist | findstr gateway
-
-REM Check ports
-netstat -ano | findstr "8080 12003 7000"
-```
-
-### 2. Access Web Console
-
-- **URL**: http://localhost:12003/gatewayweb
-- **Default Username**: `admin`
-- **Default Password**: `123456`
-
-### 3. Test API Gateway
-
-```bash
-# Health check
 curl http://localhost:12003/health
-
-# API test
-curl http://localhost:8080/api/test
 ```
 
----
+Console: http://localhost:12003/gatewayweb  
+Gateway: http://localhost:8080  
 
-## 📖 Next Steps
-
-After deployment, we recommend continuing with:
-
-- [Project Introduction](./01-introduction.md) - Understand project architecture and core capabilities
-- [Development Guide](./02-quick-start.md) - Development environment setup and configuration
-- [Containerized Deployment](./04-container-deployment.md) - Docker and Kubernetes deployment
+Health is only on **12003**.
 
 ---
 
-**[Back to Directory](./README.md) • [Previous: Development Guide](./02-quick-start.md) • [Next: Containerized Deployment](./04-container-deployment.md)**
+## Upgrade
+
+Stop the service, back up `database.yaml`, extract, restore the file:
+
+```bash
+sudo systemctl stop gateway
+sudo cp /opt/gateway/configs/database.yaml /tmp/database.yaml.bak
+sudo tar -xzf gateway-linux-amd64-*.tar.gz -C /opt
+sudo cp /tmp/database.yaml.bak /opt/gateway/configs/database.yaml
+sudo systemctl start gateway
+```
+
+Apply `scripts/db/*/patch_*.sql` when [CHANGELOG.md](../../CHANGELOG.md) says so.
 
 ---
 
-<div align="center">
+## Compile yourself
 
-Made with ❤️ by FLUX Gateway Team
+```bash
+./scripts/build/build-centos7.sh --version=3.2.5
+chmod +x dist/gateway/gateway
+```
 
-</div>
+Copy `dist/gateway/` to `/opt/gateway`. `chmod +x` the binary, not the directory.
 
+**[Index](./README.md) · [Previous: Development](./02-quick-start.md) · [Next: Containers](./04-container-deployment.md)**

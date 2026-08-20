@@ -4,7 +4,16 @@
  */
 
 /** 审计动作 */
-export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'ROLLBACK' | 'GRANT'
+export type AuditAction =
+  | 'CREATE'
+  | 'UPDATE'
+  | 'DELETE'
+  | 'ROLLBACK'
+  | 'GRANT'
+  | 'EXPORT'
+  | 'LOGIN'
+  | 'LOGIN_FAIL'
+  | 'KICK'
 
 /** 审计结果：Y 成功 / N 失败 */
 export type AuditResult = 'Y' | 'N'

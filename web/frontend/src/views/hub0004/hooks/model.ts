@@ -54,6 +54,25 @@ const TARGET_TYPES = [
   'ALERT_LOG',
   'HTTP',
   'API',
+  'PROXY',
+  'STATIC_HOST',
+  'ROUTER_CONFIG',
+  'ASSERTION',
+  'FILTER',
+  'CIRCUIT_BREAKER',
+  'LOG_CONFIG',
+  'ALERT_TEMPLATE',
+  'ALERT_CHANNEL',
+  'NAMESPACE',
+  'CONFIG_DATA',
+  'NODE',
+  'TASK',
+  'SCHEDULER',
+  'TUNNEL_SERVER',
+  'TUNNEL_CLIENT',
+  'TUNNEL_SERVICE',
+  'TUNNEL_STATIC',
+  'SERVICE_CENTER',
 ] as const
 
 /**
@@ -124,6 +143,10 @@ export function useAuditLogModel() {
       DELETE: t('action.delete'),
       ROLLBACK: t('action.rollback'),
       GRANT: t('action.grant'),
+      EXPORT: t('action.export'),
+      LOGIN: t('action.login'),
+      LOGIN_FAIL: t('action.loginFail'),
+      KICK: t('action.kick'),
     }
     return map[action] || String(action)
   }
@@ -140,6 +163,10 @@ export function useAuditLogModel() {
       DELETE: 'danger',
       ROLLBACK: 'warning',
       GRANT: 'warning',
+      EXPORT: 'info',
+      LOGIN: 'success',
+      LOGIN_FAIL: 'danger',
+      KICK: 'warning',
     }
     return map[action] || 'default'
   }
@@ -261,6 +288,15 @@ export function useAuditLogModel() {
       },
     ]
 
+    searchFormConfig.toolbarButtons = [
+      {
+        key: 'export',
+        label: t('common.export'),
+        icon: 'DownloadOutline',
+        tooltip: t('common.export'),
+      },
+    ]
+
     searchFormConfig.fields = [
       {
         field: 'timeRange',
@@ -289,6 +325,10 @@ export function useAuditLogModel() {
           { label: t('action.delete'), value: 'DELETE' },
           { label: t('action.rollback'), value: 'ROLLBACK' },
           { label: t('action.grant'), value: 'GRANT' },
+          { label: t('action.export'), value: 'EXPORT' },
+          { label: t('action.login'), value: 'LOGIN' },
+          { label: t('action.loginFail'), value: 'LOGIN_FAIL' },
+          { label: t('action.kick'), value: 'KICK' },
         ],
       },
       {

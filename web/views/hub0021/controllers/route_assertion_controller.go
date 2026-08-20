@@ -3,6 +3,7 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -64,6 +65,14 @@ func (c *RouteAssertionController) AddRouteAssertion(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建路由断言失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0021",
+		TargetType:   "ROUTE_ASSERTION",
+		TargetId:     routeAssertionId,
+		TargetName:   req.AssertionName,
+		ResourceCode: "hub0021:assertConfig:add",
+	})
 
 	// 查询新添加的路由断言信息
 	newRouteAssertion, err := c.routeAssertionDAO.GetRouteAssertionById(ctx, routeAssertionId, tenantId)
@@ -125,6 +134,14 @@ func (c *RouteAssertionController) EditRouteAssertion(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新路由断言失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0021",
+		TargetType:   "ROUTE_ASSERTION",
+		TargetId:     updateData.RouteAssertionId,
+		TargetName:   updateData.AssertionName,
+		ResourceCode: "hub0021:assertConfig:edit",
+	})
 
 	// 更新成功后，获取最新的路由断言数据
 	updatedAssertion, err := c.routeAssertionDAO.GetRouteAssertionById(ctx, updateData.RouteAssertionId, tenantId)
@@ -259,6 +276,13 @@ func (c *RouteAssertionController) DeleteRouteAssertion(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除路由断言失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0021",
+		TargetType:   "ROUTE_ASSERTION",
+		TargetId:     routeAssertionId,
+		ResourceCode: "hub0021:assertConfig:delete",
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"routeAssertionId": routeAssertionId,

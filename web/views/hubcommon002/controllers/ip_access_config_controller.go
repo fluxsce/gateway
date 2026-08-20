@@ -3,6 +3,7 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -56,6 +57,14 @@ func (c *IpAccessConfigController) AddIpAccessConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "添加IP访问控制配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "IP_ACCESS_CONFIG",
+		TargetId:     config.IpAccessConfigId,
+		TargetName:   config.ConfigName,
+		ResourceCode: "hub0020:ipAccessControl",
+	})
 
 	// 查询最新的配置数据返回给前端（使用主键）
 	newConfig, err := c.dao.GetIpAccessConfigById(ctx, config.IpAccessConfigId, tenantId)
@@ -126,6 +135,14 @@ func (c *IpAccessConfigController) UpdateIpAccessConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新IP访问控制配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "IP_ACCESS_CONFIG",
+		TargetId:     config.IpAccessConfigId,
+		TargetName:   config.ConfigName,
+		ResourceCode: "hub0020:ipAccessControl",
+	})
 
 	// 查询最新的配置数据返回给前端（使用主键）
 	updatedConfig, err := c.dao.GetIpAccessConfigById(ctx, config.IpAccessConfigId, tenantId)
@@ -153,6 +170,11 @@ func (c *IpAccessConfigController) DeleteIpAccessConfig(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
 
+	targetName := ""
+	if current, getErr := c.dao.GetIpAccessConfigById(ctx, ipAccessConfigId, tenantId); getErr == nil && current != nil {
+		targetName = current.ConfigName
+	}
+
 	// 调用DAO层删除IP访问控制配置（使用主键）
 	err := c.dao.DeleteIpAccessConfig(ctx, ipAccessConfigId, tenantId)
 	if err != nil {
@@ -161,6 +183,14 @@ func (c *IpAccessConfigController) DeleteIpAccessConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除IP访问控制配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "IP_ACCESS_CONFIG",
+		TargetId:     ipAccessConfigId,
+		TargetName:   targetName,
+		ResourceCode: "hub0020:ipAccessControl",
+	})
 
 	logger.InfoWithTrace(ctx, "IP访问控制配置删除成功", "ipAccessConfigId", ipAccessConfigId,
 		"tenantId", tenantId, "operatorId", operatorId)

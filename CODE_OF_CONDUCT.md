@@ -200,7 +200,7 @@ For answers to common questions about this Code of Conduct, see the [FAQ](https:
 For questions regarding this Code of Conduct, please contact us via：
 
 * **Email**: [conduct@example.com](mailto:conduct@example.com)
-* **GitHub**: 创建 [Issue](https://github.com/your-org/gateway/issues)
+* **GitHub**: 创建 [Issue](https://github.com/fluxsce/gateway/issues)
 * **Official Website**: [https://gateway.example.com](https://gateway.example.com)
 
 Thank you for helping us create a friendly, safe, and inclusive open-source community! 🤝 

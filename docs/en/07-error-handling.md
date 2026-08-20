@@ -72,9 +72,11 @@ Gateway provides an enhanced error handling mechanism `huberrors` that creates e
 
 ```go
 import (
-    "github.com/fluxsce/gateway/pkg/utils/huberrors"
+    "gateway/pkg/utils/huberrors"
 )
 ```
+
+The module path is `gateway` (`go.mod` at the repo root), not `github.com/fluxsce/gateway/...`.
 
 ### Create New Error
 
@@ -118,19 +120,36 @@ logger.Error("system startup failed", err)
 
 ---
 
-## 🌐 HTTP Error Responses
+## HTTP error responses
 
-### Standard Error Response Format
+Console APIs use `web/utils/response/response.go`. The body is **not** `{code, message, details}`. The JSON field is `oK` (tag `oK`, historical).
 
 ```go
-type ErrorResponse struct {
-    Code    int    `json:"code"`    // Business error code
-    Message string `json:"message"` // Error description
-    Details string `json:"details"` // Detailed information (optional)
+type JsonData struct {
+    OK            bool        `json:"oK"`
+    State         bool        `json:"state"`
+    BizData       string      `json:"bizData"`
+    ExtObj        interface{} `json:"extObj"`
+    PageQueryData string      `json:"pageQueryData"`
+    MessageId     string      `json:"messageId"`
+    ErrMsg        string      `json:"errMsg"`
+    PopMsg        string      `json:"popMsg"`
+    ExtMsg        string      `json:"extMsg"`
 }
 ```
 
-### Common HTTP Status Codes
+Success: `SuccessJSON` / `response.Success` → `oK: true`, payload in `bizData` (JSON serialized as a string).
+
+Failure: `ErrorJSON` → **HTTP 200 by default**, `oK: false`, text in `errMsg`. `MarkBizError` marks the gin context for audit. Pass `status` to `ErrorJSON` only when you need a non-200.
+
+```go
+response.SuccessJSON(c, data, messageId)
+response.ErrorJSON(c, "userId cannot be empty", messageId)
+```
+
+Do not invent `ErrorResponse{Code, Message, Details}` in console handlers.
+
+### Data-plane HTTP status codes
 
 | Status Code | Description | Use Case |
 |-------------|-------------|----------|
@@ -144,38 +163,6 @@ type ErrorResponse struct {
 | **502** | Bad Gateway | Backend service error |
 | **503** | Service Unavailable | Service unavailable |
 | **504** | Gateway Timeout | Gateway timeout |
-
-### Error Response Examples
-
-```go
-// Parameter error
-c.JSON(http.StatusBadRequest, ErrorResponse{
-    Code:    40001,
-    Message: "Parameter error",
-    Details: "userId cannot be empty",
-})
-
-// Not authenticated
-c.JSON(http.StatusUnauthorized, ErrorResponse{
-    Code:    40101,
-    Message: "Not authenticated",
-    Details: "Token has expired",
-})
-
-// Resource not found
-c.JSON(http.StatusNotFound, ErrorResponse{
-    Code:    40401,
-    Message: "Resource not found",
-    Details: "User ID 123 does not exist",
-})
-
-// Server error
-c.JSON(http.StatusInternalServerError, ErrorResponse{
-    Code:    50001,
-    Message: "Server internal error",
-    Details: "Database connection failed",
-})
-```
 
 ---
 
@@ -352,32 +339,12 @@ func callExternalAPI(url string) ([]byte, error) {
 
 ---
 
-## 📖 Next Steps
+## Next
 
-After mastering error handling, we recommend continuing with:
-
-- [Project Introduction](./01-introduction.md) - Understand project architecture and core capabilities
-- [Development Guide](./02-quick-start.md) - Development environment setup and configuration
-- [Debugging Guide](./06-debugging.md) - Debugging techniques and methods
+- [Static hosting](./08-static-hosting.md)
+- [First route](./09-first-route.md)
 
 ---
 
-## 🤝 Get Help
-
-If you encounter error handling related issues, you can get help through:
-
-- 📧 Email: fluxopensource@flux.com.cn
-- 💬 GitHub Issues: [Submit Issue](https://github.com/fluxsce/gateway/issues)
-
----
-
-**[Back to Directory](./README.md) • [Previous: Debugging Guide](./06-debugging.md)**
-
----
-
-<div align="center">
-
-Made with ❤️ by FLUX Gateway Team
-
-</div>
+**[Index](./README.md) • [Previous: Debugging](./06-debugging.md) • [Next: Static hosting](./08-static-hosting.md)**
 

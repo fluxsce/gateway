@@ -8,6 +8,48 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	// CtxKeyBizError 标记本次请求已返回业务失败（HTTP 仍可能是 200）。
+	CtxKeyBizError = "gateway.bizError"
+	// CtxKeyBizErrorMsg 业务失败文案，供审计写入 detail。
+	CtxKeyBizErrorMsg = "gateway.bizErrorMsg"
+)
+
+// MarkBizError 在 gin 上下文标记业务失败，供鉴权中间件把审计记为 result=N。
+func MarkBizError(c *gin.Context, errMsg string) {
+	if c == nil {
+		return
+	}
+	c.Set(CtxKeyBizError, true)
+	c.Set(CtxKeyBizErrorMsg, errMsg)
+}
+
+// IsBizError 判断当前请求是否已返回业务失败。
+func IsBizError(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	v, ok := c.Get(CtxKeyBizError)
+	if !ok {
+		return false
+	}
+	flag, isBool := v.(bool)
+	return isBool && flag
+}
+
+// BizErrorMessage 返回业务失败文案；未标记时返回空串。
+func BizErrorMessage(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	v, ok := c.Get(CtxKeyBizErrorMsg)
+	if !ok {
+		return ""
+	}
+	s, _ := v.(string)
+	return s
+}
+
 // PageInfo 后端返回的分页信息对象结构
 type PageInfo struct {
 	// 基础数据，通常用于存储额外信息
@@ -189,11 +231,13 @@ func ErrorJSON(c *gin.Context, errMsg string, messageId string, status ...int) {
 	if len(status) > 0 {
 		httpStatus = status[0]
 	}
+	MarkBizError(c, errMsg)
 	c.JSON(httpStatus, Error(errMsg, messageId))
 }
 
 // ErrorJSONExt 返回带 extObj 的错误响应，供前端读取剩余秒数等结构化字段。
 func ErrorJSONExt(c *gin.Context, errMsg string, messageId string, ext interface{}) {
+	MarkBizError(c, errMsg)
 	data := Error(errMsg, messageId)
 	data.PopMsg = errMsg
 	data.ExtObj = ext

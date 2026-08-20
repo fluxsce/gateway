@@ -3,6 +3,7 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -56,6 +57,14 @@ func (c *CorsConfigController) AddCorsConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "添加CORS配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "CORS_CONFIG",
+		TargetId:     config.CorsConfigId,
+		TargetName:   config.ConfigName,
+		ResourceCode: "hub0020:corsConfig",
+	})
 
 	// 查询最新的配置数据返回给前端（使用主键）
 	newConfig, err := c.dao.GetCorsConfig(config.TenantId, config.CorsConfigId)
@@ -136,6 +145,14 @@ func (c *CorsConfigController) UpdateCorsConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新CORS配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "CORS_CONFIG",
+		TargetId:     config.CorsConfigId,
+		TargetName:   config.ConfigName,
+		ResourceCode: "hub0020:corsConfig",
+	})
 
 	// 查询最新的配置数据返回给前端（使用主键）
 	updatedConfig, err := c.dao.GetCorsConfig(tenantId, config.CorsConfigId)
@@ -166,6 +183,11 @@ func (c *CorsConfigController) DeleteCorsConfig(ctx *gin.Context) {
 	// 从上下文获取租户ID（前置校验已处理）
 	tenantId := request.GetTenantID(ctx)
 
+	targetName := ""
+	if current, getErr := c.dao.GetCorsConfig(tenantId, corsConfigId); getErr == nil && current != nil {
+		targetName = current.ConfigName
+	}
+
 	// 调用DAO层删除CORS配置（使用主键）
 	err := c.dao.DeleteCorsConfig(tenantId, corsConfigId)
 	if err != nil {
@@ -174,6 +196,14 @@ func (c *CorsConfigController) DeleteCorsConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除CORS配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "CORS_CONFIG",
+		TargetId:     corsConfigId,
+		TargetName:   targetName,
+		ResourceCode: "hub0020:corsConfig",
+	})
 
 	logger.InfoWithTrace(ctx, "CORS配置删除成功", "corsConfigId", corsConfigId,
 		"tenantId", tenantId)

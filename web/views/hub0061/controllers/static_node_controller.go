@@ -8,6 +8,7 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/random"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -172,6 +173,14 @@ func (c *StaticNodeController) CreateStaticNode(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建静态节点失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0061",
+		TargetType:   "STATIC_NODE",
+		TargetId:     req.TunnelStaticNodeId,
+		TargetName:   req.NodeName,
+		ResourceCode: "hub0061:static-nodes:add",
+	})
 
 	// 查询新创建的节点信息
 	newNode, err := c.staticNodeDAO.GetStaticNode(ctx, req.TunnelStaticNodeId, tenantId)
@@ -253,6 +262,14 @@ func (c *StaticNodeController) UpdateStaticNode(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新静态节点失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0061",
+		TargetType:   "STATIC_NODE",
+		TargetId:     updateData.TunnelStaticNodeId,
+		TargetName:   updateData.NodeName,
+		ResourceCode: "hub0061:static-nodes:edit",
+	})
 
 	// 查询更新后的节点信息
 	updatedNode, err := c.staticNodeDAO.GetStaticNode(ctx, updateData.TunnelStaticNodeId, tenantId)
@@ -296,6 +313,11 @@ func (c *StaticNodeController) DeleteStaticNode(ctx *gin.Context) {
 	// 使用工具类获取租户ID
 	tenantId := request.GetTenantID(ctx)
 
+	targetName := ""
+	if current, getErr := c.staticNodeDAO.GetStaticNode(ctx, nodeId, tenantId); getErr == nil && current != nil {
+		targetName = current.NodeName
+	}
+
 	// 调用DAO删除节点
 	err := c.staticNodeDAO.DeleteStaticNode(ctx, nodeId, tenantId)
 	if err != nil {
@@ -303,6 +325,14 @@ func (c *StaticNodeController) DeleteStaticNode(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除静态节点失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0061",
+		TargetType:   "STATIC_NODE",
+		TargetId:     nodeId,
+		TargetName:   targetName,
+		ResourceCode: "hub0061:static-nodes:delete",
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"tunnelStaticNodeId": nodeId,

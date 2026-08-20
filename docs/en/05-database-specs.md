@@ -1,248 +1,88 @@
-# FLUX Gateway - Database Design Specifications
+# Database design specifications
 
-This document provides database design specifications and best practices for FLUX Gateway.
+Naming, columns, and indexes. When you add or change a table, the executable SQL in the repo wins — do not copy only the examples in this page.
 
----
+## Aligned with this repo
 
-## 1. Naming Conventions
-
-### Table Naming
-
-- Use **lowercase** with **underscores** to separate words
-- Use **singular** nouns (e.g., `user` not `users`)
-- Prefix with module name (e.g., `gateway_route`, `tunnel_server`)
-- Avoid reserved keywords
-
-**Examples:**
-```sql
-✅ Good: gateway_route, tunnel_server, user_role
-❌ Bad: GatewayRoute, TunnelServers, user-role, order (reserved keyword)
-```
-
-### Column Naming
-
-- Use **lowercase** with **underscores**
-- Use **descriptive** names
-- Boolean fields prefix with `is_` or `has_`
-- Time fields suffix with `_time` or `_at`
-
-**Examples:**
-```sql
-✅ Good: user_name, is_active, created_time, updated_at
-❌ Bad: UserName, active, create, update
-```
-
-### Index Naming
-
-- **Primary Key**: `pk_<table_name>`
-- **Unique Index**: `uk_<table_name>_<column_name>`
-- **Normal Index**: `idx_<table_name>_<column_name>`
-- **Foreign Key**: `fk_<table_name>_<ref_table>`
-
-**Examples:**
-```sql
-✅ Good: pk_user, uk_user_email, idx_user_status, fk_order_user
-❌ Bad: user_pk, email_unique, status_idx
-```
+- Scripts: `scripts/db/{mysql,sqlite,oracle}/`, entry `init.sql` (relative `.read` / `source`)
+- Default database: `sqlite_main` in `configs/database.yaml`, file `./scripts/data/gateway.db`. MySQL / Oracle schema name is `gateway`, not the retired `web_hub_here`
+- Table names: `HUB_` prefix, uppercase, underscores (`HUB_GW_INSTANCE`, `HUB_USER`)
+- Columns: camelCase; no autoincrement; never name a column `id`
+- Primary key: most business tables use `(tenantId, <businessId>)`; check that table’s `.sql`
+- Booleans: `activeFlag` / `statusFlag` with `'Y'` / `'N'`, not `is*` prefixes
+- Reserved columns: the convention is `reserved1`–`reserved10`; some tables (e.g. `HUB_GW_INSTANCE`) only have `reserved1`–`reserved5`. Follow the script
 
 ---
 
-## 2. Required Common Fields
+## Database name
 
-All tables **MUST** include the following fields:
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `id` | BIGINT / VARCHAR(36) | AUTO_INCREMENT / UUID | Primary key |
-| `create_time` | DATETIME / TIMESTAMP | CURRENT_TIMESTAMP | Creation time |
-| `update_time` | DATETIME / TIMESTAMP | CURRENT_TIMESTAMP ON UPDATE | Last update time |
-| `is_deleted` | TINYINT(1) | 0 | Soft delete flag (0: not deleted, 1: deleted) |
-
-**Example:**
-```sql
-CREATE TABLE gateway_route (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT 'Primary key ID',
-    route_name VARCHAR(100) NOT NULL COMMENT 'Route name',
-    route_path VARCHAR(255) NOT NULL COMMENT 'Route path',
-    
-    -- Required common fields
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Creation time',
-    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Update time',
-    is_deleted TINYINT(1) DEFAULT 0 COMMENT 'Soft delete flag'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Gateway route table';
-```
+- Lowercase, words separated by underscores
+- SQLite: a file path, e.g. `./scripts/data/gateway.db`
+- MySQL / Oracle: schema or service name, e.g. `gateway`
 
 ---
 
-## 3. Field Naming Semantic Requirements
+## Table names
 
-### Status Fields
-
-Use **clear** status values:
-
-```sql
--- ✅ Good: Use meaningful enum values
-status ENUM('active', 'inactive', 'pending', 'disabled') DEFAULT 'active'
-
--- ❌ Bad: Use unclear numeric codes
-status TINYINT DEFAULT 1  -- What does 1 mean?
-```
-
-### Boolean Fields
-
-Use `is_` or `has_` prefix:
-
-```sql
--- ✅ Good
-is_active TINYINT(1) DEFAULT 1
-has_permission TINYINT(1) DEFAULT 0
-is_deleted TINYINT(1) DEFAULT 0
-
--- ❌ Bad
-active INT DEFAULT 1
-permission BOOLEAN
-deleted BIT
-```
-
-### Time Fields
-
-Use `_time` or `_at` suffix:
-
-```sql
--- ✅ Good
-create_time DATETIME
-updated_at TIMESTAMP
-deleted_time DATETIME
-expired_at DATETIME
-
--- ❌ Bad
-create DATETIME
-update TIMESTAMP
-delete_date DATE
-```
+- Start with `HUB`, uppercase, underscores
+- Module + function, singular: `HUB_USER`, `HUB_GW_INSTANCE`
+- Avoid reserved SQL keywords
 
 ---
 
-## 4. Other Specifications
+## Column names
 
-### Data Types
+- camelCase
+- Do not use `id` as a column name; use `userId`, `gatewayInstanceId`, …
+- No autoincrement
+- Foreign keys should name the related entity: `parentUserId`
 
-| Use Case | Recommended Type | Notes |
-|----------|------------------|-------|
-| **Primary Key** | BIGINT AUTO_INCREMENT | Or VARCHAR(36) for UUID |
-| **String** | VARCHAR(N) | Specify appropriate length |
-| **Long Text** | TEXT / LONGTEXT | For articles, descriptions |
-| **Boolean** | TINYINT(1) | 0 or 1 |
-| **Date/Time** | DATETIME | Or TIMESTAMP for auto-update |
-| **Decimal** | DECIMAL(M,D) | For currency, precise calculations |
-| **JSON** | JSON | For flexible data structures |
+**Flags:** `activeFlag`, `deleteFlag` — not `isDeleted`, `isActive`.
 
-### Indexing
+**Datetimes:** `DATETIME`. `addTime` defaults to `CURRENT_TIMESTAMP`. SQLite scripts usually do not use `ON UPDATE` for `editTime`; the app writes it.
 
-- **Primary Key**: Always on `id`
-- **Unique Index**: On unique fields (e.g., email, username)
-- **Normal Index**: On frequently queried fields (e.g., status, type)
-- **Composite Index**: For multi-column queries (order matters!)
+**Money / counts:** suffix `amount` / `price` / `count` / `num` / `quantity` when that is the meaning.
 
-**Example:**
-```sql
--- Primary key
-PRIMARY KEY (id),
-
--- Unique index
-UNIQUE KEY uk_user_email (email),
-
--- Normal index
-KEY idx_user_status (status),
-
--- Composite index (query by tenant_id and status)
-KEY idx_tenant_status (tenant_id, status)
-```
-
-### Foreign Keys
-
-- Use foreign keys for referential integrity
-- Set appropriate `ON DELETE` and `ON UPDATE` actions
-
-```sql
-CONSTRAINT fk_order_user 
-    FOREIGN KEY (user_id) 
-    REFERENCES user(id) 
-    ON DELETE CASCADE 
-    ON UPDATE CASCADE
-```
-
-### Comments
-
-- **Table Comment**: Describe table purpose
-- **Column Comment**: Describe column meaning
-- Use **Chinese** or **English** consistently
-
-```sql
-CREATE TABLE gateway_route (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT 'Primary key ID',
-    route_name VARCHAR(100) NOT NULL COMMENT 'Route name',
-    route_path VARCHAR(255) NOT NULL COMMENT 'Route path',
-    status ENUM('active', 'inactive') DEFAULT 'active' COMMENT 'Route status'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Gateway route table';
-```
+**YN flags:** `VARCHAR(1)` with `'Y'` / `'N'`.
 
 ---
 
-## 5. Example
+## Common columns
 
-### Complete Table Example
+Business tables include these. The business id column name depends on the table and usually forms a composite PK with `tenantId`.
 
-```sql
-CREATE TABLE gateway_route (
-    -- Primary key
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT 'Primary key ID',
-    
-    -- Business fields
-    route_name VARCHAR(100) NOT NULL COMMENT 'Route name',
-    route_path VARCHAR(255) NOT NULL COMMENT 'Route path',
-    target_url VARCHAR(500) NOT NULL COMMENT 'Target URL',
-    method ENUM('GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS') DEFAULT 'GET' COMMENT 'HTTP method',
-    status ENUM('active', 'inactive', 'testing') DEFAULT 'active' COMMENT 'Route status',
-    priority INT DEFAULT 0 COMMENT 'Priority (higher value = higher priority)',
-    
-    -- Optional fields
-    description TEXT COMMENT 'Route description',
-    config JSON COMMENT 'Route configuration (JSON)',
-    
-    -- Required common fields
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Creation time',
-    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Update time',
-    is_deleted TINYINT(1) DEFAULT 0 COMMENT 'Soft delete flag (0: not deleted, 1: deleted)',
-    
-    -- Indexes
-    UNIQUE KEY uk_route_path (route_path),
-    KEY idx_route_status (status),
-    KEY idx_route_priority (priority),
-    KEY idx_route_deleted (is_deleted)
-    
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Gateway route table';
-```
+| Column | Type | Notes |
+|--------|------|--------|
+| `<businessId>` | VARCHAR(32) | Not `id` |
+| `tenantId` | VARCHAR(32) NOT NULL | Tenant isolation; usually part of the PK |
+| `addTime` / `addWho` | DATETIME / VARCHAR(32) | Created |
+| `editTime` / `editWho` | DATETIME / VARCHAR(32) | Last edit |
+| `oprSeqFlag` | VARCHAR(32) | Operation sequence / optimistic lock |
+| `currentVersion` | INT DEFAULT 1 | Increment on update |
+| `activeFlag` | VARCHAR(1) DEFAULT `'Y'` | `'Y'` / `'N'` |
+| `noteText` | VARCHAR(500) | Remark |
+| `extProperty` | TEXT | JSON extras |
+| `reserved1`… | text or typed | Count and types follow the `.sql` |
 
 ---
 
-## 📖 Next Steps
+## Indexes
 
-After understanding database specifications, we recommend continuing with:
-
-- [Project Introduction](./01-introduction.md) - Understand project architecture and core capabilities
-- [Development Guide](./02-quick-start.md) - Development environment setup and configuration
-- [Debugging Guide](./06-debugging.md) - Debugging techniques and troubleshooting
+- Oracle names ≤ 30 characters; MySQL / SQLite ≤ 64
+- Index pattern: `IDX_<table-abbrev>_<column-abbrev>` e.g. `IDX_GW_INST_BIND_HTTP`
+- Always filter by `tenantId` in queries
 
 ---
 
-**[Back to Directory](./README.md) • [Previous: Containerized Deployment](./04-container-deployment.md) • [Next: Debugging Guide](./06-debugging.md)**
+## Examples
+
+Full DDL lives under `scripts/db/{mysql,sqlite,oracle}/`.
+
+- Users: `HUB_USER` (`scripts/db/sqlite/HUB_USER.sql`). PK `(userId, tenantId)`. There is no `HUB_USER_ACCOUNT`.
+- Gateway instances: `HUB_GW_INSTANCE`. PK `(tenantId, gatewayInstanceId)`. Activity is `activeFlag`; health is `healthStatus`. There is no `instanceStatus` column.
+
+Do not invent a second schema in docs. Change the scripts, then this page if the convention itself changed.
 
 ---
 
-<div align="center">
-
-Made with ❤️ by FLUX Gateway Team
-
-</div>
-
+**[Index](./README.md) • [Previous: Container deployment](./04-container-deployment.md) • [Next: Debugging](./06-debugging.md)**

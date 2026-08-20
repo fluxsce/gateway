@@ -1,10 +1,11 @@
 package controllers
 
 import (
+	"strings"
+
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
-	"gateway/web/middleware"
-	"gateway/web/middleware/permission"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -78,13 +79,14 @@ func (c *SecurityConfigController) AddSecurityConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "添加安全配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionCreate,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
 		ModuleCode:   "hubcommon002",
 		TargetType:   "SECURITY_CONFIG",
 		TargetId:     securityConfigId,
 		TargetName:   config.ConfigName,
 		ResourceCode: "hub0020:securityConfig",
+		Detail:       securityConfigAuditDetail(&config),
 	})
 
 	// 查询最新的配置数据返回给前端
@@ -208,13 +210,14 @@ func (c *SecurityConfigController) EditSecurityConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "编辑安全配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionUpdate,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
 		ModuleCode:   "hubcommon002",
 		TargetType:   "SECURITY_CONFIG",
 		TargetId:     config.SecurityConfigId,
 		TargetName:   config.ConfigName,
 		ResourceCode: "hub0020:securityConfig",
+		Detail:       securityConfigAuditDetail(&config),
 	})
 
 	// 查询最新的配置数据返回给前端
@@ -270,8 +273,8 @@ func (c *SecurityConfigController) DeleteSecurityConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除安全配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionDelete,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
 		ModuleCode:   "hubcommon002",
 		TargetType:   "SECURITY_CONFIG",
 		TargetId:     securityConfigId,
@@ -395,4 +398,18 @@ func (c *SecurityConfigController) QuerySecurityConfigsByRouteConfig(ctx *gin.Co
 	logger.InfoWithTrace(ctx, "查询路由配置安全配置列表成功", "routeConfigId", routeConfigId,
 		"tenantId", tenantId, "count", len(configs))
 	response.SuccessJSON(ctx, configs, constants.SD00002)
+}
+
+func securityConfigAuditDetail(config *models.SecurityConfig) string {
+	if config == nil {
+		return ""
+	}
+	parts := []string{"configName=" + config.ConfigName, "activeFlag=" + config.ActiveFlag}
+	if config.GatewayInstanceId != nil && strings.TrimSpace(*config.GatewayInstanceId) != "" {
+		parts = append(parts, "gatewayInstanceId="+strings.TrimSpace(*config.GatewayInstanceId))
+	}
+	if config.RouteConfigId != nil && strings.TrimSpace(*config.RouteConfigId) != "" {
+		parts = append(parts, "routeConfigId="+strings.TrimSpace(*config.RouteConfigId))
+	}
+	return strings.Join(parts, "; ")
 }

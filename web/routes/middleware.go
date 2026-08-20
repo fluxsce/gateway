@@ -34,6 +34,12 @@ func PermissionRequired() []gin.HandlerFunc {
 	}
 }
 
+// AuditRequired 写操作审计中间件，由 ApplyGlobalMiddleware 全局挂载。
+// handler 返回后落库；仅当业务 SetEvent 时写入。
+func AuditRequired() gin.HandlerFunc {
+	return middleware.AuditMiddleware()
+}
+
 // RequireButton 在路由上声明该接口需要的按钮码（任意一个即可），服务端写死。
 // 用户未授予该按钮时返回 403，不放行。
 // 用法：group.POST("/deleteRole", routes.RequireButton("hub0005:delete"), handler)
@@ -59,8 +65,8 @@ func ApplyGlobalMiddleware(router *gin.Engine) {
 	// 应用加密中间件 - 在响应返回时加密数据
 	router.Use(EncryptResponse())
 
-	// 可以在这里添加其他全局中间件
-	// 例如：CORS、限流等
+	// 写操作审计：仅业务 SetEvent 后落库
+	router.Use(AuditRequired())
 }
 
 // RegisterProtectedRoutes 注册受保护的路由组

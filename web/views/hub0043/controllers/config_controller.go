@@ -11,6 +11,7 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/random"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -202,6 +203,14 @@ func (c *ConfigController) AddConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0043",
+		TargetType:   "CONFIG",
+		TargetId:     config.ConfigDataId,
+		TargetName:   config.GroupName + "/" + config.ConfigDataId,
+		ResourceCode: "hub0043:add",
+	})
 
 	// 查询新创建的配置信息（获取数据库中的最新数据）
 	newConfig, err := c.configDAO.GetConfigById(requestCtx, tenantId, config.NamespaceId, config.GroupName, config.ConfigDataId)
@@ -280,6 +289,14 @@ func (c *ConfigController) EditConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0043",
+		TargetType:   "CONFIG",
+		TargetId:     config.ConfigDataId,
+		TargetName:   config.GroupName + "/" + config.ConfigDataId,
+		ResourceCode: "hub0043:edit",
+	})
 
 	// 查询更新后的配置信息（获取数据库中的最新数据，包括更新后的版本号等）
 	updatedConfig, err := c.configDAO.GetConfigById(requestCtx, tenantId, config.NamespaceId, config.GroupName, config.ConfigDataId)
@@ -408,6 +425,14 @@ func (c *ConfigController) DeleteConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0043",
+		TargetType:   "CONFIG",
+		TargetId:     configDataId,
+		TargetName:   groupName + "/" + configDataId,
+		ResourceCode: "hub0043:delete",
+	})
 
 	// 通过 manager 发布事件通知
 	c.notifyConfigChange(requestCtx, tenantId, namespaceId, oldConfig, "CONFIG_DELETED")

@@ -3,6 +3,7 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -62,6 +63,14 @@ func (c *UseragentAccessConfigController) AddUseragentAccessConfig(ctx *gin.Cont
 		response.ErrorJSON(ctx, "添加User-Agent访问控制配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "USERAGENT_ACCESS_CONFIG",
+		TargetId:     config.UseragentAccessConfigId,
+		TargetName:   config.ConfigName,
+		ResourceCode: "hub0020:userAgentAccessControl",
+	})
 
 	// 查询最新的配置数据返回给前端（使用主键）
 	newConfig, err := c.dao.GetUseragentAccessConfigById(ctx, config.UseragentAccessConfigId, tenantId)
@@ -132,6 +141,14 @@ func (c *UseragentAccessConfigController) UpdateUseragentAccessConfig(ctx *gin.C
 		response.ErrorJSON(ctx, "更新User-Agent访问控制配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "USERAGENT_ACCESS_CONFIG",
+		TargetId:     config.UseragentAccessConfigId,
+		TargetName:   config.ConfigName,
+		ResourceCode: "hub0020:userAgentAccessControl",
+	})
 
 	// 查询最新的配置数据返回给前端（使用主键）
 	updatedConfig, err := c.dao.GetUseragentAccessConfigById(ctx, config.UseragentAccessConfigId, tenantId)
@@ -159,6 +176,11 @@ func (c *UseragentAccessConfigController) DeleteUseragentAccessConfig(ctx *gin.C
 	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
 
+	targetName := ""
+	if current, getErr := c.dao.GetUseragentAccessConfigById(ctx, useragentAccessConfigId, tenantId); getErr == nil && current != nil {
+		targetName = current.ConfigName
+	}
+
 	// 调用DAO层删除User-Agent访问控制配置（使用主键）
 	err := c.dao.DeleteUseragentAccessConfig(ctx, useragentAccessConfigId, tenantId)
 	if err != nil {
@@ -167,6 +189,14 @@ func (c *UseragentAccessConfigController) DeleteUseragentAccessConfig(ctx *gin.C
 		response.ErrorJSON(ctx, "删除User-Agent访问控制配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "USERAGENT_ACCESS_CONFIG",
+		TargetId:     useragentAccessConfigId,
+		TargetName:   targetName,
+		ResourceCode: "hub0020:userAgentAccessControl",
+	})
 
 	logger.InfoWithTrace(ctx, "User-Agent访问控制配置删除成功", "useragentAccessConfigId", useragentAccessConfigId,
 		"tenantId", tenantId, "operatorId", operatorId)

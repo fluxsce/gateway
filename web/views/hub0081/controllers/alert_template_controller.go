@@ -8,6 +8,7 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/random"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -115,6 +116,14 @@ func (c *AlertTemplateController) CreateAlertTemplate(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建预警模板失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0081",
+		TargetType:   "ALERT_TEMPLATE",
+		TargetId:     req.TemplateName,
+		TargetName:   req.TemplateName,
+		ResourceCode: "hub0081:add",
+	})
 
 	response.SuccessJSON(ctx, req, constants.SD00003)
 }
@@ -167,6 +176,14 @@ func (c *AlertTemplateController) UpdateAlertTemplate(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新预警模板失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0081",
+		TargetType:   "ALERT_TEMPLATE",
+		TargetId:     req.TemplateName,
+		TargetName:   req.TemplateName,
+		ResourceCode: "hub0081:edit",
+	})
 	response.SuccessJSON(ctx, req, constants.SD00004)
 }
 
@@ -184,6 +201,14 @@ func (c *AlertTemplateController) DeleteAlertTemplate(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除预警模板失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0081",
+		TargetType:   "ALERT_TEMPLATE",
+		TargetId:     templateName,
+		TargetName:   templateName,
+		ResourceCode: "hub0081:delete",
+	})
 
 	response.SuccessJSON(ctx, gin.H{"templateName": templateName}, constants.SD00005)
 }

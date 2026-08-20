@@ -21,14 +21,14 @@ This document will help you understand how to contribute to Gateway efficiently 
 
 ### 1. Fork and Clone the Project
 
-1. Visit the [Gateway project homepage](https://github.com/your-org/gateway)
+1. Visit the [Gateway project homepage](https://github.com/fluxsce/gateway)
 2. Click the "Fork" button in the top right corner
 3. Clone your forked repository locally
 
 ```bash
 git clone https://github.com/your-username/gateway.git
 cd gateway
-git remote add upstream https://github.com/your-org/gateway.git
+git remote add upstream https://github.com/fluxsce/gateway.git
 ```
 
 ### 2. Create a Development Branch
@@ -59,12 +59,11 @@ Create a Pull Request on GitHub, describing your changes in detail.
 
 ### Required Software
 
-- **Go**: 1.19+ (recommended latest stable version)
+- **Go**: 1.24+
 - **Git**: 2.20+
-- **Make**: Build tool
-- **Docker**: Optional, for containerized deployment
-- **MySQL**: 8.0+ (development and testing)
-- **Redis**: 6.0+ (optional)
+- **C compiler**: required (CGO / SQLite)
+- **Docker**: optional
+- **Database**: SQLite by default; MySQL / Oracle optional in production
 
 ### Recommended IDEs
 
@@ -78,18 +77,20 @@ Create a Pull Request on GitHub, describing your changes in detail.
 # 1. Install dependencies
 go mod download
 
-# 2. Set development environment variables
+# 2. Development environment (optional)
 export GATEWAY_ENV=development
 
-# 3. Initialize the database
-make db-init
+# 3. Database: default is SQLite. First start runs scripts/db automatically.
+#    File: ./scripts/data/gateway.db  (see configs/database.yaml)
 
-# 4. Run the project
-make dev
+# 4. Run from the repo root
+go run cmd/app/main.go --config ./configs
 
-# 5. Run tests
-make test
+# 5. Tests
+go test ./...
 ```
+
+Console: `http://localhost:12003/gatewayweb`. Health: `http://localhost:12003/health`. Gateway listen: `:8080`. Default login `admin` / `123456`. Source builds need a C compiler (CGO / SQLite) and a frontend `dist` or `pnpm run dev:vite`; see [docs/en/02-quick-start.md](docs/en/02-quick-start.md).
 
 ## 📝 Development Standards
 
@@ -534,24 +535,17 @@ func TestHTTPProxy_ProxyRequest_Success(t *testing.T) {
 ### Running Tests
 
 ```bash
-# Run all tests
-make test
+# All packages
+go test ./...
 
-# Run unit tests
-make test-unit
+# One package, verbose
+go test -v ./pkg/utils/huberrors
 
-# Run integration tests
-make test-integration
-
-# Run end-to-end tests
-make test-e2e
-
-# Generate coverage report
-make test-coverage
-
-# Run benchmarks
-make benchmark
+# Coverage (example)
+go test ./... -coverprofile=coverage.out
 ```
+
+There is no `make test-unit` / `make test-e2e` target in the repo Makefile. Use `go test` on the package you changed.
 
 ## 📋 Code Review Process
 
@@ -608,7 +602,7 @@ Code reviews focus on：
 
 ## 🐛 Bug Reports
 
-Please use the [Issue template](https://github.com/your-org/gateway/issues/new?template=bug_report.md) to report bugs.
+Please use the [Issue template](https://github.com/fluxsce/gateway/issues/new?template=bug_report.md) to report bugs.
 
 ### Bug Reports Should Include
 
@@ -621,7 +615,7 @@ Please use the [Issue template](https://github.com/your-org/gateway/issues/new?t
 
 ## 💡 Feature Requests
 
-Please use the [Feature Request template](https://github.com/your-org/gateway/issues/new?template=feature_request.md) to propose new features.
+Please use the [Feature Request template](https://github.com/fluxsce/gateway/issues/new?template=feature_request.md) to propose new features.
 
 ### Feature Requests Should Include
 
@@ -675,7 +669,7 @@ We value every contributor's efforts!
 If you have any questions or need help, you can contact us through：
 
 - 📧 Email: [project-email@example.com](mailto:project-email@example.com)
-- 💬 GitHub Issues: [Project Issues](https://github.com/your-org/gateway/issues)
+- 💬 GitHub Issues: [Project Issues](https://github.com/fluxsce/gateway/issues)
 - 📱 WeChat Group: [Join WeChat group]
 - 🐧 QQ Group: [Join QQ group]
 

@@ -9,11 +9,12 @@
 ### 新增
 - **Linux arm64 发布包**：CI 增加 `gateway-linux-arm64-{version}.tar.gz`（`ubuntu-24.04-arm` + manylinux2014 aarch64）。标准 Docker 在对应架构 runner 上原生构建，并推 `{version}-amd64` / `{version}-arm64`，再合成多架构 `{version}` / `latest`。Oracle 包、Oracle 镜像与 Windows 仍为 amd64（Instant Client 21.18 仅 x64）。
 - **审计日志查看（hub0004）**：系统设置下查询 `HUB_AUTH_AUDIT_LOG`（操作人、动作、模块、目标、结果、时间范围），只读详情。已有库执行 `patch_auth_resource_20260820_hub0004.sql`（并确认已有审计表）。
+- **审计日志加固**：业务失败与无权限拒绝记 `result=N`；未声明后缀的写按钮默认入账；登录成功与踢会话写入审计；登录失败仅在账号进入冷却时记一笔（验证码/单次密码错误走 `HUB_LOGIN_LOG`，避免刷爆）。导出最多 10000 条 CSV。已有库另执行 `patch_auth_resource_20260820_hub0004_export.sql`。写入失败日志关键字 `AUDIT_WRITE_FAILED`。
 
 ### 变更
 - **标准 Docker 运行时升级 Alpine 3.19 → 3.23**：构建阶段钉 `golang:1.24-alpine3.23`，与仍在支持期内的 Alpine 对齐。
 - **登录页首包减负**：Vite 不再把 Monaco / CodeMirror / xterm 打进登录图；boot 预加载运行时单独成块。`@/ui` 不再 re-export 代码编辑器（改从 `@/ui/code-editor` 引入）。主布局按需加载。CI 钉到 npm `niuma-ui@1.1.6`（`sideEffects` 便于摇掉未使用的编辑器）。本地开发仍用 package.json 的 link。
-- **管理端 API 根路径常量化**：`/gateway` 抽到 `constants.APIRoot`，各模块用 `routes.ModuleAPIPrefix` 拼接前缀。前端 `GATEWAY_PREFIX` / `moduleApiPrefix` 与后端对齐。权限正则与审计路径解析共用同一常量，换根路径前后端各改一处。`hub0001` 登录接口仍为 `/gateway/user`。
+- **审计与鉴权分离**：权限中间件只做校验。审计由 `ApplyGlobalMiddleware` 挂载的 `AuditMiddleware` 统一落库；业务模块 `SetEvent` 计入对象，登录 `WriteDirect`，踢会话当场写。未 SetEvent 的请求不记审计。网关实例/路由/代理、安全子配置、调度任务、服务中心、命名空间、配置中心、隧道、告警配置与审计导出已按此写入。
 
 ## [3.2.5] - 2026-08-20
 
@@ -706,8 +707,8 @@
 
 如需了解特定版本详情或升级支持：
 - 查阅[项目文档](docs/)
-- 提交 [Issue](https://github.com/your-org/gateway/issues)
-- 参与[社区讨论](https://github.com/your-org/gateway/discussions)
+- 提交 [Issue](https://github.com/fluxsce/gateway/issues)
+- 参与[社区讨论](https://github.com/fluxsce/gateway/discussions)
 
 ---
 

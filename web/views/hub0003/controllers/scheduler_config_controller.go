@@ -3,6 +3,7 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/utils/random"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -117,6 +118,14 @@ func (c *SchedulerConfigController) AddSchedulerConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "添加调度器配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0003",
+		TargetType:   "SCHEDULER",
+		TargetId:     scheduler.SchedulerId,
+		TargetName:   scheduler.SchedulerName,
+		ResourceCode: "hub0003:scheduler:add",
+	})
 
 	// 查询新添加的调度器信息
 	newScheduler, err := c.dao.GetById(ctx, tenantId, scheduler.SchedulerId)
@@ -251,6 +260,14 @@ func (c *SchedulerConfigController) UpdateSchedulerConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新调度器配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0003",
+		TargetType:   "SCHEDULER",
+		TargetId:     scheduler.SchedulerId,
+		TargetName:   scheduler.SchedulerName,
+		ResourceCode: "hub0003:scheduler:edit",
+	})
 
 	// 查询最新数据
 	updatedScheduler, err := c.dao.GetById(ctx, tenantId, scheduler.SchedulerId)
@@ -293,12 +310,25 @@ func (c *SchedulerConfigController) DeleteSchedulerConfig(ctx *gin.Context) {
 		return
 	}
 
+	targetName := ""
+	if current, getErr := c.dao.GetById(ctx, tenantId, schedulerId); getErr == nil && current != nil {
+		targetName = current.SchedulerName
+	}
+
 	// 删除记录
 	_, err := c.dao.Delete(ctx, tenantId, schedulerId, operatorId)
 	if err != nil {
 		response.ErrorJSON(ctx, "删除调度器配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0003",
+		TargetType:   "SCHEDULER",
+		TargetId:     schedulerId,
+		TargetName:   targetName,
+		ResourceCode: "hub0003:scheduler:delete",
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"schedulerId": schedulerId,
@@ -414,6 +444,18 @@ func (c *SchedulerConfigController) UpdateSchedulerStatus(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新调度器状态失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	targetName := ""
+	if current, getErr := c.dao.GetById(ctx, tenantId, params.SchedulerId); getErr == nil && current != nil {
+		targetName = current.SchedulerName
+	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0003",
+		TargetType:   "SCHEDULER",
+		TargetId:     params.SchedulerId,
+		TargetName:   targetName,
+		ResourceCode: "hub0003:scheduler:edit",
+	})
 
 	// 查询最新数据
 	updatedScheduler, err := c.dao.GetById(ctx, tenantId, params.SchedulerId)

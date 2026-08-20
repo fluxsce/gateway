@@ -7,6 +7,7 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/web/middleware"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -108,6 +109,9 @@ func (c *AuthController) Login(ctx *gin.Context) {
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) || errors.Is(err, ErrInvalidCredentials) {
 			if remaining := c.loginLock.RecordFailure(ctx, req.UserId); remaining > 0 {
+				// 仅在账号刚进入冷却时记一笔，避免密码/账号撞库把审计表打满。
+				// 每次失败仍写入 HUB_LOGIN_LOG。
+				writeLoginAudit(ctx, req.UserId, "", req.UserId, clientIP, false, "login cooldown")
 				c.respondLoginCooldown(ctx, remaining)
 				return
 			}
@@ -191,6 +195,7 @@ func (c *AuthController) Login(ctx *gin.Context) {
 		"permissions": permissions,
 	}
 
+	writeLoginAudit(ctx, user.UserId, user.TenantId, user.UserName, clientIP, true, "")
 	response.SuccessJSON(ctx, loginResp, constants.SD00101)
 }
 
@@ -199,6 +204,32 @@ func (c *AuthController) respondLoginCooldown(ctx *gin.Context, remaining time.D
 	sec := RemainSeconds(remaining)
 	msg := fmt.Sprintf("登录冷却中，请 %d 秒后再试", sec)
 	response.ErrorJSONExt(ctx, msg, constants.ED00116, gin.H{"remainSeconds": sec})
+}
+
+// writeLoginAudit 写登录审计。成功记 LOGIN；失败仅用于「进入冷却」这类低频安全事件，
+// 验证码错误、普通密码/账号错误不走这里。
+func writeLoginAudit(ctx *gin.Context, userId, tenantId, userName, clientIP string, success bool, failReason string) {
+	action := audit.AuditActionLogin
+	result := audit.AuditResultSuccess
+	detail := ""
+	if !success {
+		action = audit.AuditActionLoginFail
+		result = audit.AuditResultFail
+		detail = failReason
+	}
+	audit.WriteDirect(ctx, &audit.AuditEvent{
+		UserId:       userId,
+		TenantId:     tenantId,
+		UserName:     userName,
+		Action:       action,
+		ModuleCode:   "hub0001",
+		TargetType:   "USER",
+		TargetId:     userId,
+		ResourceCode: "hub0001:login",
+		ClientIP:     clientIP,
+		Result:       result,
+		Detail:       detail,
+	})
 }
 
 // UserInfo 获取当前登录用户信息

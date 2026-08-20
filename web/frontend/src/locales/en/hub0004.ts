@@ -8,6 +8,7 @@ export default {
   common: {
     all: 'All',
     viewDetail: 'View Details',
+    export: 'Export',
   },
 
   action: {
@@ -16,6 +17,10 @@ export default {
     delete: 'Delete',
     rollback: 'Rollback',
     grant: 'Grant',
+    export: 'Export',
+    login: 'Login',
+    loginFail: 'Login Failed',
+    kick: 'Kick Session',
   },
 
   result: {
@@ -61,6 +66,25 @@ export default {
     ALERT_LOG: 'Alert Log',
     HTTP: 'HTTP Proxy',
     API: 'API',
+    PROXY: 'Proxy',
+    STATIC_HOST: 'Static Host',
+    ROUTER_CONFIG: 'Router Config',
+    ASSERTION: 'Assertion',
+    FILTER: 'Filter',
+    CIRCUIT_BREAKER: 'Circuit Breaker',
+    LOG_CONFIG: 'Log Config',
+    ALERT_TEMPLATE: 'Alert Template',
+    ALERT_CHANNEL: 'Alert Channel',
+    NAMESPACE: 'Namespace',
+    CONFIG_DATA: 'Config Data',
+    NODE: 'Node',
+    TASK: 'Task',
+    SCHEDULER: 'Scheduler',
+    TUNNEL_SERVER: 'Tunnel Server',
+    TUNNEL_CLIENT: 'Tunnel Client',
+    TUNNEL_SERVICE: 'Tunnel Service',
+    TUNNEL_STATIC: 'Tunnel Static Mapping',
+    SERVICE_CENTER: 'Service Center Instance',
   },
 
   shortcuts: {
@@ -131,5 +155,9 @@ export default {
     queryFailed: 'Failed to query audit logs',
     detailFailed: 'Failed to get audit log details',
     loadDetailFailed: 'Failed to load audit log details',
+    exportFailed: 'Failed to export audit logs',
+    exportEmpty: 'No audit logs to export',
+    exportSuccess: 'Exported {count} audit logs',
+    exportTruncated: '{total} records matched; exported at most {count}',
   },
 }

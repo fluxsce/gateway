@@ -2,11 +2,11 @@
 
 # 运行程序
 run:
-	go run cmd/gateway/main.go
+	go run cmd/app/main.go --config ./configs
 
 # 构建程序
 build:
-	go build -o bin/gateway cmd/gateway/main.go
+	go build -o bin/gateway cmd/app/main.go
 
 # 运行测试
 test:
@@ -18,7 +18,7 @@ clean:
 
 # 调试程序
 debug:
-	dlv debug cmd/gateway/main.go
+	dlv debug cmd/app/main.go -- --config ./configs
 
 # 安装依赖
 deps:
@@ -26,4 +26,4 @@ deps:
 
 # 生成 API 文档
 docs:
-	swag init -g cmd/gateway/main.go 
+	swag init -g cmd/app/main.go 

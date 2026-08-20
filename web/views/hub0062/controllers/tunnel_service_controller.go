@@ -6,6 +6,7 @@ import (
 	"gateway/internal/tunnel/types"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
 	"gateway/web/views/hub0062/dao"
@@ -130,6 +131,14 @@ func (c *TunnelServiceController) CreateTunnelService(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建服务失败: "+err.Error(), "CREATE_TUNNEL_SERVICE")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0062",
+		TargetType:   "TUNNEL_SERVICE",
+		TargetId:     createdService.TunnelServiceId,
+		TargetName:   createdService.ServiceName,
+		ResourceCode: "hub0062:service:create",
+	})
 
 	logger.Info("创建服务成功", "tunnelServiceId", createdService.TunnelServiceId, "serviceName", createdService.ServiceName, "user", operatorId)
 	response.SuccessJSON(ctx, createdService, "CREATE_TUNNEL_SERVICE")
@@ -175,6 +184,14 @@ func (c *TunnelServiceController) UpdateTunnelService(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新服务失败: "+err.Error(), "UPDATE_TUNNEL_SERVICE")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0062",
+		TargetType:   "TUNNEL_SERVICE",
+		TargetId:     updatedService.TunnelServiceId,
+		TargetName:   updatedService.ServiceName,
+		ResourceCode: "hub0062:service:edit",
+	})
 
 	logger.Info("更新服务成功", "tunnelServiceId", updatedService.TunnelServiceId, "serviceName", updatedService.ServiceName, "user", operatorId)
 	response.SuccessJSON(ctx, updatedService, "UPDATE_TUNNEL_SERVICE")
@@ -197,6 +214,14 @@ func (c *TunnelServiceController) DeleteTunnelService(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除服务失败: "+err.Error(), "DELETE_TUNNEL_SERVICE")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0062",
+		TargetType:   "TUNNEL_SERVICE",
+		TargetId:     tunnelServiceId,
+		TargetName:   deletedService.ServiceName,
+		ResourceCode: "hub0062:service:delete",
+	})
 
 	logger.Info("删除服务成功", "tunnelServiceId", tunnelServiceId, "user", operatorId)
 	response.SuccessJSON(ctx, deletedService, "DELETE_TUNNEL_SERVICE")
@@ -227,6 +252,14 @@ func (c *TunnelServiceController) RegisterService(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "注册服务失败: "+err.Error(), "REGISTER_SERVICE")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0062",
+		TargetType:   "TUNNEL_SERVICE",
+		TargetId:     tunnelServiceId,
+		TargetName:   service.ServiceName,
+		ResourceCode: "hub0062:service:register",
+	})
 
 	logger.Info("服务注册成功", "tunnelServiceId", tunnelServiceId)
 	response.SuccessJSON(ctx, service, "REGISTER_SERVICE")
@@ -246,6 +279,14 @@ func (c *TunnelServiceController) UnregisterService(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "注销服务失败: "+err.Error(), "UNREGISTER_SERVICE")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0062",
+		TargetType:   "TUNNEL_SERVICE",
+		TargetId:     tunnelServiceId,
+		TargetName:   service.ServiceName,
+		ResourceCode: "hub0062:service:unregister",
+	})
 
 	logger.Info("服务注销成功", "tunnelServiceId", tunnelServiceId)
 	response.SuccessJSON(ctx, service, "UNREGISTER_SERVICE")

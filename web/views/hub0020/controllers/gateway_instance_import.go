@@ -5,6 +5,7 @@ import (
 
 	"gateway/pkg/excel"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -641,6 +642,15 @@ func (c *GatewayInstanceController) ImportGatewayInstance(ctx *gin.Context) {
 	}
 
 	logger.InfoWithTrace(ctx, "导入统计结果", "inserted", inserted, "updated", updated)
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0020",
+		TargetType:   "GATEWAY_INSTANCE",
+		TargetId:     "import",
+		TargetName:   "gateway-instance-import",
+		ResourceCode: "hub0020:import",
+		Detail:       audit.SanitizeAuditDetail(map[string]interface{}{"inserted": inserted, "updated": updated}),
+	})
 	response.SuccessJSON(ctx, map[string]any{"inserted": inserted, "updated": updated}, constants.SD00002)
 }
 

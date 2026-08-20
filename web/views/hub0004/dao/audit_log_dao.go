@@ -13,6 +13,9 @@ import (
 	"gateway/web/views/hub0004/models"
 )
 
+// MaxAuditExportSize 单次导出上限，避免绕过列表分页一次拉全表。
+const MaxAuditExportSize = 10000
+
 // AuditLogDAO 权限审计日志数据访问对象，读写 HUB_AUTH_AUDIT_LOG。
 type AuditLogDAO struct {
 	db database.Database
@@ -45,6 +48,9 @@ func (dao *AuditLogDAO) GetById(ctx context.Context, tenantId, auditId string) (
 func (dao *AuditLogDAO) Query(ctx context.Context, tenantId string, query *models.AuthAuditLogQuery, page, pageSize int) ([]*models.AuthAuditLog, int, error) {
 	if empty.IsEmpty(tenantId) {
 		return nil, 0, errors.New("tenantId不能为空")
+	}
+	if pageSize > MaxAuditExportSize {
+		pageSize = MaxAuditExportSize
 	}
 
 	pagination := sqlutils.NewPaginationInfo(page, pageSize)

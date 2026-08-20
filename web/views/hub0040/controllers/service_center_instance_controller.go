@@ -4,6 +4,7 @@ import (
 	"gateway/internal/servicecenter"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -146,6 +147,15 @@ func (c *ServiceCenterInstanceController) AddServiceCenterInstance(ctx *gin.Cont
 		response.ErrorJSON(ctx, "创建服务中心实例失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0040",
+		TargetType:   "SERVICE_CENTER_INSTANCE",
+		TargetId:     req.InstanceName,
+		TargetName:   req.InstanceName,
+		ResourceCode: "hub0040:add",
+		Detail:       "environment=" + req.Environment,
+	})
 
 	// 查询新添加的服务中心实例信息
 	newInstance, err := c.serviceCenterInstanceDAO.GetServiceCenterInstanceById(ctx, tenantId, req.InstanceName, req.Environment)
@@ -235,6 +245,15 @@ func (c *ServiceCenterInstanceController) EditServiceCenterInstance(ctx *gin.Con
 		response.ErrorJSON(ctx, "更新服务中心实例失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0040",
+		TargetType:   "SERVICE_CENTER_INSTANCE",
+		TargetId:     req.InstanceName,
+		TargetName:   req.InstanceName,
+		ResourceCode: "hub0040:edit",
+		Detail:       "environment=" + req.Environment,
+	})
 
 	// 查询更新后的服务中心实例信息
 	updatedInstance, err := c.serviceCenterInstanceDAO.GetServiceCenterInstanceById(ctx, tenantId, req.InstanceName, req.Environment)
@@ -283,6 +302,15 @@ func (c *ServiceCenterInstanceController) DeleteServiceCenterInstance(ctx *gin.C
 		response.ErrorJSON(ctx, "删除服务中心实例失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0040",
+		TargetType:   "SERVICE_CENTER_INSTANCE",
+		TargetId:     instanceName,
+		TargetName:   instanceName,
+		ResourceCode: "hub0040:delete",
+		Detail:       "environment=" + environment,
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"instanceName": instanceName,
@@ -368,6 +396,15 @@ func (c *ServiceCenterInstanceController) StartServiceCenterInstance(ctx *gin.Co
 		response.ErrorJSON(ctx, "启动服务中心实例失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0040",
+		TargetType:   "SERVICE_CENTER_INSTANCE",
+		TargetId:     instanceName,
+		TargetName:   instanceName,
+		ResourceCode: "hub0040:start",
+		Detail:       "environment=" + environment,
+	})
 
 	logger.InfoWithTrace(ctx, "服务中心实例启动成功",
 		"instanceName", instanceName,
@@ -407,6 +444,15 @@ func (c *ServiceCenterInstanceController) StopServiceCenterInstance(ctx *gin.Con
 		response.ErrorJSON(ctx, "停止服务中心实例失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0040",
+		TargetType:   "SERVICE_CENTER_INSTANCE",
+		TargetId:     instanceName,
+		TargetName:   instanceName,
+		ResourceCode: "hub0040:stop",
+		Detail:       "environment=" + environment,
+	})
 
 	logger.InfoWithTrace(ctx, "服务中心实例停止成功",
 		"instanceName", instanceName,
@@ -468,6 +514,15 @@ func (c *ServiceCenterInstanceController) ReloadServiceCenterInstance(ctx *gin.C
 		response.ErrorJSON(ctx, "重载服务中心实例配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0040",
+		TargetType:   "SERVICE_CENTER_INSTANCE",
+		TargetId:     instanceName,
+		TargetName:   instanceName,
+		ResourceCode: "hub0040:reload",
+		Detail:       "environment=" + environment,
+	})
 
 	logger.InfoWithTrace(ctx, "服务中心实例配置重载成功",
 		"instanceName", instanceName,

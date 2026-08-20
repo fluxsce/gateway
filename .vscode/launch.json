@@ -49,19 +49,6 @@
             "args": ["-v"]
         },
         {
-            "name": "调试示例程序",
-            "type": "go",
-            "request": "launch",
-            "mode": "auto",
-            "program": "${workspaceFolder}/cmd/test/debug_sample.go",
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "GATEWAY_ENV": "development",
-                "DEBUG": "true"
-            },
-            "args": []
-        },
-        {
             "name": "远程调试",
             "type": "go",
             "request": "attach",

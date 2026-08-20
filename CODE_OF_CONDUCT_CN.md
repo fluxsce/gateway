@@ -50,5 +50,5 @@
 
 ## 📜 完整版与更新
 
-完整准则见：[CODE_OF_CONDUCT.md](https://github.com/your-org/gateway/blob/main/CODE_OF_CONDUCT.md)
+完整准则见：[CODE_OF_CONDUCT.md](https://github.com/fluxsce/gateway/blob/main/CODE_OF_CONDUCT.md)
 更新会通过项目公告通知。

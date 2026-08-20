@@ -1,181 +1,84 @@
-# FLUX Gateway - Containerized Deployment
+# Containerized Deployment
 
-This document provides Docker and Kubernetes deployment guides for FLUX Gateway.
+Images are published by GitHub Actions. Details: [.github/CI.md](../../.github/CI.md). Examples use **3.2.5**.
+
+There is no Docker Hub image `datahub-images/gateway`. Use:
+
+| Registry | Image |
+|----------|-------|
+| GitHub GHCR | `ghcr.io/fluxsce/gateway` |
+| Alibaba Cloud ACR | `crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway` |
+
+Tags: `3.2.5` (amd64+arm64), `3.2.5-amd64`, `3.2.5-arm64`, `3.2.5-oracle` (amd64 only, Instant Client included), `latest` (git-tag releases only).
 
 ---
 
-## 📋 Table of Contents
+## Single container
 
-- [Docker Deployment](#-docker-deployment)
-- [Kubernetes Deployment](#-kubernetes-deployment)
+The image includes configs, SQL scripts, and the frontend. Default DB is SQLite.
+
+```bash
+docker pull ghcr.io/fluxsce/gateway:3.2.5
+
+docker run -d --name gateway \
+  -p 8080:8080 \
+  -p 12003:12003 \
+  ghcr.io/fluxsce/gateway:3.2.5
+```
+
+- Console: http://localhost:12003/gatewayweb (`admin` / `123456`)
+- Gateway: http://localhost:8080
+- Health: `curl http://localhost:12003/health`
+
+Workdir inside the container: `/home/gateway`.
 
 ---
 
-## 🐳 Docker Deployment
+## Compose (MySQL + Redis)
 
-### Quick Start with Docker Compose
+File: `scripts/docker/docker-compose.yaml`. Host ports differ from the process ports:
 
-```bash
-# Navigate to docker directory
-cd scripts/docker
+| Service | In container | On host |
+|---------|--------------|---------|
+| Gateway | 8080 | **18280** |
+| Console | 12003 | **12203** |
+| Tunnel | 7000 | 17000 |
+| MySQL | 3306 | 13306 |
+| Redis | 6379 | 16379 |
 
-# Start services (MySQL + Redis + Gateway)
-docker-compose up -d
-
-# View logs
-docker-compose logs -f gateway
-
-# Stop services
-docker-compose down
-```
-
-### Access Services
-
-- **Web Console**: http://localhost:12203/gatewayweb
-- **API Gateway**: http://localhost:18280
-- **Default Credentials**: admin / 123456
-
-### Available Images
-
-**Docker Hub:**
-```bash
-docker pull datahub-images/gateway:3.2.5
-docker pull datahub-images/gateway:3.2.5-oracle
-```
-
-**Alibaba Cloud Registry:**
-```bash
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.5
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.5-oracle
-```
-
-### Build Custom Image
+Stock `configs/database.yaml` uses SQLite. For Compose MySQL, set `database.default: mysql`, enable `connections.mysql` with `host: mysql` (the service name), user `gateway`, password `gateway123`, database `gateway`, and disable `sqlite_main`. Schema is created by the app (`enable_script_initialization`), not by a legacy `frp_tunnel_management.sql` mount.
 
 ```bash
 cd scripts/docker
-
-# Build standard version (MySQL + SQLite) -> :{version}
-bash build.sh --type standard
-
-# Build Oracle version -> :{version}-oracle
-bash build.sh --type oracle
-
-# Push to registry
-bash push.sh --type standard
+docker compose up -d
 ```
+
+Open http://localhost:12203/gatewayweb and http://localhost:18280 .
+
+Default image in compose is `ghcr.io/fluxsce/gateway:3.2.5`. Switch the `image:` field for ACR.
 
 ---
 
-## ☸️ Kubernetes Deployment
-
-### Prerequisites
-
-- Kubernetes cluster (1.19+)
-- kubectl configured
-- NGINX Ingress Controller (optional)
-
-### Quick Deployment
+## Kubernetes
 
 ```bash
 cd scripts/k8s
-
-# Deploy Gateway
 bash deploy.sh install
-
-# View status
 bash deploy.sh status
-
-# View logs
-bash deploy.sh logs
-
-# Upgrade
-bash deploy.sh upgrade
-
-# Uninstall
-bash deploy.sh uninstall
 ```
 
-### Modify YAML Files (Important)
-
-Before deployment, modify the following files:
-
-**1. Modify Namespace** (`deployment.yaml`, `service.yaml`, `ingress.yaml`):
-```yaml
-metadata:
-  namespace: your-namespace  # Change to your namespace
-```
-
-**2. Modify Image Address** (`deployment.yaml`):
-```yaml
-spec:
-  containers:
-    - name: gateway
-      image: crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.5
-      imagePullPolicy: Always
-```
-
-**3. Modify Replicas** (`deployment.yaml`):
-```yaml
-spec:
-  replicas: 3  # Adjust based on your needs
-```
-
-### Configuration Files
-
-**Download from GitHub:**
-- Configuration files: https://github.com/fluxsce/gateway/tree/main/configs
-- Database scripts: https://github.com/fluxsce/gateway/tree/main/scripts/db
-
-**Create ConfigMap:**
-```bash
-# Specify config directory
-bash deploy.sh install --config-dir /path/to/configs
-```
-
-### Access Services
-
-**Via NodePort:**
-```bash
-# Get Node IP
-kubectl get nodes -o wide
-
-# Get NodePort
-kubectl get svc gateway-service -n gateway
-
-# Access
-# Web Console: http://<NODE_IP>:<WEB_PORT>/gatewayweb
-# API Gateway: http://<NODE_IP>:<HTTP_PORT>
-```
-
-**Via Ingress:**
-```bash
-# Configure /etc/hosts
-echo "<NODE_IP> gateway.local" | sudo tee -a /etc/hosts
-
-# Access
-# Web Console: http://gateway.local/gatewayweb
-# API Gateway: http://gateway.local/api
-```
+Default image in `deployment.yaml` is ACR. Point `database.yaml` at in-cluster MySQL using `connections.mysql.connection.host`, not a `database.type` block.
 
 ---
 
-## 📖 Next Steps
+## Build locally
 
-After containerized deployment, we recommend continuing with:
+Release CI does **not** call `scripts/docker/build.sh`. Local:
 
-- [Project Introduction](./01-introduction.md) - Understand project architecture and core capabilities
-- [Development Guide](./02-quick-start.md) - Development environment setup and configuration
-- [Database Specifications](./05-database-specs.md) - Database design specifications
+```bash
+cd scripts/docker
+bash build.sh --type standard
+bash build.sh --type oracle
+```
 
----
-
-**[Back to Directory](./README.md) • [Previous: Installation & Deployment](./03-installation.md) • [Next: Database Specifications](./05-database-specs.md)**
-
----
-
-<div align="center">
-
-Made with ❤️ by FLUX Gateway Team
-
-</div>
-
+**[Index](./README.md) · [Previous: Installation](./03-installation.md) · [Next: Database specs](./05-database-specs.md)**

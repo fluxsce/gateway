@@ -4,11 +4,10 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/web/middleware"
-	"gateway/web/middleware/permission"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
-	"gateway/web/utils/session"
 	"gateway/web/views/hub0005/dao"
 	"gateway/web/views/hub0005/models"
 	resourcemodels "gateway/web/views/hub0006/models"
@@ -112,8 +111,8 @@ func (c *RoleController) AddRole(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建角色失败: "+err.Error(), constants.ED00009)
 		return
 	}
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionCreate,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
 		ModuleCode:   "hub0005",
 		TargetType:   "ROLE",
 		TargetId:     roleId,
@@ -205,8 +204,8 @@ func (c *RoleController) EditRole(ctx *gin.Context) {
 	if targetName == "" && currentRole != nil {
 		targetName = currentRole.RoleName
 	}
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionUpdate,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
 		ModuleCode:   "hub0005",
 		TargetType:   "ROLE",
 		TargetId:     updateData.RoleId,
@@ -317,10 +316,10 @@ func (c *RoleController) DeleteRole(ctx *gin.Context) {
 		return
 	}
 
-	session.InvalidateUsersSessions(ctx, affectedUserIds, operatorId)
+	audit.KickUsersSessions(ctx, affectedUserIds, operatorId)
 	middleware.InvalidateUsersPermissionCache(ctx, affectedUserIds, tenantId)
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionDelete,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
 		ModuleCode:   "hub0005",
 		TargetType:   "ROLE",
 		TargetId:     roleId,
@@ -391,10 +390,10 @@ func (c *RoleController) UpdateRoleStatus(ctx *gin.Context) {
 			logger.ErrorWithTrace(ctx, "查询角色用户失败", listErr)
 		} else {
 			middleware.InvalidateUsersPermissionCache(ctx, affectedUserIds, tenantId)
-			session.InvalidateUsersSessions(ctx, affectedUserIds, operatorId)
+			audit.KickUsersSessions(ctx, affectedUserIds, operatorId)
 		}
-		middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-			Action:       permission.AuditActionUpdate,
+		audit.SetEvent(ctx, &audit.AuditEvent{
+			Action:       audit.AuditActionUpdate,
 			ModuleCode:   "hub0005",
 			TargetType:   "ROLE",
 			TargetId:     roleId,
@@ -675,14 +674,14 @@ func (c *RoleController) SaveRoleResources(ctx *gin.Context) {
 		// 操作者自己也清缓存，下次请求按新授权校验，但不踢当前登录
 		cacheUserIds := append([]string{operatorId}, affectedUserIds...)
 		middleware.InvalidateUsersPermissionCache(ctx, cacheUserIds, tenantId)
-		session.InvalidateUsersSessions(ctx, affectedUserIds, operatorId)
+		audit.KickUsersSessions(ctx, affectedUserIds, operatorId)
 	}
 	targetName := ""
 	if role, getErr := c.roleDAO.GetRoleById(ctx, req.RoleId, tenantId); getErr == nil && role != nil {
 		targetName = role.RoleName
 	}
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionGrant,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionGrant,
 		ModuleCode:   "hub0005",
 		TargetType:   "ROLE",
 		TargetId:     req.RoleId,

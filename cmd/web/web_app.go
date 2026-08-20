@@ -342,6 +342,7 @@ func (app *WebApp) Init() error {
 	logger.Info("初始化权限服务")
 	middleware.InitPermissionService(app.db)
 	logger.Info("权限服务初始化完成")
+	middleware.InitAudit(app.db)
 
 	// 注册健康检查接口（必须在所有中间件之前，确保不受认证等中间件影响）
 	app.router.GET("/health", func(c *gin.Context) {

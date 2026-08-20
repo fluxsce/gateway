@@ -7,6 +7,7 @@ import (
 	"gateway/internal/gateway/loader/dbloader"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -161,6 +162,14 @@ func (c *GatewayInstanceController) AddGatewayInstance(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建网关实例失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0020",
+		TargetType:   "GATEWAY_INSTANCE",
+		TargetId:     gatewayInstanceId,
+		TargetName:   req.InstanceName,
+		ResourceCode: "hub0020:add",
+	})
 
 	// 查询新添加的网关实例信息
 	newInstance, err := c.gatewayInstanceDAO.GetGatewayInstanceById(ctx, gatewayInstanceId, tenantId)
@@ -263,6 +272,14 @@ func (c *GatewayInstanceController) EditGatewayInstance(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新网关实例失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0020",
+		TargetType:   "GATEWAY_INSTANCE",
+		TargetId:     req.GatewayInstanceId,
+		TargetName:   req.InstanceName,
+		ResourceCode: "hub0020:edit",
+	})
 
 	// 查询更新后的网关实例信息
 	updatedInstance, err := c.gatewayInstanceDAO.GetGatewayInstanceById(ctx, req.GatewayInstanceId, tenantId)
@@ -348,6 +365,14 @@ func (c *GatewayInstanceController) DeleteGatewayInstance(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除网关实例失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0020",
+		TargetType:   "GATEWAY_INSTANCE",
+		TargetId:     gatewayInstanceId,
+		TargetName:   instance.InstanceName,
+		ResourceCode: "hub0020:delete",
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"gatewayInstanceId": gatewayInstanceId,
@@ -456,6 +481,14 @@ func (c *GatewayInstanceController) EditLogConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新日志配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0020",
+		TargetType:   "LOG_CONFIG",
+		TargetId:     req.LogConfigId,
+		TargetName:   req.ConfigName,
+		ResourceCode: "hub0020:logConfig",
+	})
 
 	// 查询更新后的日志配置信息
 	updatedLogConfig, err := c.logConfigDAO.GetLogConfigById(ctx, req.LogConfigId, tenantId)
@@ -589,6 +622,14 @@ func (c *GatewayInstanceController) StartGatewayInstance(ctx *gin.Context) {
 			"gatewayInstanceId", gatewayInstanceId)
 	}
 
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0020",
+		TargetType:   "GATEWAY_INSTANCE",
+		TargetId:     gatewayInstanceId,
+		TargetName:   instance.InstanceName,
+		ResourceCode: "hub0020:start",
+	})
 	response.SuccessJSON(ctx, gin.H{
 		"gatewayInstanceId": gatewayInstanceId,
 		"message":           "网关实例已启动",
@@ -680,6 +721,14 @@ func (c *GatewayInstanceController) StopGatewayInstance(ctx *gin.Context) {
 			"gatewayInstanceId", gatewayInstanceId)
 	}
 
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0020",
+		TargetType:   "GATEWAY_INSTANCE",
+		TargetId:     gatewayInstanceId,
+		TargetName:   instance.InstanceName,
+		ResourceCode: "hub0020:stop",
+	})
 	response.SuccessJSON(ctx, gin.H{
 		"gatewayInstanceId": gatewayInstanceId,
 		"message":           "网关实例已停止",
@@ -790,6 +839,14 @@ func (c *GatewayInstanceController) ReloadGatewayInstance(ctx *gin.Context) {
 			"gatewayInstanceId", gatewayInstanceId)
 	}
 
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0020",
+		TargetType:   "GATEWAY_INSTANCE",
+		TargetId:     gatewayInstanceId,
+		TargetName:   instance.InstanceName,
+		ResourceCode: "hub0020:reload",
+	})
 	response.SuccessJSON(ctx, gin.H{
 		"gatewayInstanceId": gatewayInstanceId,
 		"instanceName":      instance.InstanceName,

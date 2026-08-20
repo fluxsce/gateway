@@ -113,3 +113,27 @@ WHERE `tenantId` = 'default'
       AND `resourceCode` <> 'hub0023:reset'
     )
   );
+
+-- 审计日志导出对只读角色开放（仍记 EXPORT 审计）
+INSERT INTO `HUB_AUTH_ROLE_RESOURCE` (
+  `roleResourceId`, `tenantId`, `roleId`, `resourceId`, `permissionType`, `grantedBy`, `grantedTime`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+)
+SELECT
+  CONCAT('ROLE_RES_VIEWER_', REPLACE(`resourceId`, ':', '_')),
+  `tenantId`,
+  'ROLE_VIEWER',
+  `resourceId`,
+  'ALLOW',
+  'system',
+  NOW(),
+  NOW(),
+  'system',
+  NOW(),
+  'system',
+  'INIT_VIEWER',
+  1,
+  'Y'
+FROM `HUB_AUTH_RESOURCE`
+WHERE `tenantId` = 'default'
+  AND `resourceId` = 'hub0004:export';

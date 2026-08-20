@@ -3,6 +3,7 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -56,6 +57,14 @@ func (c *DomainAccessConfigController) AddDomainAccessConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "添加域名访问控制配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "DOMAIN_ACCESS_CONFIG",
+		TargetId:     config.DomainAccessConfigId,
+		TargetName:   config.ConfigName,
+		ResourceCode: "hub0020:domainAccessControl",
+	})
 
 	// 查询最新的配置数据返回给前端（使用主键）
 	newConfig, err := c.dao.GetDomainAccessConfigById(ctx, config.DomainAccessConfigId, tenantId)
@@ -130,6 +139,14 @@ func (c *DomainAccessConfigController) UpdateDomainAccessConfig(ctx *gin.Context
 		response.ErrorJSON(ctx, "更新域名访问控制配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "DOMAIN_ACCESS_CONFIG",
+		TargetId:     config.DomainAccessConfigId,
+		TargetName:   config.ConfigName,
+		ResourceCode: "hub0020:domainAccessControl",
+	})
 
 	// 查询最新的配置数据返回给前端（使用主键）
 	updatedConfig, err := c.dao.GetDomainAccessConfigById(ctx, config.DomainAccessConfigId, tenantId)
@@ -160,6 +177,11 @@ func (c *DomainAccessConfigController) DeleteDomainAccessConfig(ctx *gin.Context
 	// 从上下文获取租户ID（前置校验已处理）
 	tenantId := request.GetTenantID(ctx)
 
+	targetName := ""
+	if current, getErr := c.dao.GetDomainAccessConfigById(ctx, domainAccessConfigId, tenantId); getErr == nil && current != nil {
+		targetName = current.ConfigName
+	}
+
 	// 调用DAO层删除域名访问控制配置（使用主键）
 	err := c.dao.DeleteDomainAccessConfig(ctx, domainAccessConfigId, tenantId)
 	if err != nil {
@@ -168,6 +190,14 @@ func (c *DomainAccessConfigController) DeleteDomainAccessConfig(ctx *gin.Context
 		response.ErrorJSON(ctx, "删除域名访问控制配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "DOMAIN_ACCESS_CONFIG",
+		TargetId:     domainAccessConfigId,
+		TargetName:   targetName,
+		ResourceCode: "hub0020:domainAccessControl",
+	})
 
 	logger.InfoWithTrace(ctx, "域名访问控制配置删除成功", "domainAccessConfigId", domainAccessConfigId,
 		"tenantId", tenantId)

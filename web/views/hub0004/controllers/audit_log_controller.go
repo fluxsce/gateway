@@ -5,6 +5,7 @@ import (
 
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -14,7 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AuditLogController 审计日志查询控制器，仅提供列表与详情，不提供删除或修改。
+// AuditLogController 审计日志查询控制器，提供列表、详情与导出，不提供删除或修改。
 type AuditLogController struct {
 	db  database.Database
 	dao *dao.AuditLogDAO
@@ -84,4 +85,41 @@ func (c *AuditLogController) GetAuditLog(ctx *gin.Context) {
 		return
 	}
 	response.SuccessJSON(ctx, row, constants.SD00001)
+}
+
+// ExportAuditLogs 按当前筛选条件导出审计日志，最多 MaxAuditExportSize 条。
+// @Summary 导出审计日志
+// @Description 按查询条件导出 HUB_AUTH_AUDIT_LOG，自身经 hub0004:export 记入审计
+// @Tags 审计日志
+// @Accept json
+// @Produce json
+// @Success 200 {object} response.JsonData
+// @Router /gateway/hub0004/exportAuditLogs [post]
+func (c *AuditLogController) ExportAuditLogs(ctx *gin.Context) {
+	tenantId := request.GetTenantID(ctx)
+
+	var query models.AuthAuditLogQuery
+	if err := request.BindSafely(ctx, &query); err != nil {
+		logger.WarnWithTrace(ctx, "绑定审计日志导出条件失败，使用默认条件", "error", err.Error())
+	}
+
+	rows, total, err := c.dao.Query(ctx, tenantId, &query, 1, dao.MaxAuditExportSize)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "导出审计日志失败", err)
+		response.ErrorJSON(ctx, "导出审计日志失败: "+err.Error(), constants.ED00009)
+		return
+	}
+
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionExport,
+		ModuleCode:   "hub0004",
+		TargetType:   "AUDIT_LOG",
+		TargetId:     "export",
+		ResourceCode: "hub0004:export",
+		Detail:       audit.SanitizeAuditDetail(map[string]interface{}{"count": len(rows), "total": total}),
+	})
+
+	pageInfo := response.NewPageInfo(1, dao.MaxAuditExportSize, total)
+	pageInfo.MainKey = "auditId"
+	response.PageJSON(ctx, rows, pageInfo, constants.SD00002)
 }

@@ -1071,6 +1071,19 @@ INSERT INTO HUB_AUTH_RESOURCE (
   datetime('now'), 'system', datetime('now'), 'system', 'INIT_009_003', 1, 'Y'
 );
 
+-- 导出
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0004:export', 'default', '导出', 'hub0004:export', 'BUTTON',
+  'hub0004', 3, 4, 'zh-CN',
+  'Y', 'Y',
+  datetime('now'), 'system', datetime('now'), 'system', 'INIT_009_004', 1, 'Y'
+);
+
 -- =====================================================
 -- 网关实例管理模块 - 按钮资源 (hub0020)
 -- =====================================================

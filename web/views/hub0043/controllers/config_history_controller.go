@@ -12,6 +12,7 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/random"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -262,6 +263,15 @@ func (c *ConfigHistoryController) RollbackConfig(ctx *gin.Context) {
 
 	// 通过 manager 发布事件通知
 	c.notifyConfigChange(requestCtx, tenantId, history.NamespaceId, config, "CONFIG_UPDATED")
+
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionRollback,
+		ModuleCode:   "hub0043",
+		TargetType:   "CONFIG",
+		TargetId:     history.ConfigDataId,
+		TargetName:   history.GroupName + "/" + history.ConfigDataId,
+		ResourceCode: "hub0043:history:rollback",
+	})
 
 	// 返回回滚结果
 	response.SuccessJSON(ctx, map[string]interface{}{

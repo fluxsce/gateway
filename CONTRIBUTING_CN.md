@@ -19,7 +19,7 @@
 ```bash
 git clone https://github.com/your-username/gateway.git
 cd gateway
-git remote add upstream https://github.com/your-org/gateway.git
+git remote add upstream https://github.com/fluxsce/gateway.git
 ```
 
 ### 2. 开发环境
@@ -28,9 +28,11 @@ git remote add upstream https://github.com/your-org/gateway.git
 # 安装依赖
 go mod download
 
-# 启动开发模式
-make dev
+# 仓库根目录启动（默认 SQLite，首次启动会执行 scripts/db）
+go run cmd/app/main.go --config ./configs
 ```
+
+控制台 `http://localhost:12003/gatewayweb`，健康检查 `http://localhost:12003/health`，网关监听 `:8080`。默认账号 `admin` / `123456`。源码启动需要 C 编译器（CGO / SQLite）；控制台 `dist` 不进 Git，见 [docs/zh-CN/02-快速开始.md](docs/zh-CN/02-快速开始.md)。
 
 ### 3. 提交代码
 
@@ -96,8 +98,7 @@ fix(auth): 修复登录失败问题
 ### 运行测试:
 
 ```bash
-make test       # 运行全部测试
-make test-unit  # 仅单元测试
+go test ./...
 ```
 
 ## 🐛问题反馈
@@ -122,7 +123,7 @@ make test-unit  # 仅单元测试
 
 如果您有任何问题或需要帮助，可以通过以下方式联系我们：
 
-- 💬 GitHub Issues: [提交问题](https://github.com/your-org/gateway/issues)
+- 💬 GitHub Issues: [提交问题](https://github.com/fluxsce/gateway/issues)
 - 📧 邮件联系: [project-email@example.com](mailto:project-email@example.com)
 - 📱 微信群: [加入微信群聊]
 - 🐧 QQ群: [加入QQ群聊]

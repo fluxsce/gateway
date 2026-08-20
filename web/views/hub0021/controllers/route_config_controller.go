@@ -7,6 +7,7 @@ import (
 	"gateway/internal/gateway/handler/router"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -125,6 +126,14 @@ func (c *RouteConfigController) AddRouteConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建路由配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0021",
+		TargetType:   "ROUTE",
+		TargetId:     routeConfigId,
+		TargetName:   req.RouteName,
+		ResourceCode: "hub0021:add",
+	})
 
 	// 查询新添加的路由配置信息
 	newRouteConfig, err := c.routeConfigDAO.GetRouteConfigById(ctx, routeConfigId, tenantId)
@@ -179,6 +188,14 @@ func (c *RouteConfigController) EditRouteConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新路由配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0021",
+		TargetType:   "ROUTE",
+		TargetId:     updateData.RouteConfigId,
+		TargetName:   updateData.RouteName,
+		ResourceCode: "hub0021:edit",
+	})
 
 	if updateData.BackendType != "static" {
 		if deactivateErr := c.staticHostDAO.DeactivateByRouteConfigId(ctx, tenantId, updateData.RouteConfigId, operatorId); deactivateErr != nil {
@@ -224,6 +241,13 @@ func (c *RouteConfigController) DeleteRouteConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除路由配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0021",
+		TargetType:   "ROUTE",
+		TargetId:     routeConfigId,
+		ResourceCode: "hub0021:delete",
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"routeConfigId": routeConfigId,

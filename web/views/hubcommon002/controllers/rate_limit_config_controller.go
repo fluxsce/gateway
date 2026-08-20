@@ -3,6 +3,7 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -56,6 +57,14 @@ func (c *RateLimitConfigController) AddRateLimitConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "添加限流配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "RATE_LIMIT_CONFIG",
+		TargetId:     config.RateLimitConfigId,
+		TargetName:   config.LimitName,
+		ResourceCode: "hub0020:rateLimitConfig",
+	})
 
 	// 查询最新的配置数据返回给前端（使用主键）
 	newConfig, err := c.dao.GetRateLimitConfig(config.TenantId, config.RateLimitConfigId)
@@ -136,6 +145,14 @@ func (c *RateLimitConfigController) UpdateRateLimitConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新限流配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "RATE_LIMIT_CONFIG",
+		TargetId:     config.RateLimitConfigId,
+		TargetName:   config.LimitName,
+		ResourceCode: "hub0020:rateLimitConfig",
+	})
 
 	// 查询最新的配置数据返回给前端（使用主键）
 	updatedConfig, err := c.dao.GetRateLimitConfig(tenantId, config.RateLimitConfigId)
@@ -166,6 +183,11 @@ func (c *RateLimitConfigController) DeleteRateLimitConfig(ctx *gin.Context) {
 	// 从上下文获取租户ID（前置校验已处理）
 	tenantId := request.GetTenantID(ctx)
 
+	targetName := ""
+	if current, getErr := c.dao.GetRateLimitConfig(tenantId, rateLimitConfigId); getErr == nil && current != nil {
+		targetName = current.LimitName
+	}
+
 	// 调用DAO层删除限流配置（使用主键）
 	err := c.dao.DeleteRateLimitConfig(tenantId, rateLimitConfigId)
 	if err != nil {
@@ -174,6 +196,14 @@ func (c *RateLimitConfigController) DeleteRateLimitConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除限流配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "RATE_LIMIT_CONFIG",
+		TargetId:     rateLimitConfigId,
+		TargetName:   targetName,
+		ResourceCode: "hub0020:rateLimitConfig",
+	})
 
 	logger.InfoWithTrace(ctx, "限流配置删除成功", "rateLimitConfigId", rateLimitConfigId,
 		"tenantId", tenantId)

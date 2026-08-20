@@ -1,33 +1,18 @@
-# FLUX Gateway - English Documentation
+# FLUX Gateway — English documentation
 
-This documentation provides detailed English instructions for FLUX Gateway to help you quickly understand, develop, deploy, and use it.
+For a trial, use Quick start in [README_EN.md](../../README_EN.md). Architecture figures: README “Architecture Overview” and [Introduction](./01-introduction.md).
 
-## 📋 Table of Contents
+- [Introduction](./01-introduction.md) — capabilities, layered architecture, tunnel
+- [First route](./09-first-route.md) — instance, service, prefix route, reload
+- [Static hosting](./08-static-hosting.md) — serve local files through the gateway
+- [FAQ](../faq.md) — ports, login, common errors
+- [Installation](./03-installation.md) — packages, services, upgrades
+- [Containerized Deployment](./04-container-deployment.md) — Docker / Kubernetes
+- [Release pipeline](../../.github/CI.md) — artifact names and image tags
+- [Development Guide](./02-quick-start.md) — build from source
+- [Database specs](./05-database-specs.md) — schema conventions
+- [Debugging](./06-debugging.md) — troubleshooting
+- [Error handling](./07-error-handling.md) — error conventions
+- [Security](../../SECURITY.md) — practices and vulnerability reports
 
-- [01 Project Introduction](./01-introduction.md) - Project overview, core capabilities, and architecture
-- [02 Development Guide](./02-quick-start.md) - Development environment setup and quick start
-- [03 Installation & Deployment](./03-installation.md) - Detailed installation and deployment guide
-- [04 Containerized Deployment](./04-container-deployment.md) - Docker and Kubernetes deployment
-- [05 Database Specifications](./05-database-specs.md) - Database design and naming conventions
-- [06 Debugging Guide](./06-debugging.md) - Debugging techniques, performance analysis, and troubleshooting
-- [07 Error Handling](./07-error-handling.md) - Error handling mechanisms and best practices
-
-## 🔗 Quick Links
-
-- [GitHub Repository](https://github.com/fluxsce/gateway)
-- [中文文档](../zh-CN/README.md)
-
-## 📧 Contact Us
-
-- Email: fluxopensource@flux.com.cn
-- GitHub Issues: [Submit Issue](https://github.com/fluxsce/gateway/issues)
-
----
-
-<div align="center">
-
-**[Back to Home](../../README.md)**
-
-Made with ❤️ by FLUX Gateway Team
-
-</div>
+[简体中文](../zh-CN/README.md) · [Back to home](../../README_EN.md)

@@ -3,8 +3,7 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
-	"gateway/web/middleware"
-	"gateway/web/middleware/permission"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -116,8 +115,8 @@ func (c *ResourceController) AddResource(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建资源失败: "+err.Error(), constants.ED00009)
 		return
 	}
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionCreate,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
 		ModuleCode:   "hub0006",
 		TargetType:   "RESOURCE",
 		TargetId:     resourceId,
@@ -209,8 +208,8 @@ func (c *ResourceController) EditResource(ctx *gin.Context) {
 	if targetName == "" && currentResource != nil {
 		targetName = currentResource.ResourceName
 	}
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionUpdate,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
 		ModuleCode:   "hub0006",
 		TargetType:   "RESOURCE",
 		TargetId:     updateData.ResourceId,
@@ -316,8 +315,8 @@ func (c *ResourceController) DeleteResource(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除资源失败: "+err.Error(), constants.ED00009)
 		return
 	}
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionDelete,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
 		ModuleCode:   "hub0006",
 		TargetType:   "RESOURCE",
 		TargetId:     resourceId,
@@ -364,6 +363,11 @@ func (c *ResourceController) UpdateResourceStatus(ctx *gin.Context) {
 	operatorId := request.GetOperatorID(ctx)
 	tenantId := request.GetTenantID(ctx)
 
+	targetName := ""
+	if resource, getErr := c.resourceDAO.GetResourceById(ctx, resourceId, tenantId); getErr == nil && resource != nil {
+		targetName = resource.ResourceName
+	}
+
 	// 调用DAO层更新资源状态
 	err := c.resourceDAO.UpdateResourceStatus(ctx, resourceId, tenantId, status, operatorId)
 	if err != nil {
@@ -371,6 +375,15 @@ func (c *ResourceController) UpdateResourceStatus(ctx *gin.Context) {
 		response.ErrorJSON(ctx, err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0006",
+		TargetType:   "RESOURCE",
+		TargetId:     resourceId,
+		TargetName:   targetName,
+		ResourceCode: "hub0006:edit",
+		Detail:       "status=" + status,
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"resourceId": resourceId,

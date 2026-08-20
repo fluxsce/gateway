@@ -5,6 +5,7 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/random"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -130,6 +131,14 @@ func (c *NamespaceController) AddNamespace(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建命名空间失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0041",
+		TargetType:   "NAMESPACE",
+		TargetId:     req.NamespaceId,
+		TargetName:   req.NamespaceName,
+		ResourceCode: "hub0041:add",
+	})
 
 	// 查询新添加的命名空间信息
 	newNamespace, err := c.namespaceDAO.GetNamespaceById(ctx, tenantId, req.NamespaceId)
@@ -223,6 +232,14 @@ func (c *NamespaceController) EditNamespace(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新命名空间失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0041",
+		TargetType:   "NAMESPACE",
+		TargetId:     req.NamespaceId,
+		TargetName:   req.NamespaceName,
+		ResourceCode: "hub0041:edit",
+	})
 
 	// 查询更新后的命名空间信息
 	updatedNamespace, err := c.namespaceDAO.GetNamespaceById(ctx, tenantId, req.NamespaceId)
@@ -271,6 +288,13 @@ func (c *NamespaceController) DeleteNamespace(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除命名空间失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0041",
+		TargetType:   "NAMESPACE",
+		TargetId:     namespaceId,
+		ResourceCode: "hub0041:delete",
+	})
 
 	// 同步删除缓存（会自动删除该命名空间下的所有服务和节点）
 	serviceCenterManager := servicecenter.GetManager()

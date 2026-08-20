@@ -3,6 +3,7 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -56,6 +57,14 @@ func (c *ApiAccessConfigController) AddApiAccessConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "添加API访问控制配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "API_ACCESS_CONFIG",
+		TargetId:     config.ApiAccessConfigId,
+		TargetName:   config.ConfigName,
+		ResourceCode: "hub0020:apiAccessControl",
+	})
 
 	// 查询最新的配置数据返回给前端（使用主键）
 	newConfig, err := c.dao.GetApiAccessConfigById(ctx, config.ApiAccessConfigId, tenantId)
@@ -130,6 +139,14 @@ func (c *ApiAccessConfigController) UpdateApiAccessConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新API访问控制配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "API_ACCESS_CONFIG",
+		TargetId:     config.ApiAccessConfigId,
+		TargetName:   config.ConfigName,
+		ResourceCode: "hub0020:apiAccessControl",
+	})
 
 	// 查询最新的配置数据返回给前端（使用主键）
 	updatedConfig, err := c.dao.GetApiAccessConfigById(ctx, config.ApiAccessConfigId, tenantId)
@@ -160,6 +177,11 @@ func (c *ApiAccessConfigController) DeleteApiAccessConfig(ctx *gin.Context) {
 	// 从上下文获取租户ID（前置校验已处理）
 	tenantId := request.GetTenantID(ctx)
 
+	targetName := ""
+	if current, getErr := c.dao.GetApiAccessConfigById(ctx, apiAccessConfigId, tenantId); getErr == nil && current != nil {
+		targetName = current.ConfigName
+	}
+
 	// 调用DAO层删除API访问控制配置（使用主键）
 	err := c.dao.DeleteApiAccessConfig(ctx, apiAccessConfigId, tenantId)
 	if err != nil {
@@ -168,6 +190,14 @@ func (c *ApiAccessConfigController) DeleteApiAccessConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除API访问控制配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "API_ACCESS_CONFIG",
+		TargetId:     apiAccessConfigId,
+		TargetName:   targetName,
+		ResourceCode: "hub0020:apiAccessControl",
+	})
 
 	logger.InfoWithTrace(ctx, "API访问控制配置删除成功", "apiAccessConfigId", apiAccessConfigId,
 		"tenantId", tenantId)

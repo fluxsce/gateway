@@ -4,6 +4,7 @@ import (
 	"gateway/internal/gateway/handler/statichost"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -80,6 +81,13 @@ func (c *StaticHostConfigController) SaveStaticHostConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "保存静态托管配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0021",
+		TargetType:   "STATIC_HOST",
+		TargetId:     req.RouteConfigId,
+		ResourceCode: "hub0021:staticHostConfig",
+	})
 	saved, err := c.dao.GetByRouteConfigId(ctx, tenantId, req.RouteConfigId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取保存后的静态托管配置失败", err)

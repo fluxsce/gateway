@@ -8,6 +8,7 @@ import (
 	"gateway/pkg/logger"
 	"gateway/pkg/timer"
 	"gateway/pkg/utils/random"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -143,6 +144,14 @@ func (c *TaskConfigController) AddTaskConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "添加任务配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0003",
+		TargetType:   "TASK",
+		TargetId:     task.TaskId,
+		TargetName:   task.TaskName,
+		ResourceCode: "hub0003:task:add",
+	})
 
 	// 查询新添加的任务信息
 	newTask, err := c.dao.GetById(ctx, tenantId, task.TaskId)
@@ -288,6 +297,14 @@ func (c *TaskConfigController) UpdateTaskConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新任务配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0003",
+		TargetType:   "TASK",
+		TargetId:     task.TaskId,
+		TargetName:   task.TaskName,
+		ResourceCode: "hub0003:task:edit",
+	})
 
 	// 查询最新数据
 	updatedTask, err := c.dao.GetById(ctx, tenantId, task.TaskId)
@@ -404,6 +421,14 @@ func (c *TaskConfigController) DeleteTaskConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除任务配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0003",
+		TargetType:   "TASK",
+		TargetId:     params.TaskId,
+		TargetName:   task.TaskName,
+		ResourceCode: "hub0003:task:delete",
+	})
 
 	logger.Info("任务配置删除成功", "taskId", params.TaskId, "tenantId", tenantId)
 
@@ -551,6 +576,14 @@ func (c *TaskConfigController) UpdateTaskStatus(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新任务状态失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0003",
+		TargetType:   "TASK",
+		TargetId:     task.TaskId,
+		TargetName:   task.TaskName,
+		ResourceCode: "hub0003:task:edit",
+	})
 
 	// 查询最新数据
 	updatedTask, err := c.dao.GetById(ctx, tenantId, task.TaskId)
@@ -692,6 +725,14 @@ func (c *TaskConfigController) StartTask(ctx *gin.Context) {
 		return
 	}
 	logger.Info("任务启动成功", "taskId", task.TaskId)
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0003",
+		TargetType:   "TASK",
+		TargetId:     task.TaskId,
+		TargetName:   task.TaskName,
+		ResourceCode: "hub0003:task:start",
+	})
 
 	// 查询最新数据
 	updatedTask, err := c.dao.GetById(ctx, tenantId, task.TaskId)
@@ -792,6 +833,14 @@ func (c *TaskConfigController) StopTask(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新任务状态失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0003",
+		TargetType:   "TASK",
+		TargetId:     task.TaskId,
+		TargetName:   task.TaskName,
+		ResourceCode: "hub0003:task:stop",
+	})
 
 	// 查询最新数据
 	updatedTask, err := c.dao.GetById(ctx, tenantId, task.TaskId)
@@ -888,6 +937,14 @@ func (c *TaskConfigController) TriggerTask(ctx *gin.Context) {
 		return
 	}
 	logger.Info("任务立即执行成功", "taskId", task.TaskId)
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0003",
+		TargetType:   "TASK",
+		TargetId:     task.TaskId,
+		TargetName:   task.TaskName,
+		ResourceCode: "hub0003:task:trigger",
+	})
 
 	// 查询最新数据
 	updatedTask, err := c.dao.GetById(ctx, tenantId, task.TaskId)

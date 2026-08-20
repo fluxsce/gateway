@@ -1,6 +1,7 @@
-package permission
+package audit
 
 import (
+	"strings"
 	"testing"
 
 	"gateway/web/utils/constants"
@@ -22,29 +23,35 @@ func TestIsWriteAuditButtonCode(t *testing.T) {
 	if !IsWriteAuditButtonCode("hub0023:reset") {
 		t.Fatal("hub0023:reset (resend) should be write-audited")
 	}
+	if !IsWriteAuditButtonCode("hub0022:addProxy") {
+		t.Fatal("addProxy should be write-audited")
+	}
+	if !IsWriteAuditButtonCode("hub0022:circuitBreaker") {
+		t.Fatal("circuitBreaker should be write-audited")
+	}
+	if !IsWriteAuditButtonCode("hub0021:routerConfig") {
+		t.Fatal("routerConfig should be write-audited")
+	}
+	if !IsWriteAuditButtonCode("hub0020:export") {
+		t.Fatal("export should be write-audited")
+	}
 	if IsWriteAuditButtonCode("hub0023:resetQuery") {
 		t.Fatal("resetQuery should not be write-audited")
+	}
+	if IsWriteAuditButtonCode("hub0004:reset") {
+		t.Fatal("form reset should not be write-audited")
+	}
+	if IsWriteAuditButtonCode("hub0002:search") {
+		t.Fatal("search should not be write-audited")
+	}
+	if IsWriteAuditButtonCode("hub0002:view") {
+		t.Fatal("view should not be write-audited")
 	}
 	if IsWriteAuditButtonCode("hub0005:roleAuth") {
 		t.Fatal("roleAuth should not be middleware-audited")
 	}
 	if FirstWriteAuditButtonCode([]string{"hub0020:securityConfig:add", "hub0020:securityConfig"}) != "hub0020:securityConfig:add" {
 		t.Fatal("first write code should be :add")
-	}
-}
-
-func TestAuditTargetFromGetter(t *testing.T) {
-	got := AuditTargetFromGetter(func(key string) string {
-		if key == "securityConfigId" {
-			return "SC1"
-		}
-		if key == "configName" {
-			return "default"
-		}
-		return ""
-	})
-	if got.TargetType != "SECURITY_CONFIG" || got.TargetId != "SC1" || got.TargetName != "default" {
-		t.Fatalf("got %+v", got)
 	}
 }
 
@@ -59,7 +66,15 @@ func TestAuditActionFromResourceCode(t *testing.T) {
 		"hub0002:roleAuth":         AuditActionGrant,
 		"hub0043:history:rollback": AuditActionRollback,
 		"hub0023:reset":            AuditActionUpdate,
+		"hub0022:addProxy":         AuditActionUpdate,
+		"hub0022:circuitBreaker":   AuditActionUpdate,
+		"hub0021:routerConfig":     AuditActionUpdate,
+		"hub0020:export":           AuditActionExport,
+		"hub0080:test":             AuditActionUpdate,
 		"hub0002:query":            "",
+		"hub0002:search":           "",
+		"hub0002:view":             "",
+		"hub0004:reset":            "",
 	}
 	for code, want := range cases {
 		if got := AuditActionFromResourceCode(code); got != want {
@@ -80,22 +95,17 @@ func TestModuleCodeFromResourceOrPath(t *testing.T) {
 	}
 }
 
-func TestBareModuleCodes(t *testing.T) {
-	got := BareModuleCodes([]string{"hub0061", "hub0002", "hub0002:search"})
-	has061 := false
-	has002 := false
-	for _, code := range got {
-		if code == "hub0061" {
-			has061 = true
-		}
-		if code == "hub0002" {
-			has002 = true
-		}
+func TestSanitizeAuditDetail(t *testing.T) {
+	got := SanitizeAuditDetail(map[string]interface{}{
+		"userName":  "alice",
+		"password":  "secret",
+		"captchaId": "ticket",
+		"content":   "huge",
+	})
+	if strings.Contains(got, "secret") || strings.Contains(got, "ticket") || strings.Contains(got, "huge") {
+		t.Fatalf("sensitive or omitted fields leaked: %s", got)
 	}
-	if !has061 {
-		t.Fatalf("hub0061 is bare, got %v", got)
-	}
-	if has002 {
-		t.Fatalf("hub0002 has a child button, should not be bare: %v", got)
+	if !strings.Contains(got, "alice") {
+		t.Fatalf("expected userName kept: %s", got)
 	}
 }

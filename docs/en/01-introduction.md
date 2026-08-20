@@ -1,21 +1,20 @@
 # FLUX Gateway - Project Introduction
 
-## 📖 Overview
+## Overview
 
 FLUX Gateway is a powerful enterprise-grade microservice governance platform that integrates three core capabilities: **High-Performance API Gateway**, **Network Penetration Service**, and **Service Registration Management Platform**, providing comprehensive access layer solutions for modern distributed systems.
 
-## 🎯 Core Capabilities
+## Core Capabilities
 
-### 1️⃣ High-Performance API Gateway
+### API Gateway
 
 A modern API gateway developed in Go, providing enterprise-grade traffic management and service governance capabilities.
 
 #### Core Features
 
-- **🚀 High-Performance Routing**
-  - High concurrency processing based on Go goroutines
-  - Millisecond-level response time
-  - Support for million-level QPS
+- **High-Performance Routing**
+  - High concurrency based on Go goroutines
+  - Millisecond-level response
 
 - **⚖️ Intelligent Load Balancing**
   - Round Robin
@@ -60,7 +59,7 @@ A modern API gateway developed in Go, providing enterprise-grade traffic managem
 
 ---
 
-### 2️⃣ Network Penetration Service (FRP Tunnel)
+### Network Penetration (Tunnel)
 
 An intranet penetration solution based on FRP (Fast Reverse Proxy) architecture, supporting secure penetration of multiple protocols.
 
@@ -109,7 +108,7 @@ An intranet penetration solution based on FRP (Fast Reverse Proxy) architecture,
 
 ---
 
-### 3️⃣ Service Registration Management Platform
+### Service Registry
 
 Provides complete service registration, discovery, and governance capabilities, supporting multiple service registries.
 
@@ -155,13 +154,17 @@ Provides complete service registration, discovery, and governance capabilities, 
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
+
+Overview diagrams (request path, module model) are in the root [README_EN.md](../../README_EN.md#architecture-overview). The figures below cover layering and the tunnel.
 
 ### Overall Architecture
 
 <p align="center">
   <img src="../images/gateway_architecture.svg" alt="Gateway Layered Architecture" width="100%">
 </p>
+
+<p align="center"><sub>Figure 1. Layers: access, gateway core, management, storage</sub></p>
 
 FLUX Gateway adopts a layered architecture design, divided into four layers from bottom to top:
 
@@ -170,11 +173,13 @@ FLUX Gateway adopts a layered architecture design, divided into four layers from
 - **Management Layer**: Provides configuration management, service discovery, health checks, log management, and other management functions
 - **Storage Layer**: Supports multiple storage systems including MySQL, Redis, MongoDB, ClickHouse
 
-### Tunnel Architecture - Intranet Penetration Principle
+### Tunnel Architecture
 
 <p align="center">
   <img src="../images/tunnel_architecture.svg" alt="Intranet Penetration Architecture" width="100%">
 </p>
+
+<p align="center"><sub>Figure 2. Tunnel: control plane and data plane</sub></p>
 
 #### Working Principle
 
@@ -205,7 +210,7 @@ FLUX Gateway's intranet penetration is based on FRP architecture design, adoptin
 - **Dynamic Service Registration**: Clients dynamically register services at startup, server allocates ports
 - **Multi-Protocol Support**: HTTP/HTTPS, TCP, UDP, WebSocket, and other protocols
 
-## 🎯 Target Audience
+## Target Audience
 
 ### Development Teams
 - Development teams with microservice architecture
@@ -222,19 +227,19 @@ FLUX Gateway's intranet penetration is based on FRP architecture design, adoptin
 - Traditional enterprises undergoing digital transformation
 - Enterprises requiring hybrid cloud deployment
 
-## 🔄 Version Information
+## Version
 
-- **Current Version**: v2.0.0
-- **Go Version**: 1.24+
+- **Current version**: 3.2.5
+- **Go**: 1.24+
 - **License**: Apache License 2.0
 
-## 📚 Quick Navigation
+## Related docs
 
 - [Development Guide](./02-quick-start.md) - Development environment setup and quick start
 - [Installation & Deployment](./03-installation.md) - Detailed installation and deployment guide
 - [Containerized Deployment](./04-container-deployment.md) - Docker and Kubernetes deployment
 
-## 🤝 Community Support
+## Community
 
 - 📧 Email: fluxopensource@flux.com.cn
 - 💬 GitHub Issues: [Submit Issue](https://github.com/fluxsce/gateway/issues)

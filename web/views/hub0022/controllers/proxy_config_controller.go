@@ -3,6 +3,7 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -95,6 +96,14 @@ func (c *ProxyConfigController) CreateProxyConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建代理配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0022",
+		TargetType:   "PROXY",
+		TargetId:     proxyConfigId,
+		TargetName:   proxyConfig.ProxyName,
+		ResourceCode: "hub0022:addProxy",
+	})
 
 	// 查询新添加的代理配置信息
 	newProxyConfig, err := c.proxyConfigDAO.GetProxyConfigById(ctx, proxyConfigId, tenantId)
@@ -178,6 +187,14 @@ func (c *ProxyConfigController) EditProxyConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新代理配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0022",
+		TargetType:   "PROXY",
+		TargetId:     updateData.ProxyConfigId,
+		TargetName:   updateData.ProxyName,
+		ResourceCode: "hub0022:addProxy",
+	})
 
 	// 查询更新后的代理配置信息
 	updatedProxyConfig, err := c.proxyConfigDAO.GetProxyConfigById(ctx, updateData.ProxyConfigId, tenantId)
@@ -240,6 +257,14 @@ func (c *ProxyConfigController) DeleteProxyConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除代理配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0022",
+		TargetType:   "PROXY",
+		TargetId:     proxyConfigId,
+		TargetName:   existingProxyConfig.ProxyName,
+		ResourceCode: "hub0022:addProxy",
+	})
 
 	logger.InfoWithTrace(ctx, "代理配置删除成功",
 		"proxyConfigId", proxyConfigId,

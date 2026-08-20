@@ -1,185 +1,67 @@
-# FLUX Gateway - Development Guide
+# Development Guide
 
-This document provides a development environment setup guide and quick start instructions for FLUX Gateway.
+Build and run from source. For a trial, use Docker or a release package in [README_EN.md](../../README_EN.md) instead.
 
----
-
-## 📋 Table of Contents
-
-- [Environment Requirements](#-environment-requirements)
-- [Project Structure](#-project-structure)
-- [Compile & Build](#-compile--build)
-- [Database Initialization](#-database-initialization)
-- [Configuration](#-configuration)
-- [Start Application](#-start-application)
+Examples use **3.2.5**.
 
 ---
 
-## 🔧 Environment Requirements
+## Requirements
 
-### Basic Requirements
+| Component | Need |
+|-----------|------|
+| Go | 1.24+ |
+| C compiler | Required. SQLite uses `go-sqlite3` (CGO) |
+| Node.js 18+ / pnpm | Only if you change the console |
+| Git | Clone |
 
-| Component | Version | Description |
-|-----------|---------|-------------|
-| **Go** | 1.24+ | Main development language |
-| **Git** | Latest | Version control |
-| **Make** | Latest | Build tool (optional) |
+Windows: install [TDM-GCC](https://jmeubank.github.io/tdm-gcc/download/), reopen the terminal, run `gcc --version`. Linux: `build-essential` (or equivalent). macOS: `xcode-select --install`.
 
-### Database Support
-
-| Database | Version | Description |
-|----------|---------|-------------|
-| **MySQL** | 5.7+ / 8.0+ | Recommended for production |
-| **SQLite** | 3.x | Suitable for development/testing |
-| **Oracle** | 11g+ | Enterprise edition support |
-
-### Cache Support
-
-| Cache | Version | Description |
-|-------|---------|-------------|
-| **Redis** | 5.0+ | Distributed cache (recommended) |
-| **Memory** | - | Local cache |
+Oracle Instant Client is **not** required unless you build or run an Oracle-enabled binary. See the optional section at the end.
 
 ---
 
-## 📁 Project Structure
-
-```
-gateway/
-├── cmd/                    # Entry points
-│   ├── app/               # Main application
-│   ├── gateway/           # Gateway service
-│   ├── web/               # Web service
-│   └── cache/             # Cache service
-├── internal/              # Internal packages
-│   ├── gateway/           # Gateway core logic
-│   ├── tunnel/            # Tunnel management
-│   ├── registry/          # Service registration
-│   └── types/             # Type definitions
-├── pkg/                   # Public packages
-│   ├── config/            # Configuration management
-│   ├── database/          # Database operations
-│   ├── logger/            # Logging
-│   ├── cache/             # Cache operations
-│   └── utils/             # Utilities
-├── web/                   # Web interface
-│   ├── frontend/          # Frontend resources
-│   ├── static/            # Static resources
-│   ├── routes/            # Route definitions
-│   └── views/             # View logic
-├── configs/               # Configuration files
-│   ├── app.yaml           # Application config
-│   ├── database.yaml      # Database config
-│   ├── gateway.yaml       # Gateway config
-│   ├── logger.yaml        # Logger config
-│   └── web.yaml           # Web config
-├── scripts/               # Scripts
-│   ├── build/             # Build scripts
-│   ├── deploy/            # Deployment scripts
-│   ├── db/                # Database scripts
-│   ├── docker/            # Docker files
-│   └── k8s/               # Kubernetes files
-└── docs/                  # Documentation
-    ├── zh-CN/             # Chinese documentation
-    └── en/                # English documentation
-```
-
----
-
-## 🔨 Compile & Build
-
-### Quick Compile
+## Clone
 
 ```bash
-# Clone project
 git clone https://github.com/fluxsce/gateway.git
 cd gateway
-
-# Download dependencies
 go mod download
-
-# Compile
-go build -o gateway cmd/app/main.go
 ```
 
-### Use Official Build Scripts
+Layout:
 
-**Recommended**: Use official build scripts in `scripts/build/`
-
-**Windows:**
-```bash
-# Windows + Oracle
-scripts\build\build-win10-oracle.cmd
-
-# Windows + MySQL/SQLite
-scripts\build\build-win10-centos7.cmd
 ```
-
-**Linux:**
-```bash
-# CentOS/RHEL
-bash scripts/build/build-centos7.sh
-
-# Ubuntu/Debian
-bash scripts/build/build-ubuntu.sh
-```
-
-**Build Output:**
-```
-dist/
-├── gateway-win10-oracle-amd64.exe    # Windows + Oracle
-├── gateway-centos7-amd64             # Linux + Oracle
-└── gateway-ubuntu-amd64              # Linux + MySQL/SQLite
+cmd/app/            process entry
+configs/            runtime YAML — edit these files
+internal/           gateway, tunnel, registry
+web/frontend/       Vue console
+scripts/db/         mysql / sqlite / oracle
+scripts/build/      pack scripts
+scripts/docker/     images and Compose
 ```
 
 ---
 
-## 💾 Database Initialization
+## Database
 
-### 1. Create Database
+Defaults in `configs/database.yaml`:
 
-**MySQL:**
-```sql
-CREATE DATABASE gateway_dev CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
+- `database.default: sqlite_main`
+- File: `./scripts/data/gateway.db`
+- `enable_script_initialization: true` runs scripts under `scripts/db` on startup
 
-**SQLite:**
+You usually do not import SQL by hand. If you do, run `init.sql` **inside** the vendor directory (relative paths):
+
 ```bash
-# SQLite will auto-create database file
-mkdir -p scripts/data
+cd scripts/db/sqlite
+sqlite3 ../../data/gateway.db < init.sql
 ```
 
-### 2. Initialize Schema
+There is no `scripts/db/mysql.sql` or `frp_tunnel_management.sql`.
 
-Gateway supports **automatic database initialization** at startup.
+Switch to MySQL by editing the existing structure — not `type`/`host` at the top level:
 
-**Configuration** (`configs/database.yaml`):
-```yaml
-database:
-  # Enable automatic script initialization
-  enable_script_initialization: true
-  
-  # Allow partial failure
-  allow_partial_failure: true
-  
-  # Script directory
-  script_directory: "scripts/db"
-```
-
-**Database Scripts:**
-- `scripts/db/frp_tunnel_management.sql` - MySQL
-- `scripts/db/frp_tunnel_management_sqlite.sql` - SQLite
-- `scripts/db/frp_tunnel_management_oracle.sql` - Oracle
-
----
-
-## ⚙️ Configuration
-
-### 1. Database Configuration
-
-Edit `configs/database.yaml`:
-
-**MySQL Example:**
 ```yaml
 database:
   default: mysql
@@ -188,161 +70,89 @@ database:
       driver: mysql
       enabled: true
       connection:
-        host: localhost
+        host: 127.0.0.1
         port: 3306
         username: root
-        password: your_password
-        database: gateway_dev
-```
-
-**SQLite Example:**
-```yaml
-database:
-  default: sqlite_main
-  connections:
+        password: "your_password"
+        database: gateway
     sqlite_main:
-      driver: sqlite
-      enabled: true
-      connection:
-        database: "./scripts/data/gateway.db"
-```
-
-### 2. Application Configuration
-
-Edit `configs/app.yaml`:
-
-```yaml
-app:
-  name: "FLUX Gateway"
-  version: "2.0.0"
-  env: "development"  # development, production
-  
-# pprof performance analysis
-pprof:
-  enabled: true
-  port: 6060
-```
-
-### 3. Gateway Configuration
-
-Edit `configs/gateway.yaml`:
-
-```yaml
-gateway:
-  port: 8080
-  mode: "debug"  # debug, release
-  
-  # Route configuration
-  routes:
-    - name: "example"
-      path: "/api/*"
-      target: "http://localhost:8081"
-```
-
-### 4. Web Configuration
-
-Edit `configs/web.yaml`:
-
-```yaml
-web:
-  port: 12003
-  run_mode: "debug"
-  
-  # Frontend configuration
-  frontend:
-    path: "./web/frontend/dist"
-    prefix: "/gatewayweb"
+      enabled: false
 ```
 
 ---
 
-## 🚀 Start Application
-
-### Method 1: Direct Execution
+## Run
 
 ```bash
-# Start with default config directory (./configs)
-./gateway
-
-# Specify config directory
-./gateway --config /path/to/configs
-
-# Or use environment variable
-export GATEWAY_CONFIG_DIR=/path/to/configs
-./gateway
-```
-
-### Method 2: Development Mode
-
-```bash
-# Run with Go
-go run cmd/app/main.go
-
-# With specific config
 go run cmd/app/main.go --config ./configs
 ```
 
-### Method 3: System Service
+- Gateway: http://localhost:8080
+- Health: http://localhost:12003/health
+- Console prefix: `/gatewayweb`
 
-**Linux (Systemd):**
+`web/frontend/dist` is not in git. For a UI:
+
 ```bash
-# Install service
-sudo bash scripts/deploy/install-service-linux.sh
-
-# Start service
-sudo systemctl start gateway
-
-# View status
-sudo systemctl status gateway
+cd web/frontend
+pnpm install
+pnpm run dev:vite
 ```
 
-**Windows:**
+Vite proxies to `http://127.0.0.1:12003` (`VITE_API_PROXY_TARGET` overrides). Or `pnpm run build` and reopen `http://localhost:12003/gatewayweb`.
+
+Default login: `admin` / `123456`. Change it immediately.
+
+There are no forwarding rules yet. Follow [First route](./09-first-route.md): create an instance, a service, a prefix route, **reload**, then `curl http://localhost:8080/...`.
+
+Port `8080` has no `/health`.
+
+---
+
+## Config files
+
+| File | Typical fields |
+|------|----------------|
+| `configs/app.yaml` | feature flags, encryption key |
+| `configs/database.yaml` | default connection, init scripts |
+| `configs/gateway.yaml` | `base.listen` (`:8080`) |
+| `configs/web.yaml` | `port` (`12003`), `frontend.prefix` |
+| `configs/logger.yaml` | level and output |
+
+---
+
+## Official build scripts
+
+Output: `dist/gateway/`. **`--version` is required.** Oracle is **off** by default (`no_oracle`).
+
 ```cmd
-REM Install service
-scripts\deploy\install-service.cmd
-
-REM Start service
-net start Gateway
+cd scripts\build
+build-win10.cmd --version=3.2.5
+build-win10.cmd --oracle --version=3.2.5
 ```
 
----
+```bash
+cd scripts/build
+./build-centos7.sh --version=3.2.5
+./build-centos7.sh --oracle --version=3.2.5
+```
 
-## 🌐 Access Application
-
-### Web Console
-
-- **URL**: http://localhost:12003/gatewayweb
-- **Default Username**: `admin`
-- **Default Password**: `123456`
-
-### API Gateway
-
-- **URL**: http://localhost:8080
-- **Health Check**: http://localhost:12003/health
-
-### Performance Analysis (pprof)
-
-- **URL**: http://localhost:6060/debug/pprof/
+Debug-only: `go build -o bin/gateway cmd/app/main.go`.
 
 ---
 
-## 📖 Next Steps
+## Optional: Oracle
 
-After setting up the development environment, we recommend continuing with:
+Needed only for `--oracle` builds or `*-oracle-*` packages. Instant Client cannot be redistributed; the Oracle Docker image already includes it.
 
-- [Project Introduction](./01-introduction.md) - Understand project architecture and core capabilities
-- [Installation & Deployment](./03-installation.md) - Production environment deployment guide
-- [Containerized Deployment](./04-container-deployment.md) - Docker and Kubernetes deployment
+Set `ORACLE_HOME` and `LD_LIBRARY_PATH` (Linux) or `PATH` (Windows). systemd does not inherit user `LD_LIBRARY_PATH`. Enable `oracle_main` in `database.yaml` and set `database.default` to `oracle_main`.
 
 ---
 
-**[Back to Directory](./README.md) • [Previous: Project Introduction](./01-introduction.md) • [Next: Installation & Deployment](./03-installation.md)**
+## Next
 
----
+- [Installation](./03-installation.md)
+- [Containerized deployment](./04-container-deployment.md)
+- [FAQ](../faq.md)
 
-<div align="center">
-
-Made with ❤️ by FLUX Gateway Team
-
-</div>
-
+**[Index](./README.md) · [Next: Installation](./03-installation.md)**

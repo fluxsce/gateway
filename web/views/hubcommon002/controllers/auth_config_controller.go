@@ -4,6 +4,7 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -57,6 +58,14 @@ func (c *AuthConfigController) AddAuthConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "添加认证配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "AUTH_CONFIG",
+		TargetId:     config.AuthConfigId,
+		TargetName:   config.AuthName,
+		ResourceCode: "hub0020:authConfig",
+	})
 
 	// 查询最新的配置数据返回给前端（使用主键）
 	newConfig, err := c.dao.GetAuthConfig(config.TenantId, config.AuthConfigId)
@@ -137,6 +146,14 @@ func (c *AuthConfigController) UpdateAuthConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新认证配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "AUTH_CONFIG",
+		TargetId:     config.AuthConfigId,
+		TargetName:   config.AuthName,
+		ResourceCode: "hub0020:authConfig",
+	})
 
 	// 查询最新的配置数据返回给前端（使用主键）
 	updatedConfig, err := c.dao.GetAuthConfig(tenantId, config.AuthConfigId)
@@ -167,6 +184,11 @@ func (c *AuthConfigController) DeleteAuthConfig(ctx *gin.Context) {
 	// 从上下文获取租户ID（前置校验已处理）
 	tenantId := request.GetTenantID(ctx)
 
+	targetName := ""
+	if current, getErr := c.dao.GetAuthConfig(tenantId, authConfigId); getErr == nil && current != nil {
+		targetName = current.AuthName
+	}
+
 	// 调用DAO层删除认证配置（使用主键）
 	err := c.dao.DeleteAuthConfig(tenantId, authConfigId)
 	if err != nil {
@@ -175,6 +197,14 @@ func (c *AuthConfigController) DeleteAuthConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除认证配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hubcommon002",
+		TargetType:   "AUTH_CONFIG",
+		TargetId:     authConfigId,
+		TargetName:   targetName,
+		ResourceCode: "hub0020:authConfig",
+	})
 
 	logger.InfoWithTrace(ctx, "认证配置删除成功", "authConfigId", authConfigId,
 		"tenantId", tenantId)

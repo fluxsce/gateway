@@ -11,7 +11,7 @@ import (
 
 // 模块配置
 // hub0004 - 审计日志查看模块
-// 提供控制台写操作审计（HUB_AUTH_AUDIT_LOG）的查询与详情，只读。
+// 提供控制台写操作审计（HUB_AUTH_AUDIT_LOG）的查询、详情与导出。导出本身记审计。
 var (
 	// ModuleName 模块名称，必须与目录名称一致
 	ModuleName = "hub0004"
@@ -31,12 +31,13 @@ func Init(router *gin.Engine, db database.Database) {
 	initAuditLogRoutes(group, db)
 }
 
-// initAuditLogRoutes 注册审计日志查询与详情接口，均为只读。
+// initAuditLogRoutes 注册审计日志查询、详情与导出接口。
 func initAuditLogRoutes(router *gin.RouterGroup, db database.Database) {
 	ctrl := controllers.NewAuditLogController(db)
 
 	{
 		router.POST("/queryAuditLogs", ctrl.QueryAuditLogs)
 		router.POST("/getAuditLog", ctrl.GetAuditLog)
+		router.POST("/exportAuditLogs", routes.RequireButton("hub0004:export"), ctrl.ExportAuditLogs)
 	}
 }

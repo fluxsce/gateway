@@ -1,10 +1,12 @@
 # ============================================
-# FLUX Gateway - Docker Compose 部署
+# FLUX Gateway - Docker Compose
 # ============================================
-# 说明:
-#   - 使用 Docker Compose 快速部署 Gateway 及其依赖服务
-#   - 包含 MySQL、Redis 和 Gateway 应用
-#   - 所有端口都使用非标准端口避免冲突
+# MySQL + Redis + Gateway. Host ports are remapped to avoid clashes.
+# Stock configs/database.yaml uses SQLite. To use the MySQL service below,
+# set database.default to mysql, enable connections.mysql (host: mysql,
+# user gateway, password gateway123, database gateway), disable sqlite_main.
+# Schema is created by the app (enable_script_initialization). Do not mount
+# a single SQL dump into MySQL docker-entrypoint-initdb.d.
 # ============================================
 
 services:
@@ -25,7 +27,6 @@ services:
       - "13306:3306"  # 使用 13306 避免与宿主机 MySQL 冲突
     volumes:
       - mysql-data:/var/lib/mysql
-      - ../../scripts/db/frp_tunnel_management.sql:/docker-entrypoint-initdb.d/init.sql:ro
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
@@ -63,7 +64,9 @@ services:
   # Gateway 应用
   # ============================================
   gateway:
-    image: datahub-images/gateway:3.2.5
+    # GHCR. Mainland China: replace with
+    # crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.5
+    image: ghcr.io/fluxsce/gateway:3.2.5
     container_name: gateway-app
     restart: unless-stopped
     depends_on:
@@ -80,14 +83,10 @@ services:
       - "17000:7000"   # 隧道控制端口（使用 17000 避免冲突）
       - "12222:2222"   # 隧道映射端口示例（使用 12222 避免冲突）
     volumes:
-      # 配置文件
       - ../../configs:/home/gateway/configs:ro
-      # 日志目录
       - ../../logs:/home/gateway/logs
-      # Web 静态资源（如果需要自定义）
-      - ../../web/static:/home/gateway/web/static:ro
-      # Web 前端资源（如果需要自定义）
-      - ../../web/frontend/dist:/home/gateway/web/frontend/dist:ro
+      # Do not mount web/frontend/dist from a source checkout unless you have
+      # already run pnpm run build; an empty host dir hides the image dist.
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:12003/health"]
       interval: 30s

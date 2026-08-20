@@ -68,6 +68,16 @@ export function useAuditLogPage(searchFormRef?: Ref<RsSearchFormExpose | null>) 
     }
   }
 
+  /**
+   * 处理工具栏点击。
+   * @param key - 按钮 key
+   */
+  const handleToolbarClick = (key: string) => {
+    if (key === 'export') {
+      void service.exportLogList()
+    }
+  }
+
   onMounted(() => {
     void nextTick().then(() => handleSearch())
   })
@@ -79,6 +89,7 @@ export function useAuditLogPage(searchFormRef?: Ref<RsSearchFormExpose | null>) 
     handleSearch,
     handlePageChange,
     handleMenuClick,
+    handleToolbarClick,
     openViewDialog,
   }
 }

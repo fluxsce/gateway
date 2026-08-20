@@ -9,6 +9,7 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/random"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -165,6 +166,14 @@ func (c *StaticServerController) CreateStaticServer(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建静态服务器失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0061",
+		TargetType:   "STATIC_SERVER",
+		TargetId:     req.TunnelStaticServerId,
+		TargetName:   req.ServerName,
+		ResourceCode: "hub0061:add",
+	})
 
 	// 查询新创建的服务器信息
 	newServer, err := c.staticServerDAO.GetStaticServer(ctx, req.TunnelStaticServerId, tenantId)
@@ -241,6 +250,14 @@ func (c *StaticServerController) UpdateStaticServer(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新静态服务器失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0061",
+		TargetType:   "STATIC_SERVER",
+		TargetId:     updateData.TunnelStaticServerId,
+		TargetName:   updateData.ServerName,
+		ResourceCode: "hub0061:edit",
+	})
 
 	// 查询更新后的服务器信息
 	updatedServer, err := c.staticServerDAO.GetStaticServer(ctx, updateData.TunnelStaticServerId, tenantId)
@@ -284,6 +301,11 @@ func (c *StaticServerController) DeleteStaticServer(ctx *gin.Context) {
 	// 使用工具类获取租户ID
 	tenantId := request.GetTenantID(ctx)
 
+	targetName := ""
+	if current, getErr := c.staticServerDAO.GetStaticServer(ctx, serverId, tenantId); getErr == nil && current != nil {
+		targetName = current.ServerName
+	}
+
 	// 调用DAO删除服务器
 	err := c.staticServerDAO.DeleteStaticServer(ctx, serverId, tenantId)
 	if err != nil {
@@ -291,6 +313,14 @@ func (c *StaticServerController) DeleteStaticServer(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除静态服务器失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0061",
+		TargetType:   "STATIC_SERVER",
+		TargetId:     serverId,
+		TargetName:   targetName,
+		ResourceCode: "hub0061:delete",
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"tunnelStaticServerId": serverId,
@@ -395,6 +425,13 @@ func (c *StaticServerController) StartStaticServer(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "启动失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0061",
+		TargetType:   "STATIC_SERVER",
+		TargetId:     serverId,
+		ResourceCode: "hub0061:start",
+	})
 
 	// 查询最新服务器信息返回前端
 	tenantId := request.GetTenantID(ctx)
@@ -438,6 +475,13 @@ func (c *StaticServerController) StopStaticServer(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "停止失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0061",
+		TargetType:   "STATIC_SERVER",
+		TargetId:     serverId,
+		ResourceCode: "hub0061:stop",
+	})
 
 	// 查询最新服务器信息返回前端
 	tenantId := request.GetTenantID(ctx)
@@ -481,6 +525,13 @@ func (c *StaticServerController) ReloadStaticServer(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "重载失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0061",
+		TargetType:   "STATIC_SERVER",
+		TargetId:     serverId,
+		ResourceCode: "hub0061:reload",
+	})
 
 	// 查询最新服务器信息返回前端
 	tenantId := request.GetTenantID(ctx)

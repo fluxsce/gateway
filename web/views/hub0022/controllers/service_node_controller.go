@@ -3,6 +3,7 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -122,6 +123,14 @@ func (c *ServiceNodeController) AddServiceNode(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建服务节点失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0022",
+		TargetType:   "SERVICE_NODE",
+		TargetId:     serviceNodeId,
+		TargetName:   serviceNode.NodeUrl,
+		ResourceCode: "hub0022:manageNodes:add",
+	})
 
 	// 查询新添加的服务节点信息
 	newServiceNode, err := c.serviceNodeDAO.GetServiceNodeById(ctx, serviceNodeId, tenantId)
@@ -209,6 +218,14 @@ func (c *ServiceNodeController) EditServiceNode(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新服务节点失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0022",
+		TargetType:   "SERVICE_NODE",
+		TargetId:     updateData.ServiceNodeId,
+		TargetName:   updateData.NodeUrl,
+		ResourceCode: "hub0022:manageNodes:edit",
+	})
 
 	// 查询更新后的服务节点信息
 	updatedServiceNode, err := c.serviceNodeDAO.GetServiceNodeById(ctx, updateData.ServiceNodeId, tenantId)
@@ -279,6 +296,14 @@ func (c *ServiceNodeController) DeleteServiceNode(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除服务节点失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0022",
+		TargetType:   "SERVICE_NODE",
+		TargetId:     req.ServiceNodeId,
+		TargetName:   existingServiceNode.NodeUrl,
+		ResourceCode: "hub0022:manageNodes:delete",
+	})
 
 	logger.InfoWithTrace(ctx, "服务节点删除成功",
 		"serviceNodeId", req.ServiceNodeId,
@@ -375,6 +400,14 @@ func (c *ServiceNodeController) UpdateNodeHealth(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新节点健康状态失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0022",
+		TargetType:   "SERVICE_NODE",
+		TargetId:     req.ServiceNodeId,
+		ResourceCode: "hub0022:manageNodes:edit",
+		Detail:       audit.SanitizeAuditDetail(map[string]interface{}{"healthStatus": req.HealthStatus}),
+	})
 
 	// 获取更新后的节点信息
 	updatedNode, err := c.serviceNodeDAO.GetServiceNodeById(ctx, req.ServiceNodeId, tenantId)

@@ -1,6 +1,6 @@
 # FLUX Gateway - Docker 部署指南
 
-本目录包含 FLUX Gateway 的 Docker 镜像构建和 Docker Compose 部署配置。
+本目录包含本地镜像构建和 Compose 文件。发版流水线**不调用**这里的 `build.sh` / `push.sh`，线上拉取请用 GHCR 或阿里云 ACR，操作步骤以 [容器化部署](../../docs/zh-CN/04-容器化部署.md) 为准。
 
 ---
 
@@ -21,6 +21,8 @@ scripts/docker/
 ## 🐳 快速开始
 
 ### 使用 Docker Compose（推荐）
+
+仓库默认 `configs/database.yaml` 是 SQLite。要用下面的 MySQL 服务，先把 `database.default` 改为 `mysql`，`connections.mysql.connection.host` 设为 `mysql`。详见 [容器化部署](../../docs/zh-CN/04-容器化部署.md)。
 
 #### 1. 启动所有服务
 
@@ -244,36 +246,22 @@ docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 
 ### 镜像仓库
 
-#### Docker Hub
-- **地址**: docker.io
-- **镜像名**: datahub-images/gateway
-- **标签**:
-  - `3.2.5` - 标准版（MySQL/SQLite）
-  - `3.2.5-oracle` - Oracle 版（MySQL/SQLite/Oracle）
-  - `latest` - 同标准版最新
+发版推送 GHCR 与阿里云 ACR。本地 `push.sh` 仍可推 Docker Hub，**仓库不维护 Docker Hub 官方包**。
 
-#### 阿里云镜像仓库
-- **地址**: crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com
-- **命名空间**: datahub-images
-- **镜像名**: datahub-images/gateway
-- **标签**:
-  - `3.2.5` - 标准版（MySQL/SQLite）
-  - `3.2.5-oracle` - Oracle 版（MySQL/SQLite/Oracle）
-  - `latest` - 同标准版最新
+| 仓库 | 镜像 |
+|------|------|
+| GitHub GHCR | `ghcr.io/fluxsce/gateway` |
+| 阿里云 ACR | `crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway` |
+
+标签：`3.2.5`（标准版，多架构清单）、`3.2.5-oracle`（仅 amd64）、`latest`（仅 git tag 发版）。
 
 ### 拉取镜像
 
 ```bash
-# 标准版
-docker pull datahub-images/gateway:3.2.5
-docker pull datahub-images/gateway:latest
+docker pull ghcr.io/fluxsce/gateway:3.2.5
+docker pull ghcr.io/fluxsce/gateway:3.2.5-oracle
 
-# Oracle 版
-docker pull datahub-images/gateway:3.2.5-oracle
-
-# 从阿里云拉取
 docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.5
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.5-oracle
 ```
 
 ---
@@ -296,7 +284,7 @@ docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 - **密码**: redis123
 
 #### Gateway 服务
-- **镜像**: datahub-images/gateway:3.2.5
+- **镜像**: `ghcr.io/fluxsce/gateway:3.2.5`（compose 默认；国内可改为 ACR）
 - **端口**:
   - 18280: API Gateway (容器内 8080)
   - 12203: Web 控制台 (容器内 12003)

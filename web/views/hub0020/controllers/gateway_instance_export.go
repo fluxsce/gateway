@@ -10,6 +10,7 @@ import (
 
 	"gateway/pkg/excel"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -70,6 +71,15 @@ func (c *GatewayInstanceController) ExportGatewayInstance(ctx *gin.Context) {
 		return
 	}
 	defer file.Close()
+
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionExport,
+		ModuleCode:   "hub0020",
+		TargetType:   "GATEWAY_INSTANCE",
+		TargetId:     gatewayInstanceId,
+		TargetName:   instance.InstanceName,
+		ResourceCode: "hub0020:export",
+	})
 
 	encoded := url.PathEscape(filename)
 	ctx.Writer.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

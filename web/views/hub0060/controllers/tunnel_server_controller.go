@@ -9,6 +9,7 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/random"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
 	"gateway/web/views/hub0060/dao"
@@ -154,6 +155,14 @@ func (c *TunnelServerController) CreateTunnelServer(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建失败: "+err.Error(), "CREATE_TUNNEL_SERVER")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0060",
+		TargetType:   "TUNNEL_SERVER",
+		TargetId:     createdServer.TunnelServerId,
+		TargetName:   createdServer.ServerName,
+		ResourceCode: "hub0060:add",
+	})
 
 	logger.Info("创建隧道服务器成功", "tunnelServerId", createdServer.TunnelServerId, "serverName", createdServer.ServerName)
 	response.SuccessJSON(ctx, createdServer, "CREATE_TUNNEL_SERVER")
@@ -208,6 +217,14 @@ func (c *TunnelServerController) UpdateTunnelServer(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新失败: "+err.Error(), "UPDATE_TUNNEL_SERVER")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0060",
+		TargetType:   "TUNNEL_SERVER",
+		TargetId:     updatedServer.TunnelServerId,
+		TargetName:   updatedServer.ServerName,
+		ResourceCode: "hub0060:edit",
+	})
 
 	logger.Info("更新隧道服务器成功", "tunnelServerId", updatedServer.TunnelServerId, "serverName", updatedServer.ServerName)
 	response.SuccessJSON(ctx, updatedServer, "UPDATE_TUNNEL_SERVER")
@@ -249,6 +266,14 @@ func (c *TunnelServerController) DeleteTunnelServer(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除失败: "+err.Error(), "DELETE_TUNNEL_SERVER")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0060",
+		TargetType:   "TUNNEL_SERVER",
+		TargetId:     tunnelServerId,
+		TargetName:   server.ServerName,
+		ResourceCode: "hub0060:delete",
+	})
 
 	logger.Info("删除隧道服务器成功", "tunnelServerId", tunnelServerId)
 	response.SuccessJSON(ctx, deletedServer, "DELETE_TUNNEL_SERVER")
@@ -344,6 +369,14 @@ func (c *TunnelServerController) StartTunnelServer(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "启动失败: "+err.Error(), "START_TUNNEL_SERVER")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0060",
+		TargetType:   "TUNNEL_SERVER",
+		TargetId:     tunnelServerId,
+		TargetName:   server.ServerName,
+		ResourceCode: "hub0060:start",
+	})
 
 	logger.Info("启动隧道服务器成功", "tunnelServerId", tunnelServerId)
 	response.SuccessJSON(ctx, server, "START_TUNNEL_SERVER")
@@ -364,6 +397,14 @@ func (c *TunnelServerController) StopTunnelServer(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "停止失败: "+err.Error(), "STOP_TUNNEL_SERVER")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0060",
+		TargetType:   "TUNNEL_SERVER",
+		TargetId:     tunnelServerId,
+		TargetName:   server.ServerName,
+		ResourceCode: "hub0060:stop",
+	})
 
 	logger.Info("停止隧道服务器成功", "tunnelServerId", tunnelServerId)
 	response.SuccessJSON(ctx, server, "STOP_TUNNEL_SERVER")
@@ -383,6 +424,14 @@ func (c *TunnelServerController) RestartTunnelServer(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "重启失败: "+err.Error(), "RESTART_TUNNEL_SERVER")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0060",
+		TargetType:   "TUNNEL_SERVER",
+		TargetId:     tunnelServerId,
+		TargetName:   server.ServerName,
+		ResourceCode: "hub0060:restart",
+	})
 
 	logger.Info("重启隧道服务器成功", "tunnelServerId", tunnelServerId)
 	response.SuccessJSON(ctx, server, "RESTART_TUNNEL_SERVER")
@@ -403,6 +452,13 @@ func (c *TunnelServerController) ReloadTunnelServerConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "重新加载配置失败: "+err.Error(), "RELOAD_TUNNEL_SERVER_CONFIG")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0060",
+		TargetType:   "TUNNEL_SERVER",
+		TargetId:     tunnelServerId,
+		ResourceCode: "hub0060:edit",
+	})
 
 	logger.Info("重新加载隧道服务器配置成功", "tunnelServerId", tunnelServerId)
 	response.SuccessJSON(ctx, gin.H{

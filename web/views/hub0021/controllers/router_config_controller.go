@@ -3,6 +3,7 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -95,6 +96,14 @@ func (c *RouterConfigController) AddRouterConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建Router配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0021",
+		TargetType:   "ROUTER_CONFIG",
+		TargetId:     routerConfigId,
+		TargetName:   req.RouterName,
+		ResourceCode: "hub0021:routerConfig",
+	})
 
 	// 查询新添加的Router配置信息
 	newConfig, err := c.routerConfigDAO.GetRouterConfigById(ctx, routerConfigId, tenantId)
@@ -178,6 +187,14 @@ func (c *RouterConfigController) EditRouterConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新Router配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0021",
+		TargetType:   "ROUTER_CONFIG",
+		TargetId:     updateData.RouterConfigId,
+		TargetName:   updateData.RouterName,
+		ResourceCode: "hub0021:routerConfig",
+	})
 
 	// 查询更新后的Router配置信息
 	updatedConfig, err := c.routerConfigDAO.GetRouterConfigById(ctx, updateData.RouterConfigId, tenantId)
@@ -240,6 +257,14 @@ func (c *RouterConfigController) DeleteRouterConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除Router配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0021",
+		TargetType:   "ROUTER_CONFIG",
+		TargetId:     routerConfigId,
+		TargetName:   existingConfig.RouterName,
+		ResourceCode: "hub0021:routerConfig",
+	})
 
 	logger.InfoWithTrace(ctx, "Router配置删除成功",
 		"routerConfigId", routerConfigId,

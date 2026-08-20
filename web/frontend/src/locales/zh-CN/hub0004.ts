@@ -8,6 +8,7 @@ export default {
   common: {
     all: '全部',
     viewDetail: '查看详情',
+    export: '导出',
   },
 
   action: {
@@ -16,6 +17,10 @@ export default {
     delete: '删除',
     rollback: '回滚',
     grant: '授权',
+    export: '导出',
+    login: '登录',
+    loginFail: '登录失败',
+    kick: '踢会话',
   },
 
   result: {
@@ -61,6 +66,25 @@ export default {
     ALERT_LOG: '预警日志',
     HTTP: 'HTTP 代发',
     API: '接口',
+    PROXY: '代理',
+    STATIC_HOST: '静态托管',
+    ROUTER_CONFIG: '路由器配置',
+    ASSERTION: '断言',
+    FILTER: '过滤器',
+    CIRCUIT_BREAKER: '熔断',
+    LOG_CONFIG: '日志配置',
+    ALERT_TEMPLATE: '预警模板',
+    ALERT_CHANNEL: '预警通道',
+    NAMESPACE: '命名空间',
+    CONFIG_DATA: '配置数据',
+    NODE: '节点',
+    TASK: '任务',
+    SCHEDULER: '调度器',
+    TUNNEL_SERVER: '隧道服务端',
+    TUNNEL_CLIENT: '隧道客户端',
+    TUNNEL_SERVICE: '隧道服务',
+    TUNNEL_STATIC: '隧道静态映射',
+    SERVICE_CENTER: '服务中心实例',
   },
 
   shortcuts: {
@@ -131,5 +155,9 @@ export default {
     queryFailed: '查询审计日志失败',
     detailFailed: '获取审计日志详情失败',
     loadDetailFailed: '加载审计日志详情失败',
+    exportFailed: '导出审计日志失败',
+    exportEmpty: '没有可导出的审计记录',
+    exportSuccess: '已导出 {count} 条审计记录',
+    exportTruncated: '符合条件共 {total} 条，本次最多导出 {count} 条',
   },
 }

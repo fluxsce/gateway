@@ -6,6 +6,7 @@ import (
 	"gateway/internal/tunnel/types"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
 	"gateway/web/views/hub0062/dao"
@@ -107,6 +108,14 @@ func (c *TunnelClientController) CreateTunnelClient(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建客户端失败: "+err.Error(), "CREATE_TUNNEL_CLIENT")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0062",
+		TargetType:   "TUNNEL_CLIENT",
+		TargetId:     createdClient.TunnelClientId,
+		TargetName:   createdClient.ClientName,
+		ResourceCode: "hub0062:tunnel-client:add",
+	})
 
 	logger.Info("创建客户端成功", "tunnelClientId", createdClient.TunnelClientId, "clientName", createdClient.ClientName, "user", operatorId)
 	response.SuccessJSON(ctx, createdClient, "CREATE_TUNNEL_CLIENT")
@@ -148,6 +157,14 @@ func (c *TunnelClientController) UpdateTunnelClient(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新客户端失败: "+err.Error(), "UPDATE_TUNNEL_CLIENT")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0062",
+		TargetType:   "TUNNEL_CLIENT",
+		TargetId:     updatedClient.TunnelClientId,
+		TargetName:   updatedClient.ClientName,
+		ResourceCode: "hub0062:tunnel-client:edit",
+	})
 
 	logger.Info("更新客户端成功", "tunnelClientId", updatedClient.TunnelClientId, "clientName", updatedClient.ClientName, "user", operatorId)
 	response.SuccessJSON(ctx, updatedClient, "UPDATE_TUNNEL_CLIENT")
@@ -170,6 +187,14 @@ func (c *TunnelClientController) DeleteTunnelClient(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除客户端失败: "+err.Error(), "DELETE_TUNNEL_CLIENT")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0062",
+		TargetType:   "TUNNEL_CLIENT",
+		TargetId:     tunnelClientId,
+		TargetName:   deletedClient.ClientName,
+		ResourceCode: "hub0062:tunnel-client:delete",
+	})
 
 	logger.Info("删除客户端成功", "tunnelClientId", tunnelClientId, "user", operatorId)
 	response.SuccessJSON(ctx, deletedClient, "DELETE_TUNNEL_CLIENT")
@@ -201,6 +226,14 @@ func (c *TunnelClientController) StartClient(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "启动失败: "+err.Error(), "START_CLIENT")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0062",
+		TargetType:   "TUNNEL_CLIENT",
+		TargetId:     tunnelClientId,
+		TargetName:   client.ClientName,
+		ResourceCode: "hub0062:tunnel-client:connect",
+	})
 
 	logger.Info("启动客户端成功", "tunnelClientId", tunnelClientId)
 	response.SuccessJSON(ctx, client, "START_CLIENT")
@@ -221,6 +254,14 @@ func (c *TunnelClientController) StopClient(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "停止失败: "+err.Error(), "STOP_CLIENT")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0062",
+		TargetType:   "TUNNEL_CLIENT",
+		TargetId:     tunnelClientId,
+		TargetName:   client.ClientName,
+		ResourceCode: "hub0062:tunnel-client:disconnect",
+	})
 
 	logger.Info("停止客户端成功", "tunnelClientId", tunnelClientId)
 	response.SuccessJSON(ctx, client, "STOP_CLIENT")
@@ -241,6 +282,14 @@ func (c *TunnelClientController) RestartClient(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "重启失败: "+err.Error(), "RESTART_CLIENT")
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0062",
+		TargetType:   "TUNNEL_CLIENT",
+		TargetId:     tunnelClientId,
+		TargetName:   client.ClientName,
+		ResourceCode: "hub0062:tunnel-client:connect",
+	})
 
 	logger.Info("重启客户端成功", "tunnelClientId", tunnelClientId)
 	response.SuccessJSON(ctx, client, "RESTART_CLIENT")

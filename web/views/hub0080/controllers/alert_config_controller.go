@@ -12,6 +12,7 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/random"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -138,6 +139,14 @@ func (c *AlertConfigController) CreateAlertConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建告警渠道配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0080",
+		TargetType:   "ALERT_CHANNEL",
+		TargetId:     req.ChannelName,
+		TargetName:   req.ChannelName,
+		ResourceCode: "hub0080:add",
+	})
 
 	// 如果渠道已启用，注册到告警管理器
 	if req.ActiveFlag == "Y" {
@@ -203,6 +212,14 @@ func (c *AlertConfigController) UpdateAlertConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新告警渠道配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0080",
+		TargetType:   "ALERT_CHANNEL",
+		TargetId:     req.ChannelName,
+		TargetName:   req.ChannelName,
+		ResourceCode: "hub0080:edit",
+	})
 
 	// 重新加载渠道配置（如果启用则注册，如果禁用则注销）
 	if err := c.helper.ReloadChannel(ctx.Request.Context(), tenantId, req.ChannelName); err != nil {
@@ -241,6 +258,14 @@ func (c *AlertConfigController) SetDefaultChannel(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "设置默认告警渠道失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0080",
+		TargetType:   "ALERT_CHANNEL",
+		TargetId:     channelName,
+		TargetName:   channelName,
+		ResourceCode: "hub0080:setDefault",
+	})
 
 	// 重新加载渠道配置以更新默认渠道设置
 	if err := c.helper.ReloadChannel(ctx.Request.Context(), tenantId, channelName); err != nil {
@@ -408,6 +433,14 @@ func (c *AlertConfigController) ReloadAlertChannel(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "重新加载告警渠道失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0080",
+		TargetType:   "ALERT_CHANNEL",
+		TargetId:     channelName,
+		TargetName:   channelName,
+		ResourceCode: "hub0080:reload",
+	})
 
 	// 发布集群重载事件，通知其它节点同步更新
 	operatorId := request.GetOperatorID(ctx)

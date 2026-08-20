@@ -3,6 +3,7 @@ package controllers
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -136,6 +137,14 @@ func (c *ServiceDefinitionController) CreateServiceDefinition(ctx *gin.Context) 
 		response.ErrorJSON(ctx, "创建服务定义失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0022",
+		TargetType:   "SERVICE",
+		TargetId:     serviceDefinitionId,
+		TargetName:   req.ServiceName,
+		ResourceCode: "hub0022:add",
+	})
 
 	// 查询新添加的服务定义信息
 	newServiceDefinition, err := c.serviceDefinitionDAO.GetServiceDefinitionById(ctx, serviceDefinitionId, tenantId)
@@ -218,6 +227,14 @@ func (c *ServiceDefinitionController) EditServiceDefinition(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新服务定义失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0022",
+		TargetType:   "SERVICE",
+		TargetId:     updateData.ServiceDefinitionId,
+		TargetName:   updateData.ServiceName,
+		ResourceCode: "hub0022:edit",
+	})
 
 	// 查询更新后的服务定义信息
 	updatedServiceDefinition, err := c.serviceDefinitionDAO.GetServiceDefinitionById(ctx, updateData.ServiceDefinitionId, tenantId)
@@ -309,6 +326,14 @@ func (c *ServiceDefinitionController) DeleteServiceDefinition(ctx *gin.Context) 
 		response.ErrorJSON(ctx, "删除服务定义失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0022",
+		TargetType:   "SERVICE",
+		TargetId:     req.ServiceDefinitionId,
+		TargetName:   existingServiceDefinition.ServiceName,
+		ResourceCode: "hub0022:delete",
+	})
 
 	logger.InfoWithTrace(ctx, "服务定义删除成功",
 		"serviceDefinitionId", req.ServiceDefinitionId,

@@ -13,6 +13,7 @@
             :module-id="service.model.moduleId"
             v-bind="service.model.searchFormConfig"
             @search="handleSearch"
+            @toolbar-click="handleToolbarClick"
           />
         </div>
       </template>
@@ -73,6 +74,7 @@ const {
   handleMenuClick,
   handleSearch,
   handlePageChange,
+  handleToolbarClick,
 } = useAuditLogPage(searchFormRef)
 
 /** 固定 HTML id（moduleId 含冒号时不能直接用作 DOM id） */

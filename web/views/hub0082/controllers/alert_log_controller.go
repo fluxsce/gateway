@@ -7,8 +7,7 @@ import (
 	alerttypes "gateway/internal/alert/types"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
-	"gateway/web/middleware"
-	"gateway/web/middleware/permission"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -122,8 +121,8 @@ func (c *AlertLogController) UpdateAlertLog(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新预警日志失败: "+err.Error(), constants.ED00009)
 		return
 	}
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionUpdate,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
 		ModuleCode:   "hub0082",
 		TargetType:   "ALERT_LOG",
 		TargetId:     req.AlertLogId,
@@ -152,8 +151,8 @@ func (c *AlertLogController) DeleteAlertLog(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除预警日志失败: "+err.Error(), constants.ED00009)
 		return
 	}
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionDelete,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
 		ModuleCode:   "hub0082",
 		TargetType:   "ALERT_LOG",
 		TargetId:     alertLogId,
@@ -186,8 +185,8 @@ func (c *AlertLogController) BatchDeleteAlertLogs(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "批量删除预警日志失败: "+err.Error(), constants.ED00009)
 		return
 	}
-	middleware.WriteAuthAuditFromGin(ctx, &permission.AuditEvent{
-		Action:       permission.AuditActionDelete,
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
 		ModuleCode:   "hub0082",
 		TargetType:   "ALERT_LOG",
 		TargetId:     strings.Join(req.AlertLogIds, ","),

@@ -1,8 +1,11 @@
 package controllers
 
 import (
+	"fmt"
+
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -83,6 +86,14 @@ func (c *FilterConfigController) AddFilterConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "创建过滤器配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0021",
+		TargetType:   "FILTER",
+		TargetId:     filterConfigId,
+		TargetName:   req.FilterName,
+		ResourceCode: "hub0021:filters:add",
+	})
 
 	// 查询新添加的过滤器配置信息
 	newFilterConfig, err := c.filterConfigDAO.GetFilterConfigById(ctx, filterConfigId, tenantId)
@@ -153,6 +164,14 @@ func (c *FilterConfigController) EditFilterConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新过滤器配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0021",
+		TargetType:   "FILTER",
+		TargetId:     updateData.FilterConfigId,
+		TargetName:   updateData.FilterName,
+		ResourceCode: "hub0021:filters:edit",
+	})
 
 	// 查询更新后的过滤器配置信息
 	updatedFilterConfig, err := c.filterConfigDAO.GetFilterConfigById(ctx, updateData.FilterConfigId, tenantId)
@@ -187,6 +206,13 @@ func (c *FilterConfigController) DeleteFilterConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "删除过滤器配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0021",
+		TargetType:   "FILTER",
+		TargetId:     req.FilterConfigId,
+		ResourceCode: "hub0021:filters:delete",
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"filterConfigId": req.FilterConfigId,
@@ -211,6 +237,13 @@ func (c *FilterConfigController) UpdateFilterOrder(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "更新过滤器执行顺序失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0021",
+		TargetType:   "FILTER",
+		TargetId:     req.FilterConfigId,
+		ResourceCode: "hub0021:filters:edit",
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"filterConfigId": req.FilterConfigId,
@@ -324,6 +357,14 @@ func (c *FilterConfigController) ImportFilterConfigs(ctx *gin.Context) {
 		}
 	}
 
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionCreate,
+		ModuleCode:   "hub0021",
+		TargetType:   "FILTER",
+		TargetId:     "import",
+		TargetName:   fmt.Sprintf("success=%d failed=%d", successCount, failedCount),
+		ResourceCode: "hub0021:filters:add",
+	})
 	response.SuccessJSON(ctx, gin.H{
 		"successCount": successCount,
 		"failedCount":  failedCount,
@@ -377,6 +418,14 @@ func (c *FilterConfigController) BatchUpdateFilterConfigs(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "批量更新过滤器配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0021",
+		TargetType:   "FILTER",
+		TargetId:     "batch",
+		TargetName:   fmt.Sprintf("%d filters", len(req.FilterConfigIds)),
+		ResourceCode: "hub0021:filters:edit",
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"updatedCount":    len(req.FilterConfigIds),
@@ -411,6 +460,14 @@ func (c *FilterConfigController) BatchDeleteFilterConfigs(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "批量删除过滤器配置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0021",
+		TargetType:   "FILTER",
+		TargetId:     "batch",
+		TargetName:   fmt.Sprintf("%d filters", len(req.FilterConfigIds)),
+		ResourceCode: "hub0021:filters:delete",
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"deletedCount":    len(req.FilterConfigIds),
@@ -455,6 +512,14 @@ func (c *FilterConfigController) BatchUpdateFilterOrder(ctx *gin.Context) {
 		updatedIds = append(updatedIds, order.FilterConfigId)
 	}
 
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0021",
+		TargetType:   "FILTER",
+		TargetId:     "batch",
+		TargetName:   fmt.Sprintf("%d filters", len(updatedIds)),
+		ResourceCode: "hub0021:filters:edit",
+	})
 	response.SuccessJSON(ctx, gin.H{
 		"updatedCount":    len(updatedIds),
 		"filterConfigIds": updatedIds,
