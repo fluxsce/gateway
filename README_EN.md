@@ -1,15 +1,13 @@
 <p align="center">
   <a href="https://www.flux.com.cn/" target="_blank">
-    <img src="docs/images/FLUX_Gateway.jpg" width="90%" alt="Gateway Logo">
+    <img src="docs/images/FLUX_Gateway.jpg" width="90%" alt="FLUX Gateway">
   </a>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License">
   <img src="https://img.shields.io/badge/go-1.24+-00ADD8.svg" alt="Go Version">
-  <img src="https://img.shields.io/badge/build-passing-brightgreen.svg" alt="Build Status">
-  <img src="https://img.shields.io/badge/coverage-85%25-green.svg" alt="Coverage">
-  <img src="https://img.shields.io/badge/version-2.0.0-orange.svg" alt="Version">
+  <img src="https://img.shields.io/github/v/release/fluxsce/gateway" alt="Release">
 </p>
 
 <p align="center">
@@ -17,7 +15,7 @@
 </p>
 
 <p align="center">
-  FLUX Gateway is a modern API gateway developed in Go. Leveraging Go&#39;s high performance and simplicity, it integrates core capabilities such as routing, load balancing, rate limiting, circuit breaking, and authentication/authorization. It provides end-to-end API management visualization to help users efficiently manage the API lifecycle, building a stable, secure, and observable API access layer for distributed systems.
+  FLUX Gateway is a modern API gateway developed in Go. Leveraging Go's high performance and simplicity, it integrates core capabilities such as routing, load balancing, rate limiting, circuit breaking, and authentication/authorization. It provides end-to-end API management visualization to help users efficiently manage the API lifecycle, building a stable, secure, and observable API access layer for distributed systems. SQLite is the default; switch to MySQL, Oracle, or ClickHouse in production.
 </p>
 
 <p align="center">
@@ -26,182 +24,194 @@
 
 <p align="center">
   <a href="https://matrix.to/#/#fluxsce/gateway:gitter.im">
-    <img src="https://badges.gitter.im/Join/Chat.svg"/>
+    <img src="https://badges.gitter.im/Join/Chat.svg" alt="Join Chat"/>
   </a>
 </p>
 
 ---
 
-## 🚩 Key Features
+## Capabilities
 
-- 🚀 High-performance routing and load balancing
-- 🔒 Multiple authentication and security protections
-- 📊 Real-time monitoring and observability
-- 🧩 Plugin-based extensibility
-- ☁️ Cloud-native friendly
+- Routing and multiple load-balancing strategies
+- JWT / OAuth2 / API Key, IP and domain access control
+- Rate limiting, circuit breaking, CORS, static hosting
+- Console, access logs, and runtime metrics
+- Plugins; binary, Docker, and Kubernetes deployment
+
+See [Project Introduction](docs/en/01-introduction.md) for the full picture.
 
 ---
 
-## 🖼️ Demo Screenshots
+## Demo
 
 <p align="center">
-  <img src="docs/images/web_route_config.png" alt="Web Route Configuration Demo" width="80%">
-  <img src="docs/images/web_gateway_log.png" alt="Web Log Management Demo" width="80%">
+  <img src="docs/images/web_route_config.png" alt="Route configuration" width="80%">
+  <img src="docs/images/web_gateway_log.png" alt="Gateway logs" width="80%">
 </p>
 
 ---
 
-## 🚀 Quick Start
+## Architecture Overview
 
-### Environment Preparation
+<p align="center">
+  <img src="docs/images/gateway_flow.svg" alt="Request processing flow" width="80%">
+  <img src="docs/images/gateway_model.png" alt="Gateway module model" width="80%">
+</p>
 
-#### Special Note for Windows Users
-
-This project depends on CGO. Windows users need to install a C compiler first:
-
-1. Download and install TDM-GCC
-   - Visit: https://jmeubank.github.io/tdm-gcc/download/
-   - Recommended: `tdm64-gcc-10.3.0-2.exe` (64+32-bit MinGW-w64 version)
-   - After installation, reopen your terminal
-
-2. Configure Go proxy (recommended for mainland China users)
-   ```bash
-   go env -w GOPROXY=https://goproxy.cn
-   ```
-
-#### Startup Steps
-
-```bash
-# Clone the repository
-git clone https://github.com/fluxsce/gateway.git
-cd gateway
-
-# Install dependencies
-go mod download
-
-# Start the gateway
-go run cmd/app/main.go
-```
-
-**Access Console**
-- Browser: http://localhost:12003/gatewayweb
-- Default Username: `admin`
-- Default Password: `123456`
+Layered architecture and tunnel design: [Introduction](docs/en/01-introduction.md).
 
 ---
 
-## ⬆️ Version Upgrade
+## Quick start
 
-The example below uses `/data/gateway` as the install directory; replace it with your actual path. Back up first, extract the new package over the install directory, then copy the original `database.yaml` back.
+Examples use **3.2.5**. Prefer the latest assets on [GitHub Releases](https://github.com/fluxsce/gateway/releases).
+
+Console: http://localhost:12003/gatewayweb  
+Default login: `admin` / `123456` (change immediately)  
+Gateway port: `8080`　Health: http://localhost:12003/health
+
+### Option 1: Docker (recommended for a trial)
+
+The image already contains configs, DB scripts, and the frontend. Default database is SQLite.
 
 ```bash
-# 1. Stop the service
+docker pull ghcr.io/fluxsce/gateway:3.2.5
+
+docker run -d --name gateway \
+  -p 8080:8080 \
+  -p 12003:12003 \
+  ghcr.io/fluxsce/gateway:3.2.5
+```
+
+In mainland China you can pull from Alibaba Cloud ACR (personal ACR usually requires `docker login` first):
+
+```bash
+docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.5
+```
+
+Compose (MySQL + Redis): [Containerized Deployment](docs/en/04-container-deployment.md).
+
+### Option 2: Release package
+
+Download the matching archive from [Releases](https://github.com/fluxsce/gateway/releases). The archive root is `gateway/`.
+
+| File | Platform | Databases |
+|------|----------|-----------|
+| `gateway-linux-amd64-3.2.5.tar.gz` | Linux amd64 | MySQL / SQLite / ClickHouse |
+| `gateway-linux-arm64-3.2.5.tar.gz` | Linux arm64 | same |
+| `gateway-windows-amd64-3.2.5.zip` | Windows amd64 | same |
+| `gateway-linux-amd64-oracle-3.2.5.tar.gz` | Linux amd64 | above + Oracle |
+| `gateway-windows-amd64-oracle-3.2.5.zip` | Windows amd64 | above + Oracle |
+
+```bash
+tar -xzf gateway-linux-amd64-3.2.5.tar.gz
+cd gateway
+./gateway --config ./configs
+```
+
+On Windows: `gateway.exe --config .\configs`. SQLite file: `scripts/data/gateway.db`. Startup runs scripts under `scripts/db`.
+
+System services and MySQL/Oracle: [Installation](docs/en/03-installation.md).
+
+### Option 3: From source (development)
+
+Requires **Go 1.24+**. SQLite uses `go-sqlite3`, so CGO must be enabled (Windows: install [TDM-GCC](https://jmeubank.github.io/tdm-gcc/download/) and reopen the terminal).
+
+```bash
+git clone https://github.com/fluxsce/gateway.git
+cd gateway
+go mod download
+go run cmd/app/main.go --config ./configs
+```
+
+The console is served from `web/frontend/dist`, which is not committed. For a UI:
+
+```bash
+cd web/frontend
+pnpm install
+pnpm run dev:vite    # proxies API to http://127.0.0.1:12003
+```
+
+Or `pnpm run build` and let the gateway process serve `dist`. Full setup: [Development Guide](docs/en/02-quick-start.md).
+
+---
+
+## Upgrade
+
+Example install directory: `/opt/gateway`. Back up `database.yaml`, extract, restore that file.
+
+```bash
 sudo systemctl stop gateway
+sudo cp /opt/gateway/configs/database.yaml /tmp/database.yaml.bak
 
-# 2. Back up the original config
-sudo cp /data/gateway/configs/database.yaml /tmp/database.yaml.bak
+sudo tar -xzf gateway-linux-amd64-*.tar.gz -C /opt
+sudo cp /tmp/database.yaml.bak /opt/gateway/configs/database.yaml
 
-# 3. Extract the new package into the install directory (archive root is gateway/)
-sudo tar -xzf gateway-linux-amd64-*.tar.gz -C /data
-
-# 4. Restore the original database.yaml
-sudo cp /tmp/database.yaml.bak /data/gateway/configs/database.yaml
-
-# 5. Start the service
 sudo systemctl start gateway
 ```
 
+Windows and Docker: [Installation](docs/en/03-installation.md), [Containerized Deployment](docs/en/04-container-deployment.md).
+
 ---
 
-## 🏗️ Architecture Overview
+## Documentation
 
-```mermaid
-graph TB
-    Client[Client] --> Gateway[API Gateway]
-    Gateway --> PreProcess[Pre-Processing]
-    PreProcess --> Security[Global Security Control]
-    Security --> CORS[Global CORS Handling]
-    CORS --> Auth[Global Authentication & Authorization]
-    Auth --> RateLimit[Global Rate Limiting]
-    RateLimit --> Router[Route Matching]
-    Router --> RouteHandlers[Route-Level Handler Chain]
-    RouteHandlers --> Discovery[Service Discovery]
-    Discovery --> LoadBalance[Load Balancing]
-    LoadBalance --> CircuitBreaker[Circuit Breaking]
-    CircuitBreaker --> ProxyForward[Request Forwarding]
-    
-    ProxyForward --> Services[Backend Service Cluster]
-    Services --> PostProcess[Response Handling]
-    PostProcess --> Gateway
-    Gateway --> Client
-    
-    Gateway --> Log[Logging System]
-    Gateway --> Monitor[Monitoring System]
-    Gateway --> Config[Configuration Center]
-    Gateway --> Cache[Cache]
-    Gateway --> DB[Database]
-```
+Pick by task. Do not read the numbered chapters in order unless you are onboarding as a developer.
 
-## 📚 Documentation Navigation
+| Task | Doc |
+|------|-----|
+| Capabilities and architecture | [Introduction](docs/en/01-introduction.md) |
+| Source build and local run | [Development Guide](docs/en/02-quick-start.md) |
+| Packages and system services | [Installation](docs/en/03-installation.md) |
+| Docker / Kubernetes | [Containerized Deployment](docs/en/04-container-deployment.md) |
+| Static hosting | [Static hosting (zh-CN)](docs/zh-CN/08-静态资源托管.md) |
+| Schema conventions | [Database specs](docs/en/05-database-specs.md) |
+| Debugging | [Debugging](docs/en/06-debugging.md) |
+| Error handling | [Error handling](docs/en/07-error-handling.md) |
+| Security | [SECURITY.md](SECURITY.md) |
+| Release artifacts | [.github/CI.md](.github/CI.md) |
+| English index | [docs/en](docs/en/README.md) |
+| 中文文档 | [docs/zh-CN](docs/zh-CN/README.md) |
+| FAQ | [FAQ](docs/faq.md) |
 
-| Chapter | Document | Description |
-|---------|----------|-------------|
-| 📖 | **[Complete Documentation](docs/en/README.md)** | View all English documentation |
-| 01 | [Project Introduction](docs/en/01-introduction.md) | Understand core capabilities, system architecture, and use cases |
-| 02 | [Development Guide](docs/en/02-quick-start.md) | Development environment setup, project structure, and quick start |
-| 03 | [Installation & Deployment](docs/en/03-installation.md) | Detailed installation and deployment steps |
-| 04 | [Containerized Deployment](docs/en/04-container-deployment.md) | Docker and Kubernetes containerized deployment |
-| 05 | [Database Specifications](docs/en/05-database-specs.md) | Database design specifications and best practices |
-| 06 | [Debugging Guide](docs/en/06-debugging.md) | Debugging techniques, performance analysis, and troubleshooting |
-| 07 | [Error Handling](docs/en/07-error-handling.md) | Error handling mechanisms and best practices |
-| 🛡️ | [Security Guide](SECURITY.md) | Security best practices and vulnerability reporting |
+---
 
-## 📜 Code of Conduct
+## Contributing
 
-Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md) before contributing.
+Read the [Code of Conduct](CODE_OF_CONDUCT.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## 🤝 Contributing
+---
 
-We welcome all contributions! For details, please refer to the [CONTRIBUTING.md](CONTRIBUTING.md).
+## License
 
-## ❓ FAQ
+[Apache License 2.0](LICENSE)
 
-- [FAQ](docs/faq.md)
+---
 
-## 📜 License
-
-This project is licensed under the [Apache License 2.0](LICENSE).
-
-## ⭐ Star History
+## Star history
 
 <p align="center">
   <a href="https://star-history.com/#fluxsce/gateway">
-    <img src="https://api.star-history.com/svg?repos=fluxsce/gateway&type=Date" alt="Star History Chart" width="600">
+    <img src="https://api.star-history.com/svg?repos=fluxsce/gateway&type=Date" alt="Star History" width="600">
   </a>
 </p>
 
 ---
 
-## 🙏 Acknowledgements & Contributors
+## Acknowledgements and contact
 
-Thanks to [all contributors](https://github.com/fluxsce/gateway/graphs/contributors) for their efforts and support!
-## 📞 Contact
+Thanks to [all contributors](https://github.com/fluxsce/gateway/graphs/contributors).
 
-- 📧 **Email**: [fluxopensource@flux.com.cn](mailto:fluxopensource@flux.com.cn)
-- 💬 **GitHub Issues**: [Open an issue](https://github.com/fluxsce/gateway/issues)
-- 💬 **GitHub Discussion**: [Start a discussion](https://github.com/orgs/fluxsce/discussions)
-- 📱 **WeChat Group**: Scan the QR code below to join the community
+- Email: [fluxopensource@flux.com.cn](mailto:fluxopensource@flux.com.cn)
+- Issues: [Open an issue](https://github.com/fluxsce/gateway/issues)
+- Discussions: [Start a discussion](https://github.com/orgs/fluxsce/discussions)
 
-<table align="left" style="border: none; border-collapse: collapse;"> <tr> <td style="text-align: center; padding: 200px; border: none;"> <img src="docs/images/QW.png" alt="企业微信二维码" style="width: 250px; height: 380px; object-fit: contain;"> </td> <td style="text-align: center; padding: 200px; border: none;"> <img src="docs/images/WX.png" alt="微信二维码" style="width: 250px; height: 380px; object-fit: contain;"> </td> </tr> </table>
-<br></br>
-<br></br>
-<br></br>
-<br></br>
-<br></br>
-<br></br>
-<br></br>
-<br></br>
-<br></br>
 <p align="center">
-  <sub>Built with ❤️ by the Gateway team</sub>
+  <img src="docs/images/QW.png" alt="WeCom QR" width="180">
+  &nbsp;&nbsp;
+  <img src="docs/images/WX.png" alt="WeChat QR" width="180">
+</p>
+
+<p align="center">
+  <sub>Built by the Gateway team</sub>
 </p>
