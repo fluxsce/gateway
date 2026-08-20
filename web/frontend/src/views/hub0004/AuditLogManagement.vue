@@ -43,12 +43,26 @@
       :audit-id="selectedAuditId"
       :to="`#${htmlId}`"
     />
+
+    <GExport
+      v-model:visible="exportVisible"
+      module-id="hub0004"
+      :url="exportUrl"
+      :params="exportParams"
+      filename="audit-log"
+      :dialog-title="t('common.export')"
+      @error="(e) => message.error(e.message || t('message.exportFailed'))"
+    />
   </div>
 </template>
 
 <script lang="ts" setup>
+import { moduleApiPrefix, requestPathHelper } from '@/api/requestPath'
 import { RsSearchForm, type RsSearchFormExpose } from '@/components/form/rs-search'
+import { GExport } from '@/components/gexport-import'
 import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import { ref } from 'vue'
 import { AuditLogDetailDialog } from './components'
@@ -66,6 +80,9 @@ const splitPanes: RsSplitPaneItem[] = [
 
 const searchFormRef = ref<RsSearchFormExpose | null>(null)
 const gridRef = ref<RsGridExpose | null>(null)
+const message = useAppMessage()
+const { t } = useModuleI18n('hub0004')
+const exportUrl = requestPathHelper.join(moduleApiPrefix('hub0004'), 'exportAuditLogs')
 
 const {
   service,
@@ -75,6 +92,8 @@ const {
   handleSearch,
   handlePageChange,
   handleToolbarClick,
+  exportVisible,
+  exportParams,
 } = useAuditLogPage(searchFormRef)
 
 /** 固定 HTML id（moduleId 含冒号时不能直接用作 DOM id） */

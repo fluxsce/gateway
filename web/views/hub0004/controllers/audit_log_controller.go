@@ -1,7 +1,12 @@
 package controllers
 
 import (
+	"encoding/csv"
+	"fmt"
+	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
@@ -87,13 +92,14 @@ func (c *AuditLogController) GetAuditLog(ctx *gin.Context) {
 	response.SuccessJSON(ctx, row, constants.SD00001)
 }
 
-// ExportAuditLogs 按当前筛选条件导出审计日志，最多 MaxAuditExportSize 条。
+// ExportAuditLogs 按当前筛选条件流式导出 CSV，不限制条数。
+// 数据库游标逐行读取，立刻写入响应，不缓冲整份文件，也不先 COUNT。
 // @Summary 导出审计日志
-// @Description 按查询条件导出 HUB_AUTH_AUDIT_LOG，自身经 hub0004:export 记入审计
+// @Description 按查询条件流式导出 HUB_AUTH_AUDIT_LOG CSV，自身经 hub0004:export 记入审计
 // @Tags 审计日志
 // @Accept json
-// @Produce json
-// @Success 200 {object} response.JsonData
+// @Produce text/csv
+// @Success 200 {file} file
 // @Router /gateway/hub0004/exportAuditLogs [post]
 func (c *AuditLogController) ExportAuditLogs(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
@@ -103,11 +109,62 @@ func (c *AuditLogController) ExportAuditLogs(ctx *gin.Context) {
 		logger.WarnWithTrace(ctx, "绑定审计日志导出条件失败，使用默认条件", "error", err.Error())
 	}
 
-	rows, total, err := c.dao.Query(ctx, tenantId, &query, 1, dao.MaxAuditExportSize)
-	if err != nil {
-		logger.ErrorWithTrace(ctx, "导出审计日志失败", err)
-		response.ErrorJSON(ctx, "导出审计日志失败: "+err.Error(), constants.ED00009)
+	filename := auditExportFilename(time.Now())
+	encoded := url.PathEscape(filename)
+
+	var csvWriter *csv.Writer
+	started := false
+	written := 0
+
+	startStream := func() error {
+		ctx.Writer.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		ctx.Writer.Header().Set("Content-Disposition",
+			fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`, filename, encoded))
+		ctx.Writer.Header().Set("Cache-Control", "no-cache")
+		ctx.Writer.Header().Set("X-Accel-Buffering", "no")
+		ctx.Writer.WriteHeader(http.StatusOK)
+		var err error
+		csvWriter, err = startAuditLogCSV(ctx.Writer)
+		if err != nil {
+			return err
+		}
+		flushAuditCSV(csvWriter, ctx.Writer)
+		return csvWriter.Error()
+	}
+
+	count, err := c.dao.ForEach(ctx, tenantId, &query, func(row *models.AuthAuditLog) error {
+		if !started {
+			if err := startStream(); err != nil {
+				return err
+			}
+			started = true
+		}
+		if err := csvWriter.Write(auditLogCSVRecord(row)); err != nil {
+			return err
+		}
+		written++
+		if written%100 == 0 {
+			flushAuditCSV(csvWriter, ctx.Writer)
+		}
+		return nil
+	})
+
+	if !started {
+		if err != nil {
+			logger.ErrorWithTrace(ctx, "导出审计日志失败", err)
+			response.ErrorJSON(ctx, "导出审计日志失败: "+err.Error(), constants.ED00009)
+			return
+		}
+		response.ErrorJSON(ctx, "没有可导出的审计记录", constants.ED00008)
 		return
+	}
+
+	flushAuditCSV(csvWriter, ctx.Writer)
+	if ferr := csvWriter.Error(); ferr != nil {
+		logger.ErrorWithTrace(ctx, "写出审计导出文件失败", ferr)
+	}
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "导出审计日志中断", err)
 	}
 
 	audit.SetEvent(ctx, &audit.AuditEvent{
@@ -116,10 +173,17 @@ func (c *AuditLogController) ExportAuditLogs(ctx *gin.Context) {
 		TargetType:   "AUDIT_LOG",
 		TargetId:     "export",
 		ResourceCode: "hub0004:export",
-		Detail:       audit.SanitizeAuditDetail(map[string]interface{}{"count": len(rows), "total": total}),
+		Detail:       audit.SanitizeAuditDetail(map[string]interface{}{"count": count}),
 	})
+}
 
-	pageInfo := response.NewPageInfo(1, dao.MaxAuditExportSize, total)
-	pageInfo.MainKey = "auditId"
-	response.PageJSON(ctx, rows, pageInfo, constants.SD00002)
+// flushAuditCSV 把已缓冲的 CSV 行立刻推到客户端。
+func flushAuditCSV(w *csv.Writer, writer gin.ResponseWriter) {
+	if w == nil {
+		return
+	}
+	w.Flush()
+	if f, ok := writer.(http.Flusher); ok {
+		f.Flush()
+	}
 }

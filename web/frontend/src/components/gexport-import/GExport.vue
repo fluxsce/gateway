@@ -195,7 +195,7 @@ const startExport = async () => {
       showLoading: false,
       headers: { 'Content-Type': 'application/json' },
       onDownloadProgress: (evt: AxiosProgressEvent) => {
-        // 第一次收到进度事件说明服务端已完成生成，开始传输
+        // 第一次收到进度事件说明响应体已开始到达
         generating.value = false
         if (evt.total && evt.total > 0) {
           progress.value = Math.round((evt.loaded / evt.total) * 100)
@@ -213,7 +213,7 @@ const startExport = async () => {
       let errMsg = '导出失败'
       try {
         const json = JSON.parse(text)
-        errMsg = json?.msg || json?.message || json?.error || errMsg
+        errMsg = json?.errMsg || json?.msg || json?.message || json?.error || errMsg
       } catch { /* 非 JSON，使用原始文本 */ }
       throw new Error(errMsg)
     }

@@ -8,6 +8,7 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/ctime"
+	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
 	"gateway/web/utils/response"
@@ -222,6 +223,15 @@ func (c *GatewayLogController) Reset(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "重置失败: "+err.Error(), constants.ED00009)
 		return
 	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0023",
+		TargetType:   "GATEWAY_ACCESS_LOG",
+		TargetId:     req.LogItems[0].TraceId,
+		TargetName:   req.LogItems[0].TraceId,
+		ResourceCode: "hub0023:reset",
+		Detail:       "count=" + strconv.Itoa(len(req.LogItems)),
+	})
 
 	response.SuccessJSON(ctx, gin.H{
 		"affectedRows": affectedRows,

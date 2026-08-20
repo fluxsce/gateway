@@ -23,6 +23,8 @@ export function useAuditLogPage(searchFormRef?: Ref<RsSearchFormExpose | null>) 
 
   const viewDialogVisible = ref(false)
   const selectedAuditId = ref('')
+  const exportVisible = ref(false)
+  const exportParams = ref<Record<string, any>>({})
 
   /**
    * 处理搜索。
@@ -74,7 +76,8 @@ export function useAuditLogPage(searchFormRef?: Ref<RsSearchFormExpose | null>) 
    */
   const handleToolbarClick = (key: string) => {
     if (key === 'export') {
-      void service.exportLogList()
+      exportParams.value = service.buildExportParams()
+      exportVisible.value = true
     }
   }
 
@@ -91,5 +94,7 @@ export function useAuditLogPage(searchFormRef?: Ref<RsSearchFormExpose | null>) 
     handleMenuClick,
     handleToolbarClick,
     openViewDialog,
+    exportVisible,
+    exportParams,
   }
 }

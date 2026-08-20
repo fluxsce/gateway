@@ -2,7 +2,7 @@
 
 Run official packages on a host. Containers: [Containerized Deployment](./04-container-deployment.md). Source builds: [Development Guide](./02-quick-start.md).
 
-Examples use **3.2.5** and `/opt/gateway`.
+Examples use **3.2.6** and `/opt/gateway`.
 
 ---
 
@@ -33,8 +33,8 @@ Assets on [Releases](https://github.com/fluxsce/gateway/releases):
 No arm64 Oracle or Windows arm64 packages. Archive root is `gateway/`.
 
 ```bash
-wget https://github.com/fluxsce/gateway/releases/download/v3.2.5/gateway-linux-amd64-3.2.5.tar.gz
-sudo tar -xzf gateway-linux-amd64-3.2.5.tar.gz -C /opt
+wget https://github.com/fluxsce/gateway/releases/download/v3.2.6/gateway-linux-amd64-3.2.6.tar.gz
+sudo tar -xzf gateway-linux-amd64-3.2.6.tar.gz -C /opt
 cd /opt/gateway
 ```
 
@@ -116,7 +116,7 @@ Apply `scripts/db/*/patch_*.sql` when [CHANGELOG.md](../../CHANGELOG.md) says so
 ## Compile yourself
 
 ```bash
-./scripts/build/build-centos7.sh --version=3.2.5
+./scripts/build/build-centos7.sh --version=3.2.6
 chmod +x dist/gateway/gateway
 ```
 

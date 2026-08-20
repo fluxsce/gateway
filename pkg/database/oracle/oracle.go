@@ -528,6 +528,45 @@ func (o *Oracle) Query(ctx context.Context, dest interface{}, query string, args
 	return err
 }
 
+// QueryEach 按数据库游标逐行扫描到 dest 并回调，不把整结果集载入内存。
+func (o *Oracle) QueryEach(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool, fn func() error) error {
+	if fn == nil {
+		return fmt.Errorf("fn is required")
+	}
+	executor := o.getExecutor(ctx, autoCommit)
+	convertedQuery := o.convertPlaceholders(query)
+
+	start := time.Now()
+	rows, err := executor.QueryContext(ctx, convertedQuery, args...)
+	duration := time.Since(start)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			o.logger.LogSQL(ctx, "SQL游标查询", query, args, err, duration, map[string]interface{}{
+				"rowCount": 0,
+			})
+		}
+		return err
+	}
+	// 打开方保证关闭；ForEachRow 内再关一次是幂等的，避免中途 return 泄漏连接
+	defer rows.Close()
+
+	rowCount := 0
+	err = sqlutils.ForEachRow(rows, dest, func() error {
+		rowCount++
+		return fn()
+	})
+	if err != nil {
+		o.logger.LogSQL(ctx, "SQL游标查询", query, args, err, duration, map[string]interface{}{
+			"rowCount": rowCount,
+		})
+		return err
+	}
+	o.logger.LogSQL(ctx, "SQL游标查询", query, args, nil, duration, map[string]interface{}{
+		"rowCount": rowCount,
+	})
+	return nil
+}
+
 // QueryOne 查询单条记录
 // 执行SELECT语句并将结果扫描到目标结构体中
 // 如果查询不到记录，返回ErrRecordNotFound错误

@@ -167,6 +167,22 @@ type Database interface {
 	//   error: 查询失败、扫描失败或记录不存在时返回错误信息
 	QueryOne(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error
 
+	// QueryEach 按数据库游标逐行扫描，不把整结果集载入内存。
+	// dest 必须是结构体指针，每行复用同一块内存：回调返回后即可再次扫描覆盖，
+	// 调用方若要保留数据必须在回调内拷贝。回调返回 error 或 ctx 取消时停止。
+	// 无论成功、失败还是中途退出，都会 Close 结果集并归还连接，不会泄漏游标。
+	// 导出期间占用连接池中的一条连接，直到游标结束。
+	// 参数:
+	//   ctx: 上下文，用于控制请求超时和取消
+	//   dest: 目标结构体的指针，每行扫描复用
+	//   query: 要执行的SELECT语句，可包含占位符
+	//   args: SQL语句中占位符对应的参数值
+	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	//   fn: 每扫描完一行后调用，返回 error 则中止游标
+	// 返回:
+	//   error: 查询失败、扫描失败或回调失败时返回错误信息
+	QueryEach(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool, fn func() error) error
+
 	// Insert 插入记录
 	// 根据提供的数据结构体自动构建INSERT语句并执行
 	// 会自动提取结构体字段作为列名和值

@@ -157,7 +157,5 @@ export default {
     loadDetailFailed: 'Failed to load audit log details',
     exportFailed: 'Failed to export audit logs',
     exportEmpty: 'No audit logs to export',
-    exportSuccess: 'Exported {count} audit logs',
-    exportTruncated: '{total} records matched; exported at most {count}',
   },
 }

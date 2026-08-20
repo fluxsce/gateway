@@ -575,6 +575,80 @@ func ScanOneRow(rows *sql.Rows, dest interface{}) error {
 	return fieldMapper.MapValues(actualValues)
 }
 
+// ForEachRow 按游标逐行扫描到 dest 并回调，不把整结果集载入内存。
+// dest 必须是结构体指针，每行复用同一块内存；回调返回 error 时停止。
+// 扫描缓冲只创建一次。无论成功、失败、回调中止还是 panic，都会 Close rows 归还连接。
+func ForEachRow(rows *sql.Rows, dest interface{}, fn func() error) (err error) {
+	if rows == nil {
+		return fmt.Errorf("rows is nil")
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("close rows: %w", cerr)
+		}
+	}()
+	if fn == nil {
+		return fmt.Errorf("fn is required")
+	}
+
+	destValue := reflect.ValueOf(dest)
+	if destValue.Kind() != reflect.Ptr {
+		return fmt.Errorf("dest must be a pointer")
+	}
+	structValue := destValue.Elem()
+	if structValue.Kind() != reflect.Struct {
+		return fmt.Errorf("dest must be a pointer to struct")
+	}
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return err
+	}
+	fieldMapper, err := NewFieldMapper(columns, dest)
+	if err != nil {
+		return fmt.Errorf("failed to create field mapper: %v", err)
+	}
+
+	matched := fieldMapper.IsFieldCountMatched()
+	var scanTargets []interface{}
+	var fields []reflect.Value
+	var scanValues []interface{}
+	if matched {
+		scanTargets, fields = PrepareScanTargetsWithFields(structValue, columns)
+		if len(scanTargets) == 0 {
+			return fmt.Errorf("no valid scan targets prepared")
+		}
+	} else {
+		scanValues = CreateInterfaceSlice(len(columns))
+	}
+
+	for rows.Next() {
+		structValue.Set(reflect.Zero(structValue.Type()))
+		if matched {
+			if err = rows.Scan(scanTargets...); err != nil {
+				return err
+			}
+			if err = ProcessScannedValues(scanTargets, fields); err != nil {
+				return err
+			}
+		} else {
+			if err = rows.Scan(scanValues...); err != nil {
+				return err
+			}
+			if err = fieldMapper.MapValues(ExtractValues(scanValues)); err != nil {
+				return err
+			}
+		}
+		if err = fn(); err != nil {
+			return err
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
 // ScanRow 扫描单行结果到目标结构体
 // 将SQL查询返回的单行结果扫描到Go结构体中
 // 注意：由于sql.Row没有Columns方法，这里使用简化的按字段顺序扫描

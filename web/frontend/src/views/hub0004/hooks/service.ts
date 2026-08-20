@@ -1,6 +1,6 @@
 /**
  * 审计日志服务层 Hook
- * 纯业务逻辑：列表查询、详情获取与 CSV 导出
+ * 纯业务逻辑：列表查询、详情获取；导出由服务端出 CSV，本层只组筛选条件
  */
 
 import type { RsSearchFormExpose } from '@/components/form/rs-search'
@@ -9,11 +9,9 @@ import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { formatDate, getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
 import { createBackendPaginationParams } from '@/utils/pagination'
 import type { Ref } from 'vue'
-import { exportAuditLogs, getAuditLog, queryAuditLogs } from '../api'
+import { getAuditLog, queryAuditLogs } from '../api'
 import type { AuthAuditLog } from '../types'
 import { useAuditLogModel } from './model'
-
-const MAX_EXPORT_ROWS = 10000
 
 /**
  * 从 RsDatePicker range（valueFormat=string）取出起止时间。
@@ -53,34 +51,6 @@ function buildFilterParams(searchParams?: Record<string, any>): Record<string, a
     }
   })
   return processedParams
-}
-
-function csvEscape(value: unknown): string {
-  let text = ''
-  if (value == null) {
-    text = ''
-  } else if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    text = String(value)
-  } else {
-    text = JSON.stringify(value)
-  }
-  if (/[",\n\r]/.test(text)) {
-    return `"${text.replaceAll('"', '""')}"`
-  }
-  return text
-}
-
-function downloadCsv(filename: string, headers: string[], rows: string[][]) {
-  const lines = [headers, ...rows].map((row) => row.map(csvEscape).join(','))
-  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  URL.revokeObjectURL(url)
 }
 
 /**
@@ -156,84 +126,20 @@ export function useAuditLogService(searchFormRef?: Ref<RsSearchFormExpose | null
   }
 
   /**
-   * 按当前筛选条件导出 CSV。
-   * @param searchParams - 查询条件；不传则从表单读取
+   * 当前筛选条件（不含分页），供服务端导出使用。
    */
-  const exportLogList = async (searchParams?: Record<string, any>) => {
-    try {
-      model.setLoading(true)
-
-      let finalSearchParams = searchParams
-      if (!finalSearchParams && searchFormRef?.value?.getFormData) {
-        finalSearchParams = searchFormRef.value.getFormData() || {}
-      }
-
-      const response = await exportAuditLogs(buildFilterParams(finalSearchParams))
-      if (!isApiSuccess(response)) {
-        message.error(getApiMessage(response, t('message.exportFailed')))
-        return
-      }
-
-      const logs = parseJsonData<AuthAuditLog[]>(response, []) || []
-      if (logs.length === 0) {
-        message.warning(t('message.exportEmpty'))
-        return
-      }
-
-      const pageInfo = parsePageInfo(response)
-      const total = pageInfo?.totalCount || logs.length
-      if (total > logs.length) {
-        message.warning(
-          t('message.exportTruncated', { total, count: MAX_EXPORT_ROWS }),
-        )
-      }
-
-      const headers = [
-        t('columns.addTime'),
-        t('columns.userName'),
-        t('columns.userId'),
-        t('columns.action'),
-        t('columns.moduleCode'),
-        t('columns.targetType'),
-        t('columns.targetName'),
-        t('columns.targetId'),
-        t('columns.resourceCode'),
-        t('columns.result'),
-        t('columns.clientIP'),
-        t('columns.requestMethod'),
-        t('columns.requestPath'),
-        t('columns.detail'),
-      ]
-      const rows = logs.map((row) => [
-        row.addTime ? formatDate(row.addTime) : '',
-        row.userName || '',
-        row.userId || '',
-        model.getActionLabel(row.action),
-        model.getModuleLabel(row.moduleCode),
-        model.getTargetTypeLabel(row.targetType),
-        row.targetName || '',
-        row.targetId || '',
-        row.resourceCode || '',
-        model.getResultLabel(row.result),
-        row.clientIP || '',
-        row.requestMethod || '',
-        row.requestPath || '',
-        row.detail || '',
-      ])
-      const stamp = formatDate(Date.now(), 'YYYYMMDDHHmmss')
-      downloadCsv(`audit-log-${stamp}.csv`, headers, rows)
-      message.success(t('message.exportSuccess', { count: logs.length }))
-    } catch (error: any) {
-      message.error(error.message || t('message.exportFailed'))
-    } finally {
-      model.setLoading(false)
+  const buildExportParams = (): Record<string, any> => {
+    let finalSearchParams: Record<string, any> | undefined
+    if (searchFormRef?.value?.getFormData) {
+      finalSearchParams = searchFormRef.value.getFormData() || {}
     }
+    return buildFilterParams(finalSearchParams)
   }
 
   return {
     model,
     loadLogList,
     getLogDetail,
-    exportLogList,
+    buildExportParams,
   }
 }

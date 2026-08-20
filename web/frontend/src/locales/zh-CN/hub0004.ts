@@ -157,7 +157,5 @@ export default {
     loadDetailFailed: '加载审计日志详情失败',
     exportFailed: '导出审计日志失败',
     exportEmpty: '没有可导出的审计记录',
-    exportSuccess: '已导出 {count} 条审计记录',
-    exportTruncated: '符合条件共 {total} 条，本次最多导出 {count} 条',
   },
 }

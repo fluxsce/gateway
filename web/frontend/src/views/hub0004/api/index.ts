@@ -4,7 +4,7 @@
  * API路径: /gateway/hub0004
  * - POST /queryAuditLogs - 查询审计日志列表
  * - POST /getAuditLog - 获取审计日志详情
- * - POST /exportAuditLogs - 按筛选条件导出（最多 10000 条）
+ * - POST /exportAuditLogs - 按筛选条件流式导出 CSV 文件（不限制条数）
  */
 
 import { createApi } from '@/api/request'
@@ -30,12 +30,3 @@ export const getAuditLog = async (auditId: string): Promise<JsonDataObj> => {
   return auditLogApi.post('/getAuditLog', { auditId })
 }
 
-/**
- * 按筛选条件导出审计日志（最多 10000 条）。
- * @param params - 与列表相同的筛选条件，无需分页
- */
-export const exportAuditLogs = async (
-  params: Omit<AuthAuditLogQueryParams, 'pageIndex' | 'pageSize'>,
-): Promise<JsonDataObj> => {
-  return auditLogApi.post('/exportAuditLogs', params)
-}
