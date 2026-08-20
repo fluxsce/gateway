@@ -20,59 +20,125 @@
 
 <p align="center">
   <a href="README_EN.md">English</a> | <strong>简体中文</strong>
-</p>
-
-<p align="center">
-  <a href="https://matrix.to/#/#fluxsce/gateway:gitter.im">
-    <img src="https://badges.gitter.im/Join/Chat.svg" alt="Join Chat"/>
-  </a>
+  &nbsp;·&nbsp;
+  <a href="https://matrix.to/#/#fluxsce/gateway:gitter.im">Chat</a>
 </p>
 
 ---
 
-## 主要能力
-
-- 路由分发与多种负载均衡
-- JWT / OAuth2 / API Key、IP 与域名访问控制
-- 限流、熔断、CORS、静态资源托管
-- 管理控制台、访问日志与运行指标
-- 插件扩展；支持二进制、Docker、Kubernetes 部署
-
-完整说明见 [项目介绍](docs/zh-CN/01-项目介绍.md)。
-
----
-
-## Demo
-
-<p align="center">
-  <img src="docs/images/web_route_config.png" alt="路由配置" width="80%">
-  <img src="docs/images/web_gateway_log.png" alt="网关日志" width="80%">
-</p>
+**目录：** [架构](#架构概览) · [功能](#功能) · [界面](#界面) · [快速开始](#快速开始) · [升级](#版本升级) · [文档](#文档) · [贡献](#参与贡献) · [联系](#联系)
 
 ---
 
 ## 架构概览
 
 <p align="center">
-  <img src="docs/images/gateway_flow.svg" alt="网关请求处理流程" width="80%">
-  <img src="docs/images/gateway_model.png" alt="网关模块模型" width="80%">
+  <img src="docs/images/gateway_flow.svg" alt="网关请求处理流程" width="90%">
 </p>
 
-分层架构与隧道原理见 [项目介绍](docs/zh-CN/01-项目介绍.md)。
+<p align="center"><sub>图 1　请求处理链路：接入、安全、路由、负载、熔断、转发</sub></p>
+
+<p align="center">
+  <img src="docs/images/gateway_model.png" alt="网关模块模型" width="90%">
+</p>
+
+<p align="center"><sub>图 2　模块模型：网关、控制台、隧道与存储</sub></p>
+
+分层架构与隧道原理见 [项目介绍 · 系统架构](docs/zh-CN/01-项目介绍.md)。
+
+---
+
+## 功能
+
+<table width="100%">
+  <colgroup>
+    <col width="28%">
+    <col width="72%">
+  </colgroup>
+  <thead>
+    <tr>
+      <th align="left">能力</th>
+      <th align="left">说明</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>流量治理</td>
+      <td>路由分发、多种负载均衡、限流、熔断</td>
+    </tr>
+    <tr>
+      <td>安全</td>
+      <td>JWT / OAuth2 / API Key，IP、域名与 User-Agent 访问控制</td>
+    </tr>
+    <tr>
+      <td>可观测</td>
+      <td>管理控制台、访问日志、运行指标</td>
+    </tr>
+    <tr>
+      <td>扩展与交付</td>
+      <td>插件；静态资源托管；二进制、Docker、Kubernetes</td>
+    </tr>
+  </tbody>
+</table>
+
+完整能力说明见 [项目介绍](docs/zh-CN/01-项目介绍.md)。
+
+---
+
+## 界面
+
+<p align="center">
+  <img src="docs/images/web_route_config.png" alt="路由配置" width="90%">
+</p>
+
+<p align="center"><sub>图 3　路由配置</sub></p>
+
+<p align="center">
+  <img src="docs/images/web_gateway_log.png" alt="网关日志" width="90%">
+</p>
+
+<p align="center"><sub>图 4　网关日志</sub></p>
 
 ---
 
 ## 快速开始
 
-当前文档以 **3.2.5** 为例，安装包与镜像请以 [GitHub Releases](https://github.com/fluxsce/gateway/releases) 最新版为准。
+示例版本 **3.2.5**，安装包与镜像以 [GitHub Releases](https://github.com/fluxsce/gateway/releases) 最新版为准。
 
-默认控制台：http://localhost:12003/gatewayweb  
-默认账号：`admin` / `123456`（登录后立即修改）  
-网关端口：`8080`　健康检查：http://localhost:12003/health
+<table width="100%">
+  <colgroup>
+    <col width="28%">
+    <col width="72%">
+  </colgroup>
+  <thead>
+    <tr>
+      <th align="left">项</th>
+      <th align="left">值</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>控制台</td>
+      <td><a href="http://localhost:12003/gatewayweb">http://localhost:12003/gatewayweb</a></td>
+    </tr>
+    <tr>
+      <td>默认账号</td>
+      <td><code>admin</code> / <code>123456</code>（登录后立即修改）</td>
+    </tr>
+    <tr>
+      <td>网关端口</td>
+      <td><code>8080</code></td>
+    </tr>
+    <tr>
+      <td>健康检查</td>
+      <td><a href="http://localhost:12003/health">http://localhost:12003/health</a></td>
+    </tr>
+  </tbody>
+</table>
 
-### 方式一：Docker（试用推荐）
+### Docker
 
-镜像内已包含配置、数据库脚本和前端资源，默认 SQLite，无需再装数据库。
+镜像内含配置、数据库脚本和前端资源，默认 SQLite。
 
 ```bash
 docker pull ghcr.io/fluxsce/gateway:3.2.5
@@ -83,25 +149,59 @@ docker run -d --name gateway \
   ghcr.io/fluxsce/gateway:3.2.5
 ```
 
-国内可改用阿里云：
+国内镜像：
 
 ```bash
 docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.5
 ```
 
-个人版 ACR 通常需要先 `docker login`。Compose（MySQL + Redis）见 [容器化部署](docs/zh-CN/04-容器化部署.md)。
+个人版 ACR 通常需先 `docker login`。MySQL + Redis 编排见 [容器化部署](docs/zh-CN/04-容器化部署.md)。
 
-### 方式二：安装包
+### 安装包
 
-从 [Releases](https://github.com/fluxsce/gateway/releases) 下载对应平台包，解压后直接运行。包内根目录为 `gateway/`。
+从 [Releases](https://github.com/fluxsce/gateway/releases) 下载对应平台包。归档根目录为 `gateway/`。
 
-| 文件 | 平台 | 数据库 |
-|------|------|--------|
-| `gateway-linux-amd64-3.2.5.tar.gz` | Linux amd64 | MySQL / SQLite / ClickHouse |
-| `gateway-linux-arm64-3.2.5.tar.gz` | Linux arm64 | 同上 |
-| `gateway-windows-amd64-3.2.5.zip` | Windows amd64 | 同上 |
-| `gateway-linux-amd64-oracle-3.2.5.tar.gz` | Linux amd64 | 上表 + Oracle |
-| `gateway-windows-amd64-oracle-3.2.5.zip` | Windows amd64 | 上表 + Oracle |
+<table width="100%">
+  <colgroup>
+    <col width="46%">
+    <col width="22%">
+    <col width="32%">
+  </colgroup>
+  <thead>
+    <tr>
+      <th align="left">文件</th>
+      <th align="left">平台</th>
+      <th align="left">数据库</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>gateway-linux-amd64-3.2.5.tar.gz</code></td>
+      <td>Linux amd64</td>
+      <td>MySQL / SQLite / ClickHouse</td>
+    </tr>
+    <tr>
+      <td><code>gateway-linux-arm64-3.2.5.tar.gz</code></td>
+      <td>Linux arm64</td>
+      <td>同上</td>
+    </tr>
+    <tr>
+      <td><code>gateway-windows-amd64-3.2.5.zip</code></td>
+      <td>Windows amd64</td>
+      <td>同上</td>
+    </tr>
+    <tr>
+      <td><code>gateway-linux-amd64-oracle-3.2.5.tar.gz</code></td>
+      <td>Linux amd64</td>
+      <td>上表 + Oracle</td>
+    </tr>
+    <tr>
+      <td><code>gateway-windows-amd64-oracle-3.2.5.zip</code></td>
+      <td>Windows amd64</td>
+      <td>上表 + Oracle</td>
+    </tr>
+  </tbody>
+</table>
 
 ```bash
 tar -xzf gateway-linux-amd64-3.2.5.tar.gz
@@ -109,87 +209,158 @@ cd gateway
 ./gateway --config ./configs
 ```
 
-Windows 解压后执行 `gateway.exe --config .\configs`。默认仍使用 SQLite，库文件在 `scripts/data/gateway.db`，启动时自动执行 `scripts/db` 下的初始化脚本。
+Windows：`gateway.exe --config .\configs`。默认 SQLite，库文件 `scripts/data/gateway.db`，启动时执行 `scripts/db` 下的初始化脚本。
 
-注册系统服务、改 MySQL/Oracle、生产配置见 [安装部署](docs/zh-CN/03-安装部署.md)。
+系统服务与生产配置见 [安装部署](docs/zh-CN/03-安装部署.md)。
 
-### 方式三：源码（开发）
+### 源码
 
-需要 **Go 1.24+**。SQLite 使用 `go-sqlite3`，必须开启 CGO（Windows 需先装 [TDM-GCC](https://jmeubank.github.io/tdm-gcc/download/) 并重开终端）。
+需要 **Go 1.24+**。SQLite 使用 `go-sqlite3`，必须开启 CGO（Windows 先安装 [TDM-GCC](https://jmeubank.github.io/tdm-gcc/download/) 并重开终端）。
 
 ```bash
 git clone https://github.com/fluxsce/gateway.git
 cd gateway
-
 go env -w GOPROXY=https://goproxy.cn,direct   # 国内建议
 go mod download
-
 go run cmd/app/main.go --config ./configs
 ```
 
-控制台静态资源来自 `web/frontend/dist`。仓库不提交构建产物，本地要看页面请另开终端：
+控制台静态资源来自 `web/frontend/dist`（不随仓库提交）：
 
 ```bash
 cd web/frontend
 pnpm install
-pnpm run dev:vite    # 开发代理到 http://127.0.0.1:12003
+pnpm run dev:vite
 ```
 
-生产形态可先 `pnpm run build`，再由网关进程托管 `dist`。更完整的环境、构建参数与 Oracle 可选步骤见 [开发指南](docs/zh-CN/02-快速开始.md)。
+开发服务器将 API 代理到 `http://127.0.0.1:12003`。亦可 `pnpm run build` 后由网关托管 `dist`。完整步骤见 [开发指南](docs/zh-CN/02-快速开始.md)。
 
 ---
 
 ## 版本升级
 
-以安装目录 `/opt/gateway` 为例，先备份再覆盖。解压后把原来的 `database.yaml` 拷回去即可。
+以 `/opt/gateway` 为例。先备份 `database.yaml`，解压覆盖后再拷回。
 
 ```bash
 sudo systemctl stop gateway
 sudo cp /opt/gateway/configs/database.yaml /tmp/database.yaml.bak
-
 sudo tar -xzf gateway-linux-amd64-*.tar.gz -C /opt
 sudo cp /tmp/database.yaml.bak /opt/gateway/configs/database.yaml
-
 sudo systemctl start gateway
 ```
 
-Windows 与 Docker 升级见 [安装部署](docs/zh-CN/03-安装部署.md) 和 [容器化部署](docs/zh-CN/04-容器化部署.md)。
+Windows 与 Docker 见 [安装部署](docs/zh-CN/03-安装部署.md)、[容器化部署](docs/zh-CN/04-容器化部署.md)。
 
 ---
 
 ## 文档
 
-按使用目的选择，不要按章节号从头读完。
+按任务打开对应文档。完整目录：[中文](docs/zh-CN/README.md) · [English](docs/en/README.md)
 
-| 目的 | 文档 |
-|------|------|
-| 能力与架构 | [项目介绍](docs/zh-CN/01-项目介绍.md) |
-| 源码开发、本地编译 | [开发指南](docs/zh-CN/02-快速开始.md) |
-| 安装包 / 系统服务 | [安装部署](docs/zh-CN/03-安装部署.md) |
-| Docker / Kubernetes | [容器化部署](docs/zh-CN/04-容器化部署.md) |
-| 静态站点托管 | [静态资源托管](docs/zh-CN/08-静态资源托管.md) |
-| 表结构与命名 | [数据库规范](docs/zh-CN/05-数据库规范.md) |
-| 排查与性能 | [调试指南](docs/zh-CN/06-调试指南.md) |
-| 错误处理约定 | [错误处理](docs/zh-CN/07-错误处理.md) |
-| 安全与漏洞报告 | [SECURITY.md](SECURITY.md) |
-| 发版产物与镜像 | [.github/CI.md](.github/CI.md) |
-| 中文文档目录 | [docs/zh-CN](docs/zh-CN/README.md) |
-| English docs | [docs/en](docs/en/README.md) |
-| 常见问题 | [FAQ](docs/faq.md) |
+### 使用
+
+<table width="100%">
+  <colgroup>
+    <col width="40%">
+    <col width="60%">
+  </colgroup>
+  <thead>
+    <tr>
+      <th align="left">任务</th>
+      <th align="left">文档</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>能力、架构与适用场景</td>
+      <td><a href="docs/zh-CN/01-项目介绍.md">项目介绍</a></td>
+    </tr>
+    <tr>
+      <td>用网关发布本地静态站点</td>
+      <td><a href="docs/zh-CN/08-静态资源托管.md">静态资源托管</a></td>
+    </tr>
+    <tr>
+      <td>启动、端口、账号与常见错误</td>
+      <td><a href="docs/faq.md">FAQ</a></td>
+    </tr>
+  </tbody>
+</table>
+
+### 部署
+
+<table width="100%">
+  <colgroup>
+    <col width="40%">
+    <col width="60%">
+  </colgroup>
+  <thead>
+    <tr>
+      <th align="left">任务</th>
+      <th align="left">文档</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>安装包、系统服务、升级</td>
+      <td><a href="docs/zh-CN/03-安装部署.md">安装部署</a></td>
+    </tr>
+    <tr>
+      <td>Docker / Kubernetes</td>
+      <td><a href="docs/zh-CN/04-容器化部署.md">容器化部署</a></td>
+    </tr>
+    <tr>
+      <td>发版产物与镜像 tag</td>
+      <td><a href=".github/CI.md">发版流水线</a></td>
+    </tr>
+  </tbody>
+</table>
+
+### 开发
+
+<table width="100%">
+  <colgroup>
+    <col width="40%">
+    <col width="60%">
+  </colgroup>
+  <thead>
+    <tr>
+      <th align="left">任务</th>
+      <th align="left">文档</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>源码编译与本地联调</td>
+      <td><a href="docs/zh-CN/02-快速开始.md">开发指南</a></td>
+    </tr>
+    <tr>
+      <td>表结构与命名</td>
+      <td><a href="docs/zh-CN/05-数据库规范.md">数据库规范</a></td>
+    </tr>
+    <tr>
+      <td>排查与性能</td>
+      <td><a href="docs/zh-CN/06-调试指南.md">调试指南</a></td>
+    </tr>
+    <tr>
+      <td>错误处理约定</td>
+      <td><a href="docs/zh-CN/07-错误处理.md">错误处理</a></td>
+    </tr>
+    <tr>
+      <td>安全与漏洞报告</td>
+      <td><a href="SECURITY.md">SECURITY.md</a></td>
+    </tr>
+  </tbody>
+</table>
 
 ---
 
 ## 参与贡献
 
-请先阅读 [社区行为准则](CODE_OF_CONDUCT.md) 与 [贡献指南](CONTRIBUTING.md)。中文摘要见 [CONTRIBUTING_CN.md](CONTRIBUTING_CN.md)。
-
----
+请阅读 [社区行为准则](CODE_OF_CONDUCT.md) 与 [贡献指南](CONTRIBUTING.md)。中文摘要：[CONTRIBUTING_CN.md](CONTRIBUTING_CN.md)。
 
 ## 开源协议
 
 [Apache License 2.0](LICENSE)
-
----
 
 ## Star 历史
 
@@ -201,7 +372,7 @@ Windows 与 Docker 升级见 [安装部署](docs/zh-CN/03-安装部署.md) 和 [
 
 ---
 
-## 致谢与联系
+## 联系
 
 感谢 [所有贡献者](https://github.com/fluxsce/gateway/graphs/contributors)。
 
@@ -210,13 +381,13 @@ Windows 与 Docker 升级见 [安装部署](docs/zh-CN/03-安装部署.md) 和 [
 - Discussions：[讨论区](https://github.com/orgs/fluxsce/discussions)
 - 微信群：扫描下方二维码加入交流群
 
-<table>
+<table width="100%">
   <tr>
-    <td align="center" valign="top">
+    <td align="center" valign="top" width="50%">
       <img src="docs/images/QW.png" alt="企业微信群" width="250">
       <br>企业微信
     </td>
-    <td align="center" valign="top">
+    <td align="center" valign="top" width="50%">
       <img src="docs/images/WX.png" alt="微信群" width="250">
       <br>微信
     </td>
