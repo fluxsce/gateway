@@ -71,7 +71,6 @@ export function useRouteManagement() {
               routeList = []
             }
           } catch (parseError) {
-            console.error('解析路由数据失败:', parseError)
             routeList = []
           }
         }
@@ -82,7 +81,6 @@ export function useRouteManagement() {
           try {
             pageInfo = JSON.parse(response.pageQueryData)
           } catch (parseError) {
-            console.error('解析分页数据失败:', parseError)
             pageInfo = {}
           }
         }
@@ -93,21 +91,13 @@ export function useRouteManagement() {
         // 获取统计信息
         await getStatistics()
 
-        console.log('路由列表加载成功:', {
-          routeCount: routeList.length,
-          totalCount: pageInfo.totalCount,
-          pageIndex: pageInfo.pageIndex,
-          pageSize: pageInfo.pageSize,
-        })
       } else {
-        console.warn('获取路由列表失败:', response.errMsg || response.popMsg)
         routes.value = []
         total.value = 0
         // 重置统计信息
         resetStatistics()
       }
     } catch (error) {
-      console.error('获取路由列表失败:', error)
       message.error('获取路由列表失败')
       routes.value = []
       total.value = 0
@@ -144,17 +134,13 @@ export function useRouteManagement() {
             prefixMatchRoutes: statisticsData.prefixMatchRoutes || 0,
             regexMatchRoutes: statisticsData.regexMatchRoutes || 0,
           }
-          console.log('统计信息获取成功:', statistics.value)
         } catch (parseError) {
-          console.error('解析统计数据失败:', parseError)
           resetStatistics()
         }
       } else {
-        console.warn('获取统计信息失败:', response.errMsg || response.popMsg)
         resetStatistics()
       }
     } catch (error) {
-      console.error('获取统计信息失败:', error)
       resetStatistics()
     }
   }
@@ -183,7 +169,6 @@ export function useRouteManagement() {
       message.success('删除成功')
       await getRoutes()
     } catch (error) {
-      console.error('删除失败:', error)
       message.error('删除失败')
     } finally {
       submitting.value = false
@@ -203,7 +188,6 @@ export function useRouteManagement() {
       selectedRoutes.value = []
       await getRoutes()
     } catch (error) {
-      console.error('批量删除失败:', error)
       message.error('批量删除失败')
     } finally {
       submitting.value = false
@@ -224,7 +208,6 @@ export function useRouteManagement() {
       message.success(`${activeFlag === 'Y' ? '启用' : '禁用'}成功`)
       await getRoutes()
     } catch (error) {
-      console.error('切换状态失败:', error)
       message.error('切换状态失败')
     } finally {
       submitting.value = false
@@ -250,7 +233,6 @@ export function useRouteManagement() {
       selectedRoutes.value = []
       await getRoutes()
     } catch (error) {
-      console.error('批量切换状态失败:', error)
       message.error('批量切换状态失败')
     } finally {
       submitting.value = false
@@ -281,7 +263,6 @@ export function useRouteManagement() {
         await getRoutes()
       }
     } catch (error) {
-      console.error('复制失败:', error)
       message.error('复制失败')
     } finally {
       submitting.value = false

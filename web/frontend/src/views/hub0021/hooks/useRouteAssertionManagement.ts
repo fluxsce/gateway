@@ -40,7 +40,6 @@ export function useRouteAssertionManagement(routeConfigId: string) {
    */
   const loadAssertions = async () => {
     if (!routeConfigId) {
-      console.warn('路由配置ID为空，无法加载断言列表')
       return
     }
 
@@ -53,13 +52,10 @@ export function useRouteAssertionManagement(routeConfigId: string) {
         assertions.value = parseData.sort(
           (a: RouteAssertion, b: RouteAssertion) => a.assertionOrder - b.assertionOrder,
         )
-        console.log(`成功加载 ${assertions.value.length} 个路由断言`)
       } else {
         assertions.value = []
-        console.log('未找到路由断言配置')
       }
     } catch (error) {
-      console.error('加载路由断言失败:', error)
       message.error('加载路由断言失败')
       assertions.value = []
     } finally {
@@ -92,7 +88,6 @@ export function useRouteAssertionManagement(routeConfigId: string) {
         return false
       }
     } catch (error) {
-      console.error('创建断言失败:', error)
       message.error('创建断言失败')
       return false
     }
@@ -124,7 +119,6 @@ export function useRouteAssertionManagement(routeConfigId: string) {
         return false
       }
     } catch (error) {
-      console.error('更新断言失败:', error)
       message.error('更新断言失败')
       return false
     }
@@ -146,7 +140,6 @@ export function useRouteAssertionManagement(routeConfigId: string) {
         return false
       }
     } catch (error) {
-      console.error('删除断言失败:', error)
       message.error('删除断言失败')
       return false
     }
@@ -198,7 +191,6 @@ export function useRouteAssertionManagement(routeConfigId: string) {
         return false
       }
     } catch (error) {
-      console.error('调整执行顺序失败:', error)
       message.error('调整执行顺序失败')
       return false
     } finally {

@@ -137,7 +137,6 @@ export function useMonitoringService(searchFormRef?: Ref<RsSearchFormExpose | nu
 
       message.success('监控数据加载成功')
     } catch (error) {
-      console.error('加载监控数据失败:', error)
       message.error('加载监控数据失败，请检查网络连接或联系管理员')
       resetOverviewData()
       resetChartData()

@@ -53,10 +53,8 @@ export function setupRouteGuards(router: Router): void {
       try {
         const currentLocale = getCurrentLocale()
         await loadModuleMessages(to.meta.moduleName, currentLocale)
-        console.log(`[路由守卫] 已预加载模块 "${to.meta.moduleName}" 的语言包: ${currentLocale}`)
-      } catch (error) {
-        console.warn(`[路由守卫] 预加载模块 "${to.meta.moduleName}" 的语言包失败:`, error)
-        // 预加载失败不阻止路由导航，只是记录警告
+      } catch {
+        // 预加载失败不阻止路由导航
       }
     }
 

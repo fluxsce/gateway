@@ -30,7 +30,6 @@ export function useModalManager() {
     // 安全地打开特定模态框
     const openModal = async (modalKey: string) => {
       if (!modals[modalKey]) {
-        console.warn(`Modal "${modalKey}" not found in modal manager`)
         return
       }
 
@@ -45,7 +44,6 @@ export function useModalManager() {
     // 安全地关闭特定模态框
     const closeModal = async (modalKey: string) => {
       if (!modals[modalKey]) {
-        console.warn(`Modal "${modalKey}" not found in modal manager`)
         return
       }
 

@@ -161,7 +161,6 @@ export function useRouteAssertionList(options: UseRouteAssertionListOptions) {
       }
     } catch (error) {
       if (!isUnmounted.value) {
-        console.error('加载路由断言失败:', error)
         safeMessage.error('加载路由断言失败')
         assertions.value = []
       }
@@ -210,7 +209,6 @@ export function useRouteAssertionList(options: UseRouteAssertionListOptions) {
       }
     } catch (error) {
       if (!isUnmounted.value) {
-        console.error('删除断言失败:', error)
         safeMessage.error('删除断言失败')
       }
     } finally {
@@ -260,7 +258,6 @@ export function useRouteAssertionList(options: UseRouteAssertionListOptions) {
       }
     } catch (error) {
       if (!isUnmounted.value) {
-        console.error('更新断言状态失败:', error)
         safeMessage.error('更新断言状态失败')
       }
     }
@@ -353,7 +350,6 @@ export function useRouteAssertionList(options: UseRouteAssertionListOptions) {
       }
     } catch (error) {
       if (!isUnmounted.value) {
-        console.error('调整执行顺序失败:', error)
         safeMessage.error('调整执行顺序失败')
       }
     } finally {
@@ -454,15 +450,12 @@ export function useRouteAssertionList(options: UseRouteAssertionListOptions) {
               // 按执行顺序重新排序
               assertions.value.sort((a, b) => a.assertionOrder - b.assertionOrder)
 
-              console.log('新断言已添加到列表:', newAssertion)
             } catch (error) {
-              console.error('解析返回数据失败，回退到重新加载:', error)
               // 如果解析失败，回退到重新加载列表
               await loadRouteAssertions()
             }
           } else {
             // 如果没有返回数据，回退到重新加载列表
-            console.warn('后端未返回完整数据，回退到重新加载')
             await loadRouteAssertions()
           }
         }
@@ -471,7 +464,6 @@ export function useRouteAssertionList(options: UseRouteAssertionListOptions) {
       }
     } catch (error) {
       if (!isUnmounted.value) {
-        console.error('保存断言失败:', error)
         safeMessage.error('保存断言失败')
       }
     }
@@ -507,11 +499,7 @@ export function useRouteAssertionList(options: UseRouteAssertionListOptions) {
   )
 
   // 初始化
-  onMounted(() => {
-    if (options.routeConfigId) {
-      console.log('路由断言管理器初始化，路由ID:', options.routeConfigId)
-    }
-  })
+  
 
   // 组件卸载时清理
   onUnmounted(() => {

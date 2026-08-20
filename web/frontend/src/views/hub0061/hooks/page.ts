@@ -46,7 +46,13 @@ export function useStaticServerPage(
   /**
    * 处理分页变化
    */
-  const handlePageChange = async ({ currentPage, pageSize }: { currentPage: number; pageSize: number }) => {
+  const handlePageChange = async ({
+    currentPage,
+    pageSize,
+  }: {
+    currentPage: number
+    pageSize: number
+  }) => {
     service.model.updatePagination({ pageIndex: currentPage, pageSize })
     await service.loadServerList()
   }
@@ -131,7 +137,7 @@ export function useStaticServerPage(
       }
 
       default:
-        console.warn('未知的工具栏按钮:', key)
+        break
     }
   }
 
@@ -273,17 +279,13 @@ export function useStaticServerPage(
       if (formDialogMode.value === 'create') {
         success = await service.addServer(submitData)
       } else if (formDialogMode.value === 'edit' && currentEditServer.value) {
-        success = await service.editServer(
-          currentEditServer.value.tunnelStaticServerId,
-          submitData
-        )
+        success = await service.editServer(currentEditServer.value.tunnelStaticServerId, submitData)
       }
 
       if (success) {
         closeFormDialog()
       }
     } catch (error: any) {
-      console.error('提交服务配置失败:', error)
       message.error(error.message || '提交失败，请重试')
     }
   }
@@ -321,7 +323,7 @@ export function useStaticServerPage(
         await handleDelete(row)
         break
       default:
-        console.warn('未知的菜单项:', key)
+        break
     }
   }
 
@@ -361,7 +363,6 @@ export function useStaticServerPage(
   const handleToggleStatus = async (server: TunnelStaticServer) => {
     await service.toggleServerStatus(server)
   }
-
 
   return {
     // 服务

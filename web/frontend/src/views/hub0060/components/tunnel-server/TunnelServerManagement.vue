@@ -47,7 +47,13 @@
       v-model:visible="formDialogVisible"
       :module-id="service.model.moduleId"
       :mode="formDialogMode"
-      :title="formDialogMode === 'create' ? '新增隧道服务器' : formDialogMode === 'edit' ? '编辑隧道服务器' : '查看隧道服务器详情'"
+      :title="
+        formDialogMode === 'create'
+          ? '新增隧道服务器'
+          : formDialogMode === 'edit'
+            ? '编辑隧道服务器'
+            : '查看隧道服务器详情'
+      "
       :to="`#${service.model.moduleId}`"
       :form-fields="service.model.formFields"
       :form-tabs="service.model.formTabs"
@@ -75,10 +81,7 @@ defineOptions({
   name: 'TunnelServerManagementPanel',
 })
 
-const splitPanes: RsSplitPaneItem[] = [
-  { key: 'search', size: 'auto' },
-  { key: 'grid' },
-]
+const splitPanes: RsSplitPaneItem[] = [{ key: 'search', size: 'auto' }, { key: 'grid' }]
 
 const searchFormRef = ref<RsSearchFormExpose | null>(null)
 const gridRef = ref<RsGridExpose | null>(null)
@@ -107,8 +110,8 @@ const getStatistics = async () => {
       })
       statistics.value = data
     }
-  } catch (error) {
-    console.error('获取统计信息失败:', error)
+  } catch {
+    // 失败时保持当前状态
   }
 }
 

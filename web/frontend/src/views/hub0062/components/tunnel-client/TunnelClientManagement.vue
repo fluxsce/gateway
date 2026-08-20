@@ -47,7 +47,13 @@
       v-model:visible="formDialogVisible"
       :module-id="service.model.moduleId"
       :mode="formDialogMode"
-      :title="formDialogMode === 'create' ? '新增隧道客户端' : formDialogMode === 'edit' ? '编辑隧道客户端' : '查看隧道客户端详情'"
+      :title="
+        formDialogMode === 'create'
+          ? '新增隧道客户端'
+          : formDialogMode === 'edit'
+            ? '编辑隧道客户端'
+            : '查看隧道客户端详情'
+      "
       :to="`#${htmlId}`"
       :form-fields="service.model.formFields"
       :form-tabs="service.model.formTabs"
@@ -75,10 +81,7 @@ defineOptions({
   name: 'TunnelClientManagementPanel',
 })
 
-const splitPanes: RsSplitPaneItem[] = [
-  { key: 'search', size: 'auto' },
-  { key: 'grid' },
-]
+const splitPanes: RsSplitPaneItem[] = [{ key: 'search', size: 'auto' }, { key: 'grid' }]
 
 const searchFormRef = ref()
 const gridRef = ref<RsGridExpose | null>(null)
@@ -105,8 +108,8 @@ const loadStatistics = async () => {
         statistics.value = stats
       }
     }
-  } catch (error) {
-    console.error('加载统计数据失败:', error)
+  } catch {
+    // 失败时保持当前状态
   }
 }
 

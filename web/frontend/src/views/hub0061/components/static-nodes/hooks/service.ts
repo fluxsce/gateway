@@ -104,7 +104,6 @@ export function useStaticNodeService(
         model.resetPagination()
       }
     } catch (error: any) {
-      console.error('加载节点列表失败:', error)
       message.error(error.message || '加载节点列表失败')
       model.setNodeList([])
       model.resetPagination()
@@ -126,7 +125,6 @@ export function useStaticNodeService(
         return null
       }
     } catch (error: any) {
-      console.error('获取节点详情失败:', error)
       message.error(error.message || '获取节点详情失败')
       return null
     }
@@ -164,7 +162,6 @@ export function useStaticNodeService(
         return false
       }
     } catch (error: any) {
-      console.error('新增节点失败:', error)
       message.error(error.message || '新增节点失败')
       return false
     } finally {
@@ -204,7 +201,6 @@ export function useStaticNodeService(
         return false
       }
     } catch (error: any) {
-      console.error('编辑节点失败:', error)
       message.error(error.message || '编辑节点失败')
       return false
     } finally {
@@ -236,7 +232,6 @@ export function useStaticNodeService(
         return false
       }
     } catch (error: any) {
-      console.error('删除节点失败:', error)
       message.error(error.message || '删除节点失败')
       return false
     } finally {
@@ -275,7 +270,6 @@ export function useStaticNodeService(
         return false
       }
     } catch (error: any) {
-      console.error('批量删除节点失败:', error)
       message.error(error.message || '批量删除节点失败')
       return false
     } finally {

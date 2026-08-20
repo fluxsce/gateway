@@ -132,7 +132,6 @@ export function useToolMarketplace() {
       initialized.value = true
     } catch (err) {
       error.value = err instanceof Error ? err.message : '初始化失败'
-      console.error('初始化工具市场失败:', err)
     } finally {
       loading.value = false
     }
@@ -190,7 +189,6 @@ export function useToolMarketplace() {
 
       tools.value = mockTools
     } catch (err) {
-      console.error('加载工具列表失败:', err)
       throw err
     }
   }

@@ -65,7 +65,6 @@ export function useServerNodeService(searchFormRef?: Ref<any> | any) {
         message.error(response.errMsg || t('messages.queryListFailed'))
       }
     } catch (error) {
-      console.error('加载系统节点列表失败:', error)
       message.error(t('messages.loadListFailed'))
     } finally {
       loading.value = false
@@ -109,7 +108,6 @@ export function useServerNodeService(searchFormRef?: Ref<any> | any) {
       message.error(response.errMsg || t('messages.getDetailFailed'))
       return null
     } catch (error) {
-      console.error('获取节点详情失败:', error)
       message.error(t('messages.getDetailFailed'))
       return null
     }

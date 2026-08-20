@@ -272,7 +272,6 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
         }
       }
     } catch (error) {
-      console.error('提交实例失败:', error)
       message.error('读取证书/私钥文件失败')
     } finally {
       submitting.value = false
@@ -402,7 +401,6 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
       }
     } catch (error) {
       message.error('获取日志配置失败')
-      console.error('Error fetching log config:', error)
     }
   }
 
@@ -455,7 +453,6 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
       }
     } catch (error) {
       message.error('保存日志配置失败')
-      console.error('Error saving log config:', error)
     } finally {
       logConfigSubmitting.value = false
     }

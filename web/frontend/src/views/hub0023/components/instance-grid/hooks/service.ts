@@ -92,7 +92,6 @@ export function useGatewayInstanceListService(searchFormRef?: Ref<any> | any) {
         return { success: false, error: errorMsg }
       }
     } catch (error: any) {
-      console.error('查询网关实例列表失败:', error)
       message.error(error?.message || '查询网关实例列表失败')
       clearInstanceList()
       model.resetPagination()

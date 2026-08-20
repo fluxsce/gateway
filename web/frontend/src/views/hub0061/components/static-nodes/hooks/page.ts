@@ -38,7 +38,8 @@ export function useStaticNodePage(
    * 校验是否已选择服务器
    */
   const validateContext = (showMessage = true): boolean => {
-    const serverId = typeof tunnelStaticServerId === 'string' ? tunnelStaticServerId : tunnelStaticServerId?.value
+    const serverId =
+      typeof tunnelStaticServerId === 'string' ? tunnelStaticServerId : tunnelStaticServerId?.value
 
     if (!serverId) {
       if (showMessage) {
@@ -62,7 +63,13 @@ export function useStaticNodePage(
   /**
    * 处理分页变化
    */
-  const handlePageChange = async ({ currentPage, pageSize }: { currentPage: number; pageSize: number }) => {
+  const handlePageChange = async ({
+    currentPage,
+    pageSize,
+  }: {
+    currentPage: number
+    pageSize: number
+  }) => {
     service.model.updatePagination({ pageIndex: currentPage, pageSize })
     await service.loadNodeList()
   }
@@ -102,7 +109,7 @@ export function useStaticNodePage(
       }
 
       default:
-        console.warn('未知的工具栏按钮:', key)
+        break
     }
   }
 
@@ -208,7 +215,11 @@ export function useStaticNodePage(
     try {
       const submitData: Partial<TunnelStaticNode> = {
         tunnelStaticNodeId: formData.tunnelStaticNodeId,
-        tunnelStaticServerId: formData.tunnelStaticServerId || (typeof tunnelStaticServerId === 'string' ? tunnelStaticServerId : tunnelStaticServerId?.value),
+        tunnelStaticServerId:
+          formData.tunnelStaticServerId ||
+          (typeof tunnelStaticServerId === 'string'
+            ? tunnelStaticServerId
+            : tunnelStaticServerId?.value),
         nodeName: formData.nodeName,
         nodeDescription: formData.nodeDescription,
         targetAddress: formData.targetAddress,
@@ -231,17 +242,13 @@ export function useStaticNodePage(
       if (formDialogMode.value === 'create') {
         success = await service.addNode(submitData)
       } else if (formDialogMode.value === 'edit' && currentEditNode.value) {
-        success = await service.editNode(
-          currentEditNode.value.tunnelStaticNodeId,
-          submitData
-        )
+        success = await service.editNode(currentEditNode.value.tunnelStaticNodeId, submitData)
       }
 
       if (success) {
         closeFormDialog()
       }
     } catch (error: any) {
-      console.error('提交节点配置失败:', error)
       message.error(error.message || '提交失败，请重试')
     }
   }
@@ -267,7 +274,7 @@ export function useStaticNodePage(
         await handleDelete(row)
         break
       default:
-        console.warn('未知的菜单项:', key)
+        break
     }
   }
 
@@ -321,4 +328,3 @@ export function useStaticNodePage(
     handleToggleStatus,
   }
 }
-

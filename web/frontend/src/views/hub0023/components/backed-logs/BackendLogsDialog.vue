@@ -345,7 +345,6 @@
 <script setup lang="ts">
 import {
   RsCard,
-  RsCodeBlock,
   RsDescriptions,
   RsDescriptionsItem,
   RsDialog,
@@ -355,6 +354,7 @@ import {
   RsTag,
   type RsTabItem,
 } from '@/ui'
+import { RsCodeBlock } from '@/ui/code-block'
 import { computed } from 'vue'
 import { useBackendLogsPage } from './page'
 

@@ -45,7 +45,13 @@ export function useAlertConfigPage(
   /**
    * 处理分页变化
    */
-  const handlePageChange = async ({ currentPage, pageSize }: { currentPage: number; pageSize: number }) => {
+  const handlePageChange = async ({
+    currentPage,
+    pageSize,
+  }: {
+    currentPage: number
+    pageSize: number
+  }) => {
     service.model.updatePagination({ pageIndex: currentPage, pageSize })
     await service.loadConfigList()
   }
@@ -85,7 +91,7 @@ export function useAlertConfigPage(
       }
 
       default:
-        console.warn('未知的工具栏按钮:', key)
+        break
     }
   }
 
@@ -124,14 +130,23 @@ export function useAlertConfigPage(
     // 构建表单数据对象
     const formData: any = {
       ...config,
-      serverConfig: serverConfigObj && typeof serverConfigObj === 'object' ? { ...serverConfigObj } : {},
+      serverConfig:
+        serverConfigObj && typeof serverConfigObj === 'object' ? { ...serverConfigObj } : {},
       sendConfig: {},
     }
 
     if (sendConfigObj && typeof sendConfigObj === 'object') {
       Object.keys(sendConfigObj).forEach((key) => {
         const value = sendConfigObj[key]
-        if (Array.isArray(value) && (key === 'to' || key === 'cc' || key === 'bcc' || key === 'at_users' || key === 'mentioned_list' || key === 'mentioned_mobile_list')) {
+        if (
+          Array.isArray(value) &&
+          (key === 'to' ||
+            key === 'cc' ||
+            key === 'bcc' ||
+            key === 'at_users' ||
+            key === 'mentioned_list' ||
+            key === 'mentioned_mobile_list')
+        ) {
           formData.sendConfig[key] = value.join(', ')
         } else {
           formData.sendConfig[key] = value
@@ -227,7 +242,7 @@ export function useAlertConfigPage(
       // 清空主键和系统字段，准备创建新配置
       formData.channelName = '' // 清空渠道名称，用户必须输入新名称
       formData.tenantId = formData.tenantId || '' // 保留租户ID（如果需要）
-      
+
       // 清空系统字段（这些字段会在创建时自动生成）
       delete formData.addTime
       delete formData.addWho
@@ -235,7 +250,7 @@ export function useAlertConfigPage(
       delete formData.editWho
       delete formData.oprSeqFlag
       delete formData.currentVersion
-      
+
       // 重置统计字段
       formData.totalSentCount = 0
       formData.successCount = 0
@@ -251,7 +266,6 @@ export function useAlertConfigPage(
       formDialogVisible.value = true
     } catch (error) {
       message.error('获取配置详情失败，无法复制')
-      console.error('复制配置失败:', error)
     }
   }
 
@@ -270,7 +284,14 @@ export function useAlertConfigPage(
     // 从嵌套对象重新构建 serverConfig / sendConfig
     const serverConfigObj = takeNamedObject(formData, 'serverConfig')
     const sendConfigObj = takeNamedObject(formData, 'sendConfig')
-    const listKeys = new Set(['to', 'cc', 'bcc', 'at_users', 'mentioned_list', 'mentioned_mobile_list'])
+    const listKeys = new Set([
+      'to',
+      'cc',
+      'bcc',
+      'at_users',
+      'mentioned_list',
+      'mentioned_mobile_list',
+    ])
     Object.keys(serverConfigObj).forEach((key) => {
       const value = serverConfigObj[key]
       if (value === undefined || value === null || value === '') delete serverConfigObj[key]
@@ -282,7 +303,10 @@ export function useAlertConfigPage(
         return
       }
       if (typeof value === 'string' && listKeys.has(key)) {
-        const arr = value.split(',').map((s) => s.trim()).filter((s) => s)
+        const arr = value
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s)
         if (arr.length > 0) sendConfigObj[key] = arr
         else delete sendConfigObj[key]
       }
@@ -303,7 +327,8 @@ export function useAlertConfigPage(
 
     return {
       ...apiData,
-      serverConfig: Object.keys(serverConfigObj).length > 0 ? JSON.stringify(serverConfigObj) : undefined,
+      serverConfig:
+        Object.keys(serverConfigObj).length > 0 ? JSON.stringify(serverConfigObj) : undefined,
       sendConfig: Object.keys(sendConfigObj).length > 0 ? JSON.stringify(sendConfigObj) : undefined,
     } as Partial<AlertConfig>
   }
@@ -328,17 +353,13 @@ export function useAlertConfigPage(
       if (formDialogMode.value === 'create') {
         success = await service.addConfig(submitData)
       } else if (formDialogMode.value === 'edit' && currentEditConfig.value) {
-        success = await service.editConfig(
-          currentEditConfig.value.channelName,
-          submitData
-        )
+        success = await service.editConfig(currentEditConfig.value.channelName, submitData)
       }
 
       if (success) {
         closeFormDialog()
       }
     } catch (error: any) {
-      console.error('提交配置失败:', error)
       message.error(error.message || '提交失败，请重试')
     }
   }
@@ -373,7 +394,7 @@ export function useAlertConfigPage(
         await handleDelete(row)
         break
       default:
-        console.warn('未知的菜单项:', key)
+        break
     }
   }
 
@@ -515,4 +536,3 @@ export function useAlertConfigPage(
     closeTestModal,
   }
 }
-

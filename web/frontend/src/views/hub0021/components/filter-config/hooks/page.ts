@@ -24,11 +24,16 @@ export function useFilterConfigPage(
   gridRef?: Ref<any> | any,
   gatewayInstanceId?: Ref<string | undefined> | string,
   routeConfigId?: Ref<string | undefined> | string,
-  searchFormRef?: Ref<any> | any
+  searchFormRef?: Ref<any> | any,
 ) {
   const message = useAppMessage()
-// 业务服务（包含 model、增删改查等，传递模块ID）
-  const service = useFilterConfigService(moduleId.value, gatewayInstanceId, routeConfigId, searchFormRef)
+  // 业务服务（包含 model、增删改查等，传递模块ID）
+  const service = useFilterConfigService(
+    moduleId.value,
+    gatewayInstanceId,
+    routeConfigId,
+    searchFormRef,
+  )
 
   // 表单对话框状态（新增/编辑/查看共用）
   const formDialogVisible = ref(false)
@@ -41,7 +46,8 @@ export function useFilterConfigPage(
    * 校验是否已选择网关实例或路由
    */
   const validateContext = (showMessage = true): boolean => {
-    const instanceId = typeof gatewayInstanceId === 'string' ? gatewayInstanceId : gatewayInstanceId?.value
+    const instanceId =
+      typeof gatewayInstanceId === 'string' ? gatewayInstanceId : gatewayInstanceId?.value
     const routeId = typeof routeConfigId === 'string' ? routeConfigId : routeConfigId?.value
 
     if (!instanceId && !routeId) {
@@ -66,7 +72,13 @@ export function useFilterConfigPage(
   /**
    * 处理分页变化
    */
-  const handlePageChange = async ({ currentPage, pageSize }: { currentPage: number; pageSize: number }) => {
+  const handlePageChange = async ({
+    currentPage,
+    pageSize,
+  }: {
+    currentPage: number
+    pageSize: number
+  }) => {
     service.model.updatePagination({ pageIndex: currentPage, pageSize })
     await service.loadFilterList()
   }
@@ -85,7 +97,7 @@ export function useFilterConfigPage(
         await handleBatchDelete()
         break
       default:
-        console.warn('未知的工具栏按钮:', key)
+        break
     }
   }
 
@@ -280,7 +292,10 @@ export function useFilterConfigPage(
    * 读接口：JSON 字符串 → form.config 对象树（不再摊成 config.xxx 扁平 key）。
    * textarea 用的 filterConfigJson / conditionsJson 是树上的展示投影。
    */
-  const parseFilterConfig = (filterConfig: string | undefined, _filterType?: string): Record<string, any> => {
+  const parseFilterConfig = (
+    filterConfig: string | undefined,
+    _filterType?: string,
+  ): Record<string, any> => {
     if (!filterConfig) return {}
 
     try {
@@ -291,14 +306,20 @@ export function useFilterConfigPage(
         config.bodyConfig.filterConfigJson = JSON.stringify(config.bodyConfig.filterConfig, null, 2)
       }
       if (config.responseConfig) {
-        if (config.responseConfig.filterConfig && typeof config.responseConfig.filterConfig !== 'string') {
+        if (
+          config.responseConfig.filterConfig &&
+          typeof config.responseConfig.filterConfig !== 'string'
+        ) {
           config.responseConfig.filterConfigJson = JSON.stringify(
             config.responseConfig.filterConfig,
             null,
             2,
           )
         }
-        if (config.responseConfig.conditions && typeof config.responseConfig.conditions !== 'string') {
+        if (
+          config.responseConfig.conditions &&
+          typeof config.responseConfig.conditions !== 'string'
+        ) {
           config.responseConfig.conditionsJson = JSON.stringify(
             config.responseConfig.conditions,
             null,
@@ -309,7 +330,6 @@ export function useFilterConfigPage(
 
       return { config }
     } catch (error) {
-      console.error('解析过滤器配置失败:', error)
       return {}
     }
   }
@@ -334,12 +354,16 @@ export function useFilterConfigPage(
     try {
       // 组装 filterConfig
       const filterConfig = buildFilterConfig(formData)
-      
+
       // 移除动态配置字段，只保留基础字段
       const submitData: Partial<FilterConfig> = {
         filterConfigId: formData.filterConfigId,
-        gatewayInstanceId: formData.gatewayInstanceId || (typeof gatewayInstanceId === 'string' ? gatewayInstanceId : gatewayInstanceId?.value),
-        routeConfigId: formData.routeConfigId || (typeof routeConfigId === 'string' ? routeConfigId : routeConfigId?.value),
+        gatewayInstanceId:
+          formData.gatewayInstanceId ||
+          (typeof gatewayInstanceId === 'string' ? gatewayInstanceId : gatewayInstanceId?.value),
+        routeConfigId:
+          formData.routeConfigId ||
+          (typeof routeConfigId === 'string' ? routeConfigId : routeConfigId?.value),
         filterName: formData.filterName,
         filterType: formData.filterType,
         filterAction: formData.filterAction,
@@ -354,10 +378,7 @@ export function useFilterConfigPage(
       if (formDialogMode.value === 'create') {
         success = await service.addFilter(submitData)
       } else if (formDialogMode.value === 'edit' && currentEditFilter.value) {
-        success = await service.editFilter(
-          currentEditFilter.value.filterConfigId,
-          submitData
-        )
+        success = await service.editFilter(currentEditFilter.value.filterConfigId, submitData)
       }
 
       if (success) {
@@ -365,7 +386,6 @@ export function useFilterConfigPage(
         // addFilter 和 editFilter 内部已经处理了列表更新，这里不需要重复刷新
       }
     } catch (error: any) {
-      console.error('提交过滤器配置失败:', error)
       message.error(error.message || '提交失败，请重试')
     }
   }
@@ -391,7 +411,7 @@ export function useFilterConfigPage(
         await handleDelete(row)
         break
       default:
-        console.warn('未知的菜单项:', key)
+        break
     }
   }
 
@@ -497,4 +517,3 @@ export function useFilterConfigPage(
     handleToggleStatus,
   }
 }
-

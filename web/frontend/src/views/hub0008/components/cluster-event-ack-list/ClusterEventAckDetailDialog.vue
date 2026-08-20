@@ -90,13 +90,13 @@
 <script setup lang="ts">
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import {
-  RsCodeBlock,
   RsDescriptions,
   RsDescriptionsItem,
   RsDialog,
   RsTag,
   type RsTagVariant,
 } from '@/ui'
+import { RsCodeBlock } from '@/ui/code-block'
 import { formatDate } from '@/utils/format'
 import { computed, ref, watch } from 'vue'
 import type { ClusterEventAck } from '../../types'

@@ -241,7 +241,6 @@ const handleConfirm = async () => {
       message.error(getApiMessage(response, '测试消息发送失败'))
     }
   } catch (error: any) {
-    console.error('测试告警渠道失败:', error)
     message.error(error.message || '测试告警渠道失败')
   } finally {
     loading.value = false

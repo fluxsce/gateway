@@ -50,7 +50,6 @@ export function useAlertTemplateService(searchFormRef?: Ref<RsSearchFormExpose |
         model.resetPagination()
       }
     } catch (e: any) {
-      console.error('加载模板列表失败:', e)
       message.error(e.message || '加载模板列表失败')
       model.setTemplateList([])
       model.resetPagination()
@@ -68,7 +67,6 @@ export function useAlertTemplateService(searchFormRef?: Ref<RsSearchFormExpose |
       message.error(getApiMessage(resp, '获取模板详情失败'))
       return null
     } catch (e: any) {
-      console.error('获取模板详情失败:', e)
       message.error(e.message || '获取模板详情失败')
       return null
     }
@@ -86,7 +84,6 @@ export function useAlertTemplateService(searchFormRef?: Ref<RsSearchFormExpose |
       message.error(getApiMessage(resp, '新增模板失败'))
       return false
     } catch (e: any) {
-      console.error('新增模板失败:', e)
       message.error(e.message || '新增模板失败')
       return false
     } finally {
@@ -106,7 +103,6 @@ export function useAlertTemplateService(searchFormRef?: Ref<RsSearchFormExpose |
       message.error(getApiMessage(resp, '更新模板失败'))
       return false
     } catch (e: any) {
-      console.error('更新模板失败:', e)
       message.error(e.message || '更新模板失败')
       return false
     } finally {
@@ -126,7 +122,6 @@ export function useAlertTemplateService(searchFormRef?: Ref<RsSearchFormExpose |
       message.error(getApiMessage(resp, '删除模板失败'))
       return false
     } catch (e: any) {
-      console.error('删除模板失败:', e)
       message.error(e.message || '删除模板失败')
       return false
     } finally {

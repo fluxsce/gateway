@@ -8,8 +8,6 @@ import { setupPlugins } from './plugins'
 import router from './router'
 import { initializeStores, setupStoreHelpers } from './stores'
 
-import 'highlight.js/styles/atom-one-light.css'
-
 // niuma-ui 基座样式 → 业务主题 → 品牌覆盖
 import 'niuma-ui/styles.css'
 import './styles/index.scss'
@@ -62,8 +60,6 @@ export async function startApp() {
     app.mount('#app')
     await nextTick()
     removeBootSplash()
-
-    console.log('应用初始化完成')
 
     return app
   } catch (error) {

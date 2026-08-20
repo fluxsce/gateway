@@ -21,7 +21,7 @@ import type { AssertConfig } from './types'
 export function useAssertConfigPage(
   routeConfigId: Ref<string | undefined> | string,
   gridRef?: Ref<any> | any,
-  searchFormRef?: Ref<any> | any
+  searchFormRef?: Ref<any> | any,
 ) {
   const message = useAppMessage()
 
@@ -64,7 +64,7 @@ export function useAssertConfigPage(
     try {
       // 根据断言ID查询最新的断言配置
       const response = await getRouteAssertionById(assert.routeAssertionId)
-      
+
       if (isApiSuccess(response)) {
         const latestAssert = parseJsonData<AssertConfig>(response)
         if (latestAssert) {
@@ -74,14 +74,13 @@ export function useAssertConfigPage(
           return
         }
       }
-      
+
       // 如果查询失败，使用传入的数据作为后备
       message.warning(getApiMessage(response, '获取断言配置失败，使用缓存数据'))
       currentEditAssert.value = { ...assert }
       formDialogMode.value = 'edit'
       formDialogVisible.value = true
     } catch (error) {
-      console.error('打开编辑对话框失败:', error)
       message.error('获取断言配置失败')
       // 出错时使用传入的数据
       currentEditAssert.value = { ...assert }
@@ -94,13 +93,9 @@ export function useAssertConfigPage(
    * 打开查看对话框
    */
   const openViewDialog = async (assert: AssertConfig) => {
-    try {
-      currentEditAssert.value = { ...assert }
-      formDialogMode.value = 'view'
-      formDialogVisible.value = true
-    } catch (error) {
-      console.error('打开查看对话框失败:', error)
-    }
+    currentEditAssert.value = { ...assert }
+    formDialogMode.value = 'view'
+    formDialogVisible.value = true
   }
 
   /**
@@ -138,8 +133,8 @@ export function useAssertConfigPage(
       if (success) {
         closeFormDialog()
       }
-    } catch (error) {
-      console.error('提交表单失败:', error)
+    } catch {
+      // 失败时保持当前状态
     }
   }
 
@@ -278,7 +273,6 @@ export function useAssertConfigPage(
 
   // ============= 分页 =============
 
-
   return {
     service,
     formDialogVisible,
@@ -302,4 +296,3 @@ export function useAssertConfigPage(
  * 断言配置列表页面级 Hook 类型
  */
 export type AssertConfigPage = ReturnType<typeof useAssertConfigPage>
-

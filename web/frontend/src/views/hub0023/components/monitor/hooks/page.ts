@@ -43,7 +43,7 @@ export function useMonitoringPage(searchFormRef?: Ref<RsSearchFormExpose | null>
         await service.refreshMonitoringData()
         break
       default:
-        console.warn(`未知的工具栏按钮: ${key}`)
+        break
     }
   }
 
@@ -73,7 +73,7 @@ export function useMonitoringPage(searchFormRef?: Ref<RsSearchFormExpose | null>
     () => {
       charts.updateCharts(service.model.overviewData, service.model.chartData)
     },
-    { deep: true }
+    { deep: true },
   )
 
   // 组件卸载时清理资源
@@ -101,4 +101,3 @@ export function useMonitoringPage(searchFormRef?: Ref<RsSearchFormExpose | null>
  * Page 返回类型
  */
 export type MonitoringPage = ReturnType<typeof useMonitoringPage>
-

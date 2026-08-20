@@ -1,5 +1,6 @@
 /**
- * 控制台侧 niuma-ui 薄封装：只 re-export 后台常用组件，避免默认拉入 Monaco / Terminal。
+ * 控制台侧 niuma-ui 薄封装：只 re-export 后台常用组件。
+ * CodeMirror 相关请从 `@/ui/code-editor` / `@/ui/code-block` 导入，避免登录页拉入编辑器。
  */
 export {
   RsAlert,
@@ -8,8 +9,6 @@ export {
   RsButton,
   RsCard,
   RsCheckbox,
-  RsCodeBlock,
-  RsCodeEditor,
   RsConfigProvider,
   RsConfirmDialog,
   RsDatePicker,
@@ -93,8 +92,6 @@ export {
 export type {
   RsButtonTone,
   RsButtonVariant,
-  RsCodeEditorLanguage,
-  RsCodeEditorTheme,
   RsConfirmApi,
   RsConfirmBeforeClose,
   RsConfirmCloseReason,

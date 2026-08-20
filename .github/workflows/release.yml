@@ -25,7 +25,7 @@ permissions:
   packages: write
 
 env:
-  NIUMA_UI_VERSION: "1.1.5"
+  NIUMA_UI_VERSION: "1.1.6"
   ALIYUN_REGISTRY: crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com
   ALIYUN_NAMESPACE: datahub-images
 
@@ -92,15 +92,23 @@ jobs:
 
   package-linux:
     needs: [prepare, frontend]
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - id: standard
+          - id: amd64
+            arch: amd64
             oracle: "0"
-          - id: oracle
+            runner: ubuntu-latest
+          - id: amd64-oracle
+            arch: amd64
             oracle: "1"
+            runner: ubuntu-latest
+          - id: arm64
+            arch: arm64
+            oracle: "0"
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
@@ -125,6 +133,7 @@ jobs:
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
           ORACLE: ${{ matrix.oracle }}
+          GOARCH: ${{ matrix.arch }}
         run: bash .github/scripts/package-linux-ci.sh
       - uses: actions/upload-artifact@v7
         with:
@@ -182,21 +191,19 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  docker:
+  docker-standard:
     needs: [prepare, frontend]
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - id: standard
-            file: scripts/docker/Dockerfile
-            suffix: ""
-            latest: "true"
-          - id: oracle
-            file: scripts/docker/Dockerfile.oracle
-            suffix: "-oracle"
-            latest: "false"
+          - arch: amd64
+            runner: ubuntu-latest
+            platform: linux/amd64
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v8
@@ -242,12 +249,13 @@ jobs:
         with:
           images: ${{ steps.images.outputs.list }}
           tags: |
-            type=raw,value=${{ needs.prepare.outputs.version }}${{ matrix.suffix }}
-            type=raw,value=latest,enable=${{ matrix.latest == 'true' && needs.prepare.outputs.is_tag == 'true' }}
+            type=raw,value=${{ needs.prepare.outputs.version }}-${{ matrix.arch }}
+            type=raw,value=latest-${{ matrix.arch }},enable=${{ needs.prepare.outputs.is_tag == 'true' }}
       - uses: docker/build-push-action@v7
         with:
           context: .
-          file: ${{ matrix.file }}
+          file: scripts/docker/Dockerfile
+          platforms: ${{ matrix.platform }}
           push: ${{ needs.prepare.outputs.push_images == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -257,11 +265,134 @@ jobs:
             GIT_COMMIT=${{ github.sha }}
             ALPINE_MIRROR=
             DEBIAN_MIRROR=
-          cache-from: type=gha,scope=docker-${{ matrix.id }}
-          cache-to: type=gha,mode=min,scope=docker-${{ matrix.id }}
-          # 阿里云个人版 ACR 不识别 OCI 1.1 空描述符（provenance/SBOM 会带上）
+          cache-from: type=gha,scope=docker-standard-${{ matrix.arch }}
+          cache-to: type=gha,mode=min,scope=docker-standard-${{ matrix.arch }}
           provenance: false
           sbom: false
+
+  docker-oracle:
+    needs: [prepare, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: web/frontend/dist
+      - uses: docker/setup-buildx-action@v4
+      - name: Resolve image names
+        id: images
+        env:
+          ALIYUN_USER: ${{ secrets.ALIYUN_USERNAME }}
+          ALIYUN_PASS: ${{ secrets.ALIYUN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          LIST="ghcr.io/${{ github.repository }}"
+          ALIYUN=false
+          if [ -n "${ALIYUN_USER}" ] && [ -n "${ALIYUN_PASS}" ]; then
+            LIST="${LIST}"$'\n'"${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/gateway"
+            ALIYUN=true
+          else
+            echo "::warning::ALIYUN_USERNAME / ALIYUN_PASSWORD 未配置，跳过阿里云 ACR 推送"
+          fi
+          echo "aliyun=${ALIYUN}" >> "$GITHUB_OUTPUT"
+          {
+            echo "list<<EOF"
+            printf '%s\n' "${LIST}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v4
+        if: needs.prepare.outputs.push_images == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/login-action@v4
+        if: needs.prepare.outputs.push_images == 'true' && steps.images.outputs.aliyun == 'true'
+        with:
+          registry: ${{ env.ALIYUN_REGISTRY }}
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
+      - uses: docker/metadata-action@v6
+        id: meta
+        with:
+          images: ${{ steps.images.outputs.list }}
+          tags: |
+            type=raw,value=${{ needs.prepare.outputs.version }}-oracle
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: scripts/docker/Dockerfile.oracle
+          platforms: linux/amd64
+          push: ${{ needs.prepare.outputs.push_images == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
+            BUILD_DATE=${{ needs.prepare.outputs.build_date }}
+            GIT_COMMIT=${{ github.sha }}
+            ALPINE_MIRROR=
+            DEBIAN_MIRROR=
+          cache-from: type=gha,scope=docker-oracle
+          cache-to: type=gha,mode=min,scope=docker-oracle
+          provenance: false
+          sbom: false
+
+  docker-manifest:
+    needs: [prepare, docker-standard]
+    if: needs.prepare.outputs.push_images == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/setup-buildx-action@v4
+      - name: Resolve image names
+        id: images
+        env:
+          ALIYUN_USER: ${{ secrets.ALIYUN_USERNAME }}
+          ALIYUN_PASS: ${{ secrets.ALIYUN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          LIST="ghcr.io/${{ github.repository }}"
+          ALIYUN=false
+          if [ -n "${ALIYUN_USER}" ] && [ -n "${ALIYUN_PASS}" ]; then
+            LIST="${LIST}"$'\n'"${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/gateway"
+            ALIYUN=true
+          else
+            echo "::warning::ALIYUN_USERNAME / ALIYUN_PASSWORD 未配置，跳过阿里云 ACR 推送"
+          fi
+          echo "aliyun=${ALIYUN}" >> "$GITHUB_OUTPUT"
+          {
+            echo "list<<EOF"
+            printf '%s\n' "${LIST}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/login-action@v4
+        if: steps.images.outputs.aliyun == 'true'
+        with:
+          registry: ${{ env.ALIYUN_REGISTRY }}
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
+      - name: Create multi-arch tags
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          IS_TAG: ${{ needs.prepare.outputs.is_tag }}
+          REPOS: ${{ steps.images.outputs.list }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r repo; do
+            [ -z "${repo}" ] && continue
+            TAGS=(-t "${repo}:${VERSION}")
+            if [ "${IS_TAG}" = "true" ]; then
+              TAGS+=(-t "${repo}:latest")
+            fi
+            docker buildx imagetools create "${TAGS[@]}" \
+              "${repo}:${VERSION}-amd64" \
+              "${repo}:${VERSION}-arm64"
+          done <<< "${REPOS}"
 
   release:
     needs: [prepare, package-linux, package-windows]

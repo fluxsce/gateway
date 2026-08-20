@@ -94,7 +94,6 @@ export function useAlertConfigService(
         model.resetPagination()
       }
     } catch (error: any) {
-      console.error('加载配置列表失败:', error)
       message.error(error.message || '加载配置列表失败')
       model.setConfigList([])
       model.resetPagination()
@@ -116,7 +115,6 @@ export function useAlertConfigService(
         return null
       }
     } catch (error: any) {
-      console.error('获取配置详情失败:', error)
       message.error(error.message || '获取配置详情失败')
       return null
     }
@@ -148,7 +146,6 @@ export function useAlertConfigService(
         return false
       }
     } catch (error: any) {
-      console.error('新增配置失败:', error)
       message.error(error.message || '新增配置失败')
       return false
     } finally {
@@ -187,7 +184,6 @@ export function useAlertConfigService(
         return false
       }
     } catch (error: any) {
-      console.error('编辑配置失败:', error)
       message.error(error.message || '编辑配置失败')
       return false
     } finally {
@@ -215,7 +211,6 @@ export function useAlertConfigService(
         return false
       }
     } catch (error: any) {
-      console.error('设置默认渠道失败:', error)
       message.error(error.message || '设置默认渠道失败')
       return false
     } finally {
@@ -252,7 +247,6 @@ export function useAlertConfigService(
         return false
       }
     } catch (error: any) {
-      console.error('测试告警渠道失败:', error)
       message.error(error.message || '测试告警渠道失败')
       return false
     } finally {
@@ -278,7 +272,6 @@ export function useAlertConfigService(
         return false
       }
     } catch (error: any) {
-      console.error('配置重载失败:', error)
       message.error(error.message || '配置重载失败')
       return false
     } finally {

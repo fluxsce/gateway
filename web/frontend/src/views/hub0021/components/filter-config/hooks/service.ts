@@ -121,7 +121,6 @@ export function useFilterConfigService(
         model.resetPagination()
       }
     } catch (error: any) {
-      console.error('加载过滤器列表失败:', error)
       message.error(error.message || '加载过滤器列表失败')
       model.setFilterList([])
       model.resetPagination()
@@ -144,7 +143,6 @@ export function useFilterConfigService(
         return null
       }
     } catch (error: any) {
-      console.error('获取过滤器详情失败:', error)
       message.error(error.message || '获取过滤器详情失败')
       return null
     }
@@ -183,7 +181,6 @@ export function useFilterConfigService(
         return false
       }
     } catch (error: any) {
-      console.error('新增过滤器失败:', error)
       message.error(error.message || '新增过滤器失败')
       return false
     } finally {
@@ -223,7 +220,6 @@ export function useFilterConfigService(
         return false
       }
     } catch (error: any) {
-      console.error('编辑过滤器失败:', error)
       message.error(error.message || '编辑过滤器失败')
       return false
     } finally {
@@ -255,7 +251,6 @@ export function useFilterConfigService(
         return false
       }
     } catch (error: any) {
-      console.error('删除过滤器失败:', error)
       message.error(error.message || '删除过滤器失败')
       return false
     } finally {
@@ -294,7 +289,6 @@ export function useFilterConfigService(
         return false
       }
     } catch (error: any) {
-      console.error('批量删除过滤器失败:', error)
       message.error(error.message || '批量删除过滤器失败')
       return false
     } finally {

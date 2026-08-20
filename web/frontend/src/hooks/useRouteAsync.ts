@@ -150,18 +150,15 @@ export default function useRouteAsync<T = any>(
           const newParams: Record<string, string> = {}
           Object.assign(newParams, to.params, to.query)
           routeParams.value = newParams
-          asyncState.execute().catch((error) => {
-            console.error('路由数据加载失败:', error)
-          })
+          // execute 失败会 reject，错误已写入 asyncState.error；这里吞掉避免未处理拒绝
+          void asyncState.execute().catch(() => {})
         }
       } else {
         // 如果没有指定参数，任何路由更新都会触发重新加载
         const newParams: Record<string, string> = {}
         Object.assign(newParams, to.params, to.query)
         routeParams.value = newParams
-        asyncState.execute().catch((error) => {
-          console.error('路由数据加载失败:', error)
-        })
+        void asyncState.execute().catch(() => {})
       }
 
       next()

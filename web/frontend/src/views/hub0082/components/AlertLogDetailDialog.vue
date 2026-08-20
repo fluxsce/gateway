@@ -96,7 +96,6 @@ import { useAppMessage } from '@/composables/useAppMessage'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import {
   RsCard,
-  RsCodeBlock,
   RsDescriptions,
   RsDescriptionsItem,
   RsDialog,
@@ -105,6 +104,7 @@ import {
   RsTag,
   type RsTagVariant,
 } from '@/ui'
+import { RsCodeBlock } from '@/ui/code-block'
 import { formatDate, getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import { computed, ref, watch } from 'vue'
 import { getAlertLog } from '../api'
@@ -195,7 +195,6 @@ const loadAlertLog = async () => {
       alertLog.value = null
     }
   } catch (error: any) {
-    console.error('加载预警日志详情失败:', error)
     message.error(error.message || t('message.loadDetailFailed'))
     alertLog.value = null
   } finally {

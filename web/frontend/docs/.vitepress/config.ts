@@ -46,6 +46,7 @@ const moduleSidebarGroups = [
       { text: '用户管理', link: '/modules/hub0002' },
       { text: '角色管理', link: '/modules/hub0005' },
       { text: '权限资源管理', link: '/modules/hub0006' },
+      { text: '审计日志', link: '/modules/hub0004' },
       { text: '系统节点监控', link: '/modules/hub0007' },
       { text: '集群节点事件', link: '/modules/hub0008' },
     ],

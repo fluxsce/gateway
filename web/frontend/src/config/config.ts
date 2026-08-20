@@ -75,18 +75,6 @@ export const config: SystemConfig = {
 }
 
 /**
- * 打印配置信息（仅在开发环境）
- */
-if (import.meta.env.DEV) {
-  console.group('🔧 应用配置信息')
-  console.log('环境模式:', import.meta.env.MODE)
-  console.log('配置:', config)
-  console.groupEnd()
-}
-
-/**
  * 导出默认配置
  */
 export default config
-
-

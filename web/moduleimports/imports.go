@@ -13,7 +13,6 @@ import (
 	// 添加其他模块的导入
 	// _ "gateway/web/views/hub0001/routes"
 
-	// _ "gateway/web/views/hub0004/routes"
 	// 导入指标查询模块
 	_ "gateway/web/views/hub0000/routes"
 	// 导入认证模块
@@ -22,6 +21,8 @@ import (
 	_ "gateway/web/views/hub0002/routes"
 	// 导入定时任务管理模块
 	_ "gateway/web/views/hub0003/routes"
+	// 导入审计日志查看模块
+	_ "gateway/web/views/hub0004/routes"
 	// 导入角色管理模块
 	_ "gateway/web/views/hub0005/routes"
 	// 导入权限资源管理模块

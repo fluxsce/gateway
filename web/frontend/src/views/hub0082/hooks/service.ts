@@ -97,7 +97,6 @@ export function useAlertLogService(
         model.setLogList([])
       }
     } catch (error: any) {
-      console.error('查询预警日志失败:', error)
       message.error(error.message || t('message.queryFailed'))
       model.setLogList([])
     } finally {
@@ -121,7 +120,6 @@ export function useAlertLogService(
         return null
       }
     } catch (error: any) {
-      console.error('获取预警日志详情失败:', error)
       message.error(error.message || t('message.detailFailed'))
       return null
     } finally {
@@ -147,7 +145,6 @@ export function useAlertLogService(
         return false
       }
     } catch (error: any) {
-      console.error('删除预警日志失败:', error)
       message.error(error.message || t('message.deleteFailed'))
       return false
     } finally {
@@ -178,7 +175,6 @@ export function useAlertLogService(
         return false
       }
     } catch (error: any) {
-      console.error('批量删除预警日志失败:', error)
       message.error(error.message || t('message.batchDeleteFailed'))
       return false
     } finally {

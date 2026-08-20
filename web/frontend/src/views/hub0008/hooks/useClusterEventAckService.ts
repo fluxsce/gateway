@@ -81,7 +81,6 @@ export function useClusterEventAckService(
         message.error(response.errMsg || t('ack.message.queryFailed'))
       }
     } catch (error) {
-      console.error('加载事件处理节点列表失败:', error)
       message.error(t('ack.message.loadFailed'))
     } finally {
       loading.value = false

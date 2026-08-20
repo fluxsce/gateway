@@ -62,7 +62,8 @@
 </template>
 
 <script lang="ts" setup>
-import { RsButton, RsCodeBlock, RsDescriptions, RsDescriptionsItem, RsTag } from '@/ui'
+import { RsButton, RsDescriptions, RsDescriptionsItem, RsTag } from '@/ui'
+import { RsCodeBlock } from '@/ui/code-block'
 import type { Service } from '../types'
 import ServiceNodeList from './ServiceNodeList.vue'
 

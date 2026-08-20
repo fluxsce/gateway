@@ -11,7 +11,7 @@ import {
   addRouteAssertion,
   deleteRouteAssertion,
   editRouteAssertion,
-  queryRouteAssertions
+  queryRouteAssertions,
 } from '../../../api'
 import { useAssertConfigModel } from './model'
 import type { AssertConfig } from './types'
@@ -23,7 +23,7 @@ import type { AssertConfig } from './types'
  */
 export function useAssertConfigService(
   routeConfigId: Ref<string | undefined> | string,
-  searchFormRef?: Ref<any> | any
+  searchFormRef?: Ref<any> | any,
 ) {
   const message = useAppMessage()
 
@@ -34,7 +34,7 @@ export function useAssertConfigService(
 
   // 使用 model
   const model = useAssertConfigModel()
-  
+
   // 解构 model 中的列表操作方法
   const {
     pageInfo,
@@ -71,8 +71,8 @@ export function useAssertConfigService(
       const effectiveSearchParams = finalSearchParams
         ? Object.fromEntries(
             Object.entries(finalSearchParams).filter(
-              ([, value]) => value !== '' && value !== null && value !== undefined
-            )
+              ([, value]) => value !== '' && value !== null && value !== undefined,
+            ),
           )
         : {}
 
@@ -83,10 +83,7 @@ export function useAssertConfigService(
         // 查询条件
         ...effectiveSearchParams,
         // 分页参数
-        ...createBackendPaginationParams(
-          pageInfo.value?.pageIndex,
-          pageInfo.value?.pageSize
-        ),
+        ...createBackendPaginationParams(pageInfo.value?.pageIndex, pageInfo.value?.pageSize),
       }
 
       // 调用 API 分页查询断言列表
@@ -95,7 +92,7 @@ export function useAssertConfigService(
       if (isApiSuccess(response)) {
         // 解析业务数据
         const asserts = parseJsonData<AssertConfig[]>(response, []) || []
-        
+
         // 按执行顺序排序
         if (Array.isArray(asserts) && asserts.length > 0) {
           asserts.sort((a, b) => (a.assertionOrder || 0) - (b.assertionOrder || 0))
@@ -109,7 +106,6 @@ export function useAssertConfigService(
             const backendPageInfo = JSON.parse(response.pageQueryData)
             updatePagination(backendPageInfo)
           } catch (error) {
-            console.error('解析分页信息失败:', error)
             model.resetPagination()
           }
         } else {
@@ -121,7 +117,6 @@ export function useAssertConfigService(
         model.resetPagination()
       }
     } catch (error) {
-      console.error('加载断言列表失败:', error)
       message.error('加载断言列表失败')
       model.setAssertList([])
       model.resetPagination()
@@ -153,7 +148,7 @@ export function useAssertConfigService(
         expectedValue: assertData.expectedValue || '',
         // patternValue 仅用于路径断言（PATH），对应后端的 Pattern 字段
         // 用于选择路径匹配模式：exact（精确匹配）、prefix（前缀匹配）、regex（正则匹配）、param（参数匹配）
-        patternValue: assertData.assertionType === 'PATH' ? (assertData.patternValue || '') : '',
+        patternValue: assertData.assertionType === 'PATH' ? assertData.patternValue || '' : '',
         caseSensitive: assertData.caseSensitive || 'Y',
         assertionOrder: assertData.assertionOrder || 100,
         isRequired: assertData.isRequired || 'Y',
@@ -166,7 +161,7 @@ export function useAssertConfigService(
 
       if (isApiSuccess(response)) {
         message.success('添加断言成功')
-        
+
         // 如果返回了完整数据，直接添加到列表
         if (response.bizData) {
           try {
@@ -175,11 +170,11 @@ export function useAssertConfigService(
               addAssertToList(newAssert)
               return true
             }
-          } catch (error) {
-            console.error('解析返回数据失败:', error)
+          } catch {
+            // 失败时保持当前状态
           }
         }
-        
+
         // 否则重新加载列表
         await loadAssertList()
         return true
@@ -188,7 +183,6 @@ export function useAssertConfigService(
         return false
       }
     } catch (error) {
-      console.error('添加断言失败:', error)
       message.error('添加断言失败')
       return false
     } finally {
@@ -225,7 +219,7 @@ export function useAssertConfigService(
         expectedValue: assertData.expectedValue || '',
         // patternValue 仅用于路径断言（PATH），对应后端的 Pattern 字段
         // 用于选择路径匹配模式：exact（精确匹配）、prefix（前缀匹配）、regex（正则匹配）、param（参数匹配）
-        patternValue: assertData.assertionType === 'PATH' ? (assertData.patternValue || '') : '',
+        patternValue: assertData.assertionType === 'PATH' ? assertData.patternValue || '' : '',
         caseSensitive: assertData.caseSensitive || 'Y',
         assertionOrder: assertData.assertionOrder || 100,
         isRequired: assertData.isRequired || 'Y',
@@ -238,20 +232,24 @@ export function useAssertConfigService(
 
       if (isApiSuccess(response)) {
         message.success('编辑断言成功')
-        
+
         // 如果返回了完整数据，直接更新列表
         if (response.bizData) {
           try {
             const updatedAssert = parseJsonData<AssertConfig>(response)
             if (updatedAssert) {
-              updateAssertInList(updatedAssert.routeAssertionId, updatedAssert.tenantId, updatedAssert)
+              updateAssertInList(
+                updatedAssert.routeAssertionId,
+                updatedAssert.tenantId,
+                updatedAssert,
+              )
               return true
             }
-          } catch (error) {
-            console.error('解析返回数据失败:', error)
+          } catch {
+            // 失败时保持当前状态
           }
         }
-        
+
         // 否则重新加载列表
         await loadAssertList()
         return true
@@ -260,7 +258,6 @@ export function useAssertConfigService(
         return false
       }
     } catch (error) {
-      console.error('编辑断言失败:', error)
       message.error('编辑断言失败')
       return false
     } finally {
@@ -287,7 +284,6 @@ export function useAssertConfigService(
         return false
       }
     } catch (error) {
-      console.error('删除断言失败:', error)
       message.error('删除断言失败')
       return false
     } finally {
@@ -309,11 +305,9 @@ export function useAssertConfigService(
       model.setLoading(true)
 
       // 并行删除
-      const results = await Promise.all(
-        routeAssertionIds.map(id => deleteRouteAssertion(id))
-      )
+      const results = await Promise.all(routeAssertionIds.map((id) => deleteRouteAssertion(id)))
 
-      const successCount = results.filter(r => isApiSuccess(r)).length
+      const successCount = results.filter((r) => isApiSuccess(r)).length
       const failCount = results.length - successCount
 
       if (failCount === 0) {
@@ -331,7 +325,6 @@ export function useAssertConfigService(
         return false
       }
     } catch (error) {
-      console.error('批量删除断言失败:', error)
       message.error('批量删除断言失败')
       return false
     } finally {
@@ -354,7 +347,6 @@ export function useAssertConfigService(
       const result = await editAssert(updateData)
       return result
     } catch (error) {
-      console.error('切换断言状态失败:', error)
       message.error('切换断言状态失败')
       return false
     }
@@ -381,7 +373,13 @@ export function useAssertConfigService(
   /**
    * 分页变化
    */
-  const handlePageChange = async ({ currentPage, pageSize }: { currentPage: number; pageSize: number }) => {
+  const handlePageChange = async ({
+    currentPage,
+    pageSize,
+  }: {
+    currentPage: number
+    pageSize: number
+  }) => {
     updatePagination({ pageIndex: currentPage, pageSize })
     await loadAssertList()
   }
@@ -412,4 +410,3 @@ export function useAssertConfigService(
  * 断言配置列表服务层 Hook 类型
  */
 export type AssertConfigService = ReturnType<typeof useAssertConfigService>
-

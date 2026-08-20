@@ -317,7 +317,6 @@
 import { useAppMessage } from '@/composables/useAppMessage'
 import {
   RsButton,
-  RsCodeEditor,
   RsEmpty,
   RsInput,
   RsRadio,
@@ -325,9 +324,9 @@ import {
   RsSelect,
   RsSplitPane,
   RsTabs,
-  type RsCodeEditorLanguage,
   type RsSplitPaneItem,
 } from '@/ui'
+import { RsCodeEditor, type RsCodeEditorLanguage } from '@/ui/code-editor'
 import { store } from '@/stores'
 
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -879,7 +878,6 @@ function formatResponseBody(): void {
     responseBodyDisplay.value = JSON.stringify(parsed, null, 2)
   } catch (e) {
     message.warning('当前内容不是合法 JSON，无法格式化')
-    console.warn('formatResponseBody', e)
   }
 }
 

@@ -52,7 +52,6 @@ setTimeout(async () => {
     const userStore = useUserStore()
     if (userStore.isAuthenticated) {
       await initDynamicRoutes()
-      console.log('动态路由初始化完成')
     }
   } catch (error) {
     console.error('应用启动时初始化动态路由失败:', error)

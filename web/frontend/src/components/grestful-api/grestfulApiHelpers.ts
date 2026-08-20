@@ -5,7 +5,7 @@
  * 与 `GRestfulApi.vue` 解耦；不含 Vue 响应式状态。
  */
 
-import type { RsCodeEditorLanguage } from '@/ui'
+import type { RsCodeEditorLanguage } from '@/ui/code-editor'
 import { randomUUID } from '@/utils/uuid'
 import type { RestBodyProcessType, RestHttpMethod, RestKeyValueRow } from './types'
 import { createKeyValueRow } from './types'

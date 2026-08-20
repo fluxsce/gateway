@@ -64,14 +64,12 @@ export function useGatewayInstance() {
             handleInstanceChange(instanceList.value[0].gatewayInstanceId)
           }
         } catch (parseError) {
-          console.error('解析网关实例数据失败:', parseError)
           message.error('解析网关实例数据失败')
         }
       } else {
         message.error(res.errMsg || '获取网关实例列表失败')
       }
     } catch (error) {
-      console.error('加载网关实例失败:', error)
       message.error('加载网关实例失败')
     } finally {
       loadingInstances.value = false

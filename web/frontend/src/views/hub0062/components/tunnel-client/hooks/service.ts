@@ -84,7 +84,6 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
         message.error(response.errMsg || '查询客户端列表失败')
       }
     } catch (error) {
-      console.error('加载客户端列表失败:', error)
       message.error('加载客户端列表失败')
     } finally {
       loading.value = false
@@ -109,7 +108,6 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
         return null
       }
     } catch (error) {
-      console.error('获取客户端详情失败:', error)
       message.error('获取客户端详情失败')
       return null
     }
@@ -132,7 +130,6 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('创建客户端失败:', error)
       message.error('创建客户端失败')
       return false
     } finally {
@@ -160,7 +157,6 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('更新客户端失败:', error)
       message.error('更新客户端失败')
       return false
     } finally {
@@ -199,7 +195,6 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('删除客户端失败:', error)
       message.error('删除客户端失败')
       return false
     } finally {
@@ -230,7 +225,6 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('批量删除客户端失败:', error)
       message.error('批量删除客户端失败')
       return false
     } finally {
@@ -269,7 +263,6 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('连接客户端失败:', error)
       message.error('连接客户端失败')
       return false
     } finally {
@@ -308,7 +301,6 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('断开连接失败:', error)
       message.error('断开连接失败')
       return false
     } finally {

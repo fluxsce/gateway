@@ -70,7 +70,6 @@ export function useClusterEventService(searchFormRef?: Ref<any> | any) {
         message.error(response.errMsg || t('event.message.queryFailed'))
       }
     } catch (error) {
-      console.error('加载集群事件列表失败:', error)
       message.error(t('event.message.loadFailed'))
     } finally {
       loading.value = false

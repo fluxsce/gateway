@@ -65,7 +65,6 @@ export function useRouterConfigManager() {
         total.value = 0
       }
     } catch (error) {
-      console.error('获取Router配置列表失败:', error)
       message.error('获取Router配置列表失败')
     } finally {
       loading.value = false
@@ -84,7 +83,6 @@ export function useRouterConfigManager() {
       message.success('创建成功')
       return true
     } catch (error) {
-      console.error('创建失败:', error)
       message.error('创建失败')
       return false
     } finally {
@@ -108,7 +106,6 @@ export function useRouterConfigManager() {
       message.success('更新成功')
       return true
     } catch (error) {
-      console.error('更新失败:', error)
       message.error('更新失败')
       return false
     } finally {
@@ -126,7 +123,6 @@ export function useRouterConfigManager() {
       message.success('删除成功')
       return true
     } catch (error) {
-      console.error('删除失败:', error)
       message.error('删除失败')
       return false
     } finally {

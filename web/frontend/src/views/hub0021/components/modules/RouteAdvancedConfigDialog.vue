@@ -291,7 +291,6 @@ const loadRouteFilters = async () => {
       message.error(getApiMessage(response, '加载路由过滤器失败'))
     }
   } catch (error) {
-    console.error('加载路由过滤器失败:', error)
     message.error('加载路由过滤器失败')
     routeFilters.value = []
   } finally {
@@ -334,7 +333,6 @@ const handleDeleteFilter = async (filter: FilterConfig) => {
       message.error(getApiMessage(response, '删除过滤器失败'))
     }
   } catch (error) {
-    console.error('删除过滤器失败:', error)
     message.error('删除过滤器失败')
   } finally {
     filtersLoading.value = false
@@ -357,7 +355,6 @@ const handleToggleFilterStatus = async (filter: FilterConfig) => {
       message.error(getApiMessage(response, '更新过滤器状态失败'))
     }
   } catch (error) {
-    console.error('更新过滤器状态失败:', error)
     message.error('更新过滤器状态失败')
   }
 }
@@ -398,7 +395,6 @@ const swapFilterOrder = async (filter1: FilterConfig, filter2: FilterConfig) => 
       message.error('调整执行顺序失败')
     }
   } catch (error) {
-    console.error('调整执行顺序失败:', error)
     message.error('调整执行顺序失败')
   } finally {
     filtersLoading.value = false
@@ -451,7 +447,6 @@ const handleSaveFilter = async (filterData: FilterFormData) => {
       )
     }
   } catch (error) {
-    console.error('保存过滤器失败:', error)
     message.error('保存过滤器失败')
   }
 }
@@ -459,7 +454,6 @@ const handleSaveFilter = async (filterData: FilterFormData) => {
 /** 打开对话框 */
 const openDialog = (route: RouteConfig) => {
   if (!route) {
-    console.warn('无法打开路由配置管理：缺少路由信息')
     return
   }
   visible.value = true
@@ -483,10 +477,8 @@ const handleUpdateOpen = (open: boolean) => {
   }
 }
 
-/** 处理配置变更 */
-const handleConfigChange = () => {
-  console.log('配置已变更')
-}
+/** 供父组件在配置变更后刷新；当前无额外副作用 */
+const handleConfigChange = () => {}
 
 watch(
   () => visible.value,

@@ -38,8 +38,7 @@ export const store = {
           // 直接返回属性值
           return value
         }
-      } catch (error) {
-        console.warn(`访问user store属性${String(property)}时出错:`, error)
+      } catch {
         return undefined
       }
       return undefined
@@ -61,8 +60,7 @@ export const store = {
           }
           return value
         }
-      } catch (error) {
-        console.warn(`访问global store属性${String(property)}时出错:`, error)
+      } catch {
         return undefined
       }
       return undefined
@@ -104,13 +102,13 @@ export const store = {
 
                 // 更新i18n设置
                 await setLocale(locale)
-              } catch (error) {
-                console.error('设置locale失败:', error)
+              } catch {
+                // 语言切换失败时保持当前 locale
               }
             }
           }
-        } catch (error) {
-          console.warn(`访问locale属性${String(property)}时出错:`, error)
+        } catch {
+          // Pinia 未就绪时忽略
         }
 
         return undefined

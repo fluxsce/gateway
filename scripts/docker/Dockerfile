@@ -1,8 +1,7 @@
 # ============================================
 # FLUX Gateway - Multi-stage Docker Build
-# 支持系统: Linux (Alpine 3.19)
-# 支持架构: amd64（默认，与原先写死 GOARCH=amd64 一致）
-#           传入 --platform linux/arm64 时可构建 arm64
+# 支持系统: Linux (Alpine 3.23)
+# 支持架构: linux/amd64、linux/arm64（CGO，须与构建平台一致）
 # 支持数据库: MySQL, SQLite (需要 CGO)
 # 注意: SQLite 需要 CGO_ENABLED=1
 # ============================================
@@ -10,7 +9,7 @@
 # ============================================
 # Stage 1: Builder (构建阶段)
 # ============================================
-FROM golang:1.24-alpine AS builder
+FROM golang:1.24-alpine3.23 AS builder
 
 # 设置工作目录
 WORKDIR /build
@@ -76,7 +75,7 @@ RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 # ============================================
 # Stage 2: Runtime (运行阶段)
 # ============================================
-FROM alpine:3.19
+FROM alpine:3.23
 
 # 构建参数（在运行时阶段也需要）
 ARG VERSION=3.2.5

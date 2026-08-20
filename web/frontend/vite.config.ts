@@ -84,39 +84,80 @@ function resolveDevProxy(env: Record<string, string>): Record<string, ProxyOptio
 }
 
 /**
- * 将 node_modules 按依赖族拆成独立 chunk，减轻首包 JS 体积并利于缓存。
- * 顺序靠前的规则优先匹配。
+ * Vite 预加载助手等运行时。必须单独成块，绝不能跟 niuma-ui / monaco 绑在一起。
+ * 否则 boot 入口会静态 import 整包，登录页还没执行 `import('./main')` 就已经在下 5MB+ JS。
+ * 路径里可能带 `/niuma-ui/node_modules/vite/`（link 安装），不能只靠「不含 niuma-ui」判断。
  */
-function resolveManualChunk(id: string): string | undefined {
+function isViteRuntimeModule(id: string): boolean {
   const m = id.replace(/\\/g, '/')
-  // Vite 预加载运行时必须留在 boot 入口：若打进 niuma-ui/vendor，index.html 会静态依赖整包 CSS/JS，
-  // 首屏被挡住，index.html 里的 splash 来不及绘制就被摘掉。
-  if (
+  return (
+    m.includes('\0vite/') ||
     m.includes('vite/preload-helper') ||
     m.includes('vite/modulepreload-polyfill') ||
     m.includes('vite/dynamic-import-helper') ||
-    m.includes('\0vite/')
+    m.includes('preload-helper')
+  )
+}
+
+/**
+ * 将「登录页用不到」的重型依赖拆成独立 chunk，避免和首屏共享。
+ * 不要把整个 niuma-ui / vendor / @vicons 打成一块：任一登录依赖命中该块，浏览器就会下载全家桶
+ *（Monaco、CodeMirror、全部图标）。顺序靠前的规则优先匹配。
+ */
+function resolveManualChunk(id: string): string | undefined {
+  const m = id.replace(/\\/g, '/')
+  if (isViteRuntimeModule(m)) return 'boot-runtime'
+
+  // monaco / xterm / codemirror 可能装在 niuma-ui 的 node_modules 里，必须先于其它规则截获
+  if (m.includes('monaco-editor') || m.includes('monaco-sql-languages')) return 'monaco'
+  if (m.includes('/@xterm/') || m.includes('/xterm/')) return 'xterm'
+  if (m.includes('/@codemirror') || m.includes('/codemirror/')) return 'codemirror'
+  if (m.includes('/echarts') || m.includes('/zrender')) return 'echarts'
+  if (m.includes('/@antv')) return 'antv'
+  if (m.includes('/@tiptap') || m.includes('/prosemirror')) return 'tiptap'
+  if (m.includes('/highlight.js')) return 'highlight'
+  if (m.includes('/vxe-table') || m.includes('/vxe-pc-ui') || m.includes('/@vxe-ui')) return 'vxe'
+  if (m.includes('/marked') || m.includes('/dompurify')) return 'markdown'
+
+  // 含 CodeMirror 的组件与 @codemirror 同块，避免 niuma-ui 轻量包反向依赖编辑器
+  if (
+    /RsCodeEditor|RsCodeBlock|RsProseEditor|code-mirror-lang|code-editor-utils|code-mirror-/.test(m)
+  ) {
+    return 'codemirror'
+  }
+  if (
+    /RsMonacoEditor|RsTerminal|RsMarkdown|\/src\/monaco[/.]/.test(m)
   ) {
     return undefined
   }
-  if (!m.includes('node_modules')) return undefined
-  if (m.includes('/niuma-ui') || m.includes('/reka-ui') || m.includes('/@lucide/') || m.includes('/vue-sonner'))
+
+  if (!m.includes('node_modules') && !m.includes('/niuma-ui/')) {
+    // 网关 `@/ui` 桶与 niuma-ui 轻量组件同块，避免 barrel 循环切块
+    if (m.endsWith('/src/ui/index.ts')) return 'niuma-ui'
+    return undefined
+  }
+
+  if (
+    m.includes('/niuma-ui/') ||
+    m.includes('/reka-ui') ||
+    m.includes('/@lucide/') ||
+    m.includes('/vue-sonner')
+  ) {
     return 'niuma-ui'
-  if (m.includes('/echarts') || m.includes('/zrender')) return 'echarts'
-  if (m.includes('/@antv')) return 'antv'
-  if (m.includes('/@codemirror') || m.includes('/codemirror/')) return 'codemirror'
-  if (m.includes('/@tiptap') || m.includes('/prosemirror')) return 'tiptap'
-  if (m.includes('/highlight.js')) return 'highlight'
-  if (m.includes('/@intlify')) return 'vue-i18n'
-  if (m.includes('/vue-i18n')) return 'vue-i18n'
+  }
+
+  if (!m.includes('node_modules')) return undefined
+
+  // 框架运行时每页都要，单独成块便于长期缓存；体积相对小，登录页加载可以接受
+  if (m.includes('/@intlify') || m.includes('/vue-i18n')) return 'vue-i18n'
   if (m.includes('/vue-router')) return 'vue-router'
   if (m.includes('/pinia')) return 'pinia'
   if (m.includes('/axios')) return 'axios'
-  if (m.includes('/@vicons')) return 'vicons'
   if (m.includes('/cron-parser')) return 'cron-parser'
   if (m.includes('/async-validator')) return 'async-validator'
   if (m.includes('/node_modules/@vue/') || m.includes('/node_modules/vue/')) return 'vue'
-  return 'vendor'
+
+  return undefined
 }
 
 export default defineConfig(({ command, mode }) => {
@@ -312,6 +353,16 @@ export default defineConfig(({ command, mode }) => {
        * 按依赖族拆分 node_modules，缩小首屏入口 chunk、提升缓存命中率。
        */
       rollupOptions: {
+        treeshake: {
+          moduleSideEffects(id) {
+            const m = id.replace(/\\/g, '/')
+            if (m.endsWith('.css') || m.endsWith('.scss')) return true
+            // 纯 re-export 入口标成无副作用，才能从登录图里摇掉 Monaco / Terminal
+            if (/\/niuma-ui\/src\/index\.ts$/.test(m)) return false
+            if (/\/frontend\/src\/ui\/index\.ts$/.test(m)) return false
+            return true
+          },
+        },
         output: {
           manualChunks: resolveManualChunk,
         },

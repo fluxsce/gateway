@@ -456,11 +456,6 @@ export function useServiceDefinitionPage(
    */
   const handleServiceChange = (metadata: ServiceSelectionMetadata | null) => {
     selectedService.value = metadata
-    if (metadata) {
-      console.log('已选择服务:', metadata.serviceName)
-    } else {
-      console.log('已清除服务选择')
-    }
   }
 
   /**
@@ -492,7 +487,6 @@ export function useServiceDefinitionPage(
       if (formData) {
         formData.serviceMetadata = metadataStr
       }
-      console.log('已更新服务元数据（registry_utils.go 兼容格式）:', metadata)
       return metadataStr
     } else {
       if (formData) {
@@ -501,7 +495,6 @@ export function useServiceDefinitionPage(
       return undefined
     }
   }
-
 
   /**
    * 处理删除

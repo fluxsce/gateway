@@ -186,7 +186,6 @@ const loadClientList = async () => {
       clientList.value = []
     }
   } catch (error) {
-    console.error('加载已注册客户端列表失败:', error)
     clientList.value = []
   } finally {
     loading.value = false

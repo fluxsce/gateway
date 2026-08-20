@@ -35,10 +35,9 @@ export function useModuleI18n(
   moduleName: string,
   options: {
     immediate?: boolean // 是否立即加载模块语言资源
-    silent?: boolean // 是否静默处理错误，不在控制台输出
   } = {},
 ) {
-  const { immediate = true, silent = false } = options
+  const { immediate = true } = options
 
   // 使用全局i18n
   const i18n = useI18n()
@@ -69,9 +68,6 @@ export function useModuleI18n(
       await loadModuleMessages(moduleName, targetLocale)
       loaded.value = true
     } catch (err) {
-      if (!silent) {
-        console.error(`[useModuleI18n] 加载模块 "${moduleName}" 的语言包失败: ${locale}`, err)
-      }
       error.value = err instanceof Error ? err : new Error(String(err))
     } finally {
       loading.value = false

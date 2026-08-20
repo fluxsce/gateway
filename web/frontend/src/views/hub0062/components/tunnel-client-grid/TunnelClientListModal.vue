@@ -34,7 +34,12 @@
 </template>
 
 <script setup lang="ts">
-import { RsGrid, type RsGridColumn, type RsGridExpose, type RsGridPaginationConfig } from '@/components/rs-grid'
+import {
+  RsGrid,
+  type RsGridColumn,
+  type RsGridExpose,
+  type RsGridPaginationConfig,
+} from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
 import { RsDialog, RsTag, type RsTagVariant } from '@/ui'
 import { createBackendPaginationParams } from '@/utils/pagination'
@@ -119,10 +124,8 @@ const gridColumns: RsGridColumn<TunnelClient>[] = [
     width: 100,
     align: 'center',
     render: (row) =>
-      h(
-        RsTag,
-        { variant: getConnectionStatusVariant(row.connectionStatus), size: 'sm' },
-        () => getConnectionStatusLabel(row.connectionStatus),
+      h(RsTag, { variant: getConnectionStatusVariant(row.connectionStatus), size: 'sm' }, () =>
+        getConnectionStatusLabel(row.connectionStatus),
       ),
   },
   {
@@ -131,10 +134,8 @@ const gridColumns: RsGridColumn<TunnelClient>[] = [
     width: 80,
     align: 'center',
     render: (row) =>
-      h(
-        RsTag,
-        { variant: row.activeFlag === 'Y' ? 'success' : 'default', size: 'sm' },
-        () => (row.activeFlag === 'Y' ? '启用' : '禁用'),
+      h(RsTag, { variant: row.activeFlag === 'Y' ? 'success' : 'default', size: 'sm' }, () =>
+        row.activeFlag === 'Y' ? '启用' : '禁用',
       ),
   },
 ]
@@ -179,8 +180,8 @@ const loadClientList = async () => {
         }
       }
     }
-  } catch (error) {
-    console.error('加载客户端列表失败:', error)
+  } catch {
+    // 失败时保持当前状态
   } finally {
     loading.value = false
   }

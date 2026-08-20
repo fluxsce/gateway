@@ -314,10 +314,6 @@ const emit = defineEmits<{
   'router-config-ready': [ready: boolean]
 }>()
 
-if (!props.gatewayInstanceId) {
-  console.warn('RouterConfigManager: gatewayInstanceId is required')
-}
-
 const message = useAppMessage()
 
 type RsFormExpose = {
@@ -384,15 +380,12 @@ const loadRouterConfig = async () => {
   configExists.value = false
   configReady.value = false
   try {
-    console.log('开始加载Router配置，网关实例ID:', props.gatewayInstanceId)
     const response = await getRouterConfigsByInstance(props.gatewayInstanceId)
-    console.log('API响应:', response)
 
     if (isUnmounted.value) return
 
     if (response?.oK) {
       if (!response.bizData) {
-        console.warn('No bizData in response')
         configExists.value = false
         originalData.value = JSON.parse(JSON.stringify(formData))
         return
@@ -402,7 +395,6 @@ const loadRouterConfig = async () => {
       try {
         configs = JSON.parse(response.bizData)
       } catch (parseError) {
-        console.error('Error parsing bizData:', parseError)
         message.error('解析Router配置数据失败')
         configExists.value = false
         return
@@ -413,8 +405,6 @@ const loadRouterConfig = async () => {
       if (config) {
         configExists.value = true
         configReady.value = true
-
-        console.log('Loading router config:', config)
 
         Object.assign(formData, {
           routerConfigId: config.routerConfigId || '',
@@ -444,24 +434,16 @@ const loadRouterConfig = async () => {
           noteText: config.noteText || '',
         })
 
-        console.log('Router config loaded successfully. configExists:', configExists.value)
-        console.log('Form data updated:', {
-          routerConfigId: formData.routerConfigId,
-          routerName: formData.routerName,
-        })
       } else {
-        console.log('No router configs found for instance:', props.gatewayInstanceId)
         configExists.value = false
       }
 
       originalData.value = JSON.parse(JSON.stringify(formData))
     } else {
       const errorMsg = response?.errMsg || '加载Router配置失败'
-      console.error('API response error:', response)
       message.error(errorMsg)
     }
   } catch (error) {
-    console.error('Error loading router config:', error)
     message.error('加载Router配置时发生错误: ' + (error instanceof Error ? error.message : String(error)))
   } finally {
     loading.value = false
@@ -483,7 +465,6 @@ watch(
       try {
         await loadRouterConfig()
       } catch (error) {
-        console.error('Error in watcher callback:', error)
         message.error('加载Router配置时发生错误')
       }
     }
@@ -582,7 +563,6 @@ const handleSave = async () => {
             originalData.value = JSON.parse(JSON.stringify(formData))
           }
         } catch (parseError) {
-          console.error('Error parsing updated config:', parseError)
           await loadRouterConfig()
         }
       } else {
@@ -592,7 +572,6 @@ const handleSave = async () => {
       message.error('保存Router配置失败')
     }
   } catch (error) {
-    console.error('Error saving router config:', error)
     message.error('保存Router配置时发生错误')
   } finally {
     saving.value = false
@@ -675,7 +654,6 @@ const handleCreateConfig = async () => {
             originalData.value = JSON.parse(JSON.stringify(formData))
           }
         } catch (parseError) {
-          console.error('Error parsing new config:', parseError)
           await loadRouterConfig()
         }
       } else {
@@ -687,18 +665,11 @@ const handleCreateConfig = async () => {
       message.error('创建Router配置失败')
     }
   } catch (error) {
-    console.error('Error creating router config:', error)
     message.error('创建Router配置时发生错误')
   } finally {
     saving.value = false
   }
 }
-
-onMounted(() => {
-  if (props.gatewayInstanceId) {
-    console.log('Router配置管理器初始化，网关实例ID:', props.gatewayInstanceId)
-  }
-})
 
 onBeforeUnmount(() => {
   isUnmounted.value = true

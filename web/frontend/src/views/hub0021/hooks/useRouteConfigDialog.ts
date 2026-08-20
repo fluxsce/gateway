@@ -87,10 +87,8 @@ export function useRouteConfigDialog(options: UseRouteConfigDialogOptions = {}) 
         }))
       } else {
         serviceDefinitionOptions.value = []
-        console.warn('获取服务定义列表失败:', getApiMessage(response, '获取服务定义列表失败'))
       }
     } catch (error) {
-      console.error('加载服务定义列表失败:', error)
       serviceDefinitionOptions.value = []
       message.error('加载服务定义列表失败')
     } finally {
@@ -103,7 +101,6 @@ export function useRouteConfigDialog(options: UseRouteConfigDialogOptions = {}) 
    */
   const handleServiceDefinitionChange = (value: string | null) => {
     // 可以在这里添加其他逻辑，比如根据选择的服务定义更新其他字段
-    console.log('选择的服务定义ID:', value)
   }
 
   /**
@@ -191,7 +188,6 @@ export function useRouteConfigDialog(options: UseRouteConfigDialogOptions = {}) 
           gatewayInstanceId: gatewayInstanceId.value,
         }
 
-        console.log('Updating route with data:', editData)
         const response = await editRouteConfig(editData)
 
         if (response.oK) {
@@ -202,14 +198,12 @@ export function useRouteConfigDialog(options: UseRouteConfigDialogOptions = {}) 
           try {
             if (response.bizData) {
               const routeData = JSON.parse(response.bizData)
-              // 后端返回的是单个对象，不是数组
               if (routeData && typeof routeData === 'object') {
                 updatedRoute = routeData
-                console.log('解析到更新后的路由:', updatedRoute)
               }
             }
-          } catch (parseError) {
-            console.error('解析更新后的路由数据失败:', parseError, 'bizData:', response.bizData)
+          } catch {
+            // 返回体无法解析时仍关闭对话框，列表由 onSuccess 刷新
           }
 
           closeDialog()
@@ -225,7 +219,6 @@ export function useRouteConfigDialog(options: UseRouteConfigDialogOptions = {}) 
           gatewayInstanceId: gatewayInstanceId.value,
         }
 
-        console.log('Creating route with data:', createData)
         const response = await addRouteConfig(createData)
 
         if (response.oK) {
@@ -236,18 +229,12 @@ export function useRouteConfigDialog(options: UseRouteConfigDialogOptions = {}) 
           try {
             if (response.bizData) {
               const routeData = JSON.parse(response.bizData)
-              // 后端返回的是单个对象，不是数组
               if (routeData && typeof routeData === 'object') {
                 newRoute = routeData
-                console.log('解析到新创建的路由:', newRoute)
-              } else {
-                console.warn('返回的路由数据格式不正确:', routeData)
               }
-            } else {
-              console.warn('后端未返回路由数据')
             }
-          } catch (parseError) {
-            console.error('解析返回的路由数据失败:', parseError, 'bizData:', response.bizData)
+          } catch {
+            // 返回体无法解析时仍关闭对话框，列表由 onSuccess 刷新
           }
 
           closeDialog()
@@ -258,7 +245,6 @@ export function useRouteConfigDialog(options: UseRouteConfigDialogOptions = {}) 
         }
       }
     } catch (error: any) {
-      console.error('路由操作失败:', error)
       message.error(error.message || '操作失败，请重试')
     } finally {
       dialogSubmitting.value = false

@@ -225,11 +225,9 @@ const loadServiceById = async (serviceDefinitionId: string) => {
       const service = JSON.parse(response.bizData) as ServiceDefinition
       selectedServiceInfo.value = service
     } else {
-      console.warn('获取服务定义失败:', getApiMessage(response, '获取服务定义失败'))
       selectedServiceInfo.value = null
     }
   } catch (error) {
-    console.error('加载服务定义失败:', error)
     selectedServiceInfo.value = null
   } finally {
     loading.value = false
@@ -252,22 +250,19 @@ const loadServicesByIds = async (serviceDefinitionIds: string[]) => {
     const responses = await Promise.all(promises)
     
     const services: ServiceDefinition[] = []
-    responses.forEach((response, index) => {
+    responses.forEach((response) => {
       if (isApiSuccess(response)) {
         try {
           const service = JSON.parse(response.bizData) as ServiceDefinition
           services.push(service)
-        } catch (error) {
-          console.warn(`解析服务定义 ${serviceDefinitionIds[index]} 失败:`, error)
+        } catch {
+          // 单条解析失败时跳过
         }
-      } else {
-        console.warn(`获取服务定义 ${serviceDefinitionIds[index]} 失败:`, getApiMessage(response, '获取服务定义失败'))
       }
     })
     
     selectedServicesInfo.value = services
   } catch (error) {
-    console.error('加载服务定义列表失败:', error)
     selectedServicesInfo.value = []
   } finally {
     loading.value = false

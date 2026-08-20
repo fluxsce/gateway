@@ -5,7 +5,13 @@
 
 import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
-import { formatDate, getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
+import {
+  formatDate,
+  getApiMessage,
+  isApiSuccess,
+  parseJsonData,
+  parsePageInfo,
+} from '@/utils/format'
 import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import * as gatewayLogApi from '../api'
@@ -21,14 +27,7 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
   // 初始化 Model
   const model = useGatewayLogModel()
 
-  const {
-    loading,
-    logList,
-    pageInfo,
-    setLogList,
-    updatePagination,
-    resetPagination
-  } = model
+  const { loading, logList, pageInfo, setLogList, updatePagination, resetPagination } = model
 
   // ============= 数据加载 =============
 
@@ -48,12 +47,20 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
       // 处理时间范围字段（从 datetimerange 转换为 startTime 和 endTime）
       const processedParams: Partial<GatewayLogQueryParams> = {}
       if (finalSearchParams) {
-        Object.keys(finalSearchParams).forEach(key => {
-          if (key === 'timeRange' && Array.isArray(finalSearchParams[key]) && finalSearchParams[key].length === 2) {
+        Object.keys(finalSearchParams).forEach((key) => {
+          if (
+            key === 'timeRange' &&
+            Array.isArray(finalSearchParams[key]) &&
+            finalSearchParams[key].length === 2
+          ) {
             // 转换时间范围
             processedParams.startTime = formatDate(finalSearchParams[key][0], 'YYYY-MM-DDTHH:mm:ss')
             processedParams.endTime = formatDate(finalSearchParams[key][1], 'YYYY-MM-DDTHH:mm:ss')
-          } else if (finalSearchParams[key] !== '' && finalSearchParams[key] !== null && finalSearchParams[key] !== undefined) {
+          } else if (
+            finalSearchParams[key] !== '' &&
+            finalSearchParams[key] !== null &&
+            finalSearchParams[key] !== undefined
+          ) {
             // 过滤掉空字符串、null 和 undefined 的查询条件
             ;(processedParams as Record<string, any>)[key] = finalSearchParams[key]
           }
@@ -65,10 +72,7 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
         // 查询条件
         ...processedParams,
         // 分页参数
-        ...createBackendPaginationParams(
-          pageInfo.value?.pageIndex,
-          pageInfo.value?.pageSize
-        ),
+        ...createBackendPaginationParams(pageInfo.value?.pageIndex, pageInfo.value?.pageSize),
         // 排序参数
         sortField: 'gatewayStartProcessingTime',
         sortOrder: 'DESC',
@@ -88,8 +92,8 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
           if (pageInfoData && Object.keys(pageInfoData).length > 0) {
             updatePagination(pageInfoData)
           }
-        } catch (error) {
-          console.warn('分页信息解析失败:', error)
+        } catch {
+          // 失败时保持当前状态
         }
       } else {
         const errorMsg = getApiMessage(response, '查询网关日志列表失败')
@@ -97,7 +101,6 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
         setLogList([])
       }
     } catch (error) {
-      console.error('加载网关日志列表失败:', error)
       message.error('加载网关日志列表失败')
       setLogList([])
     } finally {
@@ -127,7 +130,13 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
   /**
    * 分页变化
    */
-  const handlePageChange = async ({ currentPage, pageSize }: { currentPage: number; pageSize: number }) => {
+  const handlePageChange = async ({
+    currentPage,
+    pageSize,
+  }: {
+    currentPage: number
+    pageSize: number
+  }) => {
     updatePagination({ pageIndex: currentPage, pageSize })
     await loadGatewayLogs()
   }
@@ -181,7 +190,6 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('重置网关日志失败:', error)
       message.error('重置网关日志失败')
       return false
     }
@@ -201,11 +209,19 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
       // 处理时间范围字段
       const processedParams: Partial<GatewayLogQueryParams> = {}
       if (finalSearchParams) {
-        Object.keys(finalSearchParams).forEach(key => {
-          if (key === 'timeRange' && Array.isArray(finalSearchParams[key]) && finalSearchParams[key].length === 2) {
+        Object.keys(finalSearchParams).forEach((key) => {
+          if (
+            key === 'timeRange' &&
+            Array.isArray(finalSearchParams[key]) &&
+            finalSearchParams[key].length === 2
+          ) {
             processedParams.startTime = formatDate(finalSearchParams[key][0], 'YYYY-MM-DDTHH:mm:ss')
             processedParams.endTime = formatDate(finalSearchParams[key][1], 'YYYY-MM-DDTHH:mm:ss')
-          } else if (finalSearchParams[key] !== '' && finalSearchParams[key] !== null && finalSearchParams[key] !== undefined) {
+          } else if (
+            finalSearchParams[key] !== '' &&
+            finalSearchParams[key] !== null &&
+            finalSearchParams[key] !== undefined
+          ) {
             ;(processedParams as Record<string, any>)[key] = finalSearchParams[key]
           }
         })
@@ -235,7 +251,6 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
         message.error(errorMsg)
       }
     } catch (error) {
-      console.error('导出网关日志失败:', error)
       message.error('导出网关日志失败')
     }
   }
@@ -263,4 +278,3 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
  * 网关日志服务类型
  */
 export type GatewayLogService = ReturnType<typeof useGatewayLogService>
-

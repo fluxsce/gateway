@@ -26,7 +26,6 @@ export function useServerNodePage(gridRef: Ref, searchFormRef: Ref) {
    * 处理工具栏按钮点击
    */
   const handleToolbarClick = (buttonKey: string) => {
-    console.log('Toolbar button clicked:', buttonKey)
     // 预留工具栏按钮处理逻辑
   }
 
@@ -35,13 +34,13 @@ export function useServerNodePage(gridRef: Ref, searchFormRef: Ref) {
    */
   const handleMenuClick = async ({ key, row }: { key: string; row?: any }) => {
     if (!row) return
-    
+
     switch (key) {
       case 'view':
         await handleViewDetail(row)
         break
       default:
-        console.log('Unknown menu key:', key)
+        break
     }
   }
 
@@ -49,11 +48,9 @@ export function useServerNodePage(gridRef: Ref, searchFormRef: Ref) {
    * 查看节点详情
    */
   const handleViewDetail = async (row: any) => {
-    console.log('查看节点详情:', row)
     const detail = await service.getServerDetail(row.metricServerId)
     if (detail) {
       // TODO: 显示详情对话框
-      console.log('节点详情:', detail)
     }
   }
 
@@ -62,7 +59,7 @@ export function useServerNodePage(gridRef: Ref, searchFormRef: Ref) {
     service,
     handleToolbarClick,
     handleMenuClick,
-    handleSearch
+    handleSearch,
   }
 }
 

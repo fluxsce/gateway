@@ -291,8 +291,8 @@ export function useServiceNodeModel() {
                 } else {
                   formData.nodePort = url.protocol === 'https:' ? 443 : 80
                 }
-              } catch (error) {
-                console.warn('URL解析失败:', error)
+              } catch {
+                // URL 不合法时保留用户输入，交给校验规则提示
               }
             }
           },

@@ -50,7 +50,6 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
         message.error(getApiMessage(response, '加载客户端列表失败'))
       }
     } catch (error: any) {
-      console.error('加载客户端列表失败:', error)
       message.error(error.message || '加载客户端列表失败')
     } finally {
       model.loading.value = false
@@ -70,7 +69,6 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
         return null
       }
     } catch (error: any) {
-      console.error('获取客户端详情失败:', error)
       message.error(error.message || '获取客户端详情失败')
       return null
     }
@@ -92,7 +90,6 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error: any) {
-      console.error('新增客户端失败:', error)
       message.error(error.message || '新增客户端失败')
       return false
     } finally {
@@ -119,7 +116,6 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error: any) {
-      console.error('编辑客户端失败:', error)
       message.error(error.message || '编辑客户端失败')
       return false
     } finally {
@@ -143,7 +139,6 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error: any) {
-      console.error('删除客户端失败:', error)
       message.error(error.message || '删除客户端失败')
       return false
     } finally {
@@ -174,7 +169,6 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error: any) {
-      console.error('批量删除客户端失败:', error)
       message.error(error.message || '批量删除客户端失败')
       return false
     } finally {
@@ -198,7 +192,6 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error: any) {
-      console.error('连接客户端失败:', error)
       message.error(error.message || '连接客户端失败')
       return false
     } finally {
@@ -222,7 +215,6 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error: any) {
-      console.error('断开连接失败:', error)
       message.error(error.message || '断开连接失败')
       return false
     } finally {

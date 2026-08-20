@@ -142,6 +142,18 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
       },
       {
         kind: 'leaf',
+        path: 'auditLogManagement',
+        name: 'auditLogManagement',
+        component: () => import('@/views/hub0004/AuditLogManagement.vue'),
+        meta: {
+          title: '审计日志',
+          requiresAuth: true,
+          icon: 'clipboard-list',
+          moduleName: 'hub0004',
+        },
+      },
+      {
+        kind: 'leaf',
         path: 'serverNodeManagement',
         name: 'serverNodeManagement',
         component: () => import('@/views/hub0007/ServerNodeManagement.vue'),

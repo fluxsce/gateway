@@ -244,6 +244,19 @@ INSERT INTO `HUB_AUTH_RESOURCE` (
   NOW(), 'system', NOW(), 'system', 'INIT_008', 1, 'Y'
 );
 
+-- 审计日志模块 (hub0004) - 属于 group0001
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `resourcePath`, `parentResourceId`, `resourceLevel`, `sortOrder`, `iconClass`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0004', 'default', '审计日志', 'hub0004', 'MODULE',
+  '/system/auditLogManagement', 'group0001', 2, 7, 'ShieldCheckmarkOutline', 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_009', 1, 'Y'
+);
+
 -- 网关实例管理模块 (hub0020) - 属于 group0020
 INSERT INTO `HUB_AUTH_RESOURCE` (
   `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
@@ -1015,6 +1028,49 @@ INSERT INTO `HUB_AUTH_RESOURCE` (
   'hub0003', 3, 5, 'zh-CN',
   'Y', 'Y',
   NOW(), 'system', NOW(), 'system', 'INIT_008_005', 1, 'Y'
+);
+
+-- =====================================================
+-- 审计日志模块 - 按钮资源 (hub0004)
+-- =====================================================
+
+-- 查看详情
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0004:view', 'default', '查看详情', 'hub0004:view', 'BUTTON',
+  'hub0004', 3, 1, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_009_001', 1, 'Y'
+);
+
+-- 查询
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0004:search', 'default', '查询', 'hub0004:search', 'BUTTON',
+  'hub0004', 3, 2, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_009_002', 1, 'Y'
+);
+
+-- 重置
+INSERT INTO `HUB_AUTH_RESOURCE` (
+  `resourceId`, `tenantId`, `resourceName`, `resourceCode`, `resourceType`,
+  `parentResourceId`, `resourceLevel`, `sortOrder`, `language`,
+  `resourceStatus`, `builtInFlag`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+) VALUES (
+  'hub0004:reset', 'default', '重置', 'hub0004:reset', 'BUTTON',
+  'hub0004', 3, 3, 'zh-CN',
+  'Y', 'Y',
+  NOW(), 'system', NOW(), 'system', 'INIT_009_003', 1, 'Y'
 );
 
 -- =====================================================

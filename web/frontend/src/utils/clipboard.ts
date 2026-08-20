@@ -28,7 +28,6 @@ function notify(type: 'success' | 'error' | 'warning' | 'info', text: string) {
     toast[type](text)
   } catch {
     if (type === 'error') console.error(text)
-    else console.log(text)
   }
 }
 
@@ -51,8 +50,7 @@ export async function copyToClipboardAsync(text: string, options: CopyOptions = 
       await navigator.clipboard.writeText(text)
       if (showMessage) notify('success', successMessage)
       return { success: true, method: 'clipboard-api' }
-    } catch (err) {
-      console.error('Clipboard API 失败:', err)
+    } catch (err) {
       if (useFallback) {
         return fallbackCopyToClipboard(text, successMessage, errorMessage, showMessage)
       }
@@ -119,8 +117,7 @@ function fallbackCopyToClipboard(
       if (showMessage) notify('error', errorMessage)
       return { success: false, method: 'failed', error: new Error('execCommand copy failed') }
     }
-  } catch (err) {
-    console.error(errorMessage, err)
+  } catch (err) {
     if (showMessage) notify('error', errorMessage)
     return { success: false, method: 'failed', error: err instanceof Error ? err : new Error(String(err)) }
   } finally {

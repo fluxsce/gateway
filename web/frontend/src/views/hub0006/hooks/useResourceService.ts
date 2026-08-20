@@ -77,7 +77,6 @@ export function useResourceService(searchFormRef?: Ref<any> | any) {
         message.error(response.errMsg || t('resource.message.queryFailed'))
       }
     } catch (error) {
-      console.error('加载资源列表失败:', error)
       message.error(t('resource.message.loadFailed'))
     } finally {
       loading.value = false
@@ -129,7 +128,6 @@ export function useResourceService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('新增资源失败:', error)
       message.error(t('resource.message.createFailed'))
       return false
     } finally {
@@ -162,7 +160,6 @@ export function useResourceService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('编辑资源失败:', error)
       message.error(t('resource.message.updateFailed'))
       return false
     } finally {
@@ -207,7 +204,6 @@ export function useResourceService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('删除资源失败:', error)
       message.error(t('resource.message.deleteFailed'))
       return false
     } finally {
@@ -268,7 +264,6 @@ export function useResourceService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('批量删除资源失败:', error)
       message.error(t('resource.message.batchDeleteFailed'))
       return false
     } finally {

@@ -1,0 +1,135 @@
+/**
+ * 审计日志管理模块中文语言包
+ * hub0004 - Audit Log
+ */
+export default {
+  moduleName: '审计日志',
+
+  common: {
+    all: '全部',
+    viewDetail: '查看详情',
+  },
+
+  action: {
+    create: '新增',
+    update: '修改',
+    delete: '删除',
+    rollback: '回滚',
+    grant: '授权',
+  },
+
+  result: {
+    success: '成功',
+    fail: '失败',
+  },
+
+  module: {
+    hub0000: '系统监控',
+    hub0001: '用户登录',
+    hub0002: '用户管理',
+    hub0003: '定时任务',
+    hub0004: '审计日志',
+    hub0005: '角色管理',
+    hub0006: '权限资源',
+    hub0007: '系统节点',
+    hub0008: '集群事件',
+    hub0020: '网关实例',
+    hub0021: '路由管理',
+    hub0022: '代理管理',
+    hub0023: '网关日志',
+    hub0040: '服务中心实例',
+    hub0041: '命名空间',
+    hub0042: '服务列表',
+    hub0043: '配置中心',
+    hub0060: '隧道服务器',
+    hub0061: '静态映射',
+    hub0062: '隧道客户端',
+    hub0080: '预警配置',
+    hub0081: '预警模板',
+    hub0082: '预警日志',
+    hubplugin: '插件',
+  },
+
+  targetType: {
+    USER: '用户',
+    ROLE: '角色',
+    RESOURCE: '权限资源',
+    SECURITY_CONFIG: '安全配置',
+    INSTANCE: '网关实例',
+    ROUTE: '路由',
+    SERVICE: '服务',
+    ALERT_LOG: '预警日志',
+    HTTP: 'HTTP 代发',
+    API: '接口',
+  },
+
+  shortcuts: {
+    today: '今天',
+    yesterday: '昨天',
+    lastHour: '最近1小时',
+    last6Hours: '最近6小时',
+    last24Hours: '最近24小时',
+    last7Days: '最近7天',
+  },
+
+  search: {
+    timeRange: '时间范围',
+    timeRangePlaceholder: '请选择时间范围',
+    action: '动作',
+    actionPlaceholder: '请选择动作',
+    moduleCode: '模块',
+    moduleCodePlaceholder: '请选择模块',
+    userName: '操作人',
+    userNamePlaceholder: '请输入用户名',
+    userId: '用户ID',
+    userIdPlaceholder: '请输入用户ID',
+    targetType: '目标类型',
+    targetTypePlaceholder: '请选择目标类型',
+    targetName: '目标名称',
+    targetNamePlaceholder: '请输入目标名称',
+    targetId: '目标ID',
+    targetIdPlaceholder: '请输入目标ID',
+    resourceCode: '资源编码',
+    resourceCodePlaceholder: '请输入资源编码',
+    result: '结果',
+    resultPlaceholder: '请选择结果',
+    clientIP: '客户端IP',
+    clientIPPlaceholder: '请输入客户端IP',
+  },
+
+  columns: {
+    auditId: '审计ID',
+    addTime: '操作时间',
+    userName: '操作人',
+    userId: '用户ID',
+    action: '动作',
+    moduleCode: '模块',
+    targetType: '目标类型',
+    targetName: '目标名称',
+    targetId: '目标ID',
+    resourceCode: '资源编码',
+    result: '结果',
+    clientIP: '客户端IP',
+    requestMethod: '请求方法',
+    requestPath: '请求路径',
+    detail: '补充说明',
+    addWho: '记录人',
+  },
+
+  dialog: {
+    title: '审计日志详情',
+    titleWithId: '审计日志详情 - {id}',
+    basicInfo: '基本信息',
+    targetInfo: '操作对象',
+    requestInfo: '请求信息',
+    detail: '补充说明',
+    empty: '暂无审计数据',
+  },
+
+  message: {
+    auditIdRequired: '审计ID不能为空',
+    queryFailed: '查询审计日志失败',
+    detailFailed: '获取审计日志详情失败',
+    loadDetailFailed: '加载审计日志详情失败',
+  },
+}

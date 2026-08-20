@@ -12,7 +12,8 @@ import type {
   RsGridPaginationConfig,
 } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
-import { RsCodeEditor, RsTable, RsTag, type RsTableColumn, type RsTagVariant } from '@/ui'
+import { RsTable, RsTag, type RsTableColumn, type RsTagVariant } from '@/ui'
+import { RsCodeEditor } from '@/ui/code-editor'
 import { formatDate } from '@/utils/format'
 import { h, ref } from 'vue'
 import type { AlertTemplate, ChannelType, DisplayFormat } from '../types'

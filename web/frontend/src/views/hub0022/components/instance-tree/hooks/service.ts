@@ -49,7 +49,6 @@ export function useGatewayInstanceTreeService(model: GatewayInstanceTreeModel) {
           const pageInfo = parsePageInfo(res)
           setTotalCount(pageInfo.totalCount || 0)
         } catch (error) {
-          console.warn('解析分页信息失败:', error)
           setTotalCount(0)
         }
       } else {
@@ -58,7 +57,6 @@ export function useGatewayInstanceTreeService(model: GatewayInstanceTreeModel) {
         setTotalCount(0)
       }
     } catch (error) {
-      console.error('加载网关实例失败:', error)
       message.error('加载网关实例失败')
       setInstanceList([])
       setTotalCount(0)

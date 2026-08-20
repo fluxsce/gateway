@@ -216,7 +216,6 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
         }
       }
     } catch (error) {
-      console.error('提交实例失败:', error)
       message.error('读取证书/私钥文件失败')
     } finally {
       submitting.value = false

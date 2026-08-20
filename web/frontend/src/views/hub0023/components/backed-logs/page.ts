@@ -165,7 +165,6 @@ export function useBackendLogsPage(
         backendTraces.value = []
       }
     } catch (error) {
-      console.error('获取后端日志失败:', error)
       const msg = error instanceof Error ? error.message : '获取后端日志失败'
       message.error(msg)
       backendTraces.value = []

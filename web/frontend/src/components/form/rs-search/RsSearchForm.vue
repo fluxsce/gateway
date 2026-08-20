@@ -446,8 +446,8 @@ const handleSearch = async () => {
       return
     }
     emit('search', { ...formData.value })
-  } catch (error) {
-    console.error('表单验证失败:', error)
+  } catch {
+    // 校验未通过时不触发搜索
   }
 }
 

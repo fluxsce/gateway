@@ -91,7 +91,6 @@ export function useTunnelServiceService(searchFormRef?: Ref<any> | any) {
         message.error(response.errMsg || '查询服务列表失败')
       }
     } catch (error) {
-      console.error('加载服务列表失败:', error)
       message.error('加载服务列表失败')
     } finally {
       loading.value = false
@@ -161,7 +160,6 @@ export function useTunnelServiceService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('创建服务失败:', error)
       message.error('创建服务失败')
       return false
     } finally {
@@ -194,7 +192,6 @@ export function useTunnelServiceService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('更新服务失败:', error)
       message.error('更新服务失败')
       return false
     } finally {
@@ -240,7 +237,6 @@ export function useTunnelServiceService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('删除服务失败:', error)
       message.error('删除服务失败')
       return false
     } finally {
@@ -279,7 +275,6 @@ export function useTunnelServiceService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('注册服务失败:', error)
       message.error('注册服务失败')
       return false
     } finally {
@@ -318,7 +313,6 @@ export function useTunnelServiceService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('注销服务失败:', error)
       message.error('注销服务失败')
       return false
     } finally {
@@ -341,7 +335,6 @@ export function useTunnelServiceService(searchFormRef?: Ref<any> | any) {
         return null
       }
     } catch (error) {
-      console.error('获取服务详情失败:', error)
       message.error('获取服务详情失败')
       return null
     }

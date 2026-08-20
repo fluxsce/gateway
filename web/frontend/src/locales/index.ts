@@ -123,10 +123,8 @@ export async function loadModuleMessages(
       // 标记为已加载
       loadedModules.add(cacheKey)
 
-      console.log(`[i18n] 模块 "${moduleName}" 语言包加载完成: ${locale}`)
       return moduleLocale.default
-    } catch (error) {
-      console.warn(`[i18n] 加载模块语言包失败: ${moduleName}/${locale}`, error)
+    } catch {
       return {}
     } finally {
       // 清除加载中的缓存
@@ -159,7 +157,6 @@ export function clearModuleCache(moduleName?: string, locale?: LocaleType) {
     // 清除所有缓存
     moduleLoadCache.clear()
     loadedModules.clear()
-    console.log('[i18n] 已清除所有模块语言包缓存')
     return
   }
 
@@ -170,7 +167,6 @@ export function clearModuleCache(moduleName?: string, locale?: LocaleType) {
       loadedModules.delete(key)
       moduleLoadCache.delete(key)
     })
-    console.log(`[i18n] 已清除模块 "${moduleName}" 的所有语言包缓存`)
     return
   }
 
@@ -178,7 +174,6 @@ export function clearModuleCache(moduleName?: string, locale?: LocaleType) {
   const cacheKey = getModuleCacheKey(moduleName, locale)
   loadedModules.delete(cacheKey)
   moduleLoadCache.delete(cacheKey)
-  console.log(`[i18n] 已清除模块 "${moduleName}" 的 ${locale} 语言包缓存`)
 }
 
 /**

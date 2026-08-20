@@ -172,11 +172,9 @@ const loadServiceByMetadata = async (metadata: ServiceSelectionMetadata) => {
       if (service) {
         currentServiceInfo.value = service
       } else {
-        console.warn('服务数据解析失败')
         currentServiceInfo.value = null
       }
     } else {
-      console.warn('获取服务失败:', getApiMessage(response, '获取服务失败'))
       // 如果获取失败，使用元数据构造基本信息
       currentServiceInfo.value = {
         tenantId: metadata.tenantId,
@@ -187,7 +185,6 @@ const loadServiceByMetadata = async (metadata: ServiceSelectionMetadata) => {
       } as Service
     }
   } catch (error) {
-    console.error('加载服务失败:', error)
     currentServiceInfo.value = null
   } finally {
     loading.value = false

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Run package-linux.sh inside manylinux2014 (glibc 2.17) so CGO binaries
 # start on CentOS 7 / RHEL 7 and later. ubuntu-latest's glibc is too new.
-# Env: same as package-linux.sh (VERSION, ORACLE, ORACLE_HOME, CGO_*).
+# Env: same as package-linux.sh (VERSION, GOARCH, ORACLE, ORACLE_HOME, CGO_*).
+# LINUX_BUILD_IMAGE overrides the default manylinux image for the selected GOARCH.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -12,7 +13,19 @@ if [[ -z "${VERSION:-}" ]]; then
   exit 1
 fi
 
-IMAGE="${LINUX_BUILD_IMAGE:-quay.io/pypa/manylinux2014_x86_64}"
+GOARCH="${GOARCH:-amd64}"
+case "$GOARCH" in
+  amd64)
+    IMAGE="${LINUX_BUILD_IMAGE:-quay.io/pypa/manylinux2014_x86_64}"
+    ;;
+  arm64)
+    IMAGE="${LINUX_BUILD_IMAGE:-quay.io/pypa/manylinux2014_aarch64}"
+    ;;
+  *)
+    echo "[ERROR] unsupported GOARCH=${GOARCH} (want amd64 or arm64)" >&2
+    exit 1
+    ;;
+esac
 GOROOT="$(go env GOROOT)"
 GOMODCACHE="$(go env GOMODCACHE)"
 if [[ -z "$GOROOT" || ! -x "$GOROOT/bin/go" ]]; then
@@ -37,13 +50,14 @@ if [[ "$ORACLE" == "1" ]]; then
   CONTAINER_ORACLE_HOME="/src/${rel}"
 fi
 
-echo "[INFO] Linux package image=${IMAGE} (glibc 2.17 ABI)"
+echo "[INFO] Linux package image=${IMAGE} (glibc 2.17 ABI) GOARCH=${GOARCH}"
 echo "[INFO] GOROOT=${GOROOT}"
 docker pull "$IMAGE"
 
 DOCKER_ENV=(
   -e VERSION
   -e ORACLE
+  -e GOARCH
   -e GOTOOLCHAIN=local
 )
 if [[ "$ORACLE" == "1" ]]; then

@@ -44,7 +44,13 @@ export function useAlertLogPage(
    * @param currentPage - 当前页码
    * @param pageSize - 每页条数
    */
-  const handlePageChange = async ({ currentPage, pageSize }: { currentPage: number; pageSize: number }) => {
+  const handlePageChange = async ({
+    currentPage,
+    pageSize,
+  }: {
+    currentPage: number
+    pageSize: number
+  }) => {
     service.model.updatePagination({ pageIndex: currentPage, pageSize })
     await service.loadLogList()
   }
@@ -77,7 +83,7 @@ export function useAlertLogPage(
       }
 
       default:
-        console.warn('未知的工具栏按钮:', key)
+        break
     }
   }
 
@@ -112,7 +118,7 @@ export function useAlertLogPage(
         break
 
       default:
-        console.warn('未知的菜单项:', key)
+        break
     }
   }
 

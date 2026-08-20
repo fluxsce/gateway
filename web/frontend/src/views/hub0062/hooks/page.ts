@@ -16,10 +16,7 @@ import { useTunnelClientService } from './service'
  * @param gridRef Grid 组件引用（可选）
  * @param searchFormRef 搜索表单引用（可选）
  */
-export function useTunnelClientPage(
-  gridRef?: Ref<any> | any,
-  searchFormRef?: Ref<any> | any
-) {
+export function useTunnelClientPage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any) {
   const message = useAppMessage()
   // 业务服务（包含 model、增删改查等）
   const service = useTunnelClientService(searchFormRef)
@@ -42,7 +39,13 @@ export function useTunnelClientPage(
   /**
    * 处理分页变化
    */
-  const handlePageChange = async ({ currentPage, pageSize }: { currentPage: number; pageSize: number }) => {
+  const handlePageChange = async ({
+    currentPage,
+    pageSize,
+  }: {
+    currentPage: number
+    pageSize: number
+  }) => {
     service.model.updatePagination({ pageIndex: currentPage, pageSize })
     await service.loadClientList()
   }
@@ -67,7 +70,7 @@ export function useTunnelClientPage(
         await handleBatchDelete()
         break
       default:
-        console.warn('未知的工具栏按钮:', key)
+        break
     }
   }
 
@@ -184,17 +187,13 @@ export function useTunnelClientPage(
       if (formDialogMode.value === 'create') {
         success = await service.addClient(submitData)
       } else if (formDialogMode.value === 'edit' && currentEditClient.value) {
-        success = await service.editClient(
-          currentEditClient.value.tunnelClientId,
-          submitData
-        )
+        success = await service.editClient(currentEditClient.value.tunnelClientId, submitData)
       }
 
       if (success) {
         closeFormDialog()
       }
     } catch (error: any) {
-      console.error('提交客户端配置失败:', error)
       message.error(error.message || '提交失败，请重试')
     }
   }
@@ -223,7 +222,7 @@ export function useTunnelClientPage(
         await handleDelete(row)
         break
       default:
-        console.warn('未知的菜单项:', key)
+        break
     }
   }
 
@@ -406,4 +405,3 @@ export function useTunnelClientPage(
  * 隧道客户端管理 Page 类型
  */
 export type TunnelClientPage = ReturnType<typeof useTunnelClientPage>
-

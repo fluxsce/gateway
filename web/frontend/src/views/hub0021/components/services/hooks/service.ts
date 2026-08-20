@@ -70,7 +70,6 @@ export function useServiceDefinitionSelectorService(
         updatePagination({})
       }
     } catch (error: any) {
-      console.error('加载服务定义列表失败:', error)
       message.error('加载服务定义列表失败: ' + (error?.message || '未知错误'))
       setServiceList([])
       updatePagination({})

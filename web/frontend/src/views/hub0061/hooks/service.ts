@@ -92,7 +92,6 @@ export function useStaticServerService(searchFormRef?: Ref<RsSearchFormExpose | 
         model.resetPagination()
       }
     } catch (error: any) {
-      console.error('加载服务列表失败:', error)
       message.error(error.message || '加载服务列表失败')
       model.setServerList([])
       model.resetPagination()
@@ -114,7 +113,6 @@ export function useStaticServerService(searchFormRef?: Ref<RsSearchFormExpose | 
         return null
       }
     } catch (error: any) {
-      console.error('获取服务详情失败:', error)
       message.error(error.message || '获取服务详情失败')
       return null
     }
@@ -151,7 +149,6 @@ export function useStaticServerService(searchFormRef?: Ref<RsSearchFormExpose | 
         return false
       }
     } catch (error: any) {
-      console.error('新增服务失败:', error)
       message.error(error.message || '新增服务失败')
       return false
     } finally {
@@ -191,7 +188,6 @@ export function useStaticServerService(searchFormRef?: Ref<RsSearchFormExpose | 
         return false
       }
     } catch (error: any) {
-      console.error('编辑服务失败:', error)
       message.error(error.message || '编辑服务失败')
       return false
     } finally {
@@ -236,7 +232,6 @@ export function useStaticServerService(searchFormRef?: Ref<RsSearchFormExpose | 
         return false
       }
     } catch (error: any) {
-      console.error('删除服务失败:', error)
       message.error(error.message || '删除服务失败')
       return false
     } finally {
@@ -275,7 +270,6 @@ export function useStaticServerService(searchFormRef?: Ref<RsSearchFormExpose | 
         return false
       }
     } catch (error: any) {
-      console.error('批量删除服务失败:', error)
       message.error(error.message || '批量删除服务失败')
       return false
     } finally {
@@ -332,7 +326,6 @@ export function useStaticServerService(searchFormRef?: Ref<RsSearchFormExpose | 
         return false
       }
     } catch (error: any) {
-      console.error('服务启动失败:', error)
       message.error(error.message || '服务启动失败')
       return false
     } finally {
@@ -378,7 +371,6 @@ export function useStaticServerService(searchFormRef?: Ref<RsSearchFormExpose | 
         return false
       }
     } catch (error: any) {
-      console.error('服务停止失败:', error)
       message.error(error.message || '服务停止失败')
       return false
     } finally {
@@ -424,7 +416,6 @@ export function useStaticServerService(searchFormRef?: Ref<RsSearchFormExpose | 
         return false
       }
     } catch (error: any) {
-      console.error('服务配置重载失败:', error)
       message.error(error.message || '服务配置重载失败')
       return false
     } finally {

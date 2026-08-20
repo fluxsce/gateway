@@ -48,7 +48,13 @@
       v-model:visible="formDialogVisible"
       :module-id="service.model.moduleId"
       :mode="formDialogMode"
-      :title="formDialogMode === 'create' ? '新增静态服务' : formDialogMode === 'edit' ? '编辑静态服务' : '查看静态服务详情'"
+      :title="
+        formDialogMode === 'create'
+          ? '新增静态服务'
+          : formDialogMode === 'edit'
+            ? '编辑静态服务'
+            : '查看静态服务详情'
+      "
       :to="`#${htmlId}`"
       :form-fields="service.model.formFields"
       :form-tabs="service.model.formTabs"
@@ -88,10 +94,7 @@ defineOptions({
 })
 
 /** 上方面板随搜索表单高度自适应，下方吃满剩余空间 */
-const splitPanes: RsSplitPaneItem[] = [
-  { key: 'search', size: 'auto' },
-  { key: 'content' },
-]
+const splitPanes: RsSplitPaneItem[] = [{ key: 'search', size: 'auto' }, { key: 'content' }]
 
 const searchFormRef = ref<RsSearchFormExpose | null>(null)
 const gridRef = ref<RsGridExpose | null>(null)
@@ -118,8 +121,8 @@ const loadStatistics = async () => {
         statistics.value = stats
       }
     }
-  } catch (error) {
-    console.error('加载统计数据失败:', error)
+  } catch {
+    // 失败时保持当前状态
   }
 }
 

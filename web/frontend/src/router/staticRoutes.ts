@@ -6,7 +6,6 @@
  * - 侧边栏菜单由同注册表 `buildSidebarMenuFromRegistry()` 派生，勿再双写。
  */
 import { buildMainLayoutChildRoutes } from '@/router/layoutRouteRegistry'
-import MainLayout from '@/views/layout/MainLayout.vue'
 import type { RouteRecordRaw } from 'vue-router'
 
 /**
@@ -109,7 +108,7 @@ export class StaticRoutes {
   static readonly layoutRoute: RouteRecordRaw = {
     path: '/',
     name: 'mainLayout',
-    component: MainLayout,
+    component: () => import('@/views/layout/MainLayout.vue'),
     meta: {
       requiresAuth: true,
     },

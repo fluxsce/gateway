@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# CI-owned Linux amd64 packaging. Not used by local scripts/build.
+# CI-owned Linux packaging. Not used by local scripts/build.
 # Release CI invokes this via package-linux-ci.sh (manylinux2014 / glibc 2.17).
 # Env:
 #   VERSION   required, e.g. 3.2.5
-#   ORACLE    0 (MySQL/SQLite/ClickHouse) or 1 (also Oracle)
+#   GOARCH    amd64 (default) or arm64
+#   ORACLE    0 (MySQL/SQLite/ClickHouse) or 1 (also Oracle; amd64 only)
 #   ORACLE_HOME required when ORACLE=1
 set -euo pipefail
 
@@ -13,6 +14,15 @@ if [[ -z "${VERSION:-}" ]]; then
 fi
 
 ORACLE="${ORACLE:-0}"
+GOARCH="${GOARCH:-amd64}"
+case "$GOARCH" in
+  amd64|arm64) ;;
+  *)
+    echo "[ERROR] unsupported GOARCH=${GOARCH} (want amd64 or arm64)" >&2
+    exit 1
+    ;;
+esac
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
@@ -27,6 +37,10 @@ if [[ ! -d web/frontend/dist ]]; then
 fi
 
 if [[ "$ORACLE" == "1" ]]; then
+  if [[ "$GOARCH" != "amd64" ]]; then
+    echo "[ERROR] Oracle Instant Client 21.18 is linux x64 only; arm64 packages use no_oracle" >&2
+    exit 1
+  fi
   if [[ -z "${ORACLE_HOME:-}" ]]; then
     echo "[ERROR] ORACLE_HOME is required when ORACLE=1" >&2
     exit 1
@@ -36,20 +50,21 @@ if [[ "$ORACLE" == "1" ]]; then
     exit 1
   fi
   BUILD_TAGS="netgo,osusergo"
-  VARIANT="linux-amd64-oracle"
+  VARIANT="linux-${GOARCH}-oracle"
   export CGO_CFLAGS="${CGO_CFLAGS:--I${ORACLE_HOME}/sdk/include}"
   export CGO_LDFLAGS="${CGO_LDFLAGS:--L${ORACLE_HOME} -lclntsh}"
   export LD_LIBRARY_PATH="${ORACLE_HOME}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
   echo "[INFO] Building with Oracle support"
 else
   BUILD_TAGS="netgo,osusergo,no_oracle"
-  VARIANT="linux-amd64"
+  VARIANT="linux-${GOARCH}"
   echo "[INFO] Building without Oracle (MySQL/SQLite/ClickHouse)"
 fi
 
 export CGO_ENABLED=1
 export GOOS=linux
-export GOARCH=amd64
+export GOARCH
+echo "[INFO] Target GOOS=${GOOS} GOARCH=${GOARCH}"
 
 GIT_COMMIT="${GIT_COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}"
 BUILD_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"

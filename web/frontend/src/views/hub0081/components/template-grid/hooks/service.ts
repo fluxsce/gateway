@@ -54,7 +54,6 @@ export function useAlertTemplateListService(
         model.resetPagination()
       }
     } catch (e: any) {
-      console.error('加载模板列表失败:', e)
       message.error(e.message || '加载模板列表失败')
       model.setTemplateList([])
       model.resetPagination()

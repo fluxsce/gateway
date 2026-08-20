@@ -91,7 +91,6 @@ export function useTunnelServerService(searchFormRef?: Ref<any> | any) {
         message.error(response.errMsg || '查询隧道服务器列表失败')
       }
     } catch (error) {
-      console.error('加载隧道服务器列表失败:', error)
       message.error('加载隧道服务器列表失败')
     } finally {
       loading.value = false
@@ -161,7 +160,6 @@ export function useTunnelServerService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('创建隧道服务器失败:', error)
       message.error('创建隧道服务器失败')
       return false
     } finally {
@@ -197,7 +195,6 @@ export function useTunnelServerService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('更新隧道服务器失败:', error)
       message.error('更新隧道服务器失败')
       return false
     } finally {
@@ -243,7 +240,6 @@ export function useTunnelServerService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('删除隧道服务器失败:', error)
       message.error('删除隧道服务器失败')
       return false
     } finally {
@@ -282,7 +278,6 @@ export function useTunnelServerService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('启动隧道服务器失败:', error)
       message.error('启动隧道服务器失败')
       return false
     } finally {
@@ -321,7 +316,6 @@ export function useTunnelServerService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('停止隧道服务器失败:', error)
       message.error('停止隧道服务器失败')
       return false
     } finally {
@@ -360,7 +354,6 @@ export function useTunnelServerService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('重启隧道服务器失败:', error)
       message.error('重启隧道服务器失败')
       return false
     } finally {
@@ -383,7 +376,6 @@ export function useTunnelServerService(searchFormRef?: Ref<any> | any) {
         return null
       }
     } catch (error) {
-      console.error('获取隧道服务器详情失败:', error)
       message.error('获取隧道服务器详情失败')
       return null
     }

@@ -76,7 +76,6 @@ export function useRoleService(searchFormRef?: Ref<any> | any) {
         message.error(response.errMsg || t('role.message.queryFailed'))
       }
     } catch (error) {
-      console.error('加载角色列表失败:', error)
       message.error(t('role.message.loadFailed'))
     } finally {
       loading.value = false
@@ -128,7 +127,6 @@ export function useRoleService(searchFormRef?: Ref<any> | any) {
       message.error(response.errMsg || response.popMsg || t('role.message.createFailed'))
       return false
     } catch (error) {
-      console.error('新增角色失败:', error)
       message.error(t('role.message.createFailed'))
       return false
     } finally {
@@ -157,7 +155,6 @@ export function useRoleService(searchFormRef?: Ref<any> | any) {
       message.error(response.errMsg || response.popMsg || t('role.message.updateFailed'))
       return false
     } catch (error) {
-      console.error('编辑角色失败:', error)
       message.error(t('role.message.updateFailed'))
       return false
     } finally {
@@ -199,7 +196,6 @@ export function useRoleService(searchFormRef?: Ref<any> | any) {
       message.error(response.errMsg || response.popMsg || t('role.message.deleteFailed'))
       return false
     } catch (error) {
-      console.error('删除角色失败:', error)
       message.error(t('role.message.deleteFailed'))
       return false
     } finally {
@@ -257,7 +253,6 @@ export function useRoleService(searchFormRef?: Ref<any> | any) {
       message.error(t('role.message.batchDeleteAllFailed', { fail: failCount }))
       return false
     } catch (error) {
-      console.error('批量删除角色失败:', error)
       message.error(t('role.message.batchDeleteFailed'))
       return false
     } finally {

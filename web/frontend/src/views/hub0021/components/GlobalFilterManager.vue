@@ -48,7 +48,7 @@ import { GIcon } from '@/components/gicon'
 import { useAppMessage } from '@/composables/useAppMessage'
 import { RsAlert, RsButton, RsEmpty, RsLoading } from '@/ui'
 import { Add, Refresh } from '@vicons/ionicons5'
-import { getCurrentInstance, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { getCurrentInstance, nextTick, onUnmounted, ref, watch } from 'vue'
 import {
   addFilterConfig,
   deleteFilterConfig,
@@ -131,7 +131,6 @@ const loadGlobalFilters = async () => {
     }
   } catch (error) {
     if (!isUnmounted.value) {
-      console.error('加载全局过滤器失败:', error)
       safeMessage.error('加载全局过滤器失败')
       globalFilters.value = []
     }
@@ -167,7 +166,6 @@ const handleDelete = async (filter: FilterConfig) => {
     }
   } catch (error) {
     if (!isUnmounted.value) {
-      console.error('删除过滤器失败:', error)
       safeMessage.error('删除过滤器失败')
     }
   } finally {
@@ -189,7 +187,6 @@ const handleToggleStatus = async (filter: FilterConfig) => {
     }
   } catch (error) {
     if (!isUnmounted.value) {
-      console.error('更新过滤器状态失败:', error)
       safeMessage.error('更新过滤器状态失败')
     }
   }
@@ -213,7 +210,6 @@ const swapFilterOrder = async (filter1: FilterConfig, filter2: FilterConfig) => 
     }
   } catch (error) {
     if (!isUnmounted.value) {
-      console.error('调整执行顺序失败:', error)
       safeMessage.error('调整执行顺序失败')
     }
   } finally {
@@ -266,7 +262,6 @@ const handleSaveFilter = async (filterData: FilterFormData) => {
     }
   } catch (error) {
     if (!isUnmounted.value) {
-      console.error('保存过滤器失败:', error)
       safeMessage.error('保存过滤器失败')
     }
   }
@@ -286,12 +281,6 @@ const refresh = async () => {
 watch(() => props.gatewayInstanceId, async (newId) => {
   if (newId && !isUnmounted.value) await loadGlobalFilters()
 }, { immediate: true })
-
-onMounted(() => {
-  if (props.gatewayInstanceId) {
-    console.log('全局过滤器管理器初始化，网关实例ID:', props.gatewayInstanceId)
-  }
-})
 
 onUnmounted(() => {
   isUnmounted.value = true

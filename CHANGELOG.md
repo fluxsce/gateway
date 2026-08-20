@@ -6,7 +6,13 @@
 
 ## [Unreleased]（未发布）
 
+### 新增
+- **Linux arm64 发布包**：CI 增加 `gateway-linux-arm64-{version}.tar.gz`（`ubuntu-24.04-arm` + manylinux2014 aarch64）。标准 Docker 在对应架构 runner 上原生构建，并推 `{version}-amd64` / `{version}-arm64`，再合成多架构 `{version}` / `latest`。Oracle 包、Oracle 镜像与 Windows 仍为 amd64（Instant Client 21.18 仅 x64）。
+- **审计日志查看（hub0004）**：系统设置下查询 `HUB_AUTH_AUDIT_LOG`（操作人、动作、模块、目标、结果、时间范围），只读详情。已有库执行 `patch_auth_resource_20260820_hub0004.sql`（并确认已有审计表）。
+
 ### 变更
+- **标准 Docker 运行时升级 Alpine 3.19 → 3.23**：构建阶段钉 `golang:1.24-alpine3.23`，与仍在支持期内的 Alpine 对齐。
+- **登录页首包减负**：Vite 不再把 Monaco / CodeMirror / xterm 打进登录图；boot 预加载运行时单独成块。`@/ui` 不再 re-export 代码编辑器（改从 `@/ui/code-editor` 引入）。主布局按需加载。CI 钉到 npm `niuma-ui@1.1.6`（`sideEffects` 便于摇掉未使用的编辑器）。本地开发仍用 package.json 的 link。
 - **管理端 API 根路径常量化**：`/gateway` 抽到 `constants.APIRoot`，各模块用 `routes.ModuleAPIPrefix` 拼接前缀。前端 `GATEWAY_PREFIX` / `moduleApiPrefix` 与后端对齐。权限正则与审计路径解析共用同一常量，换根路径前后端各改一处。`hub0001` 登录接口仍为 `/gateway/user`。
 
 ## [3.2.5] - 2026-08-20

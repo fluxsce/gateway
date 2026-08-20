@@ -50,14 +50,14 @@ export function useServerNodeMonitor() {
       const response = await serverNodeApi.queryCPUMetrics({
         metricServerId: targetServerId,
         startTime: formatDate(startTime, 'YYYY-MM-DD HH:mm:ss'),
-        endTime: formatDate(endTime, 'YYYY-MM-DD HH:mm:ss')
+        endTime: formatDate(endTime, 'YYYY-MM-DD HH:mm:ss'),
       })
 
       if (response.oK && response.bizData) {
         cpuMetrics.value = JSON.parse(response.bizData)
       }
-    } catch (error) {
-      console.error('加载CPU监控数据失败:', error)
+    } catch {
+      // 失败时保持当前状态
     } finally {
       cpuLoading.value = false
     }
@@ -76,14 +76,14 @@ export function useServerNodeMonitor() {
       const response = await serverNodeApi.queryMemoryMetrics({
         metricServerId: targetServerId,
         startTime: formatDate(startTime, 'YYYY-MM-DD HH:mm:ss'),
-        endTime: formatDate(endTime, 'YYYY-MM-DD HH:mm:ss')
+        endTime: formatDate(endTime, 'YYYY-MM-DD HH:mm:ss'),
       })
 
       if (response.oK && response.bizData) {
         memoryMetrics.value = JSON.parse(response.bizData)
       }
-    } catch (error) {
-      console.error('加载内存监控数据失败:', error)
+    } catch {
+      // 失败时保持当前状态
     } finally {
       memoryLoading.value = false
     }
@@ -102,14 +102,14 @@ export function useServerNodeMonitor() {
       const response = await serverNodeApi.queryDiskMetrics({
         metricServerId: targetServerId,
         startTime: formatDate(startTime, 'YYYY-MM-DD HH:mm:ss'),
-        endTime: formatDate(endTime, 'YYYY-MM-DD HH:mm:ss')
+        endTime: formatDate(endTime, 'YYYY-MM-DD HH:mm:ss'),
       })
 
       if (response.oK && response.bizData) {
         diskMetrics.value = JSON.parse(response.bizData)
       }
-    } catch (error) {
-      console.error('加载磁盘监控数据失败:', error)
+    } catch {
+      // 失败时保持当前状态
     } finally {
       diskLoading.value = false
     }
@@ -128,14 +128,14 @@ export function useServerNodeMonitor() {
       const response = await serverNodeApi.queryDiskIOMetrics({
         metricServerId: targetServerId,
         startTime: formatDate(startTime, 'YYYY-MM-DD HH:mm:ss'),
-        endTime: formatDate(endTime, 'YYYY-MM-DD HH:mm:ss')
+        endTime: formatDate(endTime, 'YYYY-MM-DD HH:mm:ss'),
       })
 
       if (response.oK && response.bizData) {
         diskIOMetrics.value = JSON.parse(response.bizData)
       }
-    } catch (error) {
-      console.error('加载磁盘IO监控数据失败:', error)
+    } catch {
+      // 失败时保持当前状态
     } finally {
       diskIOLoading.value = false
     }
@@ -154,14 +154,14 @@ export function useServerNodeMonitor() {
       const response = await serverNodeApi.queryNetworkMetrics({
         metricServerId: targetServerId,
         startTime: formatDate(startTime, 'YYYY-MM-DD HH:mm:ss'),
-        endTime: formatDate(endTime, 'YYYY-MM-DD HH:mm:ss')
+        endTime: formatDate(endTime, 'YYYY-MM-DD HH:mm:ss'),
       })
 
       if (response.oK && response.bizData) {
         networkMetrics.value = JSON.parse(response.bizData)
       }
-    } catch (error) {
-      console.error('加载网络监控数据失败:', error)
+    } catch {
+      // 失败时保持当前状态
     } finally {
       networkLoading.value = false
     }
@@ -180,14 +180,14 @@ export function useServerNodeMonitor() {
       const response = await serverNodeApi.queryProcessMetrics({
         metricServerId: targetServerId,
         startTime: formatDate(startTime, 'YYYY-MM-DD HH:mm:ss'),
-        endTime: formatDate(endTime, 'YYYY-MM-DD HH:mm:ss')
+        endTime: formatDate(endTime, 'YYYY-MM-DD HH:mm:ss'),
       })
 
       if (response.oK && response.bizData) {
         processMetrics.value = JSON.parse(response.bizData)
       }
-    } catch (error) {
-      console.error('加载进程监控数据失败:', error)
+    } catch {
+      // 失败时保持当前状态
     } finally {
       processLoading.value = false
     }
@@ -206,7 +206,7 @@ export function useServerNodeMonitor() {
       loadDiskMetrics(targetServerId),
       loadDiskIOMetrics(targetServerId),
       loadNetworkMetrics(targetServerId),
-      loadProcessMetrics(targetServerId)
+      loadProcessMetrics(targetServerId),
     ])
   }
 
@@ -270,7 +270,7 @@ export function useServerNodeMonitor() {
     loadAllMetrics,
     clearAllMetrics,
     setSelectedServer,
-    updateTimeRange
+    updateTimeRange,
   }
 }
 
@@ -278,4 +278,3 @@ export function useServerNodeMonitor() {
  * ServerNodeMonitor 类型定义
  */
 export type ServerNodeMonitor = ReturnType<typeof useServerNodeMonitor>
-

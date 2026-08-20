@@ -106,8 +106,8 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
           if (pageInfoData && Object.keys(pageInfoData).length > 0) {
             updatePagination(pageInfoData)
           }
-        } catch (error) {
-          console.warn('分页信息解析失败:', error)
+        } catch {
+          // 分页字段缺失时沿用当前分页
         }
       } else {
         const errorMsg = getApiMessage(response, '查询网关日志列表失败')
@@ -115,7 +115,6 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
         setLogList([])
       }
     } catch (error) {
-      console.error('加载网关日志列表失败:', error)
       const msg = error instanceof Error ? error.message : '加载网关日志列表失败'
       message.error(msg)
       setLogList([])
@@ -200,7 +199,6 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
         return false
       }
     } catch (error) {
-      console.error('重置网关日志失败:', error)
       message.error('重置网关日志失败')
       return false
     }
@@ -261,7 +259,6 @@ export function useGatewayLogService(searchFormRef?: Ref<any> | any) {
         message.error(errorMsg)
       }
     } catch (error) {
-      console.error('导出网关日志失败:', error)
       const msg = error instanceof Error ? error.message : '导出网关日志失败'
       message.error(msg)
     }

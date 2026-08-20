@@ -186,7 +186,6 @@ const loadServiceList = async () => {
       serviceList.value = []
     }
   } catch (error) {
-    console.error('加载已注册服务列表失败:', error)
     serviceList.value = []
   } finally {
     loading.value = false

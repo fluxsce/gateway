@@ -763,8 +763,8 @@ export function useGatewayLogModel() {
         gatewayInstanceId,
       })
       await nextTick()
-    } catch (e) {
-      console.warn('[hub0023] 默认网关实例初始化失败', e)
+    } catch {
+      // 默认实例写入搜索表单失败时不影响日志页
     }
   }
 

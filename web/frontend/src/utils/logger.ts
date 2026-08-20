@@ -3,8 +3,9 @@
  * 提供统一的日志输出接口，可根据环境控制日志输出
  */
 
-// 判断是否为生产环境
-const isProd = import.meta.env.VITE_LOGGER_ENV === 'production'
+// 生产包或显式 prod/production 时关闭 debug/info，避免控制台刷屏
+const loggerEnv = String(import.meta.env.VITE_LOGGER_ENV || '').toLowerCase()
+const isProd = import.meta.env.PROD || loggerEnv === 'production' || loggerEnv === 'prod'
 
 // 日志级别枚举
 export enum LogLevel {
@@ -15,8 +16,8 @@ export enum LogLevel {
   NONE = 4,
 }
 
-// 默认日志级别：生产环境下仅显示错误，开发环境显示所有
-const defaultLogLevel = isProd ? LogLevel.ERROR : LogLevel.DEBUG
+// 默认：生产仅错误；开发警告及以上（需要排障时可 setLevel(DEBUG)）
+const defaultLogLevel = isProd ? LogLevel.ERROR : LogLevel.WARN
 
 /**
  * 日志记录器选项
