@@ -90,6 +90,29 @@ go run cmd/app/main.go
 
 ---
 
+## ⬆️ Version Upgrade
+
+The example below uses `/data/gateway` as the install directory; replace it with your actual path. Back up first, extract the new package over the install directory, then copy the original `database.yaml` back.
+
+```bash
+# 1. Stop the service
+sudo systemctl stop gateway
+
+# 2. Back up the original config
+sudo cp /data/gateway/configs/database.yaml /tmp/database.yaml.bak
+
+# 3. Extract the new package into the install directory (archive root is gateway/)
+sudo tar -xzf gateway-linux-amd64-*.tar.gz -C /data
+
+# 4. Restore the original database.yaml
+sudo cp /tmp/database.yaml.bak /data/gateway/configs/database.yaml
+
+# 5. Start the service
+sudo systemctl start gateway
+```
+
+---
+
 ## 🏗️ Architecture Overview
 
 ```mermaid

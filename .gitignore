@@ -25,6 +25,7 @@ bin/
 .idea/
 .cursor/
 .vscode/
+*.code-workspace
 *.swp
 *.swo
 *~

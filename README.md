@@ -91,6 +91,29 @@ go run cmd/app/main.go
 
 ---
 
+## ⬆️ 版本升级
+
+以安装目录 `/data/gateway` 为例，按实际路径替换。升级时先备份，解压覆盖安装包后，把原来的 `database.yaml` 拷回去即可。
+
+```bash
+# 1. 停止服务
+sudo systemctl stop gateway
+
+# 2. 备份原配置
+sudo cp /data/gateway/configs/database.yaml /tmp/database.yaml.bak
+
+# 3. 解压新版本到安装目录（包内目录为 gateway/）
+sudo tar -xzf gateway-linux-amd64-*.tar.gz -C /data
+
+# 4. 拷回原来的 database.yaml
+sudo cp /tmp/database.yaml.bak /data/gateway/configs/database.yaml
+
+# 5. 启动服务
+sudo systemctl start gateway
+```
+
+---
+
 ## 🏗️ 架构概览
 
 <p align="left">
