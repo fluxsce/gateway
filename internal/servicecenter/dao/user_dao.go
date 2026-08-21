@@ -3,6 +3,7 @@ package dao
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
@@ -58,10 +59,7 @@ func (d *UserDAO) GetUserByUserId(ctx context.Context, userId string) (*User, er
 
 // ValidateUser 验证用户凭证
 // 根据 userId 和 password 验证用户身份
-// 支持加密密码（自动检测并解密），如果是明文密码则直接比较
-// 返回值：
-//   - *User: 验证成功时返回用户信息
-//   - error: 验证失败时返回错误信息
+// 口令校验走 security.VerifyPassword，兼容 bcrypt、ENCY_ 密文和历史明文
 func (d *UserDAO) ValidateUser(ctx context.Context, userId, password string) (*User, error) {
 	if userId == "" || password == "" {
 		return nil, fmt.Errorf("用户ID和密码不能为空")
@@ -78,19 +76,7 @@ func (d *UserDAO) ValidateUser(ctx context.Context, userId, password string) (*U
 		return nil, fmt.Errorf("用户不存在或未激活")
 	}
 
-	// 解密密码（如果是加密的）
-	// DecryptWithDefaultKey 会自动检测：
-	// - 如果有 "ENCY_" 前缀，则解密
-	// - 如果没有前缀（明文），则直接返回原值
-	storedPassword, err := security.DecryptWithDefaultKey(user.Password)
-	if err != nil {
-		// 解密失败，记录日志并返回错误
-		logger.Error("密码解密失败", "userId", userId, "error", err)
-		return nil, fmt.Errorf("密码验证失败")
-	}
-
-	// 验证密码（明文比较）
-	if storedPassword != password {
+	if !security.VerifyPassword(user.Password, password) {
 		return nil, fmt.Errorf("密码错误")
 	}
 
@@ -99,6 +85,26 @@ func (d *UserDAO) ValidateUser(ctx context.Context, userId, password string) (*U
 		return nil, fmt.Errorf("用户已被禁用")
 	}
 
-	// 验证成功
+	if security.NeedsRehash(user.Password) {
+		if err := d.updatePasswordHash(ctx, user.UserId, user.TenantId, password); err != nil {
+			logger.Error("升级密码哈希失败", "userId", userId, "error", err)
+		}
+	}
+
+	user.Password = ""
 	return user, nil
+}
+
+// updatePasswordHash 将明文口令哈希后写回，供认证成功后的静默升级使用。
+func (d *UserDAO) updatePasswordHash(ctx context.Context, userId, tenantId, plainPassword string) error {
+	hashed, err := security.HashPassword(plainPassword)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	_, err = d.db.Exec(ctx, `
+		UPDATE HUB_USER SET password = ?, pwdUpdateTime = ?, editTime = ?
+		WHERE userId = ? AND tenantId = ?
+	`, []interface{}{hashed, now, now, userId, tenantId}, true)
+	return err
 }

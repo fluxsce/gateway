@@ -42,6 +42,10 @@ func InitializeCluster(ctx context.Context, db database.Database) (types.Cluster
 		clusterService.RegisterHandler(alertCfgHandler)
 		logger.Info("注册告警配置事件处理器成功", "eventType", alertCfgHandler.GetEventType())
 
+		envSettingHandler := handler.NewEnvSettingEventHandler(db)
+		clusterService.RegisterHandler(envSettingHandler)
+		logger.Info("注册环境设置事件处理器成功", "eventType", envSettingHandler.GetEventType())
+
 		initMu.Lock()
 		initialized = true
 		initMu.Unlock()

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/syssetting"
 	"gateway/pkg/utils/empty"
 	"gateway/pkg/utils/huberrors"
 	"gateway/pkg/utils/random"
@@ -239,7 +240,7 @@ func (dao *GatewayInstanceDAO) createDefaultLogConfig(tenantId, operatorId strin
 		EnableBatchProcessing:      "Y",
 		BatchSize:                  100,
 		BatchTimeoutMs:             1000,
-		LogRetentionDays:           30,
+		LogRetentionDays:           gatewayLogDefaultDays(tenantId),
 		EnableFileRotation:         "Y",
 		MaxFileSizeMB:              &maxFileSizeMB,
 		MaxFileCount:               &maxFileCount,
@@ -253,6 +254,15 @@ func (dao *GatewayInstanceDAO) createDefaultLogConfig(tenantId, operatorId strin
 		ActiveFlag:                 "Y",
 		NoteText:                   "",
 	}
+}
+
+// gatewayLogDefaultDays 新建实例的日志保留天数，取自环境设置归档策略。
+func gatewayLogDefaultDays(tenantId string) int {
+	days := syssetting.GetRetention(tenantId).GatewayLogDefaultDays
+	if days <= 0 {
+		return 30
+	}
+	return days
 }
 
 // GetGatewayInstanceById 根据网关实例ID获取网关实例信息

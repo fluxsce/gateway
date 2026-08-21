@@ -32,7 +32,7 @@ export default {
     confirmation: '确认操作',
     deleteConfirm: '确定要删除此用户吗？此操作不可撤销。',
     batchDeleteConfirm: '确定要删除选中的用户吗？此操作不可撤销。',
-    passwordPlaceholder: '请输入6-20位密码',
+    passwordPlaceholder: '请输入8-20位强密码',
     uploadAvatar: '上传头像',
     basicInfo: '基本信息',
     roleInfo: '角色信息',
@@ -111,6 +111,7 @@ export default {
     tipLowercase: '必须包含小写字母',
     tipNumber: '必须包含数字',
     tipSpecial: "必须包含特殊字符（{'@$!%*?&'}）",
+    mustChangeHint: '管理员已重置您的密码，请立即修改后再使用系统。修改成功后需要重新登录。',
   },
   // 系统设置
   settings: {
@@ -146,7 +147,7 @@ export default {
     usernameRequired: '用户名不能为空',
     usernameLength: '用户名长度在3-20个字符之间',
     passwordRequired: '密码不能为空',
-    passwordLength: '密码长度在6-20个字符之间',
+    passwordLength: '密码长度在8-20个字符之间',
     emailRequired: '邮箱不能为空',
     emailFormat: '请输入正确的邮箱格式',
     phoneFormat: '请输入正确的手机号码',

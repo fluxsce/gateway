@@ -1,0 +1,17 @@
+-- 生命周期清理租约，保证集群内同一时刻只有一个节点执行清理
+CREATE TABLE IF NOT EXISTS HUB_RETENTION_LEASE (
+  tenantId TEXT NOT NULL,
+  leaseKey TEXT NOT NULL,
+  owner TEXT NOT NULL,
+  expireTime DATETIME NOT NULL,
+  addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  addWho TEXT NOT NULL,
+  editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y',
+  noteText TEXT,
+  extProperty TEXT,
+  PRIMARY KEY (tenantId, leaseKey)
+);

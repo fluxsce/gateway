@@ -21,6 +21,7 @@ import (
 	"gateway/internal/gateway/handler/service"
 	"gateway/internal/gateway/logwrite"
 	"gateway/internal/gateway/logwrite/types"
+	"gateway/pkg/tracing"
 )
 
 // HTTPProxy HTTP代理实现
@@ -274,6 +275,14 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 	// 正确的做法是让 Go 标准库自动添加 Accept-Encoding 并自动解压响应
 	proxyReq.Header.Del("Accept-Encoding")
 
+	spanCtx, span := ctx.StartOutboundSpan("gateway.proxy",
+		tracing.String("http.request.method", proxyReq.Method),
+		tracing.String("server.address", target.Host),
+		tracing.String("url.full", proxyURL.String()),
+		tracing.String("gateway.retry_count", fmt.Sprintf("%d", retryCount)),
+	)
+	tracing.Inject(spanCtx, proxyReq.Header)
+
 	// 设置代理类型
 	ctx.Set(constants.ContextKeyProxyType, h.GetType())
 
@@ -356,6 +365,15 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 			serviceName, // 服务名称，从 node 中获取
 			retryCount,  // 重试次数
 		)
+		if responseErr != nil {
+			span.RecordError(responseErr)
+		} else if responseStatusCode >= 500 {
+			span.RecordError(fmt.Errorf("upstream status %d", responseStatusCode))
+		}
+		if responseStatusCode > 0 {
+			span.SetAttr(tracing.String("http.response.status_code", fmt.Sprintf("%d", responseStatusCode)))
+		}
+		span.End()
 	}()
 
 	// 发送代理请求（异常直接抛出）
@@ -862,12 +880,14 @@ func (h *HTTPProxy) setProxyHeaders(req *http.Request, proxyReq *http.Request, t
 // 系统头部不应该被proxy_pass_header过滤
 func isSystemHeader(name string) bool {
 	systemHeaders := map[string]bool{
-		"host":              true,
-		"x-forwarded-for":   true,
-		"x-real-ip":         true,
-		"x-forwarded-proto": true,
-		"x-forwarded-host":  true,
-		"user-agent":        true,
+		"host":                    true,
+		"x-forwarded-for":         true,
+		"x-real-ip":               true,
+		"x-forwarded-proto":       true,
+		"x-forwarded-host":        true,
+		"user-agent":              true,
+		tracing.HeaderTraceparent: true,
+		tracing.HeaderTracestate:  true,
 	}
 	return systemHeaders[strings.ToLower(name)]
 }

@@ -1,6 +1,6 @@
 # FAQ
 
-安装包与镜像版本以 [GitHub Releases](https://github.com/fluxsce/gateway/releases) 为准。下文以 3.2.6 为例。
+安装包与镜像版本以 [GitHub Releases](https://github.com/fluxsce/gateway/releases) 为准。下文以 3.2.7 为例。
 
 ## 控制台打不开
 
@@ -41,8 +41,8 @@ SQLite 驱动是 `github.com/mattn/go-sqlite3`，必须 CGO。安装 [TDM-GCC](h
 
 没有 Docker Hub 官方镜像。请用：
 
-- `ghcr.io/fluxsce/gateway:3.2.6`
-- `crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.6`
+- `ghcr.io/fluxsce/gateway:3.2.7`
+- `crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.7`
 
 ## 构建脚本一运行就找 Oracle
 
@@ -50,14 +50,14 @@ SQLite 驱动是 `github.com/mattn/go-sqlite3`，必须 CGO。安装 [TDM-GCC](h
 
 ```bash
 # Windows（默认就是 no_oracle）
-scripts\build\build-win10.cmd --version=3.2.6
+scripts\build\build-win10.cmd --version=3.2.7
 
 # 需要 Oracle 时
-scripts\build\build-win10.cmd --oracle --version=3.2.6
+scripts\build\build-win10.cmd --oracle --version=3.2.7
 
 # Linux（默认 no_oracle）
-./scripts/build/build-centos7.sh --version=3.2.6
-./scripts/build/build-centos7.sh --oracle --version=3.2.6
+./scripts/build/build-centos7.sh --version=3.2.7
+./scripts/build/build-centos7.sh --oracle --version=3.2.7
 ```
 
 未传 `--version` 时脚本会交互询问。

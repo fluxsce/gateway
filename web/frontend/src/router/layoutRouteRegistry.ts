@@ -176,6 +176,19 @@ export const GATEWAY_LAYOUT_ROUTE_TREE: GatewayAppRoute[] = [
           moduleName: 'hub0008',
         },
       },
+      {
+        kind: 'leaf',
+        path: 'environmentSettings',
+        name: 'environmentSettings',
+        component: () => import('@/views/hub0009/EnvironmentSettings.vue'),
+        meta: {
+          title: '环境设置',
+          requiresAuth: true,
+          icon: 'sliders-horizontal',
+          moduleName: 'hub0009',
+          keepAliveIncludeName: 'EnvironmentSettings',
+        },
+      },
     ],
   },
   {

@@ -4,6 +4,7 @@ For a trial, use Quick start in [README_EN.md](../../README_EN.md). Architecture
 
 - [Introduction](./01-introduction.md) — capabilities, layered architecture, tunnel
 - [First route](./09-first-route.md) — instance, service, prefix route, reload
+- [Distributed tracing](./10-tracing.md) — OTLP / W3C, Collector, external APM
 - [Static hosting](./08-static-hosting.md) — serve local files through the gateway
 - [FAQ](../faq.md) — ports, login, common errors
 - [Installation](./03-installation.md) — packages, services, upgrades

@@ -1,0 +1,18 @@
+CREATE TABLE HUB_SYS_SETTING (
+    tenantId VARCHAR2(32) NOT NULL,
+    groupCode VARCHAR2(64) NOT NULL,
+    content CLOB NOT NULL,
+    addTime DATE DEFAULT SYSDATE NOT NULL,
+    addWho VARCHAR2(64) NOT NULL,
+    editTime DATE DEFAULT SYSDATE NOT NULL,
+    editWho VARCHAR2(64) NOT NULL,
+    oprSeqFlag VARCHAR2(64) NOT NULL,
+    currentVersion NUMBER(10) DEFAULT 1 NOT NULL,
+    activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+    noteText CLOB,
+    extProperty CLOB,
+    CONSTRAINT PK_SYS_SETTING PRIMARY KEY (tenantId, groupCode)
+);
+COMMENT ON TABLE HUB_SYS_SETTING IS '环境设置表 - 按租户与分组存储平台策略';
+COMMENT ON COLUMN HUB_SYS_SETTING.groupCode IS '设置分组编码(retention/webTimeout等)';
+COMMENT ON COLUMN HUB_SYS_SETTING.content IS '分组内容JSON';

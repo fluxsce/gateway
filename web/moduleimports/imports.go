@@ -31,6 +31,8 @@ import (
 	_ "gateway/web/views/hub0007/routes"
 	// 导入集群事件管理模块
 	_ "gateway/web/views/hub0008/routes"
+	// 导入环境设置模块
+	_ "gateway/web/views/hub0009/routes"
 	// 导入网关管理模块
 	_ "gateway/web/views/hub0020/routes"
 	// 导入路由管理模块

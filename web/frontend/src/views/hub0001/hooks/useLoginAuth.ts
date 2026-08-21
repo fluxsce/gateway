@@ -23,6 +23,7 @@ interface LoginFormExpose {
 interface LoginUserInfo extends Pick<User, 'userId' | 'userName' | 'realName' | 'tenantId' | 'avatar' | 'email' | 'mobile' | 'deptId' | 'tenantAdminFlag'> {
   permissions?: UserPermissionResponse
   timeout?: number
+  mustChangePwd?: string
 }
 
 // 移除 parseBizData，改用 format.ts 中的 parseJsonData
@@ -264,6 +265,7 @@ export function useLoginAuth() {
             mobile: loginResult.mobile,
             deptId: loginResult.deptId,
             tenantAdminFlag: loginResult.tenantAdminFlag,
+            mustChangePwd: loginResult.mustChangePwd,
             timeout: loginResult.timeout,
             remember: formData.rememberMe,
           }
@@ -291,8 +293,12 @@ export function useLoginAuth() {
         // 设置全局页面标题
         store.global.setPageTitle('首页')
 
-        // 记录登录成功，转到主界面
-        router.push({ path: '/' })
+        // 记录登录成功；强制改密时进入设置页密码页签
+        if (loginResult.mustChangePwd === 'Y') {
+          router.push({ name: 'settings', query: { tab: 'password' } })
+        } else {
+          router.push({ path: '/' })
+        }
         return true
       } else {
         // 登录失败 - 数据解析异常

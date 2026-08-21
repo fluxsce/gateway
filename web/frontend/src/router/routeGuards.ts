@@ -106,7 +106,19 @@ export function setupRouteGuards(router: Router): void {
      * 已登录用户尝试访问登录页时重定向到首页
      */
     if (to.name === 'login' && userStore.isAuthenticated) {
+      if (userStore.mustChangePwd === 'Y') {
+        return next({ name: 'settings', query: { tab: 'password' } })
+      }
       return next({ path: '/' })
+    }
+
+    if (
+      userStore.isAuthenticated &&
+      userStore.mustChangePwd === 'Y' &&
+      to.name !== 'settings' &&
+      to.name !== 'login'
+    ) {
+      return next({ name: 'settings', query: { tab: 'password' } })
     }
 
     // 正常导航

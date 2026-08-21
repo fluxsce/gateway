@@ -541,6 +541,69 @@ func BuildPaginationQuery(dbType DatabaseType, baseQuery string, pagination *Pag
 	return paginatedQuery, args, nil
 }
 
+// BuildLimitedDeleteQuery 构建限制删除条数的 SQL，与 BuildPaginationQuery 按同一套库类型分支。
+// 不使用主键 IN 列表，避免 Oracle 1000 项、驱动占位符上限等问题。
+//
+// whereClause 只含条件与占位符（例如 tenantId = ? AND addTime < ?），不含 WHERE 关键字。
+// 返回的 args 已按各库占位符顺序排好：WHERE 参数在前，条数在后；SQL Server 的 TOP 条数在前。
+func BuildLimitedDeleteQuery(dbType DatabaseType, table, whereClause string, whereArgs []interface{}, limit int) (string, []interface{}, error) {
+	if !validSQLIdent(table) {
+		return "", nil, fmt.Errorf("invalid table name")
+	}
+	if strings.TrimSpace(whereClause) == "" {
+		return "", nil, fmt.Errorf("where clause is required")
+	}
+	if limit < 1 {
+		limit = 10
+	}
+
+	switch dbType {
+	case DatabaseMySQL, DatabaseMariaDB, DatabaseTiDB, DatabaseClickHouse:
+		query := "DELETE FROM " + table + " WHERE " + whereClause + " LIMIT ?"
+		return query, appendWhereThenLimit(whereArgs, limit), nil
+	case DatabaseSQLite:
+		// 默认未开启 DELETE LIMIT，用 rowid 子查询限制条数（IN 内是子查询，不是上千个绑定值）
+		query := "DELETE FROM " + table + " WHERE rowid IN (SELECT rowid FROM (SELECT rowid FROM " +
+			table + " WHERE " + whereClause + " LIMIT ?))"
+		return query, appendWhereThenLimit(whereArgs, limit), nil
+	case DatabasePostgreSQL:
+		query := "DELETE FROM " + table + " WHERE ctid IN (SELECT ctid FROM " + table +
+			" WHERE " + whereClause + " LIMIT ?)"
+		return query, appendWhereThenLimit(whereArgs, limit), nil
+	case DatabaseOracle, DatabaseOracle11g:
+		query := "DELETE FROM " + table + " WHERE (" + whereClause + ") AND ROWNUM <= ?"
+		return query, appendWhereThenLimit(whereArgs, limit), nil
+	case DatabaseSQLServer:
+		query := "DELETE TOP (?) FROM " + table + " WHERE " + whereClause
+		args := make([]interface{}, 0, 1+len(whereArgs))
+		args = append(args, limit)
+		args = append(args, whereArgs...)
+		return query, args, nil
+	case DatabaseMongoDB:
+		return "", nil, fmt.Errorf("MongoDB does not support SQL delete")
+	default:
+		return "", nil, fmt.Errorf("unsupported database type: %s", dbType)
+	}
+}
+
+func appendWhereThenLimit(whereArgs []interface{}, limit int) []interface{} {
+	args := make([]interface{}, 0, len(whereArgs)+1)
+	args = append(args, whereArgs...)
+	return append(args, limit)
+}
+
+func validSQLIdent(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r != '_' && !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
+			return false
+		}
+	}
+	return true
+}
+
 // BuildCountQuery 构建统计总数的查询语句
 // 将原始查询转换为COUNT查询，用于获取总记录数
 // 自动处理复杂查询语句，移除不必要的ORDER BY和LIMIT子句

@@ -23,6 +23,7 @@ export interface User {
   userExpireDate: string // 用户过期时间，格式：yyyy-MM-dd HH:mm:ss
   lastLoginTime?: string // 最后登录时间，格式：yyyy-MM-dd HH:mm:ss
   lastLoginIp?: string // 最后登录IP
+  mustChangePwd?: string // 是否必须修改密码：Y-是，N-否
   addTime: string // 创建时间，格式：yyyy-MM-dd HH:mm:ss
   addWho: string // 创建人
   editTime: string // 修改时间，格式：yyyy-MM-dd HH:mm:ss

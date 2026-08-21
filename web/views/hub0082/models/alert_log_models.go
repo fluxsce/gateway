@@ -12,6 +12,6 @@ type AlertLogQueryRequest struct {
 	ChannelName    *string    `json:"channelName" form:"channelName"`       // 渠道名称（精确）
 	SendStatus     *string    `json:"sendStatus" form:"sendStatus"`         // 发送状态：PENDING/SENDING/SUCCESS/FAILED
 	AlertTimestamp *time.Time `json:"alertTimestamp" form:"alertTimestamp"` // 告警时间戳（精确）
-	StartTime      *time.Time `json:"startTime" form:"startTime"`           // 开始时间（用于时间范围查询）
-	EndTime        *time.Time `json:"endTime" form:"endTime"`               // 结束时间（用于时间范围查询）
+	StartTime      string     `json:"startTime" form:"startTime"`           // 开始时间，本地墙钟字符串
+	EndTime        string     `json:"endTime" form:"endTime"`               // 结束时间，本地墙钟字符串
 }

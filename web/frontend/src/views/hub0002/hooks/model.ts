@@ -156,7 +156,7 @@ export function useUserModel() {
       field: 'password',
       label: '密码',
       type: 'input',
-      placeholder: '请输入密码',
+      placeholder: '请输入8-20位强密码（大小写+数字+特殊字符）',
       span: 8,
       tabKey: 'basic',
       // 仅新增模式显示密码；编辑用“重置密码”
@@ -182,6 +182,7 @@ export function useUserModel() {
       placeholder: '请输入部门ID',
       span: 8,
       tabKey: 'basic',
+      show: false,
     },
     {
       field: 'email',
@@ -248,6 +249,7 @@ export function useUserModel() {
       type: 'switch',
       span: 8,
       tabKey: 'basic',
+      show: false,
       defaultValue: FlagEnum.NO,
       props: {
         checkedValue: FlagEnum.YES,
@@ -387,11 +389,6 @@ export function useUserModel() {
         ellipsis: true,
       },
       {
-        key: 'deptId',
-        title: '部门ID',
-        ellipsis: true,
-      },
-      {
         key: 'email',
         title: '邮箱',
         ellipsis: true,
@@ -429,12 +426,6 @@ export function useUserModel() {
             },
             () => (row.statusFlag === UserStatus.ENABLED ? '启用' : '禁用'),
           ),
-      },
-      {
-        key: 'deptAdminFlag',
-        title: '部门管理员',
-        align: 'center',
-        formatter: (value) => (value === 'Y' ? '是' : '否'),
       },
       {
         key: 'tenantAdminFlag',

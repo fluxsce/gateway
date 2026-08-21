@@ -2,7 +2,7 @@ CREATE TABLE HUB_USER (
     userId          VARCHAR(32)   NOT NULL COMMENT '用户ID，联合主键',
     tenantId        VARCHAR(32)   NOT NULL COMMENT '租户ID，联合主键',
     userName        VARCHAR(50)   NOT NULL COMMENT '用户名，登录账号',
-    password        VARCHAR(128)  NOT NULL COMMENT '密码，加密存储',
+    password        VARCHAR(128)  NOT NULL COMMENT '密码，bcrypt 哈希存储',
     realName        VARCHAR(50)   NOT NULL COMMENT '真实姓名',
     deptId          VARCHAR(32)   NOT NULL COMMENT '所属部门ID',
     email           VARCHAR(255)  NULL     COMMENT '电子邮箱',
@@ -71,7 +71,7 @@ INSERT INTO HUB_USER (
     'admin',                            -- userId
     'default',                          -- tenantId
     'admin',                            -- userName
-    '123456',                      -- password（使用 MySQL 内置 MD5 加密）
+    '$2a$10$S9Yqyb9LI5PqAutYj.kR0OI/Zm7EcJSKbxKaLCThw8djqwqsPiDQi', -- password（bcrypt，明文 123456）
     '系统管理员',                         -- realName
     'D00000001',                        -- deptId
     'admin@example.com',                -- email
@@ -97,3 +97,6 @@ INSERT INTO HUB_USER (
 -- 兼容性：向后兼容，现有URL数据不受影响
 -- =====================================================
 ALTER TABLE HUB_USER MODIFY COLUMN avatar LONGTEXT NULL COMMENT '头像URL或Base64数据';
+
+-- 历史库升级：建表已执行过的不会再跑 CREATE，只补列。
+ALTER TABLE `HUB_USER` ADD COLUMN `mustChangePwd` VARCHAR(1) NOT NULL DEFAULT 'N' COMMENT '是否必须修改密码：Y-是，N-否' AFTER `pwdUpdateTime`;

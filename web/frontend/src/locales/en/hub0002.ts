@@ -32,7 +32,7 @@ export default {
     confirmation: 'Confirmation',
     deleteConfirm: 'Are you sure you want to delete this user? This action cannot be undone.',
     batchDeleteConfirm: 'Are you sure you want to delete the selected users? This action cannot be undone.',
-    passwordPlaceholder: 'Please enter a password between 6-20 characters',
+    passwordPlaceholder: 'Please enter a strong password (8-20 characters)',
     uploadAvatar: 'Upload Avatar',
     basicInfo: 'Basic Information',
     roleInfo: 'Role Information',
@@ -111,6 +111,7 @@ export default {
     tipLowercase: 'Must contain lowercase letters',
     tipNumber: 'Must contain numbers',
     tipSpecial: "Must contain special characters ({'@$!%*?&'})",
+    mustChangeHint: 'An administrator has reset your password. Please change it before using the system. You will need to sign in again after a successful change.',
   },
   // System Settings
   settings: {
@@ -146,7 +147,7 @@ export default {
     usernameRequired: 'Username is required',
     usernameLength: 'Username must be between 3-20 characters',
     passwordRequired: 'Password is required',
-    passwordLength: 'Password must be between 6-20 characters',
+    passwordLength: 'Password must be 8-20 characters',
     emailRequired: 'Email is required',
     emailFormat: 'Please enter a valid email format',
     phoneFormat: 'Please enter a valid phone number',

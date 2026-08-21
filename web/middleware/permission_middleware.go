@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
@@ -59,6 +60,13 @@ func PermissionRequired() gin.HandlerFunc {
 		if userContext == nil {
 			logger.WarnWithTrace(c, "权限验证失败：未找到用户上下文")
 			response.ErrorJSON(c, "请先登录", constants.ED00011, http.StatusUnauthorized)
+			c.Abort()
+			return
+		}
+
+		if userContext.MustChangePwd == "Y" && !mustChangePwdAllowed(c.Request.Method, c.Request.URL.Path) {
+			logger.WarnWithTrace(c, "拒绝访问：须先修改密码", "userId", userContext.UserId, "path", c.Request.URL.Path)
+			response.ErrorJSON(c, "请先修改密码后再使用系统", constants.ED00117, http.StatusForbidden)
 			c.Abort()
 			return
 		}
@@ -220,4 +228,20 @@ func HasPermission(c *gin.Context, moduleCode, resourceCode, buttonCode, resourc
 	}
 
 	return permissionResponse.HasPermission, permissionResponse, nil
+}
+
+// mustChangePwdAllowed 强制改密期间仅允许改密、登出、查自己、刷新会话。
+func mustChangePwdAllowed(method, path string) bool {
+	p := strings.TrimSuffix(path, "/")
+	root := constants.APIRoot + "/user"
+	switch {
+	case strings.EqualFold(method, http.MethodPut) && p == root+"/password":
+		return true
+	case strings.EqualFold(method, http.MethodPost) && (p == root+"/logout" || p == root+"/refresh-session"):
+		return true
+	case strings.EqualFold(method, http.MethodGet) && p == root+"/userinfo":
+		return true
+	default:
+		return false
+	}
 }

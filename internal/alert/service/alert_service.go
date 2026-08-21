@@ -37,8 +37,7 @@ type AlertServiceImpl struct {
 	// 配置
 	pollInterval      time.Duration // 轮询间隔（默认3秒）
 	batchSize         int           // 每批处理数量（默认50）
-	cleanupInterval   time.Duration // 清理间隔（默认1小时）
-	logRetentionHours int           // 日志保留时间（小时，默认7天）
+	logRetentionHours int // 日志保留时间（小时，默认7天），环境设置优先
 	logQueueSize      int           // 日志队列大小（默认1000）
 	logBatchSize      int           // 日志批量写入大小（默认100）
 	logFlushInterval  time.Duration // 日志刷新间隔（默认5秒）
@@ -49,7 +48,6 @@ func NewAlertService(db database.Database, tenantId string) *AlertServiceImpl {
 	// 读取配置（使用配置常量）
 	pollInterval := parseDuration(config.GetString(config.ALERT_POLL_INTERVAL, "3s"), 3*time.Second)
 	batchSize := config.GetInt(config.ALERT_BATCH_SIZE, 50)
-	cleanupInterval := parseDuration(config.GetString(config.ALERT_CLEANUP_INTERVAL, "1h"), 1*time.Hour)
 	logRetentionHours := config.GetInt(config.ALERT_LOG_RETENTION_HOURS, 168) // 默认7天
 	logQueueSize := config.GetInt(config.ALERT_LOG_QUEUE_SIZE, 1000)
 	logBatchSize := config.GetInt(config.ALERT_LOG_BATCH_SIZE, 100)
@@ -64,7 +62,6 @@ func NewAlertService(db database.Database, tenantId string) *AlertServiceImpl {
 		batchBuffer:       make([]*types.AlertLog, 0, logBatchSize),
 		pollInterval:      pollInterval,
 		batchSize:         batchSize,
-		cleanupInterval:   cleanupInterval,
 		logRetentionHours: logRetentionHours,
 		logQueueSize:      logQueueSize,
 		logBatchSize:      logBatchSize,
@@ -99,10 +96,6 @@ func (s *AlertServiceImpl) Start(ctx context.Context) error {
 	// 启动发送处理 worker
 	s.wg.Add(1)
 	go s.sendWorker()
-
-	// 启动清理 worker
-	s.wg.Add(1)
-	go s.cleanupWorker()
 
 	logger.Info("告警服务启动完成")
 	return nil

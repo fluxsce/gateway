@@ -39,6 +39,7 @@ import (
 	"fmt"
 	"gateway/pkg/cache"
 	"gateway/pkg/logger"
+	"gateway/pkg/syssetting"
 	"gateway/web/globalmodels"
 	"gateway/web/utils/constants"
 	"time"
@@ -115,6 +116,7 @@ func NewSessionManager() *SessionManager {
 //   - clientIP: 客户端IP地址，用于安全验证和审计
 //   - userAgent: 客户端用户代理字符串，包含浏览器和操作系统信息
 //   - tenantAdminFlag: 是否租户管理员（Y/N），用于接口鉴权放行
+//   - mustChangePwd: 是否必须修改密码（Y/N），为 Y 时仅允许改密与登出
 //
 // 返回值:
 //   - *globalmodels.UserContext: 创建成功的用户上下文对象
@@ -129,7 +131,7 @@ func NewSessionManager() *SessionManager {
 //   - session过期时间从constants.HUB_SESSION_EXPIRE_HOURS获取
 //   - 生成的sessionId为64字符的十六进制字符串，具有高度的唯一性
 //   - 所有session信息都存储在UserContext中，简化了数据结构
-func (sm *SessionManager) CreateSession(ctx context.Context, userId, userName, realName, tenantId, deptId, email, mobile, avatar, clientIP, userAgent, tenantAdminFlag string) (*globalmodels.UserContext, error) {
+func (sm *SessionManager) CreateSession(ctx context.Context, userId, userName, realName, tenantId, deptId, email, mobile, avatar, clientIP, userAgent, tenantAdminFlag, mustChangePwd string) (*globalmodels.UserContext, error) {
 	// 生成session ID
 	sessionId, err := sm.generateSessionId()
 	if err != nil {
@@ -138,7 +140,7 @@ func (sm *SessionManager) CreateSession(ctx context.Context, userId, userName, r
 	}
 
 	now := time.Now()
-	expireDuration := time.Duration(constants.HUB_SESSION_EXPIRE_HOURS) * time.Hour
+	expireDuration := sessionTTL(tenantId)
 	expireAt := now.Add(expireDuration)
 
 	// 创建用户上下文，包含所有session信息
@@ -158,6 +160,7 @@ func (sm *SessionManager) CreateSession(ctx context.Context, userId, userName, r
 		ClientIP:        clientIP,
 		UserAgent:       userAgent,
 		TenantAdminFlag: tenantAdminFlag,
+		MustChangePwd:   normalizeYNFlag(mustChangePwd),
 	}
 
 	// 存储用户上下文
@@ -216,7 +219,7 @@ func (sm *SessionManager) ValidateSession(ctx context.Context, sessionId string)
 	// 更新最后活动时间
 	now := time.Now()
 	userContext.LastActivity = &now
-	expireDuration := time.Duration(constants.HUB_SESSION_EXPIRE_HOURS) * time.Hour
+	expireDuration := sessionTTL(userContext.TenantId)
 	err = sm.storeUserContext(ctx, sessionId, userContext, expireDuration)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "更新session活动时间失败", "error", err, "sessionId", sessionId)
@@ -258,7 +261,7 @@ func (sm *SessionManager) RefreshSession(ctx context.Context, sessionId string) 
 
 	// 更新过期时间
 	now := time.Now()
-	expireDuration := time.Duration(constants.HUB_SESSION_EXPIRE_HOURS) * time.Hour
+	expireDuration := sessionTTL(userContext.TenantId)
 	expireAt := now.Add(expireDuration)
 
 	userContext.ExpireAt = &expireAt
@@ -638,4 +641,21 @@ func GetGlobalSessionManager() *SessionManager {
 //   - 超时时间从constants包的全局变量中获取
 func InitGlobalSessionManager() {
 	globalSessionManager = NewSessionManager()
+}
+
+// sessionTTL 按租户环境设置计算会话时长，未配置时回落到常量默认值。
+func sessionTTL(tenantId string) time.Duration {
+	hours := syssetting.GetWebTimeout(tenantId).SessionExpireHours
+	if hours <= 0 {
+		hours = constants.HUB_SESSION_EXPIRE_HOURS
+	}
+	return time.Duration(hours) * time.Hour
+}
+
+// normalizeYNFlag 将标志规范为 Y 或 N。
+func normalizeYNFlag(v string) string {
+	if v == "Y" || v == "y" {
+		return "Y"
+	}
+	return "N"
 }

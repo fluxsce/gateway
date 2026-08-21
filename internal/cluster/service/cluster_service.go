@@ -11,6 +11,7 @@ import (
 	"gateway/pkg/config"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/pkg/syssetting"
 	"gateway/pkg/utils/random"
 )
 
@@ -18,15 +19,12 @@ import (
 // 提供集群节点间的事件发布/订阅机制，支持配置变更、缓存失效等场景的消息传递
 type ClusterServiceImpl struct {
 	// 配置
-	tenantId          string        // 租户ID，用于多租户隔离
-	nodeId            string        // 当前节点ID，用于标识节点身份
-	nodeIp            string        // 当前节点IP地址
-	pollInterval      time.Duration // 事件轮询间隔
-	batchSize         int           // 每次轮询获取的事件数量
-	expireHours       int           // 事件过期时间（小时）
-	cleanupEnabled    bool          // 是否启用自动清理
-	cleanupInterval   time.Duration // 清理任务执行间隔
-	ackRetentionHours int           // 确认记录保留时间（小时）
+	tenantId     string        // 租户ID，用于多租户隔离
+	nodeId       string        // 当前节点ID，用于标识节点身份
+	nodeIp       string        // 当前节点IP地址
+	pollInterval time.Duration // 事件轮询间隔
+	batchSize    int           // 每次轮询获取的事件数量
+	expireHours  int           // 事件过期时间（小时），环境设置未配置时的回退
 
 	// 组件
 	dao      *dao.EventDAO                 // 数据访问层
@@ -56,10 +54,8 @@ type ClusterServiceImpl struct {
 //   - app.node_id: 全局节点ID（次优先级）
 //   - app.cluster.event.poll_interval: 事件轮询间隔，默认3s
 //   - app.cluster.event.batch_size: 每批处理事件数，默认100
-//   - app.cluster.event.expire_hours: 事件过期时间（小时），默认24
-//   - app.cluster.cleanup.enabled: 是否启用清理，默认true
-//   - app.cluster.cleanup.interval: 清理间隔，默认1h
-//   - app.cluster.cleanup.ack_retention_hours: 确认记录保留时间（小时），默认48
+//   - app.cluster.event.expire_hours: 事件过期时间（小时），默认24，环境设置优先
+//   - app.cluster.cleanup.enabled: 是否启用清理，默认true（由生命周期调度执行）
 func NewClusterService(db database.Database) *ClusterServiceImpl {
 	// 读取节点ID配置（优先级：app.cluster.node_id > app.node_id > 自动生成）
 	nodeId := getNodeId()
@@ -70,23 +66,17 @@ func NewClusterService(db database.Database) *ClusterServiceImpl {
 	pollInterval := parseDuration(config.GetString("app.cluster.event.poll_interval", "3s"), 3*time.Second)
 	batchSize := config.GetInt("app.cluster.event.batch_size", 100)
 	expireHours := config.GetInt("app.cluster.event.expire_hours", 24)
-	cleanupEnabled := config.GetBool("app.cluster.cleanup.enabled", true)
-	cleanupInterval := parseDuration(config.GetString("app.cluster.cleanup.interval", "1h"), 1*time.Hour)
-	ackRetentionHours := config.GetInt("app.cluster.cleanup.ack_retention_hours", 48)
 
 	return &ClusterServiceImpl{
-		tenantId:          "default", // 使用固定租户ID
-		nodeId:            nodeId,
-		nodeIp:            nodeIp,
-		pollInterval:      pollInterval,
-		batchSize:         batchSize,
-		expireHours:       expireHours,
-		cleanupEnabled:    cleanupEnabled,
-		cleanupInterval:   cleanupInterval,
-		ackRetentionHours: ackRetentionHours,
-		dao:               dao.NewEventDAO(db),
-		handlers:          make(map[string]types.EventHandler),
-		lastEventTime:     time.Now(), // 从当前时间开始，只处理启动后的新事件
+		tenantId:      "default", // 使用固定租户ID
+		nodeId:        nodeId,
+		nodeIp:        nodeIp,
+		pollInterval:  pollInterval,
+		batchSize:     batchSize,
+		expireHours:   expireHours,
+		dao:           dao.NewEventDAO(db),
+		handlers:      make(map[string]types.EventHandler),
+		lastEventTime: time.Now(), // 从当前时间开始，只处理启动后的新事件
 	}
 }
 
@@ -134,12 +124,6 @@ func (s *ClusterServiceImpl) Start(ctx context.Context) error {
 	// 启动事件轮询
 	s.wg.Add(1)
 	go s.eventPollLoop()
-
-	// 启动清理任务(如果启用)
-	if s.cleanupEnabled {
-		s.wg.Add(1)
-		go s.cleanupLoop()
-	}
 
 	logger.Info("集群服务启动完成")
 	return nil
@@ -233,9 +217,11 @@ func (s *ClusterServiceImpl) PublishEvent(ctx context.Context, event *types.Clus
 	event.ActiveFlag = "Y"
 
 	// 设置过期时间
-	if event.ExpireTime == nil && s.expireHours > 0 {
-		expireTime := now.Add(time.Duration(s.expireHours) * time.Hour)
-		event.ExpireTime = &expireTime
+	if event.ExpireTime == nil {
+		if hours := s.currentExpireHours(); hours > 0 {
+			expireTime := now.Add(time.Duration(hours) * time.Hour)
+			event.ExpireTime = &expireTime
+		}
 	}
 
 	// 保存事件
@@ -474,49 +460,16 @@ func (s *ClusterServiceImpl) saveAckResult(ctx context.Context, event *types.Clu
 	}
 }
 
-// cleanupLoop 清理循环（后台goroutine）
-//
-// 定期清理过期事件和旧的确认记录，防止数据库无限增长
-func (s *ClusterServiceImpl) cleanupLoop() {
-	defer s.wg.Done()
-
-	ticker := time.NewTicker(s.cleanupInterval)
-	defer ticker.Stop()
-
-	logger.Info("集群事件清理任务启动", "interval", s.cleanupInterval)
-
-	for {
-		select {
-		case <-s.ctx.Done():
-			logger.Info("集群事件清理任务停止")
-			return
-		case <-ticker.C:
-			s.cleanup()
-		}
+// currentExpireHours 事件过期小时数，优先环境设置归档天数。
+func (s *ClusterServiceImpl) currentExpireHours() int {
+	days := syssetting.GetRetention(s.tenantId).ClusterEventDays
+	if days > 0 {
+		return days * 24
 	}
-}
-
-// cleanup 执行清理操作
-//
-// 清理过期事件和超过保留期的确认记录
-func (s *ClusterServiceImpl) cleanup() {
-	ctx := context.Background()
-
-	// 清理过期事件
-	expireTime := time.Now().Add(-time.Duration(s.expireHours) * time.Hour)
-	if affected, err := s.dao.CleanupExpiredEvents(ctx, s.tenantId, expireTime); err != nil {
-		logger.Error("清理过期事件失败", "error", err)
-	} else if affected > 0 {
-		logger.Info("清理过期事件", "count", affected)
+	if s.expireHours > 0 {
+		return s.expireHours
 	}
-
-	// 清理旧确认记录
-	ackExpireTime := time.Now().Add(-time.Duration(s.ackRetentionHours) * time.Hour)
-	if affected, err := s.dao.CleanupOldAcks(ctx, s.tenantId, ackExpireTime); err != nil {
-		logger.Error("清理旧确认记录失败", "error", err)
-	} else if affected > 0 {
-		logger.Info("清理旧确认记录", "count", affected)
-	}
+	return 24
 }
 
 // getNodeId 获取节点ID

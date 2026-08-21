@@ -7,8 +7,9 @@ import (
 // UserContext 用户上下文信息
 //
 // 结构说明:
-//   统一的用户上下文数据结构，用于JWT认证和Session认证的用户信息存储
-//   包含用户基本信息、认证信息和会话状态等字段
+//
+//	统一的用户上下文数据结构，用于JWT认证和Session认证的用户信息存储
+//	包含用户基本信息、认证信息和会话状态等字段
 //
 // 使用场景:
 //   - JWT中间件验证后的用户信息存储
@@ -45,4 +46,5 @@ type UserContext struct {
 
 	// 权限信息
 	TenantAdminFlag string `json:"tenantAdminFlag"` // 是否租户管理员：Y-是，N-否。为 Y 时接口鉴权全部放行。
+	MustChangePwd   string `json:"mustChangePwd"`   // 是否必须修改密码：Y-是，N-否。为 Y 时仅允许改密、登出与会话刷新。
 }

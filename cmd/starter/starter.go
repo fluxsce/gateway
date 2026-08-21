@@ -112,6 +112,11 @@ func initializeAndStartApplication() error {
 		return huberrors.WrapError(err, "初始化日志失败")
 	}
 
+	// 初始化链路追踪（进程级，网关与 Web 共用；改 app.tracing 后需重启进程）
+	if err := appinit.InitTracing(); err != nil {
+		return huberrors.WrapError(err, "初始化链路追踪失败")
+	}
+
 	// 初始化数据库
 	if err := initDatabase(); err != nil {
 		return huberrors.WrapError(err, "初始化数据库失败")
@@ -174,6 +179,9 @@ func initializeAndStartApplication() error {
 	if err := appinit.InitializeMetricCollector(db); err != nil {
 		return huberrors.WrapError(err, "初始化指标收集器失败")
 	}
+
+	// 租户级数据生命周期（审计/任务/预警/集群事件/指标），网关访问日志仍走实例 cleaner
+	appinit.StartRetention(appContext, db)
 
 	// 初始化隧道管理器（失败不影响应用启动）
 	if err := appinit.InitializeTunnelManager(appContext, db); err != nil {
@@ -305,6 +313,8 @@ func stopApplication() {
 
 	// 取消应用上下文
 	appCancel()
+
+	appinit.StopRetention()
 
 	// 停止pprof服务
 	if err := appinit.StopPprofService(); err != nil {
@@ -453,6 +463,14 @@ func cleanupResources() {
 		}
 	} else {
 		logMsg("网关应用未启动，跳过关闭")
+	}
+
+	// 关闭进程级链路追踪（排空网关流量后再刷新导出器）
+	logMsg("正在关闭链路追踪...")
+	if err := appinit.StopTracing(); err != nil {
+		logMsg("关闭链路追踪时发生错误: %v", err)
+	} else {
+		logMsg("链路追踪已成功关闭")
 	}
 
 	// 关闭所有缓存连接

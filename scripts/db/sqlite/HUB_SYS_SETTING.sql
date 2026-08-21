@@ -1,0 +1,16 @@
+-- 环境设置表 - 按租户与分组存储平台策略
+CREATE TABLE IF NOT EXISTS HUB_SYS_SETTING (
+  tenantId TEXT NOT NULL,
+  groupCode TEXT NOT NULL,
+  content TEXT NOT NULL,
+  addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  addWho TEXT NOT NULL,
+  editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y',
+  noteText TEXT,
+  extProperty TEXT,
+  PRIMARY KEY (tenantId, groupCode)
+);

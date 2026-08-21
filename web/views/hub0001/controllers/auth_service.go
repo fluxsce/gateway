@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"gateway/pkg/logger"
+	"gateway/pkg/security"
 	"gateway/web/middleware"
 	authdao "gateway/web/views/hub0001/dao"
 	"gateway/web/views/hub0001/models"
@@ -90,8 +91,7 @@ func (s *AuthService) ValidateLogin(ctx context.Context, req *models.LoginReques
 		return nil, ErrUserNotFound
 	}
 
-	// 验证密码
-	if user.Password != req.Password {
+	if !security.VerifyPassword(user.Password, req.Password) {
 		s.authDAO.RecordLoginHistory(user.UserId, user.TenantId, clientIP, "", "N", "密码错误")
 		return nil, ErrInvalidCredentials
 	}
@@ -108,6 +108,13 @@ func (s *AuthService) ValidateLogin(ctx context.Context, req *models.LoginReques
 		return nil, ErrUserExpired
 	}
 
+	// 历史明文或旧成本哈希在登录成功后静默升级，失败不影响本次登录
+	if security.NeedsRehash(user.Password) {
+		if err := s.userDAO.UpdatePasswordHash(ctx, user.UserId, user.TenantId, req.Password); err != nil {
+			logger.ErrorWithTrace(ctx, "升级密码哈希失败", err, "userId", user.UserId)
+		}
+	}
+
 	// 异步更新最后登录信息和记录登录日志
 	go func() {
 		// 更新最后登录信息
@@ -120,6 +127,7 @@ func (s *AuthService) ValidateLogin(ctx context.Context, req *models.LoginReques
 		s.authDAO.RecordLoginHistory(user.UserId, user.TenantId, clientIP, "", "Y", "登录成功")
 	}()
 
+	user.Password = ""
 	return user, nil
 }
 
@@ -129,7 +137,12 @@ func (s *AuthService) GetUserInfo(ctx context.Context, userId, tenantId string) 
 		return nil, errors.New("用户ID和租户ID不能为空")
 	}
 
-	return s.userDAO.GetUserById(ctx, userId, tenantId)
+	user, err := s.userDAO.GetUserById(ctx, userId, tenantId)
+	if err != nil || user == nil {
+		return user, err
+	}
+	user.Password = ""
+	return user, nil
 }
 
 // RefreshToken 刷新令牌
@@ -214,28 +227,10 @@ func (s *AuthService) Logout(ctx context.Context, userId, tenantId, refreshToken
 	return nil
 }
 
-// ChangePassword 修改密码
-func (s *AuthService) ChangePassword(ctx context.Context, req *models.PasswordChangeRequest, operatorId string) error {
-	if req.UserId == "" || req.OldPassword == "" || req.NewPassword == "" {
+// ChangePassword 当前用户修改自己的密码，须校验旧密码并满足复杂度策略。
+func (s *AuthService) ChangePassword(ctx context.Context, userId, tenantId, oldPassword, newPassword string) error {
+	if userId == "" || tenantId == "" || oldPassword == "" || newPassword == "" {
 		return errors.New("用户ID、旧密码和新密码不能为空")
 	}
-
-	// 获取用户信息
-	user, err := s.userDAO.GetUserById(ctx, req.UserId, "")
-	if err != nil {
-		logger.ErrorWithTrace(ctx, "获取用户信息失败", err)
-		return errors.New("获取用户信息失败")
-	}
-
-	if user == nil {
-		return errors.New("用户不存在")
-	}
-
-	// 验证旧密码
-	if user.Password != req.OldPassword {
-		return errors.New("原密码不正确")
-	}
-
-	// 修改密码
-	return s.userDAO.ChangePassword(ctx, req.UserId, user.TenantId, req.NewPassword, operatorId)
+	return s.userDAO.ChangePassword(ctx, userId, tenantId, oldPassword, newPassword, userId)
 }

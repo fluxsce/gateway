@@ -15,6 +15,7 @@ const (
 	loginFailLimit      = 5
 	loginFailWindow     = 15 * time.Minute
 	loginFailPrefix     = "login:fail:"
+	pwdChangeFailPrefix = "pwdchange:fail:"
 	loginCooldownFirst  = 30 * time.Second
 	loginCooldownSecond = time.Minute
 	loginCooldownMax    = 2 * time.Minute
@@ -42,8 +43,9 @@ type loginFailStore interface {
 // LoginLockService 按 userId 做渐进登录冷却，不按 IP 锁定。
 // 使用 default 缓存：内存模式下按节点生效，切 Redis 后全集群共享。
 type LoginLockService struct {
-	store loginFailStore
-	ttl   time.Duration
+	store  loginFailStore
+	ttl    time.Duration
+	prefix string
 }
 
 // NewLoginLockService 创建登录锁定服务。
@@ -55,9 +57,17 @@ func NewLoginLockService() *LoginLockService {
 		}
 	}
 	return &LoginLockService{
-		store: store,
-		ttl:   loginFailWindow,
+		store:  store,
+		ttl:    loginFailWindow,
+		prefix: loginFailPrefix,
 	}
+}
+
+// NewPasswordChangeLockService 创建改密失败冷却，与登录失败计数隔离。
+func NewPasswordChangeLockService() *LoginLockService {
+	s := NewLoginLockService()
+	s.prefix = pwdChangeFailPrefix
+	return s
 }
 
 // Check 返回是否处于冷却及剩余时间。缓存不可用时放行。
@@ -76,7 +86,7 @@ func (s *LoginLockService) RecordFailure(ctx context.Context, userId string) tim
 		return 0
 	}
 	key := s.key(userId)
-	if key == loginFailPrefix {
+	if key == "" {
 		return 0
 	}
 	rec := s.load(ctx, userId)
@@ -102,7 +112,7 @@ func (s *LoginLockService) Clear(ctx context.Context, userId string) {
 		return
 	}
 	key := s.key(userId)
-	if key == loginFailPrefix {
+	if key == "" {
 		return
 	}
 	if err := s.store.Delete(ctx, key); err != nil {
@@ -115,7 +125,7 @@ func (s *LoginLockService) load(ctx context.Context, userId string) *loginFailRe
 		return nil
 	}
 	key := s.key(userId)
-	if key == loginFailPrefix {
+	if key == "" {
 		return nil
 	}
 	raw, err := s.store.GetString(ctx, key)
@@ -148,7 +158,15 @@ func (s *LoginLockService) save(ctx context.Context, key string, rec *loginFailR
 }
 
 func (s *LoginLockService) key(userId string) string {
-	return loginFailPrefix + strings.ToLower(strings.TrimSpace(userId))
+	id := strings.ToLower(strings.TrimSpace(userId))
+	if id == "" {
+		return ""
+	}
+	p := s.prefix
+	if p == "" {
+		p = loginFailPrefix
+	}
+	return p + id
 }
 
 func delayForCount(count int) time.Duration {

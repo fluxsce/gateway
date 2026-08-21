@@ -60,17 +60,12 @@ export async function getUserInfo(userId: string, tenantId: string): Promise<Jso
 }
 
 /**
- * 修改密码
- * @param data 密码修改数据
- * @returns 操作结果
+ * 管理员重置指定用户密码，返回一次性临时密码。
+ * @param userId 目标用户ID
+ * @returns 含 temporaryPassword 的操作结果
  */
-export async function changePassword(data: {
-  userId: string
-  tenantId: string
-  oldPassword: string
-  newPassword: string
-}): Promise<JsonDataObj> {
-  return userApi.post('/changePassword', data)
+export async function resetPassword(userId: string): Promise<JsonDataObj> {
+  return userApi.post('/resetPassword', { userId })
 }
 
 /**

@@ -19,19 +19,17 @@ import type { AlertLog } from '../types'
 import { useAlertLogModel } from './model'
 
 /**
- * 从 RsDatePicker range（valueFormat=string）取出起止时间并转为接口格式。
- * 使用本地墙钟时间，不转 UTC。告警时间按本地 DATETIME 落库，转成 ISO
- * 后东八区当天 16:00 之后的记录会被当天查询滤掉。
+ * 从 RsDatePicker range（valueFormat=string）取出起止时间。
+ * 使用本地墙钟时间，不转 UTC。告警按本地 DATETIME 落库。
  * @param timeRange - 表单 timeRange 字段
- * @returns 本地起止时间；无效时返回空对象
  */
 function resolveTimeRangeBounds(timeRange: unknown): { start?: string; end?: string } {
   if (!timeRange || typeof timeRange !== 'object' || Array.isArray(timeRange)) return {}
   const { start, end } = timeRange as { start?: string; end?: string }
   if (!start || !end) return {}
   return {
-    start: formatDate(start, 'YYYY-MM-DDTHH:mm:ss'),
-    end: formatDate(end, 'YYYY-MM-DDTHH:mm:ss'),
+    start: formatDate(start, 'YYYY-MM-DD HH:mm:ss'),
+    end: formatDate(end, 'YYYY-MM-DD HH:mm:ss'),
   }
 }
 

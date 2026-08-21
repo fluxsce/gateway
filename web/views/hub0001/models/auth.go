@@ -32,11 +32,10 @@ type TokenData struct {
 	DeptId   string `json:"deptId"`   // 部门ID
 }
 
-// PasswordChangeRequest 密码修改请求
+// PasswordChangeRequest 当前登录用户修改密码。userId 即使传入也忽略，身份只取 session。
 type PasswordChangeRequest struct {
-	UserId      string `json:"userId" form:"userId" binding:"required"`           // 用户ID
-	OldPassword string `json:"oldPassword" form:"oldPassword" binding:"required"` // 旧密码
-	NewPassword string `json:"newPassword" form:"newPassword" binding:"required"` // 新密码
+	OldPassword string `json:"oldPassword" form:"oldPassword"` // 旧密码
+	NewPassword string `json:"newPassword" form:"newPassword"` // 新密码
 }
 
 // RefreshTokenRequest 刷新令牌请求

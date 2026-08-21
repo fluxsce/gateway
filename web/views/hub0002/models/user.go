@@ -9,7 +9,7 @@ type User struct {
 	UserId          string     `json:"userId" form:"userId" query:"userId" db:"userId"`                                                                 // 用户ID，联合主键
 	TenantId        string     `json:"tenantId" form:"tenantId" query:"tenantId" db:"tenantId"`                                                         // 租户ID，联合主键
 	UserName        string     `json:"userName" form:"userName" query:"userName" db:"userName"`                                                         // 用户名，登录账号
-	Password        string     `json:"password" form:"password" query:"password" db:"password"`                                                         // 密码，加密存储
+	Password        string     `json:"password" form:"password" query:"password" db:"password"`                                                         // 密码，bcrypt 哈希存储
 	RealName        string     `json:"realName" form:"realName" query:"realName" db:"realName"`                                                         // 真实姓名
 	DeptId          string     `json:"deptId" form:"deptId" query:"deptId" db:"deptId"`                                                                 // 所属部门ID
 	Email           string     `json:"email" form:"email" query:"email" db:"email"`                                                                     // 电子邮箱
@@ -22,6 +22,7 @@ type User struct {
 	UserExpireDate  time.Time  `json:"userExpireDate,time_format=2006-01-02 15:04:00" form:"userExpireDate" query:"userExpireDate" db:"userExpireDate"` // 用户过期时间
 	LastLoginTime   *time.Time `json:"lastLoginTime" form:"lastLoginTime" query:"lastLoginTime" db:"lastLoginTime"`                                     // 最后登录时间
 	LastLoginIp     string     `json:"lastLoginIp" form:"lastLoginIp" query:"lastLoginIp" db:"lastLoginIp"`                                             // 最后登录IP
+	MustChangePwd   string     `json:"mustChangePwd" form:"mustChangePwd" query:"mustChangePwd" db:"mustChangePwd"`                                     // 是否必须修改密码：Y-是，N-否
 	AddTime         time.Time  `json:"addTime" form:"addTime" query:"addTime" db:"addTime"`                                                             // 创建时间
 	AddWho          string     `json:"addWho" form:"addWho" query:"addWho" db:"addWho"`                                                                 // 创建人
 	EditTime        time.Time  `json:"editTime" form:"editTime" query:"editTime" db:"editTime"`                                                         // 修改时间

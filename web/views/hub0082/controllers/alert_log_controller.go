@@ -202,8 +202,8 @@ func (c *AlertLogController) GetAlertLogStatistics(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 
 	var req struct {
-		StartTime *time.Time `json:"startTime" form:"startTime"`
-		EndTime   *time.Time `json:"endTime" form:"endTime"`
+		StartTime string `json:"startTime" form:"startTime"`
+		EndTime   string `json:"endTime" form:"endTime"`
 	}
 	if err := request.BindSafely(ctx, &req); err != nil {
 		logger.WarnWithTrace(ctx, "绑定统计查询条件失败，使用默认条件", "error", err.Error())

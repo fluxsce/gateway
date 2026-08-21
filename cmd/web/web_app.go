@@ -5,6 +5,7 @@ import (
 	"gateway/pkg/config"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/pkg/syssetting"
 	"gateway/pkg/utils/cert"
 	"gateway/pkg/utils/huberrors"
 	"gateway/web/middleware"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	// 使用统一导入文件，自动导入所有模块
@@ -28,6 +30,38 @@ type WebApp struct {
 	db     database.Database
 	router *gin.Engine
 	port   int
+}
+
+var (
+	httpServerMu sync.Mutex
+	httpServer   *http.Server
+)
+
+// applyHTTPTimeout 把管理端 http.Server 的读/写超时改成与 axios 相同的秒数。
+// 对已建立连接上的进行中请求不生效，下一笔新请求按新值截止。
+func applyHTTPTimeout(seconds int) {
+	if seconds < 10 {
+		return
+	}
+	d := time.Duration(seconds) * time.Second
+	httpServerMu.Lock()
+	defer httpServerMu.Unlock()
+	if httpServer == nil {
+		return
+	}
+	httpServer.ReadTimeout = d
+	httpServer.WriteTimeout = d
+	logger.Info("管理端HTTP超时已同步", "seconds", seconds)
+}
+
+// requestTimeoutSeconds 返回当前应对齐 axios 的服务端超时秒数。
+// 优先环境设置 webTimeout，未加载时回落 yaml web.read_timeout。
+func requestTimeoutSeconds() int {
+	sec := syssetting.GetWebTimeout("").RequestTimeoutSeconds
+	if sec <= 0 {
+		sec = config.GetInt("web.read_timeout", 120)
+	}
+	return sec
 }
 
 // registerFrontendDocsStatic 将 VitePress 构建产物（dist/docs）挂到与前端 base 一致的 /docs 子路径下，
@@ -379,19 +413,23 @@ func (app *WebApp) Init() error {
 
 // Start 启动Web服务器
 func (app *WebApp) Start() error {
-	readTimeout := config.GetInt("web.read_timeout", 120)
-	writeTimeout := config.GetInt("web.write_timeout", 120)
+	syssetting.RegisterHTTPTimeoutApplier(applyHTTPTimeout)
+	timeoutSec := requestTimeoutSeconds()
+	timeout := time.Duration(timeoutSec) * time.Second
 	appName := config.GetString("web.name", "Gateway Web服务")
 	runMode := config.GetString("web.run_mode", "debug")
 	enableHTTPS := config.GetBool("web.enable_https", false)
 
-	// 设置服务器超时时间
+	// 读/写超时与环境设置接口超时、axios 使用同一秒数
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", app.port),
 		Handler:      app.router,
-		ReadTimeout:  time.Duration(readTimeout) * time.Second,
-		WriteTimeout: time.Duration(writeTimeout) * time.Second,
+		ReadTimeout:  timeout,
+		WriteTimeout: timeout,
 	}
+	httpServerMu.Lock()
+	httpServer = server
+	httpServerMu.Unlock()
 
 	// 如果启用HTTPS，配置TLS
 	if enableHTTPS {
@@ -431,6 +469,7 @@ func (app *WebApp) Start() error {
 			"address", fmt.Sprintf("%s://localhost:%d", protocol, app.port),
 			"mode", runMode,
 			"name", appName,
+			"timeoutSeconds", timeoutSec,
 			"certFile", certFile,
 			"keyFile", keyFile)
 
@@ -444,7 +483,8 @@ func (app *WebApp) Start() error {
 		"port", app.port,
 		"address", fmt.Sprintf("%s://localhost:%d", protocol, app.port),
 		"mode", runMode,
-		"name", appName)
+		"name", appName,
+		"timeoutSeconds", timeoutSec)
 
 	return server.ListenAndServe()
 }

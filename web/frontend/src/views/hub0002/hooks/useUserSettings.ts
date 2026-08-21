@@ -14,7 +14,8 @@ import type {
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { changePassword, editUser, getUserInfo } from '../api'
+import { hub0001Api } from '@/views/hub0001/api'
+import { editUser, getUserInfo } from '../api'
 import type { User } from '../types'
 
 /** RsForm 暴露的校验与重置方法 */
@@ -293,9 +294,7 @@ export function useUserSettings() {
 
       changingPassword.value = true
 
-      const result = await changePassword({
-        userId: store.user.userId,
-        tenantId: store.user.tenantId,
+      const result = await hub0001Api.changePassword({
         oldPassword: passwordForm.oldPassword,
         newPassword: passwordForm.newPassword,
       })

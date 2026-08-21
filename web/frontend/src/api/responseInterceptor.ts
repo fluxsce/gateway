@@ -56,6 +56,9 @@ export class ResponseInterceptorHelper {
 
         // axios 把非 2xx 当异常；body 已是 JsonData 则转回业务失败，不进 catch
         if (error.response && this.isJsonDataBody(data)) {
+          if (typeof data === 'object' && data && 'messageId' in data && data.messageId === 'ED00117') {
+            this.redirectMustChangePassword()
+          }
           return this.toBizFailure(data, this.statusFallback(status ?? 0))
         }
 
@@ -207,6 +210,17 @@ export class ResponseInterceptorHelper {
   private getLoginPath(): string {
     const baseUrl = config.baseUrl.endsWith('/') ? config.baseUrl.slice(0, -1) : config.baseUrl
     return `${baseUrl}/login`
+  }
+
+  /**
+   * 强制改密：跳到设置页密码页签。已在设置页则不再跳，避免死循环。
+   */
+  private redirectMustChangePassword(): void {
+    if (window.location.pathname.includes('/settings')) {
+      return
+    }
+    const baseUrl = config.baseUrl.endsWith('/') ? config.baseUrl.slice(0, -1) : config.baseUrl
+    window.location.assign(`${baseUrl}/settings?tab=password`)
   }
 }
 

@@ -16,7 +16,7 @@ import (
 //   - 模板查询：dao.NewTemplateDAO(db).GetTemplate()
 type AlertService interface {
 	// Start 启动告警服务
-	// 启动后台 worker 线程：日志写入、发送处理、清理
+	// 启动后台 worker 线程：日志写入、发送处理。过期日志由 internal/retention 调度清理。
 	Start(ctx context.Context) error
 
 	// Stop 停止告警服务

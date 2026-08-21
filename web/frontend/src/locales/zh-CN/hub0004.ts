@@ -38,6 +38,7 @@ export default {
     hub0006: '权限资源',
     hub0007: '系统节点',
     hub0008: '集群事件',
+    hub0009: '环境设置',
     hub0020: '网关实例',
     hub0021: '路由管理',
     hub0022: '代理管理',
@@ -85,6 +86,7 @@ export default {
     TUNNEL_SERVICE: '隧道服务',
     TUNNEL_STATIC: '隧道静态映射',
     SERVICE_CENTER: '服务中心实例',
+    ENV_SETTING: '环境设置',
   },
 
   shortcuts: {

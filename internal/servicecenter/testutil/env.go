@@ -16,6 +16,7 @@ import (
 	"gateway/pkg/database"
 	"gateway/pkg/database/dbtypes"
 	_ "gateway/pkg/database/sqlite"
+	"gateway/pkg/security"
 )
 
 //go:embed schema.sql
@@ -33,7 +34,7 @@ const (
 
 	// DefaultAuthUserID Basic / JWT / API Token 关联用户
 	DefaultAuthUserID = "e2e-user"
-	// DefaultAuthPassword Basic 明文密码（库内明文，ValidateUser 支持）
+	// DefaultAuthPassword Basic 明文密码（写入时哈希，ValidateUser 兼容历史明文）
 	DefaultAuthPassword = "e2e-pass"
 	// DefaultAuthAPIToken Bearer API Token 明文值
 	DefaultAuthAPIToken = "e2e-api-token-7f3c9a1b"
@@ -352,8 +353,12 @@ INSERT INTO HUB_USER (
     addWho, editWho, oprSeqFlag, currentVersion, activeFlag, noteText
 ) VALUES (?, ?, ?, ?, ?, 'D00000001', 'Y', '2099-12-31 23:59:59', 0,
     'e2e', 'e2e', 'E2E', 1, 'Y', 'e2e auth user')`
+	hashedPassword, err := security.HashPassword(DefaultAuthPassword)
+	if err != nil {
+		return fmt.Errorf("哈希认证用户密码失败: %w", err)
+	}
 	if _, err := db.Exec(ctx, userSQL, []interface{}{
-		DefaultAuthUserID, DefaultTenantID, DefaultAuthUserID, DefaultAuthPassword, "E2E User",
+		DefaultAuthUserID, DefaultTenantID, DefaultAuthUserID, hashedPassword, "E2E User",
 	}, true); err != nil {
 		return fmt.Errorf("插入认证用户失败: %w", err)
 	}

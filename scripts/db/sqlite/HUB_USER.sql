@@ -74,7 +74,7 @@ INSERT INTO HUB_USER (
     'admin',
     'default',
     'admin',
-    '123456',
+    '$2a$10$S9Yqyb9LI5PqAutYj.kR0OI/Zm7EcJSKbxKaLCThw8djqwqsPiDQi',
     '系统管理员',
     'D00000001',
     'admin@example.com',
@@ -91,4 +91,7 @@ INSERT INTO HUB_USER (
     'system',
     'system',
     '系统初始化管理员账号'
-);
+);
+
+-- 历史库升级：建表已执行过的不会再跑 CREATE，只补列。
+ALTER TABLE HUB_USER ADD COLUMN mustChangePwd TEXT NOT NULL DEFAULT 'N';

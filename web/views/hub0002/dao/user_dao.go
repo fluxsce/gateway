@@ -5,12 +5,22 @@ import (
 	"errors"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/security"
 	"gateway/pkg/utils/empty"
 	"gateway/pkg/utils/huberrors"
 	"gateway/pkg/utils/random"
 	"gateway/web/views/hub0002/models"
 	"strings"
 	"time"
+)
+
+var (
+	// ErrUserNotFound 指定租户下没有该用户。
+	ErrUserNotFound = errors.New("用户不存在")
+	// ErrOldPasswordIncorrect 旧密码校验失败。
+	ErrOldPasswordIncorrect = errors.New("原密码错误")
+	// ErrNewPasswordSame 新密码与旧密码相同。
+	ErrNewPasswordSame = errors.New("新密码不能与原密码相同")
 )
 
 // UserDAO 用户数据访问对象
@@ -57,9 +67,20 @@ func (dao *UserDAO) AddUser(ctx context.Context, user *models.User, operatorId s
 	if user.StatusFlag == "" {
 		user.StatusFlag = "Y"
 	}
+	if err := security.ValidatePassword(user.Password, user.UserId, user.UserName); err != nil {
+		return "", err
+	}
+	// 管理员指定的初始口令须在首次登录后修改
+	user.MustChangePwd = "Y"
+
+	hashed, err := hashUserPassword(user.Password)
+	if err != nil {
+		return "", err
+	}
+	user.Password = hashed
 
 	// 使用数据库接口的Insert方法插入记录
-	_, err := dao.db.Insert(ctx, "HUB_USER", user, true)
+	_, err = dao.db.Insert(ctx, "HUB_USER", user, true)
 
 	if err != nil {
 		// 检查是否是用户名重复错误
@@ -148,6 +169,11 @@ func (dao *UserDAO) UpdateUser(ctx context.Context, user *models.User, operatorI
 	var params []interface{}
 
 	if user.Password != "" {
+		hashed, hashErr := hashUserPassword(user.Password)
+		if hashErr != nil {
+			return hashErr
+		}
+		user.Password = hashed
 		// 如果提供了新密码，则更新密码字段
 		sql = `
 			UPDATE HUB_USER SET
@@ -353,71 +379,138 @@ func (dao *UserDAO) isDuplicateUserNameError(err error) bool {
 			strings.Contains(err.Error(), "UK_USER_NAME_TENANT")
 }
 
-// ChangePassword 修改密码（需验证旧密码）
-// 参数:
-//   - ctx: 上下文对象
-//   - userId: 用户ID
-//   - tenantId: 租户ID
-//   - oldPassword: 旧密码（明文）
-//   - newPassword: 新密码（明文）
-//
-// 返回:
-//   - error: 可能的错误
-func (dao *UserDAO) ChangePassword(ctx context.Context, userId, tenantId, oldPassword, newPassword string) error {
+// ChangePassword 用户修改自己的密码：校验旧密码、复杂度策略，成功后清除强制改密标记。
+func (dao *UserDAO) ChangePassword(ctx context.Context, userId, tenantId, oldPassword, newPassword, operatorId string) error {
 	if userId == "" || tenantId == "" || oldPassword == "" || newPassword == "" {
 		return errors.New("用户ID、租户ID、旧密码和新密码均不能为空")
 	}
 
-	// 首先获取用户当前信息
 	currentUser, err := dao.GetUserById(ctx, userId, tenantId)
 	if err != nil {
 		return err
 	}
 	if currentUser == nil {
-		return errors.New("用户不存在")
+		return ErrUserNotFound
 	}
 
-	// 验证旧密码是否正确
-	// 注意：这里假设数据库中存储的是明文密码或已加密的密码
-	// 如果是加密存储，需要使用相同的加密方式验证
-	if currentUser.Password != oldPassword {
-		return errors.New("原密码错误")
+	if !security.VerifyPassword(currentUser.Password, oldPassword) {
+		return ErrOldPasswordIncorrect
 	}
-
-	// 新旧密码不能相同
 	if oldPassword == newPassword {
-		return errors.New("新密码不能与原密码相同")
+		return ErrNewPasswordSame
+	}
+	if err := security.ValidatePassword(newPassword, currentUser.UserId, currentUser.UserName); err != nil {
+		return err
 	}
 
-	// 构建更新SQL
+	hashed, err := security.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+	if operatorId == "" {
+		operatorId = userId
+	}
+
 	now := time.Now()
 	sql := `
 		UPDATE HUB_USER SET
 			password = ?,
 			pwdUpdateTime = ?,
-			editTime = ?, 
+			mustChangePwd = 'N',
+			editTime = ?,
 			editWho = ?
 		WHERE userId = ? AND tenantId = ?
 	`
-
-	// 执行更新
-	// 注意：这里的 editWho 使用 userId，表示用户自己修改密码
 	result, err := dao.db.Exec(ctx, sql, []interface{}{
-		newPassword,
-		now,
-		now,
-		userId,
-		userId, tenantId,
+		hashed, now, now, operatorId, userId, tenantId,
 	}, true)
-
 	if err != nil {
 		return huberrors.WrapError(err, "修改密码失败")
 	}
-
-	// 检查是否有记录被更新
 	if result == 0 {
-		return errors.New("未找到要修改的用户")
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+// ResetPassword 管理员重置指定用户密码，生成一次性口令并标记必须改密。明文只返回给调用方一次，本函数不写日志。
+func (dao *UserDAO) ResetPassword(ctx context.Context, userId, tenantId, operatorId string) (string, error) {
+	if userId == "" || tenantId == "" {
+		return "", errors.New("用户ID和租户ID不能为空")
+	}
+	currentUser, err := dao.GetUserById(ctx, userId, tenantId)
+	if err != nil {
+		return "", err
+	}
+	if currentUser == nil {
+		return "", ErrUserNotFound
 	}
 
+	plain, err := security.GeneratePassword()
+	if err != nil {
+		return "", err
+	}
+	hashed, err := security.HashPassword(plain)
+	if err != nil {
+		return "", err
+	}
+	if operatorId == "" {
+		operatorId = userId
+	}
+
+	now := time.Now()
+	sql := `
+		UPDATE HUB_USER SET
+			password = ?,
+			pwdUpdateTime = ?,
+			mustChangePwd = 'Y',
+			editTime = ?,
+			editWho = ?
+		WHERE userId = ? AND tenantId = ?
+	`
+	result, err := dao.db.Exec(ctx, sql, []interface{}{
+		hashed, now, now, operatorId, userId, tenantId,
+	}, true)
+	if err != nil {
+		return "", huberrors.WrapError(err, "重置密码失败")
+	}
+	if result == 0 {
+		return "", ErrUserNotFound
+	}
+	return plain, nil
+}
+
+// UpdatePasswordHash 将明文口令哈希后写回，供登录成功后的静默升级使用。
+func (dao *UserDAO) UpdatePasswordHash(ctx context.Context, userId, tenantId, plainPassword string) error {
+	if userId == "" || tenantId == "" || plainPassword == "" {
+		return errors.New("用户ID、租户ID和密码均不能为空")
+	}
+	hashed, err := security.HashPassword(plainPassword)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	sql := `
+		UPDATE HUB_USER SET
+			password = ?,
+			pwdUpdateTime = ?,
+			editTime = ?
+		WHERE userId = ? AND tenantId = ?
+	`
+	_, err = dao.db.Exec(ctx, sql, []interface{}{hashed, now, now, userId, tenantId}, true)
+	if err != nil {
+		return huberrors.WrapError(err, "升级密码哈希失败")
+	}
 	return nil
+}
+
+// hashUserPassword 将明文口令转为 bcrypt；已是哈希则原样返回，避免编辑用户时二次哈希。
+func hashUserPassword(password string) (string, error) {
+	if password == "" {
+		return "", errors.New("密码不能为空")
+	}
+	if security.IsHashedPassword(password) {
+		return password, nil
+	}
+	return security.HashPassword(password)
 }

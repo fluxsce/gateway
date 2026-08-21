@@ -72,10 +72,6 @@ const (
 	// CLUSTER_CLEANUP_INTERVAL 集群清理间隔配置键
 	// 默认值: "1h"
 	CLUSTER_CLEANUP_INTERVAL = "app.cluster.cleanup.interval"
-
-	// CLUSTER_CLEANUP_ACK_RETENTION_HOURS 集群确认记录保留时间配置键（小时）
-	// 默认值: 48
-	CLUSTER_CLEANUP_ACK_RETENTION_HOURS = "app.cluster.cleanup.ack_retention_hours"
 )
 
 // =============================================================================

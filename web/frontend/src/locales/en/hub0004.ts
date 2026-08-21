@@ -38,6 +38,7 @@ export default {
     hub0006: 'Resources',
     hub0007: 'Server Nodes',
     hub0008: 'Cluster Events',
+    hub0009: 'Environment Settings',
     hub0020: 'Gateway Instances',
     hub0021: 'Routes',
     hub0022: 'Proxies',
@@ -85,6 +86,7 @@ export default {
     TUNNEL_SERVICE: 'Tunnel Service',
     TUNNEL_STATIC: 'Tunnel Static Mapping',
     SERVICE_CENTER: 'Service Center Instance',
+    ENV_SETTING: 'Environment Settings',
   },
 
   shortcuts: {

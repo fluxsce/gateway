@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	alerttypes "gateway/internal/alert/types"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
+	"gateway/pkg/logger"
+	"gateway/pkg/utils/ctime"
 	"gateway/pkg/utils/empty"
 	"gateway/pkg/utils/huberrors"
 	"gateway/web/views/hub0082/models"
@@ -81,14 +82,10 @@ func (dao *AlertLogDAO) QueryAlertLogs(ctx context.Context, tenantId string, q *
 			whereClause += " AND alertTimestamp = ?"
 			params = append(params, *q.AlertTimestamp)
 		}
-		// 时间范围查询
-		if q.StartTime != nil {
-			whereClause += " AND alertTimestamp >= ?"
-			params = append(params, *q.StartTime)
-		}
-		if q.EndTime != nil {
-			whereClause += " AND alertTimestamp <= ?"
-			params = append(params, *q.EndTime)
+		var err error
+		whereClause, params, err = appendAlertTimeRange(ctx, whereClause, params, q.StartTime, q.EndTime)
+		if err != nil {
+			return nil, 0, err
 		}
 	}
 
@@ -187,18 +184,15 @@ func (dao *AlertLogDAO) BatchDeleteAlertLogs(ctx context.Context, tenantId strin
 	return nil
 }
 
-// GetAlertLogStatistics 获取预警日志统计信息
-func (dao *AlertLogDAO) GetAlertLogStatistics(ctx context.Context, tenantId string, startTime, endTime *time.Time) (map[string]interface{}, error) {
+// GetAlertLogStatistics 按时间范围统计预警日志条数、级别与发送状态。
+func (dao *AlertLogDAO) GetAlertLogStatistics(ctx context.Context, tenantId string, startTime, endTime string) (map[string]interface{}, error) {
 	whereClause := "WHERE tenantId = ?"
 	params := []interface{}{tenantId}
 
-	if startTime != nil {
-		whereClause += " AND alertTimestamp >= ?"
-		params = append(params, *startTime)
-	}
-	if endTime != nil {
-		whereClause += " AND alertTimestamp <= ?"
-		params = append(params, *endTime)
+	var err error
+	whereClause, params, err = appendAlertTimeRange(ctx, whereClause, params, startTime, endTime)
+	if err != nil {
+		return nil, err
 	}
 
 	// 统计总数
@@ -238,4 +232,28 @@ func (dao *AlertLogDAO) GetAlertLogStatistics(ctx context.Context, tenantId stri
 	result["statusStats"] = statusStats
 
 	return result, nil
+}
+
+// appendAlertTimeRange 把起止时间字符串解析为 time.Time 后追加到 WHERE。
+// 空串跳过；解析失败时返回错误，避免把非法时间当无条件。
+func appendAlertTimeRange(ctx context.Context, whereClause string, params []interface{}, startTime, endTime string) (string, []interface{}, error) {
+	if startTime != "" {
+		parsed, err := ctime.ParseTimeString(startTime)
+		if err != nil {
+			logger.ErrorWithTrace(ctx, "开始时间格式不正确", "startTime", startTime, "error", err)
+			return "", nil, huberrors.WrapError(err, "开始时间格式不正确: %s", startTime)
+		}
+		whereClause += " AND alertTimestamp >= ?"
+		params = append(params, parsed)
+	}
+	if endTime != "" {
+		parsed, err := ctime.ParseTimeString(endTime)
+		if err != nil {
+			logger.ErrorWithTrace(ctx, "结束时间格式不正确", "endTime", endTime, "error", err)
+			return "", nil, huberrors.WrapError(err, "结束时间格式不正确: %s", endTime)
+		}
+		whereClause += " AND alertTimestamp <= ?"
+		params = append(params, parsed)
+	}
+	return whereClause, params, nil
 }

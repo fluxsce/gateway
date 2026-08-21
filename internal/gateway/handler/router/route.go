@@ -426,14 +426,18 @@ func (r *Route) Handle(ctx *core.Context) bool {
 
 	// 3. Auth 处理
 	if r.authHandler != nil {
-		if !r.authHandler.Handle(ctx) {
+		if !ctx.WithSpan("gateway.auth", func() bool {
+			return r.authHandler.Handle(ctx)
+		}) {
 			return false
 		}
 	}
 
 	// 4. Limiter 处理
 	if r.limiterHandler != nil {
-		if !r.limiterHandler.Handle(ctx) {
+		if !ctx.WithSpan("gateway.ratelimit", func() bool {
+			return r.limiterHandler.Handle(ctx)
+		}) {
 			return false
 		}
 	}

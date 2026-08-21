@@ -87,13 +87,6 @@
               </RsRadio>
             </div>
 
-            <RsInput
-              v-model="profileForm.deptName"
-              name="deptName"
-              :label="t('profile.deptName')"
-              disabled
-            />
-
             <div class="form-actions">
               <RsButton
                 variant="primary"
@@ -111,6 +104,9 @@
 
         <!-- 修改密码 -->
         <template #password>
+          <RsAlert v-if="mustChangePwd" type="warning" class="password-tips">
+            {{ t('password.mustChangeHint') }}
+          </RsAlert>
           <RsForm
             ref="passwordFormRef"
             class="password-form"
@@ -257,11 +253,6 @@
                 {{ isTenantAdmin ? t('common.yes') : t('common.no') }}
               </RsTag>
             </RsDescriptionsItem>
-            <RsDescriptionsItem :label="t('account.deptAdmin')">
-              <RsTag :variant="isDeptAdmin ? 'success' : 'default'" size="sm">
-                {{ isDeptAdmin ? t('common.yes') : t('common.no') }}
-              </RsTag>
-            </RsDescriptionsItem>
             <RsDescriptionsItem :label="t('account.status')">
               <RsTag :variant="statusFlag === 'Y' ? 'success' : 'danger'" size="sm">
                 {{ statusFlag === 'Y' ? t('account.enabled') : t('account.disabled') }}
@@ -307,21 +298,30 @@ import {
   type RsTabItem,
 } from '@/ui'
 import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import { store } from '@/stores'
 import { useUserSettings } from './hooks'
 
 const { t } = useModuleI18n('hub0002')
 const message = useAppMessage()
+const route = useRoute()
 
+const mustChangePwd = computed(() => store.user.mustChangePwd === 'Y')
 const activeTab = ref('profile')
 const avatarPreview = ref('')
 const avatarInputRef = ref<HTMLInputElement | null>(null)
 
-const tabItems = computed<RsTabItem[]>(() => [
-  { value: 'profile', label: t('tabs.profile') },
-  { value: 'password', label: t('tabs.password') },
-  { value: 'settings', label: t('tabs.settings') },
-  { value: 'account', label: t('tabs.account') },
-])
+const tabItems = computed<RsTabItem[]>(() => {
+  if (mustChangePwd.value) {
+    return [{ value: 'password', label: t('tabs.password') }]
+  }
+  return [
+    { value: 'profile', label: t('tabs.profile') },
+    { value: 'password', label: t('tabs.password') },
+    { value: 'settings', label: t('tabs.settings') },
+    { value: 'account', label: t('tabs.account') },
+  ]
+})
 
 const {
   userInfo,
@@ -350,7 +350,6 @@ const {
 } = useUserSettings()
 
 const isTenantAdmin = computed(() => userInfo.value?.tenantAdminFlag === 'Y')
-const isDeptAdmin = computed(() => userInfo.value?.deptAdminFlag === 'Y')
 const statusFlag = computed(() => userInfo.value?.statusFlag)
 
 /** 触发隐藏的头像文件选择 */
@@ -400,6 +399,12 @@ const handleResetProfile = () => {
 }
 
 onMounted(async () => {
+  if (route.query.tab === 'password' || mustChangePwd.value) {
+    activeTab.value = 'password'
+  }
+  if (mustChangePwd.value) {
+    return
+  }
   await fetchUserInfo()
 })
 </script>

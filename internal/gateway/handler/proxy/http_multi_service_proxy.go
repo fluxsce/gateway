@@ -17,6 +17,7 @@ import (
 	"gateway/internal/gateway/handler/router"
 	"gateway/internal/gateway/handler/service"
 	"gateway/internal/gateway/logwrite"
+	"gateway/pkg/tracing"
 )
 
 // errMultiServiceSSE 表示聚合路径收到无法安全缓冲或合并的SSE响应。
@@ -350,6 +351,14 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 	// 正确的做法是让 Go 标准库自动添加 Accept-Encoding 并自动解压响应
 	proxyReq.Header.Del("Accept-Encoding")
 
+	spanCtx, span := ctx.StartOutboundSpan("gateway.proxy",
+		tracing.String("http.request.method", proxyReq.Method),
+		tracing.String("server.address", target.Host),
+		tracing.String("url.full", proxyURL.String()),
+		tracing.String("gateway.retry_count", fmt.Sprintf("%d", retryCount)),
+	)
+	tracing.Inject(spanCtx, proxyReq.Header)
+
 	// 记录请求开始时间（用于日志记录）
 	requestStartTime := time.Now()
 
@@ -413,6 +422,15 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 			serviceName, // 服务名称，从 node 中获取
 			retryCount,  // 重试次数
 		)
+		if responseErr != nil {
+			span.RecordError(responseErr)
+		} else if responseStatusCode >= 500 {
+			span.RecordError(fmt.Errorf("upstream status %d", responseStatusCode))
+		}
+		if responseStatusCode > 0 {
+			span.SetAttr(tracing.String("http.response.status_code", fmt.Sprintf("%d", responseStatusCode)))
+		}
+		span.End()
 	}()
 
 	// 发送代理请求（异常直接抛出）

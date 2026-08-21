@@ -164,7 +164,7 @@ func (b *WebSocketBridge) Proxy(ctx *core.Context, proxyName, proxyType string) 
 	var responseHeaders map[string][]string
 	var responseErr error
 
-	targetConn, response, err := b.connectTarget(targetURL, ctx.Request, &config)
+	targetConn, response, err := b.connectTarget(ctx, targetURL, ctx.Request, &config)
 	if err != nil {
 		b.failed.Add(1)
 		responseErr = err
@@ -367,7 +367,7 @@ func (b *WebSocketBridge) buildTargetURL(ctx *core.Context, targetValue string) 
 	}, nil
 }
 
-func (b *WebSocketBridge) connectTarget(targetURL *url.URL, req *http.Request, config *WebSocketConfig) (*websocket.Conn, *http.Response, error) {
+func (b *WebSocketBridge) connectTarget(ctx *core.Context, targetURL *url.URL, req *http.Request, config *WebSocketConfig) (*websocket.Conn, *http.Response, error) {
 	dialer := websocket.Dialer{
 		HandshakeTimeout:  10 * time.Second,
 		ReadBufferSize:    config.ReadBufferSize,
@@ -385,6 +385,7 @@ func (b *WebSocketBridge) connectTarget(targetURL *url.URL, req *http.Request, c
 		}
 	}
 	setWebSocketProxyHeaders(req, headers)
+	ctx.InjectTracing(headers)
 	return dialer.DialContext(req.Context(), targetURL.String(), headers)
 }
 

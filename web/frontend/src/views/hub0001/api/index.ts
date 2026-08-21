@@ -49,4 +49,15 @@ export const hub0001Api = {
       method: 'GET',
     })
   },
+
+  /**
+   * 当前登录用户修改密码。身份由 session 决定，不必传 userId。
+   */
+  changePassword(data: { oldPassword: string; newPassword: string }): Promise<JsonDataObj> {
+    return request({
+      url: requestPathHelper.join(userApiPrefix, 'password'),
+      method: 'PUT',
+      data,
+    })
+  },
 }

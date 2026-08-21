@@ -4,6 +4,27 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，并遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
+## [Unreleased]
+
+## [3.2.7] - 2026-08-20
+
+### 新增
+- **企业级改密与重置**：本人改密只认 session，服务端校验 8-20 位复杂度（大小写、数字、`@$!%*?&`），失败按账号冷却。管理员重置生成一次性临时密码、踢会话，并置 `mustChangePwd=Y`，登录后只允许改密/登出。新建用户同样须首次登录改密。已有库由启动脚本对 `HUB_USER.sql` 末尾 `ALTER` 增量执行补列，不必另跑 patch。
+
+### 修复
+- **归档分批删除**：生命周期清理用 `sqlutils.BuildLimitedDeleteQuery` 按批 DELETE（默认每批 2000，MySQL `LIMIT` / Oracle `ROWNUM`），不用主键 IN 列表；单轮有批次上限，剩余下轮再删。
+- **集群 ACK 与事件天数对齐**：`HUB_CLUSTER_EVENT_ACK` 不再读 yaml `ack_retention_hours`，与环境设置「集群事件」保留天数相同。
+
+### 变更
+- **用户口令改为 bcrypt 哈希**：登录、建用户、改密统一走 `pkg/security.HashPassword` / `VerifyPassword`。兼容历史明文和 `ENCY_` 密文，登录成功后静默升级为当前成本哈希。查询接口不再回传密码。默认管理员种子改为 `123456` 的 bcrypt 哈希。数据库、Redis 等需还原的密钥仍用 `ENCY_` 可逆加密。
+- **管理端 HTTP 超时与 axios 对齐**：`http.Server` 的 Read/Write 超时跟随环境设置 `requestTimeoutSeconds`，保存后同步；未落库时仍回落 `web.read_timeout`。
+
+### 新增
+- **OTLP 链路追踪**：进程启动时由 `cmd/init` 调用 `pkg/tracing.Open` 创建全局 Tracer（网关数据面、管理端与其它模块共用）。配置写在 `configs/app.yaml` 的 `app.tracing`。默认关闭；开启后识别/生成 W3C `traceparent` 并在转发上游时注入，内部 `trace_id` 仍写访问日志。配置了 Collector endpoint 时异步导出 OTLP。改配置需重启进程。说明见 [链路追踪](docs/zh-CN/10-链路追踪.md)。
+- **环境设置与归档（hub0009）**：系统设置可配归档天数、归档任务与 Web 超时。审计、任务、预警、集群、指标由生命周期单节点清理；网关访问日志仍按实例保留。
+- **归档任务（retentionJob）**：独立分组控制统一清理 Job 的启停、分钟级间隔与每天开始时刻。关闭启用后停止清理。填写开始时间则每个自然日该时刻执行一轮；留空则按间隔反复执行（最短 1 分钟，默认 60 分钟）。
+- **环境设置集群同步**：保存 hub0009 分组后发布 `ENV_SETTING/RELOAD`，其它节点从库重载该分组（含 HTTP 超时）。发布节点已写入本机缓存，轮询会排除自身。集群未就绪时跳过发布。
+
 ## [3.2.6] - 2026-08-20
 
 ### 新增

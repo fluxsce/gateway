@@ -40,6 +40,7 @@ CREATE TABLE `HUB_CLUSTER_EVENT` (
   -- 辅助索引：用于特定场景查询
   KEY `IDX_CLS_EVT_SOURCE` (`sourceNodeId`),
   KEY `IDX_CLS_EVT_TYPE` (`eventType`, `eventTime`),
-  KEY `IDX_CLS_EVT_EXPIRE` (`expireTime`)
+  KEY `IDX_CLS_EVT_EXPIRE` (`expireTime`),
+  KEY `IDX_CLS_EVT_CLEANUP` (`tenantId`, `eventTime`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='集群事件表 - 存储集群中各节点发布的事件';
 

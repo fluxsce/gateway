@@ -109,6 +109,7 @@ export const useUserStore = defineStore('user', {
       mobile: '',
       deptId: '',
       tenantAdminFlag: 'N', // 是否租户管理员：Y-是，N-否
+      mustChangePwd: 'N',
       
       // 权限相关
       modules: [],
@@ -238,6 +239,7 @@ export const useUserStore = defineStore('user', {
         mobile?: string
         deptId?: string
         tenantAdminFlag?: string
+        mustChangePwd?: string
         timeout?: number
         remember?: boolean
       }
@@ -252,6 +254,7 @@ export const useUserStore = defineStore('user', {
       this.mobile = options?.mobile || ''
       this.deptId = options?.deptId || ''
       this.tenantAdminFlag = options?.tenantAdminFlag || 'N'
+      this.mustChangePwd = options?.mustChangePwd === 'Y' ? 'Y' : 'N'
       this.rememberMe = options?.remember || false
       this.isAuthenticated = true
 
@@ -517,6 +520,7 @@ export const useUserStore = defineStore('user', {
       this.mobile = userData.mobile || ''
       this.deptId = userData.deptId || ''
       this.tenantAdminFlag = userData.tenantAdminFlag || 'N'
+      this.mustChangePwd = userData.mustChangePwd === 'Y' ? 'Y' : 'N'
       this.rememberMe = rememberMe
       this.isAuthenticated = true
     },
@@ -554,6 +558,7 @@ export const useUserStore = defineStore('user', {
         mobile: this.mobile,
         deptId: this.deptId,
         tenantAdminFlag: this.tenantAdminFlag,
+        mustChangePwd: this.mustChangePwd,
         timeout: this.timeout, // 持久化超时设置
         // 权限数据（Set 需要转换为数组才能序列化）
         modules: this.modules,
@@ -580,6 +585,7 @@ export const useUserStore = defineStore('user', {
       this.mobile = ''
       this.deptId = ''
       this.tenantAdminFlag = 'N'
+      this.mustChangePwd = 'N'
       this.modules = []
       this.buttons = []
       this.moduleCodes = new Set()
@@ -627,6 +633,9 @@ interface UserState {
   
   /** 是否租户管理员：Y-是，N-否 */
   tenantAdminFlag: string
+
+  /** 是否必须修改密码：Y-是，N-否 */
+  mustChangePwd: string
   
   // ========== 权限相关 ==========
   

@@ -15,14 +15,13 @@ import (
 )
 
 // MetricCollectorManager 指标采集管理器
-// 负责管理系统指标的采集、存储和清理工作
+// 负责管理系统指标的采集和存储。过期指标由 internal/retention 按 Dataset 清理。
 // 支持CPU、内存、磁盘、网络、进程等多种指标类型的采集
 //
 // 主要功能：
 // - 指标数据采集：定时采集系统各项指标数据
 // - 数据缓存：批量缓存采集数据，提高数据库写入效率
 // - 数据存储：将采集的指标数据持久化到数据库
-// - 数据清理：定期清理过期的历史数据
 // - 生命周期管理：支持启动、停止、状态查询等操作
 type MetricCollectorManager struct {
 	// 配置信息
@@ -254,11 +253,6 @@ func (m *MetricCollectorManager) Start() error {
 	// 启动数据刷新协程
 	go m.flushLoop()
 
-	// 启动数据清理协程（如果启用）
-	if m.config.Storage.Retention.Enabled {
-		go m.cleanupLoop()
-	}
-
 	logger.Info("指标采集启动成功",
 		"collect_interval", m.config.CollectInterval,
 		"flush_interval", m.config.Storage.FlushInterval)
@@ -403,30 +397,6 @@ func (m *MetricCollectorManager) flushLoop() {
 			m.flushData()
 		case <-m.stopChan:
 			logger.Debug("数据刷新循环停止")
-			return
-		}
-	}
-}
-
-// cleanupLoop 数据清理循环
-// 定时清理过期历史数据的主循环
-//
-// 特性：
-// - 自动清理过期数据，节省存储空间
-// - 可配置清理策略
-// - 支持优雅停止机制
-func (m *MetricCollectorManager) cleanupLoop() {
-	ticker := time.NewTicker(m.config.Storage.Retention.CleanupInterval)
-	defer ticker.Stop()
-
-	logger.Debug("数据清理循环启动", "interval", m.config.Storage.Retention.CleanupInterval)
-
-	for {
-		select {
-		case <-ticker.C:
-			m.cleanupOldData()
-		case <-m.stopChan:
-			logger.Debug("数据清理循环停止")
 			return
 		}
 	}
@@ -623,49 +593,3 @@ func (m *MetricCollectorManager) flushData() {
 	}
 }
 
-// cleanupOldData 清理过期数据
-func (m *MetricCollectorManager) cleanupOldData() {
-	if !m.config.Storage.Retention.Enabled {
-		return
-	}
-
-	ctx := context.Background()
-	beforeTime := time.Now().AddDate(0, 0, -m.config.Storage.Retention.KeepDays)
-
-	logger.Info("开始清理过期数据", "before_time", beforeTime, "keep_days", m.config.Storage.Retention.KeepDays)
-
-	// 清理各类日志数据
-	if err := m.cpuLogDAO.DeleteCpuLogByTime(ctx, m.config.TenantId, beforeTime); err != nil {
-		logger.Error("清理CPU日志失败", "error", err)
-	}
-
-	if err := m.memoryLogDAO.DeleteMemoryLogByTime(ctx, m.config.TenantId, beforeTime); err != nil {
-		logger.Error("清理内存日志失败", "error", err)
-	}
-
-	if err := m.diskPartitionLogDAO.DeleteDiskPartitionLogByTime(ctx, m.config.TenantId, beforeTime); err != nil {
-		logger.Error("清理磁盘分区日志失败", "error", err)
-	}
-
-	if err := m.diskIoLogDAO.DeleteDiskIoLogByTime(ctx, m.config.TenantId, beforeTime); err != nil {
-		logger.Error("清理磁盘IO日志失败", "error", err)
-	}
-
-	if err := m.networkLogDAO.DeleteNetworkLogByTime(ctx, m.config.TenantId, beforeTime); err != nil {
-		logger.Error("清理网络日志失败", "error", err)
-	}
-
-	if err := m.processLogDAO.DeleteProcessLogByTime(ctx, m.config.TenantId, beforeTime); err != nil {
-		logger.Error("清理进程日志失败", "error", err)
-	}
-
-	if err := m.processStatsLogDAO.DeleteProcessStatsLogByTime(ctx, m.config.TenantId, beforeTime); err != nil {
-		logger.Error("清理进程统计日志失败", "error", err)
-	}
-
-	if err := m.temperatureLogDAO.DeleteTemperatureLogByTime(ctx, m.config.TenantId, beforeTime); err != nil {
-		logger.Error("清理温度日志失败", "error", err)
-	}
-
-	logger.Info("数据清理完成")
-}

@@ -299,13 +299,14 @@ export function useUserService(searchFormRef?: Ref<any> | any) {
   }
 
   /**
-   * 重置密码
+   * 重置密码：服务端生成一次性口令，仅展示一次，并强制用户下次登录修改。
+   * 请求结束后先关掉表格 loading，再弹临时密码，避免遮罩把列表挡住。
    */
   const resetPassword = async (user: User): Promise<boolean> => {
     const confirmed = await rsConfirm.warning({
       title: '确认重置密码',
-      subtitle: '新密码将通过邮件发送给用户',
-      description: `确定要重置用户 "${user.realName || user.userName}" 的密码吗？`,
+      subtitle: '将生成一次性临时密码，用户登录后必须立即修改',
+      description: `确定要重置用户 "${user.realName || user.userName}" 的密码吗？该用户的所有会话将被踢下线。`,
       icon: WarningOutline,
       confirmText: '确定重置',
       cancelText: '取消',
@@ -316,20 +317,44 @@ export function useUserService(searchFormRef?: Ref<any> | any) {
       return false
     }
 
+    let tempPassword = ''
     loading.value = true
     try {
-      // TODO: 调用重置密码 API（需要后端提供接口）
-      // const response = await userApi.resetPassword(user.userId, user.tenantId)
-      
-      // 模拟成功
-      message.success('密码重置成功，新密码已发送至用户邮箱')
-      return true
+      const response: JsonDataObj = await userApi.resetPassword(user.userId)
+      if (!response.oK) {
+        message.error(response.errMsg || '重置密码失败')
+        return false
+      }
+
+      const biz = response.bizData
+        ? JSON.parse(response.bizData) as { temporaryPassword?: string }
+        : {}
+      tempPassword = biz.temporaryPassword || ''
     } catch {
       message.error('重置密码失败')
       return false
     } finally {
       loading.value = false
     }
+
+    if (tempPassword) {
+      try {
+        await navigator.clipboard.writeText(tempPassword)
+        message.success('临时密码已复制到剪贴板')
+      } catch {
+        // 非 HTTPS 或权限不足时仍弹窗展示
+      }
+      await rsConfirm.warning({
+        title: '密码已重置',
+        subtitle: '临时密码仅显示一次，请立即告知用户',
+        description: `临时密码：${tempPassword}\n\n用户登录后必须修改密码，请勿将此密码写入工单或聊天记录。`,
+        confirmText: '已记下',
+        width: 520
+      })
+    } else {
+      message.success('密码重置成功')
+    }
+    return true
   }
 
   /**

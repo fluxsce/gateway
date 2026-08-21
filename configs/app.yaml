@@ -13,7 +13,7 @@ app:
   #   - Local (系统本地时区)
   local_timezone: "Asia/Shanghai"
   #版本
-  version: "3.2.6"
+  version: "3.2.7"
   
   # 默认加密密钥（用于系统内部加密解密）
   # 建议在生产环境中修改为自定义密钥，长度建议至少32个字符
@@ -53,6 +53,18 @@ app:
         keep_days: 30                # 保留天数
         cleanup_interval: 60s        # 清理检查间隔
   
+  tracing:
+    # 进程级链路追踪，网关数据面、管理端请求及其它模块共用，不要写到已弃用的 gateway.yaml
+    # 只对接 OTLP Collector，不要填写 SkyWalking OAP 或云厂商 APM 地址
+    enabled: false
+    service_name: "gateway"
+    service_version: ""   # 空则使用 app.version
+    environment: ""       # APM 中的 deployment.environment，例如 prod
+    endpoint: ""          # 例如 otel-collector:4317 或 127.0.0.1:4318
+    protocol: grpc        # grpc | http；TLS 用 grpcs 或 https
+    sampling_rate: 0.1  # 新建 Trace 上报比例：0.1=约10%。不影响访问日志。填 0 会回落到 0.1，关追踪用 enabled: false
+    insecure: true
+    headers: {}             # OTLP 上报鉴权，本机 Collector 保持空。示例：Authorization: "Bearer <token>"
   gateway:
     enabled: true # 是否启用网关
     configSource: "database" # 网关配置加载源, 可选值: yaml 文件, json 文件, database 数据库
@@ -89,11 +101,10 @@ app:
       poll_interval: 3s             # 事件轮询间隔
       batch_size: 100               # 每次拉取事件数
       expire_hours: 24              # 事件过期时间(小时)
-    # 清理配置
+    # 清理配置。事件与 ACK 保留天数跟环境设置「集群事件」走，不再单独配小时数
     cleanup:
       enabled: true                 # 是否启用清理
-      interval: 1h                  # 清理间隔
-      ack_retention_hours: 24       # 确认记录保留小时数
+      interval: 1h                  # 清理间隔（生命周期调度使用固定间隔）
   
   # pprof性能分析配置
   pprof:

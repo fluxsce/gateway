@@ -25,6 +25,7 @@ import (
 	"gateway/internal/gateway/logwrite"
 	appconfig "gateway/pkg/config"
 	"gateway/pkg/logger"
+	"gateway/pkg/tracing"
 )
 
 // Gateway 网关核心结构
@@ -232,7 +233,9 @@ func (g *Gateway) setupHandlersFor(engine *core.Engine, cfg *config.GatewayConfi
 	// 添加全局认证处理器（仅当启用时）- 认证在限流前，避免无效请求消耗资源
 	if handlers.auth != nil && cfg.Auth.Enabled {
 		engine.UseFunc(func(ctx *core.Context) bool {
-			if !handlers.auth.Handle(ctx) {
+			if !ctx.WithSpan("gateway.auth", func() bool {
+				return handlers.auth.Handle(ctx)
+			}) {
 				logger.Warn("全局认证失败", "path", ctx.Request.URL.Path)
 				return false
 			}
@@ -243,7 +246,9 @@ func (g *Gateway) setupHandlersFor(engine *core.Engine, cfg *config.GatewayConfi
 	// 添加全局限流处理器（仅当启用且设置了速率时）
 	if handlers.limiter != nil && cfg.RateLimit.Enabled && cfg.RateLimit.Rate > 0 {
 		engine.UseFunc(func(ctx *core.Context) bool {
-			if !handlers.limiter.Handle(ctx) {
+			if !ctx.WithSpan("gateway.ratelimit", func() bool {
+				return handlers.limiter.Handle(ctx)
+			}) {
 				logger.Warn("全局限流触发", "path", ctx.Request.URL.Path)
 				return false
 			}
@@ -365,6 +370,11 @@ func (g *Gateway) prepareRequestContext(cfg *config.GatewayConfig, w http.Respon
 	// 直接设置日志配置到上下文，避免重复获取
 	ctx.SetLogConfig(&cfg.Log)
 	traceID := core.InitializeRequestContext(ctx)
+	attrs := []tracing.Attr{tracing.String("gateway.trace_id", traceID)}
+	if instanceID, ok := ctx.GetString(constants.ContextKeyGatewayInstanceID); ok && instanceID != "" {
+		attrs = append(attrs, tracing.String("gateway.instance_id", instanceID))
+	}
+	ctx.StartTracing(r, "gateway.request", attrs...)
 	return ctx, traceID
 }
 
@@ -372,6 +382,7 @@ func (g *Gateway) prepareRequestContext(cfg *config.GatewayConfig, w http.Respon
 func (g *Gateway) finishRequest(ctx *core.Context, cfg *config.GatewayConfig) {
 	// 响应时间必须在快照和异步日志之前记录，避免日志准备耗时混入请求处理耗时。
 	ctx.SetResponseTime(time.Now())
+	ctx.FinishTracing()
 	if !cfg.Base.EnableAccessLog {
 		return
 	}

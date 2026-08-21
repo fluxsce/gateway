@@ -26,6 +26,7 @@ const MODULE_CODES = [
   'hub0006',
   'hub0007',
   'hub0008',
+  'hub0009',
   'hub0020',
   'hub0021',
   'hub0022',
@@ -73,6 +74,7 @@ const TARGET_TYPES = [
   'TUNNEL_SERVICE',
   'TUNNEL_STATIC',
   'SERVICE_CENTER',
+  'ENV_SETTING',
 ] as const
 
 /**

@@ -6,6 +6,8 @@ import (
 	"gateway/pkg/config"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/pkg/security"
+	"gateway/pkg/syssetting"
 	"gateway/web/middleware"
 	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
@@ -29,6 +31,7 @@ type AuthController struct {
 	userDAO        *hubdao.UserDAO
 	captchaService *CaptchaService
 	loginLock      *LoginLockService
+	pwdChangeLock  *LoginLockService
 	sessionManager *session.SessionManager
 }
 
@@ -44,6 +47,7 @@ func NewAuthController(db database.Database) *AuthController {
 		userDAO:        userDAO,
 		captchaService: NewCaptchaService(),
 		loginLock:      NewLoginLockService(),
+		pwdChangeLock:  NewPasswordChangeLockService(),
 		sessionManager: session.GetGlobalSessionManager(),
 	}
 }
@@ -152,6 +156,7 @@ func (c *AuthController) Login(ctx *gin.Context) {
 		clientIP,
 		userAgent,
 		user.TenantAdminFlag,
+		user.MustChangePwd,
 	)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "创建session失败", "error", err, "userId", user.UserId)
@@ -189,10 +194,12 @@ func (c *AuthController) Login(ctx *gin.Context) {
 		"expireAt":        sessionData.ExpireAt.Unix(),
 		"clientIP":        clientIP,
 		"userAgent":       userAgent,
-		// 返回web.yaml中的read_timeout配置，单位为秒，转换为毫秒
-		"timeout": config.GetInt("web.read_timeout", 120) * 1000,
+		// 接口超时优先用环境设置，否则回落 web.read_timeout
+		"timeout": requestTimeoutMs(user.TenantId),
 		// 权限信息
 		"permissions": permissions,
+		// 管理员重置或新建账号后须先改密
+		"mustChangePwd": user.MustChangePwd,
 	}
 
 	writeLoginAudit(ctx, user.UserId, user.TenantId, user.UserName, clientIP, true, "")
@@ -387,19 +394,8 @@ func (c *AuthController) Logout(ctx *gin.Context) {
 	}, constants.SD00104)
 }
 
-// ChangePassword 修改密码
-// @Summary 修改密码
-// @Description 修改用户密码
-// @Tags 认证
-// @Accept json
-// @Accept x-www-form-urlencoded
-// @Produce json
-// @Param password body models.PasswordChangeRequest true "修改密码请求"
-// @Security SessionAuth
-// @Success 200 {object} response.JsonData
-// @Router /api/auth/password [put]
+// ChangePassword 当前登录用户修改自己的密码，身份只取 session，不信任请求体 userId。
 func (c *AuthController) ChangePassword(ctx *gin.Context) {
-	// 从用户上下文中获取用户信息
 	userContext := middleware.GetUserContext(ctx)
 	if userContext == nil {
 		response.ErrorJSON(ctx, "未获取到用户信息，请重新登录", constants.ED00011, http.StatusUnauthorized)
@@ -407,63 +403,63 @@ func (c *AuthController) ChangePassword(ctx *gin.Context) {
 	}
 
 	userId := userContext.UserId
+	tenantId := userContext.TenantId
 
-	// 获取密码修改参数（支持表单和JSON）
-	formUserId := ctx.PostForm("userId")
-	oldPassword := ctx.PostForm("oldPassword")
-	newPassword := ctx.PostForm("newPassword")
-
-	var req models.PasswordChangeRequest
-
-	// 如果表单参数完整，直接使用
-	if formUserId != "" && oldPassword != "" && newPassword != "" {
-		req.UserId = formUserId
-		req.OldPassword = oldPassword
-		req.NewPassword = newPassword
-	} else {
-		// 解析请求体
-		if err := ctx.ShouldBindJSON(&req); err != nil {
-			logger.ErrorWithTrace(ctx, "修改密码请求参数解析失败", err)
-			response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00005)
-			return
-		}
-	}
-
-	// 确保请求中的用户ID与当前用户一致
-	if req.UserId != userId {
-		response.ErrorJSON(ctx, "无权修改其他用户的密码", constants.ED00012)
+	if locked, remaining := c.pwdChangeLock.Check(ctx, userId); locked {
+		sec := RemainSeconds(remaining)
+		msg := fmt.Sprintf("修改密码过于频繁，请 %d 秒后再试", sec)
+		response.ErrorJSONExt(ctx, msg, constants.ED00116, gin.H{"remainSeconds": sec})
 		return
 	}
 
-	// 修改密码
-	err := c.authService.ChangePassword(ctx, &req, userId)
+	var req models.PasswordChangeRequest
+	if err := request.BindSafely(ctx, &req); err != nil {
+		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00005)
+		return
+	}
+	if req.OldPassword == "" || req.NewPassword == "" {
+		response.ErrorJSON(ctx, "旧密码和新密码不能为空", constants.ED00007)
+		return
+	}
+
+	err := c.authService.ChangePassword(ctx, userId, tenantId, req.OldPassword, req.NewPassword)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "修改密码失败", err)
 
-		// 设置合适的消息ID
-		var messageId string
+		messageId := constants.ED00110
 		switch {
-		case err.Error() == "原密码不正确":
+		case errors.Is(err, hubdao.ErrOldPasswordIncorrect):
 			messageId = constants.ED00109
-		case err.Error() == "用户不存在":
-			messageId = constants.ED00102
-		default:
-			messageId = constants.ED00110
+			if remaining := c.pwdChangeLock.RecordFailure(ctx, userId); remaining > 0 {
+				sec := RemainSeconds(remaining)
+				msg := fmt.Sprintf("修改密码过于频繁，请 %d 秒后再试", sec)
+				response.ErrorJSONExt(ctx, msg, constants.ED00116, gin.H{"remainSeconds": sec})
+				return
+			}
+		case errors.Is(err, hubdao.ErrNewPasswordSame):
+			messageId = constants.ED00006
+		case errors.Is(err, security.ErrPasswordEmpty),
+			errors.Is(err, security.ErrPasswordTooShort),
+			errors.Is(err, security.ErrPasswordTooLong),
+			errors.Is(err, security.ErrPasswordNeedLower),
+			errors.Is(err, security.ErrPasswordNeedUpper),
+			errors.Is(err, security.ErrPasswordNeedDigit),
+			errors.Is(err, security.ErrPasswordNeedSpecial),
+			errors.Is(err, security.ErrPasswordContainsAccount),
+			errors.Is(err, security.ErrPasswordTooCommon):
+			messageId = constants.ED00006
 		}
 
-		response.ErrorJSON(ctx, "修改密码失败: "+err.Error(), messageId)
+		response.ErrorJSON(ctx, err.Error(), messageId)
 		return
 	}
 
-	// 密码修改成功后，强制用户重新登录（删除所有session）
+	c.pwdChangeLock.Clear(ctx, userId)
+
 	err = c.sessionManager.DeleteUserSessions(ctx, userId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "密码修改后清除用户session失败", "error", err, "userId", userId)
-	} else {
-		logger.InfoWithTrace(ctx, "密码修改成功，已清除用户所有session", "userId", userId)
 	}
-
-	// 清除当前Session Cookie
 	c.clearSessionCookie(ctx)
 
 	response.SuccessJSON(ctx, gin.H{
@@ -626,4 +622,13 @@ func (c *AuthController) getSessionIdFromCookie(ctx *gin.Context) string {
 		return ""
 	}
 	return sessionId
+}
+
+// requestTimeoutMs 返回前端 axios 超时（毫秒），优先环境设置。
+func requestTimeoutMs(tenantId string) int {
+	sec := syssetting.GetWebTimeout(tenantId).RequestTimeoutSeconds
+	if sec <= 0 {
+		sec = config.GetInt("web.read_timeout", 120)
+	}
+	return sec * 1000
 }

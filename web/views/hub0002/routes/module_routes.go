@@ -77,7 +77,7 @@ func initUserRoutes(router *gin.RouterGroup, db database.Database) {
 		userGroup.POST("/addUser", routes.RequireButton("hub0002:add"), userController.AddUser)
 		userGroup.POST("/editUser", routes.RequireButton("hub0002:edit"), userController.EditUser)
 		userGroup.POST("/deleteUser", routes.RequireButton("hub0002:delete"), userController.Delete)
-		userGroup.POST("/changePassword", routes.RequireButton("hub0002:resetPassword"), userController.ChangePassword)
+		userGroup.POST("/resetPassword", routes.RequireButton("hub0002:resetPassword"), userController.ResetPassword)
 		userGroup.POST("/getUserRoles", routes.RequireButton("hub0002:roleAuth"), userController.GetUserRoles)
 		userGroup.POST("/assignUserRoles", routes.RequireButton("hub0002:roleAuth"), userController.AssignUserRoles)
 	}

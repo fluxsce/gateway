@@ -1,8 +1,10 @@
 package controllers
 
 import (
+	"errors"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/pkg/security"
 	"gateway/web/middleware"
 	"gateway/web/middleware/audit"
 	"gateway/web/middleware/permission"
@@ -118,6 +120,10 @@ func (c *UserController) AddUser(ctx *gin.Context) {
 	userId, err := c.userDAO.AddUser(ctx, &req, operatorId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "创建用户失败", err)
+		if passwordChangeMessageID(err) == constants.ED00006 {
+			response.ErrorJSON(ctx, err.Error(), constants.ED00006)
+			return
+		}
 		response.ErrorJSON(ctx, "创建用户失败: "+err.Error(), constants.ED00009)
 		return
 	}
@@ -304,66 +310,83 @@ func (c *UserController) GetUser(ctx *gin.Context) {
 	response.SuccessJSON(ctx, userInfo, constants.SD00002)
 }
 
-// ChangePassword 修改密码
-// @Summary 修改用户密码
-// @Description 用户修改自己的密码，需要验证旧密码
-// @Tags 用户管理
-// @Accept json
-// @Produce json
-// @Param request body object{userId=string,tenantId=string,oldPassword=string,newPassword=string} true "密码修改参数"
-// @Success 200 {object} response.JsonData
-// @Router /api/hub0002/changePassword [post]
-func (c *UserController) ChangePassword(ctx *gin.Context) {
-	// 从请求体中获取参数
-	userId := request.GetParam(ctx, "userId")
-	tenantId := request.GetParam(ctx, "tenantId")
-	oldPassword := request.GetParam(ctx, "oldPassword")
-	newPassword := request.GetParam(ctx, "newPassword")
-
-	// 参数验证
+// ResetPassword 管理员重置指定用户密码，生成一次性口令并强制下次登录修改。
+func (c *UserController) ResetPassword(ctx *gin.Context) {
+	userId := strings.TrimSpace(request.GetParam(ctx, "userId"))
 	if userId == "" {
 		response.ErrorJSON(ctx, "用户ID不能为空", constants.ED00006)
 		return
 	}
-	if tenantId == "" {
-		response.ErrorJSON(ctx, "租户ID不能为空", constants.ED00006)
-		return
-	}
-	if oldPassword == "" {
-		response.ErrorJSON(ctx, "旧密码不能为空", constants.ED00006)
-		return
-	}
-	if newPassword == "" {
-		response.ErrorJSON(ctx, "新密码不能为空", constants.ED00006)
+
+	operatorId := request.GetOperatorID(ctx)
+	tenantId := request.GetTenantID(ctx)
+	if operatorId == "" || tenantId == "" {
+		response.ErrorJSON(ctx, "未获取到用户信息，请重新登录", constants.ED00011)
 		return
 	}
 
-	// 密码强度验证（可选，根据业务需求调整）
-	if len(newPassword) < 6 {
-		response.ErrorJSON(ctx, "新密码长度不能少于6位", constants.ED00006)
-		return
-	}
-
-	// 调用DAO层修改密码
-	err := c.userDAO.ChangePassword(ctx, userId, tenantId, oldPassword, newPassword)
+	target, err := c.userDAO.GetUserById(ctx, userId, tenantId)
 	if err != nil {
-		logger.ErrorWithTrace(ctx, "修改密码失败", err)
-		response.ErrorJSON(ctx, err.Error(), constants.ED00009)
+		logger.ErrorWithTrace(ctx, "查询待重置用户失败", err)
+		response.ErrorJSON(ctx, "重置密码失败", constants.ED00009)
+		return
+	}
+	if target == nil {
+		response.ErrorJSON(ctx, "用户不存在", constants.ED00008)
+		return
+	}
+
+	plain, err := c.userDAO.ResetPassword(ctx, userId, tenantId, operatorId)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "重置密码失败", err)
+		response.ErrorJSON(ctx, "重置密码失败", constants.ED00009)
 		return
 	}
 
 	audit.KickUserSessions(ctx, userId)
 	middleware.InvalidateUserPermissionCache(ctx, userId, tenantId)
+	targetName := target.RealName
+	if targetName == "" {
+		targetName = target.UserName
+	}
 	audit.SetEvent(ctx, &audit.AuditEvent{
 		Action:       audit.AuditActionUpdate,
 		ModuleCode:   "hub0002",
 		TargetType:   "USER",
 		TargetId:     userId,
+		TargetName:   targetName,
 		ResourceCode: "hub0002:resetPassword",
-		Detail:       "resetPassword",
+		Detail:       "resetPassword; mustChangePwd=Y",
 	})
 
-	response.SuccessJSON(ctx, nil, constants.SD00003)
+	response.SuccessJSON(ctx, gin.H{
+		"userId":            userId,
+		"temporaryPassword": plain,
+		"mustChangePwd":     "Y",
+		"message":           "密码已重置，请立即将临时密码告知用户，该密码仅返回一次",
+	}, constants.SD00004)
+}
+
+func passwordChangeMessageID(err error) string {
+	switch {
+	case errors.Is(err, dao.ErrOldPasswordIncorrect):
+		return constants.ED00109
+	case errors.Is(err, dao.ErrNewPasswordSame),
+		errors.Is(err, security.ErrPasswordEmpty),
+		errors.Is(err, security.ErrPasswordTooShort),
+		errors.Is(err, security.ErrPasswordTooLong),
+		errors.Is(err, security.ErrPasswordNeedLower),
+		errors.Is(err, security.ErrPasswordNeedUpper),
+		errors.Is(err, security.ErrPasswordNeedDigit),
+		errors.Is(err, security.ErrPasswordNeedSpecial),
+		errors.Is(err, security.ErrPasswordContainsAccount),
+		errors.Is(err, security.ErrPasswordTooCommon):
+		return constants.ED00006
+	case errors.Is(err, dao.ErrUserNotFound):
+		return constants.ED00008
+	default:
+		return constants.ED00009
+	}
 }
 
 // Delete 删除用户
@@ -581,6 +604,7 @@ func userToMap(user *models.User) map[string]interface{} {
 		"avatar":          user.Avatar,
 		"lastLoginTime":   user.LastLoginTime,
 		"lastLoginIp":     user.LastLoginIp,
+		"mustChangePwd":   user.MustChangePwd,
 		"addTime":         user.AddTime,
 		"addWho":          user.AddWho,
 		"editTime":        user.EditTime,

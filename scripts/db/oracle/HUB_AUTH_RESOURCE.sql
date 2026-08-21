@@ -257,6 +257,19 @@ INSERT INTO HUB_AUTH_RESOURCE (
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_009', 1, 'Y'
 );
 
+-- 环境设置模块 (hub0009) - 属于 group0001
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, parentResourceId, resourceLevel, sortOrder, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0009', 'default', '环境设置', 'hub0009', 'MODULE',
+  '/system/environmentSettings', 'group0001', 2, 8, 'OptionsOutline', 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_HUB0009', 1, 'Y'
+);
+
 -- 网关实例管理模块 (hub0020) - 属于 group0020
 INSERT INTO HUB_AUTH_RESOURCE (
   resourceId, tenantId, resourceName, resourceCode, resourceType,
@@ -1084,6 +1097,34 @@ INSERT INTO HUB_AUTH_RESOURCE (
   'hub0004', 3, 4, 'zh-CN',
   'Y', 'Y',
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_009_004', 1, 'Y'
+);
+
+-- =====================================================
+-- 环境设置模块 - 按钮资源 (hub0009)
+-- =====================================================
+
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0009:view', 'default', '查看', 'hub0009:view', 'BUTTON',
+  'hub0009', 3, 1, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_HUB0009_001', 1, 'Y'
+);
+
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0009:edit', 'default', '保存', 'hub0009:edit', 'BUTTON',
+  'hub0009', 3, 2, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_HUB0009_002', 1, 'Y'
 );
 
 -- =====================================================

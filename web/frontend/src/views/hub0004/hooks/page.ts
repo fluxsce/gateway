@@ -8,7 +8,7 @@ import type { RsSearchFormExpose } from '@/components/form/rs-search'
 import { useAppMessage } from '@/composables/useAppMessage'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import type { Ref } from 'vue'
-import { nextTick, onMounted, ref } from 'vue'
+import { ref } from 'vue'
 import type { AuthAuditLog } from '../types'
 import { useAuditLogService } from './service'
 
@@ -80,10 +80,6 @@ export function useAuditLogPage(searchFormRef?: Ref<RsSearchFormExpose | null>) 
       exportVisible.value = true
     }
   }
-
-  onMounted(() => {
-    void nextTick().then(() => handleSearch())
-  })
 
   return {
     service,
