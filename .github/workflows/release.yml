@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Release version without v prefix (e.g. 3.2.7)
+        description: Release version without v prefix (e.g. 3.2.8)
         required: true
         type: string
       push_images:
@@ -25,7 +25,7 @@ permissions:
   packages: write
 
 env:
-  NIUMA_UI_VERSION: "1.1.6"
+  NIUMA_UI_VERSION: "1.1.7"
   ALIYUN_REGISTRY: crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com
   ALIYUN_NAMESPACE: datahub-images
 

@@ -116,6 +116,13 @@ func (c *UserController) AddUser(ctx *gin.Context) {
 	// 使用工具类获取操作人ID和租户ID
 	operatorId := request.GetOperatorID(ctx)
 
+	flag, flagErr := applyTenantAdminFlagChange(operatorIsTenantAdmin(ctx), req.TenantAdminFlag, "", true)
+	if flagErr != nil {
+		response.ErrorJSON(ctx, flagErr.Error(), constants.ED00010)
+		return
+	}
+	req.TenantAdminFlag = flag
+
 	// 调用DAO添加用户
 	userId, err := c.userDAO.AddUser(ctx, &req, operatorId)
 	if err != nil {
@@ -197,6 +204,13 @@ func (c *UserController) EditUser(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "用户不存在", constants.ED00008)
 		return
 	}
+
+	flag, flagErr := applyTenantAdminFlagChange(operatorIsTenantAdmin(ctx), updateData.TenantAdminFlag, currentUser.TenantAdminFlag, false)
+	if flagErr != nil {
+		response.ErrorJSON(ctx, flagErr.Error(), constants.ED00010)
+		return
+	}
+	updateData.TenantAdminFlag = flag
 
 	// 保留不可修改的字段
 	userId := currentUser.UserId
@@ -620,6 +634,40 @@ func containsString(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func operatorIsTenantAdmin(ctx *gin.Context) bool {
+	uc := middleware.GetUserContext(ctx)
+	return uc != nil && uc.TenantAdminFlag == "Y"
+}
+
+var errCannotGrantTenantAdmin = errors.New("没有权限设置租户管理员")
+
+// applyTenantAdminFlagChange 决定写入库的租户管理员标记。
+// 非租户管理员：新建强制为 N；编辑保留原值。试图把 N 改成 Y 时返回 errCannotGrantTenantAdmin。
+func applyTenantAdminFlagChange(operatorIsAdmin bool, requested, existing string, isCreate bool) (string, error) {
+	req := normalizeAdminYN(requested)
+	cur := normalizeAdminYN(existing)
+	if operatorIsAdmin {
+		return req, nil
+	}
+	if isCreate {
+		if req == "Y" {
+			return "", errCannotGrantTenantAdmin
+		}
+		return "N", nil
+	}
+	if req == "Y" && cur != "Y" {
+		return "", errCannotGrantTenantAdmin
+	}
+	return cur, nil
+}
+
+func normalizeAdminYN(flag string) string {
+	if flag == "Y" {
+		return "Y"
+	}
+	return "N"
 }
 
 func userAuditDetail(userName, activeFlag, statusFlag string) string {

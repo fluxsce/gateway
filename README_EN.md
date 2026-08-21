@@ -79,7 +79,7 @@ Full capability list: [Introduction](docs/en/01-introduction.md).
 
 ## Quick start
 
-Examples use **3.2.7**. Prefer the latest assets on [GitHub Releases](https://github.com/fluxsce/gateway/releases).
+Examples use **3.2.8**. Prefer the latest assets on [GitHub Releases](https://github.com/fluxsce/gateway/releases).
 
 | Item | Value |
 |------|-------|
@@ -93,18 +93,18 @@ Examples use **3.2.7**. Prefer the latest assets on [GitHub Releases](https://gi
 The image includes configs, DB scripts, and the frontend. Default database is SQLite.
 
 ```bash
-docker pull ghcr.io/fluxsce/gateway:3.2.7
+docker pull ghcr.io/fluxsce/gateway:3.2.8
 
 docker run -d --name gateway \
   -p 8080:8080 \
   -p 12003:12003 \
-  ghcr.io/fluxsce/gateway:3.2.7
+  ghcr.io/fluxsce/gateway:3.2.8
 ```
 
 Mainland China (personal ACR usually requires `docker login`):
 
 ```bash
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.7
+docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.8
 ```
 
 Compose (MySQL + Redis): [Containerized Deployment](docs/en/04-container-deployment.md).
@@ -115,14 +115,14 @@ Download from [Releases](https://github.com/fluxsce/gateway/releases). Archive r
 
 | File | Platform | Databases |
 |------|----------|-----------|
-| `gateway-linux-amd64-3.2.7.tar.gz` | Linux amd64 | MySQL / SQLite / ClickHouse |
-| `gateway-linux-arm64-3.2.7.tar.gz` | Linux arm64 | same |
-| `gateway-windows-amd64-3.2.7.zip` | Windows amd64 | same |
-| `gateway-linux-amd64-oracle-3.2.7.tar.gz` | Linux amd64 | above + Oracle |
-| `gateway-windows-amd64-oracle-3.2.7.zip` | Windows amd64 | above + Oracle |
+| `gateway-linux-amd64-3.2.8.tar.gz` | Linux amd64 | MySQL / SQLite / ClickHouse |
+| `gateway-linux-arm64-3.2.8.tar.gz` | Linux arm64 | same |
+| `gateway-windows-amd64-3.2.8.zip` | Windows amd64 | same |
+| `gateway-linux-amd64-oracle-3.2.8.tar.gz` | Linux amd64 | above + Oracle |
+| `gateway-windows-amd64-oracle-3.2.8.zip` | Windows amd64 | above + Oracle |
 
 ```bash
-tar -xzf gateway-linux-amd64-3.2.7.tar.gz
+tar -xzf gateway-linux-amd64-3.2.8.tar.gz
 cd gateway
 ./gateway --config ./configs
 ```

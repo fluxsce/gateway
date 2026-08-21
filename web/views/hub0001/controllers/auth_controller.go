@@ -189,7 +189,6 @@ func (c *AuthController) Login(ctx *gin.Context) {
 		"mobile":          user.Mobile,
 		"avatar":          user.Avatar,
 		"tenantAdminFlag": user.TenantAdminFlag,
-		"sessionId":       sessionData.SessionId,
 		"loginTime":       sessionData.LoginTime,
 		"expireAt":        sessionData.ExpireAt.Unix(),
 		"clientIP":        clientIP,
@@ -265,7 +264,6 @@ func (c *AuthController) UserInfo(ctx *gin.Context) {
 		"email":        userContext.Email,
 		"mobile":       userContext.Mobile,
 		"avatar":       userContext.Avatar,
-		"sessionId":    userContext.SessionId,
 		"loginTime":    userContext.LoginTime,
 		"lastActivity": userContext.LastActivity,
 		"expireAt":     userContext.ExpireAt,
@@ -322,7 +320,6 @@ func (c *AuthController) RefreshSession(ctx *gin.Context) {
 
 	// 返回刷新后的信息
 	response.SuccessJSON(ctx, gin.H{
-		"sessionId":    refreshedUserContext.SessionId,
 		"expireAt":     refreshedUserContext.ExpireAt.Unix(),
 		"lastActivity": refreshedUserContext.LastActivity,
 		"message":      "会话刷新成功",

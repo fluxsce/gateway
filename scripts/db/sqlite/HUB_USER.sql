@@ -95,3 +95,10 @@ INSERT INTO HUB_USER (
 
 -- 历史库升级：建表已执行过的不会再跑 CREATE，只补列。
 ALTER TABLE HUB_USER ADD COLUMN mustChangePwd TEXT NOT NULL DEFAULT 'N';
+
+-- 种子管理员仍是默认口令时强制首次改密。已改密的现网账号口令哈希不同，不会被置 Y。
+UPDATE HUB_USER
+SET mustChangePwd = 'Y'
+WHERE userId = 'admin'
+  AND tenantId = 'default'
+  AND password = '$2a$10$S9Yqyb9LI5PqAutYj.kR0OI/Zm7EcJSKbxKaLCThw8djqwqsPiDQi';

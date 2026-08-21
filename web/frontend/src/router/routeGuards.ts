@@ -105,7 +105,7 @@ export function setupRouteGuards(router: Router): void {
      * 已登录用户访问登录页检查
      * 已登录用户尝试访问登录页时重定向到首页
      */
-    if (to.name === 'login' && userStore.isAuthenticated) {
+    if ((to.name === 'login' || to.name === 'forgotPassword') && userStore.isAuthenticated) {
       if (userStore.mustChangePwd === 'Y') {
         return next({ name: 'settings', query: { tab: 'password' } })
       }
@@ -116,7 +116,8 @@ export function setupRouteGuards(router: Router): void {
       userStore.isAuthenticated &&
       userStore.mustChangePwd === 'Y' &&
       to.name !== 'settings' &&
-      to.name !== 'login'
+      to.name !== 'login' &&
+      to.name !== 'forgotPassword'
     ) {
       return next({ name: 'settings', query: { tab: 'password' } })
     }

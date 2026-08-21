@@ -32,7 +32,7 @@ export default {
     confirmation: '确认操作',
     deleteConfirm: '确定要删除此用户吗？此操作不可撤销。',
     batchDeleteConfirm: '确定要删除选中的用户吗？此操作不可撤销。',
-    passwordPlaceholder: '请输入8-20位强密码',
+    passwordPlaceholder: '请输入8-20位初始密码（首次登录须修改）',
     uploadAvatar: '上传头像',
     basicInfo: '基本信息',
     roleInfo: '角色信息',
@@ -110,8 +110,8 @@ export default {
     tipUppercase: '必须包含大写字母',
     tipLowercase: '必须包含小写字母',
     tipNumber: '必须包含数字',
-    tipSpecial: "必须包含特殊字符（{'@$!%*?&'}）",
-    mustChangeHint: '管理员已重置您的密码，请立即修改后再使用系统。修改成功后需要重新登录。',
+    tipSpecial: '必须包含特殊字符（标点或符号均可）',
+    mustChangeHint: '当前账号需要先修改密码才能继续使用系统（初始口令或管理员重置）。修改成功后需要重新登录。',
   },
   // 系统设置
   settings: {

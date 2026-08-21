@@ -53,7 +53,24 @@
         <div class="form-area">
           <!-- 跟随 App 全局主题；控件 radius 由组件 props 透传 -->
           <RsCard class="login-card" variant="glass" elevated radius="lg">
+            <div v-if="showForgotPassword" class="forgot-panel">
+              <h2 class="forgot-panel__title">{{ t('forgotPassword.title') }}</h2>
+              <p class="forgot-panel__subtitle">{{ t('forgotPassword.subtitle') }}</p>
+              <RsAlert type="info" class="forgot-panel__hint">
+                {{ t('forgotPassword.contactAdmin') }}
+              </RsAlert>
+              <RsButton
+                variant="primary"
+                size="lg"
+                radius="sm"
+                class="login-btn"
+                @click="backToLogin"
+              >
+                {{ t('forgotPassword.backToLogin') }}
+              </RsButton>
+            </div>
             <RsTabs
+              v-else
               v-model="activeTab"
               :items="loginTabItems"
               variant="line"
@@ -125,6 +142,7 @@
                     <button
                       type="button"
                       class="captcha-img"
+                      tabindex="-1"
                       :aria-label="t('login.captcha')"
                       @click="refreshCaptcha"
                     >
@@ -248,6 +266,7 @@ import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 import GIcon from '@/components/gicon/GIcon.vue'
 import { preloadModules } from '@/locales'
 import {
+  RsAlert,
   RsButton,
   RsCard,
   RsForm,
@@ -266,9 +285,13 @@ import {
   ShieldOutline,
 } from '@vicons/ionicons5'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useLoginAuth } from './hooks/useLoginAuth'
 
 const activeTab = ref('account')
+const route = useRoute()
+const router = useRouter()
+const showForgotPassword = computed(() => route.name === 'forgotPassword')
 
 const LOGIN_BODY_CLASS = 'is-login-page'
 
@@ -308,6 +331,10 @@ const loginTabItems = computed(() => [
   { value: 'account', label: t('login.accountLogin') },
   { value: 'phone', label: t('login.phoneLogin') },
 ])
+
+const backToLogin = () => {
+  router.push({ name: 'login' })
+}
 </script>
 
 <style lang="scss" scoped>
@@ -603,10 +630,36 @@ const loginTabItems = computed(() => [
   width: 100%;
 }
 
+.forgot-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.forgot-panel__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 650;
+  color: var(--rs-text);
+}
+
+.forgot-panel__subtitle {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--rs-muted);
+}
+
+.forgot-panel__hint {
+  margin: 0;
+}
+
 .captcha-area,
 .verification-area {
   display: flex;
-  align-items: center;
+  /* 错误文案在输入框下方增高时，验证码图/发送按钮仍与控件顶对齐，避免垂直错位 */
+  align-items: flex-start;
   gap: 10px;
   width: 100%;
 }

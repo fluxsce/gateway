@@ -6,25 +6,10 @@ import { config } from '@/config/config'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { store } from '@/stores'
 import { useGlobalStore } from '@/stores/global'
-import type { RsDropdownItem } from '@/ui'
-import { computed } from 'vue'
 
 export function useLayoutUser() {
   const { t: tCommon } = useModuleI18n('common')
   const globalStore = useGlobalStore()
-
-  const userMenuItems = computed<RsDropdownItem[]>(() => [
-    {
-      value: 'settings',
-      label: tCommon('user.settings'),
-      icon: 'settings',
-    },
-    {
-      value: 'logout',
-      label: tCommon('user.logout'),
-      icon: 'log-out',
-    },
-  ])
 
   const handleUserAction = (value: string) => {
     switch (value) {
@@ -45,7 +30,6 @@ export function useLayoutUser() {
   }
 
   return {
-    userMenuItems,
     handleUserAction,
   }
 }

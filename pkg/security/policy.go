@@ -15,8 +15,9 @@ const (
 	PasswordMaxLength = 20
 	// TemporaryPasswordLength 管理员重置时生成的一次性口令长度。
 	TemporaryPasswordLength = 12
-	// PasswordSpecialChars 允许的特殊字符，与前端正则 @$!%*?& 对齐。
-	PasswordSpecialChars = "@$!%*?&"
+	// PasswordSpecialChars 生成临时口令时抽取的常见 ASCII 特殊字符。
+	// 用户自设口令不限于此集合，ValidatePassword 接受任意标点或符号。
+	PasswordSpecialChars = "!@#$%^&*_+-=.,:;?~"
 )
 
 var (
@@ -32,8 +33,8 @@ var (
 	ErrPasswordNeedUpper = errors.New("密码必须包含大写字母")
 	// ErrPasswordNeedDigit 缺少数字。
 	ErrPasswordNeedDigit = errors.New("密码必须包含数字")
-	// ErrPasswordNeedSpecial 缺少允许的特殊字符。
-	ErrPasswordNeedSpecial = errors.New("密码必须包含特殊字符（@$!%*?&）")
+	// ErrPasswordNeedSpecial 缺少特殊字符（标点或符号）。
+	ErrPasswordNeedSpecial = errors.New("密码必须包含特殊字符")
 	// ErrPasswordContainsAccount 口令包含账号或用户名。
 	ErrPasswordContainsAccount = errors.New("密码不能包含用户ID或用户名")
 	// ErrPasswordTooCommon 口令在常见弱口令名单中。
@@ -46,8 +47,9 @@ var commonPasswords = map[string]struct{}{
 	"111111": {}, "000000": {}, "1qaz2wsx": {}, "iloveyou": {}, "welcome1": {},
 }
 
-// ValidatePassword 校验口令复杂度。account 为 userId 或 userName，非空时禁止出现在口令中（忽略大小写）。
-func ValidatePassword(plain string, account ...string) error {
+// ValidatePasswordLength 只校验口令非空与长度，供新建用户的初始口令使用。
+// 首次登录会强制改密，届时再走 ValidatePassword。
+func ValidatePasswordLength(plain string) error {
 	if plain == "" {
 		return ErrPasswordEmpty
 	}
@@ -56,6 +58,22 @@ func ValidatePassword(plain string, account ...string) error {
 	}
 	if len(plain) > PasswordMaxLength {
 		return ErrPasswordTooLong
+	}
+	return nil
+}
+
+// isPasswordSpecial 判断是否为口令中的特殊字符：标点或符号，不含空白与控制字符。
+func isPasswordSpecial(r rune) bool {
+	if unicode.IsSpace(r) || unicode.IsControl(r) {
+		return false
+	}
+	return unicode.IsPunct(r) || unicode.IsSymbol(r)
+}
+
+// ValidatePassword 校验口令复杂度。account 为 userId 或 userName，非空时禁止出现在口令中（忽略大小写）。
+func ValidatePassword(plain string, account ...string) error {
+	if err := ValidatePasswordLength(plain); err != nil {
+		return err
 	}
 
 	var hasLower, hasUpper, hasDigit, hasSpecial bool
@@ -67,7 +85,7 @@ func ValidatePassword(plain string, account ...string) error {
 			hasUpper = true
 		case unicode.IsDigit(r):
 			hasDigit = true
-		case strings.ContainsRune(PasswordSpecialChars, r):
+		case isPasswordSpecial(r):
 			hasSpecial = true
 		}
 	}

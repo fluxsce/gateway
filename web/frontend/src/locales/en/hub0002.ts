@@ -32,7 +32,7 @@ export default {
     confirmation: 'Confirmation',
     deleteConfirm: 'Are you sure you want to delete this user? This action cannot be undone.',
     batchDeleteConfirm: 'Are you sure you want to delete the selected users? This action cannot be undone.',
-    passwordPlaceholder: 'Please enter a strong password (8-20 characters)',
+    passwordPlaceholder: 'Enter an 8-20 character initial password (must be changed at first login)',
     uploadAvatar: 'Upload Avatar',
     basicInfo: 'Basic Information',
     roleInfo: 'Role Information',
@@ -110,8 +110,8 @@ export default {
     tipUppercase: 'Must contain uppercase letters',
     tipLowercase: 'Must contain lowercase letters',
     tipNumber: 'Must contain numbers',
-    tipSpecial: "Must contain special characters ({'@$!%*?&'})",
-    mustChangeHint: 'An administrator has reset your password. Please change it before using the system. You will need to sign in again after a successful change.',
+    tipSpecial: 'Must contain a special character (any punctuation or symbol)',
+    mustChangeHint: 'You must change this password before using the system (initial login or an admin reset). You will need to sign in again after a successful change.',
   },
   // System Settings
   settings: {

@@ -11,6 +11,11 @@ func TestValidatePassword(t *testing.T) {
 	if err := security.ValidatePassword("Admin@1234"); err != nil {
 		t.Fatalf("合规口令应通过: %v", err)
 	}
+	for _, plain := range []string{"Admin#1234", "Admin_1234", "Admin-1234", "Admin.1234"} {
+		if err := security.ValidatePassword(plain); err != nil {
+			t.Fatalf("常见标点应视为特殊字符: %q %v", plain, err)
+		}
+	}
 	cases := []struct {
 		plain string
 		want  error
@@ -32,6 +37,21 @@ func TestValidatePassword(t *testing.T) {
 	}
 	if err := security.ValidatePassword("Alice@1234", "alice"); !errors.Is(err, security.ErrPasswordContainsAccount) {
 		t.Fatalf("包含用户名应拒绝, got %v", err)
+	}
+}
+
+func TestValidatePasswordLength(t *testing.T) {
+	if err := security.ValidatePasswordLength("12345678"); err != nil {
+		t.Fatalf("仅长度合规应通过: %v", err)
+	}
+	if err := security.ValidatePasswordLength(""); !errors.Is(err, security.ErrPasswordEmpty) {
+		t.Fatalf("空口令应拒绝, got %v", err)
+	}
+	if err := security.ValidatePasswordLength("1234567"); !errors.Is(err, security.ErrPasswordTooShort) {
+		t.Fatalf("过短应拒绝, got %v", err)
+	}
+	if err := security.ValidatePasswordLength("123456789012345678901"); !errors.Is(err, security.ErrPasswordTooLong) {
+		t.Fatalf("过长应拒绝, got %v", err)
 	}
 }
 

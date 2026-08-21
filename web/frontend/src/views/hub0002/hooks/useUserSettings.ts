@@ -172,7 +172,7 @@ export function useUserSettings() {
         trigger: 'blur',
       },
       {
-        pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
+        pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s])/,
         message: t('password.passwordPattern'),
         trigger: 'blur',
       },

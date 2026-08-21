@@ -96,3 +96,10 @@ INSERT INTO HUB_USER (
 ALTER TABLE HUB_USER ADD mustChangePwd CHAR(1) DEFAULT 'N' NOT NULL;
 COMMENT ON COLUMN HUB_USER.mustChangePwd IS '是否必须修改密码：Y-是，N-否';
 
+-- 种子管理员仍是默认口令时强制首次改密。已改密的现网账号口令哈希不同，不会被置 Y。
+UPDATE HUB_USER
+SET mustChangePwd = 'Y'
+WHERE userId = 'admin'
+  AND tenantId = 'default'
+  AND password = '$2a$10$S9Yqyb9LI5PqAutYj.kR0OI/Zm7EcJSKbxKaLCThw8djqwqsPiDQi';
+

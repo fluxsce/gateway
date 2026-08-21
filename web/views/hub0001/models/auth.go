@@ -13,7 +13,6 @@ type LoginRequest struct {
 type LoginResponse struct {
 	Token        string `json:"token"`        // JWT令牌
 	RefreshToken string `json:"refreshToken"` // 刷新令牌
-	SessionId    string `json:"sessionId"`    // Session ID
 	UserId       string `json:"userId"`       // 用户ID
 	UserName     string `json:"userName"`     // 用户名
 	RealName     string `json:"realName"`     // 真实姓名

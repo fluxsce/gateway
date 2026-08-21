@@ -77,15 +77,11 @@ export default {
     copyright: '© {year} Web Hub - All Rights Reserved',
   },
   forgotPassword: {
-    title: 'Reset Password',
-    subtitle: 'Enter your email address to receive a password reset link',
-    emailPlaceholder: 'Your email address',
-    submit: 'Send Reset Link',
-    backToLogin: 'Back to Login',
-    checkEmail: 'Please check your email for reset instructions',
-    emailNotFound: 'Email address not found',
-    resetSuccess: 'Your password has been reset successfully',
-    resetFailed: 'Failed to reset password',
+    title: 'Forgot password',
+    subtitle: 'Self-service reset is not available, to avoid leaking credentials over email.',
+    contactAdmin:
+      'Ask an administrator to reset your password in User Management. You must change it on the next login.',
+    backToLogin: 'Back to login',
   },
   validation: {
     userIdRequired: 'User ID is required',

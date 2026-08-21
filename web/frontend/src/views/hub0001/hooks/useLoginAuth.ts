@@ -417,8 +417,8 @@ export function useLoginAuth() {
    * 跳转到忘记密码页面
    */
   const goToForgotPassword = () => {
-    logger.info('跳转到忘记密码页面')
-    router.push({ path: '/hub0001/forgot-password' })
+    logger.info('跳转到忘记密码说明')
+    router.push({ name: 'forgotPassword' })
   }
 
   /**

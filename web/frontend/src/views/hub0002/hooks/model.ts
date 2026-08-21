@@ -6,6 +6,7 @@
 import type { RsDataFormField } from '@/components/form/rs-data'
 import type { RsSearchFormProps } from '@/components/form/rs-search'
 import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
+import { store } from '@/stores'
 import type { PageInfoObj } from '@/types/api'
 import { RsTag } from '@/ui'
 import { formatDate } from '@/utils/format'
@@ -156,12 +157,16 @@ export function useUserModel() {
       field: 'password',
       label: '密码',
       type: 'input',
-      placeholder: '请输入8-20位强密码（大小写+数字+特殊字符）',
+      placeholder: '请输入8-20位初始密码（首次登录须修改）',
       span: 8,
       tabKey: 'basic',
       // 仅新增模式显示密码；编辑用“重置密码”
       show: (formData: Record<string, any>) => formData._mode === 'create',
       required: true,
+      rules: [
+        { required: true, message: '密码不能为空', trigger: 'blur' },
+        { min: 8, max: 20, message: '密码长度在8-20个字符之间', trigger: 'blur' },
+      ],
       props: {
         type: 'password',
       },
@@ -262,6 +267,7 @@ export function useUserModel() {
       type: 'switch',
       span: 8,
       tabKey: 'basic',
+      show: () => store.user.tenantAdminFlag === 'Y',
       defaultValue: FlagEnum.NO,
       props: {
         checkedValue: FlagEnum.YES,

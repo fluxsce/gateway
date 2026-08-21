@@ -67,10 +67,10 @@ func (dao *UserDAO) AddUser(ctx context.Context, user *models.User, operatorId s
 	if user.StatusFlag == "" {
 		user.StatusFlag = "Y"
 	}
-	if err := security.ValidatePassword(user.Password, user.UserId, user.UserName); err != nil {
+	// 初始口令只校验长度；首次登录须改密，复杂度在改密时再校验。
+	if err := security.ValidatePasswordLength(user.Password); err != nil {
 		return "", err
 	}
-	// 管理员指定的初始口令须在首次登录后修改
 	user.MustChangePwd = "Y"
 
 	hashed, err := hashUserPassword(user.Password)

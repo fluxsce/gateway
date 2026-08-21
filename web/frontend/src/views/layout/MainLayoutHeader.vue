@@ -75,22 +75,89 @@
           icon="bell"
           aria-label="Notifications"
         />
-        <ThemeSwitcher icon-only />
 
-        <RsDropdown :items="userMenuItems" :show-selected="false" @select="handleUserAction">
-          <template #trigger>
-            <div class="main-layout-header__user">
-              <RsAvatar
-                size="md"
-                :src="store.user.avatar || undefined"
-                :name="store.user.displayName || store.user.userName || '?'"
-              />
-              <span v-if="!store.user.sidebarCollapsed" class="main-layout-header__user-name">
-                {{ store.user.displayName }}
-              </span>
+        <RsPopover v-model:open="userPopOpen" side="bottom" align="end" width="sm">
+          <button
+            type="button"
+            class="main-layout-header__user"
+            :aria-expanded="userPopOpen"
+            :aria-haspopup="true"
+          >
+            <RsAvatar
+              size="md"
+              :src="store.user.avatar || undefined"
+              :name="store.user.displayName || store.user.userName || '?'"
+            />
+            <span v-if="!store.user.sidebarCollapsed" class="main-layout-header__user-name">
+              {{ store.user.displayName }}
+            </span>
+            <RsIcon name="chevron-down" :size="14" class="main-layout-header__user-caret" />
+          </button>
+          <template #content>
+            <div class="user-pop">
+              <div class="user-pop__profile">
+                <RsAvatar
+                  size="lg"
+                  :src="store.user.avatar || undefined"
+                  :name="store.user.displayName || store.user.userName || '?'"
+                />
+                <div class="user-pop__meta">
+                  <div class="user-pop__name">{{ store.user.displayName }}</div>
+                  <div class="user-pop__id">{{ store.user.userName || store.user.userId }}</div>
+                </div>
+              </div>
+
+              <div class="user-pop__divider" />
+
+              <div class="user-pop__theme">
+                <span class="user-pop__theme-label">{{ tCommon('theme.toggleTheme') }}</span>
+                <div class="user-pop__theme-actions">
+                  <RsButton
+                    size="sm"
+                    icon-only
+                    icon="sun"
+                    :variant="isDark ? 'ghost' : 'secondary'"
+                    :bordered="false"
+                    :aria-label="tCommon('theme.light')"
+                    :tooltip="tCommon('theme.light')"
+                    @click="setTheme('light')"
+                  />
+                  <RsButton
+                    size="sm"
+                    icon-only
+                    icon="moon"
+                    :variant="isDark ? 'secondary' : 'ghost'"
+                    :bordered="false"
+                    :aria-label="tCommon('theme.dark')"
+                    :tooltip="tCommon('theme.dark')"
+                    @click="setTheme('dark')"
+                  />
+                </div>
+              </div>
+
+              <div class="user-pop__divider" />
+
+              <RsButton
+                variant="ghost"
+                size="sm"
+                icon="settings"
+                class="user-pop__action"
+                @click="onUserAction('settings')"
+              >
+                {{ tCommon('user.settings') }}
+              </RsButton>
+              <RsButton
+                variant="ghost"
+                size="sm"
+                icon="log-out"
+                class="user-pop__action user-pop__action--logout"
+                @click="onUserAction('logout')"
+              >
+                {{ tCommon('user.logout') }}
+              </RsButton>
             </div>
           </template>
-        </RsDropdown>
+        </RsPopover>
       </div>
     </div>
   </header>
@@ -132,19 +199,19 @@
 </template>
 
 <script setup lang="ts">
-import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { store } from '@/stores'
 import { useGlobalStore } from '@/stores/global'
+import { useUserStore } from '@/stores/user'
 import {
   RsAlert,
   RsAvatar,
   RsButton,
   RsDrawer,
-  RsDropdown,
   RsIcon,
   RsInput,
   RsLoading,
+  RsPopover,
   RsTabs,
   type RsTabItem,
 } from '@/ui'
@@ -158,16 +225,28 @@ const emit = defineEmits<{
 }>()
 
 const { t: tCommon } = useModuleI18n('common')
-const { userMenuItems, handleUserAction } = useLayoutUser()
+const { handleUserAction } = useLayoutUser()
 const globalStore = useGlobalStore()
+const userStore = useUserStore()
 const { layoutTabs, layoutActiveTabId } = storeToRefs(globalStore)
 
 const searchQuery = ref('')
 const helpDrawerVisible = ref(false)
 const helpIframeLoading = ref(false)
 const helpDocsError = ref('')
+const userPopOpen = ref(false)
+const isDark = computed(() => userStore.isDark)
 
 const docsSiteHref = computed(() => getDocsSiteHref())
+
+function setTheme(theme: 'light' | 'dark') {
+  userStore.update({ theme }, { persistUserData: false })
+}
+
+function onUserAction(value: string) {
+  userPopOpen.value = false
+  handleUserAction(value)
+}
 
 const tabItems = computed<RsTabItem[]>(() =>
   layoutTabs.value.map((tab) => ({
@@ -300,7 +379,23 @@ async function openHelpDrawer() {
     display: flex;
     align-items: center;
     gap: var(--g-space-sm);
+    margin: 0;
+    padding: 4px 6px;
+    border: none;
+    border-radius: var(--rs-radius-sm);
+    background: transparent;
+    color: inherit;
     cursor: pointer;
+    font: inherit;
+
+    &:hover {
+      background: var(--rs-surface-hover);
+    }
+  }
+
+  &__user-caret {
+    flex-shrink: 0;
+    color: var(--rs-muted);
   }
 
   &__user-name {
@@ -361,5 +456,74 @@ async function openHelpDrawer() {
   height: 100%;
   min-height: 280px;
   border: 0;
+}
+
+.user-pop {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-pop__profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 4px 8px;
+}
+
+.user-pop__meta {
+  min-width: 0;
+}
+
+.user-pop__name {
+  font-size: var(--rs-font-size-sm);
+  font-weight: 600;
+  color: var(--rs-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-pop__id {
+  margin-top: 2px;
+  font-size: var(--rs-font-size-xs);
+  color: var(--rs-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-pop__divider {
+  height: 1px;
+  margin: 6px 0;
+  background: var(--rs-border);
+}
+
+.user-pop__theme {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px;
+}
+
+.user-pop__theme-label {
+  font-size: var(--rs-font-size-sm);
+  color: var(--rs-text);
+}
+
+.user-pop__theme-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.user-pop__action {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.user-pop__action--logout {
+  color: var(--rs-danger);
 }
 </style>

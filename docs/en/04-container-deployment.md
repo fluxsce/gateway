@@ -1,6 +1,6 @@
 # Containerized Deployment
 
-Images are published by GitHub Actions. Details: [.github/CI.md](../../.github/CI.md). Examples use **3.2.7**.
+Images are published by GitHub Actions. Details: [.github/CI.md](../../.github/CI.md). Examples use **3.2.8**.
 
 There is no Docker Hub image `datahub-images/gateway`. Use:
 
@@ -9,7 +9,7 @@ There is no Docker Hub image `datahub-images/gateway`. Use:
 | GitHub GHCR | `ghcr.io/fluxsce/gateway` |
 | Alibaba Cloud ACR | `crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway` |
 
-Tags: `3.2.7` (amd64+arm64), `3.2.7-amd64`, `3.2.7-arm64`, `3.2.7-oracle` (amd64 only, Instant Client included), `latest` (git-tag releases only).
+Tags: `3.2.8` (amd64+arm64), `3.2.8-amd64`, `3.2.8-arm64`, `3.2.8-oracle` (amd64 only, Instant Client included), `latest` (git-tag releases only).
 
 ---
 
@@ -18,12 +18,12 @@ Tags: `3.2.7` (amd64+arm64), `3.2.7-amd64`, `3.2.7-arm64`, `3.2.7-oracle` (amd64
 The image includes configs, SQL scripts, and the frontend. Default DB is SQLite.
 
 ```bash
-docker pull ghcr.io/fluxsce/gateway:3.2.7
+docker pull ghcr.io/fluxsce/gateway:3.2.8
 
 docker run -d --name gateway \
   -p 8080:8080 \
   -p 12003:12003 \
-  ghcr.io/fluxsce/gateway:3.2.7
+  ghcr.io/fluxsce/gateway:3.2.8
 ```
 
 - Console: http://localhost:12003/gatewayweb (`admin` / `123456`)
@@ -55,7 +55,7 @@ docker compose up -d
 
 Open http://localhost:12203/gatewayweb and http://localhost:18280 .
 
-Default image in compose is `ghcr.io/fluxsce/gateway:3.2.7`. Switch the `image:` field for ACR.
+Default image in compose is `ghcr.io/fluxsce/gateway:3.2.8`. Switch the `image:` field for ACR.
 
 ---
 

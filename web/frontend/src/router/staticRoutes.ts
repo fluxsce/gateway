@@ -95,6 +95,20 @@ export class StaticRoutes {
       },
     },
     {
+      path: '/forgot-password',
+      name: 'forgotPassword',
+      component: () => import('@/views/hub0001/LoginView.vue'),
+      meta: {
+        title: '忘记密码',
+        requiresAuth: false,
+        moduleName: 'hub0001',
+      },
+    },
+    {
+      path: '/hub0001/forgot-password',
+      redirect: { name: 'forgotPassword' },
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
       component: () => import('@/views/layout/NotFound.vue'),

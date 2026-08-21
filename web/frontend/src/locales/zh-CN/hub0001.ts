@@ -76,15 +76,10 @@ export default {
     copyright: '© {year} Web Hub - 版权所有',
   },
   forgotPassword: {
-    title: '重置密码',
-    subtitle: '请输入您的邮箱地址，我们将发送密码重置链接',
-    emailPlaceholder: '您的电子邮箱',
-    submit: '发送重置链接',
+    title: '忘记密码',
+    subtitle: '系统不提供自助重置，避免口令被邮件链路泄露。',
+    contactAdmin: '请联系管理员，在「用户管理」中为您重置密码。重置后首次登录须修改。',
     backToLogin: '返回登录',
-    checkEmail: '请检查您的邮箱获取重置指引',
-    emailNotFound: '邮箱地址不存在',
-    resetSuccess: '您的密码已成功重置',
-    resetFailed: '密码重置失败',
   },
   validation: {
     userIdRequired: '请输入用户ID',
