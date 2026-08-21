@@ -25,8 +25,8 @@
 | `gateway-linux-amd64-{version}.tar.gz` | Linux | amd64 | MySQL / SQLite / ClickHouse | `no_oracle`；`ubuntu-latest` + `manylinux2014_x86_64` 原生 CGO |
 | `gateway-linux-arm64-{version}.tar.gz` | Linux | arm64 | MySQL / SQLite / ClickHouse | `no_oracle`；`ubuntu-24.04-arm` + `manylinux2014_aarch64` 原生 CGO |
 | `gateway-linux-amd64-oracle-{version}.tar.gz` | Linux | amd64 | 上表 + Oracle | 不含 Instant Client 运行库；仅 amd64 |
-| `gateway-windows-amd64-{version}.zip` | Windows | amd64 | MySQL / SQLite / ClickHouse | `no_oracle`；`windows-latest` 原生 |
-| `gateway-windows-amd64-oracle-{version}.zip` | Windows | amd64 | 上表 + Oracle | 不含 Instant Client 运行库；仅 amd64 |
+| `gateway-windows-amd64-{version}.zip` | Windows | amd64 | MySQL / SQLite / ClickHouse | `no_oracle`；`windows-latest` + `msys2/setup-msys2@v2.32.0`（UCRT64 gcc 静态链 MinGW 运行库） |
+| `gateway-windows-amd64-oracle-{version}.zip` | Windows | amd64 | 上表 + Oracle | 不含 Instant Client；随带 MinGW 运行库 DLL；仅 amd64 |
 
 无 Linux arm64 Oracle 包、无 Windows arm64 包。包内目录为 `gateway/`：可执行文件、`configs/`、`web/`、`scripts/db` 等。
 

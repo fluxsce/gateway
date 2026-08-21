@@ -163,9 +163,13 @@ jobs:
         with:
           name: frontend-dist
           path: web/frontend/dist
-      - uses: egor-tensin/setup-mingw@v3
+      - uses: msys2/setup-msys2@v2.32.0
+        id: msys2
         with:
-          platform: x64
+          msystem: UCRT64
+          update: false
+          pacboy: gcc:p
+          cache: true
       - uses: ilammy/msvc-dev-cmd@v1
         if: matrix.oracle == '1'
       - uses: actions/cache@v5
@@ -177,6 +181,17 @@ jobs:
         if: matrix.oracle == '1'
         shell: pwsh
         run: .github/scripts/download-oracle-windows.ps1
+      - name: Add UCRT64 gcc to PATH
+        shell: pwsh
+        run: |
+          $bin = Join-Path "${{ steps.msys2.outputs.msys2-location }}" "ucrt64\bin"
+          if (-not (Test-Path (Join-Path $bin "gcc.exe"))) {
+            throw "gcc.exe not found in $bin"
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $bin
+          $env:Path = "$bin;$env:Path"
+          Write-Host "Using gcc at $bin"
+          gcc --version
       - name: Package
         env:
           VERSION: ${{ needs.prepare.outputs.version }}

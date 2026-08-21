@@ -54,8 +54,13 @@ try { $gitCommit = (git rev-parse --short HEAD 2>$null).Trim() } catch { }
 if (-not $gitCommit) { $gitCommit = "unknown" }
 $buildTime = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
 $ldflags = "-s -w -X main.Version=$($env:VERSION) -X main.BuildTime=$buildTime -X main.GitCommit=$gitCommit"
+$pluginLdflags = "-s -w"
 if ($oracle -eq "1") {
     $ldflags = "$ldflags -linkmode external"
+} else {
+    # 静态链上 libgcc / libwinpthread，安装包不依赖 MinGW DLL（UCRT 本身在 Win10 / Server 2016+ 系统里）。
+    $ldflags = "$ldflags -extldflags=-static"
+    $pluginLdflags = "$pluginLdflags -extldflags=-static"
 }
 
 $packageDir = Join-Path $root "dist\gateway"
@@ -70,8 +75,22 @@ Write-Host "[INFO] go build gateway tags=$buildTags"
 if ($LASTEXITCODE -ne 0) { throw "gateway build failed" }
 
 Write-Host "[INFO] go build password_plugin"
-& go build -tags "$buildTags" -ldflags "-s -w" -o (Join-Path $packageDir "password_plugin.exe") cmd\plugins\password_plugin\main.go
+& go build -tags "$buildTags" -ldflags "$pluginLdflags" -o (Join-Path $packageDir "password_plugin.exe") cmd\plugins\password_plugin\main.go
 if ($LASTEXITCODE -ne 0) { throw "password_plugin build failed" }
+
+if ($oracle -eq "1") {
+    $gccCmd = Get-Command gcc -ErrorAction SilentlyContinue
+    if ($gccCmd) {
+        $mingwBin = Split-Path -Parent $gccCmd.Source
+        foreach ($dll in @("libwinpthread-1.dll", "libgcc_s_seh-1.dll")) {
+            $src = Join-Path $mingwBin $dll
+            if (Test-Path $src) {
+                Copy-Item -Force $src (Join-Path $packageDir $dll)
+                Write-Host "[INFO] Bundled $dll"
+            }
+        }
+    }
+}
 
 function Copy-Tree([string]$src, [string]$dest) {
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
