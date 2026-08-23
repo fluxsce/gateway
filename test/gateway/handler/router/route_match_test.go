@@ -48,6 +48,20 @@ func TestRouteMatching(t *testing.T) {
 			requestPath: "/api/orders",
 			expected:    false,
 		},
+		{
+			name:        "Prefix match - reject sibling prefix",
+			routePath:   "/app",
+			matchType:   router.MatchTypePrefix,
+			requestPath: "/application",
+			expected:    false,
+		},
+		{
+			name:        "Prefix match - reject file with same stem",
+			routePath:   "/app",
+			matchType:   router.MatchTypePrefix,
+			requestPath: "/app.js",
+			expected:    false,
+		},
 
 		// 正则匹配测试
 		{

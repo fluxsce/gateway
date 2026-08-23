@@ -61,8 +61,12 @@ func rootTemplateBaseDir(root string) string {
 }
 
 // expandRootToken 用剥前缀后、重写前的第一段路径匹配允许名单，替换 {v1,v2}。
-// 第一段等于名单项，或以名单项为前缀时命中；多项时取最长，避免 v1 抢先匹配 v10。
+// 默认第一段等于名单项或以名单项为前缀时命中；exact 为 true 时只接受整段相等。
 func expandRootToken(root, lookupPath string) (string, error) {
+	return expandRootTokenMatch(root, lookupPath, false)
+}
+
+func expandRootTokenMatch(root, lookupPath string, exact bool) (string, error) {
 	if err := validateRootTemplate(root); err != nil {
 		return "", err
 	}
@@ -71,7 +75,7 @@ func expandRootToken(root, lookupPath string) (string, error) {
 		return "", errRootTemplate
 	}
 	first := firstLookupSegment(lookupPath)
-	token := matchRootToken(first, tokens)
+	token := matchRootToken(first, tokens, exact)
 	if token == "" {
 		return "", fmt.Errorf("%w: %q", errRootToken, first)
 	}
@@ -116,12 +120,16 @@ func parseRootTokens(root string) []string {
 }
 
 // matchRootToken 用第一段路径匹配允许名单，优先更长的项。
-func matchRootToken(segment string, tokens []string) string {
+// exact 为 false 时允许 d10app 命中 d10；为 true 时必须整段相等。
+func matchRootToken(segment string, tokens []string, exact bool) string {
 	if segment == "" {
 		return ""
 	}
 	for _, token := range tokens {
-		if segment == token || strings.HasPrefix(segment, token) {
+		if segment == token {
+			return token
+		}
+		if !exact && strings.HasPrefix(segment, token) {
 			return token
 		}
 	}
@@ -137,7 +145,7 @@ func (s *Snapshot) bindRoot(lookupPath string) (*Snapshot, error) {
 	if !s.RootHasPlaceholders {
 		return s, nil
 	}
-	expanded, err := expandRootToken(s.RootDirectory, lookupPath)
+	expanded, err := expandRootTokenMatch(s.RootDirectory, lookupPath, s.RootTokenExact)
 	if err != nil {
 		return nil, err
 	}

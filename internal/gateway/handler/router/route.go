@@ -553,20 +553,39 @@ func (r *Route) isPathMatched(requestPath string) bool {
 	}
 }
 
-// matchExact 精确匹配
+// matchExact 精确匹配；路径含 * 时按通配符处理，兼容 /api/users/** 这类配置。
 func (r *Route) matchExact(requestPath, routePath string) bool {
-	return requestPath == routePath
-}
-
-// matchPrefix 前缀匹配
-func (r *Route) matchPrefix(requestPath, routePath string) bool {
-	// 处理通配符匹配
 	if strings.Contains(routePath, "*") {
 		return r.matchWithWildcard(requestPath, routePath)
 	}
+	return requestPath == routePath
+}
 
-	// 前缀匹配
-	return strings.HasPrefix(requestPath, routePath)
+// matchPrefix 前缀匹配，按路径段边界比较，避免 /app 误伤 /application 与 /app.js。
+func (r *Route) matchPrefix(requestPath, routePath string) bool {
+	if strings.Contains(routePath, "*") {
+		return r.matchWithWildcard(requestPath, routePath)
+	}
+	return matchPathPrefix(requestPath, routePath)
+}
+
+// matchPathPrefix 判断请求路径是否以路由路径的完整段为前缀。
+// /app 匹配 /app、/app/、/app/index.html，不匹配 /application、/app.js。
+func matchPathPrefix(requestPath, routePath string) bool {
+	if requestPath == "" {
+		requestPath = "/"
+	}
+	if !strings.HasPrefix(routePath, "/") {
+		routePath = "/" + routePath
+	}
+	base := strings.TrimRight(routePath, "/")
+	if base == "" {
+		return true
+	}
+	if requestPath == base {
+		return true
+	}
+	return strings.HasPrefix(requestPath, base+"/")
 }
 
 // matchRegex 正则匹配
@@ -592,15 +611,16 @@ func (r *Route) matchWithWildcard(requestPath, routePath string) bool {
 	// 处理结尾的多个 * 号，将连续的 * 替换为单个 *
 	routePath = r.normalizeWildcards(routePath)
 
-	// 如果路径以 * 结尾，进行前缀匹配
+	// /app/* 按段匹配子路径；/app* 仍按字面前缀，保留显式通配语义。
 	if strings.HasSuffix(routePath, "*") {
-		prefix := strings.TrimSuffix(routePath, "*")
-		// 去掉可能的尾部斜杠
-		prefix = strings.TrimSuffix(prefix, "/")
-		if prefix == "" {
-			return true // 只有 * 或 /* 的情况，匹配所有
+		raw := strings.TrimSuffix(routePath, "*")
+		if raw == "" || raw == "/" {
+			return true
 		}
-		return strings.HasPrefix(requestPath, prefix)
+		if strings.HasSuffix(raw, "/") {
+			return matchPathPrefix(requestPath, strings.TrimSuffix(raw, "/"))
+		}
+		return strings.HasPrefix(requestPath, raw)
 	}
 
 	// 处理中间包含通配符的情况

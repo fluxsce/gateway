@@ -9,7 +9,7 @@ import (
 const staticProxyType = "static"
 
 // shouldSkipStaticAccessLog 判断是否跳过静态托管访问日志。
-// 成功命中（file/index/spa/redirect，状态码 < 400）不落库，避免一个页面带出几十条 js/css 日志。
+// 成功命中（file/index/spa/redirect/options，状态码 < 400，含 304/206）不落库，避免一个页面带出几十条 js/css 日志。
 // 4xx/5xx 仍写入，便于排查缺文件、越权路径和磁盘异常。
 func shouldSkipStaticAccessLog(gatewayCtx *core.Context) bool {
 	if gatewayCtx == nil {

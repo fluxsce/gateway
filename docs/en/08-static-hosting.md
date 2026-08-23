@@ -32,7 +32,7 @@ Good fit: a Vue / React `dist`, a campaign page, a docs site. Poor fit: putting 
 | Which file on disk | “Map by route path” and “lookup path rewrite” on this page | No — lookup only |
 | Path sent to an upstream | Strip prefix / rewrite on the route **proxy** tab | Proxy only; static hosting ignores it |
 
-Lookup is a security boundary: lock the site root, then resolve a relative path inside it, then apply lookup rewrite last. After filters: request path → optional prefix strip on this page → lock the site directory (may include `{v1,v2}`) → optional lookup rewrite (relative path only, cannot change the root) → file / index / SPA.
+Lookup is a security boundary: lock the site root, then resolve a relative path inside it, then apply lookup rewrite last. After filters: request path → optional prefix strip → lock the site directory (may include `{v1,v2}`) → optional lookup rewrite (cannot change the root) → file / index; if missing, the same relative path on fallback roots → SPA.
 
 ---
 
@@ -173,31 +173,33 @@ Write lookup rewrite only when URL and directory layout disagree: rule 10 `exact
 
 | nginx | Why | What to do |
 |-------|-----|------------|
-| `try_files /sec/$app$path /wms/$app$path` | One route, one root | Split `/sec` and `/wms` prefixes, or one fixed root per `*Vue` app |
+| `try_files /sec/$app$path /wms/$app$path` | Route captures must not build disk paths | Put the first root in the site directory and the second in fallback roots (same relative path), or split into two prefix routes |
 | `root .../sce-vdatahub-$project-web` | Route regex `$1` must not be interpolated into a disk path | Use allow-list `{d10,d12,...}` |
-| `add_header X-*` | No arbitrary response headers | CORS and cache seconds only |
+| `add_header X-*` | No arbitrary response headers | Use the security-header allow-list; CORS stays on the route |
 
 ---
 
 ## Form fields
 
-| Field | Meaning |
-|-------|---------|
-| Local root | Directory the gateway process can read. Several dirs that differ by one name: `.../app-{v1,v2}/dist` (setup 4). |
-| Strip route prefix | Turn on for subpath hosting. Regex routes strip the literal prefix (`^/datahub01webVue/(d10\|d12)` → `/datahub01webVue`). Only this page’s switch; unrelated to strip on the proxy tab. |
-| SPA fallback | If the path has no file suffix (e.g. `/user/12`) and no file on disk, serve `index.html`. Missing `.js` / `.css` stay 404 so assets are not turned into HTML. |
-| Index file | Tried in order for directory URLs (`/` or `/docs/`). Comma-separated. Default `index.html`. |
-| Lookup path rewrite | Optional. After the root is locked; cannot change root. See setup 3. |
-| Cache seconds | How long browsers may cache ordinary files. HTML, home, index, and SPA fallback **do not** use this. Content-hashed js/css (`app.a1b2c3d4.js`) cache for a year as `immutable`. `0` disables cache for ordinary files too. |
-| Extension allow-list | Empty = no extra limit. Example `.html,.js,.css`. |
-| Max file size | Over this → 413. `0` = unlimited. |
-| Follow symlinks | Off by default. Target must still stay inside the root. |
-| Precompressed | On by default. Serves sibling `.br` / `.gz` when the client accepts them. |
-| Custom 404 / 403 | Pages under the root, e.g. `/404.html`. Status stays 404/403, not 200. Empty → JSON. |
+The form is split into eight groups so lookup, cache, compression, and headers stay separate.
 
-Lookup rewrite is maintained as lines (prefix / exact / regex) and only affects file lookup. Strip / rewrite on the route **proxy** tab appear only when a service is bound; pure static routes hide them so you do not edit reverse-proxy paths by mistake.
+**1. Lookup directories** — site root first; optional fallback roots (same relative path, max 3, no `{v1,v2}`).
 
-A directory URL without a trailing `/` is 301’d to the slash form so relative asset URLs do not break.
+**2. Path mapping** — strip prefix, index files, SPA fallback, optional directory slash redirect, exact placeholder match.
+
+**3. Rewrite** — lookup rewrite after the root is locked; cannot change root.
+
+**4. Browser cache** — default max-age for ordinary files; optional per-extension overrides (HTML stays `no-cache`).
+
+**5. Compression** — serve existing `.br`/`.gz` (on by default); optional on-the-fly gzip for text when no precompressed file exists (off by default; skipped for Range and tiny/huge files).
+
+**6. Page security headers** — allow-listed headers only (`X-Frame-Options`, CSP, `Referrer-Policy`, …). Text responses get `charset=utf-8`. CORS stays on the route.
+
+**7. Error pages** — `/404.html`, `/403.html` under the root; status stays 404/403.
+
+**8. Access limits** — extension allow-list, max file size, follow-symlinks.
+
+A directory URL without a trailing `/` is served as an index unless “redirect directory slash” is on. Extension URLs that resolve to a directory stay 404.
 
 Access logs and alerts treat static traffic separately so one page does not dump dozens of js/css rows or flood 404 alerts:
 

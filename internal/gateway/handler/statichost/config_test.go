@@ -95,3 +95,39 @@ func TestIsHashedAsset(t *testing.T) {
 		t.Fatal("版本号文件名不应当成内容哈希")
 	}
 }
+
+func TestParseSecurityHeadersText(t *testing.T) {
+	items, err := ParseSecurityHeadersText("X-Frame-Options: SAMEORIGIN\nReferrer-Policy: no-referrer")
+	if err != nil || len(items) != 2 {
+		t.Fatalf("合法安全头应通过: %v %+v", err, items)
+	}
+	if _, err := ParseSecurityHeadersText("Location: /evil"); err == nil {
+		t.Fatal("非白名单头应拒绝")
+	}
+	if _, err := ParseSecurityHeadersText("Cache-Control: no-store"); err == nil {
+		t.Fatal("缓存头应拒绝")
+	}
+}
+
+func TestParseCacheControlByExtText(t *testing.T) {
+	got, err := ParseCacheControlByExtText(".js=86400\n.css = 3600")
+	if err != nil || got[".js"] != 86400 || got[".css"] != 3600 {
+		t.Fatalf("按扩展名缓存解析失败: %v %+v", err, got)
+	}
+	if _, err := ParseCacheControlByExtText(".js=999999999"); err == nil {
+		t.Fatal("超大秒数应拒绝")
+	}
+}
+
+func TestParseFallbackRootsText(t *testing.T) {
+	got, err := ParseFallbackRootsText("/var/www/a\n/var/www/b")
+	if err != nil || len(got) != 2 {
+		t.Fatalf("备用目录解析失败: %v %+v", err, got)
+	}
+	if _, err := ParseFallbackRootsText("/a\n/b\n/c\n/d"); err == nil {
+		t.Fatal("超过 3 个备用目录应拒绝")
+	}
+	if _, err := ParseFallbackRootsText("/var/www/app-{v1,v2}"); err == nil {
+		t.Fatal("备用目录不得使用占位符")
+	}
+}

@@ -353,21 +353,27 @@ type LogConfigRecord struct {
 
 // StaticHostConfigRecord 本机目录托管配置数据库记录。
 type StaticHostConfigRecord struct {
-	TenantId           string  `db:"tenantId"`
-	StaticHostConfigId string  `db:"staticHostConfigId"`
-	RouteConfigId      string  `db:"routeConfigId"`
-	ConfigName         string  `db:"configName"`
-	RootDirectory      string  `db:"rootDirectory"`
-	StripRoutePrefix   string  `db:"stripRoutePrefix"`
-	IndexFiles         *string `db:"indexFiles"`
-	RewriteRules       *string `db:"rewriteRules"`
-	SpaFallback        string  `db:"spaFallback"`
-	CacheControlMaxAge int     `db:"cacheControlMaxAge"`
-	AllowedExtensions  *string `db:"allowedExtensions"`
-	MaxFileSizeBytes   int64   `db:"maxFileSizeBytes"`
-	FollowSymlinks     string  `db:"followSymlinks"`
-	EnablePrecompress  string  `db:"enablePrecompress"`
-	ErrorPage404       *string `db:"errorPage404"`
-	ErrorPage403       *string `db:"errorPage403"`
-	ConfigPriority     int     `db:"configPriority"`
+	TenantId               string  `db:"tenantId"`
+	StaticHostConfigId     string  `db:"staticHostConfigId"`
+	RouteConfigId          string  `db:"routeConfigId"`
+	ConfigName             string  `db:"configName"`
+	RootDirectory          string  `db:"rootDirectory"`
+	StripRoutePrefix       string  `db:"stripRoutePrefix"`
+	IndexFiles             *string `db:"indexFiles"`
+	RewriteRules           *string `db:"rewriteRules"`
+	SpaFallback            string  `db:"spaFallback"`
+	CacheControlMaxAge     int     `db:"cacheControlMaxAge"`
+	AllowedExtensions      *string `db:"allowedExtensions"`
+	MaxFileSizeBytes       int64   `db:"maxFileSizeBytes"`
+	FollowSymlinks         string  `db:"followSymlinks"`
+	EnablePrecompress      string  `db:"enablePrecompress"`
+	RedirectDirectorySlash string  `db:"redirectDirectorySlash"`
+	RootTokenExact         string  `db:"rootTokenExact"`
+	FallbackRoots          *string `db:"fallbackRoots"`
+	CacheControlByExt      *string `db:"cacheControlByExt"`
+	EnableGzip             string  `db:"enableGzip"`
+	SecurityHeaders        *string `db:"securityHeaders"`
+	ErrorPage404           *string `db:"errorPage404"`
+	ErrorPage403           *string `db:"errorPage403"`
+	ConfigPriority         int     `db:"configPriority"`
 }

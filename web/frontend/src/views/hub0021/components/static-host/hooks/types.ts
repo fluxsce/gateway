@@ -17,6 +17,12 @@ export interface StaticHostConfig {
   maxFileSizeBytes?: number
   followSymlinks?: 'Y' | 'N'
   enablePrecompress?: 'Y' | 'N'
+  redirectDirectorySlash?: 'Y' | 'N'
+  rootTokenExact?: 'Y' | 'N'
+  fallbackRoots?: string
+  cacheControlByExt?: string
+  enableGzip?: 'Y' | 'N'
+  securityHeaders?: string
   errorPage404?: string
   errorPage403?: string
   noteText?: string

@@ -14,7 +14,7 @@ const (
 	ContextKeyGatewayNodeIP         = "gateway_node_ip"          // 网关节点IP
 	ContextKeyRouteConfigID         = "route_config_id"          // 路由配置ID
 	ContextKeyRouteConfigName       = "route_config_name"        // 路由配置名称
-	ContextKeyRouteStripPathPrefix  = "route_strip_path_prefix"  // 反向代理是否移除已匹配路由前缀；静态托管不读
+	ContextKeyRouteStripPathPrefix  = "route_strip_path_prefix"  // 反向代理是否移除已匹配路由前缀；静态托管为 true 时也会剥前缀
 	ContextKeyRouteRewritePath      = "route_rewrite_path"       // 反向代理整段替换路径；静态托管不读
 	ContextKeyRouteEnableWebSocket  = "route_enable_websocket"   // 路由 WebSocket 标记（N 仍兼容允许升级）
 	ContextKeyRouteTimeout          = "route_timeout"            // 路由请求总超时(>0才覆盖代理)
@@ -31,7 +31,7 @@ const (
 	ContextKeyLoadBalancerDecision  = "load_balancer_decision"   // 负载均衡决策
 	ContextKeyStaticHostConfig      = "static_host_config"       // 路由级本机目录托管只读快照
 	ContextKeyStaticHandled         = "static_handled"           // 静态托管已写出响应，代理必须跳过
-	ContextKeyStaticResult          = "static_result"            // 静态托管结果：file/index/spa/redirect/404/forbidden/too_large/method
+	ContextKeyStaticResult          = "static_result"            // 静态托管结果：file/index/spa/redirect/options/error/404/forbidden/too_large/method
 
 	// 多服务转发相关
 	ContextKeyMultiServiceConfig    = "multi_service_config"    // 多服务配置

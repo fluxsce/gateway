@@ -25,8 +25,13 @@ type StaticHostConfig struct {
 	RootDirectory string `json:"root_directory" yaml:"root_directory" mapstructure:"root_directory"`
 	// StripRoutePrefix 为 true 时，按路径段边界去掉已匹配的路由前缀再拼文件。
 	// 例如路由 /app 命中 /app/index.html 时，实际读取 RootDirectory/index.html。
-	// 只认本字段，不读取路由 stripPathPrefix。
+	// 路由 stripPathPrefix 为 true 时也会剥前缀，避免两套开关不一致。
 	StripRoutePrefix bool `json:"strip_route_prefix" yaml:"strip_route_prefix" mapstructure:"strip_route_prefix"`
+	// RedirectDirectorySlash 为 true 时，目录请求缺尾斜杠则 301 到 path/。默认关闭。
+	// 带扩展名的 URL 即使落到目录也不补斜杠。
+	RedirectDirectorySlash bool `json:"redirect_directory_slash" yaml:"redirect_directory_slash" mapstructure:"redirect_directory_slash"`
+	// RootTokenExact 为 true 时，占位符 {d10,d12} 只精确匹配第一段；默认仍允许 d10app 命中 d10。
+	RootTokenExact bool `json:"root_token_exact" yaml:"root_token_exact" mapstructure:"root_token_exact"`
 	// IndexFiles 是目录请求依次尝试的索引文件，默认 ["index.html"]。
 	IndexFiles []string `json:"index_files,omitempty" yaml:"index_files,omitempty" mapstructure:"index_files,omitempty"`
 	// SPAFallback 为 true 时，无扩展名的缺失路径回退到第一个索引文件，供前端 history 路由使用。
@@ -47,6 +52,17 @@ type StaticHostConfig struct {
 	FollowSymlinks bool `json:"follow_symlinks" yaml:"follow_symlinks" mapstructure:"follow_symlinks"`
 	// EnablePrecompress 为 true 时，若存在 .br/.gz 且客户端接受，则直接出预压缩文件。
 	EnablePrecompress bool `json:"enable_precompress" yaml:"enable_precompress" mapstructure:"enable_precompress"`
+	// EnableGzip 为 true 时，没有预压缩文件的文本再现场压 gzip。默认关。
+	// Range 请求与过大/过小文件不压。
+	EnableGzip bool `json:"enable_gzip" yaml:"enable_gzip" mapstructure:"enable_gzip"`
+	// CacheControlByExt 按扩展名覆盖普通文件缓存秒数，例如 ".js=86400"。
+	// HTML、索引、SPA 回退仍强制 no-cache。
+	CacheControlByExt string `json:"cache_control_by_ext,omitempty" yaml:"cache_control_by_ext,omitempty" mapstructure:"cache_control_by_ext,omitempty"`
+	// SecurityHeaders 是白名单页面安全头，一行一个「名: 值」。
+	SecurityHeaders string `json:"security_headers,omitempty" yaml:"security_headers,omitempty" mapstructure:"security_headers,omitempty"`
+	// FallbackRoots 是备用查找目录，一行一个，最多 3 个。
+	// 本根找不到文件时，用同一相对路径按顺序再找。不支持占位符。
+	FallbackRoots string `json:"fallback_roots,omitempty" yaml:"fallback_roots,omitempty" mapstructure:"fallback_roots,omitempty"`
 	// ErrorPage404 是根目录内的自定义 404 页面路径，空表示返回 JSON 错误。
 	ErrorPage404 string `json:"error_page_404,omitempty" yaml:"error_page_404,omitempty" mapstructure:"error_page_404,omitempty"`
 	// ErrorPage403 是根目录内的自定义 403 页面路径，空表示返回 JSON 错误。
@@ -65,18 +81,24 @@ type Snapshot struct {
 	// RootHasPlaceholders 为 true 时 RootDirectory 含 {v1,v2} 允许名单，请求里再展开。
 	RootHasPlaceholders bool
 	// RootBaseAbs 是占位符之前的固定父目录，展开后的根必须落在该目录内。
-	RootBaseAbs        string
-	StripRoutePrefix   bool
-	IndexFiles         []string
-	SPAFallback        bool
-	CacheControlMaxAge int
-	Rules              []CompiledRewriteRule
-	AllowedExtensions  map[string]struct{}
-	MaxFileSizeBytes   int64
-	FollowSymlinks     bool
-	EnablePrecompress  bool
-	ErrorPage404       string
-	ErrorPage403       string
+	RootBaseAbs            string
+	StripRoutePrefix       bool
+	RedirectDirectorySlash bool
+	RootTokenExact         bool
+	IndexFiles             []string
+	SPAFallback            bool
+	CacheControlMaxAge     int
+	Rules                  []CompiledRewriteRule
+	AllowedExtensions      map[string]struct{}
+	MaxFileSizeBytes       int64
+	FollowSymlinks         bool
+	EnablePrecompress      bool
+	EnableGzip             bool
+	CacheControlByExt      map[string]int
+	SecurityHeaders        []securityHeader
+	FallbackRoots          []compiledRoot
+	ErrorPage404           string
+	ErrorPage403           string
 }
 
 // DefaultStaticHostConfig 返回可用的默认静态托管配置。
@@ -107,6 +129,9 @@ func (c *StaticHostConfig) Normalize() {
 	}
 	c.RewriteRules = normalizeRewriteRules(c.RewriteRules)
 	c.AllowedExtensions = normalizeAllowedExtensions(c.AllowedExtensions)
+	c.CacheControlByExt = strings.TrimSpace(c.CacheControlByExt)
+	c.SecurityHeaders = strings.TrimSpace(c.SecurityHeaders)
+	c.FallbackRoots = strings.TrimSpace(c.FallbackRoots)
 	c.ErrorPage404 = normalizeErrorPage(c.ErrorPage404)
 	c.ErrorPage403 = normalizeErrorPage(c.ErrorPage403)
 }
@@ -155,26 +180,48 @@ func Compile(cfg *StaticHostConfig) (*Snapshot, error) {
 	}
 
 	indexFiles := append([]string(nil), copied.IndexFiles...)
+	cacheByExt, err := ParseCacheControlByExtText(copied.CacheControlByExt)
+	if err != nil {
+		return nil, err
+	}
+	securityHeaders, err := ParseSecurityHeadersText(copied.SecurityHeaders)
+	if err != nil {
+		return nil, err
+	}
+	fallbackRaw, err := ParseFallbackRootsText(copied.FallbackRoots)
+	if err != nil {
+		return nil, err
+	}
+	fallbackRoots, err := compileFallbackRoots(fallbackRaw, rootAbs)
+	if err != nil {
+		return nil, err
+	}
 	return &Snapshot{
-		ID:                  copied.ID,
-		Name:                copied.Name,
-		Enabled:             copied.Enabled,
-		RootDirectory:       root,
-		RootAbs:             rootAbs,
-		RootReal:            rootReal,
-		RootHasPlaceholders: templated,
-		RootBaseAbs:         rootAbs,
-		StripRoutePrefix:    copied.StripRoutePrefix,
-		IndexFiles:          indexFiles,
-		SPAFallback:         copied.SPAFallback,
-		CacheControlMaxAge:  copied.CacheControlMaxAge,
-		Rules:               rules,
-		AllowedExtensions:   extensionSet(copied.AllowedExtensions),
-		MaxFileSizeBytes:    copied.MaxFileSizeBytes,
-		FollowSymlinks:      copied.FollowSymlinks,
-		EnablePrecompress:   copied.EnablePrecompress,
-		ErrorPage404:        copied.ErrorPage404,
-		ErrorPage403:        copied.ErrorPage403,
+		ID:                     copied.ID,
+		Name:                   copied.Name,
+		Enabled:                copied.Enabled,
+		RootDirectory:          root,
+		RootAbs:                rootAbs,
+		RootReal:               rootReal,
+		RootHasPlaceholders:    templated,
+		RootBaseAbs:            rootAbs,
+		StripRoutePrefix:       copied.StripRoutePrefix,
+		RedirectDirectorySlash: copied.RedirectDirectorySlash,
+		RootTokenExact:         copied.RootTokenExact,
+		IndexFiles:             indexFiles,
+		SPAFallback:            copied.SPAFallback,
+		CacheControlMaxAge:     copied.CacheControlMaxAge,
+		Rules:                  rules,
+		AllowedExtensions:      extensionSet(copied.AllowedExtensions),
+		MaxFileSizeBytes:       copied.MaxFileSizeBytes,
+		FollowSymlinks:         copied.FollowSymlinks,
+		EnablePrecompress:      copied.EnablePrecompress,
+		EnableGzip:             copied.EnableGzip,
+		CacheControlByExt:      cacheByExt,
+		SecurityHeaders:        securityHeaders,
+		FallbackRoots:          fallbackRoots,
+		ErrorPage404:           copied.ErrorPage404,
+		ErrorPage403:           copied.ErrorPage403,
 	}, nil
 }
 
@@ -194,10 +241,8 @@ func ValidateForSave(rootDirectory, indexFiles, rewriteRules string) error {
 		}
 		root = rootTemplateBaseDir(root)
 	}
-	if info, err := os.Stat(root); err == nil && !info.IsDir() {
-		return errors.New("root directory is not a directory")
-	} else if err != nil && !errors.Is(err, os.ErrNotExist) && !os.IsNotExist(err) {
-		return fmt.Errorf("stat root directory: %w", err)
+	if err := validateRootExistsOrMissing(root); err != nil {
+		return err
 	}
 
 	if err := validateIndexFilesText(indexFiles); err != nil {
@@ -246,6 +291,24 @@ func normalizeErrorPage(raw string) string {
 		return ""
 	}
 	return cleaned
+}
+
+func validateRootExistsOrMissing(root string) error {
+	root = strings.TrimSpace(root)
+	if root == "" {
+		return errors.New("root directory is required")
+	}
+	info, err := os.Stat(root)
+	if err == nil {
+		if !info.IsDir() {
+			return errors.New("root directory is not a directory")
+		}
+		return nil
+	}
+	if errors.Is(err, os.ErrNotExist) || os.IsNotExist(err) {
+		return nil
+	}
+	return fmt.Errorf("stat root directory: %w", err)
 }
 
 func resolveRootDirectories(root string) (rootAbs, rootReal string, err error) {

@@ -73,6 +73,18 @@ func (c *StaticHostConfigController) SaveStaticHostConfig(ctx *gin.Context) {
 		response.ErrorJSON(ctx, "静态托管配置无效: "+err.Error(), constants.ED00007)
 		return
 	}
+	if err := statichost.ValidateFallbackRoots(req.FallbackRoots); err != nil {
+		response.ErrorJSON(ctx, "备用目录无效: "+err.Error(), constants.ED00007)
+		return
+	}
+	if err := statichost.ValidateCacheControlByExt(req.CacheControlByExt); err != nil {
+		response.ErrorJSON(ctx, "按类型缓存无效: "+err.Error(), constants.ED00007)
+		return
+	}
+	if err := statichost.ValidateSecurityHeaders(req.SecurityHeaders); err != nil {
+		response.ErrorJSON(ctx, "页面安全头无效: "+err.Error(), constants.ED00007)
+		return
+	}
 	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
 	req.TenantId = tenantId

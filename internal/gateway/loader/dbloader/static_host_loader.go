@@ -34,7 +34,8 @@ func (loader *StaticHostConfigLoader) LoadRouteStaticHostConfig(ctx context.Cont
 		SELECT tenantId, staticHostConfigId, routeConfigId, configName, rootDirectory,
 		       stripRoutePrefix, indexFiles, rewriteRules, spaFallback, cacheControlMaxAge,
 		       allowedExtensions, maxFileSizeBytes, followSymlinks, enablePrecompress,
-		       errorPage404, errorPage403, configPriority
+		       redirectDirectorySlash, rootTokenExact, fallbackRoots, cacheControlByExt,
+		       enableGzip, securityHeaders, errorPage404, errorPage403, configPriority
 		FROM HUB_GW_STATIC_HOST_CONFIG
 		WHERE tenantId = ? AND routeConfigId = ? AND activeFlag = 'Y'
 		ORDER BY configPriority ASC
@@ -65,21 +66,27 @@ func (loader *StaticHostConfigLoader) LoadRouteStaticHostConfig(ctx context.Cont
 // mapStaticHostRecord 把表记录映射为运行时静态托管配置。
 func mapStaticHostRecord(record StaticHostConfigRecord) *statichost.StaticHostConfig {
 	cfg := &statichost.StaticHostConfig{
-		Enabled:            true,
-		ID:                 record.StaticHostConfigId,
-		Name:               record.ConfigName,
-		RootDirectory:      record.RootDirectory,
-		StripRoutePrefix:   record.StripRoutePrefix == "Y",
-		IndexFiles:         parseIndexFiles(record.IndexFiles),
-		RewriteRules:       parseRewriteRules(record.RewriteRules),
-		SPAFallback:        record.SpaFallback == "Y",
-		CacheControlMaxAge: record.CacheControlMaxAge,
-		AllowedExtensions:  parseAllowedExtensions(record.AllowedExtensions),
-		MaxFileSizeBytes:   record.MaxFileSizeBytes,
-		FollowSymlinks:     record.FollowSymlinks == "Y",
-		EnablePrecompress:  record.EnablePrecompress != "N",
-		ErrorPage404:       stringValue(record.ErrorPage404),
-		ErrorPage403:       stringValue(record.ErrorPage403),
+		Enabled:                true,
+		ID:                     record.StaticHostConfigId,
+		Name:                   record.ConfigName,
+		RootDirectory:          record.RootDirectory,
+		StripRoutePrefix:       record.StripRoutePrefix == "Y",
+		IndexFiles:             parseIndexFiles(record.IndexFiles),
+		RewriteRules:           parseRewriteRules(record.RewriteRules),
+		SPAFallback:            record.SpaFallback == "Y",
+		CacheControlMaxAge:     record.CacheControlMaxAge,
+		AllowedExtensions:      parseAllowedExtensions(record.AllowedExtensions),
+		MaxFileSizeBytes:       record.MaxFileSizeBytes,
+		FollowSymlinks:         record.FollowSymlinks == "Y",
+		EnablePrecompress:      record.EnablePrecompress != "N",
+		RedirectDirectorySlash: record.RedirectDirectorySlash == "Y",
+		RootTokenExact:         record.RootTokenExact == "Y",
+		FallbackRoots:          stringValue(record.FallbackRoots),
+		CacheControlByExt:      stringValue(record.CacheControlByExt),
+		EnableGzip:             record.EnableGzip == "Y",
+		SecurityHeaders:        stringValue(record.SecurityHeaders),
+		ErrorPage404:           stringValue(record.ErrorPage404),
+		ErrorPage403:           stringValue(record.ErrorPage403),
 	}
 	return cfg
 }

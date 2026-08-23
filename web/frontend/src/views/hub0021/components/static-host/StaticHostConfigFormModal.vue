@@ -69,6 +69,12 @@ const defaultConfig = (routeId: string): Partial<StaticHostConfig> => ({
   maxFileSizeBytes: 0,
   followSymlinks: 'N',
   enablePrecompress: 'Y',
+  redirectDirectorySlash: 'N',
+  rootTokenExact: 'N',
+  fallbackRoots: '',
+  cacheControlByExt: '',
+  enableGzip: 'N',
+  securityHeaders: '',
   errorPage404: '',
   errorPage403: '',
 })

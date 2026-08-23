@@ -6,8 +6,8 @@
 
 ## 触发
 
-- 推送 tag：`v*`（例如 `v3.2.8`），版本号去掉 `v`
-- 手动：Actions → **Release packages** → `version`（如 `3.2.8`），可选是否推镜像
+- 推送 tag：`v*`（例如 `v3.2.9`），版本号去掉 `v`
+- 手动：Actions → **Release packages** → `version`（如 `3.2.9`），可选是否推镜像
 
 ## 产物
 
@@ -51,13 +51,13 @@
 Registry：`ghcr.io`  
 镜像：`ghcr.io/<GitHub 用户或组织>/<仓库名>`，本仓库为 `ghcr.io/fluxsce/gateway`
 
-CI 用 `GITHUB_TOKEN` 推送（以 `3.2.8` 为例）：
+CI 用 `GITHUB_TOKEN` 推送（以 `3.2.9` 为例）：
 
 ```text
-ghcr.io/fluxsce/gateway:3.2.8
-ghcr.io/fluxsce/gateway:3.2.8-amd64
-ghcr.io/fluxsce/gateway:3.2.8-arm64
-ghcr.io/fluxsce/gateway:3.2.8-oracle
+ghcr.io/fluxsce/gateway:3.2.9
+ghcr.io/fluxsce/gateway:3.2.9-amd64
+ghcr.io/fluxsce/gateway:3.2.9-arm64
+ghcr.io/fluxsce/gateway:3.2.9-oracle
 # 仅 git tag 发布时还有：
 ghcr.io/fluxsce/gateway:latest
 ghcr.io/fluxsce/gateway:latest-amd64
@@ -71,14 +71,14 @@ ghcr.io/fluxsce/gateway:latest-arm64
 echo "$GHCR_TOKEN" | docker login ghcr.io -u USERNAME --password-stdin
 
 # 按本机架构自动选层
-docker pull ghcr.io/fluxsce/gateway:3.2.8
+docker pull ghcr.io/fluxsce/gateway:3.2.9
 
 # 指定架构
-docker pull ghcr.io/fluxsce/gateway:3.2.8-arm64
-docker pull ghcr.io/fluxsce/gateway:3.2.8-amd64
+docker pull ghcr.io/fluxsce/gateway:3.2.9-arm64
+docker pull ghcr.io/fluxsce/gateway:3.2.9-amd64
 
 # Oracle（仅 amd64）
-docker pull ghcr.io/fluxsce/gateway:3.2.8-oracle
+docker pull ghcr.io/fluxsce/gateway:3.2.9-oracle
 ```
 
 #### 阿里云推送 / 拉取
@@ -87,13 +87,13 @@ Registry：`crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com`
 命名空间：`datahub-images`  
 镜像：`gateway`
 
-CI 在 Secrets 配好后推送到（以 `3.2.8` 为例）：
+CI 在 Secrets 配好后推送到（以 `3.2.9` 为例）：
 
 ```text
-crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.8
-crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.8-amd64
-crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.8-arm64
-crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.8-oracle
+crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.9
+crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.9-amd64
+crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.9-arm64
+crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.9-oracle
 # 仅 git tag 发布时还有：
 crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:latest
 crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:latest-amd64
@@ -106,14 +106,14 @@ crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gatewa
 docker login crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com
 
 # 按本机架构自动选层
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.8
+docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.9
 
 # 指定架构
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.8-arm64
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.8-amd64
+docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.9-arm64
+docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.9-amd64
 
 # Oracle（仅 amd64）
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.8-oracle
+docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.9-oracle
 ```
 
 Linux 安装包在 `manylinux2014`（glibc 2.17）里用 CGO 编译，避免 Ubuntu 24.04 runner 链到新 glibc 后 CentOS 7 / RHEL 7 无法启动。归档为 `root:root`，二进制与 `*.sh` 为 `0755`。Go 1.24 要求 Linux kernel >= 3.17；CentOS 7 默认 3.10，若仅 glibc 通过后仍异常，需升级内核或改用 Docker 镜像。

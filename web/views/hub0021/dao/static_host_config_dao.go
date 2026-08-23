@@ -92,6 +92,8 @@ func (dao *StaticHostConfigDAO) UpsertByRouteConfigId(ctx context.Context, confi
 			configName = ?, rootDirectory = ?, stripRoutePrefix = ?, indexFiles = ?,
 			rewriteRules = ?, spaFallback = ?, cacheControlMaxAge = ?, allowedExtensions = ?,
 			maxFileSizeBytes = ?, followSymlinks = ?, enablePrecompress = ?,
+			redirectDirectorySlash = ?, rootTokenExact = ?,
+			fallbackRoots = ?, cacheControlByExt = ?, enableGzip = ?, securityHeaders = ?,
 			errorPage404 = ?, errorPage403 = ?, configPriority = ?, noteText = ?,
 			editTime = ?, editWho = ?, currentVersion = ?, oprSeqFlag = ?, activeFlag = ?
 		WHERE tenantId = ? AND staticHostConfigId = ? AND currentVersion = ?
@@ -100,6 +102,8 @@ func (dao *StaticHostConfigDAO) UpsertByRouteConfigId(ctx context.Context, confi
 		config.ConfigName, config.RootDirectory, config.StripRoutePrefix, config.IndexFiles,
 		config.RewriteRules, config.SpaFallback, config.CacheControlMaxAge, config.AllowedExtensions,
 		config.MaxFileSizeBytes, config.FollowSymlinks, config.EnablePrecompress,
+		config.RedirectDirectorySlash, config.RootTokenExact,
+		config.FallbackRoots, config.CacheControlByExt, config.EnableGzip, config.SecurityHeaders,
 		config.ErrorPage404, config.ErrorPage403, config.ConfigPriority, config.NoteText,
 		config.EditTime, config.EditWho, config.CurrentVersion, config.OprSeqFlag, config.ActiveFlag,
 		config.TenantId, config.StaticHostConfigId, existing.CurrentVersion,
@@ -162,6 +166,15 @@ func applyStaticHostDefaults(config *models.StaticHostConfig) {
 	if config.EnablePrecompress == "" {
 		config.EnablePrecompress = "Y"
 	}
+	if config.RedirectDirectorySlash == "" {
+		config.RedirectDirectorySlash = "N"
+	}
+	if config.RootTokenExact == "" {
+		config.RootTokenExact = "N"
+	}
+	if config.EnableGzip == "" {
+		config.EnableGzip = "N"
+	}
 	if config.CacheControlMaxAge < 0 {
 		config.CacheControlMaxAge = 0
 	}
@@ -171,6 +184,9 @@ func applyStaticHostDefaults(config *models.StaticHostConfig) {
 	config.IndexFiles = normalizeIndexFiles(config.IndexFiles)
 	config.RewriteRules = statichost.EncodeRewriteRulesJSON(statichost.ParseRewriteRulesText(config.RewriteRules))
 	config.AllowedExtensions = encodeAllowedExtensions(config.AllowedExtensions)
+	config.FallbackRoots = strings.TrimSpace(config.FallbackRoots)
+	config.CacheControlByExt = strings.TrimSpace(config.CacheControlByExt)
+	config.SecurityHeaders = strings.TrimSpace(config.SecurityHeaders)
 	config.ErrorPage404 = strings.TrimSpace(config.ErrorPage404)
 	config.ErrorPage403 = strings.TrimSpace(config.ErrorPage403)
 }

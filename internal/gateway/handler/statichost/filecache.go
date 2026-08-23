@@ -110,6 +110,15 @@ func (c *fileCache) evictHalfLocked() {
 	}
 }
 
+func (c *fileCache) delete(key string) {
+	if !c.enabled() || key == "" {
+		return
+	}
+	c.mu.Lock()
+	delete(c.items, key)
+	c.mu.Unlock()
+}
+
 func (c *fileCache) close() {
 	if c == nil {
 		return

@@ -25,6 +25,22 @@ func TestExpandRootTokenFromFirstSegment(t *testing.T) {
 	}
 }
 
+func TestExpandRootTokenExactRequiresFullSegment(t *testing.T) {
+	t.Parallel()
+	tmpl := "/var/www/sites/app-{d10,d12}/dist"
+	if _, err := expandRootTokenMatch(tmpl, "/d10app/user/1", true); err == nil {
+		t.Fatal("精确匹配时 d10app 不应命中 d10")
+	}
+	got, err := expandRootTokenMatch(tmpl, "/d10/user/1", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Clean("/var/www/sites/app-d10/dist")
+	if got != want {
+		t.Fatalf("expanded = %s, want %s", got, want)
+	}
+}
+
 func TestValidateForSaveAllowsRootToken(t *testing.T) {
 	t.Parallel()
 	parent := t.TempDir()

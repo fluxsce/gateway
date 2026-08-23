@@ -13,6 +13,8 @@ const (
 	ResultIndex     = "index"
 	ResultSPA       = "spa"
 	ResultRedirect  = "redirect"
+	ResultOptions   = "options"
+	ResultError     = "error"
 	ResultNotFound  = "404"
 	ResultForbidden = "forbidden"
 	ResultTooLarge  = "too_large"
@@ -151,7 +153,7 @@ func regularFileExists(fullPath string, followSymlinks bool) bool {
 	if err != nil {
 		return false
 	}
-	if info.Mode()&os.ModeSymlink != 0 {
+	if isLinkFile(info) {
 		if !followSymlinks {
 			return false
 		}
