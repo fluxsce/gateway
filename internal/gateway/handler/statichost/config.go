@@ -78,6 +78,10 @@ type Snapshot struct {
 	RootDirectory string
 	RootAbs       string
 	RootReal      string
+	// ErrorRootAbs / ErrorRootReal 是自定义 403/404 页的查找根，始终跟主目录（含占位符展开后）。
+	// 备用根命中错误时不得改用备用目录里的错误页。
+	ErrorRootAbs  string
+	ErrorRootReal string
 	// RootHasPlaceholders 为 true 时 RootDirectory 含 {v1,v2} 允许名单，请求里再展开。
 	RootHasPlaceholders bool
 	// RootBaseAbs 是占位符之前的固定父目录，展开后的根必须落在该目录内。
@@ -203,6 +207,8 @@ func Compile(cfg *StaticHostConfig) (*Snapshot, error) {
 		RootDirectory:          root,
 		RootAbs:                rootAbs,
 		RootReal:               rootReal,
+		ErrorRootAbs:           rootAbs,
+		ErrorRootReal:          rootReal,
 		RootHasPlaceholders:    templated,
 		RootBaseAbs:            rootAbs,
 		StripRoutePrefix:       copied.StripRoutePrefix,

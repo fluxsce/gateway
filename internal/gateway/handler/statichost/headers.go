@@ -6,7 +6,10 @@ import (
 	"strings"
 )
 
-const maxSecurityHeaderLines = 16
+const (
+	maxSecurityHeaderLines    = 16
+	maxSecurityHeaderValueLen = 8192
+)
 
 var (
 	errSecurityHeader = errors.New("static host security header is invalid")
@@ -63,8 +66,8 @@ func ParseSecurityHeadersText(raw string) ([]securityHeader, error) {
 		if !allowed {
 			return nil, fmt.Errorf("%w: header %q is not allowed", errSecurityHeader, name)
 		}
-		if value == "" || strings.ContainsAny(value, "\r\n") {
-			return nil, fmt.Errorf("%w: empty or multiline value for %s", errSecurityHeader, canonical)
+		if !validSecurityHeaderValue(value) {
+			return nil, fmt.Errorf("%w: empty or unsafe value for %s", errSecurityHeader, canonical)
 		}
 		if idx, exists := indexByName[canonical]; exists {
 			result[idx].Value = value
@@ -80,6 +83,21 @@ func ParseSecurityHeadersText(raw string) ([]securityHeader, error) {
 func ValidateSecurityHeaders(raw string) error {
 	_, err := ParseSecurityHeadersText(raw)
 	return err
+}
+
+func validSecurityHeaderValue(value string) bool {
+	if value == "" || len(value) > maxSecurityHeaderValueLen {
+		return false
+	}
+	for _, r := range value {
+		if r == '\t' {
+			continue
+		}
+		if r < 0x20 || r == 0x7f || r == '\u2028' || r == '\u2029' {
+			return false
+		}
+	}
+	return true
 }
 
 func splitHeaderLine(line string) (name, value string, ok bool) {

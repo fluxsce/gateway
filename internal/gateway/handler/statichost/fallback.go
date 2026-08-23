@@ -108,6 +108,7 @@ func (s *Snapshot) withCompiledRoot(root compiledRoot) *Snapshot {
 	bound.RootAbs = root.Abs
 	bound.RootReal = root.Real
 	bound.RootHasPlaceholders = false
+	// ErrorRoot* 保持主目录，自定义错误页不跟到备用根。
 	return &bound
 }
 

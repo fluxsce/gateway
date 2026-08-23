@@ -808,6 +808,62 @@ func TestHandlerServesFromFallbackRoot(t *testing.T) {
 	}
 }
 
+func TestHandlerFileLikeDirOnPrimaryUsesFallback(t *testing.T) {
+	primary := t.TempDir()
+	fallback := t.TempDir()
+	if err := os.Mkdir(filepath.Join(primary, "app.js"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, fallback, "app.js", "from-fallback")
+	handler := NewHandler()
+	rec := httptest.NewRecorder()
+	ctx := newStaticContext(http.MethodGet, "/app.js", rec)
+	ctx.SetMatchedPath("/")
+	ctx.Set(constants.ContextKeyStaticHostConfig, &StaticHostConfig{
+		Enabled:          true,
+		RootDirectory:    primary,
+		FallbackRoots:    fallback,
+		StripRoutePrefix: true,
+		IndexFiles:       []string{"index.html"},
+	})
+	if handler.Handle(ctx) {
+		t.Fatal("主目录下同名目录不应挡住备用根里的文件")
+	}
+	body, _ := io.ReadAll(rec.Body)
+	if string(body) != "from-fallback" {
+		t.Fatalf("内容 %s", body)
+	}
+}
+
+func TestHandlerErrorPageStaysOnPrimaryWhenFallbackMisses(t *testing.T) {
+	primary := t.TempDir()
+	fallback := t.TempDir()
+	writeFile(t, primary, "404.html", "primary-404")
+	writeFile(t, fallback, "404.html", "fallback-404")
+	handler := NewHandler()
+	rec := httptest.NewRecorder()
+	ctx := newStaticContext(http.MethodGet, "/missing.js", rec)
+	ctx.SetMatchedPath("/")
+	ctx.Set(constants.ContextKeyStaticHostConfig, &StaticHostConfig{
+		Enabled:          true,
+		RootDirectory:    primary,
+		FallbackRoots:    fallback,
+		StripRoutePrefix: true,
+		IndexFiles:       []string{"index.html"},
+		ErrorPage404:     "/404.html",
+	})
+	if handler.Handle(ctx) {
+		t.Fatal("缺失文件应结束链路")
+	}
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("状态码 %d", rec.Code)
+	}
+	body, _ := io.ReadAll(rec.Body)
+	if string(body) != "primary-404" {
+		t.Fatalf("错误页应来自主目录，实际 %s", body)
+	}
+}
+
 func TestHandlerPrefersPrimaryOverFallback(t *testing.T) {
 	primary := t.TempDir()
 	fallback := t.TempDir()

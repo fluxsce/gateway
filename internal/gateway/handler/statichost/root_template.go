@@ -160,5 +160,7 @@ func (s *Snapshot) bindRoot(lookupPath string) (*Snapshot, error) {
 	bound.RootDirectory = expanded
 	bound.RootAbs = rootAbs
 	bound.RootReal = rootReal
+	bound.ErrorRootAbs = rootAbs
+	bound.ErrorRootReal = rootReal
 	return &bound, nil
 }

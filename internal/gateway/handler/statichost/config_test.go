@@ -107,6 +107,12 @@ func TestParseSecurityHeadersText(t *testing.T) {
 	if _, err := ParseSecurityHeadersText("Cache-Control: no-store"); err == nil {
 		t.Fatal("缓存头应拒绝")
 	}
+	if _, err := ParseSecurityHeadersText("X-Frame-Options: SAMEORIGIN\r\nX-Injected: 1"); err == nil {
+		t.Fatal("含换行的安全头应拒绝")
+	}
+	if _, err := ParseSecurityHeadersText("X-Frame-Options: SAMEORIGIN\x01"); err == nil {
+		t.Fatal("含控制字符的安全头应拒绝")
+	}
 }
 
 func TestParseCacheControlByExtText(t *testing.T) {
@@ -116,6 +122,9 @@ func TestParseCacheControlByExtText(t *testing.T) {
 	}
 	if _, err := ParseCacheControlByExtText(".js=999999999"); err == nil {
 		t.Fatal("超大秒数应拒绝")
+	}
+	if _, err := ParseCacheControlByExtText(".html=60"); err == nil {
+		t.Fatal("HTML 缓存覆盖应拒绝")
 	}
 }
 

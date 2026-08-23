@@ -161,7 +161,7 @@ export function useStaticHostConfigModel() {
           type: 'textarea',
           span: 12,
           placeholder: '一行一个，例如\n.js=86400\n.woff2=31536000',
-          tips: '只改这类后缀的缓存时间。没写的后缀仍用上面的秒数。带内容哈希的 js/css 默认缓存一年；这里写了 .js 则以这里为准。HTML 始终不缓存。',
+          tips: '只改这类后缀的缓存时间。没写的后缀仍用上面的秒数。带内容哈希的 js/css 默认缓存一年；这里写了 .js 则以这里为准。不能写 .html，首页始终不缓存。',
           props: { rows: 3 },
         },
       ],

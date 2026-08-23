@@ -150,6 +150,33 @@ func (s *Snapshot) join(urlPath string) (string, error) {
 	return joinUnderRootResolved(s.RootAbs, s.RootReal, urlPath)
 }
 
+// errorPageRoot 返回用于检视错误页的快照视图，根目录固定为主目录。
+func (s *Snapshot) errorPageRoot() *Snapshot {
+	if s == nil {
+		return nil
+	}
+	if s.ErrorRootAbs == "" || (s.ErrorRootAbs == s.RootAbs && s.ErrorRootReal == s.RootReal) {
+		return s
+	}
+	view := *s
+	view.RootAbs = s.ErrorRootAbs
+	view.RootReal = s.ErrorRootReal
+	view.RootDirectory = s.ErrorRootAbs
+	return &view
+}
+
+// joinErrorPage 在主目录（占位符展开后）内拼错误页，不用备用根。
+func (s *Snapshot) joinErrorPage(urlPath string) (string, error) {
+	if s == nil {
+		return "", errPathEscape
+	}
+	rootAbs, rootReal := s.ErrorRootAbs, s.ErrorRootReal
+	if rootAbs == "" {
+		rootAbs, rootReal = s.RootAbs, s.RootReal
+	}
+	return joinUnderRootResolved(rootAbs, rootReal, urlPath)
+}
+
 func joinUnderRootResolved(rootAbs, rootReal, urlPath string) (string, error) {
 	rel := strings.TrimPrefix(cleanURLPath(urlPath), "/")
 	full := filepath.Join(rootAbs, filepath.FromSlash(rel))

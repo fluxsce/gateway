@@ -94,6 +94,9 @@ func ParseCacheControlByExtText(raw string) (map[string]int, error) {
 		if err != nil {
 			return nil, err
 		}
+		if ext == ".html" || ext == ".htm" {
+			return nil, fmt.Errorf("cache control by extension cannot override HTML")
+		}
 		result[ext] = age
 	}
 	return result, nil

@@ -65,6 +65,7 @@ func (h *Handler) Handle(ctx *core.Context) bool {
 		method = ctx.Request.Method
 	}
 	if method == http.MethodOptions {
+		applySecurityHeaders(ctx.Writer.Header(), snap.SecurityHeaders)
 		markStaticResult(ctx, ResultOptions, http.StatusNoContent)
 		ctx.Writer.WriteHeader(http.StatusNoContent)
 		return false
@@ -139,14 +140,11 @@ func (h *Handler) tryServeLookup(ctx *core.Context, snap *Snapshot, requestPath,
 	}
 	if inspectErr == nil && info != nil && info.IsDir() && !endsWithSlash(requestPath) {
 		if hasFileExtension(requestPath) || hasFileExtension(lookupPath) {
-			if primary {
-				h.abortStatic(ctx, snap, http.StatusNotFound, ResultNotFound, "static file not found")
-				return true
-			}
+			// 带扩展名却落到目录：不能把 index 当脚本；主根如此时仍可换备用根再找真文件。
 			return false
 		}
 		if primary && snap.RedirectDirectorySlash {
-			h.redirectDirectory(ctx, requestPath)
+			h.redirectDirectory(ctx, snap, requestPath)
 			return true
 		}
 	}
@@ -435,7 +433,7 @@ func (h *Handler) writeFile(ctx *core.Context, snap *Snapshot, lookupPath, name 
 }
 
 // redirectDirectory 仅在 RedirectDirectorySlash 开启时把目录 URL 规范为带尾斜杠。
-func (h *Handler) redirectDirectory(ctx *core.Context, requestPath string) {
+func (h *Handler) redirectDirectory(ctx *core.Context, snap *Snapshot, requestPath string) {
 	location := requestPath
 	if !endsWithSlash(location) {
 		location += "/"
@@ -445,6 +443,9 @@ func (h *Handler) redirectDirectory(ctx *core.Context, requestPath string) {
 	}
 	ctx.Writer.Header().Set("Location", location)
 	ctx.Writer.Header().Set("Cache-Control", cacheControlNoCache)
+	if snap != nil {
+		applySecurityHeaders(ctx.Writer.Header(), snap.SecurityHeaders)
+	}
 	markStaticResult(ctx, ResultRedirect, http.StatusMovedPermanently)
 	ctx.Writer.WriteHeader(http.StatusMovedPermanently)
 }
@@ -477,6 +478,9 @@ func (h *Handler) abortStatic(ctx *core.Context, snap *Snapshot, status int, res
 			return
 		}
 	}
+	if snap != nil && ctx != nil && ctx.Writer != nil {
+		applySecurityHeaders(ctx.Writer.Header(), snap.SecurityHeaders)
+	}
 	ctx.Set(constants.ContextKeyStaticHandled, true)
 	ctx.Set(constants.ContextKeyProxyType, "static")
 	ctx.Set(constants.ContextKeyStaticResult, result)
@@ -490,11 +494,11 @@ func (h *Handler) serveErrorPage(ctx *core.Context, snap *Snapshot, page string,
 	if lookup == "" {
 		return false
 	}
-	fullPath, err := snap.join(lookup)
+	fullPath, err := snap.joinErrorPage(lookup)
 	if err != nil {
 		return false
 	}
-	info, resolved, err := inspectStaticPath(fullPath, snap)
+	info, resolved, err := inspectStaticPath(fullPath, snap.errorPageRoot())
 	if err != nil || info == nil || !info.Mode().IsRegular() {
 		return false
 	}
