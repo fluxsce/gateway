@@ -61,7 +61,7 @@ export function useStaticHostConfigModel() {
           type: 'switch',
           span: 12,
           defaultValue: 'Y',
-          tips: '将请求 URI 映射为根目录内的相对路径。开启后，路由 /app 的 /app/index.html 对应根目录下 index.html；正则路由剥字面前缀。路由上的「转发剥前缀」打开时，这里即使关闭也会剥前缀，避免两套开关不一致。关闭且路由也未剥前缀时，保留完整 URI 再拼接。不修改浏览器地址。',
+          tips: '勾选后：从网站目录里找「去掉路由前缀后」的那一段。例如网站目录是 .../sce-vcom-dialogs，路由 /lib 或 /lib/sce-vcom-dialogs.sec.js，访问 /lib/sce-vcom-dialogs.sec.js 会读目录里的 sce-vcom-dialogs.sec.js。不勾选则按完整地址找，会去目录里找 lib/sce-vcom-dialogs.sec.js，对不上就 404。不改浏览器地址。',
           props: {
             checkedValue: 'Y',
             uncheckedValue: 'N',

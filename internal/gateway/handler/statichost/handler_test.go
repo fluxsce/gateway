@@ -689,6 +689,28 @@ func TestHandlerServesCustomErrorPage(t *testing.T) {
 	}
 }
 
+func TestHandlerServesDottedLibFileAfterStrip(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "sce-vcom-dialogs.sec.js", "dialogs-sec")
+	handler := NewHandler()
+	rec := httptest.NewRecorder()
+	ctx := newStaticContext(http.MethodGet, "/lib/sce-vcom-dialogs.sec.js", rec)
+	ctx.SetMatchedPath(`^/lib/sce-vcom-dialogs(?:\.[\w-]+)?\.js$`)
+	ctx.Set(constants.ContextKeyStaticHostConfig, &StaticHostConfig{
+		Enabled:          true,
+		RootDirectory:    root,
+		StripRoutePrefix: true,
+		IndexFiles:       []string{"index.html"},
+	})
+	if handler.Handle(ctx) {
+		t.Fatal("剥 /lib 后应读到根目录文件")
+	}
+	body, _ := io.ReadAll(rec.Body)
+	if string(body) != "dialogs-sec" {
+		t.Fatalf("内容 %s", body)
+	}
+}
+
 func TestHandlerStripsRoutePrefix(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "index.html", "spa-root")

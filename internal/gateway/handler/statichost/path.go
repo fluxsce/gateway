@@ -95,20 +95,36 @@ func isRegexMetaByte(c byte) bool {
 // stripMatchedRoutePrefix 按路径段边界去掉已匹配路由前缀。
 // 例如匹配 /app 时可剥 /app/index.html，但不会误剥 /application/index.html。
 // 正则路由剥字面前缀，使 /datahub01webVue/d10app 落到根目录内的 /d10app。
+// 精确文件路由 /lib/foo.sec.js 或正则因中间的 . 截断时，回退只剥目录段 /lib，保留文件名。
 func stripMatchedRoutePrefix(requestPath, matchedPath string) (string, bool) {
 	if matchedPath == "" {
 		return requestPath, false
 	}
-	matchedPath = routePathPrefix(matchedPath)
-	if matchedPath == "" || matchedPath == "/" {
-		return requestPath, false
-	}
 	cleanedRequest := cleanURLPath(requestPath)
-	basePath := strings.TrimSuffix(matchedPath, "/")
-	if !hasPathPrefix(basePath, cleanedRequest) {
-		return requestPath, false
+	prefix := routePathPrefix(matchedPath)
+	if stripped, ok := stripByPathPrefix(cleanedRequest, prefix); ok {
+		if stripped == "/" && hasFileExtension(cleanedRequest) {
+			return keepFileNameAfterDirStrip(cleanedRequest, prefix), true
+		}
+		return stripped, true
 	}
-	remaining := strings.TrimPrefix(cleanedRequest, basePath)
+	for _, parent := range parentPathPrefixes(prefix) {
+		if stripped, ok := stripByPathPrefix(cleanedRequest, parent); ok {
+			return stripped, true
+		}
+	}
+	return requestPath, false
+}
+
+func stripByPathPrefix(requestPath, prefix string) (string, bool) {
+	if prefix == "" || prefix == "/" {
+		return "", false
+	}
+	basePath := strings.TrimSuffix(prefix, "/")
+	if !hasPathPrefix(basePath, requestPath) {
+		return "", false
+	}
+	remaining := strings.TrimPrefix(requestPath, basePath)
 	if remaining == "" {
 		remaining = "/"
 	}
@@ -116,6 +132,30 @@ func stripMatchedRoutePrefix(requestPath, matchedPath string) (string, bool) {
 		remaining = "/" + remaining
 	}
 	return remaining, true
+}
+
+func keepFileNameAfterDirStrip(requestPath, prefix string) string {
+	dir := path.Dir(strings.TrimSuffix(prefix, "/"))
+	if dir != "" && dir != "/" && dir != "." {
+		if stripped, ok := stripByPathPrefix(requestPath, dir); ok && stripped != "/" {
+			return stripped
+		}
+	}
+	return "/" + path.Base(requestPath)
+}
+
+func parentPathPrefixes(prefix string) []string {
+	current := strings.TrimSuffix(cleanURLPath(prefix), "/")
+	var parents []string
+	for {
+		dir := path.Dir(current)
+		if dir == "" || dir == "/" || dir == "." || dir == current {
+			break
+		}
+		parents = append(parents, dir)
+		current = dir
+	}
+	return parents
 }
 
 // hasPathPrefix 检查请求路径是否以目标路径的完整段为前缀。

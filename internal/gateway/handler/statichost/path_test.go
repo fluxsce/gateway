@@ -28,6 +28,22 @@ func TestRoutePathPrefixFromRegex(t *testing.T) {
 	}
 }
 
+func TestStripKeepsDottedFilenameAfterLibPrefix(t *testing.T) {
+	route := `^/lib/sce-vcom-dialogs(?:\.[\w-]+)?\.js$`
+	got := stripRouteLookupPath("/lib/sce-vcom-dialogs.sec.js", route, true)
+	if got != "/sce-vcom-dialogs.sec.js" {
+		t.Fatalf("带点文件名应只剥 /lib，实际 %s", got)
+	}
+	got = stripRouteLookupPath("/lib/sce-vcom-dialogs.sec.js", "/lib/sce-vcom-dialogs.sec.js", true)
+	if got != "/sce-vcom-dialogs.sec.js" {
+		t.Fatalf("精确文件路由应保留文件名，实际 %s", got)
+	}
+	got = stripRouteLookupPath("/lib/sce-vcom-dialogs.js", route, true)
+	if got != "/sce-vcom-dialogs.js" {
+		t.Fatalf("无中间段时也应剥 /lib，实际 %s", got)
+	}
+}
+
 func TestResolveLookupPathStripAndRewrite(t *testing.T) {
 	got := resolveLookupPath("/app/index.html", "/app", true, nil)
 	if got != "/index.html" {
