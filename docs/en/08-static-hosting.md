@@ -204,7 +204,7 @@ A directory URL without a trailing `/` is served as an index unless “redirect 
 Access logs and alerts treat static traffic separately so one page does not dump dozens of js/css rows or flood 404 alerts:
 
 - **Successful hits are not logged**: `file` / `index` / `spa` / `redirect` with status &lt; 400
-- **Failures are logged**: 404, 403, 413, 405, 5xx, with `static_result=file|index|spa|redirect|404|forbidden|too_large|method`
+- **Failures are logged**: 404, 403, 413, 405, 5xx, with `static_result=...; static_path=<disk path>` (the file served, or the last lookup including fallback roots)
 - **Alerts**: static 4xx and file-read timeouts do not alert; 5xx still follow instance alert config. Log-write failures still alert.
 
 Change the request URI with route filters; change file mapping with this page. Proxy strip/rewrite is for reverse proxy only. Save validates that regexes compile; if the root already exists it must be a directory.

@@ -70,6 +70,10 @@ func TestHandlerServesFileAndSkipsWhenNoConfig(t *testing.T) {
 	if handled, ok := ctx.GetBool(constants.ContextKeyStaticHandled); !ok || !handled {
 		t.Fatal("应标记静态托管已处理")
 	}
+	gotPath, _ := ctx.GetString(constants.ContextKeyStaticPath)
+	if gotPath == "" || !strings.HasSuffix(filepath.ToSlash(gotPath), "/hello.txt") {
+		t.Fatalf("最终路径应指向 hello.txt，实际 %s", gotPath)
+	}
 }
 
 func TestHandlerIndexAndSPAFallback(t *testing.T) {
@@ -861,6 +865,10 @@ func TestHandlerErrorPageStaysOnPrimaryWhenFallbackMisses(t *testing.T) {
 	body, _ := io.ReadAll(rec.Body)
 	if string(body) != "primary-404" {
 		t.Fatalf("错误页应来自主目录，实际 %s", body)
+	}
+	gotPath, _ := ctx.GetString(constants.ContextKeyStaticPath)
+	if gotPath == "" || !strings.Contains(filepath.ToSlash(gotPath), "missing.js") {
+		t.Fatalf("404 最终路径应是最后一次查找，实际 %s", gotPath)
 	}
 }
 

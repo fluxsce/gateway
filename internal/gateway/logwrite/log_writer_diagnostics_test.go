@@ -59,6 +59,18 @@ func TestAppendStaticHostDiagnosticsWritesNoteText(t *testing.T) {
 	}
 }
 
+func TestAppendStaticHostDiagnosticsWritesFinalPath(t *testing.T) {
+	ctx := newDiagnosticsContext()
+	ctx.Set(constants.ContextKeyStaticResult, "404")
+	ctx.Set(constants.ContextKeyStaticPath, `/var/www/app/missing.js`)
+
+	accessLog := types.NewAccessLog("t1", "gw1", "127.0.0.1")
+	appendStaticHostDiagnostics(accessLog, ctx)
+	if accessLog.NoteText != `static_result=404; static_path=/var/www/app/missing.js` {
+		t.Fatalf("noteText = %q", accessLog.NoteText)
+	}
+}
+
 func TestAppendStreamingDiagnosticsIgnoresEmptyContext(t *testing.T) {
 	accessLog := types.NewAccessLog("t1", "gw1", "127.0.0.1")
 	appendStreamingDiagnostics(accessLog, newDiagnosticsContext())

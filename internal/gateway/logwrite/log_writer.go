@@ -721,7 +721,7 @@ func appendStreamingDiagnostics(accessLog *types.AccessLog, gatewayCtx *core.Con
 	appendAccessLogNote(accessLog, strings.Join(parts, "; "))
 }
 
-// appendStaticHostDiagnostics 将静态托管命中结果写入 NoteText，便于区分 file/index/spa/404。
+// appendStaticHostDiagnostics 将静态托管命中结果与最终磁盘路径写入 NoteText。
 func appendStaticHostDiagnostics(accessLog *types.AccessLog, gatewayCtx *core.Context) {
 	if accessLog == nil || gatewayCtx == nil {
 		return
@@ -730,7 +730,11 @@ func appendStaticHostDiagnostics(accessLog *types.AccessLog, gatewayCtx *core.Co
 	if !ok || result == "" {
 		return
 	}
-	appendAccessLogNote(accessLog, "static_result="+result)
+	note := "static_result=" + result
+	if diskPath, ok := gatewayCtx.GetString(constants.ContextKeyStaticPath); ok && diskPath != "" {
+		note += "; static_path=" + diskPath
+	}
+	appendAccessLogNote(accessLog, note)
 }
 
 // appendAccessLogNote 将诊断备注追加到 NoteText，并截断到库字段长度。

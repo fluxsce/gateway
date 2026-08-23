@@ -32,6 +32,7 @@ const (
 	ContextKeyStaticHostConfig      = "static_host_config"       // 路由级本机目录托管只读快照
 	ContextKeyStaticHandled         = "static_handled"           // 静态托管已写出响应，代理必须跳过
 	ContextKeyStaticResult          = "static_result"            // 静态托管结果：file/index/spa/redirect/options/error/404/forbidden/too_large/method
+	ContextKeyStaticPath            = "static_path"              // 静态托管最终磁盘路径（命中文件或最后一次查找）
 
 	// 多服务转发相关
 	ContextKeyMultiServiceConfig    = "multi_service_config"    // 多服务配置

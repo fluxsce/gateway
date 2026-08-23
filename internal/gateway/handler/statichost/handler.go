@@ -123,6 +123,9 @@ func (h *Handler) Handle(ctx *core.Context) bool {
 // 返回 true 表示已经写出（成功或错误）；返回 false 表示本根未命中，可以换备用根。
 func (h *Handler) tryServeLookup(ctx *core.Context, snap *Snapshot, requestPath, lookupPath string, primary bool) bool {
 	fullPath, err := snap.join(lookupPath)
+	if err == nil {
+		rememberStaticPath(ctx, fullPath)
+	}
 	if err != nil {
 		if errors.Is(err, errPathEscape) {
 			h.abortStatic(ctx, snap, http.StatusForbidden, ResultForbidden, "static host path forbidden")
@@ -134,6 +137,9 @@ func (h *Handler) tryServeLookup(ctx *core.Context, snap *Snapshot, requestPath,
 	}
 
 	info, resolvedPath, inspectErr := inspectStaticPath(fullPath, snap)
+	if resolvedPath != "" {
+		rememberStaticPath(ctx, resolvedPath)
+	}
 	// 缺失继续出索引或换根；权限、符号链接与磁盘异常立刻结束，避免被当成 404 缓存。
 	if h.abortOnInspectError(ctx, snap, inspectErr) {
 		return true
@@ -295,6 +301,7 @@ func (h *Handler) serveResolved(ctx *core.Context, snap *Snapshot, lookupPath, f
 		if readErr == nil && int64(len(body)) == info.Size() {
 			entry.body = body
 			h.files.put(cacheKey, entry)
+			rememberStaticPath(ctx, servePath)
 			h.writeFile(ctx, snap, lookupPath, info.Name(), info.Size(), info.ModTime(), bytes.NewReader(body), class, result, encoding)
 			return true
 		}
@@ -303,6 +310,7 @@ func (h *Handler) serveResolved(ctx *core.Context, snap *Snapshot, lookupPath, f
 		}
 	}
 	h.files.put(cacheKey, entry)
+	rememberStaticPath(ctx, servePath)
 	h.writeFile(ctx, snap, lookupPath, info.Name(), info.Size(), info.ModTime(), file, class, result, encoding)
 	return true
 }
@@ -311,6 +319,7 @@ func (h *Handler) serveResolved(ctx *core.Context, snap *Snapshot, lookupPath, f
 // 打开失败返回 false，由 Handle 继续尝试索引、SPA 或 404；不在此处改状态码。
 func (h *Handler) writeCached(ctx *core.Context, snap *Snapshot, lookupPath string, entry *fileCacheEntry, class cacheClass, result, cacheKey string) bool {
 	if len(entry.body) > 0 {
+		rememberStaticPath(ctx, entry.realPath)
 		h.writeFile(ctx, snap, lookupPath, path.Base(lookupPath), entry.size, entry.modTime, bytes.NewReader(entry.body), class, result, entry.contentEncoding)
 		return true
 	}
@@ -323,6 +332,7 @@ func (h *Handler) writeCached(ctx *core.Context, snap *Snapshot, lookupPath stri
 		return false
 	}
 	defer file.Close()
+	rememberStaticPath(ctx, entry.realPath)
 	h.writeFile(ctx, snap, lookupPath, path.Base(lookupPath), entry.size, entry.modTime, file, class, result, entry.contentEncoding)
 	return true
 }
@@ -530,6 +540,18 @@ func (h *Handler) serveErrorPage(ctx *core.Context, snap *Snapshot, page string,
 	return true
 }
 
+// rememberStaticPath 记下最终磁盘路径，供访问日志打印（命中文件或最后一次查找）。
+func rememberStaticPath(ctx *core.Context, diskPath string) {
+	if ctx == nil {
+		return
+	}
+	path := strings.TrimSpace(diskPath)
+	if path == "" {
+		return
+	}
+	ctx.Set(constants.ContextKeyStaticPath, path)
+}
+
 // markStaticResult 标记本次响应已由静态托管写出，供访问日志与后续处理器识别。
 func markStaticResult(ctx *core.Context, result string, status int) {
 	ctx.Set(constants.ContextKeyStaticHandled, true)
@@ -537,6 +559,9 @@ func markStaticResult(ctx *core.Context, result string, status int) {
 	ctx.Set(constants.ContextKeyStaticResult, result)
 	ctx.Set(constants.GatewayStatusCode, status)
 	ctx.SetResponded()
+	if path, ok := ctx.GetString(constants.ContextKeyStaticPath); ok && path != "" {
+		logger.Debug("静态托管", "result", result, "status", status, "path", path)
+	}
 }
 
 // publicRequestPath 返回客户端看到的 URL 路径，空值时用 /。
