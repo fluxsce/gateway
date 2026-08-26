@@ -27,13 +27,31 @@ type nodeHealthStatus struct {
 	lastCheck          time.Time
 }
 
+// newHealthCheckHTTPClient 创建健康检查专用 HTTP 客户端。
+// 使用独立 Transport，Stop 时 CloseIdleConnections 不会误关进程默认 Transport。
+func newHealthCheckHTTPClient(timeout time.Duration) *http.Client {
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	return &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			MaxIdleConns:        32,
+			MaxIdleConnsPerHost: 8,
+			IdleConnTimeout:     90 * time.Second,
+		},
+	}
+}
+
 // NewHTTPHealthChecker 创建HTTP健康检查器
 func NewHTTPHealthChecker(config *HealthConfig) HealthChecker {
+	timeout := time.Duration(0)
+	if config != nil {
+		timeout = config.Timeout
+	}
 	return &HTTPHealthChecker{
 		config: config,
-		client: &http.Client{
-			Timeout: config.Timeout,
-		},
+		client: newHealthCheckHTTPClient(timeout),
 		nodes:  make(map[string]*nodeHealthStatus),
 		stopCh: make(chan struct{}),
 	}
@@ -62,7 +80,8 @@ func (h *HTTPHealthChecker) Start() error {
 // 1. 设置running标志为false，防止新的健康检查被执行
 // 2. 关闭stopCh通道，这会触发healthCheckLoop中的select语句退出循环
 // 3. 当healthCheckLoop退出后，相关的goroutine会结束，释放资源
-// 4. 如果不调用此方法，healthCheckLoop会一直运行，导致goroutine泄漏
+// 4. 关闭本检查器 Transport 上的空闲连接，避免 Stop 后连接池继续占着 FD
+// 5. 如果不调用此方法，healthCheckLoop会一直运行，导致goroutine泄漏
 func (h *HTTPHealthChecker) Stop() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -73,6 +92,10 @@ func (h *HTTPHealthChecker) Stop() error {
 
 	h.running = false
 	close(h.stopCh)
+	// 关闭本检查器 Transport 上的空闲连接；客户端使用独立 Transport，不会误关 DefaultTransport
+	if h.client != nil {
+		h.client.CloseIdleConnections()
+	}
 
 	return nil
 }
@@ -86,8 +109,15 @@ func (h *HTTPHealthChecker) CheckNode(node *NodeConfig) bool {
 	// 构建健康检查URL
 	url := node.URL + h.config.Path
 
-	// 创建请求
-	req, err := http.NewRequest(h.config.Method, url, nil)
+	timeout := h.config.Timeout
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	// 把超时绑到请求上，超时后 client.Do 会返回，连接不会在外层放弃后继续占用
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, h.config.Method, url, nil)
 	if err != nil {
 		return false
 	}
@@ -137,8 +167,7 @@ func (h *HTTPHealthChecker) healthCheckLoop() {
 }
 
 // performHealthChecks 执行健康检查
-// 注意：此方法会为每个节点启动一个 goroutine 进行健康检查
-// 每个 goroutine 都有超时控制，防止长时间阻塞导致资源泄漏
+// 每个节点一个 goroutine；请求超时由 CheckNode 的 context 取消。
 func (h *HTTPHealthChecker) performHealthChecks() {
 	h.mu.RLock()
 	// 创建节点状态的副本，避免在检查过程中持有锁
@@ -150,27 +179,9 @@ func (h *HTTPHealthChecker) performHealthChecks() {
 	}
 	h.mu.RUnlock()
 
-	// 为每个节点启动健康检查 goroutine，使用 context 控制超时
-	for nodeID, status := range nodesCopy {
-		go func(id string, st *nodeHealthStatus) {
-			// 使用 context 控制超时，防止健康检查卡住导致 goroutine 泄漏
-			ctx, cancel := context.WithTimeout(context.Background(), h.config.Timeout*2)
-			defer cancel()
-
-			// 使用 channel 确保 goroutine 能够正常退出
-			done := make(chan struct{})
-			go func() {
-				h.checkNodeHealth(st)
-				close(done)
-			}()
-
-			select {
-			case <-done:
-				// 健康检查完成
-			case <-ctx.Done():
-				// 超时，记录但不影响其他节点的检查
-			}
-		}(nodeID, status)
+	// 每个节点一个 goroutine；超时由 CheckNode 的 request context 取消，避免外层放弃后内层仍占用连接。
+	for _, status := range nodesCopy {
+		go h.checkNodeHealth(status)
 	}
 }
 
@@ -403,11 +414,13 @@ type AdvancedHealthChecker struct {
 
 // NewAdvancedHealthChecker 创建高级健康检查器
 func NewAdvancedHealthChecker(config *HealthConfig, customCheck func(*NodeConfig) bool) HealthChecker {
+	timeout := time.Duration(0)
+	if config != nil {
+		timeout = config.Timeout
+	}
 	return &AdvancedHealthChecker{
-		config: config,
-		client: &http.Client{
-			Timeout: config.Timeout,
-		},
+		config:      config,
+		client:      newHealthCheckHTTPClient(timeout),
 		nodes:       make(map[string]*nodeHealthStatus),
 		stopCh:      make(chan struct{}),
 		customCheck: customCheck,
@@ -437,7 +450,8 @@ func (a *AdvancedHealthChecker) Start() error {
 // 1. 设置running标志为false，防止新的健康检查被执行
 // 2. 关闭stopCh通道，这会触发healthCheckLoop中的select语句退出循环
 // 3. 当healthCheckLoop退出后，相关的goroutine会结束，释放资源
-// 4. 如果不调用此方法，healthCheckLoop会一直运行，导致goroutine泄漏
+// 4. 关闭本检查器 Transport 上的空闲连接，避免 Stop 后连接池继续占着 FD
+// 5. 如果不调用此方法，healthCheckLoop会一直运行，导致goroutine泄漏
 func (a *AdvancedHealthChecker) Stop() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -448,6 +462,10 @@ func (a *AdvancedHealthChecker) Stop() error {
 
 	a.running = false
 	close(a.stopCh)
+	// 关闭本检查器 Transport 上的空闲连接；客户端使用独立 Transport，不会误关 DefaultTransport
+	if a.client != nil {
+		a.client.CloseIdleConnections()
+	}
 
 	return nil
 }
@@ -478,7 +496,12 @@ func (a *AdvancedHealthChecker) RegisterCallback(callback HealthCheckCallback) {
 func (a *AdvancedHealthChecker) httpCheck(node *NodeConfig) bool {
 	url := node.URL + a.config.Path
 
-	ctx, cancel := context.WithTimeout(context.Background(), a.config.Timeout)
+	timeout := a.config.Timeout
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	// 把超时绑到请求上，超时后 client.Do 会返回，连接不会在外层放弃后继续占用
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, a.config.Method, url, nil)
@@ -523,8 +546,7 @@ func (a *AdvancedHealthChecker) healthCheckLoop() {
 }
 
 // performHealthChecks 执行健康检查
-// 注意：此方法会为每个节点启动一个 goroutine 进行健康检查
-// 每个 goroutine 都有超时控制，防止长时间阻塞导致资源泄漏
+// 每个节点一个 goroutine；请求超时由 httpCheck 的 context 取消。
 func (a *AdvancedHealthChecker) performHealthChecks() {
 	a.mu.RLock()
 	// 创建节点状态的副本，避免在检查过程中持有锁
@@ -536,27 +558,9 @@ func (a *AdvancedHealthChecker) performHealthChecks() {
 	}
 	a.mu.RUnlock()
 
-	// 为每个节点启动健康检查 goroutine，使用 context 控制超时
-	for nodeID, status := range nodesCopy {
-		go func(id string, st *nodeHealthStatus) {
-			// 使用 context 控制超时，防止健康检查卡住导致 goroutine 泄漏
-			ctx, cancel := context.WithTimeout(context.Background(), a.config.Timeout*2)
-			defer cancel()
-
-			// 使用 channel 确保 goroutine 能够正常退出
-			done := make(chan struct{})
-			go func() {
-				a.checkNodeHealth(st)
-				close(done)
-			}()
-
-			select {
-			case <-done:
-				// 健康检查完成
-			case <-ctx.Done():
-				// 超时，记录但不影响其他节点的检查
-			}
-		}(nodeID, status)
+	// 每个节点一个 goroutine；超时由 httpCheck 的 request context 取消。
+	for _, status := range nodesCopy {
+		go a.checkNodeHealth(status)
 	}
 }
 

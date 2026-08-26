@@ -390,6 +390,9 @@ func (g *Gateway) finishRequest(ctx *core.Context, cfg *config.GatewayConfig) {
 	// 重要：不能在异步 goroutine 中直接访问 ctx.Request、ctx.Writer
 	// 因为这些对象的生命周期与 HTTP 请求绑定，ServeHTTP 返回后可能被回收
 	g.snapshotHTTPData(ctx, cfg.InstanceID)
+	// 快照后断开与 HTTP 对象的引用，避免异步日志 goroutine 拖住 Request/Writer 及其中的 body buffer。
+	ctx.Request = nil
+	ctx.Writer = nil
 	// 异步写入访问日志
 	// Context 对象本身可以安全使用（data、时间字段等），只是不能访问 Request 和 Writer
 	go func() {

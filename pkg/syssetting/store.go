@@ -12,12 +12,14 @@ type store struct {
 	retention    map[string]RetentionSettings
 	retentionJob map[string]RetentionJobSettings
 	webTimeout   map[string]WebTimeoutSettings
+	envVars      map[string]map[string]string
 }
 
 var global = &store{
 	retention:    make(map[string]RetentionSettings),
 	retentionJob: make(map[string]RetentionJobSettings),
 	webTimeout:   make(map[string]WebTimeoutSettings),
+	envVars:      make(map[string]map[string]string),
 }
 
 var (
@@ -109,6 +111,31 @@ func PutWebTimeout(tenantId string, v WebTimeoutSettings) {
 	notifyHTTPTimeout(merged.RequestTimeoutSeconds)
 }
 
+// PutEnvVars 写入租户全局环境变量缓存。密文在写入时解密，运行时按明文展开。
+func PutEnvVars(tenantId string, v EnvVarsSettings) {
+	tenantId = normTenant(tenantId)
+	resolved := decodeEnvVarMap(v)
+	global.mu.Lock()
+	defer global.mu.Unlock()
+	global.envVars[tenantId] = resolved
+}
+
+// GetEnvVar 按名称读取已解密的变量值。不存在时 ok 为 false。
+func GetEnvVar(tenantId, name string) (string, bool) {
+	if name == "" {
+		return "", false
+	}
+	tenantId = normTenant(tenantId)
+	global.mu.RLock()
+	defer global.mu.RUnlock()
+	vars, ok := global.envVars[tenantId]
+	if !ok {
+		return "", false
+	}
+	val, ok := vars[name]
+	return val, ok
+}
+
 // ApplyGroup 按分组编码把 JSON 写入进程缓存。未知分组忽略。
 // webTimeout 会回调已注册的 HTTP 超时同步。
 func ApplyGroup(tenantId, groupCode, content string) {
@@ -119,6 +146,8 @@ func ApplyGroup(tenantId, groupCode, content string) {
 		PutRetentionJob(tenantId, ParseRetentionJob(content))
 	case GroupWebTimeout:
 		PutWebTimeout(tenantId, ParseWebTimeout(content))
+	case GroupEnvVars:
+		PutEnvVars(tenantId, ParseEnvVars(content))
 	}
 }
 
@@ -134,6 +163,9 @@ func KnownTenantIDs() []string {
 		seen[k] = struct{}{}
 	}
 	for k := range global.webTimeout {
+		seen[k] = struct{}{}
+	}
+	for k := range global.envVars {
 		seen[k] = struct{}{}
 	}
 	ids := make([]string, 0, len(seen))

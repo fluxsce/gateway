@@ -2,7 +2,6 @@ package limiter
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"gateway/internal/gateway/core"
@@ -17,7 +16,7 @@ import (
 //   - 实现简单，内存占用小
 //   - 时间窗口边界可能出现流量突刺（临界问题）
 //   - 适合对流量控制精度要求不高的场景
-//   - 自动清理长时间未使用的计数器，防止内存泄漏
+//   - 计数器写入公共 cache，闲置键靠 TTL 过期
 //
 // 示例：
 //
@@ -29,18 +28,14 @@ import (
 //	limiter, err := NewFixedWindowLimiter(config)
 type FixedWindowLimiter struct {
 	*BaseLimiterHandler
-	counters     map[string]*fixedWindowCounter // 限流键到计数器的映射
-	mu           sync.Mutex                     // 保护counters的互斥锁
-	keyExtractor KeyExtractorFunc               // 限流键提取函数
+	store        *rateLimitCacheStore // 限流键状态，走 pkg/cache
+	keyExtractor KeyExtractorFunc     // 限流键提取函数
 }
 
-// fixedWindowCounter 固定窗口计数器
-//
-// 记录单个限流键在当前时间窗口内的请求统计信息。
-type fixedWindowCounter struct {
-	count      int       // 当前窗口请求计数
-	startTime  time.Time // 窗口开始时间
-	lastUpdate time.Time // 上次更新时间（用于清理长时间未使用的计数器）
+// fixedWindowState 固定窗口在 cache 中的序列化状态。
+type fixedWindowState struct {
+	Count     int   `json:"c"` // 当前窗口请求计数，从 1 开始
+	StartNano int64 `json:"s"` // 窗口开始时间（UnixNano）
 }
 
 // NewFixedWindowLimiter 创建固定窗口限流器
@@ -59,11 +54,9 @@ type fixedWindowCounter struct {
 //   - ErrorStatusCode: 限流时返回的HTTP状态码
 //   - ErrorMessage: 限流时返回的错误消息
 func NewFixedWindowLimiter(config *RateLimitConfig) (LimiterHandler, error) {
-	if config == nil {
-		config = &DefaultRateLimitConfig
-	}
+	config = cloneRateLimitConfig(config)
 
-	// 应用默认值
+	// 应用默认值（在副本上修改，不会改写调用方或全局 DefaultRateLimitConfig）
 	if config.Rate <= 0 {
 		config.Rate = DefaultRateLimitConfig.Rate
 	}
@@ -81,12 +74,15 @@ func NewFixedWindowLimiter(config *RateLimitConfig) (LimiterHandler, error) {
 	}
 
 	config.Algorithm = AlgorithmFixedWindow
-	keyExtractor := GetKeyExtractor(config.KeyStrategy)
+	store, err := newRateLimitCacheStore(config)
+	if err != nil {
+		return nil, err
+	}
 
 	return &FixedWindowLimiter{
 		BaseLimiterHandler: NewBaseLimiterHandler(config),
-		counters:           make(map[string]*fixedWindowCounter),
-		keyExtractor:       keyExtractor,
+		store:              store,
+		keyExtractor:       GetKeyExtractor(config.KeyStrategy),
 	}, nil
 }
 
@@ -141,74 +137,47 @@ func (f *FixedWindowLimiter) Handle(ctx *core.Context) bool {
 // 返回：
 //   - bool: true表示允许请求，false表示拒绝请求
 //
-// 注意：此方法是线程安全的，内部使用互斥锁保护共享状态。
+// 注意：
+//   - 此方法是线程安全的，内部使用存储互斥锁保护读改写
+//   - 计数器写入公共 cache；闲置键靠 TTL 过期，不再依赖「同一 key 再次访问」才删除
+//   - 缓存读写失败时放行，避免限流存储故障拖垮数据面
 func (f *FixedWindowLimiter) checkFixedWindow(key string) bool {
-	// 加锁保护共享的 counters map，确保并发安全
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	// 加锁保护同一限流器实例内的 Get-改-Set，避免并发把计数写乱
+	f.store.mu.Lock()
+	defer f.store.mu.Unlock()
 
-	// 获取限流配置
 	config := f.GetConfig()
 	now := time.Now()
 	// 计算窗口大小（将秒转换为 time.Duration）
 	windowSize := time.Duration(config.WindowSize) * time.Second
 
-	// 尝试获取该 key 对应的计数器
-	counter, exists := f.counters[key]
+	var counter fixedWindowState
+	exists, err := f.store.load(key, &counter)
+	if err != nil {
+		// 缓存故障时放行：限流是保护能力，存储不可用不应该变成全站 429
+		return true
+	}
 
 	// 情况1: 计数器不存在（首次请求）或窗口已过期
-	// 判断条件: counter 不存在 或 当前时间距离窗口开始时间 >= 窗口大小
-	if !exists || now.Sub(counter.startTime) >= windowSize {
-		// 如果计数器存在但窗口已过期，检查是否需要清理
-		if exists {
-			// 清理机制：如果窗口已过期且长时间未使用，删除该计数器以防止内存泄漏
-			// 清理时间阈值：max(60秒, 2 * WindowSize)
-			// 这样可以确保计数器在完全空闲后一段时间才被清理
-			elapsed := now.Sub(counter.lastUpdate).Seconds()
-			cleanupThreshold := 60.0 // 默认60秒
-			windowSizeSeconds := float64(config.WindowSize)
-			// 清理阈值 = 2 * 窗口大小，但至少60秒
-			if windowSizeSeconds*2 > cleanupThreshold {
-				cleanupThreshold = windowSizeSeconds * 2
-			}
-
-			// 如果距离上次更新时间超过清理阈值，删除该计数器
-			if elapsed > cleanupThreshold {
-				delete(f.counters, key)
-				// 重新创建计数器，当前请求计入新窗口的第一个请求
-				f.counters[key] = &fixedWindowCounter{
-					count:      1,   // 当前请求计入新窗口的第一个请求
-					startTime:  now, // 记录新窗口的开始时间
-					lastUpdate: now, // 记录最后更新时间
-				}
-				return true
-			}
-		}
-
+	// 判断条件: 状态不存在 或 当前时间距离窗口开始时间 >= 窗口大小
+	if !exists || now.Sub(time.Unix(0, counter.StartNano)) >= windowSize {
 		// 创建新窗口，计数从1开始（因为当前请求算作第一个）
-		// 注意: 这里直接返回 true，表示当前请求被允许
-		f.counters[key] = &fixedWindowCounter{
-			count:      1,   // 当前请求计入新窗口的第一个请求
-			startTime:  now, // 记录新窗口的开始时间
-			lastUpdate: now, // 记录最后更新时间
-		}
+		counter.Count = 1
+		counter.StartNano = now.UnixNano()
+		_ = f.store.save(key, &counter)
 		return true
 	}
 
 	// 情况2: 计数器存在且窗口未过期
-	// 更新最后更新时间
-	counter.lastUpdate = now
-
-	// 检查当前窗口内的请求数是否已达到限制
 	// 使用 >= 是因为 count 从1开始计数
 	// 例如: Rate=100 时，count 可以从 1 到 100，当 count=100 时，下一个请求会被拒绝
-	if counter.count >= config.Rate {
-		return false // 已达到速率限制，拒绝请求
+	if counter.Count >= config.Rate {
+		return false
 	}
 
-	// 情况3: 窗口未过期且未达到限制
-	// 增加计数并允许请求通过
-	counter.count++
+	// 情况3: 窗口未过期且未达到限制，增加计数并允许请求通过
+	counter.Count++
+	_ = f.store.save(key, &counter)
 	return true
 }
 

@@ -2,7 +2,6 @@ package limiter
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"gateway/internal/gateway/core"
@@ -36,25 +35,19 @@ import (
 //	limiter, err := NewLeakyBucketLimiter(config)
 //
 // 注意：
-//   - 此实现使用内存存储漏桶，并自动清理长时间未使用的桶
-//   - 清理机制：如果桶的水量为0且超过清理时间阈值，自动删除该桶
-//   - 清理时间阈值：max(60秒, 2 * (capacity / rate))，避免频繁创建/删除
+//   - 桶状态写入公共 cache，闲置键靠 TTL 过期
+//   - 漏出速率与容量以当前配置为准，不写入 cache
 type LeakyBucketLimiter struct {
 	*BaseLimiterHandler
-	buckets      map[string]*leakyBucket // 限流键到漏桶的映射
-	mu           sync.Mutex              // 保护buckets的互斥锁
-	keyExtractor KeyExtractorFunc        // 限流键提取函数
+	store        *rateLimitCacheStore // 限流键状态，走 pkg/cache
+	keyExtractor KeyExtractorFunc     // 限流键提取函数
 }
 
-// leakyBucket 漏桶
-//
-// 记录单个限流键的漏桶状态信息。
-// 漏桶以固定速率漏水（处理请求），如果桶满则拒绝新请求。
-type leakyBucket struct {
-	capacity   int       // 桶容量（最大可容纳的请求数，等于burst）
-	water      int       // 当前水量（待处理的请求数，0 <= water <= capacity）
-	lastUpdate time.Time // 上次更新时间（用于计算应该漏出的水量）
-	rate       float64   // 漏出速率（每秒处理的请求数）
+// leakyBucketState 漏桶在 cache 中的序列化状态。
+// 漏出速率与桶容量以当前配置为准，不写入 cache。
+type leakyBucketState struct {
+	Water      int   `json:"w"` // 当前水量（待处理请求数，0 <= water <= burst）
+	LastUpdate int64 `json:"u"` // 上次更新时间（UnixNano），用于按时间差漏水
 }
 
 // NewLeakyBucketLimiter 创建漏桶限流器
@@ -77,11 +70,9 @@ type leakyBucket struct {
 //   - Burst 必须 >= Rate，否则桶容量太小，无法正常工作
 //   - 如果 Burst < Rate，建议在 Validate 方法中检查并报错
 func NewLeakyBucketLimiter(config *RateLimitConfig) (LimiterHandler, error) {
-	if config == nil {
-		config = &DefaultRateLimitConfig
-	}
+	config = cloneRateLimitConfig(config)
 
-	// 应用默认值
+	// 应用默认值（在副本上修改，不会改写调用方或全局 DefaultRateLimitConfig）
 	if config.Rate <= 0 {
 		config.Rate = DefaultRateLimitConfig.Rate
 	}
@@ -99,12 +90,15 @@ func NewLeakyBucketLimiter(config *RateLimitConfig) (LimiterHandler, error) {
 	}
 
 	config.Algorithm = AlgorithmLeakyBucket
-	keyExtractor := GetKeyExtractor(config.KeyStrategy)
+	store, err := newRateLimitCacheStore(config)
+	if err != nil {
+		return nil, err
+	}
 
 	return &LeakyBucketLimiter{
 		BaseLimiterHandler: NewBaseLimiterHandler(config),
-		buckets:            make(map[string]*leakyBucket),
-		keyExtractor:       keyExtractor,
+		store:              store,
+		keyExtractor:       GetKeyExtractor(config.KeyStrategy),
 	}, nil
 }
 
@@ -152,7 +146,7 @@ func (l *LeakyBucketLimiter) Handle(ctx *core.Context) bool {
 //  1. 如果限流键不存在，创建新漏桶并加入当前请求（water = 1）
 //  2. 计算从上次更新到现在应该漏出的水量（基于时间差和漏出速率）
 //  3. 更新水量（减少漏出的水量，但不能小于0）
-//  4. 如果水量为0且长时间未使用，清理该桶（防止内存泄漏）
+//  4. 闲置桶由 cache TTL 过期清理，不再在访问路径上 delete
 //  5. 如果加入新请求后水量 > capacity，拒绝请求
 //  6. 否则加入新请求（water++）并允许通过
 //
@@ -163,103 +157,52 @@ func (l *LeakyBucketLimiter) Handle(ctx *core.Context) bool {
 //   - bool: true表示允许请求，false表示拒绝请求
 //
 // 注意：
-//   - 此方法是线程安全的，内部使用互斥锁保护共享状态
+//   - 此方法是线程安全的，内部使用存储互斥锁保护读改写
+//   - 缓存读写失败时放行，避免限流存储故障拖垮数据面
 //   - 漏出计算基于时间差，即使长时间无请求，水量也会持续减少（最多到0）
-//   - 新桶初始水量为1，表示第一个请求已加入桶中
-//   - 自动清理机制：如果桶的水量为0且超过清理时间阈值，删除该桶
-//
-// 清理策略：
-//   - 清理时间阈值：max(60秒, 2 * (capacity / rate))
-//   - 如果水量为0且距离上次更新时间超过阈值，删除该桶
-//   - 这样可以防止内存泄漏，同时避免频繁创建/删除桶
 func (l *LeakyBucketLimiter) checkLeakyBucket(key string) bool {
-	// 加锁保护共享的 buckets map，确保并发安全
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	// 加锁保护同一限流器实例内的 Get-改-Set，避免并发把水量写乱
+	l.store.mu.Lock()
+	defer l.store.mu.Unlock()
 
 	config := l.GetConfig()
 	now := time.Now()
 	rate := float64(config.Rate)
 	capacity := config.Burst
 
-	bucket, exists := l.buckets[key]
+	var bucket leakyBucketState
+	exists, err := l.store.load(key, &bucket)
+	if err != nil {
+		// 缓存故障时放行：限流是保护能力，存储不可用不应该变成全站 429
+		return true
+	}
 	if !exists {
-		// 情况1: 首次请求该限流键
+		// 情况1: 首次请求该限流键（或 TTL 过期后重建）
 		// 创建新漏桶，当前请求加入桶中（water = 1）
-		// 注意：第一个请求已经占用桶容量（water = 1），直接返回，不执行后续的 water++
-		// 桶开始以固定速率漏水（处理请求）
-		l.buckets[key] = &leakyBucket{
-			capacity:   capacity,
-			water:      1, // 第一个请求加入桶中，占用1单位容量
-			lastUpdate: now,
-			rate:       rate,
-		}
-		// 当前请求已加入桶中，允许通过
-		// 注意：这里直接返回，不执行 water++，因为第一个请求已经在创建桶时加入了
+		// 第一个请求已经占用桶容量，直接返回，不执行后续的 water++
+		bucket.Water = 1
+		bucket.LastUpdate = now.UnixNano()
+		_ = l.store.save(key, &bucket)
 		return true
 	}
 
-	// 情况2: 限流键已存在，需要计算漏出量并检查是否可加入新请求
-	// 计算从上次更新到现在经过的时间（秒）
-	elapsed := now.Sub(bucket.lastUpdate).Seconds()
+	// 情况2: 限流键已存在，先按时间差漏水再决定能否加入新请求
+	elapsed := now.Sub(time.Unix(0, bucket.LastUpdate)).Seconds()
+	// 漏出水量 = 时间差 * 漏出速率；例如经过 0.5 秒、速率 10 请求/秒，应漏出 5
+	// 使用 maxInt(0, ...) 确保水量不会小于0（漏出量可能大于当前水量）
+	bucket.Water = maxInt(0, bucket.Water-int(elapsed*rate))
+	bucket.LastUpdate = now.UnixNano()
 
-	// 计算应该漏出的水量：时间差 * 漏出速率
-	// 例如：经过 0.5 秒，速率 10 请求/秒，应漏出 5 个单位的水
-	leaked := elapsed * bucket.rate
-
-	// 更新水量：当前水量 - 漏出的水量
-	// 使用 maxInt(0, ...) 确保水量不会小于0（因为漏出量可能大于当前水量）
-	// 例如：water = 3, leaked = 5, 结果 water = 0（不会为负数）
-	bucket.water = maxInt(0, bucket.water-int(leaked))
-
-	// 更新最后更新时间，用于下次计算
-	bucket.lastUpdate = now
-
-	// 清理机制：如果桶的水量为0且长时间未使用，删除该桶以防止内存泄漏
-	// 清理时间阈值：max(60秒, 2 * (capacity / rate))
-	// 例如：capacity=20, rate=10, 阈值 = max(60, 2*2) = 60秒
-	// 这样可以确保桶在完全空闲后一段时间才被清理
-	if bucket.water == 0 {
-		// 计算清理时间阈值（秒）
-		// 至少60秒，或者2倍的桶清空时间（capacity / rate）
-		cleanupThreshold := 60.0 // 默认60秒
-		if rate > 0 {
-			// 桶清空时间 = capacity / rate（秒）
-			emptyTime := float64(capacity) / rate
-			// 清理阈值 = 2 * 桶清空时间，但至少60秒
-			if emptyTime*2 > cleanupThreshold {
-				cleanupThreshold = emptyTime * 2
-			}
-		}
-
-		// 如果距离上次更新时间超过清理阈值，删除该桶
-		if elapsed > cleanupThreshold {
-			delete(l.buckets, key)
-			// 重新创建桶，当前请求加入
-			l.buckets[key] = &leakyBucket{
-				capacity:   capacity,
-				water:      1,
-				lastUpdate: now,
-				rate:       rate,
-			}
-			return true
-		}
-	}
-
-	// 检查加入新请求后是否会导致桶溢出
-	// 使用 > 而不是 >=，因为如果 water = capacity，加入新请求后 water = capacity+1，会溢出
-	// 例如：capacity = 10, water = 10, 加入新请求后 water = 11 > 10，应该拒绝
-	if bucket.water+1 > capacity {
-		// 桶满，拒绝请求
-		// 注意：这里不增加水量，因为请求被拒绝了
+	// 使用 > 而不是 >=：water = capacity 时再加入会变成 capacity+1，应当拒绝
+	if bucket.Water+1 > capacity {
+		// 桶满，拒绝请求；仍回写漏水后的状态，避免下次按过旧时间重复漏水
+		_ = l.store.save(key, &bucket)
 		return false
 	}
 
-	// 桶未满，允许请求通过
-	// 加入新请求（增加1单位水量）
-	// 注意：第一个请求在创建桶时已经加入（water = 1），后续请求在这里加入（water++）
-	// 例如：第一个请求后 water = 1，第二个请求通过后 water = 2，第三个请求通过后 water = 3
-	bucket.water++
+	// 桶未满，允许请求通过并加入新请求（water++）
+	bucket.Water++
+	_ = l.store.save(key, &bucket)
 	return true
 }
 

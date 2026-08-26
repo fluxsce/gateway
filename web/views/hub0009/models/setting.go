@@ -46,6 +46,7 @@ type EnvSettingsResponse struct {
 	Retention    RetentionView    `json:"retention"`
 	RetentionJob RetentionJobView `json:"retentionJob"`
 	WebTimeout   WebTimeoutView   `json:"webTimeout"`
+	EnvVars      EnvVarsView      `json:"envVars"`
 }
 
 // RetentionView 归档策略回显，带乐观锁版本。
@@ -72,4 +73,36 @@ type WebTimeoutView struct {
 	RequestTimeoutSeconds int `json:"requestTimeoutSeconds"`
 	SessionExpireHours    int `json:"sessionExpireHours"`
 	CurrentVersion        int `json:"currentVersion"`
+}
+
+// EnvVarItemView 单条环境变量回显。密文变量 value 为掩码，不返回原文。
+type EnvVarItemView struct {
+	Name     string `json:"name"`
+	Value    string `json:"value"`
+	Secret   bool   `json:"secret"`
+	HasValue bool   `json:"hasValue"`
+	Note     string `json:"note"`
+}
+
+// EnvVarsView 全局环境变量回显，带乐观锁版本。
+type EnvVarsView struct {
+	Items          []EnvVarItemView `json:"items"`
+	CurrentVersion int              `json:"currentVersion"`
+}
+
+// SaveEnvVarRequest 新增或更新一条全局环境变量。
+// originalName 用于改名；密文编辑时 value 留空或为掩码表示不改值。
+type SaveEnvVarRequest struct {
+	Name           string `json:"name" form:"name"`
+	OriginalName   string `json:"originalName" form:"originalName"`
+	Value          string `json:"value" form:"value"`
+	Secret         bool   `json:"secret" form:"secret"`
+	Note           string `json:"note" form:"note"`
+	CurrentVersion int    `json:"currentVersion" form:"currentVersion"`
+}
+
+// DeleteEnvVarRequest 删除一条全局环境变量。
+type DeleteEnvVarRequest struct {
+	Name           string `json:"name" form:"name"`
+	CurrentVersion int    `json:"currentVersion" form:"currentVersion"`
 }

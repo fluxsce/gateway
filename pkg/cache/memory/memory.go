@@ -15,7 +15,7 @@
 //
 //	// 创建配置
 //	cfg := &memory.MemoryConfig{
-//	    MaxSize:           10000,
+//	    MaxSize:           200000,
 //	    DefaultExpiration: 5 * time.Minute,
 //	    CleanupInterval:   1 * time.Minute,
 //	}
@@ -240,7 +240,7 @@ type zsetValue map[string]float64
 // 使用示例：
 //
 //	cfg := &MemoryConfig{
-//	    MaxSize:           10000,
+//	    MaxSize:           200000,
 //	    DefaultExpiration: 5 * time.Minute,
 //	    CleanupInterval:   1 * time.Minute,
 //	}

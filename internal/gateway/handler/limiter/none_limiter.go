@@ -19,9 +19,12 @@ func NewNoneLimiter(config *RateLimitConfig) (LimiterHandler, error) {
 			Enabled:   false,
 			Algorithm: AlgorithmNone,
 		}
+	} else {
+		// 复制调用方配置后再改 Algorithm，避免构造器写穿外部对象
+		copied := *config
+		config = &copied
+		config.Algorithm = AlgorithmNone
 	}
-
-	config.Algorithm = AlgorithmNone
 
 	return &NoneLimiter{
 		BaseLimiterHandler: NewBaseLimiterHandler(config),

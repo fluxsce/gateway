@@ -84,6 +84,10 @@ func (s *SharedHealthCheckerManager) Stop() error {
 
 	s.running = false
 	close(s.stopCh)
+	// 关闭共享检查器 Transport 上的空闲连接，避免 Stop/热更新后连接池继续占着 FD
+	if s.client != nil {
+		s.client.CloseIdleConnections()
+	}
 
 	return nil
 }

@@ -21,10 +21,24 @@ export interface WebTimeoutSettings {
   currentVersion: number
 }
 
+export interface EnvVarItem {
+  name: string
+  value: string
+  secret: boolean
+  hasValue: boolean
+  note: string
+}
+
+export interface EnvVarsSettings {
+  items: EnvVarItem[]
+  currentVersion: number
+}
+
 export interface EnvSettings {
   retention: RetentionSettings
   retentionJob: RetentionJobSettings
   webTimeout: WebTimeoutSettings
+  envVars: EnvVarsSettings
 }
 
 export type EnvSettingGroupCode = 'retention' | 'retentionJob' | 'webTimeout'

@@ -52,6 +52,7 @@ func (c *SettingController) GetEnvSettings(ctx *gin.Context) {
 		Retention:    retentionView(syssetting.DefaultRetention(), 0),
 		RetentionJob: retentionJobView(syssetting.DefaultRetentionJob(), 0),
 		WebTimeout:   webTimeoutView(syssetting.DefaultWebTimeout(), 0),
+		EnvVars:      models.EnvVarsView{Items: []models.EnvVarItemView{}, CurrentVersion: 0},
 	}
 	for _, row := range rows {
 		if row == nil {
@@ -64,6 +65,8 @@ func (c *SettingController) GetEnvSettings(ctx *gin.Context) {
 			resp.RetentionJob = retentionJobView(syssetting.ParseRetentionJob(row.Content), row.CurrentVersion)
 		case syssetting.GroupWebTimeout:
 			resp.WebTimeout = webTimeoutView(syssetting.ParseWebTimeout(row.Content), row.CurrentVersion)
+		case syssetting.GroupEnvVars:
+			resp.EnvVars = envVarsViewFromRow(row)
 		}
 	}
 	response.SuccessJSON(ctx, resp, constants.SD00002)
@@ -214,6 +217,8 @@ func groupDisplayName(groupCode string) string {
 		return "归档任务"
 	case syssetting.GroupWebTimeout:
 		return "Web访问超时"
+	case syssetting.GroupEnvVars:
+		return "全局环境变量"
 	default:
 		return groupCode
 	}

@@ -452,7 +452,7 @@ cache:
         enabled: true          # 是否启用该连接
         
         # === 容量配置 ===
-        max_size: 10000         # 最大存储条目数
+        max_size: 200000        # 最大存储条目数
         
         # === 键配置 ===
         key_prefix: "gateway:"    # 键前缀，用于区分不同应用

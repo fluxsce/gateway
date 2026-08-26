@@ -14,13 +14,13 @@
 `--version` 必填，未传时会交互询问。
 
 ```cmd
-.\scripts\build\build-win10.cmd --version=3.2.9
-.\scripts\build\build-win10.cmd --oracle --version=3.2.9
+.\scripts\build\build-win10.cmd --version=3.3.0
+.\scripts\build\build-win10.cmd --oracle --version=3.3.0
 ```
 
 ```bash
-./scripts/build/build-centos7.sh --version=3.2.9
-./scripts/build/build-centos7.sh --oracle --version=3.2.9
+./scripts/build/build-centos7.sh --version=3.3.0
+./scripts/build/build-centos7.sh --oracle --version=3.3.0
 ```
 
 输出：`dist/gateway/`（可执行文件、`configs/`、`web/`、`scripts/db` 等）。标准构建含 MySQL / SQLite / ClickHouse（CGO）。Oracle 构建需要本机 Instant Client（Basic + SDK）和 `ORACLE_HOME`。

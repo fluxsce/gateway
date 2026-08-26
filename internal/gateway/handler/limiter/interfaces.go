@@ -215,7 +215,17 @@ func ExtractRouteKey(ctx *core.Context) string {
 	return "route:" + routeID
 }
 
-// 预设配置
+// cloneRateLimitConfig 复制限流配置，避免构造器改写调用方或全局 DefaultRateLimitConfig。
+func cloneRateLimitConfig(config *RateLimitConfig) *RateLimitConfig {
+	if config == nil {
+		copied := DefaultRateLimitConfig
+		return &copied
+	}
+	copied := *config
+	return &copied
+}
+
+// DefaultRateLimitConfig 预设配置
 var DefaultRateLimitConfig = RateLimitConfig{
 	ID:              "default-ratelimit",
 	Name:            "Default Rate Limiter",

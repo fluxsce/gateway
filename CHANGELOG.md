@@ -7,6 +7,20 @@
 ## [Unreleased]
 
 
+## [3.3.0] - 2026-08-26
+
+### 新增
+- **全局环境变量（hub0009）**：环境设置新增「全局环境变量」。密文勾选后以 `ENCY_` 入库，列表不回显原文；编辑留空表示不改值。Header 过滤器的值、路径重写的查找/替换支持 `${NAME}` / `${NAME:默认值}`，转发时按租户展开，未配置且无默认值替换为空串。保存后本机立即生效，集群走既有 `ENV_SETTING/RELOAD`。网关接流量前会先灌入设置缓存，避免展开时变量仍为空。
+
+### 修复
+- **限流键不再常驻内存**：四种算法原先把计数存在进程内 `map`，只在同一 key 再次访问时才删除；随机 path/IP 会无限增长。现改为写入已注册的 `pkg/cache`（`custom_config.cache_name` 或 `default`），闲置键按 TTL 过期（最短 60 秒，并覆盖窗口与桶填满时间）。限流模块不再自行 `NewMemoryCache` / `AddCache`。缓存故障时仍放行，避免存储不可用变成全站 429。开启限流时须已有可用 cache（默认 `database.yaml` 的 `memory_cache` 即可，不必开 Redis）。
+- **访问日志不再拖住 HTTP 对象**：`finishRequest` 快照后将 `Request`/`Writer` 置空，异步写日志不再拖住请求体缓冲。
+- **健康检查超时不再丢弃进行中的探测**：改用 `NewRequestWithContext`，超时会取消 HTTP；`Stop` 时 `CloseIdleConnections`，避免空闲连接堆积。
+
+### 变更
+- **内存缓存默认容量**：`memory_cache.max_size` 与未写配置时的代码默认值由 10000 调整为 200000。`memory_temp` / `memory_session` 未改。
+
+
 ## [3.2.9] - 2026-08-23
 
 ### 修复

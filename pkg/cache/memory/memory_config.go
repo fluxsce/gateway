@@ -12,7 +12,7 @@ type MemoryConfig struct {
 	Enabled bool `yaml:"enabled" json:"enabled" mapstructure:"enabled"` // 是否启用内存缓存
 
 	// === 容量配置 ===
-	MaxSize int64 `yaml:"max_size" json:"max_size" mapstructure:"max_size"` // 最大存储条目数，0表示无限制，默认: 10000
+	MaxSize int64 `yaml:"max_size" json:"max_size" mapstructure:"max_size"` // 最大存储条目数，0表示无限制，默认: 200000
 
 	// === 过期配置 ===
 	DefaultExpiration time.Duration `yaml:"default_expiration" json:"default_expiration" mapstructure:"default_expiration"`    // 默认过期时间，0表示永不过期，默认: 1小时
@@ -87,7 +87,7 @@ func (m *MemoryConfig) SetDefaults() {
 
 	// 容量配置默认值
 	if m.MaxSize == 0 {
-		m.MaxSize = 10000 // 默认最大10000个条目
+		m.MaxSize = 200000 // 默认最大20万个条目
 	}
 
 	// 过期配置默认值
@@ -165,7 +165,7 @@ func (m *MemoryConfig) String() string {
 func GetDefaultConfig() map[string]interface{} {
 	return map[string]interface{}{
 		"enabled":             true,
-		"max_size":            10000,
+		"max_size":            200000,
 		"key_prefix":          "",
 		"eviction_policy":     string(EvictionTTL),
 		"default_expiration":  "1h",

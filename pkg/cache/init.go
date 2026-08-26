@@ -50,7 +50,7 @@ type CacheRootConfig struct {
 //	      type: "memory"
 //	      config:
 //	        enabled: true
-//	        max_size: 10000
+//	        max_size: 200000
 func LoadAllCacheConnections(configPath string) (map[string]Cache, error) {
 	// 注意：配置文件已在应用启动时加载，这里不需要重复加载
 

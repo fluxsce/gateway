@@ -79,7 +79,7 @@
 
 ## 快速开始
 
-示例版本 **3.2.9**，安装包与镜像以 [GitHub Releases](https://github.com/fluxsce/gateway/releases) 最新版为准。
+示例版本 **3.3.0**，安装包与镜像以 [GitHub Releases](https://github.com/fluxsce/gateway/releases) 最新版为准。
 
 | 项 | 值 |
 |----|----|
@@ -93,18 +93,18 @@
 镜像内含配置、数据库脚本和前端资源，默认 SQLite。
 
 ```bash
-docker pull ghcr.io/fluxsce/gateway:3.2.9
+docker pull ghcr.io/fluxsce/gateway:3.3.0
 
 docker run -d --name gateway \
   -p 8080:8080 \
   -p 12003:12003 \
-  ghcr.io/fluxsce/gateway:3.2.9
+  ghcr.io/fluxsce/gateway:3.3.0
 ```
 
 国内镜像：
 
 ```bash
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.2.9
+docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.3.0
 ```
 
 个人版 ACR 通常需先 `docker login`。MySQL + Redis 编排见 [容器化部署](docs/zh-CN/04-容器化部署.md)。
@@ -115,14 +115,14 @@ docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 
 | 文件 | 平台 | 数据库 |
 |------|------|--------|
-| `gateway-linux-amd64-3.2.9.tar.gz` | Linux amd64 | MySQL / SQLite / ClickHouse |
-| `gateway-linux-arm64-3.2.9.tar.gz` | Linux arm64 | 同上 |
-| `gateway-windows-amd64-3.2.9.zip` | Windows amd64 | 同上 |
-| `gateway-linux-amd64-oracle-3.2.9.tar.gz` | Linux amd64 | 上表 + Oracle |
-| `gateway-windows-amd64-oracle-3.2.9.zip` | Windows amd64 | 上表 + Oracle |
+| `gateway-linux-amd64-3.3.0.tar.gz` | Linux amd64 | MySQL / SQLite / ClickHouse |
+| `gateway-linux-arm64-3.3.0.tar.gz` | Linux arm64 | 同上 |
+| `gateway-windows-amd64-3.3.0.zip` | Windows amd64 | 同上 |
+| `gateway-linux-amd64-oracle-3.3.0.tar.gz` | Linux amd64 | 上表 + Oracle |
+| `gateway-windows-amd64-oracle-3.3.0.zip` | Windows amd64 | 上表 + Oracle |
 
 ```bash
-tar -xzf gateway-linux-amd64-3.2.9.tar.gz
+tar -xzf gateway-linux-amd64-3.3.0.tar.gz
 cd gateway
 ./gateway --config ./configs
 ```

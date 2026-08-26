@@ -2,7 +2,6 @@ package limiter
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"gateway/internal/gateway/core"
@@ -34,25 +33,19 @@ import (
 //	limiter, err := NewSlidingWindowLimiter(config)
 //
 // 注意：
-//   - 此实现使用内存存储时间戳列表，并自动清理长时间未使用的窗口
-//   - 清理机制：如果窗口的时间戳列表为空且超过清理时间阈值，自动删除该窗口
-//   - 清理时间阈值：max(60秒, 2 * WindowSize)，避免频繁创建/删除窗口
+//   - 窗口状态写入公共 cache，闲置键靠 TTL 过期，避免本地 map 只在再次访问时才删除
 //   - 每次请求都需要遍历时间戳列表清理过期项，高并发场景下可能影响性能
 //   - 如果 Rate 很大，考虑使用更高效的实现（如分片窗口、近似算法等）
 type SlidingWindowLimiter struct {
 	*BaseLimiterHandler
-	windows      map[string]*slidingWindow // 限流键到滑动窗口的映射
-	mu           sync.Mutex                // 保护windows的互斥锁
-	keyExtractor KeyExtractorFunc          // 限流键提取函数
+	store        *rateLimitCacheStore // 限流键状态，走 pkg/cache
+	keyExtractor KeyExtractorFunc     // 限流键提取函数
 }
 
-// slidingWindow 滑动窗口
-//
-// 记录单个限流键在滑动时间窗口内的请求时间戳列表。
-// 时间戳列表用于统计窗口内的请求数量，并自动清理过期的时间戳。
-type slidingWindow struct {
-	timestamps []time.Time // 窗口内请求时间戳列表（按时间顺序）
-	lastUpdate time.Time   // 上次更新时间（用于清理长时间未使用的窗口）
+// slidingWindowState 滑动窗口在 cache 中的序列化状态。
+// 时间戳用 UnixNano 存储，减少 JSON 体积；列表按时间顺序追加，检查时丢掉早于 cutoff 的项。
+type slidingWindowState struct {
+	Timestamps []int64 `json:"ts"` // 窗口内请求时间戳（UnixNano）
 }
 
 // NewSlidingWindowLimiter 创建滑动窗口限流器
@@ -71,11 +64,9 @@ type slidingWindow struct {
 //   - ErrorStatusCode: 限流时返回的HTTP状态码
 //   - ErrorMessage: 限流时返回的错误消息
 func NewSlidingWindowLimiter(config *RateLimitConfig) (LimiterHandler, error) {
-	if config == nil {
-		config = &DefaultRateLimitConfig
-	}
+	config = cloneRateLimitConfig(config)
 
-	// 应用默认值
+	// 应用默认值（在副本上修改，不会改写调用方或全局 DefaultRateLimitConfig）
 	if config.Rate <= 0 {
 		config.Rate = DefaultRateLimitConfig.Rate
 	}
@@ -93,12 +84,15 @@ func NewSlidingWindowLimiter(config *RateLimitConfig) (LimiterHandler, error) {
 	}
 
 	config.Algorithm = AlgorithmSlidingWindow
-	keyExtractor := GetKeyExtractor(config.KeyStrategy)
+	store, err := newRateLimitCacheStore(config)
+	if err != nil {
+		return nil, err
+	}
 
 	return &SlidingWindowLimiter{
 		BaseLimiterHandler: NewBaseLimiterHandler(config),
-		windows:            make(map[string]*slidingWindow),
-		keyExtractor:       keyExtractor,
+		store:              store,
+		keyExtractor:       GetKeyExtractor(config.KeyStrategy),
 	}, nil
 }
 
@@ -155,99 +149,59 @@ func (s *SlidingWindowLimiter) Handle(ctx *core.Context) bool {
 //   - bool: true表示允许请求，false表示拒绝请求
 //
 // 注意：
-//   - 此方法是线程安全的，内部使用互斥锁保护共享状态
+//   - 此方法是线程安全的，内部使用存储互斥锁保护读改写
+//   - 缓存读写失败时放行，避免限流存储故障拖垮数据面
 //   - 每次请求都需要遍历时间戳列表清理过期项，时间复杂度 O(n)
 //   - 如果 Rate 很大，时间戳列表会很长，可能影响性能
-//   - 时间戳列表按时间顺序存储，清理时只需要保留窗口内的时间戳
-//
-// 性能优化建议：
-//   - 如果时间戳列表很长，可以考虑使用二分查找优化清理过程
-//   - 或者使用分片窗口、近似算法等更高效的实现
+//   - 窗口状态写入公共 cache；闲置键靠 TTL 过期，避免本地 map 只在再次访问时才删除
 func (s *SlidingWindowLimiter) checkSlidingWindow(key string) bool {
-	// 加锁保护共享的 windows map，确保并发安全
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	// 加锁保护同一限流器实例内的 Get-改-Set，避免并发把时间戳列表写乱
+	s.store.mu.Lock()
+	defer s.store.mu.Unlock()
 
 	config := s.GetConfig()
 	now := time.Now()
-	windowSize := time.Duration(config.WindowSize) * time.Second
+	nowNano := now.UnixNano()
+	// 计算窗口截止时间：当前时间 - 窗口大小
+	// 例如：now = 100s, windowSize = 60s, cutoff = 40s，只有时间戳 > 40s 的请求才在窗口内
+	cutoff := now.Add(-time.Duration(config.WindowSize) * time.Second).UnixNano()
 
-	window, exists := s.windows[key]
+	var window slidingWindowState
+	exists, err := s.store.load(key, &window)
+	if err != nil {
+		// 缓存故障时放行：限流是保护能力，存储不可用不应该变成全站 429
+		return true
+	}
 	if !exists {
-		// 情况1: 首次请求该限流键
-		// 创建新窗口，记录当前请求的时间戳
-		// 当前请求是窗口内的第一个请求，允许通过
-		s.windows[key] = &slidingWindow{
-			timestamps: []time.Time{now},
-			lastUpdate: now,
-		}
+		// 情况1: 首次请求该限流键（或 TTL 过期后重建）
+		// 创建新窗口，记录当前请求的时间戳；当前请求是窗口内的第一个请求，允许通过
+		window.Timestamps = []int64{nowNano}
+		_ = s.store.save(key, &window)
 		return true
 	}
 
-	// 情况2: 限流键已存在，需要清理过期时间戳并检查限制
-	// 计算窗口的截止时间：当前时间 - 窗口大小
-	// 例如：now = 100s, windowSize = 60s, cutoff = 40s
-	// 只有时间戳 > 40s 的请求才在窗口内
-	cutoff := now.Add(-windowSize)
-
-	// 清理过期时间戳：只保留窗口内的时间戳（时间戳 > cutoff）
-	// 使用预分配容量避免多次内存分配
-	validTimestamps := make([]time.Time, 0, len(window.timestamps))
-	for _, ts := range window.timestamps {
+	// 情况2: 限流键已存在，先清理窗口外的过期时间戳
+	old := window.Timestamps
+	valid := old[:0]
+	for _, ts := range old {
 		// 只保留在窗口内的时间戳（时间戳在 cutoff 之后）
-		if ts.After(cutoff) {
-			validTimestamps = append(validTimestamps, ts)
+		if ts > cutoff {
+			valid = append(valid, ts)
 		}
-		// 注意：如果时间戳列表是按时间顺序的，可以使用二分查找优化
-		// 但当前实现是简单遍历，对于小到中等规模的列表已经足够
 	}
-	window.timestamps = validTimestamps
+	window.Timestamps = valid
 
-	// 清理机制：如果窗口的时间戳列表为空且长时间未使用，删除该窗口以防止内存泄漏
-	// 清理时间阈值：max(60秒, 2 * WindowSize)
-	// 这样可以确保窗口在完全空闲后一段时间才被清理
-	if len(window.timestamps) == 0 {
-		// 计算清理时间阈值（秒）
-		// 至少60秒，或者2倍的窗口大小
-		cleanupThreshold := 60.0 // 默认60秒
-		windowSizeSeconds := float64(config.WindowSize)
-		// 清理阈值 = 2 * 窗口大小，但至少60秒
-		if windowSizeSeconds*2 > cleanupThreshold {
-			cleanupThreshold = windowSizeSeconds * 2
-		}
-
-		// 计算距离上次更新的时间（使用旧的 lastUpdate，因为当前时间戳列表为空）
-		elapsed := now.Sub(window.lastUpdate).Seconds()
-
-		// 如果距离上次更新时间超过清理阈值，删除该窗口
-		if elapsed > cleanupThreshold {
-			delete(s.windows, key)
-			// 重新创建窗口，当前请求加入
-			s.windows[key] = &slidingWindow{
-				timestamps: []time.Time{now},
-				lastUpdate: now,
-			}
-			return true
-		}
-		// 如果未达到清理阈值，保留窗口但更新 lastUpdate（虽然时间戳列表为空，但窗口仍在使用）
-		window.lastUpdate = now
-	} else {
-		// 时间戳列表不为空，更新 lastUpdate
-		window.lastUpdate = now
-	}
-
-	// 检查窗口内的时间戳数量是否已达到限制
 	// 使用 >= 是因为如果已经有 Rate 个时间戳，当前请求是第 (Rate+1) 个，应该被拒绝
 	// 例如：Rate = 100，窗口内有 100 个时间戳，当前请求会被拒绝
-	if len(window.timestamps) >= config.Rate {
-		// 已达到速率限制，拒绝请求
-		// 注意：这里不添加当前时间戳，因为请求被拒绝了
+	if len(window.Timestamps) >= config.Rate {
+		// 已达到速率限制，拒绝请求；仍回写清理后的列表，避免过期时间戳一直占着配额
+		_ = s.store.save(key, &window)
 		return false
 	}
 
-	// 窗口内时间戳数量 < Rate，允许请求通过
-	// 添加当前请求的时间戳到窗口内
-	window.timestamps = append(window.timestamps, now)
+	// 窗口内时间戳数量 < Rate，允许请求通过并记录当前时间戳
+	window.Timestamps = append(window.Timestamps, nowNano)
+	_ = s.store.save(key, &window)
 	return true
 }
 

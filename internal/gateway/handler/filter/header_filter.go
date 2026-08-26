@@ -141,14 +141,15 @@ func (f *HeaderFilter) Apply(ctx *core.Context) error {
 // 应用到请求头
 func (f *HeaderFilter) applyToRequest(ctx *core.Context) error {
 	req := ctx.Request
+	headerValue := expandEnvValue(ctx, f.HeaderValue)
 
 	switch f.ModifierType {
 	case AddHeader:
 		// 添加头部（不替换已有值）
-		req.Header.Add(f.HeaderName, f.HeaderValue)
+		req.Header.Add(f.HeaderName, headerValue)
 	case SetHeader:
 		// 设置头部（替换已有值）
-		req.Header.Set(f.HeaderName, f.HeaderValue)
+		req.Header.Set(f.HeaderName, headerValue)
 	case RemoveHeader:
 		// 移除头部
 		req.Header.Del(f.HeaderName)
@@ -186,13 +187,15 @@ func (f *HeaderFilter) applyToResponse(ctx *core.Context) error {
 		return nil
 	}
 
+	headerValue := expandEnvValue(ctx, f.HeaderValue)
+
 	switch f.ModifierType {
 	case AddHeader:
 		// 添加头部（不替换已有值）
-		header[f.HeaderName] = append(header[f.HeaderName], f.HeaderValue)
+		header[f.HeaderName] = append(header[f.HeaderName], headerValue)
 	case SetHeader:
 		// 设置头部（替换已有值）
-		header[f.HeaderName] = []string{f.HeaderValue}
+		header[f.HeaderName] = []string{headerValue}
 	case RemoveHeader:
 		// 移除头部
 		delete(header, f.HeaderName)

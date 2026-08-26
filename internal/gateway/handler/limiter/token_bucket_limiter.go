@@ -2,7 +2,6 @@ package limiter
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"gateway/internal/gateway/core"
@@ -32,24 +31,19 @@ import (
 //	limiter, err := NewTokenBucketLimiter(config)
 //
 // 注意：
-//   - 此实现使用内存存储令牌桶，并自动清理长时间未使用的桶
-//   - 清理机制：如果桶的令牌数达到容量（已满）且超过清理时间阈值，自动删除该桶
-//   - 清理时间阈值：max(60秒, 2 * (capacity / rate))，避免频繁创建/删除桶
+//   - 桶状态写入公共 cache，闲置键靠 TTL 过期
+//   - 令牌填充速率与容量以当前配置为准，不写入 cache
 type TokenBucketLimiter struct {
 	*BaseLimiterHandler
-	buckets      map[string]*tokenBucket // 限流键到令牌桶的映射
-	mu           sync.Mutex              // 保护buckets的互斥锁
-	keyExtractor KeyExtractorFunc        // 限流键提取函数
+	store        *rateLimitCacheStore // 限流键状态，走 pkg/cache
+	keyExtractor KeyExtractorFunc     // 限流键提取函数
 }
 
-// tokenBucket 令牌桶
-//
-// 记录单个限流键的令牌桶状态信息。
-type tokenBucket struct {
-	rate       float64   // 每秒填充速率（令牌/秒）
-	capacity   float64   // 桶容量（最大令牌数，等于burst）
-	tokens     float64   // 当前令牌数（0 <= tokens <= capacity）
-	lastUpdate time.Time // 上次更新时间（用于计算应该添加的令牌数）
+// tokenBucketState 令牌桶在 cache 中的序列化状态。
+// 填充速率与桶容量以当前配置为准，不写入 cache，避免热更新后仍按旧参数补令牌。
+type tokenBucketState struct {
+	Tokens     float64 `json:"t"` // 当前令牌数（0 <= tokens <= burst）
+	LastUpdate int64   `json:"u"` // 上次更新时间（UnixNano），用于按时间差补令牌
 }
 
 // NewTokenBucketLimiter 创建令牌桶限流器
@@ -72,11 +66,9 @@ type tokenBucket struct {
 //   - 如果 Burst <= 0，自动设置为 Rate/2（如果仍 <= 0，则使用默认值）
 //   - 这样确保桶至少能容纳一些突发请求
 func NewTokenBucketLimiter(config *RateLimitConfig) (LimiterHandler, error) {
-	if config == nil {
-		config = &DefaultRateLimitConfig
-	}
+	config = cloneRateLimitConfig(config)
 
-	// 应用默认值
+	// 应用默认值（在副本上修改，不会改写调用方或全局 DefaultRateLimitConfig）
 	if config.Rate <= 0 {
 		config.Rate = DefaultRateLimitConfig.Rate
 	}
@@ -99,12 +91,15 @@ func NewTokenBucketLimiter(config *RateLimitConfig) (LimiterHandler, error) {
 	}
 
 	config.Algorithm = AlgorithmTokenBucket
-	keyExtractor := GetKeyExtractor(config.KeyStrategy)
+	store, err := newRateLimitCacheStore(config)
+	if err != nil {
+		return nil, err
+	}
 
 	return &TokenBucketLimiter{
 		BaseLimiterHandler: NewBaseLimiterHandler(config),
-		buckets:            make(map[string]*tokenBucket),
-		keyExtractor:       keyExtractor,
+		store:              store,
+		keyExtractor:       GetKeyExtractor(config.KeyStrategy),
 	}, nil
 }
 
@@ -162,94 +157,55 @@ func (t *TokenBucketLimiter) Handle(ctx *core.Context) bool {
 //   - bool: true表示允许请求，false表示拒绝请求
 //
 // 注意：
-//   - 此方法是线程安全的，内部使用互斥锁保护共享状态
+//   - 此方法是线程安全的，内部使用存储互斥锁保护读改写
+//   - 缓存读写失败时放行，避免限流存储故障拖垮数据面
 //   - 令牌计算基于时间差，即使长时间无请求，令牌也会持续累积（最多到容量）
 //   - 新桶初始填满令牌，允许立即处理突发请求
-//
-// 清理机制：
-//   - 如果桶的令牌数达到容量（已满）且距离上次更新时间超过清理阈值，自动删除该桶
-//   - 清理阈值：max(60秒, 2 * (capacity / rate))，确保桶在完全空闲后一段时间才被清理
-//   - 这样不会影响限流准确性，因为重新创建桶时会初始填满令牌
+//   - 桶状态写入公共 cache；闲置键靠 TTL 过期（过期后下次请求会重新按满桶创建）
 func (t *TokenBucketLimiter) checkTokenBucket(key string) bool {
-	// 加锁保护共享的 buckets map，确保并发安全
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	// 加锁保护同一限流器实例内的 Get-改-Set，避免并发把令牌数写乱
+	t.store.mu.Lock()
+	defer t.store.mu.Unlock()
 
 	config := t.GetConfig()
 	now := time.Now()
 	rate := float64(config.Rate)
 	burst := float64(config.Burst)
 
-	bucket, exists := t.buckets[key]
+	var bucket tokenBucketState
+	exists, err := t.store.load(key, &bucket)
+	if err != nil {
+		// 缓存故障时放行：限流是保护能力，存储不可用不应该变成全站 429
+		return true
+	}
 	if !exists {
-		// 情况1: 首次请求该限流键
-		// 创建新令牌桶，初始填满令牌（等于burst容量）
-		// 然后立即消耗一个令牌用于当前请求
+		// 情况1: 首次请求该限流键（或 TTL 过期后重建）
+		// 创建新令牌桶，初始填满令牌（等于burst容量），然后立即消耗一个令牌用于当前请求
 		// 这样允许立即处理突发请求，符合令牌桶算法的设计
-		bucket = &tokenBucket{
-			rate:       rate,
-			capacity:   burst,
-			tokens:     burst - 1, // 初始填满，但当前请求消耗一个令牌
-			lastUpdate: now,
-		}
-		t.buckets[key] = bucket
-		// 当前请求已消耗一个令牌，允许通过
+		bucket.Tokens = burst - 1
+		bucket.LastUpdate = now.UnixNano()
+		_ = t.store.save(key, &bucket)
 		return true
 	}
 
-	// 情况2: 限流键已存在，需要更新令牌数
-	// 计算从上次更新到现在经过的时间（秒）
-	elapsed := now.Sub(bucket.lastUpdate).Seconds()
-
-	// 计算应该添加的令牌数：时间差 * 填充速率
+	// 情况2: 限流键已存在，需要按时间差补令牌
 	// 例如：经过 0.5 秒，速率 10 令牌/秒，应添加 5 个令牌
+	elapsed := now.Sub(time.Unix(0, bucket.LastUpdate)).Seconds()
 	// 使用 minFloat64 确保令牌数不超过桶容量（防止溢出）
-	bucket.tokens = minFloat64(bucket.capacity, bucket.tokens+elapsed*bucket.rate)
-
-	// 更新最后更新时间，用于下次计算
-	bucket.lastUpdate = now
-
-	// 清理机制：如果桶的令牌数达到容量（已满）且长时间未使用，删除该桶以防止内存泄漏
-	// 清理时间阈值：max(60秒, 2 * (capacity / rate))
-	// 例如：capacity=20, rate=10, 阈值 = max(60, 2*2) = 60秒
-	// 这样可以确保桶在完全空闲（令牌已满，说明长时间未使用）后一段时间才被清理
-	if bucket.tokens >= bucket.capacity {
-		// 计算清理时间阈值（秒）
-		// 至少60秒，或者2倍的桶填满时间（capacity / rate）
-		cleanupThreshold := 60.0 // 默认60秒
-		if bucket.rate > 0 {
-			// 桶填满时间 = capacity / rate（秒）
-			// 即：从空桶到满桶需要的时间
-			fillTime := bucket.capacity / bucket.rate
-			// 清理阈值 = 2 * 桶填满时间，但至少60秒
-			if fillTime*2 > cleanupThreshold {
-				cleanupThreshold = fillTime * 2
-			}
-		}
-
-		// 如果距离上次更新时间超过清理阈值，删除该桶
-		if elapsed > cleanupThreshold {
-			delete(t.buckets, key)
-			// 重新创建桶，初始填满令牌，当前请求消耗一个令牌
-			t.buckets[key] = &tokenBucket{
-				rate:       rate,
-				capacity:   burst,
-				tokens:     burst - 1, // 初始填满，但当前请求消耗一个令牌
-				lastUpdate: now,
-			}
-			return true
-		}
-	}
+	bucket.Tokens = minFloat64(burst, bucket.Tokens+elapsed*rate)
+	bucket.LastUpdate = now.UnixNano()
 
 	// 检查是否有可用令牌（至少需要1个令牌才能处理请求）
-	// 注意：这里使用 < 1 而不是 <= 0，是为了处理浮点数精度问题
-	if bucket.tokens < 1 {
-		// 令牌不足，拒绝请求
+	// 使用 < 1 而不是 <= 0，是为了处理浮点数精度问题
+	if bucket.Tokens < 1 {
+		// 令牌不足，拒绝请求；仍回写补令牌后的状态，避免下次重复按旧时间补发
+		_ = t.store.save(key, &bucket)
 		return false
 	}
 
 	// 令牌充足，消耗一个令牌并允许请求通过
-	bucket.tokens--
+	bucket.Tokens--
+	_ = t.store.save(key, &bucket)
 	return true
 }
 

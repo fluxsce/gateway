@@ -229,7 +229,7 @@ FLUX Gateway's intranet penetration is based on FRP architecture design, adoptin
 
 ## Version
 
-- **Current version**: 3.2.9
+- **Current version**: 3.3.0
 - **Go**: 1.24+
 - **License**: Apache License 2.0
 

@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// hub0009 环境设置：归档策略、归档任务、Web 访问超时等租户级策略。
+// hub0009 环境设置：归档策略、归档任务、Web 访问超时、全局环境变量等租户级策略。
 var (
 	// ModuleName 模块名称，必须与目录名称一致。
 	ModuleName = "hub0009"
@@ -34,6 +34,8 @@ func Init(router *gin.Engine, db database.Database) {
 	ctrl := controllers.NewSettingController(db)
 	group.POST("/getEnvSettings", ctrl.GetEnvSettings)
 	group.POST("/saveEnvSetting", routes.RequireButton("hub0009:edit"), ctrl.SaveEnvSetting)
+	group.POST("/saveEnvVar", routes.RequireButton("hub0009:edit"), ctrl.SaveEnvVar)
+	group.POST("/deleteEnvVar", routes.RequireButton("hub0009:edit"), ctrl.DeleteEnvVar)
 }
 
 // loadStore 把已落库的分组灌进 syssetting 缓存，供会话、清理等旁路读取。

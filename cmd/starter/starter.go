@@ -165,6 +165,9 @@ func initializeAndStartApplication() error {
 		return huberrors.WrapError(err, "初始化网关应用失败")
 	}
 
+	// 环境设置（含全局变量）须在网关开始接流量前入缓存
+	appinit.LoadSettings(appContext, db)
+
 	// 启动网关服务
 	if err := startGatewayServices(); err != nil {
 		return huberrors.WrapError(err, "启动网关服务失败")

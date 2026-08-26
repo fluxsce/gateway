@@ -126,17 +126,26 @@ func (f *PathRewriteFilter) Apply(ctx *core.Context) error {
 	// 获取当前路径
 	original := ctx.Request.URL.Path
 	path := original
+	from := expandEnvValue(ctx, f.From)
+	to := expandEnvValue(ctx, f.To)
 
 	// 根据不同模式执行路径重写
 	switch f.Mode {
 	case SimpleReplace:
 		// 简单字符串替换
-		path = strings.Replace(path, f.From, f.To, -1)
+		path = strings.Replace(path, from, to, -1)
 
 	case RegexReplace:
-		// 正则表达式替换
-		if f.regex != nil {
-			path = f.regex.ReplaceAllString(path, f.To)
+		re := f.regex
+		if strings.Contains(f.From, "${") {
+			compiled, err := regexp.Compile(from)
+			if err != nil {
+				return fmt.Errorf("invalid rewritten regex pattern: %w", err)
+			}
+			re = compiled
+		}
+		if re != nil {
+			path = re.ReplaceAllString(path, to)
 		}
 	}
 

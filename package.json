@@ -1,1 +1,9 @@
-{}
+{
+  "name": "gateway",
+  "private": true,
+  "scripts": {
+    "dev": "node web/frontend/node_modules/concurrently/dist/bin/concurrently.js -k -s first -n GO,VITE -c yellow,cyan \"npm:dev:go\" \"npm:dev:vite\"",
+    "dev:go": "go run cmd/app/main.go --config ./configs",
+    "dev:vite": "pnpm --dir web/frontend run dev:vite"
+  }
+}

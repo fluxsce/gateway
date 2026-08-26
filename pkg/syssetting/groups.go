@@ -17,6 +17,8 @@ const (
 	GroupRetentionJob = "retentionJob"
 	// GroupWebTimeout 管理端 Web 访问超时，含接口超时与会话时长。
 	GroupWebTimeout = "webTimeout"
+	// GroupEnvVars 租户级全局环境变量，供网关过滤器等引用 ${NAME}。
+	GroupEnvVars = "envVars"
 )
 
 const (
@@ -168,7 +170,7 @@ func ValidateWebTimeout(v WebTimeoutSettings) error {
 
 // KnownGroupCodes 返回当前已实现的分组编码，供加载与校验使用。
 func KnownGroupCodes() []string {
-	return []string{GroupRetention, GroupRetentionJob, GroupWebTimeout}
+	return []string{GroupRetention, GroupRetentionJob, GroupWebTimeout, GroupEnvVars}
 }
 
 func mergeRetention(v RetentionSettings) RetentionSettings {

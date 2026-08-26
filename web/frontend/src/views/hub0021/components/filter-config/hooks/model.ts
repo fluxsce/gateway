@@ -566,7 +566,7 @@ export function useFilterConfigModel(moduleId: string) {
       field: 'config.headerConfig.headerValue',
       label: 'Header值',
       type: 'input' as const,
-      placeholder: '请输入Header值',
+      placeholder: '请输入Header值，支持 ${变量名}',
       span: 12,
       show: (formData: Record<string, any>) => 
         formData.filterType === 'header' && 
@@ -646,7 +646,7 @@ export function useFilterConfigModel(moduleId: string) {
       field: 'config.rewriteConfig.from',
       label: '查找内容',
       type: 'input' as const,
-      placeholder: '请输入要替换的字符串或正则表达式',
+      placeholder: '请输入要替换的字符串或正则表达式，支持 ${变量名}',
       span: 12,
       show: (formData: Record<string, any>) => formData.filterType === 'rewrite',
     },
@@ -654,7 +654,7 @@ export function useFilterConfigModel(moduleId: string) {
       field: 'config.rewriteConfig.to',
       label: '替换内容',
       type: 'input' as const,
-      placeholder: '请输入替换后的内容',
+      placeholder: '请输入替换后的内容，支持 ${变量名}',
       span: 12,
       show: (formData: Record<string, any>) => formData.filterType === 'rewrite',
     },
