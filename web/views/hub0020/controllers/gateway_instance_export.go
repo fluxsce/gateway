@@ -196,7 +196,8 @@ func (c *GatewayInstanceController) buildSheets(
 			"allowedMethods", "allowedHosts", "matchType", "routePriority",
 			"stripPathPrefix", "rewritePath", "enableWebsocket",
 			"timeoutMs", "retryCount", "retryIntervalMs",
-			"serviceDefinitionId", "logConfigId", "routeMetadata",
+			"serviceDefinitionId", "backendType", "redirectStatus", "redirectLocation",
+			"logConfigId", "routeMetadata",
 			"reserved1", "reserved2", "reserved3", "reserved4", "reserved5",
 			"extProperty",
 			"oprSeqFlag", "currentVersion", "activeFlag", "noteText",
@@ -209,11 +210,53 @@ func (c *GatewayInstanceController) buildSheets(
 			rc.AllowedMethods, rc.AllowedHosts, rc.MatchType, rc.RoutePriority,
 			rc.StripPathPrefix, rc.RewritePath, rc.EnableWebsocket,
 			rc.TimeoutMs, rc.RetryCount, rc.RetryIntervalMs,
-			rc.ServiceDefinitionId, rc.LogConfigId, rc.RouteMetadata,
+			rc.ServiceDefinitionId, rc.BackendType, rc.RedirectStatus, rc.RedirectLocation,
+			rc.LogConfigId, rc.RouteMetadata,
 			rc.Reserved1, rc.Reserved2, rc.Reserved3, rc.Reserved4, rc.Reserved5,
 			rc.ExtProperty,
 			rc.OprSeqFlag, rc.CurrentVersion, rc.ActiveFlag, rc.NoteText,
 			rc.AddTime, rc.AddWho, rc.EditTime, rc.EditWho,
+		})
+	}
+
+	// ── HUB_GW_STATIC_HOST_CONFIG ─────────────────────────────────────────────
+	staticHostSheet := excel.Sheet{
+		Name: hub0021models.StaticHostConfig{}.TableName(),
+		Headers: []string{
+			"staticHostConfigId", "routeConfigId", "configName", "rootDirectory",
+			"stripRoutePrefix", "indexFiles", "rewriteRules", "spaFallback",
+			"cacheControlMaxAge", "allowedExtensions", "maxFileSizeBytes",
+			"followSymlinks", "enablePrecompress",
+			"redirectDirectorySlash", "rootTokenExact",
+			"fallbackRoots", "cacheControlByExt", "enableGzip", "securityHeaders",
+			"errorPage404", "errorPage403", "configPriority",
+			"reserved1", "reserved2", "reserved3", "reserved4", "reserved5",
+			"extProperty",
+			"oprSeqFlag", "currentVersion", "activeFlag", "noteText",
+			"addTime", "addWho", "editTime", "editWho",
+		},
+	}
+	for _, rc := range routes {
+		sh, shErr := c.staticHostConfigDAO.GetByRouteConfigId(ctx, tenantId, rc.RouteConfigId)
+		if shErr != nil {
+			logger.WarnWithTrace(ctx, "获取静态托管配置失败", "routeConfigId", rc.RouteConfigId, "error", shErr)
+			continue
+		}
+		if sh == nil {
+			continue
+		}
+		staticHostSheet.Rows = append(staticHostSheet.Rows, []any{
+			sh.StaticHostConfigId, sh.RouteConfigId, sh.ConfigName, sh.RootDirectory,
+			sh.StripRoutePrefix, sh.IndexFiles, sh.RewriteRules, sh.SpaFallback,
+			sh.CacheControlMaxAge, sh.AllowedExtensions, sh.MaxFileSizeBytes,
+			sh.FollowSymlinks, sh.EnablePrecompress,
+			sh.RedirectDirectorySlash, sh.RootTokenExact,
+			sh.FallbackRoots, sh.CacheControlByExt, sh.EnableGzip, sh.SecurityHeaders,
+			sh.ErrorPage404, sh.ErrorPage403, sh.ConfigPriority,
+			sh.Reserved1, sh.Reserved2, sh.Reserved3, sh.Reserved4, sh.Reserved5,
+			sh.ExtProperty,
+			sh.OprSeqFlag, sh.CurrentVersion, sh.ActiveFlag, sh.NoteText,
+			sh.AddTime, sh.AddWho, sh.EditTime, sh.EditWho,
 		})
 	}
 
@@ -659,6 +702,7 @@ func (c *GatewayInstanceController) buildSheets(
 		gatewayInstanceSheet,
 		logConfigSheet,
 		routeConfigSheet,
+		staticHostSheet,
 		routeAssertionSheet,
 		routeFiltersSheet,
 		instanceFiltersSheet,

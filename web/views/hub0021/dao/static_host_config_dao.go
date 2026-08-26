@@ -24,6 +24,26 @@ func NewStaticHostConfigDAO(db database.Database) *StaticHostConfigDAO {
 	return &StaticHostConfigDAO{db: db}
 }
 
+// GetById 按主键查询静态托管配置，不存在时返回 (nil, nil)。
+func (dao *StaticHostConfigDAO) GetById(ctx context.Context, tenantId, staticHostConfigId string) (*models.StaticHostConfig, error) {
+	if staticHostConfigId == "" {
+		return nil, errors.New("staticHostConfigId不能为空")
+	}
+	query := `
+		SELECT * FROM HUB_GW_STATIC_HOST_CONFIG
+		WHERE tenantId = ? AND staticHostConfigId = ?
+	`
+	var config models.StaticHostConfig
+	err := dao.db.QueryOne(ctx, &config, query, []interface{}{tenantId, staticHostConfigId}, true)
+	if err != nil {
+		if errors.Is(err, database.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, huberrors.WrapError(err, "查询静态托管配置失败")
+	}
+	return &config, nil
+}
+
 // GetByRouteConfigId 按路由 ID 取一条静态托管配置，含已停用行以便重新启用。
 func (dao *StaticHostConfigDAO) GetByRouteConfigId(ctx context.Context, tenantId, routeConfigId string) (*models.StaticHostConfig, error) {
 	if routeConfigId == "" {
@@ -105,6 +125,109 @@ func (dao *StaticHostConfigDAO) UpsertByRouteConfigId(ctx context.Context, confi
 		config.RedirectDirectorySlash, config.RootTokenExact,
 		config.FallbackRoots, config.CacheControlByExt, config.EnableGzip, config.SecurityHeaders,
 		config.ErrorPage404, config.ErrorPage403, config.ConfigPriority, config.NoteText,
+		config.EditTime, config.EditWho, config.CurrentVersion, config.OprSeqFlag, config.ActiveFlag,
+		config.TenantId, config.StaticHostConfigId, existing.CurrentVersion,
+	}, true)
+	if err != nil {
+		return huberrors.WrapError(err, "更新静态托管配置失败")
+	}
+	if result == 0 {
+		return errors.New("静态托管配置已被其他用户修改，请刷新后重试")
+	}
+	return nil
+}
+
+// AddStaticHostConfig 新增静态托管配置。导入时保留 Excel 中的主键与活动标记。
+func (dao *StaticHostConfigDAO) AddStaticHostConfig(ctx context.Context, config *models.StaticHostConfig, operatorId string) error {
+	if config == nil {
+		return errors.New("静态托管配置不能为空")
+	}
+	if config.RouteConfigId == "" {
+		return errors.New("routeConfigId不能为空")
+	}
+	if strings.TrimSpace(config.RootDirectory) == "" {
+		return errors.New("rootDirectory不能为空")
+	}
+
+	now := time.Now()
+	applyStaticHostDefaults(config)
+	if config.StaticHostConfigId == "" {
+		config.StaticHostConfigId = random.GenerateUniqueStringWithPrefix("SH", 32)
+	}
+	if config.ActiveFlag == "" {
+		config.ActiveFlag = "Y"
+	}
+	config.AddTime = now
+	config.AddWho = operatorId
+	config.EditTime = now
+	config.EditWho = operatorId
+	config.OprSeqFlag = random.Generate32BitRandomString()
+	config.CurrentVersion = 1
+
+	_, err := dao.db.Insert(ctx, "HUB_GW_STATIC_HOST_CONFIG", config, true)
+	if err != nil {
+		return huberrors.WrapError(err, "添加静态托管配置失败")
+	}
+	return nil
+}
+
+// UpdateStaticHostConfig 按主键更新静态托管配置全部业务字段，供实例导入使用。
+func (dao *StaticHostConfigDAO) UpdateStaticHostConfig(ctx context.Context, config *models.StaticHostConfig, operatorId string) error {
+	if config == nil {
+		return errors.New("静态托管配置不能为空")
+	}
+	if config.StaticHostConfigId == "" {
+		return errors.New("staticHostConfigId不能为空")
+	}
+	if config.RouteConfigId == "" {
+		return errors.New("routeConfigId不能为空")
+	}
+	if strings.TrimSpace(config.RootDirectory) == "" {
+		return errors.New("rootDirectory不能为空")
+	}
+
+	existing, err := dao.GetById(ctx, config.TenantId, config.StaticHostConfigId)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return errors.New("静态托管配置不存在")
+	}
+
+	now := time.Now()
+	applyStaticHostDefaults(config)
+	if config.ActiveFlag == "" {
+		config.ActiveFlag = existing.ActiveFlag
+	}
+	config.AddTime = existing.AddTime
+	config.AddWho = existing.AddWho
+	config.EditTime = now
+	config.EditWho = operatorId
+	config.OprSeqFlag = random.Generate32BitRandomString()
+	config.CurrentVersion = existing.CurrentVersion + 1
+
+	sql := `
+		UPDATE HUB_GW_STATIC_HOST_CONFIG SET
+			routeConfigId = ?, configName = ?, rootDirectory = ?, stripRoutePrefix = ?, indexFiles = ?,
+			rewriteRules = ?, spaFallback = ?, cacheControlMaxAge = ?, allowedExtensions = ?,
+			maxFileSizeBytes = ?, followSymlinks = ?, enablePrecompress = ?,
+			redirectDirectorySlash = ?, rootTokenExact = ?,
+			fallbackRoots = ?, cacheControlByExt = ?, enableGzip = ?, securityHeaders = ?,
+			errorPage404 = ?, errorPage403 = ?, configPriority = ?,
+			reserved1 = ?, reserved2 = ?, reserved3 = ?, reserved4 = ?, reserved5 = ?,
+			extProperty = ?, noteText = ?,
+			editTime = ?, editWho = ?, currentVersion = ?, oprSeqFlag = ?, activeFlag = ?
+		WHERE tenantId = ? AND staticHostConfigId = ? AND currentVersion = ?
+	`
+	result, err := dao.db.Exec(ctx, sql, []interface{}{
+		config.RouteConfigId, config.ConfigName, config.RootDirectory, config.StripRoutePrefix, config.IndexFiles,
+		config.RewriteRules, config.SpaFallback, config.CacheControlMaxAge, config.AllowedExtensions,
+		config.MaxFileSizeBytes, config.FollowSymlinks, config.EnablePrecompress,
+		config.RedirectDirectorySlash, config.RootTokenExact,
+		config.FallbackRoots, config.CacheControlByExt, config.EnableGzip, config.SecurityHeaders,
+		config.ErrorPage404, config.ErrorPage403, config.ConfigPriority,
+		config.Reserved1, config.Reserved2, config.Reserved3, config.Reserved4, config.Reserved5,
+		config.ExtProperty, config.NoteText,
 		config.EditTime, config.EditWho, config.CurrentVersion, config.OprSeqFlag, config.ActiveFlag,
 		config.TenantId, config.StaticHostConfigId, existing.CurrentVersion,
 	}, true)

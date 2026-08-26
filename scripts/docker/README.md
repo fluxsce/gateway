@@ -91,16 +91,16 @@ ENV GOSUMDB=sum.golang.google.cn
 docker build \
     --build-arg GOPROXY=https://your-proxy.com \
     -f scripts/docker/Dockerfile \
-    -t datahub-images/gateway:3.3.1 .
+    -t datahub-images/gateway:3.3.2 .
 ```
 
 ### 使用构建脚本
 
 ```bash
-# 构建 Oracle 版（默认），标签 :3.3.1-oracle
+# 构建 Oracle 版（默认），标签 :3.3.2-oracle
 ./scripts/docker/build.sh
 
-# 构建标准版，标签 :3.3.1
+# 构建标准版，标签 :3.3.2
 ./scripts/docker/build.sh --type standard
 
 # 构建并标记 latest-oracle 或 latest
@@ -117,18 +117,18 @@ cd /path/to/gateway
 # 构建 Oracle 版
 docker build \
     -f scripts/docker/Dockerfile.oracle \
-    --build-arg VERSION=3.3.1 \
+    --build-arg VERSION=3.3.2 \
     --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
     --build-arg GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown") \
-    -t datahub-images/gateway:3.3.1-oracle .
+    -t datahub-images/gateway:3.3.2-oracle .
 
 # 构建标准版（仅 MySQL/SQLite）
 docker build \
     -f scripts/docker/Dockerfile \
-    --build-arg VERSION=3.3.1 \
+    --build-arg VERSION=3.3.2 \
     --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
     --build-arg GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown") \
-    -t datahub-images/gateway:3.3.1 .
+    -t datahub-images/gateway:3.3.2 .
 ```
 
 ---
@@ -142,10 +142,10 @@ docker build \
 export ALIYUN_USERNAME='your-account'
 export ALIYUN_PASSWORD='your-registry-password'
 
-# 推送 Oracle 版到阿里云（默认），远程 :3.3.1-oracle
+# 推送 Oracle 版到阿里云（默认），远程 :3.3.2-oracle
 ./scripts/docker/push.sh
 
-# 推送标准版到阿里云，远程 :3.3.1
+# 推送标准版到阿里云，远程 :3.3.2
 ./scripts/docker/push.sh --type standard
 
 # 推送到 Docker Hub
@@ -172,22 +172,22 @@ export ALIYUN_PASSWORD='your-registry-password'
 docker login
 
 # 推送标准版
-docker push datahub-images/gateway:3.3.1
+docker push datahub-images/gateway:3.3.2
 
 # 推送 Oracle 版
-docker push datahub-images/gateway:3.3.1-oracle
+docker push datahub-images/gateway:3.3.2-oracle
 
 # 登录阿里云镜像仓库
 docker login crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com
 
 # 标记镜像
-docker tag datahub-images/gateway:3.3.1 \
-  crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.3.1
-docker tag datahub-images/gateway:3.3.1-oracle \
-  crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.3.1-oracle
+docker tag datahub-images/gateway:3.3.2 \
+  crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.3.2
+docker tag datahub-images/gateway:3.3.2-oracle \
+  crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.3.2-oracle
 
 # 推送到阿里云
-docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.3.1
+docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.3.2
 ```
 
 ---
@@ -203,7 +203,7 @@ docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 - **部署目录**: `/home/gateway`
 - **内置工具**: curl, bash, telnet, less, vim, net-tools, ping
 - **特点**: 包含 Oracle Instant Client（位于 `/opt/oracle`），支持所有数据库
-- **标签**: `{version}-oracle`（如 `3.3.1-oracle`）
+- **标签**: `{version}-oracle`（如 `3.3.2-oracle`）
 - **构建方式**: `./scripts/docker/build.sh`（默认类型）
 
 ### 标准版镜像 (Dockerfile)
@@ -215,7 +215,7 @@ docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 - **部署目录**: `/home/gateway`
 - **内置工具**: curl, bash, telnet, less, vim, net-tools
 - **特点**: 轻量级、无 CGO 依赖
-- **标签**: `{version}` / `latest`（如 `3.3.1`）
+- **标签**: `{version}` / `latest`（如 `3.3.2`）
 - **构建方式**: `./scripts/docker/build.sh --type standard`
 
 ### 目录结构
@@ -253,15 +253,15 @@ docker push crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 | GitHub GHCR | `ghcr.io/fluxsce/gateway` |
 | 阿里云 ACR | `crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway` |
 
-标签：`3.3.1`（标准版，多架构清单）、`3.3.1-oracle`（仅 amd64）、`latest`（仅 git tag 发版）。
+标签：`3.3.2`（标准版，多架构清单）、`3.3.2-oracle`（仅 amd64）、`latest`（仅 git tag 发版）。
 
 ### 拉取镜像
 
 ```bash
-docker pull ghcr.io/fluxsce/gateway:3.3.1
-docker pull ghcr.io/fluxsce/gateway:3.3.1-oracle
+docker pull ghcr.io/fluxsce/gateway:3.3.2
+docker pull ghcr.io/fluxsce/gateway:3.3.2-oracle
 
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.3.1
+docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.3.2
 ```
 
 ---
@@ -284,7 +284,7 @@ docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 - **密码**: redis123
 
 #### Gateway 服务
-- **镜像**: `ghcr.io/fluxsce/gateway:3.3.1`（compose 默认；国内可改为 ACR）
+- **镜像**: `ghcr.io/fluxsce/gateway:3.3.2`（compose 默认；国内可改为 ACR）
 - **端口**:
   - 18280: API Gateway (容器内 8080)
   - 12203: Web 控制台 (容器内 12003)

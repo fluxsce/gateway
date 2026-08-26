@@ -33,7 +33,7 @@ import (
 // 按数据依赖关系顺序处理，确保被引用表先于引用方写入：
 //  1. GatewayInstance（主表，其他表均引用其 gatewayInstanceId）
 //  2. LogConfig（被 GatewayInstance 和 RouteConfig 引用）
-//  3. RouteConfig → RouteAssertion → FilterConfig（路由级/实例级）
+//  3. RouteConfig → StaticHostConfig → RouteAssertion → FilterConfig（路由级/实例级）
 //  4. RouterConfig → ServiceDefinition
 //  5. SecurityConfig → IpAccessConfig / UaAccessConfig / DomainAccessConfig / ApiAccessConfig
 //  6. CorsConfig → AuthConfig → RateLimitConfig
@@ -75,6 +75,7 @@ func (c *GatewayInstanceController) ImportGatewayInstance(ctx *gin.Context) {
 	}
 	logSheetRowCount(models.GatewayInstance{}.TableName())
 	logSheetRowCount(hub0021models.RouteConfig{}.TableName())
+	logSheetRowCount(hub0021models.StaticHostConfig{}.TableName())
 	logSheetRowCount(hub0021models.RouteAssertion{}.TableName())
 	logSheetRowCount(hub0021models.FilterConfig{}.TableName() + "_route")
 	logSheetRowCount(hub0021models.FilterConfig{}.TableName() + "_instance")
@@ -211,6 +212,36 @@ func (c *GatewayInstanceController) ImportGatewayInstance(ctx *gin.Context) {
 		logger.InfoWithTrace(ctx, "RouteConfig 导入汇总", "totalRows", len(rows)-1, "skippedEmpty", skippedEmpty, "success", routeConfigSuccess, "fail", routeConfigFail)
 		if skippedEmpty > 0 {
 			logger.InfoWithTrace(ctx, "RouteConfig 跳过空 ID 数量", "skippedEmpty", skippedEmpty)
+		}
+	}
+
+	// ── 3b. StaticHostConfig ───────────────────────────────────────────────
+	// 本机目录托管，依赖 RouteConfig.routeConfigId；backendType=static 的路由必须有此行。
+	if rows, ok := sheets[hub0021models.StaticHostConfig{}.TableName()]; ok && len(rows) > 1 {
+		idx := excel.HeaderIndex(rows[0])
+		for _, row := range rows[1:] {
+			sh := parseStaticHostConfigRow(row, idx, tenantId)
+			if sh.StaticHostConfigId == "" || sh.RouteConfigId == "" {
+				continue
+			}
+			existing, getErr := c.staticHostConfigDAO.GetById(ctx, tenantId, sh.StaticHostConfigId)
+			if getErr != nil {
+				logger.WarnWithTrace(ctx, "查询静态托管配置失败，跳过", "id", sh.StaticHostConfigId, "error", getErr)
+				continue
+			}
+			if existing != nil {
+				if upErr := c.staticHostConfigDAO.UpdateStaticHostConfig(ctx, sh, operatorId); upErr != nil {
+					logger.WarnWithTrace(ctx, "更新静态托管配置失败，跳过", "id", sh.StaticHostConfigId, "error", upErr)
+					continue
+				}
+				updated["staticHostConfig"]++
+			} else {
+				if addErr := c.staticHostConfigDAO.AddStaticHostConfig(ctx, sh, operatorId); addErr != nil {
+					logger.WarnWithTrace(ctx, "新增静态托管配置失败，跳过", "id", sh.StaticHostConfigId, "error", addErr)
+					continue
+				}
+				inserted["staticHostConfig"]++
+			}
 		}
 	}
 
@@ -758,6 +789,8 @@ func parseRouteConfigRow(row []string, idx map[string]int, tenantId string) *hub
 		RewritePath:         excel.GetCell(row, idx, "rewritePath"),
 		EnableWebsocket:     excel.GetCell(row, idx, "enableWebsocket"),
 		ServiceDefinitionId: excel.GetCell(row, idx, "serviceDefinitionId"),
+		BackendType:         excel.GetCell(row, idx, "backendType"),
+		RedirectLocation:    excel.GetCell(row, idx, "redirectLocation"),
 		LogConfigId:         excel.GetCell(row, idx, "logConfigId"),
 		RouteMetadata:       excel.GetCell(row, idx, "routeMetadata"),
 		ActiveFlag:          strOrDefault(excel.GetCell(row, idx, "activeFlag"), "Y"),
@@ -768,6 +801,7 @@ func parseRouteConfigRow(row []string, idx map[string]int, tenantId string) *hub
 	rc.TimeoutMs = atoiSafe(excel.GetCell(row, idx, "timeoutMs"))
 	rc.RetryCount = atoiSafe(excel.GetCell(row, idx, "retryCount"))
 	rc.RetryIntervalMs = atoiSafe(excel.GetCell(row, idx, "retryIntervalMs"))
+	rc.RedirectStatus = atoiSafe(excel.GetCell(row, idx, "redirectStatus"))
 	return rc
 }
 
@@ -790,6 +824,42 @@ func parseRouteAssertionRow(row []string, idx map[string]int, tenantId string) *
 	}
 	ra.AssertionOrder = atoiSafe(excel.GetCell(row, idx, "assertionOrder"))
 	return ra
+}
+
+func parseStaticHostConfigRow(row []string, idx map[string]int, tenantId string) *hub0021models.StaticHostConfig {
+	sh := &hub0021models.StaticHostConfig{
+		TenantId:               tenantId,
+		StaticHostConfigId:     excel.GetCell(row, idx, "staticHostConfigId"),
+		RouteConfigId:          excel.GetCell(row, idx, "routeConfigId"),
+		ConfigName:             excel.GetCell(row, idx, "configName"),
+		RootDirectory:          excel.GetCell(row, idx, "rootDirectory"),
+		StripRoutePrefix:       excel.GetCell(row, idx, "stripRoutePrefix"),
+		IndexFiles:             excel.GetCell(row, idx, "indexFiles"),
+		RewriteRules:           excel.GetCell(row, idx, "rewriteRules"),
+		SpaFallback:            excel.GetCell(row, idx, "spaFallback"),
+		AllowedExtensions:      excel.GetCell(row, idx, "allowedExtensions"),
+		FollowSymlinks:         excel.GetCell(row, idx, "followSymlinks"),
+		EnablePrecompress:      excel.GetCell(row, idx, "enablePrecompress"),
+		RedirectDirectorySlash: excel.GetCell(row, idx, "redirectDirectorySlash"),
+		RootTokenExact:         excel.GetCell(row, idx, "rootTokenExact"),
+		FallbackRoots:          excel.GetCell(row, idx, "fallbackRoots"),
+		CacheControlByExt:      excel.GetCell(row, idx, "cacheControlByExt"),
+		EnableGzip:             excel.GetCell(row, idx, "enableGzip"),
+		SecurityHeaders:        excel.GetCell(row, idx, "securityHeaders"),
+		ErrorPage404:           excel.GetCell(row, idx, "errorPage404"),
+		ErrorPage403:           excel.GetCell(row, idx, "errorPage403"),
+		Reserved1:              excel.GetCell(row, idx, "reserved1"),
+		Reserved2:              excel.GetCell(row, idx, "reserved2"),
+		ExtProperty:            excel.GetCell(row, idx, "extProperty"),
+		ActiveFlag:             strOrDefault(excel.GetCell(row, idx, "activeFlag"), "Y"),
+		NoteText:               excel.GetCell(row, idx, "noteText"),
+	}
+	sh.CacheControlMaxAge = atoiSafe(excel.GetCell(row, idx, "cacheControlMaxAge"))
+	sh.MaxFileSizeBytes = atoi64Safe(excel.GetCell(row, idx, "maxFileSizeBytes"))
+	sh.ConfigPriority = atoiSafe(excel.GetCell(row, idx, "configPriority"))
+	sh.Reserved3 = atoiPtr(excel.GetCell(row, idx, "reserved3"))
+	sh.Reserved4 = atoiPtr(excel.GetCell(row, idx, "reserved4"))
+	return sh
 }
 
 func parseFilterConfigRow(row []string, idx map[string]int, tenantId string) *hub0021models.FilterConfig {
@@ -1111,6 +1181,11 @@ func parseRateLimitConfigRow(row []string, idx map[string]int, tenantId string) 
 
 func atoiSafe(s string) int {
 	v, _ := strconv.Atoi(s)
+	return v
+}
+
+func atoi64Safe(s string) int64 {
+	v, _ := strconv.ParseInt(s, 10, 64)
 	return v
 }
 

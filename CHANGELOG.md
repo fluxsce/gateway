@@ -6,6 +6,11 @@
 
 ## [Unreleased]
 
+## [3.3.2] - 2026-08-27
+
+### 修复
+- **网关实例导出导入丢失路由后端**：`exportGatewayInstance` / `importGatewayInstance` 补上路由 `backendType`、`redirectStatus`、`redirectLocation`，并同步 `HUB_GW_STATIC_HOST_CONFIG`。重定向路由与静态资源托管不再在导入后变成默认服务代理。
+
 ## [3.3.1] - 2026-08-27
 
 ### 新增

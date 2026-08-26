@@ -29,6 +29,7 @@ type GatewayInstanceController struct {
 	routeConfigDAO        *hub0021dao.RouteConfigDAO
 	routeAssertionDAO     *hub0021dao.RouteAssertionDAO
 	filterConfigDAO       *hub0021dao.FilterConfigDAO
+	staticHostConfigDAO   *hub0021dao.StaticHostConfigDAO
 	routerConfigDAO       *hub0021dao.RouterConfigDAO
 	serviceDefinitionDAO  *hub0021dao.ServiceDefinitionDAO
 	svcDefDAO             *hub0022dao.ServiceDefinitionDAO
@@ -54,6 +55,7 @@ func NewGatewayInstanceController(db database.Database) *GatewayInstanceControll
 		routeConfigDAO:        hub0021dao.NewRouteConfigDAO(db),
 		routeAssertionDAO:     hub0021dao.NewRouteAssertionDAO(db),
 		filterConfigDAO:       hub0021dao.NewFilterConfigDAO(db),
+		staticHostConfigDAO:   hub0021dao.NewStaticHostConfigDAO(db),
 		routerConfigDAO:       hub0021dao.NewRouterConfigDAO(db),
 		serviceDefinitionDAO:  hub0021dao.NewServiceDefinitionDAO(db),
 		svcDefDAO:             hub0022dao.NewServiceDefinitionDAO(db),
