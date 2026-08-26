@@ -374,9 +374,9 @@ func (dao *UserDAO) FindUserByUsername(ctx context.Context, username, tenantId s
 // 检查是否是用户名重复错误
 func (dao *UserDAO) isDuplicateUserNameError(err error) bool {
 	// 检查是否是唯一键冲突错误
-	return err == database.ErrDuplicateKey ||
-		strings.Contains(err.Error(), "Duplicate entry") &&
-			strings.Contains(err.Error(), "UK_USER_NAME_TENANT")
+	return database.IsDuplicateKey(err) ||
+		(strings.Contains(err.Error(), "Duplicate entry") &&
+			strings.Contains(err.Error(), "UK_USER_NAME_TENANT"))
 }
 
 // ChangePassword 用户修改自己的密码：校验旧密码、复杂度策略，成功后清除强制改密标记。

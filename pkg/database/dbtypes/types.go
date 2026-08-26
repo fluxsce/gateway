@@ -157,6 +157,35 @@ type ConnectionConfig struct {
 	ClickHouseConnOpenStrategy string `mapstructure:"clickhouse_conn_open_strategy"`
 	// ClickHouseHosts 负载均衡主机列表 (格式: "host1:9000,host2:9000") 官网标准参数
 	ClickHouseHosts string `mapstructure:"clickhouse_hosts"`
+
+	// === SQL Server 参数 ===
+
+	// SQLServerInstance 命名实例。port=0 时走 SQL Browser（host/instance）；port>0 时连固定端口并带实例路径。
+	SQLServerInstance string `mapstructure:"sqlserver_instance"`
+	// SQLServerEncrypt TLS 模式：disable、false、true、strict。空则 disable，便于内网无证书环境。Azure SQL 应填 true。
+	SQLServerEncrypt string `mapstructure:"sqlserver_encrypt"`
+	// SQLServerTrustServerCertificate 是否信任服务器证书。
+	SQLServerTrustServerCertificate bool `mapstructure:"sqlserver_trust_server_certificate"`
+	// SQLServerConnectionTimeout 连接超时时间（秒）。
+	SQLServerConnectionTimeout int `mapstructure:"sqlserver_connection_timeout"`
+	// SQLServerAppName 出现在 SQL Server 会话中的程序名。
+	SQLServerAppName string `mapstructure:"sqlserver_app_name"`
+	// SQLServerAuthenticator 认证方式。空为 SQL 账号；Windows 填 winsspi，Linux 连 AD 可填 ntlm。
+	SQLServerAuthenticator string `mapstructure:"sqlserver_authenticator"`
+	// SQLServerDialTimeout 拨号超时（秒）。
+	SQLServerDialTimeout int `mapstructure:"sqlserver_dial_timeout"`
+	// SQLServerApplicationIntent ReadOnly 走 Always On 可读副本；ReadWrite 或空走主副本。
+	SQLServerApplicationIntent string `mapstructure:"sqlserver_application_intent"`
+	// SQLServerMultiSubnetFailover Always On / 多子网监听器建议打开。
+	SQLServerMultiSubnetFailover bool `mapstructure:"sqlserver_multi_subnet_failover"`
+	// SQLServerFailoverPartner 镜像辅助服务器（旧镜像方案）。
+	SQLServerFailoverPartner string `mapstructure:"sqlserver_failover_partner"`
+	// SQLServerHostNameInCertificate TLS 证书主机名，Azure SQL 常填 *.database.windows.net。
+	SQLServerHostNameInCertificate string `mapstructure:"sqlserver_hostname_in_certificate"`
+	// SQLServerWorkstationID 工作站名，出现在会话中。
+	SQLServerWorkstationID string `mapstructure:"sqlserver_workstation_id"`
+	// SQLServerKeepAlive TCP keepalive 秒数。
+	SQLServerKeepAlive int `mapstructure:"sqlserver_keepalive"`
 }
 
 // PoolConfig 连接池配置

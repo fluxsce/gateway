@@ -145,6 +145,10 @@ func (fm *FieldMapper) MapValues(values []interface{}) error {
 		}
 
 		if !exists {
+			fieldInfo, exists = matchCountOrSoleField(fm.structInfo, colName, len(fm.columns) == 1)
+		}
+
+		if !exists {
 			// 如果仍然找不到匹配的字段，跳过这个列
 			continue
 		}
@@ -740,6 +744,10 @@ func PrepareScanTargetsWithFields(structValue reflect.Value, columns []string) (
 
 	for _, column := range columns {
 		field, found := FindFieldByColumn(structValue, column)
+		// 单列结果（典型是 COUNT）在列名对不上时仍写入唯一可扫描字段。
+		if !found && len(columns) == 1 {
+			field, found = soleSettableDBField(structValue)
+		}
 		if !found {
 			// 如果找不到对应字段，使用一个丢弃变量
 			var discard interface{}
@@ -772,7 +780,8 @@ func PrepareScanTargetsWithFields(structValue reflect.Value, columns []string) (
 // 匹配规则（按优先级）：
 // 1. db tag精确匹配（区分大小写）- 最高优先级
 // 2. db tag大小写不敏感匹配 - 中等优先级
-// 3. 所有字段必须有db tag，不再支持字段名fallback
+// 3. COUNT 聚合列名互通（空列名、cnt、count、COUNT(*) 等）
+// 4. 所有字段必须有db tag，不再支持字段名fallback
 //
 // 参数:
 //
@@ -789,6 +798,8 @@ func FindFieldByColumn(structValue reflect.Value, column string) (reflect.Value,
 
 	// 用于存储大小写不敏感匹配的结果（优先级较低）
 	var caseInsensitiveMatch reflect.Value
+	var countTagMatch reflect.Value
+	columnIsCount := isCountResultName(column)
 
 	// 单次遍历，按优先级查找匹配
 	for i := 0; i < structValue.NumField(); i++ {
@@ -809,14 +820,77 @@ func FindFieldByColumn(structValue reflect.Value, column string) (reflect.Value,
 		if strings.ToLower(dbTag) == columnLower && !caseInsensitiveMatch.IsValid() {
 			caseInsensitiveMatch = field
 		}
+
+		if columnIsCount && isCountResultName(dbTag) && !countTagMatch.IsValid() {
+			countTagMatch = field
+		}
 	}
 
 	// 返回大小写不敏感匹配结果（如果有的话）
 	if caseInsensitiveMatch.IsValid() {
 		return caseInsensitiveMatch, true
 	}
+	if countTagMatch.IsValid() {
+		return countTagMatch, true
+	}
 
 	return reflect.Value{}, false
+}
+
+// isCountResultName 判断列名或 db tag 是否表示 COUNT 聚合结果。
+// SQL Server 未命名表达式的列名为空；PostgreSQL 常返回 count；本仓库 DAO 多用 COUNT(*)。
+func isCountResultName(name string) bool {
+	n := strings.ToLower(strings.TrimSpace(name))
+	switch n {
+	case "", "count(*)", "count(1)", "cnt", "count", "total":
+		return true
+	}
+	return strings.Contains(n, "no column name")
+}
+
+// soleSettableDBField 返回结构体中唯一可扫描的 db 字段。
+// 单列查询（COUNT）列名对不上时用它接收结果。
+func soleSettableDBField(structValue reflect.Value) (reflect.Value, bool) {
+	structType := structValue.Type()
+	var found reflect.Value
+	n := 0
+	for i := 0; i < structValue.NumField(); i++ {
+		field := structValue.Field(i)
+		if !field.CanSet() {
+			continue
+		}
+		dbTag := structType.Field(i).Tag.Get("db")
+		if dbTag == "" || dbTag == "-" {
+			continue
+		}
+		n++
+		found = field
+		if n > 1 {
+			return reflect.Value{}, false
+		}
+	}
+	if n == 1 {
+		return found, true
+	}
+	return reflect.Value{}, false
+}
+
+// matchCountOrSoleField 在列名对不上时，用 COUNT 别名或唯一字段承接扫描值。
+func matchCountOrSoleField(info *StructInfo, colName string, singleColumn bool) (*FieldInfo, bool) {
+	if info == nil {
+		return nil, false
+	}
+	if isCountResultName(colName) {
+		for i := range info.fields {
+			if isCountResultName(info.fields[i].dbName) {
+				return &info.fields[i], true
+			}
+		}
+	}
+	if singleColumn && len(info.fields) == 1 {
+		return &info.fields[0], true
+	}
+	return nil, false
 }
 
 // CreateNullSafeScanTarget 创建NULL值安全的扫描目标

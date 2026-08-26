@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Release version without v prefix (e.g. 3.3.0)
+        description: Release version without v prefix (e.g. 3.3.1)
         required: true
         type: string
       push_images:

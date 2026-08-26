@@ -1,6 +1,6 @@
 # CI-owned Windows amd64 packaging. Not used by local scripts/build.
 # Env:
-#   VERSION     required, e.g. 3.3.0
+#   VERSION     required, e.g. 3.3.1
 #   ORACLE      0 (MySQL/SQLite/ClickHouse) or 1 (also Oracle)
 #   ORACLE_HOME required when ORACLE=1
 $ErrorActionPreference = "Stop"

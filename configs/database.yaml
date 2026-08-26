@@ -13,7 +13,7 @@
 # 数据库配置
 database:
   # 默认连接名称
-  default: sqlite_main
+  default: sqlserver_main
   
   # === 数据库脚本初始化配置 ===
   # 是否启用数据库脚本自动初始化（应用启动时执行）
@@ -156,7 +156,53 @@ database:
       # 事务配置
       transaction:
         default_use: false          # ClickHouse 事务支持有限，默认不使用
-    
+
+    # SQL Server 连接
+    # 场景说明（结构化配置会生成 sqlserver:// DSN；也可直接填 dsn 覆盖）：
+    # 1) 默认实例：host + port(1433) + SQL 账号
+    # 2) 命名实例 + SQL Browser：sqlserver_instance 填写实例名，port 填 0
+    # 3) 命名实例 + 固定端口：同时填 sqlserver_instance 与实际 port
+    # 4) Azure SQL：encrypt=true，可填 sqlserver_hostname_in_certificate
+    # 5) Always On 监听器：sqlserver_multi_subnet_failover=true；只读副本再加 application_intent=ReadOnly
+    # 6) Windows 集成登录：username/password 留空，sqlserver_authenticator=winsspi（Linux 连 AD 可用 ntlm）
+    # 7) 域账号：username 填 DOMAIN\user（会做 URL 编码）
+    # 8) 镜像旧方案：sqlserver_failover_partner
+    # 9) 完全自定义：dsn: "sqlserver://..." 或 ADO "server=...;database=..."
+    # 10) Azure AD / Always Encrypted / krb5：结构化字段不覆盖，请直接填 dsn
+    sqlserver_main:
+      enabled: true
+      driver: "sqlserver"           # 别名也可写 mssql
+      dsn: ""                       # 非空则忽略下面 connection；ADO 也可 server=...;database=...
+      connection:
+        host: "192.168.1.120"
+        port: 61433                  # 默认实例 1433；命名实例走 Browser 时必须填 0
+        username: "sa"              # SQL 账号；Windows 集成登录请留空。域账号填 DOMAIN\user
+        password: "Your_strong_Passw0rd"   # 集成登录请留空
+        database: "gateway"         # 须事先建好；脚本只建表。ReadOnly 意图时必填
+        sqlserver_instance: ""      # 命名实例名，如 SQLEXPRESS。空=默认实例
+        sqlserver_encrypt: "disable"  # disable/false/true/strict。空则 disable。Azure 填 true
+        sqlserver_trust_server_certificate: false  # 自签证书测试可 true；Azure 生产应 false
+        sqlserver_hostname_in_certificate: ""      # 证书 CN 与 host 不一致时填，Azure 常用 *.database.windows.net
+        sqlserver_connection_timeout: 30  # 登录超时(秒)，>0 才写入 DSN
+        sqlserver_dial_timeout: 15        # TCP 拨号超时(秒)
+        sqlserver_app_name: "gateway"     # 出现在会话 program_name，便于 DBA 识别
+        sqlserver_workstation_id: ""      # 会话工作站名，空则用本机名
+        sqlserver_keepalive: 30           # TCP keepalive(秒)
+        sqlserver_authenticator: ""       # 空=SQL 账号；Windows 填 winsspi；Linux 连 AD 填 ntlm
+        sqlserver_application_intent: ""  # ReadOnly 走 AG 可读副本；走主副本留空
+        sqlserver_multi_subnet_failover: false  # Always On 多子网监听器建议 true
+        sqlserver_failover_partner: ""    # 旧镜像辅助服务器；AG 不要用这个
+      pool:
+        max_open_conns: 50          # 最大打开连接数
+        max_idle_conns: 25          # 最大空闲连接数
+        conn_max_lifetime: 3600     # 连接最大生命周期(秒)
+        conn_max_idle_time: 1800    # 连接最大空闲时间(秒)
+      log:
+        enable: true                # 是否启用 SQL 日志
+        slow_threshold: 200         # 慢查询阈值(毫秒)
+      transaction:
+        default_use: false          # 默认是否使用事务
+
     # MySQL 只读连接
     mysql_read:
       driver: mysql
@@ -216,7 +262,7 @@ database:
       # 方式1: 使用DSN连接字符串 (如果设置了DSN，将忽略下面的结构化配置)
       # SQLite DSN格式: file:path/to/database.db?param1=value1&param2=value2
       # 或者简单路径: ./data/app.db 或 :memory: (内存数据库)
-      # dsn: "file:./data/gateway.db?cache=shared&mode=rwc&_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=1"
+      # dsn: "file:./data/gateway.db?cache=private&mode=rwc&_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=1"
       
       # 方式2: 使用结构化连接配置 (推荐，更清晰)
       connection:
@@ -227,7 +273,7 @@ database:
         # === SQLite核心参数 - 数据安全优先配置 ===
         journal_mode: "WAL"               # 日志模式: WAL(推荐,最安全), DELETE, TRUNCATE, PERSIST, MEMORY, OFF(危险)
         synchronous_mode: "FULL"          # 同步模式: FULL(最安全,默认), NORMAL(平衡), OFF(危险,可能丢数据)
-        cache_mode: "shared"              # 缓存模式: shared(共享,推荐), private(私有)
+        cache_mode: "private"             # 文件库用 private；shared 已过时，多连接易 SQLITE_LOCKED
         connection_mode: "rwc"            # 连接模式: rwc(读写创建), ro(只读), rw(读写), memory(内存)
         foreign_keys: true                # 启用外键约束(保证数据完整性)
         

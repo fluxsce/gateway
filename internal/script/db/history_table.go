@@ -33,7 +33,7 @@ func TableNameStatementHistory(driver string) string {
 // 参数:
 //   - ctx: 上下文对象，用于控制创建表的超时和取消
 //   - conn: 数据库连接实例
-//   - driver: 数据库驱动类型（mysql, sqlite, oracle, clickhouse）
+//   - driver: 数据库驱动类型（mysql, sqlite, oracle, clickhouse, sqlserver）
 //
 // 返回:
 //   - error: 创建表失败时返回错误信息
@@ -128,6 +128,30 @@ EXCEPTION
             RAISE;
         END IF;
 END;`, TableNameScriptHistory(driver))
+
+	case dbtypes.DriverSQLServer:
+		createTableSQL = `
+IF OBJECT_ID(N'dbo.HUB_SCRIPT_EXECUTION_HISTORY', N'U') IS NULL
+CREATE TABLE HUB_SCRIPT_EXECUTION_HISTORY (
+    executionId VARCHAR(32) NOT NULL PRIMARY KEY,
+    tenantId VARCHAR(32) NOT NULL DEFAULT 'default',
+    scriptName VARCHAR(255) NOT NULL,
+    scriptPath VARCHAR(500) NOT NULL,
+    scriptVersion VARCHAR(32) NOT NULL,
+    databaseDriver VARCHAR(50) NOT NULL,
+    executionStatus VARCHAR(20) NOT NULL,
+    executionTime DATETIME2 NOT NULL,
+    executionDuration BIGINT NOT NULL DEFAULT 0,
+    statementsExecuted INT NOT NULL DEFAULT 0,
+    errorMessage NVARCHAR(MAX) NULL,
+    createdAt DATETIME2 NOT NULL DEFAULT GETDATE(),
+    INDEX IDX_SCRIPT_HIST_NAME (scriptName),
+    INDEX IDX_SCRIPT_HIST_VERSION (scriptVersion),
+    INDEX IDX_SCRIPT_HIST_STATUS (executionStatus),
+    INDEX IDX_SCRIPT_HIST_DRIVER (databaseDriver),
+    INDEX IDX_SCRIPT_HIST_TIME (executionTime),
+    CONSTRAINT UK_SCRIPT_VERSION UNIQUE (tenantId, scriptName, scriptVersion, databaseDriver)
+)`
 
 	case dbtypes.DriverClickHouse:
 		createTableSQL = `
@@ -239,6 +263,31 @@ EXCEPTION
             RAISE;
         END IF;
 END;`, TableNameStatementHistory(driver))
+
+	case dbtypes.DriverSQLServer:
+		createTableSQL = `
+IF OBJECT_ID(N'dbo.HUB_STATEMENT_EXECUTION_HISTORY', N'U') IS NULL
+CREATE TABLE HUB_STATEMENT_EXECUTION_HISTORY (
+    statementId VARCHAR(32) NOT NULL PRIMARY KEY,
+    tenantId VARCHAR(32) NOT NULL DEFAULT 'default',
+    scriptName VARCHAR(255) NOT NULL,
+    statementHash VARCHAR(32) NOT NULL,
+    statementType VARCHAR(50) NOT NULL,
+    statementContent NVARCHAR(MAX) NOT NULL,
+    databaseDriver VARCHAR(50) NOT NULL,
+    executionStatus VARCHAR(20) NOT NULL,
+    executionTime DATETIME2 NOT NULL,
+    executionDuration BIGINT NOT NULL DEFAULT 0,
+    errorMessage NVARCHAR(MAX) NULL,
+    createdAt DATETIME2 NOT NULL DEFAULT GETDATE(),
+    INDEX IDX_STMT_HIST_NAME (scriptName),
+    INDEX IDX_STMT_HIST_HASH (statementHash),
+    INDEX IDX_STMT_HIST_TYPE (statementType),
+    INDEX IDX_STMT_HIST_STATUS (executionStatus),
+    INDEX IDX_STMT_HIST_DRIVER (databaseDriver),
+    INDEX IDX_STMT_HIST_TIME (executionTime),
+    CONSTRAINT UK_STMT_HASH UNIQUE (tenantId, scriptName, statementHash, databaseDriver)
+)`
 
 	case dbtypes.DriverClickHouse:
 		createTableSQL = `

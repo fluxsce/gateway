@@ -10,7 +10,7 @@ import (
 	// Oracle驱动需要Oracle客户端库和C编译器支持
 	// 此驱动仅在未设置 no_oracle 构建标签时被导入
 	_ "gateway/pkg/database/oracle"
-	// 未来可能添加的其他驱动
+	// 新驱动：先在 dialect 注册 Spec，再在此空白导入实现包
 	// _ "gateway/pkg/database/postgres"
 	// _ "gateway/pkg/database/sqlite"
 )

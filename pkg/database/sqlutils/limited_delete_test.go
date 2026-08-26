@@ -19,6 +19,22 @@ func TestBuildLimitedDeleteQueryMySQL(t *testing.T) {
 	}
 }
 
+func TestBuildLimitedDeleteQuerySQLiteUsesCTE(t *testing.T) {
+	sql, args, err := BuildLimitedDeleteQuery(DatabaseSQLite, "HUB_METRIC_TEMP_LOG", "tenantId = ? AND collectTime < ?", []interface{}{"t1", "ts"}, 2000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(sql, "WITH doomed AS") || !strings.Contains(sql, "DELETE FROM HUB_METRIC_TEMP_LOG") {
+		t.Fatalf("sql=%q", sql)
+	}
+	if strings.Contains(sql, "SELECT rowid FROM (SELECT rowid FROM") {
+		t.Fatalf("should not nest same-table rowid subquery, sql=%q", sql)
+	}
+	if len(args) != 3 || args[2] != 2000 {
+		t.Fatalf("args=%v", args)
+	}
+}
+
 func TestBuildLimitedDeleteQueryOracleNoINList(t *testing.T) {
 	sql, args, err := BuildLimitedDeleteQuery(DatabaseOracle, "HUB_ALERT_LOG", "tenantId = ? AND alertTimestamp < ?", []interface{}{"t1", "ts"}, 2000)
 	if err != nil {

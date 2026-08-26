@@ -49,7 +49,7 @@ func TestGenerateSQLite(t *testing.T) {
 					Database: "testdb",
 				},
 			},
-			expected: "file:./testdb.db?cache=shared&mode=rwc&_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=1&_busy_timeout=5000",
+			expected: "file:./testdb.db?cache=private&mode=rwc&_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=1&_busy_timeout=5000",
 			hasError: false,
 		},
 		{
@@ -60,7 +60,7 @@ func TestGenerateSQLite(t *testing.T) {
 					Database: "./data/app.db",
 				},
 			},
-			expected: "file:./data/app.db?cache=shared&mode=rwc&_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=1&_busy_timeout=5000",
+			expected: "file:./data/app.db?cache=private&mode=rwc&_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=1&_busy_timeout=5000",
 			hasError: false,
 		},
 		{
@@ -111,7 +111,7 @@ func TestGenerateSQLite(t *testing.T) {
 	// 验证DSN包含自定义的busy_timeout
 	assert.Contains(t, dsn, "_busy_timeout=10000")
 	assert.Contains(t, dsn, "file:./custom.db")
-	assert.Contains(t, dsn, "cache=shared")
+	assert.Contains(t, dsn, "cache=private")
 	assert.Contains(t, dsn, "_journal_mode=WAL")
 }
 

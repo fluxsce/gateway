@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [3.3.1] - 2026-08-27
+
+### 新增
+- **SQL Server 数据源**：`pkg/database` 按现有 dialect + sqlbase 路径接入 `sqlserver`（别名 `mssql`）。占位符 `?` 改写为 `@p1`，分页 `OFFSET/FETCH`，限删 `DELETE TOP (?)`。YAML 见 `sqlserver_main`。
+- **SQL Server 脚本库**：`scripts/db/sqlserver/` 由 MySQL 脚本转换，启动初始化与 MySQL 一样扫描该目录（跳过 `init.sql`）。覆盖默认实例、命名实例（SQL Browser / 固定端口）、Azure SQL TLS、Always On 只读意图与多子网故障转移、Windows/NTLM 集成登录、镜像 Failover Partner；Azure AD / Always Encrypted / krb5 请直接填 `dsn`。
+
+### 修复
+- **SQL Server 列表为空**：`SELECT COUNT(*)` 在 SQL Server 没有列名，扫描对不上 `db:"COUNT(*)"`，总数被当成 0，有数据的列表（如用户）直接返回空。COUNT 现统一别名为 `cnt`，扫描同时认空列名 / `COUNT(*)` / `cnt`。
+- **SQL Server 监控查不到最近数据**：`time.Time` 被编成 `datetimeoffset`，和 `DATETIME2` 比较时列被当成 UTC，东八区最近一小时对不上库里的本地时间。参数改为按墙钟绑定。
+- **SQL Server 脚本**：转换器不再把字符串里的 `TEXT`/`JSON` 改坏；`VARCHAR` 对齐为 `NVARCHAR` 并使用 `N'...'`；补丁与种子数据改为 `IF NOT EXISTS`，已有中文名会 UPDATE 修复乱码。`ALTER ADD` 带 `COL_LENGTH` 判断。访问日志加长字段写进表脚本（不再只放在不执行的 `init.sql`）。
+- **默认 SQLite 减少 table is locked**：文件库默认 `cache=private`（不再用已过时的 shared cache）。SQLite 分批删除改为先 CTE 物化 `rowid` 再删，避免同表嵌套 SELECT+DELETE。
+
 
 ## [3.3.0] - 2026-08-26
 

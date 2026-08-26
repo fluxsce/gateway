@@ -45,7 +45,7 @@ RUN go mod download
 COPY . .
 
 # 构建参数
-ARG VERSION=3.3.0
+ARG VERSION=3.3.1
 ARG BUILD_DATE
 ARG GIT_COMMIT=unknown
 
@@ -90,7 +90,7 @@ RUN CGO_ENABLED=1 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
 FROM alpine:3.23
 
 # 构建参数（在运行时阶段也需要）
-ARG VERSION=3.3.0
+ARG VERSION=3.3.1
 ARG BUILD_DATE
 ARG GIT_COMMIT=unknown
 

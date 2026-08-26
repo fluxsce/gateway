@@ -194,7 +194,7 @@ func InitializeDatabaseScripts(ctx context.Context, db database.Database) (*Init
 	scriptDir := config.ResolvePath(scriptDirConfig)
 
 	// 获取主数据库驱动类型
-	driver := db.GetDriver()
+	driver := canonicalScriptDriver(db.GetDriver())
 	if driver == "" {
 		return nil, fmt.Errorf("无法确定数据库驱动类型")
 	}
@@ -372,7 +372,7 @@ func executeScriptForDatabase(ctx context.Context, databaseName string, historyC
 
 		// 根据数据库类型执行脚本
 		switch driver {
-		case dbtypes.DriverMySQL, dbtypes.DriverSQLite, dbtypes.DriverOracle, dbtypes.DriverClickHouse:
+		case dbtypes.DriverMySQL, dbtypes.DriverSQLite, dbtypes.DriverOracle, dbtypes.DriverClickHouse, dbtypes.DriverSQLServer:
 			// SQL类型数据库 - 按语句级别执行
 			// 注意：使用 historyConn 查询执行历史，使用 targetConn 执行SQL
 			executedCount, failedCount, skippedCount, err := executeSQLScriptByStatements(ctx, historyConn, targetConn, driver, scriptName, string(scriptContent))
@@ -719,6 +719,16 @@ func splitSQLStatements(scriptContent string) []string {
 	return statements
 }
 
+// canonicalScriptDriver 将驱动别名归一成脚本目录与历史表 DDL 使用的主名。
+func canonicalScriptDriver(driver string) string {
+	switch driver {
+	case "mssql":
+		return dbtypes.DriverSQLServer
+	default:
+		return driver
+	}
+}
+
 // findScriptFiles 查找指定数据库驱动对应的脚本文件目录下的所有脚本文件
 // 在脚本目录的子目录中查找匹配的初始化脚本文件，按文件名排序返回
 func findScriptFiles(driver string, scriptDir string) ([]string, error) {
@@ -728,6 +738,8 @@ func findScriptFiles(driver string, scriptDir string) ([]string, error) {
 		dbtypes.DriverSQLite:     "sqlite",
 		dbtypes.DriverOracle:     "oracle",
 		dbtypes.DriverClickHouse: "clickhouse",
+		dbtypes.DriverSQLServer:  "sqlserver",
+		"mssql":                  "sqlserver",
 		dbtypes.DriverMongoDB:    "mongo",
 	}
 
@@ -736,6 +748,8 @@ func findScriptFiles(driver string, scriptDir string) ([]string, error) {
 		dbtypes.DriverSQLite:     ".sql",
 		dbtypes.DriverOracle:     ".sql",
 		dbtypes.DriverClickHouse: ".sql",
+		dbtypes.DriverSQLServer:  ".sql",
+		"mssql":                  ".sql",
 		dbtypes.DriverMongoDB:    ".js",
 	}
 
@@ -863,6 +877,7 @@ func ListAvailableScripts(scriptPath string) (map[string]string, error) {
 			"sqlite":     dbtypes.DriverSQLite,
 			"oracle":     dbtypes.DriverOracle,
 			"clickhouse": dbtypes.DriverClickHouse,
+			"sqlserver":  dbtypes.DriverSQLServer,
 			"mongo":      dbtypes.DriverMongoDB,
 		}
 

@@ -8,10 +8,12 @@ import (
 	_ "gateway/pkg/database/mysql"
 	// 导入ClickHouse驱动包，确保其init()函数被调用
 	_ "gateway/pkg/database/clickhouse"
+	// 导入 SQL Server 驱动包，确保其 init() 函数被调用
+	_ "gateway/pkg/database/sqlserver"
 	// Oracle驱动需要Oracle客户端库和C编译器支持
 	// 如需使用Oracle，请安装C编译器后取消注释以下行：
 	// _ "gateway/pkg/database/oracle"
-	// 未来可能添加的其他驱动
+	// 新驱动：先在 dialect 注册 Spec，再在此空白导入实现包
 	// _ "gateway/pkg/database/postgres"
 	_ "gateway/pkg/database/sqlite"
 )

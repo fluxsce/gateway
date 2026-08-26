@@ -20,11 +20,13 @@ package sqlutils
 
 import (
 	"fmt"
-	"gateway/pkg/database"
-	"gateway/pkg/database/dbtypes"
 	"reflect"
 	"strings"
 	"time"
+
+	"gateway/pkg/database"
+	"gateway/pkg/database/dbtypes"
+	"gateway/pkg/database/dialect"
 )
 
 // DatabaseType 数据库类型枚举，扩展dbtypes中的定义
@@ -451,94 +453,11 @@ func BuildPaginationQuery(dbType DatabaseType, baseQuery string, pagination *Pag
 	if pagination == nil {
 		return baseQuery, nil, fmt.Errorf("pagination info is required")
 	}
-
-	var paginatedQuery string
-	var args []interface{}
-
-	switch dbType {
-	case DatabaseMySQL, DatabaseMariaDB, DatabaseTiDB:
-		// MySQL、MariaDB、TiDB: LIMIT ... OFFSET ...
-		paginatedQuery = fmt.Sprintf("%s LIMIT ? OFFSET ?", baseQuery)
-		args = []interface{}{pagination.PageSize, pagination.Offset}
-
-	case DatabaseSQLite:
-		// SQLite: LIMIT ... OFFSET ...
-		paginatedQuery = fmt.Sprintf("%s LIMIT ? OFFSET ?", baseQuery)
-		args = []interface{}{pagination.PageSize, pagination.Offset}
-
-	case DatabasePostgreSQL:
-		// PostgreSQL: LIMIT ... OFFSET ...
-		paginatedQuery = fmt.Sprintf("%s LIMIT ? OFFSET ?", baseQuery)
-		args = []interface{}{pagination.PageSize, pagination.Offset}
-
-	case DatabaseSQLServer:
-		// SQL Server: OFFSET ... ROWS FETCH NEXT ... ROWS ONLY
-		// 注意：SQL Server 2012+支持，需要ORDER BY子句
-		if !strings.Contains(strings.ToUpper(baseQuery), "ORDER BY") {
-			// 如果没有ORDER BY，添加一个默认的排序
-			paginatedQuery = fmt.Sprintf("%s ORDER BY (SELECT NULL) OFFSET ? ROWS FETCH NEXT ? ROWS ONLY", baseQuery)
-		} else {
-			paginatedQuery = fmt.Sprintf("%s OFFSET ? ROWS FETCH NEXT ? ROWS ONLY", baseQuery)
-		}
-		args = []interface{}{pagination.Offset, pagination.PageSize}
-
-	case DatabaseOracle:
-		// Oracle 12c+: 使用OFFSET ... ROWS FETCH NEXT ... ROWS ONLY
-		if !strings.Contains(strings.ToUpper(baseQuery), "ORDER BY") {
-			// Oracle需要ORDER BY子句
-			paginatedQuery = fmt.Sprintf("%s ORDER BY ROWID OFFSET ? ROWS FETCH NEXT ? ROWS ONLY", baseQuery)
-		} else {
-			paginatedQuery = fmt.Sprintf("%s OFFSET ? ROWS FETCH NEXT ? ROWS ONLY", baseQuery)
-		}
-		args = []interface{}{pagination.Offset, pagination.PageSize}
-
-	case DatabaseOracle11g:
-		// Oracle 11g: 使用ROW_NUMBER() OVER()子查询实现分页
-		// 格式: SELECT * FROM (SELECT t.*, ROW_NUMBER() OVER(ORDER BY ...) AS rn FROM (...) t) WHERE rn BETWEEN ? AND ?
-		var orderByClause string
-
-		// 检查是否有ORDER BY子句
-		upperQuery := strings.ToUpper(baseQuery)
-		if !strings.Contains(upperQuery, "ORDER BY") {
-			// 没有ORDER BY，使用ROWID作为默认排序
-			orderByClause = "ORDER BY ROWID"
-		} else {
-			// 提取原始ORDER BY子句
-			orderByPos := strings.LastIndex(upperQuery, "ORDER BY")
-			orderByClause = baseQuery[orderByPos:]
-		}
-
-		// 构建分页查询
-		startRow := pagination.Offset + 1
-		endRow := pagination.Offset + pagination.PageSize
-
-		// 移除原始查询中的ORDER BY子句（如果有）
-		if strings.Contains(upperQuery, "ORDER BY") {
-			orderByPos := strings.LastIndex(upperQuery, "ORDER BY")
-			baseQuery = baseQuery[:orderByPos]
-		}
-
-		paginatedQuery = fmt.Sprintf(
-			"SELECT * FROM (SELECT t.*, ROW_NUMBER() OVER(%s) AS rn FROM (%s) t) WHERE rn BETWEEN ? AND ?",
-			orderByClause,
-			baseQuery,
-		)
-		args = []interface{}{startRow, endRow}
-
-	case DatabaseClickHouse:
-		// ClickHouse: LIMIT ... OFFSET ...
-		paginatedQuery = fmt.Sprintf("%s LIMIT ? OFFSET ?", baseQuery)
-		args = []interface{}{pagination.PageSize, pagination.Offset}
-
-	case DatabaseMongoDB:
-		// MongoDB不支持SQL分页，返回错误
-		return "", nil, fmt.Errorf("MongoDB does not support SQL pagination, use MongoDB-specific methods")
-
-	default:
-		return "", nil, fmt.Errorf("unsupported database type: %s", dbType)
+	d, err := dialect.Get(string(dbType))
+	if err != nil {
+		return "", nil, err
 	}
-
-	return paginatedQuery, args, nil
+	return d.BuildPagination(baseQuery, pagination.Page, pagination.PageSize, pagination.Offset)
 }
 
 // BuildLimitedDeleteQuery 构建限制删除条数的 SQL，与 BuildPaginationQuery 按同一套库类型分支。
@@ -547,61 +466,11 @@ func BuildPaginationQuery(dbType DatabaseType, baseQuery string, pagination *Pag
 // whereClause 只含条件与占位符（例如 tenantId = ? AND addTime < ?），不含 WHERE 关键字。
 // 返回的 args 已按各库占位符顺序排好：WHERE 参数在前，条数在后；SQL Server 的 TOP 条数在前。
 func BuildLimitedDeleteQuery(dbType DatabaseType, table, whereClause string, whereArgs []interface{}, limit int) (string, []interface{}, error) {
-	if !validSQLIdent(table) {
-		return "", nil, fmt.Errorf("invalid table name")
+	d, err := dialect.Get(string(dbType))
+	if err != nil {
+		return "", nil, err
 	}
-	if strings.TrimSpace(whereClause) == "" {
-		return "", nil, fmt.Errorf("where clause is required")
-	}
-	if limit < 1 {
-		limit = 10
-	}
-
-	switch dbType {
-	case DatabaseMySQL, DatabaseMariaDB, DatabaseTiDB, DatabaseClickHouse:
-		query := "DELETE FROM " + table + " WHERE " + whereClause + " LIMIT ?"
-		return query, appendWhereThenLimit(whereArgs, limit), nil
-	case DatabaseSQLite:
-		// 默认未开启 DELETE LIMIT，用 rowid 子查询限制条数（IN 内是子查询，不是上千个绑定值）
-		query := "DELETE FROM " + table + " WHERE rowid IN (SELECT rowid FROM (SELECT rowid FROM " +
-			table + " WHERE " + whereClause + " LIMIT ?))"
-		return query, appendWhereThenLimit(whereArgs, limit), nil
-	case DatabasePostgreSQL:
-		query := "DELETE FROM " + table + " WHERE ctid IN (SELECT ctid FROM " + table +
-			" WHERE " + whereClause + " LIMIT ?)"
-		return query, appendWhereThenLimit(whereArgs, limit), nil
-	case DatabaseOracle, DatabaseOracle11g:
-		query := "DELETE FROM " + table + " WHERE (" + whereClause + ") AND ROWNUM <= ?"
-		return query, appendWhereThenLimit(whereArgs, limit), nil
-	case DatabaseSQLServer:
-		query := "DELETE TOP (?) FROM " + table + " WHERE " + whereClause
-		args := make([]interface{}, 0, 1+len(whereArgs))
-		args = append(args, limit)
-		args = append(args, whereArgs...)
-		return query, args, nil
-	case DatabaseMongoDB:
-		return "", nil, fmt.Errorf("MongoDB does not support SQL delete")
-	default:
-		return "", nil, fmt.Errorf("unsupported database type: %s", dbType)
-	}
-}
-
-func appendWhereThenLimit(whereArgs []interface{}, limit int) []interface{} {
-	args := make([]interface{}, 0, len(whereArgs)+1)
-	args = append(args, whereArgs...)
-	return append(args, limit)
-}
-
-func validSQLIdent(s string) bool {
-	if s == "" {
-		return false
-	}
-	for _, r := range s {
-		if r != '_' && !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
-			return false
-		}
-	}
-	return true
+	return d.BuildLimitedDelete(table, whereClause, whereArgs, limit)
 }
 
 // BuildCountQuery 构建统计总数的查询语句
@@ -628,7 +497,7 @@ func validSQLIdent(s string) bool {
 //
 //	baseQuery := "SELECT u.*, p.name FROM users u JOIN profiles p ON u.id=p.user_id WHERE u.status = ? ORDER BY u.created_at"
 //	countQuery, err := BuildCountQuery(baseQuery)
-//	// 返回: "SELECT COUNT(*) FROM users u JOIN profiles p ON u.id=p.user_id WHERE u.status = ?"
+//	// 返回: "SELECT COUNT(*) AS cnt FROM users u JOIN profiles p ON u.id=p.user_id WHERE u.status = ?"
 func BuildCountQuery(baseQuery string) (string, error) {
 	if baseQuery == "" {
 		return "", fmt.Errorf("base query cannot be empty")
@@ -672,8 +541,8 @@ func BuildCountQuery(baseQuery string) (string, error) {
 		fromClause = fromClause[:fetchPos]
 	}
 
-	// 构建COUNT查询
-	countQuery := fmt.Sprintf("SELECT COUNT(*) %s", strings.TrimSpace(fromClause))
+	// 必须起别名：SQL Server 对未命名表达式返回空列名，扫描不到 db:"COUNT(*)" 会把总数当成 0。
+	countQuery := fmt.Sprintf("SELECT COUNT(*) AS cnt %s", strings.TrimSpace(fromClause))
 
 	return countQuery, nil
 }
@@ -702,50 +571,10 @@ func BuildCountQuery(baseQuery string) (string, error) {
 //	countQuery, err := BuildCountQueryWithOptimization(DatabaseMySQL, baseQuery)
 //	// 对于大表可能使用: SELECT COUNT(1) 或其他优化语法
 func BuildCountQueryWithOptimization(dbType DatabaseType, baseQuery string) (string, error) {
-	// 首先使用标准方法构建基础COUNT查询
-	countQuery, err := BuildCountQuery(baseQuery)
-	if err != nil {
-		return "", err
+	if _, err := dialect.Get(string(dbType)); err != nil {
+		return BuildCountQuery(baseQuery)
 	}
-
-	// 根据数据库类型进行特定优化
-	switch dbType {
-	case DatabaseMySQL, DatabaseMariaDB, DatabaseTiDB:
-		// MySQL系列：对于大表，COUNT(1)可能比COUNT(*)稍快
-		// 但现代MySQL版本中两者性能基本相同，保持COUNT(*)
-		return countQuery, nil
-
-	case DatabasePostgreSQL:
-		// PostgreSQL：COUNT(*)已经高度优化，无需特殊处理
-		return countQuery, nil
-
-	case DatabaseSQLServer:
-		// SQL Server：可以考虑使用系统表进行快速估算（适用于近似统计）
-		// 这里保持精确统计，使用标准COUNT(*)
-		return countQuery, nil
-
-	case DatabaseOracle:
-		// Oracle：COUNT(*)已经优化，对于大表可以考虑使用ROWNUM优化
-		// 这里保持标准语法
-		return countQuery, nil
-
-	case DatabaseSQLite:
-		// SQLite：COUNT(*)性能良好，无需特殊优化
-		return countQuery, nil
-
-	case DatabaseClickHouse:
-		// ClickHouse：COUNT()性能优异，支持近似统计
-		// 保持精确统计
-		return countQuery, nil
-
-	case DatabaseMongoDB:
-		// MongoDB不支持SQL COUNT
-		return "", fmt.Errorf("MongoDB does not support SQL COUNT, use MongoDB-specific aggregation")
-
-	default:
-		// 未知数据库类型，使用标准COUNT查询
-		return countQuery, nil
-	}
+	return BuildCountQuery(baseQuery)
 }
 
 // BuildInsertQueryForOracle 为Oracle构建INSERT语句
@@ -761,27 +590,15 @@ func BuildCountQueryWithOptimization(dbType DatabaseType, baseQuery string) (str
 //	[]interface{}: 参数值数组
 //	error: 构建失败时返回错误信息
 func BuildInsertQueryForOracle(table string, data interface{}) (string, []interface{}, error) {
-	columns, values, err := ExtractColumnsAndValues(data)
+	query, values, err := BuildInsertQuery(table, data)
 	if err != nil {
 		return "", nil, err
 	}
-
-	if len(columns) == 0 {
-		return "", nil, fmt.Errorf("no columns to insert")
+	d, err := dialect.Get(dbtypes.DriverOracle)
+	if err != nil {
+		return "", nil, err
 	}
-
-	// 为Oracle创建占位符格式 :1, :2, :3...
-	placeholders := make([]string, len(values))
-	for i := range placeholders {
-		placeholders[i] = fmt.Sprintf(":%d", i+1)
-	}
-
-	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
-		table,
-		strings.Join(columns, ", "),
-		strings.Join(placeholders, ", "))
-
-	return query, values, nil
+	return d.RewriteQuery(query), values, nil
 }
 
 // BuildUpdateQueryForOracle 为Oracle构建UPDATE语句的SET子句
@@ -797,34 +614,15 @@ func BuildInsertQueryForOracle(table string, data interface{}) (string, []interf
 //	[]interface{}: 参数值数组
 //	error: 构建失败时返回错误信息
 func BuildUpdateQueryForOracle(table string, data interface{}, skipZero bool) (string, []interface{}, error) {
-	var columns []string
-	var values []interface{}
-	var err error
-
-	if skipZero {
-		// UPDATE操作跳过零值，只更新非零值字段
-		columns, values, err = ExtractColumnsAndValuesSkipZero(data)
-	} else {
-		// UPDATE操作包含零值，更新所有字段（用于需要清空字段的场景）
-		columns, values, err = ExtractColumnsAndValues(data)
-	}
-
+	setClause, values, err := BuildUpdateQuery(table, data, skipZero)
 	if err != nil {
 		return "", nil, err
 	}
-
-	if len(columns) == 0 {
-		return "", nil, fmt.Errorf("no columns to update")
+	d, err := dialect.Get(dbtypes.DriverOracle)
+	if err != nil {
+		return "", nil, err
 	}
-
-	// 为Oracle创建SET子句，使用占位符格式 :1, :2, :3...
-	var setClauses []string
-	for i, column := range columns {
-		setClauses = append(setClauses, fmt.Sprintf("%s = :%d", column, i+1))
-	}
-
-	setClause := strings.Join(setClauses, ", ")
-	return setClause, values, nil
+	return d.RewriteQuery(setClause), values, nil
 }
 
 // GetCurrentTimeFunction 获取当前时间的数据库函数
@@ -854,26 +652,11 @@ func BuildUpdateQueryForOracle(table string, data interface{}, skipZero bool) (s
 //	timeFunc, err := GetCurrentTimeFunction(dbType)
 //	query := fmt.Sprintf("UPDATE table SET editTime = %s", timeFunc)
 func GetCurrentTimeFunction(dbType DatabaseType) (string, error) {
-	switch dbType {
-	case DatabaseMySQL, DatabaseMariaDB, DatabaseTiDB:
-		return "NOW()", nil
-	case DatabasePostgreSQL:
-		return "NOW()", nil
-	case DatabaseSQLServer:
-		return "GETDATE()", nil
-	case DatabaseOracle:
-		return "SYSDATE", nil
-	case DatabaseOracle11g:
-		return "SYSDATE", nil
-	case DatabaseSQLite:
-		return "datetime('now')", nil
-	case DatabaseClickHouse:
-		return "now()", nil
-	case DatabaseMongoDB:
-		return "", fmt.Errorf("MongoDB does not support SQL time functions, use MongoDB-specific methods")
-	default:
-		return "", fmt.Errorf("unsupported database type: %s", dbType)
+	d, err := dialect.Get(string(dbType))
+	if err != nil {
+		return "", err
 	}
+	return d.CurrentTimeFunction()
 }
 
 // GetCurrentTimeValue 获取当前时间的参数化值

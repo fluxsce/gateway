@@ -1,0 +1,141 @@
+-- SQL Server 方言，由 scripts/db/mysql/HUB_GW_ACCESS_LOG.sql 转换。程序初始化会执行本目录除 init.sql 外的全部 .sql。
+IF OBJECT_ID(N'dbo.HUB_GW_ACCESS_LOG', N'U') IS NULL
+CREATE TABLE HUB_GW_ACCESS_LOG (
+  tenantId NVARCHAR(32) NOT NULL,
+  traceId NVARCHAR(64) NOT NULL,
+  gatewayInstanceId NVARCHAR(32) NOT NULL,
+  gatewayInstanceName NVARCHAR(300) DEFAULT NULL,
+  gatewayNodeIp NVARCHAR(50) NOT NULL,
+  routeConfigId NVARCHAR(32) DEFAULT NULL,
+  routeName NVARCHAR(300) DEFAULT NULL,
+  serviceDefinitionId VARCHAR(32) DEFAULT NULL,
+  serviceName NVARCHAR(300) DEFAULT NULL,
+  proxyType NVARCHAR(50) DEFAULT NULL,
+  logConfigId NVARCHAR(32) DEFAULT NULL,
+  
+  -- 请求基本信息
+  requestMethod NVARCHAR(10) NOT NULL,
+  requestPath NVARCHAR(1000) NOT NULL,
+  requestQuery NVARCHAR(MAX) DEFAULT NULL,
+  requestSize INT DEFAULT 0,
+  requestHeaders NVARCHAR(MAX) DEFAULT NULL,
+  requestBody NVARCHAR(MAX) DEFAULT NULL,
+  
+  -- 客户端信息
+  clientIpAddress NVARCHAR(50) NOT NULL,
+  clientPort INT DEFAULT NULL,
+  userAgent NVARCHAR(1000) DEFAULT NULL,
+  referer NVARCHAR(1000) DEFAULT NULL,
+  userIdentifier NVARCHAR(100) DEFAULT NULL,
+  
+  -- 关键时间点 (所有时间字段均为DATETIME类型，精确到毫秒)
+  gatewayStartProcessingTime DATETIME2(3) NOT NULL,
+  backendRequestStartTime DATETIME2(3) DEFAULT NULL,
+  backendResponseReceivedTime DATETIME2(3) DEFAULT NULL,
+  gatewayFinishedProcessingTime DATETIME2(3) DEFAULT NULL,
+  
+  -- 计算的时间指标 (所有时间指标均为毫秒)
+  totalProcessingTimeMs INT DEFAULT NULL,
+  gatewayProcessingTimeMs INT DEFAULT NULL,
+  backendResponseTimeMs INT DEFAULT NULL,
+  
+  -- 响应信息
+  gatewayStatusCode INT NOT NULL,
+  backendStatusCode INT DEFAULT NULL,
+  responseSize INT DEFAULT 0,
+  responseHeaders NVARCHAR(MAX) DEFAULT NULL,
+  responseBody NVARCHAR(MAX) DEFAULT NULL,
+  
+  -- 转发基本信息
+  matchedRoute NVARCHAR(500) DEFAULT NULL,
+  forwardAddress NVARCHAR(MAX) DEFAULT NULL,
+  forwardMethod NVARCHAR(10) DEFAULT NULL,
+  forwardParams NVARCHAR(MAX) DEFAULT NULL,
+  forwardHeaders NVARCHAR(MAX) DEFAULT NULL,
+  forwardBody NVARCHAR(MAX) DEFAULT NULL,
+  loadBalancerDecision NVARCHAR(500) DEFAULT NULL,
+  
+  -- 错误信息
+  errorMessage NVARCHAR(MAX) DEFAULT NULL,
+  errorCode NVARCHAR(100) DEFAULT NULL,
+  
+  -- 追踪信息
+  parentTraceId NVARCHAR(100) DEFAULT NULL,
+  
+  -- 日志重置标记和次数
+  resetFlag NVARCHAR(1) NOT NULL DEFAULT N'N',
+  retryCount INT NOT NULL DEFAULT 0,
+  resetCount INT NOT NULL DEFAULT 0,
+  
+  -- 标准数据库字段
+  logLevel NVARCHAR(20) NOT NULL DEFAULT N'INFO',
+  logType NVARCHAR(50) NOT NULL DEFAULT N'ACCESS',
+  reserved1 NVARCHAR(100) DEFAULT NULL,
+  reserved2 NVARCHAR(100) DEFAULT NULL,
+  reserved3 INT DEFAULT NULL,
+  reserved4 INT DEFAULT NULL,
+  reserved5 DATETIME2 DEFAULT NULL,
+  extProperty NVARCHAR(MAX) DEFAULT NULL,
+  addTime DATETIME2 NOT NULL DEFAULT GETDATE(),
+  addWho NVARCHAR(32) NOT NULL,
+  editTime DATETIME2 NOT NULL DEFAULT GETDATE(),
+  editWho NVARCHAR(32) NOT NULL,
+  oprSeqFlag NVARCHAR(32) NOT NULL,
+  currentVersion INT NOT NULL DEFAULT 1,
+  activeFlag NVARCHAR(1) NOT NULL DEFAULT N'Y',
+  noteText NVARCHAR(500) DEFAULT NULL,
+  
+  PRIMARY KEY (tenantId, traceId),
+  -- 核心查询索引（高频查询字段）
+  INDEX idx_HUB_GW_ACCESS_LOG_time_instance (gatewayStartProcessingTime, gatewayInstanceId),
+  INDEX idx_HUB_GW_ACCESS_LOG_time_route (gatewayStartProcessingTime, routeConfigId),
+  INDEX idx_HUB_GW_ACCESS_LOG_time_service (gatewayStartProcessingTime, serviceDefinitionId),
+  
+  -- 名称字段查询索引（利用冗余字段，避免JOIN）
+  INDEX idx_HUB_GW_ACCESS_LOG_instance_name (gatewayInstanceName, gatewayStartProcessingTime),
+  INDEX idx_HUB_GW_ACCESS_LOG_route_name (routeName, gatewayStartProcessingTime),
+  INDEX idx_HUB_GW_ACCESS_LOG_service_name (serviceName, gatewayStartProcessingTime),
+  
+  -- 业务查询索引
+  INDEX idx_HUB_GW_ACCESS_LOG_client_ip (clientIpAddress, gatewayStartProcessingTime),
+  INDEX idx_HUB_GW_ACCESS_LOG_status_time (gatewayStatusCode, gatewayStartProcessingTime),
+  INDEX idx_HUB_GW_ACCESS_LOG_proxy_type (proxyType, gatewayStartProcessingTime)
+);
+-- 已有库：把原 VARCHAR 列升为 NVARCHAR，便于后续 N'...' 写入中文。
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN gatewayInstanceName NVARCHAR(300) NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN gatewayNodeIp NVARCHAR(50) NOT NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN routeName NVARCHAR(300) NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN serviceName NVARCHAR(300) NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN proxyType NVARCHAR(50) NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN requestMethod NVARCHAR(10) NOT NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN requestPath NVARCHAR(1000) NOT NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN clientIpAddress NVARCHAR(50) NOT NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN userAgent NVARCHAR(1000) NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN referer NVARCHAR(1000) NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN userIdentifier NVARCHAR(100) NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN matchedRoute NVARCHAR(500) NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN forwardMethod NVARCHAR(10) NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN loadBalancerDecision NVARCHAR(500) NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN errorCode NVARCHAR(100) NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN resetFlag NVARCHAR(1) NOT NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN logLevel NVARCHAR(20) NOT NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN logType NVARCHAR(50) NOT NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN reserved1 NVARCHAR(100) NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN reserved2 NVARCHAR(100) NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN addWho NVARCHAR(32) NOT NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN editWho NVARCHAR(32) NOT NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN oprSeqFlag NVARCHAR(32) NOT NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN activeFlag NVARCHAR(1) NOT NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN noteText NVARCHAR(500) NULL;
+
+-- 程序不执行 init.sql，多服务 ID/名称加长写在本文件，启动即可补上。
+IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'idx_HUB_GW_ACCESS_LOG_time_service' AND object_id = OBJECT_ID(N'dbo.HUB_GW_ACCESS_LOG'))
+DROP INDEX idx_HUB_GW_ACCESS_LOG_time_service ON HUB_GW_ACCESS_LOG;
+IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'idx_HUB_GW_ACCESS_LOG_service_name' AND object_id = OBJECT_ID(N'dbo.HUB_GW_ACCESS_LOG'))
+DROP INDEX idx_HUB_GW_ACCESS_LOG_service_name ON HUB_GW_ACCESS_LOG;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN serviceDefinitionId VARCHAR(1000) NULL;
+ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN serviceName NVARCHAR(450) NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'idx_HUB_GW_ACCESS_LOG_time_service' AND object_id = OBJECT_ID(N'dbo.HUB_GW_ACCESS_LOG'))
+CREATE INDEX idx_HUB_GW_ACCESS_LOG_time_service ON HUB_GW_ACCESS_LOG (gatewayStartProcessingTime, serviceDefinitionId);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'idx_HUB_GW_ACCESS_LOG_service_name' AND object_id = OBJECT_ID(N'dbo.HUB_GW_ACCESS_LOG'))
+CREATE INDEX idx_HUB_GW_ACCESS_LOG_service_name ON HUB_GW_ACCESS_LOG (serviceName, gatewayStartProcessingTime);

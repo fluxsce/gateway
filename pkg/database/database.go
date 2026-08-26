@@ -1,3 +1,5 @@
+// Package database 定义统一的数据库访问接口与连接工厂。
+// 业务通过 Database（Conn + SQL + Records + TxManager）访问关系库；具体驱动在子包注册。
 package database
 
 import (
@@ -32,10 +34,23 @@ var (
 	ErrConfigNotFound = errors.New("database config not found")
 )
 
+// IsRecordNotFound 是否为未找到记录。兼容历史代码的相等比较与包装后的 errors.Is。
+func IsRecordNotFound(err error) bool {
+	return errors.Is(err, ErrRecordNotFound)
+}
+
+// IsDuplicateKey 是否为唯一约束冲突。
+func IsDuplicateKey(err error) bool {
+	return errors.Is(err, ErrDuplicateKey)
+}
+
 // 数据库工厂映射及缓存
 var (
 	// dbCreators 存储注册的数据库驱动创建函数
 	dbCreators = make(map[string]DriverCreator)
+
+	// creatorMu 保护驱动注册表
+	creatorMu = sync.RWMutex{}
 
 	// dbConnections 缓存已创建的数据库连接实例
 	dbConnections = make(map[string]Database)
@@ -50,6 +65,7 @@ const (
 	DriverPostgreSQL = dbtypes.DriverPostgreSQL
 	DriverSQLite     = dbtypes.DriverSQLite
 	DriverOracle     = dbtypes.DriverOracle
+	DriverSQLServer  = dbtypes.DriverSQLServer
 	DriverClickHouse = dbtypes.DriverClickHouse
 )
 
@@ -100,238 +116,240 @@ type TxOptions struct {
 	ReadOnly bool
 }
 
-// Database 统一的数据库接口
-// 通过autoCommit参数控制是否自动提交，简化事务处理
-type Database interface {
-	// === 连接管理 ===
-
-	// Connect 连接数据库
-	// 根据提供的配置建立数据库连接，包括连接池设置、日志配置等
+// Conn 管理连接生命周期。健康检查或只探测连通性时可以只依赖本接口。
+type Conn interface {
+	// Connect 根据配置建立数据库连接，包括连接池、日志等。
+	// 失败时不应留下半开的底层连接。
 	// 参数:
-	//   config: 数据库配置，包含连接信息、池设置、日志等
+	//   config: 数据库配置，包含 DSN 或可生成 DSN 的连接信息、池设置、日志
 	// 返回:
 	//   error: 连接失败时返回错误信息
 	Connect(config *DbConfig) error
 
-	// Close 关闭数据库连接
-	// 关闭当前数据库连接，释放相关资源
-	// 如果有活跃的事务，会先回滚事务再关闭连接
+	// Close 关闭数据库连接并释放资源。
+	// 使用上下文绑定事务时，Close 不会自动回滚，调用方应先 Commit 或 Rollback。
 	// 返回:
 	//   error: 关闭失败时返回错误信息
 	Close() error
 
-	// Ping 测试数据库连接
-	// 发送ping请求到数据库服务器，验证连接是否正常
+	// Ping 向数据库发送探测请求，验证连接是否可用。
 	// 参数:
-	//   ctx: 上下文，用于控制请求超时和取消
+	//   ctx: 用于超时和取消
 	// 返回:
 	//   error: 连接异常时返回错误信息
 	Ping(ctx context.Context) error
 
-	// === 基本操作 ===
+	// GetDriver 返回逻辑驱动类型，如 mysql、sqlite、oracle、sqlserver、clickhouse。
+	GetDriver() string
 
-	// Exec 执行SQL语句
-	// 执行INSERT、UPDATE、DELETE等不返回结果集的SQL语句
+	// GetName 返回当前连接名称；配置为空时返回空字符串。
+	GetName() string
+
+	// SetName 设置连接名称，加载 YAML 配置时把连接名写回实例。
+	SetName(name string)
+}
+
+// SQL 执行原始 SQL。分页、复杂查询、手写语句走这里。
+// autoCommit 为 true 时直接用连接并自动提交；为 false 时使用 ctx 中的事务，需先 BeginTx 或 InTx。
+type SQL interface {
+	// Exec 执行 INSERT、UPDATE、DELETE 等不返回结果集的语句。
+	// 占位符统一写 ?，执行前由方言改写成各库格式。
 	// 参数:
-	//   ctx: 上下文，用于控制请求超时和取消
-	//   query: 要执行的SQL语句，可包含占位符
-	//   args: SQL语句中占位符对应的参数值
-	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	//   ctx: 用于超时、取消，以及携带事务
+	//   query: SQL 语句，可含占位符
+	//   args: 占位符对应的参数
+	//   autoCommit: true 自动提交；false 在当前事务中执行
 	// 返回:
-	//   int64: 受影响的行数
-	//   error: 执行失败时返回错误信息
+	//   int64: 受影响行数
+	//   error: 失败时返回，唯一冲突等会包装为 ErrDuplicateKey
 	Exec(ctx context.Context, query string, args []interface{}, autoCommit bool) (int64, error)
 
-	// Query 查询多条记录
-	// 执行SELECT语句并将结果扫描到目标切片中
+	// Query 执行 SELECT 并将多行扫描到 dest 切片。
+	// dest 必须是切片指针，元素为结构体或结构体指针，字段通过 db tag 映射列名。
 	// 参数:
-	//   ctx: 上下文，用于控制请求超时和取消
-	//   dest: 目标切片的指针，用于接收查询结果
-	//   query: 要执行的SELECT语句，可包含占位符
-	//   args: SQL语句中占位符对应的参数值
-	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	//   ctx: 用于超时、取消，以及携带事务
+	//   dest: 目标切片指针
+	//   query: SELECT 语句，可含占位符
+	//   args: 占位符对应的参数
+	//   autoCommit: true 自动提交；false 在当前事务中执行
 	// 返回:
-	//   error: 查询失败或扫描失败时返回错误信息
+	//   error: 查询或扫描失败时返回错误信息
 	Query(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error
 
-	// QueryOne 查询单条记录
-	// 执行SELECT语句并将结果扫描到目标结构体中
-	// 如果查询不到记录，返回ErrRecordNotFound错误
+	// QueryOne 执行 SELECT 并将单行扫描到 dest 结构体。
+	// 查不到记录时返回 ErrRecordNotFound，可用 err == ErrRecordNotFound 或 IsRecordNotFound 判断。
 	// 参数:
-	//   ctx: 上下文，用于控制请求超时和取消
-	//   dest: 目标结构体的指针，用于接收查询结果
-	//   query: 要执行的SELECT语句，可包含占位符
-	//   args: SQL语句中占位符对应的参数值
-	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	//   ctx: 用于超时、取消，以及携带事务
+	//   dest: 目标结构体指针
+	//   query: SELECT 语句，可含占位符
+	//   args: 占位符对应的参数
+	//   autoCommit: true 自动提交；false 在当前事务中执行
 	// 返回:
-	//   error: 查询失败、扫描失败或记录不存在时返回错误信息
+	//   error: 查询失败、扫描失败或记录不存在
 	QueryOne(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool) error
 
-	// QueryEach 按数据库游标逐行扫描，不把整结果集载入内存。
+	// QueryEach 按游标逐行扫描到 dest 并回调，不把整结果集载入内存。
 	// dest 必须是结构体指针，每行复用同一块内存：回调返回后即可再次扫描覆盖，
 	// 调用方若要保留数据必须在回调内拷贝。回调返回 error 或 ctx 取消时停止。
 	// 无论成功、失败还是中途退出，都会 Close 结果集并归还连接，不会泄漏游标。
 	// 导出期间占用连接池中的一条连接，直到游标结束。
 	// 参数:
-	//   ctx: 上下文，用于控制请求超时和取消
-	//   dest: 目标结构体的指针，每行扫描复用
-	//   query: 要执行的SELECT语句，可包含占位符
-	//   args: SQL语句中占位符对应的参数值
-	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	//   ctx: 用于超时、取消，以及携带事务
+	//   dest: 每行扫描复用的结构体指针
+	//   query: SELECT 语句，可含占位符
+	//   args: 占位符对应的参数
+	//   autoCommit: true 自动提交；false 在当前事务中执行
 	//   fn: 每扫描完一行后调用，返回 error 则中止游标
 	// 返回:
-	//   error: 查询失败、扫描失败或回调失败时返回错误信息
+	//   error: 查询失败、扫描失败或回调失败
 	QueryEach(ctx context.Context, dest interface{}, query string, args []interface{}, autoCommit bool, fn func() error) error
+}
 
-	// Insert 插入记录
-	// 根据提供的数据结构体自动构建INSERT语句并执行
-	// 会自动提取结构体字段作为列名和值
+// Records 按结构体映射做增删改和批量操作，开箱即用，保留在公共 API 上。
+// 字段通过 db tag 映射列名；占位符统一写 ?，执行前由方言改写。
+type Records interface {
+	// Insert 根据数据结构体构建 INSERT 并执行。
 	// 参数:
-	//   ctx: 上下文，用于控制请求超时和取消
+	//   ctx: 用于超时、取消，以及携带事务
 	//   table: 目标表名
-	//   data: 要插入的数据结构体，字段通过db tag映射到数据库列
-	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	//   data: 要插入的结构体，字段通过 db tag 映射到列
+	//   autoCommit: true 自动提交；false 在当前事务中执行
 	// 返回:
-	//   int64: 插入记录的自增ID（如果有）
-	//   error: 插入失败时返回错误信息
+	//   int64: 自增 ID（库不支持时为 0）
+	//   error: 插入失败时返回，唯一冲突会包装为 ErrDuplicateKey
 	Insert(ctx context.Context, table string, data interface{}, autoCommit bool) (int64, error)
 
-	// Update 更新记录
-	// 根据提供的数据结构体和WHERE条件构建UPDATE语句并执行
-	// 会自动提取结构体字段作为要更新的列和值
+	// Update 根据数据结构体和 WHERE 构建 UPDATE 并执行。
 	// 参数:
-	//   ctx: 上下文，用于控制请求超时和取消
+	//   ctx: 用于超时、取消，以及携带事务
 	//   table: 目标表名
-	//   data: 包含更新数据的结构体，字段通过db tag映射到数据库列
-	//   where: WHERE条件语句，可包含占位符
-	//   args: WHERE条件中占位符对应的参数值
-	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
-	//   skipZero: true-跳过零值字段（默认行为）, false-包含零值字段（用于清空字段）
+	//   data: 含更新数据的结构体，字段通过 db tag 映射到列
+	//   where: WHERE 条件，可含占位符；为空则不加 WHERE
+	//   args: WHERE 中占位符对应的参数
+	//   autoCommit: true 自动提交；false 在当前事务中执行
+	//   skipZero: true 跳过零值字段；false 包含零值（用于清空字段）
 	// 返回:
-	//   int64: 受影响的行数
+	//   int64: 受影响行数
 	//   error: 更新失败时返回错误信息
 	Update(ctx context.Context, table string, data interface{}, where string, args []interface{}, autoCommit bool, skipZero bool) (int64, error)
 
-	// Delete 删除记录
-	// 根据WHERE条件构建DELETE语句并执行
+	// Delete 根据 WHERE 构建 DELETE 并执行。
+	// ClickHouse 等库由方言改写成 ALTER TABLE ... DELETE。
 	// 参数:
-	//   ctx: 上下文，用于控制请求超时和取消
+	//   ctx: 用于超时、取消，以及携带事务
 	//   table: 目标表名
-	//   where: WHERE条件语句，可包含占位符
-	//   args: WHERE条件中占位符对应的参数值
-	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	//   where: WHERE 条件，可含占位符；为空则不加 WHERE
+	//   args: WHERE 中占位符对应的参数
+	//   autoCommit: true 自动提交；false 在当前事务中执行
 	// 返回:
-	//   int64: 受影响的行数
+	//   int64: 受影响行数
 	//   error: 删除失败时返回错误信息
 	Delete(ctx context.Context, table string, where string, args []interface{}, autoCommit bool) (int64, error)
 
-	// BatchInsert 批量插入记录
-	// 将切片中的多个数据结构体批量插入到数据库中
-	// 使用单条INSERT语句提高性能
+	// BatchInsert 批量插入切片中的多条结构体。
+	// 预编译一条 INSERT 后在事务中循环执行，任一条失败则回滚本批。
+	// 适合中小批量；超大批量建议业务层分批调用。ClickHouse 会按数据量改用列式批量策略。
 	// 参数:
-	//   ctx: 上下文，用于控制请求超时和取消
+	//   ctx: 用于超时、取消，以及携带事务
 	//   table: 目标表名
-	//   dataSlice: 要插入的数据切片，每个元素都是结构体
-	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	//   dataSlice: 要插入的数据切片，元素为结构体
+	//   autoCommit: true 时本方法自开事务并提交；false 时必须已有事务
 	// 返回:
-	//   int64: 受影响的行数
+	//   int64: 受影响行数
 	//   error: 插入失败时返回错误信息
 	BatchInsert(ctx context.Context, table string, dataSlice interface{}, autoCommit bool) (int64, error)
 
-	// BatchUpdate 批量更新记录
-	// 将切片中的多个数据结构体批量更新到数据库中
-	// 使用单条UPDATE语句提高性能，根据主键或指定字段进行更新
+	// BatchUpdate 按 keyFields 匹配，批量更新切片中的结构体。
+	// 预编译一条 UPDATE 后在事务中循环执行。
 	// 参数:
-	//   ctx: 上下文，用于控制请求超时和取消
+	//   ctx: 用于超时、取消，以及携带事务
 	//   table: 目标表名
-	//   dataSlice: 要更新的数据切片，每个元素都是结构体
-	//   keyFields: 用于匹配记录的关键字段列表（如主键字段）
-	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	//   dataSlice: 要更新的数据切片，元素为结构体
+	//   keyFields: 匹配记录的关键字段（如主键）
+	//   autoCommit: true 时本方法自开事务并提交；false 时必须已有事务
 	// 返回:
-	//   int64: 受影响的行数
+	//   int64: 受影响行数
 	//   error: 更新失败时返回错误信息
 	BatchUpdate(ctx context.Context, table string, dataSlice interface{}, keyFields []string, autoCommit bool) (int64, error)
 
-	// BatchDelete 批量删除记录
-	// 根据提供的数据切片批量删除记录，通过指定的关键字段匹配
+	// BatchDelete 按 keyFields 从切片中取键值，批量删除匹配记录。
+	// 预编译一条 DELETE 后在事务中循环执行。
 	// 参数:
-	//   ctx: 上下文，用于控制请求超时和取消
+	//   ctx: 用于超时、取消，以及携带事务
 	//   table: 目标表名
-	//   dataSlice: 包含要删除记录信息的数据切片，每个元素都是结构体
-	//   keyFields: 用于匹配记录的关键字段列表（如主键字段）
-	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	//   dataSlice: 含待删键值的数据切片
+	//   keyFields: 匹配记录的关键字段
+	//   autoCommit: true 时本方法自开事务并提交；false 时必须已有事务
 	// 返回:
-	//   int64: 受影响的行数
+	//   int64: 受影响行数
 	//   error: 删除失败时返回错误信息
 	BatchDelete(ctx context.Context, table string, dataSlice interface{}, keyFields []string, autoCommit bool) (int64, error)
 
-	// BatchDeleteByKeys 根据主键列表批量删除记录
-	// 更高效的批量删除方式，直接提供主键值列表
+	// BatchDeleteByKeys 按主键值列表用 IN 子句一次删除。
+	// 比逐条 BatchDelete 更高效。ClickHouse 由方言改写成 ALTER TABLE ... DELETE。
 	// 参数:
-	//   ctx: 上下文，用于控制请求超时和取消
+	//   ctx: 用于超时、取消，以及携带事务
 	//   table: 目标表名
 	//   keyField: 主键字段名
 	//   keys: 要删除的主键值列表
-	//   autoCommit: true-自动提交, false-需要手动调用Commit/Rollback
+	//   autoCommit: true 自动提交；false 在当前事务中执行
 	// 返回:
-	//   int64: 受影响的行数
+	//   int64: 受影响行数
 	//   error: 删除失败时返回错误信息
 	BatchDeleteByKeys(ctx context.Context, table string, keyField string, keys []interface{}, autoCommit bool) (int64, error)
+}
 
-	// === 事务控制 ===
-
-	// BeginTx 开始事务
-	// 启动一个新的数据库事务，可以指定隔离级别和只读属性
-	// 多线程安全：每个上下文可以独立管理事务
+// TxManager 管理事务。autoCommit 为 false 时必须先 BeginTx 或 InTx，后续执行使用返回的 context。
+// 事务绑定在 context 上，不同 goroutine 可各自持有独立事务。
+type TxManager interface {
+	// BeginTx 开始事务并写入新的 context。
+	// 同一 context 中已有事务时返回错误。
 	// 参数:
-	//   ctx: 上下文，用于控制请求超时和取消
-	//   options: 事务选项，包含隔离级别和只读设置
+	//   ctx: 用于超时和取消
+	//   options: 隔离级别和只读设置，可为 nil 表示库默认
 	// 返回:
-	//   context.Context: 包含事务信息的新上下文
-	//   error: 开始事务失败时返回错误信息
+	//   context.Context: 携带事务的新上下文，后续 SQL 应使用它
+	//   error: 失败时包装为 ErrTransaction
 	BeginTx(ctx context.Context, options *TxOptions) (context.Context, error)
 
-	// Commit 提交事务
-	// 提交上下文中的事务，使所有未提交的更改生效
+	// Commit 提交 ctx 中的事务，使未提交更改生效。
 	// 参数:
-	//   ctx: 包含事务信息的上下文
+	//   ctx: 由 BeginTx 或 InTx 返回的、含事务的上下文
 	// 返回:
-	//   error: 提交失败时返回错误信息
+	//   error: 无活跃事务或提交失败
 	Commit(ctx context.Context) error
 
-	// Rollback 回滚事务
-	// 回滚上下文中的事务，撤销所有未提交的更改
+	// Rollback 回滚 ctx 中的事务，撤销未提交更改。
 	// 参数:
-	//   ctx: 包含事务信息的上下文
+	//   ctx: 由 BeginTx 或 InTx 返回的、含事务的上下文
 	// 返回:
-	//   error: 回滚失败时返回错误信息
+	//   error: 无活跃事务或回滚失败
 	Rollback(ctx context.Context) error
 
-	// InTx 在事务中执行函数
-	// 自动处理事务的开始、提交和回滚
-	// 如果函数正常返回，自动提交事务
-	// 如果函数返回错误或发生panic，自动回滚事务
+	// InTx 自动开始事务、执行 fn、成功则提交。
+	// fn 返回错误或发生 panic 时回滚；panic 转为 error，避免进程崩溃。
 	// 参数:
-	//   ctx: 上下文，用于控制请求超时和取消
-	//   options: 事务选项，包含隔离级别和只读设置
-	//   fn: 在事务中执行的函数，接收包含事务的上下文，返回error表示是否成功
+	//   ctx: 用于超时和取消
+	//   options: 隔离级别和只读设置，可为 nil
+	//   fn: 在事务中执行，接收含事务的 context
 	// 返回:
-	//   error: 事务执行失败时返回错误信息
+	//   error: 开始、执行、提交失败，或从 panic 转换的错误
 	InTx(ctx context.Context, options *TxOptions, fn func(context.Context) error) error
+}
 
-	// === 工具方法 ===
-
-	// GetDriver 获取数据库驱动类型
-	// 返回当前数据库实例使用的驱动类型标识
-	// 返回:
-	//   string: 驱动类型（如"mysql", "postgres", "sqlite"）
-	GetDriver() string
-
-	// GetName 获取数据库连接名称
-	// 返回当前数据库连接的名称标识
-	// 返回:
-	//   string: 连接名称
-	GetName() string
+// Database 统一的数据库入口，由 Conn、SQL、Records、TxManager 组合而成。
+// Insert/Batch 留在 Records 上给业务直接调用；测试可按需只 mock SQL 或 Conn。
+//
+// 横向扩展关系库：
+//  1. 在 dialect 注册 Spec（占位符、分页、DSN、错误归类）
+//  2. 新建 pkg/database/<驱动>，Register(sqlbase.New(..., Hooks{}))
+//  3. 在 alldriver 空白导入该包
+//  4. 仅当批量或连接有特例时写 Hooks，或嵌入 sqlbase.DB 覆盖方法
+type Database interface {
+	Conn
+	SQL
+	Records
+	TxManager
 }
 
 // Model 模型接口
@@ -366,7 +384,17 @@ type DriverCreator func() Database
 //	driver: 驱动类型标识符
 //	creator: 驱动创建函数
 func Register(driver string, creator DriverCreator) {
+	creatorMu.Lock()
+	defer creatorMu.Unlock()
 	dbCreators[driver] = creator
+}
+
+// lookupCreator 按驱动名取已注册的工厂，读锁保护注册表。
+func lookupCreator(driver string) (DriverCreator, bool) {
+	creatorMu.RLock()
+	defer creatorMu.RUnlock()
+	creator, exists := dbCreators[driver]
+	return creator, exists
 }
 
 // GetConnectionID 根据配置生成连接ID
@@ -406,7 +434,7 @@ func Open(config *DbConfig) (Database, error) {
 		return nil, fmt.Errorf("database connection %s is disabled", config.Name)
 	}
 
-	creator, exists := dbCreators[config.Driver]
+	creator, exists := lookupCreator(config.Driver)
 	if !exists {
 		return nil, fmt.Errorf("unsupported database driver: %s", config.Driver)
 	}
@@ -468,7 +496,7 @@ func openWithoutLock(config *DbConfig) (Database, error) {
 		return nil, fmt.Errorf("database connection %s is disabled", config.Name)
 	}
 
-	creator, exists := dbCreators[config.Driver]
+	creator, exists := lookupCreator(config.Driver)
 	if !exists {
 		return nil, fmt.Errorf("unsupported database driver: %s", config.Driver)
 	}
@@ -599,10 +627,7 @@ func LoadAllConnections(configPath string) (map[string]Database, error) {
 			return nil, fmt.Errorf("创建数据库连接 '%s' 失败: %w", name, err)
 		}
 
-		// 设置连接名称
-		if dbImpl, ok := db.(interface{ SetName(string) }); ok {
-			dbImpl.SetName(name)
-		}
+		db.SetName(name)
 
 		// 缓存连接
 		connectionID := GetConnectionID(config)
