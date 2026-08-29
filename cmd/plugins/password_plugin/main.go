@@ -7,7 +7,6 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"syscall"
 
 	"gateway/pkg/config"
 	"gateway/pkg/security"
@@ -16,8 +15,9 @@ import (
 )
 
 const (
-	version = "1.0.0"
-	banner  = `
+	version        = "1.1.0"
+	passwordPrompt = "请输入密码（明文显示，可右键粘贴）: "
+	banner         = `
 ╔═══════════════════════════════════════════════════════════╗
 ║          Gateway 密码加密工具 (Password Encryptor)        ║
 ║                      Version %s                           ║
@@ -108,7 +108,7 @@ func main() {
 	} else {
 		// 交互式输入
 		var err error
-		plaintext, err = readPassword("请输入密码: ")
+		plaintext, err = readPassword(passwordPrompt)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "错误: 读取密码失败: %v\n", err)
 			os.Exit(1)
@@ -158,7 +158,8 @@ func encryptPassword(plaintext, secretKey string) {
 	fmt.Println("\n" + strings.Repeat("=", 70))
 	fmt.Println("加密成功！")
 	fmt.Println(strings.Repeat("=", 70))
-	fmt.Printf("\n密文: %s\n\n", ciphertext)
+	fmt.Printf("\n原文: %s\n", plaintext)
+	fmt.Printf("密文: %s\n\n", ciphertext)
 	fmt.Println("使用说明:")
 	fmt.Println("  1. 将上述密文复制到配置文件或数据库中")
 	fmt.Println("  2. 使用 -d -c 参数可以解密验证")
@@ -180,7 +181,8 @@ func encryptPasswordWithRandomKey(plaintext, randomKey string) {
 	fmt.Println("\n" + strings.Repeat("=", 70))
 	fmt.Println("加密成功！")
 	fmt.Println(strings.Repeat("=", 70))
-	fmt.Printf("\n随机密钥: %s\n", randomKey)
+	fmt.Printf("\n原文: %s\n", plaintext)
+	fmt.Printf("随机密钥: %s\n", randomKey)
 	fmt.Printf("密文: %s\n\n", ciphertext)
 	fmt.Println("使用说明:")
 	fmt.Println("  1. 请妥善保管上述密钥和密文")
@@ -198,7 +200,7 @@ func decryptPassword(ciphertext, secretKey string) {
 	if ciphertext == "" {
 		// 交互式输入密文
 		var err error
-		ciphertext, err = readInput("请输入密文: ")
+		ciphertext, err = readInput("请输入密文（可右键粘贴）: ")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "错误: 读取密文失败: %v\n", err)
 			os.Exit(1)
@@ -255,28 +257,10 @@ func generateNewKey() {
 	fmt.Println()
 }
 
-// readPassword 交互式读取密码（隐藏输入）
+// readPassword 交互式读取密码。明文回显，便于核对；Windows 控制台可用右键粘贴。
+// 不再使用无回显模式：term.ReadPassword 会关掉回显并进入原始输入，右键粘贴无效。
 func readPassword(prompt string) (string, error) {
-	fmt.Print(prompt)
-
-	// 检查是否为终端
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		// 非终端环境（如管道），使用普通读取
-		reader := bufio.NewReader(os.Stdin)
-		password, err := reader.ReadString('\n')
-		if err != nil {
-			return "", err
-		}
-		return strings.TrimSpace(password), nil
-	}
-
-	// 终端环境，隐藏输入
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		return "", err
-	}
-	fmt.Println() // 换行
-	return string(bytePassword), nil
+	return readInput(prompt)
 }
 
 // readInput 交互式读取普通输入
@@ -334,7 +318,7 @@ func interactiveMenu() {
 	switch choice {
 	case "1":
 		// 加密密码（使用默认密钥）
-		plaintext, err := readPassword("请输入密码: ")
+		plaintext, err := readPassword(passwordPrompt)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "错误: 读取密码失败: %v\n", err)
 			os.Exit(1)
@@ -347,7 +331,7 @@ func interactiveMenu() {
 
 	case "2":
 		// 加密密码（使用随机密钥）
-		plaintext, err := readPassword("请输入密码: ")
+		plaintext, err := readPassword(passwordPrompt)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "错误: 读取密码失败: %v\n", err)
 			os.Exit(1)
