@@ -1,6 +1,6 @@
 CREATE TABLE HUB_METRIC_SERVER_INFO (
                                         metricServerId VARCHAR2(64) NOT NULL,
-                                        tenantId VARCHAR2(64) NOT NULL,
+                                        tenantId VARCHAR2(32) NOT NULL,
                                         hostname VARCHAR2(255) NOT NULL,
                                         osType VARCHAR2(100) NOT NULL,
                                         osVersion VARCHAR2(255) NOT NULL,

@@ -62,5 +62,5 @@ CREATE TABLE `HUB_GW_INSTANCE` (
   INDEX `IDX_GW_INST_LOG` (`logConfigId`),
   INDEX `IDX_GW_INST_HEALTH` (`healthStatus`),
   INDEX `IDX_GW_INST_TLS` (`tlsEnabled`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网关实例表 - 记录网关实例基础配置，完整支持Go HTTP Server配置';
+) ENGINE=InnoDB COMMENT='网关实例表 - 记录网关实例基础配置，完整支持Go HTTP Server配置';
 

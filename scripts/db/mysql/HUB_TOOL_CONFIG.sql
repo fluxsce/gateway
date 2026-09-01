@@ -68,4 +68,4 @@ CREATE TABLE `HUB_TOOL_CONFIG` (
   KEY `IDX_TOOL_CONFIG_STATUS` (`configStatus`),
   KEY `IDX_TOOL_CONFIG_DEFAULT` (`defaultFlag`),
   KEY `IDX_TOOL_CONFIG_ACTIVE` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工具配置主表 - 存储各种工具的基础配置信息';
+) ENGINE=InnoDB COMMENT='工具配置主表 - 存储各种工具的基础配置信息';

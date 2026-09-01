@@ -51,5 +51,5 @@ CREATE TABLE `HUB_TUNNEL_CLIENT` (
                                      KEY `IDX_TUNNEL_CLIENT_STATUS` (`connectionStatus`),
                                      KEY `IDX_TUNNEL_CLIENT_IP` (`clientIpAddress`),
                                      KEY `IDX_TUNNEL_CLIENT_HB` (`lastHeartbeat`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='隧道客户端表，管理客户端连接认证和状态跟踪';
+) ENGINE=InnoDB COMMENT='隧道客户端表，管理客户端连接认证和状态跟踪';
 

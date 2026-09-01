@@ -10,7 +10,7 @@ import (
 const (
 	// RewriteModePrefix 按路径段前缀替换，默认模式。
 	RewriteModePrefix = "prefix"
-	// RewriteModeExact 仅当路径完全一致时替换。
+	// RewriteModeExact 按字面字符串替换，路径中出现该字符序列即命中。
 	RewriteModeExact = "exact"
 	// RewriteModeRegex 正则替换，目标支持 $1 捕获组。
 	RewriteModeRegex = "regex"
@@ -20,7 +20,7 @@ const (
 // 在锁定网站目录之后、读文件之前按顺序匹配，命中第一条后停止。
 // 不修改 Request.URL；访问日志与后续过滤器仍看到请求原路径（若过滤器未改过）。
 type RewriteRule struct {
-	// From 是匹配源：前缀、精确路径或正则。
+	// From 是匹配源：前缀路径、字面字符串或正则。
 	From string `json:"from" yaml:"from" mapstructure:"from"`
 	// To 是替换目标；正则模式可使用 $1、$2。
 	To string `json:"to" yaml:"to" mapstructure:"to"`
@@ -91,10 +91,7 @@ func applyRewriteRule(lookupPath string, rule RewriteRule) (string, bool) {
 
 	switch mode {
 	case RewriteModeExact:
-		if cleanURLPath(lookupPath) != cleanURLPath(from) {
-			return lookupPath, false
-		}
-		return cleanURLPath(to), true
+		return applyExactRewrite(lookupPath, from, to)
 	case RewriteModeRegex:
 		compiled, err := compileRewriteRules([]RewriteRule{rule})
 		if err != nil || len(compiled) == 0 {
@@ -110,10 +107,7 @@ func applyRewriteRule(lookupPath string, rule RewriteRule) (string, bool) {
 func applyCompiledRewriteRule(lookupPath string, rule CompiledRewriteRule) (string, bool) {
 	switch rule.Mode {
 	case RewriteModeExact:
-		if cleanURLPath(lookupPath) != cleanURLPath(rule.From) {
-			return lookupPath, false
-		}
-		return cleanURLPath(rule.To), true
+		return applyExactRewrite(lookupPath, rule.From, rule.To)
 	case RewriteModeRegex:
 		if rule.Re == nil || !rule.Re.MatchString(lookupPath) {
 			return lookupPath, false
@@ -122,6 +116,26 @@ func applyCompiledRewriteRule(lookupPath string, rule CompiledRewriteRule) (stri
 	default:
 		return applyPrefixRewrite(lookupPath, rule.From, rule.To)
 	}
+}
+
+// applyExactRewrite 按字面字符串替换查找路径中的 From。
+// 不要求整段路径相等：/A05SysBizWebVue/js/app.js 中的 A05SysBizWebVue 也会被替换。
+// From 不做正则转义，也不补前导斜杠，避免把用户填的目录名改成整段路径比较。
+func applyExactRewrite(lookupPath, from, to string) (string, bool) {
+	from = strings.TrimSpace(from)
+	to = strings.TrimSpace(to)
+	if from == "" {
+		return lookupPath, false
+	}
+	current := cleanURLPath(lookupPath)
+	if !strings.Contains(current, from) {
+		return lookupPath, false
+	}
+	replaced := strings.ReplaceAll(current, from, to)
+	if replaced == current {
+		return lookupPath, false
+	}
+	return cleanURLPath(replaced), true
 }
 
 // applyPrefixRewrite 按路径段边界替换前缀，避免 /old 误伤 /older。
@@ -164,7 +178,7 @@ func applyPrefixRewrite(lookupPath, from, to string) (string, bool) {
 }
 
 // ParseRewriteRulesText 解析 JSON 数组或逐行文本为重写规则。
-// 行格式：`prefix /old /new`、`exact /a /b`、`regex ^/v/(.*)$ /$1`，或 `/old => /new`。
+// 行格式：`prefix /old /new`、`exact A05SysBizWebVue A05logWebVue`、`regex ^/v/(.*)$ /$1`，或 `/old => /new`。
 func ParseRewriteRulesText(raw string) []RewriteRule {
 	rules, _ := parseRewriteRulesText(raw, false)
 	return rules

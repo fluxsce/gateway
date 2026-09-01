@@ -46,4 +46,4 @@ CREATE TABLE HUB_MONITOR_JVM_THREAD (
                                         KEY IDX_MONITOR_THR_TIME (collectionTime),
                                         KEY IDX_MONITOR_THR_HEALTH (healthyFlag, requiresAttentionFlag),
                                         KEY IDX_MONITOR_THR_COUNT (currentThreadCount)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='JVM线程监控表';
+) ENGINE=InnoDB COMMENT='JVM线程监控表';

@@ -39,4 +39,4 @@ CREATE TABLE HUB_MONITOR_JVM_RESOURCE (
                                           KEY IDX_MONITOR_JVM_HEALTH (healthyFlag, requiresAttentionFlag),
                                           KEY IDX_MONITOR_JVM_HOST (hostIpAddress),
                                           KEY IDX_MONITOR_JVM_GROUP (serviceGroupId, groupName)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='JVM资源监控主表';
+) ENGINE=InnoDB COMMENT='JVM资源监控主表';

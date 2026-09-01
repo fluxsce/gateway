@@ -42,5 +42,5 @@ CREATE TABLE `HUB_GW_SERVICE_NODE` (
   INDEX `IDX_GW_NODE_ENDPOINT` (`nodeHost`, `nodePort`),
   INDEX `IDX_GW_NODE_HEALTH` (`healthStatus`),
   INDEX `IDX_GW_NODE_STATUS` (`nodeStatus`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务节点表 - 根据NodeConfig结构设计,存储服务节点实例信息';
+) ENGINE=InnoDB COMMENT='服务节点表 - 根据NodeConfig结构设计,存储服务节点实例信息';
 

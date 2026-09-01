@@ -34,4 +34,4 @@ CREATE TABLE HUB_MONITOR_JVM_MEMORY (
                                         KEY IDX_MONITOR_MEM_TYPE (memoryType),
                                         KEY IDX_MONITOR_MEM_TIME (collectionTime),
                                         KEY IDX_MONITOR_MEM_USAGE (usagePercent)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='JVM内存监控表';
+) ENGINE=InnoDB COMMENT='JVM内存监控表';

@@ -63,4 +63,4 @@ CREATE TABLE `HUB_TUNNEL_STATIC_NODE` (
   KEY `IDX_TUNNEL_STATIC_NODE_TYPE` (`proxyType`),
   KEY `IDX_TUNNEL_STATIC_NODE_STATUS` (`nodeStatus`),
   KEY `IDX_TUNNEL_STATIC_NODE_HEALTH` (`healthCheckStatus`, `lastHealthCheck`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='静态隧道节点表，管理静态隧道转发后端节点配置';
+) ENGINE=InnoDB COMMENT='静态隧道节点表，管理静态隧道转发后端节点配置';

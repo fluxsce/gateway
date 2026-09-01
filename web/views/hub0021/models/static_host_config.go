@@ -16,7 +16,7 @@ type StaticHostConfig struct {
 	RootDirectory          string `json:"rootDirectory" form:"rootDirectory" query:"rootDirectory" db:"rootDirectory"`                                     // 本机根目录；可用 {v1,v2} 允许名单，从剥前缀后第一段展开
 	StripRoutePrefix       string `json:"stripRoutePrefix" form:"stripRoutePrefix" query:"stripRoutePrefix" db:"stripRoutePrefix"`                         // 是否按路径段剥离已匹配路由前缀(N否,Y是)，默认Y
 	IndexFiles             string `json:"indexFiles" form:"indexFiles" query:"indexFiles" db:"indexFiles"`                                                 // 目录索引文件，入库为JSON数组，如["index.html"]
-	RewriteRules           string `json:"rewriteRules" form:"rewriteRules" query:"rewriteRules" db:"rewriteRules"`                                         // 路径重写规则，入库为JSON数组[{mode,from,to}]；mode=prefix|exact|regex，按顺序命中第一条
+	RewriteRules           string `json:"rewriteRules" form:"rewriteRules" query:"rewriteRules" db:"rewriteRules"`                                         // 路径重写规则，入库为JSON数组[{mode,from,to}]；mode=prefix按段前缀、exact按字面字符串、regex正则，按顺序命中第一条
 	SpaFallback            string `json:"spaFallback" form:"spaFallback" query:"spaFallback" db:"spaFallback"`                                             // 无扩展名的缺失路径是否回退到索引文件(N否,Y是)，供history路由
 	CacheControlMaxAge     int    `json:"cacheControlMaxAge" form:"cacheControlMaxAge" query:"cacheControlMaxAge" db:"cacheControlMaxAge"`                 // 普通文件Cache-Control max-age(秒)；索引与SPA回退固定no-cache；0表示普通文件也不缓存
 	AllowedExtensions      string `json:"allowedExtensions" form:"allowedExtensions" query:"allowedExtensions" db:"allowedExtensions"`                     // 允许的文件扩展名，入库为JSON数组；空表示不额外限制

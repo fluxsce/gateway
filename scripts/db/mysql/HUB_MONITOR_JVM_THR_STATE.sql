@@ -40,4 +40,4 @@ CREATE TABLE HUB_MONITOR_JVM_THR_STATE (
                                            KEY IDX_MONITOR_THRST_RES (jvmResourceId),
                                            KEY IDX_MONITOR_THRST_TIME (collectionTime),
                                            KEY IDX_MONITOR_THRST_BLOCK (blockedThreadCount)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='JVM线程状态统计表';
+) ENGINE=InnoDB COMMENT='JVM线程状态统计表';

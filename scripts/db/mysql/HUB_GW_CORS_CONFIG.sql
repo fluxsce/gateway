@@ -29,5 +29,5 @@ CREATE TABLE `HUB_GW_CORS_CONFIG` (
   INDEX `IDX_GW_CORS_INST` (`gatewayInstanceId`),
   INDEX `IDX_GW_CORS_ROUTE` (`routeConfigId`),
   INDEX `IDX_GW_CORS_PRIORITY` (`configPriority`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='跨域配置表 - 存储CORS相关配置';
+) ENGINE=InnoDB COMMENT='跨域配置表 - 存储CORS相关配置';
 

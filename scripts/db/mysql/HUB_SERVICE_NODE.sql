@@ -52,6 +52,6 @@ CREATE TABLE `HUB_SERVICE_NODE` (
   KEY `IDX_SVC_NODE_HEALTHY` (`healthyStatus`),
   KEY `IDX_SVC_NODE_EPHEMERAL` (`ephemeral`),
   KEY `IDX_SVC_NODE_ACTIVE` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务节点表 - 存储服务节点的详细信息，包括网络地址、健康状态、权重等';
+) ENGINE=InnoDB COMMENT='服务节点表 - 存储服务节点的详细信息，包括网络地址、健康状态、权重等';
 
 

@@ -86,7 +86,7 @@ CREATE TABLE `HUB_SERVICE_INSTANCE` (
     KEY `IDX_SC_INST_PORT` (`listenPort`),
     KEY `IDX_SC_INST_STATUS` (`instanceStatus`),
     KEY `IDX_SC_INST_HEALTH_CHECK` (`lastHealthCheckTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务中心监听配置表（gRPC 服务器配置）';
+) ENGINE=InnoDB COMMENT='服务中心监听配置表（gRPC 服务器配置）';
 
 -- =============================================
 -- 初始化默认配置（开发环境）

@@ -77,5 +77,5 @@ CREATE TABLE `HUB_TIMER_EXECUTION_LOG` (
   KEY `IDX_TIMER_LOG_LEVEL` (`logLevel`),
   KEY `IDX_TIMER_LOG_TIME` (`logTimestamp`),
   KEY `IDX_TIMER_LOG_CLEANUP` (`tenantId`, `addTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='任务执行日志表 - 合并执行记录和日志信息';
+) ENGINE=InnoDB COMMENT='任务执行日志表 - 合并执行记录和日志信息';
 

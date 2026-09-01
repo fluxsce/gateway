@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS `HUB_AUTH_ROLE_RESOURCE` (
   KEY `IDX_AUTH_ROLE_RES_RESOURCE` (`tenantId`, `resourceId`),
   KEY `IDX_AUTH_ROLE_RES_TYPE` (`permissionType`),
   KEY `IDX_AUTH_ROLE_RES_EXPIRE` (`expireTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色权限关联表 - 存储角色与权限资源的关联关系';
+) ENGINE=InnoDB COMMENT='角色权限关联表 - 存储角色与权限资源的关联关系';
 
 -- =====================================================
 -- 初始化角色权限关联数据

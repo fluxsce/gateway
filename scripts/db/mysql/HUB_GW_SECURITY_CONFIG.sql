@@ -25,4 +25,4 @@ CREATE TABLE `HUB_GW_SECURITY_CONFIG` (
   INDEX `idx_HUB_GW_SECURITY_CONFIG_instance` (`gatewayInstanceId`),
   INDEX `idx_HUB_GW_SECURITY_CONFIG_route` (`routeConfigId`),
   INDEX `idx_HUB_GW_SECURITY_CONFIG_priority` (`configPriority`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='安全配置表 - 存储网关安全策略配置';
+) ENGINE=InnoDB COMMENT='安全配置表 - 存储网关安全策略配置';

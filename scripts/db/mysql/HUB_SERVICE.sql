@@ -55,5 +55,5 @@ CREATE TABLE `HUB_SERVICE` (
   KEY `IDX_SVC_NAME` (`serviceName`),
   KEY `IDX_SVC_TYPE` (`serviceType`),
   KEY `IDX_SVC_ACTIVE` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务表 - 存储服务的基本信息和元数据，支持多命名空间和多分组管理';
+) ENGINE=InnoDB COMMENT='服务表 - 存储服务的基本信息和元数据，支持多命名空间和多分组管理';
 

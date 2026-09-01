@@ -34,7 +34,7 @@ CREATE TABLE `HUB_GW_STATIC_HOST_CONFIG` (
   INDEX `IDX_GW_STATIC_ROUTE` (`routeConfigId`),
   INDEX `IDX_GW_STATIC_PRIORITY` (`configPriority`),
   INDEX `IDX_GW_STATIC_ACTIVE` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='静态托管配置表 - 路由级本机目录托管,命中后不再转发上游';
+) ENGINE=InnoDB COMMENT='静态托管配置表 - 路由级本机目录托管,命中后不再转发上游';
 
 -- 已建表环境补列（新库 CREATE 已包含，重复执行会报列已存在，可忽略）
 -- ALTER TABLE `HUB_GW_STATIC_HOST_CONFIG` ADD COLUMN `rewriteRules` TEXT DEFAULT NULL COMMENT '路径重写规则,JSON数组[{mode,from,to}]';

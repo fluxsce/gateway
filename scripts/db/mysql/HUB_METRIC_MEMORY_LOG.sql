@@ -41,4 +41,4 @@ CREATE TABLE `HUB_METRIC_MEMORY_LOG` (
   KEY `IDX_METRIC_MEMORY_ACTIVE` (`activeFlag`),
   KEY `IDX_METRIC_MEMORY_SRV_TIME` (`metricServerId`, `collectTime`),
   KEY `IDX_METRIC_MEMORY_TNT_TIME` (`tenantId`, `collectTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='内存采集日志表';
+) ENGINE=InnoDB COMMENT='内存采集日志表';

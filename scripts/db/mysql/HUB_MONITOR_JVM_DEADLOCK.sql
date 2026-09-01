@@ -43,4 +43,4 @@ CREATE TABLE HUB_MONITOR_JVM_DEADLOCK (
                                           KEY IDX_MONITOR_DL_FLAG (hasDeadlockFlag),
                                           KEY IDX_MONITOR_DL_SEV (severityLevel),
                                           KEY IDX_MONITOR_DL_ALERT (alertLevel)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='JVM死锁检测信息表';
+) ENGINE=InnoDB COMMENT='JVM死锁检测信息表';

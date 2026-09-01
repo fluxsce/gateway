@@ -46,5 +46,5 @@ CREATE TABLE HUB_MONITOR_APP_DATA (
                                       KEY IDX_MONITOR_APP_DATA_PRIMARY (primaryValue),
                                       KEY IDX_MONITOR_APP_DATA_STATUS (statusValue),
                                       KEY IDX_MONITOR_APP_DATA_RES_TYPE_NAME (jvmResourceId, dataType, dataName, collectionTime)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='应用监控数据表';
+) ENGINE=InnoDB COMMENT='应用监控数据表';
 

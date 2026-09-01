@@ -73,7 +73,7 @@ CREATE TABLE `HUB_AUTH_ROLE` (
   KEY `IDX_AUTH_ROLE_TYPE` (`roleType`),
   KEY `IDX_AUTH_ROLE_STATUS` (`roleStatus`),
   KEY `IDX_AUTH_ROLE_LEVEL` (`roleLevel`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色表 - 存储系统角色信息和数据权限范围';
+) ENGINE=InnoDB COMMENT='角色表 - 存储系统角色信息和数据权限范围';
 ```
 
 ### 3.2 权限资源表 (HUB_AUTH_RESOURCE)
@@ -141,7 +141,7 @@ CREATE TABLE `HUB_AUTH_RESOURCE` (
   KEY `IDX_AUTH_RES_STATUS` (`resourceStatus`),
   KEY `IDX_AUTH_RES_LEVEL` (`resourceLevel`),
   KEY `IDX_AUTH_RES_SORT` (`sortOrder`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='权限资源表 - 存储系统所有权限资源信息';
+) ENGINE=InnoDB COMMENT='权限资源表 - 存储系统所有权限资源信息';
 ```
 
 ### 3.3 角色权限关联表 (HUB_AUTH_ROLE_RESOURCE)
@@ -190,7 +190,7 @@ CREATE TABLE `HUB_AUTH_ROLE_RESOURCE` (
   KEY `IDX_AUTH_ROLE_RES_RESOURCE` (`tenantId`, `resourceId`),
   KEY `IDX_AUTH_ROLE_RES_TYPE` (`permissionType`),
   KEY `IDX_AUTH_ROLE_RES_EXPIRE` (`expireTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色权限关联表 - 存储角色与权限资源的关联关系';
+) ENGINE=InnoDB COMMENT='角色权限关联表 - 存储角色与权限资源的关联关系';
 ```
 
 ### 3.4 用户角色关联表 (HUB_AUTH_USER_ROLE)
@@ -239,7 +239,7 @@ CREATE TABLE `HUB_AUTH_USER_ROLE` (
   KEY `IDX_AUTH_USER_ROLE_ROLE` (`tenantId`, `roleId`),
   KEY `IDX_AUTH_USER_ROLE_PRIMARY` (`primaryRoleFlag`),
   KEY `IDX_AUTH_USER_ROLE_EXPIRE` (`expireTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户角色关联表 - 存储用户与角色的关联关系';
+) ENGINE=InnoDB COMMENT='用户角色关联表 - 存储用户与角色的关联关系';
 ```
 
 ### 3.5 数据权限表 (HUB_AUTH_DATA_PERMISSION)
@@ -297,7 +297,7 @@ CREATE TABLE `HUB_AUTH_DATA_PERMISSION` (
   KEY `IDX_AUTH_DATA_PERM_RESOURCE` (`resourceType`, `resourceCode`),
   KEY `IDX_AUTH_DATA_PERM_SCOPE` (`permissionScope`),
   KEY `IDX_AUTH_DATA_PERM_EXPIRE` (`expireTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据权限表 - 存储用户和角色的数据访问权限';
+) ENGINE=InnoDB COMMENT='数据权限表 - 存储用户和角色的数据访问权限';
 ```
 
 ### 3.6 权限操作日志表 (HUB_AUTH_OPERATION_LOG)
@@ -358,7 +358,7 @@ CREATE TABLE `HUB_AUTH_OPERATION_LOG` (
   KEY `IDX_AUTH_OP_LOG_OPERATOR` (`operatorUserId`),
   KEY `IDX_AUTH_OP_LOG_TIME` (`operationTime`),
   KEY `IDX_AUTH_OP_LOG_RESULT` (`operationResult`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='权限操作日志表 - 记录所有权限相关的操作日志';
+) ENGINE=InnoDB COMMENT='权限操作日志表 - 记录所有权限相关的操作日志';
 ```
 
 ## 4. 系统初始数据

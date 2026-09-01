@@ -54,7 +54,7 @@ type ConnectionConfig struct {
 
 	// === MySQL特有参数 ===
 
-	// Charset MySQL字符集
+	// Charset 连接字符集。MySQL 写 DSN charset；Oracle 写 CHARSET。空则不写，跟库走。
 	Charset string `mapstructure:"charset"`
 	// ParseTime MySQL是否解析时间类型
 	ParseTime bool `mapstructure:"parse_time"`
@@ -127,8 +127,10 @@ type ConnectionConfig struct {
 	OracleReadTimeout int `mapstructure:"oracle_read_timeout"`
 	// OracleWriteTimeout Oracle写入超时时间(秒)
 	OracleWriteTimeout int `mapstructure:"oracle_write_timeout"`
-	// NLSLang Oracle语言环境设置
+	// NLSLang Oracle 语言环境。空则不写 DSN NLS_LANG，跟客户端/库环境走。
 	NLSLang string `mapstructure:"nls_lang"`
+	// NLSCharacterset Oracle 库字符集覆盖。空则不写 NLS_CHARACTERSET。
+	NLSCharacterset string `mapstructure:"nls_characterset"`
 	// AutoCommit Oracle是否自动提交
 	AutoCommit bool `mapstructure:"auto_commit"`
 	// PrefetchRows Oracle预取行数
@@ -237,7 +239,7 @@ type DbConfig struct {
 	Driver string `mapstructure:"driver"`
 
 	// ConnectionString 数据源名称 (连接字符串)
-	// 例如: "user:password@tcp(localhost:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local"
+	// 例如: "user:password@tcp(localhost:3306)/dbname?parseTime=True&loc=Local"
 	// 如果提供此值，将优先使用此连接字符串，否则会从Connection生成
 	DSN string `mapstructure:"dsn"`
 

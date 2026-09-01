@@ -57,5 +57,5 @@ CREATE TABLE `HUB_ALERT_LOG` (
   INDEX `IDX_ALERT_LOG_SEND_STATUS` (`sendStatus`),
   INDEX `idx_ALERT_LOG_TIME_STATUS` (`alertTimestamp`, `sendStatus`),
   INDEX `IDX_ALERT_LOG_CLEANUP` (`tenantId`, `alertTimestamp`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='告警日志表 - 记录业务写入的告警日志和发送状态';
+) ENGINE=InnoDB COMMENT='告警日志表 - 记录业务写入的告警日志和发送状态';
 

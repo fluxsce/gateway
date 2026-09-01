@@ -47,4 +47,4 @@ CREATE TABLE `HUB_TOOL_CONFIG_GROUP` (
   KEY `IDX_TOOL_GROUP_TYPE` (`groupType`),
   KEY `IDX_TOOL_GROUP_SORT` (`sortOrder`),
   KEY `IDX_TOOL_GROUP_ACTIVE` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工具配置分组表 - 用于对工具配置进行分组管理';
+) ENGINE=InnoDB COMMENT='工具配置分组表 - 用于对工具配置进行分组管理';

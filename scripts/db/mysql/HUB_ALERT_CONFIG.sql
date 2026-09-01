@@ -63,4 +63,4 @@ CREATE TABLE `HUB_ALERT_CONFIG` (
   INDEX `IDX_ALERT_CONFIG_DEFAULT` (`defaultFlag`),
   INDEX `IDX_ALERT_CONFIG_PRIORITY` (`priorityLevel`),
   INDEX `IDX_ALERT_CONFIG_TEMPLATE` (`defaultTemplateName`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='告警渠道配置表 - 存储多渠道告警配置信息';
+) ENGINE=InnoDB COMMENT='告警渠道配置表 - 存储多渠道告警配置信息';

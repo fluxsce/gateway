@@ -46,4 +46,4 @@ CREATE TABLE `HUB_METRIC_PROCESS_LOG` (
   KEY `IDX_METRIC_PROCESS_SRV_TIME` (`metricServerId`, `collectTime`),
   KEY `IDX_METRIC_PROCESS_SRV_PID` (`metricServerId`, `processId`),
   KEY `IDX_METRIC_PROCESS_TNT_TIME` (`tenantId`, `collectTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='进程信息采集日志表';
+) ENGINE=InnoDB COMMENT='进程信息采集日志表';

@@ -41,4 +41,4 @@ CREATE TABLE `HUB_METRIC_CPU_LOG` (
   KEY `IDX_METRIC_CPU_ACTIVE` (`activeFlag`),
   KEY `IDX_METRIC_CPU_SRV_TIME` (`metricServerId`, `collectTime`),
   KEY `IDX_METRIC_CPU_TNT_TIME` (`tenantId`, `collectTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CPU采集日志表';
+) ENGINE=InnoDB COMMENT='CPU采集日志表';

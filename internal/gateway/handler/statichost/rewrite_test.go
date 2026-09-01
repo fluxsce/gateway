@@ -40,6 +40,42 @@ func TestApplyExactAndRegexRewrite(t *testing.T) {
 		t.Fatalf("精确重写失败: %s ok=%v", got, ok)
 	}
 
+	got, ok = applyRewriteRule("/A05SysBizWebVue/js/app.js", RewriteRule{
+		Mode: RewriteModeExact,
+		From: "A05SysBizWebVue",
+		To:   "A05logWebVue",
+	})
+	if !ok || got != "/A05logWebVue/js/app.js" {
+		t.Fatalf("精确应按字面字符串替换，实际 %s ok=%v", got, ok)
+	}
+
+	got, ok = applyRewriteRule("/static/A05SysBizWebVue/css/app.css", RewriteRule{
+		Mode: RewriteModeExact,
+		From: "A05SysBizWebVue",
+		To:   "A05logWebVue",
+	})
+	if !ok || got != "/static/A05logWebVue/css/app.css" {
+		t.Fatalf("中间路径段也应按字符替换，实际 %s ok=%v", got, ok)
+	}
+
+	got, ok = applyRewriteRule("/A05SysBizWebVueExtra/js/app.js", RewriteRule{
+		Mode: RewriteModeExact,
+		From: "A05SysBizWebVue",
+		To:   "A05logWebVue",
+	})
+	if !ok || got != "/A05logWebVueExtra/js/app.js" {
+		t.Fatalf("字面匹配会替换更长名字中的子串，实际 %s ok=%v", got, ok)
+	}
+
+	got, ok = applyRewriteRule("/other/js/app.js", RewriteRule{
+		Mode: RewriteModeExact,
+		From: "A05SysBizWebVue",
+		To:   "A05logWebVue",
+	})
+	if ok {
+		t.Fatalf("未出现的字符串不应改写，实际 %s", got)
+	}
+
 	got, ok = applyRewriteRule("/v2/css/app.css", RewriteRule{
 		Mode: RewriteModeRegex,
 		From: `^/v\d+/(.*)$`,

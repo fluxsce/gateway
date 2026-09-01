@@ -12,4 +12,4 @@ CREATE TABLE `HUB_SYS_SETTING` (
   `noteText` TEXT DEFAULT NULL COMMENT '备注信息',
   `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性(JSON格式)',
   PRIMARY KEY (`tenantId`, `groupCode`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='环境设置表 - 按租户与分组存储平台策略';
+) ENGINE=InnoDB COMMENT='环境设置表 - 按租户与分组存储平台策略';

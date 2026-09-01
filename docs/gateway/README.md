@@ -777,7 +777,7 @@ CREATE TABLE `HUB_GATEWAY_CONFIG_BACKUP` (
   INDEX `idx_HUB_GATEWAY_CONFIG_BACKUP_instance` (`gatewayInstanceId`),
   INDEX `idx_HUB_GATEWAY_CONFIG_BACKUP_type` (`backupType`),
   INDEX `idx_HUB_GATEWAY_CONFIG_BACKUP_time` (`addTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网关配置备份表 - 用于配置快照和回滚';
+) ENGINE=InnoDB COMMENT='网关配置备份表 - 用于配置快照和回滚';
 ```
 
 ### 12.2 网关实例表 (HUB_GW_INSTANCE)
@@ -849,7 +849,7 @@ CREATE TABLE `HUB_GW_INSTANCE` (
   INDEX `idx_HUB_GW_INSTANCE_log` (`logConfigId`),
   INDEX `idx_HUB_GW_INSTANCE_health` (`healthStatus`),
   INDEX `idx_HUB_GW_INSTANCE_tls` (`tlsEnabled`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网关实例表 - 记录网关实例基础配置，完整支持Go HTTP Server配置';
+) ENGINE=InnoDB COMMENT='网关实例表 - 记录网关实例基础配置，完整支持Go HTTP Server配置';
 ```
 
 ### 12.3 Router配置表 (HUB_GW_ROUTER_CONFIG)
@@ -919,7 +919,7 @@ CREATE TABLE `HUB_GW_ROUTER_CONFIG` (
   INDEX `idx_HUB_GW_ROUTER_CONFIG_name` (`routerName`),
   INDEX `idx_HUB_GW_ROUTER_CONFIG_active` (`activeFlag`),
   INDEX `idx_HUB_GW_ROUTER_CONFIG_cache` (`enableRouteCache`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Router配置表 - 存储网关Router级别配置';
+) ENGINE=InnoDB COMMENT='Router配置表 - 存储网关Router级别配置';
 ```
 
 ### 12.4 路由定义表 (HUB_GW_ROUTE_CONFIG)
@@ -978,7 +978,7 @@ CREATE TABLE `HUB_GW_ROUTE_CONFIG` (
   INDEX `idx_HUB_GW_ROUTE_CONFIG_priority` (`routePriority`),
   INDEX `idx_HUB_GW_ROUTE_CONFIG_path` (`routePath`),
   INDEX `idx_HUB_GW_ROUTE_CONFIG_active` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='路由定义表 - 存储API路由配置,使用activeFlag统一管理启用状态';
+) ENGINE=InnoDB COMMENT='路由定义表 - 存储API路由配置,使用activeFlag统一管理启用状态';
 ```
 
 ### 12.4 路由断言表 (HUB_GW_ROUTE_ASSERTION)
@@ -1018,7 +1018,7 @@ CREATE TABLE `HUB_GW_ROUTE_ASSERTION` (
   INDEX `idx_HUB_GW_ROUTE_ASSERTION_route` (`routeConfigId`),
   INDEX `idx_HUB_GW_ROUTE_ASSERTION_type` (`assertionType`),
   INDEX `idx_HUB_GW_ROUTE_ASSERTION_order` (`assertionOrder`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='路由断言表 - 存储路由匹配断言规则';
+) ENGINE=InnoDB COMMENT='路由断言表 - 存储路由匹配断言规则';
 ```
 
 ### 12.5 过滤器配置表 (HUB_GW_FILTER_CONFIG)
@@ -1067,7 +1067,7 @@ CREATE TABLE `HUB_GW_FILTER_CONFIG` (
   INDEX `idx_HUB_GW_FILTER_CONFIG_action` (`filterAction`),
   INDEX `idx_HUB_GW_FILTER_CONFIG_order` (`filterOrder`),
   INDEX `idx_HUB_GW_FILTER_CONFIG_active` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='过滤器配置表 - 根据filter.go逻辑设计,支持7种类型和3种执行时机';
+) ENGINE=InnoDB COMMENT='过滤器配置表 - 根据filter.go逻辑设计,支持7种类型和3种执行时机';
 ```
 
 
@@ -1108,7 +1108,7 @@ CREATE TABLE `HUB_GW_CORS_CONFIG` (
   INDEX `idx_HUB_GW_CORS_CONFIG_instance` (`gatewayInstanceId`),
   INDEX `idx_HUB_GW_CORS_CONFIG_route` (`routeConfigId`),
   INDEX `idx_HUB_GW_CORS_CONFIG_priority` (`configPriority`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='跨域配置表 - 存储CORS相关配置';
+) ENGINE=InnoDB COMMENT='跨域配置表 - 存储CORS相关配置';
 ```
 
 ### 12.12 限流配置表 (HUB_GW_RATE_LIMIT_CONFIG)
@@ -1162,7 +1162,7 @@ CREATE TABLE `HUB_GW_RATE_LIMIT_CONFIG` (
   INDEX `idx_HUB_GW_RATE_LIMIT_CONFIG_algorithm` (`algorithm`),
   INDEX `idx_HUB_GW_RATE_LIMIT_CONFIG_priority` (`configPriority`),
   INDEX `idx_HUB_GW_RATE_LIMIT_CONFIG_active` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='限流配置表 - 存储流量限制规则';
+) ENGINE=InnoDB COMMENT='限流配置表 - 存储流量限制规则';
 ```
 
 ### 12.13 熔断配置表 (HUB_GW_CIRCUIT_BREAKER_CONFIG)
@@ -1220,7 +1220,7 @@ CREATE TABLE `HUB_GW_CIRCUIT_BREAKER_CONFIG` (
   INDEX `idx_HUB_GW_CIRCUIT_BREAKER_CONFIG_strategy` (`keyStrategy`),
   INDEX `idx_HUB_GW_CIRCUIT_BREAKER_CONFIG_storage` (`storageType`),
   INDEX `idx_HUB_GW_CIRCUIT_BREAKER_CONFIG_priority` (`configPriority`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='熔断配置表 - 根据CircuitBreakerConfig结构设计,支持完整的熔断策略配置';
+) ENGINE=InnoDB COMMENT='熔断配置表 - 根据CircuitBreakerConfig结构设计,支持完整的熔断策略配置';
 ```
 
 ### 12.14 认证配置表 (HUB_GW_AUTH_CONFIG)
@@ -1261,7 +1261,7 @@ CREATE TABLE `HUB_GW_AUTH_CONFIG` (
   INDEX `idx_HUB_GW_AUTH_CONFIG_route` (`routeConfigId`),
   INDEX `idx_HUB_GW_AUTH_CONFIG_type` (`authType`),
   INDEX `idx_HUB_GW_AUTH_CONFIG_priority` (`configPriority`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='认证配置表 - 存储认证相关规则';
+) ENGINE=InnoDB COMMENT='认证配置表 - 存储认证相关规则';
 ```
 
 ### 12.15 服务定义表 (HUB_GW_SERVICE_DEFINITION)
@@ -1328,7 +1328,7 @@ CREATE TABLE `HUB_GW_SERVICE_DEFINITION` (
   INDEX `idx_HUB_GW_SERVICE_DEFINITION_strategy` (`loadBalanceStrategy`),
   INDEX `idx_HUB_GW_SERVICE_DEFINITION_health` (`healthCheckEnabled`),
   INDEX `idx_HUB_GW_SERVICE_DEFINITION_proxy` (`proxyConfigId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务定义表 - 根据ServiceConfig结构设计,存储完整的服务配置';
+) ENGINE=InnoDB COMMENT='服务定义表 - 根据ServiceConfig结构设计,存储完整的服务配置';
 ```
 
 ### 12.16 服务节点表 (HUB_GW_SERVICE_NODE)
@@ -1380,7 +1380,7 @@ CREATE TABLE `HUB_GW_SERVICE_NODE` (
   INDEX `idx_HUB_GW_SERVICE_NODE_endpoint` (`nodeHost`, `nodePort`),
   INDEX `idx_HUB_GW_SERVICE_NODE_health` (`healthStatus`),
   INDEX `idx_HUB_GW_SERVICE_NODE_status` (`nodeStatus`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务节点表 - 根据NodeConfig结构设计,存储服务节点实例信息';
+) ENGINE=InnoDB COMMENT='服务节点表 - 根据NodeConfig结构设计,存储服务节点实例信息';
 ```
 
 ### 12.17 代理配置表 (HUB_GW_PROXY_CONFIG)
@@ -1424,7 +1424,7 @@ CREATE TABLE `HUB_GW_PROXY_CONFIG` (
   INDEX `idx_HUB_GW_PROXY_CONFIG_type` (`proxyType`),
   INDEX `idx_HUB_GW_PROXY_CONFIG_priority` (`configPriority`),
   INDEX `idx_HUB_GW_PROXY_CONFIG_active` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='代理配置表 - 根据proxy.go逻辑设计,仅支持实例级代理配置';
+) ENGINE=InnoDB COMMENT='代理配置表 - 根据proxy.go逻辑设计,仅支持实例级代理配置';
 ```
 
 ### 12.18 日志配置表 (HUB_GW_LOG_CONFIG)
@@ -1495,7 +1495,7 @@ CREATE TABLE `HUB_GW_LOG_CONFIG` (
   PRIMARY KEY (`tenantId`, `logConfigId`),
   INDEX `idx_HUB_GW_LOG_CONFIG_name` (`configName`),
   INDEX `idx_HUB_GW_LOG_CONFIG_priority` (`configPriority`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='日志配置表 - 存储网关日志相关配置';
+) ENGINE=InnoDB COMMENT='日志配置表 - 存储网关日志相关配置';
 ```
 
 ### 12.20 访问日志表 (HUB_GW_ACCESS_LOG)
@@ -1603,7 +1603,7 @@ CREATE TABLE `HUB_GW_ACCESS_LOG` (
   INDEX `idx_HUB_GW_ACCESS_LOG_client_ip` (`clientIpAddress`, `gatewayStartProcessingTime`),
   INDEX `idx_HUB_GW_ACCESS_LOG_status_time` (`gatewayStatusCode`, `gatewayStartProcessingTime`),
   INDEX `idx_HUB_GW_ACCESS_LOG_proxy_type` (`proxyType`, `gatewayStartProcessingTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网关访问日志表 - 记录API网关的请求和响应详细信息,开始时间必填,完成时间可选(支持处理中状态),含冗余字段优化查询性能';
+) ENGINE=InnoDB COMMENT='网关访问日志表 - 记录API网关的请求和响应详细信息,开始时间必填,完成时间可选(支持处理中状态),含冗余字段优化查询性能';
 ```
 
 ### 12.21 性能指标表 (HUB_GW_METRICS)
@@ -1718,7 +1718,7 @@ CREATE TABLE `HUB_GW_METRICS` (
   
   -- 性能分析索引（用于性能排序和过滤）
   INDEX `idx_HUB_GW_METRICS_proxy_type_time` (`proxyType`, `metricsTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网关性能指标表 - 记录API网关的聚合性能监控数据,含冗余字段优化查询性能';
+) ENGINE=InnoDB COMMENT='网关性能指标表 - 记录API网关的聚合性能监控数据,含冗余字段优化查询性能';
 ```
 
 ### 12.19 表关系说明
@@ -2110,7 +2110,7 @@ CREATE TABLE `HUB_GW_SECURITY_CONFIG` (
   INDEX `idx_HUB_GW_SECURITY_CONFIG_instance` (`gatewayInstanceId`),
   INDEX `idx_HUB_GW_SECURITY_CONFIG_route` (`routeConfigId`),
   INDEX `idx_HUB_GW_SECURITY_CONFIG_priority` (`configPriority`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='安全配置表 - 存储网关安全策略配置';
+) ENGINE=InnoDB COMMENT='安全配置表 - 存储网关安全策略配置';
 ```
 
 ### 12.7 IP访问控制配置表 (HUB_GW_IP_ACCESS_CONFIG)
@@ -2146,7 +2146,7 @@ CREATE TABLE `HUB_GW_IP_ACCESS_CONFIG` (
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `ipAccessConfigId`),
   INDEX `idx_HUB_GW_IP_ACCESS_CONFIG_security` (`securityConfigId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='IP访问控制配置表 - 存储IP白名单黑名单规则';
+) ENGINE=InnoDB COMMENT='IP访问控制配置表 - 存储IP白名单黑名单规则';
 ```
 
 ### 12.8 User-Agent访问控制配置表 (HUB_GW_UA_ACCESS_CONFIG)
@@ -2179,7 +2179,7 @@ CREATE TABLE `HUB_GW_UA_ACCESS_CONFIG` (
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `useragentAccessConfigId`),
   INDEX `idx_HUB_GW_UA_ACCESS_CONFIG_security` (`securityConfigId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='User-Agent访问控制配置表 - 存储User-Agent过滤规则';
+) ENGINE=InnoDB COMMENT='User-Agent访问控制配置表 - 存储User-Agent过滤规则';
 ```
 
 ### 12.9 API访问控制配置表 (HUB_GW_API_ACCESS_CONFIG)
@@ -2213,7 +2213,7 @@ CREATE TABLE `HUB_GW_API_ACCESS_CONFIG` (
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `apiAccessConfigId`),
   INDEX `idx_HUB_GW_API_ACCESS_CONFIG_security` (`securityConfigId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='API访问控制配置表 - 存储API路径和方法过滤规则';
+) ENGINE=InnoDB COMMENT='API访问控制配置表 - 存储API路径和方法过滤规则';
 ```
 
 ### 12.10 域名访问控制配置表 (HUB_GW_DOMAIN_ACCESS_CONFIG)
@@ -2246,5 +2246,5 @@ CREATE TABLE `HUB_GW_DOMAIN_ACCESS_CONFIG` (
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `domainAccessConfigId`),
   INDEX `idx_HUB_GW_DOMAIN_ACCESS_CONFIG_security` (`securityConfigId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='域名访问控制配置表 - 存储域名白名单黑名单规则';
+) ENGINE=InnoDB COMMENT='域名访问控制配置表 - 存储域名白名单黑名单规则';
 ```

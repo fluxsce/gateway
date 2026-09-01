@@ -51,5 +51,5 @@ CREATE TABLE IF NOT EXISTS `HUB_AUTH_DATA_PERMISSION` (
   KEY `IDX_AUTH_DATA_PERM_ROLE` (`tenantId`, `roleId`),
   KEY `IDX_AUTH_DATA_PERM_RESOURCE` (`resourceType`, `resourceCode`),
   KEY `IDX_AUTH_DATA_PERM_EXPIRE` (`expireTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据权限表 - 存储用户和角色的数据访问权限';
+) ENGINE=InnoDB COMMENT='数据权限表 - 存储用户和角色的数据访问权限';
 

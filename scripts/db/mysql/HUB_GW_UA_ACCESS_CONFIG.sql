@@ -23,4 +23,4 @@ CREATE TABLE `HUB_GW_UA_ACCESS_CONFIG` (
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `useragentAccessConfigId`),
   INDEX `idx_HUB_GW_UA_ACCESS_CONFIG_security` (`securityConfigId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='User-Agent访问控制配置表 - 存储User-Agent过滤规则';
+) ENGINE=InnoDB COMMENT='User-Agent访问控制配置表 - 存储User-Agent过滤规则';

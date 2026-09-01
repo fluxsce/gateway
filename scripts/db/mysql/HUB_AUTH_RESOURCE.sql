@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS `HUB_AUTH_RESOURCE` (
   KEY `IDX_AUTH_RES_STATUS` (`resourceStatus`),
   KEY `IDX_AUTH_RES_LEVEL` (`resourceLevel`),
   KEY `IDX_AUTH_RES_SORT` (`sortOrder`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='权限资源表 - 存储系统所有权限资源信息';
+) ENGINE=InnoDB COMMENT='权限资源表 - 存储系统所有权限资源信息';
 
 
 -- =====================================================

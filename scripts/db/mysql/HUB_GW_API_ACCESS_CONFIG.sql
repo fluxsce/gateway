@@ -24,4 +24,4 @@ CREATE TABLE `HUB_GW_API_ACCESS_CONFIG` (
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `apiAccessConfigId`),
   INDEX `idx_HUB_GW_API_ACCESS_CONFIG_security` (`securityConfigId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='API访问控制配置表 - 存储API路径和方法过滤规则';
+) ENGINE=InnoDB COMMENT='API访问控制配置表 - 存储API路径和方法过滤规则';

@@ -51,10 +51,9 @@ func classifyMySQL(err error) ErrorClass {
 func generateMySQL(config *dbtypes.DbConfig) (string, error) {
 	params := make(map[string]string)
 
+	// 未配置 charset 时不写 DSN，沿用库/服务器默认，避免覆盖企业 utf8 / utf8_bin。
 	if config.Connection.Charset != "" {
 		params["charset"] = config.Connection.Charset
-	} else {
-		params["charset"] = "utf8mb4"
 	}
 
 	if config.Connection.ParseTime {

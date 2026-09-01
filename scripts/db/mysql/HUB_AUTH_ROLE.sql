@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS `HUB_AUTH_ROLE` (
   PRIMARY KEY (`tenantId`, `roleId`),
   KEY `IDX_AUTH_ROLE_NAME` (`tenantId`, `roleName`),
   KEY `IDX_AUTH_ROLE_STATUS` (`roleStatus`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色表 - 存储系统角色信息和数据权限范围';
+) ENGINE=InnoDB COMMENT='角色表 - 存储系统角色信息和数据权限范围';
 
 -- =====================================================
 -- 初始化角色数据

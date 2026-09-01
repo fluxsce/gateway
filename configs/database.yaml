@@ -41,7 +41,7 @@ database:
         username: xxxx
         password: "xxxx"
         database: gateway_dev
-        charset: utf8mb4
+        # charset 留空跟库走；仅当要覆盖连接字符集时填写（如 utf8 / utf8mb4）
         parse_time: true
         loc: Local
       pool:
@@ -77,7 +77,10 @@ database:
         
         # Oracle特有参数
         timezone: "Asia/Shanghai"  # 时区设置，默认为系统时区
-        nls_lang: "CHINESE_CHINA.AL32UTF8"  # NLS语言环境
+        # nls_lang / charset / nls_characterset 留空跟库走；不要默认写 AL32UTF8
+        # nls_lang: "CHINESE_CHINA.AL32UTF8"
+        # charset: "UTF8"
+        # nls_characterset: "AL32UTF8"
         connection_timeout: 30     # 连接超时时间(秒)
         read_timeout: 30          # 读取超时时间(秒) 
         write_timeout: 30         # 写入超时时间(秒)
@@ -213,7 +216,7 @@ database:
         username: readonly
         password: password
         database: gateway
-        charset: utf8mb4
+        # charset 留空跟库走
         parse_time: true
         loc: Local
       pool:

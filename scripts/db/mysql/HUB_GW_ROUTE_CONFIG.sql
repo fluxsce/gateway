@@ -49,7 +49,7 @@ CREATE TABLE `HUB_GW_ROUTE_CONFIG` (
   INDEX `IDX_GW_ROUTE_PRIORITY` (`routePriority`),
   INDEX `IDX_GW_ROUTE_PATH` (`routePath`),
   INDEX `IDX_GW_ROUTE_ACTIVE` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='路由定义表 - 存储API路由配置,使用activeFlag统一管理启用状态';
+) ENGINE=InnoDB COMMENT='路由定义表 - 存储API路由配置,使用activeFlag统一管理启用状态';
 
 -- 兼容已存在的数据库，修改字段长度
 -- 注意：由于字段长度增加到 VARCHAR(1000)，需要先删除索引，修改字段后再重建前缀索引

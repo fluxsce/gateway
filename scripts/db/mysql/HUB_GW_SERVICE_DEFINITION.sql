@@ -57,5 +57,5 @@ CREATE TABLE `HUB_GW_SERVICE_DEFINITION` (
   INDEX `IDX_GW_SVC_STRATEGY` (`loadBalanceStrategy`),
   INDEX `IDX_GW_SVC_HEALTH` (`healthCheckEnabled`),
   INDEX `IDX_GW_SVC_PROXY` (`proxyConfigId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务定义表 - 根据ServiceConfig结构设计,存储完整的服务配置';
+) ENGINE=InnoDB COMMENT='服务定义表 - 根据ServiceConfig结构设计,存储完整的服务配置';
 

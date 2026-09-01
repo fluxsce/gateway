@@ -39,5 +39,5 @@ CREATE TABLE `HUB_GW_FILTER_CONFIG` (
   INDEX `IDX_GW_FILTER_ACTION` (`filterAction`),
   INDEX `IDX_GW_FILTER_ORDER` (`filterOrder`),
   INDEX `IDX_GW_FILTER_ACTIVE` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='过滤器配置表 - 根据filter.go逻辑设计,支持7种类型和3种执行时机';
+) ENGINE=InnoDB COMMENT='过滤器配置表 - 根据filter.go逻辑设计,支持7种类型和3种执行时机';
 

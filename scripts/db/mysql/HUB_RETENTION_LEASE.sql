@@ -13,4 +13,4 @@ CREATE TABLE `HUB_RETENTION_LEASE` (
   `noteText` TEXT DEFAULT NULL COMMENT '备注信息',
   `extProperty` TEXT DEFAULT NULL COMMENT '扩展属性(JSON格式)',
   PRIMARY KEY (`tenantId`, `leaseKey`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='生命周期清理租约，保证集群内同一时刻只有一个节点执行清理';
+) ENGINE=InnoDB COMMENT='生命周期清理租约，保证集群内同一时刻只有一个节点执行清理';

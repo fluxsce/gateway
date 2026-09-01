@@ -54,7 +54,7 @@ CREATE TABLE `HUB_GW_BACKEND_TRACE_LOG` (
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
 
   PRIMARY KEY (`traceId`, `backendTraceId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网关后端追踪日志表 - 记录每个后端服务的转发明细';
+) ENGINE=InnoDB COMMENT='网关后端追踪日志表 - 记录每个后端服务的转发明细';
 
 -- 索引设计：参考数据库规范，兼顾多租户与常用查询场景
 CREATE INDEX `IDX_GW_BTRACE_TRACE` ON `HUB_GW_BACKEND_TRACE_LOG` (`tenantId`, `traceId`);

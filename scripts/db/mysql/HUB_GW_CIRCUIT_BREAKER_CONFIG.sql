@@ -48,5 +48,5 @@ CREATE TABLE `HUB_GW_CIRCUIT_BREAKER_CONFIG` (
   INDEX `IDX_GW_CB_STRATEGY` (`keyStrategy`),
   INDEX `IDX_GW_CB_STORAGE` (`storageType`),
   INDEX `IDX_GW_CB_PRIORITY` (`configPriority`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='熔断配置表 - 根据CircuitBreakerConfig结构设计,支持完整的熔断策略配置';
+) ENGINE=InnoDB COMMENT='熔断配置表 - 根据CircuitBreakerConfig结构设计,支持完整的熔断策略配置';
 

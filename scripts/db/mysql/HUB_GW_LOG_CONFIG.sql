@@ -61,4 +61,4 @@ CREATE TABLE `HUB_GW_LOG_CONFIG` (
   PRIMARY KEY (`tenantId`, `logConfigId`),
   INDEX `idx_HUB_GW_LOG_CONFIG_name` (`configName`),
   INDEX `idx_HUB_GW_LOG_CONFIG_priority` (`configPriority`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='日志配置表 - 存储网关日志相关配置';
+) ENGINE=InnoDB COMMENT='日志配置表 - 存储网关日志相关配置';

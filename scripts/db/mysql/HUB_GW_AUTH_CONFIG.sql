@@ -31,5 +31,5 @@ CREATE TABLE `HUB_GW_AUTH_CONFIG` (
   INDEX `IDX_GW_AUTH_ROUTE` (`routeConfigId`),
   INDEX `IDX_GW_AUTH_TYPE` (`authType`),
   INDEX `IDX_GW_AUTH_PRIORITY` (`configPriority`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='认证配置表 - 存储认证相关规则';
+) ENGINE=InnoDB COMMENT='认证配置表 - 存储认证相关规则';
 

@@ -46,5 +46,5 @@ CREATE TABLE `HUB_TUNNEL_SERVER` (
                                      KEY `IDX_TUNNEL_SVR_TENANT` (`tenantId`),
                                      KEY `IDX_TUNNEL_SVR_CTRL` (`controlAddress`, `controlPort`),
                                      KEY `IDX_TUNNEL_SVR_STATUS` (`serverStatus`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='隧道服务器配置表，管理控制端口和核心配置';
+) ENGINE=InnoDB COMMENT='隧道服务器配置表，管理控制端口和核心配置';
 

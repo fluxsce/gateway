@@ -35,4 +35,4 @@ CREATE TABLE IF NOT EXISTS `HUB_AUTH_AUDIT_LOG` (
   INDEX `IDX_AUTH_AUDIT_USER` (`userId`, `addTime`),
   INDEX `IDX_AUTH_AUDIT_ACTION` (`action`),
   INDEX `IDX_AUTH_AUDIT_MODULE` (`tenantId`, `moduleCode`, `addTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='权限审计表';
+) ENGINE=InnoDB COMMENT='权限审计表';

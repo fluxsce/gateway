@@ -26,4 +26,4 @@ CREATE TABLE `HUB_GW_IP_ACCESS_CONFIG` (
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `ipAccessConfigId`),
   INDEX `idx_HUB_GW_IP_ACCESS_CONFIG_security` (`securityConfigId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='IP访问控制配置表 - 存储IP白名单黑名单规则';
+) ENGINE=InnoDB COMMENT='IP访问控制配置表 - 存储IP白名单黑名单规则';

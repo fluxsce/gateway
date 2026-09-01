@@ -34,5 +34,5 @@ CREATE TABLE `HUB_GW_PROXY_CONFIG` (
   INDEX `IDX_GW_PROXY_TYPE` (`proxyType`),
   INDEX `IDX_GW_PROXY_PRIORITY` (`configPriority`),
   INDEX `IDX_GW_PROXY_ACTIVE` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='代理配置表 - 根据proxy.go逻辑设计,仅支持实例级代理配置';
+) ENGINE=InnoDB COMMENT='代理配置表 - 根据proxy.go逻辑设计,仅支持实例级代理配置';
 

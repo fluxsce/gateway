@@ -38,5 +38,5 @@ CREATE TABLE `HUB_SERVICE_CONFIG_DATA` (
   KEY `IDX_SVC_CFG_DATA_NS_ID` (`tenantId`, `namespaceId`),
   KEY `IDX_SVC_CFG_DATA_MD5` (`md5Value`),
   KEY `IDX_SVC_CFG_DATA_ACTIVE` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='配置数据表 - 存储具体的配置数据，支持多种配置格式和版本管理';
+) ENGINE=InnoDB COMMENT='配置数据表 - 存储具体的配置数据，支持多种配置格式和版本管理';
 

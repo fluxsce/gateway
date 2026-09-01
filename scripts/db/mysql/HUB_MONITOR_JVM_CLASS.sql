@@ -45,5 +45,5 @@ CREATE TABLE HUB_MONITOR_JVM_CLASS (
                                        KEY IDX_MONITOR_CLS_TIME (collectionTime),
                                        KEY IDX_MONITOR_CLS_HEALTH (healthyFlag, requiresAttentionFlag),
                                        KEY IDX_MONITOR_CLS_COUNT (loadedClassCount)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='JVM类加载监控表';
+) ENGINE=InnoDB COMMENT='JVM类加载监控表';
 

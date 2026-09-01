@@ -43,5 +43,5 @@ CREATE TABLE `HUB_SERVICE_CONFIG_HISTORY` (
   KEY `IDX_SVC_CFG_HIST_TIME` (`changedAt`),
   KEY `IDX_SVC_CFG_HIST_BY` (`changedBy`),
   KEY `IDX_SVC_CFG_HIST_VERSION` (`newVersion`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='配置历史表 - 记录配置的变更历史，支持配置回滚和审计';
+) ENGINE=InnoDB COMMENT='配置历史表 - 记录配置的变更历史，支持配置回滚和审计';
 

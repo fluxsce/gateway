@@ -44,5 +44,5 @@ CREATE TABLE `HUB_ALERT_TEMPLATE` (
   INDEX `IDX_ALERT_TEMPLATE_TENANT` (`tenantId`),
   INDEX `IDX_ALERT_TEMPLATE_CHANNEL` (`channelType`),
   INDEX `IDX_ALERT_TEMPLATE_ACTIVE` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='告警模板表 - 存储告警消息模板，支持变量占位符和多种格式';
+) ENGINE=InnoDB COMMENT='告警模板表 - 存储告警消息模板，支持变量占位符和多种格式';
 

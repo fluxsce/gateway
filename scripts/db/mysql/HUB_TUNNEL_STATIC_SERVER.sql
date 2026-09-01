@@ -64,4 +64,4 @@ CREATE TABLE `HUB_TUNNEL_STATIC_SERVER` (
   KEY `IDX_TUNNEL_STATIC_SVR_TENANT` (`tenantId`),
   KEY `IDX_TUNNEL_STATIC_SVR_STATUS` (`serverStatus`),
   KEY `IDX_TUNNEL_STATIC_SVR_TYPE` (`serverType`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='静态隧道服务器表，管理静态端口转发服务配置';
+) ENGINE=InnoDB COMMENT='静态隧道服务器表，管理静态端口转发服务配置';

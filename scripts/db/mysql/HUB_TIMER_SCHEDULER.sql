@@ -51,4 +51,4 @@ CREATE TABLE `HUB_TIMER_SCHEDULER` (
   KEY `IDX_TIMER_SCHED_INST` (`schedulerInstanceId`),
   KEY `IDX_TIMER_SCHED_STATUS` (`schedulerStatus`),
   KEY `IDX_TIMER_SCHED_HEART` (`lastHeartbeatTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='定时任务调度器表 - 存储调度器配置和状态信息';
+) ENGINE=InnoDB COMMENT='定时任务调度器表 - 存储调度器配置和状态信息';

@@ -60,5 +60,5 @@ CREATE TABLE `HUB_GW_ROUTER_CONFIG` (
   INDEX `IDX_GW_ROUTER_NAME` (`routerName`),
   INDEX `IDX_GW_ROUTER_ACTIVE` (`activeFlag`),
   INDEX `IDX_GW_ROUTER_CACHE` (`enableRouteCache`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Router配置表 - 存储网关Router级别配置';
+) ENGINE=InnoDB COMMENT='Router配置表 - 存储网关Router级别配置';
 

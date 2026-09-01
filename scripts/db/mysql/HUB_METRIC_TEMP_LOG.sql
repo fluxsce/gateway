@@ -34,5 +34,5 @@ CREATE TABLE `HUB_METRIC_TEMP_LOG` (
   KEY `IDX_METRIC_TEMP_SRV_TIME` (`metricServerId`, `collectTime`),
   KEY `IDX_METRIC_TEMP_SRV_SENSOR` (`metricServerId`, `sensorName`),
   KEY `IDX_METRIC_TEMP_TNT_TIME` (`tenantId`, `collectTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='温度信息采集日志表';
+) ENGINE=InnoDB COMMENT='温度信息采集日志表';
 

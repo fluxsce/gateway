@@ -23,7 +23,7 @@ CREATE TABLE `HUB_GW_DOMAIN_ACCESS_CONFIG` (
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`tenantId`, `domainAccessConfigId`),
   INDEX `idx_HUB_GW_DOMAIN_ACCESS_CONFIG_security` (`securityConfigId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='域名访问控制配置表 - 存储域名白名单黑名单规则';
+) ENGINE=InnoDB COMMENT='域名访问控制配置表 - 存储域名白名单黑名单规则';
 
 
 

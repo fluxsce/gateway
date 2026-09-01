@@ -30,5 +30,5 @@ CREATE TABLE `HUB_GW_ROUTE_ASSERTION` (
   INDEX `IDX_GW_ASSERT_ROUTE` (`routeConfigId`),
   INDEX `IDX_GW_ASSERT_TYPE` (`assertionType`),
   INDEX `IDX_GW_ASSERT_ORDER` (`assertionOrder`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='路由断言表 - 存储路由匹配断言规则';
+) ENGINE=InnoDB COMMENT='路由断言表 - 存储路由匹配断言规则';
 

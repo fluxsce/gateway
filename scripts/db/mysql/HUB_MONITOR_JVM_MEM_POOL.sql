@@ -50,4 +50,4 @@ CREATE TABLE HUB_MONITOR_JVM_MEM_POOL (
                                           KEY IDX_MONITOR_POOL_TYPE (poolType),
                                           KEY IDX_MONITOR_POOL_CAT (poolCategory),
                                           KEY IDX_MONITOR_POOL_TIME (collectionTime)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='JVM内存池监控表';
+) ENGINE=InnoDB COMMENT='JVM内存池监控表';

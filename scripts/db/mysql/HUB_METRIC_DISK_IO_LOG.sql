@@ -41,4 +41,4 @@ CREATE TABLE `HUB_METRIC_DISK_IO_LOG` (
   KEY `IDX_METRIC_DISK_IO_SRV_TIME` (`metricServerId`, `collectTime`),
   KEY `IDX_METRIC_DISK_IO_SRV_DEV` (`metricServerId`, `deviceName`),
   KEY `IDX_METRIC_DISK_IO_TNT_TIME` (`tenantId`, `collectTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='磁盘IO采集日志表';
+) ENGINE=InnoDB COMMENT='磁盘IO采集日志表';

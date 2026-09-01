@@ -125,7 +125,7 @@ export function useStaticHostConfigModel() {
           label: '查找路径重写',
           type: 'custom',
           span: 24,
-          tips: '根目录确定后，调整目录内的查找路径。不变更根目录，也不修改浏览器地址。仅当请求 URI 与目录内相对路径不一致时配置。',
+          tips: '根目录确定后，调整目录内的查找路径。不变更根目录，也不修改浏览器地址。前缀按路径段替换；精确按字面字符串替换（不必整段路径相等）；正则可用 $1。',
           render: (formData, ctx) =>
             h(RewriteRulesEditor, {
               modelValue: String(ctx?.value ?? formData.rewriteRules ?? ''),

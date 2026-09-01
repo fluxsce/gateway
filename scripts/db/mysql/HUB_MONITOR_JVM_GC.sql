@@ -55,4 +55,4 @@ CREATE TABLE HUB_MONITOR_JVM_GC (
                                     KEY IDX_MONITOR_GC_RES (jvmResourceId),
                                     KEY IDX_MONITOR_GC_TIME (collectionTime),
                                     KEY IDX_MONITOR_GC_RES_TIME (jvmResourceId, collectionTime)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='JVM GC快照表（jstat -gc风格，每次采集一条汇总记录）';
+) ENGINE=InnoDB COMMENT='JVM GC快照表（jstat -gc风格，每次采集一条汇总记录）';

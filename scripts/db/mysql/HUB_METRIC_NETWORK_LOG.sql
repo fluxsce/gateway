@@ -46,4 +46,4 @@ CREATE TABLE `HUB_METRIC_NETWORK_LOG` (
   KEY `IDX_METRIC_NETWORK_SRV_TIME` (`metricServerId`, `collectTime`),
   KEY `IDX_METRIC_NETWORK_SRV_INT` (`metricServerId`, `interfaceName`),
   KEY `IDX_METRIC_NETWORK_TNT_TIME` (`tenantId`, `collectTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网络接口采集日志表';
+) ENGINE=InnoDB COMMENT='网络接口采集日志表';

@@ -6,7 +6,15 @@
 
 ## [Unreleased]
 
+## [3.3.3] - 2026-09-02
+
+### 修复
+- **静态精确重写按字面字符串替换**：`exact` 不再要求整段查找路径等于 From。路径中出现该字符序列即替换（如 `A05SysBizWebVue` → `A05logWebVue` 作用于 `/A05SysBizWebVue/js/app.js`）。整段相等仍可用同一规则覆盖。
+
 ### 变更
+- **MySQL 建表与连接不再写死 utf8mb4**：`scripts/db/mysql` 与启动脚本历史表去掉 `DEFAULT CHARSET=utf8mb4`，继承当前库字符集/排序规则。DSN 未配 `charset` 时不再默认 `utf8mb4`，跟库走。企业可用 `utf8` / `utf8_bin`；需要覆盖时再在 `database.yaml` 填写 `charset`。
+- **Oracle 连接不再写死 AL32UTF8**：DSN 不再默认 `CHARSET=UTF8`、`NLS_CHARACTERSET=AL32UTF8`、`NLS_LANG=AMERICAN_AMERICA.UTF8`。未配置则跟库/客户端环境；需要覆盖时再填 `nls_lang` / `charset` / `nls_characterset`。
+- **tenantId 统一 VARCHAR(32)**：`HUB_METRIC_SERVER_INFO`、`HUB_SERVICE_AUTH_TOKEN` 与 Oracle/SQL Server 对应建表改为 32，与全库主键宽度一致。`traceId` 仍为 64。已有库不追加 ALTER。
 - **密码工具明文输入**：`password_plugin` 交互加密改为明文回显，加密结果同时打印原文；Windows 控制台可右键粘贴。不再使用无回显模式（该模式会挡住粘贴）。
 
 ## [3.3.2] - 2026-08-27

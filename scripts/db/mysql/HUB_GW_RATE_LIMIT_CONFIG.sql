@@ -43,5 +43,5 @@ CREATE TABLE `HUB_GW_RATE_LIMIT_CONFIG` (
   INDEX `IDX_GW_RATE_ALGORITHM` (`algorithm`),
   INDEX `IDX_GW_RATE_PRIORITY` (`configPriority`),
   INDEX `IDX_GW_RATE_ACTIVE` (`activeFlag`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='限流配置表 - 存储流量限制规则';
+) ENGINE=InnoDB COMMENT='限流配置表 - 存储流量限制规则';
 

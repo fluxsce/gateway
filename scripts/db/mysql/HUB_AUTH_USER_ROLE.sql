@@ -44,5 +44,5 @@ CREATE TABLE IF NOT EXISTS `HUB_AUTH_USER_ROLE` (
   KEY `IDX_AUTH_USER_ROLE_ROLE` (`tenantId`, `roleId`),
   KEY `IDX_AUTH_USER_ROLE_PRIMARY` (`primaryRoleFlag`),
   KEY `IDX_AUTH_USER_ROLE_EXPIRE` (`expireTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户角色关联表 - 存储用户与角色的关联关系';
+) ENGINE=InnoDB COMMENT='用户角色关联表 - 存储用户与角色的关联关系';
 

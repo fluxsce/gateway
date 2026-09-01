@@ -37,5 +37,5 @@ CREATE TABLE `HUB_CLUSTER_EVENT_ACK` (
   KEY `IDX_CLS_ACK_NODE` (`nodeId`, `ackStatus`, `processTime`),
   -- 辅助索引：用于清理任务
   KEY `IDX_CLS_ACK_CLEANUP` (`tenantId`, `addTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='集群事件确认表 - 跟踪各节点对事件的处理状态';
+) ENGINE=InnoDB COMMENT='集群事件确认表 - 跟踪各节点对事件的处理状态';
 

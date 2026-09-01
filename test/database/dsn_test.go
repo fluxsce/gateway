@@ -565,6 +565,8 @@ func TestTimeoutDefaults(t *testing.T) {
 	assert.NotContains(t, mysqlDSN, "timeout=")
 	assert.NotContains(t, mysqlDSN, "readTimeout=")
 	assert.NotContains(t, mysqlDSN, "writeTimeout=")
+	// 未配置 charset 时不写 DSN，沿用库默认
+	assert.NotContains(t, mysqlDSN, "charset=")
 
 	// Oracle默认超时
 	oracleConfig := &dbtypes.DbConfig{
@@ -582,6 +584,9 @@ func TestTimeoutDefaults(t *testing.T) {
 	assert.Contains(t, oracleDSN, "CONNECTION_TIMEOUT=30")
 	assert.Contains(t, oracleDSN, "READ_TIMEOUT=30")
 	assert.Contains(t, oracleDSN, "WRITE_TIMEOUT=30")
+	assert.NotContains(t, oracleDSN, "CHARSET=")
+	assert.NotContains(t, oracleDSN, "NLS_CHARACTERSET=")
+	assert.NotContains(t, oracleDSN, "NLS_LANG=")
 
 	// SQLite默认超时
 	sqliteConfig := &dbtypes.DbConfig{

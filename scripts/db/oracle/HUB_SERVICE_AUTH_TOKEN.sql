@@ -1,7 +1,7 @@
 -- 服务中心 API Token（Bearer 不透明令牌）
 CREATE TABLE HUB_SERVICE_AUTH_TOKEN (
     tokenId VARCHAR2(64) NOT NULL,
-    tenantId VARCHAR2(64) NOT NULL,
+    tenantId VARCHAR2(32) NOT NULL,
     tokenValue VARCHAR2(256) NOT NULL,
     userId VARCHAR2(64) NOT NULL,
     tokenName VARCHAR2(128),

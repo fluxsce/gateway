@@ -3,19 +3,19 @@
     <div v-for="(rule, index) in rules" :key="index" class="rewrite-rules-editor__row">
       <select v-model="rule.mode" class="rewrite-rules-editor__mode" @change="emitRules">
         <option value="prefix">前缀</option>
-        <option value="exact">精确</option>
+        <option value="exact">精确（字符）</option>
         <option value="regex">正则</option>
       </select>
       <input
         v-model="rule.from"
         class="rewrite-rules-editor__input"
-        placeholder="匹配 /old"
+        placeholder="匹配 A05SysBizWebVue"
         @change="emitRules"
       />
       <input
         v-model="rule.to"
         class="rewrite-rules-editor__input"
-        placeholder="替换 /new"
+        placeholder="替换 A05logWebVue"
         @change="emitRules"
       />
       <button type="button" class="rewrite-rules-editor__btn" @click="removeRule(index)">删除</button>

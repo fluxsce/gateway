@@ -58,4 +58,4 @@ CREATE TABLE `HUB_TUNNEL_SERVICE` (
                                       KEY `IDX_TUNNEL_SVC_STATUS` (`serviceStatus`),
                                       KEY `IDX_TUNNEL_SVC_PORT` (`remotePort`),
                                       KEY `IDX_TUNNEL_SVC_DOMAIN` (`subDomain`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='隧道服务配置表，管理客户端动态注册的服务配置';
+) ENGINE=InnoDB COMMENT='隧道服务配置表，管理客户端动态注册的服务配置';

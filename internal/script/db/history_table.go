@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS HUB_SCRIPT_EXECUTION_HISTORY (
     INDEX IDX_SCRIPT_HIST_DRIVER (databaseDriver),
     INDEX IDX_SCRIPT_HIST_TIME (executionTime),
     UNIQUE KEY UK_SCRIPT_VERSION (tenantId, scriptName, scriptVersion, databaseDriver)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='脚本执行历史表';`
+) ENGINE=InnoDB COMMENT='脚本执行历史表';`
 
 	case dbtypes.DriverSQLite:
 		createTableSQL = `
@@ -213,7 +213,7 @@ CREATE TABLE IF NOT EXISTS HUB_STATEMENT_EXECUTION_HISTORY (
     INDEX IDX_STMT_HIST_DRIVER (databaseDriver),
     INDEX IDX_STMT_HIST_TIME (executionTime),
     UNIQUE KEY UK_STMT_HASH (tenantId, scriptName, statementHash, databaseDriver)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='SQL语句执行历史表';`
+) ENGINE=InnoDB COMMENT='SQL语句执行历史表';`
 
 	case dbtypes.DriverSQLite:
 		createTableSQL = `

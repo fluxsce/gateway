@@ -81,4 +81,4 @@ CREATE TABLE `HUB_TIMER_TASK` (
   KEY `IDX_TIMER_TASK_EXEC` (`executorType`),
   KEY `IDX_TIMER_TASK_TOOL` (`toolConfigId`),
   KEY `IDX_TIMER_TASK_OP` (`operationType`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='定时任务表 - 合并任务配置、运行时信息和最后执行结果';
+) ENGINE=InnoDB COMMENT='定时任务表 - 合并任务配置、运行时信息和最后执行结果';

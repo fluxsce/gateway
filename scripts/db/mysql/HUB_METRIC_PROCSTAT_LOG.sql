@@ -33,4 +33,4 @@ CREATE TABLE `HUB_METRIC_PROCSTAT_LOG` (
   KEY `IDX_METRIC_PROC_STATS_ACTIVE` (`activeFlag`),
   KEY `IDX_METRIC_PROC_STATS_SRV_TIME` (`metricServerId`, `collectTime`),
   KEY `IDX_METRIC_PROC_STATS_TNT_TIME` (`tenantId`, `collectTime`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='进程统计采集日志表';
+) ENGINE=InnoDB COMMENT='进程统计采集日志表';

@@ -101,7 +101,7 @@ regex ^/v\d+/(.*)$ /$1
 | Syntax | Meaning | Example |
 |--------|---------|---------|
 | `prefix /old-prefix /new-prefix` | Replaces only that prefix; longer names are left alone | `/old/a.js` → `new/a.js`; `/older/a.js` unchanged |
-| `exact /full-path /target` | Exact path only | `/favicon.ico` → `images/favicon.ico` |
+| `exact old-string new-string` | Literal substring replace; the whole path does not have to equal From | `/A05SysBizWebVue/js/app.js` → `A05logWebVue/js/app.js` |
 | `regex pattern replacement` | Regex, `$1` for capture groups | `/v2/css/app.css` → `css/app.css` |
 
 Rewrite runs after the directory is locked. In setup 2, `/app/old/a.js` locks `dist`, becomes `/old/a.js`, then reads `new/a.js`. Rules cannot point at another root.

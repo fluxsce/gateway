@@ -97,13 +97,16 @@ func generateOracle(config *dbtypes.DbConfig) (string, error) {
 	}
 	params = append(params, fmt.Sprintf("TIMEZONE=%s", timezone))
 
-	nlsLang := "AMERICAN_AMERICA.UTF8"
+	// 未配置时不写 NLS/CHARSET，沿用库与客户端环境，避免覆盖企业 ZHS16GBK 等。
 	if config.Connection.NLSLang != "" {
-		nlsLang = config.Connection.NLSLang
+		params = append(params, fmt.Sprintf("NLS_LANG=%s", config.Connection.NLSLang))
 	}
-	params = append(params, fmt.Sprintf("NLS_LANG=%s", nlsLang))
-	params = append(params, "CHARSET=UTF8")
-	params = append(params, "NLS_CHARACTERSET=AL32UTF8")
+	if config.Connection.Charset != "" {
+		params = append(params, "CHARSET="+config.Connection.Charset)
+	}
+	if config.Connection.NLSCharacterset != "" {
+		params = append(params, "NLS_CHARACTERSET="+config.Connection.NLSCharacterset)
+	}
 
 	prefetchRows := 500
 	if config.Connection.PrefetchRows > 0 {

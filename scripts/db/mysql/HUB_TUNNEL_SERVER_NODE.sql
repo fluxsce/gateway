@@ -56,5 +56,5 @@ CREATE TABLE `HUB_TUNNEL_SERVER_NODE` (
                                           KEY `IDX_TUNNEL_NODE_TYPE` (`nodeType`, `proxyType`),
                                           KEY `IDX_TUNNEL_NODE_STATUS` (`nodeStatus`),
                                           KEY `IDX_TUNNEL_NODE_HEALTH` (`lastHealthCheck`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='隧道服务器节点表，管理静态端口映射和数据端口转发';
+) ENGINE=InnoDB COMMENT='隧道服务器节点表，管理静态端口映射和数据端口转发';
 
