@@ -19,6 +19,7 @@ import (
 	"gateway/internal/gateway/handler/security"
 	"gateway/internal/gateway/handler/service"
 	"gateway/internal/gateway/handler/statichost"
+	appconfig "gateway/pkg/config"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/cert"
 )
@@ -41,10 +42,11 @@ func (f *GatewayFactory) CreateGateway(cfg *config.GatewayConfig, configFile str
 
 	// 创建 Gateway 实例
 	gateway := &Gateway{
-		gatewayConfig: cfg,
-		configFile:    configFile,
-		running:       false,
-		stopCh:        make(chan struct{}),
+		gatewayConfig:    cfg,
+		configFile:       configFile,
+		running:          false,
+		stopCh:           make(chan struct{}),
+		listenHealthPath: normalizeListenHealthPath(appconfig.GetString("app.gateway.health.path", defaultListenHealthPath)),
 	}
 
 	generation, err := f.buildGeneration(gateway, cfg)
@@ -87,7 +89,7 @@ func (f *GatewayFactory) createGenerationServer(gateway *Gateway, generation *ga
 		// 监听地址：服务器绑定的网络地址（如 ":8080"）
 		Addr: cfg.Base.Listen,
 		// 请求处理器：连接固定使用创建该Server时的运行时代际
-		Handler: &generationHTTPHandler{gateway: gateway, generation: generation},
+		Handler: wrapListenHealth(gateway.listenHealthPath, &generationHTTPHandler{gateway: gateway, generation: generation}),
 		// 读取超时：从客户端读取请求头的最大时间，超时则关闭连接
 		ReadTimeout: cfg.Base.ReadTimeout,
 		// 写入超时：向客户端写入响应的最大时间，超时则关闭连接

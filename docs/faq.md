@@ -1,6 +1,6 @@
 # FAQ
 
-安装包与镜像版本以 [GitHub Releases](https://github.com/fluxsce/gateway/releases) 为准。下文以 3.3.3 为例。
+安装包与镜像版本以 [GitHub Releases](https://github.com/fluxsce/gateway/releases) 为准。下文以 3.3.4 为例。
 
 ## 控制台打不开
 
@@ -35,14 +35,14 @@ SQLite 驱动是 `github.com/mattn/go-sqlite3`，必须 CGO。安装 [TDM-GCC](h
 | 本机二进制 / `docker run` | 8080 | 12003 |
 | `scripts/docker/docker-compose.yaml` | 宿主机 **18280** → 容器 8080 | 宿主机 **12203** → 容器 12003 |
 
-健康检查始终打容器/进程内的 `12003/health`。网关监听口 `8080` 没有 `/health`。
+进程健康检查打容器/进程内的 `12003/health`。实例听上后，监听口默认是 `8080/_gw/health`（`app.gateway.health.path`，空则关闭）。
 
 ## `docker pull datahub-images/gateway` 失败
 
 没有 Docker Hub 官方镜像。请用：
 
-- `ghcr.io/fluxsce/gateway:3.3.3`
-- `crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.3.3`
+- `ghcr.io/fluxsce/gateway:3.3.4`
+- `crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.3.4`
 
 ## 构建脚本一运行就找 Oracle
 
@@ -50,14 +50,14 @@ SQLite 驱动是 `github.com/mattn/go-sqlite3`，必须 CGO。安装 [TDM-GCC](h
 
 ```bash
 # Windows（默认就是 no_oracle）
-scripts\build\build-win10.cmd --version=3.3.3
+scripts\build\build-win10.cmd --version=3.3.4
 
 # 需要 Oracle 时
-scripts\build\build-win10.cmd --oracle --version=3.3.3
+scripts\build\build-win10.cmd --oracle --version=3.3.4
 
 # Linux（默认 no_oracle）
-./scripts/build/build-centos7.sh --version=3.3.3
-./scripts/build/build-centos7.sh --oracle --version=3.3.3
+./scripts/build/build-centos7.sh --version=3.3.4
+./scripts/build/build-centos7.sh --oracle --version=3.3.4
 ```
 
 未传 `--version` 时脚本会交互询问。

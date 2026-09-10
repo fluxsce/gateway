@@ -643,7 +643,9 @@ export function useGatewayInstanceModel() {
             placeholder: '选择日志输出目标',
             span: 24, // 单列布局，与原对话框一致
             defaultValue: 'DATABASE',
+            tips: '控制台输出写进程标准输出，供 Docker/K8s 采集；采集建议日志格式用 JSON。同一配置只能选一个目标。',
             options: [
+              { label: '控制台输出', value: 'CONSOLE' },
               { label: '文件输出', value: 'FILE' },
               { label: '数据库输出', value: 'DATABASE' },
               { label: 'MongoDB输出', value: 'MONGODB' },

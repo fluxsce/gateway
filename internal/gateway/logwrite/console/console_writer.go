@@ -3,26 +3,35 @@ package console
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"gateway/internal/gateway/logwrite/types"
+	"gateway/pkg/logger"
 )
 
-// ConsoleWriter 控制台日志写入器
-// 支持彩色输出、格式化输出和并发安全
+const (
+	minConsoleQueueSize = 100
+	consoleDrainWait    = 3 * time.Second
+)
+
+// ConsoleWriter 控制台访问日志写入器。
+// 有界队列 + 单消费者写 stdout：Write 只投递，队列满丢弃，不在请求路径堵 stdout。
 type ConsoleWriter struct {
-	// 配置选项
-	config *types.LogConfig
-
-	// 输出格式化器
+	config    *types.LogConfig
 	formatter Formatter
+	output    io.Writer
 
-	// 并发控制
-	mutex sync.Mutex
-
-	// 输出目标
-	output *os.File
+	queue     chan string
+	stop      chan struct{}
+	done      chan struct{}
+	dropped   atomic.Uint64
+	async     bool
+	writeMu   sync.Mutex
+	closeOnce sync.Once
 }
 
 // Formatter 定义格式化器接口
@@ -39,6 +48,7 @@ func NewConsoleWriter(config *types.LogConfig) (*ConsoleWriter, error) {
 	writer := &ConsoleWriter{
 		config: config,
 		output: os.Stdout,
+		async:  config.IsAsyncLogging(),
 	}
 
 	// 根据配置选择格式化器
@@ -53,6 +63,17 @@ func NewConsoleWriter(config *types.LogConfig) (*ConsoleWriter, error) {
 		writer.formatter = &TextFormatter{config: config}
 	}
 
+	if writer.async {
+		size := config.AsyncQueueSize
+		if size < minConsoleQueueSize {
+			size = minConsoleQueueSize
+		}
+		writer.queue = make(chan string, size)
+		writer.stop = make(chan struct{})
+		writer.done = make(chan struct{})
+		go writer.loop()
+	}
+
 	return writer, nil
 }
 
@@ -63,14 +84,13 @@ func (w *ConsoleWriter) UpdateAccessLog(ctx context.Context, log *types.AccessLo
 	return 0, nil
 }
 
-// Write 写入单条日志
+// Write 投递一条访问日志。异步时不阻塞调用方；队列满返回 nil 并计数丢弃。
 func (w *ConsoleWriter) Write(ctx context.Context, log *types.AccessLog) error {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
-
-	formatted := w.formatter.Format(log)
-	_, err := fmt.Fprintln(w.output, formatted)
-	return err
+	_ = ctx
+	if log == nil {
+		return nil
+	}
+	return w.offer(w.formatter.Format(log))
 }
 
 // BatchWrite 批量写入日志（简化实现，逐条写入）
@@ -95,9 +115,19 @@ func (w *ConsoleWriter) Flush(ctx context.Context) error {
 	return nil
 }
 
-// Close 关闭写入器
+// Close 停止投递协程，不关闭 stdout。
 func (w *ConsoleWriter) Close() error {
-	// 不关闭标准输出
+	w.closeOnce.Do(func() {
+		if !w.async {
+			return
+		}
+		close(w.stop)
+		select {
+		case <-w.done:
+		case <-time.After(consoleDrainWait):
+			logger.Warn("等待控制台访问日志队列退出超时")
+		}
+	})
 	return nil
 }
 
@@ -106,14 +136,77 @@ func (w *ConsoleWriter) GetLogConfig() *types.LogConfig {
 	return w.config
 }
 
-// WriteBackendTraceLog 写入单条后端追踪日志（从表）
-func (w *ConsoleWriter) WriteBackendTraceLog(ctx context.Context, log *types.BackendTraceLog) error {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
+func (w *ConsoleWriter) offer(line string) error {
+	if !w.async {
+		return w.writeLine(line)
+	}
+	select {
+	case <-w.stop:
+		w.recordDrop()
+		return nil
+	default:
+	}
+	select {
+	case w.queue <- line:
+		return nil
+	case <-w.stop:
+		w.recordDrop()
+		return nil
+	default:
+		w.recordDrop()
+		return nil
+	}
+}
 
-	formatted := w.formatBackendTraceLog(log)
-	_, err := fmt.Fprintln(w.output, formatted)
+func (w *ConsoleWriter) recordDrop() {
+	n := w.dropped.Add(1)
+	if n == 1 || n%1000 == 0 {
+		logger.Warn("控制台访问日志队列已满，丢弃新日志", "dropped", n, "queueCap", cap(w.queue))
+	}
+}
+
+func (w *ConsoleWriter) loop() {
+	defer close(w.done)
+	for {
+		select {
+		case line := <-w.queue:
+			_ = w.writeLine(line)
+		case <-w.stop:
+			w.drain()
+			return
+		}
+	}
+}
+
+func (w *ConsoleWriter) drain() {
+	deadline := time.Now().Add(consoleDrainWait)
+	for {
+		if time.Now().After(deadline) {
+			return
+		}
+		select {
+		case line := <-w.queue:
+			_ = w.writeLine(line)
+		default:
+			return
+		}
+	}
+}
+
+func (w *ConsoleWriter) writeLine(line string) error {
+	w.writeMu.Lock()
+	defer w.writeMu.Unlock()
+	_, err := fmt.Fprintln(w.output, line)
 	return err
+}
+
+// WriteBackendTraceLog 投递一条后端追踪日志，背压规则与 Write 相同。
+func (w *ConsoleWriter) WriteBackendTraceLog(ctx context.Context, log *types.BackendTraceLog) error {
+	_ = ctx
+	if log == nil {
+		return nil
+	}
+	return w.offer(w.formatBackendTraceLog(log))
 }
 
 // BatchWriteBackendTraceLog 批量写入后端追踪日志（从表）

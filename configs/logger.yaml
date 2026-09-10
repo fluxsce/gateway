@@ -1,36 +1,66 @@
-# 日志配置
+# 日志
+# 文件输出与原先一致：default_output 写全量，error/warn/info/debug_output 按级别再写一份。
+# output 只控制是否额外打控制台，与 encoding 无关：
+#   console  额外写标准输出，供采集（docker logs / kubectl logs）
+#   stdout   与原先一致，不额外写控制台（stdout 只用于 default_output 等文件项）
+#   空       与原先一致，只走下面的文件项
+# 文件项里的 stdout / stderr 含义不变：主文件或按级别文件直接写到该标准流。
+#
+# format 完整用法（不写则用内置 json/console 编码器，不走模板）：
+#   占位符 ${name}，每种一个，大小写不敏感。一行一条日志。
+#   变量：
+#     ${time}    时间，格式见 time_format
+#     ${level}   级别，大小写见 level_encoder
+#     ${msg}     正文
+#     ${caller}  调用位置（需 show_caller: true）
+#     ${stack}   堆栈（级别 >= stacktrace_level 才有）
+#     ${logger}  logger 名
+#     ${fields}  仅 console：其余键值拼成 k=v（json 不用写，会自动并入对象）
+#   encoding: json 时，format 必须是 JSON 对象，值为占位符；输出键名可自定：
+#     format: '{"time":"${time}","level":"${level}","msg":"${msg}"}'
+#     输出例：{"time":"2026-09-10T12:00:00.000+08:00","level":"info","msg":"started","requestId":"r1"}
+#     代码里 Info("started", "requestId", "r1") 等多余字段会并进对象（不覆盖已有键）。
+#   encoding: console 时，format 是纯文本：
+#     format: '${time} ${level} ${msg}'
+#     输出例：2026-09-10T12:00:00.000+08:00 info started requestId=r1
 log:
-  # 日志级别: debug, info, warn, error, dpanic, panic, fatal
+  # 最低输出级别：debug | info | warn | error | dpanic | panic | fatal
   level: "info"
-  # 日志输出: stdout, stderr, 或文件路径
-  output: stdout
-  # 编码格式: json, console
+  # 行编码，只控制格式，不决定写到哪：json | console
   encoding: "console"
-  # 是否显示调用者信息
-  show_caller: true
-  # 显示堆栈跟踪的最小级别: debug, info, warn, error, dpanic, panic, fatal
-  stacktrace_level: "error"
-  # 默认输出路径: stdout, stderr 或文件路径
-  # 注意: 使用 systemd 启动服务时，如果为 stdout/stderr，日志会被重定向到 /var/log/messages
-  # 如需将应用日志独立存放，请改为文件名，这里统一写入 ./logs/gateway.log
+  # 行模板，见文件头。留空 = 内置编码器（json 默认字段 ts/level/msg）
+  # format: '{"time":"${time}","level":"${level}","msg":"${msg}"}'
+  # 采集控制台：console。stdout 与原先一样忽略。与 encoding 无关
+  output: stdout
+  # 主文件，全量级别。相对 log_path 的文件名，或 stdout/stderr（此处 stdout 为原逻辑）
   default_output: "gateway.log"
-  # 错误日志专用输出路径 (可选)
+  # ${time} 的时间格式：iso8601 | rfc3339 | rfc3339nano | epoch | epoch_millis，或 Go 布局如 2006-01-02 15:04:05
+  time_format: "iso8601"
+  # ${level} 大小写：lowercase | capital
+  level_encoder: "lowercase"
+  # 是否带调用位置（文件:行号），对应 ${caller}
+  show_caller: true
+  # 从该级别起附带堆栈：debug | info | warn | error | dpanic | panic | fatal
+  stacktrace_level: "error"
+
+  # 仅 error 及以上，与原先相同；与 default_output 相同时不重复写
   error_output: "error.log"
-  # 警告日志专用输出路径 (可选)
+  # 仅 warn 级别
   warn_output: "warn.log"
-  # 信息日志专用输出路径 (可选)
+  # 仅 info 级别
   info_output: "info.log"
-  # 调试日志专用输出路径 (可选)
+  # 仅 debug 级别
   debug_output: "debug.log"
-  # 日志文件根目录 (用于相对路径)
+
+  # 相对路径文件的根目录
   log_path: "./logs"
-  # 是否使用绝对路径 (true: 直接使用文件路径，false: 将路径视为相对于log_path)
+  # true：default_output 等按绝对路径用；false：拼在 log_path 下
   use_absolute_path: false
-  # 单个日志文件最大尺寸(MB)
+  # 单个日志文件最大体积（MB），超出后轮转
   max_size: 100
-  # 保留的旧日志文件最大数量
+  # 轮转后最多保留的旧文件个数
   max_backups: 10
-  # 保留的旧日志文件最大天数
+  # 旧文件最多保留天数
   max_age: 10
-  # 是否压缩旧日志文件
-  compress: true 
+  # 是否 gzip 压缩已轮转文件
+  compress: true

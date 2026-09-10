@@ -36,13 +36,18 @@ const (
 type LoggerConfig struct {
 	// Level 日志级别
 	Level string `mapstructure:"level"`
-	// Encoding 编码格式
+	// Encoding 行编码：json 或 console
 	Encoding string `mapstructure:"encoding"`
+	// Format 行模板，变量每种一个：${time} ${level} ${msg} ${caller} ${stack} ${logger}。
+	// json 时写 JSON 对象；console 时写纯文本。空则用内置编码器。
+	Format string `mapstructure:"format"`
 	// ShowCaller 是否显示调用者信息
 	ShowCaller bool `mapstructure:"show_caller"`
 	// StacktraceLevel 显示堆栈跟踪的最小级别
 	StacktraceLevel string `mapstructure:"stacktrace_level"`
 
+	// Output 为 console 时额外写标准输出供采集。stdout 等其它值与原先一样忽略。
+	Output string `mapstructure:"output"`
 	// DefaultOutput 默认输出路径
 	DefaultOutput string `mapstructure:"default_output"`
 	// ErrorOutput 错误日志输出路径
@@ -53,6 +58,11 @@ type LoggerConfig struct {
 	InfoOutput string `mapstructure:"info_output"`
 	// DebugOutput 调试日志输出路径
 	DebugOutput string `mapstructure:"debug_output"`
+
+	// TimeFormat ${time} 的时间格式：iso8601、rfc3339、rfc3339nano、epoch、epoch_millis，或 Go 时间布局
+	TimeFormat string `mapstructure:"time_format"`
+	// LevelEncoder ${level} 的大小写：lowercase、capital
+	LevelEncoder string `mapstructure:"level_encoder"`
 
 	// LogPath 日志文件的根目录，当使用相对路径时会与此路径结合
 	LogPath string `mapstructure:"log_path"`
@@ -66,23 +76,34 @@ type LoggerConfig struct {
 	Compress bool `mapstructure:"compress"`
 }
 
-// Setup 设置日志，从配置文件加载
+// Setup 设置日志，只从配置文件 log 节加载，不用环境变量覆盖。
 // 返回: 可能的错误
 func Setup() error {
-	// 尝试从配置中读取日志配置
 	var logConfig LoggerConfig
 	if config.IsExist("log") {
 		err := config.GetSection("log", &logConfig)
 		if err != nil {
-			// 配置读取失败，使用默认配置
 			return Init(nil)
 		}
-		// 配置读取成功，使用配置初始化
 		return Init(&logConfig)
 	}
-
-	// 没有配置，使用默认值
 	return Init(nil)
+}
+
+// defaultLoggerConfig 无配置文件时的内置默认值：标准输出 + JSON。
+func defaultLoggerConfig() *LoggerConfig {
+	return &LoggerConfig{
+		Level:           "info",
+		DefaultOutput:   "stdout",
+		Encoding:        "json",
+		ShowCaller:      true,
+		StacktraceLevel: "warn",
+		LogPath:         "./logs",
+		MaxSize:         100,
+		MaxBackups:      10,
+		MaxAge:          30,
+		Compress:        true,
+	}
 }
 
 // Init 初始化日志系统
@@ -103,18 +124,7 @@ func Setup() error {
 func Init(config *LoggerConfig) error {
 	// 使用默认配置当没有提供配置时
 	if config == nil {
-		config = &LoggerConfig{
-			Level:           "info",   // 默认信息级别
-			DefaultOutput:   "stdout", // 默认输出到标准输出
-			Encoding:        "json",   // 默认JSON编码
-			ShowCaller:      true,     // 显示调用者信息
-			StacktraceLevel: "warn",   // 警告级别及以上显示堆栈
-			LogPath:         "./logs", // 默认日志目录
-			MaxSize:         100,      // 默认100MB轮转
-			MaxBackups:      10,       // 默认保留10个文件
-			MaxAge:          30,       // 默认保留30天
-			Compress:        true,     // 默认启用压缩
-		}
+		config = defaultLoggerConfig()
 	}
 
 	// 设置日志级别
@@ -139,91 +149,66 @@ func Init(config *LoggerConfig) error {
 		}
 	}
 
-	// 设置编码器
-	// 配置时间格式和其他输出格式
-	var encoder zapcore.Encoder
-	encoderConfig := zap.NewProductionEncoderConfig()
-	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder // 使用ISO8601时间格式
+	// 未配置 format 时用内置 json/console 编码器；配置了则按模板绑变量
+	encoder := buildEncoder(config)
 
-	if config.Encoding == "json" {
-		encoder = zapcore.NewJSONEncoder(encoderConfig) // JSON格式，适合生产环境
-	} else {
-		encoder = zapcore.NewConsoleEncoder(encoderConfig) // 控制台格式，适合开发环境
-	}
-
-	// 创建多输出核心
-	// 支持同时输出到多个目标，每个目标可以有不同的日志级别过滤
+	// 文件输出保持原逻辑：主文件 + 按级别拆文件。
+	// output 为控制台时额外写一份标准流，不替代文件。
 	var cores []zapcore.Core
-
-	// 默认输出核心
-	// 处理所有达到最低级别的日志
-	if defaultWriter := getWriteSyncer(config.DefaultOutput, config.LogPath, config); defaultWriter != nil {
-		defaultCore := zapcore.NewCore(encoder, defaultWriter, level)
-		cores = append(cores, defaultCore)
+	newCore := func(writer zapcore.WriteSyncer, enab zapcore.LevelEnabler) zapcore.Core {
+		if strings.TrimSpace(config.Format) != "" {
+			return newFormatCore(config, writer, enab)
+		}
+		return zapcore.NewCore(encoder.Clone(), writer, enab)
+	}
+	addSink := func(name string, enab zapcore.LevelEnabler) {
+		if name == "" {
+			return
+		}
+		if writer := getWriteSyncer(name, config.LogPath, config); writer != nil {
+			cores = append(cores, newCore(writer, enab))
+		}
 	}
 
-	// 错误日志输出核心
-	// 只处理错误级别及以上的日志，避免重复输出
+	// 默认输出核心，处理所有达到最低级别的日志
+	addSink(config.DefaultOutput, level)
+
+	// 错误日志输出核心，只处理错误级别及以上
 	if config.ErrorOutput != "" && config.ErrorOutput != config.DefaultOutput {
-		errorWriter := getWriteSyncer(config.ErrorOutput, config.LogPath, config)
-		if errorWriter != nil {
-			errorCore := zapcore.NewCore(
-				encoder,
-				errorWriter,
-				zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
-					return lvl >= zapcore.ErrorLevel && lvl >= level
-				}),
-			)
-			cores = append(cores, errorCore)
-		}
+		addSink(config.ErrorOutput, zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+			return lvl >= zapcore.ErrorLevel && lvl >= level
+		}))
 	}
 
-	// 警告日志输出核心
-	// 只处理警告级别的日志，实现日志分级存储
+	// 警告日志输出核心，只处理警告级别
 	if config.WarnOutput != "" && config.WarnOutput != config.DefaultOutput {
-		warnWriter := getWriteSyncer(config.WarnOutput, config.LogPath, config)
-		if warnWriter != nil {
-			warnCore := zapcore.NewCore(
-				encoder,
-				warnWriter,
-				zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
-					return lvl == zapcore.WarnLevel && lvl >= level
-				}),
-			)
-			cores = append(cores, warnCore)
-		}
+		addSink(config.WarnOutput, zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+			return lvl == zapcore.WarnLevel && lvl >= level
+		}))
 	}
 
-	// 信息日志输出核心
-	// 只处理信息级别的日志，实现日志分级存储
+	// 信息日志输出核心，只处理信息级别
 	if config.InfoOutput != "" && config.InfoOutput != config.DefaultOutput {
-		infoWriter := getWriteSyncer(config.InfoOutput, config.LogPath, config)
-		if infoWriter != nil {
-			infoCore := zapcore.NewCore(
-				encoder,
-				infoWriter,
-				zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
-					return lvl == zapcore.InfoLevel && lvl >= level
-				}),
-			)
-			cores = append(cores, infoCore)
-		}
+		addSink(config.InfoOutput, zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+			return lvl == zapcore.InfoLevel && lvl >= level
+		}))
 	}
 
-	// 调试日志输出核心
-	// 只处理调试级别的日志，用于开发时的详细信息
+	// 调试日志输出核心，只处理调试级别
 	if config.DebugOutput != "" && config.DebugOutput != config.DefaultOutput {
-		debugWriter := getWriteSyncer(config.DebugOutput, config.LogPath, config)
-		if debugWriter != nil {
-			debugCore := zapcore.NewCore(
-				encoder,
-				debugWriter,
-				zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
-					return lvl == zapcore.DebugLevel && lvl >= level
-				}),
-			)
-			cores = append(cores, debugCore)
-		}
+		addSink(config.DebugOutput, zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+			return lvl == zapcore.DebugLevel && lvl >= level
+		}))
+	}
+
+	// output: console 时额外写 stdout 供采集；output: stdout 与原先一样不生效
+	if extra := extraConsoleSink(config.Output); extra != "" &&
+		extra != config.DefaultOutput &&
+		extra != config.ErrorOutput &&
+		extra != config.WarnOutput &&
+		extra != config.InfoOutput &&
+		extra != config.DebugOutput {
+		addSink(extra, level)
 	}
 
 	// 合并多个核心
@@ -317,6 +302,89 @@ func getWriteSyncer(output string, logPath string, logConfig *LoggerConfig) zapc
 	}
 
 	return zapcore.AddSync(lumberjackLogger)
+}
+
+// configuredSinks 返回将要写入的目标，顺序与 Init 一致：主文件、按级别文件，最后是去重后的控制台。
+func configuredSinks(cfg *LoggerConfig) []string {
+	if cfg == nil {
+		return nil
+	}
+	var out []string
+	seen := map[string]struct{}{}
+	add := func(name string) {
+		if name == "" {
+			return
+		}
+		if _, ok := seen[name]; ok {
+			return
+		}
+		seen[name] = struct{}{}
+		out = append(out, name)
+	}
+	add(cfg.DefaultOutput)
+	if cfg.ErrorOutput != cfg.DefaultOutput {
+		add(cfg.ErrorOutput)
+	}
+	if cfg.WarnOutput != cfg.DefaultOutput {
+		add(cfg.WarnOutput)
+	}
+	if cfg.InfoOutput != cfg.DefaultOutput {
+		add(cfg.InfoOutput)
+	}
+	if cfg.DebugOutput != cfg.DefaultOutput {
+		add(cfg.DebugOutput)
+	}
+	if extra := extraConsoleSink(cfg.Output); extra != "" {
+		add(extra)
+	}
+	return out
+}
+
+// extraConsoleSink 仅 output=console 时返回 stdout，供采集。stdout/stderr 保持原先：只出现在 default_output 等文件项里。
+func extraConsoleSink(output string) string {
+	if strings.EqualFold(strings.TrimSpace(output), "console") {
+		return "stdout"
+	}
+	return ""
+}
+
+// buildEncoder 按 encoding 与 time_format、level_encoder 构造内置编码器。
+func buildEncoder(cfg *LoggerConfig) zapcore.Encoder {
+	enc := zap.NewProductionEncoderConfig()
+	enc.EncodeTime = parseTimeEncoder(cfg.TimeFormat)
+	enc.EncodeLevel = parseLevelEncoder(cfg.LevelEncoder)
+	if strings.EqualFold(cfg.Encoding, "json") {
+		return zapcore.NewJSONEncoder(enc)
+	}
+	return zapcore.NewConsoleEncoder(enc)
+}
+
+// parseTimeEncoder 解析 time_format，无法识别时按 Go 时间布局处理。
+func parseTimeEncoder(format string) zapcore.TimeEncoder {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "", "iso8601":
+		return zapcore.ISO8601TimeEncoder
+	case "rfc3339":
+		return zapcore.RFC3339TimeEncoder
+	case "rfc3339nano":
+		return zapcore.RFC3339NanoTimeEncoder
+	case "epoch":
+		return zapcore.EpochTimeEncoder
+	case "epoch_millis":
+		return zapcore.EpochMillisTimeEncoder
+	default:
+		return zapcore.TimeEncoderOfLayout(format)
+	}
+}
+
+// parseLevelEncoder 解析 level_encoder，空值保持小写，与原生产配置一致。
+func parseLevelEncoder(name string) zapcore.LevelEncoder {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "capital":
+		return zapcore.CapitalLevelEncoder
+	default:
+		return zapcore.LowercaseLevelEncoder
+	}
 }
 
 // getMaxSize 获取日志文件最大尺寸配置

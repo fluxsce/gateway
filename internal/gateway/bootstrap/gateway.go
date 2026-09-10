@@ -87,6 +87,8 @@ type Gateway struct {
 	generationWG sync.WaitGroup
 	// requestLimiter 对所有运行时代际实施统一的在途请求上限。
 	requestLimiter requestAdmissionLimiter
+	// listenHealthPath 数据面内置探活路径，实例听上后精确匹配 GET/HEAD。
+	listenHealthPath string
 }
 
 // setCompatibilityHandlers 更新原有处理器字段，供现有管理接口和测试继续访问。

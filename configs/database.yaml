@@ -13,7 +13,7 @@
 # 数据库配置
 database:
   # 默认连接名称
-  default: sqlserver_main
+  default: sqlite_main
   
   # === 数据库脚本初始化配置 ===
   # 是否启用数据库脚本自动初始化（应用启动时执行）
@@ -173,7 +173,7 @@ database:
     # 9) 完全自定义：dsn: "sqlserver://..." 或 ADO "server=...;database=..."
     # 10) Azure AD / Always Encrypted / krb5：结构化字段不覆盖，请直接填 dsn
     sqlserver_main:
-      enabled: true
+      enabled: false
       driver: "sqlserver"           # 别名也可写 mssql
       dsn: ""                       # 非空则忽略下面 connection；ADO 也可 server=...;database=...
       connection:

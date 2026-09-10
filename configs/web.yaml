@@ -2,6 +2,11 @@ web:
   name: "Gateway Web服务"
   run_mode: "debug" # debug, release
   port: 12003
+  # 进程级探活，挂在本控制面端口，不读网关实例配置。
+  # 实例监听口探活见 app.gateway.health.path（默认 /_gw/health），实例听上才有。
+  # 实例表损坏、端口占用、证书错误时数据面可能没起来，本接口仍应可访问。
+  health:
+    path: /health
   read_timeout: 120 # 秒
   write_timeout: 120 # 秒
   env: production # production, test, dev

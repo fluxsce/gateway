@@ -54,7 +54,7 @@ SkyWalking / Tencent Cloud APM / ARMS / Jaeger / Tempo
 
 ## Configuration
 
-Put it in `app.tracing` in `configs/app.yaml`. Process-wide: data plane and admin HTTP share it. Do not put it in deprecated `configs/gateway.yaml`.
+Put it in `app.tracing` in `configs/app.yaml`. Process-wide: data plane and admin HTTP share it.
 
 ```yaml
 app:

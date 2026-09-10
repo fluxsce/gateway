@@ -79,32 +79,33 @@
 
 ## 快速开始
 
-示例版本 **3.3.3**，安装包与镜像以 [GitHub Releases](https://github.com/fluxsce/gateway/releases) 最新版为准。
+示例版本 **3.3.4**，安装包与镜像以 [GitHub Releases](https://github.com/fluxsce/gateway/releases) 最新版为准。
 
 | 项 | 值 |
 |----|----|
 | 控制台 | http://localhost:12003/gatewayweb |
 | 默认账号 | `admin` / `123456`（登录后立即修改） |
 | 网关端口 | `8080` |
-| 健康检查 | http://localhost:12003/health |
+| 进程健康检查 | http://localhost:12003/health |
+| 监听口健康检查 | http://localhost:8080/_gw/health（实例听上才有） |
 
 ### Docker
 
 镜像内含配置、数据库脚本和前端资源，默认 SQLite。
 
 ```bash
-docker pull ghcr.io/fluxsce/gateway:3.3.3
+docker pull ghcr.io/fluxsce/gateway:3.3.4
 
 docker run -d --name gateway \
   -p 8080:8080 \
   -p 12003:12003 \
-  ghcr.io/fluxsce/gateway:3.3.3
+  ghcr.io/fluxsce/gateway:3.3.4
 ```
 
 国内镜像：
 
 ```bash
-docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.3.3
+docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.3.4
 ```
 
 个人版 ACR 通常需先 `docker login`。MySQL + Redis 编排见 [容器化部署](docs/zh-CN/04-容器化部署.md)。
@@ -115,14 +116,14 @@ docker pull crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-i
 
 | 文件 | 平台 | 数据库 |
 |------|------|--------|
-| `gateway-linux-amd64-3.3.3.tar.gz` | Linux amd64 | MySQL / SQLite / ClickHouse |
-| `gateway-linux-arm64-3.3.3.tar.gz` | Linux arm64 | 同上 |
-| `gateway-windows-amd64-3.3.3.zip` | Windows amd64 | 同上 |
-| `gateway-linux-amd64-oracle-3.3.3.tar.gz` | Linux amd64 | 上表 + Oracle |
-| `gateway-windows-amd64-oracle-3.3.3.zip` | Windows amd64 | 上表 + Oracle |
+| `gateway-linux-amd64-3.3.4.tar.gz` | Linux amd64 | MySQL / SQLite / ClickHouse |
+| `gateway-linux-arm64-3.3.4.tar.gz` | Linux arm64 | 同上 |
+| `gateway-windows-amd64-3.3.4.zip` | Windows amd64 | 同上 |
+| `gateway-linux-amd64-oracle-3.3.4.tar.gz` | Linux amd64 | 上表 + Oracle |
+| `gateway-windows-amd64-oracle-3.3.4.zip` | Windows amd64 | 上表 + Oracle |
 
 ```bash
-tar -xzf gateway-linux-amd64-3.3.3.tar.gz
+tar -xzf gateway-linux-amd64-3.3.4.tar.gz
 cd gateway
 ./gateway --config ./configs
 ```

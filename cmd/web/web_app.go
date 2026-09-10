@@ -368,6 +368,32 @@ func (app *WebApp) Router() *gin.Engine {
 	return app.router
 }
 
+// normalizeHealthPath 规范化进程级健康检查路径。
+// 空值或根路径回落到 /health，避免占掉整个控制面。
+func normalizeHealthPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" || path == "/" {
+		return "/health"
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return path
+}
+
+// registerProcessHealth 在控制面注册探活接口。
+// 路径来自 web.health.path，不读网关实例配置；实例未启动时仍返回 ok。
+func registerProcessHealth(router *gin.Engine) {
+	path := normalizeHealthPath(config.GetString("web.health.path", "/health"))
+	router.GET(path, func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ok",
+			"time":   time.Now().Unix(),
+		})
+	})
+	logger.Info("已注册进程级健康检查", "path", path)
+}
+
 // Init 初始化Web应用
 func (app *WebApp) Init() error {
 	logger.Info("初始化Web应用")
@@ -378,13 +404,8 @@ func (app *WebApp) Init() error {
 	logger.Info("权限服务初始化完成")
 	middleware.InitAudit(app.db)
 
-	// 注册健康检查接口（必须在所有中间件之前，确保不受认证等中间件影响）
-	app.router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status": "ok",
-			"time":   time.Now().Unix(),
-		})
-	})
+	// 进程级探活：路径来自 web.health.path，不依赖网关实例是否加载成功
+	registerProcessHealth(app.router)
 
 	// 应用全局中间件
 	routes.ApplyGlobalMiddleware(app.router)

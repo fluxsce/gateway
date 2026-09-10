@@ -20,6 +20,7 @@ const (
 )
 
 // GatewayApp 网关应用管理器
+// 数据面实例从数据库加载；单条实例配置或监听失败不得阻止控制面启动。
 type GatewayApp struct {
 	pool bootstrap.GatewayPool
 	db   database.Database
@@ -32,7 +33,8 @@ func NewGatewayApp() *GatewayApp {
 	}
 }
 
-// Init 初始化网关应用
+// Init 初始化网关应用。
+// 实例表查不到、单条配置损坏或创建失败只记日志，返回 nil，避免拖垮进程。
 func (app *GatewayApp) Init(db database.Database) error {
 	// 设置数据库连接
 	app.db = db
@@ -47,14 +49,15 @@ func (app *GatewayApp) Init(db database.Database) error {
 
 	// 加载网关配置并创建实例
 	if err := app.loadGatewayFromConfig(); err != nil {
-		return huberrors.WrapError(err, "加载网关配置失败")
+		logger.Error("加载网关配置失败，跳过数据面实例，控制面继续启动", err)
 	}
 
 	logger.Info("网关应用初始化完成")
 	return nil
 }
 
-// Start 启动所有网关实例
+// Start 启动所有网关实例。
+// 端口占用、证书错误等监听失败只记日志，其它实例和控制面继续运行。
 func (app *GatewayApp) Start() error {
 	// 检查是否启用网关
 	if !config.GetBool("app.gateway.enabled", false) {
@@ -66,13 +69,12 @@ func (app *GatewayApp) Start() error {
 
 	// 启动连接池中的所有网关实例
 	if err := app.pool.StartAll(); err != nil {
-		return huberrors.WrapError(err, "启动网关实例失败")
+		logger.Error("部分网关实例启动失败，控制面继续运行", err)
 	}
 
 	// 记录启动状态
 	runningCount := len(app.pool.GetRunningGateways())
 	totalCount := app.pool.Count()
-
 	logger.Info("网关启动完成",
 		"version", GatewayVersion,
 		"total_instances", totalCount,
@@ -109,7 +111,7 @@ func (app *GatewayApp) GetStatus() map[string]interface{} {
 // loadGatewayFromConfig 从配置加载网关实例
 func (app *GatewayApp) loadGatewayFromConfig() error {
 	// 获取配置源
-	configSource := config.GetString("app.gateway.configSource", "yaml")
+	configSource := config.GetString("app.gateway.configSource", "database")
 
 	switch strings.ToLower(configSource) {
 	case "database":
@@ -117,7 +119,8 @@ func (app *GatewayApp) loadGatewayFromConfig() error {
 	case "yaml", "json":
 		return app.loadFromFile()
 	default:
-		return huberrors.NewError("不支持的配置源: %s", configSource)
+		logger.Error("不支持的网关配置源，跳过数据面加载", "configSource", configSource)
+		return nil
 	}
 }
 
@@ -152,16 +155,26 @@ func (app *GatewayApp) loadFromFile() error {
 	// 加载配置
 	cfg, err := configLoader.LoadConfig(configFile)
 	if err != nil {
-		return huberrors.WrapError(err, "加载配置文件失败: %s", configFile)
+		logger.Error("加载网关配置文件失败，跳过文件源实例", err, "file", configFile)
+		return nil
 	}
 
 	// 创建网关实例
-	return app.createGatewayInstance(cfg, configFile)
+	if err := app.createGatewayInstance(cfg, configFile); err != nil {
+		logger.Error("从文件创建网关实例失败，跳过该实例", err, "file", configFile)
+	}
+	return nil
 }
 
-// loadFromDatabase 从数据库加载网关配置
+// loadFromDatabase 从数据库加载活动网关实例。
+// 库未就绪或实例表查询失败时跳过数据面，不向调用方返回错误。
 func (app *GatewayApp) loadFromDatabase() error {
 	logger.Info("从数据库加载网关配置")
+
+	if app.db == nil {
+		logger.Error("数据库未就绪，跳过网关实例加载")
+		return nil
+	}
 
 	// 直接从数据库查询所有活动状态的网关实例
 	var gatewayInstances []struct {
@@ -178,7 +191,8 @@ func (app *GatewayApp) loadFromDatabase() error {
 	ctx := context.Background()
 	err := app.db.Query(ctx, &gatewayInstances, query, nil, true)
 	if err != nil {
-		return huberrors.WrapError(err, "查询网关实例失败")
+		logger.Error("查询网关实例失败，跳过数据面加载", err)
+		return nil
 	}
 
 	// 检查是否找到实例

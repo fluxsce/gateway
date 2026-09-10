@@ -160,17 +160,23 @@ func initializeAndStartApplication() error {
 		// 不返回错误，允许应用继续启动
 	}
 
-	// 初始化网关应用
+	// 初始化网关应用（实例配置异常不阻止控制面启动）
 	if err := initGateway(db); err != nil {
-		return huberrors.WrapError(err, "初始化网关应用失败")
+		logger.Error("初始化网关应用失败", map[string]interface{}{
+			"error": err.Error(),
+		})
+		// 不返回错误，允许应用继续启动
 	}
 
 	// 环境设置（含全局变量）须在网关开始接流量前入缓存
 	appinit.LoadSettings(appContext, db)
 
-	// 启动网关服务
+	// 启动网关服务（监听失败不阻止控制面启动）
 	if err := startGatewayServices(); err != nil {
-		return huberrors.WrapError(err, "启动网关服务失败")
+		logger.Error("启动网关服务失败", map[string]interface{}{
+			"error": err.Error(),
+		})
+		// 不返回错误，允许应用继续启动
 	}
 
 	// 初始化pprof服务
@@ -421,9 +427,7 @@ func startGatewayServices() error {
 	// 在单独的协程中启动网关服务
 	go func() {
 		if err := gatewayApp.Start(); err != nil {
-			logger.Error("网关服务启动失败", err)
-			// 网关启动失败时退出整个程序
-			//os.Exit(1)
+			logger.Error("网关服务启动失败，控制面继续运行", err)
 		}
 	}()
 

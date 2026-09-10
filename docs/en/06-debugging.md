@@ -34,7 +34,8 @@ Start from the **repository root** so `configs/` and `scripts/db/` resolve.
 After a successful start:
 
 - Data plane: `http://localhost:8080`
-- Console / health: `http://localhost:12003/health` (`8080` has no `/health`)
+- Console / process health: `http://localhost:12003/health`
+- Listen health (after the instance binds): `http://localhost:8080/_gw/health`
 - UI: `http://localhost:12003/gatewayweb`
 
 `web/frontend/dist` is not in git; see [Development guide](./02-quick-start.md).

@@ -13,7 +13,7 @@ app:
   #   - Local (系统本地时区)
   local_timezone: "Asia/Shanghai"
   #版本
-  version: "3.3.3"
+  version: "3.3.4"
   
   # 默认加密密钥（用于系统内部加密解密）
   # 建议在生产环境中修改为自定义密钥，长度建议至少32个字符
@@ -54,7 +54,7 @@ app:
         cleanup_interval: 60s        # 清理检查间隔
   
   tracing:
-    # 进程级链路追踪，网关数据面、管理端请求及其它模块共用，不要写到已弃用的 gateway.yaml
+    # 进程级链路追踪，网关数据面、管理端请求及其它模块共用，只写在这里
     # 只对接 OTLP Collector，不要填写 SkyWalking OAP 或云厂商 APM 地址
     enabled: false
     service_name: "gateway"
@@ -67,9 +67,13 @@ app:
     headers: {}             # OTLP 上报鉴权，本机 Collector 保持空。示例：Authorization: "Bearer <token>"
   gateway:
     enabled: true # 是否启用网关
-    configSource: "database" # 网关配置加载源, 可选值: yaml 文件, json 文件, database 数据库
+    # 实例、路由、监听端口从数据库加载（控制台「网关管理」），不要再放 configs/gateway.yaml
+    configSource: "database" # 网关配置加载源，默认 database；yaml/json 仅兼容旧路径
     log_query_type: "database" # 日志查询类型, 可选值: mongo, database, clickhouse
-    config_file: "./configs/gateway.yaml" # 网关配置文件路径, 默认使用yaml格式
+    # 数据面监听口探活。默认 /_gw/health，避开业务 /health。空 / off / - 关闭（不包一层，业务零开销）。
+    # 仅精确匹配 GET/HEAD，在进引擎前返回，不走路由、认证、限流、访问日志。
+    health:
+      path: /_gw/health
   web:
     enabled: true # 是否启用web
     config_file: "./configs/web.yaml" # web配置文件路径, 默认使用yaml格式

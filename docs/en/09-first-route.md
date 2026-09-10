@@ -13,7 +13,7 @@ To serve files from a local directory, see [Static hosting](./08-static-hosting.
 3. Default login `admin` / `123456` (change the password after login)
 4. You need an HTTP backend the gateway can reach. The example uses `httpbin.org:80`. Replace host and port for an internal service.
 
-`8080` is the data plane (`listen` in `configs/gateway.yaml`). The console is on `12003`. Do not mix the two.
+`8080` is the data plane (the instance HTTP port in the console). The console is on `12003`. Do not mix the two.
 
 ---
 
@@ -27,7 +27,7 @@ If the list is empty, click **New instance**:
 |-------|-----------------|
 | Name | `local-dev` |
 | Bind address | `0.0.0.0` |
-| HTTP port | `8080` (same as `configs/gateway.yaml`) |
+| HTTP port | `8080` |
 | TLS | off |
 
 Save, then right-click the row → **Start**. After later route or proxy edits, right-click **Reload** so the data plane picks them up.

@@ -2,7 +2,7 @@
 
 Build and run from source. For a trial, use Docker or a release package in [README_EN.md](../../README_EN.md) instead.
 
-Examples use **3.3.3**.
+Examples use **3.3.4**.
 
 ---
 
@@ -88,7 +88,8 @@ go run cmd/app/main.go --config ./configs
 ```
 
 - Gateway: http://localhost:8080
-- Health: http://localhost:12003/health
+- Process health: http://localhost:12003/health
+- Listen health (after the instance binds): http://localhost:8080/_gw/health
 - Console prefix: `/gatewayweb`
 
 `web/frontend/dist` is not in git. For a UI:
@@ -105,7 +106,7 @@ Default login: `admin` / `123456`. Change it immediately.
 
 There are no forwarding rules yet. Follow [First route](./09-first-route.md): create an instance, a service, a prefix route, **reload**, then `curl http://localhost:8080/...`.
 
-Port `8080` has no `/health`.
+`curl http://localhost:8080/_gw/health` is available only after the instance is listening.
 
 ---
 
@@ -115,9 +116,10 @@ Port `8080` has no `/health`.
 |------|----------------|
 | `configs/app.yaml` | feature flags, encryption key |
 | `configs/database.yaml` | default connection, init scripts |
-| `configs/gateway.yaml` | `base.listen` (`:8080`) |
 | `configs/web.yaml` | `port` (`12003`), `frontend.prefix` |
 | `configs/logger.yaml` | level and output |
+
+Data-plane listen address and routes are not in YAML. They load from the database (console **Gateway** → **Instances**). With no active instance the process still starts, but nothing listens on `8080`.
 
 ---
 
@@ -127,14 +129,14 @@ Output: `dist/gateway/`. **`--version` is required.** Oracle is **off** by defau
 
 ```cmd
 cd scripts\build
-build-win10.cmd --version=3.3.3
-build-win10.cmd --oracle --version=3.3.3
+build-win10.cmd --version=3.3.4
+build-win10.cmd --oracle --version=3.3.4
 ```
 
 ```bash
 cd scripts/build
-./build-centos7.sh --version=3.3.3
-./build-centos7.sh --oracle --version=3.3.3
+./build-centos7.sh --version=3.3.4
+./build-centos7.sh --oracle --version=3.3.4
 ```
 
 Debug-only: `go build -o bin/gateway cmd/app/main.go`.
