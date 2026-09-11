@@ -14,12 +14,12 @@ import (
 )
 
 const (
-	minConsoleQueueSize = 100
-	consoleDrainWait    = 3 * time.Second
+	consoleDrainWait = 3 * time.Second
 )
 
 // ConsoleWriter 控制台访问日志写入器。
-// 有界队列 + 单消费者写 stdout：Write 只投递，队列满丢弃，不在请求路径堵 stdout。
+// 有界队列 + 单消费者写 stdout：Write 只投递。
+// stdout 可能长时间阻塞，满队列立刻丢、不等待，避免把提交 worker 卡在 Fprintln 上。
 type ConsoleWriter struct {
 	config    *types.LogConfig
 	formatter Formatter
@@ -64,11 +64,7 @@ func NewConsoleWriter(config *types.LogConfig) (*ConsoleWriter, error) {
 	}
 
 	if writer.async {
-		size := config.AsyncQueueSize
-		if size < minConsoleQueueSize {
-			size = minConsoleQueueSize
-		}
-		writer.queue = make(chan string, size)
+		writer.queue = make(chan string, types.QueueSize(config))
 		writer.stop = make(chan struct{})
 		writer.done = make(chan struct{})
 		go writer.loop()

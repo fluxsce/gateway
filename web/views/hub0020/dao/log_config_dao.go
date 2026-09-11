@@ -65,10 +65,10 @@ func (dao *LogConfigDAO) AddLogConfig(ctx context.Context, logConfig *models.Log
 		logConfig.EnableAsyncLogging = "Y"
 	}
 	if logConfig.AsyncQueueSize == 0 {
-		logConfig.AsyncQueueSize = 1000 // 与前端保持一致
+		logConfig.AsyncQueueSize = 10000
 	}
 	if logConfig.AsyncFlushIntervalMs == 0 {
-		logConfig.AsyncFlushIntervalMs = 5000 // 与前端保持一致
+		logConfig.AsyncFlushIntervalMs = 5000
 	}
 	if logConfig.EnableBatchProcessing == "" {
 		logConfig.EnableBatchProcessing = "Y"
@@ -77,7 +77,7 @@ func (dao *LogConfigDAO) AddLogConfig(ctx context.Context, logConfig *models.Log
 		logConfig.BatchSize = 100
 	}
 	if logConfig.BatchTimeoutMs == 0 {
-		logConfig.BatchTimeoutMs = 1000 // 与前端保持一致
+		logConfig.BatchTimeoutMs = 5000
 	}
 	if logConfig.LogRetentionDays == 0 {
 		logConfig.LogRetentionDays = 30

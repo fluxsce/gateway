@@ -99,6 +99,35 @@ func TestCreateGenerationServerKeepsTimeoutsImmutable(t *testing.T) {
 	}
 }
 
+func TestReloadRejectsInstanceIDChange(t *testing.T) {
+	cfg := config.DefaultGatewayConfig
+	cfg.InstanceID = "generation-id-immutable-test"
+	cfg.Base.Listen = "127.0.0.1:0"
+	gateway, err := NewGatewayFactory().CreateGateway(&cfg, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gateway.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = gateway.Stop()
+	})
+
+	current := gateway.currentGeneration.Load()
+	next := cfg
+	next.InstanceID = "generation-id-immutable-other"
+	if err := gateway.Reload(&next); err == nil {
+		t.Fatal("Reload() allowed instance ID change")
+	}
+	if gateway.currentGeneration.Load() != current {
+		t.Fatal("rejected instance ID change still published a new generation")
+	}
+	if gateway.gatewayConfig.InstanceID != cfg.InstanceID {
+		t.Fatalf("instance ID = %q, want %q", gateway.gatewayConfig.InstanceID, cfg.InstanceID)
+	}
+}
+
 func TestReloadValidationKeepsCurrentGeneration(t *testing.T) {
 	oldConfig := &config.GatewayConfig{Base: config.BaseConfig{Listen: "127.0.0.1:8080"}}
 	old := &gatewayGeneration{config: oldConfig}

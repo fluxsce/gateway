@@ -148,7 +148,7 @@ func (b *BackendTraceLog) SetTimeInfo(requestStartTime, responseReceivedTime tim
 
 	// 计算请求耗时
 	if !requestStartTime.IsZero() && !responseReceivedTime.IsZero() {
-		b.RequestDurationMs = int(responseReceivedTime.Sub(requestStartTime).Milliseconds())
+		b.RequestDurationMs = ElapsedMillis(requestStartTime, responseReceivedTime)
 	} else {
 		b.RequestDurationMs = 0
 	}
@@ -204,7 +204,7 @@ func (b *BackendTraceLog) UpdateResponse(statusCode, responseSize int, responseH
 
 	// 重新计算耗时
 	if !b.RequestStartTime.IsZero() && !responseTime.IsZero() {
-		b.RequestDurationMs = int(responseTime.Sub(b.RequestStartTime).Milliseconds())
+		b.RequestDurationMs = ElapsedMillis(b.RequestStartTime, responseTime)
 	}
 
 	// 更新状态
@@ -259,7 +259,7 @@ func (b *BackendTraceLog) GetDuration() int {
 		return b.RequestDurationMs
 	}
 	if !b.RequestStartTime.IsZero() && !b.ResponseReceivedTime.IsZero() {
-		return int(b.ResponseReceivedTime.Sub(b.RequestStartTime).Milliseconds())
+		return ElapsedMillis(b.RequestStartTime, b.ResponseReceivedTime)
 	}
 	return 0
 }

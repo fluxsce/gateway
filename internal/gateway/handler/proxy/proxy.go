@@ -227,7 +227,7 @@ var DefaultHTTPProxyConfig = HTTPProxyConfig{
 	ConnectTimeout:   60 * time.Second,
 	FollowRedirects:  false,
 	KeepAlive:        true,
-	MaxIdleConns:     100,
+	MaxIdleConns:     2048,
 	IdleConnTimeout:  90 * time.Second,
 	CopyResponseBody: false,
 	BufferSize:       32 * 1024,

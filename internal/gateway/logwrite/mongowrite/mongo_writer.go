@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"gateway/internal/gateway/logwrite/asyncq"
 	"gateway/internal/gateway/logwrite/types"
 	"gateway/pkg/logger"
 	"gateway/pkg/mongo/client"
@@ -14,65 +16,62 @@ import (
 	"gateway/pkg/mongo/utils"
 )
 
-// MongoWriter MongoDB日志写入器
-// 支持异步批量写入、连接池管理和自动重连
+// MongoWriter 将访问日志与后端追踪日志写入 MongoDB。
+// 异步时：有界队列 + 批量缓冲 + 定时刷新；关停排空队列后再 Flush。
+// UpdateAccessLog（端口重放）始终同步 UpdateOne，不进队列。
 type MongoWriter struct {
-	// 配置
-	config *types.LogConfig
-
-	// MongoDB连接
+	config      *types.LogConfig
 	mongoClient *client.Client
 
-	// 批量写入控制
-	buffer      []*types.AccessLog
-	bufferMutex sync.Mutex
+	logQueue    chan *types.AccessLog
+	batchBuffer []*types.AccessLog
+	mutex       sync.Mutex
 
-	// 异步处理
-	logChan   chan *types.AccessLog
-	batchChan chan []*types.AccessLog
+	backendTraceLogQueue    chan *types.BackendTraceLog
+	backendTraceBatchBuffer []*types.BackendTraceLog
+	backendTraceMutex       sync.Mutex
 
-	// 后端追踪日志异步处理相关（与主表保持一致的处理模式）
-	backendTraceLogChan   chan *types.BackendTraceLog
-	backendTraceBatchChan chan []*types.BackendTraceLog
-	backendTraceBuffer    []*types.BackendTraceLog
-	backendTraceMutex     sync.Mutex
-
-	// 控制协程
-	wg        sync.WaitGroup
-	closeChan chan struct{}
+	flushTicker *time.Ticker
+	stopChan    chan struct{}
+	wg          sync.WaitGroup
+	closed      atomic.Bool
 }
 
-// NewMongoWriter 创建新的MongoDB日志写入器
+// NewMongoWriter 创建 MongoDB 日志写入器。
+// 仅在 EnableAsyncLogging=Y 时启动队列消费者；定时刷新按 AsyncFlushIntervalMs。
 func NewMongoWriter(config *types.LogConfig) (*MongoWriter, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
 
-	// 获取默认MongoDB连接
 	mongoClient, err := factory.GetDefaultConnection()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get default MongoDB connection: %w", err)
 	}
 
+	batch := types.BatchLimit(config)
 	writer := &MongoWriter{
-		config:                config,
-		mongoClient:           mongoClient,
-		buffer:                make([]*types.AccessLog, 0, 100), // 默认批量大小为100
-		logChan:               make(chan *types.AccessLog, config.AsyncQueueSize),
-		batchChan:             make(chan []*types.AccessLog, 100),
-		closeChan:             make(chan struct{}),
-		backendTraceLogChan:   make(chan *types.BackendTraceLog, config.AsyncQueueSize),
-		backendTraceBatchChan: make(chan []*types.BackendTraceLog, 100),
-		backendTraceBuffer:    make([]*types.BackendTraceLog, 0, 100),
+		config:                  config,
+		mongoClient:             mongoClient,
+		stopChan:                make(chan struct{}),
+		batchBuffer:             make([]*types.AccessLog, 0, batch),
+		backendTraceBatchBuffer: make([]*types.BackendTraceLog, 0, batch),
 	}
 
-	// 启动异步处理协程
-	writer.startWorkers()
+	if config.IsAsyncLogging() {
+		writer.logQueue = make(chan *types.AccessLog, types.QueueSize(config))
+		writer.backendTraceLogQueue = make(chan *types.BackendTraceLog, types.QueueSize(config))
+		writer.startAsyncProcessor()
+		writer.startBackendTraceAsyncProcessor()
+	}
+	writer.startFlushTimer()
 
-	// 创建临时 AccessLog 实例以获取表名
 	var accessLog types.AccessLog
 	logger.Info("MongoDB writer created successfully",
-		"collection", accessLog.TableName())
+		"collection", accessLog.TableName(),
+		"async", config.IsAsyncLogging(),
+		"batchSize", batch,
+		"queueSize", types.QueueSize(config))
 
 	return writer, nil
 }
@@ -80,6 +79,9 @@ func NewMongoWriter(config *types.LogConfig) (*MongoWriter, error) {
 // UpdateAccessLog 按租户与 trace 更新主表文档，$inc resetCount，$set 仅重放结果态字段并清空 parentTraceId（不 $inc retryCount）。
 // 同步执行，不经过异步通道。无匹配文档时返回 (0, nil)。
 func (w *MongoWriter) UpdateAccessLog(ctx context.Context, log *types.AccessLog) (int64, error) {
+	if w.closed.Load() {
+		return 0, fmt.Errorf("writer is closed")
+	}
 	if log.TenantID == "" || log.TraceID == "" {
 		return 0, fmt.Errorf("tenantId and traceId required for replay update")
 	}
@@ -114,425 +116,329 @@ func (w *MongoWriter) UpdateAccessLog(ctx context.Context, log *types.AccessLog)
 	return res.MatchedCount, nil
 }
 
-// Write 写入单条日志
+// Write 写入单条访问日志。异步时入队（满则短等再丢），同步时直接插或进批量缓冲。
 func (w *MongoWriter) Write(ctx context.Context, log *types.AccessLog) error {
-	if !w.config.IsAsyncLogging() {
-		// 同步写入
-		return w.insertOne(ctx, log)
+	if w.closed.Load() {
+		return fmt.Errorf("writer is closed")
 	}
-
-	// 异步写入
-	select {
-	case w.logChan <- log:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-		return fmt.Errorf("log channel is full")
+	if w.config.IsAsyncLogging() {
+		if asyncq.Offer(w.logQueue, log) {
+			return nil
+		}
+		logger.Warn("Mongo log queue is full, dropping log entry", "traceId", log.TraceID)
+		return fmt.Errorf("log queue is full")
 	}
+	if w.config.IsBatchProcessing() {
+		return w.addToBatch(log)
+	}
+	return w.insertOne(ctx, log)
 }
 
-// BatchWrite 批量写入日志
+// BatchWrite 批量写入访问日志。异步时逐条入队，同步时一次 InsertMany。
 func (w *MongoWriter) BatchWrite(ctx context.Context, logs []*types.AccessLog) error {
 	if len(logs) == 0 {
 		return nil
 	}
-
-	if !w.config.IsAsyncLogging() {
-		// 同步批量写入
-		return w.insertMany(ctx, logs)
+	if w.closed.Load() {
+		return fmt.Errorf("writer is closed")
 	}
-
-	// 异步批量写入
-	select {
-	case w.batchChan <- logs:
+	if w.config.IsAsyncLogging() {
+		for _, log := range logs {
+			if !asyncq.Offer(w.logQueue, log) {
+				logger.Warn("Mongo log queue is full, dropping log entry", "traceId", log.TraceID)
+			}
+		}
 		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-		return fmt.Errorf("batch channel is full")
 	}
+	return w.insertMany(ctx, logs)
 }
 
-// Flush 刷新缓冲区
+// Flush 拿走主表缓冲后在锁外 InsertMany，避免慢写堵住入队。
 func (w *MongoWriter) Flush(ctx context.Context) error {
-	w.bufferMutex.Lock()
-	defer w.bufferMutex.Unlock()
-
-	if len(w.buffer) == 0 {
+	write, cancel := asyncq.EnsureWriteCtx(ctx)
+	defer cancel()
+	batch := asyncq.Take(&w.mutex, &w.batchBuffer, types.BatchLimit(w.config))
+	if len(batch) == 0 {
 		return nil
 	}
-
-	// 复制缓冲区数据
-	documents := make([]*types.AccessLog, len(w.buffer))
-	copy(documents, w.buffer)
-	w.buffer = w.buffer[:0]
-
-	// 执行批量插入
-	return w.insertMany(ctx, documents)
+	if err := w.insertMany(write, batch); err != nil {
+		logger.Error("Failed to flush Mongo access log batch", "error", err, "count", len(batch))
+		return err
+	}
+	return nil
 }
 
-// Close 关闭写入器
+// Close 拒绝新写入，排空队列并刷新剩余缓冲。
 func (w *MongoWriter) Close() error {
-	close(w.closeChan)
+	if !w.closed.CompareAndSwap(false, true) {
+		return nil
+	}
+	close(w.stopChan)
 	w.wg.Wait()
 
-	// 刷新剩余缓冲区
-	if err := w.Flush(context.Background()); err != nil {
+	ctx, cancel := asyncq.WriteContext(0)
+	defer cancel()
+	if err := w.Flush(ctx); err != nil {
 		logger.Error("Failed to flush buffer on close", "error", err)
 	}
-	if err := w.FlushBackendTrace(context.Background()); err != nil {
+	if err := w.FlushBackendTrace(ctx); err != nil {
 		logger.Error("Failed to flush backend trace buffer on close", "error", err)
 	}
-
+	if w.flushTicker != nil {
+		w.flushTicker.Stop()
+	}
 	logger.Info("MongoDB writer closed")
 	return nil
 }
 
-// GetLogConfig 获取日志配置
+// GetLogConfig 获取日志配置。
 func (w *MongoWriter) GetLogConfig() *types.LogConfig {
 	return w.config
 }
 
-// WriteBackendTraceLog 写入单条后端追踪日志（从表）
-// 根据配置决定是同步写入数据库还是放入异步队列
-//
-// 参数:
-//   - ctx: 上下文，用于控制超时和取消
-//   - log: 要写入的后端追踪日志
-//
-// 返回:
-//   - error: 写入失败时返回错误信息
+// WriteBackendTraceLog 写入单条后端追踪日志，背压规则与 Write 相同。
 func (w *MongoWriter) WriteBackendTraceLog(ctx context.Context, log *types.BackendTraceLog) error {
-	if !w.config.IsAsyncLogging() {
-		// 同步写入
-		return w.insertBackendTraceLogOne(ctx, log)
+	if w.closed.Load() {
+		return fmt.Errorf("writer is closed")
 	}
-
-	// 异步写入
-	select {
-	case w.backendTraceLogChan <- log:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-		return fmt.Errorf("backend trace log channel is full")
+	if w.config.IsAsyncLogging() {
+		if asyncq.Offer(w.backendTraceLogQueue, log) {
+			return nil
+		}
+		logger.Warn("Mongo backend trace log queue is full, dropping log entry",
+			"traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
+		return fmt.Errorf("backend trace log queue is full")
 	}
+	if w.config.IsBatchProcessing() {
+		return w.addBackendTraceToBatch(log)
+	}
+	return w.insertBackendTraceLogOne(ctx, log)
 }
 
-// BatchWriteBackendTraceLog 批量写入后端追踪日志（从表）
-//
-// 参数:
-//   - ctx: 上下文
-//   - logs: 要写入的日志数组
-//
-// 返回:
-//   - error: 写入失败时返回错误信息
+// BatchWriteBackendTraceLog 批量写入后端追踪日志。
 func (w *MongoWriter) BatchWriteBackendTraceLog(ctx context.Context, logs []*types.BackendTraceLog) error {
 	if len(logs) == 0 {
 		return nil
 	}
-
-	if !w.config.IsAsyncLogging() {
-		// 同步批量写入
-		return w.insertBackendTraceLogMany(ctx, logs)
+	if w.closed.Load() {
+		return fmt.Errorf("writer is closed")
 	}
-
-	// 异步批量写入
-	select {
-	case w.backendTraceBatchChan <- logs:
+	if w.config.IsAsyncLogging() {
+		for _, log := range logs {
+			if !asyncq.Offer(w.backendTraceLogQueue, log) {
+				logger.Warn("Mongo backend trace log queue is full, dropping log entry",
+					"traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
+			}
+		}
 		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-		return fmt.Errorf("backend trace batch channel is full")
 	}
+	return w.insertBackendTraceLogMany(ctx, logs)
 }
 
-// insertBackendTraceLogOne 插入单条后端追踪日志
+// FlushBackendTrace 拿走从表缓冲后在锁外 InsertMany。
+func (w *MongoWriter) FlushBackendTrace(ctx context.Context) error {
+	write, cancel := asyncq.EnsureWriteCtx(ctx)
+	defer cancel()
+	batch := asyncq.Take(&w.backendTraceMutex, &w.backendTraceBatchBuffer, types.BatchLimit(w.config))
+	if len(batch) == 0 {
+		return nil
+	}
+	if err := w.insertBackendTraceLogMany(write, batch); err != nil {
+		logger.Error("Failed to flush Mongo backend trace batch", "error", err, "count", len(batch))
+		return err
+	}
+	return nil
+}
+
+func (w *MongoWriter) addToBatch(log *types.AccessLog) error {
+	batch := asyncq.AppendTakeIfFull(&w.mutex, &w.batchBuffer, log, types.BatchLimit(w.config), types.BatchLimit(w.config))
+	if len(batch) == 0 {
+		return nil
+	}
+	ctx, cancel := asyncq.WriteContext(0)
+	defer cancel()
+	if err := w.insertMany(ctx, batch); err != nil {
+		logger.Error("Failed to write full Mongo batch", "error", err, "count", len(batch))
+		return err
+	}
+	return nil
+}
+
+func (w *MongoWriter) addBackendTraceToBatch(log *types.BackendTraceLog) error {
+	batch := asyncq.AppendTakeIfFull(&w.backendTraceMutex, &w.backendTraceBatchBuffer, log, types.BatchLimit(w.config), types.BatchLimit(w.config))
+	if len(batch) == 0 {
+		return nil
+	}
+	ctx, cancel := asyncq.WriteContext(0)
+	defer cancel()
+	if err := w.insertBackendTraceLogMany(ctx, batch); err != nil {
+		logger.Error("Failed to write full Mongo backend trace batch", "error", err, "count", len(batch))
+		return err
+	}
+	return nil
+}
+
+func (w *MongoWriter) startAsyncProcessor() {
+	w.wg.Add(1)
+	go func() {
+		defer w.wg.Done()
+		for {
+			select {
+			case log := <-w.logQueue:
+				if w.config.IsBatchProcessing() {
+					_ = w.addToBatch(log)
+				} else {
+					ctx, cancel := asyncq.WriteContext(0)
+					if err := w.insertOne(ctx, log); err != nil {
+						logger.Error("Failed to write Mongo log in async mode", "error", err, "traceId", log.TraceID)
+					}
+					cancel()
+				}
+			case <-w.stopChan:
+				asyncq.Drain(w.logQueue, func(log *types.AccessLog) {
+					if w.config.IsBatchProcessing() {
+						_ = w.addToBatch(log)
+					} else {
+						ctx, cancel := asyncq.WriteContext(0)
+						if err := w.insertOne(ctx, log); err != nil {
+							logger.Error("Failed to write Mongo log while draining", "error", err, "traceId", log.TraceID)
+						}
+						cancel()
+					}
+				})
+				return
+			}
+		}
+	}()
+}
+
+func (w *MongoWriter) startBackendTraceAsyncProcessor() {
+	w.wg.Add(1)
+	go func() {
+		defer w.wg.Done()
+		for {
+			select {
+			case log := <-w.backendTraceLogQueue:
+				if w.config.IsBatchProcessing() {
+					_ = w.addBackendTraceToBatch(log)
+				} else {
+					ctx, cancel := asyncq.WriteContext(0)
+					if err := w.insertBackendTraceLogOne(ctx, log); err != nil {
+						logger.Error("Failed to write Mongo backend trace in async mode",
+							"error", err, "traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
+					}
+					cancel()
+				}
+			case <-w.stopChan:
+				asyncq.Drain(w.backendTraceLogQueue, func(log *types.BackendTraceLog) {
+					if w.config.IsBatchProcessing() {
+						_ = w.addBackendTraceToBatch(log)
+					} else {
+						ctx, cancel := asyncq.WriteContext(0)
+						if err := w.insertBackendTraceLogOne(ctx, log); err != nil {
+							logger.Error("Failed to write Mongo backend trace while draining",
+								"error", err, "traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
+						}
+						cancel()
+					}
+				})
+				return
+			}
+		}
+	}()
+}
+
+func (w *MongoWriter) startFlushTimer() {
+	w.flushTicker = time.NewTicker(time.Duration(types.FlushIntervalMs(w.config)) * time.Millisecond)
+	w.wg.Add(1)
+	go func() {
+		defer w.wg.Done()
+		for {
+			select {
+			case <-w.flushTicker.C:
+				ctx, cancel := asyncq.WriteContext(0)
+				if err := w.Flush(ctx); err != nil {
+					logger.Error("Scheduled Mongo flush failed", "error", err)
+				}
+				if err := w.FlushBackendTrace(ctx); err != nil {
+					logger.Error("Scheduled Mongo backend trace flush failed", "error", err)
+				}
+				cancel()
+			case <-w.stopChan:
+				return
+			}
+		}
+	}()
+}
+
 func (w *MongoWriter) insertBackendTraceLogOne(ctx context.Context, log *types.BackendTraceLog) error {
 	doc, err := utils.ConvertToDocument(log)
 	if err != nil {
 		return fmt.Errorf("failed to convert backend trace log to document: %w", err)
 	}
-
 	database, err := w.mongoClient.DefaultDatabase()
 	if err != nil {
 		return fmt.Errorf("failed to get default database: %w", err)
 	}
 	collection := database.Collection(log.TableName())
-
-	result, err := collection.InsertOne(ctx, doc, nil)
-	if err != nil {
+	if _, err = collection.InsertOne(ctx, doc, nil); err != nil {
 		return fmt.Errorf("failed to insert backend trace log: %w", err)
 	}
-
-	logger.Debug("MongoDB backend trace log inserted",
-		"trace_id", log.TraceID,
-		"backend_trace_id", log.BackendTraceID,
-		"inserted_id", result.InsertedID)
-
 	return nil
 }
 
-// insertBackendTraceLogMany 批量插入后端追踪日志
 func (w *MongoWriter) insertBackendTraceLogMany(ctx context.Context, logs []*types.BackendTraceLog) error {
 	if len(logs) == 0 {
 		return nil
 	}
-
 	documents, err := utils.ConvertToDocuments(logs)
 	if err != nil {
 		return fmt.Errorf("failed to convert backend trace logs to documents: %w", err)
 	}
-
 	database, err := w.mongoClient.DefaultDatabase()
 	if err != nil {
 		return fmt.Errorf("failed to get default database: %w", err)
 	}
 	collection := database.Collection(logs[0].TableName())
-
-	result, err := collection.InsertMany(ctx, documents, nil)
-	if err != nil {
+	if _, err = collection.InsertMany(ctx, documents, nil); err != nil {
 		return fmt.Errorf("failed to insert backend trace logs: %w", err)
 	}
-
-	logger.Debug("MongoDB backend trace logs batch inserted",
-		"count", len(documents),
-		"inserted_ids_count", len(result.InsertedIDs))
-
 	return nil
 }
 
-// insertOne 插入单条文档
 func (w *MongoWriter) insertOne(ctx context.Context, log *types.AccessLog) error {
-	// 使用公共转换方法将结构体转换为 Document
 	doc, err := utils.ConvertToDocument(log)
 	if err != nil {
 		return fmt.Errorf("failed to convert log to document: %w", err)
 	}
-
-	// 获取默认数据库和集合 - 使用 AccessLog 的表名作为集合名称
 	var accessLog types.AccessLog
 	database, err := w.mongoClient.DefaultDatabase()
 	if err != nil {
 		return fmt.Errorf("failed to get default database: %w", err)
 	}
 	collection := database.Collection(accessLog.TableName())
-
-	// 直接插入转换后的文档
-	result, err := collection.InsertOne(ctx, doc, nil)
-	if err != nil {
+	if _, err = collection.InsertOne(ctx, doc, nil); err != nil {
 		return fmt.Errorf("failed to insert document: %w", err)
 	}
-
-	logger.Debug("MongoDB single document inserted",
-		"trace_id", log.TraceID,
-		"inserted_id", result.InsertedID)
-
 	return nil
 }
 
-// insertMany 批量插入文档
 func (w *MongoWriter) insertMany(ctx context.Context, logs []*types.AccessLog) error {
 	if len(logs) == 0 {
 		return nil
 	}
-
-	// 使用公共转换方法批量转换结构体为 Document
 	documents, err := utils.ConvertToDocuments(logs)
 	if err != nil {
 		return fmt.Errorf("failed to convert logs to documents: %w", err)
 	}
-
-	// 获取默认数据库和集合 - 使用 AccessLog 的表名作为集合名称
 	var accessLog types.AccessLog
 	database, err := w.mongoClient.DefaultDatabase()
 	if err != nil {
 		return fmt.Errorf("failed to get default database: %w", err)
 	}
 	collection := database.Collection(accessLog.TableName())
-
-	// 批量插入文档
-	result, err := collection.InsertMany(ctx, documents, nil)
-	if err != nil {
+	if _, err = collection.InsertMany(ctx, documents, nil); err != nil {
 		return fmt.Errorf("failed to insert documents: %w", err)
 	}
-
-	logger.Debug("MongoDB batch documents inserted",
-		"count", len(documents),
-		"inserted_ids_count", len(result.InsertedIDs))
-
 	return nil
-}
-
-// FlushBackendTrace 刷新后端追踪日志缓冲区
-func (w *MongoWriter) FlushBackendTrace(ctx context.Context) error {
-	w.backendTraceMutex.Lock()
-	defer w.backendTraceMutex.Unlock()
-
-	if len(w.backendTraceBuffer) == 0 {
-		return nil
-	}
-
-	// 复制缓冲区数据
-	documents := make([]*types.BackendTraceLog, len(w.backendTraceBuffer))
-	copy(documents, w.backendTraceBuffer)
-	w.backendTraceBuffer = w.backendTraceBuffer[:0]
-
-	// 执行批量插入
-	return w.insertBackendTraceLogMany(ctx, documents)
-}
-
-// startWorkers 启动工作协程
-func (w *MongoWriter) startWorkers() {
-	// 启动单条日志处理协程
-	w.wg.Add(1)
-	go w.singleLogWorker()
-
-	// 启动批量日志处理协程
-	w.wg.Add(1)
-	go w.batchLogWorker()
-
-	// 启动缓冲区刷新协程
-	w.wg.Add(1)
-	go w.bufferFlushWorker()
-
-	// 启动后端追踪日志单条处理协程
-	w.wg.Add(1)
-	go w.singleBackendTraceLogWorker()
-
-	// 启动后端追踪日志批量处理协程
-	w.wg.Add(1)
-	go w.batchBackendTraceLogWorker()
-
-	// 启动后端追踪日志缓冲区刷新协程
-	w.wg.Add(1)
-	go w.backendTraceBufferFlushWorker()
-}
-
-// singleLogWorker 单条日志处理协程
-func (w *MongoWriter) singleLogWorker() {
-	defer w.wg.Done()
-
-	for {
-		select {
-		case log := <-w.logChan:
-			w.bufferMutex.Lock()
-			w.buffer = append(w.buffer, log)
-			shouldFlush := len(w.buffer) >= 100 // 默认批量大小
-			w.bufferMutex.Unlock()
-
-			if shouldFlush {
-				if err := w.Flush(context.Background()); err != nil {
-					logger.Error("Failed to flush buffer", "error", err)
-				}
-			}
-
-		case <-w.closeChan:
-			return
-		}
-	}
-}
-
-// batchLogWorker 批量日志处理协程
-func (w *MongoWriter) batchLogWorker() {
-	defer w.wg.Done()
-
-	for {
-		select {
-		case documents := <-w.batchChan:
-			ctx, cancel := context.WithTimeout(context.Background(), w.mongoClient.GetConfig().SocketTimeoutMS)
-			if err := w.insertMany(ctx, documents); err != nil {
-				logger.Error("Failed to insert batch documents", "error", err, "count", len(documents))
-			}
-			cancel()
-
-		case <-w.closeChan:
-			return
-		}
-	}
-}
-
-// bufferFlushWorker 缓冲区刷新协程
-func (w *MongoWriter) bufferFlushWorker() {
-	defer w.wg.Done()
-
-	ticker := time.NewTicker(5 * time.Second) // 每5秒刷新一次
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			if err := w.Flush(context.Background()); err != nil {
-				logger.Error("Failed to flush buffer on timer", "error", err)
-			}
-
-		case <-w.closeChan:
-			return
-		}
-	}
-}
-
-// singleBackendTraceLogWorker 单条后端追踪日志处理协程
-func (w *MongoWriter) singleBackendTraceLogWorker() {
-	defer w.wg.Done()
-
-	for {
-		select {
-		case log := <-w.backendTraceLogChan:
-			w.backendTraceMutex.Lock()
-			w.backendTraceBuffer = append(w.backendTraceBuffer, log)
-			shouldFlush := len(w.backendTraceBuffer) >= 100 // 默认批量大小
-			w.backendTraceMutex.Unlock()
-
-			if shouldFlush {
-				if err := w.FlushBackendTrace(context.Background()); err != nil {
-					logger.Error("Failed to flush backend trace buffer", "error", err)
-				}
-			}
-
-		case <-w.closeChan:
-			return
-		}
-	}
-}
-
-// batchBackendTraceLogWorker 批量后端追踪日志处理协程
-func (w *MongoWriter) batchBackendTraceLogWorker() {
-	defer w.wg.Done()
-
-	for {
-		select {
-		case documents := <-w.backendTraceBatchChan:
-			ctx, cancel := context.WithTimeout(context.Background(), w.mongoClient.GetConfig().SocketTimeoutMS)
-			if err := w.insertBackendTraceLogMany(ctx, documents); err != nil {
-				logger.Error("Failed to insert backend trace batch documents", "error", err, "count", len(documents))
-			}
-			cancel()
-
-		case <-w.closeChan:
-			return
-		}
-	}
-}
-
-// backendTraceBufferFlushWorker 后端追踪日志缓冲区刷新协程
-func (w *MongoWriter) backendTraceBufferFlushWorker() {
-	defer w.wg.Done()
-
-	ticker := time.NewTicker(5 * time.Second) // 每5秒刷新一次
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			if err := w.FlushBackendTrace(context.Background()); err != nil {
-				logger.Error("Failed to flush backend trace buffer on timer", "error", err)
-			}
-
-		case <-w.closeChan:
-			return
-		}
-	}
 }

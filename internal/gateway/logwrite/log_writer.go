@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gateway/internal/gateway/constants"
@@ -29,7 +30,8 @@ import (
 //    - ctx.Writer (http.ResponseWriter) - 生命周期与 HTTP 请求绑定，ServeHTTP 返回后可能失效
 // 解决方案：
 //    在 ServeHTTP 返回前调用 snapshotHTTPData()，将 Request 和 Writer 中的必要数据缓存到 ctx.data
-//    异步日志写入时从快照中读取（使用 ContextKeySnapshot* 常量），而不是直接访问 Request 和 Writer
+//    立刻将 ctx.Request、ctx.Writer 置 nil，再 SubmitWriteLog 入队
+//    worker 内 WriteLog 只从快照读取（ContextKeySnapshot* / ContextKeyOriginal*），禁止再访问 Request 和 Writer
 
 // LogWriter 定义日志写入器接口
 type LogWriter interface {
@@ -60,9 +62,16 @@ type LogWriter interface {
 	GetLogConfig() *types.LogConfig
 }
 
+// cachedWriter 缓存中的写入器槽。refs 是已取出指针、尚未 Write/Flush 结束的次数。
+// 热更新先换槽再等 refs 归零后 Close，避免拿到旧指针的 Write 撞上 closed。
+type cachedWriter struct {
+	writer LogWriter
+	refs   atomic.Int64
+}
+
 var (
 	// 全局写入器缓存 - 按实例ID直接缓存LogWriter
-	writerCache = make(map[string]LogWriter)
+	writerCache = make(map[string]*cachedWriter)
 	// 保护写入器缓存的互斥锁
 	cacheMutex sync.RWMutex
 	// 本机IP缓存 - 程序启动时获取一次，后续直接使用
@@ -91,17 +100,13 @@ func RegisterLogWriter(instanceID string, writer LogWriter) error {
 	}
 
 	cacheMutex.Lock()
-	defer cacheMutex.Unlock()
+	old := writerCache[instanceID]
+	writerCache[instanceID] = &cachedWriter{writer: writer}
+	cacheMutex.Unlock()
 
-	// 如果已存在写入器，先关闭它
-	if existingWriter, exists := writerCache[instanceID]; exists {
-		if err := existingWriter.Close(); err != nil {
-			logger.Error("Failed to close existing writer", "instanceID", instanceID, "error", err)
-		}
+	if old != nil {
+		retireCachedWriter(old, instanceID)
 	}
-
-	// 注册新写入器
-	writerCache[instanceID] = writer
 	logger.Info("Writer registered", "instanceID", instanceID)
 	return nil
 }
@@ -112,21 +117,19 @@ func UnregisterLogWriter(instanceID string) error {
 		return fmt.Errorf("instanceID cannot be empty")
 	}
 
-	cacheMutex.Lock()
-	defer cacheMutex.Unlock()
+	WaitAccessLogSubmitIdle(instanceID, accessLogDrainWait)
 
-	writer, exists := writerCache[instanceID]
+	cacheMutex.Lock()
+	slot, exists := writerCache[instanceID]
+	if exists {
+		delete(writerCache, instanceID)
+	}
+	cacheMutex.Unlock()
 	if !exists {
 		return fmt.Errorf("writer not found for instance: %s", instanceID)
 	}
 
-	// 关闭写入器
-	if err := writer.Close(); err != nil {
-		logger.Error("Failed to close writer", "instanceID", instanceID, "error", err)
-	}
-
-	// 从缓存中删除写入器
-	delete(writerCache, instanceID)
+	retireCachedWriter(slot, instanceID)
 
 	// 关闭并删除对应的清理器
 	cleanerMutex.Lock()
@@ -199,12 +202,57 @@ func GetLogWriter(instanceID string) (LogWriter, error) {
 	cacheMutex.RLock()
 	defer cacheMutex.RUnlock()
 
-	writer, exists := writerCache[instanceID]
-	if !exists {
+	slot, exists := writerCache[instanceID]
+	if !exists || slot == nil || slot.writer == nil {
 		return nil, fmt.Errorf("writer not found for instance: %s", instanceID)
 	}
 
-	return writer, nil
+	return slot.writer, nil
+}
+
+func acquireLogWriter(instanceID string) (LogWriter, func(), error) {
+	if instanceID == "" {
+		return nil, func() {}, fmt.Errorf("instanceID cannot be empty")
+	}
+
+	cacheMutex.RLock()
+	slot, exists := writerCache[instanceID]
+	if !exists || slot == nil || slot.writer == nil {
+		cacheMutex.RUnlock()
+		return nil, func() {}, fmt.Errorf("writer not found for instance: %s", instanceID)
+	}
+	slot.refs.Add(1)
+	writer := slot.writer
+	cacheMutex.RUnlock()
+
+	var once sync.Once
+	return writer, func() {
+		once.Do(func() { slot.refs.Add(-1) })
+	}, nil
+}
+
+func waitCachedWriterIdle(slot *cachedWriter, wait time.Duration) {
+	if slot == nil {
+		return
+	}
+	deadline := time.Now().Add(wait)
+	for time.Now().Before(deadline) {
+		if slot.refs.Load() == 0 {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	logger.Warn("等待写入器在途引用归零超时", "refs", slot.refs.Load())
+}
+
+func retireCachedWriter(slot *cachedWriter, instanceID string) {
+	if slot == nil || slot.writer == nil {
+		return
+	}
+	waitCachedWriterIdle(slot, accessLogDrainWait)
+	if err := slot.writer.Close(); err != nil {
+		logger.Error("Failed to close writer", "instanceID", instanceID, "error", err)
+	}
 }
 
 // HasLogWriter 检查指定实例是否存在写入器
@@ -257,17 +305,18 @@ func WriteLog(instanceID string, gatewayCtx *core.Context) error {
 		return nil
 	}
 
-	writer, err := GetLogWriter(instanceID)
+	writer, release, err := acquireLogWriter(instanceID)
 	if err != nil {
 		return err
 	}
+	defer release()
 
-	// 从网关上下文构建访问日志（主表）
-	// 注意：buildAccessLogFromContext 会优先从快照中读取 HTTP 数据
-	accessLog := buildAccessLogFromContext(instanceID, gatewayCtx)
-
-	// 获取日志配置
 	config := writer.GetLogConfig()
+	if config == nil {
+		config = &types.LogConfig{}
+		config.SetDefaults()
+	}
+	accessLog := buildAccessLogWithConfig(instanceID, gatewayCtx, config)
 
 	// 端口重放：沿用原 trace，更新主表同一行，避免重复主键与列表重复；未落库时回退 Insert。
 	isReplay := false
@@ -309,31 +358,31 @@ func FlushLogWriter(instanceID string) error {
 		return fmt.Errorf("instanceID cannot be empty")
 	}
 
-	writer, err := GetLogWriter(instanceID)
+	writer, release, err := acquireLogWriter(instanceID)
 	if err != nil {
 		return err
 	}
+	defer release()
 
 	return writer.Flush(context.Background())
 }
 
 // CloseAllLogWriters 关闭所有写入器
 func CloseAllLogWriters() error {
+	drainAccessLogSubmit(accessLogDrainWait)
 	cacheMutex.Lock()
-	defer cacheMutex.Unlock()
-
-	var lastErr error
-	for instanceID, writer := range writerCache {
-		if err := writer.Close(); err != nil {
-			logger.Error("Failed to close writer", "instanceID", instanceID, "error", err)
-			lastErr = err
-		}
+	slots := make(map[string]*cachedWriter, len(writerCache))
+	for instanceID, slot := range writerCache {
+		slots[instanceID] = slot
 	}
+	writerCache = make(map[string]*cachedWriter)
+	cacheMutex.Unlock()
 
-	// 清空缓存
-	writerCache = make(map[string]LogWriter)
+	for instanceID, slot := range slots {
+		retireCachedWriter(slot, instanceID)
+	}
 	logger.Info("All log writers closed")
-	return lastErr
+	return nil
 }
 
 // CloseLogWriter 关闭指定实例的写入器
@@ -375,16 +424,9 @@ func UpdateLogWriter(instanceID string, newConfig *types.LogConfig) error {
 		logger.Debug("Log cleaner manager not created during update", "instanceID", instanceID, "reason", err.Error())
 	}
 
-	// 获取锁，进行原子性替换
 	cacheMutex.Lock()
-
-	// 获取旧的写入器实例
-	oldWriter, exists := writerCache[instanceID]
-
-	// 原子性地替换写入器
-	writerCache[instanceID] = newWriter
-
-	// 立即释放锁，避免影响其他并发操作
+	oldSlot := writerCache[instanceID]
+	writerCache[instanceID] = &cachedWriter{writer: newWriter}
 	cacheMutex.Unlock()
 
 	// 更新清理器
@@ -398,26 +440,11 @@ func UpdateLogWriter(instanceID string, newConfig *types.LogConfig) error {
 	}
 	cleanerMutex.Unlock()
 
-	// 如果存在旧写入器，异步进行优雅关闭
-	if exists {
-		go func(writer LogWriter, id string) {
-			// 给旧写入器一些时间完成正在进行的操作
-			time.Sleep(100 * time.Millisecond)
-
-			// 刷新旧写入器的缓冲区
-			if err := writer.Flush(context.Background()); err != nil {
-				logger.Warn("Failed to flush old writer before update",
-					"instanceID", id, "error", err)
-			}
-
-			// 关闭旧写入器
-			if err := writer.Close(); err != nil {
-				logger.Warn("Failed to close old writer during update",
-					"instanceID", id, "error", err)
-			}
-
+	if oldSlot != nil {
+		go func(slot *cachedWriter, id string) {
+			retireCachedWriter(slot, id)
 			logger.Debug("Old writer closed successfully", "instanceID", id)
-		}(oldWriter, instanceID)
+		}(oldSlot, instanceID)
 	}
 
 	// 如果存在旧清理器，异步进行优雅关闭
@@ -439,7 +466,7 @@ func UpdateLogWriter(instanceID string, newConfig *types.LogConfig) error {
 	logger.Info("Log writer updated successfully",
 		"instanceID", instanceID,
 		"targets", newConfig.GetOutputTargets(),
-		"hadOldWriter", exists,
+		"hadOldWriter", oldSlot != nil,
 		"hadOldCleaner", cleanerExists,
 		"hasNewCleaner", newCleanerManager != nil)
 
@@ -653,8 +680,8 @@ func buildAccessLogWithConfig(instanceID string, gatewayCtx *core.Context, confi
 		accessLog.GatewayFinishedProcessingTime = time.Time{}
 	}
 
-	// 计算处理时间指标
-	accessLog.CalculateProcessingTime()
+	// 总时间 = 开始到结束的墙钟，含重试等待；GetRetryWait 只从网关时间扣除，不改总时间。
+	accessLog.CalculateProcessingTimeExcept(types.DurationMillis(gatewayCtx.GetRetryWait()))
 
 	// 端口重放只更新主表行，不写入 parentTraceId（与预设 trace 一致）；标记已重置
 	if v, ok := gatewayCtx.GetString(constants.ContextKeyIsGatewayReplay); ok && v == "Y" {

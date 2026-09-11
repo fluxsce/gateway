@@ -203,10 +203,8 @@ func (m *HTTPMultiServiceProxy) proxyRequestToServiceWithRetry(
 
 			if attempt < maxRetries {
 				ctx.AddError(fmt.Errorf("选择节点失败，准备重试 (第%d次): %w", attempt+1, err))
-				select {
-				case <-ctx.Request.Context().Done():
+				if !waitRetryInterval(ctx, retryTimeout) {
 					return lastResponse
-				case <-time.After(retryTimeout):
 				}
 				continue
 			}
@@ -239,10 +237,8 @@ func (m *HTTPMultiServiceProxy) proxyRequestToServiceWithRetry(
 
 		if attempt < maxRetries {
 			ctx.AddError(fmt.Errorf("请求失败，准备重试 (第%d次，节点: %s): %w", attempt+1, node.URL, response.Error))
-			select {
-			case <-ctx.Request.Context().Done():
+			if !waitRetryInterval(ctx, retryTimeout) {
 				return lastResponse
-			case <-time.After(retryTimeout):
 			}
 			continue
 		}

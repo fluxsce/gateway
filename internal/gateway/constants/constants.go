@@ -147,8 +147,8 @@ const (
 const (
 	DefaultRequestTimeout  = 30  // 默认请求超时时间（秒）
 	DefaultConnectTimeout  = 10  // 默认连接超时时间（秒）
-	DefaultMaxIdleConns    = 100 // 默认最大空闲连接数
-	DefaultMaxConnsPerHost = 10  // 默认每个主机的最大连接数
+	DefaultMaxIdleConns    = 2048 // 默认最大空闲连接数（Transport 每 host 空闲为该值/4）
+	DefaultMaxConnsPerHost = 4096 // 默认每个主机的最大连接数（与 MaxIdleConns*2 对齐）
 	DefaultRetryCount      = 3   // 默认重试次数
 	DefaultRetryDelay      = 100 // 默认重试延迟（毫秒）
 )

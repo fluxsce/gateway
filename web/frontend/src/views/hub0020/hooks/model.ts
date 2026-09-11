@@ -710,11 +710,12 @@ export function useGatewayInstanceModel() {
             field: 'asyncQueueSize',
             label: '异步队列大小',
             type: 'number',
-            placeholder: '1000',
+            placeholder: '10000',
             span: 12,
-            defaultValue: 1000,
+            defaultValue: 10000,
             props: {
-              min: 1,
+              min: 100,
+              max: 1000000,
             },
           },
           {
@@ -755,9 +756,9 @@ export function useGatewayInstanceModel() {
             field: 'batchTimeoutMs',
             label: '批处理超时(ms)',
             type: 'number',
-            placeholder: '1000',
+            placeholder: '5000',
             span: 12,
-            defaultValue: 1000,
+            defaultValue: 5000,
             props: {
               min: 1000,
               max: 300000,

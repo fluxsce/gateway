@@ -387,33 +387,48 @@ func (a *AccessLog) GetProcessingDuration() int {
 		return a.TotalProcessingTimeMs
 	}
 	// 未完成的请求，计算到当前时间的时长
-	return int(time.Since(a.GatewayStartProcessingTime).Milliseconds())
+	return ElapsedMillis(a.GatewayStartProcessingTime, time.Now())
 }
 
-// CalculateProcessingTime 计算各种处理时间指标
+// CalculateProcessingTime 按开始/结束墙钟计算总耗时（含重试等待），网关耗时 = 总耗时 - 后端耗时。
 func (a *AccessLog) CalculateProcessingTime() {
-	// 只有在处理完成时才计算时间指标
+	a.CalculateProcessingTimeExcept(0)
+}
+
+// CalculateProcessingTimeExcept 计算主表三列耗时。
+//
+// 总时间（必须含重试）：
+//
+//	TotalProcessingTimeMs = 结束时刻 - 开始时刻
+//	开始是 NewContext，结束是 finishRequest 的 SetResponseTime，中间包括
+//	选节点失败/转发失败后的 waitRetryInterval。禁止把 excludeMs 从总时间里减掉。
+//
+// 网关时间：
+//
+//	GatewayProcessingTimeMs = 总时间 - 后端时间 - excludeMs
+//	excludeMs 只表示重试睡眠，不是「请求没发生」。
+//
+// 对账：总时间 ≈ 网关 + 后端 + 重试等待。不足 1ms 记 1；相减为负则网关记 0。
+func (a *AccessLog) CalculateProcessingTimeExcept(excludeMs int) {
 	if a.GatewayFinishedProcessingTime.IsZero() {
-		// 处理未完成，时间指标设为0或保持原值
 		a.TotalProcessingTimeMs = 0
 		a.GatewayProcessingTimeMs = 0
 		return
 	}
 
-	// 计算总处理时间(从开始处理到处理完成)
-	a.TotalProcessingTimeMs = int(a.GatewayFinishedProcessingTime.Sub(a.GatewayStartProcessingTime).Milliseconds())
-
-	// 计算网关自身处理时间
-	if a.BackendResponseTimeMs != 0 {
-		// 网关处理时间 = 总时间 - 后端响应时间
-		a.GatewayProcessingTimeMs = a.TotalProcessingTimeMs - a.BackendResponseTimeMs
-		if a.GatewayProcessingTimeMs < 0 {
-			// 如果计算结果为负，说明后端响应时间异常，使用总时间
-			a.GatewayProcessingTimeMs = a.TotalProcessingTimeMs
-		}
-	} else {
-		// 如果没有后端响应时间，则网关处理时间等于总时间
+	// 墙钟，含重试等待；excludeMs 不得参与这一行。
+	a.TotalProcessingTimeMs = ElapsedMillis(a.GatewayStartProcessingTime, a.GatewayFinishedProcessingTime)
+	if excludeMs < 0 {
+		excludeMs = 0
+	}
+	spent := a.BackendResponseTimeMs + excludeMs
+	if spent <= 0 {
 		a.GatewayProcessingTimeMs = a.TotalProcessingTimeMs
+		return
+	}
+	a.GatewayProcessingTimeMs = a.TotalProcessingTimeMs - spent
+	if a.GatewayProcessingTimeMs < 0 {
+		a.GatewayProcessingTimeMs = 0
 	}
 }
 

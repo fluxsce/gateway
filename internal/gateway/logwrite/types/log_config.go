@@ -54,15 +54,16 @@ const (
 
 // 默认配置常量
 const (
-	DefaultAsyncQueueSize   = 10000
-	DefaultBatchSize        = 100
-	DefaultBatchTimeoutMs   = 5000
-	DefaultMaxBodySizeBytes = 4096
-	DefaultLogRetentionDays = 30
-	DefaultMaxFileSizeMB    = 100
-	DefaultMaxFileCount     = 10
-	DefaultBufferSize       = 8192
-	DefaultFlushThreshold   = 100
+	DefaultAsyncQueueSize       = 10000
+	DefaultBatchSize            = 100
+	DefaultBatchTimeoutMs       = 5000
+	DefaultAsyncFlushIntervalMs = 5000
+	DefaultMaxBodySizeBytes     = 4096
+	DefaultLogRetentionDays     = 30
+	DefaultMaxFileSizeMB        = 100
+	DefaultMaxFileCount         = 10
+	DefaultBufferSize           = 8192
+	DefaultFlushThreshold       = 100
 )
 
 // LogConfig 日志配置结构体，对应数据库表 HUB_GW_LOG_CONFIG
@@ -626,7 +627,7 @@ func (c *LogConfig) SetDefaults() {
 	}
 
 	if c.AsyncFlushIntervalMs == 0 {
-		c.AsyncFlushIntervalMs = 10000
+		c.AsyncFlushIntervalMs = DefaultAsyncFlushIntervalMs
 	}
 
 	if c.EnableBatchProcessing == "" {
@@ -680,6 +681,30 @@ func (c *LogConfig) SetDefaults() {
 	if c.ActiveFlag == "" {
 		c.ActiveFlag = "Y"
 	}
+}
+
+// QueueSize 返回异步队列容量。未配置或小于 100 时用 DefaultAsyncQueueSize。
+func QueueSize(config *LogConfig) int {
+	if config == nil || config.AsyncQueueSize < 100 {
+		return DefaultAsyncQueueSize
+	}
+	return config.AsyncQueueSize
+}
+
+// BatchLimit 返回批量条数。未配置或小于 1 时用 DefaultBatchSize。
+func BatchLimit(config *LogConfig) int {
+	if config == nil || config.BatchSize < 1 {
+		return DefaultBatchSize
+	}
+	return config.BatchSize
+}
+
+// FlushIntervalMs 返回异步刷新间隔。未配置或小于等于 0 时用 DefaultAsyncFlushIntervalMs。
+func FlushIntervalMs(config *LogConfig) int {
+	if config == nil || config.AsyncFlushIntervalMs <= 0 {
+		return DefaultAsyncFlushIntervalMs
+	}
+	return config.AsyncFlushIntervalMs
 }
 
 // contains 辅助函数：检查字符串是否在切片中

@@ -352,6 +352,8 @@ func (g *Gateway) serveHTTPWithRuntime(cfg *config.GatewayConfig, engine *core.E
 		// 这样可以确保日志记录使用的是同一个上下文
 		engine.HandleWithContext(ctx, w, r)
 	}()
+	// 必须在本函数返回、defer ctx.Cancel() 之前完成快照并断开 Request/Writer。
+	// 访问日志 worker 晚于 ServeHTTP 执行，不能再碰 HTTP 对象。
 	g.finishRequest(ctx, cfg)
 }
 
@@ -380,63 +382,47 @@ func (g *Gateway) prepareRequestContext(cfg *config.GatewayConfig, w http.Respon
 	return ctx, traceID
 }
 
-// finishRequest 固化响应时间和HTTP快照，并异步写入访问日志。
+// finishRequest 固化响应时间并在 ServeHTTP 返回前完成访问日志交接。
+//
+// 历史问题：访问日志若在 ServeHTTP 返回后仍读 ctx.Request / ctx.Writer，
+// 对象可能已被 net/http 回收或复用，出现空指针或读到别的请求。
+//
+// 交接顺序必须保持：
+//  1. 先记 responseTime，避免快照/入队耗时混进请求耗时
+//  2. 仍持有 Request/Writer 时做快照，把方法、路径、头等拷进 ctx.data
+//  3. 立刻把 Request、Writer 置 nil，切断对 HTTP 对象的引用
+//  4. 再 SubmitWriteLog；channel 发送 happens-before worker 接收，worker 只看得到已快照且已断引用的 Context
+//
+// 本函数在 serveHTTPWithRuntime 的 defer ctx.Cancel() 之前返回。
+// Cancel 只取消 NewContext 里从 r.Context() 派生的 cancel，不取消 worker 随后换上的独立 logCtx。
 func (g *Gateway) finishRequest(ctx *core.Context, cfg *config.GatewayConfig) {
-	// 响应时间必须在快照和异步日志之前记录，避免日志准备耗时混入请求处理耗时。
+	// 先固化结束时间，再做快照和入队，避免日志准备耗时算进网关处理耗时。
 	ctx.SetResponseTime(time.Now())
 	ctx.FinishTracing()
 	if !cfg.Base.EnableAccessLog {
 		return
 	}
-	// 在 Handler 完成后、启动异步写入前，立即缓存 HTTP 对象（Request、Writer）中的必要信息
-	// 重要：不能在异步 goroutine 中直接访问 ctx.Request、ctx.Writer
-	// 因为这些对象的生命周期与 HTTP 请求绑定，ServeHTTP 返回后可能被回收
+	// 此时仍在 ServeHTTP 栈上，Request/Writer 有效，必须在这里读完。
 	g.snapshotHTTPData(ctx, cfg.InstanceID)
-	// 快照后断开与 HTTP 对象的引用，避免异步日志 goroutine 拖住 Request/Writer 及其中的 body buffer。
+	// 入队前断开引用：worker 即使持有 *Context，也无法再碰到已回收的 HTTP 对象。
 	ctx.Request = nil
 	ctx.Writer = nil
-	// 异步写入访问日志
-	// Context 对象本身可以安全使用（data、时间字段等），只是不能访问 Request 和 Writer
-	go func() {
-		// 添加panic恢复机制，防止日志写入错误导致整个服务崩溃
-		defer func() {
-			if r := recover(); r != nil {
-				logger.Error("Panic in access log writer", "error", r, "instanceID", cfg.InstanceID)
-			}
-		}()
-
-		// 创建独立的context用于日志写入，替换原来的 HTTP 请求 context
-		logCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
-		// 替换上下文中的 context.Context，避免使用已取消的 HTTP 请求 context
-		originalCtx := ctx.Ctx
-		ctx.Ctx = logCtx
-		defer func() {
-			ctx.Ctx = originalCtx
-		}()
-
-		// 写入访问日志
-		// 注意：logwrite.WriteLog 内部不能访问 ctx.Request 和 ctx.Writer
-		// 所有需要的数据都已经缓存在 ctx.data 中
-		if err := logwrite.WriteLog(cfg.InstanceID, ctx); err != nil {
-			logger.Error("Failed to write access log", "error", err)
-		}
-	}()
+	// 非阻塞投递；WriteLog 仍用快照字段，与原先每请求 goroutine 写入内容相同。
+	logwrite.SubmitWriteLog(cfg.InstanceID, ctx)
 }
 
-// snapshotHTTPData 在 Handler 完成后立即缓存 HTTP 对象中的必要数据到上下文
-// 重要：必须在 ServeHTTP 返回前调用，因为 HTTP 对象（Request、Writer）的生命周期与请求绑定
-// 缓存后，异步 goroutine 可以安全使用 Context 对象，但不能直接访问 Request 和 Writer
+// snapshotHTTPData 把 Request/Writer 中日志所需字段深拷到 ctx.data。
+// 必须在 ServeHTTP 返回前、且 Request/Writer 置 nil 之前调用。
+// 拷贝后异步路径只读 ContextKeySnapshot* / ContextKeyOriginal* 等键，禁止再解引用 HTTP 对象。
 func (g *Gateway) snapshotHTTPData(ctx *core.Context, instanceID string) {
-	// 使用 defer recover 防止快照过程中的任何错误
+	// 快照失败只记警告，不能让日志路径把请求打崩。
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Warn("Failed to snapshot HTTP data", "error", r)
 		}
 	}()
 
-	// 使用 reqhand 包的通用快照方法
+	// 深拷方法、路径、查询、请求头、响应头和 Content-Length；不保留 Body 的 Reader。
 	reqhand.SnapshotHTTPData(ctx)
 
 	logger.Debug("HTTP data snapshot created for async logging", "instanceID", instanceID)
@@ -703,8 +689,9 @@ func (g *Gateway) updateHealthStatus(healthStatus string, errorMsg string) {
 	dbloader.UpdateGatewayHealthStatus(tenantId, instanceId, healthStatus, errorMsg)
 }
 
-// Reload 重新加载网关配置
-// 允许在不重启服务的情况下更新网关的配置
+// Reload 重新加载网关配置，不重启监听。
+// 实例 ID 是主键：重载只更新同一实例的配置与日志写入器。
+// 新 ID 只在新建实例时出现，删除实例走 Stop/CloseLogWriter，不能靠重载改号。
 func (g *Gateway) Reload(newCfg *config.GatewayConfig) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -714,37 +701,22 @@ func (g *Gateway) Reload(newCfg *config.GatewayConfig) error {
 	}
 
 	oldCfg := g.gatewayConfig
-	oldInstanceID := oldCfg.InstanceID
-	newInstanceID := newCfg.InstanceID
-	if newInstanceID == "" {
-		newInstanceID = oldInstanceID
+	if newCfg.InstanceID == "" {
+		newCfg.InstanceID = oldCfg.InstanceID
 	}
-	instanceIDChanged := newInstanceID != oldInstanceID
+	if newCfg.InstanceID != oldCfg.InstanceID {
+		return fmt.Errorf("网关实例ID是主键，重载不能变更")
+	}
 
 	// 日志写入器先完成可回滚的预更新，避免代际发布后才发现日志配置不可用。
-	var logErr error
-	if instanceIDChanged {
-		logErr = logwrite.InitLogManager(newInstanceID, &newCfg.Log)
-	} else {
-		logErr = logwrite.UpdateLogWriter(oldInstanceID, &newCfg.Log)
-	}
-	if logErr != nil {
-		return fmt.Errorf("预更新日志处理器失败: %w", logErr)
+	if err := logwrite.UpdateLogWriter(oldCfg.InstanceID, &newCfg.Log); err != nil {
+		return fmt.Errorf("预更新日志处理器失败: %w", err)
 	}
 
-	// 使用工厂方法重载配置
-	// 注意：ReloadGateway方法内部已经处理了engine的重建和处理器链设置
 	factory := NewGatewayFactory()
 	if err := factory.ReloadGateway(g, newCfg); err != nil {
-		if instanceIDChanged {
-			_ = logwrite.CloseLogWriter(newInstanceID)
-		} else {
-			_ = logwrite.UpdateLogWriter(oldInstanceID, &oldCfg.Log)
-		}
+		_ = logwrite.UpdateLogWriter(oldCfg.InstanceID, &oldCfg.Log)
 		return fmt.Errorf("重载网关配置失败: %w", err)
-	}
-	if instanceIDChanged {
-		_ = logwrite.CloseLogWriter(oldInstanceID)
 	}
 	logger.Info("网关配置重载成功",
 		"instanceId", g.gatewayConfig.InstanceID,

@@ -110,10 +110,8 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 			lastErr = fmt.Errorf("选择目标节点失败: %w", err)
 			if attempt < maxRetries {
 				ctx.AddError(fmt.Errorf("选择节点失败，准备重试 (第%d次): %w", attempt+1, err))
-				select {
-				case <-ctx.Request.Context().Done():
+				if !waitRetryInterval(ctx, retryTimeout) {
 					return false
-				case <-time.After(retryTimeout):
 				}
 				continue
 			}
@@ -160,10 +158,8 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 		// 如果还有重试次数，继续重试
 		if attempt < maxRetries {
 			ctx.AddError(fmt.Errorf("请求失败，准备重试 (第%d次，节点: %s): %w", attempt+1, node.URL, err))
-			select {
-			case <-ctx.Request.Context().Done():
+			if !waitRetryInterval(ctx, retryTimeout) {
 				return false
-			case <-time.After(retryTimeout):
 			}
 			continue
 		}

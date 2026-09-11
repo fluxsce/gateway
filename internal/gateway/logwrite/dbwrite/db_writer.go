@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"gateway/internal/gateway/logwrite/asyncq"
 	"gateway/internal/gateway/logwrite/types"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
@@ -44,8 +46,8 @@ type DBWriter struct {
 	backendTraceBatchBuffer []*types.BackendTraceLog    // 后端追踪日志批量写入缓冲区
 	backendTraceMutex       sync.Mutex                  // 保护后端追踪日志批量缓冲区的互斥锁
 
-	// 状态标识
-	closed bool
+	// closed 仅拒绝新的 Write；Flush 在关停排空后仍可执行。
+	closed atomic.Bool
 }
 
 // NewDBWriter 创建一个新的数据库日志写入器
@@ -63,24 +65,30 @@ type DBWriter struct {
 //   - *DBWriter: 数据库日志写入器实例
 //   - error: 创建失败时返回错误信息
 func NewDBWriter(config *types.LogConfig) (*DBWriter, error) {
+	if config == nil {
+		return nil, fmt.Errorf("config cannot be nil")
+	}
+
 	// 获取默认数据库连接
 	db := database.GetDefaultConnection()
 	if db == nil {
 		return nil, fmt.Errorf("failed to get default database connection")
 	}
 
+	batch := types.BatchLimit(config)
 	writer := &DBWriter{
 		config:                  config,
 		db:                      db,
 		stopChan:                make(chan struct{}),
-		batchBuffer:             make([]*types.AccessLog, 0, config.BatchSize),
-		backendTraceBatchBuffer: make([]*types.BackendTraceLog, 0, config.BatchSize),
+		batchBuffer:             make([]*types.AccessLog, 0, batch),
+		backendTraceBatchBuffer: make([]*types.BackendTraceLog, 0, batch),
 	}
 
 	// 如果启用异步日志，初始化异步处理
 	if config.IsAsyncLogging() {
-		writer.logQueue = make(chan *types.AccessLog, config.AsyncQueueSize)
-		writer.backendTraceLogQueue = make(chan *types.BackendTraceLog, config.AsyncQueueSize)
+		size := types.QueueSize(config)
+		writer.logQueue = make(chan *types.AccessLog, size)
+		writer.backendTraceLogQueue = make(chan *types.BackendTraceLog, size)
 		writer.startAsyncProcessor()
 		writer.startBackendTraceAsyncProcessor()
 	}
@@ -99,27 +107,15 @@ func NewDBWriter(config *types.LogConfig) (*DBWriter, error) {
 // 返回:
 //   - error: 刷新失败时返回错误信息
 func (w *DBWriter) FlushBackendTrace(ctx context.Context) error {
-	if w.closed {
+	batch := asyncq.Take(&w.backendTraceMutex, &w.backendTraceBatchBuffer, types.BatchLimit(w.config))
+	if len(batch) == 0 {
 		return nil
 	}
 
-	w.backendTraceMutex.Lock()
-	defer w.backendTraceMutex.Unlock()
-
-	if len(w.backendTraceBatchBuffer) == 0 {
-		return nil
-	}
-
-	// 保存计数用于日志
-	count := len(w.backendTraceBatchBuffer)
-
-	// 执行批量写入
-	err := w.batchWriteBackendTraceDirectly(ctx, w.backendTraceBatchBuffer)
-
+	err := w.batchWriteBackendTraceDirectly(ctx, batch)
 	if err != nil {
-		// 打印失败批次的关键信息，便于排查问题
-		logger.Error("Failed to flush backend trace batch buffer, dumping failed batch data", "error", err, "count", count)
-		for i, log := range w.backendTraceBatchBuffer {
+		logger.Error("Failed to flush backend trace batch buffer, dumping failed batch data", "error", err, "count", len(batch))
+		for i, log := range batch {
 			logger.Warn("Failed backend trace batch item",
 				"index", i,
 				"traceId", log.TraceID,
@@ -131,16 +127,10 @@ func (w *DBWriter) FlushBackendTrace(ctx context.Context) error {
 				"serviceId", log.ServiceDefinitionID,
 				"serviceName", log.ServiceName)
 		}
-	}
-
-	// 无论成功或失败都清空缓冲区，避免失败数据重复写入导致死循环
-	w.backendTraceBatchBuffer = w.backendTraceBatchBuffer[:0]
-
-	if err != nil {
 		return err
 	}
 
-	logger.Debug("Flushed backend trace batch buffer", "count", count)
+	logger.Debug("Flushed backend trace batch buffer", "count", len(batch))
 	return nil
 }
 
@@ -148,7 +138,7 @@ func (w *DBWriter) FlushBackendTrace(ctx context.Context) error {
 // 不做存在性预查；重放路径始终同步执行，不进入异步队列。
 // 返回 SQL 受影响行数，0 时由调用方决定是否 Insert。
 func (w *DBWriter) UpdateAccessLog(ctx context.Context, log *types.AccessLog) (int64, error) {
-	if w.closed {
+	if w.closed.Load() {
 		return 0, fmt.Errorf("writer is closed")
 	}
 	if log.TenantID == "" || log.TraceID == "" {
@@ -192,22 +182,16 @@ func (w *DBWriter) UpdateAccessLog(ctx context.Context, log *types.AccessLog) (i
 // 返回:
 //   - error: 写入失败时返回错误信息
 func (w *DBWriter) Write(ctx context.Context, log *types.AccessLog) error {
-	if w.closed {
+	if w.closed.Load() {
 		return fmt.Errorf("writer is closed")
 	}
 
-	// 如果启用异步模式，将日志放入队列
 	if w.config.IsAsyncLogging() {
-		select {
-		case w.logQueue <- log:
+		if asyncq.Offer(w.logQueue, log) {
 			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			// 队列满时的处理策略
-			logger.Warn("Log queue is full, dropping log entry", "traceId", log.TraceID)
-			return fmt.Errorf("log queue is full")
 		}
+		logger.Warn("Log queue is full, dropping log entry", "traceId", log.TraceID)
+		return fmt.Errorf("log queue is full")
 	}
 
 	// 同步模式：直接写入数据库或缓存批量写入
@@ -232,19 +216,13 @@ func (w *DBWriter) BatchWrite(ctx context.Context, logs []*types.AccessLog) erro
 		return nil
 	}
 
-	if w.closed {
+	if w.closed.Load() {
 		return fmt.Errorf("writer is closed")
 	}
 
-	// 如果启用异步模式，将所有日志放入队列
 	if w.config.IsAsyncLogging() {
 		for _, log := range logs {
-			select {
-			case w.logQueue <- log:
-				// 成功放入队列
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
+			if !asyncq.Offer(w.logQueue, log) {
 				logger.Warn("Log queue is full, dropping log entry", "traceId", log.TraceID)
 			}
 		}
@@ -263,27 +241,15 @@ func (w *DBWriter) BatchWrite(ctx context.Context, logs []*types.AccessLog) erro
 // 返回:
 //   - error: 刷新失败时返回错误信息
 func (w *DBWriter) Flush(ctx context.Context) error {
-	if w.closed {
+	batch := asyncq.Take(&w.mutex, &w.batchBuffer, types.BatchLimit(w.config))
+	if len(batch) == 0 {
 		return nil
 	}
 
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
-
-	if len(w.batchBuffer) == 0 {
-		return nil
-	}
-
-	// 保存计数用于日志
-	count := len(w.batchBuffer)
-
-	// 执行批量写入
-	err := w.batchWriteDirectly(ctx, w.batchBuffer)
-
+	err := w.batchWriteDirectly(ctx, batch)
 	if err != nil {
-		// 打印失败批次的关键信息，便于排查问题
-		logger.Error("Failed to flush batch buffer, dumping failed batch data", "error", err, "count", count)
-		for i, log := range w.batchBuffer {
+		logger.Error("Failed to flush batch buffer, dumping failed batch data", "error", err, "count", len(batch))
+		for i, log := range batch {
 			logger.Warn("Failed batch item",
 				"index", i,
 				"traceId", log.TraceID,
@@ -295,16 +261,10 @@ func (w *DBWriter) Flush(ctx context.Context) error {
 				"forwardMethodLen", len(log.ForwardMethod),
 				"clientIp", log.ClientIPAddress)
 		}
-	}
-
-	// 无论成功或失败都清空缓冲区，避免失败数据重复写入导致死循环
-	w.batchBuffer = w.batchBuffer[:0]
-
-	if err != nil {
 		return err
 	}
 
-	logger.Debug("Flushed batch buffer", "count", count)
+	logger.Debug("Flushed batch buffer", "count", len(batch))
 	return nil
 }
 
@@ -313,11 +273,9 @@ func (w *DBWriter) Flush(ctx context.Context) error {
 // 返回:
 //   - error: 关闭失败时返回错误信息
 func (w *DBWriter) Close() error {
-	if w.closed {
+	if !w.closed.CompareAndSwap(false, true) {
 		return nil
 	}
-
-	w.closed = true
 
 	// 发送停止信号
 	close(w.stopChan)
@@ -326,7 +284,8 @@ func (w *DBWriter) Close() error {
 	w.wg.Wait()
 
 	// 刷新剩余的缓冲区数据
-	ctx := context.Background()
+	ctx, cancel := asyncq.WriteContext(0)
+	defer cancel()
 	if err := w.Flush(ctx); err != nil {
 		logger.Error("Failed to flush buffer during close", "error", err)
 	}
@@ -380,29 +339,27 @@ func (w *DBWriter) startAsyncProcessor() {
 
 // startFlushTimer 启动定时刷新机制
 func (w *DBWriter) startFlushTimer() {
-	if w.config.AsyncFlushIntervalMs <= 0 {
-		return
-	}
-
-	w.flushTicker = time.NewTicker(time.Duration(w.config.AsyncFlushIntervalMs) * time.Millisecond)
+	intervalMs := types.FlushIntervalMs(w.config)
+	w.flushTicker = time.NewTicker(time.Duration(intervalMs) * time.Millisecond)
 
 	w.wg.Add(1)
 	go func() {
 		defer w.wg.Done()
 		defer logger.Info("Flush timer stopped")
 
-		logger.Info("Flush timer started", "intervalMs", w.config.AsyncFlushIntervalMs)
+		logger.Info("Flush timer started", "intervalMs", intervalMs)
 
 		for {
 			select {
 			case <-w.flushTicker.C:
-				ctx := context.Background()
+				ctx, cancel := asyncq.WriteContext(0)
 				if err := w.Flush(ctx); err != nil {
 					logger.Error("Scheduled flush failed", "error", err)
 				}
 				if err := w.FlushBackendTrace(ctx); err != nil {
 					logger.Error("Scheduled backend trace flush failed", "error", err)
 				}
+				cancel()
 
 			case <-w.stopChan:
 				return
@@ -430,12 +387,9 @@ func (w *DBWriter) drainQueue() {
 			count++
 
 		default:
-			// 队列为空，执行最终刷新确保缓冲区数据写入
-			if count > 0 {
-				ctx := context.Background()
-				if err := w.Flush(ctx); err != nil {
-					logger.Error("Failed to flush during queue drain", "error", err)
-				}
+			ctx := context.Background()
+			if err := w.Flush(ctx); err != nil {
+				logger.Error("Failed to flush during queue drain", "error", err)
 			}
 			logger.Info("Queue drained", "processedCount", count)
 			return
@@ -492,12 +446,9 @@ func (w *DBWriter) drainBackendTraceQueue() {
 			count++
 
 		default:
-			// 队列为空，执行最终刷新确保缓冲区数据写入
-			if count > 0 {
-				ctx := context.Background()
-				if err := w.FlushBackendTrace(ctx); err != nil {
-					logger.Error("Failed to flush backend trace during queue drain", "error", err)
-				}
+			ctx := context.Background()
+			if err := w.FlushBackendTrace(ctx); err != nil {
+				logger.Error("Failed to flush backend trace during queue drain", "error", err)
 			}
 			logger.Info("Backend trace queue drained", "processedCount", count)
 			return
@@ -507,47 +458,39 @@ func (w *DBWriter) drainBackendTraceQueue() {
 
 // addBackendTraceToBatch 将后端追踪日志添加到批量缓冲区
 func (w *DBWriter) addBackendTraceToBatch(log *types.BackendTraceLog) error {
-	w.backendTraceMutex.Lock()
-	defer w.backendTraceMutex.Unlock()
-
-	w.backendTraceBatchBuffer = append(w.backendTraceBatchBuffer, log)
-
-	// 如果缓冲区满了，立即刷新
-	if len(w.backendTraceBatchBuffer) >= w.config.BatchSize {
-		ctx := context.Background()
-		if err := w.batchWriteBackendTraceDirectly(ctx, w.backendTraceBatchBuffer); err != nil {
-			logger.Error("Failed to write full backend trace batch", "error", err, "count", len(w.backendTraceBatchBuffer))
-			return err
-		}
-		w.backendTraceBatchBuffer = w.backendTraceBatchBuffer[:0]
+	limit := types.BatchLimit(w.config)
+	batch := asyncq.AppendTakeIfFull(&w.backendTraceMutex, &w.backendTraceBatchBuffer, log, limit, limit)
+	if len(batch) == 0 {
+		return nil
 	}
-
+	ctx := context.Background()
+	if err := w.batchWriteBackendTraceDirectly(ctx, batch); err != nil {
+		logger.Error("Failed to write full backend trace batch", "error", err, "count", len(batch))
+		return err
+	}
 	return nil
 }
 
 // addToBatch 将日志添加到批量缓冲区
 func (w *DBWriter) addToBatch(log *types.AccessLog) error {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
-
-	w.batchBuffer = append(w.batchBuffer, log)
-
-	// 如果缓冲区满了，立即刷新
-	if len(w.batchBuffer) >= w.config.BatchSize {
-		ctx := context.Background()
-		if err := w.batchWriteDirectly(ctx, w.batchBuffer); err != nil {
-			logger.Error("Failed to write full batch", "error", err, "count", len(w.batchBuffer))
-			return err
-		}
-		w.batchBuffer = w.batchBuffer[:0]
+	limit := types.BatchLimit(w.config)
+	batch := asyncq.AppendTakeIfFull(&w.mutex, &w.batchBuffer, log, limit, limit)
+	if len(batch) == 0 {
+		return nil
 	}
-
+	ctx := context.Background()
+	if err := w.batchWriteDirectly(ctx, batch); err != nil {
+		logger.Error("Failed to write full batch", "error", err, "count", len(batch))
+		return err
+	}
 	return nil
 }
 
 // writeDirectly 直接写入单条日志到数据库
 func (w *DBWriter) writeDirectly(ctx context.Context, log *types.AccessLog) error {
-	_, err := w.db.Insert(ctx, "HUB_GW_ACCESS_LOG", log, true)
+	write, cancel := asyncq.EnsureWriteCtx(ctx)
+	defer cancel()
+	_, err := w.db.Insert(write, "HUB_GW_ACCESS_LOG", log, true)
 	if err != nil {
 		return fmt.Errorf("failed to write log: %w", err)
 	}
@@ -560,8 +503,10 @@ func (w *DBWriter) batchWriteDirectly(ctx context.Context, logs []*types.AccessL
 		return nil
 	}
 
+	write, cancel := asyncq.EnsureWriteCtx(ctx)
+	defer cancel()
 	// 使用数据库的批量插入方法，自动处理SQL构建和事务提交
-	_, err := w.db.BatchInsert(ctx, "HUB_GW_ACCESS_LOG", logs, true)
+	_, err := w.db.BatchInsert(write, "HUB_GW_ACCESS_LOG", logs, true)
 	if err != nil {
 		return fmt.Errorf("failed to write log batch: %w", err)
 	}
@@ -571,7 +516,9 @@ func (w *DBWriter) batchWriteDirectly(ctx context.Context, logs []*types.AccessL
 
 // writeBackendTraceDirectly 直接写入单条后端追踪日志到数据库
 func (w *DBWriter) writeBackendTraceDirectly(ctx context.Context, log *types.BackendTraceLog) error {
-	_, err := w.db.Insert(ctx, log.TableName(), log, true)
+	write, cancel := asyncq.EnsureWriteCtx(ctx)
+	defer cancel()
+	_, err := w.db.Insert(write, log.TableName(), log, true)
 	if err != nil {
 		return fmt.Errorf("failed to write backend trace log: %w", err)
 	}
@@ -589,7 +536,9 @@ func (w *DBWriter) batchWriteBackendTraceDirectly(ctx context.Context, logs []*t
 	if len(logs) > 0 {
 		tableName = logs[0].TableName()
 	}
-	_, err := w.db.BatchInsert(ctx, tableName, logs, true)
+	write, cancel := asyncq.EnsureWriteCtx(ctx)
+	defer cancel()
+	_, err := w.db.BatchInsert(write, tableName, logs, true)
 	if err != nil {
 		return fmt.Errorf("failed to write backend trace log batch: %w", err)
 	}
@@ -607,22 +556,16 @@ func (w *DBWriter) batchWriteBackendTraceDirectly(ctx context.Context, logs []*t
 // 返回:
 //   - error: 写入失败时返回错误信息
 func (w *DBWriter) WriteBackendTraceLog(ctx context.Context, log *types.BackendTraceLog) error {
-	if w.closed {
+	if w.closed.Load() {
 		return fmt.Errorf("writer is closed")
 	}
 
-	// 如果启用异步模式，将日志放入队列
 	if w.config.IsAsyncLogging() {
-		select {
-		case w.backendTraceLogQueue <- log:
+		if asyncq.Offer(w.backendTraceLogQueue, log) {
 			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			// 队列满时的处理策略
-			logger.Warn("Backend trace log queue is full, dropping log entry", "traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
-			return fmt.Errorf("backend trace log queue is full")
 		}
+		logger.Warn("Backend trace log queue is full, dropping log entry", "traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
+		return fmt.Errorf("backend trace log queue is full")
 	}
 
 	// 同步模式：直接写入数据库或缓存批量写入
@@ -647,19 +590,13 @@ func (w *DBWriter) BatchWriteBackendTraceLog(ctx context.Context, logs []*types.
 		return nil
 	}
 
-	if w.closed {
+	if w.closed.Load() {
 		return fmt.Errorf("writer is closed")
 	}
 
-	// 如果启用异步模式，将所有日志放入队列
 	if w.config.IsAsyncLogging() {
 		for _, log := range logs {
-			select {
-			case w.backendTraceLogQueue <- log:
-				// 成功放入队列
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
+			if !asyncq.Offer(w.backendTraceLogQueue, log) {
 				logger.Warn("Backend trace log queue is full, dropping log entry", "traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
 			}
 		}

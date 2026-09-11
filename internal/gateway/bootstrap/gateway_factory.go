@@ -294,7 +294,7 @@ func (f *GatewayFactory) ReloadGateway(gateway *Gateway, newCfg *config.GatewayC
 		return fmt.Errorf("新配置不能为空")
 	}
 
-	// 保存旧配置，以便校验监听地址和更新连接池索引。
+	// 保存旧配置，以便校验监听地址与实例 ID（主键不可改）。
 	oldConfig := gateway.gatewayConfig
 
 	// 如果监听地址发生变化，需要重启服务
@@ -304,6 +304,12 @@ func (f *GatewayFactory) ReloadGateway(gateway *Gateway, newCfg *config.GatewayC
 	if oldConfig.Base.EnableHTTPS != newCfg.Base.EnableHTTPS {
 		return fmt.Errorf("HTTP/HTTPS协议切换需要重启服务")
 	}
+	if newCfg.InstanceID == "" {
+		newCfg.InstanceID = oldConfig.InstanceID
+	}
+	if oldConfig.InstanceID != "" && newCfg.InstanceID != oldConfig.InstanceID {
+		return fmt.Errorf("网关实例ID是主键，重载不能变更")
+	}
 
 	// 完整构建新代际；处理器、Engine、Server和TLS任一构建失败都不会修改当前代际。
 	generation, err := f.buildGeneration(gateway, newCfg)
@@ -311,27 +317,9 @@ func (f *GatewayFactory) ReloadGateway(gateway *Gateway, newCfg *config.GatewayC
 		return fmt.Errorf("构建新网关代际失败: %w", err)
 	}
 
-	// 实例ID索引先原子换键；激活失败时再回滚，避免调用Remove导致运行中的网关被停止。
-	var pool *gatewayPool
-	oldPoolKey := oldConfig.InstanceID
-	if oldPoolKey == "" {
-		oldPoolKey = oldConfig.Base.Listen
-	}
-	instanceIDChanged := oldConfig.InstanceID != newCfg.InstanceID && newCfg.InstanceID != ""
-	if instanceIDChanged {
-		pool = GetGlobalPool().(*gatewayPool)
-		if err := pool.rekey(oldPoolKey, newCfg.InstanceID, gateway); err != nil {
-			generation.closeHandlers()
-			return fmt.Errorf("更新连接池中的网关实例失败: %w", err)
-		}
-	}
-
 	// 新Server先进入等待状态，再原子切换连接入口；旧代际随后在后台排空。
 	if err := gateway.activateGeneration(generation); err != nil {
 		generation.closeHandlers()
-		if instanceIDChanged {
-			_ = pool.rekey(newCfg.InstanceID, oldPoolKey, gateway)
-		}
 		return fmt.Errorf("激活新网关代际失败: %w", err)
 	}
 

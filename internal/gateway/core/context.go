@@ -62,6 +62,9 @@ type Context struct {
 	// 使用原子操作保证线程安全，支持多服务并发转发场景
 	maxBackendDurationMs int64
 
+	// retryWaitNs 失败换节点时实际等待的纳秒数，主表网关耗时会扣除对应毫秒。
+	retryWaitNs int64
+
 	// 目标URL
 	// 存储请求应该转发到的后端服务URL
 	targetURL string
@@ -401,7 +404,7 @@ func (c *Context) GetStartTime() time.Time {
 // 内部转换为毫秒存储
 // 线程安全：使用原子操作保证并发安全，支持多服务并发转发场景
 func (c *Context) SetMaxBackendDuration(duration time.Duration) {
-	durationMs := duration.Milliseconds()
+	durationMs := int64(types.DurationMillis(duration))
 	// 使用原子操作循环更新，确保线程安全
 	for {
 		current := atomic.LoadInt64(&c.maxBackendDurationMs)
@@ -425,6 +428,22 @@ func (c *Context) SetMaxBackendDuration(duration time.Duration) {
 // 线程安全：使用原子操作读取，保证并发安全
 func (c *Context) GetMaxBackendDuration() int64 {
 	return atomic.LoadInt64(&c.maxBackendDurationMs)
+}
+
+// AddRetryWait 累加一次重试间隔的实际等待时间。
+func (c *Context) AddRetryWait(d time.Duration) {
+	if c == nil || d <= 0 {
+		return
+	}
+	atomic.AddInt64(&c.retryWaitNs, int64(d))
+}
+
+// GetRetryWait 返回已累计的重试等待时长。
+func (c *Context) GetRetryWait() time.Duration {
+	if c == nil {
+		return 0
+	}
+	return time.Duration(atomic.LoadInt64(&c.retryWaitNs))
 }
 
 // JSON 返回JSON响应
@@ -579,6 +598,7 @@ func (c *Context) Reset() {
 	// 重置时间字段
 	c.responseTime = time.Time{}
 	atomic.StoreInt64(&c.maxBackendDurationMs, 0)
+	atomic.StoreInt64(&c.retryWaitNs, 0)
 
 	// 重置日志配置
 	c.logConfig = nil

@@ -118,8 +118,7 @@ func WriteBackendTraceLogSync(
 	// 响应信息已作为参数传入，不需要从上下文获取
 	// 这样可以避免多服务转发时响应头混淆的问题
 
-	// 获取日志写入器
-	writer, buildErr := GetLogWriter(instanceID)
+	writer, release, buildErr := acquireLogWriter(instanceID)
 	if buildErr != nil {
 		logger.Error("Failed to get log writer",
 			"error", buildErr,
@@ -127,6 +126,7 @@ func WriteBackendTraceLogSync(
 			"instanceID", instanceID)
 		return nil // 不返回错误，避免影响服务
 	}
+	defer release()
 
 	// 获取日志配置
 	config := writer.GetLogConfig()

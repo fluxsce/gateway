@@ -335,8 +335,8 @@ export function useGatewayInstanceTreeModel() {
         span: 12,
         tabKey: 'http',
         show: (formData: Record<string, any>) => formData.proxyType === ProxyTypeEnum.HTTP,
-        defaultValue: 100,
-        tips: '连接池中保持的最大空闲连接数。空闲连接可以被复用，提高性能，但会占用内存资源',
+        defaultValue: 2048,
+        tips: '连接池中保持的最大空闲连接数。单上游实际可复用空闲约为该值的四分之一，每主机连接上限约为该值的两倍',
         props: {
           min: 0,
         },

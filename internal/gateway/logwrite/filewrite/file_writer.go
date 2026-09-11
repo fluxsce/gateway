@@ -11,8 +11,10 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"gateway/internal/gateway/logwrite/asyncq"
 	"gateway/internal/gateway/logwrite/types"
 	"gateway/pkg/logger"
 )
@@ -40,8 +42,14 @@ type FileWriter struct {
 	bufferSize  int
 	flushTicker *time.Ticker
 
+	// 异步队列：与库写入器相同，满则短等再丢；消费者持锁写文件。
+	logQueue             chan *types.AccessLog
+	backendTraceLogQueue chan *types.BackendTraceLog
+
 	// 关闭控制
 	closeChan chan struct{}
+	closeOnce sync.Once
+	closed    atomic.Bool
 	wg        sync.WaitGroup
 }
 
@@ -89,6 +97,14 @@ func NewFileWriter(config *types.LogConfig) (*FileWriter, error) {
 		return nil, fmt.Errorf("failed to open initial log file: %w", err)
 	}
 
+	if config.IsAsyncLogging() {
+		size := types.QueueSize(config)
+		writer.logQueue = make(chan *types.AccessLog, size)
+		writer.backendTraceLogQueue = make(chan *types.BackendTraceLog, size)
+		writer.startAsyncProcessor()
+		writer.startBackendTraceAsyncProcessor()
+	}
+
 	// 启动定时刷新
 	writer.startFlushTicker()
 
@@ -106,30 +122,20 @@ func (w *FileWriter) UpdateAccessLog(ctx context.Context, log *types.AccessLog) 
 	return 0, nil
 }
 
-// Write 写入单条日志
+// Write 写入单条日志。异步时入队（满则短等再丢），同步时持锁写缓冲。
 func (w *FileWriter) Write(ctx context.Context, log *types.AccessLog) error {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
-
-	// 格式化日志
-	formatted := w.formatLog(log)
-
-	// 检查是否需要轮转
-	if w.needRotate(len(formatted)) {
-		if err := w.rotate(); err != nil {
-			logger.Error("Failed to rotate log file", "error", err)
+	_ = ctx
+	if w.closed.Load() {
+		return fmt.Errorf("writer is closed")
+	}
+	if w.config.IsAsyncLogging() {
+		if asyncq.Offer(w.logQueue, log) {
+			return nil
 		}
+		logger.Warn("File log queue is full, dropping log entry", "traceId", log.TraceID)
+		return fmt.Errorf("log queue is full")
 	}
-
-	// 添加到缓冲区
-	w.buffer = append(w.buffer, formatted)
-
-	// 检查是否需要立即刷新
-	if len(w.buffer) >= w.config.FlushThreshold {
-		return w.flushBuffer()
-	}
-
-	return nil
+	return w.appendAccess(log)
 }
 
 // BatchWrite 批量写入日志
@@ -137,9 +143,24 @@ func (w *FileWriter) BatchWrite(ctx context.Context, logs []*types.AccessLog) er
 	if len(logs) == 0 {
 		return nil
 	}
+	if w.closed.Load() {
+		return fmt.Errorf("writer is closed")
+	}
+
+	if w.config.IsAsyncLogging() {
+		for _, log := range logs {
+			if !asyncq.Offer(w.logQueue, log) {
+				logger.Warn("File log queue is full, dropping log entry", "traceId", log.TraceID)
+			}
+		}
+		return nil
+	}
 
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
+	if w.writer == nil || w.currentFile == nil {
+		return fmt.Errorf("writer is closed")
+	}
 
 	// 预估总大小
 	var totalSize int
@@ -173,30 +194,35 @@ func (w *FileWriter) Flush(ctx context.Context) error {
 
 // Close 关闭写入器
 func (w *FileWriter) Close() error {
-	close(w.closeChan)
-	w.wg.Wait()
+	var closeErr error
+	w.closeOnce.Do(func() {
+		w.closed.Store(true)
+		close(w.closeChan)
+		w.wg.Wait()
+		closeErr = w.closeLocked()
+	})
+	return closeErr
+}
 
+func (w *FileWriter) closeLocked() error {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
 
-	// 刷新剩余缓冲区
 	if err := w.flushBuffer(); err != nil {
 		logger.Error("Failed to flush buffer on close", "error", err)
 	}
-
-	// 停止定时器
 	if w.flushTicker != nil {
 		w.flushTicker.Stop()
 	}
-
-	// 关闭文件
 	if w.writer != nil {
-		w.writer.Flush()
+		_ = w.writer.Flush()
+		w.writer = nil
 	}
 	if w.currentFile != nil {
-		return w.currentFile.Close()
+		err := w.currentFile.Close()
+		w.currentFile = nil
+		return err
 	}
-
 	return nil
 }
 
@@ -205,20 +231,114 @@ func (w *FileWriter) GetLogConfig() *types.LogConfig {
 	return w.config
 }
 
-// WriteBackendTraceLog 写入单条后端追踪日志（从表）
-func (w *FileWriter) WriteBackendTraceLog(ctx context.Context, log *types.BackendTraceLog) error {
+func (w *FileWriter) flushThreshold() int {
+	if w.config == nil || w.config.FlushThreshold < 1 {
+		return types.DefaultFlushThreshold
+	}
+	return w.config.FlushThreshold
+}
+
+func (w *FileWriter) appendAccess(log *types.AccessLog) error {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
-
-	formatted := w.formatBackendTraceLog(log)
-	w.buffer = append(w.buffer, formatted)
-
-	// 检查是否需要立即刷新
-	if len(w.buffer) >= w.bufferSize {
-		return w.flushBuffer()
+	if w.writer == nil || w.currentFile == nil {
+		return fmt.Errorf("writer is closed")
 	}
 
+	formatted := w.formatLog(log)
+	if w.needRotate(len(formatted)) {
+		if err := w.rotate(); err != nil {
+			logger.Error("Failed to rotate log file", "error", err)
+		}
+	}
+	w.buffer = append(w.buffer, formatted)
+	if len(w.buffer) >= w.flushThreshold() {
+		return w.flushBuffer()
+	}
 	return nil
+}
+
+func (w *FileWriter) appendBackendTrace(log *types.BackendTraceLog) error {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+	if w.writer == nil || w.currentFile == nil {
+		return fmt.Errorf("writer is closed")
+	}
+
+	formatted := w.formatBackendTraceLog(log)
+	if w.needRotate(len(formatted)) {
+		if err := w.rotate(); err != nil {
+			logger.Error("Failed to rotate log file", "error", err)
+		}
+	}
+	w.buffer = append(w.buffer, formatted)
+	if len(w.buffer) >= w.flushThreshold() {
+		return w.flushBuffer()
+	}
+	return nil
+}
+
+func (w *FileWriter) startAsyncProcessor() {
+	w.wg.Add(1)
+	go func() {
+		defer w.wg.Done()
+		for {
+			select {
+			case log := <-w.logQueue:
+				if err := w.appendAccess(log); err != nil {
+					logger.Error("Failed to write file log in async mode", "error", err, "traceId", log.TraceID)
+				}
+			case <-w.closeChan:
+				asyncq.Drain(w.logQueue, func(log *types.AccessLog) {
+					if err := w.appendAccess(log); err != nil {
+						logger.Error("Failed to write file log while draining", "error", err, "traceId", log.TraceID)
+					}
+				})
+				return
+			}
+		}
+	}()
+}
+
+func (w *FileWriter) startBackendTraceAsyncProcessor() {
+	w.wg.Add(1)
+	go func() {
+		defer w.wg.Done()
+		for {
+			select {
+			case log := <-w.backendTraceLogQueue:
+				if err := w.appendBackendTrace(log); err != nil {
+					logger.Error("Failed to write file backend trace in async mode",
+						"error", err, "traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
+				}
+			case <-w.closeChan:
+				asyncq.Drain(w.backendTraceLogQueue, func(log *types.BackendTraceLog) {
+					if err := w.appendBackendTrace(log); err != nil {
+						logger.Error("Failed to write file backend trace while draining",
+							"error", err, "traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
+					}
+				})
+				return
+			}
+		}
+	}()
+}
+
+// WriteBackendTraceLog 写入单条后端追踪日志（从表）
+func (w *FileWriter) WriteBackendTraceLog(ctx context.Context, log *types.BackendTraceLog) error {
+	_ = ctx
+	if w.closed.Load() {
+		return fmt.Errorf("writer is closed")
+	}
+	if w.config.IsAsyncLogging() {
+		if asyncq.Offer(w.backendTraceLogQueue, log) {
+			return nil
+		}
+		logger.Warn("File backend trace log queue is full, dropping log entry",
+			"traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
+		return fmt.Errorf("backend trace log queue is full")
+	}
+	return w.appendBackendTrace(log)
 }
 
 // BatchWriteBackendTraceLog 批量写入后端追踪日志（从表）
@@ -226,9 +346,25 @@ func (w *FileWriter) BatchWriteBackendTraceLog(ctx context.Context, logs []*type
 	if len(logs) == 0 {
 		return nil
 	}
+	if w.closed.Load() {
+		return fmt.Errorf("writer is closed")
+	}
+
+	if w.config.IsAsyncLogging() {
+		for _, log := range logs {
+			if !asyncq.Offer(w.backendTraceLogQueue, log) {
+				logger.Warn("File backend trace log queue is full, dropping log entry",
+					"traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
+			}
+		}
+		return nil
+	}
 
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
+	if w.writer == nil || w.currentFile == nil {
+		return fmt.Errorf("writer is closed")
+	}
 
 	formattedLogs := make([]string, len(logs))
 	for i, log := range logs {
@@ -255,25 +391,10 @@ func (w *FileWriter) BatchWriteBackendTraceLog(ctx context.Context, logs []*type
 
 // formatBackendTraceLog 格式化后端追踪日志
 func (w *FileWriter) formatBackendTraceLog(log *types.BackendTraceLog) string {
-	switch types.LogFormat(w.config.LogFormat) {
-	case types.LogFormatJSON:
-		if jsonStr, err := log.ToJSON(); err == nil {
-			return jsonStr + "\n"
-		}
-		return fmt.Sprintf(`{"error": "failed to format backend trace log"}` + "\n")
-	case types.LogFormatCSV:
-		// CSV格式暂不支持后端追踪日志，使用JSON格式
-		if jsonStr, err := log.ToJSON(); err == nil {
-			return jsonStr + "\n"
-		}
-		return fmt.Sprintf(`{"error": "failed to format backend trace log"}` + "\n")
-	default:
-		// 文本格式暂不支持后端追踪日志，使用JSON格式
-		if jsonStr, err := log.ToJSON(); err == nil {
-			return jsonStr + "\n"
-		}
-		return fmt.Sprintf(`{"error": "failed to format backend trace log"}` + "\n")
+	if jsonStr, err := log.ToJSON(); err == nil {
+		return jsonStr
 	}
+	return `{"error": "failed to format backend trace log"}`
 }
 
 // formatLog 格式化日志
@@ -478,11 +599,7 @@ func (w *FileWriter) flushBuffer() error {
 
 // startFlushTicker 启动定时刷新
 func (w *FileWriter) startFlushTicker() {
-	interval := time.Duration(w.config.AsyncFlushIntervalMs) * time.Millisecond
-	if interval == 0 {
-		interval = 5 * time.Second
-	}
-
+	interval := time.Duration(types.FlushIntervalMs(w.config)) * time.Millisecond
 	w.flushTicker = time.NewTicker(interval)
 
 	w.wg.Add(1)
