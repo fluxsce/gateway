@@ -756,9 +756,10 @@ export function useGatewayInstanceModel() {
             field: 'batchTimeoutMs',
             label: '批处理超时(ms)',
             type: 'number',
-            placeholder: '5000',
+            placeholder: '30000',
             span: 12,
-            defaultValue: 5000,
+            defaultValue: 30000,
+            tips: '单次写库或刷盘的最长等待。旧值 1000ms 过短，运行时按 30000ms；未满批何时刷仍看异步刷新间隔',
             props: {
               min: 1000,
               max: 300000,

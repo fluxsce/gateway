@@ -66,6 +66,52 @@ func TestValidateRetentionJob(t *testing.T) {
 	}
 }
 
+func TestPrepareWebTimeout_reusesExistingKey(t *testing.T) {
+	req := WebTimeoutSettings{RequestTimeoutSeconds: 120, SessionExpireHours: 12, CipherEnabled: true}
+	existing := WebTimeoutSettings{PrivateKey: "ENCY_keep", PublicKey: "PUB", Kid: "abc"}
+	got, err := PrepareWebTimeout(req, existing, WebTimeoutSettings{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PrivateKey != "ENCY_keep" || got.Kid != "abc" || !got.CipherEnabled {
+		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestPrepareWebTimeout_reusesGlobalKey(t *testing.T) {
+	req := WebTimeoutSettings{RequestTimeoutSeconds: 90, SessionExpireHours: 8, CipherEnabled: true}
+	global := WebTimeoutSettings{PrivateKey: "ENCY_g", PublicKey: "GPUB", Kid: "g1"}
+	got, err := PrepareWebTimeout(req, WebTimeoutSettings{}, global)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PrivateKey != "ENCY_g" || got.Kid != "g1" || got.RequestTimeoutSeconds != 90 {
+		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestGetWebCipherPrefersEnabled(t *testing.T) {
+	PutWebTimeout("other", WebTimeoutSettings{
+		RequestTimeoutSeconds: 120,
+		SessionExpireHours:    12,
+		CipherEnabled:         true,
+		PrivateKey:            "ENCY_a",
+		PublicKey:             "PUB",
+		Kid:                   "k1",
+	})
+	PutWebTimeout(defaultTenantID, WebTimeoutSettings{
+		RequestTimeoutSeconds: 120,
+		SessionExpireHours:    12,
+		CipherEnabled:         false,
+		PrivateKey:            "ENCY_b",
+		Kid:                   "k2",
+	})
+	got := GetWebCipher()
+	if !got.CipherEnabled || got.Kid != "k1" {
+		t.Fatalf("expected enabled k1, got %+v", got)
+	}
+}
+
 func TestStorePutAndGet(t *testing.T) {
 	PutRetention("t1", RetentionSettings{AuditLogDays: 60, TaskLogDays: 10, AlertLogDays: 3, ClusterEventDays: 2, MetricsDays: 15, GatewayLogDefaultDays: 20})
 	got := GetRetention("t1")

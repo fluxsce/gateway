@@ -182,30 +182,44 @@ func runAccessLogJob(job accessLogJob) {
 	}
 }
 
-// WaitAccessLogSubmitIdle 等待指定实例已入队和在途的访问日志写完。
+// WaitAccessLogSubmitIdle 等待指定实例已入队和在途的访问日志、后端追踪写完。
 // UnregisterLogWriter / CloseLogWriter 在摘槽前调用。
 func WaitAccessLogSubmitIdle(instanceID string, wait time.Duration) {
 	accessLogPending.waitIdle(instanceID, wait)
 }
 
-// drainAccessLogSubmit 等待整段提交队列空闲，供 CloseAllLogWriters 使用。
+// drainAccessLogSubmit 等待访问日志与后端追踪提交队列都空闲，供 CloseAllLogWriters 使用。
 func drainAccessLogSubmit(wait time.Duration) {
-	if accessLogSubmitQ == nil {
-		return
-	}
 	if wait <= 0 {
 		wait = accessLogDrainWait
 	}
 	deadline := time.Now().Add(wait)
 	for time.Now().Before(deadline) {
-		if len(accessLogSubmitQ) == 0 && accessLogInflight.Load() == 0 {
+		if accessLogSubmitIdle() && backendTraceSubmitIdle() {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	logger.Warn("等待访问日志提交队列排空超时",
-		"queued", len(accessLogSubmitQ),
-		"inflight", accessLogInflight.Load())
+	accessQueued, accessInflight := 0, int64(0)
+	if accessLogSubmitQ != nil {
+		accessQueued = len(accessLogSubmitQ)
+		accessInflight = accessLogInflight.Load()
+	}
+	backendQueued, backendInflight := 0, int64(0)
+	if backendTraceSubmitQ != nil {
+		backendQueued = len(backendTraceSubmitQ)
+		backendInflight = backendTraceInflight.Load()
+	}
+	logger.Warn("等待日志提交队列排空超时",
+		"accessQueued", accessQueued,
+		"accessInflight", accessInflight,
+		"backendQueued", backendQueued,
+		"backendInflight", backendInflight)
+}
+
+func accessLogSubmitIdle() bool {
+	return accessLogSubmitQ == nil ||
+		(len(accessLogSubmitQ) == 0 && accessLogInflight.Load() == 0)
 }
 
 func (p *accessLogPendingSet) add(instanceID string, delta int64) {

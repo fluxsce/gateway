@@ -98,6 +98,14 @@ func (c *AuthController) Login(ctx *gin.Context) {
 		return
 	}
 
+	plain, unwrapErr := security.UnwrapPassword(req.Password)
+	if unwrapErr != nil {
+		logger.InfoWithTrace(ctx, "登录口令未加密或密文无效")
+		response.ErrorJSON(ctx, ErrInvalidCredentials.Error(), constants.ED00103)
+		return
+	}
+	req.Password = plain
+
 	if locked, remaining := c.loginLock.Check(ctx, req.UserId); locked {
 		logger.WarnWithTrace(ctx, "登录账号处于冷却", "userId", req.UserId)
 		c.respondLoginCooldown(ctx, remaining)
@@ -121,22 +129,9 @@ func (c *AuthController) Login(ctx *gin.Context) {
 			}
 		}
 
-		var messageId string
-		switch {
-		case errors.Is(err, ErrUserNotFound):
-			messageId = constants.ED00102
-		case errors.Is(err, ErrInvalidCredentials):
-			messageId = constants.ED00103
-		case errors.Is(err, ErrUserDisabled):
-			messageId = constants.ED00104
-		case errors.Is(err, ErrUserExpired):
-			messageId = constants.ED00105
-		default:
-			messageId = constants.ED00101
-		}
-
+		msg, messageId := loginPublicFailure(err)
 		logger.ErrorWithTrace(ctx, "登录失败", "error", err, "messageId", messageId)
-		response.ErrorJSON(ctx, err.Error(), messageId)
+		response.ErrorJSON(ctx, msg, messageId)
 		return
 	}
 
@@ -419,7 +414,14 @@ func (c *AuthController) ChangePassword(ctx *gin.Context) {
 		return
 	}
 
-	err := c.authService.ChangePassword(ctx, userId, tenantId, req.OldPassword, req.NewPassword)
+	oldPassword, oldErr := security.UnwrapPassword(req.OldPassword)
+	newPassword, newErr := security.UnwrapPassword(req.NewPassword)
+	if oldErr != nil || newErr != nil {
+		response.ErrorJSON(ctx, security.ErrPasswordWrapRequired.Error(), constants.ED00007)
+		return
+	}
+
+	err := c.authService.ChangePassword(ctx, userId, tenantId, oldPassword, newPassword)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "修改密码失败", err)
 
@@ -495,6 +497,22 @@ func (c *AuthController) GetCaptcha(ctx *gin.Context) {
 	}
 
 	response.SuccessJSON(ctx, captchaResp, constants.SD00106)
+}
+
+// GetPasswordKey 返回密文传输公钥。未开启时只回 enabled=false。
+func (c *AuthController) GetPasswordKey(ctx *gin.Context) {
+	cipher := syssetting.GetWebCipher()
+	wrap := security.DefaultPasswordWrap()
+	if !cipher.CipherEnabled || wrap == nil {
+		response.SuccessJSON(ctx, models.PasswordKeyResponse{Enabled: false}, constants.SD00102)
+		return
+	}
+	response.SuccessJSON(ctx, models.PasswordKeyResponse{
+		Enabled:   true,
+		Alg:       "RSA-OAEP-256",
+		Kid:       wrap.Kid(),
+		PublicKey: wrap.PublicPEM(),
+	}, constants.SD00102)
 }
 
 // setSessionCookie 设置Session Cookie

@@ -277,6 +277,22 @@ func (sm *SessionManager) RefreshSession(ctx context.Context, sessionId string) 
 	return nil
 }
 
+// UpdateSessionProfile 把当前会话里的展示资料改成刚保存的值，不换 session。
+func (sm *SessionManager) UpdateSessionProfile(ctx context.Context, sessionId, realName, email, mobile, avatar string) error {
+	if sm == nil || sessionId == "" {
+		return nil
+	}
+	userContext, err := sm.getUserContext(ctx, sessionId)
+	if err != nil {
+		return err
+	}
+	userContext.RealName = realName
+	userContext.Email = email
+	userContext.Mobile = mobile
+	userContext.Avatar = avatar
+	return sm.storeUserContext(ctx, sessionId, userContext, sessionTTL(userContext.TenantId))
+}
+
 // DeleteSession 删除session
 //
 // 方法功能:

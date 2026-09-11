@@ -442,7 +442,7 @@ func (r *Route) Handle(ctx *core.Context) bool {
 		}
 	}
 
-	// 5. 执行路由级别过滤器
+	// 5. 执行路由级别过滤器（改的是 ctx.Request；原文若需要已在匹配前写入 Original*）
 	if len(r.routeFilters) > 0 {
 		// 按照过滤器的定义执行不同阶段的过滤器
 		for _, f := range r.routeFilters {

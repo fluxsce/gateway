@@ -107,13 +107,21 @@ func WriteContext(timeout time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), timeout)
 }
 
-// EnsureWriteCtx 保证写库/刷盘有超时：已有 deadline 则沿用，否则套 DefaultWriteTimeout。
-func EnsureWriteCtx(ctx context.Context) (context.Context, context.CancelFunc) {
+// EnsureWriteCtxTimeout 保证写库/刷盘有超时：已有 deadline 则沿用，否则套 timeout。
+func EnsureWriteCtxTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		timeout = DefaultWriteTimeout
+	}
 	if ctx != nil && ctx.Err() == nil {
 		if _, ok := ctx.Deadline(); ok {
 			return ctx, func() {}
 		}
-		return context.WithTimeout(ctx, DefaultWriteTimeout)
+		return context.WithTimeout(ctx, timeout)
 	}
-	return WriteContext(0)
+	return WriteContext(timeout)
+}
+
+// EnsureWriteCtx 保证写库/刷盘有超时：已有 deadline 则沿用，否则套 DefaultWriteTimeout。
+func EnsureWriteCtx(ctx context.Context) (context.Context, context.CancelFunc) {
+	return EnsureWriteCtxTimeout(ctx, DefaultWriteTimeout)
 }

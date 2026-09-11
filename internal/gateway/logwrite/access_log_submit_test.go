@@ -15,9 +15,10 @@ import (
 
 // captureAccessWriter 记录 Write 调用，供提交队列测试使用。
 type captureAccessWriter struct {
-	cfg  *types.LogConfig
-	mu   sync.Mutex
-	logs []*types.AccessLog
+	cfg    *types.LogConfig
+	mu     sync.Mutex
+	logs   []*types.AccessLog
+	traces []*types.BackendTraceLog
 }
 
 func newCaptureAccessWriter() *captureAccessWriter {
@@ -41,7 +42,10 @@ func (w *captureAccessWriter) BatchWrite(context.Context, []*types.AccessLog) er
 	return nil
 }
 
-func (w *captureAccessWriter) WriteBackendTraceLog(context.Context, *types.BackendTraceLog) error {
+func (w *captureAccessWriter) WriteBackendTraceLog(_ context.Context, log *types.BackendTraceLog) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.traces = append(w.traces, log)
 	return nil
 }
 
@@ -68,6 +72,21 @@ func (w *captureAccessWriter) lastTraceID() string {
 		return ""
 	}
 	return w.logs[len(w.logs)-1].TraceID
+}
+
+func (w *captureAccessWriter) backendCount() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return len(w.traces)
+}
+
+func (w *captureAccessWriter) lastBackendTraceID() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if len(w.traces) == 0 {
+		return ""
+	}
+	return w.traces[len(w.traces)-1].TraceID
 }
 
 func newSubmitTestContext(traceID, tenantID string) *core.Context {

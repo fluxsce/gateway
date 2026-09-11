@@ -60,4 +60,31 @@ export const hub0001Api = {
       data,
     })
   },
+
+  /**
+   * 读取当前登录用户资料。身份由 session 决定，不必传 userId。
+   */
+  getProfile(): Promise<JsonDataObj> {
+    return request({
+      url: requestPathHelper.join(userApiPrefix, 'profile'),
+      method: 'GET',
+    })
+  },
+
+  /**
+   * 更新当前登录用户资料。身份由 session 决定，请求里的 userId 会被忽略。
+   */
+  updateProfile(data: {
+    realName: string
+    email?: string
+    mobile?: string
+    gender?: number
+    avatar?: string
+  }): Promise<JsonDataObj> {
+    return request({
+      url: requestPathHelper.join(userApiPrefix, 'profile'),
+      method: 'PUT',
+      data,
+    })
+  },
 }

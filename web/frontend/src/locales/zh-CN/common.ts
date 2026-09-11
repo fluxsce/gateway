@@ -143,4 +143,7 @@ export default {
     dark: '深色模式',
     toggleTheme: '切换主题',
   },
+  passwordWrap: {
+    failed: '密码加密失败，请刷新后重试',
+  },
 }

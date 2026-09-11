@@ -8,6 +8,8 @@ import (
 	"errors"
 	"image/png"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,7 +20,27 @@ func newTestCaptchaService(ttl time.Duration) *CaptchaService {
 	return &CaptchaService{
 		secret: []byte("test-captcha-secret"),
 		ttl:    ttl,
+		used:   newCaptchaUsedMem(),
 	}
+}
+
+type memCaptchaStore struct {
+	mu   sync.Mutex
+	data map[string]struct{}
+}
+
+func newMemCaptchaStore() *memCaptchaStore {
+	return &memCaptchaStore{data: make(map[string]struct{})}
+}
+
+func (m *memCaptchaStore) SetNXString(_ context.Context, key string, _ string, _ time.Duration) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.data[key]; ok {
+		return false, nil
+	}
+	m.data[key] = struct{}{}
+	return true, nil
 }
 
 func TestGenerateCaptcha_doesNotLeakCode(t *testing.T) {
@@ -81,14 +103,79 @@ func TestVerifyCaptcha_roundTripAndRejectsWrongCode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := s.VerifyCaptcha(context.Background(), ticket, code); err != nil {
-		t.Fatalf("valid code rejected: %v", err)
-	}
 	if err := s.VerifyCaptcha(context.Background(), ticket, "000000"); !errors.Is(err, ErrCaptchaInvalid) {
 		t.Fatalf("wrong code err=%v, want ErrCaptchaInvalid", err)
 	}
+	if err := s.VerifyCaptcha(context.Background(), ticket, code); !errors.Is(err, ErrCaptchaExpired) {
+		t.Fatalf("reuse after wrong attempt err=%v, want ErrCaptchaExpired", err)
+	}
 	if err := s.VerifyCaptcha(context.Background(), ticket, ""); !errors.Is(err, ErrCaptchaRequired) {
 		t.Fatalf("empty code err=%v, want ErrCaptchaRequired", err)
+	}
+
+	fresh, err := s.signTicket(code, expireAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.VerifyCaptcha(context.Background(), fresh, code); err != nil {
+		t.Fatalf("valid code rejected: %v", err)
+	}
+}
+
+func TestVerifyCaptcha_rejectsReuseAfterSuccess(t *testing.T) {
+	s := newTestCaptchaService(time.Minute)
+	ticket, err := s.signTicket("123456", time.Now().Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.VerifyCaptcha(context.Background(), ticket, "123456"); err != nil {
+		t.Fatalf("first use rejected: %v", err)
+	}
+	if err := s.VerifyCaptcha(context.Background(), ticket, "123456"); !errors.Is(err, ErrCaptchaExpired) {
+		t.Fatalf("reuse err=%v, want ErrCaptchaExpired", err)
+	}
+}
+
+func TestVerifyCaptcha_consumeOnceUnderConcurrency(t *testing.T) {
+	s := newTestCaptchaService(time.Minute)
+	ticket, err := s.signTicket("654321", time.Now().Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var okCount atomic.Int32
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := s.VerifyCaptcha(context.Background(), ticket, "654321"); err == nil {
+				okCount.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if got := okCount.Load(); got != 1 {
+		t.Fatalf("concurrent success count=%d, want 1", got)
+	}
+}
+
+func TestVerifyCaptcha_clusterSharedStoreRejectsReuse(t *testing.T) {
+	store := newMemCaptchaStore()
+	issuer := newTestCaptchaService(time.Minute)
+	peer := newTestCaptchaService(time.Minute)
+	issuer.store = store
+	peer.store = store
+
+	ticket, err := issuer.signTicket("112233", time.Now().Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := issuer.VerifyCaptcha(context.Background(), ticket, "112233"); err != nil {
+		t.Fatalf("issuer rejected ticket: %v", err)
+	}
+	if err := peer.VerifyCaptcha(context.Background(), ticket, "112233"); !errors.Is(err, ErrCaptchaExpired) {
+		t.Fatalf("peer reuse err=%v, want ErrCaptchaExpired", err)
 	}
 }
 
@@ -124,7 +211,7 @@ func TestVerifyCaptcha_clusterSameSecret(t *testing.T) {
 		t.Fatalf("peer node rejected ticket: %v", err)
 	}
 
-	other := &CaptchaService{secret: []byte("other-node-secret"), ttl: time.Minute}
+	other := &CaptchaService{secret: []byte("other-node-secret"), ttl: time.Minute, used: newCaptchaUsedMem()}
 	if err := other.VerifyCaptcha(context.Background(), ticket, "112233"); !errors.Is(err, ErrCaptchaInvalid) {
 		t.Fatalf("different secret err=%v, want ErrCaptchaInvalid", err)
 	}

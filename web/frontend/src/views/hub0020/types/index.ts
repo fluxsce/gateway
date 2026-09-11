@@ -100,7 +100,7 @@ export interface LogConfig {
   asyncFlushIntervalMs: number // 异步刷新间隔(毫秒)
   enableBatchProcessing: 'Y' | 'N' // 是否启用批量处理
   batchSize: number // 批处理大小
-  batchTimeoutMs: number // 批处理超时时间(毫秒)
+  batchTimeoutMs: number // 批处理超时(毫秒)：写库/刷盘 I/O 上限
 
   // 日志保留和轮转配置
   logRetentionDays: number // 日志保留天数

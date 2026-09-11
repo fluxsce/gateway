@@ -3,7 +3,7 @@ export default {
   tabs: {
     retention: 'Retention',
     retentionJob: 'Cleanup Job',
-    webTimeout: 'Web Timeout',
+    webTimeout: 'Web Access',
     envVars: 'Environment Variables',
   },
   common: {
@@ -43,11 +43,15 @@ export default {
     startTimePlaceholder: 'Empty: use interval',
   },
   webTimeout: {
-    hint: 'Request timeout applies to both browser axios and the console HTTP read/write deadline after save. Session TTL applies to new logins and sliding renewal of active sessions.',
+    hint: 'Request timeout applies to both browser axios and the console HTTP read/write deadline. Session TTL applies to new logins and sliding renewal. Cipher transport stores one RSA key pair in the database and shares it across nodes; login, password change, and create-user then send wrapped fields. It also works over plain HTTP (no Web Crypto required).',
     requestTimeoutSeconds: 'Request timeout',
     requestTimeoutSecondsDesc: 'Same wait limit for the browser and the console HTTP server',
     sessionExpireHours: 'Session TTL',
     sessionExpireHoursDesc: 'Login session lifetime without activity',
+    cipherEnabled: 'Cipher transport',
+    cipherEnabledDesc: 'Generates a key pair, stores it in the database, and reuses it on every node. Turning it off keeps the keys; turning it back on does not rotate them.',
+    kid: 'Key fingerprint',
+    kidDesc: 'Fingerprint of the current public key. Kept after cipher transport is turned off.',
   },
   envVars: {
     hint: 'Tenant-level variables. Header filter values and path rewrite from/to can use {syntax}; they are expanded when forwarding. Secret values are encrypted at rest and never returned in plaintext. Example: {example}',

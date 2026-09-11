@@ -289,8 +289,8 @@ func (b *WebSocketBridge) applyWebSocketSessionLog(ctx *core.Context, session *w
 	}
 }
 
-// writeWebSocketBackendTrace 写入一次WebSocket握手/会话的后端追踪。
-// 请求报文取客户端首帧采样，响应报文取上游首帧采样；字节数字段取会话累计流量。
+// writeWebSocketBackendTrace 快照一次 WebSocket 握手/会话的后端追踪并入队。
+// targetURL / 握手头是过滤后实际连上游的那份；报文取首帧采样，字节数取会话累计。
 func (b *WebSocketBridge) writeWebSocketBackendTrace(
 	ctx *core.Context,
 	serviceID, serviceName, targetURL string,

@@ -3,9 +3,12 @@ package controllers
 import (
 	"context"
 	"errors"
+	"sync"
+
 	"gateway/pkg/logger"
 	"gateway/pkg/security"
 	"gateway/web/middleware"
+	"gateway/web/utils/constants"
 	authdao "gateway/web/views/hub0001/dao"
 	"gateway/web/views/hub0001/models"
 	hubdao "gateway/web/views/hub0002/dao"
@@ -16,15 +19,53 @@ import (
 var (
 	// ErrQueryUserFailed 查询用户时发生错误。
 	ErrQueryUserFailed = errors.New("查询用户失败")
-	// ErrUserNotFound 用户不存在。
+	// ErrUserNotFound 用户不存在。仅内部/登录日志使用，接口对外与 ErrInvalidCredentials 同一文案。
 	ErrUserNotFound = errors.New("用户不存在")
-	// ErrInvalidCredentials 用户ID或密码不正确。
+	// ErrInvalidCredentials 用户ID或密码不正确。登录失败对外统一用该文案，避免枚举账号。
 	ErrInvalidCredentials = errors.New("用户ID或密码不正确")
 	// ErrUserDisabled 用户已被禁用。
 	ErrUserDisabled = errors.New("用户已被禁用")
 	// ErrUserExpired 用户账号已过期。
 	ErrUserExpired = errors.New("用户账号已过期")
 )
+
+var (
+	dummyLoginHash     string
+	dummyLoginHashOnce sync.Once
+)
+
+// loginPublicFailure 登录失败对外文案。账号不存在与密码错误必须相同，避免枚举。
+func loginPublicFailure(err error) (msg, messageId string) {
+	switch {
+	case errors.Is(err, ErrUserNotFound), errors.Is(err, ErrInvalidCredentials):
+		return ErrInvalidCredentials.Error(), constants.ED00103
+	case errors.Is(err, ErrUserDisabled):
+		return err.Error(), constants.ED00104
+	case errors.Is(err, ErrUserExpired):
+		return err.Error(), constants.ED00105
+	default:
+		return err.Error(), constants.ED00101
+	}
+}
+
+// verifyLoginPassword 校验口令。库存为空时仍跑一遍 dummy bcrypt，避免按耗时枚举。
+func verifyLoginPassword(stored, plain string) bool {
+	dummyLoginHashOnce.Do(func() {
+		h, err := security.HashPassword("gateway-login-timing-dummy")
+		if err != nil {
+			logger.Warn("生成登录计时占位哈希失败，不存在用户将跳过耗时对齐", "error", err)
+			return
+		}
+		dummyLoginHash = h
+	})
+	if stored == "" {
+		if dummyLoginHash != "" {
+			_ = security.VerifyPassword(dummyLoginHash, plain)
+		}
+		return false
+	}
+	return security.VerifyPassword(stored, plain)
+}
 
 // AuthService 认证服务
 type AuthService struct {
@@ -87,11 +128,13 @@ func (s *AuthService) ValidateLogin(ctx context.Context, req *models.LoginReques
 	}
 
 	if user == nil {
+		// 与存在用户走同一套口令校验耗时，避免按响应快慢枚举账号。
+		verifyLoginPassword("", req.Password)
 		s.authDAO.RecordLoginHistory("", "", clientIP, "", "N", "用户不存在")
 		return nil, ErrUserNotFound
 	}
 
-	if !security.VerifyPassword(user.Password, req.Password) {
+	if !verifyLoginPassword(user.Password, req.Password) {
 		s.authDAO.RecordLoginHistory(user.UserId, user.TenantId, clientIP, "", "N", "密码错误")
 		return nil, ErrInvalidCredentials
 	}

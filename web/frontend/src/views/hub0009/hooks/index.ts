@@ -35,6 +35,9 @@ const emptyRetentionJob = (): RetentionJobSettings => ({
 const emptyWebTimeout = (): WebTimeoutSettings => ({
   requestTimeoutSeconds: 120,
   sessionExpireHours: 12,
+  cipherEnabled: false,
+  kid: '',
+  publicKey: '',
   currentVersion: 0,
 })
 
@@ -118,6 +121,7 @@ export function useEnvironmentSettings() {
       currentVersion: webTimeout.currentVersion,
       requestTimeoutSeconds: webTimeout.requestTimeoutSeconds,
       sessionExpireHours: webTimeout.sessionExpireHours,
+      cipherEnabled: webTimeout.cipherEnabled,
     }
   }
 
@@ -134,7 +138,12 @@ export function useEnvironmentSettings() {
         message.error(getApiMessage(result, t('common.saveFailed')))
         return
       }
-      const saved = parseJsonData<{ currentVersion?: number }>(result, {})
+      const saved = parseJsonData<{
+        currentVersion?: number
+        kid?: string
+        publicKey?: string
+        cipherEnabled?: boolean
+      }>(result, {})
       if (typeof saved.currentVersion === 'number') {
         if (groupCode === 'retention') {
           retention.currentVersion = saved.currentVersion
@@ -142,6 +151,15 @@ export function useEnvironmentSettings() {
           retentionJob.currentVersion = saved.currentVersion
         } else {
           webTimeout.currentVersion = saved.currentVersion
+          if (typeof saved.cipherEnabled === 'boolean') {
+            webTimeout.cipherEnabled = saved.cipherEnabled
+          }
+          if (typeof saved.kid === 'string') {
+            webTimeout.kid = saved.kid
+          }
+          if (typeof saved.publicKey === 'string') {
+            webTimeout.publicKey = saved.publicKey
+          }
           updateTimeout(webTimeout.requestTimeoutSeconds * 1000)
         }
       }

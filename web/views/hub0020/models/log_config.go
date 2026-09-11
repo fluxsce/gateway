@@ -33,7 +33,7 @@ type LogConfig struct {
 	AsyncFlushIntervalMs  int    `json:"asyncFlushIntervalMs" form:"asyncFlushIntervalMs" query:"asyncFlushIntervalMs" db:"asyncFlushIntervalMs"` // 异步刷新间隔(毫秒)
 	EnableBatchProcessing string `json:"enableBatchProcessing" form:"enableBatchProcessing" query:"enableBatchProcessing" db:"enableBatchProcessing"` // 是否启用批量处理(N否,Y是)
 	BatchSize             int    `json:"batchSize" form:"batchSize" query:"batchSize" db:"batchSize"`                                             // 批处理大小
-	BatchTimeoutMs        int    `json:"batchTimeoutMs" form:"batchTimeoutMs" query:"batchTimeoutMs" db:"batchTimeoutMs"`                       // 批处理超时时间(毫秒)
+	BatchTimeoutMs        int    `json:"batchTimeoutMs" form:"batchTimeoutMs" query:"batchTimeoutMs" db:"batchTimeoutMs"`                       // 批处理超时(毫秒)：写库/刷盘 I/O 上限
 	
 	// 日志保留和轮转配置
 	LogRetentionDays   int    `json:"logRetentionDays" form:"logRetentionDays" query:"logRetentionDays" db:"logRetentionDays"`           // 日志保留天数

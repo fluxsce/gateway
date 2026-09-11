@@ -39,6 +39,7 @@ type SaveSettingRequest struct {
 	StartTime             string `json:"startTime" form:"startTime"`
 	RequestTimeoutSeconds int    `json:"requestTimeoutSeconds" form:"requestTimeoutSeconds"`
 	SessionExpireHours    int    `json:"sessionExpireHours" form:"sessionExpireHours"`
+	CipherEnabled         bool   `json:"cipherEnabled" form:"cipherEnabled"`
 }
 
 // EnvSettingsResponse 环境设置页一次拉取的全部分组。
@@ -68,11 +69,14 @@ type RetentionJobView struct {
 	CurrentVersion  int    `json:"currentVersion"`
 }
 
-// WebTimeoutView Web 超时回显，带乐观锁版本。
+// WebTimeoutView Web 访问回显，带乐观锁版本。私钥不回传。
 type WebTimeoutView struct {
-	RequestTimeoutSeconds int `json:"requestTimeoutSeconds"`
-	SessionExpireHours    int `json:"sessionExpireHours"`
-	CurrentVersion        int `json:"currentVersion"`
+	RequestTimeoutSeconds int    `json:"requestTimeoutSeconds"`
+	SessionExpireHours    int    `json:"sessionExpireHours"`
+	CipherEnabled         bool   `json:"cipherEnabled"`
+	Kid                   string `json:"kid"`
+	PublicKey             string `json:"publicKey"`
+	CurrentVersion        int    `json:"currentVersion"`
 }
 
 // EnvVarItemView 单条环境变量回显。密文变量 value 为掩码，不返回原文。

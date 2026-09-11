@@ -211,7 +211,7 @@ func (w *ClickHouseWriter) Close() error {
 	// 等待异步处理goroutine结束
 	w.wg.Wait()
 
-	ctx, cancel := asyncq.WriteContext(0)
+	ctx, cancel := asyncq.WriteContext(types.BatchTimeout(w.config))
 	defer cancel()
 	if err := w.Flush(ctx); err != nil {
 		logger.Error("Failed to flush ClickHouse buffer during close", "error", err)
@@ -299,7 +299,7 @@ func (w *ClickHouseWriter) BatchWriteBackendTraceLog(ctx context.Context, logs [
 
 // writeBackendTraceLogDirectly 直接写入单条后端追踪日志到ClickHouse
 func (w *ClickHouseWriter) writeBackendTraceLogDirectly(ctx context.Context, log *types.BackendTraceLog) error {
-	write, cancel := asyncq.EnsureWriteCtx(ctx)
+	write, cancel := asyncq.EnsureWriteCtxTimeout(ctx, types.BatchTimeout(w.config))
 	defer cancel()
 	_, err := w.db.Insert(write, log.TableName(), log, true)
 	if err != nil {
@@ -318,7 +318,7 @@ func (w *ClickHouseWriter) batchWriteBackendTraceLogDirectly(ctx context.Context
 
 	startTime := time.Now()
 
-	write, cancel := asyncq.EnsureWriteCtx(ctx)
+	write, cancel := asyncq.EnsureWriteCtxTimeout(ctx, types.BatchTimeout(w.config))
 	defer cancel()
 	tableName := logs[0].TableName()
 	_, err := w.db.BatchInsert(write, tableName, logs, true)
@@ -387,7 +387,7 @@ func (w *ClickHouseWriter) startFlushTimer() {
 		for {
 			select {
 			case <-w.flushTicker.C:
-				ctx, cancel := asyncq.WriteContext(0)
+				ctx, cancel := asyncq.WriteContext(types.BatchTimeout(w.config))
 				if err := w.Flush(ctx); err != nil {
 					logger.Error("Scheduled ClickHouse flush failed", "error", err)
 				}
@@ -564,7 +564,7 @@ func (w *ClickHouseWriter) batchWriteDirectly(ctx context.Context, logs []*types
 
 	startTime := time.Now()
 
-	write, cancel := asyncq.EnsureWriteCtx(ctx)
+	write, cancel := asyncq.EnsureWriteCtxTimeout(ctx, types.BatchTimeout(w.config))
 	defer cancel()
 	// 使用数据库的批量插入方法
 	_, err := w.db.BatchInsert(write, "HUB_GW_ACCESS_LOG", logs, true)
@@ -589,7 +589,7 @@ func (w *ClickHouseWriter) batchWriteDirectly(ctx context.Context, logs []*types
 }
 
 func (w *ClickHouseWriter) writeDirectly(ctx context.Context, log *types.AccessLog) error {
-	write, cancel := asyncq.EnsureWriteCtx(ctx)
+	write, cancel := asyncq.EnsureWriteCtxTimeout(ctx, types.BatchTimeout(w.config))
 	defer cancel()
 	_, err := w.db.Insert(write, "HUB_GW_ACCESS_LOG", log, true)
 	if err != nil {

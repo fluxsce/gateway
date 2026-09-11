@@ -94,3 +94,16 @@ func TestWriteContextCancel(t *testing.T) {
 		t.Fatal("WriteContext 应在超时后取消")
 	}
 }
+
+func TestEnsureWriteCtxTimeoutUsesConfig(t *testing.T) {
+	ctx, cancel := EnsureWriteCtxTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	dl, ok := ctx.Deadline()
+	if !ok {
+		t.Fatal("无 deadline 时应套上配置超时")
+	}
+	remain := time.Until(dl)
+	if remain > 20*time.Millisecond || remain < 0 {
+		t.Fatalf("deadline 应接近 10ms, remain=%s", remain)
+	}
+}

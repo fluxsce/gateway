@@ -75,7 +75,7 @@ func (m *HTTPMultiServiceProxy) Handle(ctx *core.Context, serviceIDs []string, c
 		}
 	}
 
-	// 预先读取请求体（因为多个goroutine需要共享）
+	// 预先读取请求体（多个 goroutine 共享）。过滤器已改完，这里是发给各上游的同一份体。
 	var requestBody []byte
 	if ctx.Request.Body != nil {
 		var err error
@@ -378,11 +378,8 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 
 	// 使用defer确保无论成功失败都能写入后端追踪日志（与 ProxyRequest 保持一致）
 	defer func() {
-		// 在响应处理完成后复制header，避免影响核心时间统计
-		headersCopy := make(http.Header)
-		for k, v := range proxyReq.Header {
-			headersCopy[k] = append([]string(nil), v...)
-		}
+		// 每条服务深拷自己的发出头；只当参数传入，不写共享 ctx，避免群发互相覆盖。
+		headersCopy := new(forwardAssist).CloneHeader(proxyReq.Header)
 
 		// 后端请求结束时间（用于后端追踪日志，不等于网关响应时间）
 		// 如果 backendResponseTime 为零，说明请求失败，使用当前时间
@@ -390,13 +387,8 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 			backendResponseTime = time.Now()
 		}
 
-		// 同步构建后端追踪日志对象并异步写入（避免上下文取消带来的异常）
-		// 使用日志写入类的静态方法处理，响应信息和转发信息从局部变量获取（不从上下文获取，避免多服务转发混淆）
-		// 将转发请求头转换为 map[string][]string 格式
-		forwardHeadersMap := make(map[string][]string)
-		for k, v := range headersCopy {
-			forwardHeadersMap[k] = append([]string(nil), v...)
-		}
+		// 快照后入队写后端追踪：每条服务各记自己的 proxyReq（过滤后真实转发）。
+		// 组对象不在本 goroutine。响应和转发字段从局部变量取。
 
 		// 直接调用日志写入类（与 ProxyRequest 保持一致）
 		_ = logwrite.WriteBackendTraceLogSync(
@@ -412,7 +404,7 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 			responseStatusCode,
 			responseHeaders,
 			responseBody,
-			forwardHeadersMap, // 转发请求头作为参数传入，避免并发覆盖
+			map[string][]string(headersCopy), // 本服务自己的深拷，不写共享 ctx
 			requestBody,       // 转发请求体作为参数传入，避免并发覆盖
 			responseErr,
 			serviceName, // 服务名称，从 node 中获取

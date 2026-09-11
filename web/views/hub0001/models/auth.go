@@ -37,6 +37,16 @@ type PasswordChangeRequest struct {
 	NewPassword string `json:"newPassword" form:"newPassword"` // 新密码
 }
 
+// ProfileUpdateRequest 当前登录用户修改本人资料。userId 即使传入也忽略，身份只取 session。
+type ProfileUpdateRequest struct {
+	UserId   string `json:"userId" form:"userId"`     // 忽略，防越权
+	RealName string `json:"realName" form:"realName"` // 真实姓名
+	Email    string `json:"email" form:"email"`       // 电子邮箱
+	Mobile   string `json:"mobile" form:"mobile"`     // 手机号码
+	Avatar   string `json:"avatar" form:"avatar"`     // 头像
+	Gender   int    `json:"gender" form:"gender"`     // 性别：1-男，2-女，0-未知
+}
+
 // RefreshTokenRequest 刷新令牌请求
 type RefreshTokenRequest struct {
 	RefreshToken string `json:"refreshToken" form:"refreshToken" binding:"required"` // 刷新令牌
@@ -46,6 +56,14 @@ type RefreshTokenRequest struct {
 type RefreshTokenResponse struct {
 	Token        string `json:"token"`        // 访问令牌
 	RefreshToken string `json:"refreshToken"` // 刷新令牌
+}
+
+// PasswordKeyResponse 密文传输公钥。未开启时 Enabled 为 false，不含公钥。
+type PasswordKeyResponse struct {
+	Enabled   bool   `json:"enabled"`
+	Alg       string `json:"alg,omitempty"`
+	Kid       string `json:"kid,omitempty"`
+	PublicKey string `json:"publicKey,omitempty"`
 }
 
 // CaptchaRequest 获取验证码请求

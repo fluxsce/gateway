@@ -32,6 +32,10 @@ import (
 //    在 ServeHTTP 返回前调用 snapshotHTTPData()，将 Request 和 Writer 中的必要数据缓存到 ctx.data
 //    立刻将 ctx.Request、ctx.Writer 置 nil，再 SubmitWriteLog 入队
 //    worker 内 WriteLog 只从快照读取（ContextKeySnapshot* / ContextKeyOriginal*），禁止再访问 Request 和 Writer
+// 过滤器改过 ctx.Request 之后：
+//    主表方法/路径/查询/头读 Original*（进网关原文）
+//    主表/从表请求体读 request_body（过滤后发给上游的那份）
+//    从表 URL/头读代理传入的 proxyReq 快照（真实转发对象）；worker 看不到活的 *http.Request
 
 // LogWriter 定义日志写入器接口
 type LogWriter interface {
@@ -346,7 +350,7 @@ func WriteLog(instanceID string, gatewayCtx *core.Context) error {
 	// 根据日志配置和日志内容判断是否需要告警
 	HandleGatewayLogWrite(config, accessLog)
 
-	// 注意：多服务转发的后端追踪日志由每个服务单独调用 WriteBackendTraceLogSync 写入
+	// 注意：多服务转发的后端追踪由每个服务单独 Submit（WriteBackendTraceLogSync 只快照入队）
 	// 这里不再统一写入，避免重复和混淆
 
 	return nil
@@ -566,7 +570,9 @@ func buildAccessLogWithConfig(instanceID string, gatewayCtx *core.Context, confi
 		ResetCount:     0,
 	}
 
-	// 设置请求信息 - 从上下文和快照读取
+	// 方法/路径/查询/头：优先 Original*（过滤器改之前的客户端原文）。
+	// 请求体：request_body，代理在过滤之后从 ctx.Request.Body 读出，是发给上游的那份。
+	// 某次转发的真实 URL/头见后端追踪，主表 Forward* 不再记具体上游。
 	accessLog.SetRequestInfo(
 		getOriginalOrCurrentMethod(gatewayCtx),
 		getOriginalOrCurrentPath(gatewayCtx),
@@ -1064,7 +1070,7 @@ func getRequestBodyWithConfig(gatewayCtx *core.Context, config *types.LogConfig)
 		return ""
 	}
 
-	// 尝试从上下文获取缓存的请求体
+	// request_body 是代理在过滤器之后读的转发体，不是进网关原文。
 	if bodyData, exists := gatewayCtx.Get("request_body"); exists {
 		// 处理字节数据
 		if bodyBytes, ok := bodyData.([]byte); ok {
@@ -1209,7 +1215,7 @@ func getLoadBalancerDecision(gatewayCtx *core.Context) string {
 	return ""
 }
 
-// getOriginalOrCurrentMethod 获取原始请求方法或当前请求方法（安全用于异步场景）
+// getOriginalOrCurrentMethod 取进网关时的方法（过滤器改之前的 Original*）。
 func getOriginalOrCurrentMethod(gatewayCtx *core.Context) string {
 	// 从上下文中的原始方法获取（SnapshotHTTPData 已确保保存）
 	if originalMethod, ok := gatewayCtx.GetString(constants.ContextKeyOriginalMethod); ok {
@@ -1218,7 +1224,7 @@ func getOriginalOrCurrentMethod(gatewayCtx *core.Context) string {
 	return ""
 }
 
-// getOriginalOrCurrentPath 获取原始请求路径或当前请求路径（安全用于异步场景）
+// getOriginalOrCurrentPath 取进网关时的路径（过滤器改之前的 Original*）。
 func getOriginalOrCurrentPath(gatewayCtx *core.Context) string {
 	// 从上下文中的原始路径获取（SnapshotHTTPData 已确保保存）
 	if originalPath, ok := gatewayCtx.GetString(constants.ContextKeyOriginalURLPath); ok {

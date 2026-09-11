@@ -2,6 +2,7 @@
  * 登录认证相关的业务逻辑Hook
  * 封装登录、验证码等功能，与视图层分离
  */
+import { isPasswordWrapError, wrapPassword } from '@/api/passwordWrap'
 import { useAppMessage } from '@/composables/useAppMessage'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { store, type UserPermissionResponse } from '@/stores'
@@ -222,6 +223,7 @@ export function useLoginAuth() {
       const loginData = {
         ...formData,
         captchaId: captchaId.value,
+        password: await wrapPassword(formData.password),
       }
 
       // 发送登录请求
@@ -313,7 +315,11 @@ export function useLoginAuth() {
       }
     } catch (error: any) {
       logger.error('登录请求异常:', error)
-      message.error(error.message || t('login.networkError'))
+      message.error(
+        isPasswordWrapError(error)
+          ? tCommon('passwordWrap.failed')
+          : error.message || t('login.networkError'),
+      )
       refreshCaptcha() // 刷新验证码
       return false
     } finally {

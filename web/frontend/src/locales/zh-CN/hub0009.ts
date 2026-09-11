@@ -3,7 +3,7 @@ export default {
   tabs: {
     retention: '归档策略',
     retentionJob: '归档任务',
-    webTimeout: 'Web访问超时',
+    webTimeout: 'Web访问',
     envVars: '全局环境变量',
   },
   common: {
@@ -43,11 +43,15 @@ export default {
     startTimePlaceholder: '留空按间隔',
   },
   webTimeout: {
-    hint: '接口超时同时作用于浏览器 axios 与管理端 HTTP 读/写超时，保存后立即对齐。会话有效期影响新登录和活跃续期，已签发的会话按新时长滑动续期。',
+    hint: '接口超时同时作用于浏览器 axios 与管理端 HTTP 读/写超时。会话有效期影响新登录和活跃续期。密文传输使用一对 RSA 钥，入库后全集群共用，登录、改密、建用户的口令字段不再出现明文。局域网 HTTP 也可加密，不依赖浏览器 Web Crypto。',
     requestTimeoutSeconds: '接口超时',
     requestTimeoutSecondsDesc: '浏览器与管理端服务使用同一等待上限',
     sessionExpireHours: '会话有效期',
     sessionExpireHoursDesc: '登录会话无操作后的有效时长',
+    cipherEnabled: '密文传输',
+    cipherEnabledDesc: '开启后自动生成密钥对并写入数据库，各节点共用。关闭后仍保留钥，再次开启不会轮换。',
+    kid: '密钥指纹',
+    kidDesc: '当前公钥指纹，关闭密文传输后仍保留',
   },
   envVars: {
     hint: '在此维护租户级变量。Header 过滤器的值、路径重写的查找/替换内容可写 {syntax}，转发时自动替换。勾选密文后入库加密，列表不回显原文。过滤器中引用示例：{example}',

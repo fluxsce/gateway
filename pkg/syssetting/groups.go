@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"gateway/pkg/config"
+	"gateway/pkg/logger"
+	"gateway/pkg/security"
 )
 
 // 分组编码。新增环境设置分组时在此追加常量，并补默认值、校验与前端子页。
@@ -15,7 +17,7 @@ const (
 	GroupRetention = "retention"
 	// GroupRetentionJob 归档任务，控制统一清理 Job 的启停、间隔与开始时刻。
 	GroupRetentionJob = "retentionJob"
-	// GroupWebTimeout 管理端 Web 访问超时，含接口超时与会话时长。
+	// GroupWebTimeout 管理端 Web 访问，含接口超时、会话时长与前后端密文传输。
 	GroupWebTimeout = "webTimeout"
 	// GroupEnvVars 租户级全局环境变量，供网关过滤器等引用 ${NAME}。
 	GroupEnvVars = "envVars"
@@ -54,12 +56,17 @@ type RetentionJobSettings struct {
 	StartTime       string `json:"startTime"`
 }
 
-// WebTimeoutSettings 管理端访问超时。
+// WebTimeoutSettings 管理端 Web 访问。
 // RequestTimeoutSeconds 同时作为 axios 超时和 http.Server 的 Read/Write 超时。
 // SessionExpireHours 控制登录会话 TTL。
+// CipherEnabled 开启后登录/改密/建用户等口令字段走 RSA-OAEP；密钥对入库并全集群共用。
 type WebTimeoutSettings struct {
-	RequestTimeoutSeconds int `json:"requestTimeoutSeconds"`
-	SessionExpireHours    int `json:"sessionExpireHours"`
+	RequestTimeoutSeconds int    `json:"requestTimeoutSeconds"`
+	SessionExpireHours    int    `json:"sessionExpireHours"`
+	CipherEnabled         bool   `json:"cipherEnabled"`
+	Kid                   string `json:"kid,omitempty"`
+	PublicKey             string `json:"publicKey,omitempty"`
+	PrivateKey            string `json:"privateKey,omitempty"`
 }
 
 // DefaultRetention 返回归档策略缺省值，与现有 yaml / 代码默认对齐。
@@ -168,6 +175,47 @@ func ValidateWebTimeout(v WebTimeoutSettings) error {
 	return nil
 }
 
+// PrepareWebTimeout 合并超时与密文开关。已有私钥一律复用，避免保存时轮换；
+// 首次开启且全局尚无钥时生成一对，私钥以 ENCY_ 入库。
+func PrepareWebTimeout(req, existing, global WebTimeoutSettings) (WebTimeoutSettings, error) {
+	v := mergeWebTimeout(req)
+	v.CipherEnabled = req.CipherEnabled
+	if err := ValidateWebTimeout(v); err != nil {
+		return WebTimeoutSettings{}, err
+	}
+
+	src := existing
+	if strings.TrimSpace(src.PrivateKey) == "" {
+		src = global
+	}
+	if strings.TrimSpace(src.PrivateKey) != "" {
+		v.PrivateKey = src.PrivateKey
+		v.PublicKey = src.PublicKey
+		v.Kid = src.Kid
+		return v, nil
+	}
+	if !req.CipherEnabled {
+		return v, nil
+	}
+
+	wrap, err := security.NewPasswordWrap()
+	if err != nil {
+		return WebTimeoutSettings{}, fmt.Errorf("生成传输密钥对失败: %w", err)
+	}
+	priv, err := wrap.PrivatePEM()
+	if err != nil {
+		return WebTimeoutSettings{}, fmt.Errorf("导出传输私钥失败: %w", err)
+	}
+	encPriv, err := security.EncryptWithDefaultKey(priv)
+	if err != nil {
+		return WebTimeoutSettings{}, fmt.Errorf("加密传输私钥失败: %w", err)
+	}
+	v.PrivateKey = encPriv
+	v.PublicKey = wrap.PublicPEM()
+	v.Kid = wrap.Kid()
+	return v, nil
+}
+
 // KnownGroupCodes 返回当前已实现的分组编码，供加载与校验使用。
 func KnownGroupCodes() []string {
 	return []string{GroupRetention, GroupRetentionJob, GroupWebTimeout, GroupEnvVars}
@@ -216,6 +264,19 @@ func mergeWebTimeout(v WebTimeoutSettings) WebTimeoutSettings {
 		v.SessionExpireHours = d.SessionExpireHours
 	}
 	return v
+}
+
+func decodeWebCipherPrivateKey(stored string) string {
+	stored = strings.TrimSpace(stored)
+	if stored == "" {
+		return ""
+	}
+	plain, err := security.DecryptWithDefaultKey(stored)
+	if err != nil {
+		logger.Warn("Web 传输私钥解密失败", "error", err.Error())
+		return ""
+	}
+	return plain
 }
 
 // ValidJobStartTime 判断归档开始时间是否为 HH:mm 或 HH:mm:ss。

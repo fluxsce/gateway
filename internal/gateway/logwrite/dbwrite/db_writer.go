@@ -284,7 +284,7 @@ func (w *DBWriter) Close() error {
 	w.wg.Wait()
 
 	// 刷新剩余的缓冲区数据
-	ctx, cancel := asyncq.WriteContext(0)
+	ctx, cancel := asyncq.WriteContext(types.BatchTimeout(w.config))
 	defer cancel()
 	if err := w.Flush(ctx); err != nil {
 		logger.Error("Failed to flush buffer during close", "error", err)
@@ -352,7 +352,7 @@ func (w *DBWriter) startFlushTimer() {
 		for {
 			select {
 			case <-w.flushTicker.C:
-				ctx, cancel := asyncq.WriteContext(0)
+				ctx, cancel := asyncq.WriteContext(types.BatchTimeout(w.config))
 				if err := w.Flush(ctx); err != nil {
 					logger.Error("Scheduled flush failed", "error", err)
 				}
@@ -488,7 +488,7 @@ func (w *DBWriter) addToBatch(log *types.AccessLog) error {
 
 // writeDirectly 直接写入单条日志到数据库
 func (w *DBWriter) writeDirectly(ctx context.Context, log *types.AccessLog) error {
-	write, cancel := asyncq.EnsureWriteCtx(ctx)
+	write, cancel := asyncq.EnsureWriteCtxTimeout(ctx, types.BatchTimeout(w.config))
 	defer cancel()
 	_, err := w.db.Insert(write, "HUB_GW_ACCESS_LOG", log, true)
 	if err != nil {
@@ -503,7 +503,7 @@ func (w *DBWriter) batchWriteDirectly(ctx context.Context, logs []*types.AccessL
 		return nil
 	}
 
-	write, cancel := asyncq.EnsureWriteCtx(ctx)
+	write, cancel := asyncq.EnsureWriteCtxTimeout(ctx, types.BatchTimeout(w.config))
 	defer cancel()
 	// 使用数据库的批量插入方法，自动处理SQL构建和事务提交
 	_, err := w.db.BatchInsert(write, "HUB_GW_ACCESS_LOG", logs, true)
@@ -516,7 +516,7 @@ func (w *DBWriter) batchWriteDirectly(ctx context.Context, logs []*types.AccessL
 
 // writeBackendTraceDirectly 直接写入单条后端追踪日志到数据库
 func (w *DBWriter) writeBackendTraceDirectly(ctx context.Context, log *types.BackendTraceLog) error {
-	write, cancel := asyncq.EnsureWriteCtx(ctx)
+	write, cancel := asyncq.EnsureWriteCtxTimeout(ctx, types.BatchTimeout(w.config))
 	defer cancel()
 	_, err := w.db.Insert(write, log.TableName(), log, true)
 	if err != nil {
@@ -536,7 +536,7 @@ func (w *DBWriter) batchWriteBackendTraceDirectly(ctx context.Context, logs []*t
 	if len(logs) > 0 {
 		tableName = logs[0].TableName()
 	}
-	write, cancel := asyncq.EnsureWriteCtx(ctx)
+	write, cancel := asyncq.EnsureWriteCtxTimeout(ctx, types.BatchTimeout(w.config))
 	defer cancel()
 	_, err := w.db.BatchInsert(write, tableName, logs, true)
 	if err != nil {

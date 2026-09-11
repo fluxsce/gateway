@@ -3,12 +3,14 @@
  * 处理所有与后端交互的业务逻辑
  */
 
-import { rsConfirm } from '@/ui'
+import { isPasswordWrapError, wrapPasswordFields } from '@/api/passwordWrap'
 import { useAppMessage } from '@/composables/useAppMessage'
 import type { JsonDataObj } from '@/types/api'
+import { rsConfirm } from '@/ui'
 import { createBackendPaginationParams } from '@/utils/pagination'
 import { WarningOutline } from '@vicons/ionicons5'
 import type { Ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import * as userApi from '../api'
 import type { User } from '../types/index'
 import { useUserModel } from './model'
@@ -18,6 +20,7 @@ import { useUserModel } from './model'
  */
 export function useUserService(searchFormRef?: Ref<any> | any) {
   const message = useAppMessage()
+  const { t } = useI18n()
 // 初始化 Model
   const model = useUserModel()
 
@@ -137,7 +140,8 @@ export function useUserService(searchFormRef?: Ref<any> | any) {
   const addUser = async (userData: User): Promise<boolean> => {
     loading.value = true
     try {
-      const response: JsonDataObj = await userApi.addUser(userData)
+      const payload = await wrapPasswordFields(userData, ['password'])
+      const response: JsonDataObj = await userApi.addUser(payload)
 
       if (response.oK && response.state) {
         message.success(response.popMsg || '新增用户成功')
@@ -156,8 +160,8 @@ export function useUserService(searchFormRef?: Ref<any> | any) {
         message.error(response.errMsg || response.popMsg || '新增用户失败')
         return false
       }
-    } catch {
-      message.error('新增用户失败')
+    } catch (error) {
+      message.error(isPasswordWrapError(error) ? t('common.passwordWrap.failed') : '新增用户失败')
       return false
     } finally {
       loading.value = false

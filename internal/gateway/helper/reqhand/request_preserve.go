@@ -6,8 +6,9 @@ import (
 	"gateway/internal/gateway/handler/filter"
 )
 
-// PreserveOriginalRequestInfoIfNeeded 统一的静态方法：检查过滤器并保存原始请求信息
-// 返回是否保存了原始信息
+// PreserveOriginalRequestInfoIfNeeded 在修改类过滤器动手之前，把进网关的原文存进 Original*。
+// 主表访问日志读这些键；从表后端追踪读的是过滤后的 proxyReq，两边不是同一份对象。
+// 返回是否保存了原始信息。
 func PreserveOriginalRequestInfoIfNeeded(ctx *core.Context, filters []filter.Filter) bool {
 	// 检查是否有修改类过滤器
 	hasModifiers := HasModificationFilters(filters)
@@ -82,10 +83,10 @@ func IsModificationFilterType(filterType filter.FilterType) bool {
 	}
 }
 
-// SnapshotHTTPData 快照HTTP请求和响应数据到上下文
-// 用于异步日志记录，在 ServeHTTP 返回前调用
-// 保存请求和响应的关键信息，避免在异步goroutine中访问已回收的HTTP对象
-// 与 PreserveOriginalRequestInfo 保持一致，使用常量键名
+// SnapshotHTTPData 快照 HTTP 请求和响应数据到上下文，供访问日志异步写。
+// 必须在 ServeHTTP 返回前调用；之后 ctx.Request / Writer 会被置 nil。
+// Original* 若过滤器已保存则不覆盖，主表方法/路径/查询/头仍是进网关原文。
+// 此时 ctx.Request 可能已被过滤器改过，新写入的 Snapshot*（proto/host/RemoteAddr/响应头）取当前对象。
 func SnapshotHTTPData(ctx *core.Context) {
 	if ctx.Request != nil {
 		// 如果还没有保存原始方法，则保存（与 PreserveOriginalRequestInfo 保持一致）

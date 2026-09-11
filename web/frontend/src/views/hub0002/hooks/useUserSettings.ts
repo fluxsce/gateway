@@ -2,6 +2,7 @@
  * 用户设置管理 hook
  * 处理用户个人资料、密码修改、系统设置等
  */
+import { isPasswordWrapError, wrapPassword } from '@/api/passwordWrap'
 import { useAppMessage } from '@/composables/useAppMessage'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { store } from '@/stores'
@@ -12,10 +13,9 @@ import type {
   RsSwitchValue,
 } from '@/ui'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
+import { hub0001Api } from '@/views/hub0001/api'
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { hub0001Api } from '@/views/hub0001/api'
-import { editUser, getUserInfo } from '../api'
 import type { User } from '../types'
 
 /** RsForm 暴露的校验与重置方法 */
@@ -70,7 +70,7 @@ export function useUserSettings() {
         return
       }
 
-      const result = await getUserInfo(store.user.userId, store.user.tenantId)
+      const result = await hub0001Api.getProfile()
 
       if (isApiSuccess(result)) {
         const userData = parseJsonData<UserWithDeptName>(result)
@@ -231,27 +231,12 @@ export function useUserSettings() {
         return
       }
 
-      const result = await editUser({
-        userId: profileForm.userId!,
-        tenantId: profileForm.tenantId!,
-        userName: profileForm.userName!,
+      const result = await hub0001Api.updateProfile({
         realName: profileForm.realName!,
-        deptId: userInfo.value.deptId || '',
         email: profileForm.email,
         mobile: profileForm.mobile,
         gender: profileForm.gender,
         avatar: profileForm.avatar,
-        statusFlag: userInfo.value.statusFlag || 'Y',
-        deptAdminFlag: userInfo.value.deptAdminFlag || 'N',
-        tenantAdminFlag: userInfo.value.tenantAdminFlag || 'N',
-        userExpireDate: userInfo.value.userExpireDate || '',
-        addTime: userInfo.value.addTime || new Date().toISOString(),
-        addWho: userInfo.value.addWho || userInfo.value.userId,
-        editTime: new Date().toISOString(),
-        editWho: userInfo.value.userId,
-        oprSeqFlag: userInfo.value.oprSeqFlag || '',
-        currentVersion: userInfo.value.currentVersion || 1,
-        activeFlag: userInfo.value.activeFlag || 'Y',
       })
 
       if (isApiSuccess(result)) {
@@ -295,8 +280,8 @@ export function useUserSettings() {
       changingPassword.value = true
 
       const result = await hub0001Api.changePassword({
-        oldPassword: passwordForm.oldPassword,
-        newPassword: passwordForm.newPassword,
+        oldPassword: await wrapPassword(passwordForm.oldPassword),
+        newPassword: await wrapPassword(passwordForm.newPassword),
       })
 
       if (isApiSuccess(result)) {
@@ -310,8 +295,8 @@ export function useUserSettings() {
       } else {
         message.error(getApiMessage(result, t('password.changeFailed')))
       }
-    } catch {
-      message.error(t('password.changeFailed'))
+    } catch (error) {
+      message.error(isPasswordWrapError(error) ? i18n.t('common.passwordWrap.failed') : t('password.changeFailed'))
     } finally {
       changingPassword.value = false
     }

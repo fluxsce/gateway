@@ -76,8 +76,8 @@ func (dao *LogConfigDAO) AddLogConfig(ctx context.Context, logConfig *models.Log
 	if logConfig.BatchSize == 0 {
 		logConfig.BatchSize = 100
 	}
-	if logConfig.BatchTimeoutMs == 0 {
-		logConfig.BatchTimeoutMs = 5000
+	if logConfig.BatchTimeoutMs <= 1000 {
+		logConfig.BatchTimeoutMs = 30000
 	}
 	if logConfig.LogRetentionDays == 0 {
 		logConfig.LogRetentionDays = 30
@@ -116,6 +116,9 @@ func (dao *LogConfigDAO) AddLogConfig(ctx context.Context, logConfig *models.Log
 
 // UpdateLogConfig 更新日志配置
 func (dao *LogConfigDAO) UpdateLogConfig(ctx context.Context, logConfig *models.LogConfig, operatorId string) error {
+	if logConfig.BatchTimeoutMs <= 1000 {
+		logConfig.BatchTimeoutMs = 30000
+	}
 	// 更新操作信息
 	logConfig.EditTime = time.Now()
 	logConfig.EditWho = operatorId

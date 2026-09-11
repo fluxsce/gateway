@@ -185,8 +185,13 @@ func (w *FileWriter) BatchWrite(ctx context.Context, logs []*types.AccessLog) er
 	return w.flushBuffer()
 }
 
-// Flush 刷新缓冲区
+// Flush 刷新缓冲区。无 deadline 时套 batchTimeoutMs，已取消则不再刷盘。
 func (w *FileWriter) Flush(ctx context.Context) error {
+	write, cancel := asyncq.EnsureWriteCtxTimeout(ctx, types.BatchTimeout(w.config))
+	defer cancel()
+	if err := write.Err(); err != nil {
+		return err
+	}
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
 	return w.flushBuffer()
@@ -608,9 +613,11 @@ func (w *FileWriter) startFlushTicker() {
 		for {
 			select {
 			case <-w.flushTicker.C:
-				w.mutex.Lock()
-				w.flushBuffer()
-				w.mutex.Unlock()
+				ctx, cancel := asyncq.WriteContext(types.BatchTimeout(w.config))
+				if err := w.Flush(ctx); err != nil {
+					logger.Error("Scheduled file flush failed", "error", err)
+				}
+				cancel()
 			case <-w.closeChan:
 				return
 			}

@@ -33,7 +33,8 @@ func NewSettingController(db database.Database) *SettingController {
 	}
 }
 
-// GetEnvSettings 返回当前租户的归档策略、归档任务与 Web 超时，未落库时用默认值、版本为 0。
+// GetEnvSettings 返回当前租户的归档策略、归档任务与 Web 访问，未落库时用默认值、版本为 0。
+// 密文传输回显用全集群共用状态，私钥不返回。
 func (c *SettingController) GetEnvSettings(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 	if tenantId == "" {
@@ -54,6 +55,7 @@ func (c *SettingController) GetEnvSettings(ctx *gin.Context) {
 		WebTimeout:   webTimeoutView(syssetting.DefaultWebTimeout(), 0),
 		EnvVars:      models.EnvVarsView{Items: []models.EnvVarItemView{}, CurrentVersion: 0},
 	}
+	overlayWebCipher(&resp.WebTimeout)
 	for _, row := range rows {
 		if row == nil {
 			continue
@@ -65,6 +67,7 @@ func (c *SettingController) GetEnvSettings(ctx *gin.Context) {
 			resp.RetentionJob = retentionJobView(syssetting.ParseRetentionJob(row.Content), row.CurrentVersion)
 		case syssetting.GroupWebTimeout:
 			resp.WebTimeout = webTimeoutView(syssetting.ParseWebTimeout(row.Content), row.CurrentVersion)
+			overlayWebCipher(&resp.WebTimeout)
 		case syssetting.GroupEnvVars:
 			resp.EnvVars = envVarsViewFromRow(row)
 		}
@@ -87,7 +90,7 @@ func (c *SettingController) SaveEnvSetting(ctx *gin.Context) {
 		return
 	}
 
-	content, err := encodeGroup(req)
+	content, err := c.encodeGroup(ctx, tenantId, req)
 	if err != nil {
 		response.ErrorJSON(ctx, err.Error(), constants.ED00006)
 		return
@@ -119,13 +122,20 @@ func (c *SettingController) SaveEnvSetting(ctx *gin.Context) {
 		Detail:       audit.SanitizeAuditDetail(map[string]interface{}{"groupCode": req.GroupCode, "version": version}),
 	})
 
-	response.SuccessJSON(ctx, gin.H{
+	resp := gin.H{
 		"groupCode":      req.GroupCode,
 		"currentVersion": version,
-	}, constants.SD00004)
+	}
+	if req.GroupCode == syssetting.GroupWebTimeout {
+		cipher := syssetting.GetWebCipher()
+		resp["cipherEnabled"] = cipher.CipherEnabled
+		resp["kid"] = cipher.Kid
+		resp["publicKey"] = cipher.PublicKey
+	}
+	response.SuccessJSON(ctx, resp, constants.SD00004)
 }
 
-func encodeGroup(req models.SaveSettingRequest) (string, error) {
+func (c *SettingController) encodeGroup(ctx *gin.Context, tenantId string, req models.SaveSettingRequest) (string, error) {
 	switch req.GroupCode {
 	case syssetting.GroupRetention:
 		v := syssetting.RetentionSettings{
@@ -159,14 +169,23 @@ func encodeGroup(req models.SaveSettingRequest) (string, error) {
 		}
 		return string(b), nil
 	case syssetting.GroupWebTimeout:
-		v := syssetting.WebTimeoutSettings{
-			RequestTimeoutSeconds: req.RequestTimeoutSeconds,
-			SessionExpireHours:    req.SessionExpireHours,
-		}
-		if err := syssetting.ValidateWebTimeout(v); err != nil {
+		existing := syssetting.DefaultWebTimeout()
+		row, err := c.dao.Get(ctx, tenantId, syssetting.GroupWebTimeout)
+		if err != nil {
 			return "", err
 		}
-		b, err := json.Marshal(v)
+		if row != nil {
+			existing = syssetting.ParseWebTimeout(row.Content)
+		}
+		prepared, err := syssetting.PrepareWebTimeout(syssetting.WebTimeoutSettings{
+			RequestTimeoutSeconds: req.RequestTimeoutSeconds,
+			SessionExpireHours:    req.SessionExpireHours,
+			CipherEnabled:         req.CipherEnabled,
+		}, existing, syssetting.GetWebCipher())
+		if err != nil {
+			return "", err
+		}
+		b, err := json.Marshal(prepared)
 		if err != nil {
 			return "", err
 		}
@@ -205,8 +224,19 @@ func webTimeoutView(v syssetting.WebTimeoutSettings, version int) models.WebTime
 	return models.WebTimeoutView{
 		RequestTimeoutSeconds: v.RequestTimeoutSeconds,
 		SessionExpireHours:    v.SessionExpireHours,
+		CipherEnabled:         v.CipherEnabled,
+		Kid:                   v.Kid,
+		PublicKey:             v.PublicKey,
 		CurrentVersion:        version,
 	}
+}
+
+// overlayWebCipher 密文传输是全集群一把钥，回显用运行时全局状态，不按本租户行切割。
+func overlayWebCipher(view *models.WebTimeoutView) {
+	cipher := syssetting.GetWebCipher()
+	view.CipherEnabled = cipher.CipherEnabled
+	view.Kid = cipher.Kid
+	view.PublicKey = cipher.PublicKey
 }
 
 func groupDisplayName(groupCode string) string {
@@ -216,7 +246,7 @@ func groupDisplayName(groupCode string) string {
 	case syssetting.GroupRetentionJob:
 		return "归档任务"
 	case syssetting.GroupWebTimeout:
-		return "Web访问超时"
+		return "Web访问"
 	case syssetting.GroupEnvVars:
 		return "全局环境变量"
 	default:

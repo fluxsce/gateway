@@ -2,7 +2,7 @@
  * 环境设置模块 API
  *
  * API路径: /gateway/hub0009
- * - POST /getEnvSettings - 读取归档策略、归档任务、Web 超时与全局环境变量
+ * - POST /getEnvSettings - 读取归档策略、归档任务、Web 访问与全局环境变量
  * - POST /saveEnvSetting - 保存单个分组
  * - POST /saveEnvVar - 新增或更新一条全局环境变量
  * - POST /deleteEnvVar - 删除一条全局环境变量

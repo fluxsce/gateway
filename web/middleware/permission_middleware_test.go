@@ -18,6 +18,12 @@ func TestMustChangePwdAllowed(t *testing.T) {
 	if !mustChangePwdAllowed(http.MethodGet, root+"/userinfo") {
 		t.Fatal("userinfo 应放行")
 	}
+	if !mustChangePwdAllowed(http.MethodGet, root+"/profile") {
+		t.Fatal("读取个人资料应放行")
+	}
+	if mustChangePwdAllowed(http.MethodPut, root+"/profile") {
+		t.Fatal("强制改密期间不应改资料")
+	}
 	if mustChangePwdAllowed(http.MethodPost, constants.APIRoot+"/hub0002/queryUsers") {
 		t.Fatal("业务接口不应放行")
 	}

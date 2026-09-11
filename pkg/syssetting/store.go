@@ -1,7 +1,11 @@
 package syssetting
 
 import (
+	"strings"
 	"sync"
+
+	"gateway/pkg/logger"
+	"gateway/pkg/security"
 )
 
 const defaultTenantID = "default"
@@ -84,6 +88,36 @@ func GetWebTimeout(tenantId string) WebTimeoutSettings {
 	return DefaultWebTimeout()
 }
 
+// GetWebCipher 返回全集群共用的密文传输设置。优先 default 租户已启用且有钥的行，
+// 否则取任意已加载租户中带私钥的一行。登录尚不知租户，必须走这里。
+func GetWebCipher() WebTimeoutSettings {
+	global.mu.RLock()
+	defer global.mu.RUnlock()
+	return pickWebCipher(global.webTimeout)
+}
+
+func pickWebCipher(rows map[string]WebTimeoutSettings) WebTimeoutSettings {
+	var fallback WebTimeoutSettings
+	if v, ok := rows[defaultTenantID]; ok && strings.TrimSpace(v.PrivateKey) != "" {
+		if v.CipherEnabled {
+			return v
+		}
+		fallback = v
+	}
+	for _, v := range rows {
+		if v.CipherEnabled && strings.TrimSpace(v.PrivateKey) != "" {
+			return v
+		}
+		if strings.TrimSpace(fallback.PrivateKey) == "" && strings.TrimSpace(v.PrivateKey) != "" {
+			fallback = v
+		}
+	}
+	if strings.TrimSpace(fallback.PrivateKey) != "" {
+		return fallback
+	}
+	return DefaultWebTimeout()
+}
+
 // PutRetention 写入租户归档策略缓存，保存成功后由 hub0009 调用。
 func PutRetention(tenantId string, v RetentionSettings) {
 	tenantId = normTenant(tenantId)
@@ -109,6 +143,7 @@ func PutWebTimeout(tenantId string, v WebTimeoutSettings) {
 	global.webTimeout[tenantId] = merged
 	global.mu.Unlock()
 	notifyHTTPTimeout(merged.RequestTimeoutSeconds)
+	activateWebCipher()
 }
 
 // PutEnvVars 写入租户全局环境变量缓存。密文在写入时解密，运行时按明文展开。
@@ -173,6 +208,28 @@ func KnownTenantIDs() []string {
 		ids = append(ids, k)
 	}
 	return ids
+}
+
+// activateWebCipher 按全局密文设置安装或清空包装钥。PutWebTimeout 之后调用。
+func activateWebCipher() {
+	s := GetWebCipher()
+	if !s.CipherEnabled {
+		security.SetPasswordWrap(nil)
+		return
+	}
+	pemStr := decodeWebCipherPrivateKey(s.PrivateKey)
+	if pemStr == "" {
+		logger.Error("已开启密文传输但私钥不可用，拒绝明文口令")
+		security.SetPasswordWrap(nil)
+		return
+	}
+	w, err := security.LoadPasswordWrapPEM(pemStr)
+	if err != nil {
+		logger.Error("加载 Web 传输私钥失败", "error", err.Error())
+		security.SetPasswordWrap(nil)
+		return
+	}
+	security.SetPasswordWrap(w)
 }
 
 // GetRetentionJobForSchedule 归档 Job 的进程级调度。优先 default 租户已缓存值，否则用任意已加载租户。

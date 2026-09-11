@@ -224,6 +224,42 @@ func (dao *UserDAO) UpdateUser(ctx context.Context, user *models.User, operatorI
 	return nil
 }
 
+// UpdateOwnProfile 只更新本人资料字段，不改账号、部门、状态、管理员标记和密码。
+func (dao *UserDAO) UpdateOwnProfile(ctx context.Context, userId, tenantId, operatorId, realName, email, mobile, avatar string, gender int) error {
+	if userId == "" || tenantId == "" {
+		return errors.New("userId和tenantId不能为空")
+	}
+
+	currentUser, err := dao.GetUserById(ctx, userId, tenantId)
+	if err != nil {
+		return err
+	}
+	if currentUser == nil {
+		return ErrUserNotFound
+	}
+
+	now := time.Now()
+	sql := `
+		UPDATE HUB_USER SET
+			realName = ?, email = ?, mobile = ?, avatar = ?, gender = ?,
+			editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?
+		WHERE userId = ? AND tenantId = ? AND currentVersion = ?
+	`
+	params := []interface{}{
+		realName, email, mobile, avatar, gender,
+		now, operatorId, random.GenerateUniqueStringWithPrefix("", 32), currentUser.CurrentVersion + 1,
+		userId, tenantId, currentUser.CurrentVersion,
+	}
+	result, err := dao.db.Exec(ctx, sql, params, true)
+	if err != nil {
+		return huberrors.WrapError(err, "更新个人资料失败")
+	}
+	if result == 0 {
+		return errors.New("用户数据已被其他用户修改，请刷新后重试")
+	}
+	return nil
+}
+
 // DeleteUser 物理删除用户
 func (dao *UserDAO) DeleteUser(ctx context.Context, userId, tenantId, operatorId string) error {
 	if userId == "" || tenantId == "" {

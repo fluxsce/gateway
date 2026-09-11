@@ -239,7 +239,7 @@ func (dao *GatewayInstanceDAO) createDefaultLogConfig(tenantId, operatorId strin
 		AsyncFlushIntervalMs:       5000,
 		EnableBatchProcessing:      "Y",
 		BatchSize:                  100,
-		BatchTimeoutMs:             5000,
+		BatchTimeoutMs:             30000,
 		LogRetentionDays:           gatewayLogDefaultDays(tenantId),
 		EnableFileRotation:         "Y",
 		MaxFileSizeMB:              &maxFileSizeMB,

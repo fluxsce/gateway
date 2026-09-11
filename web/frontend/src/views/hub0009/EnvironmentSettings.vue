@@ -144,6 +144,22 @@
                 <span class="field-unit">{{ t(`common.${field.unit}`) }}</span>
               </div>
             </RsFormItem>
+            <RsFormItem>
+              <template #label>
+                <RsTooltip :content="t('webTimeout.cipherEnabledDesc')" icon>
+                  {{ t('webTimeout.cipherEnabled') }}
+                </RsTooltip>
+              </template>
+              <RsSwitch v-model="webTimeout.cipherEnabled" :disabled="!canEdit" />
+            </RsFormItem>
+            <RsFormItem v-if="webTimeout.kid">
+              <template #label>
+                <RsTooltip :content="t('webTimeout.kidDesc')" icon>
+                  {{ t('webTimeout.kid') }}
+                </RsTooltip>
+              </template>
+              <span class="cipher-kid">{{ webTimeout.kid }}</span>
+            </RsFormItem>
             <div class="form-actions">
               <RsButton
                 variant="primary"
@@ -190,12 +206,12 @@ import {
 import { computed, onMounted, ref } from 'vue'
 import EnvVarsPanel from './components/EnvVarsPanel.vue'
 import { useEnvironmentSettings } from './hooks'
-import type { RetentionSettings, WebTimeoutSettings } from './types'
+import type { RetentionSettings } from './types'
 
 defineOptions({ name: 'EnvironmentSettings' })
 
 type RetentionDayKey = Exclude<keyof RetentionSettings, 'currentVersion'>
-type WebTimeoutKey = Exclude<keyof WebTimeoutSettings, 'currentVersion'>
+type WebTimeoutNumberKey = 'requestTimeoutSeconds' | 'sessionExpireHours'
 type SettingTab = 'retention' | 'retentionJob' | 'webTimeout' | 'envVars'
 
 const { t } = useModuleI18n('hub0009')
@@ -220,7 +236,7 @@ const retentionFields: RetentionDayKey[] = [
 ]
 
 const webTimeoutFields: {
-  key: WebTimeoutKey
+  key: WebTimeoutNumberKey
   min: number
   max: number
   unit: 'seconds' | 'hours'
@@ -376,6 +392,13 @@ onMounted(() => {
   color: var(--rs-muted);
   font-size: var(--rs-font-size-sm);
   white-space: nowrap;
+}
+
+.cipher-kid {
+  color: var(--rs-muted);
+  font-family: var(--rs-font-mono, ui-monospace, monospace);
+  font-size: var(--rs-font-size-sm);
+  word-break: break-all;
 }
 
 .form-actions {

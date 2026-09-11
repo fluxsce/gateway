@@ -155,7 +155,7 @@ func (w *MongoWriter) BatchWrite(ctx context.Context, logs []*types.AccessLog) e
 
 // Flush 拿走主表缓冲后在锁外 InsertMany，避免慢写堵住入队。
 func (w *MongoWriter) Flush(ctx context.Context) error {
-	write, cancel := asyncq.EnsureWriteCtx(ctx)
+	write, cancel := asyncq.EnsureWriteCtxTimeout(ctx, types.BatchTimeout(w.config))
 	defer cancel()
 	batch := asyncq.Take(&w.mutex, &w.batchBuffer, types.BatchLimit(w.config))
 	if len(batch) == 0 {
@@ -176,7 +176,7 @@ func (w *MongoWriter) Close() error {
 	close(w.stopChan)
 	w.wg.Wait()
 
-	ctx, cancel := asyncq.WriteContext(0)
+	ctx, cancel := asyncq.WriteContext(types.BatchTimeout(w.config))
 	defer cancel()
 	if err := w.Flush(ctx); err != nil {
 		logger.Error("Failed to flush buffer on close", "error", err)
@@ -237,7 +237,7 @@ func (w *MongoWriter) BatchWriteBackendTraceLog(ctx context.Context, logs []*typ
 
 // FlushBackendTrace 拿走从表缓冲后在锁外 InsertMany。
 func (w *MongoWriter) FlushBackendTrace(ctx context.Context) error {
-	write, cancel := asyncq.EnsureWriteCtx(ctx)
+	write, cancel := asyncq.EnsureWriteCtxTimeout(ctx, types.BatchTimeout(w.config))
 	defer cancel()
 	batch := asyncq.Take(&w.backendTraceMutex, &w.backendTraceBatchBuffer, types.BatchLimit(w.config))
 	if len(batch) == 0 {
@@ -255,7 +255,7 @@ func (w *MongoWriter) addToBatch(log *types.AccessLog) error {
 	if len(batch) == 0 {
 		return nil
 	}
-	ctx, cancel := asyncq.WriteContext(0)
+	ctx, cancel := asyncq.WriteContext(types.BatchTimeout(w.config))
 	defer cancel()
 	if err := w.insertMany(ctx, batch); err != nil {
 		logger.Error("Failed to write full Mongo batch", "error", err, "count", len(batch))
@@ -269,7 +269,7 @@ func (w *MongoWriter) addBackendTraceToBatch(log *types.BackendTraceLog) error {
 	if len(batch) == 0 {
 		return nil
 	}
-	ctx, cancel := asyncq.WriteContext(0)
+	ctx, cancel := asyncq.WriteContext(types.BatchTimeout(w.config))
 	defer cancel()
 	if err := w.insertBackendTraceLogMany(ctx, batch); err != nil {
 		logger.Error("Failed to write full Mongo backend trace batch", "error", err, "count", len(batch))
@@ -288,7 +288,7 @@ func (w *MongoWriter) startAsyncProcessor() {
 				if w.config.IsBatchProcessing() {
 					_ = w.addToBatch(log)
 				} else {
-					ctx, cancel := asyncq.WriteContext(0)
+					ctx, cancel := asyncq.WriteContext(types.BatchTimeout(w.config))
 					if err := w.insertOne(ctx, log); err != nil {
 						logger.Error("Failed to write Mongo log in async mode", "error", err, "traceId", log.TraceID)
 					}
@@ -299,7 +299,7 @@ func (w *MongoWriter) startAsyncProcessor() {
 					if w.config.IsBatchProcessing() {
 						_ = w.addToBatch(log)
 					} else {
-						ctx, cancel := asyncq.WriteContext(0)
+						ctx, cancel := asyncq.WriteContext(types.BatchTimeout(w.config))
 						if err := w.insertOne(ctx, log); err != nil {
 							logger.Error("Failed to write Mongo log while draining", "error", err, "traceId", log.TraceID)
 						}
@@ -322,7 +322,7 @@ func (w *MongoWriter) startBackendTraceAsyncProcessor() {
 				if w.config.IsBatchProcessing() {
 					_ = w.addBackendTraceToBatch(log)
 				} else {
-					ctx, cancel := asyncq.WriteContext(0)
+					ctx, cancel := asyncq.WriteContext(types.BatchTimeout(w.config))
 					if err := w.insertBackendTraceLogOne(ctx, log); err != nil {
 						logger.Error("Failed to write Mongo backend trace in async mode",
 							"error", err, "traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
@@ -334,7 +334,7 @@ func (w *MongoWriter) startBackendTraceAsyncProcessor() {
 					if w.config.IsBatchProcessing() {
 						_ = w.addBackendTraceToBatch(log)
 					} else {
-						ctx, cancel := asyncq.WriteContext(0)
+						ctx, cancel := asyncq.WriteContext(types.BatchTimeout(w.config))
 						if err := w.insertBackendTraceLogOne(ctx, log); err != nil {
 							logger.Error("Failed to write Mongo backend trace while draining",
 								"error", err, "traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
@@ -356,7 +356,7 @@ func (w *MongoWriter) startFlushTimer() {
 		for {
 			select {
 			case <-w.flushTicker.C:
-				ctx, cancel := asyncq.WriteContext(0)
+				ctx, cancel := asyncq.WriteContext(types.BatchTimeout(w.config))
 				if err := w.Flush(ctx); err != nil {
 					logger.Error("Scheduled Mongo flush failed", "error", err)
 				}

@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -125,7 +124,7 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 		}
 
 		// 执行代理请求（每次调用都会记录后端追踪日志）
-		err, attemptDuration := h.proxyRequest(ctx, serviceConfig, node, attempt)
+		err, attemptDuration := h.proxyRequest(ctx, serviceConfig, node, attempt, maxRetries)
 		// 按本次尝试回写节点熔断：连接失败与上游 5xx 摘除该实例，4xx 不摘除
 		if node != nil {
 			statusCode, _ := ctx.GetInt(constants.BackendStatusCode)
@@ -186,10 +185,11 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 
 // proxyRequest 代理请求到指定节点（内部方法）
 // retryCount: 当前请求是第几次重试（0表示首次请求）
+// maxRetries: 允许的最大重试次数；大于 0 或记请求体时整包缓冲，否则原样流过
 // 返回值:
 // - error: 请求错误（如果有）
 // - time.Duration: 本次请求的耗时，用于重试累加
-func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.ServiceConfig, node *service.NodeConfig, retryCount int) (error, time.Duration) {
+func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.ServiceConfig, node *service.NodeConfig, retryCount int, maxRetries int) (error, time.Duration) {
 	// 解析目标URL
 	target, err := url.Parse(node.URL)
 	if err != nil {
@@ -213,20 +213,11 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 	// 设置目标URL
 	ctx.SetTargetURL(proxyURL.String())
 
-	// 创建代理请求
-	var body io.Reader
-	if ctx.Request.Body != nil {
-		bodyBytes, err := io.ReadAll(ctx.Request.Body)
-		if err != nil {
-			return fmt.Errorf("读取请求体失败: %w", err), 0
-		}
-		body = bytes.NewReader(bodyBytes)
-		// 重置原请求的Body
-		ctx.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-		// 根据日志配置决定是否缓存请求体到上下文中，供日志记录使用
-		if h.shouldRecordRequestBody(ctx) {
-			ctx.Set("request_body", bodyBytes)
-		}
+	// 创建代理请求。此时过滤器已跑完，ctx.Request 是改过的对象（路径/头/体）。
+	// 会重试或记请求体则整包缓冲（request_body 为完整转发体，截断在写库）；否则原样流过。
+	fwd, err := prepareForwardAssist(ctx.Request, maxRetries, h.shouldRecordRequestBody(ctx))
+	if err != nil {
+		return err, 0
 	}
 
 	proxyCtx, cancelProxy := context.WithCancel(ctx.Request.Context())
@@ -241,10 +232,16 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 		proxyCtx,
 		ctx.Request.Method,
 		proxyURL.String(),
-		body,
+		fwd.Body(),
 	)
 	if err != nil {
 		return fmt.Errorf("创建代理请求失败: %w", err), 0
+	}
+	// NewRequest 只对 *bytes.Reader / *bytes.Buffer / *strings.Reader 自动填 ContentLength。
+	// 整包缓冲走 bytes.Reader，这里写入的是同一长度。流式 Body 不会自动算，必须带上客户端声明的长度，
+	// 否则上游会变成 chunked，和原先 ReadAll 之后带 Content-Length 不一致。
+	if cl := fwd.ContentLength(); cl >= 0 {
+		proxyReq.ContentLength = cl
 	}
 
 	// 复制请求头
@@ -289,12 +286,7 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 	// 从 proxyReq 中获取实际的请求方法和URL
 	requestMethod := proxyReq.Method
 	requestURL := proxyReq.URL.String()
-	var requestSize int
-	if bodyData, exists := ctx.Get("request_body"); exists {
-		if bodyBytes, ok := bodyData.([]byte); ok {
-			requestSize = len(bodyBytes)
-		}
-	}
+	requestSize := fwd.KnownSize()
 
 	// 获取服务ID和服务名称（用于日志记录）
 	serviceID := ""
@@ -313,11 +305,12 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 
 	// 使用defer确保无论成功失败都能保存header参数，并写入后端追踪日志
 	defer func() {
-		// 在响应处理完成后复制header，避免影响核心时间统计
-		headersCopy := make(http.Header)
-		for k, v := range proxyReq.Header {
-			headersCopy[k] = append([]string(nil), v...)
+		fwd.CommitBody(ctx)
+		if size := fwd.KnownSize(); size > 0 {
+			requestSize = size
 		}
+		// 深拷一份发出的头（过滤后 + hop 剔除 + 代理补头 + trace），上下文和从表共用，不是进网关原文。
+		headersCopy := fwd.CloneHeader(proxyReq.Header)
 		ctx.Set(constants.ContextKeyForwardHeaders, headersCopy)
 
 		// 后端请求结束时间（用于后端追踪日志，不等于网关响应时间）
@@ -326,13 +319,8 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 			backendResponseTime = time.Now()
 		}
 
-		// 同步构建后端追踪日志对象并异步写入（避免上下文取消带来的异常）
-		// 使用日志写入类的静态方法处理，响应信息和转发信息从局部变量获取（不从上下文获取，避免多服务转发混淆）
-		// 将转发请求头转换为 map[string][]string 格式
-		forwardHeadersMap := make(map[string][]string)
-		for k, v := range headersCopy {
-			forwardHeadersMap[k] = append([]string(nil), v...)
-		}
+		// 快照后入队写后端追踪：方法/URL/头/体都是这次 proxyReq 的真实转发内容。
+		// 组对象不在本 goroutine。响应和转发字段从局部变量取。
 
 		// 获取转发请求体
 		var forwardBodyBytes []byte
@@ -355,7 +343,7 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 			responseStatusCode,
 			responseHeaders,
 			responseBody,
-			forwardHeadersMap, // 转发请求头作为参数传入，避免并发覆盖
+			map[string][]string(headersCopy), // 与 ctx 同一份深拷，避免再拷一遍；不是活的 proxyReq.Header
 			forwardBodyBytes,  // 转发请求体作为参数传入，避免并发覆盖
 			responseErr,
 			serviceName, // 服务名称，从 node 中获取

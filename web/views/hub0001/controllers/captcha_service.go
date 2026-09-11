@@ -7,8 +7,10 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"gateway/pkg/cache"
 	"gateway/pkg/config"
 	"gateway/pkg/logger"
 	"gateway/web/views/hub0001/models"
@@ -25,6 +27,8 @@ const (
 	captchaCodeLength    = 6
 	captchaTTL           = 2 * time.Minute
 	captchaClockSkew     = 5 * time.Second
+	captchaUsedPrefix    = "captcha:used:"
+	captchaUsedSweepSize = 1024
 )
 
 var (
@@ -40,19 +44,41 @@ var (
 
 var captchaSecretWarnOnce sync.Once
 
+// captchaConsumeStore 核销已用验证码票。default 缓存即可，单测可替换。
+type captchaConsumeStore interface {
+	SetNXString(ctx context.Context, key string, value string, expiration time.Duration) (bool, error)
+}
+
+// captchaUsedMem 本节点已核销 nonce，避免无缓存时同一进程内复用。
+type captchaUsedMem struct {
+	mu   sync.Mutex
+	used map[string]int64
+}
+
 // CaptchaService 图形验证码服务。
-// 使用 HMAC 签名票，服务端不存储明文或哈希；票内不含答案，仅含过期时间、nonce 与 MAC。
-// 集群节点共用 web.jwt_secret（或回退密钥）即可互相签发与校验。
+// 使用 HMAC 签名票，服务端不存储明文答案；票内不含答案，仅含过期时间、nonce 与 MAC。
+// 校验时按 nonce 核销，同一张票只能用一次。集群共用 web.jwt_secret 即可互相签发；
+// 核销走 default 缓存（内存模式按节点生效，切 Redis 后全集群共享）。
 type CaptchaService struct {
 	secret []byte
 	ttl    time.Duration
+	used   *captchaUsedMem
+	store  captchaConsumeStore
 }
 
 // NewCaptchaService 创建验证码服务，密钥与全节点 JWT 密钥对齐。
 func NewCaptchaService() *CaptchaService {
+	var store captchaConsumeStore
+	if mgr := cache.GetGlobalManager(); mgr != nil {
+		if c := mgr.GetCache("default"); c != nil {
+			store = c
+		}
+	}
 	return &CaptchaService{
 		secret: loadCaptchaSecret(),
 		ttl:    captchaTTL,
+		used:   newCaptchaUsedMem(),
+		store:  store,
 	}
 }
 
@@ -97,8 +123,8 @@ func (s *CaptchaService) GenerateCaptcha(ctx context.Context, req *models.Captch
 	}, nil
 }
 
-// VerifyCaptcha 校验用户输入。成功只说明票与输入匹配，不在服务端核销。
-// 短 TTL 内同一张票可重复使用，登录失败锁定用于限制撞库。
+// VerifyCaptcha 校验用户输入并核销该票。
+// 结构合法且未过期的票首次校验即作废，无论答案对错，防止时效内重放。
 func (s *CaptchaService) VerifyCaptcha(ctx context.Context, captchaId, code string) error {
 	if captchaId == "" || strings.TrimSpace(code) == "" {
 		return ErrCaptchaRequired
@@ -115,6 +141,10 @@ func (s *CaptchaService) VerifyCaptcha(ctx context.Context, captchaId, code stri
 	}
 
 	nonce := raw[9 : 9+captchaNonceSize]
+	if err := s.consumeTicket(ctx, nonce, expUnix); err != nil {
+		return err
+	}
+
 	expectedMAC := raw[9+captchaNonceSize:]
 	actualMAC := s.computeMAC(raw[0], expUnix, nonce, normalizeCaptchaCode(code))
 	if !hmac.Equal(expectedMAC, actualMAC) {
@@ -122,6 +152,60 @@ func (s *CaptchaService) VerifyCaptcha(ctx context.Context, captchaId, code stri
 		return ErrCaptchaInvalid
 	}
 	return nil
+}
+
+// consumeTicket 按 nonce 原子核销一张票。已用过则视为过期，不区分对错以免探测。
+func (s *CaptchaService) consumeTicket(ctx context.Context, nonce []byte, expUnix int64) error {
+	key := captchaUsedPrefix + hex.EncodeToString(nonce)
+	expireAt := time.Unix(expUnix, 0).Add(captchaClockSkew)
+	ttl := time.Until(expireAt)
+	if ttl < time.Second {
+		ttl = time.Second
+	}
+
+	if s.used != nil && !s.used.tryAdd(key, expireAt) {
+		return ErrCaptchaExpired
+	}
+	if s.store == nil {
+		return nil
+	}
+
+	ok, err := s.store.SetNXString(ctx, key, "1", ttl)
+	if err != nil {
+		logger.WarnWithTrace(ctx, "核销验证码票到缓存失败，仅本节点生效", "error", err)
+		return nil
+	}
+	if !ok {
+		return ErrCaptchaExpired
+	}
+	return nil
+}
+
+func newCaptchaUsedMem() *captchaUsedMem {
+	return &captchaUsedMem{used: make(map[string]int64)}
+}
+
+// tryAdd 记录 nonce。已存在且未过期返回 false。
+func (m *captchaUsedMem) tryAdd(key string, expireAt time.Time) bool {
+	if m == nil {
+		return true
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	now := time.Now().Unix()
+	if exp, ok := m.used[key]; ok && exp > now {
+		return false
+	}
+	m.used[key] = expireAt.Unix()
+	if len(m.used) > captchaUsedSweepSize {
+		for k, exp := range m.used {
+			if exp <= now {
+				delete(m.used, k)
+			}
+		}
+	}
+	return true
 }
 
 // ValidateCaptcha 校验验证码并返回是否通过。

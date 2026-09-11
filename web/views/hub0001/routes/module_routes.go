@@ -37,6 +37,7 @@ func Init(router *gin.Engine, db database.Database) {
 		// 公开API - 不需要认证的路由
 		authGroup.POST("/login", routes.PublicAPI(), authController.Login)
 		authGroup.POST("/captcha", routes.PublicAPI(), authController.GetCaptcha)
+		authGroup.GET("/password-key", routes.PublicAPI(), authController.GetPasswordKey)
 		authGroup.GET("/version", routes.PublicAPI(), authController.GetVersion)
 
 		// 受保护API - 需要Session认证的路由
@@ -44,6 +45,8 @@ func Init(router *gin.Engine, db database.Database) {
 		sessionGroup.Use(routes.PermissionRequired()...) // 必须有有效session
 		{
 			sessionGroup.GET("/userinfo", authController.UserInfo)
+			sessionGroup.GET("/profile", authController.GetProfile)
+			sessionGroup.PUT("/profile", authController.UpdateProfile)
 			sessionGroup.POST("/refresh-session", authController.RefreshSession)
 			sessionGroup.POST("/logout", authController.Logout)
 			sessionGroup.PUT("/password", authController.ChangePassword)

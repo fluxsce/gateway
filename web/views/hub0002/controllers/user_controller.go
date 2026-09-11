@@ -123,6 +123,13 @@ func (c *UserController) AddUser(ctx *gin.Context) {
 	}
 	req.TenantAdminFlag = flag
 
+	plainPassword, unwrapErr := security.UnwrapPassword(req.Password)
+	if unwrapErr != nil {
+		response.ErrorJSON(ctx, security.ErrPasswordWrapRequired.Error(), constants.ED00007)
+		return
+	}
+	req.Password = plainPassword
+
 	// 调用DAO添加用户
 	userId, err := c.userDAO.AddUser(ctx, &req, operatorId)
 	if err != nil {
@@ -166,7 +173,8 @@ func (c *UserController) AddUser(ctx *gin.Context) {
 	response.SuccessJSON(ctx, userInfo, constants.SD00003)
 }
 
-// Update 更新用户
+// EditUser 用户管理更新指定用户，需要 hub0002:edit。
+// 个人资料请走 /user/profile，不能用本接口改他人。
 // @Summary 更新用户
 // @Description 更新用户信息
 // @Tags 用户管理

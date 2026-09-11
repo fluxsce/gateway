@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // LogLevel 日志级别
@@ -56,7 +57,8 @@ const (
 const (
 	DefaultAsyncQueueSize       = 10000
 	DefaultBatchSize            = 100
-	DefaultBatchTimeoutMs       = 5000
+	DefaultBatchTimeoutMs       = 30000 // 写库/刷盘超时，对齐原先固定 30s
+	MinBatchTimeoutMs           = 1000  // 旧表单默认；小于等于此值运行时抬到 DefaultBatchTimeoutMs
 	DefaultAsyncFlushIntervalMs = 5000
 	DefaultMaxBodySizeBytes     = 4096
 	DefaultLogRetentionDays     = 30
@@ -103,7 +105,7 @@ type LogConfig struct {
 	AsyncFlushIntervalMs  int    `json:"asyncFlushIntervalMs" db:"asyncFlushIntervalMs"`   // 异步刷新间隔(毫秒)
 	EnableBatchProcessing string `json:"enableBatchProcessing" db:"enableBatchProcessing"` // 是否启用批量处理(N否,Y是)
 	BatchSize             int    `json:"batchSize" db:"batchSize"`                         // 批量处理大小(1-10000)
-	BatchTimeoutMs        int    `json:"batchTimeoutMs" db:"batchTimeoutMs"`               // 批量处理超时时间(毫秒)
+	BatchTimeoutMs        int    `json:"batchTimeoutMs" db:"batchTimeoutMs"`               // 批处理超时(毫秒)：写库/刷盘 I/O 上限
 
 	// 日志保留和轮转配置 - 磁盘空间管理
 	LogRetentionDays   int    `json:"logRetentionDays" db:"logRetentionDays"`     // 日志保留天数(1-3650)
@@ -638,7 +640,7 @@ func (c *LogConfig) SetDefaults() {
 		c.BatchSize = DefaultBatchSize
 	}
 
-	if c.BatchTimeoutMs == 0 {
+	if c.BatchTimeoutMs <= MinBatchTimeoutMs {
 		c.BatchTimeoutMs = DefaultBatchTimeoutMs
 	}
 
@@ -705,6 +707,19 @@ func FlushIntervalMs(config *LogConfig) int {
 		return DefaultAsyncFlushIntervalMs
 	}
 	return config.AsyncFlushIntervalMs
+}
+
+// BatchTimeoutMs 返回批处理超时毫秒。未配置或小于等于 MinBatchTimeoutMs（旧表单 1000）时用 DefaultBatchTimeoutMs。
+func BatchTimeoutMs(config *LogConfig) int {
+	if config == nil || config.BatchTimeoutMs <= MinBatchTimeoutMs {
+		return DefaultBatchTimeoutMs
+	}
+	return config.BatchTimeoutMs
+}
+
+// BatchTimeout 返回写库/刷盘超时，供写入器构造 context。
+func BatchTimeout(config *LogConfig) time.Duration {
+	return time.Duration(BatchTimeoutMs(config)) * time.Millisecond
 }
 
 // contains 辅助函数：检查字符串是否在切片中

@@ -3,10 +3,10 @@
  * 模拟用户登录、注册、获取用户信息等接口
  * 注意：字段命名符合数据库命名规范，布尔型使用Flag后缀，状态使用适当的值类型表示
  */
-import type { MockMethod } from 'vite-plugin-mock'
 import type { JsonDataObj } from '@/types/api'
-import { moduleApiPrefix, requestPathHelper } from '../../api/requestPath'
 import Mock from 'mockjs'
+import type { MockMethod } from 'vite-plugin-mock'
+import { moduleApiPrefix, requestPathHelper } from '../../api/requestPath'
 
 /**
  * 请求处理函数参数接口
@@ -142,6 +142,12 @@ export default [
     },
   },
 
+  {
+    url: requestPathHelper.join(moduleApiPrefix('user'), 'password-key'),
+    method: 'get',
+    response: () => createJsonDataResponse({ enabled: false }, true, 'ok'),
+  },
+
   // 用户登录
   {
     url: requestPathHelper.join(moduleApiPrefix('user'), 'login'),
@@ -183,6 +189,29 @@ export default [
       }
 
       return createJsonDataResponse(null, false, '用户名或密码错误')
+    },
+  },
+
+  {
+    url: requestPathHelper.join(moduleApiPrefix('user'), 'profile'),
+    method: 'get',
+    response: () => {
+      const { password: _password, ...safeUser } = users[0]
+      return createJsonDataResponse(safeUser, true, '获取个人资料成功')
+    },
+  },
+
+  {
+    url: requestPathHelper.join(moduleApiPrefix('user'), 'profile'),
+    method: 'put',
+    response: ({ body }: Pick<RequestParams, 'body'>) => {
+      const current = users[0]
+      current.realName = body.realName ?? current.realName
+      current.email = body.email ?? current.email
+      current.mobile = body.mobile ?? current.mobile
+      current.avatar = body.avatar ?? current.avatar
+      const { password: _password, ...safeUser } = current
+      return createJsonDataResponse(safeUser, true, '更新个人资料成功')
     },
   },
 ] as MockMethod[]

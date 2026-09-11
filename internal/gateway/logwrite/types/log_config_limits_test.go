@@ -1,6 +1,9 @@
 package types
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestQueueSizeBatchLimitFlushInterval(t *testing.T) {
 	if got := QueueSize(nil); got != DefaultAsyncQueueSize {
@@ -28,5 +31,29 @@ func TestQueueSizeBatchLimitFlushInterval(t *testing.T) {
 	}
 	if got := FlushIntervalMs(&LogConfig{AsyncFlushIntervalMs: 3000}); got != 3000 {
 		t.Fatalf("FlushIntervalMs(3000) = %d", got)
+	}
+}
+
+func TestBatchTimeout(t *testing.T) {
+	if got := BatchTimeoutMs(nil); got != DefaultBatchTimeoutMs {
+		t.Fatalf("BatchTimeoutMs(nil) = %d, want %d", got, DefaultBatchTimeoutMs)
+	}
+	if got := BatchTimeoutMs(&LogConfig{BatchTimeoutMs: 0}); got != DefaultBatchTimeoutMs {
+		t.Fatalf("BatchTimeoutMs(0) 应用默认")
+	}
+	if got := BatchTimeoutMs(&LogConfig{BatchTimeoutMs: MinBatchTimeoutMs}); got != DefaultBatchTimeoutMs {
+		t.Fatalf("BatchTimeoutMs(1000) 抬到默认，旧表单值过短")
+	}
+	if got := BatchTimeoutMs(&LogConfig{BatchTimeoutMs: 10000}); got != 10000 {
+		t.Fatalf("BatchTimeoutMs(10000) = %d", got)
+	}
+	if got := BatchTimeout(&LogConfig{BatchTimeoutMs: 10000}); got != 10*time.Second {
+		t.Fatalf("BatchTimeout(10000) = %s, want 10s", got)
+	}
+
+	cfg := &LogConfig{BatchTimeoutMs: MinBatchTimeoutMs}
+	cfg.SetDefaults()
+	if cfg.BatchTimeoutMs != DefaultBatchTimeoutMs {
+		t.Fatalf("SetDefaults 应将 1000 抬到 %d, got %d", DefaultBatchTimeoutMs, cfg.BatchTimeoutMs)
 	}
 }

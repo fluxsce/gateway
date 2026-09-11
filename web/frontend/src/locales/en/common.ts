@@ -135,4 +135,7 @@ export default {
     dark: 'Dark Mode',
     toggleTheme: 'Toggle Theme',
   },
+  passwordWrap: {
+    failed: 'Could not encrypt the password. Refresh and try again.',
+  },
 }

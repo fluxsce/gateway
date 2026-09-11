@@ -239,7 +239,7 @@ func mustChangePwdAllowed(method, path string) bool {
 		return true
 	case strings.EqualFold(method, http.MethodPost) && (p == root+"/logout" || p == root+"/refresh-session"):
 		return true
-	case strings.EqualFold(method, http.MethodGet) && p == root+"/userinfo":
+	case strings.EqualFold(method, http.MethodGet) && (p == root+"/userinfo" || p == root+"/profile"):
 		return true
 	default:
 		return false

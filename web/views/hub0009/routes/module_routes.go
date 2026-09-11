@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// hub0009 环境设置：归档策略、归档任务、Web 访问超时、全局环境变量等租户级策略。
+// hub0009 环境设置：归档策略、归档任务、Web 访问、全局环境变量等租户级策略。
 var (
 	// ModuleName 模块名称，必须与目录名称一致。
 	ModuleName = "hub0009"
