@@ -722,6 +722,36 @@ func BatchTimeout(config *LogConfig) time.Duration {
 	return time.Duration(BatchTimeoutMs(config)) * time.Millisecond
 }
 
+// RetryBufferMax 写失败回灌上限：默认 max(队列容量, 4 倍批量)，避免无限堆积。
+func RetryBufferMax(config *LogConfig) int {
+	return RetryBufferMaxWithBatch(config, BatchLimit(config))
+}
+
+// RetryBufferMaxWithBatch 按实际批量条数计算回灌上限（ClickHouse 批量可能大于配置 BatchSize）。
+func RetryBufferMaxWithBatch(config *LogConfig, batch int) int {
+	if batch < 1 {
+		batch = BatchLimit(config)
+	}
+	byBatch := batch * 4
+	q := QueueSize(config)
+	if q > byBatch {
+		return q
+	}
+	if byBatch < 1 {
+		return q
+	}
+	return byBatch
+}
+
+// FlushRetryDelay 满批直写失败后的冷却，与定时刷新间隔对齐，最短 1s。
+func FlushRetryDelay(config *LogConfig) time.Duration {
+	d := time.Duration(FlushIntervalMs(config)) * time.Millisecond
+	if d < time.Second {
+		return time.Second
+	}
+	return d
+}
+
 // contains 辅助函数：检查字符串是否在切片中
 func contains(slice []string, item string) bool {
 	for _, s := range slice {

@@ -3,6 +3,7 @@ package dao
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
@@ -239,6 +240,11 @@ func (dao *ClickHouseQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLo
 	if req.ClientIpAddress != "" {
 		whereClause += " AND clientIpAddress LIKE ?"
 		params = append(params, "%"+req.ClientIpAddress+"%")
+	}
+
+	if ip := strings.TrimSpace(req.GatewayNodeIp); ip != "" {
+		whereClause += " AND gatewayNodeIp = ?"
+		params = append(params, ip)
 	}
 
 	if req.UserAgent != "" {

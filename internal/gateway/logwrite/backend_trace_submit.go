@@ -45,7 +45,7 @@ var (
 )
 
 // submitBackendTraceJob 把已快照的后端追踪交给固定 worker 组对象并写入。
-// 满则短等 accessLogEnqueueWait，仍满丢弃；计入同一实例 pending，关写入器时一起等。
+// 满则短等 asyncq.EnqueueWait，仍满丢弃；计入同一实例 pending，关写入器时一起等。
 func submitBackendTraceJob(job *backendTraceJob) {
 	if job == nil || job.instanceID == "" || job.serviceID == "" || job.traceID == "" {
 		return
@@ -78,7 +78,7 @@ func ensureBackendTraceSubmit() {
 		logger.Info("后端追踪提交队列已启动",
 			"workers", backendTraceSubmitWorkers,
 			"queueCap", accessLogSubmitQueueSize,
-			"enqueueWait", accessLogEnqueueWait)
+			"enqueueWait", asyncq.EnqueueWait)
 	})
 }
 

@@ -57,3 +57,18 @@ func TestBatchTimeout(t *testing.T) {
 		t.Fatalf("SetDefaults 应将 1000 抬到 %d, got %d", DefaultBatchTimeoutMs, cfg.BatchTimeoutMs)
 	}
 }
+
+func TestRetryBufferAndFlushDelay(t *testing.T) {
+	if got := RetryBufferMax(nil); got != DefaultAsyncQueueSize {
+		t.Fatalf("RetryBufferMax(nil) = %d, want queue default %d", got, DefaultAsyncQueueSize)
+	}
+	if got := RetryBufferMax(&LogConfig{BatchSize: 50, AsyncQueueSize: 200}); got != 200 {
+		t.Fatalf("RetryBufferMax 应按较大的队列容量, got %d", got)
+	}
+	if got := RetryBufferMaxWithBatch(&LogConfig{AsyncQueueSize: 200}, 5000); got != 20000 {
+		t.Fatalf("RetryBufferMaxWithBatch(5000) = %d, want 20000", got)
+	}
+	if got := FlushRetryDelay(nil); got != time.Duration(DefaultAsyncFlushIntervalMs)*time.Millisecond {
+		t.Fatalf("FlushRetryDelay(nil) = %s", got)
+	}
+}

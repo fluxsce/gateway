@@ -2,6 +2,7 @@ package dao
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"gateway/pkg/logger"
@@ -301,6 +302,9 @@ func (dao *MongoQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLogQuer
 		filter["clientIpAddress"] = map[string]interface{}{
 			"$regex": req.ClientIpAddress,
 		}
+	}
+	if ip := strings.TrimSpace(req.GatewayNodeIp); ip != "" {
+		filter["gatewayNodeIp"] = ip
 	}
 	if req.UserAgent != "" {
 		filter["userAgent"] = map[string]interface{}{

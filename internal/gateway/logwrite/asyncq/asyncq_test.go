@@ -2,6 +2,7 @@ package asyncq
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -45,6 +46,37 @@ func TestDrain(t *testing.T) {
 	n := Drain(ch, func(v int) { sum += v })
 	if n != 2 || sum != 3 {
 		t.Fatalf("n=%d sum=%d, want 2 and 3", n, sum)
+	}
+}
+
+func TestRestorePrependAndAppendCapped(t *testing.T) {
+	var mu sync.Mutex
+	buf := []int{3, 4}
+	dropped := RestorePrepend(&mu, &buf, []int{1, 2}, 3, 3)
+	if dropped != 1 || len(buf) != 3 || buf[0] != 1 || buf[1] != 2 || buf[2] != 3 {
+		t.Fatalf("RestorePrepend buf=%v dropped=%d, want [1 2 3] dropped=1", buf, dropped)
+	}
+	if AppendCapped(&mu, &buf, 9, 3) != 1 {
+		t.Fatal("已满应拒绝新条目")
+	}
+	buf = buf[:2]
+	if AppendCapped(&mu, &buf, 8, 3) != 0 || buf[2] != 8 {
+		t.Fatalf("未满应追加, buf=%v", buf)
+	}
+}
+
+func TestRetryableWriteError(t *testing.T) {
+	if !RetryableWriteError(context.DeadlineExceeded) {
+		t.Fatal("deadline 应可重试")
+	}
+	if !RetryableWriteError(fmt.Errorf("mongo insert error (2103): server selection timeout")) {
+		t.Fatal("server selection 应可重试")
+	}
+	if RetryableWriteError(fmt.Errorf("E11000 duplicate key")) {
+		t.Fatal("重复键不可回灌")
+	}
+	if RetryableWriteError(nil) {
+		t.Fatal("nil 不可重试")
 	}
 }
 

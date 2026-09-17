@@ -289,9 +289,9 @@ export function useGatewayLogModel() {
       },
       {
         field: 'minProcessingTime',
-        label: '网关耗时',
+        label: '总处理时间',
         type: 'number',
-        placeholder: '最小耗时(毫秒)',
+        placeholder: '最小总处理时间(毫秒)',
         span: 8,
         clearable: true,
         props: {
@@ -338,6 +338,14 @@ export function useGatewayLogModel() {
         label: '客户端IP',
         type: 'input',
         placeholder: '请输入客户端IP',
+        span: 8,
+        clearable: true,
+      },
+      {
+        field: 'gatewayNodeIp',
+        label: '网关节点IP',
+        type: 'input',
+        placeholder: '精确匹配，如 192.168.1.10',
         span: 8,
         clearable: true,
       },
@@ -555,6 +563,11 @@ export function useGatewayLogModel() {
         key: 'clientIpAddress',
         title: '客户端IP',
         width: 160,
+      },
+      {
+        key: 'gatewayNodeIp',
+        title: '网关节点IP',
+        width: 140,
       },
       {
         key: 'backendStatusCode',

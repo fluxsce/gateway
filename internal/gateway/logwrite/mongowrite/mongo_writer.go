@@ -35,6 +35,9 @@ type MongoWriter struct {
 	stopChan    chan struct{}
 	wg          sync.WaitGroup
 	closed      atomic.Bool
+	// accessRetryAfter / traceRetryAfter 写失败后的冷却截止（UnixNano），避免满批直写热循环。
+	accessRetryAfter atomic.Int64
+	traceRetryAfter  atomic.Int64
 }
 
 // NewMongoWriter 创建 MongoDB 日志写入器。
@@ -162,7 +165,7 @@ func (w *MongoWriter) Flush(ctx context.Context) error {
 		return nil
 	}
 	if err := w.insertMany(write, batch); err != nil {
-		logger.Error("Failed to flush Mongo access log batch", "error", err, "count", len(batch))
+		w.onAccessWriteFail(batch, err, "flush")
 		return err
 	}
 	return nil
@@ -244,13 +247,20 @@ func (w *MongoWriter) FlushBackendTrace(ctx context.Context) error {
 		return nil
 	}
 	if err := w.insertBackendTraceLogMany(write, batch); err != nil {
-		logger.Error("Failed to flush Mongo backend trace batch", "error", err, "count", len(batch))
+		w.onTraceWriteFail(batch, err, "flush")
 		return err
 	}
 	return nil
 }
 
 func (w *MongoWriter) addToBatch(log *types.AccessLog) error {
+	max := types.RetryBufferMax(w.config)
+	if asyncq.ShouldDeferFlush(&w.accessRetryAfter) {
+		if asyncq.AppendCapped(&w.mutex, &w.batchBuffer, log, max) > 0 {
+			logger.Warn("Mongo access retry buffer full, dropping new log", "traceId", log.TraceID)
+		}
+		return nil
+	}
 	batch := asyncq.AppendTakeIfFull(&w.mutex, &w.batchBuffer, log, types.BatchLimit(w.config), types.BatchLimit(w.config))
 	if len(batch) == 0 {
 		return nil
@@ -258,13 +268,21 @@ func (w *MongoWriter) addToBatch(log *types.AccessLog) error {
 	ctx, cancel := asyncq.WriteContext(types.BatchTimeout(w.config))
 	defer cancel()
 	if err := w.insertMany(ctx, batch); err != nil {
-		logger.Error("Failed to write full Mongo batch", "error", err, "count", len(batch))
+		w.onAccessWriteFail(batch, err, "full-batch")
 		return err
 	}
 	return nil
 }
 
 func (w *MongoWriter) addBackendTraceToBatch(log *types.BackendTraceLog) error {
+	max := types.RetryBufferMax(w.config)
+	if asyncq.ShouldDeferFlush(&w.traceRetryAfter) {
+		if asyncq.AppendCapped(&w.backendTraceMutex, &w.backendTraceBatchBuffer, log, max) > 0 {
+			logger.Warn("Mongo backend trace retry buffer full, dropping new log",
+				"traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
+		}
+		return nil
+	}
 	batch := asyncq.AppendTakeIfFull(&w.backendTraceMutex, &w.backendTraceBatchBuffer, log, types.BatchLimit(w.config), types.BatchLimit(w.config))
 	if len(batch) == 0 {
 		return nil
@@ -272,10 +290,34 @@ func (w *MongoWriter) addBackendTraceToBatch(log *types.BackendTraceLog) error {
 	ctx, cancel := asyncq.WriteContext(types.BatchTimeout(w.config))
 	defer cancel()
 	if err := w.insertBackendTraceLogMany(ctx, batch); err != nil {
-		logger.Error("Failed to write full Mongo backend trace batch", "error", err, "count", len(batch))
+		w.onTraceWriteFail(batch, err, "full-batch")
 		return err
 	}
 	return nil
+}
+
+func (w *MongoWriter) onAccessWriteFail(batch []*types.AccessLog, err error, where string) {
+	if !w.closed.Load() && asyncq.RetryableWriteError(err) {
+		dropped := asyncq.RestorePrepend(&w.mutex, &w.batchBuffer, batch, types.RetryBufferMax(w.config), types.BatchLimit(w.config))
+		asyncq.MarkRetryAfter(&w.accessRetryAfter, types.FlushRetryDelay(w.config))
+		logger.Error("Failed to write Mongo access log batch, restored for retry",
+			"error", err, "where", where, "count", len(batch), "dropped", dropped)
+		return
+	}
+	logger.Error("Failed to write Mongo access log batch, dropping",
+		"error", err, "where", where, "count", len(batch), "closed", w.closed.Load())
+}
+
+func (w *MongoWriter) onTraceWriteFail(batch []*types.BackendTraceLog, err error, where string) {
+	if !w.closed.Load() && asyncq.RetryableWriteError(err) {
+		dropped := asyncq.RestorePrepend(&w.backendTraceMutex, &w.backendTraceBatchBuffer, batch, types.RetryBufferMax(w.config), types.BatchLimit(w.config))
+		asyncq.MarkRetryAfter(&w.traceRetryAfter, types.FlushRetryDelay(w.config))
+		logger.Error("Failed to write Mongo backend trace batch, restored for retry",
+			"error", err, "where", where, "count", len(batch), "dropped", dropped)
+		return
+	}
+	logger.Error("Failed to write Mongo backend trace batch, dropping",
+		"error", err, "where", where, "count", len(batch), "closed", w.closed.Load())
 }
 
 func (w *MongoWriter) startAsyncProcessor() {

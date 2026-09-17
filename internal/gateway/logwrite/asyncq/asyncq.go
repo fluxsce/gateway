@@ -2,7 +2,10 @@ package asyncq
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -75,6 +78,105 @@ func Take[T any](mu *sync.Mutex, buf *[]T, capHint int) []T {
 	out := *buf
 	*buf = make([]T, 0, capHint)
 	return out
+}
+
+// RestorePrepend 把写失败的一批插回缓冲头部，下次 Flush 优先重试。
+// 超过 max 时截掉尾部（更新的未刷条目），避免存储长时间不可用时内存涨死。
+// 返回因超限丢掉的条数。
+func RestorePrepend[T any](mu *sync.Mutex, buf *[]T, batch []T, max, capHint int) int {
+	if mu == nil || buf == nil || len(batch) == 0 {
+		return 0
+	}
+	if max < 1 {
+		max = len(batch)
+	}
+	if capHint < 1 {
+		capHint = max
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	combined := make([]T, 0, len(batch)+len(*buf))
+	combined = append(combined, batch...)
+	combined = append(combined, *buf...)
+	dropped := 0
+	if len(combined) > max {
+		dropped = len(combined) - max
+		combined = combined[:max]
+	}
+	if cap := cap(combined); cap < capHint && dropped == 0 {
+		grown := make([]T, len(combined), capHint)
+		copy(grown, combined)
+		combined = grown
+	}
+	*buf = combined
+	return dropped
+}
+
+// AppendCapped 在冷却期内只追加、不触发满批直写；已达 max 则拒绝新条目并返回 1。
+func AppendCapped[T any](mu *sync.Mutex, buf *[]T, item T, max int) int {
+	if mu == nil || buf == nil {
+		return 1
+	}
+	if max < 1 {
+		max = 1
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(*buf) >= max {
+		return 1
+	}
+	*buf = append(*buf, item)
+	return 0
+}
+
+// ShouldDeferFlush 为真时满批直写应改为只入缓冲，等定时 Flush 重试，避免存储故障时热循环。
+func ShouldDeferFlush(retryAfter *atomic.Int64) bool {
+	if retryAfter == nil {
+		return false
+	}
+	return time.Now().UnixNano() < retryAfter.Load()
+}
+
+// MarkRetryAfter 从现在起 delay 内不再满批直写。delay<=0 时按 1s。
+func MarkRetryAfter(retryAfter *atomic.Int64, delay time.Duration) {
+	if retryAfter == nil {
+		return
+	}
+	if delay <= 0 {
+		delay = time.Second
+	}
+	retryAfter.Store(time.Now().Add(delay).UnixNano())
+}
+
+// RetryableWriteError 网络、超时、选主失败可回灌；重复键等数据错误不可回灌，以免死循环。
+func RetryableWriteError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "duplicate") || strings.Contains(msg, "e11000") {
+		return false
+	}
+	for _, key := range []string{
+		"server selection",
+		"timeout",
+		"deadline",
+		"connection",
+		"network",
+		"i/o",
+		"reset",
+		"refused",
+		"unavailable",
+		"eof",
+	} {
+		if strings.Contains(msg, key) {
+			return true
+		}
+	}
+	return false
 }
 
 // AppendTakeIfFull 追加一条；达到 limit 时拿走整批供调用方在锁外写入。

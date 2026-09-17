@@ -48,6 +48,9 @@ type DBWriter struct {
 
 	// closed 仅拒绝新的 Write；Flush 在关停排空后仍可执行。
 	closed atomic.Bool
+	// accessRetryAfter / traceRetryAfter 写失败后的冷却截止（UnixNano）。
+	accessRetryAfter atomic.Int64
+	traceRetryAfter  atomic.Int64
 }
 
 // NewDBWriter 创建一个新的数据库日志写入器
@@ -114,19 +117,7 @@ func (w *DBWriter) FlushBackendTrace(ctx context.Context) error {
 
 	err := w.batchWriteBackendTraceDirectly(ctx, batch)
 	if err != nil {
-		logger.Error("Failed to flush backend trace batch buffer, dumping failed batch data", "error", err, "count", len(batch))
-		for i, log := range batch {
-			logger.Warn("Failed backend trace batch item",
-				"index", i,
-				"traceId", log.TraceID,
-				"backendTraceId", log.BackendTraceID,
-				"forwardMethod", log.ForwardMethod,
-				"forwardMethodLen", len(log.ForwardMethod),
-				"forwardPath", log.ForwardPath,
-				"forwardPathLen", len(log.ForwardPath),
-				"serviceId", log.ServiceDefinitionID,
-				"serviceName", log.ServiceName)
-		}
+		w.onTraceWriteFail(batch, err, "flush")
 		return err
 	}
 
@@ -248,19 +239,7 @@ func (w *DBWriter) Flush(ctx context.Context) error {
 
 	err := w.batchWriteDirectly(ctx, batch)
 	if err != nil {
-		logger.Error("Failed to flush batch buffer, dumping failed batch data", "error", err, "count", len(batch))
-		for i, log := range batch {
-			logger.Warn("Failed batch item",
-				"index", i,
-				"traceId", log.TraceID,
-				"requestMethod", log.RequestMethod,
-				"requestMethodLen", len(log.RequestMethod),
-				"requestPath", log.RequestPath,
-				"requestPathLen", len(log.RequestPath),
-				"forwardMethod", log.ForwardMethod,
-				"forwardMethodLen", len(log.ForwardMethod),
-				"clientIp", log.ClientIPAddress)
-		}
+		w.onAccessWriteFail(batch, err, "flush")
 		return err
 	}
 
@@ -457,7 +436,16 @@ func (w *DBWriter) drainBackendTraceQueue() {
 }
 
 // addBackendTraceToBatch 将后端追踪日志添加到批量缓冲区
+// addBackendTraceToBatch 将后端追踪日志添加到批量缓冲区
 func (w *DBWriter) addBackendTraceToBatch(log *types.BackendTraceLog) error {
+	max := types.RetryBufferMax(w.config)
+	if asyncq.ShouldDeferFlush(&w.traceRetryAfter) {
+		if asyncq.AppendCapped(&w.backendTraceMutex, &w.backendTraceBatchBuffer, log, max) > 0 {
+			logger.Warn("DB backend trace retry buffer full, dropping new log",
+				"traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
+		}
+		return nil
+	}
 	limit := types.BatchLimit(w.config)
 	batch := asyncq.AppendTakeIfFull(&w.backendTraceMutex, &w.backendTraceBatchBuffer, log, limit, limit)
 	if len(batch) == 0 {
@@ -465,7 +453,7 @@ func (w *DBWriter) addBackendTraceToBatch(log *types.BackendTraceLog) error {
 	}
 	ctx := context.Background()
 	if err := w.batchWriteBackendTraceDirectly(ctx, batch); err != nil {
-		logger.Error("Failed to write full backend trace batch", "error", err, "count", len(batch))
+		w.onTraceWriteFail(batch, err, "full-batch")
 		return err
 	}
 	return nil
@@ -473,6 +461,13 @@ func (w *DBWriter) addBackendTraceToBatch(log *types.BackendTraceLog) error {
 
 // addToBatch 将日志添加到批量缓冲区
 func (w *DBWriter) addToBatch(log *types.AccessLog) error {
+	max := types.RetryBufferMax(w.config)
+	if asyncq.ShouldDeferFlush(&w.accessRetryAfter) {
+		if asyncq.AppendCapped(&w.mutex, &w.batchBuffer, log, max) > 0 {
+			logger.Warn("DB access retry buffer full, dropping new log", "traceId", log.TraceID)
+		}
+		return nil
+	}
 	limit := types.BatchLimit(w.config)
 	batch := asyncq.AppendTakeIfFull(&w.mutex, &w.batchBuffer, log, limit, limit)
 	if len(batch) == 0 {
@@ -480,10 +475,34 @@ func (w *DBWriter) addToBatch(log *types.AccessLog) error {
 	}
 	ctx := context.Background()
 	if err := w.batchWriteDirectly(ctx, batch); err != nil {
-		logger.Error("Failed to write full batch", "error", err, "count", len(batch))
+		w.onAccessWriteFail(batch, err, "full-batch")
 		return err
 	}
 	return nil
+}
+
+func (w *DBWriter) onAccessWriteFail(batch []*types.AccessLog, err error, where string) {
+	if !w.closed.Load() && asyncq.RetryableWriteError(err) {
+		dropped := asyncq.RestorePrepend(&w.mutex, &w.batchBuffer, batch, types.RetryBufferMax(w.config), types.BatchLimit(w.config))
+		asyncq.MarkRetryAfter(&w.accessRetryAfter, types.FlushRetryDelay(w.config))
+		logger.Error("Failed to write DB access log batch, restored for retry",
+			"error", err, "where", where, "count", len(batch), "dropped", dropped)
+		return
+	}
+	logger.Error("Failed to write DB access log batch, dropping",
+		"error", err, "where", where, "count", len(batch), "closed", w.closed.Load())
+}
+
+func (w *DBWriter) onTraceWriteFail(batch []*types.BackendTraceLog, err error, where string) {
+	if !w.closed.Load() && asyncq.RetryableWriteError(err) {
+		dropped := asyncq.RestorePrepend(&w.backendTraceMutex, &w.backendTraceBatchBuffer, batch, types.RetryBufferMax(w.config), types.BatchLimit(w.config))
+		asyncq.MarkRetryAfter(&w.traceRetryAfter, types.FlushRetryDelay(w.config))
+		logger.Error("Failed to write DB backend trace batch, restored for retry",
+			"error", err, "where", where, "count", len(batch), "dropped", dropped)
+		return
+	}
+	logger.Error("Failed to write DB backend trace batch, dropping",
+		"error", err, "where", where, "count", len(batch), "closed", w.closed.Load())
 }
 
 // writeDirectly 直接写入单条日志到数据库

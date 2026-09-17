@@ -44,6 +44,10 @@ type ClickHouseWriter struct {
 	// closed 仅拒绝新的 Write；Flush 在关停排空后仍可执行。
 	closed atomic.Bool
 
+	// accessRetryAfter / traceRetryAfter 写失败后的冷却截止（UnixNano）。
+	accessRetryAfter atomic.Int64
+	traceRetryAfter  atomic.Int64
+
 	// batchSize 实际批量条数。ClickHouse 写入宜偏大，但不写回共享 LogConfig。
 	batchSize int
 
@@ -179,19 +183,7 @@ func (w *ClickHouseWriter) Flush(ctx context.Context) error {
 
 	err := w.batchWriteDirectly(ctx, batch)
 	if err != nil {
-		logger.Error("Failed to flush ClickHouse batch buffer, dumping failed batch data", "error", err, "count", len(batch))
-		for i, log := range batch {
-			logger.Warn("Failed ClickHouse batch item",
-				"index", i,
-				"traceId", log.TraceID,
-				"requestMethod", log.RequestMethod,
-				"requestMethodLen", len(log.RequestMethod),
-				"requestPath", log.RequestPath,
-				"requestPathLen", len(log.RequestPath),
-				"forwardMethod", log.ForwardMethod,
-				"forwardMethodLen", len(log.ForwardMethod),
-				"clientIp", log.ClientIPAddress)
-		}
+		w.onAccessWriteFail(batch, err, "flush")
 		return err
 	}
 
@@ -447,19 +439,7 @@ func (w *ClickHouseWriter) FlushBackendTrace(ctx context.Context) error {
 
 	err := w.batchWriteBackendTraceLogDirectly(ctx, batch)
 	if err != nil {
-		logger.Error("Failed to flush ClickHouse backend trace batch buffer, dumping failed batch data", "error", err, "count", len(batch))
-		for i, log := range batch {
-			logger.Warn("Failed ClickHouse backend trace batch item",
-				"index", i,
-				"traceId", log.TraceID,
-				"backendTraceId", log.BackendTraceID,
-				"forwardMethod", log.ForwardMethod,
-				"forwardMethodLen", len(log.ForwardMethod),
-				"forwardPath", log.ForwardPath,
-				"forwardPathLen", len(log.ForwardPath),
-				"serviceId", log.ServiceDefinitionID,
-				"serviceName", log.ServiceName)
-		}
+		w.onTraceWriteFail(batch, err, "flush")
 		return err
 	}
 
@@ -528,6 +508,14 @@ func (w *ClickHouseWriter) drainBackendTraceQueue() {
 
 // addBackendTraceToBatch 将后端追踪日志添加到批量缓冲区
 func (w *ClickHouseWriter) addBackendTraceToBatch(log *types.BackendTraceLog) error {
+	max := types.RetryBufferMaxWithBatch(w.config, w.batchSize)
+	if asyncq.ShouldDeferFlush(&w.traceRetryAfter) {
+		if asyncq.AppendCapped(&w.backendTraceMutex, &w.backendTraceBatchBuffer, log, max) > 0 {
+			logger.Warn("ClickHouse backend trace retry buffer full, dropping new log",
+				"traceId", log.TraceID, "backendTraceId", log.BackendTraceID)
+		}
+		return nil
+	}
 	limit := w.batchSize
 	batch := asyncq.AppendTakeIfFull(&w.backendTraceMutex, &w.backendTraceBatchBuffer, log, limit, limit)
 	if len(batch) == 0 {
@@ -535,7 +523,7 @@ func (w *ClickHouseWriter) addBackendTraceToBatch(log *types.BackendTraceLog) er
 	}
 	ctx := context.Background()
 	if err := w.batchWriteBackendTraceLogDirectly(ctx, batch); err != nil {
-		logger.Error("Failed to write ClickHouse full backend trace batch", "error", err, "count", len(batch))
+		w.onTraceWriteFail(batch, err, "full-batch")
 		return err
 	}
 	return nil
@@ -543,6 +531,13 @@ func (w *ClickHouseWriter) addBackendTraceToBatch(log *types.BackendTraceLog) er
 
 // addToBatch 将日志添加到批量缓冲区
 func (w *ClickHouseWriter) addToBatch(log *types.AccessLog) error {
+	max := types.RetryBufferMaxWithBatch(w.config, w.batchSize)
+	if asyncq.ShouldDeferFlush(&w.accessRetryAfter) {
+		if asyncq.AppendCapped(&w.mutex, &w.batchBuffer, log, max) > 0 {
+			logger.Warn("ClickHouse access retry buffer full, dropping new log", "traceId", log.TraceID)
+		}
+		return nil
+	}
 	limit := w.batchSize
 	batch := asyncq.AppendTakeIfFull(&w.mutex, &w.batchBuffer, log, limit, limit)
 	if len(batch) == 0 {
@@ -550,10 +545,36 @@ func (w *ClickHouseWriter) addToBatch(log *types.AccessLog) error {
 	}
 	ctx := context.Background()
 	if err := w.batchWriteDirectly(ctx, batch); err != nil {
-		logger.Error("Failed to write ClickHouse full batch", "error", err, "count", len(batch))
+		w.onAccessWriteFail(batch, err, "full-batch")
 		return err
 	}
 	return nil
+}
+
+func (w *ClickHouseWriter) onAccessWriteFail(batch []*types.AccessLog, err error, where string) {
+	max := types.RetryBufferMaxWithBatch(w.config, w.batchSize)
+	if !w.closed.Load() && asyncq.RetryableWriteError(err) {
+		dropped := asyncq.RestorePrepend(&w.mutex, &w.batchBuffer, batch, max, w.batchSize)
+		asyncq.MarkRetryAfter(&w.accessRetryAfter, types.FlushRetryDelay(w.config))
+		logger.Error("Failed to write ClickHouse access log batch, restored for retry",
+			"error", err, "where", where, "count", len(batch), "dropped", dropped)
+		return
+	}
+	logger.Error("Failed to write ClickHouse access log batch, dropping",
+		"error", err, "where", where, "count", len(batch), "closed", w.closed.Load())
+}
+
+func (w *ClickHouseWriter) onTraceWriteFail(batch []*types.BackendTraceLog, err error, where string) {
+	max := types.RetryBufferMaxWithBatch(w.config, w.batchSize)
+	if !w.closed.Load() && asyncq.RetryableWriteError(err) {
+		dropped := asyncq.RestorePrepend(&w.backendTraceMutex, &w.backendTraceBatchBuffer, batch, max, w.batchSize)
+		asyncq.MarkRetryAfter(&w.traceRetryAfter, types.FlushRetryDelay(w.config))
+		logger.Error("Failed to write ClickHouse backend trace batch, restored for retry",
+			"error", err, "where", where, "count", len(batch), "dropped", dropped)
+		return
+	}
+	logger.Error("Failed to write ClickHouse backend trace batch, dropping",
+		"error", err, "where", where, "count", len(batch), "closed", w.closed.Load())
 }
 
 // batchWriteDirectly 直接批量写入日志到ClickHouse

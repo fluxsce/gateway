@@ -295,6 +295,8 @@ export interface GatewayLogQueryParams {
   requestBodyKeyword?: string
   /** 客户端IP地址 */
   clientIpAddress?: string
+  /** 网关节点IP（精确匹配 gatewayNodeIp） */
+  gatewayNodeIp?: string
   /** 用户标识 */
   userIdentifier?: string
 

@@ -19,10 +19,8 @@ const (
 	accessLogDrainWait = 3 * time.Second
 	// accessLogSubmitQueueSize 提交队列容量。约 6.7k QPS 时可缓冲近 10 秒突发，避免稍一堵就丢。
 	accessLogSubmitQueueSize = 65536
-	// accessLogEnqueueWait 与各写入器共用短等，发生在 SetResponseTime 之后，不计入主表总时间。
-	accessLogEnqueueWait = asyncq.EnqueueWait
-	minAccessLogWorkers  = 4
-	maxAccessLogWorkers  = 32
+	minAccessLogWorkers      = 4
+	maxAccessLogWorkers      = 32
 )
 
 // accessLogJob 访问日志提交任务。
@@ -64,7 +62,7 @@ var (
 //  3. 本函数不读 HTTP 对象；静态成功命中直接返回，不占队列
 //
 // 写入语义与原先 go WriteLog 相同：主表字段、端口重放 UpdateAccessLog、静态跳过。
-// 先非阻塞入队；满则再等 accessLogEnqueueWait，仍满才丢弃并计数。
+// 响应已写出，入队不等待：满则立刻丢弃并计数，避免拖住 HTTP/1.1 复用连接上的下一条。
 func SubmitWriteLog(instanceID string, gatewayCtx *core.Context) {
 	if instanceID == "" || gatewayCtx == nil {
 		return
@@ -86,7 +84,7 @@ func GetAccessLogSubmitStats() AccessLogSubmitStats {
 		Workers:     accessLogSubmitWorkers,
 		Inflight:    accessLogInflight.Load(),
 		Dropped:     accessLogDropped.Load(),
-		EnqueueWait: accessLogEnqueueWait.String(),
+		EnqueueWait: "0s",
 	}
 	if accessLogSubmitQ != nil {
 		stats.QueueCap = cap(accessLogSubmitQ)
@@ -100,10 +98,11 @@ func GetAccessLogSubmitStats() AccessLogSubmitStats {
 	return stats
 }
 
-// offerAccessLogJob 把任务交给消费者：先立刻入队，满则短等一次，再满才丢。
+// offerAccessLogJob 把任务交给消费者：立即入队，满则丢弃。
 func offerAccessLogJob(job accessLogJob) {
 	accessLogPending.add(job.instanceID, 1)
-	if asyncq.Offer(accessLogSubmitQ, job) {
+	// 响应已写出，入队不再短等：避免 HTTP/1.1 复用连接上的下一条被空等拖住。
+	if asyncq.OfferWait(accessLogSubmitQ, job, 0) {
 		return
 	}
 	accessLogPending.add(job.instanceID, -1)
@@ -129,7 +128,7 @@ func ensureAccessLogSubmit() {
 		logger.Info("访问日志提交队列已启动",
 			"workers", accessLogSubmitWorkers,
 			"queueCap", accessLogSubmitQueueSize,
-			"enqueueWait", accessLogEnqueueWait)
+			"enqueueWait", "0s")
 	})
 }
 

@@ -221,6 +221,7 @@ type GatewayAccessLogQueryRequest struct {
 	RequestQueryKeyword string `json:"requestQueryKeyword" form:"requestQueryKeyword"` // 请求参数关键字（子串匹配 requestQuery）
 	RequestBodyKeyword  string `json:"requestBodyKeyword" form:"requestBodyKeyword"`   // 报文体关键字（子串匹配 requestBody）
 	ClientIpAddress     string `json:"clientIpAddress" form:"clientIpAddress"`         // 客户端IP地址
+	GatewayNodeIp       string `json:"gatewayNodeIp" form:"gatewayNodeIp"`             // 网关节点IP（精确匹配）
 	UserAgent           string `json:"userAgent" form:"userAgent"`                     // 用户代理
 	UserIdentifier      string `json:"userIdentifier" form:"userIdentifier"`           // 用户标识
 
@@ -237,7 +238,7 @@ type GatewayAccessLogQueryRequest struct {
 	EndTime   string `json:"endTime" form:"endTime"`     // 结束时间
 
 	// 性能查询
-	MinProcessingTime int `json:"minProcessingTime" form:"minProcessingTime"` // 最小处理时间(毫秒)
+	MinProcessingTime int `json:"minProcessingTime" form:"minProcessingTime"` // 最小总处理时间(毫秒)，筛 totalProcessingTimeMs
 	MaxProcessingTime int `json:"maxProcessingTime" form:"maxProcessingTime"` // 最大处理时间(毫秒)
 
 	// 日志级别和类型
