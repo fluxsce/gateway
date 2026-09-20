@@ -1,73 +1,59 @@
 <template>
   <div class="service-monitoring" :id="service.model.moduleId">
     <RsSplitPane
-      class="service-monitoring__outer"
+      class="service-monitoring__split"
       orientation="vertical"
-      :panes="outerPanes"
+      :panes="splitPanes"
+      disabled
     >
-      <template #namespace>
-        <div class="service-monitoring__pane">
-          <div class="service-monitoring__header">
-            <h3>命名空间列表</h3>
-          </div>
-          <div class="service-monitoring__body">
-            <NamespaceList
-              ref="namespaceListRef"
-              moduleId="hub0042:namespace"
-              :show-dialog="true"
-              :auto-load="true"
-              @row-click="handleNamespaceRowClick"
-              @namespace-select="handleNamespaceSelect"
-            />
-          </div>
+      <template #search>
+        <div class="service-monitoring__search">
+          <RsSearchForm
+            ref="serviceSearchFormRef"
+            :module-id="service.model.moduleId"
+            v-bind="service.model.searchFormConfig"
+            @search="handleServiceSearch"
+            @reset="handleServiceReset"
+            @toolbar-click="(key) => handleServiceToolbarClick(key)"
+          />
         </div>
       </template>
 
-      <template #services>
-        <div class="service-monitoring__pane">
-          <div class="service-monitoring__header">
-            <h3>服务列表</h3>
-            <span v-if="selectedNamespace" class="service-monitoring__ns">
-              当前命名空间: {{ selectedNamespace.namespaceName }} ({{ selectedNamespace.namespaceId }})
-            </span>
+      <template #grid>
+        <div class="service-monitoring__list">
+          <div v-if="selectedNamespace" class="service-monitoring__summary">
+            <div
+              v-for="item in summaryItems"
+              :key="item.label"
+              class="service-monitoring__stat"
+            >
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+            </div>
           </div>
-          <RsSplitPane
-            class="service-monitoring__inner"
-            orientation="vertical"
-            :panes="innerPanes"
-            disabled
-          >
-            <template #search>
-              <div class="service-monitoring__search">
-                <RsSearchForm
-                  ref="serviceSearchFormRef"
-                  :module-id="service.model.moduleId"
-                  v-bind="service.model.searchFormConfig"
-                  @search="handleServiceSearch"
-                  @toolbar-click="handleServiceToolbarClick"
-                />
-              </div>
-            </template>
-
-            <template #grid>
-              <div class="service-monitoring__grid">
-                <RsGrid
-                  ref="serviceGridRef"
-                  :module-id="service.model.moduleId"
-                  :data="service.model.serviceList"
-                  :loading="service.model.loading"
-                  :columns="service.model.gridConfig.columns"
-                  :selectable="service.model.gridConfig.selectable"
-                  :row-key="service.model.gridConfig.rowKey"
-                  height="100%"
-                  :pagination-config="service.model.gridConfig.paginationConfig"
-                  :menu-config="service.model.gridConfig.menuConfig"
-                  @page-change="handleServicePageChange"
-                  @menu-click="handleServiceMenuClick"
-                />
-              </div>
-            </template>
-          </RsSplitPane>
+          <div v-if="!selectedNamespace && !hasServices && !isLoading" class="service-monitoring__empty">
+            <RsEmpty :description="emptyDescription">
+              <template #icon>
+                <GIcon :icon="ServerOutline" :size="32" color="var(--g-primary)" />
+              </template>
+            </RsEmpty>
+          </div>
+          <div v-else class="service-monitoring__grid">
+            <RsGrid
+              ref="serviceGridRef"
+              :module-id="service.model.moduleId"
+              :data="service.model.serviceList"
+              :loading="service.model.loading"
+              :columns="service.model.gridConfig.columns"
+              :selectable="service.model.gridConfig.selectable"
+              :row-key="service.model.gridConfig.rowKey"
+              height="100%"
+              :pagination-config="service.model.gridConfig.paginationConfig"
+              :menu-config="service.model.gridConfig.menuConfig"
+              @page-change="handleServicePageChange"
+              @menu-click="handleServiceMenuClick"
+            />
+          </div>
         </div>
       </template>
     </RsSplitPane>
@@ -91,31 +77,24 @@
 <script lang="ts" setup>
 import { RsDataFormModal } from '@/components/form/rs-data'
 import { RsSearchForm } from '@/components/form/rs-search'
+import { GIcon } from '@/components/gicon'
 import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
-import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
-import { ref } from 'vue'
-import { NamespaceList } from '../hub0041/components'
-import type { Namespace } from '../hub0041/types'
+import { RsEmpty, RsSplitPane, type RsSplitPaneItem } from '@/ui'
+import { ServerOutline } from '@vicons/ionicons5'
+import { computed, ref } from 'vue'
 import { useServicePage } from './hooks'
 
 defineOptions({
   name: 'ServiceMonitoring',
 })
 
-const outerPanes: RsSplitPaneItem[] = [
-  { key: 'namespace', size: 35, min: 20 },
-  { key: 'services' },
-]
-
-const innerPanes: RsSplitPaneItem[] = [
+const splitPanes: RsSplitPaneItem[] = [
   { key: 'search', size: 'auto' },
   { key: 'grid' },
 ]
 
-const namespaceListRef = ref()
 const serviceSearchFormRef = ref()
 const serviceGridRef = ref<RsGridExpose | null>(null)
-const selectedNamespace = ref<Namespace | null>(null)
 
 const {
   service,
@@ -123,55 +102,36 @@ const {
   formDialogMode: serviceFormDialogMode,
   currentEditService,
   submitting: serviceSubmitting,
-  handleFormSubmit: handleServiceFormSubmitBase,
-  handleToolbarClick: handleServiceToolbarClickBase,
+  selectedNamespace,
+  handleFormSubmit: handleServiceFormSubmit,
+  handleToolbarClick: handleServiceToolbarClick,
   handleMenuClick: handleServiceMenuClick,
   handleSearch: handleServiceSearch,
+  handleReset: handleServiceReset,
 } = useServicePage(serviceGridRef, serviceSearchFormRef)
 
-/**
- * 工具栏点击：把当前选中的命名空间传给 page hook，避免与 RsSearchForm 的 formData 签名冲突。
- */
-const handleServiceToolbarClick = (key: string) => {
-  handleServiceToolbarClickBase(key, selectedNamespace.value)
-}
+const summaryItems = computed(() => {
+  const ns = selectedNamespace.value
+  const quota = ns?.serviceQuotaLimit
+  const quotaText = quota === undefined || quota === null || quota === 0 ? '无限制' : String(quota)
+  return [
+    { label: '命名空间', value: ns?.namespaceName || ns?.namespaceId || '--' },
+    { label: '服务', value: String(ns?.serviceCount ?? 0) },
+    { label: '节点', value: String(ns?.nodeCount ?? 0) },
+    { label: '健康', value: String(ns?.healthyNodeCount ?? 0) },
+    { label: '连接', value: String(ns?.connectionCount ?? 0) },
+    { label: '服务配额', value: quotaText },
+  ]
+})
 
-/**
- * 命名空间行点击 - 选择命名空间并加载服务列表
- */
-const handleNamespaceRowClick = async (row: Namespace) => {
-  if (!row) return
-  selectedNamespace.value = row
-  if (serviceSearchFormRef.value?.setFormData) {
-    const current = serviceSearchFormRef.value.getFormData?.() || {}
-    serviceSearchFormRef.value.setFormData({ ...current, namespaceId: row.namespaceId })
-  }
-  await service.loadServices({ namespaceId: row.namespaceId })
-}
+const hasServices = computed(() => service.model.serviceList.value.length > 0)
+const isLoading = computed(() => Boolean(service.model.loading.value))
+const emptyDescription = computed(() => (
+  selectedNamespace.value ? '该命名空间下暂无匹配的服务' : '请先选择命名空间'
+))
 
-/**
- * 命名空间选择变化
- */
-const handleNamespaceSelect = (namespace: Namespace | null) => {
-  selectedNamespace.value = namespace
-}
-
-/**
- * 服务分页变化处理
- */
 const handleServicePageChange = (params: { currentPage: number; pageSize: number }) => {
   service.handlePageChange(params.currentPage, params.pageSize)
-}
-
-/**
- * 服务表单提交（自动填充命名空间ID）
- */
-const handleServiceFormSubmit = (formData?: Record<string, any>) => {
-  if (!formData) return
-  if (selectedNamespace.value && !formData.namespaceId) {
-    formData.namespaceId = selectedNamespace.value.namespaceId
-  }
-  handleServiceFormSubmitBase(formData)
 }
 </script>
 
@@ -186,47 +146,11 @@ const handleServiceFormSubmit = (formData?: Record<string, any>) => {
   flex-direction: column;
 }
 
-.service-monitoring__outer,
-.service-monitoring__inner {
+.service-monitoring__split {
+  flex: 1 1 auto;
   width: 100%;
   height: 100%;
   min-height: 0;
-}
-
-.service-monitoring__pane {
-  box-sizing: border-box;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.service-monitoring__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--g-space-sm);
-  border-bottom: 1px solid var(--g-border-color, var(--rs-border));
-  flex-shrink: 0;
-
-  h3 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 500;
-  }
-}
-
-.service-monitoring__ns {
-  font-size: 14px;
-  color: var(--g-text-color-secondary, var(--rs-text-secondary));
-}
-
-.service-monitoring__body {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
 }
 
 .service-monitoring__search {
@@ -234,7 +158,7 @@ const handleServiceFormSubmit = (formData?: Record<string, any>) => {
   box-sizing: border-box;
 }
 
-.service-monitoring__grid {
+.service-monitoring__list {
   box-sizing: border-box;
   width: 100%;
   height: 100%;
@@ -242,5 +166,59 @@ const handleServiceFormSubmit = (formData?: Record<string, any>) => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  background: var(--g-bg-primary);
+}
+
+.service-monitoring__empty,
+.service-monitoring__grid {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.service-monitoring__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.service-monitoring__summary {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--g-border-primary);
+}
+
+.service-monitoring__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--g-border-primary);
+  border-radius: var(--g-radius-lg);
+  background: var(--g-bg-secondary);
+
+  span {
+    font-size: 12px;
+    color: var(--g-text-secondary);
+  }
+
+  strong {
+    font-size: 16px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--g-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 1280px) {
+  .service-monitoring__summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 </style>

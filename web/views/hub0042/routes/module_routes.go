@@ -67,6 +67,7 @@ func initServiceRoutes(router *gin.RouterGroup, db database.Database) {
 		serviceGroup.POST("/addService", routes.RequireButton("hub0042:add"), serviceController.AddService)
 		serviceGroup.POST("/editService", routes.RequireButton("hub0042:edit"), serviceController.EditService)
 		serviceGroup.POST("/deleteService", routes.RequireButton("hub0042:delete"), serviceController.DeleteService)
+		serviceGroup.POST("/batchDeleteServices", routes.RequireButton("hub0042:batchDelete"), serviceController.BatchDeleteServices)
 
 		serviceGroup.POST("/editNode", routes.RequireButton("hub0042:node:edit"), serviceController.EditNode)
 		serviceGroup.POST("/offlineNode", routes.RequireButton("hub0042:node:offline"), serviceController.OfflineNode)

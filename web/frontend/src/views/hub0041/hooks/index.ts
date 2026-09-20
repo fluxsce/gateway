@@ -3,7 +3,7 @@
  */
 
 // 新架构 - Model + Service + Page
-export { useNamespaceModel, type NamespaceModel } from './model'
+export { useNamespaceModel, buildNamespaceContextMenu, canNamespaceAction, namespaceActionPermission, type NamespaceModel } from './model'
 export { useNamespacePage, type NamespacePage } from './useNamespacePage'
 export { useNamespaceService, type NamespaceService } from './useNamespaceService'
 

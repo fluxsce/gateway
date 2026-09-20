@@ -1,19 +1,21 @@
 <template>
   <div class="service-detail" v-if="service">
     <div class="service-detail-header">
-      <h2 class="service-detail-title">服务详情</h2>
+      <h2 class="service-detail-title">{{ t('hub0042.serviceDetail') }}</h2>
       <div class="service-detail-actions">
         <RsButton variant="secondary" icon="pencil" @click="handleEdit">
-          编辑服务
+          {{ t('hub0042.editService') }}
         </RsButton>
         <RsButton variant="primary" icon="arrow-left" @click="handleBack">
-          返回
+          {{ t('hub0042.back') }}
         </RsButton>
       </div>
     </div>
 
     <div class="service-detail-body">
-      <RsDescriptions :columns="2" bordered size="sm" label-placement="left">
+      <ServiceRelationBoard class="service-detail-board" :service="service" />
+
+      <RsDescriptions class="service-detail-meta" :columns="2" bordered size="sm" label-placement="left">
         <RsDescriptionsItem label="服务名">
           {{ service.serviceName }}
         </RsDescriptionsItem>
@@ -45,9 +47,9 @@
 
       <div class="service-detail-nodes">
         <div class="instance-list-header">
-          <span>服务实例列表</span>
+          <span>{{ t('hub0042.nodeList') }}</span>
           <RsTag variant="info" size="sm">
-            共 {{ service.nodes?.length || 0 }} 个实例
+            {{ t('hub0042.nodeCount', { count: service.nodes?.length || 0 }) }}
           </RsTag>
         </div>
         <ServiceNodeList
@@ -62,10 +64,12 @@
 </template>
 
 <script lang="ts" setup>
+import { useI18n } from 'vue-i18n'
 import { RsButton, RsDescriptions, RsDescriptionsItem, RsTag } from '@/ui'
 import { RsCodeBlock } from '@/ui/code-block'
 import type { Service } from '../types'
 import ServiceNodeList from './ServiceNodeList.vue'
+import ServiceRelationBoard from './ServiceRelationBoard.vue'
 
 defineOptions({
   name: 'ServiceDetail'
@@ -88,6 +92,7 @@ interface Emits {
 }
 
 const emit = defineEmits<Emits>()
+const { t } = useI18n()
 
 // 工具方法
 const getServiceTypeLabel = (type: string) => {
@@ -161,18 +166,26 @@ const handleRefresh = () => {
 .service-detail-body {
   flex: 1;
   min-height: 0;
+  overflow: auto;
   display: flex;
   flex-direction: column;
   gap: var(--g-space-md);
 }
 
+.service-detail-board {
+  flex: none;
+  height: 420px;
+}
+
+.service-detail-meta {
+  flex-shrink: 0;
+}
+
 .service-detail-nodes {
-  flex: 1;
-  min-height: 0;
+  flex: none;
   display: flex;
   flex-direction: column;
   gap: var(--g-space-sm);
-  overflow: hidden;
 }
 
 .instance-list-header {
@@ -183,7 +196,6 @@ const handleRefresh = () => {
 }
 
 .service-detail-node-list {
-  flex: 1;
-  min-height: 0;
+  height: 360px;
 }
 </style>

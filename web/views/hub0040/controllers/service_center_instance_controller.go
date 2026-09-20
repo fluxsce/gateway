@@ -1,7 +1,11 @@
 package controllers
 
 import (
-	"gateway/internal/servicecenter"
+	"strings"
+	"unicode/utf8"
+
+	"gateway/internal/cluster/publish"
+	"gateway/internal/servicecenterv3"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/web/middleware/audit"
@@ -18,6 +22,8 @@ import (
 type ServiceCenterInstanceController struct {
 	db                       database.Database
 	serviceCenterInstanceDAO *dao.ServiceCenterInstanceDAO
+	authTokenDAO             *dao.AuthTokenDAO
+	eventPublisher           *publish.ServiceCenterEventPublisher
 }
 
 // NewServiceCenterInstanceController 创建服务中心实例控制器
@@ -25,6 +31,8 @@ func NewServiceCenterInstanceController(db database.Database) *ServiceCenterInst
 	return &ServiceCenterInstanceController{
 		db:                       db,
 		serviceCenterInstanceDAO: dao.NewServiceCenterInstanceDAO(db),
+		authTokenDAO:             dao.NewAuthTokenDAO(db),
+		eventPublisher:           publish.NewServiceCenterEventPublisher(),
 	}
 }
 
@@ -36,7 +44,7 @@ func NewServiceCenterInstanceController(db database.Database) *ServiceCenterInst
 // @Param page query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
 // @Param instanceName query string false "实例名称（模糊查询）"
-// @Param environment query string false "部署环境（DEVELOPMENT, STAGING, PRODUCTION）"
+// @Param environment query string false "部署环境（预置 DEVELOPMENT/STAGING/PRODUCTION，也允许自定义，最长32）"
 // @Param serverType query string false "服务器类型（GRPC, HTTP）"
 // @Param instanceStatus query string false "实例状态（STOPPED, STARTING, RUNNING, STOPPING, ERROR）"
 // @Param activeFlag query string false "活动状态（Y/N）"
@@ -63,27 +71,11 @@ func (c *ServiceCenterInstanceController) QueryServiceCenterInstances(ctx *gin.C
 		return
 	}
 
-	// 转换为响应格式，过滤敏感字段
+	// 转换为响应格式，过滤敏感字段，并叠加双轨运行时状态
 	instanceList := make([]map[string]interface{}, 0, len(instances))
-	serviceCenterManager := servicecenter.GetManager()
 	for _, instance := range instances {
 		instanceInfo := models.ToMap(instance)
-		// 获取运行状态（从连接池中获取）
-		if serviceCenterManager != nil {
-			srv := serviceCenterManager.GetInstance(instance.InstanceName)
-			if srv != nil {
-				if srv.IsRunning() {
-					instanceInfo["isRunning"] = true
-					instanceInfo["port"] = srv.Port()
-				} else {
-					instanceInfo["isRunning"] = false
-				}
-			} else {
-				instanceInfo["isRunning"] = false
-			}
-		} else {
-			instanceInfo["isRunning"] = false
-		}
+		attachCenterRuntime(instanceInfo, instance.InstanceName, instance.Environment)
 		instanceList = append(instanceList, instanceInfo)
 	}
 
@@ -120,8 +112,17 @@ func (c *ServiceCenterInstanceController) AddServiceCenterInstance(ctx *gin.Cont
 		response.ErrorJSON(ctx, "实例名称不能为空", constants.ED00006)
 		return
 	}
+	req.Environment = strings.TrimSpace(req.Environment)
 	if req.Environment == "" {
 		response.ErrorJSON(ctx, "部署环境不能为空", constants.ED00006)
+		return
+	}
+	if utf8.RuneCountInString(req.Environment) > 32 {
+		response.ErrorJSON(ctx, "部署环境不能超过32个字符", constants.ED00006)
+		return
+	}
+	if strings.ContainsAny(req.Environment, " \t\n\r") {
+		response.ErrorJSON(ctx, "部署环境不能包含空格", constants.ED00006)
 		return
 	}
 
@@ -287,12 +288,10 @@ func (c *ServiceCenterInstanceController) DeleteServiceCenterInstance(ctx *gin.C
 	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
 
-	// 先停止服务中心实例（内部已有判断逻辑）
-	serviceCenterManager := servicecenter.GetManager()
-	if serviceCenterManager != nil {
-		if err := serviceCenterManager.StopInstance(ctx, instanceName); err != nil {
-			logger.WarnWithTrace(ctx, "停止服务中心实例失败，继续删除", "error", err)
-		}
+	// 先停止并卸载运行时，再删定义；不走 v3 Pool.Delete，避免与本 DAO 双删
+	unloadCenter(ctx.Request.Context(), instanceName, environment)
+	if err := c.eventPublisher.PublishUnload(ctx.Request.Context(), tenantId, instanceName, environment, operatorId); err != nil {
+		logger.WarnWithTrace(ctx, "发布服务中心卸载事件失败", "error", err)
 	}
 
 	// 调用DAO删除服务中心实例（内部已处理删除逻辑）
@@ -345,7 +344,13 @@ func (c *ServiceCenterInstanceController) GetServiceCenterInstance(ctx *gin.Cont
 		response.ErrorJSON(ctx, "服务中心实例不存在", constants.ED00008)
 		return
 	}
-	response.SuccessJSON(ctx, instance, constants.SD00001)
+	instanceInfo := models.ToMap(instance)
+	instanceInfo["certContent"] = instance.CertContent
+	instanceInfo["keyContent"] = instance.KeyContent
+	instanceInfo["certChainContent"] = instance.CertChainContent
+	instanceInfo["certPassword"] = instance.CertPassword
+	attachCenterRuntime(instanceInfo, instance.InstanceName, instance.Environment)
+	response.SuccessJSON(ctx, instanceInfo, constants.SD00001)
 }
 
 // StartServiceCenterInstance 启动服务中心实例
@@ -378,23 +383,20 @@ func (c *ServiceCenterInstanceController) StartServiceCenterInstance(ctx *gin.Co
 		return
 	}
 
-	// 启动服务中心实例
 	logger.InfoWithTrace(ctx, "准备启动服务中心实例",
 		"instanceName", instanceName,
-		"environment", environment)
+		"environment", environment,
+		"engine", engineName())
 
-	serviceCenterManager := servicecenter.GetManager()
-	if serviceCenterManager == nil {
-		response.ErrorJSON(ctx, "服务中心管理器未初始化", constants.ED00009)
-		return
-	}
-
-	// 调用服务中心管理器的启动方法
-	err = serviceCenterManager.StartInstance(ctx, tenantId, instanceName, environment)
+	operatorId := request.GetOperatorID(ctx)
+	err = startCenter(ctx.Request.Context(), tenantId, instanceName, environment, operatorId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "启动服务中心实例失败", err)
 		response.ErrorJSON(ctx, "启动服务中心实例失败: "+err.Error(), constants.ED00009)
 		return
+	}
+	if err := c.eventPublisher.PublishStart(ctx.Request.Context(), tenantId, instanceName, environment, operatorId); err != nil {
+		logger.WarnWithTrace(ctx, "发布服务中心启动事件失败", "error", err)
 	}
 	audit.SetEvent(ctx, &audit.AuditEvent{
 		Action:       audit.AuditActionUpdate,
@@ -431,18 +433,16 @@ func (c *ServiceCenterInstanceController) StopServiceCenterInstance(ctx *gin.Con
 	instanceName := request.GetParam(ctx, "instanceName")
 	environment := request.GetParam(ctx, "environment")
 
-	serviceCenterManager := servicecenter.GetManager()
-	if serviceCenterManager == nil {
-		response.ErrorJSON(ctx, "服务中心管理器未初始化", constants.ED00009)
-		return
-	}
-
-	// 直接调用停止方法，内部已有判断逻辑
-	err := serviceCenterManager.StopInstance(ctx, instanceName)
+	tenantId := request.GetTenantID(ctx)
+	operatorId := request.GetOperatorID(ctx)
+	err := stopCenter(ctx.Request.Context(), tenantId, instanceName, environment, operatorId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "停止服务中心实例失败", err)
 		response.ErrorJSON(ctx, "停止服务中心实例失败: "+err.Error(), constants.ED00009)
 		return
+	}
+	if err := c.eventPublisher.PublishStop(ctx.Request.Context(), tenantId, instanceName, environment, operatorId); err != nil {
+		logger.WarnWithTrace(ctx, "发布服务中心停止事件失败", "error", err)
 	}
 	audit.SetEvent(ctx, &audit.AuditEvent{
 		Action:       audit.AuditActionUpdate,
@@ -501,18 +501,15 @@ func (c *ServiceCenterInstanceController) ReloadServiceCenterInstance(ctx *gin.C
 		"environment", environment,
 		"tenantId", tenantId)
 
-	serviceCenterManager := servicecenter.GetManager()
-	if serviceCenterManager == nil {
-		response.ErrorJSON(ctx, "服务中心管理器未初始化", constants.ED00009)
-		return
-	}
-
-	// 调用服务中心管理器的重载方法
-	err = serviceCenterManager.ReloadInstance(ctx, instanceName)
+	operatorId := request.GetOperatorID(ctx)
+	err = reloadCenter(ctx.Request.Context(), tenantId, instanceName, environment, operatorId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "重载服务中心实例配置失败", err)
 		response.ErrorJSON(ctx, "重载服务中心实例配置失败: "+err.Error(), constants.ED00009)
 		return
+	}
+	if err := c.eventPublisher.PublishReload(ctx.Request.Context(), tenantId, instanceName, environment, operatorId); err != nil {
+		logger.WarnWithTrace(ctx, "发布服务中心重载事件失败", "error", err)
 	}
 	audit.SetEvent(ctx, &audit.AuditEvent{
 		Action:       audit.AuditActionUpdate,
@@ -533,5 +530,57 @@ func (c *ServiceCenterInstanceController) ReloadServiceCenterInstance(ctx *gin.C
 		"instanceName": instanceName,
 		"environment":  environment,
 		"message":      "服务中心实例配置重载成功",
+	}, constants.SD00001)
+}
+
+// GetServiceCenterOverview 获取中心实例运行时概览（服务/节点/配置/连接计数）。
+func (c *ServiceCenterInstanceController) GetServiceCenterOverview(ctx *gin.Context) {
+	instanceName := request.GetParam(ctx, "instanceName")
+	tenantId := request.GetTenantID(ctx)
+	if instanceName == "" {
+		response.ErrorJSON(ctx, "实例名称不能为空", constants.ED00006)
+		return
+	}
+	environment := request.GetParam(ctx, "environment")
+	pool := servicecenterv3.GetPool()
+	if pool == nil {
+		response.ErrorJSON(ctx, "servicecenterv3 未初始化", constants.ED00009)
+		return
+	}
+	ov, err := pool.Overview(ctx.Request.Context(), adminCC(tenantId, instanceName, environment, ""))
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "获取服务中心运行时概览失败", err)
+		response.ErrorJSON(ctx, "获取运行时概览失败: "+err.Error(), constants.ED00009)
+		return
+	}
+	response.SuccessJSON(ctx, overviewToMap(ov), constants.SD00001)
+}
+
+// ListServiceCenterConnections 列出中心实例当前数据面会话。
+func (c *ServiceCenterInstanceController) ListServiceCenterConnections(ctx *gin.Context) {
+	instanceName := request.GetParam(ctx, "instanceName")
+	tenantId := request.GetTenantID(ctx)
+	if instanceName == "" {
+		response.ErrorJSON(ctx, "实例名称不能为空", constants.ED00006)
+		return
+	}
+	environment := request.GetParam(ctx, "environment")
+	pool := servicecenterv3.GetPool()
+	if pool == nil {
+		response.ErrorJSON(ctx, "servicecenterv3 未初始化", constants.ED00009)
+		return
+	}
+	list, err := pool.ListConnections(ctx.Request.Context(), adminCC(tenantId, instanceName, environment, ""))
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "获取服务中心连接列表失败", err)
+		response.ErrorJSON(ctx, "获取连接列表失败: "+err.Error(), constants.ED00009)
+		return
+	}
+	response.SuccessJSON(ctx, gin.H{
+		"instanceName": instanceName,
+		"environment":  environment,
+		"engine":       servicecenterv3.EngineV3,
+		"connections":  connectionsToMaps(list),
+		"total":        len(list),
 	}, constants.SD00001)
 }

@@ -668,3 +668,19 @@ func GetParamBool(c *gin.Context, key string, defaultValue bool) bool {
 		return defaultValue
 	}
 }
+
+// ParseCSV 解析表单逗号分隔字符串，去掉空白项。
+func ParseCSV(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		item := strings.TrimSpace(part)
+		if item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
+}

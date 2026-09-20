@@ -31,6 +31,7 @@ func InitializeCluster(ctx context.Context, db database.Database) (types.Cluster
 		// 创建集群服务
 		svc := service.NewClusterService(db)
 		clusterService = svc
+		types.SetClusterService(svc)
 
 		// 注册网关事件处理器
 		gatewayHandler := handler.NewGatewayEventHandler(db)
@@ -45,6 +46,10 @@ func InitializeCluster(ctx context.Context, db database.Database) (types.Cluster
 		envSettingHandler := handler.NewEnvSettingEventHandler(db)
 		clusterService.RegisterHandler(envSettingHandler)
 		logger.Info("注册环境设置事件处理器成功", "eventType", envSettingHandler.GetEventType())
+
+		serviceCenterHandler := handler.NewServiceCenterEventHandler(db)
+		clusterService.RegisterHandler(serviceCenterHandler)
+		logger.Info("注册服务中心事件处理器成功", "eventType", serviceCenterHandler.GetEventType())
 
 		initMu.Lock()
 		initialized = true

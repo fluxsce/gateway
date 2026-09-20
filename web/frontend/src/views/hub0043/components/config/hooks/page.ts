@@ -179,7 +179,7 @@ export function useConfigPage(
           configContent: formData.configContent,
         })
       } else if (formDialogMode.value === 'edit') {
-        success = await service.editConfig({
+        success = await service.saveDraft({
           ...formData,
           namespaceId: currentEditConfig.value!.namespaceId,
           groupName: currentEditConfig.value!.groupName || 'DEFAULT_GROUP',
@@ -370,10 +370,60 @@ export function useConfigPage(
         // 触发历史事件回调
         onHistoryClick?.(row)
         break
+      case 'publish':
+        await handlePublishRow(row)
+        break
       case 'delete':
         await service.deleteConfig(row)
         await service.handleRefresh()
         break
+    }
+  }
+
+  const handlePublishRow = async (config: Config) => {
+    const confirmed = await rsConfirm.warning({
+      title: '确认发布',
+      subtitle: '发布后订阅方将立即收到变更',
+      description: `确定要发布配置 ${config.groupName || 'DEFAULT_GROUP'}/${config.configDataId} 吗？`,
+      confirmText: '确定发布',
+      cancelText: '取消',
+      width: 480,
+    })
+    if (!confirmed) return
+    const success = await service.publishConfig({
+      namespaceId: config.namespaceId,
+      groupName: config.groupName || 'DEFAULT_GROUP',
+      configDataId: config.configDataId,
+      configContent: config.configContent,
+      changeReason: 'publish from console',
+    })
+    if (success) {
+      await service.handleRefresh()
+    }
+  }
+
+  const handlePublishCurrent = async () => {
+    const formData = formRef?.value?.getFormData?.() || currentEditConfig.value
+    if (!formData?.namespaceId || !formData?.configDataId) {
+      message.warning('请先填写命名空间和配置ID')
+      return
+    }
+    submitting.value = true
+    try {
+      const success = await service.publishConfig({
+        ...formData,
+        namespaceId: formData.namespaceId,
+        groupName: formData.groupName || 'DEFAULT_GROUP',
+        configDataId: formData.configDataId,
+        configContent: formData.configContent,
+        changeReason: formData.changeReason,
+      })
+      if (success) {
+        handleBackToList()
+        await service.handleRefresh()
+      }
+    } finally {
+      submitting.value = false
     }
   }
 
@@ -429,6 +479,8 @@ export function useConfigPage(
     handleToolbarClick,
     handleMenuClick,
     handleSearch,
+    handlePublishCurrent,
+    handlePublishRow,
   }
 }
 

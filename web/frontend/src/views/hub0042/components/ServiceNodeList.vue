@@ -18,7 +18,7 @@
       v-model:visible="editDialogVisible"
       module-id="hub0042:node"
       mode="edit"
-      title="编辑节点"
+      :title="t('hub0042.editNode')"
       to="#hub0042-node"
       :form-fields="nodeFormFields"
       :initial-data="currentEditNode || undefined"
@@ -37,6 +37,7 @@ import { useAppMessage } from '@/composables/useAppMessage'
 import { RsButton, RsTag, rsConfirm } from '@/ui'
 import { formatDate } from '@/utils/format'
 import { h, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { editNode, offlineNode, onlineNode } from '../api'
 import type { ServiceNode } from '../types'
 
@@ -62,6 +63,7 @@ interface Emits {
 
 const emit = defineEmits<Emits>()
 
+const { t } = useI18n()
 const message = useAppMessage()
 const editDialogVisible = ref(false)
 const currentEditNode = ref<ServiceNode | null>(null)
@@ -98,7 +100,7 @@ const nodeFormFields: RsDataFormField[] = [
   },
   {
     field: 'instanceStatus',
-    label: '实例状态',
+    label: t('hub0042.nodeStatus'),
     type: 'select',
     required: true,
     options: [
@@ -121,7 +123,7 @@ const nodeFormFields: RsDataFormField[] = [
   },
   {
     field: 'ephemeral',
-    label: '临时实例',
+    label: t('hub0042.ephemeralNode'),
     type: 'select',
     required: true,
     options: [
@@ -226,19 +228,31 @@ const nodeGridConfig: {
       sortable: true,
       filterable: true,
     },
-    {
-      key: 'ephemeral',
-      title: '临时实例',
-      align: 'center',
-      width: 100,
-      filterable: true,
-      render: (row) =>
-        h(
-          RsTag,
-          { variant: row.ephemeral === 'Y' ? 'warning' : 'default', size: 'sm' },
-          () => (row.ephemeral === 'Y' ? '是' : '否'),
-        ),
-    },
+      {
+        key: 'ephemeral',
+        title: '生命周期',
+        align: 'center',
+        width: 110,
+        filterable: true,
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.ephemeral === 'Y' ? 'warning' : 'default', size: 'sm' },
+            () => (row.ephemeral === 'Y' ? '临时' : '持久'),
+          ),
+      },
+      {
+        key: 'source',
+        title: '来源',
+        align: 'center',
+        width: 90,
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.source === 'runtime' ? 'info' : 'default', size: 'sm' },
+            () => (row.source === 'runtime' ? '运行时' : '缓存'),
+          ),
+      },
     {
       key: 'weight',
       title: '权重',
@@ -249,7 +263,7 @@ const nodeGridConfig: {
     },
     {
       key: 'instanceStatus',
-      title: '实例状态',
+      title: t('hub0042.nodeStatus'),
       align: 'center',
       width: 120,
       filterable: true,

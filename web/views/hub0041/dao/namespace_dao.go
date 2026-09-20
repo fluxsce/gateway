@@ -3,14 +3,16 @@ package dao
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
+	"time"
+
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/empty"
 	"gateway/pkg/utils/huberrors"
 	"gateway/pkg/utils/random"
 	"gateway/web/views/hub0041/models"
-	"strings"
-	"time"
 )
 
 // NamespaceDAO 命名空间数据访问对象
@@ -178,6 +180,10 @@ func (dao *NamespaceDAO) ListNamespaces(ctx context.Context, tenantId string, qu
 			whereClause += " AND namespaceName LIKE ?"
 			params = append(params, "%"+query.NamespaceName+"%")
 		}
+		if !empty.IsEmpty(query.NamespaceId) {
+			whereClause += " AND namespaceId = ?"
+			params = append(params, query.NamespaceId)
+		}
 		if !empty.IsEmpty(query.InstanceName) {
 			whereClause += " AND instanceName = ?"
 			params = append(params, query.InstanceName)
@@ -260,6 +266,91 @@ func (dao *NamespaceDAO) FindNamespaceByName(ctx context.Context, namespaceName,
 	}
 
 	return namespaces, nil
+}
+
+// CountUsageByNamespaces 按命名空间批量统计库内服务数与持久节点数。
+func (dao *NamespaceDAO) CountUsageByNamespaces(ctx context.Context, tenantId string, namespaceIds []string) (map[string]models.NamespaceUsage, error) {
+	out := make(map[string]models.NamespaceUsage, len(namespaceIds))
+	if tenantId == "" || len(namespaceIds) == 0 {
+		return out, nil
+	}
+
+	placeholders := strings.Repeat("?,", len(namespaceIds))
+	placeholders = placeholders[:len(placeholders)-1]
+	args := make([]interface{}, 0, 1+len(namespaceIds))
+	args = append(args, tenantId)
+	for _, id := range namespaceIds {
+		args = append(args, id)
+		out[id] = models.NamespaceUsage{}
+	}
+
+	type countRow struct {
+		NamespaceId string `db:"namespaceId"`
+		Count       int    `db:"count"`
+	}
+
+	serviceQuery := fmt.Sprintf(`
+		SELECT namespaceId, COUNT(*) as count
+		FROM HUB_SERVICE
+		WHERE tenantId = ? AND activeFlag = 'Y' AND namespaceId IN (%s)
+		GROUP BY namespaceId
+	`, placeholders)
+	var serviceRows []countRow
+	if err := dao.db.Query(ctx, &serviceRows, serviceQuery, args, true); err != nil {
+		return nil, huberrors.WrapError(err, "统计命名空间服务数失败")
+	}
+	for _, row := range serviceRows {
+		usage := out[row.NamespaceId]
+		usage.ServiceCount = row.Count
+		out[row.NamespaceId] = usage
+	}
+
+	nodeQuery := fmt.Sprintf(`
+		SELECT namespaceId, COUNT(*) as count
+		FROM HUB_SERVICE_NODE
+		WHERE tenantId = ? AND activeFlag = 'Y' AND namespaceId IN (%s)
+		GROUP BY namespaceId
+	`, placeholders)
+	var nodeRows []countRow
+	if err := dao.db.Query(ctx, &nodeRows, nodeQuery, args, true); err != nil {
+		return nil, huberrors.WrapError(err, "统计命名空间节点数失败")
+	}
+	for _, row := range nodeRows {
+		usage := out[row.NamespaceId]
+		usage.NodeCount = row.Count
+		out[row.NamespaceId] = usage
+	}
+
+	return out, nil
+}
+
+// CountOccupancy 统计命名空间下目录占用（服务、节点、配置），不区分活动标记。
+func (dao *NamespaceDAO) CountOccupancy(ctx context.Context, tenantId, namespaceId string) (services, nodes, configs int, err error) {
+	if tenantId == "" || namespaceId == "" {
+		return 0, 0, 0, errors.New("tenantId和namespaceId不能为空")
+	}
+	type countRow struct {
+		Count int `db:"count"`
+	}
+	queries := []struct {
+		sql string
+		dst *int
+	}{
+		{"SELECT COUNT(*) as count FROM HUB_SERVICE WHERE tenantId = ? AND namespaceId = ?", &services},
+		{"SELECT COUNT(*) as count FROM HUB_SERVICE_NODE WHERE tenantId = ? AND namespaceId = ?", &nodes},
+		{"SELECT COUNT(*) as count FROM HUB_SERVICE_CONFIG_DATA WHERE tenantId = ? AND namespaceId = ?", &configs},
+	}
+	for _, q := range queries {
+		var row countRow
+		if queryErr := dao.db.QueryOne(ctx, &row, q.sql, []interface{}{tenantId, namespaceId}, true); queryErr != nil {
+			if queryErr == database.ErrRecordNotFound {
+				continue
+			}
+			return 0, 0, 0, huberrors.WrapError(queryErr, "统计命名空间占用失败")
+		}
+		*q.dst = row.Count
+	}
+	return services, nodes, configs, nil
 }
 
 // isDuplicateNamespaceError 检查是否是命名空间重复错误

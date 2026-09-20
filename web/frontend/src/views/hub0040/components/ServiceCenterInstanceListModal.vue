@@ -118,7 +118,6 @@ const stopVisibleWatch = watch(
 )
 
 const service = useServiceCenterInstanceService(searchFormRef)
-service.loadInstances()
 
 /**
  * 处理弹窗可见性更新

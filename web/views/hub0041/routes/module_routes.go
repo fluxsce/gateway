@@ -60,6 +60,7 @@ func initNamespaceRoutes(router *gin.RouterGroup, db database.Database) {
 	{
 		// 命名空间列表查询
 		namespaceGroup.POST("/queryNamespaces", namespaceController.QueryNamespaces)
+		namespaceGroup.POST("/queryNamespaceOverview", namespaceController.QueryNamespaceOverview)
 
 		// 命名空间详情查询
 		namespaceGroup.POST("/getNamespace", namespaceController.GetNamespace)

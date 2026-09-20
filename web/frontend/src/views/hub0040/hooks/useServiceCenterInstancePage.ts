@@ -10,14 +10,60 @@ import { flattenExtProperty, unflattenExtProperty } from '@/utils/format'
 import { consumeTextFileField, filesFromTextContent } from '@/utils/uploadFile'
 import { PlayCircleOutline, RefreshOutline, StopCircleOutline } from '@vicons/ionicons5'
 import type { Ref } from 'vue'
-import { ref } from 'vue'
-import type { ServiceCenterInstance } from '../types'
+import { ref, watch } from 'vue'
+import type { CenterAuthToken, CenterConnection, CenterIssuedAuthToken, CenterOverview, ServiceCenterInstance } from '../types'
+import { canInstanceAction } from './model'
 import { useServiceCenterInstanceService } from './useServiceCenterInstanceService'
+
+function parseJsonList(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.map(String).filter(Boolean)
+  if (typeof raw !== 'string' || !raw.trim()) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : []
+  } catch {
+    return raw.split(',').map((s) => s.trim()).filter(Boolean)
+  }
+}
+
+function accessConfigError(data: Record<string, any>): string | null {
+  if (data.enableMTLS === 'Y' && data.enableTLS !== 'Y') {
+    return '启用双向 TLS 前请先启用 TLS'
+  }
+  if (data.enableMTLS === 'Y' && !String(data.certChainContent || '').trim()) {
+    return '启用双向 TLS 时必须上传客户端 CA 证书'
+  }
+  return null
+}
+
+function hydrateInstanceForm(detail: ServiceCenterInstance): Record<string, any> {
+  const formData: Record<string, any> = { ...detail }
+  formData.certFileList = filesFromTextContent(
+    detail.certFilePath || 'certificate.pem',
+    detail.certContent || '',
+  )
+  formData.keyFileList = filesFromTextContent(
+    detail.keyFilePath || 'private-key.pem',
+    detail.keyContent || '',
+  )
+  formData.certChainFileList = filesFromTextContent(
+    'client-ca.pem',
+    detail.certChainContent || '',
+  )
+  formData.ipWhitelist = parseJsonList(formData.ipWhitelist)
+  formData.ipBlacklist = parseJsonList(formData.ipBlacklist)
+  flattenExtProperty(formData)
+  return formData
+}
 
 /**
  * 服务中心实例管理页面级 Hook
  */
-export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any) {
+function instanceIdentity(row: ServiceCenterInstance) {
+  return `${row.tenantId}\0${row.instanceName}\0${row.environment}`
+}
+
+export function useServiceCenterInstancePage(searchFormRef?: Ref<any> | any) {
   const message = useAppMessage()
   // 业务服务（包含 model、增删改查等）
   const service = useServiceCenterInstanceService(searchFormRef)
@@ -27,6 +73,28 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
   const formDialogMode = ref<'create' | 'edit' | 'view'>('create')
   const currentEditInstance = ref<ServiceCenterInstance | null>(null)
   const submitting = ref(false)
+  const runtimeDrawerVisible = ref(false)
+  const runtimeLoading = ref(false)
+  const runtimeInstance = ref<ServiceCenterInstance | null>(null)
+  const runtimeOverview = ref<CenterOverview | null>(null)
+  const runtimeConnections = ref<CenterConnection[]>([])
+  const tokenDrawerVisible = ref(false)
+  const tokenLoading = ref(false)
+  const tokenIssuing = ref(false)
+  const tokenInstance = ref<ServiceCenterInstance | null>(null)
+  const tokenList = ref<CenterAuthToken[]>([])
+  const issuedToken = ref<CenterIssuedAuthToken | null>(null)
+  const selectedInstance = ref<ServiceCenterInstance | null>(null)
+
+  watch(
+    () => service.model.instanceList.value,
+    (list) => {
+      const current = selectedInstance.value
+      if (!current) return
+      const next = list.find((row) => instanceIdentity(row) === instanceIdentity(current))
+      selectedInstance.value = next || null
+    },
+  )
 
   /**
    * 打开新增实例对话框
@@ -53,37 +121,8 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
         return
       }
 
-      const formData: any = { ...detailInstance }
-      formData.certFileList = filesFromTextContent(
-        detailInstance.certFilePath || 'certificate.pem',
-        detailInstance.certContent || '',
-      )
-      formData.keyFileList = filesFromTextContent(
-        detailInstance.keyFilePath || 'private-key.pem',
-        detailInstance.keyContent || '',
-      )
-
-      // 处理 IP 白名单和黑名单（JSON 字符串转数组）
-      if (formData.ipWhitelist && typeof formData.ipWhitelist === 'string') {
-        try {
-          formData.ipWhitelist = JSON.parse(formData.ipWhitelist)
-        } catch {
-          formData.ipWhitelist = []
-        }
-      }
-      if (formData.ipBlacklist && typeof formData.ipBlacklist === 'string') {
-        try {
-          formData.ipBlacklist = JSON.parse(formData.ipBlacklist)
-        } catch {
-          formData.ipBlacklist = []
-        }
-      }
-
-      // 解析 extProperty JSON 为嵌套对象
-      flattenExtProperty(formData)
-
       formDialogMode.value = 'edit'
-      currentEditInstance.value = formData
+      currentEditInstance.value = hydrateInstanceForm(detailInstance) as ServiceCenterInstance
       formDialogVisible.value = true
     } catch (error) {
       message.error('获取实例详情失败')
@@ -115,37 +154,8 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
         return
       }
 
-      const formData: any = { ...detailInstance }
-      formData.certFileList = filesFromTextContent(
-        detailInstance.certFilePath || 'certificate.pem',
-        detailInstance.certContent || '',
-      )
-      formData.keyFileList = filesFromTextContent(
-        detailInstance.keyFilePath || 'private-key.pem',
-        detailInstance.keyContent || '',
-      )
-
-      // 处理 IP 白名单和黑名单（JSON 字符串转数组）
-      if (formData.ipWhitelist && typeof formData.ipWhitelist === 'string') {
-        try {
-          formData.ipWhitelist = JSON.parse(formData.ipWhitelist)
-        } catch {
-          formData.ipWhitelist = []
-        }
-      }
-      if (formData.ipBlacklist && typeof formData.ipBlacklist === 'string') {
-        try {
-          formData.ipBlacklist = JSON.parse(formData.ipBlacklist)
-        } catch {
-          formData.ipBlacklist = []
-        }
-      }
-
-      // 解析 extProperty JSON 为嵌套对象
-      flattenExtProperty(formData)
-
       formDialogMode.value = 'view'
-      currentEditInstance.value = formData
+      currentEditInstance.value = hydrateInstanceForm(detailInstance) as ServiceCenterInstance
       formDialogVisible.value = true
     } catch (error) {
       message.error('获取实例详情失败')
@@ -181,6 +191,14 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
       await consumeTextFileField(processedData, 'keyFileList', 'keyContent', 'keyFilePath', {
         fallbackPath: editFallback?.keyFilePath,
       })
+      await consumeTextFileField(processedData, 'certChainFileList', 'certChainContent', '_certChainPath')
+      delete processedData._certChainPath
+
+      const accessError = accessConfigError(processedData)
+      if (accessError) {
+        message.error(accessError)
+        return
+      }
 
       // 处理 IP 白名单和黑名单（数组转 JSON 字符串）
       if (Array.isArray(processedData.ipWhitelist)) {
@@ -192,6 +210,10 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
         processedData.ipBlacklist = processedData.ipBlacklist.length > 0
           ? JSON.stringify(processedData.ipBlacklist)
           : ''
+      }
+
+      if (typeof processedData.environment === 'string') {
+        processedData.environment = processedData.environment.trim()
       }
 
       // 将 extProperty 嵌套对象打包回 JSON 字符串
@@ -228,6 +250,10 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
    * @param formData 表单数据（可选，search 操作时会传递）
    */
   const handleToolbarClick = async (key: string, formData?: Record<string, any>) => {
+    if (!canInstanceAction(key) && key !== 'search' && key !== 'reset') {
+      message.warning('没有操作权限')
+      return
+    }
     switch (key) {
       case 'add':
         // 直接打开新增对话框
@@ -235,32 +261,20 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
         break
 
       case 'edit': {
-        // 编辑：优先勾选行，无勾选时回退到当前高亮行
-        if (!gridRef?.value) {
-          message.warning('Grid 引用未设置')
+        if (!selectedInstance.value) {
+          message.warning('请先选择要编辑的实例')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
-        if (!selectedRow) {
-          message.warning('请先选择或点击要编辑的实例')
-          return
-        }
-        await openEditDialog(selectedRow as ServiceCenterInstance)
+        await openEditDialog(selectedInstance.value)
         break
       }
 
       case 'delete': {
-        // 删除：优先勾选行，无勾选时回退到当前高亮行
-        if (!gridRef?.value) {
-          message.warning('Grid 引用未设置')
+        if (!selectedInstance.value) {
+          message.warning('请先选择要删除的实例')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
-        if (!selectedRow) {
-          message.warning('请先选择或点击要删除的实例')
-          return
-        }
-        await service.deleteInstance(selectedRow as ServiceCenterInstance)
+        await service.deleteInstance(selectedInstance.value)
         break
       }
 
@@ -330,11 +344,27 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
     }
   }
 
+  const selectInstance = (instance: ServiceCenterInstance) => {
+    selectedInstance.value = instance
+  }
+
+  /**
+   * 卡片菜单 / 底部按钮
+   */
+  const handleCardAction = async (key: string, instance: ServiceCenterInstance) => {
+    selectedInstance.value = instance
+    await handleMenuClick({ key, row: instance })
+  }
+
   /**
    * 右键菜单点击处理
    */
   const handleMenuClick = async ({ key, row }: { key: string; row?: ServiceCenterInstance }) => {
     if (!row) return
+    if (!canInstanceAction(key)) {
+      message.warning('没有操作权限')
+      return
+    }
 
     switch (key) {
       case 'view':
@@ -360,7 +390,85 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
       case 'reload':
         handleReloadInstance(row)
         break
+
+      case 'runtime':
+        await handleOpenRuntime(row)
+        break
+
+      case 'token':
+        await handleOpenToken(row)
+        break
     }
+  }
+
+  const handleOpenRuntime = async (instance: ServiceCenterInstance) => {
+    runtimeInstance.value = instance
+    runtimeDrawerVisible.value = true
+    runtimeLoading.value = true
+    try {
+      const [overview, connections] = await Promise.all([
+        service.getRuntimeOverview(instance.instanceName, instance.environment),
+        service.listRuntimeConnections(instance.instanceName, instance.environment),
+      ])
+      runtimeOverview.value = overview
+      runtimeConnections.value = connections
+    } finally {
+      runtimeLoading.value = false
+    }
+  }
+
+  const handleOpenToken = async (instance: ServiceCenterInstance) => {
+    tokenInstance.value = instance
+    issuedToken.value = null
+    tokenDrawerVisible.value = true
+    tokenLoading.value = true
+    try {
+      tokenList.value = await service.listAuthTokens(instance.instanceName, instance.environment)
+    } finally {
+      tokenLoading.value = false
+    }
+  }
+
+  const handleIssueToken = async (payload: { tokenName: string; expireDays: number }) => {
+    const instance = tokenInstance.value
+    if (!instance) return
+    if (!canInstanceAction('edit')) {
+      message.warning('没有颁发权限')
+      return
+    }
+    tokenIssuing.value = true
+    try {
+      const issued = await service.issueAuthToken(instance, payload.tokenName, payload.expireDays)
+      if (!issued) return
+      issuedToken.value = issued
+      tokenList.value = await service.listAuthTokens(instance.instanceName, instance.environment)
+    } finally {
+      tokenIssuing.value = false
+    }
+  }
+
+  const handleRevokeToken = async (token: CenterAuthToken) => {
+    const instance = tokenInstance.value
+    if (!instance) return
+    if (!canInstanceAction('edit')) {
+      message.warning('没有吊销权限')
+      return
+    }
+    const confirmed = await rsConfirm.warning({
+      title: '确认吊销',
+      subtitle: '吊销后接入方将无法再用此令牌',
+      description: `确定要吊销「${token.tokenName || token.tokenPreview}」吗？`,
+      confirmText: '确定吊销',
+      cancelText: '取消',
+      width: 480,
+    })
+    if (!confirmed) return
+    const ok = await service.revokeAuthToken(instance, token.tokenId)
+    if (!ok) return
+    if (issuedToken.value?.tokenId === token.tokenId) {
+      issuedToken.value = null
+    }
+    tokenList.value = await service.listAuthTokens(instance.instanceName, instance.environment)
   }
 
   return {
@@ -380,10 +488,27 @@ export function useServiceCenterInstancePage(gridRef?: Ref<any> | any, searchFor
     // 事件处理器
     handleToolbarClick,
     handleMenuClick,
+    handleCardAction,
     handleSearch,
     handleStartInstance,
     handleStopInstance,
     handleReloadInstance,
+    handleOpenRuntime,
+    selectedInstance,
+    selectInstance,
+    runtimeDrawerVisible,
+    runtimeLoading,
+    runtimeInstance,
+    runtimeOverview,
+    runtimeConnections,
+    tokenDrawerVisible,
+    tokenLoading,
+    tokenIssuing,
+    tokenInstance,
+    tokenList,
+    issuedToken,
+    handleIssueToken,
+    handleRevokeToken,
   }
 }
 

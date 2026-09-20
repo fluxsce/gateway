@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"gateway/internal/servicecenter"
+	"gateway/internal/servicecenterv3"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/pkg/utils/random"
@@ -37,6 +37,7 @@ func NewNamespaceController(db database.Database) *NamespaceController {
 // @Param page query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
 // @Param namespaceName query string false "命名空间名称（模糊查询）"
+// @Param namespaceId query string false "命名空间ID（精确查询）"
 // @Param instanceName query string false "服务中心实例名称"
 // @Param environment query string false "部署环境（DEVELOPMENT, STAGING, PRODUCTION）"
 // @Param activeFlag query string false "活动状态（Y/N）"
@@ -53,7 +54,6 @@ func (c *NamespaceController) QueryNamespaces(ctx *gin.Context) {
 	if err := request.BindSafely(ctx, &query); err != nil {
 		logger.WarnWithTrace(ctx, "绑定命名空间查询条件失败，使用默认条件", "error", err.Error())
 	}
-
 	// 调用DAO获取命名空间列表
 	namespaces, total, err := c.namespaceDAO.ListNamespaces(ctx, tenantId, &query, page, pageSize)
 	if err != nil {
@@ -62,12 +62,33 @@ func (c *NamespaceController) QueryNamespaces(ctx *gin.Context) {
 		return
 	}
 
+	namespaceIds := make([]string, 0, len(namespaces))
+	for _, ns := range namespaces {
+		if ns != nil {
+			namespaceIds = append(namespaceIds, ns.NamespaceId)
+		}
+	}
+	usageMap, err := c.namespaceDAO.CountUsageByNamespaces(ctx.Request.Context(), tenantId, namespaceIds)
+	if err != nil {
+		logger.WarnWithTrace(ctx, "统计命名空间注册数失败，使用默认值", "error", err.Error())
+		usageMap = map[string]models.NamespaceUsage{}
+	}
+
+	namespaceList := make([]map[string]interface{}, 0, len(namespaces))
+	for _, ns := range namespaces {
+		info := models.ToMap(ns)
+		if usage, ok := usageMap[ns.NamespaceId]; ok {
+			applyUsage(info, usage)
+		}
+		overlayRuntimeNamespaceStats(ctx.Request.Context(), tenantId, ns, info)
+		namespaceList = append(namespaceList, info)
+	}
+
 	// 创建分页信息并返回
 	pageInfo := response.NewPageInfo(page, pageSize, total)
 	pageInfo.MainKey = "namespaceId"
 
-	// 使用统一的分页响应，直接返回命名空间对象列表
-	response.PageJSON(ctx, namespaces, pageInfo, constants.SD00002)
+	response.PageJSON(ctx, namespaceList, pageInfo, constants.SD00002)
 }
 
 // AddNamespace 创建命名空间
@@ -167,14 +188,7 @@ func (c *NamespaceController) AddNamespace(ctx *gin.Context) {
 		"tenantId", tenantId,
 		"operatorId", operatorId)
 
-	// 同步到缓存
-	serviceCenterManager := servicecenter.GetManager()
-	if serviceCenterManager != nil {
-		if err := serviceCenterManager.AddNamespaceToCache(ctx, tenantId, newNamespace.NamespaceId); err != nil {
-			logger.WarnWithTrace(ctx, "添加命名空间到缓存失败", "error", err)
-			// 缓存失败不影响主流程，只记录警告
-		}
-	}
+	addRuntimeNamespace(newNamespace)
 
 	// 直接返回命名空间对象
 	response.SuccessJSON(ctx, newNamespace, constants.SD00003)
@@ -252,14 +266,7 @@ func (c *NamespaceController) EditNamespace(ctx *gin.Context) {
 		return
 	}
 
-	// 同步到缓存
-	serviceCenterManager := servicecenter.GetManager()
-	if serviceCenterManager != nil {
-		if err := serviceCenterManager.UpdateNamespaceInCache(ctx, tenantId, req.NamespaceId); err != nil {
-			logger.WarnWithTrace(ctx, "更新命名空间缓存失败", "error", err)
-			// 缓存失败不影响主流程，只记录警告
-		}
-	}
+	syncRuntimeNamespace(updatedNamespace)
 
 	// 直接返回命名空间对象
 	response.SuccessJSON(ctx, updatedNamespace, constants.SD00004)
@@ -281,8 +288,35 @@ func (c *NamespaceController) DeleteNamespace(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
 
+	if namespaceId == "" {
+		response.ErrorJSON(ctx, "命名空间ID不能为空", constants.ED00006)
+		return
+	}
+
+	current, err := c.namespaceDAO.GetNamespaceById(ctx, tenantId, namespaceId)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "查询命名空间失败", err)
+		response.ErrorJSON(ctx, "查询命名空间失败: "+err.Error(), constants.ED00009)
+		return
+	}
+	if current == nil {
+		response.ErrorJSON(ctx, "命名空间不存在", constants.ED00008)
+		return
+	}
+
+	services, nodes, configs, err := c.namespaceDAO.CountOccupancy(ctx.Request.Context(), tenantId, namespaceId)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "检查命名空间占用失败", err)
+		response.ErrorJSON(ctx, "检查命名空间占用失败: "+err.Error(), constants.ED00009)
+		return
+	}
+	if services > 0 || nodes > 0 || configs > 0 || namespaceHasRuntimeServices(current) {
+		response.ErrorJSON(ctx, "命名空间下仍有服务、节点或配置，请先清空后再删除", constants.ED00006)
+		return
+	}
+
 	// 调用DAO删除命名空间
-	err := c.namespaceDAO.DeleteNamespace(ctx, tenantId, namespaceId, operatorId)
+	err = c.namespaceDAO.DeleteNamespace(ctx, tenantId, namespaceId, operatorId)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "删除命名空间失败", err)
 		response.ErrorJSON(ctx, "删除命名空间失败: "+err.Error(), constants.ED00009)
@@ -296,14 +330,7 @@ func (c *NamespaceController) DeleteNamespace(ctx *gin.Context) {
 		ResourceCode: "hub0041:delete",
 	})
 
-	// 同步删除缓存（会自动删除该命名空间下的所有服务和节点）
-	serviceCenterManager := servicecenter.GetManager()
-	if serviceCenterManager != nil {
-		if err := serviceCenterManager.DeleteNamespaceFromCache(ctx, tenantId, namespaceId); err != nil {
-			logger.WarnWithTrace(ctx, "删除命名空间缓存失败", "error", err)
-			// 缓存失败不影响主流程，只记录警告
-		}
-	}
+	dropRuntimeNamespace(current)
 
 	response.SuccessJSON(ctx, gin.H{
 		"namespaceId": namespaceId,
@@ -339,6 +366,73 @@ func (c *NamespaceController) GetNamespace(ctx *gin.Context) {
 		return
 	}
 
-	// 直接返回命名空间对象
-	response.SuccessJSON(ctx, namespace, constants.SD00001)
+	info := models.ToMap(namespace)
+	usageMap, err := c.namespaceDAO.CountUsageByNamespaces(ctx.Request.Context(), tenantId, []string{namespace.NamespaceId})
+	if err != nil {
+		logger.WarnWithTrace(ctx, "统计命名空间注册数失败，使用默认值", "error", err.Error())
+	} else if usage, ok := usageMap[namespace.NamespaceId]; ok {
+		applyUsage(info, usage)
+	}
+	overlayRuntimeNamespaceStats(ctx.Request.Context(), tenantId, namespace, info)
+	response.SuccessJSON(ctx, info, constants.SD00001)
+}
+
+// QueryNamespaceOverview 按服务中心实例返回运行时态势；传入 namespaceId 时切到该命名空间。
+// @Summary 命名空间运行态势
+// @Description 按必选服务中心实例读取运行时概览；可选 namespaceId 将服务/节点/会话/配置收窄到该命名空间
+// @Tags 命名空间管理
+// @Produce json
+// @Param instanceName query string true "服务中心实例名称"
+// @Param environment query string false "部署环境"
+// @Param namespaceId query string false "命名空间ID，选中卡片后传入"
+// @Success 200 {object} response.JsonData
+// @Router /api/hub0041/queryNamespaceOverview [post]
+func (c *NamespaceController) QueryNamespaceOverview(ctx *gin.Context) {
+	instanceName := request.GetParam(ctx, "instanceName")
+	if instanceName == "" {
+		response.ErrorJSON(ctx, "请先选择服务中心实例", constants.ED00006)
+		return
+	}
+	environment := request.GetParam(ctx, "environment")
+	namespaceId := request.GetParam(ctx, "namespaceId")
+	tenantId := request.GetTenantID(ctx)
+	pool := servicecenterv3.GetPool()
+	if pool == nil {
+		response.ErrorJSON(ctx, "servicecenterv3 未初始化", constants.ED00009)
+		return
+	}
+
+	var ns *models.Namespace
+	if namespaceId != "" {
+		found, err := c.namespaceDAO.GetNamespaceById(ctx, tenantId, namespaceId)
+		if err != nil {
+			logger.ErrorWithTrace(ctx, "获取命名空间态势失败", err)
+			response.ErrorJSON(ctx, "获取命名空间态势失败: "+err.Error(), constants.ED00009)
+			return
+		}
+		if found == nil {
+			response.ErrorJSON(ctx, "命名空间不存在", constants.ED00008)
+			return
+		}
+		if found.InstanceName != "" && found.InstanceName != instanceName {
+			response.ErrorJSON(ctx, "命名空间不属于当前服务中心实例", constants.ED00006)
+			return
+		}
+		if environment == "" {
+			environment = found.Environment
+		}
+		ns = found
+	}
+
+	inst, _ := pool.FindInstance(instanceName, environment)
+	info := namespaceOverviewMap(ctx.Request.Context(), tenantId, instanceName, environment, inst, ns)
+	if ns != nil && info["runtimeOverlay"] != true {
+		usageMap, err := c.namespaceDAO.CountUsageByNamespaces(ctx.Request.Context(), tenantId, []string{ns.NamespaceId})
+		if err != nil {
+			logger.WarnWithTrace(ctx, "统计命名空间注册数失败，使用默认值", "error", err.Error())
+		} else if usage, ok := usageMap[ns.NamespaceId]; ok {
+			applyUsage(info, usage)
+		}
+	}
+	response.SuccessJSON(ctx, info, constants.SD00001)
 }

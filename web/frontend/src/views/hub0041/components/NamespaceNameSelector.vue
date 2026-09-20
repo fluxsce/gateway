@@ -3,9 +3,9 @@
     <RsInput
       v-bind="attrs"
       v-model="localValue"
-      placeholder="请输入命名空间ID或点击选择"
+      :placeholder="placeholder"
       :disabled="disabled"
-      clearable
+      :clearable="clearable"
       size="sm"
       label-position="top"
       class="namespace-name-selector__input"
@@ -42,11 +42,15 @@ interface Props {
   modelValue?: string
   /** 是否禁用 */
   disabled?: boolean
+  placeholder?: string
+  clearable?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
   disabled: false,
+  placeholder: '请输入命名空间ID或点击选择',
+  clearable: true,
 })
 
 interface Emits {

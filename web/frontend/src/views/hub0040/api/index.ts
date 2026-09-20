@@ -104,3 +104,58 @@ export async function reloadServiceCenterInstance(
   return serviceCenterApi.post('/reloadServiceCenterInstance', { instanceName, environment })
 }
 
+/**
+ * 运行时概览（服务/节点/配置/连接计数）
+ */
+export async function getServiceCenterOverview(
+  instanceName: string,
+  environment: string,
+): Promise<JsonDataObj> {
+  return serviceCenterApi.post('/getServiceCenterOverview', { instanceName, environment })
+}
+
+/**
+ * 数据面会话列表
+ */
+export async function listServiceCenterConnections(
+  instanceName: string,
+  environment: string,
+): Promise<JsonDataObj> {
+  return serviceCenterApi.post('/listServiceCenterConnections', { instanceName, environment })
+}
+
+export async function listServiceCenterAuthTokens(
+  instanceName: string,
+  environment: string,
+): Promise<JsonDataObj> {
+  return serviceCenterApi.post(
+    '/listServiceCenterAuthTokens',
+    { instanceName, environment },
+    { instanceName, environment },
+  )
+}
+
+export async function issueServiceCenterAuthToken(data: {
+  instanceName: string
+  environment: string
+  tokenName?: string
+  expireDays?: number
+}): Promise<JsonDataObj> {
+  return serviceCenterApi.post('/issueServiceCenterAuthToken', data, {
+    instanceName: data.instanceName,
+    environment: data.environment,
+  })
+}
+
+export async function revokeServiceCenterAuthToken(data: {
+  instanceName: string
+  environment: string
+  tokenId: string
+}): Promise<JsonDataObj> {
+  return serviceCenterApi.post('/revokeServiceCenterAuthToken', data, {
+    instanceName: data.instanceName,
+    environment: data.environment,
+    tokenId: data.tokenId,
+  })
+}
+

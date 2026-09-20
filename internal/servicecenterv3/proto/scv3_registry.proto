@@ -1,0 +1,177 @@
+syntax = "proto3";
+
+// 文件名 scv3_registry.proto，避免与旧包 registry.proto 撞 protobuf 全局注册表。
+package servicecenterv3.registry;
+
+option go_package = "gateway/internal/servicecenterv3/proto;proto";
+option java_package = "com.flux.servicecenter.registry";
+option java_outer_classname = "RegistryProto";
+
+// 本文件只定义 ServiceCenterStream 载荷，不含 RPC。
+// 字段一律 camelCase。已占用字段号禁止改类型、删字段；废弃用 reserved。
+// Node 即服务实例（Instance），与领域模型 ServiceInstance 对应。
+
+// ========== 封闭取值 ==========
+
+// InstanceStatus 是人工/注册状态，与 HealthyStatus 正交。
+enum InstanceStatus {
+  INSTANCE_STATUS_UNSPECIFIED = 0; // 按 UP 处理
+  INSTANCE_STATUS_UP = 1;
+  INSTANCE_STATUS_DOWN = 2;
+  INSTANCE_STATUS_STARTING = 3;
+  INSTANCE_STATUS_OUT_OF_SERVICE = 4;
+}
+
+// HealthyStatus 是探测结果。
+enum HealthyStatus {
+  HEALTHY_STATUS_UNSPECIFIED = 0; // 按 HEALTHY 处理
+  HEALTHY_STATUS_HEALTHY = 1;
+  HEALTHY_STATUS_UNHEALTHY = 2;
+  HEALTHY_STATUS_UNKNOWN = 3;
+}
+
+// NamingEventType 是命名推送类型。节点事件用 NODE_*，不再使用 INSTANCE_* 字符串。
+enum NamingEventType {
+  NAMING_EVENT_UNSPECIFIED = 0;
+  NAMING_EVENT_SERVICE_ADDED = 1;
+  NAMING_EVENT_SERVICE_UPDATED = 2;
+  NAMING_EVENT_SERVICE_DELETED = 3;
+  NAMING_EVENT_NODE_REGISTERED = 4;
+  NAMING_EVENT_NODE_UPDATED = 5;
+  NAMING_EVENT_NODE_DEREGISTERED = 6;
+  NAMING_EVENT_NODE_EVICTED = 7;
+  NAMING_EVENT_NODE_OFFLINE = 8;
+}
+
+// ========== 通用响应 ==========
+
+message RegistryResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;
+}
+
+// ========== 资源 ==========
+
+// Service 是服务定义。node 仅注册请求可带，用于一次写入一个实例；读路径不要填。
+message Service {
+  string namespaceId = 1;
+  string groupName = 2;
+  string serviceName = 3;
+  string serviceType = 4;
+  string serviceVersion = 5;
+  string serviceDescription = 6;
+  double protectThreshold = 7;
+  map<string, string> metadata = 8;
+  map<string, string> tags = 9;
+  Node node = 10;
+}
+
+// Node 是某个服务下的实例。serviceName 必填，不存在「只有节点、没有服务」。
+// ephemeral 未设置时按临时实例处理。
+message Node {
+  string nodeId = 1;
+  string namespaceId = 2;
+  string groupName = 3;
+  string serviceName = 4; // 所属服务，REGISTER_NODE 必填
+  string ipAddress = 5;
+  int32 portNumber = 6;
+  double weight = 7;
+  optional bool ephemeral = 8;
+  InstanceStatus instanceStatus = 9;
+  HealthyStatus healthyStatus = 10;
+  map<string, string> metadata = 11;
+}
+
+// ServiceKey 只标识服务。注销节点必须走 NodeKey。
+message ServiceKey {
+  string namespaceId = 1;
+  string groupName = 2;
+  string serviceName = 3;
+  reserved 4;
+  reserved "nodeId";
+}
+
+message NodeKey {
+  string nodeId = 1;
+}
+
+// ========== 响应 ==========
+
+message RegisterServiceResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;
+  string nodeId = 4; // 注册时带了 node 才有值
+}
+
+message GetServiceResponse {
+  bool success = 1;
+  string message = 2;
+  Service service = 3;
+  repeated Node nodes = 4;
+}
+
+message RegisterNodeResponse {
+  bool success = 1;
+  string message = 2;
+  string nodeId = 3;
+}
+
+message DiscoverNodesResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Node nodes = 3;
+}
+
+message ListServicesRequest {
+  string namespaceId = 1;
+  string groupName = 2; // 空表示命名空间下全部组
+  int32 pageSize = 3;   // 0 表示不分页
+  string pageToken = 4; // 上一页返回的 nextPageToken
+}
+
+message ListServicesResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Service services = 3;
+  string nextPageToken = 4;
+  int32 total = 5;
+}
+
+message DiscoverNodesRequest {
+  string namespaceId = 1;
+  string groupName = 2;
+  string serviceName = 3;
+  bool healthyOnly = 4;
+}
+
+// SubscribeServicesRequest 在当前 Connect 上追加服务名订阅。
+message SubscribeServicesRequest {
+  string namespaceId = 1;
+  string groupName = 2;
+  repeated string serviceNames = 3;
+}
+
+message SubscribeNamespaceRequest {
+  string namespaceId = 1;
+  string groupName = 2; // 空则订阅整个命名空间
+}
+
+// ServiceChangeEvent 由服务端推送，requestId 为空。
+message ServiceChangeEvent {
+  NamingEventType eventType = 1;
+  int64 timestamp = 2; // Unix 毫秒
+  string namespaceId = 3;
+  string groupName = 4;
+  string serviceName = 5;
+  Service service = 6;
+  repeated Node nodes = 7;
+  Node changedNode = 8;
+}
+
+// HeartbeatRequest 续命。service.node 带上当前注册快照：Redis 已有该节点则只续 TTL，没有才按快照补上。
+message HeartbeatRequest {
+  string nodeId = 1;
+  Service service = 2;
+}

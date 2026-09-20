@@ -60,6 +60,17 @@ export async function deleteService(namespaceId: string, groupName: string, serv
   return serviceApi.post('/deleteService', { namespaceId, groupName, serviceName })
 }
 
+export async function batchDeleteServices(
+  services: Array<Pick<Service, 'namespaceId' | 'groupName' | 'serviceName' | 'instanceName'>>,
+): Promise<JsonDataObj> {
+  return serviceApi.post(
+    '/batchDeleteServices',
+    { services },
+    undefined,
+    { headers: { 'Content-Type': 'application/json;charset=UTF-8' } },
+  )
+}
+
 /**
  * 编辑节点
  * @param data 节点更新数据

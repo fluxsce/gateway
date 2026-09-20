@@ -63,17 +63,22 @@ export function useAlertLogPage(
   const handleToolbarClick = async (key: string, formData?: Record<string, any>) => {
     switch (key) {
       case 'delete': {
-        if (!gridRef?.value) {
-          message.warning(t('message.gridRefMissing'))
-          return
-        }
-        const selectedRows = (gridRef.value.getActiveRows?.() || []) as AlertLog[]
-        if (selectedRows.length === 0) {
-          message.warning(t('message.selectToDelete'))
-          return
-        }
-        const alertLogIds = selectedRows.map((row) => row.alertLogId)
-        await handleBatchDelete(alertLogIds)
+        await handleBatchDeleteFromGrid()
+        break
+      }
+
+      case 'ignoreSelected': {
+        await handleIgnoreSelected()
+        break
+      }
+
+      case 'ignoreGroup': {
+        await handleIgnoreGroup()
+        break
+      }
+
+      case 'ignoreAll': {
+        await handleIgnoreAll()
         break
       }
 
@@ -107,14 +112,31 @@ export function useAlertLogPage(
    * @param row - 当前行
    */
   const handleMenuClick = async ({ key, row }: { key: string; row?: AlertLog }) => {
-    if (!row) return
     switch (key) {
       case 'view':
+        if (!row) return
         await openViewDialog(row)
         break
 
       case 'delete':
+        if (!row) return
         await handleDelete(row)
+        break
+
+      case 'batchDelete':
+        await handleBatchDeleteFromGrid()
+        break
+
+      case 'ignoreSelected':
+        await handleIgnoreSelected()
+        break
+
+      case 'ignoreGroup':
+        await handleIgnoreGroup(row)
+        break
+
+      case 'ignoreAll':
+        await handleIgnoreAll()
         break
 
       default:
@@ -164,6 +186,86 @@ export function useAlertLogPage(
     await service.batchDeleteLogs(alertLogIds)
   }
 
+  /** 从表格勾选/高亮行取出待删除 ID */
+  const handleBatchDeleteFromGrid = async () => {
+    if (!gridRef?.value) {
+      message.warning(t('message.gridRefMissing'))
+      return
+    }
+    const selectedRows = (gridRef.value.getActiveRows?.() || []) as AlertLog[]
+    await handleBatchDelete(selectedRows.map((row) => row.alertLogId).filter(Boolean))
+  }
+
+  /** 当前表格操作行：优先勾选，否则高亮/右键行 */
+  const resolveActiveRow = (fallback?: AlertLog): AlertLog | undefined => {
+    const fromGrid = gridRef?.value?.getActiveRow?.() as AlertLog | undefined
+    return fromGrid || fallback
+  }
+
+  /** 忽略当前选中（勾选优先，否则高亮行） */
+  const handleIgnoreSelected = async () => {
+    if (!gridRef?.value) {
+      message.warning(t('message.gridRefMissing'))
+      return
+    }
+    const selectedRows = (gridRef.value.getActiveRows?.() || []) as AlertLog[]
+    const alertLogIds = selectedRows.map((row) => row.alertLogId).filter(Boolean)
+    if (alertLogIds.length === 0) {
+      message.warning(t('message.selectToIgnore'))
+      return
+    }
+
+    const confirmed = await rsConfirm.warning({
+      title: t('confirm.ignoreSelectedTitle'),
+      description: t('confirm.ignoreSelectedContent', { count: alertLogIds.length }),
+      confirmText: t('confirm.ignoreConfirmText'),
+      cancelText: t('confirm.cancelText'),
+    })
+    if (!confirmed) return
+
+    await service.ignoreLogs('selected', { alertLogIds })
+  }
+
+  /** 忽略与当前行同分组的待发送日志 */
+  const handleIgnoreGroup = async (row?: AlertLog) => {
+    const target = resolveActiveRow(row)
+    if (!target) {
+      message.warning(t('message.selectToIgnoreGroup'))
+      return
+    }
+
+    const alertType = (target.alertType || '').trim()
+    const alertTitle = (target.alertTitle || '').trim()
+    if (!alertType && !alertTitle) {
+      message.warning(t('message.groupKeyRequired'))
+      return
+    }
+
+    const groupLabel = alertType || alertTitle
+    const confirmed = await rsConfirm.warning({
+      title: t('confirm.ignoreGroupTitle'),
+      description: t('confirm.ignoreGroupContent', { group: groupLabel }),
+      confirmText: t('confirm.ignoreConfirmText'),
+      cancelText: t('confirm.cancelText'),
+    })
+    if (!confirmed) return
+
+    await service.ignoreLogs('group', { alertType, alertTitle })
+  }
+
+  /** 忽略当前查询条件下全部待发送日志 */
+  const handleIgnoreAll = async () => {
+    const confirmed = await rsConfirm.warning({
+      title: t('confirm.ignoreAllTitle'),
+      description: t('confirm.ignoreAllContent'),
+      confirmText: t('confirm.ignoreConfirmText'),
+      cancelText: t('confirm.cancelText'),
+    })
+    if (!confirmed) return
+
+    await service.ignoreLogs('all')
+  }
+
   return {
     service,
     viewDialogVisible,
@@ -175,5 +277,8 @@ export function useAlertLogPage(
     openViewDialog,
     handleDelete,
     handleBatchDelete,
+    handleIgnoreSelected,
+    handleIgnoreGroup,
+    handleIgnoreAll,
   }
 }

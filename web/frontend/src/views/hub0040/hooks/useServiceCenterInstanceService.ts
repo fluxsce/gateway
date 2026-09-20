@@ -11,7 +11,7 @@ import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import { WarningOutline } from '@vicons/ionicons5'
 import type { Ref } from 'vue'
 import * as serviceCenterApi from '../api'
-import type { ServiceCenterInstance } from '../types'
+import type { CenterAuthToken, CenterConnection, CenterIssuedAuthToken, CenterOverview, ServiceCenterInstance } from '../types'
 import { useServiceCenterInstanceModel } from './model'
 
 /**
@@ -399,6 +399,114 @@ export function useServiceCenterInstanceService(searchFormRef?: Ref<any> | any) 
     }
   }
 
+  const getRuntimeOverview = async (
+    instanceName: string,
+    environment: string,
+  ): Promise<CenterOverview | null> => {
+    try {
+      const response: JsonDataObj = await serviceCenterApi.getServiceCenterOverview(
+        instanceName,
+        environment,
+      )
+      if (isApiSuccess(response)) {
+        return parseJsonData<CenterOverview | null>(response, null)
+      }
+      message.error(getApiMessage(response, '获取运行时概览失败'))
+      return null
+    } catch {
+      message.error('获取运行时概览失败')
+      return null
+    }
+  }
+
+  const listRuntimeConnections = async (
+    instanceName: string,
+    environment: string,
+  ): Promise<CenterConnection[]> => {
+    try {
+      const response: JsonDataObj = await serviceCenterApi.listServiceCenterConnections(
+        instanceName,
+        environment,
+      )
+      if (isApiSuccess(response)) {
+        const data = parseJsonData<{ connections?: CenterConnection[] } | null>(response, null)
+        return data?.connections || []
+      }
+      message.error(getApiMessage(response, '获取连接列表失败'))
+      return []
+    } catch {
+      message.error('获取连接列表失败')
+      return []
+    }
+  }
+
+  const listAuthTokens = async (
+    instanceName: string,
+    environment: string,
+  ): Promise<CenterAuthToken[]> => {
+    try {
+      const response: JsonDataObj = await serviceCenterApi.listServiceCenterAuthTokens(
+        instanceName,
+        environment,
+      )
+      if (isApiSuccess(response)) {
+        const data = parseJsonData<{ tokens?: CenterAuthToken[] } | null>(response, null)
+        return data?.tokens || []
+      }
+      message.error(getApiMessage(response, '获取访问令牌失败'))
+      return []
+    } catch {
+      message.error('获取访问令牌失败')
+      return []
+    }
+  }
+
+  const issueAuthToken = async (
+    instance: ServiceCenterInstance,
+    tokenName: string,
+    expireDays: number,
+  ): Promise<CenterIssuedAuthToken | null> => {
+    try {
+      const response: JsonDataObj = await serviceCenterApi.issueServiceCenterAuthToken({
+        instanceName: instance.instanceName,
+        environment: instance.environment,
+        tokenName,
+        expireDays,
+      })
+      if (isApiSuccess(response)) {
+        message.success('令牌已颁发，请立即复制')
+        return parseJsonData<CenterIssuedAuthToken | null>(response, null)
+      }
+      message.error(getApiMessage(response, '颁发访问令牌失败'))
+      return null
+    } catch {
+      message.error('颁发访问令牌失败')
+      return null
+    }
+  }
+
+  const revokeAuthToken = async (
+    instance: ServiceCenterInstance,
+    tokenId: string,
+  ): Promise<boolean> => {
+    try {
+      const response: JsonDataObj = await serviceCenterApi.revokeServiceCenterAuthToken({
+        instanceName: instance.instanceName,
+        environment: instance.environment,
+        tokenId,
+      })
+      if (isApiSuccess(response)) {
+        message.success('令牌已吊销')
+        return true
+      }
+      message.error(getApiMessage(response, '吊销访问令牌失败'))
+      return false
+    } catch {
+      message.error('吊销访问令牌失败')
+      return false
+    }
+  }
+
   return {
     // Model 实例（包含所有状态和配置）
     model,
@@ -420,6 +528,11 @@ export function useServiceCenterInstanceService(searchFormRef?: Ref<any> | any) 
     stopInstance,
     reloadInstance,
     getInstanceDetail,
+    getRuntimeOverview,
+    listRuntimeConnections,
+    listAuthTokens,
+    issueAuthToken,
+    revokeAuthToken,
   }
 }
 

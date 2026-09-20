@@ -35,11 +35,31 @@ export interface Service {
   noteText?: string // 备注信息
   extProperty?: string // 扩展属性，JSON格式
 
-  // 扩展字段（从缓存获取）
-  nodeCount?: number // 节点数量
-  healthyNodeCount?: number // 健康节点数量
-  unhealthyNodeCount?: number // 不健康节点数量
-  nodes?: ServiceNode[] // 节点列表
+  // 扩展字段（从缓存 / 运行时获取）
+  nodeCount?: number
+  healthyNodeCount?: number
+  unhealthyNodeCount?: number
+  subscriberCount?: number
+  subscriptionCount?: number
+  nodes?: ServiceNode[]
+  subscribers?: ServiceSubscriber[]
+  subscriptions?: ServiceSubscriber[]
+  runtimeSource?: 'legacy' | 'servicecenterv3'
+  instanceName?: string
+  /** 列表行键，前端组装，不入库 */
+  serviceKey?: string
+}
+
+export interface ServiceSubscriber {
+  connectionId: string
+  clientId?: string
+  clientIp?: string
+  namespaceId?: string
+  groupName?: string
+  serviceName?: string
+  scope?: 'service' | 'group' | 'namespace' | string
+  lastActive?: string
+  subscriberKey?: string
 }
 
 // 服务节点类型
@@ -56,5 +76,10 @@ export interface ServiceNode {
   lastBeatTime?: string // 最后心跳时间
   lastCheckTime?: string // 最后健康检查时间
   activeFlag: 'Y' | 'N' // 活动状态标记
+  source?: 'cache' | 'runtime'
+  namespaceId?: string
+  groupName?: string
+  serviceName?: string
+  connectionId?: string
 }
 

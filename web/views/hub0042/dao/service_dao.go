@@ -3,7 +3,7 @@ package dao
 import (
 	"context"
 	"errors"
-	"gateway/internal/servicecenter/types"
+	"gateway/internal/servicecenterv3/catalog"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/empty"
@@ -27,7 +27,7 @@ func NewServiceDAO(db database.Database) *ServiceDAO {
 }
 
 // GetServiceById 根据主键获取服务信息
-func (dao *ServiceDAO) GetServiceById(ctx context.Context, tenantId, namespaceId, groupName, serviceName string) (*types.Service, error) {
+func (dao *ServiceDAO) GetServiceById(ctx context.Context, tenantId, namespaceId, groupName, serviceName string) (*catalog.Service, error) {
 	if namespaceId == "" || groupName == "" || serviceName == "" {
 		return nil, errors.New("namespaceId、groupName和serviceName不能为空")
 	}
@@ -37,7 +37,7 @@ func (dao *ServiceDAO) GetServiceById(ctx context.Context, tenantId, namespaceId
 		WHERE tenantId = ? AND namespaceId = ? AND groupName = ? AND serviceName = ?
 	`
 
-	var service types.Service
+	var service catalog.Service
 	err := dao.db.QueryOne(ctx, &service, query, []interface{}{tenantId, namespaceId, groupName, serviceName}, true)
 
 	if err != nil {
@@ -52,7 +52,7 @@ func (dao *ServiceDAO) GetServiceById(ctx context.Context, tenantId, namespaceId
 
 // ListServices 获取服务列表（支持条件查询）
 // 注意：tenantId由前置校验保证非空，此处不再校验
-func (dao *ServiceDAO) ListServices(ctx context.Context, tenantId string, query *models.ServiceQuery, page, pageSize int) ([]*types.Service, int, error) {
+func (dao *ServiceDAO) ListServices(ctx context.Context, tenantId string, query *models.ServiceQuery, page, pageSize int) ([]*catalog.Service, int, error) {
 
 	// 创建分页信息
 	pagination := sqlutils.NewPaginationInfo(page, pageSize)
@@ -150,7 +150,7 @@ func (dao *ServiceDAO) ListServices(ctx context.Context, tenantId string, query 
 
 	// 如果没有记录，直接返回空列表
 	if total == 0 {
-		return []*types.Service{}, 0, nil
+		return []*catalog.Service{}, 0, nil
 	}
 
 	// 构建分页查询
@@ -164,7 +164,7 @@ func (dao *ServiceDAO) ListServices(ctx context.Context, tenantId string, query 
 	queryArgs = append(queryArgs, paginationArgs...)
 
 	// 执行分页查询
-	var services []*types.Service
+	var services []*catalog.Service
 	err = dao.db.Query(ctx, &services, paginatedQuery, queryArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询服务列表失败")
@@ -199,7 +199,7 @@ func (dao *ServiceDAO) CountServicesByNamespace(ctx context.Context, tenantId, n
 //
 // 返回:
 //   - err: 可能的错误
-func (dao *ServiceDAO) AddService(ctx context.Context, service *types.Service, operatorId string) error {
+func (dao *ServiceDAO) AddService(ctx context.Context, service *catalog.Service, operatorId string) error {
 	// 设置一些自动填充的字段
 	now := time.Now()
 	service.AddTime = now
@@ -233,7 +233,7 @@ func (dao *ServiceDAO) AddService(ctx context.Context, service *types.Service, o
 }
 
 // UpdateService 更新服务信息
-func (dao *ServiceDAO) UpdateService(ctx context.Context, service *types.Service, operatorId string) error {
+func (dao *ServiceDAO) UpdateService(ctx context.Context, service *catalog.Service, operatorId string) error {
 	if service.NamespaceId == "" || service.GroupName == "" || service.ServiceName == "" {
 		return errors.New("namespaceId、groupName和serviceName不能为空")
 	}

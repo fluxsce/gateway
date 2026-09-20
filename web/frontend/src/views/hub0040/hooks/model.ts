@@ -6,11 +6,12 @@
 import type { RsDataFormField, RsDataFormRenderContext } from '@/components/form/rs-data'
 import type { RsSearchFormProps } from '@/components/form/rs-search'
 import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
+import { store } from '@/stores'
 import type { PageInfoObj } from '@/types/api'
-import { RsDynamicTags, RsTag, getByNamePath, setByNamePath, type RsTagVariant } from '@/ui'
-import { formatDate } from '@/utils/format'
+import { RsDynamicTags, RsTag, getByNamePath, setByNamePath, type RsContextMenuItem, type RsTagVariant } from '@/ui'
 import { AlertChannelNameSelector } from '@/views/hub0080/components'
 import { h, ref } from 'vue'
+import AccessAuthGuide from '../components/AccessAuthGuide.vue'
 import type { ServiceCenterInstance } from '../types/index'
 
 /**
@@ -53,6 +54,32 @@ function getInstanceStatusText(status: string): string {
   return statusMap[status] || status
 }
 
+/** 菜单项对应的按钮权限码。运行时观测和令牌列表走查看权限，颁发/吊销在抽屉内再校验编辑权限。 */
+export function instanceActionPermission(key: string): string {
+  if (key === 'runtime' || key === 'token') return 'hub0040:view'
+  return `hub0040:${key}`
+}
+
+export function canInstanceAction(key: string): boolean {
+  return store.user.hasPermission(instanceActionPermission(key))
+}
+
+/** 卡片右键菜单，鉴权方式与 RsGrid 一致：无权限的项禁用。 */
+export function buildInstanceContextMenu(instance: ServiceCenterInstance): RsContextMenuItem[] {
+  const running = Boolean(instance.isRunning)
+  return [
+    { key: 'view', label: '查看详情', icon: 'eye', disabled: !canInstanceAction('view') },
+    { key: 'edit', label: '编辑', icon: 'pencil', disabled: !canInstanceAction('edit') },
+    { key: 'start', label: '启动', icon: 'play', disabled: running || !canInstanceAction('start') },
+    { key: 'stop', label: '停止', icon: 'square', disabled: !running || !canInstanceAction('stop') },
+    { key: 'reload', label: '重载配置', icon: 'refresh-cw', disabled: !running || !canInstanceAction('reload') },
+    { key: 'runtime', label: '运行时观测', icon: 'activity', disabled: !canInstanceAction('runtime') },
+    { key: 'token', label: '访问令牌', icon: 'key', disabled: !canInstanceAction('token') },
+    { key: 'sep-delete', label: '', separator: true },
+    { key: 'delete', label: '删除', icon: 'trash-2', danger: true, disabled: !canInstanceAction('delete') },
+  ]
+}
+
 /**
  * 服务中心实例管理 Model
  */
@@ -82,17 +109,22 @@ export function useServiceCenterInstanceModel() {
         clearable: true,
       },
       {
-        field: 'serverType',
-        label: '服务器类型',
+        field: 'environment',
+        label: '部署环境',
         type: 'select',
-        placeholder: '请选择类型',
+        placeholder: '选择或输入环境',
         span: 6,
         clearable: true,
         options: [
           { label: '全部', value: '' },
-          { label: 'gRPC', value: 'GRPC' },
-          { label: 'HTTP', value: 'HTTP' },
+          { label: '开发环境', value: 'DEVELOPMENT' },
+          { label: '预发布环境', value: 'STAGING' },
+          { label: '生产环境', value: 'PRODUCTION' },
         ],
+        props: {
+          creatable: true,
+          searchPlaceholder: '搜索或输入环境标识',
+        },
       },
       {
         field: 'instanceStatus',
@@ -154,12 +186,10 @@ export function useServiceCenterInstanceModel() {
   const instanceFormConfig = {
     tabs: [
       { key: 'basic', label: '基本信息' },
-      { key: 'grpc', label: 'gRPC配置' },
-      { key: 'tls', label: 'TLS配置' },
-      { key: 'performance', label: '性能配置' },
-      { key: 'health', label: '健康检查' },
-      { key: 'access', label: '访问控制' },
+      { key: 'access', label: '接入设置' },
+      { key: 'health', label: '心跳检查' },
       { key: 'alert', label: '告警配置' },
+      { key: 'advanced', label: '高级' },
       { key: 'other', label: '其它' },
     ],
     fields: [
@@ -188,28 +218,47 @@ export function useServiceCenterInstanceModel() {
       field: 'environment',
       label: '部署环境',
       type: 'select',
-      placeholder: '请选择部署环境',
+      placeholder: '选择预置环境，或输入自定义标识',
       span: 12,
       tabKey: 'basic',
       primary: true,
       required: true,
+      tips: '与实例名称组成主键。可选手选开发 / 预发布 / 生产，也可输入自定义标识，最长 32 个字符，不能含空格',
       options: [
         { label: '开发环境', value: 'DEVELOPMENT' },
         { label: '预发布环境', value: 'STAGING' },
         { label: '生产环境', value: 'PRODUCTION' },
       ],
+      props: {
+        creatable: true,
+        searchPlaceholder: '搜索预置项，或输入后回车使用',
+      },
+      rules: [
+        { required: true, message: '请选择或输入部署环境', trigger: ['blur', 'change'] },
+        { max: 32, message: '部署环境不能超过 32 个字符', trigger: ['blur', 'change'] },
+        {
+          validator: (value: unknown) => {
+            const text = typeof value === 'string' || typeof value === 'number' ? String(value).trim() : ''
+            if (!text) return '请选择或输入部署环境'
+            if (/\s/.test(text)) return '部署环境不能包含空格'
+            return true
+          },
+          trigger: ['blur', 'change'],
+        },
+      ],
     },
     {
       field: 'serverType',
-      label: '服务器类型',
+      label: '数据面协议',
       type: 'select',
-      placeholder: '请选择服务器类型',
+      placeholder: 'gRPC 双向流',
       span: 12,
       tabKey: 'basic',
       defaultValue: 'GRPC',
+      show: false,
+      tips: '3.0 数据面仅支持 gRPC 双向流',
       options: [
-        { label: 'gRPC', value: 'GRPC' },
-        { label: 'HTTP', value: 'HTTP' },
+        { label: 'gRPC Stream', value: 'GRPC' },
       ],
     },
     {
@@ -261,12 +310,12 @@ export function useServiceCenterInstanceModel() {
       },
     },
 
-    // ============= gRPC配置 Tab =============
+    // ============= 高级 Tab：gRPC / 性能 =============
     {
       field: 'grpc-config-group',
       label: 'gRPC 消息大小配置',
       type: 'fieldset',
-      tabKey: 'grpc',
+      tabKey: 'advanced',
       children: [
         {
           field: 'maxRecvMsgSize',
@@ -300,7 +349,7 @@ export function useServiceCenterInstanceModel() {
       field: 'keepalive-config-group',
       label: 'gRPC Keep-Alive 配置',
       type: 'fieldset',
-      tabKey: 'grpc',
+      tabKey: 'advanced',
       children: [
         {
           field: 'keepAliveTime',
@@ -359,7 +408,7 @@ export function useServiceCenterInstanceModel() {
       field: 'connection-config-group',
       label: 'gRPC 连接管理配置',
       type: 'fieldset',
-      tabKey: 'grpc',
+      tabKey: 'advanced',
       children: [
         {
           field: 'maxConnectionIdle',
@@ -403,8 +452,8 @@ export function useServiceCenterInstanceModel() {
           label: '启用 gRPC 反射',
           type: 'switch',
           span: 12,
-          defaultValue: 'Y',
-          tips: '启用 gRPC 反射服务，用于 grpcurl 等工具调试',
+          defaultValue: 'N',
+          tips: '启用后可用 grpcurl 调试；生产环境建议关闭',
           props: {
             checkedValue: 'Y',
             uncheckedValue: 'N',
@@ -413,12 +462,12 @@ export function useServiceCenterInstanceModel() {
       ],
     },
 
-    // ============= TLS配置 Tab =============
+    // ============= 接入设置 Tab：TLS / 认证 / IP =============
     {
       field: 'tls-config-group',
-      label: 'TLS安全配置',
+      label: 'TLS 安全配置',
       type: 'fieldset',
-      tabKey: 'tls',
+      tabKey: 'access',
       children: [
         {
           field: 'certStorageType',
@@ -426,7 +475,7 @@ export function useServiceCenterInstanceModel() {
           type: 'select',
           span: 12,
           defaultValue: 'DATABASE',
-          show: false, // 隐藏字段，默认存储到数据库
+          show: false,
           options: [
             { label: '文件存储', value: 'FILE' },
             { label: '数据库存储', value: 'DATABASE' },
@@ -438,7 +487,7 @@ export function useServiceCenterInstanceModel() {
           type: 'switch',
           span: 12,
           defaultValue: 'N',
-          tips: '启用TLS加密传输，保护数据传输安全',
+          tips: '启用后数据面 gRPC 使用 TLS；证书与私钥写入数据库',
           props: {
             checkedValue: 'Y',
             uncheckedValue: 'N',
@@ -450,7 +499,8 @@ export function useServiceCenterInstanceModel() {
           type: 'switch',
           span: 12,
           defaultValue: 'N',
-          tips: '启用双向TLS认证（mTLS），要求客户端也提供证书',
+          tips: '要求客户端出示证书；必须同时上传客户端 CA',
+          show: (formData: Record<string, any>) => formData.enableTLS === 'Y',
           props: {
             checkedValue: 'Y',
             uncheckedValue: 'N',
@@ -463,6 +513,7 @@ export function useServiceCenterInstanceModel() {
           placeholder: '请输入证书密码(可选)',
           span: 12,
           tips: '如果私钥文件已加密，需要提供密码进行解密',
+          show: (formData: Record<string, any>) => formData.enableTLS === 'Y',
           props: {
             type: 'password',
             showPasswordOn: 'click',
@@ -470,15 +521,17 @@ export function useServiceCenterInstanceModel() {
         },
         {
           field: 'certFileList',
-          label: '证书文件',
+          label: '服务端证书',
           type: 'file',
           span: 24,
+          tips: 'PEM 格式的服务端证书',
+          show: (formData: Record<string, any>) => formData.enableTLS === 'Y',
           props: {
             showDownload: true,
             config: {
               accept: '.crt,.pem,.cer',
               max: 1,
-              maxSize: 10 * 1024 * 1024, // 10MB
+              maxSize: 10 * 1024 * 1024,
               uploadText: '点击或拖拽上传证书',
               uploadDescription: '支持 .crt, .pem, .cer',
             },
@@ -486,29 +539,47 @@ export function useServiceCenterInstanceModel() {
         },
         {
           field: 'keyFileList',
-          label: '私钥文件',
+          label: '服务端私钥',
           type: 'file',
           span: 24,
+          show: (formData: Record<string, any>) => formData.enableTLS === 'Y',
           props: {
             showDownload: true,
             config: {
               accept: '.key,.pem',
               max: 1,
-              maxSize: 10 * 1024 * 1024, // 10MB
+              maxSize: 10 * 1024 * 1024,
               uploadText: '点击或拖拽上传私钥',
               uploadDescription: '支持 .key, .pem',
+            },
+          },
+        },
+        {
+          field: 'certChainFileList',
+          label: '客户端 CA 证书',
+          type: 'file',
+          span: 24,
+          tips: 'mTLS 开启时必填。上传 PEM 文本，后端写入 certChainContent',
+          show: (formData: Record<string, any>) => formData.enableTLS === 'Y' && formData.enableMTLS === 'Y',
+          props: {
+            showDownload: true,
+            config: {
+              accept: '.crt,.pem,.cer',
+              max: 1,
+              maxSize: 10 * 1024 * 1024,
+              uploadText: '点击或拖拽上传客户端 CA',
+              uploadDescription: '支持 .crt, .pem, .cer；EnableMTLS=Y 时启动会校验',
             },
           },
         },
       ],
     },
 
-    // ============= 性能配置 Tab =============
     {
       field: 'performance-config-group',
       label: '性能调优配置',
       type: 'fieldset',
-      tabKey: 'performance',
+      tabKey: 'advanced',
       children: [
         {
           field: 'maxConcurrentStreams',
@@ -552,46 +623,46 @@ export function useServiceCenterInstanceModel() {
       ],
     },
 
-    // ============= 健康检查 Tab =============
+    // ============= 心跳检查 Tab（Evictor） =============
     {
       field: 'health-config-group',
-      label: '健康检查配置',
+      label: '心跳与驱逐',
       type: 'fieldset',
       tabKey: 'health',
       children: [
         {
           field: 'healthCheckInterval',
-          label: '健康检查间隔(秒)',
+          label: '扫描间隔(秒)',
           type: 'number',
-          placeholder: '60',
+          placeholder: '30',
           span: 12,
-          defaultValue: 60,
-          tips: '健康检查的执行间隔，0表示禁用健康检查。注意：客户端的心跳时间应小于此间隔，建议心跳时间为间隔的1/2到2/3',
+          defaultValue: 30,
+          tips: 'Evictor 扫描周期。留空或 <=0 时后端使用 30 秒，并不会禁用心跳检查',
           props: {
-            min: 0,
+            min: 1,
             max: 3600,
           },
         },
         {
           field: 'healthCheckTimeout',
-          label: '健康检查超时时间(秒)',
+          label: '心跳超时(秒)',
           type: 'number',
-          placeholder: '5',
+          placeholder: '15',
           span: 12,
-          defaultValue: 5,
-          tips: '健康检查的超时时间',
+          defaultValue: 15,
+          tips: '超过此时长未心跳则标为不健康或剔除临时实例。SDK 心跳间隔应明显小于该值；留空或 <=0 时后端使用 15 秒',
           props: {
             min: 1,
-            max: 60,
+            max: 3600,
           },
         },
       ],
     },
 
-    // ============= 访问控制 Tab =============
+    // ============= 接入设置：认证 / IP =============
     {
       field: 'access-config-group',
-      label: '访问控制配置',
+      label: '接入认证',
       type: 'fieldset',
       tabKey: 'access',
       children: [
@@ -601,12 +672,28 @@ export function useServiceCenterInstanceModel() {
           type: 'switch',
           span: 12,
           defaultValue: 'N',
-          tips: '启用认证后，客户端需要提供有效的认证信息才能访问',
+          tips: '关闭时不校验身份。开启后接入方可用用户名密码或访问令牌，两种同时有效',
           props: {
             checkedValue: 'Y',
             uncheckedValue: 'N',
           },
         },
+        {
+          field: 'authGuide',
+          label: '接入方式',
+          type: 'custom',
+          span: 24,
+          show: (formData: Record<string, any>) => formData.enableAuth === 'Y',
+          render: () => h(AccessAuthGuide),
+        },
+      ],
+    },
+    {
+      field: 'network-boundary-group',
+      label: '网络边界',
+      type: 'fieldset',
+      tabKey: 'access',
+      children: [
         {
           field: 'ipWhitelist',
           label: 'IP 白名单',
@@ -928,11 +1015,19 @@ export function useServiceCenterInstanceModel() {
         },
       },
       {
-        key: 'serverType',
-        title: '服务器类型',
+        key: 'engine',
+        title: '引擎',
         align: 'center',
-        ellipsis: true,
-        formatter: (value) => (value === 'GRPC' ? 'gRPC' : String(value || '')),
+        width: 130,
+        render: (row) =>
+          h(
+            RsTag,
+            {
+              variant: row.engine === 'servicecenterv3' ? 'info' : 'default',
+              size: 'sm',
+            },
+            () => (row.engine === 'servicecenterv3' ? 'Service Center 3.0' : 'Legacy'),
+          ),
       },
       {
         key: 'listenAddress',
@@ -969,40 +1064,10 @@ export function useServiceCenterInstanceModel() {
           h(
             RsTag,
             {
-              variant: row.instanceStatus === 'RUNNING' ? 'success' : 'default',
+              variant: row.isRunning ? 'success' : 'default',
               size: 'sm',
             },
-            () => (row.instanceStatus === 'RUNNING' ? '运行中' : '已停止'),
-          ),
-      },
-      {
-        key: 'enableTLS',
-        title: 'TLS',
-        align: 'center',
-        width: 90,
-        render: (row) =>
-          h(
-            RsTag,
-            {
-              variant: row.enableTLS === 'Y' ? 'success' : 'default',
-              size: 'sm',
-            },
-            () => (row.enableTLS === 'Y' ? '启用' : '禁用'),
-          ),
-      },
-      {
-        key: 'enableAuth',
-        title: '认证',
-        align: 'center',
-        width: 90,
-        render: (row) =>
-          h(
-            RsTag,
-            {
-              variant: row.enableAuth === 'Y' ? 'warning' : 'default',
-              size: 'sm',
-            },
-            () => (row.enableAuth === 'Y' ? '启用' : '禁用'),
+            () => (row.isRunning ? '监听中' : '未监听'),
           ),
       },
       {
@@ -1020,58 +1085,6 @@ export function useServiceCenterInstanceModel() {
             () => (row.activeFlag === 'Y' ? '活动' : '非活动'),
           ),
       },
-      {
-        key: 'statusMessage',
-        title: '状态消息',
-        align: 'left',
-        ellipsis: true,
-        width: 200,
-        formatter: (value) => (value ? String(value) : '-'),
-      },
-      {
-        key: 'lastStatusTime',
-        title: '最后状态变更时间',
-        sortable: true,
-        align: 'center',
-        ellipsis: true,
-        formatter: (value) =>
-          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '-',
-      },
-      {
-        key: 'lastHealthCheckTime',
-        title: '最后健康检查时间',
-        sortable: true,
-        align: 'center',
-        ellipsis: true,
-        formatter: (value) =>
-          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '-',
-      },
-      {
-        key: 'addTime',
-        title: '创建时间',
-        sortable: true,
-        ellipsis: true,
-        formatter: (value) =>
-          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
-      },
-      {
-        key: 'addWho',
-        title: '创建人',
-        ellipsis: true,
-      },
-      {
-        key: 'editTime',
-        title: '修改时间',
-        sortable: true,
-        ellipsis: true,
-        formatter: (value) =>
-          value ? formatDate(value as string, 'YYYY-MM-DD HH:mm:ss') : '',
-      },
-      {
-        key: 'editWho',
-        title: '修改人',
-        ellipsis: true,
-      },
     ],
     selectable: true,
     rowKey: 'oprSeqFlag',
@@ -1088,6 +1101,7 @@ export function useServiceCenterInstanceModel() {
         { key: 'start', label: '启动', icon: 'play' },
         { key: 'stop', label: '停止', icon: 'square' },
         { key: 'reload', label: '重载配置', icon: 'refresh-cw' },
+        { key: 'runtime', label: '运行时观测', icon: 'activity' },
         { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
       ],
     },

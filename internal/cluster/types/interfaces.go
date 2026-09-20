@@ -2,7 +2,38 @@ package types
 
 import (
 	"context"
+	"sync"
 )
+
+var (
+	clusterMu      sync.RWMutex
+	clusterService ClusterService
+)
+
+// SetClusterService 集群初始化后挂上进程级服务，发布侧按需取用，不在启动时绑业务。
+func SetClusterService(svc ClusterService) {
+	clusterMu.Lock()
+	clusterService = svc
+	clusterMu.Unlock()
+}
+
+// GetClusterService 返回已初始化的集群服务，未初始化时为 nil。
+func GetClusterService() ClusterService {
+	clusterMu.RLock()
+	defer clusterMu.RUnlock()
+	return clusterService
+}
+
+// IsClusterInitialized 集群服务是否已构造。
+func IsClusterInitialized() bool {
+	return GetClusterService() != nil
+}
+
+// IsClusterReady 集群服务是否已启动并可收发事件。
+func IsClusterReady() bool {
+	svc := GetClusterService()
+	return svc != nil && svc.IsReady()
+}
 
 // ClusterService 集群服务接口
 type ClusterService interface {

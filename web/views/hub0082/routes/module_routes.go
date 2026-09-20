@@ -11,7 +11,7 @@ import (
 
 // 模块配置
 // hub0082 - 预警(告警)日志管理模块
-// 提供告警日志的查询、查看、删除、统计等功能
+// 提供告警日志的查询、查看、删除、忽略待发送、统计等功能
 // 对应表：HUB_ALERT_LOG
 var (
 	// ModuleName 模块名称，必须与目录名称一致，用于模块识别和查找
@@ -46,7 +46,10 @@ func initAlertLogRoutes(router *gin.RouterGroup, db database.Database) {
 		router.POST("/updateAlertLog", routes.RequireButton("hub0082:edit"), ctrl.UpdateAlertLog)
 
 		router.POST("/deleteAlertLog", routes.RequireButton("hub0082:delete"), ctrl.DeleteAlertLog)
-		router.POST("/batchDeleteAlertLogs", routes.RequireButton("hub0082:delete"), ctrl.BatchDeleteAlertLogs)
+		router.POST("/batchDeleteAlertLogs", routes.RequireButton("hub0082:delete", "hub0082:batchDelete"), ctrl.BatchDeleteAlertLogs)
+		router.POST("/ignoreSelectedAlertLogs", routes.RequireButton("hub0082:ignoreSelected"), ctrl.IgnoreSelectedAlertLogs)
+		router.POST("/ignoreGroupAlertLogs", routes.RequireButton("hub0082:ignoreGroup"), ctrl.IgnoreGroupAlertLogs)
+		router.POST("/ignoreAllAlertLogs", routes.RequireButton("hub0082:ignoreAll"), ctrl.IgnoreAllAlertLogs)
 
 		// 获取预警日志统计信息
 		router.POST("/getAlertLogStatistics", ctrl.GetAlertLogStatistics)

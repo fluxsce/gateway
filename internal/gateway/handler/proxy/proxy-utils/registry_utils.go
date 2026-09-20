@@ -5,196 +5,226 @@ package proxyutils
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
+	"sync"
+	"time"
 
 	"gateway/internal/gateway/core"
 	"gateway/internal/gateway/handler/service"
-	"gateway/internal/servicecenter/cache"
-	"gateway/internal/servicecenter/types"
+	"gateway/internal/servicecenterv3"
+	"gateway/internal/servicecenterv3/contract"
+	"gateway/internal/servicecenterv3/model"
 	"gateway/pkg/logger"
 )
 
+// lastGoodTTL 中心重启或副本追齐期间沿用最近一次健康名单的时间。
+const lastGoodTTL = 45 * time.Second
+
+var lastGood sync.Map // key -> lastGoodEntry
+
+type lastGoodEntry struct {
+	nodes []*service.NodeConfig
+	at    time.Time
+}
+
 // ServiceCenterMetadata 表示写入 serviceMetadata（扁平 map）时的服务中心定位信息。
-// 网关根据这些字段在全局服务中心缓存中查找服务及其实例列表；与控制台写入的 JSON 字段名保持一致（驼峰）。
+// 命名空间 ID 全局唯一，中心实例和环境由命名空间反查，这里不保存 instanceName / environment。
 type ServiceCenterMetadata struct {
 	TenantID      string `json:"tenantId"`      // 租户ID
-	NamespaceID   string `json:"namespaceId"`   // 命名空间ID
+	NamespaceID   string `json:"namespaceId"`   // 命名空间ID（唯一，据此定位中心）
 	GroupName     string `json:"groupName"`     // 分组名称
 	ServiceName   string `json:"serviceName"`   // 服务名称
 	DiscoveryType string `json:"discoveryType"` // 服务发现类型（INTERNAL）
 	ProtocolType  string `json:"protocolType"`  // 协议类型（http/https）
 }
 
-// IsServiceCenterService 判断该服务定义是否走「本机服务中心缓存」发现实例。
+// IsServiceCenterService 判断该服务定义是否走「本机服务中心」发现实例。
 // 约定：ServiceMetadata["discoveryType"] == "INTERNAL" 表示从本网关关联的服务中心拉取实例，
 // 与静态配置（数据库 nodes 表）路径区分；http 代理在 selectTargetNode 中据此分支。
 func IsServiceCenterService(metadata map[string]string) bool {
 	if metadata == nil {
 		return false
 	}
-
-	// 检查服务发现类型（统一使用驼峰命名，值为大写 INTERNAL）
-	discoveryType := metadata["discoveryType"]
-	return discoveryType == "INTERNAL"
+	return metadata["discoveryType"] == "INTERNAL"
 }
 
-// CollectHealthyNodesFromServiceCenter 在每次需要转发时调用，从服务中心全局缓存读取「当前快照」下的实例列表。
+// CollectHealthyNodesFromServiceCenter 在每次需要转发时调用，从 v3 命名视图读取当前健康实例。
 //
 // 处理顺序与规则：
 //  1. 校验 serviceConfig 非空且为 INTERNAL 发现类型。
-//  2. 从 ServiceMetadata 解析 tenantId、namespaceId、groupName、serviceName；缺一则无法查缓存。
-//  3. 使用 cache.GetGlobalCache().GetService 取服务聚合对象；未找到则返回「服务不存在」。
-//  4. 遍历 svc.Nodes：仅保留 InstanceStatus==UP 且 HealthyStatus==Healthy 的实例，其余视为不可转发（含已下线、不健康）。
-//  5. 将每个合格实例转为 service.NodeConfig（URL、权重、元数据等），供负载均衡器按策略挑选其一。
-//
-// 实例下线与缓存：
-//   - 本函数不缓存结果；后端注销或置为不健康后，是否立刻从列表中消失取决于服务中心同步到 GetGlobalCache 的时效。
-//   - 若缓存仍短暂保留已死实例，可能仍被选入列表；实际转发失败由上游重试/熔断等机制处理，与静态节点场景类似。
-//
-// 上下文：
-//   - GetService 使用 context.Background()，避免把网关请求的取消传递到缓存读；缓存查询应快速返回。
+//  2. 从 ServiceMetadata 解析 tenantId、namespaceId、groupName、serviceName。
+//  3. 走同进程 servicecenterv3.InProcess()，按 namespaceId 反查中心；中心未就绪时沿用未过期的上次健康名单。
+//  4. 仅保留 UP 且 HEALTHY 的实例，转为 service.NodeConfig 供负载均衡器挑选。
 func CollectHealthyNodesFromServiceCenter(ctx *core.Context, serviceConfig *service.ServiceConfig) ([]*service.NodeConfig, error) {
 	if serviceConfig == nil {
 		return nil, fmt.Errorf("服务配置不能为空")
 	}
-
 	if !IsServiceCenterService(serviceConfig.ServiceMetadata) {
 		return nil, fmt.Errorf("服务不是服务中心服务类型")
 	}
 
-	// 与 CreateNodeFromServiceCenter 时期一致：定位键全部来自 ServiceMetadata 扁平字符串
 	metadata := &ServiceCenterMetadata{
 		TenantID:    serviceConfig.ServiceMetadata["tenantId"],
 		NamespaceID: serviceConfig.ServiceMetadata["namespaceId"],
 		GroupName:   serviceConfig.ServiceMetadata["groupName"],
 		ServiceName: serviceConfig.ServiceMetadata["serviceName"],
 	}
-
 	if metadata.TenantID == "" || metadata.NamespaceID == "" ||
 		metadata.GroupName == "" || metadata.ServiceName == "" {
 		return nil, fmt.Errorf("服务元数据不完整：需要 tenantId、namespaceId、groupName 和 serviceName")
 	}
 
-	globalCache := cache.GetGlobalCache()
-	if globalCache == nil {
-		return nil, fmt.Errorf("服务中心缓存未初始化")
-	}
-
-	svc, found := globalCache.GetService(
-		context.Background(),
-		metadata.TenantID,
-		metadata.NamespaceID,
-		metadata.GroupName,
-		metadata.ServiceName,
-	)
-
-	if !found || svc == nil {
-		logger.WarnWithTrace(ctx.Ctx, "未找到服务",
-			"tenantId", metadata.TenantID,
-			"namespaceId", metadata.NamespaceID,
-			"groupName", metadata.GroupName,
-			"serviceName", metadata.ServiceName)
-		return nil, fmt.Errorf("服务不存在")
-	}
-
-	if svc.Nodes == nil || len(svc.Nodes) == 0 {
-		return nil, fmt.Errorf("服务暂无可用节点")
-	}
-
-	// 访问后端使用的协议来自服务元数据；与控制台 protocolType 一致，默认 http
+	key := lastGoodKey(metadata)
 	protocol := serviceConfig.ServiceMetadata["protocolType"]
 	if protocol == "" {
 		protocol = "http"
 	}
 
-	var nodes []*service.NodeConfig
-	for _, node := range svc.Nodes {
-		// 与注册中心约定一致：仅 UP 且 Healthy 的实例参与均衡；下线或非健康实例跳过
-		if node.InstanceStatus != types.NodeStatusUp || node.HealthyStatus != types.HealthyStatusHealthy {
+	adapter := servicecenterv3.InProcess()
+	if adapter == nil {
+		if nodes, ok := recallLastGood(key); ok {
+			logLastGood(ctx, metadata, len(nodes), "服务中心未初始化")
+			return nodes, nil
+		}
+		return nil, fmt.Errorf("服务中心未初始化")
+	}
+
+	discoverCtx := context.Background()
+	if ctx != nil && ctx.Ctx != nil {
+		discoverCtx = ctx.Ctx
+	}
+	list, err := adapter.ListHealthy(discoverCtx, metadata.TenantID, metadata.NamespaceID, metadata.GroupName, metadata.ServiceName)
+	if err != nil {
+		if nodes, ok := recallLastGood(key); ok && useLastGoodOnError(err) {
+			logLastGood(ctx, metadata, len(nodes), err.Error())
+			return nodes, nil
+		}
+		return nil, fmt.Errorf("从服务中心发现失败: %w", err)
+	}
+	nodes := make([]*service.NodeConfig, 0, len(list))
+	for _, inst := range list {
+		if !inst.IsHealthy() {
 			continue
 		}
-		nodes = append(nodes, convertServiceNodeToNodeConfig(node, protocol))
+		nodes = append(nodes, convertInstanceToNodeConfig(inst, protocol))
 	}
-
 	if len(nodes) == 0 {
-		// 服务存在但当前无合格实例：可能全部不健康或已全部下线
 		return nil, fmt.Errorf("未找到健康的服务节点")
 	}
+	rememberLastGood(key, nodes)
+	if ctx != nil {
+		logger.DebugWithTrace(ctx.Ctx, "从服务中心收集健康实例",
+			"tenantId", metadata.TenantID,
+			"namespaceId", metadata.NamespaceID,
+			"groupName", metadata.GroupName,
+			"serviceName", metadata.ServiceName,
+			"healthyCount", len(nodes))
+	}
+	return nodes, nil
+}
 
-	logger.DebugWithTrace(ctx.Ctx, "从服务中心收集健康实例",
+func useLastGoodOnError(err error) bool {
+	return errors.Is(err, contract.ErrViewNotReady) ||
+		errors.Is(err, contract.ErrCenterNotRunning) ||
+		errors.Is(err, contract.ErrCenterNotFound)
+}
+
+func lastGoodKey(m *ServiceCenterMetadata) string {
+	return m.TenantID + "|" + m.NamespaceID + "|" + m.GroupName + "|" + m.ServiceName
+}
+
+func rememberLastGood(key string, nodes []*service.NodeConfig) {
+	cp := cloneNodeConfigs(nodes)
+	lastGood.Store(key, lastGoodEntry{nodes: cp, at: time.Now()})
+}
+
+func recallLastGood(key string) ([]*service.NodeConfig, bool) {
+	raw, ok := lastGood.Load(key)
+	if !ok {
+		return nil, false
+	}
+	entry, ok := raw.(lastGoodEntry)
+	if !ok || len(entry.nodes) == 0 || time.Since(entry.at) > lastGoodTTL {
+		return nil, false
+	}
+	return cloneNodeConfigs(entry.nodes), true
+}
+
+func cloneNodeConfigs(in []*service.NodeConfig) []*service.NodeConfig {
+	out := make([]*service.NodeConfig, 0, len(in))
+	for _, n := range in {
+		if n == nil {
+			continue
+		}
+		cp := *n
+		if n.Metadata != nil {
+			cp.Metadata = make(map[string]string, len(n.Metadata))
+			for k, v := range n.Metadata {
+				cp.Metadata[k] = v
+			}
+		}
+		out = append(out, &cp)
+	}
+	return out
+}
+
+func logLastGood(ctx *core.Context, metadata *ServiceCenterMetadata, n int, reason string) {
+	if ctx == nil {
+		return
+	}
+	logger.WarnWithTrace(ctx.Ctx, "服务中心视图未就绪，沿用最近一次健康节点",
 		"tenantId", metadata.TenantID,
 		"namespaceId", metadata.NamespaceID,
 		"groupName", metadata.GroupName,
 		"serviceName", metadata.ServiceName,
-		"healthyCount", len(nodes))
-
-	return nodes, nil
+		"healthyCount", n,
+		"reason", reason)
 }
 
-// convertServiceNodeToNodeConfig 将服务中心的 ServiceNode 转为网关统一的 NodeConfig。
-// protocol 为访问该实例的 scheme（http/https），与 NodeConfig.URL 前缀一致。
-// Health/Enabled 与注册中心状态对齐，供负载均衡器内与其它路径相同的过滤逻辑使用。
-func convertServiceNodeToNodeConfig(node *types.ServiceNode, protocol string) *service.NodeConfig {
+func convertInstanceToNodeConfig(node *model.Node, protocol string) *service.NodeConfig {
 	if node == nil {
 		return nil
 	}
-
-	// 可选：实例 MetadataJson 中的 contextPath 拼入 URL，便于带上下文路径的后端
-	var nodeMetadata map[string]interface{}
 	contextPath := ""
-	if node.MetadataJson != "" {
-		if err := json.Unmarshal([]byte(node.MetadataJson), &nodeMetadata); err == nil {
-			if cp, exists := nodeMetadata["contextPath"]; exists {
-				if cpStr, ok := cp.(string); ok {
-					contextPath = cpStr
-				}
-			}
-		}
+	if node.Metadata != nil {
+		contextPath = node.Metadata["contextPath"]
 	}
-
-	// URL = 协议 + IP + 端口；若存在 contextPath 则追加（不以单独 Header 区分，而是路径前缀）
-	url := fmt.Sprintf("%s://%s:%d", protocol, node.IpAddress, node.PortNumber)
+	url := fmt.Sprintf("%s://%s:%d", protocol, node.IP, node.Port)
 	if contextPath != "" && contextPath != "/" {
 		url += contextPath
 	}
-
-	// NodeConfig.Metadata 保留注册中心关键字段，便于日志与上下文透传
+	weight := int(node.Weight)
+	if weight <= 0 {
+		weight = 1
+	}
 	nodeConfig := &service.NodeConfig{
-		ID:      node.NodeId,
+		ID:      node.NodeID,
 		URL:     url,
-		Weight:  int(node.Weight),
-		Health:  node.HealthyStatus == types.HealthyStatusHealthy,
-		Enabled: node.InstanceStatus == types.NodeStatusUp,
+		Weight:  weight,
+		Health:  node.IsHealthy(),
+		Enabled: node.Status == model.NodeUP,
 		Metadata: map[string]string{
-			"nodeId":         node.NodeId,
+			"nodeId":         node.NodeID,
 			"serviceName":    node.ServiceName,
-			"tenantId":       node.TenantId,
-			"namespaceId":    node.NamespaceId,
+			"tenantId":       node.TenantID,
+			"namespaceId":    node.NamespaceID,
 			"groupName":      node.GroupName,
-			"ipAddress":      node.IpAddress,
-			"portNumber":     strconv.Itoa(node.PortNumber),
+			"ipAddress":      node.IP,
+			"portNumber":     strconv.Itoa(node.Port),
 			"contextPath":    contextPath,
 			"healthyStatus":  node.HealthyStatus,
-			"instanceStatus": node.InstanceStatus,
+			"instanceStatus": node.Status,
 			"protocol":       protocol,
 		},
 	}
-
-	// 解析节点元数据并合并到 Metadata 中
-	if nodeMetadata != nil {
-		for key, value := range nodeMetadata {
-			// 避免覆盖已设置的基础元数据
+	if node.Metadata != nil {
+		for key, value := range node.Metadata {
 			if _, exists := nodeConfig.Metadata[key]; !exists {
-				if strValue, ok := value.(string); ok {
-					nodeConfig.Metadata[key] = strValue
-				} else {
-					nodeConfig.Metadata[key] = fmt.Sprintf("%v", value)
-				}
+				nodeConfig.Metadata[key] = value
 			}
 		}
 	}
-
 	return nodeConfig
 }

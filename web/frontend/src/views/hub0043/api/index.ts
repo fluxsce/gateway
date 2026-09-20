@@ -93,3 +93,42 @@ export async function rollbackConfig(data: RollbackRequest): Promise<JsonDataObj
   return configApi.post('/rollbackConfig', data)
 }
 
+/**
+ * 保存配置草稿（v3 不落库不推送；legacy 等同编辑）
+ */
+export async function saveDraft(
+  data: Partial<Config> & {
+    namespaceId: string
+    groupName: string
+    configDataId: string
+    configContent: string
+  },
+): Promise<JsonDataObj> {
+  return configApi.post('/saveDraft', data)
+}
+
+/**
+ * 发布当前草稿为新版本
+ */
+export async function publishConfig(
+  data: Partial<Config> & {
+    namespaceId: string
+    groupName: string
+    configDataId: string
+    changeReason?: string
+  },
+): Promise<JsonDataObj> {
+  return configApi.post('/publishConfig', data)
+}
+
+/**
+ * 读取内存草稿
+ */
+export async function getDraft(
+  namespaceId: string,
+  groupName: string,
+  configDataId: string,
+): Promise<JsonDataObj> {
+  return configApi.post('/getDraft', { namespaceId, groupName, configDataId })
+}
+

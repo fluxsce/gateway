@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -168,19 +169,20 @@ func (c *AlertLogController) BatchDeleteAlertLogs(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 
 	var req struct {
-		AlertLogIds []string `json:"alertLogIds" form:"alertLogIds"`
+		AlertLogIds string `json:"alertLogIds" form:"alertLogIds"`
 	}
 	if err := request.BindSafely(ctx, &req); err != nil {
 		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
 		return
 	}
 
-	if len(req.AlertLogIds) == 0 {
+	alertLogIds := request.ParseCSV(req.AlertLogIds)
+	if len(alertLogIds) == 0 {
 		response.ErrorJSON(ctx, "alertLogIds不能为空", constants.ED00006)
 		return
 	}
 
-	if err := c.dao.BatchDeleteAlertLogs(ctx, tenantId, req.AlertLogIds); err != nil {
+	if err := c.dao.BatchDeleteAlertLogs(ctx, tenantId, alertLogIds); err != nil {
 		logger.ErrorWithTrace(ctx, "批量删除预警日志失败", err)
 		response.ErrorJSON(ctx, "批量删除预警日志失败: "+err.Error(), constants.ED00009)
 		return
@@ -189,12 +191,68 @@ func (c *AlertLogController) BatchDeleteAlertLogs(ctx *gin.Context) {
 		Action:       audit.AuditActionDelete,
 		ModuleCode:   "hub0082",
 		TargetType:   "ALERT_LOG",
-		TargetId:     strings.Join(req.AlertLogIds, ","),
+		TargetId:     strings.Join(alertLogIds, ","),
 		ResourceCode: "hub0082:delete",
 		Detail:       "batch",
 	})
 
-	response.SuccessJSON(ctx, gin.H{"deletedCount": len(req.AlertLogIds)}, constants.SD00005)
+	response.SuccessJSON(ctx, gin.H{"deletedCount": len(alertLogIds)}, constants.SD00005)
+}
+
+// IgnoreSelectedAlertLogs 忽略当前选中的待发送日志
+func (c *AlertLogController) IgnoreSelectedAlertLogs(ctx *gin.Context) {
+	c.ignoreAlertLogs(ctx, models.AlertLogIgnoreScopeSelected, "hub0082:ignoreSelected")
+}
+
+// IgnoreGroupAlertLogs 忽略当前行同分组的待发送日志
+func (c *AlertLogController) IgnoreGroupAlertLogs(ctx *gin.Context) {
+	c.ignoreAlertLogs(ctx, models.AlertLogIgnoreScopeGroup, "hub0082:ignoreGroup")
+}
+
+// IgnoreAllAlertLogs 忽略当前查询条件下全部待发送日志
+func (c *AlertLogController) IgnoreAllAlertLogs(ctx *gin.Context) {
+	c.ignoreAlertLogs(ctx, models.AlertLogIgnoreScopeAll, "hub0082:ignoreAll")
+}
+
+func (c *AlertLogController) ignoreAlertLogs(ctx *gin.Context, scope, resourceCode string) {
+	tenantId := request.GetTenantID(ctx)
+	operatorId := request.GetOperatorID(ctx)
+
+	var req models.AlertLogIgnoreRequest
+	if err := request.BindSafely(ctx, &req); err != nil {
+		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
+		return
+	}
+	req.Scope = scope
+
+	affected, err := c.dao.IgnoreAlertLogs(ctx, tenantId, operatorId, scope, &req)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "忽略预警日志失败", err, "scope", scope)
+		response.ErrorJSON(ctx, "忽略预警日志失败: "+err.Error(), constants.ED00009)
+		return
+	}
+
+	targetId := scope
+	if scope == models.AlertLogIgnoreScopeSelected {
+		targetId = req.AlertLogIds
+	} else if scope == models.AlertLogIgnoreScopeGroup {
+		if strings.TrimSpace(req.AlertType) != "" {
+			targetId = req.AlertType
+		} else {
+			targetId = req.AlertTitle
+		}
+	}
+
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0082",
+		TargetType:   "ALERT_LOG",
+		TargetId:     targetId,
+		ResourceCode: resourceCode,
+		Detail:       fmt.Sprintf("scope=%s,ignoredCount=%d", scope, affected),
+	})
+
+	response.SuccessJSON(ctx, gin.H{"ignoredCount": affected, "scope": scope}, constants.SD00004)
 }
 
 // GetAlertLogStatistics 获取预警日志统计信息

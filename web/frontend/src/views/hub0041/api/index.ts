@@ -14,6 +14,14 @@ export async function queryNamespaces(params: any): Promise<JsonDataObj> {
   return namespaceApi.post('/queryNamespaces', params)
 }
 
+export async function queryNamespaceOverview(params: {
+  instanceName: string
+  environment?: string
+  namespaceId?: string
+}): Promise<JsonDataObj> {
+  return namespaceApi.post('/queryNamespaceOverview', params)
+}
+
 /**
  * 查询命名空间详情
  * @param namespaceId 命名空间ID

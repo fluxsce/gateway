@@ -13,9 +13,12 @@ import {
   batchDeleteAlertLogs,
   deleteAlertLog,
   getAlertLog,
+  ignoreAllAlertLogs,
+  ignoreGroupAlertLogs,
+  ignoreSelectedAlertLogs,
   queryAlertLogs,
 } from '../api'
-import type { AlertLog } from '../types'
+import type { AlertLog, AlertLogIgnoreParams, AlertLogIgnoreScope } from '../types'
 import { useAlertLogModel } from './model'
 
 /**
@@ -180,11 +183,85 @@ export function useAlertLogService(
     }
   }
 
+  /**
+   * 从搜索表单取出忽略/查询共用的筛选条件（含时间范围）。
+   */
+  const collectFilterParams = (searchParams?: Record<string, any>): AlertLogIgnoreParams => {
+    let finalSearchParams = searchParams
+    if (!finalSearchParams && searchFormRef?.value?.getFormData) {
+      finalSearchParams = searchFormRef.value.getFormData() || {}
+    }
+
+    const processed: AlertLogIgnoreParams = {}
+    if (!finalSearchParams) return processed
+
+    Object.keys(finalSearchParams).forEach((key) => {
+      if (key === 'timeRange') {
+        const bounds = resolveTimeRangeBounds(finalSearchParams[key])
+        if (bounds.start && bounds.end) {
+          processed.startTime = bounds.start
+          processed.endTime = bounds.end
+        }
+        return
+      }
+      const value = finalSearchParams[key]
+      if (value !== '' && value !== null && value !== undefined) {
+        ;(processed as Record<string, unknown>)[key] = value
+      }
+    })
+    return processed
+  }
+
+  /**
+   * 忽略待发送日志。
+   * @param scope selected / group / all
+   * @param extra 额外条件（选中 ID、分组键等）
+   */
+  const ignoreLogs = async (
+    scope: AlertLogIgnoreScope,
+    extra?: AlertLogIgnoreParams,
+  ): Promise<boolean> => {
+    const params: AlertLogIgnoreParams = {
+      ...collectFilterParams(),
+      ...extra,
+    }
+
+    try {
+      model.setLoading(true)
+      const requestByScope = {
+        selected: ignoreSelectedAlertLogs,
+        group: ignoreGroupAlertLogs,
+        all: ignoreAllAlertLogs,
+      }[scope]
+      const response = await requestByScope(params)
+      if (isApiSuccess(response)) {
+        const result = parseJsonData<{ ignoredCount?: number }>(response, {})
+        const count = result?.ignoredCount ?? 0
+        if (count > 0) {
+          message.success(t('message.ignoreSuccess', { count }))
+        } else {
+          message.warning(t('message.ignoreEmpty'))
+        }
+        await loadLogList()
+        return true
+      }
+      message.error(getApiMessage(response, t('message.ignoreFailed')))
+      return false
+    } catch (error: any) {
+      message.error(error.message || t('message.ignoreFailed'))
+      return false
+    } finally {
+      model.setLoading(false)
+    }
+  }
+
   return {
     model,
     loadLogList,
     getLogDetail,
     deleteLog,
     batchDeleteLogs,
+    collectFilterParams,
+    ignoreLogs,
   }
 }

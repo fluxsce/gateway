@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"gateway/internal/servicecenter/types"
+	"gateway/internal/servicecenterv3/catalog"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/empty"
@@ -28,7 +28,7 @@ func NewConfigDAO(db database.Database) *ConfigDAO {
 }
 
 // GetConfigById 根据主键获取配置信息
-func (dao *ConfigDAO) GetConfigById(ctx context.Context, tenantId, namespaceId, groupName, configDataId string) (*types.ConfigData, error) {
+func (dao *ConfigDAO) GetConfigById(ctx context.Context, tenantId, namespaceId, groupName, configDataId string) (*catalog.ConfigData, error) {
 	if namespaceId == "" || groupName == "" || configDataId == "" {
 		return nil, errors.New("namespaceId、groupName和configDataId不能为空")
 	}
@@ -38,7 +38,7 @@ func (dao *ConfigDAO) GetConfigById(ctx context.Context, tenantId, namespaceId, 
 		WHERE tenantId = ? AND namespaceId = ? AND groupName = ? AND configDataId = ?
 	`
 
-	var config types.ConfigData
+	var config catalog.ConfigData
 	err := dao.db.QueryOne(ctx, &config, query, []interface{}{tenantId, namespaceId, groupName, configDataId}, true)
 
 	if err != nil {
@@ -58,7 +58,7 @@ func (dao *ConfigDAO) GetConfigById(ctx context.Context, tenantId, namespaceId, 
 //
 // 返回:
 //   - error: 可能的错误
-func (dao *ConfigDAO) InsertConfig(ctx context.Context, config *types.ConfigData) error {
+func (dao *ConfigDAO) InsertConfig(ctx context.Context, config *catalog.ConfigData) error {
 	if config == nil {
 		return errors.New("配置数据不能为空")
 	}
@@ -97,7 +97,7 @@ func (dao *ConfigDAO) InsertConfig(ctx context.Context, config *types.ConfigData
 
 // ListConfigs 获取配置列表（支持条件查询和分页）
 // 注意：tenantId由前置校验保证非空，此处不再校验
-func (dao *ConfigDAO) ListConfigs(ctx context.Context, tenantId string, query *models.ConfigQuery, page, pageSize int) ([]*types.ConfigData, int, error) {
+func (dao *ConfigDAO) ListConfigs(ctx context.Context, tenantId string, query *models.ConfigQuery, page, pageSize int) ([]*catalog.ConfigData, int, error) {
 	// 创建分页信息
 	pagination := sqlutils.NewPaginationInfo(page, pageSize)
 
@@ -185,7 +185,7 @@ func (dao *ConfigDAO) ListConfigs(ctx context.Context, tenantId string, query *m
 
 	// 如果没有记录，直接返回空列表
 	if total == 0 {
-		return []*types.ConfigData{}, 0, nil
+		return []*catalog.ConfigData{}, 0, nil
 	}
 
 	// 构建分页查询
@@ -199,7 +199,7 @@ func (dao *ConfigDAO) ListConfigs(ctx context.Context, tenantId string, query *m
 	queryArgs = append(queryArgs, paginationArgs...)
 
 	// 执行分页查询
-	var configs []*types.ConfigData
+	var configs []*catalog.ConfigData
 	err = dao.db.Query(ctx, &configs, paginatedQuery, queryArgs, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询配置列表失败")
@@ -215,7 +215,7 @@ func (dao *ConfigDAO) ListConfigs(ctx context.Context, tenantId string, query *m
 //
 // 返回:
 //   - error: 可能的错误
-func (dao *ConfigDAO) UpdateConfig(ctx context.Context, config *types.ConfigData) error {
+func (dao *ConfigDAO) UpdateConfig(ctx context.Context, config *catalog.ConfigData) error {
 	if config == nil {
 		return errors.New("配置数据不能为空")
 	}

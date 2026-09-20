@@ -3342,6 +3342,19 @@ INSERT INTO HUB_AUTH_RESOURCE (
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_022_007', 1, 'Y'
 );
 
+-- 批量删除按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0042:batchDelete', 'default', '批量删除', 'hub0042:batchDelete', 'BUTTON',
+  'hub0042', 3, 11, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_022_011', 1, 'Y'
+);
+
 -- 查询按钮
 INSERT INTO HUB_AUTH_RESOURCE (
   resourceId, tenantId, resourceName, resourceCode, resourceType,
@@ -4533,6 +4546,58 @@ INSERT INTO HUB_AUTH_RESOURCE (
   'hub0082', 3, 4, 'zh-CN',
   'Y', 'Y',
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_042_004', 1, 'Y'
+);
+
+-- 批量删除按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0082:batchDelete', 'default', '批量删除', 'hub0082:batchDelete', 'BUTTON',
+  'hub0082', 3, 6, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_042_006', 1, 'Y'
+);
+
+-- 忽略选中按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0082:ignoreSelected', 'default', '忽略选中', 'hub0082:ignoreSelected', 'BUTTON',
+  'hub0082', 3, 7, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_042_007', 1, 'Y'
+);
+
+-- 分组忽略按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0082:ignoreGroup', 'default', '分组忽略', 'hub0082:ignoreGroup', 'BUTTON',
+  'hub0082', 3, 8, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_042_008', 1, 'Y'
+);
+
+-- 全部忽略按钮
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0082:ignoreAll', 'default', '全部忽略', 'hub0082:ignoreAll', 'BUTTON',
+  'hub0082', 3, 9, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_042_009', 1, 'Y'
 );
 
 COMMIT;

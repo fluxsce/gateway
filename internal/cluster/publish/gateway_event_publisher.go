@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	clusterInit "gateway/internal/cluster/init"
 	"gateway/internal/cluster/types"
 	"gateway/pkg/logger"
 )
@@ -41,7 +40,7 @@ func (p *GatewayEventPublisher) PublishRestartEvent(ctx context.Context, gateway
 // publishEvent 发布网关事件的通用方法
 func (p *GatewayEventPublisher) publishEvent(ctx context.Context, action, gatewayInstanceId, tenantId, instanceName, configFilePath, operator string) error {
 	// 检查集群服务是否已初始化
-	if !clusterInit.IsClusterInitialized() {
+	if !types.IsClusterInitialized() {
 		logger.Debug("集群服务未初始化，跳过事件发布",
 			"action", action,
 			"gatewayInstanceId", gatewayInstanceId)
@@ -49,7 +48,7 @@ func (p *GatewayEventPublisher) publishEvent(ctx context.Context, action, gatewa
 	}
 
 	// 检查集群服务是否就绪
-	if !clusterInit.IsClusterReady() {
+	if !types.IsClusterReady() {
 		logger.Debug("集群服务未就绪，跳过事件发布",
 			"action", action,
 			"gatewayInstanceId", gatewayInstanceId)
@@ -57,7 +56,7 @@ func (p *GatewayEventPublisher) publishEvent(ctx context.Context, action, gatewa
 	}
 
 	// 获取集群服务
-	clusterService := clusterInit.GetClusterService()
+	clusterService := types.GetClusterService()
 	if clusterService == nil {
 		logger.Warn("无法获取集群服务，跳过事件发布",
 			"action", action,

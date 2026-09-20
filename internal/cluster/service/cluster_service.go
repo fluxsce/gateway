@@ -121,7 +121,6 @@ func (s *ClusterServiceImpl) Start(ctx context.Context) error {
 
 	logger.Info("集群服务启动", "nodeId", s.nodeId, "nodeIp", s.nodeIp, "tenantId", s.tenantId)
 
-	// 启动事件轮询
 	s.wg.Add(1)
 	go s.eventPollLoop()
 
@@ -309,9 +308,6 @@ func (s *ClusterServiceImpl) eventPollLoop() {
 func (s *ClusterServiceImpl) pollAndProcessEvents() {
 	ctx := context.Background()
 
-	// 获取待处理事件
-	// 注意：使用 >= lastEventTime 查询，可能返回已处理的事件
-	// 但 NOT EXISTS 子查询会自动过滤掉已确认的事件，实现自然去重
 	events, err := s.dao.GetPendingEvents(ctx, s.tenantId, s.nodeId, s.batchSize, s.lastEventTime)
 	if err != nil {
 		logger.Error("获取待处理事件失败", "error", err)
@@ -324,14 +320,8 @@ func (s *ClusterServiceImpl) pollAndProcessEvents() {
 
 	logger.Debug("获取到待处理事件", "count", len(events))
 
-	// 处理每个事件
 	for _, event := range events {
 		s.processEvent(ctx, event)
-
-		// 更新最后处理时间
-		// 使用事件中最大的时间作为下次查询的起点
-		// 注意：使用 >= 查询，所以 lastEventTime 这一秒的事件会被重复查询
-		// 但已处理的会被 ACK 表过滤掉，不会重复处理
 		if event.EventTime.After(s.lastEventTime) {
 			s.lastEventTime = event.EventTime
 		}

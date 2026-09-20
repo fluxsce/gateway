@@ -3,10 +3,10 @@ export interface ServiceCenterInstance {
   // 主键和租户信息
   tenantId: string // 租户ID，联合主键
   instanceName: string // 实例名称，联合主键
-  environment: 'DEVELOPMENT' | 'STAGING' | 'PRODUCTION' // 部署环境，联合主键
+  environment: string // 部署环境，联合主键；预置 DEVELOPMENT/STAGING/PRODUCTION，也允许自定义
 
-  // 服务器类型和监听配置
-  serverType: 'GRPC' | 'HTTP' // 服务器类型
+  // 数据面仅 gRPC 双向流；HTTP 为历史字段，新建不再可选
+  serverType: 'GRPC' | 'HTTP'
   listenAddress: string // 监听地址，默认'0.0.0.0'
   listenPort: number // 监听端口，默认12004
 
@@ -26,7 +26,7 @@ export interface ServiceCenterInstance {
   maxConnectionAgeGrace: number // 连接关闭宽限期（秒），默认20
 
   // gRPC 功能开关
-  enableReflection: 'Y' | 'N' // 是否启用 gRPC 反射，默认Y
+  enableReflection: 'Y' | 'N' // 是否启用 gRPC 反射，默认N
   enableTLS: 'Y' | 'N' // 是否启用 TLS 加密，默认N
 
   // 证书配置 - 支持文件路径和数据库存储
@@ -44,9 +44,9 @@ export interface ServiceCenterInstance {
   readBufferSize: number // 读缓冲区大小（字节），默认32KB
   writeBufferSize: number // 写缓冲区大小（字节），默认32KB
 
-  // 健康检查配置
-  healthCheckInterval: number // 健康检查间隔（秒），0表示禁用，默认30
-  healthCheckTimeout: number // 健康检查超时时间（秒），默认5
+  // 心跳检查（Evictor）：扫描间隔默认 30s，心跳超时默认 15s；<=0 时后端回落这两值，不会禁用
+  healthCheckInterval: number
+  healthCheckTimeout: number
 
   // 实例状态管理
   instanceStatus: 'STOPPED' | 'STARTING' | 'RUNNING' | 'STOPPING' | 'ERROR' // 实例状态
@@ -69,5 +69,66 @@ export interface ServiceCenterInstance {
   activeFlag: 'Y' | 'N' // 活动状态标记(N非活动,Y活动)
   noteText?: string // 备注信息
   extProperty?: string // 扩展属性，JSON格式
+
+  // 运行时叠加（管理面，不落库）。卡片「服务名 / 业务节点 / 健康节点 / gRPC 会话」
+  isRunning?: boolean
+  engine?: 'legacy' | 'servicecenterv3'
+  listenEndpoint?: string
+  serviceCount?: number
+  nodeCount?: number
+  healthyNodeCount?: number
+  configCount?: number
+  connectionCount?: number
+  ownerGatewayId?: string
+  replicaGatewayIds?: string[]
+}
+
+export interface CenterOverview {
+  centerInstanceName: string
+  serviceCount: number
+  nodeCount: number
+  healthyNodeCount: number
+  configCount: number
+  connectionCount: number
+  engine: string
+  ownerGatewayId?: string
+  replicaGatewayIds?: string[]
+  scope?: 'instance' | 'namespace'
+  namespaceId?: string
+  namespaceName?: string
+  activeFlag?: 'Y' | 'N'
+  serviceQuotaLimit?: number
+  configQuotaLimit?: number
+}
+
+export interface CenterConnection {
+  connectionId: string
+  clientId: string
+  clientIp: string
+  namespaceId?: string
+  lastActive?: string
+}
+
+export interface CenterAuthToken {
+  tokenId: string
+  tokenName: string
+  tokenPreview: string
+  userId?: string
+  expireTime?: string
+  statusFlag: 'Y' | 'N'
+  statusText: string
+  addTime?: string
+  addWho?: string
+}
+
+export interface CenterIssuedAuthToken {
+  tokenId: string
+  tokenName: string
+  tokenValue: string
+  tokenPreview: string
+  expireTime?: string
+  instanceName: string
+  environment: string
+  enableAuth?: 'Y' | 'N'
 }
 

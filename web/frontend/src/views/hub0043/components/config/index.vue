@@ -48,6 +48,19 @@
           <RsButton size="sm" icon="arrow-left" @click="handleBackToList">
             返回列表
           </RsButton>
+          <div class="config-form-header__meta">
+            <RsTag v-if="currentEditConfig?.hasDraft" variant="warning" size="sm">未发布草稿</RsTag>
+            <RsTag v-else-if="formDialogMode !== 'create'" variant="success" size="sm">已发布</RsTag>
+            <RsButton
+              v-if="formDialogMode === 'edit'"
+              size="sm"
+              variant="primary"
+              :loading="submitting"
+              @click="handlePublishCurrent"
+            >
+              发布
+            </RsButton>
+          </div>
         </div>
 
         <RsDataForm
@@ -57,7 +70,7 @@
           :initial-data="currentEditConfig || undefined"
           :show-footer="true"
           :show-submit="formDialogMode !== 'view'"
-          :submit-text="formDialogMode === 'create' ? '发布' : '保存'"
+          :submit-text="formDialogMode === 'create' ? '创建并发布' : '保存草稿'"
           :submit-loading="submitting"
           @submit="handleFormSubmit"
         />
@@ -70,7 +83,7 @@
 import { RsDataForm, type RsDataFormExpose } from '@/components/form/rs-data'
 import { RsSearchForm, type RsSearchFormExpose } from '@/components/form/rs-search'
 import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
-import { RsButton, RsSplitPane, type RsSplitPaneItem } from '@/ui'
+import { RsButton, RsSplitPane, RsTag, type RsSplitPaneItem } from '@/ui'
 import { ref } from 'vue'
 import type { Config } from '../../types'
 import { useConfigPage } from './hooks'
@@ -116,6 +129,7 @@ const {
   handleMenuClick,
   handleSearch,
   handleBackToList,
+  handlePublishCurrent,
 } = useConfigPage(
   gridRef,
   searchFormRef,
@@ -180,9 +194,16 @@ defineExpose({
 .config-form-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: var(--g-space-sm) var(--g-space-md);
   border-bottom: 1px solid var(--g-border-primary);
   background-color: var(--g-bg-color);
+}
+
+.config-form-header__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-sm);
 }
 
 .config-form-view :deep(.rs-data-form) {

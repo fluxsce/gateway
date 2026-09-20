@@ -1,49 +1,57 @@
 /**
  * 命名空间管理页面级 Hook
  * - 组合 useNamespaceService（纯业务逻辑）
- * - 处理新增对话框、工具栏、右键菜单等页面交互
+ * - 处理新增对话框、工具栏、卡片右键菜单等页面交互
  */
 
 import { useAppMessage } from '@/composables/useAppMessage'
-import { rsConfirm } from '@/ui'
+import { isApiSuccess, parseJsonData } from '@/utils/format'
 import type { Ref } from 'vue'
-import { ref } from 'vue'
+import { nextTick, ref, watch } from 'vue'
+import type { CenterOverview } from '../../hub0040/types'
+import * as namespaceApi from '../api'
 import type { Namespace } from '../types'
+import { canNamespaceAction } from './model'
 import { useNamespaceService } from './useNamespaceService'
+
+export interface NamespaceQueryScope {
+  instanceName: string
+  environment: string
+}
+
+function namespaceIdentity(namespace: Namespace) {
+  return `${namespace.tenantId}:${namespace.namespaceId}`
+}
 
 /**
  * 命名空间管理页面级 Hook
- * @param gridRef 表格引用
  * @param searchFormRef 搜索表单引用
  * @param moduleId 自定义模块ID，用于支持同一页面多个实例（默认 'hub0041'）
  */
-export function useNamespacePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<any> | any, moduleId?: string) {
+export function useNamespacePage(searchFormRef?: Ref<any> | any, moduleId?: string) {
   const message = useAppMessage()
-  // 业务服务（包含 model、增删改查等）
   const service = useNamespaceService(searchFormRef, moduleId)
 
-  // 表单对话框状态（新增/编辑/查看共用）
   const formDialogVisible = ref(false)
   const formDialogMode = ref<'create' | 'edit' | 'view'>('create')
   const currentEditNamespace = ref<Namespace | null>(null)
   const submitting = ref(false)
+  const selectedNamespace = ref<Namespace | null>(null)
+  const queryScope = ref<NamespaceQueryScope | null>(null)
+  const overview = ref<CenterOverview | null>(null)
+  const overviewOnline = ref(false)
+  const overviewLoading = ref(false)
 
-  /**
-   * 打开新增命名空间对话框
-   */
   const openAddDialog = () => {
     formDialogMode.value = 'create'
     currentEditNamespace.value = null
     formDialogVisible.value = true
   }
 
-  /**
-   * 打开编辑命名空间对话框
-   */
   const openEditDialog = async (namespace: Namespace) => {
     try {
       const detailNamespace = await service.getNamespaceDetail(namespace.namespaceId)
-      
+
       if (!detailNamespace) {
         message.error('获取命名空间详情失败')
         return
@@ -57,13 +65,10 @@ export function useNamespacePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<a
     }
   }
 
-  /**
-   * 打开查看命名空间对话框
-   */
   const openViewDialog = async (namespace: Namespace) => {
     try {
       const detailNamespace = await service.getNamespaceDetail(namespace.namespaceId)
-      
+
       if (!detailNamespace) {
         message.error('获取命名空间详情失败')
         return
@@ -77,17 +82,11 @@ export function useNamespacePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<a
     }
   }
 
-  /**
-   * 关闭表单对话框
-   */
   const closeFormDialog = () => {
     formDialogVisible.value = false
     currentEditNamespace.value = null
   }
 
-  /**
-   * 提交表单（新增/编辑）
-   */
   const handleSubmit = async (formData: Namespace) => {
     submitting.value = true
     try {
@@ -103,93 +102,49 @@ export function useNamespacePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<a
 
       if (success) {
         closeFormDialog()
-        await service.handleRefresh()
+        await refreshMonitor()
       }
     } finally {
       submitting.value = false
     }
   }
 
-  /**
-   * 处理工具栏按钮点击
-   */
-  const handleToolbarClick = (key: string) => {
+  const handleToolbarClick = async (key: string) => {
+    if (!canNamespaceAction(key) && key !== 'search' && key !== 'reset') {
+      message.warning('没有操作权限')
+      return
+    }
     switch (key) {
       case 'add':
         openAddDialog()
         break
       case 'edit': {
-        if (!gridRef?.value) {
-          message.warning('Grid 引用未设置')
+        if (!selectedNamespace.value) {
+          message.warning('请先选择要编辑的命名空间')
           return
         }
-        const selectedRow = gridRef.value.getSelectedOrCurrentRecord()
-        if (!selectedRow) {
-          message.warning('请先选择或点击要编辑的命名空间')
-          return
-        }
-        openEditDialog(selectedRow)
+        openEditDialog(selectedNamespace.value)
         break
       }
       case 'delete': {
-        if (!gridRef?.value) {
-          message.warning('Grid 引用未设置')
+        if (!selectedNamespace.value) {
+          message.warning('请先选择要删除的命名空间')
           return
         }
-        const selectedRows = gridRef.value.getActiveRows?.() || []
-        if (selectedRows.length === 0) {
-          message.warning('请先选择或点击要删除的命名空间')
-          return
+        if (await service.deleteNamespace(selectedNamespace.value)) {
+          await loadOverview(queryScope.value)
         }
-        if (selectedRows.length === 1) {
-          service.deleteNamespace(selectedRows[0])
-          return
-        }
-        handleBatchDelete(selectedRows)
         break
       }
     }
   }
 
-  /**
-   * 批量删除命名空间
-   */
-  const handleBatchDelete = async (namespaces: Namespace[]) => {
-    const confirmed = await rsConfirm.warning({
-      title: '确认批量删除',
-      subtitle: `将删除 ${namespaces.length} 个命名空间`,
-      description: '此操作不可恢复，请谨慎操作',
-      confirmText: '确定删除',
-      cancelText: '取消',
-      width: 500
-    })
-
-    if (!confirmed) {
-      return
-    }
-
-    let successCount = 0
-    for (const namespace of namespaces) {
-      const success = await service.deleteNamespace(namespace, {
-        skipConfirm: true,
-        silentSuccess: true,
-      })
-      if (success) {
-        successCount++
-      }
-    }
-
-    if (successCount > 0) {
-      message.success(`成功删除 ${successCount} 个命名空间`)
-      await service.handleRefresh()
-    }
-  }
-
-  /**
-   * 处理表格右键菜单
-   */
   const handleMenuClick = async (params: { key: string; row?: any }) => {
     if (!params.row) {
+      return
+    }
+    if (!canNamespaceAction(params.key)) {
+      message.warning('没有操作权限')
       return
     }
     const row = params.row as Namespace
@@ -201,22 +156,109 @@ export function useNamespacePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<a
         await openEditDialog(row)
         break
       case 'delete':
-        await service.deleteNamespace(row)
-        await service.handleRefresh()
+        if (await service.deleteNamespace(row)) {
+          await refreshMonitor()
+        }
         break
     }
   }
 
-  /**
-   * 处理搜索（接收 RsSearchForm 传递的表单数据）
-   */
-  const handleSearch = (formData?: Record<string, any>) => {
-    service.handleSearch(formData)
+  const selectNamespace = (namespace: Namespace) => {
+    if (selectedNamespace.value && namespaceIdentity(selectedNamespace.value) === namespaceIdentity(namespace)) {
+      selectedNamespace.value = null
+      void loadOverview(queryScope.value)
+      return
+    }
+    selectedNamespace.value = namespace
+    void loadOverview(queryScope.value, namespace.namespaceId)
   }
 
-  /**
-   * 表单提交处理（适配 RsDataFormModal 的提交格式）
-   */
+  const focusNamespace = (namespace: Namespace) => {
+    if (selectedNamespace.value && namespaceIdentity(selectedNamespace.value) === namespaceIdentity(namespace)) {
+      return
+    }
+    selectedNamespace.value = namespace
+  }
+
+  const handleCardAction = async (key: string, namespace: Namespace) => {
+    await nextTick()
+    selectedNamespace.value = namespace
+    void loadOverview(queryScope.value, namespace.namespaceId)
+    await handleMenuClick({ key, row: namespace })
+  }
+
+  const readScope = (formData?: Record<string, any>): NamespaceQueryScope | null => {
+    const data = formData || searchFormRef?.value?.getFormData?.() || {}
+    const instanceName = String(data.instanceName || '').trim()
+    if (!instanceName) return null
+    return {
+      instanceName,
+      environment: String(data.environment || '').trim(),
+    }
+  }
+
+  const loadOverview = async (scope: NamespaceQueryScope | null, namespaceId?: string) => {
+    if (!scope?.instanceName) {
+      overview.value = null
+      overviewOnline.value = false
+      return
+    }
+    overviewLoading.value = true
+    try {
+      const response = await namespaceApi.queryNamespaceOverview({
+        instanceName: scope.instanceName,
+        environment: scope.environment || undefined,
+        namespaceId: namespaceId || undefined,
+      })
+      if (!isApiSuccess(response)) {
+        overview.value = null
+        overviewOnline.value = false
+        return
+      }
+      const data = parseJsonData<(CenterOverview & { online?: boolean }) | null>(response, null)
+      overview.value = data
+      overviewOnline.value = Boolean(data?.online)
+    } catch {
+      overview.value = null
+      overviewOnline.value = false
+    } finally {
+      overviewLoading.value = false
+    }
+  }
+
+  watch(
+    () => service.model.namespaceList.value,
+    (list) => {
+      const current = selectedNamespace.value
+      if (!current) return
+      const next = list.find((row) => namespaceIdentity(row) === namespaceIdentity(current))
+      selectedNamespace.value = next || null
+      if (!next && queryScope.value) {
+        void loadOverview(queryScope.value)
+      }
+    },
+  )
+
+  const refreshMonitor = async () => {
+    const scope = queryScope.value || readScope()
+    await service.handleRefresh()
+    await loadOverview(scope, selectedNamespace.value?.namespaceId)
+  }
+
+  const handleSearch = async (formData?: Record<string, any>) => {
+    queryScope.value = readScope(formData)
+    await service.handleSearch(formData)
+    await loadOverview(queryScope.value, selectedNamespace.value?.namespaceId)
+  }
+
+  const handleReset = async () => {
+    queryScope.value = null
+    selectedNamespace.value = null
+    overview.value = null
+    overviewOnline.value = false
+    await service.handleReset()
+  }
+
   const handleFormSubmit = (formData?: Record<string, any>) => {
     if (formData) {
       handleSubmit(formData as any)
@@ -224,16 +266,18 @@ export function useNamespacePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<a
   }
 
   return {
-    // 服务（包含 model 和所有业务方法）
     service,
 
-    // 对话框状态
     formDialogVisible,
     formDialogMode,
     currentEditNamespace,
     submitting,
+    selectedNamespace,
+    queryScope,
+    overview,
+    overviewOnline,
+    overviewLoading,
 
-    // 对话框方法
     openAddDialog,
     openEditDialog,
     openViewDialog,
@@ -241,12 +285,15 @@ export function useNamespacePage(gridRef?: Ref<any> | any, searchFormRef?: Ref<a
     handleSubmit,
     handleFormSubmit,
 
-    // 工具栏和菜单
+    selectNamespace,
+    focusNamespace,
     handleToolbarClick,
     handleMenuClick,
+    handleCardAction,
     handleSearch,
+    handleReset,
+    refreshMonitor,
   }
 }
 
 export type NamespacePage = ReturnType<typeof useNamespacePage>
-

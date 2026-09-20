@@ -3,7 +3,7 @@
  */
 
 // 新架构 - Model + Service + Page
-export { useServiceModel, type ServiceModel } from './model'
+export { useServiceModel, canServiceAction, serviceActionPermission, type ServiceModel } from './model'
 export { useServicePage, type ServicePage } from './useServicePage'
 export { useServiceService, type ServiceService } from './useServiceService'
 

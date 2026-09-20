@@ -1896,6 +1896,13 @@ ELSE
 UPDATE HUB_AUTH_RESOURCE SET resourceName = N'删除' WHERE tenantId = N'default' AND resourceId = N'hub0042:delete';
 
 
+-- 批量删除按钮
+IF NOT EXISTS (SELECT 1 FROM HUB_AUTH_RESOURCE WHERE tenantId = N'default' AND resourceId = N'hub0042:batchDelete')
+INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, parentResourceId, resourceLevel, sortOrder, language, resourceStatus, builtInFlag, addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag) VALUES (N'hub0042:batchDelete', N'default', N'批量删除', N'hub0042:batchDelete', N'BUTTON', N'hub0042', 3, 11, N'zh-CN', N'Y', N'Y', GETDATE(), N'system', GETDATE(), N'system', N'INIT_022_011', 1, N'Y')
+ELSE
+UPDATE HUB_AUTH_RESOURCE SET resourceName = N'批量删除' WHERE tenantId = N'default' AND resourceId = N'hub0042:batchDelete';
+
+
 -- 查询按钮
 IF NOT EXISTS (SELECT 1 FROM HUB_AUTH_RESOURCE WHERE tenantId = N'default' AND resourceId = N'hub0042:search')
 INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, parentResourceId, resourceLevel, sortOrder, language, resourceStatus, builtInFlag, addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag) VALUES (N'hub0042:search', N'default', N'查询', N'hub0042:search', N'BUTTON', N'hub0042', 3, 8, N'zh-CN', N'Y', N'Y', GETDATE(), N'system', GETDATE(), N'system', N'INIT_022_008', 1, N'Y')
@@ -2559,3 +2566,31 @@ IF NOT EXISTS (SELECT 1 FROM HUB_AUTH_RESOURCE WHERE tenantId = N'default' AND r
 INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, parentResourceId, resourceLevel, sortOrder, language, resourceStatus, builtInFlag, addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag) VALUES (N'hub0082:reset', N'default', N'重置', N'hub0082:reset', N'BUTTON', N'hub0082', 3, 4, N'zh-CN', N'Y', N'Y', GETDATE(), N'system', GETDATE(), N'system', N'INIT_042_004', 1, N'Y')
 ELSE
 UPDATE HUB_AUTH_RESOURCE SET resourceName = N'重置' WHERE tenantId = N'default' AND resourceId = N'hub0082:reset';
+
+
+-- 批量删除按钮
+IF NOT EXISTS (SELECT 1 FROM HUB_AUTH_RESOURCE WHERE tenantId = N'default' AND resourceId = N'hub0082:batchDelete')
+INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, parentResourceId, resourceLevel, sortOrder, language, resourceStatus, builtInFlag, addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag) VALUES (N'hub0082:batchDelete', N'default', N'批量删除', N'hub0082:batchDelete', N'BUTTON', N'hub0082', 3, 6, N'zh-CN', N'Y', N'Y', GETDATE(), N'system', GETDATE(), N'system', N'INIT_042_006', 1, N'Y')
+ELSE
+UPDATE HUB_AUTH_RESOURCE SET resourceName = N'批量删除' WHERE tenantId = N'default' AND resourceId = N'hub0082:batchDelete';
+
+
+-- 忽略选中按钮
+IF NOT EXISTS (SELECT 1 FROM HUB_AUTH_RESOURCE WHERE tenantId = N'default' AND resourceId = N'hub0082:ignoreSelected')
+INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, parentResourceId, resourceLevel, sortOrder, language, resourceStatus, builtInFlag, addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag) VALUES (N'hub0082:ignoreSelected', N'default', N'忽略选中', N'hub0082:ignoreSelected', N'BUTTON', N'hub0082', 3, 7, N'zh-CN', N'Y', N'Y', GETDATE(), N'system', GETDATE(), N'system', N'INIT_042_007', 1, N'Y')
+ELSE
+UPDATE HUB_AUTH_RESOURCE SET resourceName = N'忽略选中' WHERE tenantId = N'default' AND resourceId = N'hub0082:ignoreSelected';
+
+
+-- 分组忽略按钮
+IF NOT EXISTS (SELECT 1 FROM HUB_AUTH_RESOURCE WHERE tenantId = N'default' AND resourceId = N'hub0082:ignoreGroup')
+INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, parentResourceId, resourceLevel, sortOrder, language, resourceStatus, builtInFlag, addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag) VALUES (N'hub0082:ignoreGroup', N'default', N'分组忽略', N'hub0082:ignoreGroup', N'BUTTON', N'hub0082', 3, 8, N'zh-CN', N'Y', N'Y', GETDATE(), N'system', GETDATE(), N'system', N'INIT_042_008', 1, N'Y')
+ELSE
+UPDATE HUB_AUTH_RESOURCE SET resourceName = N'分组忽略' WHERE tenantId = N'default' AND resourceId = N'hub0082:ignoreGroup';
+
+
+-- 全部忽略按钮
+IF NOT EXISTS (SELECT 1 FROM HUB_AUTH_RESOURCE WHERE tenantId = N'default' AND resourceId = N'hub0082:ignoreAll')
+INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, parentResourceId, resourceLevel, sortOrder, language, resourceStatus, builtInFlag, addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag) VALUES (N'hub0082:ignoreAll', N'default', N'全部忽略', N'hub0082:ignoreAll', N'BUTTON', N'hub0082', 3, 9, N'zh-CN', N'Y', N'Y', GETDATE(), N'system', GETDATE(), N'system', N'INIT_042_009', 1, N'Y')
+ELSE
+UPDATE HUB_AUTH_RESOURCE SET resourceName = N'全部忽略' WHERE tenantId = N'default' AND resourceId = N'hub0082:ignoreAll';

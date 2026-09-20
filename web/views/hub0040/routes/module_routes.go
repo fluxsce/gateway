@@ -86,6 +86,12 @@ func initServiceCenterInstanceRoutes(router *gin.RouterGroup, db database.Databa
 		instanceGroup.POST("/stopServiceCenterInstance", routes.RequireButton("hub0040:stop"), serviceCenterInstanceController.StopServiceCenterInstance)
 
 		instanceGroup.POST("/reloadServiceCenterInstance", routes.RequireButton("hub0040:reload"), serviceCenterInstanceController.ReloadServiceCenterInstance)
+
+		instanceGroup.POST("/getServiceCenterOverview", serviceCenterInstanceController.GetServiceCenterOverview)
+		instanceGroup.POST("/listServiceCenterConnections", serviceCenterInstanceController.ListServiceCenterConnections)
+		instanceGroup.POST("/listServiceCenterAuthTokens", serviceCenterInstanceController.ListServiceCenterAuthTokens)
+		instanceGroup.POST("/issueServiceCenterAuthToken", routes.RequireButton("hub0040:edit"), serviceCenterInstanceController.IssueServiceCenterAuthToken)
+		instanceGroup.POST("/revokeServiceCenterAuthToken", routes.RequireButton("hub0040:edit"), serviceCenterInstanceController.RevokeServiceCenterAuthToken)
 	}
 }
 

@@ -2,15 +2,17 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"time"
 
-	"gateway/internal/servicecenter"
-	internaldao "gateway/internal/servicecenter/dao"
-	pb "gateway/internal/servicecenter/server/proto"
-	"gateway/internal/servicecenter/types"
+	"gateway/internal/servicecenterv3"
+	"gateway/internal/servicecenterv3/catalog"
+	"gateway/internal/servicecenterv3/contract"
+	"gateway/internal/servicecenterv3/model"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
-	"gateway/pkg/utils/random"
 	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
@@ -26,7 +28,7 @@ type ConfigController struct {
 	db           database.Database
 	configDAO    *hub0043dao.ConfigDAO
 	historyDAO   *hub0043dao.HistoryDAO
-	namespaceDAO *internaldao.NamespaceDAO
+	namespaceDAO *catalog.NamespaceDAO
 }
 
 // NewConfigController 创建配置中心控制器
@@ -35,7 +37,7 @@ func NewConfigController(db database.Database) *ConfigController {
 		db:           db,
 		configDAO:    hub0043dao.NewConfigDAO(db),
 		historyDAO:   hub0043dao.NewHistoryDAO(db),
-		namespaceDAO: internaldao.NewNamespaceDAO(db),
+		namespaceDAO: catalog.NewNamespaceDAO(db),
 	}
 }
 
@@ -79,10 +81,17 @@ func (c *ConfigController) QueryConfigs(ctx *gin.Context) {
 		return
 	}
 
-	// 直接返回 DAO 查询结果，无需转换
+	rows := make([]map[string]interface{}, 0, len(configs))
+	svc, instanceName, _ := c.lookupV3(ctx.Request.Context(), tenantId, query.NamespaceId)
+	for _, cfg := range configs {
+		row := configToMap(cfg)
+		c.overlayDraftStatus(ctx, tenantId, svc, instanceName, cfg.NamespaceId, cfg.GroupName, cfg.ConfigDataId, row)
+		rows = append(rows, row)
+	}
+
 	pageInfo := response.NewPageInfo(page, pageSize, total)
 	pageInfo.MainKey = "configDataId"
-	response.PageJSON(ctx, configs, pageInfo, constants.SD00002)
+	response.PageJSON(ctx, rows, pageInfo, constants.SD00002)
 }
 
 // GetConfig 获取单个配置详情
@@ -121,8 +130,10 @@ func (c *ConfigController) GetConfig(ctx *gin.Context) {
 		return
 	}
 
-	// 直接返回 DAO 查询结果，无需转换
-	response.SuccessJSON(ctx, config, constants.SD00001)
+	row := configToMap(config)
+	svc, instanceName, _ := c.lookupV3(ctx.Request.Context(), tenantId, namespaceId)
+	c.overlayDraftContent(ctx, tenantId, svc, instanceName, namespaceId, groupName, configDataId, row)
+	response.SuccessJSON(ctx, row, constants.SD00001)
 }
 
 // AddConfig 创建配置
@@ -131,14 +142,14 @@ func (c *ConfigController) GetConfig(ctx *gin.Context) {
 // @Tags 配置中心
 // @Accept json
 // @Produce json
-// @Param config body types.ConfigData true "配置信息"
+// @Param config body catalog.ConfigData true "配置信息"
 // @Success 200 {object} response.JsonData
 // @Router /api/hub0043/configs [post]
 func (c *ConfigController) AddConfig(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 	requestCtx := ctx.Request.Context()
 
-	var config types.ConfigData
+	var config catalog.ConfigData
 	if err := request.BindSafely(ctx, &config); err != nil {
 		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
 		return
@@ -197,10 +208,9 @@ func (c *ConfigController) AddConfig(ctx *gin.Context) {
 		config.ActiveFlag = "Y"
 	}
 
-	// 使用 hub0043 DAO 插入配置（会自动计算 MD5）
-	if err := c.configDAO.InsertConfig(requestCtx, &config); err != nil {
-		logger.ErrorWithTrace(ctx, "创建配置失败", err)
-		response.ErrorJSON(ctx, "创建配置失败: "+err.Error(), constants.ED00009)
+	published, err := c.publishNewOnV3(ctx, requestCtx, tenantId, operatorId, &config)
+	if err != nil {
+		response.ErrorJSON(ctx, err.Error(), constants.ED00009)
 		return
 	}
 	audit.SetEvent(ctx, &audit.AuditEvent{
@@ -211,25 +221,7 @@ func (c *ConfigController) AddConfig(ctx *gin.Context) {
 		TargetName:   config.GroupName + "/" + config.ConfigDataId,
 		ResourceCode: "hub0043:add",
 	})
-
-	// 查询新创建的配置信息（获取数据库中的最新数据）
-	newConfig, err := c.configDAO.GetConfigById(requestCtx, tenantId, config.NamespaceId, config.GroupName, config.ConfigDataId)
-	if err != nil {
-		logger.WarnWithTrace(ctx, "获取新创建的配置信息失败", err)
-		// 即使查询失败，也返回基本信息
-		response.SuccessJSON(ctx, gin.H{
-			"configDataId": config.ConfigDataId,
-			"namespaceId":  config.NamespaceId,
-			"groupName":    config.GroupName,
-		}, constants.SD00003)
-		return
-	}
-
-	// 通过 manager 发布事件通知
-	c.notifyConfigChange(requestCtx, tenantId, config.NamespaceId, newConfig, "CONFIG_UPDATED")
-
-	// 返回完整的配置信息
-	response.SuccessJSON(ctx, newConfig, constants.SD00003)
+	response.SuccessJSON(ctx, published, constants.SD00003)
 }
 
 // EditConfig 更新配置
@@ -238,14 +230,14 @@ func (c *ConfigController) AddConfig(ctx *gin.Context) {
 // @Tags 配置中心
 // @Accept json
 // @Produce json
-// @Param config body types.ConfigData true "配置信息"
+// @Param config body catalog.ConfigData true "配置信息"
 // @Success 200 {object} response.JsonData
 // @Router /api/hub0043/configs [put]
 func (c *ConfigController) EditConfig(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 	requestCtx := ctx.Request.Context()
 
-	var config types.ConfigData
+	var config catalog.ConfigData
 	if err := request.BindSafely(ctx, &config); err != nil {
 		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
 		return
@@ -276,17 +268,9 @@ func (c *ConfigController) EditConfig(ctx *gin.Context) {
 		return
 	}
 
-	// 设置版本号和时间（UpdateConfig 会自动递增版本号）
-	config.Version = oldConfig.Version
-	config.AddTime = oldConfig.AddTime
-	config.AddWho = oldConfig.AddWho // 保持原创建人
-	config.EditTime = time.Now()
-	config.EditWho = request.GetOperatorID(ctx) // 设置修改人
-
-	// 先更新配置（UpdateConfig 会自动递增版本号）
-	if err := c.configDAO.UpdateConfig(requestCtx, &config); err != nil {
-		logger.ErrorWithTrace(ctx, "更新配置失败", err)
-		response.ErrorJSON(ctx, "更新配置失败: "+err.Error(), constants.ED00009)
+	draft, err := c.saveDraftOnV3(ctx, requestCtx, tenantId, request.GetOperatorID(ctx), &config)
+	if err != nil {
+		response.ErrorJSON(ctx, err.Error(), constants.ED00009)
 		return
 	}
 	audit.SetEvent(ctx, &audit.AuditEvent{
@@ -297,59 +281,7 @@ func (c *ConfigController) EditConfig(ctx *gin.Context) {
 		TargetName:   config.GroupName + "/" + config.ConfigDataId,
 		ResourceCode: "hub0043:edit",
 	})
-
-	// 查询更新后的配置信息（获取数据库中的最新数据，包括更新后的版本号等）
-	updatedConfig, err := c.configDAO.GetConfigById(requestCtx, tenantId, config.NamespaceId, config.GroupName, config.ConfigDataId)
-	if err != nil {
-		logger.WarnWithTrace(ctx, "获取更新后的配置信息失败", err)
-		// 即使查询失败，也返回基本信息
-		response.SuccessJSON(ctx, gin.H{
-			"configDataId": config.ConfigDataId,
-			"namespaceId":  config.NamespaceId,
-			"groupName":    config.GroupName,
-		}, constants.SD00004)
-		return
-	}
-
-	// 配置更新成功后，在事务中保存历史记录
-	changeReason := request.GetParam(ctx, "changeReason") // 从请求参数中获取变更原因
-	operatorId := request.GetOperatorID(ctx)
-	if err := c.db.InTx(requestCtx, nil, func(txCtx context.Context) error {
-		// 根据原配置和更新后的配置生成历史记录
-		now := time.Now()
-		history := &types.ConfigHistory{
-			ConfigHistoryId: random.Generate32BitRandomString(),
-			TenantId:        tenantId,
-			NamespaceId:     config.NamespaceId,
-			GroupName:       config.GroupName,
-			ConfigDataId:    config.ConfigDataId,
-			ChangeType:      types.ChangeTypeUpdate,
-			OldContent:      oldConfig.ConfigContent,
-			OldVersion:      oldConfig.Version,
-			OldMd5Value:     oldConfig.Md5Value,
-			NewContent:      updatedConfig.ConfigContent,
-			NewVersion:      updatedConfig.Version,
-			NewMd5Value:     updatedConfig.Md5Value,
-			ChangeReason:    changeReason,
-			ChangedBy:       operatorId,
-			ChangedAt:       now,
-			AddTime:         now,
-			AddWho:          operatorId,
-			EditTime:        now,
-			EditWho:         operatorId,
-		}
-
-		return c.historyDAO.CreateHistory(txCtx, history)
-	}); err != nil {
-		logger.WarnWithTrace(ctx, "保存配置历史记录失败", err)
-		// 历史记录失败不影响主流程，只记录日志
-	}
-
-	// 通过 manager 发布事件通知
-	c.notifyConfigChange(requestCtx, tenantId, config.NamespaceId, updatedConfig, "CONFIG_UPDATED")
-
-	// 返回更新后的完整配置信息
-	response.SuccessJSON(ctx, updatedConfig, constants.SD00004)
+	response.SuccessJSON(ctx, draft, constants.SD00004)
 }
 
 // DeleteConfig 删除配置
@@ -389,40 +321,8 @@ func (c *ConfigController) DeleteConfig(ctx *gin.Context) {
 		return
 	}
 
-	// 根据原配置生成历史记录
-	now := time.Now()
-	operatorId := request.GetOperatorID(ctx)
-	history := &types.ConfigHistory{
-		ConfigHistoryId: random.Generate32BitRandomString(),
-		TenantId:        tenantId,
-		NamespaceId:     namespaceId,
-		GroupName:       groupName,
-		ConfigDataId:    configDataId,
-		ChangeType:      types.ChangeTypeDelete,
-		OldContent:      oldConfig.ConfigContent,
-		OldVersion:      oldConfig.Version,
-		OldMd5Value:     oldConfig.Md5Value,
-		ChangeReason:    "",
-		ChangedBy:       operatorId,
-		ChangedAt:       now,
-		AddTime:         now,
-		AddWho:          operatorId,
-		EditTime:        now,
-		EditWho:         operatorId,
-	}
-
-	// 在事务中先保存历史记录，再删除配置
-	if err := c.db.InTx(requestCtx, nil, func(txCtx context.Context) error {
-		// 1. 先保存历史记录
-		if err := c.historyDAO.CreateHistory(txCtx, history); err != nil {
-			return err
-		}
-
-		// 2. 历史记录保存成功后，再删除配置
-		return c.configDAO.DeleteConfig(txCtx, tenantId, namespaceId, groupName, configDataId)
-	}); err != nil {
-		logger.ErrorWithTrace(ctx, "删除配置失败", err)
-		response.ErrorJSON(ctx, "删除配置失败: "+err.Error(), constants.ED00009)
+	if err := c.deleteOnV3(ctx, requestCtx, tenantId, namespaceId, groupName, configDataId); err != nil {
+		response.ErrorJSON(ctx, err.Error(), constants.ED00009)
 		return
 	}
 	audit.SetEvent(ctx, &audit.AuditEvent{
@@ -433,10 +333,6 @@ func (c *ConfigController) DeleteConfig(ctx *gin.Context) {
 		TargetName:   groupName + "/" + configDataId,
 		ResourceCode: "hub0043:delete",
 	})
-
-	// 通过 manager 发布事件通知
-	c.notifyConfigChange(requestCtx, tenantId, namespaceId, oldConfig, "CONFIG_DELETED")
-
 	response.SuccessJSON(ctx, map[string]interface{}{
 		"namespaceId":  namespaceId,
 		"groupName":    groupName,
@@ -445,61 +341,273 @@ func (c *ConfigController) DeleteConfig(ctx *gin.Context) {
 	}, constants.SD00005)
 }
 
-// notifyConfigChange 通过 manager 发布配置变更事件通知
-func (c *ConfigController) notifyConfigChange(ctx context.Context, tenantId, namespaceId string, config *types.ConfigData, eventType string) {
-	// 构建事件
-	event := &pb.ConfigChangeEvent{
-		EventType:    eventType,
-		Timestamp:    time.Now().Format("2006-01-02 15:04:05"),
-		NamespaceId:  config.NamespaceId,
-		GroupName:    config.GroupName,
-		ConfigDataId: config.ConfigDataId,
-		ContentMd5:   config.Md5Value,
-	}
+// SaveDraft 保存配置草稿（仅 v3；legacy 回落到编辑即发布）。
+func (c *ConfigController) SaveDraft(ctx *gin.Context) {
+	c.editOrSaveDraft(ctx, false)
+}
 
-	// 如果是更新事件，包含配置数据
-	if eventType == "CONFIG_UPDATED" && config != nil {
-		event.Config = &pb.ConfigData{
-			NamespaceId:   config.NamespaceId,
-			GroupName:     config.GroupName,
-			ConfigDataId:  config.ConfigDataId,
-			ContentType:   config.ContentType,
-			ConfigContent: config.ConfigContent,
-			ContentMd5:    config.Md5Value,
-			ConfigDesc:    config.ConfigDescription,
-			ConfigVersion: config.Version,
-		}
+// PublishConfig 将草稿发布为新版本并推送订阅方。
+func (c *ConfigController) PublishConfig(ctx *gin.Context) {
+	tenantId := request.GetTenantID(ctx)
+	requestCtx := ctx.Request.Context()
+	var config catalog.ConfigData
+	if err := request.BindSafely(ctx, &config); err != nil {
+		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
+		return
 	}
+	config.TenantId = tenantId
+	if config.NamespaceId == "" || config.GroupName == "" || config.ConfigDataId == "" {
+		response.ErrorJSON(ctx, "namespaceId、groupName和configDataId不能为空", constants.ED00006)
+		return
+	}
+	if config.GroupName == "" {
+		config.GroupName = "DEFAULT_GROUP"
+	}
+	operatorId := request.GetOperatorID(ctx)
+	reason := request.GetParam(ctx, "changeReason")
+	published, err := c.publishOnV3(ctx, requestCtx, tenantId, operatorId, reason, &config)
+	if err != nil {
+		response.ErrorJSON(ctx, err.Error(), constants.ED00009)
+		return
+	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0043",
+		TargetType:   "CONFIG",
+		TargetId:     config.ConfigDataId,
+		TargetName:   config.GroupName + "/" + config.ConfigDataId,
+		ResourceCode: "hub0043:edit",
+		Detail:       "publish",
+	})
+	response.SuccessJSON(ctx, published, constants.SD00004)
+}
 
-	// 通过 ServiceCenterManager 发布事件通知
-	// 从命名空间获取 instanceName
-	if servicecenter.GetManager() != nil {
-		// 查询命名空间获取 instanceName
-		namespace, err := c.namespaceDAO.GetNamespace(ctx, tenantId, namespaceId)
-		if err != nil {
-			logger.WarnWithTrace(ctx, "查询命名空间失败，跳过配置变更事件通知", err,
-				"namespaceId", namespaceId,
-				"configDataId", config.ConfigDataId)
+// GetDraft 读取未发布草稿（库表）。
+func (c *ConfigController) GetDraft(ctx *gin.Context) {
+	tenantId := request.GetTenantID(ctx)
+	namespaceId := request.GetParam(ctx, "namespaceId")
+	groupName := request.GetParam(ctx, "groupName")
+	configDataId := request.GetParam(ctx, "configDataId")
+	if namespaceId == "" || configDataId == "" {
+		response.ErrorJSON(ctx, "namespaceId和configDataId不能为空", constants.ED00006)
+		return
+	}
+	if groupName == "" {
+		groupName = "DEFAULT_GROUP"
+	}
+	cfg, instanceName, err := c.lookupV3(ctx.Request.Context(), tenantId, namespaceId)
+	if err != nil || cfg == nil {
+		response.ErrorJSON(ctx, "当前引擎未启用草稿（需要 servicecenterv3 且实例已启动）", constants.ED00009)
+		return
+	}
+	draft, err := cfg.GetDraft(ctx.Request.Context(), configCC(tenantId, instanceName, namespaceId, ""), groupName, configDataId)
+	if err != nil {
+		if errors.Is(err, contract.ErrConfigNotFound) {
+			response.ErrorJSON(ctx, "草稿不存在", constants.ED00008)
 			return
 		}
-		if namespace == nil {
-			logger.WarnWithTrace(ctx, "命名空间不存在，跳过配置变更事件通知",
-				"namespaceId", namespaceId,
-				"configDataId", config.ConfigDataId)
-			return
-		}
-		if namespace.InstanceName == "" {
-			logger.WarnWithTrace(ctx, "命名空间的 instanceName 为空，跳过配置变更事件通知",
-				"namespaceId", namespaceId,
-				"configDataId", config.ConfigDataId)
-			return
-		}
+		response.ErrorJSON(ctx, "读取草稿失败: "+err.Error(), constants.ED00009)
+		return
+	}
+	response.SuccessJSON(ctx, draftToMap(draft), constants.SD00001)
+}
 
-		if err := servicecenter.GetManager().NotifyConfigChange(ctx, namespace.InstanceName, tenantId, config.NamespaceId, config.GroupName, config.ConfigDataId, event); err != nil {
-			logger.WarnWithTrace(ctx, "发送配置变更事件通知失败", err,
-				"instanceName", namespace.InstanceName,
-				"namespaceId", config.NamespaceId,
-				"configDataId", config.ConfigDataId)
+func (c *ConfigController) editOrSaveDraft(ctx *gin.Context, _ bool) {
+	c.EditConfig(ctx)
+}
+
+func (c *ConfigController) publishNewOnV3(ctx *gin.Context, requestCtx context.Context, tenantId, operatorId string, config *catalog.ConfigData) (map[string]interface{}, error) {
+	svc, instanceName, err := c.lookupV3(requestCtx, tenantId, config.NamespaceId)
+	if err != nil {
+		return nil, err
+	}
+	if svc == nil {
+		return nil, fmt.Errorf("服务中心未初始化")
+	}
+	cc := configCC(tenantId, instanceName, config.NamespaceId, operatorId)
+	if err := svc.SaveDraft(requestCtx, cc, toDraft(config)); err != nil {
+		return nil, fmt.Errorf("保存配置草稿失败: %w", err)
+	}
+	if _, err := svc.Publish(requestCtx, cc, config.GroupName, config.ConfigDataId, "create"); err != nil {
+		return nil, fmt.Errorf("发布配置失败: %w", err)
+	}
+	saved, err := c.configDAO.GetConfigById(requestCtx, tenantId, config.NamespaceId, config.GroupName, config.ConfigDataId)
+	if err != nil || saved == nil {
+		return map[string]interface{}{
+			"configDataId":  config.ConfigDataId,
+			"namespaceId":   config.NamespaceId,
+			"groupName":     config.GroupName,
+			"hasDraft":      false,
+			"publishStatus": "published",
+			"engine":        servicecenterv3.EngineV3,
+		}, nil
+	}
+	row := configToMap(saved)
+	row["hasDraft"] = false
+	row["publishStatus"] = "published"
+	row["engine"] = servicecenterv3.EngineV3
+	return row, nil
+}
+
+func (c *ConfigController) saveDraftOnV3(ctx *gin.Context, requestCtx context.Context, tenantId, operatorId string, config *catalog.ConfigData) (map[string]interface{}, error) {
+	svc, instanceName, err := c.lookupV3(requestCtx, tenantId, config.NamespaceId)
+	if err != nil {
+		return nil, err
+	}
+	if svc == nil {
+		return nil, fmt.Errorf("服务中心未初始化")
+	}
+	cc := configCC(tenantId, instanceName, config.NamespaceId, operatorId)
+	if err := svc.SaveDraft(requestCtx, cc, toDraft(config)); err != nil {
+		return nil, fmt.Errorf("保存配置草稿失败: %w", err)
+	}
+	saved, _ := c.configDAO.GetConfigById(requestCtx, tenantId, config.NamespaceId, config.GroupName, config.ConfigDataId)
+	var row map[string]interface{}
+	if saved != nil {
+		row = configToMap(saved)
+	} else {
+		row = map[string]interface{}{
+			"configDataId": config.ConfigDataId,
+			"namespaceId":  config.NamespaceId,
+			"groupName":    config.GroupName,
 		}
 	}
+	row["configContent"] = config.ConfigContent
+	row["contentType"] = config.ContentType
+	row["configDescription"] = config.ConfigDescription
+	row["hasDraft"] = true
+	row["publishStatus"] = "draft"
+	row["engine"] = servicecenterv3.EngineV3
+	return row, nil
+}
+
+func (c *ConfigController) publishOnV3(ctx *gin.Context, requestCtx context.Context, tenantId, operatorId, reason string, config *catalog.ConfigData) (map[string]interface{}, error) {
+	svc, instanceName, err := c.lookupV3(requestCtx, tenantId, config.NamespaceId)
+	if err != nil {
+		return nil, err
+	}
+	if svc == nil {
+		return nil, fmt.Errorf("服务中心未初始化")
+	}
+	cc := configCC(tenantId, instanceName, config.NamespaceId, operatorId)
+	if config.ConfigContent != "" {
+		if err := svc.SaveDraft(requestCtx, cc, toDraft(config)); err != nil {
+			return nil, fmt.Errorf("发布前保存草稿失败: %w", err)
+		}
+	}
+	if reason == "" {
+		reason = "publish"
+	}
+	if _, err := svc.Publish(requestCtx, cc, config.GroupName, config.ConfigDataId, reason); err != nil {
+		return nil, fmt.Errorf("发布配置失败: %w", err)
+	}
+	saved, err := c.configDAO.GetConfigById(requestCtx, tenantId, config.NamespaceId, config.GroupName, config.ConfigDataId)
+	if err != nil || saved == nil {
+		return nil, fmt.Errorf("发布成功但读取已发布配置失败")
+	}
+	row := configToMap(saved)
+	row["hasDraft"] = false
+	row["publishStatus"] = "published"
+	row["engine"] = servicecenterv3.EngineV3
+	return row, nil
+}
+
+func (c *ConfigController) deleteOnV3(ctx *gin.Context, requestCtx context.Context, tenantId, namespaceId, groupName, dataID string) error {
+	svc, instanceName, err := c.lookupV3(requestCtx, tenantId, namespaceId)
+	if err != nil {
+		return err
+	}
+	if svc == nil {
+		return fmt.Errorf("服务中心未初始化")
+	}
+	cc := configCC(tenantId, instanceName, namespaceId, request.GetOperatorID(ctx))
+	if err := svc.Delete(requestCtx, cc, groupName, dataID); err != nil {
+		return fmt.Errorf("删除配置失败: %w", err)
+	}
+	return nil
+}
+
+func (c *ConfigController) overlayDraftStatus(ctx *gin.Context, tenantId string, svc contract.Config, instanceName, namespaceId, groupName, dataID string, row map[string]interface{}) {
+	row["hasDraft"] = false
+	row["publishStatus"] = "published"
+	row["engine"] = engineName()
+	if svc == nil {
+		return
+	}
+	if _, err := svc.GetDraft(ctx.Request.Context(), configCC(tenantId, instanceName, namespaceId, ""), groupName, dataID); err == nil {
+		row["hasDraft"] = true
+		row["publishStatus"] = "draft"
+	}
+}
+
+func (c *ConfigController) overlayDraftContent(ctx *gin.Context, tenantId string, svc contract.Config, instanceName, namespaceId, groupName, dataID string, row map[string]interface{}) {
+	c.overlayDraftStatus(ctx, tenantId, svc, instanceName, namespaceId, groupName, dataID, row)
+	if svc == nil {
+		return
+	}
+	draft, err := svc.GetDraft(ctx.Request.Context(), configCC(tenantId, instanceName, namespaceId, ""), groupName, dataID)
+	if err != nil || draft == nil {
+		return
+	}
+	row["publishedContent"] = row["configContent"]
+	row["configContent"] = draft.Content
+	if draft.ContentType != "" {
+		row["contentType"] = draft.ContentType
+	}
+	if draft.Description != "" {
+		row["configDescription"] = draft.Description
+	}
+	row["hasDraft"] = true
+	row["publishStatus"] = "draft"
+}
+
+func toDraft(config *catalog.ConfigData) *model.ConfigDraft {
+	return &model.ConfigDraft{
+		TenantID:    config.TenantId,
+		NamespaceID: config.NamespaceId,
+		GroupName:   config.GroupName,
+		DataID:      config.ConfigDataId,
+		Content:     config.ConfigContent,
+		ContentType: config.ContentType,
+		Description: config.ConfigDescription,
+	}
+}
+
+func draftToMap(d *model.ConfigDraft) map[string]interface{} {
+	if d == nil {
+		return map[string]interface{}{}
+	}
+	return map[string]interface{}{
+		"namespaceId":       d.NamespaceID,
+		"groupName":         d.GroupName,
+		"configDataId":      d.DataID,
+		"configContent":     d.Content,
+		"contentType":       d.ContentType,
+		"configDescription": d.Description,
+		"hasDraft":          true,
+		"publishStatus":     "draft",
+	}
+}
+
+func configToMap(config *catalog.ConfigData) map[string]interface{} {
+	if config == nil {
+		return map[string]interface{}{}
+	}
+	raw, err := json.Marshal(config)
+	if err != nil {
+		return map[string]interface{}{
+			"configDataId": config.ConfigDataId,
+			"namespaceId":  config.NamespaceId,
+			"groupName":    config.GroupName,
+		}
+	}
+	out := map[string]interface{}{}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return map[string]interface{}{
+			"configDataId": config.ConfigDataId,
+			"namespaceId":  config.NamespaceId,
+			"groupName":    config.GroupName,
+		}
+	}
+	return out
 }

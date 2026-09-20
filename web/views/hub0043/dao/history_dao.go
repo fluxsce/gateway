@@ -3,7 +3,7 @@ package dao
 import (
 	"context"
 	"errors"
-	"gateway/internal/servicecenter/types"
+	"gateway/internal/servicecenterv3/catalog"
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/huberrors"
@@ -29,9 +29,9 @@ func NewHistoryDAO(db database.Database) *HistoryDAO {
 //   - req: 配置历史查询请求
 //
 // 返回:
-//   - []*types.ConfigHistory: 配置历史列表
+//   - []*catalog.ConfigHistory: 配置历史列表
 //   - error: 可能的错误
-func (dao *HistoryDAO) GetConfigHistory(ctx context.Context, tenantId string, req *models.ConfigHistoryRequest) ([]*types.ConfigHistory, error) {
+func (dao *HistoryDAO) GetConfigHistory(ctx context.Context, tenantId string, req *models.ConfigHistoryRequest) ([]*catalog.ConfigHistory, error) {
 	if req == nil {
 		return nil, errors.New("查询请求不能为空")
 	}
@@ -51,7 +51,7 @@ func (dao *HistoryDAO) GetConfigHistory(ctx context.Context, tenantId string, re
 
 	// 列表查询不包含大字段 newContent 和 oldContent，减少内存开销
 	// 详情查询时再获取完整信息
-	baseQuery := `SELECT h.configHistoryId, h.tenantId, h.configDataId, h.namespaceId, h.groupName, h.changeType, h.oldVersion, h.newVersion, h.oldMd5Value, h.newMd5Value, h.changeReason, h.changedBy, h.changedAt, h.addTime, h.addWho, h.editTime, h.editWho, h.oprSeqFlag, h.currentVersion, h.activeFlag, h.noteText, h.extProperty FROM HUB_SERVICE_CONFIG_HISTORY h WHERE h.tenantId = ? AND h.namespaceId = ? AND h.groupName = ? AND h.configDataId = ? ORDER BY h.changedAt DESC`
+	baseQuery := `SELECT h.configHistoryId, h.tenantId, h.configDataId, h.namespaceId, h.groupName, h.changeType, h.oldVersion, h.newVersion, h.oldMd5Value, h.newMd5Value, h.changeReason, h.changedBy, h.changedAt, h.addTime, h.addWho, h.editTime, h.editWho, h.oprSeqFlag, h.currentVersion, h.activeFlag, h.noteText, h.extProperty FROM HUB_SERVICE_CONFIG_HISTORY h WHERE h.tenantId = ? AND h.namespaceId = ? AND h.groupName = ? AND h.configDataId = ? AND h.changeType <> 'DRAFT' ORDER BY h.changedAt DESC`
 	args := []interface{}{tenantId, req.NamespaceId, req.GroupName, req.ConfigDataId}
 
 	dbType := sqlutils.GetDatabaseType(dao.db)
@@ -62,7 +62,7 @@ func (dao *HistoryDAO) GetConfigHistory(ctx context.Context, tenantId string, re
 	}
 	allArgs := append(args, paginationArgs...)
 
-	var histories []*types.ConfigHistory
+	var histories []*catalog.ConfigHistory
 	err = dao.db.Query(ctx, &histories, paginatedQuery, allArgs, true)
 	if err != nil {
 		return nil, huberrors.WrapError(err, "查询配置历史失败")
@@ -78,9 +78,9 @@ func (dao *HistoryDAO) GetConfigHistory(ctx context.Context, tenantId string, re
 //   - configHistoryId: 配置历史ID
 //
 // 返回:
-//   - *types.ConfigHistory: 配置历史记录（包含完整的大字段内容）
+//   - *catalog.ConfigHistory: 配置历史记录（包含完整的大字段内容）
 //   - error: 可能的错误
-func (dao *HistoryDAO) GetHistoryById(ctx context.Context, tenantId, configHistoryId string) (*types.ConfigHistory, error) {
+func (dao *HistoryDAO) GetHistoryById(ctx context.Context, tenantId, configHistoryId string) (*catalog.ConfigHistory, error) {
 	if configHistoryId == "" {
 		return nil, errors.New("configHistoryId不能为空")
 	}
@@ -92,7 +92,7 @@ func (dao *HistoryDAO) GetHistoryById(ctx context.Context, tenantId, configHisto
 	`
 	args := []interface{}{tenantId, configHistoryId}
 
-	var history types.ConfigHistory
+	var history catalog.ConfigHistory
 	err := dao.db.QueryOne(ctx, &history, query, args, true)
 	if err != nil {
 		if err == database.ErrRecordNotFound {
@@ -111,7 +111,7 @@ func (dao *HistoryDAO) GetHistoryById(ctx context.Context, tenantId, configHisto
 //
 // 返回:
 //   - error: 可能的错误
-func (dao *HistoryDAO) CreateHistory(ctx context.Context, history *types.ConfigHistory) error {
+func (dao *HistoryDAO) CreateHistory(ctx context.Context, history *catalog.ConfigHistory) error {
 	if history == nil {
 		return errors.New("配置历史记录不能为空")
 	}

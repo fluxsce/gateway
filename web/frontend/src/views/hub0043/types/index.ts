@@ -36,6 +36,12 @@ export interface Config {
   configVersion?: number // 配置版本号（前端显示用）
   contentMd5?: string // 配置内容的MD5值（前端显示用）
   configDesc?: string // 配置描述（前端显示用）
+
+  // v3 草稿/发布叠加
+  hasDraft?: boolean
+  publishStatus?: 'published' | 'draft'
+  publishedContent?: string
+  engine?: string
 }
 
 // 配置历史类型

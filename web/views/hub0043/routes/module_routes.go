@@ -70,6 +70,9 @@ func initConfigRoutes(router *gin.RouterGroup, db database.Database) {
 		configGroup.POST("/addConfig", routes.RequireButton("hub0043:add"), configController.AddConfig)
 		configGroup.POST("/editConfig", routes.RequireButton("hub0043:edit"), configController.EditConfig)
 		configGroup.POST("/deleteConfig", routes.RequireButton("hub0043:delete"), configController.DeleteConfig)
+		configGroup.POST("/saveDraft", routes.RequireButton("hub0043:edit"), configController.SaveDraft)
+		configGroup.POST("/publishConfig", routes.RequireButton("hub0043:edit"), configController.PublishConfig)
+		configGroup.POST("/getDraft", configController.GetDraft)
 	}
 }
 

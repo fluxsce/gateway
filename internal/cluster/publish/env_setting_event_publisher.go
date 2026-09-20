@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	clusterInit "gateway/internal/cluster/init"
 	"gateway/internal/cluster/types"
 	"gateway/pkg/logger"
 )
@@ -32,7 +31,7 @@ func (p *EnvSettingEventPublisher) PublishReload(ctx context.Context, tenantId, 
 		return fmt.Errorf("tenantId和groupCode不能为空")
 	}
 
-	if !clusterInit.IsClusterInitialized() || !clusterInit.IsClusterReady() {
+	if !types.IsClusterInitialized() || !types.IsClusterReady() {
 		logger.Debug("集群服务未初始化或未就绪，跳过环境设置事件发布",
 			"tenantId", tenantId,
 			"groupCode", groupCode,
@@ -40,7 +39,7 @@ func (p *EnvSettingEventPublisher) PublishReload(ctx context.Context, tenantId, 
 		return nil
 	}
 
-	clusterService := clusterInit.GetClusterService()
+	clusterService := types.GetClusterService()
 	if clusterService == nil {
 		logger.Warn("无法获取集群服务，跳过环境设置事件发布",
 			"tenantId", tenantId,

@@ -3,7 +3,7 @@
  */
 
 // 新架构 - Model + Service + Page
-export { useServiceCenterInstanceModel, type ServiceCenterInstanceModel } from './model'
+export { useServiceCenterInstanceModel, buildInstanceContextMenu, canInstanceAction, instanceActionPermission, type ServiceCenterInstanceModel } from './model'
 export { useServiceCenterInstancePage, type ServiceCenterInstancePage } from './useServiceCenterInstancePage'
 export { useServiceCenterInstanceService, type ServiceCenterInstanceService } from './useServiceCenterInstanceService'
 

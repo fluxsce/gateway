@@ -3,15 +3,11 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"time"
 
-	"gateway/internal/servicecenter"
-	internaldao "gateway/internal/servicecenter/dao"
-	pb "gateway/internal/servicecenter/server/proto"
-	"gateway/internal/servicecenter/types"
+	"gateway/internal/servicecenterv3"
+	"gateway/internal/servicecenterv3/catalog"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
-	"gateway/pkg/utils/random"
 	"gateway/web/middleware/audit"
 	"gateway/web/utils/constants"
 	"gateway/web/utils/request"
@@ -27,7 +23,7 @@ type ConfigHistoryController struct {
 	db           database.Database
 	historyDAO   *hub0043dao.HistoryDAO
 	configDAO    *hub0043dao.ConfigDAO
-	namespaceDAO *internaldao.NamespaceDAO
+	namespaceDAO *catalog.NamespaceDAO
 }
 
 // NewConfigHistoryController 创建配置历史控制器
@@ -36,7 +32,7 @@ func NewConfigHistoryController(db database.Database) *ConfigHistoryController {
 		db:           db,
 		historyDAO:   hub0043dao.NewHistoryDAO(db),
 		configDAO:    hub0043dao.NewConfigDAO(db),
-		namespaceDAO: internaldao.NewNamespaceDAO(db),
+		namespaceDAO: catalog.NewNamespaceDAO(db),
 	}
 }
 
@@ -163,107 +159,13 @@ func (c *ConfigHistoryController) RollbackConfig(ctx *gin.Context) {
 		return
 	}
 
-	// 获取当前配置（用于记录回滚前的状态和获取 ContentType）
-	currentConfig, err := c.configDAO.GetConfigById(requestCtx, tenantId, history.NamespaceId, history.GroupName, history.ConfigDataId)
-	var contentType string
-	if err == nil && currentConfig != nil {
-		contentType = currentConfig.ContentType
-	} else {
-		contentType = "" // 如果配置不存在，ContentType 为空（历史记录中可能没有）
-	}
-
-	// 创建新配置（基于历史记录）
-	// 注意：SaveConfig 会自动处理版本号递增和 MD5 计算
 	operatorId := request.GetOperatorID(ctx)
-	now := time.Now()
-	config := &types.ConfigData{
-		TenantId:          tenantId,
-		NamespaceId:       history.NamespaceId,
-		GroupName:         history.GroupName,
-		ConfigDataId:      history.ConfigDataId,
-		ContentType:       contentType,
-		ConfigContent:     history.NewContent,
-		ConfigDescription: fmt.Sprintf("Rollback to version %d", history.NewVersion),
-		AddTime:           now,
-		AddWho:            operatorId,
-		EditTime:          now,
-		EditWho:           operatorId,
+	rolled, err := c.rollbackOnV3(ctx, requestCtx, tenantId, operatorId, req.ChangeReason, history)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "回滚配置失败", err)
+		response.ErrorJSON(ctx, "回滚配置失败: "+err.Error(), constants.ED00009)
+		return
 	}
-
-	// 如果当前配置存在，保持原创建人
-	if currentConfig != nil {
-		config.AddTime = currentConfig.AddTime
-		config.AddWho = currentConfig.AddWho
-	}
-
-	// 保存配置（根据是否存在决定插入或更新）
-	var newVersion int64
-	if currentConfig != nil {
-		// 如果配置存在，使用更新（UpdateConfig 会自动递增版本号）
-		config.Version = currentConfig.Version
-		if err := c.configDAO.UpdateConfig(requestCtx, config); err != nil {
-			logger.ErrorWithTrace(ctx, "更新配置失败", err)
-			response.ErrorJSON(ctx, "更新配置失败: "+err.Error(), constants.ED00009)
-			return
-		}
-		// UpdateConfig 已经递增了版本号
-		newVersion = config.Version
-	} else {
-		// 如果配置不存在，使用插入（InsertConfig 会设置版本号为1）
-		config.Version = 0 // InsertConfig 会将其设置为 1
-		if err := c.configDAO.InsertConfig(requestCtx, config); err != nil {
-			logger.ErrorWithTrace(ctx, "插入配置失败", err)
-			response.ErrorJSON(ctx, "插入配置失败: "+err.Error(), constants.ED00009)
-			return
-		}
-		// InsertConfig 已经设置了版本号为 1
-		newVersion = config.Version
-	}
-
-	// 保存历史记录
-	newHistory := &types.ConfigHistory{
-		ConfigHistoryId: random.Generate32BitRandomString(), // 生成唯一的配置历史ID（32位）
-		TenantId:        tenantId,
-		NamespaceId:     config.NamespaceId,
-		GroupName:       config.GroupName,
-		ConfigDataId:    config.ConfigDataId,
-		ChangeType:      types.ChangeTypeRollback,
-		NewContent:      config.ConfigContent,
-		NewVersion:      newVersion,
-		NewMd5Value:     config.Md5Value, // SaveConfig 已经计算了新的 MD5
-		ChangeReason:    req.ChangeReason,
-		ChangedBy:       operatorId,
-		ChangedAt:       now,
-		AddTime:         now,
-		AddWho:          operatorId,
-		EditTime:        now,
-		EditWho:         operatorId,
-	}
-	// 如果当前配置存在，记录回滚前的状态
-	if currentConfig != nil {
-		newHistory.OldContent = currentConfig.ConfigContent
-		newHistory.OldVersion = currentConfig.Version
-		newHistory.OldMd5Value = currentConfig.Md5Value
-	}
-	if err := c.historyDAO.CreateHistory(requestCtx, newHistory); err != nil {
-		// 历史记录失败不影响主流程，只记录日志
-		logger.WarnWithTrace(ctx, "保存配置历史记录失败", err,
-			"namespaceId", config.NamespaceId,
-			"groupName", config.GroupName,
-			"configDataId", config.ConfigDataId)
-	}
-
-	logger.InfoWithTrace(ctx, "配置回滚成功",
-		"configHistoryId", req.ConfigHistoryId,
-		"namespaceId", history.NamespaceId,
-		"groupName", history.GroupName,
-		"configDataId", history.ConfigDataId,
-		"targetVersion", history.NewVersion,
-		"newVersion", newVersion)
-
-	// 通过 manager 发布事件通知
-	c.notifyConfigChange(requestCtx, tenantId, history.NamespaceId, config, "CONFIG_UPDATED")
-
 	audit.SetEvent(ctx, &audit.AuditEvent{
 		Action:       audit.AuditActionRollback,
 		ModuleCode:   "hub0043",
@@ -272,75 +174,44 @@ func (c *ConfigHistoryController) RollbackConfig(ctx *gin.Context) {
 		TargetName:   history.GroupName + "/" + history.ConfigDataId,
 		ResourceCode: "hub0043:history:rollback",
 	})
+	response.SuccessJSON(ctx, rolled, constants.SD00004)
+}
 
-	// 返回回滚结果
-	response.SuccessJSON(ctx, map[string]interface{}{
-		"configHistoryId": req.ConfigHistoryId,
+func (c *ConfigHistoryController) rollbackOnV3(ctx *gin.Context, requestCtx context.Context, tenantId, operatorId, reason string, history *catalog.ConfigHistory) (map[string]interface{}, error) {
+	if history == nil {
+		return nil, fmt.Errorf("历史记录为空")
+	}
+	if servicecenterv3.GetPool() == nil {
+		return nil, fmt.Errorf("服务中心未初始化")
+	}
+	ns, err := c.namespaceDAO.GetNamespace(requestCtx, tenantId, history.NamespaceId)
+	if err != nil {
+		return nil, fmt.Errorf("查询命名空间失败: %w", err)
+	}
+	if ns == nil || ns.InstanceName == "" {
+		return nil, fmt.Errorf("命名空间未绑定服务中心实例")
+	}
+	svc, ok := lookupConfig(ns.InstanceName, ns.Environment)
+	if !ok {
+		return nil, fmt.Errorf("服务中心实例未运行")
+	}
+	if reason == "" {
+		reason = fmt.Sprintf("rollback to version %d", history.NewVersion)
+	}
+	cc := configCC(tenantId, ns.InstanceName, history.NamespaceId, operatorId)
+	rel, err := svc.Rollback(requestCtx, cc, history.GroupName, history.ConfigDataId, history.NewVersion, reason)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{
+		"configHistoryId": history.ConfigHistoryId,
 		"namespaceId":     history.NamespaceId,
 		"groupName":       history.GroupName,
 		"configDataId":    history.ConfigDataId,
 		"targetVersion":   history.NewVersion,
-		"newVersion":      newVersion,
-		"contentMd5":      config.Md5Value,
+		"newVersion":      rel.Version,
+		"contentMd5":      rel.MD5,
+		"engine":          servicecenterv3.EngineV3,
 		"message":         "配置回滚成功",
-	}, constants.SD00004)
-}
-
-// notifyConfigChange 通过 manager 发布配置变更事件通知
-func (c *ConfigHistoryController) notifyConfigChange(ctx context.Context, tenantId, namespaceId string, config *types.ConfigData, eventType string) {
-	// 构建事件
-	event := &pb.ConfigChangeEvent{
-		EventType:    eventType,
-		Timestamp:    time.Now().Format("2006-01-02 15:04:05"),
-		NamespaceId:  config.NamespaceId,
-		GroupName:    config.GroupName,
-		ConfigDataId: config.ConfigDataId,
-		ContentMd5:   config.Md5Value,
-	}
-
-	// 如果是更新事件，包含配置数据
-	if eventType == "CONFIG_UPDATED" && config != nil {
-		event.Config = &pb.ConfigData{
-			NamespaceId:   config.NamespaceId,
-			GroupName:     config.GroupName,
-			ConfigDataId:  config.ConfigDataId,
-			ContentType:   config.ContentType,
-			ConfigContent: config.ConfigContent,
-			ContentMd5:    config.Md5Value,
-			ConfigDesc:    config.ConfigDescription,
-			ConfigVersion: config.Version,
-		}
-	}
-
-	// 通过 ServiceCenterManager 发布事件通知
-	// 从命名空间获取 instanceName
-	if servicecenter.GetManager() != nil {
-		// 查询命名空间获取 instanceName
-		namespace, err := c.namespaceDAO.GetNamespace(ctx, tenantId, namespaceId)
-		if err != nil {
-			logger.WarnWithTrace(ctx, "查询命名空间失败，跳过配置变更事件通知", err,
-				"namespaceId", namespaceId,
-				"configDataId", config.ConfigDataId)
-			return
-		}
-		if namespace == nil {
-			logger.WarnWithTrace(ctx, "命名空间不存在，跳过配置变更事件通知",
-				"namespaceId", namespaceId,
-				"configDataId", config.ConfigDataId)
-			return
-		}
-		if namespace.InstanceName == "" {
-			logger.WarnWithTrace(ctx, "命名空间的 instanceName 为空，跳过配置变更事件通知",
-				"namespaceId", namespaceId,
-				"configDataId", config.ConfigDataId)
-			return
-		}
-
-		if err := servicecenter.GetManager().NotifyConfigChange(ctx, namespace.InstanceName, tenantId, config.NamespaceId, config.GroupName, config.ConfigDataId, event); err != nil {
-			logger.WarnWithTrace(ctx, "发送配置变更事件通知失败", err,
-				"instanceName", namespace.InstanceName,
-				"namespaceId", config.NamespaceId,
-				"configDataId", config.ConfigDataId)
-		}
-	}
+	}, nil
 }

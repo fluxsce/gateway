@@ -7,7 +7,7 @@ import type { RsDataFormField, RsDataFormRenderContext } from '@/components/form
 import type { RsSearchFormProps, RsSearchFormRenderContext } from '@/components/form/rs-search'
 import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
-import { RsRadio, RsRadioItem, type RsRadioValue } from '@/ui'
+import { RsRadio, RsRadioItem, RsTag, type RsRadioValue } from '@/ui'
 import { RsCodeEditor, type RsCodeEditorLanguage } from '@/ui/code-editor'
 import { formatDate } from '@/utils/format'
 import { h, ref } from 'vue'
@@ -320,6 +320,18 @@ export function useConfigModel() {
         width: 200,
       },
       {
+        key: 'publishStatus',
+        title: '发布状态',
+        align: 'center',
+        width: 110,
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.hasDraft ? 'warning' : 'success', size: 'sm' },
+            () => (row.hasDraft ? '有草稿' : '已发布'),
+          ),
+      },
+      {
         key: 'version',
         title: '版本',
         align: 'center',
@@ -360,7 +372,8 @@ export function useConfigModel() {
       enabled: true,
       items: [
         { key: 'view', label: '查看详情', icon: 'eye' },
-        { key: 'edit', label: '编辑', icon: 'pencil' },
+        { key: 'edit', label: '编辑草稿', icon: 'pencil' },
+        { key: 'publish', label: '发布', icon: 'upload' },
         { key: 'history', label: '历史版本', icon: 'clock' },
         { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
       ],

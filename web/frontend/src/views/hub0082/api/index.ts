@@ -10,6 +10,9 @@
  * - POST /updateAlertLog - 更新预警日志（主要用于更新发送状态和结果）
  * - POST /deleteAlertLog - 删除预警日志
  * - POST /batchDeleteAlertLogs - 批量删除预警日志
+ * - POST /ignoreSelectedAlertLogs - 忽略当前选中的待发送日志
+ * - POST /ignoreGroupAlertLogs - 分组忽略待发送日志
+ * - POST /ignoreAllAlertLogs - 忽略当前查询条件下全部待发送日志
  * - POST /getAlertLogStatistics - 获取预警日志统计信息
  * 
  * 注意：预警日志由系统自动创建，不提供手动创建接口
@@ -20,6 +23,7 @@ import { moduleApiPrefix } from '@/api/requestPath'
 import type { JsonDataObj } from '@/types/api'
 import type {
     AlertLog,
+    AlertLogIgnoreParams,
     AlertLogQueryParams,
 } from '../types'
 
@@ -70,7 +74,35 @@ export const deleteAlertLog = async (alertLogId: string): Promise<JsonDataObj> =
  * @returns 删除结果
  */
 export const batchDeleteAlertLogs = async (alertLogIds: string[]): Promise<JsonDataObj> => {
-  return alertLogApi.post('/batchDeleteAlertLogs', { alertLogIds })
+  return alertLogApi.post('/batchDeleteAlertLogs', {
+    alertLogIds: alertLogIds.join(','),
+  })
+}
+
+/**
+ * 忽略当前选中的待发送日志
+ */
+export const ignoreSelectedAlertLogs = async (params: AlertLogIgnoreParams): Promise<JsonDataObj> => {
+  return alertLogApi.post('/ignoreSelectedAlertLogs', {
+    ...params,
+    alertLogIds: Array.isArray(params.alertLogIds)
+      ? params.alertLogIds.join(',')
+      : params.alertLogIds,
+  })
+}
+
+/**
+ * 分组忽略待发送日志（同 alertType，空则按 alertTitle）
+ */
+export const ignoreGroupAlertLogs = async (params: AlertLogIgnoreParams): Promise<JsonDataObj> => {
+  return alertLogApi.post('/ignoreGroupAlertLogs', params)
+}
+
+/**
+ * 忽略当前查询条件下全部待发送日志
+ */
+export const ignoreAllAlertLogs = async (params: AlertLogIgnoreParams): Promise<JsonDataObj> => {
+  return alertLogApi.post('/ignoreAllAlertLogs', params)
 }
 
 /**

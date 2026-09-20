@@ -12,7 +12,12 @@ export default {
   view: '查看',
   search: '搜索',
   reset: '重置',
-  save: '保存',
+  save: '保存草稿',
+  publish: '发布',
+  saveDraft: '保存草稿',
+  createAndPublish: '创建并发布',
+  unpublishedDraft: '未发布草稿',
+  published: '已发布',
   cancel: '取消',
   history: '历史版本',
   rollback: '回滚',
@@ -36,8 +41,10 @@ export default {
   // 提示消息
   deleteConfirm: '确定要删除该配置吗？',
   deleteSuccess: '删除成功',
-  saveSuccess: '保存成功',
-  rollbackConfirm: '确定要回滚到此版本吗？',
+  saveSuccess: '草稿已保存',
+  publishSuccess: '配置已发布',
+  publishConfirm: '发布后订阅方将立即收到变更，确定发布吗？',
+  rollbackConfirm: '确定要回滚到此版本吗？回滚将生成新版本号。',
   rollbackSuccess: '回滚成功',
 }
 

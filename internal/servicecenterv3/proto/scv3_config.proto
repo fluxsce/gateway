@@ -1,0 +1,160 @@
+syntax = "proto3";
+
+// 文件名 scv3_config.proto，避免与旧包 config.proto 撞 protobuf 全局注册表。
+package servicecenterv3.config;
+
+option go_package = "gateway/internal/servicecenterv3/proto;proto";
+option java_package = "com.flux.servicecenter.config";
+option java_outer_classname = "ConfigProto";
+
+// 本文件只定义 ServiceCenterStream 载荷，不含 RPC。
+// 字段一律 camelCase。已占用字段号禁止改类型、删字段；废弃用 reserved。
+// ConfigData 只表示配置内容（草稿或已发布），审计字段只出现在 ConfigHistory。
+
+// ========== 封闭取值 ==========
+
+enum ConfigChangeType {
+  CONFIG_CHANGE_TYPE_UNSPECIFIED = 0;
+  CONFIG_CHANGE_TYPE_ADD = 1;
+  CONFIG_CHANGE_TYPE_UPDATE = 2;
+  CONFIG_CHANGE_TYPE_DELETE = 3;
+}
+
+enum ConfigEventType {
+  CONFIG_EVENT_UNSPECIFIED = 0;
+  CONFIG_EVENT_PUBLISHED = 1;
+  CONFIG_EVENT_ROLLED_BACK = 2;
+  CONFIG_EVENT_DELETED = 3;
+}
+
+// ========== 通用响应 ==========
+
+message ConfigResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;
+}
+
+// ConfigData 是配置内容。草稿没有 version/md5；已发布才有。
+message ConfigData {
+  string namespaceId = 1;
+  string groupName = 2;
+  string configDataId = 3;
+  string contentType = 4;
+  string configContent = 5;
+  string contentMd5 = 6;
+  string configDesc = 7;
+  int64 configVersion = 8;
+  reserved 9, 10, 11;
+  reserved "changeType", "changeReason", "changedBy";
+}
+
+// ConfigHistory 是一次已发布快照。回滚请用 configVersion，不要用 configHistoryId。
+message ConfigHistory {
+  int64 configHistoryId = 1; // 遗留字段，客户端应忽略
+  string namespaceId = 2;
+  string groupName = 3;
+  string configDataId = 4;
+  string contentType = 5;
+  string configContent = 6;
+  string contentMd5 = 7;
+  int64 configVersion = 8;
+  ConfigChangeType changeType = 9;
+  string changeReason = 10;
+  string changedBy = 11;
+  int64 changeTime = 12; // Unix 毫秒
+}
+
+message ConfigKey {
+  string namespaceId = 1;
+  string groupName = 2;
+  string configDataId = 3;
+}
+
+message GetConfigResponse {
+  bool success = 1;
+  string message = 2;
+  ConfigData config = 3;
+}
+
+message SaveConfigResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;
+  int64 version = 4;
+  string contentMd5 = 5;
+}
+
+message ListConfigsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated ConfigData configs = 3;
+  string nextPageToken = 4;
+  int32 total = 5;
+}
+
+message GetConfigHistoryResponse {
+  bool success = 1;
+  string message = 2;
+  repeated ConfigHistory history = 3;
+  string nextPageToken = 4;
+  int32 total = 5;
+}
+
+message RollbackConfigResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;
+  int64 newVersion = 4;
+  string contentMd5 = 5;
+}
+
+message PublishConfigRequest {
+  string namespaceId = 1;
+  string groupName = 2;
+  string configDataId = 3;
+  string changeReason = 4;
+}
+
+message ListConfigsRequest {
+  string namespaceId = 1;
+  string groupName = 2;
+  int32 pageSize = 3;
+  string pageToken = 4;
+}
+
+message WatchConfigRequest {
+  string namespaceId = 1;
+  string groupName = 2;
+  repeated string configDataIds = 3;
+}
+
+message GetConfigHistoryRequest {
+  string namespaceId = 1;
+  string groupName = 2;
+  string configDataId = 3;
+  int32 limit = 4; // 兼容：pageSize 为 0 时使用
+  int32 pageSize = 5;
+  string pageToken = 6;
+}
+
+message RollbackConfigRequest {
+  string namespaceId = 1;
+  string groupName = 2;
+  string configDataId = 3;
+  int64 targetVersion = 4;
+  reserved 5;
+  reserved "changedBy";
+  string changeReason = 6;
+}
+
+// ConfigChangeEvent 由服务端推送，requestId 为空。删除时 config 为空。
+message ConfigChangeEvent {
+  ConfigEventType eventType = 1;
+  int64 timestamp = 2; // Unix 毫秒
+  string namespaceId = 3;
+  string groupName = 4;
+  string configDataId = 5;
+  ConfigData config = 6;
+  string contentMd5 = 7;
+}

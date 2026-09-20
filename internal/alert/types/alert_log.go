@@ -20,7 +20,7 @@ type AlertLog struct {
 	ChannelName *string `json:"channelName" form:"channelName" query:"channelName" db:"channelName"` // 使用的渠道名称
 
 	// 发送信息
-	SendStatus       *string    `json:"sendStatus" form:"sendStatus" query:"sendStatus" db:"sendStatus"`                         // 发送状态：PENDING待发送/SENDING发送中/SUCCESS成功/FAILED失败
+	SendStatus       *string    `json:"sendStatus" form:"sendStatus" query:"sendStatus" db:"sendStatus"`                         // 发送状态：PENDING待发送/SENDING发送中/SUCCESS成功/FAILED失败/IGNORED已忽略
 	SendTime         *time.Time `json:"sendTime" form:"sendTime" query:"sendTime" db:"sendTime"`                                 // 发送时间
 	SendResult       *string    `json:"sendResult" form:"sendResult" query:"sendResult" db:"sendResult"`                         // 发送结果详情，JSON格式
 	SendErrorMessage *string    `json:"sendErrorMessage" form:"sendErrorMessage" query:"sendErrorMessage" db:"sendErrorMessage"` // 发送错误信息

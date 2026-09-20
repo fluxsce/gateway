@@ -6,13 +6,36 @@
 import type { RsDataFormField, RsDataFormRenderContext } from '@/components/form/rs-data'
 import type { RsSearchFormProps, RsSearchFormRenderContext } from '@/components/form/rs-search'
 import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
+import { store } from '@/stores'
 import type { PageInfoObj } from '@/types/api'
-import { RsTag } from '@/ui'
+import { RsTag, type RsContextMenuItem } from '@/ui'
 import { formatDate } from '@/utils/format'
 import { h, ref } from 'vue'
 import { ServiceCenterInstanceNameSelector } from '../../hub0040/components'
 import type { ServiceCenterInstance } from '../../hub0040/types'
 import type { Namespace } from '../types/index'
+
+export function namespaceActionPermission(key: string): string {
+  return `hub0041:${key}`
+}
+
+export function canNamespaceAction(key: string): boolean {
+  return store.user.hasPermission(namespaceActionPermission(key))
+}
+
+/** 卡片右键菜单，鉴权方式与 RsGrid 一致：无权限的项禁用。 */
+export function buildNamespaceContextMenu(viewOnly = false): RsContextMenuItem[] {
+  const items: RsContextMenuItem[] = [
+    { key: 'view', label: '查看详情', icon: 'eye', disabled: !canNamespaceAction('view') },
+  ]
+  if (viewOnly) return items
+  return [
+    ...items,
+    { key: 'edit', label: '编辑', icon: 'pencil', disabled: !canNamespaceAction('edit') },
+    { key: 'sep-delete', label: '', separator: true },
+    { key: 'delete', label: '删除', icon: 'trash-2', danger: true, disabled: !canNamespaceAction('delete') },
+  ]
+}
 
 /**
  * 命名空间表格配置（对齐 RsGrid Props 子集）。
@@ -48,45 +71,43 @@ export function useNamespaceModel(customModuleId?: string) {
   const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
-        field: 'namespaceName',
-        label: '命名空间名称',
-        type: 'input',
-        placeholder: '请输入命名空间名称',
-        span: 6,
-        clearable: true,
-      },
-      {
         field: 'instanceName',
         label: '服务中心实例',
         type: 'custom',
-        span: 6,
+        span: 8,
+        required: true,
+        clearable: false,
+        placeholder: '请选择服务中心实例',
+        rules: { required: true, message: '请选择服务中心实例' },
         render: (_formData: Record<string, any>, ctx: RsSearchFormRenderContext) => {
           return h(ServiceCenterInstanceNameSelector, {
             modelValue: (ctx.value as string) || '',
+            clearable: false,
+            placeholder: '请选择服务中心实例',
             'onUpdate:modelValue': (value: string) => ctx.onUpdate(value),
+            onSelect: (instance: ServiceCenterInstance) => {
+              ctx.onUpdate(instance.instanceName)
+              if (instance.environment) {
+                ctx.setFieldValue('environment', instance.environment)
+              }
+            },
           })
         },
       },
       {
-        field: 'environment',
-        label: '部署环境',
-        type: 'select',
-        placeholder: '请选择环境',
-        span: 6,
+        field: 'namespaceName',
+        label: '命名空间名称',
+        type: 'input',
+        placeholder: '请输入命名空间名称',
+        span: 8,
         clearable: true,
-        options: [
-          { label: '全部', value: '' },
-          { label: '开发环境', value: 'DEVELOPMENT' },
-          { label: '预发布环境', value: 'STAGING' },
-          { label: '生产环境', value: 'PRODUCTION' },
-        ],
       },
       {
         field: 'activeFlag',
         label: '活动状态',
         type: 'select',
         placeholder: '请选择状态',
-        span: 6,
+        span: 8,
         clearable: true,
         options: [
           { label: '全部', value: '' },
@@ -353,6 +374,30 @@ export function useNamespaceModel(customModuleId?: string) {
         align: 'left',
         ellipsis: true,
         width: 200,
+      },
+      {
+        key: 'serviceCount',
+        title: '服务数',
+        align: 'center',
+        formatter: (value) => String(value ?? 0),
+      },
+      {
+        key: 'nodeCount',
+        title: '节点数',
+        align: 'center',
+        formatter: (value) => String(value ?? 0),
+      },
+      {
+        key: 'healthyNodeCount',
+        title: '健康节点',
+        align: 'center',
+        formatter: (value) => String(value ?? 0),
+      },
+      {
+        key: 'connectionCount',
+        title: '连接数',
+        align: 'center',
+        formatter: (value) => String(value ?? 0),
       },
       {
         key: 'serviceQuotaLimit',

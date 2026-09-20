@@ -6,6 +6,25 @@
 
 ## [Unreleased]
 
+## [3.3.8] - 2026-09-20
+
+### 新增
+- **内嵌服务中心 3.0**：`internal/servicecenterv3` 按中心实例隔离命名、配置与双向流。启动只读库中 `HUB_SERVICE_INSTANCE` 已启用行，后台 `StartAll` 不挡住进程。数据面唯一 RPC 是 `ServiceCenterStream.Connect`，并继续注册旧路径 `/stream.ServiceCenterStream/Connect`，已走双向流的 SDK 不用改地址。
+- **服务中心管理面**：hub0040 实例/令牌/运行时，hub0041 命名空间（管理仍要实例名），hub0042 服务列表按命名空间查询、批量删除、服务关系与节点列表，hub0043 配置走 v3 草稿/发布。集群事件在变更点发布，对端只改本机视图。
+- **INTERNAL 发现按命名空间定位**：历史 `ServiceCenterMetadata` 往往没有 `instanceName` / `environment`。代理只读 `tenantId`、`namespaceId`、`groupName`、`serviceName`，用唯一命名空间反查中心。负载均衡仍用该服务已配置的策略。
+
+### 变更
+- **下线旧服务中心包**：删除 `internal/servicecenter` 与 `cmd/servicecenter-testd`。引导、控制台、集群同步和代理发现只走 v3。Unary `ServiceRegistry` 不再存在；原来的双向流客户端仍可注册。
+- **临时节点与空目录**：INTERNAL 最后一个临时节点离开后删除空目录；NACOS/CONSUL 等外部类型空目录保留。控制台建的 0 节点定义仍出现在 hub0042。数据面注销只摘本连接节点，不驱逐对端集群实例。
+- **中心未就绪才沿用上次健康名单**：`lastGood` 仅在中心未初始化、未运行或视图未追齐时用 45 秒内的名单。服务已不存在或健康列表为空直接失败，避免 INTERNAL 清理或 SDK 重启后打到死节点。
+
+### 修复
+- **心跳还在的节点不再被 Evictor 误摘**：扫描前再读 Cache / 活视图。库行心跳比驱逐快照新则不删 Redis、不广播、不告警。resident 等仍在跑的客户端不会再出现「已驱逐告警、列表里节点还在」。
+- **集群驱逐先确认删库**：Owner 先按心跳条件删库，成功后再清活视图并广播。避免副本按空 Redis 把刚续上的节点摘掉。对端已认领或心跳更新的驱逐包会被丢掉。
+
+### 优化
+- **服务中心告警字段对齐**：统一带租户、实例、环境、时间。驱逐不足 5 个不再写「大量」；单节点补命名空间/分组/地址。健康检查详情改为中文；断连原因与订阅操作写成可读文案。开关仍读实例 `ExtProperty` 的 `alert*`（`Y`/`N`），总开关默认关。
+
 ## [3.3.7] - 2026-09-17
 
 ### 修复

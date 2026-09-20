@@ -1,11 +1,15 @@
 package controllers
 
 import (
-	"time"
+	"errors"
+	"strings"
 
-	"gateway/internal/servicecenter"
-	"gateway/internal/servicecenter/cache"
-	"gateway/internal/servicecenter/types"
+	"encoding/json"
+
+	"gateway/internal/servicecenterv3"
+	"gateway/internal/servicecenterv3/catalog"
+	"gateway/internal/servicecenterv3/contract"
+	"gateway/internal/servicecenterv3/model"
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
 	"gateway/web/middleware/audit"
@@ -18,17 +22,25 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+var (
+	errServiceKeyRequired       = errors.New("namespaceId和serviceName不能为空")
+	errNamingInstanceUnresolved = errors.New("无法解析服务中心实例，运行时服务未删除")
+	errNamingRuntimeUnavailable = errors.New("服务中心实例未就绪，运行时服务未删除")
+)
+
 // ServiceController 服务控制器
 type ServiceController struct {
-	db         database.Database
-	serviceDAO *dao.ServiceDAO
+	db           database.Database
+	serviceDAO   *dao.ServiceDAO
+	namespaceDAO *catalog.NamespaceDAO
 }
 
 // NewServiceController 创建服务控制器
 func NewServiceController(db database.Database) *ServiceController {
 	return &ServiceController{
-		db:         db,
-		serviceDAO: dao.NewServiceDAO(db),
+		db:           db,
+		serviceDAO:   dao.NewServiceDAO(db),
+		namespaceDAO: catalog.NewNamespaceDAO(db),
 	}
 }
 
@@ -40,7 +52,7 @@ func NewServiceController(db database.Database) *ServiceController {
 // @Param page query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
 // @Param serviceName query string false "服务名称（模糊查询）"
-// @Param namespaceId query string false "命名空间ID"
+// @Param namespaceId query string true "命名空间ID"
 // @Param groupName query string false "分组名称"
 // @Param serviceType query string false "服务类型（INTERNAL, NACOS, CONSUL, EUREKA, ETCD, ZOOKEEPER）"
 // @Param instanceName query string false "服务中心实例名称"
@@ -59,6 +71,10 @@ func (c *ServiceController) QueryServices(ctx *gin.Context) {
 	if err := request.BindSafely(ctx, &query); err != nil {
 		logger.WarnWithTrace(ctx, "绑定服务查询条件失败，使用默认条件", "error", err.Error())
 	}
+	if query.NamespaceId == "" {
+		response.ErrorJSON(ctx, "请先选择命名空间", constants.ED00006)
+		return
+	}
 
 	// 调用DAO获取服务列表
 	services, total, err := c.serviceDAO.ListServices(ctx, tenantId, &query, page, pageSize)
@@ -70,6 +86,7 @@ func (c *ServiceController) QueryServices(ctx *gin.Context) {
 
 	// 构建服务列表
 	serviceList := make([]map[string]interface{}, 0, len(services))
+	instanceName, _ := c.resolveCenter(ctx, tenantId, query.NamespaceId)
 
 	for _, service := range services {
 		serviceInfo := map[string]interface{}{
@@ -77,6 +94,7 @@ func (c *ServiceController) QueryServices(ctx *gin.Context) {
 			"namespaceId":        service.NamespaceId,
 			"groupName":          service.GroupName,
 			"serviceName":        service.ServiceName,
+			"instanceName":       instanceName,
 			"serviceType":        service.ServiceType,
 			"serviceVersion":     service.ServiceVersion,
 			"serviceDescription": service.ServiceDescription,
@@ -91,30 +109,18 @@ func (c *ServiceController) QueryServices(ctx *gin.Context) {
 			"nodeCount":          0,
 			"healthyNodeCount":   0,
 			"unhealthyNodeCount": 0,
+			"subscriberCount":    0,
+			"subscriptionCount":  0,
 		}
 
-		// 从缓存中获取服务节点信息
-		globalCache := cache.GetGlobalCache()
-		if globalCache != nil {
-			// 获取服务节点列表
-			nodes, found := globalCache.GetNodes(ctx, tenantId, service.NamespaceId, service.GroupName, service.ServiceName)
-			if found && nodes != nil {
-				serviceInfo["nodeCount"] = len(nodes)
-				healthyCount := 0
-				unhealthyCount := 0
-				for _, node := range nodes {
-					if node.HealthyStatus == "HEALTHY" {
-						healthyCount++
-					} else if node.HealthyStatus == "UNHEALTHY" {
-						unhealthyCount++
-					}
-				}
-				serviceInfo["healthyNodeCount"] = healthyCount
-				serviceInfo["unhealthyNodeCount"] = unhealthyCount
-			}
-		}
-
+		c.attachServiceNodeStats(ctx, tenantId, service.NamespaceId, service.GroupName, service.ServiceName, serviceInfo)
+		c.attachServiceSubscriberStats(ctx, tenantId, service.NamespaceId, service.GroupName, service.ServiceName, serviceInfo)
 		serviceList = append(serviceList, serviceInfo)
+	}
+
+	// v3：仅在第一页并入运行时独有服务，避免每一页重复出现临时服务
+	if query.NamespaceId != "" && page <= 1 {
+		serviceList, _ = c.mergeRuntimeOnlyServices(ctx, tenantId, query.NamespaceId, query.GroupName, serviceList)
 	}
 
 	// 创建分页信息并返回
@@ -159,6 +165,10 @@ func (c *ServiceController) GetService(ctx *gin.Context) {
 	}
 
 	if service == nil {
+		if runtime := c.runtimeServiceDetail(ctx, tenantId, namespaceId, groupName, serviceName); runtime != nil {
+			response.SuccessJSON(ctx, runtime, constants.SD00001)
+			return
+		}
 		response.ErrorJSON(ctx, "服务不存在", constants.ED00008)
 		return
 	}
@@ -191,28 +201,8 @@ func (c *ServiceController) GetService(ctx *gin.Context) {
 		"unhealthyNodeCount":    0,
 	}
 
-	// 从缓存中获取服务节点信息
-	globalCache := cache.GetGlobalCache()
-	if globalCache != nil {
-		// 获取服务节点列表
-		nodes, found := globalCache.GetNodes(ctx, tenantId, namespaceId, groupName, serviceName)
-		if found && nodes != nil {
-			healthyCount := 0
-			unhealthyCount := 0
-			for _, node := range nodes {
-				if node.HealthyStatus == "HEALTHY" {
-					healthyCount++
-				} else if node.HealthyStatus == "UNHEALTHY" {
-					unhealthyCount++
-				}
-			}
-			// 直接使用节点列表（结构体有完整的 JSON tag）
-			serviceInfo["nodes"] = nodes
-			serviceInfo["nodeCount"] = len(nodes)
-			serviceInfo["healthyNodeCount"] = healthyCount
-			serviceInfo["unhealthyNodeCount"] = unhealthyCount
-		}
-	}
+	c.attachServiceNodes(ctx, tenantId, namespaceId, groupName, serviceName, serviceInfo)
+	c.attachServiceSubscribers(ctx, tenantId, namespaceId, groupName, serviceName, serviceInfo)
 
 	// 直接返回服务对象
 	response.SuccessJSON(ctx, serviceInfo, constants.SD00001)
@@ -224,11 +214,11 @@ func (c *ServiceController) GetService(ctx *gin.Context) {
 // @Tags 服务监控
 // @Accept json
 // @Produce json
-// @Param service body types.Service true "服务信息"
+// @Param service body catalog.Service true "服务信息"
 // @Success 200 {object} response.JsonData
 // @Router /api/hub0042/services [post]
 func (c *ServiceController) AddService(ctx *gin.Context) {
-	var req types.Service
+	var req catalog.Service
 	if err := request.BindSafely(ctx, &req); err != nil {
 		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
 		return
@@ -320,16 +310,13 @@ func (c *ServiceController) AddService(ctx *gin.Context) {
 		"tenantId", tenantId,
 		"operatorId", operatorId)
 
-	// 同步到缓存（AddServiceToCache 会自动处理节点）
-	serviceCenterManager := servicecenter.GetManager()
-	if serviceCenterManager != nil {
-		if err := serviceCenterManager.AddServiceToCache(ctx, newService); err != nil {
-			logger.WarnWithTrace(ctx, "添加服务到缓存失败", "error", err,
-				"namespaceId", newService.NamespaceId,
-				"groupName", newService.GroupName,
-				"serviceName", newService.ServiceName)
-			// 缓存失败不影响主流程，只记录警告
-		}
+	if err := c.syncNamingService(ctx, tenantId, operatorId, newService); err != nil {
+		logger.ErrorWithTrace(ctx, "同步服务到运行时失败", err,
+			"namespaceId", newService.NamespaceId,
+			"groupName", newService.GroupName,
+			"serviceName", newService.ServiceName)
+		response.ErrorJSON(ctx, "服务已写入目录，但同步运行时失败: "+err.Error(), constants.ED00009)
+		return
 	}
 
 	// 直接返回服务对象
@@ -342,11 +329,11 @@ func (c *ServiceController) AddService(ctx *gin.Context) {
 // @Tags 服务监控
 // @Accept json
 // @Produce json
-// @Param service body types.Service true "服务信息"
+// @Param service body catalog.Service true "服务信息"
 // @Success 200 {object} response.JsonData
 // @Router /api/hub0042/services [put]
 func (c *ServiceController) EditService(ctx *gin.Context) {
-	var req types.Service
+	var req catalog.Service
 	if err := request.BindSafely(ctx, &req); err != nil {
 		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
 		return
@@ -409,16 +396,13 @@ func (c *ServiceController) EditService(ctx *gin.Context) {
 		return
 	}
 
-	// 同步到缓存（UpdateServiceInCache 会自动处理节点）
-	serviceCenterManager := servicecenter.GetManager()
-	if serviceCenterManager != nil {
-		if err := serviceCenterManager.UpdateServiceInCache(ctx, updatedService); err != nil {
-			logger.WarnWithTrace(ctx, "更新服务缓存失败", "error", err,
-				"namespaceId", req.NamespaceId,
-				"groupName", req.GroupName,
-				"serviceName", req.ServiceName)
-			// 缓存失败不影响主流程，只记录警告
-		}
+	if err := c.syncNamingService(ctx, tenantId, operatorId, updatedService); err != nil {
+		logger.ErrorWithTrace(ctx, "同步服务到运行时失败", err,
+			"namespaceId", req.NamespaceId,
+			"groupName", req.GroupName,
+			"serviceName", req.ServiceName)
+		response.ErrorJSON(ctx, "目录已更新，但同步运行时失败: "+err.Error(), constants.ED00009)
+		return
 	}
 
 	// 直接返回服务对象
@@ -445,15 +429,11 @@ func (c *ServiceController) DeleteService(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
 
-	// 验证必填字段
-	if namespaceId == "" || groupName == "" || serviceName == "" {
-		response.ErrorJSON(ctx, "namespaceId、groupName和serviceName不能为空", constants.ED00006)
-		return
-	}
-
-	// 调用DAO删除服务
-	err := c.serviceDAO.DeleteService(ctx, tenantId, namespaceId, groupName, serviceName, operatorId)
-	if err != nil {
+	if err := c.removeService(ctx, tenantId, operatorId, namespaceId, groupName, serviceName, ""); err != nil {
+		if errors.Is(err, errServiceKeyRequired) {
+			response.ErrorJSON(ctx, err.Error(), constants.ED00006)
+			return
+		}
 		logger.ErrorWithTrace(ctx, "删除服务失败", err)
 		response.ErrorJSON(ctx, "删除服务失败: "+err.Error(), constants.ED00009)
 		return
@@ -468,18 +448,6 @@ func (c *ServiceController) DeleteService(ctx *gin.Context) {
 		Detail:       "namespace=" + namespaceId + " group=" + groupName,
 	})
 
-	// 同步删除缓存
-	serviceCenterManager := servicecenter.GetManager()
-	if serviceCenterManager != nil {
-		if err := serviceCenterManager.DeleteServiceFromCache(ctx, tenantId, namespaceId, groupName, serviceName); err != nil {
-			logger.WarnWithTrace(ctx, "删除服务缓存失败", "error", err,
-				"namespaceId", namespaceId,
-				"groupName", groupName,
-				"serviceName", serviceName)
-			// 缓存失败不影响主流程，只记录警告
-		}
-	}
-
 	response.SuccessJSON(ctx, gin.H{
 		"namespaceId": namespaceId,
 		"groupName":   groupName,
@@ -488,24 +456,219 @@ func (c *ServiceController) DeleteService(ctx *gin.Context) {
 	}, constants.SD00005)
 }
 
+// BatchDeleteServices 批量删除服务
+func (c *ServiceController) BatchDeleteServices(ctx *gin.Context) {
+	tenantId := request.GetTenantID(ctx)
+	operatorId := request.GetOperatorID(ctx)
+
+	var req struct {
+		Services json.RawMessage `json:"services" form:"services"`
+	}
+	if err := request.BindSafely(ctx, &req); err != nil {
+		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
+		return
+	}
+	raw := req.Services
+	if len(strings.TrimSpace(string(raw))) == 0 {
+		if s := strings.TrimSpace(request.GetParam(ctx, "services")); s != "" {
+			raw = json.RawMessage(s)
+		}
+	}
+	items, err := parseBatchDeleteServices(raw)
+	if err != nil {
+		response.ErrorJSON(ctx, "参数错误: 服务列表格式不正确", constants.ED00006)
+		return
+	}
+	if len(items) == 0 {
+		response.ErrorJSON(ctx, "请先选择要删除的服务", constants.ED00006)
+		return
+	}
+
+	successCount := 0
+	failCount := 0
+	firstErr := ""
+	deleted := make([]string, 0, len(items))
+	for _, item := range items {
+		if err := c.removeService(ctx, tenantId, operatorId, item.NamespaceId, item.GroupName, item.ServiceName, item.InstanceName); err != nil {
+			logger.WarnWithTrace(ctx, "批量删除服务失败", "error", err.Error(),
+				"namespaceId", item.NamespaceId, "groupName", item.GroupName, "serviceName", item.ServiceName)
+			failCount++
+			if firstErr == "" {
+				firstErr = err.Error()
+			}
+			continue
+		}
+		successCount++
+		deleted = append(deleted, item.ServiceName)
+	}
+
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionDelete,
+		ModuleCode:   "hub0042",
+		TargetType:   "SERVICE",
+		TargetId:     strings.Join(deleted, ","),
+		ResourceCode: "hub0042:batchDelete",
+		Detail:       "batch",
+	})
+
+	response.SuccessJSON(ctx, gin.H{
+		"successCount": successCount,
+		"failCount":    failCount,
+		"error":        firstErr,
+		"message":      "批量删除完成",
+	}, constants.SD00005)
+}
+
+type batchDeleteServiceItem struct {
+	NamespaceId  string `json:"namespaceId"`
+	GroupName    string `json:"groupName"`
+	ServiceName  string `json:"serviceName"`
+	InstanceName string `json:"instanceName"`
+}
+
+func parseBatchDeleteServices(raw json.RawMessage) ([]batchDeleteServiceItem, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" {
+		return nil, nil
+	}
+	var items []batchDeleteServiceItem
+	if err := json.Unmarshal([]byte(trimmed), &items); err == nil {
+		return items, nil
+	}
+	var one batchDeleteServiceItem
+	if err := json.Unmarshal([]byte(trimmed), &one); err == nil && (one.NamespaceId != "" || one.ServiceName != "") {
+		return []batchDeleteServiceItem{one}, nil
+	}
+	var wrapped string
+	if err := json.Unmarshal([]byte(trimmed), &wrapped); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(wrapped), &items); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func normalizeServiceKey(namespaceId, groupName, serviceName string) (string, string, string, error) {
+	namespaceId = strings.TrimSpace(namespaceId)
+	groupName = strings.TrimSpace(groupName)
+	serviceName = strings.TrimSpace(serviceName)
+	if namespaceId == "" || serviceName == "" {
+		return "", "", "", errServiceKeyRequired
+	}
+	if groupName == "" {
+		groupName = "DEFAULT_GROUP"
+	}
+	return namespaceId, groupName, serviceName, nil
+}
+
+func isServiceMissing(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, contract.ErrServiceNotFound) {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "服务不存在") || strings.Contains(msg, "未找到要删除的服务")
+}
+
+func (c *ServiceController) removeService(ctx *gin.Context, tenantId, operatorId, namespaceId, groupName, serviceName, instanceName string) error {
+	namespaceId, groupName, serviceName, err := normalizeServiceKey(namespaceId, groupName, serviceName)
+	if err != nil {
+		return err
+	}
+
+	// 先走 v3：清活视图、L1、集群事件，并删同一张 HUB_SERVICE。
+	v3Err := c.deregisterNamingService(ctx, tenantId, operatorId, namespaceId, groupName, serviceName, instanceName)
+	dbErr := c.serviceDAO.DeleteService(ctx, tenantId, namespaceId, groupName, serviceName, operatorId)
+
+	if dbErr != nil && !isServiceMissing(dbErr) {
+		return dbErr
+	}
+	if v3Err != nil && !isServiceMissing(v3Err) {
+		return v3Err
+	}
+	return nil
+}
+
+func (c *ServiceController) deregisterNamingService(ctx *gin.Context, tenantId, operatorId, namespaceId, groupName, serviceName, hintInstanceName string) error {
+	pool := servicecenterv3.GetPool()
+	if pool == nil {
+		return nil
+	}
+	instanceName, environment := c.resolveCenter(ctx, tenantId, namespaceId)
+	if hint := strings.TrimSpace(hintInstanceName); hint != "" {
+		instanceName = hint
+	}
+	if instanceName == "" {
+		return errNamingInstanceUnresolved
+	}
+	naming, err := pool.NamingOf(instanceName, environment)
+	if err != nil {
+		return err
+	}
+	if naming == nil {
+		return errNamingRuntimeUnavailable
+	}
+	return naming.DeregisterService(ctx.Request.Context(), namingCC(tenantId, instanceName, namespaceId, operatorId), groupName, serviceName)
+}
+
+func (c *ServiceController) syncNamingService(ctx *gin.Context, tenantId, operatorId string, svc *catalog.Service) error {
+	if svc == nil {
+		return nil
+	}
+	instanceName, environment := c.resolveCenter(ctx, tenantId, svc.NamespaceId)
+	return upsertNamingService(ctx.Request.Context(), tenantId, instanceName, environment, svc.NamespaceId, operatorId, toNamingService(svc))
+}
+
+func toNamingService(svc *catalog.Service) *model.Service {
+	if svc == nil {
+		return nil
+	}
+	out := &model.Service{
+		TenantID:         svc.TenantId,
+		NamespaceID:      svc.NamespaceId,
+		GroupName:        svc.GroupName,
+		ServiceName:      svc.ServiceName,
+		Version:          svc.ServiceVersion,
+		Description:      svc.ServiceDescription,
+		ProtectThreshold: svc.ProtectThreshold,
+	}
+	if svc.MetadataJson != "" {
+		var meta map[string]string
+		if err := json.Unmarshal([]byte(svc.MetadataJson), &meta); err == nil {
+			out.Metadata = meta
+		}
+	}
+	if svc.TagsJson != "" {
+		var tags map[string]string
+		if err := json.Unmarshal([]byte(svc.TagsJson), &tags); err == nil {
+			out.Tags = tags
+		}
+	}
+	return out
+}
+
 // EditNode 编辑节点
 // @Summary 编辑节点
 // @Description 更新服务节点信息（如IP、端口、权重、元数据等），直接操作缓存，不操作数据库
 // @Tags 服务监控
 // @Accept json
 // @Produce json
-// @Param node body types.ServiceNode true "节点信息"
+// @Param node body catalog.ServiceNode true "节点信息"
 // @Success 200 {object} response.JsonData
 // @Router /api/hub0042/nodes [put]
 func (c *ServiceController) EditNode(ctx *gin.Context) {
-	var req types.ServiceNode
+	var req catalog.ServiceNode
 	if err := request.BindSafely(ctx, &req); err != nil {
 		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
 		return
 	}
 
-	// 强制从上下文获取租户ID和操作人ID
-	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
 
 	// 验证必填字段
@@ -514,70 +677,8 @@ func (c *ServiceController) EditNode(ctx *gin.Context) {
 		return
 	}
 
-	// 获取 ServiceCenterManager
-	serviceCenterManager := servicecenter.GetManager()
-	if serviceCenterManager == nil {
-		response.ErrorJSON(ctx, "服务中心管理器未初始化", constants.ED00009)
-		return
-	}
-
-	// 从缓存获取节点信息（用于验证和合并字段）
-	globalCache := cache.GetGlobalCache()
-	if globalCache == nil {
-		response.ErrorJSON(ctx, "缓存未初始化", constants.ED00009)
-		return
-	}
-
-	// 通过 nodeId 获取节点
-	currentNode, found := globalCache.GetNode(ctx, tenantId, req.NodeId)
-	if !found || currentNode == nil {
-		response.ErrorJSON(ctx, "节点不存在", constants.ED00008)
-		return
-	}
-
-	// 保留不可修改的字段
-	req.TenantId = currentNode.TenantId
-	req.NamespaceId = currentNode.NamespaceId
-	req.GroupName = currentNode.GroupName
-	req.ServiceName = currentNode.ServiceName
-	req.NodeId = currentNode.NodeId
-	req.RegisterTime = currentNode.RegisterTime
-	req.AddTime = currentNode.AddTime
-	req.AddWho = currentNode.AddWho
-
-	// 设置编辑信息
-	req.EditTime = time.Now()
-	req.EditWho = operatorId
-
-	// 如果未提供某些字段，使用原值
-	if req.IpAddress == "" {
-		req.IpAddress = currentNode.IpAddress
-	}
-	if req.PortNumber == 0 {
-		req.PortNumber = currentNode.PortNumber
-	}
-	if req.Weight == 0 {
-		req.Weight = currentNode.Weight
-	}
-	if req.InstanceStatus == "" {
-		req.InstanceStatus = currentNode.InstanceStatus
-	}
-	if req.HealthyStatus == "" {
-		req.HealthyStatus = currentNode.HealthyStatus
-	}
-	if req.Ephemeral == "" {
-		req.Ephemeral = currentNode.Ephemeral
-	}
-	if req.MetadataJson == "" {
-		req.MetadataJson = currentNode.MetadataJson
-	}
-	if req.ActiveFlag == "" {
-		req.ActiveFlag = currentNode.ActiveFlag
-	}
-
-	// 通过 ServiceCenterManager 更新节点缓存（不操作数据库，由外部异步同步服务负责持久化）
-	if err := serviceCenterManager.UpdateNodeInCache(ctx, &req); err != nil {
-		logger.ErrorWithTrace(ctx, "更新节点缓存失败", err, "nodeId", req.NodeId)
+	if err := c.updateRuntimeNode(ctx, operatorId, &req); err != nil {
+		logger.ErrorWithTrace(ctx, "更新节点失败", err, "nodeId", req.NodeId)
 		response.ErrorJSON(ctx, "更新节点失败: "+err.Error(), constants.ED00009)
 		return
 	}
@@ -589,13 +690,6 @@ func (c *ServiceController) EditNode(ctx *gin.Context) {
 		TargetName:   req.ServiceName,
 		ResourceCode: "hub0042:node:edit",
 	})
-
-	logger.InfoWithTrace(ctx, "节点编辑成功（仅更新缓存）",
-		"nodeId", req.NodeId,
-		"tenantId", tenantId,
-		"operatorId", operatorId)
-
-	// 直接返回节点对象（结构体有完整的 JSON tag）
 	response.SuccessJSON(ctx, req, constants.SD00004)
 }
 
@@ -611,8 +705,6 @@ func (c *ServiceController) EditNode(ctx *gin.Context) {
 func (c *ServiceController) OfflineNode(ctx *gin.Context) {
 	nodeId := request.GetParam(ctx, "nodeId")
 
-	// 强制从上下文获取租户ID和操作人ID
-	tenantId := request.GetTenantID(ctx)
 	operatorId := request.GetOperatorID(ctx)
 
 	// 验证必填字段
@@ -621,15 +713,10 @@ func (c *ServiceController) OfflineNode(ctx *gin.Context) {
 		return
 	}
 
-	// 获取 ServiceCenterManager
-	serviceCenterManager := servicecenter.GetManager()
-	if serviceCenterManager == nil {
-		response.ErrorJSON(ctx, "服务中心管理器未初始化", constants.ED00009)
-		return
-	}
-
-	// 通过 ServiceCenterManager 下线节点（不操作数据库，由外部异步同步服务负责持久化）
-	if err := serviceCenterManager.OfflineNodeInCache(ctx, tenantId, nodeId, operatorId); err != nil {
+	if err := updateNamingNode(ctx.Request.Context(), operatorId, &model.Node{
+		NodeID: nodeId,
+		Status: model.NodeDown,
+	}); err != nil {
 		logger.ErrorWithTrace(ctx, "下线节点失败", err, "nodeId", nodeId)
 		response.ErrorJSON(ctx, "下线节点失败: "+err.Error(), constants.ED00009)
 		return
@@ -641,28 +728,156 @@ func (c *ServiceController) OfflineNode(ctx *gin.Context) {
 		TargetId:     nodeId,
 		ResourceCode: "hub0042:node:offline",
 	})
+	if pool := servicecenterv3.GetPool(); pool != nil {
+		if current, _, ok := pool.FindNode(nodeId); ok {
+			response.SuccessJSON(ctx, nodeToMap(current), constants.SD00004)
+			return
+		}
+	}
+	response.SuccessJSON(ctx, gin.H{"nodeId": nodeId, "instanceStatus": "DOWN"}, constants.SD00004)
+}
 
-	// 获取更新后的节点信息用于返回
-	globalCache := cache.GetGlobalCache()
-	if globalCache == nil {
-		response.ErrorJSON(ctx, "缓存未初始化", constants.ED00009)
+func (c *ServiceController) resolveCenter(ctx *gin.Context, tenantId, namespaceId string) (instanceName, environment string) {
+	if namespaceId == "" {
+		return "", ""
+	}
+	ns, err := c.namespaceDAO.GetNamespace(ctx.Request.Context(), tenantId, namespaceId)
+	if err != nil || ns == nil {
+		return "", ""
+	}
+	return ns.InstanceName, ns.Environment
+}
+
+func (c *ServiceController) attachServiceNodeStats(ctx *gin.Context, tenantId, namespaceId, groupName, serviceName string, info map[string]interface{}) {
+	instanceName, environment := c.resolveCenter(ctx, tenantId, namespaceId)
+	if instanceName != "" && servicecenterv3.GetPool() != nil {
+		nodes, err := listNamingNodes(ctx.Request.Context(), tenantId, instanceName, environment, namespaceId, groupName, serviceName)
+		if err == nil {
+			overlayNodeStats(info, nodes)
+		}
+	}
+}
+
+func (c *ServiceController) attachServiceSubscriberStats(ctx *gin.Context, tenantId, namespaceId, groupName, serviceName string, info map[string]interface{}) {
+	instanceName, environment := c.resolveCenter(ctx, tenantId, namespaceId)
+	if instanceName == "" {
+		info["subscriberCount"] = 0
+		info["subscriptionCount"] = 0
 		return
 	}
+	info["subscriberCount"] = len(listServiceSubscribers(instanceName, environment, namespaceId, groupName, serviceName))
+	info["subscriptionCount"] = len(listServiceSubscriptions(instanceName, environment, namespaceId, groupName, serviceName))
+}
 
-	currentNode, found := globalCache.GetNode(ctx, tenantId, nodeId)
-	if !found || currentNode == nil {
-		response.ErrorJSON(ctx, "节点不存在", constants.ED00008)
-		return
+func (c *ServiceController) attachServiceSubscribers(ctx *gin.Context, tenantId, namespaceId, groupName, serviceName string, info map[string]interface{}) {
+	instanceName, environment := c.resolveCenter(ctx, tenantId, namespaceId)
+	consumers := listServiceSubscribers(instanceName, environment, namespaceId, groupName, serviceName)
+	upstreams := listServiceSubscriptions(instanceName, environment, namespaceId, groupName, serviceName)
+	info["subscriberCount"] = len(consumers)
+	info["subscribers"] = subscribersToMaps(consumers)
+	info["subscriptionCount"] = len(upstreams)
+	info["subscriptions"] = subscribersToMaps(upstreams)
+}
+
+func (c *ServiceController) attachServiceNodes(ctx *gin.Context, tenantId, namespaceId, groupName, serviceName string, info map[string]interface{}) {
+	instanceName, environment := c.resolveCenter(ctx, tenantId, namespaceId)
+	if instanceName != "" && servicecenterv3.GetPool() != nil {
+		nodes, err := listNamingNodes(ctx.Request.Context(), tenantId, instanceName, environment, namespaceId, groupName, serviceName)
+		if err == nil {
+			overlayNodeStats(info, nodes)
+			info["nodes"] = nodesToMaps(nodes)
+		}
 	}
+}
 
-	logger.InfoWithTrace(ctx, "节点下线成功（仅更新缓存）",
-		"nodeId", nodeId,
-		"tenantId", tenantId,
-		"operatorId", operatorId,
-		"namespaceId", currentNode.NamespaceId,
-		"groupName", currentNode.GroupName,
-		"serviceName", currentNode.ServiceName)
+func (c *ServiceController) mergeRuntimeOnlyServices(ctx *gin.Context, tenantId, namespaceId, groupName string, current []map[string]interface{}) ([]map[string]interface{}, int) {
+	instanceName, environment := c.resolveCenter(ctx, tenantId, namespaceId)
+	if instanceName == "" || servicecenterv3.GetPool() == nil {
+		return current, 0
+	}
+	runtime, err := listNamingServices(ctx.Request.Context(), tenantId, instanceName, environment, namespaceId, groupName)
+	if err != nil || len(runtime) == 0 {
+		return current, 0
+	}
+	seen := make(map[string]struct{}, len(current))
+	for _, row := range current {
+		key := fmtServiceKey(asString(row["namespaceId"]), asString(row["groupName"]), asString(row["serviceName"]))
+		seen[key] = struct{}{}
+	}
+	extra := 0
+	for _, svc := range runtime {
+		key := fmtServiceKey(svc.NamespaceID, svc.GroupName, svc.ServiceName)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		if row := runtimeServiceToMap(svc); row != nil {
+			c.attachServiceSubscriberStats(ctx, tenantId, svc.NamespaceID, svc.GroupName, svc.ServiceName, row)
+			current = append(current, row)
+			extra++
+		}
+	}
+	return current, extra
+}
 
-	// 直接返回节点对象（结构体有完整的 JSON tag）
-	response.SuccessJSON(ctx, currentNode, constants.SD00004)
+func (c *ServiceController) runtimeServiceDetail(ctx *gin.Context, tenantId, namespaceId, groupName, serviceName string) map[string]interface{} {
+	instanceName, environment := c.resolveCenter(ctx, tenantId, namespaceId)
+	if instanceName == "" || servicecenterv3.GetPool() == nil {
+		return nil
+	}
+	svc, err := getNamingService(ctx.Request.Context(), tenantId, instanceName, environment, namespaceId, groupName, serviceName)
+	if err != nil || svc == nil {
+		return nil
+	}
+	info := runtimeServiceToMap(svc)
+	info["nodes"] = nodesToMaps(svc.Nodes)
+	c.attachServiceSubscribers(ctx, tenantId, namespaceId, groupName, serviceName, info)
+	return info
+}
+
+func (c *ServiceController) updateRuntimeNode(ctx *gin.Context, operatorId string, req *catalog.ServiceNode) error {
+	inst := &model.Node{
+		NodeID:        req.NodeId,
+		IP:            req.IpAddress,
+		Port:          req.PortNumber,
+		Weight:        req.Weight,
+		Status:        req.InstanceStatus,
+		HealthyStatus: req.HealthyStatus,
+	}
+	if req.MetadataJson != "" {
+		var meta map[string]string
+		if err := json.Unmarshal([]byte(req.MetadataJson), &meta); err == nil {
+			inst.Metadata = meta
+		}
+	}
+	if err := updateNamingNode(ctx.Request.Context(), operatorId, inst); err != nil {
+		return err
+	}
+	if pool := servicecenterv3.GetPool(); pool != nil {
+		if current, _, ok := pool.FindNode(req.NodeId); ok {
+			req.NamespaceId = current.NamespaceID
+			req.GroupName = current.GroupName
+			req.ServiceName = current.ServiceName
+			req.IpAddress = current.IP
+			req.PortNumber = current.Port
+			req.Weight = current.Weight
+			req.InstanceStatus = current.Status
+			req.HealthyStatus = current.HealthyStatus
+			req.Ephemeral = model.YN(current.Ephemeral)
+		}
+	}
+	return nil
+}
+
+func fmtServiceKey(namespaceId, groupName, serviceName string) string {
+	return namespaceId + "/" + groupName + "/" + serviceName
+}
+
+func asString(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
 }

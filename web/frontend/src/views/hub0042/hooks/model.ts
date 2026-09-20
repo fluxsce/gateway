@@ -4,13 +4,24 @@
  */
 
 import type { RsDataFormField } from '@/components/form/rs-data'
-import type { RsSearchFormProps } from '@/components/form/rs-search'
+import type { RsSearchFormProps, RsSearchFormRenderContext } from '@/components/form/rs-search'
 import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig, RsGridRowKey } from '@/components/rs-grid'
+import { store } from '@/stores'
 import type { PageInfoObj } from '@/types/api'
 import { RsIcon, RsTag, type RsTagVariant } from '@/ui'
 import { formatDate } from '@/utils/format'
 import { h, ref } from 'vue'
+import { NamespaceNameSelector } from '../../hub0041/components'
+import type { Namespace } from '../../hub0041/types'
 import type { Service } from '../types/index'
+
+export function serviceActionPermission(key: string): string {
+  return `hub0042:${key}`
+}
+
+export function canServiceAction(key: string): boolean {
+  return store.user.hasPermission(serviceActionPermission(key))
+}
 
 /**
  * 服务表格配置（对齐 RsGrid Props 子集）。
@@ -59,9 +70,9 @@ function getServiceTagVariant(serviceName: string): RsTagVariant {
  * 服务联合主键（业务规则）。表格只消费函数结果，不改写行数据。
  */
 export function buildServiceRowKey(
-  service: Pick<Service, 'tenantId' | 'namespaceId' | 'groupName' | 'serviceName'>,
+  service: Pick<Service, 'namespaceId' | 'groupName' | 'serviceName'>,
 ): string {
-  return [service.tenantId, service.namespaceId, service.groupName, service.serviceName].join('::')
+  return [service.namespaceId, service.groupName, service.serviceName].join('::')
 }
 
 /**
@@ -85,11 +96,38 @@ export function useServiceModel() {
   const searchFormConfig: Omit<RsSearchFormProps, 'moduleId'> = {
     fields: [
       {
+        field: 'namespaceId',
+        label: '命名空间',
+        type: 'custom',
+        span: 8,
+        required: true,
+        clearable: false,
+        placeholder: '请选择命名空间',
+        rules: { required: true, message: '请选择命名空间' },
+        render: (_formData: Record<string, any>, ctx: RsSearchFormRenderContext) => {
+          return h(NamespaceNameSelector, {
+            modelValue: (ctx.value as string) || '',
+            clearable: false,
+            placeholder: '请选择命名空间',
+            'onUpdate:modelValue': (value: string) => ctx.onUpdate(value),
+            onSelect: (namespace: Namespace) => {
+              ctx.onUpdate(namespace.namespaceId)
+              if (namespace.instanceName) {
+                ctx.setFieldValue('instanceName', namespace.instanceName)
+              }
+              if (namespace.environment) {
+                ctx.setFieldValue('environment', namespace.environment)
+              }
+            },
+          })
+        },
+      },
+      {
         field: 'serviceName',
         label: '服务名称',
         type: 'input',
         placeholder: '请输入服务名称',
-        span: 6,
+        span: 8,
         clearable: true,
       },
       {
@@ -97,15 +135,18 @@ export function useServiceModel() {
         label: '分组名称',
         type: 'input',
         placeholder: '请输入分组名称',
-        span: 6,
+        span: 8,
         clearable: true,
       },
+    ],
+    moreButtonText: '高级',
+    moreFields: [
       {
         field: 'serviceType',
         label: '服务类型',
         type: 'select',
         placeholder: '请选择类型',
-        span: 6,
+        span: 8,
         clearable: true,
         options: [
           { label: '全部', value: '' },
@@ -122,7 +163,7 @@ export function useServiceModel() {
         label: '活动状态',
         type: 'select',
         placeholder: '请选择状态',
-        span: 6,
+        span: 8,
         clearable: true,
         options: [
           { label: '全部', value: '' },
@@ -152,6 +193,13 @@ export function useServiceModel() {
         type: 'error',
         tooltip: '删除选中的服务',
       },
+      {
+        key: 'batchDelete',
+        label: '批量删除',
+        icon: 'TrashOutline',
+        type: 'error',
+        tooltip: '批量删除勾选的服务',
+      },
     ],
     showSearchButton: true,
     showResetButton: true,
@@ -175,7 +223,7 @@ export function useServiceModel() {
         tabKey: 'basic',
         required: true,
         disabled: true, // 始终禁用，从选中的命名空间自动填充
-        tips: '命名空间ID（主键），从上方命名空间列表自动获取',
+        tips: '命名空间ID（主键），由查询条件所选命名空间自动填充',
       },
       {
         field: 'groupName',
@@ -258,7 +306,7 @@ export function useServiceModel() {
         span: 12,
         tabKey: 'config',
         defaultValue: 0.00,
-        tips: '服务保护阈值，范围0.00-1.00，表示健康实例比例低于该值时触发保护',
+        tips: '服务保护阈值，范围0.00-1.00，表示健康节点比例低于该值时触发保护',
         props: {
           min: 0,
           max: 1,
@@ -446,6 +494,30 @@ export function useServiceModel() {
         formatter: (value) => String(value || 0),
       },
       {
+        key: 'subscriberCount',
+        title: '被订阅',
+        align: 'center',
+        formatter: (value) => String(value || 0),
+      },
+      {
+        key: 'subscriptionCount',
+        title: '订阅了',
+        align: 'center',
+        formatter: (value) => String(value || 0),
+      },
+      {
+        key: 'runtimeSource',
+        title: '节点来源',
+        align: 'center',
+        width: 120,
+        render: (row) =>
+          h(
+            RsTag,
+            { variant: row.runtimeSource === 'servicecenterv3' ? 'info' : 'default', size: 'sm' },
+            () => (row.runtimeSource === 'servicecenterv3' ? '运行时' : '定义'),
+          ),
+      },
+      {
         key: 'activeFlag',
         title: '活动状态',
         align: 'center',
@@ -485,7 +557,7 @@ export function useServiceModel() {
       },
     ],
     selectable: true,
-    rowKey: buildServiceRowKey,
+    rowKey: 'serviceKey',
     paginationConfig: {
       show: true,
       pageInfo: pageInfo as any,
@@ -497,6 +569,7 @@ export function useServiceModel() {
         { key: 'view', label: '查看详情', icon: 'eye' },
         { key: 'edit', label: '编辑', icon: 'pencil' },
         { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
+        { key: 'batchDelete', label: '批量删除', icon: 'trash-2', danger: true, requireRow: false },
       ],
     },
     height: '100%',
@@ -526,7 +599,10 @@ export function useServiceModel() {
    * 设置服务列表
    */
   const setServiceList = (list: Service[]) => {
-    serviceList.value = list
+    serviceList.value = list.map((item) => ({
+      ...item,
+      serviceKey: item.serviceKey || buildServiceRowKey(item),
+    }))
   }
 
   /**
@@ -540,7 +616,10 @@ export function useServiceModel() {
    * 添加服务到列表
    */
   const addServiceToList = (service: Service) => {
-    serviceList.value.unshift(service)
+    serviceList.value.unshift({
+      ...service,
+      serviceKey: service.serviceKey || buildServiceRowKey(service),
+    })
   }
 
   /**

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	clusterInit "gateway/internal/cluster/init"
 	"gateway/internal/cluster/types"
 	"gateway/pkg/logger"
 )
@@ -47,7 +46,7 @@ func (p *AlertConfigEventPublisher) publish(ctx context.Context, action, tenantI
 	}
 
 	// 检查集群服务是否已初始化/就绪
-	if !clusterInit.IsClusterInitialized() || !clusterInit.IsClusterReady() {
+	if !types.IsClusterInitialized() || !types.IsClusterReady() {
 		logger.Debug("集群服务未初始化或未就绪，跳过告警配置事件发布",
 			"action", action,
 			"tenantId", tenantId,
@@ -56,7 +55,7 @@ func (p *AlertConfigEventPublisher) publish(ctx context.Context, action, tenantI
 		return nil
 	}
 
-	clusterService := clusterInit.GetClusterService()
+	clusterService := types.GetClusterService()
 	if clusterService == nil {
 		logger.Warn("无法获取集群服务，跳过告警配置事件发布",
 			"action", action,

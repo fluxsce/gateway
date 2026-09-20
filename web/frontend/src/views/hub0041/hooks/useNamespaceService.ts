@@ -17,8 +17,13 @@ import { useNamespaceModel } from './model'
 /**
  * 命名空间服务 Hook（纯业务逻辑）
  */
-export function useNamespaceService(searchFormRef?: Ref<any> | any, moduleId?: string) {
+export function useNamespaceService(
+  searchFormRef?: Ref<any> | any,
+  moduleId?: string,
+  options?: { requireInstanceName?: boolean },
+) {
   const message = useAppMessage()
+  const requireInstanceName = options?.requireInstanceName ?? true
   // 初始化 Model
   const model = useNamespaceModel(moduleId)
 
@@ -57,6 +62,12 @@ export function useNamespaceService(searchFormRef?: Ref<any> | any, moduleId?: s
             )
           )
         : {}
+
+      if (requireInstanceName && !effectiveSearchParams.instanceName) {
+        setNamespaceList([])
+        updatePagination({ pageIndex: 1, totalCount: 0 })
+        return
+      }
 
       // 构建请求参数：合并查询条件和分页参数
       const params = {
@@ -227,7 +238,6 @@ export function useNamespaceService(searchFormRef?: Ref<any> | any, moduleId?: s
   }
 
   const getNamespaceDetail = async (namespaceId: string): Promise<Namespace | null> => {
-    loading.value = true
     try {
       const response: JsonDataObj = await namespaceApi.getNamespace(namespaceId)
 
@@ -240,8 +250,6 @@ export function useNamespaceService(searchFormRef?: Ref<any> | any, moduleId?: s
     } catch (error) {
       message.error('获取命名空间详情失败')
       return null
-    } finally {
-      loading.value = false
     }
   }
 

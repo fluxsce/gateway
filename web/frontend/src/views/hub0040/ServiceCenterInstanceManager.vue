@@ -19,24 +19,65 @@
       </template>
 
       <template #grid>
-        <div class="service-center-instance-manager__grid">
-          <RsGrid
-            ref="gridRef"
-            :module-id="service.model.moduleId"
-            :data="service.model.instanceList"
-            :loading="service.model.loading"
-            :columns="service.model.gridConfig.columns"
-            :selectable="service.model.gridConfig.selectable"
-            :row-key="service.model.gridConfig.rowKey"
-            height="100%"
-            :pagination-config="service.model.gridConfig.paginationConfig"
-            :menu-config="service.model.gridConfig.menuConfig"
-            @page-change="service.handlePageChange"
-            @menu-click="handleMenuClick"
-          />
+        <div class="service-center-instance-manager__list">
+          <RsLoading v-if="loading" block size="lg" />
+          <RsEmpty
+            v-else-if="!instanceList.length"
+            description="暂无服务中心实例"
+          >
+            <template #icon>
+              <GIcon :icon="ServerOutline" :size="32" color="var(--g-primary)" />
+            </template>
+          </RsEmpty>
+          <div v-else class="service-center-instance-manager__cards">
+            <ServiceCenterInstanceCard
+              v-for="instance in instanceList"
+              :key="cardKey(instance)"
+              :instance="instance"
+              :selected="isSelected(instance)"
+              @select="selectInstance(instance)"
+              @action="(key) => handleCardAction(key, instance)"
+            />
+          </div>
+          <div
+            v-if="totalCount > 0"
+            class="service-center-instance-manager__pagination"
+          >
+            <RsPagination
+              :page="currentPage"
+              :page-size="pageSize"
+              :total="totalCount"
+              size="sm"
+              :show-summary="true"
+              @update:page="(p) => service.handlePageChange({ currentPage: p, pageSize })"
+              @update:page-size="(s) => service.handlePageChange({ currentPage: 1, pageSize: s })"
+            />
+          </div>
         </div>
       </template>
     </RsSplitPane>
+
+    <CenterRuntimeDrawer
+      v-model:visible="runtimeDrawerVisible"
+      :loading="runtimeLoading"
+      :instance="runtimeInstance"
+      :overview="runtimeOverview"
+      :connections="runtimeConnections"
+      :module-id="service.model.moduleId"
+    />
+
+    <CenterTokenDrawer
+      v-model:visible="tokenDrawerVisible"
+      :loading="tokenLoading"
+      :issuing="tokenIssuing"
+      :can-issue="canIssueToken"
+      :instance="tokenInstance"
+      :tokens="tokenList"
+      :issued-token="issuedToken"
+      :module-id="service.model.moduleId"
+      @issue="handleIssueToken"
+      @revoke="handleRevokeToken"
+    />
 
     <RsDataFormModal
       v-model:visible="formDialogVisible"
@@ -57,23 +98,24 @@
 <script lang="ts" setup>
 import { RsDataFormModal } from '@/components/form/rs-data'
 import { RsSearchForm } from '@/components/form/rs-search'
-import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
-import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
-import { ref } from 'vue'
-import { useServiceCenterInstancePage } from './hooks'
+import { GIcon } from '@/components/gicon'
+import { RsEmpty, RsLoading, RsPagination, RsSplitPane, type RsSplitPaneItem } from '@/ui'
+import { ServerOutline } from '@vicons/ionicons5'
+import { computed, ref } from 'vue'
+import { CenterRuntimeDrawer, CenterTokenDrawer, ServiceCenterInstanceCard } from './components'
+import { canInstanceAction, useServiceCenterInstancePage } from './hooks'
+import type { ServiceCenterInstance } from './types'
 
 defineOptions({
   name: 'ServiceCenterInstanceManager',
 })
 
-/** 上方搜索区随内容自适应，下方表格占满剩余高度 */
 const splitPanes: RsSplitPaneItem[] = [
   { key: 'search', size: 'auto' },
   { key: 'grid' },
 ]
 
 const searchFormRef = ref()
-const gridRef = ref<RsGridExpose | null>(null)
 
 const {
   service,
@@ -83,9 +125,46 @@ const {
   submitting,
   handleFormSubmit,
   handleToolbarClick,
-  handleMenuClick,
+  handleCardAction,
   handleSearch,
-} = useServiceCenterInstancePage(gridRef, searchFormRef)
+  selectedInstance,
+  selectInstance,
+  runtimeDrawerVisible,
+  runtimeLoading,
+  runtimeInstance,
+  runtimeOverview,
+  runtimeConnections,
+  tokenDrawerVisible,
+  tokenLoading,
+  tokenIssuing,
+  tokenInstance,
+  tokenList,
+  issuedToken,
+  handleIssueToken,
+  handleRevokeToken,
+} = useServiceCenterInstancePage(searchFormRef)
+
+const canIssueToken = computed(() => canInstanceAction('edit'))
+
+const instanceList = computed(() => service.model.instanceList.value)
+const loading = computed(() => service.model.loading.value)
+const totalCount = computed(() => service.model.pageInfo.value?.totalCount || 0)
+const currentPage = computed(() => service.model.pageInfo.value?.pageIndex || 1)
+const pageSize = computed(() => service.model.pageInfo.value?.pageSize || 10)
+
+function cardKey(instance: ServiceCenterInstance) {
+  return instance.oprSeqFlag || `${instance.tenantId}:${instance.instanceName}:${instance.environment}`
+}
+
+function isSelected(instance: ServiceCenterInstance) {
+  const current = selectedInstance.value
+  return Boolean(
+    current
+    && current.tenantId === instance.tenantId
+    && current.instanceName === instance.instanceName
+    && current.environment === instance.environment,
+  )
+}
 </script>
 
 <style lang="scss" scoped>
@@ -111,7 +190,7 @@ const {
   box-sizing: border-box;
 }
 
-.service-center-instance-manager__grid {
+.service-center-instance-manager__list {
   box-sizing: border-box;
   width: 100%;
   height: 100%;
@@ -119,5 +198,29 @@ const {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  padding: 12px;
+  gap: 12px;
+  background: var(--g-bg-primary);
+}
+
+.service-center-instance-manager__list :deep(.rs-empty) {
+  flex: 1;
+}
+
+.service-center-instance-manager__cards {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(312px, 1fr));
+  align-content: start;
+  gap: 18px;
+  padding: 4px 6px 12px;
+}
+
+.service-center-instance-manager__pagination {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

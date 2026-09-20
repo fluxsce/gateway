@@ -7,7 +7,7 @@ import { rsConfirm } from '@/ui'
 import { WarningOutline } from '@vicons/ionicons5'
 import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
-import { getApiMessage, isApiSuccess } from '@/utils/format'
+import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import { useAppMessage } from '@/composables/useAppMessage'
 import type { Ref } from 'vue'
 import * as serviceApi from '../api'
@@ -67,6 +67,12 @@ export function useServiceService(searchFormRef?: Ref<any> | any) {
           )
         : {}
 
+      if (!effectiveSearchParams.namespaceId) {
+        setServiceList([])
+        updatePagination({ pageIndex: 1, totalCount: 0 })
+        return
+      }
+
       // 构建请求参数：合并查询条件和分页参数
       const params = {
         ...effectiveSearchParams,
@@ -121,7 +127,8 @@ export function useServiceService(searchFormRef?: Ref<any> | any) {
       searchFormRef.value.resetForm()
     }
     model.resetPagination()
-    await loadServices({})
+    setServiceList([])
+    updatePagination({ pageIndex: 1, totalCount: 0 })
   }
 
   /**
@@ -227,6 +234,30 @@ export function useServiceService(searchFormRef?: Ref<any> | any) {
     }
   }
 
+  const batchDeleteServices = async (
+    services: Array<Pick<Service, 'namespaceId' | 'groupName' | 'serviceName' | 'instanceName'>>,
+  ): Promise<{ successCount: number; failCount: number; error?: string } | null> => {
+    if (services.length === 0) {
+      return { successCount: 0, failCount: 0 }
+    }
+    try {
+      const response: JsonDataObj = await serviceApi.batchDeleteServices(services)
+      if (isApiSuccess(response)) {
+        const data = parseJsonData<{ successCount?: number; failCount?: number; error?: string }>(response, {})
+        return {
+          successCount: Number(data?.successCount || 0),
+          failCount: Number(data?.failCount || 0),
+          error: data?.error || '',
+        }
+      }
+      message.error(getApiMessage(response, '批量删除服务失败'))
+      return null
+    } catch (error: any) {
+      message.error('批量删除服务失败: ' + (error.message || '未知错误'))
+      return null
+    }
+  }
+
   /**
    * 获取服务详情
    */
@@ -266,6 +297,7 @@ export function useServiceService(searchFormRef?: Ref<any> | any) {
     addService,
     editService,
     deleteService,
+    batchDeleteServices,
     getServiceDetail,
   }
 }

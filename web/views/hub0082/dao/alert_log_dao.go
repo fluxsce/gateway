@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	alerttypes "gateway/internal/alert/types"
 	"gateway/pkg/database"
@@ -159,6 +160,115 @@ func (dao *AlertLogDAO) DeleteAlertLog(ctx context.Context, tenantId, alertLogId
 		return huberrors.WrapError(err, "删除预警日志失败")
 	}
 	return nil
+}
+
+// IgnoreAlertLogs 将待发送日志标记为 IGNORED，避免邮件继续投递。
+// scope=selected 按 ID；scope=group 按类型（空则按标题）；scope=all 按当前筛选。
+func (dao *AlertLogDAO) IgnoreAlertLogs(ctx context.Context, tenantId, operatorId, scope string, req *models.AlertLogIgnoreRequest) (int64, error) {
+	if req == nil {
+		return 0, errors.New("忽略条件不能为空")
+	}
+
+	whereClause := "WHERE tenantId = ? AND sendStatus = ?"
+	params := []interface{}{tenantId, "PENDING"}
+
+	switch scope {
+	case models.AlertLogIgnoreScopeSelected:
+		ids := uniqueNonEmpty(strings.Split(req.AlertLogIds, ","))
+		if len(ids) == 0 {
+			return 0, errors.New("alertLogIds不能为空")
+		}
+		placeholders := make([]string, len(ids))
+		for i, id := range ids {
+			placeholders[i] = "?"
+			params = append(params, id)
+		}
+		whereClause += fmt.Sprintf(" AND alertLogId IN (%s)", strings.Join(placeholders, ","))
+	case models.AlertLogIgnoreScopeGroup:
+		alertType := strings.TrimSpace(req.AlertType)
+		alertTitle := strings.TrimSpace(req.AlertTitle)
+		if alertType != "" {
+			whereClause += " AND alertType = ?"
+			params = append(params, alertType)
+		} else if alertTitle != "" {
+			whereClause += " AND alertTitle = ?"
+			params = append(params, alertTitle)
+		} else {
+			return 0, errors.New("分组忽略需要告警类型或告警标题")
+		}
+		var err error
+		whereClause, params, err = appendAlertIgnoreFilters(ctx, whereClause, params, req, false)
+		if err != nil {
+			return 0, err
+		}
+	case models.AlertLogIgnoreScopeAll:
+		var err error
+		whereClause, params, err = appendAlertIgnoreFilters(ctx, whereClause, params, req, true)
+		if err != nil {
+			return 0, err
+		}
+	default:
+		return 0, fmt.Errorf("不支持的忽略范围: %s", scope)
+	}
+
+	now := time.Now()
+	if operatorId == "" {
+		operatorId = "system"
+	}
+	query := fmt.Sprintf(`UPDATE HUB_ALERT_LOG
+		SET sendStatus = ?, editTime = ?, editWho = ?, currentVersion = currentVersion + 1
+		%s`, whereClause)
+	args := append([]interface{}{"IGNORED", now, operatorId}, params...)
+	affected, err := dao.db.Exec(ctx, query, args, true)
+	if err != nil {
+		return 0, huberrors.WrapError(err, "忽略预警日志失败")
+	}
+	return affected, nil
+}
+
+// appendAlertIgnoreFilters 追加时间范围及可选筛选。group 模式不覆盖分组键。
+func appendAlertIgnoreFilters(ctx context.Context, whereClause string, params []interface{}, req *models.AlertLogIgnoreRequest, applyTypeAndTitle bool) (string, []interface{}, error) {
+	if req == nil {
+		return whereClause, params, nil
+	}
+	if applyTypeAndTitle && !empty.IsEmpty(req.AlertLogId) {
+		whereClause += " AND alertLogId = ?"
+		params = append(params, req.AlertLogId)
+	}
+	if !empty.IsEmpty(req.AlertLevel) {
+		whereClause += " AND alertLevel = ?"
+		params = append(params, req.AlertLevel)
+	}
+	if applyTypeAndTitle && !empty.IsEmpty(req.AlertType) {
+		whereClause += " AND alertType = ?"
+		params = append(params, req.AlertType)
+	}
+	if applyTypeAndTitle && !empty.IsEmpty(req.AlertTitle) {
+		whereClause += " AND alertTitle LIKE ?"
+		params = append(params, "%"+req.AlertTitle+"%")
+	}
+	if !empty.IsEmpty(req.ChannelName) {
+		whereClause += " AND channelName = ?"
+		params = append(params, req.ChannelName)
+	}
+	return appendAlertTimeRange(ctx, whereClause, params, req.StartTime, req.EndTime)
+}
+
+func uniqueNonEmpty(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		id := strings.TrimSpace(value)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
 }
 
 // BatchDeleteAlertLogs 批量删除预警日志

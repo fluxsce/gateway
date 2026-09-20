@@ -8,6 +8,11 @@ export default {
   common: {
     all: '全部',
     delete: '删除',
+    batchDelete: '批量删除',
+    ignore: '忽略',
+    ignoreSelected: '忽略选中',
+    ignoreGroup: '分组忽略',
+    ignoreAll: '全部忽略',
     cancel: '取消',
     viewDetail: '查看详情',
   },
@@ -24,6 +29,7 @@ export default {
     sending: '发送中',
     success: '成功',
     failed: '失败',
+    ignored: '已忽略',
   },
 
   shortcuts: {
@@ -56,6 +62,12 @@ export default {
   toolbar: {
     delete: '删除',
     deleteTooltip: '批量删除选中的日志',
+    ignoreSelected: '忽略选中',
+    ignoreSelectedTooltip: '将当前勾选或高亮的待发送日志标记为已忽略，不再投递邮件',
+    ignoreGroup: '分组忽略',
+    ignoreGroupTooltip: '忽略与当前行同类型（或同标题）的全部待发送日志',
+    ignoreAll: '全部忽略',
+    ignoreAllTooltip: '忽略当前查询条件下全部待发送日志',
   },
 
   columns: {
@@ -93,13 +105,23 @@ export default {
     deleteContent: '确定要删除日志"{id}"吗？',
     batchDeleteTitle: '确认批量删除',
     batchDeleteContent: '确定要删除选中的 {count} 条日志吗？',
+    ignoreSelectedTitle: '确认忽略选中',
+    ignoreSelectedContent: '将忽略选中的 {count} 条待发送日志，已发送的不会处理。',
+    ignoreGroupTitle: '确认分组忽略',
+    ignoreGroupContent: '将忽略当前查询时间范围内，与「{group}」同类的全部待发送日志。',
+    ignoreAllTitle: '确认全部忽略',
+    ignoreAllContent: '将忽略当前查询条件下全部待发送日志，避免邮件继续堆积投递。',
     confirmText: '删除',
+    ignoreConfirmText: '忽略',
     cancelText: '取消',
   },
 
   message: {
     gridRefMissing: 'Grid 引用未设置',
     selectToDelete: '请先勾选要删除的日志，或单击选中一行后再删除',
+    selectToIgnore: '请先勾选要忽略的日志，或单击选中一行后再忽略',
+    selectToIgnoreGroup: '请先单击或勾选一行，再按分组忽略',
+    groupKeyRequired: '当前行缺少告警类型和标题，无法分组忽略',
     alertLogIdRequired: '日志ID不能为空',
     queryFailed: '查询预警日志失败',
     detailFailed: '获取预警日志详情失败',
@@ -108,5 +130,8 @@ export default {
     deleteFailed: '删除预警日志失败',
     batchDeleteSuccess: '成功删除 {count} 条预警日志',
     batchDeleteFailed: '批量删除预警日志失败',
+    ignoreSuccess: '已忽略 {count} 条待发送日志',
+    ignoreEmpty: '没有待发送日志可忽略',
+    ignoreFailed: '忽略预警日志失败',
   },
 }

@@ -8,6 +8,11 @@ export default {
   common: {
     all: 'All',
     delete: 'Delete',
+    batchDelete: 'Batch Delete',
+    ignore: 'Ignore',
+    ignoreSelected: 'Ignore Selected',
+    ignoreGroup: 'Ignore Group',
+    ignoreAll: 'Ignore All',
     cancel: 'Cancel',
     viewDetail: 'View Details',
   },
@@ -24,6 +29,7 @@ export default {
     sending: 'Sending',
     success: 'Success',
     failed: 'Failed',
+    ignored: 'Ignored',
   },
 
   shortcuts: {
@@ -56,6 +62,12 @@ export default {
   toolbar: {
     delete: 'Delete',
     deleteTooltip: 'Batch delete selected logs',
+    ignoreSelected: 'Ignore Selected',
+    ignoreSelectedTooltip: 'Mark checked or highlighted pending logs as ignored so they are not emailed',
+    ignoreGroup: 'Ignore Group',
+    ignoreGroupTooltip: 'Ignore all pending logs of the same type (or title) as the current row',
+    ignoreAll: 'Ignore All',
+    ignoreAllTooltip: 'Ignore all pending logs matching the current filters',
   },
 
   columns: {
@@ -93,13 +105,23 @@ export default {
     deleteContent: 'Delete log "{id}"?',
     batchDeleteTitle: 'Confirm Batch Delete',
     batchDeleteContent: 'Delete the selected {count} log(s)?',
+    ignoreSelectedTitle: 'Confirm Ignore Selected',
+    ignoreSelectedContent: 'Ignore {count} selected pending log(s). Already sent logs are not changed.',
+    ignoreGroupTitle: 'Confirm Ignore Group',
+    ignoreGroupContent: 'Ignore all pending logs of the same group as "{group}" within the current time range.',
+    ignoreAllTitle: 'Confirm Ignore All',
+    ignoreAllContent: 'Ignore all pending logs matching the current filters so they are not emailed.',
     confirmText: 'Delete',
+    ignoreConfirmText: 'Ignore',
     cancelText: 'Cancel',
   },
 
   message: {
     gridRefMissing: 'Grid reference is not set',
     selectToDelete: 'Please check logs to delete, or click a row first',
+    selectToIgnore: 'Please check logs to ignore, or click a row first',
+    selectToIgnoreGroup: 'Please click or check a row before ignoring by group',
+    groupKeyRequired: 'The current row has no alert type or title, cannot ignore by group',
     alertLogIdRequired: 'Log ID is required',
     queryFailed: 'Failed to query alert logs',
     detailFailed: 'Failed to get alert log details',
@@ -108,5 +130,8 @@ export default {
     deleteFailed: 'Failed to delete alert log',
     batchDeleteSuccess: 'Deleted {count} alert log(s)',
     batchDeleteFailed: 'Failed to batch delete alert logs',
+    ignoreSuccess: 'Ignored {count} pending log(s)',
+    ignoreEmpty: 'No pending logs to ignore',
+    ignoreFailed: 'Failed to ignore alert logs',
   },
 }

@@ -253,6 +253,64 @@ export function useConfigService(searchFormRef?: Ref<any> | any) {
     }
   }
 
+  const saveDraft = async (configData: Partial<Config> & {
+    namespaceId: string
+    groupName: string
+    configDataId: string
+    configContent: string
+  }): Promise<boolean> => {
+    loading.value = true
+    try {
+      const response: JsonDataObj = await configApi.saveDraft(configData)
+      if (isApiSuccess(response)) {
+        message.success(getApiMessage(response, '草稿已保存，尚未发布'))
+        return true
+      }
+      message.error(getApiMessage(response, '保存草稿失败'))
+      return false
+    } catch {
+      message.error('保存草稿失败')
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const publishConfig = async (configData: Partial<Config> & {
+    namespaceId: string
+    groupName: string
+    configDataId: string
+    configContent?: string
+    changeReason?: string
+  }): Promise<boolean> => {
+    loading.value = true
+    try {
+      const response: JsonDataObj = await configApi.publishConfig(configData)
+      if (isApiSuccess(response)) {
+        message.success(getApiMessage(response, '配置已发布，订阅方将收到变更'))
+        if (response.bizData) {
+          const updatedConfig = JSON.parse(response.bizData)
+          updateConfigInList(
+            updatedConfig.namespaceId,
+            updatedConfig.groupName,
+            updatedConfig.configDataId,
+            updatedConfig
+          )
+        } else {
+          await loadConfigs()
+        }
+        return true
+      }
+      message.error(getApiMessage(response, '发布配置失败'))
+      return false
+    } catch {
+      message.error('发布配置失败')
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
   const getConfigDetail = async (
     namespaceId: string,
     groupName: string,
@@ -294,6 +352,8 @@ export function useConfigService(searchFormRef?: Ref<any> | any) {
     editConfig,
     deleteConfig,
     getConfigDetail,
+    publishConfig,
+    saveDraft,
   }
 }
 

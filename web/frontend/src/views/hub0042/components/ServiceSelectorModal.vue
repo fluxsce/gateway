@@ -68,6 +68,8 @@ import { useAppMessage } from '@/composables/useAppMessage'
 import { RsButton, RsDialog, RsSplitPane, RsTag, type RsSplitPaneItem } from '@/ui'
 import { formatDate } from '@/utils/format'
 import { computed, h, onBeforeUnmount, ref, watch } from 'vue'
+import { NamespaceNameSelector } from '../../hub0041/components'
+import type { Namespace } from '../../hub0041/types'
 import { useServiceService } from '../hooks'
 import type { Service } from '../types'
 
@@ -106,11 +108,30 @@ const service = useServiceService(searchFormRef)
 const selectorSearchFormConfig = {
   fields: [
     {
+      field: 'namespaceId',
+      label: '命名空间',
+      type: 'custom' as const,
+      span: 8,
+      required: true,
+      clearable: false,
+      placeholder: '请选择命名空间',
+      rules: { required: true, message: '请选择命名空间' },
+      render: (_formData: Record<string, any>, ctx: { value: unknown; onUpdate: (value: unknown) => void }) => {
+        return h(NamespaceNameSelector, {
+          modelValue: (ctx.value as string) || '',
+          clearable: false,
+          placeholder: '请选择命名空间',
+          'onUpdate:modelValue': (value: string) => ctx.onUpdate(value),
+          onSelect: (namespace: Namespace) => ctx.onUpdate(namespace.namespaceId),
+        })
+      },
+    },
+    {
       field: 'serviceName',
       label: '服务名称',
       type: 'input' as const,
       placeholder: '请输入服务名称',
-      span: 6,
+      span: 8,
       clearable: true,
     },
     {
@@ -118,15 +139,7 @@ const selectorSearchFormConfig = {
       label: '分组名称',
       type: 'input' as const,
       placeholder: '请输入分组名称',
-      span: 6,
-      clearable: true,
-    },
-    {
-      field: 'namespaceId',
-      label: '命名空间',
-      type: 'input' as const,
-      placeholder: '请输入命名空间',
-      span: 6,
+      span: 8,
       clearable: true,
     },
     {
@@ -231,7 +244,7 @@ const stopVisibleWatch = watch(
   (show) => {
     if (show) {
       selectedService.value = null
-      service.loadServices({ tenantId: 'default' })
+      service.model.setServiceList([])
     } else {
       selectedService.value = null
       searchFormRef.value?.resetForm?.()
@@ -243,8 +256,13 @@ onBeforeUnmount(() => {
   stopVisibleWatch()
 })
 
-function handleSearch() {
-  service.handleSearch()
+function handleSearch(formData?: Record<string, any>) {
+  const namespaceId = String(formData?.namespaceId || searchFormRef.value?.getFormData?.()?.namespaceId || '').trim()
+  if (!namespaceId) {
+    message.warning('请先选择命名空间')
+    return
+  }
+  service.handleSearch(namespaceId, formData)
 }
 
 function handlePageChange(params: { currentPage: number; pageSize: number }) {

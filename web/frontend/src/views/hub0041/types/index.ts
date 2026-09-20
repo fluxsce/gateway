@@ -16,6 +16,13 @@ export interface Namespace {
   serviceQuotaLimit: number // 服务数量配额限制，0表示无限制，默认200
   configQuotaLimit: number // 配置数量配额限制，0表示无限制，默认200
 
+  // 运行时统计（列表/详情接口叠加，非表字段）
+  serviceCount?: number // 当前命名空间已注册服务数
+  nodeCount?: number // 服务下节点总数
+  healthyNodeCount?: number // 健康节点数
+  connectionCount?: number // 数据面连接数
+  connections?: NamespaceConnection[] // 该命名空间下的数据面会话
+
   // 系统字段
   addTime: string // 创建时间
   addWho: string // 创建人ID
@@ -28,3 +35,10 @@ export interface Namespace {
   extProperty?: string // 扩展属性，JSON格式
 }
 
+export interface NamespaceConnection {
+  connectionId: string
+  clientId?: string
+  clientIp?: string
+  namespaceId?: string
+  lastActive?: string
+}

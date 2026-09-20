@@ -11,7 +11,10 @@
 export type AlertLevel = 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL'
 
 /** 发送状态 */
-export type SendStatus = 'PENDING' | 'SENDING' | 'SUCCESS' | 'FAILED'
+export type SendStatus = 'PENDING' | 'SENDING' | 'SUCCESS' | 'FAILED' | 'IGNORED'
+
+/** 忽略范围 */
+export type AlertLogIgnoreScope = 'selected' | 'group' | 'all'
 
 // ============================================================
 // 预警日志类型定义
@@ -34,7 +37,7 @@ export interface AlertLog {
   channelName?: string | null         // 使用的渠道名称
 
   // 发送信息
-  sendStatus?: SendStatus | null      // 发送状态：PENDING待发送/SENDING发送中/SUCCESS成功/FAILED失败
+  sendStatus?: SendStatus | null      // 发送状态：PENDING待发送/SENDING发送中/SUCCESS成功/FAILED失败/IGNORED已忽略
   sendTime?: string | null            // 发送时间
   sendResult?: string | null          // 发送结果详情，JSON格式
   sendErrorMessage?: string | null     // 发送错误信息
@@ -83,6 +86,18 @@ export interface AlertLogQueryParams {
   endTime?: string                   // 结束时间（用于时间范围查询）
 }
 
+/** 忽略待发送日志请求 */
+export interface AlertLogIgnoreParams {
+  alertLogIds?: string[]
+  alertLogId?: string
+  alertType?: string
+  alertTitle?: string
+  alertLevel?: string
+  channelName?: string
+  startTime?: string
+  endTime?: string
+}
+
 // ============= 常量定义 =============
 
 /** 告警级别选项 */
@@ -99,5 +114,6 @@ export const SEND_STATUS_OPTIONS = [
   { label: '发送中', value: 'SENDING' as SendStatus },
   { label: '成功', value: 'SUCCESS' as SendStatus },
   { label: '失败', value: 'FAILED' as SendStatus },
+  { label: '已忽略', value: 'IGNORED' as SendStatus },
 ]
 

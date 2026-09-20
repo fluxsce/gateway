@@ -15,27 +15,47 @@
             :show-search-button="true"
             :show-reset-button="true"
             @search="handleSearch"
+            @reset="handleReset"
           />
         </div>
       </template>
 
       <template #grid>
-        <div class="namespace-list__grid">
-          <RsGrid
-            ref="gridRef"
-            :module-id="effectiveModuleId"
-            :data="namespaceService.model.namespaceList"
-            :loading="namespaceService.model.loading"
-            :columns="readonlyGridConfig.columns"
-            :selectable="readonlyGridConfig.selectable"
-            :row-key="readonlyGridConfig.rowKey"
-            height="100%"
-            :pagination-config="readonlyGridConfig.paginationConfig"
-            :menu-config="readonlyGridConfig.menuConfig"
-            @page-change="namespaceService.handlePageChange"
-            @menu-click="handleMenuClick"
-            @row-click="handleRowClick"
-          />
+        <div class="namespace-list__list">
+          <RsLoading v-if="loading" block size="lg" />
+          <div v-else-if="!namespaceList.length" class="namespace-list__empty">
+            <RsEmpty :description="emptyDescription">
+              <template #icon>
+                <GIcon :icon="LayersOutline" :size="32" color="var(--g-primary)" />
+              </template>
+            </RsEmpty>
+          </div>
+          <div v-else class="namespace-list__cards">
+            <NamespaceCard
+              v-for="namespace in namespaceList"
+              :key="cardKey(namespace)"
+              :namespace="namespace"
+              :selected="isSelected(namespace)"
+              menu="view"
+              @select="handleCardSelect(namespace)"
+              @focus="focusNamespace(namespace)"
+              @action="(key) => handleCardAction(key, namespace)"
+            />
+          </div>
+          <div
+            v-if="totalCount > 0"
+            class="namespace-list__pagination"
+          >
+            <RsPagination
+              :page="currentPage"
+              :page-size="pageSize"
+              :total="totalCount"
+              size="sm"
+              :show-summary="true"
+              @update:page="(p) => namespaceService.handlePageChange({ currentPage: p, pageSize })"
+              @update:page-size="(s) => namespaceService.handlePageChange({ currentPage: 1, pageSize: s })"
+            />
+          </div>
         </div>
       </template>
     </RsSplitPane>
@@ -60,12 +80,13 @@
 <script lang="ts" setup>
 import { RsDataFormModal } from '@/components/form/rs-data'
 import { RsSearchForm } from '@/components/form/rs-search'
-import { RsGrid, type RsGridExpose } from '@/components/rs-grid'
-import { RsSplitPane, type RsSplitPaneItem } from '@/ui'
+import { GIcon } from '@/components/gicon'
+import { RsEmpty, RsLoading, RsPagination, RsSplitPane, type RsSplitPaneItem } from '@/ui'
+import { LayersOutline } from '@vicons/ionicons5'
 import { computed, onMounted, ref } from 'vue'
 import { useNamespacePage } from '../hooks'
-import type { NamespaceGridConfig } from '../hooks/model'
 import type { Namespace } from '../types'
+import NamespaceCard from './NamespaceCard.vue'
 
 defineOptions({
   name: 'NamespaceList',
@@ -94,16 +115,13 @@ const props = withDefaults(defineProps<Props>(), {
 const effectiveModuleId = computed(() => props.moduleId)
 
 interface Emits {
-  /** 命名空间行点击事件 */
   (e: 'row-click', row: Namespace): void
-  /** 命名空间选择变化事件 */
   (e: 'namespace-select', namespace: Namespace | null): void
 }
 
 const emit = defineEmits<Emits>()
 
 const searchFormRef = ref()
-const gridRef = ref<RsGridExpose | null>(null)
 
 const {
   service: namespaceService,
@@ -111,67 +129,68 @@ const {
   formDialogMode,
   currentEditNamespace,
   submitting,
+  selectedNamespace,
   handleFormSubmit,
-  handleMenuClick: handleMenuClickBase,
+  handleCardAction: handleCardActionBase,
   handleSearch,
-} = useNamespacePage(gridRef, searchFormRef, effectiveModuleId.value)
+  handleReset,
+  selectNamespace,
+  focusNamespace,
+  queryScope,
+} = useNamespacePage(searchFormRef, effectiveModuleId.value)
 
-/** 只读表格：右键菜单仅保留查看 */
-const readonlyGridConfig = computed<NamespaceGridConfig>(() => {
-  const baseConfig = namespaceService.model.gridConfig
-  return {
-    ...baseConfig,
-    menuConfig: {
-      enabled: true,
-      items: [{ key: 'view', label: '查看详情', icon: 'eye' }],
-    },
-  }
-})
+const namespaceList = computed(() => namespaceService.model.namespaceList.value)
+const loading = computed(() => namespaceService.model.loading.value)
+const totalCount = computed(() => namespaceService.model.pageInfo.value?.totalCount || 0)
+const currentPage = computed(() => namespaceService.model.pageInfo.value?.pageIndex || 1)
+const pageSize = computed(() => namespaceService.model.pageInfo.value?.pageSize || 10)
+const emptyDescription = computed(() => (
+  queryScope.value?.instanceName
+    ? '该实例下暂无匹配的命名空间'
+    : '请先选择服务中心实例'
+))
 
-/**
- * 菜单点击处理（只处理查看，编辑和删除已移除）
- */
-const handleMenuClick = (params: { key: string; row?: Namespace }) => {
-  if (params.key === 'view' && params.row) {
-    handleMenuClickBase(params)
+function cardKey(namespace: Namespace) {
+  return namespace.oprSeqFlag || `${namespace.tenantId}:${namespace.namespaceId}`
+}
+
+function isSelected(namespace: Namespace) {
+  const current = selectedNamespace.value
+  return Boolean(
+    current
+    && current.tenantId === namespace.tenantId
+    && current.namespaceId === namespace.namespaceId,
+  )
+}
+
+const handleCardSelect = (namespace: Namespace) => {
+  selectNamespace(namespace)
+  emit('row-click', namespace)
+  emit('namespace-select', namespace)
+}
+
+const handleCardAction = (key: string, namespace: Namespace) => {
+  selectNamespace(namespace)
+  emit('namespace-select', namespace)
+  if (key === 'view') {
+    handleCardActionBase(key, namespace)
   }
 }
 
-/**
- * 命名空间行点击
- */
-const handleRowClick = ({ row }: { row: Namespace }) => {
-  emit('row-click', row)
-  emit('namespace-select', row)
-}
-
-/**
- * 刷新命名空间列表
- */
 const refresh = () => {
   namespaceService.handleRefresh()
 }
 
-/**
- * 加载命名空间列表
- */
 const load = () => {
   namespaceService.loadNamespaces()
 }
 
-/**
- * 获取选中的命名空间
- */
 const getSelectedNamespace = (): Namespace | null => {
-  const selectedRows = gridRef.value?.getSelectedRows() || []
-  return selectedRows.length > 0 ? selectedRows[0] : null
+  return selectedNamespace.value
 }
 
-/**
- * 获取当前行（点击的行）
- */
 const getCurrentNamespace = (): Namespace | null => {
-  return gridRef.value?.getCurrentRow() || null
+  return selectedNamespace.value
 }
 
 defineExpose({
@@ -212,7 +231,7 @@ onMounted(() => {
   box-sizing: border-box;
 }
 
-.namespace-list__grid {
+.namespace-list__list {
   box-sizing: border-box;
   width: 100%;
   height: 100%;
@@ -220,5 +239,33 @@ onMounted(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  padding: 12px;
+  gap: 12px;
+  background: var(--g-bg-primary);
+}
+
+.namespace-list__empty {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.namespace-list__cards {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  align-content: start;
+  gap: 18px;
+  padding: 4px 6px 12px;
+}
+
+.namespace-list__pagination {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

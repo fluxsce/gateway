@@ -115,6 +115,7 @@ export function useAlertLogModel() {
       SENDING: t('sendStatus.sending'),
       SUCCESS: t('sendStatus.success'),
       FAILED: t('sendStatus.failed'),
+      IGNORED: t('sendStatus.ignored'),
     }
     return statusMap[status] || String(status)
   }
@@ -130,6 +131,7 @@ export function useAlertLogModel() {
       SENDING: 'info',
       SUCCESS: 'success',
       FAILED: 'danger',
+      IGNORED: 'warning',
     }
     return statusMap[status] || 'default'
   }
@@ -296,6 +298,7 @@ export function useAlertLogModel() {
           { label: t('sendStatus.sending'), value: 'SENDING' },
           { label: t('sendStatus.success'), value: 'SUCCESS' },
           { label: t('sendStatus.failed'), value: 'FAILED' },
+          { label: t('sendStatus.ignored'), value: 'IGNORED' },
         ],
       },
     ]
@@ -306,6 +309,27 @@ export function useAlertLogModel() {
         icon: 'TrashOutline',
         type: 'error',
         tooltip: t('toolbar.deleteTooltip'),
+      },
+      {
+        key: 'ignoreSelected',
+        label: t('toolbar.ignoreSelected'),
+        icon: 'EyeOffOutline',
+        type: 'warning',
+        tooltip: t('toolbar.ignoreSelectedTooltip'),
+      },
+      {
+        key: 'ignoreGroup',
+        label: t('toolbar.ignoreGroup'),
+        icon: 'LayersOutline',
+        type: 'warning',
+        tooltip: t('toolbar.ignoreGroupTooltip'),
+      },
+      {
+        key: 'ignoreAll',
+        label: t('toolbar.ignoreAll'),
+        icon: 'CloseCircleOutline',
+        type: 'warning',
+        tooltip: t('toolbar.ignoreAllTooltip'),
       },
     ]
 
@@ -424,6 +448,17 @@ export function useAlertLogModel() {
       items: [
         { key: 'view', label: t('common.viewDetail'), icon: 'eye' },
         { key: 'delete', label: t('common.delete'), icon: 'trash-2', danger: true },
+        { key: 'batchDelete', label: t('common.batchDelete'), icon: 'trash-2', danger: true, requireRow: false },
+        {
+          key: 'ignore',
+          label: t('common.ignore'),
+          icon: 'eye-off',
+          children: [
+            { key: 'ignoreSelected', label: t('common.ignoreSelected'), icon: 'eye-off', requireRow: false },
+            { key: 'ignoreGroup', label: t('common.ignoreGroup'), icon: 'layers' },
+            { key: 'ignoreAll', label: t('common.ignoreAll'), icon: 'ban', requireRow: false },
+          ],
+        },
       ],
     }
   }

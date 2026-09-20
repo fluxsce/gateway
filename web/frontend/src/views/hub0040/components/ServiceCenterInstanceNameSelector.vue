@@ -3,8 +3,8 @@
     <RsInput
       v-bind="attrs"
       v-model="localValue"
-      placeholder="请输入实例名称或点击选择"
-      clearable
+      :placeholder="placeholder"
+      :clearable="clearable"
       size="sm"
       label-position="top"
       class="instance-name-selector__input"
@@ -39,10 +39,14 @@ const attrs = useAttrs()
 interface Props {
   /** 实例名称值 */
   modelValue?: string
+  placeholder?: string
+  clearable?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
+  placeholder: '请输入实例名称或点击选择',
+  clearable: true,
 })
 
 interface Emits {
