@@ -40,6 +40,8 @@ import (
 //   - err: 该次后端调用的错误（如果有）
 //   - serviceName: 服务名称（可选，用于日志记录）
 //   - retryCount: 重试次数（当前请求是第几次重试，0表示首次请求）
+//   - lbStrategy: 负载均衡策略（round-robin 等，可空）
+//   - lbDecision: 选点决策摘要（INTERNAL/STATIC、节点、lastGood、失败原因，可空）
 //
 // 返回：
 //   - error: 快照阶段失败只打日志并返回 nil，避免影响转发；入队后的写库错误也不回到调用方。
@@ -61,6 +63,8 @@ func WriteBackendTraceLogSync(
 	err error,
 	serviceName string,
 	retryCount int,
+	lbStrategy string,
+	lbDecision string,
 ) error {
 	defer func() {
 		if r := recover(); r != nil {
@@ -90,6 +94,8 @@ func WriteBackendTraceLogSync(
 		err,
 		serviceName,
 		retryCount,
+		lbStrategy,
+		lbDecision,
 	)
 	if job == nil {
 		return nil
@@ -118,6 +124,8 @@ func snapshotBackendTraceJob(
 	err error,
 	serviceName string,
 	retryCount int,
+	lbStrategy string,
+	lbDecision string,
 ) *backendTraceJob {
 	if gatewayCtx == nil {
 		logger.Error("gateway context is required for backend trace log",
@@ -194,6 +202,8 @@ func snapshotBackendTraceJob(
 		forwardHeaders:   forwardHeaders,
 		forwardBody:      forwardBody,
 		retryCount:       retryCount,
+		lbStrategy:       lbStrategy,
+		lbDecision:       lbDecision,
 	}
 	if err != nil {
 		job.hasErr = true
@@ -230,8 +240,8 @@ func writeBackendTraceFromJob(job *backendTraceJob) {
 	backendLog.OprSeqFlag = generateOprSeqFlag()
 	backendLog.CurrentVersion = types.DefaultVersion
 	backendLog.ActiveFlag = types.DefaultActiveFlag
-	// 不包含节点信息，负载均衡选择是动态的。
 	backendLog.SetServiceInfo(job.serviceID, job.serviceName)
+	backendLog.SetLoadBalancerInfo(job.lbStrategy, job.lbDecision)
 
 	forwardAddress := job.requestURL
 	forwardPath := ""

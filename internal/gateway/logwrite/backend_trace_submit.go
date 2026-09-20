@@ -34,6 +34,8 @@ type backendTraceJob struct {
 	errText          string
 	hasErr           bool
 	retryCount       int
+	lbStrategy       string
+	lbDecision       string
 }
 
 var (

@@ -14,6 +14,7 @@ import (
 	"gateway/internal/gateway/constants"
 	"gateway/internal/gateway/core"
 	"gateway/internal/gateway/handler/circuitbreaker"
+	proxyutils "gateway/internal/gateway/handler/proxy/proxy-utils"
 	"gateway/internal/gateway/handler/router"
 	"gateway/internal/gateway/handler/service"
 	"gateway/internal/gateway/logwrite"
@@ -193,13 +194,14 @@ func (m *HTTPMultiServiceProxy) proxyRequestToServiceWithRetry(
 
 	// 只做节点熔断：失败重试换节点，开闸实例在选节点时跳过。
 	for attempt := 0; attempt <= maxRetries; attempt++ {
-		serviceConfig, node, err := m.httpProxy.selectTargetNode(ctx, serviceID)
+		serviceConfig, node, decision, err := m.httpProxy.selectTargetNode(ctx, serviceID)
 		if err != nil {
 			lastResponse = &ServiceResponse{
 				ServiceID: serviceID,
 				Error:     fmt.Errorf("选择服务 %s 的目标节点失败: %w", serviceID, err),
 				Success:   false,
 			}
+			writeSelectNodeFailureTrace(ctx, serviceConfig, serviceID, attempt, decision, lastResponse.Error)
 
 			if attempt < maxRetries {
 				ctx.AddError(fmt.Errorf("选择节点失败，准备重试 (第%d次): %w", attempt+1, err))
@@ -212,7 +214,7 @@ func (m *HTTPMultiServiceProxy) proxyRequestToServiceWithRetry(
 			return lastResponse
 		}
 
-		response, attemptDuration := m.proxyRequestToService(ctx, serviceConfig, node, requestBody, attempt)
+		response, attemptDuration := m.proxyRequestToService(ctx, serviceConfig, node, requestBody, attempt, decision)
 		var circuitErr error
 		if response != nil {
 			circuitErr = response.Error
@@ -260,6 +262,7 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 	node *service.NodeConfig,
 	requestBody []byte,
 	retryCount int,
+	decision proxyutils.DiscoveryDecision,
 ) (*ServiceResponse, time.Duration) {
 	serviceID := ""
 	nodeID := ""
@@ -409,6 +412,8 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 			responseErr,
 			serviceName, // 服务名称，从 node 中获取
 			retryCount,  // 重试次数
+			decision.Strategy,
+			decision.Format(),
 		)
 		if responseErr != nil {
 			span.RecordError(responseErr)

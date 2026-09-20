@@ -257,6 +257,9 @@
                   <RsDescriptionsItem label="负载均衡策略">
                     <span>{{ trace.loadBalancerStrategy || '无' }}</span>
                   </RsDescriptionsItem>
+                  <RsDescriptionsItem label="负载均衡决策">
+                    <span class="ellipsis-2">{{ trace.loadBalancerDecision || '无' }}</span>
+                  </RsDescriptionsItem>
                 </RsDescriptions>
               </RsCard>
 

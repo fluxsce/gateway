@@ -6,6 +6,11 @@
 
 ## [Unreleased]
 
+## [3.3.9] - 2026-09-20
+
+### 优化
+- **后端追踪补发现方式**：从表写入已有的 `loadBalancerStrategy` / `loadBalancerDecision`（INTERNAL/STATIC、选中节点、候选数、`lastGood`）。选点失败每次尝试也写一条从表，主表字段与转发路径不变。群发仍一服务一条，决策跟这次调用走。
+
 ## [3.3.8] - 2026-09-20
 
 ### 新增

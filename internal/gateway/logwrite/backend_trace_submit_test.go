@@ -69,6 +69,8 @@ func TestWriteBackendTraceLogSyncDoesNotBlockCaller(t *testing.T) {
 			nil,
 			"demo-svc",
 			1,
+			"round-robin",
+			"STATIC node=n1 url=http://backend.example candidates=1",
 		)
 	}()
 	select {
@@ -123,6 +125,8 @@ func TestWriteBackendTraceLogSyncWritesExpectedFields(t *testing.T) {
 		nil,
 		"echo",
 		2,
+		"round-robin",
+		"INTERNAL node=n1 url=http://backend.example/v1/echo candidates=2",
 	); err != nil {
 		t.Fatalf("WriteBackendTraceLogSync: %v", err)
 	}
@@ -148,6 +152,12 @@ func TestWriteBackendTraceLogSyncWritesExpectedFields(t *testing.T) {
 	if log.SuccessFlag != "Y" {
 		t.Fatalf("successFlag = %q", log.SuccessFlag)
 	}
+	if log.LoadBalancerStrategy != "round-robin" {
+		t.Fatalf("strategy = %q", log.LoadBalancerStrategy)
+	}
+	if log.LoadBalancerDecision != "INTERNAL node=n1 url=http://backend.example/v1/echo candidates=2" {
+		t.Fatalf("decision = %q", log.LoadBalancerDecision)
+	}
 }
 
 func TestWriteBackendTraceLogSyncSkipsMissingServiceID(t *testing.T) {
@@ -161,7 +171,7 @@ func TestWriteBackendTraceLogSyncSkipsMissingServiceID(t *testing.T) {
 	})
 
 	ctx := newBackendTraceTestContext(instanceID, "TRACE-BACKEND-SKIP", "tenant-backend")
-	_ = WriteBackendTraceLogSync("", ctx, "", "", "GET", "http://x", 0, time.Now(), time.Now(), 200, nil, nil, nil, nil, nil, "", 0)
+	_ = WriteBackendTraceLogSync("", ctx, "", "", "GET", "http://x", 0, time.Now(), time.Now(), 200, nil, nil, nil, nil, nil, "", 0, "", "")
 	time.Sleep(50 * time.Millisecond)
 	if writer.backendCount() != 0 {
 		t.Fatalf("缺 serviceID 不应入队, got %d", writer.backendCount())
@@ -176,7 +186,7 @@ func TestCloseLogWriterWaitsBackendTrace(t *testing.T) {
 	}
 
 	ctx := newBackendTraceTestContext(instanceID, "TRACE-BACKEND-CLOSE", "tenant-backend")
-	_ = WriteBackendTraceLogSync(instanceID, ctx, "svc-close", "", "GET", "http://backend.example/", 0, time.Now(), time.Now(), 200, nil, nil, nil, nil, nil, "svc", 0)
+	_ = WriteBackendTraceLogSync(instanceID, ctx, "svc-close", "", "GET", "http://backend.example/", 0, time.Now(), time.Now(), 200, nil, nil, nil, nil, nil, "svc", 0, "", "")
 	if err := CloseLogWriter(instanceID); err != nil {
 		t.Fatalf("CloseLogWriter: %v", err)
 	}

@@ -103,10 +103,11 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 	// 执行请求和重试
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		// 每次重试都重新选择节点（避免集群中某一台异常时一直重试同一台）
-		serviceConfig, node, err := h.selectTargetNode(ctx, serviceID)
+		serviceConfig, node, decision, err := h.selectTargetNode(ctx, serviceID)
 		if err != nil {
 			// 选择节点失败，如果是重试，继续尝试；否则直接返回错误
 			lastErr = fmt.Errorf("选择目标节点失败: %w", err)
+			writeSelectNodeFailureTrace(ctx, serviceConfig, serviceID, attempt, decision, lastErr)
 			if attempt < maxRetries {
 				ctx.AddError(fmt.Errorf("选择节点失败，准备重试 (第%d次): %w", attempt+1, err))
 				if !waitRetryInterval(ctx, retryTimeout) {
@@ -124,7 +125,7 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 		}
 
 		// 执行代理请求（每次调用都会记录后端追踪日志）
-		err, attemptDuration := h.proxyRequest(ctx, serviceConfig, node, attempt, maxRetries)
+		err, attemptDuration := h.proxyRequest(ctx, serviceConfig, node, attempt, maxRetries, decision)
 		// 按本次尝试回写节点熔断：连接失败与上游 5xx 摘除该实例，4xx 不摘除
 		if node != nil {
 			statusCode, _ := ctx.GetInt(constants.BackendStatusCode)
@@ -189,7 +190,7 @@ func (h *HTTPProxy) Handle(ctx *core.Context) bool {
 // 返回值:
 // - error: 请求错误（如果有）
 // - time.Duration: 本次请求的耗时，用于重试累加
-func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.ServiceConfig, node *service.NodeConfig, retryCount int, maxRetries int) (error, time.Duration) {
+func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.ServiceConfig, node *service.NodeConfig, retryCount int, maxRetries int, decision proxyutils.DiscoveryDecision) (error, time.Duration) {
 	// 解析目标URL
 	target, err := url.Parse(node.URL)
 	if err != nil {
@@ -348,6 +349,8 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 			responseErr,
 			serviceName, // 服务名称，从 node 中获取
 			retryCount,  // 重试次数
+			decision.Strategy,
+			decision.Format(),
 		)
 		if responseErr != nil {
 			span.RecordError(responseErr)
@@ -1006,66 +1009,124 @@ func (h *HTTPProxy) createHTTPClient(config HTTPProxyConfig) *http.Client {
 	return client
 }
 
-// selectTargetNode 选择目标节点，支持服务注册中心发现
-// 返回服务配置和节点配置
-func (h *HTTPProxy) selectTargetNode(ctx *core.Context, serviceID string) (*service.ServiceConfig, *service.NodeConfig, error) {
-	// 首先尝试从服务管理器获取服务配置
+// selectTargetNode 选择目标节点，支持服务注册中心发现。
+// 决策跟这次调用返回，不写共享 ctx。
+func (h *HTTPProxy) selectTargetNode(ctx *core.Context, serviceID string) (*service.ServiceConfig, *service.NodeConfig, proxyutils.DiscoveryDecision, error) {
+	decision := proxyutils.DiscoveryDecision{Type: proxyutils.DiscoveryTypeStatic}
 	serviceConfig, exists := h.serviceManager.GetService(serviceID)
 	if !exists {
-		return nil, nil, fmt.Errorf("服务 %s 不存在", serviceID)
+		decision.Reason = "服务不存在"
+		return nil, nil, decision, fmt.Errorf("服务 %s 不存在", serviceID)
 	}
+	decision.Strategy = proxyutils.LoadBalanceStrategy(serviceConfig)
 
-	// 检查是否为服务中心服务
 	if proxyutils.IsServiceCenterService(serviceConfig.ServiceMetadata) {
-		// 使用服务中心服务发现，并与本服务配置的负载均衡策略一致地选择实例
-		node, err := h.selectNodeFromServiceCenter(ctx, serviceID, serviceConfig)
+		decision.Type = proxyutils.DiscoveryTypeInternal
+		node, err := h.selectNodeFromServiceCenter(ctx, serviceID, serviceConfig, &decision)
 		if err != nil {
-			return nil, nil, err
+			return serviceConfig, nil, decision, err
 		}
-		return serviceConfig, node, nil
+		return serviceConfig, node, decision, nil
 	}
 
-	// 使用传统的负载均衡选择节点
+	decision.Candidates = len(serviceConfig.Nodes)
 	node, err := h.serviceManager.SelectNode(serviceID, ctx)
 	if err != nil {
-		return nil, nil, err
+		decision.Reason = err.Error()
+		return serviceConfig, nil, decision, err
 	}
-	return serviceConfig, node, nil
+	proxyutils.FillSelected(&decision, node)
+	return serviceConfig, node, decision, nil
 }
 
 // selectNodeFromServiceCenter 从服务中心拉取健康实例，并用 ServiceManager 中已注册的负载均衡器选择目标节点。
-func (h *HTTPProxy) selectNodeFromServiceCenter(ctx *core.Context, serviceID string, serviceConfig *service.ServiceConfig) (*service.NodeConfig, error) {
-	nodes, err := proxyutils.CollectHealthyNodesFromServiceCenter(ctx, serviceConfig)
+func (h *HTTPProxy) selectNodeFromServiceCenter(ctx *core.Context, serviceID string, serviceConfig *service.ServiceConfig, decision *proxyutils.DiscoveryDecision) (*service.NodeConfig, error) {
+	result, err := proxyutils.CollectHealthyNodesFromServiceCenter(ctx, serviceConfig)
 	if err != nil {
+		if decision != nil {
+			if result != nil {
+				decision.Candidates = len(result.Nodes)
+				decision.LastGood = result.LastGood
+				if result.Reason != "" {
+					decision.Reason = result.Reason
+				}
+			}
+			if decision.Reason == "" {
+				decision.Reason = err.Error()
+			}
+		}
 		return nil, fmt.Errorf("从服务中心收集节点失败: %w", err)
+	}
+	if decision != nil {
+		decision.Candidates = len(result.Nodes)
+		decision.LastGood = result.LastGood
+		decision.Reason = result.Reason
 	}
 
 	services := h.serviceManager.GetServices()
 	if services == nil {
+		if decision != nil && decision.Reason == "" {
+			decision.Reason = "服务管理器未返回服务实例表"
+		}
 		return nil, fmt.Errorf("服务管理器未返回服务实例表")
 	}
 	svc, ok := services[serviceID]
 	if !ok || svc == nil {
+		if decision != nil && decision.Reason == "" {
+			decision.Reason = "服务不存在"
+		}
 		return nil, fmt.Errorf("服务 %s 不存在", serviceID)
 	}
 
-	node, err := svc.SelectNodeFromDiscoveredNodes(ctx, nodes)
+	node, err := svc.SelectNodeFromDiscoveredNodes(ctx, result.Nodes)
 	if err != nil {
+		if decision != nil {
+			decision.Reason = err.Error()
+		}
 		return nil, fmt.Errorf("注册中心实例负载均衡选择失败: %w", err)
 	}
-
-	// 记录服务发现结果到上下文
-	ctx.Set("discovery_type", "REGISTRY")
-	ctx.Set("discovered_instance", map[string]interface{}{
-		"instanceId":     node.ID,
-		"url":            node.URL,
-		"tenantId":       node.Metadata["tenantId"],
-		"serviceGroupId": node.Metadata["serviceGroupId"],
-		"serviceName":    node.Metadata["serviceName"],
-		"healthStatus":   node.Metadata["healthStatus"],
-	})
-
+	proxyutils.FillSelected(decision, node)
 	return node, nil
+}
+
+// writeSelectNodeFailureTrace 选点失败时写一条后端追踪，不改变转发/中止路径。
+func writeSelectNodeFailureTrace(ctx *core.Context, serviceConfig *service.ServiceConfig, serviceID string, retryCount int, decision proxyutils.DiscoveryDecision, err error) {
+	serviceName := ""
+	if serviceConfig != nil {
+		serviceName = serviceConfig.Name
+		if serviceID == "" {
+			serviceID = serviceConfig.ID
+		}
+		if decision.Strategy == "" {
+			decision.Strategy = proxyutils.LoadBalanceStrategy(serviceConfig)
+		}
+	}
+	method := ""
+	if ctx != nil && ctx.Request != nil {
+		method = ctx.Request.Method
+	}
+	now := time.Now()
+	_ = logwrite.WriteBackendTraceLogSync(
+		"",
+		ctx,
+		serviceID,
+		"",
+		method,
+		"",
+		0,
+		now,
+		now,
+		0,
+		nil,
+		nil,
+		nil,
+		nil,
+		err,
+		serviceName,
+		retryCount,
+		decision.Strategy,
+		decision.Format(),
+	)
 }
 
 // shouldRecordRequestBody 检查是否应该记录请求体（根据日志配置）

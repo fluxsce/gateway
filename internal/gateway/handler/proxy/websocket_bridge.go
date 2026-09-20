@@ -13,6 +13,7 @@ import (
 
 	"gateway/internal/gateway/constants"
 	"gateway/internal/gateway/core"
+	proxyutils "gateway/internal/gateway/handler/proxy/proxy-utils"
 	"gateway/internal/gateway/handler/service"
 	"gateway/internal/gateway/logwrite"
 
@@ -141,11 +142,21 @@ func (b *WebSocketBridge) Proxy(ctx *core.Context, proxyName, proxyType string) 
 		return fmt.Errorf("服务配置不存在: %s", serviceID)
 	}
 	serviceName := serviceConfig.Name
+	decision := proxyutils.DiscoveryDecision{
+		Type:       proxyutils.DiscoveryTypeStatic,
+		Strategy:   proxyutils.LoadBalanceStrategy(serviceConfig),
+		Candidates: len(serviceConfig.Nodes),
+	}
 	node, err := b.serviceManager.SelectNode(serviceID, ctx)
 	if err != nil {
 		b.failed.Add(1)
-		return fmt.Errorf("选择目标节点失败: %w", err)
+		selErr := fmt.Errorf("选择目标节点失败: %w", err)
+		decision.Reason = err.Error()
+		b.writeWebSocketBackendTrace(ctx, serviceID, serviceName, "", requestStartTime,
+			0, nil, nil, 0, 0, selErr, decision)
+		return selErr
 	}
+	proxyutils.FillSelected(&decision, node)
 	config := b.resolveConfig(serviceConfig)
 	if len(config.Subprotocols) == 0 {
 		config.Subprotocols = websocket.Subprotocols(ctx.Request)
@@ -176,7 +187,7 @@ func (b *WebSocketBridge) Proxy(ctx *core.Context, proxyName, proxyType string) 
 			}
 		}
 		b.writeWebSocketBackendTrace(ctx, serviceID, serviceName, targetURLStr, requestStartTime,
-			responseStatusCode, responseHeaders, nil, 0, 0, responseErr)
+			responseStatusCode, responseHeaders, nil, 0, 0, responseErr, decision)
 		elapsed := time.Since(requestStartTime)
 		b.serviceManager.RecordNodeCircuitResult(serviceID, node.ID, false, elapsed, responseErr)
 		return fmt.Errorf("连接WebSocket上游失败: %w", err)
@@ -203,7 +214,7 @@ func (b *WebSocketBridge) Proxy(ctx *core.Context, proxyName, proxyType string) 
 		_ = targetConn.Close()
 		responseErr = err
 		b.writeWebSocketBackendTrace(ctx, serviceID, serviceName, targetURLStr, requestStartTime,
-			responseStatusCode, responseHeaders, nil, 0, 0, responseErr)
+			responseStatusCode, responseHeaders, nil, 0, 0, responseErr, decision)
 		elapsed := time.Since(requestStartTime)
 		// 上游已握手成功，节点记成功。
 		b.serviceManager.RecordNodeCircuitResult(serviceID, node.ID, true, elapsed, nil)
@@ -260,7 +271,7 @@ func (b *WebSocketBridge) Proxy(ctx *core.Context, proxyName, proxyType string) 
 	}
 	b.writeWebSocketBackendTrace(ctx, serviceID, serviceName, targetURLStr, requestStartTime,
 		responseStatusCode, responseHeaders, session.responseSampleSnapshot(),
-		clampInt64ToInt(bytesRx), clampInt64ToInt(bytesTx), responseErr)
+		clampInt64ToInt(bytesRx), clampInt64ToInt(bytesTx), responseErr, decision)
 	elapsed := time.Since(requestStartTime)
 	b.serviceManager.RecordNodeCircuitResult(serviceID, node.ID, sessionErr == nil, elapsed, sessionErr)
 	return sessionErr
@@ -300,6 +311,7 @@ func (b *WebSocketBridge) writeWebSocketBackendTrace(
 	responseBody []byte,
 	requestSize, responseSize int,
 	responseErr error,
+	decision proxyutils.DiscoveryDecision,
 ) {
 	var forwardBody []byte
 	if bodyData, exists := ctx.Get("request_body"); exists {
@@ -329,6 +341,8 @@ func (b *WebSocketBridge) writeWebSocketBackendTrace(
 		responseErr,
 		serviceName,
 		0,
+		decision.Strategy,
+		decision.Format(),
 	)
 }
 

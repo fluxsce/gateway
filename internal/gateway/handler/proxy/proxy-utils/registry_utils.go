@@ -57,7 +57,9 @@ func IsServiceCenterService(metadata map[string]string) bool {
 //  2. 从 ServiceMetadata 解析 tenantId、namespaceId、groupName、serviceName。
 //  3. 走同进程 servicecenterv3.InProcess()，按 namespaceId 反查中心；中心未就绪时沿用未过期的上次健康名单。
 //  4. 仅保留 UP 且 HEALTHY 的实例，转为 service.NodeConfig 供负载均衡器挑选。
-func CollectHealthyNodesFromServiceCenter(ctx *core.Context, serviceConfig *service.ServiceConfig) ([]*service.NodeConfig, error) {
+//
+// LastGood 为 true 时 Nodes 来自未过期的上次健康名单，Reason 说明为何没用实时视图。
+func CollectHealthyNodesFromServiceCenter(ctx *core.Context, serviceConfig *service.ServiceConfig) (*CollectResult, error) {
 	if serviceConfig == nil {
 		return nil, fmt.Errorf("服务配置不能为空")
 	}
@@ -86,7 +88,7 @@ func CollectHealthyNodesFromServiceCenter(ctx *core.Context, serviceConfig *serv
 	if adapter == nil {
 		if nodes, ok := recallLastGood(key); ok {
 			logLastGood(ctx, metadata, len(nodes), "服务中心未初始化")
-			return nodes, nil
+			return &CollectResult{Nodes: nodes, LastGood: true, Reason: "服务中心未初始化"}, nil
 		}
 		return nil, fmt.Errorf("服务中心未初始化")
 	}
@@ -99,7 +101,7 @@ func CollectHealthyNodesFromServiceCenter(ctx *core.Context, serviceConfig *serv
 	if err != nil {
 		if nodes, ok := recallLastGood(key); ok && useLastGoodOnError(err) {
 			logLastGood(ctx, metadata, len(nodes), err.Error())
-			return nodes, nil
+			return &CollectResult{Nodes: nodes, LastGood: true, Reason: err.Error()}, nil
 		}
 		return nil, fmt.Errorf("从服务中心发现失败: %w", err)
 	}
@@ -122,7 +124,7 @@ func CollectHealthyNodesFromServiceCenter(ctx *core.Context, serviceConfig *serv
 			"serviceName", metadata.ServiceName,
 			"healthyCount", len(nodes))
 	}
-	return nodes, nil
+	return &CollectResult{Nodes: nodes}, nil
 }
 
 func useLastGoodOnError(err error) bool {
