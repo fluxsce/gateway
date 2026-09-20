@@ -121,7 +121,7 @@ const stopVisibleWatch = watch(
   },
 )
 
-const { service, handleSearch } = useServiceListPage(props.gatewayInstanceId, gridRef, searchFormRef)
+const { service, handleSearch } = useServiceListPage(() => props.gatewayInstanceId, gridRef, searchFormRef)
 
 const handleUpdateVisible = (visible: boolean) => {
   modalVisible.value = visible

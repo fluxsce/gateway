@@ -6,14 +6,14 @@
 
 import type { RsSearchFormExpose } from '@/components/form/rs-search'
 import type { RsGridExpose } from '@/components/rs-grid'
-import type { Ref } from 'vue'
+import type { MaybeRefOrGetter, Ref } from 'vue'
 import { useRouteListService } from './service'
 
 /**
  * 路由列表查询页面级 Hook
  */
 export function useRouteListPage(
-  gatewayInstanceId?: string,
+  gatewayInstanceId?: MaybeRefOrGetter<string | undefined>,
   _gridRef?: Ref<RsGridExpose | null>,
   searchFormRef?: Ref<RsSearchFormExpose | null>,
 ) {

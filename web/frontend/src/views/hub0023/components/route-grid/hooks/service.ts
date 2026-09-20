@@ -7,16 +7,24 @@ import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
 import { useAppMessage } from '@/composables/useAppMessage'
 import type { RsSearchFormExpose } from '@/components/form/rs-search'
-import type { Ref } from 'vue'
+import { toValue, type MaybeRefOrGetter, type Ref } from 'vue'
 import { queryRouteConfigs } from '@/views/hub0021/api'
 import type { RouteConfig } from '@/views/hub0021/components/routes/types'
 import { useRouteListModel } from './model'
+
+function resolveGatewayInstanceId(
+  gatewayInstanceId?: MaybeRefOrGetter<string | undefined>,
+): string | undefined {
+  const id = toValue(gatewayInstanceId)
+  const trimmed = typeof id === 'string' ? id.trim() : ''
+  return trimmed || undefined
+}
 
 /**
  * 路由列表服务 Hook（纯业务逻辑）
  */
 export function useRouteListService(
-  gatewayInstanceId?: string,
+  gatewayInstanceId?: MaybeRefOrGetter<string | undefined>,
   searchFormRef?: Ref<RsSearchFormExpose | null>,
 ) {
   const message = useAppMessage()
@@ -58,12 +66,16 @@ export function useRouteListService(
           )
         : {}
 
+      const boundInstanceId = resolveGatewayInstanceId(gatewayInstanceId)
+
       // 构建请求参数：合并查询条件和分页参数
       const params = {
         // 查询条件
         ...effectiveSearchParams,
-        // 如果 searchParams 中没有 gatewayInstanceId，且构造函数参数有，则使用构造函数参数的
-        ...(effectiveSearchParams.gatewayInstanceId === undefined && gatewayInstanceId ? { gatewayInstanceId } : {}),
+        // 弹窗实例 ID 可能后变，每次加载再取当前值
+        ...(effectiveSearchParams.gatewayInstanceId === undefined && boundInstanceId
+          ? { gatewayInstanceId: boundInstanceId }
+          : {}),
         // 分页参数（函数内部会自动使用配置常量作为默认值）
         ...createBackendPaginationParams(
           pageInfo.value?.pageIndex,

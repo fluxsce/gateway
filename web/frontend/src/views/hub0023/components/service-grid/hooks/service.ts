@@ -5,18 +5,26 @@
 import { createBackendPaginationParams } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
-import { queryAllServiceDefinitions } from '@/views/hub0021/api'
+import { queryServiceDefinitions } from '@/views/hub0021/api'
 import type { ServiceDefinition } from '@/views/hub0022/components/service/types'
 import { useAppMessage } from '@/composables/useAppMessage'
 import type { RsSearchFormExpose } from '@/components/form/rs-search'
-import type { Ref } from 'vue'
+import { toValue, type MaybeRefOrGetter, type Ref } from 'vue'
 import { useServiceListModel } from './model'
+
+function resolveGatewayInstanceId(
+  gatewayInstanceId?: MaybeRefOrGetter<string | undefined>,
+): string | undefined {
+  const id = toValue(gatewayInstanceId)
+  const trimmed = typeof id === 'string' ? id.trim() : ''
+  return trimmed || undefined
+}
 
 /**
  * 服务列表服务 Hook（纯业务逻辑）
  */
 export function useServiceListService(
-  gatewayInstanceId?: string,
+  gatewayInstanceId?: MaybeRefOrGetter<string | undefined>,
   searchFormRef?: Ref<RsSearchFormExpose | null>,
 ) {
   const message = useAppMessage()
@@ -58,25 +66,21 @@ export function useServiceListService(
           )
         : {}
 
-      // 构建请求参数：合并查询条件和分页参数
-      // 注意：使用 queryAllServiceDefinitions，不依赖代理配置ID
+      const boundInstanceId = resolveGatewayInstanceId(gatewayInstanceId)
+
+      // 构建请求参数：合并查询条件和分页参数，按当前网关实例过滤
       const params = {
-        // 查询条件（排除 gatewayInstanceId 和 proxyConfigId）
-        ...Object.fromEntries(
-          Object.entries(effectiveSearchParams).filter(
-            ([key]) => key !== 'gatewayInstanceId' && key !== 'proxyConfigId'
-          )
-        ),
-        // 分页参数（函数内部会自动使用配置常量作为默认值）
+        ...effectiveSearchParams,
+        ...(effectiveSearchParams.gatewayInstanceId === undefined && boundInstanceId
+          ? { gatewayInstanceId: boundInstanceId }
+          : {}),
         ...createBackendPaginationParams(
           pageInfo.value?.pageIndex,
           pageInfo.value?.pageSize
         )
       }
 
-      // 调用 API（POST 请求，参数通过 body 传递）
-      // 使用 queryAllServiceDefinitions，不依赖代理配置ID
-      const response: JsonDataObj = await queryAllServiceDefinitions(params)
+      const response: JsonDataObj = await queryServiceDefinitions(params)
 
       if (isApiSuccess(response)) {
         // 解析业务数据

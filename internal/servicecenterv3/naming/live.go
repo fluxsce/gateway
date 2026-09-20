@@ -67,16 +67,21 @@ func (a *App) liveTTL(inst *model.Node) time.Duration {
 }
 
 func (a *App) livePut(ctx context.Context, inst *model.Node) {
+	_ = a.putLive(ctx, inst)
+}
+
+func (a *App) putLive(ctx context.Context, inst *model.Node) error {
 	if !a.hasLive() || inst == nil {
-		return
+		return nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, liveOpTimeout)
 	defer cancel()
 	if err := a.live.Put(ctx, inst, a.liveTTL(inst)); err != nil {
 		a.noteLiveErr("put", inst.NodeID, err)
-		return
+		return contract.ErrLiveUnavailable
 	}
 	a.noteLiveOK()
+	return nil
 }
 
 // liveWriteOnRegister 首次写入整包 Put；本机已有且身份未变只续 TTL。
@@ -140,7 +145,8 @@ func (a *App) markLiveRefreshed() {
 }
 
 // ingestLiveNode 灌活视图。本机 Owner 的心跳/连接以 Cache 为准（心跳只续 Redis TTL，JSON 可能旧）。
-// 副本也不得用更旧的 LastBeatTime 回退。Status / 地址仍取活视图，保证管理端下线立刻可见。
+// 副本也不得用更旧的 LastBeatTime 回退。活视图更新时 Status / 地址取 Redis，保证对端立刻看到下线。
+// 本机/事件里的 LastBeatTime 更新时保留 Cache 的 Status，避免管理端下线后被未改写的旧 Redis 正文盖回 UP。
 func (a *App) ingestLiveNode(n *model.Node) *model.Node {
 	n = a.adoptLiveNode(n)
 	if n == nil {
@@ -152,6 +158,9 @@ func (a *App) ingestLiveNode(n *model.Node) *model.Node {
 	}
 	if !prev.LastBeatTime.IsZero() && prev.LastBeatTime.After(n.LastBeatTime) {
 		n.LastBeatTime = prev.LastBeatTime
+		if prev.Status != "" {
+			n.Status = prev.Status
+		}
 	}
 	if !a.ownedLocally(prev) {
 		return n

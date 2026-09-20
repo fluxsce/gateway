@@ -256,7 +256,13 @@ export function useGatewayLogModel() {
             gatewayInstanceId: formData.gatewayInstanceId || '',
             'onUpdate:modelValue': (value: string) => ctx.onUpdate(value),
             'onUpdate:gatewayInstanceId': (value: string) => {
+              const prev = String(formData.gatewayInstanceId || '').trim()
+              const next = String(value || '').trim()
               ctx.setFieldValue('gatewayInstanceId', value)
+              if (prev !== next) {
+                ctx.setFieldValue('routeName', '')
+                ctx.setFieldValue('serviceName', '')
+              }
             },
           })
         },

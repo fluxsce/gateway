@@ -113,6 +113,7 @@ func CollectHealthyNodesFromServiceCenter(ctx *core.Context, serviceConfig *serv
 		nodes = append(nodes, convertInstanceToNodeConfig(inst, protocol))
 	}
 	if len(nodes) == 0 {
+		forgetLastGood(key)
 		return nil, fmt.Errorf("未找到健康的服务节点")
 	}
 	rememberLastGood(key, nodes)
@@ -140,6 +141,10 @@ func lastGoodKey(m *ServiceCenterMetadata) string {
 func rememberLastGood(key string, nodes []*service.NodeConfig) {
 	cp := cloneNodeConfigs(nodes)
 	lastGood.Store(key, lastGoodEntry{nodes: cp, at: time.Now()})
+}
+
+func forgetLastGood(key string) {
+	lastGood.Delete(key)
 }
 
 func recallLastGood(key string) ([]*service.NodeConfig, bool) {

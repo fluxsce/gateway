@@ -383,6 +383,47 @@ func TestAdminDownVisibleOnPeerDiscover(t *testing.T) {
 	}
 }
 
+func TestAdminDownNotOverwrittenByStaleLiveUP(t *testing.T) {
+	resetSyncHooks(t)
+	view := newSharedLive(t)
+	a := newLiveApp(t, "c", "gw1", view)
+	LocalGatewayID = "gw1"
+	cc := contract.CallContext{TenantID: "t", CenterInstanceName: "c", NamespaceID: "ns"}
+	if err := a.RegisterNode(context.Background(), cc, &model.Node{
+		NodeID: "n1", GroupName: "g", ServiceName: "order",
+		IP: "10.0.0.1", Port: 80, Ephemeral: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.UpdateNode(context.Background(), cc, &model.Node{NodeID: "n1", Status: model.NodeDown}); err != nil {
+		t.Fatal(err)
+	}
+	stale := &model.Node{
+		NodeID: "n1", TenantID: "t", CenterInstanceName: "c", NamespaceID: "ns",
+		GroupName: "g", ServiceName: "order", IP: "10.0.0.1", Port: 80,
+		Ephemeral: true, Status: model.NodeUP, HealthyStatus: model.Healthy,
+		LastBeatTime: time.Now().Add(-time.Minute),
+	}
+	if err := view.Put(context.Background(), stale, time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	svc, err := a.GetService(context.Background(), cc, "g", "order")
+	if err != nil || len(svc.Nodes) != 1 {
+		t.Fatalf("err=%v nodes=%v", err, svc)
+	}
+	if svc.Nodes[0].Status != model.NodeDown {
+		t.Fatalf("stale live UP must not cover admin DOWN, got %s", svc.Nodes[0].Status)
+	}
+	if svc.Nodes[0].IsHealthy() {
+		t.Fatal("admin DOWN must stay out of healthy discovery")
+	}
+	a.MarkViewWarm()
+	list, err := a.ListNodes(context.Background(), cc, "g", "order", true)
+	if err != nil || len(list) != 0 {
+		t.Fatalf("healthy list must be empty after admin DOWN, err=%v n=%d", err, len(list))
+	}
+}
+
 func TestDeregisterNodeReadsLiveWhenCacheMiss(t *testing.T) {
 	resetSyncHooks(t)
 	view := newSharedLive(t)

@@ -24,6 +24,15 @@ func TestLastGoodProtectsEmptyDiscovery(t *testing.T) {
 	}
 }
 
+func TestForgetLastGoodOnEmptyHealthy(t *testing.T) {
+	key := "t||ns|g|svc-forget"
+	rememberLastGood(key, []*service.NodeConfig{{ID: "n1", URL: "http://10.0.0.1:80", Weight: 1, Health: true, Enabled: true}})
+	forgetLastGood(key)
+	if _, ok := recallLastGood(key); ok {
+		t.Fatal("empty healthy list must drop last good")
+	}
+}
+
 func TestLastGoodExpires(t *testing.T) {
 	key := "t||ns|g|svc-expired"
 	lastGood.Store(key, lastGoodEntry{

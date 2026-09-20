@@ -470,7 +470,7 @@ func (a *App) UpdateNode(ctx context.Context, cc contract.CallContext, inst *mod
 		return err
 	}
 	a.cache.PutNode(current)
-	a.livePut(ctx, current)
+	liveErr := a.putLive(ctx, current)
 	eventType := model.EventNodeUpdated
 	if current.Status == model.NodeDown || current.Status == model.NodeOutOfService {
 		eventType = model.EventNodeOffline
@@ -486,7 +486,7 @@ func (a *App) UpdateNode(ctx context.Context, cc contract.CallContext, inst *mod
 		Service:            svc,
 		ChangedNode:        current,
 	})
-	return nil
+	return liveErr
 }
 
 // ListNodes 列出服务下节点；healthyOnly 为 true 时只返回 UP 且 HEALTHY。
