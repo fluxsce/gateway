@@ -3,6 +3,7 @@
  *
  * API路径: /gateway/hub0009
  * - POST /getEnvSettings - 读取归档策略、归档任务、Web 访问与全局环境变量
+ * - POST /getSystemHealth - 探测平台库、ClickHouse、Mongo 与缓存
  * - POST /saveEnvSetting - 保存单个分组
  * - POST /saveEnvVar - 新增或更新一条全局环境变量
  * - POST /deleteEnvVar - 删除一条全局环境变量
@@ -18,6 +19,11 @@ const envSettingApi = createApi(moduleApiPrefix('hub0009'))
 /** 读取当前租户环境设置。 */
 export const getEnvSettings = async (): Promise<JsonDataObj> => {
   return envSettingApi.post('/getEnvSettings', {})
+}
+
+/** 探测本进程已装配依赖是否可达。 */
+export const getSystemHealth = async (): Promise<JsonDataObj> => {
+  return envSettingApi.post('/getSystemHealth', {})
 }
 
 /** 保存单个设置分组。 */

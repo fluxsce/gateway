@@ -12,7 +12,10 @@
         <h2 class="env-settings__title">{{ activeLabel }}</h2>
       </header>
 
-      <div class="env-settings__body" :class="{ 'env-settings__body--fill': activeTab === 'envVars' }">
+      <div
+        class="env-settings__body"
+        :class="{ 'env-settings__body--fill': activeTab === 'envVars' }"
+      >
         <template v-if="activeTab === 'retention'">
           <RsAlert type="info" class="hint">{{ t('retention.hint') }}</RsAlert>
           <RsForm
@@ -173,6 +176,8 @@
           </RsForm>
         </template>
 
+        <HealthPanel v-else-if="activeTab === 'health'" class="env-settings__vars" />
+
         <EnvVarsPanel
           v-else
           ref="envVarsPanelRef"
@@ -205,6 +210,7 @@ import {
 } from '@/ui'
 import { computed, onMounted, ref } from 'vue'
 import EnvVarsPanel from './components/EnvVarsPanel.vue'
+import HealthPanel from './components/HealthPanel.vue'
 import { useEnvironmentSettings } from './hooks'
 import type { RetentionSettings } from './types'
 
@@ -212,7 +218,7 @@ defineOptions({ name: 'EnvironmentSettings' })
 
 type RetentionDayKey = Exclude<keyof RetentionSettings, 'currentVersion'>
 type WebTimeoutNumberKey = 'requestTimeoutSeconds' | 'sessionExpireHours'
-type SettingTab = 'retention' | 'retentionJob' | 'webTimeout' | 'envVars'
+type SettingTab = 'retention' | 'retentionJob' | 'webTimeout' | 'envVars' | 'health'
 
 const { t } = useModuleI18n('hub0009')
 const activeTab = ref<SettingTab>('retention')
@@ -221,6 +227,7 @@ const navItems = computed<RsMenuItem[]>(() => [
   { key: 'retentionJob', label: t('tabs.retentionJob'), icon: 'clock' },
   { key: 'webTimeout', label: t('tabs.webTimeout'), icon: 'timer' },
   { key: 'envVars', label: t('tabs.envVars'), icon: 'key' },
+  { key: 'health', label: t('tabs.health'), icon: 'activity' },
 ])
 const activeLabel = computed(
   () => navItems.value.find((item) => item.key === activeTab.value)?.label || t('moduleName'),

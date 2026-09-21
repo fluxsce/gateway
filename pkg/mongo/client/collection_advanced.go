@@ -211,6 +211,15 @@ func (c *Collection) CreateIndex(ctx context.Context, model types.IndexModel) (s
 	return name, nil
 }
 
+// CreateDriverIndex 按官方驱动 IndexModel 建索引，保留复合键顺序以及 Unique、TTL、Name。
+func (c *Collection) CreateDriverIndex(ctx context.Context, model mongo.IndexModel) (string, error) {
+	name, err := c.coll.Indexes().CreateOne(ctx, model)
+	if err != nil {
+		return "", errors.NewIndexError("failed to create index", err)
+	}
+	return name, nil
+}
+
 // ListIndexes 列出所有索引
 // 返回集合中所有索引的信息
 func (c *Collection) ListIndexes(ctx context.Context) (types.MongoCursor, error) {

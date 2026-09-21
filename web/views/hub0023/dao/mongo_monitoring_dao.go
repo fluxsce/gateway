@@ -19,11 +19,8 @@ import (
 // 专门用于从 HUB_GW_ACCESS_LOG 表中抽取各种监控统计数据
 //
 // 重要提示：
-// 1. 为了优化查询性能，建议在MongoDB中创建以下复合索引：
-//   - {gatewayStartProcessingTime: 1, tenantId: 1, gatewayInstanceId: 1}
-//   - {requestPath: 1, gatewayStartProcessingTime: 1}
-//   - {serviceName: 1, gatewayStartProcessingTime: 1}
-//   - {gatewayStatusCode: 1, gatewayStartProcessingTime: 1}
+// 1. 监控与列表共用最小索引 {gatewayInstanceId, gatewayStartProcessingTime}（见 mongo.js）。
+//    时间范围已限制 24 小时，路由/状态等筛选在实例+时间命中后再过滤，不再各建一条。
 //
 // 2. 所有聚合查询都使用投影(projection)来限制返回字段，避免传输不必要的大字段
 // 3. 查询时间范围已在控制器层限制为24小时内，防止大数据量查询

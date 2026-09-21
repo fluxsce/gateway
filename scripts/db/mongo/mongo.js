@@ -1,184 +1,60 @@
 // ==========================================
-// MongoDB 索引创建脚本 - 完整版
-// 用于优化 HUB_GW_ACCESS_LOG 和 HUB_GW_BACKEND_TRACE_LOG 集合的查询性能
-// 基于 mongo_query_dao.go 和 mongo_monitoring_dao.go 中的查询条件设计
-// 对齐 MySQL 版本（scripts/db/mysql.sql 第1229-1335行）
+// MongoDB 索引：最小集（按写入成本约束）
+// 覆盖详情、按实例列表/监控、TTL 清理。
+// 路由名、状态码、IP、路径等筛选走实例+时间后再过滤，不再各建一条。
+// 对齐 GetMongoInitCommands（internal/script/mongo/mongo_commands.go）
 // ==========================================
 
-// 使用目标数据库
 // use your_database_name;
 
-print("开始创建 MongoDB 索引...\n");
+print("开始创建 MongoDB 最小索引集...\n");
 
-// ==========================================
-// 第一部分：HUB_GW_ACCESS_LOG 主表索引
-// ==========================================
-
-// 获取 HUB_GW_ACCESS_LOG 集合
 var collection = db.HUB_GW_ACCESS_LOG;
 
 print("[HUB_GW_ACCESS_LOG] 创建索引...");
 
-// ==========================================
-// 1. 主键索引（必须）
-// ==========================================
-
-// 主键唯一索引：tenantId + traceId
-// 用于 GetGatewayLogByKey 方法的精确查询
+// 详情 GetGatewayLogByKey：{tenantId, traceId}。不加 unique，避免历史重复键导致整条建失败。
 collection.createIndex(
-    { "tenantId": 1, "traceId": 1, "gatewayStartProcessingTime": 1 }, 
-    { 
-        "name": "idx_tenantId_traceId_unique", 
-        "unique": true,
-        "background": true
-    }
+    { "tenantId": 1, "traceId": 1 },
+    { "name": "idx_tenant_trace", "background": true }
 );
-print("  1. idx_tenantId_traceId_unique (主键唯一索引)");
+print("  1. idx_tenant_trace (详情)");
 
+// 列表 / 监控 / 应用层清理：实例 + 时间倒序（前端按实例查，cleaner 同条件）
 collection.createIndex(
-    { "gatewayStartProcessingTime": 1, "tenantId": 1, "gatewayInstanceId": 1 }, 
-    { "name": "idx_monitoring_main", "background": true }
+    { "gatewayInstanceId": 1, "gatewayStartProcessingTime": -1 },
+    { "name": "idx_instance_time", "background": true }
 );
-print("  2. idx_monitoring_main (监控查询主索引)");
+print("  2. idx_instance_time (列表/监控/清理)");
 
+// TTL 必须单字段 Date。与复合索引键不同，可并存。
 collection.createIndex(
-    { "gatewayStartProcessingTime": 1, "requestPath": 1 }, 
-    { "name": "idx_hot_routes", "background": true }
-);
-print("  3. idx_hot_routes (路由热点索引)");
-
-collection.createIndex(
-    { "tenantId": 1, "gatewayStartProcessingTime": 1, "gatewayStatusCode": 1 }, 
-    { "name": "idx_log_query_main", "background": true }
-);
-print("  4. idx_log_query_main (日志查询主索引)");
-
-collection.createIndex(
-    { "gatewayStartProcessingTime": 1, "routeName": 1 }, 
-    { "name": "idx_route_name", "background": true }
-);
-print("  5. idx_route_name (路由名称索引)");
-
-collection.createIndex(
-    { "totalProcessingTimeMs": 1, "gatewayStartProcessingTime": 1 }, 
-    { "name": "idx_response_time", "background": true, "sparse": true }
-);
-print("  6. idx_response_time (响应时间索引)");
-
-collection.createIndex(
-    { "gatewayStartProcessingTime": 1, "routeConfigId": 1 }, 
-    { "name": "idx_route_config_id", "background": true }
-);
-print("  7. idx_route_config_id (路由配置ID索引)");
-
-collection.createIndex(
-    { "gatewayStartProcessingTime": 1, "serviceDefinitionId": 1 }, 
-    { "name": "idx_service_definition_id", "background": true }
-);
-print("  8. idx_service_definition_id (服务定义ID索引)");
-
-collection.createIndex(
-    { "gatewayInstanceId": 1, "gatewayStartProcessingTime": 1 }, 
-    { "name": "idx_gateway_instance_id", "background": true }
-);
-print("  9. idx_gateway_instance_id (网关实例ID索引)");
-
-collection.createIndex(
-    { "gatewayInstanceName": 1, "gatewayStartProcessingTime": 1 }, 
-    { "name": "idx_gateway_instance_name", "background": true }
-);
-print(" 10. idx_gateway_instance_name (网关实例名称索引)");
-
-collection.createIndex(
-    { "serviceName": 1, "gatewayStartProcessingTime": 1 }, 
-    { "name": "idx_service_name", "background": true }
-);
-print(" 11. idx_service_name (服务名称索引)");
-
-collection.createIndex(
-    { "clientIpAddress": 1, "gatewayStartProcessingTime": 1 }, 
-    { "name": "idx_client_ip", "background": true }
-);
-print(" 12. idx_client_ip (客户端IP索引)");
-
-collection.createIndex(
-    { "gatewayStatusCode": 1, "gatewayStartProcessingTime": 1 }, 
-    { "name": "idx_status_code", "background": true }
-);
-print(" 13. idx_status_code (状态码索引)");
-
-collection.createIndex(
-    { "proxyType": 1, "gatewayStartProcessingTime": 1 }, 
-    { "name": "idx_proxy_type", "background": true }
-);
-print(" 14. idx_proxy_type (代理类型索引)");
-
-collection.createIndex(
-    { "gatewayStartProcessingTime": 1 }, 
+    { "gatewayStartProcessingTime": 1 },
     { "name": "idx_ttl_cleanup", "background": true, "expireAfterSeconds": 2592000 }
 );
-print(" 15. idx_ttl_cleanup (TTL索引，30天过期)");
+print("  3. idx_ttl_cleanup (TTL 30天)");
 
-print("[HUB_GW_ACCESS_LOG] 索引创建完成\n");
-
-// ==========================================
-// 第二部分：HUB_GW_BACKEND_TRACE_LOG 从表索引
-// ==========================================
+print("[HUB_GW_ACCESS_LOG] 完成（3 条 + 默认 _id）\n");
 
 print("[HUB_GW_BACKEND_TRACE_LOG] 创建索引...");
 
-// 获取 HUB_GW_BACKEND_TRACE_LOG 集合
 var backendTraceCollection = db.HUB_GW_BACKEND_TRACE_LOG;
 
+// 按 trace 拉列表走左前缀；按主键取单条带上 backendTraceId
 backendTraceCollection.createIndex(
-    { "traceId": 1, "backendTraceId": 1 }, 
-    { "name": "idx_traceId_backendTraceId_unique", "unique": true, "background": true }
-);
-print("  1. idx_traceId_backendTraceId_unique (主键唯一索引)");
-
-backendTraceCollection.createIndex(
-    { "tenantId": 1, "traceId": 1 }, 
+    { "tenantId": 1, "traceId": 1, "backendTraceId": 1 },
     { "name": "idx_tenant_trace", "background": true }
 );
-print("  2. idx_tenant_trace (租户追踪索引)");
+print("  1. idx_tenant_trace (从表列表/单条)");
 
 backendTraceCollection.createIndex(
-    { "tenantId": 1, "serviceDefinitionId": 1, "requestStartTime": 1 }, 
-    { "name": "idx_tenant_service_time", "background": true }
-);
-print("  3. idx_tenant_service_time (服务维度索引)");
-
-backendTraceCollection.createIndex(
-    { "requestStartTime": 1 }, 
-    { "name": "idx_request_start_time", "background": true }
-);
-print("  4. idx_request_start_time (时间索引)");
-
-backendTraceCollection.createIndex(
-    { "tenantId": 1, "traceStatus": 1, "requestStartTime": 1 }, 
-    { "name": "idx_tenant_status_time", "background": true }
-);
-print("  5. idx_tenant_status_time (追踪状态索引)");
-
-backendTraceCollection.createIndex(
-    { "tenantId": 1, "addTime": 1 }, 
-    { "name": "idx_tenant_add_time", "background": true }
-);
-print("  6. idx_tenant_add_time (审计时间索引)");
-
-backendTraceCollection.createIndex(
-    { "requestStartTime": 1 }, 
+    { "requestStartTime": 1 },
     { "name": "idx_ttl_cleanup", "background": true, "expireAfterSeconds": 2592000 }
 );
-print("  7. idx_ttl_cleanup (TTL索引，30天过期)");
+print("  2. idx_ttl_cleanup (TTL 30天，兼时间扫描)");
 
-print("[HUB_GW_BACKEND_TRACE_LOG] 索引创建完成\n");
+print("[HUB_GW_BACKEND_TRACE_LOG] 完成（2 条 + 默认 _id）\n");
 
-// ==========================================
-// 索引创建完成汇总
-// ==========================================
-
-print("MongoDB 索引创建完成");
-print("- 主表索引：16个（含默认_id索引）");
-print("- 从表索引：8个（含默认_id索引）");
-print("- TTL设置：30天自动清理过期数据");
+print("MongoDB 最小索引集创建完成");
+print("- 主表 3 条，从表 2 条（另有默认 _id）");
+print("- 程序启动会自动建这 5 条并删除集合上其余旧索引，无需手工 drop");

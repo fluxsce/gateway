@@ -66,285 +66,26 @@ func (im IndexModel) ToMongoIndexModel() mongo.IndexModel {
 	}
 }
 
-// GetMongoInitCommands 获取 MongoDB 初始化命令列表
-// 这些命令是从 scripts/db/mongo.js 转换而来的
+// managedMongoLogCollections 仅对这些网关日志集合做索引对齐，禁止扫库或动其它业务集合。
+var managedMongoLogCollections = map[string]struct{}{
+	"HUB_GW_ACCESS_LOG":        {},
+	"HUB_GW_BACKEND_TRACE_LOG": {},
+}
+
+// IsManagedMongoLogCollection 是否为本系统日志集合。其它集合一律不建、不删索引。
+func IsManagedMongoLogCollection(name string) bool {
+	_, ok := managedMongoLogCollections[name]
+	return ok
+}
+
+// GetMongoInitCommands 返回启动时创建的最小索引集，与 scripts/db/mongo/mongo.js 对齐。
+// 只覆盖详情、按实例列表/监控、TTL；不为每个筛选项各建一条，以降低百万级写入维护成本。
 func GetMongoInitCommands() []MongoIndexCommand {
-	ttl30Days := int32(2592000) // 30天 = 2592000秒
+	ttl30Days := int32(2592000) // 30天
 
 	return []MongoIndexCommand{
-		// ==========================================
-		// HUB_GW_ACCESS_LOG 集合索引
-		// ==========================================
-
-		// 1. 主键唯一索引：tenantId + traceId + gatewayStartProcessingTime
 		{
 			CollectionName: "HUB_GW_ACCESS_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "tenantId", Value: 1},
-					{Key: "traceId", Value: 1},
-					{Key: "gatewayStartProcessingTime", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_tenantId_traceId_unique",
-					Unique:     true,
-					Background: true,
-				},
-			},
-			Description: "主键唯一索引 - 用于 GetGatewayLogByKey 方法的精确查询",
-		},
-
-		// 2. 监控查询主索引
-		{
-			CollectionName: "HUB_GW_ACCESS_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "gatewayStartProcessingTime", Value: 1},
-					{Key: "tenantId", Value: 1},
-					{Key: "gatewayInstanceId", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_monitoring_main",
-					Background: true,
-				},
-			},
-			Description: "监控查询主索引",
-		},
-
-		// 3. 路由热点索引
-		{
-			CollectionName: "HUB_GW_ACCESS_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "gatewayStartProcessingTime", Value: 1},
-					{Key: "requestPath", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_hot_routes",
-					Background: true,
-				},
-			},
-			Description: "路由热点索引",
-		},
-
-		// 4. 日志查询主索引
-		{
-			CollectionName: "HUB_GW_ACCESS_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "tenantId", Value: 1},
-					{Key: "gatewayStartProcessingTime", Value: 1},
-					{Key: "gatewayStatusCode", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_log_query_main",
-					Background: true,
-				},
-			},
-			Description: "日志查询主索引",
-		},
-
-		// 5. 路由名称索引
-		{
-			CollectionName: "HUB_GW_ACCESS_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "gatewayStartProcessingTime", Value: 1},
-					{Key: "routeName", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_route_name",
-					Background: true,
-				},
-			},
-			Description: "路由名称索引",
-		},
-
-		// 6. 响应时间索引
-		{
-			CollectionName: "HUB_GW_ACCESS_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "totalProcessingTimeMs", Value: 1},
-					{Key: "gatewayStartProcessingTime", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_response_time",
-					Background: true,
-					Sparse:     true,
-				},
-			},
-			Description: "响应时间索引（稀疏索引）",
-		},
-
-		// 7. 路由配置ID索引
-		{
-			CollectionName: "HUB_GW_ACCESS_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "gatewayStartProcessingTime", Value: 1},
-					{Key: "routeConfigId", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_route_config_id",
-					Background: true,
-				},
-			},
-			Description: "路由配置ID索引",
-		},
-
-		// 8. 服务定义ID索引
-		{
-			CollectionName: "HUB_GW_ACCESS_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "gatewayStartProcessingTime", Value: 1},
-					{Key: "serviceDefinitionId", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_service_definition_id",
-					Background: true,
-				},
-			},
-			Description: "服务定义ID索引",
-		},
-
-		// 9. 网关实例ID索引
-		{
-			CollectionName: "HUB_GW_ACCESS_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "gatewayInstanceId", Value: 1},
-					{Key: "gatewayStartProcessingTime", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_gateway_instance_id",
-					Background: true,
-				},
-			},
-			Description: "网关实例ID索引",
-		},
-
-		// 10. 网关实例名称索引
-		{
-			CollectionName: "HUB_GW_ACCESS_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "gatewayInstanceName", Value: 1},
-					{Key: "gatewayStartProcessingTime", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_gateway_instance_name",
-					Background: true,
-				},
-			},
-			Description: "网关实例名称索引",
-		},
-
-		// 11. 服务名称索引
-		{
-			CollectionName: "HUB_GW_ACCESS_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "serviceName", Value: 1},
-					{Key: "gatewayStartProcessingTime", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_service_name",
-					Background: true,
-				},
-			},
-			Description: "服务名称索引",
-		},
-
-		// 12. 客户端IP索引
-		{
-			CollectionName: "HUB_GW_ACCESS_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "clientIpAddress", Value: 1},
-					{Key: "gatewayStartProcessingTime", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_client_ip",
-					Background: true,
-				},
-			},
-			Description: "客户端IP索引",
-		},
-
-		// 13. 状态码索引
-		{
-			CollectionName: "HUB_GW_ACCESS_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "gatewayStatusCode", Value: 1},
-					{Key: "gatewayStartProcessingTime", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_status_code",
-					Background: true,
-				},
-			},
-			Description: "状态码索引",
-		},
-
-		// 14. 代理类型索引
-		{
-			CollectionName: "HUB_GW_ACCESS_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "proxyType", Value: 1},
-					{Key: "gatewayStartProcessingTime", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_proxy_type",
-					Background: true,
-				},
-			},
-			Description: "代理类型索引",
-		},
-
-		// 15. TTL索引（30天自动过期）
-		{
-			CollectionName: "HUB_GW_ACCESS_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "gatewayStartProcessingTime", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:               "idx_ttl_cleanup",
-					Background:         true,
-					ExpireAfterSeconds: &ttl30Days,
-				},
-			},
-			Description: "TTL索引 - 30天自动清理过期数据",
-		},
-
-		// ==========================================
-		// HUB_GW_BACKEND_TRACE_LOG 集合索引
-		// ==========================================
-
-		// 1. 主键唯一索引：traceId + backendTraceId
-		{
-			CollectionName: "HUB_GW_BACKEND_TRACE_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "traceId", Value: 1},
-					{Key: "backendTraceId", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_traceId_backendTraceId_unique",
-					Unique:     true,
-					Background: true,
-				},
-			},
-			Description: "主键唯一索引",
-		},
-
-		// 2. 租户追踪索引
-		{
-			CollectionName: "HUB_GW_BACKEND_TRACE_LOG",
 			IndexModel: IndexModel{
 				Keys: bson.D{
 					{Key: "tenantId", Value: 1},
@@ -355,75 +96,51 @@ func GetMongoInitCommands() []MongoIndexCommand {
 					Background: true,
 				},
 			},
-			Description: "租户追踪索引",
+			Description: "详情 GetGatewayLogByKey，非唯一以免历史重复键建失败",
 		},
-
-		// 3. 服务维度索引
+		{
+			CollectionName: "HUB_GW_ACCESS_LOG",
+			IndexModel: IndexModel{
+				Keys: bson.D{
+					{Key: "gatewayInstanceId", Value: 1},
+					{Key: "gatewayStartProcessingTime", Value: -1},
+				},
+				Options: &IndexOptions{
+					Name:       "idx_instance_time",
+					Background: true,
+				},
+			},
+			Description: "按实例列表、监控与应用层清理",
+		},
+		{
+			CollectionName: "HUB_GW_ACCESS_LOG",
+			IndexModel: IndexModel{
+				Keys: bson.D{
+					{Key: "gatewayStartProcessingTime", Value: 1},
+				},
+				Options: &IndexOptions{
+					Name:               "idx_ttl_cleanup",
+					Background:         true,
+					ExpireAfterSeconds: &ttl30Days,
+				},
+			},
+			Description: "TTL 30天，必须单字段 Date",
+		},
 		{
 			CollectionName: "HUB_GW_BACKEND_TRACE_LOG",
 			IndexModel: IndexModel{
 				Keys: bson.D{
 					{Key: "tenantId", Value: 1},
-					{Key: "serviceDefinitionId", Value: 1},
-					{Key: "requestStartTime", Value: 1},
+					{Key: "traceId", Value: 1},
+					{Key: "backendTraceId", Value: 1},
 				},
 				Options: &IndexOptions{
-					Name:       "idx_tenant_service_time",
+					Name:       "idx_tenant_trace",
 					Background: true,
 				},
 			},
-			Description: "服务维度索引",
+			Description: "按 trace 拉列表（左前缀）或按 tenantId+traceId+backendTraceId 取单条，非唯一以免历史重复键建失败",
 		},
-
-		// 4. 时间索引
-		{
-			CollectionName: "HUB_GW_BACKEND_TRACE_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "requestStartTime", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_request_start_time",
-					Background: true,
-				},
-			},
-			Description: "请求开始时间索引",
-		},
-
-		// 5. 追踪状态索引
-		{
-			CollectionName: "HUB_GW_BACKEND_TRACE_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "tenantId", Value: 1},
-					{Key: "traceStatus", Value: 1},
-					{Key: "requestStartTime", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_tenant_status_time",
-					Background: true,
-				},
-			},
-			Description: "追踪状态索引",
-		},
-
-		// 6. 审计时间索引
-		{
-			CollectionName: "HUB_GW_BACKEND_TRACE_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "tenantId", Value: 1},
-					{Key: "addTime", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:       "idx_tenant_add_time",
-					Background: true,
-				},
-			},
-			Description: "审计时间索引",
-		},
-
-		// 7. TTL索引（30天自动过期）
 		{
 			CollectionName: "HUB_GW_BACKEND_TRACE_LOG",
 			IndexModel: IndexModel{
@@ -436,7 +153,7 @@ func GetMongoInitCommands() []MongoIndexCommand {
 					ExpireAfterSeconds: &ttl30Days,
 				},
 			},
-			Description: "TTL索引 - 30天自动清理过期数据",
+			Description: "TTL 30天，兼时间扫描",
 		},
 	}
 }

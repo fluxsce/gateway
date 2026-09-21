@@ -1808,7 +1808,7 @@ packages:
     resolution: {integrity: sha512-ku2uNz5MaZ9IerPPUyOHzyjhXoX2kVJaVf7hL315DC17vS6IiZRmmCPfggNbU16QTvM80+uYYy3eYJB59WCtvg==}
     peerDependencies:
       typescript: 5.x
-      vue: ^3.4.0
+      vue: ^3.4.1
     peerDependenciesMeta:
       typescript:
         optional: true

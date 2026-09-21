@@ -9,7 +9,6 @@ import (
 	"gateway/pkg/logger"
 	mongoclient "gateway/pkg/mongo/client"
 	mongofactory "gateway/pkg/mongo/factory"
-	mongotypes "gateway/pkg/mongo/types"
 )
 
 // MongoScriptExecutionResult MongoDB脚本执行结果
@@ -147,8 +146,13 @@ func executeMongoIndexCommands(ctx context.Context, client *mongoclient.Client) 
 
 	outputBuilder.WriteString("开始创建 MongoDB 索引...\n\n")
 
-	// 按集合分组执行
+	// 按集合分组执行，且只处理白名单中的日志集合
 	for collName, collCommands := range commandsByCollection {
+		if !IsManagedMongoLogCollection(collName) {
+			logger.Warn("跳过非系统日志集合的索引对齐", "collection", collName)
+			outputBuilder.WriteString(fmt.Sprintf("[%s] 跳过：不在系统日志集合白名单\n\n", collName))
+			continue
+		}
 		outputBuilder.WriteString(fmt.Sprintf("[%s] 创建索引...\n", collName))
 		logger.Info(fmt.Sprintf("开始为集合 %s 创建索引", collName),
 			"collection", collName,
@@ -164,75 +168,28 @@ func executeMongoIndexCommands(ctx context.Context, client *mongoclient.Client) 
 			continue
 		}
 
-		// 逐个创建索引
-		for i, cmd := range collCommands {
-			logger.Debug("准备创建索引",
-				"collection", collName,
-				"index", cmd.IndexModel.Options.Name,
-				"description", cmd.Description)
-
-			// 使用 MongoDB types.IndexModel 创建索引
-			// 将 bson.D 转换为 types.Document (bson.M)
-			keys := mongotypes.Document{}
-			for _, elem := range cmd.IndexModel.Keys {
-				keys[elem.Key] = elem.Value
-			}
-
-			indexModel := mongotypes.IndexModel{
-				Keys: keys,
-			}
-
-			// 获取集合
-			collection := db.Collection(collName)
-
-			// 创建索引
-			indexName, err := collection.CreateIndex(ctx, indexModel)
-			if err != nil {
-				// 检查是否是索引已存在错误
-				if strings.Contains(err.Error(), "already exists") ||
-					strings.Contains(err.Error(), "IndexOptionsConflict") {
-					logger.Info("索引已存在，跳过创建",
-						"collection", collName,
-						"index", cmd.IndexModel.Options.Name)
-					executed++
-					outputBuilder.WriteString(fmt.Sprintf("  %d. %s (已存在)\n", i+1, cmd.IndexModel.Options.Name))
-					continue
-				}
-
-				logger.Warn("创建索引失败，继续执行后续索引",
-					"collection", collName,
-					"index", cmd.IndexModel.Options.Name,
-					"error", err)
-				failed++
-				outputBuilder.WriteString(fmt.Sprintf("  %d. %s 失败: %v\n", i+1, cmd.IndexModel.Options.Name, err))
-				continue
-			}
-
-			executed++
-			outputBuilder.WriteString(fmt.Sprintf("  %d. %s (%s)\n", i+1, indexName, cmd.Description))
-
-			logger.Info("索引创建成功",
-				"collection", collName,
-				"index", indexName,
-				"description", cmd.Description)
-
-			// 每执行 5 个索引记录一次进度
-			if executed%5 == 0 {
-				logger.Info("MongoDB 索引创建进度",
-					"executed", executed,
-					"failed", failed,
-					"total", len(commands))
-			}
+		collection := db.Collection(collName)
+		coll, ok := collection.(*mongoclient.Collection)
+		if !ok {
+			logger.Warn("集合实现不是 *client.Collection，跳过索引对齐",
+				"collection", collName)
+			failed += len(collCommands)
+			outputBuilder.WriteString("  错误: 集合类型不支持有序建索引与自动删旧索引\n\n")
+			continue
 		}
 
-		outputBuilder.WriteString(fmt.Sprintf("[%s] 索引创建完成\n\n", collName))
+		created, createFailed, detail := ensureCollectionIndexes(ctx, coll, collName, collCommands)
+		executed += created
+		failed += createFailed
+		outputBuilder.WriteString(detail)
+		outputBuilder.WriteString(fmt.Sprintf("[%s] 索引对齐完成\n\n", collName))
 	}
 
 	// 输出汇总信息
-	outputBuilder.WriteString("MongoDB 索引创建完成\n")
-	outputBuilder.WriteString(fmt.Sprintf("- 成功创建: %d 个索引\n", executed))
-	outputBuilder.WriteString(fmt.Sprintf("- 失败/跳过: %d 个索引\n", failed))
-	outputBuilder.WriteString("- TTL设置: 30天自动清理过期数据\n")
+	outputBuilder.WriteString("MongoDB 索引对齐完成（自动建最小集并删除旧索引）\n")
+	outputBuilder.WriteString(fmt.Sprintf("- 成功创建/对齐: %d\n", executed))
+	outputBuilder.WriteString(fmt.Sprintf("- 失败: %d\n", failed))
+	outputBuilder.WriteString("- TTL: 30天；旧的多余索引由启动流程删除，无需手工 drop\n")
 
 	logger.Info("MongoDB 索引创建完成",
 		"total_executed", executed,
