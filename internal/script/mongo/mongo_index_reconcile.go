@@ -118,10 +118,31 @@ func ensureCollectionIndexes(ctx context.Context, coll *mongoclient.Collection, 
 
 	var b strings.Builder
 	keep := keepIndexNames(cmds)
+	existing, listErr := listIndexNames(ctx, coll)
+	if listErr != nil {
+		logger.Warn("列出 Mongo 索引失败，将按创建结果对齐",
+			"collection", collectionName,
+			"error", listErr)
+	}
+	existingSet := make(map[string]struct{}, len(existing))
+	for _, name := range existing {
+		existingSet[name] = struct{}{}
+	}
 
 	pending := make([]MongoIndexCommand, 0, len(cmds))
 	for i, cmd := range cmds {
 		label := desiredIndexName(cmd)
+		if _, ok := existingSet[label]; ok && label != "" {
+			executed++
+			b.WriteString(fmt.Sprintf("  %d. %s 已存在，跳过创建\n", i+1, label))
+			logger.Info("Mongo 索引已存在，跳过创建",
+				"collection", collectionName,
+				"index", label)
+			continue
+		}
+		logger.Info("正在创建 Mongo 索引，大集合可能较久",
+			"collection", collectionName,
+			"index", label)
 		name, err := coll.CreateDriverIndex(ctx, cmd.IndexModel.ToMongoIndexModel())
 		if err != nil {
 			if isIndexPresentError(err) {

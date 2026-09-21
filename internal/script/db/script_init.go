@@ -1028,45 +1028,47 @@ func IsMongoEnabled() bool {
 //
 // 返回:
 //   - ScriptExecutionResult: 脚本执行结果
-func executeMongoScriptForDatabase(ctx context.Context, databaseName string, scriptDir string) ScriptExecutionResult {
+func executeMongoScriptForDatabase(_ context.Context, databaseName string, scriptDir string) ScriptExecutionResult {
 	startTime := time.Now()
 
 	result := ScriptExecutionResult{
 		DatabaseName: databaseName,
 		Driver:       dbtypes.DriverMongoDB,
-		Success:      false,
+		ScriptFile:   "内置静态索引命令",
+		Success:      true,
 		Skipped:      false,
 	}
 
-	// 执行 MongoDB 脚本
-	mongoResult, err := mongoscript.ExecuteMongoScript(ctx, scriptDir)
-	if err != nil {
-		result.Error = err
-		result.Duration = time.Since(startTime)
-		return result
-	}
-
-	// 转换结果
-	result.ScriptFile = mongoResult.ScriptFile
-	result.Success = mongoResult.Success
-	result.StatementsExecuted = mongoResult.CommandsExecuted
-	result.StatementsFailed = mongoResult.CommandsFailed
-	result.Duration = mongoResult.Duration
-
-	if mongoResult.Success {
-		logger.Info("MongoDB 脚本执行成功",
+	// 百万级日志集合上同步 CreateIndex 会挡住进程听端口。
+	// 不沿用启动脚本的 30 分钟 ctx，避免脚本阶段结束时把后台建索引取消掉。
+	go func() {
+		bg, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
+		defer cancel()
+		mongoResult, err := mongoscript.ExecuteMongoScript(bg, scriptDir)
+		if err != nil {
+			logger.Error("后台 Mongo 索引对齐失败",
+				"database", databaseName,
+				"error", err.Error())
+			return
+		}
+		if mongoResult.Success {
+			logger.Info("后台 Mongo 索引对齐完成",
+				"database", databaseName,
+				"executed", mongoResult.CommandsExecuted,
+				"failed", mongoResult.CommandsFailed,
+				"duration", mongoResult.Duration)
+			return
+		}
+		logger.Error("后台 Mongo 索引对齐未成功",
 			"database", databaseName,
+			"error", fmt.Sprintf("%v", mongoResult.Error),
 			"executed", mongoResult.CommandsExecuted,
 			"failed", mongoResult.CommandsFailed,
 			"duration", mongoResult.Duration)
-	} else {
-		logger.Error("MongoDB 脚本执行失败",
-			"database", databaseName,
-			"error", mongoResult.Error,
-			"executed", mongoResult.CommandsExecuted,
-			"failed", mongoResult.CommandsFailed,
-			"duration", mongoResult.Duration)
-	}
+	}()
 
+	result.Duration = time.Since(startTime)
+	logger.Info("Mongo 索引对齐已放到后台，不阻塞启动",
+		"database", databaseName)
 	return result
 }
