@@ -54,7 +54,6 @@ import {
   RsDivider,
   RsDrawer,
   RsTag,
-  type RsDescriptionsItemData,
 } from '@/ui'
 import { computed } from 'vue'
 import type { Tool } from '../../types/toolMarketplace'
@@ -72,7 +71,7 @@ defineEmits<{
   configure: [tool: Tool]
 }>()
 
-const basicInfoItems = computed<RsDescriptionsItemData[]>(() => {
+const basicInfoItems = computed(() => {
   const tool = props.tool
   if (!tool) return []
   return [

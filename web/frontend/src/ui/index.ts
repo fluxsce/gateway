@@ -104,7 +104,6 @@ export type {
   RsDatePickerTimestampRange,
   RsDatePickerValueFormat,
   RsDateRangeValue,
-  RsDescriptionsItemData,
   RsDescriptionsLabelPlacement,
   RsDescriptionsSize,
   RsDialogHandle,
