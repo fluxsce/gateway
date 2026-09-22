@@ -95,9 +95,11 @@ func (dao *GatewayLogDAO) Query(ctx context.Context, req *models.GatewayAccessLo
 		params = append(params, req.RouteConfigId)
 	}
 
-	if req.RouteName != "" {
-		whereClause += " AND routeName LIKE ?"
-		params = append(params, "%"+req.RouteName+"%")
+	if name := strings.TrimSpace(req.RouteName); name != "" {
+		// 精确匹配才能用 idx_HUB_GW_ACCESS_LOG_route_name。
+		// LIKE '%名称%' 确认 0 条时要扫完整段日志，空结果会一直不返回。
+		whereClause += " AND routeName = ?"
+		params = append(params, name)
 	}
 
 	if req.ServiceDefinitionId != "" {
@@ -105,9 +107,10 @@ func (dao *GatewayLogDAO) Query(ctx context.Context, req *models.GatewayAccessLo
 		params = append(params, req.ServiceDefinitionId)
 	}
 
-	if req.ServiceName != "" {
-		whereClause += " AND serviceName LIKE ?"
-		params = append(params, "%"+req.ServiceName+"%")
+	if name := strings.TrimSpace(req.ServiceName); name != "" {
+		// 精确匹配才能用 idx_HUB_GW_ACCESS_LOG_service_name。子串匹配在无命中时会扫完表。
+		whereClause += " AND serviceName = ?"
+		params = append(params, name)
 	}
 
 	if req.ProxyType != "" {

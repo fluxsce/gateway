@@ -196,9 +196,10 @@ func (dao *ClickHouseQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLo
 		params = append(params, req.RouteConfigId)
 	}
 
-	if req.RouteName != "" {
-		whereClause += " AND routeName LIKE ?"
-		params = append(params, "%"+req.RouteName+"%")
+	if name := strings.TrimSpace(req.RouteName); name != "" {
+		// 精确匹配。前缀通配 LIKE '%名称%' 在 0 命中时要扫完数据才知道为空。
+		whereClause += " AND routeName = ?"
+		params = append(params, name)
 	}
 
 	if req.ServiceDefinitionId != "" {
@@ -206,9 +207,9 @@ func (dao *ClickHouseQueryDAO) buildGatewayLogFilter(req *models.GatewayAccessLo
 		params = append(params, req.ServiceDefinitionId)
 	}
 
-	if req.ServiceName != "" {
-		whereClause += " AND serviceName LIKE ?"
-		params = append(params, "%"+req.ServiceName+"%")
+	if name := strings.TrimSpace(req.ServiceName); name != "" {
+		whereClause += " AND serviceName = ?"
+		params = append(params, name)
 	}
 
 	if req.ProxyType != "" {

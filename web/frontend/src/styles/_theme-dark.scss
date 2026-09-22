@@ -3,7 +3,8 @@
  * 命名规范：使用 --g- 前缀避免与第三方组件冲突
  */
 
-[data-theme='dark'] {
+[data-theme='dark'],
+[data-rs-theme='dark'] {
   /* ==================== 主色 ==================== */
   --g-primary: #818cf8;
   --g-primary-hover: #a5b4fc;

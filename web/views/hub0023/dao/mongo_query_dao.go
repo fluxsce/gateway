@@ -96,10 +96,13 @@ func (dao *MongoQueryDAO) QueryGatewayLogs(ctx context.Context, req *models.Gate
 		return nil, 0, huberrors.WrapError(err, "MongoDB游标遍历错误")
 	}
 
-	// 获取总数
+	// 获取总数。本页不满时总数就是 skip+本页条数。
+	// 附加条件不在 {实例, 时间} 上。有命中时按时间倒序读满一页就停；
+	// 一条都没有时，这一次已经把时间窗读完，再 CountDocuments 会把同一段再扫一遍。
 	var total int64
-	if findOptions.Limit != nil || findOptions.Skip != nil {
-		// 使用相同的context执行count操作
+	if exact, ok := logPageTotal(findOptions.Limit, findOptions.Skip, int64(len(logs))); ok {
+		total = exact
+	} else if findOptions.Limit != nil || findOptions.Skip != nil {
 		total, err = collection.Count(ctx, filter, nil)
 		if err != nil {
 			logger.ErrorWithTrace(ctx, "MongoDB统计失败", "error", err)
@@ -110,6 +113,22 @@ func (dao *MongoQueryDAO) QueryGatewayLogs(ctx context.Context, req *models.Gate
 	}
 
 	return logs, int(total), nil
+}
+
+// logPageTotal 在本页能确定没有后续行时直接给出总数。
+// 翻过末页（skip>0 且本页 0 行）时总数落在 0 和 skip 之间，必须另行计数。
+func logPageTotal(limit, skip *int64, rows int64) (int64, bool) {
+	if limit == nil || *limit <= 0 || rows >= *limit {
+		return 0, false
+	}
+	skipped := int64(0)
+	if skip != nil {
+		skipped = *skip
+	}
+	if skipped > 0 && rows == 0 {
+		return 0, false
+	}
+	return skipped + rows, true
 }
 
 // GetGatewayLogByKey 根据主键获取网关日志详情（MongoDB版本）

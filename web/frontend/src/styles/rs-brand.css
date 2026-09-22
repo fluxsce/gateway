@@ -2,6 +2,11 @@
  * gateway ↔ niuma-ui token 桥接。
  * 须在 `niuma-ui/styles.css` 与 gateway 主题（--g-*）之后加载。
  *
+ * 浮层（Dialog / Select / Dropdown / Popover 等）会把 data-rs-theme
+ * 拷到挂在 body 上的面板。niuma 色板写在 [data-rs-theme] 上，只覆盖 :root 盖不住。
+ * 这里用相同选择器，靠后加载压过 niuma。--g-* 也挂在 data-rs-theme 上，
+ * 深色面板不会继承页面的浅色变量。
+ *
  * 原则：
  * - 尺寸 / 色板在此全局映射一次，业务组件不要再抄一遍 --rs-* ← --g-*。
  * - 仅当某块局部需要独立色板时，才在组件内覆盖。
@@ -11,7 +16,9 @@
  * 避免 Rs 组件比改造前 Naive 体系偏大一档。
  */
 
-:root {
+:root,
+[data-rs-theme='light'],
+[data-rs-theme='dark'] {
   /* 与 _variables.scss 一致：xs12 / sm13 / base14 / lg16 / xl18 */
   --rs-font-size-xs: var(--g-font-size-xs);
   --rs-font-size-sm: var(--g-font-size-sm);

@@ -4,7 +4,8 @@
  */
 
 :root,
-[data-theme='light'] {
+[data-theme='light'],
+[data-rs-theme='light'] {
   /* ==================== 主色 ==================== */
   --g-primary: #7c3aed;
   --g-primary-hover: #6d28d9;

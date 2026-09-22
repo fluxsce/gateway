@@ -517,7 +517,7 @@ func executeSQLScriptByStatements(ctx context.Context, historyConn database.Data
 		stmtType := getSQLStatementType(stmt)
 
 		// 检查语句执行状态（从主数据库查询历史）
-		executionStatus, err := getStatementExecutionStatus(ctx, historyConn, driver, scriptName, stmtHash)
+		executionStatus, previousError, err := getStatementExecutionStatus(ctx, historyConn, driver, scriptName, stmtHash)
 		if err != nil {
 			logger.Warn("检查语句执行历史失败，继续执行",
 				"statement_index", i+1,
@@ -525,7 +525,7 @@ func executeSQLScriptByStatements(ctx context.Context, historyConn database.Data
 				"error", err)
 		} else {
 			switch executionStatus {
-			case "SUCCESS":
+			case "SUCCESS", "ALREADY_EXISTS":
 				logger.Info("语句已成功执行过，跳过",
 					"script", scriptName,
 					"statement_index", i+1,
@@ -534,13 +534,30 @@ func executeSQLScriptByStatements(ctx context.Context, historyConn database.Data
 					"statement_preview", truncateString(stmt, 100))
 				skippedCount++
 				continue
-			case "FAILED", "SKIPPED":
-				logger.Info("语句之前执行失败或跳过，重新执行",
+			case "FAILED":
+				if isAlreadyPresentError(fmt.Errorf("%s", previousError)) {
+					logger.Info("对象或数据已存在，不再重复执行",
+						"script", scriptName,
+						"statement_index", i+1,
+						"statement_type", stmtType,
+						"statement_hash", stmtHash,
+						"statement_preview", truncateString(stmt, 100))
+					recordStatementExecution(ctx, historyConn, driver, scriptName, stmtHash, stmtType, stmt, "ALREADY_EXISTS", 0, previousError)
+					skippedCount++
+					continue
+				}
+				logger.Info("语句之前执行失败，重新执行",
 					"script", scriptName,
 					"statement_index", i+1,
 					"statement_type", stmtType,
 					"statement_hash", stmtHash,
 					"previous_status", executionStatus)
+			case "SKIPPED":
+				logger.Info("语句之前被跳过，重新执行",
+					"script", scriptName,
+					"statement_index", i+1,
+					"statement_type", stmtType,
+					"statement_hash", stmtHash)
 			case "":
 				logger.Debug("语句未执行过，准备执行",
 					"script", scriptName,
@@ -569,6 +586,17 @@ func executeSQLScriptByStatements(ctx context.Context, historyConn database.Data
 		duration := time.Since(startTime)
 
 		if err != nil {
+			if isAlreadyPresentError(err) {
+				logger.Info("对象或数据已存在，记为已完成",
+					"statement_index", i+1,
+					"statement_type", stmtType,
+					"statement_hash", stmtHash,
+					"statement_preview", truncateString(stmt, 200))
+				recordStatementExecution(ctx, historyConn, driver, scriptName, stmtHash, stmtType, stmt, "ALREADY_EXISTS", duration, err.Error())
+				skippedCount++
+				continue
+			}
+
 			// 记录执行失败的语句信息
 			logger.Warn("SQL语句执行失败，继续执行后续语句",
 				"statement_index", i+1,

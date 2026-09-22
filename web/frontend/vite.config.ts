@@ -8,11 +8,11 @@ import { dirname } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 import path from 'path'
 
-import tailwindcss from '@tailwindcss/vite'
+import { niumaUiHost } from 'niuma-ui/vite-plugins/niuma-ui-host'
 import vue from '@vitejs/plugin-vue'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
-import { defineConfig, loadEnv, type ProxyOptions } from 'vite'
+import { defineConfig, loadEnv, type PluginOption, type ProxyOptions } from 'vite'
 import { viteMockServe } from 'vite-plugin-mock'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
@@ -116,7 +116,6 @@ function resolveManualChunk(id: string): string | undefined {
   if (m.includes('/@antv')) return 'antv'
   if (m.includes('/@tiptap') || m.includes('/prosemirror')) return 'tiptap'
   if (m.includes('/highlight.js')) return 'highlight'
-  if (m.includes('/vxe-table') || m.includes('/vxe-pc-ui') || m.includes('/@vxe-ui')) return 'vxe'
   if (m.includes('/marked') || m.includes('/dompurify')) return 'markdown'
 
   // 含 CodeMirror 的组件与 @codemirror 同块，避免 niuma-ui 轻量包反向依赖编辑器
@@ -139,7 +138,6 @@ function resolveManualChunk(id: string): string | undefined {
 
   if (
     m.includes('/niuma-ui/') ||
-    m.includes('/reka-ui') ||
     m.includes('/@lucide/') ||
     m.includes('/vue-sonner')
   ) {
@@ -169,8 +167,9 @@ export default defineConfig(({ command, mode }) => {
 
     plugins: [
       vue(),
-      // niuma-ui/styles.css 使用 @import "tailwindcss"（v4），需 Vite 插件解析
-      tailwindcss(),
+      // 只改 pnpm dev：link 的 niuma-ui 具名导入指到 src，改组件不用先编 dist。vite build 仍走包入口。
+      // 插件声明跟着 niuma-ui 的 Vite 8 类型，宿主是 Vite 6，运行时钩子兼容，这里收成宿主的 PluginOption。
+      ...(niumaUiHost() as unknown as PluginOption[]),
       // 仅开发服务注册 DevTools，避免生产构建携带调试相关逻辑
       ...(command === 'serve' ? [vueDevTools()] : []),
 

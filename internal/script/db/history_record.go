@@ -23,12 +23,13 @@ import (
 //   - statementHash: 语句哈希值
 //
 // 返回:
-//   - string: 执行状态（SUCCESS, FAILED, SKIPPED, 空字符串表示未执行过）
+//   - status: 执行状态（SUCCESS, ALREADY_EXISTS, FAILED, SKIPPED, 空字符串表示未执行过）
+//   - errorMessage: 上次失败时的错误信息，用于识别「对象或数据已存在」
 //   - error: 查询失败时返回错误信息
-func getStatementExecutionStatus(ctx context.Context, conn database.Database, driver, scriptName, statementHash string) (string, error) {
+func getStatementExecutionStatus(ctx context.Context, conn database.Database, driver, scriptName, statementHash string) (string, string, error) {
 	tenantId := config.GetString("database.tenant_id", "default")
 
-	baseQuery := fmt.Sprintf("SELECT executionStatus FROM %s WHERE tenantId = ? AND scriptName = ? AND statementHash = ? AND databaseDriver = ? ORDER BY executionTime DESC",
+	baseQuery := fmt.Sprintf("SELECT executionStatus, errorMessage FROM %s WHERE tenantId = ? AND scriptName = ? AND statementHash = ? AND databaseDriver = ? ORDER BY executionTime DESC",
 		TableNameStatementHistory(driver))
 
 	// 使用 sqlutils 构建分页语句，兼容 Oracle（不支持 LIMIT，需用 OFFSET FETCH）
@@ -36,7 +37,7 @@ func getStatementExecutionStatus(ctx context.Context, conn database.Database, dr
 	pagination := sqlutils.NewPaginationInfo(1, 1)
 	query, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	args := append([]interface{}{tenantId, scriptName, statementHash, driver}, paginationArgs...)
@@ -44,6 +45,7 @@ func getStatementExecutionStatus(ctx context.Context, conn database.Database, dr
 	// 定义结果结构体
 	type StatusResult struct {
 		ExecutionStatus string `db:"executionStatus"`
+		ErrorMessage    string `db:"errorMessage"`
 	}
 
 	var result StatusResult
@@ -63,10 +65,10 @@ func getStatementExecutionStatus(ctx context.Context, conn database.Database, dr
 				"table", TableNameStatementHistory(driver),
 				"script", scriptName,
 				"statement_hash", statementHash)
-			return "", nil
+			return "", "", nil
 		}
 		// 其他错误才返回错误信息
-		return "", err
+		return "", "", err
 	}
 
 	logger.Debug("查询语句执行状态完成",
@@ -75,7 +77,7 @@ func getStatementExecutionStatus(ctx context.Context, conn database.Database, dr
 		"driver", driver,
 		"status", result.ExecutionStatus)
 
-	return result.ExecutionStatus, nil
+	return result.ExecutionStatus, result.ErrorMessage, nil
 }
 
 // recordScriptExecution 记录脚本执行历史
