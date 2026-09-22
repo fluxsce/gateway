@@ -118,9 +118,16 @@ function resolveManualChunk(id: string): string | undefined {
   if (m.includes('/highlight.js')) return 'highlight'
   if (m.includes('/marked') || m.includes('/dompurify')) return 'markdown'
 
-  // 含 CodeMirror 的组件与 @codemirror 同块，避免 niuma-ui 轻量包反向依赖编辑器
+  // 编辑器整目录与 @codemirror 同块。只按 RsCodeBlock 文件名匹配会漏掉
+  // code-block-highlight：它留在 niuma-ui，又 import @codemirror，而 RsCodeBlock
+  // 在 codemirror 块里回引 niuma-ui 的 Vue SFC helper，启动时该 helper 还不是函数。
   if (
-    /RsCodeEditor|RsCodeBlock|RsProseEditor|code-mirror-lang|code-editor-utils|code-mirror-/.test(m)
+    m.includes('/components/code-block/') ||
+    m.includes('/components/code-editor/') ||
+    m.includes('/components/prose-editor/') ||
+    /RsCodeEditor|RsCodeBlock|RsProseEditor|code-mirror-lang|code-editor-utils|code-mirror-|code-block-/.test(
+      m,
+    )
   ) {
     return 'codemirror'
   }

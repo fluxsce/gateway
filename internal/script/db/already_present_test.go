@@ -35,3 +35,20 @@ func TestIsAlreadyPresentError(t *testing.T) {
 		}
 	}
 }
+
+func TestIsDropMissingIndexError(t *testing.T) {
+	dropIndex := "ALTER TABLE HUB_METRIC_SERVER_INFO DROP INDEX IDX_METRIC_SERVER_HOST"
+	msg := "Error 1091 (42000): Can't DROP 'IDX_METRIC_SERVER_HOST'; check that column/key exists"
+	if !isDropMissingIndexError(dropIndex, errors.New(msg)) {
+		t.Fatal("删索引遇到 1091 应跳过")
+	}
+	if isDropMissingIndexError("ALTER TABLE HUB_METRIC_SERVER_INFO DROP COLUMN hostname", errors.New(msg)) {
+		t.Fatal("删列的 1091 不应跳过")
+	}
+	if isDropMissingIndexError(dropIndex, errors.New("dial tcp: connection refused")) {
+		t.Fatal("连接失败不应跳过")
+	}
+	if isAlreadyPresentError(errors.New(msg)) {
+		t.Fatal("1091 不是对象已存在")
+	}
+}

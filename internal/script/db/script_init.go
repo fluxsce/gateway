@@ -535,7 +535,19 @@ func executeSQLScriptByStatements(ctx context.Context, historyConn database.Data
 				skippedCount++
 				continue
 			case "FAILED":
-				if isAlreadyPresentError(fmt.Errorf("%s", previousError)) {
+				previousErr := fmt.Errorf("%s", previousError)
+				if isDropMissingIndexError(stmt, previousErr) {
+					logger.Info("索引已不存在，不再重复执行",
+						"script", scriptName,
+						"statement_index", i+1,
+						"statement_type", stmtType,
+						"statement_hash", stmtHash,
+						"statement_preview", truncateString(stmt, 100))
+					recordStatementExecution(ctx, historyConn, driver, scriptName, stmtHash, stmtType, stmt, "ALREADY_EXISTS", 0, previousError)
+					skippedCount++
+					continue
+				}
+				if isAlreadyPresentError(previousErr) {
 					logger.Info("对象或数据已存在，不再重复执行",
 						"script", scriptName,
 						"statement_index", i+1,
@@ -586,6 +598,16 @@ func executeSQLScriptByStatements(ctx context.Context, historyConn database.Data
 		duration := time.Since(startTime)
 
 		if err != nil {
+			if isDropMissingIndexError(stmtToExec, err) {
+				logger.Info("索引已不存在，跳过",
+					"statement_index", i+1,
+					"statement_type", stmtType,
+					"statement_hash", stmtHash,
+					"statement_preview", truncateString(stmt, 200))
+				recordStatementExecution(ctx, historyConn, driver, scriptName, stmtHash, stmtType, stmt, "ALREADY_EXISTS", duration, err.Error())
+				skippedCount++
+				continue
+			}
 			if isAlreadyPresentError(err) {
 				logger.Info("对象或数据已存在，记为已完成",
 					"statement_index", i+1,

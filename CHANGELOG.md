@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [3.4.3] - 2026-09-22
+
+### 修复
+- **发布包打开控制台不再因代码块分包启动失败**：生产构建把 `RsCodeBlock` 拆进 CodeMirror 包，行高亮 `code-block-highlight` 留在 niuma-ui 包，两个包互相引用。页面一加载 niuma-ui，Vue 的组件包装函数还没初始化，报 `Qu is not a function`。现在按 `code-block`、`code-editor`、`prose-editor` 整目录与 `@codemirror` 打在一起。niuma-ui 不用重新发版。
+- **启动脚本删索引时索引已不在不再当失败重试**：MySQL `DROP INDEX` / `DROP KEY` 遇到 1091（`Can't DROP ... check that column/key exists`）表示索引已经不在，现状和语句目标一致。原先记成失败，下次启动再执行并打出 `SQL执行错误`。现在在脚本初始化里记为 `ALREADY_EXISTS` 并跳过。删列、删约束的 1091 仍按失败处理。
+
 ## [3.4.2] - 2026-09-22
 
 ### 修复
