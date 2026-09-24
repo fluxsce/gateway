@@ -169,6 +169,7 @@ func (s *CenterStore) Delete(ctx context.Context, tenantID, instanceName, enviro
 }
 
 // UpdateStatus 只更新运行状态与说明。
+// 进程退出时调用方应跳过。这一行按租户、实例名、环境共用，没有 Pod 身份，退出回写会盖住正在滚动启动的副本。
 func (s *CenterStore) UpdateStatus(ctx context.Context, tenantID, instanceName, environment, status, message string) error {
 	query := `UPDATE HUB_SERVICE_INSTANCE SET instanceStatus = ?, statusMessage = ?, lastStatusTime = ?
 		WHERE tenantId = ? AND instanceName = ? AND environment = ?`

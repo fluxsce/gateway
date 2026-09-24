@@ -249,6 +249,14 @@ func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, ten
 			if key == "gatewayInstanceId" || key == "proxyConfigId" {
 				continue
 			}
+			if key == "keyword" {
+				if strValue, ok := value.(string); ok && strValue != "" {
+					whereConditions = append(whereConditions, "(serviceName LIKE ? OR serviceDefinitionId LIKE ? OR serviceDesc LIKE ?)")
+					like := "%" + strValue + "%"
+					params = append(params, like, like, like)
+				}
+				continue
+			}
 			// 对于字符串类型的值，支持模糊查询
 			if strValue, ok := value.(string); ok && (key == "serviceName" || key == "serviceDesc") {
 				whereConditions = append(whereConditions, fmt.Sprintf("%s LIKE ?", key))
@@ -335,6 +343,14 @@ func (dao *ServiceDefinitionDAO) ListAllServiceDefinitions(ctx context.Context, 
 		if value != nil && value != "" {
 			// 排除 gatewayInstanceId 和 proxyConfigId，允许查询所有服务
 			if key == "gatewayInstanceId" || key == "proxyConfigId" {
+				continue
+			}
+			if key == "keyword" {
+				if strValue, ok := value.(string); ok && strValue != "" {
+					whereConditions = append(whereConditions, "(serviceName LIKE ? OR serviceDefinitionId LIKE ? OR serviceDesc LIKE ?)")
+					like := "%" + strValue + "%"
+					params = append(params, like, like, like)
+				}
 				continue
 			}
 			// 对于字符串类型的值，支持模糊查询

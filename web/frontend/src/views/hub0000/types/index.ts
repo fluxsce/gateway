@@ -397,8 +397,8 @@ export interface MetricQueryParams {
   startTime?: string
   /** 结束时间过滤 */
   endTime?: string
-  /** 分页页码 */
-  pageNum?: number
+  /** 分页页码，与列表接口 pageIndex 一致 */
+  pageIndex?: number
   /** 分页大小 */
   pageSize?: number
   /** 主机名过滤 */

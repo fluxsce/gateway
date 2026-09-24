@@ -73,12 +73,7 @@ export function useConfigService(searchFormRef?: Ref<any> | any) {
       )
       const params: any = {
         ...effectiveSearchParams,
-      }
-      if (paginationParams.pageIndex !== undefined) {
-        params.page = paginationParams.pageIndex
-      }
-      if (paginationParams.pageSize !== undefined) {
-        params.pageSize = paginationParams.pageSize
+        ...paginationParams,
       }
 
       // 调用 API

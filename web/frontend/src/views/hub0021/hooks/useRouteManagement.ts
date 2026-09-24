@@ -1,4 +1,5 @@
 import { useAppMessage } from '@/composables/useAppMessage'
+import { getDefaultPageSize } from '@/utils/pagination'
 import { computed, reactive, ref } from 'vue'
 import * as routeApi from '../api'
 import type { RouteConfig, RouteQueryParams, RouteStatistics } from '../types'
@@ -35,7 +36,7 @@ export function useRouteManagement() {
     matchType: undefined,
     activeFlag: undefined,
     pageIndex: 1,
-    pageSize: 20,
+    pageSize: getDefaultPageSize(),
   })
 
   // 选项配置

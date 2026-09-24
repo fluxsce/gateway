@@ -1183,6 +1183,19 @@ INSERT INTO HUB_AUTH_RESOURCE (
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_004', 1, 'Y'
 );
 
+-- 集群健康与拓扑（实例列表右键，不依赖当前行）
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0020:clusterTopology', 'default', '集群健康与拓扑', 'hub0020:clusterTopology', 'BUTTON',
+  'hub0020', 3, 19, 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_010_019', 1, 'Y'
+);
+
 -- 启动按钮
 INSERT INTO HUB_AUTH_RESOURCE (
   resourceId, tenantId, resourceName, resourceCode, resourceType,

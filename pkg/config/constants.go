@@ -49,10 +49,6 @@ const (
 // =============================================================================
 
 const (
-	// CLUSTER_NODE_ID 集群节点ID配置键
-	// 说明: 集群模块专用的节点ID配置（优先级最高）
-	CLUSTER_NODE_ID = "app.cluster.node_id"
-
 	// CLUSTER_EVENT_POLL_INTERVAL 集群事件轮询间隔配置键
 	// 默认值: "3s"
 	CLUSTER_EVENT_POLL_INTERVAL = "app.cluster.event.poll_interval"
@@ -80,6 +76,6 @@ const (
 
 const (
 	// APP_NODE_ID 应用节点ID配置键
-	// 说明: 全局节点ID配置（次优先级，会被 app.cluster.node_id 覆盖）
+	// 说明: 可选的全局节点 ID。为空时由 GetNodeId 按环境变量、持久化文件或机器特征生成。集群和采集共用这个值。
 	APP_NODE_ID = "app.node_id"
 )

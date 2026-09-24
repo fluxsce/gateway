@@ -62,6 +62,7 @@ source HUB_TUNNEL_SERVER_NODE.sql;
 source HUB_TUNNEL_CLIENT.sql;
 source HUB_TUNNEL_SERVICE.sql;
 source HUB_AUTH_AUDIT_LOG.sql;
+source HUB_CLUSTER_NODE.sql;
 
 -- =====================================================
 -- 字段长度调整：支持多服务定义ID和服务名称（多服务场景）

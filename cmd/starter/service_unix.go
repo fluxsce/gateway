@@ -66,7 +66,9 @@ func runLinuxService() error {
 	cleanupDone := make(chan struct{})
 	go func() {
 		defer close(cleanupDone)
-		cleanupResources()
+		shutdownCtx, shutdownCancel := newShutdownContext()
+		defer shutdownCancel()
+		cleanupResources(shutdownCtx)
 	}()
 
 	// 等待清理完成或超时

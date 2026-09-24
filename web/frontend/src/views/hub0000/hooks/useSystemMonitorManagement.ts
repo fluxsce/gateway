@@ -5,6 +5,7 @@
 
 import { useAppMessage } from '@/composables/useAppMessage'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
+import { getMaxPageSize } from '@/utils/pagination'
 import { ref } from 'vue'
 import {
     exportMetricData,
@@ -40,6 +41,14 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
   // ===================================================================
 
   const message = useAppMessage()
+
+  // 曲线查询跟服务器列表分页分开：列表翻页不能把监控点切到第 2 页。
+  const metricQuery = (serverId?: string): MetricQueryParams => ({
+    ...model.queryParams,
+    ...(serverId ? { metricServerId: serverId } : {}),
+    pageIndex: 1,
+    pageSize: getMaxPageSize(),
+  })
 
   // 操作状态
   const operationLoading = ref(false)
@@ -122,10 +131,7 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
     try {
       model.cpuLoading.value = true
 
-      const params: MetricQueryParams = {
-        ...(serverId ? { metricServerId: serverId } : {}),
-        ...model.queryParams,
-      }
+      const params = metricQuery(serverId)
 
       const response = await queryCPUHistory(params)
 
@@ -147,10 +153,7 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
     try {
       model.memoryLoading.value = true
 
-      const params: MetricQueryParams = {
-        ...(serverId ? { metricServerId: serverId } : {}),
-        ...model.queryParams,
-      }
+      const params = metricQuery(serverId)
 
       const response = await queryMemoryHistory(params)
 
@@ -172,10 +175,7 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
     try {
       model.diskLoading.value = true
 
-      const params: MetricQueryParams = {
-        ...(serverId ? { metricServerId: serverId } : {}),
-        ...model.queryParams,
-      }
+      const params = metricQuery(serverId)
 
       const response = await queryDiskHistory(params)
 
@@ -197,10 +197,7 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
     try {
       model.networkLoading.value = true
 
-      const params: MetricQueryParams = {
-        ...(serverId ? { metricServerId: serverId } : {}),
-        ...model.queryParams,
-      }
+      const params = metricQuery(serverId)
 
       const response = await queryNetworkHistory(params)
 
@@ -222,10 +219,7 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
     try {
       model.processLoading.value = true
 
-      const params: MetricQueryParams = {
-        ...(serverId ? { metricServerId: serverId } : {}),
-        ...model.queryParams,
-      }
+      const params = metricQuery(serverId)
 
       const response = await queryProcessHistory(params)
 
@@ -247,10 +241,7 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
     try {
       model.temperatureLoading.value = true
 
-      const params: MetricQueryParams = {
-        ...(serverId ? { metricServerId: serverId } : {}),
-        ...model.queryParams,
-      }
+      const params = metricQuery(serverId)
 
       const response = await queryTemperatureHistory(params)
 
@@ -272,10 +263,7 @@ export const useSystemMonitorManagement = (model: ReturnType<typeof useSystemMon
     try {
       model.diskIOLoading.value = true
 
-      const params: MetricQueryParams = {
-        ...(serverId ? { metricServerId: serverId } : {}),
-        ...model.queryParams,
-      }
+      const params = metricQuery(serverId)
 
       const response = await queryDiskIOHistory(params)
 

@@ -270,52 +270,18 @@ func (dao *FilterConfigDAO) DeleteFilterConfig(ctx context.Context, filterConfig
 //   - filterName: 过滤器名称（模糊匹配）
 //   - filterType: 过滤器类型
 //   - filterAction: 执行时机
+//   - filterActions: 逗号分隔的多个执行时机
 //   - activeFlag: 活动状态
+//   - orderBy: filterOrder 时按执行顺序排，否则按执行时机再按顺序
 func (dao *FilterConfigDAO) ListFilterConfigs(ctx context.Context, tenantId string, queryParams map[string]string, page, pageSize int) ([]*models.FilterConfig, int, error) {
-	// 构建基础查询条件
-	whereConditions := []string{"tenantId = ?"}
-	args := []interface{}{tenantId}
-
-	// 添加网关实例ID条件
-	if gatewayInstanceId, ok := queryParams["gatewayInstanceId"]; ok && gatewayInstanceId != "" {
-		whereConditions = append(whereConditions, "gatewayInstanceId = ?")
-		args = append(args, gatewayInstanceId)
-	}
-
-	// 添加路由配置ID条件
-	if routeConfigId, ok := queryParams["routeConfigId"]; ok && routeConfigId != "" {
-		whereConditions = append(whereConditions, "routeConfigId = ?")
-		args = append(args, routeConfigId)
-	}
-
-	// 添加过滤器名称条件（模糊匹配）
-	if filterName, ok := queryParams["filterName"]; ok && filterName != "" {
-		whereConditions = append(whereConditions, "filterName LIKE ?")
-		args = append(args, "%"+filterName+"%")
-	}
-
-	// 添加过滤器类型条件
-	if filterType, ok := queryParams["filterType"]; ok && filterType != "" {
-		whereConditions = append(whereConditions, "filterType = ?")
-		args = append(args, filterType)
-	}
-
-	// 添加执行时机条件
-	if filterAction, ok := queryParams["filterAction"]; ok && filterAction != "" {
-		whereConditions = append(whereConditions, "filterAction = ?")
-		args = append(args, filterAction)
-	}
-
-	// 添加activeFlag条件（只有当不为空时才添加）
-	if activeFlag, ok := queryParams["activeFlag"]; ok && !empty.IsEmpty(activeFlag) {
-		whereConditions = append(whereConditions, "activeFlag = ?")
-		args = append(args, activeFlag)
-	}
-
-	whereClause := strings.Join(whereConditions, " AND ")
+	whereClause, args := buildFilterConfigWhere(tenantId, queryParams)
 
 	// 构建基础查询语句
-	baseQuery := fmt.Sprintf("SELECT * FROM HUB_GW_FILTER_CONFIG WHERE %s ORDER BY filterAction ASC, filterOrder ASC, addTime DESC", whereClause)
+	orderBy := "filterAction ASC, filterOrder ASC, addTime DESC"
+	if queryParams["orderBy"] == "filterOrder" {
+		orderBy = "filterOrder ASC, filterConfigId ASC"
+	}
+	baseQuery := fmt.Sprintf("SELECT * FROM HUB_GW_FILTER_CONFIG WHERE %s ORDER BY %s", whereClause, orderBy)
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
@@ -698,4 +664,220 @@ func (dao *FilterConfigDAO) isDuplicateFilterNameError(err error) bool {
 	}
 	errStr := strings.ToLower(err.Error())
 	return strings.Contains(errStr, "duplicate") && strings.Contains(errStr, "filterName")
+}
+
+func buildFilterConfigWhere(tenantId string, queryParams map[string]string) (string, []interface{}) {
+	whereConditions := []string{"tenantId = ?"}
+	args := []interface{}{tenantId}
+	if queryParams == nil {
+		return strings.Join(whereConditions, " AND "), args
+	}
+	if gatewayInstanceId := queryParams["gatewayInstanceId"]; gatewayInstanceId != "" {
+		whereConditions = append(whereConditions, "gatewayInstanceId = ?")
+		args = append(args, gatewayInstanceId)
+	}
+	if routeConfigId := queryParams["routeConfigId"]; routeConfigId != "" {
+		whereConditions = append(whereConditions, "routeConfigId = ?")
+		args = append(args, routeConfigId)
+	}
+	if filterName := queryParams["filterName"]; filterName != "" {
+		whereConditions = append(whereConditions, "filterName LIKE ?")
+		args = append(args, "%"+filterName+"%")
+	}
+	if filterType := queryParams["filterType"]; filterType != "" {
+		whereConditions = append(whereConditions, "filterType = ?")
+		args = append(args, filterType)
+	}
+	if rawActions := queryParams["filterActions"]; rawActions != "" {
+		actions := splitFilterActions(rawActions)
+		if len(actions) > 0 {
+			placeholders := make([]string, len(actions))
+			for i, action := range actions {
+				placeholders[i] = "?"
+				args = append(args, action)
+			}
+			whereConditions = append(whereConditions, fmt.Sprintf("filterAction IN (%s)", strings.Join(placeholders, ",")))
+		}
+	} else if filterAction := queryParams["filterAction"]; filterAction != "" {
+		whereConditions = append(whereConditions, "filterAction = ?")
+		args = append(args, filterAction)
+	}
+	if activeFlag := queryParams["activeFlag"]; !empty.IsEmpty(activeFlag) {
+		whereConditions = append(whereConditions, "activeFlag = ?")
+		args = append(args, activeFlag)
+	}
+	return strings.Join(whereConditions, " AND "), args
+}
+
+func splitFilterActions(raw string) []string {
+	seen := make(map[string]struct{})
+	var actions []string
+	for _, part := range strings.Split(raw, ",") {
+		action := strings.TrimSpace(part)
+		if !models.IsValidFilterAction(action) {
+			continue
+		}
+		if _, ok := seen[action]; ok {
+			continue
+		}
+		seen[action] = struct{}{}
+		actions = append(actions, action)
+	}
+	return actions
+}
+
+// FilterConfigStat 过滤器按类型、时机、状态的计数。
+type FilterConfigStat struct {
+	FilterAction string `db:"filterAction"`
+	FilterType   string `db:"filterType"`
+	ActiveFlag   string `db:"activeFlag"`
+	Cnt          int    `db:"cnt"`
+}
+
+// SummarizeFilterConfigs 按分组计数，不把整表装进一页。
+func (dao *FilterConfigDAO) SummarizeFilterConfigs(ctx context.Context, tenantId string, queryParams map[string]string) ([]FilterConfigStat, error) {
+	whereClause, args := buildFilterConfigWhere(tenantId, queryParams)
+	query := fmt.Sprintf(`
+		SELECT filterAction, filterType, activeFlag, COUNT(*) AS cnt
+		FROM HUB_GW_FILTER_CONFIG
+		WHERE %s
+		GROUP BY filterAction, filterType, activeFlag
+	`, whereClause)
+	var rows []FilterConfigStat
+	if err := dao.db.Query(ctx, &rows, query, args, true); err != nil {
+		return nil, huberrors.WrapError(err, "统计过滤器配置失败")
+	}
+	return rows, nil
+}
+
+// MoveFilterNeighbor 与同一范围内按 filterOrder 相邻的过滤器交换顺序。
+// 没有相邻项时 moved 为 false，不把“后面还有但没装进本页”当成已经到头。
+func (dao *FilterConfigDAO) MoveFilterNeighbor(ctx context.Context, filterConfigId, tenantId, direction string, filterActions []string, operatorId string) (bool, error) {
+	if filterConfigId == "" {
+		return false, errors.New("filterConfigId不能为空")
+	}
+	if direction != "up" && direction != "down" {
+		return false, errors.New("direction只能是up或down")
+	}
+
+	var current struct {
+		FilterConfigId    string `db:"filterConfigId"`
+		GatewayInstanceId string `db:"gatewayInstanceId"`
+		RouteConfigId     string `db:"routeConfigId"`
+		FilterAction      string `db:"filterAction"`
+		FilterOrder       int    `db:"filterOrder"`
+	}
+	err := dao.db.QueryOne(ctx, &current, `
+		SELECT filterConfigId, gatewayInstanceId, routeConfigId, filterAction, filterOrder
+		FROM HUB_GW_FILTER_CONFIG
+		WHERE filterConfigId = ? AND tenantId = ?
+	`, []interface{}{filterConfigId, tenantId}, true)
+	if err != nil {
+		return false, huberrors.WrapError(err, "查询过滤器配置失败")
+	}
+
+	scope := "tenantId = ?"
+	args := []interface{}{tenantId}
+	if current.RouteConfigId != "" {
+		scope += " AND routeConfigId = ?"
+		args = append(args, current.RouteConfigId)
+	} else {
+		scope += " AND gatewayInstanceId = ? AND (routeConfigId = '' OR routeConfigId IS NULL)"
+		args = append(args, current.GatewayInstanceId)
+	}
+	actions := filterActions
+	if len(actions) == 0 {
+		actions = []string{current.FilterAction}
+	}
+	placeholders := make([]string, len(actions))
+	for i, action := range actions {
+		if !models.IsValidFilterAction(action) {
+			return false, errors.New("filterAction不合法")
+		}
+		placeholders[i] = "?"
+		args = append(args, action)
+	}
+	scope += fmt.Sprintf(" AND filterAction IN (%s)", strings.Join(placeholders, ","))
+	scopeArgs := append([]interface{}{}, args...)
+
+	compare := "(filterOrder > ? OR (filterOrder = ? AND filterConfigId > ?))"
+	orderBy := "filterOrder ASC, filterConfigId ASC"
+	if direction == "up" {
+		compare = "(filterOrder < ? OR (filterOrder = ? AND filterConfigId < ?))"
+		orderBy = "filterOrder DESC, filterConfigId DESC"
+	}
+	args = append(args, current.FilterOrder, current.FilterOrder, current.FilterConfigId)
+
+	baseQuery := fmt.Sprintf(`
+		SELECT filterConfigId, filterOrder
+		FROM HUB_GW_FILTER_CONFIG
+		WHERE %s AND %s
+		ORDER BY %s
+	`, scope, compare, orderBy)
+	dbType := sqlutils.GetDatabaseType(dao.db)
+	paged, pageArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, sqlutils.NewPaginationInfo(1, 1))
+	if err != nil {
+		return false, huberrors.WrapError(err, "构建相邻过滤器查询失败")
+	}
+	var neighbor struct {
+		FilterConfigId string `db:"filterConfigId"`
+		FilterOrder    int    `db:"filterOrder"`
+	}
+	err = dao.db.QueryOne(ctx, &neighbor, paged, append(args, pageArgs...), true)
+	if database.IsRecordNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, huberrors.WrapError(err, "查询相邻过滤器失败")
+	}
+
+	currentOrder := neighbor.FilterOrder
+	neighborOrder := current.FilterOrder
+	shiftFrom := 0
+	shiftCurrent := false
+	if current.FilterOrder == neighbor.FilterOrder {
+		if direction == "down" {
+			shiftFrom = neighbor.FilterOrder
+			shiftCurrent = true
+			currentOrder = neighbor.FilterOrder + 1
+			neighborOrder = neighbor.FilterOrder
+		} else {
+			shiftFrom = neighbor.FilterOrder - 1
+			currentOrder = neighbor.FilterOrder
+			neighborOrder = neighbor.FilterOrder
+		}
+	}
+
+	err = dao.db.InTx(ctx, nil, func(txCtx context.Context) error {
+		now := time.Now()
+		if current.FilterOrder == neighbor.FilterOrder {
+			shiftArgs := append(append([]interface{}{}, scopeArgs...), shiftFrom, current.FilterConfigId)
+			if _, execErr := dao.db.Exec(txCtx, fmt.Sprintf(`
+				UPDATE HUB_GW_FILTER_CONFIG SET filterOrder = filterOrder + 1, editTime = ?, editWho = ?
+				WHERE %s AND filterOrder > ? AND filterConfigId <> ?
+			`, scope), append([]interface{}{now, operatorId}, shiftArgs...), false); execErr != nil {
+				return execErr
+			}
+		}
+		if !shiftCurrent && current.FilterOrder != neighbor.FilterOrder {
+			if _, execErr := dao.db.Exec(txCtx, `
+				UPDATE HUB_GW_FILTER_CONFIG SET filterOrder = ?, editTime = ?, editWho = ?
+				WHERE filterConfigId = ? AND tenantId = ?
+			`, []interface{}{neighborOrder, now, operatorId, neighbor.FilterConfigId, tenantId}, false); execErr != nil {
+				return execErr
+			}
+		}
+		if shiftCurrent || current.FilterOrder != neighbor.FilterOrder {
+			_, execErr := dao.db.Exec(txCtx, `
+				UPDATE HUB_GW_FILTER_CONFIG SET filterOrder = ?, editTime = ?, editWho = ?
+				WHERE filterConfigId = ? AND tenantId = ?
+			`, []interface{}{currentOrder, now, operatorId, current.FilterConfigId, tenantId}, false)
+			return execErr
+		}
+		return nil
+	})
+	if err != nil {
+		return false, huberrors.WrapError(err, "交换过滤器顺序失败")
+	}
+	return true, nil
 }

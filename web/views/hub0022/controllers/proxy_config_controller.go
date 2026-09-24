@@ -32,7 +32,7 @@ func NewProxyConfigController(db database.Database) *ProxyConfigController {
 // @Description 分页获取代理配置列表
 // @Tags 代理配置管理
 // @Produce json
-// @Param page query int false "页码" default(1)
+// @Param pageIndex query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
 // @Param gatewayInstanceId query string false "网关实例ID"
 // @Success 200 {object} response.JsonData

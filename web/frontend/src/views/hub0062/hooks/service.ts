@@ -5,6 +5,7 @@
 
 import { useAppMessage } from '@/composables/useAppMessage'
 import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
+import { getDefaultPageSize } from '@/utils/pagination'
 import type { Ref } from 'vue'
 import * as tunnelClientApi from '../api'
 import type { TunnelClient, TunnelClientQueryParams } from '../types'
@@ -31,7 +32,7 @@ export function useTunnelClientService(searchFormRef?: Ref<any> | any) {
         activeFlag: searchParams?.activeFlag || undefined,
         keyword: searchParams?.keyword || '',
         pageIndex: model.pageInfo.value?.pageIndex || 1,
-        pageSize: model.pageInfo.value?.pageSize || 20,
+        pageSize: model.pageInfo.value?.pageSize || getDefaultPageSize(),
       }
 
       const response = await tunnelClientApi.queryTunnelClients(params)

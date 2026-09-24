@@ -33,8 +33,7 @@ export function useGatewayInstanceTreeService(model: GatewayInstanceTreeModel) {
     try {
       setLoading(true)
       const res = await queryAllGatewayInstances({
-        activeFlag: 'Y', // 默认只加载启用的实例
-        instanceName: filterKeyword.value.trim() || undefined, // 搜索关键词
+        instanceName: filterKeyword.value.trim() || undefined,
         pageIndex: currentPage.value,
         pageSize: pageSize.value,
       })

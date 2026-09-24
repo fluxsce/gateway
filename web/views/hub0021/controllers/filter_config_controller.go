@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	"strings"
 
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
@@ -44,7 +45,9 @@ func (c *FilterConfigController) QueryFilterConfigs(ctx *gin.Context) {
 		"filterName":        request.GetParam(ctx, "filterName"),
 		"filterType":        request.GetParam(ctx, "filterType"),
 		"filterAction":      request.GetParam(ctx, "filterAction"),
+		"filterActions":     request.GetParam(ctx, "filterActions"),
 		"activeFlag":        request.GetParam(ctx, "activeFlag"),
+		"orderBy":           request.GetParam(ctx, "orderBy"),
 	}
 
 	// 调用DAO获取过滤器配置列表
@@ -251,6 +254,53 @@ func (c *FilterConfigController) UpdateFilterOrder(ctx *gin.Context) {
 	}, constants.SD00004)
 }
 
+// MoveFilterNeighbor 与范围内真正相邻的过滤器交换顺序。
+func (c *FilterConfigController) MoveFilterNeighbor(ctx *gin.Context) {
+	var req struct {
+		FilterConfigId string `json:"filterConfigId" form:"filterConfigId" binding:"required"`
+		Direction      string `json:"direction" form:"direction" binding:"required"`
+		FilterActions  string `json:"filterActions" form:"filterActions"`
+	}
+	if err := request.BindSafely(ctx, &req); err != nil {
+		response.ErrorJSON(ctx, "参数错误: "+err.Error(), constants.ED00006)
+		return
+	}
+
+	tenantId := request.GetTenantID(ctx)
+	operatorId := request.GetOperatorID(ctx)
+	moved, err := c.filterConfigDAO.MoveFilterNeighbor(ctx, req.FilterConfigId, tenantId, req.Direction, splitFilterActions(req.FilterActions), operatorId)
+	if err != nil {
+		logger.ErrorWithTrace(ctx, "调整过滤器相邻顺序失败", err)
+		response.ErrorJSON(ctx, "调整过滤器执行顺序失败: "+err.Error(), constants.ED00009)
+		return
+	}
+	audit.SetEvent(ctx, &audit.AuditEvent{
+		Action:       audit.AuditActionUpdate,
+		ModuleCode:   "hub0021",
+		TargetType:   "FILTER",
+		TargetId:     req.FilterConfigId,
+		ResourceCode: "hub0021:filters:edit",
+	})
+	response.SuccessJSON(ctx, gin.H{
+		"filterConfigId": req.FilterConfigId,
+		"moved":          moved,
+	}, constants.SD00004)
+}
+
+func splitFilterActions(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	var actions []string
+	for _, part := range strings.Split(raw, ",") {
+		action := strings.TrimSpace(part)
+		if models.IsValidFilterAction(action) {
+			actions = append(actions, action)
+		}
+	}
+	return actions
+}
+
 // GetFilterConfigStats 获取过滤器配置统计信息
 func (c *FilterConfigController) GetFilterConfigStats(ctx *gin.Context) {
 	tenantId := request.GetTenantID(ctx)
@@ -262,43 +312,37 @@ func (c *FilterConfigController) GetFilterConfigStats(ctx *gin.Context) {
 		"activeFlag":        request.GetParam(ctx, "activeFlag"),
 	}
 
-	// 获取过滤器配置
-	filterConfigs, _, err := c.filterConfigDAO.ListFilterConfigs(ctx, tenantId, queryParams, 1, 10000)
+	rows, err := c.filterConfigDAO.SummarizeFilterConfigs(ctx, tenantId, queryParams)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取过滤器配置统计信息失败", err)
 		response.ErrorJSON(ctx, "获取过滤器配置统计信息失败: "+err.Error(), constants.ED00009)
 		return
 	}
 
-	// 统计信息
 	stats := map[string]interface{}{
-		"total":    len(filterConfigs),
-		"byType":   make(map[string]int),
-		"byAction": make(map[string]int),
+		"total":    0,
+		"byType":   map[string]int{},
+		"byAction": map[string]int{},
 		"byStatus": map[string]int{
 			"active":   0,
 			"inactive": 0,
 		},
 	}
-
 	byType := stats["byType"].(map[string]int)
 	byAction := stats["byAction"].(map[string]int)
 	byStatus := stats["byStatus"].(map[string]int)
-
-	for _, config := range filterConfigs {
-		// 按类型统计
-		byType[config.FilterType]++
-
-		// 按执行时机统计
-		byAction[config.FilterAction]++
-
-		// 按状态统计
-		if config.ActiveFlag == "Y" {
-			byStatus["active"]++
+	total := 0
+	for _, row := range rows {
+		total += row.Cnt
+		byType[row.FilterType] += row.Cnt
+		byAction[row.FilterAction] += row.Cnt
+		if row.ActiveFlag == "Y" {
+			byStatus["active"] += row.Cnt
 		} else {
-			byStatus["inactive"]++
+			byStatus["inactive"] += row.Cnt
 		}
 	}
+	stats["total"] = total
 
 	response.SuccessJSON(ctx, stats, constants.SD00002)
 }
@@ -314,18 +358,33 @@ func (c *FilterConfigController) ExportFilterConfigs(ctx *gin.Context) {
 		"activeFlag":        request.GetParam(ctx, "activeFlag"),
 	}
 
-	// 获取过滤器配置列表
-	filterConfigs, _, err := c.filterConfigDAO.ListFilterConfigs(ctx, tenantId, queryParams, 1, 10000)
-	if err != nil {
-		logger.ErrorWithTrace(ctx, "导出过滤器配置失败", err)
-		response.ErrorJSON(ctx, "导出过滤器配置失败: "+err.Error(), constants.ED00009)
+	// 按页取出全部，避免一页上限把后面的过滤器从导出里丢掉。
+	const exportPageSize = 500
+	const exportPageCap = 200
+	filterConfigs := make([]*models.FilterConfig, 0)
+	total := 0
+	for page := 1; page <= exportPageCap; page++ {
+		rows, count, err := c.filterConfigDAO.ListFilterConfigs(ctx, tenantId, queryParams, page, exportPageSize)
+		if err != nil {
+			logger.ErrorWithTrace(ctx, "导出过滤器配置失败", err)
+			response.ErrorJSON(ctx, "导出过滤器配置失败: "+err.Error(), constants.ED00009)
+			return
+		}
+		total = count
+		filterConfigs = append(filterConfigs, rows...)
+		if len(rows) == 0 || len(filterConfigs) >= total {
+			break
+		}
+	}
+	if len(filterConfigs) < total {
+		response.ErrorJSON(ctx, fmt.Sprintf("过滤器共 %d 条，超过单次导出上限，请缩小筛选条件后再导出", total), constants.ED00009)
 		return
 	}
 
 	response.SuccessJSON(ctx, gin.H{
 		"filterConfigs": filterConfigs,
+		"total":         total,
 		"exportTime":    time.Now(),
-		"total":         len(filterConfigs),
 	}, constants.SD00002)
 }
 

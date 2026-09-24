@@ -161,11 +161,12 @@ func (v *ConfigValidator) validateBasicConfig(cfg *MetricConfig) error {
 		logger.Info("租户ID为空，使用默认值: default")
 	}
 
-	// 生成服务器ID（如果未配置，使用全局节点ID）
-	if cfg.ServerId == "" {
-		cfg.ServerId = config.GetNodeId()
-		logger.Info("服务器ID未配置，使用全局节点ID", "server_id", cfg.ServerId)
+	// 采集节点 ID 与集群节点 ID 相同，避免两套 ID 对不上。
+	nodeId := config.GetNodeId()
+	if cfg.ServerId != "" && cfg.ServerId != nodeId {
+		logger.Info("指标服务器ID与节点ID不一致，改用节点ID", "server_id", cfg.ServerId, "node_id", nodeId)
 	}
+	cfg.ServerId = nodeId
 
 	// 验证操作人
 	if cfg.Operator == "" {

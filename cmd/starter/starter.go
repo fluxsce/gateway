@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"syscall"
+	"time"
 
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -33,6 +34,10 @@ var (
 	appContext context.Context
 	appCancel  context.CancelFunc
 )
+
+// shutdownCleanupTimeout 是 K8s 终止宽限期内留给状态回写和组件停止的时间。
+// 默认 terminationGracePeriodSeconds 为 30s，这里取 10s，避免清理占满后被 SIGKILL 打断。
+const shutdownCleanupTimeout = 10 * time.Second
 
 func Starter() {
 	// 检查是否在Windows服务模式下运行
@@ -320,8 +325,11 @@ func stopApplication() {
 		fmt.Println("开始停止Gateway应用...")
 	}
 
-	// 取消应用上下文
+	// 取消应用上下文，停掉仍挂在 appContext 上的后台循环。
+	// 状态回写和组件停止另用 shutdownCtx，避免 context canceled 被记成 error。
 	appCancel()
+	shutdownCtx, shutdownCancel := newShutdownContext()
+	defer shutdownCancel()
 
 	appinit.StopRetention()
 
@@ -336,20 +344,20 @@ func stopApplication() {
 	}
 
 	// 停止隧道管理器
-	if err := appinit.StopTunnelManager(appContext); err != nil {
+	if err := appinit.StopTunnelManager(shutdownCtx); err != nil {
 		logger.Error("停止隧道管理器失败", "error", err)
 	}
 
 	// 停止集群服务
-	if err := appinit.StopCluster(appContext); err != nil {
+	if err := appinit.StopCluster(shutdownCtx); err != nil {
 		logger.Error("停止集群服务失败", "error", err)
 	}
 
 	// 关闭告警系统
-	appinit.ShutdownAlert(appContext)
+	appinit.ShutdownAlert(shutdownCtx)
 
 	// 清理资源
-	cleanupResources()
+	cleanupResources(shutdownCtx)
 
 	if config.IsServiceMode() {
 		log.Println("Gateway服务已停止")
@@ -435,8 +443,14 @@ func startGatewayServices() error {
 	return nil
 }
 
-// cleanupResources 清理资源
-func cleanupResources() {
+// newShutdownContext 返回与 appContext 无关的清理上下文。
+// 多 Pod 收到 SIGTERM 后，appContext 用来停后台循环；服务中心 STOPPED 回写仍需要可执行的数据库调用。
+func newShutdownContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), shutdownCleanupTimeout)
+}
+
+// cleanupResources 清理资源。ctx 须是未取消的关闭上下文，不能复用已取消的 appContext。
+func cleanupResources(ctx context.Context) {
 	logMsg := func(msg string, args ...interface{}) {
 		if config.IsServiceMode() {
 			log.Printf(msg, args...)
@@ -498,7 +512,7 @@ func cleanupResources() {
 
 	// 停止服务中心服务
 	logMsg("正在停止服务中心服务...")
-	if err := appinit.StopServiceCenter(appContext); err != nil {
+	if err := appinit.StopServiceCenter(ctx); err != nil {
 		logMsg("停止服务中心服务时发生错误: %v", err)
 	} else {
 		logMsg("服务中心服务已成功停止")

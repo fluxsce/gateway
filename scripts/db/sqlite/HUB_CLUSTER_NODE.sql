@@ -1,0 +1,25 @@
+CREATE TABLE IF NOT EXISTS HUB_CLUSTER_NODE (
+  nodeId TEXT NOT NULL,
+  tenantId TEXT NOT NULL,
+  nodeIp TEXT,
+  hostname TEXT,
+  startedTime DATETIME NOT NULL,
+  lastSeenTime DATETIME NOT NULL,
+  addTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  addWho TEXT NOT NULL,
+  editTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  editWho TEXT NOT NULL,
+  oprSeqFlag TEXT NOT NULL,
+  currentVersion INTEGER NOT NULL DEFAULT 1,
+  activeFlag TEXT NOT NULL DEFAULT 'Y',
+  noteText TEXT,
+  extProperty TEXT,
+  reserved1 TEXT,
+  reserved2 TEXT,
+  reserved3 TEXT,
+  reserved4 TEXT,
+  reserved5 TEXT,
+  PRIMARY KEY (tenantId, nodeId)
+);
+
+CREATE INDEX IF NOT EXISTS IDX_CLS_NODE_SEEN ON HUB_CLUSTER_NODE(tenantId, lastSeenTime);

@@ -10,7 +10,7 @@ import (
 	"gateway/pkg/logger"
 )
 
-// LocalGatewayID 是当前网关进程，与 app.cluster.node_id / app.node_id 对齐。
+// LocalGatewayID 是当前网关进程，与 GetNodeId() 对齐。
 // 空表示单进程，Evictor 按心跳扫描全部业务节点。
 var LocalGatewayID string
 

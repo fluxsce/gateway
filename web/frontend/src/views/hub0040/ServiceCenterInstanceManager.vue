@@ -101,6 +101,7 @@ import { RsSearchForm } from '@/components/form/rs-search'
 import { GIcon } from '@/components/gicon'
 import { RsEmpty, RsLoading, RsPagination, RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import { ServerOutline } from '@vicons/ionicons5'
+import { getDefaultPageSize } from '@/utils/pagination'
 import { computed, ref } from 'vue'
 import { CenterRuntimeDrawer, CenterTokenDrawer, ServiceCenterInstanceCard } from './components'
 import { canInstanceAction, useServiceCenterInstancePage } from './hooks'
@@ -150,7 +151,7 @@ const instanceList = computed(() => service.model.instanceList.value)
 const loading = computed(() => service.model.loading.value)
 const totalCount = computed(() => service.model.pageInfo.value?.totalCount || 0)
 const currentPage = computed(() => service.model.pageInfo.value?.pageIndex || 1)
-const pageSize = computed(() => service.model.pageInfo.value?.pageSize || 10)
+const pageSize = computed(() => service.model.pageInfo.value?.pageSize || getDefaultPageSize())
 
 function cardKey(instance: ServiceCenterInstance) {
   return instance.oprSeqFlag || `${instance.tenantId}:${instance.instanceName}:${instance.environment}`

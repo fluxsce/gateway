@@ -110,8 +110,8 @@
           </RsInput>
 
           <div class="toolbar-right">
-            <RsTag v-if="filteredServices.length > 0" variant="info" size="sm">
-              找到 {{ filteredServices.length }} 个服务定义
+            <RsTag v-if="serviceTotal > 0" variant="info" size="sm">
+              {{ searchKeyword.trim() ? `匹配 ${serviceTotal} 个` : `共 ${serviceTotal} 个` }}服务定义
             </RsTag>
             <RsButton
               variant="secondary"
@@ -127,7 +127,7 @@
 
         <RsTable
           :columns="columns"
-          :data="pagedServices"
+          :data="serviceDefinitions"
           row-key="serviceDefinitionId"
           :loading="loading"
           selectable
@@ -142,8 +142,8 @@
         />
 
         <RsEmpty
-          v-if="!loading && filteredServices.length === 0"
-          description="暂无服务定义数据"
+          v-if="!loading && serviceDefinitions.length === 0"
+          :description="serviceEmptyText"
           class="table-empty"
         >
           <RsButton size="sm" variant="secondary" @click="loadServiceDefinitions">
@@ -151,14 +151,14 @@
           </RsButton>
         </RsEmpty>
 
-        <div v-if="filteredServices.length > 0" class="selector-pagination">
+        <div v-if="serviceTotal > 0" class="selector-pagination">
           <RsPagination
             v-model:page="currentPage"
             v-model:page-size="pageSize"
-            :total="filteredServices.length"
+            :total="serviceTotal"
             size="sm"
             show-page-size
-            :page-size-options="[8, 10, 15, 20]"
+            :page-size-options="pageSizeChoices"
           />
         </div>
       </template>
@@ -187,7 +187,8 @@
 <script setup lang="ts">
 import { GIcon } from '@/components/gicon'
 import { useAppMessage } from '@/composables/useAppMessage'
-import { isApiSuccess } from '@/utils/format'
+import { isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
+import { createBackendPaginationParams, getDefaultPageSize, pageSizeOptions } from '@/utils/pagination'
 import {
   RsButton,
   RsDialog,
@@ -227,10 +228,13 @@ const message = useAppMessage()
 const showSelector = ref(false)
 const searchKeyword = ref('')
 const serviceDefinitions = ref<ServiceDefinition[]>([])
+const serviceTotal = ref(0)
+const serviceLoadFailed = ref(false)
 const selectedRowKeys = ref<string[]>([])
 const loading = ref(false)
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(getDefaultPageSize())
+const pageSizeChoices = computed(() => pageSizeOptions().filter((size) => size <= 50))
 const selectedServiceInfo = ref<ServiceDefinition | null>(null)
 
 const currentService = computed(() => {
@@ -248,23 +252,15 @@ const selectedService = computed(() => {
   return key ? serviceDefinitions.value.find((s) => s.serviceDefinitionId === key) : null
 })
 
-const filteredServices = computed(() => {
-  if (!searchKeyword.value) {
-    return serviceDefinitions.value
+const serviceEmptyText = computed(() => {
+  if (serviceLoadFailed.value) {
+    return '服务定义加载失败，请刷新'
   }
-
-  const keyword = searchKeyword.value.toLowerCase()
-  return serviceDefinitions.value.filter(
-    (service) =>
-      service.serviceName.toLowerCase().includes(keyword) ||
-      service.serviceDefinitionId.toLowerCase().includes(keyword) ||
-      (service.serviceDesc && service.serviceDesc.toLowerCase().includes(keyword)),
-  )
-})
-
-const pagedServices = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return filteredServices.value.slice(start, start + pageSize.value)
+  const keyword = searchKeyword.value.trim()
+  if (keyword) {
+    return `没有匹配「${keyword}」的服务定义`
+  }
+  return '暂无服务定义'
 })
 
 const columns: RsTableColumn<ServiceDefinition>[] = [
@@ -381,36 +377,31 @@ const loadServiceById = async (serviceDefinitionId: string) => {
 const loadServiceDefinitions = async (): Promise<void> => {
   if (!props.gatewayInstanceId) {
     serviceDefinitions.value = []
-    return Promise.resolve()
+    serviceTotal.value = 0
+    return
   }
 
   try {
     loading.value = true
+    const page = createBackendPaginationParams(currentPage.value, pageSize.value)
     const response = await queryServiceDefinitions({
       gatewayInstanceId: props.gatewayInstanceId,
-      pageIndex: 1,
-      pageSize: 1000,
+      keyword: searchKeyword.value.trim() || undefined,
+      pageIndex: page.pageIndex,
+      pageSize: page.pageSize,
     })
 
     if (isApiSuccess(response)) {
-      const pageData = JSON.parse(response.bizData)
-      serviceDefinitions.value = pageData?.list || pageData || []
-
-      if (props.modelValue) {
-        const found = serviceDefinitions.value.find(
-          (s: ServiceDefinition) => s.serviceDefinitionId === props.modelValue,
-        )
-        if (!found) {
-          await loadServiceById(props.modelValue)
-        } else {
-          selectedServiceInfo.value = found
-        }
-      }
+      serviceLoadFailed.value = false
+      const rows = parseJsonData<ServiceDefinition[]>(response, [])
+      serviceDefinitions.value = Array.isArray(rows) ? rows : []
+      serviceTotal.value = parsePageInfo(response).totalCount || 0
     } else {
-      serviceDefinitions.value = []
+      serviceLoadFailed.value = true
+      message.error('加载服务定义列表失败')
     }
   } catch {
-    serviceDefinitions.value = []
+    serviceLoadFailed.value = true
     message.error('加载服务定义列表失败')
   } finally {
     loading.value = false
@@ -445,11 +436,18 @@ const handleClear = () => {
 watch(
   () => props.gatewayInstanceId,
   (newId) => {
-    if (newId) {
-      loadServiceDefinitions()
-    } else {
-      serviceDefinitions.value = []
+    serviceDefinitions.value = []
+    serviceTotal.value = 0
+    currentPage.value = 1
+    if (!newId) {
       selectedServiceInfo.value = null
+      return
+    }
+    if (props.modelValue) {
+      void loadServiceById(props.modelValue)
+    }
+    if (showSelector.value) {
+      void loadServiceDefinitions()
     }
   },
 )
@@ -477,31 +475,44 @@ watch(
   { immediate: true },
 )
 
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+
 watch(
   () => showSelector.value,
   (show) => {
-    if (show) {
-      selectedRowKeys.value = props.modelValue ? [props.modelValue] : []
-      searchKeyword.value = ''
-      currentPage.value = 1
-      if (props.gatewayInstanceId) {
-        loadServiceDefinitions().then(() => {
-          if (props.modelValue) {
-            selectedRowKeys.value = [props.modelValue]
-          }
-        })
-      }
+    if (!show) return
+    selectedRowKeys.value = props.modelValue ? [props.modelValue] : []
+    searchKeyword.value = ''
+    currentPage.value = 1
+    if (props.gatewayInstanceId) {
+      void loadServiceDefinitions()
     }
   },
 )
 
 watch(searchKeyword, () => {
+  if (!showSelector.value) return
   currentPage.value = 1
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    void loadServiceDefinitions()
+  }, 300)
+})
+
+watch(currentPage, () => {
+  if (!showSelector.value || !props.gatewayInstanceId) return
+  void loadServiceDefinitions()
+})
+
+watch(pageSize, () => {
+  if (!showSelector.value || !props.gatewayInstanceId) return
+  currentPage.value = 1
+  void loadServiceDefinitions()
 })
 
 onMounted(() => {
-  if (props.gatewayInstanceId) {
-    loadServiceDefinitions()
+  if (props.gatewayInstanceId && props.modelValue) {
+    void loadServiceById(props.modelValue)
   }
 })
 </script>

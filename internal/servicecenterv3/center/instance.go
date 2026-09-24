@@ -15,6 +15,7 @@ import (
 	"gateway/internal/servicecenterv3/model"
 	"gateway/internal/servicecenterv3/naming"
 	pkgcache "gateway/pkg/cache"
+	appconfig "gateway/pkg/config"
 	"gateway/pkg/logger"
 )
 
@@ -120,8 +121,10 @@ func (i *Instance) Start(ctx context.Context) error {
 	}
 	i.naming.MarkViewWarm()
 	if err := i.server.Start(ctx); err != nil {
-		_ = i.store.Center.UpdateStatus(ctx, i.cfg.TenantID, i.cfg.InstanceName, i.cfg.Environment,
-			model.CenterStatusError, err.Error())
+		if !appconfig.IsInstanceStopping() {
+			_ = i.store.Center.UpdateStatus(ctx, i.cfg.TenantID, i.cfg.InstanceName, i.cfg.Environment,
+				model.CenterStatusError, err.Error())
+		}
 		alert.StartFailure(i.cfg, err)
 		return err
 	}
@@ -129,8 +132,10 @@ func (i *Instance) Start(ctx context.Context) error {
 	i.naming.StartLiveSync(2 * time.Second)
 	i.running.Store(true)
 	i.cfg.Status = model.CenterStatusRunning
-	_ = i.store.Center.UpdateStatus(ctx, i.cfg.TenantID, i.cfg.InstanceName, i.cfg.Environment,
-		model.CenterStatusRunning, "running")
+	if !appconfig.IsInstanceStopping() {
+		_ = i.store.Center.UpdateStatus(ctx, i.cfg.TenantID, i.cfg.InstanceName, i.cfg.Environment,
+			model.CenterStatusRunning, "running")
+	}
 	logger.Info("servicecenterv3 中心实例已启动", "instance", i.cfg.InstanceName, "listen", i.cfg.ListenEndpoint())
 	return nil
 }
@@ -145,8 +150,15 @@ func (i *Instance) Stop(ctx context.Context) error {
 	i.server.Stop()
 	i.running.Store(false)
 	i.cfg.Status = model.CenterStatusStopped
-	_ = i.store.Center.UpdateStatus(ctx, i.cfg.TenantID, i.cfg.InstanceName, i.cfg.Environment,
-		model.CenterStatusStopped, "stopped")
+	// 这一行按租户、实例名、环境共用，没有 Pod 身份。进程退出时不回写，
+	// 避免滚动发布里旧副本把新副本的 RUNNING 盖成 STOPPED。
+	// 管理面或集群事件主动停止时进程仍在运行，仍会写成 STOPPED。
+	if appconfig.IsInstanceStopping() {
+		logger.Info("进程停止流程中关闭服务中心，跳过实例状态落库", "instance", i.cfg.InstanceName)
+	} else if err := i.store.Center.UpdateStatus(ctx, i.cfg.TenantID, i.cfg.InstanceName, i.cfg.Environment,
+		model.CenterStatusStopped, "stopped"); err != nil {
+		logger.Error("更新中心实例停止状态失败", "instance", i.cfg.InstanceName, "error", err)
+	}
 	logger.Info("servicecenterv3 中心实例已停止", "instance", i.cfg.InstanceName)
 	return nil
 }

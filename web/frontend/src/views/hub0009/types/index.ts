@@ -18,6 +18,8 @@ export interface RetentionJobSettings {
 export interface WebTimeoutSettings {
   requestTimeoutSeconds: number
   sessionExpireHours: number
+  defaultPageSize: number
+  maxPageSize: number
   cipherEnabled: boolean
   kid: string
   publicKey: string

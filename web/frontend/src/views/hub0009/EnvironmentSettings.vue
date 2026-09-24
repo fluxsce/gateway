@@ -141,7 +141,7 @@
                   :name="field.key"
                   label-position="top"
                   :min="field.min"
-                  :max="field.max"
+                  :max="field.key === 'defaultPageSize' ? webTimeout.maxPageSize : field.max"
                   :disabled="!canEdit"
                 />
                 <span class="field-unit">{{ t(`common.${field.unit}`) }}</span>
@@ -217,7 +217,7 @@ import type { RetentionSettings } from './types'
 defineOptions({ name: 'EnvironmentSettings' })
 
 type RetentionDayKey = Exclude<keyof RetentionSettings, 'currentVersion'>
-type WebTimeoutNumberKey = 'requestTimeoutSeconds' | 'sessionExpireHours'
+type WebTimeoutNumberKey = 'requestTimeoutSeconds' | 'sessionExpireHours' | 'defaultPageSize' | 'maxPageSize'
 type SettingTab = 'retention' | 'retentionJob' | 'webTimeout' | 'envVars' | 'health'
 
 const { t } = useModuleI18n('hub0009')
@@ -246,10 +246,12 @@ const webTimeoutFields: {
   key: WebTimeoutNumberKey
   min: number
   max: number
-  unit: 'seconds' | 'hours'
+  unit: 'seconds' | 'hours' | 'rows'
 }[] = [
   { key: 'requestTimeoutSeconds', min: 10, max: 600, unit: 'seconds' },
   { key: 'sessionExpireHours', min: 1, max: 168, unit: 'hours' },
+  { key: 'defaultPageSize', min: 1, max: 200, unit: 'rows' },
+  { key: 'maxPageSize', min: 1, max: 200, unit: 'rows' },
 ]
 
 const {

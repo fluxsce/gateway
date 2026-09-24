@@ -2,10 +2,12 @@ package dblogger
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"gateway/pkg/config"
 	"gateway/pkg/database/dbtypes"
 	"gateway/pkg/logger"
 )
@@ -75,9 +77,14 @@ func (l *DBLogger) LogSQL(ctx context.Context, operation string, query string, a
 		}
 	}
 
-	// 如果有错误，记录错误日志
+	// 如果有错误，记录错误日志。
+	// 仅当进程已在停止且错误是 context.Canceled 时降为 info。
+	// DeadlineExceeded 表示清理超时，连接失败和 SQL 错误仍按 error 上报。
 	if err != nil {
-		// 记录错误
+		if config.IsInstanceStopping() && errors.Is(err, context.Canceled) {
+			logger.InfoWithTrace(ctx, operation+"已取消", append(fields, "error", err.Error())...)
+			return
+		}
 		logger.ErrorWithTrace(ctx, operation+"错误", append(fields, "error", err.Error())...)
 		return
 	}

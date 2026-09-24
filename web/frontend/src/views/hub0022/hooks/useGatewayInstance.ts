@@ -1,4 +1,6 @@
 import { useAppMessage } from '@/composables/useAppMessage'
+import { isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
+import { createBackendPaginationParams } from '@/utils/pagination'
 import { computed, ref } from 'vue'
 import { queryAllGatewayInstances } from '../api'
 import type { GatewayInstance, ProxyType } from '../components/instance-tree'
@@ -13,6 +15,7 @@ export function useGatewayInstance() {
   // 网关实例状态
   const loadingInstances = ref(false)
   const instanceList = ref<GatewayInstance[]>([])
+  const instanceTotal = ref(0)
   const selectedInstanceId = ref<string>('')
   const selectedInstance = ref<GatewayInstance | null>(null)
   const instanceDetailsVisible = ref(false) // 默认收起实例详情
@@ -47,24 +50,19 @@ export function useGatewayInstance() {
   async function loadGatewayInstances() {
     try {
       loadingInstances.value = true
+      const page = createBackendPaginationParams(1, undefined)
       const res = await queryAllGatewayInstances({
-        activeFlag: 'Y', // 默认只加载启用的实例
-        pageIndex: 1,
-        pageSize: 100,
+        activeFlag: 'Y',
+        pageIndex: page.pageIndex,
+        pageSize: page.pageSize,
       })
 
-      if (res.oK) {
-        // 解析bizData字段，这是一个JSON字符串
-        try {
-          const instanceData = JSON.parse(res.bizData || '[]')
-          instanceList.value = instanceData || []
-
-          // 如果有可用实例，默认选择第一个
-          if (instanceList.value.length > 0 && !selectedInstanceId.value) {
-            handleInstanceChange(instanceList.value[0].gatewayInstanceId)
-          }
-        } catch (parseError) {
-          message.error('解析网关实例数据失败')
+      if (isApiSuccess(res)) {
+        const rows = parseJsonData<GatewayInstance[]>(res, [])
+        instanceList.value = Array.isArray(rows) ? rows : []
+        instanceTotal.value = parsePageInfo(res).totalCount || instanceList.value.length
+        if (instanceList.value.length > 0 && !selectedInstanceId.value) {
+          handleInstanceChange(instanceList.value[0].gatewayInstanceId)
         }
       } else {
         message.error(res.errMsg || '获取网关实例列表失败')
@@ -94,6 +92,7 @@ export function useGatewayInstance() {
     // 状态
     loadingInstances,
     instanceList,
+    instanceTotal,
     selectedInstanceId,
     selectedInstance,
     instanceDetailsVisible,

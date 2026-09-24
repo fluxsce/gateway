@@ -123,6 +123,10 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
   const rateLimitConfigDialogVisible = ref(false)
   const rateLimitConfigGatewayInstanceId = ref<string>('')
 
+  // 集群健康与节点拓扑（不依赖当前行）
+  const clusterTopologyVisible = ref(false)
+  const clusterTopologyInstance = ref<GatewayInstance | null>(null)
+
   // 导出/导入
   const exportVisible = ref(false)
   const exportInstanceId = ref<string>('')
@@ -527,7 +531,6 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
    * 右键菜单点击处理
    */
   const handleMenuClick = async ({ key, row }: { key: string; row?: GatewayInstance }) => {
-    // 导入不依赖行数据，空白区域右键也可触发
     if (key === 'import') {
       importVisible.value = true
       return
@@ -586,6 +589,11 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
 
       case 'logConfig':
         openLogConfigDialog(row)
+        break
+
+      case 'clusterTopology':
+        clusterTopologyInstance.value = row
+        clusterTopologyVisible.value = true
         break
 
       case 'reload':
@@ -663,6 +671,10 @@ export function useGatewayInstancePage(gridRef?: Ref<any> | any, searchFormRef?:
     rateLimitConfigDialogVisible,
     rateLimitConfigGatewayInstanceId,
     openRateLimitConfigDialog,
+
+    // 集群健康与节点拓扑
+    clusterTopologyVisible,
+    clusterTopologyInstance,
 
     // 导出/导入
     exportVisible,

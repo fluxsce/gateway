@@ -202,7 +202,7 @@ func (c *IpAccessConfigController) DeleteIpAccessConfig(ctx *gin.Context) {
 // @Description 分页获取IP访问控制配置列表，支持条件查询，必须携带securityConfigId条件
 // @Tags IP访问控制配置
 // @Produce json
-// @Param page query int false "页码" default(1)
+// @Param pageIndex query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
 // @Param securityConfigId query string true "安全配置ID（必填）"
 // @Param configName query string false "配置名称（模糊查询）"

@@ -42,7 +42,7 @@ import {
 } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
 import { RsDialog, RsTag, type RsTagVariant } from '@/ui'
-import { createBackendPaginationParams } from '@/utils/pagination'
+import { createBackendPaginationParams, getDefaultPageSize } from '@/utils/pagination'
 import { h, onMounted, ref, watch } from 'vue'
 import * as tunnelClientApi from '../../api'
 import type { ConnectionStatus, TunnelClient } from '../../types'
@@ -192,7 +192,7 @@ const loadClientList = async () => {
  */
 const handlePageChange = (params: { currentPage: number; pageSize: number }) => {
   if (!pageInfo.value) {
-    pageInfo.value = { pageIndex: 1, pageSize: 20 } as PageInfoObj
+    pageInfo.value = { pageIndex: 1, pageSize: getDefaultPageSize() } as PageInfoObj
   }
   if (params.currentPage) {
     pageInfo.value.pageIndex = params.currentPage

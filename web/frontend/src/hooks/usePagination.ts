@@ -4,6 +4,7 @@
  */
 
 import { PAGINATION_CONFIG } from '@/config'
+import { getDefaultPageSize, pageSizeOptions } from '@/utils/pagination'
 import type { PageInfoObj } from '@/types/api'
 import { computed, reactive } from 'vue'
 
@@ -27,8 +28,8 @@ export interface PaginationOptions {
 export const usePagination = (options: PaginationOptions = {}) => {
   const {
     initialPage = PAGINATION_CONFIG.DEFAULT_PAGE_INDEX,
-    initialPageSize = PAGINATION_CONFIG.DEFAULT_PAGE_SIZE,
-    pageSizes = PAGINATION_CONFIG.PAGE_SIZES,
+    initialPageSize = getDefaultPageSize(),
+    pageSizes = pageSizeOptions(),
     showSizePicker = PAGINATION_CONFIG.SHOW_SIZE_PICKER,
     showQuickJumper = PAGINATION_CONFIG.SHOW_QUICK_JUMPER,
     onPageChange,

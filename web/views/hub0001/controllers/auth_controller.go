@@ -189,7 +189,9 @@ func (c *AuthController) Login(ctx *gin.Context) {
 		"clientIP":        clientIP,
 		"userAgent":       userAgent,
 		// 接口超时优先用环境设置，否则回落 web.read_timeout
-		"timeout": requestTimeoutMs(user.TenantId),
+		"timeout":         requestTimeoutMs(user.TenantId),
+		"defaultPageSize": syssetting.GetWebTimeout(user.TenantId).DefaultPageSize,
+		"maxPageSize":     syssetting.GetWebTimeout(user.TenantId).MaxPageSize,
 		// 权限信息
 		"permissions": permissions,
 		// 管理员重置或新建账号后须先改密

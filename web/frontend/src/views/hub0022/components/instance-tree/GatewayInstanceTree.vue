@@ -88,7 +88,7 @@
               </div>
             </template>
           </RsTree>
-          <RsEmpty v-else description="暂无可用的网关实例" class="instance-tree-empty">
+          <RsEmpty v-else :description="instanceEmptyText" class="instance-tree-empty">
             <template #icon>
               <GIcon :icon="ServerOutline" :size="32" color="var(--g-primary)" />
             </template>
@@ -166,6 +166,13 @@ const emit = defineEmits<{
 }>()
 
 const page = useGatewayInstanceTreePage()
+const instanceEmptyText = computed(() => {
+  const keyword = page.model.filterKeyword.value.trim()
+  if (keyword) {
+    return `没有匹配「${keyword}」的网关实例`
+  }
+  return '暂无可用的网关实例'
+})
 const selectedKeys = ref<string | string[]>('')
 
 const contextMenuItems = computed(() =>

@@ -4,7 +4,7 @@
  */
 
 import { rsConfirm } from '@/ui'
-import { createBackendPaginationParams } from '@/utils/pagination'
+import { createBackendPaginationParams, getDefaultPageSize } from '@/utils/pagination'
 import type { JsonDataObj } from '@/types/api'
 import { getApiMessage, isApiSuccess } from '@/utils/format'
 import { WarningOutline } from '@vicons/ionicons5'
@@ -103,7 +103,7 @@ export function useRouteConfigService(gatewayInstanceId?: string, searchFormRef?
    */
   const handleSearch = async (searchParams?: Record<string, any>) => {
     // 重置到第一页
-    updatePagination({ pageIndex: 1, pageSize: pageInfo.value?.pageSize || 20 })
+    updatePagination({ pageIndex: 1, pageSize: pageInfo.value?.pageSize || getDefaultPageSize() })
     await loadRouteList(searchParams)
   }
 
@@ -111,7 +111,7 @@ export function useRouteConfigService(gatewayInstanceId?: string, searchFormRef?
    * 重置搜索
    */
   const handleReset = async () => {
-    updatePagination({ pageIndex: 1, pageSize: pageInfo.value?.pageSize || 20 })
+    updatePagination({ pageIndex: 1, pageSize: pageInfo.value?.pageSize || getDefaultPageSize() })
     await loadRouteList()
   }
 

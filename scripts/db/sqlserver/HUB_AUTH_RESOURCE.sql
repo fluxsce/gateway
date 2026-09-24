@@ -715,6 +715,13 @@ ELSE
 UPDATE HUB_AUTH_RESOURCE SET resourceName = N'查看详情' WHERE tenantId = N'default' AND resourceId = N'hub0020:view';
 
 
+-- 集群健康与拓扑（实例列表右键，不依赖当前行）
+IF NOT EXISTS (SELECT 1 FROM HUB_AUTH_RESOURCE WHERE tenantId = N'default' AND resourceId = N'hub0020:clusterTopology')
+INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, parentResourceId, resourceLevel, sortOrder, language, resourceStatus, builtInFlag, addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag) VALUES (N'hub0020:clusterTopology', N'default', N'集群健康与拓扑', N'hub0020:clusterTopology', N'BUTTON', N'hub0020', 3, 19, N'zh-CN', N'Y', N'Y', GETDATE(), N'system', GETDATE(), N'system', N'INIT_010_019', 1, N'Y')
+ELSE
+UPDATE HUB_AUTH_RESOURCE SET resourceName = N'集群健康与拓扑' WHERE tenantId = N'default' AND resourceId = N'hub0020:clusterTopology';
+
+
 -- 启动按钮
 IF NOT EXISTS (SELECT 1 FROM HUB_AUTH_RESOURCE WHERE tenantId = N'default' AND resourceId = N'hub0020:start')
 INSERT INTO HUB_AUTH_RESOURCE (resourceId, tenantId, resourceName, resourceCode, resourceType, parentResourceId, resourceLevel, sortOrder, language, resourceStatus, builtInFlag, addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag) VALUES (N'hub0020:start', N'default', N'启动', N'hub0020:start', N'BUTTON', N'hub0020', 3, 5, N'zh-CN', N'Y', N'Y', GETDATE(), N'system', GETDATE(), N'system', N'INIT_010_005', 1, N'Y')

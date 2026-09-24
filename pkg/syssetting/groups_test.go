@@ -19,13 +19,23 @@ func TestValidateRetention(t *testing.T) {
 }
 
 func TestValidateWebTimeout(t *testing.T) {
-	v := WebTimeoutSettings{RequestTimeoutSeconds: 120, SessionExpireHours: 12}
+	v := DefaultWebTimeout()
 	if err := ValidateWebTimeout(v); err != nil {
 		t.Fatalf("valid timeout rejected: %v", err)
 	}
 	v.RequestTimeoutSeconds = 5
 	if err := ValidateWebTimeout(v); err == nil {
 		t.Fatal("expected error for request timeout < 10")
+	}
+	v = DefaultWebTimeout()
+	v.MaxPageSize = PageSizeCeiling + 1
+	if err := ValidateWebTimeout(v); err == nil {
+		t.Fatal("expected error for max page size above ceiling")
+	}
+	v = DefaultWebTimeout()
+	v.DefaultPageSize = v.MaxPageSize + 1
+	if err := ValidateWebTimeout(v); err == nil {
+		t.Fatal("expected error for default page size above max")
 	}
 }
 

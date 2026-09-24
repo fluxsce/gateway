@@ -28,6 +28,7 @@ type ClusterServiceImpl struct {
 
 	// 组件
 	dao      *dao.EventDAO                 // 数据访问层
+	nodeDAO  *dao.NodeDAO                  // 节点登记
 	handlers map[string]types.EventHandler // 事件处理器映射表（eventType -> handler）
 
 	// 状态
@@ -50,15 +51,13 @@ type ClusterServiceImpl struct {
 //   - *ClusterServiceImpl: 集群服务实例
 //
 // 配置项:
-//   - app.cluster.node_id: 节点ID（优先级最高）
-//   - app.node_id: 全局节点ID（次优先级）
+//   - 节点 ID 使用 config.GetNodeId()，与采集表 metricServerId 相同
 //   - app.cluster.event.poll_interval: 事件轮询间隔，默认3s
 //   - app.cluster.event.batch_size: 每批处理事件数，默认100
 //   - app.cluster.event.expire_hours: 事件过期时间（小时），默认24，环境设置优先
 //   - app.cluster.cleanup.enabled: 是否启用清理，默认true（由生命周期调度执行）
 func NewClusterService(db database.Database) *ClusterServiceImpl {
-	// 读取节点ID配置（优先级：app.cluster.node_id > app.node_id > 自动生成）
-	nodeId := getNodeId()
+	nodeId := config.GetNodeId()
 	// 使用 random 包的 IP 获取方法
 	nodeIp := random.GetNodeIP()
 
@@ -75,6 +74,7 @@ func NewClusterService(db database.Database) *ClusterServiceImpl {
 		batchSize:     batchSize,
 		expireHours:   expireHours,
 		dao:           dao.NewEventDAO(db),
+		nodeDAO:       dao.NewNodeDAO(db),
 		handlers:      make(map[string]types.EventHandler),
 		lastEventTime: time.Now(), // 从当前时间开始，只处理启动后的新事件
 	}
@@ -121,8 +121,9 @@ func (s *ClusterServiceImpl) Start(ctx context.Context) error {
 
 	logger.Info("集群服务启动", "nodeId", s.nodeId, "nodeIp", s.nodeIp, "tenantId", s.tenantId)
 
-	s.wg.Add(1)
+	s.wg.Add(2)
 	go s.eventPollLoop()
+	go s.nodeLoop()
 
 	logger.Info("集群服务启动完成")
 	return nil
@@ -165,6 +166,12 @@ func (s *ClusterServiceImpl) Stop(ctx context.Context) error {
 		logger.Info("集群服务已停止")
 	case <-ctx.Done():
 		logger.Warn("集群服务停止超时")
+	}
+
+	unregisterCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := s.nodeDAO.Delete(unregisterCtx, s.tenantId, s.nodeId); err != nil {
+		logger.Warn("退出时删除集群节点失败", "error", err, "nodeId", s.nodeId)
 	}
 
 	return nil
@@ -460,32 +467,4 @@ func (s *ClusterServiceImpl) currentExpireHours() int {
 		return s.expireHours
 	}
 	return 24
-}
-
-// getNodeId 获取节点ID
-//
-// 优先级：
-//  1. app.cluster.node_id 配置（集群模块专用）
-//  2. config.GetNodeId() 统一方法（包含完整的fallback逻辑）
-//     - app.node_id 配置
-//     - 环境变量（GATEWAY_NODE_ID、POD_NAME）
-//     - 持久化文件 .node_id
-//     - 基于主机名和MAC地址的哈希生成
-//
-// 返回:
-//   - string: 节点唯一标识符
-func getNodeId() string {
-	// 1. 优先使用 cluster 模块单独配置
-	nodeId := config.GetString("app.cluster.node_id", "")
-	if nodeId != "" {
-		return nodeId
-	}
-
-	// 2. 使用 config 包的统一节点ID获取方法
-	// 该方法包含完整的fallback逻辑：
-	// - app.node_id 配置
-	// - 环境变量（GATEWAY_NODE_ID、POD_NAME）
-	// - 持久化文件 .node_id
-	// - 基于主机名和MAC地址的哈希生成
-	return config.GetNodeId()
 }

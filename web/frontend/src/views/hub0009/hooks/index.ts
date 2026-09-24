@@ -1,4 +1,5 @@
 import { updateTimeout } from '@/api/request'
+import { applyPageSizePolicy } from '@/utils/pagination'
 import { useAppMessage } from '@/composables/useAppMessage'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { store } from '@/stores'
@@ -35,6 +36,8 @@ const emptyRetentionJob = (): RetentionJobSettings => ({
 const emptyWebTimeout = (): WebTimeoutSettings => ({
   requestTimeoutSeconds: 120,
   sessionExpireHours: 12,
+  defaultPageSize: 20,
+  maxPageSize: 200,
   cipherEnabled: false,
   kid: '',
   publicKey: '',
@@ -121,6 +124,8 @@ export function useEnvironmentSettings() {
       currentVersion: webTimeout.currentVersion,
       requestTimeoutSeconds: webTimeout.requestTimeoutSeconds,
       sessionExpireHours: webTimeout.sessionExpireHours,
+      defaultPageSize: webTimeout.defaultPageSize,
+      maxPageSize: webTimeout.maxPageSize,
       cipherEnabled: webTimeout.cipherEnabled,
     }
   }
@@ -161,6 +166,7 @@ export function useEnvironmentSettings() {
             webTimeout.publicKey = saved.publicKey
           }
           updateTimeout(webTimeout.requestTimeoutSeconds * 1000)
+          applyPageSizePolicy(webTimeout.defaultPageSize, webTimeout.maxPageSize)
         }
       }
       message.success(getApiMessage(result, t('common.saveSuccess')))

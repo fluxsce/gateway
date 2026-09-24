@@ -49,7 +49,7 @@ func NewServiceController(db database.Database) *ServiceController {
 // @Description 分页获取服务列表，支持条件查询
 // @Tags 服务监控
 // @Produce json
-// @Param page query int false "页码" default(1)
+// @Param pageIndex query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
 // @Param serviceName query string false "服务名称（模糊查询）"
 // @Param namespaceId query string true "命名空间ID"

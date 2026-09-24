@@ -37,7 +37,7 @@ func NewRoleController(db database.Database) *RoleController {
 // @Description 分页获取角色列表
 // @Tags 角色管理
 // @Produce json
-// @Param page query int false "页码" default(1)
+// @Param pageIndex query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
 // @Success 200 {object} response.JsonData
 // @Router /api/hub0005/roles [get]

@@ -147,6 +147,13 @@
       dialog-title="导出网关实例配置"
     />
 
+    <ClusterTopologyDialog
+      v-model:visible="clusterTopologyVisible"
+      :module-id="service.model.moduleId"
+      :params="clusterTopologyParams"
+      :instance-name="clusterTopologyInstance?.instanceName"
+    />
+
     <!-- 导入 -->
     <GImport
       v-model:visible="importVisible"
@@ -174,6 +181,7 @@ import DomainAccessConfigListModal from '@/views/common/common002/domain-config/
 import IpAccessConfigListModal from '@/views/common/common002/ip-config/IpAccessConfigListModal.vue'
 import RateLimitConfigFormModal from '@/views/common/common002/limit-config/RateLimitConfigFormModal.vue'
 import { computed, ref } from 'vue'
+import { ClusterTopologyDialog } from '@/views/common/cluster-topology'
 import { useGatewayInstancePage } from './hooks'
 
 defineOptions({
@@ -216,6 +224,8 @@ const {
   authConfigGatewayInstanceId,
   rateLimitConfigDialogVisible,
   rateLimitConfigGatewayInstanceId,
+  clusterTopologyVisible,
+  clusterTopologyInstance,
   exportVisible,
   exportInstanceId,
   importVisible,
@@ -224,6 +234,9 @@ const {
   handleSearch,
 } = useGatewayInstancePage(gridRef, searchFormRef)
 
+const clusterTopologyParams = computed(() => ({
+  gatewayInstanceId: clusterTopologyInstance.value?.gatewayInstanceId ?? '',
+}))
 const exportParams = computed(() => ({ gatewayInstanceId: exportInstanceId.value }))
 const exportFilename = computed(() => `网关实例配置_${exportInstanceId.value}`)
 const exportUrl = requestPathHelper.join(moduleApiPrefix('hub0020'), 'exportGatewayInstance')

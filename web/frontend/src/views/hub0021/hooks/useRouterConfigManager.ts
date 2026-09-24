@@ -1,3 +1,4 @@
+import { getDefaultPageSize } from '@/utils/pagination'
 import { ref, reactive } from 'vue'
 import { useAppMessage } from '@/composables/useAppMessage'
 import * as routeApi from '../api'
@@ -34,14 +35,14 @@ export function useRouterConfigManager() {
   const routerConfigs = ref<RouterConfig[]>([])
   const total = ref(0)
   const pageIndex = ref(1)
-  const pageSize = ref(20)
+  const pageSize = ref(getDefaultPageSize())
 
   // 查询参数
   const queryParams = reactive<RouterQueryParams>({
     tenantId: 'default',
     gatewayInstanceId: '',
     pageIndex: 1,
-    pageSize: 20,
+    pageSize: getDefaultPageSize(),
   })
 
   /**

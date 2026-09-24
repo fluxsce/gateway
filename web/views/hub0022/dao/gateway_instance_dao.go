@@ -3,6 +3,8 @@ package dao
 import (
 	"context"
 	"errors"
+	"strconv"
+
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/empty"
@@ -23,9 +25,19 @@ func NewGatewayInstanceDAO(db database.Database) *GatewayInstanceDAO {
 }
 
 // ListAllGatewayInstances 获取所有网关实例列表（跨租户查询，仅限管理员使用）
-func (dao *GatewayInstanceDAO) ListAllGatewayInstances(ctx context.Context, page, pageSize int) ([]*models.GatewayInstance, int, error) {
-	// 构建基础查询语句
-	baseQuery := "SELECT * FROM HUB_GW_INSTANCE ORDER BY addTime DESC"
+func (dao *GatewayInstanceDAO) ListAllGatewayInstances(ctx context.Context, page, pageSize int, filters map[string]interface{}) ([]*models.GatewayInstance, int, error) {
+	whereClause := "WHERE 1=1"
+	params := []interface{}{}
+	if filters != nil {
+		if instanceName, ok := filters["instanceName"].(string); ok && !empty.IsEmpty(instanceName) {
+			whereClause, params = appendInstanceKeyword(whereClause, params, instanceName)
+		}
+		if activeFlag, ok := filters["activeFlag"].(string); ok && !empty.IsEmpty(activeFlag) {
+			whereClause += " AND activeFlag = ?"
+			params = append(params, activeFlag)
+		}
+	}
+	baseQuery := "SELECT * FROM HUB_GW_INSTANCE " + whereClause + " ORDER BY addTime DESC"
 
 	// 构建统计查询
 	countQuery, err := sqlutils.BuildCountQuery(baseQuery)
@@ -37,7 +49,7 @@ func (dao *GatewayInstanceDAO) ListAllGatewayInstances(ctx context.Context, page
 	var result struct {
 		Count int `db:"COUNT(*)"`
 	}
-	err = dao.db.QueryOne(ctx, &result, countQuery, []interface{}{}, true)
+	err = dao.db.QueryOne(ctx, &result, countQuery, params, true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询网关实例总数失败")
 	}
@@ -62,12 +74,24 @@ func (dao *GatewayInstanceDAO) ListAllGatewayInstances(ctx context.Context, page
 
 	// 执行分页查询
 	var instances []*models.GatewayInstance
-	err = dao.db.Query(ctx, &instances, paginatedQuery, paginationArgs, true)
+	err = dao.db.Query(ctx, &instances, paginatedQuery, append(params, paginationArgs...), true)
 	if err != nil {
 		return nil, 0, huberrors.WrapError(err, "查询网关实例列表失败")
 	}
 
 	return instances, total, nil
+}
+
+func appendInstanceKeyword(whereClause string, params []interface{}, keyword string) (string, []interface{}) {
+	clause := "(instanceName LIKE ? OR bindAddress LIKE ?"
+	like := "%" + keyword + "%"
+	params = append(params, like, like)
+	if port, err := strconv.Atoi(keyword); err == nil {
+		clause += " OR httpPort = ? OR httpsPort = ?"
+		params = append(params, port, port)
+	}
+	clause += ")"
+	return whereClause + " AND " + clause, params
 }
 
 // GetGatewayInstanceById 根据ID获取网关实例
@@ -133,8 +157,7 @@ func (dao *GatewayInstanceDAO) QueryGatewayInstances(ctx context.Context, tenant
 	// 添加筛选条件
 	if filters != nil {
 		if instanceName, ok := filters["instanceName"].(string); ok && !empty.IsEmpty(instanceName) {
-			whereClause += " AND instanceName LIKE ?"
-			params = append(params, "%"+instanceName+"%")
+			whereClause, params = appendInstanceKeyword(whereClause, params, instanceName)
 		}
 		if healthStatus, ok := filters["healthStatus"].(string); ok && !empty.IsEmpty(healthStatus) {
 			whereClause += " AND healthStatus = ?"

@@ -81,7 +81,7 @@ func (c *TaskLogController) GetTaskLog(ctx *gin.Context) {
 // @Param executionStatus query integer false "执行状态"
 // @Param startTime query string false "执行开始时间范围-开始时间 (格式: YYYY-MM-DD HH:mm:ss)"
 // @Param endTime query string false "执行开始时间范围-结束时间 (格式: YYYY-MM-DD HH:mm:ss)"
-// @Param page query integer false "页码"
+// @Param pageIndex query integer false "页码"
 // @Param pageSize query integer false "页大小"
 // @Param data body object false "查询参数"
 // @Success 200 {object} response.Response
@@ -150,7 +150,7 @@ func (c *TaskLogController) QueryTaskLogs(ctx *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param taskId query string false "任务ID"
-// @Param page query integer false "页码"
+// @Param pageIndex query integer false "页码"
 // @Param pageSize query integer false "页大小"
 // @Param data body object false "查询参数"
 // @Success 200 {object} response.Response

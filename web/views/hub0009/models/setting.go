@@ -39,6 +39,8 @@ type SaveSettingRequest struct {
 	StartTime             string `json:"startTime" form:"startTime"`
 	RequestTimeoutSeconds int    `json:"requestTimeoutSeconds" form:"requestTimeoutSeconds"`
 	SessionExpireHours    int    `json:"sessionExpireHours" form:"sessionExpireHours"`
+	DefaultPageSize       int    `json:"defaultPageSize" form:"defaultPageSize"`
+	MaxPageSize           int    `json:"maxPageSize" form:"maxPageSize"`
 	CipherEnabled         bool   `json:"cipherEnabled" form:"cipherEnabled"`
 }
 
@@ -73,6 +75,8 @@ type RetentionJobView struct {
 type WebTimeoutView struct {
 	RequestTimeoutSeconds int    `json:"requestTimeoutSeconds"`
 	SessionExpireHours    int    `json:"sessionExpireHours"`
+	DefaultPageSize       int    `json:"defaultPageSize"`
+	MaxPageSize           int    `json:"maxPageSize"`
 	CipherEnabled         bool   `json:"cipherEnabled"`
 	Kid                   string `json:"kid"`
 	PublicKey             string `json:"publicKey"`

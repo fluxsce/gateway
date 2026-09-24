@@ -83,6 +83,7 @@ import { RsSearchForm } from '@/components/form/rs-search'
 import { GIcon } from '@/components/gicon'
 import { RsEmpty, RsLoading, RsPagination, RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import { LayersOutline } from '@vicons/ionicons5'
+import { getDefaultPageSize } from '@/utils/pagination'
 import { computed, onMounted, ref } from 'vue'
 import { useNamespacePage } from '../hooks'
 import type { Namespace } from '../types'
@@ -143,7 +144,7 @@ const namespaceList = computed(() => namespaceService.model.namespaceList.value)
 const loading = computed(() => namespaceService.model.loading.value)
 const totalCount = computed(() => namespaceService.model.pageInfo.value?.totalCount || 0)
 const currentPage = computed(() => namespaceService.model.pageInfo.value?.pageIndex || 1)
-const pageSize = computed(() => namespaceService.model.pageInfo.value?.pageSize || 10)
+const pageSize = computed(() => namespaceService.model.pageInfo.value?.pageSize || getDefaultPageSize())
 const emptyDescription = computed(() => (
   queryScope.value?.instanceName
     ? '该实例下暂无匹配的命名空间'

@@ -1,8 +1,7 @@
-import { getApiMessage, isApiSuccess } from '@/utils/format'
 import { useAppMessage } from '@/composables/useAppMessage'
 import type { RsSelectOption } from '@/ui'
 import { computed, ref, watch } from 'vue'
-import { addRouteConfig, editRouteConfig, queryServiceDefinitions } from '../api'
+import { addRouteConfig, editRouteConfig } from '../api'
 import type { RouteConfig } from '../types'
 import { useRouteForm } from './useRouteForm'
 
@@ -60,43 +59,6 @@ export function useRouteConfigDialog(options: UseRouteConfigDialogOptions = {}) 
   })
 
   /**
-   * 加载服务定义列表
-   */
-  const loadServiceDefinitions = async (instanceId: string) => {
-    if (!instanceId) {
-      serviceDefinitionOptions.value = []
-      return
-    }
-
-    try {
-      loadingServiceDefinitions.value = true
-      const response = await queryServiceDefinitions({
-        gatewayInstanceId: instanceId,
-        pageIndex: 1,
-        pageSize: 1000, // 加载所有服务定义
-      })
-
-      if (isApiSuccess(response)) {
-        const pageData = JSON.parse(response.bizData)
-        const serviceDefinitions = pageData?.list || pageData || []
-        serviceDefinitionOptions.value = serviceDefinitions.map((service: any) => ({
-          label: `${service.serviceName} (${service.serviceDefinitionId})`,
-          value: service.serviceDefinitionId,
-          // 可以保存更多信息用于显示
-          disabled: service.activeFlag !== 'Y',
-        }))
-      } else {
-        serviceDefinitionOptions.value = []
-      }
-    } catch (error) {
-      serviceDefinitionOptions.value = []
-      message.error('加载服务定义列表失败')
-    } finally {
-      loadingServiceDefinitions.value = false
-    }
-  }
-
-  /**
    * 处理服务定义选择变化
    */
   const handleServiceDefinitionChange = (value: string | null) => {
@@ -132,10 +94,7 @@ export function useRouteConfigDialog(options: UseRouteConfigDialogOptions = {}) 
       metadataList.value = []
     }
 
-    // 加载服务定义列表
-    if (instanceId) {
-      loadServiceDefinitions(instanceId)
-    }
+    // 服务定义由 ServiceDefinitionSelector 按页查询，这里不再预装全量选项。
 
     // 确保在下一个tick清除验证状态，让表单重新验证
     setTimeout(() => {

@@ -220,7 +220,9 @@ func stopGatewayApplication() {
 		appCancel()
 	}
 
-	cleanupResources()
+	shutdownCtx, shutdownCancel := newShutdownContext()
+	defer shutdownCancel()
+	cleanupResources(shutdownCtx)
 	log.Printf("[INFO] Gateway应用停止完成")
 }
 

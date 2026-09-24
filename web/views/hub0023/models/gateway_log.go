@@ -202,7 +202,7 @@ func (GatewayAccessLogSummary) TableName() string {
 // GatewayAccessLogQueryRequest 网关访问日志查询请求
 type GatewayAccessLogQueryRequest struct {
 	PageIndex int `json:"pageIndex" form:"pageIndex" binding:"min=1"`       // 页码
-	PageSize  int `json:"pageSize" form:"pageSize" binding:"min=1,max=100"` // 每页数量
+	PageSize  int `json:"pageSize" form:"pageSize" binding:"min=1,max=200"` // 每页数量，上限与分页代码上限一致
 
 	// 基础查询条件
 	TenantId            string `json:"tenantId" form:"tenantId"`                       // 租户ID

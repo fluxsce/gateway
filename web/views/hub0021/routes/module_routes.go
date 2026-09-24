@@ -240,6 +240,7 @@ func initFilterConfigRoutes(router *gin.RouterGroup, db database.Database) {
 		filterGroup.POST("/batchUpdateFilterConfigs", routes.RequireButton("hub0021:filters:edit", "hub0021:globalFilterConfig:edit"), filterConfigController.BatchUpdateFilterConfigs)
 		filterGroup.POST("/batchDeleteFilterConfigs", routes.RequireButton("hub0021:filters:delete", "hub0021:globalFilterConfig:delete"), filterConfigController.BatchDeleteFilterConfigs)
 		filterGroup.POST("/updateFilterOrder", routes.RequireButton("hub0021:filters:edit", "hub0021:globalFilterConfig:edit"), filterConfigController.UpdateFilterOrder)
+		filterGroup.POST("/moveFilterNeighbor", routes.RequireButton("hub0021:filters:edit", "hub0021:globalFilterConfig:edit"), filterConfigController.MoveFilterNeighbor)
 		filterGroup.POST("/batchUpdateFilterOrder", routes.RequireButton("hub0021:filters:edit", "hub0021:globalFilterConfig:edit"), filterConfigController.BatchUpdateFilterOrder)
 		filterGroup.POST("/exportFilterConfigs", filterConfigController.ExportFilterConfigs)
 		filterGroup.POST("/importFilterConfigs", routes.RequireButton("hub0021:filters:add", "hub0021:globalFilterConfig:add"), filterConfigController.ImportFilterConfigs)

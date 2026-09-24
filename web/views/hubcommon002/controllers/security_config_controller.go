@@ -292,7 +292,7 @@ func (c *SecurityConfigController) DeleteSecurityConfig(ctx *gin.Context) {
 // @Description 分页获取安全配置列表，支持条件查询
 // @Tags 安全配置管理
 // @Produce json
-// @Param page query int false "页码" default(1)
+// @Param pageIndex query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
 // @Param configName query string false "配置名称（模糊查询）"
 // @Param activeFlag query string false "活动状态（Y/N）"

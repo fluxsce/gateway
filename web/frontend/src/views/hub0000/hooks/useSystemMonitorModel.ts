@@ -10,6 +10,7 @@
 import { ref, computed, reactive } from 'vue'
 import { createLogger } from '@/utils/logger'
 import { usePagination } from '@/hooks/usePagination'
+import { getDefaultPageSize } from '@/utils/pagination'
 import type {
   ServerInfo,
   CPUMetrics,
@@ -83,8 +84,8 @@ export const useSystemMonitorModel = () => {
 
   // 查询参数
   const queryParams = reactive<MetricQueryParams>({
-    pageNum: 1,
-    pageSize: 200,
+    pageIndex: 1,
+    pageSize: getDefaultPageSize(),
     activeFlag: 'Y',
   })
 
@@ -393,8 +394,8 @@ export const useSystemMonitorModel = () => {
    */
   const resetQueryParams = () => {
     Object.assign(queryParams, {
-      pageNum: 1,
-      pageSize: 20,
+      pageIndex: 1,
+      pageSize: getDefaultPageSize(),
       activeFlag: 'Y',
     })
     logger.info('重置查询参数')

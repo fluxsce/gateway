@@ -9,6 +9,7 @@ import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/c
 import type { PageInfoObj } from '@/types/api'
 import { RsDynamicTags, RsTag, RsTooltip, getByNamePath, setByNamePath } from '@/ui'
 import { formatDate } from '@/utils/format'
+import { clusterTopologyMenuItem } from '@/views/common/cluster-topology'
 import { AlertChannelNameSelector } from '@/views/hub0080/components'
 import { h, ref } from 'vue'
 import type { GatewayInstance } from '../types/index'
@@ -1177,7 +1178,10 @@ export function useGatewayInstanceModel() {
       items: [
         { key: 'view', label: '查看详情', icon: 'eye' },
         { key: 'edit', label: '编辑', icon: 'pencil' },
+        clusterTopologyMenuItem,
+        { key: 'sep-cluster', label: '', separator: true },
         { key: 'delete', label: '删除', icon: 'trash-2', danger: true },
+        { key: 'reload', label: '网关重载', icon: 'refresh-cw' },
         { key: 'start', label: '启动', icon: 'play' },
         { key: 'stop', label: '停止', icon: 'square' },
         { key: 'sep-after-stop', label: '', separator: true },
@@ -1196,7 +1200,6 @@ export function useGatewayInstanceModel() {
           ],
         },
         { key: 'logConfig', label: '日志配置', icon: 'settings' },
-        { key: 'reload', label: '网关重载', icon: 'refresh-cw' },
         {
           key: 'tools',
           label: '工具',

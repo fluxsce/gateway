@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"gateway/pkg/logger"
+	"gateway/pkg/syssetting"
 	"gateway/web/globalmodels"
 	"gateway/web/middleware"
 	"gateway/web/utils/constants"
@@ -59,28 +60,25 @@ func GetUserContext(c *gin.Context) *globalmodels.UserContext {
 	return middleware.GetUserContext(c)
 }
 
-// GetPaginationParams 获取分页参数
+// GetPaginationParams 获取分页参数。
+// pageSize 未传时用该租户 Web 访问里的默认条数；超过租户上限或代码上限时收成允许的最大值。
 func GetPaginationParams(c *gin.Context) (page, pageSize int) {
-	// 获取查询参数
 	pageStr := GetParam(c, "pageIndex", constants.DefaultPage)
-	pageSizeStr := GetParam(c, "pageSize", constants.DefaultPageSize)
-
-	// 转换参数
 	page, err := strconv.Atoi(pageStr)
 	if err != nil || page < 1 {
 		page = 1
 	}
 
-	pageSize, err = strconv.Atoi(pageSizeStr)
-	if err != nil || pageSize < constants.MinPageSize {
-		pageSize = constants.MinPageSize
+	pageSizeStr := GetParam(c, "pageSize", "")
+	provided := pageSizeStr != ""
+	requested := 0
+	if provided {
+		requested, err = strconv.Atoi(pageSizeStr)
+		if err != nil {
+			provided = false
+		}
 	}
-
-	// 限制最大分页大小
-	if pageSize > constants.MaxPageSize {
-		pageSize = constants.MaxPageSize
-	}
-
+	pageSize = syssetting.ClampPageSize(GetTenantID(c), requested, provided)
 	return page, pageSize
 }
 

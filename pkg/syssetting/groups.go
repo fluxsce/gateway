@@ -35,6 +35,13 @@ const (
 	defaultJobIntervalMin = 60    // 与原先默认每小时一致
 	defaultSessionHr      = 12
 	defaultRequestSec     = 120
+	// PageSizeFloor 每页条数下限。
+	PageSizeFloor = 1
+	// PageSizeCeiling 列表每页条数的代码上限。环境设置里的最大条数不能超过它。
+	// 网关日志一行字段多，查询需要能选到 200；再大会把单次查询和导出拖重。
+	PageSizeCeiling = 200
+	// DefaultListPageSize 未配置时的默认每页条数。100 会让每个列表首屏过重，保持 20。
+	DefaultListPageSize = 20
 )
 
 // RetentionSettings 归档策略。各字段为保留天数，到期由清理任务删除对应数据。
@@ -60,9 +67,12 @@ type RetentionJobSettings struct {
 // RequestTimeoutSeconds 同时作为 axios 超时和 http.Server 的 Read/Write 超时。
 // SessionExpireHours 控制登录会话 TTL。
 // CipherEnabled 开启后登录/改密/建用户等口令字段走 RSA-OAEP；密钥对入库并全集群共用。
+// DefaultPageSize / MaxPageSize 控制管理端列表分页。MaxPageSize 不能超过 PageSizeCeiling。
 type WebTimeoutSettings struct {
 	RequestTimeoutSeconds int    `json:"requestTimeoutSeconds"`
 	SessionExpireHours    int    `json:"sessionExpireHours"`
+	DefaultPageSize       int    `json:"defaultPageSize"`
+	MaxPageSize           int    `json:"maxPageSize"`
 	CipherEnabled         bool   `json:"cipherEnabled"`
 	Kid                   string `json:"kid,omitempty"`
 	PublicKey             string `json:"publicKey,omitempty"`
@@ -99,6 +109,8 @@ func DefaultWebTimeout() WebTimeoutSettings {
 	return WebTimeoutSettings{
 		RequestTimeoutSeconds: sec,
 		SessionExpireHours:    defaultSessionHr,
+		DefaultPageSize:       DefaultListPageSize,
+		MaxPageSize:           PageSizeCeiling,
 	}
 }
 
@@ -172,7 +184,34 @@ func ValidateWebTimeout(v WebTimeoutSettings) error {
 	if v.SessionExpireHours < minSessionHours || v.SessionExpireHours > maxSessionHours {
 		return fmt.Errorf("会话有效期须在 %d-%d 小时之间", minSessionHours, maxSessionHours)
 	}
+	if v.MaxPageSize < PageSizeFloor || v.MaxPageSize > PageSizeCeiling {
+		return fmt.Errorf("每页条数上限须在 %d-%d 之间", PageSizeFloor, PageSizeCeiling)
+	}
+	if v.DefaultPageSize < PageSizeFloor || v.DefaultPageSize > v.MaxPageSize {
+		return fmt.Errorf("默认每页条数须在 %d-%d 之间", PageSizeFloor, v.MaxPageSize)
+	}
 	return nil
+}
+
+// ClampPageSize 按租户 Web 访问设置收束每页条数。未传时用默认值，超过租户上限或代码上限时收成允许的最大值。
+func ClampPageSize(tenantId string, requested int, provided bool) int {
+	v := mergeWebTimeout(GetWebTimeout(tenantId))
+	if v.MaxPageSize > PageSizeCeiling || v.MaxPageSize < PageSizeFloor {
+		v.MaxPageSize = PageSizeCeiling
+	}
+	if v.DefaultPageSize < PageSizeFloor || v.DefaultPageSize > v.MaxPageSize {
+		v.DefaultPageSize = DefaultListPageSize
+		if v.DefaultPageSize > v.MaxPageSize {
+			v.DefaultPageSize = v.MaxPageSize
+		}
+	}
+	if !provided || requested < PageSizeFloor {
+		return v.DefaultPageSize
+	}
+	if requested > v.MaxPageSize {
+		return v.MaxPageSize
+	}
+	return requested
 }
 
 // PrepareWebTimeout 合并超时与密文开关。已有私钥一律复用，避免保存时轮换；
@@ -262,6 +301,12 @@ func mergeWebTimeout(v WebTimeoutSettings) WebTimeoutSettings {
 	}
 	if v.SessionExpireHours <= 0 {
 		v.SessionExpireHours = d.SessionExpireHours
+	}
+	if v.DefaultPageSize <= 0 {
+		v.DefaultPageSize = d.DefaultPageSize
+	}
+	if v.MaxPageSize <= 0 {
+		v.MaxPageSize = d.MaxPageSize
 	}
 	return v
 }

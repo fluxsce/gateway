@@ -13,25 +13,20 @@ app:
   #   - Local (系统本地时区)
   local_timezone: "Asia/Shanghai"
   #版本
-  version: "3.4.3"
+  version: "3.4.4"
   
   # 默认加密密钥（用于系统内部加密解密）
   # 建议在生产环境中修改为自定义密钥，长度建议至少32个字符
   # 可以通过环境变量 GATEWAY_APP_ENCRYPTION_KEY 覆盖
   encryption_key: "gateway-default-encryption-key-please-change-in-production"
-  
-  # 全局节点ID配置，为空时自动生成
-  # 用于标识当前应用实例，在集群模式和指标采集中共用
-  # 各模块优先使用此配置，也可在各模块内单独配置覆盖
-  node_id: ""
-  
+
   # 指标采集配置
   metrics:
     enabled: true                    # 是否启用指标采集
     collect_interval: 60s            # 采集间隔时间（支持：s秒、m分钟、h小时，如：30s、5m、1h）
     auto_start: true                 # 是否自动启动采集
     tenant_id: "default"             # 租户ID
-    server_id: ""                    # 服务器ID，为空时自动生成,优先使用app.node_id
+    server_id: ""                    # 留空。采集节点 ID 与 GetNodeId() 相同，不要单独填写
     operator: "system"               # 操作人标识
     # 采集器启用配置
     collectors:
@@ -96,10 +91,9 @@ app:
   
   # 集群配置
   # 集群模式用于多节点部署时的配置同步和事件通知
-  # 节点ID使用全局 app.node_id 配置，也可通过 cluster.node_id 单独覆盖
+  # 节点 ID 由 GetNodeId() 生成，与采集表相同，不再单独配置 cluster.node_id
   cluster:
     enabled: true                   # 是否启用集群模式
-    # node_id: ""                   # 节点ID，优先使用 app.node_id，此处可覆盖
     # 事件配置
     event:
       poll_interval: 3s             # 事件轮询间隔

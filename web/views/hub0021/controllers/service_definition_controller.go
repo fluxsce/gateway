@@ -137,6 +137,9 @@ func (c *ServiceDefinitionController) QueryServiceDefinitions(ctx *gin.Context) 
 	if serviceName := request.GetParam(ctx, "serviceName"); serviceName != "" {
 		filters["serviceName"] = serviceName
 	}
+	if keyword := request.GetParam(ctx, "keyword"); keyword != "" {
+		filters["keyword"] = keyword
+	}
 
 	// 服务类型
 	if serviceType := request.GetParam(ctx, "serviceType"); serviceType != "" {
@@ -206,6 +209,9 @@ func (c *ServiceDefinitionController) QueryAllServiceDefinitions(ctx *gin.Contex
 	// 服务名称模糊查询
 	if serviceName := request.GetParam(ctx, "serviceName"); serviceName != "" {
 		filters["serviceName"] = serviceName
+	}
+	if keyword := request.GetParam(ctx, "keyword"); keyword != "" {
+		filters["keyword"] = keyword
 	}
 
 	// 服务类型

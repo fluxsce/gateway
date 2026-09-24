@@ -94,8 +94,8 @@ export interface ServerInfoQuery {
   serverLocation?: string
   /** 活动标记 */
   activeFlag?: string
-  /** 页码 */
-  page?: number
+  /** 页码，与列表接口 pageIndex 一致 */
+  pageIndex?: number
   /** 每页数量 */
   pageSize?: number
 }

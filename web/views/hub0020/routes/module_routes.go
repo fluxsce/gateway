@@ -3,6 +3,7 @@ package hub0020routes
 import (
 	"gateway/pkg/database"
 	"gateway/pkg/logger"
+	"gateway/web/clusterstatus"
 	"gateway/web/routes"
 	"gateway/web/views/hub0020/controllers"
 
@@ -75,6 +76,9 @@ func initGatewayInstanceRoutes(router *gin.RouterGroup, db database.Database) {
 
 		// 网关实例列表查询
 		instanceGroup.POST("/queryGatewayInstances", gatewayInstanceController.QueryGatewayInstances)
+
+		// 集群健康与已登记节点。查询在 clusterstatus，其它监听页用同一套 Register。
+		clusterstatus.Register(instanceGroup, db, "hub0020:clusterTopology", clusterstatus.GatewayInstanceLoader(db))
 
 		// 网关实例详情查询
 		instanceGroup.POST("/getGatewayInstance", gatewayInstanceController.GetGatewayInstance)

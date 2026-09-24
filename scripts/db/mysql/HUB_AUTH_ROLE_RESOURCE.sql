@@ -137,3 +137,50 @@ SELECT
 FROM `HUB_AUTH_RESOURCE`
 WHERE `tenantId` = 'default'
   AND `resourceId` = 'hub0004:export';
+
+-- 集群健康与拓扑：全量授权语句已经执行过，不会重跑。这里单独授给超级管理员和只读角色。
+INSERT IGNORE INTO `HUB_AUTH_ROLE_RESOURCE` (
+  `roleResourceId`, `tenantId`, `roleId`, `resourceId`, `permissionType`, `grantedBy`, `grantedTime`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+)
+SELECT
+  CONCAT('ROLE_RES_SUPER_ADMIN_', REPLACE(`resourceId`, ':', '_')),
+  `tenantId`,
+  'ROLE_SUPER_ADMIN',
+  `resourceId`,
+  'ALLOW',
+  'system',
+  NOW(),
+  NOW(),
+  'system',
+  NOW(),
+  'system',
+  'INIT_SA',
+  1,
+  'Y'
+FROM `HUB_AUTH_RESOURCE`
+WHERE `tenantId` = 'default'
+  AND `resourceId` = 'hub0020:clusterTopology';
+
+INSERT IGNORE INTO `HUB_AUTH_ROLE_RESOURCE` (
+  `roleResourceId`, `tenantId`, `roleId`, `resourceId`, `permissionType`, `grantedBy`, `grantedTime`,
+  `addTime`, `addWho`, `editTime`, `editWho`, `oprSeqFlag`, `currentVersion`, `activeFlag`
+)
+SELECT
+  CONCAT('ROLE_RES_VIEWER_', REPLACE(`resourceId`, ':', '_')),
+  `tenantId`,
+  'ROLE_VIEWER',
+  `resourceId`,
+  'ALLOW',
+  'system',
+  NOW(),
+  NOW(),
+  'system',
+  NOW(),
+  'system',
+  'INIT_VIEWER',
+  1,
+  'Y'
+FROM `HUB_AUTH_RESOURCE`
+WHERE `tenantId` = 'default'
+  AND `resourceId` = 'hub0020:clusterTopology';

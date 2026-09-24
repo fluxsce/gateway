@@ -79,6 +79,7 @@ PRAGMA journal_mode = WAL;
 .read HUB_AUTH_USER_ROLE.sql
 .read HUB_AUTH_DATA_PERMISSION.sql
 .read HUB_AUTH_AUDIT_LOG.sql
+.read HUB_CLUSTER_NODE.sql
 
 -- 索引说明
 -- ==========================================

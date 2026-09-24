@@ -158,3 +158,58 @@ SELECT
 FROM HUB_AUTH_RESOURCE
 WHERE tenantId = N'default'
   AND resourceId = N'hub0004:export';
+
+-- 集群健康与拓扑：全量授权语句已经执行过，不会重跑。这里单独授给超级管理员和只读角色。
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag)
+SELECT
+  CONCAT(N'ROLE_RES_SUPER_ADMIN_', REPLACE(resourceId, N':', N'_')),
+  tenantId,
+  N'ROLE_SUPER_ADMIN',
+  resourceId,
+  N'ALLOW',
+  N'system',
+  GETDATE(),
+  GETDATE(),
+  N'system',
+  GETDATE(),
+  N'system',
+  N'INIT_SA',
+  1,
+  N'Y'
+FROM HUB_AUTH_RESOURCE
+WHERE tenantId = N'default'
+  AND resourceId = N'hub0020:clusterTopology'
+  AND NOT EXISTS (
+    SELECT 1 FROM HUB_AUTH_ROLE_RESOURCE rr
+    WHERE rr.tenantId = HUB_AUTH_RESOURCE.tenantId
+      AND rr.roleId = N'ROLE_SUPER_ADMIN'
+      AND rr.resourceId = HUB_AUTH_RESOURCE.resourceId
+  );
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE (roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag)
+SELECT
+  CONCAT(N'ROLE_RES_VIEWER_', REPLACE(resourceId, N':', N'_')),
+  tenantId,
+  N'ROLE_VIEWER',
+  resourceId,
+  N'ALLOW',
+  N'system',
+  GETDATE(),
+  GETDATE(),
+  N'system',
+  GETDATE(),
+  N'system',
+  N'INIT_VIEWER',
+  1,
+  N'Y'
+FROM HUB_AUTH_RESOURCE
+WHERE tenantId = N'default'
+  AND resourceId = N'hub0020:clusterTopology'
+  AND NOT EXISTS (
+    SELECT 1 FROM HUB_AUTH_ROLE_RESOURCE rr
+    WHERE rr.tenantId = HUB_AUTH_RESOURCE.tenantId
+      AND rr.roleId = N'ROLE_VIEWER'
+      AND rr.resourceId = HUB_AUTH_RESOURCE.resourceId
+  );

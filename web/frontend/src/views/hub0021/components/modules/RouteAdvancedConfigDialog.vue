@@ -76,7 +76,10 @@
                 <div class="toolbar-left">
                   <div class="toolbar-titles">
                     <span class="toolbar-title">路由过滤器管理</span>
-                    <span class="toolbar-desc">管理作用于当前路由的后置处理过滤器</span>
+                    <span class="toolbar-desc">
+                      管理作用于当前路由的后置处理过滤器
+                      <template v-if="filterTotal > 0">，共 {{ filterTotal }} 条</template>
+                    </span>
                   </div>
                 </div>
                 <div class="toolbar-right">
@@ -101,8 +104,18 @@
               />
               <RsEmpty
                 v-if="!filtersLoading && routeFilters.length === 0"
-                description="暂无路由过滤器"
+                :description="filterLoadFailed ? '过滤器加载失败，请刷新' : '暂无路由过滤器'"
                 class="filter-empty"
+              />
+              <RsPagination
+                v-if="filterTotal > 0"
+                :page="filterPageIndex"
+                :page-size="filterPageSize"
+                :total="filterTotal"
+                size="sm"
+                show-page-size
+                @update:page="handleFilterPageChange"
+                @update:page-size="handleFilterPageSizeChange"
               />
 
               <RsAlert type="info" title="路由过滤器说明" class="section-alert">
@@ -142,18 +155,21 @@ import {
   RsDialog,
   RsDivider,
   RsEmpty,
+  RsPagination,
   RsTable,
   RsTabs,
   type RsTabItem,
   type RsTableColumn,
 } from '@/ui'
-import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
+import { getApiMessage, isApiSuccess, parseJsonData, parsePageInfo } from '@/utils/format'
+import { createBackendPaginationParams, getDefaultPageSize } from '@/utils/pagination'
 import { Add, Refresh } from '@vicons/ionicons5'
 import { computed, h, ref, watch } from 'vue'
 import {
   addFilterConfig,
   deleteFilterConfig,
   editFilterConfig,
+  moveFilterNeighbor,
   queryFilterConfigs,
 } from '../../api'
 import type { FilterAction, FilterConfig, FilterType } from '../filter-config/hooks/types'
@@ -193,6 +209,10 @@ const visible = ref(false)
 const activeTab = ref('predicates')
 
 const routeFilters = ref<FilterConfig[]>([])
+const filterPageIndex = ref(1)
+const filterPageSize = ref(getDefaultPageSize())
+const filterTotal = ref(0)
+const filterLoadFailed = ref(false)
 const filtersLoading = ref(false)
 const filterDialogVisible = ref(false)
 const currentFilter = ref<FilterConfig | null>(null)
@@ -201,7 +221,7 @@ const routeConfigId = computed(() => props.route?.routeConfigId || '')
 const routeName = computed(() => props.route?.routeName || '未知路由')
 const gatewayInstanceId = computed(() => props.route?.gatewayInstanceId || '')
 
-const ROUTE_FILTER_ACTIONS = new Set<FilterAction>(['post-routing', 'pre-response'])
+const ROUTE_FILTER_ACTIONS = 'post-routing,pre-response'
 
 const tabItems: RsTabItem[] = [
   { value: 'predicates', label: '断言配置' },
@@ -269,30 +289,30 @@ const loadRouteFilters = async () => {
 
   filtersLoading.value = true
   try {
+    const page = createBackendPaginationParams(filterPageIndex.value, filterPageSize.value)
     const response = await queryFilterConfigs({
       routeConfigId: routeConfigId.value,
-      pageIndex: 1,
-      pageSize: 10000,
+      filterActions: ROUTE_FILTER_ACTIONS,
+      orderBy: 'filterOrder',
+      pageIndex: page.pageIndex,
+      pageSize: page.pageSize,
     })
 
     if (isApiSuccess(response)) {
-      const parseData = parseJsonData<FilterConfig[] | { list?: FilterConfig[]; data?: FilterConfig[] }>(
-        response,
-        [],
-      )
-      const filterList = Array.isArray(parseData)
-        ? parseData
-        : parseData?.list || parseData?.data || []
-      routeFilters.value = filterList
-        .filter((filter) => ROUTE_FILTER_ACTIONS.has(filter.filterAction))
-        .sort((a, b) => (a.filterOrder || 0) - (b.filterOrder || 0))
+      filterLoadFailed.value = false
+      const rows = parseJsonData<FilterConfig[]>(response, [])
+      routeFilters.value = Array.isArray(rows) ? rows : []
+      const pageInfo = parsePageInfo(response)
+      filterTotal.value = pageInfo.totalCount || 0
+      filterPageIndex.value = pageInfo.pageIndex || page.pageIndex
+      filterPageSize.value = pageInfo.pageSize || page.pageSize
     } else {
-      routeFilters.value = []
+      filterLoadFailed.value = true
       message.error(getApiMessage(response, '加载路由过滤器失败'))
     }
-  } catch (error) {
+  } catch {
+    filterLoadFailed.value = true
     message.error('加载路由过滤器失败')
-    routeFilters.value = []
   } finally {
     filtersLoading.value = false
   }
@@ -359,46 +379,50 @@ const handleToggleFilterStatus = async (filter: FilterConfig) => {
   }
 }
 
-/** 处理向上移动过滤器 */
-const handleMoveFilterUp = async (filter: FilterConfig) => {
-  const currentIndex = routeFilters.value.findIndex((f) => f.filterConfigId === filter.filterConfigId)
-  if (currentIndex <= 0) return
-
-  const targetFilter = routeFilters.value[currentIndex - 1]
-  await swapFilterOrder(filter, targetFilter)
+const handleFilterPageChange = (page: number) => {
+  filterPageIndex.value = page
+  void loadRouteFilters()
 }
 
-/** 处理向下移动过滤器 */
-const handleMoveFilterDown = async (filter: FilterConfig) => {
-  const currentIndex = routeFilters.value.findIndex((f) => f.filterConfigId === filter.filterConfigId)
-  if (currentIndex < 0 || currentIndex >= routeFilters.value.length - 1) return
-
-  const targetFilter = routeFilters.value[currentIndex + 1]
-  await swapFilterOrder(filter, targetFilter)
+const handleFilterPageSizeChange = (size: number) => {
+  filterPageSize.value = size
+  filterPageIndex.value = 1
+  void loadRouteFilters()
 }
 
-/** 交换过滤器顺序 */
-const swapFilterOrder = async (filter1: FilterConfig, filter2: FilterConfig) => {
+/** 上移、下移由服务端找同一范围内真正相邻的过滤器，不依赖本页是否装全。 */
+const moveFilter = async (filter: FilterConfig, direction: 'up' | 'down') => {
   try {
     filtersLoading.value = true
-
-    const tempOrder = filter1.filterOrder
-    const [response1, response2] = await Promise.all([
-      editFilterConfig({ ...filter1, filterOrder: filter2.filterOrder }),
-      editFilterConfig({ ...filter2, filterOrder: tempOrder }),
-    ])
-
-    if (isApiSuccess(response1) && isApiSuccess(response2)) {
+    const response = await moveFilterNeighbor({
+      filterConfigId: filter.filterConfigId,
+      direction,
+      filterActions: ROUTE_FILTER_ACTIONS,
+    })
+    if (isApiSuccess(response)) {
+      const moved = parseJsonData<{ moved?: boolean }>(response, {})?.moved !== false
+      if (!moved) {
+        message.info(direction === 'up' ? '已经是第一条' : '已经是最后一条')
+        return
+      }
       message.success('调整执行顺序成功')
       await loadRouteFilters()
     } else {
-      message.error('调整执行顺序失败')
+      message.error(getApiMessage(response, '调整执行顺序失败'))
     }
-  } catch (error) {
+  } catch {
     message.error('调整执行顺序失败')
   } finally {
     filtersLoading.value = false
   }
+}
+
+const handleMoveFilterUp = async (filter: FilterConfig) => {
+  await moveFilter(filter, 'up')
+}
+
+const handleMoveFilterDown = async (filter: FilterConfig) => {
+  await moveFilter(filter, 'down')
 }
 
 /** 处理刷新过滤器 */
@@ -465,6 +489,9 @@ const closeDialog = () => {
   visible.value = false
   emit('update:visible', false)
   routeFilters.value = []
+  filterTotal.value = 0
+  filterLoadFailed.value = false
+  filterPageIndex.value = 1
   filterDialogVisible.value = false
   currentFilter.value = null
 }

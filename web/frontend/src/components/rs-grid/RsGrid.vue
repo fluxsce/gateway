@@ -91,6 +91,7 @@
 <script setup lang="ts">
 import GToolbar from '@/components/toolbar/GToolbar.vue'
 import { RsPagination, RsTable } from '@/ui'
+import { getDefaultPageSize, pageSizeOptions } from '@/utils/pagination'
 import { computed, toValue } from 'vue'
 import type { RsGridEmits, RsGridExpose, RsGridProps } from './types'
 import { useRsGrid } from './useRsGrid'
@@ -191,8 +192,8 @@ const paginationCurrentPage = computed(() => {
 
 const paginationPageSize = computed(() => {
   const pageInfo = toValue(props.paginationConfig?.pageInfo)
-  if (pageInfo) return pageInfo.pageSize || 20
-  return props.paginationConfig?.pageSize || 20
+  if (pageInfo) return pageInfo.pageSize || getDefaultPageSize()
+  return props.paginationConfig?.pageSize || getDefaultPageSize()
 })
 
 const paginationTotal = computed(() => {
@@ -202,7 +203,7 @@ const paginationTotal = computed(() => {
 })
 
 const paginationPageSizes = computed(
-  () => props.paginationConfig?.pageSizes || [10, 20, 50, 100, 200]
+  () => props.paginationConfig?.pageSizes || pageSizeOptions()
 )
 
 /** 默认开启页码跳转；paginationConfig.showJumper === false 时关闭 */

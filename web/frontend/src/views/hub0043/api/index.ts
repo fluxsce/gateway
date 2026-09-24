@@ -10,7 +10,7 @@ const configApi = createApi(moduleApiPrefix('hub0043'))
  * @param params 查询参数
  * @returns 配置列表和分页信息
  */
-export async function queryConfigs(params: ConfigQuery & { page?: number; pageSize?: number }): Promise<JsonDataObj> {
+export async function queryConfigs(params: ConfigQuery & { pageIndex?: number; pageSize?: number }): Promise<JsonDataObj> {
   return configApi.post('/queryConfigs', params)
 }
 

@@ -24,6 +24,8 @@ interface LoginFormExpose {
 interface LoginUserInfo extends Pick<User, 'userId' | 'userName' | 'realName' | 'tenantId' | 'avatar' | 'email' | 'mobile' | 'deptId' | 'tenantAdminFlag'> {
   permissions?: UserPermissionResponse
   timeout?: number
+  defaultPageSize?: number
+  maxPageSize?: number
   mustChangePwd?: string
 }
 
@@ -269,6 +271,8 @@ export function useLoginAuth() {
             tenantAdminFlag: loginResult.tenantAdminFlag,
             mustChangePwd: loginResult.mustChangePwd,
             timeout: loginResult.timeout,
+            defaultPageSize: loginResult.defaultPageSize,
+            maxPageSize: loginResult.maxPageSize,
             remember: formData.rememberMe,
           }
         )

@@ -2,6 +2,8 @@ package dao
 
 import (
 	"context"
+	"strconv"
+
 	"gateway/pkg/database"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/utils/empty"
@@ -30,8 +32,7 @@ func (dao *GatewayInstanceDAO) ListAllGatewayInstances(ctx context.Context, page
 	// 添加筛选条件
 	if filters != nil {
 		if instanceName, ok := filters["instanceName"].(string); ok && !empty.IsEmpty(instanceName) {
-			whereClause += " AND instanceName LIKE ?"
-			params = append(params, "%"+instanceName+"%")
+			whereClause, params = appendInstanceKeyword(whereClause, params, instanceName)
 		}
 		// 添加activeFlag条件（只有当不为空时才添加）
 		if activeFlag, ok := filters["activeFlag"].(string); ok && !empty.IsEmpty(activeFlag) {
@@ -87,4 +88,17 @@ func (dao *GatewayInstanceDAO) ListAllGatewayInstances(ctx context.Context, page
 	}
 
 	return instances, total, nil
+}
+
+// appendInstanceKeyword 名称、地址、端口都能命中。只按名称匹配时，用地址搜索会得到 0 条，界面容易写成没有实例。
+func appendInstanceKeyword(whereClause string, params []interface{}, keyword string) (string, []interface{}) {
+	clause := "(instanceName LIKE ? OR bindAddress LIKE ?"
+	like := "%" + keyword + "%"
+	params = append(params, like, like)
+	if port, err := strconv.Atoi(keyword); err == nil {
+		clause += " OR httpPort = ? OR httpsPort = ?"
+		params = append(params, port, port)
+	}
+	clause += ")"
+	return whereClause + " AND " + clause, params
 }

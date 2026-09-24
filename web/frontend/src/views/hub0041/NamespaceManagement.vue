@@ -92,6 +92,7 @@ import { RsSearchForm } from '@/components/form/rs-search'
 import { GIcon } from '@/components/gicon'
 import { RsEmpty, RsLoading, RsPagination, RsSplitPane, type RsSplitPaneItem } from '@/ui'
 import { LayersOutline } from '@vicons/ionicons5'
+import { getDefaultPageSize } from '@/utils/pagination'
 import { computed, ref } from 'vue'
 import NamespaceCard from './components/NamespaceCard.vue'
 import NamespaceMonitorBoard from './components/NamespaceMonitorBoard.vue'
@@ -133,7 +134,7 @@ const namespaceList = computed(() => service.model.namespaceList.value)
 const loading = computed(() => service.model.loading.value)
 const totalCount = computed(() => service.model.pageInfo.value?.totalCount || 0)
 const currentPage = computed(() => service.model.pageInfo.value?.pageIndex || 1)
-const pageSize = computed(() => service.model.pageInfo.value?.pageSize || 10)
+const pageSize = computed(() => service.model.pageInfo.value?.pageSize || getDefaultPageSize())
 
 function cardKey(namespace: Namespace) {
   return namespace.oprSeqFlag || `${namespace.tenantId}:${namespace.namespaceId}`

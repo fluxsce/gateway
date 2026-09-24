@@ -33,7 +33,7 @@ func NewServerInfoController(db database.Database) *ServerInfoController {
 // @Description 分页获取系统节点信息列表，支持条件查询
 // @Tags 系统节点监控
 // @Produce json
-// @Param page query int false "页码" default(1)
+// @Param pageIndex query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
 // @Param hostname query string false "主机名（模糊查询）"
 // @Param osType query string false "操作系统类型"

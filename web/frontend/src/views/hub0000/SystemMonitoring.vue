@@ -413,7 +413,7 @@ const handleProcessTimeRangeChange = async (timeRange: [number, number] | null) 
 watch(
   () => model.pagination.pagination.page,
   (newPage) => {
-    model.queryParams.pageNum = newPage
+    model.queryParams.pageIndex = newPage
     loadServerList()
   },
 )

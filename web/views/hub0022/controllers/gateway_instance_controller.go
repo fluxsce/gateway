@@ -31,16 +31,21 @@ func NewGatewayInstanceController(db database.Database) *GatewayInstanceControll
 // @Description 分页获取所有网关实例列表（跨租户查询，仅限管理员使用）
 // @Tags 网关实例管理
 // @Produce json
-// @Param page query int false "页码" default(1)
+// @Param pageIndex query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
 // @Success 200 {object} response.JsonData
 // @Router /gateway/hub0022/queryAllGatewayInstances [post]
 func (c *GatewayInstanceController) QueryAllGatewayInstances(ctx *gin.Context) {
-	// 使用工具类获取分页参数
 	page, pageSize := request.GetPaginationParams(ctx)
+	filters := map[string]interface{}{}
+	if instanceName := request.GetParam(ctx, "instanceName"); instanceName != "" {
+		filters["instanceName"] = instanceName
+	}
+	if activeFlag := request.GetParam(ctx, "activeFlag"); activeFlag != "" {
+		filters["activeFlag"] = activeFlag
+	}
 
-	// 调用DAO获取所有网关实例列表
-	instances, total, err := c.gatewayInstanceDAO.ListAllGatewayInstances(ctx, page, pageSize)
+	instances, total, err := c.gatewayInstanceDAO.ListAllGatewayInstances(ctx, page, pageSize, filters)
 	if err != nil {
 		logger.ErrorWithTrace(ctx, "获取所有网关实例列表失败", err)
 		// 使用统一的错误响应

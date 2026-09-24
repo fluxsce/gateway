@@ -5,6 +5,7 @@
 
 import type { JsonDataObj, PageInfoObj } from '@/types/api'
 import { createLogger } from '@/utils/logger'
+import { getDefaultPageSize } from '@/utils/pagination'
 
 // 创建格式化工具专用的日志记录器
 const logger = createLogger('FormatUtils')
@@ -412,7 +413,7 @@ export const formatNaivePagination = (data: JsonDataObj | string) => {
   try {
     const defaultPagination = {
       page: 1,
-      pageSize: 30,
+      pageSize: getDefaultPageSize(),
       itemCount: 0,
       pageCount: 1,
     }
@@ -434,7 +435,7 @@ export const formatNaivePagination = (data: JsonDataObj | string) => {
 
     const pageInfo = JSON.parse(pageQueryData)
     const itemCount = pageInfo.totalCount || 0
-    const pageSize = pageInfo.pageSize || 10
+    const pageSize = pageInfo.pageSize || getDefaultPageSize()
     const pageCount = Math.ceil(itemCount / pageSize)
 
     return {
@@ -447,7 +448,7 @@ export const formatNaivePagination = (data: JsonDataObj | string) => {
     logger.error('格式化分页数据失败', error)
     return {
       page: 1,
-      pageSize: 10,
+      pageSize: getDefaultPageSize(),
       itemCount: 0,
       pageCount: 1,
     }

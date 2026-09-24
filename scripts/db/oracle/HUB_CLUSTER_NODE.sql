@@ -1,0 +1,25 @@
+CREATE TABLE HUB_CLUSTER_NODE (
+  nodeId VARCHAR2(64) NOT NULL,
+  tenantId VARCHAR2(32) NOT NULL,
+  nodeIp VARCHAR2(100),
+  hostname VARCHAR2(255),
+  startedTime DATE NOT NULL,
+  lastSeenTime DATE NOT NULL,
+  addTime DATE DEFAULT SYSDATE NOT NULL,
+  addWho VARCHAR2(64) NOT NULL,
+  editTime DATE DEFAULT SYSDATE NOT NULL,
+  editWho VARCHAR2(64) NOT NULL,
+  oprSeqFlag VARCHAR2(64) NOT NULL,
+  currentVersion NUMBER(10) DEFAULT 1 NOT NULL,
+  activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+  noteText CLOB,
+  extProperty CLOB,
+  reserved1 VARCHAR2(64),
+  reserved2 VARCHAR2(64),
+  reserved3 VARCHAR2(100),
+  reserved4 VARCHAR2(100),
+  reserved5 VARCHAR2(255),
+  CONSTRAINT PK_CLUSTER_NODE PRIMARY KEY (tenantId, nodeId)
+);
+CREATE INDEX IDX_CLS_NODE_SEEN ON HUB_CLUSTER_NODE(tenantId, lastSeenTime);
+COMMENT ON TABLE HUB_CLUSTER_NODE IS '集群节点表 - 进程登记自身，供成员名单与后续网络拓扑检查';

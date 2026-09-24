@@ -65,8 +65,8 @@ services:
   # ============================================
   gateway:
     # GHCR. Mainland China: replace with
-    # crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.4.3
-    image: ghcr.io/fluxsce/gateway:3.4.3
+    # crpi-25xt72cd1prwdj5s.cn-hangzhou.personal.cr.aliyuncs.com/datahub-images/gateway:3.4.4
+    image: ghcr.io/fluxsce/gateway:3.4.4
     container_name: gateway-app
     restart: unless-stopped
     depends_on:

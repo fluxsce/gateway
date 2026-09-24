@@ -252,6 +252,7 @@ export async function queryServiceDefinitions(params: {
   gatewayInstanceId?: string
   serviceName?: string
   serviceDefinitionId?: string
+  keyword?: string
   serviceType?: number
   pageIndex?: number
   pageSize?: number
@@ -302,7 +303,9 @@ export async function queryFilterConfigs(params: {
   filterName?: string
   filterType?: string
   filterAction?: string
+  filterActions?: string
   activeFlag?: string
+  orderBy?: string
   pageIndex?: number
   pageSize?: number
 }): Promise<JsonDataObj> {
@@ -336,6 +339,14 @@ export async function addFilterConfig(filterConfig: any): Promise<JsonDataObj> {
  * @param filterConfig 过滤器配置数据
  * @returns 操作结果
  */
+export async function moveFilterNeighbor(params: {
+  filterConfigId: string
+  direction: 'up' | 'down'
+  filterActions?: string
+}): Promise<JsonDataObj> {
+  return routeApi.post('/moveFilterNeighbor', params)
+}
+
 export async function editFilterConfig(filterConfig: any): Promise<JsonDataObj> {
   return routeApi.post('/editFilterConfig', filterConfig)
 }

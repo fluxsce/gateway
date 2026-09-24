@@ -40,7 +40,7 @@ func NewUserController(db database.Database) *UserController {
 // @Description 分页获取用户列表
 // @Tags 用户管理
 // @Produce json
-// @Param page query int false "页码" default(1)
+// @Param pageIndex query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
 // @Success 200 {object} response.JsonData
 // @Router /api/hub0002/users [get]

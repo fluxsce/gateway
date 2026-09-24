@@ -180,6 +180,8 @@ func (c *SettingController) encodeGroup(ctx *gin.Context, tenantId string, req m
 		prepared, err := syssetting.PrepareWebTimeout(syssetting.WebTimeoutSettings{
 			RequestTimeoutSeconds: req.RequestTimeoutSeconds,
 			SessionExpireHours:    req.SessionExpireHours,
+			DefaultPageSize:       req.DefaultPageSize,
+			MaxPageSize:           req.MaxPageSize,
 			CipherEnabled:         req.CipherEnabled,
 		}, existing, syssetting.GetWebCipher())
 		if err != nil {
@@ -224,6 +226,8 @@ func webTimeoutView(v syssetting.WebTimeoutSettings, version int) models.WebTime
 	return models.WebTimeoutView{
 		RequestTimeoutSeconds: v.RequestTimeoutSeconds,
 		SessionExpireHours:    v.SessionExpireHours,
+		DefaultPageSize:       v.DefaultPageSize,
+		MaxPageSize:           v.MaxPageSize,
 		CipherEnabled:         v.CipherEnabled,
 		Kid:                   v.Kid,
 		PublicKey:             v.PublicKey,

@@ -20,6 +20,7 @@
  * ```
  */
 import { updateTimeout } from '@/api/request'
+import { applyPageSizePolicy } from '@/utils/pagination'
 import { defineStore } from 'pinia'
 
 // ==================== 类型定义 ====================
@@ -127,6 +128,8 @@ export const useUserStore = defineStore('user', {
       rememberMe: false,
       isAuthenticated: false,
       timeout: 0, // API请求超时时间（毫秒）
+      defaultPageSize: 20,
+      maxPageSize: 200,
     }
   },
 
@@ -241,6 +244,8 @@ export const useUserStore = defineStore('user', {
         tenantAdminFlag?: string
         mustChangePwd?: string
         timeout?: number
+        defaultPageSize?: number
+        maxPageSize?: number
         remember?: boolean
       }
     ) {
@@ -263,6 +268,9 @@ export const useUserStore = defineStore('user', {
         this.timeout = options.timeout
         updateTimeout(options.timeout)
       }
+      applyPageSizePolicy(options?.defaultPageSize, options?.maxPageSize)
+      this.defaultPageSize = options?.defaultPageSize || 20
+      this.maxPageSize = options?.maxPageSize || 200
 
       // 持久化
       this._persist()
@@ -505,6 +513,9 @@ export const useUserStore = defineStore('user', {
       if (userData.timeout > 0) {
         updateTimeout(userData.timeout)
       }
+      this.defaultPageSize = userData.defaultPageSize || 20
+      this.maxPageSize = userData.maxPageSize || 200
+      applyPageSizePolicy(this.defaultPageSize, this.maxPageSize)
     },
 
     /**
@@ -560,6 +571,8 @@ export const useUserStore = defineStore('user', {
         tenantAdminFlag: this.tenantAdminFlag,
         mustChangePwd: this.mustChangePwd,
         timeout: this.timeout, // 持久化超时设置
+        defaultPageSize: this.defaultPageSize,
+        maxPageSize: this.maxPageSize,
         // 权限数据（Set 需要转换为数组才能序列化）
         modules: this.modules,
         buttons: this.buttons,
@@ -679,6 +692,12 @@ interface UserState {
   
   /** API请求超时时间（毫秒），0表示使用默认值 */
   timeout: number
+
+  /** 列表默认每页条数，来自环境设置 Web 访问 */
+  defaultPageSize: number
+
+  /** 列表每页条数上限，来自环境设置 Web 访问 */
+  maxPageSize: number
 }
 
 // ==================== 存储工具 ====================

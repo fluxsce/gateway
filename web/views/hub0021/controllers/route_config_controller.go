@@ -42,7 +42,7 @@ func NewRouteConfigController(db database.Database) *RouteConfigController {
 // @Description 分页获取路由配置列表
 // @Tags 路由配置管理
 // @Produce json
-// @Param page query int false "页码" default(1)
+// @Param pageIndex query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
 // @Param gatewayInstanceId query string false "网关实例ID"
 // @Param routeName query string false "路由名称(支持模糊匹配)"

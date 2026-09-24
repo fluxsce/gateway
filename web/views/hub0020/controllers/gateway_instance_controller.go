@@ -77,7 +77,7 @@ func NewGatewayInstanceController(db database.Database) *GatewayInstanceControll
 // @Description 分页获取网关实例列表，支持条件查询
 // @Tags 网关实例管理
 // @Produce json
-// @Param page query int false "页码" default(1)
+// @Param pageIndex query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
 // @Param instanceName query string false "实例名称（模糊查询）"
 // @Param healthStatus query string false "健康状态（Y/N）"
