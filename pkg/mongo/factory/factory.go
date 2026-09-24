@@ -64,42 +64,54 @@ func NewManager() *Manager {
 //	*client.Client: 创建的客户端实例
 //	error: 操作过程中的错误
 func (m *Manager) Connect(ctx context.Context, name string, cfg *mongoConfig.MongoConfig) (*client.Client, error) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
-	// 检查连接是否已存在
-	if _, exists := m.connections[name]; exists {
-		return nil, fmt.Errorf("connection '%s' already exists", name)
-	}
-
-	// 验证配置
 	if err := cfg.Validate(); err != nil {
 		logger.Error("MongoDB配置验证失败", "name", name, "error", err)
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
-	// 创建新的客户端
-	mongoClient := client.NewClient()
+	m.mutex.Lock()
+	if _, exists := m.connections[name]; exists {
+		m.mutex.Unlock()
+		return nil, fmt.Errorf("connection '%s' already exists", name)
+	}
+	// 拨号和 Ping 不占管理器锁，避免后台重试挡住其它连接的取值。
+	m.mutex.Unlock()
 
-	// 建立连接
+	mongoClient := client.NewClient()
 	logger.Info("正在建立MongoDB连接", "name", name, "host", cfg.Host, "port", cfg.Port, "database", cfg.Database)
 	if err := mongoClient.Connect(ctx, cfg); err != nil {
 		logger.Error("MongoDB连接建立失败", "name", name, "host", cfg.Host, "port", cfg.Port, "error", err)
+		// Connect 内部已断开驱动客户端。这里再断一次，防止以后实现把客户端留在包装对象上。
+		disconnectClient(mongoClient)
 		return nil, fmt.Errorf("failed to connect to MongoDB: %w", err)
 	}
 
-	// 测试连接
 	logger.Info("正在测试MongoDB连接", "name", name)
 	if err := mongoClient.Ping(ctx); err != nil {
 		logger.Error("MongoDB连接ping失败", "name", name, "error", err)
-		mongoClient.Disconnect(ctx) // 清理失败的连接
+		disconnectClient(mongoClient)
 		return nil, fmt.Errorf("failed to ping MongoDB: %w", err)
 	}
 
-	// 存储连接
+	m.mutex.Lock()
+	if _, exists := m.connections[name]; exists {
+		m.mutex.Unlock()
+		disconnectClient(mongoClient)
+		return nil, fmt.Errorf("connection '%s' already exists", name)
+	}
 	m.connections[name] = mongoClient
-
+	m.mutex.Unlock()
 	return mongoClient, nil
+}
+
+// disconnectClient 用统一的清理超时断开客户端。拨号 context 可能已经取消。
+func disconnectClient(mongoClient *client.Client) {
+	if mongoClient == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), mongoConfig.CleanupTimeout)
+	defer cancel()
+	_ = mongoClient.Disconnect(ctx)
 }
 
 // GetConnection 获取指定名称的连接
@@ -262,8 +274,9 @@ func RemoveConnection(ctx context.Context, name string) error {
 }
 
 // CloseAll 全局连接关闭函数
-// 关闭全局管理器中的所有连接
+// 关闭全局管理器中的所有连接，并停掉尚未成功的后台重试。
 func CloseAll(ctx context.Context) error {
+	stopMongoReconnect()
 	return globalManager.CloseAll(ctx)
 }
 
@@ -290,16 +303,9 @@ func GetDefaultConnection() (*client.Client, error) {
 
 // === 配置文件初始化功能 ===
 
-// LoadAllMongoConnections 从配置文件加载所有MongoDB连接
-// 解析配置文件中的所有MongoDB连接配置，只初始化enabled为true的连接
-// 参数:
-//
-//	configPath: 数据库配置文件路径（包含MongoDB配置）
-//
-// 返回:
-//
-//	map[string]*client.Client: 连接名称到客户端实例的映射
-//	error: 加载失败时返回错误信息
+// LoadAllMongoConnections 从配置文件加载所有MongoDB连接。
+// 只初始化 enabled 为 true 的连接。某一条校验或拨号失败时记错误并跳过，不让日志库挡住进程启动；失败的连接交给后台重试。
+// 配置文件打不开或 mongo 段无法解析时仍返回错误。
 func LoadAllMongoConnections(configPath string) (map[string]*client.Client, error) {
 	// 首先加载配置文件
 	if err := config.LoadConfigFile(configPath); err != nil {
@@ -318,41 +324,37 @@ func LoadAllMongoConnections(configPath string) (map[string]*client.Client, erro
 		return make(map[string]*client.Client), nil
 	}
 
-	// 验证配置
 	if len(mongoRootConfig.Connections) == 0 {
-		return nil, fmt.Errorf("未找到MongoDB连接配置")
+		logger.Warn("MongoDB已启用但未找到连接配置，跳过连接初始化")
+		return make(map[string]*client.Client), nil
 	}
 
 	connections := make(map[string]*client.Client)
 
-	// 遍历所有配置，创建启用的连接
+	// 遍历所有配置，创建启用的连接。单条失败不中断其余连接。
 	for name, connConfig := range mongoRootConfig.Connections {
 		logger.Info("正在处理MongoDB连接配置", "name", name, "enabled", connConfig.Enabled)
 
-		// 跳过禁用的连接
 		if !connConfig.Enabled {
 			logger.Info("跳过禁用的MongoDB连接", "name", name)
 			continue
 		}
 
-		// 验证配置
 		if err := connConfig.Validate(); err != nil {
-			logger.Error("MongoDB连接配置验证失败", "name", name, "error", err)
-			return nil, fmt.Errorf("MongoDB连接 '%s' 配置验证失败: %w", name, err)
+			logger.Error("MongoDB连接配置验证失败，跳过该连接", "name", name, "error", err)
+			continue
 		}
 
-		// 创建连接
 		logger.Info("正在创建MongoDB连接", "name", name, "host", connConfig.Host, "port", connConfig.Port)
-		mongoClient, err := globalManager.Connect(context.Background(), name, connConfig)
+		mongoClient, err := dialMongo(mongoConfig.DialBudget(connConfig), name, connConfig)
 		if err != nil {
-			logger.Error("创建MongoDB连接失败", "name", name, "error", err)
-			return nil, fmt.Errorf("创建MongoDB连接 '%s' 失败: %w", name, err)
+			logger.Error("创建MongoDB连接失败，网关继续启动，后台将重试", "name", name, "error", err)
+			rememberMongoRetry(name, connConfig, mongoRootConfig.Default)
+			continue
 		}
 
-		// 存储连接映射
 		connections[name] = mongoClient
-
-		// 记录成功日志
+		noteMongoReady(name, mongoRootConfig.Default)
 		logger.Info("MongoDB连接创建成功",
 			"name", name,
 			"host", connConfig.Host,
@@ -360,14 +362,12 @@ func LoadAllMongoConnections(configPath string) (map[string]*client.Client, erro
 			"database", connConfig.Database)
 	}
 
-	// 设置默认连接
 	if mongoRootConfig.Default != "" {
 		if defaultClient, exists := connections[mongoRootConfig.Default]; exists {
-			// 将默认连接直接复用，不重新创建
 			connections["default"] = defaultClient
 			logger.Info("设置默认MongoDB连接", "name", mongoRootConfig.Default)
 		} else {
-			logger.Warn("指定的默认MongoDB连接不存在", "name", mongoRootConfig.Default)
+			logger.Warn("指定的默认MongoDB连接尚未就绪", "name", mongoRootConfig.Default)
 		}
 	}
 
@@ -382,6 +382,176 @@ func LoadAllMongoConnections(configPath string) (map[string]*client.Client, erro
 		"default_connection", mongoRootConfig.Default)
 
 	return connections, nil
+}
+
+var (
+	mongoRetryMu      sync.Mutex
+	mongoRetryStop    chan struct{}
+	mongoRetryPending map[string]*mongoConfig.MongoConfig
+	mongoRetryDefault string
+	// mongoRetryGen 每次停掉重试就加一。进行中的拨号结束后用它判断自己是不是上一轮，避免关掉之后又写回连接池。
+	mongoRetryGen uint64
+
+	mongoReadyMu      sync.Mutex
+	mongoReadyHooks   []func()
+	mongoDefaultReady bool
+)
+
+// OnDefaultReady 在默认 Mongo 连接可用时调用 fn。
+// 已经连上则立刻异步执行。fn 在独立协程中运行，panic 只记日志，不拖垮重试循环。
+func OnDefaultReady(fn func()) {
+	if fn == nil {
+		return
+	}
+	mongoReadyMu.Lock()
+	ready := mongoDefaultReady
+	if !ready {
+		mongoReadyHooks = append(mongoReadyHooks, fn)
+	}
+	mongoReadyMu.Unlock()
+	if ready {
+		go runMongoReadyHook(fn)
+	}
+}
+
+// noteMongoReady 默认连接刚建立时放行已登记的回调。name 不是配置的默认连接时什么都不做。
+func noteMongoReady(name, defaultName string) {
+	if defaultName == "" || name != defaultName {
+		return
+	}
+	mongoReadyMu.Lock()
+	if mongoDefaultReady {
+		mongoReadyMu.Unlock()
+		return
+	}
+	mongoDefaultReady = true
+	hooks := mongoReadyHooks
+	mongoReadyHooks = nil
+	mongoReadyMu.Unlock()
+	for _, fn := range hooks {
+		go runMongoReadyHook(fn)
+	}
+}
+
+// runMongoReadyHook 执行一条就绪回调。回调自己的 panic 留在这条协程里。
+func runMongoReadyHook(fn func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("MongoDB默认连接就绪回调异常", "error", r)
+		}
+	}()
+	fn()
+}
+
+// dialMongo 在超时内建立一条连接，并保证超时计时器被取消。
+func dialMongo(timeout time.Duration, name string, cfg *mongoConfig.MongoConfig) (*client.Client, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return globalManager.Connect(ctx, name, cfg)
+}
+
+// rememberMongoRetry 记下启动时没连上的连接，并保证只有一个重试协程。
+func rememberMongoRetry(name string, cfg *mongoConfig.MongoConfig, defaultName string) {
+	mongoRetryMu.Lock()
+	if mongoRetryPending == nil {
+		mongoRetryPending = make(map[string]*mongoConfig.MongoConfig)
+	}
+	mongoRetryPending[name] = cfg
+	mongoRetryDefault = defaultName
+	if mongoRetryStop == nil {
+		mongoRetryStop = make(chan struct{})
+		go mongoReconnectLoop(mongoRetryStop, mongoRetryGen)
+	}
+	mongoRetryMu.Unlock()
+}
+
+// stopMongoReconnect 停掉后台重试并丢掉待重试配置。可重复调用。
+func stopMongoReconnect() {
+	mongoRetryMu.Lock()
+	if mongoRetryStop != nil {
+		close(mongoRetryStop)
+		mongoRetryStop = nil
+	}
+	mongoRetryPending = nil
+	mongoRetryGen++
+	mongoRetryMu.Unlock()
+}
+
+// mongoReconnectLoop 按配置包里的 RetryInterval 重试，直到全部连上或 stop 被关闭。
+// gen 是启动这轮循环时的代数，停掉之后的成功拨号不能再改连接池。
+func mongoReconnectLoop(stop <-chan struct{}, gen uint64) {
+	ticker := time.NewTicker(mongoConfig.RetryInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+			if mongoRetryOnce(stop, gen) {
+				return
+			}
+		}
+	}
+}
+
+// mongoRetryOnce 重试尚未连上的连接。
+// 全部成功，或这轮重试已经作废时返回 true，调用方退出循环。
+func mongoRetryOnce(stop <-chan struct{}, gen uint64) bool {
+	mongoRetryMu.Lock()
+	if mongoRetryGen != gen || len(mongoRetryPending) == 0 {
+		mongoRetryMu.Unlock()
+		return true
+	}
+	pending := make(map[string]*mongoConfig.MongoConfig, len(mongoRetryPending))
+	for name, cfg := range mongoRetryPending {
+		pending[name] = cfg
+	}
+	defaultName := mongoRetryDefault
+	mongoRetryMu.Unlock()
+
+	for name, cfg := range pending {
+		select {
+		case <-stop:
+			return true
+		default:
+		}
+		if _, err := dialMongo(mongoConfig.DialBudget(cfg), name, cfg); err != nil {
+			logger.Warn("MongoDB连接重试失败", "name", name, "error", err)
+			continue
+		}
+		if discardStaleMongoDial(name, gen) {
+			return true
+		}
+		logger.Info("MongoDB连接重试成功", "name", name, "database", cfg.Database)
+		noteMongoReady(name, defaultName)
+		mongoRetryMu.Lock()
+		if mongoRetryGen == gen && mongoRetryPending != nil {
+			delete(mongoRetryPending, name)
+		}
+		left := len(mongoRetryPending)
+		mongoRetryMu.Unlock()
+		if left == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// discardStaleMongoDial 在拨号期间如果重试已被停掉，立刻关掉刚建立的连接。
+// 返回 true 表示这轮重试作废，调用方应退出。
+func discardStaleMongoDial(name string, gen uint64) bool {
+	mongoRetryMu.Lock()
+	stale := mongoRetryGen != gen
+	mongoRetryMu.Unlock()
+	if !stale {
+		return false
+	}
+	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), mongoConfig.CleanupTimeout)
+	defer cleanupCancel()
+	if err := globalManager.RemoveConnection(cleanupCtx, name); err != nil {
+		logger.Warn("丢弃过期MongoDB重试连接失败", "name", name, "error", err)
+	}
+	return true
 }
 
 // ValidateConnectionConfig 验证连接配置的有效性
@@ -438,7 +608,7 @@ func ReloadConnection(name string, connConfig *mongoConfig.MongoConfig) error {
 	}
 
 	// 测试新连接
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), mongoConfig.DialBudget(connConfig))
 	defer cancel()
 
 	// 移除旧连接（这会自动关闭旧连接）
@@ -462,7 +632,7 @@ func ReloadConnection(name string, connConfig *mongoConfig.MongoConfig) error {
 //
 //	error: 关闭过程中的第一个错误
 func CloseAllConnections() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), mongoConfig.CloseTimeout)
 	defer cancel()
 	return CloseAll(ctx)
 }

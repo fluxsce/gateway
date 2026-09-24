@@ -2,7 +2,7 @@
 
 Build and run from source. For a trial, use Docker or a release package in [README_EN.md](../../README_EN.md) instead.
 
-Examples use **3.4.4**.
+Examples use **3.4.5**.
 
 ---
 
@@ -129,14 +129,14 @@ Output: `dist/gateway/`. **`--version` is required.** Oracle is **off** by defau
 
 ```cmd
 cd scripts\build
-build-win10.cmd --version=3.4.4
-build-win10.cmd --oracle --version=3.4.4
+build-win10.cmd --version=3.4.5
+build-win10.cmd --oracle --version=3.4.5
 ```
 
 ```bash
 cd scripts/build
-./build-centos7.sh --version=3.4.4
-./build-centos7.sh --oracle --version=3.4.4
+./build-centos7.sh --version=3.4.5
+./build-centos7.sh --oracle --version=3.4.5
 ```
 
 Debug-only: `go build -o bin/gateway cmd/app/main.go`.

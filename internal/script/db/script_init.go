@@ -232,13 +232,18 @@ func InitializeDatabaseScripts(ctx context.Context, db database.Database) (*Init
 		results = append(results, ckResult)
 	}
 
-	// 3. 检查是否配置了 MongoDB，如果有则也执行 MongoDB 脚本
-	if IsMongoEnabled() {
-		logger.Info("检测到 MongoDB 配置，开始执行 MongoDB 脚本初始化")
-
-		// 执行 MongoDB 脚本
-		mongoResult := executeMongoScriptForDatabase(ctx, "mongodb_default", scriptDir)
-		results = append(results, mongoResult)
+	// 3. 检查是否配置了 MongoDB。启动时连不上则等默认连接就绪后再对齐索引，不挡本次启动。
+	if config.GetBool("mongo.enabled", false) {
+		if IsMongoEnabled() {
+			logger.Info("检测到 MongoDB 配置，开始执行 MongoDB 脚本初始化")
+			mongoResult := executeMongoScriptForDatabase(ctx, "mongodb_default", scriptDir)
+			results = append(results, mongoResult)
+		} else {
+			logger.Warn("MongoDB已启用但默认连接尚未就绪，索引对齐推迟到连接成功之后")
+			mongofactory.OnDefaultReady(func() {
+				executeMongoScriptForDatabase(context.Background(), "mongodb_default", scriptDir)
+			})
+		}
 	}
 
 	// 创建汇总报告

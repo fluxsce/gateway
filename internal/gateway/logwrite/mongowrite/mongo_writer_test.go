@@ -25,6 +25,17 @@ func TestMongoWriterRejectsAfterClose(t *testing.T) {
 	}
 }
 
+func TestNewMongoWriterWithoutConnection(t *testing.T) {
+	cfg := &types.LogConfig{EnableAsyncLogging: "N"}
+	w, err := NewMongoWriter(cfg)
+	if err != nil {
+		t.Fatalf("没有默认连接时仍应创建写入器: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestBatchLimitAndQueueSize(t *testing.T) {
 	if got := types.BatchLimit(nil); got != types.DefaultBatchSize {
 		t.Fatalf("BatchLimit(nil) = %d, want %d", got, types.DefaultBatchSize)

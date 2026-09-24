@@ -45,17 +45,16 @@ func (c *Client) Connect(ctx context.Context, cfg *config.MongoConfig) error {
 		return errors.NewConnectionError("failed to create client options", err)
 	}
 
-	// 建立连接
-	client, err := mongo.Connect(ctx, clientOptions)
+	// mongo.Connect 失败时驱动不返回客户端。成功之后 Ping 失败必须 Disconnect，否则监控协程留在后台。
+	raw, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		return errors.NewConnectionError("failed to connect to MongoDB", err)
 	}
-
-	// 测试连接
-	if err := client.Ping(ctx, nil); err != nil {
-		client.Disconnect(ctx) // 清理失败的连接
+	if err = raw.Ping(ctx, nil); err != nil {
+		disconnectMongo(raw)
 		return errors.NewConnectionError("failed to ping MongoDB", err)
 	}
+	client := raw
 
 	// 存储连接信息
 	c.mutex.Lock()
@@ -64,6 +63,17 @@ func (c *Client) Connect(ctx context.Context, cfg *config.MongoConfig) error {
 	c.mutex.Unlock()
 
 	return nil
+}
+
+// disconnectMongo 用独立超时关闭驱动客户端。
+// 拨号 context 超时时不能拿它来 Disconnect，否则后台监控协程可能留着。
+func disconnectMongo(client *mongo.Client) {
+	if client == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), config.CleanupTimeout)
+	defer cancel()
+	_ = client.Disconnect(ctx)
 }
 
 // Disconnect 断开MongoDB连接

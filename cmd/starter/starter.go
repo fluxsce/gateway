@@ -132,9 +132,9 @@ func initializeAndStartApplication() error {
 		return huberrors.WrapError(err, "初始化缓存失败")
 	}
 
-	// 初始化MongoDB
+	// 初始化 MongoDB。日志库连不上或配置无效不阻止网关启动，写入器在连接就绪后继续写。
 	if _, err := appinit.InitializeMongoDB(); err != nil {
-		return huberrors.WrapError(err, "初始化MongoDB失败")
+		logger.Error("初始化MongoDB失败，网关继续启动", "error", err)
 	}
 
 	// 初始化数据库脚本

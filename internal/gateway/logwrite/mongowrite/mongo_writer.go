@@ -22,6 +22,7 @@ import (
 type MongoWriter struct {
 	config      *types.LogConfig
 	mongoClient *client.Client
+	clientMu    sync.RWMutex
 
 	logQueue    chan *types.AccessLog
 	batchBuffer []*types.AccessLog
@@ -49,7 +50,9 @@ func NewMongoWriter(config *types.LogConfig) (*MongoWriter, error) {
 
 	mongoClient, err := factory.GetDefaultConnection()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get default MongoDB connection: %w", err)
+		// 启动时 Mongo 可能还没连上。写入器先挂上，插入时再取默认连接。
+		logger.Warn("MongoDB default connection not ready, writer will attach when it connects", "error", err)
+		mongoClient = nil
 	}
 
 	batch := types.BatchLimit(config)
@@ -79,6 +82,39 @@ func NewMongoWriter(config *types.LogConfig) (*MongoWriter, error) {
 	return writer, nil
 }
 
+// database 返回默认库。启动时连接可能尚未建立，调用时再取并缓存。
+// 缓存的是连接池里的同一个客户端，运行中断线由驱动自己重连，这里不另开连接。
+func (w *MongoWriter) database() (mongotypes.MongoDatabase, error) {
+	c, err := w.client()
+	if err != nil {
+		return nil, err
+	}
+	return c.DefaultDatabase()
+}
+
+// client 返回写入器要使用的 Mongo 客户端。
+// 先读缓存；没有则向连接池要默认连接。两段锁之间不持有锁，避免和连接池的锁交叉。
+func (w *MongoWriter) client() (*client.Client, error) {
+	w.clientMu.RLock()
+	c := w.mongoClient
+	w.clientMu.RUnlock()
+	if c != nil {
+		return c, nil
+	}
+	c, err := factory.GetDefaultConnection()
+	if err != nil {
+		return nil, err
+	}
+	w.clientMu.Lock()
+	if w.mongoClient == nil {
+		w.mongoClient = c
+	} else {
+		c = w.mongoClient
+	}
+	w.clientMu.Unlock()
+	return c, nil
+}
+
 // UpdateAccessLog 按租户与 trace 更新主表文档，$inc resetCount，$set 仅重放结果态字段并清空 parentTraceId（不 $inc retryCount）。
 // 同步执行，不经过异步通道。无匹配文档时返回 (0, nil)。
 func (w *MongoWriter) UpdateAccessLog(ctx context.Context, log *types.AccessLog) (int64, error) {
@@ -105,7 +141,7 @@ func (w *MongoWriter) UpdateAccessLog(ctx context.Context, log *types.AccessLog)
 		"$inc": mongotypes.Document{"resetCount": 1},
 	}
 
-	database, err := w.mongoClient.DefaultDatabase()
+	database, err := w.database()
 	if err != nil {
 		return 0, fmt.Errorf("failed to get default database: %w", err)
 	}
@@ -418,7 +454,7 @@ func (w *MongoWriter) insertBackendTraceLogOne(ctx context.Context, log *types.B
 	if err != nil {
 		return fmt.Errorf("failed to convert backend trace log to document: %w", err)
 	}
-	database, err := w.mongoClient.DefaultDatabase()
+	database, err := w.database()
 	if err != nil {
 		return fmt.Errorf("failed to get default database: %w", err)
 	}
@@ -437,7 +473,7 @@ func (w *MongoWriter) insertBackendTraceLogMany(ctx context.Context, logs []*typ
 	if err != nil {
 		return fmt.Errorf("failed to convert backend trace logs to documents: %w", err)
 	}
-	database, err := w.mongoClient.DefaultDatabase()
+	database, err := w.database()
 	if err != nil {
 		return fmt.Errorf("failed to get default database: %w", err)
 	}
@@ -454,7 +490,7 @@ func (w *MongoWriter) insertOne(ctx context.Context, log *types.AccessLog) error
 		return fmt.Errorf("failed to convert log to document: %w", err)
 	}
 	var accessLog types.AccessLog
-	database, err := w.mongoClient.DefaultDatabase()
+	database, err := w.database()
 	if err != nil {
 		return fmt.Errorf("failed to get default database: %w", err)
 	}
@@ -474,7 +510,7 @@ func (w *MongoWriter) insertMany(ctx context.Context, logs []*types.AccessLog) e
 		return fmt.Errorf("failed to convert logs to documents: %w", err)
 	}
 	var accessLog types.AccessLog
-	database, err := w.mongoClient.DefaultDatabase()
+	database, err := w.database()
 	if err != nil {
 		return fmt.Errorf("failed to get default database: %w", err)
 	}

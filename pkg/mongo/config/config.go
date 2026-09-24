@@ -121,6 +121,26 @@ func DefaultConfig() *MongoConfig {
 	return NewDefaultConfig()
 }
 
+const (
+	// DialCap 单次建连的上下文上限。启动和后台重试共用，避免日志库选主把听端口拖住。
+	DialCap = 5 * time.Second
+	// CleanupTimeout 建连失败或丢弃过期连接时，断开驱动客户端的上限。
+	CleanupTimeout = 2 * time.Second
+	// RetryInterval 启动没连上之后，再次拨号的间隔。
+	RetryInterval = 30 * time.Second
+	// CloseTimeout 进程退出时关闭全部连接的上限。
+	CloseTimeout = 30 * time.Second
+)
+
+// DialBudget 返回这一次拨号上下文该等多久。
+// 配置里的服务器选择超时更短时用配置，否则用 DialCap。两处不再各写一个秒数。
+func DialBudget(c *MongoConfig) time.Duration {
+	if c != nil && c.ServerSelectionTimeoutMS > 0 && c.ServerSelectionTimeoutMS < DialCap {
+		return c.ServerSelectionTimeoutMS
+	}
+	return DialCap
+}
+
 // 注意：不再需要URI构建方法，因为我们直接使用结构体参数进行连接
 // 这样可以避免字符串拼接/解析的开销，提高性能和类型安全性
 
