@@ -97,7 +97,7 @@ func (m *ServerInfoManager) InitializeServerInfo() error {
 		// 更新已存在的服务器信息
 		m.serverInfo = existingInfo
 
-		if err := m.updateExistingServerInfo(systemMetrics, cpuMetrics, memoryMetrics, diskMetrics, now); err != nil {
+		if _, err := m.updateExistingServerInfo(systemMetrics, cpuMetrics, memoryMetrics, diskMetrics, now); err != nil {
 			return fmt.Errorf("更新服务器信息失败: %w", err)
 		}
 
@@ -123,6 +123,67 @@ func (m *ServerInfoManager) InitializeServerInfo() error {
 	return nil
 }
 
+// UpsertServerInfo 按主键 (tenantId, metricServerId) 写入服务器主表。
+// 记录还在时刷新 lastUpdateTime。记录被清理掉时重新插入。采集循环每次调用。
+//
+// 参数：
+//   - systemMetrics: 本轮系统指标。为空时现场再采一次。
+//   - cpuMetrics: 本轮 CPU 指标，可为空。
+//   - memoryMetrics: 本轮内存指标，可为空。
+//   - diskMetrics: 本轮磁盘指标，可为空。
+//
+// 返回：
+//   - error: 写入失败时返回。
+func (m *ServerInfoManager) UpsertServerInfo(
+	systemMetrics *metricTypes.SystemMetrics,
+	cpuMetrics *metricTypes.CPUMetrics,
+	memoryMetrics *metricTypes.MemoryMetrics,
+	diskMetrics *metricTypes.DiskMetrics,
+) error {
+	if systemMetrics == nil {
+		collected, err := metric.CollectSystem()
+		if err != nil {
+			return fmt.Errorf("采集系统信息失败: %w", err)
+		}
+		systemMetrics = collected
+	}
+
+	ctx := context.Background()
+	now := time.Now()
+	existing, err := m.serverInfoDAO.GetServerInfoById(ctx, m.config.TenantId, m.config.ServerId)
+	if err != nil {
+		return err
+	}
+	if existing != nil {
+		m.serverInfo = existing
+		affected, updateErr := m.updateExistingServerInfo(systemMetrics, cpuMetrics, memoryMetrics, diskMetrics, now)
+		if updateErr != nil {
+			return updateErr
+		}
+		if affected > 0 {
+			logger.Debug("刷新服务器信息", "server_id", m.config.ServerId, "hostname", systemMetrics.Hostname)
+			return nil
+		}
+	}
+
+	if err := m.createNewServerInfo(systemMetrics, cpuMetrics, memoryMetrics, diskMetrics, now); err != nil {
+		// 查询和插入之间行又出现了，或原行是非活动状态。按主键更新把它找回来。
+		if database.IsDuplicateKey(err) && m.serverInfo != nil {
+			affected, updateErr := m.updateExistingServerInfo(systemMetrics, cpuMetrics, memoryMetrics, diskMetrics, now)
+			if updateErr != nil {
+				return updateErr
+			}
+			if affected > 0 {
+				logger.Info("采集时恢复服务器信息", "server_id", m.config.ServerId, "hostname", systemMetrics.Hostname)
+				return nil
+			}
+		}
+		return err
+	}
+	logger.Info("采集时补回服务器信息", "server_id", m.config.ServerId, "hostname", systemMetrics.Hostname)
+	return nil
+}
+
 // updateExistingServerInfo 更新已存在的服务器信息
 // 更新数据库中已存在的服务器信息记录
 //
@@ -134,6 +195,7 @@ func (m *ServerInfoManager) InitializeServerInfo() error {
 //   - now: 当前时间
 //
 // 返回：
+//   - int64: 更新影响行数。0 表示主键上的记录已经不在。
 //   - error: 更新过程中的错误
 func (m *ServerInfoManager) updateExistingServerInfo(
 	systemMetrics *metricTypes.SystemMetrics,
@@ -141,7 +203,7 @@ func (m *ServerInfoManager) updateExistingServerInfo(
 	memoryMetrics *metricTypes.MemoryMetrics,
 	diskMetrics *metricTypes.DiskMetrics,
 	now time.Time,
-) error {
+) (int64, error) {
 	ctx := context.Background()
 
 	// 更新基本信息
@@ -172,12 +234,13 @@ func (m *ServerInfoManager) updateExistingServerInfo(
 	// 注意：不再更新 MetricServerId，保持使用数据库中已存在的ID
 	// 这样可以确保服务器ID的一致性，避免同一台服务器有多个不同的ID
 
-	// 更新数据库
-	if err := m.serverInfoDAO.UpdateServerInfo(ctx, m.serverInfo); err != nil {
-		return fmt.Errorf("更新服务器信息失败: %w", err)
+	// 更新数据库。影响 0 行表示主键上的记录已经不在，调用方再插入。
+	affected, err := m.serverInfoDAO.UpdateServerInfo(ctx, m.serverInfo)
+	if err != nil {
+		return 0, fmt.Errorf("更新服务器信息失败: %w", err)
 	}
 
-	return nil
+	return affected, nil
 }
 
 // createNewServerInfo 创建新的服务器信息
@@ -380,7 +443,7 @@ func (m *ServerInfoManager) RefreshServerInfo() error {
 
 	// 更新服务器信息
 	now := time.Now()
-	if err := m.updateExistingServerInfo(systemMetrics, cpuMetrics, memoryMetrics, diskMetrics, now); err != nil {
+	if _, err := m.updateExistingServerInfo(systemMetrics, cpuMetrics, memoryMetrics, diskMetrics, now); err != nil {
 		return fmt.Errorf("刷新服务器信息失败: %w", err)
 	}
 
@@ -449,7 +512,7 @@ func (m *ServerInfoManager) UpdateServerStatus(status string, notes string) erro
 	}
 
 	// 更新数据库
-	if err := m.serverInfoDAO.UpdateServerInfo(ctx, m.serverInfo); err != nil {
+	if _, err := m.serverInfoDAO.UpdateServerInfo(ctx, m.serverInfo); err != nil {
 		return fmt.Errorf("更新服务器状态失败: %w", err)
 	}
 

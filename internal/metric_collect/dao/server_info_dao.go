@@ -231,36 +231,40 @@ func (dao *ServerInfoDAO) GetServerInfoByHostnameAndNetwork(ctx context.Context,
 	return &serverInfo, nil
 }
 
-// UpdateServerInfo 更新服务器信息
-func (dao *ServerInfoDAO) UpdateServerInfo(ctx context.Context, serverInfo *types.ServerInfo) error {
+// UpdateServerInfo 按主键 (tenantId, metricServerId) 更新服务器信息。
+// 返回影响行数。行已被删掉时影响行数为 0，调用方应再插入。
+func (dao *ServerInfoDAO) UpdateServerInfo(ctx context.Context, serverInfo *types.ServerInfo) (int64, error) {
 	if serverInfo.TenantId == "" {
-		return fmt.Errorf("租户ID不能为空")
+		return 0, fmt.Errorf("租户ID不能为空")
 	}
 	if serverInfo.MetricServerId == "" {
-		return fmt.Errorf("服务器ID不能为空")
+		return 0, fmt.Errorf("服务器ID不能为空")
 	}
 
 	// 更新时间和版本
 	now := time.Now()
 	serverInfo.EditTime = now
 	serverInfo.LastUpdateTime = now
+	serverInfo.ActiveFlag = types.ActiveFlagYes
 	serverInfo.CurrentVersion++
 
 	tableName := serverInfo.TableName()
 	sql := fmt.Sprintf(`UPDATE %s SET 
 		hostname = ?, osType = ?, osVersion = ?, kernelVersion = ?, architecture = ?, 
 		bootTime = ?, ipAddress = ?, macAddress = ?, serverLocation = ?, serverType = ?, 
-		lastUpdateTime = ?, editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?
+		lastUpdateTime = ?, editTime = ?, editWho = ?, oprSeqFlag = ?, currentVersion = ?,
+		activeFlag = ?
 		WHERE tenantId = ? AND metricServerId = ?`, tableName)
 
-	_, err := dao.db.Exec(ctx, sql, []interface{}{
+	affected, err := dao.db.Exec(ctx, sql, []interface{}{
 		serverInfo.Hostname, serverInfo.OsType, serverInfo.OsVersion, serverInfo.KernelVersion, serverInfo.Architecture,
 		serverInfo.BootTime, serverInfo.IpAddress, serverInfo.MacAddress, serverInfo.ServerLocation, serverInfo.ServerType,
 		serverInfo.LastUpdateTime, serverInfo.EditTime, serverInfo.EditWho, serverInfo.OprSeqFlag, serverInfo.CurrentVersion,
+		serverInfo.ActiveFlag,
 		serverInfo.TenantId, serverInfo.MetricServerId,
 	}, true)
 	if err != nil {
-		return fmt.Errorf("更新服务器信息失败: %w", err)
+		return 0, fmt.Errorf("更新服务器信息失败: %w", err)
 	}
-	return nil
+	return affected, nil
 }

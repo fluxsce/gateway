@@ -211,6 +211,30 @@ func UnregisterCollector(name string) error {
 	return DefaultManager.UnregisterCollector(name)
 }
 
+// collectTimeoutSetter 采集器上的单次采集超时。各采集器都有 SetTimeout，接口本身不要求。
+type collectTimeoutSetter interface {
+	SetTimeout(time.Duration)
+}
+
+// SetCollectTimeout 把已注册采集器的单次采集超时设为 d。
+// 采集循环按 app.metrics.collect_interval 的一半调用。CPU 使用率采样约 1 秒，d 需要大于该值。
+func SetCollectTimeout(d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	for _, name := range DefaultManager.GetCollectorNames() {
+		collector, err := DefaultManager.GetCollector(name)
+		if err != nil {
+			continue
+		}
+		setter, ok := collector.(collectTimeoutSetter)
+		if !ok {
+			continue
+		}
+		setter.SetTimeout(d)
+	}
+}
+
 // GetCollector 从默认管理器获取指定采集器
 // 根据名称获取采集器实例，可用于直接操作采集器
 // name: 采集器名称

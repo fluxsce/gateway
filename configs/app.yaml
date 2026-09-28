@@ -23,7 +23,7 @@ app:
   # 指标采集配置
   metrics:
     enabled: true                    # 是否启用指标采集
-    collect_interval: 60s            # 采集间隔时间（支持：s秒、m分钟、h小时，如：30s、5m、1h）
+    collect_interval: 60s            # 采集间隔（s/m/h，如 30s、5m、1h）。单次采集超时为该值的一半，默认 30 秒
     auto_start: true                 # 是否自动启动采集
     tenant_id: "default"             # 租户ID
     server_id: ""                    # 留空。采集节点 ID 与 GetNodeId() 相同，不要单独填写

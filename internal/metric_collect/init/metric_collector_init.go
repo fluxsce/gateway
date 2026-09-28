@@ -156,6 +156,9 @@ func NewMetricCollectorManager(db database.Database) (*MetricCollectorManager, e
 	// 创建服务器信息管理器
 	manager.serverInfoManager = NewServerInfoManager(cfg, db)
 
+	// 单次采集超时用间隔的一半。须在首次采集系统信息之前设上。
+	metric.SetCollectTimeout(cfg.CollectInterval / 2)
+
 	// 初始化服务器信息
 	if err := manager.serverInfoManager.InitializeServerInfo(); err != nil {
 		return nil, fmt.Errorf("初始化服务器信息失败: %w", err)
@@ -220,7 +223,8 @@ func (m *MetricCollectorManager) configureCollectors() {
 	}
 
 	logger.Info("采集器配置完成",
-		"enabled_collectors", m.config.GetEnabledCollectorNames())
+		"enabled_collectors", m.config.GetEnabledCollectorNames(),
+		"collect_timeout", m.config.CollectInterval/2)
 }
 
 // Start 启动指标采集
@@ -402,13 +406,22 @@ func (m *MetricCollectorManager) flushLoop() {
 	}
 }
 
+// collectedServerMetrics 从本轮采集结果取出服务器主表要用的指标。
+// 采集失败时 all 为空，交给 UpsertServerInfo 再采系统信息。
+func collectedServerMetrics(all *metricTypes.AllMetrics) (*metricTypes.SystemMetrics, *metricTypes.CPUMetrics, *metricTypes.MemoryMetrics, *metricTypes.DiskMetrics) {
+	if all == nil {
+		return nil, nil, nil, nil
+	}
+	return all.System, all.CPU, all.Memory, all.Disk
+}
+
 // collectMetrics 采集指标
 // 执行一次完整的指标采集任务
 //
 // 流程：
 // 1. 调用metric包采集所有指标
-// 2. 转换指标数据为数据库记录格式
-// 3. 将数据加入缓冲区
+// 2. 按主键插入或更新服务器主表
+// 3. 转换指标数据为数据库记录格式并加入缓冲区
 //
 // 错误处理：
 // - 采集失败时记录错误日志但不中断服务
@@ -422,6 +435,16 @@ func (m *MetricCollectorManager) collectMetrics() {
 	allMetrics, err := metric.CollectAll()
 	if err != nil {
 		logger.Error("采集指标失败", "error", err)
+	}
+
+	// 按主键补回或刷新服务器主表。行被清理后，下一轮采集重新插入。
+	if m.serverInfoManager != nil {
+		systemMetrics, cpuMetrics, memoryMetrics, diskMetrics := collectedServerMetrics(allMetrics)
+		if touchErr := m.serverInfoManager.UpsertServerInfo(systemMetrics, cpuMetrics, memoryMetrics, diskMetrics); touchErr != nil {
+			logger.Warn("刷新服务器信息失败", "error", touchErr, "server_id", m.config.ServerId)
+		}
+	}
+	if err != nil || allMetrics == nil {
 		return
 	}
 
@@ -592,4 +615,3 @@ func (m *MetricCollectorManager) flushData() {
 		}
 	}
 }
-
