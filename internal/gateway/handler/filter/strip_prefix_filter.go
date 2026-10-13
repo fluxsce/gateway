@@ -2,6 +2,7 @@ package filter
 
 import (
 	"fmt"
+	"path"
 	"strings"
 
 	"gateway/internal/gateway/core"
@@ -12,7 +13,7 @@ import (
 type StripPrefixFilter struct {
 	BaseFilter
 
-	// 要剥离的前缀
+	// 要剥离的前缀，已规范成以 / 开头且不是根路径
 	Prefix string
 }
 
@@ -32,54 +33,94 @@ func NewStripPrefixFilter(name, prefix string, priority int) *StripPrefixFilter 
 }
 
 // Apply 实现Filter接口
-// 从请求路径中剥离指定前缀
+// 从请求路径中按路径段边界剥离指定前缀
 func (f *StripPrefixFilter) Apply(ctx *core.Context) error {
-	if ctx.Request == nil {
+	if ctx.Request == nil || ctx.Request.URL == nil {
 		return fmt.Errorf("request is nil")
 	}
 
-	// 获取当前路径
-	path := ctx.Request.URL.Path
-
-	// 检查路径是否以前缀开始
-	if strings.HasPrefix(path, f.Prefix) {
-		// 剥离前缀
-		newPath := path[len(f.Prefix):]
-		if len(newPath) == 0 || newPath[0] != '/' {
-			newPath = "/" + newPath
-		}
-
-		// 设置新路径
-		ctx.Request.URL.Path = newPath
-
-		// 记录操作到上下文（可选，用于调试和监控）
-		ctx.Set("prefix_stripped", true)
-		ctx.Set("original_path", path)
-		ctx.Set("strip_prefix_filter", f.Name)
+	requestPath := ctx.Request.URL.Path
+	newPath, stripped := stripConfiguredPrefix(requestPath, f.Prefix)
+	if !stripped {
+		return nil
 	}
+
+	ctx.Request.URL.Path = newPath
+	// Path 已改写，清掉原始转义路径，避免 EscapedPath 仍返回旧值
+	ctx.Request.URL.RawPath = ""
+
+	ctx.Set("prefix_stripped", true)
+	ctx.Set("original_path", requestPath)
+	ctx.Set("strip_prefix_filter", f.Name)
 
 	return nil
 }
 
-// StripPrefixFilterFromConfig 从配置创建前缀剥离过滤器
+// stripConfiguredPrefix 按路径段边界去掉前缀。
+// prefix 须已规范化（以 / 开头且不是根路径）。/api 可剥 /api/users，不会误剥 /apix。
+func stripConfiguredPrefix(requestPath, prefix string) (string, bool) {
+	if prefix == "" || prefix == "/" {
+		return requestPath, false
+	}
+	if requestPath == "" {
+		requestPath = "/"
+	}
+	if !strings.HasPrefix(requestPath, prefix) {
+		return requestPath, false
+	}
+	if len(requestPath) == len(prefix) {
+		return "/", true
+	}
+	if requestPath[len(prefix)] != '/' {
+		return requestPath, false
+	}
+	return requestPath[len(prefix):], true
+}
+
+// StripPrefixFilterFromConfig 从配置创建前缀剥离过滤器。
+// 与 header、query-param 相同，在过滤器内读取嵌套配置，不依赖加载器摊平。
 func StripPrefixFilterFromConfig(config FilterConfig) (Filter, error) {
-	prefix := ""
-	if config.Config != nil {
-		if p, ok := config.Config["prefix"].(string); ok {
-			prefix = p
-		}
+	prefix, err := parseStripPrefix(config.Config)
+	if err != nil {
+		return nil, err
 	}
 
-	// 使用配置中的order字段，如果没有则使用默认值100
 	order := config.Order
 	if order <= 0 {
 		order = 100
 	}
 
 	filter := NewStripPrefixFilter(config.Name, prefix, order)
-
-	// 存储原始配置
+	filter.Action = getFilterActionFromConfig(config)
 	filter.BaseFilter.originalConfig = config
 
 	return filter, nil
+}
+
+// parseStripPrefix 读取并规范要剥离的前缀。
+// 页面保存为 stripConfig.prefix；没有该对象时兼容顶层 prefix。
+func parseStripPrefix(config map[string]interface{}) (string, error) {
+	stripConfig := config
+	if config != nil {
+		if nested, ok := config["stripConfig"].(map[string]interface{}); ok {
+			stripConfig = nested
+		}
+	}
+
+	prefix := ""
+	if stripConfig != nil {
+		prefix, _ = stripConfig["prefix"].(string)
+	}
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return "", fmt.Errorf("前缀剥离过滤器的 prefix 不能为空")
+	}
+	if !strings.HasPrefix(prefix, "/") {
+		prefix = "/" + prefix
+	}
+	prefix = path.Clean(prefix)
+	if prefix == "/" || prefix == "." {
+		return "", fmt.Errorf("前缀剥离过滤器的 prefix 不能为根路径")
+	}
+	return prefix, nil
 }
