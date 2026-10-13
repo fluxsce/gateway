@@ -84,18 +84,16 @@ CREATE TABLE `HUB_GW_ACCESS_LOG` (
   `noteText` VARCHAR(500) DEFAULT NULL COMMENT '备注信息',
   
   PRIMARY KEY (`tenantId`, `traceId`),
-  -- 核心查询索引（高频查询字段）
+  -- 时间在前：监控按时间窗扫描，第二列再过滤实例
   INDEX `idx_HUB_GW_ACCESS_LOG_time_instance` (`gatewayStartProcessingTime`, `gatewayInstanceId`),
-  INDEX `idx_HUB_GW_ACCESS_LOG_time_route` (`gatewayStartProcessingTime`, `routeConfigId`),
-  INDEX `idx_HUB_GW_ACCESS_LOG_time_service` (`gatewayStartProcessingTime`, `serviceDefinitionId`),
   
-  -- 名称字段查询索引（利用冗余字段，避免JOIN）
+  -- 等值在前、时间在后：列表按名称/状态/代理类型加时间范围
   INDEX `idx_HUB_GW_ACCESS_LOG_instance_name` (`gatewayInstanceName`, `gatewayStartProcessingTime`),
   INDEX `idx_HUB_GW_ACCESS_LOG_route_name` (`routeName`, `gatewayStartProcessingTime`),
   INDEX `idx_HUB_GW_ACCESS_LOG_service_name` (`serviceName`, `gatewayStartProcessingTime`),
-  
-  -- 业务查询索引
-  INDEX `idx_HUB_GW_ACCESS_LOG_client_ip` (`clientIpAddress`, `gatewayStartProcessingTime`),
   INDEX `idx_HUB_GW_ACCESS_LOG_status_time` (`gatewayStatusCode`, `gatewayStartProcessingTime`),
   INDEX `idx_HUB_GW_ACCESS_LOG_proxy_type` (`proxyType`, `gatewayStartProcessingTime`)
 ) ENGINE=InnoDB COMMENT='网关访问日志表 - 记录API网关的请求和响应详细信息,开始时间必填,完成时间可选(支持处理中状态),含冗余字段优化查询性能';
+
+-- 清理按实例等值 + 开始时间范围定位过期行。时间在前的 idx_HUB_GW_ACCESS_LOG_time_instance 不能按实例 seek。
+CREATE INDEX `idx_HUB_GW_ACCESS_LOG_instance_time` ON `HUB_GW_ACCESS_LOG` (`gatewayInstanceId`, `gatewayStartProcessingTime`);

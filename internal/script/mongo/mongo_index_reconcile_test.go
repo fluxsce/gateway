@@ -34,8 +34,13 @@ func TestKeepIndexNamesIncludesDefaultAndDeclared(t *testing.T) {
 			t.Fatalf("%s 不应保留已废弃的 idx_hot_routes", coll)
 		}
 	}
-	if len(cmds) != 5 {
-		t.Fatalf("最小集应为 5 条，得到 %d", len(cmds))
+	if len(cmds) != 4 {
+		t.Fatalf("最小集应为 4 条，得到 %d", len(cmds))
+	}
+	for _, cmd := range cmds {
+		if cmd.IndexModel.Options != nil && cmd.IndexModel.Options.ExpireAfterSeconds != nil {
+			t.Fatalf("不应自动创建 TTL 索引: %s", desiredIndexName(cmd))
+		}
 	}
 	foundBackendPK := false
 	for _, cmd := range cmds {
@@ -52,6 +57,21 @@ func TestKeepIndexNamesIncludesDefaultAndDeclared(t *testing.T) {
 	}
 	if !foundBackendPK {
 		t.Fatal("缺少从表 idx_tenant_trace")
+	}
+	foundBackendTime := false
+	for _, cmd := range cmds {
+		if cmd.CollectionName != "HUB_GW_BACKEND_TRACE_LOG" || desiredIndexName(cmd) != "idx_tenant_time" {
+			continue
+		}
+		if len(cmd.IndexModel.Keys) != 2 ||
+			cmd.IndexModel.Keys[0].Key != "tenantId" ||
+			cmd.IndexModel.Keys[1].Key != "requestStartTime" {
+			t.Fatalf("从表清理索引键应为 tenantId,requestStartTime，得到 %#v", cmd.IndexModel.Keys)
+		}
+		foundBackendTime = true
+	}
+	if !foundBackendTime {
+		t.Fatal("缺少从表 idx_tenant_time")
 	}
 }
 

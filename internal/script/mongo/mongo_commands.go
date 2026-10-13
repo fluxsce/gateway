@@ -79,10 +79,9 @@ func IsManagedMongoLogCollection(name string) bool {
 }
 
 // GetMongoInitCommands 返回启动时创建的最小索引集，与 scripts/db/mongo/mongo.js 对齐。
-// 只覆盖详情、按实例列表/监控、TTL；不为每个筛选项各建一条，以降低百万级写入维护成本。
+// 只覆盖详情、按实例列表/监控与应用层清理。过期日志由应用清理删除，不建 TTL。
+// 不为每个筛选项各建一条，以降低百万级写入维护成本。
 func GetMongoInitCommands() []MongoIndexCommand {
-	ttl30Days := int32(2592000) // 30天
-
 	return []MongoIndexCommand{
 		{
 			CollectionName: "HUB_GW_ACCESS_LOG",
@@ -113,20 +112,6 @@ func GetMongoInitCommands() []MongoIndexCommand {
 			Description: "按实例列表、监控与应用层清理",
 		},
 		{
-			CollectionName: "HUB_GW_ACCESS_LOG",
-			IndexModel: IndexModel{
-				Keys: bson.D{
-					{Key: "gatewayStartProcessingTime", Value: 1},
-				},
-				Options: &IndexOptions{
-					Name:               "idx_ttl_cleanup",
-					Background:         true,
-					ExpireAfterSeconds: &ttl30Days,
-				},
-			},
-			Description: "TTL 30天，必须单字段 Date",
-		},
-		{
 			CollectionName: "HUB_GW_BACKEND_TRACE_LOG",
 			IndexModel: IndexModel{
 				Keys: bson.D{
@@ -145,15 +130,15 @@ func GetMongoInitCommands() []MongoIndexCommand {
 			CollectionName: "HUB_GW_BACKEND_TRACE_LOG",
 			IndexModel: IndexModel{
 				Keys: bson.D{
+					{Key: "tenantId", Value: 1},
 					{Key: "requestStartTime", Value: 1},
 				},
 				Options: &IndexOptions{
-					Name:               "idx_ttl_cleanup",
-					Background:         true,
-					ExpireAfterSeconds: &ttl30Days,
+					Name:       "idx_tenant_time",
+					Background: true,
 				},
 			},
-			Description: "TTL 30天，兼时间扫描",
+			Description: "按 tenantId + requestStartTime 直接清理，不建 TTL",
 		},
 	}
 }

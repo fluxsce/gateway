@@ -189,7 +189,7 @@ func executeMongoIndexCommands(ctx context.Context, client *mongoclient.Client) 
 	outputBuilder.WriteString("MongoDB 索引对齐完成（自动建最小集并删除旧索引）\n")
 	outputBuilder.WriteString(fmt.Sprintf("- 成功创建/对齐: %d\n", executed))
 	outputBuilder.WriteString(fmt.Sprintf("- 失败: %d\n", failed))
-	outputBuilder.WriteString("- TTL: 30天；旧的多余索引由启动流程删除，无需手工 drop\n")
+	outputBuilder.WriteString("- 过期日志由应用清理删除，不建 TTL；旧的多余索引由启动流程删除\n")
 
 	logger.Info("MongoDB 索引创建完成",
 		"total_executed", executed,

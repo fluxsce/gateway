@@ -108,7 +108,7 @@ func dropObsoleteIndexes(ctx context.Context, coll *mongoclient.Collection, coll
 	return dropped, errs
 }
 
-// ensureCollectionIndexes 为单个系统日志集合建最小集，再自动删掉该集合上其余索引；TTL 被同键旧索引挡住时会重建。
+// ensureCollectionIndexes 为单个系统日志集合建最小集，再自动删掉该集合上其余索引；选项冲突时会重建。
 // 调用方必须先用 IsManagedMongoLogCollection 过滤，本函数再拦一层，避免误删其它集合索引。
 func ensureCollectionIndexes(ctx context.Context, coll *mongoclient.Collection, collectionName string, cmds []MongoIndexCommand) (executed, failed int, output string) {
 	if !IsManagedMongoLogCollection(collectionName) {
@@ -218,7 +218,7 @@ func ensureCollectionIndexes(ctx context.Context, coll *mongoclient.Collection, 
 			name, err = coll.CreateDriverIndex(ctx, cmd.IndexModel.ToMongoIndexModel())
 			if err == nil {
 				executed++
-				b.WriteString(fmt.Sprintf("  %s 已按最小集重建（含 TTL/键顺序）\n", name))
+				b.WriteString(fmt.Sprintf("  %s 已按最小集重建\n", name))
 				logger.Info("Mongo 索引已按最小集重建",
 					"collection", collectionName,
 					"index", name)

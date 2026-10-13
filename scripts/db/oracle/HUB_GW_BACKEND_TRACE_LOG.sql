@@ -59,7 +59,4 @@ CREATE TABLE HUB_GW_BACKEND_TRACE_LOG (
 COMMENT ON TABLE HUB_GW_BACKEND_TRACE_LOG IS '网关后端追踪日志表 - 记录每个后端服务的转发明细';
 
 CREATE INDEX idx_gw_btrace_trace ON HUB_GW_BACKEND_TRACE_LOG (tenantId, traceId);
-CREATE INDEX idx_gw_btrace_service ON HUB_GW_BACKEND_TRACE_LOG (tenantId, serviceDefinitionId, requestStartTime);
-CREATE INDEX idx_gw_btrace_time ON HUB_GW_BACKEND_TRACE_LOG (requestStartTime);
-CREATE INDEX idx_gw_btrace_tstatus ON HUB_GW_BACKEND_TRACE_LOG (tenantId, traceStatus, requestStartTime);
-CREATE INDEX idx_gw_btrace_addtime ON HUB_GW_BACKEND_TRACE_LOG (tenantId, addTime);
+CREATE INDEX idx_gw_btrace_tenant_time ON HUB_GW_BACKEND_TRACE_LOG (tenantId, requestStartTime);

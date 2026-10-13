@@ -6,13 +6,21 @@
 
 ## [Unreleased]
 
+## [3.4.7] - 2026-10-13
+
+### 变更
+- **过期日志按条件直接分批删除**：访问日志按 `gatewayInstanceId` 加 `gatewayStartProcessingTime` 删除，走 `(gatewayInstanceId, gatewayStartProcessingTime)`。后端追踪按本配置的 `tenantId` 加 `requestStartTime` 删除，走 `(tenantId, requestStartTime)`，不再先查主表。默认每批 1000 行。从表没有实例字段，同一租户里保留天数更短的实例会清掉该租户更早的后端追踪。ClickHouse 仍按日期整分区删除。
+- **新装日志库不再建用不上的索引**：访问日志去掉时间加路由、时间加服务、客户端 IP 这三条；后端追踪去掉服务、单列时间、状态、`addTime`。已有库不执行 `DROP INDEX`，这些索引还在。新装会补主表 `(gatewayInstanceId, gatewayStartProcessingTime)` 和从表 `(tenantId, requestStartTime)`。
+- **Mongo 日志不再建 TTL**：过期由应用清理删除。启动仍只对齐 `HUB_GW_ACCESS_LOG` 与 `HUB_GW_BACKEND_TRACE_LOG`。最小集都建成功后，删掉这两张集合上其余索引，包括原来的 `idx_ttl_cleanup`。保留默认 `_id_`，以及主表 `idx_tenant_trace`、`idx_instance_time`，从表 `idx_tenant_trace`、`idx_tenant_time`。有一条没建成功时这一轮不删旧索引。
+- **推送到 main 且版本一致时自动发布**：根目录 `package.json` 的 `version` 与更新日志第一条正式版本相同，且 GitHub 上还没有该版本 Release 时，自动打包、推镜像并创建 Release。说明取该版本条目；为空则由 GitHub 按提交生成。版本不一致或已经发布过则跳过。手动触发不创建 Release，也不移动 `latest`。
+
 ## [3.4.6] - 2026-09-28
 
 ### 修复
 - **采集节点被清掉后按采集周期补回**：`HUB_METRIC_SERVER_INFO` 原先只在启动时插入一次。进程退出或集群心跳清理把行删掉后，要等下次启动才出现。现在每一轮采集按 `(tenantId, metricServerId)` 更新；行不在就重新插入，并把 `activeFlag` 设回 `Y`。进程已经退出时不再补。
 - **指标单次采集超时改为采集间隔的一半**：CPU、内存、磁盘、网络、进程、系统信息原先各固定 5 秒，容器里读主机信息容易 `context deadline exceeded`。现在用 `app.metrics.collect_interval` 的一半。默认间隔 60 秒，超时 30 秒。CPU 使用率采样约 1 秒，间隔的一半需要大于该值。
 
-## [3.4.6] - 2026-09-24
+## [3.4.5] - 2026-09-24
 
 ### 修复
 - **Mongo 日志库连不上不再挡住网关启动**：`mongo.enabled` 且某条连接校验失败、地址不通或认证失败时，记错误并跳过该连接，进程继续听端口。单次拨号不超过 5 秒，配置里的选主超时更短时用配置。失败的连接每 30 秒重试一次，连上后访问日志写入器和索引对齐会接着用默认连接。配置文件打不开或 `mongo` 段无法解析时仍只记错误，不退出进程。

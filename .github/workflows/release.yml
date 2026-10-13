@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Release version without v prefix (e.g. 3.4.6)
+        description: Release version without v prefix (e.g. 3.4.7)
         required: true
         type: string
       push_images:
@@ -13,6 +13,8 @@ on:
         type: boolean
         default: true
   push:
+    branches:
+      - main
     tags:
       - "v*"
 
@@ -37,32 +39,113 @@ jobs:
       version: ${{ steps.meta.outputs.version }}
       push_images: ${{ steps.meta.outputs.push_images }}
       is_tag: ${{ steps.meta.outputs.is_tag }}
+      release: ${{ steps.meta.outputs.release }}
+      notes: ${{ steps.meta.outputs.notes }}
+      notes_empty: ${{ steps.meta.outputs.notes_empty }}
       build_date: ${{ steps.meta.outputs.build_date }}
     steps:
+      - uses: actions/checkout@v5
       - id: meta
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          INPUT_PUSH_IMAGES: ${{ github.event.inputs.push_images }}
         run: |
           set -euo pipefail
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            VERSION="${{ github.event.inputs.version }}"
-            PUSH_IMAGES="${{ github.event.inputs.push_images }}"
-            IS_TAG="false"
-          else
+
+          changelog_version() {
+            awk '
+              /^## \[[0-9]+\.[0-9]+\.[0-9]+\]/ {
+                if (match($0, /[0-9]+\.[0-9]+\.[0-9]+/)) {
+                  print substr($0, RSTART, RLENGTH)
+                  exit
+                }
+              }
+            ' CHANGELOG.md
+          }
+
+          changelog_notes() {
+            local ver="$1"
+            awk -v ver="$ver" '
+              BEGIN { ev = ver; gsub(/\./, "\\.", ev); found = 0 }
+              $0 ~ ("^## \\[" ev "\\]") { found = 1; print; next }
+              found && /^## \[/ { exit }
+              found { print }
+            ' CHANGELOG.md
+          }
+
+          pkg_version() {
+            node -p "require('./package.json').version || ''"
+          }
+
+          release_exists() {
+            gh release view "v$1" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1
+          }
+
+          EVENT="${{ github.event_name }}"
+          RELEASE="false"
+          IS_TAG="false"
+          PUSH_IMAGES="true"
+          VERSION=""
+          NOTES=""
+
+          if [[ "$EVENT" == "workflow_dispatch" ]]; then
+            VERSION="$INPUT_VERSION"
+            PUSH_IMAGES="$INPUT_PUSH_IMAGES"
+            RELEASE="true"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
-            PUSH_IMAGES="true"
             IS_TAG="true"
+            if release_exists "$VERSION"; then
+              echo "::notice::v${VERSION} 已有 Release，跳过重复打包"
+            else
+              RELEASE="true"
+            fi
+          else
+            PKG="$(pkg_version)"
+            CL="$(changelog_version)"
+            if [[ -z "$PKG" || "$PKG" != "$CL" ]]; then
+              echo "::notice::package.json (${PKG:-空}) 与 CHANGELOG (${CL:-空}) 版本不一致，跳过发布"
+            elif release_exists "$PKG"; then
+              echo "::notice::v${PKG} 已发布，跳过"
+            else
+              VERSION="$PKG"
+              IS_TAG="true"
+              RELEASE="true"
+              echo "main 提交将发布 v${VERSION}"
+            fi
           fi
-          if [[ -z "$VERSION" ]]; then
-            echo "version is empty" >&2
-            exit 1
+
+          if [[ "$RELEASE" == "true" ]]; then
+            if [[ -z "$VERSION" ]]; then
+              echo "version is empty" >&2
+              exit 1
+            fi
+            NOTES="$(changelog_notes "$VERSION")"
           fi
+
+          NOTES_EMPTY="true"
+          if [[ -n "$(printf '%s' "$NOTES" | tr -d '[:space:]')" ]]; then
+            NOTES_EMPTY="false"
+          fi
+
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "push_images=${PUSH_IMAGES}" >> "$GITHUB_OUTPUT"
           echo "is_tag=${IS_TAG}" >> "$GITHUB_OUTPUT"
+          echo "release=${RELEASE}" >> "$GITHUB_OUTPUT"
+          echo "notes_empty=${NOTES_EMPTY}" >> "$GITHUB_OUTPUT"
           echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_OUTPUT"
+          DELIM="NOTES_$(date +%s)"
+          {
+            echo "notes<<${DELIM}"
+            printf '%s\n' "$NOTES"
+            echo "${DELIM}"
+          } >> "$GITHUB_OUTPUT"
 
   frontend:
     needs: prepare
+    if: needs.prepare.outputs.release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -91,6 +174,7 @@ jobs:
 
   package-linux:
     needs: [prepare, frontend]
+    if: needs.prepare.outputs.release == 'true'
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -143,6 +227,7 @@ jobs:
 
   package-windows:
     needs: [prepare, frontend]
+    if: needs.prepare.outputs.release == 'true'
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -207,6 +292,7 @@ jobs:
 
   docker-standard:
     needs: [prepare, frontend]
+    if: needs.prepare.outputs.release == 'true'
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -286,6 +372,7 @@ jobs:
 
   docker-oracle:
     needs: [prepare, frontend]
+    if: needs.prepare.outputs.release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -354,7 +441,7 @@ jobs:
 
   docker-manifest:
     needs: [prepare, docker-standard]
-    if: needs.prepare.outputs.push_images == 'true'
+    if: needs.prepare.outputs.release == 'true' && needs.prepare.outputs.push_images == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: docker/setup-buildx-action@v4
@@ -410,7 +497,7 @@ jobs:
 
   release:
     needs: [prepare, package-linux, package-windows]
-    if: needs.prepare.outputs.is_tag == 'true'
+    if: needs.prepare.outputs.release == 'true' && needs.prepare.outputs.is_tag == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v8
@@ -418,7 +505,15 @@ jobs:
           pattern: package-*
           merge-multiple: true
           path: artifacts
+      - name: Write release notes
+        env:
+          NOTES: ${{ needs.prepare.outputs.notes }}
+        run: printf '%s\n' "$NOTES" > notes.md
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ needs.prepare.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: v${{ needs.prepare.outputs.version }}
+          body_path: notes.md
           files: artifacts/*
-          generate_release_notes: true
+          generate_release_notes: ${{ needs.prepare.outputs.notes_empty == 'true' }}

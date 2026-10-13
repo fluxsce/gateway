@@ -3,7 +3,6 @@ package cleanup
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -170,47 +169,21 @@ func (c *LogCleaner) cleanup() {
 	ctx := context.Background()
 	var totalCleaned int64
 	batchSize := cleanupConfig.BatchDeleteSize
+	cutoffTime := time.Now().AddDate(0, 0, -cleanupConfig.RetentionDays)
 
-	// 循环批量处理
-	for {
-		// 查询一批过期的 traceId
-		traceIDs, err := c.queryExpiredTraceIDBatch(ctx, batchSize)
-		if err != nil {
-			logger.Error("Failed to query expired trace IDs", "error", err)
-			break
-		}
-
-		if len(traceIDs) == 0 {
-			logger.Info("No more expired logs to cleanup")
-			break
-		}
-
-		logger.Debug("Found expired logs batch", "traceIdCount", len(traceIDs))
-
-		// 先删除后端追踪日志（从表）
-		backendTraceCleaned, err := c.deleteBackendTraceLogsByTraceIDs(ctx, traceIDs)
-		if err != nil {
-			logger.Error("Failed to delete backend trace logs", "error", err)
-			break
-		}
-		totalCleaned += backendTraceCleaned
-
-		// 再删除访问日志（主表）
-		accessLogCleaned, err := c.deleteAccessLogsByTraceIDs(ctx, traceIDs)
-		if err != nil {
-			logger.Error("Failed to delete access logs", "error", err)
-			break
-		}
-		totalCleaned += accessLogCleaned
-
-		logger.Debug("Batch cleanup completed",
-			"batchSize", len(traceIDs),
-			"backendTraceCleaned", backendTraceCleaned,
-			"accessLogCleaned", accessLogCleaned)
-
-		// 短暂休眠，避免对数据库造成过大压力
-		time.Sleep(100 * time.Millisecond)
+	// 从表按本配置的 tenantId + requestStartTime 直接删。
+	backendTraceCleaned, err := c.deleteExpiredBackendTraces(ctx, cutoffTime, batchSize)
+	if err != nil {
+		logger.Error("Failed to delete backend trace logs", "error", err)
 	}
+	totalCleaned += backendTraceCleaned
+
+	// 主表按实例 + gatewayStartProcessingTime 直接删。
+	accessLogCleaned, err := c.deleteExpiredAccessLogs(ctx, cutoffTime, batchSize)
+	if err != nil {
+		logger.Error("Failed to delete access logs", "error", err)
+	}
+	totalCleaned += accessLogCleaned
 
 	duration := time.Since(startTime)
 	logger.Info("Log cleanup completed",
@@ -218,93 +191,60 @@ func (c *LogCleaner) cleanup() {
 		"duration", duration)
 }
 
-// queryExpiredTraceIDBatch 查询一批过期的 traceId
-func (c *LogCleaner) queryExpiredTraceIDBatch(ctx context.Context, batchSize int) ([]string, error) {
-	cleanupConfig := c.config.GetCleanupConfig()
-	cutoffTime := time.Now().AddDate(0, 0, -cleanupConfig.RetentionDays)
+// deleteExpiredAccessLogs 按 gatewayInstanceId + gatewayStartProcessingTime 分批删除访问日志。
+// 条件对齐 (gatewayInstanceId, gatewayStartProcessingTime)。
+func (c *LogCleaner) deleteExpiredAccessLogs(ctx context.Context, cutoffTime time.Time, batchSize int) (int64, error) {
+	if c.instanceID == "" {
+		return 0, fmt.Errorf("gatewayInstanceId is required to delete access logs")
+	}
+	return c.limitedDelete(
+		ctx,
+		"HUB_GW_ACCESS_LOG",
+		"gatewayInstanceId = ? AND gatewayStartProcessingTime < ?",
+		[]interface{}{c.instanceID, cutoffTime},
+		batchSize,
+	)
+}
 
-	baseSQL := `SELECT traceId FROM HUB_GW_ACCESS_LOG WHERE gatewayInstanceId = ? AND gatewayStartProcessingTime < ? ORDER BY gatewayStartProcessingTime ASC`
-	args := []interface{}{c.instanceID, cutoffTime}
+// deleteExpiredBackendTraces 按 tenantId + requestStartTime 分批删除后端追踪日志。
+// 条件对齐 IDX_GW_BTRACE_TENANT_TIME。
+func (c *LogCleaner) deleteExpiredBackendTraces(ctx context.Context, cutoffTime time.Time, batchSize int) (int64, error) {
+	tenantID := ""
+	if c.config != nil {
+		tenantID = c.config.TenantID
+	}
+	if tenantID == "" {
+		return 0, fmt.Errorf("tenantId is required to delete backend trace logs")
+	}
+	return c.limitedDelete(
+		ctx,
+		"HUB_GW_BACKEND_TRACE_LOG",
+		"tenantId = ? AND requestStartTime < ?",
+		[]interface{}{tenantID, cutoffTime},
+		batchSize,
+	)
+}
 
+// limitedDelete 按条件分批直接删除，直到不足一批。
+func (c *LogCleaner) limitedDelete(ctx context.Context, table, where string, args []interface{}, batchSize int) (int64, error) {
 	dbType := sqlutils.GetDatabaseType(c.db)
-	pagination := sqlutils.NewPaginationInfo(1, batchSize)
-	paginatedSQL, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseSQL, pagination)
-	if err != nil {
-		return nil, fmt.Errorf("build pagination query failed: %w", err)
-	}
-	allArgs := append(args, paginationArgs...)
-
-	var results []struct {
-		TraceID string `db:"traceId"`
-	}
-
-	err = c.db.Query(ctx, &results, paginatedSQL, allArgs, true)
-	if err != nil {
-		return nil, fmt.Errorf("query expired trace IDs failed: %w", err)
-	}
-
-	traceIDs := make([]string, 0, len(results))
-	for _, r := range results {
-		if r.TraceID != "" {
-			traceIDs = append(traceIDs, r.TraceID)
+	var total int64
+	for {
+		query, qargs, err := sqlutils.BuildLimitedDeleteQuery(dbType, table, where, args, batchSize)
+		if err != nil {
+			return total, fmt.Errorf("build %s delete failed: %w", table, err)
 		}
+		n, err := c.db.Exec(ctx, query, qargs, true)
+		if err != nil {
+			return total, fmt.Errorf("delete %s failed: %w", table, err)
+		}
+		total += n
+		if n == 0 || n < int64(batchSize) {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
-
-	return traceIDs, nil
-}
-
-// deleteBackendTraceLogsByTraceIDs 根据 traceId 列表删除后端追踪日志
-func (c *LogCleaner) deleteBackendTraceLogsByTraceIDs(ctx context.Context, traceIDs []string) (int64, error) {
-	if len(traceIDs) == 0 {
-		return 0, nil
-	}
-
-	// 构建 IN 子句的占位符
-	placeholders := make([]string, len(traceIDs))
-	args := make([]interface{}, len(traceIDs))
-	for i, traceID := range traceIDs {
-		placeholders[i] = "?"
-		args[i] = traceID
-	}
-
-	sql := fmt.Sprintf(`
-		DELETE FROM HUB_GW_BACKEND_TRACE_LOG 
-		WHERE traceId IN (%s)
-	`, strings.Join(placeholders, ","))
-
-	result, err := c.db.Exec(ctx, sql, args, true)
-	if err != nil {
-		return 0, fmt.Errorf("delete backend trace logs failed: %w", err)
-	}
-
-	return result, nil
-}
-
-// deleteAccessLogsByTraceIDs 根据 traceId 列表删除访问日志
-func (c *LogCleaner) deleteAccessLogsByTraceIDs(ctx context.Context, traceIDs []string) (int64, error) {
-	if len(traceIDs) == 0 {
-		return 0, nil
-	}
-
-	// 构建 IN 子句的占位符
-	placeholders := make([]string, len(traceIDs))
-	args := make([]interface{}, len(traceIDs))
-	for i, traceID := range traceIDs {
-		placeholders[i] = "?"
-		args[i] = traceID
-	}
-
-	sql := fmt.Sprintf(`
-		DELETE FROM HUB_GW_ACCESS_LOG 
-		WHERE traceId IN (%s)
-	`, strings.Join(placeholders, ","))
-
-	result, err := c.db.Exec(ctx, sql, args, true)
-	if err != nil {
-		return 0, fmt.Errorf("delete access logs failed: %w", err)
-	}
-
-	return result, nil
+	return total, nil
 }
 
 // CleanupNow 立即执行一次清理（手动触发）
@@ -323,37 +263,20 @@ func (c *LogCleaner) CleanupNow() (int64, error) {
 	ctx := context.Background()
 	cleanupConfig := c.config.GetCleanupConfig()
 	batchSize := cleanupConfig.BatchDeleteSize
+	cutoffTime := time.Now().AddDate(0, 0, -cleanupConfig.RetentionDays)
 	var totalCleaned int64
 
-	// 循环批量处理
-	for {
-		// 查询一批过期的 traceId
-		traceIDs, err := c.queryExpiredTraceIDBatch(ctx, batchSize)
-		if err != nil {
-			return totalCleaned, err
-		}
-
-		if len(traceIDs) == 0 {
-			break
-		}
-
-		// 先删除后端追踪日志（从表）
-		backendTraceCleaned, err := c.deleteBackendTraceLogsByTraceIDs(ctx, traceIDs)
-		if err != nil {
-			return totalCleaned, err
-		}
-		totalCleaned += backendTraceCleaned
-
-		// 再删除访问日志（主表）
-		accessLogCleaned, err := c.deleteAccessLogsByTraceIDs(ctx, traceIDs)
-		if err != nil {
-			return totalCleaned, err
-		}
-		totalCleaned += accessLogCleaned
-
-		// 短暂休眠
-		time.Sleep(100 * time.Millisecond)
+	backendTraceCleaned, err := c.deleteExpiredBackendTraces(ctx, cutoffTime, batchSize)
+	if err != nil {
+		return totalCleaned, err
 	}
+	totalCleaned += backendTraceCleaned
+
+	accessLogCleaned, err := c.deleteExpiredAccessLogs(ctx, cutoffTime, batchSize)
+	if err != nil {
+		return totalCleaned, err
+	}
+	totalCleaned += accessLogCleaned
 
 	return totalCleaned, nil
 }

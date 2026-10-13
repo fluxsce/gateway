@@ -293,8 +293,6 @@ IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'idx_HUB_GW_ACCESS_LOG_servic
 DROP INDEX idx_HUB_GW_ACCESS_LOG_service_name ON HUB_GW_ACCESS_LOG;
 ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN serviceDefinitionId VARCHAR(1000) NULL;
 ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN serviceName NVARCHAR(450) NULL;
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'idx_HUB_GW_ACCESS_LOG_time_service' AND object_id = OBJECT_ID(N'dbo.HUB_GW_ACCESS_LOG'))
-CREATE INDEX idx_HUB_GW_ACCESS_LOG_time_service ON HUB_GW_ACCESS_LOG (gatewayStartProcessingTime, serviceDefinitionId);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'idx_HUB_GW_ACCESS_LOG_service_name' AND object_id = OBJECT_ID(N'dbo.HUB_GW_ACCESS_LOG'))
 CREATE INDEX idx_HUB_GW_ACCESS_LOG_service_name ON HUB_GW_ACCESS_LOG (serviceName, gatewayStartProcessingTime);
 `

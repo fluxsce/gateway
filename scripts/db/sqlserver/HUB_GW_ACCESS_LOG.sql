@@ -88,16 +88,11 @@ CREATE TABLE HUB_GW_ACCESS_LOG (
   PRIMARY KEY (tenantId, traceId),
   -- 核心查询索引（高频查询字段）
   INDEX idx_HUB_GW_ACCESS_LOG_time_instance (gatewayStartProcessingTime, gatewayInstanceId),
-  INDEX idx_HUB_GW_ACCESS_LOG_time_route (gatewayStartProcessingTime, routeConfigId),
-  INDEX idx_HUB_GW_ACCESS_LOG_time_service (gatewayStartProcessingTime, serviceDefinitionId),
   
-  -- 名称字段查询索引（利用冗余字段，避免JOIN）
+  -- 等值在前、时间在后
   INDEX idx_HUB_GW_ACCESS_LOG_instance_name (gatewayInstanceName, gatewayStartProcessingTime),
   INDEX idx_HUB_GW_ACCESS_LOG_route_name (routeName, gatewayStartProcessingTime),
   INDEX idx_HUB_GW_ACCESS_LOG_service_name (serviceName, gatewayStartProcessingTime),
-  
-  -- 业务查询索引
-  INDEX idx_HUB_GW_ACCESS_LOG_client_ip (clientIpAddress, gatewayStartProcessingTime),
   INDEX idx_HUB_GW_ACCESS_LOG_status_time (gatewayStatusCode, gatewayStartProcessingTime),
   INDEX idx_HUB_GW_ACCESS_LOG_proxy_type (proxyType, gatewayStartProcessingTime)
 );
@@ -135,7 +130,7 @@ IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'idx_HUB_GW_ACCESS_LOG_servic
 DROP INDEX idx_HUB_GW_ACCESS_LOG_service_name ON HUB_GW_ACCESS_LOG;
 ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN serviceDefinitionId VARCHAR(1000) NULL;
 ALTER TABLE HUB_GW_ACCESS_LOG ALTER COLUMN serviceName NVARCHAR(450) NULL;
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'idx_HUB_GW_ACCESS_LOG_time_service' AND object_id = OBJECT_ID(N'dbo.HUB_GW_ACCESS_LOG'))
-CREATE INDEX idx_HUB_GW_ACCESS_LOG_time_service ON HUB_GW_ACCESS_LOG (gatewayStartProcessingTime, serviceDefinitionId);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'idx_HUB_GW_ACCESS_LOG_service_name' AND object_id = OBJECT_ID(N'dbo.HUB_GW_ACCESS_LOG'))
 CREATE INDEX idx_HUB_GW_ACCESS_LOG_service_name ON HUB_GW_ACCESS_LOG (serviceName, gatewayStartProcessingTime);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'idx_HUB_GW_ACCESS_LOG_instance_time' AND object_id = OBJECT_ID(N'dbo.HUB_GW_ACCESS_LOG'))
+CREATE INDEX idx_HUB_GW_ACCESS_LOG_instance_time ON HUB_GW_ACCESS_LOG (gatewayInstanceId, gatewayStartProcessingTime);

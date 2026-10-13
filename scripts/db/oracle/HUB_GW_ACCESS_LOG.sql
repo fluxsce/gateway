@@ -88,13 +88,11 @@ CREATE TABLE HUB_GW_ACCESS_LOG (
 
 COMMENT ON TABLE HUB_GW_ACCESS_LOG IS '网关访问日志表 - 记录API网关的请求和响应详细信息,开始时间必填,完成时间可选(支持处理中状态),含冗余字段优化查询性能';
 CREATE INDEX idx_gw_log_time_inst ON HUB_GW_ACCESS_LOG (gatewayStartProcessingTime, gatewayInstanceId);
-CREATE INDEX idx_gw_log_time_route ON HUB_GW_ACCESS_LOG (gatewayStartProcessingTime, routeConfigId);
-CREATE INDEX idx_gw_log_time_service ON HUB_GW_ACCESS_LOG (gatewayStartProcessingTime, serviceDefinitionId);
+CREATE INDEX idx_gw_log_inst_time ON HUB_GW_ACCESS_LOG (gatewayInstanceId, gatewayStartProcessingTime);
 CREATE INDEX idx_gw_log_inst_name ON HUB_GW_ACCESS_LOG (gatewayInstanceName, gatewayStartProcessingTime);
 CREATE INDEX idx_gw_log_route_name ON HUB_GW_ACCESS_LOG (routeName, gatewayStartProcessingTime);
 CREATE INDEX idx_gw_log_service_name ON HUB_GW_ACCESS_LOG (serviceName, gatewayStartProcessingTime);
-CREATE INDEX idx_gw_log_client_ip ON HUB_GW_ACCESS_LOG (clientIpAddress, gatewayStartProcessingTime);
 CREATE INDEX idx_gw_log_status_time ON HUB_GW_ACCESS_LOG (gatewayStatusCode, gatewayStartProcessingTime);
 CREATE INDEX idx_gw_log_proxy_type ON HUB_GW_ACCESS_LOG (proxyType, gatewayStartProcessingTime);
 
-
+

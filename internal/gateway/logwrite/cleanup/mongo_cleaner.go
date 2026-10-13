@@ -140,48 +140,22 @@ func (c *MongoLogCleaner) cleanup() {
 
 	ctx := context.Background()
 	batchSize := cleanupConfig.BatchDeleteSize
+	cutoffTime := time.Now().AddDate(0, 0, -cleanupConfig.RetentionDays)
 	var totalCleaned int64
 
-	// 循环批量处理
-	for {
-		// 查询一批过期的 traceId
-		traceIDs, err := c.queryExpiredTraceIDBatch(ctx, batchSize)
-		if err != nil {
-			logger.Error("Failed to query expired trace IDs", "error", err)
-			break
-		}
-
-		if len(traceIDs) == 0 {
-			logger.Info("No more expired logs to cleanup")
-			break
-		}
-
-		logger.Debug("Found expired logs batch", "traceIdCount", len(traceIDs))
-
-		// 先删除后端追踪日志（从表）
-		backendTraceCleaned, err := c.deleteBackendTraceLogsByTraceIDs(ctx, traceIDs)
-		if err != nil {
-			logger.Error("Failed to delete MongoDB backend trace logs", "error", err)
-			break
-		}
-		totalCleaned += backendTraceCleaned
-
-		// 再删除访问日志（主表）
-		accessLogCleaned, err := c.deleteAccessLogsByTraceIDs(ctx, traceIDs)
-		if err != nil {
-			logger.Error("Failed to delete MongoDB access logs", "error", err)
-			break
-		}
-		totalCleaned += accessLogCleaned
-
-		logger.Debug("Batch cleanup completed",
-			"batchSize", len(traceIDs),
-			"backendTraceCleaned", backendTraceCleaned,
-			"accessLogCleaned", accessLogCleaned)
-
-		// 短暂休眠，避免对数据库造成过大压力
-		time.Sleep(100 * time.Millisecond)
+	// 从表按本配置的 tenantId + requestStartTime 直接删。
+	backendTraceCleaned, err := c.deleteExpiredBackendTraces(ctx, cutoffTime, batchSize)
+	if err != nil {
+		logger.Error("Failed to delete MongoDB backend trace logs", "error", err)
 	}
+	totalCleaned += backendTraceCleaned
+
+	// 主表按实例 + gatewayStartProcessingTime 直接删。
+	accessLogCleaned, err := c.deleteExpiredAccessLogs(ctx, cutoffTime, batchSize)
+	if err != nil {
+		logger.Error("Failed to delete MongoDB access logs", "error", err)
+	}
+	totalCleaned += accessLogCleaned
 
 	duration := time.Since(startTime)
 	logger.Info("MongoDB log cleanup completed",
@@ -189,112 +163,88 @@ func (c *MongoLogCleaner) cleanup() {
 		"duration", duration)
 }
 
-// queryExpiredTraceIDBatch 查询一批过期的 traceId（只返回 traceId 字段）
-func (c *MongoLogCleaner) queryExpiredTraceIDBatch(ctx context.Context, batchSize int) ([]string, error) {
-	cleanupConfig := c.config.GetCleanupConfig()
-	cutoffTime := time.Now().AddDate(0, 0, -cleanupConfig.RetentionDays)
-
-	// 获取默认数据库
-	database, err := c.mongoClient.DefaultDatabase()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get default database: %w", err)
+// deleteExpiredAccessLogs 按 gatewayInstanceId + gatewayStartProcessingTime 分批删除访问日志。
+// 条件对齐 idx_instance_time。deleteMany 没有条数上限，所以先限定取出 _id 再删。
+func (c *MongoLogCleaner) deleteExpiredAccessLogs(ctx context.Context, cutoffTime time.Time, batchSize int) (int64, error) {
+	if c.instanceID == "" {
+		return 0, fmt.Errorf("gatewayInstanceId is required to delete access logs")
 	}
-
-	// 查询主表中过期的 traceId（只返回 traceId 字段，限制数量）
-	accessLogCollection := database.Collection("HUB_GW_ACCESS_LOG")
-
-	// 使用 FindOptions 限制返回字段和数量
-	limit := int64(batchSize)
-	findOptions := &mongotypes.FindOptions{
-		Projection: map[string]interface{}{
-			"traceId": 1,
-			"_id":     0,
-		},
-		Limit: &limit,
-	}
-
-	cursor, err := accessLogCollection.Find(ctx, map[string]interface{}{
+	return c.deleteByFilter(ctx, "HUB_GW_ACCESS_LOG", map[string]interface{}{
 		"gatewayInstanceId": c.instanceID,
 		"gatewayStartProcessingTime": map[string]interface{}{
 			"$lt": cutoffTime,
 		},
-	}, findOptions)
-	if err != nil {
-		return nil, fmt.Errorf("query expired trace IDs failed: %w", err)
-	}
-	defer cursor.Close(ctx)
-
-	var traceIDs []string
-	for cursor.Next(ctx) {
-		var doc struct {
-			TraceID string `bson:"traceId"`
-		}
-		if err := cursor.Decode(&doc); err != nil {
-			continue
-		}
-		if doc.TraceID != "" {
-			traceIDs = append(traceIDs, doc.TraceID)
-		}
-	}
-
-	return traceIDs, nil
+	}, batchSize)
 }
 
-// deleteBackendTraceLogsByTraceIDs 根据 traceId 列表删除后端追踪日志
-func (c *MongoLogCleaner) deleteBackendTraceLogsByTraceIDs(ctx context.Context, traceIDs []string) (int64, error) {
-	if len(traceIDs) == 0 {
-		return 0, nil
+// deleteExpiredBackendTraces 按 tenantId + requestStartTime 分批删除后端追踪日志。
+// 条件对齐 idx_tenant_time。
+func (c *MongoLogCleaner) deleteExpiredBackendTraces(ctx context.Context, cutoffTime time.Time, batchSize int) (int64, error) {
+	tenantID := ""
+	if c.config != nil {
+		tenantID = c.config.TenantID
 	}
+	if tenantID == "" {
+		return 0, fmt.Errorf("tenantId is required to delete backend trace logs")
+	}
+	return c.deleteByFilter(ctx, "HUB_GW_BACKEND_TRACE_LOG", map[string]interface{}{
+		"tenantId": tenantID,
+		"requestStartTime": map[string]interface{}{
+			"$lt": cutoffTime,
+		},
+	}, batchSize)
+}
 
-	// 获取默认数据库
+// deleteByFilter 按条件分批删除。每批只取 _id，再按主键删除。
+func (c *MongoLogCleaner) deleteByFilter(ctx context.Context, collectionName string, filter map[string]interface{}, batchSize int) (int64, error) {
 	database, err := c.mongoClient.DefaultDatabase()
 	if err != nil {
 		return 0, fmt.Errorf("failed to get default database: %w", err)
 	}
-
-	// 删除后端追踪日志
-	backendTraceCollection := database.Collection("HUB_GW_BACKEND_TRACE_LOG")
-	filter := map[string]interface{}{
-		"traceId": map[string]interface{}{
-			"$in": traceIDs,
-		},
+	collection := database.Collection(collectionName)
+	if batchSize < 1 {
+		batchSize = 1
 	}
-
-	result, err := backendTraceCollection.DeleteMany(ctx, filter, nil)
-	if err != nil {
-		return 0, fmt.Errorf("delete MongoDB backend trace logs failed: %w", err)
+	limit := int64(batchSize)
+	var total int64
+	for {
+		cursor, err := collection.Find(ctx, filter, &mongotypes.FindOptions{
+			Projection: map[string]interface{}{"_id": 1},
+			Limit:      &limit,
+		})
+		if err != nil {
+			return total, fmt.Errorf("query expired %s failed: %w", collectionName, err)
+		}
+		ids := make([]interface{}, 0, batchSize)
+		for cursor.Next(ctx) {
+			var doc struct {
+				ID interface{} `bson:"_id"`
+			}
+			if err := cursor.Decode(&doc); err != nil || doc.ID == nil {
+				continue
+			}
+			ids = append(ids, doc.ID)
+		}
+		closeErr := cursor.Close(ctx)
+		if closeErr != nil {
+			return total, fmt.Errorf("close %s cursor failed: %w", collectionName, closeErr)
+		}
+		if len(ids) == 0 {
+			break
+		}
+		result, err := collection.DeleteMany(ctx, map[string]interface{}{
+			"_id": map[string]interface{}{"$in": ids},
+		}, nil)
+		if err != nil {
+			return total, fmt.Errorf("delete MongoDB %s failed: %w", collectionName, err)
+		}
+		total += result.DeletedCount
+		if len(ids) < batchSize {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
-
-	return result.DeletedCount, nil
-}
-
-// deleteAccessLogsByTraceIDs 根据 traceId 列表删除访问日志
-func (c *MongoLogCleaner) deleteAccessLogsByTraceIDs(ctx context.Context, traceIDs []string) (int64, error) {
-	if len(traceIDs) == 0 {
-		return 0, nil
-	}
-
-	// 获取默认数据库和集合
-	database, err := c.mongoClient.DefaultDatabase()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get default database: %w", err)
-	}
-	collection := database.Collection("HUB_GW_ACCESS_LOG")
-
-	// 删除条件：根据 traceId 列表删除
-	filter := map[string]interface{}{
-		"traceId": map[string]interface{}{
-			"$in": traceIDs,
-		},
-	}
-
-	// 执行删除
-	result, err := collection.DeleteMany(ctx, filter, nil)
-	if err != nil {
-		return 0, fmt.Errorf("delete MongoDB access logs failed: %w", err)
-	}
-
-	return result.DeletedCount, nil
+	return total, nil
 }
 
 // CleanupNow 立即执行一次清理
@@ -310,36 +260,19 @@ func (c *MongoLogCleaner) CleanupNow() (int64, error) {
 	var totalCleaned int64
 	cleanupConfig := c.config.GetCleanupConfig()
 	batchSize := cleanupConfig.BatchDeleteSize
+	cutoffTime := time.Now().AddDate(0, 0, -cleanupConfig.RetentionDays)
 
-	// 循环批量处理
-	for {
-		// 查询一批过期的 traceId
-		traceIDs, err := c.queryExpiredTraceIDBatch(ctx, batchSize)
-		if err != nil {
-			return totalCleaned, err
-		}
-
-		if len(traceIDs) == 0 {
-			break
-		}
-
-		// 先删除后端追踪日志（从表）
-		backendTraceCleaned, err := c.deleteBackendTraceLogsByTraceIDs(ctx, traceIDs)
-		if err != nil {
-			return totalCleaned, err
-		}
-		totalCleaned += backendTraceCleaned
-
-		// 再删除访问日志（主表）
-		accessLogCleaned, err := c.deleteAccessLogsByTraceIDs(ctx, traceIDs)
-		if err != nil {
-			return totalCleaned, err
-		}
-		totalCleaned += accessLogCleaned
-
-		// 短暂休眠
-		time.Sleep(100 * time.Millisecond)
+	backendTraceCleaned, err := c.deleteExpiredBackendTraces(ctx, cutoffTime, batchSize)
+	if err != nil {
+		return totalCleaned, err
 	}
+	totalCleaned += backendTraceCleaned
+
+	accessLogCleaned, err := c.deleteExpiredAccessLogs(ctx, cutoffTime, batchSize)
+	if err != nil {
+		return totalCleaned, err
+	}
+	totalCleaned += accessLogCleaned
 
 	return totalCleaned, nil
 }

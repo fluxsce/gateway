@@ -67,11 +67,9 @@ CREATE TABLE IF NOT EXISTS HUB_GW_ACCESS_LOG (
     PRIMARY KEY (tenantId, traceId)
 );
 CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_time_instance ON HUB_GW_ACCESS_LOG(gatewayStartProcessingTime, gatewayInstanceId);
-CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_time_route ON HUB_GW_ACCESS_LOG(gatewayStartProcessingTime, routeConfigId);
-CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_time_service ON HUB_GW_ACCESS_LOG(gatewayStartProcessingTime, serviceDefinitionId);
 CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_instance_name ON HUB_GW_ACCESS_LOG(gatewayInstanceName, gatewayStartProcessingTime);
 CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_route_name ON HUB_GW_ACCESS_LOG(routeName, gatewayStartProcessingTime);
 CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_service_name ON HUB_GW_ACCESS_LOG(serviceName, gatewayStartProcessingTime);
-CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_client_ip ON HUB_GW_ACCESS_LOG(clientIpAddress, gatewayStartProcessingTime);
 CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_status_time ON HUB_GW_ACCESS_LOG(gatewayStatusCode, gatewayStartProcessingTime);
 CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_proxy_type ON HUB_GW_ACCESS_LOG(proxyType, gatewayStartProcessingTime);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_ACCESS_LOG_instance_time ON HUB_GW_ACCESS_LOG(gatewayInstanceId, gatewayStartProcessingTime);
