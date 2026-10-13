@@ -83,13 +83,15 @@ func (loader *RouterConfigLoader) LoadRouterConfig(ctx context.Context, instance
 	} else {
 		record := records[0]
 		// 构建Router配置
+		globalOn := record.EnableGlobalFilters == "Y"
 		routerConfig = &router.RouterConfig{
-			ID:               record.RouterConfigId,
-			Enabled:          record.ActiveFlag == "Y",
-			Name:             record.RouterName,
-			DefaultPriority:  record.DefaultPriority,
-			EnableRouteCache: record.EnableRouteCache == "Y",
-			RouteCacheTTL:    record.RouteCacheTtlSeconds,
+			ID:                  record.RouterConfigId,
+			Enabled:             record.ActiveFlag == "Y",
+			Name:                record.RouterName,
+			DefaultPriority:     record.DefaultPriority,
+			EnableRouteCache:    record.EnableRouteCache == "Y",
+			RouteCacheTTL:       record.RouteCacheTtlSeconds,
+			EnableGlobalFilters: &globalOn,
 		}
 	}
 
@@ -480,7 +482,7 @@ func (loader *RouterConfigLoader) LoadGlobalFilters(ctx context.Context, instanc
 		SELECT tenantId, filterConfigId, filterName, filterType, filterAction,
 		       filterOrder, filterConfig, configId, activeFlag
 		FROM HUB_GW_FILTER_CONFIG 
-		WHERE tenantId = ? AND gatewayInstanceId = ? AND routeConfigId IS NULL AND activeFlag = 'Y'
+		WHERE tenantId = ? AND gatewayInstanceId = ? AND (routeConfigId IS NULL OR routeConfigId = '') AND activeFlag = 'Y'
 		ORDER BY filterOrder ASC
 	`
 

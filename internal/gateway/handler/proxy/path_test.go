@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"gateway/internal/gateway/constants"
 	"gateway/internal/gateway/core"
 )
 
@@ -125,5 +126,22 @@ func TestSimplePathHandling(t *testing.T) {
 				t.Logf("✅ %s: %s", tt.name, tt.description)
 			}
 		})
+	}
+}
+
+func TestBuildTargetPathKeepsStrippedRemainder(t *testing.T) {
+	req := httptest.NewRequest("GET", "/users", nil)
+	ctx := core.NewContext(httptest.NewRecorder(), req)
+	ctx.Set(constants.ContextKeyPrefixStripped, true)
+
+	if got := buildTargetPath(ctx, "/backend"); got != "/backend/users" {
+		t.Fatalf("节点路径应接上剥离后的剩余段，实际 %s", got)
+	}
+
+	rootReq := httptest.NewRequest("GET", "/", nil)
+	rootCtx := core.NewContext(httptest.NewRecorder(), rootReq)
+	rootCtx.Set(constants.ContextKeyPrefixStripped, true)
+	if got := buildTargetPath(rootCtx, "/backend"); got != "/backend" {
+		t.Fatalf("剥到根路径时应落到节点路径，实际 %s", got)
 	}
 }

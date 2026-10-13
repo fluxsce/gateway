@@ -52,6 +52,7 @@ const (
 	ContextKeyOriginalURLPath     = "original_url_path"     // 原始URL路径
 	ContextKeyOriginalQueryString = "original_query_string" // 原始查询字符串
 	ContextKeyOriginalHeaders     = "original_headers"      // 原始请求头
+	ContextKeyPrefixStripped      = "prefix_stripped"       // 前缀剥离过滤器已改写请求路径
 
 	// 请求快照信息保存相关常量（用于异步日志记录）
 	// 注意：Method、Path、QueryString、Headers、URI 已通过原始信息保存，不需要重复保存
@@ -145,12 +146,12 @@ const (
 
 // Default Values - 默认值常量
 const (
-	DefaultRequestTimeout  = 30  // 默认请求超时时间（秒）
-	DefaultConnectTimeout  = 10  // 默认连接超时时间（秒）
+	DefaultRequestTimeout  = 30   // 默认请求超时时间（秒）
+	DefaultConnectTimeout  = 10   // 默认连接超时时间（秒）
 	DefaultMaxIdleConns    = 2048 // 默认最大空闲连接数（Transport 每 host 空闲为该值/4）
 	DefaultMaxConnsPerHost = 4096 // 默认每个主机的最大连接数（与 MaxIdleConns*2 对齐）
-	DefaultRetryCount      = 3   // 默认重试次数
-	DefaultRetryDelay      = 100 // 默认重试延迟（毫秒）
+	DefaultRetryCount      = 3    // 默认重试次数
+	DefaultRetryDelay      = 100  // 默认重试延迟（毫秒）
 )
 
 // Metrics Names - 指标名称常量

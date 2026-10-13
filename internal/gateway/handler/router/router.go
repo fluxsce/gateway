@@ -73,6 +73,15 @@ type RouterConfig struct {
 
 	// 路由缓存TTL(秒)
 	RouteCacheTTL int `json:"route_cache_ttl,omitempty" yaml:"route_cache_ttl,omitempty" mapstructure:"route_cache_ttl,omitempty"`
+
+	// EnableGlobalFilters 为 nil 时执行实例级过滤器，与历史行为和库默认值 Y 一致。
+	// 仅在路由配置显式为 N 时置为 false。
+	EnableGlobalFilters *bool `json:"enable_global_filters,omitempty" yaml:"enable_global_filters,omitempty" mapstructure:"enable_global_filters,omitempty"`
+}
+
+// globalFiltersOn 判断实例级过滤器是否执行。未配置时保持开启。
+func globalFiltersOn(enabled *bool) bool {
+	return enabled == nil || *enabled
 }
 
 // DefaultRouterConfig 默认路由器配置
@@ -134,11 +143,15 @@ func (r *Router) Handle(ctx *core.Context) bool {
 		return false
 	}
 
-	// 检查全局前置过滤器并保存原始信息
-	hasGlobalPreFilters := reqhand.PreserveOriginalRequestInfoIfNeeded(ctx, r.routerFilters)
+	// 路由配置关闭全局过滤器时，实例级过滤器不保存原文、也不执行。路由级过滤器不受影响。
+	globalOn := globalFiltersOn(r.config.EnableGlobalFilters)
+	hasGlobalPreFilters := false
+	if globalOn {
+		hasGlobalPreFilters = reqhand.PreserveOriginalRequestInfoIfNeeded(ctx, r.routerFilters)
+	}
 
 	// 应用全局前置过滤器
-	if len(r.routerFilters) > 0 {
+	if globalOn && len(r.routerFilters) > 0 {
 		for _, f := range r.routerFilters {
 			if !f.IsEnabled() {
 				continue
@@ -334,8 +347,8 @@ func NewRouterHandler(config RouterConfig) (RouterHandler, error) {
 		}
 	}
 
-	// 初始化全局过滤器
-	if len(config.FilterConfig) > 0 {
+	// 初始化全局过滤器。开关为 N 时不装配，路由级过滤器仍由各路由自己加载。
+	if globalFiltersOn(config.EnableGlobalFilters) && len(config.FilterConfig) > 0 {
 		filterFactory := filter.NewFilterFactory()
 		for _, filterConfig := range config.FilterConfig {
 			// 创建过滤器实例

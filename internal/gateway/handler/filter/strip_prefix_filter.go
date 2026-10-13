@@ -5,6 +5,7 @@ import (
 	"path"
 	"strings"
 
+	"gateway/internal/gateway/constants"
 	"gateway/internal/gateway/core"
 )
 
@@ -49,7 +50,7 @@ func (f *StripPrefixFilter) Apply(ctx *core.Context) error {
 	// Path 已改写，清掉原始转义路径，避免 EscapedPath 仍返回旧值
 	ctx.Request.URL.RawPath = ""
 
-	ctx.Set("prefix_stripped", true)
+	ctx.Set(constants.ContextKeyPrefixStripped, true)
 	ctx.Set("original_path", requestPath)
 	ctx.Set("strip_prefix_filter", f.Name)
 

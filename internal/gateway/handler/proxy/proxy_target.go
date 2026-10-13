@@ -79,6 +79,14 @@ func buildTargetPath(ctx *core.Context, targetPath string) string {
 		}
 	}
 
+	// 前缀剥离过滤器已经改过请求路径。节点有具体路径时把剩余段接上去，
+	// 否则前缀不同时会只返回节点路径，页面上的 /aa 看起来像没生效。
+	if prefixStripped, exists := ctx.GetBool(constants.ContextKeyPrefixStripped); exists && prefixStripped {
+		if joined, ok := joinStrippedRequestPath(targetPath, requestPath); ok {
+			return joined
+		}
+	}
+
 	// 剥离已匹配路由前缀后再参与后续拼接；仅当 stripPathPrefix 开启时生效。
 	// 使用路径段边界，避免 /api 误匹配 /apix。
 	if stripPrefix, exists := ctx.GetBool(constants.ContextKeyRouteStripPathPrefix); exists && stripPrefix {
@@ -142,6 +150,20 @@ func buildTargetPath(ctx *core.Context, targetPath string) string {
 	}
 	// 目标路径不以/结尾，直接拼接
 	return targetPath + requestPath
+}
+
+// joinStrippedRequestPath 把过滤器剥完后的路径接到节点路径上。
+// 节点本身是根路径时返回 false，交给后面的规则保留请求路径。
+func joinStrippedRequestPath(targetPath, requestPath string) (string, bool) {
+	cleanedTarget := cleanTargetPath(targetPath)
+	if cleanedTarget == "/" {
+		return "", false
+	}
+	cleanedRequest := cleanTargetPath(requestPath)
+	if cleanedRequest == "/" {
+		return cleanedTarget, true
+	}
+	return cleanTargetPath(strings.TrimSuffix(cleanedTarget, "/") + cleanedRequest), true
 }
 
 // stripMatchedRoutePrefix 按路径段边界去掉已匹配路由前缀。
