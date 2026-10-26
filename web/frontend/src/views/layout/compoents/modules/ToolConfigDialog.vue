@@ -1,7 +1,7 @@
 <template>
   <RsDialog
     :open="show"
-    title="工具配置"
+    :title="t('config.title')"
     layout="confirm"
     width="md"
     @update:open="(val: boolean) => emit('update:show', val)"
@@ -9,52 +9,67 @@
     <template #body>
       <div v-if="tool" class="config-dialog">
         <div class="config-field">
-          <label class="config-label">工具名称</label>
+          <label class="config-label">{{ t('config.name') }}</label>
           <RsInput :model-value="tool.displayName || tool.name" readonly />
         </div>
 
-        <div class="config-field">
-          <label class="config-label">版本</label>
-          <RsInput :model-value="tool.version" readonly />
-        </div>
-
-        <div class="config-field">
-          <label class="config-label">状态</label>
-          <RsTag :variant="tool.status === ToolStatus.INSTALLED ? 'success' : 'default'" size="sm">
-            {{ tool.status }}
-          </RsTag>
+        <div v-for="field in tool.configSchema || []" :key="field.key" class="config-field">
+          <label class="config-label">{{ field.label }}</label>
+          <RsSelect
+            v-if="field.type === 'select'"
+            v-model="form[field.key]"
+            :options="field.options || []"
+            block
+          />
         </div>
       </div>
     </template>
 
     <template #footer>
       <div class="config-footer">
-        <RsButton variant="ghost" @click="emit('update:show', false)">取消</RsButton>
-        <RsButton variant="primary" @click="handleSave">保存</RsButton>
+        <RsButton variant="ghost" @click="emit('update:show', false)">{{ t('config.cancel') }}</RsButton>
+        <RsButton variant="primary" @click="handleSave">{{ t('config.save') }}</RsButton>
       </div>
     </template>
   </RsDialog>
 </template>
 
 <script setup lang="ts">
-import { RsButton, RsDialog, RsInput, RsTag } from '@/ui'
-import { ToolStatus, type Tool } from '../../types/toolMarketplace'
+import { RsButton, RsDialog, RsInput, RsSelect } from '@/ui'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
+import { reactive, watch } from 'vue'
+import type { Tool } from '../../types/toolMarketplace'
 
 interface Props {
   show: boolean
   tool?: Tool | null
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   'update:show': [value: boolean]
-  save: [config: Record<string, any>]
+  save: [config: Record<string, string | number>]
 }>()
 
+const { t } = useModuleI18n('hub0010')
+const form = reactive<Record<string, string | number>>({})
+
+watch(
+  () => props.tool,
+  (tool) => {
+    for (const key of Object.keys(form)) delete form[key]
+    const source = tool?.userConfig || tool?.defaultConfig || {}
+    for (const field of tool?.configSchema || []) {
+      const value = source[field.key] ?? field.defaultValue ?? ''
+      form[field.key] = typeof value === 'number' || typeof value === 'string' ? value : String(value)
+    }
+  },
+  { immediate: true },
+)
+
 const handleSave = () => {
-  emit('save', {})
-  emit('update:show', false)
+  emit('save', { ...form })
 }
 </script>
 

@@ -21,7 +21,7 @@ type RouteConfigQueryParams struct {
 	RouteName         string // 路由名称(支持模糊匹配)
 	RoutePath         string // 路由路径(支持模糊匹配)
 	MatchType         int    // 匹配类型(0:精确匹配,1:前缀匹配,2:正则匹配)
-	BackendType       string // 后端类型(proxy服务代理,static本机静态,redirect重定向)
+	BackendType       string // 后端类型(proxy服务代理,static本机静态,redirect重定向,mock固定响应)
 	ActiveFlag        string // 激活状态(Y:激活,N:未激活)
 	Page              int    // 页码
 	PageSize          int    // 每页数量
@@ -202,7 +202,8 @@ func (dao *RouteConfigDAO) UpdateRouteConfig(ctx context.Context, routeConfig *m
 			gatewayInstanceId = ?, routeName = ?, routePath = ?, allowedMethods = ?, allowedHosts = ?,
 			matchType = ?, routePriority = ?, stripPathPrefix = ?, rewritePath = ?,
 			enableWebsocket = ?, timeoutMs = ?, retryCount = ?, retryIntervalMs = ?,
-			serviceDefinitionId = ?, backendType = ?, redirectStatus = ?, redirectLocation = ?, logConfigId = ?, routeMetadata = ?, reserved1 = ?, reserved2 = ?,
+			serviceDefinitionId = ?, backendType = ?, redirectStatus = ?, redirectLocation = ?,
+			mockStatus = ?, mockContentType = ?, mockBody = ?, logConfigId = ?, routeMetadata = ?, reserved1 = ?, reserved2 = ?,
 			reserved3 = ?, reserved4 = ?, reserved5 = ?, extProperty = ?, noteText = ?,
 			editTime = ?, editWho = ?, currentVersion = ?, activeFlag = ?
 		WHERE routeConfigId = ? AND tenantId = ? AND currentVersion = ?
@@ -215,6 +216,7 @@ func (dao *RouteConfigDAO) UpdateRouteConfig(ctx context.Context, routeConfig *m
 		routeConfig.MatchType, routeConfig.RoutePriority, routeConfig.StripPathPrefix, routeConfig.RewritePath,
 		routeConfig.EnableWebsocket, routeConfig.TimeoutMs, routeConfig.RetryCount, routeConfig.RetryIntervalMs,
 		routeConfig.ServiceDefinitionId, routeConfig.BackendType, routeConfig.RedirectStatus, routeConfig.RedirectLocation,
+		routeConfig.MockStatus, routeConfig.MockContentType, routeConfig.MockBody,
 		routeConfig.LogConfigId, routeConfig.RouteMetadata,
 		routeConfig.Reserved1, routeConfig.Reserved2, routeConfig.Reserved3, routeConfig.Reserved4, routeConfig.Reserved5,
 		routeConfig.ExtProperty, routeConfig.NoteText,
@@ -305,7 +307,7 @@ func (dao *RouteConfigDAO) ListRouteConfigs(ctx context.Context, params *RouteCo
 		args = append(args, params.MatchType)
 	}
 	switch strings.TrimSpace(params.BackendType) {
-	case "static", "proxy", "redirect":
+	case "static", "proxy", "redirect", "mock":
 		whereClause += " AND rc.backendType = ?"
 		args = append(args, strings.TrimSpace(params.BackendType))
 	}
@@ -332,6 +334,9 @@ func (dao *RouteConfigDAO) ListRouteConfigs(ctx context.Context, params *RouteCo
 			rc.backendType,
 			rc.redirectStatus,
 			rc.redirectLocation,
+			rc.mockStatus,
+			rc.mockContentType,
+			rc.mockBody,
 			rc.logConfigId,
 			rc.routeMetadata,
 			rc.reserved1,
@@ -470,6 +475,9 @@ func (dao *RouteConfigDAO) GetRouteConfigsByGatewayInstance(ctx context.Context,
 			rc.backendType,
 			rc.redirectStatus,
 			rc.redirectLocation,
+			rc.mockStatus,
+			rc.mockContentType,
+			rc.mockBody,
 			rc.logConfigId,
 			rc.routeMetadata,
 			rc.reserved1,
@@ -508,13 +516,15 @@ func (dao *RouteConfigDAO) GetRouteConfigsByGatewayInstance(ctx context.Context,
 	return routeConfigs, nil
 }
 
-// normalizeRouteBackendType 将后端类型规范为 proxy、static 或 redirect，空值视为服务代理。
+// normalizeRouteBackendType 将后端类型规范为 proxy、static、redirect 或 mock，空值视为服务代理。
 func normalizeRouteBackendType(raw string) string {
 	switch strings.TrimSpace(raw) {
 	case "static":
 		return "static"
 	case "redirect":
 		return "redirect"
+	case "mock":
+		return "mock"
 	default:
 		return "proxy"
 	}

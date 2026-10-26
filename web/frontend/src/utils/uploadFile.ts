@@ -1,4 +1,4 @@
-import { createUploadFileFromContent } from 'niuma-ui'
+import { createUploadFileFromContent } from 'ensis-ui'
 
 /** 将数据库中的文本内容还原为 RsUpload 可展示的 File[]（编辑/查看回填） */
 export function filesFromTextContent(

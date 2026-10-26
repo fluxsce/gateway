@@ -8,13 +8,19 @@ import type { RsSearchFormProps } from '@/components/form/rs-search'
 import type { RsGridColumn, RsGridMenuConfig, RsGridPaginationConfig } from '@/components/rs-grid'
 import type { PageInfoObj } from '@/types/api'
 import { formatDate } from '@/utils/format'
-import { RsCheckbox, RsTag, setByNamePath } from '@/ui'
+import { RsButton, RsCheckbox, RsTag, setByNamePath } from '@/ui'
+import { RsCodeEditor, type RsCodeEditorLanguage } from '@/ui/code-editor'
 import { h, ref } from 'vue'
 import { ServiceDefinitionSelector } from '../../services'
 import type { RouteConfig } from '../types'
 import {
   BackendType,
   MatchType,
+  mockBodyByteLength,
+  mockStatusForbidsBody,
+  DEFAULT_MOCK_CONTENT_TYPE,
+  MOCK_BODY_MAX_BYTES,
+  normalizeMockStatus,
   normalizeRedirectStatus,
   normalizeRoutePathInput,
   resolveListBackend,
@@ -31,6 +37,77 @@ export interface RouteConfigGridConfig {
   height: string
   paginationConfig: RsGridPaginationConfig
   menuConfig: RsGridMenuConfig
+}
+
+/** 常见 Content-Type。标签与取值都是原始媒体类型，选择器仍可手输列表外的值。 */
+const MOCK_CONTENT_TYPE_OPTIONS = [
+  DEFAULT_MOCK_CONTENT_TYPE,
+  'text/plain; charset=utf-8',
+  'text/html; charset=utf-8',
+  'application/xml; charset=utf-8',
+  'application/javascript; charset=utf-8',
+  'text/css; charset=utf-8',
+].map((value) => ({ label: value, value }))
+
+/**
+ * 按 Content-Type 选择编辑器语言。只认媒体类型，忽略 charset 等参数。
+ */
+function mockBodyLanguage(contentType: string): RsCodeEditorLanguage {
+  const media = contentType.split(';')[0]?.trim().toLowerCase() || ''
+  if (media === 'application/json' || media === 'text/json' || media.endsWith('+json')) return 'json'
+  if (media === 'application/xml' || media === 'text/xml' || media.endsWith('+xml')) return 'xml'
+  if (media === 'text/html' || media === 'application/xhtml+xml') return 'html'
+  if (media === 'text/css') return 'css'
+  if (media === 'application/javascript' || media === 'text/javascript') return 'javascript'
+  if (media === 'application/yaml' || media === 'text/yaml' || media === 'application/x-yaml') return 'yaml'
+  return 'plaintext'
+}
+
+/**
+ * JSON 缩进，或按标签把 XML / HTML 换行缩进。
+ * unsupported 表示该类型没有排版器；error 表示内容解析失败。
+ */
+function formatMockBody(
+  contentType: string,
+  body: string,
+): { text?: string; error?: string; unsupported?: boolean } {
+  const source = body.trim()
+  if (!source) return {}
+  const language = mockBodyLanguage(contentType)
+  if (language === 'json') {
+    try {
+      return { text: JSON.stringify(JSON.parse(source), null, 2) }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : ''
+      return { error: detail ? `JSON 无法格式化：${detail}` : 'JSON 无法格式化' }
+    }
+  }
+  if (language === 'xml' || language === 'html') {
+    return { text: formatMarkup(source) }
+  }
+  return { unsupported: true, error: '当前 Content-Type 不支持自动格式化' }
+}
+
+/** 在相邻标签之间换行，并按嵌套缩进。 */
+function formatMarkup(source: string): string {
+  const compact = source.replace(/>\s+</g, '><')
+  if (!compact.includes('<')) return source
+  let pad = 0
+  return compact
+    .replace(/(>)(<)(\/*)/g, '$1\n$2$3')
+    .split('\n')
+    .map((raw) => {
+      const line = raw.trim()
+      if (!line) return ''
+      if (/^<\//.test(line)) pad = Math.max(pad - 1, 0)
+      const indented = `${'  '.repeat(pad)}${line}`
+      const opens = /^<[^!?/][^>]*[^/]?>$/.test(line)
+      const closesSameLine = /<\/[^>]+>\s*$/.test(line)
+      if (opens && !closesSameLine) pad += 1
+      return indented
+    })
+    .filter((line) => line !== '')
+    .join('\n')
 }
 
 const matchTypeLabelMap: Record<number, string> = {
@@ -220,6 +297,9 @@ function renderBackendType(row: RouteConfig) {
   if (backend === BackendType.REDIRECT) {
     return h(RsTag, { size: 'sm', variant: 'success' }, () => '重定向')
   }
+  if (backend === BackendType.MOCK) {
+    return h(RsTag, { size: 'sm', variant: 'default' }, () => 'Mock')
+  }
   if (backend === BackendType.PROXY) {
     return h(RsTag, { size: 'sm', variant: 'info' }, () => '服务代理')
   }
@@ -238,6 +318,10 @@ function isRedirectBackend(formData: Record<string, any>): boolean {
   return formData.backendType === BackendType.REDIRECT
 }
 
+function isMockBackend(formData: Record<string, any>): boolean {
+  return formData.backendType === BackendType.MOCK
+}
+
 /** 渲染关联服务标签（单服务 / 多服务） */
 function renderServiceName(row: RouteConfig) {
   if (resolveListBackend(row) === BackendType.STATIC) {
@@ -248,6 +332,12 @@ function renderServiceName(row: RouteConfig) {
     const status = normalizeRedirectStatus(row.redirectStatus)
     const target = String(row.redirectLocation || '').trim() || '未填写目标'
     return h(RsTag, { size: 'sm', variant: 'success' }, () => `${status} ${target}`)
+  }
+  if (resolveListBackend(row) === BackendType.MOCK) {
+    const status = normalizeMockStatus(row.mockStatus)
+    const preview = String(row.mockBody || '').trim().replace(/\s+/g, ' ')
+    const text = preview ? `${status} ${preview.slice(0, 40)}` : `${status} 空响应`
+    return h(RsTag, { size: 'sm', variant: 'default' }, () => text)
   }
 
   if (row.serviceName) {
@@ -306,6 +396,8 @@ export function useRouteConfigModel() {
 
   /** 加载状态 */
   const loading = ref(false)
+  /** Mock 正文格式化失败时的提示，成功或改正文后清空 */
+  const mockFormatHint = ref('')
 
   /** 路由配置列表数据 */
   const routeList = ref<RouteConfig[]>([])
@@ -358,6 +450,7 @@ export function useRouteConfigModel() {
           { label: '服务代理', value: BackendType.PROXY },
           { label: '静态资源', value: BackendType.STATIC },
           { label: '重定向', value: BackendType.REDIRECT },
+          { label: 'Mock', value: BackendType.MOCK },
         ],
       },
       {
@@ -702,11 +795,12 @@ export function useRouteConfigModel() {
         tabKey: 'basic',
         required: true,
         defaultValue: BackendType.PROXY,
-        tips: '请求命中后从哪里出内容。服务代理：转到已选的后端服务。静态资源：从本机目录出文件，保存后填写目录。重定向：回 301/302/307/308，同页填写目标地址。',
+        tips: '请求命中后从哪里出内容。服务代理：转到已选的后端服务。静态资源：从本机目录出文件，保存后填写目录。重定向：回 301/302/307/308，同页填写目标地址。Mock：不转发，直接返回固定状态码和正文。',
         options: [
           { label: '服务代理', value: BackendType.PROXY },
           { label: '静态资源', value: BackendType.STATIC },
           { label: '重定向', value: BackendType.REDIRECT },
+          { label: 'Mock', value: BackendType.MOCK },
         ],
         rules: [
           {
@@ -717,7 +811,8 @@ export function useRouteConfigModel() {
               if (
                 value !== BackendType.PROXY &&
                 value !== BackendType.STATIC &&
-                value !== BackendType.REDIRECT
+                value !== BackendType.REDIRECT &&
+                value !== BackendType.MOCK
               ) {
                 return '请选择后端'
               }
@@ -999,6 +1094,180 @@ export function useRouteConfigModel() {
               }
               if (loc.startsWith('//')) {
                 return '不能使用协议相对地址'
+              }
+              return true
+            },
+          },
+        ],
+      },
+      {
+        field: 'mockStatus',
+        label: 'Mock状态码',
+        type: 'number' as const,
+        span: 12,
+        tabKey: 'basic',
+        required: true,
+        defaultValue: 200,
+        show: (formData: Record<string, any>) => isMockBackend(formData),
+        tips: '命中后直接返回这个状态码，不访问后端服务。常用 200。1xx、204、304 不能填写正文。',
+        props: {
+          min: 100,
+          max: 599,
+          style: { width: '100%' },
+        },
+        rules: [
+          {
+            required: true,
+            message: '请输入 Mock 状态码',
+            trigger: ['blur', 'change', 'input'],
+            validator: (value: unknown) => {
+              if (value === null || value === undefined || value === '') {
+                return true
+              }
+              if (normalizeMockStatus(value) !== Number(value)) {
+                return '状态码必须在 100 到 599 之间'
+              }
+              return true
+            },
+          },
+        ],
+      },
+      {
+        field: 'mockContentType',
+        label: 'Content-Type',
+        type: 'select' as const,
+        span: 24,
+        tabKey: 'basic',
+        defaultValue: DEFAULT_MOCK_CONTENT_TYPE,
+        placeholder: '选择或输入 Content-Type',
+        show: (formData: Record<string, any>) =>
+          isMockBackend(formData) && !mockStatusForbidsBody(normalizeMockStatus(formData.mockStatus)),
+        tips: '可从列表选择，也可在面板里搜索后回车，写入列表外的类型。留空时按 application/json; charset=utf-8 返回。切换类型时，正文能解析就会自动格式化。',
+        options: MOCK_CONTENT_TYPE_OPTIONS,
+        props: {
+          creatable: true,
+          searchable: true,
+          onUpdateValue: (value: unknown, formData: Record<string, any>) => {
+            const current = typeof formData.mockBody === 'string' ? formData.mockBody : ''
+            const formatted = formatMockBody(typeof value === 'string' ? value : '', current)
+            if (formatted.unsupported) {
+              mockFormatHint.value = ''
+              return
+            }
+            if (formatted.error) {
+              mockFormatHint.value = formatted.error
+              return
+            }
+            mockFormatHint.value = ''
+            if (formatted.text && formatted.text !== current) {
+              formData.mockBody = formatted.text
+            }
+          },
+        },
+        rules: [
+          {
+            trigger: ['blur', 'input'],
+            validator: (value: unknown) => {
+              const contentType = typeof value === 'string' ? value.trim() : ''
+              if (!contentType) {
+                return true
+              }
+              if (contentType.length > 128 || /[\r\n]/.test(contentType) || !contentType.includes('/')) {
+                return '请填写合法的 Content-Type，例如 application/json; charset=utf-8'
+              }
+              return true
+            },
+          },
+        ],
+      },
+      {
+        field: 'mockBody',
+        label: 'Mock响应体',
+        type: 'custom' as const,
+        span: 24,
+        tabKey: 'basic',
+        show: (formData: Record<string, any>) =>
+          isMockBackend(formData) && !mockStatusForbidsBody(normalizeMockStatus(formData.mockStatus)),
+        tips: '原样返回给调用方，最长 64KB。JSON、XML、HTML 可点格式化，或在离开编辑器时自动排版。登录、限流、跨域仍按本路由生效。响应不会被浏览器缓存。',
+        render: (formData: Record<string, any>, ctx?: RsDataFormRenderContext) => {
+          const contentType = typeof formData.mockContentType === 'string' ? formData.mockContentType : ''
+          const current = typeof (ctx ? ctx.value : formData.mockBody) === 'string'
+            ? String(ctx ? ctx.value : formData.mockBody)
+            : ''
+          const applyFormat = (manual: boolean) => {
+            const formatted = formatMockBody(contentType, current)
+            if (formatted.unsupported) {
+              mockFormatHint.value = manual ? formatted.error || '' : ''
+              return
+            }
+            if (formatted.error) {
+              mockFormatHint.value = formatted.error
+              return
+            }
+            mockFormatHint.value = ''
+            if (formatted.text && formatted.text !== current) {
+              if (ctx?.onUpdate) ctx.onUpdate(formatted.text)
+              else formData.mockBody = formatted.text
+            }
+          }
+          return h(
+            'div',
+            {
+              style: { display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' },
+              onFocusout: (event: FocusEvent) => {
+                const root = event.currentTarget as HTMLElement
+                const next = event.relatedTarget
+                if (next instanceof Node && root.contains(next)) return
+                applyFormat(false)
+              },
+            },
+            [
+              h(
+                RsCodeEditor,
+                {
+                  modelValue: current,
+                  language: mockBodyLanguage(contentType),
+                  height: '220px',
+                  showToolbar: true,
+                  placeholder: '例如 {"status":"up"}',
+                  'onUpdate:modelValue': (value: string) => {
+                    mockFormatHint.value = ''
+                    if (ctx?.onUpdate) ctx.onUpdate(value)
+                    else formData.mockBody = value
+                  },
+                },
+                {
+                  toolbar: () =>
+                    h(
+                      RsButton,
+                      { type: 'button', size: 'sm', variant: 'ghost', onClick: () => applyFormat(true) },
+                      () => '格式化',
+                    ),
+                },
+              ),
+              mockFormatHint.value
+                ? h(
+                    'p',
+                    { style: { margin: '0', fontSize: '12px', color: 'var(--rs-danger, #dc2626)' } },
+                    mockFormatHint.value,
+                  )
+                : null,
+            ],
+          )
+        },
+        rules: [
+          {
+            trigger: ['blur', 'input'],
+            validator: (value: unknown) => {
+              const body = typeof value === 'string' ? value : ''
+              if (!body) {
+                return true
+              }
+              if (body.includes('\u0000')) {
+                return '响应体不能包含空字符'
+              }
+              if (mockBodyByteLength(body) > MOCK_BODY_MAX_BYTES) {
+                return '响应体不能超过 64KB'
               }
               return true
             },

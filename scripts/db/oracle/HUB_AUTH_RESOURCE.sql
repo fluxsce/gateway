@@ -270,6 +270,19 @@ INSERT INTO HUB_AUTH_RESOURCE (
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_HUB0009', 1, 'Y'
 );
 
+-- 工具市场模块 (hub0010) - 属于 group0001
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  resourcePath, parentResourceId, resourceLevel, sortOrder, iconClass, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES (
+  'hub0010', 'default', '工具市场', 'hub0010', 'MODULE',
+  '/system/toolMarketplace', 'group0001', 2, 9, 'AppsOutline', 'zh-CN',
+  'Y', 'Y',
+  SYSDATE, 'system', SYSDATE, 'system', 'INIT_HUB0010', 1, 'Y'
+);
+
 -- 网关实例管理模块 (hub0020) - 属于 group0020
 INSERT INTO HUB_AUTH_RESOURCE (
   resourceId, tenantId, resourceName, resourceCode, resourceType,
@@ -1126,6 +1139,41 @@ INSERT INTO HUB_AUTH_RESOURCE (
   'Y', 'Y',
   SYSDATE, 'system', SYSDATE, 'system', 'INIT_HUB0009_002', 1, 'Y'
 );
+
+-- =====================================================
+-- 工具市场模块 - 按钮资源 (hub0010)
+-- =====================================================
+
+INSERT INTO HUB_AUTH_RESOURCE (
+  resourceId, tenantId, resourceName, resourceCode, resourceType,
+  parentResourceId, resourceLevel, sortOrder, language,
+  resourceStatus, builtInFlag,
+  addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag
+) VALUES
+  ('hub0010:view', 'default', '查看', 'hub0010:view', 'BUTTON',
+   'hub0010', 3, 1, 'zh-CN', 'Y', 'Y',
+   SYSDATE, 'system', SYSDATE, 'system', 'INIT_HUB0010_001', 1, 'Y'),
+  ('hub0010:install', 'default', '安装', 'hub0010:install', 'BUTTON',
+   'hub0010', 3, 2, 'zh-CN', 'Y', 'Y',
+   SYSDATE, 'system', SYSDATE, 'system', 'INIT_HUB0010_002', 1, 'Y'),
+  ('hub0010:uninstall', 'default', '卸载', 'hub0010:uninstall', 'BUTTON',
+   'hub0010', 3, 3, 'zh-CN', 'Y', 'Y',
+   SYSDATE, 'system', SYSDATE, 'system', 'INIT_HUB0010_003', 1, 'Y'),
+  ('hub0010:config', 'default', '配置', 'hub0010:config', 'BUTTON',
+   'hub0010', 3, 4, 'zh-CN', 'Y', 'Y',
+   SYSDATE, 'system', SYSDATE, 'system', 'INIT_HUB0010_004', 1, 'Y'),
+  ('hub0010:tool:json-formatter', 'default', 'JSON格式化', 'hub0010:tool:json-formatter', 'BUTTON',
+   'hub0010', 3, 5, 'zh-CN', 'Y', 'Y',
+   SYSDATE, 'system', SYSDATE, 'system', 'INIT_HUB0010_005', 1, 'Y'),
+  ('hub0010:tool:timestamp', 'default', '时间戳转换', 'hub0010:tool:timestamp', 'BUTTON',
+   'hub0010', 3, 6, 'zh-CN', 'Y', 'Y',
+   SYSDATE, 'system', SYSDATE, 'system', 'INIT_HUB0010_006', 1, 'Y'),
+  ('hub0010:tool:base64', 'default', 'Base64', 'hub0010:tool:base64', 'BUTTON',
+   'hub0010', 3, 7, 'zh-CN', 'Y', 'Y',
+   SYSDATE, 'system', SYSDATE, 'system', 'INIT_HUB0010_007', 1, 'Y'),
+  ('hub0010:tool:jwt-decoder', 'default', 'JWT解码', 'hub0010:tool:jwt-decoder', 'BUTTON',
+   'hub0010', 3, 8, 'zh-CN', 'Y', 'Y',
+   SYSDATE, 'system', SYSDATE, 'system', 'INIT_HUB0010_008', 1, 'Y');
 
 -- =====================================================
 -- 网关实例管理模块 - 按钮资源 (hub0020)

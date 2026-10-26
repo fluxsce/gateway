@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-10-26
+
+### 新增
+- **路由 Mock 后端**：路由后端可选「Mock」。同页填写 100–599 状态码、Content-Type 和响应体。命中后在安全、跨域、认证、限流和路由过滤器之后直接写出正文并结束链路，不转发服务，也不读本机目录。Content-Type 留空为 `application/json; charset=utf-8`；正文为 UTF-8，最长 64KB；1xx、204、304 不能带正文。响应带 `Cache-Control: no-store`。`HEAD` 只写状态码和 `Content-Length`。访问日志代理类型为 `mock`。已有库重启后由 `HUB_GW_ROUTE_CONFIG.sql` 补 `mockStatus`、`mockContentType`、`mockBody`。
+- **工具市场（hub0010）**：内置 JSON 格式化、时间戳、Base64、JWT 解码。安装和配置按当前用户保存。角色在权限目录里授予 `hub0010` 以及 `hub0010:tool:{工具}` 后才能看到对应工具；安装、卸载、保存配置分别需要 `hub0010:install`、`hub0010:uninstall`、`hub0010:config`。已有库执行 `patch_auth_resource_20261026_hub0010.sql`，并确认已有表 `HUB_TOOL_INSTALL`。
+
 ## [3.4.9] - 2026-10-13
 
 ### 修复

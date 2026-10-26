@@ -1,5 +1,5 @@
 /**
- * 控制台侧 niuma-ui 薄封装：只 re-export 后台常用组件。
+ * 控制台侧 ensis-ui 薄封装：只 re-export 后台常用组件。
  * CodeMirror 相关请从 `@/ui/code-editor` / `@/ui/code-block` 导入，避免登录页拉入编辑器。
  */
 export {
@@ -48,6 +48,7 @@ export {
   RsTable,
   RsTag,
   RsTabs,
+  RsTextarea,
   RsTimePicker,
   RsToaster,
   RsToolbar,
@@ -87,7 +88,7 @@ export {
   getByNamePath,
   hasByNamePath,
   setByNamePath,
-} from 'niuma-ui'
+} from 'ensis-ui'
 
 export type {
   RsButtonTone,
@@ -135,6 +136,7 @@ export type {
   RsSplitOrientation,
   RsSwitchValue,
   RsSplitPaneItem,
+  RsStatAccent,
   RsTabItem,
   RsTableColumn,
   RsTableRowData,
@@ -162,4 +164,4 @@ export type {
   RsTableFeatureContext,
   RsTableApi,
   RsTreeNode,
-} from 'niuma-ui'
+} from 'ensis-ui'

@@ -48,7 +48,7 @@
     <RsDialog
       v-model:open="showToolMarketplace"
       :title="tCommon('toolMarket')"
-      description="发现和安装工具，扩展工作台能力"
+      description="按角色授权使用内置工具"
       layout="window"
       :width="1080"
       :show-close="true"
@@ -57,7 +57,7 @@
       :fullscreenable="true"
     >
       <template #body>
-        <tool-marketplace class="main-layout__marketplace" />
+        <tool-marketplace class="main-layout__marketplace" @opened="showToolMarketplace = false" />
       </template>
     </RsDialog>
   </div>

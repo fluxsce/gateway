@@ -12,13 +12,13 @@
       <!-- 工具状态标识 -->
       <div class="tool-status">
         <RsTag v-if="tool.status === ToolStatus.INSTALLED" variant="success" size="sm">
-          已安装
+          {{ t('status.installed') }}
         </RsTag>
         <RsTag v-else-if="tool.status === ToolStatus.INSTALLING" variant="info" size="sm">
-          安装中
+          {{ t('status.installing') }}
         </RsTag>
         <RsTag v-else variant="default" size="sm">
-          可安装
+          {{ t('status.available') }}
         </RsTag>
       </div>
     </div>
@@ -64,7 +64,7 @@
     <!-- 操作按钮 -->
     <div class="tool-actions">
       <RsButton
-        v-if="tool.status === ToolStatus.AVAILABLE || tool.status === ToolStatus.INSTALLING"
+        v-if="canInstall && (tool.status === ToolStatus.AVAILABLE || tool.status === ToolStatus.INSTALLING)"
         variant="primary"
         size="ssm"
         :loading="tool.status === ToolStatus.INSTALLING"
@@ -73,11 +73,11 @@
         <GIcon size="12">
           <Download />
         </GIcon>
-        安装
+        {{ t('actions.install') }}
       </RsButton>
 
       <RsButton
-        v-else-if="tool.status === ToolStatus.INSTALLED"
+        v-else-if="canUninstall && tool.status === ToolStatus.INSTALLED"
         variant="danger"
         size="ssm"
         @click="$emit('uninstall', tool)"
@@ -85,11 +85,11 @@
         <GIcon size="12">
           <Trash />
         </GIcon>
-        卸载
+        {{ t('actions.uninstall') }}
       </RsButton>
 
       <RsButton
-        v-if="tool.status === ToolStatus.INSTALLED"
+        v-if="canConfigure && tool.status === ToolStatus.INSTALLED && tool.configSchema?.length"
         variant="default"
         size="ssm"
         @click="$emit('configure', tool)"
@@ -97,14 +97,18 @@
         <GIcon size="12">
           <Settings />
         </GIcon>
-        配置
+        {{ t('actions.configure') }}
+      </RsButton>
+
+      <RsButton variant="ghost" size="ssm" @click="$emit('open', tool)">
+        {{ t('actions.open') }}
       </RsButton>
 
       <RsButton variant="ghost" size="ssm" @click="$emit('preview', tool)">
         <GIcon size="12">
           <Eye />
         </GIcon>
-        预览
+        {{ t('actions.preview') }}
       </RsButton>
     </div>
   </RsCard>
@@ -113,11 +117,15 @@
 <script setup lang="ts">
 import GIcon from '@/components/gicon/GIcon.vue'
 import { RsButton, RsCard, RsTag } from '@/ui'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
 import { Apps, Person, Code, Download, Trash, Settings, Eye } from '@vicons/ionicons5'
 import { ToolStatus, type Tool } from '../../types/toolMarketplace'
 
 interface Props {
   tool: Tool
+  canInstall: boolean
+  canUninstall: boolean
+  canConfigure: boolean
 }
 
 defineProps<Props>()
@@ -127,7 +135,10 @@ defineEmits<{
   uninstall: [tool: Tool]
   configure: [tool: Tool]
   preview: [tool: Tool]
+  open: [tool: Tool]
 }>()
+
+const { t } = useModuleI18n('hub0010')
 </script>
 
 <style lang="scss" scoped>

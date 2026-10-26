@@ -284,7 +284,7 @@ func (c *RouteConfigController) GetRouteConfig(ctx *gin.Context) {
 	response.SuccessJSON(ctx, routeConfig, constants.SD00002)
 }
 
-// applyRouteBackend 规范后端类型：服务代理必须带服务；静态与重定向清空服务关联。
+// applyRouteBackend 规范后端类型：服务代理必须带服务；静态、重定向与 Mock 清空服务关联。
 func (c *RouteConfigController) applyRouteBackend(routeConfig *models.RouteConfig) error {
 	if routeConfig == nil {
 		return nil
@@ -303,6 +303,17 @@ func (c *RouteConfigController) applyRouteBackend(routeConfig *models.RouteConfi
 		}
 		routeConfig.RedirectStatus = status
 		routeConfig.RedirectLocation = location
+		return nil
+	case "mock":
+		routeConfig.BackendType = "mock"
+		routeConfig.ServiceDefinitionId = ""
+		status, contentType, body, err := router.NormalizeMock(routeConfig.MockStatus, routeConfig.MockContentType, routeConfig.MockBody)
+		if err != nil {
+			return fmt.Errorf("Mock 配置无效: %w", err)
+		}
+		routeConfig.MockStatus = status
+		routeConfig.MockContentType = contentType
+		routeConfig.MockBody = body
 		return nil
 	default:
 		routeConfig.BackendType = "proxy"

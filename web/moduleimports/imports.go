@@ -33,6 +33,8 @@ import (
 	_ "gateway/web/views/hub0008/routes"
 	// 导入环境设置模块
 	_ "gateway/web/views/hub0009/routes"
+	// 导入工具市场模块
+	_ "gateway/web/views/hub0010/routes"
 	// 导入网关管理模块
 	_ "gateway/web/views/hub0020/routes"
 	// 导入路由管理模块

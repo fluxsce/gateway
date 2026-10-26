@@ -75,7 +75,7 @@ import {
 } from '@/ui'
 import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
 import type { Resource } from '@/views/hub0006/types'
-import type { RsTreeNode } from 'niuma-ui'
+import type { RsTreeNode } from 'ensis-ui'
 import { computed, ref, watch } from 'vue'
 import { getRoleResources, saveRoleResources } from '../api'
 

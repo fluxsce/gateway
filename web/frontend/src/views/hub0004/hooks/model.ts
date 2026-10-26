@@ -27,6 +27,7 @@ const MODULE_CODES = [
   'hub0007',
   'hub0008',
   'hub0009',
+  'hub0010',
   'hub0020',
   'hub0021',
   'hub0022',

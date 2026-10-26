@@ -8,7 +8,7 @@
         </GIcon>
         <div class="title-content">
           <h2>{{ t('title') }}</h2>
-          <p class="subtitle">发现和安装强大的工具来提升你的工作效率</p>
+          <p class="subtitle">{{ t('subtitle') }}</p>
         </div>
       </div>
 
@@ -38,7 +38,7 @@
               <GIcon size="18">
                 <Grid />
               </GIcon>
-              网格视图
+              {{ t('grid') }}
             </template>
           </RsButton>
           <RsButton
@@ -50,7 +50,7 @@
               <GIcon size="18">
                 <List />
               </GIcon>
-              列表视图
+              {{ t('list') }}
             </template>
           </RsButton>
         </div>
@@ -71,14 +71,14 @@
     <!-- 工具统计信息 -->
     <div class="stats-bar" v-if="!loading">
       <span class="stats-text">
-        找到 <strong class="stats-count">{{ filteredTools.length }}</strong> 个工具
+        {{ t('found', { count: filteredTools.length }) }}
       </span>
       <div class="stats-actions">
         <RsButton variant="ghost" @click="refreshTools">
           <GIcon>
             <Search />
           </GIcon>
-          刷新
+          {{ t('refresh') }}
         </RsButton>
       </div>
     </div>
@@ -93,10 +93,14 @@
             v-for="tool in filteredTools"
             :key="tool.id"
             :tool="tool"
+            :can-install="canInstall"
+            :can-uninstall="canUninstall"
+            :can-configure="canConfigure"
             @install="handleInstallTool"
             @uninstall="handleUninstallTool"
             @configure="handleConfigureTool"
             @preview="handlePreviewTool"
+            @open="openInPage"
           />
         </div>
 
@@ -105,22 +109,26 @@
             v-for="tool in filteredTools"
             :key="tool.id"
             :tool="tool"
+            :can-install="canInstall"
+            :can-uninstall="canUninstall"
+            :can-configure="canConfigure"
             @install="handleInstallTool"
             @uninstall="handleUninstallTool"
             @configure="handleConfigureTool"
             @preview="handlePreviewTool"
+            @open="openInPage"
           />
         </div>
 
         <div v-else class="empty-state">
-          <RsEmpty :description="t('noToolsFound')" fill>
+          <RsEmpty :description="emptyBecauseNoGrant ? t('emptyNoGrant') : t('noToolsFound')" fill>
             <template #icon>
               <GIcon size="64" color="var(--text-color-disabled)">
                 <Apps />
               </GIcon>
             </template>
             <RsButton v-if="searchQuery" @click="clearSearch">
-              清除搜索条件
+              {{ t('clearSearch') }}
             </RsButton>
           </RsEmpty>
         </div>
@@ -133,6 +141,7 @@
       :tool="selectedTool"
       @install="handleInstallTool"
       @configure="handleConfigureTool"
+      @open="openInPage"
     />
 
     <!-- 工具配置对话框 -->
@@ -154,9 +163,11 @@ import ToolListItem from './modules/ToolListItem.vue'
 import ToolPreviewDrawer from './modules/ToolPreviewDrawer.vue'
 import ToolConfigDialog from './modules/ToolConfigDialog.vue'
 import { useToolMarketplace } from '@/views/layout/hooks/useToolMarketplace'
+import type { Tool } from '../types/toolMarketplace'
 import { useModuleI18n } from '@/hooks/useModuleI18n'
 
-const { t } = useModuleI18n('toolMarket')
+const { t } = useModuleI18n('hub0010')
+const emit = defineEmits<{ opened: [] }>()
 
 const {
   filteredTools,
@@ -168,14 +179,24 @@ const {
   viewMode,
   previewDrawerVisible,
   configDialogVisible,
+  emptyBecauseNoGrant,
+  canInstall,
+  canUninstall,
+  canConfigure,
   setViewMode,
   handleInstallTool,
   handleUninstallTool,
   handleConfigureTool,
   handlePreviewTool,
+  handleOpenTool,
   handleSaveToolConfig,
   initializeMarketplace,
 } = useToolMarketplace()
+
+/** 打开工具页并通知外层关掉市场弹窗。市场自己的页签会留着。 */
+const openInPage = (tool: Tool) => {
+  if (handleOpenTool(tool)) emit('opened')
+}
 
 const categoryTabItems = computed(() =>
   categories.value.map((category) => ({

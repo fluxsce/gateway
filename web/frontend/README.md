@@ -4,7 +4,7 @@ This template should help get you started developing with Vue 3 in Vite.
 
 ## UI
 
-Frontend UI is based on [niuma-ui](https://github.com/Blair-Shang/niuma-ui) (Apache-2.0). Import console components via `@/ui` (`Rs*` primitives). List grids use `RsGrid`.
+Frontend UI is based on [ensis-ui](https://github.com/Blair-Shang/ensis-ui) (Apache-2.0). Import console components via `@/ui` (`Rs*` primitives). List grids use `RsGrid`.
 
 ## Recommended IDE Setup
 

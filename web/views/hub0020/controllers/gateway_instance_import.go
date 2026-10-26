@@ -791,6 +791,8 @@ func parseRouteConfigRow(row []string, idx map[string]int, tenantId string) *hub
 		ServiceDefinitionId: excel.GetCell(row, idx, "serviceDefinitionId"),
 		BackendType:         excel.GetCell(row, idx, "backendType"),
 		RedirectLocation:    excel.GetCell(row, idx, "redirectLocation"),
+		MockContentType:     excel.GetCell(row, idx, "mockContentType"),
+		MockBody:            excel.GetCell(row, idx, "mockBody"),
 		LogConfigId:         excel.GetCell(row, idx, "logConfigId"),
 		RouteMetadata:       excel.GetCell(row, idx, "routeMetadata"),
 		ActiveFlag:          strOrDefault(excel.GetCell(row, idx, "activeFlag"), "Y"),
@@ -802,6 +804,7 @@ func parseRouteConfigRow(row []string, idx map[string]int, tenantId string) *hub
 	rc.RetryCount = atoiSafe(excel.GetCell(row, idx, "retryCount"))
 	rc.RetryIntervalMs = atoiSafe(excel.GetCell(row, idx, "retryIntervalMs"))
 	rc.RedirectStatus = atoiSafe(excel.GetCell(row, idx, "redirectStatus"))
+	rc.MockStatus = atoiSafe(excel.GetCell(row, idx, "mockStatus"))
 	return rc
 }
 

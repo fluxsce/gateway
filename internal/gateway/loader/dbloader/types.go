@@ -89,6 +89,9 @@ type RouteConfigRecord struct {
 	BackendType         string  `db:"backendType"`
 	RedirectStatus      int     `db:"redirectStatus"`
 	RedirectLocation    *string `db:"redirectLocation"`
+	MockStatus          int     `db:"mockStatus"`
+	MockContentType     *string `db:"mockContentType"`
+	MockBody            *string `db:"mockBody"`
 	LogConfigId         *string `db:"logConfigId"`
 	RouteMetadata       *string `db:"routeMetadata"`
 	ActiveFlag          string  `db:"activeFlag"`

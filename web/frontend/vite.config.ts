@@ -8,7 +8,7 @@ import { dirname } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 import path from 'path'
 
-import { niumaUiHost } from 'niuma-ui/vite-plugins/niuma-ui-host'
+import { ensisUiHost } from 'ensis-ui/vite-plugins/ensis-ui-host'
 import vue from '@vitejs/plugin-vue'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
@@ -19,10 +19,10 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
 
-/** link / file 安装的 niuma-ui 根目录，供 Vite server.fs.allow 与 HMR */
-let niumaUiRoot = path.resolve(__dirname, '../../../../shangijan/niuma-ui')
+/** link / file 安装的 ensis-ui 根目录，供 Vite server.fs.allow 与 HMR */
+let ensisUiRoot = path.resolve(__dirname, '../../../../shangijan/ensis-ui')
 try {
-  niumaUiRoot = dirname(require.resolve('niuma-ui/package.json'))
+  ensisUiRoot = dirname(require.resolve('ensis-ui/package.json'))
 } catch {
   // 保持上面的相对路径回退
 }
@@ -84,9 +84,9 @@ function resolveDevProxy(env: Record<string, string>): Record<string, ProxyOptio
 }
 
 /**
- * Vite 预加载助手等运行时。必须单独成块，绝不能跟 niuma-ui / monaco 绑在一起。
+ * Vite 预加载助手等运行时。必须单独成块，绝不能跟 ensis-ui / monaco 绑在一起。
  * 否则 boot 入口会静态 import 整包，登录页还没执行 `import('./main')` 就已经在下 5MB+ JS。
- * 路径里可能带 `/niuma-ui/node_modules/vite/`（link 安装），不能只靠「不含 niuma-ui」判断。
+ * 路径里可能带 `/ensis-ui/node_modules/vite/`（link 安装），不能只靠「不含 ensis-ui」判断。
  */
 function isViteRuntimeModule(id: string): boolean {
   const m = id.replace(/\\/g, '/')
@@ -101,14 +101,14 @@ function isViteRuntimeModule(id: string): boolean {
 
 /**
  * 将「登录页用不到」的重型依赖拆成独立 chunk，避免和首屏共享。
- * 不要把整个 niuma-ui / vendor / @vicons 打成一块：任一登录依赖命中该块，浏览器就会下载全家桶
+ * 不要把整个 ensis-ui / vendor / @vicons 打成一块：任一登录依赖命中该块，浏览器就会下载全家桶
  *（Monaco、CodeMirror、全部图标）。顺序靠前的规则优先匹配。
  */
 function resolveManualChunk(id: string): string | undefined {
   const m = id.replace(/\\/g, '/')
   if (isViteRuntimeModule(m)) return 'boot-runtime'
 
-  // monaco / xterm / codemirror 可能装在 niuma-ui 的 node_modules 里，必须先于其它规则截获
+  // monaco / xterm / codemirror 可能装在 ensis-ui 的 node_modules 里，必须先于其它规则截获
   if (m.includes('monaco-editor') || m.includes('monaco-sql-languages')) return 'monaco'
   if (m.includes('/@xterm/') || m.includes('/xterm/')) return 'xterm'
   if (m.includes('/@codemirror') || m.includes('/codemirror/')) return 'codemirror'
@@ -119,8 +119,8 @@ function resolveManualChunk(id: string): string | undefined {
   if (m.includes('/marked') || m.includes('/dompurify')) return 'markdown'
 
   // 编辑器整目录与 @codemirror 同块。只按 RsCodeBlock 文件名匹配会漏掉
-  // code-block-highlight：它留在 niuma-ui，又 import @codemirror，而 RsCodeBlock
-  // 在 codemirror 块里回引 niuma-ui 的 Vue SFC helper，启动时该 helper 还不是函数。
+  // code-block-highlight：它留在 ensis-ui，又 import @codemirror，而 RsCodeBlock
+  // 在 codemirror 块里回引 ensis-ui 的 Vue SFC helper，启动时该 helper 还不是函数。
   if (
     m.includes('/components/code-block/') ||
     m.includes('/components/code-editor/') ||
@@ -137,18 +137,18 @@ function resolveManualChunk(id: string): string | undefined {
     return undefined
   }
 
-  if (!m.includes('node_modules') && !m.includes('/niuma-ui/')) {
-    // 网关 `@/ui` 桶与 niuma-ui 轻量组件同块，避免 barrel 循环切块
-    if (m.endsWith('/src/ui/index.ts')) return 'niuma-ui'
+  if (!m.includes('node_modules') && !m.includes('/ensis-ui/')) {
+    // 网关 `@/ui` 桶与 ensis-ui 轻量组件同块，避免 barrel 循环切块
+    if (m.endsWith('/src/ui/index.ts')) return 'ensis-ui'
     return undefined
   }
 
   if (
-    m.includes('/niuma-ui/') ||
+    m.includes('/ensis-ui/') ||
     m.includes('/@lucide/') ||
     m.includes('/vue-sonner')
   ) {
-    return 'niuma-ui'
+    return 'ensis-ui'
   }
 
   if (!m.includes('node_modules')) return undefined
@@ -174,14 +174,14 @@ export default defineConfig(({ command, mode }) => {
 
     plugins: [
       vue(),
-      // 只改 pnpm dev：link 的 niuma-ui 具名导入指到 src，改组件不用先编 dist。vite build 仍走包入口。
-      // 插件声明跟着 niuma-ui 的 Vite 8 类型，宿主是 Vite 6，运行时钩子兼容，这里收成宿主的 PluginOption。
-      ...(niumaUiHost() as unknown as PluginOption[]),
+      // 只改 pnpm dev：link 的 ensis-ui 具名导入指到 src，改组件不用先编 dist。vite build 仍走包入口。
+      // 插件声明跟着 ensis-ui 的 Vite 8 类型，宿主是 Vite 6，运行时钩子兼容，这里收成宿主的 PluginOption。
+      ...(ensisUiHost() as unknown as PluginOption[]),
       // 仅开发服务注册 DevTools，避免生产构建携带调试相关逻辑
       ...(command === 'serve' ? [vueDevTools()] : []),
 
       /**
-       * 组件自动导入（本地 G* 等；UI 基座请从 `@/ui` / `niuma-ui` 显式导入）。
+       * 组件自动导入（本地 G* 等；UI 基座请从 `@/ui` / `ensis-ui` 显式导入）。
        */
       Components({
         dts: 'src/types/components.d.ts',
@@ -325,7 +325,7 @@ export default defineConfig(({ command, mode }) => {
       /** Vite 6 默认校验 Host，局域网 IP / 主机名访问时放行 */
       allowedHosts: true,
       fs: {
-        allow: ['.', ...(niumaUiRoot ? [niumaUiRoot] : [])],
+        allow: ['.', ...(ensisUiRoot ? [ensisUiRoot] : [])],
       },
       /**
        * 开发：`/gateway/` 代理到后端（不要写成 /gateway，会误伤 /gatewayweb）；
@@ -340,10 +340,10 @@ export default defineConfig(({ command, mode }) => {
     },
 
     build: {
-      /** niuma-ui / echarts / vicons 等 chunk 常超 500kB，提高阈值避免误报 */
+      /** ensis-ui / echarts / vicons 等 chunk 常超 500kB，提高阈值避免误报 */
       chunkSizeWarningLimit: 1200,
       /**
-       * index.html 不要 modulepreload Vue/niuma-ui：那些是 boot 动态 import 的依赖，
+       * index.html 不要 modulepreload Vue/ensis-ui：那些是 boot 动态 import 的依赖，
        * 预加载会变成阻塞首屏的大资源，splash 无法先画出来。
        */
       modulePreload: {
@@ -364,7 +364,7 @@ export default defineConfig(({ command, mode }) => {
             const m = id.replace(/\\/g, '/')
             if (m.endsWith('.css') || m.endsWith('.scss')) return true
             // 纯 re-export 入口标成无副作用，才能从登录图里摇掉 Monaco / Terminal
-            if (/\/niuma-ui\/src\/index\.ts$/.test(m)) return false
+            if (/\/ensis-ui\/src\/index\.ts$/.test(m)) return false
             if (/\/frontend\/src\/ui\/index\.ts$/.test(m)) return false
             return true
           },

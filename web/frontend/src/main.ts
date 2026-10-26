@@ -8,8 +8,8 @@ import { setupPlugins } from './plugins'
 import router from './router'
 import { initializeStores, setupStoreHelpers } from './stores'
 
-// niuma-ui 基座样式 → 业务主题 → 品牌覆盖
-import 'niuma-ui/styles.css'
+// ensis-ui 基座样式 → 业务主题 → 品牌覆盖
+import 'ensis-ui/styles.css'
 import './styles/index.scss'
 import './styles/rs-brand.css'
 

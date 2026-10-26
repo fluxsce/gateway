@@ -1,352 +1,253 @@
+import {
+  installTool,
+  queryTools,
+  saveToolConfig,
+  uninstallTool,
+  type ToolCatalogItem,
+} from '@/views/hub0010/api'
+import { openToolPage } from '@/views/hub0010/openToolPage'
 import { useAppMessage } from '@/composables/useAppMessage'
-import { ref, computed, reactive, watch, onMounted } from 'vue'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
+import { store } from '@/stores'
+import { getApiMessage, isApiSuccess, parseJsonData } from '@/utils/format'
+import { computed, ref } from 'vue'
 import {
   ToolCategory,
+  ToolConfigType,
+  ToolPermissionLevel,
   ToolStatus,
   type Tool,
   type ToolCategoryItem,
-  type ToolSearchParams,
   type ViewMode,
-  type ToolMarketplaceConfig,
 } from '../types/toolMarketplace'
 
+const textKey: Record<string, string> = {
+  'json-formatter': 'jsonFormatter',
+  timestamp: 'timestamp',
+  base64: 'base64',
+  'jwt-decoder': 'jwtDecoder',
+}
+
 /**
- * 工具市场Hook
- * 管理工具市场的状态和交互逻辑
+ * 工具市场状态。目录和安装结果来自 hub0010，可见工具由角色里的工具资源码决定。
  */
 export function useToolMarketplace() {
   const message = useAppMessage()
+  const { t } = useModuleI18n('hub0010')
 
-  // 基础状态
   const loading = ref(false)
   const error = ref<string | null>(null)
-  const initialized = ref(false)
-
-  // 工具数据
-  const tools = ref<Tool[]>([])
+  const rawTools = ref<ToolCatalogItem[]>([])
   const selectedTool = ref<Tool | null>(null)
 
-  // 界面状态
   const searchQuery = ref('')
   const activeCategory = ref<ToolCategory>(ToolCategory.ALL)
   const previewDrawerVisible = ref(false)
   const configDialogVisible = ref(false)
-
-  // 视图模式
   const viewMode = ref<ViewMode>('grid')
 
-  // 搜索参数
-  const searchParams = reactive<ToolSearchParams>({
-    keyword: '',
-    category: ToolCategory.ALL,
-  })
+  const canInstall = computed(() => store.user.hasPermission('hub0010:install'))
+  const canUninstall = computed(() => store.user.hasPermission('hub0010:uninstall'))
+  const canConfigure = computed(() => store.user.hasPermission('hub0010:config'))
 
-  // 工具分类配置
-  const categories = ref<ToolCategoryItem[]>([
-    { key: ToolCategory.ALL, label: '全部', icon: 'apps-outline' },
-    { key: ToolCategory.UTILITY, label: '实用工具', icon: 'build-outline' },
-    { key: ToolCategory.CHART, label: '图表工具', icon: 'bar-chart-outline' },
-    { key: ToolCategory.FORM, label: '表单工具', icon: 'clipboard-outline' },
-    { key: ToolCategory.TABLE, label: '表格工具', icon: 'grid-outline' },
-    { key: ToolCategory.LAYOUT, label: '布局工具', icon: 'resize-outline' },
-    { key: ToolCategory.DATA, label: '数据处理', icon: 'analytics-outline' },
-    { key: ToolCategory.UI, label: 'UI组件', icon: 'color-palette-outline' },
-    { key: ToolCategory.BUSINESS, label: '业务组件', icon: 'business-outline' },
+  const categories = computed<ToolCategoryItem[]>(() => [
+    { key: ToolCategory.ALL, label: t('categories.all') },
+    { key: ToolCategory.UTILITY, label: t('categories.utility') },
+    { key: ToolCategory.CHART, label: t('categories.chart') },
+    { key: ToolCategory.FORM, label: t('categories.form') },
+    { key: ToolCategory.TABLE, label: t('categories.table') },
+    { key: ToolCategory.LAYOUT, label: t('categories.layout') },
+    { key: ToolCategory.DATA, label: t('categories.data') },
+    { key: ToolCategory.UI, label: t('categories.ui') },
+    { key: ToolCategory.BUSINESS, label: t('categories.business') },
   ])
 
-  // 工具市场配置
-  const config = reactive<ToolMarketplaceConfig>({
-    enableAutoUpdate: true,
-    checkUpdateInterval: 24,
-    maxConcurrentInstalls: 3,
-    enableUsageStats: true,
-    defaultCategory: ToolCategory.ALL,
-    allowedCategories: Object.values(ToolCategory),
-    maxToolsPerPage: 20,
-  })
+  const tools = computed<Tool[]>(() => rawTools.value.map(toTool))
 
-  // 计算属性：过滤后的工具列表
   const filteredTools = computed(() => {
     let result = tools.value
-
-    // 分类过滤
-    if (searchParams.category && searchParams.category !== ToolCategory.ALL) {
-      result = result.filter((tool) => tool.category === searchParams.category)
+    if (activeCategory.value !== ToolCategory.ALL) {
+      result = result.filter((tool) => tool.category === activeCategory.value)
     }
-
-    // 关键词搜索
-    if (searchParams.keyword) {
-      const keyword = searchParams.keyword.toLowerCase()
-      result = result.filter(
-        (tool) =>
-          tool.name.toLowerCase().includes(keyword) ||
-          tool.displayName.toLowerCase().includes(keyword) ||
-          tool.description.toLowerCase().includes(keyword) ||
-          tool.tags.some((tag) => tag.toLowerCase().includes(keyword)) ||
-          tool.author.toLowerCase().includes(keyword),
-      )
-    }
-
-    return result
+    const keyword = searchQuery.value.trim().toLowerCase()
+    if (!keyword) return result
+    return result.filter(
+      (tool) =>
+        tool.name.toLowerCase().includes(keyword) ||
+        tool.displayName.toLowerCase().includes(keyword) ||
+        tool.description.toLowerCase().includes(keyword) ||
+        tool.tags.some((tag) => tag.toLowerCase().includes(keyword)) ||
+        tool.author.toLowerCase().includes(keyword),
+    )
   })
 
-  // 计算属性：已安装工具数量
-  const installedToolsCount = computed(
-    () => tools.value.filter((tool) => tool.status === ToolStatus.INSTALLED).length,
-  )
-
-  // 计算属性：可用工具数量
-  const availableToolsCount = computed(
-    () => tools.value.filter((tool) => tool.status === ToolStatus.AVAILABLE).length,
-  )
-
-  // 监听搜索查询变化
-  watch(
-    searchQuery,
-    (newQuery) => {
-      searchParams.keyword = newQuery
-    },
-    { immediate: true },
-  )
-
-  // 监听活动分类变化
-  watch(
-    activeCategory,
-    (newCategory) => {
-      searchParams.category = newCategory
-    },
-    { immediate: true },
+  const emptyBecauseNoGrant = computed(
+    () => !loading.value && rawTools.value.length === 0 && !searchQuery.value.trim(),
   )
 
   /**
-   * 初始化工具市场
+   * 拉取目录。失败时清空列表，避免继续展示上一次的结果。
    */
-  const initializeMarketplace = async () => {
-    if (initialized.value) return
-
+  const loadToolList = async () => {
+    loading.value = true
+    error.value = null
     try {
-      loading.value = true
-      error.value = null
-
-      await loadToolList()
-      initialized.value = true
+      const result = await queryTools()
+      if (!isApiSuccess(result)) {
+        throw new Error(getApiMessage(result, t('message.loadFail', { error: '' })))
+      }
+      rawTools.value = parseJsonData<ToolCatalogItem[]>(result, [])
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '初始化失败'
+      rawTools.value = []
+      const text = err instanceof Error ? err.message : String(err)
+      error.value = text
+      message.error(t('message.loadFail', { error: text }))
     } finally {
       loading.value = false
     }
   }
 
-  /**
-   * 加载工具列表 - 模拟数据
-   */
-  const loadToolList = async () => {
-    try {
-      // 模拟API延迟
-      await new Promise((resolve) => setTimeout(resolve, 300))
-
-      // 模拟工具数据
-      const mockTools: Tool[] = [
-        {
-          id: 'tool-1',
-          name: 'json-formatter',
-          displayName: 'JSON格式化工具',
-          description: '美化和格式化JSON数据，支持语法高亮和折叠',
-          version: '1.0.0',
-          author: 'HubTools',
-          category: ToolCategory.UTILITY,
-          tags: ['JSON', '格式化', '美化'],
-          icon: 'code-outline',
-          status: ToolStatus.AVAILABLE,
-          permissionLevel: 'public' as any,
-          size: 50,
-          createTime: '2024-01-01T00:00:00Z',
-          updateTime: '2024-01-01T00:00:00Z',
-          createBy: 'system',
-          updateBy: 'system',
-          activeFlag: 'Y',
-        },
-        {
-          id: 'tool-2',
-          name: 'color-picker',
-          displayName: '颜色选择器',
-          description: '强大的颜色选择工具，支持多种颜色格式',
-          version: '2.1.0',
-          author: 'HubTools',
-          category: ToolCategory.UI,
-          tags: ['颜色', '选择器', 'UI'],
-          icon: 'color-palette-outline',
-          status: ToolStatus.INSTALLED,
-          permissionLevel: 'public' as any,
-          size: 80,
-          createTime: '2024-01-01T00:00:00Z',
-          updateTime: '2024-01-01T00:00:00Z',
-          createBy: 'system',
-          updateBy: 'system',
-          activeFlag: 'Y',
-        },
-      ]
-
-      tools.value = mockTools
-    } catch (err) {
-      throw err
-    }
-  }
-
-  /**
-   * 设置视图模式
-   */
   const setViewMode = (mode: ViewMode) => {
     viewMode.value = mode
   }
 
-  /**
-   * 处理搜索
-   */
-  const handleSearch = (query: string) => {
-    searchQuery.value = query
+  const patchStatus = (toolId: string, status: ToolCatalogItem['status']) => {
+    const index = rawTools.value.findIndex((item) => item.id === toolId)
+    if (index < 0) return
+    rawTools.value[index] = { ...rawTools.value[index], status }
   }
 
-  /**
-   * 处理分类变化
-   */
-  const handleCategoryChange = (category: ToolCategory) => {
-    activeCategory.value = category
-  }
-
-  /**
-   * 处理工具安装
-   */
   const handleInstallTool = async (tool: Tool) => {
+    patchStatus(tool.id, 'installing')
     try {
-      // 更新状态为安装中
-      const toolIndex = tools.value.findIndex((t) => t.id === tool.id)
-      if (toolIndex >= 0) {
-        tools.value[toolIndex].status = ToolStatus.INSTALLING
+      const result = await installTool(tool.id, tool.defaultConfig)
+      if (!isApiSuccess(result)) {
+        throw new Error(getApiMessage(result))
       }
-
-      // 模拟安装过程
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // 更新工具状态为已安装
-      if (toolIndex >= 0) {
-        tools.value[toolIndex].status = ToolStatus.INSTALLED
-        tools.value[toolIndex].installTime = new Date().toISOString()
-      }
-
-      message.success(`${tool.displayName} 安装成功`)
+      message.success(t('message.installOk', { name: tool.displayName }))
+      await loadToolList()
     } catch (err) {
-      // 恢复状态
-      const toolIndex = tools.value.findIndex((t) => t.id === tool.id)
-      if (toolIndex >= 0) {
-        tools.value[toolIndex].status = ToolStatus.AVAILABLE
-      }
-
-      const errorMsg = err instanceof Error ? err.message : '安装失败'
-      message.error(`${tool.displayName} 安装失败: ${errorMsg}`)
+      patchStatus(tool.id, 'available')
+      const text = err instanceof Error ? err.message : String(err)
+      message.error(t('message.installFail', { name: tool.displayName, error: text }))
     }
   }
 
-  /**
-   * 处理工具卸载
-   */
   const handleUninstallTool = async (tool: Tool) => {
     try {
-      // 模拟卸载过程
-      await new Promise((resolve) => setTimeout(resolve, 500))
-
-      // 更新工具状态
-      const toolIndex = tools.value.findIndex((t) => t.id === tool.id)
-      if (toolIndex >= 0) {
-        tools.value[toolIndex].status = ToolStatus.AVAILABLE
-        tools.value[toolIndex].installTime = undefined
+      const result = await uninstallTool(tool.id)
+      if (!isApiSuccess(result)) {
+        throw new Error(getApiMessage(result))
       }
-
-      message.success(`${tool.displayName} 卸载成功`)
+      message.success(t('message.uninstallOk', { name: tool.displayName }))
+      await loadToolList()
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : '卸载失败'
-      message.error(`${tool.displayName} 卸载失败: ${errorMsg}`)
+      const text = err instanceof Error ? err.message : String(err)
+      message.error(t('message.uninstallFail', { name: tool.displayName, error: text }))
     }
   }
 
-  /**
-   * 处理工具配置
-   */
   const handleConfigureTool = (tool: Tool) => {
     selectedTool.value = tool
     configDialogVisible.value = true
   }
 
-  /**
-   * 处理工具预览
-   */
   const handlePreviewTool = (tool: Tool) => {
     selectedTool.value = tool
     previewDrawerVisible.value = true
   }
 
-  /**
-   * 保存工具配置
-   */
-  const handleSaveToolConfig = async (config: Record<string, any>) => {
+  const handleOpenTool = (tool: Tool) => {
+    previewDrawerVisible.value = false
+    const opened = openToolPage(tool.id, tool.displayName)
+    if (!opened) message.error(t('work.unavailable'))
+    return opened
+  }
+
+  const handleSaveToolConfig = async (config: Record<string, string | number>) => {
     if (!selectedTool.value) return
-
+    const current = selectedTool.value
     try {
-      // 模拟配置保存
-      await new Promise((resolve) => setTimeout(resolve, 300))
-
-      // 更新本地配置
-      const toolIndex = tools.value.findIndex((t) => t.id === selectedTool.value!.id)
-      if (toolIndex >= 0) {
-        tools.value[toolIndex].userConfig = config
+      const result = await saveToolConfig(current.id, config)
+      if (!isApiSuccess(result)) {
+        throw new Error(getApiMessage(result))
       }
-
-      message.success(`${selectedTool.value.displayName} 配置保存成功`)
+      message.success(t('message.configOk', { name: current.displayName }))
       configDialogVisible.value = false
+      await loadToolList()
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : '配置保存失败'
-      message.error(`配置保存失败: ${errorMsg}`)
+      const text = err instanceof Error ? err.message : String(err)
+      message.error(t('message.configFail', { error: text }))
     }
   }
 
-  // 组件挂载时初始化
-  onMounted(() => {
-    initializeMarketplace()
-  })
+  /**
+   * 把目录行补成卡片使用的 Tool。展示名跟随当前语言。
+   */
+  function toTool(item: ToolCatalogItem): Tool {
+    const key = textKey[item.id]
+    const displayName = key ? t(`tools.${key}.name`) : item.name
+    const description = key ? t(`tools.${key}.description`) : ''
+    const status =
+      item.status === 'installed'
+        ? ToolStatus.INSTALLED
+        : item.status === 'installing'
+          ? ToolStatus.INSTALLING
+          : ToolStatus.AVAILABLE
+    return {
+      id: item.id,
+      name: item.name,
+      displayName,
+      description,
+      version: item.version,
+      author: item.author,
+      category: item.category as ToolCategory,
+      tags: item.tags ?? [],
+      icon: item.icon,
+      status,
+      permissionLevel: ToolPermissionLevel.PUBLIC,
+      installTime: item.installTime,
+      configSchema: (item.configSchema ?? []).map((field) => ({
+        key: field.key,
+        label: t(`config.${field.key}`),
+        type: field.type === 'select' ? ToolConfigType.SELECT : ToolConfigType.STRING,
+        options: (field.options ?? []).map((option) => ({
+          label: String(option.value),
+          value: option.value,
+        })),
+      })),
+      defaultConfig: item.defaultConfig ?? {},
+      userConfig: item.userConfig,
+      createTime: item.installTime ?? '',
+      updateTime: item.installTime ?? '',
+      createBy: '',
+      updateBy: '',
+      activeFlag: 'Y',
+    }
+  }
 
   return {
-    // 响应式状态
-    tools,
     filteredTools,
     categories,
     selectedTool,
     loading,
     error,
-    initialized,
-
-    // 界面状态
+    emptyBecauseNoGrant,
     searchQuery,
     activeCategory,
     viewMode,
     previewDrawerVisible,
     configDialogVisible,
-
-    // 配置
-    config,
-
-    // 统计信息
-    installedToolsCount,
-    availableToolsCount,
-
-    // 方法
-    initializeMarketplace,
+    canInstall,
+    canUninstall,
+    canConfigure,
     setViewMode,
-    handleSearch,
-    handleCategoryChange,
     handleInstallTool,
     handleUninstallTool,
     handleConfigureTool,
     handlePreviewTool,
+    handleOpenTool,
     handleSaveToolConfig,
+    initializeMarketplace: loadToolList,
   }
 }

@@ -34,11 +34,22 @@
       </div>
 
       <div class="preview-actions">
-        <RsButton variant="primary" @click="$emit('install', tool)">
-          安装
+        <RsButton variant="primary" @click="$emit('open', tool)">
+          {{ t('actions.open') }}
         </RsButton>
-        <RsButton variant="default" @click="$emit('configure', tool)">
-          配置
+        <RsButton
+          v-if="store.user.hasPermission('hub0010:install') && tool.status !== 'installed'"
+          variant="default"
+          @click="$emit('install', tool)"
+        >
+          {{ t('actions.install') }}
+        </RsButton>
+        <RsButton
+          v-if="store.user.hasPermission('hub0010:config') && tool.status === 'installed' && tool.configSchema?.length"
+          variant="default"
+          @click="$emit('configure', tool)"
+        >
+          {{ t('actions.configure') }}
         </RsButton>
       </div>
     </div>
@@ -55,6 +66,8 @@ import {
   RsDrawer,
   RsTag,
 } from '@/ui'
+import { useModuleI18n } from '@/hooks/useModuleI18n'
+import { store } from '@/stores'
 import { computed } from 'vue'
 import type { Tool } from '../../types/toolMarketplace'
 
@@ -69,7 +82,10 @@ defineEmits<{
   'update:show': [value: boolean]
   install: [tool: Tool]
   configure: [tool: Tool]
+  open: [tool: Tool]
 }>()
+
+const { t } = useModuleI18n('hub0010')
 
 const basicInfoItems = computed(() => {
   const tool = props.tool

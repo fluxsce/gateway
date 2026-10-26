@@ -37,6 +37,9 @@ const (
 
 	// BackendTypeRedirect 路由重定向，命中后回 301/302/307/308 并结束链路。
 	BackendTypeRedirect = "redirect"
+
+	// BackendTypeMock 固定响应，命中后按配置的状态码和正文直接结束链路。
+	BackendTypeMock = "mock"
 )
 
 // GetMatchTypeName 获取匹配类型名称
@@ -123,7 +126,7 @@ type RouteConfig struct {
 	// 匹配类型 - 路径匹配方式: 0=精确匹配, 1=前缀匹配, 2=正则匹配
 	MatchType int `json:"match_type" yaml:"match_type" mapstructure:"match_type"`
 
-	// BackendType 命中后的响应源: proxy=服务代理, static=本机静态, redirect=重定向。
+	// BackendType 命中后的响应源: proxy=服务代理, static=本机静态, redirect=重定向, mock=固定响应。
 	// 空值按历史规则：有静态配置或有服务即可。
 	BackendType string `json:"backend_type,omitempty" yaml:"backend_type,omitempty" mapstructure:"backend_type,omitempty"`
 
@@ -133,6 +136,15 @@ type RouteConfig struct {
 	// RedirectLocation 是 Location 目标：站点内绝对路径（/#/datahublogin）或 http(s) 绝对地址。
 	// 可含 {scheme}、{host}。scheme 优先 TLS，其次单一合法的 X-Forwarded-Proto；host 仅用请求 Host。
 	RedirectLocation string `json:"redirect_location,omitempty" yaml:"redirect_location,omitempty" mapstructure:"redirect_location,omitempty"`
+
+	// MockStatus 是固定响应状态码，仅 backend_type=mock 时使用，范围 100-599，缺省 200。
+	MockStatus int `json:"mock_status,omitempty" yaml:"mock_status,omitempty" mapstructure:"mock_status,omitempty"`
+
+	// MockContentType 是固定响应的 Content-Type。空则 application/json; charset=utf-8。
+	MockContentType string `json:"mock_content_type,omitempty" yaml:"mock_content_type,omitempty" mapstructure:"mock_content_type,omitempty"`
+
+	// MockBody 是固定响应体。1xx、204、304 必须为空。
+	MockBody string `json:"mock_body,omitempty" yaml:"mock_body,omitempty" mapstructure:"mock_body,omitempty"`
 
 	// 允许的HTTP方法，为空表示允许所有方法
 	// 例如: ["GET", "POST"]、["*"]
@@ -400,11 +412,11 @@ func (r *Route) Handle(ctx *core.Context) bool {
 	} else if r.config.ServiceID != "" {
 		// 单服务模式（向后兼容）
 		ctx.SetServiceIDs([]string{r.config.ServiceID})
-	} else if !hasStaticHost && !r.isRedirectBackend() {
-		// 既没有服务、静态源，也不是重定向，无法产生响应
-		ctx.AddError(fmt.Errorf("路由 %s 未配置服务ID、静态托管或重定向", r.config.ID))
+	} else if !hasStaticHost && !r.isRedirectBackend() && !r.isMockBackend() {
+		// 既没有服务、静态源，也不是重定向或 Mock，无法产生响应
+		ctx.AddError(fmt.Errorf("路由 %s 未配置服务ID、静态托管、重定向或 Mock", r.config.ID))
 		ctx.Abort(500, map[string]string{
-			"error": "route has no service id, static host, or redirect configured",
+			"error": "route has no service id, static host, redirect, or mock configured",
 		})
 		return false
 	}
@@ -458,6 +470,9 @@ func (r *Route) Handle(ctx *core.Context) bool {
 
 	if r.isRedirectBackend() {
 		return r.writeRedirect(ctx)
+	}
+	if r.isMockBackend() {
+		return r.writeMock(ctx)
 	}
 
 	// 标记请求为已路由
@@ -763,6 +778,10 @@ func (config *RouteConfig) validateBackend() error {
 		}
 	case BackendTypeRedirect:
 		if _, _, err := NormalizeRedirect(config.RedirectStatus, config.RedirectLocation); err != nil {
+			return err
+		}
+	case BackendTypeMock:
+		if _, _, _, err := NormalizeMock(config.MockStatus, config.MockContentType, config.MockBody); err != nil {
 			return err
 		}
 	case BackendTypeProxy:

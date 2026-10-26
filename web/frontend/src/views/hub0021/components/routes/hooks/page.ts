@@ -12,10 +12,14 @@ import type { Ref } from 'vue'
 import { onMounted, ref } from 'vue'
 import { getRouteConfig } from '../../../api'
 import type { RouteConfig } from '../types'
-  import {
+import {
   BackendType,
   hasManagedService,
   MatchType,
+  mockBodyByteLength,
+  mockStatusForbidsBody,
+  MOCK_BODY_MAX_BYTES,
+  normalizeMockStatus,
   normalizeRedirectStatus,
   normalizeRoutePathInput,
   resolveListBackend,
@@ -206,12 +210,15 @@ export function useRouteConfigPage(
 
     if (route.backendType === BackendType.REDIRECT) {
       formData.backendType = BackendType.REDIRECT
+    } else if (route.backendType === BackendType.MOCK) {
+      formData.backendType = BackendType.MOCK
     } else if (route.backendType === BackendType.STATIC || route.staticHostEnabled === 'Y') {
       formData.backendType = BackendType.STATIC
     } else {
       formData.backendType = BackendType.PROXY
     }
     formData.redirectStatus = normalizeRedirectStatus(formData.redirectStatus)
+    formData.mockStatus = normalizeMockStatus(formData.mockStatus)
     formData.routePath = normalizeRoutePathInput(formData.routePath, formData.matchType)
 
     return formData
@@ -248,6 +255,8 @@ export function useRouteConfigPage(
       backendType = BackendType.STATIC
     } else if (formData.backendType === BackendType.REDIRECT) {
       backendType = BackendType.REDIRECT
+    } else if (formData.backendType === BackendType.MOCK) {
+      backendType = BackendType.MOCK
     }
     if (backendType === BackendType.PROXY && !hasManagedService(formData.serviceDefinitionId)) {
       message.warning('服务代理必须选择当前实例下已启用的服务定义')
@@ -261,6 +270,27 @@ export function useRouteConfigPage(
       }
       if (location.startsWith('//') || /[\r\n]/.test(location)) {
         message.warning('重定向目标不合法')
+        return false
+      }
+    }
+    if (backendType === BackendType.MOCK) {
+      const status = Number(formData.mockStatus)
+      if (!Number.isInteger(status) || status < 100 || status > 599) {
+        message.warning('Mock 状态码必须在 100 到 599 之间')
+        return false
+      }
+      const body = String(formData.mockBody || '')
+      if (!mockStatusForbidsBody(status) && body.includes('\u0000')) {
+        message.warning('Mock 响应体不能包含空字符')
+        return false
+      }
+      if (!mockStatusForbidsBody(status) && mockBodyByteLength(body) > MOCK_BODY_MAX_BYTES) {
+        message.warning('Mock 响应体不能超过 64KB')
+        return false
+      }
+      const contentType = String(formData.mockContentType || '').trim()
+      if (contentType && (contentType.length > 128 || /[\r\n]/.test(contentType) || !contentType.includes('/'))) {
+        message.warning('Content-Type 不合法')
         return false
       }
     }
@@ -293,12 +323,22 @@ export function useRouteConfigPage(
       // 将 routeMetadata 转换为 JSON 字符串（后端存储为 JSON 字符串）
       finalData.routeMetadata = JSON.stringify(routeMetadataObj) as any
       finalData.backendType = backendType
-      if (backendType === BackendType.STATIC || backendType === BackendType.REDIRECT) {
+      if (
+        backendType === BackendType.STATIC ||
+        backendType === BackendType.REDIRECT ||
+        backendType === BackendType.MOCK
+      ) {
         finalData.serviceDefinitionId = ''
       }
       if (backendType === BackendType.REDIRECT) {
         finalData.redirectStatus = normalizeRedirectStatus(formData.redirectStatus)
         finalData.redirectLocation = String(formData.redirectLocation || '').trim()
+      }
+      if (backendType === BackendType.MOCK) {
+        const status = normalizeMockStatus(formData.mockStatus)
+        finalData.mockStatus = status
+        finalData.mockContentType = String(formData.mockContentType || '').trim()
+        finalData.mockBody = mockStatusForbidsBody(status) ? '' : String(formData.mockBody ?? '')
       }
       delete (finalData as Record<string, unknown>)._staticBackendHint
       delete (finalData as Record<string, unknown>).staticHostEnabled

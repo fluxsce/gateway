@@ -58,6 +58,7 @@
           @click="openHelpDrawer"
         />
         <RsButton
+          v-if="store.user.hasPermission('hub0010')"
           variant="ghost"
           size="md"
           icon-only

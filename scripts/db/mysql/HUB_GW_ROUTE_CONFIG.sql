@@ -64,3 +64,9 @@ UPDATE `HUB_GW_ROUTE_CONFIG` SET `backendType` = 'proxy' WHERE `backendType` IS 
 ALTER TABLE `HUB_GW_ROUTE_CONFIG` ADD COLUMN `redirectStatus` INT DEFAULT 0 COMMENT '重定向状态码(301/302/307/308)，backendType=redirect 时使用';
 ALTER TABLE `HUB_GW_ROUTE_CONFIG` ADD COLUMN `redirectLocation` VARCHAR(500) DEFAULT NULL COMMENT '重定向 Location，相对路径或 http(s) URL';
 
+-- Mock 后端：命中后直接返回固定状态码与正文，不转发服务。
+ALTER TABLE `HUB_GW_ROUTE_CONFIG` MODIFY COLUMN `backendType` VARCHAR(16) DEFAULT 'proxy' COMMENT '后端类型(proxy服务代理,static本机静态,redirect重定向,mock固定响应)';
+ALTER TABLE `HUB_GW_ROUTE_CONFIG` ADD COLUMN `mockStatus` INT DEFAULT 200 COMMENT 'Mock响应状态码(100-599)，backendType=mock 时使用';
+ALTER TABLE `HUB_GW_ROUTE_CONFIG` ADD COLUMN `mockContentType` VARCHAR(128) DEFAULT NULL COMMENT 'Mock Content-Type，空则 application/json; charset=utf-8';
+ALTER TABLE `HUB_GW_ROUTE_CONFIG` ADD COLUMN `mockBody` TEXT DEFAULT NULL COMMENT 'Mock响应体，1xx/204/304 必须为空';
+

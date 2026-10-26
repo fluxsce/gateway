@@ -3,7 +3,7 @@ import type { ToolbarProps } from '@/components/toolbar'
 import type { VNodeChild } from 'vue'
 
 /**
- * 行唯一键（对齐 Ant Design Table / Element Plus / niuma-ui RsTable）。
+ * 行唯一键（对齐 Ant Design Table / Element Plus / ensis-ui RsTable）。
  * - 字符串：取行上该字段
  * - 函数：业务自行组合联合主键，组件不改写行数据
  * 默认 T 为 any：RsGrid 非泛型，避免 `(row: Service) => string` 因参数逆变无法赋给 Record。
@@ -138,7 +138,7 @@ export interface RsGridProps {
    * 树形表格配置（透传 RsTable.treeConfig）。
    * 使用 `any` 行类型，避免 `RsTableTreeConfig<Concrete>` 因 loadData 参数逆变无法赋给默认 `object`。
    */
-  treeConfig?: import('niuma-ui').RsTableTreeConfig<any>
+  treeConfig?: import('ensis-ui').RsTableTreeConfig<any>
   /** 受控展开行 keys（树表 / 明细展开共用） */
   expandedRowKeys?: string[]
   /** 非受控初始展开 keys */

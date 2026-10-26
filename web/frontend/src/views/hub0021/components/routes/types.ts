@@ -60,6 +60,44 @@ export enum BackendType {
   PROXY = 'proxy',
   STATIC = 'static',
   REDIRECT = 'redirect',
+  MOCK = 'mock',
+}
+
+/** Mock 响应体上限，与 MySQL TEXT 单列字节上限对齐 */
+export const MOCK_BODY_MAX_BYTES = 65535
+
+/** 未填写 Content-Type 时的默认值 */
+export const DEFAULT_MOCK_CONTENT_TYPE = 'application/json; charset=utf-8'
+
+/**
+ * 规范 Mock 状态码。非法或空值回落为 200。
+ * @param value - 表单或接口中的状态码
+ * @returns 100 到 599 之间的整数，否则 200
+ */
+export function normalizeMockStatus(value: unknown): number {
+  const status = Number(value)
+  if (!Number.isInteger(status) || status < 100 || status > 599) {
+    return 200
+  }
+  return status
+}
+
+/**
+ * 判断该状态码是否禁止携带响应体。
+ * @param status - HTTP 状态码
+ * @returns 1xx、204、304 为 true
+ */
+export function mockStatusForbidsBody(status: number): boolean {
+  return status < 200 || status === 204 || status === 304
+}
+
+/**
+ * 计算 Mock 响应体的 UTF-8 字节长度。
+ * @param body - 响应体文本
+ * @returns 字节数
+ */
+export function mockBodyByteLength(body: string): number {
+  return new TextEncoder().encode(body).length
 }
 
 /** RFC 9110 允许的路由重定向状态码 */
@@ -88,6 +126,9 @@ export function resolveListBackend(
   }
   if (row.backendType === BackendType.REDIRECT) {
     return BackendType.REDIRECT
+  }
+  if (row.backendType === BackendType.MOCK) {
+    return BackendType.MOCK
   }
   if (row.backendType === BackendType.PROXY) {
     return hasManagedService(row.serviceDefinitionId) ? BackendType.PROXY : 'none'
@@ -155,12 +196,18 @@ export interface RouteConfig {
   staticHostEnabled?: 'Y' | 'N'
   /** 活动静态托管的根目录（列表/详情回显） */
   staticRootDirectory?: string
-  /** 后端类型，落库：proxy 服务代理 / static 静态资源 / redirect 重定向 */
+  /** 后端类型，落库：proxy 服务代理 / static 静态资源 / redirect 重定向 / mock 固定响应 */
   backendType?: BackendType | string
   /** 重定向状态码，仅 301、302、307、308 */
   redirectStatus?: number
   /** 重定向 Location，如 /#/datahublogin */
   redirectLocation?: string
+  /** Mock 响应状态码，仅 100-599 */
+  mockStatus?: number
+  /** Mock Content-Type，空则 application/json; charset=utf-8 */
+  mockContentType?: string
+  /** Mock 响应体。1xx、204、304 必须为空 */
+  mockBody?: string
 
   // 元数据和扩展
   /** 路由元数据 */

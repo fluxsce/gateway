@@ -149,12 +149,12 @@ importers:
       echarts:
         specifier: ^5.5.0
         version: 5.6.0
+      ensis-ui:
+        specifier: link:../../../../shangijan/ensis-ui
+        version: link:../../../../shangijan/ensis-ui
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.2
-      niuma-ui:
-        specifier: link:../../../../shangijan/niuma-ui
-        version: link:../../../../shangijan/niuma-ui
       pinia:
         specifier: ^3.0.1
         version: 3.0.4(typescript@5.8.3)(vue@3.5.41(typescript@5.8.3))

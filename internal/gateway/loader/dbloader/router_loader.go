@@ -121,7 +121,8 @@ func (loader *RouterConfigLoader) LoadRoutes(ctx context.Context, instanceId str
 		SELECT tenantId, routeConfigId, gatewayInstanceId, routeName, routePath,
 		       allowedMethods, allowedHosts, matchType, routePriority, stripPathPrefix,
 		       rewritePath, enableWebsocket, timeoutMs, retryCount, retryIntervalMs,
-		       serviceDefinitionId, backendType, redirectStatus, redirectLocation, logConfigId, routeMetadata, activeFlag
+		       serviceDefinitionId, backendType, redirectStatus, redirectLocation,
+		       mockStatus, mockContentType, mockBody, logConfigId, routeMetadata, activeFlag
 		FROM HUB_GW_ROUTE_CONFIG 
 		WHERE tenantId = ? AND gatewayInstanceId = ? AND activeFlag = 'Y'
 		ORDER BY routePriority ASC
@@ -244,6 +245,7 @@ func buildRouteConfig(record RouteConfigRecord) router.RouteConfig {
 		MatchType:                 record.MatchType,
 		BackendType:               strings.TrimSpace(record.BackendType),
 		RedirectStatus:            record.RedirectStatus,
+		MockStatus:                record.MockStatus,
 		Priority:                  record.RoutePriority,
 		Enabled:                   record.ActiveFlag == "Y",
 		StripPathPrefix:           record.StripPathPrefix == "Y",
@@ -258,6 +260,12 @@ func buildRouteConfig(record RouteConfigRecord) router.RouteConfig {
 	}
 	if record.RedirectLocation != nil {
 		config.RedirectLocation = strings.TrimSpace(*record.RedirectLocation)
+	}
+	if record.MockContentType != nil {
+		config.MockContentType = strings.TrimSpace(*record.MockContentType)
+	}
+	if record.MockBody != nil {
+		config.MockBody = *record.MockBody
 	}
 	return config
 }

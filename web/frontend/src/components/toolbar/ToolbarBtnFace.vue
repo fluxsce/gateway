@@ -25,7 +25,7 @@
 <script setup lang="ts">
 import { GIcon } from '@/components/gicon'
 import { RsButton } from '@/ui'
-import type { RsButtonTone } from 'niuma-ui'
+import type { RsButtonTone } from 'ensis-ui'
 import type { Component } from 'vue'
 import { computed } from 'vue'
 import type { ToolbarButtonType } from './types'
