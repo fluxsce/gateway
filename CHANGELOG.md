@@ -6,6 +6,11 @@
 
 ## [Unreleased]
 
+## [3.5.3] - 2026-10-30
+
+### 修复
+- **Vastbase Oracle 兼容模式能读出日期时间**：A 模式的 `DATE`、`TIMESTAMP` 类型 OID 不在 openGauss 驱动表里，查询结果是文本字节。`SELECT *` 的列比结构体字段多时，这些字节写不进 `time.Time`，登录查 `HUB_USER` 会报「查询用户失败」。现在与 SQLite 的文本时间用同一套解析。驱动直接返回 `time.Time` 或字符串的库仍走原来的分支。
+
 ## [3.5.2] - 2026-10-30
 
 

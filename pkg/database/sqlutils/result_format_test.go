@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 type countRow struct {
@@ -70,6 +71,46 @@ func TestMapValuesCountAlias(t *testing.T) {
 	}
 	if row.Total != 7 {
 		t.Fatalf("Total=%d", row.Total)
+	}
+}
+
+type vastbaseUserRow struct {
+	UserId         string     `db:"userId"`
+	Gender         int        `db:"gender"`
+	UserExpireDate time.Time  `db:"userExpireDate"`
+	LastLoginTime  *time.Time `db:"lastLoginTime"`
+	AddTime        time.Time  `db:"addTime"`
+	Extra          string     `db:"-"`
+}
+
+func TestMapValuesVastbaseOracleDateBytes(t *testing.T) {
+	row := vastbaseUserRow{}
+	cols := []string{"userid", "gender", "userexpiredate", "lastlogintime", "addtime", "notetext"}
+	mapper, err := NewFieldMapper(cols, &row)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = mapper.MapValues([]interface{}{
+		"admin",
+		[]byte("1"),
+		[]byte("2031-10-30 19:19:17"),
+		nil,
+		[]byte("2026-10-30 19:19:17"),
+		[]byte("备注"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.UserId != "admin" || row.Gender != 1 {
+		t.Fatalf("user=%s gender=%d", row.UserId, row.Gender)
+	}
+	if row.LastLoginTime != nil {
+		t.Fatal("null lastLoginTime should stay nil")
+	}
+	wantExpire := time.Date(2031, 10, 30, 19, 19, 17, 0, time.Local)
+	wantAdd := time.Date(2026, 10, 30, 19, 19, 17, 0, time.Local)
+	if !row.UserExpireDate.Equal(wantExpire) || !row.AddTime.Equal(wantAdd) {
+		t.Fatalf("expire=%s add=%s", row.UserExpireDate, row.AddTime)
 	}
 }
 

@@ -1,0 +1,743 @@
+# ===========================================
+# 数据库与缓存系统配置文件
+# ===========================================
+# 
+# 当前配置说明（贵阳现场，database.gy.yaml）：
+# - 默认数据库 Vastbase（内网 192.168.0.13:65432，库/模式 wd_stest）
+# - 默认缓存 Redis 哨兵（master）
+# - 默认 MongoDB 三节点副本（useradmin）
+# - 其余示例连接保持禁用
+# 
+# ===========================================
+
+# 数据库配置
+database:
+  # 默认连接名称
+  default: vastbase
+  
+  # === 数据库脚本初始化配置 ===
+  # 是否启用数据库脚本自动初始化（应用启动时执行）
+  enable_script_initialization: true
+  
+  # 是否允许部分数据库初始化失败（true: 允许部分失败继续启动, false: 任何失败都终止启动）
+  allow_partial_failure: true
+  
+  # 脚本初始化超时时间（分钟）
+  script_initialization_timeout: 30
+  
+  # 脚本文件目录路径（相对于应用根目录）
+  script_directory: "scripts/db"
+  
+  # 各种数据库连接的配置
+  connections:
+    # MySQL 主连接
+    mysql:
+      driver: mysql
+      enabled: false # 禁用MySQL连接
+      dsn: "" # 如果提供DSN，将忽略下面的结构化配置
+      connection:
+        host: xxx.xxx.x.xxx
+        port: 3306
+        username: xxxx
+        password: "xxxx"
+        database: gateway_dev
+        # charset 留空跟库走；仅当要覆盖连接字符集时填写（如 utf8 / utf8mb4）
+        parse_time: true
+        loc: Local
+      pool:
+        max_open_conns: 100
+        max_idle_conns: 25
+        conn_max_lifetime: 3600 # 秒
+        conn_max_idle_time: 1800 # 秒
+      log:
+        slow_threshold: 200 # 毫秒，超过此时间的查询被视为慢查询
+        log_level: info # 日志级别: debug, info, warn, error
+        enable: true # 是否启用日志
+      transaction:
+        default_isolation: 3 # 默认隔离级别: 1=读未提交, 2=读已提交, 3=可重复读, 4=可串行化
+    # Oracle主数据库连接
+    oracle_main:
+      enabled: false
+      driver: "oracle"
+      
+      # 方式1: 使用DSN连接字符串 (推荐)
+      # Oracle DSN格式: oracle://username:password@host:port/service_name
+      # 或者: username/password@host:port/service_name
+      # 或者: username/password@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=host)(PORT=port))(CONNECT_DATA=(SERVICE_NAME=service_name)))
+      # 支持的参数: TIMEZONE=Asia/Shanghai&NLS_LANG=AMERICAN_AMERICA.UTF8&CONNECTION_TIMEOUT=30
+      # dsn: "oracle://scott:tiger@localhost:1521/XEPDB1"
+      
+      # 方式2: 使用结构化连接配置 (如果未设置dsn，将使用此配置自动生成)
+      connection:
+        host: "localhost"
+        port: 1521
+        username: "your_username"
+        password: "your_password"
+        database: "XE"  # Oracle的SERVICE_NAME或SID
+        
+        # Oracle特有参数
+        timezone: "Asia/Shanghai"  # 时区设置，默认为系统时区
+        # nls_lang / charset / nls_characterset 留空跟库走；不要默认写 AL32UTF8
+        # nls_lang: "CHINESE_CHINA.AL32UTF8"
+        # charset: "UTF8"
+        # nls_characterset: "AL32UTF8"
+        connection_timeout: 30     # 连接超时时间(秒)
+        read_timeout: 30          # 读取超时时间(秒) 
+        write_timeout: 30         # 写入超时时间(秒)
+        prefetch_rows: 500        # 预取行数
+        lob_prefetch_size: 4096   # LOB预取大小
+        
+      # 连接池配置
+      pool:
+        max_open_conns: 50      # 最大打开连接数
+        max_idle_conns: 25      # 最大空闲连接数
+        conn_max_lifetime: 3600 # 连接最大生命周期(秒)
+        conn_max_idle_time: 1800 # 连接最大空闲时间(秒)
+        
+      # 日志配置
+      log:
+        enable: true           # 是否启用SQL日志
+        slow_threshold: 200    # 慢查询阈值(毫秒)
+        
+      # 事务配置
+      transaction:
+        default_use: false     # 默认是否使用事务
+    
+    # ClickHouse 连接
+    clickhouse_main:
+      enabled: false
+      driver: "clickhouse"
+      
+      # ClickHouse 连接配置
+      connection:
+        host: "localhost"
+        port: 9000                  # ClickHouse TCP 原生协议端口
+        username: "default"         # ClickHouse 默认用户
+        password: "your_password"   # 密码
+        database: "gateway_db"      # 要连接的数据库名称
+        
+        # ClickHouse 官网标准DSN参数 - https://clickhouse.com/docs/zh/integrations/go
+        clickhouse_compress: "lz4"                 # 压缩算法(none,lz4,zstd,gzip,deflate,br) 推荐lz4
+        clickhouse_compress_level: 1               # 压缩级别(0-11) 1为轻量压缩
+        clickhouse_secure: false                   # 建立安全SSL连接(端口:9440)
+        clickhouse_skip_verify: false              # 跳过证书验证(默认false)
+        clickhouse_debug: false                    # 启用调试输出(默认false)
+        clickhouse_dial_timeout: 30                # 拨号超时时间(秒) 官网标准30s
+        clickhouse_block_buffer_size: 2            # 块缓冲区大小(默认2)
+        clickhouse_conn_open_strategy: "random"    # 连接策略(random/in_order) 默认random
+        
+        # === 集群和负载均衡参数 ===
+        
+        # 额外主机列表 - 自动拼接到地址部分 (官网标准格式)
+        # 格式：host2:port2,host3:port3 (会自动拼接成 host1:port1,host2:port2,host3:port3)
+        # 最终DSN: clickhouse://host1:port1,host2:port2,host3:port3/database
+        clickhouse_hosts: ""
+        
+        # === 官网标准配置示例 ===
+        # 集群高可用:
+        # clickhouse_alt_hosts: "clickhouse-node2:9000,clickhouse-node3:9000"
+        # 
+        # 性能优化设置:
+        # clickhouse_settings: "max_memory_usage=8000000000,max_threads=4,use_uncompressed_cache=1,read_timeout=30,write_timeout=30"
+        #
+        # TLS连接示例:
+        # clickhouse_secure: true              # 启用TLS，端口自动切换到9440
+        # clickhouse_compress: "zstd"          # TLS下推荐使用zstd压缩
+        
+      # 连接池配置
+      pool:
+        max_open_conns: 50          # 最大打开连接数（ClickHouse 推荐较少连接）
+        max_idle_conns: 10          # 最大空闲连接数
+        conn_max_lifetime: 3600     # 连接最大生命周期(秒)
+        conn_max_idle_time: 1800    # 连接最大空闲时间(秒)
+        
+      # 日志配置
+      log:
+        enable: true                # 是否启用SQL日志
+        slow_threshold: 1000        # 慢查询阈值(毫秒)，分析查询通常较慢
+        
+      # 事务配置
+      transaction:
+        default_use: false          # ClickHouse 事务支持有限，默认不使用
+
+    # SQL Server 连接
+    # 场景说明（结构化配置会生成 sqlserver:// DSN；也可直接填 dsn 覆盖）：
+    # 1) 默认实例：host + port(1433) + SQL 账号
+    # 2) 命名实例 + SQL Browser：sqlserver_instance 填写实例名，port 填 0
+    # 3) 命名实例 + 固定端口：同时填 sqlserver_instance 与实际 port
+    # 4) Azure SQL：encrypt=true，可填 sqlserver_hostname_in_certificate
+    # 5) Always On 监听器：sqlserver_multi_subnet_failover=true；只读副本再加 application_intent=ReadOnly
+    # 6) Windows 集成登录：username/password 留空，sqlserver_authenticator=winsspi（Linux 连 AD 可用 ntlm）
+    # 7) 域账号：username 填 DOMAIN\user（会做 URL 编码）
+    # 8) 镜像旧方案：sqlserver_failover_partner
+    # 9) 完全自定义：dsn: "sqlserver://..." 或 ADO "server=...;database=..."
+    # 10) Azure AD / Always Encrypted / krb5：结构化字段不覆盖，请直接填 dsn
+    sqlserver_main:
+      enabled: false
+      driver: "sqlserver"           # 别名也可写 mssql
+      dsn: ""                       # 非空则忽略下面 connection；ADO 也可 server=...;database=...
+      connection:
+        host: "192.168.1.120"
+        port: 61433                  # 默认实例 1433；命名实例走 Browser 时必须填 0
+        username: "sa"              # SQL 账号；Windows 集成登录请留空。域账号填 DOMAIN\user
+        password: "Your_strong_Passw0rd"   # 集成登录请留空
+        database: "gateway"         # 须事先建好；脚本只建表。ReadOnly 意图时必填
+        sqlserver_instance: ""      # 命名实例名，如 SQLEXPRESS。空=默认实例
+        sqlserver_encrypt: "disable"  # disable/false/true/strict。空则 disable。Azure 填 true
+        sqlserver_trust_server_certificate: false  # 自签证书测试可 true；Azure 生产应 false
+        sqlserver_hostname_in_certificate: ""      # 证书 CN 与 host 不一致时填，Azure 常用 *.database.windows.net
+        sqlserver_connection_timeout: 30  # 登录超时(秒)，>0 才写入 DSN
+        sqlserver_dial_timeout: 15        # TCP 拨号超时(秒)
+        sqlserver_app_name: "gateway"     # 出现在会话 program_name，便于 DBA 识别
+        sqlserver_workstation_id: ""      # 会话工作站名，空则用本机名
+        sqlserver_keepalive: 30           # TCP keepalive(秒)
+        sqlserver_authenticator: ""       # 空=SQL 账号；Windows 填 winsspi；Linux 连 AD 填 ntlm
+        sqlserver_application_intent: ""  # ReadOnly 走 AG 可读副本；走主副本留空
+        sqlserver_multi_subnet_failover: false  # Always On 多子网监听器建议 true
+        sqlserver_failover_partner: ""    # 旧镜像辅助服务器；AG 不要用这个
+      pool:
+        max_open_conns: 50          # 最大打开连接数
+        max_idle_conns: 25          # 最大空闲连接数
+        conn_max_lifetime: 3600     # 连接最大生命周期(秒)
+        conn_max_idle_time: 1800    # 连接最大空闲时间(秒)
+      log:
+        enable: true                # 是否启用 SQL 日志
+        slow_threshold: 200         # 慢查询阈值(毫秒)
+      transaction:
+        default_use: false          # 默认是否使用事务
+
+    # MySQL 只读连接
+    mysql_read:
+      driver: mysql
+      enabled: false
+      connection:
+        host: localhost 
+        port: 3306
+        username: readonly
+        password: password
+        database: gateway
+        # charset 留空跟库走
+        parse_time: true
+        loc: Local
+      pool:
+        max_open_conns: 50
+        max_idle_conns: 10
+      log:
+        slow_threshold: 200
+      transaction:
+        default_isolation: 2 # 读已提交，适合只读连接
+
+    # Vastbase（海量）连接。驱动是 openGauss 连接器（支持 sha256 口令）。
+    # 连上后读 sql_compatibility：PG 用 scripts/db/vastbase；A（Oracle 兼容）用 scripts/db/vastbase_oracle。
+    # 不需要为网关另建库。MySQL 兼容（B）未单独支持。
+    # 外网地址 47.117.13.121:65432。网关在内网时用下面的 192.168.0.13。
+    # 模式名也是 wd_stest。连接串没有 search_path 字段；用户名与模式同名时，
+    # 库默认 search_path（"$user", public）会落到 wd_stest。
+    vastbase:
+      driver: vastbase
+      enabled: true
+      connection:
+        host: 192.168.0.13
+        port: 65432
+        username: wd_stest
+        password: "hy20N-u.5QAQsN-;;fvG"
+        database: wd_stest
+        sslmode: disable
+      pool:
+        max_open_conns: 50
+        max_idle_conns: 10
+      log:
+        slow_threshold: 200
+
+    # PostgreSQL 连接示例
+    postgres:
+      driver: postgres
+      enabled: false # 禁用此连接
+      connection:
+        host: localhost
+        port: 5432
+        username: postgres
+        password: postgres
+        database: gateway
+        sslmode: disable
+      pool:
+        max_open_conns: 50
+        max_idle_conns: 10
+      log:
+        slow_threshold: 200
+
+    # ===== SQLite 数据库配置 =====
+    # 
+    # 重要提示：SQLite配置优先考虑数据安全性，避免数据丢失风险
+    # 危险配置组合：
+    # - synchronous=OFF + journal_mode!=WAL (可能丢失事务数据)
+    # - journal_mode=OFF (禁用事务日志，数据库可能损坏)
+    # - journal_mode=MEMORY + synchronous=OFF (系统崩溃时丢失所有数据)
+    # 
+    # 推荐安全配置：
+    # - journal_mode=WAL + synchronous=FULL (最高安全性)
+    # - foreign_keys=true (保证数据完整性)
+    # - secure_delete=true (防止敏感数据泄露)
+    
+    # SQLite 主连接 - 生产环境配置(数据安全优先)
+    sqlite_main:
+      driver: sqlite
+      enabled: false                # 贵阳现场用 vastbase，不启用 SQLite
+      
+      # 方式1: 使用DSN连接字符串 (如果设置了DSN，将忽略下面的结构化配置)
+      # SQLite DSN格式: file:path/to/database.db?param1=value1&param2=value2
+      # 或者简单路径: ./data/app.db 或 :memory: (内存数据库)
+      # dsn: "file:./data/gateway.db?cache=private&mode=rwc&_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=1"
+      
+      # 方式2: 使用结构化连接配置 (推荐，更清晰)
+      connection:
+        # === 基本路径配置 ===
+        database: "./scripts/data/gateway.db"     # 数据库文件路径 (相对或绝对路径)
+        # file_path: "./data/gateway.db"  # 可选：显式指定文件路径，优先于database字段
+        
+        # === SQLite核心参数 - 数据安全优先配置 ===
+        journal_mode: "WAL"               # 日志模式: WAL(推荐,最安全), DELETE, TRUNCATE, PERSIST, MEMORY, OFF(危险)
+        synchronous_mode: "FULL"          # 同步模式: FULL(最安全,默认), NORMAL(平衡), OFF(危险,可能丢数据)
+        cache_mode: "private"             # 文件库用 private；shared 已过时，多连接易 SQLITE_LOCKED
+        connection_mode: "rwc"            # 连接模式: rwc(读写创建), ro(只读), rw(读写), memory(内存)
+        foreign_keys: true                # 启用外键约束(保证数据完整性)
+        
+        # === 性能优化参数 ===
+        cache_size: -64000                # 缓存大小: 负数表示KB(-64000=64MB), 正数表示页数
+        busy_timeout: 10000               # 忙等待超时(毫秒): 10秒
+        page_size: 4096                   # 页面大小: 512,1024,2048,4096(推荐),8192,16384,32768,65536
+        
+        # === 高级配置参数 ===
+        auto_vacuum: "INCREMENTAL"        # 自动清理: NONE(关闭), FULL(完全), INCREMENTAL(增量,推荐)
+        temp_store: "MEMORY"              # 临时存储: DEFAULT, FILE, MEMORY(推荐)
+        locking_mode: "NORMAL"            # 锁定模式: NORMAL(推荐), EXCLUSIVE
+        secure_delete: "true"             # 安全删除: true(最安全,默认), false(性能优先), fast(平衡)
+        wal_autocheckpoint: 1000          # WAL自动检查点间隔(页数)
+        max_page_count: 1073741823        # 最大页数限制(约4TB@4KB页面)
+        query_only: false                 # 只读模式: false(可读写), true(只读)
+        
+      # 连接池配置 (SQLite建议较小的连接数)
+      pool:
+        max_open_conns: 10                # 最大打开连接数 (SQLite推荐1-10)
+        max_idle_conns: 5                 # 最大空闲连接数
+        conn_max_lifetime: 3600           # 连接最大生命周期(秒): 1小时
+        conn_max_idle_time: 1800          # 连接最大空闲时间(秒): 30分钟
+        
+      # 日志配置
+      log:
+        enable: true                      # 启用SQL日志
+        slow_threshold: 100               # 慢查询阈值(毫秒): SQLite通常很快
+        
+      # 事务配置
+      transaction:
+        default_use: true                 # 默认使用事务 (SQLite事务开销小)
+
+    # SQLite 内存数据库 - 用于测试和缓存
+    sqlite_memory:
+      driver: sqlite
+      enabled: false                      # 默认禁用
+      connection:
+        database: ":memory:"              # 内存数据库
+        journal_mode: "MEMORY"            # 内存模式下的日志
+        synchronous_mode: "OFF"           # 内存数据库可以关闭同步
+        cache_mode: "private"             # 内存数据库使用私有缓存
+        connection_mode: "memory"         # 内存连接模式
+        foreign_keys: true
+        cache_size: -32000                # 32MB内存缓存
+        busy_timeout: 1000                # 1秒超时
+        temp_store: "MEMORY"
+      pool:
+        max_open_conns: 5                 # 内存数据库连接数更少
+        max_idle_conns: 2
+        conn_max_lifetime: 1800           # 30分钟
+        conn_max_idle_time: 900           # 15分钟
+      log:
+        enable: false                     # 内存数据库通常不需要日志
+        slow_threshold: 50
+      transaction:
+        default_use: false                # 内存数据库可以不使用事务
+
+    # SQLite 只读连接 - 用于报表和查询
+    sqlite_readonly:
+      driver: sqlite
+      enabled: false                      # 默认禁用
+      connection:
+        database: "./data/gateway_readonly.db"
+        journal_mode: "WAL"               # 只读也可以使用WAL
+        synchronous_mode: "NORMAL"
+        cache_mode: "shared"              # 共享缓存提高性能
+        connection_mode: "ro"             # 只读模式
+        foreign_keys: true
+        cache_size: -128000               # 128MB缓存 (只读可以用更多缓存)
+        busy_timeout: 30000               # 30秒超时 (只读操作可以等待更久)
+        query_only: true                  # 启用只读模式
+      pool:
+        max_open_conns: 20                # 只读连接可以更多
+        max_idle_conns: 10
+        conn_max_lifetime: 7200           # 2小时
+        conn_max_idle_time: 3600          # 1小时
+      log:
+        enable: true
+        slow_threshold: 200               # 只读查询可能更复杂
+      transaction:
+        default_use: false                # 只读不需要事务
+
+    # SQLite 高性能配置 - 用于高并发场景
+    sqlite_performance:
+      driver: sqlite
+      enabled: false                      # 默认禁用
+      connection:
+        database: "./data/gateway_perf.db"
+        journal_mode: "WAL"               # WAL模式最适合并发
+        synchronous_mode: "NORMAL"        # 平衡性能和安全
+        cache_mode: "shared"              # 共享缓存
+        connection_mode: "rwc"
+        foreign_keys: false               # 高性能场景可以关闭外键检查
+        cache_size: -256000               # 256MB大缓存
+        busy_timeout: 5000                # 5秒超时
+        page_size: 8192                   # 更大的页面大小
+        auto_vacuum: "NONE"               # 关闭自动清理以提高性能
+        temp_store: "MEMORY"              # 临时数据存内存
+        locking_mode: "NORMAL"
+        secure_delete: "false"            # 关闭安全删除提高性能
+        wal_autocheckpoint: 10000         # 更大的检查点间隔
+      pool:
+        max_open_conns: 1                 # SQLite在高并发下建议单连接
+        max_idle_conns: 1
+        conn_max_lifetime: 86400          # 24小时
+        conn_max_idle_time: 7200          # 2小时
+      log:
+        enable: false                     # 高性能场景关闭日志
+        slow_threshold: 500
+      transaction:
+        default_use: true 
+
+# ===========================================
+# 缓存配置 - 支持Redis和内存缓存
+# ===========================================
+cache:
+  # 默认使用的缓存连接名称
+  default: redis_sentinel
+  
+  # 缓存连接配置 - 支持多种类型：redis, memory
+  connections:
+    # ===== Redis 缓存配置 =====
+    
+            # Redis 主连接 - 单机模式
+    redis_primary:
+      type: redis                 # 缓存类型：redis
+      config:
+        enabled: false            # 禁用Redis连接
+        mode: "single"            # 连接模式: single(单机), sentinel(哨兵), cluster(集群)
+        
+        # === 单机模式连接配置 ===
+        host: localhost           # Redis服务器地址
+        port: 6379                # Redis服务器端口
+        password: "your_password" # Redis认证密码
+        database: 0               # Redis数据库编号，范围0-15
+        
+        # === 连接池配置 ===
+        pool_size: 100            # 连接池最大连接数
+        min_idle_connections: 10  # 最小空闲连接数
+        max_retries: 3            # 操作失败时的最大重试次数
+        
+        # === 超时配置 ===
+        dial_timeout: "5s"        # 建立连接的超时时间
+        read_timeout: "3s"        # 读取数据的超时时间
+        write_timeout: "3s"       # 写入数据的超时时间
+        pool_timeout: "4s"        # 从连接池获取连接的超时时间
+        idle_timeout: "60s"     # 空闲连接超时时间
+        
+        # === TLS配置 ===
+        enable_tls: false         # 是否启用TLS
+        insecure_skip_verify: false # 是否跳过TLS证书验证
+        cert_file: ""             # TLS证书文件路径
+        key_file: ""              # TLS私钥文件路径
+        ca_file: ""               # TLS CA证书文件路径
+
+    # Redis 哨兵模式连接示例
+    redis_sentinel:
+      type: redis
+      config:
+        enabled: true
+        mode: "sentinel"          # 哨兵模式
+        
+        # === 哨兵配置 ===
+        sentinel_addrs:           # 哨兵地址列表
+          - "192.168.0.16:26379"
+          - "192.168.0.14:26379"
+          - "192.168.0.5:26379"
+        master_name: "mymaster"   # 与 sentinel monitor / auth-pass 的名字一致
+        password: "Ug#meLnKS3ZpwqiY*GZBkEnYWcfBGK" # Redis 主/从节点认证密码
+        sentinel_password: "Ug#meLnKS3ZpwqiY*GZBkEnYWcfBGK"    # 未单独提供哨兵口令；哨兵若开了 requirepass，填到这里，否则会 NOAUTH
+        sentinel_username: ""    # 哨兵认证用户名（可选，Redis 6+ ACL 时使用）
+        database: 0
+        
+        # === 连接池配置 ===
+        pool_size: 100
+        min_idle_connections: 10
+        max_retries: 3
+        
+        # === 超时配置 ===
+        dial_timeout: "5s"
+        read_timeout: "3s"
+        write_timeout: "3s"
+        pool_timeout: "4s"
+        idle_timeout: "1800s"
+
+    # Redis 集群模式连接示例
+    redis_cluster:
+      type: redis
+      config:
+        enabled: false            # 默认禁用
+        mode: "cluster"           # 集群模式
+        
+        # === 集群配置 ===
+        cluster_addrs:            # 集群节点地址列表
+          - "127.0.0.1:7000"
+          - "127.0.0.1:7001"
+          - "127.0.0.1:7002"
+          - "127.0.0.1:7003"
+          - "127.0.0.1:7004"
+          - "127.0.0.1:7005"
+        password: ""              # 集群密码
+        
+        # === 连接池配置 ===
+        pool_size: 100
+        min_idle_connections: 10
+        max_retries: 3
+        
+        # === 超时配置 ===
+        dial_timeout: "5s"
+        read_timeout: "3s"
+        write_timeout: "3s"
+        pool_timeout: "4s"
+        idle_timeout: "1800s"
+
+    # ===== 内存缓存配置 =====
+    
+    # 内存缓存 - 主实例
+    memory_cache:
+      type: memory              # 缓存类型：memory
+      config:
+        enabled: true          # 是否启用该连接
+        
+        # === 容量配置 ===
+        max_size: 200000        # 最大存储条目数
+        
+        # === 键配置 ===
+        key_prefix: "gateway:"    # 键前缀，用于区分不同应用
+        
+        # === 淘汰策略 ===
+        eviction_policy: "ttl"  # 淘汰策略: ttl(过期时间，已实现), lru(预留), random(预留), fifo(预留)
+        
+        # === 过期时间配置 ===
+        default_expiration: "1h"    # 默认过期时间
+        cleanup_interval: "10m"     # 清理过期数据的间隔
+        enable_lazy_cleanup: true   # 是否启用惰性清理
+        
+        # === 监控配置 ===
+        enable_metrics: true        # 是否启用指标收集
+        metrics_namespace: "memory_cache"  # 指标命名空间
+
+    # 内存缓存 - 临时缓存实例（用于短期数据）
+    memory_temp:
+      type: memory
+      config:
+        enabled: false          # 默认禁用
+        max_size: 5000          # 较小的容量
+        key_prefix: "temp:"
+        eviction_policy: "ttl"  # 使用TTL策略
+        default_expiration: "5m"    # 较短的过期时间
+        cleanup_interval: "2m"      # 更频繁的清理
+        enable_lazy_cleanup: true
+        enable_metrics: false       # 临时缓存不需要指标
+
+    # 内存缓存 - 会话缓存实例（用于用户会话）
+    memory_session:
+      type: memory
+      config:
+        enabled: false
+        max_size: 20000         # 用户会话数据
+        key_prefix: "session:"
+        eviction_policy: "ttl"  # 使用TTL策略
+        default_expiration: "30m"   # 会话超时时间
+        cleanup_interval: "5m"
+        enable_lazy_cleanup: true
+        enable_metrics: true    # 需要监控会话指标
+        metrics_namespace: "session_cache"
+# ===========================================
+# MongoDB配置 - 支持单机、副本集、分片集群
+# ===========================================
+mongo:
+  enabled: true
+  default: "mongo_replica"
+  connections:
+    # MongoDB 主连接 - 单机模式
+    mongo_main:
+      id: "mongo_main"             # 配置ID，用于标识和引用
+      enabled: false
+      # === 基本连接信息 ===
+      host: localhost              # MongoDB主机地址
+      port: 27017                  # MongoDB端口号，默认 27017
+      database: "gateway"          # 要连接的数据库名称
+      
+      # === 认证信息 ===
+      username: "admin"            # 用户名，用于身份验证
+      password: "your_password"    # 密码，用于身份验证
+      authdb: "admin"              # 认证数据库名称，通常为 "admin"
+      
+      # === 连接池配置 ===
+      maxPoolSize: 100             # 最大连接池大小，默认 100
+      minPoolSize: 5               # 最小连接池大小，默认 5
+      maxIdleTimeMS: "30m"         # 连接最大空闲时间，默认 30分钟
+      connectTimeoutMS: "10s"      # 连接超时时间，默认 10秒
+      
+      # === SSL/TLS 配置 ===
+      enableTLS: false             # 是否启用TLS加密连接
+      tlsCertFile: ""              # TLS客户端证书文件路径
+      tlsKeyFile: ""               # TLS客户端私钥文件路径
+      tlsCAFile: ""                # TLS CA证书文件路径
+      tlsSkipVerify: false         # 是否跳过TLS证书验证（仅用于测试）
+      
+      # === 读写偏好配置 ===
+      readPreference: "primary"    # 读偏好：primary, secondary, nearest等
+      readConcern: "local"         # 读关注级别：local, majority, linearizable
+      writeConcern: "majority"     # 写关注级别：majority, 1, 0等
+      writeConcernTimeout: "5s"    # 写关注超时时间
+      
+      # === 其他高级配置 ===
+      appName: "gateway"             # 应用程序名称，用于日志记录
+      retryWrites: true            # 是否自动重试写操作
+      retryReads: true             # 是否自动重试读操作
+      serverSelectionTimeoutMS: "30s"  # 服务器选择超时时间
+      socketTimeoutMS: "0s"        # Socket操作超时时间（0表示无限制）
+      heartbeatIntervalMS: "10s"   # 心跳检查间隔时间
+      
+      # === 日志配置 ===
+      enableLogging: true          # 是否启用MongoDB驱动日志
+      logLevel: "info"             # 日志级别：debug, info, warn, error
+
+    # MongoDB 副本集连接示例
+    mongo_replica:
+      id: "mongo_replica"          # 配置ID，用于标识和引用
+      enabled: true
+      
+      # === 副本集配置 ===
+      # 未提供副本集名称。多主机时驱动会从种子节点发现拓扑，名称确认后填到 replicaSet。
+      replicaSet: ""
+      hosts:                      # 副本集中的主机地址列表
+        - "192.168.0.12:27017"
+        - "192.168.0.7:27017"
+        - "192.168.0.8:27017"
+      database: "gateway"          # 未指定业务库名，沿用网关默认库 gateway
+      
+      # === 认证信息 ===
+      username: "useradmin"
+      password: "QWEazx!@#431#!p"
+      authdb: "admin"
+      
+      # === 连接池配置 ===
+      maxPoolSize: 200
+      minPoolSize: 10
+      maxIdleTimeMS: "30m"
+      connectTimeoutMS: "10s"
+      
+      # === 读写偏好配置 ===
+      readPreference: "secondaryPreferred"  # 优先从副本读取
+      readConcern: "majority"               # 大多数读关注
+      writeConcern: "majority"
+      writeConcernTimeout: "5s"
+      
+      # === 其他高级配置 ===
+      appName: "gateway-replica"
+      retryWrites: true
+      retryReads: true
+      serverSelectionTimeoutMS: "30s"
+      socketTimeoutMS: "0s"
+      heartbeatIntervalMS: "10s"
+      
+      # === 日志配置 ===
+      enableLogging: true
+      logLevel: "info"
+
+    # MongoDB SSL连接示例（用于生产环境）
+    mongo_ssl:
+      id: "mongo_ssl"              # 配置ID，用于标识和引用
+      enabled: false               # 默认禁用
+      host: "secure-mongo.example.com"
+      port: 27017
+      database: "gateway_prod"
+      
+      # === 认证信息 ===
+      username: "prod_user"
+      password: "secure_password"
+      authdb: "admin"
+      
+      # === SSL/TLS 配置 ===
+      enableTLS: true              # 启用TLS
+      tlsCertFile: "/path/to/client.pem"     # 客户端证书
+      tlsKeyFile: "/path/to/client-key.pem"  # 客户端私钥
+      tlsCAFile: "/path/to/ca.pem"           # CA证书
+      tlsSkipVerify: false         # 不跳过证书验证
+      
+      # === 连接池配置 ===
+      maxPoolSize: 50
+      minPoolSize: 5
+      maxIdleTimeMS: "20m"
+      connectTimeoutMS: "15s"      # SSL连接可能需要更长时间
+      
+      # === 读写偏好配置 ===
+      readPreference: "primary"
+      readConcern: "majority"
+      writeConcern: "majority"
+      writeConcernTimeout: "10s"   # 生产环境可能需要更长的超时时间
+      
+      # === 其他高级配置 ===
+      appName: "gateway-production"
+      retryWrites: true
+      retryReads: true
+      serverSelectionTimeoutMS: "60s"  # 生产环境更长的选择超时
+      socketTimeoutMS: "30s"
+      heartbeatIntervalMS: "10s"
+      
+      # === 日志配置 ===
+      enableLogging: true
+      logLevel: "warn"             # 生产环境减少日志输出
+
+    # MongoDB 测试环境连接
+    mongo_test:
+      id: "mongo_test"             # 配置ID，用于标识和引用
+      enabled: false               # 默认禁用
+      host: "localhost"
+      port: 27017
+      database: "gateway_test"
+      
+      # === 认证信息（测试环境可能不需要认证） ===
+      username: ""
+      password: ""
+      authdb: ""
+      
+      # === 连接池配置（测试环境使用较小的连接池） ===
+      maxPoolSize: 20
+      minPoolSize: 2
+      maxIdleTimeMS: "10m"
+      connectTimeoutMS: "5s"
+      
+      # === 读写偏好配置 ===
+      readPreference: "primary"
+      readConcern: "local"         # 测试环境使用本地读关注
+      writeConcern: "1"            # 测试环境使用较低的写关注
+      writeConcernTimeout: "3s"
+      
+      # === 其他高级配置 ===
+      appName: "gateway-test"
+      retryWrites: false           # 测试环境可能不需要重试
+      retryReads: false
+      serverSelectionTimeoutMS: "10s"
+      socketTimeoutMS: "5s"
+      heartbeatIntervalMS: "5s"
+      
+      # === 日志配置 ===
+      enableLogging: true
+      logLevel: "debug"            # 测试环境启用详细日志

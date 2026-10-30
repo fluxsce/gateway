@@ -202,7 +202,7 @@ func GetGlobalTimezone() string {
 // 返回:
 //   - string: 版本号，默认为 "unknown"
 func GetVersion() string {
-	return "3.5.2"
+	return "3.5.3"
 }
 
 // GetAppName 获取应用名称

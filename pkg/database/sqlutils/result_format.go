@@ -238,6 +238,11 @@ func (fm *FieldMapper) convertValue(field reflect.Value, value interface{}) erro
 	fieldType := field.Type()
 	switch v := value.(type) {
 	case []byte:
+		// Vastbase Oracle 兼容模式里 DATE、TIMESTAMP 的类型 OID 不在 openGauss 驱动表中，
+		// 文本结果按 []byte 返回。列数和结构体不一致时走这里，要能写进 time.Time。
+		if fieldType == reflect.TypeOf(time.Time{}) || fieldType == reflect.TypeOf(&time.Time{}) {
+			return setTimeFieldFromDBString(field, fieldType, string(v))
+		}
 		if fieldType.Kind() == reflect.String {
 			field.SetString(string(v))
 			return nil
