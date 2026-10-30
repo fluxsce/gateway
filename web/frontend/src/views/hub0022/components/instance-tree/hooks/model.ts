@@ -201,10 +201,18 @@ export function useGatewayInstanceTreeModel() {
         span: 12,
         tabKey: 'basic',
         required: true,
-        tips: '代理配置的唯一标识名称，用于区分不同的代理配置',
+        tips: '只能包含字母、数字、下划线和横杠，用于区分不同的代理配置',
         rules: [
           { required: true, message: '请输入代理名称', trigger: ['blur', 'input'] },
           { max: 50, message: '代理名称不能超过50个字符', trigger: ['blur', 'input'] },
+          {
+            validator: (value: unknown) => {
+              if (typeof value !== 'string' || value === '') return true
+              if (!/^[A-Za-z0-9_-]+$/.test(value)) return '代理名称只能包含字母、数字、下划线和横杠'
+              return true
+            },
+            trigger: ['blur', 'input'],
+          },
         ],
       },
       {

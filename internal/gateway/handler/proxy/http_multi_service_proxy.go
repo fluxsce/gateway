@@ -27,16 +27,17 @@ var errMultiServiceSSE = errors.New("multi-service proxy does not support SSE st
 
 // ServiceResponse 服务响应信息
 type ServiceResponse struct {
-	ServiceID  string              // 服务ID
-	NodeID     string              // 节点ID
-	URL        string              // 请求的URL
-	StatusCode int                 // HTTP状态码
-	Headers    map[string][]string // 响应头
-	Body       []byte              // 响应体
-	Error      error               // 错误信息
-	Duration   time.Duration       // 请求耗时
-	StartTime  time.Time           // 请求开始时间（用于日志记录）
-	Success    bool                // 是否成功
+	ServiceID     string              // 服务ID
+	NodeID        string              // 节点ID
+	URL           string              // 请求的URL
+	StatusCode    int                 // HTTP状态码
+	Headers       map[string][]string // 响应头
+	Body          []byte              // 响应体
+	Error         error               // 错误信息
+	Duration      time.Duration       // 请求耗时
+	StartTime     time.Time           // 请求开始时间（用于日志记录）
+	Success       bool                // 是否成功
+	GatewayStatus int                 // 调用方断开为 499，代理总超时为 504，其它失败为 0
 }
 
 // HTTPMultiServiceProxy HTTP多服务代理处理器
@@ -206,6 +207,7 @@ func (m *HTTPMultiServiceProxy) proxyRequestToServiceWithRetry(
 			if attempt < maxRetries {
 				ctx.AddError(fmt.Errorf("选择节点失败，准备重试 (第%d次): %w", attempt+1, err))
 				if !waitRetryInterval(ctx, retryTimeout) {
+					lastResponse.GatewayStatus = constants.GatewayStatusClientClosed
 					return lastResponse
 				}
 				continue
@@ -215,13 +217,13 @@ func (m *HTTPMultiServiceProxy) proxyRequestToServiceWithRetry(
 		}
 
 		response, attemptDuration := m.proxyRequestToService(ctx, serviceConfig, node, requestBody, attempt, decision)
-		var circuitErr error
-		if response != nil {
-			circuitErr = response.Error
-		}
-		if node != nil {
+		// 调用方断开不写入熔断，既不记成功也不记失败。
+		clientClosed := response != nil && response.GatewayStatus == constants.GatewayStatusClientClosed
+		if node != nil && !clientClosed {
 			statusCode := 0
+			var circuitErr error
 			if response != nil {
+				circuitErr = response.Error
 				statusCode = response.StatusCode
 			}
 			failed := circuitbreaker.AttemptFailed(circuitErr, statusCode)
@@ -237,9 +239,14 @@ func (m *HTTPMultiServiceProxy) proxyRequestToServiceWithRetry(
 		lastResponse = response
 		lastResponse.Duration = totalBackendDuration
 
+		if response.GatewayStatus == constants.GatewayStatusClientClosed {
+			return lastResponse
+		}
+
 		if attempt < maxRetries {
 			ctx.AddError(fmt.Errorf("请求失败，准备重试 (第%d次，节点: %s): %w", attempt+1, node.URL, response.Error))
 			if !waitRetryInterval(ctx, retryTimeout) {
+				lastResponse.GatewayStatus = constants.GatewayStatusClientClosed
 				return lastResponse
 			}
 			continue
@@ -305,7 +312,8 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 		body = bytes.NewReader(requestBody)
 	}
 
-	requestCtx := ctx.Request.Context()
+	incomingCtx := ctx.Request.Context()
+	requestCtx := incomingCtx
 	if timeout := m.httpProxy.resolveRequestTimeout(ctx); timeout > 0 {
 		var cancel context.CancelFunc
 		requestCtx, cancel = context.WithTimeout(requestCtx, timeout)
@@ -408,7 +416,7 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 			responseHeaders,
 			responseBody,
 			map[string][]string(headersCopy), // 本服务自己的深拷，不写共享 ctx
-			requestBody,       // 转发请求体作为参数传入，避免并发覆盖
+			requestBody,                      // 转发请求体作为参数传入，避免并发覆盖
 			responseErr,
 			serviceName, // 服务名称，从 node 中获取
 			retryCount,  // 重试次数
@@ -429,7 +437,8 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 	// 发送代理请求（异常直接抛出）
 	resp, err := m.client.Do(proxyReq)
 	if err != nil {
-		// 请求失败时记录错误和后端请求结束时间
+		// 在 defer 取消出站 Context 之前区分状态码。错误原文不改写。
+		cancelStatus := proxyCancelStatus(incomingCtx, requestCtx, err)
 		responseErr = err
 		responseStatusCode = 0
 		backendResponseTime = time.Now()
@@ -437,13 +446,14 @@ func (m *HTTPMultiServiceProxy) proxyRequestToService(
 		attemptDuration := time.Since(requestStartTime)
 		// 注意：不在这里设置 MaxBackendDuration，由重试循环累加后统一设置
 		return &ServiceResponse{
-			ServiceID: serviceID,
-			NodeID:    nodeID,
-			URL:       requestURL,
-			Error:     err, // 直接返回错误，不包装
-			Duration:  attemptDuration,
-			StartTime: requestStartTime,
-			Success:   false,
+			ServiceID:     serviceID,
+			NodeID:        nodeID,
+			URL:           requestURL,
+			Error:         err,
+			Duration:      attemptDuration,
+			StartTime:     requestStartTime,
+			Success:       false,
+			GatewayStatus: cancelStatus,
 		}, attemptDuration
 	}
 	// defer resp.Body.Close() 位置正确：只有在成功获取响应时才设置 defer
@@ -560,15 +570,17 @@ func (m *HTTPMultiServiceProxy) mergeServiceResponses(
 		}
 		// 如果没有成功的，返回错误
 		if len(failed) > 0 {
-			ctx.Abort(http.StatusBadGateway, map[string]string{
+			status := failureStatus(failed)
+			ctx.Abort(status, map[string]string{
 				"error": "all upstream services failed",
 			})
-			ctx.Set(constants.GatewayStatusCode, constants.GatewayStatusBadGateway)
+			ctx.Set(constants.GatewayStatusCode, status)
 			return false
 		}
-		ctx.Abort(http.StatusBadGateway, map[string]string{
+		ctx.Abort(constants.GatewayStatusBadGateway, map[string]string{
 			"error": "no available upstream response",
 		})
+		ctx.Set(constants.GatewayStatusCode, constants.GatewayStatusBadGateway)
 		return false
 
 	case "first_error":
@@ -583,9 +595,10 @@ func (m *HTTPMultiServiceProxy) mergeServiceResponses(
 			ctx.ClearErrors()
 			return m.writeSingleResponse(ctx, successful[0])
 		}
-		ctx.Abort(http.StatusBadGateway, map[string]string{
+		ctx.Abort(constants.GatewayStatusBadGateway, map[string]string{
 			"error": "no available upstream response",
 		})
+		ctx.Set(constants.GatewayStatusCode, constants.GatewayStatusBadGateway)
 		return false
 
 	case "all":
@@ -603,9 +616,10 @@ func (m *HTTPMultiServiceProxy) mergeServiceResponses(
 			ctx.ClearErrors()
 			return m.writeSingleResponse(ctx, successful[0])
 		}
-		ctx.Abort(http.StatusBadGateway, map[string]string{
+		ctx.Abort(constants.GatewayStatusBadGateway, map[string]string{
 			"error": "no successful upstream response",
 		})
+		ctx.Set(constants.GatewayStatusCode, constants.GatewayStatusBadGateway)
 		return false
 	}
 }
@@ -621,10 +635,19 @@ func (m *HTTPMultiServiceProxy) writeSingleResponse(ctx *core.Context, response 
 		} else {
 			ctx.AddError(fmt.Errorf("后端服务请求失败"))
 		}
-		ctx.Abort(http.StatusBadGateway, map[string]string{
-			"error": "upstream request failed",
+		status := constants.GatewayStatusBadGateway
+		summary := "upstream request failed"
+		if response != nil {
+			switch response.GatewayStatus {
+			case constants.GatewayStatusClientClosed, constants.GatewayStatusGatewayTimeout:
+				status = response.GatewayStatus
+				summary = proxyFailureSummary(status)
+			}
+		}
+		ctx.Abort(status, map[string]string{
+			"error": summary,
 		})
-		ctx.Set(constants.GatewayStatusCode, constants.GatewayStatusBadGateway)
+		ctx.Set(constants.GatewayStatusCode, status)
 		return false
 	}
 
@@ -673,12 +696,26 @@ func (m *HTTPMultiServiceProxy) writeAllResponses(ctx *core.Context, responses [
 		}
 	}
 
-	// 选择一个状态码：优先使用第一个有状态码的响应，否则使用 200
-	statusCode := http.StatusOK
+	// 选择一个状态码：优先使用第一个有状态码的响应。
+	// 上游都没返回状态时，按调用方断开或代理总超时记 499/504，避免记成 200。
+	statusCode := 0
 	for _, resp := range responses {
 		if resp != nil && resp.StatusCode > 0 {
 			statusCode = resp.StatusCode
 			break
+		}
+	}
+	if statusCode == 0 {
+		failed := make([]*ServiceResponse, 0, len(responses))
+		for _, resp := range responses {
+			if resp != nil && !resp.Success {
+				failed = append(failed, resp)
+			}
+		}
+		if len(failed) > 0 {
+			statusCode = failureStatus(failed)
+		} else {
+			statusCode = http.StatusOK
 		}
 	}
 
@@ -714,4 +751,31 @@ func (m *HTTPMultiServiceProxy) writeAllResponses(ctx *core.Context, responses [
 	}
 
 	return true
+}
+
+// failureStatus 在一组失败都是同一种取消时返回 499 或 504，否则返回 502。
+func failureStatus(failed []*ServiceResponse) int {
+	if len(failed) == 0 {
+		return constants.GatewayStatusBadGateway
+	}
+	status := 0
+	for i, resp := range failed {
+		got := 0
+		if resp != nil {
+			got = resp.GatewayStatus
+		}
+		if i == 0 {
+			status = got
+			continue
+		}
+		if got != status {
+			return constants.GatewayStatusBadGateway
+		}
+	}
+	switch status {
+	case constants.GatewayStatusClientClosed, constants.GatewayStatusGatewayTimeout:
+		return status
+	default:
+		return constants.GatewayStatusBadGateway
+	}
 }

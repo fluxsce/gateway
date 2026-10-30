@@ -125,6 +125,13 @@ export function useRouteListModel() {
         width: 200,
       },
       {
+        key: 'noteText',
+        title: '备注',
+        align: 'left',
+        ellipsis: true,
+        width: 180,
+      },
+      {
         key: 'routePath',
         title: '路由路径',
         align: 'center',

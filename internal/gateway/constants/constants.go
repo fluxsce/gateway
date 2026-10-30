@@ -185,13 +185,20 @@ const (
 	GatewayStatusForbidden        = 403 // 网关授权失败
 	GatewayStatusNotFound         = 404 // 网关路由未找到
 	GatewayStatusMethodNotAllowed = 405 // 网关检测到方法不允许
-	GatewayStatusRequestTimeout   = 408 // 网关请求超时
+	GatewayStatusRequestTimeout   = 408 // 网关等待调用方把请求发完时超时
 	GatewayStatusTooManyRequests  = 429 // 网关限流
+	// GatewayStatusClientClosed 调用方在收到响应前结束，记 499。
+	// 调用方一发出就中断，以及调用方一直等到自己的超时再断开，都是这个状态码。
+	// 两次只看耗时不同：马上断开通常很短，调用方自己超时会接近它配置的时间。
+	// 不写入节点熔断。
+	GatewayStatusClientClosed = 499
 
 	// 网关层面的服务端错误
 	GatewayStatusInternalError      = 500 // 网关内部错误
-	GatewayStatusBadGateway         = 502 // 网关无法连接后端
+	GatewayStatusBadGateway         = 502 // 连接失败等其它代理错误
 	GatewayStatusServiceUnavailable = 503 // 网关检测到服务不可用
-	GatewayStatusGatewayTimeout     = 504 // 网关转发超时
+	// GatewayStatusGatewayTimeout 调用方还在等待，代理总超时先到，记 504。
+	// 耗时接近网关配置的总超时，调用方能收到这个状态码。
+	GatewayStatusGatewayTimeout     = 504
 	GatewayStatusCircuitBreakerOpen = 521 // 网关熔断器打开（自定义状态码）
 )

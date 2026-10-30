@@ -194,10 +194,18 @@ export function useServiceDefinitionModel() {
             placeholder: '请输入服务名称',
             span: 12,
             required: true,
-            tips: '服务的唯一标识名称，用于区分不同的后端服务，长度2-50个字符',
+            tips: '只能包含字母、数字、下划线和横杠，长度2-50个字符',
             rules: [
               { required: true, message: '请输入服务名称', trigger: ['blur', 'input'] },
               { min: 2, max: 50, message: '服务名称长度在2-50个字符', trigger: ['blur', 'input'] },
+              {
+                validator: (value: unknown) => {
+                  if (typeof value !== 'string' || value === '') return true
+                  if (!/^[A-Za-z0-9_-]+$/.test(value)) return '服务名称只能包含字母、数字、下划线和横杠'
+                  return true
+                },
+                trigger: ['blur', 'input'],
+              },
             ],
           },
           {
@@ -320,9 +328,9 @@ export function useServiceDefinitionModel() {
             field: 'maxRetries',
             label: '最大重试次数',
             type: 'number',
-            placeholder: '3',
+            placeholder: '0',
             span: 12,
-            defaultValue: 3,
+            defaultValue: 0,
             tips: '单次客户端请求失败后换其他节点再试的次数，不是熔断。熔断只看整次请求最终成功或失败。范围 0-10，0 表示不重试',
             props: {
               min: 0,

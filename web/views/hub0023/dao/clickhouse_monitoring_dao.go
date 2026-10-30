@@ -548,6 +548,7 @@ func (dao *ClickHouseMonitoringDAO) getStatusCodeDescription(statusCode string) 
 		"405": "Method Not Allowed",
 		"408": "Request Timeout",
 		"429": "Too Many Requests",
+		"499": "Client Closed Request",
 		"500": "Internal Server Error",
 		"502": "Bad Gateway",
 		"503": "Service Unavailable",

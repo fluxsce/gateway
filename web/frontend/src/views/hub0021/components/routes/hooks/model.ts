@@ -511,6 +511,13 @@ export function useRouteConfigModel() {
           ),
       },
       {
+        key: 'noteText',
+        title: '备注',
+        align: 'left',
+        ellipsis: true,
+        width: 180,
+      },
+      {
         key: 'routePath',
         title: '路由路径',
         align: 'center',
@@ -829,10 +836,18 @@ export function useRouteConfigModel() {
         span: 12,
         tabKey: 'basic',
         required: true,
-        tips: '路由的唯一标识名称，用于区分不同的路由规则',
+        tips: '只能包含字母、数字、下划线和横杠，用于区分不同的路由规则',
         rules: [
           { required: true, message: '请输入路由名称', trigger: ['blur', 'input'] },
           { max: 100, message: '路由名称不能超过100个字符', trigger: ['blur', 'input'] },
+          {
+            validator: (value: unknown) => {
+              if (typeof value !== 'string' || value === '') return true
+              if (!/^[A-Za-z0-9_-]+$/.test(value)) return '路由名称只能包含字母、数字、下划线和横杠'
+              return true
+            },
+            trigger: ['blur', 'input'],
+          },
         ],
       },
       {
@@ -1346,6 +1361,21 @@ export function useRouteConfigModel() {
           uncheckedValue: 'N',
         },
       },
+      {
+        field: 'noteText',
+        label: '备注信息',
+        type: 'input' as const,
+        placeholder: '请输入备注信息',
+        span: 24,
+        tabKey: 'basic',
+        tips: '路由配置的备注说明信息',
+        props: {
+          type: 'textarea',
+          rows: 3,
+          maxlength: 500,
+          showCount: true,
+        },
+      },
       // ============= 转发策略 Tab =============
       {
         field: 'routeMetadata.overrideProxyTimeout',
@@ -1496,21 +1526,6 @@ export function useRouteConfigModel() {
             style:
               'width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--rs-border-color, #d9d9d9);border-radius:4px;font:inherit;resize:vertical;background:var(--rs-fill-color, #fafafa);',
           })
-        },
-      },
-      {
-        field: 'noteText',
-        label: '备注信息',
-        type: 'input' as const,
-        placeholder: '请输入备注信息',
-        span: 24,
-        tabKey: 'metadata',
-        tips: '路由配置的备注说明信息',
-        props: {
-          type: 'textarea',
-          rows: 3,
-          maxlength: 500,
-          showCount: true,
         },
       },
       // ============= 其他配置 Tab =============
