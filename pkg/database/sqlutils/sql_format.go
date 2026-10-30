@@ -45,6 +45,9 @@ const (
 	DatabaseOracle DatabaseType = dbtypes.DriverOracle
 	// Oracle 11g 数据库（需要特殊的分页语法）
 	DatabaseOracle11g DatabaseType = dbtypes.DriverOracle11g
+	// DatabaseVastbaseOracle 是 Vastbase 的 Oracle 兼容模式（sql_compatibility=A）。
+	// 配置驱动名仍是 vastbase。分页和时间函数走这套方言，占位符仍是 $1。
+	DatabaseVastbaseOracle DatabaseType = dbtypes.DriverVastbaseOracle
 	// MariaDB 数据库 (兼容MySQL语法)
 	DatabaseMariaDB DatabaseType = dbtypes.DriverMariaDB
 	// TiDB 数据库 (兼容MySQL语法)
@@ -71,7 +74,23 @@ const (
 //	dbType := sqlutils.GetDatabaseType(dao.db)
 //	query, args, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 func GetDatabaseType(db database.Database) DatabaseType {
-	return DatabaseType(db.GetDriver())
+	compat := ""
+	if reporter, ok := db.(database.SQLCompatibilityReporter); ok && reporter != nil {
+		compat = reporter.SQLCompatibility()
+	}
+	return databaseTypeFor(db.GetDriver(), compat)
+}
+
+// databaseTypeFor 把驱动名和 SQL 兼容模式收成 sqlutils 使用的库类型。
+// Vastbase 的 PostgreSQL 兼容模式沿用 postgres 方言；Oracle 兼容模式（A）单独分支。
+func databaseTypeFor(driver, sqlCompat string) DatabaseType {
+	if driver == dbtypes.DriverVastbase {
+		if dialect.VastbaseOracleMode(sqlCompat) {
+			return DatabaseVastbaseOracle
+		}
+		return DatabasePostgreSQL
+	}
+	return DatabaseType(driver)
 }
 
 // PaginationInfo 分页信息结构体
@@ -458,6 +477,27 @@ func BuildPaginationQuery(dbType DatabaseType, baseQuery string, pagination *Pag
 		return "", nil, err
 	}
 	return d.BuildPagination(baseQuery, pagination.Page, pagination.PageSize, pagination.Offset)
+}
+
+// LimitOffsetClause 返回接在 ORDER BY 后面的分页子句，数字直接写入 SQL。
+// Oracle 和 Vastbase 的 Oracle 兼容模式用 OFFSET/FETCH。其余用 LIMIT/OFFSET。
+// limit 小于 1 时返回空字符串。
+func LimitOffsetClause(dbType DatabaseType, limit, offset int) string {
+	if limit < 1 {
+		return ""
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	switch dbType {
+	case DatabaseOracle, DatabaseOracle11g, DatabaseVastbaseOracle:
+		return fmt.Sprintf("OFFSET %d ROWS FETCH NEXT %d ROWS ONLY", offset, limit)
+	default:
+		if offset > 0 {
+			return fmt.Sprintf("LIMIT %d OFFSET %d", limit, offset)
+		}
+		return fmt.Sprintf("LIMIT %d", limit)
+	}
 }
 
 // BuildLimitedDeleteQuery 构建限制删除条数的 SQL，与 BuildPaginationQuery 按同一套库类型分支。

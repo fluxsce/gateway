@@ -1,0 +1,20 @@
+-- Vastbase（Oracle 兼容模式 A）。由 scripts/db/oracle 转换。
+CREATE TABLE HUB_TOOL_INSTALL (
+    tenantId VARCHAR2(32) NOT NULL,
+    userId VARCHAR2(64) NOT NULL,
+    toolId VARCHAR2(64) NOT NULL,
+    configJson CLOB NOT NULL,
+    installTime DATE DEFAULT SYSDATE NOT NULL,
+    addTime DATE DEFAULT SYSDATE NOT NULL,
+    addWho VARCHAR2(64) NOT NULL,
+    editTime DATE DEFAULT SYSDATE NOT NULL,
+    editWho VARCHAR2(64) NOT NULL,
+    oprSeqFlag VARCHAR2(64) NOT NULL,
+    currentVersion NUMBER(10) DEFAULT 1 NOT NULL,
+    activeFlag VARCHAR2(1) DEFAULT 'Y' NOT NULL,
+    CONSTRAINT PK_TOOL_INSTALL PRIMARY KEY (tenantId, userId, toolId)
+);
+COMMENT ON TABLE HUB_TOOL_INSTALL IS '工具市场安装表 - 按用户保存已安装工具及配置';
+COMMENT ON COLUMN HUB_TOOL_INSTALL.toolId IS '内置工具ID';
+COMMENT ON COLUMN HUB_TOOL_INSTALL.configJson IS '个人配置JSON';
+COMMENT ON COLUMN HUB_TOOL_INSTALL.activeFlag IS '活动状态标记(N未安装,Y已安装)';

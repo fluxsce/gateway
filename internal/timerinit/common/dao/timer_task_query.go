@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gateway/internal/types/timertypes"
 	"gateway/pkg/database"
+	"gateway/pkg/database/sqlutils"
 	"strings"
 	"time"
 )
@@ -355,23 +356,18 @@ func (q *TimerTaskQuery) BuildOrderBy() string {
 	return fmt.Sprintf("ORDER BY %s %s", q.OrderBy, direction)
 }
 
-// BuildPagination 构建分页语句
-func (q *TimerTaskQuery) BuildPagination() string {
+// BuildPagination 构建分页语句。Oracle 兼容模式不使用 LIMIT。
+func (q *TimerTaskQuery) BuildPagination(dbType sqlutils.DatabaseType) string {
 	if q.Limit > 0 {
-		if q.Offset > 0 {
-			return fmt.Sprintf("LIMIT %d OFFSET %d", q.Limit, q.Offset)
-		}
-		return fmt.Sprintf("LIMIT %d", q.Limit)
+		return sqlutils.LimitOffsetClause(dbType, q.Limit, q.Offset)
 	}
-
 	if q.PageSize > 0 {
 		offset := 0
 		if q.PageNum > 1 {
 			offset = (q.PageNum - 1) * q.PageSize
 		}
-		return fmt.Sprintf("LIMIT %d OFFSET %d", q.PageSize, offset)
+		return sqlutils.LimitOffsetClause(dbType, q.PageSize, offset)
 	}
-
 	return ""
 }
 
@@ -382,7 +378,7 @@ func (dao *TimerTaskDAO) QueryTasks(ctx context.Context, query *TimerTaskQuery) 
 	// 构建查询条件
 	where, args := query.BuildWhere()
 	orderBy := query.BuildOrderBy()
-	pagination := query.BuildPagination()
+	pagination := query.BuildPagination(sqlutils.GetDatabaseType(dao.db))
 
 	// 查询总数
 	countSQL := fmt.Sprintf("SELECT COUNT(*) as count FROM %s %s", tableName, where)

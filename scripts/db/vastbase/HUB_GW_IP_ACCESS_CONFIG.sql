@@ -1,0 +1,30 @@
+-- Vastbase（PostgreSQL 兼容模式）。由 scripts/db/mysql 转换。
+CREATE TABLE IF NOT EXISTS HUB_GW_IP_ACCESS_CONFIG (
+  tenantId VARCHAR(32) NOT NULL,
+  ipAccessConfigId VARCHAR(32) NOT NULL,
+  securityConfigId VARCHAR(32) NOT NULL,
+  configName VARCHAR(100) NOT NULL,
+  defaultPolicy VARCHAR(10) NOT NULL DEFAULT 'allow',
+  whitelistIps TEXT DEFAULT NULL,
+  blacklistIps TEXT DEFAULT NULL,
+  whitelistCidrs TEXT DEFAULT NULL,
+  blacklistCidrs TEXT DEFAULT NULL,
+  trustXForwardedFor VARCHAR(1) NOT NULL DEFAULT 'Y',
+  trustXRealIp VARCHAR(1) NOT NULL DEFAULT 'Y',
+  reserved1 VARCHAR(100) DEFAULT NULL,
+  reserved2 VARCHAR(100) DEFAULT NULL,
+  reserved3 INT DEFAULT NULL,
+  reserved4 INT DEFAULT NULL,
+  reserved5 TIMESTAMP DEFAULT NULL,
+  extProperty TEXT DEFAULT NULL,
+  addTime TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  addWho VARCHAR(32) NOT NULL,
+  editTime TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  editWho VARCHAR(32) NOT NULL,
+  oprSeqFlag VARCHAR(32) NOT NULL,
+  currentVersion INT NOT NULL DEFAULT 1,
+  activeFlag VARCHAR(1) NOT NULL DEFAULT 'Y',
+  noteText VARCHAR(500) DEFAULT NULL,
+  PRIMARY KEY (tenantId, ipAccessConfigId)
+);
+CREATE INDEX IF NOT EXISTS idx_HUB_GW_IP_ACCESS_CONFIG_security ON HUB_GW_IP_ACCESS_CONFIG (securityConfigId);

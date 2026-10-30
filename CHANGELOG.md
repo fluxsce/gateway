@@ -6,6 +6,15 @@
 
 ## [Unreleased]
 
+## [3.5.2] - 2026-10-30
+
+
+### 修复
+- **占位符不再改写字符串和注释里的问号**：Vastbase、Oracle、SQL Server 把语句里的 `?` 编成 `$1`、`:1`、`@p1` 时，单引号、双引号、反引号、方括号标识符以及 `--`、`/* */` 中的问号保持原样。参数值里的问号本来就不参与改写。
+
+### 变更
+- **可连接 Vastbase**：`database.yaml` 增加 `vastbase` 连接。驱动用 openGauss 的 Go 连接器，能处理 sha256 口令。连上后读取 `sql_compatibility`。`PG` 用 `scripts/db/vastbase`（`$1`、`LIMIT/OFFSET`、`NOW()`），脚本由 MySQL 转来。`A`（Oracle 兼容）用 `scripts/db/vastbase_oracle`（由 Oracle 脚本转来），分页和分批删除用 `OFFSET/FETCH` 与 `ROWNUM`，时间函数用 `SYSDATE`，占位符仍是 `$1`。配置驱动名保持 `vastbase`。`A` 模式把空字符串存成 `NULL`，`VARCHAR` 按字节计数。和 MySQL 对过字段后，`scripts/db/oracle` 与 `scripts/db/vastbase_oracle` 的调度器表都补上 `extProperty`、`reserved4` 到 `reserved10`，服务器 MAC 地址改为 `VARCHAR2(50)`。
+
 ## [3.5.1] - 2026-10-30
 
 ### 变更

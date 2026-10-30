@@ -19,6 +19,29 @@ func TestRewriteOraclePlaceholders(t *testing.T) {
 	}
 }
 
+func TestRewriteSkipsQuestionMarkInLiteral(t *testing.T) {
+	got := RewriteQuery("SELECT '?' WHERE id = ? AND note = 'a?b' -- ?", DollarNum)
+	want := "SELECT '?' WHERE id = $1 AND note = 'a?b' -- ?"
+	if got != want {
+		t.Fatalf("dollar got %q", got)
+	}
+	got = RewriteQuery("SELECT /* ? */ a FROM t WHERE a = ? AND b = '?'", ColonNum)
+	want = "SELECT /* ? */ a FROM t WHERE a = :1 AND b = '?'"
+	if got != want {
+		t.Fatalf("colon got %q", got)
+	}
+	got = RewriteQuery("SELECT 'it''?s' WHERE a = ?", AtP)
+	want = "SELECT 'it''?s' WHERE a = @p1"
+	if got != want {
+		t.Fatalf("quote escape got %q", got)
+	}
+	got = RewriteQuery("SELECT `a?b`, \"c?d\", [e?f] FROM t WHERE a = ?", DollarNum)
+	want = "SELECT `a?b`, \"c?d\", [e?f] FROM t WHERE a = $1"
+	if got != want {
+		t.Fatalf("ident got %q", got)
+	}
+}
+
 func TestRewritePostgresAndSQLServer(t *testing.T) {
 	if got := RewriteQuery("SELECT * FROM t WHERE a = ?", DollarNum); got != "SELECT * FROM t WHERE a = $1" {
 		t.Fatalf("postgres got %q", got)
@@ -28,7 +51,51 @@ func TestRewritePostgresAndSQLServer(t *testing.T) {
 	}
 }
 
+func TestVastbaseOracleMode(t *testing.T) {
+	if !VastbaseOracleMode("A") || !VastbaseOracleMode(" a ") {
+		t.Fatal("A should be oracle compatibility")
+	}
+	if VastbaseOracleMode("PG") || VastbaseOracleMode("B") || VastbaseOracleMode("") {
+		t.Fatal("only A is oracle compatibility")
+	}
+}
+
+func TestVastbaseOracleDialect(t *testing.T) {
+	d := MustGet(dbtypes.DriverVastbaseOracle)
+	if d.OpenDriver() != "opengauss" {
+		t.Fatalf("open=%s", d.OpenDriver())
+	}
+	if got := d.RewriteQuery("SELECT * FROM t WHERE a = ?"); got != "SELECT * FROM t WHERE a = $1" {
+		t.Fatalf("rewrite=%s", got)
+	}
+	timeFn, err := d.CurrentTimeFunction()
+	if err != nil || timeFn != "SYSDATE" {
+		t.Fatalf("time=%s err=%v", timeFn, err)
+	}
+	page, _, err := d.BuildPagination("SELECT * FROM t", 1, 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(page, "LIMIT") || !strings.Contains(page, "FETCH NEXT") {
+		t.Fatalf("page=%s", page)
+	}
+	del, _, err := d.BuildLimitedDelete("HUB_ALERT_LOG", "tenantId = ?", []interface{}{"t1"}, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(del, "ROWNUM") || strings.Contains(del, "ctid") {
+		t.Fatalf("delete=%s", del)
+	}
+}
+
 func TestGetAliases(t *testing.T) {
+	vb, err := Get(dbtypes.DriverVastbase)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if vb.Name() != dbtypes.DriverVastbase || vb.OpenDriver() != "opengauss" {
+		t.Fatalf("vastbase got name=%s open=%s", vb.Name(), vb.OpenDriver())
+	}
 	d, err := Get(dbtypes.DriverMariaDB)
 	if err != nil {
 		t.Fatal(err)

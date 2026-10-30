@@ -35,25 +35,26 @@ func Placeholder(style PlaceholderStyle, n int) string {
 }
 
 // RewriteQuery 把 query 中的 ? 按风格改写。问号风格或没有 ? 时原样返回。
-// 与历史 Oracle convertPlaceholders 相同：不解析字符串字面量。
+// 字符串字面量、标识符引号、方括号标识符和注释中的 ? 保持原样，只给真正的占位符编号。
 func RewriteQuery(query string, style PlaceholderStyle) string {
 	if style == Question || !strings.Contains(query, "?") {
 		return query
 	}
-	n := strings.Count(query, "?")
-	nLog10, x := 1, 10
-	for n > x {
-		nLog10++
-		x *= 10
-	}
-	num := make([]byte, 0, nLog10+2)
 	var buf strings.Builder
-	buf.Grow(len(query) + n*(nLog10+2))
+	buf.Grow(len(query) + 8)
+	num := make([]byte, 0, 4)
 	var idx int64
-	rest := query
-	for i := strings.IndexByte(rest, '?'); i >= 0; i = strings.IndexByte(rest, '?') {
-		buf.WriteString(rest[:i])
-		rest = rest[i+1:]
+	for i := 0; i < len(query); {
+		if n := literalSpan(query, i); n > 0 {
+			buf.WriteString(query[i : i+n])
+			i += n
+			continue
+		}
+		if query[i] != '?' {
+			buf.WriteByte(query[i])
+			i++
+			continue
+		}
 		idx++
 		switch style {
 		case ColonNum:
@@ -71,9 +72,85 @@ func RewriteQuery(query string, style PlaceholderStyle) string {
 		default:
 			buf.WriteByte('?')
 		}
+		i++
 	}
-	buf.WriteString(rest)
 	return buf.String()
+}
+
+// literalSpan 返回从 i 起应原样保留的字面量或注释长度。0 表示此处要继续扫描占位符。
+func literalSpan(q string, i int) int {
+	if i >= len(q) {
+		return 0
+	}
+	switch q[i] {
+	case '\'', '"', '`':
+		return quotedSpan(q, i, q[i])
+	case '[':
+		return bracketIdentSpan(q, i)
+	case '-':
+		if i+1 < len(q) && q[i+1] == '-' {
+			return lineCommentSpan(q, i)
+		}
+	case '/':
+		if i+1 < len(q) && q[i+1] == '*' {
+			return blockCommentSpan(q, i)
+		}
+	}
+	return 0
+}
+
+// quotedSpan 扫描成对引号。连续两个引号是转义，不算结束。未闭合则保留到串尾。
+func quotedSpan(q string, i int, quote byte) int {
+	j := i + 1
+	for j < len(q) {
+		if q[j] != quote {
+			j++
+			continue
+		}
+		if j+1 < len(q) && q[j+1] == quote {
+			j += 2
+			continue
+		}
+		return j + 1 - i
+	}
+	return len(q) - i
+}
+
+// bracketIdentSpan 扫描 SQL Server 的 [标识符]。未闭合则保留到串尾。
+func bracketIdentSpan(q string, i int) int {
+	j := i + 1
+	for j < len(q) {
+		if q[j] == ']' {
+			if j+1 < len(q) && q[j+1] == ']' {
+				j += 2
+				continue
+			}
+			return j + 1 - i
+		}
+		j++
+	}
+	return len(q) - i
+}
+
+// lineCommentSpan 扫描 -- 注释到换行，不含换行符。
+func lineCommentSpan(q string, i int) int {
+	j := i + 2
+	for j < len(q) && q[j] != '\n' {
+		j++
+	}
+	return j - i
+}
+
+// blockCommentSpan 扫描 /* */ 注释。未闭合则保留到串尾。
+func blockCommentSpan(q string, i int) int {
+	j := i + 2
+	for j+1 < len(q) {
+		if q[j] == '*' && q[j+1] == '/' {
+			return j + 2 - i
+		}
+		j++
+	}
+	return len(q) - i
 }
 
 // Placeholders 生成 n 个占位符切片，从 1 编到 n。

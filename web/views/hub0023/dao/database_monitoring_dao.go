@@ -449,8 +449,8 @@ func (dao *DatabaseMonitoringDAO) GetHotRoutes(ctx context.Context, req *models.
 		%s
 		GROUP BY requestPath, routeConfigId, routeName, serviceName
 		ORDER BY requestCount DESC
-		LIMIT %d
-	`, whereClause, limit)
+		%s
+	`, whereClause, sqlutils.LimitOffsetClause(sqlutils.GetDatabaseType(dao.db), limit, 0))
 
 	// 执行查询
 	var results []struct {
@@ -636,7 +636,7 @@ func (dao *DatabaseMonitoringDAO) getTimeGroupFormat(granularity models.TimeGran
 		default:
 			return "strftime('%Y-%m-%d %H:%M', gatewayStartProcessingTime)" // 默认按分钟分组
 		}
-	case sqlutils.DatabasePostgreSQL:
+	case sqlutils.DatabasePostgreSQL, sqlutils.DatabaseVastbaseOracle:
 		// PostgreSQL 使用 TO_CHAR 函数
 		switch granularity {
 		case models.TimeGranularityMinute:

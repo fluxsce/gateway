@@ -72,7 +72,7 @@ func (d *LogDAO) UpdateLog(ctx context.Context, log *types.AlertLog) error {
 // GetPendingLogs 获取待发送的告警日志
 func (d *LogDAO) GetPendingLogs(ctx context.Context, tenantId string, limit int) ([]*types.AlertLog, error) {
 	baseQuery := "SELECT * FROM HUB_ALERT_LOG WHERE tenantId = ? AND sendStatus = 'PENDING' AND activeFlag = 'Y' ORDER BY alertTimestamp ASC"
-	dbType := sqlutils.DatabaseType(d.db.GetDriver())
+	dbType := sqlutils.GetDatabaseType(d.db)
 	pagination := sqlutils.NewPaginationInfo(1, limit)
 	query, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 	if err != nil {

@@ -1,0 +1,4 @@
+-- Vastbase（PostgreSQL 兼容模式）。由 scripts/db/mysql 转换。
+INSERT INTO HUB_AUTH_RESOURCE ( resourceId, tenantId, resourceName, resourceCode, resourceType, parentResourceId, resourceLevel, sortOrder, language, resourceStatus, builtInFlag, addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag ) VALUES ('hub0042:batchDelete', 'default', '批量删除', 'hub0042:batchDelete', 'BUTTON', 'hub0042', 3, 11, 'zh-CN', 'Y', 'Y', NOW(), 'system', NOW(), 'system', 'INIT_022_011', 1, 'Y');
+
+INSERT INTO HUB_AUTH_ROLE_RESOURCE ( roleResourceId, tenantId, roleId, resourceId, permissionType, grantedBy, grantedTime, addTime, addWho, editTime, editWho, oprSeqFlag, currentVersion, activeFlag ) SELECT CONCAT('ROLE_RES_SUPER_ADMIN_', REPLACE(resourceId, ':', '_')), tenantId, 'ROLE_SUPER_ADMIN', resourceId, 'ALLOW', 'system', NOW(), NOW(), 'system', NOW(), 'system', 'INIT_SA', 1, 'Y' FROM HUB_AUTH_RESOURCE WHERE tenantId = 'default' AND resourceId = 'hub0042:batchDelete';

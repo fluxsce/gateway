@@ -15,6 +15,7 @@ import (
 	"gateway/pkg/config"
 	"gateway/pkg/database"
 	"gateway/pkg/database/dbtypes"
+	"gateway/pkg/database/dialect"
 	"gateway/pkg/database/sqlutils"
 	"gateway/pkg/logger"
 	mongofactory "gateway/pkg/mongo/factory"
@@ -193,8 +194,8 @@ func InitializeDatabaseScripts(ctx context.Context, db database.Database) (*Init
 	scriptDirConfig := config.GetString("database.script_directory", "scripts/db")
 	scriptDir := config.ResolvePath(scriptDirConfig)
 
-	// 获取主数据库驱动类型
-	driver := canonicalScriptDriver(db.GetDriver())
+	// 获取主数据库驱动类型。Vastbase 的 Oracle 兼容模式改用 vastbase_oracle 脚本目录。
+	driver := effectiveScriptDriver(db)
 	if driver == "" {
 		return nil, fmt.Errorf("无法确定数据库驱动类型")
 	}
@@ -377,7 +378,7 @@ func executeScriptForDatabase(ctx context.Context, databaseName string, historyC
 
 		// 根据数据库类型执行脚本
 		switch driver {
-		case dbtypes.DriverMySQL, dbtypes.DriverSQLite, dbtypes.DriverOracle, dbtypes.DriverClickHouse, dbtypes.DriverSQLServer:
+		case dbtypes.DriverMySQL, dbtypes.DriverSQLite, dbtypes.DriverOracle, dbtypes.DriverClickHouse, dbtypes.DriverSQLServer, dbtypes.DriverVastbase, dbtypes.DriverVastbaseOracle:
 			// SQL类型数据库 - 按语句级别执行
 			// 注意：使用 historyConn 查询执行历史，使用 targetConn 执行SQL
 			executedCount, failedCount, skippedCount, err := executeSQLScriptByStatements(ctx, historyConn, targetConn, driver, scriptName, string(scriptContent))
@@ -784,28 +785,52 @@ func canonicalScriptDriver(driver string) string {
 	}
 }
 
+// effectiveScriptDriver 返回建表脚本和历史表 DDL 使用的驱动名。
+// 配置里的驱动名保持 vastbase。sql_compatibility 为 A 时改走 vastbase_oracle。
+func effectiveScriptDriver(db database.Database) string {
+	if db == nil {
+		return ""
+	}
+	driver := canonicalScriptDriver(db.GetDriver())
+	if driver != dbtypes.DriverVastbase {
+		return driver
+	}
+	reporter, ok := db.(database.SQLCompatibilityReporter)
+	if !ok || reporter == nil {
+		return driver
+	}
+	if dialect.VastbaseOracleMode(reporter.SQLCompatibility()) {
+		return dbtypes.DriverVastbaseOracle
+	}
+	return driver
+}
+
 // findScriptFiles 查找指定数据库驱动对应的脚本文件目录下的所有脚本文件
 // 在脚本目录的子目录中查找匹配的初始化脚本文件，按文件名排序返回
 func findScriptFiles(driver string, scriptDir string) ([]string, error) {
 	// 支持的数据库驱动类型及其对应的目录名和文件扩展名
 	driverToDir := map[string]string{
-		dbtypes.DriverMySQL:      "mysql",
-		dbtypes.DriverSQLite:     "sqlite",
-		dbtypes.DriverOracle:     "oracle",
-		dbtypes.DriverClickHouse: "clickhouse",
-		dbtypes.DriverSQLServer:  "sqlserver",
-		"mssql":                  "sqlserver",
-		dbtypes.DriverMongoDB:    "mongo",
+		dbtypes.DriverMySQL:          "mysql",
+		dbtypes.DriverSQLite:         "sqlite",
+		dbtypes.DriverOracle:         "oracle",
+		dbtypes.DriverClickHouse:     "clickhouse",
+		dbtypes.DriverSQLServer:      "sqlserver",
+		"mssql":                      "sqlserver",
+		dbtypes.DriverVastbase:       "vastbase",
+		dbtypes.DriverVastbaseOracle: "vastbase_oracle",
+		dbtypes.DriverMongoDB:        "mongo",
 	}
 
 	driverToExt := map[string]string{
-		dbtypes.DriverMySQL:      ".sql",
-		dbtypes.DriverSQLite:     ".sql",
-		dbtypes.DriverOracle:     ".sql",
-		dbtypes.DriverClickHouse: ".sql",
-		dbtypes.DriverSQLServer:  ".sql",
-		"mssql":                  ".sql",
-		dbtypes.DriverMongoDB:    ".js",
+		dbtypes.DriverMySQL:          ".sql",
+		dbtypes.DriverSQLite:         ".sql",
+		dbtypes.DriverOracle:         ".sql",
+		dbtypes.DriverClickHouse:     ".sql",
+		dbtypes.DriverSQLServer:      ".sql",
+		"mssql":                      ".sql",
+		dbtypes.DriverVastbase:       ".sql",
+		dbtypes.DriverVastbaseOracle: ".sql",
+		dbtypes.DriverMongoDB:        ".js",
 	}
 
 	// 获取对应的目录名和文件扩展名
@@ -1004,6 +1029,7 @@ func calculateStatementHash(statement string) string {
 func GetScriptExecutionHistory(ctx context.Context, conn database.Database, scriptName string, limit int) ([]ScriptExecutionHistory, error) {
 	tenantId := config.GetString("database.tenant_id", "default")
 	driver := conn.GetDriver()
+	dbType := sqlutils.GetDatabaseType(conn)
 	tableName := TableNameScriptHistory(driver)
 
 	var baseQuery string
@@ -1019,7 +1045,6 @@ func GetScriptExecutionHistory(ctx context.Context, conn database.Database, scri
 
 	if limit > 0 {
 		// 使用 sqlutils 构建分页语句，兼容 Oracle（不支持 LIMIT）
-		dbType := sqlutils.DatabaseType(driver)
 		pagination := sqlutils.NewPaginationInfo(1, limit)
 		paginatedQuery, paginationArgs, err := sqlutils.BuildPaginationQuery(dbType, baseQuery, pagination)
 		if err != nil {
@@ -1049,7 +1074,7 @@ func GetScriptExecutionHistory(ctx context.Context, conn database.Database, scri
 //   - *ScriptExecutionResult: 脚本执行结果
 //   - error: 执行失败时返回错误信息
 func ForceExecuteScript(ctx context.Context, db database.Database, scriptPath string) (*ScriptExecutionResult, error) {
-	driver := db.GetDriver()
+	driver := effectiveScriptDriver(db)
 	if driver == "" {
 		return nil, fmt.Errorf("无法确定数据库驱动类型")
 	}

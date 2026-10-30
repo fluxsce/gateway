@@ -1,0 +1,6 @@
+-- Vastbase（PostgreSQL 兼容模式）。由 scripts/db/mysql 转换。
+CREATE INDEX IDX_ALERT_LOG_CLEANUP ON HUB_ALERT_LOG (tenantId, alertTimestamp);
+
+CREATE INDEX IDX_TIMER_LOG_CLEANUP ON HUB_TIMER_EXECUTION_LOG (tenantId, addTime);
+
+CREATE INDEX IDX_CLS_EVT_CLEANUP ON HUB_CLUSTER_EVENT (tenantId, eventTime);

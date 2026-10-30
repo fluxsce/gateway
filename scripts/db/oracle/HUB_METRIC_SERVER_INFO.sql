@@ -8,7 +8,7 @@ CREATE TABLE HUB_METRIC_SERVER_INFO (
                                         architecture VARCHAR2(100) NOT NULL,
                                         bootTime DATE NOT NULL,
                                         ipAddress VARCHAR2(45),
-                                        macAddress VARCHAR2(17),
+                                        macAddress VARCHAR2(50),
                                         serverLocation VARCHAR2(255),
                                         serverType VARCHAR2(50),
                                         lastUpdateTime DATE NOT NULL,
@@ -48,3 +48,6 @@ COMMENT ON TABLE HUB_METRIC_SERVER_INFO IS '服务器信息主表';
 
 -- 兼容历史项目：删除hostname唯一索引
 DROP INDEX IDX_SRVINFO_HOST;
+
+-- 已有库把 MAC 加宽到与 MySQL 相同。新建表已是 VARCHAR2(50)。
+ALTER TABLE HUB_METRIC_SERVER_INFO MODIFY macAddress VARCHAR2(50);

@@ -1,0 +1,4 @@
+-- Vastbase（Oracle 兼容模式 A）。由 scripts/db/oracle 转换。
+ALTER TABLE HUB_GW_ACCESS_LOG MODIFY (serviceDefinitionId VARCHAR2(1000));
+ALTER TABLE HUB_GW_ACCESS_LOG MODIFY (serviceName VARCHAR2(1000));
+ALTER TABLE HUB_GW_ROUTE_CONFIG MODIFY (serviceDefinitionId VARCHAR2(1000));

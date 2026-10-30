@@ -29,10 +29,18 @@ CREATE TABLE HUB_TIMER_SCHEDULER (
                                      currentVersion        NUMBER(10) DEFAULT 1 NOT NULL, -- 当前版本号
                                      activeFlag            VARCHAR2(1) DEFAULT 'Y' NOT NULL, -- 活动状态标记(N非活动,Y活动)
                                      noteText              VARCHAR2(500), -- 备注信息
+                                     extProperty           CLOB, -- 扩展属性，JSON格式
 
                                      reserved1             VARCHAR2(500), -- 预留字段1
                                      reserved2             VARCHAR2(500), -- 预留字段2
                                      reserved3             VARCHAR2(500), -- 预留字段3
+                                     reserved4             VARCHAR2(500), -- 预留字段4
+                                     reserved5             VARCHAR2(500), -- 预留字段5
+                                     reserved6             VARCHAR2(500), -- 预留字段6
+                                     reserved7             VARCHAR2(500), -- 预留字段7
+                                     reserved8             VARCHAR2(500), -- 预留字段8
+                                     reserved9             VARCHAR2(500), -- 预留字段9
+                                     reserved10            VARCHAR2(500), -- 预留字段10
 
                                      CONSTRAINT PK_TIMER_SCHEDULER PRIMARY KEY (tenantId, schedulerId)
 );
@@ -40,4 +48,14 @@ CREATE INDEX IDX_TIMER_SCHED_NAME ON HUB_TIMER_SCHEDULER(schedulerName);
 CREATE INDEX IDX_TIMER_SCHED_INST ON HUB_TIMER_SCHEDULER(schedulerInstanceId);
 CREATE INDEX IDX_TIMER_SCHED_STATUS ON HUB_TIMER_SCHEDULER(schedulerStatus);
 CREATE INDEX IDX_TIMER_SCHED_HEART ON HUB_TIMER_SCHEDULER(lastHeartbeatTime);
-COMMENT ON TABLE HUB_TIMER_SCHEDULER IS '定时任务调度器表 - 存储调度器配置和状态信息';
+COMMENT ON TABLE HUB_TIMER_SCHEDULER IS '定时任务调度器表 - 存储调度器配置和状态信息';
+
+-- 已有库补列。新库建表已包含这些列，再执行时按已存在跳过。
+ALTER TABLE HUB_TIMER_SCHEDULER ADD extProperty CLOB;
+ALTER TABLE HUB_TIMER_SCHEDULER ADD reserved4 VARCHAR2(500);
+ALTER TABLE HUB_TIMER_SCHEDULER ADD reserved5 VARCHAR2(500);
+ALTER TABLE HUB_TIMER_SCHEDULER ADD reserved6 VARCHAR2(500);
+ALTER TABLE HUB_TIMER_SCHEDULER ADD reserved7 VARCHAR2(500);
+ALTER TABLE HUB_TIMER_SCHEDULER ADD reserved8 VARCHAR2(500);
+ALTER TABLE HUB_TIMER_SCHEDULER ADD reserved9 VARCHAR2(500);
+ALTER TABLE HUB_TIMER_SCHEDULER ADD reserved10 VARCHAR2(500);

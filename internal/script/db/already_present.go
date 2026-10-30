@@ -6,6 +6,7 @@ import "strings"
 // 这类语句再执行也不会改变现状，启动时不应当成失败反复重跑。
 var alreadyPresentMarkers = []string{
 	"already exists",
+	"已经存在",
 	"duplicate entry",
 	"duplicate column",
 	"duplicate key",

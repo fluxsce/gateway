@@ -153,6 +153,42 @@ CREATE TABLE HUB_SCRIPT_EXECUTION_HISTORY (
     CONSTRAINT UK_SCRIPT_VERSION UNIQUE (tenantId, scriptName, scriptVersion, databaseDriver)
 )`
 
+	case dbtypes.DriverVastbase:
+		createTableSQL = `
+CREATE TABLE IF NOT EXISTS HUB_SCRIPT_EXECUTION_HISTORY (
+    executionId VARCHAR(32) NOT NULL PRIMARY KEY,
+    tenantId VARCHAR(32) NOT NULL DEFAULT 'default',
+    scriptName VARCHAR(255) NOT NULL,
+    scriptPath VARCHAR(500) NOT NULL,
+    scriptVersion VARCHAR(32) NOT NULL,
+    databaseDriver VARCHAR(50) NOT NULL,
+    executionStatus VARCHAR(20) NOT NULL,
+    executionTime TIMESTAMP NOT NULL,
+    executionDuration BIGINT NOT NULL DEFAULT 0,
+    statementsExecuted INT NOT NULL DEFAULT 0,
+    errorMessage TEXT,
+    createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT UK_SCRIPT_VERSION UNIQUE (tenantId, scriptName, scriptVersion, databaseDriver)
+)`
+
+	case dbtypes.DriverVastbaseOracle:
+		createTableSQL = `
+CREATE TABLE IF NOT EXISTS HUB_SCRIPT_EXECUTION_HISTORY (
+    executionId VARCHAR2(32) NOT NULL PRIMARY KEY,
+    tenantId VARCHAR2(32) DEFAULT 'default' NOT NULL,
+    scriptName VARCHAR2(255) NOT NULL,
+    scriptPath VARCHAR2(500) NOT NULL,
+    scriptVersion VARCHAR2(32) NOT NULL,
+    databaseDriver VARCHAR2(50) NOT NULL,
+    executionStatus VARCHAR2(20) NOT NULL,
+    executionTime DATE NOT NULL,
+    executionDuration NUMBER(19) DEFAULT 0 NOT NULL,
+    statementsExecuted NUMBER(10) DEFAULT 0 NOT NULL,
+    errorMessage CLOB,
+    createdAt DATE DEFAULT SYSDATE NOT NULL,
+    CONSTRAINT UK_SCRIPT_VERSION UNIQUE (tenantId, scriptName, scriptVersion, databaseDriver)
+)`
+
 	case dbtypes.DriverClickHouse:
 		createTableSQL = `
 CREATE TABLE IF NOT EXISTS HUB_SCRIPT_EXECUTION_HISTORY (
@@ -286,6 +322,42 @@ CREATE TABLE HUB_STATEMENT_EXECUTION_HISTORY (
     INDEX IDX_STMT_HIST_STATUS (executionStatus),
     INDEX IDX_STMT_HIST_DRIVER (databaseDriver),
     INDEX IDX_STMT_HIST_TIME (executionTime),
+    CONSTRAINT UK_STMT_HASH UNIQUE (tenantId, scriptName, statementHash, databaseDriver)
+)`
+
+	case dbtypes.DriverVastbase:
+		createTableSQL = `
+CREATE TABLE IF NOT EXISTS HUB_STATEMENT_EXECUTION_HISTORY (
+    statementId VARCHAR(32) NOT NULL PRIMARY KEY,
+    tenantId VARCHAR(32) NOT NULL DEFAULT 'default',
+    scriptName VARCHAR(255) NOT NULL,
+    statementHash VARCHAR(32) NOT NULL,
+    statementType VARCHAR(50) NOT NULL,
+    statementContent TEXT NOT NULL,
+    databaseDriver VARCHAR(50) NOT NULL,
+    executionStatus VARCHAR(20) NOT NULL,
+    executionTime TIMESTAMP NOT NULL,
+    executionDuration BIGINT NOT NULL DEFAULT 0,
+    errorMessage TEXT,
+    createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT UK_STMT_HASH UNIQUE (tenantId, scriptName, statementHash, databaseDriver)
+)`
+
+	case dbtypes.DriverVastbaseOracle:
+		createTableSQL = `
+CREATE TABLE IF NOT EXISTS HUB_STATEMENT_EXECUTION_HISTORY (
+    statementId VARCHAR2(32) NOT NULL PRIMARY KEY,
+    tenantId VARCHAR2(32) DEFAULT 'default' NOT NULL,
+    scriptName VARCHAR2(255) NOT NULL,
+    statementHash VARCHAR2(32) NOT NULL,
+    statementType VARCHAR2(50) NOT NULL,
+    statementContent CLOB NOT NULL,
+    databaseDriver VARCHAR2(50) NOT NULL,
+    executionStatus VARCHAR2(20) NOT NULL,
+    executionTime DATE NOT NULL,
+    executionDuration NUMBER(19) DEFAULT 0 NOT NULL,
+    errorMessage CLOB,
+    createdAt DATE DEFAULT SYSDATE NOT NULL,
     CONSTRAINT UK_STMT_HASH UNIQUE (tenantId, scriptName, statementHash, databaseDriver)
 )`
 

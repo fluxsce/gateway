@@ -1,0 +1,43 @@
+-- Vastbase（PostgreSQL 兼容模式）。由 scripts/db/mysql 转换。
+CREATE TABLE IF NOT EXISTS HUB_GW_BACKEND_TRACE_LOG (
+  tenantId VARCHAR(32) NOT NULL,
+  traceId VARCHAR(64) NOT NULL,
+  backendTraceId VARCHAR(64) NOT NULL,
+  serviceDefinitionId VARCHAR(32) DEFAULT NULL,
+  serviceName VARCHAR(300) DEFAULT NULL,
+  forwardAddress TEXT DEFAULT NULL,
+  forwardMethod VARCHAR(10) DEFAULT NULL,
+  forwardPath VARCHAR(1000) DEFAULT NULL,
+  forwardQuery TEXT DEFAULT NULL,
+  forwardHeaders TEXT DEFAULT NULL,
+  forwardBody TEXT DEFAULT NULL,
+  requestSize INT DEFAULT 0,
+  loadBalancerStrategy VARCHAR(100) DEFAULT NULL,
+  loadBalancerDecision VARCHAR(500) DEFAULT NULL,
+  requestStartTime TIMESTAMP(3) NOT NULL,
+  responseReceivedTime TIMESTAMP(3) DEFAULT NULL,
+  requestDurationMs INT DEFAULT NULL,
+  statusCode INT DEFAULT NULL,
+  responseSize INT DEFAULT 0,
+  responseHeaders TEXT DEFAULT NULL,
+  responseBody TEXT DEFAULT NULL,
+  errorCode VARCHAR(100) DEFAULT NULL,
+  errorMessage TEXT DEFAULT NULL,
+  successFlag VARCHAR(1) NOT NULL DEFAULT 'N',
+  traceStatus VARCHAR(20) NOT NULL DEFAULT 'pending',
+  retryCount INT NOT NULL DEFAULT 0,
+  extProperty TEXT DEFAULT NULL,
+  addTime TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  addWho VARCHAR(32) NOT NULL,
+  editTime TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  editWho VARCHAR(32) NOT NULL,
+  oprSeqFlag VARCHAR(32) NOT NULL,
+  currentVersion INT NOT NULL DEFAULT 1,
+  activeFlag VARCHAR(1) NOT NULL DEFAULT 'Y',
+  noteText VARCHAR(500) DEFAULT NULL,
+  PRIMARY KEY (traceId, backendTraceId)
+);
+
+CREATE INDEX IDX_GW_BTRACE_TRACE ON HUB_GW_BACKEND_TRACE_LOG (tenantId, traceId);
+
+CREATE INDEX IDX_GW_BTRACE_TENANT_TIME ON HUB_GW_BACKEND_TRACE_LOG (tenantId, requestStartTime);

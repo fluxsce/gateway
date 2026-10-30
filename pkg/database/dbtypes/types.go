@@ -14,6 +14,10 @@ const (
 	DriverMySQL = "mysql"
 	// PostgreSQL数据库驱动
 	DriverPostgreSQL = "postgres"
+	// Vastbase 海量数据库。连接仍是 openGauss 协议。PostgreSQL 兼容模式走 postgres 方言。
+	DriverVastbase = "vastbase"
+	// DriverVastbaseOracle 不是配置里的驱动名。连上后若 sql_compatibility 为 A，分页、删除和时间函数用这套方言，建表脚本在 scripts/db/vastbase_oracle。占位符仍是 $1。
+	DriverVastbaseOracle = "vastbase_oracle"
 	// SQLite数据库驱动
 	DriverSQLite = "sqlite"
 	// SQL Server数据库驱动

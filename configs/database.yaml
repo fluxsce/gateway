@@ -227,6 +227,25 @@ database:
       transaction:
         default_isolation: 2 # 读已提交，适合只读连接
 
+    # Vastbase（海量）连接。驱动是 openGauss 连接器（支持 sha256 口令）。
+    # 连上后读 sql_compatibility：PG 用 scripts/db/vastbase；A（Oracle 兼容）用 scripts/db/vastbase_oracle。
+    # 不需要为网关另建库。MySQL 兼容（B）未单独支持。
+    vastbase:
+      driver: vastbase
+      enabled: false
+      connection:
+        host: localhost
+        port: 5432
+        username: vastbase
+        password: vastbase
+        database: gateway
+        sslmode: disable
+      pool:
+        max_open_conns: 50
+        max_idle_conns: 10
+      log:
+        slow_threshold: 200
+
     # PostgreSQL 连接示例
     postgres:
       driver: postgres

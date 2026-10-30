@@ -15,6 +15,7 @@ import (
 	// _ "gateway/pkg/database/oracle"
 	// 新驱动：先在 dialect 注册 Spec，再在此空白导入实现包
 	// _ "gateway/pkg/database/postgres"
+	_ "gateway/pkg/database/vastbase"
 	_ "gateway/pkg/database/sqlite"
 )
 

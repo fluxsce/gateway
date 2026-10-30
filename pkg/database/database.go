@@ -149,6 +149,12 @@ type Conn interface {
 	SetName(name string)
 }
 
+// SQLCompatibilityReporter 报告连接上读到的 SQL 兼容模式。
+// Vastbase 在 Ping 成功后读取 sql_compatibility，A 表示 Oracle 兼容。未探测的驱动返回空字符串。
+type SQLCompatibilityReporter interface {
+	SQLCompatibility() string
+}
+
 // SQL 执行原始 SQL。分页、复杂查询、手写语句走这里。
 // autoCommit 为 true 时直接用连接并自动提交；为 false 时使用 ctx 中的事务，需先 BeginTx 或 InTx。
 type SQL interface {

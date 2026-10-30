@@ -43,11 +43,12 @@ type Hooks struct {
 //  7. Go 底层优化 - 普通操作依赖 Go database/sql 的自动优化
 //  8. 智能预编译 - 仅在必要时（如批量操作）使用手动预编译
 type DB struct {
-	db      *sql.DB
-	config  *database.DbConfig
-	logger  *dblogger.DBLogger
-	dialect dialect.Dialect
-	hooks   Hooks
+	db        *sql.DB
+	config    *database.DbConfig
+	logger    *dblogger.DBLogger
+	dialect   dialect.Dialect
+	hooks     Hooks
+	sqlCompat string
 }
 
 var _ database.Database = (*DB)(nil)
@@ -168,6 +169,25 @@ func (d *DB) Ping(ctx context.Context) error {
 	err := d.db.PingContext(ctx)
 	d.logger.LogPing(ctx, err)
 	return err
+}
+
+// SetSQLCompatibility 记下连接上读到的 SQL 兼容模式，例如 Vastbase 的 A、PG。
+func (d *DB) SetSQLCompatibility(mode string) {
+	d.sqlCompat = mode
+}
+
+// SQLCompatibility 返回 SetSQLCompatibility 记下的模式。未探测时为空。
+func (d *DB) SQLCompatibility() string {
+	return d.sqlCompat
+}
+
+// UseDialect 在连接成功后换成另一种 SQL 方言。
+// 已打开的连接不会按新方言重新 Dial。Vastbase 探到 Oracle 兼容模式后用来切换分页和删除。
+func (d *DB) UseDialect(next dialect.Dialect) {
+	if next == nil {
+		return
+	}
+	d.dialect = next
 }
 
 // GetDriver 获取数据库驱动类型。

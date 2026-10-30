@@ -3,6 +3,8 @@ package sqlutils
 import (
 	"strings"
 	"testing"
+
+	"gateway/pkg/database/dbtypes"
 )
 
 func TestBuildLimitedDeleteQueryMySQL(t *testing.T) {
@@ -58,6 +60,38 @@ func TestBuildLimitedDeleteQuerySQLServerTopFirst(t *testing.T) {
 	}
 	if args[0] != 100 {
 		t.Fatalf("TOP limit should be first, args=%v", args)
+	}
+}
+
+func TestDatabaseTypeForVastbase(t *testing.T) {
+	if databaseTypeFor(dbtypes.DriverVastbase, "PG") != DatabasePostgreSQL {
+		t.Fatal("PG mode should use postgres dialect")
+	}
+	if databaseTypeFor(dbtypes.DriverVastbase, "A") != DatabaseVastbaseOracle {
+		t.Fatal("A mode should use vastbase oracle dialect")
+	}
+	if databaseTypeFor(dbtypes.DriverVastbase, "") != DatabasePostgreSQL {
+		t.Fatal("unknown mode should stay on postgres dialect")
+	}
+}
+
+func TestLimitOffsetClauseVastbaseOracle(t *testing.T) {
+	got := LimitOffsetClause(DatabaseVastbaseOracle, 20, 40)
+	if got != "OFFSET 40 ROWS FETCH NEXT 20 ROWS ONLY" {
+		t.Fatalf("got %q", got)
+	}
+	if mysql := LimitOffsetClause(DatabaseMySQL, 20, 0); mysql != "LIMIT 20" {
+		t.Fatalf("mysql %q", mysql)
+	}
+}
+
+func TestBuildLimitedDeleteQueryVastbaseOracle(t *testing.T) {
+	sql, _, err := BuildLimitedDeleteQuery(DatabaseVastbaseOracle, "HUB_ALERT_LOG", "tenantId = ?", []interface{}{"t1"}, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(sql, "ROWNUM") || strings.Contains(sql, "ctid") {
+		t.Fatalf("sql=%q", sql)
 	}
 }
 
