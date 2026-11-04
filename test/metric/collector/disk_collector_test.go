@@ -122,8 +122,14 @@ func TestDiskCollector_Partition(t *testing.T) {
 	}{
 		{"sda", false},
 		{"sda1", true},
+		{"sda10", true},
 		{"nvme0n1", false},
 		{"nvme0n1p1", true},
+		{"/dev/nvme0n1p2", true},
+		{"mmcblk0", false},
+		{"mmcblk0p1", true},
+		{"dm-0", false},
+		{"C:", false},
 		{"", false},
 	}
 

@@ -60,6 +60,8 @@ export interface ServiceDefinition {
   serviceMetadata?: string
   /** 活动状态标记 */
   activeFlag: 'Y' | 'N'
+  /** 启用的静态节点数，服务发现类型没有这项时为 0 */
+  nodeCount?: number
   /** 备注信息 */
   noteText?: string
   /** 创建时间 */

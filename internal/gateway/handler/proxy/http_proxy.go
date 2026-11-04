@@ -450,7 +450,7 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 
 	// 非SSE响应使用常规处理
 	// 注意：常规响应处理完成后，响应信息会在 defer 中写入日志
-	err = h.handleRegularResponse(ctx, resp)
+	backendDone, err := h.handleRegularResponse(ctx, resp)
 	if err != nil {
 		responseErr = err
 	}
@@ -462,10 +462,14 @@ func (h *HTTPProxy) proxyRequest(ctx *core.Context, serviceConfig *service.Servi
 		}
 	}
 
-	// 记录后端请求结束时间（响应体读取完成后，用于后端追踪日志）
-	backendResponseTime = time.Now()
-	// 计算本次请求的耗时（从请求开始到响应体读取完成）
-	attemptDuration := time.Since(requestStartTime)
+	// 记录响应体时，后端耗时停在响应体收完。写给调用方的时间不计入。
+	// 流式转发读和写叠在一起，仍用当前时间。
+	if backendDone.IsZero() {
+		backendResponseTime = time.Now()
+	} else {
+		backendResponseTime = backendDone
+	}
+	attemptDuration := backendResponseTime.Sub(requestStartTime)
 	// 注意：不在这里设置 MaxBackendDuration，由重试循环累加后统一设置
 
 	// responseTime 由网关流程结束时设置（gateway.go），不在代理处理中设置
@@ -708,8 +712,10 @@ func (h *HTTPProxy) handleSSEResponse(ctx *core.Context, resp *http.Response) er
 	return newSSEStreamer(bufferSize, config.SendTimeout, resolveBodySampleLimit(ctx, true)).Stream(ctx, resp)
 }
 
-// handleRegularResponse 处理常规HTTP响应
-func (h *HTTPProxy) handleRegularResponse(ctx *core.Context, resp *http.Response) error {
+// handleRegularResponse 处理常规HTTP响应。
+// 开启复制或记录响应体时，返回值是后端响应体收完的时刻，不含随后写给调用方的时间。
+// 流式转发无法把读和写拆开，返回零值。
+func (h *HTTPProxy) handleRegularResponse(ctx *core.Context, resp *http.Response) (time.Time, error) {
 	// 复制响应头
 	// 注意：响应头不再保存到上下文，因为多服务转发时每个服务的响应头不同
 	// 响应头已在 ProxyRequest 的 defer 中从 resp 对象获取
@@ -734,26 +740,27 @@ func (h *HTTPProxy) handleRegularResponse(ctx *core.Context, resp *http.Response
 		// 如果需要复制响应体到上下文中（用于日志记录或HTTP配置要求）
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return fmt.Errorf("读取响应体失败: %w", err)
+			return time.Time{}, fmt.Errorf("读取响应体失败: %w", err)
 		}
+		backendDone := time.Now()
 		// 只有在需要记录响应体时才保存到上下文
 		if h.shouldRecordResponseBody(ctx) {
 			ctx.Set("response_body", bodyBytes)
 		}
 		_, err = ctx.Writer.Write(bodyBytes)
 		if err != nil {
-			return fmt.Errorf("写入响应体失败: %w", err)
+			return backendDone, fmt.Errorf("写入响应体失败: %w", err)
 		}
-	} else {
-		// 直接流式复制
-		_, err := io.Copy(ctx.Writer, resp.Body)
-		if err != nil {
-			return fmt.Errorf("复制响应体失败: %w", err)
-		}
+		return backendDone, nil
+	}
+	// 直接流式复制
+	_, err := io.Copy(ctx.Writer, resp.Body)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("复制响应体失败: %w", err)
 	}
 
 	// responseTime 由网关流程结束时设置（gateway.go），不在代理处理中设置
-	return nil
+	return time.Time{}, nil
 }
 
 // isHopByHopHeader 检查是否为hop-by-hop头部

@@ -10,6 +10,7 @@ import (
 
 	"gateway/pkg/metric/collector"
 	"gateway/pkg/metric/types"
+	"gateway/pkg/metric/utils"
 
 	gopsutilNet "github.com/shirou/gopsutil/v4/net"
 )
@@ -77,12 +78,6 @@ func (c *NetworkCollector) GetNetworkStats() (*types.NetworkMetrics, error) {
 		return nil, fmt.Errorf("获取网络接口信息失败: %w", err)
 	}
 	metrics.Interfaces = interfaces
-
-	// 第一次采集后设置标志为false
-	if c.isFirstCollect {
-		c.isFirstCollect = false
-	}
-
 	return metrics, nil
 }
 
@@ -153,24 +148,12 @@ func (c *NetworkCollector) getNetworkInterfaces(ctx context.Context) ([]types.Ne
 				LastCollectTime: now,
 			}
 
-			// 计算网络速率
+			// 计算网络速率。第一次没有基线，速率保持 0。
 			if !c.isFirstCollect {
 				if last, exists := c.lastInterfaceStats[gopsutilInterface.Name]; exists {
 					duration := now.Sub(last.LastCollectTime).Seconds()
-					if duration > 0 {
-						// 计算接收速率 (字节/秒)
-						interfaceStats.ReceiveRate = float64(interfaceStats.BytesReceived-last.BytesReceived) / duration
-						// 计算发送速率 (字节/秒)
-						interfaceStats.SendRate = float64(interfaceStats.BytesSent-last.BytesSent) / duration
-
-						// 确保速率不为负数（可能由于计数器重置导致）
-						if interfaceStats.ReceiveRate < 0 {
-							interfaceStats.ReceiveRate = 0
-						}
-						if interfaceStats.SendRate < 0 {
-							interfaceStats.SendRate = 0
-						}
-					}
+					interfaceStats.ReceiveRate = utils.CounterRate(interfaceStats.BytesReceived, last.BytesReceived, duration)
+					interfaceStats.SendRate = utils.CounterRate(interfaceStats.BytesSent, last.BytesSent, duration)
 				}
 			}
 
@@ -193,6 +176,7 @@ func (c *NetworkCollector) getNetworkInterfaces(ctx context.Context) ([]types.Ne
 		interfaces = append(interfaces, interfaceStats)
 	}
 
+	c.isFirstCollect = false
 	return interfaces, nil
 }
 
@@ -245,28 +229,55 @@ func (c *NetworkCollector) getInterfaceStatus(flags []string) string {
 	return "down"
 }
 
-// getInterfaceType 获取接口类型
-// 根据接口名称判断接口类型
+// getInterfaceType 获取接口类型。
+// 按接口名判断。Windows 的 Ethernet / 以太网 / Wi-Fi 不能只靠 eth、wlan 前缀。
 func (c *NetworkCollector) getInterfaceType(interfaceName string) string {
-	// 根据接口名称判断类型
 	lowerName := strings.ToLower(interfaceName)
 
-	if strings.HasPrefix(lowerName, "lo") {
+	if isLoopbackName(lowerName) {
 		return "loopback"
 	}
-	if strings.HasPrefix(lowerName, "eth") || strings.HasPrefix(lowerName, "en") {
-		return "ethernet"
-	}
-	if strings.HasPrefix(lowerName, "wlan") || strings.HasPrefix(lowerName, "wl") || strings.HasPrefix(lowerName, "wi-fi") {
+	if strings.Contains(lowerName, "wi-fi") || strings.Contains(lowerName, "wifi") ||
+		strings.Contains(lowerName, "wlan") || strings.Contains(lowerName, "wireless") ||
+		strings.HasPrefix(lowerName, "wl") || strings.Contains(interfaceName, "无线") {
 		return "wifi"
 	}
 	if strings.HasPrefix(lowerName, "ppp") || strings.HasPrefix(lowerName, "tun") || strings.HasPrefix(lowerName, "tap") {
 		return "vpn"
 	}
-	if strings.HasPrefix(lowerName, "docker") || strings.HasPrefix(lowerName, "br-") {
+	if strings.HasPrefix(lowerName, "docker") || strings.HasPrefix(lowerName, "br-") || strings.Contains(lowerName, "bridge") {
 		return "bridge"
 	}
+	if strings.HasPrefix(lowerName, "eth") || strings.HasPrefix(lowerName, "en") ||
+		strings.Contains(lowerName, "ethernet") || strings.Contains(lowerName, "local area") ||
+		strings.Contains(interfaceName, "以太网") {
+		return "ethernet"
+	}
 	return "unknown"
+}
+
+// isLoopbackName 只认 lo、lo 加数字，以及名字里带 loopback 的接口。
+// 不能用 "lo" 前缀，否则 Local Area Connection 会被当成回环。
+func isLoopbackName(lowerName string) bool {
+	if strings.Contains(lowerName, "loopback") {
+		return true
+	}
+	if lowerName == "lo" {
+		return true
+	}
+	if strings.HasPrefix(lowerName, "lo") {
+		rest := lowerName[2:]
+		if rest == "" {
+			return false
+		}
+		for _, r := range rest {
+			if r < '0' || r > '9' {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }
 
 // SetTimeout 设置采集超时时间

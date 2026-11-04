@@ -842,7 +842,7 @@ export function useServiceDefinitionModel() {
         key: 'nodeCount',
         title: '服务节点',
         align: 'center',
-        formatter: () => '0',
+        formatter: (_value, row) => String(row.nodeCount ?? 0),
         width: 100,
       },
       {

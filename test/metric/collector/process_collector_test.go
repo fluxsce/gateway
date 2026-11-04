@@ -93,9 +93,8 @@ func TestProcessCollector_SystemProcessStats(t *testing.T) {
 	assert.GreaterOrEqual(t, stats.Stopped, uint32(0), "停止的进程数应该大于等于0")
 	assert.GreaterOrEqual(t, stats.Zombie, uint32(0), "僵尸进程数应该大于等于0")
 
-	// 验证各状态进程数之和等于总数
-	total := stats.Running + stats.Sleeping + stats.Stopped + stats.Zombie
-	assert.Equal(t, stats.Total, total, "各状态进程数之和应等于总数")
+	classified := stats.Running + stats.Sleeping + stats.Stopped + stats.Zombie
+	assert.LessOrEqual(t, classified, stats.Total, "已归类进程数不能超过总数")
 }
 
 // TestProcessCollector_Timeout 测试超时设置

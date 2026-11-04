@@ -295,6 +295,10 @@ func (r *RedisConfig) SetDefaults() {
 		}
 		// 集群模式强制DB为0
 		r.DB = 0
+		// 示例和已有配置把集群密码写在 password。cluster_password 优先，空时用 password。
+		if r.ClusterPassword == "" {
+			r.ClusterPassword = r.Password
+		}
 	}
 
 	// 连接池配置默认值

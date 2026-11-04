@@ -3,6 +3,7 @@ package cpu
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"gateway/pkg/metric/collector"
@@ -12,8 +13,12 @@ import (
 	"github.com/shirou/gopsutil/v4/load"
 )
 
-// 默认采集超时时间
-const DefaultCollectTimeout = 5 * time.Second
+const (
+	// DefaultCollectTimeout 默认采集超时时间
+	DefaultCollectTimeout = 5 * time.Second
+	// 首次没有基线时，用这段时间做一次差值。之后每次采集覆盖距上次的间隔。
+	firstSampleInterval = time.Second
+)
 
 // CPUCollector CPU采集器
 // 使用 gopsutil 实现跨平台CPU信息采集
@@ -21,6 +26,10 @@ type CPUCollector struct {
 	*collector.BaseCollector
 	// 采集超时时间
 	timeout time.Duration
+	// 保护 lastTimes
+	mu sync.Mutex
+	// 上次聚合 CPU 时间，用于计算间隔内的占比
+	lastTimes *cpu.TimesStat
 }
 
 // NewCPUCollector 创建CPU采集器
@@ -104,48 +113,114 @@ func (c *CPUCollector) getCPUInfo(ctx context.Context, metrics *types.CPUMetrics
 	return nil
 }
 
-// getCPUStats 获取CPU使用率统计
-// 使用 gopsutil 获取详细的CPU使用率信息
+// getCPUStats 获取CPU使用率统计。
+// 分项和总使用率都来自相邻两次 cpu.Times 的差值，不再把开机至今的累计时间当成当前占比。
 func (c *CPUCollector) getCPUStats(ctx context.Context, metrics *types.CPUMetrics) error {
-	// 检查上下文是否已取消
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
 
-	// 获取总CPU使用率
-	percentages, err := cpu.PercentWithContext(ctx, time.Second, false)
+	current, err := readAggregateTimes(ctx)
 	if err != nil {
-		return fmt.Errorf("获取CPU使用率失败: %w", err)
+		return err
 	}
 
-	if len(percentages) > 0 {
-		metrics.UsagePercent = percentages[0]
+	c.mu.Lock()
+	previous := c.lastTimes
+	c.mu.Unlock()
+
+	if previous == nil {
+		if err := waitInterval(ctx, firstSampleInterval); err != nil {
+			c.storeTimes(current)
+			return fmt.Errorf("CPU采样被取消: %w", err)
+		}
+		second, err := readAggregateTimes(ctx)
+		if err != nil {
+			c.storeTimes(current)
+			return err
+		}
+		applyCPUPercents(metrics, current, second)
+		c.storeTimes(second)
+		return nil
 	}
 
-	// 获取详细的CPU时间统计
+	applyCPUPercents(metrics, *previous, current)
+	c.storeTimes(current)
+	return nil
+}
+
+func (c *CPUCollector) storeTimes(sample cpu.TimesStat) {
+	c.mu.Lock()
+	c.lastTimes = &sample
+	c.mu.Unlock()
+}
+
+func readAggregateTimes(ctx context.Context) (cpu.TimesStat, error) {
 	times, err := cpu.TimesWithContext(ctx, false)
 	if err != nil {
-		return fmt.Errorf("获取CPU时间统计失败: %w", err)
+		return cpu.TimesStat{}, fmt.Errorf("获取CPU时间统计失败: %w", err)
+	}
+	if len(times) == 0 {
+		return cpu.TimesStat{}, fmt.Errorf("获取CPU时间统计失败: 空结果")
+	}
+	return times[0], nil
+}
+
+func waitInterval(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+// applyCPUPercents 用两次累计 CPU 时间的差值填写占比。
+// Linux 的 user 已包含 guest，这里不再把 Guest 加进分母。nice 并入用户态。steal 留在分母里，和 gopsutil 的忙占比一致。
+func applyCPUPercents(metrics *types.CPUMetrics, prev, cur cpu.TimesStat) {
+	user := nonNeg(cur.User - prev.User)
+	nice := nonNeg(cur.Nice - prev.Nice)
+	system := nonNeg(cur.System - prev.System)
+	idle := nonNeg(cur.Idle - prev.Idle)
+	iowait := nonNeg(cur.Iowait - prev.Iowait)
+	irq := nonNeg(cur.Irq - prev.Irq)
+	softirq := nonNeg(cur.Softirq - prev.Softirq)
+	steal := nonNeg(cur.Steal - prev.Steal)
+
+	total := user + nice + system + idle + iowait + irq + softirq + steal
+	if total <= 0 {
+		return
 	}
 
-	if len(times) > 0 {
-		cpuTime := times[0]
-		total := cpuTime.User + cpuTime.System + cpuTime.Idle + cpuTime.Nice +
-			cpuTime.Iowait + cpuTime.Irq + cpuTime.Softirq + cpuTime.Steal
+	metrics.UserPercent = portion(user+nice, total)
+	metrics.SystemPercent = portion(system, total)
+	metrics.IdlePercent = portion(idle, total)
+	metrics.IOWaitPercent = portion(iowait, total)
+	metrics.IrqPercent = portion(irq, total)
+	metrics.SoftIrqPercent = portion(softirq, total)
+	metrics.UsagePercent = portion(user+nice+system+irq+softirq+steal, total)
+}
 
-		if total > 0 {
-			metrics.UserPercent = (cpuTime.User / total) * 100
-			metrics.SystemPercent = (cpuTime.System / total) * 100
-			metrics.IdlePercent = (cpuTime.Idle / total) * 100
-			metrics.IOWaitPercent = (cpuTime.Iowait / total) * 100
-			metrics.IrqPercent = (cpuTime.Irq / total) * 100
-			metrics.SoftIrqPercent = (cpuTime.Softirq / total) * 100
-		}
+func nonNeg(v float64) float64 {
+	if v < 0 {
+		return 0
 	}
+	return v
+}
 
-	return nil
+func portion(part, total float64) float64 {
+	if part <= 0 || total <= 0 {
+		return 0
+	}
+	value := part / total * 100
+	if value > 100 {
+		return 100
+	}
+	return value
 }
 
 // getLoadAverage 获取负载平均值

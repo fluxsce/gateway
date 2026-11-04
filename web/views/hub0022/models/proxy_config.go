@@ -105,6 +105,9 @@ type ServiceDefinition struct {
 	CurrentVersion int       `json:"currentVersion" form:"currentVersion" query:"currentVersion" db:"currentVersion"` // 当前版本号
 	ActiveFlag     string    `json:"activeFlag" form:"activeFlag" query:"activeFlag" db:"activeFlag"`                 // 活动状态标记(N非活动,Y活动)
 	NoteText       string    `json:"noteText" form:"noteText" query:"noteText" db:"noteText"`                         // 备注信息
+
+	// NodeCount 该服务下启用的静态节点数，列表查询时从 HUB_GW_SERVICE_NODE 汇总，不是表字段。
+	NodeCount int `json:"nodeCount" db:"-"`
 }
 
 // TableName 返回表名

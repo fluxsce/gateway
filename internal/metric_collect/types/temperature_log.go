@@ -2,6 +2,9 @@ package types
 
 import (
 	"time"
+
+	metricTypes "gateway/pkg/metric/types"
+	"gateway/pkg/utils/random"
 )
 
 // TemperatureLog 温度信息日志表对应的结构体
@@ -46,4 +49,37 @@ func (t *TemperatureLog) TableName() string {
 // GetPrimaryKey 获取主键值
 func (t *TemperatureLog) GetPrimaryKey() (string, string) {
 	return t.TenantId, t.MetricTemperatureLogId
-} 
+}
+
+// NewTemperatureLogFromMetrics 从温度传感器读数创建日志。阈值为 0 时写成空，表示传感器没有给出阈值。
+func NewTemperatureLogFromMetrics(temp metricTypes.TemperatureInfo, tenantId, serverId, operator string, collectTime time.Time, oprSeqFlag string) *TemperatureLog {
+	now := time.Now()
+	name := temp.SensorName
+	if name == "" {
+		name = "unknown"
+	}
+	return &TemperatureLog{
+		MetricTemperatureLogId: random.Generate32BitRandomString(),
+		TenantId:               tenantId,
+		MetricServerId:         serverId,
+		SensorName:             name,
+		TemperatureValue:       temp.Temperature,
+		HighThreshold:          positiveThreshold(temp.High),
+		CriticalThreshold:      positiveThreshold(temp.Critical),
+		CollectTime:            collectTime,
+		AddTime:                now,
+		AddWho:                 operator,
+		EditTime:               now,
+		EditWho:                operator,
+		OprSeqFlag:             oprSeqFlag,
+		CurrentVersion:         1,
+		ActiveFlag:             ActiveFlagYes,
+	}
+}
+
+func positiveThreshold(v float64) *float64 {
+	if v <= 0 {
+		return nil
+	}
+	return &v
+}

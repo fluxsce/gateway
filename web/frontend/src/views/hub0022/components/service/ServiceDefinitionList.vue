@@ -126,8 +126,16 @@ const stopGatewayInstanceIdWatch = watch(
   { immediate: false }
 )
 
+// 节点窗口关掉后重查列表，把刚加的静态节点数显示出来。
+const stopNodeDialogWatch = watch(showNodeDialog, (open, wasOpen) => {
+  if (wasOpen && !open) {
+    service.loadServiceList()
+  }
+})
+
 onBeforeUnmount(() => {
   stopGatewayInstanceIdWatch()
+  stopNodeDialogWatch()
 })
 
 /**

@@ -195,6 +195,29 @@ func TestRedisConfigString(t *testing.T) {
 	}
 }
 
+func TestClusterPasswordUsesExamplePassword(t *testing.T) {
+	fromExample := &redis.RedisConfig{
+		Mode:         redis.ModeCluster,
+		Password:     "from-example",
+		ClusterAddrs: []string{"127.0.0.1:7000"},
+	}
+	fromExample.SetDefaults()
+	if fromExample.ClusterPassword != "from-example" {
+		t.Fatalf("集群应使用示例里的 password，got %q", fromExample.ClusterPassword)
+	}
+
+	explicit := &redis.RedisConfig{
+		Mode:            redis.ModeCluster,
+		Password:        "from-example",
+		ClusterPassword: "explicit",
+		ClusterAddrs:    []string{"127.0.0.1:7000"},
+	}
+	explicit.SetDefaults()
+	if explicit.ClusterPassword != "explicit" {
+		t.Fatalf("cluster_password 应优先，got %q", explicit.ClusterPassword)
+	}
+}
+
 func TestRedisConfigGetType(t *testing.T) {
 	config := &redis.RedisConfig{}
 	if config.GetType() != "redis" {

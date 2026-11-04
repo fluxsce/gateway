@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"runtime"
@@ -14,6 +15,7 @@ import (
 	"github.com/shirou/gopsutil/v4/host"
 	gopsutilNet "github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/process"
+	"github.com/shirou/gopsutil/v4/sensors"
 )
 
 // 默认采集超时时间
@@ -217,10 +219,8 @@ func (c *SystemCollector) getSystemStats(ctx context.Context, metrics *types.Sys
 	// 获取用户数量
 	users, err := host.UsersWithContext(ctx)
 	if err != nil {
-		// 用户信息获取失败时设置默认值
-		metrics.UserCount = 1
+		metrics.UserCount = 0
 	} else {
-		// 统计唯一用户数量
 		userSet := make(map[string]struct{})
 		for _, user := range users {
 			if user.User != "" {
@@ -228,24 +228,13 @@ func (c *SystemCollector) getSystemStats(ctx context.Context, metrics *types.Sys
 			}
 		}
 		metrics.UserCount = uint32(len(userSet))
-		if metrics.UserCount == 0 {
-			metrics.UserCount = 1 // 至少有一个用户
-		}
 	}
 
 	return nil
 }
 
-// getTemperatureInfo 获取系统温度信息
-// 注意: 当前版本暂不支持温度信息获取，设置为空数组
-//
-// 参数:
-//   - ctx: 上下文，用于控制操作超时
-//   - metrics: 系统指标数据结构
-//
-// 注意: 温度信息获取在某些系统上可能不支持，失败时不影响其他信息
+// getTemperatureInfo 读取温度传感器。平台不支持或读失败时保持空列表，不让整次系统采集失败。
 func (c *SystemCollector) getTemperatureInfo(ctx context.Context, metrics *types.SystemMetrics) {
-	// 检查上下文是否已取消
 	select {
 	case <-ctx.Done():
 		metrics.Temperature = []types.TemperatureInfo{}
@@ -253,9 +242,36 @@ func (c *SystemCollector) getTemperatureInfo(ctx context.Context, metrics *types
 	default:
 	}
 
-	// 温度信息获取暂不支持，设置为空数组
-	// 未来可以考虑使用其他方式实现温度监控
-	metrics.Temperature = []types.TemperatureInfo{}
+	metrics.Temperature = readTemperatures(ctx)
+}
+
+// readTemperatures 读取传感器温度。明显超出物理范围的读数丢掉，例如 WMI 返回 0 时换算出的 -273°C。
+func readTemperatures(ctx context.Context) []types.TemperatureInfo {
+	stats, err := sensors.TemperaturesWithContext(ctx)
+	if err != nil {
+		var warns *sensors.Warnings
+		if !errors.As(err, &warns) {
+			return []types.TemperatureInfo{}
+		}
+	}
+
+	out := make([]types.TemperatureInfo, 0, len(stats))
+	for _, stat := range stats {
+		if stat.Temperature < -40 || stat.Temperature > 150 {
+			continue
+		}
+		name := stat.SensorKey
+		if name == "" {
+			name = "unknown"
+		}
+		out = append(out, types.TemperatureInfo{
+			SensorName:  name,
+			Temperature: stat.Temperature,
+			High:        stat.High,
+			Critical:    stat.Critical,
+		})
+	}
+	return out
 }
 
 // SetTimeout 设置采集超时时间
@@ -381,36 +397,24 @@ func (c *SystemCollector) GetUserCount() (uint32, error) {
 
 	users, err := host.UsersWithContext(ctx)
 	if err != nil {
-		return 1, nil // 默认至少有一个用户
+		return 0, err
 	}
 
-	// 统计唯一用户数量
 	userSet := make(map[string]struct{})
 	for _, user := range users {
 		if user.User != "" {
 			userSet[user.User] = struct{}{}
 		}
 	}
-
-	userCount := uint32(len(userSet))
-	if userCount == 0 {
-		userCount = 1 // 至少有一个用户
-	}
-
-	return userCount, nil
+	return uint32(len(userSet)), nil
 }
 
-// GetTemperatures 获取系统温度信息
-// 这是一个便捷方法，返回系统温度传感器信息
-// 注意: 当前版本暂不支持温度信息获取
-//
-// 返回值:
-//   - []types.TemperatureInfo: 温度信息列表（当前总是空数组）
-//   - error: 获取过程中的错误
+// GetTemperatures 获取系统温度信息。
+// 平台不支持时返回空列表。
 func (c *SystemCollector) GetTemperatures() ([]types.TemperatureInfo, error) {
-	// 温度信息获取暂不支持，返回空数组
-	// 未来可以考虑使用其他方式实现温度监控
-	return []types.TemperatureInfo{}, nil
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	return readTemperatures(ctx), nil
 }
 
 // getNetworkInfo 获取网络信息

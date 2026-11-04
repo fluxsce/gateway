@@ -4,16 +4,29 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
+	"sync"
 	"time"
 
 	"gateway/pkg/metric/collector"
 	"gateway/pkg/metric/types"
 
+	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/process"
 )
 
 // 默认采集超时时间
-const DefaultCollectTimeout = 5 * time.Second
+const (
+	DefaultCollectTimeout = 5 * time.Second
+	// 首次没有基线时，用这段墙钟时间换算进程 CPU 占比。
+	firstSampleInterval = time.Second
+)
+
+// processCPUSample 上一次进程 CPU 累计时间。
+type processCPUSample struct {
+	total float64
+	at    time.Time
+}
 
 // ProcessCollector 进程信息采集器
 // 使用 gopsutil 实现跨平台进程信息采集，包括当前进程详细信息和系统进程统计
@@ -21,6 +34,10 @@ type ProcessCollector struct {
 	*collector.BaseCollector
 	// 采集超时时间，防止进程信息获取操作阻塞过久
 	timeout time.Duration
+	// 保护 lastCPU
+	mu sync.Mutex
+	// 上次进程 CPU 时间，用于计算间隔内的占比
+	lastCPU *processCPUSample
 }
 
 // NewProcessCollector 创建进程信息采集器
@@ -147,8 +164,10 @@ func (c *ProcessCollector) getCurrentProcessInfo(ctx context.Context) (*types.Pr
 	}
 
 	// 获取内存使用信息
-	if memInfo, err := proc.MemoryInfoWithContext(ctx); err == nil {
-		processInfo.MemoryUsage = memInfo.RSS // 实际物理内存使用量
+	if memInfo, err := proc.MemoryInfoWithContext(ctx); err == nil && memInfo != nil {
+		processInfo.MemoryUsage = memInfo.RSS
+		processInfo.VirtualMemory = memInfo.VMS
+		processInfo.SwapMemory = memInfo.Swap
 	}
 
 	// 获取内存使用率
@@ -156,10 +175,8 @@ func (c *ProcessCollector) getCurrentProcessInfo(ctx context.Context) (*types.Pr
 		processInfo.MemoryPercent = float64(memPercent)
 	}
 
-	// 获取CPU使用率
-	if cpuPercent, err := proc.CPUPercentWithContext(ctx); err == nil {
-		processInfo.CPUPercent = cpuPercent
-	}
+	// 间隔内的整机 CPU 占比。gopsutil 的 CPUPercent 是进程启动至今的平均值，不能当当前负载。
+	processInfo.CPUPercent, processInfo.CPUTimes = c.sampleProcessCPU(ctx, proc)
 
 	// 获取线程数
 	if numThreads, err := proc.NumThreadsWithContext(ctx); err == nil {
@@ -208,21 +225,19 @@ func (c *ProcessCollector) getSystemProcessStats(ctx context.Context) (*types.Pr
 
 	stats := &types.ProcessSystemStats{}
 
-	// 使用 gopsutil 获取所有进程列表
 	processes, err := process.ProcessesWithContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("gopsutil获取进程列表失败: %w", err)
 	}
+	stats.Total = uint32(len(processes))
 
-	// 统计各种状态的进程数量
+	// 能读到状态的进程才归类。读失败的仍计入 Total，避免把进程总数记成 0。
 	for _, proc := range processes {
-		// 获取进程状态，失败时跳过该进程
 		statusList, err := proc.StatusWithContext(ctx)
 		if err != nil || len(statusList) == 0 {
 			continue
 		}
 
-		// 根据状态分类统计（取第一个状态）
 		switch c.convertProcessStatus(statusList[0]) {
 		case "running":
 			stats.Running++
@@ -233,10 +248,89 @@ func (c *ProcessCollector) getSystemProcessStats(ctx context.Context) (*types.Pr
 		case "zombie":
 			stats.Zombie++
 		}
-		stats.Total++
 	}
 
 	return stats, nil
+}
+
+// sampleProcessCPU 用相邻两次进程 CPU 时间计算整机占用。
+// 返回值限制在 0-100。读不到时间时占比为 0，累计时间字段为空。
+func (c *ProcessCollector) sampleProcessCPU(ctx context.Context, proc *process.Process) (float64, *types.ProcessCPUTimes) {
+	times, err := proc.TimesWithContext(ctx)
+	if err != nil || times == nil {
+		return 0, nil
+	}
+	now := time.Now()
+	total := times.Total()
+
+	c.mu.Lock()
+	previous := c.lastCPU
+	c.mu.Unlock()
+
+	if previous == nil {
+		if err := waitInterval(ctx, firstSampleInterval); err != nil {
+			c.saveCPUSample(total, now)
+			return 0, cpuTimesFrom(times)
+		}
+		second, err := proc.TimesWithContext(ctx)
+		if err != nil || second == nil {
+			c.saveCPUSample(total, now)
+			return 0, cpuTimesFrom(times)
+		}
+		finished := time.Now()
+		secondTotal := second.Total()
+		percent := machineCPUPercent(secondTotal-total, finished.Sub(now).Seconds(), runtime.NumCPU())
+		c.saveCPUSample(secondTotal, finished)
+		return percent, cpuTimesFrom(second)
+	}
+
+	percent := machineCPUPercent(total-previous.total, now.Sub(previous.at).Seconds(), runtime.NumCPU())
+	c.saveCPUSample(total, now)
+	return percent, cpuTimesFrom(times)
+}
+
+func (c *ProcessCollector) saveCPUSample(total float64, at time.Time) {
+	c.mu.Lock()
+	c.lastCPU = &processCPUSample{total: total, at: at}
+	c.mu.Unlock()
+}
+
+func cpuTimesFrom(times *cpu.TimesStat) *types.ProcessCPUTimes {
+	return &types.ProcessCPUTimes{
+		User:      times.User,
+		System:    times.System,
+		Idle:      times.Idle,
+		IOWait:    times.Iowait,
+		IRQ:       times.Irq,
+		SoftIRQ:   times.Softirq,
+		Stolen:    times.Steal,
+		Guest:     times.Guest,
+		GuestNice: times.GuestNice,
+	}
+}
+
+// machineCPUPercent 把进程消耗的 CPU 秒换算成整机百分比。
+// logical 为逻辑 CPU 数。结果限制在 0-100。
+func machineCPUPercent(cpuSeconds, wallSeconds float64, logical int) float64 {
+	if cpuSeconds <= 0 || wallSeconds <= 0 || logical <= 0 {
+		return 0
+	}
+	percent := 100 * cpuSeconds / wallSeconds / float64(logical)
+	if percent > 100 {
+		return 100
+	}
+	return percent
+}
+
+func waitInterval(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // convertProcessStatus 转换进程状态

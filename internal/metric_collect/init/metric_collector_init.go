@@ -514,6 +514,13 @@ func (m *MetricCollectorManager) convertAndBufferMetrics(allMetrics *metricTypes
 		}
 	}
 
+	if allMetrics.System != nil && m.config.Collectors.Temperature {
+		for _, temp := range allMetrics.System.Temperature {
+			tempLog := types.NewTemperatureLogFromMetrics(temp, m.config.TenantId, m.config.ServerId, m.config.Operator, collectTime, oprSeqFlag)
+			m.dataBuffer.temperatureLogs = append(m.dataBuffer.temperatureLogs, tempLog)
+		}
+	}
+
 	logger.Debug("指标数据已加入缓冲区",
 		"cpu_logs", len(m.dataBuffer.cpuLogs),
 		"memory_logs", len(m.dataBuffer.memoryLogs),

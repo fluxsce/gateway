@@ -316,5 +316,56 @@ func (dao *ServiceDefinitionDAO) ListServiceDefinitions(ctx context.Context, ten
 		return nil, 0, huberrors.WrapError(err, "查询服务定义列表失败")
 	}
 
+	if err := dao.fillStaticNodeCounts(ctx, tenantId, serviceDefinitions); err != nil {
+		return nil, 0, err
+	}
+
 	return serviceDefinitions, int64(countResult.Count), nil
+}
+
+// fillStaticNodeCounts 按服务定义汇总启用的静态节点数。
+// 只计 activeFlag=Y 的节点。没有节点的服务保持 0。
+func (dao *ServiceDefinitionDAO) fillStaticNodeCounts(ctx context.Context, tenantId string, services []*models.ServiceDefinition) error {
+	ids := make([]string, 0, len(services))
+	for _, svc := range services {
+		if svc == nil || svc.ServiceDefinitionId == "" {
+			continue
+		}
+		ids = append(ids, svc.ServiceDefinitionId)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, 0, len(ids)+1)
+	args = append(args, tenantId)
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args = append(args, id)
+	}
+	query := fmt.Sprintf(
+		"SELECT serviceDefinitionId, COUNT(*) AS nodeCount FROM HUB_GW_SERVICE_NODE WHERE tenantId = ? AND activeFlag = 'Y' AND serviceDefinitionId IN (%s) GROUP BY serviceDefinitionId",
+		strings.Join(placeholders, ","),
+	)
+
+	var rows []struct {
+		ServiceDefinitionId string `db:"serviceDefinitionId"`
+		NodeCount           int    `db:"nodeCount"`
+	}
+	if err := dao.db.Query(ctx, &rows, query, args, true); err != nil {
+		return huberrors.WrapError(err, "查询服务节点数量失败")
+	}
+
+	counts := make(map[string]int, len(rows))
+	for _, row := range rows {
+		counts[row.ServiceDefinitionId] = row.NodeCount
+	}
+	for _, svc := range services {
+		if svc == nil {
+			continue
+		}
+		svc.NodeCount = counts[svc.ServiceDefinitionId]
+	}
+	return nil
 }

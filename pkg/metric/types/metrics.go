@@ -4,9 +4,9 @@ import "time"
 
 // CPUMetrics CPU指标
 type CPUMetrics struct {
-	// CPU使用率 (0-100)
+	// CPU使用率 (0-100)。与下面的分项共用同一段采样：有上次样本时覆盖整个采集间隔，首次采集约 1 秒。不含 idle 与 iowait。
 	UsagePercent float64 `json:"usage_percent"`
-	// 用户态CPU使用率
+	// 用户态 CPU 占比，含 nice。窗口与 UsagePercent 相同。
 	UserPercent float64 `json:"user_percent"`
 	// 系统态CPU使用率
 	SystemPercent float64 `json:"system_percent"`
@@ -69,7 +69,7 @@ type DiskUsageInfo struct {
 	Used         uint64  `json:"used"`          // 已使用空间大小（字节）
 	Free         uint64  `json:"free"`          // 可用空间大小（字节）
 	UsagePercent float64 `json:"usage_percent"` // 使用率百分比 (0-100)
-	
+
 	// inode 信息 (主要用于 Unix 系统)
 	InodesTotal        uint64  `json:"inodes_total"`         // 总 inode 数量
 	InodesUsed         uint64  `json:"inodes_used"`          // 已使用 inode 数量
@@ -277,7 +277,7 @@ type ProcessInfo struct {
 	SharedMemory uint64 `json:"shared_memory"`
 	// 内存使用率 (0-100)
 	MemoryPercent float64 `json:"memory_percent"`
-	// CPU使用率 (0-100)
+	// CPU使用率 (0-100)。采集间隔内进程 CPU 时间占全部逻辑 CPU 的比例。首次采集约 1 秒。
 	CPUPercent float64 `json:"cpu_percent"`
 	// CPU时间统计
 	CPUTimes *ProcessCPUTimes `json:"cpu_times"`
@@ -385,4 +385,4 @@ type AllMetrics struct {
 	Process *ProcessMetrics `json:"process,omitempty"`
 	// 采集时间
 	CollectTime time.Time `json:"collect_time"`
-} 
+}

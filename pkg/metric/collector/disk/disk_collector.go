@@ -5,12 +5,14 @@ package disk
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"gateway/pkg/metric/collector"
 	"gateway/pkg/metric/types"
+	"gateway/pkg/metric/utils"
 
 	"github.com/shirou/gopsutil/v4/disk"
 )
@@ -69,12 +71,6 @@ func (c *DiskCollector) Collect() (interface{}, error) {
 
 	// 记录最后一次采集时间
 	c.SetLastCollectTime(time.Now())
-
-	// 第一次采集后设置标志为false
-	if c.isFirstCollect {
-		c.isFirstCollect = false
-	}
-
 	return metrics, nil
 }
 
@@ -198,8 +194,8 @@ func (c *DiskCollector) getDiskIOStats(ctx context.Context) ([]types.DiskIOStats
 	defer c.mu.Unlock()
 
 	for deviceName, counter := range ioCounters {
-		// 跳过分区，只统计整个磁盘
-		if isPartition(deviceName) {
+		// 只保留整盘。分区和 loop/ram 一类虚拟块设备不计入。
+		if skipDiskIODevice(deviceName) {
 			continue
 		}
 
@@ -217,22 +213,12 @@ func (c *DiskCollector) getDiskIOStats(ctx context.Context) ([]types.DiskIOStats
 			LastCollectTime: now,
 		}
 
-		// 计算IO速率
+		// 计算IO速率。第一次没有基线，速率保持 0。
 		if !c.isFirstCollect {
 			if last, exists := c.lastIOStats[deviceName]; exists {
 				duration := now.Sub(last.LastCollectTime).Seconds()
-				if duration > 0 {
-					iostat.ReadRate = float64(counter.ReadBytes-last.ReadBytes) / duration
-					iostat.WriteRate = float64(counter.WriteBytes-last.WriteBytes) / duration
-
-					// 确保速率不为负数（可能由于计数器重置导致）
-					if iostat.ReadRate < 0 {
-						iostat.ReadRate = 0
-					}
-					if iostat.WriteRate < 0 {
-						iostat.WriteRate = 0
-					}
-				}
+				iostat.ReadRate = utils.CounterRate(counter.ReadBytes, last.ReadBytes, duration)
+				iostat.WriteRate = utils.CounterRate(counter.WriteBytes, last.WriteBytes, duration)
 			}
 		}
 
@@ -241,6 +227,7 @@ func (c *DiskCollector) getDiskIOStats(ctx context.Context) ([]types.DiskIOStats
 		result = append(result, iostat)
 	}
 
+	c.isFirstCollect = false
 	return result, nil
 }
 
@@ -316,13 +303,42 @@ func isVirtualFileSystem(device, fileSystem string) bool {
 	return false
 }
 
-// isPartition 检查是否为分区（内部函数）
+var (
+	partitionNVMe = regexp.MustCompile(`^nvme\d+n\d+p\d+$`)
+	partitionMMC  = regexp.MustCompile(`^mmcblk\d+p\d+$`)
+	partitionSCSI = regexp.MustCompile(`^(?:sd|hd|vd|xvd)[a-z]+\d+$`)
+)
+
+// deviceBaseName 去掉路径，只留内核设备名。
+func deviceBaseName(device string) string {
+	name := device
+	if i := strings.LastIndex(name, "/"); i >= 0 {
+		name = name[i+1:]
+	}
+	return strings.ToLower(name)
+}
+
+// isPartition 判断名字是不是磁盘分区。
+// 整盘 nvme0n1、mmcblk0、sda 返回 false；分区 nvme0n1p1、mmcblk0p1、sda1 返回 true。
+// 不能按“末尾是数字”判断，否则 nvme0n1 整盘会被丢掉。
 func isPartition(device string) bool {
-	// 简单的分区检查逻辑
-	// 通常分区名称以数字结尾
-	if len(device) > 0 {
-		lastChar := device[len(device)-1]
-		return lastChar >= '0' && lastChar <= '9'
+	name := deviceBaseName(device)
+	if name == "" {
+		return false
+	}
+	return partitionNVMe.MatchString(name) || partitionMMC.MatchString(name) || partitionSCSI.MatchString(name)
+}
+
+// skipDiskIODevice 跳过分区和没有整盘意义的虚拟块设备。
+func skipDiskIODevice(device string) bool {
+	if isPartition(device) {
+		return true
+	}
+	name := deviceBaseName(device)
+	for _, prefix := range []string{"loop", "ram", "zram", "fd"} {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
 	}
 	return false
 }
