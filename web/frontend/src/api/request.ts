@@ -98,8 +98,8 @@ function mergeRequestConfig(base: RequestConfig = {}, extra: RequestConfig = {})
  * 传输失败 reject HttpTransportError；取消 reject HttpCancelledError。
  *
  * @example
- * request({ method: 'POST', url: '/gateway/hub0002/queryUsers', data: params })
- * request('POST', '/gateway/hub0002/queryUsers', params)
+ * request({ method: 'POST', url: moduleApiPrefix('hub0002') + '/queryUsers', data: params })
+ * request('POST', moduleApiPrefix('hub0002') + '/queryUsers', params)
  */
 export function request(options: RequestConfig): Promise<JsonDataObj>
 export function request(
@@ -201,7 +201,7 @@ export function patch(url: string, data?: unknown, config?: RequestConfig): Prom
 /**
  * 模块级 API 前缀，例如 createApi(moduleApiPrefix('hub0002'))。
  * 新模块只在 views/hubxxxx/api 里建这一个实例。
- * 模块编码优先用 defaultConfig.meta.module，否则取前缀 /gateway/ 后第一段路径。
+ * 模块编码优先用 defaultConfig.meta.module，否则取接口前缀 /api/ 后第一段路径。
  *
  * @param baseURL - 模块前缀，如 moduleApiPrefix('hub0002')
  * @param defaultConfig - 该模块默认配置（超时、showLoading、meta、signal）

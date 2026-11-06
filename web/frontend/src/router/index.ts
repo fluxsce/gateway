@@ -6,6 +6,7 @@
  * 并提供了路由导航守卫，处理权限验证、页面标题和面包屑导航等功能。
  */
 import { useUserStore } from '@/stores/user'
+import { browserBase } from '@/utils/browserBase'
 import { createRouter, createWebHistory } from 'vue-router'
 import { DynamicRoutes } from './dynamicRoutes'
 import { setupRouteGuards } from './routeGuards'
@@ -16,7 +17,7 @@ import { StaticRoutes } from './staticRoutes'
  * 使用HTML5 History模式，初始化时只加载静态路由
  */
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHistory(browserBase()),
   routes: StaticRoutes.getRoutes(),
 })
 

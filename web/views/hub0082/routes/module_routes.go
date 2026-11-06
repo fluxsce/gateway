@@ -16,9 +16,6 @@ import (
 var (
 	// ModuleName 模块名称，必须与目录名称一致，用于模块识别和查找
 	ModuleName = "hub0082"
-
-	// APIPrefix API路径前缀
-	APIPrefix = routes.ModuleAPIPrefix(ModuleName)
 )
 
 func init() {
@@ -28,7 +25,7 @@ func init() {
 
 // Init 初始化模块路由
 func Init(router *gin.Engine, db database.Database) {
-	group := router.Group(APIPrefix, routes.PermissionRequired()...)
+	group := router.Group(routes.ModuleAPIPrefix(ModuleName), routes.PermissionRequired()...)
 	initAlertLogRoutes(group, db)
 }
 

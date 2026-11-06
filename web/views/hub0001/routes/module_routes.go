@@ -13,9 +13,6 @@ import (
 var (
 	// ModuleName 模块名称
 	ModuleName = "hub0001"
-
-	// APIPrefix API路径前缀
-	APIPrefix = routes.APIRoot + "/user"
 )
 
 // init 包初始化函数
@@ -30,7 +27,7 @@ func Init(router *gin.Engine, db database.Database) {
 	authController := controllers.NewAuthController(db)
 
 	// 创建模块路由组
-	authGroup := router.Group(APIPrefix)
+	authGroup := router.Group(routes.APIRoot() + "/user")
 
 	// 注册认证路由
 	{

@@ -8,8 +8,11 @@ import { dirname } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 import path from 'path'
 
-import { ensisUiHost } from 'ensis-ui/vite-plugins/ensis-ui-host'
+import { browserBaseBootScript } from './scripts/browserBaseInline'
+import { readWebFrontendPrefix } from './scripts/readWebFrontendPrefix'
+
 import vue from '@vitejs/plugin-vue'
+import { ensisUiHost } from 'ensis-ui/vite-plugins/ensis-ui-host'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { defineConfig, loadEnv, type PluginOption, type ProxyOptions } from 'vite'
@@ -50,36 +53,54 @@ function safeParseI18nContent(content: string) {
 
 /**
  * 开发环境下将帮助手册路径代理到独立运行的 VitePress（与 getDocsSitePath() 规则一致）。
- * 另开终端执行 `npm run docs:dev`（默认 5274 端口，与 package.json 的 dev:docs 保持一致），否则 iframe 会 404。
+ * 仓库根目录 `pnpm dev` 会同时启动本服务和 VitePress（5274），不编译。
+ * 产物由根目录 `pnpm build` 生成。只跑 `dev:vite` 时需要另开 `pnpm run docs:dev`。
  *
  * 生产发版：`npm run build` 中的 `build-only` 在 `vite build` 之后执行 `vitepress build docs`。
  * 文档输出到 `dist/docs/`（见 `docs/.vitepress/config.ts` 的 `outDir`），与主应用一并部署即可。
  */
-function resolveDocsDevProxy(env: Record<string, string>): Record<string, ProxyOptions> {
+function resolveDocsDevProxy(
+  env: Record<string, string>,
+  publicPrefix: string,
+): Record<string, ProxyOptions> {
   const target = (env.VITE_DOCS_DEV_TARGET || 'http://127.0.0.1:5274').replace(/\/+$/, '')
-  let base = (env.VITE_BASE_URL || '').trim()
+  const base = publicPrefix.replace(/\/+$/, '')
   if (base === '/' || base === '') {
     return {
       '^/docs': { target, changeOrigin: true, ws: true },
     }
   }
-  if (!base.startsWith('/')) base = `/${base}`
-  base = base.replace(/\/+$/, '')
   return {
     [`^${base}/docs`]: { target, changeOrigin: true, ws: true },
   }
 }
 
 /**
- * 开发环境把后端 API 代理到同源，局域网 IP 打开时登录 Cookie 才能带上。
- * 必须写成 /gateway/（带尾斜杠）。只写 /gateway 会把前端基座 /gatewayweb 一起匹配，
- * 页面会被转到 Go 托管的 dist 打包页，Sources 里就只剩 /assets/*-Hash.js。
+ * 开发环境把管理接口代理到控制面。接口在控制台前缀的 /api 下，例如 /gatewayweb/api/。
+ * 只代理这一段，页面本身仍由 Vite 提供。
+ * @param publicPrefix - configs/web.yaml 的 web.frontend.prefix
+ * @returns 带尾斜杠的接口路径正则
  */
-function resolveDevProxy(env: Record<string, string>): Record<string, ProxyOptions> {
+function apiProxyPattern(publicPrefix: string): string {
+  const base = publicPrefix.replace(/\/+$/, '')
+  if (base === '' || base === '/') return '^/api/'
+  return `^${base}/api/`
+}
+
+/**
+ * 开发环境把后端 API 代理到同源，局域网 IP 打开时登录 Cookie 才能带上。
+ * @param env - Vite 环境变量
+ * @param publicPrefix - 控制台公共路径
+ * @returns 开发代理表
+ */
+function resolveDevProxy(
+  env: Record<string, string>,
+  publicPrefix: string,
+): Record<string, ProxyOptions> {
   const apiTarget = (env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:12003').replace(/\/+$/, '')
   return {
-    ...resolveDocsDevProxy(env),
-    '^/gateway/': { target: apiTarget, changeOrigin: true },
+    ...resolveDocsDevProxy(env, publicPrefix),
+    [apiProxyPattern(publicPrefix)]: { target: apiTarget, changeOrigin: true },
   }
 }
 
@@ -165,12 +186,39 @@ function resolveManualChunk(id: string): string | undefined {
   return undefined
 }
 
+/**
+ * 生产包不写死 /test、/pro。页头脚本按地址栏补上 <base>，相对资源才会落到外层前缀下。
+ * @param mount - web.frontend.prefix
+ * @returns 仅 build 生效的 HTML 插件
+ */
+function browserBasePlugin(mount: string): PluginOption {
+  const script = browserBaseBootScript(mount)
+  return {
+    name: 'gw-browser-base',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) {
+        return html.replace('<head>', `<head>${script}`)
+      },
+    },
+  }
+}
+
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  /** 进程内路径。浏览器外层的 /test、/pro 不写进包，打开页面时从地址栏识别。 */
+  const publicPrefix = readWebFrontendPrefix(__dirname)
 
   return {
-    /** 根据环境变量设置 base，生产环境可为空，开发环境可设子路径 */
-    base: env.VITE_BASE_URL || '/',
+    /**
+     * 开发用绝对路径，方便代理。
+     * 生产用相对路径，同一份 dist 可挂在 /gatewayweb、/test/gatewayweb、/pro/gatewayweb。
+     */
+    base: command === 'build' ? './' : publicPrefix,
+    define: {
+      __GW_MOUNT_PREFIX__: JSON.stringify(publicPrefix),
+    },
 
     plugins: [
       vue(),
@@ -179,6 +227,7 @@ export default defineConfig(({ command, mode }) => {
       ...(ensisUiHost() as unknown as PluginOption[]),
       // 仅开发服务注册 DevTools，避免生产构建携带调试相关逻辑
       ...(command === 'serve' ? [vueDevTools()] : []),
+      browserBasePlugin(publicPrefix),
 
       /**
        * 组件自动导入（本地 G* 等；UI 基座请从 `@/ui` / `ensis-ui` 显式导入）。
@@ -328,10 +377,10 @@ export default defineConfig(({ command, mode }) => {
         allow: ['.', ...(ensisUiRoot ? [ensisUiRoot] : [])],
       },
       /**
-       * 开发：`/gateway/` 代理到后端（不要写成 /gateway，会误伤 /gatewayweb）；
-       * `/gatewayweb/docs` 代理到独立 VitePress。见 `.env.development`。
+       * 开发：`<web.frontend.prefix>/api/` 代理到后端，页面仍由 Vite 提供；
+       * `<web.frontend.prefix>/docs` 代理到独立 VitePress。前缀来自 configs/web.yaml。
        */
-      ...(command === 'serve' ? { proxy: resolveDevProxy(env) } : {}),
+      ...(command === 'serve' ? { proxy: resolveDevProxy(env, publicPrefix) } : {}),
     },
 
     preview: {

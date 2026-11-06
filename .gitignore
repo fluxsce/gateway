@@ -122,6 +122,10 @@ uploads/
 downloads/
 static/uploads/
 
+# Local dumps and exported configs (do not commit)
+scripts/db/mysql_full.sql
+configs/sipi-datahub-gateway-cm(1).yaml
+
 # Docker
 .docker/
 docker-compose.override.yml

@@ -2,6 +2,7 @@
  * 应用配置文件
  * 用于加载和管理环境变量，提供全局配置访问
  */
+import { browserBase } from '@/utils/browserBase'
 
 /**
  * 系统配置接口
@@ -66,7 +67,7 @@ function getEnvNumber(key: string, defaultValue: number = 0): number {
 export const config: SystemConfig = {
   appTitle: getEnv('VITE_APP_TITLE', 'Gateway Web'),
   appVersion: getEnv('VITE_APP_VERSION', '1.0.0'),
-  baseUrl: getEnv('VITE_BASE_URL', '/'),
+  baseUrl: browserBase(),
   apiBaseUrl: getEnv('VITE_API_BASE_URL', '/api'),
   apiTimeout: getEnvNumber('VITE_API_TIMEOUT', 30000),
   useMock: getEnvBoolean('VITE_USE_MOCK', false),

@@ -13,9 +13,6 @@ import (
 var (
 	// ModuleName 模块名称
 	ModuleName = "hub0061"
-
-	// APIPrefix API路径前缀
-	APIPrefix = routes.ModuleAPIPrefix(ModuleName)
 )
 
 // init 包初始化函数，自动注册hub0061模块的路由
@@ -42,7 +39,7 @@ func RegisterHub0061Routes(router *gin.Engine, db database.Database) {
 	logger.Info("静态端口映射管理控制器已创建", "module", ModuleName)
 
 	// 创建模块路由组
-	hub0061Group := router.Group(APIPrefix)
+	hub0061Group := router.Group(routes.ModuleAPIPrefix(ModuleName))
 
 	// 需要认证的路由
 	protectedGroup := hub0061Group.Group("")
@@ -88,7 +85,7 @@ func RegisterHub0061Routes(router *gin.Engine, db database.Database) {
 
 	logger.Info("hub0061模块路由注册完成",
 		"module", ModuleName,
-		"prefix", APIPrefix,
+		"prefix", routes.ModuleAPIPrefix(ModuleName),
 		"services", "静态服务器管理、静态节点管理",
 		"features", "服务器增删改查/启停/重载、节点增删改查")
 }

@@ -66,9 +66,9 @@ func ModuleCodeFromResourceOrPath(resourceCode, path string) string {
 	return moduleCodeFromGatewayPath(path)
 }
 
-// moduleCodeFromGatewayPath 从 /gateway/{hubxxxx}/... 取出模块编码。
+// moduleCodeFromGatewayPath 从接口根路径后的第一段取出模块编码，例如 /gatewayweb/api/hub0002/...。
 func moduleCodeFromGatewayPath(path string) string {
-	prefix := constants.APIRoot + "/"
+	prefix := constants.APIRoot() + "/"
 	if !strings.HasPrefix(path, prefix) {
 		return ""
 	}

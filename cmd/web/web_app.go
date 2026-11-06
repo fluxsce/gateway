@@ -10,6 +10,7 @@ import (
 	"gateway/pkg/utils/huberrors"
 	"gateway/web/middleware"
 	"gateway/web/routes"
+	"gateway/web/utils/constants"
 	"io"
 	"net/http"
 	"os"
@@ -270,9 +271,13 @@ func NewWebApp(db database.Database) *WebApp {
 			"resolvedPath", resolvedStaticPath)
 	}
 
-	// 配置Vue3前端静态资源服务
+	// 配置Vue3前端静态资源服务。接口根路径与页面共用 web.frontend.prefix，挂在其 /api 下。
 	frontendPath := config.GetString("web.frontend.path", "./web/frontend/dist")
 	frontendPrefix := config.GetString("web.frontend.prefix", "/")
+	constants.SetAPIRoot(frontendPrefix)
+	logger.Info("管理端接口根路径已对齐控制台前缀",
+		"frontendPrefix", frontendPrefix,
+		"apiRoot", constants.APIRoot())
 	if frontendPath != "" {
 		// 使用ResolvePath解析前端文件路径，处理环境变量指定的配置目录情况
 		resolvedFrontendPath := config.ResolvePath(frontendPath)
@@ -309,8 +314,8 @@ func NewWebApp(db database.Database) *WebApp {
 		router.NoRoute(func(c *gin.Context) {
 			path := c.Request.URL.Path
 
-			// 如果是API请求（包括/gateway/开头的路径），返回JSON格式的404
-			if strings.HasPrefix(path, "/api/") {
+			// 当前接口，以及上一版 /gateway 前缀，都返回 JSON。旧客户端不能把首页 HTML 当成成功。
+			if unmatchedPathReturnsJSON(path, constants.APIRoot()) {
 				c.JSON(http.StatusNotFound, gin.H{
 					"code":    "404",
 					"message": "API endpoint not found",
@@ -366,6 +371,23 @@ func (app *WebApp) GetPort() int {
 // Router 获取Gin路由引擎
 func (app *WebApp) Router() *gin.Engine {
 	return app.router
+}
+
+// unmatchedPathReturnsJSON 判断未注册路径是否必须返回 JSON，而不能回控制台首页。
+// 当前接口在 apiRoot 下。/gateway 是上一版管理端前缀，不再转发。
+// 控制台自己挂在 /gateway 时，/gateway 和 /gateway/ 开头的是页面，不按旧接口处理。
+func unmatchedPathReturnsJSON(path, apiRoot string) bool {
+	if path == apiRoot || strings.HasPrefix(path, apiRoot+"/") {
+		return true
+	}
+	const retired = "/gateway"
+	if path != retired && !strings.HasPrefix(path, retired+"/") {
+		return false
+	}
+	if apiRoot == retired || strings.HasPrefix(apiRoot, retired+"/") {
+		return false
+	}
+	return true
 }
 
 // normalizeHealthPath 规范化进程级健康检查路径。

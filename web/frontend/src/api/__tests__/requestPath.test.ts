@@ -3,9 +3,10 @@ import { GATEWAY_PREFIX, moduleApiPrefix, requestPathHelper } from '../requestPa
 
 describe('requestPath', () => {
   it('moduleApiPrefix joins GATEWAY_PREFIX and module name', () => {
-    expect(moduleApiPrefix('hub0007')).toBe(`${GATEWAY_PREFIX.replace(/\/$/, '')}/hub0007`)
-    expect(moduleApiPrefix('hubcommon002')).toBe('/gateway/hubcommon002')
-    expect(moduleApiPrefix('user')).toBe('/gateway/user')
+    const root = GATEWAY_PREFIX.replace(/\/$/, '')
+    expect(moduleApiPrefix('hub0007')).toBe(`${root}/hub0007`)
+    expect(moduleApiPrefix('hubcommon002')).toBe(`${root}/hubcommon002`)
+    expect(moduleApiPrefix('user')).toBe(`${root}/user`)
   })
 
   it('readModule still parses hub code from prefixed path', () => {

@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [3.5.5] - 2026-11-06
+
+### 变更
+- **控制台页面和接口共用一个前缀**：管理端接口从 `/gateway/hubxxxx`、`/gateway/user/login` 改到 `web.frontend.prefix` 下的 `/api`。默认是 `/gatewayweb/api/hubxxxx`，登录是 `/gatewayweb/api/user/login`。旧的 `/gateway` 不再转发；打到这个前缀上的请求返回 JSON 404，不再回控制台首页。控制台、手册 `/gatewayweb/docs` 和接口因此可以只反代 `/gatewayweb`。数据面端口、`web.health.path`（默认 `/health`）、服务注册里的 contextPath、隧道的 TCP 地址不走这条 HTTP 前缀。
+- **一份前端包可以挂在同一域名的外层路径下**：生产构建不写死 `/test`、`/pro`。浏览器打开 `/test/gatewayweb` 或 `/pro/gatewayweb` 时按地址栏补上基准路径，静态资源、路由和接口跟着走。进程内 `web.frontend.prefix` 仍是 `/gatewayweb`。Nginx 去掉外层后再转到 `/gatewayweb/`，`location` 和 `proxy_pass` 都要带尾斜杠。
+- **控制台前后端一起升级**：只换后端时，旧页面仍请求 `/gateway/...`，接口已不存在。只换前端时，新页面请求 `/gatewayweb/api/...`，旧进程没有这些路由。已经把整个 `/gatewayweb` 反代到控制面端口的，浏览器仍从原来的 `/gatewayweb` 打开，已有登录 Cookie 的名称和路径不变。库里菜单的 `resourcePath`（如 `/gateway/gatewayInstanceManager`）不参与页面跳转，不用改数据。Swagger 注释里的 `/gateway/...` 只是注解，请求不走那里。直接调用旧管理端地址的脚本需要改到 `/gatewayweb/api/...`。同一域名上的 `/test` 和 `/pro` 仍共用路径为 `/` 的登录 Cookie。
+
 ## [3.5.4] - 2026-11-04
 
 

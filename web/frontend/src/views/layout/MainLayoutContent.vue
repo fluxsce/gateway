@@ -3,7 +3,7 @@
   - 监听 `route.fullPath`：主布局内用 URL 对齐页签（刷新、书签、前进后退）；仅命中 mainLayout 壳（无子路由）时清空页签，回到欢迎占位，避免后退到 `/` 仍保留旧页签导致遮罩卡死。
   - 监听 `layoutActiveTabId`，解析对应 tab 的 `path` 做 `router.push`，与侧栏 upsert / 头部切换共用一套路由同步。
   - 未对齐时在内容区叠遮罩（与默认加载视觉一致，底层不透出上一页），路由到位后消失；不卸载 router-view。
-  - 全页刷新（F5）：`onMounted` + `nextTick` 内用 Performance API 判断，随后 `router.replace('/')` 回到 SPA 根（地址栏即 `VITE_BASE_URL` 对应前缀 + `/`，与 `config.baseUrl` 一致）。
+  - 全页刷新（F5）：`onMounted` + `nextTick` 内用 Performance API 判断，随后 `router.replace('/')` 回到 SPA 根（地址栏即 web.frontend.prefix 对应前缀 + `/`，与 `config.baseUrl` 一致）。
 -->
 <template>
   <main class="main-layout-content">
@@ -121,7 +121,7 @@ function stripTrailingSlash(p: string): string {
   return s.replace(/\/+$/, '')
 }
 
-/** 地址栏是否已在「仅 VITE_BASE_URL、无业务子路径」（如 `/gatewayweb` 或 `/gatewayweb/`） */
+/** 地址栏是否已在控制台根路径、无业务子路径（如 `/gatewayweb` 或 `/gatewayweb/`） */
 function isLocationAtAppPublicRoot(): boolean {
   const base = stripTrailingSlash(config.baseUrl || '/')
   const path = stripTrailingSlash(window.location.pathname)
@@ -131,7 +131,7 @@ function isLocationAtAppPublicRoot(): boolean {
 
 /**
  * 全页刷新时回到 SPA 根：`router` 的 `path: '/'` 对应 `createWebHistory(BASE_URL)` 下站点根，
- * 浏览器地址为 `config.baseUrl` + `/`（与 `VITE_BASE_URL` 一致）。
+ * 浏览器地址为 `config.baseUrl` + `/`（与 configs/web.yaml 的 web.frontend.prefix 一致）。
  */
 function redirectToAppBaseOnReload() {
   if (isLocationAtAppPublicRoot()) return

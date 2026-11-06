@@ -2,30 +2,97 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { defineConfig } from 'vitepress'
-import { loadEnv } from 'vite'
+import type { Plugin } from 'vitepress'
+
+import {
+  docsBaseBootScript,
+  docsSiteDataPatchScript,
+  rewriteDocsBaseLiterals,
+} from '../../scripts/browserBaseInline'
+import { readWebFrontendPrefix } from '../../scripts/readWebFrontendPrefix'
 
 const vitepressDir = path.dirname(fileURLToPath(import.meta.url))
-/** 前端包根目录（含 .env*），避免 VitePress 解析配置时 cwd 非 web/frontend 导致 base 错误 */
+/** 前端包根目录，用于定位仓库 configs/web.yaml */
 const frontendRoot = path.resolve(vitepressDir, '../..')
 
 /**
- * 文档站点 base：与主应用 `.env` 中 `VITE_BASE_URL` 对齐，并固定挂在 `/docs/` 子路径下，
- * 避免与主应用根路径冲突（例如主应用为 `/gatewayweb/` 时，文档为 `/gatewayweb/docs/`）。
+ * 文档站点 base：与 configs/web.yaml 的 web.frontend.prefix 对齐，并固定挂在 `/docs/` 子路径下。
+ * 例如 prefix 为 `/gatewayweb` 时，文档为 `/gatewayweb/docs/`。
  */
-function resolveDocsBase(mode: string): string {
-  const env = loadEnv(mode, frontendRoot, '')
-  let p = (env.VITE_BASE_URL ?? '').trim()
+function resolveDocsBase(): string {
+  const p = readWebFrontendPrefix(frontendRoot)
   if (p === '/' || p === '') {
     return '/docs/'
   }
-  if (!p.startsWith('/')) {
-    p = `/${p}`
-  }
-  p = p.replace(/\/+$/, '')
   return `${p}/docs/`
 }
 
-const vitepressEnvMode = process.env.NODE_ENV === 'production' ? 'production' : 'development'
+/**
+ * 只改 href/src，避免动到页面里 JSON 的 base 字段。
+ * 手册根链接变成 ./，其余去掉打包时的绝对前缀，交给页头 <base> 解析。
+ * @param html - 页面 HTML
+ * @param docsBase - 打包时的手册 base，例如 /gatewayweb/docs/
+ * @returns 改写后的 HTML
+ */
+function relativizeDocsHtml(html: string, docsBase: string): string {
+  const escaped = docsBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const pattern = new RegExp(`(\\s(?:href|src)=["'])${escaped}`, 'g')
+  return html.replace(pattern, (match, attrPrefix: string, offset: number, source: string) => {
+    const rest = source.slice(offset + match.length)
+    const target = rest.startsWith('"') || rest.startsWith("'") ? './' : ''
+    return `${attrPrefix}${target}`
+  })
+}
+
+/**
+ * 把脚本里以打包路径开头的字符串改成运行时手册 base 拼接。
+ * 本地搜索索引是一整段 JSON，绝对路径改成相对手册根目录，交给页头 <base> 解析。
+ * @param docsBase - 打包时的手册 base
+ * @returns Vite 插件
+ */
+function docsRuntimeBasePlugin(docsBase: string): Plugin {
+  let serverBuild = false
+  return {
+    name: 'gw-docs-runtime-base',
+    apply: 'build',
+    configResolved(config) {
+      serverBuild = Boolean(config.build.ssr)
+    },
+    generateBundle: {
+      order: 'post',
+      handler(_options, bundle) {
+        const assetsFrom = `${docsBase}assets/`
+        for (const item of Object.values(bundle)) {
+          if (item.type === 'chunk') {
+            if (item.fileName.includes('localSearchIndex')) {
+              item.code = item.code.split(`"${docsBase}`).join('"./')
+              continue
+            }
+            item.code = rewriteDocsBaseLiterals(item.code, docsBase, !serverBuild)
+            continue
+          }
+          if (item.type === 'asset' && item.fileName.endsWith('.css')) {
+            const css = decodeCssSource(item.source)
+            if (css == null) continue
+            const inAssets = item.fileName.includes('assets/')
+            item.source = css.split(assetsFrom).join(inAssets ? './' : 'assets/')
+          }
+        }
+      },
+    },
+  }
+}
+
+/**
+ * 样式资源在 Vite 里可能是字符串，也可能是字节。
+ * @param source - 资源内容
+ * @returns 文本；无法识别时返回 null
+ */
+function decodeCssSource(source: string | Uint8Array): string | null {
+  if (typeof source === 'string') return source
+  if (source instanceof Uint8Array) return Buffer.from(source).toString('utf8')
+  return null
+}
 
 /**
  * 模块侧栏分组：与 `src/router/layoutRouteRegistry.ts` 中 `GATEWAY_LAYOUT_ROUTE_TREE`
@@ -91,8 +158,23 @@ const moduleSidebarGroups = [
   },
 ]
 
+const docsBase = resolveDocsBase()
+const docsMount = readWebFrontendPrefix(frontendRoot)
+
 export default defineConfig({
-  base: resolveDocsBase(vitepressEnvMode),
+  base: docsBase,
+  vite: {
+    server: {
+      host: true,
+    },
+    plugins: [docsRuntimeBasePlugin(docsBase)],
+  },
+  transformHtml(code) {
+    const withRelative = relativizeDocsHtml(code, docsBase)
+    return withRelative
+      .replace('<head>', `<head>${docsBaseBootScript(docsMount)}`)
+      .replace('</body>', `${docsSiteDataPatchScript()}</body>`)
+  },
   /**
    * 构建产物写入主应用 dist，与 `npm run build` 中 `vite build` 输出同目录，
    * 部署后 iframe / 新窗口访问的 `/…/docs/` 与 `getDocsSitePath()` 一致。

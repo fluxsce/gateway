@@ -13,9 +13,6 @@ import (
 var (
 	// ModuleName 模块名称，必须与目录名称一致，用于模块识别和查找
 	ModuleName = "hub0003"
-
-	// APIPrefix API路径前缀，所有该模块的API都将以此为基础路径
-	APIPrefix = routes.ModuleAPIPrefix(ModuleName)
 )
 
 // init 包初始化函数
@@ -28,7 +25,7 @@ func init() {
 // Init 初始化模块路由
 func Init(router *gin.Engine, db database.Database) {
 	// 创建模块路由组，所有路由都需要认证
-	group := router.Group(APIPrefix, routes.PermissionRequired()...)
+	group := router.Group(routes.ModuleAPIPrefix(ModuleName), routes.PermissionRequired()...)
 
 	// 初始化各个子模块的路由
 	initSchedulerRoutes(group, db)

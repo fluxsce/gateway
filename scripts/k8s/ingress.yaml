@@ -50,7 +50,7 @@ spec:
     - host: gateway.local
       http:
         paths:
-          # Web 控制台（必须在 / 之前）
+          # 控制台页面和 /api 都在 /gatewayweb 下，转到控制面。
           - path: /gatewayweb
             pathType: Prefix
             backend:
@@ -58,15 +58,7 @@ spec:
                 name: gateway-service
                 port:
                   number: 12003
-          # Gateway API（必须在 / 之前）
-          - path: /gateway
-            pathType: Prefix
-            backend:
-              service:
-                name: gateway-service
-                port:
-                  number: 12003
-          # API Gateway（放在最后，作为默认路由）
+          # 数据面（放在最后，作为默认路由）
           - path: /
             pathType: Prefix
             backend:
@@ -79,7 +71,7 @@ spec:
     # 注意：路径匹配顺序很重要！更具体的路径要放在前面
     - http:
         paths:
-          # Web 控制台（必须在 / 之前）
+          # 控制台页面和 /api 都在 /gatewayweb 下，转到控制面。
           - path: /gatewayweb
             pathType: Prefix
             backend:
@@ -87,15 +79,7 @@ spec:
                 name: gateway-service
                 port:
                   number: 12003
-          # Gateway API（必须在 / 之前）
-          - path: /gateway
-            pathType: Prefix
-            backend:
-              service:
-                name: gateway-service
-                port:
-                  number: 12003
-          # API Gateway（放在最后，作为默认路由）
+          # 数据面（放在最后，作为默认路由）
           - path: /
             pathType: Prefix
             backend:

@@ -28,16 +28,13 @@ var registeredModules = make(map[string]*ModuleInfo)
 //   - moduleName: 模块名称
 //   - initFunc: 路由注册函数
 func RegisterModuleRoutes(moduleName string, initFunc RouteInitFunc) {
-	// 根据模块名称推断API基础路径
-	basePath := ModuleAPIPrefix(moduleName)
-
+	// BasePath 等到 DiscoverModules 再算。init 阶段配置还没把接口根路径对齐到 web.frontend.prefix。
 	registeredModules[moduleName] = &ModuleInfo{
 		Name:     moduleName,
-		BasePath: basePath,
 		InitFunc: initFunc,
 	}
 
-	logger.Info("已注册模块的路由初始化函数", "module", moduleName, "basePath", basePath)
+	logger.Info("已注册模块的路由初始化函数", "module", moduleName)
 }
 
 // RouteDiscovery 路由发现器
@@ -68,16 +65,18 @@ func (rd *RouteDiscovery) DiscoverModules() []Module {
 
 	// 遍历所有已注册的模块
 	for _, moduleInfo := range registeredModules {
-		// 创建标准模块实例
+		// 此时 SetAPIRoot 已按 web.frontend.prefix 设好，前缀才是最终值。
+		basePath := ModuleAPIPrefix(moduleInfo.Name)
+		moduleInfo.BasePath = basePath
 		module := &StandardModule{
 			name:     moduleInfo.Name,
-			basePath: moduleInfo.BasePath,
+			basePath: basePath,
 			initFunc: moduleInfo.InitFunc,
 			db:       rd.db,
 		}
 
 		modules = append(modules, module)
-		logger.Info("发现已注册模块", "name", moduleInfo.Name, "basePath", moduleInfo.BasePath)
+		logger.Info("发现已注册模块", "name", moduleInfo.Name, "basePath", basePath)
 	}
 
 	logger.Info("模块发现完成", "总数", len(modules))

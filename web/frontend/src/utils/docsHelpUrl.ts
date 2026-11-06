@@ -2,7 +2,7 @@ import { config } from '@/config/config'
 
 /**
  * 返回控制台内嵌帮助（VitePress）站点的路径前缀，与 `docs/.vitepress/config.ts` 中 `resolveDocsBase` 规则一致。
- * 例如 `VITE_BASE_URL=/gatewayweb` 时得到 `/gatewayweb/docs/`。
+ * 前缀来自 configs/web.yaml 的 web.frontend.prefix。例如 `/gatewayweb` 时得到 `/gatewayweb/docs/`。
  */
 export function getDocsSitePath(): string {
   let p = (config.baseUrl ?? '').trim()

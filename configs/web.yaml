@@ -45,8 +45,7 @@ web:
   # 前端静态资源配置
   frontend:
     path: "./web/frontend/dist"
-    # prefix 配置说明：
-    # "/" - 根路径模式（默认）：前端占据根路径，适合前端为主的应用
-    # "/admin" - 自定义前缀模式：前端在 /admin 路径下，适合管理后台
-    # "/web" - 自定义前缀模式：前端在 /web 路径下，适合多应用共存
+    # prefix 是进程内路径。Go 按它挂 dist，接口在该路径的 /api 下。
+    # 同一个域名用 /test、/pro 区分环境时，nginx 去掉外层后再转到这里。
+    # 前端只打一份，浏览器上的 /test/gatewayweb、/pro/gatewayweb 打开页面时识别，不用按环境重打。
     prefix: "/gatewayweb" 

@@ -11,6 +11,8 @@
    */
   "include": [
     "vite.config.*", // Vite构建工具配置
+    "scripts/readWebFrontendPrefix.ts",
+    "scripts/browserBaseInline.ts",
     "vitest.config.*", // Vitest测试框架配置
     "cypress.config.*", // Cypress端到端测试配置
     "nightwatch.conf.*", // Nightwatch端到端测试配置

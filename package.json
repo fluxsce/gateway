@@ -1,10 +1,12 @@
 {
   "name": "gateway",
-  "version": "3.5.4",
+  "version": "3.5.5",
   "private": true,
   "scripts": {
-    "dev": "node web/frontend/node_modules/concurrently/dist/bin/concurrently.js -k -s first -n GO,VITE -c yellow,cyan \"npm:dev:go\" \"npm:dev:vite\"",
+    "dev": "node web/frontend/node_modules/concurrently/dist/bin/concurrently.js -k -s first -n GO,VITE,DOCS -c yellow,cyan,magenta \"npm:dev:go\" \"npm:dev:vite\" \"npm:dev:docs\"",
+    "build": "pnpm --dir web/frontend run build-only",
     "dev:go": "go run cmd/app/main.go --config ./configs",
-    "dev:vite": "pnpm --dir web/frontend run dev:vite"
+    "dev:vite": "pnpm --dir web/frontend run dev:vite",
+    "dev:docs": "pnpm --dir web/frontend run dev:docs"
   }
 }

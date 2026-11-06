@@ -16,10 +16,6 @@ import (
 var (
 	// ModuleName 模块名称，必须与目录名称一致，用于模块识别和查找
 	ModuleName = "hubplugin"
-
-	// APIPrefix API路径前缀，所有该模块的API都将以此为基础路径
-	// 实际路由时将根据RouteDiscovery的设置可能会使用"/api/hubplugin"
-	APIPrefix = routes.ModuleAPIPrefix(ModuleName)
 )
 
 // init 包初始化函数
@@ -45,7 +41,7 @@ func init() {
 //   - db: 数据库连接实例
 func Init(router *gin.Engine, db database.Database) {
 	// 创建模块路由组
-	group := router.Group(APIPrefix, routes.PermissionRequired()...)
+	group := router.Group(routes.ModuleAPIPrefix(ModuleName), routes.PermissionRequired()...)
 	//sftp路由哦欸之初始化
 	//commonroutes.Init(group, db)
 	// 服务端代发 HTTP（供前端 REST 调试等调用）

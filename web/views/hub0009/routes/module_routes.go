@@ -17,8 +17,6 @@ import (
 var (
 	// ModuleName 模块名称，必须与目录名称一致。
 	ModuleName = "hub0009"
-	// APIPrefix API 路径前缀。
-	APIPrefix = routes.ModuleAPIPrefix(ModuleName)
 )
 
 func init() {
@@ -30,7 +28,7 @@ func init() {
 func Init(router *gin.Engine, db database.Database) {
 	loadStore(db)
 
-	group := router.Group(APIPrefix, routes.PermissionRequired()...)
+	group := router.Group(routes.ModuleAPIPrefix(ModuleName), routes.PermissionRequired()...)
 	ctrl := controllers.NewSettingController(db)
 	group.POST("/getEnvSettings", ctrl.GetEnvSettings)
 	group.POST("/getSystemHealth", ctrl.GetSystemHealth)

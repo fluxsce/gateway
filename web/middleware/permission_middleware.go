@@ -30,8 +30,10 @@ func GetPermissionService() *permission.PermissionService {
 }
 
 // gatewayModulePattern 从受保护 API 路径解析模块码。
-// 例如 /gateway/hub0021/routes -> 捕获组为 hub0021。
-var gatewayModulePattern = regexp.MustCompile("^" + regexp.QuoteMeta(constants.APIRoot) + `/(hub[0-9a-z]+)`)
+// 根路径随 web.frontend.prefix 变化，例如 /gatewayweb/api/hub0021/routes -> hub0021。
+func gatewayModulePattern() *regexp.Regexp {
+	return regexp.MustCompile("^" + regexp.QuoteMeta(constants.APIRoot()) + `/(hub[0-9a-z]+)`)
+}
 
 // sharedAPIModuleMap 将「无独立 MODULE 资源」的公共 API 前缀映射到业务模块。
 // hubcommon002 的跨域/认证/限流等接口同时被实例管理、路由管理、代理管理使用，
@@ -130,7 +132,7 @@ func bindUserResourceCodesContext(c *gin.Context) context.Context {
 // moduleCodesForRequestPath 根据 API 路径得到需要校验的模块码列表。
 // 返回空切片表示路径不在网关业务模块约定内，调用方应仅做登录校验。
 func moduleCodesForRequestPath(path string) []string {
-	matches := gatewayModulePattern.FindStringSubmatch(path)
+	matches := gatewayModulePattern().FindStringSubmatch(path)
 	if len(matches) < 2 {
 		return nil
 	}
@@ -233,7 +235,7 @@ func HasPermission(c *gin.Context, moduleCode, resourceCode, buttonCode, resourc
 // mustChangePwdAllowed 强制改密期间仅允许改密、登出、查自己、刷新会话。
 func mustChangePwdAllowed(method, path string) bool {
 	p := strings.TrimSuffix(path, "/")
-	root := constants.APIRoot + "/user"
+	root := constants.APIRoot() + "/user"
 	switch {
 	case strings.EqualFold(method, http.MethodPut) && p == root+"/password":
 		return true

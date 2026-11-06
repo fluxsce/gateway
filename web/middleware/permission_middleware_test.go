@@ -8,7 +8,7 @@ import (
 )
 
 func TestMustChangePwdAllowed(t *testing.T) {
-	root := constants.APIRoot + "/user"
+	root := constants.APIRoot() + "/user"
 	if !mustChangePwdAllowed(http.MethodPut, root+"/password") {
 		t.Fatal("改密接口应放行")
 	}
@@ -24,7 +24,7 @@ func TestMustChangePwdAllowed(t *testing.T) {
 	if mustChangePwdAllowed(http.MethodPut, root+"/profile") {
 		t.Fatal("强制改密期间不应改资料")
 	}
-	if mustChangePwdAllowed(http.MethodPost, constants.APIRoot+"/hub0002/queryUsers") {
+	if mustChangePwdAllowed(http.MethodPost, constants.APIRoot()+"/hub0002/queryUsers") {
 		t.Fatal("业务接口不应放行")
 	}
 }

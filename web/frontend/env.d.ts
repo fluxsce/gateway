@@ -5,6 +5,16 @@
 
 /// <reference types="vite/client" />  // 引用Vite客户端类型定义，提供import.meta.env等Vite特有API的类型支持
 
+/** 进程内控制台路径，构建时由 web.frontend.prefix 注入 */
+declare const __GW_MOUNT_PREFIX__: string
+
+interface Window {
+  /** 页头脚本按地址栏算出的浏览器控制台路径，不含尾斜杠 */
+  __GW_BROWSER_BASE__?: string
+  /** 帮助手册在浏览器上的 base，带尾斜杠 */
+  __GW_DOCS_BASE__?: string
+}
+
 /**
  * Vue单文件组件(.vue)的类型声明
  * 使TypeScript能够识别.vue文件作为Vue组件模块

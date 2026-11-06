@@ -1,0 +1,1 @@
+import{U as t,D as l}from"./ensis-ui-674SLu0K.js";const s=t(l("hub0010")),r=async()=>s.post("/queryTools",{}),e=async(o,n)=>s.post("/installTool",{toolId:o,config:n}),i=async o=>s.post("/uninstallTool",{toolId:o}),u=async(o,n)=>s.post("/saveToolConfig",{toolId:o,config:n});export{e as i,r as q,u as s,i as u};

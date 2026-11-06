@@ -13,9 +13,6 @@ import (
 var (
 	// ModuleName 模块名称
 	ModuleName = "hub0000"
-
-	// APIPrefix API路径前缀
-	APIPrefix = routes.ModuleAPIPrefix(ModuleName)
 )
 
 // init 包初始化函数
@@ -29,7 +26,7 @@ func Init(router *gin.Engine, db database.Database) {
 	logger.Info("初始化指标查询模块路由", "module", ModuleName)
 
 	// 创建模块路由组
-	metricGroup := router.Group(APIPrefix)
+	metricGroup := router.Group(routes.ModuleAPIPrefix(ModuleName))
 
 	// 注册指标查询路由
 	{

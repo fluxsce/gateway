@@ -14,9 +14,6 @@ import (
 var (
 	// ModuleName 模块名称
 	ModuleName = "hub0023"
-
-	// APIPrefix API路径前缀
-	APIPrefix = routes.ModuleAPIPrefix(ModuleName)
 )
 
 // init 包初始化函数
@@ -28,7 +25,7 @@ func init() {
 // Init 初始化模块路由
 func Init(router *gin.Engine, db database.Database) {
 	// 创建模块路由组
-	gatewayLogGroup := router.Group(APIPrefix)
+	gatewayLogGroup := router.Group(routes.ModuleAPIPrefix(ModuleName))
 
 	// 注册网关日志路由
 	{

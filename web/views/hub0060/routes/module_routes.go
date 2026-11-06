@@ -13,9 +13,6 @@ import (
 var (
 	// ModuleName 模块名称
 	ModuleName = "hub0060"
-
-	// APIPrefix API路径前缀
-	APIPrefix = routes.ModuleAPIPrefix(ModuleName)
 )
 
 // init 包初始化函数，自动注册hub0060模块的路由
@@ -41,7 +38,7 @@ func RegisterHub0060Routes(router *gin.Engine, db database.Database) {
 	logger.Info("隧道服务器管理控制器已创建", "module", ModuleName)
 
 	// 创建模块路由组
-	hub0060Group := router.Group(APIPrefix)
+	hub0060Group := router.Group(routes.ModuleAPIPrefix(ModuleName))
 
 	// 需要认证的路由
 	protectedGroup := hub0060Group.Group("")
@@ -79,7 +76,7 @@ func RegisterHub0060Routes(router *gin.Engine, db database.Database) {
 
 	logger.Info("hub0060模块路由注册完成",
 		"module", ModuleName,
-		"prefix", APIPrefix,
+		"prefix", routes.ModuleAPIPrefix(ModuleName),
 		"services", "隧道服务器管理",
 		"features", "查询、创建、查看、编辑、删除、状态管理、统计信息、连接测试、启动、停止、重启、配置重载")
 }
